@@ -35,6 +35,7 @@
 #include "perf/torirs_perf.h"
 #include "render/torirs_frame.h"
 #include "render/torirs_pick.h"
+#include "render/trspk_pose_pool.h"
 #include "render/trspk_sprite.h"
 #include "render/trspk_toridraw.h"
 
@@ -570,6 +571,10 @@ struct ToriPlatformSDL2_Renderer_GL3
     int pick_mouse_x;
     int pick_mouse_y;
     struct ToriRS_PickHits pick_hits;
+
+    /* Dynamic bakes kept by pose (render/trspk_pose_pool.h). Both world
+     * paths bake a dynamic model in its own face order, so both use it. */
+    struct TRSPK_PosePool pose_pool;
 };
 
 /* --- shared helpers, implemented in platform_sdl2_renderer_gl3.c ---------- */

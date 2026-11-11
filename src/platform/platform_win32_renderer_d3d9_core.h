@@ -36,6 +36,7 @@
 #include "core/trspk_triangles.h"
 #include "core/trspk_vbo.h"
 #include "render/torirs_frame.h"
+#include "render/trspk_pose_pool.h"
 #include "render/trspk_toridraw.h"
 
 #include "toridraw_font.h"
@@ -404,6 +405,10 @@ struct ToriPlatformWin32_Renderer_D3D9
     int pick_mouse_x;
     int pick_mouse_y;
     struct ToriRS_PickHits pick_hits;
+
+    /* Dynamic bakes kept by pose (render/trspk_pose_pool.h). Both world
+     * paths bake a dynamic model in its own face order, so both use it. */
+    struct TRSPK_PosePool pose_pool;
 };
 
 /**
@@ -427,6 +432,10 @@ struct D3D9ModelPlacement
     int anim_index;
     int pose_id;
     bool dynamic;
+    /** Whether the scene's bench holds THIS model's projection. Always on
+     *  the painter path; on the depth path only when the pick needed it, so
+     *  the blended-face sort projects first when it is false. */
+    bool projected_in_scene;
 };
 
 /**

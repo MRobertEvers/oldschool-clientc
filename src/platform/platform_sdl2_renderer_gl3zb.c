@@ -388,7 +388,8 @@ GL3ZB_SubmitModel(
     struct ToriDraw_Scene* ctx,
     uint32_t group,
     uint32_t vertex_base,
-    int face_count)
+    int face_count,
+    bool projected)
 {
     const struct GL3MaterialPose* material;
     uint32_t written = 0u;
@@ -438,6 +439,14 @@ GL3ZB_SubmitModel(
         return;
 
     /* Only now, and only for models that really have translucency. */
+    if( !projected )
+    {
+        struct ToriDraw_Position position = mcmd->position;
+        if( ToriDraw_RenderModel1ProjectWithTable(
+                mcmd->model, ctx, &position, &renderer->cur_3d.view_port, &renderer->cur_3d.camera,
+                renderer->kernel) != TORIDRAW_CULL_VISIBLE )
+            return;
+    }
     sorted_face_count =
         ToriDraw_RenderModel2SortFacesWithTable(mcmd->model, ctx, renderer->kernel);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_Z_SORTED_MODELS, 1);

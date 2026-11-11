@@ -944,8 +944,12 @@ struct ES2ModelPlacement
     const int* face_order;
     /** Whether the scene's own bench holds THIS model's projection right now.
      *  False when a stage source projected it elsewhere: a depth-path emit
-     *  that needs to sort must project again first. */
+     *  that needs to sort must project again first. Also false on the depth
+     *  path when nothing needed the projection (no pick under the cursor):
+     *  the emit projects there only for a model with blended faces. */
     bool projected_in_scene;
+    /** A stage source supplied this model's stage (the dual-core lane). */
+    bool staged;
     /** The model's projected depth (scene->projected_vertex.z after its
      *  projection), the blended-submission sort key. */
     int projected_depth;

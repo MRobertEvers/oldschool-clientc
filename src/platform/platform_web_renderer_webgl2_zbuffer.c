@@ -34,9 +34,11 @@
 #include <string.h>
 
 #include "core/trspk_math.h"
+#include "core/trspk_order_sort.h"
 #include "engine/boot_bar.h"
 #include "painters/painters.h"
 #include "platform/platform_web_renderer_webgl2_placement.h"
+#include "render/trspk_pose_pool.h"
 #include "toridraw_math.h"
 
 /* es3z_draw_model rebakes a missing animation through the load path. */
@@ -129,70 +131,11 @@ struct ES3ArrayRange
     bool cutout;
 };
 
-/*
- * Dynamic models' bakes, kept by pose.
- *
- * The dynamic group is rebuilt every frame, and an actor's bake is a pure
- * function of four things: the model it wears (and what has been done to it
- * in place -- a tint, a mount -- which ToriDraw_SceneElementModelForWrite
- * counts in model_revision), the pose that model holds (the tuple
- * ToriDraw_SceneElementApplyAnimation records), and where it stands. A
- * sequence holds each frame for two to four cycles, an idle loop comes round
- * again, and a standing actor does not move, so most of those bakes reproduce
- * one already made: es3_bake_pose_vertices and the posing behind it were 16%
- * of a WebGL2 replay's main thread.
- *
- * So the last few bakes are kept, vertices and triangle configs, and a hit
- * copies them into this frame's arena instead of baking. Bounded by bytes and
- * entries, least recently used first out; an entry unused for
- * ES3_POSE_POOL_MAX_AGE frames goes regardless. Element ids are recycled and
- * so are allocations, so the model is fingerprinted by its arrays and counts
- * as well as its address, and the age limit keeps any stale entry short-lived.
- */
-#define ES3_POSE_POOL_ENTRIES 128u
-#define ES3_POSE_POOL_BYTES (8u * 1024u * 1024u)
-#define ES3_POSE_POOL_MAX_AGE 300u
-
-struct ES3PoseKey
-{
-    int element_id;
-    const struct ToriDraw_Model* model;
-    const void* vertices_x;
-    const void* face_colors_c;
-    int vertex_count;
-    int face_count;
-    uint32_t model_revision;
-    int posed_primary;
-    int posed_frame;
-    int posed_frame2;
-    const void* posed_track;
-    const void* posed_track2;
-    struct ToriDraw_Position position;
-};
-
-struct ES3PosePoolEntry
-{
-    struct ES3PoseKey key;
-    /** NULL: the entry is free. */
-    struct TRSPK_VertexGLES2* vertices;
-    /** One triangle config per face (TRSPK_Triangles). */
-    int* configs;
-    uint32_t vertex_count;
-    uint64_t last_used;
-};
-
-struct ES3PosePool
-{
-    struct ES3PosePoolEntry entries[ES3_POSE_POOL_ENTRIES];
-    uint64_t bytes;
-    /** Frames begun (es3_zbuffer_begin_pass): the LRU's clock. */
-    uint64_t frame;
-};
-
 /** Everything depth mode owns that painter mode has no use for. */
 struct ES3ZBufferWorld
 {
-    struct ES3PosePool pose_pool;
+    /* Dynamic bakes kept by pose (render/trspk_pose_pool.h). */
+    struct TRSPK_PosePool pose_pool;
     struct ES3MaterialTable materials;
     struct ES3MaterialTable batch_materials;
     struct ES3MaterialPose dynamic_material;
@@ -217,11 +160,9 @@ struct ES3ZBufferWorld
     uint32_t array_range_capacity;
     /* After coalescing: the ranges actually drawn this frame. */
     uint32_t array_draw_count;
-    /* The ranges' draw order, sorted without moving them: one word per
-     * range (es3_array_order_word), and the radix sort's other half. */
-    uint64_t* array_order;
-    uint64_t* array_order_scratch;
-    uint32_t array_order_capacity;
+    /* The ranges' draw order (core/trspk_order_sort.h): one word per range,
+     * es3_array_order_key above the range's index. */
+    struct TRSPK_OrderBuffer array_order;
 };
 
 static struct ES3ZBufferWorld*
@@ -673,69 +614,20 @@ es3_compare_opaque_bucket(const void* lhs, const void* rhs)
 
 /*
  * The array ranges' draw order: plain program before cutout, then binding,
- * then first vertex, so contiguous poses in one buffer become one draw.
- *
- * Sorted as one 64-bit word per range -- that key in the high 36 bits, the
- * range's own index in the low 28 -- by an LSD radix sort over the key bits
- * only, which is stable, so the index rides along and comes out as the order.
- * The ranges themselves never move. qsort of the 16-byte structs spent ~1 ms
- * a frame on a WebGL2 replay (10% of the main thread, nearly all of it in
- * musl's smoothsort shuffling elements, not comparing them).
+ * then first vertex, so contiguous poses in one buffer become one draw. Sorted
+ * as an order (core/trspk_order_sort.h) and never by moving the ranges: this
+ * key in 36 bits above the range's index in 28.
  */
 #define ES3_ARRAY_ORDER_INDEX_BITS 28u
 #define ES3_ARRAY_ORDER_KEY_BITS 36u
-#define ES3_ARRAY_ORDER_DIGIT_BITS 8u
 
 static uint64_t
-es3_array_order_word(const struct ES3ArrayRange* range, uint32_t index)
+es3_array_order_key(const struct ES3ArrayRange* range)
 {
-    uint64_t key;
     assert(range);
     assert(range->binding < ES3_BINDING_COUNT);
-    assert(index < (1u << ES3_ARRAY_ORDER_INDEX_BITS));
-    key = ((uint64_t)(range->cutout ? 1u : 0u) << 35) | ((uint64_t)range->binding << 32) |
+    return ((uint64_t)(range->cutout ? 1u : 0u) << 35) | ((uint64_t)range->binding << 32) |
         (uint64_t)range->first;
-    return (key << ES3_ARRAY_ORDER_INDEX_BITS) | (uint64_t)index;
-}
-
-/* Sort world->array_order[0, count) by key; returns the buffer holding the
- * result (array_order or array_order_scratch). A digit every word shares is
- * skipped, so a frame whose ranges all sit on one binding pays for `first`
- * and nothing else. */
-static uint64_t*
-es3_array_order_sort(struct ES3ZBufferWorld* world, uint32_t count)
-{
-    uint64_t* src = world->array_order;
-    uint64_t* dst = world->array_order_scratch;
-    uint32_t shift;
-    for( shift = ES3_ARRAY_ORDER_INDEX_BITS;
-         shift < ES3_ARRAY_ORDER_INDEX_BITS + ES3_ARRAY_ORDER_KEY_BITS;
-         shift += ES3_ARRAY_ORDER_DIGIT_BITS )
-    {
-        uint32_t histogram[1u << ES3_ARRAY_ORDER_DIGIT_BITS];
-        uint32_t digit;
-        uint32_t offset = 0u;
-        uint32_t i;
-        uint64_t* swap;
-        memset(histogram, 0, sizeof(histogram));
-        for( i = 0u; i < count; i++ )
-            histogram[(src[i] >> shift) & ((1u << ES3_ARRAY_ORDER_DIGIT_BITS) - 1u)]++;
-        if( histogram[(src[0] >> shift) & ((1u << ES3_ARRAY_ORDER_DIGIT_BITS) - 1u)] == count )
-            continue;
-        for( digit = 0u; digit < (1u << ES3_ARRAY_ORDER_DIGIT_BITS); digit++ )
-        {
-            uint32_t n = histogram[digit];
-            histogram[digit] = offset;
-            offset += n;
-        }
-        for( i = 0u; i < count; i++ )
-            dst[histogram[(src[i] >> shift) & ((1u << ES3_ARRAY_ORDER_DIGIT_BITS) - 1u)]++] =
-                src[i];
-        swap = src;
-        src = dst;
-        dst = swap;
-    }
-    return src;
 }
 
 static int
@@ -816,13 +708,8 @@ es3_zbuffer_destroy(struct TRSPK_Renderer_ES3* renderer)
     ToriMem_Free(ToriMem_Renderer(), world->opaque_buckets);
     ToriMem_Free(ToriMem_Renderer(), world->cutout_scratch);
     ToriMem_Free(ToriMem_Renderer(), world->array_ranges);
-    ToriMem_Free(ToriMem_Renderer(), world->array_order);
-    ToriMem_Free(ToriMem_Renderer(), world->array_order_scratch);
-    for( bucket_index = 0u; bucket_index < ES3_POSE_POOL_ENTRIES; bucket_index++ )
-    {
-        ToriMem_Free(ToriMem_Renderer(), world->pose_pool.entries[bucket_index].vertices);
-        ToriMem_Free(ToriMem_Renderer(), world->pose_pool.entries[bucket_index].configs);
-    }
+    trspk_order_buffer_free(&world->array_order);
+    trspk_pose_pool_free(&world->pose_pool);
     ToriMem_Free(ToriMem_Renderer(), world);
     renderer->zbuffer = NULL;
 }
@@ -858,7 +745,7 @@ es3_zbuffer_report_memory(struct TRSPK_Renderer_ES3* renderer)
             1048576.0,
         (double)bucket_bytes / 1048576.0,
         ((double)world->array_range_capacity * sizeof(struct ES3ArrayRange) +
-            (double)world->array_order_capacity * 2.0 * sizeof(uint64_t)) /
+            (double)world->array_order.capacity * 2.0 * sizeof(uint64_t)) /
             1048576.0);
 }
 
@@ -884,7 +771,7 @@ es3_zbuffer_begin_pass(struct TRSPK_Renderer_ES3* renderer)
 {
     assert(renderer);
     es3_zbuffer_reset_pass(renderer);
-    es3_zbuffer_state(renderer)->pose_pool.frame++;
+    trspk_pose_pool_tick(&es3_zbuffer_state(renderer)->pose_pool);
     /*
      * Once per world pass, scissored to the world viewport so the UI drawn
      * around it is untouched. The depth mask is forced on for the clear:
@@ -994,28 +881,22 @@ es3_zbuffer_flush_opaque(struct TRSPK_Renderer_ES3* renderer)
     {
         const uint64_t* order;
         struct ES3ArrayRange run;
-        if( world->array_range_count > world->array_order_capacity )
-        {
-            uint32_t capacity = world->array_range_capacity;
-            world->array_order = (uint64_t*)ToriMem_Realloc(ToriMem_Renderer(),
-                world->array_order, (size_t)capacity * sizeof(uint64_t));
-            assert(world->array_order);
-            world->array_order_scratch = (uint64_t*)ToriMem_Realloc(ToriMem_Renderer(),
-                world->array_order_scratch, (size_t)capacity * sizeof(uint64_t));
-            assert(world->array_order_scratch);
-            world->array_order_capacity = capacity;
-        }
+        assert(world->array_range_count <= (1u << ES3_ARRAY_ORDER_INDEX_BITS));
+        trspk_order_buffer_reserve(&world->array_order, world->array_range_count);
         for( range_index = 0u; range_index < world->array_range_count; range_index++ )
-            world->array_order[range_index] =
-                es3_array_order_word(&world->array_ranges[range_index], range_index);
-        order = es3_array_order_sort(world, world->array_range_count);
-        run = world->array_ranges[order[0] & ((1u << ES3_ARRAY_ORDER_INDEX_BITS) - 1u)];
+            world->array_order.words[range_index] = trspk_order_word(
+                es3_array_order_key(&world->array_ranges[range_index]),
+                range_index,
+                ES3_ARRAY_ORDER_INDEX_BITS);
+        order = trspk_order_sort(&world->array_order, world->array_range_count,
+            ES3_ARRAY_ORDER_INDEX_BITS, ES3_ARRAY_ORDER_KEY_BITS);
+        run = world->array_ranges[trspk_order_index(order[0], ES3_ARRAY_ORDER_INDEX_BITS)];
         for( range_index = 1u; range_index <= world->array_range_count; range_index++ )
         {
             const struct ES3ArrayRange* current =
                 range_index < world->array_range_count
-                    ? &world->array_ranges
-                           [order[range_index] & ((1u << ES3_ARRAY_ORDER_INDEX_BITS) - 1u)]
+                    ? &world->array_ranges[trspk_order_index(
+                          order[range_index], ES3_ARRAY_ORDER_INDEX_BITS)]
                     : NULL;
             if( current && current->binding == run.binding && current->cutout == run.cutout &&
                 run.first + run.count == current->first )
@@ -1542,150 +1423,12 @@ es3z_begin_3d(
             es3_reset_group(&renderer->groups[group]);
 }
 
-/* --- the dynamic pose pool (ES3PosePool) ---------------------------------------- */
-
-/* The key of the bake `command` is about to make, or false when there is no
- * telling what pose the model holds: no element, a shared or lent model, a
- * model the element no longer wears, or no recorded pose. */
-static bool
-es3z_pose_key(
-    struct TRSPK_Renderer_ES3* renderer,
-    const struct ToriRS_RenderCommand_Model* command,
-    struct ES3PoseKey* out)
-{
-    const struct ToriDraw_SceneElement* element;
-    const struct ToriDraw_Model* model;
-    assert(renderer);
-    assert(command);
-    assert(out);
-    if( command->element_id < 0 || command->model.kind != TORIDRAWMK_MODEL ||
-        !ToriDraw_SceneElementIsLive(renderer->scene, command->element_id) )
-        return false;
-    element = ToriDraw_SceneElementGet(renderer->scene, command->element_id);
-    model = command->model.u.model.model;
-    if( !element || element->model.kind != TORIDRAWMK_MODEL ||
-        element->model.u.model.model != model || !model || element->posed_primary < 0 )
-        return false;
-    memset(out, 0, sizeof(*out));
-    out->element_id = command->element_id;
-    out->model = model;
-    out->vertices_x = model->vertices_x;
-    out->face_colors_c = model->face_colors_c;
-    out->vertex_count = model->vertex_count;
-    out->face_count = model->face_count;
-    out->model_revision = element->model_revision;
-    out->posed_primary = element->posed_primary;
-    out->posed_frame = element->posed_frame;
-    out->posed_frame2 = element->posed_frame2;
-    out->posed_track = element->posed_track;
-    out->posed_track2 = element->posed_track2;
-    out->position = command->world_position;
-    return true;
-}
-
-static bool
-es3z_pose_key_equal(const struct ES3PoseKey* a, const struct ES3PoseKey* b)
-{
-    return a->element_id == b->element_id && a->model == b->model &&
-        a->vertices_x == b->vertices_x && a->face_colors_c == b->face_colors_c &&
-        a->vertex_count == b->vertex_count && a->face_count == b->face_count &&
-        a->model_revision == b->model_revision && a->posed_primary == b->posed_primary &&
-        a->posed_frame == b->posed_frame && a->posed_frame2 == b->posed_frame2 &&
-        a->posed_track == b->posed_track && a->posed_track2 == b->posed_track2 &&
-        a->position.x == b->position.x && a->position.y == b->position.y &&
-        a->position.z == b->position.z && a->position.pitch == b->position.pitch &&
-        a->position.yaw == b->position.yaw && a->position.roll == b->position.roll;
-}
-
-static void
-es3z_pose_pool_drop(struct ES3PosePool* pool, struct ES3PosePoolEntry* entry)
-{
-    assert(entry->vertices);
-    pool->bytes -= (uint64_t)entry->vertex_count * sizeof(struct TRSPK_VertexGLES2) +
-        (uint64_t)(entry->vertex_count / 3u) * sizeof(int);
-    ToriMem_Free(ToriMem_Renderer(), entry->vertices);
-    ToriMem_Free(ToriMem_Renderer(), entry->configs);
-    entry->vertices = NULL;
-    entry->configs = NULL;
-}
-
-static struct ES3PosePoolEntry*
-es3z_pose_pool_find(struct ES3PosePool* pool, const struct ES3PoseKey* key)
-{
-    uint32_t i;
-    for( i = 0u; i < ES3_POSE_POOL_ENTRIES; i++ )
-    {
-        struct ES3PosePoolEntry* entry = &pool->entries[i];
-        if( !entry->vertices )
-            continue;
-        if( pool->frame - entry->last_used > ES3_POSE_POOL_MAX_AGE )
-        {
-            es3z_pose_pool_drop(pool, entry);
-            continue;
-        }
-        if( es3z_pose_key_equal(&entry->key, key) )
-            return entry;
-    }
-    return NULL;
-}
-
-/* Keep a copy of the bake just made at [vertex_base, + vertex_count), making
- * room by dropping the least recently used. A model too big to be worth a
- * quarter of the pool is not kept. */
-static void
-es3z_pose_pool_store(
-    struct ES3PosePool* pool,
-    const struct ES3PoseKey* key,
-    const struct ES3ModelGroup* group,
-    uint32_t vertex_base,
-    uint32_t vertex_count)
-{
-    uint64_t const bytes = (uint64_t)vertex_count * sizeof(struct TRSPK_VertexGLES2) +
-        (uint64_t)(vertex_count / 3u) * sizeof(int);
-    struct ES3PosePoolEntry* entry = NULL;
-    uint32_t i;
-    if( bytes > ES3_POSE_POOL_BYTES / 4u )
-        return;
-    for( ;; )
-    {
-        struct ES3PosePoolEntry* oldest = NULL;
-        entry = NULL;
-        for( i = 0u; i < ES3_POSE_POOL_ENTRIES; i++ )
-        {
-            struct ES3PosePoolEntry* candidate = &pool->entries[i];
-            if( !candidate->vertices )
-            {
-                if( !entry )
-                    entry = candidate;
-                continue;
-            }
-            if( !oldest || candidate->last_used < oldest->last_used )
-                oldest = candidate;
-        }
-        if( entry && pool->bytes + bytes <= ES3_POSE_POOL_BYTES )
-            break;
-        assert(oldest);
-        es3z_pose_pool_drop(pool, oldest);
-    }
-    entry->key = *key;
-    entry->vertex_count = vertex_count;
-    entry->vertices = (struct TRSPK_VertexGLES2*)ToriMem_Alloc(
-        ToriMem_Renderer(), (size_t)vertex_count * sizeof(struct TRSPK_VertexGLES2));
-    assert(entry->vertices);
-    entry->configs =
-        (int*)ToriMem_Alloc(ToriMem_Renderer(), (size_t)(vertex_count / 3u) * sizeof(int));
-    assert(entry->configs);
-    memcpy(entry->vertices, &group->vbo_cpu->vertices.as_gles2[vertex_base],
-        (size_t)vertex_count * sizeof(struct TRSPK_VertexGLES2));
-    memcpy(entry->configs, &group->triangles.config[vertex_base / 3u],
-        (size_t)(vertex_count / 3u) * sizeof(int));
-    entry->last_used = pool->frame;
-    pool->bytes += bytes;
-}
-
 /*
- * A dynamic model into this frame's arena: from the pool when the same model
- * in the same pose at the same place was baked recently, baked otherwise.
+ * A dynamic model into this frame's arena: from the pose pool when the same
+ * model in the same pose at the same place was baked recently
+ * (render/trspk_pose_pool.h), baked otherwise. A stage source poses on its own
+ * view of the scene, so the element's recorded pose need not be the one the
+ * bake reads: no pool there.
  */
 static uint32_t
 es3z_bake_dynamic(
@@ -1695,33 +1438,17 @@ es3z_bake_dynamic(
     int anim_index,
     int pose_id)
 {
-    struct ES3PosePool* pool = &es3_zbuffer_state(renderer)->pose_pool;
-    struct ES3PoseKey key;
-    struct ES3PosePoolEntry* entry;
+    struct TRSPK_PosePool* pool = &es3_zbuffer_state(renderer)->pose_pool;
+    struct TRSPK_PoseKey key;
     uint32_t vertex_base;
-    /* A stage source poses on its own view of the scene, so the element's
-     * recorded pose need not be the one this bake reads: no pool there. */
-    bool const keyed = !renderer->model_stage_source && es3z_pose_key(renderer, command, &key);
-    if( keyed && (entry = es3z_pose_pool_find(pool, &key)) != NULL &&
-        pose_id <= (INT_MAX - anim_index) / TRSPK_POSE_TRACK_COUNT )
+    bool const keyed = !renderer->model_stage_source &&
+        trspk_pose_key_for_command(renderer->scene, command, &key);
+    if( keyed && pose_id <= (INT_MAX - anim_index) / TRSPK_POSE_TRACK_COUNT )
     {
-        uint32_t const slot_index = trspk_modelarena_load(
-            group->arena,
-            command->element_id,
-            pose_id * TRSPK_POSE_TRACK_COUNT + anim_index,
-            entry->vertex_count);
-        const struct TRSPK_ModelSlot* slot = trspk_modelarena_get(group->arena, slot_index);
-        if( !slot )
-            return UINT32_MAX;
-        assert(slot->vertex_base % 3u == 0u);
-        assert((slot->vertex_base + entry->vertex_count) / 3u <= group->triangles.cap);
-        memcpy(&group->vbo_cpu->vertices.as_gles2[slot->vertex_base], entry->vertices,
-            (size_t)entry->vertex_count * sizeof(struct TRSPK_VertexGLES2));
-        memcpy(&group->triangles.config[slot->vertex_base / 3u], entry->configs,
-            (size_t)(entry->vertex_count / 3u) * sizeof(int));
-        trspk_vbo_mark_dirty_range(group->vbo_cpu, slot->vertex_base, entry->vertex_count);
-        entry->last_used = pool->frame;
-        return slot->vertex_base;
+        vertex_base = trspk_pose_pool_place(pool, &key, group->arena, group->vbo_cpu,
+            &group->triangles, command->element_id, pose_id * TRSPK_POSE_TRACK_COUNT + anim_index);
+        if( vertex_base != UINT32_MAX )
+            return vertex_base;
     }
     vertex_base = es3_bake_into_arena(
         renderer,
@@ -1733,7 +1460,7 @@ es3z_bake_dynamic(
         &command->world_position,
         false);
     if( keyed && vertex_base != UINT32_MAX )
-        es3z_pose_pool_store(pool, &key, group, vertex_base,
+        trspk_pose_pool_store(pool, &key, group->vbo_cpu, &group->triangles, vertex_base,
             (uint32_t)trspk_toridraw_face_count(command->model) * 3u);
     return vertex_base;
 }

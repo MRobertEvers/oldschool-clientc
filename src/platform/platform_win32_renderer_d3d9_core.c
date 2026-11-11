@@ -5282,6 +5282,7 @@ d3d9_begin_3d(
     IDirect3DDevice9_SetViewport(renderer->device, &d3d_viewport);
     if( renderer->zbuffer )
         d3d9_zbuffer_begin_pass(renderer);
+    trspk_pose_pool_tick(&renderer->pose_pool);
 
     trspk_compute_pass_matrices(
         renderer->view,
@@ -5315,44 +5316,52 @@ d3d9_begin_3d(
             d3d9_reset_group(&renderer->groups[group]);
 }
 
+/*
+ * A dynamic model into this frame's arena: from the pose pool when the same
+ * model in the same pose at the same place was baked recently
+ * (render/trspk_pose_pool.h), baked otherwise.
+ */
+static uint32_t
+d3d9_bake_dynamic(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    struct D3D9ModelGroup* group,
+    const struct ToriRS_RenderCommand_Model* command,
+    int anim_index,
+    int pose_id)
+{
+    struct TRSPK_PoseKey key;
+    uint32_t vertex_base;
+    bool const keyed = trspk_pose_key_for_command(renderer->scene, command, &key);
+    anim_index = d3d9_clampi(anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1);
+    if( keyed && pose_id >= 0 && pose_id <= (INT_MAX - anim_index) / TRSPK_POSE_TRACK_COUNT )
+    {
+        vertex_base = trspk_pose_pool_place(&renderer->pose_pool, &key, group->arena,
+            group->vbo_cpu, &group->triangles, command->element_id,
+            pose_id * TRSPK_POSE_TRACK_COUNT + anim_index);
+        if( vertex_base != UINT32_MAX )
+            return vertex_base;
+    }
+    vertex_base = d3d9_bake_into_arena(
+        renderer,
+        group,
+        command->element_id,
+        anim_index,
+        pose_id,
+        command->model,
+        &command->world_position,
+        false);
+    if( keyed && vertex_base != UINT32_MAX )
+        trspk_pose_pool_store(&renderer->pose_pool, &key, group->vbo_cpu, &group->triangles,
+            vertex_base, (uint32_t)trspk_toridraw_face_count(command->model) * 3u);
+    return vertex_base;
+}
+
+/* The pick for a model whose projection is on the scene's bench. */
 static void
-d3d9_draw_model(
+d3d9_pick_test(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Model* command)
 {
-    struct ToriDraw_Position projected_position;
-    struct D3D9ModelPlacement placement;
-    int face_count;
-    int sorted_face_count = 0;
-    bool dynamic;
-    int anim_index;
-    int pose_id;
-    uint32_t vertex_base;
-    uint32_t page_base = 0u;
-    uint32_t local_base;
-    uint32_t binding;
-    uint32_t group;
-    uint32_t index_count;
-
-    if( !renderer->has_3d || !renderer->scene || !renderer->ibo_chain || !command ||
-        command->model.kind == TORIDRAWMK_NONE )
-        return;
-    if( command->animation && command->element_id >= 0 )
-        ToriDraw_SceneElementApplyAnimation(
-            renderer->scene,
-            command->element_id,
-            command->anim_index == 0,
-            command->anim_frame);
-    projected_position = command->position;
-    if( ToriDraw_RenderModel1ProjectWithTable(
-            command->model,
-            renderer->scene,
-            &projected_position,
-            &renderer->cur_3d.view_port,
-            &renderer->cur_3d.camera,
-            renderer->kernel) != TORIDRAW_CULL_VISIBLE )
-        return;
-
     if( renderer->pick_enabled && command->pickable && command->element_id >= 0 &&
         (command->pick_aabb
              ? ToriDraw_ProjectedModelBoxHitTest(renderer->scene, command->model, &renderer->cur_3d.view_port, renderer->pick_mouse_x, renderer->pick_mouse_y)
@@ -5377,6 +5386,91 @@ d3d9_draw_model(
             command->pick_tile_z,
             command->pick_tile_level,
             command->pick_view);
+}
+
+static void
+d3d9_draw_model(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Model* command)
+{
+    struct ToriDraw_Position projected_position;
+    struct D3D9ModelPlacement placement;
+    bool projected_in_scene = false;
+    int face_count;
+    int sorted_face_count = 0;
+    bool dynamic;
+    int anim_index;
+    int pose_id;
+    uint32_t vertex_base;
+    uint32_t page_base = 0u;
+    uint32_t local_base;
+    uint32_t binding;
+    uint32_t group;
+    uint32_t index_count;
+
+    if( !renderer->has_3d || !renderer->scene || !renderer->ibo_chain || !command ||
+        command->model.kind == TORIDRAWMK_NONE )
+        return;
+    if( command->animation && command->element_id >= 0 )
+        ToriDraw_SceneElementApplyAnimation(
+            renderer->scene,
+            command->element_id,
+            command->anim_index == 0,
+            command->anim_frame);
+    projected_position = command->position;
+    if( renderer->zbuffer )
+    {
+        /*
+         * The depth pass draws the baked vertices and lets the GPU test depth,
+         * so the software projection is wanted for the pick only (and a
+         * blended model's face sort, which d3d9_zbuffer_emit_model projects
+         * for itself). The cylinder cull decides visibility without
+         * projecting a vertex and says whether the cursor could be on the
+         * model; only then -- or for a box pick, whose box can outgrow a small
+         * model -- is it projected. The painter path sorts every model's
+         * faces, so it projects every one.
+         */
+        bool const pick_wanted =
+            renderer->pick_enabled && command->pickable && command->element_id >= 0;
+        bool cursor_inside = false;
+        if( ToriDraw_RenderModel1CullPoint(
+                command->model,
+                renderer->scene,
+                &projected_position,
+                &renderer->cur_3d.view_port,
+                &renderer->cur_3d.camera,
+                renderer->pick_mouse_x,
+                renderer->pick_mouse_y,
+                pick_wanted && !command->pick_aabb ? &cursor_inside : NULL) !=
+            TORIDRAW_CULL_VISIBLE )
+            return;
+        if( pick_wanted && (command->pick_aabb || cursor_inside) )
+        {
+            if( ToriDraw_RenderModel1ProjectWithTable(
+                    command->model,
+                    renderer->scene,
+                    &projected_position,
+                    &renderer->cur_3d.view_port,
+                    &renderer->cur_3d.camera,
+                    renderer->kernel) != TORIDRAW_CULL_VISIBLE )
+                return;
+            projected_in_scene = true;
+            d3d9_pick_test(renderer, command);
+        }
+    }
+    else
+    {
+        if( ToriDraw_RenderModel1ProjectWithTable(
+                command->model,
+                renderer->scene,
+                &projected_position,
+                &renderer->cur_3d.view_port,
+                &renderer->cur_3d.camera,
+                renderer->kernel) != TORIDRAW_CULL_VISIBLE )
+            return;
+        projected_in_scene = true;
+        d3d9_pick_test(renderer, command);
+    }
 
     if( command->pick_only )
         return;
@@ -5399,15 +5493,7 @@ d3d9_draw_model(
     binding = group;
     if( dynamic )
     {
-        vertex_base = d3d9_bake_into_arena(
-            renderer,
-            &renderer->groups[group],
-            command->element_id,
-            anim_index,
-            pose_id,
-            command->model,
-            &command->world_position,
-            false);
+        vertex_base = d3d9_bake_dynamic(renderer, &renderer->groups[group], command, anim_index, pose_id);
     }
     else if( trspk_pose_table_get(
                  &renderer->batch_poses,
@@ -5489,6 +5575,7 @@ d3d9_draw_model(
     placement.anim_index = anim_index;
     placement.pose_id = pose_id;
     placement.dynamic = dynamic;
+    placement.projected_in_scene = projected_in_scene;
     if( renderer->zbuffer )
         d3d9_zbuffer_emit_model(renderer, command, &placement);
     else
@@ -6846,6 +6933,7 @@ ToriPlatformWin32_Renderer_D3D9_Free(struct ToriPlatformWin32_Renderer_D3D9* ren
     trspk_pose_table_free(&renderer->poses);
     trspk_pose_table_free(&renderer->batch_poses);
     trspk_element_mask_free(&renderer->batch_detached);
+    trspk_pose_pool_free(&renderer->pose_pool);
     d3d9_zbuffer_destroy(renderer);
     for( batch = 0u; batch < renderer->static_batch_count; batch++ )
     {

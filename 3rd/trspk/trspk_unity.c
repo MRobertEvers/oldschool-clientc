@@ -12,6 +12,7 @@
 #include "core/trspk_drawrangelist.c"
 #include "core/trspk_ibo.c"
 #include "core/trspk_modelarena.c"
+#include "core/trspk_order_sort.c"
 #include "core/trspk_pose.c"
 #include "core/trspk_triangles.c"
 #include "core/trspk_vbo.c"

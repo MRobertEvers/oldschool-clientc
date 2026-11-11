@@ -13,6 +13,7 @@
 // clang-format on
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #define TRSPK_VBO_FLAG_DIRTY TRSPK_FLAG(0)
@@ -44,6 +45,10 @@ struct TRSPK_VBO
         struct TRSPK_VertexGLES2* as_gles2;
     } vertices;
 };
+
+/** Bytes per vertex in `format`: the stride of vertices.as_*. */
+size_t
+trspk_vbo_vertex_size(enum TRSPK_VertexFormat format);
 
 struct TRSPK_VBO*
 trspk_vbo_create(

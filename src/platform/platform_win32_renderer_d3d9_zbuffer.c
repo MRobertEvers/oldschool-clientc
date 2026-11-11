@@ -25,6 +25,7 @@
 
 #include "mem/torirs_mem.h"
 #include "platform/platform_win32_renderer_d3d9_core.h"
+#include "core/trspk_order_sort.h"
 #include "toridraw_element_id.h"
 #include <assert.h>
 
@@ -151,6 +152,9 @@ struct D3D9ZBufferWorld
     /* Flush-time staging for one segment's cluster-rebased indices. */
     uint16_t* cluster_scratch;
     uint32_t cluster_scratch_capacity;
+    /* One bucket's segments in min_vertex order (core/trspk_order_sort.h),
+     * sorted as words rather than by moving the segments. */
+    struct TRSPK_OrderBuffer segment_order;
 };
 
 static struct D3D9ZBufferWorld*
@@ -554,15 +558,9 @@ d3d9_queue_opaque_indices(
     bucket->index_count += index_count;
 }
 
-static int
-d3d9_compare_opaque_segment(const void* lhs, const void* rhs)
-{
-    const struct D3D9OpaqueSegment* a = (const struct D3D9OpaqueSegment*)lhs;
-    const struct D3D9OpaqueSegment* b = (const struct D3D9OpaqueSegment*)rhs;
-    if( a->min_vertex != b->min_vertex )
-        return a->min_vertex < b->min_vertex ? -1 : 1;
-    return 0;
-}
+/* A segment's place in its bucket's order: min_vertex above its index. */
+#define D3D9_SEGMENT_ORDER_INDEX_BITS 32u
+#define D3D9_SEGMENT_ORDER_KEY_BITS 16u
 
 static int
 d3d9_compare_opaque_bucket(const void* lhs, const void* rhs)
@@ -654,6 +652,7 @@ d3d9_zbuffer_destroy(struct ToriPlatformWin32_Renderer_D3D9* renderer)
     }
     ToriMem_Free(ToriMem_Renderer(), world->opaque_buckets);
     ToriMem_Free(ToriMem_Renderer(), world->cluster_scratch);
+    trspk_order_buffer_free(&world->segment_order);
     ToriMem_Free(ToriMem_Renderer(), world);
     renderer->zbuffer = NULL;
 }
@@ -824,16 +823,22 @@ d3d9_zbuffer_flush_opaque(struct ToriPlatformWin32_Renderer_D3D9* renderer)
         uint16_t cluster_min = 0u;
         uint16_t cluster_max = 0u;
         uint32_t s;
+        const uint64_t* order;
         if( bucket->segment_count == 0u )
             continue;
-        qsort(
-            bucket->segments,
-            bucket->segment_count,
-            sizeof(bucket->segments[0]),
-            d3d9_compare_opaque_segment);
+        /* One segment per model, every frame: sorted as an order, not by
+         * moving the segments (qsort's element moves were the cost on the
+         * GL lanes, where this same gathering is an array-range sort). */
+        trspk_order_buffer_reserve(&world->segment_order, bucket->segment_count);
+        for( s = 0u; s < bucket->segment_count; s++ )
+            world->segment_order.words[s] = trspk_order_word(
+                bucket->segments[s].min_vertex, s, D3D9_SEGMENT_ORDER_INDEX_BITS);
+        order = trspk_order_sort(&world->segment_order, bucket->segment_count,
+            D3D9_SEGMENT_ORDER_INDEX_BITS, D3D9_SEGMENT_ORDER_KEY_BITS);
         for( s = 0u; s < bucket->segment_count; s++ )
         {
-            const struct D3D9OpaqueSegment* segment = &bucket->segments[s];
+            const struct D3D9OpaqueSegment* segment =
+                &bucket->segments[trspk_order_index(order[s], D3D9_SEGMENT_ORDER_INDEX_BITS)];
             if( s == 0u ||
                 (segment->min_vertex > cluster_max &&
                     (uint32_t)(segment->min_vertex - cluster_max) >
@@ -1027,6 +1032,20 @@ d3d9_zbuffer_emit_model(
     written = 0u;
     if( material->blended_count == 0u )
         return;
+    if( !placement->projected_in_scene )
+    {
+        /* d3d9_draw_model projects only for a pick under the cursor; the
+         * scene's bench holds some other model's projection. */
+        struct ToriDraw_Position position = command->position;
+        if( ToriDraw_RenderModel1ProjectWithTable(
+                command->model,
+                renderer->scene,
+                &position,
+                &renderer->cur_3d.view_port,
+                &renderer->cur_3d.camera,
+                renderer->kernel) != TORIDRAW_CULL_VISIBLE )
+            return;
+    }
     sorted_face_count = ToriDraw_RenderModel2SortFacesWithTable(
         command->model, renderer->scene, renderer->kernel);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_Z_SORTED_MODELS, 1);

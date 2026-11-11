@@ -3374,6 +3374,7 @@ gl3_ev_begin_3d(
 
     renderer->cur_3d = command->u.begin_3d;
     renderer->has_3d = true;
+    trspk_pose_pool_tick(&renderer->pose_pool);
     renderer->in3d = true;
     /* Publish the prepared camera block. The prepared projection kernels
      * (the AArch64 assembly, the SSE2 fused-yaw family) are gated on
@@ -3922,36 +3923,13 @@ gl3_ev_batch3d_end(
     renderer->world_live = true;
 }
 
+/* The pick for a model whose projection is on the scene's bench. */
 static void
-gl3_ev_model_draw(
+gl3_pick_test(
     struct ToriPlatformSDL2_Renderer_GL3* renderer,
-    struct ToriRS_RenderCommand* command)
+    struct ToriRS_RenderCommand_Model const* mcmd)
 {
-    struct ToriRS_RenderCommand_Model const* mcmd = &command->u.model;
-    struct ToriDraw_Position position;
-    int anim_index;
-    int pose_id;
-    uint32_t group = TRSPK_VBO_GROUP_STATIC;
-    uint32_t vertex_base = 0u;
-    struct ToriDraw_Scene* ctx;
-    assert(command->kind == TORIRSRC_DRAW_MODEL);
-    if( !renderer->has_3d || !renderer->ibo_chain )
-        return;
-    if( mcmd->model.kind == TORIDRAWMK_NONE )
-        return;
-    ctx = renderer->scene;
-    assert(ctx);
-    if( mcmd->animation && mcmd->element_id >= 0 )
-        ToriDraw_SceneElementApplyAnimation(
-            ctx, mcmd->element_id, mcmd->anim_index == 0, mcmd->anim_frame);
-    position = mcmd->position;
-    if( ToriDraw_RenderModel1ProjectWithTable(
-            mcmd->model, ctx, &position, &renderer->cur_3d.view_port, &renderer->cur_3d.camera,
-            renderer->kernel) != TORIDRAW_CULL_VISIBLE )
-        return;
-    /* Hittest before the face sort: the scene scratch holds this model's
-     * projection only until the next model projects, and a model whose faces
-     * all sort away must still pick. */
+    struct ToriDraw_Scene* ctx = renderer->scene;
     if( renderer->pick_enabled && mcmd->pickable && mcmd->element_id >= 0 &&
         (mcmd->pick_aabb
              ? ToriDraw_ProjectedModelBoxHitTest(ctx, mcmd->model, &renderer->cur_3d.view_port, renderer->pick_mouse_x, renderer->pick_mouse_y)
@@ -3970,6 +3948,104 @@ gl3_ev_model_draw(
             mcmd->pick_tile_z,
             mcmd->pick_tile_level,
             mcmd->pick_view);
+}
+
+/*
+ * A dynamic model into this frame's arena: from the pose pool when the same
+ * model in the same pose at the same place was baked recently
+ * (render/trspk_pose_pool.h), baked otherwise.
+ */
+static uint32_t
+gl3_bake_dynamic(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct GL3ModelGroup* g,
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    int anim_index,
+    int pose_id)
+{
+    struct TRSPK_PoseKey key;
+    uint32_t vertex_base;
+    bool const keyed = trspk_pose_key_for_command(renderer->scene, mcmd, &key);
+    if( keyed && pose_id >= 0 && pose_id <= (INT_MAX - anim_index) / TRSPK_POSE_TRACK_COUNT )
+    {
+        vertex_base = trspk_pose_pool_place(&renderer->pose_pool, &key, g->arena, g->vbo_cpu,
+            &g->triangles, mcmd->element_id, pose_id * TRSPK_POSE_TRACK_COUNT + anim_index);
+        if( vertex_base != UINT32_MAX )
+            return vertex_base;
+    }
+    vertex_base = gl3_bake_into_arena(
+        renderer, g, mcmd->element_id, anim_index, pose_id, mcmd->model, &mcmd->world_position, false);
+    if( keyed && vertex_base != UINT32_MAX )
+        trspk_pose_pool_store(&renderer->pose_pool, &key, g->vbo_cpu, &g->triangles, vertex_base,
+            (uint32_t)trspk_toridraw_face_count(mcmd->model) * 3u);
+    return vertex_base;
+}
+
+static void
+gl3_ev_model_draw(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand* command)
+{
+    struct ToriRS_RenderCommand_Model const* mcmd = &command->u.model;
+    struct ToriDraw_Position position;
+    int anim_index;
+    int pose_id;
+    uint32_t group = TRSPK_VBO_GROUP_STATIC;
+    uint32_t vertex_base = 0u;
+    struct ToriDraw_Scene* ctx;
+    bool projected = false;
+    assert(command->kind == TORIRSRC_DRAW_MODEL);
+    if( !renderer->has_3d || !renderer->ibo_chain )
+        return;
+    if( mcmd->model.kind == TORIDRAWMK_NONE )
+        return;
+    ctx = renderer->scene;
+    assert(ctx);
+    if( mcmd->animation && mcmd->element_id >= 0 )
+        ToriDraw_SceneElementApplyAnimation(
+            ctx, mcmd->element_id, mcmd->anim_index == 0, mcmd->anim_frame);
+    position = mcmd->position;
+    if( renderer->z_buffer_enabled )
+    {
+        /*
+         * The depth pass draws the baked vertices and lets the GPU test depth,
+         * so the software projection is wanted for the pick only (and a
+         * translucent model's face sort, which GL3ZB_SubmitModel projects
+         * for itself). The cylinder cull decides visibility without
+         * projecting a vertex and says whether the cursor could be on the
+         * model; only then -- or for a box pick, whose box can outgrow a small
+         * model -- is it projected. The painter path sorts every model's
+         * faces, so it projects every one.
+         */
+        bool const pick_wanted = renderer->pick_enabled && mcmd->pickable && mcmd->element_id >= 0;
+        bool cursor_inside = false;
+        if( ToriDraw_RenderModel1CullPoint(
+                mcmd->model, ctx, &position, &renderer->cur_3d.view_port, &renderer->cur_3d.camera,
+                renderer->pick_mouse_x, renderer->pick_mouse_y,
+                pick_wanted && !mcmd->pick_aabb ? &cursor_inside : NULL) != TORIDRAW_CULL_VISIBLE )
+            return;
+        if( pick_wanted && (mcmd->pick_aabb || cursor_inside) )
+        {
+            if( ToriDraw_RenderModel1ProjectWithTable(
+                    mcmd->model, ctx, &position, &renderer->cur_3d.view_port,
+                    &renderer->cur_3d.camera, renderer->kernel) != TORIDRAW_CULL_VISIBLE )
+                return;
+            projected = true;
+            gl3_pick_test(renderer, mcmd);
+        }
+    }
+    else
+    {
+        if( ToriDraw_RenderModel1ProjectWithTable(
+                mcmd->model, ctx, &position, &renderer->cur_3d.view_port, &renderer->cur_3d.camera,
+                renderer->kernel) != TORIDRAW_CULL_VISIBLE )
+            return;
+        projected = true;
+        /* Hittest before the face sort: the scene scratch holds this model's
+         * projection only until the next model projects, and a model whose
+         * faces all sort away must still pick. */
+        gl3_pick_test(renderer, mcmd);
+    }
     if( mcmd->pick_only )
         return;
     {
@@ -4006,8 +4082,8 @@ gl3_ev_model_draw(
             pose_id = 0;
         if( mcmd->dynamic )
         {
-            vertex_base = gl3_bake_into_arena(renderer, &renderer->groups[TRSPK_VBO_GROUP_DYNAMIC],
-                mcmd->element_id, anim_index, pose_id, mcmd->model, &mcmd->world_position, false);
+            vertex_base = gl3_bake_dynamic(
+                renderer, &renderer->groups[TRSPK_VBO_GROUP_DYNAMIC], mcmd, anim_index, pose_id);
             if( vertex_base == UINT32_MAX )
                 return;
             group = TRSPK_VBO_GROUP_DYNAMIC;
@@ -4033,7 +4109,7 @@ gl3_ev_model_draw(
         }
         if( renderer->z_buffer_enabled )
         {
-            GL3ZB_SubmitModel(renderer, mcmd, ctx, group, vertex_base, face_count);
+            GL3ZB_SubmitModel(renderer, mcmd, ctx, group, vertex_base, face_count, projected);
             return;
         }
 
@@ -5057,6 +5133,7 @@ fail:
     if( renderer->draw_ranges )
         trspk_drawrangelist_free(renderer->draw_ranges);
     trspk_pose_table_free(&renderer->poses);
+    trspk_pose_pool_free(&renderer->pose_pool);
     trspk_batch32_destroy(renderer->world);
     if( trspk_atlas_is_initialized(&renderer->atlas) )
         trspk_atlas_free(&renderer->atlas);
@@ -5132,6 +5209,7 @@ ToriPlatformSDL2_Renderer_GL3_Free(struct ToriPlatformSDL2_Renderer_GL3* rendere
     }
 
     trspk_pose_table_free(&renderer->poses);
+    trspk_pose_pool_free(&renderer->pose_pool);
 
     /* The WORLD group's CPU side is the build's own VBO. */
     renderer->groups[TRSPK_VBO_GROUP_WORLD].vbo_cpu = NULL;

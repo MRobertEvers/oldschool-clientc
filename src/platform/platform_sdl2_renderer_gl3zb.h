@@ -36,6 +36,7 @@
  * sort; without that the mode is correct but pays for work it discards.
  */
 
+#include <stdbool.h>
 #include <stdint.h>
 
 struct ToriDraw_Camera;
@@ -69,7 +70,9 @@ void
 GL3ZB_BindDrawState(struct ToriPlatformSDL2_Renderer_GL3* renderer);
 
 /** Classify one world model's faces and submit them: opaque now, translucent
- *  queued for GL3ZB_DrawAlphaPass. */
+ *  queued for GL3ZB_DrawAlphaPass. `projected`: whether ctx's bench holds this
+ *  model's projection (the draw projects only for a pick under the cursor);
+ *  a model with translucent faces is projected here when it does not. */
 void
 GL3ZB_SubmitModel(
     struct ToriPlatformSDL2_Renderer_GL3* renderer,
@@ -77,7 +80,8 @@ GL3ZB_SubmitModel(
     struct ToriDraw_Scene* ctx,
     uint32_t group,
     uint32_t vertex_base,
-    int face_count);
+    int face_count,
+    bool projected);
 
 /** Sort the queued translucent models back to front and write their indices,
  *  in that order, to `staging` — the tail of the frame's index staging, so

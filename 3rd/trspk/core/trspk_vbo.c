@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static size_t
+size_t
 trspk_vbo_vertex_size(enum TRSPK_VertexFormat format)
 {
     switch( format )

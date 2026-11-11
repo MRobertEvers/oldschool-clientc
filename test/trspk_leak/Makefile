@@ -34,6 +34,7 @@ OBJECTS := \
 	$(BUILD_DIR)/torirs_perf.o \
 	$(BUILD_DIR)/trspk_sprite.o \
 	$(BUILD_DIR)/trspk_toridraw.o \
+	$(BUILD_DIR)/trspk_pose_pool.o \
 	$(BUILD_DIR)/toridraw_unity.o \
 	$(BUILD_DIR)/toridraw_font.o \
 	$(BUILD_DIR)/toridraw_model_sprite.o \
@@ -73,6 +74,9 @@ $(BUILD_DIR)/trspk_sprite.o: $(ROOT)/src/render/trspk_sprite.c | $(BUILD_DIR)
 	$(CC) $(TRACKED_CFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/trspk_toridraw.o: $(ROOT)/src/render/trspk_toridraw.c | $(BUILD_DIR)
+	$(CC) $(TRACKED_CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/trspk_pose_pool.o: $(ROOT)/src/render/trspk_pose_pool.c | $(BUILD_DIR)
 	$(CC) $(TRACKED_CFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/toridraw_unity.o: $(ROOT)/3rd/toridraw/toridraw_unity.c | $(BUILD_DIR)

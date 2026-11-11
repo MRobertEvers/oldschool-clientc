@@ -843,7 +843,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	render/torirs_damage_region.c \
 	render/torirs_wedge_camera_path.c \
 	render/torirs_viewport_projection.c \
-	render/trspk_toridraw.c render/trspk_sprite.c \
+	render/trspk_toridraw.c render/trspk_sprite.c render/trspk_pose_pool.c \
 	input/torirs_input.c input/torirs_keymap.c input/torirs_input_cmd.c \
 	input/torirs_touch.c input/torirs_gesture.c \
 	game/task_cs2_script_exec.c $(BMP_DIR)/bmp.c \
@@ -1428,7 +1428,7 @@ endif
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-torirsserver-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-pktsweep test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review test-preview-state
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash test-summoning-instance summoning-dialogue
 .PHONY: check-dks-contract check-boss-contract check-stronghold-contract
-.PHONY: bench-trspk-bake test-trspk-color-simd test-trspk-swizzle-simd test-trspk-modelarena-index test-trspk-batch32 test-es3-index-pack
+.PHONY: bench-trspk-bake test-trspk-color-simd test-trspk-swizzle-simd test-trspk-modelarena-index test-trspk-order-sort test-trspk-batch32 test-es3-index-pack
 .PHONY: check-gauntlet-contract test-poh-menagerie test-poh-league-hall test-poh-house-styles
 .PHONY: check-design-colours check-design-panel
 .PHONY: torirsserver-scripts-lanes torirsserver-lanes torirsserver-scripts-rs2012
@@ -4890,6 +4890,12 @@ test-rotate-blit: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/rotate_blit_test
 
 # The indexed arena find must answer what the old linear scan answered.
+# The depth renderers' draw order: radix words against a stable sort.
+test-trspk-order-sort: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/trspk_order_sort_test \
+		render/test/trspk_order_sort_test.c $(TRSPK_UNITY_SRC)
+	./$(OBJ_DIR)/trspk_order_sort_test
+
 test-trspk-modelarena-index: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/trspk_modelarena_index_test \
 		render/test/trspk_modelarena_index_test.c $(TRSPK_UNITY_SRC)

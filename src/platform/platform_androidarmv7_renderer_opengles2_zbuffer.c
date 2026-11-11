@@ -28,14 +28,17 @@
 #include "toridraw_element_id.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "core/trspk_math.h"
+#include "core/trspk_order_sort.h"
 #include "engine/boot_bar.h"
 #include "painters/painters.h"
 #include "platform/platform_androidarmv7_renderer_opengles2_placement.h"
+#include "render/trspk_pose_pool.h"
 #include "es2/es2_indices.h"
 #include "toridraw_element_id.h"
 #include "toridraw_math.h"
@@ -125,6 +128,8 @@ struct ES2ArrayRange
 /** Everything depth mode owns that painter mode has no use for. */
 struct ES2ZBufferWorld
 {
+    /* Dynamic bakes kept by pose (render/trspk_pose_pool.h). */
+    struct TRSPK_PosePool pose_pool;
     struct ES2MaterialTable materials;
     struct ES2MaterialTable batch_materials;
     struct ES2MaterialPose dynamic_material;
@@ -149,6 +154,9 @@ struct ES2ZBufferWorld
     uint32_t array_range_capacity;
     /* After coalescing: the ranges actually drawn this frame. */
     uint32_t array_draw_count;
+    /* The ranges' draw order (core/trspk_order_sort.h): one word per range,
+     * es2_array_order_key above the range's index. */
+    struct TRSPK_OrderBuffer array_order;
 };
 
 static struct ES2ZBufferWorld*
@@ -585,18 +593,22 @@ es2_compare_opaque_bucket(const void* lhs, const void* rhs)
     return 0;
 }
 
-static int
-es2_compare_array_range(const void* lhs, const void* rhs)
+/*
+ * The array ranges' draw order: plain program before cutout, then binding,
+ * then first vertex, so contiguous poses in one buffer become one draw. Sorted
+ * as an order (core/trspk_order_sort.h) and never by moving the ranges: this
+ * key in 36 bits above the range's index in 28.
+ */
+#define ES2_ARRAY_ORDER_INDEX_BITS 28u
+#define ES2_ARRAY_ORDER_KEY_BITS 36u
+
+static uint64_t
+es2_array_order_key(const struct ES2ArrayRange* range)
 {
-    const struct ES2ArrayRange* a = (const struct ES2ArrayRange*)lhs;
-    const struct ES2ArrayRange* b = (const struct ES2ArrayRange*)rhs;
-    if( a->cutout != b->cutout )
-        return a->cutout ? 1 : -1;
-    if( a->binding != b->binding )
-        return a->binding < b->binding ? -1 : 1;
-    if( a->first != b->first )
-        return a->first < b->first ? -1 : 1;
-    return 0;
+    assert(range);
+    assert(range->binding < ES2_BINDING_COUNT);
+    return ((uint64_t)(range->cutout ? 1u : 0u) << 35) | ((uint64_t)range->binding << 32) |
+        (uint64_t)range->first;
 }
 
 static int
@@ -676,6 +688,8 @@ es2_zbuffer_destroy(struct TRSPK_Renderer_ES2* renderer)
     ToriMem_Free(ToriMem_Renderer(), world->opaque_buckets);
     ToriMem_Free(ToriMem_Renderer(), world->cutout_scratch);
     ToriMem_Free(ToriMem_Renderer(), world->array_ranges);
+    trspk_order_buffer_free(&world->array_order);
+    trspk_pose_pool_free(&world->pose_pool);
     ToriMem_Free(ToriMem_Renderer(), world);
     renderer->zbuffer = NULL;
 }
@@ -710,7 +724,9 @@ es2_zbuffer_report_memory(struct TRSPK_Renderer_ES2* renderer)
             (double)world->alpha_submission_capacity * sizeof(struct ES2AlphaSubmission)) /
             1048576.0,
         (double)bucket_bytes / 1048576.0,
-        (double)world->array_range_capacity * sizeof(struct ES2ArrayRange) / 1048576.0);
+        ((double)world->array_range_capacity * sizeof(struct ES2ArrayRange) +
+            (double)world->array_order.capacity * 2.0 * sizeof(uint64_t)) /
+            1048576.0);
 }
 
 void
@@ -735,6 +751,7 @@ es2_zbuffer_begin_pass(struct TRSPK_Renderer_ES2* renderer)
 {
     assert(renderer);
     es2_zbuffer_reset_pass(renderer);
+    trspk_pose_pool_tick(&es2_zbuffer_state(renderer)->pose_pool);
     /*
      * Once per world pass, scissored to the world viewport so the UI drawn
      * around it is untouched. The depth mask is forced on for the clear:
@@ -842,32 +859,38 @@ es2_zbuffer_flush_opaque(struct TRSPK_Renderer_ES2* renderer)
      * They are the bulk of the static world. */
     if( world->array_range_count > 0u )
     {
-        qsort(
-            world->array_ranges,
-            world->array_range_count,
-            sizeof(world->array_ranges[0]),
-            es2_compare_array_range);
-        for( range_index = 1u; range_index < world->array_range_count; range_index++ )
+        const uint64_t* order;
+        struct ES2ArrayRange run;
+        assert(world->array_range_count <= (1u << ES2_ARRAY_ORDER_INDEX_BITS));
+        trspk_order_buffer_reserve(&world->array_order, world->array_range_count);
+        for( range_index = 0u; range_index < world->array_range_count; range_index++ )
+            world->array_order.words[range_index] = trspk_order_word(
+                es2_array_order_key(&world->array_ranges[range_index]),
+                range_index,
+                ES2_ARRAY_ORDER_INDEX_BITS);
+        order = trspk_order_sort(&world->array_order, world->array_range_count,
+            ES2_ARRAY_ORDER_INDEX_BITS, ES2_ARRAY_ORDER_KEY_BITS);
+        run = world->array_ranges[trspk_order_index(order[0], ES2_ARRAY_ORDER_INDEX_BITS)];
+        for( range_index = 1u; range_index <= world->array_range_count; range_index++ )
         {
-            struct ES2ArrayRange* previous = &world->array_ranges[write_index];
-            const struct ES2ArrayRange* current = &world->array_ranges[range_index];
-            if( current->binding == previous->binding && current->cutout == previous->cutout &&
-                previous->first + previous->count == current->first )
+            const struct ES2ArrayRange* current =
+                range_index < world->array_range_count
+                    ? &world->array_ranges[trspk_order_index(
+                          order[range_index], ES2_ARRAY_ORDER_INDEX_BITS)]
+                    : NULL;
+            if( current && current->binding == run.binding && current->cutout == run.cutout &&
+                run.first + run.count == current->first )
             {
-                previous->count += current->count;
+                run.count += current->count;
                 continue;
             }
-            write_index++;
-            if( write_index != range_index )
-                world->array_ranges[write_index] = *current;
-        }
-        world->array_draw_count = write_index + 1u;
-        for( range_index = 0u; range_index < world->array_draw_count; range_index++ )
-        {
-            const struct ES2ArrayRange* range = &world->array_ranges[range_index];
             es2_sequence_push_array(
-                renderer, range->binding, range->first, range->count, range->cutout, false);
+                renderer, run.binding, run.first, run.count, run.cutout, false);
+            write_index++;
+            if( current )
+                run = *current;
         }
+        world->array_draw_count = write_index;
         world->array_range_count = 0u;
     }
 
@@ -1042,13 +1065,15 @@ es2_zbuffer_emit_model(
     {
         if( !placement->projected_in_scene )
         {
-            /* A stage source classified this model as having no blended
-             * face and left it unsorted, and the material table disagrees.
-             * The scene's bench holds some other model's projection, so
-             * project again here before sorting. Counted: the two tests are
-             * meant to agree, and this should stay at zero. */
+            /* Not projected yet: es2z_draw_model projects a model only for a
+             * pick under the cursor, or a stage source classified it as
+             * having no blended face and the material table disagrees. The
+             * scene's bench holds some other model's projection either way,
+             * so project here before sorting. The stage case is counted: its
+             * two tests are meant to agree, and that should stay at zero. */
             struct ToriDraw_Position position = command->position;
-            renderer->stage_reprojected_models++;
+            if( placement->staged )
+                renderer->stage_reprojected_models++;
             if( ToriDraw_RenderModel1ProjectWithTable(
                     command->model,
                     renderer->scene,
@@ -1311,6 +1336,48 @@ es2z_begin_3d(struct TRSPK_Renderer_ES2* renderer, const struct ToriRS_RenderCom
             es2_reset_group(&renderer->groups[group]);
 }
 
+/*
+ * A dynamic model into this frame's arena: from the pose pool when the same
+ * model in the same pose at the same place was baked recently
+ * (render/trspk_pose_pool.h), baked otherwise. A stage source poses on its own
+ * view of the scene, so the element's recorded pose need not be the one the
+ * bake reads: no pool there.
+ */
+static uint32_t
+es2z_bake_dynamic(
+    struct TRSPK_Renderer_ES2* renderer,
+    struct ES2ModelGroup* group,
+    const struct ToriRS_RenderCommand_Model* command,
+    int anim_index,
+    int pose_id)
+{
+    struct TRSPK_PosePool* pool = &es2_zbuffer_state(renderer)->pose_pool;
+    struct TRSPK_PoseKey key;
+    uint32_t vertex_base;
+    bool const keyed = !renderer->model_stage_source &&
+        trspk_pose_key_for_command(renderer->scene, command, &key);
+    if( keyed && pose_id <= (INT_MAX - anim_index) / TRSPK_POSE_TRACK_COUNT )
+    {
+        vertex_base = trspk_pose_pool_place(pool, &key, group->arena, group->vbo_cpu,
+            &group->triangles, command->element_id, pose_id * TRSPK_POSE_TRACK_COUNT + anim_index);
+        if( vertex_base != UINT32_MAX )
+            return vertex_base;
+    }
+    vertex_base = es2_bake_into_arena(
+        renderer,
+        group,
+        command->element_id,
+        anim_index,
+        pose_id,
+        command->model,
+        &command->world_position,
+        false);
+    if( keyed && vertex_base != UINT32_MAX )
+        trspk_pose_pool_store(pool, &key, group->vbo_cpu, &group->triangles, vertex_base,
+            (uint32_t)trspk_toridraw_face_count(command->model) * 3u);
+    return vertex_base;
+}
+
 void
 es2z_draw_model(struct TRSPK_Renderer_ES2* renderer, const struct ToriRS_RenderCommand_Model* command)
 {
@@ -1383,40 +1450,70 @@ es2z_draw_model(struct TRSPK_Renderer_ES2* renderer, const struct ToriRS_RenderC
         {
             es2_apply_animation(renderer, command);
         }
+        /*
+         * The GPU draws from the baked vertices and tests depth itself, so
+         * the software projection is wanted here for two things only: the
+         * pick, and a blended model's face sort (which the emit projects for
+         * on its own). The cylinder cull decides visibility without
+         * projecting a vertex, and says whether the cursor could be on the
+         * model at all; only then is it projected, to answer exactly. A box
+         * pick's box can be larger than a small model, so it is always
+         * projected. Projecting every drawn model was 15% of a WebGL2
+         * replay's main thread.
+         */
+        bool const pick_wanted =
+            renderer->pick_enabled && command->pickable && command->element_id >= 0;
+        bool cursor_inside = false;
         projected_position = command->position;
-        if( ToriDraw_RenderModel1ProjectWithTable(
+        if( ToriDraw_RenderModel1CullPoint(
                 command->model,
                 renderer->scene,
                 &projected_position,
                 &renderer->current_3d.view_port,
                 &renderer->current_3d.camera,
-                renderer->kernel) != TORIDRAW_CULL_VISIBLE )
+                renderer->pick_mouse_x,
+                renderer->pick_mouse_y,
+                pick_wanted && !command->pick_aabb ? &cursor_inside : NULL) !=
+            TORIDRAW_CULL_VISIBLE )
             return;
-
-        if( renderer->pick_enabled && command->pickable && command->element_id >= 0 &&
-            (command->pick_aabb
-                 ? ToriDraw_ProjectedModelBoxHitTest(renderer->scene, command->model, &renderer->current_3d.view_port, renderer->pick_mouse_x, renderer->pick_mouse_y)
-                 : command->pick_terrain
-                     ? ToriDraw_ProjectedTileMouseHitTest(
-                           renderer->scene,
-                           command->model,
-                           &renderer->current_3d.view_port,
-                           renderer->pick_mouse_x,
-                           renderer->pick_mouse_y)
-                     : ToriDraw_ProjectedModelMouseHitTest(
-                           renderer->scene,
-                           command->model,
-                           &renderer->current_3d.view_port,
-                           renderer->pick_mouse_x,
-                           renderer->pick_mouse_y)) )
-            ToriRS_PickHitsAdd(
-                &renderer->pick_hits,
-                command->element_id,
-                command->pick_terrain,
-                command->pick_tile_x,
-                command->pick_tile_z,
-                command->pick_tile_level,
-                command->pick_view);
+        face_order = NULL;
+        projected_depth = 0;
+        projected_in_scene = false;
+        if( pick_wanted && (command->pick_aabb || cursor_inside) )
+        {
+            if( ToriDraw_RenderModel1ProjectWithTable(
+                    command->model,
+                    renderer->scene,
+                    &projected_position,
+                    &renderer->current_3d.view_port,
+                    &renderer->current_3d.camera,
+                    renderer->kernel) != TORIDRAW_CULL_VISIBLE )
+                return;
+            projected_depth = renderer->scene->projected_vertex.z;
+            projected_in_scene = true;
+            if( command->pick_aabb
+                    ? ToriDraw_ProjectedModelBoxHitTest(renderer->scene, command->model, &renderer->current_3d.view_port, renderer->pick_mouse_x, renderer->pick_mouse_y)
+                : command->pick_terrain ? ToriDraw_ProjectedTileMouseHitTest(
+                                              renderer->scene,
+                                              command->model,
+                                              &renderer->current_3d.view_port,
+                                              renderer->pick_mouse_x,
+                                              renderer->pick_mouse_y)
+                                        : ToriDraw_ProjectedModelMouseHitTest(
+                                              renderer->scene,
+                                              command->model,
+                                              &renderer->current_3d.view_port,
+                                              renderer->pick_mouse_x,
+                                              renderer->pick_mouse_y) )
+                ToriRS_PickHitsAdd(
+                    &renderer->pick_hits,
+                    command->element_id,
+                    command->pick_terrain,
+                    command->pick_tile_x,
+                    command->pick_tile_z,
+                    command->pick_tile_level,
+                    command->pick_view);
+        }
         if( command->pick_only )
             return;
 
@@ -1425,9 +1522,6 @@ es2z_draw_model(struct TRSPK_Renderer_ES2* renderer, const struct ToriRS_RenderC
          * already sorted (sorted_face_count of it, zero here), which dropped
          * every blended face -- spotanims on actors, translucent projectiles. */
         face_count = trspk_toridraw_face_count(command->model);
-        face_order = NULL;
-        projected_depth = renderer->scene->projected_vertex.z;
-        projected_in_scene = true;
     }
     if( face_count <= 0 || (uint32_t)face_count > UINT32_MAX / 3u )
         return;
@@ -1441,15 +1535,8 @@ es2z_draw_model(struct TRSPK_Renderer_ES2* renderer, const struct ToriRS_RenderC
     binding = group;
     if( dynamic )
     {
-        vertex_base = es2_bake_into_arena(
-            renderer,
-            &renderer->groups[group],
-            command->element_id,
-            anim_index,
-            pose_id,
-            command->model,
-            &command->world_position,
-            false);
+        vertex_base =
+            es2z_bake_dynamic(renderer, &renderer->groups[group], command, anim_index, pose_id);
     }
     else if( (static_state=es2_static_resolve_recorded(renderer,command->element_id,anim_index,pose_id,&static_placement))!=0 )
     {
@@ -1521,6 +1608,7 @@ es2z_draw_model(struct TRSPK_Renderer_ES2* renderer, const struct ToriRS_RenderC
     placement.dynamic = dynamic;
     placement.face_order = face_order;
     placement.projected_in_scene = projected_in_scene;
+    placement.staged = staged;
     placement.projected_depth = projected_depth;
     es2_zbuffer_emit_model(renderer, command, &placement);
 }
