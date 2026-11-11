@@ -2310,7 +2310,8 @@ struct ToriRSChrome
      * told them (ToriRSChrome_SetModifiers; 0 for a host that never does).
      * Read at the press: Shift+Alt (Option) held, a press ANYWHERE on a
      * window panel picks the window up, title bar or not -- the way to move
-     * a panel whose title bar is off the surface or under another panel.
+     * a panel whose title bar is off the surface or under another panel. A
+     * hollow panel's body included: the one press that does not fall through.
      */
     int mods;
 

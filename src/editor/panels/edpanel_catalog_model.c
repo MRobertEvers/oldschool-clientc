@@ -2073,6 +2073,51 @@ Editor_CatalogModelRangeText(
 }
 
 void
+Editor_CatalogModelWindowText(
+    const struct Editor_CatalogModel* model,
+    int first,
+    int shown,
+    char* out,
+    int out_size)
+{
+    int const count = Editor_CatalogModelViewCount(model);
+    char a[16];
+    char b[16];
+    char t[16];
+    int last;
+
+    assert(model);
+    assert(out);
+    assert(out_size > 0);
+    /* Nothing to count (no answer yet, an error, an empty list): the
+     * Catalog's words for it. */
+    if( count == 0 || (model->source == EDITOR_CATALOG_SOURCE_INDEX && (!model->held || model->status != EDITOR_HOST_OK)) )
+    {
+        Editor_CatalogModelRangeText(model, first, out, out_size);
+        return;
+    }
+    if( first < 0 )
+        first = 0;
+    if( first >= count )
+        first = count - 1;
+    last = first + (shown > 0 ? shown : 1) - 1;
+    if( last >= count )
+        last = count - 1;
+    catalog_thousands((uint32_t)first + 1, a, sizeof(a));
+    catalog_thousands((uint32_t)last + 1, b, sizeof(b));
+    catalog_thousands((uint32_t)count, t, sizeof(t));
+    if( model->source == EDITOR_CATALOG_SOURCE_INDEX && (model->result.page_flags & TORIRSMAPED_CATALOG_PAGE_SCOPED)
+        && strlen(t) + 2 < sizeof(t) )
+        strcat(t, "+");
+    if( model->source == EDITOR_CATALOG_SOURCE_INDEX && Editor_CatalogModelPartial(model) )
+        snprintf(out, (size_t)out_size, "%s to %s of %s %s so far", a, b, t, kind_label(model->held_kind));
+    else
+        snprintf(out, (size_t)out_size, "%s to %s of %s %s", a, b, t,
+            model->source == EDITOR_CATALOG_SOURCE_INDEX ? kind_label(model->held_kind)
+                                                         : catalog_source_label(model->source));
+}
+
+void
 Editor_CatalogModelFeed(
     struct Editor_CatalogModel* model,
     uint32_t page,

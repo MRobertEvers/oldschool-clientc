@@ -581,6 +581,21 @@ trspk_atlas_binpack_insert(
     return true;
 }
 
+void
+trspk_atlas_binpack_reset(struct TRSPK_Atlas* atlas)
+{
+    assert(atlas);
+    assert(trspk_atlas_is_initialized(atlas));
+    assert(atlas->mode == TRSPK_ATLAS_MODE_BINPACK);
+    assert(atlas->free_rects);
+    assert(atlas->free_rects_cap >= 1u);
+    atlas->free_rects[0].x = 0;
+    atlas->free_rects[0].y = 0;
+    atlas->free_rects[0].w = atlas->width;
+    atlas->free_rects[0].h = atlas->height;
+    atlas->free_rects_count = 1;
+}
+
 /* ------------------------------------------------------------------ */
 /* Lifetime — free                                                     */
 /* ------------------------------------------------------------------ */

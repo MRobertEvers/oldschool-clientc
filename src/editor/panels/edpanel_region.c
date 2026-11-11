@@ -257,7 +257,7 @@ Editor_RegionUnderlayCommands(
     assert(level >= 0);
     assert(level < EDITOR_SQUARE_LEVELS);
     assert(underlay_id >= 0);
-    assert(underlay_id <= 0xff);
+    assert(underlay_id <= EDITOR_UNDERLAY_MAX);
     assert(grid);
     assert(out);
     room = (size_t)grid->w * (size_t)grid->h;
@@ -282,7 +282,7 @@ Editor_RegionUnderlayCommands(
             continue;
         }
         after = square->tiles[Editor_TileIndex(x, z, level)];
-        after.underlay_id = (uint8_t)underlay_id;
+        after.underlay_id = (uint16_t)underlay_id;
         region_emit_tile(square, x, z, level, &after, out, &written, max, &local.dropped);
     }
     ToriMem_Free(ToriMem_Editor(), xs);

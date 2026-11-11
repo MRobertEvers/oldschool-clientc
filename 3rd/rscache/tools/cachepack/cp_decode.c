@@ -2021,8 +2021,27 @@ map_read(
                 tile->settings = (uint8_t)atoi(token + 1);
                 break;
             case 'u':
-                tile->underlay_id = (uint8_t)atoi(token + 1);
+            {
+                /* The underlay rides the attribute opcode as `id + 81`, at
+                 * the era's width. The token used to be cast into a byte:
+                 * `u1102`, a ported lane's own underlay, packed as underlay
+                 * 78 and nothing said so. */
+                int const underlay = atoi(token + 1);
+                int const most = (RSCache_MapTerrainFlags(&ctx->profile) & RSCACHE_MAP_TERRAIN_DECODE_U8)
+                                     ? RSCACHE_MAP_UNDERLAY_MAX_U8
+                                     : RSCACHE_MAP_UNDERLAY_MAX_U16;
+                if( underlay < 0 || underlay > most )
+                {
+                    fprintf(stderr,
+                        "cachepack: %s: tile %d %d %d states u%d; this cache's maps hold underlays "
+                        "up to %d\n",
+                        path_stem, level, x, z, underlay, most);
+                    ok = 0;
+                }
+                else
+                    tile->underlay_id = (uint16_t)underlay;
                 break;
+            }
             default:
                 ok = 0;
                 break;

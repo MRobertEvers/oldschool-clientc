@@ -1729,7 +1729,7 @@ cat_parse_jm2(
                     while( s < le && *s >= '0' && *s <= '9' )
                         value = value * 10 + (uint32_t)(*s++ - '0');
                     if( which == 'u' )
-                        ul = value & 0xFF;
+                        ul = value & 0xFFFF;
                     else
                         ov = value & 0xFFFF;
                 }
@@ -1738,7 +1738,9 @@ cat_parse_jm2(
             }
             if( ul || ov )
             {
-                uint32_t key = (ov << 8) | ul;
+                /* Sixteen bits each: an underlay is as wide as an overlay
+                 * (a byte for it folded underlay 1102 onto 78). */
+                uint32_t key = (ov << 16) | ul;
                 uint32_t slot = (key * 2654435761u) & (SLOTS - 1);
                 while( counts[slot] && keys[slot] != key )
                     slot = (slot + 1) & (SLOTS - 1);
@@ -2952,6 +2954,7 @@ static uint32_t
 cat_square_rgb(
     const struct cat_source* jm2,
     const int32_t* ul_rgb,
+    int ul_count,
     const int32_t* ov_rgb,
     int ov_count)
 {
@@ -2963,12 +2966,12 @@ cat_square_rgb(
     {
         uint32_t key = jm2->hist[i * 2];
         uint32_t count = jm2->hist[i * 2 + 1];
-        int ov = (int)(key >> 8);
-        int ul = (int)(key & 0xFF);
+        int ov = (int)(key >> 16);
+        int ul = (int)(key & 0xFFFF);
         int32_t rgb = -1;
         if( ov > 0 && ov - 1 < ov_count )
             rgb = ov_rgb[ov - 1];
-        if( rgb < 0 && ul > 0 )
+        if( rgb < 0 && ul > 0 && ul - 1 < ul_count )
             rgb = ul_rgb[ul - 1];
         if( rgb < 0 )
             continue;
@@ -2985,19 +2988,30 @@ cat_square_rgb(
 static void
 cat_merge_atlas(struct ToriRSMapEdCatalog* catalog)
 {
-    int32_t ul_rgb[256];
+    /* Both tables by record id, as long as the highest id the tree states:
+     * the underlays were 256 slots, the cache's own, and a record made in
+     * the tree (or a ported lane's, 1100 and up) coloured nothing. */
+    int32_t* ul_rgb = NULL;
+    int ul_count = 0;
     int32_t* ov_rgb = NULL;
     int ov_count = 0;
     int square_cap = 0;
     int area_list_cap = 0;
 
-    for( int i = 0; i < 256; i++ )
-        ul_rgb[i] = -1;
     for( int r = 0; r < catalog->record_count; r++ )
     {
         const struct cat_record* rec = &catalog->records[r];
         if( rec->kind == TORIRSMAPED_CATALOG_OVERLAY && rec->id >= ov_count )
             ov_count = rec->id + 1;
+        if( rec->kind == TORIRSMAPED_CATALOG_UNDERLAY && rec->id >= ul_count )
+            ul_count = rec->id + 1;
+    }
+    if( ul_count > 0 )
+    {
+        ul_rgb = ToriMem_Alloc(ToriMem_Editor(), (size_t)ul_count * sizeof(*ul_rgb));
+        assert(ul_rgb);
+        for( int i = 0; i < ul_count; i++ )
+            ul_rgb[i] = -1;
     }
     if( ov_count > 0 )
     {
@@ -3011,7 +3025,7 @@ cat_merge_atlas(struct ToriRSMapEdCatalog* catalog)
         const struct cat_record* rec = &catalog->records[r];
         if( rec->id < 0 )
             continue;
-        if( rec->kind == TORIRSMAPED_CATALOG_UNDERLAY && rec->id < 256 )
+        if( rec->kind == TORIRSMAPED_CATALOG_UNDERLAY )
             ul_rgb[rec->id] = cat_colour(cat_record_field(catalog, r, "colour"));
         else if( rec->kind == TORIRSMAPED_CATALOG_OVERLAY )
         {
@@ -3083,7 +3097,7 @@ cat_merge_atlas(struct ToriRSMapEdCatalog* catalog)
             if( src->type == CAT_SRC_JM2 )
             {
                 sq->flags |= TORIRSMAPED_SQUARE_HAS_JM2;
-                sq->rgb = cat_square_rgb(src, ul_rgb, ov_rgb, ov_count);
+                sq->rgb = cat_square_rgb(src, ul_rgb, ul_count, ov_rgb, ov_count);
             }
             else if( src->type == CAT_SRC_JL2 )
             {
@@ -3107,6 +3121,7 @@ cat_merge_atlas(struct ToriRSMapEdCatalog* catalog)
         catalog->square_count++;
     }
     ToriMem_Free(ToriMem_Editor(), ov_rgb);
+    ToriMem_Free(ToriMem_Editor(), ul_rgb);
 }
 
 /** Facts that need the whole index: npcs with a Talk-to script, vars read

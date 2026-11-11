@@ -9632,6 +9632,34 @@ dbg_panel_at(struct ToriRSChrome const* ui, int x, int y)
 }
 
 /**
+ * Topmost panel whose BOX holds the point, hollow or not, or -1: what
+ * dbg_panel_at answers plus the one place it answers "nobody" on purpose, a
+ * hollow panel's body. For the gesture that takes a window by ANY part of it
+ * (Shift+Alt+drag) -- the body the host draws in is still part of the window
+ * being moved. Nothing under a modal but the dialog, as everywhere.
+ */
+static int
+dbg_panel_box_at(struct ToriRSChrome const* ui, int x, int y)
+{
+    int z_order[TORIRS_CHROME_MAX_PANELS];
+    int z_count;
+
+    if( ToriRSChrome_ModalPanel(ui) >= 0 )
+        return dbg_panel_at(ui, x, y);
+    z_count = dbg_z_order(ui, z_order);
+    for( int z = z_count - 1; z >= 0; z-- )
+    {
+        struct ToriRSChromePanel const* p = &ui->panels[z_order[z]];
+
+        if( !p->visible || p->last_rect.w <= 0 )
+            continue;
+        if( dbg_point_in_rect(x, y, p->last_rect) )
+            return z_order[z];
+    }
+    return -1;
+}
+
+/**
  * The title bar's box, off `last_rect`. Zero for a panel with no title.
  *
  * ONE answer, shared by the in-canvas header drag and by the OS window's drag
@@ -10910,13 +10938,19 @@ ToriRSChrome_MouseDown(struct ToriRSChrome* ui, int x, int y)
      * off the top of the surface, or under another panel -- and with the
      * modifiers down nothing on the panel is a control. A compound (a group's
      * strip and window) is picked up by its root; a docked panel is placed
-     * by its dock and stays; a hollow panel's body (the World view) is the
-     * host's and falls through as it always does.
+     * by its dock and stays.
+     *
+     * A HOLLOW panel's body (the World view) is taken too, by its box
+     * (dbg_panel_box_at). It fell through to the host as it does for every
+     * other press, which meant the one window with the largest body was the
+     * one window this could not move, and the press landed on the armed tool
+     * instead (2026-11-11). Taking it here returns 1 and sets drag_panel, so
+     * the host's own gates (WantsPointer) keep the world out of the drag.
      */
     if( (ui->mods & (TORIRS_CHROME_MOD_SHIFT | TORIRS_CHROME_MOD_ALT))
         == (TORIRS_CHROME_MOD_SHIFT | TORIRS_CHROME_MOD_ALT) )
     {
-        int const panel = dbg_panel_at(ui, x, y);
+        int const panel = dbg_panel_box_at(ui, x, y);
         if( panel >= 0 && ui->panels[panel].style == TORIRS_CHROME_PANEL_WINDOW && !ui->panels[panel].modal )
         {
             int const root = dbg_attach_root(ui, panel);

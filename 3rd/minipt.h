@@ -46,6 +46,7 @@ struct pt
 #define PT_WAIT_UNTIL(s, cond) \
     do { \
         (s)->lc = __LINE__; \
+        __attribute__((fallthrough)); \
         case __LINE__: \
         if (!(cond)) return PT_WAITING; \
     } while(0)

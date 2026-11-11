@@ -254,10 +254,11 @@ Task_PluginBoot_Run(struct ToriRS_Task* task_base, struct ToriRS_IOBatch* io)
             PluginDrive_ComposeReset();
         for( task->part = 0; task->part < task->part_count; task->part++ )
         {
-            char const* const part_path =
-                PluginDrive_ScriptPartPath(task->entries[task->at].name, task->part);
-
-            ToriRS_IO_QueueScript(io, PLUGIN_IO_SLOT, part_path);
+            /* Looked up again on each side of the yield: a local does not
+             * survive PT_YIELD, so one read after it is whatever the stack
+             * holds on the resuming call. */
+            ToriRS_IO_QueueScript(io, PLUGIN_IO_SLOT,
+                PluginDrive_ScriptPartPath(task->entries[task->at].name, task->part));
             PT_YIELD(&task->pt);
 
             item = ToriRS_IO_TaskSlot(io, PLUGIN_IO_SLOT);
@@ -268,7 +269,8 @@ Task_PluginBoot_Run(struct ToriRS_Task* task_base, struct ToriRS_IOBatch* io)
                 /* Loud: a missing part is a driver whose verbs are silently
                  * absent, which would surface as a quest test failing on a nil
                  * call thirty steps later. */
-                TORIRS_ERR("plugin: quest driver part '%s' could not be read\n", part_path);
+                TORIRS_ERR("plugin: quest driver part '%s' could not be read\n",
+                    PluginDrive_ScriptPartPath(task->entries[task->at].name, task->part));
             ToriRS_IO_ClearItem(item);
         }
 

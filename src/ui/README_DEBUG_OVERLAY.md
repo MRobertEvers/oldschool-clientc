@@ -301,8 +301,10 @@ A host tells the chrome which modifiers are down before routing each
 frame's pointer. With Shift and Alt (Option) both held, a press **anywhere
 on a WINDOW panel** picks it up -- buttons, grip, edges and rows included --
 so a window whose title bar is off the surface or under another panel can
-still be moved. A compound is picked up by its root; a docked panel stays; a
-hollow panel's body falls through as it always does. A host that never calls
+still be moved. A compound is picked up by its root; a docked panel stays. A
+hollow panel's body is part of its window here, the one press that does not
+fall through it: Shift+Alt+drag on the map editor's World view moves the
+World panel instead of reaching the armed tool. A host that never calls
 `SetModifiers` gets the plain behaviour everywhere.
 
 #### The clip rule

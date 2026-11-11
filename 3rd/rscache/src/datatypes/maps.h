@@ -86,10 +86,18 @@ enum RSCache_FloorShape
     RSCACHE_FLOOR_SHAPE_TRAPEZIUM = 12,
 };
 
+/** The largest underlay a tile can state: it rides the attribute opcode as
+ *  `id + 81`, at the era's width (RSCACHE_MAP_TERRAIN_DECODE_U8 or U16). */
+#define RSCACHE_MAP_UNDERLAY_MAX_U8 (0xFF - 81)
+#define RSCACHE_MAP_UNDERLAY_MAX_U16 (0xFFFF - 81)
+
 struct RSCache_MapFloor
 {
     uint16_t overlay_id;
-    uint8_t underlay_id;
+    /** The record's id + 1 (0 = none). As wide as the u16 era's opcode: a
+     *  byte here cut `attribute - 81` to its low eight bits, so a map that
+     *  stated underlay 1102 decoded as 78. */
+    uint16_t underlay_id;
     int16_t height;
     uint8_t attr_opcode;
     uint8_t settings;

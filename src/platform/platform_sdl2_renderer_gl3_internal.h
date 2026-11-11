@@ -536,6 +536,13 @@ struct ToriPlatformSDL2_Renderer_GL3
      * (a live renderer switch) has a fresh atlas, and a UV cached from the old
      * one samples whatever tile now sits there -- or nothing. */
     struct GL3SpriteVariant sprite_variants[GL3_SPRITE_VARIANT_CAP];
+    /* The sheet ran out on the sprite being drawn: no tile left in the
+     * atlas, no free slot or no free variant (gl3_sprite_sheet_restart). */
+    bool sprite_sheet_full;
+    /* Started over in this 2D pass already: a second time would only evict
+     * what the pass has drawn so far. */
+    bool sprite_sheet_restarted;
+    uint32_t sprite_sheet_restarts;
     struct GL3FontSlot font_slots[TRSPK_GL3_FONT_CAP];
     GLuint quad_vao;
     GLuint quad_vbo;

@@ -727,7 +727,11 @@ Editor_DocOpen(
     {
         int map_x;
         int map_z;
-        Editor_SquareKeyParse(key, &map_x, &map_z);
+        if( !Editor_SquareKeyParse(key, &map_x, &map_z) )
+        {
+            memset(out, 0, sizeof(*out));
+            return 0;
+        }
         out->square = Editor_DocOpenSquare(doc, map_x, map_z);
         return out->square != NULL;
     }

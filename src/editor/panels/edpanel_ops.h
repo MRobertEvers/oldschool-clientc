@@ -50,6 +50,32 @@ Editor_OpsRawForHeight(
 
 /* ---- brushes ------------------------------------------------------------------ */
 
+/** Tiles one Roughen stroke can remember having pushed (a power of two: an
+ *  open-addressed table). A radius-16 brush dragged across a whole square is
+ *  about 2,500. */
+#define EDITOR_ROUGHEN_STROKE_TILES 16384
+
+/**
+ * What one Roughen stroke has pushed each tile so far, in height units.
+ *
+ * A drag applies the brush at every tile the pointer crosses, so a tile under
+ * a radius-10 brush is under twenty applications of it. Pushed by each, the
+ * ground rose twenty steps where one was asked for: a Step of 6 made
+ * mountains, and a wide brush could not lay gentle ground at all. With the
+ * stroke remembered, an application pushes a tile only as far past what the
+ * stroke already did as its own weight asks, so one stroke lays the relief
+ * once and Step is a hill's height whatever the radius.
+ */
+struct Editor_RoughenStroke
+{
+    /** The stroke's noise_seed: another seed is another stroke. */
+    uint32_t seed;
+    int count;
+    /** 0 empty, else the tile packed (level, z, x) + 1. */
+    uint32_t keys[EDITOR_ROUGHEN_STROKE_TILES];
+    int16_t units[EDITOR_ROUGHEN_STROKE_TILES];
+};
+
 /** One brush application at one centre tile. */
 struct Editor_BrushOp
 {
@@ -68,12 +94,24 @@ struct Editor_BrushOp
      *  it may move (enum Editor_HeightMode). */
     int height_target;
     int height_mode;
-    /** NOISE: the seed. Each tile's offset is a hash of the seed and its
-     *  world tile, -step..+step scaled by the falloff: one seed is one
-     *  relief, so a plan can be remade (the preview) and a tile revisited
-     *  in a stroke takes the same offset again, as Raise would; the caller
-     *  moves the seed on per stroke so the next drag is another relief. */
+    /** NOISE: the seed. Each tile's offset is the seed's relief at its
+     *  world tile (Editor_RoughenRelief), -step..+step scaled by the
+     *  falloff: one seed is one relief, so a plan can be remade (the
+     *  preview) and a tile revisited in a stroke is pushed the same way
+     *  again, as Raise would; the caller moves the seed on per stroke so
+     *  the next drag is another relief. */
     uint32_t noise_seed;
+    /** NOISE: the relief's feature size in tiles, the width of its widest
+     *  hills (0 reads as EDITOR_ROUGHEN_SCALE_DEFAULT; 1 is a draw per
+     *  tile, the jagged ground Roughen made before it had a scale), and
+     *  how much of the finer bumps ride on them, 0..100 %. */
+    int noise_scale;
+    int noise_detail;
+    /** NOISE: the stroke this application is part of, or NULL for one on
+     *  its own (every application then pushes its full amount). Read, never
+     *  written, by Editor_BrushCommands: the caller notes what it applied
+     *  (Editor_RoughenStrokeNote). */
+    const struct Editor_RoughenStroke* noise_stroke;
     int underlay_id;
     /** PAINT_UNDERLAY: the share of the brush's tiles painted, 1..100 %
      *  (0 reads as 100: a zeroed op paints every tile), each tile's draw a
@@ -86,6 +124,47 @@ struct Editor_BrushOp
     int overlay_rotation;
     int flags_value;
 };
+
+/** Roughen's feature size: the default, and the widest it goes. */
+#define EDITOR_ROUGHEN_SCALE_DEFAULT 8
+#define EDITOR_ROUGHEN_SCALE_MAX 32
+
+/**
+ * Roughen's relief at one world tile, -1..1: what the ground there is pushed
+ * by, as a share of the brush's step. Ground reads as natural when a tile
+ * goes the way its neighbours go, so this is not a draw per tile but a
+ * surface: gradient noise at `scale` tiles a hill, with the same at half the
+ * size, a quarter and so on down to two tiles summed on it, each weaker
+ * than the last by `detail` (0: rolling ground alone; 100: crags). The same
+ * every time for one seed. `scale` <= 0 reads as the default, 1 is a draw
+ * per tile.
+ */
+double
+Editor_RoughenRelief(
+    uint32_t seed,
+    int world_x,
+    int world_z,
+    int scale,
+    int detail);
+
+/** Start `stroke` over for the stroke whose seed is `seed`. */
+void
+Editor_RoughenStrokeBegin(
+    struct Editor_RoughenStroke* stroke,
+    uint32_t seed);
+
+/**
+ * Note that the `count` TILE commands Editor_BrushCommands planned for `op`
+ * (a NOISE op whose noise_stroke is `stroke`) were applied: each tile's
+ * push so far becomes what that application asked of it. A table that is
+ * full stops remembering new tiles (they are pushed per application again).
+ */
+void
+Editor_RoughenStrokeNote(
+    struct Editor_RoughenStroke* stroke,
+    const struct Editor_BrushOp* op,
+    const struct Editor_Cmd* commands,
+    int count);
 
 /** The brush's weight at offset (dx, dz) from its centre: 0 outside the disc,
  *  1 at the centre, per the falloff in between. */

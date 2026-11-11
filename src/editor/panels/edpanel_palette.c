@@ -44,6 +44,36 @@
  * records and the textures a batch a tick while it is open
  * (app_services.overlay_texture), so the well fills in over the first second.
  *
+ * NEW RECORDS (the owner's request, 2026-11-10: "you also need to be able
+ * to create an underlay and overlay and then add it to the palette"). The
+ * picker's colour is a colour nothing in the cache may have, and the nearest
+ * record is then the wrong ground. Under the picker: a name, "New underlay
+ * of this colour" and "New overlay of this colour". Either copies the
+ * type's first record to the name with a fresh id (Editor_CopyRecord, the
+ * Record panel's Copy to new: the id is the allocator's, the line goes into
+ * pack/<type>.alloc and pack/<type>.client, the block into
+ * configs/all.<type>), sets its `colour` to the picker's, and picks it, so
+ * the brush that paints it is armed. "Recolour" sets the picked record's
+ * colour again, when the tree made it.
+ *
+ * The records the tree made are what pack/underlay.alloc and
+ * pack/overlay.alloc name, and each well lists them all, used or not: that
+ * is "in the palette". Their ids are past the cache's (the cache's own
+ * underlays fill 1..256), which is why a tile's underlay is sixteen bits
+ * (editor_types.h EDITOR_UNDERLAY_MAX).
+ *
+ * A record made here is in no cache until the next build, so the window is
+ * told what it is (hooks.floor_define): its swatch is its colour and ground
+ * painted with it shows at once. That runs in every window that has the
+ * module, shown or not -- the World may be one window and this panel
+ * another -- from the record's own document, so an undo, another window's
+ * edit and a restart all land the same way.
+ *
+ * A new square states no floor at all, and a well that lists what the open
+ * squares use was then one crossed-out cell: "How do I pick an underlay
+ * color?" So while the open squares use three underlays or fewer the wells
+ * list every record, as "Every id" does.
+ *
  * Colours come from the window (hooks.floor_rgb, the provider's records); a
  * record the window has not loaded draws as a hatched grey cell with its id,
  * so the palette still works on a cache the editor cannot fully decode.
@@ -52,6 +82,8 @@
 #include "edpanel_common.h"
 #include "edpanel_shapes.h"
 #include "edpanels.h"
+#include "editor/editor.h"
+#include "editor/editor_cfg.h"
 #include "editor/editor_floorcolor.h"
 #include "mem/torirs_mem.h"
 #include "ui/torirs_chrome_icons.h"
@@ -67,6 +99,15 @@
  *  config id + 1): underlays are a byte, overlays run past 600 in OSRS. */
 #define PALETTE_UNDERLAY_PROBE 256
 #define PALETTE_OVERLAY_PROBE 1024
+/** The records the tree made, a well lists at most; a record name's bytes
+ *  (a `[block]` header's, well inside EDITOR_CMD_NAME_MAX). */
+#define PALETTE_CUSTOM_MAX 128
+#define PALETTE_NAME_MAX 48
+/** Frames between looks at the tree's records while nothing asked. */
+#define PALETTE_CUSTOM_EVERY 15
+/** Open squares that use this many distinct underlays or fewer get every
+ *  record in the wells without "Every id". */
+#define PALETTE_AUTO_ALL_UNDERLAYS 3
 #define PALETTE_WELL_W 184
 #define PALETTE_CELL 14
 /** The Textures well: the service's sprite, a cell around it, and how long
@@ -113,6 +154,21 @@ struct PaletteList
     int ids[PALETTE_IDS_MAX];
     int count;
 };
+
+/** One floor record the tree made (a line of pack/<type>.alloc). */
+struct PaletteCustom
+{
+    /** The file id (config id + 1) and the record's name. */
+    int id;
+    char name[PALETTE_NAME_MAX];
+    /** Its CFG document was asked for. */
+    int opened;
+    /** The document text the window was last told the record from. */
+    const char* defined_text;
+    uint32_t defined_revision;
+};
+
+static const char* const k_floor_types[2] = { "underlay", "overlay" };
 
 struct PalettePanel
 {
@@ -179,6 +235,22 @@ struct PalettePanel
     /** The eyedropper the next ground click answers: 0 none, else 1 +
      *  is_overlay. */
     int dropper;
+
+    /** New records: the name, New underlay / overlay, Recolour. */
+    int row_new;
+    int input_new_name;
+    int button_new[2];
+    int button_recolour[2];
+    /** The records the tree made, per kind, in the ledger's order. */
+    struct PaletteCustom custom[2][PALETTE_CUSTOM_MAX];
+    int custom_count[2];
+    /** The ledgers were asked for; each one's text as last read. */
+    int ledger_opened;
+    const char* ledger_text[2];
+    uint32_t ledger_revision[2];
+    int custom_tick;
+    /** The open squares state no floor: the wells list every record. */
+    int auto_all;
 
     /** The Textures well. Per overlay id what the window said: 0 not yet,
      *  1 it lays a texture, -1 it lays none. */
@@ -265,11 +337,15 @@ palette_match_kind(
     int const probe = is_overlay ? PALETTE_OVERLAY_PROBE : PALETTE_UNDERLAY_PROBE;
 
     assert(max <= PALETTE_MATCH_MAX);
-    for( int id = 1; id <= probe; id++ )
+    /* The cache's ids, then the tree's own past them. */
+    for( int n = 1; n <= probe + self->custom_count[is_overlay]; n++ )
     {
+        int const id = n <= probe ? n : self->custom[is_overlay][n - probe - 1].id;
         uint32_t rgb;
         int d;
         int at;
+        if( n > probe && id <= probe )
+            continue;
         if( !palette_rgb(ui, is_overlay, id, &rgb) )
             continue;
         /* The record of that very colour first, ahead of any the client
@@ -298,6 +374,284 @@ palette_match(
     self->match_under_count = palette_match_kind(ui, self, 0, self->match_under, PALETTE_MATCH_MAX);
     self->match_over_count = palette_match_kind(ui, self, 1, self->match_over, PALETTE_MATCH_MAX);
     self->dirty_draw = 1;
+}
+
+/* ---- the tree's own records ---------------------------------------------------- */
+
+/** The open document (kind, key) in this window's mirror, NULL when it is
+ *  not open (or the window has no session). */
+static const struct Editor_TextDoc*
+palette_doc(
+    struct EditorUi* ui,
+    enum Editor_DocKind kind,
+    const char* key)
+{
+    struct Editor_DocHandle handle;
+
+    if( !ui->editor || !Editor_DocFind(&ui->editor->doc, kind, key, &handle) || !handle.text )
+        return NULL;
+    return handle.text;
+}
+
+/** The value of field `key` of a record's block, copied out. 0 when the
+ *  block does not state it (or it does not fit). */
+static int
+palette_block_value(
+    const struct Editor_CfgBlock* block,
+    const char* key,
+    char* out,
+    size_t out_size)
+{
+    int const line = Editor_CfgBlockFieldFind(block, key, 0);
+    const char* value;
+    size_t length = 0;
+
+    if( line < 0 )
+        return 0;
+    value = Editor_CfgBlockValue(block, line, &length);
+    if( length >= out_size )
+        return 0;
+    memcpy(out, value, length);
+    out[length] = '\0';
+    return 1;
+}
+
+/** A field's colour: "0xRRGGBB". 0 for anything else ("default"). */
+static int
+palette_value_rgb(
+    const char* value,
+    uint32_t* out)
+{
+    char* end = NULL;
+    unsigned long rgb;
+
+    if( value[0] != '0' || (value[1] != 'x' && value[1] != 'X') )
+        return 0;
+    rgb = strtoul(value + 2, &end, 16);
+    if( end == value + 2 || *end != '\0' || rgb > 0xffffff )
+        return 0;
+    *out = (uint32_t)rgb;
+    return 1;
+}
+
+/** 1 when ground of an open square wears floor `id` of `kind`. */
+static int
+palette_floor_in_use(
+    struct EditorUi* ui,
+    int kind,
+    int id)
+{
+    const struct Editor_Doc* doc;
+
+    if( !ui->editor )
+        return 0;
+    doc = &ui->editor->doc;
+    for( int s = 0; s < doc->square_count; s++ )
+    {
+        const struct Editor_Square* square = &doc->squares[s];
+        if( !square->loaded )
+            continue;
+        for( int i = 0; i < EDITOR_SQUARE_TILES; i++ )
+            if( kind ? (square->tiles[i].has_overlay && square->tiles[i].overlay_id == id)
+                     : square->tiles[i].underlay_id == id )
+                return 1;
+    }
+    return 0;
+}
+
+/** The record of `kind` the tree made under file id `id`, or NULL. */
+static struct PaletteCustom*
+palette_custom_find(
+    struct PalettePanel* self,
+    int kind,
+    int id)
+{
+    for( int i = 0; i < self->custom_count[kind]; i++ )
+        if( self->custom[kind][i].id == id )
+            return &self->custom[kind][i];
+    return NULL;
+}
+
+/** Append a record to the list (one the ledger's text did not give: the
+ *  ledger is not open in this mirror). Nothing when it is there or the list
+ *  is full. */
+static void
+palette_custom_add(
+    struct PalettePanel* self,
+    int kind,
+    int id,
+    const char* name)
+{
+    struct PaletteCustom* custom;
+
+    if( palette_custom_find(self, kind, id) || self->custom_count[kind] >= PALETTE_CUSTOM_MAX
+        || strlen(name) >= PALETTE_NAME_MAX )
+        return;
+    custom = &self->custom[kind][self->custom_count[kind]++];
+    memset(custom, 0, sizeof(*custom));
+    custom->id = id;
+    snprintf(custom->name, sizeof(custom->name), "%s", name);
+}
+
+/** The list of `kind` again from its ledger's text: one `id=name` a line
+ *  (comments and the allocator's marker are not such lines). A record that
+ *  was listed keeps what the window was told of it. */
+static void
+palette_custom_read(
+    struct PalettePanel* self,
+    int kind,
+    const char* text,
+    size_t length)
+{
+    static struct PaletteCustom next[PALETTE_CUSTOM_MAX];
+    int const limit = kind ? 0xffff : EDITOR_UNDERLAY_MAX;
+    int count = 0;
+    size_t at = 0;
+
+    while( at < length && count < PALETTE_CUSTOM_MAX )
+    {
+        size_t end = at;
+        size_t scan = at;
+        size_t name_end;
+        int id = 0;
+        int digits = 0;
+
+        while( end < length && text[end] != '\n' )
+            end++;
+        while( scan < end && text[scan] >= '0' && text[scan] <= '9' && id <= 0xffff )
+        {
+            id = id * 10 + (text[scan] - '0');
+            scan++;
+            digits++;
+        }
+        name_end = end;
+        while( name_end > scan && (text[name_end - 1] == '\r' || text[name_end - 1] == ' ' || text[name_end - 1] == '\t') )
+            name_end--;
+        if( digits > 0 && scan < end && text[scan] == '=' && name_end > scan + 1
+            && name_end - scan - 1 < PALETTE_NAME_MAX && id + 1 <= limit )
+        {
+            struct PaletteCustom* custom = &next[count];
+            const struct PaletteCustom* was;
+
+            memset(custom, 0, sizeof(*custom));
+            custom->id = id + 1;
+            memcpy(custom->name, text + scan + 1, name_end - scan - 1);
+            was = palette_custom_find(self, kind, custom->id);
+            if( was && strcmp(was->name, custom->name) == 0 )
+                *custom = *was;
+            count++;
+        }
+        at = end + 1;
+    }
+    memcpy(self->custom[kind], next, (size_t)count * sizeof(next[0]));
+    self->custom_count[kind] = count;
+}
+
+/** Tell the window what a record the tree made is, when its document moved
+ *  since the window was last told (or never was): its colour, and for an
+ *  overlay its texture, blend colour and hideunderlay. */
+static void
+palette_custom_define(
+    struct EditorUi* ui,
+    struct PalettePanel* self,
+    int kind,
+    struct PaletteCustom* custom)
+{
+    char key[EDITOR_DOC_KEY_MAX];
+    char value[32];
+    const struct Editor_TextDoc* doc;
+    struct Editor_CfgBlock block;
+    uint32_t rgb = 0;
+    uint32_t blend = 0;
+    int have_rgb;
+    int texture = -1;
+    int blend_rgb = -1;
+    int hide = kind;
+
+    snprintf(key, sizeof(key), "%s:%s", k_floor_types[kind], custom->name);
+    if( !custom->opened )
+    {
+        custom->opened = 1;
+        (void)edp_ensure_doc(ui, EDITOR_DOC_CFG, key);
+    }
+    doc = palette_doc(ui, EDITOR_DOC_CFG, key);
+    if( !doc || !doc->loaded )
+        return;
+    if( doc->text == custom->defined_text && doc->revision == custom->defined_revision )
+        return;
+    custom->defined_text = doc->text;
+    custom->defined_revision = doc->revision;
+    /* No block: the record was taken back (an undo). The window keeps what
+     * it was told; nothing lists it once the ledger's line is gone too. */
+    if( doc->length == 0 )
+        return;
+    Editor_CfgBlockInit(&block);
+    Editor_CfgBlockSet(&block, doc->text, doc->length);
+    have_rgb = palette_block_value(&block, "colour", value, sizeof(value)) && palette_value_rgb(value, &rgb);
+    if( kind )
+    {
+        /* cp_flo.c's reading: `texture` a number or "default", hideunderlay
+         * true unless "no", blendcolour a colour or "default". */
+        if( palette_block_value(&block, "texture", value, sizeof(value)) && value[0] >= '0' && value[0] <= '9' )
+            texture = atoi(value);
+        if( palette_block_value(&block, "hideunderlay", value, sizeof(value)) && strcmp(value, "no") == 0 )
+            hide = 0;
+        if( palette_block_value(&block, "blendcolour", value, sizeof(value)) && palette_value_rgb(value, &blend) )
+            blend_rgb = (int)blend;
+    }
+    Editor_CfgBlockFree(&block);
+    /* An underlay with no colour is no record the ground can wear. */
+    if( !kind && !have_rgb )
+        return;
+    if( ui->hooks.floor_define )
+        ui->hooks.floor_define(ui->hooks_user, kind, custom->id, rgb, texture, blend_rgb, hide,
+            palette_floor_in_use(ui, kind, custom->id));
+    self->dirty_draw = 1;
+    /* The wells and the matches are of the colours the window has. */
+    self->built_signature = -1;
+}
+
+/**
+ * Follow the records the tree made: the two ledgers (opened once, read
+ * again when their text moved) and each record's own document. Run in every
+ * window that has this module, shown or not, so the window that draws the
+ * world knows a record the Palette of another window made.
+ */
+static void
+palette_custom_follow(
+    struct EditorUi* ui,
+    struct PalettePanel* self)
+{
+    char key[EDITOR_DOC_KEY_MAX];
+
+    if( !ui->editor )
+        return;
+    if( !self->ledger_opened )
+    {
+        self->ledger_opened = 1;
+        for( int kind = 0; kind < 2; kind++ )
+        {
+            snprintf(key, sizeof(key), "pack:%s.alloc", k_floor_types[kind]);
+            (void)edp_ensure_doc(ui, EDITOR_DOC_TEXT, key);
+        }
+    }
+    for( int kind = 0; kind < 2; kind++ )
+    {
+        const struct Editor_TextDoc* ledger;
+
+        snprintf(key, sizeof(key), "pack:%s.alloc", k_floor_types[kind]);
+        ledger = palette_doc(ui, EDITOR_DOC_TEXT, key);
+        if( ledger && ledger->loaded
+            && (ledger->text != self->ledger_text[kind] || ledger->revision != self->ledger_revision[kind]) )
+        {
+            self->ledger_text[kind] = ledger->text;
+            self->ledger_revision[kind] = ledger->revision;
+            palette_custom_read(self, kind, ledger->text, ledger->length);
+            self->built_signature = -1;
+        }
+        for( int i = 0; i < self->custom_count[kind]; i++ )
+            palette_custom_define(ui, self, kind, &self->custom[kind][i]);
+    }
 }
 
 /* ---- the lists -------------------------------------------------------------- */
@@ -469,6 +823,27 @@ palette_rebuild(
             }
         }
     }
+    /* Squares that state no floor, or next to none (a new square, and the
+     * same square three colours in): every record, or each well is one
+     * crossed-out cell and nothing to pick -- and then, after the first
+     * stroke, that one colour and nothing to pick next. A map that uses
+     * more underlays than that is its own palette, as before. */
+    self->auto_all = !self->list_all && self->underlays.count <= PALETTE_AUTO_ALL_UNDERLAYS + 1;
+    if( self->auto_all )
+    {
+        uint32_t rgb;
+        for( int id = 1; id <= PALETTE_UNDERLAY_PROBE; id++ )
+            if( palette_rgb(ui, 0, id, &rgb) )
+                palette_list_add(&self->underlays, id);
+        for( int id = 1; id <= PALETTE_OVERLAY_PROBE; id++ )
+            if( palette_rgb(ui, 1, id, &rgb) )
+                palette_list_add(&self->overlays, id);
+    }
+    /* The records the tree made are in the palette, used or not. */
+    for( int i = 0; i < self->custom_count[0]; i++ )
+        palette_list_add(&self->underlays, self->custom[0][i].id);
+    for( int i = 0; i < self->custom_count[1]; i++ )
+        palette_list_add(&self->overlays, self->custom[1][i].id);
     if( ui->tools.underlay_id )
         palette_list_add(&self->underlays, ui->tools.underlay_id);
     /* The strip's other end stays in reach: a pick is often "this one or
@@ -722,6 +1097,8 @@ palette_labels(
 
     snprintf(line, sizeof(line), "Find by colour  #%06x", (unsigned)self->pick_rgb);
     ToriRSChrome_SetText(ui->chrome, self->row_pick, line);
+    snprintf(line, sizeof(line), "New floor record in #%06x", (unsigned)self->pick_rgb);
+    ToriRSChrome_SetText(ui->chrome, self->row_new, line);
     palette_match_line(line, (int)sizeof(line), "Underlays:", self->match_under, self->match_under_count);
     ToriRSChrome_SetText(ui->chrome, self->row_match_under, line);
     palette_match_line(line, (int)sizeof(line), "Overlays:", self->match_over, self->match_over_count);
@@ -904,11 +1281,14 @@ palette_tooltip(
     char text[TORIRS_CHROME_LABEL_MAX];
     uint32_t rgb;
 
-    (void)self;
     if( id < 0 )
         snprintf(text, sizeof(text), "click a swatch to pick it; hover for its id and colour");
     else if( id == 0 )
         snprintf(text, sizeof(text), "none%s", is_overlay ? ": clears the overlay" : "");
+    else if( palette_rgb(ui, is_overlay, id, &rgb) && palette_custom_find(self, is_overlay, id) )
+        /* One the tree made: its name is how the tree knows it. */
+        snprintf(text, sizeof(text), "%s %d  #%06x  %.30s", is_overlay ? "overlay" : "underlay", id, (unsigned)rgb,
+            palette_custom_find(self, is_overlay, id)->name);
     else if( palette_rgb(ui, is_overlay, id, &rgb) )
     {
         struct Editor_FloorHsl hsl;
@@ -965,6 +1345,13 @@ palette_tick(
 {
     struct PalettePanel* self = opaque;
 
+    /* Before the visibility test: the window that draws the world learns a
+     * record the tree made whether or not its own Palette is up. */
+    if( self->custom_tick-- <= 0 )
+    {
+        self->custom_tick = PALETTE_CUSTOM_EVERY;
+        palette_custom_follow(ui, self);
+    }
     if( !ui->chrome->panels[self->panel].visible )
         return;
     if( palette_picks_changed(ui, self) )
@@ -974,7 +1361,7 @@ palette_tick(
     }
     if( self->built_signature != palette_signature(ui) || self->underlays.count == 0 )
         palette_rebuild(ui, self);
-    if( self->list_all )
+    if( self->list_all || self->auto_all )
     {
         if( self->all_asked[0] < PALETTE_UNDERLAY_PROBE || self->all_asked[1] < PALETTE_OVERLAY_PROBE )
             palette_request_all(ui, self);
@@ -1206,6 +1593,298 @@ palette_event(
     return 1;
 }
 
+/* ---- new records ----------------------------------------------------------------- */
+
+/**
+ * The name a new record of `kind` takes: what was typed, or with nothing
+ * typed one that says its colour ("ed_underlay_5a7f3c"), so a second record
+ * of the same colour is the first one again. 0 when the typed text is not a
+ * name a `[block]` header can carry here: a-z, 0-9 and _, at most
+ * PALETTE_NAME_MAX - 1 bytes, and not `<type>_<number>`, which is how the
+ * cache's own records are spelled (the allocator reads such a block as a
+ * claim on that number).
+ */
+static int
+palette_new_name(
+    const char* typed,
+    int kind,
+    uint32_t rgb,
+    char* out,
+    size_t out_size)
+{
+    size_t length = 0;
+    size_t const type_length = strlen(k_floor_types[kind]);
+
+    while( *typed == ' ' )
+        typed++;
+    while( typed[length] && typed[length] != ' ' )
+        length++;
+    if( typed[length] )
+    {
+        /* Only trailing spaces may follow. */
+        const char* rest = typed + length;
+        while( *rest == ' ' )
+            rest++;
+        if( *rest )
+            return 0;
+    }
+    if( length == 0 )
+    {
+        snprintf(out, out_size, "ed_%s_%06x", k_floor_types[kind], (unsigned)(rgb & 0xffffff));
+        return 1;
+    }
+    if( length >= out_size || length >= PALETTE_NAME_MAX )
+        return 0;
+    for( size_t i = 0; i < length; i++ )
+        if( !((typed[i] >= 'a' && typed[i] <= 'z') || (typed[i] >= '0' && typed[i] <= '9') || typed[i] == '_') )
+            return 0;
+    if( length > type_length + 1 && strncmp(typed, k_floor_types[kind], type_length) == 0 && typed[type_length] == '_' )
+    {
+        size_t digit = type_length + 1;
+        while( digit < length && typed[digit] >= '0' && typed[digit] <= '9' )
+            digit++;
+        if( digit == length )
+            return 0;
+    }
+    memcpy(out, typed, length);
+    out[length] = '\0';
+    return 1;
+}
+
+/** The record a new one of `kind` is copied from: the first the type's
+ *  member index names (configs/all.<type>.compack). Its fields are the
+ *  shape of a record; the ones that matter are then set. 0 when the tree
+ *  has no record of the type. */
+static int
+palette_template(
+    struct EditorUi* ui,
+    int kind,
+    char* out,
+    size_t out_size)
+{
+    char key[EDITOR_DOC_KEY_MAX];
+    const struct Editor_TextDoc* index;
+    size_t at = 0;
+
+    snprintf(key, sizeof(key), "compack:%s", k_floor_types[kind]);
+    if( !edp_ensure_doc(ui, EDITOR_DOC_TEXT, key) )
+        return 0;
+    index = palette_doc(ui, EDITOR_DOC_TEXT, key);
+    if( !index )
+        return 0;
+    while( at < index->length )
+    {
+        size_t end = at;
+        size_t scan = at;
+        size_t name_end;
+
+        while( end < index->length && index->text[end] != '\n' )
+            end++;
+        while( scan < end && index->text[scan] >= '0' && index->text[scan] <= '9' )
+            scan++;
+        name_end = end;
+        while( name_end > scan && (index->text[name_end - 1] == '\r' || index->text[name_end - 1] == ' ') )
+            name_end--;
+        if( scan > at && scan < end && index->text[scan] == '=' && name_end > scan + 1 && name_end - scan - 1 < out_size )
+        {
+            memcpy(out, index->text + scan + 1, name_end - scan - 1);
+            out[name_end - scan - 1] = '\0';
+            return 1;
+        }
+        at = end + 1;
+    }
+    return 0;
+}
+
+/** The CFG_FIELD command that makes field `key` of record document
+ *  `doc_key` read `value`, from the document as this mirror holds it.
+ *  Returns 1 with the command, 0 when it reads so already (or the document
+ *  is not open). */
+static int
+palette_field_command(
+    struct EditorUi* ui,
+    const char* doc_key,
+    const char* key,
+    const char* value,
+    struct Editor_Cmd* out)
+{
+    const struct Editor_TextDoc* doc = palette_doc(ui, EDITOR_DOC_CFG, doc_key);
+    struct Editor_CfgBlock block;
+    char before[EDITOR_CMD_VALUE_MAX];
+    int have;
+
+    if( !doc )
+        return 0;
+    Editor_CfgBlockInit(&block);
+    Editor_CfgBlockSet(&block, doc->text, doc->length);
+    have = palette_block_value(&block, key, before, sizeof(before));
+    Editor_CfgBlockFree(&block);
+    if( have && strcmp(before, value) == 0 )
+        return 0;
+    Editor_CmdInit(out, EDITOR_DOC_CFG, doc_key, EDITOR_CMD_CFG_FIELD);
+    out->has_before = have ? 1 : 0;
+    out->has_after = 1;
+    snprintf(out->u.cfg_field.key, sizeof(out->u.cfg_field.key), "%s", key);
+    snprintf(out->u.cfg_field.before, sizeof(out->u.cfg_field.before), "%s", have ? before : "");
+    snprintf(out->u.cfg_field.after, sizeof(out->u.cfg_field.after), "%s", value);
+    return 1;
+}
+
+/** Pick floor `id` of `kind` as a well click does; `out_armed` says what
+ *  that did to the armed tool. */
+static void
+palette_pick_floor(
+    struct EditorUi* ui,
+    int kind,
+    int id,
+    char* out_armed)
+{
+    if( kind )
+        palette_pick_overlay(ui, id, out_armed);
+    else
+        palette_pick_underlay(ui, id, out_armed);
+}
+
+/** New underlay / New overlay of this colour. */
+static void
+palette_new_record(
+    struct EditorUi* ui,
+    struct PalettePanel* self,
+    int kind)
+{
+    const char* const type = k_floor_types[kind];
+    char name[PALETTE_NAME_MAX];
+    char template_name[PALETTE_NAME_MAX];
+    char doc_key[EDITOR_DOC_KEY_MAX];
+    char value[16];
+    char armed[PALETTE_ARM_TEXT];
+    struct Editor_Cmd commands[3];
+    enum EditorHost_Status status;
+    int count = 0;
+    int id = -1;
+
+    if( !ui->editor )
+    {
+        Editor_UiStatus(ui, "New %s refused: this window has no editor session", type);
+        return;
+    }
+    if( !palette_new_name(ToriRSChrome_Text(ui->chrome, self->input_new_name), kind, self->pick_rgb, name, sizeof(name)) )
+    {
+        Editor_UiStatus(ui, "New %s refused: a name is a-z, 0-9 and _ (not %s_<number>), under %d letters", type, type,
+            PALETTE_NAME_MAX);
+        return;
+    }
+    /* The client reads an underlay of #000000 as no underlay at all
+     * (blendmap.c tests the colour, not the id). */
+    if( !kind && self->pick_rgb == 0 )
+    {
+        Editor_UiStatus(ui, "New underlay refused: the client draws #000000 as no underlay; #010101 is black");
+        return;
+    }
+    /* The ledgers are in the mirror before the copy, so its lines land in
+     * them; and a name the tree already made is that record. */
+    palette_custom_follow(ui, self);
+    for( int i = 0; i < self->custom_count[kind]; i++ )
+        if( strcmp(self->custom[kind][i].name, name) == 0 )
+        {
+            palette_pick_floor(ui, kind, self->custom[kind][i].id, armed);
+            Editor_UiStatus(ui, "%s is %s %d already; picked: %s", name, type, self->custom[kind][i].id, armed);
+            self->dirty_draw = 1;
+            return;
+        }
+    if( !palette_template(ui, kind, template_name, sizeof(template_name)) )
+    {
+        Editor_UiStatus(ui, "New %s refused: configs/all.%s.compack names no record to copy the fields of", type, type);
+        return;
+    }
+    status = Editor_CopyRecord(ui->editor, type, template_name, name, &id);
+    if( status != EDITOR_HOST_OK || id < 0 )
+    {
+        if( status == EDITOR_HOST_REFUSED )
+            Editor_UiStatus(ui, "New %s refused: the name %s is taken (a record, or an id's name in the tree)", type, name);
+        else if( status == EDITOR_HOST_UNSUPPORTED )
+            Editor_UiStatus(ui, "New %s refused: the editor server this window is on cannot make one (it is older)", type);
+        else
+            Editor_UiStatus(ui, "New %s failed (status %d); the Output console has the server's line", type, (int)status);
+        return;
+    }
+    /* The fields that make it this floor: the colour, and for an overlay no
+     * texture and no blend colour of the record it was copied from. */
+    snprintf(doc_key, sizeof(doc_key), "%s:%s", type, name);
+    snprintf(value, sizeof(value), "0x%06X", (unsigned)(self->pick_rgb & 0xffffff));
+    count += palette_field_command(ui, doc_key, "colour", value, &commands[count]);
+    if( kind )
+    {
+        count += palette_field_command(ui, doc_key, "texture", "default", &commands[count]);
+        count += palette_field_command(ui, doc_key, "blendcolour", "default", &commands[count]);
+    }
+    if( count > 0 && edp_apply(ui, commands, count, kind ? "new overlay" : "new underlay") <= 0 )
+        Editor_UiLog(ui, "editor: %s %s was made but its colour was not set; Recolour sets it", type, name);
+    /* The window learns it now rather than at the next look. */
+    palette_custom_add(self, kind, id + 1, name);
+    palette_custom_follow(ui, self);
+    palette_pick_floor(ui, kind, id + 1, armed);
+    ToriRSChrome_SetText(ui->chrome, self->input_new_name, "");
+    Editor_UiStatus(ui, "New %s %d %s #%06x: %s (unsaved; Save writes it)", type, id + 1, name,
+        (unsigned)(self->pick_rgb & 0xffffff), armed);
+    palette_rebuild(ui, self);
+}
+
+/** Recolour: the picked record's colour becomes the picker's, when the
+ *  tree made the record. */
+static void
+palette_recolour(
+    struct EditorUi* ui,
+    struct PalettePanel* self,
+    int kind)
+{
+    const char* const type = k_floor_types[kind];
+    int const id = kind ? (ui->tools.overlay_none ? 0 : ui->tools.overlay_id) : ui->tools.underlay_id;
+    const struct PaletteCustom* custom;
+    char doc_key[EDITOR_DOC_KEY_MAX];
+    char value[16];
+    struct Editor_Cmd command;
+
+    if( id <= 0 )
+    {
+        Editor_UiStatus(ui, "Recolour refused: no %s is picked", type);
+        return;
+    }
+    palette_custom_follow(ui, self);
+    custom = palette_custom_find(self, kind, id);
+    if( !custom )
+    {
+        Editor_UiStatus(ui, "Recolour refused: %s %d is the cache's own; New %s makes one that is yours", type, id, type);
+        return;
+    }
+    if( !kind && self->pick_rgb == 0 )
+    {
+        Editor_UiStatus(ui, "Recolour refused: the client draws #000000 as no underlay; #010101 is black");
+        return;
+    }
+    snprintf(doc_key, sizeof(doc_key), "%s:%s", type, custom->name);
+    if( !edp_ensure_doc(ui, EDITOR_DOC_CFG, doc_key) )
+    {
+        Editor_UiStatus(ui, "Recolour refused: %s could not be opened", doc_key);
+        return;
+    }
+    snprintf(value, sizeof(value), "0x%06X", (unsigned)(self->pick_rgb & 0xffffff));
+    if( !palette_field_command(ui, doc_key, "colour", value, &command) )
+    {
+        Editor_UiStatus(ui, "%s %d %s is #%06x already", type, id, custom->name, (unsigned)(self->pick_rgb & 0xffffff));
+        return;
+    }
+    if( edp_apply(ui, &command, 1, kind ? "recolour overlay" : "recolour underlay") <= 0 )
+    {
+        Editor_UiStatus(ui, "Recolour refused by the editor server; the Output console has its line");
+        return;
+    }
+    palette_custom_follow(ui, self);
+    Editor_UiStatus(ui, "%s %d %s is #%06x now (unsaved; Save writes it)", type, id, custom->name,
+        (unsigned)(self->pick_rgb & 0xffffff));
+    palette_rebuild(ui, self);
+}
+
 /** "#rrggbb" or "rrggbb" into `out`. */
 static int
 palette_parse_hex(
@@ -1256,14 +1935,30 @@ palette_activate(
             self->dirty_draw = 1;
             return 1;
         }
+    for( int kind = 0; kind < 2; kind++ )
+    {
+        if( widget == self->button_new[kind] )
+        {
+            palette_new_record(ui, self, kind);
+            return 1;
+        }
+        if( widget == self->button_recolour[kind] )
+        {
+            palette_recolour(ui, self, kind);
+            return 1;
+        }
+    }
+    /* Enter in the name: the name is read when a button is pressed. */
+    if( widget == self->input_new_name )
+        return 1;
     if( widget == self->input_underlay || widget == self->input_overlay )
     {
         int const is_overlay = widget == self->input_overlay;
         int const id = atoi(ToriRSChrome_Text(ui->chrome, widget));
-        if( id < 0 || id > (is_overlay ? 0xffff : 0xff) )
+        if( id < 0 || id > (is_overlay ? 0xffff : EDITOR_UNDERLAY_MAX) )
         {
             Editor_UiLog(ui, "editor: %s ids are 0..%d", is_overlay ? "overlay" : "underlay",
-                is_overlay ? 0xffff : 0xff);
+                is_overlay ? 0xffff : EDITOR_UNDERLAY_MAX);
             return 1;
         }
         if( is_overlay )
@@ -1553,6 +2248,25 @@ Editor_Palette_Register(struct EditorUi* ui)
     ToriRSChrome_SetTooltip(chrome, self->graph_match, "The colour, its nearest underlays and overlays; click picks");
     self->row_match_under = ToriRSChrome_Label(chrome, self->panel, "Underlays:");
     self->row_match_over = ToriRSChrome_Label(chrome, self->panel, "Overlays:");
+
+    /* New records, in the picker's colour. Tooltips are cut at 63 bytes. */
+    ToriRSChrome_Separator(chrome, self->panel);
+    self->row_new = ToriRSChrome_Label(chrome, self->panel, "New floor record");
+    self->input_new_name = ToriRSChrome_TextInput(chrome, self->panel, "name", "");
+    ToriRSChrome_SetTooltip(chrome, self->input_new_name, "a-z 0-9 _ for the new record; empty names it by its colour");
+    self->button_new[0] = ToriRSChrome_Button(chrome, self->panel, "New underlay of this colour");
+    ToriRSChrome_SetTooltip(chrome, self->button_new[0], "A new underlay record in the colour above, picked to paint");
+    self->button_new[1] = ToriRSChrome_Button(chrome, self->panel, "New overlay of this colour");
+    ToriRSChrome_SetTooltip(chrome, self->button_new[1], "A new overlay record in the colour above, picked to paint");
+    self->button_recolour[0] = ToriRSChrome_Button(chrome, self->panel, "Recolour the picked underlay");
+    ToriRSChrome_SetTooltip(chrome, self->button_recolour[0], "Its colour becomes the one above; only a record made here");
+    self->button_recolour[1] = ToriRSChrome_Button(chrome, self->panel, "Recolour the picked overlay");
+    ToriRSChrome_SetTooltip(chrome, self->button_recolour[1], "Its colour becomes the one above; only a record made here");
+    for( int kind = 0; kind < 2; kind++ )
+    {
+        ToriRSChrome_ButtonSetFill(chrome, self->button_new[kind], 1);
+        ToriRSChrome_ButtonSetFill(chrome, self->button_recolour[kind], 1);
+    }
     palette_pick_set_hsl(ui, self, 64, 96, 96);
 
     ToriRSChrome_PanelSetScrollable(chrome, self->panel, 1);

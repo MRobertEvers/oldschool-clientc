@@ -1027,6 +1027,7 @@ NetTransport_CycleClock(struct NetTransport* t, unsigned long long cycles)
 {
     (void)cycles;
     assert(t);
+    (void)t;
     /* No embed transport exists in this build, so `t` is a socket one. */
     assert(!"NetTransport_CycleClock: this build has no embedded server");
 }

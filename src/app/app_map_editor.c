@@ -309,6 +309,7 @@ void
 app_map_editor_free(struct App* app)
 {
     assert(app);
+    (void)app; /* the mirror is a file-scope global; app is the contract */
     for( int i = 0; i < EDITOR_DOC_MAX_SQUARES; i++ )
     {
         struct AppMapEditShadow* sh = &g_app_edit_mirror.squares[i];
@@ -2109,6 +2110,59 @@ app_map_editor_edit_step(
     return rebake;
 }
 
+/** A floor record the editor defined since the last flush is one ground in
+ *  the window may wear: the window is baked again (hooks.floor_define). */
+static int g_app_floor_rebake;
+
+void
+app_map_editor_floor_define(
+    struct App* app,
+    int is_overlay,
+    int config_id,
+    uint32_t rgb,
+    int texture,
+    int blend_rgb,
+    int hide_underlay,
+    int rebake)
+{
+    struct ToriRS_Flotype* held;
+    struct ToriRS_Flotype* flo;
+
+    assert(app);
+    assert(config_id >= 0);
+    if( !app->provider )
+        return;
+    /* An underlay is a colour and nothing else (ToriRS_FlotypeFromRSCache
+     * Underlay). */
+    if( !is_overlay )
+    {
+        texture = -1;
+        blend_rgb = -1;
+        hide_underlay = 0;
+    }
+    held = is_overlay ? CacheProvider_FlotypeGet(app->provider, config_id)
+                      : CacheProvider_UnderlayGet(app->provider, config_id);
+    if( held && held->rgb_color == (int)(rgb & 0xffffff) && held->texture == texture
+        && held->secondary_rgb_color == blend_rgb && held->hide_underlay == (hide_underlay != 0) )
+        return;
+    /* As the load tasks make one (torirs_flotype_from_rscache.c): the Add
+     * takes it, and frees the record it replaces. */
+    flo = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*flo));
+    assert(flo);
+    flo->id = config_id;
+    flo->rgb_color = (int)(rgb & 0xffffff);
+    flo->texture = texture;
+    flo->secondary_rgb_color = blend_rgb;
+    flo->hide_underlay = hide_underlay != 0;
+    if( is_overlay )
+        CacheProvider_FlotypeAdd(app->provider, config_id, flo);
+    else
+        CacheProvider_UnderlayAdd(app->provider, config_id, flo);
+    if( rebake )
+        g_app_floor_rebake = 1;
+    app->need_redraw = 1;
+}
+
 /* Bake the window the world shows again, from the provider. */
 static void
 app_edit_rebake_window(struct App* app)
@@ -2153,6 +2207,17 @@ app_map_editor_flush_edits(struct App* app)
      * never meets an occupant the ghost has hidden. It is back next frame. */
     if( had_work && app->map_ghost.active )
         app_map_editor_ghost_remove(app);
+    /* A floor record the ground may wear was defined: the tiles baked
+     * without it (a hole) or with its old colour are only right again from
+     * a bake. The queued edits are in the provider's squares by the same
+     * step, so the bake shows them too. */
+    if( g_app_floor_rebake )
+    {
+        g_app_floor_rebake = 0;
+        (void)app_map_editor_edit_step(app->editor, app->provider, app->world_builder, app->world, app->scene);
+        app_edit_rebake_window(app);
+        return;
+    }
     if( app_map_editor_edit_step(
             app->editor, app->provider, app->world_builder, app->world, app->scene) )
     {
@@ -3643,14 +3708,14 @@ app_map_editor_ghost_is_edit(struct App const* app)
            && WorldBuilder_GetLayout(app->world_builder) == WORLD_BUILDER_LAYOUT_EDIT;
 }
 
-/** A shadow loc that named `old_handle` now names `new_handle`. */
-static void
+/** A shadow loc that named `old_handle` now names `new_handle`. Returns 0
+ *  when no shadow loc named it. */
+static int
 app_edit_shadow_rebind(
     int old_handle,
     int new_handle)
 {
-    if( old_handle == WORLD_BUILDER_HANDLE_NONE )
-        return;
+    assert(old_handle != WORLD_BUILDER_HANDLE_NONE);
     for( int i = 0; i < EDITOR_DOC_MAX_SQUARES; i++ )
     {
         struct AppMapEditShadow* sh = &g_app_edit_mirror.squares[i];
@@ -3660,9 +3725,10 @@ app_edit_shadow_rebind(
             if( sh->handles[k] == old_handle )
             {
                 sh->handles[k] = new_handle;
-                return;
+                return 1;
             }
     }
+    return 0;
 }
 
 /** Forget the ghost WITHOUT removing it (STATIC commit). */
@@ -3708,10 +3774,20 @@ app_map_editor_ghost_remove(struct App* app)
             struct World_LocPlacement next_live;
             int next = g_app_edit_ghost.occupant_next;
             int handle;
+            int adopted;
             if( next != WORLD_BUILDER_HANDLE_NONE && !WorldEdit_PlacementGet(wb, next, &next_live) )
                 next = WORLD_BUILDER_HANDLE_NONE;
             handle = WorldEdit_LocPlaceBefore(wb, &place, next);
-            app_edit_shadow_rebind(g_app_edit_ghost.occupant_handle, handle);
+            adopted = app_edit_shadow_rebind(g_app_edit_ghost.occupant_handle, handle);
+            /* An occupant in a square the document has open is one of its
+             * locs, bound to this bake when the ghost went up: a put-back
+             * no shadow adopts is a placement nothing will take down again
+             * -- the loc a Delete reports deleted and leaves standing. */
+            assert(adopted
+                   || !app_edit_shadow_find(
+                       (app->world->_base_tile_x + restore.scene_x) / EDITOR_SQUARE_X,
+                       (app->world->_base_tile_z + restore.scene_z) / EDITOR_SQUARE_Z));
+            (void)adopted;
         }
         g_app_edit_ghost.ghost_handle = WORLD_BUILDER_HANDLE_NONE;
         g_app_edit_ghost.occupant_handle = WORLD_BUILDER_HANDLE_NONE;
@@ -3756,6 +3832,18 @@ app_map_editor_ghost_place_edit(
         }
         return 0;
     }
+    /*
+     * The shadow names this bake's placements BEFORE the occupant comes down.
+     * It learns them lazily, at the first sync after a bake -- and a bake is
+     * what the first Place of a loc whose model was not resident asks for.
+     * With the pointer still on the tile, the ghost went up over the new loc
+     * before any sync had bound the new bake: the put-back's rebind then
+     * searched the OLD bake's handles and found nothing, and the late bind
+     * read the taken-down placement as NONE. The loc stood in the world under
+     * no shadow handle; a Delete took it out of the document, said "Deleted",
+     * and left it standing and unselectable (2026-11-11).
+     */
+    app_edit_bind_handles(&ctx);
     g_app_edit_ghost.occupant_next = WORLD_BUILDER_HANDLE_NONE;
     occupant = WorldEdit_FindPlacement(wb, wanted->scene_x, wanted->scene_z, wanted->level, wanted->shape);
     if( occupant != WORLD_BUILDER_HANDLE_NONE )

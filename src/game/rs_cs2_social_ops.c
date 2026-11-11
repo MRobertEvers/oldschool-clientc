@@ -240,7 +240,7 @@ RS_CS2Host_ExecSocialOp(
     case CS2_OP_FRIENDSCHAT_SORT_OWNWORLD_WORLD:
     case CS2_OP_FRIENDSCHAT_SORT_RANK:
     {
-        enum RS_SocialSortKey key;
+        enum RS_SocialSortKey key = RS_SOCIAL_SORT_LEGACY;
         bool const known = chat_sort_key(opcode, &key);
         assert(known);
         (void)known;

@@ -16,7 +16,7 @@ _Static_assert(sizeof(((struct AppEntitySpotanim*)0)->slots) /
                        sizeof(((struct AppEntitySpotanim*)0)->slots[0]) ==
                    WORLD_NPC_SPOTANIM_SLOTS,
                "one combine slot per world graphic slot");
-_Static_assert(WORLD_PLAYER_SPOTANIM_SLOTS == WORLD_NPC_SPOTANIM_SLOTS,
+_Static_assert((int)WORLD_PLAYER_SPOTANIM_SLOTS == (int)WORLD_NPC_SPOTANIM_SLOTS,
                "a player's graphic slots combine as an npc's");
 
 /* Private to this unit, declared up front so definition order is free. */

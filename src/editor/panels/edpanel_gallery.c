@@ -13,8 +13,10 @@
  *                are on; the model holds a few pages, so two windows cost
  *                nothing once their pages landed.
  *   Tiles        a GRAPH well filling the panel: a picture per row at the
- *                tile size (S / M / L = 32 / 48 / 64 px, the device pref
- *                gallery_tile), the pack name under it, ellipsised. An obj's
+ *                tile size (S / M / L / XL / XXL = 32 / 48 / 64 / 96 / 128
+ *                px, the device pref gallery_tile; a loc or npc is rendered
+ *                at that size, an obj's 32 px icon is stretched to it), the
+ *                pack name under it, ellipsised. An obj's
  *                picture is the game's inventory icon
  *                (app_services.obj_icon: the cache's zoom2d and 2D angles);
  *                a loc's or npc's the record renderer's
@@ -31,14 +33,24 @@
  *   Right-click  the pick, and the Preview opened beside this panel (its
  *                action chips: Place, favourite, palette, record, triggers,
  *                find in world, copy).
+ *   Star         the corner of a tile: a click there stars the record into
+ *                editor/favourites.txt, or takes it out (the Catalog's star,
+ *                Editor_Catalog_ToggleFavourite: one undo step, Save writes
+ *                it). A starred tile wears a gold star; the tile under the
+ *                pointer shows an empty one to click. The "favourites" chip
+ *                lists the starred records alone, and again goes back.
  *   Scroll       the wheel and a trackpad scroll move the window a tile row
  *                at a time; the well's keys (Up / Down / Home / End) too while
- *                it has the focus.
- *   Chips        one line: the kinds with pictures (all, loc, npc, obj; the
- *                Catalog's kind when it is another), S M L, then list | grid
+ *                it has the focus. The bar down the well's right edge is
+ *                where the window is in the whole list -- every match, not
+ *                the hundred a page holds -- and a press or drag on it goes
+ *                there; the count line says the same in numbers ("37 to 72
+ *                of 63,334 loc").
+ *   Chips        two lines: the kinds with pictures (all, loc, npc, obj; the
+ *                Catalog's kind when it is another), the sizes, list | grid
  *                -- the Catalog's "grid" chip opens this panel beside it
  *                (Editor_UiPanelOpenBeside); this panel's "list" chip opens
- *                the Catalog beside this one.
+ *                the Catalog beside this one -- and favourites.
  */
 
 #include "edpanel_catalog_model.h"
@@ -79,6 +91,19 @@ static const uint32_t k_gallery_kinds[] = {
 #define GALLERY_CHIP_SIZE (-10)
 #define GALLERY_CHIP_LIST (-20)
 #define GALLERY_CHIP_GRID (-21)
+#define GALLERY_CHIP_FAVOURITES (-30)
+/** The sizes the strip offers, smallest first. */
+#define GALLERY_SIZES 5
+static const int k_gallery_sizes[GALLERY_SIZES] = { EDITOR_PREFS_GALLERY_TILE_S, EDITOR_PREFS_GALLERY_TILE_M,
+    EDITOR_PREFS_GALLERY_TILE_L, EDITOR_PREFS_GALLERY_TILE_XL, EDITOR_PREFS_GALLERY_TILE_XXL };
+/** The star in a tile's corner: its box, and its hit key (this plus the
+ *  row; a tile's own key is 1 + row, far below). */
+#define GALLERY_STAR 11
+#define GALLERY_STAR_KEY (1 << 24)
+/** The scroll bar: its width, its least thumb, its hit key. */
+#define GALLERY_BAR_W 6
+#define GALLERY_BAR_THUMB_MIN 12
+#define GALLERY_BAR_KEY (1 << 25)
 
 struct GalleryPanel
 {
@@ -111,9 +136,17 @@ struct GalleryPanel
     int drawn_pick_kind;
     int drawn_pick_id;
     int drawn_hover;
+    uint32_t drawn_favourites;
     /** Pictures still rendering at the last draw: drawn again next tick. */
     int pending;
     int hover_row;
+    /** The pointer is on the hovered tile's star. */
+    int hover_star;
+    /** editor/favourites.txt as this tick read it. */
+    uint32_t favourites_serial;
+    int favourites_count;
+    /** A press on the scroll bar is being dragged. */
+    int bar_drag;
     /** The last press: its row and frame (a second within
      *  GALLERY_DOUBLE_FRAMES is a double-click). */
     int press_row;
@@ -174,10 +207,10 @@ gallery_strips_draw(
 {
     uint32_t const current = Editor_Catalog_Kind(ui);
     int const px = Editor_Gallery_TilePx(ui);
-    static const int sizes[3] = { EDITOR_PREFS_GALLERY_TILE_S, EDITOR_PREFS_GALLERY_TILE_M, EDITOR_PREFS_GALLERY_TILE_L };
-    static const char* const size_names[3] = { "S", "M", "L" };
-    static const char* const size_tips[3] = { "32 px pictures: the game's icon at its own size", "48 px pictures",
-        "64 px pictures" };
+    static const char* const size_names[GALLERY_SIZES] = { "S", "M", "L", "XL", "XXL" };
+    static const char* const size_tips[GALLERY_SIZES] = { "32 px pictures: the game's icon at its own size",
+        "48 px pictures", "64 px pictures", "96 px pictures", "128 px pictures" };
+    char label[EDP_CHIP_LABEL_MAX];
     int shown = 0;
     int index;
 
@@ -200,9 +233,9 @@ gallery_strips_draw(
         if( index >= 0 )
             self->kind_of[index] = (int)current;
     }
-    for( int i = 0; i < 3; i++ )
+    for( int i = 0; i < GALLERY_SIZES; i++ )
     {
-        index = edp_chips_push(&self->strip, size_names[i], size_tips[i], px == sizes[i], 0);
+        index = edp_chips_push(&self->strip, size_names[i], size_tips[i], px == k_gallery_sizes[i], 0);
         if( index >= 0 )
             self->kind_of[index] = GALLERY_CHIP_SIZE + i;
     }
@@ -212,6 +245,13 @@ gallery_strips_draw(
     index = edp_chips_push(&self->strip, "grid", "this grid", 1, 0);
     if( index >= 0 )
         self->kind_of[index] = GALLERY_CHIP_GRID;
+    /* Last, so the chips before it keep their places whatever it counts. */
+    snprintf(label, sizeof(label), "favourites (%d)", self->favourites_count);
+    index = edp_chips_push(&self->strip, label,
+        Editor_Catalog_ShowingFavourites(ui) ? "back to the index" : "the records you starred, and only them",
+        Editor_Catalog_ShowingFavourites(ui), 0);
+    if( index >= 0 )
+        self->kind_of[index] = GALLERY_CHIP_FAVOURITES;
     edp_chips_end(ui, &self->strip);
     edp_chips_hover(ui, &self->strip);
 }
@@ -280,7 +320,8 @@ gallery_grid(
     struct GalleryPanel* self)
 {
     int const px = Editor_Gallery_TilePx(ui);
-    int const w = gallery_well_w(ui, self);
+    /* The scroll bar's column is not the tiles'. */
+    int const w = gallery_well_w(ui, self) - GALLERY_BAR_W - GALLERY_GAP;
 
     self->cell_w = px + 2 * GALLERY_TILE_PAD;
     self->cell_h = px + 2 * GALLERY_TILE_PAD + GALLERY_NAME_H;
@@ -334,6 +375,64 @@ gallery_picture(
     return -1;
 }
 
+/** A five-pointed star in a GALLERY_STAR box at (x, y): the pentagram, each
+ *  point joined to the next but one. */
+static void
+gallery_star(
+    struct ToriRSChrome* chrome,
+    int graph,
+    int x,
+    int y,
+    uint32_t color)
+{
+    static const signed char k_points[5][2] = { { 5, 0 }, { 10, 4 }, { 8, 10 }, { 2, 10 }, { 0, 4 } };
+
+    for( int i = 0; i < 5; i++ )
+        ToriRSChrome_GraphLine(chrome, graph, x + k_points[i][0], y + k_points[i][1], x + k_points[(i + 2) % 5][0],
+            y + k_points[(i + 2) % 5][1], color);
+}
+
+/** The scroll bar's thumb: its top and height in the well, 0 when the
+ *  whole list is on screen (no bar). */
+static int
+gallery_bar_thumb(
+    const struct GalleryPanel* self,
+    const struct Editor_CatalogModel* model,
+    int* out_y)
+{
+    int const total = gallery_row_count(self, model);
+    int const beyond = total - self->rows;
+    int h;
+
+    *out_y = 0;
+    if( beyond <= 0 || self->well_h <= GALLERY_BAR_THUMB_MIN )
+        return 0;
+    h = (int)((int64_t)self->well_h * self->rows / total);
+    if( h < GALLERY_BAR_THUMB_MIN )
+        h = GALLERY_BAR_THUMB_MIN;
+    *out_y = (int)((int64_t)(self->well_h - h) * (self->first_row < beyond ? self->first_row : beyond) / beyond);
+    return h;
+}
+
+/** The tile row a press at `y` on the scroll bar goes to: the thumb's
+ *  middle under the pointer. */
+static int
+gallery_bar_row(
+    const struct GalleryPanel* self,
+    const struct Editor_CatalogModel* model,
+    int y)
+{
+    int const beyond = gallery_row_count(self, model) - self->rows;
+    int thumb_y;
+    int const h = gallery_bar_thumb(self, model, &thumb_y);
+    int row;
+
+    if( h <= 0 || self->well_h - h <= 0 )
+        return 0;
+    row = (int)((int64_t)(y - h / 2) * beyond / (self->well_h - h));
+    return row < 0 ? 0 : row > beyond ? beyond : row;
+}
+
 static void
 gallery_draw(
     struct EditorUi* ui,
@@ -385,6 +484,35 @@ gallery_draw(
             ToriRSChrome_GraphRect(chrome, self->graph, x, y, self->cell_w, self->cell_h, 0xffd040, 0, 0);
         else if( row == self->hover_row )
             ToriRSChrome_GraphRect(chrome, self->graph, x, y, self->cell_w, self->cell_h, 0x8a8478, 0, 0);
+        /* The star: gold on a favourite, empty on the tile under the
+         * pointer (the thing to click), on a patch of the tile's own colour
+         * so it reads over a picture. Loc, npc and obj are what the file
+         * holds. */
+        if( view.kind <= TORIRSMAPED_CATALOG_OBJ && view.name[0] )
+        {
+            int const starred = Editor_Catalog_RecordIsFavourite(ui, view.kind, view.name);
+            if( starred || row == self->hover_row )
+            {
+                int const sx = x + self->cell_w - GALLERY_STAR - 2;
+                int const sy = y + 2;
+                ToriRSChrome_GraphRect(chrome, self->graph, sx - 1, sy - 1, GALLERY_STAR + 2, GALLERY_STAR + 2, 0x18150f, 1,
+                    GALLERY_STAR_KEY + row);
+                gallery_star(chrome, self->graph, sx, sy,
+                    starred ? 0xffd040 : row == self->hover_row && self->hover_star ? 0xd8d0c0 : 0x8a8478);
+            }
+        }
+    }
+    {
+        /* The scroll bar: where the window is in every row there is. */
+        int thumb_y;
+        int const thumb_h = gallery_bar_thumb(self, model, &thumb_y);
+        int const bar_x = gallery_well_w(ui, self) - GALLERY_BAR_W;
+        if( thumb_h > 0 )
+        {
+            ToriRSChrome_GraphRect(chrome, self->graph, bar_x, 0, GALLERY_BAR_W, self->well_h, 0x18150f, 1, GALLERY_BAR_KEY);
+            ToriRSChrome_GraphRect(chrome, self->graph, bar_x, thumb_y, GALLERY_BAR_W, thumb_h,
+                self->bar_drag ? 0xd8d0c0 : 0x8a8478, 1, GALLERY_BAR_KEY);
+        }
     }
     ToriRSChrome_GraphEnd(chrome, self->graph);
     self->drawn_answers = model->answers;
@@ -394,7 +522,8 @@ gallery_draw(
     self->drawn_w = self->cols;
     self->drawn_pick_kind = ui->tools.pick_kind;
     self->drawn_pick_id = ui->tools.pick_id;
-    self->drawn_hover = self->hover_row;
+    self->drawn_hover = self->hover_row * 2 + (self->hover_star ? 1 : 0);
+    self->drawn_favourites = self->favourites_serial;
 }
 
 /** The tooltip follows the hovered tile. */
@@ -409,6 +538,10 @@ gallery_tip(
 
     if( self->hover_row < 0 || !Editor_CatalogModelViewAt(model, self->hover_row, &view) )
         snprintf(tip, sizeof(tip), "click: pick; double-click: place (or put in the account's slot)");
+    else if( self->hover_star && Editor_Catalog_RecordIsFavourite(ui, view.kind, view.name) )
+        snprintf(tip, sizeof(tip), "%.32s: a favourite; click to unstar", view.name);
+    else if( self->hover_star )
+        snprintf(tip, sizeof(tip), "%.28s: click to star as a favourite", view.name);
     else if( view.kind == TORIRSMAPED_CATALOG_OBJ && view.wearpos >= 0 )
         snprintf(tip, sizeof(tip), "%.28s (%d) %.16s, %s", view.name, (int)view.id, view.display,
             Editor_CatalogWearName(view.wearpos));
@@ -441,17 +574,20 @@ gallery_tick(
     if( !model )
         return;
     gallery_find_sync(ui, self);
+    self->favourites_serial = Editor_Catalog_FavouritesSerial(ui, &self->favourites_count);
     gallery_strips_draw(ui, self);
     gallery_size_well(ui, self);
     gallery_grid(ui, self);
     gallery_clamp(self, model);
     Editor_Catalog_WantWindow(ui, self->first_row * self->cols, (self->rows + GALLERY_ROWS_AHEAD) * self->cols);
-    Editor_CatalogModelCountText(model, line, sizeof(line));
+    /* What is on screen, of everything the wheel and the bar reach. */
+    Editor_CatalogModelWindowText(model, self->first_row * self->cols, self->rows * self->cols, line, sizeof(line));
     ToriRSChrome_SetText(ui->chrome, self->row_count, line);
     if( self->pending || model->answers != self->drawn_answers || model->key_serial != self->drawn_key
         || self->first_row != self->drawn_first || Editor_Gallery_TilePx(ui) != self->drawn_px || self->cols != self->drawn_w
         || ui->tools.pick_kind != self->drawn_pick_kind || ui->tools.pick_id != self->drawn_pick_id
-        || self->hover_row != self->drawn_hover )
+        || self->hover_row * 2 + (self->hover_star ? 1 : 0) != self->drawn_hover
+        || self->favourites_serial != self->drawn_favourites || self->bar_drag )
         gallery_draw(ui, self, model);
     gallery_tip(ui, self, model);
 }
@@ -496,11 +632,9 @@ gallery_event(
             Editor_Catalog_SetKind(ui, (uint32_t)self->kind_of[index]);
             self->first_row = 0;
         }
-        else if( self->kind_of[index] >= GALLERY_CHIP_SIZE && self->kind_of[index] < GALLERY_CHIP_SIZE + 3 )
+        else if( self->kind_of[index] >= GALLERY_CHIP_SIZE && self->kind_of[index] < GALLERY_CHIP_SIZE + GALLERY_SIZES )
         {
-            static const int sizes[3] = { EDITOR_PREFS_GALLERY_TILE_S, EDITOR_PREFS_GALLERY_TILE_M,
-                EDITOR_PREFS_GALLERY_TILE_L };
-            int const px = sizes[self->kind_of[index] - GALLERY_CHIP_SIZE];
+            int const px = k_gallery_sizes[self->kind_of[index] - GALLERY_CHIP_SIZE];
             if( ui->prefs.gallery_tile != px )
             {
                 ui->prefs.gallery_tile = px;
@@ -509,10 +643,48 @@ gallery_event(
         }
         else if( self->kind_of[index] == GALLERY_CHIP_LIST )
             Editor_UiPanelOpenBeside(ui, "catalog", "gallery");
+        else if( self->kind_of[index] == GALLERY_CHIP_FAVOURITES )
+        {
+            Editor_Catalog_ShowFavourites(ui);
+            self->first_row = 0;
+        }
         return 1;
     }
     if( event->widget != self->graph )
         return 0;
+    if( event->kind == TORIRS_CHROME_EVENT_GRAPH_RELEASE )
+    {
+        self->bar_drag = 0;
+        return 1;
+    }
+    if( event->kind == TORIRS_CHROME_EVENT_GRAPH_DRAG )
+    {
+        const struct Editor_CatalogModel* model = Editor_Catalog_Model(ui);
+        if( self->bar_drag && model )
+            self->first_row = gallery_bar_row(self, model, event->y);
+        return 1;
+    }
+    if( event->kind == TORIRS_CHROME_EVENT_GRAPH_PRESS && event->key >= GALLERY_BAR_KEY )
+    {
+        /* The scroll bar: the window goes where the press is, and follows
+         * the drag. */
+        const struct Editor_CatalogModel* model = Editor_Catalog_Model(ui);
+        if( model )
+        {
+            self->first_row = gallery_bar_row(self, model, event->y);
+            self->bar_drag = 1;
+        }
+        return 1;
+    }
+    if( event->kind == TORIRS_CHROME_EVENT_GRAPH_PRESS && event->key >= GALLERY_STAR_KEY )
+    {
+        /* The star: the tile becomes the pick (the Preview follows, as a
+         * click would have it), and the pick is starred or unstarred. */
+        self->press_row = -1;
+        if( Editor_Catalog_PickRow(ui, event->key - GALLERY_STAR_KEY) )
+            (void)Editor_Catalog_ToggleFavourite(ui);
+        return 1;
+    }
     if( event->kind == TORIRS_CHROME_EVENT_GRAPH_PRESS )
     {
         int const row = event->key - 1;
@@ -531,14 +703,21 @@ gallery_event(
     }
     if( event->kind == TORIRS_CHROME_EVENT_GRAPH_MENU )
     {
-        int const row = event->key - 1;
+        int const row = event->key >= GALLERY_BAR_KEY    ? -1
+                        : event->key >= GALLERY_STAR_KEY ? event->key - GALLERY_STAR_KEY
+                                                         : event->key - 1;
         if( row >= 0 && Editor_Catalog_PickRow(ui, row) && Editor_UiFindPanel(ui, "preview") )
             Editor_UiPanelOpenBeside(ui, "preview", "gallery");
         return 1;
     }
     if( event->kind == TORIRS_CHROME_EVENT_GRAPH_HOVER )
     {
-        self->hover_row = event->key > 0 ? event->key - 1 : -1;
+        /* On a star the tile under it is still the hovered one. */
+        self->hover_star = event->key >= GALLERY_STAR_KEY && event->key < GALLERY_BAR_KEY;
+        self->hover_row = event->key >= GALLERY_BAR_KEY ? -1
+                          : self->hover_star            ? event->key - GALLERY_STAR_KEY
+                          : event->key > 0              ? event->key - 1
+                                                        : -1;
         return 1;
     }
     if( event->kind == TORIRS_CHROME_EVENT_GRAPH_WHEEL )
@@ -614,7 +793,10 @@ Editor_Gallery_TilePx(struct EditorUi* ui)
     int const px = ui->prefs.gallery_tile;
 
     assert(ui);
-    return px == EDITOR_PREFS_GALLERY_TILE_S || px == EDITOR_PREFS_GALLERY_TILE_L ? px : EDITOR_PREFS_GALLERY_TILE_M;
+    for( int i = 0; i < GALLERY_SIZES; i++ )
+        if( px == k_gallery_sizes[i] )
+            return px;
+    return EDITOR_PREFS_GALLERY_TILE_M;
 }
 
 void
@@ -643,7 +825,7 @@ Editor_Gallery_Register(struct EditorUi* ui)
     self->input_find = ToriRSChrome_TextInput(chrome, self->panel, "Find", "");
     ToriRSChrome_SetTooltip(chrome, self->input_find, "the Catalog's Find: name, #id, obj:/npc:/loc:, key=value");
     self->row_count = ToriRSChrome_Label(chrome, self->panel, "");
-    edp_chips_init(ui, &self->strip, self->panel, 1);
+    edp_chips_init(ui, &self->strip, self->panel, 2);
     self->graph = ToriRSChrome_Graph(chrome, self->panel, "", edp_px(ui, GALLERY_WELL_H));
     assert(self->graph >= 0);
     ToriRSChrome_SetTooltip(chrome, self->graph, "click: pick; double-click: place (or put in the account's slot)");

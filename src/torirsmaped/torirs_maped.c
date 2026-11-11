@@ -1487,7 +1487,7 @@ handle_doc_create(
         || template_kind > EDITOR_DOC_TEMPLATE_FLAT
         || (template_kind == EDITOR_DOC_TEMPLATE_FLAT
             && (fill_height < 0 || fill_height > 255 || fill_underlay < 0
-                || fill_underlay > 255)) )
+                || fill_underlay > EDITOR_UNDERLAY_MAX)) )
     {
         send_status(session, TORIRSMAPED_REQ_DOC_CREATE, EDITOR_HOST_REFUSED);
         return;
@@ -1577,7 +1577,7 @@ handle_doc_create(
                 /* Height 0 is no `h` token: the perlin ground. */
                 command.u.tile.after.has_height = fill_height > 0;
                 command.u.tile.after.height = (uint8_t)fill_height;
-                command.u.tile.after.underlay_id = (uint8_t)fill_underlay;
+                command.u.tile.after.underlay_id = (uint16_t)fill_underlay;
                 server_command(maped, &command);
                 filled++;
             }
@@ -1657,8 +1657,9 @@ alloc_text_of(const struct Editor_TextDoc* doc)
 }
 
 /**
- * SAVE_AS(CFG, "<type>:<name>", "<type>:<new name>"): copy a loc, npc or obj
- * definition to a new name with a fresh id (design #save "Save as new").
+ * SAVE_AS(CFG, "<type>:<name>", "<type>:<new name>"): copy a loc, npc, obj,
+ * underlay or overlay definition to a new name with a fresh id (design #save
+ * "Save as new").
  *
  * The id is chosen the way tools/ss_allocate.py would choose it
  * (editor_alloc.h) over the tree's layers, with the ledger and the member
@@ -1723,7 +1724,13 @@ handle_save_as(
         send_status(session, TORIRSMAPED_REQ_SAVE_AS, EDITOR_HOST_REFUSED);
         return;
     }
-    if( strcmp(type, "loc") != 0 && strcmp(type, "npc") != 0 && strcmp(type, "obj") != 0 )
+    /* The types whose records are a block of fields and an id the allocator
+     * hands out. The floors are two of them (the Palette's New underlay /
+     * New overlay): their ids are the ledger's too -- a ported lane's
+     * underlays are in its pack/underlay.alloc and pack/underlay.client the
+     * same way -- and a map states one as the id + 1. */
+    if( strcmp(type, "loc") != 0 && strcmp(type, "npc") != 0 && strcmp(type, "obj") != 0
+        && strcmp(type, "underlay") != 0 && strcmp(type, "overlay") != 0 )
     {
         send_status(session, TORIRSMAPED_REQ_SAVE_AS, EDITOR_HOST_UNSUPPORTED);
         return;

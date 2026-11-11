@@ -1410,6 +1410,60 @@ main(
         drain(&c, &mc);
     }
 
+    /* ---- SAVE_AS: a floor record (the Palette's New underlay / overlay) ------ */
+
+    {
+        struct EditorHost_DocText text;
+        int id = -1;
+        FILE* f;
+
+        snprintf(path, sizeof(path), "%s/configs/all.underlay", scratch);
+        f = fopen(path, "wb");
+        check(f != NULL, "the underlay fixture is written");
+        if( f )
+        {
+            fputs("[underlay_0]\ncolour=0x282820\n", f);
+            fclose(f);
+        }
+        snprintf(path, sizeof(path), "%s/configs/all.underlay.compack", scratch);
+        f = fopen(path, "wb");
+        if( f )
+        {
+            fputs("0=underlay_0\n", f);
+            fclose(f);
+        }
+        check(Editor_HostMapEdSaveAs(&a, EDITOR_DOC_CFG, "underlay:underlay_0", "underlay:my_grass", &id)
+                  == EDITOR_HOST_OK,
+            "SAVE_AS copies underlay:underlay_0 to underlay:my_grass");
+        check(id == 400, "the copy takes the underlay floor id (400)");
+        memset(&text, 0, sizeof(text));
+        check(Editor_HostMapEdDocOpen(&a2, EDITOR_DOC_CFG, "underlay:my_grass", &text) == EDITOR_HOST_OK
+                  && text.part_count == 1 && text.parts[0].size == strlen("[my_grass]\ncolour=0x282820\n")
+                  && memcmp(text.parts[0].data, "[my_grass]\ncolour=0x282820\n", text.parts[0].size) == 0,
+            "the copy opens as [my_grass] with the source's colour");
+        Editor_HostDocTextFree(&text);
+        memset(&text, 0, sizeof(text));
+        check(Editor_HostMapEdDocOpen(&a2, EDITOR_DOC_TEXT, "pack:underlay.alloc", &text) == EDITOR_HOST_OK
+                  && text.part_count == 1 && text.parts[0].data
+                  && strstr((char const*)text.parts[0].data, "\n400=my_grass\n") != NULL,
+            "the ledger holds 400=my_grass");
+        Editor_HostDocTextFree(&text);
+        memset(&text, 0, sizeof(text));
+        check(Editor_HostMapEdDocOpen(&a2, EDITOR_DOC_TEXT, "pack:underlay.client", &text) == EDITOR_HOST_OK
+                  && text.part_count == 1 && text.parts[0].data
+                  && strstr((char const*)text.parts[0].data, "my_grass\n") != NULL,
+            "and the client half names it, so the cache build packs the record");
+        Editor_HostDocTextFree(&text);
+        check(Editor_HostMapEdSaveAs(&a, EDITOR_DOC_CFG, "underlay:underlay_0", "underlay:my_grass", &id)
+                  == EDITOR_HOST_REFUSED,
+            "a second floor of the same name is refused");
+        check(Editor_HostMapEdUndo(&a) > 0, "undo takes the new floor back");
+        drain(&a, &ma);
+        drain(&a2, &ma2);
+        drain(&b, &mb);
+        drain(&c, &mc);
+    }
+
     /* ---- the AREAS document: open, edit, mirror, save, reopen ------------ */
 
     {

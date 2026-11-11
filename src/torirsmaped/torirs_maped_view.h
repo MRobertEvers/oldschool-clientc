@@ -96,7 +96,7 @@ _Static_assert(
     TORIRSMAPED_STATE_CAMERA_BASE + TORIRSMAPED_STATE_CAMERA_COUNT <= TORIRSMAPED_STATE_VIEW_SELF,
     "the camera keys must fit below STATE_VIEW_SELF, inside views' 10..39");
 _Static_assert(
-    TORIRSMAPED_CAMERA_VALUES <= TORIRSMAPED_STATE_VALUES_MAX,
+    (int)TORIRSMAPED_CAMERA_VALUES <= (int)TORIRSMAPED_STATE_VALUES_MAX,
     "a camera is one state field");
 
 static inline uint32_t

@@ -76,6 +76,216 @@ ops_hash_unit(
     return (double)(h >> 8) / 16777216.0;
 }
 
+/* ---- Roughen's relief -------------------------------------------------------- */
+
+/** Octaves at most: 32 tiles down to 2. A wave shorter than two tiles is a
+ *  draw per tile again, which is the grain the relief is there to replace. */
+#define OPS_ROUGHEN_OCTAVES 5
+/** What the summed octaves are divided by so that a hill's top is about the
+ *  step. Measured over four 256x256 reliefs at each of ten scales and three
+ *  details: with this the 99th percentile of the magnitude is 0.85..0.94 of
+ *  the step and under 1 tile in 100 is cut off at it (editor_placement_test
+ *  holds a relief to that). */
+#define OPS_ROUGHEN_PEAK 0.58
+
+/** One octave of gradient noise at a point of a lattice: each corner carries
+ *  a direction drawn from the seed, the value is their pull blended across
+ *  the cell (quintic, so the slope is continuous too). 0 at every corner. */
+static double
+ops_gradient_noise(
+    uint32_t seed,
+    double x,
+    double z,
+    int lane)
+{
+    double const cell_x = floor(x);
+    double const cell_z = floor(z);
+    double const tx = x - cell_x;
+    double const tz = z - cell_z;
+    double const sx = tx * tx * tx * (tx * (tx * 6.0 - 15.0) + 10.0);
+    double const sz = tz * tz * tz * (tz * (tz * 6.0 - 15.0) + 10.0);
+    double pull[2][2];
+    double near_row;
+    double far_row;
+
+    for( int cz = 0; cz < 2; cz++ )
+        for( int cx = 0; cx < 2; cx++ )
+        {
+            double const angle =
+                ops_hash_unit(seed, (int)cell_x + cx, (int)cell_z + cz, lane) * 2.0 * 3.14159265358979323846;
+            pull[cz][cx] = cos(angle) * (tx - (double)cx) + sin(angle) * (tz - (double)cz);
+        }
+    near_row = pull[0][0] + sx * (pull[0][1] - pull[0][0]);
+    far_row = pull[1][0] + sx * (pull[1][1] - pull[1][0]);
+    return near_row + sz * (far_row - near_row);
+}
+
+double
+Editor_RoughenRelief(
+    uint32_t seed,
+    int world_x,
+    int world_z,
+    int scale,
+    int detail)
+{
+    double wavelength;
+    double amplitude = 1.0;
+    double sum = 0.0;
+    double power = 0.0;
+    double gain;
+    double value;
+
+    if( scale <= 0 )
+        scale = EDITOR_ROUGHEN_SCALE_DEFAULT;
+    if( scale > EDITOR_ROUGHEN_SCALE_MAX )
+        scale = EDITOR_ROUGHEN_SCALE_MAX;
+    if( detail < 0 )
+        detail = 0;
+    if( detail > 100 )
+        detail = 100;
+    if( scale < 2 )
+        return ops_hash_unit(seed, world_x, world_z, 0) * 2.0 - 1.0;
+
+    gain = 0.25 + 0.5 * (double)detail / 100.0;
+    wavelength = (double)scale;
+    for( int octave = 0; octave < OPS_ROUGHEN_OCTAVES && wavelength >= 2.0; octave++ )
+    {
+        /* A lattice of its own per octave, shifted by a draw: every octave
+         * is zero on its corners, and corners that coincide are a grid of
+         * tiles nothing moves. The tile's centre, so no tile sits on one. */
+        double const shift_x = ops_hash_unit(seed, octave, 17, 6) * 64.0;
+        double const shift_z = ops_hash_unit(seed, octave, 31, 7) * 64.0;
+
+        sum += amplitude * ops_gradient_noise(seed, ((double)world_x + 0.5) / wavelength + shift_x,
+                               ((double)world_z + 0.5) / wavelength + shift_z, 8 + octave);
+        power += amplitude * amplitude;
+        amplitude *= gain;
+        wavelength *= 0.5;
+    }
+    /* Octaves add as independent waves do (by power), so the step stays the
+     * height of a hill whatever the detail. */
+    value = sum / (sqrt(power) * OPS_ROUGHEN_PEAK);
+    return value < -1.0 ? -1.0 : value > 1.0 ? 1.0 : value;
+}
+
+/** A world tile as a stroke's key: never 0. */
+static uint32_t
+ops_roughen_key(
+    int world_x,
+    int world_z,
+    int level)
+{
+    return ((((uint32_t)level & 3u) << 28) | (((uint32_t)world_z & 0x3fffu) << 14) | ((uint32_t)world_x & 0x3fffu)) + 1u;
+}
+
+/** The slot of `key` in the stroke's table, or the empty slot it would
+ *  take; -1 when the table is full and does not hold it. */
+static int
+ops_roughen_slot(
+    const struct Editor_RoughenStroke* stroke,
+    uint32_t key)
+{
+    uint32_t slot = (key * 2654435761u) & (EDITOR_ROUGHEN_STROKE_TILES - 1);
+
+    for( int probe = 0; probe < EDITOR_ROUGHEN_STROKE_TILES; probe++ )
+    {
+        if( stroke->keys[slot] == key || stroke->keys[slot] == 0 )
+            return (int)slot;
+        slot = (slot + 1) & (EDITOR_ROUGHEN_STROKE_TILES - 1);
+    }
+    return -1;
+}
+
+/** How far the stroke has pushed a tile, in units (0: not yet). */
+static int
+ops_roughen_done(
+    const struct Editor_RoughenStroke* stroke,
+    int world_x,
+    int world_z,
+    int level)
+{
+    uint32_t const key = ops_roughen_key(world_x, world_z, level);
+    int const slot = ops_roughen_slot(stroke, key);
+
+    return slot >= 0 && stroke->keys[slot] == key ? stroke->units[slot] : 0;
+}
+
+/** What one application asks of a tile, in whole units: the relief there,
+ *  the step its amplitude, the weight fading it. The fraction is a draw of
+ *  the stroke's seed and the tile -- one threshold per tile for the whole
+ *  stroke, so the ask only grows with the weight (never ratchets on a
+ *  lucky draw) and a step of one still moves ground where rounding to the
+ *  nearest left every tile under half a unit alone. */
+static int
+ops_roughen_want(
+    const struct Editor_BrushOp* op,
+    int world_x,
+    int world_z,
+    double weight)
+{
+    double const relief = Editor_RoughenRelief(op->noise_seed, world_x, world_z, op->noise_scale, op->noise_detail);
+    double const amount = (double)op->brush.step * weight * relief;
+
+    return (int)floor(amount + ops_hash_unit(op->noise_seed, world_x, world_z, 5));
+}
+
+void
+Editor_RoughenStrokeBegin(
+    struct Editor_RoughenStroke* stroke,
+    uint32_t seed)
+{
+    assert(stroke);
+    memset(stroke, 0, sizeof(*stroke));
+    stroke->seed = seed;
+}
+
+void
+Editor_RoughenStrokeNote(
+    struct Editor_RoughenStroke* stroke,
+    const struct Editor_BrushOp* op,
+    const struct Editor_Cmd* commands,
+    int count)
+{
+    assert(stroke);
+    assert(op);
+    assert(op->tool == EDITOR_TOOL_NOISE);
+    assert(count >= 0);
+    if( count == 0 )
+        return;
+    assert(commands);
+
+    for( int i = 0; i < count; i++ )
+    {
+        const struct Editor_Cmd* command = &commands[i];
+        int map_x;
+        int map_z;
+        int world_x;
+        int world_z;
+        uint32_t key;
+        int slot;
+
+        if( command->kind != EDITOR_CMD_TILE || !Editor_SquareKeyParse(command->doc_key, &map_x, &map_z) )
+            continue;
+        world_x = map_x * EDITOR_SQUARE_X + command->u.tile.x;
+        world_z = map_z * EDITOR_SQUARE_Z + command->u.tile.z;
+        key = ops_roughen_key(world_x, world_z, command->u.tile.level);
+        slot = ops_roughen_slot(stroke, key);
+        if( slot < 0 )
+            continue;
+        if( stroke->keys[slot] == 0 )
+        {
+            /* Half full is where the probes start to cost: stop taking new
+             * tiles rather than slow every later lookup. */
+            if( stroke->count >= EDITOR_ROUGHEN_STROKE_TILES / 2 )
+                continue;
+            stroke->keys[slot] = key;
+            stroke->count++;
+        }
+        stroke->units[slot] = (int16_t)ops_roughen_want(
+            op, world_x, world_z, Editor_BrushWeight(&op->brush, world_x - op->world_x, world_z - op->world_z));
+    }
+}
+
 /* ---- heights ---------------------------------------------------------------- */
 
 int
@@ -314,11 +524,16 @@ Editor_BrushCommands(
             }
             case EDITOR_TOOL_NOISE:
             {
-                /* -1..1 from the seed and the tile, the step the amplitude,
-                 * the falloff fading it to the rim; under a unit, nothing. */
-                double const r = ops_hash_unit(op->noise_seed, world_x, world_z, 0) * 2.0 - 1.0;
-                double const amount = (double)op->brush.step * weight * r;
-                int const delta = (int)floor(amount + (amount < 0 ? -0.5 : 0.5));
+                /* What this application asks of the tile, less what the
+                 * stroke has pushed it already: only the part of the ask
+                 * that is further the same way (the weight was higher this
+                 * time). On its own, the whole ask. */
+                int const want = ops_roughen_want(op, world_x, world_z, weight);
+                int const done =
+                    op->noise_stroke ? ops_roughen_done(op->noise_stroke, world_x, world_z, op->level) : 0;
+                int delta = 0;
+                if( (want > 0 && want > done) || (want < 0 && want < done) )
+                    delta = want - done;
                 if( delta == 0 )
                     continue;
                 after.has_height = 1;
@@ -367,14 +582,14 @@ Editor_BrushCommands(
             }
             case EDITOR_TOOL_PAINT_UNDERLAY:
                 assert(op->underlay_id >= 0);
-                assert(op->underlay_id <= 0xff);
+                assert(op->underlay_id <= EDITOR_UNDERLAY_MAX);
                 /* A mix under 100 paints a seeded share of the tiles,
                  * thinning with the falloff; at 100 every tile, whatever
                  * the falloff, as the flat paint always did. */
                 if( op->paint_mix > 0 && op->paint_mix < 100
                     && ops_hash_unit(op->noise_seed, world_x, world_z, 3) * 100.0 >= (double)op->paint_mix * weight )
                     continue;
-                after.underlay_id = (uint8_t)op->underlay_id;
+                after.underlay_id = (uint16_t)op->underlay_id;
                 break;
             case EDITOR_TOOL_PAINT_OVERLAY:
                 if( op->overlay_none )
@@ -1097,7 +1312,7 @@ Editor_TileRectFill(
             if( !square )
                 continue;
             after = square->tiles[Editor_TileIndex(x, z, r.level)];
-            after.underlay_id = (uint8_t)(tools->underlay_id & 0xff);
+            after.underlay_id = (uint16_t)(tools->underlay_id & 0xffff);
             if( tools->overlay_none )
             {
                 after.has_overlay = 0;
@@ -2580,7 +2795,9 @@ Editor_LocRunCommands(
             continue;
         if( count + 2 > max )
             break;
-        (void)ops_split(piece->world_x, piece->world_z, &map_x, &map_z, &after.x, &after.z);
+        /* Outside the world: no square holds it, so no command can. */
+        if( !ops_split(piece->world_x, piece->world_z, &map_x, &map_z, &after.x, &after.z) )
+            continue;
         after.loc_id = plan->loc_id;
         after.shape = piece->shape;
         after.rotation = piece->rotation & 3;

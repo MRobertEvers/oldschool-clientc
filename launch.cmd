@@ -25,8 +25,30 @@ rem The manifests are already composed -- generated on the dev host from
 rem profiles/ and copied across -- so the fallback reads build\manifests\ and
 rem never needs to understand a profile at all.
 
-setlocal EnableExtensions EnableDelayedExpansion
+setlocal EnableExtensions
 cd /d "%~dp0"
+
+rem -------------------------------------------------------------- toolchain --
+rem The client is linked -static; nothing else a win64 build produces is. The
+rem servers and tools (torirsserver.exe, js5_server.exe, sscompile.exe, ...)
+rem each import libwinpthread-1.dll, which lives in the repository's MinGW
+rem toolchain and nowhere Windows looks by itself. Started from cmd, PowerShell
+rem or Explorer -- anything but a shell that already has a MinGW on PATH --
+rem such a binary is ended by the loader before main: exit status -1073741515
+rem (0xC0000135, STATUS_DLL_NOT_FOUND) and an empty log, which is what the map
+rem editor's RUN reported for the game server on 2026-11-10.
+rem
+rem So everything started from here -- the Python launcher, its builds, the
+rem services it supervises, the client and whatever the client starts -- gets
+rem the toolchain's directory first on PATH. A box without the toolchain (the
+rem XP box, a pushed build) has no such directory and nothing changes there.
+rem
+rem One line, no parentheses: a PATH entry like "Program Files (x86)" closes
+rem an `if ( ... )` block early. And before delayed expansion is switched on,
+rem which would eat a "!" in a PATH entry.
+if exist "%~dp0toolchains\mingw64\bin\libwinpthread-1.dll" set "PATH=%~dp0toolchains\mingw64\bin;%PATH%"
+
+setlocal EnableDelayedExpansion
 
 rem ---------------------------------------------------------------- python --
 rem `py` is the python.org launcher and is not always present; a Store or conda

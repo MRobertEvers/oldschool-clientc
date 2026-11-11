@@ -893,7 +893,7 @@ app_minimenu_stamp_node_identities(
         pick->has_native_events = 1;
         pick->native_events =
             pick->kind == UI_MINIMENU_PICK_INV_SLOT
-                ? App_IfEventsGetAt(app, pick->id, pick->secondary_id)
+                ? (unsigned)App_IfEventsGetAt(app, pick->id, pick->secondary_id)
                 : App_IfEventsGetEffective(app, app->tree->components[idx].component_id);
     }
 }
@@ -2036,7 +2036,7 @@ app_minimenu_ui_pick_live_reason(
     {
         unsigned current =
             pick->kind == UI_MINIMENU_PICK_INV_SLOT
-                ? App_IfEventsGetAt(app, pick->id, pick->secondary_id)
+                ? (unsigned)App_IfEventsGetAt(app, pick->id, pick->secondary_id)
                 : App_IfEventsGetEffective(app, app->tree->components[idx].component_id);
         if( current != pick->native_events )
             PICK_NOT_LIVE("the component's armed event mask changed");

@@ -101,6 +101,8 @@ Editor_UiInit(
     ui->tools.path_height_mode = 0;
     ui->tools.path_height_units = 2;
     ui->tools.noise_seed = 1;
+    ui->tools.noise_scale = 8;
+    ui->tools.noise_detail = 50;
     ui->tools.paint_mix = 100;
     ui->tools.scatter_density = 20;
     ui->tools.scatter_rotate = 1;
@@ -213,7 +215,10 @@ Editor_UiPanelSelf(
  * rails and grip and takes the pointer there, while the body is neither
  * painted nor hit, so the 3D view the App draws under it shows through and
  * every press, drag, wheel and hover in it reaches the world (camera, picks,
- * tools) exactly as before. The default layout docks it over the region the
+ * tools) exactly as before -- but for one press: Shift+Alt held, the body is
+ * a drag handle like every other window's (the chrome takes it by its box,
+ * dbg_panel_box_at), so the World moves and the armed tool does not fire.
+ * The default layout docks it over the region the
  * other panels leave; View > World hides it (and with it the world). It has
  * no widgets and no per-frame work: the module is its geometry.
  */

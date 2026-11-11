@@ -1113,6 +1113,25 @@ jobs_env_dropped(
     return 0;
 }
 
+/** 1 when the first `length` bytes of two environment names are the same
+ *  name. Windows names are case-insensitive, and the one that matters here is
+ *  spelled "Path" in a process started from Explorer, cmd or PowerShell and
+ *  "PATH" in one started from a POSIX shell: compared exactly, a layered
+ *  "PATH=" left the inherited "Path=" in the block ahead of it, and the
+ *  loader reads the first. */
+static int
+jobs_env_same_name(
+    const char* a,
+    const char* b,
+    size_t length)
+{
+#ifdef _WIN32
+    return _strnicmp(a, b, length) == 0;
+#else
+    return strncmp(a, b, length) == 0;
+#endif
+}
+
 /** A child's environment: this process's minus what `drop` names
  *  (jobs_env_dropped), with `extra_env` ("K=V", NULL-terminated, may be
  *  NULL) layered over it. The array is owned (free it); the strings are
@@ -1140,7 +1159,7 @@ jobs_env_build(
         int replaced = jobs_env_dropped(environ[i], drop);
         for( int e = 0; e < extra && !replaced; e++ )
         {
-            if( strncmp(extra_env[e], environ[i], name) == 0 && extra_env[e][name] == '=' )
+            if( jobs_env_same_name(extra_env[e], environ[i], name) && extra_env[e][name] == '=' )
                 replaced = 1;
         }
         if( !replaced )
@@ -1150,6 +1169,36 @@ jobs_env_build(
         env[n++] = (char*)extra_env[e];
     env[n] = NULL;
     return env;
+}
+
+/** "PATH=<lane build_path><sep><this process's PATH>", owned (free it), or
+ *  NULL when the lane names no build_path. What a build's tools need to
+ *  start is what the binaries it links need to start: on Windows the lane's
+ *  servers and tools are linked without -static, so each imports the
+ *  toolchain's libwinpthread-1.dll, and an editor started from anything but
+ *  a shell with MinGW on its PATH launched a game server the loader ended
+ *  before main (status -1073741515, STATUS_DLL_NOT_FOUND, an empty log). */
+static char*
+jobs_lane_path_env(const struct ToriRSMapEdLane* lane)
+{
+#ifdef _WIN32
+    char const separator = ';';
+#else
+    char const separator = ':';
+#endif
+    const char* path;
+    size_t size;
+    char* out;
+
+    assert(lane);
+    if( !lane->build_path[0] )
+        return NULL;
+    path = getenv("PATH");
+    size = strlen(lane->build_path) + (path ? strlen(path) : 0) + 8;
+    out = malloc(size);
+    assert(out);
+    snprintf(out, size, "PATH=%s%c%s", lane->build_path, separator, path ? path : "");
+    return out;
 }
 
 /** A child the editor server started: its pid and its process group (the
@@ -1339,21 +1388,9 @@ build_native_start(
     for( int i = 0; i < command.argc; i++ )
         argv[i] = command.argv[i];
     argv[command.argc] = NULL;
-    if( native->lane.build_path[0] )
-    {
-        const char* path = getenv("PATH");
-#ifdef _WIN32
-        char const separator = ';';
-#else
-        char const separator = ':';
-#endif
-        size_t const size = strlen(native->lane.build_path) + (path ? strlen(path) : 0) + 8;
-        free(native->path_env);
-        native->path_env = malloc(size);
-        assert(native->path_env);
-        snprintf(native->path_env, size, "PATH=%s%c%s", native->lane.build_path, separator, path ? path : "");
-        extra_env[0] = native->path_env;
-    }
+    free(native->path_env);
+    native->path_env = jobs_lane_path_env(&native->lane);
+    extra_env[0] = native->path_env;
     if( !jobs_process_start(argv, extra_env, native->log_path, &native->process) )
     {
         TORIRS_ERR("torirsmaped: cannot start %s: %s\n", argv[0], strerror(errno));

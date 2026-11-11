@@ -345,11 +345,13 @@ parse_tile_token(
 
     case 'u':
         /* Underlay is `attribute - 81`, and the attribute is read at the era's
-         * width — u8 before OldSchool 209, u16 after. So the opcode range does
-         * not bound this; the stored field does, and it is a byte. */
-        if( value < 1 || value > 0xFF )
+         * width — u8 before OldSchool 209, u16 after. The stored field is
+         * as wide as the wider of the two: it was a byte, which refused the
+         * whole square of any map that stated an underlay past 255 (a ported
+         * lane's own, `u1102`, or one made in the editor). */
+        if( value < 1 || value > EDITOR_UNDERLAY_MAX )
             return 0;
-        tile->underlay_id = (uint8_t)value;
+        tile->underlay_id = (uint16_t)value;
         return 1;
 
     default:
