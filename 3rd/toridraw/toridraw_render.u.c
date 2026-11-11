@@ -64,6 +64,10 @@ struct ToriDraw_ProjectCensus g_toridraw_project_census;
 /* The reference per-face pick's cursor dilation (toridraw_mouse_roughly_inside_triangle);
  * defined up here because the projected bound is grown by it too. */
 #define TORIDRAW_PICK_SLOP 5
+/* ToriDraw_RenderModel1CullPoint's widening of the cylinder's screen box: a
+ * pixel for the projection's truncation, and the per-face slop, which lets a
+ * face pick land that far outside the model's own vertices. */
+#define TORIDRAW_CULL_POINT_MARGIN (1 + TORIDRAW_PICK_SLOP)
 
 /*
  * Everything that exists only to describe a render or a raster pass: the
@@ -223,14 +227,18 @@ ToriDraw_AabbCull(
 }
 
 /*
- * Does the pick point lie inside the bounds cylinder's screen box?
+ * Could the pick point lie on the model at all?
  *
- * Asked HERE, where the box already exists, because the answer is worth a
- * whole model's projection. The box is the same conservative bound the cull
- * rejects models with, so every projected vertex of the model provably lies
- * inside it: a point outside cannot touch the model, and a caller whose only
- * reason to project was the pick can stop. Widened by a pixel each side so
- * the truncation the real projection performs cannot fall outside it.
+ * Asked HERE, where the model's camera-space centre already exists, because
+ * the answer is worth a whole model's projection: a point outside the bound
+ * cannot touch the model, and a caller whose only reason to project was the
+ * pick can stop. The bound is toridraw_cull_point_contains's -- every
+ * projected vertex provably inside it -- widened by TORIDRAW_CULL_POINT_MARGIN
+ * each side: a pixel so the truncation the real projection performs cannot
+ * fall outside it, and the per-face pick's slop, which reaches past the
+ * vertices. A box pick (toridraw_pick_ray_hits_box) is NOT bounded by this:
+ * its box is raised to a minimum size in world units, larger than a small
+ * model, so a caller with a box pick projects regardless.
  *
  * `rel_x`/`rel_y` are viewport-CENTRE relative, the space the extents are in
  * and the space toridraw_projected_model_hit_face converts its argument into.
@@ -241,6 +249,70 @@ struct ToriDraw_CullPointTest
     int rel_y;
     bool contains;
 };
+
+/*
+ * Whether the pick point can lie on a model whose camera-space origin is
+ * `center`: the model's bounding sphere (`sphere`, the bounds cylinder's
+ * centre-to-vertex distance under any rotation) projected with each screen
+ * edge at the depth that pushes it furthest out, widened by
+ * TORIDRAW_CULL_POINT_MARGIN.
+ *
+ * Deliberately NOT the cull's box. That one divides the cylinder's extents by
+ * the centre's depth, so a vertex nearer the camera than the centre projects
+ * outside it -- on a big model up close, by more than the margin -- and a pick
+ * there would be refused. Here an edge on the far side of the centre line is
+ * divided by the nearest depth the sphere reaches (clamped to the near plane)
+ * and one on the near side by the farthest, which bounds every vertex. A
+ * division per edge, but only for a caller that asked about a point.
+ */
+static inline bool
+toridraw_cull_point_contains(
+    const struct ToriDraw_CullPointTest* point,
+    const struct ProjectedVertex* center,
+    int sphere,
+    int near_plane_z,
+    int cot15,
+    bool parallel,
+    int zoom16)
+{
+    long long const x_min = (long long)center->x - sphere;
+    long long const x_max = (long long)center->x + sphere;
+    long long const y_min = (long long)center->y - sphere;
+    long long const y_max = (long long)center->y + sphere;
+    long long lo_x;
+    long long hi_x;
+    long long lo_y;
+    long long hi_y;
+    if( parallel )
+    {
+        lo_x = (x_min * zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
+        hi_x = (x_max * zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
+        lo_y = (y_min * zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
+        hi_y = (y_max * zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
+    }
+    else
+    {
+        long long z_near = (long long)center->z - sphere;
+        long long z_far = (long long)center->z + sphere;
+        long long const nx_min = SCALE_UNIT((x_min * cot15) >> 15);
+        long long const nx_max = SCALE_UNIT((x_max * cot15) >> 15);
+        long long const ny_min = SCALE_UNIT((y_min * cot15) >> 15);
+        long long const ny_max = SCALE_UNIT((y_max * cot15) >> 15);
+        if( z_near < near_plane_z )
+            z_near = near_plane_z;
+        if( z_far < z_near )
+            z_far = z_near;
+        assert(z_near > 0);
+        lo_x = nx_min / (nx_min < 0 ? z_near : z_far);
+        hi_x = nx_max / (nx_max > 0 ? z_near : z_far);
+        lo_y = ny_min / (ny_min < 0 ? z_near : z_far);
+        hi_y = ny_max / (ny_max > 0 ? z_near : z_far);
+    }
+    return point->rel_x >= lo_x - TORIDRAW_CULL_POINT_MARGIN &&
+        point->rel_x <= hi_x + TORIDRAW_CULL_POINT_MARGIN &&
+        point->rel_y >= lo_y - TORIDRAW_CULL_POINT_MARGIN &&
+        point->rel_y <= hi_y + TORIDRAW_CULL_POINT_MARGIN;
+}
 
 /*
  * always_inline: this is called once per model from ToriDraw_ProjectWithVTable
@@ -382,10 +454,9 @@ ToriDraw_FastCull(
             return TORIDRAW_CULL_FAST;
 
         if( point )
-            point->contains = point->rel_x >= screen_x_min_unoffset - 1 &&
-                point->rel_x <= screen_x_max_unoffset + 1 &&
-                point->rel_y >= screen_y_min_unoffset - 1 &&
-                point->rel_y <= screen_y_max_unoffset + 1;
+            point->contains = toridraw_cull_point_contains(
+                point, projected_vertex, bc->min_z_depth_any_rotation, near_plane_z, cot15, true,
+                zoom16);
         return TORIDRAW_CULL_VISIBLE;
     }
 
@@ -437,18 +508,10 @@ ToriDraw_FastCull(
         if( ny_min >= z_h || ny_max <= -z_h )
             return TORIDRAW_CULL_FAST;
 
-        /* The same cancelled divide the culls above use, turned into a
-         * containment test: pixel p lies in [n_min/z, n_max/z] widened by one
-         * pixel exactly when p*z is in [n_min - z, n_max + z]. No divide, and
-         * the same int arithmetic, so it agrees with what the projection will
-         * produce. */
         if( point )
-        {
-            long long const px = (long long)point->rel_x * mid_z;
-            long long const py = (long long)point->rel_y * mid_z;
-            point->contains = px >= nx_min - mid_z && px <= nx_max + mid_z &&
-                py >= ny_min - mid_z && py <= ny_max + mid_z;
-        }
+            point->contains = toridraw_cull_point_contains(
+                point, projected_vertex, bc->min_z_depth_any_rotation, near_plane_z, cot15, false,
+                zoom16);
     }
 #undef TORIDRAW_FASTCULL_Y_EXTENT
 

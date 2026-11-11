@@ -28,6 +28,7 @@
 #include "toridraw_element_id.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -128,9 +129,70 @@ struct ES3ArrayRange
     bool cutout;
 };
 
+/*
+ * Dynamic models' bakes, kept by pose.
+ *
+ * The dynamic group is rebuilt every frame, and an actor's bake is a pure
+ * function of four things: the model it wears (and what has been done to it
+ * in place -- a tint, a mount -- which ToriDraw_SceneElementModelForWrite
+ * counts in model_revision), the pose that model holds (the tuple
+ * ToriDraw_SceneElementApplyAnimation records), and where it stands. A
+ * sequence holds each frame for two to four cycles, an idle loop comes round
+ * again, and a standing actor does not move, so most of those bakes reproduce
+ * one already made: es3_bake_pose_vertices and the posing behind it were 16%
+ * of a WebGL2 replay's main thread.
+ *
+ * So the last few bakes are kept, vertices and triangle configs, and a hit
+ * copies them into this frame's arena instead of baking. Bounded by bytes and
+ * entries, least recently used first out; an entry unused for
+ * ES3_POSE_POOL_MAX_AGE frames goes regardless. Element ids are recycled and
+ * so are allocations, so the model is fingerprinted by its arrays and counts
+ * as well as its address, and the age limit keeps any stale entry short-lived.
+ */
+#define ES3_POSE_POOL_ENTRIES 128u
+#define ES3_POSE_POOL_BYTES (8u * 1024u * 1024u)
+#define ES3_POSE_POOL_MAX_AGE 300u
+
+struct ES3PoseKey
+{
+    int element_id;
+    const struct ToriDraw_Model* model;
+    const void* vertices_x;
+    const void* face_colors_c;
+    int vertex_count;
+    int face_count;
+    uint32_t model_revision;
+    int posed_primary;
+    int posed_frame;
+    int posed_frame2;
+    const void* posed_track;
+    const void* posed_track2;
+    struct ToriDraw_Position position;
+};
+
+struct ES3PosePoolEntry
+{
+    struct ES3PoseKey key;
+    /** NULL: the entry is free. */
+    struct TRSPK_VertexGLES2* vertices;
+    /** One triangle config per face (TRSPK_Triangles). */
+    int* configs;
+    uint32_t vertex_count;
+    uint64_t last_used;
+};
+
+struct ES3PosePool
+{
+    struct ES3PosePoolEntry entries[ES3_POSE_POOL_ENTRIES];
+    uint64_t bytes;
+    /** Frames begun (es3_zbuffer_begin_pass): the LRU's clock. */
+    uint64_t frame;
+};
+
 /** Everything depth mode owns that painter mode has no use for. */
 struct ES3ZBufferWorld
 {
+    struct ES3PosePool pose_pool;
     struct ES3MaterialTable materials;
     struct ES3MaterialTable batch_materials;
     struct ES3MaterialPose dynamic_material;
@@ -155,6 +217,11 @@ struct ES3ZBufferWorld
     uint32_t array_range_capacity;
     /* After coalescing: the ranges actually drawn this frame. */
     uint32_t array_draw_count;
+    /* The ranges' draw order, sorted without moving them: one word per
+     * range (es3_array_order_word), and the radix sort's other half. */
+    uint64_t* array_order;
+    uint64_t* array_order_scratch;
+    uint32_t array_order_capacity;
 };
 
 static struct ES3ZBufferWorld*
@@ -604,18 +671,71 @@ es3_compare_opaque_bucket(const void* lhs, const void* rhs)
     return 0;
 }
 
-static int
-es3_compare_array_range(const void* lhs, const void* rhs)
+/*
+ * The array ranges' draw order: plain program before cutout, then binding,
+ * then first vertex, so contiguous poses in one buffer become one draw.
+ *
+ * Sorted as one 64-bit word per range -- that key in the high 36 bits, the
+ * range's own index in the low 28 -- by an LSD radix sort over the key bits
+ * only, which is stable, so the index rides along and comes out as the order.
+ * The ranges themselves never move. qsort of the 16-byte structs spent ~1 ms
+ * a frame on a WebGL2 replay (10% of the main thread, nearly all of it in
+ * musl's smoothsort shuffling elements, not comparing them).
+ */
+#define ES3_ARRAY_ORDER_INDEX_BITS 28u
+#define ES3_ARRAY_ORDER_KEY_BITS 36u
+#define ES3_ARRAY_ORDER_DIGIT_BITS 8u
+
+static uint64_t
+es3_array_order_word(const struct ES3ArrayRange* range, uint32_t index)
 {
-    const struct ES3ArrayRange* a = (const struct ES3ArrayRange*)lhs;
-    const struct ES3ArrayRange* b = (const struct ES3ArrayRange*)rhs;
-    if( a->cutout != b->cutout )
-        return a->cutout ? 1 : -1;
-    if( a->binding != b->binding )
-        return a->binding < b->binding ? -1 : 1;
-    if( a->first != b->first )
-        return a->first < b->first ? -1 : 1;
-    return 0;
+    uint64_t key;
+    assert(range);
+    assert(range->binding < ES3_BINDING_COUNT);
+    assert(index < (1u << ES3_ARRAY_ORDER_INDEX_BITS));
+    key = ((uint64_t)(range->cutout ? 1u : 0u) << 35) | ((uint64_t)range->binding << 32) |
+        (uint64_t)range->first;
+    return (key << ES3_ARRAY_ORDER_INDEX_BITS) | (uint64_t)index;
+}
+
+/* Sort world->array_order[0, count) by key; returns the buffer holding the
+ * result (array_order or array_order_scratch). A digit every word shares is
+ * skipped, so a frame whose ranges all sit on one binding pays for `first`
+ * and nothing else. */
+static uint64_t*
+es3_array_order_sort(struct ES3ZBufferWorld* world, uint32_t count)
+{
+    uint64_t* src = world->array_order;
+    uint64_t* dst = world->array_order_scratch;
+    uint32_t shift;
+    for( shift = ES3_ARRAY_ORDER_INDEX_BITS;
+         shift < ES3_ARRAY_ORDER_INDEX_BITS + ES3_ARRAY_ORDER_KEY_BITS;
+         shift += ES3_ARRAY_ORDER_DIGIT_BITS )
+    {
+        uint32_t histogram[1u << ES3_ARRAY_ORDER_DIGIT_BITS];
+        uint32_t digit;
+        uint32_t offset = 0u;
+        uint32_t i;
+        uint64_t* swap;
+        memset(histogram, 0, sizeof(histogram));
+        for( i = 0u; i < count; i++ )
+            histogram[(src[i] >> shift) & ((1u << ES3_ARRAY_ORDER_DIGIT_BITS) - 1u)]++;
+        if( histogram[(src[0] >> shift) & ((1u << ES3_ARRAY_ORDER_DIGIT_BITS) - 1u)] == count )
+            continue;
+        for( digit = 0u; digit < (1u << ES3_ARRAY_ORDER_DIGIT_BITS); digit++ )
+        {
+            uint32_t n = histogram[digit];
+            histogram[digit] = offset;
+            offset += n;
+        }
+        for( i = 0u; i < count; i++ )
+            dst[histogram[(src[i] >> shift) & ((1u << ES3_ARRAY_ORDER_DIGIT_BITS) - 1u)]++] =
+                src[i];
+        swap = src;
+        src = dst;
+        dst = swap;
+    }
+    return src;
 }
 
 static int
@@ -696,6 +816,13 @@ es3_zbuffer_destroy(struct TRSPK_Renderer_ES3* renderer)
     ToriMem_Free(ToriMem_Renderer(), world->opaque_buckets);
     ToriMem_Free(ToriMem_Renderer(), world->cutout_scratch);
     ToriMem_Free(ToriMem_Renderer(), world->array_ranges);
+    ToriMem_Free(ToriMem_Renderer(), world->array_order);
+    ToriMem_Free(ToriMem_Renderer(), world->array_order_scratch);
+    for( bucket_index = 0u; bucket_index < ES3_POSE_POOL_ENTRIES; bucket_index++ )
+    {
+        ToriMem_Free(ToriMem_Renderer(), world->pose_pool.entries[bucket_index].vertices);
+        ToriMem_Free(ToriMem_Renderer(), world->pose_pool.entries[bucket_index].configs);
+    }
     ToriMem_Free(ToriMem_Renderer(), world);
     renderer->zbuffer = NULL;
 }
@@ -730,7 +857,9 @@ es3_zbuffer_report_memory(struct TRSPK_Renderer_ES3* renderer)
             (double)world->alpha_submission_capacity * sizeof(struct ES3AlphaSubmission)) /
             1048576.0,
         (double)bucket_bytes / 1048576.0,
-        (double)world->array_range_capacity * sizeof(struct ES3ArrayRange) / 1048576.0);
+        ((double)world->array_range_capacity * sizeof(struct ES3ArrayRange) +
+            (double)world->array_order_capacity * 2.0 * sizeof(uint64_t)) /
+            1048576.0);
 }
 
 void
@@ -755,6 +884,7 @@ es3_zbuffer_begin_pass(struct TRSPK_Renderer_ES3* renderer)
 {
     assert(renderer);
     es3_zbuffer_reset_pass(renderer);
+    es3_zbuffer_state(renderer)->pose_pool.frame++;
     /*
      * Once per world pass, scissored to the world viewport so the UI drawn
      * around it is untouched. The depth mask is forced on for the clear:
@@ -862,32 +992,44 @@ es3_zbuffer_flush_opaque(struct TRSPK_Renderer_ES3* renderer)
      * They are the bulk of the static world. */
     if( world->array_range_count > 0u )
     {
-        qsort(
-            world->array_ranges,
-            world->array_range_count,
-            sizeof(world->array_ranges[0]),
-            es3_compare_array_range);
-        for( range_index = 1u; range_index < world->array_range_count; range_index++ )
+        const uint64_t* order;
+        struct ES3ArrayRange run;
+        if( world->array_range_count > world->array_order_capacity )
         {
-            struct ES3ArrayRange* previous = &world->array_ranges[write_index];
-            const struct ES3ArrayRange* current = &world->array_ranges[range_index];
-            if( current->binding == previous->binding && current->cutout == previous->cutout &&
-                previous->first + previous->count == current->first )
+            uint32_t capacity = world->array_range_capacity;
+            world->array_order = (uint64_t*)ToriMem_Realloc(ToriMem_Renderer(),
+                world->array_order, (size_t)capacity * sizeof(uint64_t));
+            assert(world->array_order);
+            world->array_order_scratch = (uint64_t*)ToriMem_Realloc(ToriMem_Renderer(),
+                world->array_order_scratch, (size_t)capacity * sizeof(uint64_t));
+            assert(world->array_order_scratch);
+            world->array_order_capacity = capacity;
+        }
+        for( range_index = 0u; range_index < world->array_range_count; range_index++ )
+            world->array_order[range_index] =
+                es3_array_order_word(&world->array_ranges[range_index], range_index);
+        order = es3_array_order_sort(world, world->array_range_count);
+        run = world->array_ranges[order[0] & ((1u << ES3_ARRAY_ORDER_INDEX_BITS) - 1u)];
+        for( range_index = 1u; range_index <= world->array_range_count; range_index++ )
+        {
+            const struct ES3ArrayRange* current =
+                range_index < world->array_range_count
+                    ? &world->array_ranges
+                           [order[range_index] & ((1u << ES3_ARRAY_ORDER_INDEX_BITS) - 1u)]
+                    : NULL;
+            if( current && current->binding == run.binding && current->cutout == run.cutout &&
+                run.first + run.count == current->first )
             {
-                previous->count += current->count;
+                run.count += current->count;
                 continue;
             }
-            write_index++;
-            if( write_index != range_index )
-                world->array_ranges[write_index] = *current;
-        }
-        world->array_draw_count = write_index + 1u;
-        for( range_index = 0u; range_index < world->array_draw_count; range_index++ )
-        {
-            const struct ES3ArrayRange* range = &world->array_ranges[range_index];
             es3_sequence_push_array(
-                renderer, range->binding, range->first, range->count, range->cutout, false);
+                renderer, run.binding, run.first, run.count, run.cutout, false);
+            write_index++;
+            if( current )
+                run = *current;
         }
+        world->array_draw_count = write_index;
         world->array_range_count = 0u;
     }
 
@@ -1065,13 +1207,15 @@ es3_zbuffer_emit_model(
     {
         if( !placement->projected_in_scene )
         {
-            /* A stage source classified this model as having no blended
-             * face and left it unsorted, and the material table disagrees.
-             * The scene's bench holds some other model's projection, so
-             * project again here before sorting. Counted: the two tests are
-             * meant to agree, and this should stay at zero. */
+            /* Not projected yet: es3z_draw_model projects a model only for a
+             * pick under the cursor, or a stage source classified it as
+             * having no blended face and the material table disagrees. The
+             * scene's bench holds some other model's projection either way,
+             * so project here before sorting. The stage case is counted: its
+             * two tests are meant to agree, and that should stay at zero. */
             struct ToriDraw_Position position = command->position;
-            renderer->stage_reprojected_models++;
+            if( placement->staged )
+                renderer->stage_reprojected_models++;
             if( ToriDraw_RenderModel1ProjectWithTable(
                     command->model,
                     renderer->scene,
@@ -1398,6 +1542,202 @@ es3z_begin_3d(
             es3_reset_group(&renderer->groups[group]);
 }
 
+/* --- the dynamic pose pool (ES3PosePool) ---------------------------------------- */
+
+/* The key of the bake `command` is about to make, or false when there is no
+ * telling what pose the model holds: no element, a shared or lent model, a
+ * model the element no longer wears, or no recorded pose. */
+static bool
+es3z_pose_key(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    struct ES3PoseKey* out)
+{
+    const struct ToriDraw_SceneElement* element;
+    const struct ToriDraw_Model* model;
+    assert(renderer);
+    assert(command);
+    assert(out);
+    if( command->element_id < 0 || command->model.kind != TORIDRAWMK_MODEL ||
+        !ToriDraw_SceneElementIsLive(renderer->scene, command->element_id) )
+        return false;
+    element = ToriDraw_SceneElementGet(renderer->scene, command->element_id);
+    model = command->model.u.model.model;
+    if( !element || element->model.kind != TORIDRAWMK_MODEL ||
+        element->model.u.model.model != model || !model || element->posed_primary < 0 )
+        return false;
+    memset(out, 0, sizeof(*out));
+    out->element_id = command->element_id;
+    out->model = model;
+    out->vertices_x = model->vertices_x;
+    out->face_colors_c = model->face_colors_c;
+    out->vertex_count = model->vertex_count;
+    out->face_count = model->face_count;
+    out->model_revision = element->model_revision;
+    out->posed_primary = element->posed_primary;
+    out->posed_frame = element->posed_frame;
+    out->posed_frame2 = element->posed_frame2;
+    out->posed_track = element->posed_track;
+    out->posed_track2 = element->posed_track2;
+    out->position = command->world_position;
+    return true;
+}
+
+static bool
+es3z_pose_key_equal(const struct ES3PoseKey* a, const struct ES3PoseKey* b)
+{
+    return a->element_id == b->element_id && a->model == b->model &&
+        a->vertices_x == b->vertices_x && a->face_colors_c == b->face_colors_c &&
+        a->vertex_count == b->vertex_count && a->face_count == b->face_count &&
+        a->model_revision == b->model_revision && a->posed_primary == b->posed_primary &&
+        a->posed_frame == b->posed_frame && a->posed_frame2 == b->posed_frame2 &&
+        a->posed_track == b->posed_track && a->posed_track2 == b->posed_track2 &&
+        a->position.x == b->position.x && a->position.y == b->position.y &&
+        a->position.z == b->position.z && a->position.pitch == b->position.pitch &&
+        a->position.yaw == b->position.yaw && a->position.roll == b->position.roll;
+}
+
+static void
+es3z_pose_pool_drop(struct ES3PosePool* pool, struct ES3PosePoolEntry* entry)
+{
+    assert(entry->vertices);
+    pool->bytes -= (uint64_t)entry->vertex_count * sizeof(struct TRSPK_VertexGLES2) +
+        (uint64_t)(entry->vertex_count / 3u) * sizeof(int);
+    ToriMem_Free(ToriMem_Renderer(), entry->vertices);
+    ToriMem_Free(ToriMem_Renderer(), entry->configs);
+    entry->vertices = NULL;
+    entry->configs = NULL;
+}
+
+static struct ES3PosePoolEntry*
+es3z_pose_pool_find(struct ES3PosePool* pool, const struct ES3PoseKey* key)
+{
+    uint32_t i;
+    for( i = 0u; i < ES3_POSE_POOL_ENTRIES; i++ )
+    {
+        struct ES3PosePoolEntry* entry = &pool->entries[i];
+        if( !entry->vertices )
+            continue;
+        if( pool->frame - entry->last_used > ES3_POSE_POOL_MAX_AGE )
+        {
+            es3z_pose_pool_drop(pool, entry);
+            continue;
+        }
+        if( es3z_pose_key_equal(&entry->key, key) )
+            return entry;
+    }
+    return NULL;
+}
+
+/* Keep a copy of the bake just made at [vertex_base, + vertex_count), making
+ * room by dropping the least recently used. A model too big to be worth a
+ * quarter of the pool is not kept. */
+static void
+es3z_pose_pool_store(
+    struct ES3PosePool* pool,
+    const struct ES3PoseKey* key,
+    const struct ES3ModelGroup* group,
+    uint32_t vertex_base,
+    uint32_t vertex_count)
+{
+    uint64_t const bytes = (uint64_t)vertex_count * sizeof(struct TRSPK_VertexGLES2) +
+        (uint64_t)(vertex_count / 3u) * sizeof(int);
+    struct ES3PosePoolEntry* entry = NULL;
+    uint32_t i;
+    if( bytes > ES3_POSE_POOL_BYTES / 4u )
+        return;
+    for( ;; )
+    {
+        struct ES3PosePoolEntry* oldest = NULL;
+        entry = NULL;
+        for( i = 0u; i < ES3_POSE_POOL_ENTRIES; i++ )
+        {
+            struct ES3PosePoolEntry* candidate = &pool->entries[i];
+            if( !candidate->vertices )
+            {
+                if( !entry )
+                    entry = candidate;
+                continue;
+            }
+            if( !oldest || candidate->last_used < oldest->last_used )
+                oldest = candidate;
+        }
+        if( entry && pool->bytes + bytes <= ES3_POSE_POOL_BYTES )
+            break;
+        assert(oldest);
+        es3z_pose_pool_drop(pool, oldest);
+    }
+    entry->key = *key;
+    entry->vertex_count = vertex_count;
+    entry->vertices = (struct TRSPK_VertexGLES2*)ToriMem_Alloc(
+        ToriMem_Renderer(), (size_t)vertex_count * sizeof(struct TRSPK_VertexGLES2));
+    assert(entry->vertices);
+    entry->configs =
+        (int*)ToriMem_Alloc(ToriMem_Renderer(), (size_t)(vertex_count / 3u) * sizeof(int));
+    assert(entry->configs);
+    memcpy(entry->vertices, &group->vbo_cpu->vertices.as_gles2[vertex_base],
+        (size_t)vertex_count * sizeof(struct TRSPK_VertexGLES2));
+    memcpy(entry->configs, &group->triangles.config[vertex_base / 3u],
+        (size_t)(vertex_count / 3u) * sizeof(int));
+    entry->last_used = pool->frame;
+    pool->bytes += bytes;
+}
+
+/*
+ * A dynamic model into this frame's arena: from the pool when the same model
+ * in the same pose at the same place was baked recently, baked otherwise.
+ */
+static uint32_t
+es3z_bake_dynamic(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct ES3ModelGroup* group,
+    const struct ToriRS_RenderCommand_Model* command,
+    int anim_index,
+    int pose_id)
+{
+    struct ES3PosePool* pool = &es3_zbuffer_state(renderer)->pose_pool;
+    struct ES3PoseKey key;
+    struct ES3PosePoolEntry* entry;
+    uint32_t vertex_base;
+    /* A stage source poses on its own view of the scene, so the element's
+     * recorded pose need not be the one this bake reads: no pool there. */
+    bool const keyed = !renderer->model_stage_source && es3z_pose_key(renderer, command, &key);
+    if( keyed && (entry = es3z_pose_pool_find(pool, &key)) != NULL &&
+        pose_id <= (INT_MAX - anim_index) / TRSPK_POSE_TRACK_COUNT )
+    {
+        uint32_t const slot_index = trspk_modelarena_load(
+            group->arena,
+            command->element_id,
+            pose_id * TRSPK_POSE_TRACK_COUNT + anim_index,
+            entry->vertex_count);
+        const struct TRSPK_ModelSlot* slot = trspk_modelarena_get(group->arena, slot_index);
+        if( !slot )
+            return UINT32_MAX;
+        assert(slot->vertex_base % 3u == 0u);
+        assert((slot->vertex_base + entry->vertex_count) / 3u <= group->triangles.cap);
+        memcpy(&group->vbo_cpu->vertices.as_gles2[slot->vertex_base], entry->vertices,
+            (size_t)entry->vertex_count * sizeof(struct TRSPK_VertexGLES2));
+        memcpy(&group->triangles.config[slot->vertex_base / 3u], entry->configs,
+            (size_t)(entry->vertex_count / 3u) * sizeof(int));
+        trspk_vbo_mark_dirty_range(group->vbo_cpu, slot->vertex_base, entry->vertex_count);
+        entry->last_used = pool->frame;
+        return slot->vertex_base;
+    }
+    vertex_base = es3_bake_into_arena(
+        renderer,
+        group,
+        command->element_id,
+        anim_index,
+        pose_id,
+        command->model,
+        &command->world_position,
+        false);
+    if( keyed && vertex_base != UINT32_MAX )
+        es3z_pose_pool_store(pool, &key, group, vertex_base,
+            (uint32_t)trspk_toridraw_face_count(command->model) * 3u);
+    return vertex_base;
+}
+
 void
 es3z_draw_model(
     struct TRSPK_Renderer_ES3* renderer,
@@ -1473,39 +1813,70 @@ es3z_draw_model(
         {
             es3_apply_animation(renderer, command);
         }
+        /*
+         * The GPU draws from the baked vertices and tests depth itself, so
+         * the software projection is wanted here for two things only: the
+         * pick, and a blended model's face sort (which the emit projects for
+         * on its own). The cylinder cull decides visibility without
+         * projecting a vertex, and says whether the cursor could be on the
+         * model at all; only then is it projected, to answer exactly. A box
+         * pick's box can be larger than a small model, so it is always
+         * projected. Projecting every drawn model was 15% of a WebGL2
+         * replay's main thread.
+         */
+        bool const pick_wanted =
+            renderer->pick_enabled && command->pickable && command->element_id >= 0;
+        bool cursor_inside = false;
         projected_position = command->position;
-        if( ToriDraw_RenderModel1ProjectWithTable(
+        if( ToriDraw_RenderModel1CullPoint(
                 command->model,
                 renderer->scene,
                 &projected_position,
                 &renderer->current_3d.view_port,
                 &renderer->current_3d.camera,
-                renderer->kernel) != TORIDRAW_CULL_VISIBLE )
+                renderer->pick_mouse_x,
+                renderer->pick_mouse_y,
+                pick_wanted && !command->pick_aabb ? &cursor_inside : NULL) !=
+            TORIDRAW_CULL_VISIBLE )
             return;
-
-        if( renderer->pick_enabled && command->pickable && command->element_id >= 0 &&
-            (command->pick_aabb
-                 ? ToriDraw_ProjectedModelBoxHitTest(renderer->scene, command->model, &renderer->current_3d.view_port, renderer->pick_mouse_x, renderer->pick_mouse_y)
-             : command->pick_terrain ? ToriDraw_ProjectedTileMouseHitTest(
-                                           renderer->scene,
-                                           command->model,
-                                           &renderer->current_3d.view_port,
-                                           renderer->pick_mouse_x,
-                                           renderer->pick_mouse_y)
-                                     : ToriDraw_ProjectedModelMouseHitTest(
-                                           renderer->scene,
-                                           command->model,
-                                           &renderer->current_3d.view_port,
-                                           renderer->pick_mouse_x,
-                                           renderer->pick_mouse_y)) )
-            ToriRS_PickHitsAdd(
-                &renderer->pick_hits,
-                command->element_id,
-                command->pick_terrain,
-                command->pick_tile_x,
-                command->pick_tile_z,
-                command->pick_tile_level,
-                command->pick_view);
+        face_order = NULL;
+        projected_depth = 0;
+        projected_in_scene = false;
+        if( pick_wanted && (command->pick_aabb || cursor_inside) )
+        {
+            if( ToriDraw_RenderModel1ProjectWithTable(
+                    command->model,
+                    renderer->scene,
+                    &projected_position,
+                    &renderer->current_3d.view_port,
+                    &renderer->current_3d.camera,
+                    renderer->kernel) != TORIDRAW_CULL_VISIBLE )
+                return;
+            projected_depth = renderer->scene->projected_vertex.z;
+            projected_in_scene = true;
+            if( command->pick_aabb
+                    ? ToriDraw_ProjectedModelBoxHitTest(renderer->scene, command->model, &renderer->current_3d.view_port, renderer->pick_mouse_x, renderer->pick_mouse_y)
+                : command->pick_terrain ? ToriDraw_ProjectedTileMouseHitTest(
+                                              renderer->scene,
+                                              command->model,
+                                              &renderer->current_3d.view_port,
+                                              renderer->pick_mouse_x,
+                                              renderer->pick_mouse_y)
+                                        : ToriDraw_ProjectedModelMouseHitTest(
+                                              renderer->scene,
+                                              command->model,
+                                              &renderer->current_3d.view_port,
+                                              renderer->pick_mouse_x,
+                                              renderer->pick_mouse_y) )
+                ToriRS_PickHitsAdd(
+                    &renderer->pick_hits,
+                    command->element_id,
+                    command->pick_terrain,
+                    command->pick_tile_x,
+                    command->pick_tile_z,
+                    command->pick_tile_level,
+                    command->pick_view);
+        }
         if( command->pick_only )
             return;
 
@@ -1514,9 +1885,6 @@ es3z_draw_model(
          * already sorted (sorted_face_count of it, zero here), which dropped
          * every blended face -- spotanims on actors, translucent projectiles. */
         face_count = trspk_toridraw_face_count(command->model);
-        face_order = NULL;
-        projected_depth = renderer->scene->projected_vertex.z;
-        projected_in_scene = true;
     }
     if( face_count <= 0 || (uint32_t)face_count > UINT32_MAX / 3u )
         return;
@@ -1530,15 +1898,8 @@ es3z_draw_model(
     binding = group;
     if( dynamic )
     {
-        vertex_base = es3_bake_into_arena(
-            renderer,
-            &renderer->groups[group],
-            command->element_id,
-            anim_index,
-            pose_id,
-            command->model,
-            &command->world_position,
-            false);
+        vertex_base =
+            es3z_bake_dynamic(renderer, &renderer->groups[group], command, anim_index, pose_id);
     }
     else if(
         (static_state = es3_static_resolve_recorded(
@@ -1622,6 +1983,7 @@ es3z_draw_model(
     placement.dynamic = dynamic;
     placement.face_order = face_order;
     placement.projected_in_scene = projected_in_scene;
+    placement.staged = staged;
     placement.projected_depth = projected_depth;
     es3_zbuffer_emit_model(renderer, command, &placement);
 }

@@ -111,6 +111,7 @@ make_model(int vertex_count, int extent, int textured)
 static int g_checked = 0;
 static int g_clipped_boxes = 0;
 static int g_culled = 0;
+static int g_point_checked = 0;
 
 /* One projection, one comparison. Returns 0 on agreement. */
 static int
@@ -196,6 +197,36 @@ check_one(
                 want_min_x, want_max_x, want_min_y, want_max_y,
                 scene->projection_bound_vertices, (int)scene->near_clipped);
             fail = 1;
+        }
+        /* ToriDraw_RenderModel1CullPoint is what lets a GPU lane skip the
+         * projection for a model the cursor is not on, so it must never say
+         * "not on it" for a point the pick could hit -- and every such point
+         * is inside this box, the vertices dilated by the per-face slop. Its
+         * corners are the farthest reaches. */
+        {
+            int const corners[4][2] = {
+                { want_min_x, want_min_y },
+                { want_max_x, want_min_y },
+                { want_min_x, want_max_y },
+                { want_max_x, want_max_y },
+            };
+            for( int c = 0; c < 4; c++ )
+            {
+                struct ToriDraw_Position again = position;
+                bool inside = false;
+                int const point_cull = ToriDraw_RenderModel1CullPoint(
+                    hnd, scene, &again, vp, cam, corners[c][0], corners[c][1], &inside);
+                if( point_cull != TORIDRAW_CULL_VISIBLE || !inside )
+                {
+                    printf(
+                        "FAIL n=%d yaw=%d tex=%d z=%d: CullPoint refuses box corner (%d,%d) "
+                        "(cull=%d inside=%d)\n",
+                        vertex_count, model_yaw, textured, pos_z, corners[c][0], corners[c][1],
+                        point_cull, (int)inside);
+                    fail = 1;
+                }
+                g_point_checked++;
+            }
         }
         /* And the cull verdict has to be the box's own. */
         {
@@ -314,8 +345,9 @@ main(void)
 
     printf(
         "projected bound: %d boxes checked (%d whole-plane from a near-clipped vertex, "
-        "%d models fast-culled before a box existed) -- %s\n",
-        g_checked, g_clipped_boxes, g_culled, failures ? "FAIL" : "PASS");
+        "%d models fast-culled before a box existed), %d corners inside CullPoint's bound "
+        "-- %s\n",
+        g_checked, g_clipped_boxes, g_culled, g_point_checked, failures ? "FAIL" : "PASS");
     if( g_clipped_boxes == 0 )
     {
         printf("  no model ever carried the near-clip sentinel: the clipping family was not "
