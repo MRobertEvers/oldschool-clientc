@@ -159,6 +159,83 @@ main(void)
         ToriRSChrome_SetModifiers(&g_ui, 0);
     }
 
+    /* ---- Shift+Alt on a HOLLOW window's body (the editor's World view) ------- */
+    {
+        /* The body is the host's for every other press: it is not painted and
+         * not hit, so the world under it gets the pointer. Shift+Alt is the
+         * one press that takes it -- or the window with the largest body is
+         * the one window the gesture cannot move, and the press reaches the
+         * host's armed tool instead (2026-11-11). */
+        int const hollow = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 820, 300, 300, "World");
+        struct ToriRSChromeRect h;
+        struct ToriRSChromeRect body;
+        int x;
+        int y;
+
+        ToriRSChrome_PanelSetFixedHeight(&g_ui, hollow, 200);
+        ToriRSChrome_PanelSetResizable(&g_ui, hollow, 1);
+        ToriRSChrome_PanelSetHollow(&g_ui, hollow, 1);
+        ToriRSChrome_Build(&g_ui);
+        h = ToriRSChrome_PanelRect(&g_ui, hollow);
+        body = ToriRSChrome_PanelBodyRect(&g_ui, hollow);
+        CHECK(body.w > 0 && body.h > 0, "the hollow window has a body (%dx%d)", body.w, body.h);
+        x = body.x + body.w / 2;
+        y = body.y + body.h / 2;
+
+        /* Plain: the press is not the chrome's, and nothing moves. */
+        CHECK(!ToriRSChrome_WantsPointer(&g_ui, x, y), "a hollow body does not take the pointer");
+        ToriRSChrome_MouseMove(&g_ui, x, y);
+        CHECK(ToriRSChrome_MouseDown(&g_ui, x, y) == 0, "a plain press on a hollow body is the host's");
+        ToriRSChrome_MouseMove(&g_ui, x + 35, y + 20);
+        (void)ToriRSChrome_MouseUp(&g_ui, x + 35, y + 20);
+        ToriRSChrome_Build(&g_ui);
+        CHECK(ToriRSChrome_PanelRect(&g_ui, hollow).x == h.x && ToriRSChrome_PanelRect(&g_ui, hollow).y == h.y,
+            "and a plain drag there moves nothing");
+
+        /* Shift+Alt: the chrome takes the press and owns the pointer for the
+         * whole drag, so the host's tool never sees it. */
+        ToriRSChrome_SetModifiers(&g_ui, TORIRS_CHROME_MOD_SHIFT | TORIRS_CHROME_MOD_ALT);
+        ToriRSChrome_MouseMove(&g_ui, x, y);
+        CHECK(ToriRSChrome_MouseDown(&g_ui, x, y) == 1, "Shift+Alt: the press on a hollow body is the chrome's");
+        CHECK(ToriRSChrome_WantsPointer(&g_ui, x, y), "and the chrome owns the pointer from the press");
+        ToriRSChrome_MouseMove(&g_ui, x + 35, y + 20);
+        CHECK(ToriRSChrome_WantsPointer(&g_ui, x + 35, y + 20), "through the drag");
+        (void)ToriRSChrome_MouseUp(&g_ui, x + 35, y + 20);
+        ToriRSChrome_Build(&g_ui);
+        CHECK(ToriRSChrome_PanelRect(&g_ui, hollow).x == h.x + 35 && ToriRSChrome_PanelRect(&g_ui, hollow).y == h.y + 20,
+            "Shift+Alt+drag on a hollow body moved the window (%d,%d for %d,%d)",
+            ToriRSChrome_PanelRect(&g_ui, hollow).x, ToriRSChrome_PanelRect(&g_ui, hollow).y, h.x + 35, h.y + 20);
+        CHECK(g_ui.panels[hollow].user_placed, "and the moved window is the user's");
+        ToriRSChrome_SetModifiers(&g_ui, 0);
+        CHECK(!ToriRSChrome_WantsPointer(&g_ui, x + 35, y + 20), "released, the body is the host's again");
+
+        /* A window drawn over the hollow body is the one picked up there. */
+        {
+            struct ToriRSChromeRect const o = ToriRSChrome_PanelRect(&g_ui, other);
+            struct ToriRSChromeRect at;
+
+            h = ToriRSChrome_PanelRect(&g_ui, hollow);
+            body = ToriRSChrome_PanelBodyRect(&g_ui, hollow);
+            ToriRSChrome_PanelMove(&g_ui, other, body.x + 20, body.y + 20);
+            ToriRSChrome_PanelSetLayer(&g_ui, other, TORIRS_CHROME_LAYER_FLOAT);
+            ToriRSChrome_Build(&g_ui);
+            at = ToriRSChrome_PanelRect(&g_ui, other);
+            ToriRSChrome_SetModifiers(&g_ui, TORIRS_CHROME_MOD_SHIFT | TORIRS_CHROME_MOD_ALT);
+            drag(at.x + at.w / 2, at.y + at.h - 8, at.x + at.w / 2 + 10, at.y + at.h - 8 + 10);
+            ToriRSChrome_SetModifiers(&g_ui, 0);
+            ToriRSChrome_Build(&g_ui);
+            CHECK(ToriRSChrome_PanelRect(&g_ui, other).x == at.x + 10 && ToriRSChrome_PanelRect(&g_ui, other).y == at.y + 10,
+                "over a hollow body the window on top is the one taken (%d,%d)", ToriRSChrome_PanelRect(&g_ui, other).x,
+                ToriRSChrome_PanelRect(&g_ui, other).y);
+            CHECK(ToriRSChrome_PanelRect(&g_ui, hollow).x == h.x && ToriRSChrome_PanelRect(&g_ui, hollow).y == h.y,
+                "and the hollow window under it stays");
+            ToriRSChrome_PanelMove(&g_ui, other, o.x, o.y);
+        }
+        /* Out of the way of the cases below. */
+        ToriRSChrome_PanelSetVisible(&g_ui, hollow, 0);
+        ToriRSChrome_Build(&g_ui);
+    }
+
     /* ---- the member's grip resizes the compound ----------------------------- */
     g_ui.panels[frame].user_placed = 0;
     f = ToriRSChrome_PanelRect(&g_ui, frame);

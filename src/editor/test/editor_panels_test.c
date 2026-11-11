@@ -3969,6 +3969,38 @@ test_world_panel(void)
               && g_chrome.panels[wp].fixed_w % EDP_GRID == 0,
         "resizing World resizes the world rect (%dx%d -> %dx%d)", world.w, world.h, moved.w, moved.h);
 
+    /* Shift+Alt held, the body is a handle like the rest of the window: the
+     * press is the chrome's, not the armed tool's (2026-11-11 -- it fell
+     * through the hollow body and painted). Pressed in the left of the body,
+     * clear of the column the World now lies partly under. */
+    {
+        struct EditorUiRect const from = Editor_UiWorldRect(&g_ui);
+        int const px = g_chrome.panels[wp].x;
+        int const py = g_chrome.panels[wp].y;
+        int const x = from.x + from.w / 4;
+        int const y = from.y + from.h / 2;
+
+        CHECK(!ToriRSChrome_WantsPointer(&g_chrome, x, y), "the World body at %d,%d is the world's", x, y);
+        ToriRSChrome_SetModifiers(&g_chrome, TORIRS_CHROME_MOD_SHIFT | TORIRS_CHROME_MOD_ALT);
+        ToriRSChrome_MouseMove(&g_chrome, x, y);
+        CHECK(ToriRSChrome_MouseDown(&g_chrome, x, y) == 1, "Shift+Alt: a press in the World body is the chrome's");
+        CHECK(ToriRSChrome_WantsPointer(&g_chrome, x, y), "and the chrome owns the pointer, so no tool acts on it");
+        ToriRSChrome_MouseMove(&g_chrome, x - 64, y + 48);
+        frame();
+        (void)ToriRSChrome_MouseUp(&g_chrome, x - 64, y + 48);
+        frame();
+        ToriRSChrome_SetModifiers(&g_chrome, 0);
+        moved = Editor_UiWorldRect(&g_ui);
+        CHECK(g_chrome.panels[wp].x != px && g_chrome.panels[wp].y != py,
+            "Shift+Alt+drag in the World body moved the World panel (%d,%d -> %d,%d)", px, py, g_chrome.panels[wp].x,
+            g_chrome.panels[wp].y);
+        CHECK(moved.x - from.x == g_chrome.panels[wp].x - px && moved.y - from.y == g_chrome.panels[wp].y - py
+                  && moved.w == from.w && moved.h == from.h,
+            "and the world rect went with it (%d,%d -> %d,%d)", from.x, from.y, moved.x, moved.y);
+        CHECK(g_chrome.panels[wp].x % EDP_GRID == 0 && g_chrome.panels[wp].y % EDP_GRID == 0,
+            "dropped on the grid like a title drag (%d,%d)", g_chrome.panels[wp].x, g_chrome.panels[wp].y);
+    }
+
     /* Reset layout docks it back over the region. */
     Editor_UiResetLayout(&g_ui);
     frame();
