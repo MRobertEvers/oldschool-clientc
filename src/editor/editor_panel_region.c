@@ -597,7 +597,7 @@ Editor_PanelRegionPreview(
     memset(out_stats, 0, sizeof(*out_stats));
     if( !ui || !app->editor || !app->world )
         return 0;
-    tool = stroke->active ? stroke->tool : ui->tools.tool;
+    tool = stroke->active ? stroke->tool : (int)ui->tools.tool;
     if( !region_is_tool(tool) && tool != EDITOR_TOOL_TIDY )
         return 0;
     if( !stroke->hover_valid && !stroke->active )
@@ -709,7 +709,7 @@ Editor_PanelRegionOutline(
     *out_closed = 0;
     if( !ui )
         return 0;
-    tool = stroke->active ? stroke->tool : ui->tools.tool;
+    tool = stroke->active ? stroke->tool : (int)ui->tools.tool;
     if( tool == EDITOR_TOOL_REGION )
     {
         /* The disc at the pointer. */

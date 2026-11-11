@@ -2795,7 +2795,9 @@ Editor_LocRunCommands(
             continue;
         if( count + 2 > max )
             break;
-        (void)ops_split(piece->world_x, piece->world_z, &map_x, &map_z, &after.x, &after.z);
+        /* Outside the world: no square holds it, so no command can. */
+        if( !ops_split(piece->world_x, piece->world_z, &map_x, &map_z, &after.x, &after.z) )
+            continue;
         after.loc_id = plan->loc_id;
         after.shape = piece->shape;
         after.rotation = piece->rotation & 3;

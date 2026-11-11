@@ -1153,7 +1153,7 @@ app_wev_actor_overlaps(
         bool actionable = false;
         if( type )
             for( int op = 0; op < 5; ++op )
-                if( type->actions[op] && type->actions[op][0] )
+                if( type->actions[op][0] )
                     actionable = true;
         if( !actionable )
             continue;

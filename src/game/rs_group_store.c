@@ -118,16 +118,6 @@ read_u16(struct GroupReader* r)
     return (hi << 8) | read_u8(r);
 }
 
-static int32_t
-read_i32(struct GroupReader* r)
-{
-    uint32_t value = 0;
-
-    for( int i = 0; i < 4; i++ )
-        value = (value << 8) | (uint32_t)read_u8(r);
-    return (int32_t)value;
-}
-
 static int64_t
 read_i64(struct GroupReader* r)
 {

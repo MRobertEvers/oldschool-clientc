@@ -309,6 +309,7 @@ void
 app_map_editor_free(struct App* app)
 {
     assert(app);
+    (void)app; /* the mirror is a file-scope global; app is the contract */
     for( int i = 0; i < EDITOR_DOC_MAX_SQUARES; i++ )
     {
         struct AppMapEditShadow* sh = &g_app_edit_mirror.squares[i];

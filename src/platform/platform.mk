@@ -310,7 +310,7 @@ else ifeq ($(PLATFORM),win64)
   # the real controller. Without it the backend is a linkable unavailable stub;
   # WebView2Loader.dll must also be staged beside the executable at runtime.
   ifneq ($(strip $(WEBVIEW2_SDK_DIR)),)
-    PLATFORM_CFLAGS += -I$(WEBVIEW2_SDK_DIR)/include
+    PLATFORM_CFLAGS += -isystem $(WEBVIEW2_SDK_DIR)/include
   endif
 
   # One-file delivery, just like XP. This Winlibs compiler uses POSIX threads;

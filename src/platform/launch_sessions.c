@@ -21,12 +21,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(_WIN32)
-/* The build force-includes platform/win32_compat.h, which includes <stdlib.h>
- * before the _CRT_RAND_S above is seen, so stdlib never declares rand_s. */
-errno_t __cdecl rand_s(unsigned int* random_value);
-#endif
-
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
 #endif
@@ -2452,6 +2446,7 @@ LaunchSessions_OwnBinaryPath(char const* argv0, char* out, int out_size)
     assert(argv0);
     assert(out);
     assert(out_size > 0);
+    (void)argv0; /* Windows asks the loader, not argv[0] */
     length = GetModuleFileNameA(NULL, out, (DWORD)out_size);
     if( length == 0 || (int)length >= out_size )
     {

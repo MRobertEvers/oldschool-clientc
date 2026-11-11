@@ -3802,8 +3802,7 @@ World_ObjStackSetMenu(
     assert(actions);
     stack = World_EntityPoolGet(&world->entities.obj_stack, idx);
     assert(stack);
-    strncpy(stack->name, name, sizeof(stack->name) - 1);
-    stack->name[sizeof(stack->name) - 1] = '\0';
+    snprintf(stack->name, sizeof(stack->name), "%s", name);
     World_CopyMenuActions(stack->actions, actions);
     for( int i = 0; i < 5; i++ )
         if( !(stack->enabled_ops & (1 << i)) )

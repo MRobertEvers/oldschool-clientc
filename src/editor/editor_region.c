@@ -697,8 +697,9 @@ Editor_RegionPlan(
             int const had = existing ? existing(user, grid->x0 + tx, grid->z0 + tz, &had_shape, &had_rotation)
                                      : EDITOR_REGION_HAS_NONE;
             uint64_t const was = had == EDITOR_REGION_HAS_SAME ? Editor_RegionShapeMask(had_shape, had_rotation) : 0;
-            int shape;
-            int rotation;
+            /* Written by Editor_RegionFit only when it finds a fit. */
+            int shape = 0;
+            int rotation = 0;
 
             has[at] = (unsigned char)had;
             /* Untouched: a fixed neighbour, as it is. */

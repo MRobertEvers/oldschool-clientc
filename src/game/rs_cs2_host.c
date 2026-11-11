@@ -9490,7 +9490,9 @@ exec_highlight_request(
     int answer = 0;
     bool handled;
     bool const debug = getenv("TORIRS_HIGHLIGHT_DEBUG") != NULL;
-    enum RS_HighlightKind kind;
+    /* Read only when `known`; set so the debug path's inlined name lookup
+     * never sees an unwritten value. */
+    enum RS_HighlightKind kind = RS_HIGHLIGHT_KIND_COUNT;
     bool const known = RS_HighlightOpcodeKind(opcode, &kind);
 
     if( debug )

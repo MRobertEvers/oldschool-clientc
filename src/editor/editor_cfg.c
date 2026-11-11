@@ -523,10 +523,13 @@ block_reserve(
 {
     size_t next;
 
-    if( length + 1 <= block->capacity )
+    /* `length < capacity`, not `length + 1 <= capacity`: the +1 wraps at
+     * SIZE_MAX, and that wrapped path (an empty block "already big enough")
+     * is one the optimiser follows into the caller's memcpy. */
+    if( length < block->capacity )
         return;
     next = block->capacity ? block->capacity : 64;
-    while( next < length + 1 )
+    while( next <= length )
         next *= 2;
     block->text = ToriMem_Realloc(ToriMem_Editor(), block->text, next);
     assert(block->text);

@@ -450,6 +450,10 @@ Task_AppBoot_Run(
      * value is decoded as. dat2 only; an absent group leaves the table empty. */
     if( !app->boot_config_ready && app->cfg.cache_kind != APP_CACHE_DAT1 )
         PT_TASK_AWAITSELF_IF(CreateTask_Dat2VarClanTypeLoad(app->provider));
+
+    /* Group configs (config group 75): the variables of each GROUP_FULL
+     * record. dat2 only, once per boot, the same shape as VarClanTypes. */
+    if( !app->boot_config_ready && app->cfg.cache_kind != APP_CACHE_DAT1 )
         PT_TASK_AWAITSELF_IF(CreateTask_Dat2GroupTypeLoad(app->provider));
 
     /* Healthbar types. dat2 only for the same reason as hitsplats -- dat1 has

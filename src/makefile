@@ -249,6 +249,8 @@ LTO_CC_IS_CLANG := $(filter-out __clang__,$(firstword $(LTO_CC_PROBE)))
 LTO_GCC_MAJOR   := $(if $(LTO_CC_IS_CLANG),,$(word 2,$(LTO_CC_PROBE)))
 LTO_CACHE_DIR    = $(OBJ_DIR)/lto_cache
 LTO_CACHE_LDFLAGS =
+# Prefix for a link that carries LTO_CACHE_LDFLAGS; empty except on Windows GCC.
+LTO_CACHE_LINK   =
 ifeq ($(OPT),1)
 ifeq ($(PLATFORM),web)
 OPT_RELEASE_CFLAGS  = -DNDEBUG
@@ -302,6 +304,13 @@ endif
 ifneq ($(LTO_GCC_MAJOR),)
 ifeq ($(filter 1 2 3 4 5 6 7 8 9 10 11 12 13 14,$(LTO_GCC_MAJOR)),)
 LTO_CACHE_LDFLAGS   = -flto-incremental=$(LTO_CACHE_DIR)
+# GCC cannot lock the cache on Windows and says so on every link ("using
+# ltrans cache without file locking support"). Each link here has a cache
+# directory of its own, so there is nothing to lock against; the wrapper drops
+# that one line and passes the rest. See tools/lto_link_quiet.sh.
+ifeq ($(OS),Windows_NT)
+LTO_CACHE_LINK      = sh $(REPO_ROOT)/tools/lto_link_quiet.sh
+endif
 endif
 endif
 endif
@@ -1492,7 +1501,7 @@ endif
 $(TARGET): $(OBJS) $(ASAN_DYLD_SHIM) $(PLATFORM_JS_LIBRARY)
 	@mkdir -p $(dir $@) $(if $(LTO_CACHE_LDFLAGS),$(LTO_CACHE_DIR))
 	$(file >$(OBJ_DIR)/link_objs.rsp,$(OBJS))
-	$(CC) $(CFLAGS) -o $@ $(LINK_OBJS_ARG) $(LDFLAGS) $(LTO_CACHE_LDFLAGS) $(ASAN_DYLD_SHIM)
+	$(LTO_CACHE_LINK) $(CC) $(CFLAGS) -o $@ $(LINK_OBJS_ARG) $(LDFLAGS) $(LTO_CACHE_LDFLAGS) $(ASAN_DYLD_SHIM)
 	@echo $(OBJ_DIR) > .last_flavor
 
 # --- Web target ----------------------------------------------------------
@@ -5313,7 +5322,7 @@ endif
 $(TORIRSSERVER_BIN): $(TORIRSSERVER_OBJS) $(TORIRSSERVER_LINK_OBJS) | $(OBJ_DIR)
 	@mkdir -p $(TORIRSSERVER_OBJ_DIR) $(if $(TORIRSSERVER_LTO_CACHE),$(TORIRSSERVER_LTO_CACHE_DIR))
 	$(file >$(TORIRSSERVER_OBJ_DIR)/link_objs.rsp,$(TORIRSSERVER_OBJS))
-	$(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/torirsserver $(TORIRSSERVER_OBJS_ARG) \
+	$(LTO_CACHE_LINK) $(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/torirsserver $(TORIRSSERVER_OBJS_ARG) \
 		$(TORIRSSERVER_LINK_OBJS) \
 		-lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_LTO_CACHE)
 	@echo "built $(TORIRSSERVER_BIN)"

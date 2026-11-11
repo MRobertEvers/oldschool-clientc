@@ -294,6 +294,7 @@ Editor_SnippetRender(
     assert(subject);
     assert(subject[0] != '\0');
     assert(out);
+    (void)out_size; /* asserted below, never cut: read only by assert() */
     subject_length = strlen(subject);
     assert(subject_length < EDITOR_SNIPPET_SUBJECT_MAX);
 

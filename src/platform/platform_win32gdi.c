@@ -1633,6 +1633,7 @@ int*
 PlatformWindow_ChromePixels(struct PlatformWindow* p)
 {
     assert(p);
+    (void)p;
     return NULL; /* Windows plugin chrome is a browser control, not a surface. */
 }
 
@@ -1701,6 +1702,7 @@ bool
 PlatformWindow_ChromeResize(struct PlatformWindow* p, int width, int height)
 {
     assert(p);
+    (void)p;
     (void)width;
     (void)height;
     return false;
@@ -1710,6 +1712,7 @@ void
 PlatformWindow_ChromePresent(struct PlatformWindow* p)
 {
     assert(p);
+    (void)p;
 }
 
 bool
@@ -1718,6 +1721,7 @@ PlatformWindow_ChromeTakeDirty(struct PlatformWindow* p)
     /* This backend blits the retained pane straight into its child HWND; there
      * is no GPU texture upload to schedule. */
     assert(p);
+    (void)p;
     return false;
 }
 
@@ -1734,6 +1738,8 @@ PlatformWindow_ChromeTakeInput(
 {
     assert(p);
     assert(out);
+    (void)p;
+    (void)out;
     /* Browser input stays inside its native child and exits only as a copied,
      * generation-fenced protocol intent. */
     return false;
@@ -2195,6 +2201,7 @@ bool
 PlatformWindow_PluginBrowserCanPopOut(struct PlatformWindow const* p)
 {
     assert(p);
+    (void)p;
     return PlatformWin32Browser_PageViewAvailable() != 0;
 }
 
@@ -2786,6 +2793,8 @@ PlatformWindow_SetCredentialForm(
 {
     assert(p);
     assert(form);
+    (void)p;
+    (void)form;
 }
 
 void

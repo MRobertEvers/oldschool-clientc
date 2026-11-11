@@ -140,7 +140,7 @@ enum
 };
 
 _Static_assert(
-    TORIRSMAPED_LIVE_FOCUS_VALUES <= TORIRSMAPED_STATE_VALUES_MAX,
+    (int)TORIRSMAPED_LIVE_FOCUS_VALUES <= (int)TORIRSMAPED_STATE_VALUES_MAX,
     "the live focus is one state field");
 
 /** Pack a player name (at most TORIRSMAPED_LIVE_FOCUS_NAME_MAX bytes; longer

@@ -1427,8 +1427,8 @@ work_add(
     assert(fresh_length > 0 && (size_t)fresh_length < sizeof(fresh));
     if( position < count )
     {
-        size_t start;
-        size_t end;
+        size_t start = 0;
+        size_t end = 0;
         int ok = work_block_extent(work, position, &start, &end, NULL, NULL);
         assert(ok);
         (void)ok;
