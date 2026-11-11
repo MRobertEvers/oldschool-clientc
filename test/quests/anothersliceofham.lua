@@ -45,6 +45,7 @@ return {
             display = "Another Slice of H.A.M.",
             points = 1,
         })
+        t.ticklog.start()
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
         local _, sharks0 = t.inv.count("shark")
@@ -177,6 +178,7 @@ return {
         do local tr, th = t.world.tile(); t.check("talkToOldak.here", tr == "ok" and th.level == 0 and math.abs(th.x - 2960) <= 1 and math.abs(th.z - 3502) <= 1, tr == "ok" and (th.x .. "," .. th.z .. "," .. th.level .. " (want within 1 of 2960,3502,0: [2430])") or tostring(th)) end
         -- guide talkToGenerals (stage 5 -> 6)
         -- [2456..2458]: into the generals' hut by its double door
+        t.ticklog.mark("leg.generals")
         t.exec("hutDoorIn", t.player.pass_door, { closed = "goblin_outpost_poordoor_double_inner", open = "goblin_outpost_openpoordoor_double_inner",
             at = { 2957, 3509, 0 }, near = { 2957, 3508 }, far = { 2957, 3510 },
             far_ok = function(tile) return tile.z >= 3510 end, far_desc = "in the generals' hut, z >= 3510" })
@@ -197,6 +199,7 @@ return {
               { ox + 4, oz + 46 }, { ox + 4, oz + 44 }, { ox + 5, oz + 43 }, { ox + 7, oz + 42 }, { ox + 9, oz + 41 } },
             { level = 0 })
         t.check("goUpLadder.noArrow", t.var.expect("varb3550_slice_quest", 6), "still on the snipers' step after the walk")
+        t.ticklog.mark("leg.tower")
         t.exec("goUpLadder", t.player.click_loc, "slice_goblin_ladder_bottom", 1)
         t.ticks(4)
         t.check("goUpLadder.reached", t.var.expect("varb3560_slice_reached_snipers", 1))
@@ -286,6 +289,7 @@ return {
         end
         -- [4175..4193]: the chamber scene, eight pages, then the fight
         t.ticks(4)
+        t.ticklog.mark("leg.sigmund")
         t.exec("enterFinalFight-dialog", t.chat.drain, { max_pages = 10 })
         t.exec("wield-mace", t.player.equip, "ancient_goblin_mace")
         t.ticks(3)
@@ -297,13 +301,13 @@ return {
         t.ticks(2)
         local ok, w = t.ui.widget("combat_interface:special_attack")
         t.check("special.widget", ok == "ok" and w ~= nil, "special_attack widget " .. tostring(w))
-        local rtg = t.ui.invoke(w, 0)
-        t.ticks(2)
-        t.check("special.toggle", t.var.expect("varp301_sa_attack", 1), "invoke special_attack widget " .. tostring(w) .. " op 0 answered " .. tostring(rtg))
+        -- [4205]: already swinging, the toggle fires the special on the next swing
         local _, energy_before = t.var.varp("varp300_sa_energy")
-        local r1 = t.player.attack("slice_sigmund_melee", 2, 8)
+        local rtg = t.ui.invoke(w, 0)
+        local r1 = "swinging"
         t.ticks(3)
         local _, energy_after = t.var.varp("varp300_sa_energy")
+        t.check("special.toggle", rtg == "ok", "invoke special_attack widget " .. tostring(w) .. " op 0 answered " .. tostring(rtg))
         -- [4205]: the special takes his prayer
         t.exec("useSpecial.chat", t.chat.play, { "npc:What's happening? That weapon is overcoming" })
         t.check("useSpecial.press", (energy_after or 0) < (energy_before or 0), "special energy " .. tostring(energy_before) .. " -> " .. tostring(energy_after) .. " (press " .. tostring(r1) .. ")")

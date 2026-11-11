@@ -122,8 +122,8 @@ has no per-state journal transcript for this quest).
 | [154] | x9 | `[oploc1_v3] id=dorgesh_1stairs_posh (22939)` | generic: category climb/door; OPEN: landings not diffed |
 | [191] | x3 | `[if_buttonx] com=inventory:items (149:0), obj=2dosestamina (12629), op=2` | generic: drink/eat |
 | [214] | x9 | `[oploc1_v3] id=dorgesh_inner_door_closed (22914)` | generic: category climb/door; OPEN: landings not diffed |
-| [220] | x1 | `[opnpc1_v2] npc=(id=dorgesh_male_bone_seller (2344), )` | OPEN generic: Dorgesh-Kaan citizen unbound (Barlak [221], Ur-meg [422], cave goblin [2215]) |
-| [419] | x1 | `[opnpc1_v2] npc=(id=dorgesh_female_council_2 (2289), )` | OPEN generic: Dorgesh-Kaan citizen unbound (Barlak [221], Ur-meg [422], cave goblin [2215]) |
+| [220] | x1 | `[opnpc1_v2] npc=(id=dorgesh_male_bone_seller (2344), )` | generic: Dorgesh-Kaan citizens (`areas/dorgeshkaan/scripts/citizens.rs2`), recorded path in `test/dorgeshkaan/citizens.lua` |
+| [419] | x1 | `[opnpc1_v2] npc=(id=dorgesh_female_council_2 (2289), )` | generic: Dorgesh-Kaan citizens (`areas/dorgeshkaan/scripts/citizens.rs2`), recorded path in `test/dorgeshkaan/citizens.lua` |
 | [468] | x3 | `[oploc1_v3] id=dorgesh_1stairs (22937)` | generic: category climb/door; OPEN: landings not diffed |
 | [481] | x4 | `[oploc1_v3] id=dorgesh_1stairs_top (22938)` | generic: category climb/door; OPEN: landings not diffed |
 | [498] | x3 | `[if_buttonx] com=inventory:items (149:0), obj=1dosestamina (12631), op=2` | generic: drink/eat |
@@ -189,7 +189,7 @@ has no per-state journal transcript for this quest).
 | [1326] | x1 | `[opnpct] npc=(id=archaeological_expert (3639), ), com=inventory:items (149:0), obj=slice_artifa` | generic (Dig Site expert): finds answer the default, "Nothing interesting happens." [1314..1327]; Terry's own page is quest_itexam |
 | [1328] | x1 | `[if_buttont] selectcom=inventory:items (149:0), selectedselectedobj=specimen_brush (670), targe` | this content: "You need to do that at the specimen table." (slice_tegdak.rs2) |
 | [1336] | x1 | `[if_buttonx] com=inventory:items (149:0), obj=poh_tablet_varrockteleport (8007), op=2` | generic: teleport items (tablets, Digsite scroll, Dorgesh-Kaan sphere) |
-| [1367] | x1 | `[opnpc1_v2] npc=(id=vm_museum_guard (1910), )` | OPEN generic: Varrock Museum guard unbound ([1370] menu) |
+| [1367] | x1 | `[opnpc1_v2] npc=(id=vm_museum_guard (1910), )` | generic: the museum gate guard (`areas/varrock/scripts/vm_museum_guard.rs2`), recorded in `test/dorgeshkaan/citizens.lua` |
 | [1377] | x5 | `[oploc1_v3] id=vm_specimen_table2 (24556)` | this content + generic: vm_specimen_table.rs2 (kit mesbox, slice finds, tool rack) |
 | [1388] | x2 | `[oploc1_v3] id=vm_digsite_tools (24535)` | this content + generic: vm_specimen_table.rs2 (kit mesbox, slice finds, tool rack) |
 | [1418] | x2 | `[oploct_v2] id=vm_specimen_table2 (24556), , com=inventory:items (149:0), obj=slice_artifact_5_` | this content + generic: vm_specimen_table.rs2 (kit mesbox, slice finds, tool rack) |
@@ -224,7 +224,7 @@ has no per-state journal transcript for this quest).
 | [2081] | x1 | `[opnpc1_v2] npc=(id=prisonpete_balloon4 (5494)), )` | generic: Prison Pete random event (macro_prison_pete) |
 | [2176] | x4 | `[opnpc1_v2] npc=(id=slice_zanik_follower (5147), )` | this content: slice_zanik.rs2 |
 | [2201] | x4 | `[oploc1_v3] id=slice_underground_wall_exit_goblin (23285)` | this content: the tunnel doorways (slice_zanik.rs2) |
-| [2215] | x1 | `[opnpc1_v2] npc=(id=dorgesh_male_patrol2 (2301), )` | OPEN generic: Dorgesh-Kaan citizen unbound (Barlak [221], Ur-meg [422], cave goblin [2215]) |
+| [2215] | x1 | `[opnpc1_v2] npc=(id=dorgesh_male_patrol2 (2301), )` | generic: Dorgesh-Kaan citizens (`areas/dorgeshkaan/scripts/citizens.rs2`), recorded path in `test/dorgeshkaan/citizens.lua` |
 | [2254] | x1 | `[if_buttonx] com=wornitems:slot7 (387:21), op=1` | recorder's own kit: bank, equip, drop |
 | [2255] | x2 | `[if_buttonx] com=wornitems:slot4 (387:19), op=1` | recorder's own kit: bank, equip, drop |
 | [2255] | x1 | `[if_buttonx] com=wornitems:slot2 (387:17), op=1` | recorder's own kit: bank, equip, drop |
@@ -275,13 +275,13 @@ has no per-state journal transcript for this quest).
 | [3107] | x9 | `[oploc1_v3] id=slice_outpost_poordoor (23338)` | generic: door category in the copy |
 | [3128] | x1 | `[if_buttonx] com=inventory:items (149:0), obj=poh_tablet_faladorteleport (8009), op=2` | generic: teleport items (tablets, Digsite scroll, Dorgesh-Kaan sphere) |
 | [3185] | x1 | `[opnpc1_v2] npc=(id=goblin_green_soldier_5 (665), )` | this content at stage 5 with Zanik (slice_village.rs2); else goblin_soldiers.rs2 |
-| [3224] | x1 | `[oploc1_v3] id=slice_goblin_ladder_bottom (23531)` | this content: the tower (slice_village.rs2, slice_hammage.rs2); OPEN: swing timing audit |
-| [3230] | x7 | `[opnpc2_v2] npc=(id=slice_ham_archer (5157), )` | this content: the tower (slice_village.rs2, slice_hammage.rs2); OPEN: swing timing audit |
-| [3235] | x2 | `[if_buttonx] com=prayerbook:prayer14 (541:22), op=1` | this content: the tower (slice_village.rs2, slice_hammage.rs2); OPEN: swing timing audit |
-| [3236] | x5 | `[opnpc2_v2] npc=(id=slice_ham_mage (5158), )` | this content: the tower (slice_village.rs2, slice_hammage.rs2); OPEN: swing timing audit |
-| [3241] | x1 | `[if_buttonx] com=combat_interface:3 (593:18), op=1` | this content: the tower (slice_village.rs2, slice_hammage.rs2); OPEN: swing timing audit |
-| [3248] | x2 | `[if_buttonx] com=prayerbook:prayer21 (541:29), op=1` | this content: the tower (slice_village.rs2, slice_hammage.rs2); OPEN: swing timing audit |
-| [3274] | x1 | `[oploc1_v3] id=slice_goblin_ladder_top (23532)` | this content: the tower (slice_village.rs2, slice_hammage.rs2); OPEN: swing timing audit |
+| [3224] | x1 | `[oploc1_v3] id=slice_goblin_ladder_bottom (23531)` | this content: the tower (slice_village.rs2, slice_hammage.rs2); swings audited (The tower pair) |
+| [3230] | x7 | `[opnpc2_v2] npc=(id=slice_ham_archer (5157), )` | this content: the tower (slice_village.rs2, slice_hammage.rs2); swings audited (The tower pair) |
+| [3235] | x2 | `[if_buttonx] com=prayerbook:prayer14 (541:22), op=1` | this content: the tower (slice_village.rs2, slice_hammage.rs2); swings audited (The tower pair) |
+| [3236] | x5 | `[opnpc2_v2] npc=(id=slice_ham_mage (5158), )` | this content: the tower (slice_village.rs2, slice_hammage.rs2); swings audited (The tower pair) |
+| [3241] | x1 | `[if_buttonx] com=combat_interface:3 (593:18), op=1` | this content: the tower (slice_village.rs2, slice_hammage.rs2); swings audited (The tower pair) |
+| [3248] | x2 | `[if_buttonx] com=prayerbook:prayer21 (541:29), op=1` | this content: the tower (slice_village.rs2, slice_hammage.rs2); swings audited (The tower pair) |
+| [3274] | x1 | `[oploc1_v3] id=slice_goblin_ladder_top (23532)` | this content: the tower (slice_village.rs2, slice_hammage.rs2); swings audited (The tower pair) |
 | [3281] | x1 | `[opobj3_v2] id=crossbow (837)` | this content: the tower's crossbow and bolts (slice_village.rs2 [3077]); take is the engine's |
 | [3282] | x1 | `[opobj3_v2] id=bolt (877)` | this content: the tower's crossbow and bolts (slice_village.rs2 [3077]); take is the engine's |
 | [3283] | x1 | `[if_buttonx] com=inventory:items (149:0), obj=crossbow (837), op=3` | recorder's own kit: bank, equip, drop |
@@ -318,7 +318,7 @@ has no per-state journal transcript for this quest).
 | [4205] | x1 | `[opnpc2_v2] npc=(id=slice_sigmund_melee (5143), )` | this content: slice_sigmund.rs2 |
 | [4209] | x6 | `[oploc1_v3] id=slice_zanik_tied_up (23284)` | this content: slice_zanik.rs2 |
 | [4213] | x12 | `[opnpc2_v2] npc=(id=slice_sigmund_noprayer (5146), )` | this content: slice_sigmund.rs2 |
-| [4215] | x2 | `[if_buttonx] com=prayerbook:prayer15 (541:23), op=1` | this content: the tower (slice_village.rs2, slice_hammage.rs2); OPEN: swing timing audit |
+| [4215] | x2 | `[if_buttonx] com=prayerbook:prayer15 (541:23), op=1` | this content: the tower (slice_village.rs2, slice_hammage.rs2); swings audited (The tower pair) |
 | [4231] | x1 | `[if_buttonx] com=inventory:items (149:0), obj=rune_scimitar (1333), op=3` | recorder's own kit: bank, equip, drop |
 | [4308] | x2 | `[oploc1_v3] id=slice_ladder_train (23504)` | this content: slice_sigmund.rs2 (the ladder is a category climb, pressed while busy) |
 | [4363] | x1 | `[if_buttonx] com=questscroll:close_button (153:16), op=1` | engine: the quest scroll |
@@ -350,6 +350,26 @@ has no per-state journal transcript for this quest).
 | [4175], [4186] | Sigmund's chamber | this content (`slice_sigmund.rs2`) |
 | [4325], [4356] | the opening's copy, then the station platform (2483, 5538) | this content |
 
+## The tower pair (`slice_hammage.rs2`)
+
+| | recorded (index 4524) | ours (tick log, run 2026-11-11) |
+|---|---|---|
+| start | added [3228], both swing [3229] | added 520, both swing 521 (`npc_attackplayer` on the add) |
+| cast (A) | mage `human_caststrike_staff`, `fireblast_casting` h92, `sound_area fireblast_cast_and_fire` r10; archer `slice_ham_agent_arrow_launch` + `_spot` | the same |
+| release (A+3) | `map_projanim_v2` 0..20, angle 15, progress 11, raw 163/146 (fireblast) and 0/0 (arrow); the hit with no splat delay; the block and hit synth delayed 20 | the same (`projanim_pl_raw`, `~slice_ham_hit`) |
+| clock | every 10 ticks, together | 521, 531, 541, 551 |
+| blocks | mage `human_spear_block`, archer `human_sword_def`; `human_hit` on a hit taken | the same (`slice.npc`) |
+
+## Sigmund's prayers
+
+The swings reach him through the ordinary combat path; `~player_hit_npc_prepare` asks
+`~slice_sigmund_prepare_hit`. On the swing tick of a style he is not praying: his line, the
+protected form and the player's `protect_from_<style>` synth ([4195], [4200]); every hit on a
+prayed form is 0 ([4197], [4201]). The mace special changes him to `_noprayer` and its own
+hit is rolled and lands ([4205] -> [4206] 5; ours 715 -> 716 4). His swing is
+`human_sword_slash` + `hacksword_slash`, his block `human_sword_def`, `leather_hit` on every
+hit taken (the generated block's unarmed punch and null sounds deleted, stated in `slice.npc`).
+
 ## Verification
 
 `test/quests/anothersliceofham.lua` follows the recorded flow: Alvijar's start ([659..671]),
@@ -357,8 +377,9 @@ Tegdak's pages, the six sites, the table, the hand-in, the scribe, Oldak and the
 the generals' hut, the speech and ambush, the route round the houses to the tower, the
 tower fight, the kidnap, the generals at stage 8, the sergeants, the hole and the tunnel's
 entry scene, then Sigmund's chamber, the fight with the mace special, his escape, the
-untying, the train and the opening. Run 2026-11-11 (`run.py anothersliceofham`): 130 of 134
-rows pass; the quest completes with its quest point and both 3,000 xp rewards. It enters
+untying, the train and the opening. It keeps a tick log with `leg.generals`, `leg.tower`
+and `leg.sigmund` marks. Run 2026-11-11 (`run.py anothersliceofham`, after the tower, Sigmund
+and citizen fixes): 130 of 134 rows pass; the quest completes with its quest point and both 3,000 xp rewards. It enters
 Dorgesh-Kaan by a Dorgesh-Kaan sphere (the recording's own way back, [2624]), because the
 Lumbridge cellar route through the other session's Lost Tribe / Death to the Dorgeshuun
 work was broken that day (Kazgar: "I can't reach that!").
@@ -374,25 +395,25 @@ The four failing rows:
 
 ## Open
 
-- The H.A.M. archer and mage swing every 10 ticks together ([3229], [3239], ...): the seq
-  and spotanim on T, the projectile and the splat on T+3 (`slice_ham_agent_arrow_projanim`
-  0/0 heights; `fireblast_travel`), the mage's defend `human_spear_block` at 52, no death
-  seq for the archer. Ours run on the generic ranged/magic attack procs: not diffed.
-- Sigmund's protection: Jagex lets the swing land for 0 (4/4); our engine has no npc
-  protection prayer, so a swing into the matching form is refused.
+- On the special's tick Sigmund's own swing (`human_sword_slash`) wins over the special's
+  `human_sword_def`; Jagex sends only the block ([4205]).
+- The H.A.M. archer's death: no death seq on the wire, del the tick after his last hit
+  ([3339] -> [3340]); ours plays the generic death. The tower shots' `sound_area id=-1` at
+  the shooter (a null sound) is not sent.
 - Sigmund comes down the chamber's ladder with an `exactmove` ([4186]); ours is a telejump
   with the reach seq.
 - Zanik leaving the party outside the village ([2572]: "I'll meet you back in
   Dorgesh-Kaan", her sphere break, `slice_zanik_at_dig` 1): the trigger is not identified
   (one occurrence); not built.
 - The kidnap's duel anims are issued on page clicks; Jagex sends them every tick between.
-- Dorgesh-Kaan citizens recorded but unbound: Barlak ([221..281]), Ur-meg ([422..449]),
-  the cave goblin patrol ([2215..2220]); the Varrock Museum guard ([1370]).
+- Barlak's bone and shell trade (wiki) is not built: no recording sells him anything. The
+  rest of Dorgesh-Kaan's named citizens (Ur-taal, Ur-lun, Ur-pel, Ur-zek, Ur-vass, Mernik,
+  the market traders, the children, the guards) are still unbound; not in this recording.
+- The museum gate's way out (guard or gate from inside) is UNVERIFIED; no recording leaves.
 - Oldak's lectures that "clear your thinking" may give xp: not built (no source).
 - Stage 4, 6, 7 and 11 journal rows: UNVERIFIED.
-- No wire audit has been run yet (tick log against `rsprox_tells.py` per section).
-- The engine drops `projanim_map` on osrs242 ("osrs242 has no MAP_PROJANIM"): the speech
-  scene's fire blast ([3048]) is not sent, though the recording has `map_projanim_v2`.
+- Wire audit done for the tower pair and Sigmund's fight only; the scenes, the dig and the
+  tunnel are not yet diffed (tick log against `rsprox_tells.py` per section).
 - The tunnel (`slice_sergeants.rs2`, ported separately) lists its own UNVERIFIED rules in its
   header: the guards' sight ranges are fitted to 2..7 cases each, the fourth guard's add is a
   weak queue, and guards stop after their patrol.
