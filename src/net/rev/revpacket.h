@@ -820,6 +820,12 @@ struct PktReconnect
     uint8_t* data; /* the GPI init block; owned (ToriMem_Net) */
 };
 
+/* PKT_NAME_DIALOG_RESUMED */
+struct PktDialogResumed
+{
+    int pkt_out_name; /* the GameProtoPktOutName the recorded client sent */
+};
+
 struct PktUpdateRunWeight
 {
     int run_weight; /* g2s: weight in grams */
@@ -1692,6 +1698,7 @@ struct RevPacket
         struct PktHintArrow _hint_arrow;
         struct PktUpdatePid _update_pid;
         struct PktReconnect _reconnect;
+        struct PktDialogResumed _dialog_resumed;
         struct PktUpdateRunWeight _update_runweight;
         struct PktUpdateInvStopTransmit _update_inv_stop_transmit;
         struct PktUpdateInvPartial _update_inv_partial;

@@ -78,6 +78,18 @@ struct RsproxRecordingFrame
     int reconnect_index;
 };
 
+/** One client->server packet: what the recorder's client sent, and where it
+ *  sat among the server's. Not played (the replay is the server), but some
+ *  prots stand for something the recorder's client did to itself as it sent
+ *  them -- a chatbox prompt closing as it is answered -- which the replay has
+ *  to do at the same point (net_transport_replay.c). */
+struct RsproxRecordingInput
+{
+    /** The server packets before it: it goes after frames[frame - 1]. */
+    int frame;
+    int opcode;
+};
+
 struct RsproxRecording
 {
     int header_version;
@@ -103,6 +115,8 @@ struct RsproxRecording
     /* Filled by RsproxRecording_Index. */
     struct RsproxRecordingFrame* frames;
     int frame_count;
+    /** Every client packet, in order; client_packet_count of them. */
+    struct RsproxRecordingInput* inputs;
     int client_packet_count;
     /** SERVER_TICK_ENDs in the whole recording. */
     int tick_count;

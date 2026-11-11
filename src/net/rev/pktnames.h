@@ -374,6 +374,12 @@ enum GameProtoPktName
     PKT_NAME_SET_HEATMAP_ENABLED,
     PKT_NAME_GROUP_VAR,
 
+    /* A replay's recorded client answered its chatbox prompt here
+     * (struct PktDialogResumed). Never on the wire: net queues it from
+     * TORIRS_CMD_NET_DIALOG_RESUMED in packet order, as PKT_NAME_RECONNECT.
+     * Appended likewise. */
+    PKT_NAME_DIALOG_RESUMED,
+
     PKT_NAME_COUNT
 };
 

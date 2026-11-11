@@ -80,6 +80,10 @@ enum ToriRS_CmdType
      * recording's RECONNECT, after the bytes before it and before the bytes
      * after it. */
     TORIRS_CMD_NET_RESUMED = 35,
+    /* The recorded client answered its chatbox prompt between two packets of
+     * the stream: p2 the GameProtoPktOutName it sent (RESUME_P_*DIALOG). Sent
+     * by the replay transport, in stream order as TORIRS_CMD_NET_RESUMED is. */
+    TORIRS_CMD_NET_DIALOG_RESUMED = 36,
 
     /* -> App. The window changed size and the client canvas has to follow it:
      * the whole gameframe is laid out against the canvas, so this is a layout

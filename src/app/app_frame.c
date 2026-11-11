@@ -261,6 +261,7 @@ app_drain_command(
         case TORIRS_CMD_NET_RECV:
         case TORIRS_CMD_NET_STATUS:
         case TORIRS_CMD_NET_RESUMED:
+        case TORIRS_CMD_NET_DIALOG_RESUMED:
             if( app->net )
                 ToriRS_Network_HandleCmd(app->net, header.type, payload, header.length);
             break;

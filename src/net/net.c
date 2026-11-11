@@ -705,6 +705,19 @@ ToriRS_Network_HandleCmd(
         push_parsed_packet(net, &packet);
         break;
     }
+    case TORIRS_CMD_NET_DIALOG_RESUMED:
+    {
+        /* Queued for the same reason: the packets before it run first. */
+        struct RevPacket packet;
+
+        assert(net->state == TORIRS_NET_GAME);
+        assert(len == 2);
+        memset(&packet, 0, sizeof(packet));
+        packet.packet_type = PKT_NAME_DIALOG_RESUMED;
+        packet._dialog_resumed.pkt_out_name = (data[0] << 8) | data[1];
+        push_parsed_packet(net, &packet);
+        break;
+    }
     default:
         break;
     }

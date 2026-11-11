@@ -31,6 +31,10 @@
 #include <string.h>
 #include "log/torirs_log.h"
 
+/* [proc,meslayer_close_299](int clear_text, int rebuild_chat, int resume): the
+ * chatbox prompt's close (OSRS-Content scripts/meslayer_close_299.cs2). */
+#define EXEC_SCRIPT_MESLAYER_CLOSE 299
+
 /*
  * Put a line in the chatbox.
  *
@@ -3142,6 +3146,30 @@ RS_GameProto_Exec(
              * zone the player left, and its MAP_BUILD_COMPLETE is what the
              * server (or a replay's map-build barrier) waits for. */
             ctx->app->net_force_rebuild = 1;
+        }
+        break;
+    case PKT_NAME_DIALOG_RESUMED:
+        /* A replay's recorded client answered its chatbox prompt. Its own
+         * script closed the prompt as it sent the answer -- every one, from
+         * meslayer_mode14_select (754, the GE search) to meslayer_enter (681,
+         * an amount or a name), ends in ~meslayer_close_299(1, 1, 1) -- and no
+         * server packet says so, so a replay closes it here or never. The
+         * third argument is 0: the recorder's answer is already in the
+         * recording, and the scripts that pass 1 have cleared the mode first,
+         * so theirs re-sends nothing either. Held behind the tick's scripts
+         * like a RUNCLIENTSCRIPT, so the one that opened the prompt runs
+         * first. */
+        if( ctx->app )
+        {
+            static struct PktRunClientScript close;
+
+            memset(&close, 0, sizeof(close));
+            close.script_id = EXEC_SCRIPT_MESLAYER_CLOSE;
+            close.argc = 3;
+            close.intv[0] = 1;
+            close.intv[1] = 1;
+            close.intv[2] = 0;
+            App_RunClientScript(ctx->app, &close);
         }
         break;
     case PKT_NAME_VARP_SYNC:

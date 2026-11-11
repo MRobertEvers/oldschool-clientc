@@ -595,12 +595,98 @@ test_replay_reconnects_where_the_recording_did(void)
     ToriRS_Network_Free(&net);
 }
 
+/*
+ * The recorder answered a chatbox prompt (the GE search, an amount). Its client
+ * closed the prompt itself as it sent the answer, and no server packet says
+ * so: the answer arrives as PKT_NAME_DIALOG_RESUMED between the server packets
+ * either side of it, once, and the client packets that are not answers do not.
+ */
+static void
+test_replay_answers_prompts_where_the_recording_did(void)
+{
+    struct GameProtoRevTable const* rev = GameProtoRev_Osrs(241);
+    struct Rec r;
+    struct RsproxRecording rec;
+    struct ToriRS_Network net;
+    static struct ToriRS_CmdBus bus;
+    static uint8_t login_rebuild[GPI_INIT_BYTES + 6];
+    uint8_t varp[3] = { 7, 0, 1 };
+    struct NetTransport* t;
+    unsigned long long cycles = 0;
+    char err[256];
+    int seen_names[64];
+    int seen_count = 0;
+    int answered_at = -1;
+
+    memset(&r, 0, sizeof(r));
+    w_header(&r);
+    memset(login_rebuild, 0, sizeof(login_rebuild));
+    rebuild_tail(login_rebuild + GPI_INIT_BYTES, 365, 435, 0);
+    w_server(&r, rev, 3, PKT_NAME_REBUILD_NORMAL, login_rebuild, (int)sizeof(login_rebuild));
+    w_server(&r, rev, 6, PKT_NAME_SERVER_TICK_END, NULL, 0);
+    /* tick 1: the prompt's script, a click, the answer, the server's reply */
+    w_server(&r, rev, 600, PKT_NAME_VARP_SMALL, varp, 3);
+    w_client(&r, rev, 700, PKTOUT_NAME_NO_TIMEOUT, rev->packetout_size(rev->packetout_code(
+                                                       PKTOUT_NAME_NO_TIMEOUT)));
+    w_client(&r, rev, 900, PKTOUT_NAME_RESUME_P_OBJDIALOG, 2);
+    varp[0] = 8;
+    w_server(&r, rev, 1000, PKT_NAME_VARP_SMALL, varp, 3);
+    w_server(&r, rev, 1001, PKT_NAME_SERVER_TICK_END, NULL, 0);
+
+    TEST_CHECK(RsproxRecording_Open(&rec, r.data, r.len, err, sizeof(err)) == 0);
+    TEST_CHECK(RsproxRecording_Index(&rec, rev, err, sizeof(err)) == 0);
+    TEST_CHECK(rec.client_packet_count == 2);
+    TEST_CHECK(rec.inputs[1].frame == 3);
+    TEST_CHECK(rec.inputs[1].opcode == rev->packetout_code(PKTOUT_NAME_RESUME_P_OBJDIALOG));
+
+    ToriRS_Network_Init(&net, rev, TEST_RSA_E, TEST_RSA_N);
+    CmdBus_Init(&bus);
+    t = NetTransport_NewReplay(&rec, rev);
+    NetTransport_ReplaySetUnlocked(t, 1);
+    ToriRS_Network_ConnectLogin(&net, "replay", "replay", "replay");
+    for( int i = 0; i < 400; i++ )
+    {
+        struct ToriRS_CmdHeader header;
+        static uint8_t payload[TORIRS_CMD_MAX_PAYLOAD];
+        struct RevPacket packet;
+
+        if( i == 200 )
+            map_built(rev, &net, 0);
+        cycles++;
+        NetTransport_ReplayClock(t, cycles);
+        NetTransport_Poll(t, &net, &bus);
+        while( CmdBus_Pop(&bus, &header, payload) )
+            ToriRS_Network_HandleCmd(&net, header.type, payload, (int)header.length);
+        while( ToriRS_Network_PopPacket(&net, &packet) )
+        {
+            TEST_CHECK(seen_count < 64);
+            if( packet.packet_type == PKT_NAME_DIALOG_RESUMED )
+            {
+                TEST_CHECK(answered_at < 0);
+                answered_at = seen_count;
+                TEST_CHECK(packet._dialog_resumed.pkt_out_name == PKTOUT_NAME_RESUME_P_OBJDIALOG);
+            }
+            seen_names[seen_count++] = packet.packet_type;
+            gameproto_free(&packet);
+        }
+    }
+    TEST_CHECK(answered_at > 0);
+    TEST_CHECK(seen_names[answered_at - 1] == PKT_NAME_VARP_SMALL);
+    TEST_CHECK(seen_names[answered_at - 2] == PKT_NAME_SERVER_TICK_END);
+    TEST_CHECK(seen_names[answered_at + 1] == PKT_NAME_VARP_SMALL);
+    TEST_CHECK(seen_names[seen_count - 1] == PKT_NAME_LOGOUT);
+
+    NetTransport_Free(t);
+    ToriRS_Network_Free(&net);
+}
+
 int
 main(void)
 {
     test_replay_plays_a_recording();
     test_replay_refuses_what_it_cannot_frame();
     test_replay_reconnects_where_the_recording_did();
+    test_replay_answers_prompts_where_the_recording_did();
     printf("rsprox_replay_test: ok\n");
     return 0;
 }

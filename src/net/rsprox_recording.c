@@ -294,6 +294,7 @@ RsproxRecording_Index(
     struct RecReader r;
     uint64_t t_ms = 0;
     int cap = 0;
+    int input_cap = 0;
     int tick = 0;
 
     assert(rec);
@@ -365,7 +366,20 @@ RsproxRecording_Index(
                 tick++;
         }
         else
-            rec->client_packet_count++;
+        {
+            struct RsproxRecordingInput* in;
+
+            if( rec->client_packet_count == input_cap )
+            {
+                input_cap = input_cap ? input_cap * 2 : 1024;
+                rec->inputs = ToriMem_Realloc(ToriMem_Net(), rec->inputs,
+                                              (size_t)input_cap * sizeof(*rec->inputs));
+                assert(rec->inputs);
+            }
+            in = &rec->inputs[rec->client_packet_count++];
+            in->frame = rec->frame_count;
+            in->opcode = opcode;
+        }
         r.pos += (size_t)size;
     }
     rec->tick_count = tick;
@@ -415,6 +429,8 @@ RsproxRecording_Free(struct RsproxRecording* rec)
         return;
     if( rec->frames )
         ToriMem_Free(ToriMem_Net(), rec->frames);
+    if( rec->inputs )
+        ToriMem_Free(ToriMem_Net(), rec->inputs);
     if( rec->data )
         ToriMem_Free(ToriMem_Net(), rec->data);
     memset(rec, 0, sizeof(*rec));

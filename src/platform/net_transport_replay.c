@@ -93,6 +93,15 @@
 /* Bytes enciphered ahead of the bus. Unlocked, a frame can owe many ticks;
  * this keeps the staging buffer from holding the whole recording. */
 #define REPLAY_PENDING_CAP (256 * 1024)
+/* The answers to a chatbox prompt. The recorder's client closed the prompt as
+ * it sent one (rs_gameproto_exec.c, PKT_NAME_DIALOG_RESUMED), and no server
+ * packet says so, so the replay passes each one on where it was sent. */
+#define REPLAY_DIALOG_PROTS 5
+static int const k_dialog_names[REPLAY_DIALOG_PROTS] = {
+    PKTOUT_NAME_RESUME_P_OBJDIALOG,     PKTOUT_NAME_RESUME_P_COUNTDIALOG,
+    PKTOUT_NAME_RESUME_P_COUNTDIALOG_LONG, PKTOUT_NAME_RESUME_P_NAMEDIALOG,
+    PKTOUT_NAME_RESUME_P_STRINGDIALOG,
+};
 
 enum ReplayPhase
 {
@@ -156,6 +165,13 @@ struct NetTransportReplay
      *  (-1: none): it goes as TORIRS_CMD_NET_RESUMED, which the stream's bytes
      *  must not overtake. */
     int resume_frame;
+    /** The recorded client packets: the next one not yet passed, and the
+     *  RESUME_P_*DIALOG waiting, as a RECONNECT does, for the bytes before it
+     *  to reach the bus (-1: none; else its GameProtoPktOutName). */
+    int next_input;
+    int dialog_resumed;
+    /** k_dialog_names' wire opcodes in this revision (-1: not in it). */
+    int dialog_wire[REPLAY_DIALOG_PROTS];
 
     /* The two clocks, read every poll so a switch between them is seamless. */
     int unlocked;
@@ -295,6 +311,8 @@ replay_reset(struct NetTransportReplay* self)
     self->map_built = 0;
     self->last_tick = 0;
     self->resume_frame = -1;
+    self->next_input = 0;
+    self->dialog_resumed = -1;
 }
 
 /* --- the handshake ------------------------------------------------------- */
@@ -443,6 +461,31 @@ frame_is_rebuild(
     return name == PKT_NAME_REBUILD_NORMAL || name == PKT_NAME_REBUILD_REGION;
 }
 
+/*
+ * Step over the client packets sent before the next server one. True when one
+ * of them answered a chatbox prompt: it is then `dialog_resumed`, and nothing
+ * after it is staged until it is on the bus.
+ */
+static int
+pass_inputs(struct NetTransportReplay* self)
+{
+    while( self->next_input < self->rec.client_packet_count &&
+           self->rec.inputs[self->next_input].frame <= self->next_frame )
+    {
+        int const opcode = self->rec.inputs[self->next_input++].opcode;
+
+        for( int i = 0; i < REPLAY_DIALOG_PROTS; i++ )
+        {
+            if( self->dialog_wire[i] == opcode )
+            {
+                self->dialog_resumed = k_dialog_names[i];
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
 static void
 play(struct NetTransportReplay* self)
 {
@@ -471,11 +514,14 @@ play(struct NetTransportReplay* self)
     if( !self->wait_map || self->map_built )
         self->clock_ms += step;
 
-    while( self->resume_frame < 0 && self->next_frame < self->rec.frame_count &&
+    while( self->resume_frame < 0 && self->dialog_resumed < 0 &&
+           self->next_frame < self->rec.frame_count &&
            self->pend_len - self->pend_off < REPLAY_PENDING_CAP )
     {
         struct RsproxRecordingFrame const* f = &self->rec.frames[self->next_frame];
 
+        if( pass_inputs(self) )
+            break;
         if( self->wait_map && f->tick > self->wait_tick )
         {
             if( !self->map_built )
@@ -558,6 +604,22 @@ push_resume(
     self->resume_frame = -1;
 }
 
+/* A recorded RESUME_P_*DIALOG, after the bytes before it. */
+static void
+push_dialog_resumed(
+    struct NetTransportReplay* self,
+    struct ToriRS_CmdBus* bus)
+{
+    uint8_t cmd[2];
+
+    if( !CmdBus_CanPush(bus, (uint16_t)sizeof(cmd)) )
+        return;
+    cmd[0] = (uint8_t)(self->dialog_resumed >> 8);
+    cmd[1] = (uint8_t)self->dialog_resumed;
+    CmdBus_Push(bus, TORIRS_CMD_NET_DIALOG_RESUMED, cmd, (uint16_t)sizeof(cmd));
+    self->dialog_resumed = -1;
+}
+
 /* --- the transport ------------------------------------------------------- */
 
 static void
@@ -629,6 +691,8 @@ replay_poll(
         self->pend_off = self->pend_len = 0;
     if( self->resume_frame >= 0 && self->pend_len == 0 )
         push_resume(self, bus);
+    if( self->dialog_resumed >= 0 && self->pend_len == 0 )
+        push_dialog_resumed(self, bus);
 }
 
 static void
@@ -680,6 +744,8 @@ NetTransport_NewReplay(
     self->logout_wire = rev->packetin_wire(PKT_NAME_LOGOUT);
     assert(self->map_build_complete_wire >= 0);
     assert(self->logout_wire >= 0);
+    for( int i = 0; i < REPLAY_DIALOG_PROTS; i++ )
+        self->dialog_wire[i] = rev->packetout_code(k_dialog_names[i]);
     replay_reset(self);
     return &self->base;
 }
