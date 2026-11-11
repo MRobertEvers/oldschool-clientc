@@ -1,5 +1,8 @@
 # Another Slice of H.A.M. modernization audit
 
+**Superseded 2026-11-11:** this audit described a port written from the wiki and Quest Helper with invented dialogue. The quest was rebuilt from RSProx index 4524; see docs/rsprox-analysis/quests/another_slice_of_ham.md.
+
+
 Status: `verified-modern` — 2026-09-09 gp-slice-t1. Start → complete →
 postquest via real OPNPC1 / OPLOC1 / OPNPC2 + ResumeButton + last_slot.
 Zanik `slice_zanik_at_dig` polarity is cache-native (0 = following / hidden

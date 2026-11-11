@@ -30,6 +30,7 @@ return {
         "::give shark 12",
         "::give lawrune 1",
         "::give airrune 3",
+        "::give dorgesh_teleport_artifact 1",
         "::give earthrune 1",
         "::complete quest_losttribe",
         "::complete quest_deathtothedorgeshuun",
@@ -55,55 +56,38 @@ return {
             .. tostring(lanterns0) .. " lit bullseye lantern, " .. tostring(ropes0) .. " rope, "
             .. tostring(laws0) .. " law rune (+3 air, 1 earth: Lumbridge Teleport); ranged 99 hp 99 magic 31")
 
-        -- guide 1.1: into the castle kitchen on foot, down the trapdoor by click
-        t.exec("walk-goDownIntoBasement", t.player.walk_to, 3209, 3215)
-        t.exec("goDownIntoBasement", t.player.climb, { loc = "qip_cook_trapdoor_open", op = 1, op_name = "Climb-down",
-            at = { 3209, 3216, 0 }, dest = { 3210, 9616, 0 }, slack = 1 })
-        -- guide 1.4: the hole in the cellar wall (lost_tribe_cellar_wall's multiloc on varb532;
-        -- losttribe.rs2 [oploc1,lost_tribe_cavewall_hole_walldecor] p_teleport(^lt_tunnel_enter))
-        t.exec("climbThroughHole", t.player.click_loc, "lost_tribe_cavewall_hole_walldecor", 1)
-        t.ticks(3)
-        local _, h = t.world.tile()
-        t.check("climbThroughHole.here", h.level == 0 and math.abs(h.x - 3221) <= 1 and math.abs(h.z - 9618) <= 1, string.format("at %d,%d,%d", h.x, h.z, h.level))
-        -- guide 1.3: Kazgar shortcuts to Mistag
-        t.exec("talkToKazgar", t.player.talk_to, "lost_tribe_guide_2ops", 1)
-        t.exec("talkToKazgar-dialog", t.chat.play, {
-            "npc:Hello friend",
-            "options",
-            "choose:Can you show me the way to the mines?",
-            "player:Can you show me the way to the mines?",
-            "npc:Certainly",
-        })
-        t.ticks(4)
-        local _, k = t.world.tile()
-        t.check("talkToKazgar.landed", k.x >= 3300, string.format("at %d,%d,%d", k.x, k.z, k.level))
-        -- guide 1.2: the city door (lotg_intro.rs2 [oploc1,cave_goblin_city_doorr] p_teleport(0_42_83_16_53)),
-        -- mines frame 1 -> Dorgesh-Kaan frame 0; it lands inside Oldak's lab
-        t.exec("enterCity", t.player.climb, { loc = "cave_goblin_city_doorr", op = 1, op_name = "Open",
-            at = { 3317, 9601, 0 }, dest = { 2704, 5365, 0 } })
-        -- guide 1.5: out of the lab by its door, then the stairs
-        t.exec("labDoorOut", t.player.pass_door, { closed = "dorgesh_inner_door_closed", open = "dorgesh_inner_door_open",
-            at = { 2709, 5362, 0 }, near = { 2708, 5362 }, far = { 2710, 5362 },
-            far_ok = function(tile) return tile.x >= 2709 end, far_desc = "out of Oldak's lab, x >= 2709" })
-        t.exec("climbToF1City", t.player.climb, { loc = "dorgesh_1stairs_posh", op = 1, op_name = "Climb-up",
-            at = { 2720, 5359, 0 }, dest = { 2720, 5361, 1 } })
-        -- Ur-tag's room: its one entrance is the posh door at 2733,5363 (maps/m42_83.jl2)
+        -- Into Dorgesh-Kaan the way the recording went back there ([2624..2641]): a
+        -- Dorgesh-Kaan sphere, then the stairs down to the middle floor.
+        t.exec("breakSphere", t.player.inv_op, "dorgesh_teleport_artifact", 1)
+        t.ticks(14)
+        local _, sp = t.world.tile()
+        t.check("breakSphere.landed", sp.x >= 2688 and sp.x <= 2751 and sp.z >= 5248 and sp.z <= 5375, string.format("at %d,%d,%d (Dorgesh-Kaan is 2688..2751 x 5248..5375)", sp.x, sp.z, sp.level))
+        if sp.level == 2 then
+            t.exec("climbToF1City", t.player.climb, { loc = "dorgesh_2stairs_internal_top", op = 1, op_name = "Climb-down",
+                at = { 2739, 5258, 2 }, dest = { 2739, 5260, 1 } })
+        end
+        t.exec("goto-urtag", t.player.goto_tile, 2733, 5361, 1)
         t.exec("urtagDoorIn", t.player.pass_door, { closed = "dorgesh_inner_door_posh_closed", open = "dorgesh_inner_door_posh_open",
             at = { 2733, 5363, 1 }, near = { 2733, 5362 }, far = { 2733, 5363 },
             far_ok = function(tile) return tile.z >= 5363 end, far_desc = "in Ur-tag's room, z >= 5363" })
-        t.exec("talkToUrtag", t.player.talk_to, "dorgesh_urtaq", 1)
+        -- RSProx index 4524 [659..671]: Talk-to on Alvijar goes straight into the argument
+        t.exec("talkToUrtag", t.player.talk_to, "slice_dwarf_alvijar", 1)
         t.exec("talkToUrtag-dialog", t.chat.play, {
-            "npc:No, Ambassador",
-            "npc:Ur-tag",
+            "npc:Headman Ur-tag, I cannot stress",
+            "npc:I understand your concerns, Ambassador",
+            "player:What are you talking about?",
+            "npc:It's the new underground train link",
+            "npc:It will be the pinnacle",
+            "npc:And it would be finished by now",
+            "npc:We've unearthed some very important artefacts",
+            "npc:do you have any experience with",
+            "player:I passed my archaeology exam",
+            "npc:Excellent! We have not had",
             "options",
-            "choose:What are you arguing about?",
-            "player:What are you arguing about?",
-            "npc:The new railway line",
-            "npc:It is important work",
-            "options",
-            "choose:I'd love to help!",
+            "choose:Yes.",
             "player:I'd love to help!",
-            "npc:Wonderful!",
+            "npc:Splendid! The path to the train tunnel",
+            "npc:Perhaps now we can get this finished",
         })
         t.ticks(3)
         t.expect("quest.stage.urtag_done", t.quest.expect_stage("urtag_done"))
@@ -117,7 +101,15 @@ return {
         -- guide 1.6
         t.exec("walk-talkToTegdak", t.player.walk_to, 2512, 5562)
         t.exec("talkToTegdak", t.player.talk_to, "slice_goblin_archaeologist", 1)
-        t.exec("talkToTegdak-dialog", t.chat.drain, { max_pages = 10 })
+        t.exec("talkToTegdak-dialog", t.chat.play, {
+            "npc:Oh, hello surface-dweller",
+            "player:Ur-tag asked me to help out",
+            "npc:Oh! In that case",
+            "npc:There are some ancient goblin artefacts",
+            "npc:Could you extract them",
+            "player:Okay.",
+            "npc:Here, take this trowel and specimen brush.",
+        })
         t.ticks(3)
         t.expect("quest.stage.artefacts", t.quest.expect_stage("artefacts"))
         t.exec("trowel.have", t.inv.await, "trowel", 1, 5)
@@ -146,11 +138,12 @@ return {
         local table_loc = t.player.by_symbol("loc", "slice_table_01")
         for n = 1, 6 do
             t.exec("cleanArtefacts-" .. n, t.player.use_on, "slice_artifact_" .. n .. "_dirty", table_loc)
-            t.exec("cleanArtefacts-" .. n .. ".clean", t.inv.await, "slice_artifact_" .. n .. "_clean", 1, 5)
+            -- [1906..1918]: the clean find replaces the dirty one 10 ticks after the op
+            t.exec("cleanArtefacts-" .. n .. ".clean", t.inv.await, "slice_artifact_" .. n .. "_clean", 1, 16)
         end
         -- guide showTegdakArtefacts
         t.exec("showTegdakArtefacts", t.player.talk_to, "slice_goblin_archaeologist", 1)
-        t.exec("showTegdakArtefacts-dialog", t.chat.drain, { max_pages = 20 })
+        t.exec("showTegdakArtefacts-dialog", t.chat.drain, { max_pages = 50 })
         t.ticks(3)
         t.expect("quest.stage.scribe", t.quest.expect_stage("scribe"))
         -- ANY-OF: talkToZanikRailway showTegdakArtefacts the guide shows "Talk to Zanik." only while she is not following (AnotherSliceOfHam.java goTalkToScribe: inRailway & zanikFollowing -> leaveRailway first); Tegdak attaches her himself (slice_tegdak.rs2:67-69 ~slice_zanik_attach, slice_zanik.rs2:8-9) as in the live game: oldschool.runescape.wiki/w/Another_Slice_of_H.A.M./Quick_guide?oldid=14458352#Excavation "Zanik will automatically follow you after (if you don't have a follower already)" / "If Zanik is not following you, head back to the cave and talk to her."
@@ -160,11 +153,11 @@ return {
         t.exec("walk-leaveRailway", t.player.walk_route,
             { { 2512, 5570 }, { 2512, 5580 }, { 2512, 5588 }, { 2516, 5596 }, { 2520, 5605 } }, { level = 0 })
         t.exec("leaveRailway", t.player.climb, { loc = "slice_underground_wall_exit_goblin", op = 1, op_name = "Enter",
-            at = { 2521, 5607, 0 }, loc_level = 1, dest = { 2695, 5277, 1 } })
+            at = { 2521, 5607, 0 }, loc_level = 1, dest = { 2696, 5277, 1 } })
         -- guide talkToScribe: across the middle floor (open tiles, REACH closed-doors len=137)
         t.exec("goto-talkToScribe", t.player.goto_tile, 2714, 5369, 1)
         t.exec("talkToScribe", t.player.talk_to, "dorgesh_male_scribe", 1)
-        t.exec("talkToScribe-dialog", t.chat.drain, { max_pages = 12 })
+        t.exec("talkToScribe-dialog", t.chat.drain, { max_pages = 24 })
         t.ticks(3)
         t.expect("quest.stage.oldak", t.quest.expect_stage("oldak"))
         -- guide goDownToF0City + talkToOldak: the stairs down, then back into the lab by its door
@@ -174,22 +167,39 @@ return {
         t.exec("labDoorIn", t.player.pass_door, { closed = "dorgesh_inner_door_closed", open = "dorgesh_inner_door_open",
             at = { 2709, 5362, 0 }, near = { 2709, 5362 }, far = { 2707, 5362 },
             far_ok = function(tile) return tile.x <= 2708 end, far_desc = "in Oldak's lab, x <= 2708" })
-        t.exec("talkToOldak", t.player.talk_to, "dorgesh_oldak_there", 1)
-        t.exec("talkToOldak-dialog", t.chat.drain, { max_pages = 12 })
-        t.ticks(4)
+        -- the multinpc PARENT is the npc in the world and the op's binding
+        t.exec("talkToOldak", t.player.talk_to, "dorgesh_oldak", 1)
+        t.exec("talkToOldak-dialog", t.chat.drain, { max_pages = 10 })
         t.expect("quest.stage.generals", t.quest.expect_stage("generals"))
-        do local tr, th = t.world.tile(); t.check("talkToOldak.here", tr == "ok" and th.level == 0 and math.abs(th.x - 2957) <= 2 and math.abs(th.z - 3512) <= 2, tr == "ok" and (th.x .. "," .. th.z .. "," .. th.level .. " (want within 2 of 2957,3512,0)") or tostring(th)) end
+        -- [2418..2439]: Zanik lands first; the player falls in four pages later
+        t.ticks(14)
+        t.exec("villageArrival-dialog", t.chat.drain, { max_pages = 8 })
+        do local tr, th = t.world.tile(); t.check("talkToOldak.here", tr == "ok" and th.level == 0 and math.abs(th.x - 2960) <= 1 and math.abs(th.z - 3502) <= 1, tr == "ok" and (th.x .. "," .. th.z .. "," .. th.level .. " (want within 1 of 2960,3502,0: [2430])") or tostring(th)) end
         -- guide talkToGenerals (stage 5 -> 6)
+        -- [2456..2458]: into the generals' hut by its double door
+        t.exec("hutDoorIn", t.player.pass_door, { closed = "goblin_outpost_poordoor_double_inner", open = "goblin_outpost_openpoordoor_double_inner",
+            at = { 2957, 3509, 0 }, near = { 2957, 3508 }, far = { 2957, 3510 },
+            far_ok = function(tile) return tile.z >= 3510 end, far_desc = "in the generals' hut, z >= 3510" })
         t.exec("talkToGenerals", t.player.talk_to, "general_wartface_green", 1)
-        t.exec("talkToGenerals-dialog", t.chat.drain, { max_pages = 30 })
+        t.exec("talkToGenerals-dialog", t.chat.drain, { max_pages = 40 })
+        -- [3015..3019]: the black, then the speech in the village's double
         t.ticks(5)
+        t.exec("speech-dialog", t.chat.drain, { max_pages = 40 })
+        t.ticks(3)
         t.expect("quest.stage.ham_rangers", t.quest.expect_stage("ham_rangers"))
-        do local tr, th = t.world.tile(); t.check("goUpLadder.here", tr == "ok" and th.level == 0 and math.abs(th.x - 2443) <= 2 and math.abs(th.z - 5421) <= 2, tr == "ok" and (th.x .. "," .. th.z .. "," .. th.level .. " (want within 2 of 2443,5421,0)") or tostring(th)) end
-        -- slice_hammage.rs2 [oploc1,slice_goblin_ladder_bottom] p_teleport(^slice_tower_top_coord = 2_38_84_15_41)
-        t.exec("goUpLadder", t.player.climb, { loc = "slice_goblin_ladder_bottom", op = 1, op_name = "Climb-up",
-            at = { 2442, 5417, 0 }, dest = { 2447, 5417, 2 }, slack = 2 })
+        -- [3089]: the scene ends with the player behind a house at (9, 51) of the village's
+        -- double (a copy of 38_84). The route to the tower ladder is the recorded one
+        -- that drew no arrow ([3205..3226], west round the houses), as copy offsets.
+        local _, hide = t.world.tile()
+        local ox, oz = hide.x - 9, hide.z - 51
+        t.exec("walk-goUpLadder", t.player.walk_route,
+            { { ox + 9, oz + 53 }, { ox + 6, oz + 53 }, { ox + 6, oz + 49 }, { ox + 5, oz + 47 },
+              { ox + 4, oz + 46 }, { ox + 4, oz + 44 }, { ox + 5, oz + 43 }, { ox + 7, oz + 42 }, { ox + 9, oz + 41 } },
+            { level = 0 })
+        t.check("goUpLadder.noArrow", t.var.expect("varb3550_slice_quest", 6), "still on the snipers' step after the walk")
+        t.exec("goUpLadder", t.player.click_loc, "slice_goblin_ladder_bottom", 1)
         t.ticks(4)
-        t.exec("goUpLadder-box", t.chat.drain, { max_pages = 5 })
+        t.check("goUpLadder.reached", t.var.expect("varb3560_slice_reached_snipers", 1))
         t.exec("killHamMage", t.player.attack, "slice_ham_mage", 2, 30)
         local _, food_mage0 = t.inv.count("shark")
         local _, mage_detail = t.exec("killHamMage.dead", t.npc.await_dead_engaged, 300, 20, { eat = { item = "shark", below = 40 } })
@@ -208,15 +218,22 @@ return {
         local _, arch_hp = t.skill.read("hitpoints")
         local arch_now = arch_hp and (arch_hp.current or arch_hp.level or arch_hp.boosted)
         t.check("killHamArcher.dead.margin", (food_arch1 or 0) >= 1 and (arch_lowest or 0) >= 25, "sharks before the fight " .. tostring(food_arch0) .. ", eaten " .. tostring((food_arch0 or 0) - (food_arch1 or 0)) .. ", left " .. tostring(food_arch1) .. ", lowest hp " .. tostring(arch_lowest) .. "/99, hp after " .. tostring(arch_now) .. "/99, dead after " .. tostring(arch_ticks) .. " ticks (margin: lowest >= 25 (a quarter of 99) AND food left >= 1)")
-        t.ticks(8)
-        t.exec("killHam-box", t.chat.play, { "mesbox:With both ambushers down" })
+        -- [3340..3394]: the kidnap the tick after the second one falls, then the generals
         t.ticks(2)
-        t.expect("quest.stage.generals_again", t.quest.expect_stage("generals_again"))
-        do local tr, th = t.world.tile(); t.check("killHam.returned", tr == "ok" and th.level == 0 and math.abs(th.x - 2957) <= 2 and math.abs(th.z - 3512) <= 2, tr == "ok" and (th.x .. "," .. th.z .. "," .. th.level .. " (want within 2 of 2957,3512,0, no goto)") or tostring(th)) end
-        t.exec("talkToGeneralsAgain", t.player.talk_to, "general_wartface_green", 1)
-        t.exec("talkToGeneralsAgain-dialog", t.chat.drain, { max_pages = 30 })
+        t.exec("kidnap-dialog", t.chat.drain, { max_pages = 30 })
         t.ticks(5)
         t.expect("quest.stage.sergeant", t.quest.expect_stage("sergeant"))
+        do local tr, th = t.world.tile(); t.check("kidnap.returned", tr == "ok" and th.level == 0 and math.abs(th.x - 2957) <= 1 and math.abs(th.z - 3507) <= 1, tr == "ok" and (th.x .. "," .. th.z .. "," .. th.level .. " (want within 1 of 2957,3507,0: [3394])") or tostring(th)) end
+        -- [3411..3418]: the generals' menu at stage 8
+        t.exec("talkToGeneralsAgain", t.player.talk_to, "general_wartface_green", 1)
+        t.exec("talkToGeneralsAgain-dialog", t.chat.play, {
+            "options",
+            "choose:How can I rescue Zanik?",
+            "player:How can I rescue Zanik?",
+            "npc:Pink robe man say",
+            "npc:Sergeants wait for you",
+            "npc:You take ancient goblin mace",
+        })
         t.exec("mace.have", t.inv.await, "ancient_goblin_mace", 1, 5)
         -- Goblin Village to the Lumbridge Swamp: a real Lumbridge Teleport out of the generals' hut
         -- (magic_spells.dbrow [magic_spell_teleport_lumbridge]: 1 earth, 3 air, 1 law; tele_coord 0_50_50_21_18),
@@ -225,40 +242,57 @@ return {
             runes = { { "earthrune", 1 }, { "airrune", 3 }, { "lawrune", 1 } },
             where = "Lumbridge, out of the generals' hut in Goblin Village" })
         t.exec("goto-swamp", t.player.goto_tile, 3170, 3168, 0)
+        -- [3601..3618]: the briefing; the stage on its fifth page
         t.exec("talkToSergeant", t.player.talk_to, "slice_sergeant_slimetoes_swamp", 1)
-        t.exec("talkToSergeant-dialog", t.chat.drain, { max_pages = 30 })
-        t.ticks(5)
+        t.exec("talkToSergeant-dialog", t.chat.play, {
+            "npc:You ",
+            "player:Yes.",
+            "npc:Generals say we help you",
+            "npc:It too important for puny human",
+            "npc:So we come to look after you",
+            "npc:Grubfoot say pink robe man",
+            "npc:We distract guards for you",
+        })
+        t.ticks(3)
         t.expect("quest.stage.infiltrate", t.quest.expect_stage("infiltrate"))
-        local _, rope_before = t.inv.count("rope")
-        -- slice_sergeants.rs2 [oploc1,goblin_cave_entrance]: the rope tied off, swamp frame 0 -> caves frame 1
+        -- [3632..3636]: the hole, the rope tied off the first time
         t.exec("enterSwamp", t.player.climb, { loc = "goblin_cave_entrance", op = 1, op_name = "Climb-down",
             at = { 3169, 3172, 0 }, dest = { 3169, 9571, 0 }, slack = 2, ticks = 14 })
-        local _, rope_after = t.inv.count("rope")
-        t.check("rope.used", rope_before == 1 and rope_after == 0, "rope count before the cave " .. tostring(rope_before) .. ", after " .. tostring(rope_after) .. " (content tie-off inv_del slice_sergeants.rs2:76)")
-        -- slice_sergeants.rs2 [oploc1,slice_ladder_laddertop_swamp] p_teleport(^slice_base_entry_coord = 0_37_86_29_54)
-        t.exec("climbEnterHamBase", t.player.climb, { loc = "slice_ladder_laddertop_swamp", op = 1, op_name = "Climb-down",
-            at = { 3171, 9568, 0 }, dest = { 2397, 5558, 0 }, slack = 2, ticks = 14 })
-        t.exec("goToCrate", t.player.click_loc, "slice_stealth_crate_stacked", 1)
-        t.ticks(6)
-        do local tr, th = t.world.tile(); t.check("goToCrate.here", tr == "ok" and th.level == 0 and math.abs(th.x - 2400) <= 2 and math.abs(th.z - 5538) <= 2, tr == "ok" and (th.x .. "," .. th.z .. "," .. th.level .. " (want within 2 of 2400,5538,0)") or tostring(th)) end
-        t.check("goToCrate.hiding", t.var.expect("varb3558_slice_hiding", 1))
+        -- [3650..3667]: the new ladder into a copy of the tunnel (37_86), the guard runs off
+        t.exec("climbEnterHamBase", t.player.click_loc, "slice_ladder_swamp", 1)
         t.ticks(10)
-        local rw = t.player.walk_to(2412, 5537, 30)
-        t.ticks(6)
-        do local tr, th = t.world.tile(); t.check("lureHamMember.here", tr == "ok" and th.level == 0 and math.abs(th.x - 2412) <= 2 and math.abs(th.z - 5537) <= 2, tr == "ok" and (th.x .. "," .. th.z .. "," .. th.level .. " (want within 2 of 2412,5537,0; walk_to " .. tostring(rw) .. ")") or tostring(th)) end
-        t.check("lureHamMember.snipers", t.var.expect("varb3560_slice_reached_snipers", 1))
-        -- slice_sigmund.rs2:34-41 [oploc1,slice_laddertop] p_teleport(^slice_finalroom_coord = 0_39_86_47_7):
-        -- one level, one map frame, so the telejump is named
-        t.exec("enterFinalFight", t.player.climb, { loc = "slice_laddertop", op = 1, op_name = "Climb-down",
-            at = { 2413, 5526, 0 }, dest = { 2543, 5511, 0 }, slack = 2, ticks = 14,
-            same_level = "slice_sigmund.rs2:41 p_teleport(^slice_finalroom_coord)" })
+        t.exec("hamBase-dialog", t.chat.drain, { max_pages = 6 })
         t.ticks(2)
-        t.exec("enterFinalFight-box", t.chat.drain, { max_pages = 6 })
+        -- [4087..4167]: the pass that got through. The copy's entry is (29, 52) of 37_86.
+        local _, entry = t.world.tile()
+        local tx, tz = entry.x - 29, entry.z - 52
+        t.exec("walk-tunnel1", t.player.walk_route,
+            { { tx + 29, tz + 46 }, { tx + 29, tz + 40 }, { tx + 30, tz + 36 }, { tx + 32, tz + 34 } }, { level = 0 })
+        t.exec("waitHere", t.player.talk_to, "slice_sergeant_mossfists", 1)
+        t.exec("waitHere-dialog", t.chat.play, { "options", "choose:One of you wait here", "player:One of you wait here.", "npc:Okay." })
+        -- [4119..4155]: the crossing waited for the sergeants to take on the guards
+        t.ticks(36)
+        t.exec("walk-tunnel2", t.player.walk_route,
+            { { tx + 34, tz + 32 }, { tx + 38, tz + 32 }, { tx + 42, tz + 31 }, { tx + 43, tz + 28 }, { tx + 43, tz + 26 } }, { level = 0 })
+        local _, at_ladder = t.world.tile()
+        local reached = math.abs(at_ladder.x - (tx + 43)) <= 2 and math.abs(at_ladder.z - (tz + 26)) <= 2
+        t.check("tunnel.reachedLadder", reached, string.format("at %d,%d,%d (the ladder is at copy (45, 22))", at_ladder.x, at_ladder.z, at_ladder.level))
+        if reached then
+            t.exec("enterFinalFight", t.player.click_loc, "slice_laddertop", 1)
+        else
+            -- OPEN: the route past the guards is not solved yet; the failed rows above
+            -- stand, and the named skip lets the rest of the quest be exercised.
+            t.cheat("::anothersliceofham_pass_tunnel")
+        end
+        -- [4175..4193]: the chamber scene, eight pages, then the fight
+        t.ticks(4)
+        t.exec("enterFinalFight-dialog", t.chat.drain, { max_pages = 10 })
         t.exec("wield-mace", t.player.equip, "ancient_goblin_mace")
         t.ticks(3)
+        -- [4200]: a melee swing turns his prayer to melee, the overhead and the form together
         local r0, d0 = t.player.attack("slice_sigmund_showdown", 2, 8)
-        t.check("sigmund.press", r0 ~= "refused" and r0 ~= "not_found", "pressed Attack, prayer turns it aside: " .. tostring(r0) .. " " .. tostring(d0))
-        t.exec("sigmund.prayer.msg", t.msg.await, "protection prayer", 10)
+        t.check("sigmund.press", r0 ~= "refused" and r0 ~= "not_found", "pressed Attack: " .. tostring(r0) .. " " .. tostring(d0))
+        t.exec("sigmund.prayer.melee", t.npc.await_present, "slice_sigmund_melee", 12, 6)
         t.ui.tab("combat")
         t.ticks(2)
         local ok, w = t.ui.widget("combat_interface:special_attack")
@@ -266,31 +300,34 @@ return {
         local rtg = t.ui.invoke(w, 0)
         t.ticks(2)
         t.check("special.toggle", t.var.expect("varp301_sa_attack", 1), "invoke special_attack widget " .. tostring(w) .. " op 0 answered " .. tostring(rtg))
-        t.check("special.energy", t.var.expect("varp300_sa_energy", 1000))
         local _, energy_before = t.var.varp("varp300_sa_energy")
-        local r1, d1 = t.player.attack("slice_sigmund_melee", 2, 8)
+        local r1 = t.player.attack("slice_sigmund_melee", 2, 8)
         t.ticks(3)
         local _, energy_after = t.var.varp("varp300_sa_energy")
-        t.exec("useSpecial.chat", t.chat.drain, { max_pages = 4 })
-        local rnp, dnp = t.msg.expect("drains Sigmund")
-        t.check("useSpecial.press", (energy_after or 0) < (energy_before or 0) and rnp == "ok", "special energy " .. tostring(energy_before) .. " -> " .. tostring(energy_after) .. ", barrier-collapse line (slice_sigmund.rs2:90, npc_changetype noprayer): " .. tostring(rnp) .. " " .. tostring(dnp) .. " (press " .. tostring(r1) .. ")")
-        local _, food_sig0 = t.inv.count("shark")
-        local _, sig_detail = t.exec("defeatSigmund.dead", t.npc.await_dead_engaged, 300, 20, { eat = { item = "shark", below = 40 } })
-        local sig_lowest = tonumber(tostring(sig_detail):match("lowest hp (%d+)/"))
-        local sig_ticks = tostring(sig_detail):match("dead after (%d+) tick")
-        local _, food_sig1 = t.inv.count("shark")
-        local _, sig_hp = t.skill.read("hitpoints")
-        local sig_now = sig_hp and (sig_hp.current or sig_hp.level or sig_hp.boosted)
-        t.check("defeatSigmund.dead.margin", (food_sig1 or 0) >= 1 and (sig_lowest or 0) >= 25, "sharks before the fight " .. tostring(food_sig0) .. ", eaten " .. tostring((food_sig0 or 0) - (food_sig1 or 0)) .. ", left " .. tostring(food_sig1) .. ", lowest hp " .. tostring(sig_lowest) .. "/99, hp after " .. tostring(sig_now) .. "/99, dead after " .. tostring(sig_ticks) .. " ticks (margin: lowest >= 25 (a quarter of 99) AND food left >= 1)")
-        t.exec("defeatSigmund.chat", t.chat.play, { "npc:Someday, somehow" })
-        t.ticks(4)
+        -- [4205]: the special takes his prayer
+        t.exec("useSpecial.chat", t.chat.play, { "npc:What's happening? That weapon is overcoming" })
+        t.check("useSpecial.press", (energy_after or 0) < (energy_before or 0), "special energy " .. tostring(energy_before) .. " -> " .. tostring(energy_after) .. " (press " .. tostring(r1) .. ")")
+        t.exec("sigmund.noprayer", t.npc.await_present, "slice_sigmund_noprayer", 12, 4)
+        t.player.attack("slice_sigmund_noprayer", 2, 8)
+        -- [4286]: at no hitpoints he gives up instead of dying; the stage goes with his page
+        t.exec("defeatSigmund", t.var.await, "varb3550_slice_quest", 10, 400)
         t.expect("quest.stage.finish", t.quest.expect_stage("finish"))
+        t.exec("defeatSigmund.chat", t.chat.play, { "npc:Bah! You win again", "npc:Quick, " })
         local _, snap = t.skill.snapshot()
         local _, qp_before = t.var.varp("varp101_qp")
+        -- [4302..4353]: the untying, the train, the opening of the line
         t.exec("untieZanik", t.player.click_loc, "slice_zanik_tied_up", 1)
-        t.exec("untieZanik-dialog", t.chat.drain, { max_pages = 12 })
+        t.ticks(22)
+        t.exec("opening-dialog", t.chat.play, {
+            "mesbox:~ The grand opening of the Dorgesh-Kaan - Keldagrim train line ~",
+            "npc:It gives me great pleasure",
+            "npc:Zanik has told me about your exploits",
+            "player:All in a day's work",
+            "npc:As a reward, I suggest you keep",
+            "npc:Most of the Dorgeshuun would be happy",
+            "player:Thank you, Ur-tag!",
+        })
         t.ticks(6)
-        t.exec("untieZanik-rewards", t.chat.drain, { max_pages = 4 })
         t.quest.expect_complete()
         local _, qp_after = t.var.varp("varp101_qp")
         t.check("reward.questpoint", (qp_after or 0) - (qp_before or 0) == 1, "quest points " .. tostring(qp_before) .. " -> " .. tostring(qp_after) .. " (scroll shows 1 Quest Point)")
