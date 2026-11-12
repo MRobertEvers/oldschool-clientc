@@ -49,6 +49,8 @@ extern char** environ;
 #endif
 #else
 #define TORIRSMAPED_JOBS_NATIVE 0
+#include <sys/stat.h>
+#define jobs_mkdir(path) mkdir(path, 0755)
 #endif
 #ifdef _WIN32
 /* winsock2.h before windows.h, or windows.h brings the old winsock.h and
