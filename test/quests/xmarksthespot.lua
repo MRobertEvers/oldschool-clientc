@@ -23,6 +23,13 @@ return {
         local function door(name, closed, open, at, near, far)
             t.exec(name, t.player.pass_door, { closed = closed, open = open, at = at, near = near, far = far })
         end
+        -- not started: the list's Read journal opens the overview (782), not the
+        -- journal (index 4353 [24]); journal_open waits for 119 and times out
+        t.ui.journal_open("X Marks the Spot")
+        t.expect("journal.overview", t.ui.await_open("questjournal_overview", 3))
+        local _, ov_close = t.ui.widget("questjournal_overview:close")
+        t.exec("journal.overview.close", t.ui.invoke, ov_close, 1)
+        t.ticks(2)
         t.exec("goto-startQuest", t.player.goto_tile, 3230, 3235, 0)
         t.exec("startQuest.pubIn", t.player.pass_door, { closed = "poordoor_m", open = "poordooropen_m",
             at = { 3230, 3235, 0 }, near = { 3230, 3235 }, far = { 3230, 3237 } })
@@ -71,7 +78,9 @@ return {
         -- as an answer: the press below is what proves it opened
         t.player.inv_op("cluequest_clue1", 5)
         t.ticks(2)
-        t.exec("lost.destroy.yes", t.ui.press_pause, "confirmdestroy:universe", 1, "confirmdestroy:universe")
+        -- the live client's Yes is confirmdestroy:yes (confirmdestroy_triggerbutton
+        -- resumes on child 1, as [270]); the universe itself has no op
+        t.exec("lost.destroy.yes", t.ui.press_pause, "confirmdestroy:universe", 1, "confirmdestroy:yes")
         t.ticks(2)
         local gone_r, gone_n = t.inv.count("cluequest_clue1")
         t.check("lost.gone", gone_r == "ok" and gone_n == 0, "treasure scroll count after the drop " .. tostring(gone_n) .. " (want 0)")
@@ -93,6 +102,16 @@ return {
         t.exec("digCastle", t.player.inv_op, "spade", 1)
         t.expect("dig.castle.stage", t.var.await("varb8063_cluequest", 4, 8))
         t.expect("dig.castle.item", t.inv.expect_has("cluequest_clue3", 1))
+        -- the journal at stage 4 (UNVERIFIED wording: no recording opens it past the
+        -- overview): three struck steps, then the orb's current one
+        local jr, j = t.ui.journal_open("X Marks the Spot")
+        local jfound = false
+        for _, l in ipairs((jr == "ok" and j and j.lines) or {}) do
+            if string.find(l, "should feel it to find where to dig", 1, true) then jfound = true end
+        end
+        t.check("journal.dig_draynor", jr == "ok" and #j.lines >= 4 and jfound,
+            tostring(jr) .. " " .. tostring(j and #j.lines) .. " rows; current step " .. (jfound and "found" or "MISSING"))
+        if jr == "ok" then t.ui.journal_close() end
         t.exec("feel.far", t.player.inv_op, "cluequest_clue3", 1)
         -- index 4353 [202]: the first feel has no comparison; ~95 tiles out is "cold"
         t.expect("feel.far.msg", t.msg.expect("The orb is cold."))
@@ -101,8 +120,11 @@ return {
         t.exec("walk-drayoff", t.player.walk_to, 3109, 3270, 20)
         t.exec("feel.near", t.player.inv_op, "cluequest_clue3", 1)
         t.expect("feel.near.msg", t.msg.expect("incredibly hot, and warmer than last time"))
-        -- the dig is the orb's zero, 3108,3262 (index 4353 [332..334])
-        t.exec("walk-digDraynor", t.player.walk_to, 3108, 3262, 20)
+        -- index 4353 [329]: 3109,3264, two tiles off the orb's zero 3108,3262, already
+        -- reads "This must be the spot"; a dig where the orb says so must find
+        t.exec("walk-digDraynor", t.player.walk_to, 3109, 3264, 20)
+        t.exec("feel.shaking", t.player.inv_op, "cluequest_clue3", 1)
+        t.expect("feel.shaking.msg", t.msg.expect("This must be the spot"))
         t.exec("digDraynor", t.player.inv_op, "spade", 1)
         t.expect("dig.dray.stage", t.var.await("varb8063_cluequest", 5, 8))
         t.exec("read.clue4", t.player.inv_op, "cluequest_clue4", 1)
@@ -139,7 +161,10 @@ return {
         t.exec("lamp.rub", t.player.inv_op, "cluequest_lamp", 1)
         t.ticks(3)
         t.shot("lamp.picker")
-        -- [451] the picker's confirm resumes on child 7 = Agility (enum_681)
+        -- [451] the picker's confirm resumes on child 7 = Agility (enum_681); on the
+        -- live client the skill is picked first, then Confirm sends the resume
+        local _, agility = t.ui.widget("xpreward:agility")
+        t.exec("lamp.pick", t.ui.invoke, agility, 1)
         t.exec("lamp.agility", t.ui.press_pause, "xpreward:universe", 7, "xpreward:confirm")
         t.ticks(2)
         t.expect("lamp.granted", t.msg.expect("300 Agility experience"))

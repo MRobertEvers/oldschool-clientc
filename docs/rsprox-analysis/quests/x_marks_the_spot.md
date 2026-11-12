@@ -93,6 +93,16 @@ The pen accepts at least two tiles; ours takes the 3x3 around the pen's middle
 3077,3260 (unverified extent). The re-dig after the casket was destroyed writes
 no varbit ([390]).
 
+**The Draynor dig answers wherever the orb shakes** (2026-11-12). Jagex says
+"This must be the spot." at distance 2 ([329], 3109,3264) as well as 0 ([332]);
+ours found only on 3108,3262 itself, so a player who dug where the orb first
+shook got "Nothing interesting happens." and could not finish the quest (owner
+report). The dig now takes `distance <= ^xmarks_orb_shaking` (2), the same band
+as the line, as the enchanted key digs anywhere in its last band (wiki
+The_Enchanted_Key: "a 9 by 9 square region"). Recorded: a find at 0 only; at 1
+and 2 UNVERIFIED. The test now feels at 3109,3264, reads the shaking line, and
+digs there. The Bob and castle digs stay exact: 1-tile misses are recorded.
+
 ## The orb (`xmarks_feel_orb`)
 
 23 feels, [202..332] (the recorder double-clicked on two ticks). The temperature is the Chebyshev distance to 3108,3262
@@ -149,6 +159,55 @@ scroll box** `league_clue_box_beginner` (24361), not a clue scroll (ours gave
 `trail_clue_beginner`). Music: `midi_song_v2` 147 with a zero envelope and
 jingle 154.
 
+## The quest journal
+
+Only the not-started state is recorded: [24] the quest list's Read journal
+(`questlist:list` sub 154 op 2) sets `latest_quest_journal` 162 and opens
+`questjournal_overview` (782) with `questjournal_overview_setup` (6821)'s string
+"talking to <col=800000>Veos<col=000080> in the <col=800000>Sheared Ram
+Pub<col=000080> in <col=800000>Lumbridge<col=000080>.". No session on the index
+opens the journal at a later stage (4353 and 1139 are the only ones with the
+quest's varbits; 1139's journal opens are another quest's), and the wiki has no
+`Transcript:X_Marks_the_Spot/Journal`.
+
+| state | R | ours before | ours now |
+|---|---|---|---|
+| 0 | the overview (782) + the string above | journal 119 with "I can start this quest by talking to Veos in The Sheared Ram pub in Lumbridge." | `~quest_journal_overview_open` + the string (`quest_overview_start.rs2`): matched |
+| 1..8 | not recorded | invented lines in the old format: `^journal_done` before long strings (the strike lost on the wrap), the dig spots spelled out, "QUEST COMPLETE!" uncoloured with no blank row | the current format (Client of Kourend, Ides of Milk): every finished step a `~journal_struck` paragraph, the current one navy with names maroon, a blank row and `<col=ff0000>QUEST COMPLETE!`; wording from the quest's own pages and boxes. UNVERIFIED |
+
+Test: `journal.overview` (stage 0, the overview opens) and
+`journal.dig_draynor` (stage 4: 7 rows, three struck paragraphs and the orb's
+current step), on the live client.
+
+## Every recorded action
+
+`rsprox_actions.py` over 4353.
+
+| tick | action | verdict |
+|---|---|---|
+| [2] | welcome_screen play | engine |
+| [24] | questlist Read journal (not started) | this content: the overview, above |
+| [29], [82] x2, [272] | Varrock / Lumbridge teleport tablets (break) | generic: `teleport_tablet.rs2`; Lumbridge lands in 3x3 round 3221,3218 (recorded 3222,3218 [86] and 3221,3218 [276]): matched |
+| [33] | questjournal_overview close | shared journal procs |
+| [52], [60..72] | Varrock bank booth, withdrawals | generic bank, not re-diffed here |
+| [104], [301] | Sheared Ram doors (`poordoor_m`, `poordoor`) | generic doors; the test passes both |
+| [110] x3, [415] x3 | Veos (Lumbridge, Sarim) | this content: Pages |
+| [130], [338] | read clue 1, clue 4 | this content: Items |
+| [131] x12 | spade | this content: Digs |
+| [201] x23 | feel the orb | this content: The orb |
+| [209], [222] | chop an oak and a tree near Draynor | generic woodcutting (the recorder's clicks between feels), not re-diffed here |
+| [264], [379] | destroy the orb, the casket | this content: Items |
+| [277] | stamina potion | generic drinking, not re-diffed here |
+| [309] | glory Rub > Draynor Village (`if_subop` subop 2) | generic: `amulet_of_glory.rs2` `last_subop` 3, lands 3105,3251 as [312]: matched |
+| [356] | pig pen gate | generic gate; the test passes it |
+| [412] | drop a vial | generic drop, not re-diffed here |
+| [433] | quest scroll close | shared `questscroll.rs2` (Open) |
+| [435], [438] | lamp, picker close | this content: Items |
+| [463] | logout | engine |
+
+Teleports: [33] the tablet from the welcome tile, [86] and [276] Lumbridge
+tablets, [312] the glory: all above.
+
 ## Npc info
 
 Veos (`npc_block_inventory.py`): the only block kind on either side is
@@ -186,8 +245,19 @@ built by a clientscript scriptrun does not run). Tick log rows and
 | player `[facing] coord=` Veos each page | engine | engine-generic |
 | level-up box and its sounds after the lamp ([454]) | engine | engine-generic |
 
+2026-11-12, the live client (`run.py xmarksthespot`, OPT, soft3d): 69 of 69
+rows. The two rows that failed there since the client lane began (xm_client1,
+2026-10-29) were the test's, not the content's: Destroy pressed
+`confirmdestroy:universe` (no op) instead of `confirmdestroy:yes`, and the lamp
+pressed Confirm with no skill picked. `test/quests/clientofkourend.lua` (orb
+destroy, both lamps) and `test/randoms/genie.lua` press the same way and will
+fail the same way on the live client.
+
 ## Open
 
+- The journal's started states (1..8): wording UNVERIFIED until a recording
+  opens the journal mid-quest or complete.
+- The Draynor dig at 1..2 tiles: no recording digs there.
 - The final page should wait for the scroll to close (shared `questscroll.rs2`).
 - Veos's facing per page (shared chat procs).
 - `if_addresumebutton` arms 0..28 where Jagex arms 0..23 (xpreward) or 0..1
