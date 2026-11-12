@@ -28,6 +28,9 @@ finished in VS Code (the last is entirely the editor's).
 // Inspector and the status bar show a tile's square and its x,z inside it.
 ^thistlewick_village = 0_72_56_63_63
 
+// ::thistlewick_test's level 50, as experience in tenths (101,333 xp).
+^thistlewick_test_xp = 1013330
+
 // Greyfang, the boss in the den (thistle_den.rs2).
 ^greyfang_bites_per_pounce = 4
 ^greyfang_pounce_min = 10
@@ -154,7 +157,7 @@ inv_del(inv, thistle_pelt, 1);
 
 [opnpc1,thistle_shepherd]
 if (%varp9517_thistlewick_quest = ^thistlewick_not_started) {
-    ~chatnpc_anim(^chat_neutral, "Can't stop to chat. Somebody has to count them, and there are fewer every morning.");
+    ~chatnpc_anim(^chat_neutral, "Can't stop to chat. I've the flock to count, and there are fewer sheep in that pen every morning.");
     return;
 }
 if (%varp9517_thistlewick_quest = ^thistlewick_started) {
@@ -278,7 +281,8 @@ mes("Congratulations, you've completed a quest: @q_mes@The Thistlewick Howl</col
 ~quest_scroll_paint_titled(quest_cooksassistant, "You have completed The Thistlewick Howl!", append(~quest_points_reward(1), "1,500 Attack XP|1,500 Defence XP|500 coins"), coins_250, ^questscroll_model_x, ^questscroll_model_y);
 
 // ------------------------------------------------------------------ cheats ----
-// Typed in the play client's chat box.
+// Typed in the play client's chat box: ::thistlewick (reset), ::thistlewick_start,
+// ::thistlewick_done, ::thistlewick_journal, ::thistlewick_tele, ::thistlewick_test.
 
 [debugproc,thistlewick]
 %varp9517_thistlewick_quest = ^thistlewick_not_started;
@@ -298,6 +302,39 @@ mes("Thistlewick: complete.");
 [debugproc,thistlewick_tele]
 p_telejump(^thistlewick_village);
 mes("Thistlewick.");
+
+// Ready to play the quest through: attack, strength, defence and hitpoints at 50
+// (Greyfang is a level-64 wolf: attack 50, defence 52, 69 hitpoints), an adamant
+// scimitar and five lobsters, and the village. The quest's stage is left as it is
+// (::thistlewick resets it).
+[debugproc,thistlewick_test]
+~thistlewick_test_stat(attack, 50, ^thistlewick_test_xp);
+~thistlewick_test_stat(strength, 50, ^thistlewick_test_xp);
+~thistlewick_test_stat(defence, 50, ^thistlewick_test_xp);
+~thistlewick_test_stat(hitpoints, 50, ^thistlewick_test_xp);
+if (inv_total(inv, adamant_scimitar) = 0 & inv_total(worn, adamant_scimitar) = 0 & inv_freespace(inv) > 0) {
+    inv_add(inv, adamant_scimitar, 1);
+}
+if (inv_total(inv, lobster) < 5 & inv_freespace(inv) >= calc(5 - inv_total(inv, lobster))) {
+    inv_add(inv, lobster, calc(5 - inv_total(inv, lobster)));
+}
+p_telejump(^thistlewick_village);
+mes("Thistlewick test: attack, strength, defence and hitpoints 50; an adamant scimitar (wield it) and 5 lobsters.");
+
+// A stat to exactly `$level`: the base raised to it with the experience it lacks
+// (stat_advance takes tenths, as stat_xp gives them; there is no command that sets
+// a level), and the current level drained or healed to it. A base already above
+// `$level` keeps its experience: only the current level comes down, and it creeps
+// back up a point a minute.
+[proc,thistlewick_test_stat](stat $stat, int $level, int $xp)
+if (stat_base($stat) < $level) {
+    stat_advance($stat, calc($xp - stat_xp($stat)));
+}
+if (stat($stat) > $level) {
+    stat_drain($stat, calc(stat($stat) - $level), 0);
+} else if (stat($stat) < $level) {
+    stat_heal($stat, calc($level - stat($stat)), 0);
+}
 ```
 
 ## The den (written by File > New instance, then edited) and Greyfang

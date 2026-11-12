@@ -860,9 +860,13 @@ a record copied while the lane was live, needs **Restart lane**
 (`file.restart_lane`); RUN's sentence says when.
 
 In the play client, the cheats from section 8: `::thistlewick_tele` to the
-village, `::thistlewick` to reset, `::thistlewick_journal`. Test levels:
-`::setlevel 0 99` (0 attack, 1 defence, 2 strength, 3 hitpoints). The whole
-quest:
+village, `::thistlewick` to reset, `::thistlewick_journal`, and
+`::thistlewick_test`, which readies an account for the fight and puts it in
+the village: attack, strength, defence and hitpoints at 50 (Greyfang is a
+level-64 wolf), an adamant scimitar and five lobsters. RuneScript has no
+command that sets a level, so it raises a skill below 50 with the experience it
+lacks (`stat_advance` takes tenths of a point, the unit `stat_xp` reads) and
+drains one above 50 for the fight. The whole quest:
 
 1. Talk to Elder Bramwen in the hall: *Out of the ground?* for the legend,
    then *Yes.*
