@@ -400,6 +400,24 @@ enum ToriRSMapEdCatalogSquaresFlag
 #define TORIRSMAPED_INSTANCE_Z0 100
 #define TORIRSMAPED_INSTANCE_Z1 255
 
+/** The instance pool: where the server stamps a runtime copy of a template
+ *  (torirsserver/torirs_server_mapinstance.c, MAPINSTANCE_SCAN_X0/Z0 and
+ *  MAPINSTANCE_SQUARES). Nobody builds here; a square here is a copy of one
+ *  of the templates above, made when a player enters and gone when they
+ *  leave. */
+#define TORIRSMAPED_POOL_X0 100
+#define TORIRSMAPED_POOL_X1 255
+#define TORIRSMAPED_POOL_Z0 1
+#define TORIRSMAPED_POOL_Z1 255
+
+/** Underground: the surface's dungeons and caves sit 6400 tiles (100
+ *  squares) north of the ground above them, so map_z >= 100 west of the pool
+ *  and east of the templates. */
+#define TORIRSMAPED_UNDERGROUND_X0 (TORIRSMAPED_INSTANCE_X1 + 1)
+#define TORIRSMAPED_UNDERGROUND_X1 (TORIRSMAPED_POOL_X0 - 1)
+#define TORIRSMAPED_UNDERGROUND_Z0 100
+#define TORIRSMAPED_UNDERGROUND_Z1 255
+
 /** Whether square (map_x, map_z) is in instance space. Inline so the picker
  *  links no catalog code. */
 static inline int

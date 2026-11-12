@@ -727,6 +727,82 @@ test_instance_space(void)
     Editor_PickerFree(&picker);
 }
 
+/* What each band of the map is for: the instance pool, the templates,
+ * underground, outlined and named; the surface is not. */
+static void
+test_uses(void)
+{
+    struct Editor_Picker picker;
+    struct Editor_PickerColors colors;
+    struct EditorHost_CatalogSquares atlas;
+    const struct ToriRSChromeWidget* w;
+    int inside = 1;
+
+    CHECK(Editor_PickerUseOf(50, 50) == EDITOR_PICKER_USE_SURFACE && Editor_PickerUseOf(19, 120) == EDITOR_PICKER_USE_TEMPLATE
+              && Editor_PickerUseOf(20, 120) == EDITOR_PICKER_USE_UNDERGROUND
+              && Editor_PickerUseOf(99, 255) == EDITOR_PICKER_USE_UNDERGROUND
+              && Editor_PickerUseOf(100, 1) == EDITOR_PICKER_USE_POOL && Editor_PickerUseOf(100, 0) == EDITOR_PICKER_USE_SURFACE
+              && Editor_PickerUseOf(50, 99) == EDITOR_PICKER_USE_SURFACE,
+        "the bands: templates 0..19 x 100..255, underground 20..99 x 100..255, the pool from x 100");
+    CHECK(strcmp(Editor_PickerUseName(EDITOR_PICKER_USE_POOL), "instance pool (runtime copies)") == 0
+              && Editor_PickerUseName(EDITOR_PICKER_USE_SURFACE)[0] == '\0',
+        "the bands' names; the surface has none");
+
+    chrome_up();
+    Editor_PickerDefaultColors(&colors);
+    Editor_PickerInit(&picker);
+    atlas_build(&atlas, 48, 52, 48, 52, 0, 0, 1);
+    Editor_PickerSetAtlas(&picker, &atlas);
+    underlay_fake(&picker);
+    picker.zoom = 12.0;
+    picker.well_w = 600;
+    picker.well_h = 400;
+
+    /* Where the templates meet underground: both outlines, both names. */
+    Editor_PickerCentre(&picker, 20, 120);
+    Editor_PickerDraw(&picker, &g_chrome, g_graph, 600, 400, &colors, NULL, 0, 0);
+    CHECK(items_of(TORIRS_CHROME_GRAPH_LINE, 0, colors.use_template) > 0, "the templates are outlined (%d lines)",
+        items_of(TORIRS_CHROME_GRAPH_LINE, 0, colors.use_template));
+    CHECK(items_of(TORIRS_CHROME_GRAPH_LINE, 0, colors.use_underground) > 0, "underground is outlined (%d lines)",
+        items_of(TORIRS_CHROME_GRAPH_LINE, 0, colors.use_underground));
+    CHECK(text_starting("instance templates") && text_starting("underground"), "and both are named");
+    w = &g_chrome.widgets[g_graph];
+    for( int i = 0; i < w->graph_count; i++ )
+    {
+        const struct ToriRSChromeGraphItem* it = &g_chrome.graph_items[w->graph_first + i];
+        if( it->kind != TORIRS_CHROME_GRAPH_LINE
+            || (it->color != colors.use_template && it->color != colors.use_underground && it->color != colors.use_pool) )
+            continue;
+        if( it->x < EDITOR_PICKER_LEFT || it->y < EDITOR_PICKER_TOP || it->x >= 600 || it->y >= 400 )
+            inside = 0;
+    }
+    CHECK(inside, "...every outline inside the grid, none along the view's edge");
+
+    /* Zoomed out, the templates (20 squares) are narrower than their name:
+     * the short one, so it does not run into underground's. */
+    picker.zoom = 4.0;
+    Editor_PickerCentre(&picker, 50, 150);
+    Editor_PickerDraw(&picker, &g_chrome, g_graph, 600, 400, &colors, NULL, 0, 0);
+    CHECK(text_starting("templates") && !text_starting("instance templates") && text_starting("underground"),
+        "zoomed out, the templates take their short name");
+    picker.zoom = 12.0;
+
+    /* The pool's west edge at x 100. */
+    Editor_PickerCentre(&picker, 100, 60);
+    Editor_PickerDraw(&picker, &g_chrome, g_graph, 600, 400, &colors, NULL, 0, 0);
+    CHECK(items_of(TORIRS_CHROME_GRAPH_LINE, 0, colors.use_pool) > 0 && text_starting("instance pool"),
+        "the instance pool is outlined and named");
+
+    /* The surface: none. */
+    Editor_PickerCentre(&picker, 50, 50);
+    Editor_PickerDraw(&picker, &g_chrome, g_graph, 600, 400, &colors, NULL, 0, 0);
+    CHECK(items_of(TORIRS_CHROME_GRAPH_LINE, 0, colors.use_template) == 0
+              && items_of(TORIRS_CHROME_GRAPH_LINE, 0, colors.use_underground) == 0
+              && items_of(TORIRS_CHROME_GRAPH_LINE, 0, colors.use_pool) == 0,
+        "the surface: no band outlines");
+    Editor_PickerFree(&picker);
+}
+
 /* ---- visible first, against fake services ------------------------------------------ */
 
 #define FAKE_POLLS_MAX 4096
@@ -1064,6 +1140,7 @@ main(void)
     test_lod_draw();
     test_budget();
     test_instance_space();
+    test_uses();
     test_pure_slices();
     test_visible_first();
     printf("editor_worldmap_test: %d checks, %d failed\n", g_checks, g_failed);

@@ -622,7 +622,10 @@ a party) when they enter and thrown away when they leave. Two places matter:
 | **Copy** | the instance pool: squares x >= 100 (tiles x >= 6400) | stamped from the template at play time by `~map_instance_from_square_block`, one per entry; tiles, locs, every level. |
 
 So you edit the template like any other square, and every entry after the
-next Save and RUN gets the new version.
+next Save and RUN gets the new version. The Square map outlines both bands, and
+underground between them: **templates** in violet, the **instance pool** in red
+from x 100, **underground** in tan (the readout under the map names the band of
+the cell under the pointer).
 
 **File > New instance...** (`file.new_instance`):
 

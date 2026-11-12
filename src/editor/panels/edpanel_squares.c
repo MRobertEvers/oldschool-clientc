@@ -921,17 +921,25 @@ squares_readout(
     struct Editor_Picker* picker = &self->picker;
     char line[TORIRS_CHROME_LABEL_MAX];
 
+    /* The band the cell is in (the map outlines them) after its name: an
+     * empty cell east of x 100 is where runtime copies land, not a free one. */
     if( picker->hover >= 0 )
     {
         const struct Editor_PickerSquare* square = &picker->squares[picker->hover];
+        enum Editor_PickerUse const use = Editor_PickerUseOf(square->map_x, square->map_z);
         const char* area = square->primary_area >= 0 ? picker->areas[square->primary_area].display_name
                                                      : "unmapped";
-        snprintf(line, sizeof(line), "m%d_%d  %s  %d spawns  %s", square->map_x, square->map_z,
-            area[0] ? area : picker->areas[square->primary_area].internal_name, square->spawn_count,
+        snprintf(line, sizeof(line), "m%d_%d  %s%s%s  %d spawns  %s", square->map_x, square->map_z,
+            area[0] ? area : picker->areas[square->primary_area].internal_name,
+            use != EDITOR_PICKER_USE_SURFACE ? ", " : "", Editor_PickerUseName(use), square->spawn_count,
             picker->storages[square->storage]);
     }
     else if( picker->hover_valid )
-        snprintf(line, sizeof(line), "m%d_%d  empty", picker->hover_map_x, picker->hover_map_z);
+    {
+        enum Editor_PickerUse const use = Editor_PickerUseOf(picker->hover_map_x, picker->hover_map_z);
+        snprintf(line, sizeof(line), "m%d_%d  empty%s%s", picker->hover_map_x, picker->hover_map_z,
+            use != EDITOR_PICKER_USE_SURFACE ? ", " : "", Editor_PickerUseName(use));
+    }
     else
         snprintf(line, sizeof(line), " ");
     ToriRSChrome_SetText(ui->chrome, self->row_hover, line);
@@ -2449,16 +2457,22 @@ squares_area_text(
 {
     const struct Editor_PickerSquare* square = &picker->squares[index];
     const struct Editor_PickerArea* area;
+    enum Editor_PickerUse const use = Editor_PickerUseOf(square->map_x, square->map_z);
 
+    /* The band it is in (the Square map outlines them): an unmapped square
+     * of the instance pool or underground said only "unmapped". */
     if( square->primary_area < 0 )
     {
-        snprintf(out, (size_t)out_size, "unmapped%s",
-            squares_in_instance_space(square->map_x, square->map_z) ? " (instance space)" : "");
+        if( use != EDITOR_PICKER_USE_SURFACE )
+            snprintf(out, (size_t)out_size, "unmapped (%s)", Editor_PickerUseName(use));
+        else
+            snprintf(out, (size_t)out_size, "unmapped");
         return;
     }
     area = &picker->areas[square->primary_area];
-    snprintf(out, (size_t)out_size, "%s%s%s", area->display_name[0] ? area->display_name : area->internal_name,
-        area->is_main ? " (surface)" : "", square->area_count > 1 ? " and more" : "");
+    snprintf(out, (size_t)out_size, "%s%s%s%s%s", area->display_name[0] ? area->display_name : area->internal_name,
+        area->is_main ? " (surface)" : "", use == EDITOR_PICKER_USE_UNDERGROUND ? " (underground)" : "",
+        square->area_count > 1 ? " and more" : "", "");
 }
 
 /** The collections of the AREAS document holding `key`, comma-separated. */

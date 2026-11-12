@@ -181,6 +181,31 @@ Editor_PickerDropName(enum Editor_PickerDropKind kind);
  * exists, and its own page (EDITOR_PICKER_TAB_INSTANCE, "Instance space",
  * the Area dropdown's entry) frames all of it. */
 
+/** What a band of the map is for: the Square map outlines each and names it,
+ *  and the hover readout says it. */
+enum Editor_PickerUse
+{
+    EDITOR_PICKER_USE_SURFACE = 0,
+    /** Runtime copies of the templates (TORIRSMAPED_POOL_*): never built in. */
+    EDITOR_PICKER_USE_POOL,
+    /** Instance templates, instance space (TORIRSMAPED_INSTANCE_*). */
+    EDITOR_PICKER_USE_TEMPLATE,
+    /** Dungeons and caves, 100 squares north of the surface. */
+    EDITOR_PICKER_USE_UNDERGROUND,
+    EDITOR_PICKER_USE_COUNT
+};
+
+/** The band square (map_x, map_z) is in. Pure. */
+enum Editor_PickerUse
+Editor_PickerUseOf(
+    int map_x,
+    int map_z);
+
+/** The band's name for a person: "instance pool (runtime copies)",
+ *  "instance templates", "underground"; "" for the surface. */
+const char*
+Editor_PickerUseName(enum Editor_PickerUse use);
+
 /** Whether (map_x, map_z) is in instance space. Pure. */
 int
 Editor_PickerInInstanceSpace(
@@ -667,6 +692,11 @@ struct Editor_PickerColors
     /** The zone lines at close zooms, and the spawn dots. */
     uint32_t zone;
     uint32_t spawn;
+    /** The outlines of what a band of the map is for (Editor_PickerUse):
+     *  the runtime instance pool, the instance templates, underground. */
+    uint32_t use_pool;
+    uint32_t use_template;
+    uint32_t use_underground;
 };
 
 void

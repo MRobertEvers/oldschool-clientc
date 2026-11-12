@@ -43,6 +43,18 @@ the plot did not hang together. Fixes to the editor, each met while doing the wo
   shut (a reset layout shows Terrain alone in its group, and the Terrain panel's "none is picked
   in the Palette" named a panel nowhere on screen).
 - **Rotate says what it did** (*Rotated 1 loc a quarter turn: loc 380 now at rotation 1*).
+- **The Square map outlines what each band of the map is for**, in its own colour, named at
+  the top-left of the part in view: the **instance pool** (x 100..255, z 1..255: where the
+  server stamps runtime copies; `TORIRSMAPED_POOL_*`, matching torirs_server_mapinstance.c),
+  the **instance templates** (x 0..19, z 100..255) and **underground** (x 20..99, z 100..255:
+  dungeons and caves, 6400 tiles north of the ground above them). A name too wide for its band
+  takes a short form (*templates*, *pool*) or none. The readout under the map and the square's
+  area line name the band too (*m27_136 empty, underground*). `Editor_PickerUseOf`, tested in
+  editor_worldmap_test.
+- **A read-only window refuses edits** (another editor holds the lane): *paint refused: this
+  window is read-only (another editor holds the lane thistlewick); close that one to edit here*.
+  It used to apply them in memory and answer "Placed npc ... Ctrl+Z undoes it", while its Save
+  wrote nothing.
 
 Open: the World panel was twice squeezed to 120 px with a black hole beside it (F32) after a
 run of panel opens and closes; neither repeat reproduced it from a clean layout. Arming the

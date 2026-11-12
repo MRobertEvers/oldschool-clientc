@@ -7809,6 +7809,15 @@ test_active_level(void)
         op.brush.radius = 0;
         op.brush.step = 1;
         count = Editor_BrushCommands(&g_editor.doc, &op, g_cmds, EDITOR_RECT_TILES_MAX);
+        /* A read-only window (another editor holds the lane) refuses the
+         * edit and says why; it does not apply what it can never save. */
+        {
+            int const was = g_editor.writable;
+            g_editor.writable = 0;
+            CHECK(count == 1 && edp_apply(&g_ui, g_cmds, count, "paint") == 0 && strstr(g_ui.status, "read-only"),
+                "a read-only window refuses an edit and says why (%s)", g_ui.status);
+            g_editor.writable = was;
+        }
         CHECK(count == 1 && edp_apply(&g_ui, g_cmds, count, "paint") == 1, "level: paint on empty level 2 applies");
         undo++;
         t = tile_at(x2, z2, 2);

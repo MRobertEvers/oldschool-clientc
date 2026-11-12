@@ -52,6 +52,17 @@ edp_apply(
         Editor_UiLog(ui, "editor: %s needs an editor session", what);
         return 0;
     }
+    /* A read-only window (another editor holds the lane) looks, and does not
+     * edit: an edit here could never be saved, and "Placed npc ... Ctrl+Z
+     * undoes it" read as done while the window's Save wrote nothing
+     * (2026-11-12). */
+    if( !ui->editor->writable || (ui->lane.known && !ui->lane.writable) )
+    {
+        Editor_UiStatus(ui, "%s refused: this window is read-only (another editor holds the lane %s); close that "
+                            "one to edit here",
+            what, ui->lane.known ? ui->lane.name : "tree");
+        return 0;
+    }
     if( !ui->tools.stroke_open )
     {
         Editor_StrokeBegin(ui->editor);

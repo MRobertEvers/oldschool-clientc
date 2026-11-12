@@ -181,6 +181,33 @@ Editor_PickerInInstanceSpace(
     return ToriRSMapEdCatalog_InInstanceSpace(map_x, map_z);
 }
 
+enum Editor_PickerUse
+Editor_PickerUseOf(
+    int map_x,
+    int map_z)
+{
+    if( map_x >= TORIRSMAPED_POOL_X0 && map_x <= TORIRSMAPED_POOL_X1 && map_z >= TORIRSMAPED_POOL_Z0
+        && map_z <= TORIRSMAPED_POOL_Z1 )
+        return EDITOR_PICKER_USE_POOL;
+    if( ToriRSMapEdCatalog_InInstanceSpace(map_x, map_z) )
+        return EDITOR_PICKER_USE_TEMPLATE;
+    if( map_x >= TORIRSMAPED_UNDERGROUND_X0 && map_x <= TORIRSMAPED_UNDERGROUND_X1
+        && map_z >= TORIRSMAPED_UNDERGROUND_Z0 && map_z <= TORIRSMAPED_UNDERGROUND_Z1 )
+        return EDITOR_PICKER_USE_UNDERGROUND;
+    return EDITOR_PICKER_USE_SURFACE;
+}
+
+const char*
+Editor_PickerUseName(enum Editor_PickerUse use)
+{
+    static const char* const k_names[EDITOR_PICKER_USE_COUNT] = {
+        "", "instance pool (runtime copies)", "instance templates", "underground",
+    };
+    assert(use >= 0);
+    assert(use < EDITOR_PICKER_USE_COUNT);
+    return k_names[use];
+}
+
 int
 Editor_PickerInstanceTab(const struct Editor_Picker* picker)
 {
@@ -1272,7 +1299,20 @@ Editor_PickerDefaultColors(struct Editor_PickerColors* colors)
     colors->hatch = 0x3a352b;
     colors->zone = 0x302c24;
     colors->spawn = 0xf0e0a0;
+    colors->use_pool = 0xe05a50;
+    colors->use_template = 0xb48cff;
+    colors->use_underground = 0xc8a060;
 }
+
+static void
+picker_cell_rect(
+    const struct Editor_Picker* picker,
+    int map_x,
+    int map_z,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h);
 
 /** Cell rectangle of map square (x, z) in well pixels: the global pixel
  *  space's edges, so a cell is floor or ceil of the zoom wide. */
@@ -1794,6 +1834,105 @@ paint_hover_label(
         ToriRSChrome_GraphText(paint->chrome, paint->graph, x + 4, y + 12, colors->text, fitted);
 }
 
+/** A horizontal (`horizontal`) or vertical line from `a` to `b` at `at`,
+ *  clipped to the well; nothing when `at` is outside it. */
+static void
+paint_use_line(
+    const struct Editor_Picker* picker,
+    struct PickerPaint* paint,
+    int horizontal,
+    int at,
+    int a,
+    int b,
+    uint32_t color)
+{
+    int const lo = horizontal ? EDITOR_PICKER_LEFT : EDITOR_PICKER_TOP;
+    int const hi = (horizontal ? picker->well_w : picker->well_h) - 1;
+    int const at_lo = horizontal ? EDITOR_PICKER_TOP : EDITOR_PICKER_LEFT;
+    int const at_hi = (horizontal ? picker->well_h : picker->well_w) - 1;
+
+    if( at < at_lo || at > at_hi )
+        return;
+    a = a < lo ? lo : a;
+    b = b > hi ? hi : b;
+    if( b <= a || !paint_room(paint, EDITOR_PICKER_DROP_OUTLINES) )
+        return;
+    if( horizontal )
+        ToriRSChrome_GraphLine(paint->chrome, paint->graph, a, at, b, at, color);
+    else
+        ToriRSChrome_GraphLine(paint->chrome, paint->graph, at, a, at, b, color);
+}
+
+/*
+ * What each band of the map is for, outlined in its own colour and named at
+ * the top-left of the part in view: the runtime instance pool, the instance
+ * templates, underground (Editor_PickerUseOf). The bands are far from the
+ * surface and look like any other empty map; nothing said that a square east
+ * of x 100 is where runtime copies land, or that z 100 up is underground
+ * (2026-11-12). Each edge is drawn only where it is: a band running off the
+ * view is not outlined along the view's edge.
+ */
+static void
+paint_uses(
+    const struct Editor_Picker* picker,
+    const struct Editor_PickerColors* colors,
+    struct PickerPaint* paint)
+{
+    static const int k_box[EDITOR_PICKER_USE_COUNT][4] = {
+        { 0, 0, 0, 0 },
+        { TORIRSMAPED_POOL_X0, TORIRSMAPED_POOL_X1, TORIRSMAPED_POOL_Z0, TORIRSMAPED_POOL_Z1 },
+        { TORIRSMAPED_INSTANCE_X0, TORIRSMAPED_INSTANCE_X1, TORIRSMAPED_INSTANCE_Z0, TORIRSMAPED_INSTANCE_Z1 },
+        { TORIRSMAPED_UNDERGROUND_X0, TORIRSMAPED_UNDERGROUND_X1, TORIRSMAPED_UNDERGROUND_Z0,
+            TORIRSMAPED_UNDERGROUND_Z1 },
+    };
+
+    for( int use = EDITOR_PICKER_USE_POOL; use < EDITOR_PICKER_USE_COUNT; use++ )
+    {
+        uint32_t const color = use == EDITOR_PICKER_USE_POOL       ? colors->use_pool
+                               : use == EDITOR_PICKER_USE_TEMPLATE ? colors->use_template
+                                                                   : colors->use_underground;
+        int x;
+        int y;
+        int w;
+        int h;
+        int bx;
+        int by;
+        int bw;
+        int bh;
+        int x1;
+        int y1;
+
+        picker_cell_rect(picker, k_box[use][0], k_box[use][3], &x, &y, &w, &h);
+        picker_cell_rect(picker, k_box[use][1], k_box[use][2], &bx, &by, &bw, &bh);
+        x1 = bx + bw - 1;
+        y1 = by + bh - 1;
+        /* Two pixels wide, inside the band, so it reads over the cells. */
+        for( int k = 0; k < 2; k++ )
+        {
+            paint_use_line(picker, paint, 1, y + k, x, x1, color);
+            paint_use_line(picker, paint, 1, y1 - k, x, x1, color);
+            paint_use_line(picker, paint, 0, x + k, y, y1, color);
+            paint_use_line(picker, paint, 0, x1 - k, y, y1, color);
+        }
+        /* The name, inside the top-left of what is in view of the band; its
+         * short form where the band is narrower than the name (the templates
+         * are 20 squares wide), none where even that does not fit, so one
+         * band's name never runs into the next. */
+        w = x1 - x + 1;
+        h = y1 - y + 1;
+        if( picker_clip(picker, &x, &y, &w, &h) && h >= 16 )
+        {
+            static const char* const k_short[EDITOR_PICKER_USE_COUNT] = { "", "pool", "templates", "underground" };
+            int const face = paint->chrome->theme.font_row;
+            const char* name = Editor_PickerUseName((enum Editor_PickerUse)use);
+            if( ToriRSChrome_MeasureTextQ(face, 4, name) > w - 8 )
+                name = k_short[use];
+            if( ToriRSChrome_MeasureTextQ(face, 4, name) <= w - 8 && paint_room(paint, EDITOR_PICKER_DROP_LABELS) )
+                ToriRSChrome_GraphText(paint->chrome, paint->graph, x + 4, y + 13, color, name);
+        }
+    }
+}
+
 /** One run over the picture (see struct PickerPaint). */
 static void
 picker_paint(
@@ -2035,6 +2174,8 @@ picker_paint(
                 ToriRSChrome_GraphRect(chrome, graph, x, y, w, h, outline, 0, 0);
         }
     }
+
+    paint_uses(picker, colors, paint);
 
     /* Below 12 px a square the page's outline, once: where the page is when
      * every cell is a pixel or two. */
