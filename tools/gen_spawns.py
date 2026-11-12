@@ -523,9 +523,17 @@ OBJ_SPAWN_ID_CORRECTIONS = {
 # 3016,3229 as well as piratetreasure_apron, the apron on its hook. Jagex sends
 # only piratetreasure_apron there (RSProx index 4378 [obj_add_specific] x3,
 # [261] its Take gives the white_apron); the plain one lay flat on the floor.
+#
+# Port Sarim, 3018,3232 is the Rat Pits manhole. The dump lays a cheese on it,
+# taken from the wiki's "Port Sarim - Rat Pits (in the rat trap next to the
+# bar)", whose tile is the entrance's, not the trap's. Jagex sends no obj there:
+# the zone beside it was loaded 93 times across the RSProx archive (its hook
+# apron, 3016,3229) without a cheese on the manhole, while the wiki's other
+# cheeses were sent every time (3083,3260 x147, 1646,3094 x92).
 OBJ_SPAWN_EXCLUSIONS = {
     ("mcannonremains", 2567, 3444, 2),
     ("white_apron", 3016, 3229, 0),
+    ("cheese", 3018, 3232, 0),
     ("rd_metal_spade_no_handle", 2473, 4941, 0),
     ("reddye", 1240, 3688, 0),
     ("yellowdye", 1240, 3688, 0),
