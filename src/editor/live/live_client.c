@@ -70,8 +70,13 @@ live_log(
         model->log_head = (model->log_head + 1) % EDITOR_LIVE_LOG_LINES;
         if( model->log_count < EDITOR_LIVE_LOG_LINES )
             model->log_count++;
+        /* One a ROW: its readers take the difference as how many of the
+         * newest rows are new (Editor_BuildJobPoll, the Problems stream).
+         * Counted once a call, a wrapped line hid the oldest new row from
+         * them -- on a lane, whose paths wrap, the DONE row of a failed
+         * Check, which then stayed "running" for good (2026-11-11). */
+        model->log_serial++;
     } while( *at );
-    model->log_serial++;
 }
 
 const char*
@@ -596,17 +601,23 @@ Editor_LiveRunOutcomeLine(
     }
     if( model->restart_count > 0 )
     {
-        /* The reason is cut so the sentence keeps what to do about it. A
-         * lane this editor launched is its to stop (Detach) and RUN starts
-         * it again on the new build; a server it only dialled is not. */
+        /* The reason is cut so the sentence keeps what to do about it: at
+         * its first ": " (the server's row is "config varp records: read at
+         * boot with ..."), and to 60 bytes. A lane this editor launched is
+         * its to restart, in one press (Editor_Live_RestartLane: the play
+         * client comes back with it); a server it only dialled is not. */
+        const char* what = model->restart[0];
+        const char* colon = strstr(what, ": ");
+        int const length = colon ? (int)(colon - what) : (int)strlen(what);
         if( model->launched )
             snprintf(out, out_size,
-                "RUN done, but the lane's server must restart for: %.60s. Detach in the Live panel, then RUN again.",
-                model->restart[0]);
+                "RUN done, but the lane's server must restart for: %.*s. Press Restart lane (Live panel, or File "
+                "menu).",
+                length < 60 ? length : 60, what);
         else
             snprintf(out, out_size,
-                "RUN done, but the game server must restart for: %.60s. Restart it where it runs, then Attach again.",
-                model->restart[0]);
+                "RUN done, but the game server must restart for: %.*s. Restart it where it runs, then Attach again.",
+                length < 60 ? length : 60, what);
         return EDITOR_LIVE_RUN_RESTART;
     }
 

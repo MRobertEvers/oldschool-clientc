@@ -205,6 +205,12 @@ struct ToriRSMapEdJobs
     /* ---- what the next reload names: everything since the last good one ---- */
     int32_t pending_squares[2 * TORIRSMAPED_BUILD_SQUARES_MAX];
     int pending_square_count;
+    /** The squares saved that no client build has had yet (x, z pairs), as
+     *  <live_dir>/maps_unbuilt.txt keeps them across sessions (jobs_unbuilt_*).
+     *  `unbuilt_build_mark`: how many of them the client build in flight has. */
+    int32_t unbuilt_squares[2 * TORIRSMAPED_BUILD_SQUARES_MAX];
+    int unbuilt_square_count;
+    int unbuilt_build_mark;
     /** Scratch squares whose files this RUN's build is reading (x, z pairs);
      *  jobs_run_scratch_remove takes the files back. */
     int32_t run_scratch[2 * EDITOR_DOC_SCRATCH_SLOTS];
@@ -1793,6 +1799,113 @@ ToriRSMapEd_SetBuildRunner(
     }
 }
 
+/* ---- squares saved and not built yet, across sessions ----------------------- */
+
+/*
+ * pending_squares lives as long as the session. A square saved, the editor
+ * quit and opened again, then RUN: the new session owed the build no square,
+ * the client build repacked no map, and the play client went on drawing the
+ * square the last build had -- a loc placed and saved was never in the game
+ * (2026-11-11). So the squares no client build has had yet are kept in
+ * <live_dir>/maps_unbuilt.txt too (`maps=<(x << 8) | z>`, as map_archives.txt
+ * spells them), read back when the lane is set: owed to the next session's
+ * first RUN. A good client build takes off the ones it was given.
+ */
+#define JOBS_UNBUILT_FILE "maps_unbuilt.txt"
+
+/** Add (`map_x`, `map_z`) to the unbuilt squares: 1 when it was not there. */
+static int
+jobs_unbuilt_add(
+    struct ToriRSMapEdJobs* jobs,
+    int map_x,
+    int map_z)
+{
+    for( int s = 0; s < jobs->unbuilt_square_count; s++ )
+    {
+        if( jobs->unbuilt_squares[2 * s] == map_x && jobs->unbuilt_squares[2 * s + 1] == map_z )
+            return 0;
+    }
+    if( jobs->unbuilt_square_count >= TORIRSMAPED_BUILD_SQUARES_MAX )
+        return 0;
+    jobs->unbuilt_squares[2 * jobs->unbuilt_square_count] = map_x;
+    jobs->unbuilt_squares[2 * jobs->unbuilt_square_count + 1] = map_z;
+    jobs->unbuilt_square_count++;
+    return 1;
+}
+
+static void
+jobs_unbuilt_write(struct ToriRSMapEdJobs* jobs)
+{
+    char path[TORIRSMAPED_LANE_PATH_MAX + 32];
+    char temporary[TORIRSMAPED_LANE_PATH_MAX + 40];
+    FILE* file;
+    int ok = 1;
+
+    /* A server with no lane (a harness) builds nothing and owes nothing. */
+    if( !jobs->have_lane )
+        return;
+    jobs_mkdir(jobs->lane.live_dir);
+    snprintf(path, sizeof(path), "%s/" JOBS_UNBUILT_FILE, jobs->lane.live_dir);
+    snprintf(temporary, sizeof(temporary), "%s.tmp", path);
+    file = fopen(temporary, "wb");
+    if( !file )
+    {
+        TORIRS_ERR("torirsmaped: cannot write %s\n", temporary);
+        return;
+    }
+    if( fprintf(file, "# The squares saved that no client build has had yet: the next RUN repacks them "
+                      "(torirsmaped/torirs_maped_build.c).\n") < 0 )
+        ok = 0;
+    for( int i = 0; i < jobs->unbuilt_square_count; i++ )
+    {
+        if( fprintf(file, "maps=%d\n", (int)((jobs->unbuilt_squares[2 * i] << 8) | jobs->unbuilt_squares[2 * i + 1]))
+            < 0 )
+            ok = 0;
+    }
+    if( fclose(file) != 0 )
+        ok = 0;
+    if( !ok || build_replace_file(temporary, path) != 0 )
+        TORIRS_ERR("torirsmaped: cannot write %s\n", path);
+}
+
+/** The lane's unbuilt squares, owed to the next reload as if saved now. */
+static void
+jobs_unbuilt_read(struct ToriRSMapEdJobs* jobs)
+{
+    char path[TORIRSMAPED_LANE_PATH_MAX + 32];
+    char line[128];
+    FILE* file;
+
+    snprintf(path, sizeof(path), "%s/" JOBS_UNBUILT_FILE, jobs->lane.live_dir);
+    file = fopen(path, "rb");
+    /* No file: nothing saved since the last client build. */
+    if( !file )
+        return;
+    while( fgets(line, sizeof(line), file) )
+    {
+        int archive;
+        int known = 0;
+        int map_x;
+        int map_z;
+        if( sscanf(line, "maps=%d", &archive) != 1 || archive < 0 || archive > 0xffff )
+            continue;
+        map_x = archive >> 8;
+        map_z = archive & 0xff;
+        (void)jobs_unbuilt_add(jobs, map_x, map_z);
+        for( int s = 0; s < jobs->pending_square_count; s++ )
+        {
+            if( jobs->pending_squares[2 * s] == map_x && jobs->pending_squares[2 * s + 1] == map_z )
+                known = 1;
+        }
+        if( known || jobs->pending_square_count >= TORIRSMAPED_BUILD_SQUARES_MAX )
+            continue;
+        jobs->pending_squares[2 * jobs->pending_square_count] = map_x;
+        jobs->pending_squares[2 * jobs->pending_square_count + 1] = map_z;
+        jobs->pending_square_count++;
+    }
+    fclose(file);
+}
+
 int
 ToriRSMapEd_SetLane(
     struct ToriRSMapEd* maped,
@@ -1811,6 +1924,9 @@ ToriRSMapEd_SetLane(
     }
     maped->jobs->lane = *lane;
     maped->jobs->have_lane = 1;
+    /* The last lane's unbuilt squares are in its own file already. */
+    maped->jobs->unbuilt_square_count = 0;
+    jobs_unbuilt_read(maped->jobs);
     return 1;
 }
 
@@ -1848,8 +1964,19 @@ jobs_note_saved(
             int map_x;
             int map_z;
             int known = 0;
+            int scratch = 0;
             if( !Editor_SquareKeyParse(rows[i].key, &map_x, &map_z) )
                 continue;
+            /* Kept for the next session too -- unless it is a scratch
+             * square this RUN wrote for its own length
+             * (jobs_run_scratch_write): its files go when the build ends. */
+            for( int s = 0; s < jobs->run_scratch_count; s++ )
+            {
+                if( jobs->run_scratch[2 * s] == map_x && jobs->run_scratch[2 * s + 1] == map_z )
+                    scratch = 1;
+            }
+            if( !scratch && jobs_unbuilt_add(jobs, map_x, map_z) )
+                jobs_unbuilt_write(jobs);
             for( int s = 0; s < jobs->pending_square_count; s++ )
             {
                 if( jobs->pending_squares[2 * s] == map_x && jobs->pending_squares[2 * s + 1] == map_z )
@@ -2190,6 +2317,10 @@ jobs_build_start(
     jobs->building = 1;
     jobs->build_what = what;
     jobs->build_for_run = for_run;
+    /* The unbuilt squares this build has (every one is pending); a save
+     * while it runs adds after the mark, and stays owed. */
+    jobs->unbuilt_build_mark =
+        what == TORIRSMAPED_BUILD_CLIENT_CACHE || what == TORIRSMAPED_BUILD_RUN ? jobs->unbuilt_square_count : 0;
     ToriRSMapEd_BufFree(&jobs->build_units);
     memset(&jobs->build_units, 0, sizeof(jobs->build_units));
     jobs->build_unit_count = 0;
@@ -2299,6 +2430,16 @@ jobs_build_finished(
 
     jobs->building = 0;
     jobs_run_scratch_remove(maped);
+    /* The squares a good client build had are in the lane's cache now. */
+    if( status == EDITOR_HOST_OK && jobs->unbuilt_build_mark > 0 )
+    {
+        int const mark = jobs->unbuilt_build_mark;
+        memmove(jobs->unbuilt_squares, jobs->unbuilt_squares + 2 * mark,
+            (size_t)(jobs->unbuilt_square_count - mark) * 2 * sizeof(int32_t));
+        jobs->unbuilt_square_count -= mark;
+        jobs_unbuilt_write(jobs);
+    }
+    jobs->unbuilt_build_mark = 0;
     jobs_build_send_done(maped, what, status, 1);
     /* Both builds name archives: the client cache's (index, archive) rows and
      * the packs build's server-pack groups (index 255, from the manifest

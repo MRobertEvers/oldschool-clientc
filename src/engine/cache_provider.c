@@ -1977,6 +1977,138 @@ cache_provider_evict_objtypes(struct CacheProvider* provider)
     return evicted;
 }
 
+void
+CacheProvider_SetAbsentRecordSource(
+    struct CacheProvider* provider,
+    int (*source)(void* user, int kind, int id),
+    void* user)
+{
+    assert(provider);
+    provider->absent_record_source = source;
+    provider->absent_record_user = user;
+}
+
+int
+CacheProvider_AbsentRecord(
+    struct CacheProvider* provider,
+    enum CacheProvider_CatalogKind kind,
+    int id)
+{
+    assert(provider);
+    if( !provider->absent_record_source )
+        return 0;
+    return provider->absent_record_source(provider->absent_record_user, (int)kind, id) != 0;
+}
+
+void
+CacheProvider_LocationReplace(
+    struct CacheProvider* provider,
+    int loc_id,
+    struct ToriRS_Location* location)
+{
+    struct MapEntry_ProviderLocation* entry;
+
+    assert(provider);
+    assert(location);
+    entry = (struct MapEntry_ProviderLocation*)hmap_search(provider->location_cache, &loc_id, HMAP_FIND);
+    if( entry && entry->location && entry->location != location )
+    {
+        cache_provider_retire((void***)&provider->retired_locations, &provider->retired_location_count,
+            &provider->retired_location_capacity, entry->location);
+        entry->location = NULL;
+    }
+    CacheProvider_LocationAdd(provider, loc_id, location);
+}
+
+void
+CacheProvider_NpctypeReplace(
+    struct CacheProvider* provider,
+    int npc_id,
+    struct ToriRS_Npctype* npctype)
+{
+    struct MapEntry_ProviderNpctype* entry;
+
+    assert(provider);
+    assert(npctype);
+    entry = (struct MapEntry_ProviderNpctype*)hmap_search(provider->npctype_cache, &npc_id, HMAP_FIND);
+    if( entry && entry->npctype && entry->npctype != npctype )
+    {
+        cache_provider_retire((void***)&provider->retired_npctypes, &provider->retired_npctype_count,
+            &provider->retired_npctype_capacity, entry->npctype);
+        entry->npctype = NULL;
+    }
+    CacheProvider_NpctypeAdd(provider, npc_id, npctype);
+}
+
+void
+CacheProvider_ObjtypeReplace(
+    struct CacheProvider* provider,
+    int obj_id,
+    struct ToriRS_Objtype* objtype)
+{
+    struct MapEntry_ProviderObjtype* entry;
+
+    assert(provider);
+    assert(objtype);
+    entry = (struct MapEntry_ProviderObjtype*)hmap_search(provider->objtype_cache, &obj_id, HMAP_FIND);
+    if( entry && entry->objtype && entry->objtype != objtype )
+    {
+        cache_provider_retire((void***)&provider->retired_objtypes, &provider->retired_objtype_count,
+            &provider->retired_objtype_capacity, entry->objtype);
+        entry->objtype = NULL;
+    }
+    /* Asked for before it existed (the loader's "not in this cache"): it
+     * exists now, and the icon loader must ask again. */
+    (void)hmap_search(provider->obj_absent, &obj_id, HMAP_REMOVE);
+    CacheProvider_ObjtypeAdd(provider, obj_id, objtype);
+}
+
+int
+CacheProvider_RecordRetire(
+    struct CacheProvider* provider,
+    enum CacheProvider_CatalogKind kind,
+    int id)
+{
+    assert(provider);
+    if( kind == CACHEPROVIDER_CATALOG_LOC )
+    {
+        struct MapEntry_ProviderLocation* entry =
+            (struct MapEntry_ProviderLocation*)hmap_search(provider->location_cache, &id, HMAP_FIND);
+        if( !entry || !entry->location )
+            return 0;
+        cache_provider_retire((void***)&provider->retired_locations, &provider->retired_location_count,
+            &provider->retired_location_capacity, entry->location);
+        entry->location = NULL;
+        (void)hmap_search(provider->location_cache, &id, HMAP_REMOVE);
+        return 1;
+    }
+    if( kind == CACHEPROVIDER_CATALOG_NPC )
+    {
+        struct MapEntry_ProviderNpctype* entry =
+            (struct MapEntry_ProviderNpctype*)hmap_search(provider->npctype_cache, &id, HMAP_FIND);
+        if( !entry || !entry->npctype )
+            return 0;
+        cache_provider_retire((void***)&provider->retired_npctypes, &provider->retired_npctype_count,
+            &provider->retired_npctype_capacity, entry->npctype);
+        entry->npctype = NULL;
+        (void)hmap_search(provider->npctype_cache, &id, HMAP_REMOVE);
+        return 1;
+    }
+    assert(kind == CACHEPROVIDER_CATALOG_OBJ);
+    {
+        struct MapEntry_ProviderObjtype* entry =
+            (struct MapEntry_ProviderObjtype*)hmap_search(provider->objtype_cache, &id, HMAP_FIND);
+        if( !entry || !entry->objtype )
+            return 0;
+        cache_provider_retire((void***)&provider->retired_objtypes, &provider->retired_objtype_count,
+            &provider->retired_objtype_capacity, entry->objtype);
+        entry->objtype = NULL;
+        (void)hmap_search(provider->objtype_cache, &id, HMAP_REMOVE);
+        cache_provider_ui_assets_changed(provider);
+        return 1;
+    }
+}
+
 static void
 cache_provider_retired_free(struct CacheProvider* provider)
 {

@@ -17,6 +17,16 @@
  *                spawns" (on): they stand on the scratch square, and its
  *                Place carries them on (edp_square_create). Flat fill's
  *                underlay shows its colour beside the number.
+ *                With a place ("Place at m72_56", typed, prefilled from the
+ *                empty cell focused on the Square map, or named by Find free)
+ *                there is no scratch square: Create makes the square THERE,
+ *                in maps/, saves it and opens it -- and with "Block 2x2" the
+ *                four squares from that corner east and north, together, as
+ *                the scene (Editor_NewSquareBlockCheck refuses the whole
+ *                block, naming the cell, when one is taken or reserved). A
+ *                2x2 of new land was New, Create, Save, a click on the map,
+ *                then Copy to and another click three times over (F3,
+ *                2026-11-11).
  *   Save as new  the open square again at its own coordinates, in another
  *                storage: the storage question alone.
  *   Copy to...   forwards to the Square map's Place with that square.
@@ -53,6 +63,10 @@ enum
 };
 
 static const char* const k_template_names[3] = { "Empty", "Copy of selection", "Flat fill" };
+/* The Block dropdown: squares east x north of Place at. */
+#define NEWSQUARE_BLOCKS 5
+static const char* const k_block_names[NEWSQUARE_BLOCKS] = { "1x1", "2x1", "1x2", "2x2", "3x3" };
+static const unsigned char k_block_sizes[NEWSQUARE_BLOCKS][2] = { { 1, 1 }, { 2, 1 }, { 1, 2 }, { 2, 2 }, { 3, 3 } };
 
 struct NewSquarePanel
 {
@@ -75,6 +89,10 @@ struct NewSquarePanel
     int swatch_asked;
     /** The template chosen last: what a refused "Copy of" falls back to. */
     int template_last;
+    /** New's place: the square key, Find free, and the block from it. */
+    int input_place;
+    int button_free;
+    int dropdown_block;
     int row_check;
     int button_create;
     int button_scratch;
@@ -95,6 +113,10 @@ struct NewSquarePanel
     /** The form the last check ran on, so a quiet frame checks nothing. */
     struct Editor_NewSquareForm checked;
     int checked_valid;
+    /** The atlas that check was answered from (its serial + 1; 0 = none
+     *  yet): a place judged "the index is still building", or free, is
+     *  judged again when the atlas lands or changes. */
+    uint32_t checked_atlas;
     int ok;
 };
 
@@ -162,6 +184,17 @@ newsquare_read(
     snprintf(form->source_key, sizeof(form->source_key), "%s", self->source_key);
     form->fill_height = ToriRSChrome_SliderValue(ui->chrome, self->slider_height);
     form->fill_underlay = ToriRSChrome_SliderValue(ui->chrome, self->slider_underlay);
+    if( self->mode == EDITOR_NEW_SQUARE_NEW )
+    {
+        const char* place = ToriRSChrome_Text(ui->chrome, self->input_place);
+        int const block = ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_block);
+
+        while( *place == ' ' )
+            place++;
+        snprintf(form->place, sizeof(form->place), "%s", place);
+        form->block_w = block >= 0 && block < NEWSQUARE_BLOCKS ? k_block_sizes[block][0] : 1;
+        form->block_h = block >= 0 && block < NEWSQUARE_BLOCKS ? k_block_sizes[block][1] : 1;
+    }
 }
 
 static void
@@ -194,6 +227,9 @@ newsquare_layout(
     ToriRSChrome_SetHidden(ui->chrome, self->graph_underlay,
         save_as || template_kind != EDITOR_DOC_TEMPLATE_FLAT || !ui->hooks.floor_rgb);
     ToriRSChrome_SetHidden(ui->chrome, self->button_scratch, save_as || !self->unplaced_key[0]);
+    ToriRSChrome_SetHidden(ui->chrome, self->input_place, save_as);
+    ToriRSChrome_SetHidden(ui->chrome, self->button_free, save_as);
+    ToriRSChrome_SetHidden(ui->chrome, self->dropdown_block, save_as);
 }
 
 /** New's check: the template alone (the slot is chosen at Create, the place
@@ -216,8 +252,43 @@ newsquare_check_scratch(
         snprintf(message, message_size, "flat fill: height 0..255, underlay 0..%d", EDITOR_UNDERLAY_MAX);
         return 0;
     }
-    snprintf(message, message_size, "it opens to edit; Save then places it");
+    if( form->block_w > 1 || form->block_h > 1 )
+    {
+        snprintf(message, message_size, "a %dx%d block needs a place: type it, or Find free", form->block_w,
+            form->block_h);
+        return 0;
+    }
+    snprintf(message, message_size, "a scratch square: opens to edit, Save places it");
     return 1;
+}
+
+/** New's check with a place: the block against the atlas. Returns 1 when
+ *  Create may go; the message is what it will do or why it cannot. */
+static int
+newsquare_check_place(
+    struct EditorUi* ui,
+    const struct Editor_NewSquareForm* form,
+    struct Editor_NewSquareBlock* block,
+    char* message,
+    size_t message_size)
+{
+    const struct Editor_Picker* picker = edp_squares_picker(ui);
+
+    memset(block, 0, sizeof(*block));
+    if( !picker )
+    {
+        snprintf(message, message_size, "the index is still building: wait, or clear Place at");
+        return 0;
+    }
+    /* What the scratch flow asks too: something to copy, a fill in range. */
+    if( form->template_kind == EDITOR_DOC_TEMPLATE_COPY && !form->source_key[0] )
+    {
+        snprintf(message, message_size, "no square is selected: click one on the Square map, then New");
+        return 0;
+    }
+    (void)Editor_NewSquareBlockCheck(picker, form, block);
+    snprintf(message, message_size, "%s", block->message);
+    return block->ok;
 }
 
 static void
@@ -231,6 +302,15 @@ newsquare_check(
     const struct Editor_Picker* picker;
 
     newsquare_read(ui, self, &form);
+    {
+        const struct Editor_Picker* atlas = form.place[0] ? edp_squares_picker(ui) : NULL;
+        uint32_t const serial = atlas ? atlas->atlas_serial + 1 : 0;
+        if( serial != self->checked_atlas )
+        {
+            self->checked_atlas = serial;
+            force = 1;
+        }
+    }
     if( !force && self->checked_valid && memcmp(&form, &self->checked, sizeof(form)) == 0 )
         return;
     self->checked = form;
@@ -239,7 +319,9 @@ newsquare_check(
 
     if( self->mode == EDITOR_NEW_SQUARE_NEW )
     {
-        self->ok = newsquare_check_scratch(&form, check.message, sizeof(check.message));
+        struct Editor_NewSquareBlock block;
+        self->ok = form.place[0] ? newsquare_check_place(ui, &form, &block, check.message, sizeof(check.message))
+                                 : newsquare_check_scratch(&form, check.message, sizeof(check.message));
     }
     else
     {
@@ -404,8 +486,19 @@ Editor_NewSquare_Open(
 
     if( mode == EDITOR_NEW_SQUARE_NEW )
     {
+        int empty_x;
+        int empty_z;
+        char place[EDITOR_DOC_KEY_MAX] = "";
+
         ToriRSChrome_PanelSetTitle(ui->chrome, self->panel, "New square");
-        ToriRSChrome_SetText(ui->chrome, self->row_intro, "A scratch square: what it starts as");
+        ToriRSChrome_SetText(ui->chrome, self->row_intro, "What it starts as, and where it goes");
+        /* The empty cell focused on the Square map (a click, a Find) is where
+         * it goes; with none, the field is empty and Create makes a scratch
+         * square as before. */
+        if( Editor_SquarePicker_EmptyCell(ui, &empty_x, &empty_z) )
+            Editor_SquareKey(place, empty_x, empty_z);
+        ToriRSChrome_SetText(ui->chrome, self->input_place, place);
+        ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_block, 0);
         /* Flat fill: an Empty square draws nothing until it is painted. */
         ToriRSChrome_RadioSelect(ui->chrome, self->radio_template[EDITOR_DOC_TEMPLATE_FLAT]);
         ToriRSChrome_SetText(ui->chrome, self->button_create, "Create");
@@ -573,6 +666,145 @@ newsquare_create_scratch(
     Editor_UiLog(ui, "editor: all %d scratch slots hold unplaced work", EDITOR_DOC_SCRATCH_SLOTS);
 }
 
+/**
+ * New's Create with a place: every square of the block made in maps/ with
+ * the form's template (a copy brings the source's spawns, by the box), each
+ * saved -- these documents alone, not whatever else is unsaved -- and the
+ * block opened as the scene in place of what is open, through the save
+ * guard. The whole block was checked first (newsquare_check_place); a cell
+ * the server still refuses (another window made it meanwhile) stops the run
+ * and is named, with what was made before it.
+ */
+static void
+newsquare_create_block(
+    struct EditorUi* ui,
+    struct NewSquarePanel* self,
+    const struct Editor_NewSquareForm* form)
+{
+    const struct Editor_Picker* picker = edp_squares_picker(ui);
+    struct Editor_NewSquareBlock block;
+    struct Editor_NewSquareForm cell;
+    struct EditorUiGuard guard;
+    char message[EDITOR_NEWFORM_MESSAGE_MAX];
+    char first[EDITOR_DOC_KEY_MAX];
+    char last[EDITOR_DOC_KEY_MAX];
+    int const with_spawns =
+        form->template_kind == EDITOR_DOC_TEMPLATE_COPY && ToriRSChrome_Checked(ui->chrome, self->check_spawns);
+    int made = 0;
+    int spawns_total = 0;
+    int saved = 0;
+    int read_only = 0;
+
+    if( !newsquare_check_place(ui, form, &block, message, sizeof(message)) )
+    {
+        newsquare_check(ui, self, 1);
+        return;
+    }
+    assert(picker); /* newsquare_check_place answered from it */
+    cell = *form;
+    cell.mode = EDITOR_NEW_SQUARE_NEW;
+    cell.storage = Editor_PickerStorageIndex(picker, "maps");
+    cell.new_lane[0] = '\0';
+    for( int i = 0; i < block.count; i++ )
+    {
+        struct Editor_NewSquareCheck check;
+        struct EditorHost_DocCreate request;
+        enum EditorHost_Status status;
+        int spawns = 0;
+
+        cell.map_x = block.cells[i][0];
+        cell.map_z = block.cells[i][1];
+        if( !Editor_NewSquareValidate(picker, &cell, &check, &request) )
+        {
+            snprintf(message, sizeof(message), "%s", check.message);
+            break;
+        }
+        status = edp_square_create(ui, &request, with_spawns, &spawns);
+        if( status != EDITOR_HOST_OK )
+        {
+            snprintf(message, sizeof(message), "%s: %s", request.key,
+                status == EDITOR_HOST_REFUSED ? "refused: it exists there, or is open from another storage"
+                                              : "the server did not create it");
+            Editor_UiLog(ui, "editor: DOC_CREATE %s failed (status %d)", request.key, (int)status);
+            break;
+        }
+        made++;
+        spawns_total += spawns;
+        /* Saved now: a square made by name is on disk like the one a scratch
+         * square's Place makes. Its own documents only. */
+        {
+            int const wrote = Editor_SaveDoc(ui->editor, EDITOR_DOC_SQUARE, request.key);
+            if( wrote < 0 )
+                read_only = 1;
+            else
+                saved += wrote;
+            if( spawns > 0 && Editor_SaveDoc(ui->editor, EDITOR_DOC_SPAWN, request.key) < 0 )
+                read_only = 1;
+        }
+    }
+    Editor_SquarePicker_Refresh(ui);
+    if( made == 0 )
+    {
+        ToriRSChrome_SetText(ui->chrome, self->row_check, message);
+        ToriRSChrome_SetColor(ui->chrome, self->row_check, 0xff7f5f);
+        return;
+    }
+    Editor_SquareKey(first, block.cells[0][0], block.cells[0][1]);
+    Editor_SquareKey(last, block.cells[made - 1][0], block.cells[made - 1][1]);
+    if( made < block.count )
+        Editor_UiStatus(ui, "New square stopped after %d of %d (%s .. %s made): %s", made, block.count, first, last,
+            message);
+    else if( read_only )
+        Editor_UiStatus(ui, "Created %s%s%s (%d square%s) in maps/; NOT saved: the session is read-only", first,
+            made > 1 ? " .. " : "", made > 1 ? last : "", made, made == 1 ? "" : "s");
+    else if( form->template_kind == EDITOR_DOC_TEMPLATE_COPY )
+        Editor_UiStatus(ui, "Created %s%s%s (%d cop%s of %s, %d spawn%s) in maps/, saved; opening %s", first,
+            made > 1 ? " .. " : "", made > 1 ? last : "", made, made == 1 ? "y" : "ies", form->source_key,
+            spawns_total, spawns_total == 1 ? "" : "s", made == 1 ? "it" : "them");
+    else
+        Editor_UiStatus(ui, "Created %s%s%s (%d square%s, %s) in maps/, saved; opening %s", first,
+            made > 1 ? " .. " : "", made > 1 ? last : "", made, made == 1 ? "" : "s",
+            form->template_kind == EDITOR_DOC_TEMPLATE_FLAT ? "flat fill" : "empty", made == 1 ? "it" : "them");
+    Editor_UiLog(ui, "editor: %d new square document%s saved", saved, saved == 1 ? "" : "s");
+    if( form->template_kind == EDITOR_DOC_TEMPLATE_EMPTY && ui->tools.underlay_id == 0 )
+        ui->tools.underlay_id = NEWSQUARE_FLAT_UNDERLAY_DEFAULT;
+    newsquare_close(ui, self);
+
+    /* Exactly the squares made, as the scene: the one nearest the block's
+     * middle first, where the camera goes. */
+    memset(&guard, 0, sizeof(guard));
+    guard.action = EDITOR_UI_GUARD_OPEN_SET;
+    {
+        int const mid_x2 = 2 * block.map_x + block.w - 1;
+        int const mid_z2 = 2 * block.map_z + block.h - 1;
+        int best = 0;
+        int best_d = 1 << 30;
+
+        _Static_assert(EDITOR_NEWFORM_BLOCK_MAX <= EDITOR_UI_OPEN_SET_MAX, "a block is one working set");
+        for( int i = 0; i < made; i++ )
+        {
+            int const d = abs(2 * block.cells[i][0] - mid_x2) + abs(2 * block.cells[i][1] - mid_z2);
+            guard.set[i].map_x = block.cells[i][0];
+            guard.set[i].map_z = block.cells[i][1];
+            if( d < best_d )
+            {
+                best = i;
+                best_d = d;
+            }
+        }
+        if( best > 0 )
+        {
+            struct EditorUiSquareRef const head = guard.set[0];
+            guard.set[0] = guard.set[best];
+            guard.set[best] = head;
+        }
+    }
+    guard.set_count = made;
+    guard.map_x = guard.set[0].map_x;
+    guard.map_z = guard.set[0].map_z;
+    (void)Editor_UiGuarded(ui, &guard);
+}
+
 static void
 newsquare_create(
     struct EditorUi* ui,
@@ -592,6 +824,11 @@ newsquare_create(
     }
     if( self->mode == EDITOR_NEW_SQUARE_NEW )
     {
+        if( form.place[0] )
+        {
+            newsquare_create_block(ui, self, &form);
+            return;
+        }
         if( !newsquare_check_scratch(&form, check.message, sizeof(check.message)) )
         {
             newsquare_check(ui, self, 1);
@@ -677,6 +914,36 @@ newsquare_activate(
         newsquare_close(ui, self);
         return 1;
     }
+    if( widget == self->button_free )
+    {
+        const struct Editor_Picker* picker = edp_squares_picker(ui);
+        int const block = ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_block);
+        int const w = block >= 0 && block < NEWSQUARE_BLOCKS ? k_block_sizes[block][0] : 1;
+        int const h = block >= 0 && block < NEWSQUARE_BLOCKS ? k_block_sizes[block][1] : 1;
+        int map_x;
+        int map_z;
+        char key[EDITOR_DOC_KEY_MAX];
+
+        if( !picker )
+        {
+            ToriRSChrome_SetText(ui->chrome, self->row_check, "the index is still building: Find free waits");
+            ToriRSChrome_SetColor(ui->chrome, self->row_check, 0xff7f5f);
+            return 1;
+        }
+        if( !Editor_NewSquareFindFree(picker, w, h, &map_x, &map_z) )
+        {
+            char line[TORIRS_CHROME_LABEL_MAX];
+            snprintf(line, sizeof(line), "no free %dx%d block in m%d_%d .. m%d_%d", w, h, EDITOR_NEWFORM_FREE_X0,
+                EDITOR_NEWFORM_FREE_Z0, EDITOR_NEWFORM_FREE_X1, EDITOR_NEWFORM_FREE_Z1);
+            ToriRSChrome_SetText(ui->chrome, self->row_check, line);
+            ToriRSChrome_SetColor(ui->chrome, self->row_check, 0xff7f5f);
+            return 1;
+        }
+        Editor_SquareKey(key, map_x, map_z);
+        ToriRSChrome_SetText(ui->chrome, self->input_place, key);
+        newsquare_check(ui, self, 1);
+        return 1;
+    }
     if( widget == self->radio_template[EDITOR_DOC_TEMPLATE_COPY] && self->mode == EDITOR_NEW_SQUARE_NEW
         && !self->source_key[0] )
     {
@@ -690,6 +957,7 @@ newsquare_activate(
         return 1;
     }
     if( widget == self->input_lane || widget == self->dropdown_storage || widget == self->slider_height
+        || widget == self->input_place || widget == self->dropdown_block
         || widget == self->slider_underlay || widget == self->radio_template[0]
         || widget == self->radio_template[1] || widget == self->radio_template[2] || widget == self->check_spawns )
     {
@@ -723,7 +991,7 @@ Editor_NewSquare_Register(struct EditorUi* ui)
 
     self = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*self));
     assert(self);
-    self->panel = ToriRSChrome_ModalAdd(chrome, "New square", edp_px(ui, 300));
+    self->panel = ToriRSChrome_ModalAdd(chrome, "New square", edp_px(ui, 340));
     assert(self->panel >= 0);
     self->row_intro = ToriRSChrome_Label(chrome, self->panel, "");
     self->dropdown_storage = ToriRSChrome_Dropdown(chrome, self->panel, "Stored in", NULL, 0, -1);
@@ -739,17 +1007,26 @@ Editor_NewSquare_Register(struct EditorUi* ui)
     self->check_spawns = ToriRSChrome_Checkbox(chrome, self->panel, "with its spawns", 1);
     ToriRSChrome_SetTooltip(chrome, self->check_spawns,
         "The copy brings the source square's npcs and ground items");
-    self->slider_height = ToriRSChrome_Slider(chrome, self->panel, "Height h", 0, 255, 1, 1);
-    ToriRSChrome_SetTooltip(chrome, self->slider_height, "Each ground tile's height: 0 is rolling noise, 1 is flat");
+    /* 20 (160 units up), not 1: 1 is the LOWEST height there is, so on a
+     * square filled at it nothing could be sunk -- a pond, a river bed, a
+     * cellar step -- and the Height brush's grid stopped at 0 with nothing
+     * to say why (2026-11-11, a village site). Lumbridge stands at 30. */
+    self->slider_height = ToriRSChrome_Slider(chrome, self->panel, "Height h", 0, 255, 20, 1);
+    ToriRSChrome_SetTooltip(chrome, self->slider_height, "Ground height in units of 8: 0 is rolling noise, 1 the lowest");
     self->slider_underlay = ToriRSChrome_Slider(chrome, self->panel, "Underlay", 0, 255, 0, 1);
     ToriRSChrome_SetTooltip(chrome, self->slider_underlay, "The ground's floor id; its colour shows below");
     self->graph_underlay = ToriRSChrome_Graph(chrome, self->panel, "", edp_px(ui, NEWSQUARE_SWATCH_ROW_H));
     self->swatch_id = -1;
     self->template_last = EDITOR_DOC_TEMPLATE_FLAT;
+    self->input_place = ToriRSChrome_TextInput(chrome, self->panel, "Place at", "");
+    ToriRSChrome_SetTooltip(chrome, self->input_place, "m72_56: made there and saved. Empty: a scratch square");
+    self->button_free = ToriRSChrome_Button(chrome, self->panel, "Find free");
+    ToriRSChrome_SetTooltip(chrome, self->button_free, "Fill Place at with the first free cell east of the mainland");
+    self->dropdown_block = ToriRSChrome_Dropdown(chrome, self->panel, "Block", k_block_names, NEWSQUARE_BLOCKS, 0);
+    ToriRSChrome_SetTooltip(chrome, self->dropdown_block, "Squares east x north of Place at, made and opened together");
     self->row_check = ToriRSChrome_Label(chrome, self->panel, "");
     self->button_create = ToriRSChrome_Button(chrome, self->panel, "Create");
-    ToriRSChrome_SetTooltip(chrome, self->button_create,
-        "Opens it as the working set; Save picks its place");
+    ToriRSChrome_SetTooltip(chrome, self->button_create, "With a place: made, saved, opened. Without: a scratch square");
     self->button_scratch = ToriRSChrome_Button(chrome, self->panel, "Open unplaced scratch");
     ToriRSChrome_SetTooltip(chrome, self->button_scratch, "A scratch square with work in it that is not placed yet");
     self->button_cancel = ToriRSChrome_Button(chrome, self->panel, "Cancel");

@@ -6,12 +6,21 @@ port; `--agent-port-file <path>` writes the port there). This file is the
 other end: a command line for a shell, and `class Client` for a script.
 docs/AGENT_API.md has every verb, its arguments and its reply.
 
-    python tools/agent/torirs_agent.py [--port N | --port-file F] <verb> [key=value ...]
+    python tools/agent/torirs_agent.py [--port N | --port-file F] [--play] <verb> [key=value ...]
 
 prints the reply as JSON and exits 0, or 1 when the reply is ok:false (2 for
 a usage or connection error). With neither --port nor --port-file the port is
 read from TORIRS_AGENT_PORT, else from the file `start` writes
 (TORIRS_AGENT_PORT_FILE, else torirs_agent.port in the temp directory).
+
+`--play` sends the verb to the PLAY CLIENT an editor's RUN started, instead
+of to the editor: the editor is asked for it (`editor` answers `play.port`
+while that client runs), so the same port flags do for both.
+
+    python tools/agent/torirs_agent.py action file.run
+    python tools/agent/torirs_agent.py wait until=idle timeout_ms=300000
+    python tools/agent/torirs_agent.py --play game
+    python tools/agent/torirs_agent.py --play chat "::tele 0_50_50_22_18"
 
 A value is JSON when it parses as JSON (`x=120`, `visible_only=true`,
 `from=[10,20]`), a list of whole numbers when it is `10,20`, and a string
@@ -32,6 +41,7 @@ Conveniences:
     type <text>                    type text=<text>
     action <id>                    action action=<id>  (a hotkey action's id)
     select <dropdown> <option>     open a dropdown and pick an option by label
+    chat <line>                    chat text=<line>  (a line of chat, or a ::cheat)
 
 As a module:
 
@@ -209,6 +219,28 @@ class Client:
     def editor(self):
         return self.request("editor")
 
+    def play(self, wait=0.0, timeout=None):
+        """A Client for the play client this editor's RUN started.
+
+        `editor` answers "play": {"pid", "port"} while that client runs and
+        listens (it is given an agent port of its own whenever the editor has
+        one). `wait` seconds are allowed for it to come up: RUN ends when the
+        play client is started, a moment before it listens.
+        """
+        deadline = time.time() + wait
+        while True:
+            play = self.editor().get("play") or {}
+            if play.get("port"):
+                return Client(port=play["port"], timeout=self.timeout if timeout is None else timeout)
+            if time.time() >= deadline:
+                break
+            time.sleep(0.25)
+        if play:
+            why = "the play client (pid %s, %s) has no agent port yet" % (play.get("pid"), play.get("state"))
+        else:
+            why = "no play client is running: RUN starts one (action file.run, then wait until idle)"
+        raise AgentError({"ok": False, "error": why})
+
     def actions(self, text=None):
         return self.request("actions", text=text)
 
@@ -216,8 +248,8 @@ class Client:
         """Run the hotkey action whose id is `action` ("file.save_all")."""
         return self.request("action", action=action)
 
-    def tile_to_screen(self, x, z, level=None):
-        return self.request("tile_to_screen", x=x, z=z, level=level)
+    def tile_to_screen(self, x, z, level=None, height=None):
+        return self.request("tile_to_screen", x=x, z=z, level=level, height=height)
 
     def screen_to_tile(self, x, y):
         return self.request("screen_to_tile", x=x, y=y)
@@ -232,6 +264,10 @@ class Client:
 
     def game(self, chat_lines=None):
         return self.request("game", chat_lines=chat_lines)
+
+    def chat(self, text):
+        """Say `text` in the game's chat box: a line of chat, or a "::cheat"."""
+        return self.request("chat", text=text)
 
     def npcs(self, name=None, npc_id=None, limit=None):
         return self.request("npcs", name=name, npc_id=npc_id, limit=limit)
@@ -402,6 +438,7 @@ POSITIONAL = {
     "shot": ("shot", ("path",)),
     "key": ("key", ("chord",)),
     "type": ("type", ("text",)),
+    "chat": ("chat", ("text",)),
     "action": ("action", ("action",)),
     "npc_click": ("npc_click", ("name",)),
 }
@@ -415,7 +452,7 @@ TEXT_ARGS = {"label", "text", "panel", "path", "chord", "action", "button", "unt
 KNOWN_ARGS = TEXT_ARGS | {
     "x", "y", "z", "frames", "timeout_ms", "mods", "from", "to", "steps", "notches", "hold", "rect", "visible_only",
     "widget", "tab", "row", "option", "menu", "double", "enter", "since", "limit", "discard", "level", "force", "yaw",
-    "pitch", "zoom", "chat_lines", "npc_id", "slot",
+    "pitch", "zoom", "chat_lines", "npc_id", "slot", "height",
 }
 
 
@@ -465,12 +502,16 @@ def main(argv):
     port_file = None
     host = "127.0.0.1"
     timeout = 60.0
+    play = False
     words = list(argv)
 
     while words and words[0].startswith("--"):
         flag = words.pop(0)
         if flag in ("--help", "-h"):
             usage(0)
+        if flag == "--play":
+            play = True
+            continue
         if not words:
             usage(2)
         value = words.pop(0)
@@ -526,6 +567,18 @@ def main(argv):
             "torirs_agent: no client to talk to (%s). Start one with --agent-port, or `start <manifest>`.\n" % problem
         )
         raise SystemExit(2)
+    if play:
+        # The verb is for the play client the editor's RUN started: ask the
+        # editor where it listens, and talk to that instead.
+        try:
+            with agent:
+                agent = agent.play(wait=10.0, timeout=timeout)
+        except AgentError as refusal:
+            print(json.dumps(refusal.reply, indent=2))
+            raise SystemExit(1)
+        except (OSError, ConnectionError) as problem:
+            sys.stderr.write("torirs_agent: %s\n" % problem)
+            raise SystemExit(2)
     with agent:
         try:
             if verb == "select":

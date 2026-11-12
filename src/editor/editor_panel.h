@@ -67,6 +67,13 @@ struct Editor_Panel
     int built;
     int visible;
 
+    /** The content tree the panels' file paths were last set to
+     *  (panel_set_content_paths): the lane's, once the server has said
+     *  which lane it serves, at the lane serial it was said at. */
+    char lane_paths_root[1024];
+    uint32_t lane_paths_serial;
+    int lane_paths_set;
+
     /** The panel registry and the shared tool state (editor_ui.h). Owned:
      *  allocated by Editor_PanelInit, released by Editor_PanelFree. */
     struct EditorUi* ui;

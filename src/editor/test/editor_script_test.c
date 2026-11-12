@@ -324,6 +324,73 @@ test_open_command(void)
               && strcmp(Editor_OpenCommandDefault(0, 1), "open {path}") == 0
               && strcmp(Editor_OpenCommandDefault(0, 0), "xdg-open {path}") == 0,
         "open: the defaults (code on PATH, else open / xdg-open)");
+
+    /* A folder as the editor's workspace with one file of it in view (a new
+     * quest): {folder} is the folder named, else the folder the file is in. */
+    CHECK(strcmp(Editor_OpenFolderCommandDefault(1, 'w'), "code {folder} --goto {path}:{line}") == 0
+              && strcmp(Editor_OpenFolderCommandDefault(1, 'm'), "code {folder} --goto {path}:{line}") == 0
+              && strcmp(Editor_OpenFolderCommandDefault(0, 'w'), "start \"\" {folder}") == 0
+              && strcmp(Editor_OpenFolderCommandDefault(0, 'm'), "open {folder}") == 0
+              && strcmp(Editor_OpenFolderCommandDefault(0, 'x'), "xdg-open {folder}") == 0,
+        "open folder: VS Code takes the folder and the file; without it the desktop opens the folder");
+#ifdef _WIN32
+    Editor_OpenCommandLineIn("code {folder} --goto {path}:{line}", "C:/q/quest_x", "C:/q/quest_x/scripts/quest_x.rs2", 7, out,
+        sizeof(out));
+    CHECK(strcmp(out, "code \"C:/q/quest_x\" --goto \"C:/q/quest_x/scripts/quest_x.rs2\":7") == 0,
+        "open folder: the folder and the file, each one quoted word (%s)", out);
+    Editor_OpenCommandLine("explorer {folder}", "C:\\q\\quest_x\\scripts\\quest_x.rs2", 1, out, sizeof(out));
+    CHECK(strcmp(out, "explorer \"C:\\q\\quest_x\\scripts\"") == 0,
+        "open folder: with none named, {folder} is the folder the file is in (%s)", out);
+#else
+    Editor_OpenCommandLineIn("code {folder} --goto {path}:{line}", "/q/quest_x", "/q/quest_x/scripts/quest_x.rs2", 7, out,
+        sizeof(out));
+    CHECK(strcmp(out, "code '/q/quest_x' --goto '/q/quest_x/scripts/quest_x.rs2':7") == 0,
+        "open folder: the folder and the file, each one quoted word (%s)", out);
+    Editor_OpenCommandLine("open {folder}", "/q/quest_x/scripts/quest_x.rs2", 1, out, sizeof(out));
+    CHECK(strcmp(out, "open '/q/quest_x/scripts'") == 0,
+        "open folder: with none named, {folder} is the folder the file is in (%s)", out);
+#endif
+    Editor_OpenCommandLine("ed {folder}", "x.rs2", 1, out, sizeof(out));
+    CHECK(strstr(out, ".") != NULL && !strstr(out, "x.rs2"), "open folder: a bare file name is in the current folder (%s)", out);
+    CHECK(Editor_OpenCommandLineIn("code {folder}", "/a/very/long/folder", "/x.rs2", 1, out, 12) == 0 && out[0] == '\0',
+        "open folder: a command that does not fit is refused, not cut");
+
+    /* What the status bar says was started. */
+    CHECK(strcmp(Editor_OpenCommandWho(1, 0, 'w'), "your TORIRS_EDITOR_OPEN_CMD command") == 0
+              && strcmp(Editor_OpenCommandWho(1, 1, 'm'), "your TORIRS_EDITOR_OPEN_CMD command") == 0,
+        "who: the user's own command, whatever else is installed");
+    CHECK(strcmp(Editor_OpenCommandWho(0, 1, 'w'), "VS Code") == 0, "who: VS Code when code is on PATH");
+    CHECK(strstr(Editor_OpenCommandWho(0, 0, 'w'), "Windows") && strstr(Editor_OpenCommandWho(0, 0, 'm'), "macOS")
+              && strcmp(Editor_OpenCommandWho(0, 0, 'x'), "xdg-open") == 0,
+        "who: with neither, the desktop's own opener is named for what it is");
+}
+
+/** What may be handed to the user's editor or the file manager: a script, any
+ *  other file of a quest, a folder -- always inside server/scripts. */
+static void
+test_file_paths(void)
+{
+    CHECK(Editor_ScriptPathValid("quests/quest_cook/scripts/quest_cook.rs2") && !Editor_ScriptPathValid("quests/quest_cook")
+              && !Editor_ScriptPathValid("quests/quest_cook/configs/quest_cook.varp"),
+        "paths: a script path ends .rs2");
+    CHECK(Editor_ScriptFileValid("quests/quest_cook/scripts/quest_cook.rs2")
+              && Editor_ScriptFileValid("quests/quest_cook/configs/quest_cook.varp")
+              && Editor_ScriptFileValid("quests/quest_cook/configs/quest_cook.constant")
+              && Editor_ScriptFileValid("quests/quest_cook") && Editor_ScriptFileValid("edited"),
+        "paths: a quest's other files and its folder are files under server/scripts");
+    CHECK(!Editor_ScriptFileValid("") && !Editor_ScriptFileValid("/etc/passwd") && !Editor_ScriptFileValid("quests/../../x")
+              && !Editor_ScriptFileValid("quests\\quest_cook") && !Editor_ScriptFileValid("quests//quest_cook")
+              && !Editor_ScriptFileValid("quests/quest_cook/") && !Editor_ScriptFileValid("my quest/x.rs2"),
+        "paths: empty, absolute, .., a backslash, an empty segment, a trailing slash and a space are refused");
+    {
+        char longest[EDITOR_SCRIPT_PATH_MAX + 4];
+        memset(longest, 'a', sizeof(longest));
+        longest[EDITOR_SCRIPT_PATH_MAX - 1] = '\0';
+        CHECK(Editor_ScriptFileValid(longest), "paths: the longest a TEXT document key holds is taken");
+        longest[EDITOR_SCRIPT_PATH_MAX - 1] = 'a';
+        longest[EDITOR_SCRIPT_PATH_MAX] = '\0';
+        CHECK(!Editor_ScriptFileValid(longest), "paths: one byte more is refused");
+    }
 }
 
 /* Every template compiles: one file per type with every kind, against a
@@ -403,6 +470,7 @@ main(
     test_plan();
     test_diags();
     test_open_command();
+    test_file_paths();
     if( argc >= 4 )
         test_compile(argv[1], argv[2], argv[3]);
     printf("editor_script_test: %d checks, %d failed\n", g_checks, g_failed);

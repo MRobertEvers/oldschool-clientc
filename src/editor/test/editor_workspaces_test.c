@@ -218,6 +218,23 @@ test_workspace_defaults(void)
     CHECK(Editor_UiWorldShown(&g_ui) && g_ui.laid_out, "the World stays, laid out");
     CHECK(g_chrome.panels[window_of("squares")].last_rect.x >= g_ui.dock_x, "Squares docks in the column");
     dock_check("Terrain");
+    /* The workspace is for its tools (F14, 2026-11-11): the Terrain /
+     * Palette group takes what it asks for before the rest of the column
+     * shares what is left, and the Inspector's group asks only for the
+     * Inspector -- not for the closed Catalog beside it in the strip. The
+     * group had 269 px of an 856 px column, under Squares and an Inspector
+     * of four rows in 287. */
+    {
+        struct ToriRSChromeRect const tools = g_chrome.panels[window_of("terrain")].last_rect;
+        struct ToriRSChromeRect const squares = g_chrome.panels[window_of("squares")].last_rect;
+        struct ToriRSChromeRect const inspector = g_chrome.panels[window_of("inspector")].last_rect;
+
+        CHECK(tools.h >= 400 && tools.h > squares.h + inspector.h,
+            "Terrain's tools have the column: %d px, over Squares' %d and the Inspector's %d", tools.h, squares.h,
+            inspector.h);
+        CHECK(inspector.y + inspector.h == g_chrome.surface_h - g_chrome.panels[window_of("statusbar")].last_rect.h,
+            "and the column ends at the status bar, with no hole under it (%d+%d)", inspector.y, inspector.h);
+    }
 
     /* Script: the panels this tree has, the rest skipped with one line. */
     skipped = Editor_UiSetWorkspace(&g_ui, EDITOR_UI_WS_SCRIPT);

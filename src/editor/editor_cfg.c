@@ -1505,6 +1505,30 @@ cfg_contains_ci(
     return 0;
 }
 
+/**
+ * The words a person looks a field up by that its key does not spell: a
+ * clone's examine text, its right-click options, its colours. Typing
+ * "examine" in the Record panel's Find listed nothing -- the examine text is
+ * `desc` (2026-11-11). "" for a key with none.
+ */
+static const char*
+cfg_field_words(const char* key)
+{
+    if( strcmp(key, "desc") == 0 )
+        return "examine description";
+    if( strcmp(key, "name") == 0 )
+        return "display";
+    /* op1..op5, iop1..iop5: not `opcode129` nor `subop`. */
+    if( (key[0] == 'o' && key[1] == 'p' && key[2] >= '1' && key[2] <= '9')
+        || (key[0] == 'i' && key[1] == 'o' && key[2] == 'p' && key[3] >= '1' && key[3] <= '9') )
+        return "option action menu";
+    if( strncmp(key, "recol", 5) == 0 )
+        return "recolour colour color";
+    if( strncmp(key, "retex", 5) == 0 )
+        return "retexture texture";
+    return "";
+}
+
 int
 Editor_CfgRecordRowMatches(
     const struct Editor_CfgRecord* record,
@@ -1542,7 +1566,8 @@ Editor_CfgRecordRowMatches(
             p++;
         length = (size_t)(p - b);
         if( !cfg_contains_ci(name, b, length) && !cfg_contains_ci(r->value, b, length)
-            && !cfg_contains_ci(layer, b, length) && !cfg_contains_ci(Editor_CfgFieldKindName(r->kind), b, length) )
+            && !cfg_contains_ci(layer, b, length) && !cfg_contains_ci(Editor_CfgFieldKindName(r->kind), b, length)
+            && !cfg_contains_ci(cfg_field_words(r->key), b, length) )
             return 0;
     }
 }

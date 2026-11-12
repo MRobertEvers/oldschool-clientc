@@ -638,6 +638,12 @@ record_visible_build(
         ToriRSChrome_VListSetScroll(ui->chrome, self->list, 0);
     }
     find = find ? find : "";
+    /* A Find typed down to ONE field is that field asked for: it is picked,
+     * Field and Value ready, so "examine" + a new text + Set field is the
+     * whole job (2026-11-11: a found row still wanted a click). Only when the
+     * text changed -- an edit, an undo or a tab switch picks nothing. */
+    int const find_typed = self->visible_valid && self->visible_tab == tab && find[0]
+                           && strcmp(self->visible_find, find) != 0;
     self->visible_count = 0;
     if( (role == EDITOR_RECORD_TAB_CACHE || role == EDITOR_RECORD_TAB_OVERLAY) && layer >= 0 )
     {
@@ -676,6 +682,12 @@ record_visible_build(
      * picked: the chrome would otherwise go on highlighting whichever row
      * now stands at the old index, under the old row's Field and Value (R7). */
     self->picked = -1;
+    if( find_typed && self->visible_count == 1 )
+    {
+        ToriRSChrome_VListSetSelected(ui->chrome, self->list, 0);
+        record_select_row(ui, self, self->visible[0]);
+        return;
+    }
     if( !self->picked_name[0] )
     {
         ToriRSChrome_VListSetSelected(ui->chrome, self->list, -1);
@@ -1080,6 +1092,14 @@ record_set(
         record_resolve(ui, self);
         Editor_UiLog(ui, "editor: %s %s: %s%s%s %s in %s (unsaved; Save writes it, RUN builds it)", self->type,
             self->name, key, sub[0] ? ":" : "", sub, value[0] ? "set" : "removed", commands[count - 1].doc_key);
+        /* The bar too: the write went only to the console, so the bar kept
+         * the sentence of whatever was done before (2026-11-11). */
+        if( value[0] )
+            Editor_UiStatus(ui, "Set %s %s: %s%s%s = %s (unsaved; Ctrl+Z undoes it)", self->type, self->name, key,
+                sub[0] ? ":" : "", sub, value);
+        else
+            Editor_UiStatus(ui, "Removed %s%s%s from %s %s (unsaved; Ctrl+Z undoes it)", key, sub[0] ? ":" : "", sub,
+                self->type, self->name);
     }
     return count;
 }
@@ -2059,8 +2079,23 @@ record_activate(
             Editor_UiStatus(ui, "Copy refused: open a record first");
         else if( self->kind > TORIRSMAPED_CATALOG_OBJ )
             Editor_UiStatus(ui, "Copy refused: only a loc, npc or obj copies (this is a %s)", self->type);
+        else if( !new_name || !new_name[0] )
+        {
+            /* No name yet: the caret goes to the field beside the button,
+             * as the Catalog's does. */
+            (void)ToriRSChrome_FocusWidget(ui->chrome, self->input_copy_name, 0);
+            Editor_UiStatus(ui, "Type the new record's name, then Copy to new");
+        }
         else
-            (void)Editor_Catalog_CopyRecord(ui, self->kind, self->name, new_name ? new_name : "");
+        {
+            /* The copy turns this panel to itself (Editor_Record_Retarget),
+             * which frees the name: keep ours. */
+            char source[EDITOR_CMD_NAME_MAX];
+            char wanted[EDITOR_CMD_NAME_MAX];
+            snprintf(source, sizeof(source), "%s", self->name);
+            snprintf(wanted, sizeof(wanted), "%s", new_name);
+            (void)Editor_Catalog_CopyRecord(ui, self->kind, source, wanted);
+        }
         return 1;
     }
     if( widget == self->list_triggers || widget == self->button_trigger_open )
@@ -2418,6 +2453,24 @@ Editor_Record_Open(
     Editor_UiLog(ui, "editor: record %s:%s over %d layer(s), %d register field(s)", type, self->name,
         self->record.layer_count, self->field_count);
     return 1;
+}
+
+int
+Editor_Record_Retarget(
+    struct EditorUi* ui,
+    uint32_t kind,
+    const char* from,
+    const char* to)
+{
+    struct RecordPanel* self;
+
+    assert(ui);
+    assert(from);
+    assert(to);
+    self = record_self(ui);
+    if( !self || !self->open || self->kind != kind || strcmp(self->name, from) != 0 )
+        return 0;
+    return Editor_Record_Open(ui, kind, to);
 }
 
 int

@@ -351,6 +351,121 @@ Editor_StampCaptureSelection(
 }
 
 int
+Editor_StampCaptureBox(
+    struct Editor_Doc* doc,
+    const struct Editor_TileRect* rect,
+    unsigned levels,
+    Editor_LocSizeFn size,
+    void* size_user,
+    int with_floors,
+    int with_tiles,
+    int with_spawns,
+    struct Editor_Stamp* stamp)
+{
+    struct Editor_TileRect r;
+    char name[EDITOR_STAMP_NAME_MAX];
+
+    assert(doc);
+    assert(rect);
+    assert(stamp);
+
+    snprintf(name, sizeof(name), "%s", stamp->name);
+    Editor_StampClear(stamp);
+    snprintf(stamp->name, sizeof(stamp->name), "%s", name);
+    if( !Editor_TileRectNormalise(rect, &r) || r.level < 0 || r.level >= EDITOR_SQUARE_LEVELS )
+        return 0;
+    levels &= (1u << EDITOR_SQUARE_LEVELS) - 1u;
+
+    for( int i = 0; i < doc->square_count; i++ )
+    {
+        const struct Editor_Square* square = &doc->squares[i];
+        if( !square->loaded )
+            continue;
+        for( int l = 0; l < square->loc_count; l++ )
+        {
+            const struct Editor_Loc* loc = &square->locs[l];
+            int const wx = square->map_x * EDITOR_SQUARE_X + loc->x;
+            int const wz = square->map_z * EDITOR_SQUARE_Z + loc->z;
+            struct Editor_StampPiece piece;
+            int size_x = 1;
+            int size_z = 1;
+
+            if( loc->level < 0 || loc->level >= EDITOR_SQUARE_LEVELS || !(levels & (1u << loc->level)) || wx < r.x0
+                || wx > r.x1 || wz < r.z0 || wz > r.z1 )
+                continue;
+            memset(&piece, 0, sizeof(piece));
+            piece.kind = EDITOR_STAMP_LOC;
+            piece.dx = wx - r.x0;
+            piece.dz = wz - r.z0;
+            piece.dlevel = loc->level - r.level;
+            piece.loc_id = loc->loc_id;
+            piece.shape = loc->shape;
+            piece.rotation = loc->rotation;
+            if( size && !size(size_user, loc->loc_id, &size_x, &size_z) )
+            {
+                size_x = 1;
+                size_z = 1;
+            }
+            Editor_LocFootprint(loc->shape, loc->rotation, size_x, size_z, &piece.size_x, &piece.size_z);
+            (void)Editor_StampAdd(stamp, &piece);
+        }
+    }
+    for( int level = 0; (with_floors || with_tiles) && level < EDITOR_SQUARE_LEVELS; level++ )
+    {
+        if( !(levels & (1u << level)) )
+            continue;
+        for( int wz = r.z0; wz <= r.z1; wz++ )
+            for( int wx = r.x0; wx <= r.x1; wx++ )
+            {
+                struct Editor_StampPiece piece;
+                const struct Editor_Tile* tile;
+                int lx;
+                int lz;
+                struct Editor_Square* square = stamps_square_at(doc, wx, wz, &lx, &lz);
+                if( !square )
+                    continue;
+                tile = &square->tiles[Editor_TileIndex(lx, lz, level)];
+                memset(&piece, 0, sizeof(piece));
+                piece.dx = wx - r.x0;
+                piece.dz = wz - r.z0;
+                piece.dlevel = level - r.level;
+                if( with_tiles )
+                {
+                    piece.kind = EDITOR_STAMP_TILE;
+                    piece.tile = *tile;
+                }
+                else
+                {
+                    if( !tile->has_overlay && !tile->settings )
+                        continue;
+                    piece.kind = EDITOR_STAMP_FLOOR;
+                    piece.tile.has_overlay = tile->has_overlay;
+                    piece.tile.overlay_id = tile->overlay_id;
+                    piece.tile.shape = tile->shape;
+                    piece.tile.rotation = tile->rotation;
+                    piece.tile.settings = tile->settings;
+                }
+                (void)Editor_StampAdd(stamp, &piece);
+            }
+    }
+    if( with_spawns && levels )
+    {
+        struct Editor_StampSpawnBox box;
+        memset(&box, 0, sizeof(box));
+        box.x0 = r.x0;
+        box.z0 = r.z0;
+        box.x1 = r.x1;
+        box.z1 = r.z1;
+        box.levels = levels;
+        box.origin_x = r.x0;
+        box.origin_z = r.z0;
+        box.origin_level = r.level;
+        (void)Editor_StampCaptureSpawns(doc, &box, stamp);
+    }
+    return stamp->count;
+}
+
+int
 Editor_StampCaptureRect(
     struct Editor_Doc* doc,
     const struct Editor_TileRect* rect,
@@ -439,7 +554,10 @@ Editor_StampDropCommands(
     int max,
     struct Editor_StampDropResult* result)
 {
-    static const enum Editor_StampPieceKind k_order[3] = { EDITOR_STAMP_TILE, EDITOR_STAMP_LOC, EDITOR_STAMP_SPAWN };
+    /* A floor after the tile it may share a landing with (a stamp carries
+     * one or the other for a tile, but a hand-written one may hold both). */
+    static const enum Editor_StampPieceKind k_order[4] = { EDITOR_STAMP_TILE, EDITOR_STAMP_FLOOR, EDITOR_STAMP_LOC,
+                                                           EDITOR_STAMP_SPAWN };
     /* The landing squares' spawn files, read once each: a drop of 64 x 64
      * tiles lands in four squares at most, and a wider stamp reuses the
      * slots in turn. */
@@ -459,7 +577,7 @@ Editor_StampDropCommands(
     memset(result, 0, sizeof(*result));
     /* Tiles first, so a loc's replace and a spawn land on the new ground in
      * the history as they will in the world. */
-    for( int pass = 0; pass < 3; pass++ )
+    for( int pass = 0; pass < 4; pass++ )
         for( int i = 0; i < stamp->count && count < max; i++ )
         {
             const struct Editor_StampPiece* p = &stamp->pieces[i];
@@ -496,6 +614,34 @@ Editor_StampDropCommands(
                 out[count].u.tile.z = lz;
                 out[count].u.tile.before = *now;
                 out[count].u.tile.after = p->tile;
+                count++;
+                result->tiles++;
+            }
+            else if( p->kind == EDITOR_STAMP_FLOOR )
+            {
+                /* The building's floor on the ground that is there: the
+                 * overlay and the flags join the tile, its height and
+                 * underlay stay. */
+                const struct Editor_Tile* now = &square->tiles[Editor_TileIndex(lx, lz, wl)];
+                struct Editor_Tile after = *now;
+                if( p->tile.has_overlay )
+                {
+                    after.has_overlay = 1;
+                    after.overlay_id = p->tile.overlay_id;
+                    after.shape = p->tile.shape;
+                    after.rotation = p->tile.rotation;
+                }
+                after.settings = (uint8_t)(after.settings | p->tile.settings);
+                if( memcmp(now, &after, sizeof(after)) == 0 )
+                    continue;
+                Editor_CmdInitSquare(&out[count], EDITOR_CMD_TILE, square->map_x, square->map_z);
+                out[count].has_before = 1;
+                out[count].has_after = 1;
+                out[count].u.tile.level = wl;
+                out[count].u.tile.x = lx;
+                out[count].u.tile.z = lz;
+                out[count].u.tile.before = *now;
+                out[count].u.tile.after = after;
                 count++;
                 result->tiles++;
             }
@@ -890,6 +1036,9 @@ stamps_need_selection(
     return 1;
 }
 
+/** The most locs a dropped stamp leaves selected (edp_stamp_drop). */
+#define STAMPS_SELECT_MAX 32
+
 static void
 stamps_select(
     struct EditorUi* ui,
@@ -1126,6 +1275,75 @@ stamps_write(
     return applied == count ? applied : -1;
 }
 
+static int
+stamps_save_name(
+    struct EditorUi* ui,
+    const char* name,
+    int overwrite,
+    char key[EDITOR_DOC_KEY_MAX]);
+
+/** `stamp` into TEXT document `key` and its line into the index, one undo
+ *  step, then both saved; says what was saved. 0 when the authority
+ *  refused. */
+static int
+stamps_store(
+    struct EditorUi* ui,
+    const struct Editor_Stamp* stamp,
+    const char* key)
+{
+    char summary[160];
+    char* text;
+    size_t length;
+    int was_open;
+    int ok = 1;
+
+    Editor_StampSummary(stamp, summary, sizeof(summary));
+    /* The stamp and its line in the index, one undo step. */
+    was_open = ui->tools.stroke_open;
+    if( !was_open )
+    {
+        Editor_StrokeBegin(ui->editor);
+        Editor_HistoryName(ui->editor, "save stamp");
+    }
+    ui->tools.stroke_open = 1;
+    length = Editor_StampEmitNew(stamp, NULL, 0);
+    text = ToriMem_Alloc(ToriMem_Editor(), length + 1);
+    assert(text);
+    Editor_StampEmitNew(stamp, text, length + 1);
+    if( stamps_write(ui, key, text, length) < 0 )
+        ok = 0;
+    ToriMem_Free(ToriMem_Editor(), text);
+    if( ok )
+    {
+        struct Editor_TextDoc* index = stamps_text(ui, EDITOR_STAMPS_INDEX_KEY);
+        if( !index )
+            ok = 0;
+        else
+        {
+            size_t const new_length =
+                Editor_StampsIndexWith(index->text ? index->text : "", index->length, stamp->name, NULL, 0);
+            char* listed = ToriMem_Alloc(ToriMem_Editor(), new_length + 1);
+            assert(listed);
+            Editor_StampsIndexWith(index->text ? index->text : "", index->length, stamp->name, listed, new_length + 1);
+            if( stamps_write(ui, EDITOR_STAMPS_INDEX_KEY, listed, new_length) < 0 )
+                ok = 0;
+            ToriMem_Free(ToriMem_Editor(), listed);
+        }
+    }
+    ui->tools.stroke_open = was_open;
+    if( !was_open )
+        Editor_StrokeEnd(ui->editor);
+    if( !ok )
+    {
+        Editor_UiStatus(ui, "Save as stamp refused: the authority did not take the edit (a read-only session?)");
+        return 0;
+    }
+    (void)Editor_SaveDoc(ui->editor, EDITOR_DOC_TEXT, key);
+    (void)Editor_SaveDoc(ui->editor, EDITOR_DOC_TEXT, EDITOR_STAMPS_INDEX_KEY);
+    Editor_UiStatus(ui, "Saved stamp %s to editor/stamps/%s.stamp", summary, stamp->name);
+    return 1;
+}
+
 int
 edp_stamp_save_selection(
     struct EditorUi* ui,
@@ -1136,18 +1354,46 @@ edp_stamp_save_selection(
 {
     static int sizes[2 * EDITOR_LOC_SELECTION_MAX];
     struct Editor_Stamp stamp;
-    struct Editor_TextDoc* existing;
     char key[EDITOR_DOC_KEY_MAX];
-    char summary[160];
-    char* text;
-    size_t length;
-    int was_open;
-    int ok = 1;
+    int ok;
 
     assert(ui);
     assert(name);
     if( !stamps_need_selection(ui, "Save as stamp") )
         return 0;
+    if( !stamps_save_name(ui, name, overwrite, key) )
+        return 0;
+    Editor_StampInit(&stamp);
+    snprintf(stamp.name, sizeof(stamp.name), "%s", name);
+    stamps_sizes(ui, sizes);
+    /* The spawn documents of the squares the selection stands in, so the
+     * capture reads the generated and the quests' rows too. */
+    for( int i = 0; with_spawns && i < ui->tools.loc_count; i++ )
+        stamps_square_docs(ui, ui->tools.locs[i].map_x, ui->tools.locs[i].map_z);
+    if( Editor_StampCaptureSelection(
+            &ui->editor->doc, ui->tools.locs, ui->tools.loc_count, sizes, with_tiles, with_spawns, &stamp)
+        == 0 )
+    {
+        Editor_UiStatus(ui, "Save as stamp refused: the selected locs are no longer there");
+        Editor_StampFree(&stamp);
+        return 0;
+    }
+    ok = stamps_store(ui, &stamp, key);
+    Editor_StampFree(&stamp);
+    return ok;
+}
+
+/** The names Save as stamp checks, shared by the selection and the
+ *  rectangle: 1 with `key` filled when `name` may be written. */
+static int
+stamps_save_name(
+    struct EditorUi* ui,
+    const char* name,
+    int overwrite,
+    char key[EDITOR_DOC_KEY_MAX])
+{
+    struct Editor_TextDoc* existing;
+
     if( !Editor_StampNameValid(name) )
     {
         Editor_UiStatus(ui, "Save as stamp refused: \"%.40s\" is not a stamp name (letters, digits, _ and -, under %d)",
@@ -1167,67 +1413,266 @@ edp_stamp_save_selection(
             name);
         return 0;
     }
+    return 1;
+}
+
+/** The loc's record size for a capture's footprints (Editor_LocSizeFn). */
+static int
+stamps_loc_size(
+    void* user,
+    int loc_id,
+    int* out_size_x,
+    int* out_size_z)
+{
+    struct EditorUi* ui = user;
+    struct ToriRS_Location* cfg =
+        ui->app_services.loc_record ? ui->app_services.loc_record(ui->app_services.user_data, loc_id) : NULL;
+
+    if( !cfg )
+    {
+        if( ui->app_services.loc_request )
+            ui->app_services.loc_request(ui->app_services.user_data, loc_id);
+        return 0;
+    }
+    *out_size_x = cfg->size_x < 1 ? 1 : cfg->size_x;
+    *out_size_z = cfg->size_z < 1 ? 1 : cfg->size_z;
+    return 1;
+}
+
+int
+edp_stamp_save_rect(
+    struct EditorUi* ui,
+    const struct Editor_TileRect* rect,
+    const char* name,
+    int all_levels,
+    int with_spawns,
+    int overwrite)
+{
+    struct Editor_Stamp stamp;
+    struct Editor_TileRect r;
+    char key[EDITOR_DOC_KEY_MAX];
+    unsigned levels;
+    int ok;
+
+    assert(ui);
+    assert(rect);
+    assert(name);
+    if( !ui->editor )
+    {
+        Editor_UiStatus(ui, "Save as stamp refused: there is no editor session");
+        return 0;
+    }
+    if( !rect->valid || !Editor_TileRectNormalise(rect, &r) || r.level < 0 || r.level >= EDITOR_SQUARE_LEVELS )
+    {
+        Editor_UiStatus(ui, "Save as stamp refused: drag a rectangle round what the stamp should hold first");
+        return 0;
+    }
+    if( !stamps_save_name(ui, name, overwrite, key) )
+        return 0;
+    levels = all_levels ? (1u << EDITOR_SQUARE_LEVELS) - 1u : 1u << r.level;
     Editor_StampInit(&stamp);
     snprintf(stamp.name, sizeof(stamp.name), "%s", name);
-    stamps_sizes(ui, sizes);
-    /* The spawn documents of the squares the selection stands in, so the
-     * capture reads the generated and the quests' rows too. */
-    for( int i = 0; with_spawns && i < ui->tools.loc_count; i++ )
-        stamps_square_docs(ui, ui->tools.locs[i].map_x, ui->tools.locs[i].map_z);
-    if( Editor_StampCaptureSelection(
-            &ui->editor->doc, ui->tools.locs, ui->tools.loc_count, sizes, with_tiles, with_spawns, &stamp)
-        == 0 )
+    if( with_spawns )
+        edp_stamp_spawn_docs(ui, r.x0, r.z0, r.x1, r.z1);
+    (void)Editor_StampCaptureBox(&ui->editor->doc, &r, levels, stamps_loc_size, ui, 1, 0, with_spawns, &stamp);
+    if( Editor_StampCount(&stamp, EDITOR_STAMP_LOC) == 0 )
     {
-        Editor_UiStatus(ui, "Save as stamp refused: the selected locs are no longer there");
+        Editor_UiStatus(ui, "Save as stamp refused: no loc stands in the rectangle %d,%d .. %d,%d%s", r.x0, r.z0, r.x1,
+            r.z1, all_levels ? "" : " on its level (tick All levels for the roof)");
         Editor_StampFree(&stamp);
         return 0;
     }
-    Editor_StampSummary(&stamp, summary, sizeof(summary));
+    ok = stamps_store(ui, &stamp, key);
+    Editor_StampFree(&stamp);
+    return ok;
+}
 
-    /* The stamp and its line in the index, one undo step. */
-    was_open = ui->tools.stroke_open;
+/** TEXT document `key` written to `text` and the index to `index_text`, as
+ *  one undo step named `what`, then both saved. 0 when the authority
+ *  refused. */
+static int
+stamps_write_pair(
+    struct EditorUi* ui,
+    const char* what,
+    const char* key,
+    const char* text,
+    size_t length,
+    const char* second_key,
+    const char* second_text,
+    size_t second_length,
+    const char* index_text,
+    size_t index_length)
+{
+    int const was_open = ui->tools.stroke_open;
+    int ok = 1;
+
     if( !was_open )
     {
         Editor_StrokeBegin(ui->editor);
-        Editor_HistoryName(ui->editor, "save stamp");
+        Editor_HistoryName(ui->editor, what);
     }
     ui->tools.stroke_open = 1;
-    length = Editor_StampEmitNew(&stamp, NULL, 0);
-    text = ToriMem_Alloc(ToriMem_Editor(), length + 1);
-    assert(text);
-    Editor_StampEmitNew(&stamp, text, length + 1);
     if( stamps_write(ui, key, text, length) < 0 )
         ok = 0;
-    ToriMem_Free(ToriMem_Editor(), text);
-    if( ok )
-    {
-        struct Editor_TextDoc* index = stamps_text(ui, EDITOR_STAMPS_INDEX_KEY);
-        if( !index )
-            ok = 0;
-        else
-        {
-            size_t const new_length =
-                Editor_StampsIndexWith(index->text ? index->text : "", index->length, name, NULL, 0);
-            char* listed = ToriMem_Alloc(ToriMem_Editor(), new_length + 1);
-            assert(listed);
-            Editor_StampsIndexWith(index->text ? index->text : "", index->length, name, listed, new_length + 1);
-            if( stamps_write(ui, EDITOR_STAMPS_INDEX_KEY, listed, new_length) < 0 )
-                ok = 0;
-            ToriMem_Free(ToriMem_Editor(), listed);
-        }
-    }
+    if( ok && second_key && stamps_write(ui, second_key, second_text, second_length) < 0 )
+        ok = 0;
+    if( ok && stamps_write(ui, EDITOR_STAMPS_INDEX_KEY, index_text, index_length) < 0 )
+        ok = 0;
     ui->tools.stroke_open = was_open;
     if( !was_open )
         Editor_StrokeEnd(ui->editor);
-    Editor_StampFree(&stamp);
     if( !ok )
+        return 0;
+    (void)Editor_SaveDoc(ui->editor, EDITOR_DOC_TEXT, key);
+    if( second_key )
+        (void)Editor_SaveDoc(ui->editor, EDITOR_DOC_TEXT, second_key);
+    (void)Editor_SaveDoc(ui->editor, EDITOR_DOC_TEXT, EDITOR_STAMPS_INDEX_KEY);
+    return 1;
+}
+
+/** The session's stamp `name` and the index, for a delete or a rename: 0
+ *  with a sentence when either cannot be had. */
+static int
+stamps_existing(
+    struct EditorUi* ui,
+    const char* what,
+    const char* name,
+    char key[EDITOR_DOC_KEY_MAX],
+    struct Editor_TextDoc** out_doc,
+    struct Editor_TextDoc** out_index)
+{
+    if( !ui->editor )
     {
-        Editor_UiStatus(ui, "Save as stamp refused: the authority did not take the edit (a read-only session?)");
+        Editor_UiStatus(ui, "%s refused: there is no editor session", what);
         return 0;
     }
-    (void)Editor_SaveDoc(ui->editor, EDITOR_DOC_TEXT, key);
-    (void)Editor_SaveDoc(ui->editor, EDITOR_DOC_TEXT, EDITOR_STAMPS_INDEX_KEY);
-    Editor_UiStatus(ui, "Saved stamp %s to editor/stamps/%s.stamp", summary, name);
+    if( !Editor_StampNameValid(name) )
+    {
+        Editor_UiStatus(ui, "%s refused: \"%.40s\" is not a stamp name", what, name);
+        return 0;
+    }
+    Editor_StampDocKey(key, name);
+    *out_doc = stamps_text(ui, key);
+    *out_index = stamps_text(ui, EDITOR_STAMPS_INDEX_KEY);
+    if( !*out_doc || !*out_index )
+    {
+        Editor_UiStatus(ui, "%s refused: the session cannot open editor/stamps/%s.stamp or the index", what, name);
+        return 0;
+    }
+    return 1;
+}
+
+int
+edp_stamp_delete(
+    struct EditorUi* ui,
+    const char* name)
+{
+    struct Editor_TextDoc* doc;
+    struct Editor_TextDoc* index;
+    char key[EDITOR_DOC_KEY_MAX];
+    char* listed;
+    size_t length;
+    int ok;
+
+    assert(ui);
+    assert(name);
+    if( !stamps_existing(ui, "Delete stamp", name, key, &doc, &index) )
+        return 0;
+    length = Editor_StampsHeaderEdit(index->text ? index->text : "", index->length, name, NULL, NULL, 0);
+    if( length == index->length && doc->length == 0 )
+    {
+        Editor_UiStatus(ui, "Delete stamp refused: there is no stamp named %s", name);
+        return 0;
+    }
+    listed = ToriMem_Alloc(ToriMem_Editor(), length + 1);
+    assert(listed);
+    Editor_StampsHeaderEdit(index->text ? index->text : "", index->length, name, NULL, listed, length + 1);
+    ok = stamps_write_pair(ui, "delete stamp", key, "", 0, NULL, NULL, 0, listed, length);
+    ToriMem_Free(ToriMem_Editor(), listed);
+    if( !ok )
+    {
+        Editor_UiStatus(ui, "Delete stamp refused: the authority did not take the edit (a read-only session?)");
+        return 0;
+    }
+    /* The armed copy is of a stamp that is gone. */
+    if( g_armed_valid && strcmp(g_armed.name, name) == 0 )
+        g_armed_valid = 0;
+    Editor_UiStatus(ui, "Deleted stamp %s; Ctrl+Z brings it back", name);
+    return 1;
+}
+
+int
+edp_stamp_rename(
+    struct EditorUi* ui,
+    const char* name,
+    const char* new_name)
+{
+    struct Editor_TextDoc* doc;
+    struct Editor_TextDoc* index;
+    struct Editor_TextDoc* target;
+    char key[EDITOR_DOC_KEY_MAX];
+    char new_key[EDITOR_DOC_KEY_MAX];
+    char* text;
+    char* listed;
+    size_t length;
+    size_t index_length;
+    int ok;
+
+    assert(ui);
+    assert(name);
+    assert(new_name);
+    if( !stamps_existing(ui, "Rename stamp", name, key, &doc, &index) )
+        return 0;
+    if( doc->length == 0 )
+    {
+        Editor_UiStatus(ui, "Rename stamp refused: there is no stamp named %s", name);
+        return 0;
+    }
+    if( !Editor_StampNameValid(new_name) )
+    {
+        Editor_UiStatus(ui, "Rename stamp refused: \"%.40s\" is not a stamp name (letters, digits, _ and -, under %d)",
+            new_name, EDITOR_STAMP_NAME_MAX);
+        return 0;
+    }
+    if( strcmp(name, new_name) == 0 )
+    {
+        Editor_UiStatus(ui, "Rename stamp: %s is its name already", name);
+        return 0;
+    }
+    Editor_StampDocKey(new_key, new_name);
+    target = stamps_text(ui, new_key);
+    if( !target || target->length > 0 )
+    {
+        Editor_UiStatus(ui, "Rename stamp refused: a stamp named %s exists; delete it or choose another name", new_name);
+        return 0;
+    }
+    /* Opening the target may have moved the documents: read them again. */
+    doc = stamps_text(ui, key);
+    index = stamps_text(ui, EDITOR_STAMPS_INDEX_KEY);
+    if( !doc || !index )
+    {
+        Editor_UiStatus(ui, "Rename stamp refused: the session cannot open editor/stamps/%s.stamp now", name);
+        return 0;
+    }
+    length = Editor_StampsHeaderEdit(doc->text, doc->length, name, new_name, NULL, 0);
+    text = ToriMem_Alloc(ToriMem_Editor(), length + 1);
+    assert(text);
+    Editor_StampsHeaderEdit(doc->text, doc->length, name, new_name, text, length + 1);
+    index_length = Editor_StampsHeaderEdit(index->text ? index->text : "", index->length, name, new_name, NULL, 0);
+    listed = ToriMem_Alloc(ToriMem_Editor(), index_length + 1);
+    assert(listed);
+    Editor_StampsHeaderEdit(index->text ? index->text : "", index->length, name, new_name, listed, index_length + 1);
+    ok = stamps_write_pair(ui, "rename stamp", new_key, text, length, key, "", 0, listed, index_length);
+    ToriMem_Free(ToriMem_Editor(), listed);
+    ToriMem_Free(ToriMem_Editor(), text);
+    if( !ok )
+    {
+        Editor_UiStatus(ui, "Rename stamp refused: the authority did not take the edit (a read-only session?)");
+        return 0;
+    }
+    if( g_armed_valid && strcmp(g_armed.name, name) == 0 )
+        snprintf(g_armed.name, sizeof(g_armed.name), "%s", new_name);
+    Editor_UiStatus(ui, "Renamed stamp %s to %s", name, new_name);
     return 1;
 }
 
@@ -1376,7 +1821,14 @@ edp_stamp_drop(
     {
         /* The stamp's spawns are shown with the locs it placed. */
         edp_spawns_note_added(ui, commands, count);
-        stamps_select(ui, g_drop_result.refs, g_drop_result.ref_count);
+        /* A few locs dropped are selected, to nudge into place. A building
+         * is not: a nudge would move its locs off the floor and the flags
+         * the drop laid under them, and a hundred selection boxes hide what
+         * was just placed (2026-11-11). Ctrl+Z takes it back whole. */
+        if( g_drop_result.tiles > 0 || g_drop_result.ref_count > STAMPS_SELECT_MAX )
+            stamps_select(ui, g_drop_result.refs, 0);
+        else
+            stamps_select(ui, g_drop_result.refs, g_drop_result.ref_count);
         if( g_drop_result.skipped > 0 )
             Editor_UiStatus(ui, "Placed stamp %s (%d locs, %d tiles, %d spawns); %d pieces left out: %d,%d L%d is not open",
                 stamp->name, g_drop_result.locs, g_drop_result.tiles, g_drop_result.spawns, g_drop_result.skipped,

@@ -14,10 +14,15 @@
  *   Storage      maps/ or a lane's ported/<lane>/maps, as New square.
  *   Name         the .wma's area, the trigger's directory, a collection.
  *   Map area     worldmap/areas/<name>.wma, or none (hidden).
- *   Entry        a teleport trigger, a runtime map instance (only when the
- *                lane's server reports TORIRSMAPED_CAP_MAP_INSTANCE, which
- *                today none does: the chip is disabled and says why), none;
- *                the trigger's subject loc and its landing coord.
+ *   Entry        a runtime map instance (the default when the lane's server
+ *                reports TORIRSMAPED_CAP_MAP_INSTANCE: each player who
+ *                enters gets a private copy stamped from the template), a
+ *                teleport trigger (everyone into the template itself), none;
+ *                the trigger's subject loc and its landing coord, an exit
+ *                (its loc and the real-map tile it returns to) and an npc
+ *                added on entering a runtime copy.
+ *   Where        two sentences under the fields: where the template is and
+ *                how to open it, and what happens at play time.
  *
  * Create is ONE undo step on the authority: a stroke holding a DOC_CREATE
  * per square (the copy template, TORIRSMAPED_DOC_CREATE_IN_STROKE), the
@@ -40,9 +45,9 @@
 #include "editor/editor_view.h"
 #include "editor/editor_wma.h"
 #include "edpanel_ops.h"
+#include "torirsmaped/torirs_maped_catalog.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
-#include "torirsmaped/torirs_maped_catalog.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -60,11 +65,36 @@ _Static_assert(EDITOR_INSTANCE_Z1 == TORIRSMAPED_INSTANCE_Z1, "instance space z1
 #define INSTANCE_STORAGE_ROWS 34
 /** Spawn rows one Create copies. */
 #define INSTANCE_SPAWNS_MAX 1024
+/** Frames the World must have been still before Create's status sentence is
+ *  said (the square it opens says its own first). */
+#define INSTANCE_STATUS_SETTLE_FRAMES 6
 
 enum
 {
     INSTANCE_GROUP_MAP = 31,
     INSTANCE_GROUP_ENTRY = 32,
+};
+
+enum
+{
+    INSTANCE_FACT_LOC = 0,
+    INSTANCE_FACT_EXIT,
+    INSTANCE_FACT_NPC,
+    INSTANCE_FACT_COUNT,
+};
+
+struct InstanceNameFact
+{
+    /** The name the answer is for; "" = nothing asked yet. */
+    char name[EDITOR_INSTANCE_LOC_MAX];
+    /** enum Editor_InstanceNameState. */
+    int state;
+    /** The record's id, or -1. */
+    int id;
+    /** A TAKEN or CATEGORY loc's trigger: "<rel>:<line>". */
+    char where[EDITOR_INSTANCE_WHERE_FILE_MAX];
+    /** A CATEGORY loc's category ("dairy_churn"), else "". */
+    char category[EDITOR_INSTANCE_LOC_MAX];
 };
 
 static const char* const k_level_rows[5] = { "Levels 0..3", "Level 0 only", "Level 1 only", "Level 2 only",
@@ -91,7 +121,15 @@ struct InstancePanel
     int radio_entry[3];
     int input_loc;
     int input_coord;
+    int input_exit;
+    int input_exit_coord;
+    int input_npc;
+    int input_npc_coord;
+    /** Where the template is, and what happens at play time. */
+    int row_where[2];
     int row_check;
+    /** A name the catalog does not have yet: said, not refused. */
+    int row_note;
     int button_create;
     int button_cancel;
 
@@ -106,10 +144,25 @@ struct InstancePanel
     int storage_index[INSTANCE_STORAGE_ROWS];
     int storage_count;
 
+    /** The catalog's word on the trigger loc, the exit loc and the npc,
+     *  kept while the name stands (a lookup is a round trip, and the form
+     *  is read every frame the dialog is up). */
+    struct InstanceNameFact facts[INSTANCE_FACT_COUNT];
+    /** The loc selected in the World when the dialog opened: its type and
+     *  tile, what "Returns to" defaults to when it is the trigger loc. */
+    int selected_loc_id;
+    int selected_level;
+    int selected_x;
+    int selected_z;
+
     int shown;
     struct Editor_InstanceForm checked;
     int checked_valid;
     int ok;
+    /** Create's status sentence, held until the template has opened in the
+     *  World ("" = none waiting), and the quiet frames still to pass. */
+    char status_pending[EDITOR_INSTANCE_WHERE_MAX];
+    int status_wait;
     /** The last Create's tally, for the status line and the tests. */
     int created_squares;
     int created_spawns;
@@ -150,6 +203,215 @@ static const char*
 instance_storage_label(const char* storage)
 {
     return (storage[0] == '\0' || strcmp(storage, "maps") == 0) ? "maps/" : storage;
+}
+
+/** 1 when absolute tile (x, z) on `level` is one the plan's destination
+ *  squares and levels hold. */
+static int
+instance_tile_in_template(
+    const struct Editor_InstancePlan* plan,
+    int level,
+    int x,
+    int z)
+{
+    if( level < plan->level_lo || level > plan->level_hi )
+        return 0;
+    for( int i = 0; i < plan->count; i++ )
+    {
+        int mx;
+        int mz;
+        Editor_InstanceDest(plan, i, &mx, &mz);
+        if( x / EDITOR_SQUARE_X == mx && z / EDITOR_SQUARE_Z == mz )
+            return 1;
+    }
+    return 0;
+}
+
+/** The exit rows: its loc, and the real-map tile it returns to (typed, else
+ *  the trigger loc's own tile). 1 good or no exit asked; 0 with the reason
+ *  in check->message. */
+static int
+instance_validate_exit(
+    const struct Editor_InstanceForm* form,
+    struct Editor_InstanceCheck* check)
+{
+    int same_loc;
+
+    if( !form->exit_loc[0] )
+        return 1;
+    if( !Editor_InstanceLocNameValid(form->exit_loc) )
+    {
+        snprintf(check->message, sizeof(check->message),
+            "the exit loc is a loc's name (a-z, 0-9, '_'); leave it empty for no exit");
+        return 0;
+    }
+    same_loc = strcmp(form->exit_loc, form->loc) == 0;
+    if( same_loc && form->entry != EDITOR_INSTANCE_ENTRY_RUNTIME )
+    {
+        snprintf(check->message, sizeof(check->message),
+            "a teleport entry needs another loc for its exit than %.40s (a runtime map instance can use the one loc)",
+            form->loc);
+        return 0;
+    }
+    if( !same_loc && form->exit_state == EDITOR_INSTANCE_NAME_TAKEN )
+    {
+        snprintf(check->message, sizeof(check->message),
+            "%.40s already has an [oploc1] (%.80s): pick an exit loc with none, or edit that script", form->exit_loc,
+            form->exit_where);
+        return 0;
+    }
+    if( form->exit_coord[0] )
+    {
+        if( !Editor_InstanceCoordParse(form->exit_coord, &check->exit_level, &check->exit_x, &check->exit_z) )
+        {
+            snprintf(check->message, sizeof(check->message), "Returns to is 0_50_50_22_18 or 'x z [level]': %.40s",
+                form->exit_coord);
+            return 0;
+        }
+    }
+    else if( form->home_known )
+    {
+        check->exit_level = form->home_level;
+        check->exit_x = form->home_x;
+        check->exit_z = form->home_z;
+    }
+    else
+    {
+        snprintf(check->message, sizeof(check->message),
+            "type where the exit returns to (Returns to: x z [level]): %.40s is not placed in the source squares",
+            form->loc);
+        return 0;
+    }
+    if( Editor_InstanceInSpace(check->exit_x / EDITOR_SQUARE_X, check->exit_z / EDITOR_SQUARE_Z) )
+    {
+        snprintf(check->message, sizeof(check->message),
+            "Returns to %d,%d is in instance space: the exit goes back to a tile of the real map", check->exit_x,
+            check->exit_z);
+        return 0;
+    }
+    check->has_exit = 1;
+    return 1;
+}
+
+/** The npc added on entering: a runtime copy's, on a tile of the template
+ *  (typed, else two tiles north of the landing). 1 good or none asked; 0
+ *  with the reason in check->message. */
+static int
+instance_validate_npc(
+    const struct Editor_InstanceForm* form,
+    struct Editor_InstanceCheck* check)
+{
+    const struct Editor_InstancePlan* plan = &check->plan;
+
+    if( !form->npc[0] )
+        return 1;
+    if( form->entry != EDITOR_INSTANCE_ENTRY_RUNTIME )
+    {
+        snprintf(check->message, sizeof(check->message),
+            "Npc on enter is for a runtime map instance; in the shared template place the npc with the Spawns tool");
+        return 0;
+    }
+    if( !Editor_InstanceLocNameValid(form->npc) )
+    {
+        snprintf(check->message, sizeof(check->message),
+            "Npc on enter is an npc's name (a-z, 0-9, '_'); leave it empty for none");
+        return 0;
+    }
+    if( form->npc_coord[0] )
+    {
+        if( !Editor_InstanceCoordParse(form->npc_coord, &check->npc_level, &check->npc_x, &check->npc_z) )
+        {
+            snprintf(check->message, sizeof(check->message), "Npc at is 0_16_101_32_34 or 'x z [level]': %.40s",
+                form->npc_coord);
+            return 0;
+        }
+        if( !Editor_InstanceTemplateTile(plan, check->npc_x, check->npc_z, &check->npc_x, &check->npc_z)
+            || !instance_tile_in_template(plan, check->npc_level, check->npc_x, check->npc_z) )
+        {
+            snprintf(check->message, sizeof(check->message),
+                "Npc at %d,%d L%d is not in the copy: type an offset in it (32 34), a tile of the source "
+                "squares, or of the template", check->npc_x, check->npc_z, check->npc_level);
+            return 0;
+        }
+    }
+    else
+    {
+        /* Beside the player, not under them: two tiles north, or south at
+         * the square's north edge. */
+        int const local_z = check->entry_z % EDITOR_SQUARE_Z;
+        check->npc_level = check->entry_level;
+        check->npc_x = check->entry_x;
+        check->npc_z = check->entry_z + (local_z + 2 < EDITOR_SQUARE_Z ? 2 : -2);
+    }
+    check->has_npc = 1;
+    return 1;
+}
+
+/** What Create would make that will not work as it stands, said and not
+ *  refused: a name the lane's catalog does not have (a record made this
+ *  session is not indexed until it is saved; Check scripts fails until it
+ *  is), else a loc whose category's trigger the new one takes over, else a
+ *  trigger loc with no first option for a player to click. */
+static void
+instance_validate_note(
+    const struct Editor_InstanceForm* form,
+    struct Editor_InstanceCheck* check)
+{
+    const char* missing[3];
+    const char* kinds[3];
+    const char* no_option = NULL;
+    int const own_exit = check->has_exit && strcmp(form->exit_loc, form->loc) != 0;
+    int n = 0;
+
+    check->note[0] = '\0';
+    if( form->entry == EDITOR_INSTANCE_ENTRY_NONE )
+        return;
+    if( form->loc_state == EDITOR_INSTANCE_NAME_ABSENT )
+    {
+        kinds[n] = "loc";
+        missing[n++] = form->loc;
+    }
+    if( own_exit && form->exit_state == EDITOR_INSTANCE_NAME_ABSENT )
+    {
+        kinds[n] = "loc";
+        missing[n++] = form->exit_loc;
+    }
+    if( check->has_npc && form->npc_state == EDITOR_INSTANCE_NAME_ABSENT )
+    {
+        kinds[n] = "npc";
+        missing[n++] = form->npc;
+    }
+    if( n > 0 )
+    {
+        snprintf(check->note, sizeof(check->note),
+            "note: this lane has no %s named %.40s%s%s%s%.40s yet; Check scripts will say so until it does", kinds[0],
+            missing[0], n > 1 ? ", no " : "", n > 1 ? kinds[1] : "", n > 1 ? " " : "", n > 1 ? missing[1] : "");
+        return;
+    }
+    /* A loc whose category's trigger answers its first option: the
+     * helper's own [oploc1,<loc>] wins over that for every such loc placed
+     * anywhere -- right for a loc made with Copy to new (it inherits the
+     * category), wrong for the game's own churn or range. Said, not refused. */
+    if( form->loc_state == EDITOR_INSTANCE_NAME_CATEGORY
+        || (own_exit && form->exit_state == EDITOR_INSTANCE_NAME_CATEGORY) )
+    {
+        int const of_loc = form->loc_state == EDITOR_INSTANCE_NAME_CATEGORY;
+        const char* const loc = of_loc ? form->loc : form->exit_loc;
+        snprintf(check->note, sizeof(check->note),
+            "note: %.24s's op1 has a category trigger [oploc1,_%.24s] (%.60s): this replaces it for every %.24s; Copy "
+            "to new for your own",
+            loc, of_loc ? form->loc_category : form->exit_category, of_loc ? form->loc_where : form->exit_where, loc);
+        return;
+    }
+    if( form->loc_state == EDITOR_INSTANCE_NAME_NO_OPTION )
+        no_option = form->loc;
+    else if( own_exit && form->exit_state == EDITOR_INSTANCE_NAME_NO_OPTION )
+        no_option = form->exit_loc;
+    if( no_option )
+        snprintf(check->note, sizeof(check->note),
+            "note: %.40s has no first option (op1), so a player cannot click it: give it one in the Record panel "
+            "(op1=Enter)",
+            no_option);
 }
 
 int
@@ -194,6 +456,8 @@ Editor_InstanceValidate(
     assert(form->level_lo <= form->level_hi);
     plan->level_lo = form->level_lo;
     plan->level_hi = form->level_hi;
+    if( !Editor_InstanceSourceCompact(plan, check->message, sizeof(check->message)) )
+        return 0;
 
     /* The destination: every square it makes free in every storage. */
     if( form->dst_x < 0 || form->dst_z < 0 )
@@ -298,36 +562,87 @@ Editor_InstanceValidate(
                     "the landing coord is 0_16_101_32_32 or 'x z [level]': %.40s", form->coord);
                 return 0;
             }
-            for( int i = 0; i < plan->count && !inside; i++ )
-            {
-                int mx;
-                int mz;
-                Editor_InstanceDest(plan, i, &mx, &mz);
-                inside = x / EDITOR_SQUARE_X == mx && z / EDITOR_SQUARE_Z == mz;
-            }
+            inside = Editor_InstanceTemplateTile(plan, x, z, &x, &z);
             if( !inside || level < plan->level_lo || level > plan->level_hi )
             {
                 snprintf(check->message, sizeof(check->message),
-                    "the landing tile %d,%d L%d is not in the instance's squares and levels", x, z, level);
+                    "Lands at %d,%d L%d is not in the copy: type an offset in it (32 20), a tile of the source "
+                    "squares, or of the template", x, z, level);
                 return 0;
             }
             check->entry_level = level;
             check->entry_x = x;
             check->entry_z = z;
         }
+        if( form->loc_state == EDITOR_INSTANCE_NAME_TAKEN )
+        {
+            snprintf(check->message, sizeof(check->message),
+                "%.40s already has an [oploc1] (%.80s): pick a loc with none, or edit that script", form->loc,
+                form->loc_where);
+            return 0;
+        }
+        if( !instance_validate_exit(form, check) || !instance_validate_npc(form, check) )
+            return 0;
     }
 
     {
         char coord[EDITOR_INSTANCE_COORD_MAX];
+        char home[EDITOR_INSTANCE_COORD_MAX];
+        char exit_text[EDITOR_INSTANCE_COORD_MAX + 16];
+        char npc_text[EDITOR_INSTANCE_LOC_MAX + 8];
+
         Editor_InstanceCoordText(check->entry_level, check->entry_x, check->entry_z, coord);
-        snprintf(check->message, sizeof(check->message), "creates %d square%s at m%d_%d in %s%s%s%s%s%s",
+        Editor_InstanceCoordText(check->exit_level, check->exit_x, check->exit_z, home);
+        exit_text[0] = '\0';
+        npc_text[0] = '\0';
+        if( check->has_exit )
+            snprintf(exit_text, sizeof(exit_text), ", an exit to %s", home);
+        if( check->has_npc )
+            snprintf(npc_text, sizeof(npc_text), ", npc %.40s", form->npc);
+        snprintf(check->message, sizeof(check->message), "creates %d square%s at m%d_%d in %s%s%s%s%s%s%s%s",
             plan->count, plan->count == 1 ? "" : "s", plan->dst_x0, plan->dst_z0,
             instance_storage_label(check->storage), check->creates_lane ? " (new lane)" : "",
             form->map_area ? ", a .wma" : "", form->entry != EDITOR_INSTANCE_ENTRY_NONE ? ", a trigger to " : "",
-            form->entry != EDITOR_INSTANCE_ENTRY_NONE ? coord : "", "; unsaved until Save");
+            form->entry != EDITOR_INSTANCE_ENTRY_NONE ? coord : "", exit_text, npc_text, "; unsaved until Save");
     }
+    instance_validate_note(form, check);
     check->ok = 1;
     return 1;
+}
+
+void
+Editor_InstanceScriptOf(
+    const struct Editor_InstanceForm* form,
+    const struct Editor_InstanceCheck* check,
+    struct Editor_InstanceScript* out)
+{
+    assert(form);
+    assert(check);
+    assert(out);
+    assert(check->ok);
+    assert(form->entry != EDITOR_INSTANCE_ENTRY_NONE);
+
+    memset(out, 0, sizeof(*out));
+    out->entry = form->entry;
+    snprintf(out->loc, sizeof(out->loc), "%s", form->loc);
+    out->level = check->entry_level;
+    out->x = check->entry_x;
+    out->z = check->entry_z;
+    out->spawns = (form->copy & EDITOR_INSTANCE_COPY_SPAWNS) != 0;
+    if( check->has_exit )
+    {
+        snprintf(out->exit_loc, sizeof(out->exit_loc), "%s", form->exit_loc);
+        out->exit_level = check->exit_level;
+        out->exit_x = check->exit_x;
+        out->exit_z = check->exit_z;
+    }
+    if( check->has_npc )
+    {
+        snprintf(out->npc, sizeof(out->npc), "%s", form->npc);
+        out->npc_level = check->npc_level;
+        out->npc_x = check->npc_x;
+        out->npc_z = check->npc_z;
+    }
 }
 
 /* ---- the widgets ---------------------------------------------------------------- */
@@ -408,6 +723,180 @@ instance_key_order(const char* key)
     return z * 256 + x;
 }
 
+/**
+ * The name of a loc record's category ("dairy_churn"), into `out`; "" when
+ * it has none. A dumped record states it as the category's id (category=1175),
+ * which the catalog's category pack names.
+ */
+static void
+instance_loc_category(
+    struct EditorUi* ui,
+    const struct EditorHost_CatalogRecord* record,
+    char* out,
+    size_t out_size)
+{
+    const char* value = "";
+    char* end = NULL;
+    long id;
+
+    out[0] = '\0';
+    for( int f = 0; f < record->field_count; f++ )
+        if( strcmp(record->fields[f].key, "category") == 0 )
+            value = record->fields[f].value ? record->fields[f].value : "";
+    if( !value[0] || strcmp(value, "default") == 0 || strcmp(value, "null") == 0 )
+        return;
+    id = strtol(value, &end, 10);
+    if( end && end != value && *end == '\0' )
+    {
+        struct EditorHost_CatalogRecord category;
+        memset(&category, 0, sizeof(category));
+        if( id >= 0
+            && Editor_HostMapEdCatalogRecord(&ui->editor->host, TORIRSMAPED_CATALOG_CATEGORY, (int)id, "", &category)
+                   == EDITOR_HOST_OK
+            && category.name )
+            snprintf(out, out_size, "%s", category.name);
+        Editor_HostCatalogRecordFree(&category);
+    }
+    else
+        snprintf(out, out_size, "%s", value);
+    if( !Editor_InstanceLocNameValid(out) )
+        out[0] = '\0';
+}
+
+/**
+ * What the lane's catalog says of `name` (a record of `kind`), asked once
+ * per name: KNOWN with its id, ABSENT, and for a loc (`trigger` 1) TAKEN
+ * when the tree already declares its [oploc1,<name>], or CATEGORY when it
+ * declares its category's [oploc1,_<category>], with where. UNCHECKED for a
+ * name that is not one, or in a window whose server has no catalog.
+ */
+static const struct InstanceNameFact*
+instance_name_fact(
+    struct EditorUi* ui,
+    struct InstancePanel* self,
+    int slot,
+    uint32_t kind,
+    const char* name,
+    int trigger)
+{
+    struct InstanceNameFact* fact = &self->facts[slot];
+    struct EditorHost_CatalogRecord record;
+    enum EditorHost_Status status;
+
+    if( fact->name[0] && strcmp(fact->name, name) == 0 )
+        return fact;
+    memset(fact, 0, sizeof(*fact));
+    fact->id = -1;
+    if( !Editor_InstanceLocNameValid(name) || !ui->editor || !ui->editor->host_open
+        || !(ui->editor->capabilities & TORIRSMAPED_CAP_CATALOG) )
+        return fact;
+    snprintf(fact->name, sizeof(fact->name), "%s", name);
+    memset(&record, 0, sizeof(record));
+    status = Editor_HostMapEdCatalogRecord(&ui->editor->host, kind, -1, name, &record);
+    if( status == EDITOR_HOST_OK )
+    {
+        fact->state = EDITOR_INSTANCE_NAME_KNOWN;
+        fact->id = record.id;
+        /* [oploc1,<loc>] answers the loc's first option: one with none
+         * (op1 unset, "default" in a dumped record) is never clicked. */
+        if( trigger )
+        {
+            const char* op1 = "";
+            for( int f = 0; f < record.field_count; f++ )
+                if( strcmp(record.fields[f].key, "op1") == 0 )
+                    op1 = record.fields[f].value ? record.fields[f].value : "";
+            if( !op1[0] || strcmp(op1, "default") == 0 || strcmp(op1, "hidden") == 0 )
+                fact->state = EDITOR_INSTANCE_NAME_NO_OPTION;
+        }
+    }
+    else if( status == EDITOR_HOST_ABSENT )
+        fact->state = EDITOR_INSTANCE_NAME_ABSENT;
+    if( trigger && status == EDITOR_HOST_OK )
+        instance_loc_category(ui, &record, fact->category, sizeof(fact->category));
+    Editor_HostCatalogRecordFree(&record);
+    if( trigger )
+    {
+        struct Editor_ScriptRef refs[16];
+        int n = Editor_Triggers_ForSubject(ui, name, refs, 16);
+        for( int i = 0; i < n; i++ )
+            if( strcmp(refs[i].kind, "oploc1") == 0 )
+            {
+                fact->state = EDITOR_INSTANCE_NAME_TAKEN;
+                snprintf(fact->where, sizeof(fact->where), "%.80s:%d", refs[i].rel, refs[i].line);
+                break;
+            }
+        /* A category's trigger, [oploc1,_<category>], answers every loc of
+         * that category -- the churn, the range, the bank booth. A trigger
+         * of the loc's own name wins over it, so the helper's would quietly
+         * take that op away from every such loc in the game. */
+        if( fact->state != EDITOR_INSTANCE_NAME_TAKEN && fact->category[0] )
+        {
+            char subject[EDITOR_INSTANCE_LOC_MAX + 1];
+            snprintf(subject, sizeof(subject), "_%s", fact->category);
+            n = Editor_Triggers_ForSubject(ui, subject, refs, 16);
+            for( int i = 0; i < n; i++ )
+                if( strcmp(refs[i].kind, "oploc1") == 0 )
+                {
+                    fact->state = EDITOR_INSTANCE_NAME_CATEGORY;
+                    snprintf(fact->where, sizeof(fact->where), "%.80s:%d", refs[i].rel, refs[i].line);
+                    break;
+                }
+        }
+        if( fact->state != EDITOR_INSTANCE_NAME_CATEGORY )
+            fact->category[0] = '\0';
+    }
+    return fact;
+}
+
+/**
+ * The trigger loc's own tile, for an empty "Returns to": the loc selected in
+ * the World when the dialog opened, when it is that loc; else its first
+ * placement in a source square this window has open (south-west first, the
+ * form's order). 0 when neither knows.
+ */
+static int
+instance_home_tile(
+    struct EditorUi* ui,
+    struct InstancePanel* self,
+    const struct Editor_InstanceForm* form,
+    int loc_id,
+    int* out_level,
+    int* out_x,
+    int* out_z)
+{
+    if( loc_id < 0 )
+        return 0;
+    if( self->selected_loc_id == loc_id )
+    {
+        *out_level = self->selected_level;
+        *out_x = self->selected_x;
+        *out_z = self->selected_z;
+        return 1;
+    }
+    for( int i = 0; ui->editor && i < form->source_count && i < EDITOR_INSTANCE_SQUARES_MAX; i++ )
+    {
+        const char* slash = strrchr(form->sources[i], '/');
+        const struct Editor_Square* square;
+        int map_x;
+        int map_z;
+
+        if( !Editor_SquareKeyParse(slash ? slash + 1 : form->sources[i], &map_x, &map_z) )
+            continue;
+        square = Editor_DocFindSquare(&ui->editor->doc, map_x, map_z);
+        if( !square || !square->loaded )
+            continue;
+        for( int l = 0; l < square->loc_count; l++ )
+            if( square->locs[l].loc_id == loc_id )
+            {
+                *out_level = square->locs[l].level;
+                *out_x = map_x * EDITOR_SQUARE_X + square->locs[l].x;
+                *out_z = map_z * EDITOR_SQUARE_Z + square->locs[l].z;
+                return 1;
+            }
+    }
+    return 0;
+}
+
 static void
 instance_read(
     struct EditorUi* ui,
@@ -457,6 +946,40 @@ instance_read(
     snprintf(form->loc, sizeof(form->loc), "%s", ToriRSChrome_Text(ui->chrome, self->input_loc));
     snprintf(form->coord, sizeof(form->coord), "%s", ToriRSChrome_Text(ui->chrome, self->input_coord));
     form->runtime_capable = instance_runtime_capable(ui);
+    if( form->entry == EDITOR_INSTANCE_ENTRY_NONE )
+        return;
+
+    /* The exit, the npc (a runtime copy's: the row is hidden otherwise, and
+     * what it last held is not read), and what the catalog says of each. */
+    snprintf(form->exit_loc, sizeof(form->exit_loc), "%s", ToriRSChrome_Text(ui->chrome, self->input_exit));
+    if( form->exit_loc[0] )
+        snprintf(form->exit_coord, sizeof(form->exit_coord), "%s",
+            ToriRSChrome_Text(ui->chrome, self->input_exit_coord));
+    if( form->entry == EDITOR_INSTANCE_ENTRY_RUNTIME )
+        snprintf(form->npc, sizeof(form->npc), "%s", ToriRSChrome_Text(ui->chrome, self->input_npc));
+    if( form->npc[0] )
+        snprintf(form->npc_coord, sizeof(form->npc_coord), "%s",
+            ToriRSChrome_Text(ui->chrome, self->input_npc_coord));
+    {
+        const struct InstanceNameFact* fact =
+            instance_name_fact(ui, self, INSTANCE_FACT_LOC, TORIRSMAPED_CATALOG_LOC, form->loc, 1);
+        form->loc_state = fact->state;
+        snprintf(form->loc_where, sizeof(form->loc_where), "%s", fact->where);
+        snprintf(form->loc_category, sizeof(form->loc_category), "%s", fact->category);
+        form->home_known =
+            instance_home_tile(ui, self, form, fact->id, &form->home_level, &form->home_x, &form->home_z);
+    }
+    if( form->exit_loc[0] )
+    {
+        const struct InstanceNameFact* fact =
+            instance_name_fact(ui, self, INSTANCE_FACT_EXIT, TORIRSMAPED_CATALOG_LOC, form->exit_loc, 1);
+        form->exit_state = fact->state;
+        snprintf(form->exit_where, sizeof(form->exit_where), "%s", fact->where);
+        snprintf(form->exit_category, sizeof(form->exit_category), "%s", fact->category);
+    }
+    if( form->npc[0] )
+        form->npc_state =
+            instance_name_fact(ui, self, INSTANCE_FACT_NPC, TORIRSMAPED_CATALOG_NPC, form->npc, 0)->state;
 }
 
 static void
@@ -468,10 +991,55 @@ instance_layout(
     int const row = ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_storage);
     int const new_lane = row >= 0 && row < self->storage_count && self->storage_index[row] < 0;
     int const has_entry = form->entry != EDITOR_INSTANCE_ENTRY_NONE;
+    int const runtime = form->entry == EDITOR_INSTANCE_ENTRY_RUNTIME;
 
     ToriRSChrome_SetHidden(ui->chrome, self->input_lane, !new_lane);
     ToriRSChrome_SetHidden(ui->chrome, self->input_loc, !has_entry);
     ToriRSChrome_SetHidden(ui->chrome, self->input_coord, !has_entry);
+    /* A row that does not apply is not shown: the exit's tile only with an
+     * exit loc, the npc only for a runtime copy, its tile only with an npc. */
+    ToriRSChrome_SetHidden(ui->chrome, self->input_exit, !has_entry);
+    ToriRSChrome_SetHidden(ui->chrome, self->input_exit_coord, !has_entry || !form->exit_loc[0]);
+    ToriRSChrome_SetHidden(ui->chrome, self->input_npc, !runtime);
+    ToriRSChrome_SetHidden(ui->chrome, self->input_npc_coord, !runtime || !form->npc[0]);
+}
+
+/** The two sentences under the fields: where the template is and what
+ *  happens at play time, for the plan as far as the form states it. */
+static void
+instance_where_rows(
+    struct EditorUi* ui,
+    struct InstancePanel* self,
+    const struct Editor_InstanceForm* form,
+    const struct Editor_InstanceCheck* check)
+{
+    char where[EDITOR_INSTANCE_WHERE_MAX];
+    char stamp[EDITOR_INSTANCE_WHERE_MAX];
+
+    if( check && check->plan.count > 0 && form->dst_x >= 0 && Editor_InstanceNameValid(form->name) )
+    {
+        /* The form's destination, whether or not the check got as far as
+         * taking it (a taken square is still where the form points). */
+        struct Editor_InstancePlan plan = check->plan;
+        plan.dst_x0 = form->dst_x;
+        plan.dst_z0 = form->dst_z;
+        Editor_InstanceWhereText(&plan, form->name, form->entry, where, stamp);
+    }
+    else
+    {
+        /* Before there is a destination and a name: what the dialog makes. */
+        struct Editor_InstancePlan none;
+        char unused[EDITOR_INSTANCE_WHERE_MAX];
+        memset(&none, 0, sizeof(none));
+        none.w = none.h = 1;
+        snprintf(where, sizeof(where),
+            "Template: a copy of the source squares in instance space (map squares x %d..%d, z %d..%d), which no "
+            "world-map area claims.",
+            EDITOR_INSTANCE_X0, EDITOR_INSTANCE_X1, EDITOR_INSTANCE_Z0, EDITOR_INSTANCE_Z1);
+        Editor_InstanceWhereText(&none, "x", form->entry, unused, stamp);
+    }
+    ToriRSChrome_SetText(ui->chrome, self->row_where[0], where);
+    ToriRSChrome_SetText(ui->chrome, self->row_where[1], stamp);
 }
 
 /** The source row: the keys, fitted by the chrome (the whole list in the
@@ -524,15 +1092,27 @@ instance_check(
     picker = edp_squares_picker(ui);
     if( !picker )
     {
-        ToriRSChrome_SetText(ui->chrome, self->row_check, "no square atlas: is the server reachable?");
+        /* No atlas yet: the catalog index is still being read (the first
+         * minute or two after the editor starts), and the form is checked
+         * again when it lands (the form is not remembered as checked). */
+        ToriRSChrome_SetText(ui->chrome, self->row_check,
+            "the square atlas is not read yet (the catalog index takes a minute or two after the editor starts): "
+            "Create waits for it");
+        ToriRSChrome_SetColor(ui->chrome, self->row_check, 0xff7f5f);
+        ToriRSChrome_SetHidden(ui->chrome, self->row_note, 1);
         ToriRSChrome_SetDisabled(ui->chrome, self->button_create, 1);
+        instance_where_rows(ui, self, &form, NULL);
+        self->checked_valid = 0;
         self->ok = 0;
         return;
     }
     self->ok = Editor_InstanceValidate(picker, &form, &check);
     ToriRSChrome_SetText(ui->chrome, self->row_check, check.message);
     ToriRSChrome_SetColor(ui->chrome, self->row_check, self->ok ? 0x9fdf8f : 0xff7f5f);
+    ToriRSChrome_SetText(ui->chrome, self->row_note, self->ok ? check.note : "");
+    ToriRSChrome_SetHidden(ui->chrome, self->row_note, !self->ok || !check.note[0]);
     ToriRSChrome_SetDisabled(ui->chrome, self->button_create, !self->ok);
+    instance_where_rows(ui, self, &form, &check);
 }
 
 static void
@@ -562,7 +1142,11 @@ instance_fill_sources(
     for( int i = 0; i < n; i++ )
         self->source_rows[i] = self->source_labels[i];
     self->source_count = n;
-    ToriRSChrome_DropdownSetOptions(ui->chrome, self->dropdown_source, self->source_rows, n, 0);
+    /* The picker's selection when it has one (its Instance... button, or
+     * squares shift-clicked before File > New instance...), else the squares
+     * that are open: the dialog never opens on "no squares" with a world up. */
+    ToriRSChrome_DropdownSetOptions(ui->chrome, self->dropdown_source, self->source_rows, n,
+        Editor_SquarePicker_Sources(ui, EDITOR_SQUARE_PICKER_SELECTION, keys, EDITOR_INSTANCE_SQUARES_MAX) > 0 ? 0 : 1);
 }
 
 static void
@@ -651,11 +1235,21 @@ Editor_Instance_FindFree(struct EditorUi* ui)
         Editor_UiStatus(ui, "Find free refused: the source names a square twice, or not a square");
         return 0;
     }
+    {
+        char why[EDITOR_INSTANCE_MESSAGE_MAX];
+        if( !Editor_InstanceSourceCompact(&plan, why, sizeof(why)) )
+        {
+            Editor_UiStatus(ui, "Find free refused: %s", why);
+            instance_check(ui, self, 1);
+            return 0;
+        }
+    }
     count = instance_taken(picker, &taken);
     found = Editor_InstanceFindFree(taken, count, plan.w, plan.h, &x, &z);
     snprintf(text, sizeof(text), "instance space 0..19 x 100..255 has %d free",
         Editor_InstanceFreeCount(taken, count));
     ToriRSChrome_SetText(ui->chrome, self->row_free, text);
+    ToriRSChrome_SetHidden(ui->chrome, self->row_free, 0);
     ToriMem_Free(ToriMem_Editor(), taken);
     if( !found )
     {
@@ -671,11 +1265,43 @@ Editor_Instance_FindFree(struct EditorUi* ui)
     return 1;
 }
 
+/**
+ * The loc selected in the World as the trigger: its name typed into "Trigger
+ * loc" and its tile remembered for "Returns to". Select the ladder, File >
+ * New instance..., name it, Create. With no loc selected the field keeps
+ * what it held.
+ */
+static void
+instance_open_selection(
+    struct EditorUi* ui,
+    struct InstancePanel* self)
+{
+    const struct Editor_LocRef* first;
+    struct EditorHost_CatalogRecord record;
+
+    self->selected_loc_id = -1;
+    if( ui->tools.loc_count <= 0 || !ui->editor || !ui->editor->host_open
+        || !(ui->editor->capabilities & TORIRSMAPED_CAP_CATALOG) )
+        return;
+    first = &ui->tools.locs[0];
+    memset(&record, 0, sizeof(record));
+    if( Editor_HostMapEdCatalogRecord(&ui->editor->host, TORIRSMAPED_CATALOG_LOC, first->loc_id, "", &record)
+            == EDITOR_HOST_OK
+        && record.name && Editor_InstanceLocNameValid(record.name) )
+    {
+        self->selected_loc_id = first->loc_id;
+        self->selected_level = first->level;
+        self->selected_x = first->map_x * EDITOR_SQUARE_X + first->x;
+        self->selected_z = first->map_z * EDITOR_SQUARE_Z + first->z;
+        ToriRSChrome_SetText(ui->chrome, self->input_loc, record.name);
+    }
+    Editor_HostCatalogRecordFree(&record);
+}
+
 void
 Editor_Instance_Open(struct EditorUi* ui)
 {
     struct InstancePanel* self;
-    char name[EDITOR_INSTANCE_NAME_MAX];
 
     assert(ui);
     self = instance_self(ui);
@@ -694,16 +1320,25 @@ Editor_Instance_Open(struct EditorUi* ui)
     ToriRSChrome_SetText(ui->chrome, self->input_dest, "");
     ToriRSChrome_SetText(ui->chrome, self->input_lane, "");
     ToriRSChrome_SetText(ui->chrome, self->row_free, "");
-    snprintf(name, sizeof(name), "%s", ToriRSChrome_Text(ui->chrome, self->input_name));
+    ToriRSChrome_SetHidden(ui->chrome, self->row_free, 1);
     ToriRSChrome_SetText(ui->chrome, self->input_coord, "");
+    ToriRSChrome_SetText(ui->chrome, self->input_exit, "");
+    ToriRSChrome_SetText(ui->chrome, self->input_exit_coord, "");
+    ToriRSChrome_SetText(ui->chrome, self->input_npc, "");
+    ToriRSChrome_SetText(ui->chrome, self->input_npc_coord, "");
+    memset(self->facts, 0, sizeof(self->facts));
+    instance_open_selection(ui, self);
     ToriRSChrome_RadioSelect(ui->chrome, self->radio_map[0]);
-    ToriRSChrome_RadioSelect(ui->chrome, self->radio_entry[EDITOR_INSTANCE_ENTRY_TELEPORT]);
-    /* The runtime chip: only a lane whose server says it takes map
-     * instances (TORIRSMAPED_CAP_MAP_INSTANCE; none does yet, see
-     * torirs_maped.h). Disabled, it says why. */
+    /* The entry: a private copy per player wherever the lane's server takes
+     * map instances (TORIRSMAPED_CAP_MAP_INSTANCE: this tree's torirsserver
+     * over a content tree with the map_instance procs, torirs_maped_live.c),
+     * else the teleport into the template, the runtime chip disabled and
+     * saying why. */
+    ToriRSChrome_RadioSelect(ui->chrome,
+        self->radio_entry[instance_runtime_capable(ui) ? EDITOR_INSTANCE_ENTRY_RUNTIME : EDITOR_INSTANCE_ENTRY_TELEPORT]);
     ToriRSChrome_SetDisabled(ui->chrome, self->radio_entry[EDITOR_INSTANCE_ENTRY_RUNTIME], !instance_runtime_capable(ui));
     ToriRSChrome_SetTooltip(ui->chrome, self->radio_entry[EDITOR_INSTANCE_ENTRY_RUNTIME],
-        instance_runtime_capable(ui) ? "Build a runtime copy with map_instance_*"
+        instance_runtime_capable(ui) ? "Each player who enters gets a private copy of the template"
                                      : "The lane's server reports no map instances");
     Editor_SquarePicker_Mark(ui, 0, 0, 0, 0);
     self->shown = 1;
@@ -1224,11 +1859,12 @@ Editor_Instance_Create(struct EditorUi* ui)
     if( !failed && form.entry != EDITOR_INSTANCE_ENTRY_NONE )
     {
         char key[EDITOR_DOC_KEY_MAX];
-        char text[4096];
+        char text[8192];
+        struct Editor_InstanceScript script;
         size_t length;
         Editor_InstanceTriggerKey(form.name, key);
-        length = Editor_InstanceTriggerText(&check.plan, form.name, form.loc, form.entry, check.entry_level,
-            check.entry_x, check.entry_z, text, sizeof(text));
+        Editor_InstanceScriptOf(&form, &check, &script);
+        length = Editor_InstanceTriggerText(&check.plan, form.name, &script, text, sizeof(text));
         assert(length < sizeof(text));
         if( Builder_TextSync(&submit, key, text, length, 1) == BUILDER_SYNC_REFUSED )
         {
@@ -1250,11 +1886,26 @@ Editor_Instance_Create(struct EditorUi* ui)
         return 0;
     }
 
-    Editor_UiStatus(ui,
-        "Created instance %s: %d square%s at m%d_%d, %d spawn%s%s%s%s (unsaved until Save); Ctrl+Z undoes it",
-        form.name, self->created_squares, self->created_squares == 1 ? "" : "s", check.plan.dst_x0, check.plan.dst_z0,
-        self->created_spawns, self->created_spawns == 1 ? "" : "s", form.map_area ? ", a .wma" : "",
-        form.entry != EDITOR_INSTANCE_ENTRY_NONE ? ", a trigger" : "", self->created_scene ? ", a scene" : "");
+    {
+        /* What was made, where the template is and how it is stamped: the
+         * Output console keeps all of it. */
+        char where[EDITOR_INSTANCE_WHERE_MAX];
+        char stamp[EDITOR_INSTANCE_WHERE_MAX];
+
+        Editor_InstanceWhereText(&check.plan, form.name, form.entry, where, stamp);
+        Editor_UiLog(ui,
+            "Created instance %s: %d square%s at m%d_%d, %d spawn%s%s%s%s (unsaved until Save); Ctrl+Z undoes it",
+            form.name, self->created_squares, self->created_squares == 1 ? "" : "s", check.plan.dst_x0,
+            check.plan.dst_z0, self->created_spawns, self->created_spawns == 1 ? "" : "s",
+            form.map_area ? ", a .wma" : "", form.entry != EDITOR_INSTANCE_ENTRY_NONE ? ", a trigger" : "",
+            self->created_scene ? ", a scene" : "");
+        if( form.entry != EDITOR_INSTANCE_ENTRY_NONE )
+            Editor_UiLog(ui, "Its script: server/scripts/edited/%s/scripts/%s.rs2 (the Triggers panel opens it in your "
+                             "editor)",
+                form.name, form.name);
+        Editor_UiLog(ui, "%s", where);
+        Editor_UiLog(ui, "%s", stamp);
+    }
     instance_close(ui, self);
     Editor_SquarePicker_Refresh(ui);
     Editor_SquarePicker_Mark(ui, check.plan.dst_x0, check.plan.dst_z0, check.plan.w, check.plan.h);
@@ -1265,6 +1916,13 @@ Editor_Instance_Create(struct EditorUi* ui)
         Editor_InstanceDest(&check.plan, 0, &x, &z);
         ui->hooks.open_square(ui->hooks_user, x, z, check.storage, 1);
     }
+    /* The status bar's sentence -- where the instance is templated and how
+     * it is stamped -- is said by the tick once the template has opened in
+     * the World: the open says a sentence of its own about the squares it
+     * replaced, a frame or more from now, and the bar must be left on this
+     * one. */
+    Editor_InstanceStatusText(&check.plan, form.name, form.entry, self->status_pending);
+    self->status_wait = INSTANCE_STATUS_SETTLE_FRAMES;
     return 1;
 }
 
@@ -1328,12 +1986,49 @@ Editor_Instance_Widget(
         return self->button_create;
     case EDITOR_INSTANCE_W_CANCEL:
         return self->button_cancel;
+    case EDITOR_INSTANCE_W_EXIT:
+        return self->input_exit;
+    case EDITOR_INSTANCE_W_EXIT_COORD:
+        return self->input_exit_coord;
+    case EDITOR_INSTANCE_W_NPC:
+        return self->input_npc;
+    case EDITOR_INSTANCE_W_NPC_COORD:
+        return self->input_npc_coord;
+    case EDITOR_INSTANCE_W_WHERE_TEMPLATE:
+        return self->row_where[0];
+    case EDITOR_INSTANCE_W_WHERE_STAMP:
+        return self->row_where[1];
+    case EDITOR_INSTANCE_W_NOTE:
+        return self->row_note;
     }
     assert(0);
     return -1;
 }
 
 /* ---- the module ------------------------------------------------------------------ */
+
+/**
+ * Keep the dialog inside the window. A content-sized panel is as tall as its
+ * rows and never scrolls; with the exit, npc and note rows up it outgrew a
+ * 900-pixel window and Create sat below the bottom edge, where nobody could
+ * press it. Taller than the window, it is pinned to the window's height and
+ * scrolls; shorter again, it goes back to its own height.
+ */
+static void
+instance_fit(
+    struct EditorUi* ui,
+    struct InstancePanel* self)
+{
+    struct ToriRSChromePanel const* p = &ui->chrome->panels[self->panel];
+    int const room = ui->chrome->surface_h - edp_px(ui, 16);
+    int natural;
+
+    if( ui->chrome->surface_h <= 0 || p->view_h <= 0 )
+        return;
+    /* The rows' height plus the panel's own title, padding and edges. */
+    natural = p->content_h + (p->h - p->view_h);
+    ToriRSChrome_PanelSetFixedHeight(ui->chrome, self->panel, natural > room ? room : 0);
+}
 
 static void
 instance_tick(
@@ -1342,6 +2037,18 @@ instance_tick(
 {
     struct InstancePanel* self = opaque;
 
+    if( self->status_pending[0] )
+    {
+        /* Create's last word (Editor_Instance_Create): after the World has
+         * stopped loading the template, and a few quiet frames more. */
+        if( ui->app_services.world_busy && ui->app_services.world_busy(ui->app_services.user_data) )
+            self->status_wait = INSTANCE_STATUS_SETTLE_FRAMES;
+        else if( --self->status_wait <= 0 )
+        {
+            Editor_UiStatus(ui, "%s", self->status_pending);
+            self->status_pending[0] = '\0';
+        }
+    }
     if( !self->shown )
         return;
     if( !ui->chrome->panels[self->panel].visible )
@@ -1351,6 +2058,7 @@ instance_tick(
         return;
     }
     instance_check(ui, self, 0);
+    instance_fit(ui, self);
 }
 
 static int
@@ -1388,7 +2096,8 @@ instance_activate(
         || widget == self->input_dest || widget == self->dropdown_storage || widget == self->input_lane
         || widget == self->input_name || widget == self->radio_map[0] || widget == self->radio_map[1]
         || widget == self->radio_entry[0] || widget == self->radio_entry[1] || widget == self->radio_entry[2]
-        || widget == self->input_loc || widget == self->input_coord )
+        || widget == self->input_loc || widget == self->input_coord || widget == self->input_exit
+        || widget == self->input_exit_coord || widget == self->input_npc || widget == self->input_npc_coord )
     {
         instance_check(ui, self, 1);
         return 1;
@@ -1441,19 +2150,39 @@ Editor_Instance_Register(struct EditorUi* ui)
     ToriRSChrome_SetTooltip(chrome, self->input_name, "Area name, script directory, collection");
     self->radio_map[0] = ToriRSChrome_Radio(chrome, self->panel, "Map area: add a .wma", INSTANCE_GROUP_MAP, 1);
     self->radio_map[1] = ToriRSChrome_Radio(chrome, self->panel, "Map area: none (hidden)", INSTANCE_GROUP_MAP, 0);
-    self->radio_entry[EDITOR_INSTANCE_ENTRY_TELEPORT] =
-        ToriRSChrome_Radio(chrome, self->panel, "Entry: teleport trigger", INSTANCE_GROUP_ENTRY, 1);
+    /* The runtime entry first: it is the default wherever the lane's server
+     * takes map instances (Editor_Instance_Open). */
     self->radio_entry[EDITOR_INSTANCE_ENTRY_RUNTIME] =
         ToriRSChrome_Radio(chrome, self->panel, "Entry: runtime map instance", INSTANCE_GROUP_ENTRY, 0);
+    self->radio_entry[EDITOR_INSTANCE_ENTRY_TELEPORT] =
+        ToriRSChrome_Radio(chrome, self->panel, "Entry: teleport trigger", INSTANCE_GROUP_ENTRY, 1);
+    ToriRSChrome_SetTooltip(chrome, self->radio_entry[EDITOR_INSTANCE_ENTRY_TELEPORT],
+        "Everyone is teleported into the template itself");
     self->radio_entry[EDITOR_INSTANCE_ENTRY_NONE] =
         ToriRSChrome_Radio(chrome, self->panel, "Entry: none", INSTANCE_GROUP_ENTRY, 0);
+    ToriRSChrome_SetTooltip(chrome, self->radio_entry[EDITOR_INSTANCE_ENTRY_NONE], "No script: the squares only");
     self->input_loc = ToriRSChrome_TextInput(chrome, self->panel, "Trigger loc", "");
-    ToriRSChrome_SetTooltip(chrome, self->input_loc, "[oploc1,<loc>] p_telejump's in");
+    ToriRSChrome_SetTooltip(chrome, self->input_loc, "Its first option enters; select it in the World first");
     self->input_coord = ToriRSChrome_TextInput(chrome, self->panel, "Lands at", "");
     ToriRSChrome_SetTooltip(chrome, self->input_coord, "0_16_101_32_32; empty: first square's middle");
+    self->input_exit = ToriRSChrome_TextInput(chrome, self->panel, "Exit loc", "");
+    ToriRSChrome_SetTooltip(chrome, self->input_exit, "Its first option leaves; empty: no exit block");
+    self->input_exit_coord = ToriRSChrome_TextInput(chrome, self->panel, "Returns to", "");
+    ToriRSChrome_SetTooltip(chrome, self->input_exit_coord, "x z [level], real map; empty: the trigger loc's tile");
+    self->input_npc = ToriRSChrome_TextInput(chrome, self->panel, "Npc on enter", "");
+    ToriRSChrome_SetTooltip(chrome, self->input_npc, "Spawn npc on enter: its name, added to each copy; empty: none");
+    self->input_npc_coord = ToriRSChrome_TextInput(chrome, self->panel, "Npc at", "");
+    ToriRSChrome_SetTooltip(chrome, self->input_npc_coord, "A template tile; empty: 2 tiles north of the landing");
+    /* Where the template is and what happens at play time (instance_where_rows). */
+    self->row_where[0] = ToriRSChrome_Label(chrome, self->panel, "");
+    self->row_where[1] = ToriRSChrome_Label(chrome, self->panel, "");
     self->row_check = ToriRSChrome_Label(chrome, self->panel, "");
+    self->row_note = ToriRSChrome_LabelColored(chrome, self->panel, "", 0xdfbf5f);
+    ToriRSChrome_SetHidden(chrome, self->row_note, 1);
     self->button_create = ToriRSChrome_Button(chrome, self->panel, "Create");
     self->button_cancel = ToriRSChrome_Button(chrome, self->panel, "Cancel");
+    /* Thirty rows: in a window shorter than they are, they scroll. */
+    ToriRSChrome_PanelSetScrollable(chrome, self->panel, 1);
     ToriRSChrome_PanelSetVisible(chrome, self->panel, 0);
 
     memset(&desc, 0, sizeof(desc));

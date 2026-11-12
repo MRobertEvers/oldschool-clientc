@@ -3,6 +3,7 @@
 #include "builder_shell.h"
 #include "editor/editor_cfg.h"
 #include "editor/editor_ui.h"
+#include "editor/map_editor_ghost.h"
 #include "editor/panels/edpanel_common.h"
 #include "editor/panels/edpanels.h"
 #include "mem/torirs_mem.h"
@@ -71,8 +72,14 @@ enum
 #define BP_MV_ROUTE_ROWS 6
 #define BP_MV_SPAWN_ROWS 6
 #define BP_MV_SPAWNS_MAX 64
-/** Frames a Play step holds (a tick is 0.6 s; the editor runs ~60 a second). */
-#define BP_MV_PLAY_FRAMES 36
+/** A Play step holds one server tick. */
+#define BP_MV_PLAY_TICK_MS 600
+/** Ticks Play holds the walker where a leg stops dead before it jumps (the
+ *  server waits EDITOR_NPC_PATROL_STUCK_TICKS; nobody watches 19 s of it). */
+#define BP_MV_PLAY_STUCK_TICKS 4
+/** Tiles of one leg's walk kept for the World's line and Play: a leg longer
+ *  than this is drawn straight past it. */
+#define BP_MV_WALK_MAX 160
 /** The Mode and tool radio groups (unique across the panels: spawns 31/32). */
 #define BP_GROUP_TOOL 41
 #define BP_GROUP_MODE 42
@@ -228,6 +235,34 @@ struct builder_panel
     int w_mv_leash, w_mv_range, w_mv_restrict, w_mv_block, w_mv_facing, w_mv_respawn, w_mv_timer;
     int w_mv_route, w_mv_route_label, w_mv_pause, w_mv_wp_add, w_mv_wp_insert, w_mv_wp_delete, w_mv_wp_up,
         w_mv_wp_down, w_mv_play, w_mv_target;
+    int w_mv_hint, w_mv_route_note, w_mv_wp_move, w_mv_play_label, w_mv_target_path;
+    int w_mv_share, w_mv_newtype, w_mv_split;
+    /** "Fix stuck legs", shown while a leg stops dead. */
+    int w_mv_fix;
+    /** Each leg as the server walks it (services.can_step), and the tiles
+     *  it steps onto: what the World's line follows and Play walks. */
+    struct Editor_NpcWalk mv_walk[EDITOR_NPC_PATROL_MAX];
+    struct Editor_NpcWalkTile mv_walk_tiles[EDITOR_NPC_PATROL_MAX][BP_MV_WALK_MAX];
+    int mv_walked;
+    /** The World's pointer under the Add / Move tools: the tile it is over
+     *  (stamped with the frame, so a pointer that left goes stale) and a
+     *  waypoint being carried, -1 none. */
+    int mv_whover_frame;
+    int mv_whover_x;
+    int mv_whover_z;
+    int mv_whover_level;
+    int mv_wdrag_wp;
+    int mv_wdrag_moved;
+    /** A World press under the Add tool that is not on a waypoint: its
+     *  release lays one. */
+    int mv_wpress;
+    /** The panel was showing last tick (it opens on the selection). */
+    int mv_was_visible;
+    /** Play: when the walker last stepped, ticks left of a pause or a
+     *  stuck hold, and where it stands. */
+    int64_t mv_play_ms;
+    int mv_play_hold;
+    int mv_play_stuck;
     /** The record's movement as the documents hold it (services.movement),
      *  the file an edit goes to, what the server makes of it. */
     struct Editor_NpcMovement mv;
@@ -449,7 +484,7 @@ bp_show_will(
     struct builder_panel* self)
 {
     char line[TORIRS_CHROME_LABEL_MAX];
-    char sentence[TORIRS_CHROME_LABEL_MAX];
+    char sentence[TORIRS_CHROME_INPUT_MAX];
     struct Editor_NpcEffective effective;
 
     if( self->w_will < 0 )
@@ -464,7 +499,20 @@ bp_show_will(
     {
         const struct Editor_NpcMovement* movement = self->mv_valid ? &self->mv : &self->record.movement;
         Editor_NpcEffectiveMode(movement, &effective);
-        Editor_NpcEffectiveSentence(movement, &effective, sentence, sizeof(sentence));
+        /* A label's 63 bytes, as the note line below shows it. */
+        Editor_NpcEffectiveSentence(movement, &effective, sentence, TORIRS_CHROME_LABEL_MAX);
+        /* The sentence times a lap by straight-line legs; the Movement tab
+         * walks each leg as the server does and times the lap under the
+         * route. Two lap times for one route (50 here, 56 there) read as a
+         * bug, so with the walked legs at hand this line leaves it out. */
+        if( effective.mode == EDITOR_NPC_MODE_PATROL && self->mv_valid && self->mv_walked )
+        {
+            char notes[TORIRS_CHROME_LABEL_MAX];
+            const char* rest = strstr(sentence, "; ");
+            copy_text(notes, sizeof(notes), rest ? rest : "");
+            snprintf(sentence, sizeof(sentence), "patrols %d waypoint%s, lap timed below%s",
+                     movement->patrol_count, movement->patrol_count == 1 ? "" : "s", notes);
+        }
     }
     /* The sentence on one line, its notes ("; wanderrange 5 is unused") on
      * the next: a docked column is 200-400 px wide. */
@@ -1743,6 +1791,24 @@ bp_open(
     }
     self->problems_reported = 0;
     self->name_count = 0;
+    /* Another npc: the route tool, Play, the selections and the map's view
+     * were the last one's (the map kept showing the sheep field under a
+     * watchman by the church). */
+    if( self->w_mv_map >= 0 )
+    {
+        self->mv_sel = -1;
+        self->sp_sel = -1;
+        self->mv_fit_pending = 1;
+        self->mv_legs_hash = 0;
+        self->mv_tool = 0;
+        self->mv_wdrag_wp = -1;
+        self->mv_wpress = 0;
+        self->mv_play = 0;
+        ToriRSChrome_RadioSelect(ui->chrome, self->w_mv_tool_select);
+        ToriRSChrome_SetText(ui->chrome, self->w_mv_play, "Play");
+        ToriRSChrome_SetText(ui->chrome, self->w_mv_play_label, "");
+        ToriRSChrome_SetHidden(ui->chrome, self->w_mv_play_label, 1);
+    }
     self->has_model = 1;
     self->read_only = 0;
     self->sel_trigger = -1;
@@ -2953,6 +3019,32 @@ bp_event(
     return bp_graph_event(ui, self, event);
 }
 
+/** With nothing open, open the npc the selection names (the Spawns panel's
+ *  row, else the Catalog's npc pick), quietly: no selection is not an error
+ *  here. */
+static void
+bp_open_selection(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    char name[BUILDER_NAME_MAX];
+
+    if( self->has_model || !self->services.selection
+        || !self->services.selection(self->services.user_data, self->subject, name, sizeof(name)) )
+        return;
+    /* "#<id>" (a pick with no name) resolves through the catalog. */
+    if( name[0] == '#' )
+    {
+        struct Builder_RecordInfo info;
+        memset(&info, 0, sizeof(info));
+        if( !self->services.record
+            || !self->services.record(self->services.user_data, self->subject, "", atoi(name + 1), &info) )
+            return;
+        copy_text(name, sizeof(name), info.name);
+    }
+    (void)bp_open(ui, self, name);
+}
+
 static void
 bp_tick(
     struct EditorUi* ui,
@@ -3000,6 +3092,12 @@ bp_tick(
         bp_show_existing(ui, self);
     if( visible && ToriRSChrome_VListNeedsRows(ui->chrome, self->w_issue_list) )
         bp_show_issues(ui, self);
+    /* The NPC editor shown with nothing open: open what the user is pointing
+     * at. View > NPC editor used to open on "Open a subject." with an npc
+     * selected. */
+    if( visible && !self->mv_was_visible && self->w_mv_map >= 0 )
+        bp_open_selection(ui, self);
+    self->mv_was_visible = visible;
     if( visible && self->w_mv_map >= 0 )
         bp_mv_tick(ui, self);
     if( self->w_graph < 0 )
@@ -3957,54 +4055,99 @@ bp_mv_build(
     struct ToriRSChrome* chrome = ui->chrome;
     int const p = self->p_main;
 
+    /* Top to bottom in the order a route is made: what it does now, a tool
+     * and clicks in the World, the legs as the server will walk them, a
+     * pause, Play; then how it behaves when it is not patrolling; the drawn
+     * collision map last (the World is the map now, and every button here
+     * works without it). The old order put 550 px of controls between the
+     * map and the route list it edits. */
     ToriRSChrome_PanelBeginTab(chrome, p, BUILDER_NPC_TAB_MOVEMENT);
     self->w_mv_eff = ToriRSChrome_Label(chrome, p, "");
-    self->w_mv_map = ToriRSChrome_Graph(chrome, p, "Map", BP_MV_H);
-    ToriRSChrome_SetTooltip(chrome, self->w_mv_map, "Wheel zooms; drag pans; F fits; click a tile with Add");
-    self->w_mv_readout = ToriRSChrome_Label(chrome, p, "");
+
+    ToriRSChrome_Heading(chrome, p, "Patrol route");
+    /* A route, a range and a facing belong to the TYPE: every spawn of it
+     * moves alike. So before a route is laid on a type with other spawns,
+     * the one step that splits this spawn off is offered HERE, where the
+     * route starts (bp_mv_share_refresh hides the two controls when the
+     * type has one spawn). */
+    self->w_mv_share = ToriRSChrome_Label(chrome, p, "");
+    self->w_mv_newtype = ToriRSChrome_TextInput(chrome, p, "Own type name", "");
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_newtype, "A new record name: a-z 0-9 _ (thistle_watchman)");
+    self->w_mv_split = ToriRSChrome_Button(chrome, p, "Make own type");
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_split, "Copy this npc to that name; re-point the chosen spawn");
     self->w_mv_tool_select = ToriRSChrome_Radio(chrome, p, "Select", BP_GROUP_TOOL, 1);
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_tool_select, "World clicks belong to the armed tool again");
     self->w_mv_tool_add = ToriRSChrome_Radio(chrome, p, "Add waypoint", BP_GROUP_TOOL, 0);
-    ToriRSChrome_SetTooltip(chrome, self->w_mv_tool_add, "A click on the map appends a waypoint there");
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_tool_add, "Each click on a World tile lays the next waypoint");
     self->w_mv_tool_move = ToriRSChrome_Radio(chrome, p, "Move waypoint", BP_GROUP_TOOL, 0);
-    ToriRSChrome_SetTooltip(chrome, self->w_mv_tool_move, "Drag a waypoint to another tile");
-    self->w_mv_fit = ToriRSChrome_Button(chrome, p, "Fit");
-    ToriRSChrome_SetTooltip(chrome, self->w_mv_fit, "Frame the spawns, the route and the leash");
-    self->w_mv_goto = ToriRSChrome_Button(chrome, p, "Go to");
-    ToriRSChrome_SetTooltip(chrome, self->w_mv_goto, "The World's camera over the selected waypoint or spawn");
-
-    ToriRSChrome_Heading(chrome, p, "Mode");
-    self->w_mv_mode_none = ToriRSChrome_Radio(chrome, p, "None", BP_GROUP_MODE, 0);
-    self->w_mv_mode_patrol = ToriRSChrome_Radio(chrome, p, "Patrol", BP_GROUP_MODE, 0);
-    self->w_mv_mode_wander = ToriRSChrome_Radio(chrome, p, "Wander", BP_GROUP_MODE, 1);
-    ToriRSChrome_SetTooltip(chrome, self->w_mv_mode_wander, "Wander or None over a route removes its patrol rows");
-    self->w_mv_leash = ToriRSChrome_Slider(chrome, p, "Leash", 0, 64, EDITOR_NPC_LEASH_DEFAULT, 1);
-    ToriRSChrome_SetTooltip(chrome, self->w_mv_leash, "maxrange: how far from the spawn a target is followed");
-    self->w_mv_range = ToriRSChrome_Slider(chrome, p, "Wander range", 0, 64, EDITOR_NPC_WANDER_DEFAULT, 1);
-    ToriRSChrome_SetTooltip(chrome, self->w_mv_range, "wanderrange: the square it roams (unused by a patroller)");
-    self->w_mv_restrict = ToriRSChrome_Dropdown(chrome, p, "Restrict", k_restrict_options, 8, 0);
-    ToriRSChrome_SetTooltip(chrome, self->w_mv_restrict, "moverestrict: indoors / outdoors read the roof flag");
-    self->w_mv_block = ToriRSChrome_Dropdown(chrome, p, "Block walk", k_block_options, 5, 0);
-    self->w_mv_facing = ToriRSChrome_Dropdown(chrome, p, "Facing", k_facing_options, 9, 0);
-    ToriRSChrome_SetTooltip(chrome, self->w_mv_facing, "Type-wide: every spawn of this npc faces this way");
-    self->w_mv_respawn = ToriRSChrome_TextInput(chrome, p, "Respawn (ticks)", "");
-    self->w_mv_timer = ToriRSChrome_TextInput(chrome, p, "Timer (ticks)", "");
-    ToriRSChrome_SetTooltip(chrome, self->w_mv_timer, "The [ai_timer] interval; 0 or empty: never armed");
-
-    ToriRSChrome_Heading(chrome, p, "Route");
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_tool_move, "Drag a numbered waypoint in the World to another tile");
+    self->w_mv_hint = ToriRSChrome_Label(chrome, p, "");
     self->w_mv_route_label = ToriRSChrome_Label(chrome, p, "");
+    self->w_mv_route_note = ToriRSChrome_Label(chrome, p, "");
+    /* The way out of a red leg, under the sentence that names it: moving
+     * waypoints by hand until each leg walks took a dozen drags round one
+     * cottage. Hidden while every leg walks. */
+    self->w_mv_fix = ToriRSChrome_Button(chrome, p, "Fix stuck legs");
+    ToriRSChrome_ButtonSetFill(chrome, self->w_mv_fix, 1);
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_fix, "Add the fewest waypoints that take each red leg round");
+    ToriRSChrome_SetHidden(chrome, self->w_mv_fix, 1);
     self->w_mv_route = ToriRSChrome_VList(chrome, p, "", BP_MV_ROUTE_ROWS, 0);
     assert(self->w_mv_route >= 0);
     self->w_mv_pause = ToriRSChrome_TextInput(chrome, p, "Pause (ticks)", "");
-    ToriRSChrome_SetTooltip(chrome, self->w_mv_pause, "Enter sets the selected waypoint's pause");
-    self->w_mv_wp_add = ToriRSChrome_Button(chrome, p, "Add at latched tile");
-    self->w_mv_wp_insert = ToriRSChrome_Button(chrome, p, "Insert after");
-    ToriRSChrome_SetTooltip(chrome, self->w_mv_wp_insert, "A waypoint halfway along the selected one's leg");
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_pause, "Ticks the selected waypoint is held; Enter sets it");
+    self->w_mv_play = ToriRSChrome_Button(chrome, p, "Play");
+    ToriRSChrome_SetLabel(chrome, self->w_mv_play, "Play");
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_play, "A marker walks the route in the World, a tile a tick");
+    self->w_mv_play_label = ToriRSChrome_Label(chrome, p, "");
+    self->w_mv_goto = ToriRSChrome_Button(chrome, p, "Go to");
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_goto, "The World's camera over the selected waypoint or spawn");
     self->w_mv_wp_delete = ToriRSChrome_Button(chrome, p, "Delete waypoint");
     self->w_mv_wp_up = ToriRSChrome_Button(chrome, p, "Waypoint up");
     self->w_mv_wp_down = ToriRSChrome_Button(chrome, p, "Waypoint down");
-    self->w_mv_play = ToriRSChrome_Button(chrome, p, "Play");
-    ToriRSChrome_SetTooltip(chrome, self->w_mv_play, "A ghost walks the route on the map, a tile a tick");
+    self->w_mv_wp_insert = ToriRSChrome_Button(chrome, p, "Insert after");
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_wp_insert, "A waypoint halfway along the selected one's leg");
+    /* The same two edits without a pointer in the World: they act on the
+     * latched tile (a Select click, or Go to tile). */
+    self->w_mv_wp_add = ToriRSChrome_Button(chrome, p, "Add latched");
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_wp_add, "A waypoint on the tile latched in the World");
+    self->w_mv_wp_move = ToriRSChrome_Button(chrome, p, "Move to latched");
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_wp_move, "The selected waypoint to the tile latched in the World");
+
+    ToriRSChrome_Heading(chrome, p, "Behaviour");
+    self->w_mv_mode_none = ToriRSChrome_Radio(chrome, p, "Stand still", BP_GROUP_MODE, 0);
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_mode_none, "defaultmode=none: it stays on its spawn tile");
+    self->w_mv_mode_wander = ToriRSChrome_Radio(chrome, p, "Wander", BP_GROUP_MODE, 1);
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_mode_wander, "Roams the Wander range; over a route, removes the route");
+    self->w_mv_mode_patrol = ToriRSChrome_Radio(chrome, p, "Patrol", BP_GROUP_MODE, 0);
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_mode_patrol, "Walks the route above; the first waypoint sets it");
+    /* Typed, not dragged: the values wanted are small and exact (3 tiles),
+     * a 0..64 slider gives 4 px a tile, and a typed field is set by its
+     * label from the agent API. Empty is the engine's default. */
+    self->w_mv_range = ToriRSChrome_TextInput(chrome, p, "Wander range", "");
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_range, "wanderrange: tiles from its spawn it roams; empty: 5");
+    self->w_mv_facing = ToriRSChrome_Dropdown(chrome, p, "Facing", k_facing_options, 9, 0);
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_facing, "The way every spawn of this type faces when it stands");
+    self->w_mv_respawn = ToriRSChrome_TextInput(chrome, p, "Respawn (ticks)", "");
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_respawn, "respawnrate: ticks after a death; empty: the default");
+    self->w_mv_leash = ToriRSChrome_TextInput(chrome, p, "Leash", "");
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_leash, "maxrange: tiles from its SPAWN it keeps a target; empty: 7");
+    self->w_mv_restrict = ToriRSChrome_Dropdown(chrome, p, "Restrict", k_restrict_options, 8, 0);
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_restrict, "moverestrict: indoors / outdoors read the roof flag");
+    self->w_mv_block = ToriRSChrome_Dropdown(chrome, p, "Block walk", k_block_options, 5, 0);
+    self->w_mv_timer = ToriRSChrome_TextInput(chrome, p, "Timer (ticks)", "");
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_timer, "The [ai_timer] interval; 0 or empty: never armed");
+
     self->w_mv_target = ToriRSChrome_Label(chrome, p, "");
+    self->w_mv_target_path = ToriRSChrome_Label(chrome, p, "");
+
+    ToriRSChrome_Heading(chrome, p, "Collision map");
+    self->w_mv_map = ToriRSChrome_Graph(chrome, p, "Map", BP_MV_H);
+    /* The map zooms with the wheel, in a panel that scrolls. */
+    ToriRSChrome_GraphSetWheel(chrome, self->w_mv_map, 1);
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_map, "Red tiles block. Wheel zooms, drag pans, F fits");
+    self->w_mv_readout = ToriRSChrome_Label(chrome, p, "");
+    self->w_mv_fit = ToriRSChrome_Button(chrome, p, "Fit");
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_fit, "Frame the spawns, the route and the leash");
 
     ToriRSChrome_PanelBeginTab(chrome, p, BUILDER_NPC_TAB_SPAWNS);
     self->w_sp_label = ToriRSChrome_Label(chrome, p, "");
@@ -4157,23 +4300,152 @@ bp_mv_legs(
     struct builder_panel* self)
 {
     uint32_t const hash = bp_mv_hash_route(self) ^ (uint32_t)(ui->editor ? ui->editor->last_cmd_seq : 0);
+    int const size = self->mv.size > 0 ? self->mv.size : 1;
 
     if( hash == self->mv_legs_hash )
         return;
     self->mv_legs_hash = hash;
+    /* With the scene's step test bound each leg is WALKED the way the server
+     * walks it (editor_npc.h): a waypoint round a corner is reachable and the
+     * npc still stands at the wall until it is teleported, which a flood
+     * fill (path_steps, the fallback) reports as a fine leg. */
+    self->mv_walked = self->services.can_step != NULL;
     for( int i = 0; i < self->mv.patrol_count; i++ )
     {
         const struct Editor_NpcWaypoint* a = &self->mv.patrol[i];
         const struct Editor_NpcWaypoint* b = &self->mv.patrol[(i + 1) % self->mv.patrol_count];
+        struct Editor_NpcWalk* walk = &self->mv_walk[i];
+
+        memset(walk, 0, sizeof(*walk));
+        walk->result = EDITOR_NPC_WALK_UNKNOWN;
         if( a->level < 0 || b->level < 0 )
             self->mv_legs[i] = -2;
         else if( a->level != b->level )
+        {
+            walk->result = EDITOR_NPC_WALK_TELEPORT;
             self->mv_legs[i] = -3;
+        }
+        else if( self->services.can_step )
+        {
+            (void)Editor_NpcWalkLeg(a, b, size, self->services.can_step, self->services.user_data,
+                                    self->mv_walk_tiles[i], BP_MV_WALK_MAX, walk);
+            self->mv_legs[i] = walk->result == EDITOR_NPC_WALK_ARRIVES ? walk->steps
+                               : walk->result == EDITOR_NPC_WALK_STUCK ? -1
+                                                                       : -2;
+        }
         else if( !self->services.path_steps )
             self->mv_legs[i] = -2;
         else
+        {
             self->mv_legs[i] = self->services.path_steps(self->services.user_data, a->x, a->z, b->x, b->z, a->level);
+            if( self->mv_legs[i] >= 0 )
+            {
+                walk->result = EDITOR_NPC_WALK_ARRIVES;
+                walk->steps = self->mv_legs[i];
+            }
+            else if( self->mv_legs[i] == -1 )
+                walk->result = EDITOR_NPC_WALK_STUCK;
+            walk->stuck_x = self->mv_legs[i] >= 0 ? b->x : a->x;
+            walk->stuck_z = self->mv_legs[i] >= 0 ? b->z : a->z;
+        }
     }
+}
+
+/** How far the route reaches from the npc's spawns in the open squares
+ *  (Editor_NpcRouteReach); 0 with no spawn or no route. */
+static int
+bp_mv_route_reach(const struct builder_panel* self)
+{
+    int reach = 0;
+
+    for( int i = 0; i < self->sp_count; i++ )
+    {
+        int r;
+        if( self->sp[i].suppressed )
+            continue;
+        r = Editor_NpcRouteReach(self->mv.patrol, self->mv.patrol_count, self->sp[i].x, self->sp[i].z);
+        if( r > reach )
+            reach = r;
+    }
+    return reach;
+}
+
+/** Spawns of the open npc in the open squares that are not suppressed. */
+static int
+bp_mv_live_spawns(const struct builder_panel* self)
+{
+    int live = 0;
+
+    for( int i = 0; i < self->sp_count; i++ )
+        live += !self->sp[i].suppressed;
+    return live;
+}
+
+/**
+ * The spawn "Make own type" splits off: the Spawns tab's row, else the
+ * spawn selected in the World (the Spawns panel's selection -- a spawn just
+ * placed is selected), else the only one there is. 1 and `out` filled; 0
+ * when the type has no live spawn here; -1 when it has several and none is
+ * chosen.
+ */
+static int
+bp_mv_split_spawn(
+    struct builder_panel* self,
+    struct Builder_NpcSpawn* out)
+{
+    int const live = bp_mv_live_spawns(self);
+
+    if( self->sp_sel >= 0 && self->sp_sel < self->sp_count && !self->sp[self->sp_sel].suppressed )
+    {
+        *out = self->sp[self->sp_sel];
+        return 1;
+    }
+    if( self->has_model && self->services.spawn_selected
+        && self->services.spawn_selected(self->services.user_data, self->model->name, out) )
+        for( int i = 0; i < self->sp_count; i++ )
+            if( !self->sp[i].suppressed && self->sp[i].x == out->x && self->sp[i].z == out->z
+                && self->sp[i].level == out->level )
+            {
+                *out = self->sp[i];
+                return 1;
+            }
+    if( live == 1 )
+    {
+        for( int i = 0; i < self->sp_count; i++ )
+            if( !self->sp[i].suppressed )
+                *out = self->sp[i];
+        return 1;
+    }
+    return live == 0 ? 0 : -1;
+}
+
+/** "Who else moves with it", at the top of the route: with other spawns of
+ *  the type in the open squares, which one Make own type would split off
+ *  and the two controls that do it; with one, a line and no controls. */
+static void
+bp_mv_share_refresh(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    char line[TORIRS_CHROME_LABEL_MAX];
+    struct Builder_NpcSpawn spawn;
+    int const live = bp_mv_live_spawns(self);
+    int const chosen = live > 1 ? bp_mv_split_spawn(self, &spawn) : 0;
+
+    if( !self->has_model )
+        line[0] = '\0';
+    else if( live > 1 && chosen > 0 )
+        snprintf(line, sizeof(line), "%d spawns move alike. Own type for the one at %d,%d:", live, spawn.x, spawn.z);
+    else if( live > 1 )
+        snprintf(line, sizeof(line), "%d spawns move alike: select one in the World to split it off", live);
+    else if( live == 1 )
+        snprintf(line, sizeof(line), "1 spawn in the open squares; other squares may hold more");
+    else
+        snprintf(line, sizeof(line), "no spawn in the open squares yet (Spawns tab places one)");
+    ToriRSChrome_SetText(ui->chrome, self->w_mv_share, line);
+    ToriRSChrome_SetHidden(ui->chrome, self->w_mv_share, line[0] == '\0');
+    ToriRSChrome_SetHidden(ui->chrome, self->w_mv_newtype, live <= 1);
+    ToriRSChrome_SetHidden(ui->chrome, self->w_mv_split, live <= 1);
 }
 
 static void
@@ -4183,48 +4455,104 @@ bp_mv_route_rows(
 {
     int first;
     int shown;
-    int reachable = 1;
+    int stuck = 0;
+    int teleports = 0;
     int steps = 0;
     int unknown = 0;
     char line[TORIRS_CHROME_INPUT_MAX];
+    char note[TORIRS_CHROME_LABEL_MAX];
 
     ToriRSChrome_VListSetCount(ui->chrome, self->w_mv_route, self->mv.patrol_count);
+    ToriRSChrome_VListSetSelected(ui->chrome, self->w_mv_route, self->mv_sel);
     if( ToriRSChrome_VListWindow(ui->chrome, self->w_mv_route, &first, &shown) )
         for( int r = first; r < first + shown && r < self->mv.patrol_count; r++ )
         {
             const struct Editor_NpcWaypoint* w = &self->mv.patrol[r];
             int const leg = self->mv_legs[r];
-            char legtext[32];
+            int const next = (r + 1) % self->mv.patrol_count + 1;
+            char legtext[40];
+            char pause[20];
+            /* One line that fits the column the panel docks in (270 px,
+             * some 40 characters): number, tile, what the leg to the next
+             * waypoint does, the pause held here. The long form ("leg: NO
+             * PATH (teleports)  (back to 1)") was cut at the panel's edge. */
             if( self->mv.patrol_count < 2 )
                 legtext[0] = '\0';
             else if( leg >= 0 )
-                snprintf(legtext, sizeof(legtext), "  leg %d step%s", leg, leg == 1 ? "" : "s");
+                snprintf(legtext, sizeof(legtext), "  %d step%s to %d", leg, leg == 1 ? "" : "s", next);
             else if( leg == -3 )
-                snprintf(legtext, sizeof(legtext), "  leg: teleport");
+                snprintf(legtext, sizeof(legtext), "  teleports to %d", next);
+            else if( leg == -1 && self->mv_walked )
+                snprintf(legtext, sizeof(legtext), "  STUCK at %d,%d", self->mv_walk[r].stuck_x, self->mv_walk[r].stuck_z);
             else if( leg == -1 )
-                snprintf(legtext, sizeof(legtext), "  leg: NO PATH (teleports)");
+                snprintf(legtext, sizeof(legtext), "  NO PATH to %d", next);
             else
-                snprintf(legtext, sizeof(legtext), "  leg ?");
-            snprintf(line, sizeof(line), "%s%d  %d,%d lvl %d  pause %d%s%s", r == self->mv_sel ? "* " : "", r + 1, w->x,
-                     w->z, w->level, w->pause, legtext, r + 1 == self->mv.patrol_count ? "  (back to 1)" : "");
+                snprintf(legtext, sizeof(legtext), "  not walked");
+            if( w->pause > 0 )
+                snprintf(pause, sizeof(pause), ", pause %d", w->pause);
+            else
+                pause[0] = '\0';
+            snprintf(line, sizeof(line), "%d  %d,%d%s%s%s", r + 1, w->x, w->z, w->level != 0 ? " up" : "", legtext, pause);
             ToriRSChrome_VListSetRow(ui->chrome, self->w_mv_route, r, line);
         }
     for( int i = 0; i < self->mv.patrol_count; i++ )
     {
         if( self->mv_legs[i] == -1 )
-            reachable = 0;
+            stuck++;
         else if( self->mv_legs[i] == -2 )
-            unknown = 1;
+            unknown++;
+        else if( self->mv_legs[i] == -3 )
+            teleports++;
         else if( self->mv_legs[i] > 0 )
             steps += self->mv_legs[i];
     }
+    /* Two short lines (a label holds 63 bytes): the lap, then the one thing
+     * to do about it. */
     if( self->mv.patrol_count == 0 )
-        snprintf(line, sizeof(line), "no route: Add waypoint on the map, or Add at latched tile");
+    {
+        /* The hint above the list says how to start one. */
+        line[0] = '\0';
+        note[0] = '\0';
+    }
     else
-        snprintf(line, sizeof(line), "lap: %d legs, %d steps + %d pause = %d ticks; %s", self->mv.patrol_count, steps,
-                 self->mv_eff.lap_pause, steps + self->mv_eff.lap_pause,
-                 !reachable ? "a leg has NO PATH" : unknown ? "legs unknown (load the squares)" : "all legs reachable");
+    {
+        int const ticks = steps + self->mv_eff.lap_pause;
+        int const reach = bp_mv_route_reach(self);
+        /* A stuck leg has no walking time (it stands, then is teleported):
+         * a sum over the others undercounts the lap, and disagreed with the
+         * "will:" line above it. */
+        if( stuck )
+            snprintf(line, sizeof(line), "lap: %d legs, %d stuck: no lap time until they walk", self->mv.patrol_count,
+                     stuck);
+        else
+            snprintf(line, sizeof(line), "lap: %d leg%s, %d steps + %d pause = %d ticks (%d s)", self->mv.patrol_count,
+                     self->mv.patrol_count == 1 ? "" : "s", steps, self->mv_eff.lap_pause, ticks, ticks * 6 / 10);
+        if( self->mv.patrol_count == 1 )
+            snprintf(note, sizeof(note), "one waypoint: it walks there and stays; add more for a loop");
+        else if( stuck && self->mv_walked )
+            snprintf(note, sizeof(note), "%d leg%s STUCK (red): press Fix stuck legs, or move a waypoint", stuck,
+                     stuck == 1 ? "" : "s");
+        else if( stuck )
+            snprintf(note, sizeof(note), "%d leg%s STUCK (red): move a waypoint so it walks straight", stuck,
+                     stuck == 1 ? "" : "s");
+        else if( unknown )
+            snprintf(note, sizeof(note), "%d leg%s not walked: open the square%s the route crosses", unknown,
+                     unknown == 1 ? "" : "s", unknown == 1 ? "" : "s");
+        else if( reach > self->mv_eff.leash )
+            snprintf(note, sizeof(note), "leash %d < the route's reach %d from its spawn: raise Leash",
+                     self->mv_eff.leash, reach);
+        else if( teleports )
+            snprintf(note, sizeof(note), "%d leg%s change level: the server teleports it there", teleports,
+                     teleports == 1 ? "" : "s");
+        else
+            snprintf(note, sizeof(note), "every leg walks: it is never stuck and never teleports");
+    }
     ToriRSChrome_SetText(ui->chrome, self->w_mv_route_label, line);
+    ToriRSChrome_SetText(ui->chrome, self->w_mv_route_note, note);
+    /* An empty line takes no row. */
+    ToriRSChrome_SetHidden(ui->chrome, self->w_mv_route_label, line[0] == '\0');
+    ToriRSChrome_SetHidden(ui->chrome, self->w_mv_route_note, note[0] == '\0');
+    ToriRSChrome_SetHidden(ui->chrome, self->w_mv_fix, !(stuck && self->mv_walked && self->mv.patrol_count >= 2));
 }
 
 static void
@@ -4295,11 +4623,33 @@ bp_mv_refresh(
     else if( !self->mv_valid )
         snprintf(line, sizeof(line), "no record session: the movement fields are not editable here");
     else
-        snprintf(line, sizeof(line), "effective: %s -- %s%s", self->mv_eff.mode == EDITOR_NPC_MODE_PATROL ? "PATROL"
-                                                                 : self->mv_eff.mode == EDITOR_NPC_MODE_WANDER ? "WANDER"
-                                                                                                                 : "NONE",
-                 self->mv_eff.why, self->mv_eff.nomove ? " (nomove)" : "");
+    {
+        /* The four type-wide values in one line, the engine's defaults
+         * spelled where the record states nothing (an empty field and an
+         * "(unstated)" dropdown do not say what the npc will do). */
+        char mode[24];
+        char respawn[16];
+        if( self->mv_eff.nomove )
+            snprintf(mode, sizeof(mode), "nomove");
+        else if( self->mv_eff.mode == EDITOR_NPC_MODE_PATROL )
+            snprintf(mode, sizeof(mode), "patrol");
+        else if( self->mv_eff.mode == EDITOR_NPC_MODE_WANDER )
+            snprintf(mode, sizeof(mode), "wander %d", self->mv_eff.wander);
+        else
+            snprintf(mode, sizeof(mode), "stands still");
+        if( self->mv.respawnrate >= 0 )
+            snprintf(respawn, sizeof(respawn), "%d", self->mv.respawnrate);
+        else
+            snprintf(respawn, sizeof(respawn), "default");
+        snprintf(line, sizeof(line), "now: %s, leash %d, facing %s, respawn %s", mode, self->mv_eff.leash,
+                 self->mv.facing >= 0 ? Editor_NpcFacingWord(self->mv.facing) : "unset", respawn);
+    }
     ToriRSChrome_SetText(chrome, self->w_mv_eff, line);
+    ToriRSChrome_SetText(chrome, self->w_mv_hint,
+                         !self->has_model        ? ""
+                         : self->mv_tool == 1    ? "click World tiles in order; click a waypoint to select it"
+                         : self->mv_tool == 2    ? "drag a numbered waypoint in the World to another tile"
+                                                 : "Add waypoint, then click tiles in the World to lay a route");
 
     /* The controls read the statements; a tick on a radio is the stated or
      * effective mode. */
@@ -4311,9 +4661,22 @@ bp_mv_refresh(
                                                                                               : self->w_mv_mode_none)
                                      : self->mv_eff.mode == EDITOR_NPC_MODE_WANDER ? self->w_mv_mode_wander
                                                                                    : self->w_mv_mode_none);
-    ToriRSChrome_SliderSet(chrome, self->w_mv_leash, self->mv.maxrange >= 0 ? self->mv.maxrange : EDITOR_NPC_LEASH_DEFAULT);
-    ToriRSChrome_SliderSet(chrome, self->w_mv_range,
-                           self->mv.wanderrange >= 0 ? self->mv.wanderrange : EDITOR_NPC_WANDER_DEFAULT);
+    if( chrome->focus != self->w_mv_leash )
+    {
+        if( self->mv.maxrange >= 0 )
+            snprintf(line, sizeof(line), "%d", self->mv.maxrange);
+        else
+            line[0] = '\0';
+        ToriRSChrome_SetText(chrome, self->w_mv_leash, line);
+    }
+    if( chrome->focus != self->w_mv_range )
+    {
+        if( self->mv.wanderrange >= 0 )
+            snprintf(line, sizeof(line), "%d", self->mv.wanderrange);
+        else
+            line[0] = '\0';
+        ToriRSChrome_SetText(chrome, self->w_mv_range, line);
+    }
     ToriRSChrome_SetDisabled(chrome, self->w_mv_range, !editable || self->mv_eff.mode == EDITOR_NPC_MODE_PATROL);
     ToriRSChrome_DropdownSetSelected(chrome, self->w_mv_restrict,
                                      self->mv.moverestrict >= 0 ? (int)self->mv.moverestrict + 1 : 0);
@@ -4348,18 +4711,34 @@ bp_mv_refresh(
                                 self->w_mv_restrict, self->w_mv_block, self->w_mv_facing, self->w_mv_respawn,
                                 self->w_mv_timer, self->w_mv_pause, self->w_mv_wp_add, self->w_mv_wp_insert,
                                 self->w_mv_wp_delete, self->w_mv_wp_up, self->w_mv_wp_down, self->w_sp_place,
-                                self->w_sp_delete };
+                                self->w_sp_delete, self->w_mv_wp_move, self->w_mv_tool_add, self->w_mv_tool_move,
+                                self->w_mv_newtype, self->w_mv_split, self->w_mv_fix };
         for( size_t i = 0; i < sizeof(widgets) / sizeof(widgets[0]); i++ )
             ToriRSChrome_SetDisabled(chrome, widgets[i], !editable);
     }
-    if( !self->has_model )
-        line[0] = '\0';
-    else if( self->mv_target[0] )
-        snprintf(line, sizeof(line), "Writes to: %s%s", self->mv_target,
-                 strstr(self->mv_target, "edited/") == self->mv_target ? " (the editor's own)" : " (authored)");
-    else
-        snprintf(line, sizeof(line), "Writes to: no authored overlay (edits refused)");
-    ToriRSChrome_SetText(chrome, self->w_mv_target, line);
+    /* The file, on a line of its own: a label holds 63 bytes and a path
+     * does not share them with a sentence. */
+    {
+        char path[TORIRS_CHROME_LABEL_MAX];
+        path[0] = '\0';
+        if( !self->has_model )
+            line[0] = '\0';
+        else if( self->mv_target[0] )
+        {
+            size_t const length = strlen(self->mv_target);
+            snprintf(line, sizeof(line), "Movement is written to %s:",
+                     strstr(self->mv_target, "edited/") == self->mv_target ? "the editor's own file" : "its authored file");
+            if( length < sizeof(path) )
+                snprintf(path, sizeof(path), "%s", self->mv_target);
+            else
+                snprintf(path, sizeof(path), "...%s", self->mv_target + length - (sizeof(path) - 4));
+        }
+        else
+            snprintf(line, sizeof(line), "no authored overlay to write to: edits are refused");
+        ToriRSChrome_SetText(chrome, self->w_mv_target, line);
+        ToriRSChrome_SetText(chrome, self->w_mv_target_path, path);
+    }
+    bp_mv_share_refresh(ui, self);
     bp_mv_route_rows(ui, self);
     bp_mv_spawn_rows(ui, self);
     if( self->mv_fit_pending || (self->mv_cx == 0 && self->mv_cz == 0) )
@@ -4433,6 +4812,29 @@ bp_mv_ghost_tile(
         return 0;
     a = &self->mv.patrol[self->mv_play_leg % self->mv.patrol_count];
     b = &self->mv.patrol[(self->mv_play_leg + 1) % self->mv.patrol_count];
+    /* A walked leg: the tile the server's walk is on at this step; past
+     * the tiles kept (or where the walk stopped) the place it ended. */
+    if( self->mv_walked )
+    {
+        const struct Editor_NpcWalk* walk = &self->mv_walk[self->mv_play_leg % self->mv.patrol_count];
+        const struct Editor_NpcWalkTile* tiles = self->mv_walk_tiles[self->mv_play_leg % self->mv.patrol_count];
+        if( self->mv_play_step <= 0 )
+        {
+            *out_x = a->x;
+            *out_z = a->z;
+        }
+        else if( self->mv_play_step <= walk->tile_count )
+        {
+            *out_x = tiles[self->mv_play_step - 1].x;
+            *out_z = tiles[self->mv_play_step - 1].z;
+        }
+        else
+        {
+            *out_x = walk->stuck_x;
+            *out_z = walk->stuck_z;
+        }
+        return 1;
+    }
     steps = Editor_NpcLegSteps(a, b);
     if( steps <= 0 )
     {
@@ -4772,6 +5174,405 @@ bp_mv_add_waypoint(
 }
 
 static int
+bp_mv_set_tool(
+    struct EditorUi* ui,
+    struct builder_panel* self,
+    int tool)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+
+    if( tool != 0 && (!self->has_model || !self->mv_valid || self->read_only) )
+    {
+        bp_status(ui, self, !self->has_model ? "open an npc first: its name above, then Open"
+                                             : "this npc's movement cannot be edited here (see the line above)");
+        tool = 0;
+    }
+    self->mv_tool = tool;
+    self->mv_wdrag_wp = -1;
+    self->mv_wpress = 0;
+    ToriRSChrome_RadioSelect(chrome, tool == 1 ? self->w_mv_tool_add : tool == 2 ? self->w_mv_tool_move
+                                                                                 : self->w_mv_tool_select);
+    ToriRSChrome_SetText(chrome, self->w_mv_hint,
+                         !self->has_model ? ""
+                         : tool == 1      ? "click World tiles in order; click a waypoint to select it"
+                         : tool == 2      ? "drag a numbered waypoint in the World to another tile"
+                                          : "Add waypoint, then click tiles in the World to lay a route");
+    if( tool == 1 && bp_mv_live_spawns(self) > 1 && self->mv.patrol_count == 0 )
+    {
+        /* A patrol is a field of the type: say so before the first click
+         * sends every spawn of it down the route. */
+        char line[200];
+        snprintf(line, sizeof(line), "%d spawns of %s will all walk this route; to patrol one, Make own type first (top "
+                                     "of the tab)",
+                 bp_mv_live_spawns(self), self->model->name);
+        bp_status(ui, self, line);
+    }
+    else if( tool == 1 )
+        bp_status(ui, self, "Add waypoint: click tiles in the World in the order it walks them; Select ends it");
+    else if( tool == 2 )
+        bp_status(ui, self, "Move waypoint: press a numbered waypoint in the World and drag it; Select ends it");
+    if( ui->app_services.request_redraw )
+        ui->app_services.request_redraw(ui->app_services.user_data);
+    return tool;
+}
+
+/** What Play is doing, under its button. */
+static void
+bp_mv_play_say(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    char line[TORIRS_CHROME_LABEL_MAX];
+    int const count = self->mv.patrol_count;
+
+    if( !self->mv_play || count < 2 )
+        line[0] = '\0';
+    else
+    {
+        int const leg = self->mv_play_leg % count;
+        int const next = (leg + 1) % count + 1;
+        int const total = self->mv_walked ? self->mv_walk[leg].steps
+                                          : Editor_NpcLegSteps(&self->mv.patrol[leg], &self->mv.patrol[next - 1]);
+        if( self->mv_play_stuck )
+            snprintf(line, sizeof(line), "STUCK at %d,%d: after %d ticks it teleports to %d", self->mv_walk[leg].stuck_x,
+                     self->mv_walk[leg].stuck_z, EDITOR_NPC_PATROL_STUCK_TICKS, next);
+        else if( self->mv_play_hold > 0 )
+            snprintf(line, sizeof(line), "at waypoint %d: pausing, %d tick%s left", next, self->mv_play_hold,
+                     self->mv_play_hold == 1 ? "" : "s");
+        else
+            snprintf(line, sizeof(line), "walking to waypoint %d: step %d of %d", next, self->mv_play_step, total);
+    }
+    ToriRSChrome_SetText(ui->chrome, self->w_mv_play_label, line);
+    ToriRSChrome_SetHidden(ui->chrome, self->w_mv_play_label, line[0] == '\0');
+}
+
+static void
+bp_mv_play(
+    struct EditorUi* ui,
+    struct builder_panel* self,
+    int on)
+{
+    if( on && self->mv.patrol_count < 2 )
+    {
+        bp_status(ui, self, "Play needs a route of two or more waypoints");
+        on = 0;
+    }
+    self->mv_play = on;
+    self->mv_play_leg = 0;
+    self->mv_play_step = 0;
+    self->mv_play_hold = 0;
+    self->mv_play_stuck = 0;
+    self->mv_play_ms = ui->chrome->now_ms;
+    /* The caption says what a press does; the label the agent finds it by
+     * stays "Play" (npc.play_route is the same toggle). */
+    ToriRSChrome_SetText(ui->chrome, self->w_mv_play, on ? "Stop" : "Play");
+    if( on )
+    {
+        /* The walker is drawn in the World: bring the route into view, or
+         * Play shows nothing to a camera that is elsewhere. Its middle (the
+         * box round its waypoints on waypoint 1's level), not waypoint 1,
+         * which put half a loop off the screen. */
+        int x0 = self->mv.patrol[0].x;
+        int x1 = x0;
+        int z0 = self->mv.patrol[0].z;
+        int z1 = z0;
+        for( int i = 1; i < self->mv.patrol_count; i++ )
+        {
+            const struct Editor_NpcWaypoint* w = &self->mv.patrol[i];
+            if( w->level != self->mv.patrol[0].level )
+                continue;
+            x0 = w->x < x0 ? w->x : x0;
+            x1 = w->x > x1 ? w->x : x1;
+            z0 = w->z < z0 ? w->z : z0;
+            z1 = w->z > z1 ? w->z : z1;
+        }
+        if( self->services.goto_tile )
+            (void)self->services.goto_tile(self->services.user_data, (x0 + x1) / 2, (z0 + z1) / 2,
+                                           self->mv.patrol[0].level);
+        bp_status(ui, self, "Play: the magenta marker walks the route in the World, a tile every 0.6 s, as the server will");
+    }
+    bp_mv_play_say(ui, self);
+    if( ui->app_services.request_redraw )
+        ui->app_services.request_redraw(ui->app_services.user_data);
+}
+
+/** One server tick of Play: a step along the walked leg; at its end the
+ *  waypoint's pause, or -- where the walk stopped dead -- a short hold and
+ *  the jump the server makes. */
+static void
+bp_mv_play_tick(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    int const count = self->mv.patrol_count;
+    int const leg = self->mv_play_leg % count;
+    const struct Editor_NpcWaypoint* a = &self->mv.patrol[leg];
+    const struct Editor_NpcWaypoint* b = &self->mv.patrol[(leg + 1) % count];
+    int const total = self->mv_walked ? self->mv_walk[leg].steps : Editor_NpcLegSteps(a, b);
+    int next_leg = 0;
+
+    if( self->mv_play_hold > 0 )
+        next_leg = --self->mv_play_hold == 0;
+    else
+    {
+        if( self->mv_play_step < total )
+            self->mv_play_step++;
+        if( self->mv_play_step >= total )
+        {
+            if( self->mv_walked && self->mv_walk[leg].result == EDITOR_NPC_WALK_STUCK )
+            {
+                self->mv_play_stuck = 1;
+                self->mv_play_hold = BP_MV_PLAY_STUCK_TICKS;
+            }
+            else if( b->pause > 0 )
+                self->mv_play_hold = b->pause;
+            else
+                next_leg = 1;
+        }
+    }
+    if( next_leg )
+    {
+        self->mv_play_leg = (leg + 1) % count;
+        self->mv_play_step = 0;
+        self->mv_play_hold = 0;
+        self->mv_play_stuck = 0;
+    }
+    bp_mv_play_say(ui, self);
+    if( ui->app_services.request_redraw )
+        ui->app_services.request_redraw(ui->app_services.user_data);
+}
+
+/**
+ * "Make own type": a route, a wander range and a facing are fields of the
+ * npc TYPE, so the one man who should patrol has to stop being a `man`.
+ * Copy the open npc to the typed name, re-point the chosen spawn at the
+ * copy, and open the copy -- two undo steps, one press.
+ */
+static void
+bp_mv_make_own_type(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    const char* typed = ToriRSChrome_Text(ui->chrome, self->w_mv_newtype);
+    char new_name[BUILDER_NAME_MAX];
+    char old_name[BUILDER_NAME_MAX];
+    struct Builder_NpcSpawn spawn;
+    int have_spawn = 0;
+    int live = 0;
+    char line[200];
+
+    if( !self->has_model )
+    {
+        bp_status(ui, self, "open an npc first: its name above, then Open");
+        return;
+    }
+    if( !typed || !typed[0] || !Builder_NameValid(typed) || strlen(typed) >= sizeof(new_name) )
+    {
+        bp_status(ui, self, "type the new type's name in \"Own type name\" first: a-z 0-9 _ (thistle_watchman)");
+        ToriRSChrome_FocusWidget(ui->chrome, self->w_mv_newtype, 0);
+        return;
+    }
+    copy_text(new_name, sizeof(new_name), typed);
+    copy_text(old_name, sizeof(old_name), self->model->name);
+    if( strcmp(new_name, old_name) == 0 )
+    {
+        bp_status(ui, self, "that is this npc's name already: type a new one");
+        return;
+    }
+    if( !self->services.copy_record )
+    {
+        bp_status(ui, self, "no record session here: a type cannot be copied");
+        return;
+    }
+    /* Which spawn becomes the new type (bp_mv_split_spawn); with several
+     * and none chosen, ask. None at all is fine: the copy is made and
+     * opened, to be placed later. */
+    live = bp_mv_live_spawns(self);
+    have_spawn = bp_mv_split_spawn(self, &spawn);
+    if( have_spawn < 0 )
+    {
+        snprintf(line, sizeof(line), "%d spawns of %s are here: click the one to split off in the World, then again",
+                 live, old_name);
+        bp_status(ui, self, line);
+        return;
+    }
+    if( !self->services.copy_record(self->services.user_data, BUILDER_SUBJECT_NPC, old_name, new_name) )
+    {
+        snprintf(line, sizeof(line), "%s was not copied to %s (the Console says why: the name may be taken)", old_name,
+                 new_name);
+        bp_status(ui, self, line);
+        return;
+    }
+    if( have_spawn )
+    {
+        int gone;
+        int placed;
+        /* The delete and the place are ONE undo step (the copy is a second:
+         * the authority keeps a SAVE_AS its own step, whatever stroke is
+         * open). Three steps for one press read as an Undo that did nothing.
+         * The Spawns panel's edits open their own stroke unless one is open
+         * (edp_apply reads tools.stroke_open), so it is raised here too. */
+        int const joined = self->services.submit.stroke && !ui->tools.stroke_open;
+        if( joined )
+        {
+            self->services.submit.stroke(self->services.submit.user_data, 1);
+            ui->tools.stroke_open = 1;
+        }
+        gone = self->services.spawn_delete ? self->services.spawn_delete(self->services.user_data, &spawn) : 0;
+        placed = self->services.spawn_place
+                     ? self->services.spawn_place(self->services.user_data, new_name, spawn.x, spawn.z, spawn.level)
+                     : 0;
+        if( joined )
+        {
+            ui->tools.stroke_open = 0;
+            self->services.submit.stroke(self->services.submit.user_data, 0);
+        }
+        if( gone <= 0 || placed <= 0 )
+        {
+            snprintf(line, sizeof(line), "%s is copied from %s, but its spawn at %d,%d was not re-pointed: place it by name",
+                     new_name, old_name, spawn.x, spawn.z);
+            (void)bp_open(ui, self, new_name);
+            bp_status(ui, self, line);
+            return;
+        }
+    }
+    ToriRSChrome_SetText(ui->chrome, self->w_mv_newtype, "");
+    if( !bp_open(ui, self, new_name) )
+        return;
+    if( have_spawn )
+        snprintf(line, sizeof(line),
+                 "%s is its own type now (a copy of %s); the spawn at %d,%d is a %s. Undo twice puts it back",
+                 new_name, old_name, spawn.x, spawn.z, new_name);
+    else
+        snprintf(line, sizeof(line), "%s is a new type (a copy of %s); place it from the Spawns tab", new_name, old_name);
+    bp_status(ui, self, line);
+}
+
+/** 1 when a step from some neighbour lands on waypoint `w`'s tile: a
+ *  waypoint on a tree, in the river or inside a wall is walked to by no leg,
+ *  and no detour helps it. */
+static int
+bp_mv_enterable(
+    const struct builder_panel* self,
+    const struct Editor_NpcWaypoint* w,
+    int size)
+{
+    for( int dx = -1; dx <= 1; dx++ )
+        for( int dz = -1; dz <= 1; dz++ )
+            if( (dx != 0 || dz != 0)
+                && self->services.can_step(self->services.user_data, w->x - dx, w->z - dz, dx, dz, w->level, size) == 1 )
+                return 1;
+    return 0;
+}
+
+/**
+ * "Fix stuck legs": each leg the walk says stops dead gets the waypoints
+ * Editor_NpcLegDetour finds round what stops it, the whole route written
+ * as one undo step. Returns the waypoints added; -1 when nothing was
+ * written (the status says why).
+ */
+static int
+bp_mv_fix_legs(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    struct Editor_NpcWaypoint route[EDITOR_NPC_PATROL_MAX];
+    struct Editor_NpcWaypoint detour[EDITOR_NPC_PATROL_MAX];
+    int const size = self->mv.size > 0 ? self->mv.size : 1;
+    int const count = self->mv.patrol_count;
+    int n = 0;
+    int fixed = 0;
+    int unfixable = -1;
+    int unfixable_why = 0;
+    char line[256];
+
+    if( !self->has_model || !self->mv_valid || self->read_only )
+    {
+        bp_status(ui, self, !self->has_model ? "open an npc with a route first"
+                                             : "this npc's movement cannot be edited here (see the line above)");
+        return -1;
+    }
+    if( !self->services.can_step || count < 2 )
+    {
+        bp_status(ui, self, count < 2 ? "Fix stuck legs needs a route of two or more waypoints"
+                                      : "the World cannot walk legs here: no collision to test");
+        return -1;
+    }
+    bp_mv_legs(ui, self);
+    for( int i = 0; i < count; i++ )
+    {
+        const struct Editor_NpcWaypoint* a = &self->mv.patrol[i];
+        const struct Editor_NpcWaypoint* b = &self->mv.patrol[(i + 1) % count];
+        int added = 0;
+
+        assert(n < EDITOR_NPC_PATROL_MAX);
+        route[n++] = *a;
+        if( self->mv_legs[i] != -1 )
+            continue;
+        /* Room left once the waypoints still to copy have theirs. */
+        added = Editor_NpcLegDetour(a, b, size, self->services.can_step, self->services.user_data, detour,
+                                    EDITOR_NPC_PATROL_MAX - n - (count - i - 1));
+        if( added == 0 )
+            continue;
+        if( added < 0 )
+        {
+            /* No way round inside the search box (-1), or no room left for
+             * one (-2): this leg stays as it is, and the sentence names it. */
+            if( unfixable < 0 )
+            {
+                unfixable = i;
+                unfixable_why = added;
+            }
+            continue;
+        }
+        memcpy(&route[n], detour, sizeof(detour[0]) * (size_t)added);
+        n += added;
+        fixed++;
+    }
+    /* A leg left as it was: a waypoint nothing walks onto is the usual
+     * reason, and the one thing to do about it is to move THAT waypoint. */
+    if( unfixable >= 0 )
+    {
+        int const to = (unfixable + 1) % count;
+        int const blocked = !bp_mv_enterable(self, &self->mv.patrol[to], size) ? to
+                            : !bp_mv_enterable(self, &self->mv.patrol[unfixable], size) ? unfixable
+                                                                                         : -1;
+        if( blocked >= 0 )
+            snprintf(line, sizeof(line), "waypoint %d is on a tile no step lands on (a tree, water, a wall): move it",
+                     blocked + 1);
+        else if( unfixable_why == -2 )
+            snprintf(line, sizeof(line),
+                     "leg %d to %d needs more waypoints round than the %d the server walks: move waypoint %d nearer",
+                     unfixable + 1, to + 1, EDITOR_NPC_PATROL_MAX, to + 1);
+        else
+            snprintf(line, sizeof(line), "leg %d to %d has no way round within %d tiles: move waypoint %d",
+                     unfixable + 1, to + 1, EDITOR_NPC_DETOUR_MARGIN, to + 1);
+    }
+    if( fixed == 0 )
+    {
+        if( unfixable < 0 )
+            snprintf(line, sizeof(line), "every leg walks already: nothing to fix");
+        bp_status(ui, self, line);
+        return -1;
+    }
+    self->mv_sel = -1;
+    if( !bp_mv_write_route(ui, self, route, n, EDITOR_NPC_MODE_PATROL, "fix stuck legs") )
+        return -1;
+    if( unfixable >= 0 )
+    {
+        char why[128];
+        copy_text(why, sizeof(why), line);
+        snprintf(line, sizeof(line), "%d waypoint%s added round %d leg%s; still stuck: %s", n - count,
+                 n - count == 1 ? "" : "s", fixed, fixed == 1 ? "" : "s", why);
+    }
+    else
+        snprintf(line, sizeof(line), "%d waypoint%s added round %d stuck leg%s; the route now has %d", n - count,
+                 n - count == 1 ? "" : "s", fixed, fixed == 1 ? "" : "s", n);
+    bp_status(ui, self, line);
+    return n - count;
+}
+
+static int
 bp_mv_activate(
     struct EditorUi* ui,
     struct builder_panel* self,
@@ -4782,7 +5583,34 @@ bp_mv_activate(
 
     if( widget == self->w_mv_tool_select || widget == self->w_mv_tool_add || widget == self->w_mv_tool_move )
     {
-        self->mv_tool = widget == self->w_mv_tool_add ? 1 : widget == self->w_mv_tool_move ? 2 : 0;
+        bp_mv_set_tool(ui, self, widget == self->w_mv_tool_add ? 1 : widget == self->w_mv_tool_move ? 2 : 0);
+        return 1;
+    }
+    if( widget == self->w_mv_wp_move )
+    {
+        struct Editor_NpcWaypoint route[EDITOR_NPC_PATROL_MAX];
+        int const n = bp_mv_route_copy(self, route);
+        if( self->mv_sel < 0 || self->mv_sel >= n )
+            bp_status(ui, self, "select the waypoint to move (a row of the route list) first");
+        else if( !ui->tools.tile_valid )
+            bp_status(ui, self, "latch a tile in the World first (the Select tool): the waypoint moves there");
+        else
+        {
+            route[self->mv_sel].x = ui->tools.tile_x;
+            route[self->mv_sel].z = ui->tools.tile_z;
+            route[self->mv_sel].level = ui->tools.tile_level;
+            (void)bp_mv_write_route(ui, self, route, n, EDITOR_NPC_MODE_PATROL, "move waypoint");
+        }
+        return 1;
+    }
+    if( widget == self->w_mv_split || widget == self->w_mv_newtype )
+    {
+        bp_mv_make_own_type(ui, self);
+        return 1;
+    }
+    if( widget == self->w_mv_fix )
+    {
+        (void)bp_mv_fix_legs(ui, self);
         return 1;
     }
     if( widget == self->w_mv_fit )
@@ -4842,8 +5670,10 @@ bp_mv_activate(
         }
         if( mode == EDITOR_NPC_MODE_PATROL && self->mv.patrol_count == 0 )
         {
-            bp_status(ui, self, "Patrol: add waypoints (the mode follows the first one)");
+            /* Patrol with nothing to walk: the route is what makes it one. */
             bp_mv_refresh(ui, self);
+            (void)bp_mv_set_tool(ui, self, 1);
+            bp_status(ui, self, "Patrol: click tiles in the World to lay its route (Add waypoint is armed)");
             return 1;
         }
         (void)bp_mv_write_field(ui, self, "defaultmode", k_mode_words[mode], "defaultmode");
@@ -4851,9 +5681,23 @@ bp_mv_activate(
     }
     if( widget == self->w_mv_leash || widget == self->w_mv_range )
     {
-        snprintf(value, sizeof(value), "%d", ToriRSChrome_SliderValue(chrome, widget));
-        (void)bp_mv_write_field(ui, self, widget == self->w_mv_leash ? "maxrange" : "wanderrange", value,
-                                widget == self->w_mv_leash ? "maxrange" : "wanderrange");
+        const char* text = ToriRSChrome_Text(chrome, widget);
+        const char* key = widget == self->w_mv_leash ? "maxrange" : "wanderrange";
+        char* end = NULL;
+        long n;
+        if( !text || !text[0] )
+        {
+            (void)bp_mv_write_field(ui, self, key, "", key);
+            return 1;
+        }
+        n = strtol(text, &end, 10);
+        if( !end || *end || n < 0 || n > 64 )
+        {
+            bp_status(ui, self, "a range is a whole number of tiles, 0..64");
+            return 1;
+        }
+        snprintf(value, sizeof(value), "%ld", n);
+        (void)bp_mv_write_field(ui, self, key, value, key);
         return 1;
     }
     if( widget == self->w_mv_restrict || widget == self->w_mv_block || widget == self->w_mv_facing )
@@ -4928,7 +5772,7 @@ bp_mv_activate(
     {
         if( !ui->tools.tile_valid )
         {
-            bp_status(ui, self, "latch a tile in the World first (the select tool)");
+            bp_status(ui, self, "latch a tile in the World first (the Select tool), or use Add waypoint and click");
             return 1;
         }
         bp_mv_add_waypoint(ui, self, ui->tools.tile_x, ui->tools.tile_z, ui->tools.tile_level, self->mv_sel);
@@ -4983,13 +5827,7 @@ bp_mv_activate(
     }
     if( widget == self->w_mv_play )
     {
-        self->mv_play = !self->mv_play && self->mv.patrol_count >= 2;
-        self->mv_play_leg = 0;
-        self->mv_play_step = 0;
-        self->mv_play_frame = 0;
-        ToriRSChrome_SetLabel(chrome, self->w_mv_play, self->mv_play ? "Stop" : "Play");
-        if( !self->mv_play && self->mv.patrol_count < 2 )
-            bp_status(ui, self, "Play needs a route of two or more waypoints");
+        bp_mv_play(ui, self, !self->mv_play);
         return 1;
     }
     /* The Spawns tab. */
@@ -5217,32 +6055,55 @@ bp_mv_tick(
             if( self->sp_sel >= n )
                 self->sp_sel = -1;
             bp_mv_spawn_rows(ui, self);
+            /* The leash note and the sharing line read the spawns. */
+            bp_mv_refresh(ui, self);
             if( self->mv.patrol_count == 0 )
                 bp_mv_fit(self);
             self->mv_draw_hash = 0;
         }
+        /* A spawn clicked in the World is the one Make own type would split
+         * off: the line above the route follows the selection. */
+        bp_mv_share_refresh(ui, self);
     }
     /* The documents moved under us (an undo, the Record panel, a spawn
      * edit): the controls follow. */
     if( self->has_model && ui->editor && self->mv_legs_hash != 0
         && (bp_mv_hash_route(self) ^ (uint32_t)ui->editor->last_cmd_seq) != self->mv_legs_hash )
-        bp_mv_refresh(ui, self);
-    if( self->mv_play && self->mv.patrol_count >= 2 )
     {
-        if( ++self->mv_play_frame >= BP_MV_PLAY_FRAMES )
-        {
-            const struct Editor_NpcWaypoint* a = &self->mv.patrol[self->mv_play_leg % self->mv.patrol_count];
-            const struct Editor_NpcWaypoint* b = &self->mv.patrol[(self->mv_play_leg + 1) % self->mv.patrol_count];
-            int const steps = Editor_NpcLegSteps(a, b);
-            self->mv_play_frame = 0;
-            self->mv_play_step++;
-            /* At the waypoint: hold its pause, then the next leg. */
-            if( self->mv_play_step > steps + (b->pause > 0 ? b->pause : 0) )
+        bp_mv_refresh(ui, self);
+        /* The header's "will:" line too: after an Undo it still counted the
+         * waypoints the undone edit had made. */
+        bp_show_will(ui, self);
+    }
+    /* A leg the scene could not walk (its square was still loading): ask
+     * again once a second, so "not walked" does not outlive the load. */
+    if( self->has_model && (self->mv_frame % 60) == 0 )
+        for( int i = 0; i < self->mv.patrol_count; i++ )
+            if( self->mv_legs[i] == -2 )
             {
-                self->mv_play_step = 0;
-                self->mv_play_leg = (self->mv_play_leg + 1) % self->mv.patrol_count;
+                self->mv_legs_hash = 0;
+                bp_mv_legs(ui, self);
+                bp_mv_route_rows(ui, self);
+                break;
             }
-        }
+    /* Play walks at the server's pace: a tile a tick, by the clock (a frame
+     * count ran it faster on a fast machine). A route that shrank under it
+     * (an undo) stops it. */
+    if( self->mv_play && self->mv.patrol_count < 2 )
+        bp_mv_play(ui, self, 0);
+    if( self->mv_play && ui->chrome->now_ms - self->mv_play_ms >= BP_MV_PLAY_TICK_MS )
+    {
+        self->mv_play_ms = ui->chrome->now_ms;
+        bp_mv_play_tick(ui, self);
+    }
+    /* The World's pointer left (or its button was let go off the World):
+     * the carried waypoint is put back, the next-waypoint ghost goes. */
+    if( self->mv_whover_frame != 0 && self->mv_frame - self->mv_whover_frame == 3 )
+    {
+        self->mv_wdrag_wp = -1;
+        self->mv_wpress = 0;
+        if( ui->app_services.request_redraw )
+            ui->app_services.request_redraw(ui->app_services.user_data);
     }
     if( tab != BUILDER_NPC_TAB_MOVEMENT )
     {
@@ -5321,6 +6182,373 @@ Builder_RouteTilePoint(
     *out_x += self->mv_px / 2;
     *out_y += self->mv_px / 2;
     return 1;
+}
+
+/* ---- the route in the World --------------------------------------------- */
+
+/** The NPC editor when its Movement tab is showing an npc; NULL otherwise. */
+static struct builder_panel*
+bp_mv_showing(struct EditorUi* ui)
+{
+    struct builder_panel* self = Editor_UiPanelSelf(ui, BUILDER_PANEL_NPC);
+
+    if( !self || self->w_mv_map < 0 || !self->has_model || !ui->visible || !ui->chrome->panels[self->p_main].visible
+        || ToriRSChrome_PanelActiveTab(ui->chrome, self->p_main) != BUILDER_NPC_TAB_MOVEMENT )
+        return NULL;
+    return self;
+}
+
+/** A route action run from a key or the palette: the panel and its
+ *  Movement tab come up first, so the tool that is armed is on screen (and
+ *  an npc is opened from the selection as View > NPC editor does). */
+static void
+bp_mv_bring_up(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    if( !ui->chrome->panels[self->p_main].visible )
+        (void)Editor_UiTogglePanel(ui, BUILDER_PANEL_NPC);
+    ToriRSChrome_PanelSetActiveTab(ui->chrome, self->p_main, BUILDER_NPC_TAB_MOVEMENT);
+    /* Now, not on the panel's next tick: the action that follows needs it. */
+    bp_open_selection(ui, self);
+    self->mv_was_visible = 1;
+}
+
+int
+Builder_RouteArmed(struct EditorUi* ui)
+{
+    struct builder_panel* self;
+
+    assert(ui);
+    self = bp_mv_showing(ui);
+    if( !self || !self->mv_valid || self->read_only )
+        return 0;
+    return self->mv_tool;
+}
+
+int
+Builder_RouteSetTool(
+    struct EditorUi* ui,
+    int tool)
+{
+    struct builder_panel* self;
+
+    assert(ui);
+    assert(tool >= 0);
+    assert(tool <= 2);
+    self = Editor_UiPanelSelf(ui, BUILDER_PANEL_NPC);
+    if( !self || self->w_mv_map < 0 )
+        return 0;
+    bp_mv_bring_up(ui, self);
+    /* The same press twice puts the tool down (a toggle on a key). */
+    return bp_mv_set_tool(ui, self, tool == self->mv_tool ? 0 : tool) == tool;
+}
+
+int
+Builder_RoutePlay(struct EditorUi* ui)
+{
+    struct builder_panel* self;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, BUILDER_PANEL_NPC);
+    if( !self || self->w_mv_map < 0 )
+        return 0;
+    bp_mv_bring_up(ui, self);
+    if( !self->has_model )
+    {
+        bp_status(ui, self, "Play refused: open an npc with a route first");
+        return 0;
+    }
+    bp_mv_play(ui, self, !self->mv_play);
+    return self->mv_play;
+}
+
+int
+Builder_RouteFixLegs(struct EditorUi* ui)
+{
+    struct builder_panel* self;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, BUILDER_PANEL_NPC);
+    if( !self || self->w_mv_map < 0 )
+        return -1;
+    bp_mv_bring_up(ui, self);
+    return bp_mv_fix_legs(ui, self);
+}
+
+/** The waypoint on tile (x, z, level); -1 none. */
+static int
+bp_mv_waypoint_at(
+    const struct builder_panel* self,
+    int x,
+    int z,
+    int level)
+{
+    for( int i = 0; i < self->mv.patrol_count; i++ )
+        if( self->mv.patrol[i].x == x && self->mv.patrol[i].z == z && self->mv.patrol[i].level == level )
+            return i;
+    return -1;
+}
+
+int
+Builder_RoutePointer(
+    struct EditorUi* ui,
+    int x,
+    int z,
+    int level,
+    int pressed,
+    int held,
+    int released)
+{
+    struct builder_panel* self;
+    int at;
+
+    assert(ui);
+    self = bp_mv_showing(ui);
+    if( !self || !self->mv_valid || self->read_only || self->mv_tool == 0 )
+        return 0;
+    if( level < 0 )
+        level = 0;
+    if( level > 3 )
+        level = 3;
+    self->mv_whover_x = x;
+    self->mv_whover_z = z;
+    self->mv_whover_level = level;
+    self->mv_whover_frame = self->mv_frame;
+    at = bp_mv_waypoint_at(self, x, z, level);
+
+    if( pressed )
+    {
+        self->mv_wdrag_wp = -1;
+        self->mv_wdrag_moved = 0;
+        self->mv_wpress = 0;
+        if( at >= 0 )
+        {
+            /* On a waypoint, under either tool: it is selected, and carried
+             * while the button is held. */
+            char value[16];
+            self->mv_sel = at;
+            self->mv_wdrag_wp = at;
+            snprintf(value, sizeof(value), "%d", self->mv.patrol[at].pause);
+            ToriRSChrome_SetText(ui->chrome, self->w_mv_pause, value);
+            bp_mv_route_rows(ui, self);
+        }
+        else
+            self->mv_wpress = 1;
+    }
+    if( held && self->mv_wdrag_wp >= 0 && at != self->mv_wdrag_wp )
+        self->mv_wdrag_moved = 1;
+    if( released )
+    {
+        if( self->mv_wdrag_wp >= 0 )
+        {
+            struct Editor_NpcWaypoint route[EDITOR_NPC_PATROL_MAX];
+            int const n = bp_mv_route_copy(self, route);
+            int const wp = self->mv_wdrag_wp;
+            self->mv_wdrag_wp = -1;
+            if( self->mv_wdrag_moved && wp < n && at < 0 )
+            {
+                route[wp].x = x;
+                route[wp].z = z;
+                route[wp].level = level;
+                (void)bp_mv_write_route(ui, self, route, n, EDITOR_NPC_MODE_PATROL, "move waypoint");
+            }
+            else if( self->mv_wdrag_moved && at >= 0 && at != wp )
+                bp_status(ui, self, "that tile is a waypoint already: drop it on another");
+        }
+        else if( self->mv_wpress && self->mv_tool == 1 )
+            bp_mv_add_waypoint(ui, self, x, z, level, self->mv_sel);
+        else if( self->mv_wpress )
+            bp_status(ui, self, "Move waypoint: press ON a numbered waypoint and drag it (Add waypoint lays new ones)");
+        self->mv_wpress = 0;
+        self->mv_wdrag_moved = 0;
+    }
+    else if( !held && !pressed )
+    {
+        /* The button came up somewhere this was not told about. */
+        self->mv_wdrag_wp = -1;
+        self->mv_wpress = 0;
+    }
+    return 1;
+}
+
+static int
+bp_mv_rect(
+    struct MapEditorWanderRect* out,
+    int n,
+    int max,
+    enum MapEditorWanderKind kind,
+    int x0,
+    int z0,
+    int x1,
+    int z1,
+    int level,
+    int index,
+    int flags)
+{
+    if( n >= max )
+        return n;
+    memset(&out[n], 0, sizeof(out[n]));
+    out[n].kind = kind;
+    out[n].x0 = x0;
+    out[n].z0 = z0;
+    out[n].x1 = x1;
+    out[n].z1 = z1;
+    out[n].level = level;
+    out[n].index = index;
+    out[n].flags = flags;
+    return n + 1;
+}
+
+/**
+ * One leg as the World draws it: the tiles the walk steps onto as straight
+ * runs (so the line turns where the npc turns), then what the walk did not
+ * cover -- and where it stops dead, the marker it stands on and the jump the
+ * server makes, in the teleport colour.
+ */
+static int
+bp_mv_leg_rects(
+    const struct Editor_NpcWaypoint* a,
+    const struct Editor_NpcWaypoint* b,
+    const struct Editor_NpcWalk* walk,
+    const struct Editor_NpcWalkTile* tiles,
+    int index,
+    int flags,
+    struct MapEditorWanderRect* out,
+    int n,
+    int max)
+{
+    int run_x = a->x;
+    int run_z = a->z;
+    int px = a->x;
+    int pz = a->z;
+    int dx = 0;
+    int dz = 0;
+
+    if( walk->result == EDITOR_NPC_WALK_TELEPORT )
+        return bp_mv_rect(out, n, max, MAP_EDITOR_WANDER_LEG, a->x, a->z, b->x, b->z, a->level, index,
+                          flags | MAP_EDITOR_WANDER_FLAG_TELEPORT);
+    for( int i = 0; i < walk->tile_count; i++ )
+    {
+        int const ndx = tiles[i].x - px;
+        int const ndz = tiles[i].z - pz;
+        if( i > 0 && (ndx != dx || ndz != dz) )
+        {
+            n = bp_mv_rect(out, n, max, MAP_EDITOR_WANDER_LEG, run_x, run_z, px, pz, a->level, index, flags);
+            run_x = px;
+            run_z = pz;
+        }
+        dx = ndx;
+        dz = ndz;
+        px = tiles[i].x;
+        pz = tiles[i].z;
+    }
+    if( px != run_x || pz != run_z )
+        n = bp_mv_rect(out, n, max, MAP_EDITOR_WANDER_LEG, run_x, run_z, px, pz, a->level, index, flags);
+    /* Past the tiles kept (a long leg, or legs measured without a walk). */
+    if( walk->result != EDITOR_NPC_WALK_STUCK )
+    {
+        if( px != b->x || pz != b->z )
+            n = bp_mv_rect(out, n, max, MAP_EDITOR_WANDER_LEG, px, pz, b->x, b->z, a->level, index, flags);
+        return n;
+    }
+    if( px != walk->stuck_x || pz != walk->stuck_z )
+        n = bp_mv_rect(out, n, max, MAP_EDITOR_WANDER_LEG, px, pz, walk->stuck_x, walk->stuck_z, a->level, index, flags);
+    n = bp_mv_rect(out, n, max, MAP_EDITOR_WANDER_STALL, walk->stuck_x, walk->stuck_z, walk->stuck_x, walk->stuck_z,
+                   a->level, index, flags);
+    return bp_mv_rect(out, n, max, MAP_EDITOR_WANDER_LEG, walk->stuck_x, walk->stuck_z, b->x, b->z, a->level, index,
+                      flags | MAP_EDITOR_WANDER_FLAG_UNREACHABLE);
+}
+
+int
+Builder_RouteWorldRects(
+    struct EditorUi* ui,
+    struct MapEditorWanderRect* out,
+    int max)
+{
+    static struct Editor_NpcWalkTile fresh_tiles[BP_MV_WALK_MAX];
+    struct builder_panel* self;
+    struct Editor_NpcWaypoint route[EDITOR_NPC_PATROL_MAX];
+    int count;
+    int size;
+    int hovering;
+    int carried = -1;
+    int n = 0;
+
+    assert(ui);
+    assert(out || max == 0);
+    self = bp_mv_showing(ui);
+    if( !self || !self->mv_valid )
+        return 0;
+    count = self->mv.patrol_count;
+    size = self->mv.size > 0 ? self->mv.size : 1;
+    hovering = self->mv_tool != 0 && self->mv_whover_frame != 0 && self->mv_frame - self->mv_whover_frame <= 2;
+    memcpy(route, self->mv.patrol, sizeof(route[0]) * (size_t)count);
+    /* A waypoint being carried is drawn where the pointer has it, and its
+     * two legs are walked again there: the drop is judged before it is made. */
+    if( hovering && self->mv_wdrag_wp >= 0 && self->mv_wdrag_wp < count && self->mv_wdrag_moved )
+    {
+        carried = self->mv_wdrag_wp;
+        route[carried].x = self->mv_whover_x;
+        route[carried].z = self->mv_whover_z;
+        route[carried].level = self->mv_whover_level;
+    }
+    for( int i = 0; i < count && count >= 2; i++ )
+    {
+        const struct Editor_NpcWaypoint* a = &route[i];
+        const struct Editor_NpcWaypoint* b = &route[(i + 1) % count];
+        int const flags = i + 1 == count ? MAP_EDITOR_WANDER_FLAG_CLOSING : 0;
+        if( a->level < 0 || b->level < 0 )
+            continue;
+        if( carried >= 0 && (i == carried || (i + 1) % count == carried) && self->services.can_step )
+        {
+            struct Editor_NpcWalk walk;
+            (void)Editor_NpcWalkLeg(a, b, size, self->services.can_step, self->services.user_data, fresh_tiles,
+                                    BP_MV_WALK_MAX, &walk);
+            n = bp_mv_leg_rects(a, b, &walk, fresh_tiles, i + 1, flags | MAP_EDITOR_WANDER_FLAG_PREVIEW, out, n, max);
+        }
+        else
+            n = bp_mv_leg_rects(a, b, &self->mv_walk[i], self->mv_walk_tiles[i], i + 1, flags, out, n, max);
+    }
+    for( int i = 0; i < count; i++ )
+        if( route[i].level >= 0 )
+            n = bp_mv_rect(out, n, max, MAP_EDITOR_WANDER_WAYPOINT, route[i].x, route[i].z, route[i].x, route[i].z,
+                           route[i].level, i + 1,
+                           (i == self->mv_sel ? MAP_EDITOR_WANDER_FLAG_SELECTED : 0)
+                               | (i == carried ? MAP_EDITOR_WANDER_FLAG_PREVIEW : 0));
+    /* Add waypoint: the tile under the pointer as the waypoint a click would
+     * lay, and the leg to it walked, so a leg that will stick shows red
+     * before the click. */
+    if( hovering && self->mv_tool == 1 && carried < 0 && count < EDITOR_NPC_PATROL_MAX
+        && bp_mv_waypoint_at(self, self->mv_whover_x, self->mv_whover_z, self->mv_whover_level) < 0 )
+    {
+        int const after = count == 0 ? -1 : self->mv_sel >= 0 && self->mv_sel < count ? self->mv_sel : count - 1;
+        struct Editor_NpcWaypoint next;
+        memset(&next, 0, sizeof(next));
+        next.x = self->mv_whover_x;
+        next.z = self->mv_whover_z;
+        next.level = self->mv_whover_level;
+        if( after >= 0 && route[after].level >= 0 && self->services.can_step )
+        {
+            struct Editor_NpcWalk walk;
+            (void)Editor_NpcWalkLeg(&route[after], &next, size, self->services.can_step, self->services.user_data,
+                                    fresh_tiles, BP_MV_WALK_MAX, &walk);
+            n = bp_mv_leg_rects(&route[after], &next, &walk, fresh_tiles, after + 1, MAP_EDITOR_WANDER_FLAG_PREVIEW, out, n,
+                                max);
+        }
+        n = bp_mv_rect(out, n, max, MAP_EDITOR_WANDER_WAYPOINT, next.x, next.z, next.x, next.z, next.level, after + 2,
+                       MAP_EDITOR_WANDER_FLAG_PREVIEW);
+    }
+    /* Play's walker, over everything. */
+    {
+        int gx;
+        int gz;
+        if( bp_mv_ghost_tile(self, &gx, &gz) )
+            n = bp_mv_rect(out, n, max, MAP_EDITOR_WANDER_WALKER, gx, gz, gx + size - 1, gz + size - 1,
+                           self->mv.patrol[self->mv_play_leg % count].level, 0,
+                           self->mv_play_stuck ? MAP_EDITOR_WANDER_FLAG_UNREACHABLE : 0);
+    }
+    return n;
 }
 
 /* ---- the scripting surface ------------------------------------------------ */

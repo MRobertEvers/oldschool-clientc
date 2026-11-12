@@ -142,6 +142,14 @@ Editor_NpcMovementRead(
         const char* word = value;
         while( *word == ' ' || *word == '\t' )
             word++;
+        /* `=default` is how a cache block spells "not stated" (Copy to new
+         * writes one for every field): the engine's rule decides, not NONE. */
+        if( strcmp(word, "default") == 0 )
+        {
+            movement->defaultmode_stated = 0;
+            movement->defaultmode = EDITOR_NPC_MODE_NONE;
+            return 1;
+        }
         movement->defaultmode_stated = 1;
         if( strcmp(word, "wander") == 0 || strcmp(word, "1") == 0 )
             movement->defaultmode = EDITOR_NPC_MODE_WANDER;
@@ -571,12 +579,43 @@ Editor_NpcPreviewRects(
 
 /* ---- the route as commands ------------------------------------------------- */
 
+/** Editor_CfgRecordFieldCommands plans each field against the record as it
+ *  stands, so for a record with no block in its write layer yet EVERY field
+ *  comes with a command that opens the block, and the authority refuses the
+ *  second (a fresh Copy to new could not be given a route at all). Keep the
+ *  first one per file: drop from out[at..at+written) a block-open that the
+ *  commands before it already hold. Returns the commands kept. */
+static int
+route_plan_keep(
+    struct Editor_Cmd* out,
+    int at,
+    int written)
+{
+    int kept = 0;
+
+    for( int i = 0; i < written; i++ )
+    {
+        int dup = 0;
+        if( out[at + i].kind == EDITOR_CMD_CFG_BLOCK )
+            for( int k = 0; k < at + kept && !dup; k++ )
+                dup = out[k].kind == EDITOR_CMD_CFG_BLOCK && strcmp(out[k].doc_key, out[at + i].doc_key) == 0
+                      && strcmp(out[k].u.cfg_block.name, out[at + i].u.cfg_block.name) == 0;
+        if( dup )
+            continue;
+        if( kept != i )
+            out[at + kept] = out[at + i];
+        kept++;
+    }
+    return kept;
+}
+
 int
 Editor_NpcRoutePlan(
     const struct Editor_CfgRecord* record,
     const struct Editor_NpcWaypoint* waypoints,
     int count,
     enum Editor_NpcMode mode,
+    int maxrange,
     int layer,
     struct Editor_Cmd* out,
     int max)
@@ -610,7 +649,22 @@ Editor_NpcRoutePlan(
         written = Editor_CfgRecordFieldCommands(record, key, "", 0, value, layer, out + n, max - n);
         if( written < 0 )
             return -1;
-        n += written;
+        n += route_plan_keep(out, n, written);
+    }
+    /* A bare `patrol=` in the layer the rows go to is the list's "none"
+     * marker (Copy to new writes `patrol=empty` with every other field):
+     * beside patrol1..N in one layer it says both, and cachepack refuses the
+     * record ("a marker beside entries"), failing the whole RUN. */
+    if( count > 0 )
+    {
+        int const row = Editor_CfgRecordFindRow(record, "patrol", "", 0);
+        if( row >= 0 && Editor_CfgRecordLayerStates(record, layer, row, NULL, 0) >= 0 )
+        {
+            int const written = Editor_CfgRecordFieldCommands(record, "patrol", "", 0, "", layer, out + n, max - n);
+            if( written < 0 )
+                return -1;
+            n += route_plan_keep(out, n, written);
+        }
     }
     for( int i = count; i < stated; i++ )
     {
@@ -637,9 +691,275 @@ Editor_NpcRoutePlan(
         int written = Editor_CfgRecordFieldCommands(record, "defaultmode", "", 0, word, layer, out + n, max - n);
         if( written < 0 )
             return -1;
-        n += written;
+        n += route_plan_keep(out, n, written);
+    }
+    /* The leash that covers the route (Editor_NpcRouteReach), same stroke. */
+    if( maxrange >= 0 )
+    {
+        char number[16];
+        int written;
+        snprintf(number, sizeof(number), "%d", maxrange);
+        written = Editor_CfgRecordFieldCommands(record, "maxrange", "", 0, number, layer, out + n, max - n);
+        if( written < 0 )
+            return -1;
+        n += route_plan_keep(out, n, written);
     }
     return n;
+}
+
+/* ---- the walk the server takes ------------------------------------------------ */
+
+int
+Editor_NpcWalkLeg(
+    const struct Editor_NpcWaypoint* a,
+    const struct Editor_NpcWaypoint* b,
+    int size,
+    Editor_NpcStepFn step,
+    void* user_data,
+    struct Editor_NpcWalkTile* tiles,
+    int max,
+    struct Editor_NpcWalk* out)
+{
+    int x;
+    int z;
+
+    assert(a);
+    assert(b);
+    assert(step);
+    assert(tiles || max == 0);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    out->stuck_x = a->x;
+    out->stuck_z = a->z;
+    if( a->level != b->level )
+    {
+        out->result = EDITOR_NPC_WALK_TELEPORT;
+        return 0;
+    }
+    x = a->x;
+    z = a->z;
+    /* npc_take_step: the diagonal, else the x leg, else the z leg, else it
+     * stands (and the stuck counter runs). Every step taken closes on the
+     * waypoint, so the loop ends within the Manhattan distance. */
+    while( x != b->x || z != b->z )
+    {
+        int const dx = b->x > x ? 1 : b->x < x ? -1 : 0;
+        int const dz = b->z > z ? 1 : b->z < z ? -1 : 0;
+        int answer = 0;
+        int sx = 0;
+        int sz = 0;
+
+        if( dx != 0 && dz != 0 )
+        {
+            answer = step(user_data, x, z, dx, dz, a->level, size);
+            sx = dx;
+            sz = dz;
+        }
+        if( answer == 0 && dx != 0 )
+        {
+            answer = step(user_data, x, z, dx, 0, a->level, size);
+            sx = dx;
+            sz = 0;
+        }
+        if( answer == 0 && dz != 0 )
+        {
+            answer = step(user_data, x, z, 0, dz, a->level, size);
+            sx = 0;
+            sz = dz;
+        }
+        if( answer <= 0 )
+        {
+            out->result = answer < 0 ? EDITOR_NPC_WALK_UNKNOWN : EDITOR_NPC_WALK_STUCK;
+            out->stuck_x = x;
+            out->stuck_z = z;
+            return out->steps;
+        }
+        x += sx;
+        z += sz;
+        if( out->tile_count < max )
+        {
+            tiles[out->tile_count].x = x;
+            tiles[out->tile_count].z = z;
+            out->tile_count++;
+        }
+        out->steps++;
+    }
+    out->result = EDITOR_NPC_WALK_ARRIVES;
+    out->stuck_x = b->x;
+    out->stuck_z = b->z;
+    return out->steps;
+}
+
+int
+Editor_NpcLegDetour(
+    const struct Editor_NpcWaypoint* a,
+    const struct Editor_NpcWaypoint* b,
+    int size,
+    Editor_NpcStepFn step,
+    void* user_data,
+    struct Editor_NpcWaypoint* out,
+    int max)
+{
+    static const int k_dirs[8][2] = {
+        { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 },
+    };
+    struct Editor_NpcWalk walk;
+    int x0;
+    int z0;
+    int w;
+    int h;
+    int cells;
+    int* from;
+    int* queue;
+    int* path;
+    int path_count = 0;
+    int head = 0;
+    int tail = 0;
+    int start;
+    int goal;
+    int found = 0;
+    int written = 0;
+    int at;
+
+    assert(a);
+    assert(b);
+    assert(step);
+    assert(out || max == 0);
+    if( a->level != b->level )
+        return -1;
+    (void)Editor_NpcWalkLeg(a, b, size, step, user_data, NULL, 0, &walk);
+    if( walk.result == EDITOR_NPC_WALK_ARRIVES )
+        return 0;
+    x0 = (a->x < b->x ? a->x : b->x) - EDITOR_NPC_DETOUR_MARGIN;
+    z0 = (a->z < b->z ? a->z : b->z) - EDITOR_NPC_DETOUR_MARGIN;
+    w = abs(a->x - b->x) + 2 * EDITOR_NPC_DETOUR_MARGIN + 1;
+    h = abs(a->z - b->z) + 2 * EDITOR_NPC_DETOUR_MARGIN + 1;
+    cells = w * h;
+    from = malloc(sizeof(int) * (size_t)cells);
+    assert(from);
+    queue = malloc(sizeof(int) * (size_t)cells);
+    assert(queue);
+    path = malloc(sizeof(int) * (size_t)cells);
+    assert(path);
+    for( int i = 0; i < cells; i++ )
+        from[i] = -1;
+    start = (a->x - x0) * h + (a->z - z0);
+    goal = (b->x - x0) * h + (b->z - z0);
+    from[start] = start;
+    queue[tail++] = start;
+    /* Breadth first over the steps the server can take: a shortest path in
+     * steps, diagonals included. */
+    while( head < tail && !found )
+    {
+        int const cell = queue[head++];
+        int const cx = cell / h;
+        int const cz = cell % h;
+        for( int d = 0; d < 8; d++ )
+        {
+            int const nx = cx + k_dirs[d][0];
+            int const nz = cz + k_dirs[d][1];
+            int next;
+            if( nx < 0 || nz < 0 || nx >= w || nz >= h )
+                continue;
+            next = nx * h + nz;
+            if( from[next] >= 0 )
+                continue;
+            if( step(user_data, x0 + cx, z0 + cz, k_dirs[d][0], k_dirs[d][1], a->level, size) != 1 )
+                continue;
+            from[next] = cell;
+            queue[tail++] = next;
+            if( next == goal )
+            {
+                found = 1;
+                break;
+            }
+        }
+    }
+    if( !found )
+    {
+        free(from);
+        free(queue);
+        free(path);
+        return -1;
+    }
+    /* The path, start to goal. */
+    for( int cell = goal; cell != start; cell = from[cell] )
+        path[path_count++] = cell;
+    path[path_count++] = start;
+    for( int i = 0; i < path_count / 2; i++ )
+    {
+        int const t = path[i];
+        path[i] = path[path_count - 1 - i];
+        path[path_count - 1 - i] = t;
+    }
+    /* From each point, the farthest path tile a straight walk reaches. The
+     * next tile always does (the search stepped there), so this ends. */
+    at = 0;
+    while( at < path_count - 1 )
+    {
+        struct Editor_NpcWaypoint here;
+        int reach = at + 1;
+
+        memset(&here, 0, sizeof(here));
+        here.x = x0 + path[at] / h;
+        here.z = z0 + path[at] % h;
+        here.level = a->level;
+        for( int j = path_count - 1; j > at + 1; j-- )
+        {
+            struct Editor_NpcWaypoint there;
+            memset(&there, 0, sizeof(there));
+            there.x = x0 + path[j] / h;
+            there.z = z0 + path[j] % h;
+            there.level = a->level;
+            (void)Editor_NpcWalkLeg(&here, &there, size, step, user_data, NULL, 0, &walk);
+            if( walk.result == EDITOR_NPC_WALK_ARRIVES )
+            {
+                reach = j;
+                break;
+            }
+        }
+        at = reach;
+        if( at == path_count - 1 )
+            break;
+        if( written == max )
+        {
+            written = -2;
+            break;
+        }
+        memset(&out[written], 0, sizeof(out[written]));
+        out[written].x = x0 + path[at] / h;
+        out[written].z = z0 + path[at] % h;
+        out[written].level = a->level;
+        written++;
+    }
+    free(from);
+    free(queue);
+    free(path);
+    return written;
+}
+
+int
+Editor_NpcRouteReach(
+    const struct Editor_NpcWaypoint* waypoints,
+    int count,
+    int spawn_x,
+    int spawn_z)
+{
+    int reach = 0;
+
+    assert(waypoints || count == 0);
+    for( int i = 0; i < count; i++ )
+    {
+        int const dx = abs(waypoints[i].x - spawn_x);
+        int const dz = abs(waypoints[i].z - spawn_z);
+        if( waypoints[i].level < 0 )
+            continue;
+        if( dx > reach )
+            reach = dx;
+        if( dz > reach )
+            reach = dz;
+    }
+    return reach;
 }
 
 /* ---- the ledger ------------------------------------------------------------- */

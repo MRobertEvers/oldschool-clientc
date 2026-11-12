@@ -9,6 +9,12 @@
  * with its npcs: Copy takes the spawns standing in the rectangle beside its
  * tiles and locs, Paste stands them again (edp_rect_copy, edpanel_actions.c).
  * The clipboard row counts what is held.
+ *
+ * "Save as stamp" (2026-11-11) names what stands in the rectangle as a stamp
+ * (edp_stamp_save_rect): with "All levels" a whole building -- its walls, its
+ * upper floors, its roof, its furniture, its floors and "remove roof" flags
+ * -- where Copy and the Locs panel's Save as stamp take one level and what
+ * is selected. The Stamps panel places it again.
  */
 
 #include "edpanel_common.h"
@@ -32,12 +38,21 @@ struct RectPanel
     int button_clear;
     int button_plateau;
     int button_mark_area;
+    int input_stamp;
+    int check_all_levels;
+    int check_overwrite;
+    int button_stamp;
     struct Editor_TileRect shown;
     int shown_clip_w;
     int shown_clip_h;
     int shown_clip_locs;
     int shown_clip_spawns;
     enum Editor_Tool shown_tool;
+    /** The panel's visibility and ui->layout_runs as the last tick saw
+     *  them: a panel that turned visible in a tick a layout ran in was the
+     *  saved layout's doing (rect_tick). */
+    int was_visible;
+    unsigned seen_layout_runs;
     /** ui->hotkeys.serial the buttons' keycaps were labelled from. */
     uint32_t chord_serial;
 };
@@ -54,6 +69,7 @@ rect_chords(
     edp_button_chord(ui, self->button_fill, EDITOR_HK_EDIT_FILL);
     edp_button_chord(ui, self->button_clear, EDITOR_HK_EDIT_CLEAR);
     edp_button_chord(ui, self->button_mark_area, EDITOR_HK_EDIT_MARK_AREA);
+    edp_button_chord(ui, self->button_stamp, EDITOR_HK_STAMP_SAVE_RECT);
     self->chord_serial = ui->hotkeys.serial;
 }
 
@@ -69,11 +85,33 @@ rect_tick(
 
     if( self->chord_serial != ui->hotkeys.serial )
         rect_chords(ui, self);
-    /* Arming the tool brings the panel up; it stays until closed. */
+    /* A saved layout reopens the flyout where the last session left it open,
+     * with Select armed: put it away, as the tool's going would have
+     * (2026-11-11: it booted open over the Building panel and the Stamps
+     * panel, all three stacked on one spot).
+     * Shown by View between layouts, it is the user's and stays. */
+    {
+        int const visible = ui->chrome->panels[self->panel].visible;
+        if( visible && !self->was_visible && self->seen_layout_runs != ui->layout_runs
+            && ui->tools.tool != EDITOR_TOOL_RECT_SELECT && !ui->chrome->panels[self->panel].user_placed )
+            ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 0);
+        self->was_visible = ui->chrome->panels[self->panel].visible;
+        self->seen_layout_runs = ui->layout_runs;
+    }
+    /* Arming the tool brings the panel up. Another tool's arming puts it
+     * away again where it is still the flyout it opened as (2026-11-11: the
+     * Rectangle, Building and Stamps flyouts open on one spot, and stood
+     * three deep); a panel the user moved or docked is theirs and stays. */
     if( self->shown_tool != ui->tools.tool )
     {
         if( ui->tools.tool == EDITOR_TOOL_RECT_SELECT )
+        {
+            /* In front of a panel opened over the same spot since. */
             ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 1);
+            ToriRSChrome_PanelRaise(ui->chrome, self->panel);
+        }
+        else if( self->shown_tool == EDITOR_TOOL_RECT_SELECT && !ui->chrome->panels[self->panel].user_placed )
+            ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 0);
         self->shown_tool = ui->tools.tool;
     }
 
@@ -146,9 +184,35 @@ rect_activate(
         if( Editor_Areas_NewFromRect(ui, NULL) )
             Editor_Areas_Show(ui);
     }
+    else if( widget == self->button_stamp || widget == self->input_stamp )
+        (void)Editor_RectSelect_SaveStamp(ui);
+    else if( widget == self->check_all_levels || widget == self->check_overwrite )
+        return 1;
     else
         return 0;
     return 1;
+}
+
+int
+Editor_RectSelect_SaveStamp(struct EditorUi* ui)
+{
+    struct RectPanel* self;
+    const char* name;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "rect");
+    if( !self )
+        return 0;
+    name = ToriRSChrome_Text(ui->chrome, self->input_stamp);
+    if( !name || !name[0] )
+    {
+        /* The field is in a panel that opens with the Rectangle tool. */
+        ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 1);
+        Editor_UiStatus(ui, "Save as stamp refused: type a name in the Rectangle panel's Stamp name first");
+        return 0;
+    }
+    return edp_stamp_save_rect(ui, &ui->tools.rect, name, ToriRSChrome_Checked(ui->chrome, self->check_all_levels),
+        edp_rect_with_spawns(), ToriRSChrome_Checked(ui->chrome, self->check_overwrite));
 }
 
 static void
@@ -216,6 +280,16 @@ Editor_RectSelect_Register(struct EditorUi* ui)
     ToriRSChrome_ButtonSetFill(ui->chrome, self->button_plateau, 1);
     ToriRSChrome_ButtonSetFill(ui->chrome, self->button_mark_area, 1);
     ToriRSChrome_SetTooltip(ui->chrome, self->button_mark_area, "Name this rectangle as an area (Areas panel)");
+    ToriRSChrome_Separator(ui->chrome, self->panel);
+    self->input_stamp = ToriRSChrome_TextInput(ui->chrome, self->panel, "Stamp name", "");
+    ToriRSChrome_SetTooltip(ui->chrome, self->input_stamp, "Letters, digits, _ and -: cottage, sheep-pen");
+    self->check_all_levels = ToriRSChrome_Checkbox(ui->chrome, self->panel, "All levels", 1);
+    ToriRSChrome_SetTooltip(ui->chrome, self->check_all_levels, "The stamp takes every level: upper floors and the roof");
+    self->check_overwrite = ToriRSChrome_Checkbox(ui->chrome, self->panel, "Overwrite stamp", 0);
+    ToriRSChrome_SetTooltip(ui->chrome, self->check_overwrite, "Replace a stamp that already has that name");
+    self->button_stamp = ToriRSChrome_Button(ui->chrome, self->panel, "Save as stamp");
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_stamp, "Everything in the rectangle as a stamp to place again");
+    ToriRSChrome_ButtonSetFill(ui->chrome, self->button_stamp, 1);
     rect_chords(ui, self);
     ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 0);
 

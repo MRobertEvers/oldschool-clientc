@@ -77,6 +77,43 @@
  * Colours come from the window (hooks.floor_rgb, the provider's records); a
  * record the window has not loaded draws as a hatched grey cell with its id,
  * so the palette still works on a cache the editor cannot fully decode.
+ *
+ * NAMES, THE COMMON SET AND FIND (2026-11-11, a village site built in the
+ * running editor). The cache's floors have no names, so the wells were
+ * unlabelled cells and "every record" on a new square was 900 of them: which
+ * is a dirt road, a stone floor, wood planks, water? editor_floornames.h
+ * answers. A well now lists THE COMMON SET first -- the floors the content's
+ * own maps are made of, in the order grass, earth, sand, snow, rock, then
+ * tracks, stone floors, wood, water -- then what the open squares use, and
+ * every record only with "Every id" or a search. The hover, the pick's row
+ * and the status sentence say the name ("overlay 14 dirt track"). "Find"
+ * narrows both wells to the records a word, an id or a "#colour" finds, over
+ * every record; and the two pick fields take a name as well as an id, so
+ * "water" typed into "Pick overlay" picks overlay 6 -- which is also how a
+ * script picks one, a swatch being a cell of a drawn well.
+ *
+ * A cache whose records are not the common set's (another revision: an
+ * entry answers only for the colour or texture it states) falls back to
+ * what the wells did before: every record while the open squares use next
+ * to none.
+ *
+ * An overlay that lays a TEXTURE is drawn as the texture in its cell. Its
+ * own colour is a placeholder (overlay 7's cell was tan and painted the
+ * swamp's teal water), so the cell showed what would not be painted.
+ *
+ * THE ORDER OF THE PAGE is what a stroke needs first: Find and Every id,
+ * the underlay well and its pick field, the overlay's, the shape strip and
+ * rotation, the sort. The one-layer eyedroppers, the Textures well, the
+ * blend strip, the colour finder and New floor record follow, under the fold
+ * of a docked panel. The wells
+ * are bare (no 48 px frame around one row of cells) and as wide as the
+ * panel, so the whole first part is one screen of the Terrain workspace's
+ * column.
+ *
+ * THE PATH PAINTER'S DEFAULT (Editor_Palette_PathOverlay): a path dragged
+ * with no overlay picked was refused. It now lays the common floor of its
+ * style -- dirt the dirt track, pavement the stone floor, river the water --
+ * and says which; an overlay the user picked is never replaced.
  */
 
 #include "edpanel_common.h"
@@ -85,6 +122,8 @@
 #include "editor/editor.h"
 #include "editor/editor_cfg.h"
 #include "editor/editor_floorcolor.h"
+#include "editor/editor_floornames.h"
+#include "editor/editor_path.h"
 #include "mem/torirs_mem.h"
 #include "ui/torirs_chrome_icons.h"
 
@@ -108,8 +147,23 @@
 /** Open squares that use this many distinct underlays or fewer get every
  *  record in the wells without "Every id". */
 #define PALETTE_AUTO_ALL_UNDERLAYS 3
+/** The least a well is wide (a column at EDP_DOCK_W_MIN), and what it is
+ *  taken to be before the first layout has given it a box. */
 #define PALETTE_WELL_W 184
-#define PALETTE_CELL 14
+/** A swatch's cell: 16 px of colour, enough to tell a texture by. */
+#define PALETTE_CELL 18
+/** The wells' fewest columns, and the most a column that wide may show. */
+#define PALETTE_COLS_MIN (PALETTE_WELL_W / PALETTE_CELL)
+#define PALETTE_COLS_MAX 32
+/** The Find box's bytes. */
+#define PALETTE_FIND_MAX 48
+_Static_assert(EDITOR_PALETTE_DESCRIBE_MAX >= EDITOR_FLOOR_NAME_MAX + 8, "an id and a name fit a description");
+/** Fewer common underlays than this resident and the wells fall back to
+ *  every record on squares that state next to no floor (another cache). */
+#define PALETTE_COMMON_MIN 4
+/** Looks (PALETTE_CUSTOM_EVERY frames apart) the panel keeps asking the
+ *  window for the common set's records over. */
+#define PALETTE_COMMON_ROUNDS 40
 /** The Textures well: the service's sprite, a cell around it, and how long
  *  the panel keeps asking after the last answer (ids past the cache's
  *  records never answer). */
@@ -119,7 +173,6 @@
 #define PALETTE_TEX_MAX 256
 #define PALETTE_TEX_BATCH 64
 #define PALETTE_TEX_SETTLE_TICKS 300
-#define PALETTE_COLS (PALETTE_WELL_W / PALETTE_CELL)
 #define SHAPE_PX 3
 #define SHAPE_BOX (EDITOR_SHAPE_GRID * SHAPE_PX + 2)
 #define SHAPE_COLS 6
@@ -145,8 +198,8 @@ enum PaletteSort
     PALETTE_SORT_COUNT,
 };
 
-static const char* const k_rotation_names[4] = { "0", "90", "180", "270" };
-static const char* const k_sort_names[PALETTE_SORT_COUNT] = { "by id", "by hue", "by lightness" };
+static const char* const k_rotation_names[4] = { "0 degrees", "90 degrees", "180 degrees", "270 degrees" };
+static const char* const k_sort_names[PALETTE_SORT_COUNT] = { "common first", "by hue", "by lightness" };
 
 struct PaletteList
 {
@@ -185,7 +238,10 @@ struct PalettePanel
     int graph_textures;
     int row_shape;
     int graph_shape;
-    int radio_rotation[4];
+    int dropdown_rotation;
+    /** Find: the words, id or #colour both wells are narrowed to. */
+    int input_find;
+    char find[PALETTE_FIND_MAX];
     int check_all;
     int dropdown_sort;
     int row_blend;
@@ -252,9 +308,26 @@ struct PalettePanel
     /** The open squares state no floor: the wells list every record. */
     int auto_all;
 
+    /** The wells' columns as last drawn (the panel's width in cells), and
+     *  the well's width they were worked out from. */
+    int well_cols;
+    int well_w_seen;
+    /** Looks left to ask the window for the common set's records over, and
+     *  how many of them were resident at the last look. */
+    int common_rounds;
+    int common_seen;
+    /** The Find box's text as last read (untrimmed), to see it change. */
+    char find_typed[PALETTE_FIND_MAX + 16];
+    /** The overlay the path painter picked by itself, and the style it was
+     *  for: such a pick follows the style; one the user made does not. */
+    int auto_overlay;
+    int auto_style;
+
     /** The Textures well. Per overlay id what the window said: 0 not yet,
      *  1 it lays a texture, -1 it lays none. */
     signed char texture_state[PALETTE_OVERLAY_PROBE + 1];
+    /** The texture each overlay that lays one lays (texture_state 1). */
+    short texture_of[PALETTE_OVERLAY_PROBE + 1];
     /** The next id to ask, and the ticks left to keep asking. */
     int texture_cursor;
     int texture_settle;
@@ -280,6 +353,161 @@ palette_rgb(
     if( id <= 0 || !ui->hooks.floor_rgb )
         return 0;
     return ui->hooks.floor_rgb(ui->hooks_user, is_overlay, id, out);
+}
+
+/* ---- names ------------------------------------------------------------------ */
+
+static struct PaletteCustom*
+palette_custom_find(
+    struct PalettePanel* self,
+    int kind,
+    int id);
+
+/** The texture overlay `id` lays as the panel knows it: the texture, -1 for
+ *  none, -2 while the window has not said (Editor_FloorCommonFind's terms). */
+static int
+palette_texture_known(
+    const struct PalettePanel* self,
+    int is_overlay,
+    int id)
+{
+    assert(self);
+    if( !is_overlay )
+        return -1;
+    if( id <= 0 || id > PALETTE_OVERLAY_PROBE || self->texture_state[id] == 0 )
+        return -2;
+    return self->texture_state[id] > 0 ? self->texture_of[id] : -1;
+}
+
+/** The same for a caller that may be in a window with no Palette (`self`
+ *  NULL: Editor_Palette_Describe, the path painter's default): there no
+ *  overlay's texture is known. */
+static int
+palette_texture_maybe(
+    const struct PalettePanel* self,
+    int is_overlay,
+    int id)
+{
+    if( !self )
+        return is_overlay ? -2 : -1;
+    return palette_texture_known(self, is_overlay, id);
+}
+
+/**
+ * What floor `id` of a kind is called (EDITOR_FLOOR_NAME_MAX bytes): "none",
+ * the name the tree gave a record it made, else editor_floornames.h's --
+ * the common name, the texture's, the colour's words. "" for a record the
+ * window has not loaded. `self` is NULL in a window with no Palette: no
+ * record of the tree's and no texture is then known.
+ */
+static void
+palette_name(
+    struct EditorUi* ui,
+    struct PalettePanel* self,
+    int is_overlay,
+    int id,
+    char* out)
+{
+    const struct PaletteCustom* custom;
+    uint32_t rgb = 0;
+
+    out[0] = '\0';
+    if( id == 0 )
+    {
+        snprintf(out, EDITOR_FLOOR_NAME_MAX, "none");
+        return;
+    }
+    custom = self ? palette_custom_find(self, is_overlay, id) : NULL;
+    if( custom )
+    {
+        snprintf(out, EDITOR_FLOOR_NAME_MAX, "%.*s", EDITOR_FLOOR_NAME_MAX - 1, custom->name);
+        return;
+    }
+    if( !palette_rgb(ui, is_overlay, id, &rgb) )
+        return;
+    Editor_FloorName(is_overlay, id, rgb, palette_texture_maybe(self, is_overlay, id), out, EDITOR_FLOOR_NAME_MAX);
+}
+
+/** Is common entry `common`'s record in this window, and what the entry
+ *  says it is? */
+static int
+palette_common_ok(
+    struct EditorUi* ui,
+    const struct PalettePanel* self,
+    const struct Editor_FloorCommon* common)
+{
+    uint32_t rgb = 0;
+
+    if( !palette_rgb(ui, common->is_overlay, common->id, &rgb) )
+        return 0;
+    return Editor_FloorCommonFind(common->is_overlay, common->id, rgb,
+               palette_texture_maybe(self, common->is_overlay, common->id))
+           == common;
+}
+
+/** Ask the window for the common set's records it has not loaded. */
+static void
+palette_common_request(struct EditorUi* ui)
+{
+    int count = 0;
+    const struct Editor_FloorCommon* common = Editor_FloorCommonList(&count);
+    uint32_t rgb;
+
+    if( !ui->hooks.floor_request )
+        return;
+    for( int i = 0; i < count; i++ )
+        if( !palette_rgb(ui, common[i].is_overlay, common[i].id, &rgb) )
+            ui->hooks.floor_request(ui->hooks_user, common[i].is_overlay, common[i].id);
+}
+
+/** Does the Find box's query find floor `id`? */
+static int
+palette_find_keeps(
+    struct EditorUi* ui,
+    struct PalettePanel* self,
+    const char* query,
+    int is_overlay,
+    int id)
+{
+    char name[EDITOR_FLOOR_NAME_MAX];
+    uint32_t rgb = 0;
+
+    if( id == 0 )
+        return 0;
+    (void)palette_rgb(ui, is_overlay, id, &rgb);
+    palette_name(ui, self, is_overlay, id, name);
+    return Editor_FloorMatches(query, id, name, rgb);
+}
+
+/**
+ * The floor of a kind a typed name means: the first common floor the words
+ * find (the set is most used first, so "dirt" is the dirt track and "water"
+ * the water), else a record the tree made, else the lowest id among every
+ * record the window has. 0 when nothing is called that.
+ */
+static int
+palette_find_best(
+    struct EditorUi* ui,
+    struct PalettePanel* self,
+    const char* query,
+    int is_overlay)
+{
+    int count = 0;
+    const struct Editor_FloorCommon* common = Editor_FloorCommonList(&count);
+    int const probe = is_overlay ? PALETTE_OVERLAY_PROBE : PALETTE_UNDERLAY_PROBE;
+    uint32_t rgb;
+
+    for( int i = 0; i < count; i++ )
+        if( common[i].is_overlay == is_overlay && palette_common_ok(ui, self, &common[i])
+            && Editor_FloorMatches(query, common[i].id, common[i].name, common[i].rgb) )
+            return common[i].id;
+    for( int i = 0; i < self->custom_count[is_overlay]; i++ )
+        if( palette_find_keeps(ui, self, query, is_overlay, self->custom[is_overlay][i].id) )
+            return self->custom[is_overlay][i].id;
+    for( int id = 1; id <= probe; id++ )
+        if( palette_rgb(ui, is_overlay, id, &rgb) && palette_find_keeps(ui, self, query, is_overlay, id) )
+            return id;
+    return 0;
 }
 
 /* ---- the picker ------------------------------------------------------------ */
@@ -698,14 +926,6 @@ palette_list_add(
     list->ids[list->count++] = id;
 }
 
-static int
-palette_cmp_int(
-    const void* a,
-    const void* b)
-{
-    return *(const int*)a - *(const int*)b;
-}
-
 struct PaletteSortKey
 {
     int id;
@@ -724,12 +944,32 @@ palette_cmp_key(
     return ka->id - kb->id;
 }
 
-/** Order a list (past its leading "none") by the sort: ids, hue (greys at
- *  the end by lightness, since their hue says nothing) or lightness; a record
- *  the window has not loaded goes last, by id. */
+/** A floor's place in the common set (0 first), or -1 when it is not one of
+ *  them in this window. */
+static int
+palette_common_rank(
+    struct EditorUi* ui,
+    const struct PalettePanel* self,
+    int is_overlay,
+    int id)
+{
+    int count = 0;
+    const struct Editor_FloorCommon* common = Editor_FloorCommonList(&count);
+
+    for( int i = 0; i < count; i++ )
+        if( common[i].id == id && common[i].is_overlay == is_overlay )
+            return palette_common_ok(ui, self, &common[i]) ? i : -1;
+    return -1;
+}
+
+/** Order a list (past its leading "none") by the sort: the common set in its
+ *  own order and then ids, hue (greys at the end by lightness, since their
+ *  hue says nothing) or lightness; a record the window has not loaded goes
+ *  last, by id. */
 static void
 palette_list_sort(
     struct EditorUi* ui,
+    const struct PalettePanel* self,
     struct PaletteList* list,
     int is_overlay,
     enum PaletteSort sort)
@@ -739,11 +979,6 @@ palette_list_sort(
 
     if( n <= 1 )
         return;
-    if( sort == PALETTE_SORT_ID )
-    {
-        qsort(list->ids + 1, (size_t)n, sizeof(int), palette_cmp_int);
-        return;
-    }
     keys = ToriMem_Calloc(ToriMem_Editor(), (size_t)n, sizeof(*keys));
     assert(keys);
     for( int i = 0; i < n; i++ )
@@ -751,6 +986,14 @@ palette_list_sort(
         struct Editor_FloorHsl hsl;
         uint32_t rgb;
         keys[i].id = list->ids[i + 1];
+        if( sort == PALETTE_SORT_ID )
+        {
+            /* The set reads grass, earth, sand, snow, rock: by id it was
+             * 26, 33, 48 ... with the families shuffled together. */
+            int const rank = palette_common_rank(ui, self, is_overlay, keys[i].id);
+            keys[i].key = rank >= 0 ? rank : (1 << 12) + keys[i].id;
+            continue;
+        }
         if( !palette_rgb(ui, is_overlay, keys[i].id, &rgb) )
         {
             keys[i].key = 1 << 20;
@@ -785,27 +1028,38 @@ palette_signature(struct EditorUi* ui)
     return signature;
 }
 
+/** Keep of a list (past its leading "none") what the Find box finds. */
+static void
+palette_list_filter(
+    struct EditorUi* ui,
+    struct PalettePanel* self,
+    struct PaletteList* list,
+    int is_overlay)
+{
+    int kept = 1;
+
+    for( int i = 1; i < list->count; i++ )
+        if( palette_find_keeps(ui, self, self->find, is_overlay, list->ids[i]) )
+            list->ids[kept++] = list->ids[i];
+    list->count = kept;
+}
+
 static void
 palette_rebuild(
     struct EditorUi* ui,
     struct PalettePanel* self)
 {
     struct Editor_Doc* doc;
+    int common_count = 0;
+    const struct Editor_FloorCommon* common = Editor_FloorCommonList(&common_count);
+    int const searching = self->find[0] != '\0';
+    int common_underlays = 0;
+    int used_underlays;
 
     self->underlays.count = 0;
     self->overlays.count = 0;
     palette_list_add(&self->underlays, 0);
     palette_list_add(&self->overlays, 0);
-    if( self->list_all )
-    {
-        uint32_t rgb;
-        for( int id = 1; id <= PALETTE_UNDERLAY_PROBE; id++ )
-            if( palette_rgb(ui, 0, id, &rgb) )
-                palette_list_add(&self->underlays, id);
-        for( int id = 1; id <= PALETTE_OVERLAY_PROBE; id++ )
-            if( palette_rgb(ui, 1, id, &rgb) )
-                palette_list_add(&self->overlays, id);
-    }
     if( ui->editor )
     {
         doc = &ui->editor->doc;
@@ -823,13 +1077,28 @@ palette_rebuild(
             }
         }
     }
-    /* Squares that state no floor, or next to none (a new square, and the
-     * same square three colours in): every record, or each well is one
-     * crossed-out cell and nothing to pick -- and then, after the first
-     * stroke, that one colour and nothing to pick next. A map that uses
-     * more underlays than that is its own palette, as before. */
-    self->auto_all = !self->list_all && self->underlays.count <= PALETTE_AUTO_ALL_UNDERLAYS + 1;
-    if( self->auto_all )
+    used_underlays = self->underlays.count - 1;
+    /* The common set, whatever the squares use: on a new square it is the
+     * palette, and on a built one the floors the next stroke most likely
+     * wants are still one click away. */
+    for( int i = 0; i < common_count; i++ )
+        if( palette_common_ok(ui, self, &common[i]) )
+        {
+            palette_list_add(common[i].is_overlay ? &self->overlays : &self->underlays, common[i].id);
+            if( !common[i].is_overlay )
+                common_underlays++;
+        }
+    /* A cache the common set does not describe, on squares that state no
+     * floor or next to none (a new square, and the same square three colours
+     * in): every record, or each well is one crossed-out cell and nothing to
+     * pick -- and then, after the first stroke, that one colour and nothing
+     * to pick next. A map that uses more underlays than that is its own
+     * palette. */
+    self->auto_all = !self->list_all && !searching && common_underlays < PALETTE_COMMON_MIN
+                     && used_underlays <= PALETTE_AUTO_ALL_UNDERLAYS;
+    /* Every id, and a search: a search is over every record the window has,
+     * not over what happens to be listed. */
+    if( self->list_all || searching || self->auto_all )
     {
         uint32_t rgb;
         for( int id = 1; id <= PALETTE_UNDERLAY_PROBE; id++ )
@@ -852,25 +1121,65 @@ palette_rebuild(
         palette_list_add(&self->underlays, self->blend_from);
     if( !ui->tools.overlay_none )
         palette_list_add(&self->overlays, ui->tools.overlay_id);
-    palette_list_sort(ui, &self->underlays, 0, self->sort);
-    palette_list_sort(ui, &self->overlays, 1, self->sort);
+    if( searching )
+    {
+        palette_list_filter(ui, self, &self->underlays, 0);
+        palette_list_filter(ui, self, &self->overlays, 1);
+    }
+    palette_list_sort(ui, self, &self->underlays, 0, self->sort);
+    palette_list_sort(ui, self, &self->overlays, 1, self->sort);
     self->built_signature = palette_signature(ui);
     self->dirty_draw = 1;
 }
 
 /* ---- drawing ---------------------------------------------------------------- */
 
+/** A well's width in logical px: the panel's content column, or the least
+ *  one before a layout has given the well a box.
+ *
+ *  A well scrolled out of the panel's view has no box (w 0) either, and it
+ *  keeps the width it was last seen at: falling back to the least width
+ *  there re-flowed every well into more, shorter rows the moment the page
+ *  scrolled past the underlay well, so the page grew under the wheel (the
+ *  scroll range read 803 at the top and 951 at the bottom). */
 static int
-palette_well_h(int count)
+palette_well_w(
+    struct EditorUi* ui,
+    const struct PalettePanel* self)
 {
-    int const rows = (count + PALETTE_COLS - 1) / PALETTE_COLS;
+    int const w = ui->chrome->widgets[self->graph_underlay].w;
+
+    if( w > 0 )
+        return ToriRSChrome_UnscalePx(ToriRSChrome_ScaleQ(ui->chrome), w);
+    return self->well_w_seen > 0 ? self->well_w_seen : PALETTE_WELL_W;
+}
+
+/** The swatch wells' columns at the well's width now. */
+static int
+palette_cols(
+    struct EditorUi* ui,
+    const struct PalettePanel* self)
+{
+    int const cols = (palette_well_w(ui, self) - 2) / PALETTE_CELL;
+
+    return cols < 4 ? 4 : cols > PALETTE_COLS_MAX ? PALETTE_COLS_MAX : cols;
+}
+
+static int
+palette_well_h(
+    int count,
+    int cols)
+{
+    int const rows = (count + cols - 1) / cols;
     return (rows > 0 ? rows : 1) * PALETTE_CELL + 2;
 }
 
-/** One swatch: the record's colour, "none" crossed out, unloaded hatched. */
+/** One swatch: what the floor paints -- the texture of an overlay that lays
+ *  one, else the record's colour -- "none" crossed out, unloaded hatched. */
 static void
 palette_draw_swatch(
     struct EditorUi* ui,
+    struct PalettePanel* self,
     int graph,
     int x,
     int y,
@@ -881,12 +1190,26 @@ palette_draw_swatch(
     int key)
 {
     struct ToriRSChrome* chrome = ui->chrome;
+    const struct EditorUiAppServices* services = &ui->app_services;
     uint32_t rgb = 0;
+    int texture = -1;
+    int scene_id = 0;
 
+    /* Only an overlay the window said lays a texture is asked for its
+     * picture: a well of plain colours asks the window nothing. */
+    if( is_overlay && id > 0 && id <= PALETTE_OVERLAY_PROBE && self->texture_state[id] > 0
+        && services->overlay_texture )
+        scene_id = services->overlay_texture(services->user_data, id, &texture);
     if( id == 0 )
     {
         ToriRSChrome_GraphRect(chrome, graph, x, y, w, h, 0x201c16, 1, key);
         ToriRSChrome_GraphLine(chrome, graph, x, y + h - 1, x + w - 1, y, 0xb04030);
+    }
+    else if( scene_id > 0 )
+    {
+        /* The keyed cell under the picture: the press and the hover land on it. */
+        ToriRSChrome_GraphRect(chrome, graph, x, y, w, h, 0x201c16, 1, key);
+        ToriRSChrome_GraphImage(chrome, graph, x, y, w, h, scene_id, 0, 1);
     }
     else if( palette_rgb(ui, is_overlay, id, &rgb) )
         ToriRSChrome_GraphRect(chrome, graph, x, y, w, h, rgb, 1, key);
@@ -900,21 +1223,26 @@ palette_draw_swatch(
 static void
 palette_draw_list(
     struct EditorUi* ui,
+    struct PalettePanel* self,
     int graph,
     const struct PaletteList* list,
     int is_overlay,
     int picked)
 {
     struct ToriRSChrome* chrome = ui->chrome;
+    int const cols = self->well_cols;
 
-    ToriRSChrome_SetCustomHeight(chrome, graph, palette_well_h(list->count));
+    /* Bare: the cells are the well. Framed, one row of them sat in the
+     * least height a framed well has (48 px), most of it empty. */
+    ToriRSChrome_GraphSetBare(chrome, graph, 1, palette_well_h(list->count, cols));
     ToriRSChrome_GraphBegin(chrome, graph);
     for( int i = 0; i < list->count; i++ )
     {
-        int const x = 1 + (i % PALETTE_COLS) * PALETTE_CELL;
-        int const y = 1 + (i / PALETTE_COLS) * PALETTE_CELL;
+        int const x = 1 + (i % cols) * PALETTE_CELL;
+        int const y = 1 + (i / cols) * PALETTE_CELL;
 
-        palette_draw_swatch(ui, graph, x, y, PALETTE_CELL - 2, PALETTE_CELL - 2, is_overlay, list->ids[i], i + 1);
+        palette_draw_swatch(
+            ui, self, graph, x, y, PALETTE_CELL - 2, PALETTE_CELL - 2, is_overlay, list->ids[i], i + 1);
         if( list->ids[i] == picked )
             ToriRSChrome_GraphRect(
                 chrome, graph, x - 1, y - 1, PALETTE_CELL, PALETTE_CELL, 0xffffff, 0, 0);
@@ -1021,11 +1349,11 @@ palette_draw_match(
     ToriRSChrome_GraphBegin(chrome, self->graph_match);
     ToriRSChrome_GraphRect(chrome, self->graph_match, 1, 1, PALETTE_MATCH_SWATCH_W, 2 * row_h - 2, self->pick_rgb, 1, 0);
     for( int i = 0; i < self->match_under_count; i++ )
-        palette_draw_swatch(ui, self->graph_match, x0 + i * PALETTE_MATCH_CELL, 1, PALETTE_MATCH_CELL - 2,
+        palette_draw_swatch(ui, self, self->graph_match, x0 + i * PALETTE_MATCH_CELL, 1, PALETTE_MATCH_CELL - 2,
             PALETTE_CELL, 0, self->match_under[i], 1 + i);
     for( int i = 0; i < self->match_over_count; i++ )
-        palette_draw_swatch(ui, self->graph_match, x0 + i * PALETTE_MATCH_CELL, 1 + row_h, PALETTE_MATCH_CELL - 2,
-            PALETTE_CELL, 1, self->match_over[i], PALETTE_MATCH_KEY_OVERLAY + 1 + i);
+        palette_draw_swatch(ui, self, self->graph_match, x0 + i * PALETTE_MATCH_CELL, 1 + row_h,
+            PALETTE_MATCH_CELL - 2, PALETTE_CELL, 1, self->match_over[i], PALETTE_MATCH_KEY_OVERLAY + 1 + i);
     ToriRSChrome_GraphEnd(chrome, self->graph_match);
 }
 
@@ -1043,6 +1371,43 @@ palette_match_line(
         at += snprintf(line + at, (size_t)(size - at), " %d", ids[i]);
 }
 
+/**
+ * A floor in one line of a label or a tooltip (TORIRS_CHROME_LABEL_MAX
+ * bytes): "<lead> 48 grass  #35720a", an overlay that lays a texture
+ * "<lead> 6 water  texture 1". The colour is left off rather than cut when
+ * the name leaves it no room: the chrome reports a cut label, and half a
+ * colour is no colour.
+ */
+static void
+palette_floor_line(
+    struct EditorUi* ui,
+    struct PalettePanel* self,
+    const char* lead,
+    int is_overlay,
+    int id,
+    char* line)
+{
+    char name[EDITOR_FLOOR_NAME_MAX];
+    char tail[24];
+    uint32_t rgb = 0;
+    int const texture = palette_texture_known(self, is_overlay, id);
+    int used;
+
+    if( !palette_rgb(ui, is_overlay, id, &rgb) )
+    {
+        snprintf(line, TORIRS_CHROME_LABEL_MAX, "%s %d (not loaded)", lead, id);
+        return;
+    }
+    palette_name(ui, self, is_overlay, id, name);
+    if( texture >= 0 )
+        snprintf(tail, sizeof(tail), "  texture %d", texture);
+    else
+        snprintf(tail, sizeof(tail), "  #%06x", (unsigned)rgb);
+    used = snprintf(line, TORIRS_CHROME_LABEL_MAX, "%s %d %s", lead, id, name);
+    if( used + (int)strlen(tail) < TORIRS_CHROME_LABEL_MAX )
+        snprintf(line + used, (size_t)(TORIRS_CHROME_LABEL_MAX - used), "%s", tail);
+}
+
 static void
 palette_labels(
     struct EditorUi* ui,
@@ -1054,18 +1419,14 @@ palette_labels(
 
     if( ui->tools.underlay_id == 0 )
         snprintf(line, sizeof(line), "Underlay: none");
-    else if( palette_rgb(ui, 0, ui->tools.underlay_id, &rgb) )
-        snprintf(line, sizeof(line), "Underlay: %d  #%06x", ui->tools.underlay_id, (unsigned)rgb);
     else
-        snprintf(line, sizeof(line), "Underlay: %d (not loaded)", ui->tools.underlay_id);
+        palette_floor_line(ui, self, "Underlay:", 0, ui->tools.underlay_id, line);
     ToriRSChrome_SetText(ui->chrome, self->row_underlay, line);
 
     if( ui->tools.overlay_none )
         snprintf(line, sizeof(line), "Overlay: none");
-    else if( palette_rgb(ui, 1, ui->tools.overlay_id, &rgb) )
-        snprintf(line, sizeof(line), "Overlay: %d  #%06x", ui->tools.overlay_id, (unsigned)rgb);
     else
-        snprintf(line, sizeof(line), "Overlay: %d", ui->tools.overlay_id);
+        palette_floor_line(ui, self, "Overlay:", 1, ui->tools.overlay_id, line);
     ToriRSChrome_SetText(ui->chrome, self->row_overlay, line);
 
     snprintf(line, sizeof(line), "Shape %d, rotation %d", ui->tools.overlay_shape,
@@ -1185,6 +1546,8 @@ palette_textures_probe(
         if( scene_id == 0 )
             continue;
         self->texture_state[id] = scene_id > 0 ? 1 : -1;
+        if( scene_id > 0 )
+            self->texture_of[id] = (short)texture;
         answered = 1;
         if( scene_id > 0 )
             found = 1;
@@ -1196,8 +1559,10 @@ palette_textures_probe(
     if( found )
     {
         palette_textures_rebuild(ui, self);
-        /* The Overlay well's cells of these overlays take the texture's
-         * average colour now that it is resident. */
+        /* The Overlay well's cells of these overlays are the texture now
+         * that it is resident, and a common floor that is one of them is
+         * known for what it is: the lists again. */
+        self->built_signature = -1;
         self->dirty_draw = 1;
     }
     else if( self->texture_settle == 0 )
@@ -1211,19 +1576,22 @@ palette_draw_textures(
 {
     struct ToriRSChrome* chrome = ui->chrome;
     const struct EditorUiAppServices* services = &ui->app_services;
-    int const rows = (self->texture_count + PALETTE_TEX_COLS - 1) / PALETTE_TEX_COLS;
+    int const cols = (palette_well_w(ui, self) - 2) / PALETTE_TEX_CELL > PALETTE_TEX_COLS
+                         ? (palette_well_w(ui, self) - 2) / PALETTE_TEX_CELL
+                         : PALETTE_TEX_COLS;
+    int const rows = (self->texture_count + cols - 1) / cols;
     int const picked = ui->tools.overlay_none ? 0 : ui->tools.overlay_id;
     int picked_texture = -1;
     char line[TORIRS_CHROME_LABEL_MAX];
 
     if( picked > 0 && services->overlay_texture )
         (void)services->overlay_texture(services->user_data, picked, &picked_texture);
-    ToriRSChrome_SetCustomHeight(chrome, self->graph_textures, (rows > 0 ? rows : 1) * PALETTE_TEX_CELL + 2);
+    ToriRSChrome_GraphSetBare(chrome, self->graph_textures, 1, (rows > 0 ? rows : 1) * PALETTE_TEX_CELL + 2);
     ToriRSChrome_GraphBegin(chrome, self->graph_textures);
     for( int i = 0; i < self->texture_count; i++ )
     {
-        int const x = 1 + (i % PALETTE_TEX_COLS) * PALETTE_TEX_CELL;
-        int const y = 1 + (i / PALETTE_TEX_COLS) * PALETTE_TEX_CELL;
+        int const x = 1 + (i % cols) * PALETTE_TEX_CELL;
+        int const y = 1 + (i / cols) * PALETTE_TEX_CELL;
         int texture = -1;
         int const scene_id = services->overlay_texture(services->user_data, self->texture_overlay[i], &texture);
 
@@ -1256,9 +1624,18 @@ palette_textures_tooltip(
     int key)
 {
     char text[TORIRS_CHROME_LABEL_MAX];
+    const char* const name =
+        key > 0 && key <= self->texture_count ? Editor_FloorTextureName(self->texture_ids[key - 1]) : NULL;
 
     if( key <= 0 || key > self->texture_count )
         snprintf(text, sizeof(text), "click a texture to pick an overlay that lays it");
+    /* What the picture is, when this build can say, ahead of the numbers. */
+    else if( name && self->texture_users[key - 1] > 1 )
+        snprintf(text, sizeof(text), "%s: texture %d, overlay %d (and %d more)", name, self->texture_ids[key - 1],
+            self->texture_overlay[key - 1], self->texture_users[key - 1] - 1);
+    else if( name )
+        snprintf(text, sizeof(text), "%s: texture %d, overlay %d", name, self->texture_ids[key - 1],
+            self->texture_overlay[key - 1]);
     else if( self->texture_users[key - 1] > 1 )
         snprintf(text, sizeof(text), "texture %d: overlay %d lays it (and %d more)", self->texture_ids[key - 1],
             self->texture_overlay[key - 1], self->texture_users[key - 1] - 1);
@@ -1268,8 +1645,10 @@ palette_textures_tooltip(
     ToriRSChrome_SetTooltip(ui->chrome, self->graph_textures, text);
 }
 
-/** The tooltip of a well names the swatch under the pointer: id, colour and
- *  the hue / sat / light the client packs it to (64, 8 and 128 steps). */
+/** The tooltip of a well names the swatch under the pointer: its id, what
+ *  it is called, its colour (or the texture it lays), and, while there is
+ *  room, the hue / sat / light the client packs it to (64, 8 and 128
+ *  steps). */
 static void
 palette_tooltip(
     struct EditorUi* ui,
@@ -1279,25 +1658,33 @@ palette_tooltip(
     int id)
 {
     char text[TORIRS_CHROME_LABEL_MAX];
+    char name[EDITOR_FLOOR_NAME_MAX];
+    char packed[32];
     uint32_t rgb;
+    int used;
 
     if( id < 0 )
-        snprintf(text, sizeof(text), "click a swatch to pick it; hover for its id and colour");
+        snprintf(text, sizeof(text), "click a swatch to pick it; hover for its name and id");
     else if( id == 0 )
         snprintf(text, sizeof(text), "none%s", is_overlay ? ": clears the overlay" : "");
-    else if( palette_rgb(ui, is_overlay, id, &rgb) && palette_custom_find(self, is_overlay, id) )
-        /* One the tree made: its name is how the tree knows it. */
-        snprintf(text, sizeof(text), "%s %d  #%06x  %.30s", is_overlay ? "overlay" : "underlay", id, (unsigned)rgb,
-            palette_custom_find(self, is_overlay, id)->name);
-    else if( palette_rgb(ui, is_overlay, id, &rgb) )
+    else if( !palette_rgb(ui, is_overlay, id, &rgb) )
+        snprintf(text, sizeof(text), "%s %d (not loaded)", is_overlay ? "overlay" : "underlay", id);
+    else
     {
         struct Editor_FloorHsl hsl;
+        int const texture = palette_texture_known(self, is_overlay, id);
+
+        palette_name(ui, self, is_overlay, id, name);
+        if( texture >= 0 )
+            used = snprintf(text, sizeof(text), "overlay %d  texture %d  %s", id, texture, name);
+        else
+            used = snprintf(text, sizeof(text), "%s %d  #%06x  %s", is_overlay ? "overlay" : "underlay", id,
+                (unsigned)rgb, name);
         Editor_FloorHslOfRgb(rgb, &hsl);
-        snprintf(text, sizeof(text), "%s %d  #%06x  hue %d sat %d light %d", is_overlay ? "overlay" : "underlay", id,
-            (unsigned)rgb, hsl.hue / 4, hsl.sat / 32, hsl.light / 2);
+        snprintf(packed, sizeof(packed), "  hue %d sat %d light %d", hsl.hue / 4, hsl.sat / 32, hsl.light / 2);
+        if( texture < 0 && used + (int)strlen(packed) < (int)sizeof(text) )
+            snprintf(text + used, sizeof(text) - (size_t)used, "%s", packed);
     }
-    else
-        snprintf(text, sizeof(text), "%s %d (not loaded)", is_overlay ? "overlay" : "underlay", id);
     ToriRSChrome_SetTooltip(ui->chrome, graph, text);
 }
 
@@ -1338,6 +1725,49 @@ palette_request_all(
         self->all_settle = PALETTE_SETTLE_TICKS;
 }
 
+/** How many of the common set's records are in this window and are what
+ *  the set says. */
+static int
+palette_common_resident(
+    struct EditorUi* ui,
+    const struct PalettePanel* self)
+{
+    int count = 0;
+    const struct Editor_FloorCommon* common = Editor_FloorCommonList(&count);
+    int resident = 0;
+
+    for( int i = 0; i < count; i++ )
+        if( palette_common_ok(ui, self, &common[i]) )
+            resident++;
+    return resident;
+}
+
+/** Narrow the wells to what `typed` finds (trimmed; "" lists as before). */
+static void
+palette_find_set(
+    struct EditorUi* ui,
+    struct PalettePanel* self,
+    const char* typed)
+{
+    size_t length;
+
+    snprintf(self->find_typed, sizeof(self->find_typed), "%s", typed);
+    while( *typed == ' ' )
+        typed++;
+    length = strlen(typed);
+    while( length > 0 && typed[length - 1] == ' ' )
+        length--;
+    if( length >= sizeof(self->find) )
+        length = sizeof(self->find) - 1;
+    memcpy(self->find, typed, length);
+    self->find[length] = '\0';
+    /* A search is over every record: the wells fill in as the window
+     * answers for the ones it had not loaded. */
+    if( self->find[0] != '\0' )
+        self->all_settle = PALETTE_SETTLE_TICKS;
+    palette_rebuild(ui, self);
+}
+
 static void
 palette_tick(
     struct EditorUi* ui,
@@ -1351,17 +1781,43 @@ palette_tick(
     {
         self->custom_tick = PALETTE_CUSTOM_EVERY;
         palette_custom_follow(ui, self);
+        /* The common set's records, shown or not: the path painter's default
+         * overlay is one of them, and a well that opens should not start as
+         * one crossed-out cell while forty records load. */
+        if( self->common_rounds > 0 )
+        {
+            int const resident = palette_common_resident(ui, self);
+
+            self->common_rounds--;
+            palette_common_request(ui);
+            if( resident != self->common_seen )
+            {
+                self->common_seen = resident;
+                self->built_signature = -1;
+            }
+        }
     }
     if( !ui->chrome->panels[self->panel].visible )
         return;
+    /* The wells are as wide as the panel: a column dragged wider is more
+     * cells a row. */
+    if( self->well_w_seen != palette_well_w(ui, self) || self->well_cols == 0 )
+    {
+        self->well_w_seen = palette_well_w(ui, self);
+        self->well_cols = palette_cols(ui, self);
+        self->dirty_draw = 1;
+    }
+    /* Find narrows as it is typed; Enter says how many it found. */
+    if( strcmp(ToriRSChrome_Text(ui->chrome, self->input_find), self->find_typed) != 0 )
+        palette_find_set(ui, self, ToriRSChrome_Text(ui->chrome, self->input_find));
     if( palette_picks_changed(ui, self) )
     {
         palette_rebuild(ui, self);
-        ToriRSChrome_RadioSelect(ui->chrome, self->radio_rotation[ui->tools.overlay_rotation & 3]);
+        ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_rotation, ui->tools.overlay_rotation & 3);
     }
     if( self->built_signature != palette_signature(ui) || self->underlays.count == 0 )
         palette_rebuild(ui, self);
-    if( self->list_all || self->auto_all )
+    if( self->list_all || self->auto_all || self->find[0] != '\0' )
     {
         if( self->all_asked[0] < PALETTE_UNDERLAY_PROBE || self->all_asked[1] < PALETTE_OVERLAY_PROBE )
             palette_request_all(ui, self);
@@ -1371,9 +1827,9 @@ palette_tick(
     palette_textures_probe(ui, self);
     if( !self->dirty_draw )
         return;
-    palette_draw_list(ui, self->graph_underlay, &self->underlays, 0, ui->tools.underlay_id);
+    palette_draw_list(ui, self, self->graph_underlay, &self->underlays, 0, ui->tools.underlay_id);
     palette_draw_list(
-        ui, self->graph_overlay, &self->overlays, 1, ui->tools.overlay_none ? 0 : ui->tools.overlay_id);
+        ui, self, self->graph_overlay, &self->overlays, 1, ui->tools.overlay_none ? 0 : ui->tools.overlay_id);
     palette_draw_textures(ui, self);
     palette_draw_shapes(ui, self);
     palette_draw_blend(ui, self);
@@ -1455,6 +1911,9 @@ palette_pick_underlay(
     palette_arm(ui, PALETTE_PICK_UNDERLAY, out_armed);
 }
 
+static struct PalettePanel*
+palette_self(struct EditorUi* ui);
+
 static void
 palette_pick_overlay(
     struct EditorUi* ui,
@@ -1463,6 +1922,9 @@ palette_pick_overlay(
 {
     ui->tools.overlay_none = id == 0;
     ui->tools.overlay_id = id;
+    /* The user's pick now, even of the floor the path painter chose: a
+     * path of another style no longer swaps it for its own. */
+    palette_self(ui)->auto_overlay = 0;
     palette_arm(ui, PALETTE_PICK_OVERLAY, out_armed);
 }
 
@@ -1531,6 +1993,7 @@ palette_event(
     struct PalettePanel* self = opaque;
     int const key = event->key;
     char armed[PALETTE_ARM_TEXT];
+    char name[EDITOR_FLOOR_NAME_MAX];
     int is_overlay = 0;
     int id;
 
@@ -1574,10 +2037,14 @@ palette_event(
         return 1;
     /* The bar says what the pick did to the armed tool, either way: a tool
      * that changed under the pointer with nothing said is how T1 happened. */
+    palette_name(ui, self, is_overlay, id, name);
     if( !is_overlay )
     {
         palette_pick_underlay(ui, id, armed);
-        Editor_UiStatus(ui, "Underlay %d picked: %s", id, armed);
+        if( id == 0 )
+            Editor_UiStatus(ui, "No underlay picked (painting it leaves the ground bare): %s", armed);
+        else
+            Editor_UiStatus(ui, "Underlay %d %s picked: %s", id, name, armed);
     }
     else
     {
@@ -1585,12 +2052,91 @@ palette_event(
         if( id == 0 )
             Editor_UiStatus(ui, "No overlay picked (painting it takes the overlay off): %s", armed);
         else if( event->widget == self->graph_textures )
-            Editor_UiStatus(ui, "Overlay %d picked (texture %d): %s", id, self->texture_ids[key - 1], armed);
+            Editor_UiStatus(ui, "Overlay %d %s picked (texture %d): %s", id, name, self->texture_ids[key - 1], armed);
         else
-            Editor_UiStatus(ui, "Overlay %d picked: %s", id, armed);
+            Editor_UiStatus(ui, "Overlay %d %s picked: %s", id, name, armed);
     }
     self->dirty_draw = 1;
     return 1;
+}
+
+static void
+palette_pick_floor(
+    struct EditorUi* ui,
+    int kind,
+    int id,
+    char* out_armed);
+
+/**
+ * A pick field's Enter: an id, or a name ("grass", "dirt track", "water")
+ * that picks the floor palette_find_best says it means. The pick is a well
+ * click's -- the brush armed unless the armed tool lays it -- and the bar
+ * says what was picked by name, or what to type when nothing is called that.
+ */
+static void
+palette_pick_typed(
+    struct EditorUi* ui,
+    struct PalettePanel* self,
+    int is_overlay,
+    int widget)
+{
+    const char* typed = ToriRSChrome_Text(ui->chrome, widget);
+    const char* const kind = is_overlay ? "overlay" : "underlay";
+    int const limit = is_overlay ? 0xffff : EDITOR_UNDERLAY_MAX;
+    char query[PALETTE_FIND_MAX];
+    char name[EDITOR_FLOOR_NAME_MAX];
+    char armed[PALETTE_ARM_TEXT];
+    size_t length;
+    int digits = 1;
+    int id;
+
+    while( *typed == ' ' )
+        typed++;
+    length = strlen(typed);
+    while( length > 0 && typed[length - 1] == ' ' )
+        length--;
+    if( length == 0 )
+    {
+        Editor_UiStatus(ui, "Pick %s: type an id or a name (%s) and press Enter", kind,
+            is_overlay ? "dirt, stone, wood, water" : "grass, dirt, sand, snow");
+        return;
+    }
+    if( length >= sizeof(query) )
+        length = sizeof(query) - 1;
+    memcpy(query, typed, length);
+    query[length] = '\0';
+    for( size_t i = 0; i < length; i++ )
+        if( query[i] < '0' || query[i] > '9' )
+            digits = 0;
+    if( digits )
+    {
+        id = length > 6 ? limit + 1 : atoi(query);
+        if( id > limit )
+        {
+            Editor_UiStatus(ui, "Pick %s refused: %s ids are 0..%d", kind, kind, limit);
+            return;
+        }
+    }
+    else
+    {
+        id = palette_find_best(ui, self, query, is_overlay);
+        if( id == 0 )
+        {
+            Editor_UiStatus(ui, "Pick %s: nothing is called \"%s\" (try %s, an id, or Find with Every id)", kind, query,
+                is_overlay ? "dirt, stone, wood, water" : "grass, dirt, sand, snow");
+            return;
+        }
+    }
+    palette_pick_floor(ui, is_overlay, id, armed);
+    palette_list_add(is_overlay ? &self->overlays : &self->underlays, id);
+    palette_name(ui, self, is_overlay, id, name);
+    if( id == 0 )
+        Editor_UiStatus(ui, "No %s picked: %s", kind, armed);
+    else
+        Editor_UiStatus(ui, "%s %d %s picked: %s", is_overlay ? "Overlay" : "Underlay", id, name, armed);
+    /* The pick's row above says what is picked; the field is for the next. */
+    ToriRSChrome_SetText(ui->chrome, widget, "");
+    self->dirty_draw = 1;
 }
 
 /* ---- new records ----------------------------------------------------------------- */
@@ -1928,13 +2474,30 @@ palette_activate(
         Editor_UiStatus(ui, "Eyedropper: click a tile to pick its %s", dropper == 2 ? "overlay" : "underlay");
         return 1;
     }
-    for( int r = 0; r < 4; r++ )
-        if( widget == self->radio_rotation[r] )
-        {
-            ui->tools.overlay_rotation = r;
-            self->dirty_draw = 1;
-            return 1;
-        }
+    if( widget == self->dropdown_rotation )
+    {
+        int const row = ToriRSChrome_DropdownSelected(ui->chrome, widget);
+        if( row >= 0 && row < 4 )
+            ui->tools.overlay_rotation = row;
+        self->dirty_draw = 1;
+        return 1;
+    }
+    if( widget == self->input_find )
+    {
+        /* Enter: the wells already follow the typing (palette_tick); this
+         * says what was found. */
+        palette_find_set(ui, self, ToriRSChrome_Text(ui->chrome, widget));
+        if( self->find[0] == '\0' )
+            Editor_UiStatus(ui, "Palette: Find cleared");
+        else if( self->underlays.count + self->overlays.count <= 2 )
+            Editor_UiStatus(ui, "Palette: \"%s\" finds nothing (try grass, dirt, sand, stone, wood, water, an id, a #colour)",
+                self->find);
+        else
+            Editor_UiStatus(ui, "Palette: \"%s\" finds %d underlay%s and %d overlay%s; click one, or Pick by name",
+                self->find, self->underlays.count - 1, self->underlays.count == 2 ? "" : "s",
+                self->overlays.count - 1, self->overlays.count == 2 ? "" : "s");
+        return 1;
+    }
     for( int kind = 0; kind < 2; kind++ )
     {
         if( widget == self->button_new[kind] )
@@ -1953,26 +2516,7 @@ palette_activate(
         return 1;
     if( widget == self->input_underlay || widget == self->input_overlay )
     {
-        int const is_overlay = widget == self->input_overlay;
-        int const id = atoi(ToriRSChrome_Text(ui->chrome, widget));
-        if( id < 0 || id > (is_overlay ? 0xffff : EDITOR_UNDERLAY_MAX) )
-        {
-            Editor_UiLog(ui, "editor: %s ids are 0..%d", is_overlay ? "overlay" : "underlay",
-                is_overlay ? 0xffff : EDITOR_UNDERLAY_MAX);
-            return 1;
-        }
-        if( is_overlay )
-        {
-            ui->tools.overlay_id = id;
-            ui->tools.overlay_none = id == 0;
-            palette_list_add(&self->overlays, id);
-        }
-        else
-        {
-            ui->tools.underlay_id = id;
-            palette_list_add(&self->underlays, id);
-        }
-        self->dirty_draw = 1;
+        palette_pick_typed(ui, self, widget == self->input_overlay, widget);
         return 1;
     }
     if( widget == self->check_all )
@@ -2023,7 +2567,11 @@ palette_set_visible(
 {
     struct PalettePanel* self = opaque;
     if( visible )
+    {
         self->dirty_draw = 1;
+        /* Ask again for a common record that was not there at boot. */
+        self->common_rounds = PALETTE_COMMON_ROUNDS;
+    }
     /* A dropper the user can no longer see is not left to eat a click. */
     else if( self->dropper )
         palette_dropper_set(ui, self, 0);
@@ -2058,21 +2606,166 @@ Editor_Palette_SwatchAt(
 {
     struct PalettePanel* self;
     const struct PaletteList* list;
+    int cols;
 
     assert(ui);
     assert(out_x);
     assert(out_y);
     self = palette_self(ui);
     list = is_overlay ? &self->overlays : &self->underlays;
+    cols = self->well_cols > 0 ? self->well_cols : palette_cols(ui, self);
     for( int i = 0; i < list->count; i++ )
     {
         if( list->ids[i] != id )
             continue;
-        *out_x = 1 + (i % PALETTE_COLS) * PALETTE_CELL + (PALETTE_CELL - 2) / 2;
-        *out_y = 1 + (i / PALETTE_COLS) * PALETTE_CELL + (PALETTE_CELL - 2) / 2;
+        *out_x = 1 + (i % cols) * PALETTE_CELL + (PALETTE_CELL - 2) / 2;
+        *out_y = 1 + (i / cols) * PALETTE_CELL + (PALETTE_CELL - 2) / 2;
         return 1;
     }
     return 0;
+}
+
+void
+Editor_Palette_SwatchGrid(
+    struct EditorUi* ui,
+    int* out_cell,
+    int* out_cols)
+{
+    struct PalettePanel* self;
+
+    assert(ui);
+    assert(out_cell);
+    assert(out_cols);
+    self = palette_self(ui);
+    *out_cell = PALETTE_CELL;
+    *out_cols = self->well_cols > 0 ? self->well_cols : palette_cols(ui, self);
+}
+
+/* ---- names and defaults, for the other panels ------------------------------------- */
+
+void
+Editor_Palette_Describe(
+    struct EditorUi* ui,
+    int is_overlay,
+    int id,
+    char* out,
+    size_t out_size)
+{
+    struct EditorUiPanel* module;
+    char name[EDITOR_FLOOR_NAME_MAX];
+
+    assert(ui);
+    assert(out);
+    assert(out_size >= EDITOR_PALETTE_DESCRIBE_MAX);
+    /* A window without the palette still names a floor: by the common set
+     * and its colour, with no texture known. */
+    module = Editor_UiFindPanel(ui, "palette");
+    palette_name(ui, module ? module->self : NULL, is_overlay ? 1 : 0, id, name);
+    if( id == 0 )
+        snprintf(out, out_size, "none");
+    else if( name[0] )
+        snprintf(out, out_size, "%d %s", id, name);
+    else
+        snprintf(out, out_size, "%d", id);
+}
+
+int
+Editor_Palette_PathFloor(
+    struct EditorUi* ui,
+    int style,
+    char* out_name,
+    size_t out_size)
+{
+    static const enum Editor_FloorRole k_roles[EDITOR_PATH_STYLE_COUNT] = {
+        [EDITOR_PATH_DIRT] = EDITOR_FLOOR_ROLE_DIRT_TRACK,
+        [EDITOR_PATH_PAVED] = EDITOR_FLOOR_ROLE_PAVING,
+        [EDITOR_PATH_RIVER] = EDITOR_FLOOR_ROLE_WATER,
+    };
+    struct EditorUiPanel* module;
+    struct PalettePanel* self;
+    int count = 0;
+    const struct Editor_FloorCommon* common = Editor_FloorCommonList(&count);
+
+    assert(ui);
+    assert(out_name);
+    assert(out_size >= EDITOR_FLOOR_NAME_MAX);
+    assert(style >= 0);
+    assert(style < EDITOR_PATH_STYLE_COUNT);
+    module = Editor_UiFindPanel(ui, "palette");
+    self = module ? module->self : NULL;
+    out_name[0] = '\0';
+    for( int i = 0; i < count; i++ )
+    {
+        if( common[i].role != k_roles[style] )
+            continue;
+        if( !palette_common_ok(ui, self, &common[i]) )
+        {
+            /* Not loaded yet (asked for now), or not this cache's. */
+            palette_common_request(ui);
+            if( self )
+                self->common_rounds = PALETTE_COMMON_ROUNDS;
+            return -1;
+        }
+        snprintf(out_name, out_size, "%s", common[i].name);
+        return common[i].id;
+    }
+    return -1;
+}
+
+int
+Editor_Palette_PathOverlay(
+    struct EditorUi* ui,
+    int style,
+    char* out_name,
+    size_t out_size)
+{
+    struct EditorUiPanel* module;
+    struct PalettePanel* self;
+    int id;
+
+    assert(ui);
+    assert(out_name);
+    assert(out_size >= EDITOR_FLOOR_NAME_MAX);
+    module = Editor_UiFindPanel(ui, "palette");
+    self = module ? module->self : NULL;
+    out_name[0] = '\0';
+    /* An overlay the user picked is the path's. One picked here for another
+     * style follows the style: dirt's track is not what a river lays. */
+    if( !ui->tools.overlay_none
+        && !(self && self->auto_overlay == ui->tools.overlay_id && self->auto_style != style) )
+        return 0;
+    id = Editor_Palette_PathFloor(ui, style, out_name, out_size);
+    if( id <= 0 )
+        return -1;
+    ui->tools.overlay_none = 0;
+    ui->tools.overlay_id = id;
+    if( self )
+    {
+        self->auto_overlay = id;
+        self->auto_style = style;
+        self->dirty_draw = 1;
+    }
+    return id;
+}
+
+int
+Editor_Palette_PathUseFloor(
+    struct EditorUi* ui,
+    int style,
+    char* out_name,
+    size_t out_size)
+{
+    int const was_none = ui->tools.overlay_none;
+    int id;
+
+    assert(ui);
+    /* As if nothing were picked: the style's floor, picked the way the
+     * path painter picks it (so it follows a later change of style). */
+    ui->tools.overlay_none = 1;
+    id = Editor_Palette_PathOverlay(ui, style, out_name, out_size);
+    if( id < 0 )
+        ui->tools.overlay_none = was_none;
+    return id;
 }
 
 int
@@ -2191,49 +2884,63 @@ Editor_Palette_Register(struct EditorUi* ui)
             Editor_ShapeThumbBuild(s, r, &self->thumbs[r][s]);
     self->hover_graph = -1;
     self->hover_key = -1;
+    self->common_rounds = PALETTE_COMMON_ROUNDS;
+    self->common_seen = -1;
 
     self->panel = ToriRSChrome_PanelAdd(
         chrome, TORIRS_CHROME_PANEL_WINDOW, edp_px(ui, EDP_COL_X), edp_px(ui, 300),
         edp_px(ui, EDP_COL_W), "Palette");
     assert(self->panel >= 0);
+    /* What the wells list. Tooltips are cut at 63 bytes by the chrome. */
+    self->input_find = ToriRSChrome_TextInput(chrome, self->panel, "Find", "");
+    ToriRSChrome_SetTooltip(chrome, self->input_find, "A name, an id or a #colour: dirt, water, wood, 48, #3d2b0b");
+    self->check_all = ToriRSChrome_Checkbox(chrome, self->panel, "Every id", 0);
+    ToriRSChrome_SetTooltip(chrome, self->check_all, "Every record the window has, not only the common and used");
+
     self->row_underlay = ToriRSChrome_Label(chrome, self->panel, "Underlay");
     self->graph_underlay = ToriRSChrome_Graph(chrome, self->panel, "", PALETTE_CELL * 2 + 2);
-    self->input_underlay = ToriRSChrome_TextInput(chrome, self->panel, "id", "");
-    ToriRSChrome_SetTooltip(chrome, self->input_underlay, "Type an underlay id and press Enter");
+    ToriRSChrome_GraphSetBare(chrome, self->graph_underlay, 1, PALETTE_CELL * 2 + 2);
+    self->input_underlay = ToriRSChrome_TextInput(chrome, self->panel, "Pick underlay", "");
+    ToriRSChrome_SetTooltip(chrome, self->input_underlay, "An id or a name (grass, dirt, sand, snow); Enter picks it");
+    self->row_overlay = ToriRSChrome_Label(chrome, self->panel, "Overlay");
+    self->graph_overlay = ToriRSChrome_Graph(chrome, self->panel, "", PALETTE_CELL * 2 + 2);
+    ToriRSChrome_GraphSetBare(chrome, self->graph_overlay, 1, PALETTE_CELL * 2 + 2);
+    self->input_overlay = ToriRSChrome_TextInput(chrome, self->panel, "Pick overlay", "");
+    ToriRSChrome_SetTooltip(chrome, self->input_overlay, "An id or a name (dirt, stone, wood, water); Enter picks it");
+    /* The overlay's shape and turn: one row each (four radios were four). */
+    self->row_shape = ToriRSChrome_Label(chrome, self->panel, "Shape");
+    self->graph_shape = ToriRSChrome_Graph(
+        chrome, self->panel, "", ((EDITOR_SHAPE_COUNT + SHAPE_COLS - 1) / SHAPE_COLS) * (SHAPE_BOX + 4) + 2);
+    ToriRSChrome_GraphSetBare(chrome, self->graph_shape, 1,
+        ((EDITOR_SHAPE_COUNT + SHAPE_COLS - 1) / SHAPE_COLS) * (SHAPE_BOX + 4) + 2);
+    ToriRSChrome_SetTooltip(chrome, self->graph_shape, "The overlay's shape: how much of the tile it covers");
+    self->dropdown_rotation = ToriRSChrome_Dropdown(chrome, self->panel, "Rotation", k_rotation_names, 4, 0);
+    ToriRSChrome_SetTooltip(chrome, self->dropdown_rotation, "Turns the overlay's shape a quarter turn at a time");
+    self->dropdown_sort = ToriRSChrome_Dropdown(chrome, self->panel, "Sort", k_sort_names, PALETTE_SORT_COUNT, 0);
+    ToriRSChrome_SetTooltip(chrome, self->dropdown_sort, "By hue a well is a colour wheel: neighbours blend together");
+    /* The one-layer eyedroppers, under what a stroke needs: I picks every
+     * layer of the tile under the pointer at once, from the keyboard. */
     self->button_drop_underlay =
         ToriRSChrome_IconButton(chrome, self->panel, TORIRS_CHROME_SKIN_TOOL_EYEDROPPER, k_dropper_captions[0]);
     ToriRSChrome_IconButtonSetGlyph(chrome, self->button_drop_underlay, TORIRS_CHROME_ICON_EYEDROPPER);
     ToriRSChrome_SetTooltip(chrome, self->button_drop_underlay, "The next click on the ground picks its underlay");
-    self->row_overlay = ToriRSChrome_Label(chrome, self->panel, "Overlay");
-    self->graph_overlay = ToriRSChrome_Graph(chrome, self->panel, "", PALETTE_CELL * 2 + 2);
-    self->input_overlay = ToriRSChrome_TextInput(chrome, self->panel, "id", "");
-    ToriRSChrome_SetTooltip(chrome, self->input_overlay, "Type an overlay id and press Enter");
     self->button_drop_overlay =
         ToriRSChrome_IconButton(chrome, self->panel, TORIRS_CHROME_SKIN_TOOL_EYEDROPPER, k_dropper_captions[1]);
     ToriRSChrome_IconButtonSetGlyph(chrome, self->button_drop_overlay, TORIRS_CHROME_ICON_EYEDROPPER);
     ToriRSChrome_SetTooltip(chrome, self->button_drop_overlay, "The next click on the ground picks its overlay and shape");
+
+    /* Under the fold of a docked panel from here: the Textures well. */
+    ToriRSChrome_Separator(chrome, self->panel);
     self->row_textures = ToriRSChrome_Label(chrome, self->panel, "Textures");
     self->graph_textures = ToriRSChrome_Graph(chrome, self->panel, "", PALETTE_TEX_CELL + 2);
+    ToriRSChrome_GraphSetBare(chrome, self->graph_textures, 1, PALETTE_TEX_CELL + 2);
     ToriRSChrome_SetTooltip(chrome, self->graph_textures, "click a texture to pick an overlay that lays it");
-    self->row_shape = ToriRSChrome_Label(chrome, self->panel, "Shape");
-    self->graph_shape = ToriRSChrome_Graph(
-        chrome, self->panel, "", ((EDITOR_SHAPE_COUNT + SHAPE_COLS - 1) / SHAPE_COLS) * (SHAPE_BOX + 4) + 2);
-    for( int r = 0; r < 4; r++ )
-        self->radio_rotation[r] =
-            ToriRSChrome_Radio(chrome, self->panel, k_rotation_names[r], PALETTE_GROUP_ROTATION, r == 0);
-
-    /* The wells' scope and order. */
-    ToriRSChrome_Separator(chrome, self->panel);
-    self->check_all = ToriRSChrome_Checkbox(chrome, self->panel, "Every id", 0);
-    /* Tooltips are cut at 63 bytes by the chrome. */
-    ToriRSChrome_SetTooltip(chrome, self->check_all, "List every record the window has, not only the open squares'");
-    self->dropdown_sort = ToriRSChrome_Dropdown(chrome, self->panel, "Sort", k_sort_names, PALETTE_SORT_COUNT, 0);
-    ToriRSChrome_SetTooltip(chrome, self->dropdown_sort, "By hue a well is a colour wheel: neighbours blend together");
 
     /* The blend strip. */
     ToriRSChrome_Separator(chrome, self->panel);
     self->row_blend = ToriRSChrome_Label(chrome, self->panel, "Blend");
     self->graph_blend = ToriRSChrome_Graph(chrome, self->panel, "", PALETTE_CELL + 2);
+    ToriRSChrome_GraphSetBare(chrome, self->graph_blend, 1, PALETTE_CELL + 2);
     ToriRSChrome_SetTooltip(chrome, self->graph_blend, "The ground across a seam between the last two underlay picks");
 
     /* The colour picker. */
@@ -2245,6 +2952,7 @@ Editor_Palette_Register(struct EditorUi* ui)
     self->input_hex = ToriRSChrome_TextInput(chrome, self->panel, "#", "");
     ToriRSChrome_SetTooltip(chrome, self->input_hex, "Type a colour as #rrggbb and press Enter");
     self->graph_match = ToriRSChrome_Graph(chrome, self->panel, "", 2 * (PALETTE_CELL + 2) + 2);
+    ToriRSChrome_GraphSetBare(chrome, self->graph_match, 1, 2 * (PALETTE_CELL + 2) + 2);
     ToriRSChrome_SetTooltip(chrome, self->graph_match, "The colour, its nearest underlays and overlays; click picks");
     self->row_match_under = ToriRSChrome_Label(chrome, self->panel, "Underlays:");
     self->row_match_over = ToriRSChrome_Label(chrome, self->panel, "Overlays:");

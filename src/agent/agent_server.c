@@ -46,6 +46,7 @@
 #include "input/torirs_keymap.h"
 #include "mem/torirs_mem.h"
 #include "platform/platform_window.h"
+#include "torirsmaped/torirs_maped_live.h"
 #include "ui/uitree_layout.h"
 
 #include <stdarg.h>
@@ -1587,6 +1588,12 @@ AgentServer_Start(
     unsetenv("TORIRS_AGENT_PORT");
     unsetenv("TORIRS_AGENT_PORT_FILE");
 
+    /* The one process this server does hand a port to: the play client an
+     * editor's RUN starts, so the agent that built a lane can play it
+     * (torirs_maped_live.h; `editor` answers its port as "play"). Its file
+     * is this one's + ".play". */
+    ToriRSMapEd_PlayAgentFollow(server->port_file);
+
     /* The one line a launcher waits for. Flushed: stderr is fully buffered
      * here, and the frame loop's own flush may be a boot away. */
     TORIRS_REPORT("agent: listening on 127.0.0.1:%d\n", port);
@@ -1667,6 +1674,7 @@ AgentServer_Stop(
             agent_conn_close(server, &server->conns[i], &ctx);
         }
     agent_sock_close(server->fd);
+    ToriRSMapEd_PlayAgentFollow(NULL);
     /* The port is nobody's now: a file that still named it would send the
      * next reader to a closed door. */
     if( server->port_file[0] )

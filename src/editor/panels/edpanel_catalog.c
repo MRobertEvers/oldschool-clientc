@@ -89,6 +89,7 @@
 #include "edpanels.h"
 #include "editor/editor_cfg.h"
 #include "editor/editor_favourites.h"
+#include "editor/editor_lanerecs.h"
 #include "editor/editor_palette.h"
 #include "engine/cache_provider.h"
 #include "engine/torirs_types.h"
@@ -114,6 +115,9 @@
  *  row pool when it was made. 36 rows is 720 px of list at 100 %; the pool
  *  holds 512 across every list of the editor (371 before this, 2026-11-09). */
 #define CATALOG_LIST_ROWS_MIN 6
+/* The least the list keeps to leave a pick's New name, Copy to new and Edit
+ * record... in view (catalog_list_fit). */
+#define CATALOG_LIST_ROWS_FOLD_MIN 4
 #define CATALOG_LIST_ROWS_MAX 36
 /** Air under the list's last row at the fold (catalog_stretch), 1x px. */
 #define CATALOG_FOLD_PAD 6
@@ -681,6 +685,7 @@ catalog_list_fit(
      * laid them out (both move with the panel's scroll, so their distance
      * does not): everything above the fold, the list included. */
     int const above = ui->chrome->widgets[self->row_picked].y - ui->chrome->widgets[self->input_search].y;
+    int floor_rows = CATALOG_LIST_ROWS_MIN;
     int rows;
 
     /* Not built yet, or collapsed to its title: no heights to fit to. */
@@ -696,12 +701,27 @@ catalog_list_fit(
      * is one turn of the wheel below. */
     if( above > shown * row_h )
     {
-        int const to_fold = (panel->view_h - (above - shown * row_h) - 2 * row_h) / row_h;
+        /* Under the list, in view: the picked line and what is done with
+         * the pick (New name, Copy to new, Edit record...), down to the
+         * record's own first line -- measured, since those rows hide with
+         * no pick. Two rows at least, as before they were there. */
+        int under = ui->chrome->widgets[self->row_record].y - ui->chrome->widgets[self->row_picked].y + row_h;
+        int to_fold;
+        if( under < 2 * row_h )
+            under = 2 * row_h;
+        to_fold = (panel->view_h - (above - shown * row_h) - under) / row_h;
         if( to_fold > rows )
             rows = to_fold;
+        /* Those rows outrank the list's last two: at 1600x900 six result
+         * rows pushed Edit record... under the fold, 9 of its 22 px showing
+         * (2026-11-11). The list gives them up, down to
+         * CATALOG_LIST_ROWS_FOLD_MIN, and scrolls; it does not depend on the
+         * pick, so a click on a row never moves the rows under it. */
+        if( rows < floor_rows )
+            floor_rows = rows < CATALOG_LIST_ROWS_FOLD_MIN ? CATALOG_LIST_ROWS_FOLD_MIN : rows;
     }
-    if( rows < CATALOG_LIST_ROWS_MIN )
-        rows = CATALOG_LIST_ROWS_MIN;
+    if( rows < floor_rows )
+        rows = floor_rows;
     if( rows > CATALOG_LIST_ROWS_MAX )
         rows = CATALOG_LIST_ROWS_MAX;
     ToriRSChrome_VListSetRows(ui->chrome, self->list, rows);
@@ -1828,13 +1848,35 @@ catalog_pick_row(
                  && !(ui->tools.place_shape >= 0 && ui->tools.place_shape < EDITOR_LOC_SHAPE_COUNT
                       && (view.shape_mask & (1u << ui->tools.place_shape))) )
             ui->tools.place_shape = Editor_LocShapeFirst(view.shape_mask);
-        /* A loc pick arms Place: picking one is asking to put it down; a
-         * shape key, whatever tool was armed. */
-        if( ui->tools.tool == EDITOR_TOOL_SELECT || shape >= 0 )
+        /* A loc pick arms Place, whatever tool was armed: picking one is
+         * asking to put it down (2026-11-11: it armed Place from Select
+         * only, so with the Building tool up a bed picked here and clicked
+         * into the room hung a window on the wall instead). Scatter keeps
+         * its turn -- the pick is what it scatters -- unless a shape key
+         * was pressed. The sentence says what the next click does. */
+        if( ui->tools.tool != EDITOR_TOOL_SCATTER || shape >= 0 )
             Editor_UiSetTool(ui, EDITOR_TOOL_LOC_PLACE);
         if( shape >= 0 )
             Editor_UiStatus(ui, "Place %s at shape %d (%s), rotation %d", view.name, shape, Editor_LocShapeName(shape),
                 ui->tools.place_rotation & 3);
+        else if( ui->tools.tool == EDITOR_TOOL_LOC_PLACE )
+            Editor_UiStatus(ui, "Picked %s: Place is armed, a click puts it down (Q turns it, a drag lays a run)",
+                view.name);
+        else
+            Editor_UiStatus(ui, "Picked %s: Scatter is armed and scatters it; press 0 to place one", view.name);
+    }
+    else if( view.kind == TORIRSMAPED_CATALOG_NPC || view.kind == TORIRSMAPED_CATALOG_OBJ )
+    {
+        /* An npc or obj pick arms Place as a loc pick does: Place puts a
+         * spawn where it is clicked. Picking one left the Select tool armed
+         * and said nothing, so the click meant to put the elder in her hall
+         * selected the table under it instead (2026-11-11). Scatter keeps
+         * its turn, as for a loc. */
+        if( ui->tools.tool != EDITOR_TOOL_SCATTER )
+            Editor_UiSetTool(ui, EDITOR_TOOL_LOC_PLACE);
+        if( ui->tools.tool == EDITOR_TOOL_LOC_PLACE )
+            Editor_UiStatus(ui, "Picked %s %s: Place is armed, a click puts a spawn there (Spawns panel to edit it)",
+                ToriRSMapEdCatalog_KindName(view.kind), view.name);
     }
     catalog_note_pick(ui, self, &view);
     catalog_publish_pick(ui);
@@ -1860,6 +1902,52 @@ catalog_name_ok(const char* name)
     return 1;
 }
 
+/** Show record `name` of `kind` in the list: that kind, found by name, its
+ *  row selected and scrolled into view when the page lands
+ *  (catalog_list_show). */
+static void
+catalog_show_record(
+    struct EditorUi* ui,
+    struct CatalogPanel* self,
+    uint32_t kind,
+    const char* name)
+{
+    Editor_CatalogModelSetSource(&self->model, EDITOR_CATALOG_SOURCE_INDEX);
+    ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_kind, Editor_CatalogModelKindIndex(kind));
+    ToriRSChrome_SetText(ui->chrome, self->input_search, name);
+    snprintf(self->select_name, sizeof(self->select_name), "%s", name);
+    self->select_kind = kind;
+}
+
+int
+Editor_Catalog_RecordName(
+    struct EditorUi* ui,
+    uint32_t kind,
+    int id,
+    char* name,
+    size_t name_size)
+{
+    assert(ui);
+    assert(kind <= TORIRSMAPED_CATALOG_OBJ);
+    assert(name);
+    assert(name_size > 0);
+    name[0] = '\0';
+    if( id < 0 )
+        return 0;
+    if( ui->editor && ui->editor->host_open && (ui->editor->capabilities & TORIRSMAPED_CAP_CATALOG) )
+    {
+        struct EditorHost_CatalogRecord record;
+        memset(&record, 0, sizeof(record));
+        if( Editor_HostMapEdCatalogRecord(&ui->editor->host, kind, id, "", &record) == EDITOR_HOST_OK && record.name
+            && record.name[0] && strlen(record.name) < name_size )
+            snprintf(name, name_size, "%s", record.name);
+        Editor_HostCatalogRecordFree(&record);
+    }
+    if( name[0] )
+        return 1;
+    return Editor_LaneRecords_Name((int)kind, id, name, name_size);
+}
+
 int
 Editor_Catalog_CopyRecord(
     struct EditorUi* ui,
@@ -1869,6 +1957,7 @@ Editor_Catalog_CopyRecord(
 {
     enum EditorHost_Status status;
     const char* type;
+    char source[EDITOR_CMD_NAME_MAX];
     int id = -1;
 
     assert(ui);
@@ -1880,6 +1969,15 @@ Editor_Catalog_CopyRecord(
         Editor_UiStatus(ui, "Copy refused: only a loc, npc or obj definition can be copied");
         return 0;
     }
+    /* The caller's name is often a row of the list or the Record panel's own
+     * field, and the copy below turns both to the new record: keep it. */
+    if( strlen(name) >= sizeof(source) )
+    {
+        Editor_UiStatus(ui, "Copy refused: %.40s... is not a record name", name);
+        return 0;
+    }
+    snprintf(source, sizeof(source), "%s", name);
+    name = source;
     if( !catalog_name_ok(new_name) )
     {
         Editor_UiStatus(ui, "Copy refused: the new name must be [a-z0-9_], under %d bytes", EDITOR_CMD_NAME_MAX);
@@ -1897,15 +1995,65 @@ Editor_Catalog_CopyRecord(
         Editor_UiStatus(ui, "Copy refused: copying %s:%s to %s (%s)", type, name, new_name,
             status == EDITOR_HOST_REFUSED  ? "the name is taken or not a name"
             : status == EDITOR_HOST_ABSENT ? "no such record"
+            : status == EDITOR_HOST_BUSY   ? "the catalog index is still read; try when it is done"
                                            : "the server could not");
         return 0;
+    }
+    /* The copy is a record of no cache yet: this window's client is given it
+     * from its text now (editor/editor_lanerecs.h), so the pick below draws
+     * its ghost and places like the record it was copied from. A window with
+     * no world (a harness) has nothing attached and nothing to give it to. */
+    {
+        struct Editor_RecDefReport report;
+        struct EditorHost_CatalogRecord source;
+        int source_id = -1;
+
+        /* Its source's id, so the copy can be held against the cache's own
+         * record of the same lines. */
+        memset(&source, 0, sizeof(source));
+        if( (ui->editor->capabilities & TORIRSMAPED_CAP_CATALOG)
+            && Editor_HostMapEdCatalogRecord(&ui->editor->host, kind, -1, name, &source) == EDITOR_HOST_OK )
+            source_id = source.id;
+        Editor_HostCatalogRecordFree(&source);
+        if( Editor_LaneRecords_Define((int)kind, id, new_name, source_id, &report) )
+        {
+            if( report.bad > 0 )
+                Editor_UiLog(ui, "editor: %s:%s is drawn with %d field(s) this window could not read, first %s",
+                    type, new_name, report.bad, report.first_bad);
+            /* Never expected: the copy's lines are its source's. Said, so a
+             * copy that draws unlike its source is not a mystery. */
+            if( report.differs > 0 )
+                Editor_UiLog(ui, "editor: %s:%s reads unlike %s in this window (%d field(s): %s); RUN shows the real one",
+                    type, new_name, name, report.differs, report.differs_in);
+        }
     }
     ui->tools.pick_kind = (int)kind;
     ui->tools.pick_id = id;
     snprintf(ui->tools.pick_name, sizeof(ui->tools.pick_name), "%s (%d)", new_name, id);
     catalog_publish_pick(ui);
-    Editor_UiLog(ui, "editor: copied %s:%s to %s:%s, id %d (unsaved; Save writes it, RUN builds it)", type, name,
-        type, new_name, id);
+    /* The copy is a row of the list at once (the server's catalog lists a
+     * record no file has yet, ToriRSMapEdCatalog_PendingSync), so it is
+     * shown as one: found by its name, selected -- which is what "Edit
+     * record..." opens. Until 2026-11-11 the list went on showing the
+     * source, selected, and Edit record... opened that. A Record panel that
+     * was showing the source turns to the copy for the same reason: the
+     * next field typed is meant for the record just made. */
+    {
+        struct CatalogPanel* self = Editor_UiPanelSelf(ui, "catalog");
+        if( self )
+        {
+            Editor_CatalogModelInvalidate(&self->model);
+            catalog_show_record(ui, self, kind, new_name);
+        }
+        (void)Editor_Record_Retarget(ui, kind, name, new_name);
+    }
+    /* The two things the copy is for: it is placed like any record, and a
+     * script names it by this name. Both lines fit the console's width with
+     * the longest name. */
+    Editor_UiLog(ui, "editor: copied %s:%s to %s:%s, id %d (unsaved until Save)", type, name, type, new_name, id);
+    Editor_UiStatus(ui, "Copied: %s %.40s (%d) is picked; place it like any other. Scripts name it [%s,%.40s]", type,
+        new_name, id, kind == TORIRSMAPED_CATALOG_LOC ? "oploc1" : kind == TORIRSMAPED_CATALOG_NPC ? "opnpc1" : "opheld1",
+        new_name);
     return 1;
 }
 
@@ -1914,10 +2062,14 @@ catalog_copy(
     struct EditorUi* ui,
     struct CatalogPanel* self)
 {
-    struct Editor_CatalogView view;
     const char* new_name = ToriRSChrome_Text(ui->chrome, self->input_new_name);
 
-    if( self->selected < 0 || !Editor_CatalogModelViewAt(&self->model, self->selected, &view) )
+    /* What is copied is the pick -- the "picked ..." line right over the
+     * field -- not the list's selected row: a Find typed after the pick
+     * empties the selection and leaves the pick, and the button refused
+     * with "pick the loc, npc or obj to copy first" under a line naming
+     * one (2026-11-11). */
+    if( ui->tools.pick_kind < 0 || ui->tools.pick_kind > (int)TORIRSMAPED_CATALOG_OBJ )
     {
         Editor_UiStatus(ui, "Copy refused: pick the loc, npc or obj to copy first");
         return;
@@ -1930,12 +2082,10 @@ catalog_copy(
         Editor_UiStatus(ui, "Type the new record's name, then Copy to new");
         return;
     }
-    if( !Editor_Catalog_CopyRecord(ui, view.kind, view.name, new_name) )
+    /* The copy is then the pick and the list's selected row
+     * (catalog_show_record), and the field is empty for the next name. */
+    if( !Editor_Catalog_CopyPick(ui) )
         return;
-    /* The copy is unsaved, so the index (which reads the tree) does not hold
-     * it yet; a save makes it findable. Ask again then. */
-    Editor_CatalogModelInvalidate(&self->model);
-    catalog_picked_label(ui, self);
     {
         char line[TORIRS_CHROME_LABEL_MAX];
         snprintf(line, sizeof(line), "copy: %s", ui->tools.pick_name);
@@ -2296,13 +2446,7 @@ Editor_Catalog_PickRecord(
     catalog_note_pick(ui, self, &view);
     catalog_publish_pick(ui);
     catalog_picked_label(ui, self);
-    /* Shown in the list: that kind, found by name, its row selected and
-     * scrolled into view when the page lands (catalog_list_show). */
-    Editor_CatalogModelSetSource(&self->model, EDITOR_CATALOG_SOURCE_INDEX);
-    ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_kind, Editor_CatalogModelKindIndex(kind));
-    ToriRSChrome_SetText(ui->chrome, self->input_search, name);
-    snprintf(self->select_name, sizeof(self->select_name), "%s", name);
-    self->select_kind = kind;
+    catalog_show_record(ui, self, kind, name);
     return 1;
 }
 
@@ -2658,14 +2802,32 @@ Editor_Catalog_CopyPick(struct EditorUi* ui)
         Editor_UiStatus(ui, "Copy refused: pick a loc, npc or obj first");
         return 0;
     }
+    /* The name is typed in whichever New name is in front of the user: the
+     * Catalog's, else the Preview's (the same pick, the same copy). */
     new_name = ToriRSChrome_Text(ui->chrome, self->input_new_name);
+    if( !new_name || !new_name[0] )
+        new_name = Editor_Preview_NewName(ui);
     if( !new_name || !new_name[0] )
     {
         (void)ToriRSChrome_FocusWidget(ui->chrome, self->input_new_name, 0);
-        Editor_UiStatus(ui, "Type the new record's name in the Catalog's New name, then Copy to new");
+        Editor_UiStatus(ui, "Type the new record's name in New name, then Copy to new");
         return 0;
     }
-    return Editor_Catalog_CopyPickAs(ui, new_name);
+    {
+        char wanted[EDITOR_CMD_NAME_MAX];
+        if( strlen(new_name) >= sizeof(wanted) )
+        {
+            Editor_UiStatus(ui, "Copy refused: the new name must be [a-z0-9_], under %d bytes", EDITOR_CMD_NAME_MAX);
+            return 0;
+        }
+        snprintf(wanted, sizeof(wanted), "%s", new_name);
+        if( !Editor_Catalog_CopyPickAs(ui, wanted) )
+            return 0;
+    }
+    /* Used: both fields are ready for the next name. */
+    ToriRSChrome_SetText(ui->chrome, self->input_new_name, "");
+    Editor_Preview_NewNameClear(ui);
+    return 1;
 }
 
 uint32_t
@@ -2782,12 +2944,24 @@ Editor_Catalog_Register(struct EditorUi* ui)
     Editor_Stamps_CatalogChip(ui, self->panel);
     ToriRSChrome_Separator(chrome, self->panel);
     self->row_picked = ToriRSChrome_Label(chrome, self->panel, "nothing picked");
-    self->row_record = ToriRSChrome_Label(chrome, self->panel, "pick a row for its record");
-    self->record_list = ToriRSChrome_VList(chrome, self->panel, "", CATALOG_RECORD_ROWS, 0);
-    ToriRSChrome_SetTooltip(chrome, self->record_list, "click a \"from\" row to choose the file the button shows");
+    /* What is done WITH a pick comes first, over the fold (catalog_list_fit
+     * keeps these rows in view): its copy -- the name Copy to new reads sits
+     * directly over it, never rows away -- and its record. They were the
+     * last rows of the panel, under the record's eighty lines: a field and a
+     * button nobody saw at 1600x900 until the panel was scrolled, and that
+     * an agent's click missed because the scroll moved them
+     * (2026-11-09, 2026-11-11). */
+    self->input_new_name = ToriRSChrome_TextInput(chrome, self->panel, "New name", "");
+    ToriRSChrome_SetTooltip(chrome, self->input_new_name, "the copy's record name: a-z, 0-9 and _");
+    self->button_copy = catalog_button(chrome, self->panel, "Copy to new");
+    ToriRSChrome_SetTooltip(chrome, self->button_copy,
+        "Copy the picked loc/npc/obj to New name, fresh id");
     self->button_edit_record = catalog_button(chrome, self->panel, "Edit record...");
     ToriRSChrome_SetTooltip(chrome, self->button_edit_record,
         "every field of the picked loc/npc/obj");
+    self->row_record = ToriRSChrome_Label(chrome, self->panel, "pick a row for its record");
+    self->record_list = ToriRSChrome_VList(chrome, self->panel, "", CATALOG_RECORD_ROWS, 0);
+    ToriRSChrome_SetTooltip(chrome, self->record_list, "click a \"from\" row to choose the file the button shows");
     /* "Add to palette" read "Ad..." beside its own keycap: a caption shares
      * its button with the chord, so it is short and the plate is the row's. */
     self->button_add_palette = catalog_button(chrome, self->panel, "To palette");
@@ -2799,12 +2973,6 @@ Editor_Catalog_Register(struct EditorUi* ui)
     ToriRSChrome_SetTooltip(chrome, self->button_open_script, "the picked trigger's file at its line, in your editor");
     self->button_reveal = catalog_button(chrome, self->panel, EDITOR_REVEAL_CAPTION);
     ToriRSChrome_SetTooltip(chrome, self->button_reveal, "the selected row's file, in its folder on this machine");
-    /* The name Copy to new reads sits directly over it, never rows away. */
-    self->input_new_name = ToriRSChrome_TextInput(chrome, self->panel, "New name", "");
-    ToriRSChrome_SetTooltip(chrome, self->input_new_name, "the copy's record name: a-z, 0-9 and _");
-    self->button_copy = catalog_button(chrome, self->panel, "Copy to new");
-    ToriRSChrome_SetTooltip(chrome, self->button_copy,
-        "Copy the picked loc/npc/obj to New name, fresh id");
     self->row_multi = ToriRSChrome_Label(chrome, self->panel, "");
     self->dropdown_variant = ToriRSChrome_Dropdown(chrome, self->panel, "", NULL, 0, -1);
     self->var_rows.name = ToriRSChrome_Label(chrome, self->panel, "");

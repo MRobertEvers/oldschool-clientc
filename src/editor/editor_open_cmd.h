@@ -20,6 +20,10 @@
  * without VS Code is `start "" {path}`, the shell's own opener
  * (Editor_OpenCommandDefaultWindows).
  *
+ * `{folder}` is a folder quoted the same way: the one the caller names (a new
+ * quest's folder, opened as VS Code's workspace with its script in view:
+ * `code {folder} --goto {path}:{line}`), else the folder `{path}` is in.
+ *
  * "Show in Explorer / Finder" is the second command line here, at the foot
  * of the file (Editor_RevealCommandDefault).
  */
@@ -47,11 +51,89 @@ Editor_OpenCommandDefaultWindows(int have_code)
     return have_code ? "code --goto {path}:{line}" : "start \"\" {path}";
 }
 
-/** The command line. Returns its length, 0 when it does not fit `out` or
- *  the template is empty. */
+/** What Open in editor starts, in words for the status bar: the user's own
+ *  command when TORIRS_EDITOR_OPEN_CMD is set, VS Code when `code` is on
+ *  PATH, else the desktop's opener -- which, for a script, is whatever
+ *  program the file type happens to be given to. `os`: 'w' Windows, 'm'
+ *  macOS, anything else the rest. */
+static inline const char*
+Editor_OpenCommandWho(
+    int from_env,
+    int have_code,
+    char os)
+{
+    if( from_env )
+        return "your TORIRS_EDITOR_OPEN_CMD command";
+    if( have_code )
+        return "VS Code";
+    return os == 'w'   ? "the program Windows opens that file type with"
+           : os == 'm' ? "the app macOS opens that file type with"
+                       : "xdg-open";
+}
+
+/** The default template for a FOLDER with one file of it in view: VS Code
+ *  opens the folder as its workspace and the file at its line; without it
+ *  the desktop opens the folder (its file manager). `os` as above. */
+static inline const char*
+Editor_OpenFolderCommandDefault(
+    int have_code,
+    char os)
+{
+    if( have_code )
+        return "code {folder} --goto {path}:{line}";
+    return os == 'w' ? "start \"\" {folder}" : os == 'm' ? "open {folder}" : "xdg-open {folder}";
+}
+
+/** `text` appended at out[n] as one shell word: "..." for cmd.exe, '...'
+ *  (a ' inside written '\'') for /bin/sh. Returns the new length, 0 when it
+ *  does not fit. */
 static inline size_t
-Editor_OpenCommandLine(
+Editor_OpenCommandQuote(
+    const char* text,
+    size_t length,
+    char* out,
+    size_t n,
+    size_t out_size)
+{
+#ifdef _WIN32
+    int const written = snprintf(out + n, out_size - n, "\"%.*s\"", (int)length, text);
+    if( written < 0 || (size_t)written >= out_size - n )
+        return 0;
+    return n + (size_t)written;
+#else
+    if( n + 1 >= out_size )
+        return 0;
+    out[n++] = '\'';
+    for( size_t i = 0; i < length; i++ )
+    {
+        if( text[i] == '\'' )
+        {
+            if( n + 4 >= out_size )
+                return 0;
+            memcpy(out + n, "'\\''", 4);
+            n += 4;
+        }
+        else
+        {
+            if( n + 1 >= out_size )
+                return 0;
+            out[n++] = text[i];
+        }
+    }
+    if( n + 1 >= out_size )
+        return 0;
+    out[n++] = '\'';
+    return n;
+#endif
+}
+
+/** The command line, with `{folder}` the folder named (NULL: the folder
+ *  `path` is in). Returns its length, 0 when it does not fit `out` or the
+ *  template is empty. */
+static inline size_t
+Editor_OpenCommandLineIn(
     const char* tmpl,
+    const char* folder,
     const char* path,
     int line,
     char* out,
@@ -67,37 +149,29 @@ Editor_OpenCommandLine(
     {
         if( strncmp(t, "{path}", 6) == 0 )
         {
-#ifdef _WIN32
-            int const written = snprintf(out + n, out_size - n, "\"%s\"", path);
-            if( written < 0 || (size_t)written >= out_size - n )
+            n = Editor_OpenCommandQuote(path, strlen(path), out, n, out_size);
+            if( n == 0 )
                 return out[0] = '\0', (size_t)0;
-            n += (size_t)written;
             t += 6;
-            continue;
-#endif
-            if( n + 1 >= out_size )
-                return out[0] = '\0', (size_t)0;
-            out[n++] = '\'';
-            for( const char* p = path; *p; p++ )
+        }
+        else if( strncmp(t, "{folder}", 8) == 0 )
+        {
+            const char* text = folder;
+            size_t length = folder ? strlen(folder) : 0;
+            if( !folder )
             {
-                if( *p == '\'' )
-                {
-                    if( n + 4 >= out_size )
-                        return out[0] = '\0', (size_t)0;
-                    memcpy(out + n, "'\\''", 4);
-                    n += 4;
-                }
-                else
-                {
-                    if( n + 1 >= out_size )
-                        return out[0] = '\0', (size_t)0;
-                    out[n++] = *p;
-                }
+                /* The folder the file is in: up to its last separator. */
+                const char* cut = strrchr(path, '/');
+                const char* back = strrchr(path, '\\');
+                if( back && (!cut || back > cut) )
+                    cut = back;
+                text = cut ? path : ".";
+                length = cut ? (size_t)(cut - path) : 1;
             }
-            if( n + 1 >= out_size )
+            n = Editor_OpenCommandQuote(text, length, out, n, out_size);
+            if( n == 0 )
                 return out[0] = '\0', (size_t)0;
-            out[n++] = '\'';
-            t += 6;
+            t += 8;
         }
         else if( strncmp(t, "{line}", 6) == 0 )
         {
@@ -116,6 +190,18 @@ Editor_OpenCommandLine(
     }
     out[n] = '\0';
     return n;
+}
+
+/** Editor_OpenCommandLineIn with `{folder}` the folder `path` is in. */
+static inline size_t
+Editor_OpenCommandLine(
+    const char* tmpl,
+    const char* path,
+    int line,
+    char* out,
+    size_t out_size)
+{
+    return Editor_OpenCommandLineIn(tmpl, NULL, path, line, out, out_size);
 }
 
 /* ---- "Show in Explorer" / "Show in Finder" ---------------------------------

@@ -203,19 +203,29 @@ Editor_ScriptEditedPath(
 }
 
 int
+Editor_ScriptFileValid(const char* rel_path)
+{
+    size_t length;
+
+    assert(rel_path);
+    length = strlen(rel_path);
+    if( length < 1 || length >= EDITOR_SCRIPT_PATH_MAX || rel_path[0] == '/' || rel_path[length - 1] == '/'
+        || strstr(rel_path, "..") || strchr(rel_path, '\\') || strstr(rel_path, "//") )
+        return 0;
+    for( const char* p = rel_path; *p; p++ )
+        if( (unsigned char)*p <= ' ' )
+            return 0;
+    return 1;
+}
+
+int
 Editor_ScriptPathValid(const char* rel_path)
 {
     size_t length;
 
     assert(rel_path);
     length = strlen(rel_path);
-    if( length < 5 || length >= EDITOR_SCRIPT_PATH_MAX || rel_path[0] == '/' || strstr(rel_path, "..")
-        || strchr(rel_path, '\\') || strstr(rel_path, "//") || strcmp(rel_path + length - 4, ".rs2") != 0 )
-        return 0;
-    for( const char* p = rel_path; *p; p++ )
-        if( (unsigned char)*p <= ' ' )
-            return 0;
-    return 1;
+    return length >= 5 && strcmp(rel_path + length - 4, ".rs2") == 0 && Editor_ScriptFileValid(rel_path);
 }
 
 int

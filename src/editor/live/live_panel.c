@@ -548,6 +548,31 @@ live_selection_tile(
     return 0;
 }
 
+/**
+ * Who a cheat or a teleport from the panel is for: the Player field when it
+ * names someone, else the lane's play account while its client is on the
+ * server -- the one a tester means nine times in ten, and the field used to
+ * be required (an empty one sent the cheat to nobody, and nothing said so).
+ * NULL with the refusal said, `what` naming the control.
+ */
+static const char*
+live_target_player(
+    struct EditorUi* ui,
+    struct LivePanel* self,
+    const char* what)
+{
+    const char* player = ToriRSChrome_Text(ui->chrome, self->input_player);
+
+    if( player[0] )
+        return player;
+    if( self->model.play_state == TORIRSMAPED_PLAY_ONLINE && self->model.play_account[0] )
+        return self->model.play_account;
+    Editor_UiStatus(ui, "%s refused: no play client is logged in (RUN or Play starts one), and the Player field "
+                        "names nobody",
+        what);
+    return NULL;
+}
+
 static int
 live_activate(
     struct EditorUi* ui,
@@ -581,18 +606,7 @@ live_activate(
     }
     if( widget == self->button_restart )
     {
-        /* Detach, then Launch: the two requests those buttons send, in that
-         * order on one connection. The editor server answers them in order,
-         * and its Detach has stopped the lane's servers and its play client
-         * (the link's close waits for them) before it reads the Launch. For
-         * what a reload cannot swap into a running server (a new var). */
-        type = Editor_LiveEncodeDetach(&payload);
-        if( !live_send(ui, self, type, &payload) )
-            return 1;
-        type = Editor_LiveEncodeAttach(&payload, 1, "", ToriRSChrome_Text(ui->chrome, self->input_ticket));
-        if( live_send(ui, self, type, &payload) )
-            Editor_UiStatus(ui,
-                "Restarting the lane's servers on the last build. RUN (or Play) starts the play client again");
+        (void)Editor_Live_RestartLane(ui);
         return 1;
     }
     if( widget == self->button_run )
@@ -660,37 +674,31 @@ live_activate(
     if( widget == self->button_cheat || widget == self->input_cheat )
     {
         const char* line = ToriRSChrome_Text(ui->chrome, self->input_cheat);
-        const char* player = ToriRSChrome_Text(ui->chrome, self->input_player);
-        if( !line[0] )
+        const char* player = live_target_player(ui, self, "Cheat");
+        /* "::tele x" as it is typed in the game is "tele x" on the link. */
+        if( line[0] == ':' && line[1] == ':' )
+            line += 2;
+        if( !line[0] || !player )
             return 1;
-        type = Editor_LiveEncodeCheat(&payload, player, line);
-        if( live_send(ui, self, type, &payload) )
+        /* Editor_Live_Cheat says what it sent, and to whom, or why not. */
+        if( Editor_Live_Cheat(ui, player, line) > 0 )
             ToriRSChrome_SetText(ui->chrome, self->input_cheat, "");
         return 1;
     }
     if( widget == self->button_tele )
     {
-        const char* player = ToriRSChrome_Text(ui->chrome, self->input_player);
+        const char* player = live_target_player(ui, self, "Teleport to selection");
         int x;
         int z;
         int level;
-        char coord[64];
-        char line[96];
-        if( !player[0] )
-        {
-            Editor_UiLog(ui, "live: name the player to teleport");
+        if( !player )
             return 1;
-        }
         if( !live_selection_tile(ui, &x, &z, &level) )
         {
-            Editor_UiLog(ui, "live: select a tile or a loc first");
+            Editor_UiStatus(ui, "Teleport to selection refused: select a tile or a loc in the World first");
             return 1;
         }
-        Editor_LiveTeleCoord(x, z, level < 0 ? 0 : level, coord, sizeof(coord));
-        snprintf(line, sizeof(line), "tele %s", coord);
-        type = Editor_LiveEncodeCheat(&payload, player, line);
-        if( live_send(ui, self, type, &payload) )
-            Editor_UiLog(ui, "live: ::%s for %s", line, player);
+        (void)Editor_Live_Teleport(ui, player, x, z, level);
         return 1;
     }
     if( widget == self->list_vars || widget == self->list_stale || widget == self->list_log
@@ -814,9 +822,12 @@ Editor_Live_RegisterWith(
     self->button_follow = ToriRSChrome_Button(ui->chrome, self->panel, "Follow");
     self->button_unfollow = ToriRSChrome_Button(ui->chrome, self->panel, "Stop following");
     self->list_vars = ToriRSChrome_VList(ui->chrome, self->panel, "Vars", LIVE_VAR_ROWS, 0);
+    ToriRSChrome_SetTooltip(ui->chrome, self->input_player, "Who Follow, Cheat and Teleport mean; empty: the play account");
     self->input_cheat = ToriRSChrome_TextInput(ui->chrome, self->panel, "Cheat", "");
+    ToriRSChrome_SetTooltip(ui->chrome, self->input_cheat, "A ::command for that player: tele 0_50_50_22_18");
     self->button_cheat = ToriRSChrome_Button(ui->chrome, self->panel, "Send");
     self->button_tele = ToriRSChrome_Button(ui->chrome, self->panel, "Teleport to selection");
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_tele, "Move that player to the selected tile or loc");
     self->list_stale = ToriRSChrome_VList(ui->chrome, self->panel, "Stale", LIVE_STALE_ROWS, 0);
     self->list_log = ToriRSChrome_VList(ui->chrome, self->panel, "Log", LIVE_LOG_ROWS, 0);
     ToriRSChrome_PanelSetResizable(ui->chrome, self->panel, 1);
@@ -945,6 +956,72 @@ Editor_Live_Run(struct EditorUi* ui)
         self->run_started_ms = ui->chrome->now_ms;
     }
     Editor_UiLog(ui, "RUN: save, build packs, build the client cache, reload the live server");
+    return 1;
+}
+
+int
+Editor_Live_RestartLane(struct EditorUi* ui)
+{
+    struct LivePanel* self;
+    struct ToriRSMapEdBuf payload;
+    uint32_t type;
+    int playing;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "live");
+    if( !self )
+    {
+        Editor_UiStatus(ui, "Restart lane: this window has no Live panel (no editor server)");
+        return -1;
+    }
+    /* The button's own rule (live_tick): only a lane this editor launched,
+     * and nothing in flight. */
+    if( !self->model.launched
+        || (self->model.state != TORIRSMAPED_LIVE_ATTACHED && self->model.state != TORIRSMAPED_LIVE_CONNECTING) )
+    {
+        Editor_UiStatus(ui, "Restart lane refused: this editor did not launch the lane's servers (RUN launches them)");
+        return 0;
+    }
+    if( self->model.run_step != TORIRSMAPED_RUN_STEP_IDLE || self->model.building )
+    {
+        Editor_UiStatus(ui, "Restart lane refused: a %s is in flight; wait for it",
+            self->model.building ? "build" : "RUN");
+        return 0;
+    }
+    /* Detach, Launch, Play: the requests those buttons send, in that order
+     * on one connection. The editor server answers them in order: its Detach
+     * has stopped the lane's servers and its play client (the link's close
+     * waits for them) before it reads the Launch, and Play waits for the
+     * lane's ports. For what a reload cannot swap into a running server (a
+     * new var). Without the Play the link sat at "connecting" until somebody
+     * found the Play button: a torirsserver answers its control link only
+     * after a login (2026-11-11). */
+    playing = self->model.play_state == TORIRSMAPED_PLAY_ONLINE || self->model.play_state == TORIRSMAPED_PLAY_STARTING
+              || self->model.play_state == TORIRSMAPED_PLAY_LOGGED_OUT;
+    memset(&payload, 0, sizeof(payload));
+    type = Editor_LiveEncodeDetach(&payload);
+    if( !live_send(ui, self, type, &payload) )
+        return 0;
+    type = Editor_LiveEncodeAttach(&payload, 1, "", ToriRSChrome_Text(ui->chrome, self->input_ticket));
+    if( !live_send(ui, self, type, &payload) )
+        return 0;
+    if( playing )
+    {
+        type = Editor_LiveEncodePlay(&payload, TORIRSMAPED_PLAY_START);
+        if( !live_send(ui, self, type, &payload) )
+            return 0;
+    }
+    Editor_UiStatus(ui, playing ? "Restarting the lane's servers on the last build, and the play client with them"
+                                : "Restarting the lane's servers on the last build (Play starts a play client)");
+    /* The RUN line said "must restart": done now. It kept saying so after
+     * the restart, which read as a restart that had not worked. */
+    if( self->outcome_kind == EDITOR_LIVE_RUN_RESTART )
+    {
+        snprintf(self->outcome, sizeof(self->outcome),
+            "RUN done; the lane's servers restarted on that build, so all of it runs now.");
+        self->outcome_kind = EDITOR_LIVE_RUN_DONE;
+        self->shown_run_serial = -1;
+    }
     return 1;
 }
 

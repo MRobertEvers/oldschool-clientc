@@ -43,7 +43,7 @@
  * (editor_hotkeys.h): Register walks the actions and opens the next group
  * at each change, so this is the enum's order, Palette after Camera. */
 static const char* const k_groups[] = { "File", "Edit", "Place", "Tools", "Brush", "Level", "Camera", "Picker",
-    "Palette", "View", "Graph" };
+    "Palette", "View", "Graph", "Camera path" };
 #define HOTKEYS_GROUPS ((int)(sizeof(k_groups) / sizeof(k_groups[0])))
 
 #define HOTKEYS_CLASH_RGB 0xFF5555u
@@ -93,6 +93,10 @@ hk_run_file(
         Editor_NewSquare_Open(ui, EDITOR_NEW_SQUARE_NEW, hk_current_square(ui, key, (int)sizeof(key)) ? key : NULL);
     else if( action == EDITOR_HK_FILE_OPEN_SQUARES )
         Editor_SquarePicker_OpenSquares(ui);
+    else if( action == EDITOR_HK_FILE_CLOSE_SQUARE )
+        Editor_SquarePicker_CloseSquare(ui);
+    else if( action == EDITOR_HK_FILE_NEW_INSTANCE )
+        Editor_Instance_Open(ui);
     else if( action == EDITOR_HK_FILE_SAVE_ALL )
     {
         int const saved = ui->editor ? Editor_SaveAll(ui->editor) : -1;
@@ -129,14 +133,32 @@ hk_run_file(
     }
     else if( action == EDITOR_HK_FILE_CHECK_SCRIPTS )
         (void)Editor_Triggers_Check(ui);
+    else if( action == EDITOR_HK_FILE_NEW_QUEST )
+        (void)Editor_Triggers_NewQuest(ui, NULL);
     else if( action == EDITOR_HK_FILE_RUN )
         (void)Editor_Live_Run(ui);
+    else if( action == EDITOR_HK_FILE_RESTART_LANE )
+        (void)Editor_Live_RestartLane(ui);
     else if( action == EDITOR_HK_FILE_PUBLISH )
         (void)Editor_Publish_Open(ui);
     else if( action == EDITOR_HK_FILE_SAVE_SCENE )
         (void)Editor_Scenes_Save(ui, NULL);
     else if( action == EDITOR_HK_FILE_SCRATCH_LANE )
         (void)Editor_Lanes_Scratch(ui);
+    else if( action == EDITOR_HK_FILE_PROMOTE_LANE )
+        (void)Editor_Lanes_Promote(ui, NULL);
+    else if( action == EDITOR_HK_FILE_DELETE_LANE )
+        (void)Editor_Lanes_Delete(ui);
+    else if( action == EDITOR_HK_FILE_LANE_OPEN )
+        (void)Editor_Lanes_ChangeCommand(ui, EDITOR_LANE_CHANGE_OPEN);
+    else if( action == EDITOR_HK_FILE_LANE_REVEAL )
+        (void)Editor_Lanes_ChangeCommand(ui, EDITOR_LANE_CHANGE_REVEAL);
+    else if( action == EDITOR_HK_FILE_LANE_DIFF )
+        (void)Editor_Lanes_ChangeCommand(ui, EDITOR_LANE_CHANGE_DIFF);
+    else if( action == EDITOR_HK_FILE_LANE_DISCARD )
+        (void)Editor_Lanes_ChangeCommand(ui, EDITOR_LANE_CHANGE_DISCARD);
+    else if( action == EDITOR_HK_FILE_LANE_COPY )
+        (void)Editor_Lanes_ChangeCommand(ui, EDITOR_LANE_CHANGE_COPY_LIST);
     else
     {
         struct EditorUiGuard guard;
@@ -320,6 +342,17 @@ hk_run_edit(
          * on the App side). With none of the first three, under the Place
          * tool, the ghost goes: back to Select, the catalog pick kept (0
          * arms Place on it again). */
+        /* An armed stamp's ghost goes first, as its status line promises
+         * (2026-11-11: after a stamp was dropped, Esc cleared the Rectangle
+         * tool's rectangle and the ghost stayed on the pointer until a
+         * second Esc). */
+        if( tools->tool == EDITOR_TOOL_LOC_PLACE && edp_stamp_armed(ui) )
+        {
+            edp_stamp_disarm(ui);
+            Editor_UiSetTool(ui, EDITOR_TOOL_SELECT);
+            Editor_UiStatus(ui, "Stamp put away; the Stamps panel's Place arms it again");
+            return 1;
+        }
         if( tools->loc_count == 0 && !tools->rect.valid && Editor_Spawns_SelectionCount(ui) == 0
             && tools->tool == EDITOR_TOOL_LOC_PLACE )
         {
@@ -351,10 +384,9 @@ hk_run_edit(
             (void)edp_locs_duplicate(ui);
         return 1;
     case EDITOR_HK_EDIT_ROTATE:
-        /* The selection; else the Place ghost's pose. */
-        /* The Place tool's ghost while Place is armed, whatever is
-         * selected; else the selection; else the pose. */
-        /* An armed stamp turns as a unit (edpanel_ops_stamps.h). */
+        /* An armed stamp turns as a unit (edpanel_ops_stamps.h); else the
+         * Place tool's ghost while Place is armed, whatever is selected;
+         * else the selection; else the pose. */
         if( edp_stamp_armed(ui) )
             edp_stamp_turn(ui, 1);
         else if( tools->loc_count > 0 && tools->tool != EDITOR_TOOL_LOC_PLACE )
@@ -486,6 +518,13 @@ Editor_HotkeyRun(
         Editor_UiSetTool(ui, ui->previous_tool);
         return 1;
     }
+    /* The Building tool's modes and its Build on rectangle
+     * (edpanel_building.c). */
+    if( action >= EDITOR_HK_BUILDING_SHELL && action <= EDITOR_HK_BUILDING_BUILD )
+        return Editor_Building_RunAction(ui, action);
+    /* The stamps' Save from the rectangle, Rename and Delete. */
+    if( action >= EDITOR_HK_STAMP_SAVE_RECT && action <= EDITOR_HK_STAMP_DELETE )
+        return Editor_Stamps_RunAction(ui, action);
     /* With the Path tool up, [ and ] are its width, half a tile a step. */
     if( (action == EDITOR_HK_BRUSH_RADIUS_DOWN || action == EDITOR_HK_BRUSH_RADIUS_UP)
         && ui->tools.tool == EDITOR_TOOL_PAINT_PATH )
@@ -649,6 +688,38 @@ Editor_HotkeyRun(
     if( action == EDITOR_HK_GRAPH_AUTO_LAYOUT || action == EDITOR_HK_GRAPH_NEW_NODE )
     {
         (void)Builder_GraphHotkey(ui, action);
+        return 1;
+    }
+    /* The Camera path panel's verbs, on the path it shows. */
+    if( action >= EDITOR_HK_CAMPATH_ADD && action <= EDITOR_HK_CAMPATH_SEND )
+        return Editor_CamPath_Hotkey(ui, (int)action);
+    /* The Catalog's pick: its copy under the name typed in New name, and
+     * its record. */
+    if( action == EDITOR_HK_CATALOG_COPY_NEW )
+    {
+        (void)Editor_Catalog_CopyPick(ui);
+        return 1;
+    }
+    if( action == EDITOR_HK_CATALOG_EDIT_RECORD )
+    {
+        (void)Editor_Catalog_EditPick(ui);
+        return 1;
+    }
+    /* The NPC editor's route tools and Play, on the npc it has open: the
+     * panel is brought up first, so the tool that is armed is on screen. */
+    if( action >= EDITOR_HK_NPC_ADD_WAYPOINT && action <= EDITOR_HK_NPC_FIX_LEGS )
+    {
+        if( !Editor_UiPanelSelf(ui, BUILDER_PANEL_NPC) )
+        {
+            Editor_UiStatus(ui, "%s refused: this window has no NPC editor", info->name);
+            return 1;
+        }
+        if( action == EDITOR_HK_NPC_PLAY_ROUTE )
+            (void)Builder_RoutePlay(ui);
+        else if( action == EDITOR_HK_NPC_FIX_LEGS )
+            (void)Builder_RouteFixLegs(ui);
+        else
+            (void)Builder_RouteSetTool(ui, action == EDITOR_HK_NPC_ADD_WAYPOINT ? 1 : 2);
         return 1;
     }
     if( info->panel )

@@ -16,6 +16,7 @@ static const char k_stamp_comments[] = "# ToriRSMapEd stamp (editor/stamps/<name
                                        "# stamp <name> [| note <text>]\n"
                                        "# loc <dx> <dz> <dlevel> <loc> <shape> <rot> [<w>x<h>]\n"
                                        "# tile <dx> <dz> <dlevel> [h<raw>] [u<id>] [o<id>/<shape>/<rot>] [f<bits>]\n"
+                                       "# floor <dx> <dz> <dlevel> [o<id>/<shape>/<rot>] [f<bits>]\n"
                                        "# spawn <npc|obj> <name> <dx> <dz> <dlevel> [<count>]\n";
 
 static const char k_index_comments[] = "# ToriRSMapEd stamps (editor/stamps/index.txt): one line per stamp.\n"
@@ -291,14 +292,17 @@ Editor_StampsParseLine(
         }
         return EDITOR_STAMPS_LINE_PIECE;
     }
-    if( strcmp(word, "tile") == 0 )
+    if( strcmp(word, "tile") == 0 || strcmp(word, "floor") == 0 )
     {
         unsigned seen = 0;
-        piece->kind = EDITOR_STAMP_TILE;
+        int const floor = word[0] == 'f';
+        piece->kind = floor ? EDITOR_STAMP_FLOOR : EDITOR_STAMP_TILE;
         if( !parse_offsets(&at, end, piece) )
             return -1;
         while( next_word(&at, end, word, sizeof(word)) )
-            if( !parse_tile_token(word, &piece->tile, &seen) )
+            /* A floor is an overlay and flags: the ground's height and
+             * underlay are not its to carry. */
+            if( (floor && (word[0] == 'h' || word[0] == 'u')) || !parse_tile_token(word, &piece->tile, &seen) )
                 return -1;
         /* A token too long for the word buffer stops next_word early. */
         while( at < end && (*at == ' ' || *at == '\t') )
@@ -348,21 +352,23 @@ Editor_StampFormatPiece(
             written = snprintf(out, out_capacity, "loc %d %d %d %d %d %d %dx%d", piece->dx, piece->dz,
                 piece->dlevel, piece->loc_id, piece->shape, piece->rotation, piece->size_x, piece->size_z);
     }
-    else if( piece->kind == EDITOR_STAMP_TILE )
+    else if( piece->kind == EDITOR_STAMP_TILE || piece->kind == EDITOR_STAMP_FLOOR )
     {
         const struct Editor_Tile* t = &piece->tile;
+        int const floor = piece->kind == EDITOR_STAMP_FLOOR;
         char tokens[96];
         int n = 0;
         tokens[0] = '\0';
-        if( t->has_height )
+        if( t->has_height && !floor )
             n += snprintf(tokens + n, sizeof(tokens) - (size_t)n, " h%d", t->height);
-        if( t->underlay_id )
+        if( t->underlay_id && !floor )
             n += snprintf(tokens + n, sizeof(tokens) - (size_t)n, " u%d", t->underlay_id);
         if( t->has_overlay )
             n += snprintf(tokens + n, sizeof(tokens) - (size_t)n, " o%d/%d/%d", t->overlay_id, t->shape, t->rotation);
         if( t->settings )
             n += snprintf(tokens + n, sizeof(tokens) - (size_t)n, " f%d", t->settings);
-        written = snprintf(out, out_capacity, "tile %d %d %d%s", piece->dx, piece->dz, piece->dlevel, tokens);
+        written = snprintf(out, out_capacity, "%s %d %d %d%s", floor ? "floor" : "tile", piece->dx, piece->dz,
+            piece->dlevel, tokens);
     }
     else
     {
@@ -552,6 +558,55 @@ Editor_StampsHeaderName(
     return NULL;
 }
 
+size_t
+Editor_StampsHeaderEdit(
+    const char* old_text,
+    size_t old_length,
+    const char* name,
+    const char* new_name,
+    char* out,
+    size_t out_capacity)
+{
+    struct Editor_StampsFile file;
+    char header[EDITOR_STAMP_LINE_MAX + 1];
+    size_t total = 0;
+    int at;
+
+    assert(old_text || old_length == 0);
+    assert(name);
+    assert(out || out_capacity == 0);
+    assert(!new_name || Editor_StampNameValid(new_name));
+
+    Editor_StampsInit(&file);
+    (void)Editor_StampsParse(&file, old_text, old_length);
+    at = Editor_StampsFindHeader(&file, name);
+    header[0] = '\0';
+    /* A name and a note are each under a line's length: it always fits. */
+    if( at >= 0 && new_name )
+        (void)Editor_StampFormatHeader(new_name, file.lines[at].note, header, sizeof(header));
+    for( int i = 0; i < file.line_count; i++ )
+    {
+        const char* text = i == at ? header : file.lines[i].text;
+        size_t const length = strlen(text);
+        int const newline = i + 1 < file.line_count || file.final_newline;
+
+        if( i == at && !new_name )
+            continue;
+        if( out && total < out_capacity )
+        {
+            size_t const room = out_capacity - total - 1;
+            memcpy(out + total, text, length < room ? length : room);
+            if( newline && length < room )
+                out[total + length] = '\n';
+        }
+        total += length + (size_t)newline;
+    }
+    Editor_StampsFree(&file);
+    if( out && out_capacity > 0 )
+        out[total < out_capacity ? total : out_capacity - 1] = '\0';
+    return total;
+}
+
 /* ---- the stamp ----------------------------------------------------------------- */
 
 void
@@ -718,7 +773,7 @@ Editor_StampPieceRotate(
             piece->size_z = w;
             piece->rotation = (piece->rotation + 1) & 3;
         }
-        else if( piece->kind == EDITOR_STAMP_TILE && piece->tile.has_overlay )
+        else if( (piece->kind == EDITOR_STAMP_TILE || piece->kind == EDITOR_STAMP_FLOOR) && piece->tile.has_overlay )
             piece->tile.rotation = (uint8_t)((piece->tile.rotation + 1) & 3);
     }
 }
@@ -757,10 +812,14 @@ Editor_StampSummary(
     int const locs = Editor_StampCount(stamp, EDITOR_STAMP_LOC);
     int const tiles = Editor_StampCount(stamp, EDITOR_STAMP_TILE);
     int const spawns = Editor_StampCount(stamp, EDITOR_STAMP_SPAWN);
+    int const floors = Editor_StampCount(stamp, EDITOR_STAMP_FLOOR);
+    int n;
 
     assert(out);
-    snprintf(out, out_size, "%s: %d loc%s, %d tile%s, %d spawn%s", stamp->name[0] ? stamp->name : "(unnamed)", locs,
+    n = snprintf(out, out_size, "%s: %d loc%s, %d tile%s, %d spawn%s", stamp->name[0] ? stamp->name : "(unnamed)", locs,
         locs == 1 ? "" : "s", tiles, tiles == 1 ? "" : "s", spawns, spawns == 1 ? "" : "s");
+    if( floors > 0 && n > 0 && (size_t)n < out_size )
+        snprintf(out + n, out_size - (size_t)n, ", %d floor%s", floors, floors == 1 ? "" : "s");
 }
 
 /* ---- writing a document ----------------------------------------------------------- */

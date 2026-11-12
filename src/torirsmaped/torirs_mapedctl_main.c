@@ -157,8 +157,19 @@
  *                          afterwards when <target> is its base unless `keep`;
  *                          `force` writes into a main tree another editor holds
  *   publish-new <name>     a new lane mirrored from main, then publish into it
- *   discard                every change back to the base (documents dropped)
+ *   promote <name>         the same, as the Lanes panel names it: this lane's
+ *                          changes into a new lane, this lane keeping them
+ *   publish-check <target> what `publish <target>` would write, and which of
+ *                          those files <target> changed too; nothing written
+ *   discard [<path>]       every change back to the base (documents dropped);
+ *                          with a path, that one change
  *   lane-create <name>     a new lane mirrored from main, nothing published
+ *   lane-delete <name>     delete a lane: its links to the base dropped by
+ *                          name, its own files removed, the base untouched.
+ *                          Refused for main, the server's own lane, a lane an
+ *                          editor holds and the lane the boot lane file names
+ *                          (promote, publish-check, discard <path> and
+ *                          lane-delete need a server from 2026-11-11 on)
  *                          the account onto that tile (::tele online, the
  *                          save offline)
  *   quests                 the content's quest rows and the var each
@@ -2364,6 +2375,8 @@ lanes_print(
             kind == TORIRSMAPED_LANE_PUBLISHED_PUBLISH   ? "publish"
             : kind == TORIRSMAPED_LANE_PUBLISHED_DISCARD ? "discard"
             : kind == TORIRSMAPED_LANE_PUBLISHED_SWITCH  ? "switch"
+            : kind == TORIRSMAPED_LANE_PUBLISHED_DELETE  ? "lane-delete"
+            : kind == TORIRSMAPED_LANE_PUBLISHED_CHECK   ? "publish-check"
                                                          : "create",
             status == EDITOR_HOST_OK ? "done" : "failed", text, written, removed,
             reload ? "; every window reopens its square" : "");
@@ -2523,8 +2536,8 @@ main(
             "  scenes | scene-remove <scene> | scene-set <scene> rename <new>\n"
             "  scene-set <scene> [squares <key>...] [camera <x>,<z>,<l>,<yaw>,<pitch>,<zoom>] [level <n|auto> [above]]\n"
             "            [lane <name>] [preview <var>=<v>...] [account <name> at <x>,<z>,<l>] [note <text>]\n"
-            "  lane | lanes | changes | publish <target> [keep] [force] | publish-new <name> | discard\n"
-            "  lane-create <name> | lane-switch <name>\n"
+            "  lane | lanes | changes | publish <target> [keep] [force] | publish-new <name> | discard [<path>]\n"
+            "  promote <name> | publish-check <target> | lane-create <name> | lane-switch <name> | lane-delete <name>\n"
             "  encounters | encounter-remove <name> | encounter-set <name> [colour <n|->] [note <text|->]\n"
             "    [rename <new>] [clear] [spawn|unspawn <npc|obj>:<name> <x> <z> <level> [count]]...\n"
             "  live-attach launch|<host:port> [ticket] | live-detach | live-cheat <player> <line>\n"
@@ -2770,12 +2783,18 @@ main(
         struct lanes_wait wait = { TORIRSMAPED_FACT_LANE_CHANGES, 0, 0 };
         result = lanes_request(&host, TORIRSMAPED_REQ_LANE_CHANGES, &payload, &wait, 120);
     }
-    else if( (strcmp(command, "publish") == 0 || strcmp(command, "publish-new") == 0) && arg_count >= 1 )
+    else if( (strcmp(command, "publish") == 0 || strcmp(command, "publish-new") == 0
+                 || strcmp(command, "promote") == 0 || strcmp(command, "publish-check") == 0)
+             && arg_count >= 1 )
     {
         struct ToriRSMapEdBuf payload = { 0 };
         struct lanes_wait wait = { TORIRSMAPED_FACT_LANE_PUBLISHED, 0, 0 };
         uint32_t flags = TORIRSMAPED_LANE_PUBLISH_RESET;
-        int const new_lane = strcmp(command, "publish-new") == 0;
+        /* Promote is the Lanes panel's word for it (a new lane holding this
+         * lane's changes); publish-check is LANE_PUBLISH's dry run. */
+        int const new_lane = strcmp(command, "publish-new") == 0 || strcmp(command, "promote") == 0;
+        if( strcmp(command, "publish-check") == 0 )
+            flags |= TORIRSMAPED_LANE_PUBLISH_CHECK;
         for( int i = 1; i < arg_count; i++ )
         {
             if( strcmp(args[i], "keep") == 0 )
@@ -2792,7 +2811,17 @@ main(
     {
         struct ToriRSMapEdBuf payload = { 0 };
         struct lanes_wait wait = { TORIRSMAPED_FACT_LANE_PUBLISHED, 0, 0 };
+        /* A path: that one change (an empty body is every change). */
+        if( arg_count >= 1 )
+            ToriRSMapEd_PutString(&payload, args[0]);
         result = lanes_request(&host, TORIRSMAPED_REQ_LANE_DISCARD, &payload, &wait, 600);
+    }
+    else if( strcmp(command, "lane-delete") == 0 && arg_count >= 1 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct lanes_wait wait = { TORIRSMAPED_FACT_LANE_PUBLISHED, 0, 0 };
+        ToriRSMapEd_PutString(&payload, args[0]);
+        result = lanes_request(&host, TORIRSMAPED_REQ_LANE_DELETE, &payload, &wait, 600);
     }
     else if( strcmp(command, "lane-switch") == 0 && arg_count >= 1 )
     {

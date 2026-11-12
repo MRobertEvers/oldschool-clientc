@@ -29,6 +29,7 @@
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_live.h"
 #include "torirsmaped/torirs_maped_build.h"
+#include "torirsmaped/torirs_maped_catalog.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -251,7 +252,7 @@ open_doc_into(
 #define EMBED_CAPS                                                                                    \
     (TORIRSMAPED_CAP_CATALOG | TORIRSMAPED_CAP_CATALOG_PROGRESS | TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS    \
      | TORIRSMAPED_CAP_CATALOG_USES | TORIRSMAPED_CAP_LANES_V2 | TORIRSMAPED_CAP_DOC_CREATE_STROKE                \
-     | TORIRSMAPED_CAP_CATALOG_SQUARES_NOWAIT)
+     | TORIRSMAPED_CAP_CATALOG_SQUARES_NOWAIT | TORIRSMAPED_CAP_LANE_HANDOUT)
 
 static void
 mkdir_p_or_die(char const* path)
@@ -1367,6 +1368,44 @@ main(
             fclose(f);
         }
 
+        /* The source's SERVER half: a generated overlay and an authored one
+         * that restates part of it. The copy must fight as its source does. */
+        snprintf(dir, sizeof(dir), "%s/server/scripts/_explicit", scratch);
+        mkdir_p_or_die(dir);
+        snprintf(dir, sizeof(dir), "%s/server/scripts/_explicit/configs", scratch);
+        mkdir_p_or_die(dir);
+        snprintf(path, sizeof(path), "%s/server/scripts/_explicit/configs/server_fields.generated.npc", scratch);
+        f = fopen(path, "wb");
+        if( f )
+        {
+            fputs("[other_npc]\nhitpoints=1\n\n[src_npc]\nhitpoints=3\nhuntmode=none\nparam=attackrate,6\n", f);
+            fclose(f);
+        }
+        snprintf(path, sizeof(path), "%s/server/scripts/areas/t/configs/src.npc", scratch);
+        f = fopen(path, "wb");
+        check(f != NULL, "the source's authored overlay is written");
+        if( f )
+        {
+            fputs("[src_npc]\nhitpoints=7\nwanderrange=20\nparam=attackrate,4\n", f);
+            fclose(f);
+        }
+        /* The index, current with the fixtures just written (a request
+         * answers from the index it has; the sweep that would find them runs
+         * a slice a frame): SAVE_AS reads the source's overlay files from
+         * it. */
+        {
+            struct EditorHost_CatalogPage page;
+            struct ToriRSMapEd* server = Editor_HostMapEdEmbedServer(&a);
+            check(server != NULL && server->catalog != NULL, "the embedded server has a catalog");
+            if( server && server->catalog )
+                (void)ToriRSMapEdCatalog_Refresh(server->catalog, 1, NULL);
+            memset(&page, 0, sizeof(page));
+            check(Editor_HostMapEdCatalogQuery(&a, TORIRSMAPED_CATALOG_NPC, "src_npc", 0, 0, 0, &page) == EDITOR_HOST_OK
+                      && page.row_count == 1,
+                "the catalog lists the source npc");
+            Editor_HostCatalogPageFree(&page);
+        }
+
         /* Client 2's mirror holds the membership file: it must follow. */
         check(open_doc_into(&b, mb.doc, EDITOR_DOC_TEXT, "pack:npc.client"),
             "a second Client mirrors pack:npc.client");
@@ -1374,6 +1413,47 @@ main(
                   == EDITOR_HOST_OK,
             "SAVE_AS copies npc:src_npc to npc:copy_npc");
         check(id == 20000, "the copy takes the npc floor id (20000)");
+        /* Its server half, in the same step: the overlays resolved (the
+         * authored value where both state a field, a param by its name) into
+         * the copy's own authored overlay. */
+        {
+            char const* want = "[copy_npc]\nhitpoints=7\nhuntmode=none\nparam=attackrate,4\nwanderrange=20\n";
+            memset(&text, 0, sizeof(text));
+            check(Editor_HostMapEdDocOpen(&a2, EDITOR_DOC_CFG,
+                      "npc:copy_npc@edited/copy_npc/configs/copy_npc.npc", &text)
+                      == EDITOR_HOST_OK
+                      && text.part_count == 1 && text.parts[0].size == strlen(want)
+                      && memcmp(text.parts[0].data, want, text.parts[0].size) == 0,
+                "the copy's own overlay holds the source's server fields, resolved");
+            if( text.part_count == 1 && text.parts[0].data )
+                printf("  (copy's overlay: %.*s)\n", (int)text.parts[0].size, (char const*)text.parts[0].data);
+            Editor_HostDocTextFree(&text);
+        }
+        /* And the copy is a record of the catalog at once, though no file
+         * holds it: by name, by id, with the fields of its block. */
+        {
+            struct EditorHost_CatalogRecord record;
+            struct EditorHost_CatalogPage page;
+            int has_op = 0;
+            memset(&record, 0, sizeof(record));
+            check(Editor_HostMapEdCatalogRecord(&a, TORIRSMAPED_CATALOG_NPC, -1, "copy_npc", &record) == EDITOR_HOST_OK
+                      && record.id == 20000 && record.display && strcmp(record.display, "Src") == 0,
+                "the unsaved copy is a catalog record by name, with its id and display name");
+            for( int i = 0; i < record.field_count; i++ )
+                has_op |= strcmp(record.fields[i].key, "op1") == 0 && strcmp(record.fields[i].value, "Talk-to") == 0;
+            check(has_op, "its record view reads the unsaved block's fields");
+            Editor_HostCatalogRecordFree(&record);
+            memset(&record, 0, sizeof(record));
+            check(Editor_HostMapEdCatalogRecord(&a, TORIRSMAPED_CATALOG_NPC, 20000, "", &record) == EDITOR_HOST_OK
+                      && record.name && strcmp(record.name, "copy_npc") == 0,
+                "and by id");
+            Editor_HostCatalogRecordFree(&record);
+            memset(&page, 0, sizeof(page));
+            check(Editor_HostMapEdCatalogQuery(&a, TORIRSMAPED_CATALOG_NPC, "copy_n", 0, 0, 0, &page) == EDITOR_HOST_OK
+                      && page.row_count == 1 && strcmp(page.rows[0].name, "copy_npc") == 0 && page.rows[0].id == 20000,
+                "Find lists the unsaved copy");
+            Editor_HostCatalogPageFree(&page);
+        }
         drain(&b, &mb);
         check(Editor_DocFind(mb.doc, EDITOR_DOC_TEXT, "pack:npc.client", &handle) && handle.text
                   && handle.text->length == strlen(client_text) + strlen("copy_npc\n")
@@ -1405,6 +1485,29 @@ main(
         check(Editor_DocFind(mb.doc, EDITOR_DOC_TEXT, "pack:npc.client", &handle) && handle.text
                   && handle.text->length == strlen(client_text),
             "and the other mirror's membership file is its old bytes");
+        {
+            struct EditorHost_CatalogRecord record;
+            memset(&text, 0, sizeof(text));
+            check(Editor_HostMapEdDocOpen(&a2, EDITOR_DOC_CFG,
+                      "npc:copy_npc@edited/copy_npc/configs/copy_npc.npc", &text)
+                      == EDITOR_HOST_OK
+                      && (text.part_count == 0 || text.parts[0].size == 0),
+                "the same undo took the copy's overlay back");
+            Editor_HostDocTextFree(&text);
+            memset(&record, 0, sizeof(record));
+            check(Editor_HostMapEdCatalogRecord(&a, TORIRSMAPED_CATALOG_NPC, -1, "copy_npc", &record)
+                      == EDITOR_HOST_ABSENT,
+                "and the catalog no longer lists the undone copy");
+            Editor_HostCatalogRecordFree(&record);
+            check(Editor_HostMapEdRedo(&a) > 0, "redo makes the copy again");
+            memset(&record, 0, sizeof(record));
+            check(Editor_HostMapEdCatalogRecord(&a, TORIRSMAPED_CATALOG_NPC, -1, "copy_npc", &record) == EDITOR_HOST_OK
+                      && record.id == 20000,
+                "and the catalog lists it again");
+            Editor_HostCatalogRecordFree(&record);
+            check(Editor_HostMapEdUndo(&a) > 0, "undo again, for what follows");
+            drain(&b, &mb);
+        }
         drain(&a, &ma);
         drain(&a2, &ma2);
         drain(&c, &mc);

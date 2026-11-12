@@ -138,6 +138,10 @@ Task_Dat2NpcLoad_Run(
 
     if( !task->npc )
     {
+        /* Not a record of this cache. One the map editor's lane made since
+         * the cache was built is defined from its text instead. */
+        if( CacheProvider_AbsentRecord(&task->bc->base, CACHEPROVIDER_CATALOG_NPC, task->npc_id) )
+            PT_EXIT(&task->pt);
         TORIRS_ERR("Failed to load dat2 npc %d\n", task->npc_id);
         PT_EXIT(&task->pt);
     }

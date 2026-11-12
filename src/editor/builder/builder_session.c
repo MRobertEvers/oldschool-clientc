@@ -111,6 +111,54 @@ record_field(
     return value;
 }
 
+static struct Editor_NpcDoc*
+session_npcdoc(
+    struct EditorUi* ui,
+    const char* npc);
+
+/**
+ * An npc the catalog index does not list yet: a Copy to new that has not
+ * been saved lives only in the session's documents (its block in
+ * configs/all.npc), and the index is rebuilt on Save. The NPC editor must
+ * open it anyway -- "make its own type, then give it a route" is one
+ * sitting -- so the record is read from the documents instead. Its id is
+ * not known here (-1): the spawn rows match on the name.
+ */
+static int
+session_record_unsaved(
+    void* user_data,
+    const char* name,
+    struct Builder_RecordInfo* out)
+{
+    struct EditorUi* ui = user_data;
+    struct Editor_NpcDoc* doc;
+    const struct Editor_CfgRecord* record;
+
+    assert(ui);
+    assert(name);
+    assert(out);
+    doc = session_npcdoc(ui, name);
+    if( !doc || !Editor_NpcDocExists(ui, doc) )
+        return 0;
+    record = Editor_NpcDocRecord(ui, doc);
+    assert(record);
+    out->found = 1;
+    out->id = -1;
+    snprintf(out->name, sizeof(out->name), "%s", name);
+    for( int r = 0; r < record->row_count; r++ )
+    {
+        const struct Editor_CfgRecordRow* row = &record->rows[r];
+        if( row->layer < 0 || row->sub[0] || strcmp(row->value, "default") == 0 || strcmp(row->value, "hidden") == 0 )
+            continue;
+        if( strcmp(row->key, "name") == 0 )
+            snprintf(out->display, sizeof(out->display), "%s", row->value);
+        else if( row->key[0] == 'o' && row->key[1] == 'p' && row->key[2] >= '1' && row->key[2] <= '5' && !row->key[3] )
+            snprintf(out->ops[row->key[2] - '1'], sizeof(out->ops[0]), "%s", row->value);
+    }
+    out->has_movement = Editor_NpcDocMovement(ui, doc, &out->movement);
+    return 1;
+}
+
 static int
 session_record(
     void* user_data,
@@ -138,7 +186,7 @@ session_record(
     }
     memset(&record, 0, sizeof(record));
     if( Editor_HostMapEdCatalogRecord(&editor->host, kind, id, name, &record) != EDITOR_HOST_OK )
-        return 0;
+        return subject == BUILDER_SUBJECT_NPC && name[0] ? session_record_unsaved(user_data, name, out) : 0;
     out->found = 1;
     out->id = record.id;
     snprintf(out->name, sizeof(out->name), "%s", record.name ? record.name : name);
@@ -189,6 +237,19 @@ session_selection(
         }
         if( ui->tools.pick_kind == 1 )
         {
+            /* The pick's own name ("thistle_watchman (27407)") when it has
+             * one: an unsaved Copy to new is not in the catalog to be found
+             * by its id. */
+            size_t n = 0;
+            while( ui->tools.pick_name[n] && ui->tools.pick_name[n] != ' ' )
+                n++;
+            if( n > 0 && n < out_size )
+            {
+                memcpy(out, ui->tools.pick_name, n);
+                out[n] = '\0';
+                if( Builder_NameValid(out) )
+                    return 1;
+            }
             snprintf(out, out_size, "#%d", ui->tools.pick_id);
             return 1;
         }
@@ -440,13 +501,61 @@ session_route_set(
 {
     struct EditorUi* ui = user_data;
     struct Editor_NpcDoc* doc;
+    struct Editor_NpcMovement now;
+    int leash = -1;
+    int applied;
 
     assert(ui);
     assert(npc);
     doc = session_npcdoc(ui, npc);
     if( !doc )
         return -1;
-    return Editor_NpcDocSetRoute(ui, doc, waypoints, count, mode, what);
+    /* The leash follows the route: the server measures maxrange from the
+     * SPAWN tile, so a route that leaves it makes the npc drop whoever talks
+     * to it out there (editor_npc.h Editor_NpcRouteReach). Raised, never
+     * lowered, to the farthest waypoint from any of its spawns in the open
+     * squares, in the route's own undo step. */
+    if( count > 0 && Editor_NpcDocMovement(ui, doc, &now) && Editor_UiFindPanel(ui, "spawns") )
+    {
+        static struct MapEditorSpawnPreviewRow rows[MAP_EDITOR_SPAWN_PREVIEW_MAX];
+        int const n = Editor_Spawns_RowsOf(ui, npc, -1, rows, MAP_EDITOR_SPAWN_PREVIEW_MAX);
+        int const stated = now.maxrange >= 0 ? now.maxrange : EDITOR_NPC_LEASH_DEFAULT;
+        int reach = 0;
+        for( int i = 0; i < n; i++ )
+        {
+            int r;
+            if( rows[i].suppressed || rows[i].row.is_obj )
+                continue;
+            r = Editor_NpcRouteReach(waypoints, count, rows[i].row.abs_x, rows[i].row.abs_z);
+            if( r > reach )
+                reach = r;
+        }
+        if( reach > stated )
+            leash = reach;
+    }
+    applied = Editor_NpcDocSetRoute(ui, doc, waypoints, count, mode, leash, what);
+    if( applied > 0 && leash >= 0 )
+        Editor_UiStatus(ui, "%s: leash (maxrange) raised to %d so the whole route is inside it, measured from its spawn",
+            npc, leash);
+    return applied;
+}
+
+static int
+session_can_step(
+    void* user_data,
+    int x,
+    int z,
+    int dx,
+    int dz,
+    int level,
+    int size)
+{
+    struct EditorUi* ui = user_data;
+
+    assert(ui);
+    if( !ui->app_services.can_step )
+        return -1;
+    return ui->app_services.can_step(ui->app_services.user_data, x, z, dx, dz, level, size);
 }
 
 static void
@@ -624,6 +733,29 @@ session_spawn_delete(
     return Editor_Spawns_DeleteRow(ui, &row);
 }
 
+static int
+session_spawn_selected(
+    void* user_data,
+    const char* npc,
+    struct Builder_NpcSpawn* out)
+{
+    struct EditorUi* ui = user_data;
+    struct Editor_SpawnRow row;
+
+    assert(ui);
+    assert(npc);
+    assert(out);
+    if( !Editor_UiFindPanel(ui, "spawns") || Editor_Spawns_Selection(ui, &row, 1) < 1 || row.is_obj
+        || strcmp(row.name, npc) != 0 )
+        return 0;
+    memset(out, 0, sizeof(*out));
+    out->x = row.abs_x;
+    out->z = row.abs_z;
+    out->level = row.level;
+    snprintf(out->name, sizeof(out->name), "%s", row.name);
+    return 1;
+}
+
 static void
 session_release(void* user_data)
 {
@@ -692,11 +824,13 @@ session_services(
     out->route_set = session_route_set;
     out->tile_info = session_tile_info;
     out->path_steps = session_path_steps;
+    out->can_step = session_can_step;
     out->spawns = session_spawns;
     out->goto_tile = session_goto_tile;
     out->spawn_select = session_spawn_select;
     out->spawn_place = session_spawn_place;
     out->spawn_delete = session_spawn_delete;
+    out->spawn_selected = session_spawn_selected;
     out->release = session_release;
     out->photo_place = session_photo_place;
 }

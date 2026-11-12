@@ -20,6 +20,16 @@
  *             back; Save writes the files; the catalog's atlas reader takes
  *             the .wma (the squares claimed by the new area)
  *   trim      level 0 only and no locs, through the authority
+ *   runtime   a lane that takes map instances: the runtime entry is the
+ *             default, and Create writes ~map_instance_from_square_block,
+ *             the npc added on entering and the one loc that leaves from
+ *             inside the copy; the status bar says where the template is
+ *             and how it is stamped
+ *
+ * The exit's and the npc's refusals (a teleport's exit on the trigger loc,
+ * nowhere to return to, a return into instance space, an npc on a teleport,
+ * an npc tile outside the template, a loc the tree already scripts) and the
+ * note for a name the catalog lacks are in "refusals".
  */
 
 #include "editor/editor.h"
@@ -171,8 +181,10 @@ write_fixture(const char* root)
         "server/scripts/areas/world/configs" };
     for( size_t i = 0; i < sizeof(dirs) / sizeof(dirs[0]); i++ )
         make_dir(root, dirs[i]);
-    write_text(root, "configs/all.loc", "[test_wall]\nname=Wall\n\n[cave_entrance]\nname=Cave\n");
-    write_text(root, "configs/all.loc.compack", "1902=test_wall\n1903=cave_entrance\n");
+    /* Both can be clicked (op1), and a third cannot: the dialog notes it. */
+    write_text(root, "configs/all.loc",
+        "[test_wall]\nname=Wall\nop1=Open\n\n[cave_entrance]\nname=Cave\nop1=Enter\n\n[dead_rock]\nname=Rock\n");
+    write_text(root, "configs/all.loc.compack", "1902=test_wall\n1903=cave_entrance\n1904=dead_rock\n");
     write_text(root, "maps/m50_50.jm2", k_jm2_a);
     write_text(root, "maps/m50_50.jl2", k_jl2_a);
     write_text(root, "maps/m50_51.jm2", k_jm2_b);
@@ -219,6 +231,19 @@ static const char*
 check_row(void)
 {
     return ToriRSChrome_Text(&g_chrome, W(EDITOR_INSTANCE_W_CHECK));
+}
+
+/** 1 when one of the console's newest lines holds `text`. */
+static int
+console_has(const char* text)
+{
+    for( int i = 0; i < 12; i++ )
+    {
+        const char* line = Editor_UiConsoleLine(&g_ui, i);
+        if( line && strstr(line, text) )
+            return 1;
+    }
+    return 0;
 }
 
 static void
@@ -390,6 +415,49 @@ test_open_and_refusals(const char* root)
         "a good form says what Create makes (%s)", check_row());
     CHECK(!ToriRSChrome_Disabled(&g_chrome, W(EDITOR_INSTANCE_W_CREATE)), "and Create is enabled");
 
+    /* Where things are, said in the dialog: the template and how to open
+     * it, and what a teleport entry means at play time. */
+    CHECK(strcmp(ToriRSChrome_Text(&g_chrome, W(EDITOR_INSTANCE_W_WHERE_TEMPLATE)),
+              "Template: m5_150..m5_151 (1 x 2 squares) in instance space. Open it from Squares > Instance space, or "
+              "Scenes > instance:tutorial_cave.")
+              == 0,
+        "the dialog says where the template is (%s)", ToriRSChrome_Text(&g_chrome, W(EDITOR_INSTANCE_W_WHERE_TEMPLATE)));
+    CHECK(strstr(ToriRSChrome_Text(&g_chrome, W(EDITOR_INSTANCE_W_WHERE_STAMP)), "one shared room") != NULL,
+        "and that a teleport's room is shared (%s)", ToriRSChrome_Text(&g_chrome, W(EDITOR_INSTANCE_W_WHERE_STAMP)));
+
+    /* The exit. Under a teleport it needs a loc of its own; its return tile
+     * is typed here (no world is open to find the trigger loc in), and is a
+     * tile of the real map. */
+    CHECK(g_chrome.widgets[W(EDITOR_INSTANCE_W_EXIT_COORD)].hidden, "Returns to is hidden with no exit loc");
+    set_text(EDITOR_INSTANCE_W_EXIT, "cave_entrance");
+    CHECK(strstr(check_row(), "a teleport entry needs another loc for its exit") != NULL,
+        "a teleport's exit on the trigger loc: said (%s)", check_row());
+    CHECK(!g_chrome.widgets[W(EDITOR_INSTANCE_W_EXIT_COORD)].hidden, "an exit loc shows Returns to");
+    set_text(EDITOR_INSTANCE_W_EXIT, "test_wall");
+    CHECK(strstr(check_row(), "type where the exit returns to") != NULL, "an exit with nowhere to return: said (%s)",
+        check_row());
+    set_text(EDITOR_INSTANCE_W_EXIT_COORD, "0_5_150_1_1");
+    CHECK(strstr(check_row(), "is in instance space") != NULL, "an exit into instance space: said (%s)", check_row());
+    set_text(EDITOR_INSTANCE_W_EXIT_COORD, "3222 3218");
+    CHECK(strstr(check_row(), "a trigger to 0_5_150_32_32, an exit to 0_50_50_22_18; unsaved until Save") != NULL,
+        "a good exit is part of what Create makes (%s)", check_row());
+    CHECK(g_chrome.widgets[W(EDITOR_INSTANCE_W_NOTE)].hidden, "with nothing to note");
+    /* A name the catalog does not have is said, not refused. */
+    set_text(EDITOR_INSTANCE_W_EXIT, "no_such_rope");
+    CHECK(!ToriRSChrome_Disabled(&g_chrome, W(EDITOR_INSTANCE_W_CREATE))
+              && !g_chrome.widgets[W(EDITOR_INSTANCE_W_NOTE)].hidden
+              && strstr(ToriRSChrome_Text(&g_chrome, W(EDITOR_INSTANCE_W_NOTE)), "no loc named no_such_rope") != NULL,
+        "an exit loc the lane does not have is a note (%s)", ToriRSChrome_Text(&g_chrome, W(EDITOR_INSTANCE_W_NOTE)));
+    /* So is a loc with no first option: nobody could click it. */
+    set_text(EDITOR_INSTANCE_W_EXIT, "dead_rock");
+    CHECK(!ToriRSChrome_Disabled(&g_chrome, W(EDITOR_INSTANCE_W_CREATE))
+              && strstr(ToriRSChrome_Text(&g_chrome, W(EDITOR_INSTANCE_W_NOTE)), "dead_rock has no first option (op1)")
+                     != NULL,
+        "an exit loc with no op1 is a note (%s)", ToriRSChrome_Text(&g_chrome, W(EDITOR_INSTANCE_W_NOTE)));
+    set_text(EDITOR_INSTANCE_W_EXIT, "");
+    set_text(EDITOR_INSTANCE_W_EXIT_COORD, "");
+    CHECK(g_chrome.widgets[W(EDITOR_INSTANCE_W_NPC)].hidden, "Npc on enter is a runtime entry's row");
+
     /* The runtime chip: no server reports map instances. */
     CHECK(ToriRSChrome_Disabled(&g_chrome, W(EDITOR_INSTANCE_W_ENTRY_RUNTIME)),
         "the runtime map instance chip is disabled");
@@ -432,6 +500,14 @@ test_open_and_refusals(const char* root)
         form.runtime_capable = 1;
         CHECK(!Editor_InstanceValidate(picker, &form, &check) && strstr(check.message, "2x2") != NULL,
             "a runtime box of 3x1 squares: said (%s)", check.message);
+        /* Squares far apart (a template left open beside the world square):
+         * refused before the destination, naming the box. */
+        snprintf(form.sources[1], sizeof(form.sources[1]), "m1_100");
+        form.source_count = 2;
+        CHECK(!Editor_InstanceValidate(picker, &form, &check) && strstr(check.message, "span 50x51") != NULL,
+            "sources 50x51 squares apart: said (%s)", check.message);
+        form.source_count = 3;
+        snprintf(form.sources[1], sizeof(form.sources[1]), "m51_50");
         form.dst_x = 254;
         CHECK(!Editor_InstanceValidate(picker, &form, &check) && strstr(check.message, "leaves the world") != NULL,
             "a box past 255: said (%s)", check.message);
@@ -440,6 +516,81 @@ test_open_and_refusals(const char* root)
         form.entry = EDITOR_INSTANCE_ENTRY_TELEPORT;
         CHECK(!Editor_InstanceValidate(picker, &form, &check) && strstr(check.message, "name the new lane") != NULL,
             "a new lane with no name: said (%s)", check.message);
+
+        /* The entry rows' own refusals, on one good square. */
+        memset(&form, 0, sizeof(form));
+        form.source_count = 1;
+        snprintf(form.sources[0], sizeof(form.sources[0]), "m50_50");
+        form.level_hi = 3;
+        form.dst_x = 5;
+        form.dst_z = 150;
+        snprintf(form.name, sizeof(form.name), "one");
+        snprintf(form.loc, sizeof(form.loc), "cave_entrance");
+        form.entry = EDITOR_INSTANCE_ENTRY_TELEPORT;
+        CHECK(Editor_InstanceValidate(picker, &form, &check) && !check.has_exit && !check.has_npc,
+            "the bare teleport form is good (%s)", check.message);
+        snprintf(form.npc, sizeof(form.npc), "goblin");
+        CHECK(!Editor_InstanceValidate(picker, &form, &check)
+                  && strstr(check.message, "is for a runtime map instance") != NULL,
+            "an npc on a teleport entry: said (%s)", check.message);
+        form.entry = EDITOR_INSTANCE_ENTRY_RUNTIME;
+        form.runtime_capable = 1;
+        CHECK(Editor_InstanceValidate(picker, &form, &check) && check.has_npc && check.npc_x == 5 * 64 + 32
+                  && check.npc_z == 150 * 64 + 34 && check.npc_level == 0,
+            "a runtime npc defaults two tiles north of the landing (%d,%d: %s)", check.npc_x, check.npc_z,
+            check.message);
+        snprintf(form.npc_coord, sizeof(form.npc_coord), "3222 3218");
+        CHECK(!Editor_InstanceValidate(picker, &form, &check)
+                  && strstr(check.message, "is not in the instance's squares") != NULL,
+            "an npc tile outside the template: said (%s)", check.message);
+        snprintf(form.npc_coord, sizeof(form.npc_coord), "0_5_150_10_12");
+        form.npc_state = EDITOR_INSTANCE_NAME_ABSENT;
+        CHECK(Editor_InstanceValidate(picker, &form, &check) && check.npc_x == 5 * 64 + 10
+                  && strstr(check.note, "no npc named goblin") != NULL,
+            "a typed npc tile, and an npc the lane lacks is a note (%s)", check.note);
+        form.npc_state = EDITOR_INSTANCE_NAME_KNOWN;
+        form.loc_state = EDITOR_INSTANCE_NAME_NO_OPTION;
+        CHECK(Editor_InstanceValidate(picker, &form, &check)
+                  && strstr(check.note, "cave_entrance has no first option (op1)") != NULL,
+            "a trigger loc nobody can click is a note (%s)", check.note);
+        form.loc_state = EDITOR_INSTANCE_NAME_UNCHECKED;
+        /* The trigger loc both ways, home where the dialog found the loc. */
+        snprintf(form.exit_loc, sizeof(form.exit_loc), "cave_entrance");
+        form.home_known = 1;
+        form.home_level = 1;
+        form.home_x = 3212;
+        form.home_z = 3211;
+        CHECK(Editor_InstanceValidate(picker, &form, &check) && check.has_exit && check.exit_x == 3212
+                  && check.exit_z == 3211 && check.exit_level == 1
+                  && strstr(check.message, ", an exit to 1_50_50_12_11, npc goblin; unsaved until Save") != NULL,
+            "an empty Returns to is the trigger loc's own tile (%s)", check.message);
+        form.loc_state = EDITOR_INSTANCE_NAME_TAKEN;
+        snprintf(form.loc_where, sizeof(form.loc_where), "areas/caves/scripts/cave.rs2:12");
+        CHECK(!Editor_InstanceValidate(picker, &form, &check)
+                  && strstr(check.message, "cave_entrance already has an [oploc1] (areas/caves/scripts/cave.rs2:12)")
+                         != NULL,
+            "a trigger loc the tree already scripts: said, with where (%s)", check.message);
+        /* A loc whose category the tree scripts: its own trigger takes that
+         * option over for every loc of the type, so said, naming both. */
+        form.loc_state = EDITOR_INSTANCE_NAME_CATEGORY;
+        snprintf(form.loc_category, sizeof(form.loc_category), "dairy_churn");
+        snprintf(form.loc_where, sizeof(form.loc_where), "general_use/scripts/dairy_churn.rs2:38");
+        CHECK(Editor_InstanceValidate(picker, &form, &check)
+                  && strstr(check.note,
+                         "note: cave_entrance's op1 has a category trigger [oploc1,_dairy_churn] "
+                         "(general_use/scripts/dairy_churn.rs2:38): this replaces it for every cave_entrance; Copy to "
+                         "new for your own")
+                         != NULL,
+            "a trigger loc its category scripts: a note, with the category and where (%s)", check.note);
+        form.loc_state = EDITOR_INSTANCE_NAME_KNOWN;
+        form.loc_category[0] = '\0';
+        snprintf(form.exit_loc, sizeof(form.exit_loc), "bank_booth");
+        form.exit_state = EDITOR_INSTANCE_NAME_CATEGORY;
+        snprintf(form.exit_category, sizeof(form.exit_category), "bankbooth");
+        snprintf(form.exit_where, sizeof(form.exit_where), "general/scripts/bank.rs2:7");
+        CHECK(Editor_InstanceValidate(picker, &form, &check)
+                  && strstr(check.note, "note: bank_booth's op1 has a category trigger [oploc1,_bankbooth]") != NULL,
+            "an exit loc its category scripts: the same note (%s)", check.note);
     }
 
     /* Find free: the lane's m0_100 is in the way of a 1x2 at x 0. */
@@ -479,8 +630,20 @@ test_create_undo_save(const char* root)
     activate(W(EDITOR_INSTANCE_W_CREATE));
     CHECK(!g_chrome.panels[W(EDITOR_INSTANCE_W_PANEL)].visible, "Create closes the dialog");
     CHECK(groups() == g0 + 1, "ONE undo group (%d -> %d)", g0, groups());
-    CHECK(strstr(Editor_UiStatusText(&g_ui), "Created instance tutorial_cave: 2 squares at m1_100, 3 spawns") != NULL,
-        "the status bar says what was made (%s)", Editor_UiStatusText(&g_ui));
+    CHECK(console_has("Created instance tutorial_cave: 2 squares at m1_100, 3 spawns"),
+        "the console says what was made (%s)", Editor_UiConsoleLine(&g_ui, 4));
+    CHECK(console_has("Its script: server/scripts/edited/tutorial_cave/scripts/tutorial_cave.rs2"),
+        "and where its script is");
+    /* The status sentence waits for the World to open the template (it says
+     * its own sentence first): a few frames. */
+    CHECK(strstr(Editor_UiStatusText(&g_ui), "Template m1_100") == NULL, "the status bar's sentence is not said yet");
+    for( int i = 0; i < 8; i++ )
+        frame();
+    CHECK(strcmp(Editor_UiStatusText(&g_ui),
+              "Template m1_100..m1_101: open it from Squares > Instance space or Scenes > instance:tutorial_cave. Its "
+              "trigger teleports every player into it: one shared room.")
+              == 0,
+        "the status bar says where the template is and how a player gets in (%s)", Editor_UiStatusText(&g_ui));
     CHECK(g_opened_x == 1 && g_opened_z == 100, "the first square opens in the world");
     {
         const struct Editor_History* history = Editor_GetHistory(&g_editor);
@@ -643,6 +806,77 @@ test_trim(void)
     CHECK(groups() == g0 && square_empty(2, 100), "Undo empties it");
 }
 
+/* A lane whose server takes map instances (TORIRSMAPED_CAP_MAP_INSTANCE,
+ * stated here as torirs_maped_live.c states it for a real lane): the
+ * runtime entry is the default, and Create writes the tree's own idiom with
+ * the exit and the npc that were asked for. */
+static void
+test_runtime(void)
+{
+    const char* text;
+    char expected[256];
+    size_t length;
+    int g0 = groups();
+    int dx = -1;
+    int dz = -1;
+
+    g_editor.capabilities |= TORIRSMAPED_CAP_MAP_INSTANCE;
+    Editor_Instance_Open(&g_ui);
+    frame();
+    CHECK(!ToriRSChrome_Disabled(&g_chrome, W(EDITOR_INSTANCE_W_ENTRY_RUNTIME))
+              && ToriRSChrome_Checked(&g_chrome, W(EDITOR_INSTANCE_W_ENTRY_RUNTIME)),
+        "a capable lane: the runtime entry is enabled and the default");
+    CHECK(strstr(ToriRSChrome_Text(&g_chrome, W(EDITOR_INSTANCE_W_WHERE_STAMP)),
+              "each player who enters gets a private copy stamped from the template")
+              != NULL,
+        "and the dialog says what that means (%s)", ToriRSChrome_Text(&g_chrome, W(EDITOR_INSTANCE_W_WHERE_STAMP)));
+    CHECK(!g_chrome.widgets[W(EDITOR_INSTANCE_W_NPC)].hidden && g_chrome.widgets[W(EDITOR_INSTANCE_W_NPC_COORD)].hidden,
+        "Npc on enter is offered; its tile only once an npc is named");
+
+    /* One square (the collection's two are 1x2: also fine for runtime). */
+    ToriRSChrome_DropdownSetSelected(&g_chrome, W(EDITOR_INSTANCE_W_SOURCE), 2);
+    activate(W(EDITOR_INSTANCE_W_SOURCE));
+    ToriRSChrome_RadioSelect(&g_chrome, W(EDITOR_INSTANCE_W_MAP_NONE));
+    activate(W(EDITOR_INSTANCE_W_MAP_NONE));
+    set_text(EDITOR_INSTANCE_W_NAME, "boss_room");
+    activate(W(EDITOR_INSTANCE_W_FIND));
+    CHECK(sscanf(ToriRSChrome_Text(&g_chrome, W(EDITOR_INSTANCE_W_DEST)), "m%d_%d", &dx, &dz) == 2 && dz == 100,
+        "Find free gives a destination (%s)", ToriRSChrome_Text(&g_chrome, W(EDITOR_INSTANCE_W_DEST)));
+    set_text(EDITOR_INSTANCE_W_LOC, "test_wall");
+    /* The trigger loc as its own exit: inside the copy it leaves. */
+    set_text(EDITOR_INSTANCE_W_EXIT, "test_wall");
+    set_text(EDITOR_INSTANCE_W_EXIT_COORD, "3210 3210");
+    set_text(EDITOR_INSTANCE_W_NPC, "goblin");
+    CHECK(!g_chrome.widgets[W(EDITOR_INSTANCE_W_NPC_COORD)].hidden, "naming an npc shows Npc at");
+    snprintf(expected, sizeof(expected), "a trigger to 0_%d_%d_32_32, an exit to 0_50_50_10_10, npc goblin", dx, dz);
+    CHECK(strstr(check_row(), expected) != NULL, "the check row says the whole of it (%s)", check_row());
+    CHECK(Editor_Instance_Create(&g_ui), "Create (%s)", check_row());
+    CHECK(groups() == g0 + 1, "one group");
+    text = text_doc("rs2:edited/boss_room/scripts/boss_room.rs2", &length);
+    snprintf(expected, sizeof(expected), "def_int $handle = ~map_instance_from_square_block(0_%d_%d_0_0, 1, 2);\n", dx,
+        dz);
+    CHECK(text && strstr(text, expected) != NULL
+              && strstr(text, "%varp6600_map_instance_handle = $handle;\n"
+                              "p_telejump(map_instance_coord($handle, 32, 32, 0));\n")
+                     != NULL,
+        "the trigger stamps a copy with the tree's own proc and lands in it");
+    CHECK(text && strstr(text, "npc_add(map_instance_coord($handle, 32, 34, 0), goblin, 0);\n") != NULL,
+        "adds the npc two tiles north of the landing");
+    CHECK(text && strstr(text, "    ~map_instance_release_here;\n    p_telejump(0_50_50_10_10);\n    return;\n") != NULL,
+        "and the one loc leaves from inside the copy");
+    for( int i = 0; i < 8; i++ )
+        frame();
+    snprintf(expected, sizeof(expected),
+        "Template m%d_%d..m%d_%d: open it from Squares > Instance space or Scenes > instance:boss_room. Each player "
+        "who enters gets a private copy stamped from it.",
+        dx, dz, dx, dz + 1);
+    CHECK(strcmp(Editor_UiStatusText(&g_ui), expected) == 0,
+        "the status bar says where it is templated and how it is stamped (%s)", Editor_UiStatusText(&g_ui));
+    Editor_Undo(&g_editor);
+    CHECK(groups() == g0 && square_empty(dx, dz), "Undo empties it");
+    g_editor.capabilities &= ~(uint32_t)TORIRSMAPED_CAP_MAP_INSTANCE;
+}
+
 int
 main(
     int argc,
@@ -692,6 +926,7 @@ main(
     test_open_and_refusals(root);
     test_create_undo_save(root);
     test_trim();
+    test_runtime();
 
     Editor_UiFree(&g_ui);
     Editor_Close(&g_editor);

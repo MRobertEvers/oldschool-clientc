@@ -64,7 +64,13 @@ static const struct ContentNamespace k_defaults[] = {
     /* ---- config types the cache names -------------------------------- */
     { "npc",                   CONTENT_NAMES_CACHE,    0,   1,  20000,  -1 },
     { "obj",                   CONTENT_NAMES_CACHE,    0,   0,  40000,  -1 },
-    { "loc",                   CONTENT_NAMES_CACHE,    0,   6,  70000,  -1 },
+    /* loc: 64000, not 70000. Every wire that names a loc carries 16 bits
+     * (OPLOC's id is g2, LOC_ADD_CHANGE_V2's p2Alt3), so a loc made with the
+     * editor's "Copy to new" at 70000 could be placed and drawn but never
+     * clicked: the server read the op as a different id and answered "Nothing
+     * interesting happens." osrs242's highest loc is 63333; validate_id_bases
+     * warns the day a cache reaches the floor. */
+    { "loc",                   CONTENT_NAMES_CACHE,    0,   6,  64000,  -1 },
     { "seq",                   CONTENT_NAMES_CACHE,    0,   7,  20000,  -1 },
     { "spotanim",              CONTENT_NAMES_CACHE,    0,   8,   6000,  -1 },
     { "inv",                   CONTENT_NAMES_CACHE,    0,   2,   2000,  -1 },

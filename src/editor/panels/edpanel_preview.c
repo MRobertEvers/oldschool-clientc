@@ -156,6 +156,27 @@ preview_self(struct EditorUi* ui)
     return Editor_UiPanelSelf(ui, "preview");
 }
 
+const char*
+Editor_Preview_NewName(struct EditorUi* ui)
+{
+    struct PreviewPanel* self;
+
+    assert(ui);
+    self = preview_self(ui);
+    return self ? ToriRSChrome_Text(ui->chrome, self->input_new_name) : NULL;
+}
+
+void
+Editor_Preview_NewNameClear(struct EditorUi* ui)
+{
+    struct PreviewPanel* self;
+
+    assert(ui);
+    self = preview_self(ui);
+    if( self )
+        ToriRSChrome_SetText(ui->chrome, self->input_new_name, "");
+}
+
 int
 Editor_Preview_Subject(
     struct EditorUi* ui,

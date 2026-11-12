@@ -518,6 +518,57 @@ ToriRSMapEdCatalog_RefreshPaths(
     const char* const* rels,
     int count);
 
+/**
+ * A record the AUTHORITY holds and no file has yet: what SAVE_AS ("Copy to
+ * new") made, from the moment it is made until a save writes it. The index
+ * reads the tree, so without this the copy was the pick but in no list and
+ * under no name until Save (2026-11-09): Find did not find it, Place and
+ * "Use catalog pick" refused it, the Record panel could not look up its
+ * layers.
+ *
+ * PendingAdd notes that record `name` of `kind` was given `id` (SAVE_AS calls
+ * it). PendingSync, before a catalog request is answered, makes the index
+ * agree with the authority's CFG document "<type>:<name>" for every noted
+ * record: listed (its id as pack/<type>.alloc will bind it, its block as
+ * configs/all.<type> will hold it, parsed from the document's text) while the
+ * document is unsaved; parsed again when its text moved; taken out when the
+ * block is gone (the copy was undone -- a redo lists it again) and for good
+ * once it is saved (the file's own source carries it; the save names the file
+ * to RefreshPaths). Returns 1 when the merged index changed. Does nothing
+ * while the index is still being built: the next request syncs.
+ */
+void
+ToriRSMapEdCatalog_PendingAdd(
+    struct ToriRSMapEdCatalog* catalog,
+    uint32_t kind,
+    int32_t id,
+    const char* name);
+
+int
+ToriRSMapEdCatalog_PendingSync(
+    struct ToriRSMapEdCatalog* catalog,
+    struct Editor_Doc* doc);
+
+/** Bytes of one overlay path below (the CFG document key's limit). */
+#define TORIRSMAPED_CATALOG_OVERLAY_MAX 128
+
+/**
+ * The server overlay files that state record `name` of `kind`, as paths under
+ * server/scripts ("areas/lumbridge/configs/lumbridge.npc",
+ * "npc/configs/combat_stats.generated.npc"): what SAVE_AS reads the source's
+ * server fields from (editor_alloc.h Editor_AllocCopyOverlayPlan). Each once,
+ * in no particular order; a path that does not fit is left out. Returns how
+ * many (at most `max`), 0 when the index has no such record, -1 while the
+ * index is still being built.
+ */
+int
+ToriRSMapEdCatalog_RecordOverlays(
+    struct ToriRSMapEdCatalog* catalog,
+    uint32_t kind,
+    const char* name,
+    char (*out)[TORIRSMAPED_CATALOG_OVERLAY_MAX],
+    int max);
+
 /** 1 once the index has been built: until then nobody holds an atlas, and a
  *  change needs no broadcast. */
 int

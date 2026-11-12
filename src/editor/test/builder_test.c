@@ -2379,13 +2379,21 @@ test_movement_panel(void)
         check(pause >= 0 && panel->activate(&ui, panel->self, pause) && g_fake_route[2].pause == 6,
               "Enter in Pause sets the selected waypoint's pause");
     }
-    /* A slider release writes its field. */
+    /* A typed range writes its field on Enter; out of range is refused. */
     {
         int leash = find_widget(&chrome, panel->chrome_panel, "Leash");
-        ToriRSChrome_SliderSet(&chrome, leash, 12);
+        int range = find_widget(&chrome, panel->chrome_panel, "Wander range");
+        ToriRSChrome_SetText(&chrome, leash, "12");
         check(leash >= 0 && panel->activate(&ui, panel->self, leash) && strcmp(g_fake_set_key, "maxrange") == 0
                   && strcmp(g_fake_set_value, "12") == 0,
-              "the Leash slider writes maxrange=12");
+              "Enter in Leash writes maxrange=12");
+        ToriRSChrome_SetText(&chrome, range, "3");
+        check(range >= 0 && panel->activate(&ui, panel->self, range) && strcmp(g_fake_set_key, "wanderrange") == 0
+                  && strcmp(g_fake_set_value, "3") == 0,
+              "Enter in Wander range writes wanderrange=3");
+        g_fake_set_key[0] = '\0';
+        ToriRSChrome_SetText(&chrome, range, "99");
+        check(panel->activate(&ui, panel->self, range) && g_fake_set_key[0] == '\0', "a range past 64 is not written");
     }
     /* Mode Wander over a route: the rows go with the mode. */
     {

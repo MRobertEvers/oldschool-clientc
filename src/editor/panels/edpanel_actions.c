@@ -14,6 +14,8 @@
 #include "edpanel_ops.h"
 #include "engine/torirs_types.h"
 #include "edpanel_ops_stamps.h"
+#include "edpanels.h"
+#include "editor/editor_lanerecs.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_catalog.h"
@@ -152,12 +154,13 @@ actions_loc_arrived(int loc_id)
  * Refuse `verb` because loc `loc_id`'s record is not resident, saying which
  * of the two reasons it is (W6, 2026-11-09). While it may still be loading:
  * "still loading; try again in a moment", as before. Once it has been absent
- * ACTIONS_LOC_LOAD_MS: the cache has no such record. That is a loc made in
- * this session ("Copy to new"): the editor's own client draws from the base
- * cache, which gains no record a session makes, so the loc cannot be drawn
- * or placed in the editor by this build -- and "try again in a moment" was a
- * promise that never came true, RUN or no RUN. A harness with no clock
- * (now_ms 0) keeps the first sentence.
+ * ACTIONS_LOC_LOAD_MS: nobody has such a record -- not the cache, and not
+ * the lane, whose own records (a loc made by "Copy to new") this window is
+ * given from their text the moment they exist (editor/editor_lanerecs.h;
+ * until 2026-11-11 it was not, and this sentence said "RUN builds it"). What
+ * is left is an id whose record went: a copy that was undone, or a
+ * placement of a record another lane made. A harness with no clock (now_ms
+ * 0) keeps the first sentence.
  */
 static void
 actions_loc_absent(
@@ -166,7 +169,15 @@ actions_loc_absent(
     int loc_id)
 {
     char name[64];
+    char gone[EDITOR_CMD_NAME_MAX];
 
+    /* A copy undone is known at once: no wait, no "still loading". */
+    if( Editor_LaneRecords_Gone(0, loc_id, gone, sizeof(gone)) )
+    {
+        Editor_UiStatus(ui, "%s refused: %.40s (loc %d) is gone: the Copy to new that made it was undone (Ctrl+Y)",
+            verb, gone, loc_id);
+        return;
+    }
     if( actions_loc_waited(ui, loc_id) < ACTIONS_LOC_LOAD_MS )
     {
         Editor_UiStatus(ui, "%s refused: loc %d is still loading; try again in a moment", verb, loc_id);
@@ -190,7 +201,7 @@ actions_loc_absent(
     }
     /* Inside EDITOR_UI_CONSOLE_LINE_MAX with the longest verb and name. */
     Editor_UiStatus(ui,
-        "%s refused: %s is new: this build's editor reads the base cache and cannot draw or place it yet; RUN builds it",
+        "%s refused: %s has no record in the cache or in this lane (a Copy to new that was undone? Ctrl+Y redoes it)",
         verb, name);
 }
 
@@ -515,7 +526,10 @@ edp_place_rotate(struct EditorUi* ui)
 {
     assert(ui);
     ui->tools.place_rotation = (ui->tools.place_rotation + 1) & 3;
-    Editor_UiLog(ui, "editor: place rotation %d", ui->tools.place_rotation);
+    /* In the bar, as an armed stamp's turn is (2026-11-11: Q on a picked
+     * bookcase left "Picked bookcase" there, as if the key had missed). */
+    Editor_UiStatus(ui, "Place: turned to %d degrees; Q turns it on, a click puts it down",
+        ui->tools.place_rotation * 90);
 }
 
 void
@@ -538,8 +552,10 @@ edp_place_pose_at(
         return;
     if( !edp_loc_shapes(ui, ui->tools.pick_id, &mask) )
         return;
-    /* Decor over a wall takes the shape the wall's width pushes out. */
-    if( Editor_LocFitDecor(&ui->editor->doc, mask, world_x, world_z, level, *out_rotation, out_shape) )
+    /* Decor turns to the wall its tile has (on it, or across an edge: a
+     * room's walls) and, over the wall itself, takes the shape the wall's
+     * width pushes out (edpanel_ops.h Editor_LocFitDecorPose). */
+    if( Editor_LocFitDecorPose(&ui->editor->doc, mask, world_x, world_z, level, out_shape, out_rotation) )
         return;
     /* Only a wall pick fits: a centrepiece placed beside a wall of its own
      * loc stays the centrepiece it was asked to be. */
@@ -834,12 +850,16 @@ edp_run_end(
     memcpy(ui->tools.locs, placed, sizeof(placed[0]) * (size_t)n);
     if( ui->hooks.selection_changed )
         ui->hooks.selection_changed(ui->hooks_user);
+    /* A clean run says so in the status bar (2026-11-11: a three-tile rug
+     * said nothing there, the bar kept "Picked ..." and the run looked like
+     * it had not taken). One with refusals leaves the bar its sentence of
+     * why, said once during the drag. */
     if( run->plan.refused_count > 0 )
         Editor_UiLog(ui, "editor: %s: placed %d of %d tiles, %d refused; one undo step", what, run->plan.place_count,
             run->plan.count, run->plan.refused_count);
     else
-        Editor_UiLog(ui, "editor: %s: placed %d of %d tiles; one undo step", what, run->plan.place_count,
-            run->plan.count);
+        Editor_UiStatus(ui, "%c%s: placed %d of %d tiles; Ctrl+Z undoes it", what[0] - 'a' + 'A', what + 1,
+            run->plan.place_count, run->plan.count);
     return applied;
 }
 
@@ -1234,7 +1254,16 @@ edp_rect_fill(struct EditorUi* ui)
         return 0;
     count = Editor_TileRectFill(&ui->editor->doc, &ui->tools.rect, &ui->tools, commands, capacity);
     applied = edp_apply(ui, commands, count, "fill");
-    Editor_UiLog(ui, "editor: filled %d tile(s)", applied);
+    /* What it laid, by the Palette's names: the picks are in another panel. */
+    {
+        char under[EDITOR_PALETTE_DESCRIBE_MAX];
+        char over[EDITOR_PALETTE_DESCRIBE_MAX];
+
+        Editor_Palette_Describe(ui, 0, ui->tools.underlay_id, under, sizeof(under));
+        Editor_Palette_Describe(ui, 1, ui->tools.overlay_none ? 0 : ui->tools.overlay_id, over, sizeof(over));
+        Editor_UiStatus(ui, "Fill: %d tile%s changed; underlay %s, overlay %s", applied, applied == 1 ? "" : "s",
+            ui->tools.underlay_id ? under : "left as it was", ui->tools.overlay_none ? "taken off" : over);
+    }
     return applied;
 }
 

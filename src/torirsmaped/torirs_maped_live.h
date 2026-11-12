@@ -287,6 +287,20 @@ ToriRSMapEd_BindLiveFromEnv(
     const char* repo_root,
     const char* content_dir);
 
+/** Under <content>/server/scripts: the procs an editor-made instance trigger
+ *  calls (~map_instance_from_square_block, ~map_instance_release_here). */
+#define TORIRSMAPED_MAP_INSTANCE_PROCS "general/scripts/misc/map_instance_procs.rs2"
+
+/**
+ * 1 when a script in this lane can stamp a runtime map instance
+ * (TORIRSMAPED_CAP_MAP_INSTANCE): the lane starts its own game server (this
+ * tree's torirsserver, which has the map_instance_* commands) and its content
+ * tree has TORIRSMAPED_MAP_INSTANCE_PROCS. ToriRSMapEd_BindLiveFromEnv sets
+ * the capability from it.
+ */
+int
+ToriRSMapEd_LaneTakesMapInstances(const struct ToriRSMapEdLane* lane);
+
 /**
  * Advance the build and the live link: poll the running build, read the
  * control connection, send the periodic CTL_STATUS, time out a reload. Never
@@ -455,13 +469,51 @@ ToriRSMapEd_SetPlayLauncher(
  * TORIRS_MAX_FRAMES, TORIRS_BMP_SERIES, TORIRS_PRESENT_BMP*, TORIRS_SCREENSHOT*,
  * TORIRS_EDITOR_*, TORIRSMAPED_*), TORIRS_PREFS=<live>/play/preferences.ini,
  * and every TORIRSMAPED_PLAY_ENV_<NAME>=<value> as NAME=<value> (how a
- * headless run gives the play client its own capture keys). Returns 0 where
- * processes are unavailable (web, Windows) or the lane has no play_bin.
+ * headless run gives the play client its own capture keys); and, in a
+ * process driven through an agent port, `--agent-port 0 --agent-port-file
+ * <file>` (ToriRSMapEd_PlayAgentFollow below). Returns 0 where processes
+ * are unavailable (the web) or the lane has no play_bin.
  */
 int
 ToriRSMapEd_PlayLauncherNative(
     struct ToriRSMapEdPlayLauncher* out,
     const struct ToriRSMapEdLane* lane);
+
+/**
+ * RUN's play client, drivable: when this process is itself driven through an
+ * agent port (agent/agent_server.h, docs/AGENT_API.md), the native launcher
+ * also passes the play client
+ *
+ *   --agent-port 0 --agent-port-file <agent_port_file>.play
+ *
+ * so the agent that pressed RUN can go on to play what it built. The agent
+ * server calls this once it listens, with its own port file ("" when it
+ * listens without one: the play client's file is then
+ * <live>/play/agent.port); NULL turns it off again. Process-wide: there is
+ * one agent server per process.
+ *
+ * TORIRSMAPED_PLAY_ENV_TORIRS_AGENT_PORT (with ..._AGENT_PORT_FILE) set in
+ * the environment is the override: the play client then takes its port from
+ * those, as before this existed, and no flag is added.
+ */
+void
+ToriRSMapEd_PlayAgentFollow(const char* agent_port_file);
+
+/** The agent port file of the play client last started here ("" when it was
+ *  started without one, or none was started). */
+const char*
+ToriRSMapEd_PlayAgentPortFile(void);
+
+/** The port in that file, or 0: no play client, none with an agent port, or
+ *  it is not listening (not yet, or no longer). */
+int
+ToriRSMapEd_PlayAgentPort(void);
+
+/** The bound lane's game, JS5 and io ports. 0 (all three 0) with no lane. */
+int
+ToriRSMapEd_LanePorts(
+    const struct ToriRSMapEd* maped,
+    int out_ports[3]);
 
 /** Write the play manifest (as the native launcher's `start` does) to
  *  `out_path`. 1 written; 0 with `why` (the source cannot be read, the

@@ -277,7 +277,7 @@ enum Editor_LiveRunOutcome
  *   "RUN done in 31 s: 3 scripts, 2 config groups, 1 square reloaded; started
  *    the play client (it logs in as maped1)"
  *   "RUN done, but the lane's server must restart for: config varp records.
- *    Detach in the Live panel, then RUN again." (a lane this editor
+ *    Press Restart lane (Live panel, or File menu)." (a lane this editor
  *    launched; for a server it only dialled: "... the game server must
  *    restart for: ... Restart it where it runs, then Attach again.")
  *   "RUN stopped: the packs build failed: fenwick.rs2:7: unknown variable '%'"

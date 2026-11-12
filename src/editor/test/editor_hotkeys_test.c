@@ -527,7 +527,7 @@ test_hint(void)
 
     /* The fixed order and the default spellings. */
     count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, HINT_TOOL(EDITOR_HK_TOOL_SELECT), 0, rows, EDITOR_HK_HINT_MAX);
-    CHECK(count == 10 && strcmp(rows[0].chord, "click") == 0 && strcmp(rows[0].verb, "tile") == 0
+    CHECK(count == 10 && strcmp(rows[0].chord, "click") == 0 && strcmp(rows[0].verb, "select") == 0
               && strcmp(rows[1].chord, "Shift+click") == 0 && strcmp(rows[2].verb, "marquee") == 0
               && strcmp(rows[3].chord, HINT_CTRL "+A") == 0 && strcmp(rows[4].chord, "Alt+A") == 0
               && strcmp(rows[4].verb, "same") == 0 && strcmp(rows[5].chord, HINT_CTRL "+arrows") == 0
@@ -662,7 +662,7 @@ test_gesture_hint(void)
      * No Shift+click (a finger has no shift) and no keyboard row. */
     count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, HINT_TOOL(EDITOR_HK_TOOL_SELECT), 1, rows, EDITOR_HK_HINT_MAX);
     CHECK(count == 6, "touch hint: Select has six rows (%d)", count);
-    row = hint_row(rows, count, "tile");
+    row = hint_row(rows, count, "select");
     CHECK(row && strcmp(row->chord, "tap") == 0, "touch hint: a click is a tap ('%s')", row ? row->chord : "");
     row = hint_row(rows, count, "marquee");
     CHECK(row && strcmp(row->chord, "drag") == 0, "touch hint: one finger drags the marquee");
@@ -709,7 +709,7 @@ test_gesture_hint(void)
 
     /* And the mouse strip is the one it was. */
     count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, HINT_TOOL(EDITOR_HK_TOOL_SELECT), 0, rows, EDITOR_HK_HINT_MAX);
-    row = hint_row(rows, count, "tile");
+    row = hint_row(rows, count, "select");
     CHECK(count == 10 && row && strcmp(row->chord, "click") == 0 && !hint_row(rows, count, "pan"),
         "hint: with a mouse the strip keeps the mouse words (%d rows)", count);
 }

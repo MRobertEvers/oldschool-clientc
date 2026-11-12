@@ -16,12 +16,14 @@
 #include "editor/editor_cmd.h"
 #include "editor/editor_doc.h"
 #include "editor/editor_floorcolor.h"
+#include "editor/editor_floornames.h"
 #include "editor/editor_script.h"
 #include "editor/builder/builder_ssc.h"
 #include "editor/editor_host.h"
 #include "editor/editor_panel.h"
 #include "editor/editor_ui.h"
 #include "editor/editor_view.h"
+#include "editor/live/live_client.h"
 #include "editor/panels/edpanel_catalog_model.h"
 #include "editor/panels/edpanel_common.h"
 #include "editor/panels/edpanel_newform.h"
@@ -38,6 +40,8 @@
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_catalog.h"
+#include "torirsmaped/torirs_maped_build.h"
+#include "torirsmaped/torirs_maped_live.h"
 #include "ui/torirs_chrome_metrics.h"
 #include "ui/uitree_debug_overlay.h"
 
@@ -1392,9 +1396,11 @@ test_catalog_panel(void)
     CHECK(g_cat_ui.tools.pick_id == 0 && cat_console_has("must be [a-z0-9_]"), "catalog: a bad new name is refused here");
     ToriRSChrome_SetText(&g_cat_chrome, new_name, "test_crate_copy");
     cat_activate(copy);
-    CHECK(g_cat_ui.tools.pick_kind == 0 && g_cat_ui.tools.pick_id == 70000
-              && strcmp(g_cat_ui.tools.pick_name, "test_crate_copy (70000)") == 0,
-        "catalog: Copy to new makes the copy the pick, id 70000 (%d)", g_cat_ui.tools.pick_id);
+    /* 64000: the register's loc floor, under the 16 bits a loc op carries
+     * (content_register.c). It was 70000, and a copy there never answered. */
+    CHECK(g_cat_ui.tools.pick_kind == 0 && g_cat_ui.tools.pick_id == 64000
+              && strcmp(g_cat_ui.tools.pick_name, "test_crate_copy (64000)") == 0,
+        "catalog: Copy to new makes the copy the pick, id 64000 (%d)", g_cat_ui.tools.pick_id);
     CHECK(Editor_DocFind(&g_editor.doc, EDITOR_DOC_CFG, "loc:test_crate_copy", &handle) && handle.text
               && handle.text->length == strlen("[test_crate_copy]\nname=Crate\nmodels=15402\nop1=Search\n")
               && memcmp(handle.text->text, "[test_crate_copy]\nname=Crate\nmodels=15402\nop1=Search\n",
@@ -1409,10 +1415,16 @@ test_catalog_panel(void)
     queries = model->queries;
     cat_frame();
     CHECK(queries >= 2, "catalog: the copy invalidated the page (asked again)");
+    /* A copy empties New name for the next one, and the list shows the copy,
+     * selected: typed again, the name is taken, and the refusal leaves the
+     * pick (the copy) as it was -- no new id. */
+    CHECK(strcmp(ToriRSChrome_Text(&g_cat_chrome, new_name), "") == 0, "catalog: a copy empties New name");
     ToriRSChrome_VListSetSelected(&g_cat_chrome, list, 0);
     cat_activate(list);
+    ToriRSChrome_SetText(&g_cat_chrome, new_name, "test_crate_copy");
     cat_activate(copy);
-    CHECK(cat_console_has("refused") && g_cat_ui.tools.pick_id == 0, "catalog: copying onto a taken name is refused");
+    CHECK(cat_console_has("refused") && g_cat_ui.tools.pick_id == 64000,
+        "catalog: copying onto a taken name is refused (pick %d)", g_cat_ui.tools.pick_id);
     CHECK(Editor_Undo(&g_editor) >= 3, "catalog: one undo takes the whole copy back");
     CHECK(Editor_DocFind(&g_editor.doc, EDITOR_DOC_CFG, "loc:test_crate_copy", &handle) && handle.text
               && handle.text->length == 0,
@@ -1815,6 +1827,162 @@ test_newform(void)
     CHECK(Editor_NewSquareValidate(&g_picker, &form, &check, &request) && request.fill_height == 12
               && request.fill_underlay == 40,
         "flat fill carries its height and underlay");
+
+    /* New at a place: a square key, a block from it, Find free. */
+    {
+        struct Editor_NewSquareBlock block;
+        int x;
+        int z;
+
+        CHECK(Editor_NewSquarePlaceParse("m72_56", &x, &z) && x == 72 && z == 56, "a place is a square key");
+        CHECK(Editor_NewSquarePlaceParse("  M72_56 ", &x, &z) && x == 72 && z == 56, "...in either case, blanks aside");
+        CHECK(Editor_NewSquarePlaceParse("72 56", &x, &z) && x == 72 && z == 56
+                  && Editor_NewSquarePlaceParse("72,56", &x, &z) && x == 72 && z == 56,
+            "...or two numbers");
+        CHECK(!Editor_NewSquarePlaceParse("", &x, &z) && !Editor_NewSquarePlaceParse("m72", &x, &z)
+                  && !Editor_NewSquarePlaceParse("72 56 1", &x, &z) && !Editor_NewSquarePlaceParse("lumbridge", &x, &z),
+            "...and nothing else");
+
+        memset(&form, 0, sizeof(form));
+        form.mode = EDITOR_NEW_SQUARE_NEW;
+        form.template_kind = EDITOR_DOC_TEMPLATE_FLAT;
+        form.fill_height = 1;
+        form.fill_underlay = 48;
+        snprintf(form.place, sizeof(form.place), "m72_56");
+        form.block_w = 2;
+        form.block_h = 2;
+        CHECK(Editor_NewSquareBlockCheck(&g_picker, &form, &block) && block.count == 4 && block.map_x == 72
+                  && block.map_z == 56,
+            "a 2x2 block at m72_56 is four squares (%s)", block.message);
+        CHECK(block.cells[0][0] == 72 && block.cells[0][1] == 56 && block.cells[1][0] == 73 && block.cells[1][1] == 56
+                  && block.cells[2][0] == 72 && block.cells[2][1] == 57 && block.cells[3][0] == 73
+                  && block.cells[3][1] == 57,
+            "...the corner, then east, then the row north");
+        CHECK(strstr(block.message, "m72_56") && strstr(block.message, "m73_57") && strstr(block.message, "maps/"),
+            "...and says what Create makes (%s)", block.message);
+        CHECK(strlen(block.message) <= 55, "...in one row of the dialog (%d bytes)", (int)strlen(block.message));
+        form.block_w = 0;
+        form.block_h = 0;
+        CHECK(Editor_NewSquareBlockCheck(&g_picker, &form, &block) && block.count == 1 && block.w == 1,
+            "no block is one square (%s)", block.message);
+
+        /* One taken cell refuses the whole block, by name. */
+        snprintf(form.place, sizeof(form.place), "m49_49");
+        form.block_w = 2;
+        form.block_h = 2;
+        CHECK(!Editor_NewSquareBlockCheck(&g_picker, &form, &block) && strstr(block.message, "m50_50")
+                  && strstr(block.message, "already exists"),
+            "a block over m50_50 is refused, naming it (%s)", block.message);
+        {
+            int scratch_x;
+            int scratch_z;
+            Editor_DocScratchSlot(0, &scratch_x, &scratch_z);
+            snprintf(form.place, sizeof(form.place), "m%d_%d", scratch_x - 1, scratch_z - 1);
+            CHECK(!Editor_NewSquareBlockCheck(&g_picker, &form, &block) && strstr(block.message, "scratch"),
+                "a block over a scratch slot is refused (%s)", block.message);
+        }
+        snprintf(form.place, sizeof(form.place), "m255_56");
+        CHECK(!Editor_NewSquareBlockCheck(&g_picker, &form, &block) && strstr(block.message, "leaves the map"),
+            "a block off the map's edge is refused (%s)", block.message);
+        snprintf(form.place, sizeof(form.place), "seventy");
+        CHECK(!Editor_NewSquareBlockCheck(&g_picker, &form, &block) && strstr(block.message, "not a square"),
+            "a place that is no key is refused (%s)", block.message);
+
+        /* Find free: in the range, free, and alone when it can be. */
+        for( int side = 1; side <= EDITOR_NEWFORM_BLOCK_SIDE_MAX; side++ )
+        {
+            int free = 1;
+            int alone = 1;
+            CHECK(Editor_NewSquareFindFree(&g_picker, side, side, &x, &z), "Find free finds a %dx%d", side, side);
+            CHECK(x >= EDITOR_NEWFORM_FREE_X0 && x + side - 1 <= EDITOR_NEWFORM_FREE_X1 && z >= EDITOR_NEWFORM_FREE_Z0
+                      && z + side - 1 <= EDITOR_NEWFORM_FREE_Z1,
+                "...in the free range (m%d_%d)", x, z);
+            for( int dz = -1; dz <= side; dz++ )
+                for( int dx = -1; dx <= side; dx++ )
+                {
+                    int const taken = Editor_PickerFind(&g_picker, x + dx, z + dz, -1) >= 0;
+                    if( dx >= 0 && dx < side && dz >= 0 && dz < side )
+                        free = free && !taken && !Editor_DocIsScratchSlot(x + dx, z + dz);
+                    else
+                        alone = alone && !taken;
+                }
+            CHECK(free && alone, "...on cells nothing holds, with nothing beside them (free %d, alone %d)", free, alone);
+            snprintf(form.place, sizeof(form.place), "m%d_%d", x, z);
+            form.block_w = side;
+            form.block_h = side;
+            CHECK(Editor_NewSquareBlockCheck(&g_picker, &form, &block), "...which the block check accepts (%s)",
+                block.message);
+        }
+    }
+
+    /* The scene a window builds: never sized by far-apart squares. */
+    {
+        int kept[EDITOR_DOC_WORLD_SQUARES_MAX * 2];
+        int dropped[16];
+        int dropped_count = -1;
+        /* What crashed on 2026-11-11: the boot square, a parked scratch
+         * slot, a placed square, and the copy being added beside it. */
+        static const int k_far[] = { 50, 50, 90, 240, 72, 56, 73, 56 };
+        static const int k_block[] = { 72, 56, 73, 56, 72, 57, 73, 57 };
+        static const int k_row[] = { 70, 50, 71, 50, 72, 50, 73, 50, 74, 50, 75, 50 };
+        int n;
+
+        n = Editor_DocWorldFit(k_far, 4, 3, kept, dropped, &dropped_count);
+        CHECK(n == 2 && kept[0] == 72 && kept[1] == 56 && kept[2] == 73 && kept[3] == 56,
+            "a scene around m73_56 keeps its neighbour m72_56 (%d kept)", n);
+        CHECK(dropped_count == 2 && dropped[0] == 50 && dropped[1] == 50 && dropped[2] == 90 && dropped[3] == 240,
+            "...and leaves m50_50 and m90_240 out (%d dropped)", dropped_count);
+        n = Editor_DocWorldFit(k_block, 4, 0, kept, dropped, &dropped_count);
+        CHECK(n == 4 && dropped_count == 0 && kept[0] == 72 && kept[7] == 57, "a 2x2 block is one scene, in order");
+        n = Editor_DocWorldFit(k_row, 6, 5, kept, dropped, &dropped_count);
+        CHECK(n == EDITOR_DOC_WORLD_SIDE_MAX && dropped_count == 2 && kept[0] == 72 && dropped[0] == 70
+                  && dropped[2] == 71,
+            "a row of six around its east end keeps the four nearest (%d kept, %d dropped)", n, dropped_count);
+        n = Editor_DocWorldFit(k_row, 6, 2, kept, dropped, &dropped_count);
+        CHECK(n == EDITOR_DOC_WORLD_SIDE_MAX && dropped_count == 2, "...and four around a middle one (%d)", n);
+        for( int i = 0; i < n; i++ )
+            CHECK(abs(kept[i * 2] - 72) < EDITOR_DOC_WORLD_SIDE_MAX, "...all within a scene's side of it (m%d_50)",
+                kept[i * 2]);
+        n = Editor_DocWorldFit(k_far, 1, 0, kept, dropped, &dropped_count);
+        CHECK(n == 1 && dropped_count == 0 && kept[0] == 50, "one square is its own scene");
+    }
+
+    /* A square that left the window's world is dropped from the document. */
+    {
+        struct Editor_Doc* doc = calloc(1, sizeof(*doc));
+        struct Editor_Loc loc;
+        struct Editor_Square* square;
+
+        assert(doc);
+        Editor_DocInit(doc, NULL);
+        (void)Editor_DocOpenSquare(doc, 50, 50);
+        square = Editor_DocOpenSquare(doc, 72, 56);
+        Editor_DocSquareSetStorage(doc, square, "ported/testlane/maps");
+        memset(&loc, 0, sizeof(loc));
+        loc.loc_id = 7;
+        loc.shape = 10;
+        (void)Editor_SquareLocAdd(square, &loc);
+        square = Editor_DocOpenSquare(doc, 90, 240);
+        Editor_DocSquareSetStorage(doc, square, EDITOR_DOC_SCRATCH_STORAGE);
+        CHECK(doc->square_count == 3, "three squares open");
+        CHECK(Editor_DocCloseSquare(doc, 50, 50) && doc->square_count == 2 && !Editor_DocFindSquare(doc, 50, 50),
+            "closing the first drops it (%d left)", doc->square_count);
+        square = Editor_DocFindSquare(doc, 72, 56);
+        CHECK(square == &doc->squares[0] && square->loc_count == 1 && square->locs[0].loc_id == 7
+                  && strcmp(Editor_DocSquareStorage(doc, square), "ported/testlane/maps") == 0,
+            "the next moves down with its locs and its storage");
+        square = Editor_DocFindSquare(doc, 90, 240);
+        CHECK(square == &doc->squares[1] && Editor_DocStorageIsScratch(Editor_DocSquareStorage(doc, square)),
+            "...and so does the one after it");
+        CHECK(!Editor_DocCloseSquare(doc, 50, 50), "closing a square that is not open says so");
+        CHECK(Editor_DocCloseSquare(doc, 90, 240) && doc->square_count == 1, "the last closes too");
+        square = Editor_DocOpenSquare(doc, 51, 51);
+        CHECK(square == &doc->squares[1] && square->loc_count == 0 && !square->loaded
+                  && Editor_DocSquareStorage(doc, square)[0] == '\0',
+            "a square opened into the freed slot starts empty, in maps/");
+        Editor_DocFree(doc);
+        free(doc);
+    }
 
     {
         int scratch_x;
@@ -3960,7 +4128,13 @@ test_world_panel(void)
     CHECK(g_chrome.panels[wp].x % EDP_GRID == 0 && g_chrome.panels[wp].y % EDP_GRID == 0,
         "the dropped World snapped to the grid (%d,%d)", g_chrome.panels[wp].x, g_chrome.panels[wp].y);
 
-    /* Resizing it resizes the world. */
+    /* Resizing it resizes the world. Moved right, its grip is under the
+     * column -- which fills its whole height now (a column with a hole at
+     * its foot used to leave the grip showing through), and a grip under
+     * another panel is not reached through it -- so the World is dragged
+     * back beside the column first. */
+    r = g_chrome.panels[wp].last_rect;
+    drag(r.x + 60, r.y + 6, r.x + 60 - 120, r.y + 6 - 80);
     r = g_chrome.panels[wp].last_rect;
     drag(r.x + r.w - 4, r.y + r.h - 4, r.x + r.w - 4 - 200, r.y + r.h - 4 - 120);
     moved = Editor_UiWorldRect(&g_ui);
@@ -5725,9 +5899,11 @@ test_saved_layout(void)
     {
         struct ToriRSChromeRect const docked = g_chrome.panels[wp].last_rect;
         struct ToriRSChromeRect r = docked;
-        drag(r.x + 60, r.y + 6, r.x + 60 + 64, r.y + 6 + 48);
-        r = g_chrome.panels[wp].last_rect;
+        /* The grip first, while the World is docked and its corner is its
+         * own: dragged right, the corner is under the column. */
         drag(r.x + r.w - 4, r.y + r.h - 4, r.x + r.w - 4 - 300, r.y + r.h - 4 - 200);
+        r = g_chrome.panels[wp].last_rect;
+        drag(r.x + 60, r.y + 6, r.x + 60 + 64, r.y + 6 + 48);
         r = g_chrome.panels[wp].last_rect;
         CHECK(g_chrome.panels[wp].user_placed && r.x > docked.x && r.y > docked.y && r.w < docked.w && r.h < docked.h,
             "the session's World is dragged and resized (%d,%d %dx%d, was %d,%d %dx%d)", r.x, r.y, r.w, r.h, docked.x,
@@ -8123,13 +8299,459 @@ label_with(
 }
 
 /** The well's cell index of the swatch Editor_Palette_SwatchAt places at
- *  (x, y): 13 cells of 14 px a row. */
+ *  (x, y), on the grid the wells were last drawn on (they are as wide as
+ *  the panel). */
 static int
 swatch_index(
     int x,
     int y)
 {
-    return ((y - 1) / 14) * 13 + (x - 1) / 14;
+    int cell = 0;
+    int cols = 0;
+
+    Editor_Palette_SwatchGrid(&g_ui, &cell, &cols);
+    return ((y - 1) / cell) * cols + (x - 1) / cell;
+}
+
+/* A window whose floor records are the content's own: the common set's
+ * ids carry the common set's colours and textures (editor_floornames.h);
+ * every other id up to 300 is fake_floor_rgb's. */
+static int
+common_floor_rgb(
+    void* user,
+    int is_overlay,
+    int id,
+    uint32_t* out)
+{
+    int count = 0;
+    const struct Editor_FloorCommon* common = Editor_FloorCommonList(&count);
+
+    for( int i = 0; i < count; i++ )
+        if( common[i].id == id && common[i].is_overlay == (is_overlay ? 1 : 0) )
+        {
+            /* A textured overlay's own colour is a placeholder. */
+            *out = common[i].texture >= 0 ? 0xAA8866u : common[i].rgb;
+            return 1;
+        }
+    if( id > 300 )
+        return 0;
+    return fake_floor_rgb(user, is_overlay, id, out);
+}
+
+static int
+common_overlay_texture(
+    void* user,
+    int id,
+    int* out_texture)
+{
+    int count = 0;
+    const struct Editor_FloorCommon* common = Editor_FloorCommonList(&count);
+
+    (void)user;
+    *out_texture = -1;
+    for( int i = 0; i < count; i++ )
+        if( common[i].is_overlay && common[i].id == id && common[i].texture >= 0 )
+        {
+            *out_texture = common[i].texture;
+            return 2000 + id;
+        }
+    /* Past the records there is no answer; a plain overlay lays none. */
+    return id > 300 ? 0 : -1;
+}
+
+/* The Palette on a window that has the content's floors (2026-11-11, a
+ * village site built in the running editor): the common set heads each well
+ * in its own order, a hover and a pick say the floor's name, an overlay that
+ * lays a texture says the texture, Find narrows both wells, the two pick
+ * fields are told apart by label and take a name, the path painter's default
+ * follows its style and never replaces a pick, and the Terrain panel says
+ * what the armed tool lays. */
+static void
+test_palette_names(void)
+{
+    char text[EDITOR_PALETTE_DESCRIBE_MAX];
+    int palette;
+    int terrain;
+    int graph_under;
+    int graph_over;
+    int w_find;
+    int w_pick_under;
+    int w_pick_over;
+    int cell = 0;
+    int cols = 0;
+    int x = 0;
+    int y = 0;
+
+    layout_boot(1920, 1080, 1);
+    g_ui.hooks.floor_rgb = common_floor_rgb;
+    g_ui.app_services.overlay_texture = common_overlay_texture;
+    palette = find_panel("Palette");
+    terrain = find_panel("Terrain");
+    CHECK(palette >= 0 && terrain >= 0, "names: the Palette and Terrain panels exist");
+    if( palette < 0 || terrain < 0 )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+    ToriRSChrome_PanelSetVisible(&g_chrome, palette, 1);
+    /* The Textures probe answers 64 overlays a tick. */
+    for( int i = 0; i < 40; i++ )
+        frame();
+    graph_under = find_widget(palette, TORIRS_CHROME_W_GRAPH, NULL);
+    graph_over = g_chrome.widgets[label_with(palette, "Overlay")].kind == TORIRS_CHROME_W_LABEL
+                     ? label_with(palette, "Overlay") + 1
+                     : -1;
+    w_find = find_widget(palette, TORIRS_CHROME_W_TEXTINPUT, "Find");
+    w_pick_under = find_widget(palette, TORIRS_CHROME_W_TEXTINPUT, "Pick underlay");
+    w_pick_over = find_widget(palette, TORIRS_CHROME_W_TEXTINPUT, "Pick overlay");
+    CHECK(graph_under >= 0 && graph_over >= 0 && g_chrome.widgets[graph_over].kind == TORIRS_CHROME_W_GRAPH
+              && w_find >= 0 && w_pick_under >= 0 && w_pick_over >= 0
+              && find_widget(palette, TORIRS_CHROME_W_TEXTINPUT, "id") < 0,
+        "names: Find, Pick underlay and Pick overlay, and no two fields called \"id\" (%d %d %d %d %d)", graph_under,
+        graph_over, w_find, w_pick_under, w_pick_over);
+    if( graph_under < 0 || graph_over < 0 || w_find < 0 || w_pick_under < 0 || w_pick_over < 0 )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+    /* The page's first screen: the wells and the pick fields come before
+     * the Textures well. */
+    CHECK(w_find < graph_under && graph_under < w_pick_under && w_pick_under < graph_over && graph_over < w_pick_over
+              && w_pick_over < label_with(palette, "Textures"),
+        "names: Find, the underlay well and field, the overlay well and field, then Textures");
+
+    /* The common set heads the wells, in its order, whatever the squares use. */
+    Editor_Palette_SwatchGrid(&g_ui, &cell, &cols);
+    CHECK(cell >= 16 && cols >= 10, "names: cells of %d px, %d a row", cell, cols);
+    CHECK(Editor_Palette_SwatchAt(&g_ui, 0, 48, &x, &y) && swatch_index(x, y) == 1,
+        "names: the grass is the first underlay after \"none\" (%d)", swatch_index(x, y));
+    CHECK(Editor_Palette_SwatchAt(&g_ui, 0, 50, &x, &y) && swatch_index(x, y) == 2,
+        "names: dry grass is the second (%d)", swatch_index(x, y));
+    CHECK(Editor_Palette_SwatchAt(&g_ui, 1, 14, &x, &y) && swatch_index(x, y) == 1,
+        "names: the dirt track is the first overlay (%d)", swatch_index(x, y));
+    CHECK(Editor_Palette_SwatchAt(&g_ui, 1, 6, &x, &y) && Editor_Palette_SwatchAt(&g_ui, 1, 5, &x, &y),
+        "names: the water and the plank floor are in the Overlay well");
+    CHECK(!Editor_Palette_SwatchAt(&g_ui, 0, 200, &x, &y), "names: a record nothing uses is not listed until asked for");
+
+    /* Scrolled to the foot of the page the wells keep their columns, so the
+     * page keeps its length. A well out of the view has no box, and taking
+     * the least width for it re-flowed every well taller as the page
+     * scrolled (the Palette's range read 803 at the top, 951 at the foot). */
+    {
+        struct ToriRSChromeRect const r = g_chrome.panels[palette].last_rect;
+        int const content = g_chrome.panels[palette].content_h;
+        int const cols_top = cols;
+        int cell_foot = 0;
+        int cols_foot = 0;
+
+        for( int i = 0; i < 80; i++ )
+            ToriRSChrome_MouseWheel(&g_chrome, r.x + 8, r.y + r.h / 2, -1);
+        frame();
+        frame();
+        Editor_Palette_SwatchGrid(&g_ui, &cell_foot, &cols_foot);
+        CHECK(g_chrome.panels[palette].scroll_y > 0 && g_chrome.widgets[graph_under].w == 0,
+            "names: the wheel takes the page past the underlay well (scroll %d, well w %d)",
+            g_chrome.panels[palette].scroll_y, g_chrome.widgets[graph_under].w);
+        CHECK(cols_foot == cols_top && g_chrome.panels[palette].content_h == content,
+            "names: scrolled past it, the wells keep %d columns and the page %d px (%d, %d)", cols_top, content,
+            cols_foot, g_chrome.panels[palette].content_h);
+        for( int i = 0; i < 80; i++ )
+            ToriRSChrome_MouseWheel(&g_chrome, r.x + 8, r.y + r.h / 2, 1);
+        frame();
+        frame();
+    }
+
+    /* The hover and the pick's row say the name. */
+    CHECK(Editor_Palette_SwatchAt(&g_ui, 0, 48, &x, &y), "names: the grass has a swatch");
+    push_graph(graph_under, TORIRS_CHROME_EVENT_GRAPH_HOVER, x, y, 0);
+    frame();
+    CHECK(strstr(g_chrome.widgets[graph_under].tooltip, "underlay 48") && strstr(g_chrome.widgets[graph_under].tooltip, "#35720a")
+              && strstr(g_chrome.widgets[graph_under].tooltip, "grass"),
+        "names: the hover says underlay 48 is grass (%s)", g_chrome.widgets[graph_under].tooltip);
+    CHECK(Editor_Palette_SwatchAt(&g_ui, 1, 7, &x, &y), "names: the swamp water has a swatch");
+    push_graph(graph_over, TORIRS_CHROME_EVENT_GRAPH_HOVER, x, y, 0);
+    frame();
+    CHECK(strcmp(g_chrome.widgets[graph_over].tooltip, "overlay 7  texture 25  swamp water") == 0,
+        "names: a textured overlay's hover is its texture, not its placeholder colour (%s)",
+        g_chrome.widgets[graph_over].tooltip);
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_HEIGHT);
+    push_graph(graph_over, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+    frame();
+    CHECK(g_ui.tools.overlay_id == 7 && !g_ui.tools.overlay_none && strstr(Editor_UiStatusText(&g_ui), "Overlay 7 swamp water picked")
+              && label_with(palette, "Overlay: 7 swamp water  texture 25") >= 0,
+        "names: the press picks it by name in the bar and the row (%s)", Editor_UiStatusText(&g_ui));
+
+    /* Find narrows both wells as it is typed, over every record. */
+    ToriRSChrome_SetText(&g_chrome, w_find, "dirt");
+    frame();
+    CHECK(!Editor_Palette_SwatchAt(&g_ui, 0, 48, &x, &y) && Editor_Palette_SwatchAt(&g_ui, 0, 64, &x, &y)
+              && Editor_Palette_SwatchAt(&g_ui, 1, 14, &x, &y) && !Editor_Palette_SwatchAt(&g_ui, 1, 6, &x, &y),
+        "names: \"dirt\" keeps the earths and the tracks, not the grass or the water");
+    activate(w_find);
+    CHECK(strstr(Editor_UiStatusText(&g_ui), "\"dirt\" finds"), "names: Enter says how many it found (%s)",
+        Editor_UiStatusText(&g_ui));
+    ToriRSChrome_SetText(&g_chrome, w_find, "#3d2b");
+    frame();
+    CHECK(Editor_Palette_SwatchAt(&g_ui, 1, 14, &x, &y) && Editor_Palette_SwatchAt(&g_ui, 0, 63, &x, &y)
+              && !Editor_Palette_SwatchAt(&g_ui, 0, 64, &x, &y),
+        "names: a #colour prefix finds the records of that colour");
+    ToriRSChrome_SetText(&g_chrome, w_find, "");
+    frame();
+    CHECK(Editor_Palette_SwatchAt(&g_ui, 0, 48, &x, &y) && Editor_Palette_SwatchAt(&g_ui, 1, 6, &x, &y),
+        "names: an empty Find lists the wells as before");
+
+    /* The pick fields: a name, or an id; refused with what to type. */
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_HEIGHT);
+    ToriRSChrome_SetText(&g_chrome, w_pick_over, "water");
+    activate(w_pick_over);
+    CHECK(g_ui.tools.overlay_id == 6 && !g_ui.tools.overlay_none && g_ui.tools.tool == EDITOR_TOOL_PAINT_OVERLAY
+              && strstr(Editor_UiStatusText(&g_ui), "Overlay 6 water picked"),
+        "names: \"water\" picks overlay 6 and arms Paint overlay (%d: %s)", g_ui.tools.overlay_id,
+        Editor_UiStatusText(&g_ui));
+    ToriRSChrome_SetText(&g_chrome, w_pick_over, "wood");
+    activate(w_pick_over);
+    CHECK(g_ui.tools.overlay_id == 5, "names: \"wood\" picks the plank floor (%d)", g_ui.tools.overlay_id);
+    ToriRSChrome_SetText(&g_chrome, w_pick_over, " stone floor ");
+    activate(w_pick_over);
+    CHECK(g_ui.tools.overlay_id == 10, "names: \"stone floor\" picks overlay 10 (%d)", g_ui.tools.overlay_id);
+    ToriRSChrome_SetText(&g_chrome, w_pick_under, "sand");
+    activate(w_pick_under);
+    CHECK(g_ui.tools.underlay_id == 68 && strstr(Editor_UiStatusText(&g_ui), "Underlay 68 sand picked"),
+        "names: \"sand\" picks underlay 68 (%d: %s)", g_ui.tools.underlay_id, Editor_UiStatusText(&g_ui));
+    ToriRSChrome_SetText(&g_chrome, w_pick_under, "48");
+    activate(w_pick_under);
+    CHECK(g_ui.tools.underlay_id == 48 && strstr(Editor_UiStatusText(&g_ui), "Underlay 48 grass picked"),
+        "names: an id picks that id, named (%d: %s)", g_ui.tools.underlay_id, Editor_UiStatusText(&g_ui));
+    ToriRSChrome_SetText(&g_chrome, w_pick_under, "zzz");
+    activate(w_pick_under);
+    CHECK(g_ui.tools.underlay_id == 48 && strstr(Editor_UiStatusText(&g_ui), "nothing is called \"zzz\""),
+        "names: a name nothing has is refused, saying what to type (%s)", Editor_UiStatusText(&g_ui));
+    ToriRSChrome_SetText(&g_chrome, w_pick_under, "70000");
+    activate(w_pick_under);
+    CHECK(g_ui.tools.underlay_id == 48 && strstr(Editor_UiStatusText(&g_ui), "refused"),
+        "names: an id past the underlays is refused (%s)", Editor_UiStatusText(&g_ui));
+
+    /* Described for the other panels. */
+    Editor_Palette_Describe(&g_ui, 0, 48, text, sizeof(text));
+    CHECK(strcmp(text, "48 grass") == 0, "names: underlay 48 reads \"48 grass\" (%s)", text);
+    Editor_Palette_Describe(&g_ui, 1, 0, text, sizeof(text));
+    CHECK(strcmp(text, "none") == 0, "names: no overlay reads \"none\" (%s)", text);
+    Editor_Palette_Describe(&g_ui, 1, 900, text, sizeof(text));
+    CHECK(strcmp(text, "900") == 0, "names: a record the window has not loaded reads as its id (%s)", text);
+
+    /* The Terrain panel says what the armed tool lays. */
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_PAINT_UNDERLAY);
+    frame();
+    CHECK(label_with(terrain, "Paints underlay 48 grass") >= 0, "names: Terrain says Paint underlay paints the grass");
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_PAINT_OVERLAY);
+    frame();
+    CHECK(label_with(terrain, "Paints overlay 10 stone floor") >= 0, "names: and Paint overlay the stone floor");
+    {
+        int const flags = find_widget(terrain, TORIRS_CHROME_W_CHECKBOX, "remove roof");
+        CHECK(flags >= 0 && g_chrome.widgets[flags].hidden, "names: the flags brush's boxes are away while another tool is armed");
+        Editor_UiSetTool(&g_ui, EDITOR_TOOL_PAINT_FLAGS);
+        frame();
+        CHECK(flags >= 0 && !g_chrome.widgets[flags].hidden, "names: and show with Paint flags");
+    }
+
+    /* The path painter: no overlay picked lays its style's common floor;
+     * that default follows the style; a pick of the user's stands. */
+    {
+        char name[EDITOR_FLOOR_NAME_MAX];
+
+        g_ui.tools.overlay_none = 1;
+        g_ui.tools.path_style = EDITOR_PATH_DIRT;
+        Editor_UiSetTool(&g_ui, EDITOR_TOOL_PAINT_PATH);
+        frame();
+        CHECK(!g_ui.tools.overlay_none && g_ui.tools.overlay_id == 14
+                  && strstr(Editor_UiStatusText(&g_ui), "overlay 14 dirt track")
+                  && label_with(terrain, "Lays overlay 14 dirt track") >= 0,
+            "names: arming Path with nothing picked takes the dirt track and says so (%d: %s)", g_ui.tools.overlay_id,
+            Editor_UiStatusText(&g_ui));
+        CHECK(Editor_Palette_PathOverlay(&g_ui, EDITOR_PATH_RIVER, name, sizeof(name)) == 6 && strcmp(name, "water") == 0
+                  && g_ui.tools.overlay_id == 6,
+            "names: the default follows the style: a river lays the water (%d %s)", g_ui.tools.overlay_id, name);
+        CHECK(Editor_Palette_PathOverlay(&g_ui, EDITOR_PATH_RIVER, name, sizeof(name)) == 0 && g_ui.tools.overlay_id == 6,
+            "names: asked again for the same style, nothing changes");
+        CHECK(Editor_Palette_PathOverlay(&g_ui, EDITOR_PATH_PAVED, name, sizeof(name)) == 10
+                  && strcmp(name, "stone floor") == 0,
+            "names: pavement lays the stone floor (%s)", name);
+        ToriRSChrome_SetText(&g_chrome, w_pick_over, "22");
+        activate(w_pick_over);
+        CHECK(g_ui.tools.overlay_id == 22 && g_ui.tools.tool == EDITOR_TOOL_PAINT_PATH,
+            "names: a pick made for the armed Path keeps Path armed (%d %d)", g_ui.tools.overlay_id, (int)g_ui.tools.tool);
+        CHECK(Editor_Palette_PathOverlay(&g_ui, EDITOR_PATH_RIVER, name, sizeof(name)) == 0 && g_ui.tools.overlay_id == 22,
+            "names: an overlay the user picked is never replaced by a default (%d)", g_ui.tools.overlay_id);
+        /* The Path section offers the style's floor in place of a pick of
+         * another floor, by name, and one click lays it. */
+        {
+            int use;
+
+            g_ui.tools.path_style = EDITOR_PATH_DIRT;
+            Editor_UiSetTool(&g_ui, EDITOR_TOOL_SELECT);
+            frame();
+            Editor_UiSetTool(&g_ui, EDITOR_TOOL_PAINT_PATH);
+            frame();
+            use = find_widget(terrain, TORIRS_CHROME_W_BUTTON, "Use dirt track");
+            CHECK(use >= 0 && !g_chrome.widgets[use].hidden,
+                "names: with overlay 22 picked, the dirt path offers \"Use dirt track\"");
+            if( use >= 0 )
+                activate(use);
+            frame();
+            CHECK(!g_ui.tools.overlay_none && g_ui.tools.overlay_id == 14 && strstr(Editor_UiStatusText(&g_ui), "14 dirt track")
+                      && use >= 0 && g_chrome.widgets[use].hidden,
+                "names: the click lays the dirt track, says so, and the offer goes (%d: %s)", g_ui.tools.overlay_id,
+                Editor_UiStatusText(&g_ui));
+            CHECK(Editor_Palette_PathOverlay(&g_ui, EDITOR_PATH_RIVER, name, sizeof(name)) == 6,
+                "names: a floor taken that way follows a change of style, as the default does");
+            /* The user picks the very floor the painter chose: it is theirs. */
+            ToriRSChrome_SetText(&g_chrome, w_pick_over, "6");
+            activate(w_pick_over);
+            CHECK(Editor_Palette_PathOverlay(&g_ui, EDITOR_PATH_DIRT, name, sizeof(name)) == 0 && g_ui.tools.overlay_id == 6,
+                "names: a pick of the user's, even of the painter's own floor, is not swapped by a style (%d)",
+                g_ui.tools.overlay_id);
+        }
+        /* Height: picking another mode starts the grid over, so "lower only"
+         * after a hill sinks the ground under the next drag. */
+        {
+            int const lower = find_widget(terrain, TORIRS_CHROME_W_RADIO, "lower only");
+
+            Editor_UiSetTool(&g_ui, EDITOR_TOOL_HEIGHT);
+            frame();
+            Editor_UiSetHeightTarget(&g_ui, -25 * EDITOR_HEIGHT_UNIT);
+            CHECK(lower >= 0 && g_ui.tools.height_valid, "names: a grid is set (the hilltop)");
+            if( lower >= 0 )
+                activate(lower);
+            CHECK(g_ui.tools.height_mode == EDITOR_HEIGHT_MODE_LOWER && !g_ui.tools.height_valid
+                      && strstr(Editor_UiStatusText(&g_ui), "sinks the ground one Step"),
+                "names: lower only unsets it and says the next drag sinks (%s)", Editor_UiStatusText(&g_ui));
+            Editor_UiSetHeightTarget(&g_ui, -25 * EDITOR_HEIGHT_UNIT);
+            if( lower >= 0 )
+                activate(lower);
+            CHECK(g_ui.tools.height_valid, "names: picking the mode it already has keeps the grid");
+            g_ui.tools.height_mode = EDITOR_HEIGHT_MODE_BOTH;
+            Editor_UiSetTool(&g_ui, EDITOR_TOOL_PAINT_PATH);
+            frame();
+        }
+        /* A cache whose records are not the common set's has no default. */
+        g_ui.tools.overlay_none = 1;
+        g_ui.hooks.floor_rgb = fake_floor_rgb;
+        CHECK(Editor_Palette_PathOverlay(&g_ui, EDITOR_PATH_DIRT, name, sizeof(name)) == -1 && g_ui.tools.overlay_none,
+            "names: a cache with another record under that id has no default, and none is picked");
+    }
+    Editor_UiFree(&g_ui);
+}
+
+/** A press at the top edge of chrome panel `panel`, dragged `dy` down and
+ *  released, a frame between each. */
+static void
+drag_top_edge(
+    int panel,
+    int dy)
+{
+    struct ToriRSChromeRect const r = ToriRSChrome_PanelRect(&g_chrome, panel);
+    int const x = r.x + r.w / 2;
+
+    ToriRSChrome_MouseMove(&g_chrome, x, r.y + 1);
+    (void)ToriRSChrome_MouseDown(&g_chrome, x, r.y + 1);
+    frame();
+    ToriRSChrome_MouseMove(&g_chrome, x, r.y + 1 + dy / 2);
+    frame();
+    ToriRSChrome_MouseMove(&g_chrome, x, r.y + 1 + dy);
+    frame();
+    (void)ToriRSChrome_MouseUp(&g_chrome, x, r.y + 1 + dy);
+    frame();
+    frame();
+}
+
+/** The docked column's windows end to end: 1 when each begins where the one
+ *  above it ends, from the column's top to its bottom. */
+static int
+column_is_whole(void)
+{
+    struct EditorUiPanel const* bar = Editor_UiFindPanel(&g_ui, "statusbar");
+    /* The column runs from under the menu bar to the status bar. */
+    int const bottom = bar && bar->chrome_panel >= 0 && g_chrome.panels[bar->chrome_panel].visible
+                           ? ToriRSChrome_PanelRect(&g_chrome, bar->chrome_panel).y
+                           : g_chrome.surface_h;
+    int y = g_ui.dock_top;
+    int found = 1;
+
+    while( found && y < bottom )
+    {
+        found = 0;
+        for( int i = g_ui.panel_first; i < g_ui.panel_end && i < g_chrome.panel_count && !found; i++ )
+        {
+            struct ToriRSChromeRect const r = ToriRSChrome_PanelRect(&g_chrome, i);
+            if( !g_chrome.panels[i].visible || !g_ui.docked[i - g_ui.panel_first] || r.x != g_ui.dock_x || r.y != y
+                || r.h <= 0 )
+                continue;
+            y += r.h;
+            found = 1;
+        }
+    }
+    return y == bottom;
+}
+
+/* The border between two docked panels is a splitter (F12 and F17,
+ * 2026-11-11): dragged, the panel above grows by what the one below gives
+ * up, nothing opens between them, both stay the column's -- so closing one
+ * later still lets its neighbours take its place. */
+static void
+test_column_split(void)
+{
+    int terrain;
+    int palette;
+    struct ToriRSChromeRect above;
+    struct ToriRSChromeRect below;
+    struct ToriRSChromeRect above_after;
+    struct ToriRSChromeRect below_after;
+    int moved;
+
+    layout_boot(1920, 1080, 1);
+    layout_open_terrain();
+    terrain = find_panel("Terrain");
+    palette = find_panel("Palette");
+    above = ToriRSChrome_PanelRect(&g_chrome, terrain);
+    below = ToriRSChrome_PanelRect(&g_chrome, palette);
+    CHECK(module_docked("terrain") && module_docked("palette") && below.y == above.y + above.h && column_is_whole(),
+        "split: Terrain over Palette in a whole column (%d+%d, %d)", above.y, above.h, below.y);
+    if( below.y != above.y + above.h || below.h < 200 )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+    drag_top_edge(palette, 48);
+    above_after = ToriRSChrome_PanelRect(&g_chrome, terrain);
+    below_after = ToriRSChrome_PanelRect(&g_chrome, palette);
+    /* 48 px, give or take the snap to the 8 px grid. */
+    moved = below_after.y - below.y;
+    CHECK(moved >= 40 && moved <= 56 && above_after.h == above.h + moved && below_after.h == below.h - moved
+              && above_after.y == above.y,
+        "split: the border moved %d px: Terrain %d -> %d tall, Palette %d+%d -> %d+%d", moved, above.h, above_after.h,
+        below.y, below.h, below_after.y, below_after.h);
+    CHECK(column_is_whole(), "split: nothing opened between them");
+    CHECK(module_docked("terrain") && module_docked("palette") && !g_chrome.panels[palette].user_placed
+              && !g_chrome.panels[terrain].user_placed,
+        "split: both are still the column's, neither placed by the user (%d %d)", g_chrome.panels[terrain].user_placed,
+        g_chrome.panels[palette].user_placed);
+    /* Up past the least Terrain may be: the border stops there. */
+    drag_top_edge(palette, -2000);
+    above_after = ToriRSChrome_PanelRect(&g_chrome, terrain);
+    below_after = ToriRSChrome_PanelRect(&g_chrome, palette);
+    CHECK(above_after.h >= 64 && above_after.h < above.h && below_after.y == above_after.y + above_after.h
+              && column_is_whole(),
+        "split: dragged past it, the panel above keeps a usable height (%d) and the column stays whole", above_after.h);
+    /* The column's own top edge does not move. */
+    drag_top_edge(terrain, 40);
+    CHECK(ToriRSChrome_PanelRect(&g_chrome, terrain).y == above.y && module_docked("terrain") && column_is_whole(),
+        "split: the top panel's top edge stays at the column's top");
+    /* A split panel closed: its neighbours take its place. */
+    ToriRSChrome_PanelSetVisible(&g_chrome, palette, 0);
+    for( int i = 0; i < 4; i++ )
+        frame();
+    CHECK(!module_shown("palette") && column_is_whole(), "split: closing the split panel leaves no hole in the column");
+    Editor_UiFree(&g_ui);
 }
 
 /* The Palette's blending aids (the owner's request, 2026-11-06): the floor
@@ -8300,8 +8922,8 @@ test_palette_colour(void)
             "palette: two textures found while ids past the records are still asked (%s)", g_chrome.widgets[row].text);
         push_graph(graph_tex, TORIRS_CHROME_EVENT_GRAPH_HOVER, 1 + 12, 1 + 12, 0);
         frame();
-        CHECK(strcmp(g_chrome.widgets[graph_tex].tooltip, "texture 2: overlay 9 lays it") == 0,
-            "palette: the first cell is the lowest texture (%s)", g_chrome.widgets[graph_tex].tooltip);
+        CHECK(strcmp(g_chrome.widgets[graph_tex].tooltip, "weathered boards (wood): texture 2, overlay 9") == 0,
+            "palette: the first cell is the lowest texture, by what it is (%s)", g_chrome.widgets[graph_tex].tooltip);
         push_graph(graph_tex, TORIRS_CHROME_EVENT_GRAPH_HOVER, 1 + 26 + 12, 1 + 12, 0);
         frame();
         CHECK(strcmp(g_chrome.widgets[graph_tex].tooltip, "texture 5: overlay 3 lays it (and 1 more)") == 0,
@@ -8827,6 +9449,55 @@ test_statusbar(void)
     Editor_UiFree(&g_ui);
 }
 
+/** The Live log's serial counts ROWS: a line too long for a row continues
+ *  on the next ones, and the readers of the serial (Editor_BuildJobPoll,
+ *  the Problems stream) read that many of the newest rows. Counted once a
+ *  line, a failed Check on a lane -- whose server prints the lane's long
+ *  paths after the DONE row -- hid its DONE row, and Check said "still
+ *  running" from then on (2026-11-11). */
+static void
+test_live_log_rows(void)
+{
+    struct Editor_LiveModel* model = calloc(1, sizeof(*model));
+    char long_line[600];
+    int before;
+    int found_done = 0;
+
+    assert(model);
+    Editor_LiveModelInit(model);
+    memset(long_line, 'x', sizeof(long_line) - 1);
+    long_line[sizeof(long_line) - 1] = '\0';
+    before = model->log_serial;
+    {
+        struct ToriRSMapEdBuf body = { 0 };
+        ToriRSMapEd_PutU32(&body, TORIRSMAPED_BUILD_CHECK);
+        ToriRSMapEd_PutU32(&body, 1); /* status: failed */
+        ToriRSMapEd_PutU32(&body, 0); /* units */
+        ToriRSMapEd_PutU32(&body, 0); /* archives */
+        CHECK(Editor_LiveModelApply(model, TORIRSMAPED_FACT_BUILD_DONE, body.data + body.head,
+                  (uint32_t)(body.tail - body.head))
+                  == 1,
+            "live log: the check's DONE is taken");
+        ToriRSMapEd_BufFree(&body);
+    }
+    {
+        struct ToriRSMapEdBuf body = { 0 };
+        ToriRSMapEd_PutString(&body, long_line);
+        CHECK(Editor_LiveModelApply(model, TORIRSMAPED_FACT_LIVE_LINE, body.data + body.head,
+                  (uint32_t)(body.tail - body.head))
+                  == 1,
+            "live log: a long server line is taken");
+        ToriRSMapEd_BufFree(&body);
+    }
+    CHECK(model->log_count >= 3, "live log: the long line took more than one row (%d rows)", model->log_count);
+    CHECK(model->log_serial - before == model->log_count, "live log: the serial moved by the rows added (%d for %d)",
+        model->log_serial - before, model->log_count);
+    for( int i = 0; i < model->log_serial - before; i++ )
+        found_done |= (Editor_LiveLogWhat(model, i) & EDITOR_LIVE_LOG_DONE) != 0;
+    CHECK(found_done, "live log: the DONE row is among the newest `serial difference` rows");
+    free(model);
+}
+
 static void
 test_triggers(void)
 {
@@ -8897,7 +9568,7 @@ test_triggers(void)
 #ifdef _WIN32
         /* The absolute path, quoted by the template, then the line. */
         CHECK(wait_file_has(opened_log, "test.rs2\":2", got, sizeof(got)) && got[0] == '"'
-                  && strstr(got, "/server/scripts/areas/test/scripts/test.rs2\":2") != NULL,
+                  && strstr(got, "\\server\\scripts\\areas\\test\\scripts\\test.rs2\":2") != NULL,
             "triggers: Open in editor ran TORIRS_EDITOR_OPEN_CMD with the path and line (%s)", got);
         (void)expect;
 #else
@@ -9007,14 +9678,36 @@ test_triggers(void)
             CHECK(Editor_Triggers_Refresh(&g_cat_ui) == 1 && !g_cat_chrome.widgets[cat_widget(panel,
                                                                   TORIRS_CHROME_W_BUTTON, "Reload from disk")].hidden,
                 "triggers: Refresh finds the document edited outside, offers Reload from disk");
-            CHECK(Editor_Triggers_AddTrigger(&g_cat_ui, "oploc5", "Climb") == 0 && cat_console_has("edited outside"),
-                "triggers: Add refuses to write over a copy edited outside");
+            /* The file is written in the owner's own editor: the rows are
+             * the file's before anything is reloaded. */
+            n = Editor_Triggers_Rows(&g_cat_ui, rows, 16);
+            CHECK(n == 3 && strcmp(rows[2].kind, "oploc4") == 0 && rows[2].line == 6 && !rows[2].unsaved,
+                "triggers: the trigger written outside is a row at once (%d)", n);
             CHECK(Editor_Triggers_ReloadFromDisk(&g_cat_ui) == 1 && read_file_text(disk, got, sizeof(got))
                       && strcmp(got, text_of(k_edited)) == 0 && newest_group_named("Reload edited/test_crate"),
                 "triggers: Reload from disk makes the document the disk's text, one undo step");
             n = Editor_Triggers_Rows(&g_cat_ui, rows, 16);
             CHECK(n == 3 && strcmp(rows[2].kind, "oploc4") == 0 && rows[2].line == 6,
                 "triggers: the trigger written outside is a row (%d)", n);
+            /* Saved and written outside again: Add trigger writes into the
+             * file as it is now (it refused until 2026-11-11, and sent the
+             * person to Refresh and Reload from disk after every save). */
+            CHECK(Editor_SaveDoc(&g_editor, EDITOR_DOC_TEXT, "rs2:edited/test_crate/scripts/test_crate.rs2") >= 0,
+                "triggers: the reloaded copy saved");
+            {
+                FILE* file = fopen(disk, "ab");
+                if( file )
+                {
+                    fputs("// a note written outside\n", file);
+                    fclose(file);
+                }
+            }
+            CHECK(Editor_Triggers_AddTrigger(&g_cat_ui, "oploc5", "Climb") == 1
+                      && newest_group_named("Add [oploc5,test_crate]") && text_of(k_edited)
+                      && strstr(text_of(k_edited), "// a note written outside") != NULL
+                      && strstr(text_of(k_edited), "[oploc5,test_crate]") != NULL,
+                "triggers: Add on a copy saved outside takes the disk's text first, then adds");
+            CHECK(Editor_Undo(&g_editor) >= 1 && Editor_Undo(&g_editor) >= 1, "triggers: undo that add and its reload");
         }
         /* Back: the reload, then the add. */
         CHECK(Editor_Undo(&g_editor) >= 1 && Editor_Undo(&g_editor) == 2, "triggers: undo the reload, then the add");
@@ -9054,8 +9747,14 @@ test_triggers(void)
         ToriRSChrome_VListSetSelected(&g_cat_chrome, diags, 0);
         cat_activate(diags);
         cat_activate(cat_widget(panel, TORIRS_CHROME_W_BUTTON, "Open problem"));
+        /* The path as this machine spells it (triggers_native_path). */
+#ifdef _WIN32
+        CHECK(wait_file_has(opened_log, OPENED_AT("areas\\test\\scripts\\test.rs2", "3"), got, sizeof(got)),
+            "triggers: Open problem hands over its file and line (errors listed before warnings)");
+#else
         CHECK(wait_file_has(opened_log, OPENED_AT("areas/test/scripts/test.rs2", "3"), got, sizeof(got)),
             "triggers: Open problem hands over its file and line (errors listed before warnings)");
+#endif
         /* Check is the editor server's BUILD job (workbench 6.6), heard
          * through the Live panel; this window has no such link, and the
          * panel says why. */
@@ -9337,6 +10036,9 @@ main(
     test_hotkeys();
     test_statusbar();
     test_palette_colour();
+    test_palette_names();
+    test_column_split();
+    test_live_log_rows();
     test_triggers();
     test_command_palette();
     Editor_PickerFree(&g_picker);

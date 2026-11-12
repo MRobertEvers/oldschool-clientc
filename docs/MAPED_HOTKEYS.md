@@ -93,7 +93,18 @@ of the two is live; the Camera table below says which keys each has).
 | Publish the lane's changes to a lane | Ctrl+Shift+U | G |
 | Save the session's state as a scene (the open squares, the World's camera, the pinned level and Above, the lane, the var preview, the live account; the Scenes panel's Holds chips choose; one undo step, saved at once) | Ctrl+Shift+K | G |
 | Make a scratch lane from main; it opens at the next launch (`scratch-<yymmdd><letter>`, a clean mirror of main as it is now; the switch waits for the next launch: a running server cannot re-point its lane, so quit and launch the editor again) | Ctrl+Shift+N | G |
+| Promote the lane: a new lane made from this lane's changes (the Lanes panel's Changes page: type the name in New lane name, then Promote to new lane...; the new lane is a mirror of main holding the changes, this lane keeps them, and the panel says how to open the new one. With no name typed the box takes the caret) | unbound | G |
+| Delete the lane picked in the Lanes panel (asks twice) (the Lanes page's Delete lane...: its links to the base are dropped by name and its own files removed, the base tree is not touched; refused for main, this session's lane, a lane another editor holds and the lane the boot lane file names) | unbound | G |
+| Open the picked lane change's file in your editor (the LANE's file, never the base's; `TORIRS_EDITOR_OPEN_CMD`) | unbound | G |
+| Show the picked lane change's file in its folder (Explorer, Finder; `TORIRS_EDITOR_REVEAL_CMD`) | unbound | G |
+| Diff the picked lane change against the base in your diff tool (`code --diff` when VS Code is on PATH, else `TORIRS_EDITOR_DIFF_CMD` with `{base}` and `{path}`; the base's side is a copy under the lane's `diff/` folder, so nothing typed there reaches the base) | unbound | G |
+| Discard the picked lane change: that file back to the base (asks twice) (unsaved edits are saved first, then that one file is the base's again and the window reopens its squares) | unbound | G |
+| Copy the listed lane changes' paths to the clipboard (one a line: what Find change and the Show boxes let through) | unbound | G |
 | Open up to 3x3 squares, swept on the Square map (a drag over the map picks them; Open opens them together as the working set, in place of what is open) | Ctrl+O | G |
+| Close a square: the focused one, else the one the camera is over (drops it from what the window shows, through the save guard; refused for the only square shown; also the Squares pane's Close square and the map's right-click row) | unbound | G |
+| New instance: a template of the open squares and its entry script (the New instance dialog over the open set, or the Square map's selection when it has one; a loc selected in the World becomes the trigger) | unbound | G |
+| New quest: its folder, variable, stages and script, opened in your editor (the Triggers panel's Quest name and New quest: `server/scripts/quests/quest_<name>` with `configs/quest_<name>.varp`, `configs/quest_<name>.constant` and `scripts/quest_<name>.rs2`, written through the documents and saved, so on a lane they are the lane's own; with no name typed it puts the caret in Quest name) | unbound | G |
+| Restart the lane's servers on the last build (and play client) (what RUN's sentence asks for after a change a hot reload cannot carry, such as a new variable or a record cloned while the lane was live; nothing is rebuilt) | unbound | G |
 
 File also lists **Recent squares**: the last ten squares opened in this
 window (newest first, a lane square as `<lane>/m50_50`), remembered per user
@@ -132,7 +143,16 @@ same squares when its box is empty.
 | Place the catalog's loc at the hovered tile (the ghost's pose) | Return | P |
 | Fit walls to neighbours on/off (Place tool) | G | G |
 | Swap the selected locs to the catalog's pick | E | L |
+| Copy the picked loc, npc or obj to the name in New name, with a fresh id | (unbound) | G |
+| Open the picked loc, npc or obj in the Record panel | (unbound) | G |
 | Keep a Place drag (a wall run) to one axis (hold) | Shift | W |
+
+`catalog.copy_new` is the Catalog's Copy to new button: it reads the name from
+the Catalog's New name field, or the Preview's when that one is empty, and
+with neither puts the caret in the field. The copy is the pick, is listed and
+placed at once (no Save, RUN or restart), and carries its source's server
+fields in an overlay of its own. `catalog.edit_record` is Edit record....
+Both are unbound by default.
 
 The ghost's turn and shape are Edit's Rotate (Q) and Reshape (Shift+Q); Escape
 drops the ghost (Deselect / cancel). Fit is shared by every window of the
@@ -154,7 +174,9 @@ The pointer (workbench 6.3, design section 7):
 - **Select: drag on empty ground** is a marquee: the Rect tool's rectangle
   (so copy, fill and clear act on it), selecting every loc on the edit level
   whose footprint it touches. Shift adds, Ctrl toggles, Alt subtracts -- for
-  a marquee and for a click on a loc alike (a plain click latches the tile).
+  a marquee and for a click on a loc alike. A plain click selects the loc
+  under the pointer (a chair, a wall, a door; never ground decor such as a
+  rug) and latches the tile it stands on.
   A **double-click** on a loc is select same (Alt+A).
 
 - **Select: Ctrl+drag (Cmd+drag on a Mac) on a thing moves it.** A press on
@@ -193,6 +215,15 @@ The pointer (workbench 6.3, design section 7):
 | Region brush (the palette's overlay under a swept disc, its edge cut to the tile shapes; Alt-drag takes it off) | O | G |
 | Lasso (a drawn loop, or clicked corners, filled with the palette's overlay, its edge cut to the tile shapes) | J | G |
 | Tidy (click an overlay: its run's stepped edge smoothed and refitted to the tile shapes) | Y | G |
+| Building (drag a rectangle: walls, floor, roof flag and roof in one step; a line: an inside wall; click a wall: a door or a window) | 4 | G |
+| Building: drag a rectangle for the whole shell (the Building panel's Shell; arms the tool) | unbound | G |
+| Building: drag a line for a straight inside wall (Wall line) | unbound | G |
+| Building: click a wall piece for a door (again: the wall back) | unbound | G |
+| Building: click a wall piece for a window (again: off) | unbound | G |
+| Building: build the shell on the rectangle last dragged (the Building panel's Build on rectangle) | unbound | G |
+| Save what stands in the rectangle as a stamp (every level; the name is the Rectangle panel's) | unbound | G |
+| Rename the stamp picked in the Stamps panel to its New name | unbound | G |
+| Delete the stamp picked in the Stamps panel | unbound | G |
 | Previous tool (swap with the last armed) | Grave (`) | G |
 | Pick the hovered tile's paint into the palette (underlay, overlay, shape, flags) | I | W |
 | Pick the hovered loc into the catalog | Shift+I | W |
@@ -417,6 +448,44 @@ space opens, and mid-drag puts the dragged nodes back. Away from the graph,
 Delete is the World's again; N and Ctrl+L from the command palette or the
 menu still act on the open dialogue graph.
 
+### Camera path
+| Action | Chord | Ctx |
+|---|---|---|
+| Add a keyframe of what the World camera shows | (unbound) | G |
+| The selected keyframe takes the World camera's framing | (unbound) | G |
+| Put the World camera on the selected keyframe | (unbound) | G |
+| Fly the World camera along the shown path, or stop | (unbound) | G |
+| Copy the shown path's proc to the clipboard | (unbound) | G |
+| Delete the selected keyframe of the shown path | (unbound) | G |
+| The selected keyframe plays one earlier | (unbound) | G |
+| The selected keyframe plays one later | (unbound) | G |
+| Play the shown path on the live lane's play account (::cam) | (unbound) | G |
+
+The Camera path panel's verbs (View > Camera path, `view.campath`), on the
+path it shows: what its Add keyframe, Update keyframe, Go to, Preview / Stop,
+Copy script, Delete keyframe, Move up, Move down and Send to play client
+buttons do. Unbound by default; bind them in the Hotkeys panel
+and each button wears its chord.
+
+### NPC editor
+| Action | Chord | Ctx |
+|---|---|---|
+| World clicks lay the open npc's patrol waypoints, on/off | (unbound) | G |
+| Drag the open npc's waypoints in the World, on/off | (unbound) | G |
+| Walk a marker round the open npc's route in the World, or stop | (unbound) | G |
+| Add waypoints so every leg of the open npc's route walks | (unbound) | G |
+
+The NPC editor's Movement tab (View > NPC editor, `view.npcbuilder`), on the
+npc it has open. With Add waypoint up, each click on a World tile lays the
+next waypoint of its patrol route, after the selected one; a click on a
+numbered waypoint selects it and a drag moves it. Move waypoint only drags.
+Either tool takes the World's left button whatever map tool is armed, and
+the same action (or the tab's Select radio) puts it down. The route is drawn
+on the ground while the tab shows: each leg along the tiles the server's walk
+steps on, red from where a leg stops dead. Fix stuck legs adds the fewest
+waypoints that take each such leg round what stops it. Play walks a marker
+round it at a tile a tick. Unbound by default.
+
 Every other panel the View menu lists (Record, New, builders, Live, Accounts,
 Scenes, Encounters, the Shop builder, the Quest board, Problems, ...) is an action too, unbound by default. The Chrome scale and Text size rows
 (workbench 6.0b) are radio rows between the panel rows and Hide / show panels:
@@ -459,17 +528,21 @@ each and loses nothing else, and the lines are gone the next time the file is
 written. The ids, in the order of the
 tables (the Hotkeys panel calls them by the name after the id):
 
-- **File**: `file.new` New square..., `file.save_all` Save all, `file.save_as` Save square as new..., `file.bake` Bake cache (slow), `file.close` Close editor, `file.check_scripts` Check scripts, `file.run` Run (save, build, reload), `file.publish` Publish..., `file.save_scene` Save scene, `file.scratch_lane` Scratch lane, `file.open_squares` Open squares...
+- **File**: `file.new` New square..., `file.save_all` Save all, `file.save_as` Save square as new..., `file.bake` Bake cache (slow), `file.close` Close editor, `file.check_scripts` Check scripts, `file.run` Run (save, build, reload), `file.publish` Publish..., `file.save_scene` Save scene, `file.scratch_lane` Scratch lane, `file.promote_lane` Promote to new lane..., `file.delete_lane` Delete lane..., `file.lane_open` Lane change: open in editor, `file.lane_reveal` Lane change: show in folder, `file.lane_diff` Lane change: diff against base, `file.lane_discard` Lane change: discard..., `file.lane_copy` Lane changes: copy list, `file.open_squares` Open squares..., `file.close_square` Close square, `file.new_instance` New instance..., `file.new_quest` New quest..., `file.restart_lane` Restart lane
 - **Edit**: `edit.undo` Undo, `edit.redo` Redo, `edit.deselect` Deselect / cancel, `edit.delete` Delete selection, `edit.duplicate` Duplicate, `edit.rotate` Rotate, `edit.reshape` Reshape, `edit.apply` Apply tool to selection, `edit.select_square` Select the square's locs, `edit.select_same` Select same, `edit.nudge_n` Nudge north, `edit.nudge_s` Nudge south, `edit.nudge_w` Nudge west, `edit.nudge_e` Nudge east, `edit.nudge_far_n` Nudge north 8, `edit.nudge_far_s` Nudge south 8, `edit.nudge_far_w` Nudge west 8, `edit.nudge_far_e` Nudge east 8, `edit.level_up` Selection up a level, `edit.level_down` Selection down a level, `edit.copy` Copy tiles, `edit.paste` Paste tiles, `edit.fill` Fill tiles, `edit.clear` Clear tiles, `edit.mark_area` Mark area from rect, `edit.select_kind` Select all of the picked kind, `edit.invert` Invert selection
-- **Place**: `place.here` Place at the hovered tile, `place.fit` Fit walls to neighbours (toggle), `place.swap` Swap to catalog pick, `place.constrain` Constrain a drag to one axis (hold)
+- **Place**: `place.here` Place at the hovered tile, `place.fit` Fit walls to neighbours (toggle), `place.swap` Swap to catalog pick, `catalog.copy_new` Copy the pick to a new record, `catalog.edit_record` Edit the pick's record, `place.constrain` Constrain a drag to one axis (hold)
 - **Palette**: `palette.slot_1` Palette slot 1, `palette.slot_2` Palette slot 2, `palette.slot_3` Palette slot 3, `palette.slot_4` Palette slot 4, `palette.slot_5` Palette slot 5, `palette.slot_6` Palette slot 6, `palette.slot_7` Palette slot 7, `palette.slot_8` Palette slot 8, `palette.slot_9` Palette slot 9, `palette.slot_10` Palette slot 10, `palette.add_pick` Add the pick to the palette, `palette.next` Next palette, `palette.previous` Previous palette
-- **Tools**: `tool.select` Select, `tool.rect` Rectangle, `tool.height` Height, `tool.flatten` Flatten, `tool.smooth` Smooth, `tool.paint_underlay` Paint underlay, `tool.paint_overlay` Paint overlay, `tool.paint_flags` Paint flags, `tool.place` Place loc, `tool.move` Move loc, `tool.rotate` Rotate loc (tool), `tool.delete` Delete loc (tool), `tool.place_player` Place player, `tool.paint_path` Paint path, `tool.noise` Roughen, `tool.scatter` Scatter locs, `tool.plateau` Plateau, `tool.region` Region brush, `tool.lasso` Lasso, `tool.tidy` Tidy, `tool.previous` Previous tool, `tool.pick_paint` Pick the tile's paint, `tool.pick_loc` Pick the hovered loc, `hold.place` Click places a loc (hold), `hold.delete` Click deletes a loc (hold), `hold.clear` Click clears the tile (hold)
+- **Tools**: `tool.select` Select, `tool.rect` Rectangle, `tool.height` Height, `tool.flatten` Flatten, `tool.smooth` Smooth, `tool.paint_underlay` Paint underlay, `tool.paint_overlay` Paint overlay, `tool.paint_flags` Paint flags, `tool.place` Place loc, `tool.move` Move loc, `tool.rotate` Rotate loc (tool), `tool.delete` Delete loc (tool), `tool.place_player` Place player, `tool.paint_path` Paint path, `tool.noise` Roughen, `tool.scatter` Scatter locs, `tool.plateau` Plateau, `tool.region` Region brush, `tool.lasso` Lasso, `tool.tidy` Tidy, `tool.building` Building, `tool.previous` Previous tool, `tool.pick_paint` Pick the tile's paint, `tool.pick_loc` Pick the hovered loc, `hold.place` Click places a loc (hold), `hold.delete` Click deletes a loc (hold), `hold.clear` Click clears the tile (hold)
+- **Building**: `building.shell` Building: shell, `building.wall` Building: wall line, `building.door` Building: door, `building.window` Building: window, `building.build` Build on rectangle
+- **Stamps**: `stamp.save_rect` Save rectangle as stamp, `stamp.rename` Rename stamp, `stamp.delete` Delete stamp
 - **Brush**: `brush.radius_down` Radius -, `brush.radius_up` Radius +, `brush.strength_down` Strength -, `brush.strength_up` Strength +, `brush.step_down` Step -, `brush.step_up` Step +
 - **Level**: `level.down` Level down, `level.up` Level up, `level.pin0` Pin level 0, `level.pin1` Pin level 1, `level.pin2` Pin level 2, `level.pin3` Pin level 3, `level.auto` Level Auto, `level.above` Show above
 - **Camera**: `camera.forward` Fly forward, `camera.back` Fly back, `camera.left` Fly left, `camera.right` Fly right, `camera.down` Fly down, `camera.up` Fly up, `camera.fast` Fly faster, `camera.turn_left` Turn left, `camera.turn_right` Turn right, `camera.tilt_up` Tilt up, `camera.tilt_down` Tilt down, `camera.frame` Frame the selection, `camera.frame_square` Frame the square's centre, `camera.frame_key` Frame the selection (Unity scheme), `camera.scheme` Camera scheme: default / Unity (toggle), `camera.pan` Pan (hold, then drag)
 - **Picker**: `picker.north` Focus north, `picker.south` Focus south, `picker.west` Focus west, `picker.east` Focus east, `picker.open` Open the focused square, `picker.add` Add the focused square, `picker.back` Previous open square, `picker.clear_find` Clear Find
 - **Graph**: `graph.auto_layout` Auto-layout the graph, `graph.new_node` New node
-- **View**: `view.hotkeys` Hotkeys panel, `view.terrain` Terrain, `view.palette` Palette, `view.squares` Squares, `view.locs` Locs, `view.spawns` Spawns, `view.spawn_preview` Show spawns in the world (toggle), `view.inspector` Inspector, `view.catalog` Catalog, `view.preview` Preview, `view.gallery` Gallery, `view.catalog_palette` Catalog palette, `view.console` Console (Output), `view.history` History, `view.areas` Areas, `view.world` World, `view.toolrail` Tools (rail), `view.rect` Rectangle panel, `view.record` Record, `view.locbuilder` Loc builder, `view.npcbuilder` NPC editor, `view.shelleditor` Shell editor, `view.live` Live, `view.accounts` Accounts, `view.triggers` Triggers, `view.scenes` Scenes, `view.encounter` Encounters, `view.shop` Shop builder, `view.quest` Quest board, `view.problems` Problems, `view.hide_panels` Hide / show panels, `view.reset_layout` Reset layout, `view.snap` Snap to grid, `view.compact` Compact panels, `view.snap_hold` Snap while dragging (hold), `view.popout` Pop out panel, `view.close_panel` Close panel, `view.scale_auto` Chrome scale Auto, `view.scale_100` Chrome scale 100 %, `view.scale_125` Chrome scale 125 %, `view.scale_150` Chrome scale 150 %, `view.scale_175` Chrome scale 175 %, `view.scale_200` Chrome scale 200 %, `view.scale_250` Chrome scale 250 %, `view.scale_300` Chrome scale 300 %, `view.text_normal` Text size Normal, `view.text_large` Text size Large, `view.text_bitmap` Text rendering bitmap, `view.text_smooth` Text rendering smooth, `view.workspace_build` Workspace Build, `view.workspace_terrain` Workspace Terrain, `view.workspace_script` Workspace Script, `view.workspace_playtest` Workspace Playtest, `view.command_palette` Command palette, `view.goto_tile` Go to tile..., `view.layer_locs` Layer Locs (reserved), `view.layer_npcs` Layer NPCs (reserved), `view.layer_objs` Layer Objs (reserved), `view.layer_collision` Layer Collision (reserved), `view.layer_grid` Tile grid (auto / on / off)
+- **Camera path**: `campath.add_keyframe` Add keyframe, `campath.update_keyframe` Update keyframe, `campath.goto_keyframe` Go to keyframe, `campath.preview` Preview / Stop, `campath.copy_script` Copy script, `campath.delete_keyframe` Delete keyframe, `campath.move_up` Move keyframe up, `campath.move_down` Move keyframe down, `campath.send_to_play` Send to play client
+- **NPC editor**: `npc.add_waypoint` Add waypoint (tool on / off), `npc.move_waypoint` Move waypoint (tool on / off), `npc.play_route` Play route / Stop, `npc.fix_legs` Fix stuck legs
+- **View**: `view.hotkeys` Hotkeys panel, `view.terrain` Terrain, `view.palette` Palette, `view.squares` Squares, `view.locs` Locs, `view.spawns` Spawns, `view.spawn_preview` Show spawns in the world (toggle), `view.inspector` Inspector, `view.catalog` Catalog, `view.preview` Preview, `view.gallery` Gallery, `view.catalog_palette` Catalog palette, `view.console` Console (Output), `view.history` History, `view.areas` Areas, `view.world` World, `view.toolrail` Tools (rail), `view.rect` Rectangle panel, `view.building` Building panel, `view.stamps` Stamps panel, `view.squaremap` Square map, `view.record` Record, `view.locbuilder` Loc builder, `view.npcbuilder` NPC editor, `view.shelleditor` Shell editor, `view.live` Live, `view.accounts` Accounts, `view.triggers` Triggers, `view.scenes` Scenes, `view.encounter` Encounters, `view.campath` Camera path, `view.shop` Shop builder, `view.quest` Quest board, `view.problems` Problems, `view.hide_panels` Hide / show panels, `view.reset_layout` Reset layout, `view.snap` Snap to grid, `view.compact` Compact panels, `view.snap_hold` Snap while dragging (hold), `view.popout` Pop out panel, `view.close_panel` Close panel, `view.scale_auto` Chrome scale Auto, `view.scale_100` Chrome scale 100 %, `view.scale_125` Chrome scale 125 %, `view.scale_150` Chrome scale 150 %, `view.scale_175` Chrome scale 175 %, `view.scale_200` Chrome scale 200 %, `view.scale_250` Chrome scale 250 %, `view.scale_300` Chrome scale 300 %, `view.text_normal` Text size Normal, `view.text_large` Text size Large, `view.text_bitmap` Text rendering bitmap, `view.text_smooth` Text rendering smooth, `view.workspace_build` Workspace Build, `view.workspace_terrain` Workspace Terrain, `view.workspace_script` Workspace Script, `view.workspace_playtest` Workspace Playtest, `view.command_palette` Command palette, `view.goto_tile` Go to tile..., `view.layer_locs` Layer Locs (reserved), `view.layer_npcs` Layer NPCs (reserved), `view.layer_objs` Layer Objs (reserved), `view.layer_collision` Layer Collision (reserved), `view.layer_grid` Tile grid (auto / on / off)
 
 Example:
 

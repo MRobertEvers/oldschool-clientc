@@ -231,12 +231,13 @@ main(void)
         /* One row at a time: 12 options over a 10-row window leaves only two
          * scroll positions, so a larger delta would land on the clamp instead
          * of proving the wheel moved anything. */
+        /* Wheel down (negative) shows later options, as a panel does. */
         check(
-            ToriRSChrome_MouseWheel(&ui, box_x, list_y, 1) == 1, "wheel over the list is consumed");
-        check(ui.widgets[dd].scroll == before + 1, "wheel scrolled the list");
+            ToriRSChrome_MouseWheel(&ui, box_x, list_y, -1) == 1, "wheel over the list is consumed");
+        check(ui.widgets[dd].scroll == before + 1, "wheel down scrolled the list on");
         /* Past the end it must clamp, and still be consumed. */
         check(
-            ToriRSChrome_MouseWheel(&ui, box_x, list_y, 999) == 1,
+            ToriRSChrome_MouseWheel(&ui, box_x, list_y, -999) == 1,
             "wheel past the end is still consumed");
         check(
             ui.widgets[dd].scroll == OPTION_COUNT - TORIRS_CHROME_DROPDOWN_ROWS,

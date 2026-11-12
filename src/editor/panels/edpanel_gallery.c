@@ -46,15 +46,19 @@
  *                the hundred a page holds -- and a press or drag on it goes
  *                there; the count line says the same in numbers ("37 to 72
  *                of 63,334 loc").
- *   Chips        two lines: the kinds with pictures (all, loc, npc, obj; the
- *                Catalog's kind when it is another), the sizes, list | grid
- *                -- the Catalog's "grid" chip opens this panel beside it
- *                (Editor_UiPanelOpenBeside); this panel's "list" chip opens
- *                the Catalog beside this one -- and favourites.
+ *   Controls     two dropdowns, each with a label a person can read and an
+ *                agent can name (2026-11-11: they were chips drawn in a
+ *                GRAPH, pressable only by their pixel): "Show" (all, loc,
+ *                npc, obj -- the kinds with pictures -- then "favourites",
+ *                the starred records alone, and the Catalog's kind when it
+ *                is another) and "Tiles" (the five sizes). Two rows, so the
+ *                well keeps the panel. The list of the same search is the
+ *                Catalog (F8), whose "grid" chip opens this panel beside it.
+ *   Names        two lines under a tile, so `timberwall_with_window` is not
+ *                `timberw..`; the tooltip has the whole name and the id.
  */
 
 #include "edpanel_catalog_model.h"
-#include "edpanel_chips.h"
 #include "edpanel_common.h"
 #include "edpanels.h"
 #include "editor/accounts/accounts_panel.h"
@@ -73,9 +77,10 @@
 #define GALLERY_W 260
 #define GALLERY_WELL_H 320
 #define GALLERY_WELL_MIN_H 96
-/** A tile: the picture, a frame, the name line. */
+/** A tile: the picture, a frame, the name's two lines. */
 #define GALLERY_TILE_PAD 4
-#define GALLERY_NAME_H 14
+#define GALLERY_NAME_LINE_H 12
+#define GALLERY_NAME_H (2 * GALLERY_NAME_LINE_H + 2)
 #define GALLERY_GAP 4
 /** Frames within which a second press on the same tile is a double-click. */
 #define GALLERY_DOUBLE_FRAMES 20
@@ -87,15 +92,12 @@ static const uint32_t k_gallery_kinds[] = {
     TORIRSMAPED_CATALOG_ANY, TORIRSMAPED_CATALOG_LOC, TORIRSMAPED_CATALOG_NPC, TORIRSMAPED_CATALOG_OBJ,
 };
 #define GALLERY_KINDS ((int)(sizeof(k_gallery_kinds) / sizeof(k_gallery_kinds[0])))
-/** What a chip past the kinds means (kind_of). */
-#define GALLERY_CHIP_SIZE (-10)
-#define GALLERY_CHIP_LIST (-20)
-#define GALLERY_CHIP_GRID (-21)
-#define GALLERY_CHIP_FAVOURITES (-30)
-/** The sizes the strip offers, smallest first. */
+/** The sizes Tiles offers, smallest first, and what it calls them. */
 #define GALLERY_SIZES 5
 static const int k_gallery_sizes[GALLERY_SIZES] = { EDITOR_PREFS_GALLERY_TILE_S, EDITOR_PREFS_GALLERY_TILE_M,
     EDITOR_PREFS_GALLERY_TILE_L, EDITOR_PREFS_GALLERY_TILE_XL, EDITOR_PREFS_GALLERY_TILE_XXL };
+static const char* const k_gallery_size_names[GALLERY_SIZES] = { "S (32 px)", "M (48 px)", "L (64 px)", "XL (96 px)",
+                                                                 "XXL (128 px)" };
 /** The star in a tile's corner: its box, and its hit key (this plus the
  *  row; a tile's own key is 1 + row, far below). */
 #define GALLERY_STAR 11
@@ -109,11 +111,15 @@ struct GalleryPanel
 {
     int panel;
     int input_find;
-    /** One line of chips: the kinds, then S M L, then list | grid; each
-     *  chip's meaning by index (kind_of >= 0 a kind, GALLERY_CHIP_SIZE +
-     *  0..2 a size, GALLERY_CHIP_LIST / GRID the views). */
-    struct Edp_ChipStrip strip;
-    int kind_of[EDP_CHIPS_MAX];
+    /** Kind: the kinds with pictures, and a fifth option naming the
+     *  Catalog's kind while it is another. `kind_sel` / `size_sel` are the
+     *  options last shown, so a change is the user's. */
+    int drop_kind;
+    int drop_size;
+    const char* kind_options[GALLERY_KINDS + 2];
+    int kind_option_count;
+    int kind_sel;
+    int size_sel;
     int row_count;
     int graph;
 
@@ -200,60 +206,71 @@ gallery_find_sync(
     }
 }
 
+/** Show's option after the kinds: the starred records alone. */
+#define GALLERY_SHOW_FAVOURITES GALLERY_KINDS
+
+/** Show and Tiles follow the Catalog's kind, its favourites view and the
+ *  tile pref, and set them when the user picks an option. */
 static void
-gallery_strips_draw(
+gallery_controls_sync(
     struct EditorUi* ui,
     struct GalleryPanel* self)
 {
-    uint32_t const current = Editor_Catalog_Kind(ui);
-    int const px = Editor_Gallery_TilePx(ui);
-    static const char* const size_names[GALLERY_SIZES] = { "S", "M", "L", "XL", "XXL" };
-    static const char* const size_tips[GALLERY_SIZES] = { "32 px pictures: the game's icon at its own size",
-        "48 px pictures", "64 px pictures", "96 px pictures", "128 px pictures" };
-    char label[EDP_CHIP_LABEL_MAX];
-    int shown = 0;
-    int index;
+    struct ToriRSChrome* chrome = ui->chrome;
+    uint32_t current;
+    int sel;
+    int want = GALLERY_KINDS + 1;
+    int options = GALLERY_KINDS + 1;
 
-    for( int i = 0; i < EDP_CHIPS_MAX; i++ )
-        self->kind_of[i] = -1;
-    edp_chips_begin(&self->strip);
+    /* The user's choice first: an option other than the one last shown.
+     * (Before the first sync nothing was shown: nothing is a choice.) */
+    sel = ToriRSChrome_DropdownSelected(chrome, self->drop_kind);
+    if( self->kind_sel >= 0 && sel != self->kind_sel && sel >= 0 && sel <= GALLERY_SHOW_FAVOURITES )
+    {
+        /* ShowFavourites is one switch, both ways. */
+        if( (sel == GALLERY_SHOW_FAVOURITES) != (Editor_Catalog_ShowingFavourites(ui) != 0) )
+            Editor_Catalog_ShowFavourites(ui);
+        if( sel < GALLERY_KINDS )
+            Editor_Catalog_SetKind(ui, k_gallery_kinds[sel]);
+        self->first_row = 0;
+    }
+    sel = ToriRSChrome_DropdownSelected(chrome, self->drop_size);
+    if( self->size_sel >= 0 && sel != self->size_sel && sel >= 0 && sel < GALLERY_SIZES
+        && ui->prefs.gallery_tile != k_gallery_sizes[sel] )
+    {
+        ui->prefs.gallery_tile = k_gallery_sizes[sel];
+        ui->prefs_serial++;
+    }
+
+    current = Editor_Catalog_Kind(ui);
     for( int i = 0; i < GALLERY_KINDS; i++ )
+        if( k_gallery_kinds[i] == current )
+            want = i;
+    if( want == GALLERY_KINDS + 1 )
     {
-        uint32_t const kind = k_gallery_kinds[i];
-        const char* name = kind == TORIRSMAPED_CATALOG_ANY ? "all" : ToriRSMapEdCatalog_KindName(kind);
-        index = edp_chips_push(&self->strip, name,
-            kind == TORIRSMAPED_CATALOG_ANY ? "every kind at once" : "only this kind", kind == current, 0);
-        if( index >= 0 )
-            self->kind_of[index] = (int)kind;
-        shown |= kind == current;
+        /* A kind with no pictures (seq, spotanim): listed while it is the
+         * Catalog's, so the dropdown never names a kind that is not shown. */
+        self->kind_options[GALLERY_KINDS + 1] = ToriRSMapEdCatalog_KindName(current);
+        options = GALLERY_KINDS + 2;
     }
-    if( !shown )
+    if( Editor_Catalog_ShowingFavourites(ui) )
+        want = GALLERY_SHOW_FAVOURITES;
+    if( options != self->kind_option_count || want != self->kind_sel
+        || ToriRSChrome_DropdownSelected(chrome, self->drop_kind) != want )
     {
-        index = edp_chips_push(&self->strip, ToriRSMapEdCatalog_KindName(current), "the Catalog's kind", 1, 0);
-        if( index >= 0 )
-            self->kind_of[index] = (int)current;
+        ToriRSChrome_DropdownSetOptions(chrome, self->drop_kind, self->kind_options, options, want);
+        self->kind_option_count = options;
+        self->kind_sel = want;
     }
+    want = 1;
     for( int i = 0; i < GALLERY_SIZES; i++ )
+        if( Editor_Gallery_TilePx(ui) == k_gallery_sizes[i] )
+            want = i;
+    if( want != self->size_sel || ToriRSChrome_DropdownSelected(chrome, self->drop_size) != want )
     {
-        index = edp_chips_push(&self->strip, size_names[i], size_tips[i], px == k_gallery_sizes[i], 0);
-        if( index >= 0 )
-            self->kind_of[index] = GALLERY_CHIP_SIZE + i;
+        ToriRSChrome_DropdownSetSelected(chrome, self->drop_size, want);
+        self->size_sel = want;
     }
-    index = edp_chips_push(&self->strip, "list", "the Catalog: the same search as a list (F8)", 0, 0);
-    if( index >= 0 )
-        self->kind_of[index] = GALLERY_CHIP_LIST;
-    index = edp_chips_push(&self->strip, "grid", "this grid", 1, 0);
-    if( index >= 0 )
-        self->kind_of[index] = GALLERY_CHIP_GRID;
-    /* Last, so the chips before it keep their places whatever it counts. */
-    snprintf(label, sizeof(label), "favourites (%d)", self->favourites_count);
-    index = edp_chips_push(&self->strip, label,
-        Editor_Catalog_ShowingFavourites(ui) ? "back to the index" : "the records you starred, and only them",
-        Editor_Catalog_ShowingFavourites(ui), 0);
-    if( index >= 0 )
-        self->kind_of[index] = GALLERY_CHIP_FAVOURITES;
-    edp_chips_end(ui, &self->strip);
-    edp_chips_hover(ui, &self->strip);
 }
 
 /* ---- the well ------------------------------------------------------------------------ */
@@ -433,6 +450,30 @@ gallery_bar_row(
     return row < 0 ? 0 : row > beyond ? beyond : row;
 }
 
+/** How many bytes of `text` fit on one name line `width` px wide, in the face
+ *  graph text is drawn in; with `dots`, how many fit with ".." after them.
+ *  Never more than a graph text item holds; at least one byte. */
+static int
+gallery_fit(
+    const struct ToriRSChrome* chrome,
+    const char* text,
+    int width,
+    int dots)
+{
+    int const face = chrome->theme.font_row;
+    int used = dots ? 2 * ToriRSChrome_GlyphAdvanceQ(face, 4, '.') : 0;
+    int n = 0;
+
+    while( text[n] != '\0' && n < TORIRS_CHROME_GRAPH_TEXT_MAX - 3 )
+    {
+        used += ToriRSChrome_GlyphAdvanceQ(face, 4, (unsigned char)text[n]);
+        if( used > width )
+            break;
+        n++;
+    }
+    return n > 0 ? n : 1;
+}
+
 static void
 gallery_draw(
     struct EditorUi* ui,
@@ -442,8 +483,11 @@ gallery_draw(
     struct ToriRSChrome* chrome = ui->chrome;
     int const px = Editor_Gallery_TilePx(ui);
     int const count = Editor_CatalogModelViewCount(model);
-    int const chars = (self->cell_w - 2) / 6 > 3 ? (self->cell_w - 2) / 6 : 3;
     int const first = self->first_row * self->cols;
+    /* The name lines' width, measured in the face graph text is drawn in
+     * (2026-11-11: counted at 6 px a letter, "brownbed" ran into the next
+     * tile's "orangebed"). */
+    int const name_w = self->cell_w - 4;
 
     self->pending = 0;
     ToriRSChrome_GraphBegin(chrome, self->graph);
@@ -474,11 +518,24 @@ gallery_draw(
             ToriRSChrome_GraphText(chrome, self->graph, x + GALLERY_TILE_PAD + 1, y + GALLERY_TILE_PAD + px / 2 + 4,
                 picture == 0 ? 0x8a8478 : 0xc06050, shortname);
         }
-        if( (int)strlen(view.name) > chars )
-            snprintf(name, sizeof(name), "%.*s..", chars > 2 ? chars - 2 : 1, view.name);
-        else
-            snprintf(name, sizeof(name), "%s", view.name);
-        ToriRSChrome_GraphText(chrome, self->graph, x + 2, y + self->cell_h - 4, 0xd8d0c0, name);
+        /* The name on two lines: what fits on the first, then the rest,
+         * ellipsised only when the two do not hold it. */
+        {
+            int const line = gallery_fit(chrome, view.name, name_w, 0);
+            snprintf(name, sizeof(name), "%.*s", line, view.name);
+            ToriRSChrome_GraphText(
+                chrome, self->graph, x + 2, y + self->cell_h - 4 - GALLERY_NAME_LINE_H, 0xd8d0c0, name);
+            if( view.name[line] != '\0' )
+            {
+                const char* rest = view.name + line;
+                int const fits = gallery_fit(chrome, rest, name_w, 0);
+                if( rest[fits] == '\0' )
+                    snprintf(name, sizeof(name), "%s", rest);
+                else
+                    snprintf(name, sizeof(name), "%.*s..", gallery_fit(chrome, rest, name_w, 1), rest);
+                ToriRSChrome_GraphText(chrome, self->graph, x + 2, y + self->cell_h - 4, 0xd8d0c0, name);
+            }
+        }
         picked = (int)view.kind == ui->tools.pick_kind && view.id == ui->tools.pick_id && view.id >= 0;
         if( picked )
             ToriRSChrome_GraphRect(chrome, self->graph, x, y, self->cell_w, self->cell_h, 0xffd040, 0, 0);
@@ -575,7 +632,7 @@ gallery_tick(
         return;
     gallery_find_sync(ui, self);
     self->favourites_serial = Editor_Catalog_FavouritesSerial(ui, &self->favourites_count);
-    gallery_strips_draw(ui, self);
+    gallery_controls_sync(ui, self);
     gallery_size_well(ui, self);
     gallery_grid(ui, self);
     gallery_clamp(self, model);
@@ -617,39 +674,7 @@ gallery_event(
     const struct ToriRSChromeEvent* event)
 {
     struct GalleryPanel* self = opaque;
-    int on_x = 0;
-    int index;
 
-    if( event->widget == self->strip.graph )
-    {
-        if( event->kind != TORIRS_CHROME_EVENT_GRAPH_PRESS )
-            return 1;
-        index = edp_chips_key_of(&self->strip, event->key, &on_x);
-        if( index < 0 || index >= EDP_CHIPS_MAX )
-            return 1;
-        if( self->kind_of[index] >= 0 )
-        {
-            Editor_Catalog_SetKind(ui, (uint32_t)self->kind_of[index]);
-            self->first_row = 0;
-        }
-        else if( self->kind_of[index] >= GALLERY_CHIP_SIZE && self->kind_of[index] < GALLERY_CHIP_SIZE + GALLERY_SIZES )
-        {
-            int const px = k_gallery_sizes[self->kind_of[index] - GALLERY_CHIP_SIZE];
-            if( ui->prefs.gallery_tile != px )
-            {
-                ui->prefs.gallery_tile = px;
-                ui->prefs_serial++;
-            }
-        }
-        else if( self->kind_of[index] == GALLERY_CHIP_LIST )
-            Editor_UiPanelOpenBeside(ui, "catalog", "gallery");
-        else if( self->kind_of[index] == GALLERY_CHIP_FAVOURITES )
-        {
-            Editor_Catalog_ShowFavourites(ui);
-            self->first_row = 0;
-        }
-        return 1;
-    }
     if( event->widget != self->graph )
         return 0;
     if( event->kind == TORIRS_CHROME_EVENT_GRAPH_RELEASE )
@@ -698,6 +723,7 @@ gallery_event(
         }
         self->press_row = row;
         self->press_frame = self->frame;
+        /* The Catalog says what the next click does with the pick. */
         (void)Editor_Catalog_PickRow(ui, row);
         return 1;
     }
@@ -764,8 +790,9 @@ gallery_activate(
     int widget)
 {
     struct GalleryPanel* self = opaque;
+
     (void)ui;
-    return widget == self->input_find || widget == self->graph || widget == self->strip.graph;
+    return widget == self->input_find || widget == self->graph || widget == self->drop_kind || widget == self->drop_size;
 }
 
 static void
@@ -825,9 +852,21 @@ Editor_Gallery_Register(struct EditorUi* ui)
     self->input_find = ToriRSChrome_TextInput(chrome, self->panel, "Find", "");
     ToriRSChrome_SetTooltip(chrome, self->input_find, "the Catalog's Find: name, #id, obj:/npc:/loc:, key=value");
     self->row_count = ToriRSChrome_Label(chrome, self->panel, "");
-    edp_chips_init(ui, &self->strip, self->panel, 2);
+    for( int i = 0; i < GALLERY_KINDS; i++ )
+        self->kind_options[i] =
+            k_gallery_kinds[i] == TORIRSMAPED_CATALOG_ANY ? "all" : ToriRSMapEdCatalog_KindName(k_gallery_kinds[i]);
+    self->kind_options[GALLERY_SHOW_FAVOURITES] = "favourites";
+    self->kind_option_count = GALLERY_KINDS + 1;
+    self->kind_sel = -1;
+    self->size_sel = -1;
+    self->drop_kind = ToriRSChrome_Dropdown(chrome, self->panel, "Show", self->kind_options, GALLERY_KINDS + 1, 0);
+    ToriRSChrome_SetTooltip(chrome, self->drop_kind, "A kind, or favourites: the records you starred");
+    self->drop_size = ToriRSChrome_Dropdown(chrome, self->panel, "Tiles", k_gallery_size_names, GALLERY_SIZES, 1);
+    ToriRSChrome_SetTooltip(chrome, self->drop_size, "The pictures' size; this device remembers it");
     self->graph = ToriRSChrome_Graph(chrome, self->panel, "", edp_px(ui, GALLERY_WELL_H));
     assert(self->graph >= 0);
+    /* The well pages its own tiles with the wheel (gallery_event). */
+    ToriRSChrome_GraphSetWheel(chrome, self->graph, 1);
     ToriRSChrome_SetTooltip(chrome, self->graph, "click: pick; double-click: place (or put in the account's slot)");
     self->well_h = GALLERY_WELL_H;
     ToriRSChrome_PanelSetResizable(chrome, self->panel, 1);

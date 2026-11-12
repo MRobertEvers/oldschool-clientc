@@ -153,4 +153,81 @@ cw_test_graph(void)
                      ToriRSChrome_GraphKeyAt(&g_cw_ui, other, 5, 5) == 99,
             "removing a well returns its items and keeps the rest addressable");
     }
+
+    /* The wheel over a well in a page that scrolls is the PAGE's, unless the
+     * well said it uses the wheel (ToriRSChrome_GraphSetWheel). The map
+     * editor's Palette is wells between rows: each well took the notch and
+     * dropped it, so the page scrolled only from a label, and a long turn of
+     * the wheel stopped where the page brought a well under the pointer. */
+    {
+        struct ToriRSChromeWheelFrame frame;
+        struct ToriRSChromeWidget const* gw;
+        int page;
+        int well;
+        int gx;
+        int gy;
+        int most;
+
+        cw_reset();
+        page = ToriRSChrome_PanelAdd(&g_cw_ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 300, "Palette");
+        (void)ToriRSChrome_Label(&g_cw_ui, page, "Underlay");
+        well = ToriRSChrome_Graph(&g_cw_ui, page, NULL, 200);
+        for( int i = 0; i < 30; i++ )
+            (void)ToriRSChrome_Label(&g_cw_ui, page, "a row under the well");
+        ToriRSChrome_PanelSetFixedHeight(&g_cw_ui, page, 260);
+        ToriRSChrome_PanelSetScrollable(&g_cw_ui, page, 1);
+        cw_run();
+        gw = &g_cw_ui.widgets[well];
+        gx = gw->x + 20;
+        gy = gw->y + gw->h / 2;
+        most = g_cw_ui.panels[page].content_h - g_cw_ui.panels[page].view_h;
+        CW_CHECK(most > 400, "the page has more rows than its view");
+        while( ToriRSChrome_TakeEvent(&g_cw_ui, &ev) )
+            ;
+        CW_CHECK(ToriRSChrome_MouseWheel(&g_cw_ui, gx, gy, -1) == 1 && !ToriRSChrome_TakeEvent(&g_cw_ui, &ev) &&
+                     g_cw_ui.panels[page].scroll_y > 0,
+            "a notch over a well in a page that scrolls moves the page, with no WHEEL event");
+        /* The pointer rests where it was while the page passes under it:
+         * whatever arrives there, every notch still scrolls. */
+        for( int i = 0; i < 40; i++ )
+        {
+            cw_run();
+            (void)ToriRSChrome_MouseWheel(&g_cw_ui, gx, gy, -1);
+        }
+        CW_CHECK(g_cw_ui.panels[page].scroll_y == most && !ToriRSChrome_TakeEvent(&g_cw_ui, &ev),
+            "a long turn of the wheel reaches the end of the page");
+        ToriRSChrome_PanelSetScroll(&g_cw_ui, page, 0);
+        cw_run();
+        /* A trackpad's exact scroll over the well is the page's too. */
+        memset(&frame, 0, sizeof(frame));
+        frame.x = gx;
+        frame.y = gy;
+        frame.trackpad = 1;
+        frame.scroll_dy = -30.0f;
+        frame.px_per_notch = 48;
+        CW_CHECK(ToriRSChrome_WheelFrame(&g_cw_ui, &frame) == 1 && g_cw_ui.panels[page].scroll_y == 30 &&
+                     !ToriRSChrome_TakeEvent(&g_cw_ui, &ev),
+            "a trackpad scroll over the well moves the page by its pixels");
+        ToriRSChrome_PanelSetScroll(&g_cw_ui, page, 0);
+        cw_run();
+        /* Ctrl+wheel is the well's either way: a pinch about the pointer. */
+        memset(&frame, 0, sizeof(frame));
+        frame.x = gx;
+        frame.y = gy;
+        frame.wheel = 1;
+        frame.ctrl = 1;
+        CW_CHECK(ToriRSChrome_WheelFrame(&g_cw_ui, &frame) == 1 && ToriRSChrome_TakeEvent(&g_cw_ui, &ev) &&
+                     ev.kind == TORIRS_CHROME_EVENT_GRAPH_PINCH && g_cw_ui.panels[page].scroll_y == 0,
+            "ctrl+wheel over the well is a pinch for it, and the page stays");
+        /* A well that uses the wheel keeps it, wherever it sits. */
+        ToriRSChrome_GraphSetWheel(&g_cw_ui, well, 1);
+        CW_CHECK(ToriRSChrome_MouseWheel(&g_cw_ui, gx, gy, -1) == 1 && ToriRSChrome_TakeEvent(&g_cw_ui, &ev) &&
+                     ev.kind == TORIRS_CHROME_EVENT_GRAPH_WHEEL && ev.value == -1 &&
+                     g_cw_ui.panels[page].scroll_y == 0,
+            "a well that said it uses the wheel gets the WHEEL event and the page stays");
+        ToriRSChrome_GraphSetWheel(&g_cw_ui, well, 0);
+        CW_CHECK(ToriRSChrome_MouseWheel(&g_cw_ui, gx, gy, -1) == 1 && !ToriRSChrome_TakeEvent(&g_cw_ui, &ev) &&
+                     g_cw_ui.panels[page].scroll_y > 0,
+            "and one that takes it back leaves it to the page again");
+    }
 }

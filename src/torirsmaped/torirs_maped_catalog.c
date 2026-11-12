@@ -117,6 +117,10 @@ enum cat_src_type
     CAT_SRC_JL2,
     CAT_SRC_WMA,
     CAT_SRC_WMC,
+    /** A record the authority holds that no file has yet (an unsaved "Copy
+     *  to new"): its id and its block, from memory (`cat_source.mem`). Last,
+     *  so the trace's type names and every table indexed by type stand. */
+    CAT_SRC_PENDING,
 };
 
 /** One thing a source says about one entity. Strings are pool offsets. */
@@ -186,6 +190,11 @@ struct cat_source
     struct cat_claim* claims;
     int claim_count;
     int claim_cap;
+
+    /* CAT_SRC_PENDING: the block's text (owned) and the id it was given. */
+    char* mem;
+    size_t mem_len;
+    int32_t mem_id;
 };
 
 struct cat_ref
@@ -266,6 +275,18 @@ struct cat_held_query
     struct cat_hit* hits;
     int count;
     int cap;
+};
+
+/** One record made by SAVE_AS, until a save writes it (PendingSync). */
+struct cat_pending
+{
+    uint32_t kind;
+    int32_t id;
+    char name[64];
+    /** The CFG document revision the index's copy was parsed from. */
+    uint32_t revision;
+    /** The index holds a CAT_SRC_PENDING source for it. */
+    int listed;
 };
 
 /** Directories the sliced scan holds open at once; a deeper subtree is
@@ -426,6 +447,12 @@ struct ToriRSMapEdCatalog
     uint32_t kind_index_revision;
     struct cat_held_query held;
     struct ToriRSMapEdCatalogCounters counters;
+
+    /** The records "Copy to new" made in this server's life whose files are
+     *  not written yet (ToriRSMapEdCatalog_PendingAdd / _PendingSync). */
+    struct cat_pending* pending;
+    int pending_count;
+    int pending_cap;
 };
 
 /* ------------------------------------------------------------------ */
@@ -821,6 +848,7 @@ cat_source_free(struct cat_source* src)
     ToriMem_Free(ToriMem_Editor(), src->hist);
     ToriMem_Free(ToriMem_Editor(), src->areas);
     ToriMem_Free(ToriMem_Editor(), src->claims);
+    ToriMem_Free(ToriMem_Editor(), src->mem);
     memset(src, 0, sizeof(*src));
 }
 
@@ -1940,6 +1968,19 @@ cat_parse_source(
     size_t max = 0;
 
     cat_source_clear(src);
+    if( src->type == CAT_SRC_PENDING )
+    {
+        /* What the ledger line and the block will say once they are files:
+         * the id (as pack/<type>.alloc binds it), then the block. */
+        struct cat_contrib* c = cat_contrib_add(src, src->kind, TORIRSMAPED_PROV_ALLOC);
+        const char* name = strrchr(src->path, '#');
+        assert(name);
+        c->id = src->mem_id;
+        c->line = 1;
+        c->name = cat_pool_str(src, name + 1);
+        cat_parse_blocks(src, src->mem, src->mem_len, src->kind, TORIRSMAPED_PROV_CACHE, 0);
+        return;
+    }
     if( src->type == CAT_SRC_NPC_COMBAT )
     {
         /* 16,000 files of death/attack/defend anims that no summary field
@@ -2604,7 +2645,8 @@ cat_compact(struct ToriRSMapEdCatalog* catalog)
     int removed = 0;
     for( int i = 0; i < catalog->source_count; i++ )
     {
-        if( !catalog->sources[i].seen )
+        /* A scan sees files; an unsaved record is not one. */
+        if( !catalog->sources[i].seen && catalog->sources[i].type != CAT_SRC_PENDING )
         {
             cat_source_free(&catalog->sources[i]);
             removed++;
@@ -3171,7 +3213,7 @@ static const int k_cat_merge_order[][5] = {
     { CAT_SRC_COMPACK, CAT_SRC_PACK, CAT_SRC_ALLOC, CAT_SRC_IF_COMPACK, CAT_SRC_CS2 },
     { CAT_SRC_CONFIG, CAT_SRC_JM2, CAT_SRC_JL2, CAT_SRC_IF, CAT_SRC_CS2B },
     { CAT_SRC_OVERLAY, CAT_SRC_NPC_STATS, CAT_SRC_NPC_COMBAT, CAT_SRC_MEMBER_CLIENT, CAT_SRC_MEMBER_SERVER },
-    { CAT_SRC_RS2, -1, -1, -1, -1 },
+    { CAT_SRC_RS2, CAT_SRC_PENDING, -1, -1, -1 },
 };
 #define CAT_MERGE_PASSES ((int)(sizeof(k_cat_merge_order) / sizeof(k_cat_merge_order[0])))
 
@@ -3378,6 +3420,7 @@ ToriRSMapEdCatalog_Free(struct ToriRSMapEdCatalog* catalog)
     ToriMem_Free(ToriMem_Editor(), catalog->region_nodes);
     ToriMem_Free(ToriMem_Editor(), catalog->spawn_counts);
     ToriMem_Free(ToriMem_Editor(), catalog->scratch);
+    ToriMem_Free(ToriMem_Editor(), catalog->pending);
     ToriMem_Free(ToriMem_Editor(), catalog);
 }
 
@@ -4622,6 +4665,201 @@ ToriRSMapEdCatalog_RefreshPaths(
         catalog->scratch_cap = 0;
     }
     return changed;
+}
+
+/* ---- records no file has yet: ToriRSMapEdCatalog_PendingAdd / _PendingSync ---- */
+
+/** The index's source for unsaved record (kind, name), or -1; its path to
+ *  `path` either way. */
+static int
+cat_pending_source(
+    struct ToriRSMapEdCatalog* catalog,
+    uint32_t kind,
+    const char* name,
+    char* path,
+    size_t path_size)
+{
+    /* Where a record view says the record is from: the file a save will put
+     * it in, marked. No file of the tree starts with '(' or holds a '#' (and
+     * the scan records neither), so it is nobody else's path. */
+    snprintf(path, path_size, "(unsaved)/configs/all.%s#%s", ToriRSMapEdCatalog_KindName(kind), name);
+    if( catalog->path_slot_count == 0 )
+        cat_path_index_rebuild(catalog);
+    return cat_path_find(catalog, path, cat_hash_bytes(path));
+}
+
+void
+ToriRSMapEdCatalog_PendingAdd(
+    struct ToriRSMapEdCatalog* catalog,
+    uint32_t kind,
+    int32_t id,
+    const char* name)
+{
+    struct cat_pending* pending = NULL;
+
+    assert(catalog);
+    assert(kind < TORIRSMAPED_CATALOG_KIND_COUNT);
+    assert(id >= 0);
+    assert(name);
+    assert(name[0]);
+    assert(strlen(name) < sizeof(pending->name));
+    for( int i = 0; i < catalog->pending_count && !pending; i++ )
+        if( catalog->pending[i].kind == kind && strcmp(catalog->pending[i].name, name) == 0 )
+            pending = &catalog->pending[i];
+    if( !pending )
+    {
+        catalog->pending = cat_grow(
+            catalog->pending, &catalog->pending_cap, catalog->pending_count + 1, sizeof(*catalog->pending));
+        pending = &catalog->pending[catalog->pending_count++];
+        memset(pending, 0, sizeof(*pending));
+        pending->kind = kind;
+        snprintf(pending->name, sizeof(pending->name), "%s", name);
+    }
+    /* An earlier copy of this name was undone and the name used again: the
+     * index's source, if it still has one, is parsed again at the next sync
+     * with this id. */
+    pending->id = id;
+    pending->revision = UINT32_MAX;
+}
+
+int
+ToriRSMapEdCatalog_PendingSync(
+    struct ToriRSMapEdCatalog* catalog,
+    struct Editor_Doc* doc)
+{
+    int changed = 0;
+    int kept = 0;
+
+    assert(catalog);
+    assert(doc);
+    if( catalog->pending_count == 0 )
+        return 0;
+    /* As RefreshPaths: a warm build that is done is taken back; one still
+     * running reads the tree as it stands, and the next request syncs. */
+    if( catalog->job.thread_live && cat_warm_thread_done(catalog) )
+        cat_warm_thread_join(catalog);
+    if( catalog->job.thread_live || !catalog->built )
+        return 0;
+
+    for( int i = 0; i < catalog->pending_count; i++ )
+    {
+        struct cat_pending pending = catalog->pending[i];
+        struct Editor_DocHandle handle;
+        char key[EDITOR_DOC_KEY_MAX];
+        char path[CAT_PATH_MAX];
+        const struct Editor_TextDoc* text = NULL;
+        int index;
+        int saved;
+
+        snprintf(key, sizeof(key), "%s:%s", ToriRSMapEdCatalog_KindName(pending.kind), pending.name);
+        if( Editor_DocFind(doc, EDITOR_DOC_CFG, key, &handle) && handle.text && handle.text->loaded )
+            text = handle.text;
+        index = cat_pending_source(catalog, pending.kind, pending.name, path, sizeof(path));
+        /* Written: the file's own source carries it from here (the save
+         * named the file to RefreshPaths), and this entry is done. */
+        saved = text && text->length > 0 && !text->dirty;
+        if( !text || text->length == 0 || saved )
+        {
+            /* Saved, or the block is gone (the copy was undone; a redo
+             * brings it back and the entry lists it again). */
+            if( index >= 0 )
+            {
+                (void)cat_drop_sources(catalog, &index, 1);
+                changed = 1;
+            }
+            pending.listed = 0;
+            pending.revision = UINT32_MAX;
+            if( !saved )
+                catalog->pending[kept++] = pending;
+            continue;
+        }
+        if( pending.listed && index >= 0 && pending.revision == text->revision )
+        {
+            catalog->pending[kept++] = pending;
+            continue;
+        }
+        if( index < 0 )
+        {
+            struct cat_source* src;
+            catalog->sources = cat_grow(
+                catalog->sources, &catalog->source_cap, catalog->source_count + 1, sizeof(*catalog->sources));
+            src = &catalog->sources[catalog->source_count];
+            memset(src, 0, sizeof(*src));
+            src->path = ToriMem_Strdup(ToriMem_Editor(), path);
+            assert(src->path);
+            src->hash = cat_hash_bytes(path);
+            src->type = CAT_SRC_PENDING;
+            src->kind = (int)pending.kind;
+            src->seen = 1;
+            index = catalog->source_count++;
+            cat_path_index_rebuild(catalog);
+        }
+        {
+            struct cat_source* src = &catalog->sources[index];
+            ToriMem_Free(ToriMem_Editor(), src->mem);
+            src->mem = ToriMem_Alloc(ToriMem_Editor(), text->length + 1);
+            assert(src->mem);
+            memcpy(src->mem, text->text, text->length);
+            src->mem[text->length] = 0;
+            src->mem_len = text->length;
+            src->mem_id = pending.id;
+            src->size = (int64_t)text->length;
+            cat_parse_source(catalog, src);
+            cat_source_trim(src);
+            src->dirty = 0;
+        }
+        pending.listed = 1;
+        pending.revision = text->revision;
+        changed = 1;
+        catalog->pending[kept++] = pending;
+    }
+    catalog->pending_count = kept;
+    if( changed )
+    {
+        cat_merge(catalog);
+        catalog->revision++;
+        catalog->counters.merges++;
+    }
+    return changed;
+}
+
+int
+ToriRSMapEdCatalog_RecordOverlays(
+    struct ToriRSMapEdCatalog* catalog,
+    uint32_t kind,
+    const char* name,
+    char (*out)[TORIRSMAPED_CATALOG_OVERLAY_MAX],
+    int max)
+{
+    int record;
+    int count = 0;
+
+    assert(catalog);
+    assert(kind < TORIRSMAPED_CATALOG_KIND_COUNT);
+    assert(name);
+    assert(out);
+    assert(max > 0);
+    if( catalog->job.thread_live && cat_warm_thread_done(catalog) )
+        cat_warm_thread_join(catalog);
+    if( catalog->job.thread_live || !catalog->built )
+        return -1;
+    record = cat_find_exact(catalog, (int)kind, name);
+    if( record < 0 )
+        return 0;
+    for( int32_t r = catalog->records[record].first_ref; r >= 0 && count < max; r = catalog->refs[r].next )
+    {
+        const struct cat_source* src = &catalog->sources[catalog->refs[r].source];
+        int known = 0;
+
+        if( src->type != CAT_SRC_OVERLAY || strncmp(src->path, "server/scripts/", 15) != 0
+            || strlen(src->path + 15) >= TORIRSMAPED_CATALOG_OVERLAY_MAX )
+            continue;
+        for( int i = 0; i < count && !known; i++ )
+            known = strcmp(out[i], src->path + 15) == 0;
+        if( !known )
+            snprintf(out[count++], TORIRSMAPED_CATALOG_OVERLAY_MAX, "%s", src->path + 15);
+    }
+    return count;
 }
 
 int
@@ -5992,6 +6230,10 @@ cat_record_fresh(
         const struct cat_source* src = &catalog->sources[catalog->refs[r].source];
         char full[CAT_PATH_MAX * 2];
         struct stat st;
+        /* An unsaved record's text is the authority's, kept current by
+         * PendingSync: there is no file to have changed under it. */
+        if( src->type == CAT_SRC_PENDING )
+            continue;
         if( src->dirty )
             return 0;
         snprintf(full, sizeof(full), "%s/%s", catalog->content_dir, src->path);
@@ -6021,6 +6263,8 @@ cat_refresh_record(
         struct cat_source* src = &catalog->sources[catalog->refs[r].source];
         char full[CAT_PATH_MAX * 2];
         struct stat st;
+        if( src->type == CAT_SRC_PENDING )
+            continue;
         snprintf(full, sizeof(full), "%s/%s", catalog->content_dir, src->path);
         catalog->counters.stats++;
         if( stat(full, &st) != 0 )
@@ -6047,6 +6291,7 @@ cat_merge_rank(const struct cat_source* src)
     switch( src->type )
     {
     case CAT_SRC_CONFIG:
+    case CAT_SRC_PENDING:
         return 0;
     case CAT_SRC_NPC_STATS:
     case CAT_SRC_NPC_COMBAT:
@@ -6186,7 +6431,12 @@ ToriRSMapEdCatalog_HandleRecord(
             source_count++;
         }
 
-        if( c->len > 0
+        if( c->len > 0 && src->type == CAT_SRC_PENDING )
+        {
+            assert((size_t)c->off + c->len <= src->mem_len);
+            cat_rec_put_text(&build, src->mem + c->off, c->len, source);
+        }
+        else if( c->len > 0
             && (src->type == CAT_SRC_CONFIG || src->type == CAT_SRC_OVERLAY
                 || src->type == CAT_SRC_NPC_STATS || src->type == CAT_SRC_NPC_COMBAT) )
         {

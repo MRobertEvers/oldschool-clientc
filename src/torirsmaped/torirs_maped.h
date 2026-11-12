@@ -327,12 +327,16 @@ enum ToriRSMapEdCapability
      *  this bit. */
     TORIRSMAPED_CAP_DOC_CREATE_STROKE = 128,
     /** The lane's GAME server takes the map_instance_* script commands
-     *  (ss_opcode.h 11009..11014, docs/map_instances.md) for an editor-made
-     *  trigger to build a runtime instance with. RESERVED: nothing sets it.
-     *  The commands exist in this tree's torirsserver, but the live link's
-     *  CTL_FACT_HELLO (torirs_maped_live.h) carries no capability word, so
-     *  the editor server cannot learn it of an attached server; the instance
-     *  dialog's "runtime map instance" chip stays disabled and says so. */
+     *  (ss_opcode.h 11009..11014, docs/map_instances.md) and its content has
+     *  the procs over them, for an editor-made trigger to stamp a runtime
+     *  instance with. The live link's CTL_FACT_HELLO (torirs_maped_live.h)
+     *  carries no capability word, so this is STATED, not asked: set when the
+     *  lane's game server is the one this server starts (this tree's
+     *  torirsserver, whose script engine has the commands) over a content
+     *  tree that has general/scripts/misc/map_instance_procs.rs2
+     *  (ToriRSMapEd_LaneTakesMapInstances). Clear for a lane that starts no
+     *  server of its own, or whose content lacks the procs: the instance
+     *  dialog's "runtime map instance" chip is then disabled and says so. */
     TORIRSMAPED_CAP_MAP_INSTANCE = 256,
     /** CATALOG_USES / FACT_CATALOG_USES (workbench 6.6, the Record panel's
      *  Where used tab; torirs_maped_catalog.h). A client sends CATALOG_USES
@@ -348,6 +352,10 @@ enum ToriRSMapEdCapability
      *  on its worker thread (torirs_maped_catalog.h). A client sets the flag
      *  only to a server with this bit. Set with TORIRSMAPED_CAP_CATALOG. */
     TORIRSMAPED_CAP_CATALOG_SQUARES_NOWAIT = 2048,
+    /** LANE_HANDOUT / FACT_LANE_HANDED_OUT (torirs_maped_lanes.h): a path
+     *  made the lane's own before it goes to a program outside the editor.
+     *  A client sends LANE_HANDOUT only to a server with this bit. */
+    TORIRSMAPED_CAP_LANE_HANDOUT = 4096,
 };
 
 /** DOC_CREATE's template word: OR'ed onto the template, the fill joins the

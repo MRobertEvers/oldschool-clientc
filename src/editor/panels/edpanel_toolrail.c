@@ -43,6 +43,8 @@ static const int k_tool_icons[EDITOR_TOOL_COUNT] = {
     [EDITOR_TOOL_REGION] = TORIRS_CHROME_SKIN_TOOL_REGION,
     [EDITOR_TOOL_LASSO] = TORIRS_CHROME_SKIN_TOOL_LASSO,
     [EDITOR_TOOL_TIDY] = TORIRS_CHROME_SKIN_TOOL_TIDY,
+    /* The hammer the skin baked for "build": it had no tool until this. */
+    [EDITOR_TOOL_BUILDING] = TORIRS_CHROME_SKIN_BUILD,
 };
 
 /* The same tools in the icon face (ui/torirs_chrome_icons.h), which is what
@@ -71,13 +73,14 @@ static const char* const k_tool_glyphs[EDITOR_TOOL_COUNT] = {
     [EDITOR_TOOL_REGION] = TORIRS_CHROME_ICON_TOOL_REGION,
     [EDITOR_TOOL_LASSO] = TORIRS_CHROME_ICON_TOOL_LASSO,
     [EDITOR_TOOL_TIDY] = TORIRS_CHROME_ICON_TOOL_TIDY,
+    [EDITOR_TOOL_BUILDING] = TORIRS_CHROME_ICON_BUILD,
 };
 
 /* What the next click does. The chord is not part of the text: the badge in
  * the icon box's corner wears the first one and the tooltip ends with every
  * one as a keycap (ToriRSChrome_SetTooltipChord). */
 static const char* const k_tool_tips[EDITOR_TOOL_COUNT] = {
-    [EDITOR_TOOL_SELECT] = "Select: click a tile, shift-click locs",
+    [EDITOR_TOOL_SELECT] = "Select: click a loc or a tile; Shift-click adds locs",
     [EDITOR_TOOL_RECT_SELECT] = "Rectangle: copy, paste, fill, clear",
     [EDITOR_TOOL_HEIGHT] = "Height: pull to the grid; Ctrl/Cmd+wheel moves it",
     [EDITOR_TOOL_FLATTEN] = "Flatten to the first tile's height",
@@ -97,6 +100,7 @@ static const char* const k_tool_tips[EDITOR_TOOL_COUNT] = {
     [EDITOR_TOOL_REGION] = "Region: paint the overlay, edge cut to shapes; Alt takes off",
     [EDITOR_TOOL_LASSO] = "Lasso: draw a loop (or click corners) to fill with the overlay",
     [EDITOR_TOOL_TIDY] = "Tidy: click an overlay to smooth its stepped edge",
+    [EDITOR_TOOL_BUILDING] = "Building: drag a house; click a wall for a door or window",
 };
 
 struct ToolRailPanel
@@ -108,6 +112,9 @@ struct ToolRailPanel
     int button_new;
     int button_squares;
     enum Editor_Tool shown;
+    /** The history's serial the loc selection was last checked against the
+     *  document at (toolrail_selection_follow). */
+    uint32_t selection_serial;
     /** Editor_Live_Busy as the RUN button last showed it (disabled while a
      *  RUN or a build is in flight). */
     int run_busy_shown;
@@ -150,12 +157,46 @@ toolrail_press(
     self->shown = ui->tools.tool;
 }
 
+/**
+ * The loc selection follows the document: whenever the history moved (an
+ * edit, an Undo, a Redo, here or in another window) the selected locs that
+ * are no longer there leave the selection (Editor_LocSelectionPrune). Here
+ * because the rail is the one module every window of the editor has, and the
+ * selection is the tools' -- nothing else ticks for it. Nothing is read on a
+ * frame where the history stood still.
+ */
+static void
+toolrail_selection_follow(
+    struct EditorUi* ui,
+    struct ToolRailPanel* self)
+{
+    const struct Editor_History* history;
+    int kept;
+
+    if( !ui->editor )
+        return;
+    history = Editor_GetHistory(ui->editor);
+    if( !history || history->serial == self->selection_serial )
+        return;
+    self->selection_serial = history->serial;
+    /* A stroke in progress re-points the selection itself when it ends. */
+    if( ui->tools.loc_count == 0 || ui->tools.stroke_open )
+        return;
+    kept = Editor_LocSelectionPrune(&ui->editor->doc, ui->tools.locs, ui->tools.loc_count);
+    if( kept == ui->tools.loc_count )
+        return;
+    ui->tools.loc_count = kept;
+    if( ui->hooks.selection_changed )
+        ui->hooks.selection_changed(ui->hooks_user);
+}
+
 static void
 toolrail_tick(
     struct EditorUi* ui,
     void* opaque)
 {
     struct ToolRailPanel* self = opaque;
+    toolrail_selection_follow(ui, self);
     if( self->shown != ui->tools.tool )
         toolrail_press(ui, self);
     if( self->hint_serial != ui->hotkeys.serial )

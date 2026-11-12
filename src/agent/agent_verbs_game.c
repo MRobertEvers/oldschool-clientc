@@ -1,8 +1,9 @@
 /*
- * The agent server's game verb (docs/AGENT_API.md): what a player would read
+ * The agent server's game verbs (docs/AGENT_API.md): what a player would read
  * off the screen of a client that is in the game -- whether it is logged in,
- * where the local player stands, the right-click menu, the last chat lines,
- * and the dialogue's options.
+ * where the local player stands (and whether that is a map instance), the
+ * right-click menu, the last chat lines, the dialogue's options and the page
+ * of dialogue showing -- the npcs, and `chat`, which says a line.
  *
  * The tree has a driver that reads exactly these for quest tests
  * (src/plugin/torirs_plugin_drive*.c, docs/QUEST_DRIVER_DESIGN.md), but every
@@ -15,13 +16,16 @@
  *   the player's tile   App_LocalPlayerTiles (app.h, built everywhere)
  *   chat                app->chat.messages, as DriveState_Messages does
  *   dialogue options    the dialog_options_* roles, as DriveChat_Options does
+ *   the dialogue page   the dialog_npc_*, dialog_player_*, dialog_mesbox_* and
+ *                       dialog_objbox_* roles (revconfig's roles file, which
+ *                       every client loads): a page's text, its speaker and
+ *                       its continue line, while its nodes are on screen
  *   the npcs            app->world->entities.npc, as drive.npc_pose walks it,
  *                       each placed by App_NpcElementScreenPosition (app.h)
  *
  * What the driver gets FROM the embedded server -- server varps, the content
- * pack's symbols for a widget, an npc's dialogue text by component -- has no
- * source here, and the verb leaves it out rather than guess: there is no
- * "text" of the page of dialogue an npc is speaking.
+ * pack's symbols for a widget that has no role -- has no source here, and the
+ * verbs leave it out rather than guess.
  */
 
 #include "agent/agent_verbs.h"
@@ -45,6 +49,10 @@
 
 /** Rows a chat menu can hold (the driver's DRIVE_CHAT_OPTIONS_ROW_MAX). */
 #define AGENT_DIALOG_ROWS 5
+/** The first tile x of the server's map instance pool: map square 100
+ *  (torirsserver's MAPINSTANCE_SCAN_X0, the content's
+ *  ^map_instance_pool_min_x). */
+#define AGENT_INSTANCE_POOL_TILE_X (100 * 64)
 
 /** The text of the node a revconfig role names, when the role is live and is
  *  a text node; else NULL. */
@@ -65,6 +73,117 @@ agent_role_text(
     if( node->type != UIELEM_RS_TEXT )
         return NULL;
     return node->u.rs_text.text ? node->u.rs_text.text : "";
+}
+
+/** The same, only while the node is on screen: neither it nor anything above
+ *  it hidden or reclaimed (a closed page's nodes can outlive it). */
+static const char*
+agent_role_text_showing(
+    struct App* app,
+    const char* role)
+{
+    int32_t index;
+
+    if( !app->tree )
+        return NULL;
+    index = UITree_RoleNodeByName(app->tree, &app->ui_roles, role);
+    if( index < 0 || UITree_ComponentHiddenOrOrphaned(app->tree, index) )
+        return NULL;
+    return agent_role_text(app, role);
+}
+
+/**
+ * A component's text as a person reads it: `<br>` is a space, every other
+ * `<...>` tag (a colour, an image) is dropped. The page an npc speaks is
+ * stored "Hello there.<br>Can I help you?".
+ */
+static void
+agent_plain_text(
+    const char* text,
+    char* out,
+    size_t out_size)
+{
+    size_t used = 0;
+
+    assert(out_size > 0);
+    for( const char* c = text; *c && used + 1 < out_size; c++ )
+    {
+        if( *c == '<' )
+        {
+            const char* close = strchr(c, '>');
+            if( close )
+            {
+                if( strncmp(c, "<br>", 4) == 0 && used > 0 && out[used - 1] != ' ' )
+                    out[used++] = ' ';
+                c = close;
+                continue;
+            }
+        }
+        out[used++] = *c;
+    }
+    out[used] = '\0';
+}
+
+/** A page of dialogue the chat box can show, by the roles of its parts
+ *  (revconfig's dialog_* roles: chat_left, chat_right, messagebox,
+ *  messagebox_titled, objectbox). NULL: the page has no such part. */
+struct AgentPage
+{
+    const char* kind;
+    const char* text;
+    const char* speaker;
+    const char* proceed;
+};
+
+static const struct AgentPage k_agent_pages[] = {
+    { "npc", "dialog_npc_text", "dialog_npc_name", "dialog_npc_continue" },
+    { "player", "dialog_player_text", "dialog_player_name", "dialog_player_continue" },
+    { "mesbox", "dialog_mesbox_text", NULL, "dialog_mesbox_continue" },
+    { "mesbox", "dialog_mesbox_titled_text", "dialog_mesbox_titled_title", "dialog_mesbox_titled_continue" },
+    { "objbox", "dialog_objbox_text", NULL, NULL },
+    { "objbox", "dialog_objbox_double_text", NULL, "dialog_objbox_double_continue" },
+};
+
+/**
+ * "page": the page of dialogue showing in the chat box, when one is: its
+ * kind, who speaks, what it says, and its continue line. A dozen role
+ * lookups (remembered by the role table until the tree changes) and one
+ * ancestor walk each: nothing here scans the tree.
+ */
+static void
+agent_write_page(
+    struct App* app,
+    struct AgentJsonWriter* out)
+{
+    for( size_t i = 0; i < sizeof(k_agent_pages) / sizeof(k_agent_pages[0]); i++ )
+    {
+        const struct AgentPage* page = &k_agent_pages[i];
+        const char* text = agent_role_text_showing(app, page->text);
+        const char* part;
+        char plain[1024];
+
+        if( !text )
+            continue;
+        AgentJsonW_Key(out, "page");
+        AgentJsonW_ObjBegin(out);
+        AgentJsonW_KStr(out, "kind", page->kind);
+        part = page->speaker ? agent_role_text_showing(app, page->speaker) : NULL;
+        if( part && part[0] )
+        {
+            agent_plain_text(part, plain, sizeof(plain));
+            AgentJsonW_KStr(out, "speaker", plain);
+        }
+        agent_plain_text(text, plain, sizeof(plain));
+        AgentJsonW_KStr(out, "text", plain);
+        part = page->proceed ? agent_role_text_showing(app, page->proceed) : NULL;
+        if( part && part[0] )
+        {
+            agent_plain_text(part, plain, sizeof(plain));
+            AgentJsonW_KStr(out, "continue", plain);
+        }
+        AgentJsonW_ObjEnd(out);
+        return;
+    }
 }
 
 static const char*
@@ -122,6 +241,10 @@ verb_game(struct AgentCtx* ctx)
         AgentJsonW_KInt(out, "x", true_x);
         AgentJsonW_KInt(out, "z", true_z);
         AgentJsonW_KInt(out, "level", level);
+        /* Standing in a runtime map instance: the server stamps every one in
+         * its pool band, map squares x >= 100 (the content's
+         * ^map_instance_pool_min_x), where no static square is. */
+        AgentJsonW_KBool(out, "instance", true_x >= AGENT_INSTANCE_POOL_TILE_X);
         if( App_LocalPlayerIdle(app, &idle) )
             AgentJsonW_KBool(out, "idle", idle);
         /* Where the walk in progress ends, when it is not here. */
@@ -183,6 +306,91 @@ verb_game(struct AgentCtx* ctx)
         AgentJsonW_ArrEnd(out);
         AgentJsonW_ObjEnd(out);
     }
+    agent_write_page(app, out);
+    Agent_ReplyEnd(ctx);
+    return AGENT_VERB_DONE;
+}
+
+/* ---- chat ------------------------------------------------------------------------
+ *
+ * A line of chat, or a "::cheat", said without typing it. The chat box's own
+ * Enter ends in one of two CS2 commands -- docheat(<the line after "::">) or
+ * chat_sendpublic(<the line>) -- and each queues one RS_CS2SocialSend on the
+ * host for the App to turn into a packet this frame (rs_cs2_host.c,
+ * app_cs2_flush.c). This queues the same entry.
+ *
+ * Why not `type`: the chat box takes typed characters only while the game
+ * has the keyboard, which a dialogue's "Enter amount", an open interface's
+ * search box, or the editor's own chrome all take away. A verb that says the
+ * line either says it or refuses with the reason.
+ *
+ * What it cannot do is make a server take a cheat: one from a login that is
+ * not staff is dropped without an answer (torirsserver's handle_cheat). That
+ * is what "::tele ... did nothing" was on 2026-11-11, typed or sent: the
+ * lane's play account was not staff. A lane the editor starts now gives its
+ * players staff (torirs_maped_live.c, TORIRSSERVER_STAFF_LEVEL), and the
+ * reply carries a note when this login is not.
+ */
+static enum AgentVerbResult
+verb_chat(struct AgentCtx* ctx)
+{
+    struct App* app = ctx->app;
+    struct RS_CS2Host* host = &app->host;
+    struct RS_CS2SocialSend send;
+    struct AgentJsonWriter* out;
+    const char* text = NULL;
+    int cheat;
+
+    if( !Agent_NeedString(ctx, "text", &text) )
+        return AGENT_VERB_DONE;
+    cheat = text[0] == ':' && text[1] == ':';
+    if( cheat )
+        text += 2;
+    if( !text[0] )
+    {
+        Agent_ReplyError(ctx, "\"text\" is empty: give the line to say, or \"::\" and a cheat (\"::tele 0_50_50_22_18\")");
+        return AGENT_VERB_DONE;
+    }
+    if( strlen(text) >= sizeof(send.text) )
+    {
+        Agent_ReplyError(ctx, "\"text\" is %u bytes; a chat line holds %u", (unsigned)strlen(text),
+            (unsigned)sizeof(send.text) - 1);
+        return AGENT_VERB_DONE;
+    }
+    if( !app->net || app->net->state != TORIRS_NET_GAME || app->screen != APP_SCREEN_GAME )
+    {
+        Agent_ReplyError(ctx, "this client is not in the game (its screen is \"%s\"): nothing would hear the line",
+            agent_screen_name(app->screen));
+        return AGENT_VERB_DONE;
+    }
+    if( host->social_send_count >= RS_CS2_HOST_SOCIAL_SEND_MAX )
+    {
+        Agent_ReplyError(ctx, "the client already has %d requests queued for the server this frame: wait a frame and "
+                              "say it again",
+            host->social_send_count);
+        return AGENT_VERB_DONE;
+    }
+    /* Through the host's own push: the queue is a ring (social_send_head),
+     * and an entry written at [count] went to a slot the drain does not read
+     * next -- the first line was said, every later one was lost. */
+    memset(&send, 0, sizeof(send));
+    send.kind = cheat ? RS_CS2_SOCIAL_SEND_CHEAT : RS_CS2_SOCIAL_SEND_MESSAGE_PUBLIC;
+    snprintf(send.text, sizeof(send.text), "%s", text);
+    RS_CS2Host_SendPush(host, &send);
+
+    out = Agent_ReplyBegin(ctx);
+    AgentJsonW_KStr(out, "sent", cheat ? "cheat" : "public");
+    AgentJsonW_KStr(out, "text", text);
+    /* A server takes a cheat from staff (or from anyone, in its dev mode)
+     * and answers a player's with nothing at all: say when this login is
+     * not staff, so silence afterwards has a reason. */
+    if( cheat && app->net->staff_mod_level < 2 )
+        AgentJsonW_KStr(out, "note",
+            "this login is not staff, so its server may ignore the cheat without a word; a lane the editor "
+            "started takes its players' cheats (Restart lane if an older editor started it)");
+    /* What the server says back lands in the chat box: `log source=chat
+     * since=<this>` reads it. */
+    AgentJsonW_KInt(out, "chat_cursor", app->chat.message_count > 0 ? app->chat.messages[0].serial : 0);
     Agent_ReplyEnd(ctx);
     return AGENT_VERB_DONE;
 }
@@ -356,7 +564,10 @@ verb_npcs(struct AgentCtx* ctx)
             int const point[2] = { px, py };
             AgentJsonW_KInts(out, "screen", point, 2);
         }
-        AgentJsonW_KBool(out, "visible", on_screen && !App_ChromePointerOwned(app, px, py));
+        /* The game's own interfaces count: in a stretched gameframe the 3D view
+         * runs under the chat box and the side panel, and a body drawn there
+         * was "visible" while a click on it landed on the panel (2026-11-11). */
+        AgentJsonW_KBool(out, "visible", on_screen && !App_PointerOwnedByUi(app, px, py));
         AgentJsonW_Key(out, "ops");
         AgentJsonW_ArrBegin(out);
         for( int op = 0; op < 5; op++ )
@@ -474,7 +685,7 @@ verb_npc_click(struct AgentCtx* ctx)
 
         if( !npc || !agent_npc_wanted(app, npc, name, id) || (slot >= 0 && npc->server_slot != slot) )
             continue;
-        if( App_NpcElementScreenPosition(app, npc->element_id, &x, &y) < 0 || App_ChromePointerOwned(app, x, y) )
+        if( App_NpcElementScreenPosition(app, npc->element_id, &x, &y) < 0 || App_PointerOwnedByUi(app, x, y) )
         {
             off_screen = npc;
             continue;
@@ -523,8 +734,10 @@ verb_npc_click(struct AgentCtx* ctx)
 
 const struct AgentVerb g_agent_verbs_game[] = {
     { "game", "chat_lines", 0, verb_game,
-        "The game as a player reads it: logged in, the local player's tile, the right-click menu, the last chat "
-        "lines, a dialogue's options." },
+        "The game as a player reads it: logged in, the local player's tile and whether it is in a map instance, the "
+        "right-click menu, the last chat lines, a dialogue's options, and the page of dialogue showing." },
+    { "chat", "text", 0, verb_chat,
+        "Say a line in the game's chat, or run a \"::cheat\", as the chat box's Enter does, without typing it." },
     { "npcs", "name npc_id limit", 0, verb_npcs,
         "The npcs the client has: name, type id, tile, where each is drawn now, and its menu options." },
     { "npc_click", "name npc_id slot button mods", AGENT_VERB_INPUT, verb_npc_click,

@@ -7,7 +7,10 @@
  *   rebasing  keys, tiles, spawn rows (a level range, suppressions, outside
  *             rows), coords both ways
  *   copy      the commands per "Copy" choice over hand-built squares
- *   trigger   the script text for both entries
+ *   trigger   the script text for both entries: the tree's own instance
+ *             procs, the exit (its own loc, or the trigger loc both ways),
+ *             the npc added on entering, and the sentences that say where
+ *             the template is and how it is stamped
  *   wma       parse -> emit byte-identical, the refusals with their line, a
  *             new area's text parsed back to what it claims
  */
@@ -120,6 +123,25 @@ test_rebase(void)
                   && plan.w == 2 && plan.h == 2 && plan.src_x0 == 50,
             "sources are ordered south-west first (z, then x), the box 2x2 from m50_50");
     }
+    {
+        /* The open set after an Undo of a Create: the world square and the
+         * template still open beside it. Their box is 50x51 squares. */
+        static const char* const apart[2] = { "m50_50", "m1_100" };
+        static const char* const block[4] = { "m50_50", "m53_50", "m50_53", "m53_53" };
+        static const char* const one[1] = { "m50_50" };
+        char why[256];
+        why[0] = '\0';
+        CHECK(Editor_InstancePlanInit(&plan, one, 1) && Editor_InstanceSourceCompact(&plan, why, sizeof(why)),
+            "one square is a block");
+        CHECK(Editor_InstancePlanInit(&plan, block, 4) && plan.w == 4 && plan.h == 4
+                  && Editor_InstanceSourceCompact(&plan, why, sizeof(why)),
+            "four corners of a 4x4 box are one block (16 squares)");
+        CHECK(Editor_InstancePlanInit(&plan, apart, 2) && !Editor_InstanceSourceCompact(&plan, why, sizeof(why)),
+            "m50_50 with m1_100 is not one block");
+        CHECK(strstr(why, "span 50x51 (m1_50 .. m50_100)") != NULL && strstr(why, "Squares picker") != NULL,
+            "and says the box and where to pick a block (%s)", why);
+        CHECK(strlen(why) < 160, "in a sentence the dialog's row holds (%u bytes)", (unsigned)strlen(why));
+    }
     CHECK(!Editor_InstancePlanInit(&plan, bad, 1), "a bad key refuses the plan");
     CHECK(!Editor_InstancePlanInit(&plan, twice, 2), "one place named twice refuses the plan");
     CHECK(Editor_InstancePlanInit(&plan, keys, 2), "two squares, one with its storage");
@@ -138,6 +160,18 @@ test_rebase(void)
         "a tile keeps its local x, z (%d,%d)", x, z);
     CHECK(!Editor_InstanceRebaseTile(&plan, 51 * 64, 50 * 64, &x, &z), "a tile of m51_50 is outside the source");
     CHECK(!Editor_InstanceRebaseTile(&plan, -1, 0, &x, &z), "a negative tile is outside");
+
+    /* Lands at / Npc at: a template tile, a source tile, or an offset in the block all mean one template tile. */
+    CHECK(Editor_InstanceTemplateTile(&plan, 16 * 64 + 5, 102 * 64 + 6, &x, &z) && x == 16 * 64 + 5
+              && z == 102 * 64 + 6,
+        "a template tile is taken as typed (%d,%d)", x, z);
+    CHECK(Editor_InstanceTemplateTile(&plan, 50 * 64 + 32, 50 * 64 + 20, &x, &z) && x == 16 * 64 + 32
+              && z == 101 * 64 + 20,
+        "a source tile moves with the copy (%d,%d)", x, z);
+    CHECK(Editor_InstanceTemplateTile(&plan, 32, 84, &x, &z) && x == 16 * 64 + 32 && z == 102 * 64 + 20,
+        "an offset in the 1x2 block counts from the template's south-west (%d,%d)", x, z);
+    CHECK(!Editor_InstanceTemplateTile(&plan, 64, 20, &x, &z), "an offset past the block's width is refused");
+    CHECK(!Editor_InstanceTemplateTile(&plan, 51 * 64 + 3, 50 * 64 + 3, &x, &z), "a tile of m51_50 is refused");
 
     memset(&row, 0, sizeof(row));
     snprintf(row.name, sizeof(row.name), "goblin");
@@ -251,13 +285,29 @@ test_copy_commands(void)
     CHECK(Editor_InstanceCopyCommands(&plan, 0, &created, NULL, commands, 16) == 0, "nothing copied: nothing to do");
 }
 
+/** `needle` in `text` exactly `times` times. */
+static int
+count_of(
+    const char* text,
+    const char* needle)
+{
+    int n = 0;
+    for( const char* at = strstr(text, needle); at; at = strstr(at + 1, needle) )
+        n++;
+    return n;
+}
+
 static void
 test_trigger(void)
 {
     static const char* const keys[2] = { "m50_50", "m50_51" };
     struct Editor_InstancePlan plan;
+    struct Editor_InstanceScript script;
     char key[EDITOR_DOC_KEY_MAX];
-    char text[4096];
+    char text[8192];
+    char where[EDITOR_INSTANCE_WHERE_MAX];
+    char stamp[EDITOR_INSTANCE_WHERE_MAX];
+    char status[EDITOR_INSTANCE_WHERE_MAX];
     size_t n;
 
     Editor_InstancePlanInit(&plan, keys, 2);
@@ -265,8 +315,15 @@ test_trigger(void)
     plan.dst_z0 = 101;
     Editor_InstanceTriggerKey("tutorial_cave", key);
     CHECK(strcmp(key, "rs2:edited/tutorial_cave/scripts/tutorial_cave.rs2") == 0, "the trigger's key (%s)", key);
-    n = Editor_InstanceTriggerText(&plan, "tutorial_cave", "cave_entrance", EDITOR_INSTANCE_ENTRY_TELEPORT, 0,
-        16 * 64 + 32, 101 * 64 + 32, text, sizeof(text));
+
+    /* A teleport: everyone into the template itself. */
+    memset(&script, 0, sizeof(script));
+    script.entry = EDITOR_INSTANCE_ENTRY_TELEPORT;
+    snprintf(script.loc, sizeof(script.loc), "cave_entrance");
+    script.level = 0;
+    script.x = 16 * 64 + 32;
+    script.z = 101 * 64 + 32;
+    n = Editor_InstanceTriggerText(&plan, "tutorial_cave", &script, text, sizeof(text));
     CHECK(n == strlen(text), "the text fits and its length is said");
     CHECK(strstr(text, "\n[oploc1,cave_entrance]\np_telejump(0_16_101_32_32);\n") != NULL,
         "teleport: [oploc1,cave_entrance] p_telejump(0_16_101_32_32)");
@@ -275,19 +332,151 @@ test_trigger(void)
               80)
               == 0,
         "the header names the file and its writer");
-    CHECK(Editor_InstanceTriggerText(&plan, "tutorial_cave", "cave_entrance", EDITOR_INSTANCE_ENTRY_TELEPORT, 0,
-              16 * 64 + 32, 101 * 64 + 32, NULL, 0)
-              == n,
+    CHECK(strstr(text, "Template   m16_101..m16_102 (1 x 2 squares), in instance space") != NULL
+              && strstr(text, "Scenes > instance:tutorial_cave") != NULL,
+        "the header says where the template is and how to open it");
+    CHECK(strstr(text, "teleports every player into the template itself") != NULL,
+        "and that a teleport's room is shared");
+    CHECK(strstr(text, "~map_instance") == NULL && strstr(text, "$handle") == NULL,
+        "a teleport calls no instance proc");
+    CHECK(Editor_InstanceTriggerText(&plan, "tutorial_cave", &script, NULL, 0) == n,
         "sizing with no buffer says the same length");
+    {
+        /* snprintf's contract: a short buffer is filled and terminated, and
+         * the length is still the whole text's. */
+        char small[64];
+        CHECK(Editor_InstanceTriggerText(&plan, "tutorial_cave", &script, small, sizeof(small)) == n
+                  && strlen(small) == sizeof(small) - 1 && strncmp(small, text, sizeof(small) - 1) == 0,
+            "a short buffer holds the text's start and the whole length is said");
+    }
 
-    n = Editor_InstanceTriggerText(&plan, "tutorial_cave", "cave_entrance", EDITOR_INSTANCE_ENTRY_RUNTIME, 0,
-        16 * 64 + 32, 101 * 64 + 32, text, sizeof(text));
+    /* A teleport's exit: another loc, straight home. */
+    snprintf(script.exit_loc, sizeof(script.exit_loc), "cave_rope");
+    script.exit_level = 0;
+    script.exit_x = 3222;
+    script.exit_z = 3218;
+    n = Editor_InstanceTriggerText(&plan, "tutorial_cave", &script, text, sizeof(text));
+    CHECK(n == strlen(text) && strstr(text, "\n[oploc1,cave_rope]\np_telejump(0_50_50_22_18);\n") != NULL,
+        "a teleport's exit is [oploc1,cave_rope] p_telejump(0_50_50_22_18)");
+    CHECK(strstr(text, "~map_instance_release_here") == NULL, "with no copy to hand back");
+
+    /* The runtime copy: the tree's own procs, not chunk loops. */
+    memset(&script, 0, sizeof(script));
+    script.entry = EDITOR_INSTANCE_ENTRY_RUNTIME;
+    snprintf(script.loc, sizeof(script.loc), "cave_entrance");
+    script.level = 0;
+    script.x = 16 * 64 + 32;
+    script.z = 101 * 64 + 32;
+    n = Editor_InstanceTriggerText(&plan, "tutorial_cave", &script, text, sizeof(text));
     CHECK(n == strlen(text), "the runtime text fits");
-    CHECK(strstr(text, "map_instance_alloc(8, 16)") != NULL, "runtime: 1x2 squares are 8 x 16 zones");
-    CHECK(strstr(text, "movecoord(0_16_101_0_0, calc($zx * 8), $level, calc($zz * 8))") != NULL,
-        "each zone copied from the destination's own static squares");
-    CHECK(strstr(text, "map_instance_build($handle);\np_telejump(map_instance_coord($handle, 32, 32, 0));\n") != NULL,
-        "built, then the entry tile's offset inside it");
+    CHECK(strstr(text, "def_int $handle = ~map_instance_from_square_block(0_16_101_0_0, 1, 2);\n") != NULL,
+        "runtime: the template's south-west coord and its 1 x 2 squares to ~map_instance_from_square_block");
+    CHECK(strstr(text, "map_instance_alloc") == NULL && strstr(text, "map_instance_setchunk") == NULL
+              && strstr(text, "map_instance_build") == NULL,
+        "no raw alloc / setchunk / build");
+    CHECK(strstr(text, "if ($handle = ^map_instance_none) {\n"
+                       "    mes(\"There is no room for another instance just now.\");\n"
+                       "    return;\n"
+                       "}\n"
+                       "%varp6600_map_instance_handle = $handle;\n"
+                       "p_telejump(map_instance_coord($handle, 32, 32, 0));\n")
+              != NULL,
+        "the no-room refusal, the handle kept in %%varp6600_map_instance_handle, the entry tile's offset");
+    CHECK(strstr(text, "[oploc1,cave_entrance]\nif (map_instance_find(coord) ! ^map_instance_none) {\n") != NULL,
+        "entering from inside a copy is refused (the template holds the loc too)");
+    CHECK(count_of(text, "[oploc1,") == 1 && strstr(text, "npc_add") == NULL
+              && strstr(text, "~map_instance_release_here;") == NULL,
+        "no exit and no npc were asked: one trigger, neither block");
+    CHECK(strstr(text, "each player who enters gets a private copy stamped from the template") != NULL
+              && strstr(text, "south-west corner 0_16_101_0_0") != NULL,
+        "the header says how the copy is stamped and where its offsets count from");
+    CHECK(strstr(text, "map_instance_spawnnpcs") == NULL, "spawns not copied into the template: none stamped");
+    /* Spawns copied into the template: each copy gets them too. */
+    script.spawns = 1;
+    n = Editor_InstanceTriggerText(&plan, "tutorial_cave", &script, text, sizeof(text));
+    CHECK(n == strlen(text)
+              && strstr(text, "p_telejump(map_instance_coord($handle, 32, 32, 0));\n"
+                              "// The template's own npcs (its spawn rows) stand in this copy too, each on its\n"
+                              "// tile; they go with the copy. Delete the line for an empty copy.\n"
+                              "map_instance_spawnnpcs($handle);\n")
+                     != NULL
+              && strstr(text, "every level),\n//              and its npcs (map_instance_spawnnpcs, below).\n")
+                     != NULL,
+        "spawns copied: the copy's npcs stood with map_instance_spawnnpcs, once the player is in");
+    script.spawns = 0;
+
+    /* The exit on a loc of its own, and an npc on entering. */
+    snprintf(script.exit_loc, sizeof(script.exit_loc), "cave_rope");
+    script.exit_level = 0;
+    script.exit_x = 3222;
+    script.exit_z = 3218;
+    snprintf(script.npc, sizeof(script.npc), "cave_guardian");
+    script.npc_level = 0;
+    script.npc_x = 16 * 64 + 32;
+    script.npc_z = 101 * 64 + 34;
+    n = Editor_InstanceTriggerText(&plan, "tutorial_cave", &script, text, sizeof(text));
+    CHECK(n == strlen(text) && n < sizeof(text), "the full text fits (%u bytes)", (unsigned)n);
+    CHECK(strstr(text, "// SPAWN ON ENTER: one cave_guardian on template tile 0_16_101_32_34") != NULL
+              && strstr(text, "\nnpc_add(map_instance_coord($handle, 32, 34, 0), cave_guardian, 0);\n") != NULL,
+        "the npc is added at its offset in the copy, in a block of its own");
+    CHECK(strstr(text, "p_telejump(map_instance_coord($handle, 32, 32, 0));\n\n// SPAWN ON ENTER") != NULL,
+        "after the player is in");
+    CHECK(strstr(text, "\n[oploc1,cave_rope]\n"
+                       "if (map_instance_find(coord) = ^map_instance_none) {\n")
+              != NULL
+              && strstr(text, "}\n~map_instance_release_here;\np_telejump(0_50_50_22_18);\n") != NULL,
+        "the exit: outside a copy nothing; inside, the tree's release proc, then home");
+    CHECK(count_of(text, "[oploc1,") == 2, "two triggers (%d)", count_of(text, "[oploc1,"));
+    CHECK(strstr(text, "// ENTER: the first option of cave_entrance.") != NULL
+              && strstr(text, "// EXIT: the first option of cave_rope, standing inside a copy.") != NULL,
+        "each block is headed by what it is");
+
+    /* The one loc both ways: its copy inside the instance is the way out. */
+    snprintf(script.exit_loc, sizeof(script.exit_loc), "cave_entrance");
+    script.npc[0] = '\0';
+    n = Editor_InstanceTriggerText(&plan, "tutorial_cave", &script, text, sizeof(text));
+    CHECK(n == strlen(text) && count_of(text, "[oploc1,") == 1, "exit loc = trigger loc: one trigger (%d)",
+        count_of(text, "[oploc1,"));
+    CHECK(strstr(text, "[oploc1,cave_entrance]\n"
+                       "if (map_instance_find(coord) ! ^map_instance_none) {\n")
+              != NULL
+              && strstr(text, "    ~map_instance_release_here;\n    p_telejump(0_50_50_22_18);\n    return;\n}\n")
+                     != NULL
+              && strstr(text, "// ENTER.\ndef_int $handle = ~map_instance_from_square_block(0_16_101_0_0, 1, 2);\n")
+                     != NULL,
+        "inside a copy it leaves, outside it enters");
+
+    /* Where things are, for the dialog and the status bar. */
+    Editor_InstanceWhereText(&plan, "tutorial_cave", EDITOR_INSTANCE_ENTRY_RUNTIME, where, stamp);
+    CHECK(strcmp(where, "Template: m16_101..m16_102 (1 x 2 squares) in instance space. Open it from Squares > "
+                        "Instance space, or Scenes > instance:tutorial_cave.")
+              == 0,
+        "where the template is (%s)", where);
+    CHECK(strcmp(stamp, "At play time each player who enters gets a private copy stamped from the template; edits "
+                        "to the template show on the next entry.")
+              == 0,
+        "what happens at play time (%s)", stamp);
+    Editor_InstanceWhereText(&plan, "tutorial_cave", EDITOR_INSTANCE_ENTRY_TELEPORT, where, stamp);
+    CHECK(strstr(stamp, "one shared room") != NULL, "a teleport's room is shared (%s)", stamp);
+    Editor_InstanceWhereText(&plan, "tutorial_cave", EDITOR_INSTANCE_ENTRY_NONE, where, stamp);
+    CHECK(strstr(stamp, "Nothing brings a player there yet") != NULL, "no entry says so (%s)", stamp);
+
+    plan.count = 1;
+    plan.w = 1;
+    plan.h = 1;
+    plan.dst_x0 = 0;
+    plan.dst_z0 = 100;
+    Editor_InstanceStatusText(&plan, "cellar", EDITOR_INSTANCE_ENTRY_RUNTIME, status);
+    CHECK(strcmp(status, "Template m0_100: open it from Squares > Instance space or Scenes > instance:cellar. Each "
+                         "player who enters gets a private copy stamped from it.")
+              == 0,
+        "the status line says both (%s)", status);
+    Editor_InstanceStatusText(&plan, "a_very_long_instance_name_that_fills_the_line_x", EDITOR_INSTANCE_ENTRY_RUNTIME,
+        status);
+    CHECK(strcmp(status, "Template m0_100: open it from Squares > Instance space or Scenes > "
+                         "instance:a_very_long_instance_name_that_fills_the_line_x.")
+              == 0,
+        "a name that leaves no room keeps the first sentence whole (%s)", status);
 }
 
 static const char k_wma[] = "// a hand-written area file\r\n"

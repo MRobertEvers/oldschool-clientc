@@ -341,6 +341,9 @@ Editor_DocKeyValid(
         /* The encounter sets, editor/encounters.txt (editor_encounters.h). */
         if( strcmp(key, "editor:encounters.txt") == 0 )
             return 1;
+        /* The camera paths, editor/campaths.txt (editor_campath.h). */
+        if( strcmp(key, "editor:campaths.txt") == 0 )
+            return 1;
         /* A square's rows from the .spawn files of quests and skills, made
          * by the server (editor_host_local.c); read, never edited. */
         if( strncmp(key, "spawns:", 7) == 0 )
@@ -616,6 +619,123 @@ Editor_DocOpenSquare(
     square = &doc->squares[doc->square_count++];
     Editor_SquareInit(square, map_x, map_z);
     return square;
+}
+
+int
+Editor_DocCloseSquare(
+    struct Editor_Doc* doc,
+    int map_x,
+    int map_z)
+{
+    struct Editor_Square* square;
+    int index;
+    int after;
+
+    assert(doc);
+
+    square = Editor_DocFindSquare(doc, map_x, map_z);
+    if( !square )
+        return 0;
+    index = (int)(square - doc->squares);
+    after = doc->square_count - index - 1;
+    Editor_SquareFree(square);
+    /* The table stays dense: every loop over it reads [0, square_count). */
+    memmove(&doc->squares[index], &doc->squares[index + 1], (size_t)after * sizeof(doc->squares[0]));
+    memmove(&doc->square_storage[index], &doc->square_storage[index + 1],
+        (size_t)after * sizeof(doc->square_storage[0]));
+    memmove(&doc->square_created[index], &doc->square_created[index + 1],
+        (size_t)after * sizeof(doc->square_created[0]));
+    doc->square_count--;
+    /* The vacated last slot owns nothing now (its buffers moved down). */
+    memset(&doc->squares[doc->square_count], 0, sizeof(doc->squares[0]));
+    doc->square_storage[doc->square_count][0] = '\0';
+    doc->square_created[doc->square_count] = 0;
+    return 1;
+}
+
+/* ---- the scene a window builds from its open squares ---------------------- */
+
+int
+Editor_DocWorldFit(
+    const int* candidates_xz,
+    int count,
+    int anchor,
+    int* out_xz,
+    int* out_dropped_xz,
+    int* out_dropped)
+{
+    /* One byte per candidate; a caller with more than this many open squares
+     * does not exist (the document holds EDITOR_DOC_MAX_SQUARES). */
+    unsigned char kept[EDITOR_DOC_MAX_SQUARES + 1];
+    int min_x;
+    int max_x;
+    int min_z;
+    int max_z;
+    int out_count = 0;
+
+    assert(candidates_xz);
+    assert(count > 0);
+    assert(count <= EDITOR_DOC_MAX_SQUARES + 1);
+    assert(anchor >= 0);
+    assert(anchor < count);
+    assert(out_xz);
+    assert(out_dropped_xz);
+    assert(out_dropped);
+
+    memset(kept, 0, sizeof(kept));
+    kept[anchor] = 1;
+    min_x = max_x = candidates_xz[anchor * 2];
+    min_z = max_z = candidates_xz[anchor * 2 + 1];
+
+    /* Nearest the anchor first (Chebyshev: a box is what is being bounded),
+     * so of two squares that cannot both stay the near one does. */
+    for( int ring = 1; ring < EDITOR_DOC_WORLD_SIDE_MAX; ring++ )
+    {
+        for( int i = 0; i < count; i++ )
+        {
+            int const x = candidates_xz[i * 2];
+            int const z = candidates_xz[i * 2 + 1];
+            int const dx = abs(x - candidates_xz[anchor * 2]);
+            int const dz = abs(z - candidates_xz[anchor * 2 + 1]);
+            int lo_x;
+            int hi_x;
+            int lo_z;
+            int hi_z;
+
+            if( kept[i] || (dx > dz ? dx : dz) != ring )
+                continue;
+            lo_x = x < min_x ? x : min_x;
+            hi_x = x > max_x ? x : max_x;
+            lo_z = z < min_z ? z : min_z;
+            hi_z = z > max_z ? z : max_z;
+            if( hi_x - lo_x >= EDITOR_DOC_WORLD_SIDE_MAX || hi_z - lo_z >= EDITOR_DOC_WORLD_SIDE_MAX )
+                continue;
+            kept[i] = 1;
+            min_x = lo_x;
+            max_x = hi_x;
+            min_z = lo_z;
+            max_z = hi_z;
+        }
+    }
+
+    *out_dropped = 0;
+    for( int i = 0; i < count; i++ )
+    {
+        if( kept[i] )
+        {
+            assert(out_count < EDITOR_DOC_WORLD_SQUARES_MAX);
+            out_xz[out_count * 2] = candidates_xz[i * 2];
+            out_xz[out_count * 2 + 1] = candidates_xz[i * 2 + 1];
+            out_count++;
+        }
+        else
+        {
+            out_dropped_xz[*out_dropped * 2] = candidates_xz[i * 2];
+            out_dropped_xz[*out_dropped * 2 + 1] = candidates_xz[i * 2 + 1];
+            (*out_dropped)++;
+        }
+    }
+    return out_count;
 }
 
 static int

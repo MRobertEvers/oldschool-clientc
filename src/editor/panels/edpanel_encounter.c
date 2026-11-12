@@ -97,8 +97,13 @@ static const struct
     { "param", "huntrange" },
     { "param", "attackrate" },
     { "param", "damagetype" },
+    /* The combat level a player sees, and the one the server's aggression
+     * test reads (a player above twice it is left alone): not the stats. */
+    { "vislevel", "" },
 };
 #define ENC_SET_FIELDS ((int)(sizeof(k_set_fields) / sizeof(k_set_fields[0])))
+_Static_assert(sizeof(((struct Editor_EncounterWidgets*)0)->input_fields) == sizeof(int) * ENC_SET_FIELDS,
+    "the exported Set inputs are k_set_fields'");
 
 static const char* const k_tabs[ENC_TAB_COUNT] = { "Set", "Stats", "Combat", "Drops", "Test" };
 static const char* const k_huntmodes[3] = { "(not stated)", "aggressive", "none" };
@@ -151,6 +156,8 @@ struct EncounterPanel
     int button_apply_fields;
     int check_rings;
     int row_rings;
+    /** Whom it hunts: huntmode, huntrange and vislevel in one sentence. */
+    int row_hunts;
 
     /* Stats */
     int row_ledger;
@@ -165,6 +172,9 @@ struct EncounterPanel
     /* Combat */
     int dropdown_template;
     int row_combat;
+    /** The file the Combat tab's sentence is about, on its own row (a label
+     *  holds 63 bytes: a sentence and a path do not share them). */
+    int row_combat_file;
     int button_open_builder;
 
     /* Drops */
@@ -216,6 +226,12 @@ struct EncounterPanel
     /** Ledgers this panel edited, saved with the set. */
     char edited_ledgers[16][EDITOR_DOC_KEY_MAX];
     int edited_ledger_count;
+
+    /* Combat: the npc the row was last worked out for, and when (a trigger
+     * index query; the file can be written outside the editor, so it is
+     * asked again once a second, never every frame). */
+    char combat_npc[EDITOR_CMD_NAME_MAX];
+    int64_t combat_ms;
 
     /* Drops */
     struct Editor_DropTable drops;
@@ -535,6 +551,24 @@ enc_record(
         }
         Editor_HostCatalogRecordFree(&record);
     }
+    /* No authored overlay (a Copy to new has none; most base npcs state
+     * their server fields in a generated file only): the editor's own, the
+     * file the NPC editor's Movement tab writes the same record into
+     * (edpanel_npcdoc.c). Without it Apply fields and Apply stats put a
+     * clone's hitpoints and huntmode in configs/all.npc, a file of 1.9
+     * million lines, and said nothing of where. */
+    {
+        int authored = 0;
+        for( int i = 0; i < r->overlay_count; i++ )
+            authored += Editor_CfgLayerRank(r->overlays[i]) == 2;
+        if( !authored && r->overlay_count < EDITOR_CFG_RECORD_LAYERS_MAX - 1 )
+        {
+            int const n = snprintf(r->overlays[r->overlay_count], sizeof(r->overlays[0]), "edited/%s/configs/%s.npc",
+                name, name);
+            if( n > 0 && (size_t)n < sizeof(r->overlays[0]) )
+                r->overlay_count++;
+        }
+    }
     for( int i = -1; i < r->overlay_count; i++ )
     {
         char key[EDITOR_DOC_KEY_MAX];
@@ -542,6 +576,10 @@ enc_record(
             (void)edp_ensure_doc(ui, EDITOR_DOC_CFG, key);
     }
     enc_record_resolve(ui, r);
+    /* A Copy to new the catalog index does not list until Save is still an
+     * npc: its block is in the session's documents. */
+    for( int l = 0; l < r->record.layer_count && !r->found; l++ )
+        r->found = r->record.layers[l].present;
     return r;
 }
 
@@ -556,7 +594,11 @@ enc_value(
     if( !r )
         return "";
     row = Editor_CfgRecordFindRow(&r->record, key, sub, 0);
-    return row >= 0 && r->record.rows[row].layer >= 0 ? r->record.rows[row].value : "";
+    /* `=default` is a cache block's spelling of "not stated" (Copy to new
+     * writes one per field): an empty field, not the word in it. */
+    return row >= 0 && r->record.rows[row].layer >= 0 && strcmp(r->record.rows[row].value, "default") != 0
+               ? r->record.rows[row].value
+               : "";
 }
 
 static int
@@ -576,10 +618,13 @@ enc_value_int(
 }
 
 /**
- * The layer a write of (key, sub) goes to: where it is stated, or where a
- * field nobody states is added -- unless that is a GENERATED layer, which is
- * never written: then the record's top authored layer holding the block.
- * -1 when there is none (the caller says why).
+ * The layer a write of (key, sub) goes to: the authored overlay that states
+ * it, else the record's authored overlay (the editor's own
+ * edited/<npc>/configs/<npc>.npc when it has no other: enc_record) -- the
+ * rule the NPC editor writes by (Editor_CfgRecordWriteLayerFor), so one
+ * npc's movement and combat fields land in one file. Only a record with no
+ * overlay at all falls back to where the field is stated, never a GENERATED
+ * layer. -1 when there is nowhere (the caller says why).
  */
 static int
 enc_write_layer(
@@ -588,9 +633,12 @@ enc_write_layer(
     const char* sub)
 {
     int const row = Editor_CfgRecordFindRow(&r->record, key, sub, 0);
-    int layer = row >= 0 && r->record.rows[row].layer >= 0 ? r->record.rows[row].layer
-                                                             : Editor_CfgRecordAddLayerFor(&r->record);
+    int layer = Editor_CfgRecordWriteLayerFor(&r->record, row);
 
+    if( layer >= 0 )
+        return layer;
+    layer = row >= 0 && r->record.rows[row].layer >= 0 ? r->record.rows[row].layer
+                                                       : Editor_CfgRecordAddLayerFor(&r->record);
     if( r->record.layers[layer].rank != 1 )
         return layer;
     for( int l = r->record.layer_count - 1; l >= 0; l-- )
@@ -790,7 +838,7 @@ enc_fill(
     if( !self->npc[0] )
         snprintf(line, sizeof(line), "select a spawn row: its npc's fields show here");
     else if( r && !r->found )
-        snprintf(line, sizeof(line), "Selected %s | %d spawn%s | the catalog has no such npc", self->npc, same,
+        snprintf(line, sizeof(line), "Selected %s | %d spawn%s | no npc has that name", self->npc, same,
             same == 1 ? "" : "s");
     else
         snprintf(line, sizeof(line), "Selected %s | %d spawn%s | %d layer%s", self->npc, same, same == 1 ? "" : "s",
@@ -813,6 +861,23 @@ enc_fill(
         else
             snprintf(line, sizeof(line), "rings: wander %d | leash %d (no huntrange stated)", wander, leash);
         ToriRSChrome_SetText(ui->chrome, self->row_rings, self->npc[0] ? line : "");
+        /* The server's gate (torirs_server_combat.c maybe_aggress): a player
+         * above twice the npc's vislevel is never hunted. A giant rat copied
+         * as a boss keeps vislevel 3 and leaves every real player alone. */
+        if( strcmp(enc_value(r, "huntmode", ""), "aggressive") != 0 )
+            snprintf(line, sizeof(line), "it fights only when attacked (huntmode is not aggressive)");
+        else if( hunt <= 0 )
+            snprintf(line, sizeof(line), "aggressive, but with no huntrange it never sees a player");
+        else
+        {
+            int const level = enc_value_int(r, "vislevel", "", 0);
+            if( level > 0 )
+                snprintf(line, sizeof(line), "hunts players of combat level %d or lower (2 x vislevel %d)", level * 2,
+                    level);
+            else
+                snprintf(line, sizeof(line), "hunts players of any combat level (it has no vislevel)");
+        }
+        ToriRSChrome_SetText(ui->chrome, self->row_hunts, self->npc[0] ? line : "");
     }
 
     /* Stats: the record's values (what RUN builds), the ledger beside. */
@@ -844,6 +909,22 @@ enc_fill(
     }
     ToriRSChrome_SetText(ui->chrome, self->row_ledger, line);
     Editor_NpcStatsFree(&ledger);
+}
+
+/** The combat level the Stats inputs give now (an empty input counts 1). */
+static int
+enc_typed_combat_level(
+    struct EditorUi* ui,
+    struct EncounterPanel* self)
+{
+    int levels[EDITOR_NPCSTATS_LEVELS];
+
+    for( int i = 0; i < EDITOR_NPCSTATS_LEVELS; i++ )
+    {
+        const char* text = ToriRSChrome_Text(ui->chrome, self->input_levels[i]);
+        levels[i] = text && text[0] ? atoi(text) : 1;
+    }
+    return Editor_NpcCombatLevel(levels[1], levels[2], levels[3], levels[0], levels[4], levels[5]);
 }
 
 /** The derived cells, from what the inputs say now (they follow typing). */
@@ -884,7 +965,7 @@ enc_derived(
     {
         struct EncRecord* r = self->npc[0] ? enc_record(ui, self, self->npc) : NULL;
         const char* vislevel = enc_value(r, "vislevel", "");
-        int const level = Editor_NpcCombatLevel(levels[1], levels[2], levels[3], levels[0], levels[4], levels[5]);
+        int const level = enc_typed_combat_level(ui, self);
         if( vislevel[0] )
             snprintf(line, sizeof(line), "Combat level %d (the record's vislevel %s)", level, vislevel);
         else
@@ -1092,7 +1173,14 @@ enc_add_spawns(
     if( ok )
     {
         enc_select_set(self, set->name);
-        Editor_UiStatus(ui, "%s: %d spawn%s joined set %s (unsaved)", verb, added, added == 1 ? "" : "s", set->name);
+        /* Where, for one spawn: the tile is the one latched, which may be a
+         * click from minutes ago -- "joined" with no place hid that. */
+        if( n == 1 && added == 1 )
+            Editor_UiStatus(ui, "%s: %s joined set %s at %d,%d level %d (unsaved)", verb, spawns[0].name, set->name,
+                spawns[0].x, spawns[0].z, spawns[0].level);
+        else
+            Editor_UiStatus(ui, "%s: %d spawn%s joined set %s (unsaved)", verb, added, added == 1 ? "" : "s",
+                set->name);
     }
     ToriMem_Free(ToriMem_Editor(), set);
     return ok ? added : 0;
@@ -1118,6 +1206,22 @@ enc_add_by_name(
     {
         Editor_UiStatus(ui, "Add spawn refused: latch a tile with the Select tool first; the spawn goes there");
         return;
+    }
+    /* The set holds this npc on this tile already (Enter in the field,
+     * then the button, is one request made twice): nothing is written. The
+     * second press used to add a second spawn row -- two bosses on one tile
+     * -- under "0 spawns joined". */
+    {
+        const struct Editor_Encounter* current = enc_current(self);
+        for( int i = 0; current && i < current->spawn_count; i++ )
+            if( !current->spawns[i].is_obj && strcmp(current->spawns[i].name, name) == 0
+                && current->spawns[i].x == ui->tools.tile_x && current->spawns[i].z == ui->tools.tile_z
+                && current->spawns[i].level == ui->tools.tile_level )
+            {
+                Editor_UiStatus(ui, "Add spawn: %s is in set %s at %d,%d already; latch another tile for a second one",
+                    name, current->name, ui->tools.tile_x, ui->tools.tile_z);
+                return;
+            }
     }
     memset(&row, 0, sizeof(row));
     snprintf(row.name, sizeof(row.name), "%s", name);
@@ -1194,10 +1298,28 @@ enc_remove_spawn(
     else
     {
         char what[ENC_ROW_TEXT];
+        struct Editor_SpawnRow row;
+        const struct Editor_EncounterSpawn* gone = &set->spawns[self->rows[r]];
+        memset(&row, 0, sizeof(row));
+        row.is_obj = gone->is_obj;
+        snprintf(row.name, sizeof(row.name), "%s", gone->name);
+        row.abs_x = gone->x;
+        row.abs_z = gone->z;
+        row.level = gone->level;
+        row.count = gone->count;
         enc_spawn_text(set, self->rows[r], what, sizeof(what));
         Editor_EncounterRemoveSpawn(set, self->rows[r]);
         if( enc_write_set(ui, self, set->name, set, "remove encounter spawn") )
-            Editor_UiStatus(ui, "Removed %s from set %s (the spawn itself stays)", what, set->name);
+        {
+            /* The set only names the spawn: it still stands in the world (an
+             * aggressive boss left on a tile it was added to by mistake).
+             * Selected, it is one Delete away. */
+            if( Editor_UiFindPanel(ui, "spawns") && Editor_Spawns_Select(ui, &row, 1) == 1 )
+                Editor_UiStatus(ui, "Removed %s from set %s; its spawn still stands and is selected: Delete removes it",
+                    what, set->name);
+            else
+                Editor_UiStatus(ui, "Removed %s from set %s (the spawn itself stays)", what, set->name);
+        }
     }
     ToriMem_Free(ToriMem_Editor(), set);
 }
@@ -1339,8 +1461,12 @@ enc_apply_fields(
     }
     enc_stroke_end(ui, was_open);
     if( ok )
-        Editor_UiStatus(ui, "%s: %d field%s set (unsaved; File > Save writes them, RUN builds them)", self->npc, applied,
-            applied == 1 ? "" : "s");
+    {
+        /* Where they went: the file a person opens to see them. */
+        int const layer = enc_write_layer(r, "huntmode", "");
+        Editor_UiStatus(ui, "%s: %d field%s set in server/scripts/%s (unsaved; Save writes it, RUN builds it)", self->npc,
+            applied, applied == 1 ? "" : "s", layer >= 0 ? r->record.layers[layer].label : "its record");
+    }
     else if( enc_stroke_abandon(ui, was_open, applied_before) )
         Editor_UiStatus(ui, "Apply fields refused: the authority did not take every edit; nothing was applied");
     else
@@ -1382,11 +1508,17 @@ enc_apply_stats(
     char* text;
     size_t length;
     int changed = 0;
+    int levels_changed = 0;
     int record_edits = 0;
     int generated_only = 0;
     int was_open;
     int applied_before;
     int ok = 1;
+    /* vislevel follows a level change: it, not the stats, is the combat
+     * level a player sees and the one the aggression test reads. */
+    char vislevel_before[16] = "";
+    char vislevel_after[16] = "";
+    int vislevel_written = 0;
 
     if( !self->npc[0] || !Editor_NpcStatsNameValid(self->npc) )
     {
@@ -1425,6 +1557,7 @@ enc_apply_stats(
         if( strcmp(enc_value(r, key, sub), value) == 0 )
             continue;
         changed++;
+        levels_changed += i < EDITOR_NPCSTATS_LEVELS;
         if( !Editor_NpcStatsTextSet(text, length, self->npc, ledger_key, value, NULL, 0, &next_length) )
         {
             Editor_UiStatus(ui, "Apply stats refused: %s = %s is not a line the ledger can hold", ledger_key, value);
@@ -1446,6 +1579,16 @@ enc_apply_stats(
         /* -1: only a generated file states it; the ledger takes it and
          * gen_npc_stats.py carries it into its config. */
         generated_only += planned == -1;
+    }
+    if( ok && levels_changed )
+    {
+        snprintf(vislevel_before, sizeof(vislevel_before), "%s", enc_value(r, "vislevel", ""));
+        snprintf(vislevel_after, sizeof(vislevel_after), "%d", enc_typed_combat_level(ui, self));
+        /* Only where the npc's own overlay can take it (a generated-only
+         * record keeps its level, as its stats wait for gen_npc_stats.py). */
+        if( strcmp(vislevel_before, vislevel_after) == 0
+            || enc_field_commands(r, "vislevel", "", vislevel_after, probe, 4) <= 0 )
+            vislevel_after[0] = '\0';
     }
     if( ok && changed == 0 )
     {
@@ -1477,6 +1620,21 @@ enc_apply_stats(
             else
                 record_edits += n > 0;
         }
+        if( ok && vislevel_after[0] )
+        {
+            struct EncRecord* now = enc_record(ui, self, self->npc);
+            if( now && enc_write_layer(now, "vislevel", "") >= 0 )
+            {
+                int const n = enc_apply_field(ui, self, "vislevel", "", vislevel_after, "encounter stats");
+                if( n < 0 )
+                    ok = 0;
+                else
+                {
+                    record_edits += n > 0;
+                    vislevel_written = n > 0;
+                }
+            }
+        }
         if( ok && enc_write_text(ui, self->ledger_key, text, length, "encounter stats") < 0 )
             ok = 0;
         enc_stroke_end(ui, was_open);
@@ -1488,9 +1646,19 @@ enc_apply_stats(
             if( !listed && self->edited_ledger_count < 16 )
                 snprintf(self->edited_ledgers[self->edited_ledger_count++], sizeof(self->edited_ledgers[0]), "%s",
                     self->ledger_key);
-            Editor_UiStatus(ui, "%s: %d stat%s in the ledger (source = authored), %d in the record%s", self->npc,
-                changed, changed == 1 ? "" : "s", record_edits,
-                generated_only ? "; generated-only ones wait for gen_npc_stats.py" : "");
+            {
+                /* The record's half, by file: the npc's own overlay. */
+                struct EncRecord* written = enc_record(ui, self, self->npc);
+                int const layer = written ? enc_write_layer(written, "hitpoints", "") : -1;
+                char level_note[64] = "";
+                if( vislevel_written )
+                    snprintf(level_note, sizeof(level_note), "; combat level (vislevel) %s -> %s",
+                        vislevel_before[0] ? vislevel_before : "unstated", vislevel_after);
+                Editor_UiStatus(ui, "%s: %d stat%s in the ledger (source = authored), %d in the record (%s)%s%s",
+                    self->npc, changed, changed == 1 ? "" : "s", record_edits,
+                    layer >= 0 ? written->record.layers[layer].label : "no authored file",
+                    generated_only ? "; generated-only ones wait for gen_npc_stats.py" : "", level_note);
+            }
         }
         else if( enc_stroke_abandon(ui, was_open, applied_before) )
             Editor_UiStatus(ui, "Apply stats refused: the authority did not take every edit; nothing was applied");
@@ -1505,16 +1673,72 @@ enc_apply_stats(
 /* ---- Combat ------------------------------------------------------------------------ */
 
 static void
+enc_trigger_file(
+    struct EditorUi* ui,
+    const char* trigger,
+    char out[EDITOR_DOC_KEY_MAX]);
+
+/** The file that holds the npc's own [ai_opplayer2,<npc>] when it is NOT the
+ *  step builder's (edited/<npc>/scripts/<npc>.rs2): a boss whose combat is
+ *  written by hand. Its path under server/scripts into `out`; 0 when the
+ *  tree has no such trigger outside the builder's file. */
+static int
+enc_combat_scripted(
+    struct EditorUi* ui,
+    const char* npc,
+    char* out,
+    size_t out_size)
+{
+    char trigger[EDITOR_CMD_NAME_MAX * 2];
+    char key[EDITOR_DOC_KEY_MAX];
+    char own[EDITOR_DOC_KEY_MAX];
+
+    snprintf(trigger, sizeof(trigger), "ai_opplayer2,%s", npc);
+    enc_trigger_file(ui, trigger, key);
+    if( !key[0] )
+        return 0;
+    snprintf(own, sizeof(own), "rs2:edited/%s/scripts/%s.rs2", npc, npc);
+    if( strcmp(key, own) == 0 )
+        return 0;
+    snprintf(out, out_size, "%s", key + 4);
+    return 1;
+}
+
+static void
 enc_combat_row(
     struct EditorUi* ui,
     struct EncounterPanel* self)
 {
     char line[ENC_ROW_TEXT];
-    if( self->npc[0] )
-        snprintf(line, sizeof(line), "[ai_opplayer2,%s] in edited/%s/scripts/%s.rs2", self->npc, self->npc, self->npc);
+    char file[EDITOR_DOC_KEY_MAX];
+    int const scripted = self->npc[0] && enc_combat_scripted(ui, self->npc, file, sizeof(file));
+
+    if( scripted )
+        snprintf(line, sizeof(line), "this npc's combat is scripted by hand, in:");
+    else if( self->npc[0] )
+    {
+        snprintf(line, sizeof(line), "a template writes its [ai_opplayer2] trigger into:");
+        snprintf(file, sizeof(file), "edited/%s/scripts/%s.rs2", self->npc, self->npc);
+    }
     else
+    {
         snprintf(line, sizeof(line), "select an npc spawn row (the Set tab) first");
+        file[0] = '\0';
+    }
     ToriRSChrome_SetText(ui->chrome, self->row_combat, line);
+    {
+        /* The path's tail when it is longer than a label. */
+        char shown[TORIRS_CHROME_LABEL_MAX];
+        size_t const length = strlen(file);
+        if( length < sizeof(shown) )
+            snprintf(shown, sizeof(shown), "%s", file);
+        else
+            snprintf(shown, sizeof(shown), "...%s", file + length - (sizeof(shown) - 4));
+        ToriRSChrome_SetText(ui->chrome, self->row_combat_file, shown);
+    }
+    /* A template would be a second [ai_opplayer2] for the npc. */
+    ToriRSChrome_SetDisabled(ui->chrome, self->button_open_builder, scripted);
+    ToriRSChrome_SetDisabled(ui->chrome, self->dropdown_template, scripted);
 }
 
 static void
@@ -1540,6 +1764,18 @@ enc_open_builder(
     }
     if( kind < 0 || kind >= EDITOR_COMBAT_TEMPLATE_COUNT )
         return;
+    /* A hand-written fight stays the only one: the template is not written
+     * beside it (two [ai_opplayer2,<npc>] do not compile) or over it. */
+    {
+        char file[EDITOR_DOC_KEY_MAX];
+        if( enc_combat_scripted(ui, self->npc, file, sizeof(file)) )
+        {
+            Editor_UiStatus(ui, "Open in step builder refused: %s's combat is scripted in server/scripts/%s; edit it "
+                                "there (the Triggers panel opens it)",
+                self->npc, file);
+            return;
+        }
+    }
     if( kind == EDITOR_COMBAT_CASTER )
     {
         struct Editor_TextDoc* doc = enc_text(ui, "rs2:" EDITOR_COMBAT_CASTER_SOURCE);
@@ -1902,8 +2138,13 @@ enc_tick(
     enc_fill(ui, self);
     if( tab == ENC_TAB_STATS )
         enc_derived(ui, self);
-    if( tab == ENC_TAB_COMBAT )
+    if( tab == ENC_TAB_COMBAT
+        && (strcmp(self->combat_npc, self->npc) != 0 || ui->chrome->now_ms - self->combat_ms >= 1000) )
+    {
+        snprintf(self->combat_npc, sizeof(self->combat_npc), "%s", self->npc);
+        self->combat_ms = ui->chrome->now_ms;
         enc_combat_row(ui, self);
+    }
     if( tab == ENC_TAB_DROPS && strcmp(self->drops_npc, self->npc) != 0 )
         enc_read_drops(ui, self);
     if( tab == ENC_TAB_TEST )
@@ -2085,6 +2326,8 @@ Editor_Encounter_Register(struct EditorUi* ui)
     chrome = ui->chrome;
     self = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*self));
     assert(self);
+    /* No npc is a row too ("select an npc spawn row"): worked out at once. */
+    self->combat_npc[0] = '\x01';
     Editor_EncountersInit(&self->file);
     self->follow_x = -1;
     self->follow_z = -1;
@@ -2093,7 +2336,9 @@ Editor_Encounter_Register(struct EditorUi* ui)
     assert(self->panel >= 0);
 
     self->row_title = ToriRSChrome_Label(chrome, self->panel, "");
-    self->dropdown_set = ToriRSChrome_Dropdown(chrome, self->panel, "Set", NULL, 0, -1);
+    /* "Open set", not "Set": the first tab is "Set", and one label naming
+     * two controls cannot be clicked by it. */
+    self->dropdown_set = ToriRSChrome_Dropdown(chrome, self->panel, "Open set", NULL, 0, -1);
     self->input_name = ToriRSChrome_TextInput(chrome, self->panel, "Name", "");
     enc_tip(ui, self->input_name, "a set name: letters, digits, _ and -");
     self->button_new = ToriRSChrome_Button(chrome, self->panel, "New set");
@@ -2110,12 +2355,16 @@ Editor_Encounter_Register(struct EditorUi* ui)
     enc_tip(ui, self->input_spawn, "an npc's name; it is placed at the latched tile");
     self->button_add_name = ToriRSChrome_Button(chrome, self->panel, "Add at latched tile");
     self->button_add_selection = ToriRSChrome_Button(chrome, self->panel, "From Spawns selection");
+    /* A short button cuts these captions ("Add at latche..."): full width. */
+    ToriRSChrome_ButtonSetFill(chrome, self->button_add_name, 1);
+    ToriRSChrome_ButtonSetFill(chrome, self->button_add_selection, 1);
     self->dropdown_colour =
         ToriRSChrome_Dropdown(chrome, self->panel, "Colour", k_colours, EDITOR_ENCOUNTER_COLOURS + 1, 0);
     self->input_find = ToriRSChrome_TextInput(chrome, self->panel, "Find", "");
     self->list_spawns = ToriRSChrome_VList(chrome, self->panel, "", ENC_LIST_ROWS, 0);
     assert(self->list_spawns >= 0);
     self->button_remove = ToriRSChrome_Button(chrome, self->panel, "Remove from set");
+    ToriRSChrome_ButtonSetFill(chrome, self->button_remove, 1);
     enc_tip(ui, self->button_remove, "the row leaves the set; the spawn stays");
     self->row_selected = ToriRSChrome_Label(chrome, self->panel, "");
     self->button_record = ToriRSChrome_Button(chrome, self->panel, "Record...");
@@ -2126,12 +2375,14 @@ Editor_Encounter_Register(struct EditorUi* ui)
     enc_tip(ui, self->input_fields[3], "param=huntrange: tiles an aggressive npc sees");
     enc_tip(ui, self->input_fields[4], "param=attackrate: ticks between swings");
     enc_tip(ui, self->input_fields[5], "param=damagetype: stab, slash or crush");
+    enc_tip(ui, self->input_fields[6], "combat level: it hunts players up to twice it");
     self->dropdown_huntmode = ToriRSChrome_Dropdown(chrome, self->panel, "huntmode", k_huntmodes, 3, 0);
     self->button_apply_fields = ToriRSChrome_Button(chrome, self->panel, "Apply fields");
     enc_tip(ui, self->button_apply_fields, "write the changed fields: one undo step");
     self->check_rings = ToriRSChrome_Checkbox(chrome, self->panel, "Show rings", 1);
     enc_tip(ui, self->check_rings, "each set's hunt and wander rings in its colour");
     self->row_rings = ToriRSChrome_Label(chrome, self->panel, "");
+    self->row_hunts = ToriRSChrome_Label(chrome, self->panel, "");
 
     /* Stats */
     ToriRSChrome_PanelBeginTab(chrome, self->panel, ENC_TAB_STATS);
@@ -2162,7 +2413,9 @@ Editor_Encounter_Register(struct EditorUi* ui)
     }
     enc_tip(ui, self->dropdown_template, "caster copies npc/scripts/dark_wizard.rs2's swing");
     self->row_combat = ToriRSChrome_Label(chrome, self->panel, "");
+    self->row_combat_file = ToriRSChrome_Label(chrome, self->panel, "");
     self->button_open_builder = ToriRSChrome_Button(chrome, self->panel, "Open in step builder");
+    ToriRSChrome_ButtonSetFill(chrome, self->button_open_builder, 1);
     enc_tip(ui, self->button_open_builder, "the template as the npc's [ai_opplayer2] steps");
 
     /* Drops */
@@ -2338,6 +2591,7 @@ Editor_Encounter_Widgets(
     out->dropdown_huntmode = self->dropdown_huntmode;
     out->button_apply_fields = self->button_apply_fields;
     out->row_rings = self->row_rings;
+    out->row_hunts = self->row_hunts;
     out->row_ledger = self->row_ledger;
     for( int i = 0; i < EDITOR_NPCSTATS_LEVELS; i++ )
         out->input_levels[i] = self->input_levels[i];
@@ -2350,6 +2604,7 @@ Editor_Encounter_Widgets(
     out->row_level = self->row_level;
     out->dropdown_template = self->dropdown_template;
     out->row_combat = self->row_combat;
+    out->row_combat_file = self->row_combat_file;
     out->button_open_builder = self->button_open_builder;
     out->row_drops = self->row_drops;
     out->list_drops = self->list_drops;

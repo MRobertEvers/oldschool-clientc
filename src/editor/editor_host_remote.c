@@ -1806,6 +1806,58 @@ Editor_HostMapEdLanesTake(struct EditorHost* host, uint32_t* out_type, uint8_t**
     return kept_take(&remote->lanes_head, &remote->lanes_tail, out_type, out_body, out_length);
 }
 
+enum EditorHost_Status
+Editor_HostMapEdLaneHandOut(
+    struct EditorHost* host,
+    const char* rel,
+    int folder_max,
+    char* out_path,
+    size_t path_size,
+    char* out_why,
+    size_t why_size)
+{
+    struct maped_remote* remote = as_remote(host);
+    struct ToriRSMapEdBuf payload;
+    struct ToriRSMapEdReader reader;
+    const uint8_t* fact;
+    uint32_t fact_type;
+    uint32_t length;
+    enum EditorHost_Status status;
+    int sent;
+
+    assert(rel);
+    assert(folder_max >= 0);
+    assert(out_path);
+    assert(path_size > 0);
+    assert(out_why);
+    assert(why_size > 0);
+    out_path[0] = '\0';
+    out_why[0] = '\0';
+    if( !(remote->capabilities & TORIRSMAPED_CAP_LANE_HANDOUT) )
+        return EDITOR_HOST_UNSUPPORTED;
+    memset(&payload, 0, sizeof(payload));
+    ToriRSMapEd_PutString(&payload, rel);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)folder_max);
+    sent = send_request(remote, TORIRSMAPED_REQ_LANE_HANDOUT, ToriRSMapEd_BufPeek(&payload),
+        (uint32_t)ToriRSMapEd_BufAvailable(&payload));
+    ToriRSMapEd_BufFree(&payload);
+    if( !sent )
+        return EDITOR_HOST_IO_ERROR;
+    /* The one lanes fact that is an answer: awaited here, never kept for the
+     * Lanes panel's poll (the server sends it to this connection alone). */
+    fact = await_reply(remote, REMOTE_OP_TIMEOUT_MS, TORIRSMAPED_FACT_LANE_HANDED_OUT, 0, &fact_type, &length);
+    if( !fact )
+        return EDITOR_HOST_IO_ERROR;
+    ToriRSMapEd_ReaderInit(&reader, fact, length);
+    status = (enum EditorHost_Status)ToriRSMapEd_GetU32(&reader);
+    ToriRSMapEd_GetString(&reader, out_path, path_size);
+    ToriRSMapEd_GetString(&reader, out_why, why_size);
+    if( reader.bad )
+        status = EDITOR_HOST_IO_ERROR;
+    frame_done(remote, length);
+    return status;
+}
+
 int
 Editor_HostMapEdLiveTake(struct EditorHost* host, uint32_t* out_type, uint8_t** out_body, uint32_t* out_length)
 {

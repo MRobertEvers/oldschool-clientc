@@ -1721,6 +1721,10 @@ struct ToriRSChromeWidget
      *  (ToriRSChrome_GraphSetBare): a strip of the host's own controls, not
      *  a picture in a frame. */
     int graph_bare;
+    /** GRAPH: the well uses the wheel itself (ToriRSChrome_GraphSetWheel):
+     *  a map that zooms, a grid of tiles that pages. 0, the default, leaves
+     *  the wheel to the panel when the panel has rows to scroll. */
+    int graph_wheel;
     /** Bumped whenever row texts, spans or graph items really changed; the
      *  executor shadow compares it rather than the pools themselves. */
     uint32_t rows_rev;
@@ -3701,15 +3705,17 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y);
  *
  * Over the open dropdown list it scrolls the list, a row a notch. Otherwise
  * it goes to the widget under the pointer that scrolls or steps by itself --
- * a VLIST or CODE view (three rows a notch), a GRAPH well (an event for the
- * host), a SLIDER that holds the focus or sits in a panel with nothing to
- * scroll -- and failing that it scrolls the PANEL: three rows a notch (the
- * row height and gap at the current scale), never more than its view.
+ * a VLIST or CODE view (three rows a notch), a GRAPH well that uses the wheel
+ * (ToriRSChrome_GraphSetWheel: an event for the host), a SLIDER that holds
+ * the focus, or a slider or well in a panel with nothing to scroll -- and
+ * failing that it scrolls the PANEL: three rows a notch (the row height and
+ * gap at the current scale), never more than its view.
  *
  * A CLOSED dropdown does not take the wheel, and neither does a slider that
- * was not picked in a panel that scrolls: a control that changes its value
- * under a pointer merely resting on it changes it for someone who was
- * scrolling the page.
+ * was not picked, nor a well that never asked for the wheel, in a panel that
+ * scrolls: a control that changes its value -- or swallows the notch -- under
+ * a pointer merely resting on it does so for someone who was scrolling the
+ * page.
  *
  * @return 1 when the chrome consumed it (the pointer was over a list or a
  * panel), so the caller can leave the camera zoom alone.
@@ -3731,8 +3737,10 @@ ToriRSChrome_Pinch(struct ToriRSChrome* ui, int x, int y, double scale);
  * A trackpad's exact scroll at surface (x, y): `dx`, `dy` surface pixels in
  * the platform's convention (+dy scroll up, +dx scroll right).
  *
- * A GRAPH well takes it whole (TORIRS_CHROME_EVENT_GRAPH_SCROLL). Over the
- * rows of a panel that scrolls, the panel moves by exactly `dy` pixels -- the
+ * A GRAPH well that takes the wheel (ToriRSChrome_GraphSetWheel, or one in a
+ * panel with nothing to scroll) takes it whole
+ * (TORIRS_CHROME_EVENT_GRAPH_SCROLL). Over the rows of a panel that scrolls
+ * -- any other well among them -- the panel moves by exactly `dy` pixels -- the
  * content follows the fingers, a part pixel kept for the next event -- which
  * is the path that stays pixel-exact whatever a wheel notch is worth; `dx`
  * moves nothing there. Anywhere else (a list, a code view, a held slider, a
@@ -4312,6 +4320,20 @@ ToriRSChrome_Graph(struct ToriRSChrome* ui, int panel, char const* label, int he
  */
 void
 ToriRSChrome_GraphSetBare(struct ToriRSChrome* ui, int widget, int bare, int height);
+/**
+ * Say whether the well uses the wheel itself. Off (the default), a wheel or
+ * a trackpad scroll over the well scrolls the PANEL the well sits in, as it
+ * does over a label -- a well of swatches or thumbnails is a picture in a
+ * page, and a page whose pictures swallow the wheel cannot be scrolled with
+ * the pointer anywhere but on its text (the map editor's Palette, 2026-11-11:
+ * 1,200 px of wells in a 270 px window). On, the well gets GRAPH_WHEEL and
+ * GRAPH_SCROLL wherever it is: a map that zooms, a tile grid that pages.
+ *
+ * Two things reach a well either way: ctrl+wheel (a pinch about the pointer),
+ * and the wheel over a well whose panel has nothing to scroll.
+ */
+void
+ToriRSChrome_GraphSetWheel(struct ToriRSChrome* ui, int widget, int on);
 /** Restate the well's whole picture: Begin, then items, then End. End compares
  *  against the previous picture, so restating the same one records nothing. */
 void
@@ -4345,6 +4367,20 @@ ToriRSChrome_GraphEnd(struct ToriRSChrome* ui, int widget);
 /** Topmost keyed rect under well-local (x, y), 0 for none. */
 int
 ToriRSChrome_GraphKeyAt(struct ToriRSChrome const* ui, int widget, int x, int y);
+/**
+ * Where the pointer is in GRAPH `widget`'s well NOW: 1 and the well-local
+ * point (what a GRAPH_HOVER carries), 0 when the pointer is not over the
+ * well as it is laid out this frame (elsewhere, off its visible part, or on
+ * something drawn over it).
+ *
+ * A GRAPH_HOVER is sent when the KEY under the pointer changes, which is what
+ * a well of keyed items wants. A well that draws a grid of unkeyed cells (the
+ * Square map's empty squares) hears nothing as the pointer crosses them, and
+ * nobody hears anything when the layout moves the well under a still pointer:
+ * such a well asks here, once a tick.
+ */
+int
+ToriRSChrome_GraphPointer(struct ToriRSChrome const* ui, int widget, int* out_x, int* out_y);
 
 /* Events: GRAPH gestures and CODE edits, oldest first. */
 /** Pop one queued event into `out`. @return 0 when none. */

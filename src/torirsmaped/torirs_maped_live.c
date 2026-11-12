@@ -65,6 +65,65 @@ live_now_ms(void)
 }
 
 /* ------------------------------------------------------------------ */
+/* The play client's agent port                                        */
+/* ------------------------------------------------------------------ */
+
+/* One agent server per process (agent/agent_server.h), so this is the
+ * process's, not a lane's: whether RUN's play client gets an agent port of
+ * its own, the driving server's port file ("" = it listens without one), and
+ * the port file of the play client last started ("" = it has none). */
+static int g_play_agent_follow;
+static char g_play_agent_editor_file[TORIRSMAPED_LANE_PATH_MAX];
+static char g_play_agent_started[TORIRSMAPED_LANE_PATH_MAX + 32];
+
+void
+ToriRSMapEd_PlayAgentFollow(const char* agent_port_file)
+{
+    g_play_agent_follow = agent_port_file != NULL;
+    snprintf(g_play_agent_editor_file, sizeof(g_play_agent_editor_file), "%s", agent_port_file ? agent_port_file : "");
+}
+
+const char*
+ToriRSMapEd_PlayAgentPortFile(void)
+{
+    return g_play_agent_started;
+}
+
+int
+ToriRSMapEd_PlayAgentPort(void)
+{
+    FILE* file;
+    int port = 0;
+
+    if( !g_play_agent_started[0] )
+        return 0;
+    /* Absent until the play client listens, and again once it has quit. */
+    file = fopen(g_play_agent_started, "rb");
+    if( !file )
+        return 0;
+    if( fscanf(file, "%d", &port) != 1 || port <= 0 || port > 65535 )
+        port = 0;
+    fclose(file);
+    return port;
+}
+
+int
+ToriRSMapEd_LanePorts(
+    const struct ToriRSMapEd* maped,
+    int out_ports[3])
+{
+    assert(maped);
+    assert(out_ports);
+    out_ports[0] = out_ports[1] = out_ports[2] = 0;
+    if( !maped->jobs || !maped->jobs->have_lane )
+        return 0;
+    out_ports[0] = maped->jobs->lane.game_port;
+    out_ports[1] = maped->jobs->lane.js5_port;
+    out_ports[2] = maped->jobs->lane.io_port;
+    return 1;
+}
+
+/* ------------------------------------------------------------------ */
 /* STATE_LIVE_FOCUS                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -2052,8 +2111,9 @@ live_native_open(
     {
         const struct ToriRSMapEdLane* lane = &native->lane;
         char port[3][16];
-        char env[6][TORIRSMAPED_LANE_PATH_MAX + 32];
-        const char* extra_env[8];
+        char env[7][TORIRSMAPED_LANE_PATH_MAX + 32];
+        const char* extra_env[9];
+        int env_count = 6;
         /* The toolchain's directory in front of PATH, as the build that
          * linked these binaries had it (jobs_lane_path_env): without it a
          * Windows server cannot load libwinpthread-1.dll. NULL: no change. */
@@ -2089,10 +2149,22 @@ live_native_open(
         /* A dev lane: the play client goes straight into the world rather
          * than waiting on the welcome screen's Play. */
         snprintf(env[5], sizeof(env[5]), "TORIRSSERVER_SKIP_WELCOME=1");
-        for( int i = 0; i < 6; i++ )
+        /* A dev lane, again: whoever plays it may type ::commands (::tele,
+         * ::cam, ::mapinstance, the lane's own [debugproc]s). The server
+         * takes a cheat only from staff, and the client only SENDS a typed
+         * "::line" as a cheat when its login said staff -- otherwise it is
+         * said aloud as chat, or dropped, and nothing answers: a tester's
+         * "::tele ..." in the play client did nothing at all (2026-11-11).
+         * The editor already moves and inspects this lane's players through
+         * the control link, so this hands out nothing it did not have.
+         * TORIRSSERVER_STAFF_LEVEL set in the editor's own environment (0
+         * included) is inherited as it is and wins. */
+        if( !getenv("TORIRSSERVER_STAFF_LEVEL") )
+            snprintf(env[env_count++], sizeof(env[0]), "TORIRSSERVER_STAFF_LEVEL=2");
+        for( int i = 0; i < env_count; i++ )
             extra_env[i] = env[i];
-        extra_env[6] = path_env;
-        extra_env[7] = NULL;
+        extra_env[env_count] = path_env;
+        extra_env[env_count + 1] = NULL;
         snprintf(logs[0], sizeof(logs[0]), "%s/logs", lane->live_dir);
         live_mkdirs(logs[0]);
         snprintf(logs[0], sizeof(logs[0]), "%s/saves", lane->live_dir);
@@ -2417,6 +2489,49 @@ play_copy_fixture(
     fclose(out);
 }
 
+/**
+ * Decide the agent port file of the play client about to start, into
+ * g_play_agent_started ("" = it gets no agent port). Returns 1 when the
+ * launcher must pass `--agent-port 0 --agent-port-file <it>` itself.
+ *
+ *   TORIRSMAPED_PLAY_ENV_TORIRS_AGENT_PORT set   the override: the play
+ *       client reads TORIRS_AGENT_PORT[_FILE] from its environment as it
+ *       always did (the PLAY_ENV pass-through above); the file, when one is
+ *       named, is remembered so `editor.play.port` still answers. Returns 0.
+ *   this process has an agent server             its port file + ".play", or
+ *       <live>/play/agent.port when it listens without a file. Returns 1.
+ *   neither                                      no agent port. Returns 0.
+ *
+ * A file a killed client left behind is removed first: it names a port
+ * nobody listens on.
+ */
+static int
+play_agent_arm(const char* live)
+{
+    const char* env_port = getenv("TORIRSMAPED_PLAY_ENV_TORIRS_AGENT_PORT");
+    int by_flag = 0;
+
+    assert(live);
+    g_play_agent_started[0] = '\0';
+    if( env_port && env_port[0] )
+    {
+        const char* env_file = getenv("TORIRSMAPED_PLAY_ENV_TORIRS_AGENT_PORT_FILE");
+        if( env_file && env_file[0] )
+            snprintf(g_play_agent_started, sizeof(g_play_agent_started), "%s", env_file);
+    }
+    else if( g_play_agent_follow )
+    {
+        if( g_play_agent_editor_file[0] )
+            snprintf(g_play_agent_started, sizeof(g_play_agent_started), "%s.play", g_play_agent_editor_file);
+        else
+            snprintf(g_play_agent_started, sizeof(g_play_agent_started), "%s/play/agent.port", live);
+        by_flag = 1;
+    }
+    if( g_play_agent_started[0] )
+        remove(g_play_agent_started);
+    return by_flag;
+}
+
 static enum EditorHost_Status
 play_native_start(
     void* ctx,
@@ -2440,6 +2555,8 @@ play_native_start(
     int extra_count = 0;
     char** env;
     int started;
+    char* argv[24];
+    int argc = 0;
 
     assert(play);
     assert(spec);
@@ -2498,21 +2615,44 @@ play_native_start(
         (void)rename(log_path, previous);
     }
     env = jobs_env_build(extra, drop);
+    argv[argc++] = (char*)lane->play_bin;
+    argv[argc++] = (char*)"--manifest";
+    argv[argc++] = manifest;
+    argv[argc++] = (char*)"--js5";
+    argv[argc++] = (char*)"--js5-host";
+    argv[argc++] = (char*)"127.0.0.1";
+    argv[argc++] = (char*)"--js5-port";
+    argv[argc++] = js5_port;
+    argv[argc++] = (char*)"--js5-fallback-port";
+    argv[argc++] = (char*)"0";
+    argv[argc++] = (char*)"--user";
+    argv[argc++] = (char*)spec->user;
+    argv[argc++] = (char*)"--pass";
+    argv[argc++] = (char*)spec->pass;
+    /* The play client's own agent port, when this process is driven through
+     * one (ToriRSMapEd_PlayAgentFollow): an agent that pressed RUN can go on
+     * to play what it built. */
+    if( play_agent_arm(live) )
     {
-        char* argv[] = { (char*)lane->play_bin, (char*)"--manifest", manifest, (char*)"--js5", (char*)"--js5-host",
-            (char*)"127.0.0.1", (char*)"--js5-port", js5_port, (char*)"--js5-fallback-port", (char*)"0",
-            (char*)"--user", (char*)spec->user, (char*)"--pass", (char*)spec->pass, NULL };
-        started = jobs_process_start_envp(argv, env, log_path, &play->process);
+        argv[argc++] = (char*)"--agent-port";
+        argv[argc++] = (char*)"0";
+        argv[argc++] = (char*)"--agent-port-file";
+        argv[argc++] = g_play_agent_started;
     }
+    argv[argc] = NULL;
+    assert(argc < (int)(sizeof(argv) / sizeof(argv[0])));
+    started = jobs_process_start_envp(argv, env, log_path, &play->process);
     free(env);
     if( !started )
     {
         snprintf(why, why_size, "cannot start %s: %s", lane->play_bin, strerror(errno));
+        g_play_agent_started[0] = '\0';
         return EDITOR_HOST_IO_ERROR;
     }
     *out_pid = play->process.pid;
-    TORIRS_LOG("torirsmaped: play client pid %d: %s --manifest %s --js5-port %d --user %s (log %s)\n", play->process.pid,
-        lane->play_bin, manifest, lane->js5_port, spec->user, log_path);
+    TORIRS_LOG("torirsmaped: play client pid %d: %s --manifest %s --js5-port %d --user %s (log %s)%s%s\n",
+        play->process.pid, lane->play_bin, manifest, lane->js5_port, spec->user, log_path,
+        g_play_agent_started[0] ? ", agent port file " : "", g_play_agent_started);
     return EDITOR_HOST_OK;
 }
 
@@ -2746,6 +2886,25 @@ live_path_absolute(const char* path)
 }
 
 int
+ToriRSMapEd_LaneTakesMapInstances(const struct ToriRSMapEdLane* lane)
+{
+    char procs[TORIRSMAPED_LANE_PATH_MAX + 96];
+    FILE* file;
+
+    assert(lane);
+    /* A lane with no game server of its own to start: whatever answers on
+     * its port is somebody else's, and the link cannot ask it. */
+    if( !lane->server_bin[0] )
+        return 0;
+    snprintf(procs, sizeof(procs), "%s/server/scripts/" TORIRSMAPED_MAP_INSTANCE_PROCS, lane->content_dir);
+    file = fopen(procs, "rb");
+    if( !file )
+        return 0;
+    fclose(file);
+    return 1;
+}
+
+int
 ToriRSMapEd_BindLiveFromEnv(
     struct ToriRSMapEd* maped,
     const char* repo_root,
@@ -2811,6 +2970,10 @@ ToriRSMapEd_BindLiveFromEnv(
     }
     ToriRSMapEd_SetBuildRunner(maped, &runner);
     ToriRSMapEd_SetLiveLink(maped, &link);
+    if( ToriRSMapEd_LaneTakesMapInstances(&lane) )
+        maped->capabilities |= TORIRSMAPED_CAP_MAP_INSTANCE;
+    else
+        maped->capabilities &= ~(uint32_t)TORIRSMAPED_CAP_MAP_INSTANCE;
     {
         struct ToriRSMapEdPlayLauncher play;
         if( ToriRSMapEd_PlayLauncherNative(&play, &lane) )

@@ -110,6 +110,12 @@ Editor_ScriptEditedPath(
 int
 Editor_ScriptPathValid(const char* rel_path);
 
+/** The same rule for ANY file or folder under server/scripts -- a quest's
+ *  `.varp` and `.constant`, the folder they are in: what Open in editor and
+ *  Show in Explorer are handed. No trailing '/'. */
+int
+Editor_ScriptFileValid(const char* rel_path);
+
 /** "server/scripts/<rel>.rs2" (a catalog source path) -> "<rel>.rs2".
  *  0 when it is not a script under server/scripts. */
 int

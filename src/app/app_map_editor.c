@@ -10,11 +10,14 @@
 #include "mem/torirs_mem.h"
 #include "mem/torimem_toridraw.h"
 #include "app/app_internal.h"
+#include "app/app_editor_campath.h"
 #include "app/app_record_thumbs.h"
 #include "perf/frame_stats.h"
 #include "engine/world_builder/collision_map.h"
+#include "editor/builder/builder_panels.h"
 #include "editor/builder/builder_shell.h"
 #include "editor/editor_derive.h"
+#include "editor/editor_lanerecs.h"
 #include "editor/accounts/accounts_panel.h"
 #include "app/app_camera_clamp.h"
 #include "editor/editor_view.h"
@@ -24,6 +27,7 @@
 #include "editor/panels/edpanel_common.h"
 #include "editor/panels/edpanel_ops.h"
 #include "editor/panels/edpanel_ops_stamps.h"
+#include "editor/panels/edpanel_ops_building.h"
 #include "editor/loc_editor_selection.h"
 #include "editor/panels/edpanels.h"
 #include "editor/task_editor_layout_io.h"
@@ -132,7 +136,14 @@ static struct
     int armed;
     int applied_before;
     int grid_at_ground;
+    /* The ground at the press, in the brush's units (0 is the lowest a tile
+     * goes): "lower only" on ground already at 0 moves nothing, and the
+     * release must say that rather than blame the grid. */
+    int ground;
 } g_app_height_drag;
+/* The History's command count at a brush stroke's press: a Scatter drag's
+ * release says how many edits it made. */
+static int g_app_scatter_drag_before;
 static int
 app_map_editor_gizmo_press(
     struct App* app,
@@ -333,6 +344,9 @@ app_map_editor_shutdown(struct App* app)
     /* The var preview is the editor's: the world resolves with the
      * player's vars again once it closes. */
     (void)VarPManager_SetPreview(&app->varps, NULL, 0);
+    /* The lane's records stop being defined from a session that is closing
+     * (editor/editor_lanerecs.h). */
+    Editor_LaneRecords_Detach();
     /* The embedded server's loopback listener, before the session it serves
      * goes (app/app_editor_view.c). */
     EditorView_AppShutdown(app);
@@ -571,6 +585,38 @@ ui_service_path_steps(
         return 0;
     steps = collision_map_bfs_path(cm, sax, saz, sbx, sbz, path_x, path_z, 256);
     return steps < 0 ? -1 : steps;
+}
+
+/** The NPC editor's patrol walk: one step of the server's npc movement
+ *  (npc_take_step tests ToriRSServer_SceneCanTravelTyped, which is this
+ *  call on the server's copy of the same collision). */
+static int
+ui_service_can_step(
+    void* user_data,
+    int x,
+    int z,
+    int dx,
+    int dz,
+    int level,
+    int size)
+{
+    struct App* app = user_data;
+    struct CollisionMap* cm;
+    int sx;
+    int sz;
+
+    assert(app);
+    if( !app->world || level < 0 || level >= COLLISION_LEVELS )
+        return -1;
+    cm = app->world->collision_maps[level];
+    if( !cm )
+        return -1;
+    sx = x - app->world->_base_tile_x;
+    sz = z - app->world->_base_tile_z;
+    if( sx < 0 || sz < 0 || sx >= cm->size_x || sz >= cm->size_z || sx + dx < 0 || sz + dz < 0
+        || sx + dx >= cm->size_x || sz + dz >= cm->size_z )
+        return -1;
+    return collision_map_can_travel_typed(cm, sx, sz, dx, dz, size > 0 ? size : 1, 0, COLL_TYPE_NORMAL) ? 1 : 0;
 }
 
 static void
@@ -1374,6 +1420,7 @@ app_map_editor_ui_services(
     out->camera_to_tile = ui_service_camera_to_tile;
     out->tile_flags = ui_service_tile_flags;
     out->path_steps = ui_service_path_steps;
+    out->can_step = ui_service_can_step;
     out->preview_invalidate = ui_service_preview_invalidate;
     out->preview_orbit = ui_service_preview_orbit;
     out->preview_zoom = ui_service_preview_zoom;
@@ -1410,6 +1457,11 @@ app_map_editor_ui_services(
     /* A scene's Enter (editor/panels/edpanel_scenes.c). */
     out->world_camera_set = EditorView_AppWorldCameraSet;
     out->spawn_panel = EditorView_AppSpawnPanel;
+    /* The Camera path panel (app/app_editor_campath.c): the camera read and
+     * put exactly, and the ground its heights are measured from. */
+    out->world_eye = EditorCamPath_AppEye;
+    out->world_eye_set = EditorCamPath_AppEyeSet;
+    out->world_ground = EditorCamPath_AppGround;
 }
 
 static struct AppMapEditShadow*
@@ -1547,14 +1599,151 @@ app_map_editor_shadow_seed(
 
 /* Squares one world load takes (app_world_load.c's APP_WORLD_MAP_SQUARE_MAX). */
 #define APP_MAP_EDITOR_OPEN_MAX 16
+_Static_assert(EDITOR_DOC_WORLD_SQUARES_MAX <= APP_MAP_EDITOR_OPEN_MAX, "a fitted world is one load");
+
+/** Whether square (map_x, map_z) is one the window's world was built from
+ *  (not merely inside its bounding box). */
+static int
+app_map_editor_square_shown(
+    struct App* app,
+    int map_x,
+    int map_z)
+{
+    if( !app->world_builder || !app->world || !app->world_active )
+        return 0;
+    if( WorldBuilder_GetLayout(app->world_builder) == WORLD_BUILDER_LAYOUT_EDIT )
+        return WorldEdit_SquareInWindow(app->world_builder, map_x, map_z);
+    /* STATIC keeps no list of what it baked: its box is all it knows. */
+    return map_x >= app->world->_chunk_sw_x && map_x <= app->world->_chunk_ne_x
+           && map_z >= app->world->_chunk_sw_z && map_z <= app->world->_chunk_ne_z;
+}
+
+/** The squares of the mirror the window's world shows now, as (x, z) pairs
+ *  into `out` (at most `max` pairs). */
+static int
+app_map_editor_shown_squares(
+    struct App* app,
+    int* out,
+    int max)
+{
+    struct Editor_Doc const* doc = &app->editor->doc;
+    int count = 0;
+
+    for( int i = 0; i < doc->square_count && count < max; i++ )
+    {
+        if( !doc->squares[i].loaded || !app_map_editor_square_shown(app, doc->squares[i].map_x, doc->squares[i].map_z) )
+            continue;
+        out[count * 2] = doc->squares[i].map_x;
+        out[count * 2 + 1] = doc->squares[i].map_z;
+        count++;
+    }
+    return count;
+}
 
 /**
- * Close one square of the window's world (the picker's open-set strip,
- * Shift+click, past the save guard): the world reloads with every other
- * square it shows now. The document keeps the square -- its unsaved edits stay
- * in the session until saved or undone -- it is only no longer in this
- * window's world. Refused, with the reason in the status bar, when it is the
- * only square shown (a window always shows one) or not shown at all.
+ * The mirror lets go of every square that is not in `kept_xz` and owes
+ * nothing: no unsaved edit, or a scratch slot a Place cleared. Its shadow
+ * goes with it, so a later open seeds the provider from the text again. A
+ * square with unsaved edits stays an open document (the picker's strip shows
+ * it, dotted) until it is saved or undone.
+ *
+ * Without this the mirror kept every square it ever opened, and the next
+ * "add to the open set" built one scene around all of them: the boot square
+ * rode along for the whole session (F10, 2026-11-11).
+ */
+static void
+app_map_editor_release_squares(
+    struct App* app,
+    const int* kept_xz,
+    int kept_count)
+{
+    struct Editor_Doc* doc = &app->editor->doc;
+
+    for( int i = doc->square_count - 1; i >= 0; i-- )
+    {
+        struct Editor_Square const* square = &doc->squares[i];
+        struct AppMapEditShadow* sh;
+        char key[EDITOR_DOC_KEY_MAX + EDITOR_DOC_STORAGE_MAX];
+        int const map_x = square->map_x;
+        int const map_z = square->map_z;
+        int kept = 0;
+
+        for( int k = 0; k < kept_count && !kept; k++ )
+            kept = kept_xz[k * 2] == map_x && kept_xz[k * 2 + 1] == map_z;
+        if( kept || !square->loaded )
+            continue;
+        if( (square->dirty_map || square->dirty_loc)
+            && !(Editor_DocStorageIsScratch(doc->square_storage[i]) && Editor_SquareIsBlank(square)) )
+            continue;
+        if( doc->square_storage[i][0] )
+            snprintf(key, sizeof(key), "%s/m%d_%d", doc->square_storage[i], map_x, map_z);
+        else
+            snprintf(key, sizeof(key), "m%d_%d", map_x, map_z);
+        Editor_CloseDoc(app->editor, EDITOR_DOC_SQUARE, key);
+        sh = app_edit_shadow_find(map_x, map_z);
+        if( sh )
+            sh->used = 0;
+        (void)Editor_DocCloseSquare(doc, map_x, map_z);
+        TORIRS_LOG("editor: %s left the window's world with nothing unsaved; its document is closed\n", key);
+    }
+}
+
+/**
+ * Load `count` squares as the window's world, built around
+ * `chunks_xz[anchor]` -- the square being opened. A world is one grid over
+ * the bounding box of its squares (EDITOR_DOC_WORLD_SIDE_MAX), so squares
+ * too far from the anchor to share one are left out, said in a sentence, and
+ * stay open documents when they hold unsaved edits. Every open, add and
+ * close goes through here: a far-apart set is never a scene (it was a
+ * "single allocation over 4 GB" abort, F7).
+ */
+static void
+app_map_editor_world_begin(
+    struct App* app,
+    struct Editor_Panel* panel,
+    const int* chunks_xz,
+    int count,
+    int anchor)
+{
+    int kept[EDITOR_DOC_WORLD_SQUARES_MAX * 2];
+    int dropped[(EDITOR_DOC_MAX_SQUARES + 1) * 2];
+    int dropped_count = 0;
+    int kept_count;
+
+    assert(count > 0);
+    assert(count <= EDITOR_DOC_MAX_SQUARES + 1);
+
+    kept_count = Editor_DocWorldFit(chunks_xz, count, anchor, kept, dropped, &dropped_count);
+    if( dropped_count > 0 && panel->ui )
+    {
+        char names[96];
+        int used = 0;
+
+        names[0] = '\0';
+        for( int i = 0; i < dropped_count && used < (int)sizeof(names) - 24; i++ )
+            used += snprintf(names + used, sizeof(names) - (size_t)used, "%sm%d_%d", i ? ", " : "", dropped[i * 2],
+                dropped[i * 2 + 1]);
+        if( used >= (int)sizeof(names) - 24 )
+            snprintf(names + used, sizeof(names) - (size_t)used, ", ...");
+        Editor_UiStatus(panel->ui,
+            "%s left this window's world: too far from m%d_%d for one scene (at most %d x %d squares); unsaved "
+            "edits stay open",
+            names, chunks_xz[anchor * 2], chunks_xz[anchor * 2 + 1], EDITOR_DOC_WORLD_SIDE_MAX,
+            EDITOR_DOC_WORLD_SIDE_MAX);
+    }
+    app_map_editor_release_squares(app, kept, kept_count);
+    app->world_load_attempted = 0;
+    app_world_load_begin(app, kept, kept_count);
+}
+
+/**
+ * Close one square of the window's world (the Squares pane's Close square,
+ * File > Close square, the strip's Shift+click; past the save guard): the
+ * world reloads with every other square it shows now. A square with nothing
+ * unsaved leaves the mirror too (app_map_editor_release_squares); one whose
+ * edits the guard was told not to save stays an open document until saved or
+ * undone. Refused, with the reason in the status bar, when it is the only
+ * square shown (a window always shows one) or not shown at all.
  */
 static void
 app_map_editor_close_square(
@@ -1575,7 +1764,7 @@ app_map_editor_close_square(
     for( int i = 0; i < doc->square_count && count < APP_MAP_EDITOR_OPEN_MAX; i++ )
     {
         struct Editor_Square const* square = &doc->squares[i];
-        if( !square->loaded || !WorldEdit_SquareInWindow(app->world_builder, square->map_x, square->map_z) )
+        if( !square->loaded || !app_map_editor_square_shown(app, square->map_x, square->map_z) )
             continue;
         if( square->map_x == panel->sq_close_x && square->map_z == panel->sq_close_z )
         {
@@ -1605,8 +1794,9 @@ app_map_editor_close_square(
     if( panel->ui )
         Editor_UiStatus(panel->ui, "Closed m%d_%d: %d square%s left in this window", panel->sq_close_x,
             panel->sq_close_z, count, count == 1 ? "" : "s");
-    app->world_load_attempted = 0;
-    app_world_load_begin(app, chunks, count);
+    /* What is left is what was shown, so it fits; the closed square's
+     * document goes too when it owes nothing (the save guard came first). */
+    app_map_editor_world_begin(app, panel, chunks, count, 0);
 }
 
 /**
@@ -1651,8 +1841,9 @@ app_map_editor_open_square_set(
             app_edit_seed_provider(&ctx, square);
     }
     TORIRS_LOG("editor: opening a working set of %d square%s\n", count, count == 1 ? "" : "s");
-    app->world_load_attempted = 0;
-    app_world_load_begin(app, chunks, count);
+    /* The first is the one nearest the set's middle: the scene is built
+     * around it, and a set too wide for one scene loses its far squares. */
+    app_map_editor_world_begin(app, panel, chunks, count, 0);
     panel->sq_goto_pending = 1;
     panel->sq_goto_level = 0;
     panel->sq_goto_x = chunks[0] * 64 + 32;
@@ -1673,7 +1864,7 @@ void
 app_map_editor_open_pending_square(struct App* app)
 {
     struct Editor_Panel* panel;
-    int chunks[APP_MAP_EDITOR_OPEN_MAX * 2];
+    int chunks[(APP_MAP_EDITOR_OPEN_MAX + 1) * 2];
     int count = 0;
 
     assert(app);
@@ -1726,15 +1917,17 @@ app_map_editor_open_pending_square(struct App* app)
 
     if( panel->sq_open_add )
     {
-        struct Editor_Doc* doc = &app->editor->doc;
-        for( int i = 0; i < doc->square_count && count < APP_MAP_EDITOR_OPEN_MAX - 1; i++ )
+        /* Add keeps what the window SHOWS, not every square the mirror has
+         * open: a square opened for a copy, or left behind by an Open
+         * elsewhere, is not part of this scene. */
+        int shown[APP_MAP_EDITOR_OPEN_MAX * 2];
+        int const shown_count = app_map_editor_shown_squares(app, shown, APP_MAP_EDITOR_OPEN_MAX);
+        for( int i = 0; i < shown_count; i++ )
         {
-            if( !doc->squares[i].loaded )
+            if( shown[i * 2] == panel->sq_open_x && shown[i * 2 + 1] == panel->sq_open_z )
                 continue;
-            if( doc->squares[i].map_x == panel->sq_open_x && doc->squares[i].map_z == panel->sq_open_z )
-                continue;
-            chunks[count * 2] = doc->squares[i].map_x;
-            chunks[count * 2 + 1] = doc->squares[i].map_z;
+            chunks[count * 2] = shown[i * 2];
+            chunks[count * 2 + 1] = shown[i * 2 + 1];
             count++;
         }
     }
@@ -1756,8 +1949,8 @@ app_map_editor_open_pending_square(struct App* app)
 
     TORIRS_LOG("editor: opening m%d_%d%s (%d square%s)\n", panel->sq_open_x, panel->sq_open_z,
         panel->sq_open_add ? ", added" : "", count, count == 1 ? "" : "s");
-    app->world_load_attempted = 0;
-    app_world_load_begin(app, chunks, count);
+    /* The square asked for is the last of the list and the scene's anchor. */
+    app_map_editor_world_begin(app, panel, chunks, count, count - 1);
     /* Open brings the camera: to the tile the open asked for (the palette's
      * coordinates), else the square's centre. Add to open set keeps the view
      * where it is -- unless a tile was asked for. */
@@ -2167,19 +2360,11 @@ app_map_editor_floor_define(
 static void
 app_edit_rebake_window(struct App* app)
 {
-    struct World* world = app->world;
-    int chunks[EDITOR_REBUILD_QUEUE_MAX * 2];
-    int count = 0;
+    int chunks[APP_MAP_EDITOR_OPEN_MAX * 2];
+    /* The squares it was built from, not every cell of its bounding box: an
+     * L of three squares stays three, and a rebake opens no document. */
+    int const count = app_map_editor_shown_squares(app, chunks, APP_MAP_EDITOR_OPEN_MAX);
 
-    for( int mx = world->_chunk_sw_x; mx <= world->_chunk_ne_x; mx++ )
-        for( int mz = world->_chunk_sw_z; mz <= world->_chunk_ne_z; mz++ )
-        {
-            if( count >= EDITOR_REBUILD_QUEUE_MAX )
-                break;
-            chunks[count * 2] = mx;
-            chunks[count * 2 + 1] = mz;
-            count++;
-        }
     if( count == 0 )
         return;
     app->world_load_attempted = 0;
@@ -2240,6 +2425,13 @@ app_map_editor_flush(struct App* app)
     Editor_PumpFacts(app->editor);
     FrameStats_Span(FRAME_STATS_PUMP, t);
     t = FrameStats_Now();
+    /* A lane record the world may show was decoded again from its text (a
+     * field set in the Record panel, a copy undone or redone,
+     * editor/editor_lanerecs.h): what stands of it was built from the old
+     * record, and only a bake of the window shows the new one -- the floor
+     * records' rule, and its flag. */
+    if( Editor_LaneRecords_Tick() )
+        g_app_floor_rebake = 1;
     app_map_editor_flush_edits(app);
     FrameStats_Span(FRAME_STATS_EDIT_FLUSH, t);
 }
@@ -3008,11 +3200,60 @@ app_map_editor_drag(
             panel->stroke_active = 0;
             /* A Height drag that moved nothing because the grid is where the
              * ground is: say how to move the grid, once for the drag. */
-            if( g_app_height_drag.armed && g_app_height_drag.grid_at_ground
+            if( g_app_height_drag.armed && ui->tools.height_mode == EDITOR_HEIGHT_MODE_LOWER
+                && g_app_height_drag.ground >= 0
                 && Editor_HistoryAppliedCommands(Editor_GetHistory(app->editor)) == g_app_height_drag.applied_before )
-                Editor_UiStatus(ui,
-                    "Height: the grid is at the ground. Ctrl+wheel lifts or lowers it, then drag pulls the ground to it.");
+                Editor_UiStatus(ui, "Height: this ground is at 0, the lowest it goes; raise the land around it "
+                                    "(a new square's Flat fill starts at h20 for this)");
+            else if( g_app_height_drag.armed && g_app_height_drag.grid_at_ground
+                && Editor_HistoryAppliedCommands(Editor_GetHistory(app->editor)) == g_app_height_drag.applied_before )
+                Editor_UiStatus(ui, "Height: this ground is already at the grid; Ctrl+wheel moves the grid");
+            /* A one-way mode with the grid on the far side moves nothing
+             * either: say which way the grid is. */
+            else if( g_app_height_drag.armed && ui->tools.height_mode != EDITOR_HEIGHT_MODE_BOTH
+                     && Editor_HistoryAppliedCommands(Editor_GetHistory(app->editor))
+                            == g_app_height_drag.applied_before )
+                Editor_UiStatus(ui, "Height: nothing moved; %s, and the grid (h%d) is %s this ground. Ctrl+click sets it here",
+                    ui->tools.height_mode == EDITOR_HEIGHT_MODE_LOWER ? "lower only never lifts" : "raise only never sinks",
+                    -ui->tools.height_target / EDITOR_HEIGHT_UNIT,
+                    ui->tools.height_mode == EDITOR_HEIGHT_MODE_LOWER ? "above" : "below");
             g_app_height_drag.armed = 0;
+            /* A Scatter drag says what it put down (2026-11-11: it said
+             * nothing, and a stroke that placed nothing looked the same as
+             * one that filled the yard). */
+            if( ui->tools.tool == EDITOR_TOOL_SCATTER )
+            {
+                int const placed = Editor_HistoryAppliedCommands(Editor_GetHistory(app->editor))
+                                   - g_app_scatter_drag_before;
+                if( placed > 0 )
+                    Editor_UiStatus(ui, "Scatter: %d edit%s in one step (Ctrl+Z undoes it; Alt+drag erases)", placed,
+                        placed == 1 ? "" : "s");
+                else
+                    Editor_UiStatus(ui, "Scatter: nothing laid; raise Density in the Terrain panel or drag wider");
+            }
+            /* The paint brushes say what a stroke did, as Scatter and Path
+             * do: a soft underlay stroke at a low Mix is hard to see, and a
+             * silent bar left the user to guess whether it took
+             * (2026-11-11). */
+            else if( ui->tools.tool == EDITOR_TOOL_PAINT_UNDERLAY || ui->tools.tool == EDITOR_TOOL_PAINT_OVERLAY
+                     || ui->tools.tool == EDITOR_TOOL_PAINT_FLAGS )
+            {
+                int const edits = Editor_HistoryAppliedCommands(Editor_GetHistory(app->editor))
+                                  - g_app_scatter_drag_before;
+                char what[48];
+                if( ui->tools.tool == EDITOR_TOOL_PAINT_UNDERLAY )
+                    snprintf(what, sizeof(what), "underlay %d, mix %d%%", ui->tools.underlay_id, ui->tools.paint_mix);
+                else if( ui->tools.tool == EDITOR_TOOL_PAINT_OVERLAY )
+                    snprintf(what, sizeof(what), "overlay %d", ui->tools.overlay_id);
+                else
+                    snprintf(what, sizeof(what), "flags %d", ui->tools.flags_value);
+                if( edits > 0 )
+                    Editor_UiStatus(ui, "%s: %d edit%s, %s, in one step (Ctrl+Z undoes it)",
+                        Editor_ToolName(ui->tools.tool), edits, edits == 1 ? "" : "s", what);
+                else
+                    Editor_UiStatus(ui, "%s: nothing changed; the ground already has %s", Editor_ToolName(ui->tools.tool),
+                        what);
+            }
         }
     }
     if( panel->rect_dragging )
@@ -3033,11 +3274,18 @@ app_map_editor_drag(
                 panel->marquee_active = 0;
                 (void)Editor_PanelMarqueeSelect(panel, app, app_map_editor_select_mode(app, input));
             }
+            /* The Building tool: the rectangle is the house (or the wall
+             * line), laid as one undo step. */
+            else if( ui->tools.tool == EDITOR_TOOL_BUILDING )
+                (void)edp_building_build(ui, &ui->tools.rect);
+            /* Said in the status bar, with what it is for (2026-11-11: it
+             * went to the console only, and the bar kept the last door's
+             * sentence while the person looked for Save as stamp). */
             else if( Editor_TileRectNormalise(&ui->tools.rect, &r) )
-                Editor_UiLog(ui, "editor: rectangle %dx%d at %d,%d level %d", r.x1 - r.x0 + 1,
-                    r.z1 - r.z0 + 1, r.x0, r.z0, r.level);
+                Editor_UiStatus(ui, "Rectangle %dx%d at %d,%d L%d: Ctrl+C copies it; the Rectangle panel saves it as a stamp",
+                    r.x1 - r.x0 + 1, r.z1 - r.z0 + 1, r.x0, r.z0, r.level);
             else
-                Editor_UiLog(ui, "editor: that rectangle is larger than 64x64 tiles");
+                Editor_UiStatus(ui, "Rectangle refused: it is larger than 64x64 tiles");
         }
         app->need_redraw = 1;
     }
@@ -3435,6 +3683,22 @@ app_map_editor_world_click(
         return;
     }
 
+    /* The NPC editor's Add / Move waypoint tools take the World's left
+     * button whatever map tool is armed, as the eyedropper does: a press on
+     * a waypoint carries it, the release drops it or lays a new one
+     * (builder_panels.h Builder_RoutePointer). Told every frame the pointer
+     * is over a tile, so the next-waypoint ghost follows it. */
+    if( Builder_RouteArmed(ui) )
+    {
+        int world_x;
+        int world_z;
+        if( !app->chrome_pointer_owned && app_map_editor_hover_world(app, &world_x, &world_z)
+            && Builder_RoutePointer(ui, world_x, world_z, level, input->curr.mouse_button_down[TORIRSM_LEFT],
+                   LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT), input->curr.mouse_button_up[TORIRSM_LEFT]) )
+            app->need_redraw = 1;
+        return;
+    }
+
     /* The press opens a drag for the brushes and the rectangle. */
     if( input->curr.mouse_button_down[TORIRSM_LEFT] )
     {
@@ -3488,18 +3752,28 @@ app_map_editor_world_click(
             panel->stroke_active = 1;
             panel->stroke_last_x = hx;
             panel->stroke_last_z = hz;
+            g_app_scatter_drag_before = Editor_HistoryAppliedCommands(Editor_GetHistory(app->editor));
             g_app_height_drag.armed = tool == EDITOR_TOOL_HEIGHT;
             if( g_app_height_drag.armed )
             {
                 int const ground = app_world_height(app, hx * 128 + 64, hz * 128 + 64, level);
                 g_app_height_drag.applied_before = Editor_HistoryAppliedCommands(Editor_GetHistory(app->editor));
-                g_app_height_drag.grid_at_ground = !ui->tools.height_valid || ui->tools.height_target == ground;
+                g_app_height_drag.ground = ground;
             }
             Editor_PanelApplyToolAt(panel, app, hx, hz, level);
+            /* After the press, which sets the grid when none was set (one
+             * Step off this ground): judged before it, "no grid yet" read as
+             * "grid at the ground" and the release blamed the grid for a
+             * drag the press had armed correctly. */
+            if( g_app_height_drag.armed )
+                g_app_height_drag.grid_at_ground =
+                    ui->tools.height_valid && ui->tools.height_target == g_app_height_drag.ground;
             app->need_redraw = 1;
             return;
         }
-        if( tool == EDITOR_TOOL_RECT_SELECT )
+        /* The Building tool's Shell and Wall line drag the same rectangle
+         * (the overlay draws it); its release builds on it. */
+        if( tool == EDITOR_TOOL_RECT_SELECT || (tool == EDITOR_TOOL_BUILDING && edp_building_drags(ui)) )
         {
             int world_x;
             int world_z;
@@ -3589,9 +3863,12 @@ app_map_editor_world_click(
             return;
         }
 
-        /* A plain click latches the TILE (unambiguous where a wall, a decor
-         * and a ground loc share it; the minimenu's "Select wall" rows pick
-         * those exactly). With a modifier the loc under the pointer joins the
+        /* A plain click latches the TILE and selects the loc the pointer is
+         * on (2026-11-11: a click on a chair selected the floor under it, and
+         * the chair needed Shift; the minimenu's "Select wall" rows still pick
+         * exactly where a wall, a decor and a ground loc share a tile). Ground
+         * decor is the floor itself -- grass, a rug -- and stays the tile's.
+         * With a modifier the loc under the pointer joins the
          * selection: Shift adds, Ctrl toggles, Alt takes it out. A second
          * click on the same loc soon after is the double-click: select same,
          * every loc of its id on the edit level. A double-click on no loc
@@ -3617,7 +3894,11 @@ app_map_editor_world_click(
         if( pointed )
             panel->click_ref = under;
         if( mode == EDITOR_LOC_SELECT_REPLACE )
+        {
             Editor_PanelSelectTerrain(panel, app, hx, hz, level);
+            if( pointed && under.shape != 22 )
+                (void)Editor_PanelSelectPointed(panel, app, hx, hz, level, mode);
+        }
         else if( !Editor_PanelSelectPointed(panel, app, hx, hz, level, mode) )
             Editor_UiStatus(ui, "Select refused: no loc under the pointer to add, toggle or take out");
         if( mode == EDITOR_LOC_SELECT_REPLACE && !pointed && LibToriRS_Input_IsDoubleClick(input, TORIRSM_LEFT)
@@ -3633,6 +3914,20 @@ app_map_editor_world_click(
         return;
     if( tool == EDITOR_TOOL_REGION || tool == EDITOR_TOOL_LASSO )
         return;
+
+    /* Building: in its Door and Window modes the click swaps the wall piece
+     * under the pointer (its drag modes ended in app_map_editor_drag). */
+    if( tool == EDITOR_TOOL_BUILDING )
+    {
+        struct Editor_LocRef under;
+        int world_x;
+        int world_z;
+        if( !edp_building_drags(ui) && app_map_editor_hover_world(app, &world_x, &world_z) )
+            (void)edp_building_click(ui, world_x, world_z, level,
+                Editor_PanelPointedLoc(panel, app, hx, hz, level, &under) ? &under : NULL);
+        app->need_redraw = 1;
+        return;
+    }
 
     /* Tidy: the click refits the run of overlay under it, one undo step. */
     if( tool == EDITOR_TOOL_TIDY )

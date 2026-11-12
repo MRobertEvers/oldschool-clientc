@@ -45,7 +45,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define PROBLEMS_LIST_ROWS 6
+/* The list fills the height the panel has (problems_fit): at least this
+ * many rows, at most the pool it reserved. */
+#define PROBLEMS_LIST_ROWS_MIN 2
+#define PROBLEMS_LIST_ROWS_MAX 16
 
 struct ProblemsPanel
 {
@@ -374,7 +377,20 @@ Editor_ProblemsParseLine(
 
 /* ---- the line stream ---------------------------------------------------------------- */
 
-/** A build of `what` started: its kind's old rows go. */
+/** 1 when a build of `what` compiles the lane's scripts: Check, and the
+ *  packs a RUN (or a packs build) makes. */
+static int
+problems_compiles_scripts(uint32_t what)
+{
+    return what == TORIRSMAPED_BUILD_CHECK || what == TORIRSMAPED_BUILD_RUN || what == TORIRSMAPED_BUILD_PACKS;
+}
+
+/** A build of `what` started: its kind's old rows go. One that compiles the
+ *  scripts also takes the other such kinds' rows that name a file: they are
+ *  findings in the same files, and the new compile reads those files as they
+ *  are now. Without that, a Check's error fixed in VS Code stayed a row after
+ *  the RUN that compiled the fix, and clicking it opened a line that was
+ *  fine (2026-11-11). */
 static void
 problems_stream_begin(
     struct EditorUi* ui,
@@ -382,6 +398,27 @@ problems_stream_begin(
     uint32_t what)
 {
     (void)Editor_Problems_Clear(ui, ToriRSMapEd_BuildWhatName(what));
+    if( problems_compiles_scripts(what) )
+    {
+        const char* const kinds[] = { ToriRSMapEd_BuildWhatName(TORIRSMAPED_BUILD_CHECK),
+            ToriRSMapEd_BuildWhatName(TORIRSMAPED_BUILD_RUN), ToriRSMapEd_BuildWhatName(TORIRSMAPED_BUILD_PACKS) };
+        int kept = 0;
+
+        for( int i = 0; i < self->row_count; i++ )
+        {
+            const struct Editor_ProblemRow* row = &self->rows[i];
+            int stale = 0;
+            for( int k = 0; k < (int)(sizeof(kinds) / sizeof(kinds[0])); k++ )
+                stale |= row->file[0] && strcmp(row->source, kinds[k]) == 0;
+            if( !stale )
+                self->rows[kept++] = *row;
+        }
+        if( kept != self->row_count )
+        {
+            self->row_count = kept;
+            self->serial++;
+        }
+    }
     self->stream_what = what;
     self->stream_rows = 0;
     self->stream_open = 1;
@@ -573,6 +610,41 @@ problems_row_cells(
         row->text, place, row->source, row->severity == EDITOR_PROBLEM_ERROR ? "!" : "");
 }
 
+/** The list takes the height its panel has: every row of the panel in
+ *  view when they fit (a floating window), else the list down to the fold
+ *  under the count, the filter and the buttons one turn of the wheel below
+ *  (the bottom strip). As the Lanes panel's list (edpanel_publish.c,
+ *  publish_fit): the other rows do not depend on the list's, so it settles
+ *  in one Build, and the setter compares. */
+static void
+problems_fit(
+    struct EditorUi* ui,
+    struct ProblemsPanel* self)
+{
+    const struct ToriRSChromePanel* panel = &ui->chrome->panels[self->panel];
+    const struct ToriRSChromeWidget* list = &ui->chrome->widgets[self->list];
+    int const row_h = ToriRSChrome_VListRowHeight(ui->chrome);
+    int rows;
+    int to_fold;
+
+    /* Not built yet, or collapsed to its title: no heights to fit to. */
+    if( panel->view_h <= 0 || panel->content_h <= 0 || list->h <= 0 )
+        return;
+    assert(row_h > 0);
+    rows = (panel->view_h - (panel->content_h - list->rows * row_h)) / row_h;
+    /* The count's row and the list's header over the rows, as laid out. */
+    to_fold = (panel->view_h - (list->y - ui->chrome->widgets[self->label_summary].y)
+                  - (list->h - list->rows * row_h) - row_h / 2)
+              / row_h;
+    if( rows < to_fold )
+        rows = to_fold;
+    if( rows < PROBLEMS_LIST_ROWS_MIN )
+        rows = PROBLEMS_LIST_ROWS_MIN;
+    if( rows > PROBLEMS_LIST_ROWS_MAX )
+        rows = PROBLEMS_LIST_ROWS_MAX;
+    ToriRSChrome_VListSetRows(ui->chrome, self->list, rows);
+}
+
 static void
 problems_tick(
     struct EditorUi* ui,
@@ -591,6 +663,7 @@ problems_tick(
     problems_stream(ui, self);
     if( !ui->chrome->panels[self->panel].visible )
         return;
+    problems_fit(ui, self);
     find = ToriRSChrome_Text(ui->chrome, self->input_find);
     if( !self->built || self->built_serial != self->serial || strcmp(self->built_find, find ? find : "") != 0
         || self->built_errors != ToriRSChrome_Checked(ui->chrome, self->check_errors) )
@@ -783,16 +856,21 @@ Editor_Problems_Register(struct EditorUi* ui)
     self->panel = ToriRSChrome_PanelAdd(chrome, TORIRS_CHROME_PANEL_WINDOW, edp_px(ui, EDP_COL_X),
         surface_h - edp_px(ui, 200), edp_px(ui, 420), "Problems");
     assert(self->panel >= 0);
+    /* The rows straight under the count, the filter and the buttons after
+     * them: docked in the bottom strip the panel is ~110 px, and with Find
+     * and "errors only" first the list began at the strip's foot -- the
+     * first finding of a failed Check was below the fold (2026-11-11). */
     self->label_summary = ToriRSChrome_Label(chrome, self->panel, "");
-    self->input_find = ToriRSChrome_TextInput(chrome, self->panel, "Find", "");
-    ToriRSChrome_SetTooltip(chrome, self->input_find, "Filter the rows: a file, a word of the message, a source");
-    self->check_errors = ToriRSChrome_Checkbox(chrome, self->panel, "errors only", 0);
     self->list = ToriRSChrome_VListCells(chrome, self->panel,
         "-" TORIRS_CHROME_CELL_SEP_STR "problem" TORIRS_CHROME_CELL_SEP_STR "where" TORIRS_CHROME_CELL_SEP_STR
         TORIRS_CHROME_CELL_SEP_STR "source",
-        PROBLEMS_LIST_ROWS, 0);
+        PROBLEMS_LIST_ROWS_MAX, 0);
     assert(self->list >= 0);
+    ToriRSChrome_VListSetRows(chrome, self->list, PROBLEMS_LIST_ROWS_MIN);
     ToriRSChrome_SetTooltip(chrome, self->list, "Click: a record opens at its field, a script in your editor");
+    self->input_find = ToriRSChrome_TextInput(chrome, self->panel, "Find", "");
+    ToriRSChrome_SetTooltip(chrome, self->input_find, "Filter the rows: a file, a word of the message, a source");
+    self->check_errors = ToriRSChrome_Checkbox(chrome, self->panel, "errors only", 0);
     self->button_open = ToriRSChrome_Button(chrome, self->panel, "Open in editor");
     ToriRSChrome_SetTooltip(chrome, self->button_open, "The picked row's file in your editor, at its line");
     self->button_record = ToriRSChrome_Button(chrome, self->panel, "Open record");

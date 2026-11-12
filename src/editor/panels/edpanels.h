@@ -111,9 +111,99 @@ Editor_Palette_DropperAt(
     int z,
     int level);
 
+/** The swatch wells' grid as last drawn: a cell's size in well px and the
+ *  cells a row (the wells are as wide as the panel). For the tests, which
+ *  turn Editor_Palette_SwatchAt's point back into a cell. */
+void
+Editor_Palette_SwatchGrid(
+    struct EditorUi* ui,
+    int* out_cell,
+    int* out_cols);
+
+/** Room for Editor_Palette_Describe's text: an id and a floor's name. */
+#define EDITOR_PALETTE_DESCRIBE_MAX 48
+
+/** Floor `id` (a file id) of a kind as a person reads it: "48 grass",
+ *  "6 water", "none" for 0, the bare id for a record the window has not
+ *  loaded. `out_size` at least EDITOR_PALETTE_DESCRIBE_MAX. Works in a
+ *  window without the Palette. */
+void
+Editor_Palette_Describe(
+    struct EditorUi* ui,
+    int is_overlay,
+    int id,
+    char* out,
+    size_t out_size);
+
+/**
+ * The overlay a path of `style` (enum Editor_PathStyle) lays when the user
+ * has picked none: dirt the dirt track, pavement the stone floor, river the
+ * water (editor_floornames.h's common set). Returns
+ *   0   an overlay the user picked stands; nothing changed;
+ *  >0   that id is now the picked overlay, `out_name` (at least 40 bytes)
+ *       what it is called -- also when this function's own earlier pick was
+ *       for another style;
+ *  -1   none is picked and this window has no such floor (its record is
+ *       still loading and has been asked for, or the cache has another
+ *       under that id): the caller refuses.
+ */
+int
+Editor_Palette_PathOverlay(
+    struct EditorUi* ui,
+    int style,
+    char* out_name,
+    size_t out_size);
+
+/** The common floor a path of `style` lays (what Editor_Palette_PathOverlay
+ *  picks), picking nothing: its id and name, or -1 while this window has
+ *  no such floor (it has been asked for). */
+int
+Editor_Palette_PathFloor(
+    struct EditorUi* ui,
+    int style,
+    char* out_name,
+    size_t out_size);
+
+/** The Path section's "Use <floor>": pick the style's floor in place of the
+ *  Palette's overlay, as the path painter's own pick (a later change of
+ *  style changes it too). Its id, or -1 as Editor_Palette_PathFloor. */
+int
+Editor_Palette_PathUseFloor(
+    struct EditorUi* ui,
+    int style,
+    char* out_name,
+    size_t out_size);
+
 /** The rectangle select's copy / paste / fill / clear. "rect" */
 void
 Editor_RectSelect_Register(struct EditorUi* ui);
+
+/** Module "building": the Building tool's panel (walls, floor, roof, storeys;
+ *  the Shell / Wall line / Door / Window modes). It opens when
+ *  EDITOR_TOOL_BUILDING is armed. edpanel_ops_building.h has its actions. */
+void
+Editor_Building_Register(struct EditorUi* ui);
+
+/** One of the building.* actions (a mode, Build on rectangle). Returns 1
+ *  when `action` was one. */
+int
+Editor_Building_RunAction(
+    struct EditorUi* ui,
+    enum Editor_HotkeyAction action);
+
+/** The Rectangle panel's Save as stamp: what stands in the latched rectangle
+ *  under the name in its Stamp name field (stamp.save_rect). Returns 1 when
+ *  a stamp was saved. */
+int
+Editor_RectSelect_SaveStamp(struct EditorUi* ui);
+
+/** One of the stamp.* actions (Save as stamp from the rectangle; Rename and
+ *  Delete on the Stamps panel's picked row). Returns 1 when `action` was
+ *  one. */
+int
+Editor_Stamps_RunAction(
+    struct EditorUi* ui,
+    enum Editor_HotkeyAction action);
 
 /** The square picker (design #squares). "squares" */
 void
@@ -202,7 +292,9 @@ Editor_NewSquare_Register(struct EditorUi* ui);
 void
 Editor_Instance_Register(struct EditorUi* ui);
 
-/** Open it over the picker's selection (the picker's Instance...). */
+/** Open it (File > New instance..., action file.new_instance; the picker's
+ *  Instance...): its source the picker's selection when it has one, else
+ *  the open set; the loc selected in the World, if any, as the trigger. */
 void
 Editor_Instance_Open(struct EditorUi* ui);
 
@@ -244,6 +336,13 @@ enum Editor_InstanceWidget
     EDITOR_INSTANCE_W_CHECK,
     EDITOR_INSTANCE_W_CREATE,
     EDITOR_INSTANCE_W_CANCEL,
+    EDITOR_INSTANCE_W_EXIT,
+    EDITOR_INSTANCE_W_EXIT_COORD,
+    EDITOR_INSTANCE_W_NPC,
+    EDITOR_INSTANCE_W_NPC_COORD,
+    EDITOR_INSTANCE_W_WHERE_TEMPLATE,
+    EDITOR_INSTANCE_W_WHERE_STAMP,
+    EDITOR_INSTANCE_W_NOTE,
 };
 
 int
@@ -389,8 +488,9 @@ Editor_NewSquare_UnplacedScratch(
  * The Square map's Place (docs/MAPED_STATUS.md "Scratch squares"): open the
  * map with `source_key` ("scratch/m90_240", or any square for Copy to) on
  * the pointer -- the hovered cell is outlined green where it may go, in the
- * accent where it may not, the readout says why -- with a Stored in choice
- * above the well; a click places it. `scratch` 1: a scratch square's Place
+ * accent where it may not, the line over the well says why -- with a Stored
+ * in choice under the well; a click places it. Asked while the atlas is
+ * still coming (the catalog index building), it starts when the atlas lands. `scratch` 1: a scratch square's Place
  * (Save's), which then saves, clears the scratch slot and opens the placed
  * square as the working set; 0: Copy to, which adds the copy to the open set.
  */
@@ -407,6 +507,16 @@ Editor_SquarePicker_Place(
  */
 void
 Editor_SquarePicker_OpenSquares(struct EditorUi* ui);
+
+/**
+ * File > Close square (file.close_square), the Squares pane's Close square:
+ * drop one square from what this window shows, through the save guard --
+ * the square focused in Squares when the window shows it, else the one the
+ * World's camera looks at. Refused in a sentence when it is the only square
+ * shown (a window always shows one) or a scratch square (placed, not closed).
+ */
+void
+Editor_SquarePicker_CloseSquare(struct EditorUi* ui);
 
 /** The picker's current selection as a square key with storage (what the
  *  New dialog's "copy of selection" copies). 0 when nothing is selected. */
@@ -531,6 +641,43 @@ Editor_Catalog_PickRecord(
     struct EditorUi* ui,
     uint32_t kind,
     const char* name);
+
+/** The text of the Preview panel's New name field ("" when empty; NULL in a
+ *  window with no Preview), and the field emptied: the Catalog's "copy the
+ *  pick" reads the name from whichever of the two fields has one. */
+const char*
+Editor_Preview_NewName(struct EditorUi* ui);
+
+void
+Editor_Preview_NewNameClear(struct EditorUi* ui);
+
+/**
+ * A Record panel that is open on record `from` of `kind` opens `to` instead
+ * (Editor_Record_Open): what a copy does, so the next field typed lands in
+ * the record just made and not in the one it was copied from. 1 when it
+ * turned; 0 when the panel shows another record, none, or does not exist.
+ */
+int
+Editor_Record_Retarget(
+    struct EditorUi* ui,
+    uint32_t kind,
+    const char* from,
+    const char* to);
+
+/**
+ * The record name (the pack symbol a spawn row and a script write) of the
+ * loc / npc / obj `id` of `kind` (TORIRSMAPED_CATALOG_LOC..OBJ): the server
+ * catalog's, else the one this window defined itself when the record was
+ * made here (Copy to new; editor/editor_lanerecs.h). 1 with `name` filled;
+ * 0 when nobody knows the id.
+ */
+int
+Editor_Catalog_RecordName(
+    struct EditorUi* ui,
+    uint32_t kind,
+    int id,
+    char* name,
+    size_t name_size);
 
 /**
  * Copy the loc / npc / obj definition `name` (`kind` a
@@ -1418,6 +1565,27 @@ Editor_Triggers_AddTrigger(
     const char* kind,
     const char* op_label);
 
+/**
+ * New quest (File > New quest..., action file.new_quest; the panel's New
+ * quest button): a quest named `typed` -- NULL: what the panel's Quest name
+ * field holds -- started as server/scripts/quests/quest_<name> with its
+ * variable (configs/quest_<name>.varp), its stages (configs/quest_<name>
+ * .constant) and a script that builds (scripts/quest_<name>.rs2:
+ * editor_snippets.h Editor_QuestFileText). Written through the documents as
+ * one History row and saved at once, so on a lane the folder and its files
+ * are the lane's own; then the folder is shown as the panel's rows (Show:
+ * File) and opened in the user's editor with the script in view. Says the
+ * folder in the status bar and its full path in the Console.
+ *
+ * With no name (or one that cannot name a quest) it shows the panel, puts
+ * the caret in Quest name and says what to type. A quest that is already
+ * there is shown, never written over. Returns 1 when the quest was made.
+ */
+int
+Editor_Triggers_NewQuest(
+    struct EditorUi* ui,
+    const char* typed);
+
 /** Hand server/scripts/`rel_path` at `line` to the user's editor
  *  (Editor_HostLocalOpenInEditor). A document of that file with unsaved
  *  edits here is saved first, so the editor opens what the session holds.
@@ -1922,11 +2090,14 @@ Editor_CatalogPalette_ThumbDone(
 /* ---- Lanes (edpanel_publish.c): the editor lane and where its changes go ---- */
 
 /** Register the Lanes panel (module "publish", titled "Lanes" since workbench
- *  6.5: every lane with its change count, the changes, Publish to...,
- *  Scratch lane, Switch at relaunch, Discard..., Lane from main, and a
- *  boot line saying which lane every launch opens and how to reach a
- *  switched one); needs ui->editor. It also keeps ui->lane, which the
- *  status bar's chip reads. */
+ *  6.5; two pages since 2026-11-11. Changes: this lane's changed files with
+ *  Find change and the Show boxes, the picked file's Open in editor / Show
+ *  in Explorer / Diff against base / Discard this change..., Copy list,
+ *  Promote to new lane..., Publish into lane... and Discard all... Lanes:
+ *  every lane with its change count, a boot line saying which lane every
+ *  launch opens, Switch at relaunch, Copy manifest line, Delete lane...,
+ *  Lane from main, Scratch lane and Refresh); needs ui->editor. It also
+ *  keeps ui->lane, which the status bar's chip reads. */
 void
 Editor_Publish_Register(struct EditorUi* ui);
 
@@ -1987,6 +2158,82 @@ int
 Editor_Lanes_ScratchNameFor(
     struct EditorUi* ui,
     long long when,
+    char* out,
+    int out_size);
+
+/* A lane's life-cycle (2026-11-11; torirsmaped/torirs_maped_lanes.h): each is
+ * a control of the Lanes panel and an action, and each opens the panel on
+ * the page it works on. 1 asked or done, 0 refused with a status sentence. */
+
+/** File > Promote to new lane... (`file.promote_lane`, the Changes page's
+ *  button): a new lane mirrored from main and holding this lane's changes,
+ *  which this lane keeps. `name` NULL takes the New lane name box's; with no
+ *  valid name there the box takes the caret and the status bar says what to
+ *  type. The answer says what exists where and how to open the new lane. */
+int
+Editor_Lanes_Promote(
+    struct EditorUi* ui,
+    const char* name);
+
+/** `file.delete_lane`, the Lanes page's Delete lane...: the lane picked in
+ *  the Lanes list, deleted (LANE_DELETE). The first call arms it and says
+ *  what goes; a second within 8 s deletes. Refused for main, this session's
+ *  lane, and with no pick. */
+int
+Editor_Lanes_Delete(struct EditorUi* ui);
+
+/** What to do with the change picked in the Changes list. */
+enum Editor_LaneChangeCommand
+{
+    /** The lane's file in the user's editor. */
+    EDITOR_LANE_CHANGE_OPEN = 0,
+    /** ...in its folder (Explorer, Finder). */
+    EDITOR_LANE_CHANGE_REVEAL,
+    /** ...against a copy of the base's, in the user's diff tool. */
+    EDITOR_LANE_CHANGE_DIFF,
+    /** That one file back to the base (asks twice). */
+    EDITOR_LANE_CHANGE_DISCARD,
+    /** Not the pick: every listed change's path, to the clipboard. */
+    EDITOR_LANE_CHANGE_COPY_LIST,
+};
+
+/** `file.lane_open`, `file.lane_reveal`, `file.lane_diff`,
+ *  `file.lane_discard`, `file.lane_copy`: the Changes page's row buttons. */
+int
+Editor_Lanes_ChangeCommand(
+    struct EditorUi* ui,
+    enum Editor_LaneChangeCommand command);
+
+/** A change row's size: "512 bytes", "85.6 KB", "1.2 MB". Pure. */
+void
+Editor_LanesSizeText(
+    uint32_t bytes,
+    char* out,
+    int out_size);
+
+/** The square a changed path is the terrain file of ("maps/m67_50.jm2", any
+ *  storage's): 1 with its coordinates, 0 for any other file. Pure: what a
+ *  discard is about to remove is told from the paths. */
+int
+Editor_LanesPathSquare(
+    const char* path,
+    int* out_x,
+    int* out_z);
+
+/** The square a changed path is ANY file of (.jm2, .jl2 or .filepack): 1
+ *  with its coordinates, 0 for any other file. Pure. */
+int
+Editor_LanesPathSquareFile(
+    const char* path,
+    int* out_x,
+    int* out_z);
+
+/** A lane name made from what was typed ("My Quest!" -> "my-quest"):
+ *  lower case, runs of other characters one '-' between words, cut to
+ *  TORIRSMAPED_LANE_NAME_MAX. 1 when that is a name a lane may have. Pure. */
+int
+Editor_LanesNameSuggest(
+    const char* typed,
     char* out,
     int out_size);
 
@@ -2190,11 +2437,14 @@ struct Editor_EncounterWidgets
     int dropdown_colour;
     int list_spawns;
     int row_selected;
-    /** respawnrate, wanderrange, maxrange, huntrange, attackrate, damagetype. */
-    int input_fields[6];
+    /** respawnrate, wanderrange, maxrange, huntrange, attackrate, damagetype,
+     *  vislevel. */
+    int input_fields[7];
     int dropdown_huntmode;
     int button_apply_fields;
     int row_rings;
+    /** Whom it hunts: huntmode, huntrange and vislevel in one sentence. */
+    int row_hunts;
     int row_ledger;
     int input_levels[6];
     int input_bonuses[13];
@@ -2205,6 +2455,8 @@ struct Editor_EncounterWidgets
     int row_level;
     int dropdown_template;
     int row_combat;
+    /** The file row_combat's sentence is about. */
+    int row_combat_file;
     int button_open_builder;
     int row_drops;
     int list_drops;
@@ -2319,5 +2571,96 @@ Editor_Quest_Scaffold(struct EditorUi* ui);
 
 int
 Editor_Quest_RunGate(struct EditorUi* ui);
+
+/* ---- the Camera path panel (edpanel_campath.c) ------------------------------ */
+
+/** A cutscene's scripted camera, authored by flying the World camera: the
+ *  CAMPATHS document's paths and keyframes, Preview, Copy script
+ *  (editor/editor_campath.h). "campath" */
+void
+Editor_CamPath_Register(struct EditorUi* ui);
+
+/** Run one of the panel's verbs, EDITOR_HK_CAMPATH_ADD ..
+ *  EDITOR_HK_CAMPATH_SEND (Add keyframe, Update keyframe, Go to, Preview /
+ *  Stop, Copy script, Delete keyframe, Move up, Move down, Send to play
+ *  client), as its button does. Returns 1: it was handled. */
+int
+Editor_CamPath_Hotkey(
+    struct EditorUi* ui,
+    int action);
+
+/** One keyframe of the shown path, for the World's overlay: where its eye
+ *  stands and the point it looks at (x, z ABSOLUTE fine units; y the
+ *  scene's, down), and the ground's y under the eye. */
+struct Editor_CamPathMark
+{
+    int eye_x;
+    int eye_y;
+    int eye_z;
+    int look_x;
+    int look_y;
+    int look_z;
+    int ground_y;
+    /** Its place in the path, 0-based; whether it is the selected one; and
+     *  whether the eye glides to it (else it cuts). */
+    int index;
+    int selected;
+    int glide;
+};
+
+/** The shown path's keyframes that stand in the loaded scene, in order, up
+ *  to `max` (EDITOR_CAMPATH_KEYS_MAX holds them all). 0 while the panel is
+ *  closed, "Show the path in the World" is off, or a Preview is flying. */
+int
+Editor_CamPath_Marks(
+    struct EditorUi* ui,
+    struct Editor_CamPathMark* out,
+    int max);
+
+/** The proc Copy script would copy for the shown path now ("" with no
+ *  keyframe): what the panel's script view shows. */
+const char*
+Editor_CamPath_Script(struct EditorUi* ui);
+
+/** The panel's widgets, for a test that drives it as a person would. */
+struct Editor_CamPathWidgets
+{
+    int panel;
+    int row_title;
+    int dropdown_path;
+    int tabs;
+    int input_name;
+    int button_new;
+    int button_rename;
+    int button_delete;
+    int dropdown_coords;
+    int input_template;
+    int check_frame;
+    int list_keys;
+    int button_add;
+    int button_update;
+    int button_goto;
+    int button_delete_key;
+    int button_up;
+    int button_down;
+    int row_key;
+    int dropdown_move;
+    int dropdown_speed;
+    int input_eye_rate;
+    int input_look_rate;
+    int input_hold;
+    int check_show;
+    int button_preview;
+    int button_stop;
+    int button_send;
+    int code_script;
+    int button_copy;
+};
+
+/** 0 when this window has no Camera path panel. */
+int
+Editor_CamPath_Widgets(
+    struct EditorUi* ui,
+    struct Editor_CamPathWidgets* out);
 
 #endif

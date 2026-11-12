@@ -262,9 +262,44 @@ verb_editor(struct AgentCtx* ctx)
         AgentJsonW_KStr(out, "live", ToriRSMapEd_LiveStateName(live->state));
         if( live->message[0] )
             AgentJsonW_KStr(out, "live_message", live->message);
+        /* RUN's play client, while its process runs: who to drive next. Its
+         * agent port is there once it listens (it was started with one when
+         * this window has an agent port, torirs_maped_live.h). */
+        if( live->play_state == TORIRSMAPED_PLAY_STARTING || live->play_state == TORIRSMAPED_PLAY_ONLINE
+            || live->play_state == TORIRSMAPED_PLAY_LOGGED_OUT )
+        {
+            int const port = ToriRSMapEd_PlayAgentPort();
+            AgentJsonW_Key(out, "play");
+            AgentJsonW_ObjBegin(out);
+            AgentJsonW_KStr(out, "state", ToriRSMapEd_PlayStateName(live->play_state));
+            AgentJsonW_KInt(out, "pid", live->play_pid);
+            if( live->play_account[0] )
+                AgentJsonW_KStr(out, "account", live->play_account);
+            if( port > 0 )
+                AgentJsonW_KInt(out, "port", port);
+            if( ToriRSMapEd_PlayAgentPortFile()[0] )
+                AgentJsonW_KStr(out, "port_file", ToriRSMapEd_PlayAgentPortFile());
+            AgentJsonW_ObjEnd(out);
+        }
     }
     else
         AgentJsonW_KStr(out, "run", "idle");
+    /* The ports the lane's servers listen on (RUN starts them): a script
+     * that wants to connect something of its own reads them here. */
+    if( Editor_HostIsMapEd(&app->editor->host) )
+    {
+        struct ToriRSMapEd* const embedded = Editor_HostMapEdEmbedServer(&app->editor->host);
+        int ports[3];
+        if( embedded && ToriRSMapEd_LanePorts(embedded, ports) )
+        {
+            AgentJsonW_Key(out, "lane_ports");
+            AgentJsonW_ObjBegin(out);
+            AgentJsonW_KInt(out, "game", ports[0]);
+            AgentJsonW_KInt(out, "js5", ports[1]);
+            AgentJsonW_KInt(out, "io", ports[2]);
+            AgentJsonW_ObjEnd(out);
+        }
+    }
     AgentJsonW_KInt(out, "console_cursor", eui->console_serial);
     Agent_ReplyEnd(ctx);
     return AGENT_VERB_DONE;
@@ -500,7 +535,10 @@ agent_tile_sight_words(enum AgentTileSight sight)
  * Where ABSOLUTE tile (x, z) of `level` is on the surface: its centre on that
  * level's ground, through the frame's camera into the World's viewport --
  * app_world_project_at's arithmetic (the App's overlays, ghosts and gizmo),
- * from its public parts.
+ * from its public parts. `eui` NULL is a game window: its World view is the
+ * 3D viewport the frame was emitted into. `height` lifts the point that many
+ * fine units (128 a tile) above the ground: the body of a loc whose foot is
+ * behind something.
  */
 static enum AgentTileSight
 agent_tile_project(
@@ -509,11 +547,13 @@ agent_tile_project(
     int x,
     int z,
     int level,
+    int height,
     int* out_x,
     int* out_y)
 {
     struct App* app = ctx->app;
-    struct EditorUiRect const world = Editor_UiWorldRect(eui);
+    struct EditorUiRect world;
+    int shown;
     int scene_x;
     int scene_z;
     int fine_x;
@@ -521,6 +561,19 @@ agent_tile_project(
 
     *out_x = 0;
     *out_y = 0;
+    if( eui )
+    {
+        world = Editor_UiWorldRect(eui);
+        shown = Editor_UiWorldShown(eui);
+    }
+    else
+    {
+        world.x = app->world_emit_desc.x;
+        world.y = app->world_emit_desc.y;
+        world.w = app->world_emit_desc.w;
+        world.h = app->world_emit_desc.h;
+        shown = world.w > 0 && world.h > 0;
+    }
     if( !app->world )
         return AGENT_TILE_NOT_LOADED;
     scene_x = x - app->world->_base_tile_x;
@@ -537,18 +590,22 @@ agent_tile_project(
         return AGENT_TILE_BEHIND;
     if( !ToriRS_WorldProjectPoint(&app->frame_view->world_camera, &app->frame_view->world_camera_pos,
             app->world_emit_desc.x, app->world_emit_desc.y, app->world_emit_desc.w, app->world_emit_desc.h, 50, fine_x,
-            World_HeightAt(app->world, fine_x, fine_z, level), fine_z, out_x, out_y) )
+            /* The scene's y grows downward: above the ground is less. */
+            World_HeightAt(app->world, fine_x, fine_z, level) - height, fine_z, out_x, out_y) )
         return AGENT_TILE_BEHIND;
-    if( !Editor_UiWorldShown(eui) || *out_x < world.x || *out_y < world.y || *out_x >= world.x + world.w
+    if( !shown || *out_x < world.x || *out_y < world.y || *out_x >= world.x + world.w
         || *out_y >= world.y + world.h )
         return AGENT_TILE_OFF_VIEW;
-    if( App_ChromePointerOwned(app, *out_x, *out_y) )
+    /* The game's interfaces too (the play client's chat box and side panel
+     * lie over its 3D view); in the editor that is its windows alone. */
+    if( App_PointerOwnedByUi(app, *out_x, *out_y) )
         return AGENT_TILE_COVERED;
     return AGENT_TILE_VISIBLE;
 }
 
 /** x, z and the optional level of a tile request: 1, or 0 with the error
- *  written. */
+ *  written. With no level given: the editor's edit level, or in a game
+ *  window (`eui` NULL) the plane the local player stands on. */
 static int
 agent_arg_tile(
     struct AgentCtx* ctx,
@@ -557,7 +614,16 @@ agent_arg_tile(
     int* out_z,
     int* out_level)
 {
-    *out_level = agent_edit_level(eui);
+    if( eui )
+        *out_level = agent_edit_level(eui);
+    else
+    {
+        int tiles[8];
+        *out_level = 0;
+        if( App_LocalPlayerTiles(ctx->app, &tiles[0], &tiles[1], out_level, &tiles[2], &tiles[3], &tiles[4],
+                &tiles[5], &tiles[6], &tiles[7]) )
+            *out_level &= 3;
+    }
     if( !Agent_NeedInt(ctx, "x", out_x) || !Agent_NeedInt(ctx, "z", out_z) )
         return 0;
     if( Agent_ArgInt(ctx, "level", out_level) < 0 )
@@ -581,6 +647,13 @@ agent_reply_not_loaded(
     if( !app->world )
         Agent_ReplyError(ctx, "no square is open, so tile %d,%d is nowhere on screen: open m%d_%d first", x, z, x / 64,
             z / 64);
+    else if( !app->editor )
+        /* A game window loads the scene around its player. */
+        Agent_ReplyError(ctx, "tile %d,%d is not in the loaded scene (tiles %d,%d to %d,%d): move the player nearer "
+                              "first (chat \"::tele ...\", or the editor's Place player)",
+            x, z, app->world->_base_tile_x, app->world->_base_tile_z,
+            app->world->_base_tile_x + app->world->_scene_size - 1,
+            app->world->_base_tile_z + app->world->_scene_size - 1);
     else
         Agent_ReplyError(ctx, "tile %d,%d is not in the loaded scene (tiles %d,%d to %d,%d): open its square m%d_%d "
                               "first",
@@ -592,18 +665,29 @@ agent_reply_not_loaded(
 static enum AgentVerbResult
 verb_tile_to_screen(struct AgentCtx* ctx)
 {
-    struct EditorUi* eui = Agent_NeedEditor(ctx);
+    /* An editor window's World panel, or a game window's 3D view: a tester
+     * driving the play client needs the point of a loc's tile as much as
+     * the editor's driver does. */
+    struct EditorUi* eui = ctx->app->editor ? Agent_NeedEditor(ctx) : NULL;
     struct AgentJsonWriter* out;
     enum AgentTileSight sight;
     int x = 0;
     int z = 0;
     int level = 0;
+    int height = 0;
     int px;
     int py;
 
-    if( !eui || !agent_arg_tile(ctx, eui, &x, &z, &level) )
+    if( (ctx->app->editor && !eui) || !agent_arg_tile(ctx, eui, &x, &z, &level) )
         return AGENT_VERB_DONE;
-    sight = agent_tile_project(ctx, eui, x, z, level, &px, &py);
+    if( Agent_ArgInt(ctx, "height", &height) < 0 )
+        return AGENT_VERB_DONE;
+    if( height < 0 || height > 4096 )
+    {
+        Agent_ReplyError(ctx, "\"height\" is 0..4096 fine units above the tile's ground (128 a tile), not %d", height);
+        return AGENT_VERB_DONE;
+    }
+    sight = agent_tile_project(ctx, eui, x, z, level, height, &px, &py);
     if( sight == AGENT_TILE_NOT_LOADED )
     {
         agent_reply_not_loaded(ctx, x, z);
@@ -816,7 +900,7 @@ verb_world_click(struct AgentCtx* ctx)
         return AGENT_VERB_DONE;
     if( Agent_ArgButton(ctx, &button) < 0 || Agent_ArgMods(ctx, &mods) < 0 || Agent_ArgBool(ctx, "force", &force) < 0 )
         return AGENT_VERB_DONE;
-    sight = agent_tile_project(ctx, eui, x, z, level, &px, &py);
+    sight = agent_tile_project(ctx, eui, x, z, level, 0, &px, &py);
     if( sight == AGENT_TILE_NOT_LOADED )
     {
         agent_reply_not_loaded(ctx, x, z);
@@ -977,8 +1061,9 @@ const struct AgentVerb g_agent_verbs_editor[] = {
     { "action", "action", AGENT_VERB_EDITOR, verb_action,
         "Run a hotkey action by its id (action: \"file.save_all\") as the command palette runs it; replies with "
         "what the editor said." },
-    { "tile_to_screen", "x z level", AGENT_VERB_EDITOR, verb_tile_to_screen,
-        "Where a world tile's centre is on the surface, and whether it can be seen." },
+    { "tile_to_screen", "x z level height", 0, verb_tile_to_screen,
+        "Where a world tile's centre is on the surface, and whether it can be seen (the editor's World view, or a "
+        "game window's)." },
     { "screen_to_tile", "x y", AGENT_VERB_EDITOR | AGENT_VERB_INPUT, verb_screen_to_tile,
         "The tile the editor hovers at a point of the World view (moves the pointer there)." },
     { "world_click", "x z level button mods force", AGENT_VERB_EDITOR | AGENT_VERB_INPUT, verb_world_click,

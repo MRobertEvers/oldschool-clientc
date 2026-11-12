@@ -823,6 +823,106 @@ test_copy(const char* content_dir)
     test_copy_one(content_dir, "obj", EDITOR_CMD_VALUE_MAX + 8);
 }
 
+/* ---- the server half of a copy (SAVE_AS's overlay plan) ------------------------- */
+
+/**
+ * A copied npc fights as its source does: the source's server overlays -- a
+ * generated layer and an authored one that restates part of it -- resolve to
+ * one block in the copy's own overlay document, the authored value where both
+ * state a field, a param by its name. Content-free.
+ */
+static void
+test_copy_overlay(void)
+{
+    static const char generated[] = "[src_man]\n"
+                                    "hitpoints=3\n"
+                                    "defaultmode=wander\n"
+                                    "param=damagetype,2\n"
+                                    "param=attackrate,6\n"
+                                    "huntmode=none\n"
+                                    "\n";
+    static const char authored[] = "[src_man]\n"
+                                   "hitpoints=7\n"
+                                   "wanderrange=20\n"
+                                   "param=attackrate,4\n"
+                                   "param=attack_anim,human_unarmedpunch\n";
+    /* The winning statement of each field, in the order the record's rows
+     * resolve: the generated layer's own fields first, then what only the
+     * authored layer states. */
+    static const char expected[] = "[my_man]\n"
+                                   "hitpoints=7\n"
+                                   "defaultmode=wander\n"
+                                   "param=damagetype,2\n"
+                                   "param=attackrate,4\n"
+                                   "huntmode=none\n"
+                                   "wanderrange=20\n"
+                                   "param=attack_anim,human_unarmedpunch\n";
+    struct Editor_AllocOverlayLayer layers[2] = {
+        { "areas/town/configs/town.npc", authored, sizeof(authored) - 1 },
+        { "_explicit/configs/server_fields.generated.npc", generated, sizeof(generated) - 1 },
+    };
+    struct Editor_Cmd* commands;
+    struct Editor_UndoStack undo;
+    struct Editor_DocHandle overlay;
+    char path[EDITOR_DOC_KEY_MAX];
+    char what[512];
+    int capacity;
+    int count;
+
+    check(Editor_AllocCopyOverlayPath("npc", "my_man", path, sizeof(path))
+              && strcmp(path, "edited/my_man/configs/my_man.npc") == 0,
+        "overlay copy: the copy's server fields go to the record editor's own file");
+    check(!Editor_AllocCopyOverlayPath("npc", "my_man", path, 8), "overlay copy: a path that does not fit says so");
+
+    capacity = Editor_AllocCopyOverlayBound(layers, 2);
+    commands = calloc((size_t)capacity, sizeof(*commands));
+    if( !commands )
+        exit(2);
+    check(Editor_AllocCopyOverlayPlan("npc", "src_man", "my_man", layers, 0, commands, capacity) == 0,
+        "overlay copy: no layer, no command");
+    check(Editor_AllocCopyOverlayPlan("npc", "src_man", "my_man", layers, 2, commands, 2) == -1,
+        "overlay copy: too few slots is refused, nothing emitted");
+    check(Editor_AllocCopyOverlayPlan("npc", "src_man",
+              "a_name_far_too_long_for_three_copies_of_it_to_fit_a_document_key", layers, 2, commands, capacity)
+              == -1,
+        "overlay copy: a name whose overlay key does not fit is refused");
+    {
+        struct Editor_AllocOverlayLayer other = { "areas/town/configs/town.npc", "[somebody_else]\nhitpoints=9\n", 28 };
+        check(Editor_AllocCopyOverlayPlan("npc", "src_man", "my_man", &other, 1, commands, capacity) == 0,
+            "overlay copy: a layer with no block of the source states nothing");
+    }
+    count = Editor_AllocCopyOverlayPlan("npc", "src_man", "my_man", layers, 2, commands, capacity);
+    snprintf(what, sizeof(what), "overlay copy: two layers plan as a block add and 7 lines (%d commands)", count);
+    check(count == 8, what);
+    if( count <= 0 )
+    {
+        free(commands);
+        return;
+    }
+    check(commands[0].kind == EDITOR_CMD_CFG_BLOCK && commands[0].doc_kind == EDITOR_DOC_CFG
+              && strcmp(commands[0].doc_key, "npc:my_man@edited/my_man/configs/my_man.npc") == 0,
+        "overlay copy: the block is added to the copy's overlay document");
+
+    memset(&g_doc, 0, sizeof(g_doc));
+    Editor_DocInit(&g_doc, NULL);
+    Editor_UndoInit(&undo);
+    check(Editor_DocOpen(&g_doc, EDITOR_DOC_CFG, commands[0].doc_key, &overlay) && overlay.text,
+        "overlay copy: the overlay document opens");
+    if( overlay.text )
+    {
+        Editor_TextDocSet(overlay.text, "", 0);
+        check(apply_all(&undo, commands, count) == count, "overlay copy: every command applies");
+        snprintf(what, sizeof(what), "overlay copy: the copy's overlay is the layers resolved (got: %.300s)",
+            overlay.text->text ? overlay.text->text : "");
+        check(overlay.text->length == sizeof(expected) - 1
+                  && memcmp(overlay.text->text, expected, sizeof(expected) - 1) == 0,
+            what);
+    }
+    free(commands);
+    Editor_UndoFree(&undo);
+    Editor_DocFree(&g_doc);
+}
+
 int
 main(
     int argc,
@@ -830,6 +930,7 @@ main(
 {
     test_rules();
     test_plan();
+    test_copy_overlay();
     if( argc > 1 )
         test_copy(argv[1]);
     if( argc > 3 )

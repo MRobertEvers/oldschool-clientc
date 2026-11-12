@@ -160,6 +160,11 @@ struct Builder_Services
     /** Steps of the shortest walk between two tiles on `level`: 0+, -1 no
      *  path, -2 not in the loaded scene (EditorUiAppServices path_steps). */
     int (*path_steps)(void* user_data, int ax, int az, int bx, int bz, int level);
+    /** One step of the server's npc walk over the loaded scene's collision
+     *  (editor_npc.h Editor_NpcStepFn): 1 open, 0 blocked, -1 not loaded.
+     *  The legs are walked with it when it is bound (what the server does);
+     *  path_steps is the fallback. */
+    int (*can_step)(void* user_data, int x, int z, int dx, int dz, int level, int size);
     /** `npc`'s (`id`'s) spawns across the open squares, at most `max`. */
     int (*spawns)(void* user_data, const char* npc, int id, struct Builder_NpcSpawn* out, int max);
     /** Put the World's camera over the tile; 0 when its square is not loaded. */
@@ -170,6 +175,10 @@ struct Builder_Services
     int (*spawn_select)(void* user_data, const struct Builder_NpcSpawn* spawn);
     int (*spawn_place)(void* user_data, const char* npc, int x, int z, int level);
     int (*spawn_delete)(void* user_data, const struct Builder_NpcSpawn* spawn);
+    /** The spawn of `npc` the World's selection holds (the Spawns panel's
+     *  first selected row, when it names `npc`): 1 and `out` filled. May be
+     *  NULL (Make own type then needs the Spawns tab's row). */
+    int (*spawn_selected)(void* user_data, const char* npc, struct Builder_NpcSpawn* out);
     /** The panel is destroyed: free what the services kept for it. May be
      *  NULL. */
     void (*release)(void* user_data);
@@ -273,6 +282,74 @@ Builder_RouteTilePoint(
     int z,
     int* out_x,
     int* out_y);
+
+/* ---- the route in the World (docs/NPC_EDITOR_DESIGN.md 3.4) -----------------
+ *
+ * A route is laid where it will be walked: with the Movement tab's Add
+ * waypoint or Move waypoint tool up, the World's left button belongs to the
+ * route whatever map tool is armed, and the route is drawn on the ground --
+ * numbered waypoints, each leg along the tiles the server's walk steps on, a
+ * marker where a leg stops dead. The App asks Builder_RouteArmed, hands the
+ * pointer to Builder_RoutePointer and draws Builder_RouteWorldRects.
+ */
+
+struct MapEditorWanderRect;
+
+/** 0 when World clicks are not the route's (no NPC editor, another tab, no
+ *  npc, the Select tool), 1 under Add waypoint, 2 under Move waypoint. */
+int
+Builder_RouteArmed(struct EditorUi* ui);
+
+/**
+ * The World's pointer while a route tool is armed: over ABSOLUTE tile (x, z)
+ * on `level`, with the left button's edges this frame (`pressed`, `released`)
+ * and whether it is `held`. A press on a waypoint selects it and carries it;
+ * its release on another tile moves it there (one undo step). Under Add
+ * waypoint a press and release on open ground lays a waypoint after the
+ * selected one. Call it every frame the pointer is over a tile, edges or
+ * not: the next-waypoint ghost follows it. Returns 1 when the tool took the
+ * pointer, 0 when no tool is armed.
+ */
+int
+Builder_RoutePointer(
+    struct EditorUi* ui,
+    int x,
+    int z,
+    int level,
+    int pressed,
+    int held,
+    int released);
+
+/**
+ * What the World draws for the NPC editor's npc while its Movement tab
+ * shows (map_editor_ghost.h): LEG runs, WAYPOINTs (the selected one and the
+ * pointer's ghost flagged), a STALL where a leg stops, Play's WALKER.
+ * ABSOLUTE tiles. Writes at most `max`, returns the count; 0 when the tab is
+ * not showing an npc.
+ */
+int
+Builder_RouteWorldRects(
+    struct EditorUi* ui,
+    struct MapEditorWanderRect* out,
+    int max);
+
+/** Arm route tool `tool` (1 Add waypoint, 2 Move waypoint; 0 Select), or put
+ *  it down when it is the one armed: what the npc.* hotkey actions run.
+ *  Returns 1 when `tool` is armed after it. */
+int
+Builder_RouteSetTool(
+    struct EditorUi* ui,
+    int tool);
+
+/** Start Play, or stop it when it runs. Returns 1 while it plays. */
+int
+Builder_RoutePlay(struct EditorUi* ui);
+
+/** "Fix stuck legs": waypoints added round every leg of the open npc's
+ *  route that stops dead (Editor_NpcLegDetour), one undo step. Returns the
+ *  waypoints added, -1 when it could not. */
+int
+Builder_RouteFixLegs(struct EditorUi* ui);
 
 struct Builder_PanelView
 {

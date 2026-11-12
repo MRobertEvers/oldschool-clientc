@@ -14,6 +14,7 @@
 #include "editor/editor_npc.h"
 #include "editor/map_editor_ghost.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -267,7 +268,7 @@ test_route_plan(void)
     /* Two waypoints replace three: patrol1 changes, patrol2 stays, patrol3 goes. */
     route[0].x = 3207; route[0].z = 3233; route[0].level = 0; route[0].pause = 4;
     route[1].x = 3211; route[1].z = 3230; route[1].level = 0; route[1].pause = 0;
-    n = Editor_NpcRoutePlan(&record, route, 2, EDITOR_NPC_MODE_PATROL, layer, commands, 48);
+    n = Editor_NpcRoutePlan(&record, route, 2, EDITOR_NPC_MODE_PATROL, -1, layer, commands, 48);
     CHECK(n == 2, "plan: patrol1's new pause and patrol3's removal are the two commands (%d)", n);
     for( int i = 0; i < n; i++ )
     {
@@ -279,9 +280,9 @@ test_route_plan(void)
     CHECK(sets == 1 && removes == 1, "plan: one set, one removal (%d/%d)", sets, removes);
 
     /* No waypoints with Wander chosen: the three rows go, defaultmode=wander. */
-    n = Editor_NpcRoutePlan(&record, NULL, 0, EDITOR_NPC_MODE_WANDER, layer, commands, 48);
+    n = Editor_NpcRoutePlan(&record, NULL, 0, EDITOR_NPC_MODE_WANDER, -1, layer, commands, 48);
     CHECK(n == 4, "plan: clearing the route removes three rows and sets defaultmode (%d)", n);
-    CHECK(Editor_NpcRoutePlan(&record, route, 2, EDITOR_NPC_MODE_PATROL, layer, commands, 1) == -1,
+    CHECK(Editor_NpcRoutePlan(&record, route, 2, EDITOR_NPC_MODE_PATROL, -1, layer, commands, 1) == -1,
         "plan: too small an output is refused whole");
     Editor_CfgRecordFree(&record);
 }
@@ -329,6 +330,305 @@ test_move_ledger(void)
     CHECK(strcmp(key, "move:9/9th_squad") == 0, "ledger: a digit shards itself (%s)", key);
 }
 
+/* A Copy to new: every field of the cache block spelled `=default`, no
+ * overlay yet. The mode is the engine's (wander 5), not a stated none; and a
+ * route over it opens the overlay's block ONCE, however many rows follow
+ * (the second block-open was refused, so a fresh clone could not be given a
+ * route at all). */
+static void
+test_clone_route(void)
+{
+    static const char k_clone[] =
+        "[thistle_watchman]\nname=Man\nsize=1\ndefaultmode=default\npatrol=default\nfacing=default\n"
+        "wanderrange=default\nmaxrange=default\nrespawnrate=default\nmoverestrict=default\nnomove=default\n";
+    struct Editor_CfgRecord record;
+    struct Editor_NpcMovement movement;
+    struct Editor_NpcEffective effective;
+    struct Editor_NpcWaypoint route[6];
+    struct Editor_Cmd commands[48];
+    int layer;
+    int n;
+    int blocks = 0;
+    int fields = 0;
+    int leash = 0;
+
+    Editor_NpcMovementInit(&movement);
+    CHECK(Editor_NpcMovementRead(&movement, "defaultmode", "default") == 1 && !movement.defaultmode_stated,
+        "clone: defaultmode=default is not a statement");
+    (void)Editor_NpcMovementRead(&movement, "wanderrange", "default");
+    (void)Editor_NpcMovementRead(&movement, "maxrange", "default");
+    (void)Editor_NpcMovementRead(&movement, "facing", "default");
+    (void)Editor_NpcMovementRead(&movement, "nomove", "default");
+    Editor_NpcEffectiveMode(&movement, &effective);
+    CHECK(effective.mode == EDITOR_NPC_MODE_WANDER && effective.wander == EDITOR_NPC_WANDER_DEFAULT
+              && effective.leash == EDITOR_NPC_LEASH_DEFAULT && !effective.nomove && movement.facing == -1,
+        "clone: it wanders the engine's 5 with the engine's leash (mode %d wander %d leash %d)", effective.mode,
+        effective.wander, effective.leash);
+    (void)Editor_NpcMovementRead(&movement, "defaultmode", "none");
+    CHECK(movement.defaultmode_stated && movement.defaultmode == EDITOR_NPC_MODE_NONE, "clone: defaultmode=none IS a statement");
+
+    Editor_CfgRecordInit(&record, "npc", "thistle_watchman");
+    CHECK(Editor_CfgRecordAddLayer(&record, NULL, k_clone, strlen(k_clone)), "clone: cache layer");
+    CHECK(Editor_CfgRecordAddLayer(&record, "edited/thistle_watchman/configs/thistle_watchman.npc", "", 0),
+        "clone: the editor's own overlay, no file yet");
+    Editor_CfgRecordResolve(&record, NULL, 0);
+    layer = Editor_CfgRecordWriteLayerFor(&record, Editor_CfgRecordFindRow(&record, "patrol1", "", 0));
+    CHECK(layer >= 0 && record.layers[layer].rank == 2 && !record.layers[layer].present,
+        "clone: the write layer is the overlay that does not exist yet (%d)", layer);
+    for( int i = 0; i < 6; i++ )
+    {
+        route[i].x = 3207 + i;
+        route[i].z = 3237 + 2 * i;
+        route[i].level = 0;
+        route[i].pause = i == 1 ? 5 : 0;
+    }
+    n = Editor_NpcRoutePlan(&record, route, 6, EDITOR_NPC_MODE_PATROL, 12, layer, commands, 48);
+    for( int i = 0; i < n; i++ )
+    {
+        blocks += commands[i].kind == EDITOR_CMD_CFG_BLOCK;
+        fields += commands[i].kind == EDITOR_CMD_CFG_FIELD;
+        leash += commands[i].kind == EDITOR_CMD_CFG_FIELD && strcmp(commands[i].u.cfg_field.key, "maxrange") == 0
+                 && strcmp(commands[i].u.cfg_field.after, "12") == 0;
+    }
+    CHECK(n == 9 && blocks == 1 && fields == 8, "clone: one block-open, six rows, defaultmode, maxrange (%d: %d + %d)", n,
+        blocks, fields);
+    CHECK(n > 0 && commands[0].kind == EDITOR_CMD_CFG_BLOCK && strcmp(commands[0].u.cfg_block.name, "thistle_watchman") == 0,
+        "clone: the block opens first");
+    CHECK(leash == 1, "clone: the leash is stated in the same plan");
+    n = Editor_NpcRoutePlan(&record, route, 6, EDITOR_NPC_MODE_PATROL, -1, layer, commands, 48);
+    CHECK(n == 8, "clone: without a leash the plan is one command shorter (%d)", n);
+    Editor_CfgRecordFree(&record);
+}
+
+/* Copy to new's overlay states every field, `patrol=empty` among them: the
+ * list's "none" marker. Rows beside it in one layer are refused by cachepack
+ * ("a marker beside entries") and the RUN fails, so a route over it removes
+ * the marker in the same plan; clearing the route does not touch it. */
+static void
+test_route_marker(void)
+{
+    static const char k_overlay[] = "[thistle_patrol]\ndefaultmode=wander\npatrol=empty\nmaxrange=22\n";
+    struct Editor_CfgRecord record;
+    struct Editor_NpcWaypoint route[2];
+    struct Editor_Cmd commands[48];
+    int layer;
+    int n;
+    int marker = 0;
+
+    Editor_CfgRecordInit(&record, "npc", "thistle_patrol");
+    CHECK(Editor_CfgRecordAddLayer(&record, NULL, "[thistle_patrol]\nname=Man\npatrol=default\n",
+              strlen("[thistle_patrol]\nname=Man\npatrol=default\n")),
+        "marker: cache layer");
+    CHECK(Editor_CfgRecordAddLayer(&record, "edited/thistle_patrol/configs/thistle_patrol.npc", k_overlay, strlen(k_overlay)),
+        "marker: the overlay Copy to new wrote");
+    Editor_CfgRecordResolve(&record, NULL, 0);
+    layer = Editor_CfgRecordWriteLayerFor(&record, -1);
+    CHECK(layer >= 0 && strstr(record.layers[layer].label, "thistle_patrol.npc"), "marker: the overlay is the write layer");
+    route[0].x = 3207; route[0].z = 3237; route[0].level = 0; route[0].pause = 0;
+    route[1].x = 3207; route[1].z = 3249; route[1].level = 0; route[1].pause = 5;
+    n = Editor_NpcRoutePlan(&record, route, 2, EDITOR_NPC_MODE_PATROL, -1, layer, commands, 48);
+    /* The removal names the row by its occurrence ("patrol#0@2"). */
+    for( int i = 0; i < n; i++ )
+        marker += commands[i].kind == EDITOR_CMD_CFG_FIELD && strncmp(commands[i].u.cfg_field.key, "patrol", 6) == 0
+                  && !isdigit((unsigned char)commands[i].u.cfg_field.key[6]) && !commands[i].has_after
+                  && strcmp(commands[i].u.cfg_field.before, "empty") == 0;
+    CHECK(marker == 1, "marker: the route's plan removes patrol=empty from the overlay (%d of %d)", marker, n);
+    CHECK(n == 4, "marker: two rows, the marker's removal, defaultmode (%d)", n);
+    marker = 0;
+    n = Editor_NpcRoutePlan(&record, NULL, 0, EDITOR_NPC_MODE_WANDER, -1, layer, commands, 48);
+    for( int i = 0; i < n; i++ )
+        marker += commands[i].kind == EDITOR_CMD_CFG_FIELD && strncmp(commands[i].u.cfg_field.key, "patrol", 6) == 0
+                  && !isdigit((unsigned char)commands[i].u.cfg_field.key[6]);
+    CHECK(marker == 0, "marker: no route leaves the marker where it is");
+    Editor_CfgRecordFree(&record);
+}
+
+/* The walk's world: a 16 x 16 field with a wall of blocked tiles along x = 8
+ * for z 0..9 (a gap above it), and nothing known past x = 15. */
+static int
+walk_step(
+    void* user_data,
+    int x,
+    int z,
+    int dx,
+    int dz,
+    int level,
+    int size)
+{
+    int const nx = x + dx;
+    int const nz = z + dz;
+    int* calls = user_data;
+
+    (void)level;
+    (void)size;
+    (*calls)++;
+    if( nx > 15 )
+        return -1;
+    if( nx < 0 || nz < 0 || nz > 15 )
+        return 0;
+    return !(nx == 8 && nz <= 9);
+}
+
+/* The server's npc walk (npc_take_step): the diagonal, else x, else z, else
+ * it stands. A leg round a corner is reachable and still not walked. */
+static void
+test_walk(void)
+{
+    struct Editor_NpcWaypoint a = { 2, 2, 0, 0 };
+    struct Editor_NpcWaypoint b = { 6, 5, 0, 0 };
+    struct Editor_NpcWalkTile tiles[64];
+    struct Editor_NpcWalk walk;
+    int calls = 0;
+    int steps;
+
+    /* Open ground: three diagonals, then one straight step east. */
+    steps = Editor_NpcWalkLeg(&a, &b, 1, walk_step, &calls, tiles, 64, &walk);
+    CHECK(steps == 4 && walk.result == EDITOR_NPC_WALK_ARRIVES && walk.tile_count == 4,
+        "walk: 2,2 to 6,5 is four steps (%d, result %d)", steps, walk.result);
+    CHECK(tiles[0].x == 3 && tiles[0].z == 3 && tiles[2].x == 5 && tiles[2].z == 5 && tiles[3].x == 6 && tiles[3].z == 5,
+        "walk: the diagonal first, the straight run last (%d,%d .. %d,%d)", tiles[0].x, tiles[0].z, tiles[3].x, tiles[3].z);
+    CHECK(walk.stuck_x == 6 && walk.stuck_z == 5, "walk: it ends on the waypoint");
+    CHECK(steps == Editor_NpcLegSteps(&a, &b), "walk: open ground takes the Chebyshev steps");
+
+    /* Through the wall: east along z = 5 it stands at x = 7. A flood fill
+     * finds the gap at z = 10; the server's walk never looks for it. */
+    b.x = 12;
+    b.z = 5;
+    a.x = 2;
+    a.z = 5;
+    steps = Editor_NpcWalkLeg(&a, &b, 1, walk_step, &calls, tiles, 64, &walk);
+    CHECK(walk.result == EDITOR_NPC_WALK_STUCK && steps == 5 && walk.stuck_x == 7 && walk.stuck_z == 5,
+        "walk: stops dead at the wall (result %d, %d steps, at %d,%d)", walk.result, steps, walk.stuck_x, walk.stuck_z);
+
+    /* A blocked diagonal slides along the wall: from 7,8 to 9,12 the
+     * diagonal into x = 8 is refused while z <= 9, the x leg too, so it
+     * walks north until the gap, then crosses. */
+    a.x = 7;
+    a.z = 8;
+    b.x = 9;
+    b.z = 12;
+    steps = Editor_NpcWalkLeg(&a, &b, 1, walk_step, &calls, tiles, 64, &walk);
+    CHECK(walk.result == EDITOR_NPC_WALK_ARRIVES && steps == 4 && tiles[0].x == 7 && tiles[0].z == 9 && tiles[1].x == 8
+              && tiles[1].z == 10,
+        "walk: the z leg carries it past a blocked diagonal (result %d, %d steps, first %d,%d)", walk.result, steps,
+        tiles[0].x, tiles[0].z);
+
+    /* Another level is a teleport and asks nothing of the collision. */
+    b.level = 1;
+    calls = 0;
+    steps = Editor_NpcWalkLeg(&a, &b, 1, walk_step, &calls, tiles, 64, &walk);
+    CHECK(steps == 0 && walk.result == EDITOR_NPC_WALK_TELEPORT && calls == 0, "walk: a level change is a teleport");
+
+    /* Off the loaded scene the answer is "unknown", not "stuck". */
+    b.level = 0;
+    a.x = 14;
+    a.z = 3;
+    b.x = 20;
+    b.z = 3;
+    steps = Editor_NpcWalkLeg(&a, &b, 1, walk_step, &calls, tiles, 64, &walk);
+    CHECK(walk.result == EDITOR_NPC_WALK_UNKNOWN && steps == 1 && walk.stuck_x == 15,
+        "walk: past the scene it cannot say (result %d at %d)", walk.result, walk.stuck_x);
+
+    /* A short tile buffer keeps the first tiles and still counts the walk. */
+    a.x = 0;
+    a.z = 12;
+    b.x = 7;
+    b.z = 12;
+    steps = Editor_NpcWalkLeg(&a, &b, 1, walk_step, &calls, tiles, 3, &walk);
+    CHECK(steps == 7 && walk.tile_count == 3 && walk.result == EDITOR_NPC_WALK_ARRIVES,
+        "walk: seven steps, three kept (%d, %d)", steps, walk.tile_count);
+    steps = Editor_NpcWalkLeg(&a, &a, 1, walk_step, &calls, NULL, 0, &walk);
+    CHECK(steps == 0 && walk.result == EDITOR_NPC_WALK_ARRIVES, "walk: a waypoint to itself arrives at once");
+}
+
+/* A wall along x = 8 with no gap at all. */
+static int
+closed_step(
+    void* user_data,
+    int x,
+    int z,
+    int dx,
+    int dz,
+    int level,
+    int size)
+{
+    (void)user_data;
+    (void)level;
+    (void)size;
+    if( x + dx < 0 || z + dz < 0 || x + dx > 15 || z + dz > 15 )
+        return 0;
+    return x + dx != 8;
+}
+
+/* "Fix stuck legs": the waypoints that take a stuck leg round its wall, as
+ * few as the walk allows, each sub-leg walked the server's way. */
+static void
+test_leg_detour(void)
+{
+    struct Editor_NpcWaypoint a = { 2, 5, 0, 0 };
+    struct Editor_NpcWaypoint b = { 12, 5, 0, 0 };
+    struct Editor_NpcWaypoint out[EDITOR_NPC_PATROL_MAX];
+    struct Editor_NpcWaypoint chain[EDITOR_NPC_PATROL_MAX + 2];
+    struct Editor_NpcWalk walk;
+    int calls = 0;
+    int walks = 1;
+    int crosses = 0;
+    int n;
+
+    n = Editor_NpcLegDetour(&a, &b, 1, walk_step, &calls, out, EDITOR_NPC_PATROL_MAX);
+    CHECK(n >= 1 && n <= 3, "detour: the wall at x = 8 takes one to three waypoints (%d)", n);
+    if( n >= 1 )
+    {
+        chain[0] = a;
+        memcpy(&chain[1], out, sizeof(out[0]) * (size_t)n);
+        chain[n + 1] = b;
+        for( int i = 0; i <= n; i++ )
+        {
+            (void)Editor_NpcWalkLeg(&chain[i], &chain[i + 1], 1, walk_step, &calls, NULL, 0, &walk);
+            walks &= walk.result == EDITOR_NPC_WALK_ARRIVES;
+        }
+        for( int i = 0; i < n; i++ )
+        {
+            crosses |= out[i].z >= 10;
+            CHECK(out[i].level == 0 && out[i].pause == 0, "detour: a waypoint on the leg's level, no pause");
+        }
+        CHECK(walks, "detour: every sub-leg walks");
+        CHECK(crosses, "detour: it goes by the gap at z >= 10");
+    }
+
+    /* A leg that walks needs nothing. */
+    b.x = 6;
+    b.z = 9;
+    CHECK(Editor_NpcLegDetour(&a, &b, 1, walk_step, &calls, out, EDITOR_NPC_PATROL_MAX) == 0,
+        "detour: a leg that walks gets no waypoint");
+
+    /* No way round inside the box, no room, another level: -1. */
+    b.x = 12;
+    b.z = 5;
+    CHECK(Editor_NpcLegDetour(&a, &b, 1, closed_step, NULL, out, EDITOR_NPC_PATROL_MAX) == -1,
+        "detour: a closed wall has no way round");
+    CHECK(Editor_NpcLegDetour(&a, &b, 1, walk_step, &calls, out, 0) == -2, "detour: no room for a waypoint is -2");
+    b.level = 1;
+    CHECK(Editor_NpcLegDetour(&a, &b, 1, walk_step, &calls, out, EDITOR_NPC_PATROL_MAX) == -1,
+        "detour: a level change is not walked round");
+}
+
+/* The leash is measured from the SPAWN tile: how far the route gets from it. */
+static void
+test_route_reach(void)
+{
+    struct Editor_NpcWaypoint route[3] = { { 3207, 3237, 0, 0 }, { 3207, 3249, 0, 5 }, { 3219, 3254, 0, 0 } };
+
+    CHECK(Editor_NpcRouteReach(route, 3, 3207, 3237) == 17, "reach: 17 tiles from a spawn on waypoint 1 (%d)",
+        Editor_NpcRouteReach(route, 3, 3207, 3237));
+    CHECK(Editor_NpcRouteReach(route, 3, 3237, 3209) == 45, "reach: a spawn off the route is farther (%d)",
+        Editor_NpcRouteReach(route, 3, 3237, 3209));
+    CHECK(Editor_NpcRouteReach(route, 0, 3207, 3237) == 0, "reach: no route reaches nowhere");
+    route[2].level = -1;
+    CHECK(Editor_NpcRouteReach(route, 3, 3207, 3237) == 12, "reach: a gap row is not a waypoint (%d)",
+        Editor_NpcRouteReach(route, 3, 3207, 3237));
+}
+
 int
 main(void)
 {
@@ -337,7 +637,12 @@ main(void)
     test_wander_none_nomove();
     test_route_rects();
     test_route_plan();
+    test_route_marker();
     test_move_ledger();
+    test_clone_route();
+    test_walk();
+    test_leg_detour();
+    test_route_reach();
     printf("editor_npc_test: %d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;
 }

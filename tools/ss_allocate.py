@@ -616,6 +616,129 @@ DEFAULT_HEADER = (
 VAR_PREFIX = {'varp': 'varp', 'varbit': 'varb', 'varc': 'varc'}
 
 
+def _is_link(path):
+    """True when `path` is not this tree's own entry but a link to another's.
+
+    An editor lane (torirsmaped/torirs_maped_lanes.h) shows its base tree
+    through links: a symbolic link, or on Windows -- where an account without
+    Developer Mode may not make one -- a junction for a directory and a second
+    hard link for a file. Writing through any of them writes the base.
+    """
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return False
+    if os.path.islink(path):
+        return True
+    if getattr(st, 'st_file_attributes', 0) & 0x400:  # FILE_ATTRIBUTE_REPARSE_POINT
+        return True
+    return not os.path.isdir(path) and st.st_nlink > 1
+
+
+def own_text_files(tree):
+    """The files under `tree` that are the tree's own, as paths relative to it.
+
+    Links are passed over, directories and files alike (`_is_link`): in a lane
+    they are the BASE tree's, and a var the lane has just declared is read only
+    by files the lane wrote -- which are real files in real directories. So
+    this is also cheap: a sparse lane has a handful of real directories.
+    """
+    found = []
+    stack = ['']
+    while stack:
+        rel = stack.pop()
+        top = os.path.join(tree, rel) if rel else tree
+        try:
+            names = sorted(os.listdir(top))
+        except OSError:
+            continue
+        for name in names:
+            sub = f'{rel}/{name}' if rel else name
+            path = os.path.join(top, name)
+            # Dot-names are locks and half-made directories; .tmp is a save's.
+            if name.startswith('.') or name.endswith('.tmp') or _is_link(path):
+                continue
+            if os.path.isdir(path):
+                stack.append(sub)
+            else:
+                found.append(sub)
+    return sorted(found)
+
+
+def find_var_prefix_tool(tree):
+    """`var_prefix_names.py`, which lives beside the MAIN content tree.
+
+    `<tree>/../tools` is that for OSRS-Content/osrs-content. An editor lane's
+    tree is build/lanes/<name>/content, which has no tools beside it: there the
+    tool is this repository's (this file is <repo>/tools/ss_allocate.py). Before
+    this lookup a var declared without an id failed every RUN on a lane with
+    "can't open file ...lanes/<name>/tools/var_prefix_names.py".
+    """
+    beside = os.path.join(tree, os.pardir, 'tools', 'var_prefix_names.py')
+    if os.path.isfile(beside):
+        return os.path.normpath(beside), True
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    ours = os.path.join(repo, 'OSRS-Content', 'tools', 'var_prefix_names.py')
+    if os.path.isfile(ours):
+        return ours, False
+    raise SystemExit(
+        'ss_allocate: a new var was given an id, but var_prefix_names.py (which '
+        f'respells its [name] block and every %name) is neither at {os.path.normpath(beside)} '
+        f'nor at {ours}')
+
+
+def respell_vars(tree):
+    """Give the vars just allocated their `varp<N>_` spelling in the sources.
+
+    For the main tree this runs `var_prefix_names.py --write`, as it always
+    has: the tool walks the tree it sits beside (its git-tracked files).
+
+    For any other tree -- an editor lane -- the tool is the repository's, and
+    run as a program it would rewrite the MAIN tree, which neither holds the new
+    var nor may be written from a lane's build. So its rules are borrowed
+    (`Rewriter`, pointed at `tree` for its id tables) and applied here, to the
+    tree's own files only (`own_text_files`), each written to a temporary and
+    renamed into place: nothing is ever written through a link.
+    """
+    tool, beside = find_var_prefix_tool(tree)
+    if beside:
+        subprocess.run([sys.executable, tool, '--write'], check=True)
+        return
+    import importlib.util
+    from pathlib import Path
+    spec = importlib.util.spec_from_file_location('var_prefix_names', tool)
+    names = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(names)
+    root = Path(os.path.abspath(tree))
+    names.ROOT = root
+    names.REPO = root.parent
+    rewriter = names.Rewriter()
+    files = refs = 0
+    for rel in own_text_files(str(root)):
+        path = root / rel
+        if path.suffix in names.SKIP_SUFFIXES or 'wiki' in path.parts:
+            continue
+        try:
+            # Bytes in, bytes out: the file's own line endings are kept.
+            text = path.read_bytes().decode('utf-8')
+        except (UnicodeDecodeError, OSError):
+            continue
+        # The tool reads `osrs-content/<rel>` (a `ported/<lane>` file resolves
+        # against that lane's tables first).
+        new, count = rewriter.rewrite(Path('osrs-content') / rel, text)
+        if not count or new == text:
+            continue
+        if path.suffix == '.cs2':
+            new = names.restamp(new)
+        temporary = path.with_name(path.name + '.tmp')
+        temporary.write_bytes(new.encode('utf-8'))
+        os.replace(temporary, path)
+        files += 1
+        refs += count
+        print(f'            respelled {count} name(s) in {rel}')
+    print(f'{refs} name(s) in {files} file(s) of {root}')
+
+
 def write_pack(path, ns, raw, fresh):
     """Append `fresh` — [(id, name)] — leaving every existing line alone.
 
@@ -809,8 +932,7 @@ def main():
     if respell:
         # The new ids are in the ledger; now the `[name]` blocks and every
         # `%name` that declared them take the prefixed spelling.
-        tool = os.path.join(args.tree, os.pardir, 'tools', 'var_prefix_names.py')
-        subprocess.run([sys.executable, tool, '--write'], check=True)
+        respell_vars(args.tree)
     if failed:
         print('ss_allocate: a declared name cannot be given an id (see the ERROR '
               'lines above)', file=sys.stderr)

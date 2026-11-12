@@ -121,6 +121,26 @@ enum Editor_HotkeyAction
      * make a scratch lane from main and switch to it (the Lanes panel). */
     EDITOR_HK_FILE_SAVE_SCENE,
     EDITOR_HK_FILE_SCRATCH_LANE,
+    /* A lane's life-cycle (the Lanes panel, edpanel_publish.c): a new lane
+     * from this lane's changes; the picked lane deleted; and the picked
+     * change's file opened, shown in its folder, diffed against the base,
+     * put back, and the listed paths copied. */
+    EDITOR_HK_FILE_PROMOTE_LANE,
+    EDITOR_HK_FILE_DELETE_LANE,
+    EDITOR_HK_FILE_LANE_OPEN,
+    EDITOR_HK_FILE_LANE_REVEAL,
+    EDITOR_HK_FILE_LANE_DIFF,
+    EDITOR_HK_FILE_LANE_DISCARD,
+    EDITOR_HK_FILE_LANE_COPY,
+    /* The instance helper's dialog (edpanel_instance.c) over the open set. */
+    EDITOR_HK_FILE_NEW_INSTANCE,
+    /* Drop one square from what the window shows (Squares > Close square). */
+    EDITOR_HK_FILE_CLOSE_SQUARE,
+    /* The Triggers panel's New quest: a quest's folder, its variable, stages
+     * and script, opened in the user's editor. */
+    EDITOR_HK_FILE_NEW_QUEST,
+    /* The Live panel's Restart lane: what a RUN that added a var asks for. */
+    EDITOR_HK_FILE_RESTART_LANE,
     /* The Square map's sweep: up to 3x3 squares opened as the working set. */
     EDITOR_HK_FILE_OPEN_SQUARES,
     /* Edit */
@@ -162,6 +182,12 @@ enum Editor_HotkeyAction
     EDITOR_HK_PLACE_HERE,
     EDITOR_HK_PLACE_FIT,
     EDITOR_HK_PLACE_SWAP,
+    /* What is placed, made and opened: the Catalog's pick copied to the name
+     * typed in New name (panels/edpanel_catalog.c Editor_Catalog_CopyPick),
+     * and its record in the Record panel (Editor_Catalog_EditPick). Unbound
+     * by default. */
+    EDITOR_HK_CATALOG_COPY_NEW,
+    EDITOR_HK_CATALOG_EDIT_RECORD,
     /** Held: a Place drag (a wall run) keeps to one axis (a qualifier). */
     EDITOR_HK_PLACE_CONSTRAIN,
     /* Tools: the first EDITOR_TOOL_COUNT follow enum Editor_Tool's order. */
@@ -185,12 +211,26 @@ enum Editor_HotkeyAction
     EDITOR_HK_TOOL_REGION,
     EDITOR_HK_TOOL_LASSO,
     EDITOR_HK_TOOL_TIDY,
+    EDITOR_HK_TOOL_BUILDING,
     EDITOR_HK_TOOL_PREVIOUS,
     EDITOR_HK_TOOL_PICK_PAINT,
     EDITOR_HK_TOOL_PICK_LOC,
     EDITOR_HK_HOLD_PLACE,
     EDITOR_HK_HOLD_DELETE,
     EDITOR_HK_HOLD_CLEAR,
+    /* Building (panels/edpanel_building.c): what the Building tool's next
+     * gesture makes, and the shell built on the rectangle last dragged. Each
+     * mode arms the tool. */
+    EDITOR_HK_BUILDING_SHELL,
+    EDITOR_HK_BUILDING_WALL,
+    EDITOR_HK_BUILDING_DOOR,
+    EDITOR_HK_BUILDING_WINDOW,
+    EDITOR_HK_BUILDING_BUILD,
+    /* Stamps: the rectangle saved as one (Rectangle panel), the Stamps
+     * panel's picked row renamed and deleted. */
+    EDITOR_HK_STAMP_SAVE_RECT,
+    EDITOR_HK_STAMP_RENAME,
+    EDITOR_HK_STAMP_DELETE,
     /* Brush */
     EDITOR_HK_BRUSH_RADIUS_DOWN,
     EDITOR_HK_BRUSH_RADIUS_UP,
@@ -276,6 +316,10 @@ enum Editor_HotkeyAction
     EDITOR_HK_VIEW_WORLD,
     EDITOR_HK_VIEW_TOOLRAIL,
     EDITOR_HK_VIEW_RECT,
+    EDITOR_HK_VIEW_BUILDING,
+    EDITOR_HK_VIEW_STAMPS,
+    /** The Square map window (the Squares panel's Map button). */
+    EDITOR_HK_VIEW_SQUAREMAP,
     EDITOR_HK_VIEW_RECORD,
     EDITOR_HK_VIEW_LOCBUILDER,
     EDITOR_HK_VIEW_NPCBUILDER,
@@ -285,6 +329,8 @@ enum Editor_HotkeyAction
     EDITOR_HK_VIEW_TRIGGERS,
     EDITOR_HK_VIEW_SCENES,
     EDITOR_HK_VIEW_ENCOUNTER,
+    /** The Camera path panel (panels/edpanel_campath.c). */
+    EDITOR_HK_VIEW_CAMPATH,
     /** Workbench 6.7: the Shop builder and the Quest board. */
     EDITOR_HK_VIEW_SHOP,
     EDITOR_HK_VIEW_QUEST,
@@ -346,6 +392,25 @@ enum Editor_HotkeyAction
     /** A new node of the Node kind dropdown's kind, after the selected one
      *  (workbench 6.6). Delete on the graph is edit.delete's chord. */
     EDITOR_HK_GRAPH_NEW_NODE,
+    /* Camera path (panels/edpanel_campath.c, Editor_CamPath_Hotkey): the
+     * panel's verbs on the shown path, in this order. Unbound by default. */
+    EDITOR_HK_CAMPATH_ADD,
+    EDITOR_HK_CAMPATH_UPDATE,
+    EDITOR_HK_CAMPATH_GOTO,
+    EDITOR_HK_CAMPATH_PREVIEW,
+    EDITOR_HK_CAMPATH_COPY,
+    EDITOR_HK_CAMPATH_DELETE_KEY,
+    EDITOR_HK_CAMPATH_MOVE_UP,
+    EDITOR_HK_CAMPATH_MOVE_DOWN,
+    EDITOR_HK_CAMPATH_SEND,
+    /* NPC editor, Movement tab (builder_panels.h Builder_RouteSetTool /
+     * Builder_RoutePlay): the route tools and Play, on the npc it has open,
+     * in this order. Unbound by default. */
+    EDITOR_HK_NPC_ADD_WAYPOINT,
+    EDITOR_HK_NPC_MOVE_WAYPOINT,
+    EDITOR_HK_NPC_PLAY_ROUTE,
+    /* Builder_RouteFixLegs: waypoints round every stuck leg. */
+    EDITOR_HK_NPC_FIX_LEGS,
     EDITOR_HK_COUNT
 };
 
@@ -629,7 +694,7 @@ Editor_HotkeyKeyIsModifier(int key);
  * header; it asserts the two orders agree): the first EDITOR_HK_HINT_TOOLS
  * EDITOR_HK_TOOL_* actions arm the tools in that order.
  */
-#define EDITOR_HK_HINT_TOOLS (EDITOR_HK_TOOL_TIDY - EDITOR_HK_TOOL_SELECT + 1)
+#define EDITOR_HK_HINT_TOOLS (EDITOR_HK_TOOL_BUILDING - EDITOR_HK_TOOL_SELECT + 1)
 /** Rows one tool's strip holds at most (Select's nine). */
 #define EDITOR_HK_HINT_MAX 10
 /** Actions one row reads its chords from at most (the four nudges). */

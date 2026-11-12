@@ -117,6 +117,20 @@
  *                 tree lock, documents and history, catalog, live dir and
  *                 launched servers are all the lane's, and every session
  *                 mirrors them -- so the switch is staged and said so.
+ *
+ * Behind TORIRSMAPED_CAP_LANE_HANDOUT (a client sends it only to a server
+ * with the bit):
+ *
+ *   LANE_HANDOUT  string rel (relative to the content root), u32 folder_max
+ *                 (0: `rel` alone; else a folder with everything in it, up
+ *                 to that many files: ToriRSMapEdLanes_HandOutFolder)
+ *          -> FACT_LANE_HANDED_OUT  u32 status, string path (the absolute
+ *                           path of `rel` in this server's tree), string why:
+ *                           ToriRSMapEdLanes_HandOut ran, so the path may go
+ *                           to a program outside the editor. To the asking
+ *                           connection only, which waits for it
+ *                           (Editor_HostMapEdLaneHandOut). On main the path
+ *                           is the tree's own and nothing is done.
  */
 enum
 {
@@ -127,6 +141,7 @@ enum
     TORIRSMAPED_REQ_LANE_DISCARD = 85,
     TORIRSMAPED_REQ_LANE_CREATE = 86,
     TORIRSMAPED_REQ_LANE_SWITCH = 87,
+    TORIRSMAPED_REQ_LANE_HANDOUT = 88,
     TORIRSMAPED_REQ_LANES_RANGE_FIRST = 81,
     TORIRSMAPED_REQ_LANES_RANGE_LAST = 90,
 
@@ -135,6 +150,7 @@ enum
     TORIRSMAPED_FACT_LANE_CHANGES = 203,
     TORIRSMAPED_FACT_LANE_PUBLISHED = 204,
     TORIRSMAPED_FACT_LANE_COUNT = 205,
+    TORIRSMAPED_FACT_LANE_HANDED_OUT = 206,
     TORIRSMAPED_FACT_LANES_RANGE_FIRST = 201,
     TORIRSMAPED_FACT_LANES_RANGE_LAST = 210,
 
@@ -334,6 +350,60 @@ ToriRSMapEdLanes_MakeWritable(
     char* why,
     size_t why_size);
 
+/**
+ * Hand `rel` (relative to the content root, '/' separated: a file, a
+ * directory, or a file that does not exist yet) to a program OUTSIDE the
+ * editor -- a text editor, a file manager, the clipboard. Unlike the editor's
+ * own saves, such a program writes a file in place and makes new files by
+ * hand, and through a link either lands in the base tree. So, before the
+ * path leaves the editor:
+ *
+ *   - every directory above `rel` is made real (ToriRSMapEdLanes_MakeWritable:
+ *     an absent one is created);
+ *   - a directory that is still a link is exploded, so a file made in it by
+ *     hand is the lane's (its files stay links until each is handed out);
+ *   - a file that is still a link becomes a real file of the lane holding the
+ *     same bytes, and those bytes are recorded at <lane dir>/ancestor/<rel>.
+ *
+ * A handed-out file nothing has written since is NOT a change of the lane's:
+ * Changes passes over it while it equals its record, Follow gives it the
+ * base's newer bytes (as a copy again, never a link -- the program may still
+ * hold it open, and Publish with reset and Discard keep it a copy for the
+ * same reason), and it goes when the base's file goes. Once it differs from
+ * its record it is the lane's edit like any other.
+ *
+ * Main, a path that is real already, and the copied trees (pack/): 1 at
+ * once. 1 on success, 0 with `why`.
+ */
+int
+ToriRSMapEdLanes_HandOut(
+    const struct ToriRSMapEdLaneDef* lane,
+    const char* rel,
+    char* why,
+    size_t why_size);
+
+/**
+ * ToriRSMapEdLanes_HandOut of directory `rel` AND of every file and folder in
+ * it, every level down: for a folder shown in a file manager or opened as a
+ * text editor's workspace, where every file is one double-click from a save
+ * in place. A hand-out of the file alone left its neighbours links -- a
+ * neighbour opened from Explorer and saved wrote the base (2026-11-11).
+ *
+ * `*out_files` gets the files handed out; -1 when the folder holds more than
+ * `max_files` (counted through the links), in which case only the folder
+ * itself is handed out. A `rel` that is not a directory is handed out as
+ * ToriRSMapEdLanes_HandOut does. Main: 1 at once, `*out_files` 0. 1 on
+ * success, 0 with `why`.
+ */
+int
+ToriRSMapEdLanes_HandOutFolder(
+    const struct ToriRSMapEdLaneDef* lane,
+    const char* rel,
+    int max_files,
+    int* out_files,
+    char* why,
+    size_t why_size);
+
 /** A LEGACY full mirror (mirror.py's rules): what Create made before sparse
  *  lanes, kept for tests and tools. `dst` must not exist. Returns the
  *  number of files mirrored, -1 with `why`. */
@@ -465,5 +535,164 @@ ToriRSMapEdLanes_TreeHeld(
     const char* tree,
     char* out,
     size_t out_size);
+
+/* ---- a lane's life-cycle (2026-11-11) -------------------------------------------
+ *
+ * What a quest built in a scratch lane needs after the building: promote it
+ * to a named lane, see what a publish would overwrite, put one file back,
+ * compare a file with the base's, and delete the lanes that are done with.
+ * On the wire (requests and facts in the lanes' ranges; a client sends the
+ * requests only to a server whose FACT_LANE_INFO says
+ * TORIRSMAPED_LANE_INFO_LIFECYCLE):
+ *
+ *   FACT_LANE_INFO      gains, after `asked`: `u32 features`
+ *                       (TORIRSMAPED_LANE_INFO_*), `string boot_file` (the
+ *                       boot lane file's path, as ToriRSMapEdLanes_BootFilePath
+ *                       spells it).
+ *   LANE_PUBLISH        flags may carry TORIRSMAPED_LANE_PUBLISH_CHECK: nothing
+ *                       is saved or written; the answer is FACT_LANE_PUBLISHED
+ *                       kind TORIRSMAPED_LANE_PUBLISHED_CHECK, `written` the
+ *                       files a publish would write or remove, `removed` how
+ *                       many of them the target lane has changed too, the
+ *                       message naming the first of those.
+ *   LANE_DISCARD        string rel (a body; empty is every change, as before)
+ *                       -> every dirty document is saved, then that ONE change
+ *                       goes back to the base; FACT_LANE_PUBLISHED kind 2,
+ *                       reload 1.
+ *   LANE_DIFF           string rel -> FACT_LANE_DIFF  u32 status, string
+ *                       lane_path, string base_copy, string why: a COPY of the
+ *                       base's file (ToriRSMapEdLanes_DiffBase) beside the
+ *                       lane's own, for an external diff. To the asking
+ *                       connection only.
+ *   LANE_DELETE         string name -> FACT_LANE_PUBLISHED kind
+ *                       TORIRSMAPED_LANE_PUBLISHED_DELETE, `written` the links
+ *                       to the base dropped, `removed` the lane's own files
+ *                       removed (ToriRSMapEdLanes_Delete).
+ */
+enum
+{
+    TORIRSMAPED_REQ_LANE_DIFF = 89,
+    TORIRSMAPED_REQ_LANE_DELETE = 90,
+    TORIRSMAPED_FACT_LANE_DIFF = 207,
+
+    TORIRSMAPED_LANE_PUBLISHED_DELETE = 5,
+    TORIRSMAPED_LANE_PUBLISHED_CHECK = 6,
+
+    /** LANE_PUBLISH's flags, beside TORIRSMAPED_LANE_PUBLISH_RESET / _FORCE:
+     *  a dry run (above). */
+    TORIRSMAPED_LANE_PUBLISH_CHECK = 4,
+
+    /** FACT_LANE_INFO's `features`: this boot ignored the boot lane file
+     *  ($TORIRSMAPED_IGNORE_BOOT_LANE), so a Switch is refused, not staged. */
+    TORIRSMAPED_LANE_INFO_BOOT_IGNORED = 1,
+    /** ...and the server answers the requests above. */
+    TORIRSMAPED_LANE_INFO_LIFECYCLE = 2,
+};
+_Static_assert((int)TORIRSMAPED_REQ_LANE_DIFF > (int)TORIRSMAPED_REQ_LANE_HANDOUT
+                   && (int)TORIRSMAPED_REQ_LANE_DELETE <= (int)TORIRSMAPED_REQ_LANES_RANGE_LAST,
+    "the life-cycle requests sit in the lanes' range, past the hand-out");
+_Static_assert((int)TORIRSMAPED_FACT_LANE_DIFF > (int)TORIRSMAPED_FACT_LANE_HANDED_OUT
+                   && (int)TORIRSMAPED_FACT_LANE_DIFF <= (int)TORIRSMAPED_FACT_LANES_RANGE_LAST,
+    "the life-cycle fact sits in the lanes' range, past the hand-out's");
+
+/** 1 when this process ignores the boot lane file: $TORIRSMAPED_IGNORE_BOOT_LANE
+ *  is set to anything but "" or "0" (ToriRSMapEdLanes_BootLane). Such a run
+ *  neither reads the file nor writes it (ToriRSMapEdLanes_SetBoot refuses). */
+int
+ToriRSMapEdLanes_BootIgnored(void);
+
+/** The boot lane file: <repo>/build/lanes/lane.ini, or $TORIRSMAPED_BOOT_LANE_FILE
+ *  when that is set (a test's own file, so the Switch paths can run without
+ *  touching the repo's). */
+void
+ToriRSMapEdLanes_BootFilePath(
+    const char* repo_root,
+    char* out,
+    size_t out_size);
+
+/** What ToriRSMapEdLanes_Delete removed. */
+struct ToriRSMapEdLaneDeleted
+{
+    /** Links to the base dropped by their own names: junctions, symbolic
+     *  links, hard links. Nothing behind one was touched. */
+    int links;
+    /** Files that were the lane's alone (its edits, its packs and saves). */
+    int files;
+    /** Real directories removed once empty. */
+    int dirs;
+};
+
+/**
+ * Delete lane `name`: <repo>/build/lanes/<name> and everything the lane owns.
+ * The lane's content is links into its base (directory junctions, hard
+ * links), so the walk NEVER goes through one: a link of any kind loses its
+ * own name and nothing else, a file is unlinked, and only a real directory
+ * is entered. The base tree is not written, read or listed.
+ *
+ * The directory is first moved aside to build/lanes/.<name>.deleting -- which
+ * fails, with nothing deleted, while any program still has a file of the lane
+ * open (its RUN's servers, a text editor) -- and is no lane from that moment;
+ * the walk then empties it. A walk that stops part-way leaves the rest there,
+ * named in `why`; the next delete of the same name finishes it.
+ *
+ * Refused (0, `why`, nothing touched): "main"; a name that is no lane (no
+ * lane.ini); a lane whose tree an editor holds (ToriRSMapEdLanes_TreeHeld --
+ * the caller's own lane among them); the lane the boot lane file names.
+ * `out` (may be NULL) gets what was removed. 1 when the lane is gone.
+ */
+int
+ToriRSMapEdLanes_Delete(
+    const char* repo_root,
+    const char* base_tree,
+    const char* name,
+    struct ToriRSMapEdLaneDeleted* out,
+    char* why,
+    size_t why_size);
+
+/** ToriRSMapEdLanes_Discard for ONE change: `rel` (as ToriRSMapEdLanes_Changes
+ *  spells it) goes back to the base, every other change stays. 0 with `why`
+ *  when `rel` is not a change of the lane's. */
+int
+ToriRSMapEdLanes_DiscardOne(
+    const struct ToriRSMapEdLaneDef* lane,
+    const char* rel,
+    struct ToriRSMapEdLaneCounts* counts,
+    char* why,
+    size_t why_size);
+
+/**
+ * For an external diff of the lane's `rel` against its base: a COPY of the
+ * base's file at <lane dir>/diff/<rel>, its name ending ".base" before the
+ * extension ("maps/m50_50.base.jl2"), and its path in `out`. A copy, never
+ * the base's own path: a diff tool's left pane is as writable as its right.
+ * 0 with `why` when the base has no such file (the lane added it), the lane
+ * has none (it deleted it), on main, or when the copy failed.
+ */
+int
+ToriRSMapEdLanes_DiffBase(
+    const struct ToriRSMapEdLaneDef* lane,
+    const char* rel,
+    char* out,
+    size_t out_size,
+    char* why,
+    size_t why_size);
+
+/**
+ * What a publish of `from` into `to` would overwrite that `to` changed too:
+ * the paths that are changes of BOTH lanes against their bases and differ
+ * between the two (the same bytes on both sides, or deleted on both, is
+ * nothing lost), the first `max` of them in `out` (may be NULL with max 0),
+ * sorted. Returns how many there are; `from_changes` and `to_changes` (may
+ * be NULL) get each lane's change count. The main tree has no changes of its
+ * own: 0.
+ */
+int
+ToriRSMapEdLanes_PublishOverlap(
+    const struct ToriRSMapEdLaneDef* from,
+    const struct ToriRSMapEdLaneDef* to,
+    char (*out)[TORIRSMAPED_LANE_PATH],
+    int max,
+    int* from_changes,
+    int* to_changes);
 
 #endif

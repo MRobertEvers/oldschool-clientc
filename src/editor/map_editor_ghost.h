@@ -450,6 +450,13 @@ enum MapEditorWanderKind
     MAP_EDITOR_WANDER_LEG = 4,
     /** A `nomove` npc's pin: its spawn tile, nothing to roam. */
     MAP_EDITOR_WANDER_PIN = 5,
+    /** Where a patrol leg stops dead: the tile (x0, z0) the npc stands on
+     *  until the server teleports it (the NPC editor walks each leg as the
+     *  server does, builder_panels.h Builder_RouteWorldRects). */
+    MAP_EDITOR_WANDER_STALL = 6,
+    /** The NPC editor's Play: the tiles (x0, z0)..(x1, z1) the walker is on
+     *  this tick; UNREACHABLE while it stands stuck. */
+    MAP_EDITOR_WANDER_WALKER = 7,
 };
 
 #define MAP_EDITOR_WANDER_FLAG_CLOSING 1
@@ -457,6 +464,11 @@ enum MapEditorWanderKind
 /** The leg's path search found no way (the server teleports after 32 stuck
  *  ticks): set by a caller that ran one. */
 #define MAP_EDITOR_WANDER_FLAG_UNREACHABLE 4
+/** WAYPOINT: the one selected in the NPC editor's route list. */
+#define MAP_EDITOR_WANDER_FLAG_SELECTED 8
+/** WAYPOINT / LEG: not in the document yet -- the waypoint a click would
+ *  lay, a waypoint being carried, and the legs to it. */
+#define MAP_EDITOR_WANDER_FLAG_PREVIEW 16
 
 struct MapEditorWanderRect
 {

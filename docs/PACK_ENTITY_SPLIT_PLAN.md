@@ -432,7 +432,7 @@ all.
 - **`server_base` is real, and `ids` should go. → Half retired; the other half is
   one file and is safe to finish today.** The base is a field on
   `struct ContentNamespace`, populated by the defaults table in
-  `content_register.c` (npc 20000, obj 40000, loc 70000) and ~~overlayable from~~
+  `content_register.c` (npc 20000, obj 40000, loc 64000) and ~~overlayable from~~
   `content.ini`, which states no `base =` key today only because nobody has had
   reason to override one. §3.3's id-range check has an authoritative base.
 

@@ -166,8 +166,8 @@ contains "$SCRATCH/open.log" "dirty map=0 loc=0" "a freshly opened square is cle
 cp "$SCRATCH/configs/all.loc" "$SCRATCH/all.loc.before"
 cp "$SCRATCH/pack/loc.client" "$SCRATCH/loc.client.before"
 "$CTL" --port "$PORT" cfg-copy loc src_loc copy_loc > "$SCRATCH/copy.log" 2>&1 || true
-contains "$SCRATCH/copy.log" "copied loc:src_loc to loc:copy_loc, id 70000" \
-    "cfg-copy coins the namespace's floor id (70000, the register's loc base)"
+contains "$SCRATCH/copy.log" "copied loc:src_loc to loc:copy_loc, id 64000" \
+    "cfg-copy coins the namespace's floor id (64000, the register's loc base)"
 "$CTL" --port "$PORT" save > "$SCRATCH/copy_save.log" 2>&1 || true
 contains "$SCRATCH/copy_save.log" "loc:copy_loc" "save writes the copied record"
 contains "$SCRATCH/copy_save.log" "pack:loc.alloc" "and the ledger"
@@ -189,8 +189,8 @@ if cmp -s "$SCRATCH/loc.client.expected" "$SCRATCH/pack/loc.client"; then
 else
     check 0 "pack/loc.client gains exactly one copy_loc line"
 fi
-check "$( [ "$(tail -n 1 "$SCRATCH/pack/loc.alloc")" = "70000=copy_loc" ] && echo 1 )" \
-    "pack/loc.alloc ends with 70000=copy_loc"
+check "$( [ "$(tail -n 1 "$SCRATCH/pack/loc.alloc")" = "64000=copy_loc" ] && echo 1 )" \
+    "pack/loc.alloc ends with 64000=copy_loc"
 check "$( [ "$(grep -c 'allocated below this line by tools/ss_allocate.py' "$SCRATCH/pack/loc.alloc")" = 1 ] && echo 1 )" \
     "the new ledger carries ss_allocate.py's marker once"
 cp "$SCRATCH/configs/all.loc" "$SCRATCH/all.loc.saved"

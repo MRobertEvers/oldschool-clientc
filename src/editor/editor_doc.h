@@ -273,6 +273,59 @@ Editor_DocOpenSquare(
     int map_x,
     int map_z);
 
+/**
+ * Drop the open square at these coords from the document: its buffers are
+ * freed and its slot is given back (the squares after it move down one, so
+ * no `struct Editor_Square*` or index taken before the call survives it).
+ * Returns 1 when it was open, 0 when it was not.
+ *
+ * What a window does with a square that left its scene with nothing unsaved
+ * (the boot square after an Open elsewhere, a scratch slot a Place cleared):
+ * the mirror used to keep every square it ever opened, and "add to the open
+ * set" then built one scene around all of them. The caller decides whether
+ * the square may go; unsaved edits are its business, not this function's.
+ */
+int
+Editor_DocCloseSquare(
+    struct Editor_Doc* doc,
+    int map_x,
+    int map_z);
+
+/* ---- the scene a window builds from its open squares ---------------------- */
+
+/**
+ * A window's scene is one square grid over the bounding box of the squares it
+ * shows, so its cost grows with the BOX, not with how many squares are in it:
+ * m50_50 and m72_56 together are a 23 x 7 box, m50_50 with a scratch slot at
+ * m90_240 a 41 x 191 one (over 4 GB of scene, 2026-11-11). A scene is
+ * therefore at most this many squares a side. 4 x 4 is 256 x 256 tiles, the
+ * largest block one offline world load names (APP_WORLD_MAP_SQUARE_MAX).
+ */
+#define EDITOR_DOC_WORLD_SIDE_MAX 4
+#define EDITOR_DOC_WORLD_SQUARES_MAX (EDITOR_DOC_WORLD_SIDE_MAX * EDITOR_DOC_WORLD_SIDE_MAX)
+
+/**
+ * The squares of `candidates_xz` (`count` (x, z) pairs, no pair twice) a scene
+ * built around `candidates_xz[anchor]` takes: the anchor always, then the
+ * others nearest it first (ties in the order given), each kept while the
+ * bounding box of what is kept stays within EDITOR_DOC_WORLD_SIDE_MAX squares
+ * either way. Kept squares go to `out_xz` in the order they were given (at
+ * most EDITOR_DOC_WORLD_SQUARES_MAX pairs, which the box bounds); the rest to
+ * `out_dropped_xz` (room for `count` pairs), `*out_dropped` of them. Returns
+ * how many were kept (>= 1). Pure.
+ *
+ * So a far square never sizes a scene: it is left out, and the caller says
+ * which and that its document stays open.
+ */
+int
+Editor_DocWorldFit(
+    const int* candidates_xz,
+    int count,
+    int anchor,
+    int* out_xz,
+    int* out_dropped_xz,
+    int* out_dropped);
+
 /** Storage of an open square ("" = maps/). */
 const char*
 Editor_DocSquareStorage(

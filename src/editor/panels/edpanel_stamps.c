@@ -6,7 +6,10 @@
  * arms the stamp for the Place tool, whose ghost then shows the whole set
  * (Q turns it as a unit, a click drops it as one undo step, Esc drops the
  * ghost). A stamp is made from a selection in the Locs panel (Save as
- * stamp...); the marquee's Ctrl+C / Ctrl+V is the unnamed one.
+ * stamp...) or from a rectangle on every level in the Rectangle panel (a
+ * whole building); the marquee's Ctrl+C / Ctrl+V is the unnamed one. Rename
+ * and Delete act on the row picked (2026-11-11: a stamp could be made and
+ * never renamed or removed, so every trial stayed in the list for good).
  *
  * Reached from the Catalog through its "Stamps..." chip (registered with
  * the Catalog, Editor_Stamps_CatalogChip) and the View menu. The list is
@@ -35,6 +38,9 @@ struct StampsPanel
     int list;
     int button_place;
     int button_refresh;
+    int input_rename;
+    int button_rename;
+    int button_delete;
     int row_armed;
 
     struct Editor_StampsFile index;
@@ -54,6 +60,10 @@ struct StampsPanel
      *  showing it again restores. 0 at boot, so the panel opens from the Catalog's
      *  "Stamps..." or the View menu, not with the editor. */
     int open_when_hidden;
+    /** A stamp just renamed: its row is picked again once the index is
+     *  re-read under the new name (2026-11-11: the rename left nothing
+     *  picked, so Place or Delete straight after it was refused). */
+    char select_after[EDITOR_STAMP_NAME_MAX];
 };
 
 /** The Catalog's chip (Editor_Stamps_CatalogChip), claimed by this module. */
@@ -105,6 +115,18 @@ stamps_rebuild(
     for( int i = 0; i < total && self->listed < STAMPS_SHOWN_MAX; i++ )
         if( stamps_contains(Editor_StampsHeaderName(&self->index, i), filter) )
             self->rows[self->listed++] = i;
+    if( self->select_after[0] )
+    {
+        int picked = -1;
+        for( int r = 0; r < self->listed && picked < 0; r++ )
+            if( strcmp(Editor_StampsHeaderName(&self->index, self->rows[r]), self->select_after) == 0 )
+                picked = r;
+        if( picked >= 0 )
+        {
+            ToriRSChrome_VListSetSelected(ui->chrome, self->list, picked);
+            self->select_after[0] = '\0';
+        }
+    }
     self->row_total = total;
     self->shown_revision = revision;
     self->shown_valid = 1;
@@ -114,7 +136,7 @@ stamps_rebuild(
         for( int r = first; r < first + shown; r++ )
             ToriRSChrome_VListSetRow(ui->chrome, self->list, r, "");
     if( total == 0 )
-        snprintf(line, sizeof(line), "No stamps yet: select locs, then Locs > Save as stamp...");
+        snprintf(line, sizeof(line), "No stamps yet: Rectangle panel > Save as stamp");
     else if( filter[0] )
         snprintf(line, sizeof(line), "%d of %d stamps match \"%.24s\"", self->listed, total, filter);
     else
@@ -141,11 +163,10 @@ stamps_tick(
         self->open_when_hidden = ui->chrome->panels[self->panel].visible;
     armed = edp_stamp_armed(ui);
     if( armed )
-    {
-        char summary[160];
-        Editor_StampSummary(armed, summary, sizeof(summary));
-        snprintf(line, sizeof(line), "Placing %s, turned %d", summary, armed->turned * 90);
-    }
+        /* Short enough for the row whatever the stamp holds (the status bar
+         * said its pieces when it was armed). */
+        snprintf(line, sizeof(line), "Placing %.24s (%d locs), turned %d", armed->name,
+            Editor_StampCount(armed, EDITOR_STAMP_LOC), armed->turned * 90);
     else
         snprintf(line, sizeof(line), "Nothing armed: pick a stamp, then Place");
     if( strcmp(line, self->armed_text) != 0 )
@@ -203,6 +224,67 @@ stamps_arm_row(
         (void)edp_stamp_arm(ui, name);
 }
 
+/** The name of the row picked in the list, or NULL with a sentence. */
+static const char*
+stamps_picked(
+    struct EditorUi* ui,
+    struct StampsPanel* self,
+    const char* what)
+{
+    int const row = ToriRSChrome_VListSelected(ui->chrome, self->list);
+
+    if( row < 0 || row >= self->listed )
+    {
+        Editor_UiStatus(ui, "%s refused: pick a stamp in the list first", what);
+        return NULL;
+    }
+    return Editor_StampsHeaderName(&self->index, self->rows[row]);
+}
+
+int
+Editor_Stamps_RunAction(
+    struct EditorUi* ui,
+    enum Editor_HotkeyAction action)
+{
+    struct StampsPanel* self;
+    char name[EDITOR_STAMP_NAME_MAX];
+    const char* picked;
+
+    assert(ui);
+    if( action == EDITOR_HK_STAMP_SAVE_RECT )
+    {
+        (void)Editor_RectSelect_SaveStamp(ui);
+        return 1;
+    }
+    if( action != EDITOR_HK_STAMP_RENAME && action != EDITOR_HK_STAMP_DELETE )
+        return 0;
+    self = Editor_UiPanelSelf(ui, "stamps");
+    if( !self )
+        return 1;
+    picked = stamps_picked(ui, self, action == EDITOR_HK_STAMP_DELETE ? "Delete stamp" : "Rename stamp");
+    if( !picked )
+        return 1;
+    /* A copy: the edit rewrites the index the name points into. */
+    snprintf(name, sizeof(name), "%s", picked);
+    if( action == EDITOR_HK_STAMP_DELETE )
+        (void)edp_stamp_delete(ui, name);
+    else
+    {
+        const char* to = ToriRSChrome_Text(ui->chrome, self->input_rename);
+        if( !to || !to[0] )
+            Editor_UiStatus(ui, "Rename stamp refused: type the new name in New name first");
+        else if( edp_stamp_rename(ui, name, to) )
+        {
+            snprintf(self->select_after, sizeof(self->select_after), "%s", to);
+            ToriRSChrome_SetText(ui->chrome, self->input_rename, "");
+        }
+    }
+    /* The list follows the index's revision on its next tick (the renamed
+     * stamp picked again there). */
+    ToriRSChrome_VListSetSelected(ui->chrome, self->list, -1);
+    return 1;
+}
+
 static int
 stamps_activate(
     struct EditorUi* ui,
@@ -229,6 +311,10 @@ stamps_activate(
         self->shown_valid = 0;
         return 1;
     }
+    if( widget == self->button_rename || widget == self->input_rename )
+        return Editor_Stamps_RunAction(ui, EDITOR_HK_STAMP_RENAME);
+    if( widget == self->button_delete )
+        return Editor_Stamps_RunAction(ui, EDITOR_HK_STAMP_DELETE);
     if( widget == self->input_find )
         return 1;
     return 0;
@@ -300,6 +386,12 @@ Editor_Stamps_Register(struct EditorUi* ui)
     ToriRSChrome_SetTooltip(chrome, self->button_place, "Arm the stamp: the ghost shows it, Q turns it, click drops it");
     self->button_refresh = ToriRSChrome_Button(chrome, self->panel, "Refresh");
     ToriRSChrome_SetTooltip(chrome, self->button_refresh, "Read editor/stamps/index.txt again");
+    self->input_rename = ToriRSChrome_TextInput(chrome, self->panel, "New name", "");
+    ToriRSChrome_SetTooltip(chrome, self->input_rename, "The picked stamp's new name, then Rename");
+    self->button_rename = ToriRSChrome_Button(chrome, self->panel, "Rename");
+    ToriRSChrome_SetTooltip(chrome, self->button_rename, "Give the picked stamp the name in New name");
+    self->button_delete = ToriRSChrome_Button(chrome, self->panel, "Delete");
+    ToriRSChrome_SetTooltip(chrome, self->button_delete, "Delete the picked stamp; Ctrl+Z brings it back");
     self->row_armed = ToriRSChrome_Label(chrome, self->panel, "");
     ToriRSChrome_PanelSetResizable(chrome, self->panel, 1);
     ToriRSChrome_PanelSetVisible(chrome, self->panel, 0);

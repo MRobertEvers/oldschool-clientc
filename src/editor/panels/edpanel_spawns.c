@@ -725,23 +725,17 @@ spawns_hints(
     self->hint_serial = ui->hotkeys.serial;
 }
 
-/** The catalog has no record for the pick. One made by "Copy to new" in this
- *  session is not in the index a placement reads until RUN has built it; the
- *  old line ("no catalog record for npc 27407") named the lookup, not what
- *  to do (S3, 2026-11-09). */
+/** Nobody has a record for the pick: not the catalog, and not this window (a
+ *  record made here by "Copy to new" is one it knows the name of at once,
+ *  Editor_Catalog_RecordName). What is left is an id whose record is gone. */
 static void
 spawns_pick_absent(
     struct EditorUi* ui,
     int pick_kind,
     int pick_id)
 {
-    /* The Catalog's own name for it, once it has one ("#27407" until then). */
-    if( ui->tools.pick_name[0] && ui->tools.pick_name[0] != '#' )
-        Editor_UiStatus(ui, "Use pick refused: %.40s (%s %d) is new: RUN builds it, then it can be placed",
-            ui->tools.pick_name, pick_kind == 1 ? "npc" : "obj", pick_id);
-    else
-        Editor_UiStatus(ui, "Use pick refused: %s %d is new: RUN builds it, then it can be placed (or type its name)",
-            pick_kind == 1 ? "npc" : "obj", pick_id);
+    Editor_UiStatus(ui, "Use pick refused: %s %d has no record in this lane (a Copy to new that was undone?)",
+        pick_kind == 1 ? "npc" : "obj", pick_id);
 }
 
 /** Spawns this window just added (EditorUi::spawns_added_*, counted by
@@ -826,29 +820,24 @@ spawns_view_sync(
     }
 }
 
-static void
-spawns_tick(
+/**
+ * The list's rows brought up to the square's spawn documents: the tick's,
+ * while the panel shows, and Delete's / Duplicate's, which run with the panel
+ * behind another tab -- a spawn placed with the Place tool from the Catalog
+ * is selected, but its row was never built, and Delete said "pick a spawn in
+ * the list first" (2026-11-11). 0 when no square is latched.
+ */
+static int
+spawns_rows_fresh(
     struct EditorUi* ui,
-    void* opaque)
+    struct SpawnsPanel* self)
 {
-    struct SpawnsPanel* self = opaque;
-
-    if( self->hint_serial != ui->hotkeys.serial )
-        spawns_hints(ui, self);
-    /* Before the sync, so the boxes it turns on reach the preference. */
-    spawns_show_added(ui, self);
-    spawns_view_sync(ui, self);
-    spawns_env_step(ui, self);
     struct Editor_SpawnFile* edited;
     char line[TORIRS_CHROME_LABEL_MAX];
     int map_x;
     int map_z;
-    int first;
-    int shown;
     uint32_t hash;
 
-    if( !ui->chrome->panels[self->panel].visible )
-        return;
     if( !spawns_square(ui, &map_x, &map_z) )
     {
         if( self->square_valid )
@@ -859,7 +848,7 @@ spawns_tick(
             self->row_count = 0;
             ToriRSChrome_VListSetCount(ui->chrome, self->list, 0);
         }
-        return;
+        return 0;
     }
     if( !self->square_valid || map_x != self->map_x || map_z != self->map_z )
     {
@@ -867,8 +856,10 @@ spawns_tick(
         self->map_x = map_x;
         self->map_z = map_z;
         self->square_valid = 1;
+        /* The rebuild this forces keeps of the selection what the new
+         * square lists (spawns_selection_prune): a spawn just placed there
+         * and selected stays selected. */
         self->built_hash = 0;
-        self->selection_count = 0;
         Editor_SquareKey(key, map_x, map_z);
         (void)edp_ensure_doc(ui, EDITOR_DOC_SPAWN, key);
     }
@@ -890,6 +881,29 @@ spawns_tick(
             self->row_count, edited_rows, suppressed);
         ToriRSChrome_SetText(ui->chrome, self->row_square, line);
     }
+    return 1;
+}
+
+static void
+spawns_tick(
+    struct EditorUi* ui,
+    void* opaque)
+{
+    struct SpawnsPanel* self = opaque;
+    int first;
+    int shown;
+
+    if( self->hint_serial != ui->hotkeys.serial )
+        spawns_hints(ui, self);
+    /* Before the sync, so the boxes it turns on reach the preference. */
+    spawns_show_added(ui, self);
+    spawns_view_sync(ui, self);
+    spawns_env_step(ui, self);
+
+    if( !ui->chrome->panels[self->panel].visible )
+        return;
+    if( !spawns_rows_fresh(ui, self) )
+        return;
     spawns_form_refresh(ui, self);
     /* The Find box filters as it is typed. */
     {
@@ -958,7 +972,7 @@ spawns_delete(
     struct SpawnsPanel* self)
 {
     struct Editor_Cmd* commands;
-    struct Editor_SpawnFile* edited = spawns_edited(ui, self->map_x, self->map_z);
+    struct Editor_SpawnFile* edited;
     int rows[SPAWNS_SELECTION_MAX];
     int capacity;
     int picked = 0;
@@ -966,6 +980,9 @@ spawns_delete(
     int skipped = 0;
     int applied;
 
+    /* First: it may latch another square, and open its edited document. */
+    (void)spawns_rows_fresh(ui, self);
+    edited = spawns_edited(ui, self->map_x, self->map_z);
     for( int i = 0; i < self->selection_count; i++ )
     {
         int const r = spawns_list_find(self, &self->selection[i]);
@@ -1005,11 +1022,16 @@ spawns_delete(
     applied = edp_apply(ui, commands, count, commands[0].kind == EDITOR_CMD_SPAWN_SUPPRESS ? "suppress" : "delete spawn");
     if( applied == 0 )
         return 0;
+    /* In the bar, as a deleted loc is: Delete after a placement left
+     * "Placed npc ..." there (2026-11-11). */
     if( picked == 1 )
-        Editor_UiLog(ui, "editor: %s %s at %d,%d", commands[0].kind == EDITOR_CMD_SPAWN_SUPPRESS ? "suppressed" : "deleted",
-            self->rows[rows[0]].row.name, self->rows[rows[0]].row.abs_x, self->rows[rows[0]].row.abs_z);
+        Editor_UiStatus(ui, "%s %s at %d,%d; Ctrl+Z undoes it",
+            commands[0].kind == EDITOR_CMD_SPAWN_SUPPRESS ? "Suppressed" : "Deleted", self->rows[rows[0]].row.name,
+            self->rows[rows[0]].row.abs_x, self->rows[rows[0]].row.abs_z);
     else
-        Editor_UiLog(ui, "editor: deleted or suppressed %d spawns, one undo step", applied);
+        Editor_UiStatus(ui, "Deleted or suppressed %d spawns in one step; Ctrl+Z undoes it", applied);
+    /* A deleted row leaves the selection now, not when the panel next shows. */
+    (void)spawns_rows_fresh(ui, self);
     return applied;
 }
 
@@ -1043,7 +1065,7 @@ spawns_use_pick(
     struct EditorUi* ui,
     struct SpawnsPanel* self)
 {
-    struct EditorHost_CatalogRecord record;
+    char name[EDITOR_CMD_NAME_MAX];
     uint32_t kind;
 
     if( ui->tools.pick_kind != 1 && ui->tools.pick_kind != 2 )
@@ -1057,20 +1079,16 @@ spawns_use_pick(
         return;
     }
     kind = ui->tools.pick_kind == 1 ? TORIRSMAPED_CATALOG_NPC : TORIRSMAPED_CATALOG_OBJ;
-    memset(&record, 0, sizeof(record));
-    if( Editor_HostMapEdCatalogRecord(&ui->editor->host, kind, ui->tools.pick_id, "", &record)
-        != EDITOR_HOST_OK )
+    if( !Editor_Catalog_RecordName(ui, kind, ui->tools.pick_id, name, sizeof(name)) )
     {
         spawns_pick_absent(ui, ui->tools.pick_kind, ui->tools.pick_id);
-        Editor_HostCatalogRecordFree(&record);
         return;
     }
-    ToriRSChrome_SetText(ui->chrome, self->input_name, record.name ? record.name : "");
+    ToriRSChrome_SetText(ui->chrome, self->input_name, name);
     if( kind == TORIRSMAPED_CATALOG_OBJ )
         ToriRSChrome_RadioSelect(ui->chrome, self->radio_obj);
     else
         ToriRSChrome_RadioSelect(ui->chrome, self->radio_npc);
-    Editor_HostCatalogRecordFree(&record);
 }
 
 static void
@@ -1164,6 +1182,7 @@ spawns_duplicate(
     int dz = 0;
     int dlevel = 0;
 
+    (void)spawns_rows_fresh(ui, self);
     for( int i = 0; i < self->selection_count; i++ )
     {
         struct Editor_SpawnRow probe = self->selection[i];
@@ -1581,7 +1600,7 @@ spawns_edit_use_pick(
     struct EditorUi* ui,
     struct SpawnsPanel* self)
 {
-    struct EditorHost_CatalogRecord record;
+    char name[EDITOR_CMD_NAME_MAX];
     uint32_t kind;
 
     if( ui->tools.pick_kind != 1 && ui->tools.pick_kind != 2 )
@@ -1595,16 +1614,13 @@ spawns_edit_use_pick(
         return;
     }
     kind = ui->tools.pick_kind == 1 ? TORIRSMAPED_CATALOG_NPC : TORIRSMAPED_CATALOG_OBJ;
-    memset(&record, 0, sizeof(record));
-    if( Editor_HostMapEdCatalogRecord(&ui->editor->host, kind, ui->tools.pick_id, "", &record) == EDITOR_HOST_OK
-        && record.name )
+    if( Editor_Catalog_RecordName(ui, kind, ui->tools.pick_id, name, sizeof(name)) )
     {
-        ToriRSChrome_SetText(ui->chrome, self->input_edit_name, record.name);
+        ToriRSChrome_SetText(ui->chrome, self->input_edit_name, name);
         ToriRSChrome_RadioSelect(ui->chrome, kind == TORIRSMAPED_CATALOG_OBJ ? self->radio_edit_obj : self->radio_edit_npc);
     }
     else
         spawns_pick_absent(ui, ui->tools.pick_kind, ui->tools.pick_id);
-    Editor_HostCatalogRecordFree(&record);
 }
 
 /* ---- the wander preview ------------------------------------------------------- */

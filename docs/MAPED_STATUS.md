@@ -15,6 +15,63 @@ brush footprint, spawn ghosts, History panel, slider skin).
 The plan for the editor as a game editor, measured against the editors
 people know, is docs/MAPED_ROADMAP.md.
 
+## The quest tutorial and the friction it found (2026-11-11)
+
+A custom quest built end to end in the editor, with the friction it found removed (2026-11-11).
+`docs/QUEST_TUTORIAL.md` walks through it, screenshots in `res/quest_tutorial/`; the quest
+is the `thistlewick` lane. Fixes made while building it, each found by using the editor:
+
+- **Loc copies could not be clicked in game.** The register's loc floor was 70000, but every
+  wire that names a loc is 16 bits (OPLOC g2, LOC_ADD_CHANGE_V2). It is 64000 now
+  (`src/content/content_register.c`); osrs242's highest loc is 63333. A copied hay bale's
+  Search and a copied trapdoor's Open reach their scripts.
+- **Scatter: Bare ground only** (default on): ground dressing skips overlay tiles and tiles
+  holding a loc, so grass tufts do not grow on roads or through floors.
+- An npc or obj pick in the Catalog arms Place as a loc pick does (it left Select armed).
+- New instance: **Lands at** / **Npc at** take an offset inside the copy (`32 20`) or a tile of
+  the source squares, not only template tiles nobody can know before Create
+  (`Editor_InstanceTemplateTile`).
+- A Squares Find that opened the Square map puts it away again after Open / Add (it stayed
+  over the World and every World tool read its tiles as covered).
+- Height: "lower only" on ground already at 0 says so at release instead of blaming the grid.
+- Status lines: Set field, Paint underlay/overlay/flags strokes, and New quest (the variable
+  name came first so the 160-byte bar keeps it).
+- Agent API: `ui_set` sets a slider by value; `npcs`/`npc_click`/`tile_to_screen` count the
+  play client's own interfaces as covering (a body under the chat box was "visible" and its
+  click landed on the panel).
+- `docs/MAPED_HOTKEYS.md` row for `file.restart_lane`.
+
+Open, from the same session: the World draws the far half of a wide view black and the
+editor camera's pitch stops at 383 (no top-down layout view); the Squares picker ignores an
+Add pressed in the first seconds after boot without a word; a scratch square that left the
+scene through New instance cannot be closed or discarded; the Catalog list is 4 rows tall at
+1600x900; two Ctrl+Z presses once reverted 1601 and 3494 edits where single strokes were
+expected (cause not found; History is empty after a restart, so read it before undoing).
+
+The nine owner packages the same work started, each implemented, used in the editor and reviewed:
+
+- 2026-11-11 -- Squares, the Square map, New square, the open set (F1-F4b, F6-F10).
+  A window's scene is fitted around the square being opened, at most 4x4 squares (Editor_DocWorldFit, app_map_editor_world_begin). This ends the "single allocation over 4 GB (group scene)" abort. Open replaces the open set. Add to open set refuses a square too far to share the scene ("Open shows it instead"). Squares that leave the scene with nothing unsaved leave the mirror, so the boot square and a placed scratch square no longer stay open. Close square is a pane button, a right-click row and `file.close_square`; it asks to save only when that square is unsaved.
+  New square has "Place at", "Find free" and "Block" (1x1..3x3). Create makes the block in maps/, saves it and opens exactly it; a taken or reserved cell refuses the whole block, by name.
+  The Squares pane never hides its actions; it scrolls. On the Square map, a pick opens centred on the work and is redrawn when the well resizes (no empty frame). The top line always names the cell under the pointer. Save during the index build waits, then places.
+  Verified by driving on lane wpa1111; RUN + ::tele walked from m72_48 into m72_49. Not done: index N% in the message.
+
+- 2026-11-11 — Cloned records are first-class (wpb, reviewed). A loc, npc or obj made with Catalog > Copy to new is listed and selected at once. It is drawn and placed (Place, Swap, Spawns > Use catalog pick) from its own [name] block before any Save, RUN or restart (editor_recdef.c, editor_lanerecs.c). Record-panel edits show at once, and .jl2/.spawn rows carry the copy's id. The copy also takes the source's server fields into server/scripts/edited/<name>/configs/<name>.<type> in the same undo step. While the index is still building it is refused rather than made without them. The status line gives the script name ([oploc1,<name>]). Record panel: a Find that leaves one field picks it, so 'examine'/'display' + Value + Set field is the whole rename. Placing an npc/obj makes it the only selection (Delete used to remove the previously placed loc), Delete works with the Spawns tab hidden, and both say so in the status bar. Placing an undone copy says it is gone (Ctrl+Y), not 'still loading'. RUN keeps squares saved before a restart in <live>/maps_unbuilt.txt.
+
+- 2026-11-11 -- Scripts in a lane, written in VS Code (wpc; reviewed). The Triggers, Problems, Record > Triggers, Quest and Shop panels now use the active lane's script files. Open in editor and Copy path first make the file the lane's own. Show in Explorer, and a new quest's VS Code folder, do the same for every file in the folder shown, up to 200 (ToriRSMapEdLanes_HandOutFolder). A neighbour opened from Explorer then stays in the lane. New quest (file.new_quest) makes quests/quest_<name>/ and opens it in VS Code. A var written with no id gets one on RUN in a lane. Restart lane (file.restart_lane) restarts the lane and its play client. Fixed in review: a failed Check on a lane stuck at "still running" (the Live log's serial now counts rows). Problems no longer keeps a Check's error after a RUN compiles the fix. A second New quest press no longer hides the sentence saying where the quest was made. The boss and patrol snippets now say which npcs they work for.
+
+- 2026-11-11 -- Camera paths (View > Camera path, view.campath). A cutscene's scripted camera is authored by flying the World camera. Add keyframe fits the game's eye tile + height and look tile + height to the view (heights above each tile's ground, so slopes work) and snaps the camera to what the game will show. Each keyframe is Cut or Glide (Slow / Medium / Fast or raw cam_* rate pairs) with a Hold in ticks; slowing a glide raises its hold so it still arrives. Preview flies the path on app_camera.c's easing. Go to / Update keyframe re-frame a shot; Move up/down and Delete edit the list. Every verb has an action id (campath.*). Copy script renders [proc,<path>_camera]: world coords or map_instance_coord($handle, ...), cam_unlock for steep shots, optional cutscene_frame.rs2 wrap. Send to play client plays it on a live lane through ::cam. Paths live in editor/campaths.txt, a line-preserving TEXT document: undoable, saved by Save all, lane-owned. Proven in game on wpd1111 (::campathrv, rv_game_key1..3 vs rv_editor_key1..3). Tests: test-editor-campath (126), test-editor-campath-panel (94).
+
+- 2026-11-11 - Instances and the play client (wpe, reviewed). File > New instance... (file.new_instance) opens the dialog on the open squares or the Square map's selection; a loc selected in the World becomes the trigger. Lanes report runtime map instances and that entry is the default. The script uses the content's idiom: ~map_instance_from_square_block, the no-room refusal, %varp6600_map_instance_handle, map_instance_spawnnpcs when spawns are copied, an optional npc_add, and an exit (~map_instance_release_here + p_telejump). The dialog refuses a loc already scripted and notes one whose category is scripted ([oploc1,_<category>], file:line). It fits the window and scrolls, and says where the template is and that each player gets a private copy. Checked on wpe1111: a trapdoor entered at 6432,96 (instance) with Lumbridge's npcs and the Man, and exited to 3231,3216. Agent: RUN's play client has an agent port (editor.play, lane_ports, torirs_agent.py --play), chat, game.page and instance, shot makes its folder, wait until=idle waits for the index, and ui/ui_click call a widget past the window edge off_window. Open: a Copy-to-new loc (id 70000) cannot be clicked in game (OPLOC id is 16-bit); Undo of a Create leaves the template open.
+
+- 2026-11-11 (wpf) Terrain, Palette, path painter, dock and chrome wheel, built by shaping a 48x48 village site in the running editor. Workspace Terrain gives the tools 422 of 856 px, and the Palette's stroke controls fit one screen. The wells list the content's common floors first, by name (editor_floornames.c). Find takes a word, an id or a #colour, and 'Pick underlay' / 'Pick overlay' take names. A textured overlay's swatch shows its texture. The wheel over a well or slider scrolls the panel unless the well uses the wheel itself (GraphSetWheel: Gallery, Square map, Movement map), and lists and dropdowns scroll the same way as panels. A splitter moves the shared border, and a closed panel's space goes back to the column. Paint path lays its style's floor when nothing is picked. 'Use dirt track' / 'Use stone floor' / 'Use water' replaces another pick in one click. The first Height drag lifts one Step. Choosing a Height mode clears the grid, so 'lower only' then a drag sinks a pond. A one-way drag that moves nothing says why. Open: a dragged split size is lost when the column is laid out again.
+
+- 2026-11-11 -- Buildings (wpg). New Building tool (key 4, tool.building, Building panel). A Shell drag lays the walls with their corner pieces, a floor overlay and the "remove roof" flag inside, and a roof one level up with its edge and corner pieces. The rules were read off Lumbridge's houses, and the styles are named lists of real locs. Door and Window click a wall piece to swap it. The door or window matches the clicked wall, not the dropdown. A fence gets a two-leaf gate, which opens the other way next to a corner or another gate. Wall line drags an inside wall; Storeys 1-3 add a ladder. Each gesture is one undo step. A stamp with All levels keeps every level, floors and flags; Q turns it; stamps rename and delete. A Catalog or Gallery pick arms Place; a plain Select click selects the loc; Gallery names are measured. A layout-restored tool panel no longer stacks over the others at boot. test-editor-building: 1036 checks. Open: roof hiding not yet checked in a play client.
+
+- 2026-11-11 - NPC editor patrols, review pass (wph). Movement tab: 'Fix stuck legs' (npc.fix_legs) adds the fewest waypoints that take a red leg round what stops it. Editor_NpcLegDetour searches a shortest path with the server's step test, then places straight-walk waypoints along it. When it cannot, it names the waypoint that stands on a tile no step lands on. 'Make own type' now groups the re-point into one stroke, so two Undos restore. The authority keeps the copy as its own step. The lap line no longer times a route with stuck legs, and the 'will:' line defers to it and follows Undo. Play's walker is magenta: the old cyan was the scripted-spawn marker colour. Encounters 'Add spawn' names the set and the tile. A six-waypoint loop with two 5-tick pauses was laid, fixed, previewed and seen walking in the play client after RUN. Open: a type cloned after the lane is up does not spawn on a hot-reload RUN ('not in configs/all.npc.compack', server side).
+
+- 2026-11-11 -- Lanes panel: the whole lane life-cycle. There are two tabs, Changes and Lanes. Changes lists every changed file with A/M/D, path and size; it has Find, Show filters, Open in editor, Show in Explorer, Diff against base, Discard this change and Copy list. 'Promote to new lane...' (file.promote_lane) makes a named lane from this lane's changes and says how to open it. A new lane's mirror (Promote, Lane from main, Scratch lane) is made on a worker thread, so the window no longer freezes for 15 s. 'Publish into' opens on no target; every publish is a dry run naming the count, the files the target changed too, or the MAIN tree's path, then a confirm. 'Delete lane...' (file.delete_lane) never follows a link into the base and is refused for main, this lane, a held lane and the boot-file lane. Only a double-click on a row Switches or opens a file. TORIRSMAPED_BOOT_LANE_FILE moves the boot-lane file, and a session that ignores it never writes it. Open: the dry run does not count unsaved edits; Delete still runs on the UI thread.
+
 ## Escape clears every selection (2026-11-08)
 
 Owner: "Escape should clear the spawn selection. Why does spawn and tile

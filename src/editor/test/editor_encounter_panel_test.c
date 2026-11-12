@@ -193,7 +193,7 @@ write_fixture(const char* root)
         "", "configs", "maps", "pack", "editor", "npc_stats", "npc_stats/g", "server", "server/scripts",
         "server/scripts/_explicit", "server/scripts/_explicit/configs", "server/scripts/areas",
         "server/scripts/areas/test", "server/scripts/areas/test/configs", "server/scripts/drop_tables",
-        "server/scripts/drop_tables/scripts",
+        "server/scripts/drop_tables/scripts", "server/scripts/areas/test/scripts",
     };
     for( size_t i = 0; i < sizeof(k_dirs) / sizeof(k_dirs[0]); i++ )
         make_dir(root, k_dirs[i]);
@@ -205,6 +205,8 @@ write_fixture(const char* root)
     write_text(root, GENERATED_PATH, k_generated);
     write_text(root, "server/scripts/areas/test/configs/test.npc", k_authored);
     write_text(root, "server/scripts/drop_tables/scripts/goblin.rs2", k_drops);
+    /* The guard's fight is written by hand, in the user's own file. */
+    write_text(root, "server/scripts/areas/test/scripts/guard_fight.rs2", "[ai_opplayer2,guard]\n~npc_meleeattack;\n");
     write_text(root, "npc_stats/g/goblin.stats", k_ledger);
     write_text(root, "editor/encounters.txt", k_encounters);
 }
@@ -300,6 +302,9 @@ test_set(const char* root)
         text(g_w.input_fields[4]));
     CHECK(strcmp(text(g_w.row_rings), "rings: hunt 4 | wander 3 | leash 7") == 0, "the rings row: %s",
         text(g_w.row_rings));
+    CHECK(strcmp(text(g_w.input_fields[6]), "2") == 0, "vislevel from the cache block (%s)", text(g_w.input_fields[6]));
+    CHECK(strcmp(text(g_w.row_hunts), "it fights only when attacked (huntmode is not aggressive)") == 0,
+        "the hunts row: %s", text(g_w.row_hunts));
 
     /* The rings: wander and hunt about each goblin, in the set's colour. */
     n = Editor_Encounter_Rings(&g_ui, rings, 16);
@@ -329,6 +334,9 @@ test_set(const char* root)
     frame();
     CHECK(strcmp(text(g_w.row_rings), "rings: hunt 6 | wander 3 | leash 7") == 0, "the rings follow: %s",
         text(g_w.row_rings));
+    /* The server leaves a player above twice the vislevel alone: said. */
+    CHECK(strcmp(text(g_w.row_hunts), "hunts players of combat level 4 or lower (2 x vislevel 2)") == 0,
+        "the hunts row names the level gate: %s", text(g_w.row_hunts));
     Editor_Undo(&g_editor);
     frame();
     CHECK(strcmp(doc_text(EDITOR_DOC_CFG, AUTHORED_KEY), "[goblin]\nrespawnrate=35\nwanderrange=3\nparam=huntrange,4\n")
@@ -337,7 +345,10 @@ test_set(const char* root)
         "one undo takes all four back:\n%s", doc_text(EDITOR_DOC_CFG, AUTHORED_KEY));
     CHECK(strcmp(text(g_w.input_fields[0]), "35") == 0, "and the inputs follow (%s)", text(g_w.input_fields[0]));
 
-    /* A generated-only npc: refused with a sentence. */
+    /* A generated-only npc (a Copy to new is the same: no authored file):
+     * the editor's own overlay is made for it, the one the NPC editor's
+     * Movement tab writes, and the status names it. The generated file is
+     * never written. */
     ToriRSChrome_VListSetSelected(&g_chrome, g_w.list_spawns, 2);
     activate(g_w.list_spawns);
     frame();
@@ -345,9 +356,13 @@ test_set(const char* root)
         text(g_w.input_fields[0]));
     ToriRSChrome_SetText(&g_chrome, g_w.input_fields[0], "40");
     activate(g_w.button_apply_fields);
-    CHECK(strstr(Editor_UiStatusText(&g_ui), "Apply fields refused: guard's respawnrate is stated only in a generated")
+    CHECK(strstr(Editor_UiStatusText(&g_ui), "guard: 1 field set in server/scripts/edited/guard/configs/guard.npc")
               != NULL,
-        "refused, saying why: %s", Editor_UiStatusText(&g_ui));
+        "written to the npc's own file, saying where: %s", Editor_UiStatusText(&g_ui));
+    CHECK(strstr(doc_text(EDITOR_DOC_CFG, "npc:guard@edited/guard/configs/guard.npc"), "respawnrate=40") != NULL,
+        "the editor's own overlay holds it");
+    Editor_Undo(&g_editor);
+    frame();
     on_disk = read_text(root, GENERATED_PATH);
     CHECK(on_disk && strcmp(on_disk, k_generated) == 0, "the generated file is as it was");
     free(on_disk);
@@ -473,20 +488,29 @@ test_stats(const char* root)
     CHECK(strstr(ledger, "\nsource = authored\n") != NULL, "source = authored");
     CHECK(strstr(ledger, "// Checks -- stated, never written to the config.\ncache_combat_level = 2\n") != NULL,
         "the rest as it was");
-    CHECK(strstr(doc_text(EDITOR_DOC_CFG, "npc:goblin"), "strength=30") != NULL, "the cache block's strength");
+    /* The record's half goes where its movement and fields go -- the
+     * authored overlay -- not into the cache block (configs/all.npc). */
+    CHECK(strstr(doc_text(EDITOR_DOC_CFG, AUTHORED_KEY), "strength=30") != NULL, "strength in the authored overlay");
+    CHECK(strstr(doc_text(EDITOR_DOC_CFG, "npc:goblin"), "strength=1") != NULL, "the cache block kept");
     CHECK(strstr(doc_text(EDITOR_DOC_CFG, AUTHORED_KEY), "param=strengthbonus,0") != NULL,
         "strengthbonus overrides the generated layer in the authored overlay");
     CHECK(strstr(doc_text(EDITOR_DOC_CFG, GENERATED_KEY), "param=strengthbonus,-15") != NULL,
         "the generated layer kept");
-    CHECK(strstr(Editor_UiStatusText(&g_ui), "goblin: 2 stats in the ledger (source = authored), 2 in the record")
-              != NULL,
+    /* Its combat level follows the stats it is given (vislevel is what a
+     * player sees and what the aggression test reads), in the same step. */
+    CHECK(strstr(doc_text(EDITOR_DOC_CFG, AUTHORED_KEY), "vislevel=11") != NULL, "vislevel follows, in the overlay:\n%s",
+        doc_text(EDITOR_DOC_CFG, AUTHORED_KEY));
+    CHECK(strstr(Editor_UiStatusText(&g_ui), "goblin: 2 stats in the ledger (source = authored), 3 in the record")
+                  != NULL
+              && strstr(Editor_UiStatusText(&g_ui), "; combat level (vislevel) 2 -> 11") != NULL,
         "the status: %s", Editor_UiStatusText(&g_ui));
     Editor_Undo(&g_editor);
     frame();
     CHECK(strcmp(doc_text(EDITOR_DOC_TEXT, key), k_ledger) == 0, "one undo puts the ledger back byte for byte");
     CHECK(strstr(doc_text(EDITOR_DOC_CFG, "npc:goblin"), "strength=1") != NULL
-              && !strstr(doc_text(EDITOR_DOC_CFG, AUTHORED_KEY), "strengthbonus"),
-        "and the record");
+              && !strstr(doc_text(EDITOR_DOC_CFG, AUTHORED_KEY), "strengthbonus")
+              && !strstr(doc_text(EDITOR_DOC_CFG, AUTHORED_KEY), "vislevel"),
+        "and the record, vislevel with it");
 
     /* Save set writes the ledger it edited. */
     ToriRSChrome_SetText(&g_chrome, g_w.input_levels[0], "7");
@@ -522,8 +546,10 @@ test_drops_combat_test(void)
         "read-only, and from where: %s", text(g_w.row_drops));
 
     tab(2);
-    CHECK(strcmp(text(g_w.row_combat), "[ai_opplayer2,goblin] in edited/goblin/scripts/goblin.rs2") == 0,
-        "the combat row names the builder's file: %s", text(g_w.row_combat));
+    CHECK(strcmp(text(g_w.row_combat), "a template writes its [ai_opplayer2] trigger into:") == 0
+              && strcmp(text(g_w.row_combat_file), "edited/goblin/scripts/goblin.rs2") == 0,
+        "the combat row names the builder's file: %s / %s", text(g_w.row_combat), text(g_w.row_combat_file));
+    CHECK(!g_chrome.widgets[g_w.button_open_builder].disabled, "no hand-written fight: the template is offered");
     ToriRSChrome_DropdownSetSelected(&g_chrome, g_w.dropdown_template, EDITOR_COMBAT_CASTER);
     activate(g_w.button_open_builder);
     CHECK(strstr(Editor_UiStatusText(&g_ui), "Caster refused: server/scripts/npc/scripts/dark_wizard.rs2") != NULL,
@@ -550,6 +576,23 @@ test_drops_combat_test(void)
         CHECK(g_chrome.panels[view.model ? Editor_UiFindPanel(&g_ui, BUILDER_PANEL_NPC)->chrome_panel : 0].visible,
             "and the NPC builder is open beside the panel");
     }
+
+    /* A hand-written [ai_opplayer2,guard]: the tab names its file, and no
+     * template is written beside it (two would not compile) or over it. */
+    ToriRSChrome_VListSetSelected(&g_chrome, g_w.list_spawns, 2);
+    activate(g_w.list_spawns);
+    frame();
+    CHECK(strcmp(text(g_w.row_combat), "this npc's combat is scripted by hand, in:") == 0
+              && strcmp(text(g_w.row_combat_file), "areas/test/scripts/guard_fight.rs2") == 0,
+        "the scripted fight is named: %s / %s", text(g_w.row_combat), text(g_w.row_combat_file));
+    CHECK(g_chrome.widgets[g_w.button_open_builder].disabled && g_chrome.widgets[g_w.dropdown_template].disabled,
+        "and the template controls are off");
+    activate(g_w.button_open_builder);
+    CHECK(strstr(Editor_UiStatusText(&g_ui), "Open in step builder refused: guard's combat is scripted in "
+                                             "server/scripts/areas/test/scripts/guard_fight.rs2")
+              != NULL,
+        "a press anyway is refused, saying where: %s", Editor_UiStatusText(&g_ui));
+    CHECK(strlen(doc_text(EDITOR_DOC_TEXT, "rs2:edited/guard/scripts/guard.rs2")) == 0, "no builder script for the guard");
 
     tab(4);
     CHECK(strcmp(g_chrome.widgets[g_w.button_run].chord, "Ctrl+Enter") == 0

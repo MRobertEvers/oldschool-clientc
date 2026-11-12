@@ -56,6 +56,36 @@ Editor_StampCaptureRect(
     const struct Editor_TileRect* rect,
     struct Editor_Stamp* stamp);
 
+/**
+ * Everything standing in a rectangle on every level in `levels` (bit l set:
+ * level l) as the stamp (cleared first, its name kept), relative to the
+ * rectangle's SW corner on ITS level: what a building is saved as -- walls
+ * on the ground, a roof a level up, a ladder between -- where the selection
+ * and the marquee hold one level at a time (2026-11-11).
+ *
+ *   locs     every loc anchored in the box, with its placed footprint from
+ *            `size` (may be NULL: 1x1), which a turn needs;
+ *   floors   `with_floors`: a FLOOR piece for every tile there that carries
+ *            an overlay or flags -- the floorboards and the "remove roof"
+ *            bit, which land on whatever ground the stamp is dropped on;
+ *   tiles    `with_tiles`: a TILE piece for every tile instead, heights and
+ *            underlay too (the terrain under it; no FLOOR pieces then);
+ *   spawns   `with_spawns`: Editor_StampCaptureSpawns over the same box.
+ *
+ * Returns the pieces.
+ */
+int
+Editor_StampCaptureBox(
+    struct Editor_Doc* doc,
+    const struct Editor_TileRect* rect,
+    unsigned levels,
+    Editor_LocSizeFn size,
+    void* size_user,
+    int with_floors,
+    int with_tiles,
+    int with_spawns,
+    struct Editor_Stamp* stamp);
+
 /** The tiles and levels a spawn capture reads, and the origin its pieces'
  *  offsets are counted from. */
 struct Editor_StampSpawnBox
@@ -124,7 +154,9 @@ struct Editor_StampDropResult
 
 /**
  * The commands that drop `stamp` with its origin at (world_x, world_z) on
- * `level`: a TILE command per tile piece that changes its tile, a LOC place
+ * `level`: a TILE command per tile piece that changes its tile (and per
+ * FLOOR piece whose overlay or flags its landing tile lacks: the tile keeps
+ * its height and underlay), a LOC place
  * per loc piece (onto a taken key a replace, whose undo restores the
  * occupant, as Editor_LocOpsPlace), a SPAWN add per spawn piece (its
  * document is the landing square's edited .spawn; the caller opens it, and
@@ -264,6 +296,37 @@ edp_stamp_save_selection(
     int with_tiles,
     int with_spawns,
     int overwrite);
+
+/** Save as stamp from a rectangle: everything standing in `rect` -- on
+ *  every level with `all_levels`, else on the rectangle's own -- with its
+ *  floors and flags, and its spawns with `with_spawns`
+ *  (Editor_StampCaptureBox), into editor/stamps/<name>.stamp. What saves a
+ *  whole building, roof and furniture included, without selecting it. */
+int
+edp_stamp_save_rect(
+    struct EditorUi* ui,
+    const struct Editor_TileRect* rect,
+    const char* name,
+    int all_levels,
+    int with_spawns,
+    int overwrite);
+
+/** Delete stamp `name`: its line leaves the index and its file is emptied
+ *  (an empty stamp file is no stamp: it cannot be placed, and a later Save
+ *  as stamp takes the name without Overwrite). One undo step, saved. */
+int
+edp_stamp_delete(
+    struct EditorUi* ui,
+    const char* name);
+
+/** Rename stamp `name` to `new_name`: its text under the new key with the
+ *  header renamed, the index line rewritten in place, the old file emptied.
+ *  Refused when `new_name` is taken. One undo step, saved. */
+int
+edp_stamp_rename(
+    struct EditorUi* ui,
+    const char* name,
+    const char* new_name);
 
 /** The stamps the index lists, parsed into `file` (cleared first), the
  *  index opened when it is not yet. 0 when there is no session. */

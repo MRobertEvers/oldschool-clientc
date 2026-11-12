@@ -11,7 +11,10 @@
  * tiles it covered, turned; rotations and overlay rotations step; four turns
  * are none); the splice plan from one text to another keeps the common head
  * and tail, fits every command, rebuilds the new text applied forwards and
- * the old one applied backwards; the index gains a stamp's line once.
+ * the old one applied backwards; the index gains a stamp's line once; a
+ * `floor` piece (a building's overlay and flags, no height, no underlay)
+ * parses, formats, turns and refuses the ground's tokens; a header is
+ * renamed in place and taken out, every other line byte for byte.
  */
 
 #include "editor/editor_stamps.h"
@@ -394,6 +397,80 @@ test_index(void)
     Editor_StampsFree(&file);
 }
 
+/* A building's floor (2026-11-11): the overlay and the flags of a tile and
+ * nothing of the ground it stood on; and the header edits Rename and Delete
+ * write. */
+static void
+test_floor_and_header_edit(void)
+{
+    static const char k_cottage[] = "# a cottage\n"
+                                    "stamp cottage | note 9x7, thatch\n"
+                                    "loc 0 0 0 1602 3 1\n"
+                                    "floor 1 1 0 o5/0/0 f4\n"
+                                    "floor 2 1 0 f4\n"
+                                    "floor 1 1 1 o5/0/2\n";
+    static const char k_index[] = "# stamps\n" "stamp smithy\n" "stamp cottage | note 9x7, thatch\n" "stamp pen\n";
+    struct Editor_StampsFile file;
+    struct Editor_StampsParseResult parsed;
+    struct Editor_StampsLine line;
+    struct Editor_Stamp stamp;
+    char out[512];
+    char summary[160];
+    size_t n;
+
+    Editor_StampsInit(&file);
+    parsed = Editor_StampsParse(&file, k_cottage, sizeof(k_cottage) - 1);
+    CHECK(parsed.ok, "a stamp with floor pieces parses (line %d)", parsed.line);
+    n = Editor_StampsEmit(&file, out, sizeof(out));
+    CHECK(n == sizeof(k_cottage) - 1 && memcmp(out, k_cottage, n) == 0, "and emits byte for byte");
+    Editor_StampInit(&stamp);
+    CHECK(Editor_StampFromFile(&file, &stamp) && stamp.count == 4, "four pieces (%d)", stamp.count);
+    CHECK(Editor_StampCount(&stamp, EDITOR_STAMP_FLOOR) == 3 && Editor_StampCount(&stamp, EDITOR_STAMP_TILE) == 0,
+        "three floors, no tiles");
+    CHECK(stamp.pieces[1].kind == EDITOR_STAMP_FLOOR && stamp.pieces[1].tile.has_overlay
+              && stamp.pieces[1].tile.overlay_id == 5 && stamp.pieces[1].tile.settings == 4
+              && !stamp.pieces[1].tile.has_height && stamp.pieces[1].tile.underlay_id == 0,
+        "a floor holds an overlay and flags, no height, no underlay");
+    CHECK(stamp.pieces[2].kind == EDITOR_STAMP_FLOOR && !stamp.pieces[2].tile.has_overlay
+              && stamp.pieces[2].tile.settings == 4,
+        "a floor may be flags alone");
+    CHECK(Editor_StampFormatPiece(&stamp.pieces[1], out, sizeof(out)) > 0 && strcmp(out, "floor 1 1 0 o5/0/0 f4") == 0,
+        "a floor formats as it was read (%s)", out);
+    Editor_StampSummary(&stamp, summary, sizeof(summary));
+    CHECK(strcmp(summary, "cottage: 1 loc, 0 tiles, 0 spawns, 3 floors") == 0, "the summary counts floors (%s)", summary);
+
+    /* A quarter turn: (1, 1) -> (1, -1), the overlay's rotation a step on. */
+    Editor_StampRotate(&stamp, 1);
+    CHECK(stamp.pieces[3].dx == 1 && stamp.pieces[3].dz == -1 && stamp.pieces[3].dlevel == 1
+              && stamp.pieces[3].tile.rotation == 3,
+        "a floor turns with the stamp (%d,%d rot %d)", stamp.pieces[3].dx, stamp.pieces[3].dz,
+        stamp.pieces[3].tile.rotation);
+    Editor_StampFree(&stamp);
+    Editor_StampsFree(&file);
+
+    CHECK(Editor_StampsParseLine("floor 0 0 0 h12", &line) < 0, "a floor carries no height");
+    CHECK(Editor_StampsParseLine("floor 0 0 0 u3 f4", &line) < 0, "a floor carries no underlay");
+    CHECK(Editor_StampsParseLine("floor 0 0 0 f4 f4", &line) < 0, "a token once");
+    CHECK(Editor_StampsParseLine("floor 0 0 0", &line) == EDITOR_STAMPS_LINE_PIECE, "a bare floor is a piece");
+
+    /* Rename in place, the note kept; every other line as it was. */
+    n = Editor_StampsHeaderEdit(k_index, sizeof(k_index) - 1, "cottage", "farmhouse", out, sizeof(out));
+    CHECK(strcmp(out, "# stamps\n" "stamp smithy\n" "stamp farmhouse | note 9x7, thatch\n" "stamp pen\n") == 0
+              && n == strlen(out),
+        "the index line renamed in place (%s)", out);
+    n = Editor_StampsHeaderEdit(k_index, sizeof(k_index) - 1, "cottage", NULL, out, sizeof(out));
+    CHECK(strcmp(out, "# stamps\n" "stamp smithy\n" "stamp pen\n") == 0 && n == strlen(out),
+        "the index line taken out (%s)", out);
+    n = Editor_StampsHeaderEdit(k_index, sizeof(k_index) - 1, "barn", NULL, out, sizeof(out));
+    CHECK(n == sizeof(k_index) - 1 && memcmp(out, k_index, n) == 0, "a name the index lacks changes nothing");
+    n = Editor_StampsHeaderEdit(k_cottage, sizeof(k_cottage) - 1, "cottage", "farmhouse", out, sizeof(out));
+    CHECK(strstr(out, "stamp farmhouse | note 9x7, thatch\n" "loc 0 0 0 1602 3 1\n") != NULL
+              && strncmp(out, "# a cottage\n", 12) == 0 && n == strlen(out),
+        "a stamp's own header renamed, its pieces untouched");
+    CHECK(Editor_StampsHeaderEdit(k_index, sizeof(k_index) - 1, "pen", NULL, NULL, 0) == sizeof(k_index) - 1 - 10,
+        "the length alone, with no buffer");
+}
+
 int
 main(void)
 {
@@ -406,6 +483,7 @@ main(void)
     test_turn_as_a_unit();
     test_splices();
     test_index();
+    test_floor_and_header_edit();
     printf("editor_stamps_test: %d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;
 }

@@ -1597,7 +1597,7 @@ visual_dropdown(void)
     ToriRSChrome_MouseDown(&g_ui, box.x + box.w - 6, box.y + box.h / 2);
     ToriRSChrome_MouseUp(&g_ui, box.x + box.w - 6, box.y + box.h / 2);
     ToriRSChrome_Build(&g_ui);
-    ToriRSChrome_MouseWheel(&g_ui, box.x + 4, box.y + box.h + 20, 12);
+    ToriRSChrome_MouseWheel(&g_ui, box.x + 4, box.y + box.h + 20, -12);
     ToriRSChrome_MouseMove(&g_ui, box.x + 8, box.y + box.h + 20);
     ToriRSChrome_Build(&g_ui);
     render("19_dropdown_open_long");
@@ -1716,7 +1716,7 @@ visual_dropdown_scrollbar_drag(void)
      * Wound back to the top first so the grip is where the geometry says it is
      * without this test having to recompute it: at scroll 0 it starts flush
      * under the up arrow. */
-    ToriRSChrome_MouseWheel(&g_ui, list.x + 4, list.y + 4, -100);
+    ToriRSChrome_MouseWheel(&g_ui, list.x + 4, list.y + 4, 100);
     ToriRSChrome_Build(&g_ui);
     VT_ASSERT(g_ui.widgets[dd].scroll == 0, "scrollbar: wound back to the top");
     ToriRSChrome_MouseDown(&g_ui, bar.x + bar.w / 2, bar.y + DD_SCROLL_W + 2);

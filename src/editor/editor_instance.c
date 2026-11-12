@@ -3,6 +3,7 @@
 #include "mem/torirs_mem.h"
 
 #include <assert.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -95,6 +96,25 @@ Editor_InstancePlanInit(
     plan->level_lo = 0;
     plan->level_hi = EDITOR_SQUARE_LEVELS - 1;
     return 1;
+}
+
+int
+Editor_InstanceSourceCompact(
+    const struct Editor_InstancePlan* plan,
+    char* why,
+    size_t why_size)
+{
+    assert(plan);
+    assert(plan->count >= 1);
+    assert(why);
+    assert(why_size > 0);
+    if( plan->w * plan->h <= EDITOR_INSTANCE_SQUARES_MAX )
+        return 1;
+    snprintf(why, why_size,
+        "the source squares span %dx%d (m%d_%d .. m%d_%d): an instance copies one block of nearby squares; pick "
+        "them in the Squares picker, or close the others",
+        plan->w, plan->h, plan->src_x0, plan->src_z0, plan->src_x0 + plan->w - 1, plan->src_z0 + plan->h - 1);
+    return 0;
 }
 
 int
@@ -195,6 +215,59 @@ Editor_InstanceDest(
     assert(out_map_z);
     *out_map_x = plan->sources[index].map_x - plan->src_x0 + plan->dst_x0;
     *out_map_z = plan->sources[index].map_z - plan->src_z0 + plan->dst_z0;
+}
+
+int
+Editor_InstanceTemplateTile(
+    const struct Editor_InstancePlan* plan,
+    int x,
+    int z,
+    int* out_x,
+    int* out_z)
+{
+    assert(plan);
+    assert(out_x);
+    assert(out_z);
+    if( x < 0 || z < 0 )
+        return 0;
+    for( int i = 0; i < plan->count; i++ )
+    {
+        int mx;
+        int mz;
+        Editor_InstanceDest(plan, i, &mx, &mz);
+        if( x / EDITOR_SQUARE_X == mx && z / EDITOR_SQUARE_Z == mz )
+        {
+            *out_x = x;
+            *out_z = z;
+            return 1;
+        }
+    }
+    if( Editor_InstanceSourceOfTile(plan, x, z) >= 0 )
+    {
+        *out_x = x + (plan->dst_x0 - plan->src_x0) * EDITOR_SQUARE_X;
+        *out_z = z + (plan->dst_z0 - plan->src_z0) * EDITOR_SQUARE_Z;
+        return 1;
+    }
+    if( x < plan->w * EDITOR_SQUARE_X && z < plan->h * EDITOR_SQUARE_Z )
+    {
+        int const tx = plan->dst_x0 * EDITOR_SQUARE_X + x;
+        int const tz = plan->dst_z0 * EDITOR_SQUARE_Z + z;
+        /* An offset into the block's box lands in a copied square only
+         * where the box has one (an L of three squares has a hole). */
+        for( int i = 0; i < plan->count; i++ )
+        {
+            int mx;
+            int mz;
+            Editor_InstanceDest(plan, i, &mx, &mz);
+            if( tx / EDITOR_SQUARE_X == mx && tz / EDITOR_SQUARE_Z == mz )
+            {
+                *out_x = tx;
+                *out_z = tz;
+                return 1;
+            }
+        }
+    }
+    return 0;
 }
 
 int
@@ -475,81 +548,303 @@ Editor_InstanceTriggerKey(
     snprintf(out, EDITOR_DOC_KEY_MAX, "rs2:edited/%s/scripts/%s.rs2", name, name);
 }
 
+/** snprintf's contract over several appends: `length` is what the whole
+ *  text needs, and nothing is written past `capacity`. */
+struct instance_text
+{
+    char* out;
+    size_t capacity;
+    size_t length;
+};
+
+static void
+instance_emit(
+    struct instance_text* text,
+    const char* format,
+    ...)
+#if defined(__GNUC__) || defined(__clang__)
+    __attribute__((format(printf, 2, 3)))
+#endif
+    ;
+
+static void
+instance_emit(
+    struct instance_text* text,
+    const char* format,
+    ...)
+{
+    va_list args;
+    int written;
+
+    va_start(args, format);
+    if( text->length < text->capacity )
+        written = vsnprintf(text->out + text->length, text->capacity - text->length, format, args);
+    else
+        written = vsnprintf(NULL, 0, format, args);
+    va_end(args);
+    assert(written >= 0);
+    text->length += (size_t)written;
+}
+
+/** "m0_100", or "m0_100..m1_101 (2 x 2 squares)": the plan's destination. */
+static void
+instance_template_text(
+    const struct Editor_InstancePlan* plan,
+    char* out,
+    size_t out_size)
+{
+    if( plan->w == 1 && plan->h == 1 )
+        snprintf(out, out_size, "m%d_%d", plan->dst_x0, plan->dst_z0);
+    else
+        snprintf(out, out_size, "m%d_%d..m%d_%d (%d x %d squares)", plan->dst_x0, plan->dst_z0,
+            plan->dst_x0 + plan->w - 1, plan->dst_z0 + plan->h - 1, plan->w, plan->h);
+}
+
+void
+Editor_InstanceWhereText(
+    const struct Editor_InstancePlan* plan,
+    const char* name,
+    enum Editor_InstanceEntry entry,
+    char out_template[EDITOR_INSTANCE_WHERE_MAX],
+    char out_stamp[EDITOR_INSTANCE_WHERE_MAX])
+{
+    char squares[64];
+
+    assert(plan);
+    assert(name);
+    assert(out_template);
+    assert(out_stamp);
+    assert(Editor_InstanceNameValid(name));
+
+    instance_template_text(plan, squares, sizeof(squares));
+    snprintf(out_template, EDITOR_INSTANCE_WHERE_MAX,
+        "Template: %s in instance space. Open it from Squares > Instance space, or Scenes > instance:%s.", squares,
+        name);
+    if( entry == EDITOR_INSTANCE_ENTRY_RUNTIME )
+        snprintf(out_stamp, EDITOR_INSTANCE_WHERE_MAX,
+            "At play time each player who enters gets a private copy stamped from the template; edits to the "
+            "template show on the next entry.");
+    else if( entry == EDITOR_INSTANCE_ENTRY_TELEPORT )
+        snprintf(out_stamp, EDITOR_INSTANCE_WHERE_MAX,
+            "At play time the trigger teleports every player into the template itself: one shared room, not a "
+            "private copy each.");
+    else
+        snprintf(out_stamp, EDITOR_INSTANCE_WHERE_MAX,
+            "Nothing brings a player there yet: a script of yours p_telejumps in, or stamps a private copy of it "
+            "(docs/map_instances.md).");
+}
+
+void
+Editor_InstanceStatusText(
+    const struct Editor_InstancePlan* plan,
+    const char* name,
+    enum Editor_InstanceEntry entry,
+    char out[EDITOR_INSTANCE_WHERE_MAX])
+{
+    char squares[64];
+    const char* stamp;
+    int head;
+    int whole;
+
+    assert(plan);
+    assert(name);
+    assert(out);
+    assert(Editor_InstanceNameValid(name));
+
+    /* The line is short: a block is its two corners, without the count. */
+    if( plan->w == 1 && plan->h == 1 )
+        snprintf(squares, sizeof(squares), "m%d_%d", plan->dst_x0, plan->dst_z0);
+    else
+        snprintf(squares, sizeof(squares), "m%d_%d..m%d_%d", plan->dst_x0, plan->dst_z0, plan->dst_x0 + plan->w - 1,
+            plan->dst_z0 + plan->h - 1);
+    stamp = entry == EDITOR_INSTANCE_ENTRY_RUNTIME    ? "Each player who enters gets a private copy stamped from it."
+            : entry == EDITOR_INSTANCE_ENTRY_TELEPORT ? "Its trigger teleports every player into it: one shared room."
+                                                      : "Nothing brings a player there yet.";
+    head = snprintf(out, EDITOR_INSTANCE_WHERE_MAX,
+        "Template %s: open it from Squares > Instance space or Scenes > instance:%s.", squares, name);
+    assert(head > 0);
+    assert(head < EDITOR_INSTANCE_WHERE_MAX);
+    whole = head + 1 + (int)strlen(stamp);
+    if( whole < EDITOR_INSTANCE_WHERE_MAX )
+        snprintf(out + head, (size_t)(EDITOR_INSTANCE_WHERE_MAX - head), " %s", stamp);
+}
+
+/** The EXIT's statements, indented by `indent`: the copy handed back
+ *  (RUNTIME), then the way home. */
+static void
+instance_emit_leave(
+    struct instance_text* text,
+    const struct Editor_InstanceScript* script,
+    const char* indent)
+{
+    char home[EDITOR_INSTANCE_COORD_MAX];
+
+    Editor_InstanceCoordText(script->exit_level, script->exit_x, script->exit_z, home);
+    if( script->entry == EDITOR_INSTANCE_ENTRY_RUNTIME )
+        instance_emit(text, "%s~map_instance_release_here;\n", indent);
+    instance_emit(text, "%sp_telejump(%s);\n", indent, home);
+}
+
 size_t
 Editor_InstanceTriggerText(
     const struct Editor_InstancePlan* plan,
     const char* name,
-    const char* loc,
-    enum Editor_InstanceEntry entry,
-    int level,
-    int x,
-    int z,
+    const struct Editor_InstanceScript* script,
     char* out,
     size_t out_capacity)
 {
+    struct instance_text text;
     char coord[EDITOR_INSTANCE_COORD_MAX];
     char base[EDITOR_INSTANCE_COORD_MAX];
-    int written;
+    char home[EDITOR_INSTANCE_COORD_MAX];
+    char squares[64];
+    int has_exit;
+    int same_loc;
+    int runtime;
 
     assert(plan);
     assert(name);
-    assert(loc);
+    assert(script);
     assert(out || out_capacity == 0);
     assert(Editor_InstanceNameValid(name));
-    assert(Editor_InstanceLocNameValid(loc));
-    assert(entry == EDITOR_INSTANCE_ENTRY_TELEPORT || entry == EDITOR_INSTANCE_ENTRY_RUNTIME);
+    assert(Editor_InstanceLocNameValid(script->loc));
+    assert(script->entry == EDITOR_INSTANCE_ENTRY_TELEPORT || script->entry == EDITOR_INSTANCE_ENTRY_RUNTIME);
+    runtime = script->entry == EDITOR_INSTANCE_ENTRY_RUNTIME;
+    has_exit = script->exit_loc[0] != '\0';
+    same_loc = has_exit && strcmp(script->exit_loc, script->loc) == 0;
+    assert(!has_exit || Editor_InstanceLocNameValid(script->exit_loc));
+    /* One [oploc1,<loc>] can tell in from out only by the copy it stands in. */
+    assert(!same_loc || runtime);
+    /* An npc is added to a copy; the shared template takes a spawn row. */
+    assert(!script->npc[0] || runtime);
+    assert(!script->npc[0] || Editor_InstanceLocNameValid(script->npc));
+    /* map_instance_alloc takes at most 16 x 16 zones (docs/map_instances.md
+     * section 3): two squares on each axis. */
+    assert(!runtime || plan->w <= 2);
+    assert(!runtime || plan->h <= 2);
 
-    Editor_InstanceCoordText(level, x, z, coord);
-    if( entry == EDITOR_INSTANCE_ENTRY_TELEPORT )
+    text.out = out;
+    text.capacity = out_capacity;
+    text.length = 0;
+    Editor_InstanceCoordText(script->level, script->x, script->z, coord);
+    Editor_InstanceCoordText(0, plan->dst_x0 * EDITOR_SQUARE_X, plan->dst_z0 * EDITOR_SQUARE_Z, base);
+    Editor_InstanceCoordText(script->exit_level, script->exit_x, script->exit_z, home);
+    instance_template_text(plan, squares, sizeof(squares));
+
+    instance_emit(&text,
+        "// server/scripts/edited/%s/scripts/%s.rs2: written by the ToriRSEd instance helper\n"
+        "// (File > New instance...) for the instance %s. It is yours to edit from here.\n"
+        "//\n"
+        "// WHERE THINGS ARE\n"
+        "//   Template   %s, in instance space: ordinary map squares that no\n"
+        "//              world-map area claims. Edit them in ToriRSEd: Squares > Instance space,\n"
+        "//              or Scenes > instance:%s.\n",
+        name, name, name, squares, name);
+    if( runtime )
+        instance_emit(&text,
+            "//   At play    each player who enters gets a private copy stamped from the template\n"
+            "//              (~map_instance_from_square_block: terrain and locs, every level)%s.\n"
+            "//              The copy lands in the instance pool, map square x >= 100, and a tile of\n"
+            "//              it is map_instance_coord($handle, dx, dz, level): dx, dz count tiles\n"
+            "//              from the template's south-west corner %s.\n"
+            "//   Edits      to the template show on the next entry, after Save and RUN.\n"
+            "//   Reference  general/scripts/misc/map_instance_procs.rs2, docs/map_instances.md.\n",
+            script->spawns ? ",\n//              and its npcs (map_instance_spawnnpcs, below)" : "", base);
+    else
+        instance_emit(&text,
+            "//   At play    the trigger teleports every player into the template itself: one\n"
+            "//              shared room. (New instance... with \"Entry: runtime map instance\"\n"
+            "//              stamps a private copy for each player instead.)\n"
+            "//   Edits      to the template show after Save and RUN.\n");
+
+    /* ENTER (and, on the one loc, EXIT). */
+    if( same_loc )
     {
-        written = snprintf(out, out_capacity,
-            "// server/scripts/edited/%s/scripts/%s.rs2: written by the ToriRSEd instance helper\n"
-            "// (src/editor/editor_instance.c) for the instance %s. Make it again from the helper.\n"
+        instance_emit(&text,
             "\n"
+            "// ENTER and EXIT: the first option of %s. On the real map it enters; the copy\n"
+            "// of it inside the instance is the way out.\n"
             "[oploc1,%s]\n"
-            "p_telejump(%s);\n",
-            name, name, name, loc, coord);
-        assert(written > 0);
-        return (size_t)written;
+            "if (map_instance_find(coord) ! ^map_instance_none) {\n"
+            "    // EXIT: hand the copy back (~map_instance_release_here frees the instance the\n"
+            "    // player stands in, so it goes before the teleport), then home to %s.\n",
+            script->loc, script->loc, home);
+        instance_emit_leave(&text, script, "    ");
+        instance_emit(&text,
+            "    return;\n"
+            "}\n"
+            "// ENTER.\n");
+    }
+    else
+    {
+        instance_emit(&text,
+            "\n"
+            "// ENTER: the first option of %s.\n"
+            "[oploc1,%s]\n",
+            script->loc, script->loc);
+        if( runtime )
+            instance_emit(&text,
+                "if (map_instance_find(coord) ! ^map_instance_none) {\n"
+                "    // Inside a copy already (the template may hold this loc too): a second copy\n"
+                "    // would strand the first.\n"
+                "    return;\n"
+                "}\n");
+    }
+    if( runtime )
+        instance_emit(&text,
+            "def_int $handle = ~map_instance_from_square_block(%s, %d, %d);\n"
+            "if ($handle = ^map_instance_none) {\n"
+            "    mes(\"There is no room for another instance just now.\");\n"
+            "    return;\n"
+            "}\n"
+            "%%varp6600_map_instance_handle = $handle;\n"
+            "p_telejump(map_instance_coord($handle, %d, %d, %d));\n",
+            base, plan->w, plan->h, script->x - plan->dst_x0 * EDITOR_SQUARE_X,
+            script->z - plan->dst_z0 * EDITOR_SQUARE_Z, script->level);
+    else
+        instance_emit(&text, "p_telejump(%s);\n", coord);
+    if( runtime && script->spawns )
+        instance_emit(&text,
+            "// The template's own npcs (its spawn rows) stand in this copy too, each on its\n"
+            "// tile; they go with the copy. Delete the line for an empty copy.\n"
+            "map_instance_spawnnpcs($handle);\n");
+
+    /* SPAWN ON ENTER: the trigger's last statements. */
+    if( script->npc[0] )
+    {
+        char at[EDITOR_INSTANCE_COORD_MAX];
+        Editor_InstanceCoordText(script->npc_level, script->npc_x, script->npc_z, at);
+        instance_emit(&text,
+            "\n"
+            "// SPAWN ON ENTER: one %s on template tile %s of this player's copy; it is\n"
+            "// removed with the copy. More npcs: repeat the line with other offsets.\n"
+            "npc_add(map_instance_coord($handle, %d, %d, %d), %s, 0);\n",
+            script->npc, at, script->npc_x - plan->dst_x0 * EDITOR_SQUARE_X,
+            script->npc_z - plan->dst_z0 * EDITOR_SQUARE_Z, script->npc_level, script->npc);
     }
 
-    /* The runtime copy: the destination box, zone by zone (8 tiles a zone,
-     * 8 zones a square), each level the plan copies, unturned; then the
-     * entry tile's offset inside it. map_instance_alloc takes at most 16 x
-     * 16 zones (docs/map_instances.md section 3). */
-    assert(plan->w <= 2);
-    assert(plan->h <= 2);
-    Editor_InstanceCoordText(0, plan->dst_x0 * EDITOR_SQUARE_X, plan->dst_z0 * EDITOR_SQUARE_Z, base);
-    written = snprintf(out, out_capacity,
-        "// server/scripts/edited/%s/scripts/%s.rs2: written by the ToriRSEd instance helper\n"
-        "// (src/editor/editor_instance.c) for the instance %s, as a runtime map instance\n"
-        "// (docs/map_instances.md). Make it again from the helper.\n"
-        "\n"
-        "[oploc1,%s]\n"
-        "def_int $handle = map_instance_alloc(%d, %d);\n"
-        "def_int $level = %d;\n"
-        "def_int $zx = 0;\n"
-        "def_int $zz = 0;\n"
-        "if ($handle = 0) {\n"
-        "    mes(\"There is no room for another instance just now.\");\n"
-        "    return;\n"
-        "}\n"
-        "while ($level <= %d) {\n"
-        "    $zx = 0;\n"
-        "    while ($zx < %d) {\n"
-        "        $zz = 0;\n"
-        "        while ($zz < %d) {\n"
-        "            map_instance_setchunk($handle, $level, $zx, $zz, movecoord(%s, calc($zx * 8), $level, calc($zz * 8)), 0);\n"
-        "            $zz = calc($zz + 1);\n"
-        "        }\n"
-        "        $zx = calc($zx + 1);\n"
-        "    }\n"
-        "    $level = calc($level + 1);\n"
-        "}\n"
-        "map_instance_build($handle);\n"
-        "p_telejump(map_instance_coord($handle, %d, %d, %d));\n",
-        name, name, name, loc, plan->w * 8, plan->h * 8, plan->level_lo, plan->level_hi, plan->w * 8, plan->h * 8,
-        base, x - plan->dst_x0 * EDITOR_SQUARE_X, z - plan->dst_z0 * EDITOR_SQUARE_Z, level);
-    assert(written > 0);
-    return (size_t)written;
+    /* EXIT, on a loc of its own. */
+    if( has_exit && !same_loc )
+    {
+        if( runtime )
+            instance_emit(&text,
+                "\n"
+                "// EXIT: the first option of %s, standing inside a copy. Hands the copy back\n"
+                "// (~map_instance_release_here frees the instance the player stands in, so it goes\n"
+                "// before the teleport), then home to %s on the real map.\n"
+                "[oploc1,%s]\n"
+                "if (map_instance_find(coord) = ^map_instance_none) {\n"
+                "    // The same loc on the real map, or in the template itself: nothing to leave.\n"
+                "    return;\n"
+                "}\n",
+                script->exit_loc, home, script->exit_loc);
+        else
+            instance_emit(&text,
+                "\n"
+                "// EXIT: the first option of %s. Home to %s on the real map.\n"
+                "[oploc1,%s]\n",
+                script->exit_loc, home, script->exit_loc);
+        instance_emit_leave(&text, script, "");
+    }
+    return text.length;
 }

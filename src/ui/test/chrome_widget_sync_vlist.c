@@ -81,12 +81,17 @@ cw_test_vlist(void)
         "and is clamped to the last full window");
     (void)ToriRSChrome_TakeActivated(&g_cw_ui);
 
-    /* Wheel over the list scrolls it. */
+    /* Wheel over the list scrolls it: down (negative) to later rows, as a
+     * panel does, and up again. */
     ToriRSChrome_VListSetScroll(&g_cw_ui, list, 10);
     (void)ToriRSChrome_Build(&g_cw_ui);
-    CW_CHECK(ToriRSChrome_MouseWheel(&g_cw_ui, w->x + 20, w->y + 40, 1) == 1 &&
+    CW_CHECK(ToriRSChrome_MouseWheel(&g_cw_ui, w->x + 20, w->y + 40, -1) == 1 &&
                  g_cw_ui.widgets[list].imin == 13,
-        "the wheel scrolls three rows");
+        "the wheel down scrolls three rows on");
+    (void)ToriRSChrome_Build(&g_cw_ui);
+    CW_CHECK(ToriRSChrome_MouseWheel(&g_cw_ui, w->x + 20, w->y + 40, 2) == 1 &&
+                 g_cw_ui.widgets[list].imin == 7,
+        "the wheel up scrolls back");
 
     /* Compare-then-set on rows. */
     cw_run();

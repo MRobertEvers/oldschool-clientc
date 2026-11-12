@@ -14,6 +14,7 @@
 #include "plugin/porcelain/torirs_porcelain.h"
 #include "platform/launch_sessions.h"
 #include "torirsmaped/torirs_maped_build.h"
+#include "editor/editor_lanerecs.h"
 
 #if defined(TORIRS_PLATFORM_WEB)
 #include "ui/torirs_chrome_exec_web.h"
@@ -1137,6 +1138,10 @@ App_Init(
         assert(app->editor);
         Editor_OpenHost(
             app->editor, &editor_host, editor_label, CacheProvider_Profile(app->provider));
+        /* A loc / npc / obj the lane made is not in this cache: the loaders
+         * ask the session for it (editor/editor_lanerecs.h), from the first
+         * world load on. */
+        Editor_LaneRecords_Attach(app->editor, app->provider);
         /* The Client id is printed because it is the handle another PROCESS
          * needs to join this session: `torirsmapedctl --client <id>`. */
         TORIRS_LOG(

@@ -23,8 +23,11 @@
  *               empty square; locs off: the copy's locs removed; a level
  *               range: the other levels' tiles and locs cleared);
  *   the entry   the trigger script's text: an [oploc1,<loc>] that
- *               p_telejump's to the destination coord, or one that builds a
- *               runtime map instance of the destination first.
+ *               p_telejump's to the destination coord, or one that stamps a
+ *               private runtime copy of the destination first (the tree's
+ *               own ~map_instance_from_square_block), with an exit and an
+ *               npc spawned on entering when asked, each its own commented
+ *               block for the user to edit in their own editor.
  *
  * Pure: no document, no host, no chrome. NULL arguments assert.
  */
@@ -69,8 +72,9 @@ enum Editor_InstanceEntry
 {
     /** [oploc1,<loc>] p_telejump(<coord>). */
     EDITOR_INSTANCE_ENTRY_TELEPORT = 0,
-    /** The same trigger building a runtime copy of the destination with the
-     *  map_instance_* commands first (docs/map_instances.md). */
+    /** The same trigger stamping a private copy of the destination first:
+     *  ~map_instance_from_square_block (the content tree's
+     *  general/scripts/misc/map_instance_procs.rs2; docs/map_instances.md). */
     EDITOR_INSTANCE_ENTRY_RUNTIME,
     /** No script. */
     EDITOR_INSTANCE_ENTRY_NONE,
@@ -123,6 +127,19 @@ Editor_InstancePlanInit(
     const char* const* keys,
     int count);
 
+/**
+ * 1 when the plan's sources are one block: their bounding box holds at most
+ * EDITOR_INSTANCE_SQUARES_MAX squares. Else 0, with the sentence in `why`
+ * (the box, and how to pick a block instead). The open set can hold squares
+ * far apart -- m50_50 beside a template m1_100 left open after an Undo -- and
+ * copying their box would copy the whole world between them.
+ */
+int
+Editor_InstanceSourceCompact(
+    const struct Editor_InstancePlan* plan,
+    char* why,
+    size_t why_size);
+
 /** Whether square (map_x, map_z) is in the instance space. */
 int
 Editor_InstanceInSpace(
@@ -158,6 +175,23 @@ Editor_InstanceDest(
     int index,
     int* out_map_x,
     int* out_map_z);
+
+/**
+ * A tile typed into the dialog (Lands at, Npc at) as the TEMPLATE tile it
+ * means, read three ways: a tile of the template itself, as typed; a tile of
+ * a source square, moved with the copy; or an offset inside the block
+ * (0 <= x < w*64, 0 <= z < h*64) from the template's south-west corner.
+ * The template is not made until Create, so before this only its own tiles
+ * were accepted -- numbers nobody could know while filling the form.
+ * 1 with the template tile in out_x / out_z, 0 when it is none of the three.
+ */
+int
+Editor_InstanceTemplateTile(
+    const struct Editor_InstancePlan* plan,
+    int x,
+    int z,
+    int* out_x,
+    int* out_z);
 
 /** Index of the source square holding absolute tile (x, z), or -1. */
 int
@@ -241,24 +275,93 @@ Editor_InstanceTriggerKey(
     const char* name,
     char out[EDITOR_DOC_KEY_MAX]);
 
+/** What the trigger script does: the form's entry rows, resolved to tiles. */
+struct Editor_InstanceScript
+{
+    /** TELEPORT or RUNTIME. */
+    enum Editor_InstanceEntry entry;
+    /** The trigger's subject: [oploc1,<loc>] enters. */
+    char loc[EDITOR_INSTANCE_LOC_MAX];
+    /** Where the player lands: a tile of the plan's destination squares. */
+    int level;
+    int x;
+    int z;
+    /** The exit's subject ("" = no exit block): [oploc1,<exit_loc>] returns
+     *  the player to (exit_level, exit_x, exit_z), a tile of the real map,
+     *  and under RUNTIME hands the copy back first. Equal to `loc` (RUNTIME
+     *  only): the one trigger enters outside a copy and leaves inside one,
+     *  the template's own copy of the loc being the way out. */
+    char exit_loc[EDITOR_INSTANCE_LOC_MAX];
+    int exit_level;
+    int exit_x;
+    int exit_z;
+    /** The npc added on entering (RUNTIME only; "" = none), at a tile of
+     *  the plan's destination squares. */
+    char npc[EDITOR_INSTANCE_LOC_MAX];
+    int npc_level;
+    int npc_x;
+    int npc_z;
+    /** RUNTIME: the template's own spawn rows stand in each copy too
+     *  (`map_instance_spawnnpcs`; a copy is otherwise terrain and locs). Set
+     *  when the plan copies spawns into the template. */
+    int spawns;
+};
+
 /**
- * The trigger script: a header naming the writer, then
- * `[oploc1,<loc>]` and either `p_telejump(<coord>);` (TELEPORT) or the
- * map_instance_alloc / setchunk / build / coord sequence over the plan's
- * destination squares, then the telejump into it (RUNTIME; the destination
- * box must be at most 2 x 2 squares, the commands' 16 x 16 zones).
- * (level, x, z) is the destination coord. snprintf's contract.
+ * The trigger script: a header that says where the template is and how it is
+ * stamped at play time, then one commented block each for
+ *
+ *   ENTER   `[oploc1,<loc>]` and either `p_telejump(<coord>);` (TELEPORT) or
+ *           `def_int $handle = ~map_instance_from_square_block(<template's
+ *           south-west coord>, w, h);`, the no-room refusal, the handle kept
+ *           in %varp6600_map_instance_handle and
+ *           `p_telejump(map_instance_coord($handle, dx, dz, level));`
+ *           (RUNTIME; the destination box must be at most 2 x 2 squares,
+ *           map_instance_alloc's 16 x 16 zones);
+ *   SPAWN   `npc_add(map_instance_coord($handle, dx, dz, level), <npc>, 0);`
+ *   EXIT    `[oploc1,<exit_loc>]`: `~map_instance_release_here;` (RUNTIME)
+ *           and `p_telejump(<real coord>);`.
+ *
+ * This is the idiom the content tree's own instances use
+ * (quest_idesofmilk's arena, quest_contact's chasm). snprintf's contract.
  */
 size_t
 Editor_InstanceTriggerText(
     const struct Editor_InstancePlan* plan,
     const char* name,
-    const char* loc,
-    enum Editor_InstanceEntry entry,
-    int level,
-    int x,
-    int z,
+    const struct Editor_InstanceScript* script,
     char* out,
     size_t out_capacity);
+
+/** A sentence of Editor_InstanceWhereText: it fits a status line. */
+#define EDITOR_INSTANCE_WHERE_MAX 160
+
+/**
+ * Where the instance is, in two sentences a person can act on:
+ * `out_template` names the template squares and the two ways to open them,
+ * `out_stamp` says what happens at play time under `entry` (TELEPORT: the
+ * one shared room; RUNTIME: a private copy per player; NONE: nothing brings
+ * a player there yet).
+ */
+void
+Editor_InstanceWhereText(
+    const struct Editor_InstancePlan* plan,
+    const char* name,
+    enum Editor_InstanceEntry entry,
+    char out_template[EDITOR_INSTANCE_WHERE_MAX],
+    char out_stamp[EDITOR_INSTANCE_WHERE_MAX]);
+
+/**
+ * The same in ONE status line, said after Create: "Template m0_100: open it
+ * from Squares > Instance space or Scenes > instance:<name>. Each player who
+ * enters gets a private copy stamped from it." When a long name leaves no
+ * room for the second sentence, the first alone (never half a sentence).
+ */
+void
+Editor_InstanceStatusText(
+    const struct Editor_InstancePlan* plan,
+    const char* name,
+    enum Editor_InstanceEntry entry,
+    char out[EDITOR_INSTANCE_WHERE_MAX]);
 
 #endif

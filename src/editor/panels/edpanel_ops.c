@@ -874,6 +874,7 @@ ops_scatter_free(
     int world_x,
     int world_z,
     int level,
+    int bare,
     struct OpsScatterTaken* taken)
 {
     int const layer = Editor_LocShapeLayer(set->shape[k]);
@@ -894,6 +895,8 @@ ops_scatter_free(
             square = ops_square_at(doc, world_x + dx, world_z + dz, &x, &z);
             if( !square )
                 return 0;
+            if( bare && square->tiles[Editor_TileIndex(x, z, level)].has_overlay )
+                return 0;
             for( int i = 0; i < square->loc_count; i++ )
             {
                 /* A loc is recorded on its south-west tile; a centrepiece
@@ -910,7 +913,7 @@ ops_scatter_free(
                             Editor_LocFootprint(loc->shape, loc->rotation, set->size_x[s], set->size_z[s], &lw, &lh);
                 if( x < loc->x || x >= loc->x + lw || z < loc->z || z >= loc->z + lh )
                     continue;
-                if( loc->shape == 10 || loc->shape == 11 || Editor_LocShapeLayer(loc->shape) == layer )
+                if( bare || loc->shape == 10 || loc->shape == 11 || Editor_LocShapeLayer(loc->shape) == layer )
                     return 0;
             }
         }
@@ -982,7 +985,7 @@ Editor_ScatterCommands(
                 int const k = (int)(ops_hash_unit(op->seed, world_x, world_z, 1) * op->set.count) % op->set.count;
                 int const rotation = op->rotate ? (int)(ops_hash_unit(op->seed, world_x, world_z, 2) * 4.0) & 3 : 0;
                 struct Editor_Loc after;
-                if( !ops_scatter_free(doc, &op->set, k, rotation, world_x, world_z, op->level, taken) )
+                if( !ops_scatter_free(doc, &op->set, k, rotation, world_x, world_z, op->level, op->bare, taken) )
                     continue;
                 (void)ops_split(world_x, world_z, &map_x, &map_z, &after.x, &after.z);
                 after.loc_id = op->set.loc_id[k];
@@ -1312,7 +1315,12 @@ Editor_TileRectFill(
             if( !square )
                 continue;
             after = square->tiles[Editor_TileIndex(x, z, r.level)];
-            after.underlay_id = (uint16_t)(tools->underlay_id & 0xffff);
+            /* No underlay picked is nothing to lay, not "strip the ground":
+             * a floor filled into a yard with only an overlay picked left
+             * the tiles under it with no underlay at all (Clear is how a
+             * tile is emptied). */
+            if( tools->underlay_id != 0 )
+                after.underlay_id = (uint16_t)(tools->underlay_id & 0xffff);
             if( tools->overlay_none )
             {
                 after.has_overlay = 0;
@@ -2231,6 +2239,72 @@ Editor_LocFitDecor(
     return 0;
 }
 
+/** Whether a straight wall or an L stands on edge `edge` of world tile
+ *  (x, z). */
+static int
+ops_wall_on_edge(
+    struct Editor_Doc* doc,
+    int world_x,
+    int world_z,
+    int level,
+    int edge)
+{
+    struct Editor_Square* square;
+    int x;
+    int z;
+
+    square = ops_square_at(doc, world_x, world_z, &x, &z);
+    if( !square )
+        return 0;
+    for( int shape = 0; shape <= 2; shape += 2 )
+    {
+        int const index = Editor_SquareLocFind(square, level, x, z, shape);
+        if( index >= 0 && (ops_wall_edges(shape, square->locs[index].rotation) & (1u << (edge & 3))) )
+            return 1;
+    }
+    return 0;
+}
+
+int
+Editor_LocFitDecorPose(
+    struct Editor_Doc* doc,
+    uint32_t mask,
+    int world_x,
+    int world_z,
+    int level,
+    int* shape,
+    int* rotation)
+{
+    static const int k_dx[4] = { -1, 0, 1, 0 };
+    static const int k_dz[4] = { 0, 1, 0, -1 };
+    int was_shape;
+    int was_rotation;
+
+    assert(doc);
+    assert(shape);
+    assert(rotation);
+    was_shape = *shape;
+    was_rotation = *rotation & 3;
+    if( *shape != 4 && *shape != 5 )
+        return 0;
+    for( int turn = 0; turn < 4; turn++ )
+    {
+        int const edge = (was_rotation + turn) & 3;
+        int const own = ops_wall_on_edge(doc, world_x, world_z, level, edge);
+        int const across =
+            !own && ops_wall_on_edge(doc, world_x + k_dx[edge], world_z + k_dz[edge], level, (edge + 2) & 3);
+        if( !own && !across )
+            continue;
+        *rotation = edge;
+        if( own && (mask & (1u << 5)) )
+            *shape = 5;
+        else if( across && (mask & (1u << 4)) )
+            *shape = 4;
+        break;
+    }
+    return *shape != was_shape || (*rotation & 3) != was_rotation;
+}
+
 int
 Editor_LocFitWall(
     struct Editor_Doc* doc,
@@ -2965,6 +3039,24 @@ Editor_LocsOfId(
         }
     }
     return found;
+}
+
+int
+Editor_LocSelectionPrune(
+    struct Editor_Doc* doc,
+    struct Editor_LocRef* refs,
+    int count)
+{
+    int kept = 0;
+
+    assert(doc);
+    assert(refs || count == 0);
+    assert(count >= 0);
+
+    for( int i = 0; i < count; i++ )
+        if( Editor_LocRefResolve(doc, &refs[i]) >= 0 )
+            refs[kept++] = refs[i];
+    return kept;
 }
 
 enum Editor_LocSelectMode

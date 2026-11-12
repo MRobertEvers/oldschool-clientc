@@ -16,6 +16,23 @@
  * "Tile grid" under the view's levels is the World's ground grid and square
  * borders (edp_tile_grid_set): automatic on a square with no loc yet, on, or
  * off.
+ *
+ * WHAT THE STROKE LAYS (2026-11-11). The brush is set here and the colour in
+ * the Palette, the other tab of the same group: with Terrain in front
+ * nothing on screen said what a stroke would paint. The second row does --
+ * "Paints underlay 48 grass", "Lays overlay 14 dirt track" -- for every tool
+ * that reads a palette pick, in the Palette's own words
+ * (Editor_Palette_Describe).
+ *
+ * The Path tool arms with an overlay to lay: when none is picked, the common
+ * floor of its style (Editor_Palette_PathOverlay), said in the status bar,
+ * and changing the style changes a default with it.
+ *
+ * Paint underlay's section says the one thing its strokes hide: the client
+ * averages underlays over five tiles, so a thin stroke fades away.
+ *
+ * The flags brush's four boxes show while Paint flags is armed, like every
+ * other tool's rows; they were four rows of every tool's page.
  */
 
 #include "edpanel_common.h"
@@ -54,6 +71,8 @@ static const char* const k_falloff_names[EDITOR_BRUSH_FALLOFF_COUNT] = { "linear
 static const char* const k_level_names[5] = { "auto", "0", "1", "2", "3" };
 static const char* const k_vis_names[5] = { "all", "0", "1", "2", "3" };
 static const char* const k_path_names[EDITOR_PATH_STYLE_COUNT] = { "dirt", "pavement", "river" };
+/** The styles as a sentence says them: "a dirt path lays ...". */
+static const char* const k_path_nouns[EDITOR_PATH_STYLE_COUNT] = { "A dirt path", "A pavement", "A river" };
 static const char* const k_path_height_names[EDITOR_PATH_HEIGHT_MODE_COUNT] = { "leave the ground", "set to",
                                                                                "lower by", "raise by" };
 static const char* const k_height_mode_names[EDITOR_HEIGHT_MODE_COUNT] = { "up and down", "raise only",
@@ -69,6 +88,10 @@ struct TerrainPanel
 {
     int panel;
     int row_tool;
+    /** What the armed tool lays, by the Palette's names; and the picks and
+     *  target it was last written from. */
+    int row_paints;
+    int shown_paints[5];
     int slider_radius;
     int slider_step;
     int slider_strength;
@@ -76,11 +99,16 @@ struct TerrainPanel
     int radio_level[5];
     int radio_vis[5];
     int check_solo;
+    int label_flags;
     int check_flags[4];
+    /** Paint underlay's note on the client's five-tile blend. */
+    int hint_underlay;
     /** The Path tool's section (shown while it is armed): the style, the
      *  width in half tiles, dirt's roughness, New edges (another seed). */
     int label_path;
     int radio_path[EDITOR_PATH_STYLE_COUNT];
+    /** "Use <the style's floor>", while the Palette's overlay is another. */
+    int button_path_floor;
     int slider_path_width;
     int slider_path_rough;
     int button_path_seed;
@@ -97,9 +125,11 @@ struct TerrainPanel
     int label_scatter;
     int slider_scatter_density;
     int check_scatter_rotate;
+    int check_scatter_bare;
     int button_scatter_seed;
     int shown_scatter_density;
     int shown_scatter_rotate;
+    int shown_scatter_bare;
     /** The Plateau tool's skirt (shown while it is armed). */
     int slider_plateau_skirt;
     int shown_plateau_skirt;
@@ -249,6 +279,108 @@ Editor_Terrain_ToolUsesFalloff(int tool)
     return tool == EDITOR_TOOL_HEIGHT || tool == EDITOR_TOOL_SMOOTH;
 }
 
+/** The row under the readout: what the armed tool lays, in the Palette's
+ *  words; hidden for a tool that reads no palette pick. */
+static void
+terrain_paints(
+    struct EditorUi* ui,
+    struct TerrainPanel* self)
+{
+    char line[TORIRS_CHROME_LABEL_MAX];
+    char under[EDITOR_PALETTE_DESCRIBE_MAX];
+    char over[EDITOR_PALETTE_DESCRIBE_MAX];
+    enum Editor_Tool const tool = ui->tools.tool;
+    int const region_under = (tool == EDITOR_TOOL_REGION || tool == EDITOR_TOOL_LASSO) && ui->tools.region_underlay;
+    int hidden = 0;
+
+    Editor_Palette_Describe(ui, 0, ui->tools.underlay_id, under, sizeof(under));
+    Editor_Palette_Describe(ui, 1, ui->tools.overlay_none ? 0 : ui->tools.overlay_id, over, sizeof(over));
+    if( tool == EDITOR_TOOL_PAINT_UNDERLAY || region_under )
+    {
+        if( ui->tools.underlay_id == 0 )
+            snprintf(line, sizeof(line), "Paints no underlay: pick one in the Palette");
+        else
+            snprintf(line, sizeof(line), "Paints underlay %s", under);
+    }
+    else if( tool == EDITOR_TOOL_PAINT_OVERLAY || tool == EDITOR_TOOL_REGION || tool == EDITOR_TOOL_LASSO )
+    {
+        if( ui->tools.overlay_none )
+            snprintf(line, sizeof(line), "Takes the overlay off (none is picked in the Palette)");
+        else
+            snprintf(line, sizeof(line), "Paints overlay %s", over);
+    }
+    else if( tool == EDITOR_TOOL_PAINT_PATH )
+    {
+        if( ui->tools.overlay_none )
+            snprintf(line, sizeof(line), "Lays its style's common floor (none is picked)");
+        else
+            snprintf(line, sizeof(line), "Lays overlay %s", over);
+    }
+    else if( tool == EDITOR_TOOL_RECT_SELECT )
+    {
+        /* Fill lays the underlay when one is picked, and the overlay or its
+         * removal; two names are cut to fit one row. */
+        if( ui->tools.underlay_id == 0 && ui->tools.overlay_none )
+            snprintf(line, sizeof(line), "Fill takes the overlay off (nothing is picked)");
+        else if( ui->tools.underlay_id == 0 )
+            snprintf(line, sizeof(line), "Fill lays overlay %s", over);
+        else if( ui->tools.overlay_none )
+            snprintf(line, sizeof(line), "Fill lays underlay %.24s, no overlay", under);
+        else
+            snprintf(line, sizeof(line), "Fill lays %.24s + %.24s", under, over);
+    }
+    else
+        hidden = 1;
+    if( !hidden )
+        ToriRSChrome_SetText(ui->chrome, self->row_paints, line);
+    ToriRSChrome_SetHidden(ui->chrome, self->row_paints, hidden);
+    /* The Palette still holds the pond's water when the road comes next:
+     * one click lays the style's own floor instead of a trip to the
+     * Palette tab and back (2026-11-11). */
+    {
+        char floor[EDITOR_PALETTE_DESCRIBE_MAX];
+        char caption[TORIRS_CHROME_LABEL_MAX];
+        int const floor_id = tool == EDITOR_TOOL_PAINT_PATH && !ui->tools.overlay_none
+                                 ? Editor_Palette_PathFloor(ui, terrain_path_style(ui), floor, sizeof(floor))
+                                 : -1;
+        int const offer = floor_id > 0 && floor_id != ui->tools.overlay_id;
+
+        if( offer )
+        {
+            /* A button's caption is its text, not its label. */
+            snprintf(caption, sizeof(caption), "Use %s", floor);
+            ToriRSChrome_SetText(ui->chrome, self->button_path_floor, caption);
+        }
+        ToriRSChrome_SetHidden(ui->chrome, self->button_path_floor, !offer);
+    }
+    self->shown_paints[0] = ui->tools.underlay_id;
+    self->shown_paints[1] = ui->tools.overlay_id;
+    self->shown_paints[2] = ui->tools.overlay_none;
+    self->shown_paints[3] = ui->tools.region_underlay;
+    self->shown_paints[4] = (int)tool;
+}
+
+/** The Path tool with no overlay picked takes its style's common floor, and
+ *  the bar says which (a pick of the user's is left alone). */
+static void
+terrain_path_default(struct EditorUi* ui)
+{
+    char name[EDITOR_PALETTE_DESCRIBE_MAX];
+    int const style = terrain_path_style(ui);
+    int const id = Editor_Palette_PathOverlay(ui, style, name, sizeof(name));
+
+    if( id > 0 )
+        Editor_UiStatus(ui, "%s lays overlay %d %s (none was picked; the Palette picks another)",
+            k_path_nouns[style], id, name);
+    else if( id == 0 && ui->tools.tool == EDITOR_TOOL_PAINT_PATH )
+    {
+        /* The Palette's pick, whatever it was picked for: said, so a road
+         * is not laid in the water the pond was just painted with. */
+        Editor_Palette_Describe(ui, 1, ui->tools.overlay_id, name, sizeof(name));
+        Editor_UiStatus(ui, "%s lays overlay %s, the Palette's pick", k_path_nouns[style], name);
+    }
+}
+
 static void
 terrain_readout(
     struct EditorUi* ui,
@@ -316,6 +448,12 @@ terrain_readout(
     else
         snprintf(line, sizeof(line), "%s (not a brush)", Editor_ToolName(ui->tools.tool));
     ToriRSChrome_SetText(ui->chrome, self->row_tool, line);
+    terrain_paints(ui, self);
+    /* The flags brush's rows and Paint underlay's note, with their tools. */
+    ToriRSChrome_SetHidden(ui->chrome, self->label_flags, ui->tools.tool != EDITOR_TOOL_PAINT_FLAGS);
+    for( int i = 0; i < 4; i++ )
+        ToriRSChrome_SetHidden(ui->chrome, self->check_flags[i], ui->tools.tool != EDITOR_TOOL_PAINT_FLAGS);
+    ToriRSChrome_SetHidden(ui->chrome, self->hint_underlay, !underlay && !region_under);
     /* The path's section only while the Path tool is up, and then in the
      * brush's place (a path has no radius, falloff, step or strength), so it
      * is at the top of the panel rather than under the fold. */
@@ -346,6 +484,7 @@ terrain_readout(
     ToriRSChrome_SetHidden(ui->chrome, self->label_scatter, !scatter);
     ToriRSChrome_SetHidden(ui->chrome, self->slider_scatter_density, !scatter);
     ToriRSChrome_SetHidden(ui->chrome, self->check_scatter_rotate, !scatter);
+    ToriRSChrome_SetHidden(ui->chrome, self->check_scatter_bare, !scatter);
     ToriRSChrome_SetHidden(ui->chrome, self->button_scatter_seed, !scatter);
     ToriRSChrome_SetHidden(ui->chrome, self->slider_plateau_skirt, !plateau);
     ToriRSChrome_SetHidden(ui->chrome, self->slider_mix, !underlay);
@@ -379,7 +518,15 @@ terrain_tick(
     struct TerrainPanel* self = opaque;
 
     if( self->shown_tool != ui->tools.tool )
+    {
         terrain_readout(ui, self);
+        if( ui->tools.tool == EDITOR_TOOL_PAINT_PATH )
+            terrain_path_default(ui);
+    }
+    /* A pick in the Palette, the eyedropper, another window. */
+    if( self->shown_paints[0] != ui->tools.underlay_id || self->shown_paints[1] != ui->tools.overlay_id
+        || self->shown_paints[2] != ui->tools.overlay_none || self->shown_paints[3] != ui->tools.region_underlay )
+        terrain_paints(ui, self);
     /* A View row or a hotkey may have cycled it. */
     if( self->shown_tile_grid != ui->tile_grid )
     {
@@ -434,15 +581,17 @@ terrain_tick(
         terrain_readout(ui, self);
     }
     if( self->shown_scatter_density != ui->tools.scatter_density
-        || self->shown_scatter_rotate != ui->tools.scatter_rotate
+        || self->shown_scatter_rotate != ui->tools.scatter_rotate || self->shown_scatter_bare != ui->tools.scatter_bare
         || self->shown_plateau_skirt != ui->tools.plateau_skirt || self->shown_mix != ui->tools.paint_mix )
     {
         ToriRSChrome_SliderSet(ui->chrome, self->slider_scatter_density, ui->tools.scatter_density);
         ToriRSChrome_SetChecked(ui->chrome, self->check_scatter_rotate, ui->tools.scatter_rotate ? 1 : 0);
+        ToriRSChrome_SetChecked(ui->chrome, self->check_scatter_bare, ui->tools.scatter_bare ? 1 : 0);
         ToriRSChrome_SliderSet(ui->chrome, self->slider_plateau_skirt, ui->tools.plateau_skirt);
         ToriRSChrome_SliderSet(ui->chrome, self->slider_mix, ui->tools.paint_mix);
         self->shown_scatter_density = ui->tools.scatter_density;
         self->shown_scatter_rotate = ui->tools.scatter_rotate;
+        self->shown_scatter_bare = ui->tools.scatter_bare;
         self->shown_plateau_skirt = ui->tools.plateau_skirt;
         self->shown_mix = ui->tools.paint_mix;
         terrain_readout(ui, self);
@@ -525,11 +674,29 @@ terrain_activate(
         Editor_UiStatus(ui, "Path: new edges for the next dirt path");
         return 1;
     }
+    else if( widget == self->button_path_floor )
+    {
+        char name[EDITOR_PALETTE_DESCRIBE_MAX];
+        int const style = terrain_path_style(ui);
+        int const id = Editor_Palette_PathUseFloor(ui, style, name, sizeof(name));
+
+        if( id > 0 )
+            Editor_UiStatus(ui, "%s lays overlay %d %s now (picked in the Palette too)", k_path_nouns[style], id, name);
+        else
+            Editor_UiStatus(ui, "Path: this cache's usual floor for the style is still loading; try again");
+        terrain_paints(ui, self);
+        return 1;
+    }
     else if( widget == self->slider_scatter_density )
         self->shown_scatter_density = tools->scatter_density = ToriRSChrome_SliderValue(ui->chrome, widget);
     else if( widget == self->check_scatter_rotate )
     {
         self->shown_scatter_rotate = tools->scatter_rotate = ToriRSChrome_Checked(ui->chrome, widget) ? 1 : 0;
+        return 1;
+    }
+    else if( widget == self->check_scatter_bare )
+    {
+        self->shown_scatter_bare = tools->scatter_bare = ToriRSChrome_Checked(ui->chrome, widget) ? 1 : 0;
         return 1;
     }
     else if( widget == self->button_scatter_seed )
@@ -622,7 +789,20 @@ terrain_activate(
         for( int i = 0; i < EDITOR_HEIGHT_MODE_COUNT; i++ )
             if( widget == self->radio_height_mode[i] )
             {
-                tools->height_mode = i;
+                /* Another mode starts the grid over: the next drag sets it
+                 * one Step off the ground it lands on (up, or down in
+                 * "lower only"). A grid kept from the last job is on the
+                 * wrong side for the new one -- left at the hilltop, "lower
+                 * only" over the pond below it moved nothing and said
+                 * nothing (2026-11-11). */
+                if( tools->height_mode != i )
+                {
+                    tools->height_mode = i;
+                    tools->height_valid = 0;
+                    Editor_UiStatus(ui, "Height, %s: the next drag %s the ground one Step (%d); Ctrl+wheel sets a grid",
+                        k_height_mode_names[i], i == EDITOR_HEIGHT_MODE_LOWER ? "sinks" : "lifts",
+                        tools->brush.step * EDITOR_HEIGHT_UNIT);
+                }
                 return 1;
             }
         for( int i = 0; i < 2; i++ )
@@ -648,6 +828,8 @@ terrain_activate(
             if( widget == self->radio_path[i] )
             {
                 self->shown_path_style = tools->path_style = i;
+                /* A default overlay follows the style. */
+                terrain_path_default(ui);
                 terrain_readout(ui, self);
                 return 1;
             }
@@ -714,6 +896,8 @@ Editor_Terrain_Register(struct EditorUi* ui)
         edp_px(ui, EDP_COL_W), "Terrain");
     assert(self->panel >= 0);
     self->row_tool = ToriRSChrome_Label(chrome, self->panel, "");
+    self->row_paints = ToriRSChrome_Label(chrome, self->panel, "");
+    ToriRSChrome_SetHidden(chrome, self->row_paints, 1);
     self->slider_radius = ToriRSChrome_Slider(
         chrome, self->panel, "Radius", 0, EDITOR_BRUSH_RADIUS_MAX, ui->tools.brush.radius, 1);
 
@@ -731,7 +915,8 @@ Editor_Terrain_Register(struct EditorUi* ui)
     /* The Height brush (3): hidden until armed (terrain_readout). */
     self->label_height = ToriRSChrome_Label(chrome, self->panel, "Height brush");
     self->hint_height = ToriRSChrome_Paragraph(chrome, self->panel,
-        "The grid starts at the ground. Ctrl+wheel lifts or lowers it, then drag pulls the ground to it.");
+        "A drag pulls the ground to the grid. With no grid set, or after picking a mode, the first drag lifts "
+        "the ground one Step (lower only: sinks it). Ctrl+wheel moves the grid.");
     for( int i = 0; i < EDITOR_HEIGHT_MODE_COUNT; i++ )
         self->radio_height_mode[i] = ToriRSChrome_Radio(
             chrome, self->panel, k_height_mode_names[i], TERRAIN_GROUP_HEIGHT, i == ui->tools.height_mode);
@@ -742,6 +927,8 @@ Editor_Terrain_Register(struct EditorUi* ui)
     ToriRSChrome_SetTooltip(chrome, self->slider_height,
         "Units of 8; Ctrl/Cmd+wheel moves it, +Shift the grid only");
     self->button_height_follow = ToriRSChrome_Button(chrome, self->panel, "Grid follows the ground");
+    /* The caption is wider than a button's column ("Grid follows t..."). */
+    ToriRSChrome_ButtonSetFill(chrome, self->button_height_follow, 1);
     ToriRSChrome_SetTooltip(chrome, self->button_height_follow, "Unset the grid: it stands on the hovered tile again");
     self->check_height_grid = ToriRSChrome_Checkbox(chrome, self->panel, "Show grid", ui->tools.height_grid ? 1 : 0);
     self->slider_height_fill =
@@ -765,6 +952,12 @@ Editor_Terrain_Register(struct EditorUi* ui)
     ToriRSChrome_SetTooltip(chrome, self->radio_path[0], "Edges that wander, the width breathing (the content's tracks)");
     ToriRSChrome_SetTooltip(chrome, self->radio_path[1], "Straight runs and 45-degree bends, a steady width (roads)");
     ToriRSChrome_SetTooltip(chrome, self->radio_path[2], "A slow meander, banks that swell (pick water; dig its bed)");
+    /* "Use dirt track": shown while the Palette's overlay is another floor
+     * (terrain_paints names the style's). */
+    self->button_path_floor = ToriRSChrome_Button(chrome, self->panel, "Use the style's floor");
+    ToriRSChrome_ButtonSetFill(chrome, self->button_path_floor, 1);
+    ToriRSChrome_SetTooltip(chrome, self->button_path_floor, "Lay this style's usual floor, not the Palette's overlay");
+    ToriRSChrome_SetHidden(chrome, self->button_path_floor, 1);
     self->slider_path_width = ToriRSChrome_Slider(chrome, self->panel, "Width (half tiles)", 1,
         (int)(EDITOR_PATH_WIDTH_MAX * 2), ui->tools.path_width_halves, 1);
     self->slider_path_rough =
@@ -802,6 +995,10 @@ Editor_Terrain_Register(struct EditorUi* ui)
         "Share of free tiles that take a loc, fading with the falloff");
     self->check_scatter_rotate =
         ToriRSChrome_Checkbox(chrome, self->panel, "Random rotation", ui->tools.scatter_rotate ? 1 : 0);
+    self->check_scatter_bare =
+        ToriRSChrome_Checkbox(chrome, self->panel, "Bare ground only", ui->tools.scatter_bare ? 1 : 0);
+    ToriRSChrome_SetTooltip(chrome, self->check_scatter_bare,
+        "Skip roads, floors, water and tiles that hold a loc: for grass, twigs and flowers");
     self->button_scatter_seed = ToriRSChrome_Button(chrome, self->panel, "New seed");
     ToriRSChrome_SetTooltip(chrome, self->button_scatter_seed, "Another spread for the next stroke");
     self->slider_plateau_skirt = ToriRSChrome_Slider(
@@ -811,6 +1008,10 @@ Editor_Terrain_Register(struct EditorUi* ui)
     /* Paint underlay (7): its mix, hidden until armed. */
     self->slider_mix = ToriRSChrome_Slider(chrome, self->panel, "Mix (%)", 10, 100, ui->tools.paint_mix, 10);
     ToriRSChrome_SetTooltip(chrome, self->slider_mix, "Share of tiles painted under 100: a dither the ground blends");
+    self->hint_underlay = ToriRSChrome_Paragraph(chrome, self->panel,
+        "The ground blends underlays over 5 tiles: a stroke under 3 wide fades away. "
+        "For a hard edge paint an overlay.");
+    ToriRSChrome_SetHidden(chrome, self->hint_underlay, 1);
     self->shown_scatter_density = ui->tools.scatter_density;
     self->shown_scatter_rotate = ui->tools.scatter_rotate;
     self->shown_plateau_skirt = ui->tools.plateau_skirt;
@@ -881,10 +1082,14 @@ Editor_Terrain_Register(struct EditorUi* ui)
     ToriRSChrome_SetHidden(chrome, self->slider_region_feather, 1);
     ToriRSChrome_SetHidden(chrome, self->button_region_seed, 1);
 
-    ToriRSChrome_Separator(chrome, self->panel);
-    ToriRSChrome_Label(chrome, self->panel, "Flags brush");
+    /* Paint flags (9): its four bits, hidden until armed. */
+    self->label_flags = ToriRSChrome_Label(chrome, self->panel, "Flags brush");
+    ToriRSChrome_SetHidden(chrome, self->label_flags, 1);
     for( int i = 0; i < 4; i++ )
+    {
         self->check_flags[i] = ToriRSChrome_Checkbox(chrome, self->panel, k_flag_names[i], 0);
+        ToriRSChrome_SetHidden(chrome, self->check_flags[i], 1);
+    }
 
     ToriRSChrome_Separator(chrome, self->panel);
     ToriRSChrome_Label(chrome, self->panel, "Edit level");

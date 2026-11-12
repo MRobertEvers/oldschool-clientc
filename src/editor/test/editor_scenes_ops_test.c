@@ -33,6 +33,7 @@
  */
 
 #include "editor/editor.h"
+#include "editor/editor_diff_cmd.h"
 #include "editor/editor_cmd.h"
 #include "editor/editor_doc.h"
 #include "editor/editor_host.h"
@@ -411,6 +412,30 @@ static const char*
 status(struct Window* w)
 {
     return Editor_UiStatusText(&w->ui);
+}
+
+/** Pump window A until its status bar holds `want`, or about four seconds
+ *  pass: a new lane (Scratch lane, Lane from main, Promote) is made on the
+ *  server's worker thread and answered when it lands, so a fixed frame
+ *  count races it. Returns 1 when the status got there. */
+static int
+pump_until_status(const char* want)
+{
+    for( int i = 0; i < 2000; i++ )
+    {
+        pump(1);
+        if( strstr(status(&g_a), want) )
+            return 1;
+#if defined(_WIN32)
+        Sleep(2);
+#else
+        {
+            struct timespec nap = { 0, 2 * 1000 * 1000 };
+            nanosleep(&nap, NULL);
+        }
+#endif
+    }
+    return 0;
 }
 
 static int
@@ -800,12 +825,16 @@ test_lanes_and_chip(void)
     if( label >= 0 )
         activate(&g_a, label);
     CHECK(lanes_panel >= 0 && g_a.chrome.panels[lanes_panel].visible, "and a second click leaves it open");
+    /* The lanes are the panel's second page (2026-11-11: Changes is the
+     * first, the one the chip's count is about). */
+    if( lanes_panel >= 0 )
+        ToriRSChrome_PanelSetActiveTab(&g_a.chrome, lanes_panel, 1);
 
     /* Ctrl+Shift+N: scratch-<today>a from main, and the switch staged. */
     CHECK(Editor_Lanes_ScratchNameFor(&g_a.ui, (long long)time(NULL), today, (int)sizeof(today)),
         "today's scratch name (%s)", today);
     (void)Editor_HotkeyRun(&g_a.ui, EDITOR_HK_FILE_SCRATCH_LANE);
-    pump(10);
+    CHECK(pump_until_status("opens from the next launch on"), "the scratch lane landed: %s", status(&g_a));
     snprintf(path, sizeof(path), "%s/build/lanes/%s/lane.ini", g_repo, today);
     CHECK(exists(path), "Ctrl+Shift+N made %s", today);
     snprintf(path, sizeof(path), "%s/build/lanes/lane.ini", g_repo);
@@ -891,6 +920,13 @@ test_lanes_and_chip(void)
             activate(&g_a, list);
             pump(2);
             CHECK(strcmp(g_a.ui.lane.next_boot, today) == 0, "one Enter picks the row and switches nothing (%s)",
+                g_a.ui.lane.next_boot);
+            /* A second click a second later is a click, not a double-click:
+             * it re-picks the row and leaves the boot lane file alone. */
+            g_a.chrome.now_ms += 1000;
+            activate(&g_a, list);
+            pump(2);
+            CHECK(strcmp(g_a.ui.lane.next_boot, today) == 0, "a second Enter a second later switches nothing (%s)",
                 g_a.ui.lane.next_boot);
             activate(&g_a, list);
             pump(4);
@@ -989,6 +1025,236 @@ test_lanes_and_chip(void)
         label >= 0 ? g_a.chrome.widgets[label].text : "-");
 }
 
+/** The Lanes list's row whose text starts with `prefix`, -1. */
+static int
+lane_row(
+    struct Window* w,
+    int list,
+    const char* prefix)
+{
+    for( int r = 0; list >= 0 && r < w->chrome.widgets[list].imax && r < 16; r++ )
+        if( strncmp(row_text(w, list, r), prefix, strlen(prefix)) == 0 )
+            return r;
+    return -1;
+}
+
+/* A lane's life-cycle in the panel (2026-11-11, "do this in a scratch lane,
+ * then promote to a new lane"): the pure halves; a publish target that is
+ * never the main tree by default; Promote; Delete lane, two presses, and
+ * what it refuses; and a session that ignores the boot lane file, which
+ * neither shows a next lane nor writes one. Runs on the scratch lane
+ * test_lanes_and_chip left the window on. */
+static void
+test_lane_life_cycle(void)
+{
+    char path[2048];
+    char line[512];
+    char text[64];
+    char this_lane[64];
+    char* before;
+    char* after;
+    int const panel = find_panel(&g_a, "Lanes");
+    int drop;
+    int list;
+    int publish;
+    int refresh;
+    int row;
+    int x = 0;
+    int z = 0;
+
+    /* The pure halves. */
+    Editor_LanesSizeText(512u, text, (int)sizeof(text));
+    CHECK(strcmp(text, "512 bytes") == 0, "sizes: under a kilobyte in bytes (%s)", text);
+    Editor_LanesSizeText(87638u, text, (int)sizeof(text));
+    CHECK(strcmp(text, "85.6 KB") == 0, "sizes: kilobytes to one place (%s)", text);
+    Editor_LanesSizeText(3u * 512u * 1024u, text, (int)sizeof(text));
+    CHECK(strcmp(text, "1.5 MB") == 0, "sizes: megabytes to one place (%s)", text);
+    CHECK(Editor_LanesPathSquare("maps/m67_50.jm2", &x, &z) && x == 67 && z == 50, "a terrain file names its square (%d,%d)",
+        x, z);
+    CHECK(Editor_LanesPathSquare("ported/some_lane/maps/m3_104.jm2", &x, &z) && x == 3 && z == 104,
+        "in any storage (%d,%d)", x, z);
+    CHECK(!Editor_LanesPathSquare("maps/m67_50.jl2", &x, &z) && !Editor_LanesPathSquare("maps/m67_50.jm2.tmp", &x, &z)
+              && !Editor_LanesPathSquare("server/scripts/quest.rs2", &x, &z),
+        "a loc file, a temporary and a script name no square");
+    CHECK(Editor_LanesPathSquareFile("maps/m76_50.jl2", &x, &z) && x == 76 && z == 50
+              && Editor_LanesPathSquareFile("maps/m75_51.filepack", &x, &z) && x == 75 && z == 51
+              && Editor_LanesPathSquareFile("maps/m3_104.jm2", &x, &z) && x == 3 && z == 104,
+        "any of a square's three files names it, so Discard all knows a square whose .jm2 went earlier (%d,%d)", x, z);
+    CHECK(!Editor_LanesPathSquareFile("maps/m76_50.jl2.tmp", &x, &z) && !Editor_LanesPathSquareFile("maps/m76_50", &x, &z)
+              && !Editor_LanesPathSquareFile("maps/m76x50.jl2", &x, &z)
+              && !Editor_LanesPathSquareFile("server/scripts/m1_2.rs2", &x, &z),
+        "a temporary, a bare stem, a misspelt square and a script name no square");
+    CHECK(Editor_LanesNameSuggest("My Quest!", text, (int)sizeof(text)) && strcmp(text, "my-quest") == 0,
+        "a typed name becomes a lane name (%s)", text);
+    CHECK(Editor_LanesNameSuggest("  Thistle   Wick 2 ", text, (int)sizeof(text)) && strcmp(text, "thistle-wick-2") == 0,
+        "runs of spaces are one '-', none at the ends (%s)", text);
+    CHECK(!Editor_LanesNameSuggest("MAIN", text, (int)sizeof(text)) && !Editor_LanesNameSuggest("!!", text, (int)sizeof(text)),
+        "main and nothing usable suggest nothing");
+    {
+        char longest[200];
+        memset(longest, 'a', sizeof(longest) - 1);
+        longest[60] = ' ';
+        longest[sizeof(longest) - 1] = '\0';
+        CHECK(Editor_LanesNameSuggest(longest, text, (int)sizeof(text)) && (int)strlen(text) <= TORIRSMAPED_LANE_NAME_MAX,
+            "a long name is cut to what a lane name holds (%d)", (int)strlen(text));
+    }
+    CHECK(Editor_DiffCommandDefault(0) == NULL && Editor_DiffCommandDefault(1) != NULL,
+        "diff: VS Code's two-file diff is the default, and without VS Code there is none");
+    (void)Editor_DiffCommandLine("code --diff {base} {path}", "C:/l/diff/m.base.jl2", "C:/l/content/m.jl2", line,
+        sizeof(line));
+#if defined(_WIN32)
+    CHECK(strcmp(line, "code --diff \"C:/l/diff/m.base.jl2\" \"C:/l/content/m.jl2\"") == 0, "diff: the line (%s)", line);
+#else
+    CHECK(strcmp(line, "code --diff 'C:/l/diff/m.base.jl2' 'C:/l/content/m.jl2'") == 0, "diff: the line (%s)", line);
+#endif
+    CHECK(Editor_DiffCommandLine("x {base} {path}", "aaaa", "bbbb", line, 8) == 0 && line[0] == '\0',
+        "diff: a line that does not fit is refused, not cut");
+
+    CHECK(panel >= 0, "the Lanes panel");
+    if( panel < 0 )
+        return;
+    snprintf(this_lane, sizeof(this_lane), "%s", g_a.ui.lane.name);
+    (void)Editor_Lanes_Show(&g_a.ui);
+    pump(6);
+
+    /* Publish into: no target until one is picked, and main last. The old
+     * dropdown opened on main: one press wrote the lane into the tree. */
+    drop = find_widget(&g_a, panel, TORIRS_CHROME_W_DROPDOWN, "Publish into");
+    publish = find_widget(&g_a, panel, TORIRS_CHROME_W_BUTTON, "Publish into lane...");
+    CHECK(drop >= 0 && g_a.chrome.widgets[drop].selected == 0 && g_a.chrome.widgets[drop].option_count >= 3
+              && strcmp(g_a.chrome.widgets[drop].options[0], "Pick a lane...") == 0,
+        "Publish into opens on no target (%s)",
+        drop >= 0 && g_a.chrome.widgets[drop].option_count ? g_a.chrome.widgets[drop].options[0] : "-");
+    CHECK(drop >= 0
+              && strcmp(g_a.chrome.widgets[drop].options[g_a.chrome.widgets[drop].option_count - 1], "main (the base tree)")
+                     == 0,
+        "the main tree is its last option");
+    CHECK(publish >= 0 && g_a.chrome.widgets[publish].disabled, "and Publish into lane... is off until a lane is picked");
+
+    /* Promote: a new lane from this lane's changes; this lane stays, and so
+     * does the dropdown (it used to end up naming the lane just made). */
+    CHECK(!Editor_Lanes_Promote(&g_a.ui, "") && strstr(status(&g_a), "type the new lane's name"),
+        "Promote without a lane name says what to type: %s", status(&g_a));
+    CHECK(!Editor_Lanes_Promote(&g_a.ui, "Not A Name") && strstr(status(&g_a), "\"Not A Name\" is not a lane name")
+              && strstr(status(&g_a), "try not-a-name"),
+        "Promote with a name no lane may have offers one it may: %s", status(&g_a));
+    CHECK(!Editor_Lanes_Promote(&g_a.ui, "work") && strstr(status(&g_a), "lane work exists"),
+        "Promote onto an existing lane is refused: %s", status(&g_a));
+    CHECK(Editor_Lanes_Promote(&g_a.ui, "kept"), "Promote to a new lane is asked");
+    CHECK(pump_until_status("Lane kept made"), "the promote landed: %s", status(&g_a));
+    snprintf(path, sizeof(path), "%s/build/lanes/kept/lane.ini", g_repo);
+    CHECK(exists(path), "Promote made the lane");
+    snprintf(line, sizeof(line), "Lane kept made with 0 file(s); this lane (%s) is unchanged.", this_lane);
+    CHECK(strcmp(status(&g_a), line) == 0, "and says what exists where: %s", status(&g_a));
+    CHECK(panel_label(&g_a, panel, "To work in kept: ") >= 0 && panel_label(&g_a, panel, "Its first RUN is a full build") >= 0,
+        "with how to open it, and that its live directory is empty");
+    CHECK(strcmp(g_a.ui.lane.name, this_lane) == 0, "the session stays on %s", this_lane);
+    CHECK(drop >= 0 && g_a.chrome.widgets[drop].selected == 0, "Publish into still names no target (%d)",
+        drop >= 0 ? g_a.chrome.widgets[drop].selected : -1);
+
+    /* Delete lane...: nothing without a pick; never main or this lane; two
+     * presses for another. */
+    ToriRSChrome_PanelSetActiveTab(&g_a.chrome, panel, 1);
+    pump(4);
+    list = find_widget(&g_a, panel, TORIRS_CHROME_W_VLIST, "Lanes");
+    ToriRSChrome_VListSetSelected(&g_a.chrome, list, -1);
+    pump(2);
+    CHECK(!Editor_Lanes_Delete(&g_a.ui) && strstr(status(&g_a), "pick the lane"), "Delete lane with no pick: %s",
+        status(&g_a));
+    row = lane_row(&g_a, list, "main |");
+    ToriRSChrome_VListSetSelected(&g_a.chrome, list, row);
+    pump(2);
+    CHECK(row >= 0 && !Editor_Lanes_Delete(&g_a.ui) && strstr(status(&g_a), "main is the base tree"),
+        "Delete lane on main is refused: %s", status(&g_a));
+    snprintf(line, sizeof(line), "%s (this)", this_lane);
+    row = lane_row(&g_a, list, line);
+    ToriRSChrome_VListSetSelected(&g_a.chrome, list, row);
+    pump(2);
+    CHECK(row >= 0 && !Editor_Lanes_Delete(&g_a.ui) && strstr(status(&g_a), "is the lane this editor is on"),
+        "Delete lane on this session's lane is refused: %s", status(&g_a));
+    row = lane_row(&g_a, list, "kept |");
+    ToriRSChrome_VListSetSelected(&g_a.chrome, list, row);
+    pump(2);
+    CHECK(row >= 0 && Editor_Lanes_Delete(&g_a.ui) && strstr(status(&g_a), "Delete lane kept?")
+              && strstr(status(&g_a), "the base tree is not touched"),
+        "the first Delete lane asks: %s", status(&g_a));
+    pump(4);
+    CHECK(exists(path), "and deletes nothing");
+    CHECK(find_widget(&g_a, panel, TORIRS_CHROME_W_BUTTON, "Delete lane: sure?") >= 0, "its button asks too");
+    CHECK(Editor_Lanes_Delete(&g_a.ui), "the second is sent");
+    pump(12);
+    CHECK(!exists(path), "and the lane is gone");
+    CHECK(strstr(status(&g_a), "Lane kept deleted: ") && strstr(status(&g_a), "The base tree was not touched"),
+        "said so: %s", status(&g_a));
+    CHECK(lane_changes("work") == 1, "the lane beside it still has its one change");
+    CHECK(find_widget(&g_a, panel, TORIRS_CHROME_W_BUTTON, "Delete lane...") >= 0, "the button is itself again");
+
+    /* A session told to ignore the boot lane file: no next lane shown, the
+     * boot line says why Switch is off, and a switch writes nothing. */
+    refresh = find_widget(&g_a, panel, TORIRS_CHROME_W_BUTTON, "Refresh");
+    snprintf(path, sizeof(path), "%s/build/lanes/lane.ini", g_repo);
+    before = read_text(path);
+    setenv("TORIRSMAPED_IGNORE_BOOT_LANE", "1", 1);
+    if( refresh >= 0 )
+        activate(&g_a, refresh);
+    pump(8);
+    CHECK(panel_label(&g_a, panel, "Every launch of this session opens: ") >= 0,
+        "ignoring the boot lane file: the boot line says so");
+    CHECK(!Editor_Lanes_Switch(&g_a.ui, "work") && strstr(status(&g_a), "ignores the boot lane file")
+              && strstr(status(&g_a), "lane=work"),
+        "a switch is refused, and says what opens the lane instead: %s", status(&g_a));
+    pump(4);
+    after = read_text(path);
+    CHECK(before && after && strcmp(before, after) == 0, "and the boot lane file is as it was");
+    free(before);
+    free(after);
+    {
+        int const button = find_widget(&g_a, panel, TORIRS_CHROME_W_BUTTON, "Switch at relaunch");
+        row = lane_row(&g_a, list, "work |");
+        ToriRSChrome_VListSetSelected(&g_a.chrome, list, row);
+        pump(2);
+        CHECK(button >= 0 && g_a.chrome.widgets[button].disabled, "Switch at relaunch is off, a lane picked or not");
+    }
+    unsetenv("TORIRSMAPED_IGNORE_BOOT_LANE");
+    if( refresh >= 0 )
+        activate(&g_a, refresh);
+    pump(8);
+    CHECK(panel_label(&g_a, panel, "Every launch opens: ") >= 0, "and without it the boot line is the usual one");
+}
+
+/* A write the Lanes panel sees no save of still reaches the chip: New square
+ * makes a square and saves it at once, so the document never turns unsaved
+ * and back, and until 2026-11-11 its files stayed out of the count and the
+ * Changes list until the chip's next 15 s period (or a Refresh). The server
+ * walks its own lane again after any write it served, unasked. */
+static void
+test_write_recount(void)
+{
+    struct EditorHost_DocCreate create;
+    char lane[64];
+    char want[96];
+    int before;
+    int after;
+
+    snprintf(lane, sizeof(lane), "%s", g_a.ui.lane.name);
+    before = lane_changes(lane);
+    snprintf(want, sizeof(want), "%s | ", lane);
+    (void)pump_until_chip(want);
+    memset(&create, 0, sizeof(create));
+    create.kind = EDITOR_DOC_SQUARE;
+    snprintf(create.key, sizeof(create.key), "m60_60");
+    create.template_kind = EDITOR_DOC_TEMPLATE_FLAT;
+    create.fill_height = 20;
+    create.fill_underlay = 48;
+    CHECK(Editor_CreateSquare(&g_a.editor, &create) == EDITOR_HOST_OK, "a new square, m60_60, on %s", lane);
+    CHECK(Editor_SaveDoc(&g_a.editor, EDITOR_DOC_SQUARE, "m60_60") > 0, "saved as it is made");
+    after = lane_changes(lane);
+    CHECK(after > before, "its files are changes of the lane (%d, were %d)", after, before);
+    /* No clock moves here: the chip's period cannot be what asks. */
+    snprintf(want, sizeof(want), "%s | %d changed", lane, after);
+    CHECK(pump_until_chip(want), "the chip follows without a save turn or a Refresh (want %s)", want);
+}
+
 /** The palette's row for an item of `kind` named `name` in `group`, -1. */
 static int
 palette_row(
@@ -1043,6 +1309,8 @@ main(
     test_verbs();
     test_restart();
     test_lanes_and_chip();
+    test_lane_life_cycle();
+    test_write_recount();
 
     window_close(&g_b);
     window_close(&g_a);

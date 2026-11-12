@@ -282,6 +282,11 @@ struct Editor_ScatterOp
     uint32_t seed;
     /** 1: take the set's locs off the brush's tiles instead. */
     int erase;
+    /** 1: only bare ground takes a loc -- no tile of the footprint has an
+     *  overlay (a road, a floor, water) or a loc of any layer (a wall, a
+     *  table). Ground dressing (grass tufts, twigs, flowers) scattered over a
+     *  village otherwise lands on its roads and inside its houses. */
+    int bare;
     struct Editor_ScatterSet set;
 };
 
@@ -408,8 +413,9 @@ Editor_TileClipPaste(
     struct Editor_Cmd* out,
     int max);
 
-/** Paint the rectangle with the palette's picks (`tools`): underlay, and the
- *  overlay (or its removal). */
+/** Paint the rectangle with the palette's picks (`tools`): the underlay
+ *  when one is picked (none picked leaves each tile's own), and the overlay
+ *  (or its removal). */
 int
 Editor_TileRectFill(
     struct Editor_Doc* doc,
@@ -613,6 +619,37 @@ Editor_LocFitDecor(
     int level,
     int rotation,
     int* shape);
+
+/**
+ * Fit a straight wall decoration (shape 4 or 5: a painting, a window, a
+ * torch) to the walls round its tile, shape AND rotation: what the Place
+ * pose takes with Fit on. A decoration hangs on one edge of its tile, and a
+ * wall is there when a straight wall or an L stands on that edge of the tile
+ * itself or on the facing edge of the tile across it -- a building's walls
+ * stand on the ring outside the room (editor_building.h), so from indoors
+ * the wall is always across.
+ *
+ *   - The pose's own edge has a wall: the rotation is kept.
+ *   - It has none, another edge of the tile has: the decoration turns to the
+ *     first such edge clockwise from its own. (2026-11-11: a painting put on
+ *     the tile under a north wall hung in mid-room on the tile's west edge
+ *     until Q was pressed three times.)
+ *   - No edge has a wall: nothing changes.
+ *
+ * On the wall's own tile the shape becomes 5 (pushed off the wall by its
+ * width, Editor_LocFitDecor's rule; `mask` permitting); across from it the
+ * shape is 4, as the content's inside faces are. Returns 1 when it changed
+ * `*shape` or `*rotation`.
+ */
+int
+Editor_LocFitDecorPose(
+    struct Editor_Doc* doc,
+    uint32_t mask,
+    int world_x,
+    int world_z,
+    int level,
+    int* shape,
+    int* rotation);
 
 /** Give every selected loc the shape `shapes[i]` (and, when `rotations` is
  *  not NULL and rotations[i] >= 0, that rotation); -1 keeps it. A loc whose
@@ -945,6 +982,22 @@ Editor_LocSelectionMerge(
     int n,
     enum Editor_LocSelectMode mode,
     int* out_dropped);
+
+/**
+ * The selection without the locs that are no longer in the document: an Undo
+ * took back the place that made them, another window deleted them, their
+ * square was closed. `refs` is compacted in place, its order kept. Returns
+ * the new count.
+ *
+ * Without it the selection outlived its locs (2026-11-11): after Ctrl+Z on a
+ * place the status still counted the loc, the gizmo stood on an empty tile
+ * and took the clicks meant for what was under it.
+ */
+int
+Editor_LocSelectionPrune(
+    struct Editor_Doc* doc,
+    struct Editor_LocRef* refs,
+    int count);
 
 /* ---- spawns ------------------------------------------------------------------- */
 

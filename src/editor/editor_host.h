@@ -254,9 +254,12 @@ struct EditorHost
  * `/bin/sh -c '( <cmd> ) >/dev/null 2>&1 &'` and that shell reaped at once: the
  * editor outlives it and the UI thread never waits on the editor. The
  * command line goes to `out_cmdline` (may be NULL) for the Console.
- * OK when the shell ran; UNSUPPORTED on the web and Windows (show the path
- * instead); REFUSED for a command that does not fit; IO_ERROR when the shell
- * could not be started.
+ * On Windows the line is cmd.exe's (`cmd.exe /d /c <cmd>`, no console, not
+ * waited on): VS Code when `code.cmd` is on PATH, else `start "" {path}`,
+ * the program the file type is given to.
+ * OK when the shell ran; UNSUPPORTED on the web (show the path instead);
+ * REFUSED for a command that does not fit; IO_ERROR when the shell could
+ * not be started.
  */
 enum EditorHost_Status
 Editor_HostLocalOpenInEditor(
@@ -264,6 +267,38 @@ Editor_HostLocalOpenInEditor(
     int line,
     char* out_cmdline,
     size_t out_size);
+
+/**
+ * Editor_HostLocalOpenInEditor with the FOLDER the work is in: `folder`
+ * opened as the editor's workspace and `path` (a file in it) at `line` --
+ * a new quest's folder with its script in view. The command is
+ * TORIRS_EDITOR_OPEN_FOLDER_CMD (`{folder}`, `{path}`, `{line}`), else
+ * TORIRS_EDITOR_OPEN_CMD (the user's own editor command: the file alone,
+ * unless it names `{folder}`), else `code {folder} --goto {path}:{line}`
+ * when VS Code is on PATH, else the desktop's opener on the folder (its file
+ * manager). `folder` NULL is Editor_HostLocalOpenInEditor.
+ */
+enum EditorHost_Status
+Editor_HostLocalOpenFolderInEditor(
+    const char* folder,
+    const char* path,
+    int line,
+    char* out_cmdline,
+    size_t out_size);
+
+/** What the two calls above start on this machine, in words for a status
+ *  line ("VS Code", "your TORIRS_EDITOR_OPEN_CMD command", "the program
+ *  Windows opens that file type with"; with `folder`, "Explorer" when there
+ *  is neither). A static string. */
+const char*
+Editor_HostLocalEditorWho(int folder);
+
+/** 1 when Open in editor has an EDITOR to start: TORIRS_EDITOR_OPEN_CMD is
+ *  set, or VS Code is on PATH. 0: it falls back to the desktop's opener,
+ *  which for a `.rs2` is whatever the file type is given to -- often
+ *  nothing -- and the caller says so, naming TORIRS_EDITOR_OPEN_CMD. */
+int
+Editor_HostLocalEditorFound(void);
 
 /**
  * Show `path` (absolute, on this machine) in the desktop's file manager with
@@ -968,6 +1003,36 @@ Editor_HostMapEdLanesTake(
     uint32_t* out_type,
     uint8_t** out_body,
     uint32_t* out_length);
+
+/**
+ * LANE_HANDOUT (torirs_maped_lanes.h): `rel` -- a file, a directory or a
+ * file yet to be made, relative to the content root -- is about to be given
+ * to a program outside the editor (the user's text editor, the file manager,
+ * the clipboard). The server makes it the lane's own first
+ * (ToriRSMapEdLanes_HandOut: real directories above it, a real file in place
+ * of a link to the base), so a save made in place out there stays in the
+ * lane, and answers the path as its tree spells it: `out_path`, absolute
+ * when the server's content root is. Waits for the answer.
+ *
+ * `folder_max` 0 hands out `rel` alone. Above 0, `rel` is a folder shown to
+ * a program that shows its files too (a file manager, a workspace): every
+ * file in it, every level down, is handed out with it, when there are at
+ * most that many (ToriRSMapEdLanes_HandOutFolder); past that, OK with
+ * `out_why` saying only the folder was.
+ *
+ * EDITOR_HOST_OK with the path; EDITOR_HOST_UNSUPPORTED (a server without
+ * TORIRSMAPED_CAP_LANE_HANDOUT: nothing was sent, `out_path` is ""); any
+ * other status with `out_why` saying why the path must NOT be handed out.
+ */
+enum EditorHost_Status
+Editor_HostMapEdLaneHandOut(
+    struct EditorHost* host,
+    const char* rel,
+    int folder_max,
+    char* out_path,
+    size_t path_size,
+    char* out_why,
+    size_t why_size);
 
 /** Where broadcasts land. Any callback may be NULL to ignore that kind. */
 struct EditorHostMapEdFacts

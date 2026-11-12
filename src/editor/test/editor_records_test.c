@@ -277,6 +277,10 @@ test_search(void)
     CHECK(count_matches(&record, "bool") == 2, "search: the kind (nomove, members): %d", count_matches(&record, "bool"));
     CHECK(count_matches(&record, "param:death") == 1, "search: the param row's name");
     CHECK(count_matches(&record, "zzz") == 0, "search: nothing");
+    CHECK(count_matches(&record, "examine") == 1 && Editor_CfgRecordRowMatches(&record,
+                                                        Editor_CfgRecordFindRow(&record, "desc", "", 0), "examine"),
+        "search: the examine text by the word a person types (it is `desc`): %d", count_matches(&record, "examine"));
+    CHECK(count_matches(&record, "display") == 1, "search: the display name by \"display\" (it is `name`)");
     Editor_CfgRecordRowName(&record.rows[Editor_CfgRecordFindRow(&record, "param", "death_drop", 0)], name, sizeof(name));
     CHECK(strcmp(name, "param:death_drop") == 0, "search: a param row is named param:<p>");
     Editor_CfgRecordFree(&record);

@@ -110,6 +110,12 @@ enum Editor_Tool
     EDITOR_TOOL_LASSO,
     /** Tidy: a click refits the run of overlay under it, its steps smoothed. */
     EDITOR_TOOL_TIDY,
+    /** Building: a dragged rectangle becomes a house -- walls and corners on
+     *  its ring, a floor and the "remove roof" flag in the room, a roof a
+     *  level up -- a dragged line an inside wall, a click on a wall piece a
+     *  door or a window (editor/editor_building.h plans them;
+     *  panels/edpanel_building.c holds the styles). One undo step each. */
+    EDITOR_TOOL_BUILDING,
     EDITOR_TOOL_COUNT
 };
 
@@ -311,6 +317,8 @@ struct EditorUiTools
      *  are drawn from (New seed draws another; each stroke moves it on). */
     int scatter_density;
     int scatter_rotate;
+    /** 1: Scatter puts locs on bare ground only (Editor_ScatterOp.bare). */
+    int scatter_bare;
     uint32_t scatter_seed;
     /** The Plateau tool and the Rect panel's Plateau: the skirt's width in
      *  tiles (0..EDITOR_PLATEAU_SKIRT_MAX) eased from the flat top to the
@@ -415,6 +423,7 @@ struct EditorUiHooks
  */
 struct ToriRS_Location;
 struct EditorViewCamera;
+struct Editor_CamEye;
 
 /** The area id worldmap_area answers for "*": every area at once, on the
  *  true square grid (the picker's Full map). */
@@ -520,6 +529,21 @@ struct EditorUiAppServices
      *  loaded scene yet (the caller opens its squares and asks again once
      *  the world is not busy). NULL member: no camera to put. */
     int (*world_camera_set)(void* user_data, const struct EditorViewCamera* camera);
+    /** The World panel's camera EXACTLY as it stands (the Camera path panel,
+     *  editor/editor_campath.h): the eye in ABSOLUTE fine units with the
+     *  scene's y (down), its yaw and pitch -- not an orbit pose, which is
+     *  re-derived from the ground and comes back a few units off on a
+     *  slope. 0 when the window has no world. NULL member: no camera. */
+    int (*world_eye)(void* user_data, struct Editor_CamEye* out);
+    /** Put it exactly there, angles and all (a level or climbing view has no
+     *  orbit point to state). 0 when the eye is outside the loaded scene.
+     *  NULL member: no camera to put. */
+    int (*world_eye_set)(void* user_data, const struct Editor_CamEye* eye);
+    /** The ground's y (the scene's, down) under ABSOLUTE fine (x, z) on
+     *  `level`, as the world draws it: what cam_moveto and cam_lookat
+     *  measure their heights from. 0 outside the loaded scene (nothing
+     *  written). NULL member: no world. */
+    int (*world_ground)(void* user_data, int fine_x, int fine_z, int level, int* out_y);
     /** Open a window of this session that shows registry module `module`
      *  alone, filling it ("world" = the 3D view) -- a popped-out panel --
      *  looking at `camera`. 1 when the window was asked for; 0 when it
@@ -619,6 +643,12 @@ struct EditorUiAppServices
      *  (collision_map_bfs_path): 0 or more; -1 when no path exists; -2
      *  when either tile is outside the loaded scene. NULL member: -2. */
     int (*path_steps)(void* user_data, int ax, int az, int bx, int bz, int level);
+    /** One step of a `size` npc on `level` from ABSOLUTE (x, z) by (dx, dz),
+     *  each -1..1, through the loaded scene's collision as the server's npc
+     *  walk tests it (collision_map_can_travel_typed, normal movement): 1
+     *  open, 0 blocked, -1 when either tile is outside the loaded scene.
+     *  NULL member: -1. The NPC editor walks a patrol's legs with it. */
+    int (*can_step)(void* user_data, int x, int z, int dx, int dz, int level, int size);
 };
 
 /* ---- panels ---------------------------------------------------------------- */
@@ -827,6 +857,9 @@ struct EditorUiGuard
 #define EDITOR_UI_LANE_NAME_MAX 48
 #define EDITOR_UI_LANE_COUNT_MS 15000
 
+/** A lane's content root (TORIRSMAPED_LANE_PATH). */
+#define EDITOR_UI_LANE_CONTENT_MAX 1024
+
 struct EditorUiLane
 {
     /** FACT_LANE_INFO (or a FACT_LANE_COUNT) heard. */
@@ -846,6 +879,11 @@ struct EditorUiLane
     /** The lane the boot asked for before lane.ini had its say (the
      *  manifest's lane= / --lane; "" from a server that does not say). */
     char asked[EDITOR_UI_LANE_NAME_MAX];
+    /** The content tree the lane's server serves, as it spells it
+     *  (FACT_LANE_INFO): build/lanes/<name>/content, or the tree itself on
+     *  main. Where a file the panels show, open or reveal is on disk -- the
+     *  manifest's content_dir is the BASE of a lane, never the lane. */
+    char content[EDITOR_UI_LANE_CONTENT_MAX];
     /** Moves whenever any field above does. */
     uint32_t serial;
 };
@@ -1048,6 +1086,16 @@ struct EditorUi
      *  even when the column has no room (it then flies out beside it). -1
      *  for none. */
     int layout_reopened;
+    /** The column's splitter (editor_ui.c ui_split_follow): the docked
+     *  window whose top or bottom edge the chrome is resizing (-1 none, -2 a
+     *  resize that is not a split), which edge (TORIRS_CHROME_EDGE_*), the
+     *  docked window on the other side of it (-1 none) and that window's
+     *  box when the drag began. */
+    int split_root;
+    int split_edge;
+    int split_other;
+    int split_other_y;
+    int split_other_h;
     /** Editor_UiLayout runs so far: a panel tells a relayout's hiding from
      *  the user's close by it (edpanel_preview.c). */
     unsigned layout_runs;

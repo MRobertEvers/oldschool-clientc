@@ -409,7 +409,7 @@ by a register, and per **namespace** by another register:
   (`src/content/content_register.h`): id authority (`cache` / `server` /
   `protocol`), name authority (`cache`=gameval / `authored` / `derived` /
   `imported`), gameval archive, `server_base` (first server-allocatable id:
-  npc 20000, obj 40000, loc 70000, …), `cache_index`. Read by three
+  npc 20000, obj 40000, loc 64000, …), `cache_index`. Read by three
   consumers — cachepack, sscompile, ToriRSServer — as a contract, not shared code.
 - **`fields/<type>.ini`** — the field register. Each field of a config type
   declares its client-side disposition and/or server-side opcode.
@@ -1072,7 +1072,10 @@ that fails loudly on a stale band.*
    Do not generalize that result to loc configs. In rev239 `LOC_ADD_CHANGE_V2`
    writes the loc config id as `p2Alt3`, exactly 16 bits. A generic loc allocation
    at 70000 truncates on that wire; runtime-added locs need a collision-checked
-   target id no greater than 65535 (the Summoning obelisk uses 62201).
+   target id no greater than 65535 (the Summoning obelisk uses 62201). The
+   register's loc floor is 64000 since 2026-11-11 for this reason: a map
+   editor "Copy to new" loc at 70000 was placed and drawn but its OPLOC (g2)
+   never reached its script.
    Re-measured rather than inherited: the zone-trigger count is 806
    (`zone` 262, `zoneexit` 165, `mapzone` 306, `mapzoneexit` 73) and the
    triage is right about it — but only **427** are zone-keyed. `mapzone` and

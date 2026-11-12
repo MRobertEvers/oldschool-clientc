@@ -603,6 +603,53 @@ behind_one(
         "behind (%s): the discard took its files off the list", kind);
 }
 
+/** A folder the base has not got (a new quest's, made by Triggers > New
+ *  quest): no file in it was ever a link's, so whatever their time its files
+ *  are the lane's -- in Changes, and on the list a follow writes. They read
+ *  as fallen behind once the look passed them (2026-11-11): a new quest's
+ *  files went from the Changes list after the first RUN's follow. */
+static void
+behind_new_folder(const char* scratch)
+{
+    static const char* const k_rels[2] = { "quests/qnew/scripts/qnew.rs2", "quests/qnew/configs/qnew.varp" };
+    struct ToriRSMapEdLaneChange rows[16];
+    struct ToriRSMapEdLaneCounts counts;
+    struct ToriRSMapEdLaneDef lane;
+    char repo[1024];
+    char tree[1024];
+    char path[2048];
+    char why[512];
+    int count;
+
+    snprintf(repo, sizeof(repo), "%s/behind-folder", scratch);
+    snprintf(tree, sizeof(tree), "%s/OSRS-Content/osrs-content", repo);
+    write_tree(tree);
+    checkf(ToriRSMapEdLanes_Create(repo, tree, "fold", &lane, why, sizeof(why)) && lane.sparse, "folder: a lane");
+    for( int i = 0; i < 2; i++ )
+    {
+        checkf(save_text(&lane, k_rels[i], "made by the lane\n"), "folder: %s written", k_rels[i]);
+        snprintf(path, sizeof(path), "%s/%s", lane.content, k_rels[i]);
+        /* Before the folder's look, as a file written ahead of a follow is
+         * once the follow has moved the look past it. */
+        checkf(set_mtime(path, time(NULL) - 600), "folder: %s dated before the look", k_rels[i]);
+    }
+    count = ToriRSMapEdLanes_Changes(&lane, rows, 16, &counts);
+    checkf(count == 2 && find_change(rows, count, k_rels[0], TORIRSMAPED_LANE_CHANGE_ADDED)
+              && find_change(rows, count, k_rels[1], TORIRSMAPED_LANE_CHANGE_ADDED),
+        "folder: both files are the lane's additions (%d)", count);
+    checkf(ToriRSMapEdLanes_Follow(&lane, &counts, why, sizeof(why)), "folder: a follow: %s", why);
+    snprintf(path, sizeof(path), "%s/build/lanes/fold/owned.ini", repo);
+    checkf(file_names(path, "quests/qnew/scripts/qnew.rs2\n") && file_names(path, "quests/qnew/configs/qnew.varp\n"),
+        "folder: the follow listed both files");
+    for( int i = 0; i < 2; i++ )
+    {
+        snprintf(path, sizeof(path), "%s/%s", lane.content, k_rels[i]);
+        checkf(text_is(path, "made by the lane\n"), "folder: the follow kept %s", k_rels[i]);
+    }
+    checkf(ToriRSMapEdLanes_Changes(&lane, rows, 16, &counts) == 2 && counts.added == 2,
+        "folder: after the follow both are still the lane's additions");
+}
+
 static void
 fell_behind(const char* scratch)
 {
@@ -610,6 +657,8 @@ fell_behind(const char* scratch)
     struct ToriRSMapEdLaneChange rows[16];
     struct ToriRSMapEdLaneCounts counts;
     char why[512];
+
+    behind_new_folder(scratch);
 
     for( int k = 0; k < 2; k++ )
     {
@@ -1207,6 +1256,343 @@ sparse_against_legacy(const char* scratch)
     }
 }
 
+/** A plain write into `path` IN PLACE, the way a text editor saves (VS Code,
+ *  Notepad): the file that is there is opened and written, never replaced. */
+static void
+write_in_place(
+    const char* path,
+    const char* text)
+{
+    FILE* file = fopen(path, "r+b");
+    assert(file);
+    fputs(text, file);
+    fclose(file);
+}
+
+/** Handing a path to a program outside the editor (ToriRSMapEdLanes_HandOut):
+ *  a linked file becomes the lane's own, an in-place write to it stays in the
+ *  lane, a file made by hand in a handed-out folder is the lane's; a hand-out
+ *  nobody wrote is no change, follows the base as a copy, and is never a link
+ *  again -- after a discard or a publish with reset either. */
+static void
+hand_out(const char* scratch)
+{
+    char repo[1024];
+    char tree[1024];
+    char path[2048];
+    char base[2048];
+    char why[1024];
+    struct ToriRSMapEdLaneDef lane;
+    struct ToriRSMapEdLaneDef main_lane;
+    struct ToriRSMapEdLaneChange rows[16];
+    struct ToriRSMapEdLaneCounts counts;
+    int count;
+
+    snprintf(repo, sizeof(repo), "%s/handout", scratch);
+    snprintf(tree, sizeof(tree), "%s/handout/OSRS-Content/osrs-content", scratch);
+    write_tree(tree);
+    check(ToriRSMapEdLanes_Create(repo, tree, "q", &lane, why, sizeof(why)), "hand-out: a lane");
+    ToriRSMapEdLanes_Main(repo, tree, &main_lane);
+
+    /* Before: the folder is one link, so its file is the base's file. */
+    snprintf(path, sizeof(path), "%s/quests", lane.content);
+    check(is_link(path), "hand-out: quests starts as one link to the base's");
+    check(ToriRSMapEdLanes_HandOut(&main_lane, "quests/q1/a.rs2", why, sizeof(why)), "hand-out: main needs nothing");
+
+    /* ---- a file: real, with the same bytes, and no change ---------------- */
+    check(ToriRSMapEdLanes_HandOut(&lane, "quests/q1/a.rs2", why, sizeof(why)), "hand-out: a linked file");
+    if( why[0] )
+        fprintf(stderr, "  why: %s\n", why);
+    snprintf(path, sizeof(path), "%s/quests/q1", lane.content);
+    check(!is_link(path) && exists(path), "hand-out: its folder is real");
+    snprintf(path, sizeof(path), "%s/quests/q1/a.rs2", lane.content);
+    check(is_regular(path) && text_is(path, "[proc,a]\n"), "hand-out: the file is the lane's own, same bytes");
+    snprintf(path, sizeof(path), "%s/quests/q1/b.rs2", lane.content);
+    check(is_link(path), "hand-out: its neighbour is a link still");
+    snprintf(path, sizeof(path), "%s/ancestor/quests/q1/a.rs2", lane.dir);
+    check(text_is(path, "[proc,a]\n"), "hand-out: the bytes handed are recorded");
+    check(ToriRSMapEdLanes_Changes(&lane, rows, 16, &counts) == 0, "hand-out: a file nobody wrote is no change");
+    check(ToriRSMapEdLanes_HandOut(&lane, "quests/q1/a.rs2", why, sizeof(why)), "hand-out: again is a no-op");
+
+    /* ---- an editor saves it in place: the lane's, never the base's ------- */
+    snprintf(path, sizeof(path), "%s/quests/q1/a.rs2", lane.content);
+    write_in_place(path, "[proc,a]\n// mine\n");
+    snprintf(base, sizeof(base), "%s/quests/q1/a.rs2", tree);
+    check(text_is(base, "[proc,a]\n"), "hand-out: an in-place save does not reach the base");
+    count = ToriRSMapEdLanes_Changes(&lane, rows, 16, &counts);
+    check(count == 1 && find_change(rows, count, "quests/q1/a.rs2", TORIRSMAPED_LANE_CHANGE_MODIFIED),
+        "hand-out: the save is the lane's one change");
+    check(ToriRSMapEdLanes_Follow(&lane, &counts, why, sizeof(why)) && text_is(path, "[proc,a]\n// mine\n"),
+        "hand-out: a follow keeps the lane's edit");
+
+    /* ---- a folder: a file made in it by hand is the lane's -------------- */
+    check(ToriRSMapEdLanes_HandOut(&lane, "quests2", why, sizeof(why)), "hand-out: a linked folder");
+    snprintf(path, sizeof(path), "%s/quests2", lane.content);
+    check(!is_link(path) && exists(path), "hand-out: the folder is real");
+    snprintf(path, sizeof(path), "%s/quests2/q.rs2", lane.content);
+    check(is_link(path), "hand-out: the folder's files are links until each is asked for");
+    snprintf(path, sizeof(path), "%s/quests2/new.rs2", lane.content);
+    write_text(path, "[proc,new]\n");
+    snprintf(base, sizeof(base), "%s/quests2/new.rs2", tree);
+    check(!exists(base), "hand-out: a file made by hand in it is not in the base");
+    count = ToriRSMapEdLanes_Changes(&lane, rows, 16, &counts);
+    check(count == 2 && find_change(rows, count, "quests2/new.rs2", TORIRSMAPED_LANE_CHANGE_ADDED),
+        "hand-out: ...and is the lane's added file");
+
+    /* ---- a path that is not there yet: its folders are made real ---------- */
+    check(ToriRSMapEdLanes_HandOut(&lane, "quests3/fresh/x.rs2", why, sizeof(why)), "hand-out: a file yet to be made");
+    snprintf(path, sizeof(path), "%s/quests3", lane.content);
+    check(!is_link(path) && exists(path), "hand-out: the folder above it is real");
+    snprintf(path, sizeof(path), "%s/quests3/fresh", lane.content);
+    check(!is_link(path) && exists(path), "hand-out: the folder it goes in is made");
+    snprintf(base, sizeof(base), "%s/quests3/fresh", tree);
+    check(!exists(base), "hand-out: ...in the lane, not in the base");
+    check(!ToriRSMapEdLanes_HandOut(&lane, "../escape.rs2", why, sizeof(why)) && why[0],
+        "hand-out: a path that leaves the lane is refused, with why");
+
+    /* ---- the base moves under a hand-out nobody wrote -------------------- */
+    check(ToriRSMapEdLanes_HandOut(&lane, "quests4/q.rs2", why, sizeof(why)), "hand-out: a second file");
+    snprintf(base, sizeof(base), "%s/quests4/q.rs2", tree);
+    remove(base);
+    write_text(base, "[proc,q4]\n// the base moved\n");
+    check(ToriRSMapEdLanes_Changes(&lane, rows, 16, &counts) == 2,
+        "hand-out: the base's newer bytes are not the lane's change");
+    check(ToriRSMapEdLanes_Follow(&lane, &counts, why, sizeof(why)), "hand-out: follow");
+    snprintf(path, sizeof(path), "%s/quests4/q.rs2", lane.content);
+    check(is_regular(path) && text_is(path, "[proc,q4]\n// the base moved\n"),
+        "hand-out: the follow gives it the base's bytes as a COPY, not a link");
+    write_in_place(path, "[proc,q4]\n// the base moved\n// then me\n");
+    check(text_is(base, "[proc,q4]\n// the base moved\n"),
+        "hand-out: an in-place save after the follow still stays in the lane");
+
+    /* ---- discard: the base's bytes again, and still not a link ----------- */
+    check(ToriRSMapEdLanes_Discard(&lane, &counts, why, sizeof(why)), "hand-out: discard");
+    snprintf(path, sizeof(path), "%s/quests/q1/a.rs2", lane.content);
+    check(is_regular(path) && text_is(path, "[proc,a]\n"),
+        "hand-out: a discarded hand-out holds the base's bytes and is a real file still");
+    write_in_place(path, "[proc,a]\n// again\n");
+    snprintf(base, sizeof(base), "%s/quests/q1/a.rs2", tree);
+    check(text_is(base, "[proc,a]\n"), "hand-out: ...so an editor that still has it open cannot write the base");
+    check(ToriRSMapEdLanes_Changes(&lane, rows, 16, &counts) == 1, "hand-out: and that save is a change again");
+
+    /* ---- publish with reset: published, and still not a link ------------- */
+    check(ToriRSMapEdLanes_Publish(&lane, &main_lane, TORIRSMAPED_LANE_PUBLISH_RESET, &counts, why, sizeof(why)),
+        "hand-out: publish to the base with reset");
+    check(text_is(base, "[proc,a]\n// again\n"), "hand-out: the base took the edit");
+    check(is_regular(path) && ToriRSMapEdLanes_Changes(&lane, rows, 16, &counts) == 0,
+        "hand-out: the lane is clean and the file is its own still");
+
+    /* ---- the base's file goes: the untouched copy goes with it ----------- */
+    remove(base);
+    check(ToriRSMapEdLanes_Follow(&lane, &counts, why, sizeof(why)) && !exists(path),
+        "hand-out: a hand-out nobody wrote goes when the base's file goes");
+
+    /* ---- a folder shown in a file manager: its files, every level -------- */
+    {
+        static const char* const k_deep[] = { "deep/top.txt", "deep/a/sib1/s.txt", "deep/a/b/sib2.txt",
+            "deep/a/b/c/file.txt" };
+        int const before = ToriRSMapEdLanes_Changes(&lane, rows, 16, &counts);
+        int files = 0;
+        int real = 0;
+
+        check(ToriRSMapEdLanes_HandOutFolder(&main_lane, "deep", 16, &files, why, sizeof(why)) && files == 0,
+            "hand-out folder: main needs nothing");
+        check(ToriRSMapEdLanes_HandOutFolder(&lane, "deep", 3, &files, why, sizeof(why)) && files == -1,
+            "hand-out folder: more files than the cap is said (-1)");
+        snprintf(path, sizeof(path), "%s/deep", lane.content);
+        check(!is_link(path) && exists(path), "hand-out folder: past the cap the folder itself is real");
+        snprintf(path, sizeof(path), "%s/deep/top.txt", lane.content);
+        check(is_link(path), "hand-out folder: ...and its files are links still");
+        checkf(ToriRSMapEdLanes_HandOutFolder(&lane, "deep", 16, &files, why, sizeof(why)) && files == 4,
+            "hand-out folder: the four files under it (%d)", files);
+        for( int i = 0; i < 4; i++ )
+        {
+            snprintf(path, sizeof(path), "%s/%s", lane.content, k_deep[i]);
+            real += is_regular(path) && !is_link(path);
+        }
+        checkf(real == 4, "hand-out folder: every file, every level down, is the lane's own (%d of 4)", real);
+        check(ToriRSMapEdLanes_Changes(&lane, rows, 16, &counts) == before,
+            "hand-out folder: files nobody wrote are no change");
+        snprintf(path, sizeof(path), "%s/deep/a/b/sib2.txt", lane.content);
+        write_in_place(path, "sib2\n// mine\n");
+        snprintf(base, sizeof(base), "%s/deep/a/b/sib2.txt", tree);
+        check(text_is(base, "sib2\n"), "hand-out folder: a neighbour saved in place does not reach the base");
+        check(ToriRSMapEdLanes_Changes(&lane, rows, 16, &counts) == before + 1,
+            "hand-out folder: ...and is the lane's change");
+    }
+}
+
+/** A lane's life-cycle (torirs_maped_lanes.h, 2026-11-11): the boot lane
+ *  file's place and a run that ignores it, one change discarded, the base's
+ *  copy for a diff, what a publish would overwrite, and deleting a lane --
+ *  with the base tree, and the lane beside it, the same before and after. */
+static void
+life_cycle(const char* scratch)
+{
+    static struct view base_before;
+    static struct view base_after;
+    static struct view keep_before;
+    static struct view keep_after;
+    char repo[1024];
+    char tree[1024];
+    char path[2048];
+    char boot[2048];
+    char why[1024];
+    char name[64];
+    char overlap[4][TORIRSMAPED_LANE_PATH];
+    struct ToriRSMapEdLaneDef lane;
+    struct ToriRSMapEdLaneDef keep;
+    struct ToriRSMapEdLaneDef gone;
+    struct ToriRSMapEdLaneDef list[8];
+    struct ToriRSMapEdLaneChange rows[16];
+    struct ToriRSMapEdLaneCounts counts;
+    struct ToriRSMapEdLaneDeleted deleted;
+    int count;
+    int ours = -1;
+    int theirs = -1;
+
+    snprintf(repo, sizeof(repo), "%s/life", scratch);
+    snprintf(tree, sizeof(tree), "%s/life/OSRS-Content/osrs-content", scratch);
+    write_tree(tree);
+    check(ToriRSMapEdLanes_Create(repo, tree, "scratch1", &lane, why, sizeof(why)), "life: a scratch lane");
+    check(ToriRSMapEdLanes_Create(repo, tree, "keep", &keep, why, sizeof(why)), "life: a lane beside it");
+
+    /* ---- the boot lane file: where it is, and a run that ignores it ---- */
+    ToriRSMapEdLanes_BootFilePath(repo, path, sizeof(path));
+    check(strlen(path) > 20 && strcmp(path + strlen(path) - 21, "/build/lanes/lane.ini") == 0,
+        "boot file: build/lanes/lane.ini by default");
+    snprintf(boot, sizeof(boot), "%s/life/own_boot.ini", scratch);
+    setenv("TORIRSMAPED_BOOT_LANE_FILE", boot, 1);
+    ToriRSMapEdLanes_BootFilePath(repo, path, sizeof(path));
+    check(strcmp(path, boot) == 0, "boot file: TORIRSMAPED_BOOT_LANE_FILE names another");
+    check(ToriRSMapEdLanes_SetBoot(repo, tree, "keep", why, sizeof(why)) && is_regular(boot),
+        "boot file: a switch writes the named file");
+    snprintf(path, sizeof(path), "%s/build/lanes/lane.ini", repo);
+    check(!exists(path), "boot file: ...and the repo's own is not created");
+    check(ToriRSMapEdLanes_BootName(repo, name, sizeof(name)) && strcmp(name, "keep") == 0,
+        "boot file: the named file is the one read");
+    setenv("TORIRSMAPED_IGNORE_BOOT_LANE", "1", 1);
+    check(ToriRSMapEdLanes_BootIgnored(), "boot file: TORIRSMAPED_IGNORE_BOOT_LANE=1 is a run that ignores it");
+    check(!ToriRSMapEdLanes_SetBoot(repo, tree, "scratch1", why, sizeof(why)) && strstr(why, "was not recorded")
+              && strstr(why, "lane=scratch1"),
+        "boot file: such a run's switch is refused, and says how to open the lane");
+    check(text_is(boot, "; The lane every editor boot on this repo serves (torirsmaped/torirs_maped_lanes.h),\n"
+                        "; whatever its manifest or --lane asks: written by the Lanes panel's Switch and\n"
+                        "; Scratch lane (LANE_SWITCH). Delete this file to boot as the manifest says.\n"
+                        "lane = keep\n"),
+        "boot file: ...with the file as it was");
+    setenv("TORIRSMAPED_IGNORE_BOOT_LANE", "0", 1);
+    check(!ToriRSMapEdLanes_BootIgnored(), "boot file: =0 reads and writes it as ever");
+    unsetenv("TORIRSMAPED_IGNORE_BOOT_LANE");
+    check(!ToriRSMapEdLanes_BootIgnored(), "boot file: unset too");
+
+    /* ---- three changes; one of them put back ---- */
+    check(save_text(&lane, "maps/m1.jm2", "square 1 edited\n") && save_text(&lane, "maps/m2.jm2", "square 2 edited\n")
+              && save_text(&lane, "quests/q1/new.rs2", "[proc,new]\n") && delete_rel(&lane, "deep/top.txt"),
+        "life: two edits, an added file and a deletion");
+    count = ToriRSMapEdLanes_Changes(&lane, rows, 16, &counts);
+    check(count == 4 && counts.modified == 2 && counts.added == 1 && counts.deleted == 1, "life: four changes");
+    check(!ToriRSMapEdLanes_DiscardOne(&lane, "areas/x/configs/x.npc", &counts, why, sizeof(why))
+              && strstr(why, "is not a change"),
+        "discard one: a path that is no change is refused");
+    check(ToriRSMapEdLanes_DiscardOne(&lane, "maps/m1.jm2", &counts, why, sizeof(why)) && counts.written == 1
+              && counts.removed == 0,
+        "discard one: a modified file goes back");
+    snprintf(path, sizeof(path), "%s/maps/m1.jm2", lane.content);
+    check(is_link(path) && text_is(path, "square 1\n"), "discard one: it is the base's again, a link");
+    count = ToriRSMapEdLanes_Changes(&lane, rows, 16, &counts);
+    check(count == 3 && find_change(rows, count, "maps/m2.jm2", TORIRSMAPED_LANE_CHANGE_MODIFIED)
+              && find_change(rows, count, "quests/q1/new.rs2", TORIRSMAPED_LANE_CHANGE_ADDED)
+              && find_change(rows, count, "deep/top.txt", TORIRSMAPED_LANE_CHANGE_DELETED),
+        "discard one: the other three stay");
+
+    /* ---- the base's copy for a diff ---- */
+    check(ToriRSMapEdLanes_DiffBase(&lane, "maps/m2.jm2", path, sizeof(path), why, sizeof(why)),
+        "diff: a modified file has a base to compare");
+    check(strlen(path) > 22 && strcmp(path + strlen(path) - 22, "/diff/maps/m2.base.jm2") == 0
+              && strncmp(path, lane.dir, strlen(lane.dir)) == 0,
+        "diff: the copy is <lane dir>/diff/maps/m2.base.jm2");
+    check(is_regular(path) && text_is(path, "square 2\n"), "diff: a real file holding the base's bytes");
+    write_text(path, "scribbled on by a diff tool\n");
+    snprintf(path, sizeof(path), "%s/maps/m2.jm2", tree);
+    check(text_is(path, "square 2\n"), "diff: writing the copy does not write the base");
+    check(ToriRSMapEdLanes_Changes(&lane, NULL, 0, NULL) == 3, "diff: the copy is no change of the lane's");
+    check(!ToriRSMapEdLanes_DiffBase(&lane, "quests/q1/new.rs2", path, sizeof(path), why, sizeof(why))
+              && strstr(why, "is new in lane"),
+        "diff: an added file has no base, said");
+    check(!ToriRSMapEdLanes_DiffBase(&lane, "deep/top.txt", path, sizeof(path), why, sizeof(why))
+              && strstr(why, "was deleted by lane"),
+        "diff: a deleted file has no lane file, said");
+    check(!ToriRSMapEdLanes_DiffBase(&lane, "../life/x", path, sizeof(path), why, sizeof(why))
+              && !ToriRSMapEdLanes_DiffBase(&lane, "/etc/passwd", path, sizeof(path), why, sizeof(why)),
+        "diff: a path outside the lane is refused");
+
+    /* ---- what a publish into another lane would overwrite ---- */
+    check(save_text(&keep, "maps/m2.jm2", "square 2 by keep\n") && save_text(&keep, "areas/x/configs/x.npc", "[kept]\n")
+              && save_text(&keep, "quests/q1/new.rs2", "[proc,new]\n") && delete_rel(&keep, "deep/top.txt"),
+        "life: the lane beside it changes one file differently, one of its own, and two the very same way");
+    count = ToriRSMapEdLanes_PublishOverlap(&lane, &keep, overlap, 4, &ours, &theirs);
+    check(count == 1 && strcmp(overlap[0], "maps/m2.jm2") == 0 && ours == 3 && theirs == 4,
+        "overlap: the one file both changed DIFFERENTLY (the same bytes and the same deletion are nothing lost)");
+    ToriRSMapEdLanes_Main(repo, tree, &gone);
+    check(ToriRSMapEdLanes_PublishOverlap(&lane, &gone, NULL, 0, NULL, NULL) == 0, "overlap: the main tree has none");
+
+    /* ---- deleting a lane ---- */
+    check(!ToriRSMapEdLanes_Delete(repo, tree, "main", &deleted, why, sizeof(why)) && strstr(why, "base tree"),
+        "delete: main is refused");
+    check(!ToriRSMapEdLanes_Delete(repo, tree, "nowhere", &deleted, why, sizeof(why)) && strstr(why, "no lane 'nowhere'"),
+        "delete: a lane that does not exist is refused");
+    check(!ToriRSMapEdLanes_Delete(repo, tree, "Bad Name", &deleted, why, sizeof(why)), "delete: a bad name is refused");
+    check(!ToriRSMapEdLanes_Delete(repo, tree, "keep", &deleted, why, sizeof(why)) && strstr(why, "every launch opens"),
+        "delete: the lane the boot lane file names is refused");
+    snprintf(path, sizeof(path), "%s/lane.ini", keep.dir);
+    check(is_regular(path), "delete: ...and is all there");
+    unlink(boot);
+    unsetenv("TORIRSMAPED_BOOT_LANE_FILE");
+    snprintf(path, sizeof(path), "%s/.editor-session.lock", lane.content);
+    snprintf(why, sizeof(why), "pid %ld\nsince 0\ncmd lanes_test\n", (long)getpid());
+    write_text(path, why);
+    check(!ToriRSMapEdLanes_Delete(repo, tree, "scratch1", &deleted, why, sizeof(why))
+              && strstr(why, "open in an editor"),
+        "delete: a lane an editor holds is refused");
+    unlink(path);
+    snprintf(path, sizeof(path), "%s/maps/m2.jm2", lane.content);
+    check(text_is(path, "square 2 edited\n"), "delete: ...with its edits where they were");
+
+    view_take(tree, &base_before);
+    view_take(keep.content, &keep_before);
+    check(ToriRSMapEdLanes_Delete(repo, tree, "scratch1", &deleted, why, sizeof(why)), "delete: the scratch lane goes");
+    if( why[0] )
+        fprintf(stderr, "  delete: %s\n", why);
+    checkf(deleted.links > 0 && deleted.files >= 3 && deleted.dirs > 0,
+        "delete: links dropped by name, the lane's own files removed (%d links, %d files, %d directories)",
+        deleted.links, deleted.files, deleted.dirs);
+    check(!exists(lane.dir), "delete: build/lanes/scratch1 is gone");
+    snprintf(path, sizeof(path), "%s/build/lanes/.scratch1.deleting", repo);
+    check(!exists(path), "delete: nothing left aside");
+    check(!ToriRSMapEdLanes_Lookup(repo, tree, "scratch1", &gone), "delete: it is no lane");
+    count = ToriRSMapEdLanes_List(repo, tree, list, 8);
+    check(count == 2 && strcmp(list[1].name, "keep") == 0, "delete: the list is main and the lane beside it");
+    view_take(tree, &base_after);
+    view_take(keep.content, &keep_after);
+    check(view_same(&base_before, &base_after, "base"), "delete: every file of the base tree is as it was");
+    check(view_same(&keep_before, &keep_after, "keep"), "delete: and every file the other lane shows");
+    snprintf(path, sizeof(path), "%s/maps/m1.jm2", tree);
+    /* (The other lane links it too, so by link count it reads as a link.) */
+    check(exists(path) && text_is(path, "square 1\n"), "delete: a file the lane linked is still the base's");
+    check(!ToriRSMapEdLanes_Delete(repo, tree, "scratch1", &deleted, why, sizeof(why)) && strstr(why, "no lane 'scratch1'"),
+        "delete: a second delete finds nothing");
+
+    /* A delete that stopped part-way left its directory aside: the next
+     * delete of the name finishes it. */
+    snprintf(path, sizeof(path), "%s/build/lanes/.halfway.deleting/content/maps/left.jm2", repo);
+    write_text(path, "left behind\n");
+    check(ToriRSMapEdLanes_Delete(repo, tree, "halfway", &deleted, why, sizeof(why)) && deleted.files == 1,
+        "delete: what an interrupted delete left aside is finished");
+    snprintf(path, sizeof(path), "%s/build/lanes/.halfway.deleting", repo);
+    check(!exists(path), "delete: ...and gone");
+}
+
 int
 main(
     int argc,
@@ -1565,6 +1951,8 @@ main(
 
     sparse_against_legacy(argv[1]);
     fell_behind(argv[1]);
+    life_cycle(argv[1]);
+    hand_out(argv[1]);
 
     printf("lanes_test: %d checks, %d failed\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

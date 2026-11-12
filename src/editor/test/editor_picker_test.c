@@ -275,8 +275,8 @@ static void
 test_focus_pure(void)
 {
     struct Editor_Picker picker;
-    int x;
-    int z;
+    int x = -1;
+    int z = -1;
 
     Editor_PickerInit(&picker);
     atlas_build();
@@ -581,8 +581,8 @@ test_panel_find_and_keys(void)
     int const map = window_of("squaremap");
     int const graph = widget_in(map, TORIRS_CHROME_W_GRAPH, NULL);
     struct Editor_Picker* picker = picker_of();
-    int x;
-    int z;
+    int x = -1;
+    int z = -1;
 
     CHECK(panel >= 0 && g_chrome.panels[panel].visible, "panel: Squares is open");
     /* The map is a window of its own (the Squares panel has no well): shut
@@ -952,32 +952,48 @@ test_panel_pane(void)
         "pane: its source is the focused square ('%s')",
         ToriRSChrome_Text(&g_chrome, Editor_Instance_Widget(&g_ui, EDITOR_INSTANCE_W_SOURCE_ROW)));
     ToriRSChrome_PanelSetVisible(&g_chrome, window_of("instance"), 0);
-    /* Given a short height, the rows past the heading fold away; Open and
-     * Add stay; given room, they come back. The map is in its own window, so
-     * neither moves the well. */
+    /* Given a short height, nothing folds away: every action and every
+     * detail row stays a row of the panel, and the panel scrolls. Below
+     * ~650 px Copy to..., Instance..., Clear... and Delete... used to be
+     * hidden with nothing to say so, which in the default layout (244 px)
+     * was always (F4, 2026-11-11). The map is in its own window, so the
+     * well is untouched. */
     {
+        static const char* const k_actions[] = {
+            "Open", "Add to open set", "Close square", "Open in new view",
+            "Copy to...", "Instance...", "Clear...", "Delete...", "New square...",
+        };
+        static const int k_heights[] = { 244, 520, 980 };
         int const graph = widget_in(window_of("squaremap"), TORIRS_CHROME_W_GRAPH, NULL);
         int const well_h = g_chrome.widgets[graph].view_h;
-        int heading = 0;
-        ToriRSChrome_PanelSetFixedHeight(&g_chrome, panel, 520);
-        for( int i = 0; i < 4; i++ )
-            frame();
-        CHECK(Editor_SquarePicker_PaneRow(&g_ui, 1, &widget, &full, &track) && g_chrome.widgets[widget].hidden,
-            "pane: folded in a 520 px panel");
-        CHECK(Editor_SquarePicker_PaneRow(&g_ui, 0, &heading, &full, &track) && !g_chrome.widgets[heading].hidden,
-            "pane: ...its heading stays");
-        CHECK(!g_chrome.widgets[widget_in(panel, TORIRS_CHROME_W_BUTTON, "Open")].hidden
-                  && g_chrome.widgets[widget_in(panel, TORIRS_CHROME_W_BUTTON, "Clear...")].hidden,
-            "pane: ...Open stays, Clear... folds");
-        CHECK(g_chrome.widgets[graph].view_h == well_h, "pane: ...and the map's well is untouched (%d vs %d)",
-            g_chrome.widgets[graph].view_h, well_h);
-        ToriRSChrome_PanelSetFixedHeight(&g_chrome, panel, 980);
-        for( int i = 0; i < 4; i++ )
-            frame();
-        CHECK(Editor_SquarePicker_PaneRow(&g_ui, 1, &widget, &full, &track) && !g_chrome.widgets[widget].hidden,
-            "pane: open again in a 980 px panel");
-        CHECK(g_chrome.widgets[graph].view_h == well_h, "pane: ...nor by opening (%d vs %d)",
-            g_chrome.widgets[graph].view_h, well_h);
+
+        for( size_t at = 0; at < sizeof(k_heights) / sizeof(k_heights[0]); at++ )
+        {
+            ToriRSChrome_PanelSetFixedHeight(&g_chrome, panel, k_heights[at]);
+            for( int i = 0; i < 4; i++ )
+                frame();
+            for( size_t a = 0; a < sizeof(k_actions) / sizeof(k_actions[0]); a++ )
+            {
+                int const button = widget_in(panel, TORIRS_CHROME_W_BUTTON, k_actions[a]);
+                CHECK(button >= 0 && !g_chrome.widgets[button].hidden, "pane: %s is a row of a %d px panel",
+                    k_actions[a], k_heights[at]);
+            }
+            for( int row = 0; row < EDITOR_SQUARES_PANE_ROWS; row++ )
+                CHECK(Editor_SquarePicker_PaneRow(&g_ui, row, &widget, &full, &track)
+                          && !g_chrome.widgets[widget].hidden,
+                    "pane: detail row %d is a row of a %d px panel", row, k_heights[at]);
+            if( k_heights[at] < 600 )
+                CHECK(g_chrome.panels[panel].content_h > g_chrome.panels[panel].view_h,
+                    "pane: a %d px panel scrolls to them (content %d, view %d)", k_heights[at],
+                    g_chrome.panels[panel].content_h, g_chrome.panels[panel].view_h);
+            CHECK(g_chrome.widgets[graph].view_h == well_h, "pane: ...and the map's well is untouched (%d vs %d)",
+                g_chrome.widgets[graph].view_h, well_h);
+        }
+        /* The actions come before the details: what a short panel reaches
+         * first is what can be done. */
+        CHECK(Editor_SquarePicker_PaneRow(&g_ui, 1, &widget, &full, &track)
+                  && widget_in(panel, TORIRS_CHROME_W_BUTTON, "Copy to...") < widget,
+            "pane: Copy to... sits above the detail rows");
         check_pane("pane, 980 px");
         ToriRSChrome_PanelSetFixedHeight(&g_chrome, panel, 0);
         for( int i = 0; i < 3; i++ )
@@ -1034,7 +1050,6 @@ static void
 test_panel_strip(void)
 {
     struct Editor_Picker* picker = picker_of();
-    int const panel = window_of("squares");
     char texts[EDITOR_PICKER_OPEN_SET_MAX][EDITOR_PICKER_NAME_MAX];
     int strip = 0;
     int count = 0;
@@ -1173,6 +1188,192 @@ test_panel_strip(void)
     }
 }
 
+/** The surface point of the middle of cell (map_x, map_z) in the well. */
+static void
+well_point(
+    int graph,
+    int map_x,
+    int map_z,
+    int* out_x,
+    int* out_y)
+{
+    int x;
+    int y;
+    int w;
+    int h;
+    Editor_PickerCellBox(picker_of(), map_x, map_z, &x, &y, &w, &h);
+    /* The well's region starts a rule inside the widget (scale 1). */
+    *out_x = g_chrome.widgets[graph].x + 1 + x + w / 2;
+    *out_y = g_chrome.widgets[graph].y + 1 + y + h / 2;
+}
+
+/* Close square, and the Square map's picks: the line that never moves the
+ * well, the page that shows every square, the hover that follows the pointer
+ * from one empty cell to the next (F2, F8, F9, F10; 2026-11-11). */
+static void
+test_panel_close_and_pick(void)
+{
+    struct Editor_Picker* picker = picker_of();
+    int const panel = window_of("squares");
+    int const map_panel = window_of("squaremap");
+    int const graph = widget_in(map_panel, TORIRS_CHROME_W_GRAPH, NULL);
+    int const line = widget_in(map_panel, TORIRS_CHROME_W_LABEL, "click: open   shift+click: add   right-click: more");
+    int const cancel = widget_in(map_panel, TORIRS_CHROME_W_BUTTON, "Cancel");
+    int x;
+    int y;
+
+    if( !picker )
+        return;
+    ToriRSChrome_PanelSetVisible(&g_chrome, window_of("instance"), 0);
+    for( int i = 0; i < picker->square_count; i++ )
+        picker->squares[i].flags &= ~(uint32_t)(EDITOR_PICKER_OPEN_HERE | EDITOR_PICKER_DIRTY_HERE);
+    frame();
+
+    /* Close square: nothing this window shows is refused in a sentence... */
+    Editor_PickerSelect(picker, -1, 0);
+    activate(widget_in(panel, TORIRS_CHROME_W_BUTTON, "Close square"));
+    CHECK(status_says("Close square refused"), "close: with nothing shown it says why ('%s')",
+        Editor_UiStatusText(&g_ui));
+    /* ...the only square shown too... */
+    picker->squares[Editor_PickerFind(picker, 50, 50, 0)].flags |= EDITOR_PICKER_OPEN_HERE;
+    Editor_PickerFocusSet(picker, 50, 50);
+    g_close_calls = 0;
+    activate(widget_in(panel, TORIRS_CHROME_W_BUTTON, "Close square"));
+    CHECK(g_close_calls == 0 && status_says("only square"), "close: the only square shown stays ('%s')",
+        Editor_UiStatusText(&g_ui));
+    /* ...and one of two goes: by the pane's button and by the File action. */
+    picker->squares[Editor_PickerFind(picker, 51, 50, 0)].flags |= EDITOR_PICKER_OPEN_HERE;
+    Editor_PickerFocusSet(picker, 51, 50);
+    activate(widget_in(panel, TORIRS_CHROME_W_BUTTON, "Close square"));
+    CHECK(g_close_calls == 1 && g_close_x == 51 && g_close_z == 50, "close: the pane's button closes m51_50 (%d)",
+        g_close_calls);
+    CHECK(Editor_HotkeyFind("file.close_square") == EDITOR_HK_FILE_CLOSE_SQUARE, "close: file.close_square is an action");
+    (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_FILE_CLOSE_SQUARE);
+    frame();
+    CHECK(g_close_calls == 2 && g_close_x == 51, "close: File > Close square closes the focused square (%d)",
+        g_close_calls);
+    /* A focus this window does not show is not what Close closes. */
+    Editor_PickerFocusSet(picker, 51, 150);
+    activate(widget_in(panel, TORIRS_CHROME_W_BUTTON, "Close square"));
+    CHECK(g_close_calls == 2 && status_says("Close square refused"), "close: a square not shown here is refused ('%s')",
+        Editor_UiStatusText(&g_ui));
+    /* Add never takes a square out of the scene: one too far from the
+     * squares shown (m50_50, m51_50) to share a scene is refused in a
+     * sentence, not loaded in their place; a near one is added. */
+    {
+        int const calls = g_open_calls;
+        activate(widget_in(panel, TORIRS_CHROME_W_BUTTON, "Add to open set"));
+        CHECK(g_open_calls == calls && status_says("Add refused") && status_says("Open shows it"),
+            "add: m51_150 is too far from the squares shown ('%s')", Editor_UiStatusText(&g_ui));
+        Editor_PickerFocusSet(picker, 50, 50);
+        activate(widget_in(panel, TORIRS_CHROME_W_BUTTON, "Add to open set"));
+        CHECK(g_open_calls == calls + 1 && g_open_add == 1 && g_open_x == 50 && g_open_z == 50,
+            "add: a square beside the ones shown is added (%d calls)", g_open_calls - calls);
+    }
+
+    /* The map's line is there while browsing, so a pick's line moves nothing. */
+    if( !g_chrome.panels[map_panel].visible )
+        (void)Editor_UiTogglePanel(&g_ui, "squaremap");
+    (void)Editor_SquarePicker_Find(&g_ui, "m50_50");
+    for( int i = 0; i < 4; i++ )
+        frame();
+    CHECK(line >= 0 && !g_chrome.widgets[line].hidden, "pick: the map's line shows while browsing");
+    {
+        int const well_y = g_chrome.widgets[graph].y;
+        int cell_x;
+        int cell_y;
+        int cell_w;
+        int cell_h;
+        int after_x;
+        int after_y;
+
+        Editor_PickerSetTab(picker, 0);
+        (void)Editor_SquarePicker_Find(&g_ui, "m50_50");
+        frame();
+        Editor_PickerCellBox(picker, 50, 50, &cell_x, &cell_y, &cell_w, &cell_h);
+        Editor_SquarePicker_OpenSquares(&g_ui);
+        for( int i = 0; i < 4; i++ )
+            frame();
+        CHECK(g_chrome.widgets[graph].y == well_y, "pick: Open squares does not move the well (%d -> %d)", well_y,
+            g_chrome.widgets[graph].y);
+        CHECK(picker->tabs[picker->active_tab].area == EDITOR_PICKER_TAB_FULL,
+            "pick: Open squares shows every square (the %s page)", picker->tabs[picker->active_tab].title);
+        CHECK(strstr(g_chrome.widgets[line].text, "Drag over"), "pick: the line says what to do ('%s')",
+            g_chrome.widgets[line].text);
+        CHECK(!g_chrome.widgets[cancel].hidden && g_chrome.widgets[cancel].y > g_chrome.widgets[graph].y,
+            "pick: Cancel is under the well");
+        /* The squares shown here are in the middle of the well, sweepable. */
+        Editor_PickerCellBox(picker, 50, 50, &after_x, &after_y, &cell_w, &cell_h);
+        CHECK(cell_w >= (int)EDITOR_PICKER_ZOOM_SHOW - 1 && after_x > EDITOR_PICKER_LEFT && after_x + cell_w < picker->well_w,
+            "pick: the open squares are in view at %d px a square", cell_w);
+        activate(cancel);
+        CHECK(strcmp(g_chrome.widgets[line].text, "click: open   shift+click: add   right-click: more") == 0
+                  && g_chrome.widgets[cancel].hidden,
+            "pick: Cancel is back to browsing ('%s')", g_chrome.widgets[line].text);
+    }
+
+    /* The pointer, followed: two EMPTY cells side by side are two answers. */
+    (void)Editor_SquarePicker_Find(&g_ui, "m70_70");
+    for( int i = 0; i < 4; i++ )
+        frame();
+    CHECK(Editor_PickerFind(picker, 70, 70, -1) < 0 && Editor_PickerFind(picker, 71, 70, -1) < 0,
+        "hover: m70_70 and m71_70 are empty in this atlas");
+    well_point(graph, 70, 70, &x, &y);
+    (void)ToriRSChrome_MouseMove(&g_chrome, x, y);
+    frame();
+    CHECK(picker->hover_valid && picker->hover_map_x == 70 && picker->hover_map_z == 70,
+        "hover: the pointer is on m70_70 (m%d_%d, valid %d)", picker->hover_map_x, picker->hover_map_z,
+        picker->hover_valid);
+    well_point(graph, 71, 70, &x, &y);
+    (void)ToriRSChrome_MouseMove(&g_chrome, x, y);
+    frame();
+    CHECK(picker->hover_valid && picker->hover_map_x == 71 && picker->hover_map_z == 70,
+        "hover: ...and on m71_70 after moving one empty cell east (m%d_%d)", picker->hover_map_x,
+        picker->hover_map_z);
+
+    /* Place: the line names the cell under the pointer, cell after cell. */
+    Editor_SquarePicker_Place(&g_ui, "m50_50", 0);
+    for( int i = 0; i < 4; i++ )
+        frame();
+    /* A Place opens on the square being copied, close enough to click a
+     * cell, whatever view the map had (a map not opened yet this session
+     * showed an empty corner of the page, F9). */
+    {
+        int box_x;
+        int box_y;
+        int box_w;
+        int box_h;
+        Editor_PickerCellBox(picker, 50, 50, &box_x, &box_y, &box_w, &box_h);
+        CHECK(box_w >= (int)EDITOR_PICKER_ZOOM_SHOW - 1 && box_x > picker->well_w / 4
+                  && box_x + box_w < picker->well_w * 3 / 4 && box_y > picker->well_h / 4
+                  && box_y + box_h < picker->well_h * 3 / 4,
+            "place: the map opens centred on m50_50 at %d px a square ([%d,%d] in %dx%d)", box_w, box_x, box_y,
+            picker->well_w, picker->well_h);
+    }
+    /* The user pans to where the copy goes. */
+    Editor_PickerCentre(picker, 71, 70);
+    frame();
+    well_point(graph, 71, 70, &x, &y);
+    (void)ToriRSChrome_MouseMove(&g_chrome, x, y);
+    frame();
+    CHECK(strstr(g_chrome.widgets[line].text, "m71_70"), "place: the line names m71_70 ('%s')",
+        g_chrome.widgets[line].text);
+    well_point(graph, 72, 70, &x, &y);
+    (void)ToriRSChrome_MouseMove(&g_chrome, x, y);
+    frame();
+    CHECK(strstr(g_chrome.widgets[line].text, "m72_70") && picker->sweep_x == 72 && picker->sweep_z == 70,
+        "place: ...then m72_70, one empty cell on ('%s')", g_chrome.widgets[line].text);
+    /* The view scrolled under a still pointer: the cell is asked again. */
+    Editor_PickerPan(picker, -(int)picker->zoom, 0);
+    frame();
+    CHECK(strstr(g_chrome.widgets[line].text, "m73_70"), "place: a map that moved under the pointer is re-read ('%s')",
+        g_chrome.widgets[line].text);
+    activate(cancel);
+    for( int i = 0; i < picker->square_count; i++ )
+        picker->squares[i].flags &= ~(uint32_t)(EDITOR_PICKER_OPEN_HERE | EDITOR_PICKER_DIRTY_HERE);
+    frame();
+}
+
 int
 main(void)
 {
@@ -1187,6 +1388,7 @@ main(void)
     test_panel_area_rows();
     test_panel_pane();
     test_panel_strip();
+    test_panel_close_and_pick();
     test_palette_areas();
     Editor_UiFree(&g_ui);
     printf("editor_picker_test: %d checks, %d failed\n", g_checks, g_failed);

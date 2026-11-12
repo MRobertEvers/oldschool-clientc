@@ -441,6 +441,40 @@ hook_selection_changed(void* user)
 
 /* ---- lifetime ---------------------------------------------------------------- */
 
+/**
+ * Where the panels that read, open or reveal the tree's files find them: the
+ * Triggers panel (and through it Problems and the Record panel's Triggers
+ * tab), the quest board, the Shop builder. `content_root` is the tree the
+ * editor SERVER serves -- the lane's content (build/lanes/<name>/content)
+ * on a lane, the manifest's content_dir on main. The manifest's is a lane's
+ * BASE: with it, Open in editor, Show in Explorer and Copy path on a lane
+ * named the main tree's file, and an edit made there went into the main
+ * tree behind the lane's back (2026-11-11).
+ */
+static void
+panel_set_content_paths(
+    struct Editor_Panel* panel,
+    struct App* app,
+    const char* content_root)
+{
+    /* The builders' Check is the editor server's CHECK job (builder_ssc.h),
+     * so they take no compile paths here. */
+    if( app->cfg.editor_repo_root && app->cfg.editor_repo_root[0] )
+    {
+        char ssc[1024];
+        char work[1024];
+        snprintf(ssc, sizeof(ssc), "%s/src/build_opt/sscompile", app->cfg.editor_repo_root);
+        /* The Triggers panel's paths (its Check is the CHECK job too). */
+        snprintf(work, sizeof(work), "%s/src/build_opt/tmp/triggers_check", app->cfg.editor_repo_root);
+        (void)Editor_Triggers_SetPaths(panel->ui, content_root, ssc, work);
+        /* The quest board reads test/quests and build/quest_gate beside it. */
+        Editor_Quest_SetPaths(panel->ui, content_root, app->cfg.editor_repo_root);
+    }
+    else
+        (void)Editor_Triggers_SetPaths(panel->ui, content_root, NULL, NULL);
+    Editor_Shop_SetPaths(panel->ui, content_root);
+}
+
 void
 Editor_PanelInit(
     struct Editor_Panel* panel,
@@ -478,24 +512,10 @@ Editor_PanelInit(
     /* What the App-bound modules ask of the App, before they register. */
     app_map_editor_ui_services(app, &panel->ui->app_services);
     Editor_UiRegisterToolsPanels(panel->ui);
-    /* The builders' Check is the editor server's CHECK job (builder_ssc.h),
-     * so they take no compile paths here. */
-    if( app->cfg.editor_content_dir && app->cfg.editor_content_dir[0] && app->cfg.editor_repo_root
-        && app->cfg.editor_repo_root[0] )
-    {
-        char ssc[1024];
-        char work[1024];
-        snprintf(ssc, sizeof(ssc), "%s/src/build_opt/sscompile", app->cfg.editor_repo_root);
-        /* The Triggers panel's paths (its Check is the CHECK job too). */
-        snprintf(work, sizeof(work), "%s/src/build_opt/tmp/triggers_check", app->cfg.editor_repo_root);
-        (void)Editor_Triggers_SetPaths(panel->ui, app->cfg.editor_content_dir, ssc, work);
-        /* The quest board reads test/quests and build/quest_gate beside it. */
-        Editor_Quest_SetPaths(panel->ui, app->cfg.editor_content_dir, app->cfg.editor_repo_root);
-    }
-    else if( app->cfg.editor_content_dir && app->cfg.editor_content_dir[0] )
-        (void)Editor_Triggers_SetPaths(panel->ui, app->cfg.editor_content_dir, NULL, NULL);
+    /* The manifest's tree until the server says which lane it serves
+     * (Editor_PanelTick): right for main, and the BASE of any other lane. */
     if( app->cfg.editor_content_dir && app->cfg.editor_content_dir[0] )
-        Editor_Shop_SetPaths(panel->ui, app->cfg.editor_content_dir);
+        panel_set_content_paths(panel, app, app->cfg.editor_content_dir);
     panel->built = 1;
 }
 
@@ -555,6 +575,22 @@ Editor_PanelTick(
             panel->ui->chrome->activated = activated;
     }
     Editor_UiTick(panel->ui);
+    /* The server said which lane it serves (FACT_LANE_INFO, a frame or two
+     * after the session opens; again if it ever says another): the panels'
+     * file paths are that lane's tree from here on. */
+    if( panel->ui->lane.known && panel->ui->lane.content[0]
+        && (!panel->lane_paths_set || panel->lane_paths_serial != panel->ui->lane.serial) )
+    {
+        panel->lane_paths_set = 1;
+        panel->lane_paths_serial = panel->ui->lane.serial;
+        if( strcmp(panel->lane_paths_root, panel->ui->lane.content) != 0 )
+        {
+            snprintf(panel->lane_paths_root, sizeof(panel->lane_paths_root), "%s", panel->ui->lane.content);
+            panel_set_content_paths(panel, app, panel->lane_paths_root);
+            Editor_UiLog(panel->ui, "editor: script paths are lane %s's: %s", panel->ui->lane.name,
+                panel->lane_paths_root);
+        }
+    }
 }
 
 enum Editor_Tool
@@ -1059,16 +1095,23 @@ Editor_PanelRecordLocEdit(
     return edp_apply(panel->ui, commands, count, "loc edit") > 0;
 }
 
-/** The Scatter set: the distinct ids of the selected locs, else the
- *  catalog's loc pick; each with its record's size and first shape (one
- *  tile and a centrepiece until the record is resident). */
+/** The Scatter set: the distinct ids of two or more selected locs, else the
+ *  catalog's loc pick, else the one selected loc; each with its record's
+ *  size and first shape (one tile and a centrepiece until the record is
+ *  resident). */
 static void
 panel_scatter_set(
     struct EditorUi* ui,
     struct Editor_ScatterSet* set)
 {
+    /* A set is a selection made on purpose: two locs or more. One selected
+     * loc is most often the last thing placed, and with it first a tree
+     * picked for the yard scattered the chair placed before it (2026-11-11):
+     * the catalog's pick comes before a selection of one. */
+    int const from_selection = ui->tools.loc_count >= 2 || ui->tools.pick_kind != 0 || ui->tools.pick_id < 0;
+
     set->count = 0;
-    for( int i = 0; i < ui->tools.loc_count && set->count < EDITOR_SCATTER_SET_MAX; i++ )
+    for( int i = 0; from_selection && i < ui->tools.loc_count && set->count < EDITOR_SCATTER_SET_MAX; i++ )
     {
         int const id = ui->tools.locs[i].loc_id;
         int seen = 0;
@@ -1139,6 +1182,7 @@ Editor_PanelApplyToolAt(
         op.brush = ui->tools.brush;
         op.density = ui->tools.scatter_density < 1 ? 1 : ui->tools.scatter_density > 100 ? 100 : ui->tools.scatter_density;
         op.rotate = ui->tools.scatter_rotate;
+        op.bare = ui->tools.scatter_bare;
         op.seed = ui->tools.scatter_seed;
         op.erase = panel->scatter_erase;
         panel_scatter_set(ui, &op.set);
@@ -1209,15 +1253,31 @@ Editor_PanelApplyToolAt(
                 return 0;
             op.flatten_height = ui->tools.flatten_height;
         }
-        /* Height pulls toward its grid; a press with no grid set yet sets
-         * it where the press landed, as Flatten takes its first tile. */
+        /* Height pulls toward its grid. A press with no grid set yet sets it
+         * one Step above the ground the press landed on (below it, in "lower
+         * only"), so the first drag of a first-time user makes a mound and
+         * the bar says what the grid is. It used to set the grid AT that
+         * ground: the drag then pulled flat ground to its own height, moved
+         * nothing, and the brush looked broken until Ctrl+wheel was found
+         * (T9, 2026-11-09; again on 2026-11-11). */
         if( ui->tools.tool == EDITOR_TOOL_HEIGHT )
         {
-            if( !ui->tools.height_valid
-                && Editor_OpsDerivedHeight(&app->editor->doc, world_x, world_z, op.level, &ui->tools.height_target) )
-                ui->tools.height_valid = 1;
             if( !ui->tools.height_valid )
-                return 0;
+            {
+                int const step = ui->tools.brush.step * EDITOR_HEIGHT_UNIT;
+                int const lower = ui->tools.height_mode == EDITOR_HEIGHT_MODE_LOWER;
+                int ground = 0;
+
+                if( !Editor_OpsDerivedHeight(&app->editor->doc, world_x, world_z, op.level, &ground) )
+                    return 0;
+                /* Heights grow downward: up is less. */
+                Editor_UiSetHeightTarget(ui, lower ? ground + step : ground - step);
+                if( lower && ground >= 0 )
+                    Editor_UiStatus(ui, "Height: this ground is at 0, the lowest it goes; raise the land around it");
+                else
+                    Editor_UiStatus(ui, "Height: grid set one Step (%d) %s this ground; Ctrl+wheel moves it", step,
+                        lower ? "below" : "above");
+            }
             op.height_target = ui->tools.height_target;
             op.height_mode = ui->tools.height_mode;
         }
@@ -1548,6 +1608,8 @@ Editor_PanelPathEnd(
     struct EditorUi* ui;
     struct Editor_PathParams params;
     struct Editor_Cmd* commands;
+    char auto_name[EDITOR_PALETTE_DESCRIBE_MAX];
+    int auto_id;
     int capacity;
     int closed = 0;
     int count;
@@ -1561,9 +1623,16 @@ Editor_PanelPathEnd(
     panel->path.active = 0;
     if( !ui || !app->editor )
         return 0;
-    if( ui->tools.overlay_none )
+    /* No overlay picked: the common floor of the path's style, said below.
+     * Only a cache with no such floor (or one still loading it) refuses. */
+    auto_id = Editor_Palette_PathOverlay(ui, ui->tools.path_style >= 0 && ui->tools.path_style < EDITOR_PATH_STYLE_COUNT
+                                                 ? ui->tools.path_style
+                                                 : EDITOR_PATH_DIRT,
+        auto_name, sizeof(auto_name));
+    if( auto_id < 0 )
     {
-        Editor_UiStatus(ui, "Path refused: pick the path's overlay in the Palette first");
+        Editor_UiStatus(ui, "Path refused: no overlay is picked and this cache's usual floor for the style is not "
+                            "loaded; pick the path's overlay in the Palette");
         return 0;
     }
     Editor_PanelPathParams(ui, &params);
@@ -1583,15 +1652,22 @@ Editor_PanelPathEnd(
     else if( count == 0 )
         Editor_UiStatus(ui, "Path: nothing to change (the tiles already carry it)");
     else
-        Editor_UiStatus(ui, "Path: %d tile%s laid, %s %d.%d wide%s", applied, applied == 1 ? "" : "s",
+    {
+        char laid[EDITOR_PALETTE_DESCRIBE_MAX];
+
+        /* What it laid, by name: the pick is in another tab. */
+        Editor_Palette_Describe(ui, 1, ui->tools.overlay_id, laid, sizeof(laid));
+        Editor_UiStatus(ui, "Path: %d tile%s laid, %s %d.%d wide, overlay %s%s%s", applied, applied == 1 ? "" : "s",
             params.style == EDITOR_PATH_PAVED   ? "pavement"
             : params.style == EDITOR_PATH_RIVER ? "river"
                                                 : "dirt",
-            ui->tools.path_width_halves / 2, ui->tools.path_width_halves % 2 ? 5 : 0,
+            ui->tools.path_width_halves / 2, ui->tools.path_width_halves % 2 ? 5 : 0, laid,
+            auto_id > 0 ? " (none was picked)" : "",
             ui->tools.path_height_mode == EDITOR_PATH_HEIGHT_SET     ? ", the ground set level"
             : ui->tools.path_height_mode == EDITOR_PATH_HEIGHT_LOWER ? ", the ground dug"
             : ui->tools.path_height_mode == EDITOR_PATH_HEIGHT_RAISE ? ", the ground raised"
                                                                      : "");
+    }
     /* The next path wanders its own way (the preview drew this seed's). */
     ui->tools.path_seed = ui->tools.path_seed * 1664525u + 1013904223u;
     return applied;

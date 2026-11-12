@@ -287,20 +287,56 @@ lanes_scan_want(
     lanes_service(maped);
 }
 
+static void
+lanes_make_service(struct ToriRSMapEd* maped);
+
+/** This server's own lane, counted before a write it has served since (a
+ *  New square's create and its save, a record made by Copy to new): walked
+ *  again unasked, so the status bar's chip and the Changes list follow a
+ *  write the panel saw no save of. They asked on an unsaved-to-clean turn of
+ *  the document and on the chip's 15 s period, and a New square, saved as it
+ *  is made, never turns: its files stayed out of the list until a Refresh.
+ *  Only a lane counted once already (nothing is walked before somebody asks),
+ *  and only between requests, so the walk sees the finished write. */
+static void
+lanes_own_recount(struct ToriRSMapEd* maped)
+{
+    if( maped->lane.is_main || !maped->lane.base[0] || !maped->writable )
+        return;
+    for( int i = 0; i < TORIRSMAPED_LANES_MAX; i++ )
+    {
+        const struct ToriRSMapEdLaneCountCache* entry = &maped->lane_counts[i];
+        if( !entry->used || strcmp(entry->name, maped->lane.name) != 0 )
+            continue;
+        if( entry->writes_own != maped->lane_writes_own || entry->writes_all != maped->lane_writes_all )
+            lanes_scan_want(maped, &maped->lane);
+        return;
+    }
+}
+
 /** Once per service pass: a finished scan is joined, its count remembered
  *  (the chip and the LIST after it need no walk of their own), its count
  *  broadcast (and its rows, when it is this server's lane), and the next
- *  queued lane's scan started. */
+ *  queued lane's scan started. With none running, this server's own lane is
+ *  walked again if a write has outdated its count (lanes_own_recount). */
 static void
 lanes_service(struct ToriRSMapEd* maped)
 {
-    struct ToriRSMapEdLaneScan* scan = maped->lane_scan;
+    struct ToriRSMapEdLaneScan* scan;
     struct ToriRSMapEdLaneCounts counts;
     char name[TORIRSMAPED_LANE_NAME_MAX + 8];
     int is_main;
     int own;
 
-    if( !scan || !__atomic_load_n(&scan->done, __ATOMIC_ACQUIRE) )
+    /* First: a promote landing frees the scan in flight. */
+    lanes_make_service(maped);
+    scan = maped->lane_scan;
+    if( !scan )
+    {
+        lanes_own_recount(maped);
+        return;
+    }
+    if( !__atomic_load_n(&scan->done, __ATOMIC_ACQUIRE) )
         return;
 #if LANES_SCAN_THREAD
     if( scan->thread_live )
@@ -493,6 +529,8 @@ lanes_published(
         kind == TORIRSMAPED_LANE_PUBLISHED_PUBLISH  ? "publish"
         : kind == TORIRSMAPED_LANE_PUBLISHED_DISCARD ? "discard"
         : kind == TORIRSMAPED_LANE_PUBLISHED_SWITCH  ? "switch"
+        : kind == TORIRSMAPED_LANE_PUBLISHED_DELETE  ? "delete"
+        : kind == TORIRSMAPED_LANE_PUBLISHED_CHECK   ? "publish check"
                                                      : "create",
         message);
 }
@@ -502,6 +540,495 @@ static const char*
 lanes_base_tree(const struct ToriRSMapEd* maped)
 {
     return maped->lane.is_main ? maped->lane.content : maped->lane.base;
+}
+
+/** LANE_PUBLISH's dry run (TORIRSMAPED_LANE_PUBLISH_CHECK): what a publish
+ *  into `target` would write, and which of those files the target lane has
+ *  changed too -- they are overwritten, whole, with no merge. Nothing is
+ *  saved or written. `written` carries the file count, `removed` the
+ *  overlap. Both lanes are walked here, on the caller's press. */
+static void
+lanes_publish_check(
+    struct ToriRSMapEd* maped,
+    const char* target)
+{
+    enum
+    {
+        NAMED = 3,
+    };
+    static char overlap[NAMED][TORIRSMAPED_LANE_PATH];
+    struct ToriRSMapEdLaneDef to;
+    struct ToriRSMapEdLaneCounts counts;
+    char message[1200];
+    int ours = 0;
+    int theirs = 0;
+    int count;
+    size_t at;
+
+    memset(&counts, 0, sizeof(counts));
+    if( !ToriRSMapEdLanes_Lookup(maped->repo_root, lanes_base_tree(maped), target, &to) )
+    {
+        snprintf(message, sizeof(message), "no lane named '%s'", target);
+        lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_CHECK, EDITOR_HOST_ABSENT, message, target, NULL, 0);
+        return;
+    }
+    if( strcmp(to.content, maped->lane.content) == 0 )
+    {
+        snprintf(message, sizeof(message), "lane '%s' cannot publish into itself", maped->lane.name);
+        lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_CHECK, EDITOR_HOST_REFUSED, message, target, NULL, 0);
+        return;
+    }
+    {
+        /* What the publish itself would refuse (ToriRSMapEdLanes_Publish),
+         * said before the confirm rather than after it. */
+        char holder[512];
+        if( ToriRSMapEdLanes_TreeHeld(to.content, holder, sizeof(holder)) )
+        {
+            snprintf(message, sizeof(message), "%s is open in an editor (%s): close that editor first", to.name, holder);
+            lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_CHECK, EDITOR_HOST_LOCKED, message, target, NULL, 0);
+            return;
+        }
+    }
+    count = ToriRSMapEdLanes_PublishOverlap(&maped->lane, &to, overlap, NAMED, &ours, &theirs);
+    counts.written = ours;
+    counts.removed = count;
+    if( to.is_main )
+        snprintf(message, sizeof(message), "%d file(s) would be written into the MAIN tree, %s", ours, to.content);
+    else if( count == 0 )
+        snprintf(message, sizeof(message),
+            "%d file(s) would be written into lane %s; none of them is a file %s changed too (it has %d change(s))",
+            ours, to.name, to.name, theirs);
+    else
+    {
+        at = (size_t)snprintf(message, sizeof(message),
+            "%d file(s) would be written into lane %s, OVERWRITING %d file(s) it changed too:", ours, to.name, count);
+        for( int i = 0; i < count && i < NAMED && at < sizeof(message); i++ )
+            at += (size_t)snprintf(message + at, sizeof(message) - at, "%s %s", i ? "," : "", overlap[i]);
+        if( count > NAMED && at < sizeof(message) )
+            snprintf(message + at, sizeof(message) - at, " and %d more", count - NAMED);
+    }
+    lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_CHECK, EDITOR_HOST_OK, message, to.name, &counts, 0);
+}
+
+/** LANE_DISCARD with a path: that ONE change back to the base. Every dirty
+ *  document is saved first -- a discard of one file must not cost the
+ *  unsaved edits of the others, and the server's documents are dropped with
+ *  it (the file's own document would otherwise save it straight back). */
+static void
+handle_lane_discard_one(
+    struct ToriRSMapEdSession* session,
+    struct ToriRSMapEd* maped,
+    const uint8_t* body,
+    uint32_t length)
+{
+    struct ToriRSMapEdReader reader;
+    struct ToriRSMapEdLaneCounts counts;
+    char rel[TORIRSMAPED_LANE_PATH];
+    char why[512];
+    char message[TORIRSMAPED_LANE_PATH + 600];
+    enum EditorHost_Status status;
+    int saved = 0;
+    int left;
+
+    ToriRSMapEd_ReaderInit(&reader, body, length);
+    ToriRSMapEd_GetString(&reader, rel, sizeof(rel));
+    if( !ToriRSMapEd_ReaderDone(&reader) )
+    {
+        session->alive = 0;
+        return;
+    }
+    memset(&counts, 0, sizeof(counts));
+    if( maped->lane.is_main )
+    {
+        lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_DISCARD, EDITOR_HOST_REFUSED,
+            "this editor edits the main tree directly: there is no base to go back to", "", NULL, 0);
+        return;
+    }
+    if( !maped->writable )
+    {
+        lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_DISCARD, EDITOR_HOST_LOCKED,
+            "read-only: this server does not hold its lane's lock", "", NULL, 0);
+        return;
+    }
+    lanes_scan_free(maped);
+    maped->lane_scan_queue_count = 0;
+    status = save_all_docs(maped, &saved);
+    catalog_saved(maped);
+    if( status != EDITOR_HOST_OK )
+    {
+        lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_DISCARD, status,
+            "a document did not save; nothing was discarded", "", NULL, 0);
+        return;
+    }
+    if( !ToriRSMapEdLanes_DiscardOne(&maped->lane, rel, &counts, why, sizeof(why)) )
+    {
+        snprintf(message, sizeof(message), "discard of %s refused: %s", rel, why);
+        lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_DISCARD, EDITOR_HOST_REFUSED, message, "", &counts, 0);
+        return;
+    }
+    /* The documents go with it, as a whole discard's do: every window
+     * reopens what it shows from the files. */
+    Editor_DocFree(&maped->doc);
+    Editor_UndoFree(&maped->undo);
+    Editor_DocInit(&maped->doc, NULL);
+    Editor_UndoInit(&maped->undo);
+    catalog_atlas_changed(maped, 1);
+    left = ToriRSMapEdLanes_Changes(&maped->lane, NULL, 0, NULL);
+    {
+        /* A file the lane ADDED is gone now, not "the base's again". */
+        char base_file[2 * TORIRSMAPED_LANE_PATH];
+        FILE* in;
+        int in_base;
+        snprintf(base_file, sizeof(base_file), "%s/%s", maped->lane.base, rel);
+        in = fopen(base_file, "rb");
+        in_base = in != NULL;
+        if( in )
+            fclose(in);
+        snprintf(message, sizeof(message),
+            in_base ? "discarded %s: it is the base's again (%d change(s) left)"
+                    : "discarded %s: removed, as the base has none (%d change(s) left)",
+            rel, left);
+    }
+    lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_DISCARD, EDITOR_HOST_OK, message, "", &counts, 1);
+}
+
+/** LANE_DELETE: a lane this server does not serve, gone
+ *  (ToriRSMapEdLanes_Delete: never through a link into the base). */
+static void
+handle_lane_delete(
+    struct ToriRSMapEdSession* session,
+    struct ToriRSMapEd* maped,
+    const uint8_t* body,
+    uint32_t length)
+{
+    struct ToriRSMapEdReader reader;
+    struct ToriRSMapEdLaneDeleted deleted;
+    struct ToriRSMapEdLaneCounts counts;
+    char name[TORIRSMAPED_LANE_NAME_MAX + 8];
+    char why[TORIRSMAPED_LANE_PATH * 2 + 512];
+    char message[TORIRSMAPED_LANE_PATH * 2 + 700];
+
+    ToriRSMapEd_ReaderInit(&reader, body, length);
+    ToriRSMapEd_GetString(&reader, name, sizeof(name));
+    if( !ToriRSMapEd_ReaderDone(&reader) )
+    {
+        session->alive = 0;
+        return;
+    }
+    memset(&counts, 0, sizeof(counts));
+    if( !maped->repo_root[0] )
+    {
+        lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_DELETE, EDITOR_HOST_UNSUPPORTED,
+            "this server has no repo root: no build/lanes to delete from", name, NULL, 0);
+        return;
+    }
+    /* Its own lane: the server holds the tree's lock when it may write, and
+     * a read-only server's lane is somebody else's session. Said in the
+     * user's terms either way. */
+    if( strcmp(name, maped->lane.name) == 0 )
+    {
+        snprintf(message, sizeof(message),
+            "%s is the lane this editor is on; launch the editor on another lane to delete it",
+            name);
+        lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_DELETE, EDITOR_HOST_REFUSED, message, name, NULL, 0);
+        return;
+    }
+    /* A walk in flight may be listing the lane that is about to go. */
+    lanes_scan_free(maped);
+    maped->lane_scan_queue_count = 0;
+    if( !ToriRSMapEdLanes_Delete(maped->repo_root, lanes_base_tree(maped), name, &deleted, why, sizeof(why)) )
+    {
+        snprintf(message, sizeof(message), "%s", why);
+        counts.written = deleted.links;
+        counts.removed = deleted.files;
+        lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_DELETE, EDITOR_HOST_REFUSED, message, name, &counts, 0);
+        return;
+    }
+    {
+        /* Its count is no lane's any more. */
+        struct ToriRSMapEdLaneCountCache* entry = lanes_count_slot(maped, name);
+        if( entry->used && strcmp(entry->name, name) == 0 )
+            memset(entry, 0, sizeof(*entry));
+    }
+    counts.written = deleted.links;
+    counts.removed = deleted.files;
+    snprintf(message, sizeof(message),
+        "lane %s deleted: %d link(s) to the base dropped, %d file(s) of its own removed; the base tree was not touched",
+        name, deleted.links, deleted.files);
+    lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_DELETE, EDITOR_HOST_OK, message, name, &counts, 0);
+}
+
+/** LANE_DIFF: the base's copy of one of the lane's files, for an external
+ *  diff (ToriRSMapEdLanes_DiffBase). To the asking connection only. */
+static void
+handle_lane_diff(
+    struct ToriRSMapEdSession* session,
+    struct ToriRSMapEd* maped,
+    const uint8_t* body,
+    uint32_t length)
+{
+    struct ToriRSMapEdReader reader;
+    struct ToriRSMapEdBuf payload;
+    char rel[TORIRSMAPED_LANE_PATH];
+    char lane_path[TORIRSMAPED_LANE_PATH * 2 + 8];
+    char copy[TORIRSMAPED_LANE_PATH + 64];
+    char why[TORIRSMAPED_LANE_PATH + 256];
+    enum EditorHost_Status status = EDITOR_HOST_OK;
+
+    ToriRSMapEd_ReaderInit(&reader, body, length);
+    ToriRSMapEd_GetString(&reader, rel, sizeof(rel));
+    if( !ToriRSMapEd_ReaderDone(&reader) )
+    {
+        session->alive = 0;
+        return;
+    }
+    snprintf(lane_path, sizeof(lane_path), "%s/%s", maped->lane.content, rel);
+    if( !ToriRSMapEdLanes_DiffBase(&maped->lane, rel, copy, sizeof(copy), why, sizeof(why)) )
+        status = EDITOR_HOST_REFUSED;
+    memset(&payload, 0, sizeof(payload));
+    ToriRSMapEd_PutU32(&payload, (uint32_t)status);
+    ToriRSMapEd_PutString(&payload, lane_path);
+    ToriRSMapEd_PutString(&payload, copy);
+    ToriRSMapEd_PutString(&payload, why);
+    send_buf(session, TORIRSMAPED_FACT_LANE_DIFF, &payload);
+    ToriRSMapEd_BufFree(&payload);
+}
+
+/** LANE_PUBLISH once its target exists: this lane follows its base, then its
+ *  changes go into `to`. `promoted`: `to` was made for it a moment ago (a
+ *  promote), which the sentence says. `saved`: documents saved first. */
+static void
+lanes_publish_into(
+    struct ToriRSMapEd* maped,
+    struct ToriRSMapEdLaneDef* to,
+    int promoted,
+    uint32_t flags,
+    int saved)
+{
+    struct ToriRSMapEdLaneCounts counts;
+    char why[512];
+    char message[1200];
+
+    memset(&counts, 0, sizeof(counts));
+    /* A pack/ copy the base has moved past would publish as a revert. */
+    if( !ToriRSMapEdLanes_Follow(&maped->lane, &counts, why, sizeof(why)) )
+    {
+        snprintf(message, sizeof(message), "lane '%s' cannot follow its base: %s; nothing was published",
+            maped->lane.name, why);
+        lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_PUBLISH, EDITOR_HOST_REFUSED, message, to->name, NULL, 0);
+        return;
+    }
+    if( !ToriRSMapEdLanes_Publish(&maped->lane, to, flags, &counts, why, sizeof(why)) )
+    {
+        snprintf(message, sizeof(message), "publish to %s stopped: %s (%d written, %d removed before it)", to->name,
+            why, counts.written, counts.removed);
+        lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_PUBLISH, EDITOR_HOST_IO_ERROR, message, to->name, &counts,
+            0);
+        return;
+    }
+    if( promoted )
+        /* A promote: say what exists where now, not just a count. */
+        snprintf(message, sizeof(message), "lane %s made with %d file(s)%s; this lane (%s) is unchanged", to->name,
+            counts.written + counts.removed, counts.removed ? ", deletions among them" : "", maped->lane.name);
+    else
+        snprintf(message, sizeof(message), "published %d file(s) to %s%s%s%s", counts.written + counts.removed,
+            to->name, to->is_main ? " (the main tree)" : "", counts.removed ? ", with deletions" : "",
+            (flags & TORIRSMAPED_LANE_PUBLISH_RESET) && strcmp(to->content, maped->lane.base) == 0
+                ? "; this lane is clean again"
+                : "");
+    if( saved )
+    {
+        size_t const at = strlen(message);
+        snprintf(message + at, sizeof(message) - at, " (%d saved first)", saved);
+    }
+    lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_PUBLISH, EDITOR_HOST_OK, message, to->name, &counts, 0);
+}
+
+/* ---- making a lane off the UI thread ---------------------------------------
+ *
+ * A new lane's mirror is ~12,000 links, 13-18 s on Windows, and the embedded
+ * server runs on the editor's UI thread: Promote, Lane from main and Scratch
+ * lane froze the window that long -- Windows greyed it "Not Responding" and
+ * the panel's "making the lane..." line was never drawn (2026-11-11).
+ * ToriRSMapEdLanes_Create touches only the disk (its listings are malloc'd,
+ * as the change scan's are; no server state), so it runs on a worker like
+ * that scan. Its landing (lanes_make_service) answers on the UI thread, and a
+ * promote's publish -- which reads this server's lane -- runs there too.
+ * One make at a time per process; while it runs, what would change this
+ * lane (a publish, a discard) or make another is refused with the reason.
+ */
+struct lanes_make
+{
+    struct ToriRSMapEd* owner;
+    char repo_root[sizeof(((struct ToriRSMapEd*)0)->repo_root)];
+    char base[TORIRSMAPED_LANE_PATH];
+    char name[TORIRSMAPED_LANE_NAME_MAX + 8];
+    /** A promote: on landing, this lane's changes are published into the
+     *  new lane with `flags`; `saved` documents were saved at the press. */
+    int promote;
+    uint32_t flags;
+    int saved;
+    struct ToriRSMapEdLaneDef made;
+    char why[512];
+    int ok;
+    int done;
+#if LANES_SCAN_THREAD
+    lanes_scan_thread_t thread;
+    int thread_live;
+#endif
+};
+
+static struct lanes_make* s_lanes_make;
+
+static void
+lanes_make_run(struct lanes_make* make)
+{
+    make->ok = ToriRSMapEdLanes_Create(make->repo_root, make->base, make->name, &make->made, make->why,
+        sizeof(make->why));
+    __atomic_store_n(&make->done, 1, __ATOMIC_RELEASE);
+}
+
+#if LANES_SCAN_THREAD
+#ifdef _WIN32
+static unsigned __stdcall
+lanes_make_thread_main(void* arg)
+{
+    lanes_make_run(arg);
+    return 0;
+}
+#else
+static void*
+lanes_make_thread_main(void* arg)
+{
+    lanes_make_run(arg);
+    return NULL;
+}
+#endif
+#endif
+
+static void
+lanes_make_join(struct lanes_make* make)
+{
+#if LANES_SCAN_THREAD
+    if( !make->thread_live )
+        return;
+#ifdef _WIN32
+    WaitForSingleObject(make->thread, INFINITE);
+    CloseHandle(make->thread);
+#else
+    pthread_join(make->thread, NULL);
+#endif
+    make->thread_live = 0;
+#else
+    (void)make;
+#endif
+}
+
+/** 1 when a lane is being made: the request's answer (`kind`, about
+ *  `target`) says so, and the request is not served. */
+static int
+lanes_make_refused(
+    struct ToriRSMapEd* maped,
+    uint32_t kind,
+    const char* target)
+{
+    char message[200];
+
+    if( !s_lanes_make )
+        return 0;
+    snprintf(message, sizeof(message), "lane %s is still being made; wait for it (about 15 s)", s_lanes_make->name);
+    lanes_published(maped, kind, EDITOR_HOST_BUSY, message, target, NULL, 0);
+    return 1;
+}
+
+/** Make lane `name` from this server's base on the worker; lanes_make_service
+ *  answers when it lands. */
+static void
+lanes_make_begin(
+    struct ToriRSMapEd* maped,
+    const char* name,
+    int promote,
+    uint32_t flags,
+    int saved)
+{
+    struct lanes_make* make;
+
+    assert(!s_lanes_make);
+    make = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*make));
+    assert(make);
+    make->owner = maped;
+    snprintf(make->repo_root, sizeof(make->repo_root), "%s", maped->repo_root);
+    snprintf(make->base, sizeof(make->base), "%s", lanes_base_tree(maped));
+    snprintf(make->name, sizeof(make->name), "%s", name);
+    make->promote = promote;
+    make->flags = flags;
+    make->saved = saved;
+    s_lanes_make = make;
+#if LANES_SCAN_THREAD
+    {
+#ifdef _WIN32
+        uintptr_t const handle = _beginthreadex(NULL, 0, lanes_make_thread_main, make, 0, NULL);
+        make->thread_live = handle != 0;
+        if( handle )
+            make->thread = (HANDLE)handle;
+#else
+        make->thread_live = pthread_create(&make->thread, NULL, lanes_make_thread_main, make) == 0;
+#endif
+    }
+    if( !make->thread_live )
+        lanes_make_run(make);
+#else
+    lanes_make_run(make);
+#endif
+}
+
+/** Once per service pass: a finished make is joined and answered (a
+ *  promote's publish runs now, on this thread). */
+static void
+lanes_make_service(struct ToriRSMapEd* maped)
+{
+    struct lanes_make* make = s_lanes_make;
+    char message[1200];
+
+    if( !make || make->owner != maped || !__atomic_load_n(&make->done, __ATOMIC_ACQUIRE) )
+        return;
+    lanes_make_join(make);
+    s_lanes_make = NULL;
+    if( !make->ok )
+    {
+        snprintf(message, sizeof(message), "cannot make lane '%s': %s", make->name, make->why);
+        lanes_published(maped,
+            make->promote ? TORIRSMAPED_LANE_PUBLISHED_PUBLISH : TORIRSMAPED_LANE_PUBLISHED_CREATE,
+            EDITOR_HOST_REFUSED, message, make->name, NULL, 0);
+    }
+    else if( make->promote )
+    {
+        /* A scan in flight reads the trees this is about to rewrite. */
+        lanes_scan_free(maped);
+        maped->lane_scan_queue_count = 0;
+        lanes_publish_into(maped, &make->made, 1, make->flags, make->saved);
+    }
+    else
+    {
+        snprintf(message, sizeof(message), "lane '%s' made from %s (%s)", make->name, make->base,
+            make->made.content);
+        lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_CREATE, EDITOR_HOST_OK, message, make->name, NULL, 0);
+    }
+    ToriMem_Free(ToriMem_Editor(), make);
+}
+
+/** The server is closing: a make in flight is waited for (a lane is never
+ *  left half-made by a quit) and dropped unanswered. */
+static void
+lanes_make_drop(struct ToriRSMapEd* maped)
+{
+    struct lanes_make* make = s_lanes_make;
+
+    if( !make || make->owner != maped )
+        return;
+    lanes_make_join(make);
+    s_lanes_make = NULL;
+    ToriMem_Free(ToriMem_Editor(), make);
 }
 
 static void
@@ -514,11 +1041,9 @@ handle_lane_publish(
     struct ToriRSMapEdReader reader;
     char target[TORIRSMAPED_LANE_NAME_MAX + 8];
     char new_name[TORIRSMAPED_LANE_NAME_MAX + 8];
-    char why[512];
     char message[1200];
     uint32_t flags;
     struct ToriRSMapEdLaneDef to;
-    struct ToriRSMapEdLaneCounts counts;
     int saved = 0;
     enum EditorHost_Status status;
 
@@ -531,7 +1056,6 @@ handle_lane_publish(
         session->alive = 0;
         return;
     }
-    memset(&counts, 0, sizeof(counts));
     if( maped->lane.is_main )
     {
         lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_PUBLISH, EDITOR_HOST_REFUSED,
@@ -545,6 +1069,13 @@ handle_lane_publish(
             "read-only: this server does not hold its lane's lock", target, NULL, 0);
         return;
     }
+    if( flags & TORIRSMAPED_LANE_PUBLISH_CHECK )
+    {
+        lanes_publish_check(maped, target);
+        return;
+    }
+    if( lanes_make_refused(maped, TORIRSMAPED_LANE_PUBLISHED_PUBLISH, new_name[0] ? new_name : target) )
+        return;
     /* A scan in flight reads the tree this is about to rewrite. */
     lanes_scan_free(maped);
     maped->lane_scan_queue_count = 0;
@@ -561,48 +1092,18 @@ handle_lane_publish(
     }
     if( new_name[0] )
     {
-        if( !ToriRSMapEdLanes_Create(maped->repo_root, lanes_base_tree(maped), new_name, &to, why, sizeof(why)) )
-        {
-            snprintf(message, sizeof(message), "cannot make lane '%s': %s", new_name, why);
-            lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_PUBLISH, EDITOR_HOST_REFUSED, message, new_name, NULL,
-                0);
-            return;
-        }
-        snprintf(target, sizeof(target), "%s", new_name);
+        /* A promote: the new lane is made on the worker, and the publish
+         * into it runs when it lands (lanes_make_service). */
+        lanes_make_begin(maped, new_name, 1, flags, saved);
+        return;
     }
-    else if( !ToriRSMapEdLanes_Lookup(maped->repo_root, lanes_base_tree(maped), target, &to) )
+    if( !ToriRSMapEdLanes_Lookup(maped->repo_root, lanes_base_tree(maped), target, &to) )
     {
         snprintf(message, sizeof(message), "no lane named '%s'", target);
         lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_PUBLISH, EDITOR_HOST_ABSENT, message, target, NULL, 0);
         return;
     }
-    /* A pack/ copy the base has moved past would publish as a revert. */
-    if( !ToriRSMapEdLanes_Follow(&maped->lane, &counts, why, sizeof(why)) )
-    {
-        snprintf(message, sizeof(message), "lane '%s' cannot follow its base: %s; nothing was published",
-            maped->lane.name, why);
-        lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_PUBLISH, EDITOR_HOST_REFUSED, message, target, NULL, 0);
-        return;
-    }
-    if( !ToriRSMapEdLanes_Publish(&maped->lane, &to, flags, &counts, why, sizeof(why)) )
-    {
-        snprintf(message, sizeof(message), "publish to %s stopped: %s (%d written, %d removed before it)", to.name,
-            why, counts.written, counts.removed);
-        lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_PUBLISH, EDITOR_HOST_IO_ERROR, message, to.name, &counts,
-            0);
-        return;
-    }
-    snprintf(message, sizeof(message), "published %d file(s) to %s%s%s%s", counts.written + counts.removed,
-        to.name, to.is_main ? " (the main tree)" : "", counts.removed ? ", with deletions" : "",
-        (flags & TORIRSMAPED_LANE_PUBLISH_RESET) && strcmp(to.content, maped->lane.base) == 0
-            ? "; this lane is clean again"
-            : "");
-    if( saved )
-    {
-        size_t const at = strlen(message);
-        snprintf(message + at, sizeof(message) - at, " (%d saved first)", saved);
-    }
-    lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_PUBLISH, EDITOR_HOST_OK, message, to.name, &counts, 0);
+    lanes_publish_into(maped, &to, 0, flags, saved);
 }
 
 static void
@@ -656,7 +1157,10 @@ lanes_next_boot(
     size_t out_size)
 {
     out[0] = '\0';
-    if( maped->repo_root[0] )
+    /* A run that ignores the file (a test, an agent) launches again on the
+     * lane its manifest names, whatever the file says: naming the file's
+     * lane as "next" told every such session it was about to leave. */
+    if( maped->repo_root[0] && !ToriRSMapEdLanes_BootIgnored() )
         (void)ToriRSMapEdLanes_BootName(maped->repo_root, out, out_size);
 }
 
@@ -697,10 +1201,20 @@ handle_lane_switch(
         snprintf(message, sizeof(message), "this editor is on lane '%s' already; every launch opens it from now on",
             name);
     else
+    {
+        /* The file the switch went to: a test's own (TORIRSMAPED_BOOT_LANE_FILE)
+         * was called build/lanes/lane.ini here, which it never touched. */
+        const char* const own = getenv("TORIRSMAPED_BOOT_LANE_FILE");
+        char file[TORIRSMAPED_LANE_PATH + 32];
+        if( own && own[0] )
+            ToriRSMapEdLanes_BootFilePath(maped->repo_root, file, sizeof(file));
+        else
+            snprintf(file, sizeof(file), "build/lanes/lane.ini");
         snprintf(message, sizeof(message),
-            "lane '%s' opens from the next launch on (build/lanes/lane.ini); quit and launch the editor again to go "
-            "there, this one stays on '%s': a running server cannot re-point its lane",
-            name, maped->lane.name);
+            "lane '%s' opens from the next launch on (%s); quit and launch the editor again to go there, this one "
+            "stays on '%s': a running server cannot re-point its lane",
+            name, file, maped->lane.name);
+    }
     lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_SWITCH, EDITOR_HOST_OK, message, name, NULL, 0);
 }
 
@@ -847,6 +1361,20 @@ handle_lanes(
              * pinned by Switch from the manifest's own ("" never told). */
             ToriRSMapEd_PutString(&payload, maped->lane_asked);
         }
+        {
+            /* The life-cycle tail (torirs_maped_lanes.h): what this server
+             * answers, whether its boot ignored the boot lane file, and
+             * where that file is. */
+            char boot_file[TORIRSMAPED_LANE_PATH + 32];
+            boot_file[0] = '\0';
+            if( maped->repo_root[0] )
+                ToriRSMapEdLanes_BootFilePath(maped->repo_root, boot_file, sizeof(boot_file));
+            ToriRSMapEd_PutU32(&payload, (uint32_t)(TORIRSMAPED_LANE_INFO_LIFECYCLE
+                                                    | (ToriRSMapEdLanes_BootIgnored()
+                                                              ? TORIRSMAPED_LANE_INFO_BOOT_IGNORED
+                                                              : 0)));
+            ToriRSMapEd_PutString(&payload, boot_file);
+        }
         send_buf(session, TORIRSMAPED_FACT_LANE_INFO, &payload);
     }
     else if( type == TORIRSMAPED_REQ_LANE_LIST )
@@ -907,17 +1435,69 @@ handle_lanes(
         lanes_scan_begin(session, maped);
     else if( type == TORIRSMAPED_REQ_LANE_PUBLISH )
         handle_lane_publish(session, maped, body, length);
+    else if( type == TORIRSMAPED_REQ_LANE_DISCARD && lanes_make_refused(maped, TORIRSMAPED_LANE_PUBLISHED_DISCARD, "") )
+    {
+        /* A promote in flight publishes this lane as it lands. */
+    }
+    else if( type == TORIRSMAPED_REQ_LANE_DISCARD && length > 0 )
+        handle_lane_discard_one(session, maped, body, length);
     else if( type == TORIRSMAPED_REQ_LANE_DISCARD )
         handle_lane_discard(maped);
+    else if( type == TORIRSMAPED_REQ_LANE_DELETE )
+        handle_lane_delete(session, maped, body, length);
+    else if( type == TORIRSMAPED_REQ_LANE_DIFF )
+        handle_lane_diff(session, maped, body, length);
     else if( type == TORIRSMAPED_REQ_LANE_SWITCH )
         handle_lane_switch(session, maped, body, length);
+    else if( type == TORIRSMAPED_REQ_LANE_HANDOUT )
+    {
+        /* A path of this tree is about to leave the editor (Open in editor,
+         * Show in Explorer, Copy path): the lane's own first, and the path
+         * as this server's tree spells it. A lane's content served as a
+         * plain tree is that lane all the same. */
+        const struct ToriRSMapEdLaneDef* lane =
+            maped->lane.is_main && maped->plain_lane.base[0] ? &maped->plain_lane : &maped->lane;
+        struct ToriRSMapEdReader reader;
+        char rel[TORIRSMAPED_LANE_PATH];
+        char path[TORIRSMAPED_LANE_PATH * 2];
+        char why[512];
+        enum EditorHost_Status status = EDITOR_HOST_OK;
+        uint32_t folder_max;
+        int files = 0;
+        ToriRSMapEd_ReaderInit(&reader, body, length);
+        ToriRSMapEd_GetString(&reader, rel, sizeof(rel));
+        folder_max = ToriRSMapEd_GetU32(&reader);
+        if( !ToriRSMapEd_ReaderDone(&reader) || folder_max > 100000u )
+        {
+            session->alive = 0;
+            ToriRSMapEd_BufFree(&payload);
+            return;
+        }
+        why[0] = '\0';
+        snprintf(path, sizeof(path), "%s/%s", lane->content, rel);
+        if( !lane->is_main && !maped->writable )
+        {
+            status = EDITOR_HOST_LOCKED;
+            snprintf(why, sizeof(why), "read-only: this server does not hold its lane's lock");
+        }
+        else if( folder_max == 0 ? !ToriRSMapEdLanes_HandOut(lane, rel, why, sizeof(why))
+                                 : !ToriRSMapEdLanes_HandOutFolder(lane, rel, (int)folder_max, &files, why, sizeof(why)) )
+            status = EDITOR_HOST_IO_ERROR;
+        else if( files < 0 )
+            /* Said back in `why` with OK: the folder is the lane's, its files
+             * past the cap are still links. */
+            snprintf(why, sizeof(why), "more than %u files: only the folder itself was made the lane's", folder_max);
+        ToriRSMapEd_PutU32(&payload, (uint32_t)status);
+        ToriRSMapEd_PutString(&payload, path);
+        ToriRSMapEd_PutString(&payload, why);
+        send_buf(session, TORIRSMAPED_FACT_LANE_HANDED_OUT, &payload);
+        if( status != EDITOR_HOST_OK )
+            TORIRS_LOG("torirsmaped: lane hand-out of %s refused: %s\n", rel, why);
+    }
     else if( type == TORIRSMAPED_REQ_LANE_CREATE )
     {
         struct ToriRSMapEdReader reader;
         char name[TORIRSMAPED_LANE_NAME_MAX + 8];
-        char why[512];
-        char message[800];
-        struct ToriRSMapEdLaneDef made;
         ToriRSMapEd_ReaderInit(&reader, body, length);
         ToriRSMapEd_GetString(&reader, name, sizeof(name));
         if( !ToriRSMapEd_ReaderDone(&reader) )
@@ -929,17 +1509,9 @@ handle_lanes(
         if( !maped->repo_root[0] )
             lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_CREATE, EDITOR_HOST_UNSUPPORTED,
                 "this server has no repo root: no build/lanes to make one in", name, NULL, 0);
-        else if( !ToriRSMapEdLanes_Create(maped->repo_root, lanes_base_tree(maped), name, &made, why, sizeof(why)) )
-        {
-            snprintf(message, sizeof(message), "cannot make lane '%s': %s", name, why);
-            lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_CREATE, EDITOR_HOST_REFUSED, message, name, NULL, 0);
-        }
-        else
-        {
-            snprintf(message, sizeof(message), "lane '%s' made from %s (%s)", name, lanes_base_tree(maped),
-                made.content);
-            lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_CREATE, EDITOR_HOST_OK, message, name, NULL, 0);
-        }
+        else if( !lanes_make_refused(maped, TORIRSMAPED_LANE_PUBLISHED_CREATE, name) )
+            /* Made on the worker; lanes_make_service answers. */
+            lanes_make_begin(maped, name, 0, 0u, 0);
     }
     else
         session->alive = 0;

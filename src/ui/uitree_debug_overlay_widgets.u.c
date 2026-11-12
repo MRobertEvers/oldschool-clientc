@@ -1771,6 +1771,16 @@ ToriRSChrome_GraphSetBare(struct ToriRSChrome* ui, int widget, int bare, int hei
 }
 
 void
+ToriRSChrome_GraphSetWheel(struct ToriRSChrome* ui, int widget, int on)
+{
+    assert(ui);
+    assert(dbg_valid_widget(ui, widget));
+    assert(ui->widgets[widget].kind == TORIRS_CHROME_W_GRAPH);
+    /* Routing only: nothing drawn changes, so nothing is dirtied. */
+    ui->widgets[widget].graph_wheel = on ? 1 : 0;
+}
+
+void
 ToriRSChrome_GraphBegin(struct ToriRSChrome* ui, int widget)
 {
     assert(ui);
@@ -2002,6 +2012,28 @@ dbg_graph_push(struct ToriRSChrome* ui, int widget, int kind, int x, int y, int 
     ev.key = ToriRSChrome_GraphKeyAt(ui, widget, ev.x, ev.y);
     ev.value = value;
     return ToriRSChrome_PushEvent(ui, &ev);
+}
+
+int
+ToriRSChrome_GraphPointer(struct ToriRSChrome const* ui, int widget, int* out_x, int* out_y)
+{
+    struct ToriRSChromeRect region;
+    struct ToriRSChromeRect clip;
+    int const scale = dbg_graph_q(ui);
+
+    assert(ui);
+    assert(out_x);
+    assert(out_y);
+    assert(dbg_valid_widget(ui, widget));
+    if( !dbg_graph_region(ui, widget, &region, &clip) )
+        return 0;
+    /* Hit-tested against this frame's boxes, not the last MouseMove's: the
+     * well may have moved under the pointer since. */
+    if( !dbg_point_in_rect(ui->hover_x, ui->hover_y, clip) || ToriRSChrome_HitTest(ui, ui->hover_x, ui->hover_y) != widget )
+        return 0;
+    *out_x = ToriRSChrome_UnscalePx(scale, ui->hover_x - region.x);
+    *out_y = ToriRSChrome_UnscalePx(scale, ui->hover_y - region.y);
+    return 1;
 }
 
 /** A key for the focused well: TORIRS_CHROME_EVENT_GRAPH_KEY, no position. */
@@ -4156,6 +4188,26 @@ dbg_slider_takes_wheel(struct ToriRSChrome const* ui, int widget)
     return ui->focus == widget || !dbg_panel_scrolls(&ui->panels[ui->widgets[widget].panel]);
 }
 
+/**
+ * Whether the GRAPH `widget` takes the wheel itself: its host said it uses
+ * it (ToriRSChrome_GraphSetWheel), or its panel has no rows past its view
+ * for the wheel to scroll instead.
+ *
+ * The rule a page of controls needs (2026-11-11): the wheel scrolls the page
+ * unless what is under the pointer was picked (a pressed slider holds the
+ * focus), scrolls by itself (a list, a code view, a well that said so), or
+ * Ctrl is held (a pinch). A well of swatches is none of those. It used to
+ * take every notch and drop it, so the Palette -- five wells in a row --
+ * scrolled only with the pointer parked on a label, and a long turn of the
+ * wheel stopped dead the moment the page brought a well under the pointer:
+ * twenty notches moved it as far as four.
+ */
+static int
+dbg_graph_takes_wheel(struct ToriRSChrome const* ui, int widget)
+{
+    return ui->widgets[widget].graph_wheel || !dbg_panel_scrolls(&ui->panels[ui->widgets[widget].panel]);
+}
+
 static int
 dbg_ext_wheel(struct ToriRSChrome* ui, int x, int y, int delta)
 {
@@ -4169,7 +4221,11 @@ dbg_ext_wheel(struct ToriRSChrome* ui, int x, int y, int delta)
     {
     case TORIRS_CHROME_W_VLIST:
     case TORIRS_CHROME_W_CODE:
-        ToriRSChrome_VListSetScroll(ui, hit, w->imin + delta * 3);
+        /* Wheel down (negative) brings later rows in, as it does for the
+         * panel round the list. This was `+ delta` until 2026-11-11, so the
+         * Catalog's list ran backwards under the same notch that scrolled
+         * its panel forwards. */
+        ToriRSChrome_VListSetScroll(ui, hit, w->imin - delta * 3);
         return 1;
     case TORIRS_CHROME_W_SLIDER:
         /* A slider in a page that scrolls is in the closed dropdown's place:
@@ -4192,6 +4248,9 @@ dbg_ext_wheel(struct ToriRSChrome* ui, int x, int y, int delta)
     {
         struct ToriRSChromeRect region;
         struct ToriRSChromeRect clip;
+        /* A well that does not use the wheel is part of the page. */
+        if( !dbg_graph_takes_wheel(ui, hit) )
+            return 0;
         if( dbg_graph_region(ui, hit, &region, &clip) && dbg_point_in_rect(x, y, clip) )
             (void)dbg_graph_push(ui, hit, TORIRS_CHROME_EVENT_GRAPH_WHEEL, x, y, delta);
         return 1;
@@ -4219,7 +4278,9 @@ dbg_wheel_panel_at(struct ToriRSChrome const* ui, int x, int y)
     if( hit >= 0 )
     {
         int const kind = ui->widgets[hit].kind;
-        if( dbg_is_vlist_kind(kind) || kind == TORIRS_CHROME_W_GRAPH )
+        if( dbg_is_vlist_kind(kind) )
+            return -1;
+        if( kind == TORIRS_CHROME_W_GRAPH && dbg_graph_takes_wheel(ui, hit) )
             return -1;
         if( kind == TORIRS_CHROME_W_SLIDER && dbg_slider_takes_wheel(ui, hit) )
             return -1;
@@ -4324,9 +4385,10 @@ ToriRSChrome_Scroll(struct ToriRSChrome* ui, int x, int y, double dx, double dy)
     if( ui->dropdown_open >= 0 || ui->colorpick_open >= 0 )
         return 0;
     graph = dbg_graph_at(ui, x, y);
-    /* Not a well: a panel's rows, moved by the pixels given. A list, a code
-     * view and a held slider keep the notches (the caller's integer wheel). */
-    if( graph < 0 )
+    /* Not a well, or a well that leaves the wheel to its page: a panel's
+     * rows, moved by the pixels given. A list, a code view and a held slider
+     * keep the notches (the caller's integer wheel). */
+    if( graph < 0 || !dbg_graph_takes_wheel(ui, graph) )
         return dbg_scroll_panel_px(ui, x, y, dy);
     if( !dbg_graph_region(ui, graph, &region, &clip) )
         return 0;

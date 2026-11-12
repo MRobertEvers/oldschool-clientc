@@ -916,6 +916,19 @@ main(
     check(access(path, F_OK) == 0, "RUN unattached: the new square is on disk");
     check(a.model.pending_squares == 1 && a.model.pending_spawns == 1 && a.model.pending_archives == 1,
         "RUN unattached: square, spawn file and archive stay pending");
+    /* The squares no client build has had are kept on disk for the next
+     * session (torirs_maped_build.c, jobs_unbuilt_*): RUN saved m60_60 (the
+     * file was written then) and its good build had it, so none is owed. */
+    {
+        size_t size = 0;
+        char* text;
+        snprintf(path, sizeof(path), "%s/maps_unbuilt.txt", live);
+        text = slurp(path, &size);
+        check(text != NULL, "RUN unattached: the lane keeps its unbuilt squares in maps_unbuilt.txt");
+        check(text == NULL || strstr(text, "maps=") == NULL,
+            "RUN unattached: the square the good build had is not owed to the next session");
+        free(text);
+    }
 
     /* ---- attach to the mock peer --------------------------------------------- */
     port = free_port();
@@ -1172,6 +1185,23 @@ main(
                   && strstr(said, "server must restart for: fields/npc.ini changed. ") != NULL,
             "outcome: a RUN the reload could not finish live says the restart and what to do");
         if( !strstr(said, "must restart for") )
+            fprintf(stderr, "  said: %s\n", said);
+    }
+    {
+        /* The server's row for a new var is "<what>: <why>": the sentence
+         * names the what, whole, and the one press that restarts a lane this
+         * editor launched (it read "...content symbols (. Detach in the Live
+         * panel, then RUN again." on 2026-11-11). */
+        static struct Editor_LiveModel copy;
+        char said[EDITOR_LIVE_OUTCOME_MAX];
+        copy = a.model;
+        snprintf(copy.restart[0], sizeof(copy.restart[0]), "%s",
+            "config varp records: read at boot with the content symbols (varp.client)");
+        copy.launched = 1;
+        check(Editor_LiveRunOutcomeLine(&copy, 12, NULL, said, sizeof(said)) == EDITOR_LIVE_RUN_RESTART
+                  && strstr(said, "must restart for: config varp records. Press Restart lane") != NULL,
+            "outcome: a launched lane's restart names the what and the Restart lane press");
+        if( !strstr(said, "Press Restart lane") )
             fprintf(stderr, "  said: %s\n", said);
     }
 

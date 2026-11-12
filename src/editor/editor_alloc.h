@@ -388,4 +388,67 @@ Editor_AllocCopyPlan(
     int max,
     struct Editor_AllocResult* result);
 
+/* ---- the server half of a copy ------------------------------------------------
+ *
+ * A record is not one block (editor_cfg.h, "a record across its layers"): an
+ * npc's hitpoints, its attack / defend / death anims, attackrate, damagetype,
+ * its wander and leash, huntmode -- everything the SERVER reads -- are
+ * stated in server overlays (server/scripts/.../configs/<file>.<type>: the
+ * generated layers and the authored one), not in configs/all.<type>. A copy
+ * that carried only the cache block made a monster that looked like its
+ * source and fought like nothing (engine defaults; 2026-11-09). So the copy
+ * also gets ONE authored overlay of its own -- the record editor's file,
+ * server/scripts/edited/<name>/configs/<name>.<type> -- holding what the
+ * source's overlays resolve to, in the same undo step.
+ */
+
+/** One server overlay of the source: its path under server/scripts and the
+ *  text of the source's block in it (its CFG document; empty when the file
+ *  has no block for the record). */
+struct Editor_AllocOverlayLayer
+{
+    const char* overlay;
+    const char* text;
+    size_t length;
+};
+
+/** "edited/<new_name>/configs/<new_name>.<ns>": where the copy's server
+ *  fields go, under server/scripts. 0 when it does not fit. */
+int
+Editor_AllocCopyOverlayPath(
+    const char* ns,
+    const char* new_name,
+    char* out,
+    size_t out_size);
+
+/** Commands Editor_AllocCopyOverlayPlan can need at most for these layers. */
+int
+Editor_AllocCopyOverlayBound(
+    const struct Editor_AllocOverlayLayer* layers,
+    int count);
+
+/**
+ * The source record's server fields as commands on the copy's own overlay
+ * document ("<ns>:<new_name>@edited/<new_name>/configs/<new_name>.<ns>"):
+ * a CFG_BLOCK add, then one line per field the layers RESOLVE to -- merged
+ * as the pack merges them (Editor_CfgRecordResolve: rank, then path; a param
+ * by its name), so a field two layers state is written once, with the value
+ * the server reads. The document must be empty when they apply.
+ *
+ * Returns the commands written; 0 when the layers state nothing (`count` 0,
+ * or no block in any of them); -1 when `max` is under
+ * Editor_AllocCopyOverlayBound, a layer cannot be added (more than the
+ * record editor's layers) or the overlay's document key does not fit (a
+ * name over 34 bytes).
+ */
+int
+Editor_AllocCopyOverlayPlan(
+    const char* ns,
+    const char* source_name,
+    const char* new_name,
+    const struct Editor_AllocOverlayLayer* layers,
+    int count,
+    struct Editor_Cmd* out,
+    int max);
+
 #endif

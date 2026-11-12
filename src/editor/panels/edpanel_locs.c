@@ -847,7 +847,6 @@ Editor_Locs_PlaceSpawn(
     int world_z,
     int level)
 {
-    struct EditorHost_CatalogRecord record;
     struct Editor_SpawnRow row;
     struct Editor_Cmd command;
     char key[EDITOR_DOC_KEY_MAX];
@@ -867,25 +866,17 @@ Editor_Locs_PlaceSpawn(
         return 0;
     }
     /* The provider knows display names; the spawn grammar takes the pack
-     * symbol, which the server's catalog answers. */
+     * symbol: the server catalog's, or this window's own for a record it
+     * made (Copy to new), whatever the index has caught up with. */
     kind = ui->tools.pick_kind == 1 ? TORIRSMAPED_CATALOG_NPC : TORIRSMAPED_CATALOG_OBJ;
-    memset(&record, 0, sizeof(record));
-    if( Editor_HostMapEdCatalogRecord(&ui->editor->host, kind, ui->tools.pick_id, "", &record) != EDITOR_HOST_OK
-        || !record.name || !record.name[0] || strlen(record.name) >= EDITOR_CMD_NAME_MAX )
-    {
-        if( ui->tools.pick_name[0] && ui->tools.pick_name[0] != '#' )
-            Editor_UiStatus(ui, "Place refused: %.40s (%s %d) is new: RUN builds it, then it can be placed",
-                ui->tools.pick_name, ui->tools.pick_kind == 1 ? "npc" : "obj", ui->tools.pick_id);
-        else
-            Editor_UiStatus(ui, "Place refused: %s %d is new: RUN builds it, then it can be placed",
-                ui->tools.pick_kind == 1 ? "npc" : "obj", ui->tools.pick_id);
-        Editor_HostCatalogRecordFree(&record);
-        return 0;
-    }
     memset(&row, 0, sizeof(row));
     row.is_obj = ui->tools.pick_kind == 2;
-    snprintf(row.name, sizeof(row.name), "%s", record.name);
-    Editor_HostCatalogRecordFree(&record);
+    if( !Editor_Catalog_RecordName(ui, kind, ui->tools.pick_id, row.name, sizeof(row.name)) )
+    {
+        Editor_UiStatus(ui, "Place refused: %s %d has no record in this lane (a Copy to new that was undone?)",
+            ui->tools.pick_kind == 1 ? "npc" : "obj", ui->tools.pick_id);
+        return 0;
+    }
     row.abs_x = world_x;
     row.abs_z = world_z;
     row.level = level;
@@ -898,9 +889,30 @@ Editor_Locs_PlaceSpawn(
     }
     Editor_SpawnCommand(&command, &row, 1);
     placed = edp_apply(ui, &command, 1, "place spawn");
-    if( placed )
-        Editor_UiLog(ui, "editor: placed %s %s at %d,%d level %d", row.is_obj ? "obj" : "npc", row.name,
-            world_x, world_z, level);
+    if( !placed )
+        return 0;
+    /* In the bar, as a placed loc is: the bar kept "Copied: ..." and the
+     * placement looked like it had not taken (2026-11-11). */
+    Editor_UiStatus(ui, "Placed %s %s at %d,%d L%d; Ctrl+Z undoes it", row.is_obj ? "obj" : "npc", row.name, world_x,
+        world_z, level);
+    /* The spawn just placed is the selection -- and the ONLY selection: the
+     * NPC editor and Make own type act on it without a second click, and
+     * Delete takes it, not the loc placed before it, which stayed selected
+     * and was what Delete removed (2026-11-11). */
+    if( Editor_UiFindPanel(ui, "spawns") )
+    {
+        ui->tools.loc_count = 0;
+        /* The Spawns panel lists the latched tile's square: latch the
+         * spawn's, or a spawn placed in the next square is a selection its
+         * list does not hold. */
+        ui->tools.tile_valid = 1;
+        ui->tools.tile_x = world_x;
+        ui->tools.tile_z = world_z;
+        ui->tools.tile_level = level;
+        (void)Editor_Spawns_Select(ui, &row, 1);
+        if( ui->hooks.selection_changed )
+            ui->hooks.selection_changed(ui->hooks_user);
+    }
     return placed;
 }
 
@@ -1013,10 +1025,8 @@ locs_tick(
  * "Swap to catalog pick", with every way it can change nothing said
  * (2026-11-09: the button did nothing and said nothing). edp_locs_swap says a
  * pick that is not a loc, an empty selection and a shape the pick has no
- * model for. Said here, before it: a pick this editor has not loaded (a
- * record made with Copy to new has no model until RUN has built it, and
- * "still loading" never ends for it), and a pick that is what the selection
- * is already. Said here, after it: a swap that changed nothing with nothing
+ * model for. Said here, before it: a pick this editor has not loaded yet,
+ * and a pick that is what the selection is already. Said here, after it: a swap that changed nothing with nothing
  * said, and one that did.
  */
 int
@@ -1032,8 +1042,7 @@ Editor_Locs_Swap(struct EditorUi* ui)
     {
         if( !edp_loc_shapes(ui, ui->tools.pick_id, &mask) )
         {
-            Editor_UiStatus(ui,
-                "Swap refused: %s is not loaded in this editor yet. Try again in a moment; a new record needs RUN first",
+            Editor_UiStatus(ui, "Swap refused: %s is not loaded in this editor yet. Try again in a moment",
                 ui->tools.pick_name);
             return 0;
         }

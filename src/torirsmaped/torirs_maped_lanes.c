@@ -2008,12 +2008,22 @@ lane_file_fell_behind(
 {
 #ifdef _WIN32
     long long const looked = looked_at(lane, looks, dir_rel);
+    char base_dir[TORIRSMAPED_LANE_PATH];
+    struct stat bst;
 
     /* Strictly older: the clock here is whole seconds, and a file the lane
      * wrote in the very second of its look is the lane's. */
     if( !owned->known || looked <= 0 || (long long)st->st_mtime >= looked )
         return 0;
-    return !owned_has(owned, rel);
+    if( owned_has(owned, rel) )
+        return 0;
+    /* In a directory the base has not got (a new quest's folder, edited/)
+     * no file was ever a link's: each is one the lane made. The follow never
+     * walked such a directory to put its files on the list, so after a
+     * follow a new quest's files read as fallen behind -- gone from Changes
+     * and from a publish (2026-11-11). */
+    snprintf(base_dir, sizeof(base_dir), "%s%s%s", lane->base, dir_rel[0] ? "/" : "", dir_rel);
+    return stat(base_dir, &bst) == 0 && S_ISDIR(bst.st_mode);
 #else
     (void)lane;
     (void)looks;
@@ -2043,6 +2053,27 @@ lane_copy_untouched(
     if( stat(ancestor, &ast) == 0 )
         return files_equal(lane_path, ancestor);
     return owned->creation_end > 0 && (long long)st->st_mtime < owned->creation_end;
+}
+
+/** 1 when the lane's real file `lane_path` (`rel`, outside the copied trees)
+ *  was handed to a program outside the editor (ToriRSMapEdLanes_HandOut) and
+ *  nothing has written it since: it still equals the copy the hand-out
+ *  recorded at <lane>/ancestor/<rel>. Such a file is no change of the lane's
+ *  however far the base has moved; one that differs from its record is the
+ *  lane's own edit whatever its time. */
+static int
+lane_handout_untouched(
+    const struct ToriRSMapEdLaneDef* lane,
+    const char* rel,
+    const char* lane_path)
+{
+    char ancestor[TORIRSMAPED_LANE_PATH + 16];
+    struct stat ast;
+
+    if( rel_copied(rel) )
+        return 0;
+    ancestor_path(lane, rel, ancestor, sizeof(ancestor));
+    return stat(ancestor, &ast) == 0 && S_ISREG(ast.st_mode) && files_equal(lane_path, ancestor);
 }
 
 /** 1 when the lane's entry `lane_path` is the base's own file `base_path`
@@ -2858,11 +2889,13 @@ changes_walk_lane(
             continue;
         snprintf(base_path, sizeof(base_path), "%s/%s", lane->base, sub_rel);
         /* A file the lane never wrote is no change of the lane's: a link's
-         * file the base has since replaced or removed, or the copy the lane
-         * took of a file the base has since changed. The follow brings it
-         * up to date. */
+         * file the base has since replaced or removed, the copy the lane
+         * took of a file the base has since changed, or a copy handed to an
+         * outside program that nothing has written. The follow brings it up
+         * to date. */
         if( rel_copied(sub_rel) ? lane_copy_untouched(lane, &sink->owned, sub_rel, path, &st)
-                                : lane_file_fell_behind(lane, &sink->looks, &sink->owned, rel, sub_rel, &st) )
+                                : lane_handout_untouched(lane, sub_rel, path)
+                                      || lane_file_fell_behind(lane, &sink->looks, &sink->owned, rel, sub_rel, &st) )
             continue;
         if( stat(base_path, &bst) != 0 )
             change_add(sink, TORIRSMAPED_LANE_CHANGE_ADDED, sub_rel, (uint32_t)st.st_size);
@@ -3058,6 +3091,40 @@ relink(
 }
 
 static int
+mkdir_p_parent(const char* path);
+
+/** The lane's file `rel` given the base's bytes again (a publish with reset,
+ *  a discard, a follow). A file that was handed to an outside program
+ *  (ToriRSMapEdLanes_HandOut: it has a record under ancestor/) may still be
+ *  open there, and a link would send that program's next save into the base:
+ *  it takes the base's bytes as a COPY, and the record moves with it. Any
+ *  other file is linked again. */
+static int
+rebase_file(
+    const struct ToriRSMapEdLaneDef* lane,
+    const char* rel,
+    const char* lane_path,
+    const char* base_path,
+    char* why,
+    size_t why_size)
+{
+    char ancestor[TORIRSMAPED_LANE_PATH + 16];
+    struct stat st;
+
+    ancestor_path(lane, rel, ancestor, sizeof(ancestor));
+    if( rel_copied(rel) || stat(ancestor, &st) != 0 )
+        return relink(lane_path, base_path, why, why_size);
+    if( stat(base_path, &st) != 0 )
+    {
+        /* The base has no such file any more: nothing to hand out. */
+        remove(ancestor);
+        return relink(lane_path, base_path, why, why_size);
+    }
+    return copy_file(base_path, lane_path, why, why_size) && mkdir_p_parent(ancestor)
+           && copy_file(base_path, ancestor, why, why_size);
+}
+
+static int
 parent_dir(
     const char* path,
     char* out,
@@ -3099,7 +3166,10 @@ ToriRSMapEdLanes_Publish(
         snprintf(why, why_size, "lane '%s' cannot publish into itself", from->name);
         return 0;
     }
-    if( to->is_main && !(flags & TORIRSMAPED_LANE_PUBLISH_FORCE) )
+    /* The main tree, and a lane too (2026-11-11): its editor's documents are
+     * in memory, and files replaced under them are overwritten again by its
+     * next save, or shown stale until it reopens them. */
+    if( !(flags & TORIRSMAPED_LANE_PUBLISH_FORCE) )
     {
         char holder[512];
         if( ToriRSMapEdLanes_TreeHeld(to->content, holder, sizeof(holder)) )
@@ -3165,7 +3235,7 @@ ToriRSMapEdLanes_Publish(
             /* The source's directory is real (the change scan found a real
              * file in it); asked anyway, as every write into a lane is. */
             if( !lanes_make_writable(from, change->path, why, why_size)
-                || !relink(src, base_path, why, why_size) )
+                || !rebase_file(from, change->path, src, base_path, why, why_size) )
             {
                 ToriMem_Free(ToriMem_Editor(), changes);
                 return 0;
@@ -3177,15 +3247,19 @@ ToriRSMapEdLanes_Publish(
     return !reset || owned_prune(from, why, why_size);
 }
 
-int
-ToriRSMapEdLanes_Discard(
+/** Discard: every change, or -- `only` not NULL -- the one at that path
+ *  (ToriRSMapEdLanes_DiscardOne; 0 when it is not a change). */
+static int
+lanes_discard(
     const struct ToriRSMapEdLaneDef* lane,
+    const char* only,
     struct ToriRSMapEdLaneCounts* counts,
     char* why,
     size_t why_size)
 {
     struct ToriRSMapEdLaneChange* changes;
     int count;
+    int matched = 0;
 
     assert(lane);
     assert(counts);
@@ -3198,15 +3272,18 @@ ToriRSMapEdLanes_Discard(
         return 0;
     }
     count = ToriRSMapEdLanes_Changes(lane, NULL, 0, counts);
-    if( count == 0 )
+    if( count == 0 && !only )
         return 1;
-    changes = ToriMem_Alloc(ToriMem_Editor(), (size_t)count * sizeof(*changes));
+    changes = ToriMem_Alloc(ToriMem_Editor(), (size_t)(count > 0 ? count : 1) * sizeof(*changes));
     assert(changes);
     (void)ToriRSMapEdLanes_Changes(lane, changes, count, NULL);
     for( int i = 0; i < count; i++ )
     {
         char lane_path[TORIRSMAPED_LANE_PATH];
         char base_path[TORIRSMAPED_LANE_PATH];
+        if( only && strcmp(changes[i].path, only) != 0 )
+            continue;
+        matched++;
         snprintf(lane_path, sizeof(lane_path), "%s/%s", lane->content, changes[i].path);
         snprintf(base_path, sizeof(base_path), "%s/%s", lane->base, changes[i].path);
         /* Every change's directory is real already (the scan only finds
@@ -3231,7 +3308,7 @@ ToriRSMapEdLanes_Discard(
         }
         else
         {
-            if( !relink(lane_path, base_path, why, why_size) )
+            if( !rebase_file(lane, changes[i].path, lane_path, base_path, why, why_size) )
             {
                 ToriMem_Free(ToriMem_Editor(), changes);
                 return 0;
@@ -3240,8 +3317,35 @@ ToriRSMapEdLanes_Discard(
         }
     }
     ToriMem_Free(ToriMem_Editor(), changes);
+    if( only && !matched )
+    {
+        snprintf(why, why_size, "%s is not a change of lane '%s'", only, lane->name);
+        return 0;
+    }
     /* The files linked again are the base's, not the lane's. */
     return owned_prune(lane, why, why_size);
+}
+
+int
+ToriRSMapEdLanes_Discard(
+    const struct ToriRSMapEdLaneDef* lane,
+    struct ToriRSMapEdLaneCounts* counts,
+    char* why,
+    size_t why_size)
+{
+    return lanes_discard(lane, NULL, counts, why, why_size);
+}
+
+int
+ToriRSMapEdLanes_DiscardOne(
+    const struct ToriRSMapEdLaneDef* lane,
+    const char* rel,
+    struct ToriRSMapEdLaneCounts* counts,
+    char* why,
+    size_t why_size)
+{
+    assert(rel);
+    return lanes_discard(lane, rel, counts, why, why_size);
 }
 
 /* ---- following the base ------------------------------------------------------ */
@@ -3251,6 +3355,223 @@ mkdir_p_parent(const char* path)
 {
     char dir[TORIRSMAPED_LANE_PATH + 16];
     return !parent_dir(path, dir, sizeof(dir)) || mkdir_p(dir);
+}
+
+/* ---- handing a file to a program outside the editor ---------------------------
+ *
+ * The editor saves by a temporary and a rename, so its writes never go
+ * through a link. A text editor does not: VS Code, Notepad and most others
+ * write the file in place, and a lane's file that is still a link (a hard
+ * link on Windows) IS the base's file -- the save lands in the main tree. A
+ * new file made by hand in a directory that is still a link lands there too.
+ * So before a path inside a lane is given to anything outside the editor
+ * (Open in editor, Show in Explorer, Copy path), it is handed out here.
+ *
+ * The record of a hand-out is the bytes handed, at <lane>/ancestor/<rel>
+ * (beside the copied trees' ancestors, which mean the same thing: what the
+ * lane took from the base). While the lane's file equals it, nothing has
+ * written the file: it is no change (the scan), it takes the base's newer
+ * bytes as a copy (the follow), and it goes when the base's file goes. Once
+ * it differs it is the lane's edit. It is never made a link again while the
+ * record stands (rebase_file): the outside program may still hold it open.
+ */
+
+int
+ToriRSMapEdLanes_HandOut(
+    const struct ToriRSMapEdLaneDef* lane,
+    const char* rel,
+    char* why,
+    size_t why_size)
+{
+    char path[TORIRSMAPED_LANE_PATH];
+    char base_path[TORIRSMAPED_LANE_PATH];
+    char ancestor[TORIRSMAPED_LANE_PATH + 16];
+    struct stat lst;
+    struct stat st;
+
+    assert(lane);
+    assert(rel);
+    assert(why);
+    why[0] = '\0';
+    if( lane->is_main )
+        return 1;
+    /* Every directory above it real (an absent one made): a file created
+     * there by hand is the lane's. */
+    if( !lanes_make_writable(lane, rel, why, why_size) )
+        return 0;
+    snprintf(path, sizeof(path), "%s/%s", lane->content, rel);
+    if( lstat(path, &lst) != 0 )
+        return 1;
+    if( S_ISDIR(lst.st_mode) )
+        return 1;
+    if( stat(path, &st) != 0 )
+    {
+        snprintf(why, why_size, "%s is a link to nothing", path);
+        return 0;
+    }
+    if( S_ISDIR(st.st_mode) )
+        /* A directory link: real, so what is made in it stays in the lane.
+         * Its files are links still; each is handed out when it is asked for. */
+        return make_real_dir(lane, rel, why, why_size);
+    if( !S_ISREG(st.st_mode) )
+    {
+        snprintf(why, why_size, "%s is not a file or a directory", path);
+        return 0;
+    }
+    /* The copied trees (pack/) are the lane's own files from its creation. */
+    if( rel_copied(rel) )
+        return 1;
+    snprintf(base_path, sizeof(base_path), "%s/%s", lane->base, rel);
+    ancestor_path(lane, rel, ancestor, sizeof(ancestor));
+    if( !S_ISLNK(lst.st_mode) )
+    {
+        /* Real already. One that is still the base's bytes (a discard or a
+         * publish left it so, or an editor save that changed nothing) gets
+         * its record, so it stays a copy from here on; the lane's own edit
+         * needs none. */
+        if( stat(ancestor, &st) == 0 || !files_equal(path, base_path) )
+            return 1;
+        return mkdir_p_parent(ancestor) && copy_file(path, ancestor, why, why_size);
+    }
+    /* The record first: a copy with no record would read as the lane's edit
+     * the day the base moves; a record with no copy says nothing. */
+    if( !mkdir_p_parent(ancestor) )
+    {
+        snprintf(why, why_size, "cannot create the folder of %s: %s", ancestor, strerror(errno));
+        return 0;
+    }
+    return copy_file(path, ancestor, why, why_size) && copy_file(path, path, why, why_size);
+}
+
+/** How many files the directory `path` holds, every level down, through
+ *  links (it reads the base's where the lane still links to it). Stops
+ *  counting past `cap`. */
+static int
+handout_count(
+    const char* path,
+    int cap)
+{
+    DIR* dir = opendir(path);
+    struct dirent* entry;
+    int count = 0;
+
+    if( !dir )
+        return 0;
+    while( count <= cap && (entry = readdir(dir)) )
+    {
+        char child[TORIRSMAPED_LANE_PATH];
+        struct stat st;
+
+        if( entry->d_name[0] == '.' )
+            continue;
+        snprintf(child, sizeof(child), "%s/%s", path, entry->d_name);
+        if( stat(child, &st) != 0 )
+            continue;
+        if( S_ISDIR(st.st_mode) )
+            count += handout_count(child, cap - count);
+        else if( S_ISREG(st.st_mode) )
+            count++;
+    }
+    closedir(dir);
+    return count;
+}
+
+/** ToriRSMapEdLanes_HandOut of directory `rel` and of everything in it, every
+ *  level down. The names are read before any is handed out: a hand-out
+ *  writes a temporary beside the file and renames it, which a readdir in
+ *  progress may or may not see. `*files` counts the files. */
+static int
+handout_tree(
+    const struct ToriRSMapEdLaneDef* lane,
+    const char* rel,
+    int* files,
+    char* why,
+    size_t why_size)
+{
+    char path[TORIRSMAPED_LANE_PATH];
+    char (*names)[256] = NULL;
+    int count = 0;
+    int capacity = 0;
+    int ok = 1;
+    DIR* dir;
+    struct dirent* entry;
+
+    if( !ToriRSMapEdLanes_HandOut(lane, rel, why, why_size) )
+        return 0;
+    snprintf(path, sizeof(path), "%s/%s", lane->content, rel);
+    dir = opendir(path);
+    if( !dir )
+    {
+        snprintf(why, why_size, "cannot read %s: %s", path, strerror(errno));
+        return 0;
+    }
+    while( (entry = readdir(dir)) )
+    {
+        if( entry->d_name[0] == '.' || strlen(entry->d_name) >= sizeof(names[0]) )
+            continue;
+        if( count == capacity )
+        {
+            capacity = capacity ? capacity * 2 : 32;
+            names = realloc(names, (size_t)capacity * sizeof(*names));
+            assert(names);
+        }
+        snprintf(names[count++], sizeof(names[0]), "%s", entry->d_name);
+    }
+    closedir(dir);
+    for( int i = 0; i < count && ok; i++ )
+    {
+        char sub_rel[TORIRSMAPED_LANE_PATH];
+        char child[TORIRSMAPED_LANE_PATH];
+        struct stat st;
+
+        snprintf(sub_rel, sizeof(sub_rel), "%s/%s", rel, names[i]);
+        snprintf(child, sizeof(child), "%s/%s", lane->content, sub_rel);
+        if( rel_transient(sub_rel) || stat(child, &st) != 0 )
+            continue;
+        if( S_ISDIR(st.st_mode) )
+            ok = handout_tree(lane, sub_rel, files, why, why_size);
+        else if( S_ISREG(st.st_mode) )
+        {
+            ok = ToriRSMapEdLanes_HandOut(lane, sub_rel, why, why_size);
+            *files += ok;
+        }
+    }
+    free(names);
+    return ok;
+}
+
+int
+ToriRSMapEdLanes_HandOutFolder(
+    const struct ToriRSMapEdLaneDef* lane,
+    const char* rel,
+    int max_files,
+    int* out_files,
+    char* why,
+    size_t why_size)
+{
+    char path[TORIRSMAPED_LANE_PATH];
+    struct stat st;
+
+    assert(lane);
+    assert(rel);
+    assert(out_files);
+    assert(why);
+    assert(max_files > 0);
+    why[0] = '\0';
+    *out_files = 0;
+    if( lane->is_main )
+        return 1;
+    snprintf(path, sizeof(path), "%s/%s", lane->content, rel);
+    if( stat(path, &st) != 0 || !S_ISDIR(st.st_mode) )
+        return ToriRSMapEdLanes_HandOut(lane, rel, why, why_size);
+    if( handout_count(path, max_files) > max_files )
+    {
+        /* Too many to copy for one look in a file manager: the folder alone
+         * (a file made in it by hand is the lane's), and the caller says so. */
+        *out_files = -1;
+        return ToriRSMapEdLanes_HandOut(lane, rel, why, why_size);
+    }
+    return handout_tree(lane, rel, out_files, why, why_size);
 }
 
 struct follow_state
@@ -3336,6 +3657,16 @@ follow_real(
 {
     if( files_equal(lane_path, base_path) )
         return 1;
+    /* Handed to an outside program and never written there: the base's
+     * bytes, as a copy still (rebase_file) -- that program may hold it open. */
+    if( lane_handout_untouched(state->lane, rel, lane_path) )
+    {
+        if( !lanes_make_writable(state->lane, rel, state->why, state->why_size)
+            || !rebase_file(state->lane, rel, lane_path, base_path, state->why, state->why_size) )
+            return 0;
+        state->counts->written++;
+        return 1;
+    }
     if( !lane_file_fell_behind(state->lane, &state->looks, &state->owned, dir_rel, rel, lst) )
     {
         owned_add(&state->owned_now, rel);
@@ -3456,6 +3787,47 @@ follow_new(
     return 1;
 }
 
+/** A real directory of the mirror that the base has not got (a new quest's
+ *  folder): every file under it is one the lane made, and goes on the list
+ *  of what the lane wrote -- so that when the base gains the directory (a
+ *  publish), the lane's edits in it still read as the lane's. Nothing here
+ *  is removed. Always 1: a folder that cannot be read adds nothing. */
+static int
+follow_own_dir(
+    struct follow_state* state,
+    const char* rel)
+{
+    char dirs[2][TORIRSMAPED_LANE_PATH];
+    struct lanes_pair pair;
+    struct lanes_names names;
+    const char* name;
+
+    snprintf(dirs[0], sizeof(dirs[0]), "%s/%s", state->lane->base, rel);
+    snprintf(dirs[1], sizeof(dirs[1]), "%s/%s", state->lane->content, rel);
+    lanes_pair_read(&pair, dirs[0], dirs[1]);
+    if( lanes_names_open_lane(&names, dirs[1], &pair) )
+    {
+        while( (name = lanes_names_next(&names)) )
+        {
+            char sub_rel[TORIRSMAPED_LANE_PATH];
+            char path[TORIRSMAPED_LANE_PATH];
+            struct stat lst;
+
+            snprintf(sub_rel, sizeof(sub_rel), "%s/%s", rel, name);
+            snprintf(path, sizeof(path), "%s/%s", dirs[1], name);
+            if( rel_transient(sub_rel) || lstat(path, &lst) != 0 )
+                continue;
+            if( S_ISDIR(lst.st_mode) )
+                (void)follow_own_dir(state, sub_rel);
+            else if( S_ISREG(lst.st_mode) )
+                owned_add(&state->owned_now, sub_rel);
+        }
+        lanes_names_close(&names);
+    }
+    lanes_pair_free(&pair);
+    return 1;
+}
+
 /** A mirror entry the base no longer has: a link left dangling goes, and so
  *  does a copy the lane never changed; the lane's own files stay. Returns 0
  *  on an IO error. */
@@ -3476,10 +3848,16 @@ follow_gone(
     {
         /* A file of the lane's own. One it wrote stays, and goes on the
          * list of what the lane wrote; a link's file that the base has
-         * since removed (the hard link kept it alive) goes with it. */
+         * since removed (the hard link kept it alive) goes with it. A
+         * directory of the lane's own stays, and its files go on the list. */
+        if( S_ISDIR(lst->st_mode) && !rel_copied(rel) )
+            return follow_own_dir(state, rel);
         if( !S_ISREG(lst->st_mode) || rel_copied(rel) )
             return 1;
-        if( !lane_file_fell_behind(state->lane, &state->looks, &state->owned, dir_rel, rel, lst) )
+        /* A copy handed out and never written goes with the base's file,
+         * as the link it replaced would have. */
+        if( !lane_handout_untouched(state->lane, rel, lane_path)
+            && !lane_file_fell_behind(state->lane, &state->looks, &state->owned, dir_rel, rel, lst) )
         {
             owned_add(&state->owned_now, rel);
             return 1;
@@ -3703,7 +4081,15 @@ boot_file_path(
     size_t out_size)
 {
     char repo[TORIRSMAPED_LANE_PATH];
+    /* A test's own file (ToriRSMapEdLanes_BootFilePath): the Switch paths
+     * run against it and the repo's file is never opened. */
+    const char* const override = getenv("TORIRSMAPED_BOOT_LANE_FILE");
 
+    if( override && override[0] )
+    {
+        snprintf(out, out_size, "%s", override);
+        return;
+    }
     resolve_abs(repo_root, repo, sizeof(repo));
     snprintf(out, out_size, "%s/build/lanes/lane.ini", repo);
 }
@@ -3766,6 +4152,18 @@ ToriRSMapEdLanes_SetBoot(
     if( !ToriRSMapEdLanes_Lookup(repo_root, base_tree, name, &lane) )
     {
         snprintf(why, why_size, "there is no lane '%s' (build/lanes/%s/lane.ini)", name, name);
+        return 0;
+    }
+    /* The file is the owner's switch for their own launches. A run told to
+     * ignore it (a test, an agent) does not get to rewrite it either: on
+     * 2026-11-11 every such editor's Switch and Scratch lane would have
+     * re-pointed the owner's next launch at a test lane. */
+    if( ToriRSMapEdLanes_BootIgnored() )
+    {
+        snprintf(why, why_size,
+            "this session ignores the boot lane file (TORIRSMAPED_IGNORE_BOOT_LANE is set), so the switch to '%s' "
+            "was not recorded; launch the editor with lane=%s under [editor:boot] in its manifest",
+            name, name);
         return 0;
     }
     resolve_abs(repo_root, repo, sizeof(repo));
@@ -3853,4 +4251,385 @@ ToriRSMapEdLanes_BootLane(
         snprintf(note, note_size, "lane '%s' (build/lanes/lane.ini, switched in the editor; the boot asked for '%s')",
             named, asked);
     return 1;
+}
+
+/* ---- a lane's life-cycle: the boot file's place, delete, diff, overlap -------
+ * (torirs_maped_lanes.h, "a lane's life-cycle", 2026-11-11) */
+
+int
+ToriRSMapEdLanes_BootIgnored(void)
+{
+    const char* const ignore = getenv("TORIRSMAPED_IGNORE_BOOT_LANE");
+
+    return ignore && ignore[0] && strcmp(ignore, "0") != 0;
+}
+
+void
+ToriRSMapEdLanes_BootFilePath(
+    const char* repo_root,
+    char* out,
+    size_t out_size)
+{
+    assert(repo_root);
+    assert(out);
+    assert(out_size > 0);
+    boot_file_path(repo_root, out, out_size);
+}
+
+/**
+ * ToriRSMapEdLanes_Delete's walk: remove_tree_no_follow's rule exactly, and
+ * counted. Whatever lstat() does not call a directory loses its OWN name and
+ * nothing more -- a junction or a directory symlink by RemoveDirectory (the
+ * reparse point goes, what it points at is not opened), a hard link or a
+ * file symlink by unlink (the base's file keeps its other names), a file of
+ * the lane's own by unlink. Only a REAL directory is listed and entered, and
+ * lstat() reads every reparse point as S_IFLNK. There is no path from here
+ * into the base tree.
+ *
+ * A read-only file of the lane's own is made writable and tried again. A
+ * LINK never is: a hard link's attributes are the base file's.
+ */
+static int
+lane_delete_walk(
+    const char* path,
+    struct ToriRSMapEdLaneDeleted* out,
+    char* why,
+    size_t why_size)
+{
+    struct stat st;
+    DIR* dir;
+    struct dirent* entry;
+
+    if( lstat(path, &st) != 0 )
+        return 1;
+    if( !S_ISDIR(st.st_mode) )
+    {
+        int const link = S_ISLNK(st.st_mode);
+
+        if( unlink(path) != 0 && (link || chmod(path, 0644) != 0 || unlink(path) != 0) )
+        {
+            snprintf(why, why_size, "cannot remove %s: %s", path, strerror(errno));
+            return 0;
+        }
+        if( link )
+            out->links++;
+        else
+            out->files++;
+        return 1;
+    }
+    dir = opendir(path);
+    if( !dir )
+    {
+        snprintf(why, why_size, "cannot read %s: %s", path, strerror(errno));
+        return 0;
+    }
+    while( (entry = readdir(dir)) )
+    {
+        char sub[TORIRSMAPED_LANE_PATH];
+
+        if( strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0 )
+            continue;
+        snprintf(sub, sizeof(sub), "%s/%s", path, entry->d_name);
+        if( !lane_delete_walk(sub, out, why, why_size) )
+        {
+            closedir(dir);
+            return 0;
+        }
+    }
+    closedir(dir);
+    if( rmdir(path) != 0 )
+    {
+        snprintf(why, why_size, "cannot remove %s: %s", path, strerror(errno));
+        return 0;
+    }
+    out->dirs++;
+    return 1;
+}
+
+int
+ToriRSMapEdLanes_Delete(
+    const char* repo_root,
+    const char* base_tree,
+    const char* name,
+    struct ToriRSMapEdLaneDeleted* out,
+    char* why,
+    size_t why_size)
+{
+    struct ToriRSMapEdLaneDef lane;
+    struct ToriRSMapEdLaneDeleted removed;
+    char repo[TORIRSMAPED_LANE_PATH];
+    char aside[TORIRSMAPED_LANE_PATH + 32];
+    char walk_why[TORIRSMAPED_LANE_PATH + 128];
+    struct stat st;
+
+    assert(repo_root);
+    assert(base_tree);
+    assert(name);
+    assert(why);
+    why[0] = '\0';
+    memset(&removed, 0, sizeof(removed));
+    if( out )
+        *out = removed;
+    if( strcmp(name, "main") == 0 )
+    {
+        snprintf(why, why_size, "main is the base tree itself, not a lane: it cannot be deleted");
+        return 0;
+    }
+    if( !ToriRSMapEdLanes_NameValid(name) )
+    {
+        snprintf(why, why_size, "'%s' is not a lane name", name);
+        return 0;
+    }
+    resolve_abs(repo_root, repo, sizeof(repo));
+    snprintf(aside, sizeof(aside), "%s/build/lanes/.%s.deleting", repo, name);
+    if( ToriRSMapEdLanes_Lookup(repo_root, base_tree, name, &lane) )
+    {
+        char expect[TORIRSMAPED_LANE_PATH];
+        char ini[TORIRSMAPED_LANE_PATH + 16];
+        char holder[512];
+        char boot[TORIRSMAPED_LANE_NAME_MAX + 8];
+        int direct;
+        int has_ini;
+
+        /* What is about to be emptied is a lane's own directory: directly
+         * under build/lanes and holding a lane.ini. Lookup built the path
+         * and read the file, so either failing is a bug here, not a state of
+         * the disk -- and a recursive delete does not start on a bug, in a
+         * build without asserts either. */
+        snprintf(expect, sizeof(expect), "%s/build/lanes/%s", repo, name);
+        snprintf(ini, sizeof(ini), "%s/lane.ini", lane.dir);
+        direct = strcmp(lane.dir, expect) == 0;
+        has_ini = stat(ini, &st) == 0 && S_ISREG(st.st_mode);
+        assert(direct);
+        assert(has_ini);
+        if( !direct || !has_ini )
+        {
+            snprintf(why, why_size, "%s is not a lane's directory under build/lanes; nothing was deleted", lane.dir);
+            return 0;
+        }
+        if( lstat(lane.dir, &st) != 0 || !S_ISDIR(st.st_mode) )
+        {
+            snprintf(why, why_size, "%s is a link, not a lane's own directory; nothing was deleted", lane.dir);
+            return 0;
+        }
+        if( ToriRSMapEdLanes_BootName(repo_root, boot, sizeof(boot)) && strcmp(boot, name) == 0 )
+        {
+            snprintf(why, why_size,
+                "lane '%s' is the lane every launch opens (the boot lane file names it): switch to another lane first",
+                name);
+            return 0;
+        }
+        if( ToriRSMapEdLanes_TreeHeld(lane.content, holder, sizeof(holder)) )
+        {
+            snprintf(why, why_size, "lane '%s' is open in an editor (%s): close that editor first", name, holder);
+            return 0;
+        }
+        /* What an earlier delete of this name left part-way. */
+        if( lstat(aside, &st) == 0 && !lane_delete_walk(aside, &removed, why, why_size) )
+            return 0;
+        /* Aside first: one rename, and it fails while any program has a file
+         * of the lane open, before anything is gone. From here on the name
+         * is free and nothing lists the directory as a lane. */
+        if( rename(lane.dir, aside) != 0 )
+        {
+            snprintf(why, why_size,
+                "cannot move %s aside: a program still has a file of lane '%s' open (its RUN's servers, a text "
+                "editor, a file manager window); nothing was deleted",
+                lane.dir, name);
+            return 0;
+        }
+    }
+    else if( !(lstat(aside, &st) == 0 && S_ISDIR(st.st_mode)) )
+    {
+        snprintf(why, why_size, "there is no lane '%s' (build/lanes/%s/lane.ini)", name, name);
+        return 0;
+    }
+    walk_why[0] = '\0';
+    if( !lane_delete_walk(aside, &removed, walk_why, sizeof(walk_why)) )
+    {
+        snprintf(why, why_size,
+            "lane '%s' is a lane no more, but its directory was not emptied: %s. The rest is at %s; Delete lane "
+            "again finishes it",
+            name, walk_why, aside);
+        if( out )
+            *out = removed;
+        return 0;
+    }
+    if( out )
+        *out = removed;
+    return 1;
+}
+
+/** 1 when `rel` names something inside a tree: '/'-separated, relative, no
+ *  empty, "." or ".." part, no backslash or drive. */
+static int
+lane_rel_inside(const char* rel)
+{
+    size_t start = 0;
+
+    if( !rel[0] || rel[0] == '/' || (rel[0] && rel[1] == ':') || strchr(rel, '\\') )
+        return 0;
+    for( size_t i = 0;; i++ )
+    {
+        char const c = rel[i];
+        size_t const length = i - start;
+
+        if( c != '/' && c != '\0' )
+            continue;
+        if( length == 0 || (length == 1 && rel[start] == '.')
+            || (length == 2 && rel[start] == '.' && rel[start + 1] == '.') )
+            return 0;
+        if( c == '\0' )
+            return 1;
+        start = i + 1;
+    }
+}
+
+int
+ToriRSMapEdLanes_DiffBase(
+    const struct ToriRSMapEdLaneDef* lane,
+    const char* rel,
+    char* out,
+    size_t out_size,
+    char* why,
+    size_t why_size)
+{
+    char lane_path[TORIRSMAPED_LANE_PATH];
+    char base_path[TORIRSMAPED_LANE_PATH];
+    char copy[TORIRSMAPED_LANE_PATH + 32];
+    char dir[TORIRSMAPED_LANE_PATH + 32];
+    const char* file;
+    const char* dot;
+    struct stat st;
+
+    assert(lane);
+    assert(rel);
+    assert(out);
+    assert(out_size > 0);
+    assert(why);
+    out[0] = '\0';
+    why[0] = '\0';
+    if( lane->is_main || !lane->base[0] )
+    {
+        snprintf(why, why_size, "the main tree is the base itself: there is nothing to compare it with");
+        return 0;
+    }
+    if( !lane_rel_inside(rel) )
+    {
+        snprintf(why, why_size, "'%s' is not a path inside the lane", rel);
+        return 0;
+    }
+    snprintf(lane_path, sizeof(lane_path), "%s/%s", lane->content, rel);
+    snprintf(base_path, sizeof(base_path), "%s/%s", lane->base, rel);
+    if( stat(base_path, &st) != 0 || !S_ISREG(st.st_mode) )
+    {
+        snprintf(why, why_size, "%s is new in lane '%s': the base has no such file to compare it with", rel,
+            lane->name);
+        return 0;
+    }
+    if( stat(lane_path, &st) != 0 || !S_ISREG(st.st_mode) )
+    {
+        snprintf(why, why_size, "%s was deleted by lane '%s': there is no file of the lane's to compare", rel,
+            lane->name);
+        return 0;
+    }
+    /* "<lane dir>/diff/<dir of rel>/<stem>.base<ext>": outside content/, so
+     * no walk, build or publish ever reads it, and named so a diff tool's
+     * two tabs can be told apart while each keeps its syntax. */
+    file = strrchr(rel, '/');
+    file = file ? file + 1 : rel;
+    dot = strrchr(file, '.');
+    if( !dot || dot == file )
+        dot = file + strlen(file);
+    snprintf(copy, sizeof(copy), "%s/diff/%.*s.base%s", lane->dir, (int)(dot - rel), rel, dot);
+    if( !parent_dir(copy, dir, sizeof(dir)) || !mkdir_p(dir) )
+    {
+        snprintf(why, why_size, "cannot create %s: %s", dir, strerror(errno));
+        return 0;
+    }
+    if( !copy_file(base_path, copy, why, why_size) )
+        return 0;
+    snprintf(out, out_size, "%s", copy);
+    return 1;
+}
+
+int
+ToriRSMapEdLanes_PublishOverlap(
+    const struct ToriRSMapEdLaneDef* from,
+    const struct ToriRSMapEdLaneDef* to,
+    char (*out)[TORIRSMAPED_LANE_PATH],
+    int max,
+    int* from_changes,
+    int* to_changes)
+{
+    struct ToriRSMapEdLaneChange* ours;
+    struct ToriRSMapEdLaneChange* theirs;
+    int our_count;
+    int their_count;
+    int overlap = 0;
+    int a = 0;
+    int b = 0;
+
+    assert(from);
+    assert(to);
+    assert(out || max == 0);
+    our_count = ToriRSMapEdLanes_Changes(from, NULL, 0, NULL);
+    their_count = ToriRSMapEdLanes_Changes(to, NULL, 0, NULL);
+    if( from_changes )
+        *from_changes = our_count;
+    if( to_changes )
+        *to_changes = their_count;
+    if( our_count == 0 || their_count == 0 )
+        return 0;
+    ours = ToriMem_Alloc(ToriMem_Editor(), (size_t)our_count * sizeof(*ours));
+    assert(ours);
+    theirs = ToriMem_Alloc(ToriMem_Editor(), (size_t)their_count * sizeof(*theirs));
+    assert(theirs);
+    /* Both sorted by path (ToriRSMapEdLanes_Changes): one pass finds the
+     * paths they share. A tree that moved between the count and the rows
+     * gives fewer rows than room, never more. */
+    {
+        int const our_rows = ToriRSMapEdLanes_Changes(from, ours, our_count, NULL);
+        int const their_rows = ToriRSMapEdLanes_Changes(to, theirs, their_count, NULL);
+        if( our_rows < our_count )
+            our_count = our_rows;
+        if( their_rows < their_count )
+            their_count = their_rows;
+    }
+    while( a < our_count && b < their_count )
+    {
+        int const order = strcmp(ours[a].path, theirs[b].path);
+        if( order < 0 )
+            a++;
+        else if( order > 0 )
+            b++;
+        else
+        {
+            /* The same change on both sides is nothing lost: both deleted
+             * it, or both hold the same bytes (a lane promoted from this one
+             * a minute ago holds every file of it). */
+            int same = ours[a].kind == TORIRSMAPED_LANE_CHANGE_DELETED
+                       && theirs[b].kind == TORIRSMAPED_LANE_CHANGE_DELETED;
+            if( !same && ours[a].kind != TORIRSMAPED_LANE_CHANGE_DELETED
+                && theirs[b].kind != TORIRSMAPED_LANE_CHANGE_DELETED )
+            {
+                char our_path[TORIRSMAPED_LANE_PATH];
+                char their_path[TORIRSMAPED_LANE_PATH];
+                snprintf(our_path, sizeof(our_path), "%s/%s", from->content, ours[a].path);
+                snprintf(their_path, sizeof(their_path), "%s/%s", to->content, theirs[b].path);
+                same = files_equal(our_path, their_path);
+            }
+            if( !same )
+            {
+                if( overlap < max )
+                    snprintf(out[overlap], TORIRSMAPED_LANE_PATH, "%s", ours[a].path);
+                overlap++;
+            }
+            a++;
+            b++;
+        }
+    }
+    ToriMem_Free(ToriMem_Editor(), theirs);
+    ToriMem_Free(ToriMem_Editor(), ours);
+    return overlap;
 }

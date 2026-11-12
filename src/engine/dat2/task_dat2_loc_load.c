@@ -94,6 +94,10 @@ Task_Dat2LocLoad_Run(
             task->group->filelist->file_sizes[pos]);
     if( !rscache_loc )
     {
+        /* Not a record of this cache. One the map editor's lane made since
+         * the cache was built is defined from its text instead. */
+        if( CacheProvider_AbsentRecord(&task->bc->base, CACHEPROVIDER_CATALOG_LOC, task->loc_id) )
+            PT_EXIT(&task->pt);
         TORIRS_ERR("Failed to load dat2 loc %d\n", task->loc_id);
         PT_EXIT(&task->pt);
     }

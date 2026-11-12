@@ -98,6 +98,7 @@ static void handle_lanes(
     uint32_t length);
 static void lanes_service(struct ToriRSMapEd* maped);
 static void lanes_scan_free(struct ToriRSMapEd* maped);
+static void lanes_make_drop(struct ToriRSMapEd* maped);
 static int lanes_plain_write_guard(void* ctx, const char* rel, char* why, size_t why_size);
 
 /* ------------------------------------------------------------------ */
@@ -155,7 +156,7 @@ ToriRSMapEd_Open(
         |= TORIRSMAPED_CAP_CATALOG | TORIRSMAPED_CAP_CATALOG_PROGRESS | TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS
            | TORIRSMAPED_CAP_CATALOG_USES | TORIRSMAPED_CAP_CATALOG_SQUARES_NOWAIT;
     /* The lanes' workbench frames are the wire half's (torirs_maped_lanes_wire.c). */
-    maped->capabilities |= TORIRSMAPED_CAP_LANES_V2;
+    maped->capabilities |= TORIRSMAPED_CAP_LANES_V2 | TORIRSMAPED_CAP_LANE_HANDOUT;
     /* DOC_CREATE joins an open stroke when asked (the instance helper). */
     maped->capabilities |= TORIRSMAPED_CAP_DOC_CREATE_STROKE;
 
@@ -187,6 +188,7 @@ ToriRSMapEd_Close(struct ToriRSMapEd* maped)
         jobs_free(maped);
         acct_state_drop(maped);
         lanes_scan_free(maped);
+        lanes_make_drop(maped);
         maped->open = 0;
     }
 }
@@ -1656,6 +1658,126 @@ alloc_text_of(const struct Editor_TextDoc* doc)
     return text;
 }
 
+/** The catalog kind of config type `type` ("loc", "npc", ...), or -1. */
+static int
+save_as_catalog_kind(const char* type)
+{
+    for( uint32_t kind = 0; kind < TORIRSMAPED_CATALOG_KIND_COUNT; kind++ )
+        if( strcmp(ToriRSMapEdCatalog_KindName(kind), type) == 0 )
+            return (int)kind;
+    return -1;
+}
+
+/** Server overlays one record is read from at most: the record editor's
+ *  layers less the cache half (editor_cfg.h). */
+#define SAVE_AS_OVERLAYS_MAX (EDITOR_CFG_RECORD_LAYERS_MAX - 1)
+
+/**
+ * The server half of SAVE_AS (editor_alloc.h Editor_AllocCopyOverlayPlan):
+ * the commands that give `new_name` an authored overlay of its own holding
+ * what the source's server overlays resolve to. A loc, npc or obj only (a
+ * floor has no server half). The overlays are the ones the catalog says
+ * state the source; each block is read from the AUTHORITY's document, so an
+ * unsaved edit of the source is copied as it stands.
+ *
+ * Returns the command count with `*out_commands` owned by the caller (NULL
+ * when 0). -1 while the catalog is still being built: nobody can say yet
+ * which overlays state the source, and the caller refuses the copy. 0 when
+ * the source states no server field, and -- said in the log, never silently
+ * -- when the copy's overlay key does not fit: the copy is made without its
+ * server half, as every copy was before 2026-11-11.
+ */
+static int
+save_as_overlay_plan(
+    struct ToriRSMapEd* maped,
+    const char* type,
+    const char* name,
+    const char* new_name,
+    struct Editor_Cmd** out_commands)
+{
+    char (*overlays)[TORIRSMAPED_CATALOG_OVERLAY_MAX];
+    struct Editor_AllocOverlayLayer layers[SAVE_AS_OVERLAYS_MAX];
+    struct Editor_Cmd* commands;
+    int const kind = save_as_catalog_kind(type);
+    int overlay_count;
+    int layer_count = 0;
+    int capacity;
+    int count;
+
+    *out_commands = NULL;
+    if( strcmp(type, "loc") != 0 && strcmp(type, "npc") != 0 && strcmp(type, "obj") != 0 )
+        return 0;
+    if( !maped->catalog || kind < 0 )
+        return 0;
+    overlays = ToriMem_Calloc(ToriMem_Editor(), SAVE_AS_OVERLAYS_MAX, sizeof(*overlays));
+    assert(overlays);
+    overlay_count =
+        ToriRSMapEdCatalog_RecordOverlays(maped->catalog, (uint32_t)kind, name, overlays, SAVE_AS_OVERLAYS_MAX);
+    if( overlay_count < 0 )
+    {
+        /* Which overlays state the source is the index's answer: without
+         * it the copy would be a monster that fights like nothing. */
+        ToriMem_Free(ToriMem_Editor(), overlays);
+        return -1;
+    }
+    for( int i = 0; i < overlay_count; i++ )
+    {
+        char key[EDITOR_DOC_KEY_MAX];
+        struct Editor_TextDoc* doc;
+
+        if( !Editor_CfgOverlayKey(key, type, name, overlays[i]) )
+            continue;
+        doc = authority_text_doc(maped, EDITOR_DOC_CFG, key);
+        if( !doc || doc->length == 0 )
+            continue;
+        layers[layer_count].overlay = overlays[i];
+        layers[layer_count].text = doc->text;
+        layers[layer_count].length = doc->length;
+        layer_count++;
+    }
+    if( layer_count == 0 )
+    {
+        ToriMem_Free(ToriMem_Editor(), overlays);
+        return 0;
+    }
+    /* The copy's overlay document, open in the authority before a command
+     * names it (a command to a document nobody opened is dropped), and
+     * empty: a file left there by an earlier record of this name is not
+     * written over. */
+    {
+        char path[EDITOR_DOC_KEY_MAX];
+        char key[EDITOR_DOC_KEY_MAX];
+        struct Editor_TextDoc* doc = NULL;
+
+        if( Editor_AllocCopyOverlayPath(type, new_name, path, sizeof(path))
+            && Editor_CfgOverlayKey(key, type, new_name, path) )
+            doc = authority_text_doc(maped, EDITOR_DOC_CFG, key);
+        if( !doc || doc->length > 0 )
+        {
+            TORIRS_REPORT("torirsmaped: SAVE_AS %s:%s -> %s: its overlay server/scripts/%s %s, so the copy has "
+                          "the cache block only\n", type, name, new_name, path,
+                doc ? "already holds a block of that name" : "cannot be opened (a name over 34 bytes?)");
+            ToriMem_Free(ToriMem_Editor(), overlays);
+            return 0;
+        }
+    }
+    capacity = Editor_AllocCopyOverlayBound(layers, layer_count);
+    commands = ToriMem_Alloc(ToriMem_Editor(), sizeof(*commands) * (size_t)capacity);
+    assert(commands);
+    count = Editor_AllocCopyOverlayPlan(type, name, new_name, layers, layer_count, commands, capacity);
+    ToriMem_Free(ToriMem_Editor(), overlays);
+    if( count <= 0 )
+    {
+        if( count < 0 )
+            TORIRS_REPORT("torirsmaped: SAVE_AS %s:%s -> %s: its server overlay could not be planned (a name "
+                          "over 34 bytes?), so the copy has the cache block only\n", type, name, new_name);
+        ToriMem_Free(ToriMem_Editor(), commands);
+        return 0;
+    }
+    *out_commands = commands;
+    return count;
+}
+
 /**
  * SAVE_AS(CFG, "<type>:<name>", "<type>:<new name>"): copy a loc, npc, obj,
  * underlay or overlay definition to a new name with a fresh id (design #save
@@ -1668,7 +1790,9 @@ alloc_text_of(const struct Editor_TextDoc* doc)
  * out as ordinary FACT_CMDs in one undo step: the ledger line, the
  * pack/<type>.client line (the copy is a cache record with model data, so it
  * needs a client half; the allocation alone routes it server-side), the
- * CFG_BLOCK add and every field of the source.
+ * CFG_BLOCK add and every field of the source -- and, for a loc, npc or obj,
+ * the source's SERVER fields into the copy's own authored overlay
+ * (save_as_overlay_plan), so a copied monster fights as its source does.
  */
 static void
 handle_save_as(
@@ -1698,8 +1822,10 @@ handle_save_as(
     struct Editor_AllocText index_text;
     struct Editor_AllocResult result;
     struct Editor_Cmd* commands;
+    struct Editor_Cmd* overlay_commands = NULL;
     enum Editor_AllocStatus status;
     int capacity;
+    int overlay_count;
     int was_in_stroke;
 
     ToriRSMapEd_ReaderInit(&reader, body, length);
@@ -1802,18 +1928,44 @@ handle_save_as(
         return;
     }
 
+    /* The server half (a loc / npc / obj): what the source's overlays say,
+     * into the copy's own. Planned before anything applies, so the step is
+     * whole or absent. */
+    overlay_count = save_as_overlay_plan(maped, type, name, result.name, &overlay_commands);
+    if( overlay_count < 0 )
+    {
+        /* Refused whole, not made without its server half (until
+         * 2026-11-11 a copy in a fresh lane's first two minutes was). */
+        TORIRS_LOG("torirsmaped: SAVE_AS %s -> %s refused: the catalog index is still being built\n", key, new_key);
+        ToriMem_Free(ToriMem_Editor(), commands);
+        send_status(session, TORIRSMAPED_REQ_SAVE_AS, EDITOR_HOST_BUSY);
+        return;
+    }
+
     /* One undo step, whatever stroke a client has open. */
     was_in_stroke = maped->undo.in_stroke;
     Editor_UndoStrokeBegin(&maped->undo);
     for( int i = 0; i < result.command_count; i++ )
         server_command(maped, &commands[i]);
+    for( int i = 0; i < overlay_count; i++ )
+        server_command(maped, &overlay_commands[i]);
     Editor_UndoStrokeEnd(&maped->undo);
     if( was_in_stroke )
         Editor_UndoStrokeBegin(&maped->undo);
     ToriMem_Free(ToriMem_Editor(), commands);
+    ToriMem_Free(ToriMem_Editor(), overlay_commands);
 
-    TORIRS_LOG("torirsmaped: copied %s to %s:%s, id %d (%d commands)\n", key, type, result.name,
-        result.id, result.command_count);
+    /* No file holds the copy until a save: the catalog lists it from the
+     * authority's document meanwhile (ToriRSMapEdCatalog_PendingSync, before
+     * the next catalog request is answered). */
+    {
+        int const kind = save_as_catalog_kind(type);
+        if( maped->catalog && kind >= 0 )
+            ToriRSMapEdCatalog_PendingAdd(maped->catalog, (uint32_t)kind, result.id, result.name);
+    }
+
+    TORIRS_LOG("torirsmaped: copied %s to %s:%s, id %d (%d commands, %d of them its server overlay)\n", key,
+        type, result.name, result.id, result.command_count + overlay_count, overlay_count);
     send_status_extra(session, TORIRSMAPED_REQ_SAVE_AS, EDITOR_HOST_OK, (uint32_t)result.id);
 }
 
@@ -1834,6 +1986,9 @@ handle_catalog(
 
     assert(catalog);
     memset(&out, 0, sizeof(out));
+    /* The records SAVE_AS made that no file holds yet answer from the
+     * authority's documents: listed, current, or gone with their undo. */
+    (void)ToriRSMapEdCatalog_PendingSync(catalog, &maped->doc);
     if( type == TORIRSMAPED_REQ_CATALOG_QUERY )
     {
         ok = ToriRSMapEdCatalog_HandleQuery(catalog, body, length, &out);

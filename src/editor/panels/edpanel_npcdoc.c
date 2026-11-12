@@ -143,6 +143,24 @@ Editor_NpcDocRecord(
 }
 
 int
+Editor_NpcDocExists(
+    struct EditorUi* ui,
+    struct Editor_NpcDoc* doc)
+{
+    const struct Editor_CfgRecord* record;
+
+    assert(ui);
+    assert(doc);
+    record = Editor_NpcDocRecord(ui, doc);
+    if( !record )
+        return 0;
+    for( int l = 0; l < record->layer_count; l++ )
+        if( record->layers[l].present )
+            return 1;
+    return 0;
+}
+
+int
 Editor_NpcDocMovement(
     struct EditorUi* ui,
     struct Editor_NpcDoc* doc,
@@ -248,6 +266,7 @@ Editor_NpcDocSetRoute(
     const struct Editor_NpcWaypoint* waypoints,
     int count,
     enum Editor_NpcMode mode,
+    int maxrange,
     const char* what)
 {
     const struct Editor_CfgRecord* record;
@@ -274,7 +293,7 @@ Editor_NpcDocSetRoute(
         return -1;
     }
     commands = edp_scratch(&capacity);
-    planned = Editor_NpcRoutePlan(record, waypoints, count, mode, layer, commands, capacity);
+    planned = Editor_NpcRoutePlan(record, waypoints, count, mode, maxrange, layer, commands, capacity);
     if( planned < 0 )
     {
         Editor_UiStatus(ui, "%s refused: the route does not fit a config (%d waypoints)", what, count);

@@ -170,6 +170,12 @@ struct CacheProvider
     struct ToriRS_Objtype** retired_objtypes;
     int retired_objtype_count;
     int retired_objtype_capacity;
+
+    /** Who defines a loc / npc / obj this cache does not hold
+     *  (CacheProvider_SetAbsentRecordSource). NULL: nobody, and the load
+     *  fails as it always did. */
+    int (*absent_record_source)(void* user, int kind, int id);
+    void* absent_record_user;
 };
 
 /** Name the queue loaders fan their siblings out on. See `asset_queue`. */
@@ -1140,6 +1146,65 @@ CacheProvider_VisitLoaded(
     enum CacheProvider_CatalogKind kind,
     CacheProvider_CatalogVisitFn visit,
     void* user);
+
+/**
+ * A source for records the cache does NOT hold: the map editor's lane, whose
+ * "Copy to new" makes a loc / npc / obj that exists as text in the content
+ * tree long before any cache is built with it (editor/editor_lanerecs.h).
+ *
+ * The record loaders call CacheProvider_AbsentRecord when the cache's group
+ * was read and does not list the id. The source answers 1 after ADDING the
+ * record itself (CacheProvider_LocationReplace and its siblings), 0 when it
+ * has none either -- and must remember its own misses: a ghost asks for its
+ * record every frame. `kind` is an enum CacheProvider_CatalogKind. One
+ * source; NULL unregisters. A game client registers none.
+ */
+void
+CacheProvider_SetAbsentRecordSource(
+    struct CacheProvider* provider,
+    int (*source)(void* user, int kind, int id),
+    void* user);
+
+/** 1 when the registered source defined record (`kind`, `id`). */
+int
+CacheProvider_AbsentRecord(
+    struct CacheProvider* provider,
+    enum CacheProvider_CatalogKind kind,
+    int id);
+
+/**
+ * Add `record` as `id`, RETIRING the record it replaces instead of freeing
+ * it (see `retired_locations`): a definition edited while the world shows it
+ * may still be held by a scene element, a ghost or a panel for the rest of
+ * the frame. Otherwise what CacheProvider_*Add does. ObjtypeReplace also
+ * forgets that the id was once answered "not in this cache".
+ */
+void
+CacheProvider_LocationReplace(
+    struct CacheProvider* provider,
+    int loc_id,
+    struct ToriRS_Location* location);
+
+void
+CacheProvider_NpctypeReplace(
+    struct CacheProvider* provider,
+    int npc_id,
+    struct ToriRS_Npctype* npctype);
+
+void
+CacheProvider_ObjtypeReplace(
+    struct CacheProvider* provider,
+    int obj_id,
+    struct ToriRS_Objtype* objtype);
+
+/** Take record (`kind`, `id`) out, retired like a replaced one: the record
+ *  no longer exists (the copy that made it was undone). 1 when one was
+ *  resident. */
+int
+CacheProvider_RecordRetire(
+    struct CacheProvider* provider,
+    enum CacheProvider_CatalogKind kind,
+    int id);
 
 void
 CacheProvider_FlotypeAdd(

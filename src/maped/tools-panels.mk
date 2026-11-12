@@ -27,6 +27,9 @@ TOOLS_PANELS_SRCS += editor/panels/edpanel_statusbar.c
 # The floor colours as the client blends and draws them (the Palette's
 # picker, blend strip and swatch readouts), headless.
 TOOLS_PANELS_SRCS += editor/editor_floorcolor.c
+# What a mapper calls a floor record (the Palette's swatch names, its Find
+# box and the path painter's default overlays), headless.
+TOOLS_PANELS_SRCS += editor/editor_floornames.c
 MAPED_CLIENT_SRCS += $(TOOLS_PANELS_SRCS)
 
 # The panels, headless, against the real chrome model and an embedded
@@ -78,3 +81,15 @@ test-editor-panels:
 	./$(OBJ_DIR)/editor_panels_test $(OBJ_DIR)/tmp/editor_panels
 
 EDITOR_TREE_TESTS += test-editor-panels
+
+# The floor names on their own: the common set's shape, a colour's words, the
+# names' order of preference, the search -- and the set against the content
+# tree's own configs/all.underlay and all.overlay (READ ONLY): every common
+# floor's record is there and is the colour or texture its name says.
+.PHONY: test-editor-floornames
+test-editor-floornames:
+	mkdir -p $(OBJ_DIR)
+	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/editor_floornames_test editor/editor_floornames.c 		editor/test/editor_floornames_test.c $(MAPED_TEST_LDFLAGS)
+	./$(OBJ_DIR)/editor_floornames_test $(EDITOR_CONTENT_DIR)/configs
+
+test-editor: test-editor-floornames

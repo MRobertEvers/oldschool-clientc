@@ -97,7 +97,8 @@ Editor_NpcDocSetField(
  * Replace the route (Editor_NpcRoutePlan) and pin the ledger
  * (`movement = patrols | wanders | stationary`, `source = authored`), as
  * ONE undo step named `what`. With no waypoints `mode` is the Mode radio's
- * word and the ledger says wanders or stationary. Returns the commands the
+ * word and the ledger says wanders or stationary. `maxrange` >= 0 states
+ * the leash in the same step (-1 leaves it). Returns the commands the
  * authority took, 0 when nothing changed, -1 refused and undone.
  */
 int
@@ -107,6 +108,15 @@ Editor_NpcDocSetRoute(
     const struct Editor_NpcWaypoint* waypoints,
     int count,
     enum Editor_NpcMode mode,
+    int maxrange,
     const char* what);
+
+/** 1 when any layer of the open record holds its block: the npc exists in
+ *  the session's documents, an unsaved Copy to new included (which the
+ *  catalog index does not list until Save). */
+int
+Editor_NpcDocExists(
+    struct EditorUi* ui,
+    struct Editor_NpcDoc* doc);
 
 #endif

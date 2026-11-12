@@ -1082,6 +1082,38 @@ test_scatter(void)
         if( commands[i].u.loc.after.rotation )
             turned++;
     CHECK(m < n && turned == 0, "scatter: a tenth of the density is far fewer, none turned (%d of %d)", m, n);
+
+    /* Bare ground only: a road (an overlay) through the disc takes nothing. */
+    {
+        int const lx = cx - BASE_X;
+        int const lz = cz - BASE_Z;
+        struct Editor_Tile kept[7];
+        int on_road = 0;
+        for( int dx = -3; dx <= 3; dx++ )
+        {
+            kept[dx + 3] = sq->tiles[Editor_TileIndex(lx + dx, lz, 0)];
+            sq->tiles[Editor_TileIndex(lx + dx, lz, 0)].has_overlay = 1;
+            sq->tiles[Editor_TileIndex(lx + dx, lz, 0)].overlay_id = 14;
+        }
+        op.density = 100;
+        op.brush.falloff = EDITOR_BRUSH_FALLOFF_FLAT;
+        op.set.count = 1;
+        op.bare = 1;
+        m = Editor_ScatterCommands(&g_editor.doc, &op, commands, EDITOR_BRUSH_TILES_MAX);
+        for( int i = 0; i < m; i++ )
+            if( commands[i].u.loc.after.z == lz )
+                on_road++;
+        CHECK(m > 0 && on_road == 0, "scatter: bare ground only skips the road row (%d placed, %d on it)", m, on_road);
+        op.bare = 0;
+        m = Editor_ScatterCommands(&g_editor.doc, &op, commands, EDITOR_BRUSH_TILES_MAX);
+        on_road = 0;
+        for( int i = 0; i < m; i++ )
+            if( commands[i].u.loc.after.z == lz )
+                on_road++;
+        CHECK(on_road > 0, "scatter: without it the road row takes locs too (%d)", on_road);
+        for( int dx = -3; dx <= 3; dx++ )
+            sq->tiles[Editor_TileIndex(lx + dx, lz, 0)] = kept[dx + 3];
+    }
 }
 
 static void

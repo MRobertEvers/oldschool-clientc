@@ -19,6 +19,7 @@
  *     # stamp <name> [| note <text>]
  *     # loc <dx> <dz> <dlevel> <loc> <shape> <rot> [<w>x<h>]
  *     # tile <dx> <dz> <dlevel> [h<raw>] [u<id>] [o<id>/<shape>/<rot>] [f<bits>]
+ *     # floor <dx> <dz> <dlevel> [o<id>/<shape>/<rot>] [f<bits>]
  *     # spawn <npc|obj> <name> <dx> <dz> <dlevel> [<count>]
  *     stamp smithy | note the forge's walls and anvil
  *     loc 0 0 0 1902 0 1
@@ -32,8 +33,12 @@
  * (1x1 when absent), what a turn of the stamp needs to keep a multi-tile loc
  * on the tiles it covered. A tile's tokens are the `.jm2` record's own (raw
  * height, underlay, overlay id / shape / rotation, flags); a bare `tile` line
- * is a tile with no tokens (the drop clears it to absent). The index holds
- * header lines only, one per stamp.
+ * is a tile with no tokens (the drop clears it to absent). A `floor` is what
+ * a BUILDING leaves on a tile and nothing else of it (2026-11-11): its
+ * overlay and its flags (the "remove roof" bit indoors), laid ON the tile it
+ * lands on, whose height and underlay stay as they are -- so a house stamped
+ * on a hillside brings its floorboards and not the ground it was built on,
+ * which a `tile` would. The index holds header lines only, one per stamp.
  *
  * LINE-PRESERVING, like editor_palette.c: parse -> emit is byte-identical
  * (comments, blank lines, CRLF, a missing final newline). A stamp document is
@@ -82,6 +87,10 @@ enum Editor_StampPieceKind
     EDITOR_STAMP_LOC = 0,
     EDITOR_STAMP_TILE,
     EDITOR_STAMP_SPAWN,
+    /** A tile's overlay and flags only, merged into the tile it lands on
+     *  (`tile.has_overlay` 0: the overlay is left; `tile.settings`: the bits
+     *  set on top of the tile's own). */
+    EDITOR_STAMP_FLOOR,
 };
 
 struct Editor_StampPiece
@@ -96,7 +105,7 @@ struct Editor_StampPiece
     int rotation;
     int size_x;
     int size_z;
-    /* TILE */
+    /* TILE, FLOOR */
     struct Editor_Tile tile;
     /* SPAWN */
     int is_obj;
@@ -229,6 +238,22 @@ Editor_StampsHeaderName(
     const struct Editor_StampsFile* file,
     int nth);
 
+/**
+ * `old_text` (a stamp's file, or the index) with the header line naming
+ * `name` rewritten to name `new_name` (its note kept), or taken out when
+ * `new_name` is NULL: what a rename and a delete write. Every other line is
+ * carried byte for byte. Unchanged when no header names `name`. Written into
+ * `out` (snprintf's contract); returns the length.
+ */
+size_t
+Editor_StampsHeaderEdit(
+    const char* old_text,
+    size_t old_length,
+    const char* name,
+    const char* new_name,
+    char* out,
+    size_t out_capacity);
+
 /* ---- the stamp --------------------------------------------------------- */
 
 void
@@ -289,7 +314,8 @@ Editor_StampCount(
     const struct Editor_Stamp* stamp,
     enum Editor_StampPieceKind kind);
 
-/** "smithy: 3 locs, 1 tile, 1 spawn" for a readout. */
+/** "smithy: 3 locs, 1 tile, 1 spawn" for a readout; ", 35 floors" after
+ *  them when it holds any. */
 void
 Editor_StampSummary(
     const struct Editor_Stamp* stamp,

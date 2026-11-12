@@ -7,9 +7,11 @@
  */
 
 #include "app/app_internal.h"
+#include "app/app_editor_campath.h"
 #include "editor/editor_doc.h"
 #include "editor/editor_view.h"
 #include "editor/loc_editor_selection.h"
+#include "editor/builder/builder_panels.h"
 #include "editor/panels/edpanel_common.h"
 #include "editor/panels/edpanels.h"
 #include "engine/world_builder/edit/world_edit.h"
@@ -1443,6 +1445,13 @@ app_overlay_build_hover_footprint(struct App* app)
 #define APP_EDITOR_ROUTE_CLOSING_COLOR 0xFFA87A30u
 #define APP_EDITOR_ROUTE_TELEPORT_COLOR 0xFFE05050u
 #define APP_EDITOR_PIN_COLOR 0xFFFF8040u
+/* The NPC editor's own route (Builder_RouteWorldRects): the waypoint a click
+ * would lay and the legs to it in a pale amber, Play's walker in magenta,
+ * washed: a cyan walker was the scripted spawns' marker colour and read as
+ * one more spawn standing on the route. */
+#define APP_EDITOR_ROUTE_PREVIEW_COLOR 0xFFFFE0A0u
+#define APP_EDITOR_ROUTE_WALKER_COLOR 0xFFFF40E0u
+#define APP_EDITOR_ROUTE_WALKER_FILL 120
 /* The spawn preview's tile markers, by which file the row is in. */
 #define APP_EDITOR_SPAWN_EDITED_COLOR 0xFF50E070u
 #define APP_EDITOR_SPAWN_GENERATED_COLOR 0xFFFFE070u
@@ -1973,8 +1982,18 @@ app_overlay_build_editor_ghosts(struct App* app)
         int const bx = app->world->_base_tile_x;
         int const bz = app->world->_base_tile_z;
         int const ghost_npc = spawn->active && spawn->spec.kind == MAP_EDITOR_SPAWN_NPC ? spawn->spec.id : -1;
-        int const n = Editor_Spawns_WanderRects(panel->ui, hover->valid, hover->scene_x + bx, hover->scene_z + bz,
-            hover->level, ghost_npc, rects, MAP_EDITOR_WANDER_RECTS_MAX);
+        /* Two passes over one drawing: the Spawns panel's preview, then the
+         * route the NPC editor has open (over it). While the editor draws
+         * its route -- each leg along the tiles the walk steps on -- the
+         * selection's straight-leg copy of a route is left out: two lines
+         * for one route read as two routes. */
+        int const route_n = Builder_RouteWorldRects(panel->ui, rects, MAP_EDITOR_WANDER_RECTS_MAX);
+
+        for( int pass = 0; pass < 2; pass++ )
+        {
+        int const n = pass == 0 ? Editor_Spawns_WanderRects(panel->ui, hover->valid, hover->scene_x + bx,
+                                      hover->scene_z + bz, hover->level, ghost_npc, rects, MAP_EDITOR_WANDER_RECTS_MAX)
+                                : Builder_RouteWorldRects(panel->ui, rects, MAP_EDITOR_WANDER_RECTS_MAX);
 
         for( int i = 0; i < n; i++ )
         {
@@ -1984,12 +2003,17 @@ app_overlay_build_editor_ghosts(struct App* app)
             int const x1 = r->x1 - bx;
             int rows = r->z1 - bz - z0 + 1;
 
+            if( pass == 0 && route_n > 0
+                && (r->kind == MAP_EDITOR_WANDER_LEG || r->kind == MAP_EDITOR_WANDER_WAYPOINT) )
+                continue;
             if( r->kind == MAP_EDITOR_WANDER_LEG )
             {
                 /* A route leg: the walked line, amber; the closing leg dim;
-                 * a teleport (another level, no path) red. */
+                 * a teleport (another level, no path) red; one that is not
+                 * in the document yet pale. */
                 uint32_t const color = (r->flags & (MAP_EDITOR_WANDER_FLAG_TELEPORT | MAP_EDITOR_WANDER_FLAG_UNREACHABLE))
                                            ? APP_EDITOR_ROUTE_TELEPORT_COLOR
+                                       : (r->flags & MAP_EDITOR_WANDER_FLAG_PREVIEW) ? APP_EDITOR_ROUTE_PREVIEW_COLOR
                                        : (r->flags & MAP_EDITOR_WANDER_FLAG_CLOSING) ? APP_EDITOR_ROUTE_CLOSING_COLOR
                                                                                      : APP_EDITOR_ROUTE_COLOR;
                 app_overlay_editor_route_leg(app, r->x0 - bx, r->z0 - bz, r->x1 - bx, r->z1 - bz, r->level, color,
@@ -2003,9 +2027,46 @@ app_overlay_build_editor_ghosts(struct App* app)
                 int const sz = r->z0 - bz;
                 if( sx < 0 || sz < 0 || sx >= extent || sz >= extent )
                     continue;
-                app_overlay_editor_tile(app, sx, sz, r->level, APP_EDITOR_ROUTE_COLOR, APP_OUTLINE_FILL_TRANS,
-                    APP_OVERLAY_SEGMENT_WIDTH);
-                app_overlay_editor_route_number(app, sx, sz, r->level, r->index, APP_EDITOR_ROUTE_COLOR);
+                if( r->flags & MAP_EDITOR_WANDER_FLAG_PREVIEW )
+                {
+                    /* Not laid yet: an outline, no wash. */
+                    app_overlay_editor_tile(app, sx, sz, r->level, APP_EDITOR_ROUTE_PREVIEW_COLOR, -1,
+                        APP_OVERLAY_SEGMENT_WIDTH + 1);
+                    app_overlay_editor_route_number(app, sx, sz, r->level, r->index, APP_EDITOR_ROUTE_PREVIEW_COLOR);
+                }
+                else if( r->flags & MAP_EDITOR_WANDER_FLAG_SELECTED )
+                {
+                    app_overlay_editor_tile(app, sx, sz, r->level, APP_OUTLINE_COLOR_EDITOR_SELECT, APP_OUTLINE_FILL_TRANS,
+                        APP_OVERLAY_SEGMENT_WIDTH + 2);
+                    app_overlay_editor_route_number(app, sx, sz, r->level, r->index, APP_OUTLINE_COLOR_EDITOR_SELECT);
+                }
+                else
+                {
+                    app_overlay_editor_tile(app, sx, sz, r->level, APP_EDITOR_ROUTE_COLOR, APP_OUTLINE_FILL_TRANS,
+                        APP_OVERLAY_SEGMENT_WIDTH);
+                    app_overlay_editor_route_number(app, sx, sz, r->level, r->index, APP_EDITOR_ROUTE_COLOR);
+                }
+                continue;
+            }
+            if( r->kind == MAP_EDITOR_WANDER_STALL || r->kind == MAP_EDITOR_WANDER_WALKER )
+            {
+                /* Where a leg stops dead (red, thick), and Play's walker. */
+                int const extent = app->world->_scene_size;
+                uint32_t const color = r->kind == MAP_EDITOR_WANDER_STALL
+                                               || (r->flags & MAP_EDITOR_WANDER_FLAG_UNREACHABLE)
+                                           ? APP_EDITOR_ROUTE_TELEPORT_COLOR
+                                           : APP_EDITOR_ROUTE_WALKER_COLOR;
+                int const fill = r->kind == MAP_EDITOR_WANDER_WALKER ? APP_EDITOR_ROUTE_WALKER_FILL
+                                                                     : APP_OUTLINE_FILL_TRANS;
+                for( int tz = r->z0; tz <= r->z1; tz++ )
+                    for( int tx = r->x0; tx <= r->x1; tx++ )
+                    {
+                        int const sx = tx - bx;
+                        int const sz = tz - bz;
+                        if( sx < 0 || sz < 0 || sx >= extent || sz >= extent )
+                            continue;
+                        app_overlay_editor_tile(app, sx, sz, r->level, color, fill, APP_OVERLAY_SEGMENT_WIDTH + 2);
+                    }
                 continue;
             }
             if( x1 < x0 || rows <= 0 )
@@ -2028,6 +2089,7 @@ app_overlay_build_editor_ghosts(struct App* app)
             else
                 app_overlay_editor_rows_hull(app, z0, rows, row_x0, row_x1, r->level, APP_EDITOR_WANDER_COLOR,
                     APP_OUTLINE_FILL_TRANS, APP_OVERLAY_SEGMENT_WIDTH);
+        }
         }
     }
     /* The encounter builder's rings (Editor_Encounter_Rings, workbench 6.7):
@@ -2891,6 +2953,8 @@ app_overlay_build_editor_selection(struct App* app)
     app_overlay_build_editor_region(app);
     /* The named areas (Areas panel). */
     app_overlay_build_editor_areas(app);
+    /* The shown camera path (Camera path panel; app_editor_campath.c). */
+    app_overlay_build_editor_campath(app);
     /* The move gizmo and the multi-piece ghost (workbench 6.3). */
     app_overlay_build_editor_gizmo(app);
     /* The tile grid and the squares' borders. After the previews, not under

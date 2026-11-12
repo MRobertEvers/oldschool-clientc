@@ -94,6 +94,10 @@ Task_Dat2ObjLoad_Run(
     pos = Dat2Group_IndexOf(task->group, task->obj_id);
     if( pos < 0 )
     {
+        /* Not a record of this cache. One the map editor's lane made since
+         * the cache was built is defined from its text instead. */
+        if( CacheProvider_AbsentRecord(&task->bc->base, CACHEPROVIDER_CATALOG_OBJ, task->obj_id) )
+            PT_EXIT(&task->pt);
         /* The group was read and does not list it: an answer, not a failed
          * read, so nothing asks again (ObjModelLoad_NeedsWork). */
         TORIRS_ERR("dat2 obj %d is not in this cache's objtype group\n", task->obj_id);

@@ -26,11 +26,14 @@
 #include "editor/editor_ui.h"
 #include "editor/editor_view.h"
 #include "editor/live/live_panel.h"
+#include "editor/panels/edpanels.h"
 #include "input/torirs_input.h"
 #include "log/torirs_log.h"
 #include "mem/torirs_mem.h"
 #include "miniz.h"
 #include "platform/platform_window.h"
+#include "torirsmaped/torirs_maped.h"
+#include "torirsmaped/torirs_maped_catalog.h"
 #include "ui/torirs_chrome_metrics.h"
 #include "ui/uitree_debug_overlay.h"
 #include "ui/uitree_minimenu.h"
@@ -40,12 +43,18 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <errno.h>
+#include <sys/stat.h>
+
 #ifdef _WIN32
+#include <direct.h>
 #include <process.h>
 #define agent_pid() ((long)_getpid())
+#define agent_mkdir(path) _mkdir(path)
 #else
 #include <unistd.h>
 #define agent_pid() ((long)getpid())
+#define agent_mkdir(path) mkdir(path, 0777)
 #endif
 
 /* ---- text ------------------------------------------------------------------------ */
@@ -205,13 +214,71 @@ verb_help(struct AgentCtx* ctx)
     return AGENT_VERB_DONE;
 }
 
+/** Frames between two questions to the catalog while a `wait` is held. */
+#define AGENT_INDEX_POLL_FRAMES 10
+
+enum
+{
+    /** wait's op->ints: quiet frames in a row, the timeout, then the index
+     *  poll's frame and its last answer. */
+    WAIT_INT_QUIET = 0,
+    WAIT_INT_TIMEOUT,
+    WAIT_INT_INDEX_FRAME,
+    WAIT_INT_INDEX_READING,
+};
+
+/**
+ * 1 while the lane's catalog index is still being read, with the clause in
+ * op->text ("the lane's catalog index is still being read (37%): ...").
+ *
+ * The editor's server reads the lane's whole tree once after it starts, a
+ * minute or two. Until then the
+ * Catalog's lists are empty or partial, the Square map has no atlas and Save
+ * cannot place a new square -- and nothing else is busy, so `wait until=idle`
+ * said idle and the next step failed (2026-11-11). The server answers a
+ * progress query at once from its partial index (TORIRSMAPED_CATALOG_PROGRESS);
+ * asked every AGENT_INDEX_POLL_FRAMES frames, not every frame.
+ */
+static int
+agent_index_reading(
+    struct AgentCtx* ctx,
+    struct EditorUi* eui,
+    struct AgentOp* op)
+{
+    struct EditorHost_CatalogPage page;
+
+    if( !eui->editor || !eui->editor->host_open || !(eui->editor->capabilities & TORIRSMAPED_CAP_CATALOG_PROGRESS) )
+        return 0;
+    if( op->ints[WAIT_INT_INDEX_FRAME] != 0 && ctx->frame - op->ints[WAIT_INT_INDEX_FRAME] < AGENT_INDEX_POLL_FRAMES )
+        return op->ints[WAIT_INT_INDEX_READING];
+    op->ints[WAIT_INT_INDEX_FRAME] = (int)ctx->frame;
+    op->ints[WAIT_INT_INDEX_READING] = 0;
+    memset(&page, 0, sizeof(page));
+    if( Editor_HostMapEdCatalogQuery(&eui->editor->host, TORIRSMAPED_CATALOG_LOC, "", TORIRSMAPED_CATALOG_PROGRESS, 0,
+            1, &page)
+            == EDITOR_HOST_OK
+        && (page.page_flags & TORIRSMAPED_CATALOG_PAGE_PARTIAL) )
+    {
+        op->ints[WAIT_INT_INDEX_READING] = 1;
+        snprintf(op->text, sizeof(op->text),
+            "the lane's catalog index is still being read (%u%%): until it is, lists are partial and Save cannot "
+            "place a new square (it takes a minute or two after the editor starts)",
+            page.progress_total > 0 ? (unsigned)((uint64_t)page.progress_done * 100u / page.progress_total) : 0u);
+    }
+    Editor_HostCatalogPageFree(&page);
+    return op->ints[WAIT_INT_INDEX_READING];
+}
+
 /**
  * What is keeping the client from being idle, as a clause for a sentence, or
  * NULL when nothing is: the boot, loads in flight, the world loading, a RUN
- * or a build, a chrome panel waiting on its layout.
+ * or a build, a Check of the scripts, the catalog index's first read, a
+ * chrome panel waiting on its layout. `op` is the wait's (the index poll keeps its answer there).
  */
 static const char*
-agent_busy_with(struct AgentCtx* ctx)
+agent_busy_with(
+    struct AgentCtx* ctx,
+    struct AgentOp* op)
 {
     struct App* app = ctx->app;
     struct EditorUi* eui = Agent_EditorUi(ctx);
@@ -225,6 +292,12 @@ agent_busy_with(struct AgentCtx* ctx)
         return "the world is loading";
     if( eui && Editor_Live_Busy(eui) == 1 )
         return "a RUN or a build is in flight";
+    /* Check scripts answers a minute later in the console; a script that
+     * waited for idle and read the log found no answer there. */
+    if( eui && Editor_Triggers_CheckRunning(eui) == 1 )
+        return "a Check of the scripts is in flight";
+    if( eui && agent_index_reading(ctx, eui, op) )
+        return op->text;
     if( chrome->dirty )
         return "the chrome is waiting on its layout";
     for( int i = 0; i < chrome->panel_count; i++ )
@@ -267,7 +340,7 @@ wait_step(
                 busy = "the editor's panels are not up yet";
         }
         else
-            busy = agent_busy_with(ctx);
+            busy = agent_busy_with(ctx, op);
         if( busy )
             op->ints[0] = 0;
         else
@@ -981,7 +1054,8 @@ shot_step(
         if( ctx->now_ms < op->deadline_ms )
             return 0;
         Agent_ReplyError(ctx,
-            "no picture reached %s within %d ms: either nothing was presented, or the folder cannot be written",
+            "no picture reached %s within %d ms: nothing was presented (a minimised window presents nothing), or the "
+            "file could not be written there",
             op->text, AGENT_SHOT_TIMEOUT_MS);
         return 1;
     }
@@ -1017,12 +1091,64 @@ shot_step(
     return 1;
 }
 
+/**
+ * Make the folder `path`'s file goes in, and the folders above it that are
+ * missing. 1 when it is there afterwards; 0 with the folder that could not be
+ * made in `out_folder` and errno's reason in `out_why`.
+ *
+ * A picture asked into a folder that did not exist used to wait out the
+ * capture's five seconds and then guess ("either nothing was presented, or
+ * the folder cannot be written"); the folder is the caller's to name and
+ * nobody's to make by hand.
+ */
+static int
+agent_make_parent_dirs(
+    const char* path,
+    char* out_folder,
+    size_t folder_size,
+    const char** out_why)
+{
+    char folder[AGENT_OP_TEXT];
+    size_t const length = strlen(path);
+    size_t last = 0;
+    struct stat info;
+
+    assert(length < sizeof(folder));
+    for( size_t i = 0; i < length; i++ )
+        if( path[i] == '/' || path[i] == '\\' )
+            last = i;
+    /* No folder part ("shot.png"), or the root's own ("/shot.png"). */
+    if( last == 0 )
+        return 1;
+    for( size_t i = 1; i <= last; i++ )
+    {
+        if( i < last && path[i] != '/' && path[i] != '\\' )
+            continue;
+        /* "C:" is a drive, not a folder to make; "//" makes nothing. */
+        if( path[i - 1] == ':' || path[i - 1] == '/' || path[i - 1] == '\\' )
+            continue;
+        memcpy(folder, path, i);
+        folder[i] = '\0';
+        if( stat(folder, &info) == 0 )
+            continue;
+        if( agent_mkdir(folder) != 0 && errno != EEXIST )
+        {
+            *out_why = strerror(errno);
+            snprintf(out_folder, folder_size, "%s", folder);
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static enum AgentVerbResult
 verb_shot(struct AgentCtx* ctx)
 {
     struct AgentOp* op;
     const char* path = NULL;
     const char* dot;
+    const char* why = NULL;
+    char folder[AGENT_OP_TEXT];
     int rect[4] = { 0, 0, 0, 0 };
     int has_rect;
     int png;
@@ -1042,6 +1168,15 @@ verb_shot(struct AgentCtx* ctx)
     if( strlen(path) + 16 >= AGENT_OP_TEXT )
     {
         Agent_ReplyError(ctx, "\"path\" is over %d bytes", AGENT_OP_TEXT - 17);
+        return AGENT_VERB_DONE;
+    }
+    /* The folder is made when it is missing; one that cannot be made is
+     * refused now, by name, not after the capture's wait. */
+    if( !agent_make_parent_dirs(path, folder, sizeof(folder), &why) )
+    {
+        Agent_ReplyError(ctx, "the folder \"%s\" does not exist and could not be made (%s): give a \"path\" in a "
+                              "folder this client can write",
+            folder, why);
         return AGENT_VERB_DONE;
     }
 
@@ -1344,14 +1479,32 @@ agent_widget_shown(
     return 1;
 }
 
-/** On screen: shown, in an open panel that is not collapsed, with a box. */
+/** The widget's middle is inside the window (when its size is known). A
+ *  dialog taller than the window draws its foot past the bottom edge, where
+ *  the agent's press still lands and a person's cannot: New instance's Create
+ *  was pressed at y 958 of a 900-pixel window (2026-11-11). */
+static int
+agent_widget_inside_window(
+    const struct ToriRSChrome* chrome,
+    const struct ToriRSChromeWidget* w)
+{
+    if( chrome->surface_h > 0 && (w->y + w->h / 2 < 0 || w->y + w->h / 2 >= chrome->surface_h) )
+        return 0;
+    if( chrome->surface_w > 0 && (w->x + w->w / 2 < 0 || w->x + w->w / 2 >= chrome->surface_w) )
+        return 0;
+    return 1;
+}
+
+/** On screen: shown, in an open panel that is not collapsed, with a box,
+ *  inside the window. */
 static int
 agent_widget_on_screen(
     const struct ToriRSChrome* chrome,
     const struct ToriRSChromeWidget* w)
 {
     const struct ToriRSChromePanel* p = &chrome->panels[w->panel];
-    return p->visible && !p->collapsed && agent_widget_shown(chrome, w) && w->w > 0 && w->h > 0;
+    return p->visible && !p->collapsed && agent_widget_shown(chrome, w) && w->w > 0 && w->h > 0
+           && agent_widget_inside_window(chrome, w);
 }
 
 /**
@@ -1396,6 +1549,8 @@ agent_widget_hidden_why(
         return "other_tab";
     if( p->scrollable && p->content_h > p->view_h )
         return "scrolled_out";
+    if( w->w > 0 && w->h > 0 && !agent_widget_inside_window(chrome, w) )
+        return "off_window";
     return "cut_off";
 }
 
@@ -2253,7 +2408,7 @@ agent_find_label(
             const struct ToriRSChromeWidget* w = &chrome->widgets[id];
             int const is_shown = pan->visible && !pan->collapsed && agent_widget_shown(chrome, w);
             int const is_input = w->kind == TORIRS_CHROME_W_TEXTINPUT || w->kind == TORIRS_CHROME_W_TEXTAREA
-                                 || w->kind == TORIRS_CHROME_W_COLORPICK;
+                                 || w->kind == TORIRS_CHROME_W_COLORPICK || w->kind == TORIRS_CHROME_W_SLIDER;
 
             if( w->kind == TORIRS_CHROME_W_FREE || w->kind == TORIRS_CHROME_W_SEPARATOR || is_shown != shown )
                 continue;
@@ -2348,6 +2503,10 @@ agent_resolve_label(
                                       "click that tab first",
                     label, strip ? agent_option_label(chrome, strip, w->tab) : "?", title);
             }
+            else if( strcmp(why, "off_window") == 0 )
+                Agent_ReplyError(ctx, "\"%s\" in the panel \"%s\" is past the window's edge (at %d,%d; the window is "
+                                      "%dx%d): a person cannot press it there; the panel must fit the window",
+                    label, title, w->x + w->w / 2, w->y + w->h / 2, chrome->surface_w, chrome->surface_h);
             else
                 Agent_ReplyError(ctx, "\"%s\" is in the panel \"%s\" but hidden there right now: the panel does not "
                                       "offer it in its present state",
@@ -2988,10 +3147,10 @@ agent_request_target(
             return 0;
         }
         if( inputs_only && w->kind != TORIRS_CHROME_W_TEXTINPUT && w->kind != TORIRS_CHROME_W_TEXTAREA
-            && w->kind != TORIRS_CHROME_W_COLORPICK )
+            && w->kind != TORIRS_CHROME_W_COLORPICK && w->kind != TORIRS_CHROME_W_SLIDER )
         {
-            Agent_ReplyError(ctx, "widget %d is a %s, which holds no text: ui_set is for textinput, textarea and "
-                                  "colorpick",
+            Agent_ReplyError(ctx, "widget %d is a %s, which holds no text: ui_set is for textinput, textarea, "
+                                  "colorpick and slider",
                 out->widget, agent_widget_kind_name(w));
             return 0;
         }
@@ -3046,6 +3205,53 @@ verb_ui_click(struct AgentCtx* ctx)
     return AGENT_VERB_PENDING;
 }
 
+/* ui_set on a slider: `text` is a whole number in the slider's range, snapped
+ * to its step. Done at once, not through the click-and-type script: there is
+ * nothing to type into. */
+static enum AgentVerbResult
+agent_set_slider(
+    struct AgentCtx* ctx,
+    int widget,
+    const char* text)
+{
+    struct ToriRSChrome* chrome = &ctx->app->dbg_ui;
+    const struct ToriRSChromeWidget* w = &chrome->widgets[widget];
+    struct AgentJsonWriter* out;
+    char* end = NULL;
+    long value;
+
+    assert(text);
+    value = strtol(text, &end, 10);
+    if( end == text || *end != '\0' )
+    {
+        Agent_ReplyError(ctx, "widget %d is a slider: \"text\" must be a whole number (%d..%d), not \"%s\"", widget,
+            w->imin, w->imax, text);
+        return AGENT_VERB_DONE;
+    }
+    if( value < w->imin || value > w->imax )
+    {
+        Agent_ReplyError(ctx, "widget %d is a slider of %d..%d: %ld is outside it", widget, w->imin, w->imax, value);
+        return AGENT_VERB_DONE;
+    }
+    if( w->disabled )
+    {
+        Agent_ReplyError(ctx, "widget %d is disabled: the panel does not offer it in its present state", widget);
+        return AGENT_VERB_DONE;
+    }
+    if( w->ivalue != (int)value )
+    {
+        ToriRSChrome_SliderSet(chrome, widget, (int)value);
+        chrome->activated = widget;
+    }
+    out = Agent_ReplyBegin(ctx);
+    AgentJsonW_Key(out, "widget");
+    AgentJsonW_Int(out, widget);
+    AgentJsonW_Key(out, "value");
+    AgentJsonW_Int(out, w->ivalue);
+    Agent_ReplyEnd(ctx);
+    return AGENT_VERB_DONE;
+}
+
 static enum AgentVerbResult
 verb_ui_set(struct AgentCtx* ctx)
 {
@@ -3077,6 +3283,12 @@ verb_ui_set(struct AgentCtx* ctx)
     }
     if( !agent_request_target(ctx, 1, &target) )
         return AGENT_VERB_DONE;
+    /* A slider takes a number: set as its keys set it (Left / Right / Home /
+     * End on a focused slider), so the panel hears it through the same
+     * `activated` latch a person's key or drag fires. Before this, a script
+     * could only drag the knob and read where it landed. */
+    if( ctx->app->dbg_ui.widgets[target.widget].kind == TORIRS_CHROME_W_SLIDER )
+        return agent_set_slider(ctx, target.widget, text);
     /* Return commits a one-line field, so a newline can only be text in a
      * text area. */
     if( ctx->app->dbg_ui.widgets[target.widget].kind != TORIRS_CHROME_W_TEXTAREA

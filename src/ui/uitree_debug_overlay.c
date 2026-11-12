@@ -11586,7 +11586,8 @@ ToriRSChrome_MouseWheel(struct ToriRSChrome* ui, int x, int y, int delta)
 
     w = &ui->widgets[ui->dropdown_open];
     before = w->scroll;
-    w->scroll += delta;
+    /* Wheel down (negative delta) shows later options, as in a panel. */
+    w->scroll -= delta;
     dbg_dropdown_clamp(ui, w);
     if( w->scroll != before )
     {

@@ -1663,6 +1663,31 @@ Editor_HostLocalOpenInEditor(
     return EDITOR_HOST_UNSUPPORTED;
 }
 
+enum EditorHost_Status
+Editor_HostLocalOpenFolderInEditor(
+    const char* folder,
+    const char* path,
+    int line,
+    char* out_cmdline,
+    size_t out_size)
+{
+    (void)folder;
+    return Editor_HostLocalOpenInEditor(path, line, out_cmdline, out_size);
+}
+
+const char*
+Editor_HostLocalEditorWho(int folder)
+{
+    (void)folder;
+    return "no program: a browser tab starts none";
+}
+
+int
+Editor_HostLocalEditorFound(void)
+{
+    return 0;
+}
+
 /* A browser tab has no file manager to hand a path to. */
 enum EditorHost_Status
 Editor_HostLocalRevealInFileManager(
@@ -1678,27 +1703,72 @@ Editor_HostLocalRevealInFileManager(
 
 #elif defined(_WIN32)
 
+/** VS Code's launcher on PATH is code.cmd. */
+static int
+local_have_code(void)
+{
+    char found[MAX_PATH];
+    return SearchPathA(NULL, "code.cmd", NULL, sizeof(found), found, NULL) != 0;
+}
+
+/** The template Open in editor runs: the user's own (a folder's own first,
+ *  when a folder is opened), else the default for what this machine has. */
+static const char*
+local_open_template(
+    int folder,
+    int* out_from_env)
+{
+    const char* tmpl = folder ? getenv("TORIRS_EDITOR_OPEN_FOLDER_CMD") : NULL;
+
+    if( !tmpl || !tmpl[0] )
+        tmpl = getenv("TORIRS_EDITOR_OPEN_CMD");
+    *out_from_env = tmpl && tmpl[0];
+    if( *out_from_env )
+        return tmpl;
+    return folder ? Editor_OpenFolderCommandDefault(local_have_code(), 'w')
+                  : Editor_OpenCommandDefaultWindows(local_have_code());
+}
+
+const char*
+Editor_HostLocalEditorWho(int folder)
+{
+    int from_env;
+
+    (void)local_open_template(folder, &from_env);
+    if( folder && !from_env && !local_have_code() )
+        return "Explorer";
+    return Editor_OpenCommandWho(from_env, local_have_code(), 'w');
+}
+
+int
+Editor_HostLocalEditorFound(void)
+{
+    int from_env;
+
+    (void)local_open_template(0, &from_env);
+    return from_env || local_have_code();
+}
+
 enum EditorHost_Status
-Editor_HostLocalOpenInEditor(
+Editor_HostLocalOpenFolderInEditor(
+    const char* folder,
     const char* path,
     int line,
     char* out_cmdline,
     size_t out_size)
 {
-    const char* tmpl = getenv("TORIRS_EDITOR_OPEN_CMD");
+    int from_env;
+    const char* tmpl;
     char command[2048];
     char cmd_line[2200];
-    char found[MAX_PATH];
     STARTUPINFOA startup;
     PROCESS_INFORMATION process;
 
     assert(path);
     if( out_cmdline && out_size > 0 )
         out_cmdline[0] = '\0';
-    /* VS Code's launcher on PATH is code.cmd. */
-    if( !tmpl || !tmpl[0] )
-        tmpl = Editor_OpenCommandDefaultWindows(SearchPathA(NULL, "code.cmd", NULL, sizeof(found), found, NULL) != 0);
-    if( Editor_OpenCommandLine(tmpl, path, line, command, sizeof(command)) == 0 )
+    tmpl = local_open_template(folder != NULL, &from_env);
+    if( Editor_OpenCommandLineIn(tmpl, folder, path, line, command, sizeof(command)) == 0 )
         return EDITOR_HOST_REFUSED;
     if( out_cmdline && out_size > 0 )
         snprintf(out_cmdline, out_size, "%s", command);
@@ -1714,6 +1784,16 @@ Editor_HostLocalOpenInEditor(
     CloseHandle(process.hThread);
     CloseHandle(process.hProcess);
     return EDITOR_HOST_OK;
+}
+
+enum EditorHost_Status
+Editor_HostLocalOpenInEditor(
+    const char* path,
+    int line,
+    char* out_cmdline,
+    size_t out_size)
+{
+    return Editor_HostLocalOpenFolderInEditor(NULL, path, line, out_cmdline, out_size);
 }
 
 /* Explorer. A file on disk is selected in its folder (`/select,`); a folder
@@ -1824,6 +1904,50 @@ on_path(const char* name)
     return 0;
 }
 
+#if defined(__APPLE__)
+#define LOCAL_OPEN_OS 'm'
+#else
+#define LOCAL_OPEN_OS 'x'
+#endif
+
+/** The template Open in editor runs: the user's own (a folder's own first,
+ *  when a folder is opened), else the default for what this machine has. */
+static const char*
+local_open_template(
+    int folder,
+    int* out_from_env)
+{
+    const char* tmpl = folder ? getenv("TORIRS_EDITOR_OPEN_FOLDER_CMD") : NULL;
+
+    if( !tmpl || !tmpl[0] )
+        tmpl = getenv("TORIRS_EDITOR_OPEN_CMD");
+    *out_from_env = tmpl && tmpl[0];
+    if( *out_from_env )
+        return tmpl;
+    return folder ? Editor_OpenFolderCommandDefault(on_path("code"), LOCAL_OPEN_OS)
+                  : Editor_OpenCommandDefault(on_path("code"), LOCAL_OPEN_OS == 'm');
+}
+
+const char*
+Editor_HostLocalEditorWho(int folder)
+{
+    int from_env;
+
+    (void)local_open_template(folder, &from_env);
+    if( folder && !from_env && !on_path("code") )
+        return LOCAL_OPEN_OS == 'm' ? "Finder" : "the file manager";
+    return Editor_OpenCommandWho(from_env, on_path("code"), LOCAL_OPEN_OS);
+}
+
+int
+Editor_HostLocalEditorFound(void)
+{
+    int from_env;
+
+    (void)local_open_template(0, &from_env);
+    return from_env || on_path("code");
+}
+
 enum EditorHost_Status
 Editor_HostLocalOpenInEditor(
     const char* path,
@@ -1831,7 +1955,19 @@ Editor_HostLocalOpenInEditor(
     char* out_cmdline,
     size_t out_size)
 {
-    const char* tmpl = getenv("TORIRS_EDITOR_OPEN_CMD");
+    return Editor_HostLocalOpenFolderInEditor(NULL, path, line, out_cmdline, out_size);
+}
+
+enum EditorHost_Status
+Editor_HostLocalOpenFolderInEditor(
+    const char* folder,
+    const char* path,
+    int line,
+    char* out_cmdline,
+    size_t out_size)
+{
+    int from_env;
+    const char* tmpl;
     char command[2048];
     char shell_line[2100];
     char* argv[4];
@@ -1841,13 +1977,8 @@ Editor_HostLocalOpenInEditor(
     assert(path);
     if( out_cmdline && out_size > 0 )
         out_cmdline[0] = '\0';
-    if( !tmpl || !tmpl[0] )
-#if defined(__APPLE__)
-        tmpl = Editor_OpenCommandDefault(on_path("code"), 1);
-#else
-        tmpl = Editor_OpenCommandDefault(on_path("code"), 0);
-#endif
-    if( Editor_OpenCommandLine(tmpl, path, line, command, sizeof(command)) == 0 )
+    tmpl = local_open_template(folder != NULL, &from_env);
+    if( Editor_OpenCommandLineIn(tmpl, folder, path, line, command, sizeof(command)) == 0 )
         return EDITOR_HOST_REFUSED;
     if( out_cmdline && out_size > 0 )
         snprintf(out_cmdline, out_size, "%s", command);

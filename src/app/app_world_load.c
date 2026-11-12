@@ -315,6 +315,38 @@ app_world_load_begin(
     }
 
     /*
+     * A scene is one grid over the bounding box of its squares, so two squares
+     * a world apart are a grid nobody can allocate ("single allocation over
+     * 4 GB", 2026-11-11: m50_50 with a parked square at m90_240). The editor's
+     * opens fit their list first (app_map_editor_world_begin); this is the
+     * last line for a list that came from anywhere else -- TORIRS_WORLD_MAP,
+     * a rebuild queue. Refused in a sentence, down to the first square.
+     */
+    {
+        int min_x = chunks_xz[0];
+        int max_x = chunks_xz[0];
+        int min_z = chunks_xz[1];
+        int max_z = chunks_xz[1];
+
+        for( int i = 1; i < chunk_pair_count; i++ )
+        {
+            min_x = chunks_xz[i * 2] < min_x ? chunks_xz[i * 2] : min_x;
+            max_x = chunks_xz[i * 2] > max_x ? chunks_xz[i * 2] : max_x;
+            min_z = chunks_xz[i * 2 + 1] < min_z ? chunks_xz[i * 2 + 1] : min_z;
+            max_z = chunks_xz[i * 2 + 1] > max_z ? chunks_xz[i * 2 + 1] : max_z;
+        }
+        if( max_x - min_x >= APP_WORLD_MAP_SQUARE_MAX || max_z - min_z >= APP_WORLD_MAP_SQUARE_MAX )
+        {
+            TORIRS_LOG(
+                "world load: squares m%d_%d .. m%d_%d span %d x %d, more than one scene holds (%d a side): "
+                "loading m%d_%d alone\n",
+                min_x, min_z, max_x, max_z, max_x - min_x + 1, max_z - min_z + 1, APP_WORLD_MAP_SQUARE_MAX,
+                chunks_xz[0], chunks_xz[1]);
+            chunk_pair_count = 1;
+        }
+    }
+
+    /*
      * Hold the camera across the reload.
      *
      * Every editor edit lands here through app_map_editor_drain's chunklist

@@ -93,16 +93,30 @@ maped-lane-seed:
 maped-lane-packs: maped-lane-seed
 	@$(MAKE) --no-print-directory torirsserver-packs
 
-.PHONY: maped-run-build maped-run-tools
+.PHONY: maped-run-build maped-run-tools maped-run-allocate
 maped-run-tools: maped-lane-seed
 	@$(SUBMAKE) --no-print-directory -C $(RSCACHE_DIR)/tools cachepack > /dev/null
+
+# The ids, once, BEFORE the two halves start. tools/ss_allocate.py is the
+# packs half's first step (tools/build_packs.py), and for a var declared with
+# no id it does two writes: the ledger line (pack/varp.alloc) and the var's new
+# spelling in its block and in every script that reads it. The client cache
+# half runs beside it and reads the same tree: caught between the two writes it
+# saw `[varp9518_x]` with no line to claim it and stopped the whole RUN
+# ("named by neither pack/varp.client nor pack/varp.server ... nothing can
+# claim it", 2026-11-11, the first RUN after a quest variable was pasted in).
+# Run here, alone, both halves read a tree that is already numbered; the packs
+# half's own call then finds its stamp and returns at once.
+maped-run-allocate: maped-lane-seed
+	@cd $(REPO_ROOT) && python3 tools/ss_allocate.py --tree $(TORIRSSERVER_CONTENT_DIR) \
+		--stamp $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build/.ss_allocate.stamp
 
 # Non-empty under `make maped-run-build`: maped-run-tools built cachepack, so
 # neither half (maped-client-cache, torirsserver-packs in src/makefile) asks
 # its makefile again: 0.12 s on each half of every RUN.
 MAPED_RUN_TOOLS_BUILT := $(filter maped-run-build,$(MAKECMDGOALS))
 ifneq ($(MAPED_RUN_TOOLS_BUILT),)
-torirsserver-packs maped-client-cache: | maped-run-tools
+torirsserver-packs maped-client-cache: | maped-run-tools maped-run-allocate
 endif
 
 maped-run-build: torirsserver-packs maped-client-cache

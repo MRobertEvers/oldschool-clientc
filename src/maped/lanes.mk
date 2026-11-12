@@ -11,6 +11,9 @@
 # that names torirs_maped.c carries it; the standalone test compiles it alone.
 # The Publish panel, in the client (edpanels.h).
 MAPED_CLIENT_SRCS += editor/panels/edpanel_publish.c
+# "Diff against base" (the Lanes panel's Changes page): the user's own diff
+# tool on a lane's file and a copy of the base's (editor_diff_cmd.h).
+MAPED_CLIENT_SRCS += editor/editor_diff_cmd.c
 
 # Both tests build WITH asserts (OPT=1 puts -DNDEBUG in CFLAGS): the lanes
 # code's contract asserts are what they test as much as its answers.

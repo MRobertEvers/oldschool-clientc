@@ -32,6 +32,7 @@ static const char* const k_tool_names[EDITOR_TOOL_COUNT] = {
     "Place",        "Move",             "Rotate",       "Delete",
     "Place player", "Paint path",       "Roughen",      "Scatter",
     "Plateau",      "Region",           "Lasso",        "Tidy",
+    "Building",
 };
 
 /* The hotkey table arms the tools in enum Editor_Tool's order, and its hint
@@ -50,6 +51,7 @@ _Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_SCATTER == EDITOR_HK_TOOL_SCA
 _Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_PLATEAU == EDITOR_HK_TOOL_PLATEAU, "the tool orders agree");
 _Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_REGION == EDITOR_HK_TOOL_REGION, "the tool orders agree");
 _Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_TIDY == EDITOR_HK_TOOL_TIDY, "the tool orders agree");
+_Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_BUILDING == EDITOR_HK_TOOL_BUILDING, "the tool orders agree");
 
 const char*
 Editor_ToolName(enum Editor_Tool tool)
@@ -106,6 +108,7 @@ Editor_UiInit(
     ui->tools.paint_mix = 100;
     ui->tools.scatter_density = 20;
     ui->tools.scatter_rotate = 1;
+    ui->tools.scatter_bare = 1;
     ui->tools.scatter_seed = 1;
     ui->tools.plateau_skirt = 3;
     ui->tools.region_radius_halves = 5;
@@ -135,6 +138,8 @@ Editor_UiInit(
     ui->world_panel = -1;
     ui->solo_panel = -1;
     ui->layout_reopened = -1;
+    ui->split_root = -1;
+    ui->split_other = -1;
     ui->rail_pad = -1;
     Editor_HotkeysInit(&ui->hotkeys);
     ui->previous_tool = EDITOR_TOOL_SELECT;
@@ -305,6 +310,8 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
     Editor_Terrain_Register(ui);
     Editor_Palette_Register(ui);
     Editor_RectSelect_Register(ui);
+    /* The Building tool's panel: opens with its tool, as Rectangle does. */
+    Editor_Building_Register(ui);
     Editor_SquarePicker_Register(ui);
     Editor_Locs_Register(ui);
     Editor_Spawns_Register(ui);
@@ -359,6 +366,11 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
     /* Encounter sets and their npcs (the ENCOUNTERS document, workbench
      * 6.7): hidden until View > Encounters or Spawns' Group... opens it. */
     Editor_Encounter_Register(ui);
+    /* A cutscene's scripted camera, framed in the World (the CAMPATHS
+     * document): hidden until View > Camera path opens it. No workspace
+     * opens it; opened, it floats beside the column, and beside Triggers
+     * when that window would cover it (edpanel_campath.c). */
+    Editor_CamPath_Register(ui);
     /* The hotkey table and its editor (View > Hotkeys panel, F1). */
     Editor_Hotkeys_Register(ui);
     /* The command palette (Ctrl+K), a modal over every panel above. */
@@ -1364,8 +1376,8 @@ static const char* const k_dock_terrain[] = {
     "catalog", "preview", "gallery", "history", NULL,
 };
 static const char* const k_dock_script[] = {
-    "record", "triggers", "locbuilder", "npcbuilder", "shelleditor", "shop", "quest", "terrain", "palette", "locs", "spawns",
-    "rect", "inspector", "squares", "areas", "catalog", "preview", "gallery", "catalog_palette", "history", NULL,
+    "record", "triggers", "campath", "locbuilder", "npcbuilder", "shelleditor", "shop", "quest", "terrain", "palette", "locs",
+    "spawns", "rect", "inspector", "squares", "areas", "catalog", "preview", "gallery", "catalog_palette", "history", NULL,
 };
 static const char* const k_dock_playtest[] = {
     "live", "accounts", "scenes", "encounter", "terrain", "palette", "locs", "spawns", "npcbuilder", "rect", "inspector",
@@ -1772,6 +1784,39 @@ struct UiDockSlot
     int coll_h;
 };
 
+/* The panel a workspace is FOR (workbench 6.8): its window -- its group's
+ * frame -- is given the height it asks for before the column's other panels
+ * share the rest. Build has none: its column is the Catalog's, which
+ * stretches. */
+static const char* const k_workspace_lead[EDITOR_UI_WORKSPACES] = { NULL, "terrain", NULL, NULL };
+
+/** The admitted, uncollapsed slot of column `col` that holds the workspace's
+ *  lead panel, or -1. */
+static int
+ui_dock_lead(
+    struct EditorUi* ui,
+    const struct UiDockSlot* slots,
+    int slot_count,
+    int col)
+{
+    const char* const name = k_workspace_lead[ui->workspace];
+    int reg;
+
+    if( !name )
+        return -1;
+    reg = ui_registry_index(ui, name);
+    if( reg < 0 )
+        return -1;
+    for( int i = 0; i < slot_count; i++ )
+    {
+        if( slots[i].h < 0 || slots[i].col != col || slots[i].collapsed )
+            continue;
+        if( slots[i].group ? ui_group_slot(slots[i].group, reg) >= 0 : slots[i].module == &ui->panels[reg] )
+            return i;
+    }
+    return -1;
+}
+
 /** The compact setting resolved against the surface: the setting when it
  *  says, else automatic -- below EDP_COMPACT_H rows or EDP_COMPACT_W columns
  *  of LOGICAL pixels (device px over the chrome scale). */
@@ -1992,6 +2037,16 @@ ui_group_measure_end(
         struct EditorUiPanel const* module = &ui->panels[g->members[slot]];
         int h = ToriRSChrome_PanelRect(chrome, panel).h;
         int least = h < floor_h ? h : floor_h;
+        /* Only a member that is OPEN in the strip asks for room. Measured
+         * with every member, the Terrain workspace's Inspector -- four rows,
+         * alone in a group whose closed Catalog asks for a column -- was
+         * given 287 px while the Palette beside it scrolled 1,200 px of
+         * content through 269 (F14, 2026-11-11). */
+        if( !g->open[slot] )
+        {
+            ToriRSChrome_PanelSetVisible(chrome, panel, saved[1 + slot]);
+            continue;
+        }
         /* A member with a part that fills (the Catalog's result list) asks
          * for that part's stated height, not the height it happens to have
          * now, and is never admitted with less than its least: measured at
@@ -2311,6 +2366,11 @@ Editor_UiLayout(struct EditorUi* ui)
         dock_w = ui_round_down((surface_w - left) / columns, grid);
     }
     dock_x = surface_w - dock_w * columns;
+    /* An empty column is no column: with every panel of it closed, or all
+     * of them hidden (View > Hide / show panels), the World takes the width.
+     * It stopped at the column's edge and left the column's place black. */
+    if( slot_count == 0 && world_wanted )
+        dock_x = surface_w;
 
     /* Measure every candidate at the column's width and the console at the
      * world's (with no World, under every column), content-sized: one Build
@@ -2523,9 +2583,19 @@ Editor_UiLayout(struct EditorUi* ui)
         int left_over = column_h;
         int64_t wanted = 0;
         int stretcher = -1;
+        int const lead = ui_dock_lead(ui, slots, slot_count, col);
         for( int i = 0; i < slot_count; i++ )
             if( slots[i].h >= 0 && slots[i].col == col )
                 left_over -= slots[i].h;
+        /* The workspace's own panel first: Terrain's tools take what they
+         * ask for before the rest of the column shares what is left. */
+        if( lead >= 0 && left_over > 0 && slots[lead].natural > slots[lead].h )
+        {
+            int const extra =
+                slots[lead].natural - slots[lead].h < left_over ? slots[lead].natural - slots[lead].h : left_over;
+            slots[lead].h += extra;
+            left_over -= extra;
+        }
         for( int i = 0; i < slot_count; i++ )
             if( slots[i].h >= 0 && slots[i].col == col && !slots[i].collapsed && slots[i].natural > slots[i].h )
                 wanted += slots[i].natural - slots[i].h;
@@ -2560,6 +2630,19 @@ Editor_UiLayout(struct EditorUi* ui)
         }
         if( stretcher >= 0 && left_over > 0 )
             slots[stretcher].h += left_over;
+        else if( left_over > 0 )
+        {
+            /* Nothing stretches and every panel has what it asked for: the
+             * rest is still the column's. Left over, it was a strip under
+             * the last panel that nothing paints -- black, to the status
+             * bar. The lead takes it, else the last panel of the column. */
+            int last = lead;
+            for( int i = 0; i < slot_count && lead < 0; i++ )
+                if( slots[i].h >= 0 && slots[i].col == col && !slots[i].collapsed )
+                    last = i;
+            if( last >= 0 )
+                slots[last].h += left_over;
+        }
     }
     for( int col = 0; col < columns; col++ )
     {
@@ -2806,6 +2889,183 @@ ui_layout_follow(struct EditorUi* ui)
             if( x != p->x || y_fit != p->y )
                 ToriRSChrome_PanelMove(chrome, panel, x, y_fit);
         }
+    }
+}
+
+/* ---- the column's splitter -----------------------------------------------------
+ *
+ * The border between two docked panels of the column is a SPLITTER: dragged,
+ * one panel grows by what the other gives up, and both stay docked.
+ *
+ * It used to be the chrome's edge resize of the one panel under the pointer
+ * (2026-11-11, F12 and F17). That panel shrank away from its neighbour and
+ * left a hole in the column nothing painted; the release marked it placed by
+ * the user, so the column no longer laid it out -- closing it later left
+ * its hole for good, and a group member dragged that way reported a box the
+ * screen did not show.
+ *
+ * So while the chrome resizes a docked column window by its top or bottom
+ * edge alone, the window on the other side of that edge is fitted to it
+ * every frame (and holds it at its own least height); a top or bottom edge
+ * with no docked neighbour does not move; and the release leaves the pair
+ * docked. A left or right edge is still the chrome's: the panel leaves the
+ * column and floats, as a title drag does.
+ */
+
+/** A column window's top and height: a group's frame stands for its strip
+ *  and the shown member under it. */
+static void
+ui_column_box(
+    struct EditorUi* ui,
+    int root,
+    int* out_y,
+    int* out_h)
+{
+    struct EditorUiGroup* g = ui_frame_group(ui, root);
+
+    *out_y = ui->chrome->panels[root].y;
+    if( g && g->shown >= 0 )
+        *out_h = g->frame_h + ui->chrome->panels[ui_group_window(ui, g, g->shown)].fixed_h;
+    else
+        *out_h = ui->chrome->panels[root].fixed_h;
+}
+
+static void
+ui_column_set(
+    struct EditorUi* ui,
+    int root,
+    int y,
+    int h)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    struct EditorUiGroup* g = ui_frame_group(ui, root);
+
+    ToriRSChrome_PanelMove(chrome, root, chrome->panels[root].x, y);
+    if( g && g->shown >= 0 )
+    {
+        /* The shown member is attached under the frame: its height is the
+         * group's body, read back by ui_group_place. */
+        ToriRSChrome_PanelSetFixedHeight(chrome, ui_group_window(ui, g, g->shown), h - g->frame_h);
+        g->y = y;
+        g->body_h = h - g->frame_h;
+    }
+    else
+        ToriRSChrome_PanelSetFixedHeight(chrome, root, h);
+}
+
+/** The least a column window is split down to: a usable few rows under its
+ *  title (and a group's strip). */
+static int
+ui_column_min(
+    struct EditorUi* ui,
+    int root)
+{
+    struct EditorUiGroup* g = ui_frame_group(ui, root);
+
+    return (g ? g->frame_h : 0) + edp_px(ui, 64);
+}
+
+/** Is chrome window `root` docked in the column (not the World, not the
+ *  bottom strip)? */
+static int
+ui_column_holds(
+    const struct EditorUi* ui,
+    int root)
+{
+    struct ToriRSChromePanel const* p;
+
+    if( root < ui->panel_first || root >= ui->panel_end || !ui->docked[root - ui->panel_first] )
+        return 0;
+    p = &ui->chrome->panels[root];
+    return p->visible && ui->dock_w > 0 && p->x >= ui->dock_x;
+}
+
+static void
+ui_split_follow(struct EditorUi* ui)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    int const live = chrome->resize_panel;
+    int const windows = ui->panel_count + ui->group_count;
+    int root_y;
+    int root_h;
+
+    if( ui->solo_panel >= 0 || !ui->laid_out )
+        return;
+    if( live >= 0 && ui->split_root == -1 )
+    {
+        /* A resize began: a docked column window's top or bottom edge is a
+         * split; anything else is the chrome's (-2 until it ends). */
+        int const edges = chrome->resize_edges;
+
+        ui->split_root = -2;
+        if( ui_column_holds(ui, live) && (edges == TORIRS_CHROME_EDGE_TOP || edges == TORIRS_CHROME_EDGE_BOTTOM) )
+        {
+            int const edge_y = edges == TORIRS_CHROME_EDGE_TOP ? chrome->resize_from_y
+                                                               : chrome->resize_from_y + chrome->resize_from_h;
+            ui->split_root = live;
+            ui->split_edge = edges;
+            ui->split_other = -1;
+            for( int i = 0; i < windows; i++ )
+            {
+                int titled;
+                int const other = ui_follow_window(ui, i, &titled);
+                int y;
+                int h;
+
+                if( other == live || !ui_column_holds(ui, other) || chrome->panels[other].x != chrome->panels[live].x )
+                    continue;
+                ui_column_box(ui, other, &y, &h);
+                /* The window that ends (or starts) where the dragged edge was. */
+                if( (edges == TORIRS_CHROME_EDGE_TOP ? y + h : y) != edge_y )
+                    continue;
+                ui->split_other = other;
+                ui->split_other_y = y;
+                ui->split_other_h = h;
+            }
+        }
+    }
+    if( ui->split_root < 0 )
+    {
+        if( live < 0 )
+            ui->split_root = -1;
+        return;
+    }
+    ui_column_box(ui, ui->split_root, &root_y, &root_h);
+    if( ui->split_other < 0 )
+    {
+        /* The column's own top or bottom: the edge stays. */
+        if( root_y != chrome->resize_from_y || root_h != chrome->resize_from_h )
+            ui_column_set(ui, ui->split_root, chrome->resize_from_y, chrome->resize_from_h);
+    }
+    else if( ui->split_edge == TORIRS_CHROME_EDGE_TOP )
+    {
+        /* The neighbour above keeps its top and ends where this begins. */
+        int const bottom = root_y + root_h;
+        int const least = ui->split_other_y + ui_column_min(ui, ui->split_other);
+        int const edge = root_y < least ? least : root_y;
+
+        if( edge != root_y )
+            ui_column_set(ui, ui->split_root, edge, bottom - edge);
+        ui_column_set(ui, ui->split_other, ui->split_other_y, edge - ui->split_other_y);
+    }
+    else
+    {
+        /* The neighbour below keeps its bottom and begins where this ends. */
+        int const other_bottom = ui->split_other_y + ui->split_other_h;
+        int const most = other_bottom - ui_column_min(ui, ui->split_other);
+        int const edge = root_y + root_h > most ? most : root_y + root_h;
+
+        if( edge != root_y + root_h )
+            ui_column_set(ui, ui->split_root, root_y, edge - root_y);
+        ui_column_set(ui, ui->split_other, edge, other_bottom - edge);
+    }
+    if( live < 0 )
+    {
+        /* Released: the chrome marked the window as placed by the user. It
+         * is still the column's -- the next layout places it, and closing
+         * it lets its neighbours grow into its place. */
+        chrome->panels[ui->split_root].user_placed = 0;
+        ui->split_root = -1;
     }
 }
 
@@ -4435,6 +4695,9 @@ Editor_UiTick(struct EditorUi* ui)
     /* The strips first: what showed or hid a member window since the last
      * frame says who is in which strip before anything is laid out. */
     ui_groups_follow(ui);
+    /* Before the layout looks: a split's release is not a panel the user
+     * took out of the column. */
+    ui_split_follow(ui);
     ui_default_layout(ui);
     if( ui->laid_out )
         ui_layout_follow(ui);
@@ -4610,8 +4873,14 @@ Editor_UiSetHeightTarget(
                               : height > 0                      ? 0
                                                                 : height;
     ui->tools.height_valid = 1;
-    Editor_UiStatus(ui, "Height: grid at %d (%d world units up)", -ui->tools.height_target / EDITOR_HEIGHT_UNIT,
-        -ui->tools.height_target);
+    /* Asked below the floor: say that it IS the floor. "grid at 0" twice in
+     * a row read as a wheel that had stopped working (a flat new square's
+     * ground is at 0, so nothing can be sunk into it). */
+    if( height > 0 )
+        Editor_UiStatus(ui, "Height: grid at 0, the lowest the ground goes (to sink a pond, raise the land around it)");
+    else
+        Editor_UiStatus(ui, "Height: grid at %d (%d world units up)", -ui->tools.height_target / EDITOR_HEIGHT_UNIT,
+            -ui->tools.height_target);
 }
 
 /**

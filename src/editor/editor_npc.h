@@ -229,7 +229,12 @@ struct Editor_Cmd;
  * to the waypoints' spellings, patrolN+1.. (every row the record states
  * past the new count) removed, and `defaultmode` set to `patrol` -- or, with
  * no waypoints, every patrol row removed and `defaultmode` set to `mode`'s
- * word (the Mode radio's choice). One stroke for the caller. Returns the
+ * word (the Mode radio's choice). `maxrange` >= 0 also states the leash
+ * (the caller's Editor_NpcRouteReach, so the route is inside it); -1 leaves
+ * it. A layer the record has no block in yet gets ONE command that opens
+ * it, however many fields follow. With waypoints, a bare `patrol=` marker
+ * (`patrol=empty`, which Copy to new writes) in `layer` is removed: rows
+ * beside it in one layer fail the pack. One stroke for the caller. Returns the
  * commands written, 0 when nothing changes, -1 when one cannot be
  * expressed or `max` is too small (nothing to apply then).
  */
@@ -239,9 +244,109 @@ Editor_NpcRoutePlan(
     const struct Editor_NpcWaypoint* waypoints,
     int count,
     enum Editor_NpcMode mode,
+    int maxrange,
     int layer,
     struct Editor_Cmd* out,
     int max);
+
+/* ---- the walk the server takes ----------------------------------------------
+ *
+ * A patroller does not route: each tick it takes ONE step straight at its
+ * waypoint (torirs_server_world.c npc_take_step: the diagonal, else the x
+ * leg, else the z leg), and when none is open it stands; after
+ * EDITOR_NPC_PATROL_STUCK_TICKS of that the server teleports it to the
+ * waypoint. So "a path exists" (a flood fill) is the wrong question for a
+ * leg: a waypoint round a corner is reachable and still never walked to.
+ * Editor_NpcWalkLeg takes the same steps over the caller's collision and
+ * says where they end.
+ */
+
+/** One step of a `size` mover on `level` from (x, z) by (dx, dz), each -1..1:
+ *  1 open, 0 blocked, -1 the scene cannot say (the tile is not loaded). */
+typedef int (*Editor_NpcStepFn)(void* user_data, int x, int z, int dx, int dz, int level, int size);
+
+enum Editor_NpcWalkResult
+{
+    /** Walked onto the waypoint. */
+    EDITOR_NPC_WALK_ARRIVES = 0,
+    /** Stood still at (stuck_x, stuck_z): the server teleports from there. */
+    EDITOR_NPC_WALK_STUCK = 1,
+    /** The other waypoint is on another level: a teleport, no steps. */
+    EDITOR_NPC_WALK_TELEPORT = 2,
+    /** The collision could not answer (a square that is not loaded). */
+    EDITOR_NPC_WALK_UNKNOWN = 3,
+};
+
+struct Editor_NpcWalkTile
+{
+    int x;
+    int z;
+};
+
+struct Editor_NpcWalk
+{
+    enum Editor_NpcWalkResult result;
+    /** Tiles stepped onto (the start is not one). */
+    int steps;
+    /** Where the walk ended: the waypoint when it arrives. */
+    int stuck_x;
+    int stuck_z;
+    /** Tiles written to the caller's array (steps, capped at its size). */
+    int tile_count;
+};
+
+/** Walk from `a` to `b` as the server does. `tiles` (may be NULL with max 0)
+ *  takes each tile stepped onto, in order. Returns the steps taken. */
+int
+Editor_NpcWalkLeg(
+    const struct Editor_NpcWaypoint* a,
+    const struct Editor_NpcWaypoint* b,
+    int size,
+    Editor_NpcStepFn step,
+    void* user_data,
+    struct Editor_NpcWalkTile* tiles,
+    int max,
+    struct Editor_NpcWalk* out);
+
+/** Tiles round a stuck leg's two ends Editor_NpcLegDetour searches for a way
+ *  past what stops it. */
+#define EDITOR_NPC_DETOUR_MARGIN 12
+
+/**
+ * The waypoints to put between `a` and `b` so that every leg of
+ * a -> out[0] -> ... -> b walks the server's way (Editor_NpcWalkLeg): a
+ * shortest path over `step` inside the box round the two ends grown by
+ * EDITOR_NPC_DETOUR_MARGIN, then from each point the FARTHEST tile of that
+ * path a walk still reaches is the next waypoint, so as few are added as
+ * the path allows. Each is on `a`'s level with no pause. Returns the count
+ * written (0: the leg walks already), -1 when the box holds no path or the
+ * ends are on two levels, -2 when more than `max` would be needed.
+ */
+int
+Editor_NpcLegDetour(
+    const struct Editor_NpcWaypoint* a,
+    const struct Editor_NpcWaypoint* b,
+    int size,
+    Editor_NpcStepFn step,
+    void* user_data,
+    struct Editor_NpcWaypoint* out,
+    int max);
+
+/**
+ * How far the route reaches from a spawn tile: the largest distance (the
+ * larger axis) from (spawn_x, spawn_z) to any waypoint. The server measures
+ * `maxrange` from the SPAWN tile, not from the npc (npc_mode_target_valid):
+ * a player more than maxrange + 1 from it stops being the npc's target, so
+ * a patroller with the engine's leash of 7 turns away from whoever talks to
+ * it at the far end of a longer route. A leash of at least this keeps the
+ * whole route inside it. 0 for no waypoints.
+ */
+int
+Editor_NpcRouteReach(
+    const struct Editor_NpcWaypoint* waypoints,
+    int count,
+    int spawn_x,
+    int spawn_z);
 
 /** "move:<shard>/<name>", the ledger's TEXT document key (the shard is the
  *  name's first byte lowercased, '_' when not a letter or digit, as

@@ -41,6 +41,15 @@ Editor_LivePanelModel(struct EditorUi* ui);
 int
 Editor_Live_Run(struct EditorUi* ui);
 
+/** Restart lane (the Live panel's button, File > Restart lane): the lane
+ *  this editor launched is stopped and started again on its last build --
+ *  what a RUN that added a var asks for -- and a play client that was
+ *  running starts again with it. 1 sent, 0 refused (no launched lane, a RUN
+ *  or build in flight, or the connection is gone; the status says which),
+ *  -1 when this window has no Live panel. */
+int
+Editor_Live_RestartLane(struct EditorUi* ui);
+
 /** ::tele `player` to ABSOLUTE tile (x, z) on `level` through the live link,
  *  as the panel's "Teleport to selection" does (a scene's Enter). 1 sent, 0
  *  refused (the live lane is not attached, or the connection is gone; the
