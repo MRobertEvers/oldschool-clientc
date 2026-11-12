@@ -138,6 +138,15 @@ struct ToriRSServerHostConn
     int refetch;
     /** `host->save_seq` when this login's save read was submitted. */
     uint64_t read_seq;
+    /**
+     * The claim's answer, kept across a refetch. Answering spends what it
+     * answered from -- a departed record is marked spent, an old session is
+     * evicted -- and both queue the save that forces the refetch, so asking
+     * again after the re-read found nothing: a reconnect whose old socket
+     * closed just before it was refused as "no session to reclaim".
+     */
+    int claim_held;
+    int claim;
     struct ToriRSServerHostAuthJob auth;
     struct ToriRSServerHostReadJob read;
     struct ToriRSServerConn conn;
@@ -741,7 +750,14 @@ host_stage_login(
         return;
     }
 
-    claim = ToriRSServer_ClaimSlot(&host->claims, host->srv, &c->session, now_ms(), &evict);
+    if( c->claim_held )
+    {
+        claim = c->claim;
+        evict = NULL;
+        c->claim_held = 0;
+    }
+    else
+        claim = ToriRSServer_ClaimSlot(&host->claims, host->srv, &c->session, now_ms(), &evict);
     if( evict )
     {
         /* Kill before removing, the order host_conn_release keeps: the session
@@ -775,6 +791,8 @@ host_stage_login(
         c->read_seq )
     {
         c->refetch = 1;
+        c->claim_held = 1;
+        c->claim = claim;
         c->awaiting_login = 0;
         ToriRSServer_CoreReady(&host->core, &c->co);
         return;

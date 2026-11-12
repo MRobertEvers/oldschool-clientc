@@ -33,12 +33,15 @@ struct ToriRSServerSession;
  *  reconnect and logs in afresh with its password. */
 #define TORIRSSERVER_CLAIM_REFUSE (-2)
 
-/** How many recently ended sessions are kept for a reconnect to reclaim. */
-#define TORIRSSERVER_CLAIM_DEPARTED_MAX 32
+/** How many recently ended sessions are kept for a reconnect to reclaim: enough
+ *  that a busy world's logouts do not push one out inside its window. */
+#define TORIRSSERVER_CLAIM_DEPARTED_MAX 256
 
-/** How long one stays reclaimable: a page reload on a slow phone plus a cold
- *  boot, with room to spare. */
-#define TORIRSSERVER_CLAIM_WINDOW_MS (5L * 60L * 1000L)
+/** How long one stays reclaimable. A page reload on a slow phone takes seconds,
+ *  but a browser may cut a background tab's socket while the tab is away, and
+ *  the client only redials when the tab comes back: five minutes refused any
+ *  return from a longer absence. */
+#define TORIRSSERVER_CLAIM_WINDOW_MS (30L * 60L * 1000L)
 
 /*
  * Sessions that ended recently.
