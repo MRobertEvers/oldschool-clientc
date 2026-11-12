@@ -97,9 +97,9 @@ From the east: no recording (the wiki: one-way east until a temple key unlocks i
 | uncommon seeds | 6/100 | 153 (6.4%) | `~troll_uncommon_seed` |
 | red spiders' eggs (noted) | 3..8, 8/100 | 184, all 3..5 | 3..5 |
 | superantipoison(2) | 8/100 | 191 | 8/100 |
-| weapon poison(+) | 2/100 | 0 (47 expected) | nothing |
+| weapon poison(+) | 2/100 | 41 (1/57.9) | 2/100 |
 | gem table (nature talisman) | 1/100 | 9 uncut gems | `~troll_gem_drop(true)` |
-| nothing | 3/100 | 169 (7.1%; some loot fell out of view) | 5/100 |
+| nothing | 3/100 | 131 (5.5%; some loot fell out of view) | 3/100 |
 | grubby key | 1/100 | 22 (1/108) | 1/100 |
 | hard clue | 1/200 | 2 scroll boxes (the cap) | `trail_clue_drops.dbrow` (unchanged) |
 | tattered page | 1/30 a type | 83 = 1/28.6, one roll | 1/30 one roll |
@@ -125,7 +125,8 @@ The den's 11 red spiders' eggs moved to their recorded tiles (10 of 11 were off)
 
 1. The east side of the Temple Door and the temple key's unlock are not recorded.
 2. The page-type weighting is a fit; a recording that hands pages in would decide it.
-3. Weapon poison(+) never dropped in 2,374 kills; dropped from the table on that count.
+3. (Corrected 2026-11-12: Weapon poison(+) does drop, 41 in 2,374; a first count
+   matched item names with `\w+` and skipped `weapon_poison+`.)
 4. The tick log shows a delay-0 defend before the delay-37 one on splashed
    spiders (the shared hit funnel's `npc_defend`); the wire carries the later.
 5. The zone ambience of the dungeon (druids, the bone burner, the other rooms) is
