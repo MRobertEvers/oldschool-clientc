@@ -543,6 +543,17 @@ app_overlay_anchor(
         int level;
         if( !app->world || !World_CoordToSceneTile(app->world, item->coord, &x, &z, &level) )
             return out;
+        out.subject_live = true;
+        /*
+         * Only the plane being rendered. The coord names its own plane, but
+         * the projection below samples the ground at app_cinema_level's, so a
+         * pile one storey up was drawn on the floor under it -- ground items
+         * arrive per zone for all four planes, and 7226 builds an overlay for
+         * every tile that holds one. Live and hidden, not reaped: the tile is
+         * still in the scene, and its script only rebuilds when the pile moves.
+         */
+        if( level != app_cinema_level(app) )
+            return out;
         /*
          * A tile has no model, so all three anchors are the tile centre at
          * ground height: an "above" overlay stacks up from the floor and a
@@ -551,10 +562,9 @@ app_overlay_anchor(
          * band and its height, which is what every static overlay in this cache
          * does (60x60 above, at the tile).
          */
-        fine_x = x * 128 + 64;
-        fine_z = z * 128 + 64;
+        fine_x = x * 128 + item->footprint_x * 64;
+        fine_z = z * 128 + item->footprint_z * 64;
         height = 0;
-        out.subject_live = true;
     }
 
     int32_t overlay_node = app->tree ? UITree_FindByComponentId(app->tree, item->component_id) : -1;

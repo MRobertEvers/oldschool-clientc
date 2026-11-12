@@ -34,7 +34,9 @@ app_cs2_loc_at_coord(
     int loc_type,
     int* out_layer,
     char* out_name,
-    int name_cap)
+    int name_cap,
+    int* out_size_x,
+    int* out_size_z)
 {
     struct App* app = (struct App*)user;
     struct WorldEntity_Scenery* scenery;
@@ -45,6 +47,8 @@ app_cs2_loc_at_coord(
     assert(app);
     assert(out_layer);
     assert(out_name);
+    assert(out_size_x);
+    assert(out_size_z);
 
     /* "Is there a world yet" is this callback's question, not the conversion's:
      * a clientscript can ask about a coord on the title screen. */
@@ -55,6 +59,16 @@ app_cs2_loc_at_coord(
         return 0;
     *out_layer = World_LocShapeToLayer(scenery->shape);
     snprintf(out_name, (size_t)name_cap, "%s", scenery->info->name);
+    /* size_x/size_z is the ROUTE footprint, which only a centrepiece also
+     * draws across: a wall or a decor routes at its config size and is drawn
+     * on its one tile. Layer 2 is the centrepiece layer. */
+    *out_size_x = 1;
+    *out_size_z = 1;
+    if( *out_layer == 2 )
+    {
+        *out_size_x = scenery->size_x > 0 ? scenery->size_x : 1;
+        *out_size_z = scenery->size_z > 0 ? scenery->size_z : 1;
+    }
     return 1;
 }
 

@@ -27,6 +27,8 @@ rs_overlay_clear(struct RS_Overlay* item)
     item->uid = -1;
     item->coord = -1;
     item->static_type = -1;
+    item->footprint_x = 1;
+    item->footprint_z = 1;
     item->component_id = -1;
 }
 

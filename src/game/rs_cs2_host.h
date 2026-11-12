@@ -811,8 +811,9 @@ struct RS_CS2Host
      * truthful answer for a client that has not loaded a map.
      *
      * `loc_at_coord` returns nonzero when a loc of `loc_type` stands on
-     * `coord`, filling `*out_layer` (World_LocShapeToLayer) and up to
-     * `name_cap` bytes of its name.
+     * `coord`, filling `*out_layer` (World_LocShapeToLayer), up to
+     * `name_cap` bytes of its name, and the tiles it covers from `coord`
+     * north-east (1x1 for anything but a centrepiece).
      */
     int (*loc_at_coord)(
         void* user,
@@ -820,7 +821,9 @@ struct RS_CS2Host
         int loc_type,
         int* out_layer,
         char* out_name,
-        int name_cap);
+        int name_cap,
+        int* out_size_x,
+        int* out_size_z);
     int (*coord_in_scene)(void* user, int coord);
     /**
      * OPPLAYER (3107): the slot of the first player in view named `name`,

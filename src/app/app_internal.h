@@ -947,7 +947,9 @@ app_cs2_loc_at_coord(
     int loc_type,
     int* out_layer,
     char* out_name,
-    int name_cap);
+    int name_cap,
+    int* out_size_x,
+    int* out_size_z);
 
 int
 app_cs2_player_route(

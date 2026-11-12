@@ -110,6 +110,11 @@ struct RS_Overlay
     int coord;
     /** `StaticEntityOverlayType` 0..4; -1 for an entity. */
     int static_type;
+    /** The loc's footprint in tiles, angle-swapped, read once when the loc
+     *  form creates the overlay; `coord` is its SW tile, and a 2x2 tree's
+     *  overlay belongs over the tree. 1x1 for every other anchor. */
+    int footprint_x;
+    int footprint_z;
     /** RS_OVERLAY_BAND_*. */
     int band;
     /** The layer's requested box. Children lay out inside it. */

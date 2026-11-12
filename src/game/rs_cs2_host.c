@@ -5584,6 +5584,26 @@ exec_entity_overlay(
         if( subject && RS_OverlayTypeValid(subject->layer) )
             index = RS_OverlayCreateStatic(
                 &host->overlay, subject->coord, subject->layer, a[0], a[1], a[2], a[3]);
+        /* The footprint, once, here: the subject names the loc TYPE and the
+         * record keeps only (coord, layer), and the layout pass that needs it
+         * runs every frame. The coord is the SW tile, so a 2x2 tree's respawn
+         * pie (clientscript 5473) sat on its corner without it. */
+        if( index >= 0 && host->loc_at_coord )
+        {
+            struct RS_Overlay* item = RS_OverlayGetMut(&host->overlay, index);
+            int layer;
+            char name[RS_CLIENTOP_NAME_MAX];
+            assert(item);
+            (void)host->loc_at_coord(
+                host->world_user,
+                subject->coord,
+                subject->type,
+                &layer,
+                name,
+                (int)sizeof(name),
+                &item->footprint_x,
+                &item->footprint_z);
+        }
         index = index >= 0 ? rs_cs2_overlay_attach_layer(host, index) : -1;
         return CS2VM2_PushInt(vm, index);
     }
@@ -5732,6 +5752,8 @@ exec_subject_find(
     {
         struct RS_ClientOpContext found;
         int layer = -1;
+        int size_x;
+        int size_z;
         char name[RS_CLIENTOP_NAME_MAX] = { 0 };
         int const hit = host->loc_at_coord ? host->loc_at_coord(
                                                  host->world_user,
@@ -5739,7 +5761,9 @@ exec_subject_find(
                                                  loc_type,
                                                  &layer,
                                                  name,
-                                                 (int)sizeof(name))
+                                                 (int)sizeof(name),
+                                                 &size_x,
+                                                 &size_z)
                                            : 0;
         if( !hit )
         {
