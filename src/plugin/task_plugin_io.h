@@ -108,6 +108,37 @@ struct ToriRS_Task* CreateTask_PluginLaunch(
     PluginScriptReadDeliver deliver,
     void* user);
 
+/**
+ * One request to the platform's files service: a SCRIPT item at
+ * `files/<verb>` lending `body` (key=value lines, COPIED here), answered in
+ * place by the executor -- platform_x_io.c answer_files_item on a desktop,
+ * platform_web_io.js over the record database in a browser. `deliver` gets
+ * the answer text (OWNED by the callee): a verdict line (`ok`, `cancelled`,
+ * `unsupported: ...`, `error: ...`) and the verb's own lines after it; NULL
+ * when no executor answered at all.
+ *
+ *   list         dir=   every .png below it: <path>\t<mtime s>\t<bytes>
+ *   reveal       dir=   show the folder in the file manager
+ *   pick_folder  start= the platform's folder chooser; `ok` then the folder
+ *   download     dir=   hand the files to the browser as one .zip
+ */
+struct ToriRS_Task* CreateTask_PluginFiles(
+    char const* verb,
+    char const* body,
+    int size,
+    int serial,
+    PluginScriptReadDeliver deliver,
+    void* user);
+
+/** Read one client FILE -- a path spelled as a FILE_WRITE's, the player's
+ *  own -- and hand it to `deliver` (bytes OWNED by the callee, NET; NULL when
+ *  there is no such file). What a capture is read back through. */
+struct ToriRS_Task* CreateTask_PluginFileRead(
+    char const* path,
+    int serial,
+    PluginScriptReadDeliver deliver,
+    void* user);
+
 /** Encode the config store now and write it. */
 struct ToriRS_Task* CreateTask_PluginSave(
     struct ToriRS_PluginHost const* host,

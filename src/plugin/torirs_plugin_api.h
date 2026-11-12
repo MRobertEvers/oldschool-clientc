@@ -605,6 +605,17 @@ enum ToriRS_AssetState
     TORIRS_ASSET_ERROR,
 };
 
+/** Where a plugin's captures are kept (assets.capture_root). */
+enum ToriRS_CaptureStore
+{
+    /** Persistence is off for this run: nowhere to keep a picture. */
+    TORIRS_CAPTURE_STORE_NONE = 0,
+    /** A folder on this machine; capture_open shows it. */
+    TORIRS_CAPTURE_STORE_FOLDER,
+    /** Records in this browser's storage; capture_open downloads them. */
+    TORIRS_CAPTURE_STORE_BROWSER,
+};
+
 struct ToriRS_AssetsApi
 {
     uint32_t struct_size;
@@ -665,7 +676,57 @@ struct ToriRS_AssetsApi
         int height,
         uint32_t const* argb,
         struct ToriRS_ImageRef* out);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 2])(void);
+    /**
+     * Where captures under `destination` (screenshot's, "" for the plugin's
+     * own) are kept: the store, and in `out_root` the folder's absolute path
+     * or the browser's record prefix -- something to SHOW the player.
+     */
+    enum ToriRS_CaptureStore (*capture_root)(
+        struct ToriRS_Api* api,
+        char const* destination,
+        char* out_root,
+        size_t out_root_size);
+    /** Ask for every .png under `destination`; read the ticket with
+     *  capture_answer: `ok`, then `<path>\t<mtime s>\t<bytes>` lines (0 where
+     *  the store cannot say). */
+    enum ToriRS_Result (*capture_list)(
+        struct ToriRS_Api* api,
+        char const* destination,
+        uint32_t* out_ticket);
+    /** Hand the captures to the player the way this platform can: a folder
+     *  shown, or a browser download. `path` (from capture_list, or NULL) for
+     *  one picture instead of all of them. */
+    enum ToriRS_Result (*capture_open)(
+        struct ToriRS_Api* api,
+        char const* destination,
+        char const* path,
+        uint32_t* out_ticket);
+    /** The platform's folder chooser, opened at `start`. The answer is `ok`
+     *  and the folder on the next line, `cancelled`, or `unsupported: ...`. */
+    enum ToriRS_Result (*pick_folder)(
+        struct ToriRS_Api* api,
+        char const* start,
+        uint32_t* out_ticket);
+    /** A ticket's answer, once: PENDING until it lands, then READY with the
+     *  text (valid until the next capture_answer); INVALID for a ticket that
+     *  is not this plugin's or was read already. */
+    enum ToriRS_AssetState (*capture_answer)(
+        struct ToriRS_Api* api,
+        uint32_t ticket,
+        char const** out_text,
+        size_t* out_size);
+    /** One capture fitted inside `max_width` x `max_height`, read the first
+     *  time it is asked for and cached after. PENDING is the ordinary first
+     *  answer: ask again when next drawing. Never release the handle; the
+     *  cache retires it. */
+    enum ToriRS_AssetState (*capture_image)(
+        struct ToriRS_Api* api,
+        char const* destination,
+        char const* path,
+        int max_width,
+        int max_height,
+        struct ToriRS_ImageRef* out);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 8])(void);
 };
 
 enum ToriRS_SceneModelKind

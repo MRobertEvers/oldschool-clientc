@@ -10,6 +10,12 @@
 #include "app/app_internal.h"
 #include "mem/torirs_mem.h"
 
+#if defined(_WIN32)
+#include <direct.h>
+#elif !defined(TORIRS_PLATFORM_WEB)
+#include <unistd.h>
+#endif
+
 /* Private to this unit, declared up front so definition order is free. */
 static void
 app_plugin_asset_saved_path(
@@ -18,6 +24,8 @@ app_plugin_asset_saved_path(
     char const* name,
     char* out,
     size_t out_size);
+static int
+app_plugin_path_absolute(char const* path);
 static void
 app_plugin_screenshot_path(
     struct App* app,
@@ -154,6 +162,25 @@ app_plugin_asset_write(
  * pictures of one instant, and the only way it finds that out is being told.
  */
 /*
+ * A folder the player named whole: a leading '/' anywhere, and a drive
+ * letter on Windows -- the folder chooser answers "C:/Users/...", and read as
+ * relative that landed the pictures in plugin_assets/screenshot/C:/Users/...
+ */
+static int
+app_plugin_path_absolute(char const* path)
+{
+    assert(path);
+    if( path[0] == '/' )
+        return 1;
+#if defined(_WIN32)
+    if( ((path[0] >= 'A' && path[0] <= 'Z') || (path[0] >= 'a' && path[0] <= 'z')) &&
+        path[1] == ':' && (path[2] == '/' || path[2] == '\\') )
+        return 1;
+#endif
+    return 0;
+}
+
+/*
  * Where a capture lands, as one path.
  *
  * An absolute destination is the user's own folder and is used as given. A
@@ -183,7 +210,7 @@ app_plugin_screenshot_path(
     assert(out);
     assert(out_size > 0);
 
-    if( dir[0] == '/' )
+    if( app_plugin_path_absolute(dir) )
     {
         snprintf(out, out_size, "%s/%s", dir, name);
         return;
@@ -305,6 +332,151 @@ app_plugin_screenshot(
         APP_PLUGIN_SCREENSHOTS_MAX,
         name);
     return 0;
+}
+
+/* -------------------------------------------------------- the captures */
+
+/*
+ * Where a plugin's captures under `dir` are kept, said the way the files
+ * service and the player can both use it.
+ *
+ * A browser keeps them as records keyed by the same relative path a write
+ * used, so the key prefix IS the place. A desktop keeps a folder relative to
+ * the working directory, which is a fine thing to hand fopen and a useless
+ * thing to show the player -- "plugin_assets/screenshot" says nothing about
+ * where on the disk that is -- so it is made absolute here, once.
+ */
+int
+app_plugin_capture_root(
+    void* user,
+    char const* plugin,
+    char const* dir,
+    char* out,
+    int out_size)
+{
+    struct App* app = (struct App*)user;
+    char path[TORIRS_IOITEM_MAX_PATH];
+    size_t len;
+
+    assert(app);
+    assert(plugin);
+    assert(dir);
+    assert(out);
+    assert(out_size > 0);
+
+    out[0] = '\0';
+    app_plugin_screenshot_path(app, plugin, dir, "", path, sizeof(path));
+    len = strlen(path);
+    while( len > 1 && path[len - 1] == '/' )
+        path[--len] = '\0';
+    if( !path[0] )
+        return PLUGIN_CAPTURE_STORE_NONE;
+#if defined(TORIRS_PLATFORM_WEB)
+    snprintf(out, (size_t)out_size, "%s", path);
+    return PLUGIN_CAPTURE_STORE_BROWSER;
+#else
+    if( app_plugin_path_absolute(path) )
+        snprintf(out, (size_t)out_size, "%s", path);
+    else
+    {
+        char cwd[TORIRS_IOITEM_MAX_PATH];
+        char const* rel = path;
+
+#if defined(_WIN32)
+        if( !_getcwd(cwd, (int)sizeof(cwd)) )
+#else
+        if( !getcwd(cwd, sizeof(cwd)) )
+#endif
+            cwd[0] = '\0';
+        while( rel[0] == '.' && rel[1] == '/' )
+            rel += 2;
+        snprintf(out, (size_t)out_size, "%s%s%s", cwd, cwd[0] ? "/" : "", rel);
+    }
+    /* One spelling on every lane: a destination is checked against
+     * [A-Za-z0-9._- /:], and a Windows working directory is not. */
+    for( char* c = out; *c; c++ )
+        if( *c == '\\' )
+            *c = '/';
+    return PLUGIN_CAPTURE_STORE_FOLDER;
+#endif
+}
+
+static void
+app_plugin_files_delivered(
+    void* user,
+    int serial,
+    char const* path,
+    void* data,
+    int size)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    (void)path;
+    /* The host is gone (the client is exiting): the answer has nobody. */
+    if( !app->plugins )
+    {
+        ToriMem_Free(ToriMem_Net(), data);
+        return;
+    }
+    PluginHost_FilesDeliver(app->plugins, serial, data, size);
+}
+
+int
+app_plugin_files_request(
+    void* user,
+    int serial,
+    char const* verb,
+    char const* body,
+    int size)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    assert(verb);
+    assert(body);
+
+    ToriRS_TaskQueue_Add(
+        app->runner.queue,
+        CreateTask_PluginFiles(verb, body, size, serial, app_plugin_files_delivered, app));
+    return 1;
+}
+
+static void
+app_plugin_capture_delivered(
+    void* user,
+    int serial,
+    char const* path,
+    void* data,
+    int size)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    (void)path;
+    if( !app->plugins )
+    {
+        ToriMem_Free(ToriMem_Net(), data);
+        return;
+    }
+    PluginHost_CaptureDeliver(app->plugins, serial, data, size);
+}
+
+int
+app_plugin_capture_read(
+    void* user,
+    int serial,
+    char const* path)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    assert(path);
+
+    ToriRS_TaskQueue_Add(
+        app->runner.queue,
+        CreateTask_PluginFileRead(path, serial, app_plugin_capture_delivered, app));
+    return 1;
 }
 
 /*

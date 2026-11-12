@@ -22,6 +22,7 @@
  *   - the int store's value is stored verbatim, including 0, so "hidden =
  *     false" is a real answer rather than an absent one.
  *   - a script's write (`Update`) replaces a server entry and adds none.
+ *   - dropping a group forgets that group's components and only those.
  *
  * Build and run:
  *   make -C src test-uitree-if-store
@@ -177,12 +178,51 @@ test_update_replaces_only_server_entries(void)
     UIIfTextStore_Free(&texts);
 }
 
+/*
+ * A close that unloads a group forgets what the server said to it (reference:
+ * the group's IfType.list is nulled). The level-up box is the case: the
+ * woodcutting icon (233:53) shown by one box and never hidden again, because
+ * that box was closed by the next tree click rather than by Continue, drew in
+ * every later box until the store let go of it.
+ */
+static void
+test_drop_group_forgets_only_that_group(void)
+{
+    struct UIIfIntStore hides;
+    struct UIIfTextStore texts;
+
+    memset(&hides, 0, sizeof(hides));
+    memset(&texts, 0, sizeof(texts));
+
+    UIIfIntStore_Set(&hides, (233 << 16) | 53, 0);
+    UIIfIntStore_Set(&hides, (162 << 16) | 4, 1);
+    UIIfIntStore_Set(&hides, (233 << 16) | 4, 0);
+    UIIfIntStore_DropGroup(&hides, 233);
+    CHECK(hides.count == 1, "count is %d after dropping group 233", hides.count);
+    CHECK(UIIfIntStore_Get(&hides, (233 << 16) | 53, -1) == -1, "the dropped group's hide survived");
+    CHECK(UIIfIntStore_Get(&hides, (162 << 16) | 4, -1) == 1, "another group's hide was dropped");
+
+    UIIfTextStore_Set(&texts, (233 << 16) | 2, "Your Woodcutting level is now 2.");
+    UIIfTextStore_Set(&texts, (399 << 16) | 7, "Cook's Assistant");
+    UIIfTextStore_DropGroup(&texts, 233);
+    CHECK(texts.count == 1, "count is %d after dropping group 233", texts.count);
+    CHECK(UIIfTextStore_Get(&texts, (233 << 16) | 2) == NULL, "the dropped group's text survived");
+    CHECK(
+        UIIfTextStore_Get(&texts, (399 << 16) | 7) != NULL &&
+            strcmp(UIIfTextStore_Get(&texts, (399 << 16) | 7), "Cook's Assistant") == 0,
+        "another group's text was dropped");
+
+    UIIfIntStore_Free(&hides);
+    UIIfTextStore_Free(&texts);
+}
+
 int
 main(void)
 {
     test_int_store_is_keyed();
     test_text_store_owns_its_strings();
     test_update_replaces_only_server_entries();
+    test_drop_group_forgets_only_that_group();
 
     if( g_failures )
     {

@@ -3869,6 +3869,14 @@ App_IfHideSet(
     int com_id,
     int hide);
 
+/** Forget every stored IF_SETTEXT, IF_SETHIDE and IF_SETCOLOUR on interface
+ *  `group_id`'s components. Called when a close UNLOADS that group (the
+ *  reference's IfType.list goes with it); a same-group remount keeps them. */
+void
+App_IfStoresDropGroup(
+    struct App* app,
+    int group_id);
+
 /** Drop every IF_SETEVENTS arming. Called on IF_RESYNC, which replaces the
  *  whole table; IF_OPENTOP keeps it (see that case in rs_gameproto_exec.c). */
 void

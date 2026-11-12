@@ -56,6 +56,83 @@
     flags === CACHE_DAT1 || flags === CACHE_DAT1_MAP_TERRAIN ||
     flags === CACHE_DAT1_MAP_SCENERY;
 
+  /* Hand `bytes` to the browser as a file the player saves. */
+  function saveDownload(name, bytes, type) {
+    const url = URL.createObjectURL(new Blob([bytes], { type: type }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
+  /*
+   * A .zip of `entries` ({name, bytes}), STORED rather than deflated: every
+   * entry is a PNG, which is compressed already, and a deflate would cost the
+   * page a library to save nothing. Names keep their '/', so the archive
+   * unpacks into the same player/category folders the desktop writes.
+   */
+  let crcTable = null;
+  function crc32(bytes) {
+    if (!crcTable) {
+      crcTable = new Uint32Array(256);
+      for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) { c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; }
+        crcTable[n] = c >>> 0;
+      }
+    }
+    let crc = 0xffffffff;
+    for (let i = 0; i < bytes.length; i++) { crc = crcTable[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8); }
+    return (crc ^ 0xffffffff) >>> 0;
+  }
+
+  function zipStored(entries) {
+    const encoder = new TextEncoder();
+    const locals = [];
+    const centrals = [];
+    let offset = 0;
+    for (const entry of entries) {
+      const name = encoder.encode(entry.name);
+      const crc = crc32(entry.bytes);
+      const local = new DataView(new ArrayBuffer(30));
+      local.setUint32(0, 0x04034b50, true);
+      local.setUint16(4, 20, true);
+      local.setUint16(6, 0x0800, true);              /* names are UTF-8 */
+      local.setUint32(14, crc, true);
+      local.setUint32(18, entry.bytes.length, true);
+      local.setUint32(22, entry.bytes.length, true);
+      local.setUint16(26, name.length, true);
+      locals.push(new Uint8Array(local.buffer), name, entry.bytes);
+      const central = new DataView(new ArrayBuffer(46));
+      central.setUint32(0, 0x02014b50, true);
+      central.setUint16(4, 20, true);
+      central.setUint16(6, 20, true);
+      central.setUint16(8, 0x0800, true);
+      central.setUint32(16, crc, true);
+      central.setUint32(20, entry.bytes.length, true);
+      central.setUint32(24, entry.bytes.length, true);
+      central.setUint16(28, name.length, true);
+      central.setUint32(42, offset, true);
+      centrals.push(new Uint8Array(central.buffer), name);
+      offset += 30 + name.length + entry.bytes.length;
+    }
+    const centralSize = centrals.reduce((sum, part) => sum + part.length, 0);
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true);
+    end.setUint16(8, entries.length, true);
+    end.setUint16(10, entries.length, true);
+    end.setUint32(12, centralSize, true);
+    end.setUint32(16, offset, true);
+    const parts = locals.concat(centrals, [new Uint8Array(end.buffer)]);
+    const out = new Uint8Array(offset + centralSize + 22);
+    let at = 0;
+    for (const part of parts) { out.set(part, at); at += part.length; }
+    return out;
+  }
+
   /**
    * Build the provider.
    *
@@ -256,6 +333,61 @@
       async writeClientFile(path, bytes) {
         await idb.filePut(path, bytes, null);
         storedFiles.add(path);
+      },
+
+      /*
+       * The files service (plugin/task_plugin_io.h CreateTask_PluginFiles):
+       * the verbs a desktop answers over its folder, answered here over the
+       * records writeClientFile made. The answer is the same text a desktop
+       * gives -- a verdict line, then the verb's own -- so the plugin above
+       * it is one plugin.
+       *
+       *   list      dir=   every .png key below it. No mtime or size: those
+       *                    would need the records' VALUES, and a listing of a
+       *                    folder of pictures must not read the pictures.
+       *   download  dir=   all of them, as one stored .zip the browser saves;
+       *            path=  or one picture, as itself.
+       *   reveal, pick_folder: a browser has no folder to show or choose.
+       */
+      async filesService(verb, bodyBytes) {
+        const body = {};
+        for (const line of new TextDecoder().decode(bodyBytes || new Uint8Array(0)).split('\n')) {
+          const eq = line.indexOf('=');
+          if (eq > 0) { body[line.slice(0, eq)] = line.slice(eq + 1).replace(/\r$/, ''); }
+        }
+        const text = (answer) => new TextEncoder().encode(answer);
+        const prefix = body.dir ? `${body.dir.replace(/\/+$/, '')}/` : '';
+        const pngsUnder = async () => {
+          if (!prefix || typeof idb.fileKeysUnder !== 'function') { return []; }
+          return (await idb.fileKeysUnder(prefix)).filter(key => /\.png$/i.test(key));
+        };
+
+        if (verb === 'list') {
+          const keys = await pngsUnder();
+          return text(`ok\n${keys.map(key => `${key.slice(prefix.length)}\t0\t0\n`).join('')}`);
+        }
+        if (verb === 'download') {
+          if (body.path) {
+            const bytes = await idb.fileGet(body.path);
+            if (!bytes) { return text(`error: ${body.path} is not stored in this browser\n`); }
+            saveDownload(body.path.slice(body.path.lastIndexOf('/') + 1), bytes, 'image/png');
+            return text('ok\n1\n');
+          }
+          const keys = await pngsUnder();
+          if (!keys.length) { return text('error: there are no pictures to download yet\n'); }
+          const entries = [];
+          for (const key of keys) {
+            const bytes = await idb.fileGet(key);
+            if (bytes) { entries.push({ name: key.slice(prefix.length), bytes: bytes }); }
+          }
+          const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+          saveDownload(`screenshots_${stamp}.zip`, zipStored(entries), 'application/zip');
+          return text(`ok\n${entries.length}\n`);
+        }
+        if (verb === 'reveal' || verb === 'pick_folder') {
+          return text('unsupported: a browser keeps them in its own storage; download them\n');
+        }
+        return text(`error: no files/${verb}\n`);
       },
 
       /*

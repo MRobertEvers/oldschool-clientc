@@ -1785,6 +1785,89 @@ static int lua_assets_image_compose(lua_State* L)
     return 2;
 }
 
+/*
+ * The captures browser. Ticket verbs answer (ticket?, result); capture_answer
+ * splits the service's text at its first line, so a script reads the verdict
+ * as a word and never parses one:
+ *
+ *   'pending'                       still in flight
+ *   'ready', verdict, rest          verdict is ok|cancelled|unsupported|error;
+ *                                  rest is the lines after `ok`, or the
+ *                                  reason after the colon
+ *   'invalid'                       not this plugin's ticket, or read already
+ */
+static int
+lua_push_ticket(lua_State* L, enum ToriRS_Result result, uint32_t ticket)
+{
+    if( result == TORIRS_RESULT_OK && ticket )
+        lua_pushinteger(L, (lua_Integer)ticket);
+    else
+        lua_pushnil(L);
+    lua_pushstring(L, lua_result_name(result));
+    return 2;
+}
+
+static int lua_assets_capture_root(lua_State* L)
+{
+    static char const* const STORES[] = { "none", "folder", "browser" };
+    struct ToriRS_Api* api = lua_current_api(L);
+    char root[512];
+    enum ToriRS_CaptureStore store =
+        api->assets.capture_root(api, luaL_optstring(L, 1, ""), root, sizeof(root));
+
+    lua_pushstring(L, store >= TORIRS_CAPTURE_STORE_NONE && store <= TORIRS_CAPTURE_STORE_BROWSER
+                          ? STORES[store] : "none");
+    lua_pushstring(L, root);
+    return 2;
+}
+static int lua_assets_capture_list(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);uint32_t t=0;enum ToriRS_Result r=a->assets.capture_list(a,luaL_optstring(L,1,""),&t);return lua_push_ticket(L,r,t); }
+static int lua_assets_capture_open(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);uint32_t t=0;enum ToriRS_Result r=a->assets.capture_open(a,luaL_optstring(L,1,""),luaL_optstring(L,2,NULL),&t);return lua_push_ticket(L,r,t); }
+static int lua_assets_pick_folder(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);uint32_t t=0;enum ToriRS_Result r=a->assets.pick_folder(a,luaL_optstring(L,1,""),&t);return lua_push_ticket(L,r,t); }
+static int lua_assets_capture_answer(lua_State* L)
+{
+    struct ToriRS_Api* api = lua_current_api(L);
+    lua_Integer const ticket = luaL_checkinteger(L, 1);
+    char const* text = NULL;
+    size_t size = 0;
+    enum ToriRS_AssetState state;
+    char const* eol;
+    char const* colon;
+    size_t verdict_len;
+
+    if( ticket <= 0 || ticket > (lua_Integer)UINT32_MAX )
+    {
+        lua_pushstring(L, lua_asset_state_name(TORIRS_ASSET_INVALID));
+        return 1;
+    }
+    state = api->assets.capture_answer(api, (uint32_t)ticket, &text, &size);
+    if( state == TORIRS_ASSET_PENDING )
+        lua_pushstring(L, "pending");
+    else if( state != TORIRS_ASSET_READY || !text )
+        lua_pushstring(L, lua_asset_state_name(TORIRS_ASSET_INVALID));
+    if( state != TORIRS_ASSET_READY || !text )
+        return 1;
+    lua_pushstring(L, "ready");
+    eol = memchr(text, '\n', size);
+    if( !eol )
+        eol = text + size;
+    colon = memchr(text, ':', (size_t)(eol - text));
+    verdict_len = (size_t)((colon ? colon : eol) - text);
+    lua_pushlstring(L, text, verdict_len);
+    if( colon )
+    {
+        char const* reason = colon + 1;
+        while( reason < eol && *reason == ' ' )
+            reason++;
+        lua_pushlstring(L, reason, (size_t)(eol - reason));
+    }
+    else if( eol < text + size )
+        lua_pushlstring(L, eol + 1, (size_t)(text + size - (eol + 1)));
+    else
+        lua_pushliteral(L, "");
+    return 3;
+}
+static int lua_assets_capture_image(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);struct ToriRS_ImageRef r={0};enum ToriRS_AssetState s=a->assets.capture_image(a,luaL_optstring(L,1,""),luaL_checkstring(L,2),(int)luaL_checkinteger(L,3),(int)luaL_checkinteger(L,4),&r);if(r.value)lua_pushinteger(L,r.value);else lua_pushnil(L);lua_pushstring(L,lua_asset_state_name(s));return 2; }
+
 /* -------------------------------------------------------------- api.scene */
 
 static int lua_scene_mesh_create(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);struct ToriRS_MeshRef r={0};enum ToriRS_Result s=a->scene.mesh_create(a,&r);if(r.value)lua_pushinteger(L,r.value);else lua_pushnil(L);lua_pushstring(L,lua_result_name(s));return 2; }
@@ -3321,7 +3404,11 @@ static struct LuaFn const LUA_ASSETS_FNS[] = {
     {"release",lua_assets_release},{"image",lua_assets_image},{"image_size",lua_assets_image_size},
     {"image_release",lua_assets_image_release},{"model",lua_assets_model},{"model_release",lua_assets_model_release},
     {"screenshot",lua_assets_screenshot},{"image_pixels",lua_assets_image_pixels},
-    {"image_compose",lua_assets_image_compose},{NULL,NULL}
+    {"image_compose",lua_assets_image_compose},
+    {"capture_root",lua_assets_capture_root},{"capture_list",lua_assets_capture_list},
+    {"capture_open",lua_assets_capture_open},{"pick_folder",lua_assets_pick_folder},
+    {"capture_answer",lua_assets_capture_answer},{"capture_image",lua_assets_capture_image},
+    {NULL,NULL}
 };
 static struct LuaFn const LUA_SCENE_FNS[] = {
     {"mesh_create",lua_scene_mesh_create},{"mesh_destroy",lua_scene_mesh_destroy},

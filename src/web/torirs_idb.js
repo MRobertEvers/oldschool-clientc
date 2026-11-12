@@ -475,6 +475,21 @@
       return present;
     },
 
+    /** Every files-store key at or below `prefix` (a client-file directory
+     *  with its trailing '/'), keys only: a listing of a folder of pictures
+     *  must not read the pictures. Sorted, as IndexedDB keys come. */
+    async fileKeysUnder(prefix) {
+      const handle = await db();
+      if (!handle) { return []; }
+      try {
+        const tx = handle.transaction(['files'], 'readonly');
+        return await reqPromise(tx.objectStore('files')
+          .getAllKeys(IDBKeyRange.bound(prefix, prefix + '\uffff')));
+      } catch (err) {
+        return [];
+      }
+    },
+
     async fileGet(path) {
       const row = await get('files', path);
       return row ? asBytes(row.d) : null;

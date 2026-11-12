@@ -261,6 +261,12 @@ warn = nil
 ---@field screenshot fun(destination: string, name: string): boolean, string
 ---@field image_pixels fun(image: torirs.ImageRef): integer[]?
 ---@field image_compose fun(name: string, width: integer, height: integer, argb: integer[]): torirs.ImageRef?, torirs.AssetState
+---@field capture_root fun(destination?: string): 'none'|'folder'|'browser', string Where screenshot(destination, ...) captures are kept: a folder (its absolute path, to show) or this browser's storage (the record prefix); 'none' when this run keeps no files.
+---@field capture_list fun(destination?: string): integer?, torirs.ResultName Ticket for every .png below the destination; capture_answer's rest is `<path>\t<mtime s>\t<bytes>` lines (0 where the store cannot say; a browser cannot).
+---@field capture_open fun(destination?: string, path?: string): integer?, torirs.ResultName Ticket: show the folder (desktop) or download them as one .zip (browser); with `path`, that one picture.
+---@field pick_folder fun(start?: string): integer?, torirs.ResultName Ticket: the platform's folder chooser at `start`. Answers ok + the folder, cancelled, or unsupported (a browser, Android).
+---@field capture_answer fun(ticket: integer): 'pending'|'ready'|'invalid', ('ok'|'cancelled'|'unsupported'|'error')?, string? Once: 'ready', the verdict, and the lines after it (or the reason).
+---@field capture_image fun(destination: string?, path: string, max_width: integer, max_height: integer): torirs.ImageRef?, torirs.AssetState A capture fitted in the box, read lazily and cached (LRU of 24). 'pending' is the first answer; ask again when next drawing. Never released by the script.
 
 ---@class torirs.SceneApi
 ---@field mesh_create fun(): torirs.MeshRef?, torirs.ResultName

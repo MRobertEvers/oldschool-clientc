@@ -1914,6 +1914,28 @@ app_plugin_screenshot(
     char* out_path,
     int out_path_size);
 
+int
+app_plugin_capture_root(
+    void* user,
+    char const* plugin,
+    char const* dir,
+    char* out,
+    int out_size);
+
+int
+app_plugin_files_request(
+    void* user,
+    int serial,
+    char const* verb,
+    char const* body,
+    int size);
+
+int
+app_plugin_capture_read(
+    void* user,
+    int serial,
+    char const* path);
+
 
 /* ---- app_plugin_bridge.c ---- */
 void

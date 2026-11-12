@@ -74,6 +74,22 @@ UIIfIntStore_Get(
     int com_id,
     int fallback);
 
+/**
+ * Forget every value held for interface `group_id`'s components.
+ *
+ * For a close that UNLOADS the group. The reference keeps these values on
+ * IfType.list, and its close (class415.method9520 -> Statics.method7193) nulls
+ * the group's list, so the next open decodes it fresh from the cache and
+ * nothing the server said to the last one survives. Keeping them here showed
+ * the woodcutting level-up's tree in every later level-up box: the server
+ * hides the skill's icon again only after Continue, and a box closed any other
+ * way left "woodcutting icon shown" in the store for good.
+ */
+void
+UIIfIntStore_DropGroup(
+    struct UIIfIntStore* store,
+    int group_id);
+
 void
 UIIfIntStore_Free(struct UIIfIntStore* store);
 
@@ -119,6 +135,12 @@ char const*
 UIIfTextStore_Get(
     struct UIIfTextStore const* store,
     int com_id);
+
+/** UIIfIntStore_DropGroup's twin; frees the dropped strings. */
+void
+UIIfTextStore_DropGroup(
+    struct UIIfTextStore* store,
+    int group_id);
 
 /** Release the entries AND every string they own. */
 void

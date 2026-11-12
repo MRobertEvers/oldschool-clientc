@@ -213,6 +213,74 @@ main(void)
     }
 
     /*
+     * A close that UNLOADS a group drops what the server set on it -- hides,
+     * texts, colours -- as rev239's unload flag does (class415.method9520 ->
+     * Statics.method7193 nulls the group's IfType.list): IF_CLOSESUB, an
+     * IF_OPENSUB of a different group over it, the destination of an
+     * IF_MOVESUB. A same-group remount keeps them. Keeping them past a close
+     * drew the woodcutting level-up's tree in every later level-up box: the
+     * server hides the icon again only after Continue, and a box closed by the
+     * next tree click left "shown" stored for good.
+     */
+    {
+        struct App* app = calloc(1, sizeof(*app));
+        int const slot = (162 << 16) | 567;      /* synthetic chat modal slot */
+        int const other_slot = (162 << 16) | 568;
+        int const source = (161 << 16) | 70;
+        int const dest = (161 << 16) | 71;
+        int const wc_icon = (233 << 16) | 53;    /* levelup_display:woodcutting */
+        int const title = (233 << 16) | 1;       /* levelup_display:text1 */
+        int const moved = (500 << 16) | 2;
+
+        assert(app);
+        app->exec_runner.queue = ToriRS_TaskQueue_New();
+        app->tree = UITree_New(2);
+        UITree_InterfaceParentSet(app->tree, slot, 233, 0);
+        App_IfHideSet(app, wc_icon, 0);
+        App_IfTextSet(app, title, "Congratulations, you just advanced a Woodcutting level.");
+        App_IfColourSet(app, title, 0x000080);
+
+        App_OpenSubInterface(app, slot, 233, 0);
+        TEST_EXEC_ASSERT(UIIfIntStore_Get(&app->if_hides, wc_icon, -1) == 0,
+                         "a same-group remount must keep the group's hides");
+        TEST_EXEC_ASSERT(UIIfTextStore_Get(&app->if_texts, title) != NULL,
+                         "a same-group remount must keep the group's texts");
+
+        App_CloseSubInterface(app, slot);
+        TEST_EXEC_ASSERT(UIIfIntStore_Get(&app->if_hides, wc_icon, -1) == -1,
+                         "IF_CLOSESUB must drop the closed group's hides");
+        TEST_EXEC_ASSERT(UIIfTextStore_Get(&app->if_texts, title) == NULL,
+                         "IF_CLOSESUB must drop the closed group's texts");
+        TEST_EXEC_ASSERT(UIIfIntStore_Get(&app->if_colours, title, -1) == -1,
+                         "IF_CLOSESUB must drop the closed group's colours");
+
+        UITree_InterfaceParentSet(app->tree, other_slot, 233, 0);
+        App_IfHideSet(app, wc_icon, 0);
+        App_OpenSubInterface(app, other_slot, 231, 0);
+        TEST_EXEC_ASSERT(UIIfIntStore_Get(&app->if_hides, wc_icon, -1) == -1,
+                         "an IF_OPENSUB of a different group must drop the outgoing group's hides");
+
+        UITree_InterfaceParentSet(app->tree, source, 500, 1);
+        UITree_InterfaceParentSet(app->tree, dest, 233, 1);
+        App_IfHideSet(app, wc_icon, 0);
+        App_IfHideSet(app, moved, 1);
+        App_MoveSubInterface(app, source, dest);
+        TEST_EXEC_ASSERT(UIIfIntStore_Get(&app->if_hides, wc_icon, -1) == -1,
+                         "IF_MOVESUB must drop the hides of the group it lands on");
+        TEST_EXEC_ASSERT(UIIfIntStore_Get(&app->if_hides, moved, -1) == 1,
+                         "IF_MOVESUB must keep the moved group's hides");
+
+        ToriRS_TaskQueue_Free(app->exec_runner.queue);
+        UITree_Free(app->tree);
+        UIIfEventTable_Free(&app->if_events);
+        UIIfIntStore_Free(&app->if_hides);
+        UIIfIntStore_Free(&app->if_colours);
+        UIIfTextStore_Free(&app->if_texts);
+        free(app);
+        printf("ok - a close that unloads a group drops its stored IF_SET* values\n");
+    }
+
+    /*
      * IF_OPENTOP, then IF_MOVESUB from the old top's slots. The deob keeps its
      * open subs across a top change and the move relinks each into the new
      * top (class415.method9481); App_OpenRootInterface keeps the outgoing

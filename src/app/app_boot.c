@@ -1307,7 +1307,8 @@ app_queued_slot_group(
 }
 
 /*
- * Closing a group out of a slot disarms it, in wire order.
+ * Closing a group out of a slot disarms it, in wire order, and unloads it
+ * unless `incoming_group` is the same group going straight back in.
  *
  * The reference's one close, class415.method9520, ends in
  * Statics.method12095: every IF_SETEVENTS node on the closed group's
@@ -1318,19 +1319,29 @@ app_queued_slot_group(
  * client (the quest list after a journal tab switch). This client kept the
  * arming and was kinder than the client the server has to satisfy.
  *
+ * The unload flag (Statics.method7193) drops the group's IfType.list, and the
+ * hides, texts and colours the server set on it with it. IF_CLOSESUB passes
+ * true; IF_OPENSUB passes "the slot held a different group"; IF_MOVESUB
+ * (class415.method9481) "the moved group is not the one already there". Pass
+ * 0 for no incoming group.
+ *
  * At the call, where the reference does it -- inside the packet's own
  * handler, before the next packet (the server's re-arm for the incoming
  * group) applies.
  */
 static void
-app_disarm_slot(
+app_close_slot(
     struct App* app,
-    int target_uid)
+    int target_uid,
+    int incoming_group)
 {
     int group = app_queued_slot_group(app, target_uid);
 
-    if( group > 0 )
-        App_IfEventsDropGroup(app, group);
+    if( group <= 0 )
+        return;
+    App_IfEventsDropGroup(app, group);
+    if( group != incoming_group )
+        App_IfStoresDropGroup(app, group);
 }
 
 static void
@@ -1420,7 +1431,7 @@ App_OpenSubInterface(
     int type)
 {
     assert(app);
-    app_disarm_slot(app, target_uid);
+    app_close_slot(app, target_uid, interface_id);
     app_open_sub(app, target_uid, interface_id, type);
 }
 
@@ -1430,7 +1441,7 @@ App_CloseSubInterface(
     int target_uid)
 {
     assert(app);
-    app_disarm_slot(app, target_uid);
+    app_close_slot(app, target_uid, 0);
     app_close_sub(app, target_uid);
 }
 
@@ -1506,7 +1517,7 @@ App_MoveSubInterface(
          */
         struct UITreeInterfaceParent kept = app_take_detached(app, source_uid);
 
-        app_disarm_slot(app, dest_uid);
+        app_close_slot(app, dest_uid, kept.group_id);
         if( kept.group_id > 0 )
         {
             app_open_sub(app, dest_uid, kept.group_id, kept.type);
@@ -1527,7 +1538,7 @@ App_MoveSubInterface(
             (unsigned)dest_uid);
     /* The reference (class415.method9481) closes only what the move lands
      * on; the moved group is relinked, not closed, and keeps its arming. */
-    app_disarm_slot(app, dest_uid);
+    app_close_slot(app, dest_uid, group_id);
     app_close_sub(app, source_uid);
     app_open_sub(app, dest_uid, group_id, type);
 }

@@ -1,0 +1,74 @@
+# panel_icon.png -- the screenshot plugin's rail stone, as pixels.
+#
+# 30x30, the logical canvas the cache's own popout icons use (the Loot
+# Tracker's panel_icon is popout_icons,3 at exactly this size), and drawn in
+# their manner rather than camera.txt's: a one-pixel near-black outline, a
+# shadow one pixel down and right of it, saturated mid-tones, light from the
+# upper left. camera.txt is outline-less because it sits among the options
+# icons; this one sits on the rail beside the loot bag and the XP chart, and
+# without their outline it read as a hole in the column.
+#
+# A box camera rather than camera.txt's compact: the leather band is what
+# makes it read at 30 pixels, where the grey body alone was a grey brick. The
+# flash, the shutter and the lens keep camera.txt's places -- flash left,
+# shutter right, lens centred -- so the rail and the viewport control are
+# recognisably the same plugin.
+#
+# '.' is transparent. SOURCES.sh bakes this file into panel_icon.png; edit
+# here, not there.
+
+palette
+  o 050302  outline (popout_icons' own)
+  s 1b201a  drop shadow (popout_icons' own)
+  c b8b4ae  top plate, lit edge
+  d 8c867c  top plate highlight
+  g 5e5850  metal body
+  h 3a3630  metal shade
+  i 26231f  barrel shadow, lower-right
+  j 161514  lens glass rim / viewfinder
+  k 0b0c09  lens glass, darkest
+  e 7a7670  barrel, lit
+  a d2d0cc  barrel rim, lit / glint edge
+  A dad9d5  flash reflector
+  W fefefd  specular, flash core and lens glint
+  R 8d1414  shutter button
+  r 5e0d0c  shutter button, shade
+  P ca4244  shutter button, lit
+  L 7e4a1b  leather band
+  l 653612  leather, shade
+  m 3f230c  leather seam
+  M 96602c  leather grain, lit
+  B 1e2a44  lens sheen
+  b 3a5480  lens sheen, bright
+
+art
+  ..............................
+  ..............................
+  ..............................
+  ..............................
+  ......ooooo...................
+  .....occccco........ooooo.....
+  .....odWWAgos......oPPPPPo....
+  .....odAAAgos......oPRRRros...
+  ...ooodhhhgoooooooooRrrrroo...
+  ..occcccccccccccccccccccccco..
+  .oddeejjddddddaaaaaddddddddho.
+  .odgjjjjggggaaeeeeeeegggggghos
+  .odgjjjjgggaaejjjjjheeggggghos
+  .odggggggggaejjakkjjheggggghos
+  .ommmmmmmmaejjWWkkkjjhimmmmmos
+  .olLLLLLLLaejaWkkkkkjhiLLLLmos
+  .olLMLLlLLaejkkkkkBkjhiMLLLmos
+  .olLLlLLLLaejkkkkBBBjhiLlLLmos
+  .olLLLLLLLaejjkkBBbjjhiLLLLmos
+  .olLLLMLLLLehjjkkkjjhiLLMLLmos
+  .olLlLLLlLLeehjjjjjhiilLLLLmos
+  .olLLLLLLLLLeehhhhhiiLLLLlLmos
+  .olllllllllllliiiiillllllllmos
+  .ohgggggggggggggggggggggggghos
+  ..ohhhhhhhhhhhhhhhhhhhhhhhhos.
+  ...oooooooooooooooooooooooos..
+  ....sssssssssssssssssssssss...
+  ..............................
+  ..............................
+  ..............................

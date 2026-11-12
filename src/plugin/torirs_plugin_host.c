@@ -485,6 +485,42 @@ struct ToriRS_PluginHost
     uint64_t icon_revision;
 
     /*
+     * The captures browser (api_capture_*): files-service tickets, the text
+     * of the last one read, and the gallery's thumbnail LRU -- the obj icon
+     * cache's shape, keyed on (plugin, path, box) rather than an item.
+     */
+    struct PluginFilesTicket
+    {
+        /** -1 for a free ticket. */
+        int plugin;
+        int serial;
+        bool landed;
+        /** PLUGINS, NUL-terminated; owned until the ticket is read. */
+        char* answer;
+        int answer_size;
+    } files_tickets[TORIRS_PLUGIN_FILES_TICKETS_MAX];
+    int files_serial;
+    char* files_read_text;
+    struct PluginCaptureThumb
+    {
+        /** -1 for a free entry. */
+        int plugin;
+        char path[TORIRS_PLUGIN_CAPTURE_PATH_MAX];
+        int max_w;
+        int max_h;
+        /** The `images` slot, held from the request so it is never shared. */
+        int image;
+        /** enum ToriRS_AssetState. */
+        int state;
+        /** The read in flight, from the files serial space. */
+        int serial;
+        uint64_t revision;
+        uint64_t used;
+    } capture_thumbs[TORIRS_PLUGIN_CAPTURE_THUMBS_MAX];
+    uint64_t thumb_clock;
+    uint64_t thumb_revision;
+
+    /*
      * Application plugin panel: many inert rail registrations, ONE mounted
      * page model. Presentation and application-window placement deliberately
      * live above this host; these fields are only the authority/gating layer.
@@ -2304,12 +2340,16 @@ api_asset_release(
  * A destination the USER named.
  *
  * Looser than plugin_asset_name_ok on purpose: separators are allowed, because
- * "screenshots/levels" is the kind of thing someone types into a settings
- * field and a directory with one component would not be a destination worth
- * configuring. `..` is still refused, so the plugin cannot climb out of
- * whatever the user pointed it at, and a refusal is logged rather than
- * asserted for the same reason it is for asset names -- the string arrives
- * from a config field, not from a programmer.
+ * a destination is a folder, and the folder comes from the platform's chooser
+ * (pick_folder) -- so it is spelled however the player's disk spells it:
+ * "My Pictures (old)", "~stuff", a name in UTF-8. Every printable byte is
+ * allowed but the ones that are a hazard somewhere a path travels: a
+ * backslash (one separator on every lane; the chooser converts), the Windows
+ * reserved < > " | ? *, the shell's $ and `, and anything below a space. `..`
+ * is still refused, so the plugin cannot climb out of whatever the user
+ * pointed it at, and a refusal is logged rather than asserted for the same
+ * reason it is for asset names -- the string arrives from a config field, not
+ * from a programmer.
  */
 static bool
 plugin_screenshot_dir_ok(
@@ -2324,17 +2364,18 @@ plugin_screenshot_dir_ok(
 
     for( size_t i = 0; ok && i < len; i++ )
     {
-        char const c = dir[i];
-        ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
-             c == '.' || c == '_' || c == '-' || c == '/' || c == ':' || c == ' ';
+        unsigned char const c = (unsigned char)dir[i];
+        ok = c >= 0x20 && c != 0x7f && !strchr("\\<>\"|?*$`", c);
     }
-    if( ok && strstr(dir, "..") )
-        ok = false;
+    /* A component that IS "..", not a name that contains two dots. */
+    for( char const* at = dir; ok && (at = strstr(at, "..")) != NULL; at += 2 )
+        if( (at == dir || at[-1] == '/') && (at[2] == '\0' || at[2] == '/') )
+            ok = false;
 
     if( !ok )
         TORIRS_LOG(
-            "plugin: %s asked to write a screenshot to '%s'; a destination is a path of "
-            "[A-Za-z0-9._- /:] with no '..'\n",
+            "plugin: %s asked to write a screenshot to '%s'; a destination is a printable "
+            "path with no backslash, none of <>\"|?*$` and no '..' component\n",
             ctx->name,
             dir);
     return ok;
@@ -2403,6 +2444,518 @@ api_datestamp(
     if( strftime(out, (size_t)out_size, "%Y-%m-%d_%H-%M-%S", &local) == 0 )
         return 0;
     return 1;
+}
+
+/* -- the captures browser -- */
+
+/*
+ * What the screenshot plugin's gallery and settings stand on: where its
+ * pictures are kept, a listing of them, the platform's way of handing them to
+ * the player (a folder shown on a desktop, a download in a browser), a folder
+ * chooser, and a small copy of any one of them to draw.
+ *
+ * Every platform verb is a TICKET, as the launch channel's are: the executor
+ * answers on a later frame (a browser's database is async, a desktop's
+ * chooser is the player's to close), and an api verb inside a frame must not
+ * wait for one.
+ */
+
+/** Destination `dir` under this plugin's captures, as the files service
+ *  names it. -1 when the destination itself is refused. */
+static int
+plugin_capture_root(
+    struct PluginContext* ctx,
+    char const* dir,
+    char* out,
+    int out_size)
+{
+    assert(ctx);
+    assert(dir);
+    assert(out);
+    assert(out_size > 0);
+
+    out[0] = '\0';
+    if( *dir && !plugin_screenshot_dir_ok(ctx, dir) )
+        return -1;
+    return ctx->host->engine.capture_root(ctx->host->engine.user, ctx->name, dir, out, out_size);
+}
+
+static int
+api_capture_root(
+    struct PluginContext* ctx,
+    char const* dir,
+    char* out,
+    int out_size)
+{
+    int const store = plugin_capture_root(ctx, dir, out, out_size);
+
+    return store < 0 ? PLUGIN_CAPTURE_STORE_NONE : store;
+}
+
+/** A path below a capture root: what capture_list handed out. The same
+ *  alphabet as a destination, and never empty. */
+static bool
+plugin_capture_path_ok(
+    struct PluginContext* ctx,
+    char const* path)
+{
+    assert(ctx);
+    assert(path);
+    return path[0] && path[0] != '/' && plugin_screenshot_dir_ok(ctx, path);
+}
+
+static int
+plugin_files_next_serial(struct ToriRS_PluginHost* host)
+{
+    assert(host);
+    host->files_serial++;
+    if( host->files_serial <= 0 )
+        host->files_serial = 1;
+    return host->files_serial;
+}
+
+/** Queue `verb` with `body` and hand back its ticket, or 0 when every ticket
+ *  is in flight or landed and unread. */
+static int
+plugin_files_queue(
+    struct PluginContext* ctx,
+    char const* verb,
+    char const* body)
+{
+    struct ToriRS_PluginHost* host;
+    struct PluginFilesTicket* ticket = NULL;
+
+    assert(ctx);
+    assert(verb);
+    assert(body);
+
+    host = ctx->host;
+    for( int i = 0; i < TORIRS_PLUGIN_FILES_TICKETS_MAX && !ticket; i++ )
+        if( host->files_tickets[i].plugin < 0 )
+            ticket = &host->files_tickets[i];
+    if( !ticket )
+    {
+        TORIRS_LOG(
+            "plugin: %s files/%s refused: %d requests are unanswered or unread (read each "
+            "with capture_answer)\n",
+            ctx->name,
+            verb,
+            TORIRS_PLUGIN_FILES_TICKETS_MAX);
+        return 0;
+    }
+    ticket->plugin = ctx->index;
+    ticket->serial = plugin_files_next_serial(host);
+    ticket->landed = false;
+    ticket->answer = NULL;
+    ticket->answer_size = 0;
+    if( !host->engine.files_request(
+            host->engine.user, ticket->serial, verb, body, (int)strlen(body)) )
+    {
+        ticket->plugin = -1;
+        return 0;
+    }
+    return ticket->serial;
+}
+
+static enum ToriRS_Result
+api_capture_list(
+    struct PluginContext* ctx,
+    char const* dir,
+    int* out_ticket)
+{
+    char root[TORIRS_PLUGIN_CAPTURE_PATH_MAX];
+    char body[TORIRS_PLUGIN_CAPTURE_PATH_MAX + 8];
+    int store;
+
+    assert(ctx);
+    assert(dir);
+    assert(out_ticket);
+
+    *out_ticket = 0;
+    store = plugin_capture_root(ctx, dir, root, sizeof(root));
+    if( store < 0 )
+        return TORIRS_RESULT_INVALID;
+    if( store == PLUGIN_CAPTURE_STORE_NONE )
+        return TORIRS_RESULT_UNSUPPORTED;
+    snprintf(body, sizeof(body), "dir=%s\n", root);
+    *out_ticket = plugin_files_queue(ctx, "list", body);
+    return *out_ticket ? TORIRS_RESULT_OK : TORIRS_RESULT_BUDGET;
+}
+
+/*
+ * Hand the pictures to the player the one way this platform can: a desktop
+ * shows the folder (or opens the one picture), a browser downloads them (all
+ * of them as one .zip, or the one). One verb rather than two because the
+ * plugin's button is one button -- what it says is capture_root's store.
+ */
+static enum ToriRS_Result
+api_capture_open(
+    struct PluginContext* ctx,
+    char const* dir,
+    char const* path,
+    int* out_ticket)
+{
+    char root[TORIRS_PLUGIN_CAPTURE_PATH_MAX];
+    char body[TORIRS_PLUGIN_CAPTURE_PATH_MAX * 2 + 16];
+    int store;
+    int used;
+
+    assert(ctx);
+    assert(dir);
+    assert(out_ticket);
+
+    *out_ticket = 0;
+    store = plugin_capture_root(ctx, dir, root, sizeof(root));
+    if( store < 0 || (path && *path && !plugin_capture_path_ok(ctx, path)) )
+        return TORIRS_RESULT_INVALID;
+    if( store == PLUGIN_CAPTURE_STORE_NONE )
+        return TORIRS_RESULT_UNSUPPORTED;
+    used = snprintf(body, sizeof(body), "dir=%s\n", root);
+    if( path && *path )
+        snprintf(body + used, sizeof(body) - (size_t)used, "path=%s/%s\n", root, path);
+    *out_ticket = plugin_files_queue(
+        ctx, store == PLUGIN_CAPTURE_STORE_BROWSER ? "download" : "reveal", body);
+    return *out_ticket ? TORIRS_RESULT_OK : TORIRS_RESULT_BUDGET;
+}
+
+static enum ToriRS_Result
+api_pick_folder(
+    struct PluginContext* ctx,
+    char const* start,
+    int* out_ticket)
+{
+    char body[TORIRS_PLUGIN_CAPTURE_PATH_MAX + 8];
+
+    assert(ctx);
+    assert(start);
+    assert(out_ticket);
+
+    *out_ticket = 0;
+    /* A line break would end the body's one line early; nothing else in a
+     * starting folder can hurt, and the chooser is the judge of the rest. */
+    if( strchr(start, '\n') || strchr(start, '\r') ||
+        strlen(start) >= TORIRS_PLUGIN_CAPTURE_PATH_MAX )
+        return TORIRS_RESULT_INVALID;
+    snprintf(body, sizeof(body), "start=%s\n", start);
+    *out_ticket = plugin_files_queue(ctx, "pick_folder", body);
+    return *out_ticket ? TORIRS_RESULT_OK : TORIRS_RESULT_BUDGET;
+}
+
+/*
+ * A ticket's answer, once. PENDING until it lands; READY hands the text over
+ * and frees the ticket -- the text stays readable until the next answer read,
+ * which is long enough for any caller to parse it. INVALID for a ticket that
+ * is not this plugin's, or was read already.
+ */
+static enum ToriRS_AssetState
+api_capture_answer(
+    struct PluginContext* ctx,
+    int ticket,
+    char const** out_text,
+    int* out_size)
+{
+    struct ToriRS_PluginHost* host;
+
+    assert(ctx);
+    assert(out_text);
+    assert(out_size);
+
+    host = ctx->host;
+    *out_text = NULL;
+    *out_size = 0;
+    for( int i = 0; i < TORIRS_PLUGIN_FILES_TICKETS_MAX; i++ )
+    {
+        struct PluginFilesTicket* row = &host->files_tickets[i];
+
+        if( row->plugin != ctx->index || row->serial != ticket )
+            continue;
+        if( !row->landed )
+            return TORIRS_ASSET_PENDING;
+        ToriMem_Free(ToriMem_Plugins(), host->files_read_text);
+        host->files_read_text = row->answer;
+        *out_text = row->answer;
+        *out_size = row->answer_size;
+        row->plugin = -1;
+        row->answer = NULL;
+        row->answer_size = 0;
+        return TORIRS_ASSET_READY;
+    }
+    return TORIRS_ASSET_INVALID;
+}
+
+void
+PluginHost_FilesDeliver(
+    struct ToriRS_PluginHost* host,
+    int serial,
+    void* data,
+    int size)
+{
+    static char const none[] = "error: nothing answered the files service\n";
+
+    assert(host);
+
+    /* NET: an IO item's payload; the ticket keeps it in PLUGINS. */
+    if( data )
+        data = ToriMem_Move(data, ToriMem_Net(), ToriMem_Plugins());
+    for( int i = 0; i < TORIRS_PLUGIN_FILES_TICKETS_MAX; i++ )
+    {
+        struct PluginFilesTicket* row = &host->files_tickets[i];
+
+        if( row->plugin < 0 || row->serial != serial || row->landed )
+            continue;
+        if( !data )
+        {
+            data = ToriMem_Alloc(ToriMem_Plugins(), sizeof(none));
+            assert(data);
+            memcpy(data, none, sizeof(none));
+            size = (int)sizeof(none) - 1;
+        }
+        /* Answers are text and the Lua side reads them as a string: the
+         * terminator is added rather than trusted. */
+        row->answer = ToriMem_Alloc(ToriMem_Plugins(), (size_t)size + 1);
+        assert(row->answer);
+        memcpy(row->answer, data, (size_t)size);
+        row->answer[size] = '\0';
+        row->answer_size = size;
+        row->landed = true;
+        ToriMem_Free(ToriMem_Plugins(), data);
+        return;
+    }
+    /* The plugin stopped while its request was in flight. */
+    ToriMem_Free(ToriMem_Plugins(), data);
+}
+
+static void
+plugin_files_tickets_drop_plugin(
+    struct ToriRS_PluginHost* host,
+    int plugin)
+{
+    assert(host);
+    for( int i = 0; i < TORIRS_PLUGIN_FILES_TICKETS_MAX; i++ )
+    {
+        struct PluginFilesTicket* row = &host->files_tickets[i];
+
+        if( row->plugin != plugin )
+            continue;
+        ToriMem_Free(ToriMem_Plugins(), row->answer);
+        row->answer = NULL;
+        row->answer_size = 0;
+        row->plugin = -1;
+    }
+}
+
+/** Forget one thumbnail and free the image slot behind it. Idempotent. */
+static void
+plugin_capture_thumb_drop(
+    struct ToriRS_PluginHost* host,
+    int entry)
+{
+    struct PluginCaptureThumb* row;
+
+    assert(host);
+    assert(entry >= 0);
+    assert(entry < TORIRS_PLUGIN_CAPTURE_THUMBS_MAX);
+
+    row = &host->capture_thumbs[entry];
+    if( row->image >= 0 )
+        plugin_image_drop(host, row->image);
+    memset(row, 0, sizeof(*row));
+    row->plugin = -1;
+    row->image = -1;
+}
+
+static void
+plugin_capture_thumbs_drop_plugin(
+    struct ToriRS_PluginHost* host,
+    int plugin)
+{
+    assert(host);
+    for( int i = 0; i < TORIRS_PLUGIN_CAPTURE_THUMBS_MAX; i++ )
+        if( host->capture_thumbs[i].plugin == plugin )
+            plugin_capture_thumb_drop(host, i);
+}
+
+/** Is this handle one of the thumbnail cache's, rather than the plugin's? */
+static bool
+plugin_capture_thumb_owns(
+    struct ToriRS_PluginHost const* host,
+    int image)
+{
+    assert(host);
+    for( int i = 0; i < TORIRS_PLUGIN_CAPTURE_THUMBS_MAX; i++ )
+        if( host->capture_thumbs[i].plugin >= 0 && host->capture_thumbs[i].image == image )
+            return true;
+    return false;
+}
+
+/*
+ * A capture, small, cached.
+ *
+ * The obj icon cache's shape: a HIT is touched and answered, a MISS takes a
+ * free entry or the least recently asked-for one and starts a read, and the
+ * read lands on a later frame -- so PENDING is the ordinary first answer, and
+ * the caller asks again when it next draws. Asking only for what is on screen
+ * is what makes the gallery lazy: a picture nobody scrolled to is never read.
+ *
+ * `out_image` is the slot once READY, -1 otherwise; `out_revision` changes
+ * whenever an evicted slot is given to another picture, which is what retires
+ * a stale handle.
+ */
+static enum ToriRS_AssetState
+api_capture_image(
+    struct PluginContext* ctx,
+    char const* dir,
+    char const* path,
+    int max_w,
+    int max_h,
+    int* out_image,
+    uint64_t* out_revision)
+{
+    struct ToriRS_PluginHost* host;
+    char root[TORIRS_PLUGIN_CAPTURE_PATH_MAX];
+    char full[TORIRS_PLUGIN_CAPTURE_PATH_MAX];
+    struct PluginCaptureThumb* row;
+    int free_entry = -1;
+    int victim = -1;
+    int free_image = -1;
+    int store;
+
+    assert(ctx);
+    assert(dir);
+    assert(path);
+    assert(out_image);
+    assert(out_revision);
+
+    host = ctx->host;
+    *out_image = -1;
+    *out_revision = 0;
+    /* Sizes and the path are the plugin's numbers and strings, computed from
+     * a layout and a listing: bad ones are bad input, not a broken frame. */
+    if( max_w < 8 || max_h < 8 || max_w > 1024 || max_h > 1024 ||
+        !plugin_capture_path_ok(ctx, path) )
+        return TORIRS_ASSET_INVALID;
+    store = plugin_capture_root(ctx, dir, root, sizeof(root));
+    if( store < 0 )
+        return TORIRS_ASSET_INVALID;
+    if( store == PLUGIN_CAPTURE_STORE_NONE )
+        return TORIRS_ASSET_MISSING;
+    if( snprintf(full, sizeof(full), "%s/%s", root, path) >= (int)sizeof(full) )
+        return TORIRS_ASSET_INVALID;
+
+    host->thumb_clock++;
+    for( int i = 0; i < TORIRS_PLUGIN_CAPTURE_THUMBS_MAX; i++ )
+    {
+        row = &host->capture_thumbs[i];
+        if( row->plugin < 0 )
+        {
+            if( free_entry < 0 )
+                free_entry = i;
+            continue;
+        }
+        if( row->plugin == ctx->index && row->max_w == max_w && row->max_h == max_h &&
+            strcmp(row->path, full) == 0 )
+        {
+            row->used = host->thumb_clock;
+            if( row->state == TORIRS_ASSET_READY )
+            {
+                *out_image = row->image;
+                *out_revision = row->revision;
+            }
+            return (enum ToriRS_AssetState)row->state;
+        }
+        if( victim < 0 || row->used < host->capture_thumbs[victim].used )
+            victim = i;
+    }
+
+    if( free_entry < 0 )
+    {
+        assert(victim >= 0);
+        plugin_capture_thumb_drop(host, victim);
+        free_entry = victim;
+    }
+    for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
+        if( host->images[i].plugin < 0 )
+        {
+            free_image = i;
+            break;
+        }
+    if( free_image < 0 )
+    {
+        TORIRS_LOG(
+            "plugin: %s capture '%s' not read, the resident image table is full (%d)\n",
+            ctx->name,
+            path,
+            TORIRS_PLUGIN_IMAGES_MAX);
+        return TORIRS_ASSET_BUDGET;
+    }
+
+    /* Held from the request, not the landing, so two pictures asked for in
+     * one frame cannot both be given this slot. A ':' no asset name may
+     * carry keeps image_load's (plugin, name) search off it. */
+    host->images[free_image].plugin = ctx->index;
+    snprintf(host->images[free_image].asset, sizeof(host->images[free_image].asset),
+             "capture:%d", free_entry);
+    host->images[free_image].width = 0;
+    host->images[free_image].height = 0;
+    host->images[free_image].published = false;
+
+    row = &host->capture_thumbs[free_entry];
+    row->plugin = ctx->index;
+    snprintf(row->path, sizeof(row->path), "%s", full);
+    row->max_w = max_w;
+    row->max_h = max_h;
+    row->image = free_image;
+    row->state = TORIRS_ASSET_PENDING;
+    row->serial = plugin_files_next_serial(host);
+    host->thumb_revision++;
+    if( host->thumb_revision == 0 )
+        host->thumb_revision++;
+    row->revision = host->thumb_revision;
+    row->used = host->thumb_clock;
+    if( !host->engine.capture_read(host->engine.user, row->serial, full) )
+        row->state = TORIRS_ASSET_ERROR;
+    return (enum ToriRS_AssetState)row->state;
+}
+
+void
+PluginHost_CaptureDeliver(
+    struct ToriRS_PluginHost* host,
+    int serial,
+    void* data,
+    int size)
+{
+    assert(host);
+
+    for( int i = 0; i < TORIRS_PLUGIN_CAPTURE_THUMBS_MAX; i++ )
+    {
+        struct PluginCaptureThumb* row = &host->capture_thumbs[i];
+        struct PluginImage* image;
+        int w = 0;
+        int h = 0;
+
+        if( row->plugin < 0 || row->serial != serial || row->state != TORIRS_ASSET_PENDING )
+            continue;
+        image = &host->images[row->image];
+        if( !data )
+            row->state = TORIRS_ASSET_MISSING;
+        else if( !host->engine.image_publish_fit(
+                     host->engine.user, row->image, data, size, row->max_w, row->max_h, &w, &h) )
+        {
+            TORIRS_LOG("plugin: capture '%s' would not decode (%d bytes)\n", row->path, size);
+            row->state = TORIRS_ASSET_ERROR;
+        }
+        else
+        {
+            image->width = w;
+            image->height = h;
+            image->published = true;
+            row->state = TORIRS_ASSET_READY;
+        }
+        break;
+    }
+    /* NET: an IO item's payload, decoded (or not) and done with either way --
+     * including a read whose thumbnail was evicted while it was in flight. */
+    ToriMem_Free(ToriMem_Net(), data);
 }
 
 void
@@ -3827,7 +4380,7 @@ api_image_release(
      * recycled slot. The cache decides when an icon goes.
      * @see obj_image.
      */
-    if( plugin_obj_icon_owns(ctx->host, image) )
+    if( plugin_obj_icon_owns(ctx->host, image) || plugin_capture_thumb_owns(ctx->host, image) )
         return;
     plugin_image_drop(ctx->host, image);
 }
@@ -4437,6 +4990,10 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->asset_read);
     assert(engine->asset_write);
     assert(engine->screenshot);
+    assert(engine->capture_root);
+    assert(engine->files_request);
+    assert(engine->capture_read);
+    assert(engine->image_publish_fit);
     assert(engine->model_publish);
     assert(engine->model_release);
     assert(engine->mesh_create);
@@ -4512,6 +5069,13 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         host->obj_icons[i].plugin = -1;
         host->obj_icons[i].image = -1;
     }
+    for( int i = 0; i < TORIRS_PLUGIN_FILES_TICKETS_MAX; i++ )
+        host->files_tickets[i].plugin = -1;
+    for( int i = 0; i < TORIRS_PLUGIN_CAPTURE_THUMBS_MAX; i++ )
+    {
+        host->capture_thumbs[i].plugin = -1;
+        host->capture_thumbs[i].image = -1;
+    }
 
     return host;
 }
@@ -4557,6 +5121,10 @@ PluginHost_Free(struct ToriRS_PluginHost* host)
         plugin_image_drop(host, i);
     for( int i = 0; i < TORIRS_PLUGIN_MODELS_MAX; i++ )
         plugin_model_drop(host, i);
+    for( int i = 0; i < host->plugin_count; i++ )
+        plugin_files_tickets_drop_plugin(host, i);
+    ToriMem_Free(ToriMem_Plugins(), host->files_read_text);
+    host->files_read_text = NULL;
     for( int i = 0; i < host->plugin_count; i++ )
     {
         /* plugin_teardown frees these on a runtime disable; Free never runs
@@ -5649,6 +6217,8 @@ plugin_teardown(
     plugin_meshes_destroy_all(host, ctx);
     plugin_assets_drop_plugin(host, plugin_index);
     plugin_obj_icons_drop_plugin(host, plugin_index);
+    plugin_capture_thumbs_drop_plugin(host, plugin_index);
+    plugin_files_tickets_drop_plugin(host, plugin_index);
     plugin_images_drop_plugin(host, plugin_index);
     plugin_models_drop_plugin(host, plugin_index);
     /* Drop its retained entity appearance/action declarations. */

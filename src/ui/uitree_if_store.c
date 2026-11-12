@@ -72,6 +72,23 @@ UIIfIntStore_Get(
 }
 
 void
+UIIfIntStore_DropGroup(
+    struct UIIfIntStore* store,
+    int group_id)
+{
+    int kept = 0;
+
+    assert(store);
+    for( int i = 0; i < store->count; i++ )
+    {
+        if( ((store->entries[i].com_id >> 16) & 0xffff) == group_id )
+            continue;
+        store->entries[kept++] = store->entries[i];
+    }
+    store->count = kept;
+}
+
+void
 UIIfIntStore_Free(struct UIIfIntStore* store)
 {
     assert(store);
@@ -142,6 +159,26 @@ UIIfTextStore_Get(
         if( store->entries[i].com_id == com_id )
             return store->entries[i].text;
     return NULL;
+}
+
+void
+UIIfTextStore_DropGroup(
+    struct UIIfTextStore* store,
+    int group_id)
+{
+    int kept = 0;
+
+    assert(store);
+    for( int i = 0; i < store->count; i++ )
+    {
+        if( ((store->entries[i].com_id >> 16) & 0xffff) == group_id )
+        {
+            ToriMem_Free(ToriMem_Ui(), store->entries[i].text);
+            continue;
+        }
+        store->entries[kept++] = store->entries[i];
+    }
+    store->count = kept;
 }
 
 void

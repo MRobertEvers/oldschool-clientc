@@ -31,6 +31,9 @@ void PlatformX_IO_SetLaunchAnswer(PlatformX_IO_LaunchAnswerFn answer, void* cont
 /* The account server's items (game/task_accounts_io.h; see answer_auth_item). */
 #define PLATFORM_X_IO_AUTH_PREFIX "auth/"
 
+/* The player's files, as a folder (see answer_files_item). */
+#define PLATFORM_X_IO_FILES_PREFIX "files/"
+
 
 #include <assert.h>
 #include <rscache.h>
@@ -38,8 +41,14 @@ void PlatformX_IO_SetLaunchAnswer(PlatformX_IO_LaunchAnswerFn answer, void* cont
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <sys/stat.h>
 #include "log/torirs_log.h"
+
+#if !defined(_WIN32)
+#include <dirent.h>
+#include <sys/wait.h>
+#endif
 
 #ifdef _WIN32
 #include <direct.h>
@@ -47,6 +56,8 @@ void PlatformX_IO_SetLaunchAnswer(PlatformX_IO_LaunchAnswerFn answer, void* cont
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
+#include <shellapi.h>
+#include <shlobj.h>
 #endif
 
 /*
@@ -843,6 +854,504 @@ answer_launch_item(struct ToriRS_IOItem* item)
 }
 
 /*
+ * THE PLAYER'S FILES, AS A FOLDER (plugin/task_plugin_io.h
+ * CreateTask_PluginFiles: the screenshot plugin's gallery and its settings).
+ *
+ * A SCRIPT item whose path is `files/<verb>`, lending a key=value body the
+ * way a launch item does and answered in place of it. The answer's first
+ * line is the verdict -- `ok`, `cancelled`, `unsupported: <why>` or
+ * `error: <why>` -- and what follows it is the verb's own:
+ *
+ *   files/list         dir=   every .png at or below it, one a line:
+ *                             <path below dir>\t<mtime, s>\t<bytes>. A dir
+ *                             that does not exist yet is an empty list: no
+ *                             picture has been taken, which is an answer.
+ *   files/reveal       dir=   made when absent, then shown in the file
+ *                             manager; with path=, that one picture opened
+ *                             in the platform's viewer instead.
+ *   files/pick_folder  start= the platform's own folder chooser; the line
+ *                             after `ok` is the folder chosen.
+ *   files/download     the browser's verb. A desktop has the folder.
+ *
+ * `dir` is a client-file path spelled as a FILE_WRITE's is -- relative to the
+ * working directory, or absolute -- because the files it names were written
+ * that way. The browser executor answers the same verbs over its record
+ * database (platform_web_io.js), which is what lets one plugin say "your
+ * pictures" on both lanes without knowing which it is on.
+ *
+ * The chooser and the file manager are modal from the frame's point of view:
+ * this executor answers inside Process, so the frame waits while the player
+ * chooses. That is what every native folder dialog does to its application,
+ * and it is asked for only by a click.
+ */
+static PlatformX_IO_FolderPickerFn g_folder_picker;
+
+void
+PlatformX_IO_SetFolderPicker(PlatformX_IO_FolderPickerFn picker)
+{
+    g_folder_picker = picker;
+}
+
+static int
+item_is_files(struct ToriRS_IOItem const* item)
+{
+    return item->kind == TORIRS_IOK_SCRIPT &&
+           strncmp(item->u.script.path, PLATFORM_X_IO_FILES_PREFIX,
+                   sizeof(PLATFORM_X_IO_FILES_PREFIX) - 1) == 0;
+}
+
+/* The answer text, grown as it is written. NET: an IO item's data. */
+struct FilesAnswer
+{
+    char* text;
+    int size;
+    int capacity;
+};
+
+static void
+files_answer_add(
+    struct FilesAnswer* answer,
+    char const* fmt,
+    ...)
+{
+    va_list args;
+    int need;
+
+    assert(answer);
+    assert(fmt);
+    va_start(args, fmt);
+    need = vsnprintf(NULL, 0, fmt, args);
+    va_end(args);
+    assert(need >= 0);
+    if( answer->size + need + 1 > answer->capacity )
+    {
+        int capacity = answer->capacity ? answer->capacity : 256;
+
+        while( answer->size + need + 1 > capacity )
+            capacity *= 2;
+        answer->text = (char*)ToriMem_Realloc(ToriMem_Net(), answer->text, (size_t)capacity);
+        assert(answer->text);
+        answer->capacity = capacity;
+    }
+    va_start(args, fmt);
+    vsnprintf(answer->text + answer->size, (size_t)(answer->capacity - answer->size), fmt, args);
+    va_end(args);
+    answer->size += need;
+}
+
+/* `key=` from the lent body, or "" when the body does not say. */
+static void
+files_body_value(
+    char const* body,
+    int body_size,
+    char const* key,
+    char* out,
+    size_t out_size)
+{
+    size_t const key_len = strlen(key);
+    char const* end = body + body_size;
+    char const* line = body;
+
+    assert(out);
+    assert(out_size > 0);
+    out[0] = '\0';
+    while( body && line < end )
+    {
+        char const* eol = memchr(line, '\n', (size_t)(end - line));
+
+        if( !eol )
+            eol = end;
+        if( (size_t)(eol - line) > key_len && strncmp(line, key, key_len) == 0 &&
+            line[key_len] == '=' )
+        {
+            size_t len = (size_t)(eol - line) - key_len - 1;
+
+            if( len > 0 && line[key_len + 1 + len - 1] == '\r' )
+                len--;
+            if( len >= out_size )
+                len = out_size - 1;
+            memcpy(out, line + key_len + 1, len);
+            out[len] = '\0';
+            return;
+        }
+        line = eol + 1;
+    }
+}
+
+static int
+files_name_is_png(char const* name)
+{
+    size_t const len = strlen(name);
+
+    return len > 4 && (strcmp(name + len - 4, ".png") == 0 || strcmp(name + len - 4, ".PNG") == 0);
+}
+
+/* Depth 6 is player/category and four more: deeper than any destination the
+ * screenshot plugin composes, shallow enough that a folder pointed at a home
+ * directory is not a walk of the whole disk. */
+#define FILES_LIST_DEPTH_MAX 6
+
+#if defined(_WIN32)
+static void
+files_list_walk(
+    struct FilesAnswer* answer,
+    char const* root,
+    char const* below,
+    int depth)
+{
+    char pattern[TORIRS_IOITEM_MAX_PATH * 2];
+    WIN32_FIND_DATAA found;
+    HANDLE find;
+
+    snprintf(pattern, sizeof(pattern), "%s/%s%s*", root, below, below[0] ? "/" : "");
+    find = FindFirstFileA(pattern, &found);
+    if( find == INVALID_HANDLE_VALUE )
+        return;
+    do
+    {
+        char rel[TORIRS_IOITEM_MAX_PATH * 2];
+
+        if( found.cFileName[0] == '.' )
+            continue;
+        snprintf(rel, sizeof(rel), "%s%s%s", below, below[0] ? "/" : "", found.cFileName);
+        if( found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY )
+        {
+            if( depth < FILES_LIST_DEPTH_MAX )
+                files_list_walk(answer, root, rel, depth + 1);
+        }
+        else if( files_name_is_png(found.cFileName) )
+        {
+            /* FILETIME is 100 ns ticks since 1601; the answer is Unix seconds. */
+            unsigned long long const ticks =
+                ((unsigned long long)found.ftLastWriteTime.dwHighDateTime << 32) |
+                found.ftLastWriteTime.dwLowDateTime;
+            long long const mtime = (long long)(ticks / 10000000ULL) - 11644473600LL;
+
+            files_answer_add(answer, "%s\t%lld\t%lu\n", rel, mtime,
+                             (unsigned long)found.nFileSizeLow);
+        }
+    } while( FindNextFileA(find, &found) );
+    FindClose(find);
+}
+#else
+static void
+files_list_walk(
+    struct FilesAnswer* answer,
+    char const* root,
+    char const* below,
+    int depth)
+{
+    char path[TORIRS_IOITEM_MAX_PATH * 2];
+    DIR* dir;
+    struct dirent* entry;
+
+    snprintf(path, sizeof(path), "%s%s%s", root, below[0] ? "/" : "", below);
+    dir = opendir(path);
+    if( !dir )
+        return;
+    while( (entry = readdir(dir)) != NULL )
+    {
+        char rel[TORIRS_IOITEM_MAX_PATH * 2];
+        char full[TORIRS_IOITEM_MAX_PATH * 3];
+        struct stat st;
+
+        if( entry->d_name[0] == '.' )
+            continue;
+        snprintf(rel, sizeof(rel), "%s%s%s", below, below[0] ? "/" : "", entry->d_name);
+        snprintf(full, sizeof(full), "%s/%s", root, rel);
+        if( stat(full, &st) != 0 )
+            continue;
+        if( S_ISDIR(st.st_mode) )
+        {
+            if( depth < FILES_LIST_DEPTH_MAX )
+                files_list_walk(answer, root, rel, depth + 1);
+        }
+        else if( S_ISREG(st.st_mode) && files_name_is_png(entry->d_name) )
+            files_answer_add(answer, "%s\t%lld\t%lld\n", rel, (long long)st.st_mtime,
+                             (long long)st.st_size);
+    }
+    closedir(dir);
+}
+#endif
+
+/* Every directory in `dir`, made. The reveal's folder may not exist before
+ * the first picture, and a file manager asked to show nothing shows an error. */
+static void
+files_mkdirs(char const* dir)
+{
+    char path[TORIRS_IOITEM_MAX_PATH];
+
+    snprintf(path, sizeof(path), "%s/", dir);
+    mkdir_parent(path);
+}
+
+/* A path handed to a shell between single quotes: every quote in it closed,
+ * escaped and reopened. */
+#if !defined(_WIN32) && !defined(__ANDROID__) && !defined(TORIRS_PLATFORM_ANDROID) && \
+    !defined(TORIRS_PLATFORM_IOS)
+static void
+files_shell_quote(
+    char const* in,
+    char* out,
+    size_t out_size)
+{
+    size_t used = 0;
+
+    assert(out_size > 2);
+    out[used++] = '\'';
+    for( ; *in && used + 5 < out_size; in++ )
+    {
+        if( *in == '\'' )
+        {
+            memcpy(out + used, "'\\''", 4);
+            used += 4;
+        }
+        else
+            out[used++] = *in;
+    }
+    out[used++] = '\'';
+    out[used] = '\0';
+}
+#endif
+
+/* `target` shown by the platform: a folder in its file manager, a picture in
+ * its viewer. `dir` is made first only when the target IS the folder. */
+static void
+files_reveal(
+    struct FilesAnswer* answer,
+    char const* dir,
+    char const* file)
+{
+    char const* const target = file[0] ? file : dir;
+
+    if( !file[0] )
+        files_mkdirs(dir);
+    dir = target;
+#if defined(_WIN32)
+    {
+        char full[MAX_PATH];
+        INT_PTR shown;
+
+        if( !GetFullPathNameA(dir, sizeof(full), full, NULL) )
+            snprintf(full, sizeof(full), "%s", dir);
+        for( char* c = full; *c; c++ )
+            if( *c == '/' )
+                *c = '\\';
+        shown = (INT_PTR)ShellExecuteA(NULL, "open", full, NULL, NULL, SW_SHOWNORMAL);
+        if( shown <= 32 )
+            files_answer_add(answer, "error: Explorer would not open %s (%d)\n", full, (int)shown);
+        else
+            files_answer_add(answer, "ok\n");
+    }
+#elif defined(__ANDROID__) || defined(TORIRS_PLATFORM_ANDROID) || defined(TORIRS_PLATFORM_IOS)
+    (void)dir;
+    files_answer_add(answer, "unsupported: this device has no file manager to hand a folder to\n");
+#else
+    {
+        char quoted[TORIRS_IOITEM_MAX_PATH * 4 + 8];
+        char command[TORIRS_IOITEM_MAX_PATH * 4 + 64];
+#if defined(__APPLE__)
+        char const* opener = "open";
+#else
+        char const* opener = "xdg-open";
+#endif
+        files_shell_quote(dir, quoted, sizeof(quoted));
+        /* Backgrounded and silenced: xdg-open may stay in the foreground for
+         * as long as the file manager it started does. */
+        snprintf(command, sizeof(command), "%s %s >/dev/null 2>&1 &", opener, quoted);
+        if( system(command) != 0 )
+            files_answer_add(answer, "error: %s could not be run\n", opener);
+        else
+            files_answer_add(answer, "ok\n");
+    }
+#endif
+}
+
+#if defined(_WIN32)
+static int CALLBACK
+files_pick_folder_start(
+    HWND window,
+    UINT message,
+    LPARAM param,
+    LPARAM data)
+{
+    (void)param;
+    if( message == BFFM_INITIALIZED && data )
+        SendMessageA(window, BFFM_SETSELECTIONA, TRUE, data);
+    return 0;
+}
+
+/* SHBrowseForFolder rather than IFileOpenDialog: the win32 lane's floor is
+ * XP, and the one dialog both lanes have is this one. */
+static int
+files_pick_folder_windows(
+    char const* start,
+    char* out,
+    int out_size)
+{
+    BROWSEINFOA info;
+    LPITEMIDLIST chosen;
+    char path[MAX_PATH];
+    int picked = 0;
+    HRESULT const com = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+
+    memset(&info, 0, sizeof(info));
+    info.hwndOwner = GetForegroundWindow();
+    info.lpszTitle = "Choose the folder screenshots are saved in";
+    info.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+    info.lpfn = files_pick_folder_start;
+    info.lParam = (LPARAM)(start && start[0] ? start : NULL);
+    chosen = SHBrowseForFolderA(&info);
+    if( chosen )
+    {
+        if( SHGetPathFromIDListA(chosen, path) )
+        {
+            snprintf(out, (size_t)out_size, "%s", path);
+            picked = 1;
+        }
+        CoTaskMemFree(chosen);
+    }
+    if( SUCCEEDED(com) )
+        CoUninitialize();
+    return picked;
+}
+#elif !defined(__APPLE__) && !defined(__ANDROID__) && !defined(TORIRS_PLATFORM_ANDROID) && \
+    !defined(TORIRS_PLATFORM_IOS)
+/* zenity, then kdialog: whichever desktop this is has one of them, and a
+ * client has no toolkit of its own to draw a chooser with. -1 when neither
+ * could be run. */
+static int
+files_pick_folder_unix(
+    char const* start,
+    char* out,
+    int out_size)
+{
+    static char const* const pickers[] = {
+        "zenity --file-selection --directory --title='Choose the folder screenshots are saved in' "
+        "--filename=%s/ 2>/dev/null",
+        "kdialog --getexistingdirectory %s 2>/dev/null",
+    };
+    char quoted[TORIRS_IOITEM_MAX_PATH * 4 + 8];
+
+    files_shell_quote(start && start[0] ? start : ".", quoted, sizeof(quoted));
+    for( size_t i = 0; i < sizeof(pickers) / sizeof(pickers[0]); i++ )
+    {
+        char command[TORIRS_IOITEM_MAX_PATH * 4 + 160];
+        char line[TORIRS_IOITEM_MAX_PATH] = { 0 };
+        FILE* pipe;
+        int status;
+
+        snprintf(command, sizeof(command), pickers[i], quoted);
+        pipe = popen(command, "r");
+        if( !pipe )
+            continue;
+        if( !fgets(line, sizeof(line), pipe) )
+            line[0] = '\0';
+        status = pclose(pipe);
+        /* 127: the shell found no such program, so ask the next one. Any other
+         * status is the player's answer, and an empty line is a cancel. */
+        if( WIFEXITED(status) && WEXITSTATUS(status) == 127 )
+            continue;
+        line[strcspn(line, "\r\n")] = '\0';
+        if( !line[0] )
+            return 0;
+        snprintf(out, (size_t)out_size, "%s", line);
+        return 1;
+    }
+    return -1;
+}
+#endif
+
+static void
+files_pick_folder(
+    struct FilesAnswer* answer,
+    char const* start)
+{
+    char chosen[TORIRS_IOITEM_MAX_PATH] = { 0 };
+    int picked;
+
+    if( g_folder_picker )
+        picked = g_folder_picker(start, chosen, (int)sizeof(chosen));
+    else
+    {
+#if defined(_WIN32)
+        picked = files_pick_folder_windows(start, chosen, (int)sizeof(chosen));
+#elif !defined(__APPLE__) && !defined(__ANDROID__) && !defined(TORIRS_PLATFORM_ANDROID) && \
+    !defined(TORIRS_PLATFORM_IOS)
+        picked = files_pick_folder_unix(start, chosen, (int)sizeof(chosen));
+#else
+        (void)start;
+        picked = -1;
+#endif
+    }
+    if( picked < 0 )
+        files_answer_add(answer, "unsupported: this client has no folder chooser here%s\n",
+#if defined(__APPLE__) || defined(_WIN32) || defined(__ANDROID__) || defined(TORIRS_PLATFORM_ANDROID)
+                         ""
+#else
+                         " (install zenity or kdialog)"
+#endif
+        );
+    else if( picked == 0 || !chosen[0] )
+        files_answer_add(answer, "cancelled\n");
+    else
+    {
+        /* One spelling of a path on every lane: the destination is checked
+         * against [A-Za-z0-9._- /:], and a backslash is not in it. */
+        for( char* c = chosen; *c; c++ )
+            if( *c == '\\' )
+                *c = '/';
+        files_answer_add(answer, "ok\n%s\n", chosen);
+    }
+}
+
+static int
+answer_files_item(struct ToriRS_IOItem* item)
+{
+    char const* verb = item->u.script.path + sizeof(PLATFORM_X_IO_FILES_PREFIX) - 1;
+    char const* body = (char const*)item->data;
+    int const body_size = item->data_size;
+    char value[TORIRS_IOITEM_MAX_PATH];
+    struct FilesAnswer answer = { 0 };
+
+    assert(body_size >= 0);
+    if( body_size > 0 )
+        assert(body);
+    if( strcmp(verb, "list") == 0 )
+    {
+        files_body_value(body, body_size, "dir", value, sizeof(value));
+        files_answer_add(&answer, "ok\n");
+        if( value[0] )
+            files_list_walk(&answer, value, "", 0);
+    }
+    else if( strcmp(verb, "reveal") == 0 )
+    {
+        char file[TORIRS_IOITEM_MAX_PATH];
+
+        files_body_value(body, body_size, "dir", value, sizeof(value));
+        files_body_value(body, body_size, "path", file, sizeof(file));
+        if( value[0] )
+            files_reveal(&answer, value, file);
+        else
+            files_answer_add(&answer, "error: files/reveal names no dir=\n");
+    }
+    else if( strcmp(verb, "pick_folder") == 0 )
+    {
+        files_body_value(body, body_size, "start", value, sizeof(value));
+        files_pick_folder(&answer, value);
+    }
+    else if( strcmp(verb, "download") == 0 )
+        files_answer_add(&answer, "unsupported: a desktop keeps them in a folder; reveal it\n");
+    else
+        files_answer_add(&answer, "error: no files/%s\n", verb);
+
+    item->data = answer.text;
+    item->data_size = answer.size;
+    item->error_code = 0;
+    return 0;
+}
+
+/*
  * THE ACCOUNT SERVER'S ITEMS (game/task_accounts_io.h).
  *
  * A SCRIPT item whose path is `auth/<endpoint>`, lending a form body exactly
@@ -1576,6 +2085,8 @@ PlatformX_IO_LoadItem(
         return answer_launch_item(item);
     if( item_is_auth(item) )
         return answer_auth_item(item);
+    if( item_is_files(item) )
+        return answer_files_item(item);
     /* A prefetch on a source that answers inside LoadItem is already
      * resident by definition -- the disk is the store -- so every group
      * "landed" without a read. The lent id array stays the caller's. */

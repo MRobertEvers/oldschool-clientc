@@ -124,7 +124,8 @@ ifneq ($(filter $(PLATFORM),macos linux),)
     # The plugin shell is one WKWebView layered into SDL's Cocoa content view.
     # Keep Objective-C out of the portable C source list; src/makefile gives
     # these files their own ARC-enabled compile rule.
-    PLATFORM_OBJC_SRCS := platform/platform_macos_webview.m platform/platform_macos_gesture.m
+    PLATFORM_OBJC_SRCS := platform/platform_macos_webview.m platform/platform_macos_gesture.m \
+                          platform/platform_macos_dialogs.m
     PLATFORM_OBJC_CFLAGS := -fobjc-arc -fblocks
     # A dynamically linked SDL may allocate before ASan's interceptors finish
     # initialising on macOS 26. The static archive avoids that startup edge;

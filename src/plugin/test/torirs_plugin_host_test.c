@@ -569,6 +569,47 @@ fake_asset_write(
     return 1;
 }
 
+/* The captures browser's engine half: no store, nothing queued. */
+static int
+fake_capture_root(void* u, char const* plugin, char const* dir, char* out, int out_size)
+{
+    (void)u;
+    (void)plugin;
+    (void)dir;
+    out[0] = '\0';
+    (void)out_size;
+    return 0;
+}
+static int
+fake_files_request(void* u, int serial, char const* verb, char const* body, int size)
+{
+    (void)u;
+    (void)serial;
+    (void)verb;
+    (void)body;
+    (void)size;
+    return 0;
+}
+static int
+fake_capture_read(void* u, int serial, char const* path)
+{
+    (void)u;
+    (void)serial;
+    (void)path;
+    return 0;
+}
+static int
+fake_image_publish_fit(
+    void* u, int slot, void const* data, int size, int max_w, int max_h, int* out_w, int* out_h)
+{
+    (void)u;
+    (void)slot;
+    (void)data;
+    (void)size;
+    *out_w = max_w;
+    *out_h = max_h;
+    return 1;
+}
 static int
 fake_screenshot(
     void* u,
@@ -1316,6 +1357,10 @@ fake_engine(void)
     e.asset_read = fake_asset_read;
     e.asset_write = fake_asset_write;
     e.screenshot = fake_screenshot;
+    e.capture_root = fake_capture_root;
+    e.files_request = fake_files_request;
+    e.capture_read = fake_capture_read;
+    e.image_publish_fit = fake_image_publish_fit;
     e.model_publish = fake_model_publish;
     e.model_release = fake_model_release;
     e.mesh_create = fake_mesh_create;

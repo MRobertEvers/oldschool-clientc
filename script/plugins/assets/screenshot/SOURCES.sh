@@ -1,10 +1,11 @@
 #!/bin/sh
 # How the PNGs beside this file were authored.
 #
-# camera.png / camera_small.png are hand-authored: no OSRS sprite table
-# carries a front-view camera. The pixels are in camera.txt and
+# camera.png / camera_small.png / panel_icon.png are hand-authored: no OSRS
+# sprite table carries a front-view camera. The pixels are in camera.txt and
 # camera_small.txt, in the options_icons family's own colour ramp, and baked
-# here. Two sizes, one drawing -- @see camera_small.txt.
+# here. Two sizes, one drawing -- @see camera_small.txt. panel_icon.txt is the
+# rail stone, outlined in the popout icons' manner instead -- @see its header.
 #
 # chat_button.png is NOT hand-authored and must not become so. It is the
 # chatbox filter's own plate, cache sprite 3051, the picture the lane draws
@@ -18,4 +19,5 @@ set -e
 cd "$(dirname "$0")"
 python3 bake.py camera.txt camera.png
 python3 bake.py camera_small.txt camera_small.png
+python3 bake.py panel_icon.txt panel_icon.png
 cp ../gameframe-layout/osrs_chat_button.png chat_button.png

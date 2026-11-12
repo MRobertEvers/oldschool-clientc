@@ -871,6 +871,19 @@ App_IfHideSet(
     app->need_redraw = 1;
 }
 
+void
+App_IfStoresDropGroup(
+    struct App* app,
+    int group_id)
+{
+    assert(app);
+    UIIfTextStore_DropGroup(&app->if_texts, group_id);
+    UIIfIntStore_DropGroup(&app->if_hides, group_id);
+    UIIfIntStore_DropGroup(&app->if_colours, group_id);
+    if( torirs_env_net_debug() )
+        TORIRS_LOG("if_set*: group %d unloaded, its stored values dropped\n", group_id);
+}
+
 /* RS_CS2Host.if_written: a script's write is the newer value of the field the
  * server's packet set, so it replaces the stored one the next generation bump
  * would otherwise re-apply over it. Components the server never set are left

@@ -36,6 +36,16 @@
 #include "platform/platform_x_io_js5.h"
 #include "platform/platform_x_io_js5_cache.h"
 #endif
+/* macOS's folder chooser lives in Objective-C (platform_macos_dialogs.m);
+ * every target that links this file links PLATFORM_OBJC_SRCS too. */
+#if defined(__APPLE__) && !defined(TORIRS_PLATFORM_WEB) && !defined(__EMSCRIPTEN__) && \
+    !defined(TORIRS_PLATFORM_IOS)
+#define MAIN_MACOS_DIALOGS 1
+#include "platform/platform_macos_dialogs.h"
+#include "platform/platform_x_io.h"
+#else
+#define MAIN_MACOS_DIALOGS 0
+#endif
 #if defined(TORIRS_HAVE_GL3)
 /* The desktop GPU renderer, GL 3.2 core. Selected by --opengl3. */
 #include "platform/platform_sdl2_renderer_gl3.h"
@@ -8235,6 +8245,10 @@ main(
     /* Raid seam37: the embedded IO server's launch service (above
      * frame_loop_step). Created at boot, idle until a launch item comes. */
     main_launch_init(argv[0], launch_manifest_path);
+#endif
+#if MAIN_MACOS_DIALOGS
+    /* The executor's folder chooser (files/pick_folder) is AppKit's. */
+    PlatformX_IO_SetFolderPicker(PlatformMacDialog_PickFolder);
 #endif
 
     for( i = 0; i < boot_manifest.client_arg_count; i++ )

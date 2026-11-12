@@ -683,7 +683,7 @@ Task_PluginLaunch_Run(struct ToriRS_Task* task_base, struct ToriRS_IOBatch* io)
             IOITEM_DATA(item) = NULL;
             IOITEM_DATA_SIZE(item) = 0;
         }
-        TORIRS_REPORT("plugin: launch item '%s' had no answer\n", task->path);
+        TORIRS_REPORT("plugin: service item '%s' had no answer\n", task->path);
         task->deliver(task->user, task->serial, task->path, NULL, 0);
     }
     ToriRS_IO_ClearItem(item);
@@ -705,8 +705,13 @@ static struct ToriRS_TaskVTable Task_PluginLaunch_VTable = {
     .free = Task_PluginLaunch_Free,
 };
 
-struct ToriRS_Task*
-CreateTask_PluginLaunch(
+/* One request to an in-process service: `<service>/<verb>` with the body
+ * lent. The launch service and the files service travel identically and
+ * differ only in which executor branch answers the prefix. */
+static struct ToriRS_Task*
+plugin_service_task_new(
+    char const* service,
+    char const* task_name,
     char const* verb,
     char const* body,
     int size,
@@ -716,23 +721,121 @@ CreateTask_PluginLaunch(
 {
     struct Task_PluginLaunch* task;
 
+    assert(service);
     assert(verb);
     assert(verb[0]);
     assert(size >= 0);
     if( size > 0 )
         assert(body);
     assert(deliver);
-    assert(strlen("launch/") + strlen(verb) < TORIRS_IOITEM_MAX_PATH);
+    assert(strlen(service) + 1 + strlen(verb) < TORIRS_IOITEM_MAX_PATH);
 
     task = ToriMem_Calloc(ToriMem_Plugins(), 1, sizeof(*task));
     task->task.vtable = &Task_PluginLaunch_VTable;
-    strcpy(task->task.name, "PluginLaunch");
-    snprintf(task->path, sizeof(task->path), "launch/%s", verb);
+    snprintf(task->task.name, sizeof(task->task.name), "%s", task_name);
+    snprintf(task->path, sizeof(task->path), "%s/%s", service, verb);
     task->body = ToriMem_Alloc(ToriMem_Plugins(), (size_t)size + 1);
     if( size > 0 )
         memcpy(task->body, body, (size_t)size);
     task->body[size] = '\0';
     task->size = size;
+    task->serial = serial;
+    task->deliver = deliver;
+    task->user = user;
+    PT_INIT(&task->pt);
+    return &task->task;
+}
+
+struct ToriRS_Task*
+CreateTask_PluginLaunch(
+    char const* verb,
+    char const* body,
+    int size,
+    int serial,
+    PluginScriptReadDeliver deliver,
+    void* user)
+{
+    return plugin_service_task_new(
+        "launch", "PluginLaunch", verb, body, size, serial, deliver, user);
+}
+
+struct ToriRS_Task*
+CreateTask_PluginFiles(
+    char const* verb,
+    char const* body,
+    int size,
+    int serial,
+    PluginScriptReadDeliver deliver,
+    void* user)
+{
+    return plugin_service_task_new(
+        "files", "PluginFiles", verb, body, size, serial, deliver, user);
+}
+
+struct Task_PluginFileRead
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    char path[TORIRS_IOITEM_MAX_PATH];
+    int serial;
+    PluginScriptReadDeliver deliver;
+    void* user;
+};
+
+static int
+Task_PluginFileRead_Run(struct ToriRS_Task* task_base, struct ToriRS_IOBatch* io)
+{
+    struct Task_PluginFileRead* task = (struct Task_PluginFileRead*)task_base;
+    struct ToriRS_IOItem* item;
+
+    PT_BEGIN(&task->pt);
+
+    ToriRS_IO_QueueFileRead(io, PLUGIN_IO_SLOT, task->path);
+    PT_YIELD(&task->pt);
+
+    item = ToriRS_IO_TaskSlot(io, PLUGIN_IO_SLOT);
+    if( IOITEM_ERROR_CODE(item) == 0 && IOITEM_DATA(item) )
+    {
+        void* data = IOITEM_DATA(item);
+        int const size = IOITEM_DATA_SIZE(item);
+        IOITEM_DATA(item) = NULL;
+        IOITEM_DATA_SIZE(item) = 0;
+        task->deliver(task->user, task->serial, task->path, data, size);
+    }
+    else
+        task->deliver(task->user, task->serial, task->path, NULL, 0);
+    ToriRS_IO_ClearItem(item);
+
+    PT_END(&task->pt);
+}
+
+static void
+Task_PluginFileRead_Free(struct ToriRS_Task* task_base)
+{
+    ToriMem_Free(ToriMem_Plugins(), task_base);
+}
+
+static struct ToriRS_TaskVTable Task_PluginFileRead_VTable = {
+    .run = Task_PluginFileRead_Run,
+    .free = Task_PluginFileRead_Free,
+};
+
+struct ToriRS_Task*
+CreateTask_PluginFileRead(
+    char const* path,
+    int serial,
+    PluginScriptReadDeliver deliver,
+    void* user)
+{
+    struct Task_PluginFileRead* task;
+
+    assert(path && *path);
+    assert(deliver);
+
+    task = ToriMem_Calloc(ToriMem_Plugins(), 1, sizeof(*task));
+    task->task.vtable = &Task_PluginFileRead_VTable;
+    strcpy(task->task.name, "PluginFileRead");
+    snprintf(task->path, sizeof(task->path), "%s", path);
     task->serial = serial;
     task->deliver = deliver;
     task->user = user;

@@ -12,6 +12,7 @@
 -- The fake refuses both.
 return { id = 'screenshot-behavior', on_start = function(host)
     local captures, notices, calls = {}, {}, {}
+    local host_api
     local config = { destination = '', delay_ticks = 2, on_level_up = true, on_death = false,
         on_valuable_drop = true, min_drop_value = 100000, hotkey = 0, camera = 'off' }
 
@@ -110,11 +111,29 @@ return { id = 'screenshot-behavior', on_start = function(host)
         assert(item.key and item.place and item.place.on, 'an item needs a key and a placement')
         staged[#staged + 1] = item
     end
+    -- Panel rows: the declaration is the ordered (key, kind) sequence, and a
+    -- run that changes it is a page REBUILD -- the flash this plugin's page is
+    -- written never to need. Counted, so the gallery can be held to that.
+    local rows, row_order, row_staged, rebuilds = {}, {}, nil, 0
+    function builder.row(row)
+        assert(type(row.key) == 'string' and row.kind, 'a row needs a key and a kind')
+        assert(not row_staged[row.key], 'row keys are unique: ' .. row.key)
+        row_staged[row.key] = row
+        row_staged[#row_staged + 1] = row.key .. ':' .. row.kind
+    end
 
     local function reconcile()
         staged = {}
+        row_staged = {}
         runs = runs + 1
         described(builder)
+        local order = table.concat(row_staged, ',')
+        if #row_order > 0 and order ~= row_order then rebuilds = rebuilds + 1 end
+        row_order = order
+        rows = {}
+        for key, row in pairs(row_staged) do
+            if type(key) == 'string' then rows[key] = row end
+        end
         for name, asset in pairs(assets) do
             if held[name] and asset.ready and runs >= held[name] + IMAGE_IDLE_RUNS then
                 held[name] = nil
@@ -176,6 +195,27 @@ return { id = 'screenshot-behavior', on_start = function(host)
                     setters = setters + 1
                 end
             end
+        end
+    end
+
+    local panel_descriptor, panel_builds, settings_invalidations = nil, {}, 0
+
+    -- ------------------------------------------------------- the captures
+    -- The platform half, as tickets the test answers by hand: a ticket with
+    -- no `answer` is in flight. Thumbnails count every ask, and `asked` is
+    -- the set of pictures EVER asked for -- what laziness is measured by.
+    local store = { kind = 'folder', root = '/home/p/pics' }
+    local tickets, next_ticket = {}, 0
+    local thumbs, asked = {}, {}
+    local function ticket(verb, fields)
+        next_ticket = next_ticket + 1
+        fields.verb = verb
+        tickets[next_ticket] = fields
+        return next_ticket, 'ok'
+    end
+    local function last(verb)
+        for t = next_ticket, 1, -1 do
+            if tickets[t] and tickets[t].verb == verb then return tickets[t], t end
         end
     end
 
@@ -269,6 +309,19 @@ return { id = 'screenshot-behavior', on_start = function(host)
             end
             return true, 'ok'
         end,
+        invalidate = function() dirty = true end,
+        panel = function(descriptor)
+            assert(not panel_descriptor, 'the pane is registered once')
+            panel_descriptor = descriptor
+        end,
+        panel_build = function(view) panel_builds[#panel_builds + 1] = view end,
+        panel_action = function(ev)
+            local row = rows[ev.id]
+            if not row then return false end
+            if row.on_action then row.on_action(ev.id, ev) end
+            return true
+        end,
+        panel_draw = function() return false end,
         close = function()
             for key, control in pairs(applied) do control.removed = true; applied[key] = nil end
             for name in pairs(held) do released[#released + 1] = name end
@@ -276,6 +329,13 @@ return { id = 'screenshot-behavior', on_start = function(host)
         end,
     }
 
+    -- config.set is the host's, and it fires on_config_changed the way the
+    -- runtime does.
+    config.set = function(key, value)
+        config[key] = value
+        if product.on_config_changed then product.on_config_changed(host_api, key) end
+        return true, 'ok'
+    end
     local api = {
         config = config,
         porcelain = porcelain,
@@ -284,6 +344,7 @@ return { id = 'screenshot-behavior', on_start = function(host)
         world = { local_player = function() return { name = 'Test Player' } end },
         assets = {
             image_size = function(ref)
+                if ref >= 1000 then return 136, 89 end
                 local asset = by_ref[ref]
                 assert(asset and asset.ready, 'image_size on a handle that is not ready')
                 return asset.w, asset.h
@@ -301,10 +362,42 @@ return { id = 'screenshot-behavior', on_start = function(host)
                 captures[#captures + 1] = directory .. '|' .. name
                 return true, '/saved/' .. directory .. '/' .. name
             end,
+            capture_root = function(destination)
+                if destination == '/no/good' then return 'none', '' end
+                return store.kind, destination ~= '' and destination or store.root
+            end,
+            capture_list = function(destination)
+                return ticket('list', { destination = destination })
+            end,
+            capture_open = function(destination, path)
+                return ticket('open', { destination = destination, path = path })
+            end,
+            pick_folder = function(start) return ticket('pick', { start = start }) end,
+            capture_answer = function(t)
+                local tk = tickets[t]
+                if not tk then return 'invalid' end
+                if not tk.answer then return 'pending' end
+                tickets[t] = nil
+                return 'ready', tk.answer[1], tk.answer[2]
+            end,
+            capture_image = function(destination, path, w, h)
+                assert(w == 136 and h == 90, 'one thumbnail box, so one cache entry per picture')
+                asked[path] = true
+                local thumb = thumbs[path]
+                if not thumb then
+                    thumb = { state = 'pending', ref = 1000 + next_ticket }
+                    thumbs[path] = thumb
+                end
+                if thumb.state == 'ready' then return thumb.ref, 'ready' end
+                return nil, thumb.state
+            end,
         },
+        panel = { invalidate = function() settings_invalidations = settings_invalidations + 1 end },
         -- The raw widget verbs are gone from this plugin for good.
         widgets = { watch = function() error('a Porcelain plugin does not watch widgets') end },
     }
+
+    host_api = api
 
     -- The three pump helpers. `api.porcelain.open()` installs all three in the
     -- runtime, which is where they are proved (test_porcelain_pump in
@@ -566,6 +659,166 @@ return { id = 'screenshot-behavior', on_start = function(host)
     elements.report_button.paints_own_art = true; porcelain.note('element'); frame()
     assert(exactly('camera_plate', 'camera_report'),
         'and the plate comes back on a lane whose button paints its own')
+
+    -- ---------------------------------------------------------- the gallery
+    -- The rail stone: registered once, at on_start, for the PAGE only -- the
+    -- settings face is the generated form plus the rows built below.
+    assert(panel_descriptor and panel_descriptor.icon_asset == 'panel_icon.png'
+        and panel_descriptor.faces == 'page', 'one rail stone with the camera icon, page face')
+    local first_list = last('list')
+    assert(first_list and first_list.destination == '',
+        'on_start asks for the listing of the plugin\'s own folder')
+    assert(rows.where.text == '/home/p/pics', 'the page says where the folder is')
+    assert(rows.open.text == 'Open folder', 'a desktop opens its folder')
+
+    -- Fourteen pictures, out of order, in three albums, one manual.
+    local listing = {}
+    for i = 1, 12 do
+        listing[#listing + 1] = string.format(
+            'Test-Player/Levels/Attack-%d_2026-09-%02d_12-00-00.png\t0\t0', i, i)
+    end
+    listing[#listing + 1] = 'Test-Player/Boss-Kills/Vorkath-100_2026-10-01_09-30-00.png\t0\t0'
+    listing[#listing + 1] = 'Test-Player/screenshot_2026-08-01_08-00-00.png\t0\t0'
+    -- Steady before the answer: a pending ticket costs a poll, not a rebuild.
+    frame(); frame()
+    first_list.answer = { 'ok', table.concat(listing, '\n') .. '\n' }
+    local rebuilds_before = rebuilds
+    frame(); frame()
+    assert(rows.status.text == '14 pictures, page 1 of 2', 'counted and paged: ' .. rows.status.text)
+    assert(#rows.album.options == 4, 'All plus one option per album')
+    assert(rows.album.options[2].label == 'Boss Kills (1)', 'albums by name, with counts')
+    assert(rows.album.options[4].label == 'Manual (1)', 'a capture outside an album is Manual')
+
+    -- LAZY. Twelve on the page, so twelve asked for, and not one more.
+    local function asked_count()
+        local n = 0
+        for _ in pairs(asked) do n = n + 1 end
+        return n
+    end
+    assert(asked_count() == 12, 'only the page in view is read: ' .. asked_count())
+    assert(asked['Test-Player/Boss-Kills/Vorkath-100_2026-10-01_09-30-00.png'],
+        'newest first: October\'s kill heads the first page')
+    assert(not asked['Test-Player/Levels/Attack-1_2026-09-01_12-00-00.png'],
+        'and the oldest is not read until its page is turned to')
+    assert(rows.grid6.height > 0 and rows.older.disabled ~= true and rows.newer.disabled == true,
+        'a full first page, an Older and no Newer')
+
+    -- A row paints a placeholder while its pictures are read, and is drawn
+    -- again -- that row, by its paint key -- once they land.
+    local drawn = {}
+    local fake_draw = {
+        context = function() return { bounds = { x = 0, y = 0, width = 300, height = 116 } } end,
+        rect = function() end,
+        text = function(_, _, text) drawn[#drawn + 1] = text end,
+        image = function(ref) drawn[#drawn + 1] = 'image:' .. ref end,
+    }
+    rows.grid1.paint('grid1', fake_draw)
+    assert(drawn[1] == 'Loading...', 'a picture still being read says so')
+    local key_before = rows.grid1.paint_key
+    for _, thumb in pairs(thumbs) do thumb.state = 'ready' end
+    frame(); frame()
+    assert(rows.grid1.paint_key ~= key_before, 'a landed picture is a new paint key for its row')
+    drawn = {}
+    rows.grid1.paint('grid1', fake_draw)
+    assert(drawn[1]:find('^image:'), 'and the row draws the picture')
+    assert(rows.where and rebuilds == rebuilds_before,
+        'landing a listing and its pictures is setters, never a page rebuild')
+
+    -- A press on the right half of the first row is the second picture.
+    rows.grid1.on_action('grid1', { action = 'activate', x = 200, y = 20 })
+    local opened = last('open')
+    assert(opened and opened.path == 'Test-Player/Levels/Attack-12_2026-09-12_12-00-00.png',
+        'a press opens the picture under it')
+    opened.answer = { 'ok', '' }
+    frame()
+
+    -- Turning the page reads the two that were left, and is not a rebuild.
+    rows.older.on_action('older', { action = 'activate' })
+    frame(); frame()
+    assert(asked_count() == 14, 'the second page reads its two')
+    assert(rows.status.text == '14 pictures, page 2 of 2', 'and says where it is')
+    assert(rows.grid1.height > 0 and rows.grid2.height == 0, 'an empty grid row collapses')
+    assert(rebuilds == rebuilds_before, 'a page turn is setters on the rows that exist')
+
+    -- An album narrows the pictures and goes back to its first page.
+    rows.album.on_action('album', { action = 'pick', text = 'Boss-Kills|Test-Player' })
+    frame(); frame()
+    assert(rows.status.text == '1 picture', 'one boss kill: ' .. rows.status.text)
+
+    -- A capture is listed again a few ticks after it is taken.
+    local lists_before = next_ticket
+    product.on_key(api, { down = true, key = 44 })
+    server_tick(); server_tick()
+    assert(next_ticket == lists_before, 'not at once: the write has not landed yet')
+    server_tick()
+    assert(last('list') and next_ticket == lists_before + 1, 'and then once')
+    last('list').answer = { 'ok', table.concat(listing, '\n') .. '\n' }
+    frame()
+
+    -- -------------------------------------------------- the settings face
+    local built = {}
+    local fake_panel = {}
+    for _, verb in ipairs({ 'heading', 'paragraph', 'label', 'key_value', 'button' }) do
+        fake_panel[verb] = function(...) built[#built + 1] = { verb, ... } end
+    end
+    local function built_has(verb, id)
+        for _, call in ipairs(built) do
+            if call[1] == verb and call[2] == id then return call end
+        end
+    end
+    product.on_ui_build(api, fake_panel, 'settings')
+    assert(built_has('key_value', 'where')[4] == '/home/p/pics', 'settings show the folder')
+    assert(built_has('button', 'choose') and built_has('button', 'reveal'),
+        'a desktop chooses its folder and opens it; nothing is typed')
+    assert(built_has('button', 'default')[4] == false,
+        'the default folder is already the one in use')
+
+    -- Choose folder: the platform's chooser, then the folder it answered.
+    product.on_ui_action(api, { id = 'choose', action = 'activate' })
+    local pick = last('pick')
+    assert(pick and pick.start == '/home/p/pics', 'the chooser opens where the pictures are')
+    frame()
+    pick.answer = { 'cancelled', '' }
+    frame()
+    assert(config.destination == '', 'a cancelled chooser changes nothing')
+    product.on_ui_action(api, { id = 'choose', action = 'activate' })
+    last('pick').answer = { 'ok', '/Users/p/Pictures/OSRS (main)\n' }
+    local invalidations_before = settings_invalidations
+    frame()
+    assert(config.destination == '/Users/p/Pictures/OSRS (main)',
+        'the chosen folder is the destination, spelled as the chooser spelled it')
+    assert(last('list').destination == '/Users/p/Pictures/OSRS (main)',
+        'and the gallery lists it at once')
+    assert(settings_invalidations > invalidations_before,
+        'the open settings face is rebuilt to show it')
+    product.on_ui_action(api, { id = 'choose', action = 'activate' })
+    last('pick').answer = { 'ok', '/no/good\n' }
+    frame()
+    assert(config.destination == '/Users/p/Pictures/OSRS (main)',
+        'a folder the host would refuse is not stored')
+    product.on_ui_action(api, { id = 'default', action = 'activate' })
+    assert(config.destination == '', 'Use the default folder clears it')
+
+    -- A browser: no chooser, a tree of what is stored, and a download.
+    store.kind, store.root = 'browser', 'plugin_assets/screenshot'
+    product.on_config_changed(api, 'destination')
+    last('list').answer = { 'ok', table.concat(listing, '\n') .. '\n' }
+    frame(); frame()
+    assert(rows.open.text == 'Download all (.zip)', 'a browser downloads instead of opening')
+    built = {}
+    product.on_ui_build(api, fake_panel, 'settings')
+    assert(not built_has('button', 'choose'), 'a browser has no folder to choose')
+    assert(built_has('key_value', 'tree')[3] == 'plugin_assets/screenshot/',
+        'the storage is shown from its root')
+    local levels
+    for _, call in ipairs(built) do
+        if call[1] == 'key_value' and tostring(call[3]):find('Levels/') then levels = call end
+    end
+    assert(levels and levels[4] == '12 pictures', 'one line per folder in it, with its count')
+    product.on_ui_action(api, { id = 'download', action = 'activate' })
+    assert(last('open') and last('open').path == nil, 'Download all asks for every picture')
+    product.on_ui_build(api, fake_panel, 'page')
+    assert(panel_builds[#panel_builds] == 'page', 'the page face is the layer\'s to build')
 
     -- ------------------------------------------------------------ teardown
     product.on_stop(api)

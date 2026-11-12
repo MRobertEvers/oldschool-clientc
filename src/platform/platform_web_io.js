@@ -429,6 +429,14 @@ mergeInto(LibraryManager.library, {
           const size = HEAP32[(item + a.dataSizeOff) >> 2];
           return { kind: kind, auth: path.slice(5), bytes: HEAPU8.slice(ptr, ptr + size) };
         }
+        /* The files service (plugin/task_plugin_io.h CreateTask_PluginFiles):
+         * the player's own files, which here are records in the database. The
+         * body is lent and copied out exactly as an auth request's is. */
+        if (path.startsWith('files/')) {
+          const ptr = HEAP32[(item + a.dataOff) >> 2];
+          const size = HEAP32[(item + a.dataSizeOff) >> 2];
+          return { kind: kind, files: path.slice(6), bytes: HEAPU8.slice(ptr, ptr + size) };
+        }
         return { kind: kind, path: inst.join(inst.scriptDir, path) };
       }
       if (kind === K.FILE_READ) {
@@ -882,6 +890,13 @@ mergeInto(LibraryManager.library, {
         return typeof inst.host.authPost === 'function'
           ? await inst.host.authPost(req.auth, req.bytes)
           : null;
+      }
+      if (req.kind === K.SCRIPT && req.files !== undefined) {
+        /* Always an answer: a page with no files service says so in the
+         * verdict line, the way a desktop with no chooser does. */
+        return typeof inst.host.filesService === 'function'
+          ? await inst.host.filesService(req.files, req.bytes)
+          : new TextEncoder().encode('unsupported: this page has no files service\n');
       }
       if (req.kind === K.CONFIG_FILE || req.kind === K.SCRIPT) {
         return await inst.host.readFile(req.path);

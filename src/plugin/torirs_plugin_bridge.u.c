@@ -36,6 +36,9 @@ app_plugin_screenshot(
     char const* name,
     char* out_path,
     int out_path_size);
+int app_plugin_capture_root(void* user, char const* plugin, char const* dir, char* out, int out_size);
+int app_plugin_files_request(void* user, int serial, char const* verb, char const* body, int size);
+int app_plugin_capture_read(void* user, int serial, char const* path);
 int app_plugin_model_publish(void* user, int model, void const* data, int size);
 void app_plugin_model_release(void* user, int model);
 int app_plugin_mesh_create(void* user);
@@ -3689,6 +3692,101 @@ app_plugin_image_publish(
 }
 
 /*
+ * The publish above, shrunk to fit a box: a capture is the whole client
+ * canvas and its gallery cell is a tenth of that. An area average, not a
+ * nearest pick -- a frame of 1-pixel text and tile lines sampled every tenth
+ * pixel is noise. Never enlarged: a picture already smaller than the box is
+ * published as it is.
+ */
+static int
+app_plugin_image_publish_fit(
+    void* user,
+    int slot,
+    void const* data,
+    int size,
+    int max_w,
+    int max_h,
+    int* out_w,
+    int* out_h)
+{
+    struct App* app = (struct App*)user;
+    uint32_t* pixels = NULL;
+    uint32_t* fitted;
+    int w = 0;
+    int h = 0;
+    int fw;
+    int fh;
+    int scene_id;
+
+    assert(app);
+    assert(data);
+    assert(max_w > 0);
+    assert(max_h > 0);
+    assert(out_w);
+    assert(out_h);
+
+    if( !PngDecode_Argb(ToriMem_Frame(), data, size, &w, &h, &pixels) )
+        return 0;
+    /* The larger of the two shrinks decides, so the whole picture fits. */
+    if( (long long)w * max_h > (long long)h * max_w )
+    {
+        fw = w < max_w ? w : max_w;
+        fh = (int)((long long)h * fw / w);
+    }
+    else
+    {
+        fh = h < max_h ? h : max_h;
+        fw = (int)((long long)w * fh / h);
+    }
+    if( fw < 1 )
+        fw = 1;
+    if( fh < 1 )
+        fh = 1;
+
+    fitted = ToriMem_Alloc(ToriMem_Frame(), (size_t)fw * (size_t)fh * sizeof(*fitted));
+    assert(fitted);
+    for( int y = 0; y < fh; y++ )
+    {
+        int const y0 = (int)((long long)y * h / fh);
+        int y1 = (int)((long long)(y + 1) * h / fh);
+
+        if( y1 <= y0 )
+            y1 = y0 + 1;
+        for( int x = 0; x < fw; x++ )
+        {
+            int const x0 = (int)((long long)x * w / fw);
+            int x1 = (int)((long long)(x + 1) * w / fw);
+            uint32_t sum[4] = { 0, 0, 0, 0 };
+            uint32_t count;
+
+            if( x1 <= x0 )
+                x1 = x0 + 1;
+            for( int sy = y0; sy < y1; sy++ )
+                for( int sx = x0; sx < x1; sx++ )
+                {
+                    uint32_t const p = pixels[sy * w + sx];
+                    sum[0] += p >> 24;
+                    sum[1] += (p >> 16) & 0xFF;
+                    sum[2] += (p >> 8) & 0xFF;
+                    sum[3] += p & 0xFF;
+                }
+            count = (uint32_t)((y1 - y0) * (x1 - x0));
+            fitted[y * fw + x] = ((sum[0] / count) << 24) | ((sum[1] / count) << 16) |
+                                 ((sum[2] / count) << 8) | (sum[3] / count);
+        }
+    }
+    ToriMem_Free(ToriMem_Frame(), pixels);
+
+    scene_id = UITreeSceneBridge_PublishPluginImage(&app->bridge, slot, fw, fh, fitted);
+    ToriMem_Free(ToriMem_Frame(), fitted);
+    if( scene_id < 0 )
+        return 0;
+    *out_w = fw;
+    *out_h = fh;
+    return 1;
+}
+
+/*
  * Pixels the plugin composed. The publish above with the decode taken out.
  *
  * Refusing an absurd geometry rather than asserting it, for the reason the
@@ -6305,6 +6403,7 @@ app_plugin_engine(struct App* app)
     engine.draw_select_canvas = app_plugin_draw_select_canvas;
     engine.image_publish = app_plugin_image_publish;
     engine.image_publish_argb = app_plugin_image_publish_argb;
+    engine.image_publish_fit = app_plugin_image_publish_fit;
     engine.image_read = app_plugin_image_read;
     engine.image_release = app_plugin_image_release;
     engine.obj_image = app_plugin_obj_image;
@@ -6327,6 +6426,9 @@ app_plugin_engine(struct App* app)
     engine.asset_read = app_plugin_asset_read;
     engine.asset_write = app_plugin_asset_write;
     engine.screenshot = app_plugin_screenshot;
+    engine.capture_root = app_plugin_capture_root;
+    engine.files_request = app_plugin_files_request;
+    engine.capture_read = app_plugin_capture_read;
     engine.model_publish = app_plugin_model_publish;
     engine.model_release = app_plugin_model_release;
     engine.mesh_create = app_plugin_mesh_create;

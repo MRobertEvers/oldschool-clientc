@@ -135,4 +135,21 @@ PlatformX_IO_Pump(struct PlatformX_IO* px);
 int
 PlatformX_IO_ServerReachable(struct PlatformX_IO* px);
 
+/**
+ * The folder chooser a `files/pick_folder` item opens (platform_x_io.c
+ * answer_files_item). Fills `out` and returns 1 when a folder was chosen, 0
+ * when the player cancelled, -1 when there is no chooser to show.
+ *
+ * Set by a window layer that owns one -- macOS's NSOpenPanel lives in
+ * Objective-C (platform_macos_dialogs.m), which this file is not. With none
+ * set the executor uses its own: SHBrowseForFolder on Windows, zenity or
+ * kdialog elsewhere.
+ */
+typedef int (*PlatformX_IO_FolderPickerFn)(
+    char const* start,
+    char* out,
+    int out_size);
+void
+PlatformX_IO_SetFolderPicker(PlatformX_IO_FolderPickerFn picker);
+
 #endif

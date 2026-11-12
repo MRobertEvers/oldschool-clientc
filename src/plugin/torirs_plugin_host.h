@@ -108,6 +108,32 @@
 #define TORIRS_PLUGIN_OBJ_ICONS_MAX 48
 /** Longest screenshot destination a plugin may name, including separators. */
 #define TORIRS_PLUGIN_SCREENSHOT_DIR_MAX 192
+/** Longest capture path the files service hands back: a destination, a
+ *  player, a category and a file name. */
+#define TORIRS_PLUGIN_CAPTURE_PATH_MAX 512
+/**
+ * Captures browser: files-service requests in flight or landed and unread
+ * (capture_list / capture_open / pick_folder, read with capture_answer), and
+ * gallery thumbnails resident at once (capture_image).
+ *
+ * Thumbnails are an LRU like the obj icon cache, for the same reason: a
+ * gallery's appetite is every picture ever taken, and a page shows a dozen.
+ * 24 is two screens of a two-column gallery; each costs one image slot and
+ * ~25 KB of sprite at 128x72.
+ */
+#define TORIRS_PLUGIN_FILES_TICKETS_MAX 8
+#define TORIRS_PLUGIN_CAPTURE_THUMBS_MAX 24
+
+/** Where a plugin's captures live (ToriRS_PluginEngine::capture_root). */
+enum PluginCaptureStore
+{
+    /** Persistence is off for this run: nowhere to keep a picture. */
+    PLUGIN_CAPTURE_STORE_NONE = 0,
+    /** A folder on this machine, named by an absolute path. */
+    PLUGIN_CAPTURE_STORE_FOLDER,
+    /** Records in this browser's database, named by their key prefix. */
+    PLUGIN_CAPTURE_STORE_BROWSER,
+};
 
 struct ToriRS_PluginHost;
 
@@ -632,6 +658,45 @@ struct ToriRS_PluginEngine
         char* out_path,
         int out_path_size);
 
+    /** Where this plugin's captures under `dir` are kept, the way the files
+     *  service names them -- a desktop's absolute folder, a browser's record
+     *  prefix -- written to `out`. Returns an enum PluginCaptureStore; `out`
+     *  is empty for PLUGIN_CAPTURE_STORE_NONE. `dir` is the destination
+     *  screenshot was given ("" for the plugin's own folder). */
+    int (*capture_root)(
+        void* user,
+        char const* plugin,
+        char const* dir,
+        char* out,
+        int out_size);
+    /** Queue one files-service request (task_plugin_io.h
+     *  CreateTask_PluginFiles); `body` is COPIED. Its answer reaches
+     *  PluginHost_FilesDeliver with `serial`. Returns 1 when queued. */
+    int (*files_request)(
+        void* user,
+        int serial,
+        char const* verb,
+        char const* body,
+        int size);
+    /** Queue a read of one client file, the way a capture was written. The
+     *  bytes reach PluginHost_CaptureDeliver with `serial`. Returns 1 when
+     *  queued. */
+    int (*capture_read)(
+        void* user,
+        int serial,
+        char const* path);
+    /** image_publish, scaled down to fit `max_w` x `max_h` (never up), for a
+     *  picture far bigger than where it is drawn. */
+    int (*image_publish_fit)(
+        void* user,
+        int slot,
+        void const* data,
+        int size,
+        int max_w,
+        int max_h,
+        int* out_w,
+        int* out_h);
+
     /* World objects. Handles are the engine's; the host records who owns each
      * one so a stopped plugin's objects leave the scene with it. */
 
@@ -934,6 +999,24 @@ PluginHost_AssetDeliver(
     struct ToriRS_PluginHost* host,
     char const* plugin_name,
     char const* asset_name,
+    void* data,
+    int size);
+
+/** A files-service answer (ToriRS_PluginEngine::files_request). `data` is
+ *  OWNED by the host from here; NULL when no executor answered. */
+void
+PluginHost_FilesDeliver(
+    struct ToriRS_PluginHost* host,
+    int serial,
+    void* data,
+    int size);
+
+/** A capture's bytes (ToriRS_PluginEngine::capture_read), OWNED by the host
+ *  from here; NULL when there is no such file. */
+void
+PluginHost_CaptureDeliver(
+    struct ToriRS_PluginHost* host,
+    int serial,
     void* data,
     int size);
 

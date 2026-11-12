@@ -979,6 +979,127 @@ v2_assets_image_compose(
     return out->value ? TORIRS_ASSET_READY : TORIRS_ASSET_BUDGET;
 }
 
+static enum ToriRS_CaptureStore
+v2_assets_capture_root(
+    struct ToriRS_Api* api,
+    char const* destination,
+    char* out_root,
+    size_t out_root_size)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+
+    assert(out_root);
+    assert(out_root_size > 0 && out_root_size <= INT_MAX);
+    return (enum ToriRS_CaptureStore)api_capture_root(
+        runtime->context, destination ? destination : "", out_root, (int)out_root_size);
+}
+
+static enum ToriRS_Result
+v2_assets_capture_list(
+    struct ToriRS_Api* api,
+    char const* destination,
+    uint32_t* out_ticket)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    int ticket = 0;
+    enum ToriRS_Result result;
+
+    assert(out_ticket);
+    result = api_capture_list(runtime->context, destination ? destination : "", &ticket);
+    *out_ticket = (uint32_t)ticket;
+    return result;
+}
+
+static enum ToriRS_Result
+v2_assets_capture_open(
+    struct ToriRS_Api* api,
+    char const* destination,
+    char const* path,
+    uint32_t* out_ticket)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    int ticket = 0;
+    enum ToriRS_Result result;
+
+    assert(out_ticket);
+    result = api_capture_open(runtime->context, destination ? destination : "", path, &ticket);
+    *out_ticket = (uint32_t)ticket;
+    return result;
+}
+
+static enum ToriRS_Result
+v2_assets_pick_folder(
+    struct ToriRS_Api* api,
+    char const* start,
+    uint32_t* out_ticket)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    int ticket = 0;
+    enum ToriRS_Result result;
+
+    assert(out_ticket);
+    result = api_pick_folder(runtime->context, start ? start : "", &ticket);
+    *out_ticket = (uint32_t)ticket;
+    return result;
+}
+
+static enum ToriRS_AssetState
+v2_assets_capture_answer(
+    struct ToriRS_Api* api,
+    uint32_t ticket,
+    char const** out_text,
+    size_t* out_size)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    int size = 0;
+    enum ToriRS_AssetState state;
+
+    assert(out_text);
+    assert(out_size);
+    *out_size = 0;
+    if( ticket == 0 || ticket > INT_MAX )
+    {
+        *out_text = NULL;
+        return TORIRS_ASSET_INVALID;
+    }
+    state = api_capture_answer(runtime->context, (int)ticket, out_text, &size);
+    *out_size = (size_t)size;
+    return state;
+}
+
+static enum ToriRS_AssetState
+v2_assets_capture_image(
+    struct ToriRS_Api* api,
+    char const* destination,
+    char const* path,
+    int max_width,
+    int max_height,
+    struct ToriRS_ImageRef* out)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    int image = -1;
+    uint64_t revision = 0;
+    enum ToriRS_AssetState state;
+
+    assert(path);
+    assert(out);
+    out->value = 0;
+    state = api_capture_image(runtime->context, destination ? destination : "", path,
+                              max_width, max_height, &image, &revision);
+    if( state != TORIRS_ASSET_READY )
+        return state;
+    /* Versioned, as the item icon cache's handles are: an evicted slot given
+     * to another picture retires every handle to the old one. */
+    out->value = v2_resource_acquire_versioned(
+        runtime->image_tokens,
+        TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX,
+        V2_RESOURCE_IMAGE,
+        ((uint32_t)runtime->context->index),
+        image,
+        revision);
+    return out->value ? state : TORIRS_ASSET_BUDGET;
+}
+
 static enum ToriRS_Result
 v2_scene_mesh_create(
     struct ToriRS_Api* api,
@@ -3219,6 +3340,12 @@ v2_runtime_init(
             .screenshot = v2_assets_screenshot,
             .image_pixels = v2_assets_image_pixels,
             .image_compose = v2_assets_image_compose,
+            .capture_root = v2_assets_capture_root,
+            .capture_list = v2_assets_capture_list,
+            .capture_open = v2_assets_capture_open,
+            .pick_folder = v2_assets_pick_folder,
+            .capture_answer = v2_assets_capture_answer,
+            .capture_image = v2_assets_capture_image,
         },
         .scene = {
             .struct_size = sizeof(runtime->api.scene),
