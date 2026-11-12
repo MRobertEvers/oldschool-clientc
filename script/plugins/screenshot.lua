@@ -651,6 +651,18 @@ local function gallery_row_action(key, action)
     if item then gallery_open(item) end
 end
 
+-- A grid row's ONE callback. The binding keeps one callback per row: a row
+-- that names `paint` and `on_action` separately keeps whichever it declared
+-- last, and a press then calls the painter with the action table (the crash
+-- this replaces). So both are this function, told apart by what they hand
+-- it: an action is a table carrying `action`, a draw builder is not.
+local function gallery_row(key, arg)
+    if type(arg) == "table" and rawget(arg, "action") ~= nil then
+        return gallery_row_action(key, arg)
+    end
+    return gallery_paint(key, arg)
+end
+
 local function gallery_status(items, pages)
     if gallery.store == "none" then return "This run keeps no files, so nothing is saved." end
     if gallery.state == "failed" then return gallery.note end
@@ -720,7 +732,7 @@ local function describe_gallery(d)
         d.row({ key = "grid" .. r, kind = "custom", height = filled and ROW_H or 0,
                 hit_key = key_id(gallery.album .. "#" .. gallery.page .. "#" .. r),
                 paint_key = gallery_row_key(items, r),
-                paint = gallery_paint, on_action = gallery_row_action })
+                paint = gallery_row, on_action = gallery_row })
         -- A space, not "": an empty row shows its id.
         d.row({ key = "caption" .. r, kind = "key_value",
                 label = gallery_caption(gallery_cell(items, r, 1)),

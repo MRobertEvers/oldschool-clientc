@@ -115,11 +115,26 @@ return { id = 'screenshot-behavior', on_start = function(host)
     -- run that changes it is a page REBUILD -- the flash this plugin's page is
     -- written never to need. Counted, so the gallery can be held to that.
     local rows, row_order, row_staged, rebuilds = {}, {}, nil, 0
+    -- Per row TABLE, once: the plugin re-emits the same row tables on every
+    -- describe that did not change the gallery, and this file runs inside one
+    -- instruction budget.
+    local row_sigs = {}
     function builder.row(row)
-        assert(type(row.key) == 'string' and row.kind, 'a row needs a key and a kind')
+        local sig = row_sigs[row]
+        if not sig then
+            assert(type(row.key) == 'string' and row.kind, 'a row needs a key and a kind')
+            -- The binding keeps ONE callback per row (lua_porcelain_row: one
+            -- `user`), so a row that names two different functions gets only
+            -- the last. The fake keeps that rule rather than calling each by
+            -- name.
+            assert(not (row.paint and row.on_action) or row.paint == row.on_action,
+                row.key .. ': paint and on_action must be one function')
+            sig = row.key .. ':' .. row.kind
+            row_sigs[row] = sig
+        end
         assert(not row_staged[row.key], 'row keys are unique: ' .. row.key)
         row_staged[row.key] = row
-        row_staged[#row_staged + 1] = row.key .. ':' .. row.kind
+        row_staged[#row_staged + 1] = sig
     end
 
     local function reconcile()
