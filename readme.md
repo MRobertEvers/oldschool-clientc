@@ -36,6 +36,14 @@ cover the [web build](docs/web_build.md), the
 [performance harness](docs/PERF_HARNESS.md), and the repository's
 [Windows toolchains](tools/toolchain/README.md).
 
+To make content with the map editor (ToriRSEd), start with
+[Making a quest with the map editor](docs/QUEST_TUTORIAL.md): a four-square
+village, buildings, npcs with a patrol route, dialogue written in VS Code, a
+camera-path cutscene, an instanced boss fight, and promoting the scratch lane
+it was built in. The editor's state and open issues are in
+[docs/MAPED_STATUS.md](docs/MAPED_STATUS.md), its actions and keys in
+[docs/MAPED_HOTKEYS.md](docs/MAPED_HOTKEYS.md).
+
 Subsystem guides cover the [incremental JS5 client cache](docs/JS5_INCREMENTAL_CACHE.md),
 the [dedicated JS5 server](docs/JS5_SERVER.md), the
 [developer overlay and root UI layout](docs/debug_overlay.md), and
