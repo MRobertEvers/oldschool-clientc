@@ -198,6 +198,22 @@ No recording talks to him. Talk-to and Directions are the wiki transcript
 use an 8-point compass from him to the nest: the three nests give exactly the
 six directions the transcript names.
 
+
+## Re-checked on index 4517, 4545..4554 (2026-11-12)
+
+Eleven more of the owner's sessions (rev 242.1, w496/w378, melee and ranged):
+31 burrows, 35 cave crawls, 3 eligible lines, no shell mined. Every cycle rule
+above held; one new divergence.
+
+| rule | recorded (new sessions) | verdict |
+|---|---|---|
+| next crab at D+29 | 14/14 where the recorder saw the add (4 others +43..53: arrived later) | matched |
+| next nest never the same | 18/18 (N->E 6, E->S 5, E->N 3, S->N 2, S->E 2) | matched |
+| full life S..D | 911..1095 (ours 902..1102) | matched |
+| cave landings | north 1277,3168 (9), east 1352,3122 (15), south 1246,3038 (11): 35/35 on the test's tiles | matched |
+| D+2 glide +4,+2 | 4 of 31 burrows (4547 [596..597] twice, +8,+4; [2527]; 4550 [1011]; 4552 [1374]) | Open 3, still no rule: E twice, S, N; the recorder adjacent each time |
+| D face | `angle=` the cardinal of the last target 19/31, `[facing] type=reset` 12/31 | NEW Open 14 |
+
 ## How it was verified
 
 - Private build `make -C src OPT=1 PLATFORM_OBJ_BASE=build_gemcrab sscompile
@@ -241,3 +257,7 @@ six directions the transcript names.
 13. The tests shorten one life (`::gemcrab_here`); the world's own first crab
     (spawned at boot by the south Ru Merald's timer) is replaced at tick 16, so a
     full 900..1100-tick life has not been run end to end.
+14. The death face is `[facing] type=reset` on 12 of 31 burrows in 4517, 4545..4554
+    (every nest, every direction; in 4548 --all-players the last target was in
+    reach for the resets too), where ours always sends the cardinal angle. No
+    rule found; the shell's spawnangle follows the angle when one is sent.
