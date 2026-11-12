@@ -1,0 +1,2040 @@
+{{External|rs}}
+{{Transcript|quest}}
+{{Transcript list|Irena|Mercenary Captain|Mercenary|Guard (Desert Mining Camp)|Captain Siad|Male slave|Escaping slave|Female slave|Rowdy slave|Al Shabim|Mine cart driver|Ana|Bedabin Nomad|Bedabin Nomad Guard}}
+
+==Starting off==
+* {{tbox|Irena seems to be very upset and cries as you approach her.}}
+* '''Irena:''' Boo hoo! Oh dear, my only daughter....
+* {{tselect|Select an Option}}
+* {{topt|What's the matter?}}
+** '''Player:''' What's the matter?
+** '''Irena:''' Oh dear... my daughter, Ana, has gone missing in the desert. I fear that she is lost, or perhaps... *sob* even worse.
+** '''Player:''' When did she go into the desert?
+** '''Irena:''' *Sob* she went in there just a few days ago, *Sob* she said she would be back yesterday.
+** '''Irena:''' *Sob* And she's not...
+** {{tselect|Start The Tourist Trap quest?}}
+** {{topt|Yes.}}
+*** '''Player:''' I'll find her for you!
+*** '''Irena:''' Oh thank you! You've made me a very happy mother, I just hope it's not too late!
+*** '''Player:''' Do you have any ideas on where she may have gone?
+*** '''Irena:''' I did go looking for her myself and I came across some footprints just a little way south. I'm worried that they lead to the desert mining camp!
+*** {{tact|end}}
+** {{topt|No.}}
+*** '''Player:''' Oh... Well I hope you find her.
+*** {{tact|end}}
+* {{topt|Cheer up, it might never happen.}}
+** '''Player:''' Cheer up, it might never happen.
+** '''Irena:''' It may already have happened you thoughtless oaf! My daughter, Ana, has gone missing in the desert. I fear that she is lost, or perhaps... *sob* even worse.
+** '''Player:''' When did she go into the desert?
+** '''Irena:''' *Sob* she went in there just a few days ago, *Sob* she said she would be back yesterday.
+** {{tact|above}}
+
+===Talking to Irena again===
+* '''Irena:''' Please bring my daughter back to me. She is most likely lost in the Desert somewhere. I miss her so much... Wahhhhh! *Sob*
+* {{tselect|Select an Option}}
+* {{topt|Do you know where Ana went?}}
+** '''Player:''' Do you know where Ana went?
+** '''Irena:''' I did look for her myself and a little way south. I came across some footprints which may be hers. I'm worried that she may have been caught by some guards and taken to work in that terrible desert mine to the south.
+** {{tact|previous}}
+* {{topt|Is there anywhere around here that she would go?}}
+** '''Player:''' Is there anywhere around here that she would go?
+** '''Irena:''' I think she may have just gone a little way into the desert. It's unlike her to go too far away. She is an adventurous girl, but she knows how I worry. She wouldn't go too far.
+** {{tact|previous}}
+* {{topt|Where do you think I should start my search?}}
+** '''Player:''' Where do you think I should start my search?
+** '''Irena:''' I think I saw some of her footprints to the south, you could start there. Hopefully she'll just be over a few sand dunes, but you never know. She may have been taken to that awful desert mining camp or captured by
+** '''Irena:''' brigands!
+** {{tact|previous}}
+* {{topt|Okay, thanks.}}
+** '''Player:''' Okay, thanks.
+** {{tact|end}}
+
+===Looking at the footprints===
+* {{tcond|Before starting the quest:}}
+** {{mes|You see some footsteps in the sand.}}
+** {{tact|end}}
+* {{tcond|During the quest:}}
+** {{tbox|This looks like some disturbed sand. Footsteps seem to be heading off towards the South.}}
+** {{tact|end}}
+
+===Searching the footprints===
+* {{tcond|Before starting the quest:}}
+** {{mes|You see some footsteps in the sand.}}
+** {{tact|end}}
+* {{tcond|During the quest:}}
+** {{tbox|You search the footsteps more closely. You can see that there are five sets of footprints. One set of footprints seems lighter than the others. The four other footsteps were made by heavier people with boots.}}
+** {{tact|end}}
+
+===Inspecting a cactus with a scarf on it===
+* {{tbox|You remember that Irena mentioned something about Ana wearing a red scarf before she left for the desert.}}
+* {{tact|end}}
+
+==Getting into the camp==
+===Talking to a Mercenary===
+* '''Mercenary:''' Yeah, what do you want?
+* {{tselect|Select an Option}}
+* {{topt|What is this place?}}
+** '''Player:''' What is this place?
+** '''Mercenary:''' It's none of your business now get lost.
+** {{tselect|Select an Option}}
+** {{topt|Perhaps five gold coins will make it my business?}}
+*** '''Player:''' Perhaps five gold coins will make it my business?
+*** {{tcond|If the player does not have 5 coins:}}
+**** '''Mercenary:''' Don't try to fool me, you don't have five gold coins! Before you try to bribe someone, make sure you have the money effendi!
+**** '''Mercenary:''' Guards!! Guards!
+**** '''Mercenary:''' Let's see how good you are with Desert Survival techniques.
+**** {{tbox|You're bundled into the back of a cart and blindfolded... }}
+**** {{tact|The player is teleported somewhere north-west of the mining camp}}
+**** {{tbox|Sometime later you wake up in the desert.}}
+**** {{tcond|If the player has any filled waterskins:}}
+***** '''Guard:''' You won't be needing that water anymore!
+**** {{tbox|The guards move off leaving you stranded in the desert.}}
+**** {{tact|end}}
+*** '''Mercenary:''' Well, it certainly will help... {{color|#000080|-- The guard takes the five gold coins. --}} Now then, what did you want to know?
+*** {{tselect|Select an Option}}
+*** {{topt|What is this place?}}
+**** '''Player:''' What is this place?
+**** '''Mercenary:''' It's just a mining camp. Prisoners are sent here from Al Kharid. They serve out their sentence by mining. Most prisoners will end their days here, surrounded by desert.
+**** '''Player:''' So you could almost say that they got their ... 'Just Desserts'
+**** '''Mercenary:''' You could say that... {{colour|#000080|-- There is an awkward pause --}}
+**** '''Mercenary:''' But it wouldn't be very funny.
+**** '''Player:''' When they talk about 'the silence of the desert', this must be what they mean.
+**** {{tselect|Select an Option}}
+**** {{topt|Can I take a look around the place?}}
+***** '''Player:''' Can I take a look around the place?
+***** '''Mercenary:''' Not really. The Captain won't let you in the compound. He's the only one who has the key to the gate. And if you talk to him, he'll probably just order us to kill you. Unless...
+***** {{tselect|Select an Option}}
+***** {{topt|Does the Captain order you to kill a lot of people?}}
+****** {{tact|below}}
+***** {{topt|Unless what?}}
+****** '''Player:''' Unless what?
+****** '''Mercenary:''' Unless he has a use for you. He's been trying to track down someone called 'Al Zaba Bhasim'. You could offer to catch him and that might put you in his good books?
+****** {{tselect|Select an Option}}
+****** {{topt|Where would I find this Al Zaba Bhasim?}}
+******* '''Player:''' Where would I find this Al Zaba Bhasim?
+******* '''Mercenary:''' Well, he could be anywhere. He's a nomadic desert dweller. However, they say that he's frequently to be found to the west in the hospitality of the tenti's.
+******* {{tselect|Select an Option}}
+******* {{topt|The Tenti's, who are they?}}
+******** '''Player:''' The Tenti's, who are they?
+******** '''Mercenary:''' Well, we're not really sure what their proper name is. But they live in tents so we call them the 'Tenti's'.
+******** {{tselect|Select an Option}}
+******** {{topt|Okay, thanks.}}
+********* {{tact|below}}
+******** {{topt|Is Al Zaba Bhasim very tough?}}
+********* '''Player:''' Is Al Zaba Bhasim very tough?
+********* '''Mercenary:''' Well, I'm not sure, but by all accounts, he is a slippery fellow. The Captain has been trying to capture him for years. A bit of a waste of time if you ask me. Anyway, I have to get going, I do have work to do.
+********* {{tact|end}}
+******* {{topt|Okay, thanks.}}
+******** {{tact|below}}
+****** {{topt|Okay, thanks.}}
+******* {{tact|below}}
+**** {{topt|Okay, thanks.}}
+***** {{tact|below}}
+*** {{topt|What are you guarding?}}
+**** '''Player:''' What are you guarding?
+**** '''Mercenary:''' Well, if you have to know, we're making sure that no prisoners get out. {{colour|#000080|-- The guard gives you a disapproving look. --}} And to make sure that unauthorised people don't get in.
+**** '''Mercenary:''' {{colour|#000080|-- The guard looks around nervously. --}} You'd better go soon before the Captain orders us to kill you.
+**** {{tselect|Select an Option}}
+**** {{topt|Does the Captain order you to kill a lot of people?}}
+***** '''Player:''' Does the Captain order you to kill a lot of people?
+***** '''Mercenary:''' {{colour|#000080|-- The guard snorts. -- }}*Snort* Just about anyone who talks to him.
+***** '''Mercenary:''' Unless he has a use for you, he'll probably just order us to kill you. And it's such a horrible job cleaning up the mess afterwards.
+***** {{tselect|Select an Option}}
+***** {{topt|Not to mention the senseless waste of human life.}}
+****** '''Player:''' Not to mention the senseless waste of human life.
+****** '''Mercenary:''' Huh? Them's your words, not mine.
+****** {{tselect|Select an Option}}
+****** {{topt|It doesn't sound as if you respect your Captain much.}}
+******* '''Player:''' It doesn't sound as if you respect your Captain much.
+******* {{tbox|-- The guard looks around conspiratorially. -- }}
+******* '''Mercenary:''' Well, to be honest. We think he's not exactly as brave as he makes out. But we have to follow his orders. If someone called him a coward, or managed to trick him into a one-on-one duel many of us bet that he'd be
+******* '''Mercenary:''' beaten.
+******* '''Player:''' And how could I trick him into a one-on-one duel?
+******* '''Mercenary:''' Like all cowards, he likes to be made to feel important. If anyone insults him outright, he just gets us to do his dirty work. However, if he thinks he's better than you, if you compliment him, he may feel that he can defeat
+******* '''Mercenary:''' you. And if he initiated a duel, all the men agreed that they wouldn't intervene. We think he'd be slaughtered in double quick time.
+******* {{tselect|Select an Option}}
+******* {{topt|Can I have a bet on that?}}
+******** '''Player:''' Can I have a bet on that?
+******** {{tcond|If the player already placed a bet:}}
+********* '''Mercenary:''' Sorry, we've already taken your bet, wouldn't want any cheating now. Anyway, I have to get back to work. See ya around...
+********* {{tact|end}}
+******** '''Mercenary:''' Well, if you think you stand a chance, sure. But remember, if he gives us an order, we have to obey.
+******** {{tselect|Select an Option}}
+******** {{topt|I'll bet 5 gold that I win.}}
+********* '''Player:''' I'll bet 5 gold that I win.
+********* {{tcond|If the player doesn't have enough gold:}}
+********** '''Mercenary:''' Huh! It looks like you're betting with money you don't have.
+********** {{tact|end}}
+********* '''Mercenary:''' Great, I'll take that bet.
+********* {{tbox|pic=Coins 250 detail.png|You hand over 5 gold coins.}}
+********* '''Mercenary:''' Ok, if you win, you'll get 6 gold back. Anyway, I have to get going, I do have work to do. {{color|#000080|-- The guard walks off. --}}
+********* {{tact|end}}
+******** {{topt|I'll bet 10 gold that I win.}}
+********* '''Player:''' I'll bet 10 gold that I win.
+********* {{tcond|If the player doesn't have enough gold:}}
+********** '''Mercenary:''' Huh! It looks like you're betting with money you don't have.
+********** {{tact|end}}
+********* '''Mercenary:''' Great, I'll take that bet.
+********* {{tbox|pic=Coins 250 detail.png|You hand over 10 gold coins.}}
+********* '''Mercenary:''' Ok, if you win, you'll get 12 gold back. Anyway, I have to get going, I do have work to do. {{color|#000080|-- The guard walks off. --}}
+********* {{tact|end}}
+******** {{topt|I'll bet 15 gold that I win.}}
+********* '''Player:''' I'll bet 15 gold that I win.
+********* {{tcond|If the player doesn't have enough gold:}}
+********** '''Mercenary:''' Huh! It looks like you're betting with money you don't have.
+********** {{tact|end}}
+********* '''Mercenary:''' Great, I'll take that bet.
+********* {{tbox|pic=Coins 250 detail.png|You hand over 15 gold coins.}}
+********* '''Mercenary:''' Ok, if you win, you'll get 19 gold back. Anyway, I have to get going, I do have work to do. {{color|#000080|-- The guard walks off. --}}
+********* {{tact|end}}
+******** {{topt|I'll bet 20 gold that I win.}}
+********* '''Player:''' I'll bet 20 gold that I win.
+********* {{tcond|If the player doesn't have enough gold:}}
+********** '''Mercenary:''' Huh! It looks like you're betting with money you don't have.
+********** {{tact|end}}
+********* '''Mercenary:''' Great, I'll take that bet.
+********* {{tbox|pic=Coins 250 detail.png|You hand over 20 gold coins.}}
+********* '''Mercenary:''' Okay, if you win, you'll get 30 gold back. Anyway, I have to get going, I do have work to do. {{color|#000080|-- The guard walks off. --}}
+********* {{tact|end}}
+******** {{topt|Okay, thanks.}}
+********* {{tact|below}}
+******* {{topt|Okay, thanks.}}
+******** {{tact|below}}
+****** {{topt|Okay, thanks.}}
+******* {{tact|below}}
+***** {{topt|Okay, thanks.}}
+****** {{tact|below}}
+**** {{topt|Okay, thanks.}}
+***** {{tact|below}}
+** {{topt|Okay, thanks.}}
+*** '''Player:''' Okay, thanks.
+*** '''Mercenary:''' Yeah, whatever!
+*** {{tact|end}}
+* {{topt|What are you guarding?}}
+** '''Player:''' What are you guarding?
+** '''Mercenary:''' Get lost before I chop off your head!
+** {{tselect|Select an Option}}
+** {{topt|Okay, thanks.}}
+*** {{tact|above}}
+** {{topt|Perhaps these five gold coins will sweeten your mood?}}
+*** '''Player:''' Perhaps five gold coins will sweeten your mood?
+*** {{tcond|If the player does not have 5 coins:}}
+**** '''Mercenary:''' Don't try to fool me, you don't have five gold coins! Before you try to bribe someone, make sure you have the money effendi!
+**** {{tact|above}}
+*** '''Mercenary:''' Well, it certainly will help!
+*** {{tbox|pic=Coins 250 detail.png|-- The guard takes the five gold coins. --}}
+*** '''Mercenary:''' Now then, what did you want to know?
+*** {{tselect|Select an Option}}
+*** {{topt|What is this place?}}
+**** '''Player:''' What is this place?
+**** '''Mercenary:''' It's just a mining camp. Prisoners are sent here from Al Kharid. They serve out their sentence by mining. Most prisoners will end their days here, surrounded by desert.
+**** {{tact|above}}
+*** {{topt|What are you guarding?}}
+**** '''Player:''' What are you guarding?
+**** '''Mercenary:''' Well, if you have to know, we're making sure that no prisoners get out. {{colour|#000080|-- The guard gives you a disapproving look. --}} And to make sure that unauthorised people don't get in.
+**** {{tact|above}}
+*** {{topt|I'm looking for a woman called Ana, have you seen her?}}
+**** '''Player:''' I'm looking for a woman called Ana, have you seen her?
+**** '''Mercenary:''' Hmm, well, we get a lot of people in here. But not many women though... Saw one come in last week....
+**** '''Mercenary:''' But I don't know if it's the woman you're looking for?
+**** {{tselect|Select an Option}}
+**** {{topt|What is this place?}}
+***** '''Player:''' What is this place?
+***** '''Mercenary:''' It's just a mining camp. Prisoners are sent here from Al Kharid. They serve out their sentence by mining. Most prisoners will end their days here, surrounded by desert.
+***** {{tact|above}}
+**** {{topt|What are you guarding?}}
+***** '''Player:''' What are you guarding?
+***** '''Mercenary:''' Well, if you have to know, we're making sure that no prisoners get out. {{colour|#000080|-- The guard gives you a disapproving look. --}} And to make sure that unauthorised people don't get in.
+***** {{tact|above}}
+* {{topt|I'm looking for a woman called Ana, have you seen her?}}
+** '''Player:''' I'm looking for a woman called Ana, have you seen her?
+** '''Mercenary:''' No, now get lost!
+** {{tselect|Select an Option}}
+** {{topt|Perhaps five gold coins will help you remember?}}
+*** '''Player:''' Perhaps five gold coins will help you remember?
+*** {{tcond|If the player does not have 5 coins:}}
+**** '''Mercenary:''' Don't try to fool me, you don't have five gold coins! Before you try to bribe someone, make sure you have the money effendi!
+**** {{tact|above}}
+*** '''Mercenary:''' Well, it certainly will help!
+*** {{tbox|pic=Coins 250 detail.png|-- The guard takes the five gold coins. --}}
+*** '''Mercenary:''' Now then, what did you want to know?
+*** {{tselect|Select an Option}}
+*** {{topt|I'm looking for a woman called Ana, have you seen her?}}
+**** '''Player:''' I'm looking for a woman called Ana, have you seen her?
+**** '''Mercenary:''' Hmm, well, we get a lot of people in here. But not many women though... Saw one come in last week....
+**** {{tact|above}}
+*** {{topt|What is this place?}}
+**** '''Player:''' What is this place?
+**** '''Mercenary:''' It's just a mining camp. Prisoners are sent here from Al Kharid. They serve out their sentence by mining. Most prisoners will end their days here, surrounded by desert.
+**** {{tact|above}}
+*** {{topt|What are you guarding?}}
+**** '''Player:''' What are you guarding?
+**** '''Mercenary:''' Well, if you have to know, we're making sure that no prisoners get out. {{colour|#000080|-- The guard gives you a disapproving look. --}} And to make sure that unauthorised people don't get in.
+**** {{tact|above}}
+** {{topt|Okay, thanks.}}
+*** {{tact|above}}
+
+====Talking to a mercenary again====
+* {{tact|above}}
+
+===Watching the mercenary captain===
+* {{tbox|You watch the Mercenary Captain for some time. He has a large metal key attached to his belt. You notice that he usually gets his men to do his dirty work.}}
+* {{tact|end}}
+
+===Attempting to enter the gate without the key===
+* {{mes|This gate needs a key in order to be opened.}}
+
+===Searching the gate===
+* {{tbox|You see what looks like a mining compound. There seems to be people mining rocks. They look as if they're chained to the rocks and they're being watched over by the guards. It's not a very happy place.}}
+* {{tbox|You notice that people are thoroughly searched as they enter and leave the compound and people wielding weapons or wearing armour are treated quite severly.}}
+* {{tact|end}}
+
+===Trying to attack a Mercenary===
+* {{tbox|This mercenary looks very fierce. Are you sure you want to attack him?}}
+* {{tselect|Select an Option}}
+* {{topt|Yes, I can take him on!}}
+** '''Mercenary:''' Guards!! Guards!
+** {{tact|(The player is hit 4 times before they are transported into the desert.)}}
+** {{tact|end}}
+* {{topt|Er, no thanks, I've had second thoughts about it.}}
+** {{tbox|You decide not to fight the Mercenary.}}
+** {{tact|end}}
+
+===Trying to attack the Mercenary Captain===
+* {{tbox|This mercenary Captain looks very fierce. Are you sure you want to attack him?}}
+* {{tselect|Select an Option}}
+* {{topt|Yes, I can take him on!}}
+** {{trandom}}
+** {{topt|Dialogue 1}}
+*** '''Mercenary Captain:''' {{overhead|Destroy this low life desert rat guards!}}
+** {{topt|Dialogue 2}}
+*** '''Mercenary Captain:''' {{overhead|Guards! Attack that Desert Jackal!}}
+** {{topt|Dialogue 3}}
+*** '''Mercenary Captain:''' {{overhead|Kill that intruder guards!}}
+** {{topt|Dialogue 4}}
+*** '''Mercenary Captain:''' {{overhead|Men! Kill this filthy vermin.}}
+** {{topt|Dialogue 5}}
+*** '''Mercenary Captain:''' {{overhead|Kill this madman guards!}}
+** '''Guard:''' Guards!! Guards!
+** '''Guard:''' Let's see how good you are with Desert Survival techniques.
+** {{tbox|You're bundled into the back of a cart and blindfolded...}}
+** {{tbox|Sometime later you wake up in the desert.}}
+** '''Guard:''' You won't be needing that water anymore!
+** {{mes|Guard: You won't be needing that water anymore!}}
+** {{mes|The guards throw your water away.}}
+** {{tbox|The guards move off leaving you stranded in the desert.}}
+** {{tact|end}}
+* {{topt|Er, no thanks, I've had second thoughts about it.}}
+** {{tbox|You decide not to fight the Mercenary Captain.}}
+** {{tact|end}}
+
+===Talking to the Mercenary Captain===
+* {{tbox|You approach the Mercenary Captain.}}
+* {{tselect|Select an Option}}
+* {{topt|Wow! A real captain!}}
+** '''Player:''' Wow! A real captain!
+** '''Mercenary Captain:''' Be off effendi, you are not wanted around here.
+** {{tselect|Select an Option}}
+** {{topt|That's rude, I ought to teach you some manners.}}
+*** '''Player:''' That's rude, I ought to teach you some manners.
+*** '''Mercenary Captain:''' Oh yes! How might you do that? You seem little more than a gutter dweller. How could you teach me manners?
+*** {{tselect|Select an Option}}
+*** {{topt|With my right fist and a good deal of force.}}
+**** '''Player:''' With my right fist and a good deal of force.
+**** '''Mercenary Captain:''' Oh yes, ready your weapon then! I'm sure you won't mind if my men join in? Har, har, har! Guards, kill this gutter dwelling slime.
+**** {{tact|(Continues with Guards eviction dialogue.)}}
+*** {{topt|Err, sorry, I thought I was talking to someone else.}}
+**** '''Player:''' Err, sorry, I thought I was talking to someone else.
+**** '''Mercenary Captain:''' Well, Effendi, you do need to be careful of what you say to people. Or they may take it the wrong way. Thankfully, I'm very understanding. I'll just let my guards deal with you.
+**** '''Mercenary Captain:''' Guards, teach this desert weed some manners.
+**** {{tact|(Continues with Guards eviction dialogue.)}}
+** {{topt|I'd love to work for a tough guy like you!}}
+*** '''Player:''' I'd love to work for a tough guy like you!
+*** '''Mercenary Captain:''' Hmmm, oh yes, what can you do?
+*** {{tselect|Select an Option}}
+*** {{topt|I can mine!}}
+**** '''Player:''' I can mine!
+**** '''Mercenary Captain:''' Ha, ha, ha! You come to a mining camp and offer us your mining skills! Thanks effendi, but we have all the miners we'll ever need.
+**** '''Mercenary Captain:''' Now be off with you, before we reduce you to a bloody mess on the sand.
+**** {{tselect|Select an Option}}
+**** {{topt|Can't I do something for a strong Captain like you?}}
+***** {{tact|below}}
+**** {{topt|You don't scare me!}}
+***** {{tact|below}}
+*** {{topt|Can't I do something for a strong Captain like you?}}
+**** '''Player:''' Can't I do something for a strong Captain like you?
+**** {{tbox|The Captain ponders a moment and then looks at you critically.}}
+**** '''Mercenary Captain:''' You could bring me the head of Al Zaba Bhasim.
+**** '''Mercenary Captain:''' He is the leader of the notorius desert bandits, they plague us daily. You should find them west of here. You should have no problem in finishing them all of. Do this for me and maybe I will consider helping you.
+**** {{tselect|Select an Option}}
+**** {{topt|Consider it done.}}
+***** '''Player:''' Consider it done.
+***** '''Mercenary Captain:''' Good... run along then. You stand around flapping your tongue chatting like an insane camel.
+***** {{tact|end}}
+**** {{topt|Sorry Sir, I don't think I can do that.}}
+***** '''Player:''' Sorry Sir, I don't think I can do that.
+***** '''Mercenary Captain:''' Hmm, well yes, I did consider that you might not be right for the job. Be off with you then before I turn my men loose on you.
+***** {{tselect|Select an Option}}
+***** {{topt|It's a funny captain who can't fight his own battles!}}
+****** '''Player:''' It's a funny captain who can't fight his own battles!
+****** {{tbox|The men around you fall silent and the Captain silently fumes. All eyes turn to the Captain...}}
+****** '''Mercenary Captain:''' Very well, if you're challenging me, let's get on with it!
+****** {{tbox|The guards gather around to watch the fight.}}
+****** {{tact|(The Mercenary Captain attacks.)}}
+***** {{topt|Okay, I'll be moving along then.}}
+****** '''Player:''' Okay, I'll be moving along then.
+****** '''Mercenary Captain:''' Effendi, I think you'll find that is the wisest decision you have made today.
+****** {{tact|end}}
+* {{topt|You there!}}
+** '''Player:''' You there!
+** '''Mercenary Captain:''' How dare you talk to me like that! Explain your business quickly... or my guards will slay you where you stand.
+** {{tbox|Some guards close in around you.}}
+** {{tselect|Select an Option}}
+** {{topt|I'm lost, can you help me?}}
+*** '''Player:''' I'm lost, can you help me?
+*** {{tbox|The captain smiles broadly and with a sickening voice says...}}
+*** '''Mercenary Captain:''' We are not a charity effendi, Be off with you before I have your head removed from your body.
+*** {{tselect|Select an Option}}
+*** {{topt|What are you guarding?}}
+**** {{tact|below}}
+*** {{topt|You don't scare me!}}
+**** '''Player:''' You don't scare me!
+**** '''Mercenary Captain:''' Well, perhaps I can try a little harder. Guards, kill this infidel.
+**** {{tact|(Continues with Guards eviction dialogue.)}}
+** {{topt|What are you guarding?}}
+*** '''Player:''' What are you guarding?
+*** '''Mercenary Captain:''' Effendi...
+*** '''Mercenary Captain:''' For just one second, imagine that it's none of your business!
+*** '''Mercenary Captain:''' Also imagine having your limbs pulled from your body one at a time.
+*** '''Mercenary Captain:''' Now, what was the question again?
+*** {{tselect|Select an Option}}
+*** {{topt|Do you have sand in your ears? I said, 'What are you guarding?'}}
+**** '''Player:''' Do you have sand in your ears, I said, 'What are you guarding?'
+**** '''Mercenary Captain:''' Why... you ignorant, rude and eternally damned infidel, {{colour|#000080|-- The Captain is very angry at what you just said. --}} Guards, kill this infidel!
+**** {{tact|(Continues with Guards eviction dialogue.)}}
+*** {{topt|You don't scare me!}}
+**** {{tact|above}}
+* {{topt|Hey ugly!}}
+** '''Player:''' Hey ugly!
+** '''Mercenary Captain:''' I will not tolerate such insults.. Guards, kill [him/her]!
+** {{tbox|The captain marches away in disgust leaving his guards to tackle you.}}
+** {{tact|(Continues with Guards eviction dialogue.)}}
+
+===Guards eviction dialogue===
+* {{tcond|If this is the first time being evicted by the guards:}}
+** {{tbox|A guard approaches you and pretends to start hitting you.}}
+** '''Mercenary:''' Take that you infidel!
+** {{tbox|The guard leans closer to you and says in a low voice.}}
+** '''Mercenary:''' We're sick of having to kill every lunatic that comes along and insults the captain, it makes such a mess. Thankfully, he's a bit decrepit so he doesn't notice so please, buzz off and don't come here again.
+** {{tact|end}}
+* {{tcond|If this is the second time being evicted by the guards:}}
+** {{tbox|The guard approaches you again and gives you a sharp kick.}}
+** '''Player:''' {{overhead|Ow!}}
+** '''Guard:''' Take that you mad child of a dog!
+** {{tact|end}}
+* {{tcond|If this is the third time being evicted by the guards:}}
+** {{mes|A guard approaches you and looks very angry, he slaps you across the face.}}
+** '''Mercenary:''' Prepare to die effendi!
+** {{tbox|The guard leans close and whispers}}
+** '''Mercenary:''' Are you mad effendi? This is your last chance! Leave now and never come back or I'll introduce you to my friend.
+** {{tbox|pic=Bronze scimitar detail.png|The guard half draws his fearsome looking scimitar.}}
+** '''Mercenary:''' And we'll be pleased to clean the mess up after you've been dispatched.
+** {{tact|end}}
+* {{tcond|If this is the fourth or greater time being evicted by the guards:}}
+** {{mes|An angry guard approaches you and whips out his sword.}}
+** '''Guard:''' {{overhead|Okay, that does it!}}
+** '''Guard:''' {{overhead|You're in serious trouble now!}}
+** '''Guard:''' {{overhead|Okay men, we need to teach this person a thing or two}}
+** '''Guard:''' {{overhead|about desert survival techniques.}}
+** {{mes|The guards grab you and rough you up a bit.}}
+** {{mes|You're grabbed and manhandled onto a cart.}}
+** {{mes|Sometime later you're dumped in the middle of the desert.}}
+** '''Guard:''' You won't be needing that water anymore!
+** {{mes|Guard: You won't be needing that water anymore!}}
+** {{mes|The guards throw your water away.}}
+** {{mes|The guards move off leaving you stranded in the desert.}}
+** {{tact|end}}
+
+===Talking to Al Shabim after accepting to kill Al Zaba Bhasim===
+* '''Al Shabim:''' Hello Effendi!
+* '''Al Shabim:''' I am Al Shabim, greetings on behalf of the Bedabin nomads.
+* {{tselect|Select an Option}}
+* {{topt|quest=No|Who are you?}}
+* {{topt|I am looking for Al Zaba Bhasim.}}
+** '''Player:''' I am looking for Al Zaba Bhasim.
+** '''Al Shabim:''' Huh! You have been talking to the guards at the mining camp. Or worse, that cowardly mercenary captain. Al Zaba Bhasim does not exist, he is a figment of their imagination!
+** '''Al Shabim:''' Go back and tell this captain that if he wants to find this man he should search for him personally. See how much of his own time he would like to waste.
+** {{tact|end}}
+* {{topt|quest=No|What is this place?}}
+
+===Talking to Al Shabim again after being told Al Zaba Bhasim doesn't exist===
+* '''Al Shabim:''' Hello Effendi!
+* '''Al Shabim:''' I am Al Shabim, greetings on behalf of the Bedabin nomads.
+* {{tselect|Select an Option}}
+* {{topt|quest=No|Who are you?}}
+* {{topt|I am looking for Al Zaba Bhasim.}}
+** '''Player:''' I am looking for Al Zaba Bhasim.
+** '''Al Shabim:''' I've already explained that he doesn't exist. Now, can we move on?
+** {{tact|end}}
+* {{topt|quest=No|What is this place?}}
+
+===Returning to the mercenary captain after learning about Al Zaba Bhasim===
+* {{tbox|You approach the Mercenary Captain.}}
+* {{tselect|Select an Option}}
+* {{topt|Wow! A real captain!}}
+** {{tact|above}}
+* {{topt|You there!}}
+** {{tact|above}}
+* {{topt|Hey ugly!}}
+** {{tact|above}}
+* {{topt|I've some information for you about Al Zaba Bhasim}}
+** '''Player:''' I've some information for you about Al Zaba Bhasim
+** '''Mercenary Captain:''' Oh yes and what might that be?
+** '''Player:''' Al Zaba Bhasim is a figment of your diseased imagination. Go look for him yourself and waste your own time if you think he still exists.
+** '''Mercenary Captain:''' Why, I've never been so insulted in all my days. Prepare to defend yourself wretch, I'll run you through myself!
+** {{tbox|The guards gather around to watch the fight.}}
+** {{tact|(The Mercenary Captain attacks.)}}
+
+===Attacking a mercenary===
+* {{tbox|This mercenary looks very fierce. Are you sure you want to attack him?}}
+* {{tact|end}}
+
+===Killing the mercenary captain===
+* {{tcond|If the player already had the key in the bank:}}
+** {{mes|You kill the captain!}}
+** {{mes|After killing the captain, you remember that you stored a mining gate key in your bank.}}
+** {{tact|end}}
+* {{tcond|If the player has no inventory space:}}
+** {{tbox|pic=Metal key detail.png|The mercenary captain drops a metal key on the floor, you try to add it to your inventory, but it won't fit in. You drop the key on the floor.}}
+** {{tact|end}}
+* {{tbox|pic=Metal key detail.png|The mercenary captain drops a metal key on the floor. You quickly grab the key and add it to your inventory.}}
+* {{tact|end}}
+
+===Talking to the Mercenary to collect a bet===
+* '''Player:''' Hey, I've come to collect my bet!
+* '''Mercenary:''' Well, I guess congratulations are in order.
+* '''Player:''' Thanks!
+* '''Mercenary:''' And we'll only charge the paltry sum of... erm...
+* '''Mercenary:''' {{colour|#000080|The guards starts to do some mental calculations. You can see his brow furrow and he starts to sweat profusely.}}
+* {{tcond|If the player bet 5 coins:}}
+** '''Mercenary:''' Five gold for cleaning up the mess. You have won 1 Gold piece! Well done..! Ha, ha, ha ha! {{colour|#000080|-- The guards walk off chuckling to themselves. --}}
+** {{tact|end}}
+* {{tcond|If the player bet 10 coins:}}
+** '''Mercenary:''' 10 gold for cleaning up the mess. You have won 2 Gold pieces! Well done..! Ha, ha, ha ha! {{colour|#000080|-- The guards walk off chuckling to themselves. --}}
+** {{tact|end}}
+* {{tcond|If the player bet 15 coins:}}
+** '''Mercenary:''' 15 gold for cleaning up the mess. You have won 4 Gold pieces! Well done..! Ha, ha, ha ha! {{colour|#000080|-- The guards walk off chuckling to themselves. --}}
+** {{tact|end}}
+* {{tcond|If the player bet 20 coins:}}
+** '''Mercenary:''' 20 gold for cleaning up the mess. You have won 10 Gold pieces! Well done..! Ha, ha, ha ha! {{colour|#000080|-- The guards walk off chuckling to themselves. --}}
+** {{tact|end}}
+
+====Talking to a guard again====
+* '''Mercenary:''' Move along now, we've had enough of your sort!
+* {{tact|end}}
+
+====Talking to a captain again====
+* '''Mercenary Captain:''' Move along now... we've had enough of your sort!
+* {{tact|end}}
+
+===Talking to the cart camel===
+* {{trandom}}
+* {{topt|Dialogue 1}}
+** '''Player:''' I wonder if I can catch something from that camel?
+* {{topt|Dialogue 2}}
+** '''Player:''' That camel looks vicious, it'll probably eat me if I go too near!
+* {{topt|Dialogue 3}}
+** '''Player:''' Mmm... looks like that camel would make a nice kebab.
+* {{tact|end}}
+
+===Talking to an ugthanki in the desert===
+* '''Player:''' Mmm... looks like that camel would make a nice kebab.
+* {{mes|The camel turns its head and glares at you.}}
+* {{tact|end}}
+
+==Inside the camp==
+===Entering the camp===
+* {{mes|The guards search you thoroughly as you go through the gates.}}
+* {{tact|end}}
+
+===Trying to enter the camp with a weapon equipped===
+* {{tcond|With armour instead of a weapon, the first line is "Hey - you with the armour!".}}
+* {{mes|Guard: Hey - you with the weapon!}}
+* {{mes|Guard: You're not allowed in here!}}
+* {{mes|Guard: Quick, men, get [him/her/them]!!}}
+* '''Guard:''' {{overhead|Hey - you with the weapon!}}
+* '''Guard:''' {{overhead|You're not allowed in here!}}
+* '''Guard:''' {{overhead|Quick, men, get [him/her/them]!!}}
+* {{tact|(Continues with Getting jailed dialogue.)}}
+
+===Getting caught by guards when not wearing slave outfit===
+* '''Guard:''' Hey, they're interesting clothes!
+* '''Guard:''' You're no slave.
+* '''Guard:''' What are you doing in here?
+* {{mes|Guard: Hey, they're interesting clothes!}}
+* {{mes|Guard: You're no slave.}}
+* {{mes|Guard: What are you doing in here?}}
+* {{tact|(Continues with Getting jailed dialogue.)}}
+
+===Getting jailed dialogue===
+* {{mes|The guards search you!}}
+* {{tcond|If the metal key is in the inventory and the guards find it:}}
+** {{mes|The guards find the main gate key and remove it!}}
+* {{tcond|If the cell door key is in the inventory and the guards find it:}}
+** {{mes|The guards find the cell door key and remove it!}}
+* {{mes|You are roughed up by the guards and manhandled into a cell.}}
+* '''Guard:''' {{overhead|Into the cell you go! I hope this teaches you a lesson.}}
+* {{tact|end}}
+
+===Trying to open the prison door===
+* {{mes|The door seems to be pretty locked.}}
+
+===Bend cell wall window===
+* {{mes|You bend the bars back.}}
+* {{tact|end}}
+
+===Escape cell wall window===
+* {{mes|You prepare to squeeze through the bars.}}
+* {{tact|end}}
+
+===Failing to climb rock after escaping the cell===
+* {{mes|You scrape your hands and knees as you climb up.}}
+* {{tact|end}}
+
+===Talking to the Mine cart driver===
+* '''Mine cart driver:''' Don't trouble me, can't you see I'm busy?
+* {{tact|end}}
+
+===Opening the mine door entrance===
+* {{tcond|If the player is not wearing slave clothes:}}
+** '''Guard:''' Hey, they're interesting clothes!
+** {{tact|above}}
+
+===Talking to Male slave by the mine door entrance===
+* '''Male slave:''' You look like a new 'recruit'. How long have you been here?
+* {{tselect|Select an Option}}
+* {{topt|I've just arrived.}}
+** '''Player:''' I've just arrived.
+** '''Male slave:''' Yeah, it looks like it as well. It's a shame that I won't be around long enough to get to know you. I'm making a break for it today. I have a plan to get out of here! It's amazing in its sophistication.
+** {{tselect|Select an Option}}
+** {{topt|What are those big wooden doors in the corner of the compound?}}
+*** '''Player:''' What are those big wooden doors in the corner of the compound?
+*** '''Male slave:''' They lead to an underground mine, but you really don't want to go down there.
+*** '''Male slave:''' I've only seen slaves and guards go down there, I never see the slaves come back up. At least up here you have a nice view and a bit of sun. {{color|#000080|-- The slave smiles at you and goes back to his work. --}}
+*** {{tact|end}}
+** {{topt|Oh yes, that sounds interesting.}}
+*** '''Player:''' Oh yes, that sounds interesting.
+*** '''Male slave:''' Yes, it is actually. I have all the details figured out except for one.
+*** {{tselect|Select an Option}}
+*** {{topt|What's that then?}}
+**** '''Player:''' What's that then?
+**** '''Male slave:''' {{color|#000080|-- The slave rattles the chains on his arms loudly. --}} These bracelets, I can't seem to get them off. If I could get them off, I'd be able to climb my way out of here.
+**** {{tselect|Select an Option}}
+**** {{topt|I can try to undo them for you.}}
+***** '''Player:''' I can try to undo them for you.
+***** '''Male slave:''' Really, that would be great... {{color|#000080|-- The slave looks at you strangely. --}} Hang on a minute... I suppose you want something for doing this?
+***** '''Male slave:''' The last time I did a trade in this place, I nearly lost the shirt from my back!
+***** {{tselect|Select an Option}}
+***** {{topt|It's funny you should say that...}}
+****** '''Player:''' It's funny you should say that actually.
+****** '''Male slave:''' {{color|#000080|-- The slave looks at you blankly. --}}
+****** '''Male slave:''' Yeah, go on!
+****** '''Player:''' If I can get the chains off, you have to give me something, okay?
+****** '''Male slave:''' Sure, what do you want?
+****** '''Player:''' I want your clothes!
+****** '''Male slave:''' Blimey!
+****** '''Player:''' I can dress like a slave and gain access to the mine area to scout it out.
+****** '''Male slave:''' You're either incredibly brave or incredibly stupid. But what would I wear if you take my clothes? Get me some nice desert clothes and I'll think about it?
+****** {{tact|end}}
+***** {{topt|That sounds awful.}}
+****** '''Player:''' That sounds awful.
+****** '''Male slave:''' Yeah, bunch of no hopers, tried to rob me blind. But I guess that's what you get when you deal with convicts.
+****** {{tact|end}}
+**** {{topt|That's ridiculous, you're talking rubbish.}}
+***** '''Player:''' That's ridiculous, you're talking rubbish.
+***** '''Male slave:''' No, it's true, I can make a break for it If I can just get these bracelets off.
+***** {{tselect|Select an Option}}
+***** {{topt|Good luck!}}
+****** '''Player:''' Good luck!
+****** '''Male slave:''' Thanks... same to you.
+****** {{tact|end}}
+***** {{topt|I can try to undo them for you.}}
+****** {{tact|above}}
+*** {{topt|Oh, that's a shame.}}
+**** '''Player:''' Oh, that's a shame...
+**** '''Player:''' Still, 'worse things happen at sea right?'
+**** '''Male slave:''' You've obviously never worked as a slave
+**** '''Male slave:''' ...in a mining camp...
+**** '''Male slave:''' ...in the middle of the desert.
+**** '''Player:''' Well I suppose I'd better be getting on my way now...
+**** '''Male slave:''' {{color|#000080|-- The slave nods in agreement and goes back to work. --}}
+**** {{tact|end}}
+* {{topt|Oh, I've been here ages.}}
+** '''Player:''' Oh, I've been here ages.
+** '''Male slave:''' That's funny, I haven't seen you around here before. You're clothes look too clean for you to have been here ages.
+** {{tselect|Select an Option}}
+** {{topt|Okay, you caught me out.}}
+*** '''Player:''' Okay, you caught me out.
+*** '''Male slave:''' Ah ha! I knew it! A new recruit then? It's a shame that I won't be around long enough to get to know you. I'm making a break for it today.
+*** '''Male slave:''' I have a plan to get out of here! It's amazing in its sophistication.
+*** {{tselect|Select an Option}}
+*** {{topt|What are those big wooden doors in the corner of the compound?}}
+**** {{tact|above}}
+*** {{topt|Oh yes, that sounds interesting.}}
+**** {{tact|above}}
+** {{topt|The guards allow me to clean my clothes.}}
+*** '''Player:''' The guards allow me to clean my clothes.
+*** '''Male slave:''' Oh, a special relationship with the guards heh? How very nice of them. Maybe you could persuade them to let me out of here?
+*** {{tact|end}}
+
+===Talking to the Male slave after he mentions the handcuffs===
+* '''Male slave:''' Hello again, do you want to try and unlock my chains? I'd really appreciate it!
+* {{tselect|Unlock Prisoner's Chains?}}
+* {{topt|Yeah, okay, let's give it a go.}}
+** '''Player:''' Yeah, okay, let's give it a go.
+** '''Male slave:''' Great!
+** {{tcond|If the player doesn't have a lockpick on them:}}
+*** {{tbox|You use some nearby bits of wood and wire to try and pick the lock.}}
+*** {{tact|continues}}
+** {{tcond|If the player has a lockpick on them:}}
+*** {{tbox|pic=Lockpick detail.png|You use your lockpick to help you undo the locks on the chains.}}
+*** {{tact|continues}}
+** {{tcond|If the player fails:}}
+*** {{mes|You fail!}}
+*** {{tselect|Select an Option}}
+*** {{topt|Yeah, I'll give it another go.}}
+**** {{tact|above}}
+*** {{topt|I'll try something different instead.}}
+**** '''Male slave:''' Are you givin' in already?
+**** '''Player:''' I just want to try something else.
+**** '''Male slave:''' Okay, if you want to try again, let me know.
+**** {{tact|end}}
+** {{tbox|You hear a satisfying 'click' as you tumble the lock mechanism.}}
+** '''Male slave:''' Great! You did it! Do you want to trade clothes now?
+** {{tselect|Select an Option}}
+** {{topt|Yes, I'll trade.}}
+*** '''Player:''' Yes, I'll trade.
+*** {{tcond|If the player is missing the desert robe, desert shirt, and desert boots:}}
+**** '''Male slave:''' I need a desert robe, a desert shirt and desert boots if you want these clothes off me.
+**** {{tact|end}}
+*** {{tcond|If the player is missing the desert robe and desert shirt:}}
+**** '''Male slave:''' I need a desert robe and a desert shirt if you want these clothes off me.
+**** {{tact|end}}
+*** {{tcond|If the player is missing the desert robe and desert boots:}}
+**** '''Male slave:''' I need a desert robe and desert boots if you want these clothes off me.
+**** {{tact|end}}
+*** {{tcond|If the player is missing the desert shirt and desert boots:}}
+**** '''Male slave:''' I need a desert shirt and desert boots if you want these clothes off me.
+**** {{tact|end}}
+*** {{tcond|If the player is missing the desert robe:}}
+**** '''Male slave:''' I need a desert robe if you want these clothes off me.
+**** {{tact|end}}
+*** {{tcond|If the player is missing the desert boots:}}
+**** '''Male slave:''' I need desert boots if you want these clothes off me.
+**** {{tact|end}}
+*** {{tcond|If the player is missing the desert shirt:}}
+**** '''Male slave:''' I need a desert shirt if you want these clothes off me.
+**** {{tact|end}}
+*** '''Male slave:''' Great! You have the Desert Clothes! {{color|#000080|-- The slave starts undressing right in front of you --}} Okay, here's the clothes, I won't need them anymore.
+*** {{tbox|pic=Slave robe detail.png|The slave gives you his dirty, flea infested robe.}}
+*** {{tbox|pic=Slave shirt detail.png|The slave gives you his muddy, sweat soaked shirt.}}
+*** {{tbox|pic=Slave boots detail.png|The slave gives you a smelly pair of decomposing boots.}}
+*** '''Escaping slave:''' Right, I'm off! Good luck!
+*** '''Player:''' Yeah, good luck to you too!
+*** {{tact|end}}
+** {{topt|No thanks...}}
+*** '''Player:''' No thanks...
+*** '''Male slave:''' Okay, fair enough, let me know if you change your mind though.
+*** {{tact|end}}
+* {{topt|I need to do some other things first.}}
+** '''Player:''' I need to do some other things first.
+** '''Male slave:''' Okay, fair enough. Let me know when you want to give it another go.
+** {{tact|end}}
+
+===Talking to the Male slave after offering to undo the locks===
+* '''Male slave:''' Do you still want to try and undo the locks for me?
+* {{tselect|Select an Option}}
+* {{topt|Yeah, okay, let's give it a go.}}
+** {{tact|above}}
+* {{topt|I need to do some other things first.}}
+** {{tact|above}}
+
+===Talking to the male slave while wearing slave clothes===
+* '''Male slave:''' Not much to do here but mine all day long.
+* {{tact|end}}
+
+===Talking to the male slave after he offers to trade===
+* '''Male slave:''' Do you have the Desert Clothes yet?
+* {{tselect|Select an Option}}
+* {{topt|Yes, I'll trade.}}
+** {{tact|above}}
+* {{topt|No thanks...}}
+** {{tact|above}}
+
+===Talking to the male slave after losing the slave clothes===
+* '''Male slave:''' Oh bother, I was caught by the guards again... Listen, if you can get me some Desert Clothes, I'll trade you for my slaves clothes again.. Do you want to trade?
+* {{tselect|Select an Option}}
+* {{topt|Yes, I'll trade.}}
+** {{tact|above}}
+* {{topt|No thanks...}}
+** {{tact|above}}
+
+===Talking to the escaping slave===
+* {{tcond|If the player has the slave clothes:}}
+** '''Escaping slave:''' Not much to do here but mine all day long.
+** {{tact|end}}
+* {{tcond|If the player lost the slave clothes:}}
+** {{tact|(The escaping slave turns into the male slave and continues as above.)}}
+
+===Getting caught by a guard while talking to the slave===
+* {{tbox|A nearby guard spots you!}}
+* '''Male slave:''' Oh oh!
+* {{mes|Slave: Oh oh!}}
+* '''Guard:''' Oi, what are you two doing?
+* {{mes|Guard: Oi, what are you two doing?}}
+* {{tact|(Continues with Getting jailed dialogue.)}}
+
+===Searching the gates while inside the mining camp===
+* {{tbox|You see a group of mercenaries hanging around outside the compound. They're probably up to no good.}}
+* {{tact|end}}
+
+===Watch mine door entrance===
+* {{tbox|You watch the doors for some time. You notice that only slaves seem to go down there. You might be able to sneak down if you pass as a slave.}}
+* {{tact|end}}
+
+===Open mine door entrance===
+* {{mes|The doors open with some effort!}}
+* {{mes|The guards search you thoroughly as you go through the gates.}}
+* {{tbox|The huge doors open into a dark, dank and smelly tunnel. The associated smells of a hundred sweaty miners greets your nostrils. And your ears ring with the 'CLANG CLANG CLANG' as metal hits rock.}}
+* {{tact|end}}
+
+===Talking to a rowdy slave===
+* {{trandom}}
+* {{topt|Dialogue 1}}
+** '''Rowdy slave:''' {{overhead|Hey, you're in for a good beating!}}
+* {{topt|Dialogue 2}}
+** '''Rowdy slave:''' {{overhead|I'm gonna teach you some respect!}}
+* {{topt|Dialogue 3}}
+** '''Rowdy slave:''' {{overhead|Oi! Are you looking at me!}}
+* {{topt|Dialogue 4}}
+** '''Rowdy slave:''' {{overhead|Oi! I'm gonna give you some trouble!}}
+* {{topt|Dialogue 5}}
+** '''Rowdy slave:''' {{overhead|You wanna piece of me?}}
+* {{Qact|The rowdy slave attacks the player.}}
+
+==Getting a Tenti pineapple==
+===Talking to the guard by the cave opening===
+* {{mes|This guard looks as if he's been down here a while.}}
+* '''Guard:''' Yeah, what do you want?
+* {{tselect|Select an Option}}
+* {{topt|Er nothing really.}}
+** '''Player:''' Er nothing really.
+** '''Guard:''' Okay... so move along and get on with your work.
+** {{tact|end}}
+* {{topt|I'd like to mine in a different area.}}
+** '''Player:''' I'd like to mine in a different area.
+** '''Guard:''' Oh, you want to work in another area of the mine eh? {{color|#000080|--The guard seems pleased with his rhetorical question.--}} Well, I can understand that! A change is as good as a rest they say.
+** {{tselect|Select an Option}}
+** {{topt|Huh, fat chance of a rest for me.}}
+*** '''Player:''' Huh, fat chance of a rest for me.
+*** {{mes|The guard cuffs you around head.}}{{sic}}
+*** '''Guard:''' You miserable whelp! Get back to work!
+*** {{tact|end}}
+** {{topt|Yes sir, you're quite right sir.}}
+*** '''Player:''' Yes sir, you're quite right sir.
+*** '''Guard:''' Of course I'm right. And what goes around comes around as they say. And it's been absolutely ages since I've had anything different to eat.
+*** '''Guard:''' What I wouldn't give for some whole, fresh, ripe and juicy pineapple for a change. And those Tenti's have the best pineapple in this entire area.
+*** {{tbox|The guard winks at you.}}
+*** '''Guard:''' I'm sure you get my meaning...
+*** {{tselect|Select an Option}}
+*** {{topt|How am I going to get some pineapples around here?}}
+**** '''Player:''' How am I going to get some pineapples around here?
+**** '''Guard:''' Well, that's not my problem is it? Also, I know that you slaves trade your items down here. I'm sure that if you're resourceful enough, you'll come up with the goods.
+**** '''Guard:''' Now, get along and do some work, before we're both in for it. And remember, I prefer my pineapples whole, not chopped up with all the juice gone.
+**** {{tact|end}}
+*** {{topt|Yes sir, we understand each other perfectly.}}
+**** '''Player:''' Yes sir, we understand each other perfectly.
+**** '''Guard:''' Okay, good then. And remember, I prefer my pineapples whole, not chopped up with all the juice gone.
+**** {{tbox|The guard moves back to his post and winks at you knowingly.}}
+**** {{tact|end}}
+*** {{topt|What are the Tenti's?}}
+**** '''Player:''' What are the Tenti's?
+**** '''Guard:''' Well! You don't come from around here do you? The Tenti's are the nomadic people west of here. They live in tents, so we call them the Tenti's. They have great pineapples! I'm sure you get my meaning?
+**** {{tselect|Select an Option}}
+**** {{topt|How am I going to get some pineapples around here?}}
+***** {{tact|above}}
+**** {{topt|Yes sir, we understand each other perfectly.}}
+***** {{tact|above}}
+
+==The quest for Tenti's==
+===Talking to Bedabin nomad===
+* '''Bedabin Nomad:''' Hello Effendi! How can I help you?
+* {{tselect|Select an Option}}
+* {{topt|quest=No|What is this place?}}
+** '''Player:''' What is this place?
+** '''Bedabin Nomad:''' This is the camp of the Bedabin. Talk to our leader, Al Shabim, he'll be happy to chat. We can sell you very reasonably priced water...
+** {{tact|above}}
+* {{topt|Do you know where I could get a tenti pineapple?}}
+** '''Player:''' Do you know where I could get a tenti pineapple?
+** '''Bedabin Nomad:''' Oooh, you're looking for a really very special item then! You must go and talk to our very illustrious leader, Al Shabim. He's located in the largest tent in our village.
+** {{tact|end}}
+* {{topt|quest=No|Where is the Shantay Pass?}}
+** '''Player:''' Where is the Shantay Pass?
+** '''Bedabin Nomad:''' It is North East of here effendi, across the trackless desert. It will be a thirsty trip, can I interest you in a drink?
+** {{tact|above}}
+* {{topt|quest=No|What do you have to sell?}}
+* {{topt|Okay, thanks}}
+** '''Player:''' Okay, thanks
+** {{tact|end}}
+
+===Talking to Al Shabim===
+* '''Al Shabim:''' Hello Effendi!
+* '''Al Shabim:''' I am Al Shabim, greetings on behalf of the Bedabin nomads. Now... what can I do for you?
+* {{tselect|Select an Option}}
+* {{topt|I am looking for a pineapple.}}
+** '''Player:''' I am looking for a pineapple.
+** '''Al Shabim:''' Oh yes, well that is interesting. Our sweet pineapples are renowned throughout the whole of Kharid !{{sic}} And I'll give you one if you do me a favour?
+** '''Player:''' Oh yes?
+** '''Al Shabim:''' Captain Siad at the mining camp is holding some secret information. It is very important to us and we would like you to get it for us. It gives details of an interesting, yet ancient weapon.
+** '''Al Shabim:''' We would gladly share this information with you. All you have to do is gain access to his private room upstairs. We have a key for the chest that contains this information. Are you interested in our deal?
+** {{tselect|Select an Option}}
+** {{topt|Yes, I'm interested.}}
+*** '''Player:''' Yes, I'm interested.
+*** '''Al Shabim:''' That's great Effendi!
+*** {{tbox|pic=Bedabin key detail.png|Al Shabim gives you a key.}}
+*** '''Al Shabim:''' Here is a copy of the key that should give you access to the chest.
+*** '''Al Shabim:''' Bring us back the plans inside the chest, they should be sealed. All haste to you Effendi!
+*** {{tact|end}}
+** {{topt|Not at the moment.}}
+*** '''Player:''' Not at the moment.
+*** '''Al Shabim:''' Very well Effendi!
+*** {{tact|end}}
+* {{topt|quest=No|What is this place?}}
+* {{topt|quest=No|Who are you?}}
+
+===After losing the Bedabin key===
+* '''Al Shabim:''' Hello Effendi!
+* '''Al Shabim:''' How are things going Effendi?
+* {{tselect|Select an Option}}
+* {{topt|I've lost the key!}}
+** '''Player:''' I've lost the key!
+** '''Al Shabim:''' How very careless of you! Here is another key, don't lose it this time !
+** {{tbox|pic=Bedabin key.png|Al Shabim gives you another key.}}
+** {{tact|end}}
+* {{topt|quest=No|What is this place?}}
+* {{topt|Goodbye!}}
+** '''Player:''' Goodbye!
+** '''Al Shabim:''' Very well, good day Effendi!
+** {{tact|end}}
+
+===Searching the bookcase by Captain Siad===
+* {{tbox|pic=Sailing book detail.png|You notice several books on the subject of sailing.}}
+* {{tact|end}}
+
+===Talking to Captain Siad===
+* {{mes|The captain looks up from his work as you address him.}}
+* '''Captain Siad:''' What are you doing in here?
+* {{tselect|Select an Option}}
+* {{topt|I wanted to have a chat?}}
+** '''Player:''' I wanted to have a chat?
+** '''Captain Siad:''' You don't belong in here, get out!
+** {{tselect|Select an Option}}
+** {{topt|But I just need two minutes of your time?}}
+*** '''Player:''' But I just need two minutes of your time?
+*** '''Captain Siad:''' Well, okay, but very quickly. I am a very busy person you know!
+*** {{tselect|Select an Option}}
+*** {{topt|Well, er... erm, I err....}}
+**** '''Player:''' Well, er... erm, I err....
+**** '''Captain Siad:''' Come on, spit it out! Right that's it! Guards!
+**** '''Guard:''' Hey, you there!
+**** '''Guard:''' You're in some serious trouble now!
+**** {{tact|end}}
+*** {{topt|Oh my, a dragon just flew straight past your window!}}
+**** '''Player:''' Oh my, a dragon just flew straight past your window!
+**** {{tcond|If Captain Siad is successfully distracted:}}
+***** {{tbox|The captain seems distracted with what you just said. The captain looks out of the window for the dragon.}}
+***** {{tact|end}}
+**** '''Captain Siad:''' Really! Where? I don't see any dragons? Now, please get out of my office, I have work to do.
+**** {{mes|The Captain goes back to his work.}}
+**** {{tact|end}}
+** {{topt|Prepare to die!}}
+*** {{tact|below}}
+** {{topt|All the slaves have broken free!}}
+*** {{tact|below}}
+** {{topt|Fire! Fire!}}
+*** {{tact|below}}
+** {{topt|You seem to have a lot of books!}}
+*** '''Player:''' You seem to have a lot of books!
+*** '''Captain Siad:''' Yes, I do. Now please get to the point?
+*** {{tselect|Select an Option}}
+*** {{topt|How long have you been interested in books?}}
+**** '''Player:''' How long have you been interested in books?
+**** '''Captain Siad:''' Long enough to know when someone is stalling!
+**** '''Captain Siad:''' Please state your business or get out!
+**** {{tact|end}}
+*** {{topt|I could get you some books!}}
+**** '''Player:''' I could get you some books!
+**** '''Captain Siad:''' Oh, really!
+**** '''Captain Siad:''' Sorry, not interested!
+**** {{tact|end}}
+*** {{topt|cond=If the player has seen the sailing book:|So, you're interested in sailing?}}
+**** '''Player:''' So, you're interested in sailing?
+**** '''Captain Siad:''' Well, yes actually... It's been a passion of mine for some years...
+**** {{tselect|Select an Option}}
+**** {{topt|I could tell by the cut of your jib.}}
+***** '''Player:''' I could tell by the cut of your jib.
+***** '''Captain Siad:''' Oh yes? Really?
+***** {{tbox|-- The Captain looks flattered. --}}
+***** '''Captain Siad:''' Well, I was quite a catch in my day you know!
+***** {{tbox|The Captain starts rambling on about his days as a salty sea dog. He looks quite distracted...}}
+***** {{tact|end}}
+**** {{topt|Not much sailing to be done around here though?}}
+***** '''Player:''' Not much sailing to be done around here though?
+***** '''Captain Siad:''' Well of course there isn't, we're surrounded by desert. Now, why are you here exactly?
+***** {{tselect|Select an Option}}
+***** {{topt|Oh my, a dragon just flew straight past your window!}}
+****** {{tact|above}}
+***** {{topt|Well, er... erm, I err....}}
+****** {{tact|above}}
+* {{topt|What's it got to do with you?}}
+** '''Player:''' What's it got to do with you?
+** '''Captain Siad:''' This happens to be my office. Now explain yourself before I run you through!
+** {{tselect|Select an Option}}
+** {{topt|cond=If the player has talked to Al Shabim about the plans:|I'm here to take your plans, hand them over now or I'll kill you!}}
+*** '''Player:''' I'm here to take your plans, hand them over now or I'll kill you!
+*** '''Guard:''' Guards! Guards!
+*** {{tact|end}}
+** {{topt|The guard downstairs said you were lonely.}}
+*** '''Player:''' The guard downstairs said you were lonely.
+*** '''Captain Siad:''' Well, I most certainly am not lonely!
+*** '''Captain Siad:''' I'm an incredibly busy man you know! Now, get to the point, what do you want?
+*** {{tselect|Select an Option}}
+*** {{topt|Well, er... erm, I err....}}
+**** {{tact|above}}
+*** {{topt|I need to service your chest.}}
+**** {{tact|below}}
+** {{topt|I need to service your chest.}}
+*** '''Player:''' I need to service your chest.
+*** '''Captain Siad:''' You need to what?
+*** '''Player:''' I need to service your chest?
+*** '''Captain Siad:''' There's nothing wrong with the chest, it's fine, now get out!
+*** {{tselect|Select an Option}}
+*** {{topt|I'm here to take your plans, hand them over now or I'll kill you!}}
+**** {{tact|above}}
+*** {{topt|Fire! Fire!}}
+**** {{tact|below}}
+* {{topt|Prepare to die!}}
+** '''Player:''' Prepare to die!
+** '''Captain Siad:''' I'll teach you a lesson!
+** {{tact|end}}
+* {{topt|All the slaves have broken free!}}
+** '''Player:''' All the slaves have broken free!
+** {{tcond|If the captain is distracted:}}
+*** {{tbox|The captain seems distracted with what you just said. The captain looks out of the window to see if there are any prisoners escaping.}}
+*** {{tact|end}}
+** {{tcond|Otherwise:}}
+*** '''Captain Siad:''' Don't talk rubbish, the warning siren isn't sounding. Now state your business before I have you thrown out.
+*** {{tselect|Select an Option}}
+*** {{topt|I'm here to take your plans, hand them over now or I'll kill you!}}
+**** {{tact|above}}
+*** {{topt|The guard downstairs said you were lonely.}}
+**** {{tact|above}}
+*** {{topt|I need to service your chest.}}
+**** {{tact|above}}
+* {{topt|Fire! Fire!}}
+** '''Player:''' Fire! Fire!
+** {{tcond|If Captain Siad is successfully distracted:}}
+*** {{tbox|The captain seems distracted with what you just said. The captain looks out of the window to see if there is a fire.}}
+*** {{tact|end}}
+** '''Captain Siad:''' Where's the fire? I don't see any fire? Stop messing me around and state your business!
+** {{tselect|Select an Option}}
+** {{topt|It's down in the lower mines, sound the alarm!}}
+*** '''Player:''' It's down in the lower mines, sound the alarm!
+*** '''Captain Siad:''' You go and sound the alarm, I can't see anything wrong with the mine. Have you seen the fire yourself?
+*** {{tselect|Select an Option}}
+*** {{topt|Yes actually!}}
+**** '''Player:''' Yes actually!
+**** '''Captain Siad:''' Well, why didn't you raise the alarm?
+**** {{tselect|Select an Option}}
+**** {{topt|I don't know where the alarm is.}}
+***** '''Player:''' I don't know where the alarm is.
+***** '''Captain Siad:''' That's the most ridiculous thing I've heard. Who are you? Where do you come from? It doesn't matter... Guards! Show this person out!
+***** {{tact|end}}
+**** {{topt|I was so concerned for your safety that I rushed to save you.}}
+***** '''Player:''' I was so concerned for your safety that I rushed to save you.
+***** '''Captain Siad:''' Well, that's very good of you. But as you can see, I am very fine and well thanks! Now, please leave so that I can get back to my work.
+***** {{mes|The Captain goes back to his desk.}}
+***** {{tact|end}}
+*** {{topt|Er, no, one of the slaves told me.}}
+**** '''Player:''' Er, no, one of the slaves told me.
+**** '''Captain Siad:''' Well... you can't believe them, they're all a bunch of convicts. Anyway, it doesn't look as if there is a fire down there. So I'm going to get on with my work. Please remove yourself from my office.
+**** {{tact|end}}
+** {{topt|Oh yes, you're right, they must have put it out!}}
+*** '''Player:''' Oh yes, you're right, they must have put it out!
+*** '''Captain Siad:''' Good, now perhaps you can leave me in peace? After all I do have some work to do.
+*** {{tselect|Select an Option}}
+*** {{topt|Er, yes okay then.}}
+**** '''Player:''' Er, yes okay then.
+**** '''Captain Siad:''' Good! Please remove yourself from my office.
+**** {{tact|end}}
+*** {{topt|Well, er... erm, I err....}}
+**** {{tact|above}}
+
+===Searching Captain Siad's desk when he is distracted===
+* {{mes|You search the captains desk while he's not looking...}}
+* {{tcond|If the player already has all the keys:}}
+** {{mes|...but you find nothing of interest.}}
+** {{tact|end}}
+* {{tcond|If the player does not have the cell door key:}}
+** {{tbox|pic=Cell door key detail.png|You find a cell door key.}}
+* {{tcond|If the player does not have the metal key:}}
+** {{tbox|pic=Metal key detail.png|You find the key to the main gate.}}
+* {{tcond|If the player does not have the wrought iron key:}}
+** {{tbox|pic=Wrought iron key detail.png|You find the key to the main gate.}}{{sic|The wrought iron key is not for the main gate.}}{{^|all 3 keys fall to floor if full inv}}
+* {{tact|end}}
+
+===Opening chest by Captain Siad===
+* {{tcond|If Captain Siad is not distracted:}}
+** {{mes|The captain spots you before you manage to open the chest...}}
+** '''Captain Siad:''' What are you doing in here?
+** {{tact|above}}
+* {{tcond|If the player does not have the bedabin key:}}
+** {{mes|This chest needs a key to unlock it.}}
+** {{tact|end}}
+* {{tcond|If Captain Siad is distracted:}}
+** {{tbox|pic=Technical plans detail.png|While the Captain's distracted, you quickly unlock the chest with the Bedabins' copy of the key. You take out the plans.}}
+** {{tact|end}}
+
+===Talking to Al Shabim while holding the technical plans===
+* '''Al Shabim:''' Hello Effendi!
+* '''Al Shabim:''' Aha! I see you have the plans. This is great! However, these plans do indeed look very technical. My people have further need of your skills.
+* '''Al Shabim:''' If you can help us to manufacture this item, we will share its secret with you. Does this deal interest you effendi?
+* {{tselect|Select an Option}}
+* {{topt|Yes, I'm very interested.}}
+** '''Player:''' Yes, I'm very interested.
+** {{tcond|If the player is missing the bronze bar, feathers, and hammer:}}
+*** '''Al Shabim:''' Great, we need the following items: a bar of pure bronze, 10 feathers and a hammer. Bring them to me and we'll continue to make the item.
+*** {{tact|end}}
+** {{tcond|If the player is missing the bronze bar and feathers:}}
+*** '''Al Shabim:''' Great, we need the following items: a bar of pure bronze and 10 feathers. Bring them to me and we'll continue to make the item.
+*** {{tact|end}}
+** {{tcond|If the player is missing the feathers and hammer:}}
+*** '''Al Shabim:''' Great, I can see that you have a bar of bronze. Now we just need some feathers and a hammer before we can continue.
+*** {{tact|end}}
+** {{tcond|If the player is missing the bronze bar and hammer:}}
+*** '''Al Shabim:''' Great, I can see that you have some feathers. Now we just need a bar of bronze and a hammer before we can continue.
+*** {{tact|end}}
+** {{tcond|If the player is missing the feathers:}}
+*** '''Al Shabim:''' Great, I can see that you have a bar of bronze. Now we just need some feathers before we can continue.
+*** {{tact|end}}
+** {{tcond|If the player is missing the bronze bar:}}
+*** '''Al Shabim:''' Great, I can see that you have some feathers. Now we just need a bar of bronze before we can continue.
+*** {{tact|end}}
+** {{tcond|If the player is missing the hammer:}}
+*** '''Al Shabim:''' Great, I can see that you have some feathers and a bar of Bronze, but you just need a hammer now.
+*** {{tact|end}}
+** '''Al Shabim:''' Great, I can see that you have some feathers, a bar of Bronze and a hammer. Are you still willing to help make the weapon?
+** {{tselect|Select an Option}}
+** {{topt|Yes, I'm kind of curious.}}
+*** '''Player:''' Yes, I'm kind of curious.
+*** '''Al Shabim:''' Okay Effendi, you need to follow the plans. You will need some special tools for this... There is an anvil in the other tent. You have my permission to use it, but show the plans to the guard.
+*** '''Al Shabim:''' You have the plans and all the items needed. You should be able to complete the item on your own. Please bring me the item when it is finished.
+*** {{tact|end}}
+** {{topt|No, sorry.}}
+*** {{tact|below}}
+* {{topt|No, sorry.}}
+** '''Player:''' No, sorry.
+** '''Al Shabim:''' As you wish Effendi!
+** '''Al Shabim:''' Come back if you change your mind!
+** {{tact|end}}
+
+===Talking to Bedabin Nomad Guard without permission to enter tent===
+* '''Bedabin Nomad Guard:''' Sorry, but you can't use the tent without permission. Orders of Al Shabim.
+* {{tact|end}}
+
+===Walk-through Tent door without permission===
+* '''Bedabin Nomad Guard:''' Sorry, this is a private tent, no one is allowed in. Orders of Al Shabim...
+* {{tact|end}}
+
+===Walk-through Tent door after getting permission===
+* '''Player:''' Al Shabim said I could enter, here are the plans!
+* '''Bedabin Nomad Guard:''' Okay go ahead.
+* {{mes|You walk into the tent.}}
+* {{tact|end}}
+
+===Walk-through Tent door to leave the tent===
+* {{mes|You walk back out of the tent.}}
+* {{tact|end}}
+
+===Using the experimental anvil===
+* {{mes|To forge items use the metal you wish to work with the anvil.}}
+
+===Using bronze bars on the experimental anvil===
+* {{tbox|pic=Technical plans detail.png|Do you want to follow the technical plans ?{{Sic}}}}
+* {{tselect|Follow the technical plans?}}
+* {{topt|Yes. I'd like to try.}}
+** {{tbox|You begin experimenting in forging the weapon...}}
+** {{tcond|If unsuccessful:}}
+*** {{tbox|Through an unlucky accident you were not able to make the dart tip, but you think you know where you went wrong and perhaps next time you'll succeed.}}
+*** {{tact|end}}
+** {{tcond|If very unsuccessful:}}
+*** {{tbox|pic=Bronze bar detail.png|You waste the bronze bar through an unlucky accident. But you think you know where you went wrong and perhaps next time you'll be successfull.}}
+*** {{tact|end}}
+** {{tcond|If successful:}}
+*** {{tbox|pic=Prototype dart tip detail.png|You follow the plans carefully, and after some careful work, you finally manage to forge a sharp, pointed... dart tip.}}
+*** {{tbox|You study the technical plans even more... You need to attach feathers to the tip to complete the weapon.}}
+*** {{tact|end}}
+* {{topt|No, not just yet.}}
+** {{tbox|You decide not to follow the technical plans.}}
+** {{tact|end}}
+
+===Using feathers on prototype dart tip===
+* {{tbox|pic=Feather detail.png|You try to attach feathers to the bronze dart tip.}}
+* {{tbox|Following the plans is tricky, but you persevere.}}
+* {{tbox|pic=Prototype dart detail.png|You successfully attach the feathers to the dart tip.}}
+* {{tact|end}}
+
+===Trying to make another prototype dart while already having one===
+* {{tbox|pic=Prototype dart detail.png|You have already made the prototype dart. You don't need to make another one.}}
+* {{tact|end}}
+
+===Talking to Al Shabim while holding the prototype dart===
+* '''Al Shabim:''' Hello Effendi!
+* {{tbox|pic=Prototype dart detail.png|You show Al Shabim the prototype dart.}}
+* '''Al Shabim:''' This is truly fantastic Effendi!
+* '''Al Shabim:''' We will take the technical plans for the weapon as well.
+* {{tbox|pic=Technical plans detail.png|You hand over the technical plans for the weapon.}}
+* '''Al Shabim:''' We are forever grateful for this gift. My advisors have discovered some secrets which we will share with you.
+* {{tbox|Al Shabim's advisors show you some advanced techniques for making the new weapon.}}
+* '''Al Shabim:''' Please accept this selection of six bronze throwing darts as a token of our appreciation.
+* {{tbox|pic=Bronze dart detail.png|You receive six bronze throwing darts from Al Shabim.}}
+* '''Al Shabim:''' I'll take that key off your hands as well effendi! Many thanks!
+* {{tbox|pic=Bronze dart detail.png|*** Dart Construction *** Congratulations! You can now construct darts.}}
+* '''Al Shabim:''' Oh, and here is your pineapple!
+* {{tbox|pic=Tenti pineapple detail.png|You receive a tasty looking pineapple from Al Shabim.}}
+* {{tact|end}}
+
+===Talking to Al Shabim after losing the pineapple===
+* '''Al Shabim:''' Hello Effendi!
+* '''Al Shabim:''' Many thanks with your help previously Effendi!
+* {{tselect|Select an Option}}
+* {{topt|I am looking for a pineapple.}}
+** '''Player:''' I am looking for a pineapple.
+** '''Al Shabim:''' Here is another pineapple, try not to lose this one. {{^|Drops to ground with full inventory}}
+** {{tact|end}}
+* {{topt|quest=No|What is this place?}}
+
+===Talking to Al Shabim with the pineapple in bank or inventory===
+* '''Al Shabim:''' Hello Effendi!
+* '''Al Shabim:''' Many thanks with your help previously Effendi!
+* {{tselect|Select an Option}}
+* {{topt|quest=No|What is this place?}}
+* {{topt|quest=No|Goodbye!}}
+
+===Using a regular pineapple on the guard in the cave===
+* '''Guard:''' Oh great!
+* {{tbox|pic=Pineapple detail.png|The guard rolls his eyes in glee and takes a bite of the pineapple. His face turns from pleasure to pain as he spits the mouthful of pineapple out.}}
+* '''Guard:''' Yeuch! That's awful! That's not Tenti pineapple! It's got no juice! Get me some Tenti pineapple if you know what's good for you. A whole one so I can see that it's good!
+* {{tact|end}}
+
+===Using a pineapple ring on the guard in the cave===
+* '''Guard:''' Oh great!
+* {{tbox|pic=Pineapple ring detail.png|The guard rolls his eyes in glee and takes a bite of the pineapple. His face turns from pleasure to pain as he spits the mouthful of pineapple out.}}
+* '''Guard:''' Yeuch! That's awful! That's not Tenti pineapple! It's got no juice! Get me some Tenti pineapple if you know what's good for you. A whole one so I can see that it's good!
+* {{tact|end}}
+
+===Using pineapple chunks on the guard in the cave===
+* '''Guard:''' Oh great!
+* {{tbox|pic=Pineapple chunks detail.png|The guard rolls his eyes in glee and takes a bite of the pineapple. His face turns from pleasure to pain as he spits the mouthful of pineapple out.}}
+* '''Guard:''' Yeuch! That's awful! That's not Tenti pineapple! It's got no juice! Get me some Tenti pineapple if you know what's good for you. A whole one so I can see that it's good!
+* {{tact|end}}
+
+===Using the tenti pineapple on the guard in the cave===
+* '''Player:''' Hey... I have something for you!
+* {{tbox|pic=Tenti pineapple detail.png|You show the Tenti pineapple to the guard.}}
+* '''Guard:''' Great! Just what I've been looking for! Mmmmmmm... Delicious!! This is soo nice! Mmmmm, *SLURP* Yummmm... Oh yes, this is great.
+* '''Player:''' So, can I go through now please?
+* '''Guard:''' Yes, yes, of course... a deal's a deal!
+* {{tact|end}}
+
+===Talking to the guard in the cave after giving him the tenti pineapple===
+* '''Guard:''' That pineapple was just delicious, many thanks. I don't suppose you could get me another? {{color|#000080|-- The guard looks at you pleadingly.}}
+* '''Player:''' You must be joking! The last one I gave you cost me double shifts working copper ore! You should be grateful you got one at all.
+* '''Guard:''' Alright, alright, I was only asking!
+* {{tact|end}}
+
+===Using a second tenti pineapple on the guard in the cave===
+* '''Guard:''' Yeah, whaddya want... get out of here!
+* {{tact|end}}
+
+==The deeper mine==
+===Walk through Mine cave===
+* {{mes|The guards search you thoroughly as you go through the gates.}}{{sic|There is no gate.}}
+* {{tcond|Going in, to the deeper mine:}}
+** {{mes|You walk into the dark of the cavern...}}
+** {{mes|And emerge in a different part of this huge underground complex.}}
+* {{tcond|Coming back out:}}
+** {{mes|You walk into the darkness of the cavern...}}
+** {{mes|... and emerge in a different part of this huge underground complex.}}
+* {{tact|end}}
+
+===Look in full barrel===
+* {{tbox|You search the full barrel... It's full of rocks.}}
+* {{tact|end}}
+
+===Search full barrel===
+* {{tbox|This looks like a full mining barrel. Slaves use this to load up the rocks and stones that they're mining. This barrel is full of coal.}}
+* {{tact|end}}
+
+===Look in empty barrel===
+* {{tbox|This looks like an empty mining barrel. Slaves use this to load up the rocks and stones that they're mining.}}
+* {{tact|end}}
+
+===Search empty barrel===
+* {{tcond|If the player is holding Ana in a barrel:}}
+** {{mes|You cannot carry another barrel while you're carrying Ana.}}
+** {{tact|end}}
+* {{tcond|If the player already has a barrel:}}
+** {{mes|You can only manage one of these at a time.}}
+** {{tact|end}}
+* {{tbox|pic=Barrel (The Tourist Trap) detail.png|This barrel is quite big, but you may be able to carry one. Would you like to take one?}}
+* {{tselect|Take an empty barrel?}}
+* {{topt|Yeah, cool!}}
+** {{tbox|pic=Barrel (The Tourist Trap) detail.png|You take the barrel, it's not that heavy, just awkward.}}{{^|Falls to floor with full inventory}}
+** {{tact|end}}
+* {{topt|No thanks.}}
+** {{tact|end}}
+
+===Talking to the guard by the winch (dialogue 1)===
+* '''Guard:''' Move along now...
+* {{mes|This guard looks as if he's been in the sun for a while.}}
+* {{tact|end}}
+
+===Talking to the guard by the winch (dialogue 2)===
+* '''Guard:''' Yes, what do you want?
+* {{tselect|Select an Option}}
+* {{topt|Nothing thanks - sorry for disturbing you.}}
+** '''Player:''' Nothing thanks - sorry for disturbing you.
+** '''Guard:''' Well... I guess that's okay, get on your way though.
+** {{tact|end}}
+* {{topt|Your head on a stick.}}
+** '''Player:''' Your head on a stick.
+** '''Guard:''' Why you ungrateful whelp.. I'll teach you some manners.
+** {{tact|(Continues with getting jailed dialogue.)}}
+
+===Look at winch bucket===
+* {{tbox|This looks like a lift of some sort. You see barrels of rocks being placed on the lift and they're hauled up to the surface.}}
+* {{tact|end}}
+
+===Using the winch bucket===
+* '''Guard:''' Hey there, what do you want?
+* {{tselect|Select an Option}}
+* {{topt|What is this thing?}}
+** '''Player:''' What is this thing?
+** '''Guard:''' It is quite clearly a lift. Any fool can see that it's used to transport rock to the surface.
+** {{tselect|Select an Option}}
+** {{topt|Can I use this?}}
+*** {{tact|below}}
+** {{topt|Ok, thanks.}}
+*** '''Player:''' Ok, thanks.
+*** {{tact|end}}
+* {{topt|Can I use this?}}
+** '''Player:''' Can I use this?
+** '''Guard:''' Of course not, you'd be doing me out of a job. Anyway, you haven't got any barrels that need to go to the surface.
+** '''Guard:''' Now, move along and get some work done before you get a good beating.
+** {{tselect|Select an Option}}
+** {{topt|What is this thing?}}
+*** {{tact|above}}
+** {{topt|Ok, thanks.}}
+*** {{tact|above}}
+
+===Attacking the guard by the winch===
+* {{tbox|This mercenary looks very fierce. Are you sure you want to attack him?}}
+* {{tselect|Select an Option}}
+* {{topt|Yes, I can take him on!}}
+** '''Guard:''' {{overhead|Oh, want a fight do you!}}
+** {{tact|(Continues with getting jailed dialogue.)}}
+* {{topt|Er, no thanks, I've had second thoughts about it.}}
+** {{tbox|You decide not to fight the Mercenary.}}
+** {{tact|end}}
+
+===Look at mine cart===
+* {{tbox|This cart is being unloaded into this section of the mine. Before being sent back to another section for another load.}}
+* {{tact|end}}
+
+===Searching the mine cart===
+* {{tbox|You search the mine cart...}}
+* {{tbox|There may be just enough space to squeeze yourself into the cart. Would you like to try?}}
+* {{tselect|Squeeze into the cart?}}
+* {{topt|Yes, of course.}}
+** {{tcond|If the player is holding Ana in a barrel:}}
+*** '''Ana (in a Barrel):''' There isn't enough space for both you and this barrel in the cart.
+*** {{tact|end}}
+** {{tcond|If the player fails:}}
+*** {{mes|You fail to fit yourself into the cart in time before it starts its journey.}}
+*** {{tcond|If the player bangs their head:}}
+**** {{mes|You bang your head on the cart as you try to jump in.}}
+**** {{tact|end}}
+*** {{tcond|If the player falls off:}}
+**** {{mes|You jump onto the edge of the cart, but fall off.}}
+**** {{tact|end}}
+** {{tbox|You appear in a large open room with what looks like lots of miners working away. This is a very rough looking area, the miners look like they're on their last legs.}}
+** {{tact|end}}
+* {{topt|No thanks, it looks pretty dangerous.}}
+** {{mes|You decide not to get into the dangerous looking mine cart.}}
+** {{tact|end}}
+
+===Look at mine cart in the eastern room===
+* {{tbox|This mine cart is being loaded up with new rocks and stone. It gets sent to a different section of the mine for unloading.}}
+* {{tact|end}}
+
+===Searching mine cart in the eastern room===
+* {{tbox|You search the mine cart...}}
+* {{tbox|There may be just enough space to squeeze yourself into the cart. Would you like to try?}}
+* {{tselect|Squeeze into the cart?}}
+* {{topt|Yes, of course.}}
+** {{tcond|If the player is holding Ana in a barrel:}}
+*** '''Ana (in a Barrel):''' There isn't enough space for both you and this barrel in the cart.
+*** {{tact|end}}
+** {{tcond|If the player fails:}}
+*** {{mes|You fail to fit yourself into the cart in time before it starts its journey.}}
+*** {{tcond|If the player bangs their head:}}
+**** {{mes|You bang your head on the cart as you try to jump in.}}
+**** {{tact|end}}
+*** {{tcond|If the player falls off:}}
+**** {{mes|You jump onto the edge of the cart, but fall off.}}
+**** {{tact|end}}
+** {{tbox|You appear back in the barrel loading room. A nearby slave looks surprised to see you popping out of the cart.}}
+** {{tact|end}}
+* {{topt|No thanks, it looks pretty dangerous.}}
+** {{tact|end}}
+
+===Search gate to the prison mine===
+* {{mes|You search the gates... yep, they're locked.}}
+* {{mes|A nearby guard looks you over. He doesn't seem too impressed.}}
+* {{tbox|It looks as if this is where very difficult prisoners are sent as a punishment.}}
+* {{tact|end}}
+
+===Talking to the guard outside the prison mine===
+* '''Guard:''' Yeah, what do you want?
+* {{tselect|Select an Option}}
+* {{topt|What are you guarding?}}
+** '''Player:''' What are you guarding?
+** '''Guard:''' I'm guarding troublesome prisoners. They think they can get away with attacking the guards. Well, we taught them a thing or two.
+** {{tact|end}}
+* {{topt|Oh, nothing sorry for disturbing you.}}
+** '''Player:''' Oh, nothing sorry for disturbing you.
+** '''Guard:''' I should think so too, now get back to work.
+** {{tact|end}}
+
+===Open gate to enter the prison mine===
+* {{mes|This gate seems to be locked.}}
+* {{mes|The nearby guard doesn't want to let you in.}}
+* '''Guard:''' Hey, move away from the gate. There's nothing interesting for you here.
+* {{tact|end}}
+
+===Open gate to leave the prison mine===
+* {{tcond|If the player does not have enough rocks:}}
+** {{mes|This gate seems to be locked.}}
+** '''Guard:''' Hey, move away from the gate. If you wanna get out you're gonna have to mine for it. You're gonna have to bring me 15 loads of rocks in one go!
+** '''Guard:''' And then I'll let you out. You can go back to work with the other slaves then!
+** {{tact|end}}
+* {{tcond|If the player has enough rocks:}}
+** '''Player:''' Okay, I have all your rocks here, let me out now. {{color|#0000ff|-- The guard unlocks the gate. --}}
+** '''Guard:''' Okay, okay, come on out.
+** '''Guard:''' Okay, you've got all the rocks, you can go now, but keep your nose clean in future.
+** {{tact|end}}
+
+===Talking to Ana===
+* '''Player:''' Hello!
+* '''Ana:''' Hello there, I don't think I've seen you before.
+* {{tselect|Select an Option}}
+* {{topt|No, I'm new here!}}
+** '''Player:''' No, I'm new here!
+** '''Ana:''' I thought so you know! How do you like the hospitality down here? Not exactly Al Kharid town style is it? Well, I guess I'd better get back to work.
+** '''Ana:''' Don't want to get into trouble with the guards again.
+** {{tselect|Select an Option}}
+** {{topt|Do you get into trouble with guards often?}}
+*** '''Player:''' Do you get into trouble with guards often?
+*** '''Ana:''' No, not really, because I'm usually working very hard. Come to think of it, I'd better get back to work.
+*** {{tselect|Select an Option}}
+*** {{topt|Do you enjoy it down here?}}
+**** '''Player:''' Do you enjoy it down here?
+**** '''Ana:''' Of course not! I just don't have much choice about it a{{sic}} the moment.
+**** {{tselect|Select an Option}}
+**** {{topt|I want to try and get you out of here.}}
+***** {{tact|below}}
+**** {{topt|Do you have any ideas about how we can get out of here?}}
+***** '''Player:''' Do you have any ideas about how we can get out of here?
+***** '''Ana:''' Hmmm, not really, I would have tried them already if I did. The guards seem to live in the compound. How did you get in there anyway?
+***** {{tselect|Select an Option}}
+***** {{topt|I managed to sneak past the guards.}}
+****** {{tact|below}}
+***** {{topt|Huh, these guards are rubbish, it was easy to sneak past them!}}
+****** {{tact|below}}
+*** {{topt|Okay, see ya!}}
+**** '''Player:''' Okay, see ya!
+**** '''Ana:''' Goodbye and good luck!
+**** {{tact|end}}
+** {{topt|I want to try and get you out of here.}}
+*** '''Player:''' I want to try and get you out of here!
+*** '''Ana:''' Wow! You're brave. How do you propose we do that? In case you hadn't noticed, this place is quite well guarded.
+*** {{tselect|Select an Option}}
+*** {{topt|We could try to sneak out.}}
+**** '''Player:''' We could try to sneak out.
+**** '''Ana:''' That doesn't sound very likely. How did you get in here anyway? Did you deliberately hand yourself over to the guards? Ha, ha ha ha! Sorry, just kidding.
+**** {{tselect|Select an Option}}
+**** {{topt|I managed to sneak past the guards.}}
+***** '''Player:''' I managed to sneak past the guards.
+***** '''Ana:''' Hmm, impressive, but can you so easily sneak out again? How did you manage to get through the gate?
+***** {{tselect|Select an Option}}
+***** {{topt|I have a key.}}
+****** '''Player:''' I have a key.
+****** '''Guard:''' I heard that! So you used a key did you?!
+****** {{tcond|If the player is holding the key:}}
+******* '''Guard:''' Right, we'll have that key off you!
+****** '''Guard:''' Guards! Guards!
+***** {{topt|It's a trade secret!}}
+****** '''Player:''' It's a trade secret!
+****** '''Ana:''' Oh, right, well, I guess you know what you're doing. Anyway, I have to get back to work. The guards will come along soon and give us some trouble else.
+****** {{tact|end}}
+**** {{topt|Huh, these guards are rubbish, it was easy to sneak past them!}}
+***** '''Player:''' Huh, these guards are rubbish, it was easy to sneak past them!
+***** '''Guard:''' I heard that! So you managed to sneak in did you!
+***** '''Guard:''' Guards! Guards!
+***** {{tact|end}}
+*** {{topt|Have you got any suggestions?}}
+**** '''Player:''' Have you got any suggestions?
+**** '''Ana:''' Hmmm, let me think...
+**** '''Ana:''' Hmmm.
+**** '''Ana:''' No, sorry...
+**** '''Ana:''' The only thing that gets out of here is the rock that we mine.
+**** '''Ana:''' Not even the dead get a decent funeral. Bodies are just thrown down disused mine holes. It's very disrespectful...
+**** {{tselect|Select an Option}}
+**** {{topt|Okay, I'll check around for another way to try and get out.}}
+***** '''Player:''' Okay, I'll check around for another way to try and get out.
+***** '''Ana:''' Good luck!
+***** {{tact|end}}
+**** {{topt|How does the rock get out?}}
+***** '''Player:''' How does the rock get out?
+***** '''Ana:''' Well, we mine it in this section, then someone scoops it into a barrel. The barrels are loaded onto a mine cart. Then they're deposited near the surface lift.
+***** '''Ana:''' I have no idea where they go from there. But that's not going to help us, is it?
+***** {{tselect|Select an Option}}
+***** {{topt|Maybe? I'll come back to you when I have a plan.}}
+****** '''Player:''' Maybe? I'll come back to you when I have a plan.
+****** '''Ana:''' Okay, well, I'm not going anywhere! {{color|#000080|-- Ana nods at a nearby guard!--}} Unless he feels generous enough to let me go! {{color|#000080|-- The guard ignores the comment. --}}
+****** '''Ana:''' Oh well, I'd better get back to work, you take care!
+****** {{tact|end}}
+***** {{topt|Where would I get one of those barrels from?}}
+****** '''Player:''' Where would I get one of those barrels from?
+****** '''Ana:''' Well, you would get one from around by the lift area. But why would you want one of those?
+****** {{tselect|Select an Option}}
+****** {{topt|Er no reason! Just wondering.}}
+******* '''Player:''' Er no reason! Just wondering.
+******* '''Ana:''' Hmmm, just don't get any funny ideas... I am not going to get into one of those barrels! Okay, have you got that?
+******* {{tselect|Select an Option}}
+******* {{topt|Okay, yep, I've got that.}}
+******** '''Player:''' Okay, yep, I've got that.
+******** '''Ana:''' Good, just make sure you keep it in mind. Anyway, I have to get back to work. The guards will come along soon and give us some trouble else.
+******** {{tact|end}}
+******* {{topt|Well, we'll see, it might be the only way.}}
+******** '''Player:''' Well, we'll see, it might be the only way.
+******** '''Ana:''' No, there has to be a better way! Anyway, I have to get back to work. The guards will come along soon and give us some trouble else.
+******** {{tact|end}}
+****** {{topt|I could try to sneak you out if you were in a barrel!}}
+******* '''Player:''' I could try to sneak you out if you were in a barrel!
+******* '''Ana:''' There is no way you are getting me into a barrel. No WAY! DO you understand?
+******* {{tselect|Select an Option}}
+******* {{topt|Okay, yep, I've got that.}}
+******** {{tact|above}}
+******* {{topt|Well, we'll see, it might be the only way.}}
+******** {{tact|above}}
+* {{topt|What's your name.}}
+** '''Player:''' What's your name.
+** '''Ana:''' My name? Oh, how sweet, my name is Ana. I come from Al Kharid though we've only recently moved there. I was born, and did most of my growing up, in Varrock. I thought the desert might be interesting.
+** '''Ana:''' What a surprise I got!
+** {{tselect|Select an Option}}
+** {{topt|What kind of surprise did you get?}}
+*** '''Player:''' What kind of surprise did you get?
+*** '''Ana:''' Well, I was just touring the desert looking for the nomad tribe to the West. And I was set upon by these armoured men.
+*** '''Ana:''' I think that the guards think I am an escaped prisoner. They didn't understand that I was exploring the desert as an adventurer.
+*** {{tact|end}}
+** {{topt|Do you want to go back to Al Kharid?}}
+*** '''Player:''' Do you want to go back to Al Kharid?
+*** '''Ana:''' Sure, I miss my Mum, her name is Irena and she is probably waiting for me. How do you propose we get out of here though?
+*** '''Ana:''' I'm sure you've noticed the many square jawed guards around here. You look like you can handle yourself, but I have my doubts that you can take them all on!
+*** {{tact|end}}
+
+====Talking to Ana again====
+* '''Player:''' Hello again!
+* '''Ana:''' Hello there, how's it going? Do you have a plan to get out of here yet?
+* {{tselect|Select an Option}}
+* {{topt|Not yet, sorry, what's your name again?}}
+** '''Player:''' Not yet, sorry, what's your name again?
+** '''Ana:''' My name? Oh, how sweet, my name is Ana. I come from Al Kharid though we've only recently moved there. I was born, and did most of my growing up, in Varrock. I thought the desert might be interesting.
+** {{tact|above}}
+* {{topt|Well, I'm working on it, have you got any suggestions?}}
+** '''Player:''' Well, I'm working on it, have you got any suggestions?
+** '''Ana:''' Hmmm, let me think...
+** {{tact|above}}
+* {{topt|Not yet, have you been in any more trouble with the guards?}}
+** '''Player:''' Not yet, have you been in any more trouble with the guards?
+** '''Ana:''' No, not not so far. I've been working very hard. Not like some people I know {{color|#000080|-- She cocks a smirk at you. --}}
+** {{tselect|Select an Option}}
+** {{topt|Do you enjoy it down here?}}
+*** {{tact|above}}
+** {{topt|Okay, see ya!}}
+*** {{tact|above}}
+
+===Using the barrel on Ana===
+* '''Ana:''' Hey, what do you think you're doing?
+* '''Ana (in a Barrel):''' {{color|#0000ff|-- You manage to squeeze Ana into the barrel, -- -- despite her many complaints. --}} I djont fit in dis bawwel... Wet me out!!
+* '''Player:''' {{overhead|Shush... It's for your own good!}}
+* {{tact|end}}
+
+===Dropping Ana in a barrel===
+* '''Ana (in a Barrel):''' You drop the barrel on the floor, Ana gets out.
+* {{tbox|Ana's outburst attracts the guards, they come running over.}}
+* {{mes|Ana's outburst attracts the guards, they come running over.}}
+* '''Guard:''' Hey! What's going on here then?
+* {{mes|Guard: Hey! What's going on here then?}}
+* {{tbox|The guards drag Ana away and then throw you into a cell.}}
+* {{mes|The guards drag Ana away and then throw you into a cell.}}
+* {{tact|(Continues with Getting jailed dialogue.)}}
+
+===Using the barrel on Ana a second time===
+* '''Ana:''' Hey, what do you think you're doing? Leave me alone and let me get on with my work. Else we'll both be in trouble. Oh no, NOT AGAIN!
+* '''Ana (in a Barrel):''' {{color|#0000ff|-- You manage to squeeze Ana into the barrel, -- -- despite her many complaints. --}} I djont fit in dis bawwel... Wet me out!!
+* '''Player:''' {{overhead|Shush... It's for your own good!}}
+* {{tact|end}}
+
+===Look-at Ana in a barrel===
+* '''Ana (in a Barrel):''' {{color|#000080|-- Ana looks pretty angry, she starts shouting at you. --}} Get me out of here! Do you hear me! Get me OUT OF HERE I say!
+* {{tact|end}}
+
+===Using Ana in a barrel on the mine cart===
+* {{tbox|You carefully place Ana in the barrel into the mine cart. Soon the cart moves out of sight and then it returns.}}
+* {{tact|end}}
+
+===Searching empty barrels by the winch after sending Ana===
+* {{mes|You can see plenty of barrels, but not the one with Ana in it.}}
+* {{tact|end}}
+
+===Searching the full barrel by the mining cart after sending Ana===
+* {{tbox|You search the barrels and find Ana.}}
+* '''Ana (in a Barrel):''' Let me out!
+* {{tcond|If the player has no inventory space:}}
+** {{tbox|You're carrying so many items that you cannot manage Ana as well.}}
+** {{tact|end}}
+* {{mes|You pick up Ana in a Barrel.}}
+* {{tact|end}}
+
+===Using Ana in a barrel on the mine cart again===
+* {{tbox|You dare not put the barrel back in the mine cart. The guards might see you.}}
+* {{tact|end}}
+
+===Using Ana in a barrel on the winch===
+* {{tbox|The guard notices the barrel (with Ana in it) that you're carrying.}}
+* '''Guard:''' Hey, that Barrel looks heavy, do you need a hand?
+* {{tselect|Select an Option}}
+* {{topt|Yes please.}}
+** '''Player:''' Yes please.
+** {{tbox|The guard comes over and helps you. He takes one end of the barrel.}}
+** '''Guard:''' Blimey! This is heavy!
+** '''Ana (in a Barrel):''' Why you cheeky....!
+** '''Guard:''' {{color|#0000ff|~ The guard looks around, surprised at Ana's outburst. ~}} What was that?
+** '''Player:''' Oh, it was nothing.
+** '''Guard:''' I could have sworn I heard something!
+** '''Ana (in a Barrel):''' Yes you did you ignoramus.
+** '''Guard:''' What was that you said?
+** {{tselect|Select an Option}}
+** {{topt|I said you were very gregarious!}}
+*** '''Player:''' I said you were very gregarious!
+*** '''Ana (in a Barrel):''' You creep!
+*** '''Guard:''' Oh, right, how very nice of you to say so.  {{color|#000080|-- The guard seems flattered. --}}
+*** '''Guard:''' Anyway, let's get this barrel up to the surface, plenty more work for you to do!
+*** {{tbox|The guard places the barrel carefully on the lift platform.}}
+*** '''Guard:''' Oh, there's no one operating the lift up top, hope this barrel isn't urgent? You'd better get back to work!
+*** {{tact|end}}
+** {{topt|Oh, nothing.}}
+*** '''Player:''' Oh, nothing.
+*** '''Guard:''' I heard you say something, now spit it out!
+*** {{tact|end}}
+* {{topt|No thanks, I can manage.}}
+** '''Player:''' No thanks, I can manage.
+** '''Guard:''' Ok, fair enough, I was only offering.
+** {{tact|end}}
+
+===Using the winch after using Ana on it===
+* '''Guard:''' Hey, you'd better go and operate that lift yourself if you want that big heavy barrel to go anywhere.
+* {{tact|end}}
+
+===Searching empty barrel by the mine cart===
+* {{mes|Ana is in a barrel on the lift underground, she's not here!}}
+* {{tact|end}}
+
+===Trying to leave out the main entrance while holding Ana in a barrel===
+* '''Guard:''' Hey, where d'ya think you're going with that Barrel?
+* {{tbox|A guard comes over and takes the barrel off you.}}
+* '''Guard:''' Cor! This barrel is really heavy! Have you been mining lead?
+* '''Guard:''' Har, har har!
+* '''Ana-in-barrel:''' How rude! Why I ought to teach you a lesson.
+* '''Guard:''' What was that!
+* {{tbox|pic=Ana in a barrel detail.png|The guard kicks the barrel open!}}
+* '''Ana:''' {{overhead|How dare you say that I'm as heavy as lead?}}
+* {{tbox|The guards drag Ana away and then throw you into a cell.}}
+* {{mes|The guards drag Ana away and then throw you into a cell.}}
+* {{tact|(Continues with Getting jailed dialogue.)}}
+
+==Returning to the surface==
+===Look at winch===
+* {{tbox|This looks like a winch, it probably brings rocks up from underground.}}
+* {{tact|end}}
+
+===Operate winch with Ana in it===
+* {{mes|You try to operate the winch.}}
+* {{tbox|You see a barrel coming to the surface. Before too long you haul it onto the side. The barrel seems quite heavy and you hear a muffled sound coming from inside.}}
+* '''Ana (in-a-barrel),:''' Get me OUT OF HERE!{{sic|extra comma in name}}
+* {{tact|end}}
+
+===Operate winch after retrieving Ana===
+* {{mes|You try to operate the winch.}}
+* {{tbox|You operate the winch but nothing significant seems to happen. You're not really sure what it should do.}}
+* {{tact|end}}
+
+===Look-in barrel containing Ana===
+* {{tbox|This looks like an interesting mining barrel.}}
+* {{tact|end}}
+
+===Search barrel containing Ana===
+* {{tbox|You search the barrel and find Ana.}}
+* '''Ana (in a Barrel):''' Let me out of here, I feel sick!
+* {{tcond|If the player has no inventory space:}}
+** {{tbox|You're carrying so many items that you cannot manage Ana as well.}}
+** {{tact|end}}
+* {{mes|You pick up Ana in a Barrel.}}
+* {{tact|end}}
+
+===Trying to exit the gates while holding Ana in a barrel===
+* '''Guard:''' Hey! Where d'ya think you're going with that barrel?
+* '''Guard:''' You should know that they go out on the cart!
+* '''Guard:''' I'd better check this out.
+* {{tbox|The guards prise the lid off the barrel...}}
+* '''Guard:''' Blimey - it's a jail break!  Guards! Guards! Apprehend them!
+* '''Guard:''' They're making a break for it!
+* '''Ana:''' I could have told you that we wouldn't get away with it! Now look at the mess you've caused.
+* {{tbox|The guards grab Ana and drag her away.}}
+* '''Ana:''' Hey, watch it with the hands buster.
+* '''Ana:''' These are the up market slaves clothes doncha know!
+* {{tact|end}}
+
+===Trying to teleport while holding Ana in a barrel===
+* '''Ana (in a Barrel):''' {{color|#000080|-- You can't teleport while holding the barrel, it's just too difficult to concentrate. --}}
+* {{tact|end}}
+
+===Trying to escape through the cell window while holding Ana in a barrel===
+* {{tbox|You'll never get Ana (in a barrel) through the window. The barrel is just too big.}}
+* '''Ana (in a Barrel):''' Don't even think for one minute... you're gonna get me through that window!
+* {{tact|end}}
+
+===Look at wooden cart===
+* {{tbox|A sturdy looking cart for carrying barrels of rocks out of the mining camp.}}
+* {{tbox|The cart driver seems to be busy inspecting the cart for defects.}}
+* {{tact|end}}
+
+===Search wooden cart while holding Ana in a barrel===
+* {{tbox|There should be enough space for Ana (in the barrel) to go on here.}}
+* {{tact|end}}
+
+===Use Ana in a barrel on the wooden cart===
+* {{tbox|You place Ana (In the barrel) carefully on the cart. This was the last barrel to go on the cart, but the cart driver doesn't seem to be in any rush to get going. And the desert heat will soon get to Ana.}}
+* {{tact|end}}
+
+===Search wooden cart after putting Ana on the cart===
+* {{tbox|You can see the barrel with Ana in it on the cart already.}}
+* {{tact|end}}
+
+===Talking to Mine cart driver===
+* {{tbox|The cart driver seems to be festidiously cleaning his cart. It doesn't look as if he wants to be disturbed.}}
+* {{tselect|Select an Option}}
+* {{topt|Hello!}}
+** '''Player:''' Hello!
+** '''Mine cart driver:''' Can't you see I'm busy? Now get out of here!
+** {{tselect|Select an Option}}
+** {{topt|Oh, okay, sorry.}}
+*** '''Player:''' Oh, okay, sorry.
+*** '''Mine cart driver:''' Look just leave me alone!
+*** {{mes|The cart driver goes back to his work.}}
+*** {{tact|end}}
+** {{topt|Nice cart.}}
+*** {{tact|below}}
+** {{topt|Pssst...}}
+*** {{tact|below}}
+* {{topt|Nice cart.}}
+** '''Player:''' Nice cart.
+** {{tbox|The cart driver looks around at you and tries to weigh you up.}}
+** '''Mine cart driver:''' Hmmm.
+** {{tbox|He tuts to himself and starts checking the wheels.}}
+** '''Mine cart driver:''' {{overhead|Tut !}}
+** {{mes|The cart driver chuckles to himself.}}
+** {{tselect|Select an Option}}
+** {{topt|I wonder if you could help me?}}
+*** '''Player:''' I wonder if you could help me?
+*** '''Mine cart driver:''' Sorry friend, I'm busy, go bug the guards, I'm sure they'll give ya the time of day.
+*** '''Mine cart driver:''' {{overhead|He, he, he, ha!}}
+*** {{tselect|Select an Option}}
+*** {{topt|Can I help you at all?}}
+**** {{tact|below}}
+*** {{topt|Can you get me the heck out of here please?}}
+**** '''Player:''' Can you get me the heck out of here please?
+**** '''Mine cart driver:''' No way, and if you bug me again, I'm gonna call the guards.
+**** {{tact|end}}
+** {{topt|One wagon wheel says to the other, 'I'll see you around'.}}
+*** '''Player:''' One wagon wheel says to the other, 'I'll see you around'.
+*** '''Mine cart driver:''' {{color|#000080|-- The cart driver smirks a little. --}}
+*** {{tbox|He starts checking the steering on the cart.}}
+*** {{tselect|Select an Option}}
+*** {{topt|'One good turn deserves another'}}
+**** '''Player:''' 'One good turn deserves another.'
+**** {{tbox|The cart driver smiles a bit and then turns to you.}}
+**** '''Mine cart driver:''' Are you trying to get me fired?
+**** {{tselect|Select an Option}}
+**** {{topt|No}}
+***** '''Player:''' No
+***** '''Mine cart driver:''' It certainly sounds like it, now leave me alone. If you bug me again, I'm gonna call the guards.
+***** {{tact|end}}
+**** {{topt|Yes}}
+***** '''Player:''' Yes
+***** '''Mine cart driver:''' And why would you want to do a crazy thing like that for? I ought to teach you a lesson! Guards! Guards!
+***** {{tact|end}}
+**** {{topt|Fired... no, shot perhaps!}}
+***** '''Player:''' Fired... no, shot perhaps!
+***** '''Mine cart driver:''' Ha ha ha! You're funny! {{color|#000080|-- The cart driver checks that guards aren't watching. --}} What're you in fer?
+***** {{tselect|Select an Option}}
+***** {{topt|Oh, I'm not supposed to be here at all actually.}}
+****** '''Player:''' Oh, I'm not supposed to be here at all actually.
+****** '''Mine cart driver:''' Hmmm, interesting... let me guess. You're completely innocent... like all the other inmates in here. Ha ha ha!
+****** {{mes|The Cart driver goes back to his work.}}
+****** {{tact|end}}
+***** {{topt|I'm in for murder, so you'd better get me out of here!}}
+****** '''Player:''' I'm in for murder, so you'd better get me out of here!
+****** '''Mine cart driver:''' Hmm, well, I wonder what the guards are gonna say about that! Guards! Guards!
+****** {{tact|end}}
+***** {{topt|In for a penny in for a pound.}}
+****** '''Player:''' In for a penny in for a pound.
+****** {{tbox|The cart driver laughs at your pun...}}
+****** '''Mine cart driver:''' Ha ha ha, oh stop it!
+****** {{tbox|The cart driver seems much happier now.}}
+****** '''Mine cart driver:''' What can I do for you anyway?
+****** {{tselect|Select an Option}}
+****** {{topt|Can you smuggle me out on your cart?}}
+******* '''Player:''' Can you smuggle me out on your cart?
+******* {{tbox|The cart driver points at a nearby guard.}}
+******* '''Mine cart driver:''' Ask that man over there if it's okay and I'll consider it! Ha ha ha!
+******* {{tbox|The cart driver goes back to his work, laughing to himself.}}
+******* {{tact|end}}
+****** {{topt|Can you smuggle my friend Ana out on your cart?}}
+******* '''Player:''' Can you smuggle my friend out on your cart?
+******* '''Mine cart driver:''' As long as your friend is a barrel full of rocks. I don't think it would be a problem at all! Ha ha ha!
+******* {{tact|end}}
+****** {{topt|Well, you see, it's like this...}}
+******* '''Player:''' Well, you see, it's like this...
+******* '''Mine cart driver:''' Yeah!
+******* {{tselect|Select an Option}}
+******* {{topt|Prison riot in ten minutes, get your cart out of here!}}
+******** '''Player:''' Prison riot in ten minutes, get your cart out of here!
+******** {{tbox|The cart driver seems visibly shaken...}}
+******** '''Mine cart driver:''' Oh, right..yes... yess, okay...
+******** {{tbox|The cart driver quickly starts preparing the cart.}}
+******** {{tselect|Select an Option}}
+******** {{topt|Good luck!}}
+********* '''Player:''' Good luck!
+********* '''Mine cart driver:''' Yeah, you too!
+********* {{tbox|The cart sets off at a hectic pace. The guards at the gate get suspiscious and search the cart. They find Ana in the Barrel and take her back into the mine.}}{{sic|suspiscious}}
+********* {{tact|(Continues with getting jailed dialogue.)}}
+******** {{topt|You can't leave me here, I'll get killed!}}
+********* '''Player:''' You can't leave me here, I'll get killed!
+********* '''Mine cart driver:''' Oh, right... Okay, you'd better jump in the cart then! Quickly!
+********* {{tact|end}}
+******* {{topt|There's ten gold in it for you if you leave now - no questions asked.}}
+******** '''Player:''' There's ten gold in it for you if you leave now no questions asked.
+******** '''Mine cart driver:''' If you're going to bribe me, at least make it worth my while. Now, let's say 100 Gold pieces should we? Ha ha ha!
+******** {{tselect|Select an Option}}
+******** {{topt|A hundred it is!}}
+********* '''Player:''' A hundred it is.
+********* '''Mine cart driver:''' Great!
+********* {{tcond|If the player does not have enough coins:}}
+********** '''Mine cart driver:''' You little cheat, trying to trick me! I'll show you! Guards! Guards!
+********** {{mes|You quickly slope away and hide from the guards.}}
+********** {{tact|end}}
+********* '''Mine cart driver:''' Okay, get in the back of the cart then!
+********* {{tact|end}}
+******** {{topt|Forget it!}}
+********* '''Player:''' Forget it!
+********* '''Mine cart driver:''' Okay, fair enough! But don't bother me anymore.
+********* {{tact|end}}
+*** {{topt|Can you get me the heck out of here please?}}
+**** {{tact|above}}
+** {{topt|Can I help you at all?}}
+*** '''Player:''' Can I help you at all?
+*** '''Mine cart driver:''' I'm quite capable thanks... Now get lost before I call the guards.
+*** {{tselect|Select an Option}}
+*** {{topt|Can you get me the heck out of here please?}}
+**** {{tact|above}}
+*** {{topt|I could help, I know a lot about carts.}}
+**** '''Player:''' I could help, I know a lot about carts.
+**** '''Mine cart driver:''' Are you saying I don't know anything about carts?
+**** '''Mine cart driver:''' Why you cheeky little.... {{color|#000080|-- The cart driver seems mortally offended -- -- his temper explodes as he calls the guards.--}} Guards! Guards!
+**** {{tact|end}}
+* {{topt|Pssst...}}
+** '''Player:''' Pssst...
+** {{tbox|The cart driver completely ignores you.}}
+** {{tselect|Select an Option}}
+** {{topt|Psssst...}}
+*** '''Player:''' Psssst...
+*** {{tbox|The driver completely ignores you.}}
+*** {{tselect|Select an Option}}
+*** {{topt|Psssssst...}}
+**** {{tact|below}}
+*** {{topt|Pssst...}}
+**** {{tact|above}}
+*** {{topt|Pssssssssttt!!!}}
+**** {{tact|beloow}}
+** {{topt|Psssssst...}}
+*** '''Player:''' Psssssst...
+*** {{tbox|The driver completely ignores you.}}
+*** {{tselect|Select an Option}}
+*** {{topt|Psssst...}}
+**** {{tact|above}}
+*** {{topt|Pssst...}}
+**** {{tact|above}}
+*** {{topt|Pssssssssttt!!!}}
+**** {{tact|below}}
+** {{topt|Pssssssssttt!!!}}
+*** '''Player:''' Pssssssssttt!!!
+*** {{tbox|The cart driver turns around quickly to face you.}}
+*** '''Mine cart driver:''' What! Can't you see I'm busy?
+*** {{tselect|Select an Option}}
+*** {{topt|Oh, okay, sorry.}}
+**** '''Player:''' Oh, okay, sorry.
+**** '''Mine cart driver:''' Look just leave me alone!
+**** {{tact|end}}
+*** {{topt|Shhshhh!}}
+**** '''Player:''' Shhshhh!
+**** '''Mine cart driver:''' Shush yourself!
+**** {{tact|end}}
+*** {{topt|I wonder if you could help me?}}
+**** '''Player:''' I wonder if you could help me?
+**** '''Mine cart driver:''' Sorry friend, I'm busy, go bug the guards, I'm sure they'll give ya the time of day.
+**** {{tselect|Select an Option}}
+**** {{topt|Can I help you at all?}}
+***** {{tact|above}}
+**** {{topt|Can you get me the heck out of here please?}}
+***** {{tact|above}}
+
+===Talking to the Mine cart driver after convincing him of a prison riot===
+* {{mes|The cart driver is busy loading the cart up ...}}
+* {{tact|end}}
+
+===Talking to the Mine cart driver after paying him===
+* {{tcond|If the player is holding Ana in a barrel:}}
+** '''Mine cart driver:''' What're you doing carrying that big barrel around? Put it in the back of the cart like all the others!
+** {{tact|end}}
+* '''Mine cart driver:''' Hurry up, get in the cart or I'll go without you!
+* {{tact|end}}
+
+===Searching the wooden cart after paying the Mine cart driver or convincing him of a prison riot===
+* {{tbox|There is space on the cart for you get on, would you like to try?}}
+* {{tselect|Select an Option}}
+* {{topt|Yes, I'll get on.}}
+** {{tbox|You decide to climb onto the cart.}}
+** {{tbox|As soon as you get on the cart, it starts to move. Before too long you are past the gates. You jump off the cart taking Ana with you.}}
+** {{tact|end}}
+* {{topt|No, I've got other plans.}}
+** {{mes|You decide not to get onto the cart.}}
+** {{tact|end}}
+* {{topt|Attract mine cart drivers attention.}}
+** '''Mine cart driver:''' Hurry up, get in the cart or I'll go without you!
+** {{tact|end}}
+
+===Talking to the Mine cart driver after already escaping once===
+* '''Player:''' I should find Ana before attempting to escape again. She must have been caught by the guards.
+* {{tact|end}}
+
+==Finishing up==
+===Talking to Irena while holding Ana in a barrel===
+* '''Irena:''' Hey, great you've found Ana!
+* '''Ana (in a Barrel):''' {{color|#0000ff|-- You show Irena the barrel with Ana in it. --}} Hey great, there's my Mum!
+* '''Ana:''' Great! Thanks for getting me out of that mine! And that barrel wasn't too bad anyway! Pop by again sometime, I'm sure we'll have a barrel of laughs!
+* '''Ana:''' Oh! I nearly forgot! Here's a key I found in the tunnels. It might be of some use to you, not sure what it opens. Sorry, but I have to go now.
+* {{tbox|pic=Wrought iron key detail.png|Ana gives you a wrought iron key...}}
+* {{mes|Ana spots Irena and waves...}}
+* '''Irena:''' {{overhead|Hi Ana!}}
+* '''Irena:''' Thank you very much for returning my daughter to me. I'm really very grateful... I would like to reward you for your bravery and daring.
+* '''Irena:''' I can offer you increased knowledge in two of the following areas.
+* {{tselect|Select an Option}}
+* {{topt|Fletching.}}
+** {{tact|continues}}
+* {{topt|Agility.}}
+** {{tact|continues}}
+* {{topt|Smithing.}}
+** {{tact|continues}}
+* {{topt|Thieving}}
+** {{tact|continues}}
+* '''Irena:''' Okay, now choose your second skill.
+* {{tselect|Select an Option}}
+* {{topt|Fletching.}}
+** {{tact|continues}}
+* {{topt|Agility.}}
+** {{tact|continues}}
+* {{topt|Smithing.}}
+** {{tact|continues}}
+* {{topt|Thieving}}
+** {{tact|continues}}
+* '''Irena:''' Okay, that's all the skills I can teach you!
+* {{qact|Congratulations! Quest complete!}}
+* {{tact|end}}
+
+===Talking to Irena before getting the wrought iron key===
+* '''Irena:''' Thanks for returning Anna{{sic}} to me, I think she has something else to say to you though!
+* {{tact|end}}
+
+===Talking to Ana before getting the wrought iron key===
+* '''Ana:''' Great! Thanks for getting me out of that mine! And that barrel wasn't too bad anyway! Pop by again sometime, I'm sure we'll have a barrel of laughs!
+* {{tact|above}}
+
+===Talking to Irena after rescuing Ana===
+* '''Irena:''' Thank you very much for returning my daughter to me. I'm really very grateful... I would like to reward you for your bravery and daring. I can offer you increased knowledge in two of the following areas.
+* {{tselect|Select an Option}}
+* {{topt|Fletching.}}
+** {{tact|continues}}
+* {{topt|Agility.}}
+** {{tact|continues}}
+* {{topt|Smithing.}}
+** {{tact|continues}}
+* {{topt|Thieving}}
+** {{tact|continues}}
+* '''Irena:''' Okay, now choose your second skill.
+* {{tact|above}}
+
+===Talking to Irena after choosing the first skill===
+* '''Irena:''' Thank you very much for returning my daughter to me. I'm really very grateful... I would like to reward you for your bravery and daring. I can offer you increased knowledge in one of the following areas.
+* {{tselect|Select an Option}}
+* {{topt|Fletching.}}
+** {{tact|continues}}
+* {{topt|Agility.}}
+** {{tact|continues}}
+* {{topt|Smithing.}}
+** {{tact|continues}}
+* {{topt|Thieving}}
+** {{tact|continues}}
+* '''Irena:''' Okay, that's all the skills I can teach you!
+* {{tact|above}}
+
+===Talking to Irena after choosing both skills===
+* {{mes|Irena seems happy now that her daughter has returned home.}}
+* '''Irena:''' Thanks so much for returning my daughter to me. I expect that she will go on another trip soon though. She is the adventurous type... a bit like yourself really! Okay, see you around then!
+* {{mes|Irena goes back to work.}}
+* {{tact|end}}
+
+{{The Tourist Trap}}

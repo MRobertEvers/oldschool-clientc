@@ -157,9 +157,10 @@ return {
         t.exec("buyShantayPass-dialog", t.chat.play, {
             "npc:Hello effendi, I am Shantay.",
             "npc:I see you're new. Please read",
-            "choose:I want to buy a shantay pass for 5 gold coins.",
-            "player:I want to buy a shantay pass for",
-            "mesbox:You purchase a Shantay Pass.",
+            "npc:There is a heartbroken mother",
+            "choose:I want to buy a Shantay pass for 5 gold coins.",
+            "player:I want to buy a Shantay pass for",
+            "objbox:You purchase a Shantay Pass.",
         })
         local passR, passN = t.inv.count("shantay_pass")
         local coinR, coinN = t.inv.count("coins")
@@ -175,16 +176,12 @@ return {
         t.player.walk_to(3304, 3118, 10) -- graded below: enterDesert-crossed reads this tile as "before"
         local _, enterDesertBefore = t.world.tile()
         t.exec("enterDesert", t.player.click_loc, "shantay_pass_henge_doorway", 1, { at = { 3302, 3116, 0 } })
-        t.exec("enterDesert-dialog", t.chat.play, {
-            "mesbox:There is a large poster on the wall",
-            "mesbox:The Desert is a VERY Dangerous place",
-            "mesbox:That seems pretty scary!",
-            "choose:Yeah, that poster doesn't scare me!",
-            "npc:Can I see your Shantay Desert Pass",
-            "mesbox:You hand over a Shantay Pass.",
-            "player:Sure, here you go!",
-            "npc:Here, have a disclaimer",
-        })
+        -- shantay_pass.rs2: the desert warning (cws_warning_10); "warn1"
+        -- takes the pass and walks the player through (as thefeud.lua).
+        t.expect("enterDesert-warning", t.ui.await_open("cws_warning_10", 15))
+        local ewr, ew = t.ui.widget("cws_warning_10:warn1")
+        t.expect("enterDesert-warn1", ewr, "cws_warning_10:warn1")
+        t.check("enterDesert-go", select(1, t.ui.invoke(ew, 1)) == "ok", "Yes, through the gate")
         local inDesert = t.await({ level = function()
             local tres, tile = t.world.tile()
             return tres == "ok" and tile.level == 0 and tile.z <= 3115
@@ -199,28 +196,27 @@ return {
         local passR2, passN2 = t.inv.count("shantay_pass")
         t.check("enterDesert-passHandedOver", passR2 == "ok" and passN2 == 0,
             "shantay_pass 1 -> " .. tostring(passN2) .. " (" .. tostring(passR2) .. ")")
-        t.exec("enterDesert-disclaimer", t.inv.await, "thshantaydisc", 1, 5)
 
         -- ================= Irena: start the quest =================
         t.exec("talkToIrena", t.player.talk_to, "tourtrap_qip_irena_multi_sad", 1)
         t.ticks(1)
+        -- irena.rs2, as RSProx 4531 [1889..1904]: the box, her page, the two
+        -- answers, three pages, the start confirm, then four pages with the
+        -- stage on the last.
         t.exec("talkToIrena-dialog", t.chat.play, {
-            "*",
-            "*",
+            "mesbox:Irena seems to be very upset",
+            "npc:Boo hoo! Oh dear, my only daughter",
             "choose:What's the matter?",
-            "*",
-            "*",
-            "choose:What did she go into the desert for?",
-            "*",
-            "*",
-            "*",
-            "*",
-            "choose:I'll look for your daughter.",
-            "*",
-            "*",
-            "choose:Okay Irena, calm down. I'll get your daughter back for you.",
-            "*",
-            "*",
+            "player:What's the matter?",
+            "npc:Oh dear... my daughter, Ana",
+            "player:When did she go into the desert?",
+            "npc:*Sob* she went in there",
+            "npc:*Sob* And she's not...",
+            "choose:Yes.",
+            "player:I'll find her for you!",
+            "npc:Oh thank you!",
+            "player:Do you have any ideas",
+            "npc:I did go looking for her myself",
         })
         t.exec("quest.stage.started", t.var.await_server, "varp197_desertrescue", 1, 15)
 
@@ -364,7 +360,6 @@ return {
         t.exec("talkToGuard-dialog", t.chat.play, {
             "*",
             "choose:I'd like to mine in a different area.",
-            "*",
             "*",
             "npc:rest they say.",
             "choose:Yes sir, you're quite right sir.",
@@ -547,7 +542,7 @@ return {
             t.check(rowBase .. "-open", awAnvil == "ok", "await open -> " .. tostring(awAnvil))
             t.exec(rowBase .. "-dialog", t.chat.play, {
                 "*",
-                "choose:Yes, I'd like to try.",
+                "choose:Yes. I'd like to try.",
             })
             -- The forge chain is mes()/anim()/p_delay() log lines, not
             -- pages, until the very last ~mesbox -- give it real time
@@ -668,7 +663,7 @@ return {
             local rowBase = i == 1 and "enterMineCart" or ("enterMineCart-retry" .. (i - 1))
             t.exec(rowBase, t.player.click_loc, "touristtrap_minecart", 2)
             t.exec(rowBase .. "-dialog", t.chat.play, { "*", "*", "choose:Yes, of course." })
-            local opened = t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the cart's own success page after the agility roll" }, 3)
+            local opened = t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the ride's box at C+37 (RSProx 4531 [9256..9293]) after the agility roll" }, 45)
             if opened == "ok" then
                 t.exec(rowBase .. "-note", t.chat.drain, { shots = true, max_pages = 5 })
                 enteredCart = true
@@ -702,7 +697,7 @@ return {
             "*",
             "*",
             "*",
-            "choose:Do you want to go back to Al-Kharid?",
+            "choose:Do you want to go back to Al Kharid?",
             "*",
             "*",
             "*",
@@ -721,7 +716,8 @@ return {
         t.exec("goto-useBarrelOnMineCart", t.player.goto_tile, 3317, 9431, 0)
         t.exec("useBarrelOnMineCart", t.player.use_on, "thanainabarrel", t.player.by_symbol("loc", "touristtrap_minecart"))
         t.exec("useBarrelOnMineCart-note", t.chat.drain, { shots = true, max_pages = 10 })
-        t.exec("quest.stage.ana_minecart", t.var.await_server, "varp197_desertrescue", 20, 15)
+        -- The barrel scene runs 44 ticks before the stage (RSProx 4531 [10298..10342]).
+        t.exec("quest.stage.ana_minecart", t.var.await_server, "varp197_desertrescue", 20, 60)
         item_gone("useBarrelOnMineCart-barrelGone", "thanainabarrel") -- quest_desertrescue.rs2:698
 
         -- Same [oploc2,touristtrap_minecart] agility roll as enterMineCart
@@ -731,7 +727,7 @@ return {
             local rowBase = i == 1 and "returnInMineCart" or ("returnInMineCart-retry" .. (i - 1))
             t.exec(rowBase, t.player.click_loc, "touristtrap_minecart", 2)
             t.exec(rowBase .. "-dialog", t.chat.play, { "*", "*", "choose:Yes, of course." })
-            local opened = t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the cart's own success page after the agility roll" }, 3)
+            local opened = t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the ride's box at C+37 (RSProx 4531 [9256..9293]) after the agility roll" }, 45)
             if opened == "ok" then
                 t.exec(rowBase .. "-note", t.chat.drain, { shots = true, max_pages = 5 })
                 returnedCart = true
@@ -749,7 +745,13 @@ return {
                 .. tostring(backTile and backTile.level) .. " (want within 1 of 3302,9417,0)")
 
         t.exec("goto-searchBarrelsForAna", t.player.goto_tile, 3302, 9419, 0)
-        t.exec("searchBarrelsForAna", t.player.click_loc, "thminebarrel_empty", 2)
+        t.exec("searchBarrelsForAna", t.player.click_loc, "thminebarrel_empty", 2, { at = { 3303, 9415, 0 } })
+        local awBarrel = t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the barrel search's box (RSProx 4531 [10447])" }, 6)
+        if awBarrel ~= "ok" then
+            t.note("searchBarrelsForAna: no box after the first press; pressing again")
+            t.exec("searchBarrelsForAna-retry", t.player.click_loc, "thminebarrel_empty", 2, { at = { 3303, 9415, 0 } })
+            t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the barrel search's box, second press" }, 6)
+        end
         t.exec("searchBarrelsForAna-note", t.chat.drain, { shots = true, max_pages = 10 })
         t.exec("quest.stage.retrieved_ana_minecart", t.var.await_server, "varp197_desertrescue", 21, 15)
         -- trap 24: the stage var and the inv_add that hands Ana's barrel
@@ -811,7 +813,7 @@ return {
         -- so a drain right after finds nothing open yet ("[frame
         -- unchanged]") and the stage never advances. Await the mesbox
         -- before draining.
-        local awWinch = t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the winch's own mesbox after its p_delay(3)" }, 8)
+        local awWinch = t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the winch's own mesbox after its p_delay(3)" }, 15)
         t.check("operateWinch-open", awWinch == "ok", "await open -> " .. tostring(awWinch))
         t.exec("operateWinch-note", t.chat.drain, { shots = true, max_pages = 10 })
         t.exec("quest.stage.retrieved_ana_lift", t.var.await_server, "varp197_desertrescue", 23, 15)
@@ -884,6 +886,9 @@ return {
                 .. tostring(escTile and escTile.level) .. " (want within 1 of 3258,3029,0, outside the camp)")
 
         -- ================= Irena; Ana; the reward =================
+        -- The escape's fade in and overlay close run two ticks past the move
+        -- (RSProx 4531 [11364..11366]).
+        t.ticks(3)
         t.exec("unequipShirt", t.player.unequip, "slave_shirt")
         t.exec("unequipRobe", t.player.unequip, "slave_robe")
         t.exec("unequipBoots", t.player.unequip, "slave_boots")
@@ -892,16 +897,13 @@ return {
         -- Irena stands south of the Shantay Pass, still in the desert.
         t.exec("goto-returnToIrena", t.player.goto_tile, 3303, 3111, 0)
         t.exec("returnToIrena", t.player.talk_to, "tourtrap_qip_irena_multi_sad", 1)
-        t.exec("returnToIrena-dialog", t.chat.drain, { shots = true, max_pages = 20 })
+        -- RSProx 4531 [12252..12289]: Irena, Ana in the barrel, then a tick
+        -- after its click Ana out of it with her thanks and the key; the key
+        -- box's click is the stage, "Hi Ana!" and Irena's two pages, then
+        -- the skill menu -- one conversation.
+        t.exec("returnToIrena-dialog", t.chat.drain, { shots = true, max_pages = 20, stop_at = "options" })
         t.exec("quest.stage.saved_ana", t.var.await_server, "varp197_desertrescue", 27, 15)
-
-        local aw1 = t.await({ level = function() return t.chat.kind() ~= "none" end, note = "Ana's thanks reopening after Irena's handoff" }, 10)
-        t.check("talkToAnaThanks-reopen", aw1 == "ok", "await reopen -> " .. tostring(aw1))
-        t.exec("talkToAnaThanks-dialog", t.chat.drain, { shots = true, max_pages = 20 })
         t.exec("talkToAnaThanks-key", t.inv.await, "thgoodminekey", 1, 10)
-
-        local aw2 = t.await({ level = function() return t.chat.kind() ~= "none" end, note = "Irena's reward reopening after Ana's thanks" }, 10)
-        t.check("talkToIrenaToFinish-reopen", aw2 == "ok", "await reopen -> " .. tostring(aw2))
         local snapOk, snap = t.skill.snapshot()
         t.check("skill.snapshot", snapOk == "ok", "skill.snapshot -> " .. tostring(snapOk))
         -- ana.rs2's shanty-pass thanks jumps STRAIGHT to irena.rs2's
@@ -916,8 +918,6 @@ return {
         -- second one (irena_checkrewards' queue(desertrescue_complete)
         -- branch).
         t.exec("talkToIrenaToFinish-dialog", t.chat.play, {
-            "*",
-            "*",
             "choose:Fletching.",
             "*",
             "choose:Fletching.",
