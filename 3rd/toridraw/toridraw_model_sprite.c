@@ -415,11 +415,30 @@ ToriDraw_RenderModelExtentsAtWidget(
                 scene, hnd, &xf, origin_x, origin_y, &min_x, &min_y, &max_x, &max_y) )
             return false;
 
+        /*
+         * The eye looks down the widget's centre (the reference sets the
+         * raster centre there, class147.method5050, before drawing), but the
+         * texture kernels measure every pixel from the CLIP's centre and read
+         * the camera-space P/M/N to build their uv planes. So the camera space
+         * is sheared by the difference too, not just the screen points: x +=
+         * shift * z / zoom3d projects to exactly the rebased screen x, and as a
+         * linear map it keeps every face plane, so the uvs come out as if the
+         * centre had moved. Rebasing the screen alone left them aimed at the
+         * clip's centre: a model drawn far from it, like the woodcutting
+         * level-up tree at the left of a 479-wide chatbox, sampled the leaf
+         * texture's empty texels and lost most of its canopy.
+         */
+        int const shift_x = origin_x - raster_origin_x;
+        int const shift_y = origin_y - raster_origin_y;
         int vc = ToriDraw_ModelGetVertexCount(hnd);
         for( int i = 0; i < vc; i++ )
         {
+            int const cz = scene->orthographic_vertices_z[i];
+
             scene->screen_vertices_x[i] -= raster_origin_x;
             scene->screen_vertices_y[i] -= raster_origin_y;
+            scene->orthographic_vertices_x[i] += shift_x * cz / xf.zoom3d;
+            scene->orthographic_vertices_y[i] += shift_y * cz / xf.zoom3d;
         }
 
         draw_x = min_x;
