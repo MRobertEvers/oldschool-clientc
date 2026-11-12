@@ -2147,9 +2147,12 @@ app_cross_show(
     char const* op_text)
 {
     UICross_Show(&app->cross, mode, x, y);
+    /* Every press on a touch lane is a tap, and a tap halves the disc's life
+     * (UIInk::halve). */
     UIInk_Show(
         &app->ink,
         mode == UI_CROSS_INTERACT ? TORIRS_INKWELL_RED : TORIRS_INKWELL_YELLOW,
+        app->touch_ui,
         x,
         y);
     /* Jagex StartFeedback copies the run row's op and target for the popup

@@ -25,6 +25,11 @@ struct UIInk
     int y;
     /** enum ToriRSInkwellColour: yellow walks, red interacts. */
     int colour;
+    /** Jagex StartFeedback's flag (Android 241 state +0x158): set by a touch
+     *  tap (FUN_00618990 writes the touch handler's +0x1c on the release), and
+     *  DrawFeedback halves the disc's life for it -- clickcircle's 40 cycles
+     *  become 20, 400 ms. A mouse press leaves it clear. */
+    int halve;
     /** Milliseconds since it was shown; the state ends at UI_INK_LIFE_MS. The
      *  pieces end on their own clocks inside that (app_host_request.c). */
     int cycle;
@@ -34,9 +39,10 @@ struct UIInk
 void
 UIInk_Reset(struct UIInk* ink);
 
-/** A walk or world op was armed here. Starts the animation from frame 0. */
+/** A walk or world op was armed here. Starts the animation from frame 0;
+ *  `halve` is nonzero when a touch tap armed it. */
 void
-UIInk_Show(struct UIInk* ink, int colour, int x, int y);
+UIInk_Show(struct UIInk* ink, int colour, int halve, int x, int y);
 
 void
 UIInk_Tick(struct UIInk* ink, int delta_ms);
