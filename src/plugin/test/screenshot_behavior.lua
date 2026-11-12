@@ -668,7 +668,7 @@ return { id = 'screenshot-behavior', on_start = function(host)
     local first_list = last('list')
     assert(first_list and first_list.destination == '',
         'on_start asks for the listing of the plugin\'s own folder')
-    assert(rows.where.text == '/home/p/pics', 'the page says where the folder is')
+    assert(rows.where.text == 'Saved in /home/p/pics', 'the page says where the folder is')
     assert(rows.open.text == 'Open folder', 'a desktop opens its folder')
 
     -- Fourteen pictures, out of order, in three albums, one manual.
@@ -707,20 +707,24 @@ return { id = 'screenshot-behavior', on_start = function(host)
     -- again -- that row, by its paint key -- once they land.
     local drawn = {}
     local fake_draw = {
-        context = function() return { bounds = { x = 0, y = 0, width = 300, height = 116 } } end,
-        rect = function() end,
-        text = function(_, _, text) drawn[#drawn + 1] = text end,
+        context = function() return { bounds = { x = 0, y = 0, width = 300, height = 94 } } end,
+        rect = function(_, _, _, _, _, alpha) drawn[#drawn + 1] = alpha == 0 and 'frame' or 'fill' end,
+        line = function() drawn[#drawn + 1] = 'line' end,
+        text = function() error('a well draws no text: not every presenter shows it') end,
         image = function(ref) drawn[#drawn + 1] = 'image:' .. ref end,
     }
     rows.grid1.paint('grid1', fake_draw)
-    assert(drawn[1] == 'Loading...', 'a picture still being read says so')
+    assert(drawn[3] == 'frame', 'a picture still being read is an empty frame its size')
+    assert(rows.caption1.label == 'Vorkath 100 (01/10)' and rows.caption1.text == 'Attack 12 (12/09)',
+        'the captions are the row under the pictures, left and right: '
+        .. rows.caption1.label .. ' / ' .. rows.caption1.text)
     local key_before = rows.grid1.paint_key
     for _, thumb in pairs(thumbs) do thumb.state = 'ready' end
     frame(); frame()
     assert(rows.grid1.paint_key ~= key_before, 'a landed picture is a new paint key for its row')
     drawn = {}
     rows.grid1.paint('grid1', fake_draw)
-    assert(drawn[1]:find('^image:'), 'and the row draws the picture')
+    assert(drawn[3]:find('^image:'), 'and the row draws the picture')
     assert(rows.where and rebuilds == rebuilds_before,
         'landing a listing and its pictures is setters, never a page rebuild')
 
@@ -738,6 +742,7 @@ return { id = 'screenshot-behavior', on_start = function(host)
     assert(asked_count() == 14, 'the second page reads its two')
     assert(rows.status.text == '14 pictures, page 2 of 2', 'and says where it is')
     assert(rows.grid1.height > 0 and rows.grid2.height == 0, 'an empty grid row collapses')
+    assert(rows.caption2.label == ' ', 'and its caption row says nothing, not its id')
     assert(rebuilds == rebuilds_before, 'a page turn is setters on the rows that exist')
 
     -- An album narrows the pictures and goes back to its first page.
@@ -761,13 +766,23 @@ return { id = 'screenshot-behavior', on_start = function(host)
     for _, verb in ipairs({ 'heading', 'paragraph', 'label', 'key_value', 'button' }) do
         fake_panel[verb] = function(...) built[#built + 1] = { verb, ... } end
     end
+    -- A node is spelled as the builder verb of its kind, id first, so one
+    -- lookup serves both: kind 1 is ToriRS_PanelNodeKind's PARAGRAPH.
+    fake_panel.node = function(node)
+        assert(node.kind == 1, 'only paragraphs travel as nodes here')
+        built[#built + 1] = { 'paragraph', node.text, node.id }
+    end
     local function built_has(verb, id)
         for _, call in ipairs(built) do
             if call[1] == verb and call[2] == id then return call end
         end
     end
     product.on_ui_build(api, fake_panel, 'settings')
-    assert(built_has('key_value', 'where')[4] == '/home/p/pics', 'settings show the folder')
+    local shows_folder
+    for _, call in ipairs(built) do
+        if call[1] == 'paragraph' and call[2] == '/home/p/pics' then shows_folder = true end
+    end
+    assert(shows_folder, 'settings show the folder')
     assert(built_has('button', 'choose') and built_has('button', 'reveal'),
         'a desktop chooses its folder and opens it; nothing is typed')
     assert(built_has('button', 'default')[4] == false,
@@ -808,8 +823,9 @@ return { id = 'screenshot-behavior', on_start = function(host)
     built = {}
     product.on_ui_build(api, fake_panel, 'settings')
     assert(not built_has('button', 'choose'), 'a browser has no folder to choose')
-    assert(built_has('key_value', 'tree')[3] == 'plugin_assets/screenshot/',
-        'the storage is shown from its root')
+    assert(built_has('key_value', 'tree')[3] == 'screenshot/'
+        and built_has('key_value', 'tree')[4] == '14 pictures',
+        'the storage is shown from its root, with everything in it counted')
     local levels
     for _, call in ipairs(built) do
         if call[1] == 'key_value' and tostring(call[3]):find('Levels/') then levels = call end

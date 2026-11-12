@@ -896,7 +896,7 @@ mergeInto(LibraryManager.library, {
          * verdict line, the way a desktop with no chooser does. */
         return typeof inst.host.filesService === 'function'
           ? await inst.host.filesService(req.files, req.bytes)
-          : new TextEncoder().encode('unsupported: this page has no files service\n');
+          : Uint8Array.from('unsupported: this page has no files service\n', (c) => c.charCodeAt(0));
       }
       if (req.kind === K.CONFIG_FILE || req.kind === K.SCRIPT) {
         return await inst.host.readFile(req.path);

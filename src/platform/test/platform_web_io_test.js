@@ -184,6 +184,45 @@ batchOne(itemPtr);
   await new Promise(r => setImmediate(r));
   if (L.PlatformWeb_IO_ServerReachable(px) !== 0) fail('an unreachable transport must read as down');
 
+  // A files-service item (plugin/task_plugin_io.h CreateTask_PluginFiles):
+  // its body is LENT in the item's data and the page's answer replaces it.
+  // It is the player's own records, so the script dir is never joined on.
+  {
+    const asked = [];
+    ctx.Module.torirsHostIO.filesService = (verb, body) => {
+      asked.push({ verb, body: Buffer.from(body).toString('utf8') });
+      return Promise.resolve(new Uint8Array(Buffer.from('ok\nA/b.png\t0\t0\n', 'utf8')));
+    };
+    const files = itemAt(14);
+    const body = Buffer.from('dir=plugin_assets/screenshot\n', 'utf8');
+    const lent = brk; brk += 64;
+    body.forEach((b, i) => { HEAPU8[lent + i] = b; });
+    HEAP32[(files + ITEM.kind) >> 2] = KIND_SCRIPT;
+    Buffer.from('files/list\0', 'utf8').forEach((b, i) => { HEAPU8[files + ITEM.u + i] = b; });
+    HEAP32[(files + ITEM.data) >> 2] = lent;
+    HEAP32[(files + ITEM.dataSize) >> 2] = body.length;
+    batchOne(files);
+    L.PlatformWeb_IO_Process(px, IO_PTR);
+    await new Promise(r => setImmediate(r));
+    if (asked.length !== 1 || asked[0].verb !== 'list' ||
+        asked[0].body !== 'dir=plugin_assets/screenshot\n')
+      fail(`files item reached the page as ${JSON.stringify(asked)}`);
+    const answer = Buffer.from(HEAPU8.slice(HEAP32[(files + ITEM.data) >> 2],
+      HEAP32[(files + ITEM.data) >> 2] + HEAP32[(files + ITEM.dataSize) >> 2])).toString('utf8');
+    if (answer !== 'ok\nA/b.png\t0\t0\n' || HEAP32[(files + ITEM.error) >> 2] !== 0)
+      fail(`files answer ${JSON.stringify(answer)}`);
+    // A page with no files service still answers, in the verdict line.
+    delete ctx.Module.torirsHostIO.filesService;
+    batchOne(files);
+    HEAP32[(files + ITEM.data) >> 2] = lent;
+    HEAP32[(files + ITEM.dataSize) >> 2] = body.length;
+    L.PlatformWeb_IO_Process(px, IO_PTR);
+    await new Promise(r => setImmediate(r));
+    const none = Buffer.from(HEAPU8.slice(HEAP32[(files + ITEM.data) >> 2],
+      HEAP32[(files + ITEM.data) >> 2] + HEAP32[(files + ITEM.dataSize) >> 2])).toString('utf8');
+    if (!none.startsWith('unsupported: ')) fail(`a page without the service said ${none}`);
+  }
+
   // Two items in one batch go out together and land independently.
   {
     const a = itemAt(12), b = itemAt(13);
@@ -270,5 +309,6 @@ batchOne(itemPtr);
   console.log('PASS: Process non-blocking, pending word truthful, item filled, ' +
               '404 != outage, unreachable == outage, pending is per item, ' +
               'cache decode via the C API, reference table fetched once, ' +
-              'handed-out table is a fresh decode, missing group fails cleanly');
+              'handed-out table is a fresh decode, missing group fails cleanly, ' +
+              'files items lend their body and take the page\'s answer');
 })();

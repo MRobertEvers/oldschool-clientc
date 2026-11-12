@@ -2173,10 +2173,10 @@ PlatformX_IO_Process(
         struct ToriRS_IOItem* item = io->active[i];
 
         /* A write carries its payload in these two fields — see LoadItem —
-         * a prefetch lends its id array the same way, and a launch or an
-         * account-server item its request body. */
+         * a prefetch lends its id array the same way, and a launch, an
+         * account-server or a files item its request body. */
         if( item->kind != TORIRS_IOK_FILE_WRITE && item->kind != TORIRS_IOK_CACHE_PREFETCH &&
-            !item_is_launch(item) && !item_is_auth(item) )
+            !item_is_launch(item) && !item_is_auth(item) && !item_is_files(item) )
         {
             item->data = NULL;
             item->data_size = 0;

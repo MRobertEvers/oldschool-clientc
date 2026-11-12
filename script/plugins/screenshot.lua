@@ -286,8 +286,9 @@ local PLATE_KEY = "camera_plate.png"
 
 -- --------------------------------------------------------------- the gallery
 --
--- One page of the rail: where the pictures are, a button that hands them to
--- the player, an album picker, and the pictures themselves two to a row.
+-- One page of the rail: an album picker, the pictures themselves two to a
+-- row a page at a time, and under them where they are and a button that
+-- hands them to the player.
 --
 -- LAZY BY THE PAGE, NOT BY THE SCROLL. The presenter draws every dirty custom
 -- well whether or not it is scrolled into view, and keeps what it drew; so a
@@ -307,9 +308,8 @@ local ROWS_PER_PAGE = PER_PAGE // COLUMNS
 -- both columns inside the 320-wide pane with a gap between them. The box is
 -- the cache key, so it is one size and never derived from a measured width.
 local THUMB_W, THUMB_H = 136, 90
-local CAPTION_H = 16
 local CELL_GAP = 6
-local ROW_H = THUMB_H + 4 + CAPTION_H + CELL_GAP
+local ROW_H = THUMB_H + 4
 -- Server ticks between a capture and the listing that should find it: the
 -- PNG is encoded at the end of the capturing frame and written by a task
 -- after that.
@@ -318,7 +318,7 @@ local ALBUM_ALL = "*"
 local MANUAL = "Manual"
 
 local WELL_RGB, FRAME_RGB = 0x1e1a14, 0x3e3529
-local CAPTION_RGB, DIM_RGB = 0xff981f, 0x9f9f9f
+local DIM_RGB = 0x9f9f9f
 
 -- The folders on_game_event files into, so a listing can tell an album from
 -- a player's name: Player/Levels/x.png and Player/x.png are both two deep.
@@ -387,13 +387,8 @@ local function parse_capture(path)
     if stamp ~= "" then title = title:gsub("_?" .. stamp:gsub("%-", "%%-") .. "$", "") end
     title = title:gsub("%-", " ")
     if title == "" or title == "screenshot" then title = "Screenshot" end
-    local when = ""
-    if stamp ~= "" then
-        when = stamp:sub(9, 10) .. "/" .. stamp:sub(6, 7) .. " " .. stamp:sub(12, 13) .. ":"
-            .. stamp:sub(15, 16)
-    end
     return { path = path, album = album, player = player, title = title, stamp = stamp,
-             when = when, dir = path:match("^(.*)/[^/]*$") or "" }
+             dir = path:match("^(.*)/[^/]*$") or "" }
 end
 
 local function album_key(item) return item.album .. "|" .. item.player end
@@ -596,18 +591,23 @@ local function gallery_row_key(items, r)
     return key_id(table.concat(parts, "|"))
 end
 
+-- The well holds pictures and nothing else. Its captions are the key/value
+-- row under it, in the host's own text: text drawn INTO a well does not
+-- reach the screen on every presenter (the in-canvas one drops it while
+-- drawing the rects and images beside it), and a caption is the half of a
+-- gallery a player reads.
 local function gallery_paint(key, draw)
     local items = gallery_filtered()
     local r = tonumber(key:match("%d+$"))
     local ctx = draw.context()
     local width = ctx and ctx.bounds.width or COLUMNS * (THUMB_W + 8) + CELL_GAP
     local col_w = (width - CELL_GAP * (COLUMNS - 1)) // COLUMNS
+    local box_h = THUMB_H + 4
     gallery.width[key] = width
     for c = 1, COLUMNS do
         local item = gallery_cell(items, r, c)
         if item then
             local x = (c - 1) * (col_w + CELL_GAP)
-            local box_h = THUMB_H + 4
             draw.rect(x, 0, col_w, box_h, WELL_RGB)
             draw.rect(x, 0, col_w, box_h, FRAME_RGB, 0)
             local ref, state = thumb(item)
@@ -615,22 +615,31 @@ local function gallery_paint(key, draw)
             if ref then
                 local iw, ih = API.assets.image_size(ref)
                 draw.image(ref, x + (col_w - iw) // 2, 2 + (THUMB_H - ih) // 2)
+            elseif state == "pending" then
+                -- Being read: an empty frame, the size the picture will be.
+                gallery.waiting = true
+                local fw, fh = THUMB_W - 8, THUMB_H - 8
+                draw.rect(x + (col_w - fw) // 2, 6, fw, fh, DIM_RGB, 0)
             else
-                gallery.waiting = gallery.waiting or state == "pending"
-                draw.text(x + 8, box_h // 2 - 6,
-                    state == "pending" and "Loading..." or "Cannot be shown", DIM_RGB)
-            end
-            -- About six pixels a glyph in this face: cut rather than overrun
-            -- into the next column.
-            local caption = item.title
-            local room = (col_w - 4) // 6 - #item.when - 1
-            if #caption > room then caption = caption:sub(1, math.max(room - 2, 1)) .. ".." end
-            draw.text(x + 2, box_h + 2, caption, CAPTION_RGB)
-            if item.when ~= "" then
-                draw.text(x + col_w - 2 - #item.when * 6, box_h + 2, item.when, DIM_RGB)
+                -- Unreadable (gone, or not a picture this client decodes): a
+                -- cross through the frame, which says "nothing here" without
+                -- a word.
+                local x0, x1 = x + 8, x + col_w - 9
+                draw.line(x0, 8, x1, box_h - 9, DIM_RGB)
+                draw.line(x0, box_h - 9, x1, 8, DIM_RGB)
             end
         end
     end
+end
+
+-- One picture's caption: what it is and the day it was taken, short enough
+-- for half the pane.
+local function gallery_caption(item)
+    if not item then return " " end
+    local title = item.title
+    if #title > 16 then title = title:sub(1, 15) .. "." end
+    if item.stamp == "" then return title end
+    return title .. " (" .. item.stamp:sub(9, 10) .. "/" .. item.stamp:sub(6, 7) .. ")"
 end
 
 local function gallery_row_action(key, action)
@@ -671,13 +680,6 @@ local function describe_gallery(d)
     if gallery.page > pages then gallery.page = pages end
     local browser = gallery.store == "browser"
 
-    d.row({ key = "where", kind = "key_value", label = browser and "Saved in" or "Folder",
-            text = browser and "This browser's storage"
-                or (gallery.store == "folder" and gallery.root or "Nowhere") })
-    d.row({ key = "open", kind = "button",
-            text = browser and "Download all (.zip)" or "Open folder",
-            disabled = gallery.store == "none" or (browser and #gallery.items == 0),
-            on_action = function() gallery_open(nil) end })
     local options = { { value = ALBUM_ALL, label = "All (" .. #gallery.items .. ")" } }
     for _, album in ipairs(gallery.albums) do
         options[#options + 1] = { value = album.value, label = album.label }
@@ -690,9 +692,11 @@ local function describe_gallery(d)
                     gallery_changed()
                 end
             end })
-    d.row({ key = "status", kind = "label", text = gallery_status(items, pages) })
-    local note = gallery.state ~= "failed" and gallery.note or ""
-    d.row({ key = "note", kind = "label", text = note })
+    -- The note rides on the status line: a row of its own would be a row with
+    -- nothing to say most of the time, and an empty label is not an absent one.
+    local status = gallery_status(items, pages)
+    if gallery.state ~= "failed" and gallery.note ~= "" then status = status .. " " .. gallery.note end
+    d.row({ key = "status", kind = "paragraph", text = status })
 
     -- Which pictures are on screen, and which of those have landed: asked
     -- here so the paint key can say so, and so a page nobody turned to is
@@ -717,6 +721,10 @@ local function describe_gallery(d)
                 hit_key = key_id(gallery.album .. "#" .. gallery.page .. "#" .. r),
                 paint_key = gallery_row_key(items, r),
                 paint = gallery_paint, on_action = gallery_row_action })
+        -- A space, not "": an empty row shows its id.
+        d.row({ key = "caption" .. r, kind = "key_value",
+                label = gallery_caption(gallery_cell(items, r, 1)),
+                text = gallery_caption(gallery_cell(items, r, 2)) })
     end
     d.row({ key = "newer", kind = "button", text = "Newer", disabled = gallery.page <= 1,
             on_action = function()
@@ -730,27 +738,50 @@ local function describe_gallery(d)
             end })
     d.row({ key = "refresh", kind = "button", text = "Refresh",
             disabled = gallery.store == "none", on_action = function() gallery_list() end })
+    -- Where they are and the way to them, under the pictures: the pictures
+    -- are what the page is for, and a pane can be short.
+    --
+    -- A paragraph, not a key/value: a folder path is longer than the value
+    -- column, and a paragraph wraps where a value is cut.
+    d.row({ key = "where", kind = "paragraph",
+            text = browser and "Saved in this browser's storage."
+                or (gallery.store == "folder" and "Saved in " .. gallery.root
+                    or "This run keeps no files.") })
+    d.row({ key = "open", kind = "button",
+            text = browser and "Download all (.zip)" or "Open folder",
+            disabled = gallery.store == "none" or (browser and #gallery.items == 0),
+            on_action = function() gallery_open(nil) end })
 end
 
 -- The settings face. Porcelain declares nothing here (the description covers
 -- the page), so these rows sit above the form the host generates from the
 -- config schema, and their actions come back through on_ui_action.
+-- enum ToriRS_PanelNodeKind's PARAGRAPH. Long text goes through `node`:
+-- panel.paragraph keeps its string as a label, which the host cuts at 63
+-- bytes, and a folder path is routinely longer than that.
+local PANEL_PARAGRAPH = 1
+
+local function long_paragraph(panel, id, text)
+    panel.node({ kind = PANEL_PARAGRAPH, id = id, text = text })
+end
+
 local function build_settings(panel)
     panel.heading("Where pictures are saved")
     if gallery.store == "folder" then
-        panel.key_value("where", "Folder", gallery.root)
+        -- A paragraph: a path is longer than a key/value's value column.
+        long_paragraph(panel, "where", gallery.root)
         panel.button("choose", "Choose folder...", gallery.pick_ticket == nil)
-        panel.button("default", "Use the default folder", API.config.destination ~= "")
+        panel.button("default", "Use default", API.config.destination ~= "")
         panel.button("reveal", "Open folder", true)
     elseif gallery.store == "browser" then
         -- A browser has no folder to choose. What it has is a database, and
         -- the pictures in it are laid out the way a desktop's folder would
         -- be: say so, as the tree it is.
-        panel.key_value("where", "Saved in", "This browser's storage")
-        panel.paragraph("Kept in this browser's IndexedDB storage (the files store), "
-            .. "under the paths below. Clearing the site's data deletes them; "
-            .. "download them to keep a copy.")
-        panel.key_value("tree", gallery.root .. "/", plural(#gallery.items, "picture", "pictures"))
+        long_paragraph(panel, "where", "Kept in this browser's IndexedDB storage, in its files store under "
+            .. gallery.root .. "/. Clearing the site's data deletes them; download "
+            .. "them to keep a copy.")
+        panel.key_value("tree", gallery.root:match("([^/]+)$") .. "/",
+            plural(#gallery.items, "picture", "pictures"))
         for i, dir in ipairs(gallery.dirs) do
             if dir.dir ~= "" then
                 local depth = select(2, dir.dir:gsub("/", "")) + 1

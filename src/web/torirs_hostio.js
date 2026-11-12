@@ -91,6 +91,11 @@
 
   function zipStored(entries) {
     const encoder = new TextEncoder();
+    /* MS-DOS date and time, the only clock a .zip header has: the moment of
+     * the download, so an unpacked folder does not claim 1980. */
+    const now = new Date();
+    const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+    const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
     const locals = [];
     const centrals = [];
     let offset = 0;
@@ -101,6 +106,8 @@
       local.setUint32(0, 0x04034b50, true);
       local.setUint16(4, 20, true);
       local.setUint16(6, 0x0800, true);              /* names are UTF-8 */
+      local.setUint16(10, dosTime, true);
+      local.setUint16(12, dosDate, true);
       local.setUint32(14, crc, true);
       local.setUint32(18, entry.bytes.length, true);
       local.setUint32(22, entry.bytes.length, true);
@@ -111,6 +118,8 @@
       central.setUint16(4, 20, true);
       central.setUint16(6, 20, true);
       central.setUint16(8, 0x0800, true);
+      central.setUint16(12, dosTime, true);
+      central.setUint16(14, dosDate, true);
       central.setUint32(16, crc, true);
       central.setUint32(20, entry.bytes.length, true);
       central.setUint32(24, entry.bytes.length, true);

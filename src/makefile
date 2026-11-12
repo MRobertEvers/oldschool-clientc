@@ -4206,6 +4206,7 @@ test-web-channel:
 	node web/test/idb_batch_write_test.js
 	node web/test/host_plugin_files_test.js
 	node web/test/hostio_read_file_test.js
+	node web/test/hostio_files_service_test.js
 	node web/test/js5_reconnect_test.js
 	node web/test/session_resume_test.js
 	$(MAKE) test-web-cache-invalidate
