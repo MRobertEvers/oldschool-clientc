@@ -106,18 +106,44 @@ Switch to the Terrain workspace (**Workspace: Terrain** on the menu bar,
 Ctrl+2). Every tool below is on the left tool rail; its options are in the
 **Terrain** panel (F2) and its floors in the **Palette** (F3).
 
-A real RuneScape area is never one flat colour. Work from large to small:
-the roads, the lie of the land, water, then the ground's colour.
+A real RuneScape area is never one flat colour, and never flat. Before
+shaping anything, look at a real village in the editor (Squares > Find
+`m46_50`, Rimmington, **Open**; do not save it) and read its files: the
+numbers below come from Rimmington, Draynor and Taverley's `.jm2` and `.jl2`.
+Work from large to small: the lie of the land, the roads, water, then the
+ground's colour.
 
 ### Roads
 
-**Paint path** (H, `tool.paint_path`), **Path** *dirt*, **Width (half tiles)**
-6 for the main road (3 tiles), 4 for a track. With nothing picked in the
-Palette it lays overlay 14 *dirt track* and says so. Drag each arm with a
-slight wobble; **Roughness** 50 frays the edges. The status bar counts what a
-stroke laid: *Path: 70 tiles laid, dirt 3.0 wide, overlay 14 dirt track*.
+Rimmington's roads are overlay **10** (*stone floor*, grey cobble), three
+tiles wide, widening into a square round the well; nearly half of their tiles
+carry an edge **shape** (a half-tile diagonal), which is what keeps their
+outline smooth.
 
-![Dirt crossroads](../res/quest_tutorial/03_crossroads.png)
+![Stone roads and the village square](../res/quest_tutorial/03_crossroads.png)
+
+1. **Pick overlay** `10` in the Palette.
+2. **Region** (O, `tool.region`), **overlay**, shapes **natural**, **Radius
+   (half tiles)** 2, **Hardness** 50.
+3. Drag each road in long, nearly straight strokes: *Region: 87 tiles laid, 22
+   edge shapes*. A road that bends every few tiles is what makes a jagged edge.
+4. The square: **Radius (half tiles)** 6, a small loop on the crossroads.
+5. A short spur from the road to each door.
+
+To take a road off again: **Pick overlay** `0` (*Takes the overlay off*) and
+Paint overlay (8) along it.
+
+Avoid **Paint path** with **Roughness** for village roads: it frays both edges
+by up to two tiles on purpose, which reads as a jagged brown smear in a village
+(it suits a forest track or a river).
+
+### Lift the ground off h1
+
+Real ground averages about h28 (Rimmington runs from h1 to h80). A square made
+at h1 can only go up, so first lift the whole village: **Height**, **raise
+only**, **Radius** 12, **Strength** 100, **Grid height** 16, broad strokes
+over everything inside the hills. Buildings standing on it stay level: a
+uniform lift moves them with the ground.
 
 ### Hills round the edge
 
@@ -150,12 +176,26 @@ The Inspector (F7) reads a hovered tile's height: `height h30 (authored)`.
 
 ### The ground's colour
 
-The Palette knows floors by name: type `light grass`, `dry grass`, `dark
-grass`, `dirt`, `sand`, `water`, `stone`, `wood` into **Pick underlay** /
-**Pick overlay**, and hover a swatch to read its name. Paint underlay (7)
-with **Radius** 5 and **Mix** 35-40 in loose patches: two or three greens that
-blend into each other. A stroke narrower than three tiles blends away (the
-panel says so); for a hard edge, paint an overlay.
+A real village mixes six to eight underlays (Rimmington: 48, 66, 63, 49, 50,
+56, 64), in solid patches several tiles across; the client blends the borders
+between them, so the ground shades from one tone to the next.
+
+The Palette knows floors by name or id: type `meadow grass` (49), `dry grass`
+(50), `dark grass` (33), `dark earth` (63), `earth` (64), `48` into **Pick
+underlay**, and hover a swatch to read its name.
+
+1. Paint underlay (7), **Mix (%) 100**, **flat**, **Radius** 8: a base coat of
+   grass 48 over the whole village.
+2. Then solid blobs, **Mix 100**, **Radius** 4-7: about twenty of meadow 49 and
+   a dozen of dry grass 50 anywhere; dark grass 33 towards the woods; and small
+   ones (**Radius** 2-3) of earth 64 and dark earth 63 round the square and the
+   doors, where feet wear the grass away.
+
+**Keep Mix at 100.** Mix is the share of tiles a stroke paints, not a blend: a
+40% stroke leaves a checkerboard of single tiles that the client draws as a
+speckle of hard little squares. Solid patches are what blend.
+
+![Blended ground, soil patches and props by the mill](../res/quest_tutorial/05_ground_cover.png)
 
 ## 4. Buildings
 
@@ -184,8 +224,16 @@ Thistlewick's buildings:
 | Cottage | Timber and plaster | Wooden planks | Thatch | 9 x 7 |
 | The old mill | Wooden planks | Dark boards | Wooden shingles | 10 x 8 |
 | Sheep pen | Wooden fence | None | None | 8 x 8, a gate as its door |
+| West house | Timber and plaster | Wooden planks | Thatch | 7 x 6 |
+| North house | Brick | Brown boards | Red slate | 7 x 6 |
+| Smithy | Old stone | Grey flagstones | Grey slate | 7 x 6, an `anvil` inside |
+| Garden | Picket fence | None | None | 7 x 7, `cabbage`s on dark earth |
 
-![The hall, cottage and mill](../res/quest_tutorial/04_buildings.png)
+Keep them close: in Rimmington the houses stand two to four tiles apart round
+the square, their doors on the road. A village spread over an empty field
+looks like a field.
+
+![The hall, the mill and the sheep pen, Odo's route drawn in orange](../res/quest_tutorial/04_buildings.png)
 
 ### Stamps: the same cottage again
 
@@ -207,8 +255,15 @@ armed, a click puts it down (Q turns it, a drag lays a run)*. Pin level 0
 
 ![Inside the elder's hall](../res/quest_tutorial/05_hall_inside.png)
 
-**The yard.** `well` at the crossroads, a `signpost`, `barrel`s and a `cart`
-by the mill, the quest's hay bales (next section).
+**The square and the doors.** A `well` in the middle of the square, a
+`signpost`, `bench` and `bench2`, a `seed_stall`. At the mill door
+`crate2_old`, `crate_old`, `sacks`, `barrel_stacked`, `hay_1` / `hay_2`; a
+`logpile` by the west cottage, `plant2` / `plant3` either side of the hall
+and cottage doors, a `wheel_barrow` by the field, an
+`eadgar_druid_washing_line` behind a house. Flower beds are a two-tile patch
+of dark earth 63 with `redflower`, `blueflower` and `rareflowers_blue` on it;
+`bush1` along the walls. These are the props Rimmington, Draynor and
+Lumbridge use most.
 
 **What makes it look like RuneScape.** Look at what Jagex's own squares are
 made of: counting the locs in the ten squares round Lumbridge, the most
@@ -225,7 +280,7 @@ tool (B, `tool.scatter`) for them:
    already hold a loc are skipped, so no grass grows through a cottage floor.
 4. Drag broad strokes over the fields. Alt+drag erases what this pick put down.
 
-![Grass, twigs, thistles and daisies on bare ground, none on the road](../res/quest_tutorial/05_ground_cover.png)
+![The village from the square](../res/quest_tutorial/00_village.png)
 
 **Fields.** The Building tool with **Walls** *Wooden fence*, **Floor** and **Roof**
 *None* fences a field in one drag, and **Door** on a fence piece makes a two-leaf
@@ -715,6 +770,11 @@ removes a scratch lane you no longer need without touching the base tree.
 
 ## 16. Things that catch people out
 
+- **Jagged roads.** Use the Region tool with overlay 10 and natural edges,
+  in long straight strokes; the path painter's Roughness frays edges on
+  purpose.
+- **A speckled, single-coloured ground.** Paint underlays at Mix 100 in solid
+  patches of several greens and earths; below 100, Mix scatters single tiles.
 - **The square is too flat.** Real squares are never one height and one
   colour. Hills on the edges, Roughen on the fields, two or three greens, and
   hundreds of small ground locs (section 5) are what read as RuneScape.

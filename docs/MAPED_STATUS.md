@@ -40,6 +40,10 @@ is the `thistlewick` lane. Fixes made while building it, each found by using the
   play client's own interfaces as covering (a body under the chat box was "visible" and its
   click landed on the panel).
 - `docs/MAPED_HOTKEYS.md` row for `file.restart_lane`.
+- Terrain: the Mix slider's tooltip says what it does. Mix is the share of tiles a stroke
+  paints, and below 100 it leaves single tiles that the game draws as a speckle; the
+  village's first ground (Mix 35-40) looked like one colour with noise in it. Paint solid
+  patches at 100 and the client blends their borders (the tutorial's section 3).
 
 Open, from the same session: the World draws the far half of a wide view black and the
 editor camera's pitch stops at 383 (no top-down layout view); the Squares picker ignores an

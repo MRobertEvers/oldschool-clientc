@@ -1007,7 +1007,7 @@ Editor_Terrain_Register(struct EditorUi* ui)
         "Tiles around the flat top that ease to the ground (Rect too)");
     /* Paint underlay (7): its mix, hidden until armed. */
     self->slider_mix = ToriRSChrome_Slider(chrome, self->panel, "Mix (%)", 10, 100, ui->tools.paint_mix, 10);
-    ToriRSChrome_SetTooltip(chrome, self->slider_mix, "Share of tiles painted under 100: a dither the ground blends");
+    ToriRSChrome_SetTooltip(chrome, self->slider_mix, "Share of tiles painted; under 100 shows as a speckle of tiles");
     self->hint_underlay = ToriRSChrome_Paragraph(chrome, self->panel,
         "The ground blends underlays over 5 tiles: a stroke under 3 wide fades away. "
         "For a hard edge paint an overlay.");

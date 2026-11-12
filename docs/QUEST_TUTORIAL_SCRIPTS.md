@@ -466,7 +466,7 @@ param=magicdefence,0
 param=rangedefence,0
 param=death_drop,bones
 patrol1=0_73_56_20_56,5
-patrol2=0_73_56_31_56,0
-patrol3=0_73_56_31_44,5
+patrol2=0_73_56_30_56,0
+patrol3=0_73_56_30_44,5
 patrol4=0_73_56_20_44,0
 ```
