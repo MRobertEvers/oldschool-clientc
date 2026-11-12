@@ -92,7 +92,70 @@ QUEST_GATED_OWNER_OVERRIDES: dict[str, list[str]] = {
     # The Lost Tribe: Nardok refuses a surface-dweller before the treaty
     # (RSProx index 4454 [1092], Trade); losttribe_tunnels.rs2 opens the label.
     "nardoks_bone_weapons": [],
+    # Fadli's shop is his op5 "Buy" and a Talk-to branch, not op3 (op3 is
+    # his bank); duel_staff.rs2 calls the label from both.
+    "fadli": [],
 }
+
+# Reviewed corrections to a catalogue row, each a fact checked against the
+# wiki page or the cache, applied before the gates below. Keyed by shop_key.
+#   not_duplicate  gen_shop_catalog.py folds tables with identical stock into
+#                  one, which is wrong when two different owners sell the same
+#                  lines: Fadli's rotten tomato is not Pelters' Veg Stall, and
+#                  Tostig's three ales are not the Dancing Donkey's beer.
+#   inv            the cache inv, where shop_inv_map.tsv has no verified row.
+#   owners         the owner gamevals to bind op3 on, replacing the crawl's.
+#   stock_obj      {slot: obj gameval} for a line the name match left in review.
+#   drop_slots     lines the cache inv has no room for, with the reason.
+#   shop_name / location   the storefront title and the area folder.
+CATALOG_OVERRIDES: dict[str, dict] = {
+    # The catalogue lists the page twice and marks the second a duplicate of
+    # the first under the same key, so the surviving row is the duplicate.
+    "gem_trader": {"not_duplicate": True, "shop_name": "Gem Trader.", "location": "Al Kharid"},
+    "fadli": {"not_duplicate": True, "shop_name": "Shop of Distaste", "location": "Al Kharid"},
+    # Tostig runs The Toad and Chicken (Burthorpe); death_pub is that pub's
+    # 3-slot inv ("death" is Death Plateau's prefix, as death_generalshop).
+    "tostig": {"not_duplicate": True, "inv": "death_pub", "shop_name": "The Toad and Chicken",
+               "location": "Burthorpe"},
+    # Thessalia (Varrock): clotheshop is LostCity's binding for her, 14 slots.
+    # The spawned npc is the multinpc base `thessalia`, which the rest of her
+    # dialogue (areas/varrock/scripts/thessalia.rs2) binds as well.
+    "thessalias_fine_clothes": {"inv": "clotheshop", "owners": ["thessalia"], "location": "Varrock"},
+    # "Beach boxing gloves (pink)" is beachparty_boxinggloves_purple in this
+    # cache (11706, displayed pink); the yellow line resolved correctly.
+    "diangos_toy_store": {"stock_obj": {6: "beachparty_boxinggloves_yellow", 7: "beachparty_boxinggloves_purple"}},
+    # wine_merchant is 4 slots; the wiki's 5th line, the jug of vinegar, is
+    # sold during Rag and Bone Man II by Fortunato's own dialogue
+    # (quest_ragandboneman/scripts/ragandboneman_fortunato.rs2).
+    "wine_shop": {"drop_slots": {5}},
+}
+
+
+def apply_override(shop_key: str, shop: dict, stock_rows: list[dict]) -> tuple[dict, list[dict]]:
+    o = CATALOG_OVERRIDES.get(shop_key)
+    if not o:
+        return shop, stock_rows
+    shop = dict(shop)
+    if o.get("not_duplicate"):
+        shop["duplicate_of"] = ""
+    for k in ("shop_name", "location"):
+        if k in o:
+            shop[k] = o[k]
+    # A page catalogued twice under one key carries its stock twice.
+    seen: set[str] = set()
+    rows = []
+    for r in stock_rows:
+        if r["slot"] in seen or int(r["slot"]) in o.get("drop_slots", ()):
+            continue
+        seen.add(r["slot"])
+        r = dict(r)
+        if int(r["slot"]) in o.get("stock_obj", {}):
+            r["obj_gameval"] = o["stock_obj"][int(r["slot"])]
+            r["review"] = ""
+        rows.append(r)
+    shop["lines"] = str(len(rows))
+    shop["lines_needing_review"] = str(sum(1 for r in rows if r.get("review")))
+    return shop, rows
 
 
 def slug(text: str) -> str:
@@ -378,7 +441,8 @@ def run(write: bool) -> None:
     already_generated: list[str] = []
 
     for shop_key in sorted(catalog):
-        shop = catalog[shop_key]
+        shop, shop_stock = apply_override(shop_key, catalog[shop_key], stock.get(shop_key, []))
+        override = CATALOG_OVERRIDES.get(shop_key, {})
 
         if shop["duplicate_of"]:
             skipped["duplicate"] += 1
@@ -398,12 +462,14 @@ def run(write: bool) -> None:
             continue
 
         discovered_owners = sorted({o["npc_gameval"] for o in owners.get(shop_key, [])})
-        live_owners = QUEST_GATED_OWNER_OVERRIDES.get(shop_key, discovered_owners)
+        live_owners = QUEST_GATED_OWNER_OVERRIDES.get(shop_key, override.get("owners", discovered_owners))
         if not live_owners and shop_key not in QUEST_GATED_OWNER_OVERRIDES:
             skipped["no spawned owner"] += 1
             continue
 
         binding = inv_map.get(shop_key)
+        if "inv" in override:
+            binding = {"confidence": "verified", "cache_inv": override["inv"]}
         if not binding or binding["confidence"] != "verified" or not binding["cache_inv"]:
             skipped["inv binding not verified"] += 1
             continue
@@ -429,7 +495,7 @@ def run(write: bool) -> None:
             skipped[f"inv '{cache_inv}' already claimed by {claimed_invs[cache_inv]}"] += 1
             continue
 
-        rows = [r for r in stock[shop_key] if r["obj_gameval"]]
+        rows = [r for r in shop_stock if r["obj_gameval"]]
         if len(rows) != int(shop["lines"]):
             skipped["some stock lines have no obj_gameval"] += 1
             continue
