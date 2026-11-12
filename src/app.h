@@ -3869,8 +3869,8 @@ App_IfHideSet(
     int com_id,
     int hide);
 
-/** Drop every IF_SETEVENTS arming. Called on IF_OPENTOP, because that is when
- *  the real client drops it — see the call site in rs_gameproto_exec.c. */
+/** Drop every IF_SETEVENTS arming. Called on IF_RESYNC, which replaces the
+ *  whole table; IF_OPENTOP keeps it (see that case in rs_gameproto_exec.c). */
 void
 App_IfEventsClear(struct App* app);
 
@@ -3885,10 +3885,11 @@ App_IfEventsDropGroup(
 /**
  * IF_SETEVENTS: mark slots `from`..`to` of a component as accepting input.
  *
- * Persisting WITHIN a root, like App_IfHideSet, because the server enables
- * events before the interface holding the component has mounted. Not across
- * one: `App_IfEventsClear` drops the table on IF_OPENTOP. Nor across a close
- * of the component's own group: `App_IfEventsDropGroup`.
+ * Persisting across mounts, like App_IfHideSet, because the server enables
+ * events before the interface holding the component has mounted, and across
+ * an IF_OPENTOP, which the reference never clears them on. Not across an
+ * IF_RESYNC (`App_IfEventsClear`), nor a close of the component's own group
+ * (`App_IfEventsDropGroup`).
  */
 void
 App_IfEventsSet(

@@ -2334,20 +2334,19 @@ RS_GameProto_Exec(
             break;
         TORIRS_LOG("if-opentop: switching root %d -> %d\n", cur, top);
         /*
-         * The arming goes with the old root, and that is not tidiness.
+         * The IF_SETEVENTS arming survives the switch.
          *
-         * A real client rebuilds its whole widget state on an IF_OPENTOP and
-         * the events map goes with it: measured against RuneLite, everything
-         * armed before a second open answered no click afterwards, with
-         * `pkt.log.arm` reporting `(component default)` for every cell.
-         *
-         * Keeping it here made this client MORE forgiving than the one the
-         * server has to satisfy, which is the worst way to differ: a server
-         * that opens a top twice and arms in between works perfectly in-house
-         * and is dead in the real client. Dropping it is what made that bug
-         * visible from this side too.
+         * The reference's open-top (rev 239 class415.method9502, rev 241
+         * class420.method9711 + method9723) unloads the old root's widgets and
+         * loads the new one; it never touches the flags table. Only IF_RESYNC
+         * replaces that table, and a closed group loses its own entries
+         * (App_IfEventsDropGroup). The subs IF_MOVESUB carries into the new top
+         * keep their masks: Jagex arms the backpack once at login and the
+         * welcome screen's Play then opens the gameframe top without arming it
+         * again (RSProx index 4378: IF_SETEVENTS 149:0 at line 644, IF_OPENTOP
+         * at 782, an op on a backpack item at 4258). Clearing here left every
+         * backpack slot without its target bits, so no item offered "Use".
          */
-        App_IfEventsClear(ctx->app);
         App_OpenRootInterface(ctx->app, top);
         break;
     }

@@ -19,7 +19,7 @@
  *   - `At` and `Lookup` differ, and the difference matters: a declared zero is
  *     a real answer that disables cache-authored ops, and reading it as
  *     "absent" switches every one of them back on.
- *   - clear empties without freeing, which is what IF_OPENTOP does.
+ *   - clear empties without freeing, which is what IF_RESYNC does.
  *   - dropping a group removes every range on that group's components and
  *     nothing else, which is what closing it out of a slot does.
  *   - a dynamic child is addressed as (container, index within it) -- the
@@ -148,8 +148,8 @@ test_a_declared_zero_is_not_an_absence(void)
     CHECK(events == 0, "the declared zero came back as %u", events);
     CHECK(!UIIfEventTable_Lookup(&table, 11, -1, &events), "an undeclared component reported one");
 
-    /* Clear empties but keeps the storage: IF_OPENTOP drops the arming, and
-     * the next root re-arms into the same allocation. */
+    /* Clear empties but keeps the storage: IF_RESYNC replaces the arming, and
+     * its own list re-arms into the same allocation. */
     {
         struct UIIfEventRange* before = table.ranges;
 

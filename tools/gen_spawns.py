@@ -518,8 +518,14 @@ OBJ_SPAWN_ID_CORRECTIONS = {
 # floor, 2567,3444,2. Jagex's remains there are the loc mcannonremains_multiloc,
 # shown only at stage 3 and taken by its op (RSProx index 4409 [596], [604..607]);
 # no obj is ever sent on that tile. A public obj was a second, wrong source.
+#
+# Gerrant's Fishy Business, Port Sarim: the dump lays a plain white_apron on
+# 3016,3229 as well as piratetreasure_apron, the apron on its hook. Jagex sends
+# only piratetreasure_apron there (RSProx index 4378 [obj_add_specific] x3,
+# [261] its Take gives the white_apron); the plain one lay flat on the floor.
 OBJ_SPAWN_EXCLUSIONS = {
     ("mcannonremains", 2567, 3444, 2),
+    ("white_apron", 3016, 3229, 0),
     ("rd_metal_spade_no_handle", 2473, 4941, 0),
     ("reddye", 1240, 3688, 0),
     ("yellowdye", 1240, 3688, 0),
