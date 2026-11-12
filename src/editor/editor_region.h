@@ -199,6 +199,25 @@ Editor_RegionCapsule(
     double bz,
     double radius);
 
+/**
+ * A straight stroke (Shift at the Region brush's press): the start taken to
+ * its tile's centre, the end to the tile centre nearest the pointer along
+ * the nearest of the eight directions (0, 45, 90 ... degrees). A road drawn
+ * by hand drifts a fraction of a tile over its length, and every drift is a
+ * step the overlay shapes draw as a tooth; held to a direction and to tile
+ * centres, its edge runs along the grid or along a diagonal.
+ */
+void
+Editor_RegionStraight(
+    double start_x,
+    double start_z,
+    double pointer_x,
+    double pointer_z,
+    double* out_start_x,
+    double* out_start_z,
+    double* out_end_x,
+    double* out_end_z);
+
 /** Sets every sample inside the closed loop (even-odd), `count` >= 3 points
  *  in world tiles, continuous. */
 void

@@ -114,6 +114,7 @@ Editor_UiInit(
     ui->tools.region_radius_halves = 5;
     ui->tools.region_hardness = 50;
     ui->tools.region_snap = 0;
+    ui->tools.region_straight = 0;
     ui->tools.region_set = 0;
     ui->tools.region_underlay = 0;
     ui->tools.region_lasso_smooth = 2;
@@ -4903,6 +4904,22 @@ ui_tool_options_follow(
 
     if( !ui->visible || ui->solo_panel >= 0 )
         return;
+    /* A tool that lays the palette's overlay, armed with none picked and the
+     * Palette shut (a reset layout shows Terrain alone in their group): the
+     * Terrain panel's "none is picked in the Palette" named a panel nowhere
+     * on screen. */
+    if( (tool == EDITOR_TOOL_REGION || tool == EDITOR_TOOL_LASSO || tool == EDITOR_TOOL_PAINT_OVERLAY)
+        && ui->tools.overlay_none )
+    {
+        panel = Editor_UiFindPanel(ui, "palette");
+        if( panel && panel->chrome_panel >= 0 && !ui->chrome->panels[panel->chrome_panel].visible
+            && !Editor_UiPanelInStrip(ui, "palette") )
+        {
+            ToriRSChrome_PanelSetVisible(ui->chrome, panel->chrome_panel, 1);
+            Editor_UiStatus(ui, "%s armed: pick its overlay in the Palette", Editor_ToolName(tool));
+            return;
+        }
+    }
     if( !Editor_ToolIsBrush(tool) && tool != EDITOR_TOOL_PAINT_PATH )
         return;
     for( size_t i = 0; i < sizeof(k_group) / sizeof(k_group[0]); i++ )

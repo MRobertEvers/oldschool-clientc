@@ -1113,6 +1113,22 @@ test_scatter(void)
         CHECK(on_road > 0, "scatter: without it the road row takes locs too (%d)", on_road);
         for( int dx = -3; dx <= 3; dx++ )
             sq->tiles[Editor_TileIndex(lx + dx, lz, 0)] = kept[dx + 3];
+
+        /* A roofed row with no floor (a house whose floor tile was taken
+         * off) is indoors all the same. */
+        for( int dx = -3; dx <= 3; dx++ )
+            sq->tiles[Editor_TileIndex(lx + dx, lz, 0)].settings |= 4;
+        op.bare = 1;
+        m = Editor_ScatterCommands(&g_editor.doc, &op, commands, EDITOR_BRUSH_TILES_MAX);
+        on_road = 0;
+        for( int i = 0; i < m; i++ )
+            if( commands[i].u.loc.after.z == lz )
+                on_road++;
+        CHECK(m > 0 && on_road == 0, "scatter: bare ground only skips a roofed row with no floor (%d placed, %d on it)",
+            m, on_road);
+        op.bare = 0;
+        for( int dx = -3; dx <= 3; dx++ )
+            sq->tiles[Editor_TileIndex(lx + dx, lz, 0)] = kept[dx + 3];
     }
 }
 

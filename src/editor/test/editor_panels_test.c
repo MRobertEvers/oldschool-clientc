@@ -169,8 +169,13 @@ derived(
 static int
 find_panel(const char* title)
 {
+    size_t const n = strlen(title);
     for( int i = 0; i < g_chrome.panel_count; i++ )
         if( strcmp(g_chrome.panels[i].title, title) == 0 )
+            return i;
+    /* A title that goes on to say more ("World - 4 open (...) - level 1"). */
+    for( int i = 0; i < g_chrome.panel_count; i++ )
+        if( strncmp(g_chrome.panels[i].title, title, n) == 0 && strncmp(g_chrome.panels[i].title + n, " - ", 3) == 0 )
             return i;
     return -1;
 }
@@ -231,7 +236,7 @@ push_graph(
 }
 
 /* The fake window: what the hooks were asked. */
-static struct
+static struct FakeWindow
 {
     int open_calls;
     int open_x;
@@ -2415,6 +2420,31 @@ test_chrome(void)
         "shift-click adds m50_51 to the open set (%d calls, m%d_%d, add %d; m50_50 at %d,%d, well %d,%d %dx%d)",
         g_window.open_calls, g_window.open_x, g_window.open_z, g_window.open_add, x, y, g_chrome.widgets[graph].x,
         g_chrome.widgets[graph].y, g_chrome.widgets[graph].w, g_chrome.widgets[graph].h);
+
+    /* A square typed into Find and Add pressed without Enter: the square
+     * typed is added, not the one focused before (2026-11-12: "Add refused:
+     * no square is focused", or the last square found added again). */
+    {
+        int const input = find_widget(g_squares_panel, TORIRS_CHROME_W_TEXTINPUT, "Find");
+        int const add = find_widget(g_squares_panel, TORIRS_CHROME_W_BUTTON, "Add to open set");
+        struct FakeWindow const kept = g_window;
+        CHECK(input >= 0 && add >= 0, "Find and Add to open set are on the panel");
+        if( input >= 0 && add >= 0 )
+        {
+            ToriRSChrome_SetText(&g_chrome, input, "m50_50");
+            activate(add);
+            frame();
+            CHECK(g_window.open_calls == kept.open_calls + 1 && g_window.open_x == 50 && g_window.open_z == 50
+                      && g_window.open_add,
+                "Add takes the square typed into Find without Enter (%d calls, m%d_%d, add %d)", g_window.open_calls,
+                g_window.open_x, g_window.open_z, g_window.open_add);
+        }
+        g_window = kept;
+        /* The Add put the Square map away again (it was opened by a Find);
+         * the checks below work its well, from m50_51 as before. */
+        search_field("m50_51");
+        CHECK(picker_point(picker, 50, 51, &x, &y), "m50_51 is in view again");
+    }
 
     /* A drag pans, and does not open. */
     {
@@ -4759,9 +4789,11 @@ test_shared_tools(void)
     Editor_UiClearSolo(&g_ui);
     frame();
     frame();
-    CHECK(g_ui.solo_panel < 0 && strcmp(g_chrome.panels[g_ui.world_panel].title, "World") == 0
+    CHECK(g_ui.solo_panel < 0 && strncmp(g_chrome.panels[g_ui.world_panel].title, "World", 5) == 0
+              && !strstr(g_chrome.panels[g_ui.world_panel].title, "Height")
               && g_chrome.panels[g_ui.world_panel].poppable,
-        "shared tools: Open panels takes it back to the whole set");
+        "shared tools: Open panels takes it back to the whole set, its title the squares again (%s)",
+        g_chrome.panels[g_ui.world_panel].title);
 
     Editor_SetStateCallback(&g_editor, NULL, NULL);
     Editor_Close(&peer);
@@ -7668,7 +7700,8 @@ test_active_level(void)
     CHECK(g_chrome.widgets[buttons[0]].checked && !g_chrome.widgets[buttons[2]].checked,
         "level: Auto is the pressed button at boot");
     CHECK(g_chrome.widgets[above].disabled, "level: Above is unavailable under Auto");
-    CHECK(strcmp(world_title(), "World") == 0, "level: the World title is plain under Auto (%s)", world_title());
+    CHECK(!strstr(world_title(), "level"), "level: the World title names no level under Auto (%s)", world_title());
+    CHECK(strstr(world_title(), " open (m50_50"), "level: it names the open squares (%s)", world_title());
 
     /* A real click on "1" pins level 1 and caps the view there. */
     click_widget(buttons[2]);
@@ -7677,7 +7710,8 @@ test_active_level(void)
     CHECK(g_chrome.widgets[buttons[2]].checked && !g_chrome.widgets[buttons[0]].checked,
         "level: 1 is pressed, Auto is not");
     CHECK(!g_chrome.widgets[above].disabled && !g_chrome.widgets[above].checked, "level: Above offered, off");
-    CHECK(strcmp(world_title(), "World - level 1") == 0, "level: the World title names it (%s)", world_title());
+    CHECK(strstr(world_title(), " open (") && strstr(world_title(), " - level 1") && strlen(world_title()) < 63,
+        "level: the World title names it, after the squares, uncut (%s)", world_title());
     CHECK(terrain_radio_checked("auto", "1") == 1 && terrain_radio_checked("all", "1") == 1,
         "level: the terrain panel's level and view radios follow the row");
 
@@ -7696,7 +7730,7 @@ test_active_level(void)
     click_widget(buttons[0]);
     CHECK(g_ui.tools.edit_level == -1 && g_ui.tools.vis_level == -1 && g_chrome.widgets[above].disabled,
         "level: Auto unpins and draws every level");
-    CHECK(strcmp(world_title(), "World") == 0, "level: the title is plain again");
+    CHECK(!strstr(world_title(), "level"), "level: the title names no level again (%s)", world_title());
 
     /* The keys' step (PageUp / PageDown): from Auto at the hovered plane,
      * clamped at 0 and 3. */
@@ -7708,7 +7742,7 @@ test_active_level(void)
         (void)edp_level_step(&g_ui, -1, 0);
     CHECK(g_ui.tools.edit_level == 0 && g_ui.tools.vis_level == 0, "level: PageDown clamps at 0");
     frame();
-    CHECK(g_chrome.widgets[buttons[1]].checked && strcmp(world_title(), "World - level 0") == 0,
+    CHECK(g_chrome.widgets[buttons[1]].checked && strstr(world_title(), " - level 0") != NULL,
         "level: a key's pin presses the row's button on the next frame");
     edp_level_set(&g_ui, EDP_LEVEL_AUTO);
     CHECK(edp_level_step(&g_ui, -1, 2) == 1, "level: PageDown from Auto on level 2 pins 1");

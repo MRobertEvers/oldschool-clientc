@@ -3228,6 +3228,12 @@ app_map_editor_drag(
                 if( placed > 0 )
                     Editor_UiStatus(ui, "Scatter: %d edit%s in one step (Ctrl+Z undoes it; Alt+drag erases)", placed,
                         placed == 1 ? "" : "s");
+                /* Bare ground only refuses roads, floors, roofed tiles and
+                 * taken ones: a cave whose template is roofed throughout took
+                 * nothing, and "raise Density" sent the user the wrong way. */
+                else if( ui->tools.scatter_bare && !panel->scatter_erase )
+                    Editor_UiStatus(ui, "Scatter: nothing laid; Bare ground only skips roads, floors, roofed and "
+                                        "taken tiles (untick it), else raise Density");
                 else
                     Editor_UiStatus(ui, "Scatter: nothing laid; raise Density in the Terrain panel or drag wider");
             }
@@ -3722,7 +3728,8 @@ app_map_editor_world_click(
          * off. Tidy acts on the release, below. */
         if( tool == EDITOR_TOOL_REGION || tool == EDITOR_TOOL_LASSO )
         {
-            if( Editor_PanelRegionPress(panel, app, LibToriRS_Input_IsKeyHeld(input, TORIRSK_ALT)) )
+            if( Editor_PanelRegionPress(panel, app, LibToriRS_Input_IsKeyHeld(input, TORIRSK_ALT),
+                    LibToriRS_Input_IsKeyHeld(input, TORIRSK_SHIFT)) )
                 app->need_redraw = 1;
             return;
         }

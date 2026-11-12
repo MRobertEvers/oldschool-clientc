@@ -241,6 +241,22 @@ Editor_PanelRegionTrack(
     }
     if( stroke->tool == EDITOR_TOOL_LASSO && stroke->lasso_mode == 2 )
         return moved;
+    if( stroke->straight )
+    {
+        double sx;
+        double sz;
+        double ex;
+        double ez;
+        Editor_RegionStraight(stroke->straight_x, stroke->straight_z, x, z, &sx, &sz, &ex, &ez);
+        if( stroke->count != 2 || stroke->xs[1] != ex || stroke->zs[1] != ez )
+            moved = 1;
+        stroke->xs[0] = sx;
+        stroke->zs[0] = sz;
+        stroke->xs[1] = ex;
+        stroke->zs[1] = ez;
+        stroke->count = 2;
+        return moved;
+    }
     if( region_dist(x, z, stroke->xs[stroke->count - 1], stroke->zs[stroke->count - 1]) >= REGION_STEP )
     {
         if( stroke->count == EDITOR_REGION_STROKE_POINTS )
@@ -256,7 +272,8 @@ int
 Editor_PanelRegionPress(
     struct Editor_Panel* panel,
     struct App* app,
-    int alt)
+    int alt,
+    int shift)
 {
     struct Editor_RegionStroke* stroke;
     struct EditorUi* ui;
@@ -299,6 +316,21 @@ Editor_PanelRegionPress(
     stroke->lasso_mode = 0;
     stroke->count = 0;
     stroke->preview_key = 0;
+    stroke->straight = (shift || ui->tools.region_straight) && stroke->tool == EDITOR_TOOL_REGION ? 1 : 0;
+    if( stroke->straight )
+    {
+        double sx;
+        double sz;
+        double ex;
+        double ez;
+        stroke->straight_x = stroke->hover_x;
+        stroke->straight_z = stroke->hover_z;
+        Editor_RegionStraight(stroke->hover_x, stroke->hover_z, stroke->hover_x, stroke->hover_z, &sx, &sz, &ex, &ez);
+        region_push(stroke, sx, sz);
+        region_push(stroke, ex, ez);
+        Editor_UiStatus(ui, "Region: a straight run, held to 0/45/90 degrees on tile centres; release lays it");
+        return 1;
+    }
     region_push(stroke, stroke->hover_x, stroke->hover_z);
     return 1;
 }

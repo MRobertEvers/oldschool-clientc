@@ -685,6 +685,31 @@ test_wall_line_and_taller(void)
     CHECK(loc_is(3214, 3216, 2, 18, EDGE, 3), "the roof moved up");
     CHECK(result.kept == 28, "the ground floor's walls were already there (%d)", result.kept);
 
+    /* Built over scattered ground: the grass on its rectangle comes off its
+     * ground level, and none outside it or on another level. */
+    {
+        struct Editor_Square* square = Editor_DocFindSquare(&g_doc, 50, 50);
+        struct Editor_Loc tuft;
+        int before;
+        memset(&tuft, 0, sizeof(tuft));
+        tuft.loc_id = 4735;
+        tuft.shape = 22;
+        before = square->loc_count;
+        tuft.x = (g_plan.x0 + 1) - 50 * 64;
+        tuft.z = (g_plan.z0 + 1) - 50 * 64;
+        (void)Editor_SquareLocAdd(square, &tuft);
+        tuft.x = (g_plan.x0 - 2) - 50 * 64;
+        (void)Editor_SquareLocAdd(square, &tuft);
+        tuft.x = (g_plan.x0 + 1) - 50 * 64;
+        tuft.level = 1;
+        (void)Editor_SquareLocAdd(square, &tuft);
+        CHECK(square->loc_count == before + 3, "three tufts laid for the check");
+        cleared = Editor_BuildingClearDecorCommands(&g_doc, g_plan.x0, g_plan.z0, g_plan.x1, g_plan.z1, 0, g_cmds,
+            CMDS_MAX);
+        CHECK(cleared == 1, "the tuft inside on level 0 comes off, the one outside and the one upstairs stay (%d)",
+            cleared);
+    }
+
     CHECK(Editor_BuildingSideRotation(0) == 2 && Editor_BuildingSideRotation(3) == 1, "a side's pieces face indoors");
     CHECK(Editor_BuildingCornerRotation(0) == 1 && Editor_BuildingCornerRotation(3) == 0, "the corner rotations");
     CHECK(Editor_BuildingWallStyleCount() >= 6 && Editor_BuildingRoofStyleCount() >= 4

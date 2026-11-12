@@ -15,6 +15,40 @@ brush footprint, spawn ghosts, History panel, slider skin).
 The plan for the editor as a game editor, measured against the editors
 people know, is docs/MAPED_ROADMAP.md.
 
+## Straight roads, a cave den and a story that holds (2026-11-12)
+
+The tutorial's village rebuilt after a playtest: the roads were jagged, a house had lost floor
+tiles, a bookcase stood half outside its wall, grass grew indoors, the den was a fenced box, and
+the plot did not hang together. Fixes to the editor, each met while doing the work in it:
+
+- **Region: straight lines.** Shift at a Region brush press, or **Straight lines** in the
+  Terrain panel for every stroke, makes the stroke one run from tile centre to tile centre at
+  0/45/90 degrees (`Editor_RegionStraight`, tested in editor_region_test). A hand-drawn road
+  drifts a fraction of a tile and every drift became a tooth of edge shapes. The checkbox exists
+  because Shift+Alt+drag is the window move, so a straight take-off cannot be Shift+Alt.
+- **Building clears the ground it is built on**: grass, soil and twigs (shape 22) on a new
+  house's rectangle come off in the same step (`Editor_BuildingClearDecorCommands`); fences keep
+  theirs. Three houses built over scattered ground had grass through their floors.
+- **Scatter: Bare ground only skips roofed tiles** (settings 4) too, so a house with a floor
+  tile missing does not grow grass; and when a stroke lays nothing for that reason the status
+  says so instead of "raise Density" (a roofed cave template took nothing).
+- **Squares: Find, Open and Add act on what is typed.** Add with `m72_57` typed and no Enter
+  added the square focused before, or was refused; pressed in the moments after the panel
+  opened, before the square list arrived, it was refused, and a Find then said a square that
+  exists "does not exist yet". All three now wait for the list and run when it lands.
+- **The World's title names the squares**: *World - m72_56, 4 open (m72_56..m73_57) - level 0*,
+  the square at the middle of the view first. Nothing on screen said which square one was
+  looking at.
+- **Arming Region, Lasso or Paint overlay with no overlay picked opens the Palette** when it is
+  shut (a reset layout shows Terrain alone in its group, and the Terrain panel's "none is picked
+  in the Palette" named a panel nowhere on screen).
+- **Rotate says what it did** (*Rotated 1 loc a quarter turn: loc 380 now at rotation 1*).
+
+Open: the World panel was twice squeezed to 120 px with a black hole beside it (F32) after a
+run of panel opens and closes; neither repeat reproduced it from a clean layout. Arming the
+Rectangle tool can take the Palette's place in the column, so "Fill with palette" then fills
+with a pick no longer on screen (its status line names what it used).
+
 ## The quest tutorial and the friction it found (2026-11-11)
 
 A custom quest built end to end in the editor, with the friction it found removed (2026-11-11).

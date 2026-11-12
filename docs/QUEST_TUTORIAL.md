@@ -8,7 +8,7 @@ editor in this repository, from an empty patch of map to a promoted lane:
 - three characters of its own, one of them walking a patrol route;
 - dialogue that follows the quest's stages, written in VS Code;
 - a searchable loc and a locked door with their own triggers;
-- a cutscene with a pathed camera;
+- a cutscene with a pathed camera, played inside the den;
 - a private, instanced den with a boss that has one telegraphed special
   attack, in the style of Brutus from The Ides of Milk;
 - a journal, a completion scroll and rewards.
@@ -20,11 +20,19 @@ editor; it does not write scripts for you.
 
 ![The finished village](../res/quest_tutorial/00_village.png)
 
-**The story.** Sheep go missing from Thistlewick's pen at night and something
-howls. Elder Bramwen asks you to find out why. Odo the shepherd, who walks
-round the pen, saw paw prints going under the old mill. The cellar key is lost
-in the hay bales. Behind the cellar door lives Greyfang, a wolf the size of a
-pony.
+**The story.** Thistlewick's mill was built over the mouth of an old cave.
+Elder Bramwen's grandmother told of a great grey wolf, Greyfang, that once
+denned in it; the villagers walled the cave off behind the mill's cellar and
+forgot it. The miller died last winter and the mill stands shut. Now sheep
+vanish at night, and a howl comes up out of the ground.
+
+Bramwen tells you the legend and sends you to Odo, who sat up with the flock:
+he saw a grey shape take a ewe and followed its tracks into the shut mill, to
+the cellar door. The miller left Odo the key, and Odo hid it at the bottom of
+the hay bales to keep the village children out of the cellar. Behind the door
+the cellar wall has fallen in: the cave is open again, and Greyfang lies on a
+bed of straw among the bones of the flock. Bring his pelt to the elder, and the
+legend turns out to be true.
 
 Contents:
 
@@ -95,7 +103,12 @@ are kept for scratch squares, and x >= 100 is where instances are stamped
    128 x 128 scene.
 
 Later, to open them again: the **Squares** panel (`view.squares`), **Find**
-`m72_56`, **Open**; then Find each neighbour and **Add to open set**. Or
+`m72_56`, **Open**; then type each neighbour into Find and press **Add to open
+set** (no Enter needed; pressed while the square list is still loading, it
+waits for it: *Add: the square list is still loading; it adds when it
+arrives*). The World panel's title says what you are looking at: *World -
+m72_56, 4 open (m72_56..m73_57)*, the square at the middle of the view first.
+Or
 **File > Open squares...** (Ctrl+O) and drag over the four cells on the Square
 map. **Close square** (`file.close_square`) drops one again. A scene is at
 most 4 x 4 squares: a far square is refused rather than stretching the scene.
@@ -116,26 +129,37 @@ ground's colour.
 ### Roads
 
 Rimmington's roads are overlay **10** (*stone floor*, grey cobble), three
-tiles wide, widening into a square round the well; nearly half of their tiles
-carry an edge **shape** (a half-tile diagonal), which is what keeps their
-outline smooth.
+tiles wide, widening into a square round the well. Their edges are straight,
+or step at 45 degrees where a road turns: a road that drifts a fraction of a
+tile over its length is drawn by the overlay shapes as a row of teeth, and that
+is the jagged look to avoid.
 
 ![Stone roads and the village square](../res/quest_tutorial/03_crossroads.png)
 
 1. **Pick overlay** `10` in the Palette.
-2. **Region** (O, `tool.region`), **overlay**, shapes **natural**, **Radius
-   (half tiles)** 2, **Hardness** 50.
-3. Drag each road in long, nearly straight strokes: *Region: 87 tiles laid, 22
-   edge shapes*. A road that bends every few tiles is what makes a jagged edge.
-4. The square: **Radius (half tiles)** 6, a small loop on the crossroads.
-5. A short spur from the road to each door.
+2. **Region** (O, `tool.region`), **overlay**, shapes **paved** (straight edges
+   and 45-degree corners only), **Hardness** 50.
+3. Tick **Straight lines** (or hold **Shift** at the press for one stroke):
+   each stroke is one straight run from tile centre to tile centre, held to
+   0, 45 or 90 degrees, so a hand that wanders does not. *Region: a straight
+   run, held to 0/45/90 degrees on tile centres; release lays it*.
+4. The main road: **Radius (half tiles)** 3, strokes along one row, 20 tiles
+   at a time (each stroke snaps to the same row, so they join exactly): three
+   whole tiles wide, *Region: 62 tiles laid, 2 edge shapes* -- the only edge
+   shapes are the rounded ends, which the next stroke covers.
+5. The square: **Radius** 9 and a click on the crossroads: a round square whose
+   rim is 45-degree steps.
+6. A path to each door: **Radius** 2, from the road to the tile outside the
+   door: one whole tile with a half tile either side.
 
-To take a road off again: **Pick overlay** `0` (*Takes the overlay off*) and
-Paint overlay (8) along it.
+**To take a road off**, keep its overlay picked and **Alt+drag** with the
+Region brush: only that overlay comes off; a house floor of another overlay
+beside it stays. (Paint overlay with **Pick overlay** `0` takes off *every*
+overlay under the brush, floors included -- that is how the cottage lost the
+boards inside its door while this village was built.)
 
 Avoid **Paint path** with **Roughness** for village roads: it frays both edges
-by up to two tiles on purpose, which reads as a jagged brown smear in a village
-(it suits a forest track or a river).
+by up to two tiles on purpose (it suits a forest track or a river).
 
 ### Lift the ground off h1
 
@@ -211,7 +235,9 @@ The **Building** tool (4, `tool.building`) makes a whole house from one drag.
    with a 10 x 6 room. One drag, one undo step:
    *Built 12x8 at 4678,3654 L0: 36 wall pieces, 60 floor tiles, 1 storey, a
    roof on L1*. **Hide the roof indoors** sets the tiles' *remove roof* flag, so
-   the roof hides when the player walks in.
+   the roof hides when the player walks in. A house built over ground you
+   already dressed takes the grass, soil and twigs off its own tiles in the
+   same step (a fence's pen keeps them).
 3. **Door**, then click a wall piece: the door of that wall's style goes in,
    turned the right way. Click it again for the wall back.
 4. **Window**, then click wall pieces.
@@ -253,6 +279,12 @@ armed, a click puts it down (Q turns it, a drag lays a run)*. Pin level 0
 `longtable` with four `chair`s, a `bookcase` against the north wall,
 `fenk_fireplace` on the east wall and a strip of `poh_rugmiddle1`.
 
+Mind a piece's **footprint** (the Locs panel shows it for the selection:
+*Footprint 1x2*). A 1x2 bookcase put down at the wrong turn runs across the
+wall tile and stands half outside the house, its back to the lane; select it
+and press **Q** until its long side lies along the wall: *Rotated 1 loc a
+quarter turn: loc 380 now at rotation 1*. Look from outside as well as in.
+
 ![Inside the elder's hall](../res/quest_tutorial/05_hall_inside.png)
 
 **The square and the doors.** A `well` in the middle of the square, a
@@ -276,8 +308,9 @@ tool (B, `tool.scatter`) for them:
    scatters).
 2. **Density (%)** low: 6 for `short_grass_1`, 4 and 3 for `_2` and `_3`, 2 for
    `broken_twig` and `thistle`, 1 for `daisys`.
-3. Keep **Bare ground only** ticked: roads, floors, water and tiles that
-   already hold a loc are skipped, so no grass grows through a cottage floor.
+3. Keep **Bare ground only** ticked: roads, floors, water, roofed tiles
+   (indoors, even where a floor tile is missing) and tiles that already hold
+   a loc are skipped, so no grass grows in a cottage.
 4. Drag broad strokes over the fields. Alt+drag erases what this pick put down.
 
 ![The village from the square](../res/quest_tutorial/00_village.png)
@@ -396,10 +429,15 @@ journal proc*. **Copy name** puts a record's name on the clipboard.
 
 ```
 ^thistlewick_not_started = 0
+// Elder Bramwen asked for help: talk to Odo.
 ^thistlewick_started = 1
+// Odo told where the wolf goes, and where he hid the cellar key.
 ^thistlewick_heard = 2
-^thistlewick_slain = 3
-^thistlewick_complete = 4
+// The cellar door is unlocked for good: the den can be entered again without the key.
+^thistlewick_unlocked = 3
+// Greyfang is dead: take his pelt to the elder.
+^thistlewick_slain = 4
+^thistlewick_complete = 5
 
 ^thistlewick_village = 0_72_56_63_63
 
@@ -413,6 +451,10 @@ journal proc*. **Copy name** puts a record's name on the clipboard.
 
 A coord is `level_squarex_squarez_tilex_tilez`: the Inspector and the status
 bar show the square and the tile inside it.
+
+A stage is a fact about the world, not a step of the walkthrough. *Unlocked*
+is there so that a player who dies in the den, or climbs out to heal, can go
+back down without hunting for a key that was used up.
 
 ## 9. Dialogue and triggers
 
@@ -431,16 +473,28 @@ if (%varp9517_thistlewick_quest = ^thistlewick_not_started) {
 } ...
 
 [label,thistle_elder_offer]
-~chatnpc_anim(^chat_sad, "Welcome to Thistlewick, though you find us in a sorry state. ...");
-if (~p_choice2("What can I do?", 1, "I'm only passing through.", 2) = 2) {
-    ~chatplayer_anim(^chat_neutral, "I'm only passing through.");
-    return;
+~chatnpc_anim(^chat_sad, "Welcome to Thistlewick, though you find us in a sorry state. Three sheep gone in a week.");
+~chatnpc_anim(^chat_worried, "And every night a howl that seems to come up out of the ground itself.");
+switch_int (~p_choice3("Out of the ground?", 1, "What can I do?", 2, "I'm only passing through.", 3)) {
+    case 3 :
+        ~chatplayer_anim(^chat_neutral, "I'm only passing through.");
+        return;
+    case 1 :
+        ~chatplayer_anim(^chat_quiz, "Out of the ground?");
+        ~chatnpc_anim(^chat_neutral, "My grandmother told of a great grey wolf, Greyfang, that denned in a cave under this hill.");
+        ...
 }
-...
+~chatnpc_anim(^chat_quiz, "Will you find out what is taking our sheep, and put an end to it?");
 if (~p_choice2_header("Yes.", 1, "No.", 2, "Start The Thistlewick Howl?") = 1) {
     %varp9517_thistlewick_quest = ^thistlewick_started;
     mes("You've started a new quest: @q_mes@The Thistlewick Howl</col>");
 ```
+
+Give every character something to say at every stage, before the quest and
+after it too: Odo greets a stranger with *Can't stop to chat. Somebody has to
+count them*, and when it is over, *Every one of them counted this morning, and
+every morning since*. A line that tells the player where to go next (*the sheep
+pen, just east of the old mill*) has to be true of the map: walk it.
 
 `~chatnpc_anim` / `~chatplayer_anim` take an expression (`^chat_neutral`,
 `^chat_happy`, `^chat_sad`, `^chat_quiz`, `^chat_worried`, `^chat_shock` ...),
@@ -455,70 +509,91 @@ only once:
 ```
 [oploc1,thistle_haybales]
 if (%varp9517_thistlewick_quest ! ^thistlewick_heard) { mes("Just hay."); return; }
-if (inv_total(inv, thistle_cellar_key) > 0) { mes("You find nothing else of interest."); return; }
+if (inv_total(inv, thistle_cellar_key) > 0) { mes("You find nothing else in the hay."); return; }
 anim(human_pickupfloor, 0);
 p_delay(1);
 inv_add(inv, thistle_cellar_key, 1);
-~objbox(thistle_cellar_key, "Deep in the hay you find an old iron key.");
+~objbox(thistle_cellar_key, "Right at the bottom of the hay, where Odo said, you find the miller's old iron key.");
 ```
 
-**A locked door** checks the stage and the key, then plays the cutscene and
-goes down (sections 10 and 11):
+**A locked door** checks the stage and the key. The first time, the key is
+used up and the door stays unlocked; every time, it goes down into the den
+(sections 10 and 11), and the cutscene plays only on the first:
 
 ```
 [oploc1,thistle_cellar_door]
 ...
-mes("You unlock the cellar door. Something below growls.");
-~thistle_cellar_camera;
-~thistle_den_enter;
+if (%varp9517_thistlewick_quest = ^thistlewick_heard) {
+    if (inv_total(inv, thistle_cellar_key) < 1) {
+        mes("The cellar door is locked. Odo hid the key in the hay bales by the mill.");
+        return;
+    }
+    inv_del(inv, thistle_cellar_key, 1);
+    %varp9517_thistlewick_quest = ^thistlewick_unlocked;
+    mes("The old key turns stiffly. Cold air and the smell of wet fur come up from below.");
+    ~thistle_den_enter(true);
+    return;
+}
+if (%varp9517_thistlewick_quest >= ^thistlewick_slain) {
+    mes("You climb down into the empty den.");
+}
+~thistle_den_enter(false);
 ```
 
 ## 10. A cutscene with a pathed camera
 
+The cutscene shows the player what they walked into: the camera starts at the
+foot of the ladder, glides down the cave past the bones and holds on Greyfang
+standing on his bed of straw. Then he howls and comes for them. It plays
+inside the player's own copy of the den (section 11), so its keyframes are
+offsets inside the template, not world tiles.
+
+Open the den's template first (**Squares** > Find `m0_100` > **Open**), then
 **View > Camera path** (`view.campath`):
 
-![The Camera path panel](../res/quest_tutorial/10_campath.png)
+![The Camera path panel on the den](../res/quest_tutorial/10_campath.png)
 
-1. **Setup** tab: **Name** `thistle_cellar`, **New path**. Tick **Wrap in a
-   cutscene frame** (fade out, lock the camera and hide the HUD before; the
-   reverse after).
-2. **Keyframes** tab: fly the World camera to the first framing (wide over the
-   village), press **Add keyframe** (`campath.add_keyframe`). Fly to the next
-   (towards the mill), **Add keyframe**; the last, close on the mill.
-   Each says what the game will show: *Added keyframe 2 (glide Medium, hold
-   12): eye 4669,3645 +1909 looks at 4680,3642 +0*. The camera snaps to the
-   framing the game can reproduce, so what you see is what plays.
+1. **Setup** tab: **Name** `thistle_lair`, **New path**. **Coordinates**
+   *Instance-relative*, **Template** `m0_100`: *thistle_lair is
+   instance-relative: offsets from m0_100's south-west tile, and the proc
+   takes the instance's $handle*. Keep **Wrap in a cutscene frame** ticked
+   (fade out, lock the camera and hide the HUD before; the reverse after).
+2. **Keyframes** tab: fly the World camera to the first framing, looking up
+   the cave from the ladder, and press **Add keyframe**
+   (`campath.add_keyframe`); then down the cave past the bones; then close on
+   the bed. Each says what the game will show: *Added keyframe 3 (glide
+   Medium, hold 7): eye 32,6431 +542 looks at 32,6435 +0*. The camera snaps to
+   the framing the game can reproduce, so what you see is what plays.
 3. Pick a row to set **Move** (*Cut* / *Glide*), **Speed** and **Hold
    (ticks)**. A slower glide raises the hold so it still arrives.
 4. **Preview** (`campath.preview`) flies the World camera along it with the
-   game's easing; **Stop** brings it back. With a lane live, **Send to play
-   client** plays it in the game.
+   game's easing; **Stop** brings it back.
 5. **Script** tab, **Copy script** (`campath.copy_script`): *Copied
-   [proc,thistle_cellar_camera] (27 lines): paste it into your quest's .rs2
-   and call ~thistle_cellar_camera;*
+   [proc,thistle_lair_camera] (27 lines): paste it into your quest's .rs2
+   and call ~thistle_lair_camera($handle);*
 
 The path is saved in the lane as `editor/campaths.txt`, so it can be reopened
 and re-framed (**Go to**, move the camera, **Update keyframe**) and copied
-again. The proc it writes:
+again. The proc it writes, pasted at the end of `thistle_den.rs2`:
 
 ```
-[proc,thistle_cellar_camera]
+[proc,thistle_lair_camera](int $handle)
 ~fade_screen(0, 255, 0, 0);
 p_delay(1);
 ~cutscene_lock(3, 0);
 ~cutscene_hud_lock;
 p_delay(0);
-cam_moveto(0_72_56_38_46, 2719, 232, 232);
-cam_lookat(0_72_56_56_56, 0, 232, 232);
+cam_moveto(map_instance_coord($handle, 32, 18, 0), 1437, 232, 232);
+cam_lookat(map_instance_coord($handle, 32, 25, 0), 0, 232, 232);
 p_delay(0);
 ~fade_screen(0, 0, 0, 255);
 p_delay(2);
-cam_moveto(0_72_56_61_61, 1909, 5, 5);
-cam_lookat(0_73_56_8_58, 0, 5, 5);
-p_delay(11);
-cam_moveto(0_73_57_13_0, 843, 5, 5);
-cam_lookat(0_73_56_13_56, 0, 5, 5);
-p_delay(9);
+cam_moveto(map_instance_coord($handle, 32, 25, 0), 990, 5, 5);
+cam_lookat(map_instance_coord($handle, 32, 31, 0), 0, 5, 5);
+p_delay(6);
+cam_moveto(map_instance_coord($handle, 32, 31, 0), 542, 5, 5);
+cam_lookat(map_instance_coord($handle, 32, 35, 0), 0, 5, 5);
+p_delay(6);
 ~fade_screen(0, 255, 0, 0);
 p_delay(1);
 ~cutscene_unlock;
@@ -529,11 +604,12 @@ p_delay(1);
 if_closesub(toplevel_osrs_stretch:overlay_atmosphere);
 ```
 
-For a camera inside an instance, set **Coordinates** to *Instance-relative*
-and name the **Template**: the proc then places each keyframe with
-`map_instance_coord($handle, dx, dz, level)`.
+The den's entry (section 11) calls it after the player has landed and
+Greyfang has been put on his bed, and wakes him once it is over. A path over
+the real map is the same with **Coordinates** *World tiles*: the proc then
+names tiles (`cam_moveto(0_72_56_38_46, ...)`) and takes no handle.
 
-![The cutscene in the game](../res/quest_tutorial/10_cutscene.png)
+![The cutscene: Greyfang on his bed](../res/quest_tutorial/10_cutscene.png)
 
 ## 11. Instances: templated, then stamped
 
@@ -571,18 +647,52 @@ next Save and RUN gets the new version.
 
 It writes `server/scripts/edited/thistle_den/scripts/thistle_den.rs2`, a
 working enter / spawn / exit script with a header that repeats where the
-template and the copies are. Then build the den in the template: the Palette's
-`black (cave floor)` (underlay 72) under a Rectangle **Fill with palette**, a
-Building **Shell** in *Old stone* with *Grey flagstones* and no roof, the
-`thistle_den_ladder` copy by the landing tile, some barrels and hay.
+template and the copies are.
+
+### Building the den
+
+The den is a wolf's cave, so build it the way Jagex built the Lumbridge Swamp
+caves (`m50_150`; open it and read its files as you read Rimmington's): rock
+walls that face the room, solid rock behind them, an earth floor, and the
+story told in what lies on it.
+
+1. **The floor.** **Rectangle** over the room and a ring round it, **Pick
+   underlay** `64` (*earth*) with no overlay picked, **Fill with palette**:
+   *Fill: 459 tiles changed; underlay 64 earth (dirt), overlay taken off*.
+   Then Paint underlay at **Mix** 100, **smooth**, in blotches of `63` (*dark
+   earth*) and `56` (*rock*), and **Roughen** with **Hills (tiles)** 3,
+   **Strength** 35: the floor goes from h18 to h22, never a table top.
+2. **The walls.** Catalog `swamp_cavewall1` (and `swamp_cavewall2` for
+   variety), **Place**, and drag a run along each side of the room (Shift
+   keeps it on one row): *Place run: placed 13 of 13 tiles*. A cave wall faces
+   away from the rock behind it -- rotation 3 for the north wall, 1 the south,
+   2 the west, 0 the east (Q turns the ghost; the run selects what it placed,
+   so the Locs panel shows its rotation). The four corners are
+   `swamp_cavewallinsidecorner`, and a ring of `swamp_cavewall_top1` behind
+   the walls is the rock itself.
+3. **The story.** At the far end, Greyfang's bed: `straw` and `straw2` on a
+   3 x 3 patch, a `carcass` beside it. Bone piles
+   (`magictraining_bones_pile1..3`, `death_trollleftovers`) along the way in,
+   `stalagmite_large_vdarkbrown` and `stalagmite_twin` in the corners, two
+   `puddle`s, and `dwarf_soil1` / `dwarf_soil2` scattered thinly. The
+   template's tiles carry the *remove roof* flag, so untick **Bare ground
+   only** for that Scatter (Scatter says so when it lays nothing for that
+   reason).
+4. The `thistle_den_ladder` copy at the landing (`32 18`).
 
 ![The den template, m0_100](../res/quest_tutorial/11_den_template.png)
 
-The generated entry, turned into a proc for the cellar door to call after the
-cutscene:
+Overlay 48 (*dark grey*), the swamp caves' floor, renders black under this
+lighting and reads as holes: keep the cave floor in underlays.
+
+### The entry
+
+The generated entry, turned into a proc the cellar door calls. Greyfang is put
+on his bed before the cutscene and woken after it; once he is dead the den is
+empty, and a pelt the player left behind is back on the bed:
 
 ```
-[proc,thistle_den_enter]
+[proc,thistle_den_enter](boolean $first)
 def_int $handle = ~map_instance_from_square_block(0_0_100_0_0, 1, 1);
 if ($handle = ^map_instance_none) {
     mes("There is no room for another instance just now.");
@@ -590,9 +700,22 @@ if ($handle = ^map_instance_none) {
 }
 %varp6600_map_instance_handle = $handle;
 p_telejump(map_instance_coord($handle, 32, 20, 0));
-inv_del(inv, thistle_cellar_key, 1);
 map_instance_spawnnpcs($handle);
-~greyfang_spawn(map_instance_coord($handle, 32, 34, 0));
+if (%varp9517_thistlewick_quest >= ^thistlewick_slain) {
+    if (%varp9517_thistlewick_quest = ^thistlewick_slain & inv_total(inv, thistle_pelt) < 1) {
+        obj_add(map_instance_coord($handle, 32, 36, 0), thistle_pelt, 1, 200);
+        mes("Greyfang's pelt still lies on his bed of straw.");
+    }
+    return;
+}
+~greyfang_spawn(map_instance_coord($handle, 32, 35, 0));
+if ($first = true) {
+    ~thistle_lair_camera($handle);
+}
+if (npc_find(coord, thistle_greyfang, 20, 0) = true) {
+    npc_say("Aroooooooo!");
+    npc_queue(5, 0, 1);
+}
 
 [oploc1,thistle_den_ladder]
 if (map_instance_find(coord) = ^map_instance_none) {
@@ -607,14 +730,19 @@ copy and returns its handle (`^map_instance_none` when the pool is full);
 `map_instance_coord($handle, dx, dz, level)` is a tile of the copy, `dx, dz`
 counted from the template's south-west corner; `%varp6600_map_instance_handle`
 is where the player's handle is kept; `~map_instance_release_here` frees the
-copy the player stands in (with its npcs). Read
+copy the player stands in (with its npcs); `npc_find(coord, <npc>, distance, 0)`
+makes the npc found the one the `npc_` commands that follow act on. Read
 `general/scripts/misc/map_instance_procs.rs2` and `docs/map_instances.md`.
 
 ## 12. The boss
 
-Greyfang is a copied wolf, so he already bites like one. The script adds one
-special attack in the shape Brutus uses: every fourth bite he **telegraphs**,
-the player has two ticks to move, and then it lands.
+Greyfang is a copied wolf, so he already bites like one. He is spawned
+without a target, so he waits on his bed through the cutscene; the den's entry
+wakes him with `npc_queue(5, ...)`, whose `[ai_queue5,thistle_greyfang]` sends
+him for the player (`huntall`, `npc_setmode(opplayer2)`).
+
+The script adds one special attack in the shape Brutus uses: every fourth bite
+he **telegraphs**, the player has two ticks to move, and then it lands.
 
 ```
 [ai_opplayer2,thistle_greyfang]
@@ -673,7 +801,7 @@ moves the quest on and drops the pelt, then hands over to the default death:
 ```
 [ai_queue3,thistle_greyfang]
 if (npc_findhero = true) {
-    if (%varp9517_thistlewick_quest = ^thistlewick_heard) {
+    if (%varp9517_thistlewick_quest = ^thistlewick_unlocked) {
         %varp9517_thistlewick_quest = ^thistlewick_slain;
         mes("Greyfang falls. The howling under Thistlewick is over.");
         obj_add(npc_coord, thistle_pelt, 1, 200);
@@ -733,12 +861,15 @@ village, `::thistlewick` to reset, `::thistlewick_journal`. Test levels:
 `::setlevel 0 99` (0 attack, 1 defence, 2 strength, 3 hitpoints). The whole
 quest:
 
-1. Talk to Elder Bramwen in the hall, *What can I do?*, *Yes.*
-2. Talk to Odo while he walks round the pen.
-3. Search the hay bales by the mill: the key.
-4. Open the cellar door inside the mill: the cutscene, then the den.
+1. Talk to Elder Bramwen in the hall: *Out of the ground?* for the legend,
+   then *Yes.*
+2. Talk to Odo while he walks round the sheep pen east of the mill.
+3. Search the hay bales by the mill: the miller's key.
+4. Open the cellar door inside the mill: down into the den, and the cutscene
+   finds Greyfang on his bed.
 5. Kill Greyfang; step off the marked tile when he crouches.
-6. Take the pelt, climb the ladder, give the pelt to the elder.
+6. Take the pelt, climb the ladder, give the pelt to the elder. (Climbed out
+   without it? Go back down: it is on his bed.)
 
 The editor's **Live** panel moves the play account (**Teleport to
 selection**), and the agent API drives the play client for automated tests
@@ -770,9 +901,18 @@ removes a scratch lane you no longer need without touching the base tree.
 
 ## 16. Things that catch people out
 
-- **Jagged roads.** Use the Region tool with overlay 10 and natural edges,
-  in long straight strokes; the path painter's Roughness frays edges on
-  purpose.
+- **Jagged roads.** A road drawn freehand drifts, and every drift is a step
+  the shapes draw as a tooth. Region with **paved** shapes and **Straight
+  lines** (or Shift), section 3.
+- **Shift+Alt+drag moves the window under the pointer**, the World too. A
+  straight take-off is **Straight lines** ticked and a plain Alt+drag.
+- **Taking a road off took a floor with it.** Paint overlay with overlay 0
+  takes every overlay; Region's Alt+drag takes only the picked one.
+- **Furniture through a wall.** A 1x2 piece at the wrong turn crosses the
+  wall line; check its footprint and look from outside.
+- **A cutscene in an instance** needs an *Instance-relative* path and the
+  instance's `$handle`; world tiles point at the template, which nobody is
+  standing in.
 - **A speckled, single-coloured ground.** Paint underlays at Mix 100 in solid
   patches of several greens and earths; below 100, Mix scatters single tiles.
 - **The square is too flat.** Real squares are never one height and one

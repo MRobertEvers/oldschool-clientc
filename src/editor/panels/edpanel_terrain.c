@@ -170,12 +170,13 @@ struct TerrainPanel
     int slider_region_radius;
     int slider_region_hardness;
     int check_region_snap;
+    int check_region_straight;
     int radio_region_set[EDITOR_REGION_SET_COUNT];
     int slider_region_lasso_smooth;
     int slider_region_tidy_smooth;
     int slider_region_feather;
     int button_region_seed;
-    int shown_region[8];
+    int shown_region[9];
     /** What the readout and the radios were last set from. */
     enum Editor_Tool shown_tool;
     int shown_level;
@@ -475,6 +476,7 @@ terrain_readout(
     ToriRSChrome_SetHidden(ui->chrome, self->slider_region_radius, !region_brush);
     ToriRSChrome_SetHidden(ui->chrome, self->slider_region_hardness, !region || region_under);
     ToriRSChrome_SetHidden(ui->chrome, self->check_region_snap, !(region_brush || lasso));
+    ToriRSChrome_SetHidden(ui->chrome, self->check_region_straight, !region_brush);
     for( int i = 0; i < EDITOR_REGION_SET_COUNT; i++ )
         ToriRSChrome_SetHidden(ui->chrome, self->radio_region_set[i], !region || region_under);
     ToriRSChrome_SetHidden(ui->chrome, self->slider_region_lasso_smooth, !lasso);
@@ -621,14 +623,15 @@ terrain_tick(
         terrain_readout(ui, self);
     }
     {
-        int const now[8] = { ui->tools.region_radius_halves, ui->tools.region_hardness, ui->tools.region_snap,
+        int const now[9] = { ui->tools.region_radius_halves, ui->tools.region_hardness, ui->tools.region_snap,
             ui->tools.region_set, ui->tools.region_underlay, ui->tools.region_lasso_smooth,
-            ui->tools.region_tidy_halves, ui->tools.region_feather };
+            ui->tools.region_tidy_halves, ui->tools.region_feather, ui->tools.region_straight };
         if( memcmp(now, self->shown_region, sizeof(now)) != 0 )
         {
             ToriRSChrome_SliderSet(ui->chrome, self->slider_region_radius, now[0]);
             ToriRSChrome_SliderSet(ui->chrome, self->slider_region_hardness, now[1]);
             ToriRSChrome_SetChecked(ui->chrome, self->check_region_snap, now[2] ? 1 : 0);
+            ToriRSChrome_SetChecked(ui->chrome, self->check_region_straight, now[8] ? 1 : 0);
             if( now[3] >= 0 && now[3] < EDITOR_REGION_SET_COUNT )
                 ToriRSChrome_RadioSelect(ui->chrome, self->radio_region_set[now[3]]);
             ToriRSChrome_RadioSelect(ui->chrome, self->radio_region_target[now[4] ? 1 : 0]);
@@ -760,6 +763,8 @@ terrain_activate(
         tools->region_hardness = ToriRSChrome_SliderValue(ui->chrome, widget);
     else if( widget == self->check_region_snap )
         tools->region_snap = ToriRSChrome_Checked(ui->chrome, widget) ? 1 : 0;
+    else if( widget == self->check_region_straight )
+        tools->region_straight = ToriRSChrome_Checked(ui->chrome, widget) ? 1 : 0;
     else if( widget == self->slider_region_lasso_smooth )
         tools->region_lasso_smooth = ToriRSChrome_SliderValue(ui->chrome, widget);
     else if( widget == self->slider_region_tidy_smooth )
@@ -998,7 +1003,7 @@ Editor_Terrain_Register(struct EditorUi* ui)
     self->check_scatter_bare =
         ToriRSChrome_Checkbox(chrome, self->panel, "Bare ground only", ui->tools.scatter_bare ? 1 : 0);
     ToriRSChrome_SetTooltip(chrome, self->check_scatter_bare,
-        "Skip roads, floors, water and tiles that hold a loc: for grass, twigs and flowers");
+        "Skips roads, floors, water, roofed tiles and tiles with a loc");
     self->button_scatter_seed = ToriRSChrome_Button(chrome, self->panel, "New seed");
     ToriRSChrome_SetTooltip(chrome, self->button_scatter_seed, "Another spread for the next stroke");
     self->slider_plateau_skirt = ToriRSChrome_Slider(
@@ -1051,6 +1056,13 @@ Editor_Terrain_Register(struct EditorUi* ui)
     self->check_region_snap = ToriRSChrome_Checkbox(chrome, self->panel, "Half-tile snap", ui->tools.region_snap);
     ToriRSChrome_SetTooltip(chrome, self->check_region_snap,
         "Points on half tiles: edges land on tile edges and middles");
+    /* A road drawn by hand drifts, and every drift is a step the shapes draw
+     * as a tooth. Shift does it for one stroke, but Shift+Alt is the window
+     * move, so a straight take-off needs this. */
+    self->check_region_straight =
+        ToriRSChrome_Checkbox(chrome, self->panel, "Straight lines", ui->tools.region_straight);
+    ToriRSChrome_SetTooltip(chrome, self->check_region_straight,
+        "Every stroke a straight run at 0/45/90 deg; Shift: one stroke");
     for( int i = 0; i < EDITOR_REGION_SET_COUNT; i++ )
         self->radio_region_set[i] = ToriRSChrome_Radio(
             chrome, self->panel, k_region_set_names[i], TERRAIN_GROUP_REGION_SET, i == ui->tools.region_set);
@@ -1075,6 +1087,7 @@ Editor_Terrain_Register(struct EditorUi* ui)
     ToriRSChrome_SetHidden(chrome, self->slider_region_radius, 1);
     ToriRSChrome_SetHidden(chrome, self->slider_region_hardness, 1);
     ToriRSChrome_SetHidden(chrome, self->check_region_snap, 1);
+    ToriRSChrome_SetHidden(chrome, self->check_region_straight, 1);
     for( int i = 0; i < EDITOR_REGION_SET_COUNT; i++ )
         ToriRSChrome_SetHidden(chrome, self->radio_region_set[i], 1);
     ToriRSChrome_SetHidden(chrome, self->slider_region_lasso_smooth, 1);

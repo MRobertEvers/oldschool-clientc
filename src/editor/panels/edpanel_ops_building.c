@@ -10,6 +10,7 @@
 #define SHAPE_DECOR_OUTSIDE 5
 #define SHAPE_ROOF_FIRST 12
 #define SHAPE_ROOF_LAST 21
+#define SHAPE_GROUND_DECOR 22
 
 /** The open square holding world tile (x, z), and the tile's local coords. */
 static struct Editor_Square*
@@ -234,6 +235,47 @@ Editor_BuildingClearRoofCommands(
             if( loc->shape < SHAPE_ROOF_FIRST || loc->shape > SHAPE_ROOF_LAST || loc->level < level_lo
                 || loc->level > level_hi || base_x + loc->x < x0 || base_x + loc->x > x1 || base_z + loc->z < z0
                 || base_z + loc->z > z1 )
+                continue;
+            if( written >= max )
+                return written;
+            building_loc_command(&out[written++], square, loc, NULL);
+        }
+    }
+    return written;
+}
+
+int
+Editor_BuildingClearDecorCommands(
+    struct Editor_Doc* doc,
+    int x0,
+    int z0,
+    int x1,
+    int z1,
+    int level,
+    struct Editor_Cmd* out,
+    int max)
+{
+    int written = 0;
+
+    assert(doc);
+    assert(out);
+    assert(x0 <= x1);
+    assert(z0 <= z1);
+
+    for( int i = 0; i < doc->square_count; i++ )
+    {
+        const struct Editor_Square* square = &doc->squares[i];
+        int const base_x = square->map_x * EDITOR_SQUARE_X;
+        int const base_z = square->map_z * EDITOR_SQUARE_Z;
+
+        if( !square->loaded || base_x > x1 || base_x + EDITOR_SQUARE_X <= x0 || base_z > z1
+            || base_z + EDITOR_SQUARE_Z <= z0 )
+            continue;
+        for( int k = 0; k < square->loc_count; k++ )
+        {
+            const struct Editor_Loc* loc = &square->locs[k];
+            if( loc->shape != SHAPE_GROUND_DECOR || loc->level != level || base_x + loc->x < x0
+                || base_x + loc->x > x1 || base_z + loc->z < z0 || base_z + loc->z > z1 )
                 continue;
             if( written >= max )
                 return written;

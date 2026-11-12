@@ -336,6 +336,58 @@ region_sample_bounds(
 }
 
 void
+Editor_RegionStraight(
+    double start_x,
+    double start_z,
+    double pointer_x,
+    double pointer_z,
+    double* out_start_x,
+    double* out_start_z,
+    double* out_end_x,
+    double* out_end_z)
+{
+    /* tan(22.5 degrees): past it a run is nearer the diagonal than the axis. */
+    double const k_octant = 0.41421356237;
+    double sx;
+    double sz;
+    double dx;
+    double dz;
+    double ax;
+    double az;
+
+    assert(out_start_x);
+    assert(out_start_z);
+    assert(out_end_x);
+    assert(out_end_z);
+    sx = floor(start_x) + 0.5;
+    sz = floor(start_z) + 0.5;
+    dx = pointer_x - sx;
+    dz = pointer_z - sz;
+    ax = fabs(dx);
+    az = fabs(dz);
+    if( az <= ax * k_octant )
+    {
+        dx = floor(dx + 0.5);
+        dz = 0.0;
+    }
+    else if( ax <= az * k_octant )
+    {
+        dx = 0.0;
+        dz = floor(dz + 0.5);
+    }
+    else
+    {
+        double const run = floor((ax + az) / 2.0 + 0.5);
+        dx = dx < 0.0 ? -run : run;
+        dz = dz < 0.0 ? -run : run;
+    }
+    *out_start_x = sx;
+    *out_start_z = sz;
+    *out_end_x = sx + dx;
+    *out_end_z = sz + dz;
+}
+
+void
 Editor_RegionCapsule(
     struct Editor_RegionGrid* grid,
     double ax,

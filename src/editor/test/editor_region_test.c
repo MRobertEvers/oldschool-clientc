@@ -482,6 +482,85 @@ test_flood(void)
     CHECK(count == 0, "a bare tile has no run");
 }
 
+static int
+plan_run(
+    struct Map* map,
+    enum Editor_RegionSet set,
+    double ax,
+    double az,
+    double bx,
+    double bz,
+    double radius)
+{
+    struct Editor_RegionGrid grid;
+    struct Editor_RegionParams params = { set, EDITOR_REGION_ADD, 50, EDITOR_REGION_POOR_FIT };
+    int count;
+    int const ok = Editor_RegionGridInit(&grid, 0, 0, MAP, MAP);
+    CHECK(ok, "a run's grid fits");
+    Editor_RegionCapsule(&grid, ax, az, bx, bz, radius);
+    count = Editor_RegionPlan(&params, &grid, map_existing, map, g_plan, TILES_MAX);
+    Editor_RegionGridFree(&grid);
+    return count;
+}
+
+static void
+test_straight(void)
+{
+    double sx;
+    double sz;
+    double ex;
+    double ez;
+    int count;
+    int square = 1;
+    int edges = 0;
+    int poor = 0;
+
+    /* The start goes to its tile's centre; the end along the nearest of the
+     * eight directions, a whole number of tiles on. */
+    Editor_RegionStraight(10.3, 20.8, 25.9, 21.4, &sx, &sz, &ex, &ez);
+    CHECK(sx == 10.5 && sz == 20.5 && ex == 25.5 && ez == 20.5, "east: %g,%g -> %g,%g", sx, sz, ex, ez);
+    Editor_RegionStraight(10.3, 20.8, 10.9, 30.1, &sx, &sz, &ex, &ez);
+    CHECK(ex == 10.5 && ez == 30.5, "north: -> %g,%g", ex, ez);
+    Editor_RegionStraight(10.3, 20.8, 16.0, 26.9, &sx, &sz, &ex, &ez);
+    CHECK(ex == 16.5 && ez == 26.5, "north-east: -> %g,%g", ex, ez);
+    Editor_RegionStraight(10.3, 20.8, 4.0, 15.0, &sx, &sz, &ex, &ez);
+    CHECK(ex == 4.5 && ez == 14.5, "south-west: -> %g,%g", ex, ez);
+    Editor_RegionStraight(10.3, 20.8, 10.4, 20.6, &sx, &sz, &ex, &ez);
+    CHECK(ex == sx && ez == sz, "a press without a drag is a disc at the tile's centre");
+
+    /* What it is for: a three-wide run along a row is whole tiles from end
+     * cap to end cap, its edges the grid's -- no tooth anywhere. */
+    map_clear(&g_map);
+    count = plan_run(&g_map, EDITOR_REGION_PAVED, 10.5, 20.5, 40.5, 20.5, 1.5);
+    dump("straight_row", g_plan, count);
+    map_apply(&g_map, g_plan, count);
+    for( int x = 13; x <= 38; x++ )
+        for( int z = 17; z <= 23; z++ )
+        {
+            int const want = z >= 19 && z <= 21 ? 0 : -1;
+            if( g_map.shape[z][x] != want )
+                square = 0;
+        }
+    CHECK(square, "a straight row is three whole tiles wide along its length, nothing beside it");
+
+    /* Along the diagonal both rims are edge shapes, every one a good fit. */
+    map_clear(&g_map);
+    count = plan_run(&g_map, EDITOR_REGION_PAVED, 10.5, 10.5, 40.5, 40.5, 1.5);
+    dump("straight_diagonal", g_plan, count);
+    for( int i = 0; i < count; i++ )
+    {
+        int const along = g_plan[i].world_x + g_plan[i].world_z;
+        if( along < 30 || along > 70 )
+            continue;
+        if( g_plan[i].shape > 0 )
+            edges++;
+        if( g_plan[i].misfit > EDITOR_REGION_POOR_FIT )
+            poor++;
+    }
+    CHECK(edges >= 30, "a diagonal run's two rims are edge shapes (%d)", edges);
+    CHECK(poor == 0, "and none of them a poor fit (%d)", poor);
+}
+
 int
 main(
     int argc,
@@ -499,6 +578,7 @@ main(
     test_hardness();
     test_dither();
     test_flood();
+    test_straight();
     if( g_dump )
         fclose(g_dump);
     printf("editor_region_test: %d checks, %d failed\n", g_checks, g_failed);

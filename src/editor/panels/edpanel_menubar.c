@@ -34,6 +34,7 @@
 
 #include "edpanel_common.h"
 #include "edpanel_picker.h"
+#include "editor/editor_view.h"
 #include "edpanels.h"
 #include "mem/torirs_mem.h"
 #include "ui/torirs_chrome_scale_q.h"
@@ -157,7 +158,102 @@ struct MenuBarPanel
     /** What the row and the World title were last set from; -2 = never. */
     int shown_level;
     int shown_vis;
+    /** The square under the World's camera and a digest of the open
+     *  squares the title last named (menubar_world_squares). */
+    int shown_cam_square;
+    uint32_t shown_open;
+    /** The title set, so one written behind the row's back (a popped-out
+     *  World coming home resets it) is put right. */
+    char shown_title[TORIRS_CHROME_LABEL_MAX];
 };
+
+/** The square the World's camera looks at, as map_x * 256 + map_z; -1 with
+ *  no world or no camera. */
+static int
+menubar_camera_square(struct EditorUi* ui)
+{
+    struct EditorViewCamera pose;
+    int const level = ui->tools.edit_level < 0 ? 0 : ui->tools.edit_level;
+
+    if( !ui->app_services.world_camera || !ui->app_services.world_camera(ui->app_services.user_data, level, &pose)
+        || pose.x < 0 || pose.z < 0 )
+        return -1;
+    return (pose.x / 128 / 64) * 256 + (pose.z / 128 / 64);
+}
+
+/** A digest of the open squares (loaded in the document), 0 with none. */
+static uint32_t
+menubar_open_digest(struct EditorUi* ui)
+{
+    uint32_t h = 0;
+
+    if( !ui->editor )
+        return 0;
+    for( int i = 0; i < ui->editor->doc.square_count; i++ )
+    {
+        struct Editor_Square const* square = &ui->editor->doc.squares[i];
+        if( !square->loaded )
+            continue;
+        h = (h ^ (uint32_t)(square->map_x * 256 + square->map_z + 1)) * 16777619u;
+    }
+    return h;
+}
+
+/**
+ * The World title's squares: "m72_56, 4 open (m72_56..m73_57)" -- the square
+ * the camera looks at, then how many are open and which: their box when they
+ * fill it, else the first two and how many more. Empty with none open.
+ */
+static void
+menubar_world_squares(
+    struct EditorUi* ui,
+    int camera_square,
+    char* out,
+    int out_size)
+{
+    int count = 0;
+    int min_x = 1 << 30;
+    int min_z = 1 << 30;
+    int max_x = -1;
+    int max_z = -1;
+    int first[2][2] = { { 0, 0 }, { 0, 0 } };
+    char at[24] = "";
+    char which[40];
+
+    out[0] = '\0';
+    if( !ui->editor )
+        return;
+    for( int i = 0; i < ui->editor->doc.square_count; i++ )
+    {
+        struct Editor_Square const* square = &ui->editor->doc.squares[i];
+        if( !square->loaded )
+            continue;
+        if( count < 2 )
+        {
+            first[count][0] = square->map_x;
+            first[count][1] = square->map_z;
+        }
+        count++;
+        min_x = square->map_x < min_x ? square->map_x : min_x;
+        min_z = square->map_z < min_z ? square->map_z : min_z;
+        max_x = square->map_x > max_x ? square->map_x : max_x;
+        max_z = square->map_z > max_z ? square->map_z : max_z;
+    }
+    if( count == 0 )
+        return;
+    if( camera_square >= 0 )
+        snprintf(at, sizeof(at), "m%d_%d, ", camera_square / 256, camera_square % 256);
+    if( count == 1 )
+        snprintf(which, sizeof(which), "m%d_%d", first[0][0], first[0][1]);
+    else if( (max_x - min_x + 1) * (max_z - min_z + 1) == count )
+        snprintf(which, sizeof(which), "m%d_%d..m%d_%d", min_x, min_z, max_x, max_z);
+    else if( count == 2 )
+        snprintf(which, sizeof(which), "m%d_%d m%d_%d", first[0][0], first[0][1], first[1][0], first[1][1]);
+    else
+        snprintf(which, sizeof(which), "m%d_%d m%d_%d +%d", first[0][0], first[0][1], first[1][0], first[1][1],
+            count - 2);
+    snprintf(out, (size_t)out_size, "%s%d open (%s)", at, count, which);
+}
 
 /** A digest of which View-menu panels are open, which popped out and which
  *  wait behind another tab of their group: the rows say all three. The
@@ -365,7 +461,9 @@ menubar_hints(
 }
 
 /** Press the row's button for the edit level, light Above, and name the
- *  level in the World panel's title. */
+ *  squares and the level in the World panel's title: "World - m72_56, 4 open
+ *  (m72_56..m73_57) - level 1". Which square the view is on was not said
+ *  anywhere on screen; the title is where the eye goes for it. */
 static void
 menubar_level_show(
     struct EditorUi* ui,
@@ -373,6 +471,7 @@ menubar_level_show(
 {
     struct EditorUiPanel* world = Editor_UiFindPanel(ui, "world");
     int const level = ui->tools.edit_level;
+    int const camera_square = menubar_camera_square(ui);
 
     for( int i = 0; i < MENUBAR_LEVEL_BUTTONS; i++ )
         ToriRSChrome_SetChecked(ui->chrome, self->level_buttons[i], i == level + 1);
@@ -381,16 +480,26 @@ menubar_level_show(
     if( world && world->chrome_panel >= 0 )
     {
         char title[TORIRS_CHROME_LABEL_MAX];
-        if( level < 0 )
-            snprintf(title, sizeof(title), "World");
-        else if( edp_level_showing_above(ui) )
-            snprintf(title, sizeof(title), "World - level %d (levels above shown)", level);
+        char squares[TORIRS_CHROME_LABEL_MAX];
+        char levels[24] = "";
+        menubar_world_squares(ui, camera_square, squares, (int)sizeof(squares));
+        if( level >= 0 && edp_level_showing_above(ui) )
+            snprintf(levels, sizeof(levels), "level %d + above", level);
+        else if( level >= 0 )
+            snprintf(levels, sizeof(levels), "level %d", level);
+        if( squares[0] && levels[0] )
+            snprintf(title, sizeof(title), "World - %s - %s", squares, levels);
+        else if( squares[0] || levels[0] )
+            snprintf(title, sizeof(title), "World - %s", squares[0] ? squares : levels);
         else
-            snprintf(title, sizeof(title), "World - level %d", level);
+            snprintf(title, sizeof(title), "World");
         ToriRSChrome_PanelSetTitle(ui->chrome, world->chrome_panel, title);
+        snprintf(self->shown_title, sizeof(self->shown_title), "%s", title);
     }
     self->shown_level = level;
     self->shown_vis = ui->tools.vis_level;
+    self->shown_cam_square = camera_square;
+    self->shown_open = menubar_open_digest(ui);
 }
 
 static void
@@ -422,8 +531,15 @@ menubar_tick(
     if( self->shown_level != ui->tools.edit_level && self->shown_level >= -1 )
         ui->tools.vis_level =
             edp_level_follow_vis(self->shown_level, ui->tools.vis_level, ui->tools.edit_level);
-    if( self->shown_level != ui->tools.edit_level || self->shown_vis != ui->tools.vis_level )
-        menubar_level_show(ui, self);
+    {
+        struct EditorUiPanel* world = Editor_UiFindPanel(ui, "world");
+        int const retitled = world && world->chrome_panel >= 0 && world->chrome_panel != ui->solo_panel
+                             && strcmp(ui->chrome->panels[world->chrome_panel].title, self->shown_title) != 0;
+        if( self->shown_level != ui->tools.edit_level || self->shown_vis != ui->tools.vis_level
+            || self->shown_cam_square != menubar_camera_square(ui) || self->shown_open != menubar_open_digest(ui)
+            || retitled )
+            menubar_level_show(ui, self);
+    }
     if( self->shown_workspace != ui->workspace )
     {
         for( int w = 0; w < EDITOR_UI_WORKSPACES; w++ )
@@ -580,6 +696,9 @@ Editor_MenuBar_Register(struct EditorUi* ui)
     menubar_hints(ui, self);
     self->shown_level = -2;
     self->shown_vis = -2;
+    self->shown_cam_square = -2;
+    self->shown_open = 0;
+    self->shown_title[0] = '\0';
     ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 0);
 
     memset(&desc, 0, sizeof(desc));

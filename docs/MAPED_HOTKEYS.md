@@ -231,6 +231,11 @@ The pointer (workbench 6.3, design section 7):
 | Delete the loc under the click (hold) | K | W |
 | Clear every loc on the clicked tile (hold) | C | W |
 
+Region brush: Shift at the press, or **Straight lines** in the Terrain panel for
+every stroke, makes the stroke one straight run from tile centre to tile centre
+at 0, 45 or 90 degrees (a road with clean edges). Shift+Alt+drag is the window
+move, so a straight take-off is Straight lines ticked and a plain Alt+drag.
+
 ### Brush (height and paint tools)
 | Action | Chord | Ctx |
 |---|---|---|

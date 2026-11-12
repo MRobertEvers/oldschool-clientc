@@ -337,6 +337,9 @@ struct EditorUiTools
     int region_radius_halves;
     int region_hardness;
     int region_snap;
+    /** 1: every Region brush stroke is one straight run at 0/45/90 degrees
+     *  (Shift at the press does the same for one stroke). */
+    int region_straight;
     int region_set;
     int region_underlay;
     int region_lasso_smooth;

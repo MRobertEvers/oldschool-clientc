@@ -8,7 +8,9 @@
  *   Region brush (O)  a disc swept along the drag, in continuous tile space
  *                     (the point under the pointer, not the hovered tile);
  *                     laid on release as one undo step. Alt at the press
- *                     takes the overlay off instead.
+ *                     takes the overlay off instead; Shift at the press
+ *                     makes it one straight run at 0/45/90 degrees,
+ *                     tile centre to tile centre (a road with a clean edge).
  *   Lasso (J)         a drag draws a loop, laid on release; a click without
  *                     a drag drops a corner, and a click on the first corner
  *                     or a double-click closes the polygon. Alt at the first
@@ -41,6 +43,12 @@ struct Editor_RegionStroke
     int level;
     /** Alt was held at the press: the overlay comes off. */
     int subtract;
+    /** Shift was held at the brush's press: the stroke is one straight
+     *  segment, tile centre to tile centre, along one of eight directions
+     *  (Editor_RegionStraight); xs[0] is where it went down. */
+    int straight;
+    double straight_x;
+    double straight_z;
     /** The button went down on this stroke and is still held. */
     int held;
     /** Lasso: 0 the first press is pending (a click or a drag?), 1 a
@@ -82,12 +90,14 @@ Editor_PanelRegionTrack(
     struct Editor_Panel* panel,
     struct App* app);
 
-/** The left button went down with the Region brush or the Lasso armed. */
+/** The left button went down with the Region brush or the Lasso armed;
+ *  `alt` subtracts, `shift` makes a brush stroke straight. */
 int
 Editor_PanelRegionPress(
     struct Editor_Panel* panel,
     struct App* app,
-    int alt);
+    int alt,
+    int shift);
 
 /** The left button came up: a brush stroke or a freehand loop is laid, a
  *  lasso click drops a corner or closes the polygon. Returns the tiles

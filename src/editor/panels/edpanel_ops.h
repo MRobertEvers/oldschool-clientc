@@ -283,7 +283,8 @@ struct Editor_ScatterOp
     /** 1: take the set's locs off the brush's tiles instead. */
     int erase;
     /** 1: only bare ground takes a loc -- no tile of the footprint has an
-     *  overlay (a road, a floor, water) or a loc of any layer (a wall, a
+     *  overlay (a road, a floor, water), a roof (settings 4: indoors, even
+     *  where a floor tile is missing) or a loc of any layer (a wall, a
      *  table). Ground dressing (grass tufts, twigs, flowers) scattered over a
      *  village otherwise lands on its roads and inside its houses. */
     int bare;

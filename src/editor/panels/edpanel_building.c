@@ -618,6 +618,11 @@ edp_building_build(
      * footprint built again a storey taller) comes off in the same step. */
     cleared = Editor_BuildingClearRoofCommands(&ui->editor->doc, g_building_plan.x0, g_building_plan.z0,
         g_building_plan.x1, g_building_plan.z1, spec.level, spec.level + spec.storeys - 1, commands, capacity);
+    /* And the grass, soil and twigs a Scatter left on the ground it is built
+     * over: indoors now (a fence's pen keeps its grass). */
+    if( !spec.outward )
+        cleared += Editor_BuildingClearDecorCommands(&ui->editor->doc, g_building_plan.x0, g_building_plan.z0,
+            g_building_plan.x1, g_building_plan.z1, spec.level, commands + cleared, capacity - cleared);
     count = cleared + Editor_BuildingCommands(&ui->editor->doc, g_building_plan.pieces, g_building_plan.count,
                           commands + cleared, capacity - cleared, &result);
     if( count >= capacity )

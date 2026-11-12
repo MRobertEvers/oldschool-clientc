@@ -895,7 +895,11 @@ ops_scatter_free(
             square = ops_square_at(doc, world_x + dx, world_z + dz, &x, &z);
             if( !square )
                 return 0;
-            if( bare && square->tiles[Editor_TileIndex(x, z, level)].has_overlay )
+            /* A roofed tile (settings 4) is indoors even where its floor is
+             * missing: grass never grows in a house. */
+            if( bare
+                && (square->tiles[Editor_TileIndex(x, z, level)].has_overlay
+                    || (square->tiles[Editor_TileIndex(x, z, level)].settings & 4)) )
                 return 0;
             for( int i = 0; i < square->loc_count; i++ )
             {

@@ -276,6 +276,12 @@ edp_locs_rotate(struct EditorUi* ui)
     applied = edp_apply(ui, commands, count, "rotate");
     actions_report(ui, "rotate", &g_result, applied);
     actions_selection_moved(ui, &g_result, applied > 0);
+    /* Said, as every other edit is: Q on a selection changed nothing visible
+     * in the bar, and a loc whose model is round looked unturned. */
+    if( applied > 0 && ui->tools.loc_count > 0 )
+        Editor_UiStatus(ui, "Rotated %d loc%s a quarter turn: loc %d now at rotation %d (Q again turns on; Ctrl+Z undoes)",
+            ui->tools.loc_count, ui->tools.loc_count == 1 ? "" : "s", ui->tools.locs[0].loc_id,
+            ui->tools.locs[0].rotation & 3);
     return applied;
 }
 

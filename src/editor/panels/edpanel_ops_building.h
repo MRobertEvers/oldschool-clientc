@@ -66,6 +66,23 @@ Editor_BuildingClearRoofCommands(
     struct Editor_Cmd* out,
     int max);
 
+/**
+ * The commands that take every ground decoration (shape 22: grass tufts,
+ * dug soil, twigs, flowers) off the tiles (x0..x1, z0..z1) on `level`: the
+ * ground a house is built over is indoors now, and the grass a Scatter left
+ * there grew through its floor (2026-11-12). Returns the count written.
+ */
+int
+Editor_BuildingClearDecorCommands(
+    struct Editor_Doc* doc,
+    int x0,
+    int z0,
+    int x1,
+    int z1,
+    int level,
+    struct Editor_Cmd* out,
+    int max);
+
 enum Editor_BuildingWallFind
 {
     /** No straight wall on the tile or on an edge of it. */

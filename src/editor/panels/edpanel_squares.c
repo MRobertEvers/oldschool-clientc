@@ -213,6 +213,9 @@ struct SquaresPanel
     int map_set_w;
     int map_set_h;
     int input_search;
+    /** The Find text squares_find last acted on: Open and Add act on what
+     *  the box says, so a text typed without Enter is found first. */
+    char find_applied[TORIRS_CHROME_LABEL_MAX];
     int dropdown_area;
     int dropdown_storage;
     int graph;
@@ -255,6 +258,11 @@ struct SquaresPanel
     int storage_row_count;
 
     int fetched;
+    /** Open (1) or Add (2) pressed before the square list arrived: done when
+     *  it does (squares_take_atlas). 0 none. */
+    int open_pending;
+    /** A Find made before the square list arrived: run again when it does. */
+    int find_pending;
     int want_refresh;
     /** The server answered BUSY (its index still building) and the log said
      *  so once; the next tick asks again. */
@@ -656,6 +664,42 @@ squares_fallback_atlas(
 }
 
 static void
+squares_open_focus(
+    struct EditorUi* ui,
+    struct SquaresPanel* self,
+    int add);
+
+static int
+squares_find(
+    struct EditorUi* ui,
+    struct SquaresPanel* self,
+    const char* text);
+
+/** What was asked of the panel before the square list arrived (a Find, an
+ *  Open, an Add), done now that it is here. */
+static void
+squares_run_pending(
+    struct EditorUi* ui,
+    struct SquaresPanel* self)
+{
+    if( self->open_pending )
+    {
+        int const add = self->open_pending == 2;
+        self->open_pending = 0;
+        self->find_pending = 0;
+        squares_open_focus(ui, self, add);
+    }
+    else if( self->find_pending )
+    {
+        char text[TORIRS_CHROME_LABEL_MAX];
+        self->find_pending = 0;
+        snprintf(text, sizeof(text), "%s", ToriRSChrome_Text(ui->chrome, self->input_search));
+        if( text[0] != '\0' )
+            (void)squares_find(ui, self, text);
+    }
+}
+
+static void
 squares_take_atlas(
     struct EditorUi* ui,
     struct SquaresPanel* self,
@@ -691,6 +735,7 @@ squares_take_atlas(
     self->dirty = 1;
     /* A cell Place judged may be taken now (or free again): judged anew. */
     self->place_said_valid = -1;
+    squares_run_pending(ui, self);
 }
 
 static void
@@ -710,6 +755,7 @@ squares_fetch(
             squares_storage_rows(ui, self);
             self->fetched = 1;
             self->dirty = 1;
+            squares_run_pending(ui, self);
         }
         return;
     }
@@ -1789,6 +1835,16 @@ squares_find(
     const char* names[SQUARES_COLLECTION_ROWS];
     int const name_count = squares_collection_names(self, names);
 
+    snprintf(self->find_applied, sizeof(self->find_applied), "%s", text);
+    /* Typed in the moments after the panel opened: the list of squares is not
+     * here yet, and "m72_57 does not exist yet" was said of a square that does
+     * (2026-11-12). Found when the list arrives. */
+    if( !self->fetched )
+    {
+        self->find_pending = 1;
+        Editor_UiStatus(ui, "Find: the square list is still loading; it finds '%s' when it arrives", text);
+        return 0;
+    }
     if( !Editor_PickerFindParse(text, &query) )
     {
         Editor_UiStatus(ui, "Find: '%s' is not a square, tile or name (m50_50, 50 50, 3222 3218, Lumbridge, "
@@ -1898,6 +1954,7 @@ squares_clear_find(
     int const had = ToriRSChrome_Text(ui->chrome, self->input_search)[0] != '\0' || self->pin_valid;
 
     ToriRSChrome_SetText(ui->chrome, self->input_search, "");
+    self->find_applied[0] = '\0';
     self->pin_valid = 0;
     self->pane_hash = 0;
     self->dirty = 1;
@@ -2781,9 +2838,33 @@ squares_open_focus(
     int add)
 {
     struct Editor_Picker* picker = &self->picker;
+    const char* typed = ToriRSChrome_Text(ui->chrome, self->input_search);
     int map_x;
     int map_z;
 
+    /* Pressed in the moments after the panel opened, before the square list
+     * arrived: nothing can be found yet, and "no square is focused" was the
+     * wrong answer (2026-11-12). Done when the list lands. */
+    if( !self->fetched )
+    {
+        self->open_pending = add ? 2 : 1;
+        Editor_UiStatus(ui, "%s: the square list is still loading; it %s when it arrives", add ? "Add" : "Open",
+            add ? "adds" : "opens");
+        return;
+    }
+    /* "m72_57" typed into Find and Add pressed without Enter: the square
+     * typed, not the one focused before (or a refusal that none is). */
+    /* Nor when the Find ran before the panel had a size (opened the frame
+     * the text was typed): it found the square and could focus nothing. */
+    if( typed[0] != '\0'
+        && (strcmp(typed, self->find_applied) != 0
+            || (picker->focus < 0 && !Editor_PickerFocusCell(picker, &map_x, &map_z))) )
+    {
+        char text[TORIRS_CHROME_LABEL_MAX];
+        snprintf(text, sizeof(text), "%s", typed);
+        if( !squares_find(ui, self, text) )
+            return;
+    }
     if( picker->focus >= 0 )
     {
         squares_open(ui, self, picker->focus, add);
