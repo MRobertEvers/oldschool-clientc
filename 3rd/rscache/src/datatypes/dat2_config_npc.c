@@ -246,11 +246,14 @@ RSCache_Dat2ConfigNpcEncodeProfile(
     {
         if( !RSCache_PresenceHas(has, RSCACHE_NPC_FIELD_OP1 + i) )
             continue;
-        /* The decoder stores a stated "Hidden" as an empty slot, so a present
-         * slot with no text was "Hidden" on the wire. An empty string is not
-         * an absent one. */
+        /* The decoder stores a stated "hidden" as an empty slot, so a present
+         * slot with no text was "hidden" on the wire, in the spelling kept in
+         * `hidden_actions`. An empty string is not an absent one. */
         p1(&buffer, 30 + i);
-        pjstr(&buffer, npc->actions[i] ? npc->actions[i] : "Hidden",
+        pjstr(&buffer,
+              npc->actions[i]          ? npc->actions[i]
+              : npc->hidden_actions[i] ? npc->hidden_actions[i]
+                                       : "Hidden",
               RSCACHE_JSTR_TERMINATOR_NULL);
     }
 
@@ -599,6 +602,8 @@ RSCache_Dat2ConfigNpcFreeInplace(struct RSCache_Dat2ConfigNpc* npc)
     RSCACHE_FREE(npc->actions[2]);
     RSCACHE_FREE(npc->actions[3]);
     RSCACHE_FREE(npc->actions[4]);
+    for( int i = 0; i < 5; i++ )
+        RSCACHE_FREE(npc->hidden_actions[i]);
     RSCACHE_FREE(npc->configs);
     RSCache_EntityOpsFreeInplace(&npc->entity_ops);
     for( int i = 0; i < npc->params.count; i++ )
@@ -690,6 +695,24 @@ npc_b669_read_pairs(
     }
 }
 
+/* An op just read into `actions[index]`: one spelled "hidden" (any case) is
+ * dropped, as the reference's op reader does with equalsIgnoreCase (rev 241
+ * Statics.method9673), and its spelling kept for the encoder. Most records
+ * write it lowercase, so a case-sensitive test left "hidden" in the menu. */
+static void
+npc_hide_action(
+    struct RSCache_Dat2ConfigNpc* npc,
+    int index)
+{
+    RSCACHE_FREE(npc->hidden_actions[index]);
+    npc->hidden_actions[index] = NULL;
+    if( npc->actions[index] && strcasecmp(npc->actions[index], "hidden") == 0 )
+    {
+        npc->hidden_actions[index] = npc->actions[index];
+        npc->actions[index] = NULL;
+    }
+}
+
 /** Read a NUL-terminated string into `*slot`, replacing whatever was there. */
 static void
 npc_b669_read_string(
@@ -773,11 +796,7 @@ npc_decode_op_rs2_b669(
     case 0x21:
     case 0x22: /* ground/entity ops */
         npc_b669_read_string(buffer, &npc->actions[opcode - 0x1E]);
-        if( npc->actions[opcode - 0x1E] && strcmp(npc->actions[opcode - 0x1E], "Hidden") == 0 )
-        {
-            RSCACHE_FREE(npc->actions[opcode - 0x1E]);
-            npc->actions[opcode - 0x1E] = NULL;
-        }
+        npc_hide_action(npc, opcode - 0x1E);
         /* Stated even when it said "Hidden": the encoder writes a NULL slot
          * that is present back as "Hidden". */
         RSCache_PresenceSet(&npc->present, RSCACHE_NPC_FIELD_OP1 + (opcode - 0x1E));
@@ -1253,12 +1272,7 @@ RSCache_Dat2ConfigNpcDecodeOp(
             assert(npc->actions[idx]);
             greadto(buffer, npc->actions[idx], str_len + 1, str_len + 1);
 
-            // Check if string is "Hidden"
-            if( strcmp(npc->actions[idx], "Hidden") == 0 )
-            {
-                RSCACHE_FREE(npc->actions[idx]);
-                npc->actions[idx] = NULL;
-            }
+            npc_hide_action(npc, idx);
             /* Stated even when it said "Hidden": the encoder writes a NULL slot
              * that is present back as "Hidden". */
             RSCache_PresenceSet(&npc->present, RSCACHE_NPC_FIELD_OP1 + idx);
@@ -2138,6 +2152,8 @@ RSCache_Dat2ConfigNpcEncodeBound(const struct RSCache_Dat2ConfigNpc* npc)
     {
         if( npc->actions[i] )
             need += (uint32_t)strlen(npc->actions[i]) + 2u;
+        if( npc->hidden_actions[i] )
+            need += (uint32_t)strlen(npc->hidden_actions[i]) + 2u;
     }
 
     need += RSCache_EntityOpsBound(&npc->entity_ops);

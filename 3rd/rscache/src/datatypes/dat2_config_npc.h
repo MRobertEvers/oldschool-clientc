@@ -121,6 +121,10 @@ struct RSCache_Dat2ConfigNpc
     int rotate_left_animation;
     int rotate_right_animation;
     char* actions[5]; // Options 30-34
+    /* An op stated as "hidden" (any case) is NULL in `actions`, as the
+     * reference drops it; its spelling is kept here so the encoder writes
+     * back the bytes it read. */
+    char* hidden_actions[5];
     /* Recolour/retexture pairs. These are 16-bit *unsigned* quantities — an HSL
      * word (hue<<10|sat<<7|lum) or a texture id — so they must not be stored in
      * a signed 16-bit field: every colour from 0x8000 up came back negative and

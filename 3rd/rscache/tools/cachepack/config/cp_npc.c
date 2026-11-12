@@ -387,9 +387,13 @@ emit_npc(
     {
         char key[8];
         snprintf(key, sizeof(key), "op%d", i + 1);
-        /* A stated "Hidden" decodes to an empty slot; it is still stated. */
+        /* A stated "hidden" decodes to an empty slot; it is still stated, in
+         * the spelling the record used. */
         if( RSCache_PresenceHas(has, RSCACHE_NPC_FIELD_OP1 + i) )
-            cp_lines_add_str(out, key, entry->actions[i] ? entry->actions[i] : "Hidden");
+            cp_lines_add_str(out, key,
+                             entry->actions[i]          ? entry->actions[i]
+                             : entry->hidden_actions[i] ? entry->hidden_actions[i]
+                                                        : "Hidden");
         else
             cp_lines_add_default(out, key);
     }
