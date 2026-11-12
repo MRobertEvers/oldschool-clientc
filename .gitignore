@@ -49,6 +49,11 @@ lib/python*
 *.out
 *.dSYM
 *.o
+# Make's dependency files (-MMD -MP), written beside every object. The two in
+# docs/android are kept on purpose, as a record of a Windows build.
+*.d
+!docs/android/*.d
+.objverify
 .last_build
 .tmp
 out/
@@ -79,6 +84,11 @@ test/ui_tree/output/
 !/src/torirs_*.c
 !/src/torirs_*.h
 /src/build_*/
+# Object directories private builds named otherwise (PLATFORM_OBJ_BASE), and a
+# test's own: their dependency files had been committed.
+/src/build-*/
+/src/*_opt/
+/test/*/.build/
 /src/torirs_mt
 /dist/win64/
 /interfacex_*.bmp
