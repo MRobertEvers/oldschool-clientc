@@ -277,11 +277,17 @@ npc_load_record(
         memcpy(g_npcs[id].transforms, npc->configs, (size_t)npc->configs_count * sizeof(int));
         g_npcs[id].transform_count = npc->configs_count;
     }
+    /* An op the stream spells "hidden" (any case) decodes to NULL in `actions`,
+     * as the client has it, with the spelling in `hidden_actions`. The server
+     * keeps the spelling, as add_ops does for locs: a hidden op is the one a
+     * skilling loop resumes on (every fishing spot's op4/op5, `p_opnpc(4)`),
+     * and an absent op is one the engine refuses. */
     for( int op = 0; op < 5; op++ )
     {
-        g_npcs[id].ops[op] =
-            npc->actions[op] ? ToriMem_Strdup(ToriMem_ServerContent(), npc->actions[op]) : NULL;
-        assert(!npc->actions[op] || g_npcs[id].ops[op]);
+        const char* text = npc->actions[op] ? npc->actions[op] : npc->hidden_actions[op];
+
+        g_npcs[id].ops[op] = text ? ToriMem_Strdup(ToriMem_ServerContent(), text) : NULL;
+        assert(!text || g_npcs[id].ops[op]);
     }
     read_combat_params(&npc->params, &g_npcs[id]);
     /* The whole list, not only the fourteen keys above. */
