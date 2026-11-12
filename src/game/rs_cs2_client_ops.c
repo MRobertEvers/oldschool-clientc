@@ -288,9 +288,12 @@ RS_CS2Host_ExecClientOp(
     }
 
     /* openurl(url, boolean): the client hands the url to its launcher and drops
-     * the boolean. */
+     * the boolean. Disabled for now: no http request leaves the client because
+     * a clientscript asked for one, so the url is logged and dropped rather
+     * than put in pending_open_url. (The server's URL_OPEN packet still opens
+     * one; that is not a script's request.) */
     case CS2_OP_OPENURL:
-        snprintf(state->pending_open_url, sizeof(state->pending_open_url), "%s", strs[0] ? strs[0] : "");
+        TORIRS_LOG("cs2: openurl disabled, dropped '%s'\n", strs[0] ? strs[0] : "");
         return CS2VM_EXECNO_OK;
 
     /* bug_report(template, description, instructions): nothing is sent when
