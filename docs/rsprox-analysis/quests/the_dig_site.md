@@ -320,15 +320,16 @@ Our tick log (`_vm_patrol_probe.lua`): load at 73, dump at 246 (173 after), next
 and back west. Ours: drops at 42, 128, 214, 300 (86 apart), the turn 6 later, the pickup 44
 after each drop, the plank 4 after that; the lines drawn with the recorded weights.
 
-Not ported: Jagex sends `[facing] type=reset` with every wheelbarrow hop (ours sends none);
+Jagex sends `[facing] type=reset` with every wheelbarrow hop, and so do we (`npc_facereset`
+before each `npc_tele`): the rev-241 client holds a face square until the next facing block,
+so without it he turned back to the dump's or the loader's square at every stop. Not ported:
 Ed's and the barge painter's own lines answer the recorder's Talk-to clicks (not ambience).
 
 ## Open
 
 * Curator's medallion purchase (the digsite pendant): only the wiki's first answer.
 * Workman 3630's greeting (clicked, never answered).
-* The wheelbarrow's per-hop `[facing] type=reset` (§15), and the 3273..3305 road tiles between
-  squeaks (inferred; their timing matches).
+* The wheelbarrow's 3273..3305 road tiles between squeaks (§15; inferred, their timing matches).
 * Journal stages 0..1 (pre-stamp), 7, 8, 9 and partial errand states: the wiki's.
 * The Exam Centre's doors: in two of five test runs a door that had passed several times
   stood open on the client while the server refused the doorway, permanently, after a long
