@@ -6381,6 +6381,30 @@ torirsserver-cache-summoning: check-crystal-set-contract test-summoning-isolatio
 		grep -Rqs 'case 24 :' "$$tmp"; grep -Rqs 'varbit20411' "$$tmp"; \
 		echo "torirsserver-cache-summoning: verified 9 clientscript archives"
 
+# The torirslive lane: the cache the live world serves (torirs.mrobertevers.com).
+# Its `cache/` tree holds assets only -- the ordinary login screen, from OpenRS2
+# cache 2740 (ported/torirslive/PROVENANCE.md) -- so it is written over a copy of
+# the base with --asset-only; every group it does not name keeps the base's bytes.
+# tools/deploy/build_osrs239_package.py --lane torirslive ships the result in
+# place of cache.osrs242.
+TORIRSLIVE_LANE = $(TORIRSSERVER_CONTENT_DIR)/ported/torirslive
+TORIRSLIVE_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs242
+TORIRSLIVE_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs242.torirslive
+
+.PHONY: torirsserver-cache-torirslive
+torirsserver-cache-torirslive:
+	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
+	@test -f "$(TORIRSLIVE_CACHE_BASE)/main_file_cache.dat2" || { \
+		echo "torirsserver-cache-torirslive: no base cache at $(TORIRSLIVE_CACHE_BASE)" >&2; exit 1; }
+	@test "$(abspath $(TORIRSLIVE_CACHE_DIR))" != "$(REPO_ROOT)" -a \
+		"$(abspath $(TORIRSLIVE_CACHE_DIR))" != "$(abspath $(TORIRSLIVE_CACHE_BASE))" -a \
+		"$(abspath $(TORIRSLIVE_CACHE_DIR))" != "/" || { \
+		echo "torirsserver-cache-torirslive: unsafe output $(TORIRSLIVE_CACHE_DIR)" >&2; exit 1; }
+	rm -rf "$(TORIRSLIVE_CACHE_DIR)"
+	@cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack --src $(TORIRSLIVE_LANE)/cache \
+		--base $(TORIRSLIVE_CACHE_BASE) --out $(TORIRSLIVE_CACHE_DIR) \
+		--rev osrs242 --asset-only --assets=binary,sprites,songs
+
 # Both marked lanes in one cache, for manifests/manifest_osrs239_rs2012_summoning.ini.
 #
 # Neither lane's own bake carries the other's records â `ported/` is out of the

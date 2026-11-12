@@ -56,6 +56,10 @@ SCRIPT_PACK = CONTENT / "server" / "scripts" / "build"
 # it, so the templates keep their one spelling.
 WORLD = "osrs239"
 PACKAGE_NAME = "torirs-osrs239"
+# A cache lane (--lane): ported/<lane>/cache baked over cache.<world> by
+# `make torirsserver-cache-<lane>` and shipped under the world's own cache name,
+# so the manifest and the servers' environment are the same with or without it.
+LANE = ""
 
 
 def for_world(text: str) -> str:
@@ -656,8 +660,8 @@ def stage_scripts(stage: Path, game_port: int, web_port: int, ws_host: str,
     (stage / "install-windows-task.ps1").write_text(for_world(INSTALL_PS1.format(**fmt)), encoding="utf-8", newline="\r\n")
     (stage / "README.md").write_text(for_world(README.format(**fmt)), encoding="utf-8")
     (stage / "VERSION.txt").write_text(
-        f"{PACKAGE_NAME}\ncommit={sha}\ncontent={content_sha}\nbuilt={date}\n"
-        f"host={platform.platform()}\n", encoding="utf-8")
+        f"{PACKAGE_NAME}\ncommit={sha}\ncontent={content_sha}\nlane={LANE or '-'}\n"
+        f"built={date}\nhost={platform.platform()}\n", encoding="utf-8")
     if not IS_WINDOWS:
         os.chmod(stage / "run.sh", 0o755)
         os.chmod(stage / "torirsctl", 0o755)
@@ -695,10 +699,15 @@ def main() -> int:
                          "server's Play Now flow (oauth; needs io_server --gate)")
     ap.add_argument("--world", default="osrs239",
                     help="which world: its cache.<world>, manifests/manifest_<world>.ini and "
-                         "revconfig/<world> (default osrs239; osrs241 is current)")
+                         "revconfig/<world> (default osrs239; osrs242 is current)")
+    ap.add_argument("--lane", default="",
+                    help="ship cache.<world>.<lane> (make torirsserver-cache-<lane>, baked "
+                         "from ported/<lane>/cache) as cache.<world>; torirslive is the "
+                         "live world's")
     args = ap.parse_args()
-    global WORLD, PACKAGE_NAME
+    global WORLD, PACKAGE_NAME, LANE
     WORLD = args.world
+    LANE = args.lane
     PACKAGE_NAME = f"torirs-{WORLD}"
     for need in (REPO / f"cache.{WORLD}", REPO / "manifests" / f"manifest_{WORLD}.ini",
                  REPO / "revconfig" / WORLD):
@@ -753,8 +762,15 @@ def main() -> int:
         f"{accounts_bin.relative_to(REPO)}")
     stage_runtime_dlls(stage / "bin")
     stage_web(stage)
-    cache_bytes = copy_tree(REPO / f"cache.{WORLD}", stage / f"cache.{WORLD}")
-    log(f"cache.{WORLD}: {cache_bytes / 1e6:.0f} MB")
+    if LANE:
+        # Rebaked every time: a copy of the base and a dozen archives, and a
+        # stale lane cache would ship last week's base under this week's name.
+        make([f"torirsserver-cache-{LANE}"], jobs=1)
+        cache_src = REPO / f"cache.{WORLD}.{LANE}"
+    else:
+        cache_src = REPO / f"cache.{WORLD}"
+    cache_bytes = copy_tree(cache_src, stage / f"cache.{WORLD}")
+    log(f"cache.{WORLD}: {cache_bytes / 1e6:.0f} MB from {cache_src.name}")
     stage_content(stage)
     write_manifest(stage, args.game_port, args.ws_host, args.auth)
     copy_tree(REPO / "revconfig" / WORLD, stage / "revconfig" / WORLD)
