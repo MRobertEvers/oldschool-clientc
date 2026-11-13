@@ -50,7 +50,10 @@
  * from BLOCKED because this task is not waiting on anything. It is the only
  * way a long load can show its own progress. */
 #define TORIRS_ASYNCIO_STAT_RENDER 3
-
+/* The task stopped because its queue's slice is over (TASK_YIELD_IF_SPENT).
+ * Not waiting on anything: it is ready the moment the queue is given time
+ * again, which must not be within this slice. */
+#define TORIRS_ASYNCIO_STAT_SPENT 4
 #define TORIRS_IO_CACHE_DAT2 0
 #define TORIRS_IO_CACHE_DAT1 1
 /*
@@ -288,6 +291,12 @@ struct ToriRS_Task
     int wants_render;
     struct ToriRS_RenderRequest render;
 
+    /* Set by TASK_YIELD_IF_SPENT for the duration of one yield: this task
+     * stopped because its queue's slice is over, not because it waits on
+     * anything. Cleared on every resume and carried up from an awaited child,
+     * exactly like `blocked`. */
+    int spent;
+
     /*
      * The one read this task may have out.
      *
@@ -332,7 +341,8 @@ struct ToriRS_Task
      *
      * The count lives in the parent, and the parent must outlive its siblings.
      * It does by construction: it is parked on the count reaching zero, and a
-     * queue freed whole (ToriRS_TaskQueue_Free) frees without decrementing.
+     * queue freed whole (ToriRS_TaskQueue_Free) frees without decrementing. A
+     * parent cancelled early detaches them first (ToriRS_TaskQueue_DetachJoin).
      */
     int* join;
 
@@ -345,12 +355,50 @@ struct ToriRS_Task
 };
 
 /*
+ * How long the pass a task is running in may last.
+ *
+ * Most queues have no such limit: they are drained to a fixed point, and a
+ * task on them never sees one (`deadline_us` 0). A queue that nothing in the
+ * frame waits on is instead given time -- a slice -- and a long task on it
+ * asks this whether the slice is over (TASK_YIELD_IF_SPENT).
+ *
+ * The clock is the queue's, not the platform's, so a test can drive it.
+ * Times are microseconds on that clock.
+ */
+struct ToriRS_Slice
+{
+    uint64_t (*now_us)(void* ud);
+    void* now_ud;
+    /** 0: this pass has no limit. */
+    uint64_t deadline_us;
+    /** The deadline has been seen to pass; sticky for the rest of the pass. */
+    int spent;
+};
+
+/** Is the slice over? Always no for a pass with no limit, without reading
+ *  the clock. */
+static inline int
+ToriRS_SliceSpent(struct ToriRS_Slice* slice)
+{
+    assert(slice != NULL);
+    if( slice->deadline_us == 0 )
+        return 0;
+    if( !slice->spent )
+    {
+        assert(slice->now_us);
+        if( slice->now_us(slice->now_ud) >= slice->deadline_us )
+            slice->spent = 1;
+    }
+    return slice->spent;
+}
+
+/*
  * The reads a pass has produced, and whose item "slot 0" names right now.
  *
  * Handed to Platform_IO_Process once per pass: every item queued since the
  * last hand-over goes out together, which is the whole of what makes a boot
  * stream instead of dribble. Nothing here outlives a pass except `task`,
- * which the queue sets around each run.
+ * which the queue sets around each run, and `slice`, which is the queue's.
  */
 struct ToriRS_IOBatch
 {
@@ -362,6 +410,8 @@ struct ToriRS_IOBatch
     struct ToriRS_IOItem** active;
     int active_count;
     int active_capacity;
+    /** The queue's time limit for the pass in progress (none on most). */
+    struct ToriRS_Slice slice;
 };
 
 struct ToriRS_TaskVTable
@@ -455,6 +505,7 @@ task_run(
 
     task->blocked = 0;
     task->wants_render = 0;
+    task->spent = 0;
     return task->vtable->run(task, io);
 }
 
@@ -502,6 +553,29 @@ task_run(
         (task)->render.percent = (percent_);                                                   \
         (task)->render.caption = (caption_);                                                   \
         PT_YIELD(pt);                                                                          \
+    } while( 0 )
+
+/*
+ * Stop here if this queue's slice is over; carry straight on if it is not.
+ *
+ * For a long task on a queue that is given time rather than drained (the
+ * background queue, task_runner.h): the runner checks its clock between
+ * tasks, but a task that runs long inside one resume can only be stopped by
+ * itself. On a queue with no slice this never yields and never reads a clock,
+ * so the same task runs straight through when it is awaited inline on a
+ * drained queue.
+ *
+ * The runner reports the stop as TASK_RUNNER_SPENT, not as progress, so
+ * nobody steps the queue again within the same slice.
+ */
+#define TASK_YIELD_IF_SPENT(task, pt, io_)                                                     \
+    do                                                                                         \
+    {                                                                                          \
+        if( ToriRS_SliceSpent(&(io_)->slice) )                                                 \
+        {                                                                                      \
+            (task)->spent = 1;                                                                 \
+            PT_YIELD(pt);                                                                      \
+        }                                                                                      \
     } while( 0 )
 
 /* Append an item to this pass's batch; the list grows rather than refusing,
@@ -788,6 +862,27 @@ ToriRS_TaskQueue_AddParallelPoolSubTask(
     return 1;
 }
 
+/**
+ * Stop every task on `queue` counting itself on `join`.
+ *
+ * For a parent that is about to be freed before its fan-out has ended -- a
+ * cancelled job. The siblings keep running to their own end (a load that
+ * lands is still a record the cache holds) but no longer decrement a count
+ * that is about to be gone. The count is zeroed, since nothing will move it.
+ */
+static inline void
+ToriRS_TaskQueue_DetachJoin(
+    struct ToriRS_TaskQueue* queue,
+    int* join)
+{
+    assert(queue != NULL);
+    assert(join != NULL);
+    for( struct ToriRS_Task* task = queue->head; task; task = task->next )
+        if( task->join == join )
+            task->join = NULL;
+    *join = 0;
+}
+
 static inline void
 ToriRS_TaskQueue_Remove(
     struct ToriRS_TaskQueue* queue,
@@ -877,6 +972,10 @@ ToriRS_TaskQueue_RunTask(
          * so its request is intact for the caller to read. */
         if( task->wants_render )
             return TORIRS_ASYNCIO_STAT_RENDER;
+        /* Stopped for its queue's slice (TASK_YIELD_IF_SPENT): ready, but not
+         * to be run again until the queue is given time again. */
+        if( task->spent )
+            return TORIRS_ASYNCIO_STAT_SPENT;
         /* Parked on IO, or simply slicing. Either way it made progress. */
         return TORIRS_ASYNCIO_STAT_YIELD;
     case PT_ENDED:
@@ -970,6 +1069,8 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
             }                                                                                      \
             if( _child->blocked )                                                                  \
                 (task)->blocked = 1;                                                               \
+            if( _child->spent )                                                                    \
+                (task)->spent = 1;                                                                 \
             return _await_res;                                                                     \
         }                                                                                          \
         task_free(_child);                                                                         \
@@ -1003,6 +1104,8 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
                 }                                                                                  \
                 if( _child->blocked )                                                              \
                     (task)->blocked = 1;                                                           \
+                if( _child->spent )                                                                \
+                    (task)->spent = 1;                                                             \
                 return _await_res;                                                                 \
             }                                                                                      \
             task_free(_child);                                                                     \
@@ -1038,6 +1141,12 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
  */
 #define PT_TASK_YIELD_TO_RENDER(intent_, percent_, caption_)                                   \
     TASK_YIELD_TO_RENDER(&(self->task), &(self->pt), (intent_), (percent_), (caption_))
+
+/**
+ * Stop here if the queue's slice is over. @see TASK_YIELD_IF_SPENT. A
+ * suspension point when it yields -- see PT_TASK_AWAITSELF.
+ */
+#define PT_TASK_YIELD_IF_SPENT() TASK_YIELD_IF_SPENT(&(self->task), &(self->pt), io)
 
 /**
  * Like PT_TASK_AWAITSELF, but skip when child_expr evaluates to NULL

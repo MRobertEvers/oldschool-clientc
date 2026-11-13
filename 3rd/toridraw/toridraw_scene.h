@@ -495,6 +495,47 @@ ToriDraw_SceneElementPool(
     struct ToriDraw_Scene* scene,
     int element_id);
 
+/** Elements allocated and not freed, every pool. Not ToriDraw_SceneElementSlotCount,
+ *  which is the high-water slot index. */
+int
+ToriDraw_SceneElementLiveCount(const struct ToriDraw_Scene* scene);
+
+/** Live elements tagged `pool`. Walks the element list: not per frame. */
+int
+ToriDraw_ScenePoolCount(
+    struct ToriDraw_Scene* scene,
+    int pool);
+
+/**
+ * Withhold the renderer loads of every element tagged `pool` (-1: none).
+ *
+ * For a scene built beside the one on screen (the background rebuild's
+ * staging pool, app_world_job.c): its elements are placed, modelled and
+ * animated as any others, but no MODEL_LOAD / ANIM_LOAD goes to a renderer,
+ * none is ticked by the animation list, and none is batched, until
+ * ToriDraw_SceneAdoptPool moves the pool into the one the frame draws. A
+ * retained renderer clears its static arena when view 0's static pool is
+ * cleared, so loads it had taken early would be thrown away by the very swap
+ * that makes them visible. Never view 0's static pool. One at a time.
+ */
+void
+ToriDraw_SceneSetDeferredPool(
+    struct ToriDraw_Scene* scene,
+    int pool);
+
+/**
+ * Retag every element of `from_pool` into `to_pool`, keeping ids, models and
+ * positions, and emit the loads withheld from them: as one batch when
+ * `to_pool` is view 0's static pool (what a blocking rebuild emits), element
+ * by element otherwise. The caller clears `to_pool` first when it is
+ * replacing what was there. Must not run while a batch is open.
+ */
+void
+ToriDraw_SceneAdoptPool(
+    struct ToriDraw_Scene* scene,
+    int from_pool,
+    int to_pool);
+
 int
 ToriDraw_SceneElementRemove(
     struct ToriDraw_Scene* scene,

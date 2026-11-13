@@ -113,6 +113,7 @@ App_NoteFrameTime(
 
     PerfAudit_EndFrame(frame_us);
     FrameTimeRing_Add(&app->dbg_frame_times, frame_us);
+    app_rebuild_frames_note(app, frame_us);
 }
 
 void
@@ -710,6 +711,10 @@ App_RunOnce(
         atexit(FrameStats_Report);
     }
     result = app_run_once_body(app, now_ms, input);
+    /* Outside the body, so that none of its early returns (a latched frame,
+     * a boot) can starve the background queue: every platform loop gives it
+     * this floor, whatever else it does with its slack (App_RunBackground). */
+    app_run_background_floor(app);
     FrameStats_Span(FRAME_STATS_FRAME, t0);
     return result;
 }
@@ -1159,7 +1164,7 @@ app_run_once_body(
      * start it, so publish-only server responses otherwise wait forever. This
      * drains the existing serial protocol queue without advancing simulation. */
     if( app->exec_runner_had_work || app->server_tick_open || RS_ClientScriptQueue_Count(&app->pending_clientscripts) > 0 ||
-        (app->net && app->net->packets_head) )
+        (app->net && app->net->packets_head) || App_WorldJobPending(app) )
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TICK_PACKETS)
         {

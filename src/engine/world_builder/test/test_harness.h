@@ -30,6 +30,12 @@ void test_instance_rotation_is_clockwise(void);
 /* Cache-backed render integration test (skips if cache dir missing). */
 void test_world_builder_cache_render(void);
 
+/* The stepped build against the blocking one (skips if cache dir missing). */
+void test_world_builder_stepped(void);
+
+/* A staging build swapped into a live world (skips if cache dir missing). */
+void test_world_builder_hot_swap(void);
+
 /* Rebuild stutter bench (WB_BENCH=1 runs this instead of the tests). */
 void test_world_builder_bench(void);
 

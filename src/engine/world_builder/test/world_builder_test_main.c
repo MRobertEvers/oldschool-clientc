@@ -30,6 +30,12 @@ main(void)
     printf("== world_builder cache render test ==\n");
     test_world_builder_cache_render();
 
+    printf("== world_builder stepped build test ==\n");
+    test_world_builder_stepped();
+
+    printf("== world_builder hot swap test ==\n");
+    test_world_builder_hot_swap();
+
     if( g_failures == 0 )
         printf("ALL TESTS PASSED\n");
     else

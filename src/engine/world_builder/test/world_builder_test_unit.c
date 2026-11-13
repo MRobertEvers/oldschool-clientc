@@ -9,9 +9,11 @@
 #include "world/entity_pool.h"
 #include "world/world.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <rscache.h>
 #include <toridraw.h>
 #include <toridraw_element_id.h>
 #include <toridraw_scene.h>
@@ -256,6 +258,27 @@ test_minimap_vis_below_keeps_walls(void)
     minimap_free(mm);
 }
 
+/*
+ * An empty in-memory provider that states a cache identity. End's mapfunction
+ * spread asks the profile (dat1 or dat2 numbering) whether or not any icon
+ * exists, and CacheProvider_Profile asserts the identity is stated -- an
+ * unstated one aborted these tests whenever they ran with asserts on (OPT=0).
+ */
+static struct CacheProvider*
+unit_test_provider(struct Dat2BuildCache* bc)
+{
+    struct CacheProvider* provider = dat2_buildcache_as_provider(bc);
+    struct RSCache profile;
+    int found;
+
+    assert(provider);
+    found = RSCache_ProfileByName("osrs239", &profile);
+    assert(found);
+    (void)found;
+    CacheProvider_SetProfile(provider, &profile);
+    return provider;
+}
+
 void
 test_builder_lifecycle(void)
 {
@@ -272,7 +295,7 @@ test_builder_lifecycle(void)
 
     /* Empty in-memory provider (no disk backing). */
     struct Dat2BuildCache* bc = dat2_buildcache_new();
-    struct CacheProvider* provider = dat2_buildcache_as_provider(bc);
+    struct CacheProvider* provider = unit_test_provider(bc);
     TEST_ASSERT(provider != NULL, "dat2_buildcache_as_provider");
 
     struct WorldBuilder* builder = WorldBuilder_New(world, provider, scene, &varp);
@@ -325,7 +348,7 @@ test_rebuild_keeps_tagged_entity_elements(void)
     VarPManager_Init(&varp);
 
     struct Dat2BuildCache* bc = dat2_buildcache_new();
-    struct CacheProvider* provider = dat2_buildcache_as_provider(bc);
+    struct CacheProvider* provider = unit_test_provider(bc);
     TEST_ASSERT(provider != NULL, "dat2_buildcache_as_provider");
 
     struct WorldBuilder* builder = WorldBuilder_New(world, provider, scene, &varp);

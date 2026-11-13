@@ -1635,7 +1635,7 @@ enum DriveResult DriveUi_Shot(struct App* app, char const* name, char* out_path,
  *  No stderr scraping. */
 enum DriveResult DriveCore_Cheat(struct App* app, char const* text);
 
-/** !App_AsyncPending && App_FrameSettled && !world_load_inflight. */
+/** !App_AsyncPending && App_FrameSettled && App_WorldSettled. */
 enum DriveResult DriveCore_Settled(struct App* app, int* out_settled);
 
 /** The session directory (TORIRS_CONTENT_TEST) every artefact lands under:

@@ -257,6 +257,9 @@ App_Init(
     app->exec_runner.queue = ToriRS_TaskQueue_New();
     app->exec_runner.px = app->runner.px;
 
+    /* The background queue (app_world_job.c): given time, never drained. */
+    app_bg_runner_init(app);
+
 #if defined(TORIRS_PLATFORM_WEB)
     /*
      * A browser opens no cache here, and that is the architecture rather than a
@@ -1431,6 +1434,7 @@ App_Shutdown(struct App* app)
         RSCache_Dat2DiskFree(app->dat2_disk);
     if( app->dat1_disk )
         RSCache_Dat1DiskFree(app->dat1_disk);
+    app_bg_runner_free(app);
     ToriRS_TaskQueue_Free(app->exec_runner.queue);
     ToriRS_IOBatch_Free(app->exec_runner.io);
     ToriRS_TaskQueue_Free(app->runner.queue);

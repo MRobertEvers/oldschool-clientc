@@ -861,6 +861,10 @@ struct ToriDraw_SceneElement
     struct ToriDraw_Position world_position;
     bool dynamic;
     bool pending_batch_add;
+    /** The element's MODEL_LOAD (and any ANIM_LOAD) was withheld because its
+     *  pool is the scene's deferred pool (ToriDraw_SceneSetDeferredPool): no
+     *  renderer has seen it, and ToriDraw_SceneAdoptPool emits its loads. */
+    bool load_deferred;
     bool is_skeletal; /* true: use skeletal_animation; false: use animation */
     int skeletal_play_frames; /* playback length from seq anim_maya_end-start; -1 = palette size */
     int anim_seq_id;
@@ -1187,6 +1191,10 @@ struct ToriDraw_Scene
     int current_batch_id;
     int current_batch_element_count;
     int next_batch_id;
+    /** The pool whose elements' renderer loads are withheld, plus one; 0 =
+     *  none (ToriDraw_SceneSetDeferredPool). Plus one so a zeroed scene --
+     *  every scene, at creation -- defers nothing. */
+    int deferred_pool_plus1;
 
     struct ToriDraw_ScenePendingPose* pending_poses;
     int pending_pose_count;

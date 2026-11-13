@@ -766,25 +766,46 @@ world_terrain_build_tile(
     return 1;
 }
 
+/*
+ * The terrain mesh, in units: the blend and the sunlight first (both read the
+ * whole scene), then one level per unit -- its shade, then every tile's model.
+ * A level reads only the maps the first unit finished and writes only its own
+ * lightmap plane, its own elements and its own minimap level, so the levels in
+ * order across calls are the levels in order in one call.
+ */
 static void
-world_build_scene_terrain(struct WorldBuilder* builder)
+world_build_scene_terrain_init(struct WorldBuildTerrainMesh* cur)
+{
+    assert(cur);
+    memset(cur, 0, sizeof(*cur));
+}
+
+/* One unit. Returns 1 once the mesh is complete. */
+static int
+world_build_scene_terrain_step(
+    struct WorldBuilder* builder,
+    struct WorldBuildTerrainMesh* cur)
 {
     struct World* world = builder->world;
     int scene_size = world->_scene_size;
+    int level;
 
-    blendmap_build(builder->blendmap);
-    lightmap_build(builder->lightmap, world->heightmap);
+    assert(cur);
+    if( cur->stage == 0 )
+    {
+        blendmap_build(builder->blendmap);
+        lightmap_build(builder->lightmap, world->heightmap);
+        cur->stage = 1;
+        cur->level = 0;
+        return 0;
+    }
 
     /* Counters for TORIRS_TERRAIN_DEBUG: how far each tile got down the build.
      * A blank viewport is either "no shape tile was ever set" (the map/flo layer
      * never reached the shapemap) or "shapes exist but decode/add dropped them" —
      * these separate the two without guessing. */
-    int dbg_active = 0;
-    int dbg_inactive = 0;
-    int dbg_no_model = 0;
-    int dbg_added = 0;
-
-    for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS; level++ )
+    level = cur->level;
+    assert(level < WORLD_MAP_TERRAIN_LEVELS);
     {
         world_apply_shade(
             builder, level, 0, scene_size, 0, scene_size, 0, scene_size, 0, scene_size);
@@ -796,13 +817,13 @@ world_build_scene_terrain(struct WorldBuilder* builder)
                 struct ToriDraw_Model* td = NULL;
                 if( !world_terrain_build_tile(builder, x, z, level, &td) )
                 {
-                    dbg_inactive++;
+                    cur->dbg_inactive++;
                     continue;
                 }
-                dbg_active++;
+                cur->dbg_active++;
                 if( !td )
                 {
-                    dbg_no_model++;
+                    cur->dbg_no_model++;
                     continue;
                 }
 
@@ -832,10 +853,13 @@ world_build_scene_terrain(struct WorldBuilder* builder)
                     builder->scene, element_id, x * WORLD_TILE_SIZE, 0, z * WORLD_TILE_SIZE, 0);
 
                 World_TerrainSet(world, element_id, x, z, level);
-                dbg_added++;
+                cur->dbg_added++;
             }
         }
     }
+    cur->level++;
+    if( cur->level < WORLD_MAP_TERRAIN_LEVELS )
+        return 0;
 
     if( getenv("TORIRS_TERRAIN_DEBUG") )
     {
@@ -844,11 +868,11 @@ world_build_scene_terrain(struct WorldBuilder* builder)
          * like a camera or scale fault and is not one. */
         int hmin = 1 << 30;
         int hmax = -(1 << 30);
-        for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS; level++ )
+        for( int lv = 0; lv < WORLD_MAP_TERRAIN_LEVELS; lv++ )
             for( int z = 0; z < scene_size; z++ )
                 for( int x = 0; x < scene_size; x++ )
                 {
-                    int h = heightmap_get(world->heightmap, x, z, level);
+                    int h = heightmap_get(world->heightmap, x, z, lv);
                     if( h < hmin )
                         hmin = h;
                     if( h > hmax )
@@ -860,12 +884,25 @@ world_build_scene_terrain(struct WorldBuilder* builder)
             "terrain: scene_size=%d shapetiles active=%d inactive=%d "
             "tile_model_null=%d elements_added=%d height=[%d..%d]\n",
             scene_size,
-            dbg_active,
-            dbg_inactive,
-            dbg_no_model,
-            dbg_added,
+            cur->dbg_active,
+            cur->dbg_inactive,
+            cur->dbg_no_model,
+            cur->dbg_added,
             hmin,
             hmax);
+    }
+    return 1;
+}
+
+/* The whole mesh at once: the blocking build's End. */
+static void
+world_build_scene_terrain(struct WorldBuilder* builder)
+{
+    struct WorldBuildTerrainMesh cur;
+
+    world_build_scene_terrain_init(&cur);
+    while( !world_build_scene_terrain_step(builder, &cur) )
+    {
     }
 }
 

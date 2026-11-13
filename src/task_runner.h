@@ -30,6 +30,15 @@
  * parks on a model load (game/test/task_order_test.c). The asset queue
  * overlaps: nothing downstream cares which of a region's models lands first,
  * and every read a pass produces leaves in one batch.
+ *
+ * Those two are DRAINED: the frame steps them to a fixed point. A third kind
+ * of queue is GIVEN TIME instead -- work nothing in the frame waits on, run
+ * for a slice whenever its owner has time to spare (TaskRunner_RunUntil). Its
+ * passes carry a deadline on the queue's own clock (TaskRunner_SetClock); the
+ * walk checks it between tasks and a long task checks it itself
+ * (PT_TASK_YIELD_IF_SPENT), and a pass that stopped for it says so
+ * (TASK_RUNNER_SPENT). A drained queue's passes have no deadline and never
+ * read a clock.
  */
 struct TaskRunner
 {
@@ -50,6 +59,10 @@ struct TaskRunner
     struct TaskRunnerTelemetry telemetry;
 };
 
+/* The most reads one pass with a deadline queues before it stops the walk,
+ * so that what Process has to answer at its end stays inside a slice. */
+#define TASK_RUNNER_SLICE_READS_MAX 128
+
 enum TaskRunnerStat
 {
     /** The queue is empty. */
@@ -67,7 +80,85 @@ enum TaskRunnerStat
      *  be on it (runner->render). Every loop stops here so the frame is
      *  actually seen. */
     TASK_RUNNER_RENDER,
+    /** The pass's slice ran out with ready work still queued (only a pass
+     *  given a deadline, TaskRunner_StepUntil). Not progress: stepping again
+     *  inside the same slice is exactly what the deadline forbids. */
+    TASK_RUNNER_SPENT,
 };
+
+/*
+ * Give a queue a clock, so its passes can be given a deadline.
+ *
+ * `now_us` is any monotonic microsecond clock; the client's is the
+ * platform's, a test's is a counter it advances itself. A queue with no clock
+ * can still be stepped, but not with a deadline.
+ */
+static inline void
+TaskRunner_SetClock(
+    struct TaskRunner* runner,
+    uint64_t (*now_us)(void* ud),
+    void* now_ud)
+{
+    assert(runner);
+    assert(runner->io);
+    assert(now_us);
+    runner->io->slice.now_us = now_us;
+    runner->io->slice.now_ud = now_ud;
+}
+
+static inline uint64_t
+TaskRunner_Now(struct TaskRunner const* runner)
+{
+    assert(runner);
+    assert(runner->io);
+    assert(runner->io->slice.now_us);
+    return runner->io->slice.now_us(runner->io->slice.now_ud);
+}
+
+/*
+ * A unit of work handed to a queue that is given time, and when it must be
+ * done by.
+ *
+ * `join` counts the job's root task the way a parent counts its fan-out
+ * (ToriRS_TaskQueue_AddParallelPoolSubTask), so the job is done when that
+ * task has ENDED, however it ended. The root fans its own work out on the
+ * same queue and joins it, so "root ended" is "everything ended".
+ *
+ * `must_finish_by_us` is the job's own deadline on the queue's clock: past it,
+ * the owner stops waiting for slices and finishes the job now (`promoted`),
+ * because some answer is needed by then whatever it costs a frame. Who
+ * promotes, and how, is the owner's: this is only the record.
+ */
+struct ToriRS_TaskJob
+{
+    int join;
+    uint64_t must_finish_by_us;
+    int promoted;
+};
+
+/** Hand `task` to `runner` as the root of `job`. */
+static inline void
+ToriRS_TaskJob_Start(
+    struct ToriRS_TaskJob* job,
+    struct TaskRunner* runner,
+    struct ToriRS_Task* task,
+    uint64_t must_finish_by_us)
+{
+    assert(job);
+    assert(runner);
+    assert(task);
+    assert(job->join == 0);
+    job->must_finish_by_us = must_finish_by_us;
+    job->promoted = 0;
+    ToriRS_TaskQueue_AddParallelPoolSubTask(runner->queue, task, &job->join);
+}
+
+static inline int
+ToriRS_TaskJob_Done(struct ToriRS_TaskJob const* job)
+{
+    assert(job);
+    return job->join == 0;
+}
 
 /*
  * Enqueue a task that belongs to the frame's CS2 visual transaction.
@@ -139,6 +230,12 @@ TaskRunner_ReadsOutstanding(struct TaskRunner const* runner)
  * RENDER ends the walk: the point of the request is that this frame reaches
  * the screen, and stepping other tasks past it would publish their work on
  * it too. The reads queued so far still go out.
+ *
+ * So does a slice that has run out (TaskRunner_StepUntil): the clock is read
+ * before every task but the first this pass runs -- one task always runs, or
+ * a late caller would never move the queue at all -- and a task that stops
+ * itself for it (PT_TASK_YIELD_IF_SPENT) ends the walk the same way. A pass
+ * with no deadline, which is every pass of a drained queue, does neither.
  */
 static inline enum TaskRunnerStat
 TaskRunner_Step(struct TaskRunner* runner)
@@ -146,9 +243,11 @@ TaskRunner_Step(struct TaskRunner* runner)
     struct ToriRS_Task* task;
     struct ToriRS_Task* next;
     int ran = 0;
+    int runs = 0;
     int waiting = 0;
     int blocked = 0;
     int render = 0;
+    int spent = 0;
 
     assert(runner);
     assert(runner->queue);
@@ -164,7 +263,7 @@ TaskRunner_Step(struct TaskRunner* runner)
 
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_QUEUE_RUN)
     {
-        for( task = runner->queue->head; task && !render; task = next )
+        for( task = runner->queue->head; task && !render && !spent; task = next )
         {
             struct TaskRunnerTaskTelemetry* row;
             int stat;
@@ -179,9 +278,25 @@ TaskRunner_Step(struct TaskRunner* runner)
                  * may overtake it. */
                 break;
             }
+            if( runs > 0 && ToriRS_SliceSpent(&runner->io->slice) )
+            {
+                spent = 1;
+                break;
+            }
+            /* A pass with a deadline also stops at a batch the deadline could
+             * not pay for: the reads it has queued go out in Process, after
+             * the walk and past any clock check, and a desktop executor answers
+             * them all there and then -- a region's thousand-model fan-out
+             * queued in under a millisecond took 11 ms to answer (rev 242,
+             * ~11 us a read). Not SPENT: the time is not up, so the caller may
+             * give the queue another pass, which lands this batch first. */
+            if( runs > 0 && runner->io->slice.deadline_us != 0 &&
+                runner->io->active_count >= TASK_RUNNER_SLICE_READS_MAX )
+                break;
 
             row = TaskRunnerTelemetry_Row(&runner->telemetry, task);
             TaskRunnerTelemetry_Run(&runner->telemetry, row);
+            runs++;
             stat = ToriRS_TaskQueue_RunTask(runner->queue, runner->io, task);
             if( stat == TORIRS_ASYNCIO_STAT_DONE )
             {
@@ -199,6 +314,12 @@ TaskRunner_Step(struct TaskRunner* runner)
             }
             else if( stat == TORIRS_ASYNCIO_STAT_BLOCKED )
                 blocked = 1;
+            else if( stat == TORIRS_ASYNCIO_STAT_SPENT )
+            {
+                /* It ran, and stopped because the slice is over. */
+                ran = 1;
+                spent = 1;
+            }
             else
                 ran = 1;
 
@@ -219,6 +340,8 @@ TaskRunner_Step(struct TaskRunner* runner)
         return TASK_RUNNER_RENDER;
     if( runner->queue->head == NULL )
         return TASK_RUNNER_IDLE;
+    if( spent )
+        return TASK_RUNNER_SPENT;
     if( ran )
         return TASK_RUNNER_PROGRESSED;
     if( waiting )
@@ -229,6 +352,65 @@ TaskRunner_Step(struct TaskRunner* runner)
     assert(blocked);
     (void)blocked;
     return TASK_RUNNER_BLOCKED;
+}
+
+/*
+ * One pass that stops when the queue's clock reaches `deadline_us` (0: no
+ * deadline, an ordinary TaskRunner_Step), or when it has queued
+ * TASK_RUNNER_SLICE_READS_MAX reads. Needs a clock (TaskRunner_SetClock).
+ *
+ * The deadline lives for this pass only, so a queue that is also stepped
+ * plainly elsewhere is never left with one.
+ */
+static inline enum TaskRunnerStat
+TaskRunner_StepUntil(
+    struct TaskRunner* runner,
+    uint64_t deadline_us)
+{
+    enum TaskRunnerStat stat;
+
+    assert(runner);
+    assert(runner->io);
+    assert(deadline_us == 0 || runner->io->slice.now_us);
+    runner->io->slice.deadline_us = deadline_us;
+    runner->io->slice.spent = 0;
+    stat = TaskRunner_Step(runner);
+    runner->io->slice.deadline_us = 0;
+    runner->io->slice.spent = 0;
+    return stat;
+}
+
+/*
+ * Give a queue time: step it until `deadline_us` passes or it has nothing more
+ * it can do now. The way a queue nothing waits on is run -- "until the frame
+ * deadline", and again next time there is time.
+ *
+ * Stops on IDLE, SPENT, WAITING (the answers come between turns), BLOCKED
+ * (the other queue has to move) and RENDER, exactly as a drain does; keeps
+ * going on PROGRESSED while time remains. With `deadline_us` 0 it has no
+ * limit and runs to one of those answers -- what an owner that has stopped
+ * waiting does (ToriRS_TaskJob::promoted).
+ */
+static inline enum TaskRunnerStat
+TaskRunner_RunUntil(
+    struct TaskRunner* runner,
+    uint64_t deadline_us)
+{
+    enum TaskRunnerStat stat;
+
+    assert(runner);
+    for( ;; )
+    {
+        stat = TaskRunner_StepUntil(runner, deadline_us);
+        if( stat != TASK_RUNNER_PROGRESSED )
+            break;
+        if( deadline_us != 0 && TaskRunner_Now(runner) >= deadline_us )
+        {
+            stat = TASK_RUNNER_SPENT;
+            break;
+        }
+    }
+    return stat;
 }
 
 /** Blocking drain -- native and tests only.

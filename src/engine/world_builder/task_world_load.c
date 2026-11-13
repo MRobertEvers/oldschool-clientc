@@ -104,6 +104,11 @@ struct Task_WorldLoad
     void (*on_done)(void*);
     void* on_done_ud;
 
+    /* CreateTask_WorldGather: stop after the assets, before the build. The
+     * report (may be NULL) is written once, as the gather ends. */
+    int gather_only;
+    struct WorldLoadGatherReport* report;
+
     struct WorldLoadIdSet underlays;
     struct WorldLoadIdSet overlays;
     struct WorldLoadIdSet textures;
@@ -281,7 +286,8 @@ Task_WorldLoad_Run(
     struct Task_WorldLoad* self = (struct Task_WorldLoad*)task_base;
     struct CacheProvider* p = self->provider;
 
-    /* Every read this task wants is a sibling's, so its own slot goes unused. */
+    /* Every read this task wants is a sibling's, so its own slot goes unused;
+     * `io` is asked only whether the slice is over (PT_TASK_YIELD_IF_SPENT). */
     (void)io;
 
     /* Before PT_BEGIN, so it counts every resume rather than the first. */
@@ -371,6 +377,10 @@ Task_WorldLoad_Run(
      * trip of the loc group behind the floor records for no dependency at all.
      */
     world_load_scan_chunk_refs(self);
+    /* The scan walks every tile of every square: the one stretch of this task
+     * long enough to be worth stopping for on a queue that is given time. On
+     * a drained queue this never yields. */
+    PT_TASK_YIELD_IF_SPENT();
     world_load_fanout(self, &self->underlays, CacheProvider_UnderlayHas, CreateTask_UnderlayLoad);
     world_load_fanout(self, &self->overlays, CacheProvider_FlotypeHas, CreateTask_FlotypeLoad);
     world_load_fanout(self, &self->locs, CacheProvider_LocationHas, CreateTask_LocLoad);
@@ -442,6 +452,9 @@ Task_WorldLoad_Run(
             CreateTask_SequenceLoad(p, self->builder->scene, self->seqs.items[self->i]),
             &self->pending);
     PT_TASK_JOIN(pending);
+    /* The face-texture walk below reads every face of every model just
+     * landed. */
+    PT_TASK_YIELD_IF_SPENT();
 
     /* 4c. Textures referenced by the loaded loc models (face texture ids) and
      * by loc retextures — preload so scenery is textured at rebuild (v1
@@ -486,19 +499,30 @@ Task_WorldLoad_Run(
     if( WorldBuilder_TimingOn() )
         self->t_assets_ms = WorldBuilder_TimingNowMs();
 
+    if( self->gather_only )
+    {
+        /* The build is the owner's (WorldLoad_Build), at a moment it chooses. */
+        if( self->report )
+        {
+            self->report->t_start_ms = self->t_start_ms;
+            self->report->t_assets_ms = self->t_assets_ms;
+            self->report->resumes = self->resumes;
+            self->report->chunk_count = self->chunk_count;
+            self->report->locs = self->locs.count;
+            self->report->models = self->models.count;
+            self->report->textures = self->textures.count;
+            self->report->seqs = self->seqs.count;
+            self->report->done = 1;
+        }
+        PT_EXIT(&self->pt);
+    }
+
     /* 5. Synchronous rebuild: world + scene elements from the loaded assets.
      * REBUILD_NORMAL passes the zone centre so the scene base is (zone-6)*8
      * (Client-TS / deob method3310); offline loads keep the chunk-list path. */
-    if( self->have_zones )
-        WorldBuilder_RebuildInstance(
-            self->builder, self->zone_center_x, self->zone_center_z, self->scene_size,
-            self->zones);
-    else if( self->zone_center_x >= 0 )
-        WorldBuilder_RebuildCenterzone(
-            self->builder, self->zone_center_x, self->zone_center_z, self->scene_size);
-    else
-        WorldBuilder_RebuildChunklist(self->builder, self->chunks_xz, self->chunk_count);
-    World_SetLoadComplete(self->builder->world, true);
+    WorldLoad_Build(
+        self->builder, self->chunks_xz, self->chunk_count, self->zone_center_x,
+        self->zone_center_z, self->scene_size, self->have_zones ? self->zones : NULL);
 
     if( WorldBuilder_TimingOn() )
     {
@@ -543,8 +567,29 @@ static struct ToriRS_TaskVTable Task_WorldLoad_VTable = {
     .free = Task_WorldLoad_Free,
 };
 
-struct ToriRS_Task*
-CreateTask_WorldLoad(
+void
+WorldLoad_Build(
+    struct WorldBuilder* builder,
+    const int* chunks_xz,
+    int chunk_count,
+    int zone_center_x,
+    int zone_center_z,
+    int scene_size,
+    const int32_t* zones)
+{
+    assert(builder);
+    assert(chunks_xz);
+    if( zones )
+        WorldBuilder_RebuildInstance(builder, zone_center_x, zone_center_z, scene_size, zones);
+    else if( zone_center_x >= 0 )
+        WorldBuilder_RebuildCenterzone(builder, zone_center_x, zone_center_z, scene_size);
+    else
+        WorldBuilder_RebuildChunklist(builder, chunks_xz, chunk_count);
+    World_SetLoadComplete(builder->world, true);
+}
+
+static struct Task_WorldLoad*
+task_world_load_new(
     struct CacheProvider* provider,
     struct WorldBuilder* builder,
     struct ToriRS_TaskQueue* queue,
@@ -600,5 +645,67 @@ CreateTask_WorldLoad(
     task->on_done = on_done;
     task->on_done_ud = on_done_ud;
     PT_INIT(&task->pt);
+    return task;
+}
+
+struct ToriRS_Task*
+CreateTask_WorldLoad(
+    struct CacheProvider* provider,
+    struct WorldBuilder* builder,
+    struct ToriRS_TaskQueue* queue,
+    const int* chunks_xz,
+    int chunk_count,
+    int zone_center_x,
+    int zone_center_z,
+    int scene_size,
+    const int32_t* zones,
+    void (*on_done)(void*),
+    void* on_done_ud)
+{
+    return &task_world_load_new(
+                provider, builder, queue, chunks_xz, chunk_count, zone_center_x, zone_center_z,
+                scene_size, zones, on_done, on_done_ud)
+                ->task;
+}
+
+struct ToriRS_Task*
+CreateTask_WorldGather(
+    struct CacheProvider* provider,
+    struct WorldBuilder* builder,
+    struct ToriRS_TaskQueue* queue,
+    const int* chunks_xz,
+    int chunk_count,
+    int zone_center_x,
+    int zone_center_z,
+    int scene_size,
+    const int32_t* zones,
+    struct WorldLoadGatherReport* report)
+{
+    struct Task_WorldLoad* task = task_world_load_new(
+        provider, builder, queue, chunks_xz, chunk_count, zone_center_x, zone_center_z, scene_size,
+        zones, NULL, NULL);
+
+    strcpy(task->task.name, "WorldGather");
+    task->gather_only = 1;
+    task->report = report;
     return &task->task;
+}
+
+void
+TaskWorldLoad_Cancel(
+    struct ToriRS_TaskQueue* queue,
+    struct ToriRS_Task* task)
+{
+    struct Task_WorldLoad* self = (struct Task_WorldLoad*)task;
+
+    assert(queue);
+    assert(task);
+    assert(task->vtable == &Task_WorldLoad_VTable);
+    /* Its loaders outlive it; nothing may count them into freed memory. */
+    ToriRS_TaskQueue_DetachJoin(queue, &self->pending);
+    self->report = NULL;
+    /* It owns no read of its own (every read is a sibling's), so its item is
+     * empty and the queue may unlink it at any yield; that decrements the
+     * job counting it, like any other end. */
+    ToriRS_TaskQueue_Remove(queue, task);
 }

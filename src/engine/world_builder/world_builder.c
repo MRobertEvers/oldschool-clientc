@@ -24,6 +24,7 @@
 #include <rscache.h>
 
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -66,34 +67,38 @@ WorldBuilder_TimingOn(void)
     return wb_timing_on();
 }
 
-extern int g_wb_share_hit;
-extern int g_wb_share_clone;
-extern int g_wb_share_proto;
-extern int g_wb_share_no_contour;
-extern int g_wb_share_no_sharelight;
-extern int g_wb_share_no_seq;
-
-/* Scenery model-build accumulators (reset in Begin, reported at End). */
-static double g_wb_t_model_convert_ms; /* ModelFromToriRS + merge */
-static double g_wb_t_model_transform_ms; /* apply_transforms + SD strip + bounds */
-static int g_wb_n_model_builds;
-static int g_wb_n_model_srcs;
+/*
+ * Scenery model heap census (TORIRS_SCENERY_CENSUS=1, builder->stats.census_*).
+ * Splits the scene's model bytes into the part that is irreducible -- one
+ * prototype per distinct (id, shape, rotation), plus every placement-dependent
+ * model -- and the part that is pure duplication, i.e. the per-placement
+ * ToriDraw_ModelCopy of a shareable prototype that nothing ever mutates. `dup`
+ * is what refcounting the shareable path would hand back.
+ */
 
 /*
- * Scenery model heap census (TORIRS_SCENERY_CENSUS=1). Splits the scene's model
- * bytes into the part that is irreducible -- one prototype per distinct
- * (id, shape, rotation), plus every placement-dependent model -- and the part
- * that is pure duplication, i.e. the per-placement ToriDraw_ModelCopy of a
- * shareable prototype that nothing ever mutates. `dup` is what refcounting the
- * shareable path would hand back.
+ * The one stepped build in the process (WorldBuilder_BuildBegin* until it
+ * completes or aborts), NULL when none is: a second may not begin. The stepped
+ * API has one caller, the background rebuild, which owns one build at a time.
  */
-static int g_wb_census_proto_n;      /* distinct shareable prototypes built */
-static size_t g_wb_census_proto_b;
-static int g_wb_census_dup_n;        /* placements served from the prototype cache */
-static size_t g_wb_census_dup_b;
-static int g_wb_census_unique_n;     /* non-shareable, genuinely per-placement */
-static size_t g_wb_census_unique_b;
+static struct WorldBuilder const* g_wb_build_inflight;
 
+/*
+ * The stepped build holding the SCENE BATCH open across steps, NULL when none
+ * is. Every view builds into one shared ToriDraw_Scene, and while a batch is
+ * open every element model assigned anywhere -- another view's deck, a loc
+ * change -- is routed into the root's static batch arena instead of loading on
+ * its own. So while this is set no other build may run and no loc change may
+ * land, and the blocking entry points and WorldBuilder_ApplyLocChange assert
+ * it.
+ *
+ * Only a build into view 0's static pool opens the batch
+ * (world_builder_batch_begin). A build into any other pool -- a deck, or the
+ * background rebuild's staging scene -- never does, and leaves every other
+ * builder free to work while it steps: the live scene's loc lane, its varp
+ * remorphs and its placeholders keep running against the scene on screen.
+ */
+static struct WorldBuilder const* g_wb_batch_build;
 
 static int
 wb_census_on(void)
@@ -319,7 +324,7 @@ world_builder_free_transient_maps(struct WorldBuilder* builder)
     if( builder->occluder_buildmap )
         occluder_buildmap_free(builder->occluder_buildmap);
     contour_ground_q_free(&builder->contour_ground_queue);
-    slh_release();
+    slh_release(&builder->slh);
     builder->blendmap = NULL;
     builder->overlaymap = NULL;
     builder->terrain_shapemap = NULL;
@@ -576,6 +581,8 @@ WorldBuilder_Free(struct WorldBuilder* builder)
 {
     if( !builder )
         return;
+    if( builder->build.active )
+        WorldBuilder_BuildAbort(builder);
     world_builder_free_transient_maps(builder);
     world_builder_hidden_release(builder);
     WorldBuilder_SetLayout(builder, WORLD_BUILDER_LAYOUT_STATIC);
@@ -603,13 +610,14 @@ WorldBuilder_SetSceneView(
  * elements emit MODEL_LOAD and draw through the per-element route entities
  * already use, which is what a few hundred tiles wants anyway.
  */
-static void
+static int
 world_builder_batch_begin(struct WorldBuilder* builder)
 {
     assert(builder);
     if( builder->static_pool != TORIDRAW_SCENE_POOL_STATIC )
-        return;
+        return 0;
     ToriDraw_SceneBatchBegin(builder->scene);
+    return 1;
 }
 
 static void
@@ -621,8 +629,13 @@ world_builder_batch_end(struct WorldBuilder* builder)
     ToriDraw_SceneBatchEnd(builder->scene);
 }
 
-void
-WorldBuilder_RebuildCenterzoneBegin(
+/*
+ * The reset a REBUILD_NORMAL bake begins with, in three parts: the world's
+ * teardown, the scene pool's, then the build maps. The blocking Begin runs them
+ * back to back; the stepped build runs them as its first three units.
+ */
+static void
+world_builder_teardown_centerzone(
     struct WorldBuilder* builder,
     int zone_center_x,
     int zone_center_z,
@@ -631,26 +644,10 @@ WorldBuilder_RebuildCenterzoneBegin(
     struct World* world = builder->world;
     assert(world && "WorldBuilder_RebuildCenterzoneBegin: world is NULL");
 
-    g_wb_t_model_convert_ms = 0.0;
-    g_wb_t_model_transform_ms = 0.0;
-    g_wb_n_model_builds = 0;
-    g_wb_n_model_srcs = 0;
+    memset(&builder->stats, 0, sizeof(builder->stats));
     /* The loc-id memo describes THIS build's configs; a morph or a reload
      * between rebuilds changes what a loc is called. */
     World_SceneryInfoMemoClear(world);
-
-    g_wb_share_hit = 0;
-    g_wb_share_clone = 0;
-    g_wb_share_proto = 0;
-    g_wb_share_no_contour = 0;
-    g_wb_share_no_sharelight = 0;
-    g_wb_share_no_seq = 0;
-    g_wb_census_proto_n = 0;
-    g_wb_census_proto_b = 0;
-    g_wb_census_dup_n = 0;
-    g_wb_census_dup_b = 0;
-    g_wb_census_unique_n = 0;
-    g_wb_census_unique_b = 0;
 
     /* Loc configs may have been reloaded (varbit morphs re-resolve per place;
      * the map editor re-seeds the provider) — a prototype baked from the old
@@ -661,11 +658,24 @@ WorldBuilder_RebuildCenterzoneBegin(
     /* Every hidden placement is re-derived by the build that follows. */
     world_builder_hidden_clear(builder);
     World_ResetScene(world, zone_center_x, zone_center_z, scene_size);
+}
 
+/* The scene half of the teardown: the builder's static elements go (and with
+ * them the scene's shared models), then orphaned entity elements. */
+static void
+world_builder_clear_scene_pool(struct WorldBuilder* builder)
+{
     /* Static pool only: entity elements (players/npcs/objs) keep their ids
      * across a rebuild — the REBUILD_NORMAL shift relocates them instead. */
     ToriDraw_SceneClearPool(builder->scene, builder->static_pool);
     world_builder_reconcile_dynamic_elements(builder);
+}
+
+/* The transient build maps, sized to the scene the teardown just reset. */
+static void
+world_builder_alloc_build_maps(struct WorldBuilder* builder)
+{
+    int scene_size = builder->world->_scene_size;
 
     builder->blendmap = blendmap_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
     builder->overlaymap = overlaymap_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
@@ -680,9 +690,54 @@ WorldBuilder_RebuildCenterzoneBegin(
      * maxTileX+1 × maxTileZ+1). */
     builder->occluder_buildmap =
         occluder_buildmap_new(scene_size + 1, scene_size + 1, WORLD_MAP_TERRAIN_LEVELS);
+}
 
+/* The maps, then EDIT told the window: the second half of a centerzone (and
+ * instance) begin. */
+static void
+world_builder_begin_maps_centerzone(
+    struct WorldBuilder* builder,
+    int zone_center_x,
+    int zone_center_z)
+{
+    world_builder_alloc_build_maps(builder);
     if( builder->edit )
         world_edit_on_bake_begin(builder, zone_center_x, zone_center_z, NULL, 0);
+}
+
+static void
+world_builder_begin_centerzone(
+    struct WorldBuilder* builder,
+    int zone_center_x,
+    int zone_center_z,
+    int scene_size)
+{
+    world_builder_teardown_centerzone(builder, zone_center_x, zone_center_z, scene_size);
+    world_builder_clear_scene_pool(builder);
+    world_builder_begin_maps_centerzone(builder, zone_center_x, zone_center_z);
+}
+
+/* A blocking build may start only on a builder with no stepped build of its
+ * own, and while no stepped build holds the scene batch (g_wb_batch_build
+ * says why). */
+static void
+world_builder_assert_blocking_ok(struct WorldBuilder const* builder)
+{
+    (void)builder;
+    assert(builder);
+    assert(!builder->build.active);
+    assert(g_wb_batch_build == NULL);
+}
+
+void
+WorldBuilder_RebuildCenterzoneBegin(
+    struct WorldBuilder* builder,
+    int zone_center_x,
+    int zone_center_z,
+    int scene_size)
+{
+    world_builder_assert_blocking_ok(builder);
+    world_builder_begin_centerzone(builder, zone_center_x, zone_center_z, scene_size);
 }
 
 static inline bool
@@ -695,43 +750,55 @@ scene_in_bounds(
     return scene_x >= 0 && scene_x < scene_size && scene_z >= 0 && scene_z < scene_size;
 }
 
-void
-WorldBuilder_RebuildCenterzoneChunkScenery(
+/*
+ * One map square's scenery, `per_unit` locs at a time: the blocking
+ * ChunkScenery runs it once with no limit, the stepped build a slice per unit.
+ * Each loc places against the heights and maps every earlier loc left, in list
+ * order either way. The first slice paints the square's minimap walls and
+ * mapfunctions, as the whole-square loop always did before its first loc.
+ * Returns 1 once the square is done.
+ */
+static int
+world_builder_square_scenery_step(
     struct WorldBuilder* builder,
     int mapx,
-    int mapz)
+    int mapz,
+    struct WorldBuildSquareScenery* cur,
+    int per_unit)
 {
     struct World* world = builder->world;
     int map_id = CacheProvider_MapId(mapx, mapz);
     struct ToriRS_MapLocs* map_locs = CacheProvider_MapSceneryGet(builder->cache, map_id);
+    int end;
+
+    assert(cur);
+    assert(per_unit > 0);
     /* Absent square (void/unreleased, or xtea-locked): the loader warned and
      * skipped it, and the terrain pass leaves it flat void. Skip scenery too
      * rather than aborting — an empty square renders as nothing, like the
      * reference client. */
     if( !map_locs )
-        return;
+        return 1;
 
-    world_builder_minimap_add_chunk_walls(builder, mapx, mapz);
-    world_builder_minimap_add_chunk_mapfunctions(builder, mapx, mapz);
+    if( !cur->started )
+    {
+        world_builder_minimap_add_chunk_walls(builder, mapx, mapz);
+        world_builder_minimap_add_chunk_mapfunctions(builder, mapx, mapz);
+        g_scenery_dbg_elements = 0;
+        cur->started = 1;
+    }
 
     /* Counters for TORIRS_SCENERY_DEBUG. Each `continue` below silently drops a
      * loc instance, so a square that renders bare terrain looks identical whether
      * the configs are missing, the morph resolved to nothing, or every instance
      * landed out of bounds. Count them apart. */
-    int dbg_total = 0;
-    int dbg_no_config = 0;
-    int dbg_no_resolve = 0;
-    int dbg_oob = 0;
-    int dbg_added = 0;
-    int dbg_level[8] = { 0 };
-    int dbg_shape[32] = { 0 };
-    g_scenery_dbg_elements = 0;
-
-    for( int i = 0; i < map_locs->locs_count; i++ )
+    end = per_unit > map_locs->locs_count - cur->loc_index ? map_locs->locs_count
+                                                            : cur->loc_index + per_unit;
+    for( int i = cur->loc_index; i < end; i++ )
     {
         struct ToriRS_MapLoc* map_loc = &map_locs->locs[i];
         struct ToriRS_Location* config_loc = CacheProvider_LocationGet(builder->cache, map_loc->loc_id);
-        dbg_total++;
+        cur->dbg_total++;
         /* EDIT records every placement of the square in list order -- the
          * ones that place nothing too -- so a square's i-th loc and its i-th
          * placement handle agree. NULL under STATIC. */
@@ -739,7 +806,7 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
             world_edit_bake_placement(builder, mapx, mapz, map_loc);
         if( !config_loc )
         {
-            dbg_no_config++;
+            cur->dbg_no_config++;
             continue;
         }
 
@@ -759,20 +826,20 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
                     map_loc->loc_id,
                     map_loc->shape_select,
                     map_loc->orientation);
-            dbg_no_resolve++;
+            cur->dbg_no_resolve++;
             continue;
         }
 
         if( !scene_in_bounds(builder, scene_x, scene_z) )
         {
-            dbg_oob++;
+            cur->dbg_oob++;
             continue;
         }
-        dbg_added++;
+        cur->dbg_added++;
         if( map_loc->chunk_pos_level >= 0 && map_loc->chunk_pos_level < 8 )
-            dbg_level[map_loc->chunk_pos_level]++;
+            cur->dbg_level[map_loc->chunk_pos_level]++;
         if( map_loc->shape_select >= 0 && map_loc->shape_select < 32 )
-            dbg_shape[map_loc->shape_select]++;
+            cur->dbg_shape[map_loc->shape_select]++;
 
         builder->scenery_mapx = mapx;
         builder->scenery_mapz = mapz;
@@ -781,30 +848,46 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
         world_collision_add_loc(builder, map_loc, config_loc, scene_x, scene_z);
         scenery_add(builder, map_loc, config_loc, scene_x, scene_z);
     }
+    cur->loc_index = end;
+    if( cur->loc_index < map_locs->locs_count )
+        return 0;
 
     if( WB_ENV_SCENERY_DEBUG() )
         TORIRS_LOG("scenery: map=%d,%d instances=%d no_config=%d no_resolve=%d oob=%d added=%d "
             "scene_elements=%d\n",
             mapx,
             mapz,
-            dbg_total,
-            dbg_no_config,
-            dbg_no_resolve,
-            dbg_oob,
-            dbg_added,
+            cur->dbg_total,
+            cur->dbg_no_config,
+            cur->dbg_no_resolve,
+            cur->dbg_oob,
+            cur->dbg_added,
             g_scenery_dbg_elements);
 
     if( WB_ENV_SCENERY_DEBUG() )
     {
         TORIRS_LOG("  levels:");
         for( int lv = 0; lv < 4; lv++ )
-            TORIRS_LOG(" %d:%d", lv, dbg_level[lv]);
+            TORIRS_LOG(" %d:%d", lv, cur->dbg_level[lv]);
         TORIRS_LOG("\n  shapes:");
         for( int sh = 0; sh < 32; sh++ )
-            if( dbg_shape[sh] )
-                TORIRS_LOG(" %d:%d", sh, dbg_shape[sh]);
+            if( cur->dbg_shape[sh] )
+                TORIRS_LOG(" %d:%d", sh, cur->dbg_shape[sh]);
         TORIRS_LOG("\n");
     }
+    return 1;
+}
+
+void
+WorldBuilder_RebuildCenterzoneChunkScenery(
+    struct WorldBuilder* builder,
+    int mapx,
+    int mapz)
+{
+    struct WorldBuildSquareScenery cur;
+
+    memset(&cur, 0, sizeof(cur));
+    world_builder_square_scenery_step(builder, mapx, mapz, &cur, INT_MAX);
 }
 
 /*
@@ -938,6 +1021,43 @@ WorldBuilder_RebuildInstanceZoneScenery(
 }
 
 /*
+ * One destination zone of an instanced scene, in pass 0 (terrain) or 1
+ * (scenery). Returns 0 for a void zone, which places nothing. The blocking
+ * RebuildInstance and the stepped build both walk the grid through this.
+ */
+static int
+world_builder_instance_zone(
+    struct WorldBuilder* builder,
+    const int32_t* zones,
+    int pass,
+    int level,
+    int zx,
+    int zz)
+{
+    int32_t v = zones[level * WORLD_INSTANCE_ZONES * WORLD_INSTANCE_ZONES +
+                      zx * WORLD_INSTANCE_ZONES + zz];
+    int rotation;
+    int src_zone_z;
+    int src_zone_x;
+    int src_level;
+
+    if( v == 0 )
+        return 0;
+    rotation = (v >> 1) & 0x3;
+    src_zone_z = (v >> 3) & 0x7ff;
+    src_zone_x = (v >> 14) & 0x3ff;
+    src_level = (v >> 24) & 0x3;
+
+    if( pass == 0 )
+        WorldBuilder_RebuildInstanceZoneTerrain(
+            builder, zx, zz, level, src_zone_x, src_zone_z, src_level, rotation);
+    else
+        WorldBuilder_RebuildInstanceZoneScenery(
+            builder, zx, zz, level, src_zone_x, src_zone_z, src_level, rotation);
+    return 1;
+}
+
+/*
  * The instanced rebuild, in the same three movements as the ordinary one:
  * everything's terrain, then everything's scenery, then End.
  *
@@ -957,6 +1077,7 @@ WorldBuilder_RebuildInstance(
     int zone_count = scene_size / 8;
     double t0 = wb_timing_on() ? wb_now_ms() : 0.0;
 
+    world_builder_assert_blocking_ok(builder);
     assert(zones && "WorldBuilder_RebuildInstance: no descriptor grid");
     assert(zone_count <= WORLD_INSTANCE_ZONES);
 
@@ -973,31 +1094,7 @@ WorldBuilder_RebuildInstance(
             for( int zx = 0; zx < zone_count; zx++ )
             {
                 for( int zz = 0; zz < zone_count; zz++ )
-                {
-                    int32_t v =
-                        zones[level * WORLD_INSTANCE_ZONES * WORLD_INSTANCE_ZONES +
-                              zx * WORLD_INSTANCE_ZONES + zz];
-                    int rotation;
-                    int src_zone_z;
-                    int src_zone_x;
-                    int src_level;
-
-                    if( v == 0 )
-                        continue;
-                    rotation = (v >> 1) & 0x3;
-                    src_zone_z = (v >> 3) & 0x7ff;
-                    src_zone_x = (v >> 14) & 0x3ff;
-                    src_level = (v >> 24) & 0x3;
-
-                    if( pass == 0 )
-                        WorldBuilder_RebuildInstanceZoneTerrain(
-                            builder, zx, zz, level, src_zone_x, src_zone_z, src_level,
-                            rotation);
-                    else
-                        WorldBuilder_RebuildInstanceZoneScenery(
-                            builder, zx, zz, level, src_zone_x, src_zone_z, src_level,
-                            rotation);
-                }
+                    world_builder_instance_zone(builder, zones, pass, level, zx, zz);
             }
         }
     }
@@ -1042,21 +1139,34 @@ world_builder_pushdown_minimap(struct WorldBuilder* builder)
         }
 }
 
-void
-WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
-{
-    struct World* world = builder->world;
-    int scene_size = world->_scene_size;
-    double te0 = wb_timing_on() ? wb_now_ms() : 0.0;
+/*
+ * RebuildCenterzoneEnd, in pieces. The blocking End runs them back to back in
+ * this order; the stepped build (WorldBuilder_BuildStep) runs one per unit, and
+ * the three long passes between them -- contour, terrain mesh, lighting -- a
+ * slice at a time through their cursors.
+ */
 
+/* Terrain collision; loc collision was stamped at place time. */
+static void
+world_builder_end_collision(struct WorldBuilder* builder)
+{
     /* Terrain first (place-time LinkBelow shift for BLOCK flags), then End's
      * no-op bridge hook — loc collision already shifted at place time. Geometry
      * push-down below is separate. See docs/COLLISION_MAP.md. */
     world_collision_apply_terrain(builder);
     world_collision_apply_bridges(builder);
-    double te_collision = wb_timing_on() ? wb_now_ms() : 0.0;
-    world_contour_ground(builder);
-    double te_contour = wb_timing_on() ? wb_now_ms() : 0.0;
+}
+
+/* Wall-decor offsets, the bridge relevel of the minimap icons and their
+ * spread, the painter's bridge push-down and VIS_BELOW draw levels, the
+ * persisted tile flags, then the flag map's end and the painter's static
+ * count. Everything up to the terrain mesh. */
+static void
+world_builder_end_passes(struct WorldBuilder* builder)
+{
+    struct World* world = builder->world;
+    int scene_size = world->_scene_size;
+
     world_builder_apply_wall_decor_offsets(builder);
 
     /* Bridge decks are LinkBelow: geometry / painter push-down below move a
@@ -1184,12 +1294,16 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
 
     if( world->painter )
         painter_mark_static_count(world->painter);
+}
 
-    double te_mid = wb_timing_on() ? wb_now_ms() : 0.0;
-    world_build_scene_terrain(builder);
-    double te_terrain_mesh = wb_timing_on() ? wb_now_ms() : 0.0;
-    world_build_lighting(builder);
-    double te_lighting = wb_timing_on() ? wb_now_ms() : 0.0;
+/* After the mesh and the lighting: drop dead terrain levels from the painter,
+ * push the bridge minimap down, merge the occluders, free the build maps the
+ * game does not keep. */
+static void
+world_builder_end_finish(struct WorldBuilder* builder)
+{
+    struct World* world = builder->world;
+    int scene_size = world->_scene_size;
 
     /* A level with no terrain mesh emits nothing. The reference never queues a
      * content-less tile at all (class112.method3940 gates marking on the
@@ -1282,54 +1396,101 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
             builder->lightmap = NULL;
         }
     }
+}
+
+/* TORIRS_REBUILD_TIMING's End line and the census, then the world is loaded
+ * and EDIT is told. The split is passed in: the blocking End reads a wall
+ * clock, the stepped build sums its units' busy time. */
+static void
+world_builder_end_report(
+    struct WorldBuilder* builder,
+    double end_ms,
+    double collision_ms,
+    double contour_ms,
+    double minimap_bridge_ms,
+    double terrain_mesh_ms,
+    double lighting_ms,
+    double occluders_free_ms)
+{
+    struct World* world = builder->world;
 
     if( wb_timing_on() )
     {
-        double te1 = wb_now_ms();
         TORIRS_REPORT("rebuild_timing: end=%.1fms collision=%.1f contour=%.1f minimap_bridge=%.1f "
             "terrain_mesh=%.1f lighting=%.1f occluders_free=%.1f | scenery models: n=%d "
             "srcs=%d convert=%.1fms transform=%.1fms\n",
-            te1 - te0,
-            te_collision - te0,
-            te_contour - te_collision,
-            te_mid - te_contour,
-            te_terrain_mesh - te_mid,
-            te_lighting - te_terrain_mesh,
-            te1 - te_lighting,
-            g_wb_n_model_builds,
-            g_wb_n_model_srcs,
-            g_wb_t_model_convert_ms,
-            g_wb_t_model_transform_ms);
+            end_ms,
+            collision_ms,
+            contour_ms,
+            minimap_bridge_ms,
+            terrain_mesh_ms,
+            lighting_ms,
+            occluders_free_ms,
+            builder->stats.model_builds,
+            builder->stats.model_srcs,
+            builder->stats.model_convert_ms,
+            builder->stats.model_transform_ms);
     }
 
     if( wb_census_on() )
     {
-        size_t const kept = g_wb_census_proto_b + g_wb_census_unique_b;
+        size_t const kept = builder->stats.census_proto_b + builder->stats.census_unique_b;
         TORIRS_REPORT("scenery_share: cache_hit=%d clone=%d proto_built=%d | not shareable: "
             "contour=%d sharelight=%d seq=%d\n",
-            g_wb_share_hit,
-            g_wb_share_clone,
-            g_wb_share_proto,
-            g_wb_share_no_contour,
-            g_wb_share_no_sharelight,
-            g_wb_share_no_seq);
+            builder->stats.share_hit,
+            builder->stats.share_clone,
+            builder->stats.share_proto,
+            builder->stats.share_no_contour,
+            builder->stats.share_no_sharelight,
+            builder->stats.share_no_seq);
         TORIRS_REPORT("scenery_census: total=%.2fMB kept=%.2fMB dup=%.2fMB | protos n=%d %.2fMB "
             "| dup_placements n=%d %.2fMB | unique n=%d %.2fMB\n",
-            (double)(kept + g_wb_census_dup_b) / (1024.0 * 1024.0),
+            (double)(kept + builder->stats.census_dup_b) / (1024.0 * 1024.0),
             (double)kept / (1024.0 * 1024.0),
-            (double)g_wb_census_dup_b / (1024.0 * 1024.0),
-            g_wb_census_proto_n,
-            (double)g_wb_census_proto_b / (1024.0 * 1024.0),
-            g_wb_census_dup_n,
-            (double)g_wb_census_dup_b / (1024.0 * 1024.0),
-            g_wb_census_unique_n,
-            (double)g_wb_census_unique_b / (1024.0 * 1024.0));
+            (double)builder->stats.census_dup_b / (1024.0 * 1024.0),
+            builder->stats.census_proto_n,
+            (double)builder->stats.census_proto_b / (1024.0 * 1024.0),
+            builder->stats.census_dup_n,
+            (double)builder->stats.census_dup_b / (1024.0 * 1024.0),
+            builder->stats.census_unique_n,
+            (double)builder->stats.census_unique_b / (1024.0 * 1024.0));
     }
 
     world->load_complete = true;
 
     if( builder->edit )
         world_edit_on_bake_end(builder);
+}
+
+void
+WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
+{
+    world_builder_assert_blocking_ok(builder);
+
+    double te0 = wb_timing_on() ? wb_now_ms() : 0.0;
+
+    world_builder_end_collision(builder);
+    double te_collision = wb_timing_on() ? wb_now_ms() : 0.0;
+    world_contour_ground(builder);
+    double te_contour = wb_timing_on() ? wb_now_ms() : 0.0;
+    world_builder_end_passes(builder);
+    double te_mid = wb_timing_on() ? wb_now_ms() : 0.0;
+    world_build_scene_terrain(builder);
+    double te_terrain_mesh = wb_timing_on() ? wb_now_ms() : 0.0;
+    world_build_lighting(builder);
+    double te_lighting = wb_timing_on() ? wb_now_ms() : 0.0;
+    world_builder_end_finish(builder);
+    double te1 = wb_timing_on() ? wb_now_ms() : 0.0;
+
+    world_builder_end_report(
+        builder,
+        te1 - te0,
+        te_collision - te0,
+        te_contour - te_collision,
+        te_mid - te_contour,
+        te_terrain_mesh - te_mid,
+        te_lighting - te_terrain_mesh,
+        te1 - te_lighting);
 }
 
 void
@@ -1351,6 +1512,7 @@ WorldBuilder_RebuildCenterzone(
 {
     double t0 = wb_timing_on() ? wb_now_ms() : 0.0;
 
+    world_builder_assert_blocking_ok(builder);
     WorldBuilder_RebuildCenterzoneBegin(builder, zone_center_x, zone_center_z, scene_size);
 
     double t_begin = wb_timing_on() ? wb_now_ms() : 0.0;
@@ -1394,8 +1556,9 @@ WorldBuilder_RebuildCenterzone(
     }
 }
 
-void
-WorldBuilder_RebuildChunklistBegin(
+/* The explicit-square-list twins of the centerzone halves. */
+static void
+world_builder_teardown_chunklist(
     struct WorldBuilder* builder,
     const int* chunks_xz,
     int count)
@@ -1406,27 +1569,38 @@ WorldBuilder_RebuildChunklistBegin(
     world_builder_free_transient_maps(builder);
     world_builder_hidden_clear(builder);
     World_ResetSceneChunkList(world, chunks_xz, count);
+}
 
-    ToriDraw_SceneClearPool(builder->scene, builder->static_pool);
-    world_builder_reconcile_dynamic_elements(builder);
-
-    int scene_size = world->_scene_size;
-    builder->blendmap = blendmap_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
-    builder->overlaymap = overlaymap_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
-    builder->terrain_shapemap =
-        terrain_shape_map_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
-    builder->decor_buildmap = decor_buildmap_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
-    builder->lightmap = lightmap_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
-    builder->sharelight_map = sharelight_map_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
-    builder->shademap = shademap2_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
-    builder->flag_map = flag_map_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
-    /* +1 so wall marks at [x+1]/[z+1] stay in range (Client-TS mapo is
-     * maxTileX+1 × maxTileZ+1). */
-    builder->occluder_buildmap =
-        occluder_buildmap_new(scene_size + 1, scene_size + 1, WORLD_MAP_TERRAIN_LEVELS);
-
+static void
+world_builder_begin_maps_chunklist(
+    struct WorldBuilder* builder,
+    const int* chunks_xz,
+    int count)
+{
+    world_builder_alloc_build_maps(builder);
     if( builder->edit )
         world_edit_on_bake_begin(builder, -1, -1, chunks_xz, count);
+}
+
+static void
+world_builder_begin_chunklist(
+    struct WorldBuilder* builder,
+    const int* chunks_xz,
+    int count)
+{
+    world_builder_teardown_chunklist(builder, chunks_xz, count);
+    world_builder_clear_scene_pool(builder);
+    world_builder_begin_maps_chunklist(builder, chunks_xz, count);
+}
+
+void
+WorldBuilder_RebuildChunklistBegin(
+    struct WorldBuilder* builder,
+    const int* chunks_xz,
+    int count)
+{
+    world_builder_assert_blocking_ok(builder);
+    world_builder_begin_chunklist(builder, chunks_xz, count);
 }
 
 void
@@ -1435,6 +1609,7 @@ WorldBuilder_RebuildChunklist(
     const int* chunks_xz,
     int count)
 {
+    world_builder_assert_blocking_ok(builder);
     WorldBuilder_RebuildChunklistBegin(builder, chunks_xz, count);
 
     world_builder_batch_begin(builder);
@@ -1456,6 +1631,602 @@ WorldBuilder_RebuildChunklist(
     WorldBuilder_RebuildCenterzoneEnd(builder);
 
     world_builder_batch_end(builder);
+}
+
+/* ------------------------------------------------------------------ */
+/* Stepped build (world_builder.h, "Stepped build")                    */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The blocking build, re-cut into units around a cursor on the builder. A unit
+ * is a call the blocking path makes, or a slice of one of End's three long
+ * passes through the same helper the blocking End runs to completion; the
+ * units run in the blocking path's order and nothing between two of them reads
+ * or writes build state, so where the cuts fall cannot change what is built.
+ *
+ * A plain function with an explicit cursor, not a protothread: the caller owns
+ * the scheduling (WorldBuilder_BuildStep's `spent`).
+ */
+
+/* Map locs per unit of a square's scenery. */
+#define WORLD_SCENERY_LOCS_PER_UNIT 768
+
+static char const* const k_world_build_stage_names[WORLD_BUILD_STAGE_DONE] = {
+    "reset",
+    "reset_pool",
+    "reset_maps",
+    "terrain",
+    "scenery",
+    "collision",
+    "contour",
+    "passes",
+    "terrain_mesh",
+    "lighting",
+    "finish",
+    "report",
+    "batch_end",
+};
+
+/* TORIRS_REBUILD_TIMING=2: one line per unit of a stepped build. */
+static int
+wb_timing_units_on(void)
+{
+    static int v = -1;
+    if( v < 0 )
+    {
+        const char* e = getenv("TORIRS_REBUILD_TIMING");
+        v = (e && atoi(e) >= 2) ? 1 : 0;
+    }
+    return v;
+}
+
+/* Squares (instance: flattened zones of every level) the window holds. Only
+ * meaningful once the reset unit has placed the world. */
+static int
+world_builder_build_window_count(struct WorldBuilder const* builder)
+{
+    struct WorldBuilderBuild const* b = &builder->build;
+    struct World const* world = builder->world;
+    int zone_count;
+
+    if( b->kind == WORLD_BUILD_CHUNKLIST )
+        return b->chunk_count;
+    if( b->kind == WORLD_BUILD_INSTANCE )
+    {
+        zone_count = b->scene_size / 8;
+        return WORLD_MAP_TERRAIN_LEVELS * zone_count * zone_count;
+    }
+    assert(b->kind == WORLD_BUILD_CENTERZONE);
+    return (world->_chunk_ne_x - world->_chunk_sw_x + 1) *
+           (world->_chunk_ne_z - world->_chunk_sw_z + 1);
+}
+
+/* Instance: move the cursor past void zones, so a unit always places one. */
+static void
+world_builder_build_skip_void(struct WorldBuilderBuild* b)
+{
+    int zone_count = b->scene_size / 8;
+    int per_level = zone_count * zone_count;
+
+    assert(b->kind == WORLD_BUILD_INSTANCE);
+    while( b->index < b->count )
+    {
+        int level = b->index / per_level;
+        int zx = (b->index / zone_count) % zone_count;
+        int zz = b->index % zone_count;
+        if( b->zones[level * WORLD_INSTANCE_ZONES * WORLD_INSTANCE_ZONES +
+                     zx * WORLD_INSTANCE_ZONES + zz] != 0 )
+            return;
+        b->index++;
+    }
+}
+
+/* Put the cursor at the start of `stage`, skipping a window stage with
+ * nothing in it. */
+static void
+world_builder_build_enter(
+    struct WorldBuilder* builder,
+    enum WorldBuildStage stage)
+{
+    struct WorldBuilderBuild* b = &builder->build;
+
+    b->stage = stage;
+    b->index = 0;
+    b->count = 0;
+    b->stage_unit = 0;
+    memset(&b->square_scenery, 0, sizeof(b->square_scenery));
+    switch( stage )
+    {
+    case WORLD_BUILD_STAGE_TERRAIN:
+    case WORLD_BUILD_STAGE_SCENERY:
+        b->count = world_builder_build_window_count(builder);
+        if( b->kind == WORLD_BUILD_INSTANCE )
+            world_builder_build_skip_void(b);
+        if( b->index >= b->count )
+            world_builder_build_enter(builder, (enum WorldBuildStage)(stage + 1));
+        break;
+    case WORLD_BUILD_STAGE_END_CONTOUR:
+        world_contour_ground_init(builder, &b->contour);
+        break;
+    case WORLD_BUILD_STAGE_END_TERRAIN_MESH:
+        world_build_scene_terrain_init(&b->terrain_mesh);
+        break;
+    case WORLD_BUILD_STAGE_END_LIGHTING:
+        world_build_lighting_init(builder, &b->lighting);
+        break;
+    default:
+        break;
+    }
+}
+
+/* The square or zone at the cursor, terrain or scenery. */
+static void
+world_builder_build_window_unit(
+    struct WorldBuilder* builder,
+    int scenery)
+{
+    struct WorldBuilderBuild* b = &builder->build;
+    struct World* world = builder->world;
+    int mapx;
+    int mapz;
+
+    assert(b->index < b->count);
+    if( b->kind == WORLD_BUILD_INSTANCE )
+    {
+        int zone_count = b->scene_size / 8;
+        int per_level = zone_count * zone_count;
+        int placed = world_builder_instance_zone(
+            builder,
+            b->zones,
+            scenery,
+            b->index / per_level,
+            (b->index / zone_count) % zone_count,
+            b->index % zone_count);
+        assert(placed);
+        (void)placed;
+        b->index++;
+        world_builder_build_skip_void(b);
+        return;
+    }
+
+    if( b->kind == WORLD_BUILD_CHUNKLIST )
+    {
+        mapx = b->chunks_xz[b->index * 2];
+        mapz = b->chunks_xz[b->index * 2 + 1];
+    }
+    else
+    {
+        /* RebuildCenterzone's loops: x outer, z inner. */
+        int span_z = world->_chunk_ne_z - world->_chunk_sw_z + 1;
+        mapx = world->_chunk_sw_x + b->index / span_z;
+        mapz = world->_chunk_sw_z + b->index % span_z;
+    }
+    if( !scenery )
+    {
+        WorldBuilder_RebuildCenterzoneChunkTerrain(builder, mapx, mapz);
+        b->index++;
+        return;
+    }
+    /* A dense square (Lumbridge's own) is several units. */
+    if( world_builder_square_scenery_step(
+            builder, mapx, mapz, &b->square_scenery, WORLD_SCENERY_LOCS_PER_UNIT) )
+    {
+        memset(&b->square_scenery, 0, sizeof(b->square_scenery));
+        b->index++;
+    }
+}
+
+/* The End report's split, from the busy time each End stage has summed. */
+static void
+world_builder_build_report(struct WorldBuilder* builder)
+{
+    double const* ms = builder->build.stage_ms;
+    double end_ms = 0.0;
+
+    for( int st = WORLD_BUILD_STAGE_END_COLLISION; st <= WORLD_BUILD_STAGE_END_FINISH; st++ )
+        end_ms += ms[st];
+    world_builder_end_report(
+        builder,
+        end_ms,
+        ms[WORLD_BUILD_STAGE_END_COLLISION],
+        ms[WORLD_BUILD_STAGE_END_CONTOUR],
+        ms[WORLD_BUILD_STAGE_END_PASSES],
+        ms[WORLD_BUILD_STAGE_END_TERRAIN_MESH],
+        ms[WORLD_BUILD_STAGE_END_LIGHTING],
+        ms[WORLD_BUILD_STAGE_END_FINISH]);
+}
+
+/* The batch this stepped build opened, closed, and the process told. */
+static void
+world_builder_batch_close(struct WorldBuilder* builder)
+{
+    assert(builder->build.batch_open);
+    assert(g_wb_batch_build == builder);
+    world_builder_batch_end(builder);
+    builder->build.batch_open = 0;
+    g_wb_batch_build = NULL;
+}
+
+/* Run the unit at the cursor and advance it. */
+static void
+world_builder_build_unit(struct WorldBuilder* builder)
+{
+    struct WorldBuilderBuild* b = &builder->build;
+
+    b->stage_unit++;
+    switch( b->stage )
+    {
+    case WORLD_BUILD_STAGE_RESET:
+        if( b->kind == WORLD_BUILD_CHUNKLIST )
+            world_builder_teardown_chunklist(builder, b->chunks_xz, b->chunk_count);
+        else
+            world_builder_teardown_centerzone(
+                builder, b->zone_center_x, b->zone_center_z, b->scene_size);
+        b->reset_done = 1;
+        world_builder_build_enter(builder, WORLD_BUILD_STAGE_RESET_POOL);
+        return;
+
+    case WORLD_BUILD_STAGE_RESET_POOL:
+        world_builder_clear_scene_pool(builder);
+        world_builder_build_enter(builder, WORLD_BUILD_STAGE_RESET_MAPS);
+        return;
+
+    case WORLD_BUILD_STAGE_RESET_MAPS:
+        if( b->kind == WORLD_BUILD_CHUNKLIST )
+            world_builder_begin_maps_chunklist(builder, b->chunks_xz, b->chunk_count);
+        else
+            world_builder_begin_maps_centerzone(builder, b->zone_center_x, b->zone_center_z);
+        /* RebuildInstance's order: Begin, the instance hook, the batch. */
+        if( b->kind == WORLD_BUILD_INSTANCE && builder->edit )
+            world_edit_on_bake_instance(builder);
+        b->batch_open = world_builder_batch_begin(builder);
+        if( b->batch_open )
+        {
+            assert(g_wb_batch_build == NULL);
+            g_wb_batch_build = builder;
+        }
+        world_builder_build_enter(builder, WORLD_BUILD_STAGE_TERRAIN);
+        return;
+
+    case WORLD_BUILD_STAGE_TERRAIN:
+    case WORLD_BUILD_STAGE_SCENERY:
+    {
+        enum WorldBuildStage stage = b->stage;
+        world_builder_build_window_unit(builder, stage == WORLD_BUILD_STAGE_SCENERY);
+        if( b->index >= b->count )
+            world_builder_build_enter(builder, (enum WorldBuildStage)(stage + 1));
+        return;
+    }
+
+    case WORLD_BUILD_STAGE_END_COLLISION:
+        world_builder_end_collision(builder);
+        world_builder_build_enter(builder, WORLD_BUILD_STAGE_END_CONTOUR);
+        return;
+
+    case WORLD_BUILD_STAGE_END_CONTOUR:
+        if( world_contour_ground_step(builder, &b->contour, WORLD_CONTOUR_PER_UNIT) )
+            world_builder_build_enter(builder, WORLD_BUILD_STAGE_END_PASSES);
+        return;
+
+    case WORLD_BUILD_STAGE_END_PASSES:
+        world_builder_end_passes(builder);
+        world_builder_build_enter(builder, WORLD_BUILD_STAGE_END_TERRAIN_MESH);
+        return;
+
+    case WORLD_BUILD_STAGE_END_TERRAIN_MESH:
+        if( world_build_scene_terrain_step(builder, &b->terrain_mesh) )
+            world_builder_build_enter(builder, WORLD_BUILD_STAGE_END_LIGHTING);
+        return;
+
+    case WORLD_BUILD_STAGE_END_LIGHTING:
+        if( world_build_lighting_step(builder, &b->lighting) )
+            world_builder_build_enter(builder, WORLD_BUILD_STAGE_END_FINISH);
+        return;
+
+    case WORLD_BUILD_STAGE_END_FINISH:
+        world_builder_end_finish(builder);
+        world_builder_build_enter(builder, WORLD_BUILD_STAGE_END_REPORT);
+        return;
+
+    case WORLD_BUILD_STAGE_END_REPORT:
+        world_builder_build_report(builder);
+        world_builder_build_enter(builder, WORLD_BUILD_STAGE_BATCH_END);
+        return;
+
+    case WORLD_BUILD_STAGE_BATCH_END:
+        if( b->batch_open )
+            world_builder_batch_close(builder);
+        b->stage = WORLD_BUILD_STAGE_DONE;
+        return;
+
+    case WORLD_BUILD_STAGE_DONE:
+        break;
+    }
+    assert(0 && "world_builder_build_unit: no unit at the cursor");
+}
+
+/* Back to idle: the window copies freed, the process free for another build. */
+static void
+world_builder_build_release(struct WorldBuilder* builder)
+{
+    struct WorldBuilderBuild* b = &builder->build;
+
+    assert(!b->batch_open);
+    ToriMem_Free(ToriMem_Scene(), b->chunks_xz);
+    ToriMem_Free(ToriMem_Scene(), b->zones);
+    memset(b, 0, sizeof(*b));
+    assert(g_wb_build_inflight == builder);
+    g_wb_build_inflight = NULL;
+}
+
+/* The blocking path's closing lines, from busy time, plus the unit census. */
+static void
+world_builder_build_timing_report(struct WorldBuilder* builder)
+{
+    struct WorldBuilderBuild const* b = &builder->build;
+    double total = 0.0;
+    double end_ms = 0.0;
+
+    for( int st = 0; st < WORLD_BUILD_STAGE_DONE; st++ )
+        total += b->stage_ms[st];
+    for( int st = WORLD_BUILD_STAGE_END_COLLISION; st <= WORLD_BUILD_STAGE_END_REPORT; st++ )
+        end_ms += b->stage_ms[st];
+
+    if( b->kind == WORLD_BUILD_CENTERZONE )
+        TORIRS_REPORT("rebuild_timing: total=%.1fms begin=%.1f terrain=%.1f scenery=%.1f end=%.1f "
+            "batch_flush=%.1f\n",
+            total,
+            b->stage_ms[WORLD_BUILD_STAGE_RESET] + b->stage_ms[WORLD_BUILD_STAGE_RESET_POOL] +
+                b->stage_ms[WORLD_BUILD_STAGE_RESET_MAPS],
+            b->stage_ms[WORLD_BUILD_STAGE_TERRAIN],
+            b->stage_ms[WORLD_BUILD_STAGE_SCENERY],
+            end_ms,
+            b->stage_ms[WORLD_BUILD_STAGE_BATCH_END]);
+    else if( b->kind == WORLD_BUILD_INSTANCE )
+        TORIRS_REPORT("rebuild_timing: instance total=%.1fms\n", total);
+    TORIRS_REPORT("rebuild_timing: stepped units=%d busy=%.1fms longest=%s %.2fms\n",
+        b->units,
+        total,
+        b->longest_name,
+        b->longest_ms);
+}
+
+static void
+world_builder_build_begin(
+    struct WorldBuilder* builder,
+    enum WorldBuildKind kind)
+{
+    assert(builder);
+    assert(builder->world);
+    assert(!builder->build.active);
+    assert(g_wb_build_inflight == NULL);
+
+    memset(&builder->build, 0, sizeof(builder->build));
+    builder->build.active = 1;
+    builder->build.kind = kind;
+    builder->build.stage = WORLD_BUILD_STAGE_RESET;
+    g_wb_build_inflight = builder;
+}
+
+void
+WorldBuilder_BuildBeginCenterzone(
+    struct WorldBuilder* builder,
+    int zone_center_x,
+    int zone_center_z,
+    int scene_size)
+{
+    world_builder_build_begin(builder, WORLD_BUILD_CENTERZONE);
+    builder->build.zone_center_x = zone_center_x;
+    builder->build.zone_center_z = zone_center_z;
+    builder->build.scene_size = scene_size;
+}
+
+void
+WorldBuilder_BuildBeginChunklist(
+    struct WorldBuilder* builder,
+    const int* chunks_xz,
+    int count)
+{
+    size_t bytes;
+
+    assert(chunks_xz);
+    assert(count > 0);
+    world_builder_build_begin(builder, WORLD_BUILD_CHUNKLIST);
+    bytes = (size_t)count * 2 * sizeof(*chunks_xz);
+    builder->build.chunks_xz = ToriMem_Alloc(ToriMem_Scene(), bytes);
+    assert(builder->build.chunks_xz);
+    memcpy(builder->build.chunks_xz, chunks_xz, bytes);
+    builder->build.chunk_count = count;
+}
+
+void
+WorldBuilder_BuildBeginInstance(
+    struct WorldBuilder* builder,
+    int zone_center_x,
+    int zone_center_z,
+    int scene_size,
+    const int32_t* zones)
+{
+    size_t bytes =
+        (size_t)WORLD_MAP_TERRAIN_LEVELS * WORLD_INSTANCE_ZONES * WORLD_INSTANCE_ZONES *
+        sizeof(*zones);
+
+    assert(zones);
+    assert(scene_size / 8 <= WORLD_INSTANCE_ZONES);
+    world_builder_build_begin(builder, WORLD_BUILD_INSTANCE);
+    builder->build.zone_center_x = zone_center_x;
+    builder->build.zone_center_z = zone_center_z;
+    builder->build.scene_size = scene_size;
+    builder->build.zones = ToriMem_Alloc(ToriMem_Scene(), bytes);
+    assert(builder->build.zones);
+    memcpy(builder->build.zones, zones, bytes);
+}
+
+int
+WorldBuilder_BuildStep(
+    struct WorldBuilder* builder,
+    WorldBuildSpentFn spent,
+    void* userdata)
+{
+    struct WorldBuilderBuild* b;
+
+    assert(builder);
+    b = &builder->build;
+    assert(b->active);
+    assert(g_wb_build_inflight == builder);
+
+    for( ;; )
+    {
+        enum WorldBuildStage stage = b->stage;
+        int stage_unit = b->stage_unit;
+        double t0 = wb_timing_on() ? wb_now_ms() : 0.0;
+
+        world_builder_build_unit(builder);
+        b->units++;
+        if( wb_timing_on() )
+        {
+            double ms = wb_now_ms() - t0;
+            b->stage_ms[stage] += ms;
+            if( ms > b->longest_ms )
+            {
+                b->longest_ms = ms;
+                snprintf(
+                    b->longest_name,
+                    sizeof(b->longest_name),
+                    "%s#%d",
+                    k_world_build_stage_names[stage],
+                    stage_unit);
+            }
+            if( wb_timing_units_on() )
+                TORIRS_REPORT("rebuild_timing: unit %s#%d %.3fms\n",
+                    k_world_build_stage_names[stage],
+                    stage_unit,
+                    ms);
+        }
+
+        if( b->stage == WORLD_BUILD_STAGE_DONE )
+        {
+            if( wb_timing_on() )
+                world_builder_build_timing_report(builder);
+            world_builder_build_release(builder);
+            return 1;
+        }
+        if( spent && spent(userdata) )
+            return 0;
+    }
+}
+
+int
+WorldBuilder_BuildActive(const struct WorldBuilder* builder)
+{
+    assert(builder);
+    return builder->build.active;
+}
+
+void
+WorldBuilder_BuildAbort(struct WorldBuilder* builder)
+{
+    struct WorldBuilderBuild* b;
+
+    assert(builder);
+    b = &builder->build;
+    assert(b->active);
+    assert(g_wb_build_inflight == builder);
+
+    /* Past the report the scene is complete and loaded, and EDIT has taken
+     * the maps it keeps: only the batch is left to close, so close it rather
+     * than tear a finished bake down. */
+    if( b->stage == WORLD_BUILD_STAGE_BATCH_END )
+    {
+        if( b->batch_open )
+            world_builder_batch_close(builder);
+        world_builder_build_release(builder);
+        return;
+    }
+
+    /* Left open, every element model assigned anywhere afterwards would be
+     * routed into the static batch arena (ToriDraw_SceneElementSetModel). */
+    if( b->batch_open )
+        world_builder_batch_close(builder);
+    /* Before the reset nothing was touched, and an EDIT builder's maps are
+     * the last finished bake's: leave them. */
+    if( b->reset_done )
+        world_builder_free_transient_maps(builder);
+    world_builder_build_release(builder);
+}
+
+void
+WorldBuilder_HotSwap(
+    struct WorldBuilder* live,
+    struct WorldBuilder* staged)
+{
+    struct WorldBuilderHiddenLoc* hidden_locs;
+    int hidden_count;
+    int hidden_capacity;
+
+    assert(live);
+    assert(staged);
+    assert(live != staged);
+    assert(live->scene == staged->scene);
+    assert(live->world != staged->world);
+    /* Both idle: the staged build complete, the live one not mid-build. */
+    assert(!live->build.active);
+    assert(!staged->build.active);
+    /* The game's layout on both. EDIT keeps build maps resident and ties
+     * them to its world's window, which a swap would split from the scene. */
+    assert(!live->edit);
+    assert(!staged->edit);
+    /* A finished STATIC bake keeps no build map. */
+    assert(!staged->blendmap);
+    assert(!staged->overlaymap);
+    assert(!staged->terrain_shapemap);
+    assert(!staged->decor_buildmap);
+    assert(!staged->lightmap);
+    assert(!staged->sharelight_map);
+    assert(!staged->shademap);
+    assert(!staged->flag_map);
+    assert(!staged->occluder_buildmap);
+    /* Distinct pools, or the clear below would take the new scene with it. */
+    assert(live->static_pool != staged->static_pool);
+    assert(live->dynamic_pool != staged->dynamic_pool);
+
+    /* The world's scene half... */
+    World_SwapScene(live->world, staged->world);
+
+    /* ...and the builder state that describes it: the placements its build
+     * found hidden behind a -1 multiloc rung. Every other field of a builder
+     * is either the build's own scratch (freed above, asserted) or its
+     * binding (world, cache, scene, varps, pools), which stays. */
+    hidden_locs = live->hidden_locs;
+    hidden_count = live->hidden_loc_count;
+    hidden_capacity = live->hidden_loc_capacity;
+    live->hidden_locs = staged->hidden_locs;
+    live->hidden_loc_count = staged->hidden_loc_count;
+    live->hidden_loc_capacity = staged->hidden_loc_capacity;
+    staged->hidden_locs = hidden_locs;
+    staged->hidden_loc_count = hidden_count;
+    staged->hidden_loc_capacity = hidden_capacity;
+
+    /*
+     * The elements. The old scene's static set goes first -- for view 0 that
+     * clear is also the retained renderers' BATCH_CLEAR, the event a rebuild
+     * in place opens with -- then the new scene's elements join the live pool
+     * under the ids they were built with, which the swapped scenery and
+     * terrain records and the swapped painter already name. Their renderer
+     * loads were withheld while they were built (ToriDraw_SceneSetDeferredPool)
+     * and go out now, for view 0 as one batch: the stream a retained renderer
+     * sees is BATCH_CLEAR, BATCH_BEGIN, a BATCH_MODEL_ADD per element (each
+     * animated loc's ANIM_LOAD after its add), BATCH_END -- a blocking
+     * rebuild's, in one frame as that is.
+     */
+    ToriDraw_SceneClearPool(live->scene, live->static_pool);
+    ToriDraw_SceneAdoptPool(live->scene, staged->static_pool, live->static_pool);
+
+    /* The orphan sweep a build in place runs at its reset (RESET_POOL), over
+     * the LIVE world's entities and dynamic pool: the staged build ran it over
+     * its own, empty ones. Entity records and their element ids are not
+     * otherwise touched by the swap. */
+    world_builder_reconcile_dynamic_elements(live);
 }
 
 /* Client-TS locChangeUnchecked (Client.ts:7733): a zone LOC_ADD_CHANGE/LOC_DEL
@@ -1667,6 +2438,13 @@ WorldBuilder_ApplyLocChange(
     struct WorldEditStash stash;
 
     assert(builder);
+    /* Not into a stepped build's own half-built scene and its live build
+     * maps; and not while any stepped build holds the scene batch, or its
+     * model would load into that batch (g_wb_batch_build). A build that holds
+     * no batch -- the background rebuild's staging scene, in its own pools --
+     * leaves every OTHER builder's loc changes free to land. */
+    assert(!builder->build.active);
+    assert(g_wb_batch_build == NULL);
 
     /* The game's runtime change, under either layout. EDIT's build maps are
      * resident, and this path must neither write a ghost's shadow into them

@@ -6034,7 +6034,53 @@ frame_loop_step(void)
         {
             char url[512];
             if( App_TakeOpenUrl(&app, url, (int)sizeof(url)) )
-                PlatformWindow_OpenUrl(platform, url);
+            {
+                /* A replay's URL_OPEN is what a server once sent the session
+                 * that was recorded. Playing it back must not act on the
+                 * viewer's browser: every headless replay run opened a tab. */
+                if( rsprox_replay_path )
+                    TORIRS_LOG("replay: URL_OPEN dropped '%s'\n", url);
+                else
+                    PlatformWindow_OpenUrl(platform, url);
+            }
+        }
+        {
+            /*
+             * TORIRS_SHOT_TICKS=<t1,t2,...> with TORIRS_SHOT_TICK_PREFIX=<path>:
+             * photograph the presented frame once the server tick counter has
+             * reached each tick, to <path>_<tick>.bmp. Keyed by tick rather than
+             * by frame (TORIRS_PRESENT_BMP_FRAME) so two runs that applied the
+             * same packets at different frames -- a background rebuild's hold
+             * moves every later packet -- are photographed at the same state.
+             * Diagnostics.
+             */
+            static char const* ticks = NULL;
+            static int ticks_read;
+            if( !ticks_read )
+            {
+                ticks_read = 1;
+                ticks = getenv("TORIRS_SHOT_TICKS");
+            }
+            while( ticks && *ticks )
+            {
+                long const tick = strtol(ticks, NULL, 10);
+                char path[1024];
+
+                if( (long)app.server_tick_serial < tick || !App_WorldSettled(&app) )
+                    break;
+                snprintf(
+                    path,
+                    sizeof(path),
+                    "%s_%ld.bmp",
+                    getenv("TORIRS_SHOT_TICK_PREFIX") ? getenv("TORIRS_SHOT_TICK_PREFIX") : "shot",
+                    tick);
+                PlatformWindow_RequestCapture(platform, path);
+                TORIRS_LOG("shot_tick: tick %ld at server tick %u -> %s\n", tick, app.server_tick_serial, path);
+                ticks = strchr(ticks, ',');
+                if( ticks )
+                    ticks++;
+                break;
+            }
         }
         {
             /* The App's requests of the platform. */
@@ -6221,6 +6267,21 @@ frame_loop_step(void)
                 ? ToriRS_Pacer_LockedDeadline(&frame_pacer, PlatformWindow_Ticks64())
                 : ToriRS_Pacer_WaitDeadline(&frame_pacer, frame_start_ms, PlatformWindow_Ticks64());
 
+        /* The slack before the deadline is the background queue's before it
+         * is the sleep's: work nothing in the frame waits on, run until the
+         * frame would have woken anyway (App_RunBackground; nothing queued
+         * costs nothing). The pace timer restarts after it, so the PACE stage
+         * stays the wait and not the work. */
+        {
+            uint64_t const slack_now_ms = PlatformWindow_Ticks64();
+            if( wait_until_ms > slack_now_ms )
+            {
+                App_RunBackground(
+                    &app, PlatformWindow_TicksUs() + (wait_until_ms - slack_now_ms) * 1000u);
+                pace_begin_us = PlatformWindow_TicksUs();
+            }
+        }
+
         if( pace_spin )
         {
             /* TORIRS_PACE_SPIN=1 holds the core busy across the wait instead of
@@ -6238,6 +6299,15 @@ frame_loop_step(void)
             TORIRS_PERF_CARRY(TORIRS_PERF_STAGE_PACE, (pace_end_us - pace_begin_us) * 1000u);
             ToriRS_Pacer_NoteFrame(&frame_pacer, pace_end_us, pace_end_us - pace_begin_us);
         }
+    }
+#else
+    /* The browser has no wait to fill, so its slack is what is left of the
+     * draw period after this frame's work: the background queue's, up to the
+     * point the next frame is due (App_RunBackground). */
+    {
+        uint64_t const period_us = (uint64_t)ToriRS_Pacer_DrawPeriodMs(&frame_pacer) * 1000u;
+        if( period_us > 0 )
+            App_RunBackground(&app, frame_start_us + period_us);
     }
 #endif
     frame_loop_scan_meter_check();

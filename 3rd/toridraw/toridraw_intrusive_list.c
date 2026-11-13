@@ -77,6 +77,7 @@ ToriDraw_IntrusiveListAlloc(
     else
         list->head = index;
     list->tail = index;
+    list->live++;
 
     return index;
 }
@@ -111,4 +112,6 @@ ToriDraw_IntrusiveListRelease(
     list->nodes[index].prev = TORIDRAW_INTRUSIVE_FREE;
     list->nodes[index].next = list->free_head;
     list->free_head = index;
+    assert(list->live > 0);
+    list->live--;
 }

@@ -119,7 +119,7 @@ static int reload_scripts(struct ToriRSServer* srv, const char* directory)
 
 int ContentTest_DrawRequested(struct App* app)
 {
-    if( !ContentTest_Enabled() || !App_FrameSettled(app) || App_IsBooting(app, NULL) || app->world_load_inflight ) return 0;
+    if( !ContentTest_Enabled() || !App_FrameSettled(app) || App_IsBooting(app, NULL) || !App_WorldSettled(app) ) return 0;
     if( active && observe_requested && !remaining && !observe_drawn )
     { observe_drawn = 1; return 1; }
     {
@@ -205,7 +205,7 @@ static void path(char* out, size_t cap, const char* file)
 
 static int settled(struct App* app)
 {
-    return !App_AsyncPending(app) && App_FrameSettled(app) && !app->world_load_inflight;
+    return !App_AsyncPending(app) && App_FrameSettled(app) && App_WorldSettled(app);
 }
 
 static int widget(struct App* app, const char* name, int sub)
@@ -841,7 +841,7 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
         struct ToriRSServerPlayer* pending_player = pending_embed ? ToriRSServer_EmbedPlayer(pending_embed, 0) : NULL;
         if( pending_player ) { ToriRSServer_SendTickEnd(pending_player); return; }
     }
-    if( remaining || click_phase >= 0 || App_AsyncPending(app) || app->world_load_inflight )
+    if( remaining || click_phase >= 0 || App_AsyncPending(app) || !App_WorldSettled(app) )
     { observe_drawn = 0; return; }
     /* Two complete polls consume client output and apply its server response. */
     int observation = observe_requested || !strcmp(command, "state") || !strcmp(command, "threats") ||

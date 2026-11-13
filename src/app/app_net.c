@@ -122,6 +122,11 @@ void
 App_NetSessionReset(struct App* app)
 {
     assert(app);
+    /* A background rebuild was for this session's scene, and its held packets
+     * go with the session. Before the entity clear, so nothing below runs
+     * against a scene that is about to be committed under it. Every way a
+     * session ends -- logout, a lost link, a reconnect -- comes through here. */
+    App_WorldJobCancel(app, "session reset");
     RS_EntitySync_Clear(&app->esync, app->world);
     /* The next session's first REBUILD is the server's whole world arriving
      * again, and its MAP_BUILD_COMPLETE is what releases the login burst: it
@@ -674,7 +679,34 @@ app_pump_net_packets(struct App* app)
         /* Do not cross a server-tick fence before that tick's newly
          * dispatched client scripts have settled against its final state. */
         if( fence_queued )
+        {
+            /* The tick is applied whole: the one point a digest of it is
+             * comparable between runs (TORIRS_WORLD_DIGEST_EVERY). */
+            app_world_digest_tick(app);
             break;
+        }
+
+        /*
+         * THE HOLD. A background rebuild is gathering (app_world_job.c), and
+         * every packet behind its REBUILD addresses the scene it will build:
+         * pop nothing until it is committed. The commit runs HERE, at the
+         * packet phase and before the next pop, so to everything behind it
+         * the rebuild is applied exactly where the wire put it. It may queue
+         * work on this FIFO (App_WorldLoadFinish's loc re-place), which the
+         * next turn of the loop settles before anything is popped.
+         *
+         * Nothing else is held: the pipeline is idle and the REBUILD's tick,
+         * open on varps alone, has its latch suspended for the hold
+         * (App_WorldJobWanted, App_WorldJobStart), so frames publish, and the
+         * logic tick's later work runs, against the old scene meanwhile.
+         */
+        if( App_WorldJobPending(app) )
+        {
+            if( !App_WorldJobPoll(app) )
+                break;
+            redraw = 1;
+            continue;
+        }
 
         {
             struct RevPacket packet;
@@ -696,8 +728,14 @@ app_pump_net_packets(struct App* app)
             if( app->server_tick_fence_seen && gameproto_packet_may_mutate_ui(packet.packet_type) &&
                 packet.packet_type != PKT_NAME_SERVER_TICK_END )
             {
+                int const plain_varp = packet.packet_type == PKT_NAME_VARP_SMALL ||
+                                       packet.packet_type == PKT_NAME_VARP_LARGE;
+
+                if( app->server_tick_open && !plain_varp )
+                    app->server_tick_open_nonvar = 1;
                 if( !app->server_tick_open )
                 {
+                    app->server_tick_open_nonvar = !plain_varp;
                     app->server_tick_open_cycle = app->logic_cycle;
                     if( getenv("TORIRS_FRAME_LATCH") )
                         TORIRS_LOG(
@@ -709,6 +747,45 @@ app_pump_net_packets(struct App* app)
             }
             if( packet.packet_type == PKT_NAME_SERVER_TICK_END )
                 fence_queued = 1;
+            /* TORIRS_REBUILD_TIMING: the state of the frame latch as a REBUILD
+             * is popped, and the packets of its tick that came before it --
+             * what decides whether it can be a background job
+             * (App_WorldJobWanted). */
+            if( WorldBuilder_TimingOn() )
+            {
+                static int tick_types[24];
+                static int tick_count;
+
+                if( packet.packet_type == PKT_NAME_REBUILD_NORMAL ||
+                    packet.packet_type == PKT_NAME_REBUILD_REGION )
+                {
+                    char list[24 * 5] = { 0 };
+                    int at = 0;
+
+                    for( int i = 0; i < tick_count && i < 24; i++ )
+                        at += snprintf(list + at, sizeof(list) - (size_t)at, "%s%d", i ? "," : "", tick_types[i]);
+                    TORIRS_REPORT(
+                        "rebuild_pop: type=%d tick_open=%d nonvar=%d held_scripts=%d fence_seen=%d "
+                        "world_active=%d cycle=%llu before=[%s]%s\n",
+                        (int)packet.packet_type,
+                        app->server_tick_open,
+                        app->server_tick_open_nonvar,
+                        RS_ClientScriptQueue_Count(&app->pending_clientscripts),
+                        app->server_tick_fence_seen,
+                        app->world_active,
+                        (unsigned long long)app->logic_cycle,
+                        list,
+                        tick_count > 24 ? "..." : "");
+                }
+                if( packet.packet_type == PKT_NAME_SERVER_TICK_END )
+                    tick_count = 0;
+                else
+                {
+                    if( tick_count < 24 )
+                        tick_types[tick_count] = (int)packet.packet_type;
+                    tick_count++;
+                }
+            }
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PROTO_PACKETS, 1);
             last_exec_packet_type = packet.packet_type;
             /* The first packet of the session, for the boot report: the
@@ -785,6 +862,7 @@ app_pump_net_packets(struct App* app)
         redraw = 1;
     }
 
+    app_world_job_held_note(app);
     return redraw;
 }
 

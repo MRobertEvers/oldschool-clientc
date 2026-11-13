@@ -262,6 +262,10 @@ app_world_load_begin(
     int chunks[APP_WORLD_MAP_SQUARE_MAX * 2] = { 50, 50 };
     struct ToriRS_Task* task;
 
+    /* This load replaces the scene a background rebuild was gathering for;
+     * that rebuild is moot (and its commit would build over this one). */
+    App_WorldJobCancel(app, "offline load");
+
     /* Same seam as CacheProvider_TrimDerivedCaches inside Task_WorldLoad:
      * previous scene's instance bases are no longer live. */
     TorirsModelInstCache_Clear(&app->model_inst_cache);
@@ -558,4 +562,6 @@ App_WorldLoadFinish(struct App* app)
         TORIRS_LOG("app: world load incomplete\n");
     }
     app->need_redraw = 1;
+    app_rebuild_frames_finished(app);
+    app_world_digest_loaded(app);
 }

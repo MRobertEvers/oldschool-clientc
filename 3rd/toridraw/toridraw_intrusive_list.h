@@ -20,6 +20,9 @@ struct ToriDraw_IntrusiveList
     struct ToriDraw_IntrusiveNode* nodes;
     int capacity;
     int count;
+    /** Nodes allocated and not released. `count` is the high-water slot
+     *  index and never shrinks; this is how many are in use right now. */
+    int live;
     int head;
     int tail;
     int free_head;

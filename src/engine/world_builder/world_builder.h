@@ -5,6 +5,7 @@
 #include "contour_ground_queue.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 struct CacheProvider;
@@ -158,6 +159,176 @@ struct WorldBuilderHiddenLoc
     char ops[5][WORLD_BUILDER_HIDDEN_LOC_OP_LEN];
 };
 
+/*
+ * One build's diagnostic counters (TORIRS_REBUILD_TIMING, TORIRS_SCENERY_CENSUS).
+ * Reset at a build's begin, reported at its end. On the builder rather than in
+ * file statics so a build stepped across frames reports its own models, not
+ * whatever another builder placed in between.
+ */
+struct WorldBuilderStats
+{
+    double model_convert_ms; /* ModelFromToriRS + merge */
+    double model_transform_ms; /* apply_transforms + SD strip + bounds */
+    int model_builds;
+    int model_srcs;
+    /* Why a placement had to build its own model. */
+    int share_hit;
+    int share_clone;
+    int share_proto;
+    int share_no_contour;
+    int share_no_sharelight;
+    int share_no_seq;
+    /* Scenery model heap census (world_builder.c says what each half means). */
+    int census_proto_n;
+    size_t census_proto_b;
+    int census_dup_n;
+    size_t census_dup_b;
+    int census_unique_n;
+    size_t census_unique_b;
+};
+
+/*
+ * merge_normals' scratch hash (world_sharelight.u.c): buckets the other model's
+ * vertex positions. Grow-only within a build, stamped with `serial` instead of
+ * cleared, released with the transient build maps.
+ */
+struct WorldBuilderSlh
+{
+    uint32_t* head; /* bucket -> first chain index */
+    int32_t* next; /* per-inserted-vertex chain link, -1 ends */
+    uint32_t* serial; /* bucket stamp; matches `build` if live */
+    int bucket_cap;
+    int next_cap;
+    uint32_t build;
+};
+
+/*
+ * Cursors of RebuildCenterzoneEnd's three long passes. Each pass is a helper the
+ * blocking End runs to completion and the stepped build runs one unit at a
+ * time (WorldBuilder_BuildStep); the cursor is all that differs.
+ */
+/* One map square's scenery, a slice of its loc list at a time. */
+struct WorldBuildSquareScenery
+{
+    /* The square's minimap walls and mapfunctions are painted. */
+    int started;
+    int loc_index;
+    /* TORIRS_SCENERY_DEBUG counters, carried across the slices. */
+    int dbg_total;
+    int dbg_no_config;
+    int dbg_no_resolve;
+    int dbg_oob;
+    int dbg_added;
+    int dbg_level[8];
+    int dbg_shape[32];
+};
+
+struct WorldBuildContour
+{
+    int index;
+    int count;
+};
+
+struct WorldBuildTerrainMesh
+{
+    /* 0 = blend + sunlight not built yet, then one level per unit. */
+    int stage;
+    int level;
+    /* TORIRS_TERRAIN_DEBUG counters, carried across the levels. */
+    int dbg_active;
+    int dbg_inactive;
+    int dbg_no_model;
+    int dbg_added;
+};
+
+struct WorldBuildLighting
+{
+    /* enum in world_sharelight.u.c: initial alloc, merge columns, last
+     * column, default light, done. */
+    int stage;
+    int sx;
+    int scene_size;
+    int initial_cols;
+    /* TORIRS_REBUILD_TIMING's lighting line. */
+    double t_alloc;
+    double t_merge;
+    double t_apply;
+    double t_tail;
+};
+
+/** The window a stepped build bakes (WorldBuilder_BuildBegin*). */
+enum WorldBuildKind
+{
+    WORLD_BUILD_NONE = 0,
+    WORLD_BUILD_CENTERZONE,
+    WORLD_BUILD_CHUNKLIST,
+    WORLD_BUILD_INSTANCE,
+};
+
+/** Where a stepped build stands. Units run in this order. */
+enum WorldBuildStage
+{
+    /* World_ResetScene and the builder's own resets. */
+    WORLD_BUILD_STAGE_RESET = 0,
+    /* The scene's static pool cleared, entity elements reconciled. */
+    WORLD_BUILD_STAGE_RESET_POOL,
+    /* The build maps, EDIT's begin hooks, batch begin. */
+    WORLD_BUILD_STAGE_RESET_MAPS,
+    /* One map square (instance: one zone) per unit. */
+    WORLD_BUILD_STAGE_TERRAIN,
+    WORLD_BUILD_STAGE_SCENERY,
+    /* RebuildCenterzoneEnd, in pieces. */
+    WORLD_BUILD_STAGE_END_COLLISION,
+    WORLD_BUILD_STAGE_END_CONTOUR,
+    WORLD_BUILD_STAGE_END_PASSES,
+    WORLD_BUILD_STAGE_END_TERRAIN_MESH,
+    WORLD_BUILD_STAGE_END_LIGHTING,
+    WORLD_BUILD_STAGE_END_FINISH,
+    WORLD_BUILD_STAGE_END_REPORT,
+    WORLD_BUILD_STAGE_BATCH_END,
+    WORLD_BUILD_STAGE_DONE,
+};
+
+/** The stepped build's request and cursor (one build per builder). */
+struct WorldBuilderBuild
+{
+    /* Set from BuildBegin* until the build completes or is aborted. */
+    int active;
+    enum WorldBuildKind kind;
+    enum WorldBuildStage stage;
+    /* Square (or flattened zone) index within TERRAIN / SCENERY. */
+    int index;
+    int count;
+    /* Units run in the current stage: names the unit in the timing lines. */
+    int stage_unit;
+
+    int zone_center_x;
+    int zone_center_z;
+    int scene_size;
+    /* Owned copies of the caller's window. */
+    int* chunks_xz;
+    int chunk_count;
+    int32_t* zones;
+
+    /* The reset unit has run: the world is torn down and the maps exist. */
+    int reset_done;
+    /* This build opened the scene batch and has not closed it. */
+    int batch_open;
+
+    struct WorldBuildSquareScenery square_scenery;
+    struct WorldBuildContour contour;
+    struct WorldBuildTerrainMesh terrain_mesh;
+    struct WorldBuildLighting lighting;
+
+    /* TORIRS_REBUILD_TIMING: busy time per stage, the unit count and the
+     * longest unit. Busy, not wall: a stepped build's wall clock includes
+     * every frame between its steps. */
+    double stage_ms[WORLD_BUILD_STAGE_DONE];
+    int units;
+    double longest_ms;
+    char longest_name[48];
+};
+
 struct WorldBuilder
 {
     struct World* world;
@@ -234,6 +405,11 @@ struct WorldBuilder
      *  placement registers like a runtime spawn (per-frame painter pass) but is
      *  lit by EDIT's local sharelight pass rather than on the spot. */
     int scenery_edit_rebake;
+
+    struct WorldBuilderStats stats;
+    struct WorldBuilderSlh slh;
+    /** The stepped build (WorldBuilder_BuildBegin*); idle when !build.active. */
+    struct WorldBuilderBuild build;
 };
 
 /** The layout name, "static" | "edit" -> *out. Returns 0 for anything else. */
@@ -481,6 +657,109 @@ WorldBuilder_RebuildChunklistBegin(
     struct WorldBuilder* builder,
     const int* chunks_xz,
     int count);
+
+/* ------------------------------------------------------------------ */
+/* Stepped build                                                       */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The same bake as WorldBuilder_RebuildCenterzone / _RebuildChunklist /
+ * _RebuildInstance, cut into units a caller can spread across frames: the
+ * reset, each map square's (instance: zone's) terrain, each one's scenery, then
+ * End in pieces -- collision, contour, the bridge/flag passes, the terrain mesh
+ * a level at a time, lighting a few columns at a time, the free/occluder pass,
+ * the report, the batch end. The units call the blocking path's own helpers in
+ * its order, so a stepped build leaves the same state as a blocking one.
+ *
+ * The blocking functions stay as they are; this is a second way to run them.
+ *
+ * One stepped build in flight in the process at a time (BuildBegin* asserts
+ * it). Every view shares one ToriDraw_Scene, and while a build into view 0's
+ * static pool holds the scene batch open every element model assigned
+ * anywhere is routed into the static batch arena, so while one does, no other
+ * build may run and no loc change may land: the blocking entry points and
+ * WorldBuilder_ApplyLocChange assert it. A stepped build into any other pool
+ * opens no batch, and other builders work freely between its steps -- only its
+ * own builder is closed to them.
+ */
+
+/** Nonzero = the caller's time slice is over: stop after the unit in hand. */
+typedef int (*WorldBuildSpentFn)(void* userdata);
+
+/** Record a REBUILD_NORMAL window. Cheap: the reset runs in the first step. */
+void
+WorldBuilder_BuildBeginCenterzone(
+    struct WorldBuilder* builder,
+    int zone_center_x,
+    int zone_center_z,
+    int scene_size);
+
+/** Record an explicit square list (copied: `chunks_xz` is the caller's). */
+void
+WorldBuilder_BuildBeginChunklist(
+    struct WorldBuilder* builder,
+    const int* chunks_xz,
+    int count);
+
+/** Record a REBUILD_REGION grid (PKT_MAP_REBUILD_ZONES ints, copied). */
+void
+WorldBuilder_BuildBeginInstance(
+    struct WorldBuilder* builder,
+    int zone_center_x,
+    int zone_center_z,
+    int scene_size,
+    const int32_t* zones);
+
+/**
+ * Run units until the build is complete or `spent(userdata)` says the slice
+ * is over; `spent` NULL runs to completion. Always runs at least one unit.
+ * Returns 1 when the build is complete (world->load_complete set as
+ * RebuildCenterzoneEnd sets it, the builder idle again), else 0.
+ */
+int
+WorldBuilder_BuildStep(
+    struct WorldBuilder* builder,
+    WorldBuildSpentFn spent,
+    void* userdata);
+
+/** A stepped build is in flight on this builder. */
+int
+WorldBuilder_BuildActive(const struct WorldBuilder* builder);
+
+/**
+ * Abandon the stepped build between steps. Before its first step nothing was
+ * touched and nothing is undone. After it, the scene is half built: the batch
+ * is closed, the transient build maps are freed, the world stays not
+ * load_complete, and the next build's reset clears what was placed.
+ */
+void
+WorldBuilder_BuildAbort(struct WorldBuilder* builder);
+
+/**
+ * Swap the scene `staged` has built into `live`'s world, in one call.
+ *
+ * The background rebuild's commit (app_world_job.c). `staged` is a builder on
+ * its own World and its own pool pair (WorldBuilder_SetSceneView), whose
+ * static pool the scene has been deferring (ToriDraw_SceneSetDeferredPool),
+ * and whose stepped build has completed. Afterwards:
+ *
+ *   - `live`'s world holds the new scene (World_SwapScene) and `live` the
+ *     hidden placements its build recorded; players, npcs, stacks,
+ *     projectiles, spotanims and their element ids are where they were;
+ *   - the old scene's static elements are freed and the new ones are
+ *     `live`'s, retagged into its static pool with their withheld loads
+ *     emitted (as the world batch for view 0);
+ *   - `live`'s dynamic pool has had the orphan sweep a build in place runs;
+ *   - `staged`'s world holds the OLD scene (not loaded) and `staged` the old
+ *     hidden list: the caller frees both (World_Free, WorldBuilder_Free), so
+ *     one scene's worth stays resident.
+ *
+ * The caller drains `live`'s EntityRemoved first, as before a build in place.
+ */
+void
+WorldBuilder_HotSwap(
+    struct WorldBuilder* live,
+    struct WorldBuilder* staged);
 
 /* ------------------------------------------------------------------ */
 /* Instanced scenes                                                    */

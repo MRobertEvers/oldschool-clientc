@@ -879,10 +879,30 @@ void
 CacheProvider_TrimDerivedCaches(struct CacheProvider* provider)
 {
     assert(provider);
+    if( provider->trim_hold > 0 )
+    {
+        provider->trims_held++;
+        return;
+    }
     cache_provider_trim_models(provider, CACHE_PROVIDER_MODEL_KEEP);
     cache_provider_trim_sprites(provider, CACHE_PROVIDER_SPRITE_KEEP);
     cache_provider_trim_map_terrain(provider, CACHE_PROVIDER_MAP_SQUARE_KEEP);
     cache_provider_trim_map_scenery(provider, CACHE_PROVIDER_MAP_SQUARE_KEEP);
+}
+
+void
+CacheProvider_TrimHold(struct CacheProvider* provider)
+{
+    assert(provider);
+    provider->trim_hold++;
+}
+
+void
+CacheProvider_TrimRelease(struct CacheProvider* provider)
+{
+    assert(provider);
+    assert(provider->trim_hold > 0);
+    provider->trim_hold--;
 }
 
 void

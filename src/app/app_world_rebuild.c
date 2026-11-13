@@ -825,7 +825,8 @@ App_WorldRebuildBegin(
     struct App* app,
     int zone_x,
     int zone_z,
-    int force)
+    int force,
+    int background)
 {
     assert(app);
 
@@ -838,10 +839,14 @@ App_WorldRebuildBegin(
     app->rebuild_zone_x = zone_x;
     app->rebuild_zone_z = zone_z;
     app->world_load_attempted = 1;
-    app->world_load_inflight = 1;
+    /* Blanks the viewport for the load's duration. A background rebuild keeps
+     * the old scene up instead; its pending job is what says "not settled". */
+    if( !background )
+        app->world_load_inflight = 1;
     ToriRS_BootTelemetry_Mark("world_load:rebuild");
     app->world_load_server_driven = 1;
     app->need_redraw = 1;
+    app_rebuild_frames_open(app, background);
     return 1;
 }
 

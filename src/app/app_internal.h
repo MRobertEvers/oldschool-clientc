@@ -843,6 +843,52 @@ app_placeholder_obj_stack(
     int obj_id,
     int count);
 
+/* The background queue's lifetime (app_world_job.c): made beside the packet
+ * FIFO at init, with its clock and the rebuild mode; freed with the other
+ * queues, a pending job cancelled first. */
+void
+app_bg_runner_init(struct App* app);
+void
+app_bg_runner_free(struct App* app);
+/* App_RunOnce's floor slice: App_RunBackground for a couple of ms, so every
+ * platform loop moves the queue with no change of its own. */
+void
+app_run_background_floor(struct App* app);
+/* The packet pump's return, in the frame a background rebuild committed in:
+ * how long the packets held behind the REBUILD took (rebuild_frames.held_ms). */
+void
+app_world_job_held_note(struct App* app);
+
+/* A one-line digest of the root world (base, and per entity kind a count and
+ * a hash of ids and tiles), for comparing two runs that applied the same
+ * packets at different frames (app_world_job.c). Diagnostics only:
+ * TORIRS_WORLD_DIGEST=1 after every finished load, and
+ * TORIRS_WORLD_DIGEST_EVERY=<server ticks> from the packet pump, each time a
+ * tick's fence has been applied. */
+void
+app_world_digest_report(
+    struct App* app,
+    char const* why);
+void
+app_world_digest_loaded(struct App* app);
+void
+app_world_digest_tick(struct App* app);
+
+/* TORIRS_REBUILD_TIMING's frame window (app_world_job.c): opened by
+ * App_WorldRebuildBegin, told the build/tail split by the background commit,
+ * closed by App_WorldLoadFinish, fed by App_NoteFrameTime. Each is a no-op
+ * with timing off. */
+void
+app_rebuild_frames_open(
+    struct App* app,
+    int background);
+void
+app_rebuild_frames_finished(struct App* app);
+void
+app_rebuild_frames_note(
+    struct App* app,
+    uint64_t frame_us);
+
 /* After a rebuild lands: every stack still without a model takes a fresh
  * placeholder against the new scene generation (the one it had was dropped
  * for the rebuild). Called from App_WorldLoadFinish, after load_complete. */
@@ -2333,6 +2379,16 @@ CreateTask_NpcMultiResolve(
 void
 app_varp_change(
     void* userdata,
+    int varp_id);
+
+/* The live multiloc remorph for one varp, over the ROOT scene only: what a
+ * background rebuild's commit runs for each varp that moved while its staging
+ * scene was built against the REBUILD's values (app_world_job.c). Every other
+ * view already heard the change when it happened. Returns how many placements
+ * it queued a re-place for. */
+int
+app_varp_refresh_root_loc_transforms(
+    struct App* app,
     int varp_id);
 
 void

@@ -52,4 +52,71 @@ CreateTask_WorldLoad(
     void (*on_done)(void*),
     void* on_done_ud);
 
+/**
+ * What a gather found and how long it took (TORIRS_REBUILD_TIMING), written
+ * once, by the gather, as it ends. Times are WorldBuilder_TimingNowMs; zero
+ * when timing is off.
+ */
+struct WorldLoadGatherReport
+{
+    int done;
+    double t_start_ms;
+    double t_assets_ms;
+    int resumes;
+    int chunk_count;
+    int locs;
+    int models;
+    int textures;
+    int seqs;
+};
+
+/**
+ * The load's first half alone: every asset CreateTask_WorldLoad would read,
+ * fanned out on `queue`, and no build. The task ends when they have all ended,
+ * having touched nothing a frame reads (the scene's sequence registry only
+ * gains entries), so it can run while the previous scene is still being
+ * drawn. The arguments mean what they mean to CreateTask_WorldLoad; the build
+ * they describe is WorldLoad_Build's, run by whoever owns the result.
+ *
+ * `report` (may be NULL) must outlive the task, or be detached with it
+ * (TaskWorldLoad_Cancel).
+ */
+struct ToriRS_Task*
+CreateTask_WorldGather(
+    struct CacheProvider* provider,
+    struct WorldBuilder* builder,
+    struct ToriRS_TaskQueue* queue,
+    const int* chunks_xz,
+    int chunk_count,
+    int zone_center_x,
+    int zone_center_z,
+    int scene_size,
+    const int32_t* zones,
+    struct WorldLoadGatherReport* report);
+
+/**
+ * The load's second half: the synchronous build from resident assets, plus
+ * load-complete. Exactly the build CreateTask_WorldLoad ends with, for the
+ * same arguments.
+ */
+void
+WorldLoad_Build(
+    struct WorldBuilder* builder,
+    const int* chunks_xz,
+    int chunk_count,
+    int zone_center_x,
+    int zone_center_z,
+    int scene_size,
+    const int32_t* zones);
+
+/**
+ * Take a gather that has not ended off `queue` and free it. The loads it
+ * fanned out stay queued and run to their own end, counted by nothing; what
+ * they land is ordinary cache residency. Its report is not written.
+ */
+void
+TaskWorldLoad_Cancel(
+    struct ToriRS_TaskQueue* queue,
+    struct ToriRS_Task* task);
+
 #endif

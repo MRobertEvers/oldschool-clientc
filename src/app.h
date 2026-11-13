@@ -65,6 +65,7 @@
 #include "revconfig/revconfig_profile.h"
 #include "revconfig/revconfig_refs.h"
 #include "task_runner.h"
+#include "engine/world_builder/task_world_load.h"
 #include "toridraw_scene.h"
 #include "toridraw_sprite.h"
 #include "ui/uitree.h"
@@ -1163,6 +1164,15 @@ struct App
      * before the next packet is even popped (the pump only pops a new packet
      * when this queue is idle). */
     struct TaskRunner exec_runner;
+    /**
+     * Work nothing in the frame waits on: parallel, own queue + io, SHARED px.
+     * Given time rather than drained -- a floor slice every App_RunOnce, and
+     * whatever slack the platform loop has before its frame deadline
+     * (App_RunBackground) -- so neither app_settle_cs2_frame nor the packet
+     * pump ever steps it. A job on it that must be done by a deadline is
+     * finished by its owner (the world job, app_world_job.c).
+     */
+    struct TaskRunner bg_runner;
     struct RSCache_Dat2Disk* dat2_disk;
     struct RSCache_Dat1Disk* dat1_disk;
     /** 1 when dat1 reads go to a LostCity server instead of dat1_disk. The
@@ -2960,6 +2970,12 @@ struct App
      * renderer retains the preceding committed frame while this is set. */
     int server_tick_open;
     int server_tick_open_cycle;
+    /** Some packet of the open tick so far was a UI mutator other than a
+     *  plain VARP_SMALL/VARP_LARGE -- an interface, inventory, stat or script
+     *  packet. Recomputed from each tick's opening packet. A tick open on
+     *  varps alone is the shape every REBUILD arrives in, and the one a
+     *  background rebuild may suspend the latch for (App_WorldJobWanted). */
+    int server_tick_open_nonvar;
     /** Set by App_RunOnce once the stable-tree gate has been crossed and the
      *  current host input frame has reached interaction. */
     int input_frame_consumed;
@@ -3009,6 +3025,127 @@ struct App
     int rebuild_instance_zone_x;
     int rebuild_instance_zone_z;
     bool rebuild_instance_active;
+
+    /**
+     * How a server REBUILD is done. Resolved once (App_WorldRebuildModeInit).
+     *
+     * Blocking, the default: the packet task awaits the whole load inline and
+     * the scene is rebuilt in place inside that packet -- the least memory,
+     * and the one frame it costs is the gather and the build together.
+     *
+     * Background (TORIRS_WORLD_REBUILD=background): the gather runs on
+     * bg_runner while the old scene stays drawn and the packets behind the
+     * REBUILD are held at the pump; the build and the tail run when it lands
+     * (app_world_job.c).
+     */
+    int world_rebuild_background;
+    /** A background rebuild still gathering past this many microseconds is
+     *  finished there and then (TORIRS_WORLD_JOB_DEADLINE_MS, default 600). */
+    uint64_t world_job_deadline_us;
+    /**
+     * The background rebuild in progress, if any (`pending`).
+     *
+     * While it is pending the packet pump pops nothing: everything the server
+     * sent after the REBUILD addresses the scene it is building. Nothing else
+     * is held -- frames, input, interfaces and outgoing packets carry on
+     * against the old scene. @see App_WorldJobPending.
+     */
+    struct AppWorldJob
+    {
+        int pending;
+        struct ToriRS_TaskJob job;
+        /** The gather, while it has not ended (job.join > 0). */
+        struct ToriRS_Task* gather;
+        struct WorldLoadGatherReport report;
+        int zone_x;
+        int zone_z;
+        int chunk_count;
+        int chunks[64 * 2];
+        int have_zones;
+        int32_t zones[4 * 13 * 13];
+        /** The scene base before the rebuild: the entity-shift source. */
+        int had_world;
+        int prev_base_x;
+        int prev_base_z;
+        /** A promoted job waiting on a read only the platform can answer:
+         *  the viewport shows "Loading - please wait." meanwhile. */
+        int stalled;
+        /** The REBUILD's server tick was open (on varps) and its latch is
+         *  suspended for the hold; the commit re-arms it. */
+        int tick_suspended;
+        /* TORIRS_REBUILD_TIMING: what the job cost, reported at the commit. */
+        uint64_t t_begin_us;
+        int slices;
+        uint64_t slice_us_sum;
+        uint64_t slice_us_max;
+
+        /**
+         * Where the job stands: APP_WORLD_JOB_GATHER while `job` counts the
+         * gather, APP_WORLD_JOB_STAGE while it counts the staging build.
+         */
+        int phase;
+        /**
+         * The staging scene (phase STAGE, until the commit or a cancel): a
+         * World and a WorldBuilder of the job's own, on a pool pair no view
+         * uses, built a unit at a time on bg_runner while the old scene
+         * stays drawn, then swapped in whole (WorldBuilder_HotSwap). NULL
+         * outside a staging build -- a blocking client never makes one.
+         */
+        struct World* stage_world;
+        struct WorldBuilder* stage_builder;
+        /** The stage task, while it is queued. */
+        struct ToriRS_Task* stage_task;
+        /**
+         * The varps the staging build resolves multilocs against: the
+         * values at the REBUILD (App_WorldJobStart), so one scene is built
+         * against one varp state. Shares the type tables with app->varps and
+         * owns only `var` (stage_varps_taken). Whatever differs at the commit
+         * is re-resolved by the varp-transform path, as a change after a
+         * build in place is.
+         */
+        struct VarPManager stage_varps;
+        int stage_varps_taken;
+        /** The provider's derived caches are held from the gather's end to
+         *  the build's (CacheProvider_TrimHold). */
+        int trim_held;
+        /** The scene's element space could not hold the staging scene beside
+         *  the live one: the commit builds in place instead (phase B). */
+        int stage_crowded;
+        /* TORIRS_REBUILD_TIMING: the staging build's own slices. */
+        int build_slices;
+        uint64_t build_slice_us_sum;
+        uint64_t build_slice_us_max;
+        int build_units;
+        /* TORIRS_REBUILD_TIMING: the commit frame's packet work after the
+         * commit itself (the held packets), measured to the pump's return. */
+        int held_open;
+        uint64_t held_t0_us;
+    } world_job;
+    /**
+     * TORIRS_REBUILD_TIMING: the main-thread work of every frame from the one
+     * a REBUILD started in to the one it finished in, either mode -- the
+     * number the background mode exists to move (App_NoteFrameTime).
+     */
+    struct
+    {
+        int open;
+        int closing;
+        int background;
+        int frames;
+        uint64_t max_us;
+        uint64_t sum_us;
+        uint64_t last_us;
+        int hist[6];
+        double build_ms;
+        double tail_ms;
+        /* The commit frame's split, background mode: the swap (or the build
+         * in place), the entity shift, App_WorldLoadFinish, and the held
+         * packets popped behind the commit in the same frame. */
+        double swap_ms;
+        double shift_ms;
+        double finish_ms;
+        double held_ms;
+    } rebuild_frames;
 
     /* ---- interaction state (Part 6) ---- */
     /** "Use <item> with ..." selection (reference objSelected). */
@@ -4297,13 +4434,96 @@ App_WevHomeViewForAbsTile(
  * same 104x104 tiles; it is wrong for an instanced one, where the zones can be
  * repointed underneath an unmoved player — which is exactly what happens when a
  * room is added to a house the player is standing in.
+ *
+ * `background`: the rebuild will be a world job (App_WorldJobStart), which
+ * keeps the old scene on screen while it gathers -- so the viewport is not
+ * blanked (world_load_inflight stays clear).
  */
 int
 App_WorldRebuildBegin(
     struct App* app,
     int zone_x,
     int zone_z,
-    int force);
+    int force,
+    int background);
+
+/** Resolve the rebuild mode and the job deadline (app.h world_rebuild_*),
+ *  once, at init. */
+void
+App_WorldRebuildModeInit(struct App* app);
+
+/**
+ * Should the REBUILD about to be applied be a background world job?
+ *
+ * Only in background mode, only for a ROOT rebuild onto a scene that is
+ * already loaded (a first load has nothing to keep on screen), and only when
+ * the frame latch can be suspended for the hold without publishing a
+ * half-applied UI transaction: the REBUILD's server tick may be open on
+ * plain varps (server_tick_open_nonvar clear) and no clientscript may be
+ * held. The reasoning and the measurement are at the definition.
+ */
+int
+App_WorldJobWanted(struct App const* app);
+
+/**
+ * Start the background rebuild of the root scene: queue its gather on
+ * bg_runner and hold the packet pump until it has been committed. Called by
+ * the REBUILD packet task in place of awaiting the load, after the same
+ * bookkeeping (App_WorldRebuildBegin, the square list, the xtea keys).
+ * `zones` is the instance grid or NULL; both arrays are copied.
+ */
+void
+App_WorldJobStart(
+    struct App* app,
+    int const* chunks_xz,
+    int chunk_count,
+    int zone_x,
+    int zone_z,
+    int32_t const* zones);
+
+/** Is a background rebuild in progress (packets held, scene not yet built)? */
+int
+App_WorldJobPending(struct App const* app);
+
+/**
+ * The packet pump's question, asked before every pop while a job is pending:
+ * commit it if its gather has landed (or finish it now, if its deadline has
+ * passed). 1: the job is committed and popping may go on; 0: still pending,
+ * hold.
+ */
+int
+App_WorldJobPoll(struct App* app);
+
+/**
+ * End a pending job without building anything: session teardown, logout,
+ * shutdown, or an offline/editor load taking the scene over. The hold lifts,
+ * nothing is acknowledged, and the loads already queued run out harmlessly.
+ * No-op when nothing is pending.
+ */
+void
+App_WorldJobCancel(
+    struct App* app,
+    char const* why);
+
+/**
+ * "The world is settled": no load in flight in either mode. What a test or a
+ * driver waiting for the scene must ask -- world_load_inflight alone only
+ * says whether the viewport is blanked, and stays clear through a background
+ * rebuild.
+ */
+int
+App_WorldSettled(struct App const* app);
+
+/**
+ * Give the background queue time until `deadline_us` (PlatformWindow_TicksUs
+ * clock). Called by App_RunOnce with a floor slice, and by a platform loop
+ * with the slack before its frame deadline instead of sleeping it. Costs
+ * nothing when the queue is empty.
+ */
+void
+App_RunBackground(
+    struct App* app,
+    uint64_t deadline_us);
 
 /** Drain WorldEventKind_EntityRemoved into ToriDraw_SceneElementRemove.
  *  Required before a scene rebuild begins (ResetSceneAlloc asserts the queue

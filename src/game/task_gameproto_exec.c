@@ -34,6 +34,8 @@ struct Task_GameProtoExec
     int prev_base_x;
     int prev_base_z;
     int had_world;
+    /* This REBUILD is a background world job (App_WorldJobWanted). */
+    int background;
     int zone_x;
     int zone_z;
     /* REBUILD_WORLDENTITY (SAILING_PLAN C2): the target view id (the
@@ -231,7 +233,10 @@ Task_GameProtoExec_Run(
                         app->net_force_rebuild;
 
             app->net_force_rebuild = 0;
-            if( !App_WorldRebuildBegin(app, self->zone_x, self->zone_z, force) )
+            /* Asked before Begin, which would otherwise blank the viewport
+             * the background mode exists to keep. */
+            self->background = App_WorldJobWanted(app);
+            if( !App_WorldRebuildBegin(app, self->zone_x, self->zone_z, force, self->background) )
                 PT_EXIT(&self->pt);
         }
 
@@ -241,6 +246,19 @@ Task_GameProtoExec_Run(
             rebuild_compute_chunks(self);
         if( self->packet._map_rebuild.region_count > 0 )
             rebuild_put_keys(self);
+        /* Background mode (App::world_rebuild_background): the same rebuild
+         * as a world job. Its gather runs on the background queue while the
+         * old scene stays up and the pump holds every packet behind this
+         * one; the build and everything below the await here run at its
+         * commit (app_world_job.c), in this order. This task ends now --
+         * nothing is left parked on the FIFO for the job's duration. */
+        if( self->background )
+        {
+            App_WorldJobStart(
+                app, self->chunks, self->chunk_count, self->zone_x, self->zone_z,
+                self->packet._map_rebuild.zones);
+            PT_EXIT(&self->pt);
+        }
         /* Kept for the plugins: @see App::rebuild_instance_zones. */
         _Static_assert(
             sizeof(app->rebuild_instance_zones) ==

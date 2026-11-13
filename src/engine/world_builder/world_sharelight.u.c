@@ -110,28 +110,27 @@ static int g_vertex_b_merge_index[10000] = { 0 };
  *
  * head[] entries are stamped with the build serial rather than cleared, so a
  * new pair costs O(vertices inserted), not O(table).
+ *
+ * It lives on the builder (struct WorldBuilderSlh), not in file statics: a
+ * stepped build lights a few columns per step, and another builder's begin
+ * released the statics in between.
  */
-static uint32_t* g_slh_head; /* bucket -> (serial, first chain index) */
-static int32_t* g_slh_next; /* per-inserted-vertex chain link, -1 ends */
-static uint32_t* g_slh_serial; /* bucket stamp; matches g_slh_build if live */
-static int g_slh_bucket_cap;
-static int g_slh_next_cap;
-static uint32_t g_slh_build;
 
 /* Back to empty: the next slh_reserve grows it again. Called with the
  * builder's transient maps, so the table lives one build, not the process. */
 static void
-slh_release(void)
+slh_release(struct WorldBuilderSlh* slh)
 {
-    ToriMem_Free(ToriMem_Scene(), g_slh_head);
-    ToriMem_Free(ToriMem_Scene(), g_slh_serial);
-    ToriMem_Free(ToriMem_Scene(), g_slh_next);
-    g_slh_head = NULL;
-    g_slh_serial = NULL;
-    g_slh_next = NULL;
-    g_slh_bucket_cap = 0;
-    g_slh_next_cap = 0;
-    g_slh_build = 0;
+    assert(slh);
+    ToriMem_Free(ToriMem_Scene(), slh->head);
+    ToriMem_Free(ToriMem_Scene(), slh->serial);
+    ToriMem_Free(ToriMem_Scene(), slh->next);
+    slh->head = NULL;
+    slh->serial = NULL;
+    slh->next = NULL;
+    slh->bucket_cap = 0;
+    slh->next_cap = 0;
+    slh->build = 0;
 }
 
 static inline uint32_t
@@ -147,28 +146,30 @@ slh_hash(
 
 static void
 slh_reserve(
+    struct WorldBuilderSlh* slh,
     int vertex_count)
 {
     int want_buckets = 16;
+    assert(slh);
     while( want_buckets < vertex_count * 2 )
         want_buckets <<= 1;
-    if( want_buckets > g_slh_bucket_cap )
+    if( want_buckets > slh->bucket_cap )
     {
-        ToriMem_Free(ToriMem_Scene(), g_slh_head);
-        ToriMem_Free(ToriMem_Scene(), g_slh_serial);
-        g_slh_head = ToriMem_Alloc(ToriMem_Scene(), (size_t)want_buckets * sizeof(*g_slh_head));
-        assert(g_slh_head);
-        g_slh_serial = ToriMem_Calloc(ToriMem_Scene(), (size_t)want_buckets, sizeof(*g_slh_serial));
-        assert(g_slh_serial);
-        g_slh_bucket_cap = want_buckets;
-        g_slh_build = 0;
+        ToriMem_Free(ToriMem_Scene(), slh->head);
+        ToriMem_Free(ToriMem_Scene(), slh->serial);
+        slh->head = ToriMem_Alloc(ToriMem_Scene(), (size_t)want_buckets * sizeof(*slh->head));
+        assert(slh->head);
+        slh->serial = ToriMem_Calloc(ToriMem_Scene(), (size_t)want_buckets, sizeof(*slh->serial));
+        assert(slh->serial);
+        slh->bucket_cap = want_buckets;
+        slh->build = 0;
     }
-    if( vertex_count > g_slh_next_cap )
+    if( vertex_count > slh->next_cap )
     {
-        ToriMem_Free(ToriMem_Scene(), g_slh_next);
-        g_slh_next_cap = vertex_count * 2;
-        g_slh_next = ToriMem_Alloc(ToriMem_Scene(), (size_t)g_slh_next_cap * sizeof(*g_slh_next));
-        assert(g_slh_next);
+        ToriMem_Free(ToriMem_Scene(), slh->next);
+        slh->next_cap = vertex_count * 2;
+        slh->next = ToriMem_Alloc(ToriMem_Scene(), (size_t)slh->next_cap * sizeof(*slh->next));
+        assert(slh->next);
     }
 }
 
@@ -234,6 +235,7 @@ hide_merged_faces(
 
 static void
 merge_normals(
+    struct WorldBuilderSlh* slh,
     struct ToriDraw_Model* model,
     struct ToriDraw_Normal* vertex_normals,
     struct ToriDraw_Normal* lighting_vertex_normals,
@@ -270,9 +272,9 @@ merge_normals(
      * pairs the old full cross scan found — duplicates included, since bucket
      * chains keep every vertex at a position — at O(m + n) instead of O(m * n).
      * Serial-stamped buckets make the table reusable without clearing. */
-    slh_reserve(other_vc);
-    g_slh_build++;
-    uint32_t const bucket_mask = (uint32_t)g_slh_bucket_cap - 1;
+    slh_reserve(slh, other_vc);
+    slh->build++;
+    uint32_t const bucket_mask = (uint32_t)slh->bucket_cap - 1;
     for( int other_vertex = 0; other_vertex < other_vc; other_vertex++ )
     {
         if( other_vertex_normals[other_vertex].face_count == 0 )
@@ -280,14 +282,14 @@ merge_normals(
         uint32_t b =
             slh_hash(other_vx[other_vertex], other_vy[other_vertex], other_vz[other_vertex]) &
             bucket_mask;
-        if( g_slh_serial[b] != g_slh_build )
+        if( slh->serial[b] != slh->build )
         {
-            g_slh_serial[b] = g_slh_build;
-            g_slh_next[other_vertex] = -1;
+            slh->serial[b] = slh->build;
+            slh->next[other_vertex] = -1;
         }
         else
-            g_slh_next[other_vertex] = (int32_t)g_slh_head[b];
-        g_slh_head[b] = (uint32_t)other_vertex;
+            slh->next[other_vertex] = (int32_t)slh->head[b];
+        slh->head[b] = (uint32_t)other_vertex;
     }
 
     for( int vertex = 0; vertex < model_vc; vertex++ )
@@ -301,13 +303,13 @@ merge_normals(
         z = model_vz[vertex] - check_offset_z;
 
         uint32_t b = slh_hash(x, y, z) & bucket_mask;
-        if( g_slh_serial[b] != g_slh_build )
+        if( slh->serial[b] != slh->build )
             continue;
 
         model_a_lighting_normal = &lighting_vertex_normals[vertex];
 
-        for( int32_t other_vertex = (int32_t)g_slh_head[b]; other_vertex != -1;
-             other_vertex = g_slh_next[other_vertex] )
+        for( int32_t other_vertex = (int32_t)slh->head[b]; other_vertex != -1;
+             other_vertex = slh->next[other_vertex] )
         {
             if( x != other_vx[other_vertex] || y != other_vy[other_vertex] ||
                 z != other_vz[other_vertex] )
@@ -360,14 +362,20 @@ merge_normals(
     ((SHARELIGHT_MAX_ELEMENT_TILES + 2) * (SHARELIGHT_MAX_ELEMENT_TILES + 2) + \
      2 * SHARELIGHT_MAX_ELEMENT_TILES + 2)
 
+/* Default-lit (non-sharelight) elements of columns [sx_begin, sx_end). Every
+ * element is lit on its own, so a range of columns is the whole pass's work for
+ * those columns in the whole pass's order. */
 static void
-defaultlight_build(struct WorldBuilder* builder)
+defaultlight_build_columns(
+    struct WorldBuilder* builder,
+    int sx_begin,
+    int sx_end)
 {
     struct ToriDraw_SceneElement* scene_element = NULL;
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
 
-    for( int sx = 0; sx < builder->sharelight_map->width; sx++ )
+    for( int sx = sx_begin; sx < sx_end; sx++ )
     {
         for( int sz = 0; sz < builder->sharelight_map->height; sz++ )
         {
@@ -564,6 +572,7 @@ merge_column(
                             slevel, adjacent_tile_coord.level);
 
                         merge_normals(
+                            &builder->slh,
                             dm,
                             dm->normals->vertex_normals,
                             dm->merged_normals->vertex_normals,
@@ -660,64 +669,156 @@ apply_and_free_column(
     }
 }
 
+/*
+ * The share-light pass, in units: the first SHARELIGHT_MERGE_LOOKAHEAD + 1
+ * columns' normals, then WORLD_LIGHT_COLUMNS_PER_UNIT columns of (alloc ahead,
+ * merge, apply the column behind), then the last column's apply, then the
+ * default-lit elements a few columns at a time. The column loop is the same
+ * loop whether it runs in one call or many: alloc leads merge by the
+ * lookahead, apply trails it by one, and nothing outside the loop reads the
+ * models in between.
+ */
+#define WORLD_LIGHT_COLUMNS_PER_UNIT 8
+#define WORLD_DEFAULTLIGHT_COLUMNS_PER_UNIT 16
+
+enum WorldLightStage
+{
+    WORLD_LIGHT_INITIAL_ALLOC = 0,
+    WORLD_LIGHT_COLUMNS,
+    WORLD_LIGHT_LAST_COLUMN,
+    WORLD_LIGHT_DEFAULT,
+    WORLD_LIGHT_DONE,
+};
+
+static void
+world_build_lighting_init(
+    struct WorldBuilder* builder,
+    struct WorldBuildLighting* cur)
+{
+    assert(builder);
+    assert(builder->sharelight_map);
+    assert(cur);
+    memset(cur, 0, sizeof(*cur));
+    cur->stage = WORLD_LIGHT_INITIAL_ALLOC;
+    cur->scene_size = builder->sharelight_map->width;
+    cur->initial_cols = cur->scene_size < SHARELIGHT_MERGE_LOOKAHEAD + 1
+                            ? cur->scene_size
+                            : SHARELIGHT_MERGE_LOOKAHEAD + 1;
+}
+
+/* One unit of the pass. Returns 1 once the pass is complete (and has printed
+ * its TORIRS_REBUILD_TIMING line). */
+static int
+world_build_lighting_step(
+    struct WorldBuilder* builder,
+    struct WorldBuildLighting* cur)
+{
+    int scene_size;
+    double tp;
+
+    assert(builder);
+    assert(builder->sharelight_map);
+    assert(cur);
+    scene_size = cur->scene_size;
+
+    switch( cur->stage )
+    {
+    case WORLD_LIGHT_INITIAL_ALLOC:
+        tp = wb_timing_on() ? wb_now_ms() : 0.0;
+        for( int sx = 0; sx < cur->initial_cols; sx++ )
+            alloc_normals_for_column(builder, sx);
+        if( wb_timing_on() )
+            cur->t_alloc += wb_now_ms() - tp;
+        cur->sx = 0;
+        cur->stage = WORLD_LIGHT_COLUMNS;
+        return 0;
+
+    case WORLD_LIGHT_COLUMNS:
+    {
+        int sx_end = cur->sx + WORLD_LIGHT_COLUMNS_PER_UNIT;
+        if( sx_end > scene_size )
+            sx_end = scene_size;
+        for( int sx = cur->sx; sx < sx_end; sx++ )
+        {
+            int alloc_sx = sx + SHARELIGHT_MERGE_LOOKAHEAD;
+            if( alloc_sx < scene_size && alloc_sx >= cur->initial_cols )
+            {
+                tp = wb_timing_on() ? wb_now_ms() : 0.0;
+                alloc_normals_for_column(builder, alloc_sx);
+                if( wb_timing_on() )
+                    cur->t_alloc += wb_now_ms() - tp;
+            }
+
+            tp = wb_timing_on() ? wb_now_ms() : 0.0;
+            merge_column(builder, sx);
+            if( wb_timing_on() )
+            {
+                double t = wb_now_ms();
+                cur->t_merge += t - tp;
+                tp = t;
+            }
+
+            if( sx >= 1 )
+                apply_and_free_column(builder, sx - 1);
+            if( wb_timing_on() )
+                cur->t_apply += wb_now_ms() - tp;
+        }
+        cur->sx = sx_end;
+        if( cur->sx >= scene_size )
+            cur->stage = WORLD_LIGHT_LAST_COLUMN;
+        return 0;
+    }
+
+    case WORLD_LIGHT_LAST_COLUMN:
+        tp = wb_timing_on() ? wb_now_ms() : 0.0;
+        apply_and_free_column(builder, scene_size - 1);
+        if( wb_timing_on() )
+            cur->t_tail += wb_now_ms() - tp;
+        cur->sx = 0;
+        cur->stage = WORLD_LIGHT_DEFAULT;
+        return 0;
+
+    case WORLD_LIGHT_DEFAULT:
+    {
+        int sx_end = cur->sx + WORLD_DEFAULTLIGHT_COLUMNS_PER_UNIT;
+        if( sx_end > builder->sharelight_map->width )
+            sx_end = builder->sharelight_map->width;
+        tp = wb_timing_on() ? wb_now_ms() : 0.0;
+        defaultlight_build_columns(builder, cur->sx, sx_end);
+        if( wb_timing_on() )
+            cur->t_tail += wb_now_ms() - tp;
+        cur->sx = sx_end;
+        if( cur->sx < builder->sharelight_map->width )
+            return 0;
+        cur->stage = WORLD_LIGHT_DONE;
+        if( wb_timing_on() )
+            fprintf(
+                stderr,
+                "rebuild_timing: lighting alloc=%.1fms merge=%.1fms apply=%.1fms tail=%.1fms\n",
+                cur->t_alloc,
+                cur->t_merge,
+                cur->t_apply,
+                cur->t_tail);
+        return 1;
+    }
+
+    case WORLD_LIGHT_DONE:
+        break;
+    }
+    assert(0 && "world_build_lighting_step: stepped past the end of the pass");
+    return 1;
+}
+
+/* The whole pass at once: the blocking build's End. */
 static void
 world_build_lighting(struct WorldBuilder* builder)
 {
-    assert(builder->sharelight_map);
+    struct WorldBuildLighting cur;
 
-    int scene_size = builder->sharelight_map->width;
-    double t_alloc = 0.0;
-    double t_merge = 0.0;
-    double t_apply = 0.0;
-    double tp;
-
-    int initial_cols =
-        scene_size < SHARELIGHT_MERGE_LOOKAHEAD + 1 ? scene_size : SHARELIGHT_MERGE_LOOKAHEAD + 1;
-    tp = wb_timing_on() ? wb_now_ms() : 0.0;
-    for( int sx = 0; sx < initial_cols; sx++ )
-        alloc_normals_for_column(builder, sx);
-    if( wb_timing_on() )
-        t_alloc += wb_now_ms() - tp;
-
-    for( int sx = 0; sx < scene_size; sx++ )
+    world_build_lighting_init(builder, &cur);
+    while( !world_build_lighting_step(builder, &cur) )
     {
-        int alloc_sx = sx + SHARELIGHT_MERGE_LOOKAHEAD;
-        if( alloc_sx < scene_size && alloc_sx >= initial_cols )
-        {
-            tp = wb_timing_on() ? wb_now_ms() : 0.0;
-            alloc_normals_for_column(builder, alloc_sx);
-            if( wb_timing_on() )
-                t_alloc += wb_now_ms() - tp;
-        }
-
-        tp = wb_timing_on() ? wb_now_ms() : 0.0;
-        merge_column(builder, sx);
-        if( wb_timing_on() )
-        {
-            double t = wb_now_ms();
-            t_merge += t - tp;
-            tp = t;
-        }
-
-        if( sx >= 1 )
-            apply_and_free_column(builder, sx - 1);
-        if( wb_timing_on() )
-            t_apply += wb_now_ms() - tp;
     }
-
-    tp = wb_timing_on() ? wb_now_ms() : 0.0;
-    apply_and_free_column(builder, scene_size - 1);
-
-    defaultlight_build(builder);
-
-    if( wb_timing_on() )
-        fprintf(
-            stderr,
-            "rebuild_timing: lighting alloc=%.1fms merge=%.1fms apply=%.1fms tail=%.1fms\n",
-            t_alloc,
-            t_merge,
-            t_apply,
-            wb_now_ms() - tp);
 }
 
 #endif

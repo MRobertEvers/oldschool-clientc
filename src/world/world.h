@@ -1058,6 +1058,32 @@ World_SetLoadComplete(
     struct World* world,
     bool complete);
 
+/**
+ * Hot-swap a scene built in `staged` into `live` (the background rebuild,
+ * app_world_job.c; the reference client's build-beside-then-swap).
+ *
+ * Exchanges the SCENE half of the two worlds -- everything World_ResetScene
+ * allocates and a build fills: the window (base, offset, chunk span, scene
+ * size), heightmap, collision maps, minimap, painter and its cull map, tile
+ * flags, obj raise, the occupancy stamps, the terrain and scenery pools with
+ * the scenery info table their records point into, the runtime-spawn count,
+ * mapfunction / mapscene icons and area sounds. Everything else stays where
+ * it is: the players, npcs, obj stacks, projectiles, spotanims and plugin
+ * objects, the events, the loc-change list, the callbacks, the cycle.
+ *
+ * `live` then reads as a world that has just finished a build -- loaded, its
+ * load_seq, geometry_serial and area_sound_generation moved on (never
+ * swapped: a reader holding one must see it change), its picks and its
+ * changed-scenery list reset, and its scenery listener told RESET and then
+ * PLACED for each record -- and `staged` holds the old scene, not loaded,
+ * for its owner to free. Scene ELEMENTS are not touched: the pools they live
+ * in are the builders' business (WorldBuilder_HotSwap).
+ */
+void
+World_SwapScene(
+    struct World* live,
+    struct World* staged);
+
 void
 World_TerrainSet(
     struct World* world,

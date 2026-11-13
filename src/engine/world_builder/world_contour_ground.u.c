@@ -10,17 +10,21 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-void
-world_contour_ground(struct WorldBuilder* builder)
+/*
+ * Contour-ground every queued placement in [begin, end) of the queue. Each
+ * entry deforms its own element's model against the finished heightmap and
+ * nothing else, so a range is the whole pass's work for those entries.
+ */
+static void
+world_contour_ground_range(
+    struct WorldBuilder* builder,
+    int begin,
+    int end)
 {
     struct World* world = builder->world;
-    int n = contour_ground_q_count(&builder->contour_ground_queue);
-    if( n <= 0 )
-        return;
-
     struct Heightmap* hm = world->heightmap;
 
-    for( int ri = 0; ri < n; ri++ )
+    for( int ri = begin; ri < end; ri++ )
     {
         struct ContourGroundQueueEntry* r = contour_ground_q_at(&builder->contour_ground_queue, ri);
         if( r->element_id < 0 )
@@ -108,8 +112,55 @@ world_contour_ground(struct WorldBuilder* builder)
 
         ToriDraw_ModelSetBoundsCylinder(dm);
     }
+}
 
+/* Placements per unit of the stepped build's contour pass. */
+#define WORLD_CONTOUR_PER_UNIT 384
+
+static void
+world_contour_ground_init(
+    struct WorldBuilder* builder,
+    struct WorldBuildContour* cur)
+{
+    assert(builder);
+    assert(cur);
+    cur->index = 0;
+    cur->count = contour_ground_q_count(&builder->contour_ground_queue);
+}
+
+/* One unit of at most `per_unit` placements. Returns 1 once the queue is done
+ * (and emptied). */
+static int
+world_contour_ground_step(
+    struct WorldBuilder* builder,
+    struct WorldBuildContour* cur,
+    int per_unit)
+{
+    int end;
+
+    assert(cur);
+    assert(per_unit > 0);
+    end = cur->index + per_unit;
+    if( end > cur->count )
+        end = cur->count;
+    world_contour_ground_range(builder, cur->index, end);
+    cur->index = end;
+    if( cur->index < cur->count )
+        return 0;
     contour_ground_q_clear(&builder->contour_ground_queue);
+    return 1;
+}
+
+/* The whole queue at once: the blocking build's End. */
+void
+world_contour_ground(struct WorldBuilder* builder)
+{
+    struct WorldBuildContour cur;
+
+    world_contour_ground_init(builder, &cur);
+    if( cur.count <= 0 )
+        return;
+    world_contour_ground_step(builder, &cur, cur.count);
 }
 
 #endif

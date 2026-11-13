@@ -678,8 +678,10 @@ DriveCore_Settled(struct App* app, int* out_settled)
     assert(app);
     assert(out_settled);
     /* The same three checks content_test.c's own static `settled()` makes
-     * (content_test.c:132-135) -- t.settle exists to export exactly this. */
-    *out_settled = !App_AsyncPending(app) && App_FrameSettled(app) && !app->world_load_inflight;
+     * (content_test.c:132-135) -- t.settle exists to export exactly this.
+     * App_WorldSettled, not world_load_inflight: a background rebuild keeps
+     * the old scene up (the flag clear) while its packets are held. */
+    *out_settled = !App_AsyncPending(app) && App_FrameSettled(app) && App_WorldSettled(app);
     return DRIVE_OK;
 }
 

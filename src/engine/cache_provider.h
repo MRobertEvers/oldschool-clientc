@@ -34,6 +34,11 @@ struct CacheProvider
      *  as long as a session runs. */
     uint64_t derived_clock;
 
+    /** CacheProvider_TrimHold count. While nonzero CacheProvider_TrimDerivedCaches
+     *  evicts nothing; `trims_held` counts the trims that were skipped. */
+    int trim_hold;
+    int trims_held;
+
     /** Monotonic version of provider assets which can change a UITree host
      *  answer before the asset has been published through UITreeSceneBridge.
      *  This deliberately covers only models, sprites, fonts and objtypes: a
@@ -480,6 +485,22 @@ CacheProvider_ModelsCleanup(struct CacheProvider* provider);
  */
 void
 CacheProvider_TrimDerivedCaches(struct CacheProvider* provider);
+
+/*
+ * Keep every derived record resident until the matching CacheProvider_TrimRelease.
+ *
+ * TrimDerivedCaches is safe "between builds", and a build stepped across frames
+ * (the background rebuild, app_world_job.c) is between nothing: each unit
+ * re-reads its maps, loc configs and models here, and another load's trim in
+ * the meantime -- a boat deck's Task_WorldLoad -- would evict a record the
+ * next unit reads as absent, silently. A held trim is skipped, not deferred:
+ * the next build's own trim catches up. Counted, so holds nest.
+ */
+void
+CacheProvider_TrimHold(struct CacheProvider* provider);
+
+void
+CacheProvider_TrimRelease(struct CacheProvider* provider);
 
 void
 CacheProvider_SpriteAdd(

@@ -71,6 +71,10 @@ TORIRS_ENV_KNOB(torirs_env_wedge_zoom, "TORIRS_WEDGE_ZOOM")
 TORIRS_ENV_KNOB(torirs_env_wedge_fov_debug, "TORIRS_WEDGE_FOV_DEBUG")
 TORIRS_ENV_KNOB(torirs_env_orbit_debug, "TORIRS_ORBIT_DEBUG")
 TORIRS_ENV_KNOB(torirs_env_loc_lane_trace, "TORIRS_LOC_LANE_TRACE")
+/* How a server REBUILD is done: "blocking" (default) or "background", and a
+ * background rebuild's deadline in ms (App_WorldRebuildModeInit). */
+TORIRS_ENV_KNOB(torirs_env_world_rebuild, "TORIRS_WORLD_REBUILD")
+TORIRS_ENV_KNOB(torirs_env_world_job_deadline_ms, "TORIRS_WORLD_JOB_DEADLINE_MS")
 
 /* The painter's knobs: these change what is drawn, not just what is logged. */
 TORIRS_ENV_KNOB(torirs_env_draw_distance, "TORIRS_DRAW_DISTANCE")

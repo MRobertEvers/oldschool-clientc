@@ -163,6 +163,15 @@ td_scene_element_ptr(
     struct ToriDraw_Scene* scene,
     int element_id);
 
+/* An element of this pool has its renderer loads withheld (deferred_pool_plus1). */
+static inline bool
+td_scene_pool_deferred(
+    const struct ToriDraw_Scene* scene,
+    int pool)
+{
+    return scene->deferred_pool_plus1 != 0 && pool == scene->deferred_pool_plus1 - 1;
+}
+
 /* Makes room for one more event. The caller has already refused the push at
  * TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE, so this only ever grows toward it. */
 static void
@@ -1395,7 +1404,9 @@ ToriDraw_SceneClearPool(
         if( !element || element->pool != (uint8_t)pool )
             continue;
 
-        if( !clear_retained_batch && element->anim_seq_id != -1 )
+        /* An element whose loads were withheld was never seen by a renderer,
+         * so there is nothing for it to unload. */
+        if( !clear_retained_batch && !element->load_deferred && element->anim_seq_id != -1 )
         {
             td_scene_emit(
                 scene,
@@ -1408,7 +1419,7 @@ ToriDraw_SceneClearPool(
                 NULL,
                 NULL);
         }
-        if( !clear_retained_batch )
+        if( !clear_retained_batch && !element->load_deferred )
             td_scene_emit(
                 scene,
                 TORIDRAW_EVENT_MODEL_UNLOAD,
@@ -1493,6 +1504,121 @@ ToriDraw_SceneElementPool(
     if( !td_scene_element_valid(scene, element_id) )
         return -1;
     return (int)td_scene_element_ptr(scene, element_id)->pool;
+}
+
+int
+ToriDraw_SceneElementLiveCount(const struct ToriDraw_Scene* scene)
+{
+    assert(scene);
+    return scene->elements.live;
+}
+
+int
+ToriDraw_ScenePoolCount(
+    struct ToriDraw_Scene* scene,
+    int pool)
+{
+    int n = 0;
+
+    assert(scene);
+    assert(pool >= 0);
+    assert(pool < 256);
+    for( int id = scene->elements.head; id != TORIDRAW_INTRUSIVE_NIL;
+         id = scene->elements.nodes[id].next )
+    {
+        struct ToriDraw_SceneElement const* element = td_scene_element_ptr(scene, id);
+        if( element && element->pool == (uint8_t)pool )
+            n++;
+    }
+    return n;
+}
+
+void
+ToriDraw_SceneSetDeferredPool(
+    struct ToriDraw_Scene* scene,
+    int pool)
+{
+    assert(scene);
+    assert(pool >= -1);
+    assert(pool < 256);
+    /* The batch arena is view 0's static pool's alone; deferring it would
+     * leave the frame drawing elements no renderer has loaded. */
+    assert(pool != TORIDRAW_SCENE_POOL_STATIC);
+    /* One deferred pool at a time, set and cleared by its owner. */
+    assert(pool == -1 || scene->deferred_pool_plus1 == 0);
+    scene->deferred_pool_plus1 = pool + 1;
+}
+
+void
+ToriDraw_SceneAdoptPool(
+    struct ToriDraw_Scene* scene,
+    int from_pool,
+    int to_pool)
+{
+    bool batch;
+
+    assert(scene);
+    assert(from_pool >= 0);
+    assert(from_pool < 256);
+    assert(to_pool >= 0);
+    assert(to_pool < 256);
+    assert(from_pool != to_pool);
+    /* Nothing may be mid-batch: the adoption's own batch is the one that
+     * carries view 0's static geometry. */
+    assert(!scene->batch_building);
+    assert(!td_scene_pool_deferred(scene, to_pool));
+
+    /* Into view 0's static pool, the loads go out as the world build a
+     * blocking rebuild emits -- BATCH_BEGIN, a BATCH_MODEL_ADD per element,
+     * BATCH_END -- so a retained renderer bakes them into its static arena
+     * exactly as it bakes a build. Any other pool loads element by element,
+     * as a boat deck always has. */
+    batch = to_pool == TORIDRAW_SCENE_POOL_STATIC;
+    if( batch )
+        ToriDraw_SceneBatchBegin(scene);
+    for( int id = scene->elements.head; id != TORIDRAW_INTRUSIVE_NIL;
+         id = scene->elements.nodes[id].next )
+    {
+        struct ToriDraw_SceneElement* element = td_scene_element_ptr(scene, id);
+
+        if( !element || element->pool != (uint8_t)from_pool )
+            continue;
+        element->pool = (uint8_t)to_pool;
+        if( !element->load_deferred )
+            continue;
+        element->load_deferred = false;
+        if( batch )
+            td_scene_emit(
+                scene,
+                TORIDRAW_EVENT_BATCH_MODEL_ADD,
+                scene->current_batch_id,
+                id,
+                0,
+                0,
+                &element->model,
+                NULL,
+                NULL);
+        else
+            td_scene_emit(scene, TORIDRAW_EVENT_MODEL_LOAD, 0, id, 0, 0, &element->model, NULL, NULL);
+        /* Its tracks after its model, the order SetModel then SetAnimation
+         * emits them in for a loc built in place. */
+        for( int anim_index = 0; anim_index < 2 && !element->dynamic; anim_index++ )
+        {
+            struct ToriDraw_Animation* animation =
+                anim_index == 0 ? element->animation : element->secondary_animation;
+            int const before = scene->event_queue.count;
+            if( !animation )
+                continue;
+            td_scene_emit(
+                scene, TORIDRAW_EVENT_ANIM_LOAD, 0, id, 0, 0, &element->model, animation, NULL);
+            if( scene->event_queue.count > before )
+                scene->event_queue.events[scene->event_queue.count - 1].anim_index = anim_index;
+        }
+    }
+    if( batch )
+        ToriDraw_SceneBatchEnd(scene);
+    /* The adopted locs' sequences start ticking now. */
+    scene->anim_list_dirty = true;
 }
 
 int
@@ -1697,6 +1823,11 @@ ToriDraw_SceneAnimatedElements(
                 (struct ToriDraw_SceneElement*)ToriDraw_IntrusiveListGet(&scene->elements, id);
             if( !element || element->anim_seq_id == -1 || element->anim_external )
                 continue;
+            /* Not ticked while deferred: a loc in a scene still being built
+             * is in nobody's view, must not sound its frames, and starts its
+             * sequence when it is adopted, as a loc built in place does. */
+            if( td_scene_pool_deferred(scene, element->pool) )
+                continue;
             scene->anim_list[scene->anim_list_count++] = id;
         }
         scene->anim_list_dirty = false;
@@ -1725,7 +1856,11 @@ td_scene_element_assign_model(
     element->model = model;
     td_scene_element_pose_invalidate(element);
 
-    if( scene->batch_building )
+    /* Ahead of the batch test: a deferred element is in no batch, open or not,
+     * until its pool is adopted (ToriDraw_SceneAdoptPool). */
+    if( td_scene_pool_deferred(scene, element->pool) )
+        element->load_deferred = true;
+    else if( scene->batch_building )
         element->pending_batch_add = true;
     else
         td_scene_emit(
@@ -1833,7 +1968,8 @@ ToriDraw_SceneElementSetAnimation(
         /* Animated from here on, and SetModel declined to capture while it was
          * not. Whatever the model is holding now is its bind pose. */
         td_ensure_bind_pose(&element->model);
-        if( !element->dynamic )
+        /* A deferred element's track goes out with its model at adoption. */
+        if( !element->dynamic && !td_scene_pool_deferred(scene, element->pool) )
         {
             struct ToriDraw_Event* event;
             int old_event_count = scene->event_queue.count;
@@ -1877,8 +2013,9 @@ ToriDraw_SceneElementSetAnimation(
                 ToriDraw_ModelSetBoundsCylinder(element->model.u.model.model);
             }
         }
-        td_scene_emit(
-            scene, TORIDRAW_EVENT_ANIM_UNLOAD, 0, element_id, 0, 0, &element->model, NULL, NULL);
+        if( !td_scene_pool_deferred(scene, element->pool) )
+            td_scene_emit(
+                scene, TORIDRAW_EVENT_ANIM_UNLOAD, 0, element_id, 0, 0, &element->model, NULL, NULL);
     }
 }
 
@@ -2623,7 +2760,10 @@ ToriDraw_SceneReemitRendererLoads(struct ToriDraw_Scene* scene)
          id = scene->elements.nodes[id].next )
     {
         struct ToriDraw_SceneElement* element = td_scene_element_ptr(scene, id);
-        if( !element || element->dynamic || !ToriDraw_ModelKindIsFull(element->model.kind) )
+        /* A deferred element's loads belong to its adoption, not to a
+         * renderer that has only just started. */
+        if( !element || element->dynamic || element->load_deferred ||
+            !ToriDraw_ModelKindIsFull(element->model.kind) )
             continue;
         td_scene_emit(scene, TORIDRAW_EVENT_MODEL_LOAD, 0, id, 0, 0, &element->model, NULL, NULL);
         for( int anim_index = 0; anim_index < 2; anim_index++ )

@@ -445,24 +445,25 @@ app_loc_chain_depends_on_varp(
     return depends;
 }
 
-static void
-app_varp_refresh_loc_transforms(
+/* One view's half of app_varp_refresh_loc_transforms. Returns how many
+ * placements it queued a re-place for. */
+static int
+app_varp_refresh_view_loc_transforms(
     struct App* app,
+    int view,
     int varp_id)
 {
+    int previous_view;
+
     assert(app);
-    if( !app->provider || varp_id < 0 )
-        return;
-    int previous_view = app->active_world;
-    /* Each view has independent scene-local tile keys. In particular, (3,2)
-     * on a raft must never retype (3,2) in the root or another boat. */
-    for( int view = 0; view < WORLDVIEW_MAX; ++view )
+    assert(app->provider);
+    assert(varp_id >= 0);
+    assert(WorldviewRegistry_IsLive(&app->worldviews, view));
+    previous_view = app->active_world;
     {
-        if( !WorldviewRegistry_IsLive(&app->worldviews, view) )
-            continue;
         struct World* world = WorldviewRegistry_Get(&app->worldviews, view)->world;
         if( !world || !world->load_complete )
-            continue;
+            return 0;
         enum
         {
             MAX_REFRESH = 256
@@ -603,8 +604,39 @@ app_varp_refresh_loc_transforms(
                 pending[i].angle,
                 pending[i].op_flags,
                 pending[i].ops);
+        app->active_world = previous_view;
+        return n;
     }
-    app->active_world = previous_view;
+}
+
+static void
+app_varp_refresh_loc_transforms(
+    struct App* app,
+    int varp_id)
+{
+    assert(app);
+    if( !app->provider || varp_id < 0 )
+        return;
+    /* Each view has independent scene-local tile keys. In particular, (3,2)
+     * on a raft must never retype (3,2) in the root or another boat. */
+    for( int view = 0; view < WORLDVIEW_MAX; ++view )
+    {
+        if( !WorldviewRegistry_IsLive(&app->worldviews, view) )
+            continue;
+        (void)app_varp_refresh_view_loc_transforms(app, view, varp_id);
+    }
+}
+
+int
+app_varp_refresh_root_loc_transforms(
+    struct App* app,
+    int varp_id)
+{
+    assert(app);
+    assert(varp_id >= 0);
+    if( !app->provider )
+        return 0;
+    return app_varp_refresh_view_loc_transforms(app, WORLDVIEW_ROOT, varp_id);
 }
 
 /*

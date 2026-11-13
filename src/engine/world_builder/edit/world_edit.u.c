@@ -1465,6 +1465,7 @@ we_element_model(
  */
 static void
 we_merge_normals_sided(
+    struct WorldBuilderSlh* slh,
     struct ToriDraw_Model* model,
     struct ToriDraw_Normal* vertex_normals,
     struct ToriDraw_Normal* lighting_vertex_normals,
@@ -1490,9 +1491,9 @@ we_merge_normals_sided(
 
     g_merge_index++;
 
-    slh_reserve(other_vc);
-    g_slh_build++;
-    uint32_t const bucket_mask = (uint32_t)g_slh_bucket_cap - 1;
+    slh_reserve(slh, other_vc);
+    slh->build++;
+    uint32_t const bucket_mask = (uint32_t)slh->bucket_cap - 1;
     for( int other_vertex = 0; other_vertex < other_vc; other_vertex++ )
     {
         if( other_vertex_normals[other_vertex].face_count == 0 )
@@ -1500,14 +1501,14 @@ we_merge_normals_sided(
         uint32_t b =
             slh_hash(other_vx[other_vertex], other_vy[other_vertex], other_vz[other_vertex]) &
             bucket_mask;
-        if( g_slh_serial[b] != g_slh_build )
+        if( slh->serial[b] != slh->build )
         {
-            g_slh_serial[b] = g_slh_build;
-            g_slh_next[other_vertex] = -1;
+            slh->serial[b] = slh->build;
+            slh->next[other_vertex] = -1;
         }
         else
-            g_slh_next[other_vertex] = (int32_t)g_slh_head[b];
-        g_slh_head[b] = (uint32_t)other_vertex;
+            slh->next[other_vertex] = (int32_t)slh->head[b];
+        slh->head[b] = (uint32_t)other_vertex;
     }
 
     for( int vertex = 0; vertex < model_vc; vertex++ )
@@ -1524,11 +1525,11 @@ we_merge_normals_sided(
         y = model_vy[vertex] - check_offset_y;
         z = model_vz[vertex] - check_offset_z;
         b = slh_hash(x, y, z) & bucket_mask;
-        if( g_slh_serial[b] != g_slh_build )
+        if( slh->serial[b] != slh->build )
             continue;
 
-        for( int32_t other_vertex = (int32_t)g_slh_head[b]; other_vertex != -1;
-             other_vertex = g_slh_next[other_vertex] )
+        for( int32_t other_vertex = (int32_t)slh->head[b]; other_vertex != -1;
+             other_vertex = slh->next[other_vertex] )
         {
             struct ToriDraw_Normal* bn;
 
@@ -1644,6 +1645,7 @@ we_merge_pair(
     assert(adjacent_dm->merged_normals);
 
     we_merge_normals_sided(
+        &builder->slh,
         dm,
         dm->normals->vertex_normals,
         dm->merged_normals->vertex_normals,

@@ -194,6 +194,13 @@ static inline int
 painter_push_element(struct Painter* painter)
 {
     int element = painter->element_count++;
+    /* A tile names its walls, decor and scenery chain nodes by this index in
+     * an int16_t (struct PaintersTile, struct SceneryNode): past INT16_MAX it
+     * would wrap negative and name another element. It counts this painter's
+     * registrations, not scene element ids, so two scenes resident at once (a
+     * background rebuild's staging world has its own painter) do not add up
+     * here. */
+    assert(element <= INT16_MAX);
     if( element >= painter->element_capacity )
     {
         painter->element_capacity *= 2;

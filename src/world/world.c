@@ -646,6 +646,132 @@ World_SetLoadComplete(
         world->load_seq++;
 }
 
+/* Exchange two equal-sized fields in place; for World_SwapScene, whose fields
+ * range from an int to the 16 KB mapfunction array. */
+static void
+world_swap_bytes(
+    void* a,
+    void* b,
+    size_t n)
+{
+    unsigned char tmp[256];
+    unsigned char* pa = (unsigned char*)a;
+    unsigned char* pb = (unsigned char*)b;
+
+    while( n > 0 )
+    {
+        size_t const k = n < sizeof(tmp) ? n : sizeof(tmp);
+        memcpy(tmp, pa, k);
+        memcpy(pa, pb, k);
+        memcpy(pb, tmp, k);
+        pa += k;
+        pb += k;
+        n -= k;
+    }
+}
+
+#define WORLD_SWAP_FIELD(a, b, field) world_swap_bytes(&(a)->field, &(b)->field, sizeof((a)->field))
+
+void
+World_SwapScene(
+    struct World* live,
+    struct World* staged)
+{
+    unsigned epoch;
+
+    assert(live);
+    assert(staged);
+    assert(live != staged);
+    assert(live->scene == staged->scene);
+    /* Only a finished build is swapped in. */
+    assert(staged->load_complete);
+    /* The staging world is a scene and nothing else: no entity, event or
+     * listener of its own may be lost in the exchange. */
+    assert(staged->event_count == 0);
+    assert(staged->scenery_listener == NULL);
+    assert(staged->entities.player.active_count == 0);
+    assert(staged->entities.npc.active_count == 0);
+    assert(staged->entities.obj_stack.active_count == 0);
+    assert(staged->entities.projectile.active_count == 0);
+    assert(staged->entities.spotanim.active_count == 0);
+    assert(staged->entities.plugin_object.active_count == 0);
+    /* The live world's removals are drained first (App_WorldDrainEntityRemoved),
+     * as World_ResetSceneAlloc asserts before a build in place. */
+    assert(live->event_count == 0);
+
+    /* The window. */
+    WORLD_SWAP_FIELD(live, staged, _base_tile_x);
+    WORLD_SWAP_FIELD(live, staged, _base_tile_z);
+    WORLD_SWAP_FIELD(live, staged, _chunk_sw_x);
+    WORLD_SWAP_FIELD(live, staged, _chunk_sw_z);
+    WORLD_SWAP_FIELD(live, staged, _chunk_ne_x);
+    WORLD_SWAP_FIELD(live, staged, _chunk_ne_z);
+    WORLD_SWAP_FIELD(live, staged, _offset_x);
+    WORLD_SWAP_FIELD(live, staged, _offset_z);
+    WORLD_SWAP_FIELD(live, staged, _scene_size);
+
+    /* What World_ResetSceneAlloc allocates. The painter carries its cull map
+     * and occluders, so the two go together. */
+    WORLD_SWAP_FIELD(live, staged, heightmap);
+    WORLD_SWAP_FIELD(live, staged, collision_maps);
+    WORLD_SWAP_FIELD(live, staged, minimap);
+    WORLD_SWAP_FIELD(live, staged, painter);
+    WORLD_SWAP_FIELD(live, staged, cullmap);
+    WORLD_SWAP_FIELD(live, staged, tile_flags);
+    WORLD_SWAP_FIELD(live, staged, obj_raise);
+    WORLD_SWAP_FIELD(live, staged, tile_last_occupied_cycle);
+    WORLD_SWAP_FIELD(live, staged, scene_cycle);
+
+    /* What the build fills. The scenery records point into the info table, so
+     * the table travels with them. */
+    epoch = live->entities.scenery.epoch > staged->entities.scenery.epoch
+                ? live->entities.scenery.epoch
+                : staged->entities.scenery.epoch;
+    WORLD_SWAP_FIELD(live, staged, entities.scenery);
+    /* A pass cached against the old pool's epoch must not match the new one
+     * by coincidence: a pool reset in place bumps it, and so does this. */
+    live->entities.scenery.epoch = epoch + 1;
+    epoch = live->entities.terrain.epoch > staged->entities.terrain.epoch
+                ? live->entities.terrain.epoch
+                : staged->entities.terrain.epoch;
+    WORLD_SWAP_FIELD(live, staged, entities.terrain);
+    live->entities.terrain.epoch = epoch + 1;
+    WORLD_SWAP_FIELD(live, staged, scenery_info);
+    WORLD_SWAP_FIELD(live, staged, runtime_spawn_count);
+    WORLD_SWAP_FIELD(live, staged, mapfuncs);
+    WORLD_SWAP_FIELD(live, staged, mapfunc_count);
+    WORLD_SWAP_FIELD(live, staged, mapscenes);
+    WORLD_SWAP_FIELD(live, staged, mapscene_count);
+    WORLD_SWAP_FIELD(live, staged, mapscene_capacity);
+    WORLD_SWAP_FIELD(live, staged, area_sounds);
+    WORLD_SWAP_FIELD(live, staged, area_sound_count);
+    WORLD_SWAP_FIELD(live, staged, area_sound_capacity);
+
+    /* What World_ResetSceneAlloc resets, on the world that keeps its readers. */
+    live->scenery_pick_count = 0;
+    live->scenery_changed_count = 0;
+    live->scenery_changed_overflow = true;
+    live->geometry_serial++;
+    live->area_sound_generation++;
+    /* And what the build's end sets (World_SetLoadComplete(true)). */
+    live->load_complete = true;
+    live->load_seq++;
+    staged->load_complete = false;
+
+    /* The listener mirrors the pool: the reset a build in place announces,
+     * then every record the build would have placed, in its order. */
+    if( live->scenery_listener )
+    {
+        struct World_EntityPool const* pool = &live->entities.scenery;
+
+        live->scenery_listener(live->scenery_listener_userdata, live, WORLD_SCENERY_RESET, -1);
+        for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+            live->scenery_listener(live->scenery_listener_userdata, live, WORLD_SCENERY_PLACED, i);
+    }
+}
+
+#undef WORLD_SWAP_FIELD
+
 static void
 World_ResetSceneAlloc(
     struct World* world,

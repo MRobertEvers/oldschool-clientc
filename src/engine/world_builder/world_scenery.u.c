@@ -438,14 +438,6 @@ scenery_minimap_wall_flags(
  * key off this one predicate; if they ever disagree a model is lit twice or
  * not at all.
  */
-/* Why a placement had to build its own model (TORIRS_SCENERY_CENSUS=1). */
-int g_wb_share_hit;
-int g_wb_share_clone;
-int g_wb_share_proto;
-int g_wb_share_no_contour;
-int g_wb_share_no_sharelight;
-int g_wb_share_no_seq;
-
 static bool
 scenery_loc_model_shareable(const struct ToriRS_Location* loc)
 {
@@ -929,9 +921,9 @@ scenery_build_loc_model(
 
     if( wb_timing_on() )
     {
-        g_wb_t_model_convert_ms += wb_now_ms() - t_convert0;
-        g_wb_n_model_builds++;
-        g_wb_n_model_srcs += models_count;
+        builder->stats.model_convert_ms += wb_now_ms() - t_convert0;
+        builder->stats.model_builds++;
+        builder->stats.model_srcs += models_count;
     }
     double t_transform0 = wb_timing_on() ? wb_now_ms() : 0.0;
 
@@ -1064,7 +1056,7 @@ scenery_build_loc_model(
     ToriDraw_ModelSetBoundsCylinder(model);
 
     if( wb_timing_on() )
-        g_wb_t_model_transform_ms += wb_now_ms() - t_transform0;
+        builder->stats.model_transform_ms += wb_now_ms() - t_transform0;
 
     return model;
 }
@@ -1129,16 +1121,16 @@ scenery_load_model(
     else
     {
         if( config_loc->contour_ground_type != 0 )
-            g_wb_share_no_contour++;
+            builder->stats.share_no_contour++;
         else if( config_loc->sharelight != 0 )
-            g_wb_share_no_sharelight++;
+            builder->stats.share_no_sharelight++;
         else
-            g_wb_share_no_seq++;
+            builder->stats.share_no_seq++;
     }
     if( hnd.kind != TORIDRAWMK_NONE )
-        g_wb_share_hit++;
+        builder->stats.share_hit++;
     else if( proto_shareable )
-        g_wb_share_proto++;
+        builder->stats.share_proto++;
 
     /*
      * Not shareable whole, but the faces (and everything else the build
@@ -1165,7 +1157,7 @@ scenery_load_model(
              * below follows. */
             ToriDraw_ModelNoteTextureWants(ToriDraw_ModelRead(hnd));
             builder->scenery_deferred_angle = 0;
-            g_wb_share_clone++;
+            builder->stats.share_clone++;
         }
     }
 
@@ -1254,18 +1246,18 @@ scenery_load_model(
         size_t const bytes = ToriDraw_ModelHeapBytes(ToriDraw_ModelRead(hnd));
         if( from_cache )
         {
-            g_wb_census_dup_n++;
-            g_wb_census_dup_b += bytes;
+            builder->stats.census_dup_n++;
+            builder->stats.census_dup_b += bytes;
         }
         else if( proto_shareable )
         {
-            g_wb_census_proto_n++;
-            g_wb_census_proto_b += bytes;
+            builder->stats.census_proto_n++;
+            builder->stats.census_proto_b += bytes;
         }
         else
         {
-            g_wb_census_unique_n++;
-            g_wb_census_unique_b += bytes;
+            builder->stats.census_unique_n++;
+            builder->stats.census_unique_b += bytes;
         }
     }
 
