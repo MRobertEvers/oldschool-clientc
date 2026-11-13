@@ -786,8 +786,18 @@ return {
         -- [5033]..[5058]): the lair in a copy, the camera over it, the real cave after.
         local lair_mark = t.cutscene.mark()
         t.exec("enterCrandorHole", t.player.click_loc, "dragon_slayer_qip_ruin_entrance", 1)
-        t.exec("enterCrandorHole.cutscene", t.cutscene.await, "lair", { since = lair_mark, timeout = 40, quiet = 20,
+        t.exec("enterCrandorHole.cutscene", t.cutscene.await, "lair", { since = lair_mark, timeout = 40, quiet = 20, shots = "held",
             expect = { { op = "lookat", height = 150 }, { op = "moveto", height = 475 }, { op = "reset" } } })
+        -- Never move on while the scene holds the player: wait until the real cave
+        -- (out of the copy, the lock released at O+21).
+        local cave_r, cave_d = t.await({
+            level = function()
+                local r, tt = t.world.tile()
+                return r == "ok" and tt.x < 6400 and tt.z > 9000
+            end,
+            note = "enterCrandorHole: the real cave after the scene",
+        }, 30)
+        t.check("enterCrandorHole.sceneOver", cave_r == "ok", tostring(cave_r) .. " " .. tostring(cave_d))
         t.ticks(2)
         local hole_result, hole_tile = t.world.tile()
         t.check("in-crandor-cave", hole_tile.z > 9000, "tile " .. tostring(hole_tile.x) .. "," .. tostring(hole_tile.z) .. " level " .. tostring(select(2, t.world.level())))
@@ -796,18 +806,21 @@ return {
         t.exec("unlockShortcut", t.player.click_loc, "dragonsecretdoor", 1)
         t.ticks(3)
         t.check("unlockShortcut-wall", select(2, t.var.varbit("varb3741_dragonslayer_crandor_found_secret_door")) == 1 and select(2, t.world.tile()).z <= 9599, "walked through to the Karamja side (z <= 9599); found_secret_door=" .. tostring(select(2, t.var.varbit("varb3741_dragonslayer_crandor_found_secret_door"))) .. " tile " .. tostring(select(2, t.world.tile()).x) .. "," .. tostring(select(2, t.world.tile()).z))
-        t.exec("returnThroughShortcut", t.player.click_loc, "dragonsecretdoor", 1)
-        t.ticks(3)
-        t.check("returnThroughShortcut-tile", select(2, t.world.tile()).z >= 9600, "tile " .. tostring(select(2, t.world.tile()).x) .. "," .. tostring(select(2, t.world.tile()).z))
+        -- Back through from the Karamja side: one tile, a walk-through door (RSProx 4558 [5099]).
+        t.exec("returnThroughShortcut", t.player.cross_gate, { loc = "dragonsecretdoor", at = { 2836, 9600, 0 },
+            near = { 2836, 9599 }, far_ok = function(tt) return tt.z >= 9600 end,
+            far_desc = "back through the secret wall to Crandor's caves, z >= 9600" })
+        -- The shield goes on before the wall, as the recorder wore it: she hunts at 11
+        -- tiles and breathes on the climber at once (RSProx 4558 [5121]..[5123], "Your
+        -- shield absorbs most of the dragon fire.").
+        t.exec("killElvarg.shield", t.player.equip, "antidragonbreathshield")
+        t.check("killElvarg.shield-worn", select(2, t.inv.count("antidragonbreathshield")) == 0, "shield left the backpack: " .. tostring(select(2, t.inv.count("antidragonbreathshield"))) .. " remain")
         t.exec("goto-enterElvargArea", t.player.goto_tile, 2845, 9636, 0)
         t.exec("enterElvargArea", t.player.click_loc, "dragon_slayer_qip_stalagtite_jump", 1)
         t.ticks(4)
         local lair_tile = select(2, t.world.tile())
         t.check("enterElvargArea-tile", lair_tile.x == 2847, "climbed over the wall to " .. tostring(lair_tile.x) .. "," .. tostring(lair_tile.z))
 
-        -- killElvarg: shield worn (guide: Anti-dragon shield), lobsters carried, the rune scimitar is already worn
-        t.exec("killElvarg.shield", t.player.equip, "antidragonbreathshield")
-        t.check("killElvarg.shield-worn", select(2, t.inv.count("antidragonbreathshield")) == 0, "shield left the backpack: " .. tostring(select(2, t.inv.count("antidragonbreathshield"))) .. " remain")
         t.exec("killElvarg", t.player.attack, "elvarg_alive", 2, 30)
         H.fight_dead("killElvarg", 600, 60)
         -- RSProx index 4558 [5168]..[5194]: stage 9 six ticks after the kill, the head in the

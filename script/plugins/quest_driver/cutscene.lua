@@ -40,7 +40,10 @@
 --   shots    "all" = one shot per keyframe as it arrives; default = a shot
 --            at the first framing keyframe and one whenever the camera has
 --            HELD a newer framing target for 2 ticks, which is always the last
---            framing before the reset
+--            framing before the reset; "held" = only the held shots, for a
+--            scene whose first framing goes out under a black fade-in (Dragon
+--            Slayer's lair, RSProx 4558 [5037]: a shot there is a black frame
+--            gate.py cannot tell from the loading screen)
 --   expect   { {op="moveto", coord="0_40_49_40_32"},
 --              {op="lookat", x=2600, z=3200, height=300}, {op="reset"}, ... }
 --            each must appear IN ORDER: exact tile, height within 1 when
@@ -297,7 +300,13 @@ function QD.cutscene.await(name, opts)
                     serial = e.serial,
                 }
                 fresh[#fresh + 1] = #keyframes
-                newest_tick = e.tick
+                -- The quiet window runs from the later of the packet's tick and
+                -- now, as after every later pull: a run resumed from a
+                -- checkpoint stamps packets on a clock that restarted (Dragon
+                -- Slayer's lair scene: packets at t=131 read at tick 705), so the
+                -- packet's own tick alone closed the window at once and the row
+                -- read "reset=no" mid-scene.
+                newest_tick = math.max(e.tick or 0, api_drive.tick())
                 if e.op == "moveto" or e.op == "lookat" then
                     framing = framing + 1
                 end
@@ -322,7 +331,7 @@ function QD.cutscene.await(name, opts)
         for index = processed + 1, #keyframes do
             local kf = keyframes[index]
             local framing_op = kf.op == "moveto" or kf.op == "lookat"
-            if framing_op and not first_shot_done then
+            if framing_op and not first_shot_done and opts.shots ~= "held" then
                 first_shot_done = true
                 if not reset then
                     shoot(name .. "-kf" .. index)

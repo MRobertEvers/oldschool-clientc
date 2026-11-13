@@ -1564,6 +1564,31 @@ function QD.player._cast_self(spell, ticks)
         end
     end
 
+    -- A press that paid its XP inside the re-press window (3 ticks) broke out
+    -- of the loop above before the landing window it is owed: a standard
+    -- teleport moves at C+3 (the cast, two waits, the jump), which reaches the
+    -- client a tick later, so the row read "CAST and no teleport" while the
+    -- player landed right after (Dragon Slayer I 2026-11-12, and the same row
+    -- in other quests' ledgers). Finish the landing wait from the XP tick.
+    if moved_tick == nil and refusal_word == nil then
+        local xp_now = QD.player._magic_xp()
+        if xp_tick == nil and xp_now ~= nil and xp_before ~= nil and xp_now > xp_before then
+            xp_tick = api_drive.tick()
+        end
+        if xp_tick ~= nil then
+            QD.await({
+                level = function()
+                    if QD.player._self_cast_moved(from, QD.player._self_cast_tile()) then
+                        moved_tick = api_drive.tick()
+                        return true
+                    end
+                    return api_drive.tick() >= xp_tick + QD.player.SELF_CAST_LAND_TICKS
+                end,
+                note = "player.cast " .. symbol .. " self: the landing after the XP",
+            }, QD.player.SELF_CAST_LAND_TICKS + 1)
+        end
+    end
+
     local to = QD.player._self_cast_tile()
     local xp_after = QD.player._magic_xp()
     local lines = QD.player._spell_lines_since(since)

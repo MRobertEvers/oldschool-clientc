@@ -286,9 +286,11 @@ nothing for Elvarg. Attack and strength bonuses 0 (wiki), so the claw's max is 8
    three-tile stand cannot be replayed tick for tick. Not this audit's file.
 3. **Engagement tick**: recorded C+2 after the climb, ours C+1 with nothing else claiming him.
    Not explained (hunt cadence, the climb's delay, or a single-way window of 7).
-4. **Engine**: `npc_hasop` should resolve the multinpc for the active player (the
-   player_magic.rs2 line is the content stopgap); the ranged reach test fails beside a 4x4 npc;
-   `nc_size` answers 0 for the shell; the hunt has no line of sight. All in src/torirsserver.
+4. **Engine**: ~~`npc_hasop` should resolve the multinpc for the active player~~ fixed
+   2026-11-12 (`torirs_server_ops_npc.c` SS_OP_NPC_HASOP reads the rung the active player is
+   shown, as `npc_name` does; the player_magic.rs2 stopgap is removed; `test/combat/elvarg.lua`
+   32/32 with the recorder's knives). Still open: the ranged reach test fails beside a 4x4
+   npc; `nc_size` answers 0 for the shell; the hunt has no line of sight.
 5. **Breath accuracy** (no roll vs a magic roll) and **the hold rule** rest on one fight; the
    claw/breath share in melee (20%) is the JagexAsh chain, never recorded beyond 3 attacks.
 6. **A breath in flight when she dies** still splats in ours (the [5160]..[5164] pattern never
@@ -296,6 +298,8 @@ nothing for Elvarg. Attack and strength bonuses 0 (wiki), so the claw's max is 8
 7. **Visual**: the shell's stance over the rung on our client, and the six-fireball volley, not
    photographed.
 8. **The player's kit**: our adamant knife throw is `human_stake2` (929); the recording's is
-   `human_stake2_pvn` (7617). Generic weapon table, not Elvarg's.
+   `human_stake2_pvn` (7617). Across the index both seqs are sent in rev 241/242 sessions
+   (4483 and 4558: 7617; 4365..4370: 929), so the split is by thrown weapon; it needs the
+   worn weapon per throw from `--bas` transcripts. Generic weapon table, not Elvarg's.
 9. **wanderrange 32 / maxrange 32**: not evidenced either way (she moved one tile between the
    two sightings).

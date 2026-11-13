@@ -99,7 +99,7 @@ Our side is the quest test's tick log (`build/quest_gate/dragon/ticklog.tsv`, ru
 | crash sound, CRASH box, black | click | 717 | matched |
 | Ned gone; player on the beach | crash+3 | 720 | matched |
 | stage 8, hull bits 0, stand-up seq, black lifts | crash+4 | 721 | matched |
-| region music on the beach during the lock | none | 721 | ours only (engine region music during a cutscene); open |
+| region music on the beach during the lock | none | 721 | **fixed**: both scenes hold area music (`midi_hold`) from the lock to the unlock |
 
 ### Magic door, chest, hull
 
@@ -122,7 +122,7 @@ Our side is the quest test's tick log (`build/quest_gate/dragon/ticklog.tsv`, ru
 | remove_head_part1 + cutoffhead1 (35) | D+10 | D+11 | fixed with it |
 | line, part2, no-head body, cutoffhead2, silence + victory jingle | D+16 | D+17 | fixed with it |
 | death seq delay 7, dragon_death area r10 delay 7, dragonstomp3 delay 70 | D | delay 0, r12, no stomp | handed to the Elvarg audit |
-| jingle 267's length | 8,333 ms | 4,800 ms | engine length table; open |
+| jingle 267's length | 8,333 ms | 4,800 ms | **fixed**: `tools/jingle_lengths_recorded.tsv` + regenerated `torirs_server_jingle_lengths.gen.h` |
 
 ### The lair scene (4558 [5033]..[5058]): ported, not in the first audit
 
@@ -136,10 +136,19 @@ Our side is the quest test's tick log (`build/quest_gate/dragon/ticklog.tsv`, ru
 | 5 steps west | O+11.. | O+11.. (player-phase walk) |
 | black; real cave 2833,9658; black lifts; unlock + Dangerous Road | O+14, +17, +18, +21 | the same |
 
+### Crandor's caves: the secret door and the music
+
+| beat | recorded | ours before | now |
+|---|---|---|---|
+| secret door crossed (either side): the player steps one tile; for 2 ticks the wall is an inviswall with `dragonsecretdoor_open` on the Karamja tile; `scrape` (2410) | [5094], [5099] | the player teleported, no locs, no sound | as recorded |
+| first find from the lair side: the two-row line and the varbit | [5094] | the same | the same |
+| the caves' track | Dangerous Road ([5058] on landing, [5100] re-entering the square) | Attack 2 for the whole square 44_150 | Dangerous Road for the square (`docs/audio/music_regions.tsv`) |
+| the lair's track | Attack 2 on the climb over the low wall ([5124]) | the square's | an area of its own (`docs/audio/music_areas.tsv`: 2847..2863, 9628..9646) |
+
 ### Npc info and vars
 
 - `npc_block_inventory.py` over 4556..4559 against our tick log: the cast's faces and seqs match (Ned 8/8, Jenkins 5/5 + 4/4). Wormbrain's `[say] "Ow!"` and the missing death were **fixed**: he never dies (`death_script`), heals, says "Ow!" and drops the piece ([834]..[835]). Melzar's lines were **fixed** to the recorded text ("...pet rock." without "!"). Most other MISSING rows are maze monsters the recorder fought and the test does not. The talk npcs' facing counts differ only by how many talks each side made; the engine turns a talked-to npc to the player.
-- `npc_movement_audit.py`: the generals walk in the recording (14-20 steps a life) and stand in ours. That is Goblin Diplomacy's content; open.
+- `npc_movement_audit.py`: the generals walk in the recording (14-20 steps a life). Ours read 0 steps, but they are configured `defaultmode=wander` and were only in the test's view while held by its talk, so this is inconclusive rather than a defect.
 - `varp_transmit_audit.py`: varps 176 and 177 reach the client. No quest var is unsent.
 - Journal: `test/quests/dragon_journal.lua` sets each of the 11 recorded states and reads the journal. **11/11 match row for row.**
 
@@ -163,22 +172,22 @@ Our side is the quest test's tick log (`build/quest_gate/dragon/ticklog.tsv`, ru
 
 `test/quests/dragon.lua` follows the recorded flow; `test/quests/dragon_journal.lua` checks the journal (11/11); `test/combat/elvarg.lua` is the fight (32/32, see `dragon_slayer_i_elvarg.md`).
 
-Last full quest run (2026-11-12, with the audited Elvarg): **254 pass, 3 fail.** Every page passes, along with:
-- both cutscene rows (voyage: 30 keyframes; lair: 10, reset seen);
-- the hull, Ned, the Duke's shield;
-- the shielded fight (lowest hp 44/99), her death beats, the head;
-- the completion, scroll, points and XP.
+Last full quest run (2026-11-12): **258/258 pass**, gate green.
+- Every page passes, along with both cutscene rows, the hull, Ned and the Duke's shield.
+- The shield goes on before the lair wall, as the recorder wore it; Elvarg breathes on a climber at once. Lowest HP is about 43/99.
+- Her death beats, the head, the completion, the scroll, the points and the XP all pass.
 
-The three failures:
-- two teleport-cast timing rows (the same row fails in other quests' ledgers);
-- the secret door's settle (it has flaked before).
+Harness fixes this needed (shared, `script/plugins/quest_driver/`):
+- `spell.lua`: a self-cast that paid its XP inside the 3-tick re-press window skipped the landing wait. Teleport rows read "CAST and no teleport" here and in other quests.
+- `cutscene.lua`: the first camera packet's quiet window ran from the packet's own tick. On a run resumed from a checkpoint that clock restarts, so the await closed mid-scene.
+- `cutscene.lua`: `shots = "held"` skips the first-framing shot. The lair's first framing goes out under the black fade-in (4558 [5037]); that black frame matched the gate's loading-screen fingerprint.
 
 ## Open
 
-- **Elvarg's fight.** The boss rule calls for a full combat audit by one Opus agent (§13, §13b, §9). Not done. One fight is recorded (4558 [5121]..[5168]). Only the death seq and the dragonfire spam lines were changed.
+- **Elvarg's fight.** Audited (one recorded fight, 4558 [5121]..[5168]); its open items are in `dragon_slayer_i_elvarg.md`.
 - **Camera and interface packets** (the cutscene cams, overlays, fades) are not in the tick log. The cutscene rows check the camera keyframes; a `TORIRSSERVER_TRACE_OUT=2` diff of the interface packets has not been done.
 - **Unrecorded branches**, taken from the wiki and marked in the scripts: Klarense's refusals, Ned's first-meeting greeting and its condition, the no-map hand-over, Captain Ned's "not quite ready", Ned on Crandor, the Guildmaster after the kill, Oziach after the quest. The shield and visage branches are not written. Journal stages 6, 7, 8 and 10 are also unverified.
 - **Non-quest pages these sessions recorded** that are still missing: the Jack/Ben "So are you pirates?" alternate, Ahab's beer line, Jobless Jim and the Sailing crew, and the rope/wig lines in Ned's own talk (recorded wording differs from ours).
 - ~~The Duke can't be reached in the test.~~ Fixed: his spawn now follows the recordings (3209,3223; `tools/gen_spawns.py` NPC_SPAWN_RELOCATIONS). On 2026-11-12, all 3 full runs had Duke Horacio standing in the bedroom part of his study, behind a wall from the elfdoor side ("I can't reach that!", 4 presses). His dialogue is rebuilt, but the test gets no shield and fights Elvarg without one. The cause is his pathing or spawn, not this port.
-- **Engine: a hidden multinpc still hunts.** Elvarg respawned and killed a stage-9 player she is not drawn for. Her AI now drops such targets and respawns in 50 ticks (wiki). The engine itself should skip a -1 child when it picks hunt targets.
+- **Engine: a hidden multinpc still hunts.** Elvarg respawned and killed a stage-9 player she is not drawn for. Her AI now drops such targets and respawns in 50 ticks (wiki). The engine itself should skip a -1 child when it picks hunt targets. (`npc_hasop` on a shell now reads the player's rung: fixed in the engine 2026-11-12.)
 - `script7192` on the head's arrival and the two stray synths during the voyage ([4585] clock tick, [4605] homunculus) were not copied.

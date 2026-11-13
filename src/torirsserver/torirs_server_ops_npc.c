@@ -336,7 +336,26 @@ ToriRSServer_OpsNpc(
         if( !npc )
             return 1;
 
-        info = ToriRSServer_NpcInfoRecord(npc->type);
+        /* A multinpc shell carries no ops of its own: they are the rung's the
+         * player is shown, as `npc_name` reads the rung's name. Asked of the
+         * shell, every interactable multinpc read "no op" and content refused
+         * it (Elvarg's shell 816 under elvarg_alive: every ranged and magic
+         * attack "You can't attack this npc.", RSProx 4558 [5127] throws 17
+         * knives at her). With no player bound (an npc-only script) there are
+         * no varps to resolve against, so the spawned row answers. */
+        {
+            struct ToriRSServer* srv = (struct ToriRSServer*)state->env->host.user;
+            int type = npc->type;
+
+            if( srv && srv->active_player )
+            {
+                int child = ToriRSServer_NpcResolveTransform(srv->active_player, npc->type);
+
+                if( child >= 0 && child != npc->type )
+                    type = child;
+            }
+            info = ToriRSServer_NpcInfoRecord(type);
+        }
         if( !info || op < 1 || op > 5 )
         {
             SSVM_PushInt(state, 0);
