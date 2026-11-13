@@ -15,7 +15,7 @@
 
 /* IF_OPENSUB wrapper: mount a cache interface pack under a component slot of an
  * already-open root, then relayout + re-request CS1 over the new subtree. Runs
- * on the serial exec pipeline so a mount a packet triggers completes before the
+ * on the serial packet queue so a mount a packet triggers completes before the
  * next packet is popped (packet order holds), mirroring rs_ui_slots' slot mount.
  * type -1 means close (unmount via CreateTask_InterfaceOpenSub with iface<=0). */
 struct Task_OpenSubRefresh
@@ -206,8 +206,8 @@ App_BootWait(struct App* app)
         enum TaskRunnerStat main_stat;
         enum TaskRunnerStat exec_stat;
         app->boot_steps += 2;
-        main_stat = TaskRunner_Step(&app->runner);
-        exec_stat = TaskRunner_Step(&app->exec_runner);
+        main_stat = TaskRunner_Step(&app->frame_runner);
+        exec_stat = TaskRunner_Step(&app->packet_runner);
         app_title_swap_if_pending(app);
         if( app->app_state == APP_STATE_READY )
             app_async_polls(app);
@@ -276,9 +276,9 @@ App_BootBarCaption(
      * knows which stage it is at says so, and this obeys. A task which never
      * asks gets the standing sentence rather than silence.
      */
-    if( app->runner.render.intent == TORIRS_RENDER_BOOT_BAR && app->runner.render.caption &&
-        app->runner.render.caption[0] )
-        caption = app->runner.render.caption;
+    if( app->frame_runner.render.intent == TORIRS_RENDER_BOOT_BAR && app->frame_runner.render.caption &&
+        app->frame_runner.render.caption[0] )
+        caption = app->frame_runner.render.caption;
     else
         caption = RS_LoginReplies_String(
             &app->login_replies, app->screen == APP_SCREEN_GAME ? "entering_world" : "loading");
@@ -835,7 +835,7 @@ Task_AppBoot_Run(
     /* Queue model-widget sequences (they land through the frame pump and
      * render at rest pose meanwhile) and apply whatever is already loaded. */
     UITreeAnim_RequestMissing(
-        app->tree, app->scene, app->provider, app->runner.queue, &app->seq_loads);
+        app->tree, app->scene, app->provider, app->frame_runner.queue, &app->seq_loads);
     UITreeAnim_Advance(app->tree, app->scene, 0);
 
     app_sync_textures(app);
@@ -1054,10 +1054,10 @@ app_open_tree(
          * found the same index absent, and the second one's decode replaced
          * (freed) the table the first one's fill was still walking.
          */
-        ToriRS_TaskQueue_AddParallelPoolSubTask(app->runner.queue, preload, &task->preload_pending);
+        ToriRS_TaskQueue_AddParallelPoolSubTask(app->frame_runner.queue, preload, &task->preload_pending);
     }
 
-    ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
+    ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
 }
 
 void
@@ -1152,8 +1152,8 @@ Task_OpenSubRefresh_Run(
      * before mount_pack_under_target asserts.
      *
      * TASK_AWAIT_STATE, not a bare PT_YIELD loop, and the difference is a
-     * deadlock. Only Task_AppBoot on app->runner clears APP_STATE_BOOTING, and
-     * app->runner is stepped by the frame loop — which cannot get its turn back
+     * deadlock. Only Task_AppBoot on app->frame_runner clears APP_STATE_BOOTING, and
+     * app->frame_runner is stepped by the frame loop — which cannot get its turn back
      * while this queue is still settling. A plain yield here therefore spins
      * app_logic_tick's exec drain forever at 100% CPU: measured on every
      * Display-panel layout switch, which sends IF_OPENTOP and its IF_OPENSUB
@@ -1269,7 +1269,7 @@ static struct ToriRS_TaskVTable Task_OpenSubRefresh_VTable = {
 /*
  * The group in a slot once every mount change already asked for has landed.
  *
- * A mount change is a task on the exec pipeline, and one caller can queue
+ * A mount change is a task on the packet queue, and one caller can queue
  * several before any of them runs: IF_RESYNC closes what the snapshot does not
  * restate and reopens the rest, the close-modals sweep closes every modal
  * slot, IF_MOVESUB closes one slot and opens another. The tree has not seen
@@ -1287,8 +1287,8 @@ app_queued_slot_group(
     int idx;
 
     assert(app);
-    assert(app->exec_runner.queue);
-    for( task = app->exec_runner.queue->head; task; task = task->next )
+    assert(app->packet_runner.queue);
+    for( task = app->packet_runner.queue->head; task; task = task->next )
     {
         struct Task_OpenSubRefresh const* mount;
 
@@ -1376,7 +1376,7 @@ app_enqueue_open_sub(
     task->interface_id = interface_id;
     task->type = type;
     PT_INIT(&task->pt);
-    TaskRunner_AddRenderBlockingSerialTask(&app->exec_runner, &task->task);
+    TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &task->task);
 }
 
 static void

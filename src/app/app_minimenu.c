@@ -530,7 +530,7 @@ app_hover_text_update(
                 .tree = app->tree,
                 .ui_host = &app->ui_host,
                 .provider = app->provider,
-                .runner = &app->runner,
+                .runner = &app->frame_runner,
                 .invs = &app->invs,
                 .chat = &app->chat_source,
                 .events_for_component = app_minimenu_events_for_component,
@@ -853,7 +853,7 @@ app_clientop_run(
 
     ctx.script_id = op->script_id;
     RS_ClientOpContextBegin(&app->host.clientop, &ctx);
-    RS_CS2_RunScript(&app->host, &app->runner, op->script_id, NULL, 0, 0, NULL, 0);
+    RS_CS2_RunScript(&app->host, &app->frame_runner, op->script_id, NULL, 0, 0, NULL, 0);
     return 1;
 }
 
@@ -912,7 +912,7 @@ app_minimenu_open(
         .tree = app->tree,
         .ui_host = &app->ui_host,
         .provider = app->provider,
-        .runner = &app->runner,
+        .runner = &app->frame_runner,
         .invs = &app->invs,
         .chat = &app->chat_source,
         .events_for_component = app_minimenu_events_for_component,
@@ -1105,7 +1105,7 @@ app_inv_cell_op_flash(
      * dispatch could free underneath it. */
     UITree_HookInitCopy(&hook_copy, hook);
     RS_CS2_SetEventOp(&app->host, op_index > 0 ? op_index : 1, 0);
-    RS_CS2_DispatchHook(&app->host, &app->runner, hook_com_id, &hook_copy);
+    RS_CS2_DispatchHook(&app->host, &app->frame_runner, hook_com_id, &hook_copy);
     RS_CS2_SetEventOp(&app->host, 1, 0);
     UITree_HookClear(&hook_copy);
 }
@@ -1129,7 +1129,7 @@ app_targetsel_dispatch_hook(
         return;
     hook = entering ? UITree_Hooks(&app->tree->components[idx])->on_target_enter
                     : UITree_Hooks(&app->tree->components[idx])->on_target_leave;
-    RS_CS2_DispatchHook(&app->host, &app->runner, app->targetsel.component_id, &hook);
+    RS_CS2_DispatchHook(&app->host, &app->frame_runner, app->targetsel.component_id, &hook);
 }
 
 static void
@@ -1442,7 +1442,7 @@ app_run_default_ui_row(
         .tree = app->tree,
         .ui_host = &app->ui_host,
         .provider = app->provider,
-        .runner = &app->runner,
+        .runner = &app->frame_runner,
         .invs = &app->invs,
         .chat = &app->chat_source,
         .events_for_component = app_minimenu_events_for_component,
@@ -1734,8 +1734,8 @@ app_inv_drag_drop(
             struct ToriRS_TaskQueue* drag_queue = ToriRS_TaskQueue_New();
             struct TaskRunner drag_runner = {
                 .queue = drag_queue,
-                .io = app->runner.io,
-                .px = app->runner.px,
+                .io = app->frame_runner.io,
+                .px = app->frame_runner.px,
             };
             int target_id = dst_com;
             UITree_HookInitCopy(&hook_copy, hook);
@@ -2209,7 +2209,7 @@ app_onclick_trigger(
         return;
     ctx.script_id = script_id;
     RS_ClientOpContextBegin(&app->host.clientop, &ctx);
-    RS_CS2_RunScript(&app->host, &app->runner, script_id, NULL, 0, 0, NULL, 0);
+    RS_CS2_RunScript(&app->host, &app->frame_runner, script_id, NULL, 0, 0, NULL, 0);
 }
 
 int
@@ -2975,9 +2975,9 @@ app_minimenu_run_option(
         UITree_HookInitCopy(&hook_copy, hook);
         RS_CS2_SetEventOp(&app->host, opt.action_index >= 0 ? opt.action_index + 1 : 1, 0);
         RS_CS2_SetEventMouse(&app->host, click_x, click_y);
-        RS_CS2_DispatchHook(&app->host, &app->runner, hook_com_id, &hook_copy);
+        RS_CS2_DispatchHook(&app->host, &app->frame_runner, hook_com_id, &hook_copy);
         RS_CS2_SetEventOp(&app->host, 1, 0);
-        RS_CS2_PumpTransmits(&app->host, &app->runner);
+        RS_CS2_PumpTransmits(&app->host, &app->frame_runner);
         UITree_HookClear(&hook_copy);
         return 1;
     }

@@ -712,7 +712,7 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
                         app->tree->components[idx].component_id;
                     app->host.trigger_op[slot].ref = UITree_RefAt(app->tree, idx);
                     app->host.trigger_op[slot].op_index = op;
-                    app->runner.frame_settle_pending = 1;
+                    app->frame_runner.frame_settle_pending = 1;
                     app->need_redraw = 1;
                     publish_pending = 1;
                 }
@@ -721,10 +721,10 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
             {
                 int idx = widget(app, name, -1);
                 if( idx < 0 ) error("resume widget missing");
-                else { app->host.resume_pausebutton_component_id = app->tree->components[idx].component_id; app->runner.frame_settle_pending = 1; publish_pending = 1; }
+                else { app->host.resume_pausebutton_component_id = app->tree->components[idx].component_id; app->frame_runner.frame_settle_pending = 1; publish_pending = 1; }
             }
             else if( !strcmp(command, "close") )
-            { app->host.close_modal_requested = true; app->runner.frame_settle_pending = 1; publish_pending = 1; }
+            { app->host.close_modal_requested = true; app->frame_runner.frame_settle_pending = 1; publish_pending = 1; }
             else if( !strncmp(command, "text ", 5) )
             {
                 const unsigned char* text=(const unsigned char*)command+5;
@@ -860,8 +860,8 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
     }
     if( RS_CS2_TransmitsPending(&app->host) )
     {
-        RS_CS2_PumpTransmits(&app->host, &app->runner);
-        app->runner.frame_settle_pending = 1;
+        RS_CS2_PumpTransmits(&app->host, &app->frame_runner);
+        app->frame_runner.frame_settle_pending = 1;
         app->need_redraw = 1;
         finishing = 0;
         return;

@@ -1881,7 +1881,7 @@ DriveUi_LocVariants(
          * produce one and no amount of polling will change that. */
         if( !load )
             return DRIVE_NOT_FOUND;
-        ToriRS_TaskQueue_Add(app->runner.queue, load);
+        ToriRS_TaskQueue_Add(app->frame_runner.queue, load);
         return DRIVE_TIMEOUT;
     }
     if( loc_id == g_drive_ui_loc_load_id )

@@ -27,7 +27,7 @@
  * The two queues the client runs differ in ONE setting, `parallel`. The
  * packet pipeline is a strict FIFO -- the server chose the order of VARP,
  * PLAYER_INFO, VARP and the client must apply it, even when the middle one
- * parks on a model load (game/test/task_order_test.c). The asset queue
+ * parks on a model load (game/test/task_order_test.c). The frame queue
  * overlaps: nothing downstream cares which of a region's models lands first,
  * and every read a pass produces leaves in one batch.
  *
@@ -172,7 +172,7 @@ ToriRS_TaskJob_Done(struct ToriRS_TaskJob const* job)
  * task always has a settle pending to run it before the frame publishes.
  *
  * On the asset runner that is every script, hook and transmit painter
- * (game/rs_cs2_dispatch.c). On the packet FIFO it is every packet: an
+ * (game/rs_cs2_dispatch.c). On the packet queue it is every packet: an
  * ordered application IS a transaction, so app_net.c adds with this too.
  */
 static inline void

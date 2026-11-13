@@ -58,7 +58,7 @@ app_entity_spotanim_load(
     struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_ENTITY_SPOTANIM, 0, 0, 0);
     task->spotanim_id = spotanim_id;
     task->entity_element_id = element_id;
-    ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
+    ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
 }
 
 void
@@ -125,7 +125,7 @@ app_request_entity_seq(
     }
     task = CreateTask_SequenceLoad(app->provider, app->scene, seq_id);
     if( task )
-        ToriRS_TaskQueue_Add(app->runner.queue, task);
+        ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
 }
 
 /* Bind one entity's World animation state onto its scene element (reference
@@ -841,7 +841,7 @@ app_world_build_npc_body(
                     continue;
                 task = app_spawn_task_new(app, APP_SPAWN_ENTITY_MODEL, 0, 0, 0);
                 task->model_id = npc->body_models[k];
-                ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
+                ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
             }
             npc->body_load_serial = npc->body_serial;
         }

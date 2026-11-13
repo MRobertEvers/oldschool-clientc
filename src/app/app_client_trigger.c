@@ -138,9 +138,9 @@ app_client_trigger_queue(
     task->kind = ctx->kind;
     task->ctx = *ctx;
     PT_INIT(&task->pt);
-    ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
+    ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
 
-    RS_CS2_RunScript(&app->host, &app->runner, script_id, NULL, 0, 0, NULL, 0);
+    RS_CS2_RunScript(&app->host, &app->frame_runner, script_id, NULL, 0, 0, NULL, 0);
 }
 
 /* RS_ClientTriggerScriptLookupFn over the cache provider. */

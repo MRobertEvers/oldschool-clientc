@@ -400,7 +400,7 @@ test_player_info_count_zero_despawns_others(void)
 
 /*
  * An ANIM naming a sequence the scene already holds must put NOTHING on the
- * asset queue.
+ * frame queue.
  *
  * The loader answers a resident record with NULL -- that is its contract, and
  * the second and every later ANIM for one seq gets it. Passing that NULL to
@@ -438,7 +438,7 @@ test_npc_info_resident_sequence_queues_nothing(void)
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
     app.provider = &provider;
-    app.runner.queue = ToriRS_TaskQueue_New();
+    app.frame_runner.queue = ToriRS_TaskQueue_New();
 
     register_npc(&app, 601, 500, 30, 30, 30);
 
@@ -454,7 +454,7 @@ test_npc_info_resident_sequence_queues_nothing(void)
     TEST_ASSERT(g_seq_load_requests == 1, "the ANIM asked the provider for its sequence");
     TEST_ASSERT(g_seq_load_last_id == 60, "it asked for the sequence the wire named");
     TEST_ASSERT(
-        app.runner.queue->head == NULL,
+        app.frame_runner.queue->head == NULL,
         "a loader that answered \"already resident\" put nothing on the queue");
 
     npc = World_EntityPoolGet(&app.world->entities.npc, 0);
@@ -463,7 +463,7 @@ test_npc_info_resident_sequence_queues_nothing(void)
         npc && npc->animation.primary.anim_id == 60,
         "the animation is on the npc whether or not anything had to be loaded");
 
-    ToriRS_TaskQueue_Free(app.runner.queue);
+    ToriRS_TaskQueue_Free(app.frame_runner.queue);
     RS_EntitySync_Free(&app.esync);
     World_Free(app.world);
     CacheProvider_FreeEngineCaches(&provider);
@@ -595,7 +595,7 @@ test_multinpc_interface_head_loads_selected_child(void)
         "chathead fixture varps initialized");
     app.provider = &provider;
     /* The asset runner: app_if_head_enqueue streams the head load there. */
-    app.runner.queue = ToriRS_TaskQueue_New();
+    app.frame_runner.queue = ToriRS_TaskQueue_New();
     io = ToriRS_IOBatch_New();
     app.scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
     TEST_ASSERT(app.scene != NULL, "chathead fixture scene initialized");
@@ -617,7 +617,7 @@ test_multinpc_interface_head_loads_selected_child(void)
 
     App_SetInterfaceNpcHead(&app, 0x12340056, 100);
     TEST_ASSERT(
-        ToriRS_TaskQueue_Run(app.runner.queue, io) == TORIRS_ASYNCIO_STAT_DONE,
+        ToriRS_TaskQueue_Run(app.frame_runner.queue, io) == TORIRS_ASYNCIO_STAT_DONE,
         "multiNpc chathead load task completes");
     TEST_ASSERT(
         trace_has_id(
@@ -632,7 +632,7 @@ test_multinpc_interface_head_loads_selected_child(void)
     UITreeSceneBridge_Free(&app.bridge);
     ToriDraw_SceneFree(app.scene);
     ToriRS_IOBatch_Free(io);
-    ToriRS_TaskQueue_Free(app.runner.queue);
+    ToriRS_TaskQueue_Free(app.frame_runner.queue);
     VarPManager_Free(&app.varps);
     CacheProvider_FreeEngineCaches(&provider);
 }

@@ -60,7 +60,7 @@
  * has to be fed a tick after it is mounted, this panel paints from the
  * RUNCLIENTSCRIPT below. That makes the ordering ours to state rather than
  * something to leave a gap for, and the client honours it: IF_OPENSUB runs on
- * the serial exec pipeline, so the mount is complete before the next packet is
+ * the serial packet queue, so the mount is complete before the next packet is
  * popped, while a RUNCLIENTSCRIPT is held until the tick fence -- which is
  * after every packet of the tick has run. Open then build, one tick, no race.
  *

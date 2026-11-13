@@ -491,7 +491,7 @@ app_ground_items_tick(struct App* app)
         }
         app_cs2_set_active_tile(app, coord);
         RS_CS2_RunScript(
-            &app->host, &app->runner, app->host.script_ground_items_overlay, NULL, 0, 0, NULL, 0);
+            &app->host, &app->frame_runner, app->host.script_ground_items_overlay, NULL, 0, 0, NULL, 0);
     }
     RS_GroundItemsDirty_Clear(&app->ground_items_dirty);
 }

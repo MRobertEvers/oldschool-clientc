@@ -1025,12 +1025,12 @@ Task_ExecPlayerInfo_Run(
                          * stances the block names. */
                         if( self->app_decoded.npc_id >= 0 )
                             ToriRS_TaskQueue_Add(
-                                app->runner.queue,
+                                app->frame_runner.queue,
                                 CreateTask_PlayerTransmogLand(app, self->app_decoded.npc_id));
                         if( !EntityAssets_PlayerBodyResident(
                                 app, self->app_decoded.slots, self->app_decoded.gender, seqs, 7) )
                             ToriRS_TaskQueue_Add(
-                                app->runner.queue,
+                                app->frame_runner.queue,
                                 CreateTask_PlayerBodyLand(
                                     app, self->app_decoded.slots, self->app_decoded.gender, seqs, 7));
                     }
@@ -1049,7 +1049,7 @@ Task_ExecPlayerInfo_Run(
                         app->world, world_idx, self->pending_seq, self->pending_delay);
                 if( self->pending_seq >= 0 && self->cur_pid >= 0 )
                     ToriRS_TaskQueue_Add(
-                        app->runner.queue,
+                        app->frame_runner.queue,
                         CreateTask_PlayerHeldLand(app, self->cur_pid, self->pending_seq));
             }
         }
@@ -1982,7 +1982,7 @@ Task_ExecNpcInfo_Run(
                     struct ToriRS_Task* land = CreateTask_NpcBodyLand(
                         app, self->pending_npc_base_type, self->pending_npc_type);
                     if( land )
-                        ToriRS_TaskQueue_Add(app->runner.queue, land);
+                        ToriRS_TaskQueue_Add(app->frame_runner.queue, land);
                 }
             }
             else if( need == NPC_NEED_SEQ )
@@ -2025,7 +2025,7 @@ Task_ExecNpcInfo_Run(
                     struct ToriRS_Task* load =
                         CreateTask_SequenceLoad(app->provider, app->scene, self->pending_seq);
                     if( load )
-                        ToriRS_TaskQueue_Add(app->runner.queue, load);
+                        ToriRS_TaskQueue_Add(app->frame_runner.queue, load);
                 }
             }
         }

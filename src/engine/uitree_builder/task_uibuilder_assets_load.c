@@ -85,7 +85,7 @@ Task_UIBuilderAssetsLoad_Run(
     /*
      * Every load below that is addressed by a cache id -- a sprite archive, a
      * font, an obj, a component pack -- is independent of the others, so it is
-     * queued as a sibling on the asset queue and joined, the way
+     * queued as a sibling on the frame queue and joined, the way
      * task_pack_assets_load.c already loads an interface's assets. Awaited
      * one after another they were a network round trip apiece on a streamed
      * cache: 212 of the 251 round trips a browser paid before the title screen

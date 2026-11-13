@@ -212,7 +212,7 @@ Task_Dat2HitsplatLoad_Run(
      * precisely the bug this is fixing.
      */
     /*
-     * Queued as siblings on the asset queue and joined: the sprites are
+     * Queued as siblings on the frame queue and joined: the sprites are
      * independent of one another, and awaited one after another they were a
      * network round trip apiece on a streamed cache -- this loop and the
      * healthbar one were 200 of the 251 round trips a browser paid before the

@@ -134,7 +134,7 @@ enum TorirsPerfStage
      *  rather than timed, so `cs2` minus this is exact. Do NOT subtract
      *  `cs2_script` from `cs2` to get the same thing — `cs2_script` counts every
      *  script body anywhere, and the task pump also runs outside `cs2` (the
-     *  exec_runner settles on its own). Subtracting non-nested stages is what
+     *  packet_runner settles on its own). Subtracting non-nested stages is what
      *  produced the "183 us of task machinery" that never existed. */
     TORIRS_PERF_STAGE_CS2_SCRIPT_IN,
     /** `Platform_IO_Pump` + `Platform_IO_Process`: the two platform calls of
@@ -410,7 +410,7 @@ enum TorirsPerfCounter
      * steady; the distribution matters far more than the mean. */
     TORIRS_PERF_CTR_LOGIC_TICKS,
 
-    /** Server packets handed to the serial exec pipeline in one tick. */
+    /** Server packets handed to the serial packet queue in one tick. */
     TORIRS_PERF_CTR_PROTO_PACKETS,
     /** Obj inventory icons rasterized from scratch (cache misses only). */
     TORIRS_PERF_CTR_UI_ICON_RASTER,

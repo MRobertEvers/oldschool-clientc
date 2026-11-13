@@ -78,7 +78,7 @@ app_logic_tick(struct App* app)
     /* No widget hook may observe a half-applied packet/interface transaction.
      * The next logic tick resumes the serial runner; the shell keeps presenting
      * the preceding committed framebuffer in the meantime. */
-    if( app->exec_runner_had_work || app->server_tick_open || RS_ClientScriptQueue_Count(&app->pending_clientscripts) > 0 )
+    if( app->packet_runner_had_work || app->server_tick_open || RS_ClientScriptQueue_Count(&app->pending_clientscripts) > 0 )
         return redraw;
 
     /* Rasterize inventory item icons that the server's inv packets left
@@ -310,7 +310,7 @@ app_logic_tick(struct App* app)
         RS_Audio_Tick(
             &app->audio,
             app->provider,
-            &app->runner,
+            &app->frame_runner,
             app->scene,
             app->world,
             listener_x,
@@ -334,7 +334,7 @@ app_logic_tick(struct App* app)
                 struct ToriRS_Task* task =
                     CreateTask_MusicLoad(app->provider, &app->audio.music, song_id, (int)source);
                 if( task )
-                    ToriRS_TaskQueue_Add(app->runner.queue, task);
+                    ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
                 else
                     ToriRS_Music_LoadFailed(&app->audio.music, song_id);
             }
@@ -523,7 +523,7 @@ app_logic_tick(struct App* app)
                     app_cs2_set_active_tile(app, hover_coord);
                     RS_CS2_RunScript(
                         &app->host,
-                        &app->runner,
+                        &app->frame_runner,
                         app->host.script_highlight_hover_tile,
                         NULL,
                         0,
@@ -543,7 +543,7 @@ app_logic_tick(struct App* app)
                 app_cs2_set_active_player(app, app->world->local_pid);
                 RS_CS2_RunScript(
                     &app->host,
-                    &app->runner,
+                    &app->frame_runner,
                     app->host.script_highlight_current_tile,
                     NULL,
                     0,
@@ -577,7 +577,7 @@ app_logic_tick(struct App* app)
                     app_cs2_set_active_tile(app, fire_coord);
                     RS_CS2_RunScript(
                         &app->host,
-                        &app->runner,
+                        &app->frame_runner,
                         app->host.script_highlight_dest_tile,
                         NULL,
                         0,
@@ -625,7 +625,7 @@ app_logic_tick(struct App* app)
          * those scripts inline, so its pass saw the new hook; bind each fire to
          * the hook current when it runs (RS_CS2_DispatchTimer). With nothing
          * queued the hook cannot change first, and the snapshot is exact. */
-        int late_bind = TaskRunner_RenderBlockingRemains(&app->runner);
+        int late_bind = TaskRunner_RenderBlockingRemains(&app->frame_runner);
         if( timer_n > 256 )
             timer_n = 256;
         for( int i = 0; i < timer_n; i++ )
@@ -639,11 +639,11 @@ app_logic_tick(struct App* app)
             if( UITree_ComponentOrAncestorHidden(app->tree, com_id) )
                 continue;
             if( late_bind )
-                RS_CS2_DispatchTimer(&app->host, &app->runner, idx);
+                RS_CS2_DispatchTimer(&app->host, &app->frame_runner, idx);
             else
                 RS_CS2_DispatchHook(
                     &app->host,
-                    &app->runner,
+                    &app->frame_runner,
                     com_id,
                     &UITree_Hooks(&app->tree->components[idx])->on_timer);
             /*
@@ -746,7 +746,7 @@ app_logic_tick(struct App* app)
             /* Queued, not written here: the write is the platform's, and this
              * is the middle of a frame. */
             ToriRS_TaskQueue_Add(
-                app->runner.queue, CreateTask_PrefsSave(&app->prefs, app->prefs_path));
+                app->frame_runner.queue, CreateTask_PrefsSave(&app->prefs, app->prefs_path));
             app->prefs_dirty_cycle = 0;
         }
     }
@@ -766,7 +766,7 @@ app_logic_tick(struct App* app)
             app->logic_cycle - app->plugin_prefs_dirty_cycle >= APP_PREFS_SAVE_SETTLE_TICKS )
         {
             ToriRS_TaskQueue_Add(
-                app->runner.queue, CreateTask_PluginSave(app->plugins, app->plugin_prefs_path));
+                app->frame_runner.queue, CreateTask_PluginSave(app->plugins, app->plugin_prefs_path));
             app->plugin_prefs_dirty_cycle = 0;
         }
     }
@@ -945,7 +945,7 @@ app_logic_tick(struct App* app)
     /* Animations: request missing sequences (async), apply what's loaded.
      * In-flight sequences render at rest pose until they land. */
     UITreeAnim_RequestMissing(
-        app->tree, app->scene, app->provider, app->runner.queue, &app->seq_loads);
+        app->tree, app->scene, app->provider, app->frame_runner.queue, &app->seq_loads);
     if( UITreeAnim_Advance(app->tree, app->scene, 1) )
         redraw = 1;
 

@@ -283,7 +283,7 @@ exec_trigger_on_dialog_abort(struct RS_GameProtoCtx const* ctx)
             continue;
         if( UITree_ComponentOrAncestorHidden(ctx->tree, node->component_id) )
             continue;
-        RS_CS2_DispatchHook(&app->host, &app->runner, node->component_id, &hook);
+        RS_CS2_DispatchHook(&app->host, &app->frame_runner, node->component_id, &hook);
     }
     app->need_redraw = 1;
 }
@@ -985,7 +985,7 @@ exec_anim_specific(
         return;
     World_PlayerSetPrimaryAnimation(app->world, idx, pkt->id, pkt->delay);
     if( pkt->id >= 0 )
-        ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_PlayerHeldLand(app, pid, pkt->id));
+        ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_PlayerHeldLand(app, pid, pkt->id));
 }
 
 /* NPC_ANIM_SPECIFIC: the npc SEQUENCE block's rule for one player (deob
@@ -4026,7 +4026,7 @@ RS_GameProto_Exec(
              * Advertisement board's "list complete" call (poh_board_addline
              * row 200) ran before the row call had counted its row, and drew
              * "No houses are currently listed." over the house it listed. */
-            App_FlushPendingClientScripts(ctx->app, &ctx->app->exec_runner);
+            App_FlushPendingClientScripts(ctx->app, &ctx->app->packet_runner);
             /* The 600ms cadence a plugin actually wants: every packet of this
              * server tick is now in world state, so a snapshot read here
              * agrees with what the server believes. Anything sampled mid-tick

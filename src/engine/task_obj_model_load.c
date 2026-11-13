@@ -29,7 +29,7 @@ struct Task_ObjModelLoad
     int model_id;
     int base_obj_id;
     int base_model_id;
-    /** Loaders fanned out on the provider's asset queue and not yet ended. */
+    /** Loaders fanned out on the provider's frame queue and not yet ended. */
     int pending;
 };
 
@@ -345,7 +345,7 @@ Task_ObjModelLoad_Run(
      * are independent, and this task used to run them nose to tail -- an
      * inventory of twenty-eight items was twenty-eight chains of round trips
      * on a streamed cache. So each obj gets a single-obj instance of this task
-     * as a sibling on the asset queue, and this one joins.
+     * as a sibling on the frame queue, and this one joins.
      */
     if( self->n > 1 )
     {

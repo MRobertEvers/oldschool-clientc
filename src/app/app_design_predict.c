@@ -87,7 +87,7 @@ App_DesignPredictIfButton(
         if( !EntityAssets_PlayerBodyResident(
                 app, lp->appearance.slots, lp->gender, seqs, APP_DESIGN_SEQ_COUNT) )
             ToriRS_TaskQueue_Add(
-                app->runner.queue,
+                app->frame_runner.queue,
                 CreateTask_PlayerBodyLand(
                     app, lp->appearance.slots, lp->gender, seqs, APP_DESIGN_SEQ_COUNT));
     }

@@ -191,7 +191,7 @@ Task_NpcMultiLoad_Run(
             {
                 if( npctype->models[self->model_i] >= 0 )
                     ToriRS_TaskQueue_AddParallelPoolSubTask(
-                        app->runner.queue,
+                        app->frame_runner.queue,
                         CreateTask_ModelLoad(app->provider, npctype->models[self->model_i]),
                         &self->pending);
             }
@@ -210,7 +210,7 @@ Task_NpcMultiLoad_Run(
                 {
                     if( seqs[self->seq_i] >= 0 )
                         ToriRS_TaskQueue_AddParallelPoolSubTask(
-                            app->runner.queue,
+                            app->frame_runner.queue,
                             CreateTask_SequenceLoad(app->provider, app->scene, seqs[self->seq_i]),
                             &self->pending);
                 }
@@ -373,7 +373,7 @@ app_varp_refresh_npc_transforms(
         task->base_npc_id = npc->base_npc_id;
         task->resolved_npc_id = npc->npc_id;
         PT_INIT(&task->pt);
-        TaskRunner_AddRenderBlockingSerialTask(&app->exec_runner, &task->task);
+        TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &task->task);
     }
 }
 

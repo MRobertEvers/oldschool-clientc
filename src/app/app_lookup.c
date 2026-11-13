@@ -86,7 +86,7 @@ app_hitsplat_font_scene_id(struct App* app)
     {
         struct ToriRS_Task* task = CreateTask_FontLoad(app->provider, font_cache_id);
         if( task )
-            ToriRS_TaskQueue_Add(app->runner.queue, task);
+            ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
     }
     return scene_id;
 }
@@ -104,7 +104,7 @@ app_minimenu_font_scene_id(struct App* app)
          * just falls through to the text-node scan below until it lands). */
         struct ToriRS_Task* task = CreateTask_FontLoad(app->provider, font_cache_id);
         if( task )
-            ToriRS_TaskQueue_Add(app->runner.queue, task);
+            ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
     }
     if( scene_id <= 0 )
     {

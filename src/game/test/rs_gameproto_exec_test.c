@@ -166,7 +166,7 @@ main(void)
         int const landed_on = (501 << 16) | 2;
 
         assert(app);
-        app->exec_runner.queue = ToriRS_TaskQueue_New();
+        app->packet_runner.queue = ToriRS_TaskQueue_New();
         app->tree = UITree_New(2);
         UITree_InterfaceParentSet(app->tree, slot, 399, 1);
         App_IfEventsSet(app, list, 1, 200, 4);
@@ -205,7 +205,7 @@ main(void)
         TEST_EXEC_ASSERT(App_IfEventsGetAt(app, landed_on, 0) == 0,
                          "IF_MOVESUB must drop the arming of the group it lands on");
 
-        ToriRS_TaskQueue_Free(app->exec_runner.queue);
+        ToriRS_TaskQueue_Free(app->packet_runner.queue);
         UITree_Free(app->tree);
         UIIfEventTable_Free(&app->if_events);
         free(app);
@@ -233,7 +233,7 @@ main(void)
         int const moved = (500 << 16) | 2;
 
         assert(app);
-        app->exec_runner.queue = ToriRS_TaskQueue_New();
+        app->packet_runner.queue = ToriRS_TaskQueue_New();
         app->tree = UITree_New(2);
         UITree_InterfaceParentSet(app->tree, slot, 233, 0);
         App_IfHideSet(app, wc_icon, 0);
@@ -270,7 +270,7 @@ main(void)
         TEST_EXEC_ASSERT(UIIfIntStore_Get(&app->if_hides, moved, -1) == 1,
                          "IF_MOVESUB must keep the moved group's hides");
 
-        ToriRS_TaskQueue_Free(app->exec_runner.queue);
+        ToriRS_TaskQueue_Free(app->packet_runner.queue);
         UITree_Free(app->tree);
         UIIfEventTable_Free(&app->if_events);
         UIIfIntStore_Free(&app->if_hides);
@@ -300,7 +300,7 @@ main(void)
         int const welcome = (378 << 16) | 5;
 
         assert(app);
-        app->exec_runner.queue = ToriRS_TaskQueue_New();
+        app->packet_runner.queue = ToriRS_TaskQueue_New();
         app->tree = UITree_New(2);
         app->detached_parents[0] = (struct UITreeInterfaceParent){ chat_src, 162, 1 };
         app->detached_parents[1] = (struct UITreeInterfaceParent){ journal_src, 629, 1 };
@@ -325,7 +325,7 @@ main(void)
         TEST_EXEC_ASSERT(App_IfEventsGetAt(app, welcome, 0) == 0,
                          "IF_MOVESUB from an empty slot must close (disarm) its destination");
 
-        ToriRS_TaskQueue_Free(app->exec_runner.queue);
+        ToriRS_TaskQueue_Free(app->packet_runner.queue);
         UITree_Free(app->tree);
         UIIfEventTable_Free(&app->if_events);
         free(app);
@@ -796,19 +796,19 @@ main(void)
         int carried;
 
         assert(app);
-        app->exec_runner.queue = ToriRS_TaskQueue_New();
-        app->runner.queue = ToriRS_TaskQueue_New();
+        app->packet_runner.queue = ToriRS_TaskQueue_New();
+        app->frame_runner.queue = ToriRS_TaskQueue_New();
 
         /* No world here: nothing stands on the tile, so the pending change
          * carries the sequence whatever its loctype says. */
         App_WorldLocChange(app, 12, 34, 0, 32744 /* loc */, 22 /* grounddecor */, 0);
         App_WorldSceneryAnim(app, 12, 34, 0, 22, 8068 /* seq */);
-        TEST_EXEC_ASSERT(app->exec_runner.queue->head == NULL, "nothing on the packet FIFO");
-        TEST_EXEC_ASSERT(app->runner.queue->head != NULL, "the change is on the loc lane");
+        TEST_EXEC_ASSERT(app->packet_runner.queue->head == NULL, "nothing on the packet FIFO");
+        TEST_EXEC_ASSERT(app->frame_runner.queue->head != NULL, "the change is on the loc lane");
         TEST_EXEC_ASSERT(
-            app->runner.queue->head->next == NULL, "and the anim queued no task behind it");
+            app->frame_runner.queue->head->next == NULL, "and the anim queued no task behind it");
         TEST_EXEC_ASSERT(app->loc_lane_enqueued == 1, "the anim took no lane ticket");
-        change = (struct Task_AppSpawn*)app->runner.queue->head;
+        change = (struct Task_AppSpawn*)app->frame_runner.queue->head;
         TEST_EXEC_ASSERT(change->kind == APP_SPAWN_LOC_CHANGE, "the lane task is the change");
         TEST_EXEC_ASSERT(change->loc_carry_unfound_set == 1, "nothing stood: the change keeps it");
         TEST_EXEC_ASSERT(change->loc_carry_unfound_seq == 8068, "the sequence it keeps");
@@ -826,7 +826,7 @@ main(void)
         /* Two pending changes for one tile: the newer one is the pending spawn
          * (the deob keeps one per tile and layer and overwrites it). */
         App_WorldLocChange(app, 12, 34, 0, 32743, 22, 0);
-        newer = (struct Task_AppSpawn*)app->runner.queue->head->next;
+        newer = (struct Task_AppSpawn*)app->frame_runner.queue->head->next;
         TEST_EXEC_ASSERT(newer != NULL, "the second change is queued");
         TEST_EXEC_ASSERT(
             app_spawn_loc_lane_pending(app, app->active_world, 12, 34, 0, 3, 0) == newer,
@@ -909,13 +909,13 @@ main(void)
          * through a browser cache). The FIFO stays empty. */
         App_WorldSpotanimSpawn(app, 12, 34, 0, 1234 /* spotanim */, 92, 0);
         App_WorldProjectileSpawn(app, 10, 30, 0, 12, 34, 0, 1235, 43, 31, 41, 60, 16, 15, 0, 0);
-        TEST_EXEC_ASSERT(app->exec_runner.queue->head == NULL, "effects stay off the FIFO");
+        TEST_EXEC_ASSERT(app->packet_runner.queue->head == NULL, "effects stay off the FIFO");
         TEST_EXEC_ASSERT(app->loc_lane_enqueued == 3, "and take no lane ticket");
 
         /* Freeing the queue with the lane tasks unrun releases their tickets:
          * a ticket that never released would hold every later loc change. */
-        ToriRS_TaskQueue_Free(app->exec_runner.queue);
-        ToriRS_TaskQueue_Free(app->runner.queue);
+        ToriRS_TaskQueue_Free(app->packet_runner.queue);
+        ToriRS_TaskQueue_Free(app->frame_runner.queue);
         TEST_EXEC_ASSERT(app->loc_lane_applied == 3, "freed unrun, every ticket released");
         free(app);
         printf("ok - a LOC_ANIM goes to the standing loc; a pending LOC_ADD_CHANGE keeps it only as rev 239 does\n");

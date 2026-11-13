@@ -409,7 +409,7 @@ app_world_load_begin(
     task = CreateTask_WorldLoad(
         app->provider,
         app->world_builder,
-        app->runner.queue,
+        app->frame_runner.queue,
         chunks_xz,
         chunk_pair_count,
         -1,
@@ -418,7 +418,7 @@ app_world_load_begin(
         NULL,
         app_world_load_finish_cb,
         app);
-    ToriRS_TaskQueue_Add(app->runner.queue, task);
+    ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
     app->need_redraw = 1;
 }
 

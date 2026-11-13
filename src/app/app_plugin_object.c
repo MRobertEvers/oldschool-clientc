@@ -82,11 +82,11 @@ app_plugin_object_sync(
             return;
         /* One task per object per attempt. Without the latch a plugin polling
          * an object whose model is still loading would queue a task every
-         * frame, and the exec pipeline is serial. */
+         * frame, and the packet queue is serial. */
         obj->load_pending = 1;
         struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_PLUGIN_OBJECT, 0, 0, 0);
         task->plugin_object = handle;
-        TaskRunner_AddRenderBlockingSerialTask(&app->exec_runner, &task->task);
+        TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &task->task);
         return;
     }
 

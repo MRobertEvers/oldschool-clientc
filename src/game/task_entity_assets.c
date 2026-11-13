@@ -96,7 +96,7 @@ fanout_models(
         if( dup )
             continue;
         ToriRS_TaskQueue_AddParallelPoolSubTask(
-            app->runner.queue, CreateTask_ModelLoad(app->provider, ids[i]), pending);
+            app->frame_runner.queue, CreateTask_ModelLoad(app->provider, ids[i]), pending);
     }
 }
 
@@ -117,7 +117,7 @@ fanout_seqs(
         if( dup )
             continue;
         ToriRS_TaskQueue_AddParallelPoolSubTask(
-            app->runner.queue,
+            app->frame_runner.queue,
             CreateTask_SequenceLoad(app->provider, app->scene, ids[i]),
             pending);
     }
@@ -153,7 +153,7 @@ fanout_slot_configs(
             break;
         }
         if( task )
-            ToriRS_TaskQueue_AddParallelPoolSubTask(app->runner.queue, task, pending);
+            ToriRS_TaskQueue_AddParallelPoolSubTask(app->frame_runner.queue, task, pending);
     }
 }
 

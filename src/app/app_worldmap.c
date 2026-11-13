@@ -132,7 +132,7 @@ app_mapfunction_scene_id(
     {
         struct ToriRS_Task* task = CreateTask_MapElementLoad(app->provider, element_id);
         if( task )
-            ToriRS_TaskQueue_Add(app->runner.queue, task);
+            ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
         return 0;
     }
     if( out_element )
@@ -210,7 +210,7 @@ app_worldmap_push_icon(
     {
         struct ToriRS_Task* task = CreateTask_MapElementLoad(app->provider, element_id);
         if( task )
-            ToriRS_TaskQueue_Add(app->runner.queue, task);
+            ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
         return false;
     }
     /* The one seam both icon sources funnel through, so it is where the map's
@@ -608,7 +608,7 @@ app_worldmap_build_tiles(
                 app->worldmap.render,
                 app->provider,
                 app->scene,
-                app->runner.queue,
+                app->frame_runner.queue,
                 area,
                 region_x,
                 region_y,
@@ -654,7 +654,7 @@ app_worldmap_build_tiles(
                 app->worldmap.render,
                 app->provider,
                 app->scene,
-                app->runner.queue,
+                app->frame_runner.queue,
                 area,
                 region_x,
                 region_y,
@@ -749,7 +749,7 @@ app_worldmap_build_tiles(
          * anything newly in view waits behind all of it. */
         int queued = 0;
         int min_region_x = 0, max_region_x = 0, min_region_y = 0, max_region_y = 0;
-        for( struct ToriRS_Task* task = app->runner.queue ? app->runner.queue->head : NULL;
+        for( struct ToriRS_Task* task = app->frame_runner.queue ? app->frame_runner.queue->head : NULL;
              task && queued < 100000;
              task = task->next )
             queued++;

@@ -171,7 +171,7 @@ ignores_row_tick(
  * from the current kits/colours/gender. The reference first calls
  * IdkType.checkModel() on all seven kits and returns (retrying next frame) if
  * any model is still loading; here that gate is "every referenced model is
- * resident", with the missing ones queued on the async pipeline.
+ * resident", with the missing ones queued on the frame queue.
  *
  * Returns nonzero once the composite has been rebuilt.
  */
@@ -207,7 +207,7 @@ design_preview_rebuild(struct App* app)
         {
             struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, model_ids[i]);
             if( task )
-                ToriRS_TaskQueue_Add(app->runner.queue, task);
+                ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
         }
     }
     if( missing )

@@ -53,14 +53,14 @@ app_spawn_effect_queue(
         world = WorldviewRegistry_Get(&app->worldviews, task->view)->world;
     task->world_load_seq = world ? world->load_seq : 0;
     task->enqueue_cycle = world ? world->cycle : 0;
-    ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
+    ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
 }
 
 /*
  * Queue a loc change on the LOC LANE: the asset runner, with a ticket that
  * orders the APPLY, not the load.
  *
- * On the packet FIFO a loc change parked every packet behind it for its
+ * On the packet queue a loc change parked every packet behind it for its
  * config-then-models round trips, and a burst of them -- the nine rock locs
  * that change when TzKal-Zuk breaks loose -- paid those trips one change at
  * a time, 270 ms of frozen world for the cutscene's best moment. Here every
@@ -91,7 +91,7 @@ app_spawn_loc_lane_queue(
     task->enqueue_cycle = world ? world->cycle : 0;
     task->loc_ticket = ++app->loc_lane_enqueued;
     task->loc_tick = app->server_tick_serial;
-    ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
+    ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
 }
 
 void
@@ -102,7 +102,7 @@ app_world_spawn_player(
     int level)
 {
     struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_PLAYER, tile_x, tile_z, level);
-    TaskRunner_AddRenderBlockingSerialTask(&app->exec_runner, &task->task);
+    TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &task->task);
 }
 
 void
@@ -116,7 +116,7 @@ app_world_spawn_npc(
     struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_NPC, tile_x, tile_z, level);
     task->npc_id =
         ToriRS_EnvNamedArgOrEnv(args, "id", "TORIRS_SPAWN_NPC", 3106 /* OSRS-era "Man" */);
-    TaskRunner_AddRenderBlockingSerialTask(&app->exec_runner, &task->task);
+    TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &task->task);
 }
 
 /* Hotkey 7: ground item on the hovered tile — the same App_WorldObjStackAdd
@@ -133,7 +133,7 @@ app_world_spawn_obj(
     struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_OBJ, tile_x, tile_z, level);
     task->obj_id = ToriRS_EnvNamedArgOrEnv(
         args, "id", "TORIRS_SPAWN_OBJ", 1265 /* bronze pickaxe: named, with ground ops */);
-    TaskRunner_AddRenderBlockingSerialTask(&app->exec_runner, &task->task);
+    TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &task->task);
 }
 
 /* Free-standing spotanim spawn (reference MapSpotAnim / MAP_ANIM zone packet):

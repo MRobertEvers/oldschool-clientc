@@ -2312,9 +2312,9 @@ int
 app_plugin_io_down(struct App const* app)
 {
     assert(app);
-    if( !app->runner.px )
+    if( !app->frame_runner.px )
         return 0;
-    return !Platform_IO_ServerReachable(app->runner.px);
+    return !Platform_IO_ServerReachable(app->frame_runner.px);
 }
 
 static void

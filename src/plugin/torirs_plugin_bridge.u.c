@@ -3986,7 +3986,7 @@ app_plugin_obj_image(
 
         if( load )
         {
-            ToriRS_TaskQueue_Add(app->runner.queue, load);
+            ToriRS_TaskQueue_Add(app->frame_runner.queue, load);
             return 0;
         }
         /*
@@ -4850,7 +4850,7 @@ app_widget_ref(struct UITree const* tree, int32_t index)
 static void app_widget_actions(struct App* app,int32_t node,struct UIMinimenu* menu)
 {
     struct RS_MinimenuBuildCtx ctx={.tree=app->tree,.ui_host=&app->ui_host,
-        .provider=app->provider,.runner=&app->runner,.invs=&app->invs,
+        .provider=app->provider,.runner=&app->frame_runner,.invs=&app->invs,
         .events_for_component=app_minimenu_events_for_component,.events_user=app};
     UIMinimenu_Reset(menu);
     RS_Minimenu_AddWidgetRows(&ctx,node,menu);
@@ -6091,7 +6091,7 @@ app_plugin_tab_select(void* user, int tabno)
             return 0;
         }
         args[0] = tabno;
-        RS_CS2_RunScript(&app->host, &app->runner, script, args, 1, 0, NULL, 0);
+        RS_CS2_RunScript(&app->host, &app->frame_runner, script, args, 1, 0, NULL, 0);
         /* THE TAB IS SWITCHED NOW, not over the next frames (the owner,
          * 2026-10-09: "Interface tab changes do not need to wait for a tick
          * boundary"). The switch script mounts the panel through the task

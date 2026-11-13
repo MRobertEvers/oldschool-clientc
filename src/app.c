@@ -243,12 +243,12 @@ App_Init(
 
     ToriDraw_Init();
 
-    /* Phase 1: task runtime + disk. The runner owns the async pipeline every
+    /* Phase 1: task runtime + disk. The runner owns the frame queue every
      * other phase loads through. */
-    app->runner.io = ToriRS_IOBatch_New();
-    app->runner.queue = ToriRS_TaskQueue_New();
-    app->runner.px = Platform_IO_New();
-    assert(app->runner.px != NULL);
+    app->frame_runner.io = ToriRS_IOBatch_New();
+    app->frame_runner.queue = ToriRS_TaskQueue_New();
+    app->frame_runner.px = Platform_IO_New();
+    assert(app->frame_runner.px != NULL);
     /*
      * The asset pipeline runs its tasks in parallel.
      *
@@ -263,19 +263,19 @@ App_Init(
      * the change was measured with, and the first thing to try if a load ever
      * looks order-dependent when it should not be.
      */
-    app->runner.parallel = getenv("TORIRS_SERIAL_ASSETS") == NULL;
+    app->frame_runner.parallel = getenv("TORIRS_SERIAL_ASSETS") == NULL;
 
     /* Render skip (app_render.c): TORIRS_RENDER_SKIP=1 starts with it on. */
     app_render_skip_init(app);
 
     /* Serial game-action pipeline: own queue + io slots, SHARED platform
      * pump (there is exactly one IO backend). */
-    app->exec_runner.io = ToriRS_IOBatch_New();
-    app->exec_runner.queue = ToriRS_TaskQueue_New();
-    app->exec_runner.px = app->runner.px;
+    app->packet_runner.io = ToriRS_IOBatch_New();
+    app->packet_runner.queue = ToriRS_TaskQueue_New();
+    app->packet_runner.px = app->frame_runner.px;
 
     /* The background queue (app_world_job.c): given time, never drained. */
-    app_bg_runner_init(app);
+    app_background_runner_init(app);
 
 #if defined(TORIRS_PLATFORM_WEB)
     /*
@@ -305,7 +305,7 @@ App_Init(
          * along with its sparse cache. Absent means stream everything, every
          * boot, which is what this world did before. */
         int enabled = PlatformXIO_Dat1OnDemandEnable(
-            app->runner.px, host, cfg->connect_port, cfg->web_port, cfg->cache_dir);
+            app->frame_runner.px, host, cfg->connect_port, cfg->web_port, cfg->cache_dir);
         if( enabled != 0 )
         {
             /* Once more before giving up: the first attempt rides a cold
@@ -316,7 +316,7 @@ App_Init(
             struct timespec pause = { 1, 0 };
             nanosleep(&pause, NULL);
             enabled = PlatformXIO_Dat1OnDemandEnable(
-                app->runner.px, host, cfg->connect_port, cfg->web_port, cfg->cache_dir);
+                app->frame_runner.px, host, cfg->connect_port, cfg->web_port, cfg->cache_dir);
         }
         if( enabled != 0 )
         {
@@ -378,7 +378,7 @@ App_Init(
                 cfg->cache_dir);
             app_boot_refuse(message);
         }
-        Platform_IO_InitDat1Disk(app->runner.px, app->dat1_disk);
+        Platform_IO_InitDat1Disk(app->frame_runner.px, app->dat1_disk);
         /* No xtea step: dat1 archives are not encrypted. */
     }
     else
@@ -399,26 +399,26 @@ App_Init(
             app_boot_refuse(message);
         }
         app_load_map_keys(cfg);
-        Platform_IO_InitDat2Disk(app->runner.px, app->dat2_disk);
+        Platform_IO_InitDat2Disk(app->frame_runner.px, app->dat2_disk);
     }
 #endif
     /* What the boot manifest said about the cache. A local backend ignores it
      * (it has the disk); a remote one needs it to know what to open. */
     Platform_IO_InitCacheId(
-        app->runner.px,
+        app->frame_runner.px,
         cfg->cache_epoch,
         cfg->cache_game,
         cfg->cache_revision,
         cfg->cache_quirks,
         cfg->cache_dir);
-    Platform_IO_InitConfigPath(app->runner.px, cfg->config_dir);
+    Platform_IO_InitConfigPath(app->frame_runner.px, cfg->config_dir);
     char const* plugin_script_root = getenv("TORIRS_SCRIPT_DIR");
     Platform_IO_InitScriptPath(
-        app->runner.px,
+        app->frame_runner.px,
         plugin_script_root && *plugin_script_root ? plugin_script_root : cfg->script_dir);
     /* After the script path, because it is the fallback FOR it: a stored file
      * is looked for under script_dir first and asked of this server second. */
-    Platform_IO_InitIoServer(app->runner.px, cfg->io_host, cfg->io_port);
+    Platform_IO_InitIoServer(app->frame_runner.px, cfg->io_host, cfg->io_port);
 
     /* Phase 2: asset pipeline (provider is a view over the build cache). */
     if( cfg->cache_kind == APP_CACHE_DAT1 )
@@ -432,8 +432,8 @@ App_Init(
         app->provider = dat2_buildcache_as_provider(app->dat2_bc);
     }
     /* Every loader that fans out needs somewhere to put its siblings, and the
-     * parallel asset queue is that place -- see CacheProvider::asset_queue. */
-    CacheProvider_SetAssetQueue(app->provider, app->runner.queue);
+     * parallel frame queue is that place -- see CacheProvider::asset_queue. */
+    CacheProvider_SetAssetQueue(app->provider, app->frame_runner.queue);
     app_provider_set_cache_profile(app, cfg);
     if( !TorirsModelInstCache_Init(&app->model_inst_cache) )
         assert(0 && "model_inst_cache init");
@@ -1263,7 +1263,7 @@ App_Init(
              * this read only primes the table for a client that never dials
              * (and keeps the failure loud when the endpoint is down). */
             app->jag_crc_from_ondemand = 1;
-            if( PlatformXIO_Dat1OnDemandJagChecksums(app->runner.px, crc) == 0 )
+            if( PlatformXIO_Dat1OnDemandJagChecksums(app->frame_runner.px, crc) == 0 )
                 GameProtoRev_SetJagChecksums(rev, crc);
             else
                 TORIRS_ERR(
@@ -1367,7 +1367,7 @@ app_prefs_flush(struct App* app)
     task = CreateTask_PrefsSave(&app->prefs, app->prefs_path);
     io->task = task;
     while( task_run(task, io) == PT_YIELDED && guard++ < 8 )
-        Platform_IO_Process(app->runner.px, io);
+        Platform_IO_Process(app->frame_runner.px, io);
     task_free(task);
     ToriRS_IOBatch_Free(io);
 }
@@ -1454,16 +1454,16 @@ App_Shutdown(struct App* app)
         dat2_buildcache_free(app->dat2_bc);
     if( app->dat1_bc )
         dat1_buildcache_free(app->dat1_bc);
-    Platform_IO_Free(app->runner.px);
+    Platform_IO_Free(app->frame_runner.px);
     if( app->dat2_disk )
         RSCache_Dat2DiskFree(app->dat2_disk);
     if( app->dat1_disk )
         RSCache_Dat1DiskFree(app->dat1_disk);
-    app_bg_runner_free(app);
-    ToriRS_TaskQueue_Free(app->exec_runner.queue);
-    ToriRS_IOBatch_Free(app->exec_runner.io);
-    ToriRS_TaskQueue_Free(app->runner.queue);
-    ToriRS_IOBatch_Free(app->runner.io);
+    app_background_runner_free(app);
+    ToriRS_TaskQueue_Free(app->packet_runner.queue);
+    ToriRS_IOBatch_Free(app->packet_runner.io);
+    ToriRS_TaskQueue_Free(app->frame_runner.queue);
+    ToriRS_IOBatch_Free(app->frame_runner.io);
     /* The scripted-projectile curve VM, before the pool is drained. */
     if( app->curve_vm )
         CS2VM2_Release(app->curve_vm);

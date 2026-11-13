@@ -538,14 +538,14 @@ app_net_link_watch(
  * order is preserved because a packet and all of the mount/CS2 work it
  * awaits finish before its successor starts.  Ready cooperative yields
  * are not spread over visual frames; only real external IO can pause the
- * transaction, and that pause is covered by exec_runner_had_work.
+ * transaction, and that pause is covered by packet_runner_had_work.
  *
  * Called from two places, and the second is a frame-rate matter. Every 20ms
  * logic tick runs it as the tick's packet phase. But when the pipeline parks
  * mid-tick on an asynchronous read — on web every post-READY cache read is
  * one — its response lands between animation frames, long before the next
  * logic tick. Waiting for that tick meant each parked read held the visual
- * latch (exec_runner_had_work / server_tick_open) for a full 20ms, and a
+ * latch (packet_runner_had_work / server_tick_open) for a full 20ms, and a
  * hitsplat whose sprite+sound chain was three reads deep froze the world for
  * three ticks every server cycle. App_RunOnce therefore also resumes a parked
  * pipeline once per frame; with nothing parked and nothing queued the call
@@ -569,7 +569,7 @@ app_pump_net_packets(struct App* app)
         enum TaskRunnerStat stat;
 
         /* A root remount (IF_OPENTOP) tears the tree down and rebuilds it
-         * on app->runner. Every packet behind it targets components that
+         * on app->frame_runner. Every packet behind it targets components that
          * do not exist yet, so hold the whole pipeline rather than feed it
          * a tree mid-rebuild. App_RunOnce's own boot check cannot cover
          * this: it runs at the top of the frame, and the rebuild starts
@@ -577,7 +577,7 @@ app_pump_net_packets(struct App* app)
          * App_RunOnce. */
         if( app->app_state == APP_STATE_BOOTING )
         {
-            app->exec_runner_had_work = 1;
+            app->packet_runner_had_work = 1;
             break;
         }
 
@@ -598,13 +598,13 @@ app_pump_net_packets(struct App* app)
             /* In the paced catch-up after a rebuild's commit the settle has
              * this frame's deadline (App_PacedDeadline; 0 otherwise, an
              * ordinary settle). Out of time is the same answer as a parked
-             * read: exec_runner_had_work, and the next turn resumes it.
+             * read: packet_runner_had_work, and the next turn resumes it.
              *
              * The work the commit itself queued here (App_WorldLoadFinish's
              * loc re-place) is part of the commit and settles whole; the
              * pacing starts once it has. */
             stat = TaskRunner_SettleFrameUntil(
-                &app->exec_runner, committed ? 0 : App_PacedDeadline(app));
+                &app->packet_runner, committed ? 0 : App_PacedDeadline(app));
             if( committed )
             {
                 App_PaceArm(app);
@@ -624,7 +624,7 @@ app_pump_net_packets(struct App* app)
 
         /*
          * Parked on state this queue does not own -- in practice an asset the
-         * ASSET queue is loading: Task_NpcMultiLoad waiting for an npc's body
+         * FRAME queue is loading: Task_NpcMultiLoad waiting for an npc's body
          * parts, Task_WorldLoad waiting for a region's map squares. Resolve
          * that io here rather than ending the frame.
          *
@@ -638,29 +638,29 @@ app_pump_net_packets(struct App* app)
          *
          * A render request is the one thing that outranks finishing the io:
          * the whole point of that request is that this frame is seen. Anything
-         * else keeps going until the asset queue can no longer move, which is
+         * else keeps going until the frame queue can no longer move, which is
          * the honest end of "resolve the io" -- and is bounded, because a wait
          * that outlives its own budget gives up on its own.
          */
         if( stat == TASK_RUNNER_BLOCKED )
         {
-            enum TaskRunnerStat assets = TaskRunner_SettleFrame(&app->runner);
+            enum TaskRunnerStat assets = TaskRunner_SettleFrame(&app->frame_runner);
 
             if( getenv("TORIRS_FRAME_LATCH") )
             {
                 int n = 0;
-                for( struct ToriRS_Task* t = app->runner.queue->head; t; t = t->next )
+                for( struct ToriRS_Task* t = app->frame_runner.queue->head; t; t = t->next )
                     n++;
                 TORIRS_REPORT(
                     "frame_latch: blocked exec -> assets stat=%d progressed=%d queued=%d "
                     "reads_out=%d cycle=%d\n",
                     (int)assets,
-                    app->runner.progressed,
+                    app->frame_runner.progressed,
                     n,
-                    TaskRunner_ReadsOutstanding(&app->runner),
+                    TaskRunner_ReadsOutstanding(&app->frame_runner),
                     (int)app->logic_cycle);
             }
-            if( assets != TASK_RUNNER_RENDER && app->runner.progressed )
+            if( assets != TASK_RUNNER_RENDER && app->frame_runner.progressed )
                 continue;
         }
 
@@ -668,7 +668,7 @@ app_pump_net_packets(struct App* app)
         {
             if( getenv("TORIRS_FRAME_LATCH") )
             {
-                struct ToriRS_Task* head = app->exec_runner.queue->head;
+                struct ToriRS_Task* head = app->packet_runner.queue->head;
                 /* The head's own read, when it has one: which table and
                  * which archive the pipeline is waiting on. That is the
                  * difference between "a packet parked" and knowing which
@@ -679,20 +679,20 @@ app_pump_net_packets(struct App* app)
                     (int)stat,
                     head ? head->name : "(none)",
                     head ? head->blocked : -1,
-                    TaskRunner_ReadsOutstanding(&app->exec_runner),
+                    TaskRunner_ReadsOutstanding(&app->packet_runner),
                     head ? (int)head->io.kind : -1,
                     head && head->io.kind == TORIRS_IOK_CACHE ? head->io.u.cache.table_id : -1,
                     head && head->io.kind == TORIRS_IOK_CACHE ? head->io.u.cache.archive_id : -1,
                     (int)app->logic_cycle);
             }
-            app->exec_runner_had_work = 1;
+            app->packet_runner_had_work = 1;
             break;
         }
-        app->exec_runner_had_work = 0;
+        app->packet_runner_had_work = 0;
         /* Every packet is added with TaskRunner_AddRenderBlockingSerialTask, which arms this;
          * the FIFO's transaction is closed the moment it settles, and nothing
          * else on this runner reads the flag. */
-        app->exec_runner.frame_settle_pending = 0;
+        app->packet_runner.frame_settle_pending = 0;
 
         /* Do not cross a server-tick fence before that tick's newly
          * dispatched client scripts have settled against its final state. */
@@ -851,8 +851,8 @@ app_pump_net_packets(struct App* app)
             if( (gameproto_packet_changes_interface_mounts(packet.packet_type) ||
                  gameproto_packet_writes_interface_component(packet.packet_type)) &&
                 RS_ClientScriptQueue_Count(&app->pending_clientscripts) > 0 )
-                App_FlushPendingClientScripts(app, &app->exec_runner);
-            TaskRunner_AddRenderBlockingSerialTask(&app->exec_runner, CreateTask_GameProtoExec(app, &packet));
+                App_FlushPendingClientScripts(app, &app->packet_runner);
+            TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, CreateTask_GameProtoExec(app, &packet));
             redraw = 1;
         }
     }
@@ -875,7 +875,7 @@ app_pump_net_packets(struct App* app)
     {
         /* Onto the packet pipeline, in wire order, as the fence does
          * (rs_gameproto_exec.c, PKT_NAME_SERVER_TICK_END). */
-        App_FlushPendingClientScripts(app, &app->exec_runner);
+        App_FlushPendingClientScripts(app, &app->packet_runner);
         /* Same recovery fence for a connection whose tick was cut short:
          * once we intentionally fall back to the held scripts, allow the
          * resulting fully-settled state to publish too. */

@@ -681,7 +681,7 @@ EditorView_AppSpawnModule(
             port);
         length = EditorView_SpawnBody(url, group, &pose, module, body, (int)sizeof(body));
         assert(length > 0);
-        ToriRS_TaskQueue_Add(app->runner.queue,
+        ToriRS_TaskQueue_Add(app->frame_runner.queue,
             CreateTask_PluginLaunch("view", body, length, ++serial, view_spawn_delivered, NULL));
         return 1;
     }

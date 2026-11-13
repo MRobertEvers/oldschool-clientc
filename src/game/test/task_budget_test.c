@@ -363,8 +363,9 @@ test_a_drained_pass_never_reads_the_clock(void)
     struct Long* task;
     int ran = 0;
 
-    /* The same task on a queue given a clock but stepped plainly (and on one
-     * with no clock at all, as the packet FIFO and the asset queue are). */
+    /* The same task on a queue given a clock but stepped plainly, as the
+     * packet queue and the frame queue are outside a paced catch-up (and on
+     * one with no clock at all). */
     runner_init(&runner, &px, &clock);
     task = new_long(&clock, 1000, 7);
     ToriRS_TaskQueue_Add(runner.queue, &task->task);

@@ -56,7 +56,7 @@ struct Task_PlayerAppearanceLoad
     int kits[PLAYER_APPEARANCE_PARTS];
     int model_part;
     int model_i;
-    /* Model loaders queued as siblings on the provider's asset queue. */
+    /* Model loaders queued as siblings on the provider's frame queue. */
     int pending;
 };
 

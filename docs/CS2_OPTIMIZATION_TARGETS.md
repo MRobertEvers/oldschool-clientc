@@ -2950,7 +2950,7 @@ per-task-completion path is the same shape as the per-spawn `fprintf` that cost
 The section above sized the residual at 77 us by subtracting `cs2_script` from
 `task_queue_run`. **That subtraction is invalid and the 77 us figure is wrong.**
 `task_queue_run` totals 469 ms over the run against `cs2_settle`'s 288 ms � the
-task pump is not contained in the CS2 stage, because the exec_runner settles its
+task pump is not contained in the CS2 stage, because the packet_runner settles its
 own queue outside it. Subtracting stages that are not strictly nested is the same
 error that manufactured the 183 us in the first place, committed a second time in
 the act of retiring it.
@@ -2973,7 +2973,7 @@ impossible.
 | `cs2_task_start` | 11,067 | 11,900 |
 
 `cs2_script_in` (126,192) against `cs2_script` (125,625) says every script body in
-the run executes inside the CS2 bracket � the exec_runner runs none in steady
+the run executes inside the CS2 bracket � the packet_runner runs none in steady
 state � so the two are interchangeable here and the subtraction is exact.
 
 ### The stage is misnamed, and that is the whole answer

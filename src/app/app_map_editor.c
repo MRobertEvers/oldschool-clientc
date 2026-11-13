@@ -384,7 +384,7 @@ ui_service_loc_request(
         return;
     task = CreateTask_LocLoad(app->provider, loc_id);
     if( task )
-        ToriRS_TaskQueue_Add(app->runner.queue, task);
+        ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
 }
 
 static int
@@ -724,7 +724,7 @@ ui_service_worldmap_area(
             g_picker_worldmap_load_asked = 1;
             if( !task )
                 return -1;
-            ToriRS_TaskQueue_Add(app->runner.queue, task);
+            ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
         }
         return -2;
     }
@@ -778,11 +778,11 @@ ui_service_worldmap_poll(
     window.squares_h = squares_h;
     clock_gettime(CLOCK_MONOTONIC, &poll_t0);
     if( area_id == EDITOR_UI_MAP_AREA_ALL )
-        *out_missing = RS_WorldMapOverview_PollAll(g_picker_worldmap, app->provider, app->scene, app->runner.queue,
+        *out_missing = RS_WorldMapOverview_PollAll(g_picker_worldmap, app->provider, app->scene, app->frame_runner.queue,
             UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPSCENE),
             CacheProvider_WorldMapGet(app->provider), &window, px_per_square);
     else
-        *out_missing = RS_WorldMapOverview_Poll(g_picker_worldmap, app->provider, app->scene, app->runner.queue,
+        *out_missing = RS_WorldMapOverview_Poll(g_picker_worldmap, app->provider, app->scene, app->frame_runner.queue,
             UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPSCENE), area, &window,
             px_per_square);
     /* TORIRS_WORLDMAP_STATS=1: how long a window takes to arrive, from its
@@ -1174,7 +1174,7 @@ app_icon_obj(
     {
         struct ToriRS_Task* task = CreateTask_ObjLoad(app->provider, obj_id);
         if( task )
-            ToriRS_TaskQueue_Add(app->runner.queue, task);
+            ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
     }
     return NULL;
 }
@@ -1193,7 +1193,7 @@ app_icon_model(
     {
         struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, model_id);
         if( task )
-            ToriRS_TaskQueue_Add(app->runner.queue, task);
+            ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
     }
 }
 
@@ -1309,7 +1309,7 @@ ui_service_cache_sprite(
         {
             struct ToriRS_Task* task = CreateTask_SpriteLoad(app->provider, archive);
             if( task )
-                ToriRS_TaskQueue_Add(app->runner.queue, task);
+                ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
         }
         return 0;
     }
@@ -1357,7 +1357,7 @@ ui_service_overlay_texture(
             struct ToriRS_Task* task = CreateTask_FlotypeLoad(app->provider, id - 1);
             asked_overlay[id] = 1;
             if( task )
-                ToriRS_TaskQueue_Add(app->runner.queue, task);
+                ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
         }
         return 0;
     }
@@ -1375,7 +1375,7 @@ ui_service_overlay_texture(
             struct ToriRS_Task* task = CreateTask_TextureLoad(app->provider, flo->texture);
             asked_texture[flo->texture] = 1;
             if( task )
-                ToriRS_TaskQueue_Add(app->runner.queue, task);
+                ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
         }
         return 0;
     }
@@ -2634,14 +2634,14 @@ app_map_editor_layout_tick(struct App* app)
     if( g_app_editor_layout.state == 0 )
     {
         g_app_editor_layout.path = EditorLayout_Path();
-        if( !g_app_editor_layout.path || !app->runner.queue )
+        if( !g_app_editor_layout.path || !app->frame_runner.queue )
         {
             g_app_editor_layout.state = 3;
             return;
         }
         Editor_UiLayoutHold(ui);
         ToriRS_TaskQueue_Add(
-            app->runner.queue, CreateTask_EditorLayoutLoad(&g_app_editor_layout.load, g_app_editor_layout.path));
+            app->frame_runner.queue, CreateTask_EditorLayoutLoad(&g_app_editor_layout.load, g_app_editor_layout.path));
         g_app_editor_layout.state = 1;
         return;
     }
@@ -2677,7 +2677,7 @@ app_map_editor_layout_tick(struct App* app)
         {
             struct EditorLayoutFile file;
             Editor_UiLayoutCapture(ui, &file);
-            ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_EditorLayoutSave(&file, g_app_editor_layout.path));
+            ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_EditorLayoutSave(&file, g_app_editor_layout.path));
         }
         g_app_editor_layout.saved = now;
         g_app_editor_layout.saved_valid = 1;
@@ -2716,7 +2716,7 @@ app_map_editor_layout_flush(struct App* app)
     task = CreateTask_EditorLayoutSave(&file, g_app_editor_layout.path);
     io->task = task;
     while( task_run(task, io) == PT_YIELDED && guard++ < 8 )
-        Platform_IO_Process(app->runner.px, io);
+        Platform_IO_Process(app->frame_runner.px, io);
     task_free(task);
     ToriRS_IOBatch_Free(io);
     g_app_editor_layout.saved = Editor_UiLayoutFingerprint(ui);
@@ -2750,13 +2750,13 @@ app_map_editor_prefs_tick(struct App* app)
     if( g_app_editor_prefs.state == 0 )
     {
         g_app_editor_prefs.path = Editor_PrefsPath();
-        if( !g_app_editor_prefs.path || !app->runner.queue )
+        if( !g_app_editor_prefs.path || !app->frame_runner.queue )
         {
             g_app_editor_prefs.state = 3;
             return;
         }
         ToriRS_TaskQueue_Add(
-            app->runner.queue, CreateTask_EditorPrefsLoad(&g_app_editor_prefs.load, g_app_editor_prefs.path));
+            app->frame_runner.queue, CreateTask_EditorPrefsLoad(&g_app_editor_prefs.load, g_app_editor_prefs.path));
         g_app_editor_prefs.state = 1;
         return;
     }
@@ -2784,7 +2784,7 @@ app_map_editor_prefs_tick(struct App* app)
     }
     if( ui->prefs_serial == g_app_editor_prefs.saved_serial )
         return;
-    ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_EditorPrefsSave(&ui->prefs, g_app_editor_prefs.path));
+    ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_EditorPrefsSave(&ui->prefs, g_app_editor_prefs.path));
     g_app_editor_prefs.saved_serial = ui->prefs_serial;
 }
 
@@ -4130,7 +4130,7 @@ app_map_editor_ghost_place_edit(
         {
             struct ToriRS_Task* task = CreateTask_LocLoad(app->provider, wanted->loc_id);
             if( task )
-                ToriRS_TaskQueue_Add(app->runner.queue, task);
+                ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
         }
         return 0;
     }
@@ -4443,7 +4443,7 @@ app_map_editor_spawn_ghost_land(struct App* app)
             g_app_spawn_ghost_loads.npc_resolved = -1;
             task = CreateTask_NpcMultiLoad(app, spec->id, &g_app_spawn_ghost_loads.npc_resolved);
             if( task )
-                ToriRS_TaskQueue_Add(app->runner.queue, task);
+                ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
         }
         npctype = CacheProvider_NpctypeGet(app->provider, spec->id);
         if( !npctype || !app_world_npc_models_resident(app, npctype) )
@@ -4471,7 +4471,7 @@ app_map_editor_spawn_ghost_land(struct App* app)
             struct ToriRS_Task* task = CreateTask_ObjLoad(app->provider, spec->id);
             g_app_spawn_ghost_loads.obj_requested = spec->id;
             if( task )
-                ToriRS_TaskQueue_Add(app->runner.queue, task);
+                ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
         }
         obj = CacheProvider_ObjtypeGet(app->provider, spec->id);
         if( !obj )
@@ -4483,7 +4483,7 @@ app_map_editor_spawn_ghost_land(struct App* app)
                 struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, obj->inventory_model_id);
                 g_app_spawn_ghost_loads.model_requested = obj->inventory_model_id;
                 if( task )
-                    ToriRS_TaskQueue_Add(app->runner.queue, task);
+                    ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
             }
             return 0;
         }
@@ -4668,7 +4668,7 @@ app_spawn_preview_load(
     load->model_requested = -1;
     task = is_obj ? CreateTask_ObjLoad(app->provider, id) : CreateTask_NpcMultiLoad(app, id, &load->npc_resolved);
     assert(task);
-    ToriRS_TaskQueue_Add(app->runner.queue, task);
+    ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
     return load;
 }
 
@@ -4708,7 +4708,7 @@ app_spawn_preview_land_npc(
                     {
                         struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, npctype->models[i]);
                         if( task )
-                            ToriRS_TaskQueue_Add(app->runner.queue, task);
+                            ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
                     }
             }
             return 0;
@@ -4755,7 +4755,7 @@ app_spawn_preview_land_obj(
             struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, obj->inventory_model_id);
             assert(task);
             load->model_requested = obj->inventory_model_id;
-            ToriRS_TaskQueue_Add(app->runner.queue, task);
+            ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
         }
         return 0;
     }
@@ -5109,7 +5109,7 @@ app_player_body_spawn(
     {
         struct ToriRS_Task* task = CreateTask_PlayerAppearanceLoad(app->provider);
         if( task )
-            ToriRS_TaskQueue_Add(app->runner.queue, task);
+            ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
         g_app_player_ghost.idk_asked = 1;
     }
     if( !app_player_ghost_slots(app, look, out_slots) )
@@ -6463,7 +6463,7 @@ ui_service_loc_thumbnail(
         {
             struct ToriRS_Task* task = CreateTask_LocLoad(app->provider, loc_id);
             if( task )
-                ToriRS_TaskQueue_Add(app->runner.queue, task);
+                ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
             thumb->config_asked = 1;
         }
         return 0;
@@ -6479,7 +6479,7 @@ ui_service_loc_thumbnail(
                 {
                     struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, cfg->models[row][k]);
                     if( task )
-                        ToriRS_TaskQueue_Add(app->runner.queue, task);
+                        ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
                 }
                 missing = 1;
             }
@@ -6601,7 +6601,7 @@ app_map_editor_shape_strip_update(struct App* app)
         {
             struct ToriRS_Task* task = CreateTask_LocLoad(app->provider, loc_id);
             if( task )
-                ToriRS_TaskQueue_Add(app->runner.queue, task);
+                ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
             requested_loc = loc_id;
         }
         return;
@@ -6612,7 +6612,7 @@ app_map_editor_shape_strip_update(struct App* app)
             {
                 struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, cfg->models[row][k]);
                 if( task )
-                    ToriRS_TaskQueue_Add(app->runner.queue, task);
+                    ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
                 missing = 1;
             }
     if( missing )
@@ -6802,7 +6802,7 @@ app_map_editor_preview_update(struct App* app)
                 int const counts[1] = { 1 };
                 struct ToriRS_Task* task = CreateTask_ObjModelLoad(app->provider, ids, counts, 1);
                 if( task )
-                    ToriRS_TaskQueue_Add(app->runner.queue, task);
+                    ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
             }
             return; /* retry next frame once it lands */
         }
@@ -6868,7 +6868,7 @@ app_map_editor_preview_update(struct App* app)
             {
                 struct ToriRS_Task* task = CreateTask_LocLoad(app->provider, preview_id);
                 if( task )
-                    ToriRS_TaskQueue_Add(app->runner.queue, task);
+                    ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
                 requested_kind = cat_kind;
                 requested_id = preview_id;
             }
@@ -6903,7 +6903,7 @@ app_map_editor_preview_update(struct App* app)
             {
                 struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, model_id);
                 if( task )
-                    ToriRS_TaskQueue_Add(app->runner.queue, task);
+                    ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
                 models_kind = cat_kind;
                 models_id = preview_id;
             }
@@ -6962,7 +6962,7 @@ app_map_editor_preview_update(struct App* app)
             {
                 struct ToriRS_Task* task = CreateTask_NpcLoad(app->provider, preview_id);
                 if( task )
-                    ToriRS_TaskQueue_Add(app->runner.queue, task);
+                    ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
                 requested_kind = cat_kind;
                 requested_id = preview_id;
             }
@@ -6982,7 +6982,7 @@ app_map_editor_preview_update(struct App* app)
                 {
                     struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, npc->models[i]);
                     if( task )
-                        ToriRS_TaskQueue_Add(app->runner.queue, task);
+                        ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
                 }
                 missing = 1;
             }

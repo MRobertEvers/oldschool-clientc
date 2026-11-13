@@ -2,7 +2,7 @@
 #define SRC_GAME_TASK_GAMEPROTO_EXEC_H
 
 /*
- * One inbound packet = one Task. Enqueued FIFO on app->exec_runner (the
+ * One inbound packet = one Task. Enqueued FIFO on app->packet_runner (the
  * serial game-action pipeline), so packets execute in wire order across IO
  * yields, and any follow-on task a packet enqueues (interface slot mount,
  * world rebuild) runs before the next packet is popped — the pump in

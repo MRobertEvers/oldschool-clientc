@@ -1,5 +1,5 @@
 /*
- * The sibling join: a task that fans loads out on the (parallel) asset queue
+ * The sibling join: a task that fans loads out on the (parallel) frame queue
  * and waits for them to END, not for their records to become resident.
  *
  * Pins three things:
@@ -195,7 +195,7 @@ test_fanout_joins_when_every_sibling_ends(void)
 
     /* Pass 2: every sibling resumes and ends -- landed or refused alike --
      * and the count reaches zero. The parent is parked as BLOCKED (its wait
-     * is on the asset queue's progress, not on a read of its own), so it is
+     * is on the frame queue's progress, not on a read of its own), so it is
      * stepped again and gets through in pass 3. */
     pass_clock = 2;
     TaskRunner_Step(&runner);

@@ -163,17 +163,17 @@ ReplayCheckpoint_CanTake(
     assert(app);
     if( !app->tree || app->app_state != APP_STATE_READY )
         reason = "an interface tree is being built";
-    else if( app->exec_runner.queue->head )
+    else if( app->packet_runner.queue->head )
         reason = "a packet or interface mount is executing";
-    else if( app->runner.queue->head )
+    else if( app->frame_runner.queue->head )
     {
         static char runner_why[96];
 
         snprintf(runner_why, sizeof(runner_why), "a task is pending on the asset runner (%.32s)",
-                 app->runner.queue->head->name);
+                 app->frame_runner.queue->head->name);
         reason = runner_why;
     }
-    else if( app->runner.frame_settle_pending || app->runner_had_work || app->exec_runner_had_work )
+    else if( app->frame_runner.frame_settle_pending || app->frame_runner_had_work || app->packet_runner_had_work )
         reason = "the frame's clientscript transaction has not settled";
     else if( app->server_tick_open )
         reason = "a server tick is half applied";

@@ -455,7 +455,7 @@ app_accounts_save(struct App* app)
 {
     assert(app);
     if( app->accounts_path )
-        ToriRS_TaskQueue_Add(app->runner.queue,
+        ToriRS_TaskQueue_Add(app->frame_runner.queue,
                              CreateTask_AccountsSave(&app->accounts, app->accounts_path));
 }
 
@@ -502,7 +502,7 @@ app_accounts_begin_signin(
         RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_PASSWORD, NULL);
     }
     app->signin_busy = 1;
-    ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_AccountSignIn(&app->signin));
+    ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_AccountSignIn(&app->signin));
     RS_Title_SetMessages(&app->title, connecting, NULL, NULL);
     app->screen = APP_SCREEN_CONNECTING;
     app_title_state_changed(app);
@@ -946,7 +946,7 @@ app_login_refresh_jag_checksums(struct App* app)
     assert(app);
     if( !app->jag_crc_from_ondemand || !app->net || !app->net->rev )
         return;
-    if( PlatformXIO_Dat1OnDemandJagChecksumsRefresh(app->runner.px, crc) == 0 )
+    if( PlatformXIO_Dat1OnDemandJagChecksumsRefresh(app->frame_runner.px, crc) == 0 )
         GameProtoRev_SetJagChecksums(app->net->rev, crc);
 #else
     (void)app;
@@ -1108,7 +1108,7 @@ app_title_tick(struct App* app)
     {
         app->accounts_load_started = 1;
         ToriRS_TaskQueue_Add(
-            app->runner.queue,
+            app->frame_runner.queue,
             CreateTask_AccountsLoad(&app->accounts, app->accounts_path, &app->accounts_loaded));
     }
     if( app->accounts_loaded && !app->accounts_shown )
@@ -1123,7 +1123,7 @@ app_title_tick(struct App* app)
     if( app->oauth && app->accounts_loaded && !app->site_load_started )
     {
         app->site_load_started = 1;
-        ToriRS_TaskQueue_Add(app->runner.queue,
+        ToriRS_TaskQueue_Add(app->frame_runner.queue,
                              CreateTask_SiteSessionLoad(&app->site, &app->site_loaded));
     }
     if( app->site_loaded && !app->site_shown )

@@ -114,7 +114,7 @@ app_plugin_asset_read(
         return 0;
     app_plugin_asset_saved_path(app, plugin, name, saved, sizeof(saved));
     ToriRS_TaskQueue_Add(
-        app->runner.queue, CreateTask_PluginAssetRead(app->plugins, plugin, name, saved));
+        app->frame_runner.queue, CreateTask_PluginAssetRead(app->plugins, plugin, name, saved));
     return 1;
 }
 
@@ -147,7 +147,7 @@ app_plugin_asset_write(
             name);
         return 0;
     }
-    ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_PluginAssetWrite(saved, data, size));
+    ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_PluginAssetWrite(saved, data, size));
     return 1;
 }
 
@@ -437,7 +437,7 @@ app_plugin_files_request(
     assert(body);
 
     ToriRS_TaskQueue_Add(
-        app->runner.queue,
+        app->frame_runner.queue,
         CreateTask_PluginFiles(verb, body, size, serial, app_plugin_files_delivered, app));
     return 1;
 }
@@ -474,7 +474,7 @@ app_plugin_capture_read(
     assert(path);
 
     ToriRS_TaskQueue_Add(
-        app->runner.queue,
+        app->frame_runner.queue,
         CreateTask_PluginFileRead(path, serial, app_plugin_capture_delivered, app));
     return 1;
 }
@@ -614,7 +614,7 @@ app_plugin_screenshots_write(
          * path to go to. */
         assert(shot->path[0]);
         ToriRS_TaskQueue_Add(
-            app->runner.queue, CreateTask_PluginAssetWrite(shot->path, png, (int)png_size));
+            app->frame_runner.queue, CreateTask_PluginAssetWrite(shot->path, png, (int)png_size));
     }
 
     mz_free(png);

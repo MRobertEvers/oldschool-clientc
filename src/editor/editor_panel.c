@@ -375,7 +375,7 @@ hook_floor_request(
     task = is_overlay ? CreateTask_FlotypeLoad(app->provider, id - 1)
                       : CreateTask_UnderlayLoad(app->provider, id - 1);
     if( task )
-        ToriRS_TaskQueue_Add(app->runner.queue, task);
+        ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
 }
 
 static void

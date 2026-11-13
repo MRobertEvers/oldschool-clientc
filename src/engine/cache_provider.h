@@ -133,7 +133,7 @@ struct CacheProvider
     /**
      * Where a loader puts the loads it fans out. Required.
      *
-     * The parallel asset queue (App's `runner`). A task that needs several
+     * The parallel frame queue (App's `frame_runner`). A task that needs several
      * independent records -- an interface's sprites and fonts, an npc's body
      * parts, a region's models -- queues one loader per record here and joins
      * on the set (ToriRS_TaskQueue_AddParallelPoolSubTask / PT_TASK_JOIN), so the runner

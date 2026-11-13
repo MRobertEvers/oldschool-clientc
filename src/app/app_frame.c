@@ -408,7 +408,7 @@ app_drain_command(
             assert(header.length >= CmdBus_UiRunScriptBytes(cmd->argc));
             RS_CS2_RunScript(
                 &app->host,
-                &app->runner,
+                &app->frame_runner,
                 cmd->script_id,
                 cmd->argc > 0 ? cmd->args : NULL,
                 cmd->argc,
@@ -557,7 +557,7 @@ app_frame_latch_note(
  * pass: nothing a task does assumes it is inside App_RunOnce. The CS2 settle
  * does its layout resolve here when it reaches its fixed point, which is
  * what the frame would do at the same point; publication of the tree stays
- * with the frame, which sees runner_had_work cleared and refreshes.
+ * with the frame, which sees frame_runner_had_work cleared and refreshes.
  */
 enum TaskRunnerStat
 App_PumpAsync(
@@ -567,7 +567,7 @@ App_PumpAsync(
     enum TaskRunnerStat result = TASK_RUNNER_IDLE;
 
     assert(app);
-    app->runner.telemetry.in_pump = !from_frame;
+    app->frame_runner.telemetry.in_pump = !from_frame;
     /* Pump ordinary async work with a frame budget.  A CS2 transaction is the
      * exception: cooperative yields are drained to completion, and a genuine
      * external wait retains the last settled frame until it can resume. */
@@ -599,7 +599,7 @@ App_PumpAsync(
          * uses it to decide whether to sleep: work still queued means the
          * frame cap would be pacing the pipeline rather than the screen. */
         app->async_pending = 0;
-        int settling_cs2 = !booting && (app->runner_had_work || app->runner.frame_settle_pending);
+        int settling_cs2 = !booting && (app->frame_runner_had_work || app->frame_runner.frame_settle_pending);
 
         if( settling_cs2 )
         {
@@ -627,7 +627,7 @@ App_PumpAsync(
                  * 2-3 ms apiece -- otherwise all land in one frame. SPENT
                  * ends the pumping as WAITING does, and async_pending below
                  * brings the next frame straight back. Never during boot. */
-                stat = TaskRunner_StepUntil(&app->runner, booting ? 0 : App_PacedDeadline(app));
+                stat = TaskRunner_StepUntil(&app->frame_runner, booting ? 0 : App_PacedDeadline(app));
                 if( stat == TASK_RUNNER_SPENT )
                     App_PaceNoteStop(app);
                 if( stat != TASK_RUNNER_PROGRESSED )
@@ -669,7 +669,7 @@ App_PumpAsync(
         else if( !settling_cs2 && steps >= budget )
         {
             /* Post-boot frame that used its whole budget with work still
-             * queued: the async pipeline is being drip-fed rather than run. */
+             * queued: the frame queue is being drip-fed rather than run. */
             app->busy_frames++;
             app->busy_steps += steps;
         }
@@ -680,16 +680,16 @@ App_PumpAsync(
         if( stat != TASK_RUNNER_IDLE )
             app->async_pending = 1;
         if( settling_cs2 && stat != TASK_RUNNER_IDLE )
-            app->runner_had_work = 1;
+            app->frame_runner_had_work = 1;
         /* Tree-affecting async work (CS2 hooks/transmits) finished: refresh. */
         if( settling_cs2 && stat == TASK_RUNNER_IDLE )
         {
-            app->runner_had_work = 0;
+            app->frame_runner_had_work = 0;
             app->pending_tree_refresh = 1;
         }
         result = stat;
     }
-    app->runner.telemetry.in_pump = 0;
+    app->frame_runner.telemetry.in_pump = 0;
     return result;
 }
 
@@ -939,9 +939,9 @@ app_run_once_body(
     /* A browser/cache request can be the one legitimate pause in a CS2 visual
      * transaction.  Do not run input against the partially-mutated tree, and
      * do not rebuild the emit list from it. */
-    if( app->runner_had_work )
+    if( app->frame_runner_had_work )
     {
-        app_frame_latch_note(app, "runner_had_work");
+        app_frame_latch_note(app, "frame_runner_had_work");
         return 0;
     }
 
@@ -1102,7 +1102,7 @@ app_run_once_body(
                  * App_RunOnce.  Settle tick N's client scripts before tick
                  * N+1 is allowed to apply, or the fence would be semantically
                  * crossed even though the packet runner stopped at it. */
-                if( app->runner.frame_settle_pending )
+                if( app->frame_runner.frame_settle_pending )
                 {
                     enum TaskRunnerStat stat;
 
@@ -1114,7 +1114,7 @@ app_run_once_body(
                     app_rebuild_mark(app, "tick_cs2run");
                     if( stat != TASK_RUNNER_IDLE )
                     {
-                        app->runner_had_work = 1;
+                        app->frame_runner_had_work = 1;
                         ticks = t + 1;
                         break;
                     }
@@ -1187,7 +1187,7 @@ app_run_once_body(
      * must also enter this pipeline: a paused client has no next logic tick to
      * start it, so publish-only server responses otherwise wait forever. This
      * drains the existing serial protocol queue without advancing simulation. */
-    if( app->exec_runner_had_work || app->server_tick_open || RS_ClientScriptQueue_Count(&app->pending_clientscripts) > 0 ||
+    if( app->packet_runner_had_work || app->server_tick_open || RS_ClientScriptQueue_Count(&app->pending_clientscripts) > 0 ||
         (app->net && app->net->packets_head) || App_WorldJobPending(app) )
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TICK_PACKETS)
@@ -1201,7 +1201,7 @@ app_run_once_body(
     /* Timer hooks, packet-fence RUNCLIENTSCRIPTs, and other tick work enqueue
      * CS2 before interaction.  Settle them now so hit testing sees one coherent
      * tree rather than the intermediate state of a yielding script. */
-    if( ran_cs2 || app->runner.frame_settle_pending )
+    if( ran_cs2 || app->frame_runner.frame_settle_pending )
     {
         enum TaskRunnerStat stat;
 
@@ -1212,7 +1212,7 @@ app_run_once_body(
         }
         if( stat != TASK_RUNNER_IDLE )
         {
-            app->runner_had_work = 1;
+            app->frame_runner_had_work = 1;
             app_frame_latch_note(app, stat == TASK_RUNNER_BLOCKED ? "cs2_blocked" : "cs2_pending");
             return 0;
         }
@@ -1231,9 +1231,9 @@ app_run_once_body(
     {
         app_frame_latch_note(
             app,
-            app->runner_had_work               ? "settled:runner_had_work"
-            : app->runner.frame_settle_pending ? "settled:frame_settle_pending"
-            : app->exec_runner_had_work        ? "settled:exec_runner_had_work"
+            app->frame_runner_had_work               ? "settled:frame_runner_had_work"
+            : app->frame_runner.frame_settle_pending ? "settled:frame_settle_pending"
+            : app->packet_runner_had_work        ? "settled:packet_runner_had_work"
             : app->server_tick_open            ? "settled:server_tick_open"
                                                : "settled:pending_clientscripts");
         return 0;
@@ -1446,18 +1446,18 @@ app_run_once_body(
         int const had_focus = RS_CS2_InputFocusId(&app->host) >= 0;
         if( field >= 0 )
         {
-            RS_CS2_InputSetFocus(&app->host, &app->runner, field);
+            RS_CS2_InputSetFocus(&app->host, &app->frame_runner, field);
             input_took_click = 1;
             app->input_frame_consumed = 1;
             app->need_redraw = 1;
         }
         else if( had_focus )
         {
-            RS_CS2_InputSetFocus(&app->host, &app->runner, -1);
+            RS_CS2_InputSetFocus(&app->host, &app->frame_runner, -1);
             app->need_redraw = 1;
         }
         if( field >= 0 || had_focus )
-            RS_CS2_PumpTransmits(&app->host, &app->runner);
+            RS_CS2_PumpTransmits(&app->host, &app->frame_runner);
     }
 
     /* Keyed on the clicked NODE, not only its component id: a plugin-owned
@@ -1472,7 +1472,7 @@ app_run_once_body(
             .tree = app->tree,
             .ui_host = &app->ui_host,
             .provider = app->provider,
-            .runner = &app->runner,
+            .runner = &app->frame_runner,
             .invs = &app->invs,
             .chat = &app->chat_source,
             .events_for_component = app_minimenu_events_for_component,
@@ -1598,7 +1598,7 @@ app_run_once_body(
             .tree = app->tree,
             .ui_host = &app->ui_host,
             .provider = app->provider,
-            .runner = &app->runner,
+            .runner = &app->frame_runner,
             .invs = &app->invs,
             .chat = &app->chat_source,
             .events_for_component = app_minimenu_events_for_component,
@@ -1755,7 +1755,7 @@ app_run_once_body(
         for( int i = 0; i < out.intent_count; i++ )
         {
             struct UIIntent const* intent = &out.intents[i];
-            struct TaskRunner* dest = &app->runner;
+            struct TaskRunner* dest = &app->frame_runner;
             /* An earlier intent in this same batch can hide/delete this one.
              * Re-resolve at the last possible point before dispatch. */
             if( !app_intent_targets_live(app, intent) )
@@ -1774,8 +1774,8 @@ app_run_once_body(
                 {
                     drag_queue = ToriRS_TaskQueue_New();
                     drag_runner.queue = drag_queue;
-                    drag_runner.io = app->runner.io;
-                    drag_runner.px = app->runner.px;
+                    drag_runner.io = app->frame_runner.io;
+                    drag_runner.px = app->frame_runner.px;
                 }
                 dest = &drag_runner;
             }
@@ -1894,14 +1894,14 @@ app_run_once_body(
         {
             input_ate_keys |= RS_CS2_InputKey(
                 &app->host,
-                &app->runner,
+                &app->frame_runner,
                 &app->ui_host,
                 out.key_events[e].key_typed,
                 out.key_events[e].key_pressed);
         }
         if( input_ate_keys )
         {
-            RS_CS2_PumpTransmits(&app->host, &app->runner);
+            RS_CS2_PumpTransmits(&app->host, &app->frame_runner);
             ran_cs2 = 1;
             app->need_redraw = 1;
         }
@@ -1956,7 +1956,7 @@ app_run_once_body(
                     out.key_events[e].key_pressed);
             RS_CS2_DispatchHook(
                 &app->host,
-                &app->runner,
+                &app->frame_runner,
                 target->component_id,
                 &UITree_Hooks(&app->tree->components[idx])->on_key);
             ran_cs2 = 1;
@@ -2008,7 +2008,7 @@ app_run_once_body(
                         target->component_id,
                         hook->script_id,
                         codes[e]);
-                RS_CS2_DispatchHook(&app->host, &app->runner, target->component_id, hook);
+                RS_CS2_DispatchHook(&app->host, &app->frame_runner, target->component_id, hook);
                 ran_cs2 = 1;
             }
         }
@@ -2295,7 +2295,7 @@ app_run_once_body(
      * widgets populate this frame instead of one tick later. Early-outs when
      * nothing was unhidden. */
     if( out.intent_count > 0 || out.key_target_count > 0 )
-        RS_CS2_PumpTransmits(&app->host, &app->runner);
+        RS_CS2_PumpTransmits(&app->host, &app->frame_runner);
 
     /* The line was sent this frame, so the focus goes with it: the next key
      * belongs to the hotkeys again until Enter asks for the line back. Applied
@@ -2369,7 +2369,7 @@ app_run_once_body(
             }
             if( stat != TASK_RUNNER_IDLE )
             {
-                app->runner_had_work = 1;
+                app->frame_runner_had_work = 1;
                 return 0;
             }
             /* Press-time track onclick → cc_dragpickup stages pending during
@@ -2393,8 +2393,8 @@ app_run_once_body(
                     struct ToriRS_TaskQueue* drag_queue = ToriRS_TaskQueue_New();
                     struct TaskRunner drag_runner = {
                         .queue = drag_queue,
-                        .io = app->runner.io,
-                        .px = app->runner.px,
+                        .io = app->frame_runner.io,
+                        .px = app->frame_runner.px,
                     };
                     for( int i = 0; i < pickup_out.intent_count; i++ )
                         if( pickup_out.intents[i].hook &&
@@ -2432,7 +2432,7 @@ app_run_once_body(
             stat = app_settle_cs2_frame(app);
             if( stat != TASK_RUNNER_IDLE )
             {
-                app->runner_had_work = 1;
+                app->frame_runner_had_work = 1;
                 return 0;
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LAYOUT)

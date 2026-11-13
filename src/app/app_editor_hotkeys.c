@@ -627,12 +627,12 @@ app_hk_io_tick(
     if( g_app_hk.io_state == 0 )
     {
         g_app_hk.path = Editor_HotkeysPath();
-        if( !g_app_hk.path || !app->runner.queue )
+        if( !g_app_hk.path || !app->frame_runner.queue )
         {
             g_app_hk.io_state = 3;
             return;
         }
-        ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_EditorHotkeysLoad(&g_app_hk.load, g_app_hk.path));
+        ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_EditorHotkeysLoad(&g_app_hk.load, g_app_hk.path));
         g_app_hk.io_state = 1;
         return;
     }
@@ -659,7 +659,7 @@ app_hk_io_tick(
     }
     if( ui->hotkeys.serial != g_app_hk.saved_serial )
     {
-        ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_EditorHotkeysSave(&ui->hotkeys, g_app_hk.path));
+        ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_EditorHotkeysSave(&ui->hotkeys, g_app_hk.path));
         g_app_hk.saved_serial = ui->hotkeys.serial;
     }
 }
@@ -675,12 +675,12 @@ app_hk_recent_tick(
     if( g_app_hk.recent_state == 0 )
     {
         g_app_hk.recent_path = Editor_RecentPath();
-        if( !g_app_hk.recent_path || !app->runner.queue )
+        if( !g_app_hk.recent_path || !app->frame_runner.queue )
         {
             g_app_hk.recent_state = 3;
             return;
         }
-        ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_EditorRecentLoad(&g_app_hk.recent_load, g_app_hk.recent_path));
+        ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_EditorRecentLoad(&g_app_hk.recent_load, g_app_hk.recent_path));
         g_app_hk.recent_state = 1;
         return;
     }
@@ -713,7 +713,7 @@ app_hk_recent_tick(
     }
     if( ui->recent.serial != g_app_hk.recent_saved_serial )
     {
-        ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_EditorRecentSave(&ui->recent, g_app_hk.recent_path));
+        ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_EditorRecentSave(&ui->recent, g_app_hk.recent_path));
         g_app_hk.recent_saved_serial = ui->recent.serial;
     }
 }
@@ -730,7 +730,7 @@ app_hk_run_task_now(
 
     io->task = task;
     while( task_run(task, io) == PT_YIELDED && guard++ < 8 )
-        Platform_IO_Process(app->runner.px, io);
+        Platform_IO_Process(app->frame_runner.px, io);
     task_free(task);
     ToriRS_IOBatch_Free(io);
 }

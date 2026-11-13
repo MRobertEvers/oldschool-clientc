@@ -2455,7 +2455,7 @@ main_rsprox_replay_digest_frame(int seeking)
         rsprox_replay_digest.settle = 0;
     }
     /* Settled: the tick's scripts have run and nothing is parked. */
-    if( !App_FrameSettled(&app) || app.exec_runner_had_work )
+    if( !App_FrameSettled(&app) || app.packet_runner_had_work )
     {
         rsprox_replay_digest.settle = 0;
         return;
@@ -2630,7 +2630,7 @@ main_rsprox_replay_frame(void)
      * lands on it. */
     NetTransport_ReplayClientTicks(sock, app.server_tick_serial);
     /* A pipeline held on a scene build or a cache read is not a stalled seek. */
-    NetTransport_ReplayClientBusy(sock, app.world_load_inflight || app.exec_runner_had_work);
+    NetTransport_ReplayClientBusy(sock, app.world_load_inflight || app.packet_runner_had_work);
     /* Session checkpoints: take one at a clean boundary, restore one for a
      * seek (replay/replay_checkpoint_play.h). */
     ReplayCheckpointPlay_Frame(&app, sock);
@@ -4045,7 +4045,7 @@ frame_loop_step(void)
     uint64_t frame_start_us;
     /* When the screen is next allowed to be redrawn.
      *
-     * Only consulted while the async pipeline has work and the loop is
+     * Only consulted while the frame queue has work and the loop is
      * therefore not sleeping: without it, a loop spinning to drain IO would
      * present every iteration and spend on redraws exactly the time the spin
      * exists to give back. The present-skip that reads it is not native-only,
@@ -4275,7 +4275,7 @@ frame_loop_step(void)
             app.boot_frames,
             app.boot_steps,
             app.boot_frames_budget_capped);
-        ToriRS_BootTelemetry_Report(stderr, &app.runner, &app.exec_runner);
+        ToriRS_BootTelemetry_Report(stderr, &app.frame_runner, &app.packet_runner);
     }
     /* The whole startup, once the world is in: the title's report above ends
      * before login, and the marks after it (login, world load) are what a
@@ -4284,7 +4284,7 @@ frame_loop_step(void)
     {
         world_reported = 1;
         TORIRS_ERR("boot: world ready\n");
-        ToriRS_BootTelemetry_Report(stderr, &app.runner, &app.exec_runner);
+        ToriRS_BootTelemetry_Report(stderr, &app.frame_runner, &app.packet_runner);
     }
     if( boot_stats && frame_count == max_frames - 1 )
         TORIRS_ERR(
@@ -4856,7 +4856,7 @@ frame_loop_step(void)
                          * that switches on event_opindex (every list row does) is
                          * a no-op without it. 1 = the primary left-click op. */
                         app.host.event_op_index = 1;
-                        RS_CS2_DispatchHook(&app.host, &app.runner, (int)hook_com, &hook);
+                        RS_CS2_DispatchHook(&app.host, &app.frame_runner, (int)hook_com, &hook);
                     }
                     else
                         TORIRS_ERR("sim_hook: component 0x%lx not found\n", hook_com);
@@ -5082,7 +5082,7 @@ frame_loop_step(void)
                             harness_done = 1;
                             CS2Harness_Run(
                                 &app.host,
-                                &app.runner,
+                                &app.frame_runner,
                                 harness_cases,
                                 out && *out ? out : "/tmp/cs2_harness_c",
                                 harness_shot,
@@ -5096,7 +5096,7 @@ frame_loop_step(void)
                     TORIRS_LOG("sim_runscript: script=%ld argc=%d\n", rs_script, rs_argc);
                     RS_CS2_RunScript(
                         &app.host,
-                        &app.runner,
+                        &app.frame_runner,
                         (int)rs_script,
                         rs_argc > 0 ? rs_argv : NULL,
                         rs_argc,
@@ -5880,11 +5880,11 @@ frame_loop_step(void)
 
 #if !defined(TORIRS_PLATFORM_WEB)
     if( executor_cfg.js5_enabled &&
-        PlatformXIO_Js5Pump(app.runner.px, PlatformWindow_Ticks64()) < 0 )
+        PlatformXIO_Js5Pump(app.frame_runner.px, PlatformWindow_Ticks64()) < 0 )
     {
         TORIRS_ERR(
             "torirs: JS5 cache producer stopped (error=%d)\n",
-            (int)PlatformXIO_Js5LastError(app.runner.px));
+            (int)PlatformXIO_Js5LastError(app.frame_runner.px));
         return 0;
     }
 #endif
@@ -6044,7 +6044,7 @@ frame_loop_step(void)
         }
 
         /*
-         * While the async pipeline has work, this loop stops waiting out the
+         * While the frame queue has work, this loop stops waiting out the
          * frame cap (see the pacing block at the end) and iterates as fast as
          * the work allows. The SCREEN must not follow it there -- redrawing
          * every iteration would spend on presents exactly the time the spin
@@ -6579,7 +6579,7 @@ frame_loop_step(void)
              * Frames PRESENTED, not iterations run.
              *
              * These were the same number until the loop learned to skip a
-             * draw -- once while the async pipeline is draining, and again
+             * draw -- once while the frame queue is draining, and again
              * when the pacer steps the draw budget down on a machine that
              * cannot hold the rate. Counting iterations after that reports a
              * frame rate nobody is looking at: the loop can spin at 49/s
@@ -7612,7 +7612,7 @@ torirs_replay_timeline_json(void)
 EMSCRIPTEN_KEEPALIVE char*
 torirs_telemetry_json(void)
 {
-    return ToriRS_BootTelemetry_Json(&app.runner, &app.exec_runner);
+    return ToriRS_BootTelemetry_Json(&app.frame_runner, &app.packet_runner);
 }
 
 /* The browser owns the frame clock, so the loop is inverted: instead of the
@@ -7775,7 +7775,7 @@ executor_attach_and_prime_js5(void)
         return 0;
 
     executor_js5_config(&js5);
-    if( PlatformXIO_Js5Enable(app.runner.px, &js5) != 0 )
+    if( PlatformXIO_Js5Enable(app.frame_runner.px, &js5) != 0 )
     {
         TORIRS_ERR("torirs: failed to attach JS5 cache producer\n");
         return -1;
@@ -7786,12 +7786,12 @@ executor_attach_and_prime_js5(void)
      * reference tables may satisfy the subsequent checks, but no core task is
      * stepped until all server-authoritative metadata is installed.
      */
-    while( (status = PlatformXIO_Js5Pump(app.runner.px, PlatformWindow_Ticks64())) == 0 )
+    while( (status = PlatformXIO_Js5Pump(app.frame_runner.px, PlatformWindow_Ticks64())) == 0 )
         PlatformWindow_SleepUntil(PlatformWindow_Ticks64() + 1u);
     if( status < 0 )
     {
         struct Js5Progress progress;
-        PlatformXIO_Js5GetProgress(app.runner.px, &progress);
+        PlatformXIO_Js5GetProgress(app.frame_runner.px, &progress);
         TORIRS_ERR(
             "torirs: JS5 metadata prime failed (error=%d state=%d status=%u port=%u)\n",
             (int)progress.last_error,
@@ -7803,7 +7803,7 @@ executor_attach_and_prime_js5(void)
 
     {
         struct Js5Progress progress;
-        PlatformXIO_Js5GetProgress(app.runner.px, &progress);
+        PlatformXIO_Js5GetProgress(app.frame_runner.px, &progress);
         TORIRS_LOG(
             "torirs: JS5 metadata ready (%u references, %llu network bytes)\n",
             (unsigned)progress.references_ready,
@@ -9014,8 +9014,8 @@ main(
     if( app.provider )
     {
         CacheProvider_SetArchiveInvalidateHook(app.provider, PlatformX_IO_ArchiveInvalidateHook,
-                                               app.runner.px);
-        CacheProvider_SetArchiveReprimeHook(app.provider, PlatformX_IO_ArchiveReprimePendingHook, app.runner.px);
+                                               app.frame_runner.px);
+        CacheProvider_SetArchiveReprimeHook(app.provider, PlatformX_IO_ArchiveReprimePendingHook, app.frame_runner.px);
     }
 #else
     /* The browser's half: platform_web_io.js drops its decoded copy, resident
@@ -9023,7 +9023,7 @@ main(
      * the index against IndexedDB (src/web/torirs_js5.js invalidateArchive). */
     if( app.provider )
         CacheProvider_SetArchiveInvalidateHook(app.provider, PlatformWeb_IO_ArchiveInvalidateHook,
-                                               app.runner.px);
+                                               app.frame_runner.px);
 #endif
     ToriRS_BootTelemetry_Mark("app_init:done");
     if( getenv("TORIRS_PREVIEW_BMP") )
@@ -9196,7 +9196,7 @@ main(
             if( hook.script_id <= 0 )
                 hook = UITree_Hooks(&app.tree->components[idx])->on_op;
             TORIRS_LOG("sim_click: com=0x%x script=%d\n", com_id, hook.script_id);
-            RS_CS2_DispatchHook(&app.host, &app.runner, com_id, &hook);
+            RS_CS2_DispatchHook(&app.host, &app.frame_runner, com_id, &hook);
         }
         else
             TORIRS_ERR("sim_click: component 0x%x not found\n", com_id);

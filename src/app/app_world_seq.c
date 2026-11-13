@@ -235,7 +235,7 @@ app_world_load_seq(
         return;
     task = CreateTask_SequenceLoad(app->provider, app->scene, seq_id);
     if( task )
-        ToriRS_TaskQueue_Add(app->runner.queue, task);
+        ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
 }
 
 /* app_world_apply_seq for a sequence that started on world cycle

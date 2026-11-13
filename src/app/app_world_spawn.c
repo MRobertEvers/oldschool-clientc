@@ -1641,12 +1641,12 @@ app_spawn_fan_spotanim_assets(struct Task_AppSpawn* self)
 
     if( self->model_id > 0 )
         ToriRS_TaskQueue_AddParallelPoolSubTask(
-            app->runner.queue,
+            app->frame_runner.queue,
             CreateTask_ModelLoad(app->provider, self->model_id),
             &self->pending);
     if( self->seq_id >= 0 )
         ToriRS_TaskQueue_AddParallelPoolSubTask(
-            app->runner.queue,
+            app->frame_runner.queue,
             CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id),
             &self->pending);
 }
@@ -1918,7 +1918,7 @@ Task_AppSpawn_Run(
              * and awaiting them one after another was a round trip each on a
              * streamed cache -- an open-door variant is commonly absent from
              * the map build's preload, so a door was that chain every time.
-             * Queued as siblings on the asset queue and joined.
+             * Queued as siblings on the frame queue and joined.
              */
             {
                 struct ToriRS_Location* cfg =
@@ -1932,13 +1932,13 @@ Task_AppSpawn_Run(
                     for( int j = 0; j < cfg->lengths[i]; j++ )
                         if( cfg->models[i][j] >= 0 )
                             ToriRS_TaskQueue_AddParallelPoolSubTask(
-                                app->runner.queue,
+                                app->frame_runner.queue,
                                 CreateTask_ModelLoad(app->provider, cfg->models[i][j]),
                                 &self->pending);
                 self->seq_id = cfg && cfg->seq_id >= 0 ? cfg->seq_id : self->loc_base_seq;
                 if( self->seq_id >= 0 )
                     ToriRS_TaskQueue_AddParallelPoolSubTask(
-                        app->runner.queue,
+                        app->frame_runner.queue,
                         CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id),
                         &self->pending);
             }
@@ -2028,7 +2028,7 @@ Task_AppSpawn_Run(
                         self->loc_shape,
                         carried);
                 /* The lane's latency against the deob's. The asset runner
-                 * applies after the packet FIFO has executed the tick's fence,
+                 * applies after the packet queue has executed the tick's fence,
                  * so 1 fence is a change applied in the cycle that read it; 2
                  * or more stood unbuilt here through a whole server tick in
                  * which the official client showed it. */
@@ -2116,9 +2116,9 @@ app_spawn_loc_lane_pending(
     struct Task_AppSpawn* newest = NULL;
 
     assert(app);
-    assert(app->runner.queue);
+    assert(app->frame_runner.queue);
     /*
-     * The lane's changes live on the asset queue until they end, parked on
+     * The lane's changes live on the frame queue until they end, parked on
      * their loads or on their turn, and a change that has not released its
      * ticket has not touched the scene: the apply and the release run with no
      * yield between them. Several may be pending for one tile when a model is
@@ -2126,7 +2126,7 @@ app_spawn_loc_lane_pending(
      * it (Statics.method5669), so the newest stands for it -- it is the one
      * whose loc ends up standing there.
      */
-    for( struct ToriRS_Task* t = app->runner.queue->head; t; t = t->next )
+    for( struct ToriRS_Task* t = app->frame_runner.queue->head; t; t = t->next )
     {
         struct Task_AppSpawn* task;
 

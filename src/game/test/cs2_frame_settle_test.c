@@ -318,10 +318,10 @@ test_external_wait_retains_last_frame(void)
 /*
  * Cross-queue wait: the layout-switch deadlock.
  *
- * IF_OPENTOP starts a tree rebuild on app->runner and flips the app into
+ * IF_OPENTOP starts a tree rebuild on app->frame_runner and flips the app into
  * APP_STATE_BOOTING; the IF_OPENSUB mounts that follow it in the same packet
- * burst land on app->exec_runner and must wait for that rebuild. Only the
- * frame loop steps app->runner, so the exec settle has to END rather than keep
+ * burst land on app->packet_runner and must wait for that rebuild. Only the
+ * frame loop steps app->frame_runner, so the exec settle has to END rather than keep
  * stepping — a ready-yield loop here is a busy-wait no amount of stepping can
  * break, and it froze the client on every Display-panel layout change.
  *
@@ -419,7 +419,7 @@ test_cross_queue_wait_ends_the_settle(void)
  * That is not a hypothetical: every asset wait in the client is one level
  * down. Task_WorldLoad is awaited by the REBUILD_NORMAL packet task and
  * Task_NpcMultiLoad by the NPC_INFO one, both on the serial exec queue, and
- * both queue their reads onto the ASSET queue. A cold region rebuild reported
+ * both queue their reads onto the FRAME queue. A cold region rebuild reported
  * every map square "unavailable (missing archive)" and every npc in it
  * "models failed to load" out of a cache that held all of them.
  *

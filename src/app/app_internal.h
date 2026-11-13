@@ -217,7 +217,7 @@ enum
     APP_LOGIC_TICK_MS = 20,
     APP_MAX_CATCHUP_TICKS = 5,
     /*
-     * The async pipeline's runaway tripwire. NOT a frame budget.
+     * The frame queue's runaway tripwire. NOT a frame budget.
      *
      * The bound that used to live at the call site (512 booting, 32 otherwise,
      * from 8f3028ede under the note "a small budget keeps frame pacing")
@@ -847,9 +847,9 @@ app_placeholder_obj_stack(
  * FIFO at init, with its clock and the rebuild mode; freed with the other
  * queues, a pending job cancelled first. */
 void
-app_bg_runner_init(struct App* app);
+app_background_runner_init(struct App* app);
 void
-app_bg_runner_free(struct App* app);
+app_background_runner_free(struct App* app);
 /* App_RunOnce's floor slice: App_RunBackground for a couple of ms, so every
  * platform loop moves the queue with no change of its own. */
 void

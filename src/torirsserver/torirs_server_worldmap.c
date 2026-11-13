@@ -215,7 +215,7 @@ ToriRSServer_WorldMapOpen(struct ToriRSServer* srv)
     }
     /* Order matters: the coord has to be in the varc before interface 595's
      * onload runs, or `worldmap_loadmap` opens on the main area's origin
-     * instead of on the player. The client's exec pipeline is a strict FIFO,
+     * instead of on the player. The client's packet queue is a strict FIFO,
      * so "sent first" is "applied first". */
     send_worldmap_tile(srv);
     if( player->worldmap_return_top )

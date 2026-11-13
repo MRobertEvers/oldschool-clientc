@@ -100,7 +100,7 @@ App_RunClientScript(
      * not. */
     if( !RS_ClientScriptQueue_Hold(
             &app->pending_clientscripts, request, (uint32_t)app->logic_cycle) )
-        app_dispatch_clientscript(app, &app->runner, request);
+        app_dispatch_clientscript(app, &app->frame_runner, request);
 }
 
 /* Input-driven host effects are drained at the frame's CS2 fixed point.
@@ -606,7 +606,7 @@ app_cs2_enqueue_followups(struct App* app)
                 continue;
             RS_CS2_DispatchHook(
                 &app->host,
-                &app->runner,
+                &app->frame_runner,
                 com_id,
                 &UITree_Hooks(&app->tree->components[idx])->on_resize);
             queued = 1;
@@ -626,7 +626,7 @@ app_cs2_enqueue_followups(struct App* app)
             RS_CS2_SetEventOp(&app->host, trig.op_index, 0);
             RS_CS2_DispatchHook(
                 &app->host,
-                &app->runner,
+                &app->frame_runner,
                 trig.component_id,
                 &UITree_Hooks(&app->tree->components[idx])->on_op);
             /*
@@ -676,7 +676,7 @@ app_cs2_enqueue_followups(struct App* app)
 
     if( RS_CS2_TransmitsPending(&app->host) )
     {
-        RS_CS2_PumpTransmits(&app->host, &app->runner);
+        RS_CS2_PumpTransmits(&app->host, &app->frame_runner);
         queued = 1;
     }
 
@@ -697,7 +697,7 @@ app_settle_cs2_frame(struct App* app)
          * otherwise): out of time between two tasks is TASK_RUNNER_SPENT,
          * and the caller keeps the previous frame and resumes, as it does
          * for a read that has not landed. */
-        enum TaskRunnerStat stat = TaskRunner_SettleFrameUntil(&app->runner, App_PacedDeadline(app));
+        enum TaskRunnerStat stat = TaskRunner_SettleFrameUntil(&app->frame_runner, App_PacedDeadline(app));
 
         if( stat == TASK_RUNNER_SPENT )
         {
@@ -728,7 +728,7 @@ app_settle_cs2_frame(struct App* app)
             TORIRS_PERF_STAGE_END(TORIRS_PERF_STAGE_CS2_SETTLE_FOLLOWUPS);
             if( !more )
             {
-                app->runner.frame_settle_pending = 0;
+                app->frame_runner.frame_settle_pending = 0;
                 return TASK_RUNNER_IDLE;
             }
         }

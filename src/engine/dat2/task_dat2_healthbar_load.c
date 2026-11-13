@@ -131,7 +131,7 @@ Task_Dat2HealthbarLoad_Run(
     TORIRS_LOG("healthbar load: %d types (%d records)\n", count, decoded);
 
     /* Both halves of every pair, for the reason in the file comment. Roughly
-     * 170 small sprites at boot, once -- queued as siblings on the asset queue
+     * 170 small sprites at boot, once -- queued as siblings on the frame queue
      * and joined, since awaited one after another they were a network round
      * trip apiece on a streamed cache (see task_dat2_hitsplat_load.c). The
      * task does not pass the join until every sibling has ended. */

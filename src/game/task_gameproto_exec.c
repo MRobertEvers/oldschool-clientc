@@ -320,7 +320,7 @@ Task_GameProtoExec_Run(
          * and in one piece. */
         memset(&self->gather_report, 0, sizeof(self->gather_report));
         PT_TASK_AWAITSELF_IF(CreateTask_WorldGather(
-            app->provider, rebuild_view(self)->builder, app->runner.queue, self->chunks,
+            app->provider, rebuild_view(self)->builder, app->frame_runner.queue, self->chunks,
             self->chunk_count, self->zone_x, self->zone_z, 104,
             self->packet._map_rebuild.zones, &self->gather_report));
         /* The same C2 drain rule the boat branch below obeys, for the ROOT
@@ -338,7 +338,7 @@ Task_GameProtoExec_Run(
          *
          * After the gather, not before it. The old scene is live for as long
          * as the assets take, and a loc change that was waiting on its model
-         * lands on the asset queue in that time (Task_AppSpawn_Run ->
+         * lands on the frame queue in that time (Task_AppSpawn_Run ->
          * World_SceneryRemove). Drained before the await, those removals
          * reached the reset still queued: the build handed their element
          * ids to new scenery, the next tick's drain freed them, and the
@@ -469,7 +469,7 @@ Task_GameProtoExec_Run(
                 self->chunk_count);
         memset(&self->gather_report, 0, sizeof(self->gather_report));
         PT_TASK_AWAITSELF_IF(CreateTask_WorldGather(
-            app->provider, wev_view(self)->builder, app->runner.queue, self->chunks,
+            app->provider, wev_view(self)->builder, app->frame_runner.queue, self->chunks,
             self->chunk_count, self->zone_x, self->zone_z, self->wev_scene_size,
             self->wev_zones, &self->gather_report));
         /* C2 drain rule: the boat's own EntityRemoved queue must be empty

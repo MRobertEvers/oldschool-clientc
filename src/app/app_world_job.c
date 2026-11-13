@@ -14,7 +14,7 @@
  *   1. The REBUILD packet task does its cheap bookkeeping and calls
  *      App_WorldJobStart instead of awaiting the load. It ends; no packet task
  *      is left parked for the job's duration.
- *   2. The gather (CreateTask_WorldGather) runs on bg_runner, fanned out
+ *   2. The gather (CreateTask_WorldGather) runs on background_runner, fanned out
  *      there, in whatever time it is given (App_RunBackground).
  *   3. The packet pump pops nothing while the job is pending -- everything
  *      behind the REBUILD addresses the scene being built. Frames, input,
@@ -60,7 +60,7 @@ PlatformWindow_TicksUs(void);
 #define APP_WORLD_JOB_SCENE_SIZE 104
 
 static uint64_t
-app_bg_clock(void* ud)
+app_runner_clock(void* ud)
 {
     (void)ud;
     return PlatformWindow_TicksUs();
@@ -74,7 +74,7 @@ App_PaceArm(struct App* app)
     assert(app);
     if( app->pace_budget_us == 0 )
         return;
-    now = TaskRunner_Now(&app->bg_runner);
+    now = TaskRunner_Now(&app->background_runner);
     app->pace_until_us = now + app->pace_window_us;
     app->pace_hard_until_us = now + APP_PACE_HARD_LIMIT_US;
     if( app->pace_hard_until_us < app->pace_until_us )
@@ -98,7 +98,7 @@ App_PacedDeadline(struct App* app)
     assert(app);
     if( app->pace_until_us == 0 )
         return 0;
-    now = TaskRunner_Now(&app->bg_runner);
+    now = TaskRunner_Now(&app->background_runner);
     if( now >= app->pace_until_us )
     {
         /* The window is the bound: whatever is still held applies at once
@@ -127,7 +127,7 @@ App_PaceNoteStop(struct App* app)
     assert(app);
     if( app->pace_until_us == 0 )
         return;
-    until = TaskRunner_Now(&app->bg_runner) + APP_PACE_STOP_LINGER_US;
+    until = TaskRunner_Now(&app->background_runner) + APP_PACE_STOP_LINGER_US;
     if( until > app->pace_hard_until_us )
         until = app->pace_hard_until_us;
     if( until > app->pace_until_us )
@@ -146,10 +146,10 @@ App_PaceHoldsPop(struct App* app)
     if( app->pace_commit_frame != app->run_once_serial )
     {
         /* Inside the budget; or the frame's first packet, which goes
-         * whatever the budget says: the asset queue is paced from the same
+         * whatever the budget says: the frame queue is paced from the same
          * deadline and runs first, and a frame it filled must not leave the
          * packets behind it standing for the whole window. */
-        if( TaskRunner_Now(&app->bg_runner) < deadline ||
+        if( TaskRunner_Now(&app->background_runner) < deadline ||
             app->pace_pop_frame != app->run_once_serial )
         {
             app->pace_pop_frame = app->run_once_serial;
@@ -162,40 +162,40 @@ App_PaceHoldsPop(struct App* app)
 }
 
 void
-app_bg_runner_init(struct App* app)
+app_background_runner_init(struct App* app)
 {
     assert(app);
-    assert(app->runner.px);
-    app->bg_runner.io = ToriRS_IOBatch_New();
-    app->bg_runner.queue = ToriRS_TaskQueue_New();
-    /* One IO backend, as for the packet FIFO. */
-    app->bg_runner.px = app->runner.px;
-    app->bg_runner.parallel = 1;
-    TaskRunner_SetClock(&app->bg_runner, app_bg_clock, NULL);
-    /* The packet FIFO and the asset queue read the same clock: a paced
+    assert(app->frame_runner.px);
+    app->background_runner.io = ToriRS_IOBatch_New();
+    app->background_runner.queue = ToriRS_TaskQueue_New();
+    /* One IO backend, as for the packet queue. */
+    app->background_runner.px = app->frame_runner.px;
+    app->background_runner.parallel = 1;
+    TaskRunner_SetClock(&app->background_runner, app_runner_clock, NULL);
+    /* The packet queue and the frame queue read the same clock: a paced
      * catch-up gives their passes a deadline too (App_PacedDeadline). */
-    TaskRunner_SetClock(&app->runner, app_bg_clock, NULL);
-    TaskRunner_SetClock(&app->exec_runner, app_bg_clock, NULL);
+    TaskRunner_SetClock(&app->frame_runner, app_runner_clock, NULL);
+    TaskRunner_SetClock(&app->packet_runner, app_runner_clock, NULL);
     {
         char const* slow = torirs_env_task_slow_ms();
         uint64_t const slow_us = (slow && slow[0]) ? (uint64_t)atoi(slow) * 1000u : 0;
 
-        app->bg_runner.slow_task_us = slow_us;
-        app->runner.slow_task_us = slow_us;
-        app->exec_runner.slow_task_us = slow_us;
+        app->background_runner.slow_task_us = slow_us;
+        app->frame_runner.slow_task_us = slow_us;
+        app->packet_runner.slow_task_us = slow_us;
     }
     App_WorldRebuildModeInit(app);
 }
 
 void
-app_bg_runner_free(struct App* app)
+app_background_runner_free(struct App* app)
 {
     assert(app);
     App_WorldJobCancel(app, "shutdown");
-    ToriRS_TaskQueue_Free(app->bg_runner.queue);
-    ToriRS_IOBatch_Free(app->bg_runner.io);
-    app->bg_runner.queue = NULL;
-    app->bg_runner.io = NULL;
+    ToriRS_TaskQueue_Free(app->background_runner.queue);
+    ToriRS_IOBatch_Free(app->background_runner.io);
+    app->background_runner.queue = NULL;
+    app->background_runner.io = NULL;
 }
 
 void
@@ -506,7 +506,7 @@ app_world_job_varp_poke(struct App* app)
 /* --- the stage task --------------------------------------------------- */
 
 /*
- * The staging build, a unit at a time, on bg_runner: WorldBuilder_BuildStep
+ * The staging build, a unit at a time, on background_runner: WorldBuilder_BuildStep
  * until the runner's slice is over, then yield to the next slice. On a pass
  * with no limit (a promoted job, TaskRunner_RunUntil(0)) the slice is never
  * over and the build runs to its end in one resume.
@@ -741,7 +741,7 @@ app_world_job_stage_begin(struct App* app)
     job->stage_task = &task->task;
     {
         int const promoted = job->job.promoted;
-        ToriRS_TaskJob_Start(&job->job, &app->bg_runner, &task->task, job->job.must_finish_by_us);
+        ToriRS_TaskJob_Start(&job->job, &app->background_runner, &task->task, job->job.must_finish_by_us);
         job->job.promoted = promoted;
     }
 }
@@ -789,7 +789,7 @@ App_WorldJobStart(
         "the job keeps the packet's grid");
 
     root = WorldviewRegistry_Get(&app->worldviews, WORLDVIEW_ROOT);
-    now = TaskRunner_Now(&app->bg_runner);
+    now = TaskRunner_Now(&app->background_runner);
 
     memset(&job->report, 0, sizeof(job->report));
     job->zone_x = zone_x;
@@ -818,7 +818,7 @@ App_WorldJobStart(
     job->gather = CreateTask_WorldGather(
         app->provider,
         root->builder,
-        app->bg_runner.queue,
+        app->background_runner.queue,
         job->chunks,
         job->chunk_count,
         job->zone_x,
@@ -826,7 +826,7 @@ App_WorldJobStart(
         APP_WORLD_JOB_SCENE_SIZE,
         job->have_zones ? job->zones : NULL,
         &job->report);
-    ToriRS_TaskJob_Start(&job->job, &app->bg_runner, job->gather, now + app->world_job_deadline_us);
+    ToriRS_TaskJob_Start(&job->job, &app->background_runner, job->gather, now + app->world_job_deadline_us);
     job->phase = APP_WORLD_JOB_GATHER;
     job->pending = 1;
     /* The tick this REBUILD belongs to is open on varps alone (the only open
@@ -937,7 +937,7 @@ app_world_job_commit(struct App* app)
      * ran, and what it removed since the packet is drained here. */
     App_WorldDrainEntityRemovedFor(app, root->world);
 
-    t_commit = TaskRunner_Now(&app->bg_runner);
+    t_commit = TaskRunner_Now(&app->background_runner);
     if( swapped )
     {
         WorldBuilder_HotSwap(root->builder, job->stage_builder);
@@ -956,29 +956,29 @@ app_world_job_commit(struct App* app)
             APP_WORLD_JOB_SCENE_SIZE,
             job->have_zones ? job->zones : NULL);
     }
-    t_swapped = TaskRunner_Now(&app->bg_runner);
+    t_swapped = TaskRunner_Now(&app->background_runner);
 
     if( had_world && root->world->load_complete )
         App_WorldRebuildShift(
             app,
             root->world->_base_tile_x - prev_base_x,
             root->world->_base_tile_z - prev_base_z);
-    t_shifted = TaskRunner_Now(&app->bg_runner);
+    t_shifted = TaskRunner_Now(&app->background_runner);
     app->rebuild_frames.build_ms = (double)(t_swapped - t_commit) / 1000.0;
     app->rebuild_frames.swap_ms = (double)(t_swapped - t_commit) / 1000.0;
     app->rebuild_frames.shift_ms = (double)(t_shifted - t_swapped) / 1000.0;
     /* Clears world_load_inflight, which a stalled promotion set. */
     App_WorldLoadFinish(app);
-    t_finished = TaskRunner_Now(&app->bg_runner);
+    t_finished = TaskRunner_Now(&app->background_runner);
     /* After the finish, where a varp written after a build in place would
      * land: its re-place runs behind the standing loc changes'. */
     if( swapped )
         varps_moved = app_world_job_varps_reresolve(app, &varps_replaced);
-    t_varps = TaskRunner_Now(&app->bg_runner);
+    t_varps = TaskRunner_Now(&app->background_runner);
     /* The old scene (the swap left it on the staging side) and everything
      * that kept the job's own: one scene resident from here on. */
     app_world_job_stage_free(app);
-    t_done = TaskRunner_Now(&app->bg_runner);
+    t_done = TaskRunner_Now(&app->background_runner);
     if( WorldBuilder_TimingOn() )
         TORIRS_REPORT("rebuild_timing: commit finish load_finish=%.2fms varps=%.2fms stage_free=%.2fms\n",
             (double)(t_finished - t_shifted) / 1000.0, (double)(t_varps - t_finished) / 1000.0,
@@ -1049,7 +1049,7 @@ app_world_job_held_note(struct App* app)
     if( !job->held_open )
         return;
     job->held_open = 0;
-    app->rebuild_frames.held_ms = (double)(TaskRunner_Now(&app->bg_runner) - job->held_t0_us) / 1000.0;
+    app->rebuild_frames.held_ms = (double)(TaskRunner_Now(&app->background_runner) - job->held_t0_us) / 1000.0;
 }
 
 int
@@ -1063,7 +1063,7 @@ App_WorldJobPoll(struct App* app)
         return 1;
     if( !app_world_job_advance(app) )
     {
-        uint64_t const now = TaskRunner_Now(&app->bg_runner);
+        uint64_t const now = TaskRunner_Now(&app->background_runner);
         uint64_t t_after;
 
         if( now < job->job.must_finish_by_us )
@@ -1084,10 +1084,10 @@ App_WorldJobPoll(struct App* app)
                 job->phase == APP_WORLD_JOB_GATHER ? "gathered" : "built",
                 (unsigned long long)((now - job->t_begin_us) / 1000u));
         }
-        (void)TaskRunner_RunUntil(&app->bg_runner, 0);
+        (void)TaskRunner_RunUntil(&app->background_runner, 0);
         if( app_world_job_advance(app) == 0 && job->phase == APP_WORLD_JOB_STAGE )
-            (void)TaskRunner_RunUntil(&app->bg_runner, 0);
-        t_after = TaskRunner_Now(&app->bg_runner);
+            (void)TaskRunner_RunUntil(&app->background_runner, 0);
+        t_after = TaskRunner_Now(&app->background_runner);
         job->slices++;
         job->slice_us_sum += t_after - now;
         if( t_after - now > job->slice_us_max )
@@ -1130,14 +1130,14 @@ App_WorldJobCancel(
         if( job->phase == APP_WORLD_JOB_GATHER )
         {
             assert(job->gather);
-            TaskWorldLoad_Cancel(app->bg_runner.queue, job->gather);
+            TaskWorldLoad_Cancel(app->background_runner.queue, job->gather);
         }
         else
         {
             /* The stage task owns no read; the queue may unlink it at any
              * yield, which ends the job it is counted on. */
             assert(job->stage_task);
-            ToriRS_TaskQueue_Remove(app->bg_runner.queue, job->stage_task);
+            ToriRS_TaskQueue_Remove(app->background_runner.queue, job->stage_task);
             assert(!job->stage_task);
         }
     }
@@ -1221,7 +1221,7 @@ app_world_job_drop_requested(struct App* app)
     drop_at = -1;
     {
         int queued = 0;
-        for( struct ToriRS_Task const* task = app->bg_runner.queue->head; task; task = task->next )
+        for( struct ToriRS_Task const* task = app->background_runner.queue->head; task; task = task->next )
             queued++;
         TORIRS_REPORT(
             "world_job: TORIRS_WORLD_JOB_DROP_AT severing the session mid-%s (job %ld, %d "
@@ -1247,22 +1247,22 @@ App_RunBackground(
 
     assert(app);
     /* The common case, every frame: nothing queued, nothing read. */
-    if( !app->bg_runner.queue->head )
+    if( !app->background_runner.queue->head )
         return;
-    t0 = TaskRunner_Now(&app->bg_runner);
+    t0 = TaskRunner_Now(&app->background_runner);
     if( deadline_us <= t0 )
         return;
     job = &app->world_job;
     building = job->pending && job->phase == APP_WORLD_JOB_STAGE;
-    (void)TaskRunner_RunUntil(&app->bg_runner, deadline_us);
+    (void)TaskRunner_RunUntil(&app->background_runner, deadline_us);
     /* A gather that ended in this slice hands the rest of it to the build. */
     if( job->pending && job->phase == APP_WORLD_JOB_GATHER && !app_world_job_advance(app) &&
-        job->phase == APP_WORLD_JOB_STAGE && TaskRunner_Now(&app->bg_runner) < deadline_us )
+        job->phase == APP_WORLD_JOB_STAGE && TaskRunner_Now(&app->background_runner) < deadline_us )
     {
         building = 1;
-        (void)TaskRunner_RunUntil(&app->bg_runner, deadline_us);
+        (void)TaskRunner_RunUntil(&app->background_runner, deadline_us);
     }
-    t1 = TaskRunner_Now(&app->bg_runner);
+    t1 = TaskRunner_Now(&app->background_runner);
     if( job->pending )
     {
         job->slices++;
@@ -1292,7 +1292,7 @@ app_run_background_floor(struct App* app)
         while( ToriDraw_SceneGraveyardDrain(app->scene, 512) > 0 && PlatformWindow_TicksUs() < until )
             ;
     }
-    if( !app->bg_runner.queue->head )
+    if( !app->background_runner.queue->head )
         return;
     App_RunBackground(app, PlatformWindow_TicksUs() + APP_BACKGROUND_FLOOR_US);
 }

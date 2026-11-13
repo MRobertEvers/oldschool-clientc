@@ -106,7 +106,7 @@ app_sync_textures(struct App* app)
         {
             struct ToriRS_Task* task = CreateTask_TextureLoad(app->provider, id);
             if( task )
-                ToriRS_TaskQueue_Add(app->runner.queue, task);
+                ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
             if( app_tex_trace_enabled() )
                 TORIRS_ERR(
                     "tex_trace: want id=%d -> load task %s\n",
@@ -137,7 +137,7 @@ app_sync_textures_poll(struct App* app)
     int ready[512];
     int ready_count = 0;
     int kept = 0;
-    int const queue_idle = !app->runner.queue || !app->runner.queue->head;
+    int const queue_idle = !app->frame_runner.queue || !app->frame_runner.queue->head;
 
     if( app->tex_pending.count == 0 )
         return;

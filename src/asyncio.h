@@ -1034,7 +1034,7 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
         queue->head = task->next;
         /* Freed without decrementing any join: the parent that counted it is
          * in this same queue, ahead of or behind it, and is going the same
-         * way. The async pipelines legitimately leave tasks behind at
+         * way. The frame queues legitimately leave tasks behind at
          * shutdown. */
         task_free(task);
     }
@@ -1159,10 +1159,10 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
  * Wait until every sibling counted by `join_field` (an int on `self`, filled
  * by ToriRS_TaskQueue_AddParallelPoolSubTask) has ended.
  *
- * The siblings run on their own queue -- the parallel asset queue, where the
+ * The siblings run on their own queue -- the parallel frame queue, where the
  * runner puts all their reads on the wire together -- so this is a wait on
  * state THIS queue does not own, and it says so (`blocked`, see
- * TASK_AWAIT_STATE): the settle loop ends, the asset queue gets its turn, and
+ * TASK_AWAIT_STATE): the settle loop ends, the frame queue gets its turn, and
  * the parent is resumed once per pass rather than spun. Unlike a residency
  * wait it needs no budget: a task always ends, so the count always reaches
  * zero.

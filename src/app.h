@@ -1160,24 +1160,40 @@ struct App
     struct UITreeRoleTable ui_roles;
 
     /* Phase 1: task runtime + disk (created first, freed last). Exactly one of
-     * the two disks is live, per cfg.cache_kind. */
-    struct TaskRunner runner; /* owns queue + io + px */
-    /** Serial game-action pipeline: per-packet exec tasks and interface slot
-     * mounts. Own queue + io slots, SHARED px with `runner`. Head-only
+     * the two disks is live, per cfg.cache_kind.
+     *
+     * The three task queues, named for what each promises a caller:
+     *
+     *   packet_runner      it happens in the order the server sent it
+     *   frame_runner       it runs now, as far as it will go, every frame
+     *   background_runner  it gets the time a frame has left, for as many
+     *                      frames as it takes
+     */
+    /**
+     * The frame queue: parallel, pumped to a standstill every App_RunOnce with
+     * no time limit (App_PumpAsync), and settled whole when a client script is
+     * on it (app_settle_cs2_frame) -- a frame is withheld until its
+     * render-blocking tasks are done. Asset loads, client scripts, sign-in,
+     * file saves. Owns queue + io + px.
+     */
+    struct TaskRunner frame_runner;
+    /** The packet queue: per-packet exec tasks and interface slot
+     * mounts. Own queue + io slots, SHARED px with `frame_runner`. Head-only
      * execution makes it a strict FIFO — packet application order is
      * preserved across IO yields, and a mount enqueued by a packet runs
      * before the next packet is even popped (the pump only pops a new packet
      * when this queue is idle). */
-    struct TaskRunner exec_runner;
+    struct TaskRunner packet_runner;
     /**
-     * Work nothing in the frame waits on: parallel, own queue + io, SHARED px.
+     * The background queue: work nothing in the frame waits on. Parallel, own
+     * queue + io, SHARED px.
      * Given time rather than drained -- a floor slice every App_RunOnce, and
      * whatever slack the platform loop has before its frame deadline
      * (App_RunBackground) -- so neither app_settle_cs2_frame nor the packet
      * pump ever steps it. A job on it that must be done by a deadline is
      * finished by its owner (the world job, app_world_job.c).
      */
-    struct TaskRunner bg_runner;
+    struct TaskRunner background_runner;
     struct RSCache_Dat2Disk* dat2_disk;
     struct RSCache_Dat1Disk* dat1_disk;
     /** 1 when dat1 reads go to a LostCity server instead of dat1_disk. The
@@ -1776,7 +1792,7 @@ struct App
     /* Projectile hotkey latch: first press = src tile, second = dst + fire. */
     /*
      * The loc lane: zone loc changes apply in the order they were enqueued,
-     * but load off the packet FIFO. A task takes a ticket when it is queued
+     * but load off the packet queue. A task takes a ticket when it is queued
      * (loc_lane_enqueued), loads whatever it needs on the parallel asset
      * runner alongside the others, and only then waits for loc_lane_applied
      * to reach the ticket before it -- so a LOC_DEL lands after the add it
@@ -1789,7 +1805,7 @@ struct App
     unsigned loc_lane_enqueued;
     unsigned loc_lane_applied;
     /*
-     * Server ticks executed, counted in wire order on the packet FIFO: at
+     * Server ticks executed, counted in wire order on the packet queue: at
      * SERVER_TICK_END, or at PLAYER_INFO on a revision that sends no fence.
      * A loc change stamped with an earlier tick than the packet reading it is
      * one the rev-239 client has already built (it builds a pending spawn in
@@ -2556,12 +2572,12 @@ struct App
     int boot_frames_budget_capped;
     uint64_t boot_start_ms;
     /* Post-boot frames that used their whole step budget with work still
-     * pending — the async pipeline being drip-fed a slice at a time. */
+     * pending — the frame queue being drip-fed a slice at a time. */
     int busy_frames;
     long busy_steps;
 
     /*
-     * The async pipeline still had work when the last App_RunOnce returned.
+     * The frame queue still had work when the last App_RunOnce returned.
      *
      * Read by the frame loop, which skips its pacing sleep while it is set.
      * The frame cap exists to pace the SCREEN; sleeping through outstanding IO
@@ -2606,10 +2622,10 @@ struct App
     int cs1_eval_inflight;
     /** Tree-affecting async work (CS2 hooks, transmits) is in flight; when the
      * runner queue next goes idle the tree gets a refresh pass. */
-    int runner_had_work;
+    int frame_runner_had_work;
     /** The serial packet/interface transaction yielded on real external IO.
      * Its partially-applied tree is not eligible for frame publication. */
-    int exec_runner_had_work;
+    int packet_runner_had_work;
     int world_load_inflight;
     /** The boot report has been told about the session's first packet. */
     int net_first_packet_marked;
@@ -3056,7 +3072,7 @@ struct App
      * and the one frame it costs is the gather and the build together.
      *
      * Background (TORIRS_WORLD_REBUILD=background): the gather runs on
-     * bg_runner while the old scene stays drawn and the packets behind the
+     * background_runner while the old scene stays drawn and the packets behind the
      * REBUILD are held at the pump; the build and the tail run when it lands
      * (app_world_job.c).
      */
@@ -3138,7 +3154,7 @@ struct App
         /**
          * The staging scene (phase STAGE, until the commit or a cancel): a
          * World and a WorldBuilder of the job's own, on a pool pair no view
-         * uses, built a unit at a time on bg_runner while the old scene
+         * uses, built a unit at a time on background_runner while the old scene
          * stays drawn, then swapped in whole (WorldBuilder_HotSwap). NULL
          * outside a staging build -- a blocking client never makes one.
          */
@@ -4011,7 +4027,7 @@ App_BootTextOnly(struct App const* app);
 /** IF_OPENSUB (rev-230 openSubInterface): mount a cache interface group under a
  *  component slot of the open root. target_uid = packed (parent<<16|child) of
  *  the mount slot; type 0=modal, 1=overlay, 3=tab/sidemodal. Async — enqueued on
- *  the serial exec pipeline so it settles before the next packet is applied. */
+ *  the serial packet queue so it settles before the next packet is applied. */
 void
 App_OpenSubInterface(
     struct App* app,
@@ -4046,8 +4062,8 @@ App_RunClientScript(
 
 /** Dispatch every RUNCLIENTSCRIPT held since the last fence, in arrival order,
  *  as tasks on `runner`. Called at SERVER_TICK_END and whenever the packet
- *  pipeline runs dry with the CS2 runner (`app->runner`), and by the packet
- *  pump with the packet pipeline (`app->exec_runner`) ahead of an interface
+ *  pipeline runs dry with the CS2 runner (`app->frame_runner`), and by the packet
+ *  pump with the packet pipeline (`app->packet_runner`) ahead of an interface
  *  mount change -- see `pending_clientscripts` for why they are held at all. */
 void
 App_FlushPendingClientScripts(
@@ -4547,7 +4563,7 @@ App_WorldJobWanted(struct App const* app);
 
 /**
  * Start the background rebuild of the root scene: queue its gather on
- * bg_runner and hold the packet pump until it has been committed. Called by
+ * background_runner and hold the packet pump until it has been committed. Called by
  * the REBUILD packet task in place of awaiting the load, after the same
  * bookkeeping (App_WorldRebuildBegin, the square list, the xtea keys).
  * `zones` is the instance grid or NULL; both arrays are copied.

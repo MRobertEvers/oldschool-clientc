@@ -209,7 +209,7 @@ RS_UISlots_TabGiven(struct App* app, int tabno)
 }
 
 /* Wrapper protothread: run the mount, then relayout + CS1 re-request over
- * the new subtree. Enqueued on the app's serial exec pipeline so a mount a
+ * the new subtree. Enqueued on the app's serial packet queue so a mount a
  * packet triggers completes before the next packet is popped (and UI-driven
  * mounts serialize with packet exec the same way). */
 struct Task_SlotMountRefresh
@@ -246,7 +246,7 @@ static struct ToriRS_TaskVTable Task_SlotMountRefresh_VTable = {
     .free = Task_SlotMountRefresh_Free,
 };
 
-/* Queue a mount for one slot region on the serial exec pipeline. Never
+/* Queue a mount for one slot region on the serial packet queue. Never
  * blocks; the frame pump drives it. */
 static void
 slot_mount(
@@ -284,7 +284,7 @@ slot_mount(
     task->owner_index = owner_index;
     task->iface_id = iface_id;
     PT_INIT(&task->pt);
-    TaskRunner_AddRenderBlockingSerialTask(&app->exec_runner, &task->task);
+    TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &task->task);
 }
 
 void

@@ -239,7 +239,7 @@ app_sailing_register_arrows(
             if( !app->sailing_arrow_loading[i] )
             {
                 ToriRS_TaskQueue_Add(
-                    app->runner.queue, CreateTask_ModelLoad(app->provider, model_id));
+                    app->frame_runner.queue, CreateTask_ModelLoad(app->provider, model_id));
                 app->sailing_arrow_loading[i] = 1;
             }
             continue;

@@ -37,7 +37,7 @@ struct Task_PackAssetsLoad
 
     int needs_player; /* pack has a local-player model widget (clientCode 327/328) */
 
-    /** Loaders fanned out on the provider's asset queue and not yet ended. */
+    /** Loaders fanned out on the provider's frame queue and not yet ended. */
     int pending;
 };
 
@@ -143,7 +143,7 @@ Task_PackAssetsLoad_Run(
      * Every sprite, font, model and npc config the pack names, ALL AT ONCE.
      *
      * They are independent records with one consumer (the mount), so they go
-     * out as siblings on the asset queue and are joined -- the first open of an
+     * out as siblings on the frame queue and are joined -- the first open of an
      * interface used to await them one after another, a round trip each, and
      * on a streamed cache that was the frame that dropped when a shop or a
      * dialogue opened.

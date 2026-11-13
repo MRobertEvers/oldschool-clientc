@@ -1,5 +1,5 @@
 /*
- * Serial-FIFO ordering guarantee for the packet-exec pipeline. The whole
+ * Serial-FIFO ordering guarantee for the packet-packet queue. The whole
  * async-exec design rests on ToriRS_TaskQueue_Run only ever running the HEAD
  * task: a task that yields for IO must fully complete before the next
  * enqueued task runs, even though the second task needs no IO. This models a

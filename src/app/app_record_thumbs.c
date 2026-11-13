@@ -122,7 +122,7 @@ thumb_queue(
     struct ToriRS_Task* task)
 {
     if( task )
-        ToriRS_TaskQueue_Add(app->runner.queue, task);
+        ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
 }
 
 /** 1 when model `model_id` is resident; else asks for it (when `ask`). */

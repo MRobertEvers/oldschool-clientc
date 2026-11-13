@@ -43,7 +43,7 @@ App_LootNotifyKill(
     {
         struct ToriRS_Task* load = CreateTask_ObjLoad(app->provider, obj_id);
         if( load )
-            ToriRS_TaskQueue_Add(app->runner.queue, load);
+            ToriRS_TaskQueue_Add(app->frame_runner.queue, load);
     }
 
     int event_id = app->loot.next_event_id++;
@@ -63,7 +63,7 @@ App_LootNotifyKill(
         char const* str_args[1] = { source_name };
         uint64_t str_mask = 1u << 2;
 
-        RS_CS2_RunScript(&app->host, &app->runner, 7159, intv, 3, str_mask, str_args, 1);
+        RS_CS2_RunScript(&app->host, &app->frame_runner, 7159, intv, 3, str_mask, str_args, 1);
     }
 }
 

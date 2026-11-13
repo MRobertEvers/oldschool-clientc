@@ -590,7 +590,7 @@ static struct ToriRS_TaskVTable Task_InvIconReconcile_VTable = {
  * none is already running. On the ASSET runner: it is enqueued from the tick
  * that applied the inventory packets, so it already runs after them, and the
  * slots stay pending until an icon is built -- ordering needs nothing from
- * the packet FIFO. What the FIFO cost was the frame: equipping a set of
+ * the packet queue. What the FIFO cost was the frame: equipping a set of
  * unseen items parked every packet, and the picture, on a wave of obj and
  * model reads (100 ms at ::maxrange through a browser cache). Now the world
  * moves and the cells fill as the icons land. */
@@ -611,7 +611,7 @@ app_inv_icon_reconcile_tick(struct App* app)
     task->app = app;
     PT_INIT(&task->pt);
     app->inv_icon_reconcile_inflight = 1;
-    ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
+    ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
 }
 
 static int
@@ -659,7 +659,7 @@ app_request_cs1_eval(struct App* app)
     task->app = app;
     PT_INIT(&task->pt);
     app->cs1_eval_inflight = 1;
-    ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
+    ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
 }
 
 int

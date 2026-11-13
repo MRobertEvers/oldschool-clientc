@@ -6,7 +6,7 @@
  * `struct App`; what crosses to another unit of the layer is declared in
  * app/app_internal.h, and nothing outside the layer may include either.
  *
- * THE RULE. A load that is not critical never parks the packet FIFO. The
+ * THE RULE. A load that is not critical never parks the packet queue. The
  * server's packet stream is applied in order, on the exec runner, and the
  * frame is withheld until a tick's packets have all applied -- that is what
  * keeps a tick atomic on screen. A packet whose handler waits for a cache
@@ -45,7 +45,7 @@
  * WHO ASKS DECIDES WHEN IT RUNS. `app_placeholder_queue` adds to the ASSET
  * runner, and a packet handler on the exec runner is not that runner, so a
  * ground stack's placeholder is genuinely deferred. A CLIENTSCRIPT is not:
- * `app_settle_cs2_frame` drains `app->runner` to a fixed point, so a
+ * `app_settle_cs2_frame` drains `app->frame_runner` to a fixed point, so a
  * placeholder queued from inside a script is picked up by the settle that is
  * running the script, in the same frame -- the load never leaves the frame it
  * was supposed to leave. Measured: taking the skill guide's 82 obj icons off
@@ -250,7 +250,7 @@ app_placeholder_queue(
     /* A stream on the asset runner: nothing behind it in the packet stream
      * addresses the asset, and a frame published over it is a correct frame
      * (the entity is already there, drawing nothing). */
-    ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
+    ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
 }
 
 void

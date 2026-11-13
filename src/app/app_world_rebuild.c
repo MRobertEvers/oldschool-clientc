@@ -174,7 +174,7 @@ app_skybox_handle(struct App* app)
 
             app->skybox_requested_plus1 = app->skybox_id_plus1;
             if( load )
-                ToriRS_TaskQueue_Add(app->runner.queue, load);
+                ToriRS_TaskQueue_Add(app->frame_runner.queue, load);
         }
     }
     if( app->skybox_model )
@@ -439,7 +439,7 @@ app_obj_stack_custom_changed(
         struct ToriRS_Task* load = CreateTask_ModelLoad(app->provider, stack->custom_model);
 
         if( load )
-            ToriRS_TaskQueue_Add(app->runner.queue, load);
+            ToriRS_TaskQueue_Add(app->frame_runner.queue, load);
         if( stack->element_id >= 0 )
             return;
         app_placeholder_obj_stack(

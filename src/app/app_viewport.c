@@ -351,7 +351,7 @@ app_draw_viewport_message(
         {
             struct ToriRS_Task* task = CreateTask_FontLoad(app->provider, font_cache_id);
             if( task )
-                ToriRS_TaskQueue_Add(app->runner.queue, task);
+                ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
         }
         scene_id = app_minimenu_font_scene_id(app);
     }

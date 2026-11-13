@@ -2613,7 +2613,7 @@ lua_drive_tests(struct lua_State* L)
         g_tests_state = DRIVE_FETCH_PENDING;
         fprintf(stderr, "quest-driver: tests manifest: asking for script item %s (read %d)\n",
             TestsManifest_Path(), g_tests_serial);
-        ToriRS_TaskQueue_Add(g_app->runner.queue,
+        ToriRS_TaskQueue_Add(g_app->frame_runner.queue,
             CreateTask_PluginScriptRead(TestsManifest_Path(), g_tests_serial, drive_tests_deliver, NULL));
     }
     if( g_tests_state == DRIVE_FETCH_PENDING )
@@ -3027,7 +3027,7 @@ lua_drive_play(struct lua_State* L)
     g_demand_source_state = DRIVE_FETCH_PENDING;
     fprintf(stderr, "quest-driver: on demand: play %d: %s: asking for %s and %s; account %s\n",
         g_demand_fetch_serial, g_demand_id, source, g_demand_fixture_path, g_demand_account);
-    ToriRS_TaskQueue_Add(g_app->runner.queue,
+    ToriRS_TaskQueue_Add(g_app->frame_runner.queue,
         CreateTask_PluginScriptRead(source, g_demand_fetch_serial, drive_play_deliver, (void*)(intptr_t)0));
     /* This client's own seat's fixture, and a launching leader's every
      * seat's when the path is per seat ("{seat}"); one file serves them all
@@ -3043,7 +3043,7 @@ lua_drive_play(struct lua_State* L)
             continue;
         drive_play_fixture_path(seat, fixture_path, sizeof(fixture_path));
         g_demand_fixture_state[seat - 1] = DRIVE_FETCH_PENDING;
-        ToriRS_TaskQueue_Add(g_app->runner.queue,
+        ToriRS_TaskQueue_Add(g_app->frame_runner.queue,
             CreateTask_PluginScriptRead(fixture_path, g_demand_fetch_serial, drive_play_deliver,
                 (void*)(intptr_t)seat));
     }
@@ -3270,7 +3270,7 @@ drive_launch_queue(struct lua_State* L, char const* verb, char* body, int size)
     drive_launch_line_value(body, size, "session", ticket->session, sizeof(ticket->session));
     ticket->answer = NULL;
     ticket->answer_size = 0;
-    ToriRS_TaskQueue_Add(g_app->runner.queue,
+    ToriRS_TaskQueue_Add(g_app->frame_runner.queue,
         CreateTask_PluginLaunch(verb, body, size, ticket->serial, drive_launch_deliver, NULL));
     ToriMem_Free(ToriMem_Plugins(), body);
     lua_pushstring(L, DriveResultName(DRIVE_OK));

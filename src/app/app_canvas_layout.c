@@ -55,7 +55,7 @@ app_dispatch_resize_hook_ids(
             continue;
         RS_CS2_DispatchHook(
             &app->host,
-            &app->runner,
+            &app->frame_runner,
             ids[i],
             &UITree_Hooks(&app->tree->components[idx])->on_resize);
     }
@@ -819,8 +819,8 @@ int
 App_FrameSettled(struct App const* app)
 {
     assert(app);
-    return !app->runner_had_work && !app->runner.frame_settle_pending &&
-           !app->exec_runner_had_work && !app->server_tick_open &&
+    return !app->frame_runner_had_work && !app->frame_runner.frame_settle_pending &&
+           !app->packet_runner_had_work && !app->server_tick_open &&
            RS_ClientScriptQueue_Count(&app->pending_clientscripts) == 0 && app->host.triggeroplocal_count == 0 &&
            !app->host.close_modal_requested && app->host.resume_pausebutton_component_id == -1 &&
            app->host.social_send_count == 0;

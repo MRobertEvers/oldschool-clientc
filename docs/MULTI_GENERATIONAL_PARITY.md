@@ -82,7 +82,7 @@ Remaining cache work is decoder currency (rev 233 fields) and runtime XTEA
   table row; unknown wire opcodes are dropped with a log line.
 - Shared parser `gameproto_parse` fills the tagged union `struct RevPacket`
   (`src/net/rev/revpacket.h`); the game consumes canonical packets via the
-  command bus → serial `exec_runner` → `RS_GameProto_Exec` switch
+  command bus → serial `packet_runner` → `RS_GameProto_Exec` switch
   (`src/game/rs_gameproto_exec.c`).
 
 This survives contact with xrsps *if* extended with (a) a transport/framing

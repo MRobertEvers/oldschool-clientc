@@ -496,7 +496,7 @@ Task_Dat2Preload_Run(
                 &task->pending);
         else
         {
-            /* No asset queue to fan out on (a test harness): open inline. */
+            /* No frame queue to fan out on (a test harness): open inline. */
             RSCache_IO_Dat2ReferenceTableLoad(io, 0, task->table_id);
             PT_YIELD(&task->pt);
             {

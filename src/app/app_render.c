@@ -750,8 +750,8 @@ App_Render(
          * ("or -1 to leave the bar alone", rs_preload.h). Overriding with -1
          * would clamp to zero and walk the bar backwards.
          */
-        if( app->runner.render.intent == TORIRS_RENDER_BOOT_BAR && app->runner.render.percent >= 0 )
-            percent = app->runner.render.percent;
+        if( app->frame_runner.render.intent == TORIRS_RENDER_BOOT_BAR && app->frame_runner.render.percent >= 0 )
+            percent = app->frame_runner.render.percent;
 
         /* Post-login (and any later quiet bake), the reference shows ONLY the
          * sentence: a black screen and "Loading - please wait.", no bar. The

@@ -198,12 +198,17 @@ PT_YIELD(&task->pt);                               /* control leaves         */
 rscache_model = RSCache_IO_Dat2ModelDecode(io, 0); /* …and comes back filled */
 ```
 
-**The App owns two runners, sharing one `PlatformX_IO`:**
+**The App owns three runners, sharing one `PlatformX_IO`, each named for what it
+promises a caller:**
 
-- `app->runner` — the asset pipeline. Model/sprite/font/config/map loads. Runs
-  head-first but tasks complete out of order relative to each other only by
-  queue position.
-- `app->exec_runner` — the serial game-action FIFO. Per-packet exec tasks and
+- `app->frame_runner` — the frame queue: it runs now, as far as it will go, every
+  frame. Model/sprite/font/config/map loads, client scripts, sign-in, file
+  saves. Runs head-first but tasks complete out of order relative to each
+  other only by queue position.
+- `app->background_runner` — the background queue: it gets the time a frame has
+  left, for as many frames as it takes, and nothing waits on it (a background
+  world rebuild's gather and staging).
+- `app->packet_runner` — the packet queue: a strict FIFO. Per-packet exec tasks and
   interface-slot mounts. Head-only execution makes it a strict FIFO, so packet
   application order survives IO yields, and a mount enqueued by a packet runs
   before the next packet is even popped.

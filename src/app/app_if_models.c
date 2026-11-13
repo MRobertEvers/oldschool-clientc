@@ -264,7 +264,7 @@ app_if_head_enqueue(
      * composited, so nothing orders this against the packets, and holding
      * the frame for a chathead's round trip is exactly the pause the store
      * exists to avoid. */
-    ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
+    ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
 }
 
 static uint32_t
@@ -607,7 +607,7 @@ app_if_player_model_enqueue(
     task->arg0 = arg0;
     task->arg1 = arg1;
     PT_INIT(&task->pt);
-    TaskRunner_AddRenderBlockingSerialTask(&app->exec_runner, &task->task);
+    TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &task->task);
 }
 
 /* The CS2 host's lazy-model hooks (RS_CS2Host.widget_model_lazy and
