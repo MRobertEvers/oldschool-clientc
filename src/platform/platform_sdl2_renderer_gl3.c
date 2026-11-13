@@ -5946,27 +5946,46 @@ ToriPlatformSDL2_Renderer_GL3_RenderFrame(struct ToriPlatformSDL2_Renderer_GL3* 
     /* TORIRS_GL3_READBACK=path dumps one GL frame (after READBACK_FRAME, default 90).
      * The readback itself is ToriPlatformSDL2_Renderer_GL3_ReadPixels, which the app also uses for
      * plugin screenshots -- one path, so a bug in the output-rect arithmetic
-     * cannot show up in a debug dump and not in a screenshot. */
+     * cannot show up in a debug dump and not in a screenshot.
+     *
+     * With TORIRS_GL3_READBACK_TO=<frame> the path is a prefix and every
+     * TORIRS_GL3_READBACK_EVERY'th frame (default 1) from READBACK_FRAME to
+     * that one is written as <path>_<frame>.bmp: consecutive frames are what
+     * show a scene swap that drew one frame blank or stale. */
     {
         char const* path = getenv("TORIRS_GL3_READBACK");
         static int done = 0;
         long const want = getenv("TORIRS_GL3_READBACK_FRAME")
                               ? atol(getenv("TORIRS_GL3_READBACK_FRAME"))
                               : 90;
-        if( path && path[0] && !done && gl3->frame_clock >= (double)want )
+        long const last = getenv("TORIRS_GL3_READBACK_TO")
+                              ? atol(getenv("TORIRS_GL3_READBACK_TO"))
+                              : -1;
+        long const every = getenv("TORIRS_GL3_READBACK_EVERY")
+                               ? atol(getenv("TORIRS_GL3_READBACK_EVERY"))
+                               : 1;
+        long const frame = (long)gl3->frame_clock;
+        assert(every > 0);
+        if( path && path[0] && !done && frame >= want && (last < 0 || (frame - want) % every == 0) )
         {
             int* top = (int*)ToriMem_Alloc(
                 ToriMem_Renderer(), (size_t)gl3->width * (size_t)gl3->height * sizeof(int));
             void bmp_write_file(const char* filename, int* px, int w, int h);
-            done = 1;
+            char name[1024];
+            if( last < 0 )
+                snprintf(name, sizeof(name), "%s", path);
+            else
+                snprintf(name, sizeof(name), "%s_%06ld.bmp", path, frame);
+            if( last < 0 || frame + every > last )
+                done = 1;
             assert(top);
             if( ToriPlatformSDL2_Renderer_GL3_ReadPixels(gl3, top, gl3->width, gl3->height) )
             {
                 int resident = 0;
                 for( int i = 0; i < (int)gl3->tex_cap; i++ )
                     resident += gl3->tex_resident[i] ? 1 : 0;
-                bmp_write_file(path, top, gl3->width, gl3->height);
-                fprintf(stderr, "gl3_readback: wrote %s tex_resident=%d\n", path, resident);
+                bmp_write_file(name, top, gl3->width, gl3->height);
+                fprintf(stderr, "gl3_readback: wrote %s tex_resident=%d\n", name, resident);
             }
             ToriMem_Free(ToriMem_Renderer(), top);
         }
