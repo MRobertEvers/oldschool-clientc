@@ -315,6 +315,11 @@ NPC_SPAWN_EXCLUSIONS = {
     # within 13 tiles of 3243,3201 and was never sent one; rev 241 sent him
     # there (index 4464 and others, x 3242-3243, z 3201-3203).
     ("deadman_nigel", 3243, 3201, 0),
+    # Varrock Palace's second-floor barracks holds nine guards, not the dump's
+    # eleven: RSProx index 4408 and 4409 (rev 241) each add nine there. The
+    # other nine dump rows take the reworked types (NPC_SPAWN_ID_CORRECTIONS).
+    ("fai_varrock_guard", 3206, 3478, 2),
+    ("fai_varrock_guard", 3222, 3470, 2),
 }
 
 
@@ -425,6 +430,65 @@ NPC_SPAWN_ID_CORRECTIONS = {
     # 2 x monk2 ([1142], [1210], [1490]): its dump leader is a monk1.
     (3486, 3415, 3485, 0): "priestperilevilmonk2",
     (3486, 3416, 3491, 1): "priestperilevilmonk1",
+    # Varrock's guards were reworked into male and female variants
+    # (fai_varrock_guard02*, fai_varrock_guard_captain02, the _training02* and
+    # _trainer02 of the palace training room); the dump predates it and lists
+    # 3010..3013, which no RSProx session sends (0 of 4553, the oldest rev 223)
+    # and the 02 types arrive in 283. Each place's roster is what the rev
+    # 239..242 sessions add there at once (90 sessions; e.g. the west gate
+    # guard02 + f_variant02 + captain02 in 44 of 54, the palace yard's six in
+    # 23 of 46, the east gate's four in 14 of 25, the south gate's three in
+    # 8 of 10); the training room's six stand still, identical in index 4375,
+    # 4408 and 4409. Within a place the guards wander, so which dump tile takes
+    # which type is the nearest recorded first add, not a recorded fact.
+    # West gate.
+    (3010, 3173, 3429, 0): "fai_varrock_guard02_f_variant02",
+    (3010, 3175, 3423, 0): "fai_varrock_guard02",
+    (3011, 3175, 3428, 0): "fai_varrock_guard_captain02",
+    (3010, 3180, 3401, 0): "fai_varrock_guard02_variant02",
+    (3010, 3175, 3403, 1): "fai_varrock_guard02_f",
+    (3011, 3175, 3414, 1): "fai_varrock_guard_captain02",
+    # South gate.
+    (3010, 3205, 3379, 0): "fai_varrock_guard02_f",
+    (3011, 3211, 3378, 0): "fai_varrock_guard_captain02",
+    (3010, 3211, 3381, 0): "fai_varrock_guard02_variant02",
+    # East gate.
+    (3010, 3271, 3428, 0): "fai_varrock_guard02",
+    (3011, 3273, 3430, 0): "fai_varrock_guard_captain02",
+    (3010, 3275, 3422, 0): "fai_varrock_guard02_variant01",
+    (3010, 3275, 3428, 0): "fai_varrock_guard02_f_variant02",
+    # Palace yard, north wall, and the pair east of the palace.
+    (3010, 3206, 3462, 0): "fai_varrock_guard02_variant02",
+    (3010, 3211, 3463, 0): "fai_varrock_guard02",
+    (3010, 3212, 3462, 0): "fai_varrock_guard02_f_variant01",
+    (3011, 3213, 3465, 0): "fai_varrock_guard_captain02",
+    (3010, 3215, 3464, 0): "fai_varrock_guard02_variant01",
+    (3010, 3217, 3461, 0): "fai_varrock_guard02_f",
+    (3010, 3204, 3496, 0): "fai_varrock_guard02",
+    (3010, 3240, 3500, 0): "fai_varrock_guard02_variant01",
+    (3010, 3246, 3501, 0): "fai_varrock_guard02_f_variant02",
+    # Palace first floor.
+    (3010, 3201, 3495, 1): "fai_varrock_guard02_f",
+    (3010, 3204, 3491, 1): "fai_varrock_guard02",
+    (3010, 3205, 3494, 1): "fai_varrock_guard02_variant02",
+    (3010, 3205, 3498, 1): "fai_varrock_guard02_f_variant02",
+    # Palace second floor: the barracks (two dump rows excluded,
+    # NPC_SPAWN_EXCLUSIONS) and the training room.
+    (3010, 3203, 3479, 2): "fai_varrock_guard02_f_variant02",
+    (3010, 3204, 3477, 2): "fai_varrock_guard02_f",
+    (3010, 3206, 3481, 2): "fai_varrock_guard02_variant02",
+    (3010, 3221, 3483, 2): "fai_varrock_guard02_variant02",
+    (3010, 3207, 3476, 2): "fai_varrock_guard02_variant01",
+    (3010, 3208, 3473, 2): "fai_varrock_guard02",
+    (3010, 3209, 3471, 2): "fai_varrock_guard02_f_variant01",
+    (3010, 3210, 3474, 2): "fai_varrock_guard02",
+    (3010, 3211, 3468, 2): "fai_varrock_guard02",
+    (3012, 3209, 3490, 2): "fai_varrock_guard_training02",
+    (3012, 3211, 3490, 2): "fai_varrock_guard_training02_f_variant01",
+    (3012, 3213, 3490, 2): "fai_varrock_guard_training02",
+    (3012, 3215, 3490, 2): "fai_varrock_guard_training02_f",
+    (3012, 3217, 3490, 2): "fai_varrock_guard_training02_variant01",
+    (3013, 3213, 3491, 2): "fai_varrock_guard_trainer02",
 }
 #
 # Getting Ahead, Gordon and Mary's farmhouse upstairs: the dump lays the empty
@@ -443,6 +507,21 @@ OBJ_SPAWN_RELOCATIONS = {
     # (rev 241, 3/3) and the pickup at [98] are on 3108,3356,1, a tile
     # south-west of the dump's.
     ("fish_food", 3109, 3357, 1): (3108, 3356, 1),
+    # The Temple spiders' den, red spiders' eggs: RSProx index 4517..4528
+    # (rev 242.1) send eleven, 40..67 times a tile on its zone loads; the dump
+    # has ten of them one to four tiles off (1837,9958 it has right). Each dump
+    # row goes to the nearest recorded tile (OSRS-Content 84836f800c hand-edited
+    # m28_155 to these).
+    ("red_spiders_eggs", 1832, 9946, 0): (1831, 9950, 0),
+    ("red_spiders_eggs", 1831, 9951, 0): (1830, 9954, 0),
+    ("red_spiders_eggs", 1830, 9956, 0): (1829, 9959, 0),
+    ("red_spiders_eggs", 1830, 9961, 0): (1829, 9963, 0),
+    ("red_spiders_eggs", 1830, 9965, 0): (1829, 9966, 0),
+    ("red_spiders_eggs", 1837, 9960, 0): (1837, 9961, 0),
+    ("red_spiders_eggs", 1840, 9955, 0): (1839, 9956, 0),
+    ("red_spiders_eggs", 1840, 9960, 0): (1841, 9960, 0),
+    ("red_spiders_eggs", 1845, 9965, 0): (1846, 9965, 0),
+    ("red_spiders_eggs", 1850, 9960, 0): (1848, 9960, 0),
 }
 
 
@@ -487,6 +566,12 @@ OBJ_SPAWN_ID_CORRECTIONS = {
     # `0 58 58: 1813` lays the undusted `murderweapon`, which the player dusts
     # for prints (OSRS-Content 0ee0ee5e9d hand-edited this).
     (1814, 2746, 3578, 0): "murderweapon",
+    # The Dig Site, the panning tray on the ground by the panning point: the dump
+    # lays the full tray (679 tray_mud); RSProx index 4446 (rev 241.1) sends the
+    # EMPTY tray (677 tray_empty) on 3369,3378, 16 of 16 times
+    # (docs/rsprox-analysis/quests/the_dig_site.md [460]; OSRS-Content
+    # b64480d04d hand-edited m52_52 to this).
+    (679, 3369, 3378, 0): "tray_empty",
 }
 
 
@@ -558,6 +643,28 @@ OBJ_SPAWN_ADDITIONS = (
     ("arcenia_root", 3328 + 22, 9792 + 31, 0, 1),
     ("arcenia_root", 3328 + 36, 9792 + 36, 0, 1),
     ("arcenia_root", 3328 + 40, 9792 + 42, 0, 1),
+    # The Dig Site, the north-west cave's floor: RSProx index 4446 (rev 241.1)
+    # sends three iron pickaxes, three empty buckets and eleven bones there on
+    # every zone load (5..9 times each; docs/rsprox-analysis/quests/the_dig_site.md
+    # [3259], [3429], [3436]); the dump has none of them (OSRS-Content b64480d04d
+    # hand-edited m52_153 to these).
+    ("iron_pickaxe", 3347, 9817, 0, 1),
+    ("iron_pickaxe", 3348, 9816, 0, 1),
+    ("iron_pickaxe", 3350, 9815, 0, 1),
+    ("bucket_empty", 3354, 9823, 0, 1),
+    ("bucket_empty", 3355, 9818, 0, 1),
+    ("bucket_empty", 3357, 9820, 0, 1),
+    ("bones", 3364, 9813, 0, 1),
+    ("bones", 3366, 9812, 0, 1),
+    ("bones", 3367, 9814, 0, 1),
+    ("bones", 3368, 9816, 0, 1),
+    ("bones", 3371, 9816, 0, 1),
+    ("bones", 3375, 9821, 0, 1),
+    ("bones", 3383, 9816, 0, 1),
+    ("bones", 3383, 9819, 0, 1),
+    ("bones", 3384, 9812, 0, 1),
+    ("bones", 3384, 9817, 0, 1),
+    ("bones", 3385, 9811, 0, 1),
     # Getting Ahead: the knife the clay head is carved with and the bucket the
     # sink fills to soften the clay are both taken in the farmhouse, and the dump
     # carries neither. Quest Helper GettingAhead.java: `takeKnife` "Take the knife
