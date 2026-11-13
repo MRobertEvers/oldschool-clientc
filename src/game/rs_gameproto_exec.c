@@ -2202,6 +2202,42 @@ exec_control_replay_chat(
 }
 
 /*
+ * REPLAY_DIALOG: the recorder's client answered its chatbox prompt here. Its
+ * own script closed the prompt as it sent the answer -- every one, from
+ * meslayer_mode14_select (754, the GE search) to meslayer_enter (681, an
+ * amount or a name), ends in ~meslayer_close_299(1, 1, 1) -- and no server
+ * packet says so, so a replay closes it here or never. The third argument is
+ * 0: the recorder's answer is already in the recording, and the scripts that
+ * pass 1 have cleared the mode first, so theirs re-sends nothing either. Held
+ * behind the tick's scripts like a RUNCLIENTSCRIPT, so the one that opened the
+ * prompt runs first.
+ */
+static void
+exec_control_replay_dialog(
+    struct App* app,
+    struct TorirsControlFrame const* frame)
+{
+    static struct PktRunClientScript close;
+    int name = 0;
+
+    if( !torirs_control_replay_dialog_decode(frame, &name) )
+        exec_control_replay_malformed(frame);
+    if( name != PKTOUT_NAME_RESUME_P_OBJDIALOG && name != PKTOUT_NAME_RESUME_P_COUNTDIALOG &&
+        name != PKTOUT_NAME_RESUME_P_COUNTDIALOG_LONG && name != PKTOUT_NAME_RESUME_P_NAMEDIALOG &&
+        name != PKTOUT_NAME_RESUME_P_STRINGDIALOG )
+        exec_control_replay_malformed(frame);
+    TORIRS_LOG("exec: REPLAY_DIALOG: the recorded client answered its prompt (pkt-out %d); closing it\n",
+               name);
+    memset(&close, 0, sizeof(close));
+    close.script_id = EXEC_SCRIPT_MESLAYER_CLOSE;
+    close.argc = 3;
+    close.intv[0] = 1;
+    close.intv[1] = 1;
+    close.intv[2] = 0;
+    App_RunClientScript(app, &close);
+}
+
+/*
  * A control frame (net/torirs_control.h), in its place among the packets.
  *
  * The replay's types are written by the RSProx replay transport alone, into
@@ -2240,6 +2276,8 @@ exec_control(
         assert(frame->type != TORIRS_CONTROL_REPLAY_WORLD);
         if( frame->type == TORIRS_CONTROL_REPLAY_COORD )
             exec_control_replay_coord(ctx->app, frame);
+        else if( frame->type == TORIRS_CONTROL_REPLAY_DIALOG )
+            exec_control_replay_dialog(ctx->app, frame);
         else
             exec_control_replay_chat(ctx->app, frame);
         return;
@@ -3364,48 +3402,6 @@ RS_GameProto_Exec(
         if( ctx->app )
             ctx->app->esync.local_pid = packet->_update_pid.local_player_index;
         break;
-    case PKT_NAME_RECONNECT:
-        /* What the login does for a new connection (net.c loginproto_drive),
-         * here in packet order: the index, then the table from the block. */
-        if( ctx->app )
-        {
-            struct GameProtoRevTable const* rev = ctx->app->net->rev;
-
-            assert(rev->player_info_set_local);
-            ctx->app->esync.local_pid = packet->_reconnect.local_player_index;
-            rev->player_info_set_local(packet->_reconnect.local_player_index);
-            rev->player_info_init(packet->_reconnect.data, packet->_reconnect.length);
-            /* A re-established session, as App_NetSessionReset marks one: the
-             * REBUILD behind it is the world arriving again, usually naming the
-             * zone the player left, and its MAP_BUILD_COMPLETE is what the
-             * server (or a replay's map-build barrier) waits for. */
-            ctx->app->net_force_rebuild = 1;
-        }
-        break;
-    case PKT_NAME_DIALOG_RESUMED:
-        /* A replay's recorded client answered its chatbox prompt. Its own
-         * script closed the prompt as it sent the answer -- every one, from
-         * meslayer_mode14_select (754, the GE search) to meslayer_enter (681,
-         * an amount or a name), ends in ~meslayer_close_299(1, 1, 1) -- and no
-         * server packet says so, so a replay closes it here or never. The
-         * third argument is 0: the recorder's answer is already in the
-         * recording, and the scripts that pass 1 have cleared the mode first,
-         * so theirs re-sends nothing either. Held behind the tick's scripts
-         * like a RUNCLIENTSCRIPT, so the one that opened the prompt runs
-         * first. */
-        if( ctx->app )
-        {
-            static struct PktRunClientScript close;
-
-            memset(&close, 0, sizeof(close));
-            close.script_id = EXEC_SCRIPT_MESLAYER_CLOSE;
-            close.argc = 3;
-            close.intv[0] = 1;
-            close.intv[1] = 1;
-            close.intv[2] = 0;
-            App_RunClientScript(ctx->app, &close);
-        }
-        break;
     case PKT_NAME_VARP_SYNC:
         /* Restore the client-visible copy from the server-authoritative set
          * (rev-230 client.java VARP_SYNC / LostCity Client.ts:7390). Distinct
@@ -3592,11 +3588,19 @@ RS_GameProto_Exec(
         }
         break;
     case PKT_NAME_LOGOUT_TRANSFER:
-        /* The session continues on another world (deob: the client reconnects
-         * there). The connection that follows -- a replay's next session, a
-         * live server's hop -- is the transport's; nothing here ends it. */
+        /* The session moves to another world (deob client.java, the
+         * LOGOUT_TRANSFER arm: gameState 45, the socket closed, the world
+         * switched; state 45 then logs in with GAMELOGIN and the account's
+         * credentials). The move is the link watch's, at the head of the next
+         * frame (app_net_link_watch): not here, in the middle of the packet
+         * pipeline whose session it ends. */
         TORIRS_LOG("exec: LOGOUT_TRANSFER to world %d (%s)\n", packet->_logout_transfer.world_id,
                    packet->_logout_transfer.host);
+        if( ctx->app )
+        {
+            ctx->app->net_hop_pending = 1;
+            ctx->app->net_hop_world = packet->_logout_transfer.world_id;
+        }
         break;
     case PKT_NAME_SET_INTERACTION_MODE:
     case PKT_NAME_RESET_INTERACTION_MODE:

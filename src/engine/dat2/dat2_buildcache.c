@@ -1247,6 +1247,8 @@ dat2_buildcache_identkits_cleanup(struct Dat2BuildCache* dat2_buildcache)
     struct MapEntry_ConfigIdentkit* entry;
 
     assert(dat2_buildcache);
+    /* Emptied: an absent kit is "not loaded" again, not "not in the cache". */
+    dat2_buildcache->identkits_whole = 0;
     if( !dat2_buildcache->identkit_hmap )
         return;
 
@@ -1313,6 +1315,8 @@ dat2_buildcache_identkits_init_from_archive(
     dat2_buildcache_identkits_init_from_filelist(
         dat2_buildcache, filelist, archive, wanted_ids, wanted_count);
     RSCache_FileListFree(filelist);
+    if( wanted_count == 0 )
+        dat2_buildcache->identkits_whole = 1;
 }
 
 void

@@ -17,6 +17,12 @@ struct Dat2BuildCache
     /** RS2 BasType / render-animation configs (config group 32). */
     struct HMap* bas_hmap;
     struct HMap* identkit_hmap;
+    /** The identkit config group has been decoded whole into identkit_hmap:
+     *  a kit it does not hold is absent from the cache, not waiting to be
+     *  loaded. Without it a missing kit read as "not loaded yet" on every
+     *  request and the whole group was fetched and decoded again each time
+     *  (idk 307, hundreds of times in a 30 s replay, 2026-11-13). */
+    uint8_t identkits_whole;
     struct HMap* map_terrain_hmap;
     struct HMap* map_scenery_hmap;
     struct HMap* loc_hmap;

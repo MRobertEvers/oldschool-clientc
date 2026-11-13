@@ -23,7 +23,12 @@ struct ToriDraw_Scene;
 /* Bounded on purpose: past this, re-walking the pool is cheaper than
  * tracking every change, and the overflow flag says to do exactly that. */
 #define WORLD_SCENERY_CHANGED_MAX 256
-#define WORLD_LOC_CHANGE_MAX 256
+/* One record per changed (level, layer, x, z) in the scene. The deob's list
+ * has no bound; a player-owned house or an instance the server furnishes with
+ * LOC_ADD_CHANGE names several hundred keys, and at 256 every key past that
+ * was dropped without a word, to be missing after the next rebuild or zone
+ * reset. Past this one the drop is said (World_LocChangePushOps). */
+#define WORLD_LOC_CHANGE_MAX 2048
 
 #define WORLD_MAP_TERRAIN_X 64
 #define WORLD_MAP_TERRAIN_Z 64

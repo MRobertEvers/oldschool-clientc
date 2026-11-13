@@ -59,10 +59,11 @@
  *                             A rebuild the client skips (same zone,
  *                             App_WorldRebuildBegin :834) has the same base, so
  *                             the rule ends nothing there either.
- *   RECONNECT                 ends nothing: the replay executes it as the
- *                             player table's re-seed only (rs_gameproto_exec.c
- *                             :3132-:3148); the forced REBUILD after it is a
- *                             rebuild like any other, and the server's
+ *   RECONNECT                 ends nothing: the replay ends the connection
+ *                             there and the client reconnects, its RECONNECT_OK
+ *                             re-seeding the player table (net.c
+ *                             loginproto_drive); the forced REBUILD after it is
+ *                             a rebuild like any other, and the server's
  *                             UPDATE_ZONE_FULL_FOLLOWS that follow clear zones.
  *
  * LOC_ANIM, LOC_MERGE, MAP_ANIM, MAP_PROJANIM, SOUND_AREA and the scripted

@@ -15,11 +15,14 @@
  * the Jagex client over a socket:
  *
  *   - The handshake is answered, not recorded: INIT_GAME_CONNECTION gets a
- *     session id, GAMELOGIN (or GAMERECONNECT) gets LoginResponse.Ok carrying
- *     the recording's local player index. RSProx decrypts the RSA block to
- *     learn the cipher seed; this transport is in the client's own process and
- *     reads the seed the login driver published (net->prev_seed) instead, so
- *     no private key is involved.
+ *     session id, a login gets LoginResponse.Ok carrying the recording's local
+ *     player index. RSProx decrypts the RSA block to learn the cipher seed;
+ *     this transport is in the client's own process and reads the seed the
+ *     login driver published (net->prev_seed) instead, so no private key is
+ *     involved.
+ *   - A session's connection ends where the recording's did, and the client
+ *     takes it up again the way the official client does (THE SESSION'S
+ *     CONNECTIONS, below).
  *   - Every server packet is re-enciphered for this session's ISAAC (seed +
  *     50, pSmart1Or2 opcodes) and framed exactly as the recording framed it.
  *     The payloads are the recording's bytes, untouched.
@@ -39,6 +42,47 @@
  * the machine allows plays the recording as fast as it can while every
  * animation, timer and clientscript clock still sees the gaps the recorder saw.
  * Both are deltas, so switching between them mid-replay does not jump.
+ *
+ * THE SESSION'S CONNECTIONS. A login is one of three things, and the answer is
+ * what the official client would have been answered:
+ *
+ *   - A RECORDED RECONNECT. RSProx writes its RECONNECT (0xFF) only when the
+ *     server answered a login with RECONNECT_OK (proxy ServerGameLoginDecoder,
+ *     reply 15), and the client accepts 15 only in gameState 40, connection
+ *     lost, in reply to the GAMERECONNECT it sends there (deob client.java,
+ *     the reply switch: `var31 == 15 && field739 == 40`; the opcode and the
+ *     previous seed in place of the password: the `field739 == 40` branches of
+ *     the block builder). So at that frame the recorded session's socket went
+ *     away. The transport ends this connection there -- once every byte before
+ *     the frame is on the bus AND executed, as a client reads what its socket
+ *     holds before it sees the close -- the client's link watch sends
+ *     GAMERECONNECT, and the transport answers RECONNECT_OK carrying the
+ *     frame's GPI block (net/login/login_osrs.c), then goes on after the
+ *     frame. The executed-tick count goes on too: it is one session.
+ *   - A WORLD HOP. LOGOUT_TRANSFER ends the connection from the server's side
+ *     (deob client.java, the LOGOUT_TRANSFER arm: gameState 45, the socket
+ *     closed, the world switched), and the client logs in to the new world
+ *     with GAMELOGIN and its credentials (state 45 takes the block builder's
+ *     non-40 branches). The answer is LoginResponse.Ok, and THAT is where a hop
+ *     learns its new local index: Ok's p2 (client.java's field767) -- RECONNECT_OK
+ *     states none. Nothing is staged after a LOGOUT_TRANSFER until the client
+ *     has closed the connection and logged in again.
+ *     RSProx starts a NEW recording at a LoginResponse.Ok (ServerGameLoginDecoder
+ *     LOGIN_OK_READ_DATA: a new BinaryBlob), so a hop's own session is never in
+ *     the file that has the LOGOUT_TRANSFER. A RECONNECT behind one (index
+ *     4282, tick 1579: 2 h 22 min of recording clock after it) is a later
+ *     session's reconnect that RSProx appended to this blob (it finds "the old
+ *     connection" by port), under the slot that session's unrecorded Ok gave
+ *     it (frame.reconnect_index, net/proto/proto_reconnect.c). The client
+ *     cannot take RECONNECT_OK on a hop's GAMELOGIN, nor under another index,
+ *     so that login is answered as the unrecorded one was -- Ok with the index
+ *     the session continues under -- and its connection then ends where the
+ *     recording says the next one began, and the GAMERECONNECT after it gets
+ *     the recorded RECONNECT_OK.
+ *   - ANYTHING ELSE: the first login, a seek's RESTART (the transport ended
+ *     the session itself, REPLAY_NEXT_RESTART), a client that closed the
+ *     session on its own, a login after the end. LoginResponse.Ok with the
+ *     recording's index, and the recording from frame 0.
  *
  * Selected with `--replay <file.bin[.gz]>` (main.c), which also picks the
  * revision from the recording's header and logs in with throwaway
@@ -75,6 +119,7 @@
 #define REPLAY_LOGIN_GAMELOGIN 16
 #define REPLAY_LOGIN_GAMERECONNECT 18
 #define REPLAY_LOGINRES_OK 2
+#define REPLAY_LOGINRES_RECONNECT_OK 15
 /* LoginResponse.Ok's length byte: the 34-byte body plus the 3 bytes RSProt
  * has always added (ReplayClientLoginHandler.LOGIN_OK_LENGTH). */
 #define REPLAY_LOGIN_OK_LENGTH 37
@@ -151,13 +196,29 @@ struct NetTransportReplay
      * (replay/replay_scrub.h). */
     struct ReplayScrub* scrub;
     int logout_wire;
-    /** A RECONNECT frame waiting for the bytes before it to reach the bus
-     *  (-1: none): it goes as TORIRS_CMD_NET_RESUMED, which the stream's bytes
-     *  must not overtake. */
+    int logout_transfer_wire;
+    /** A recorded RECONNECT handed out (-1: none): the session goes on after
+     *  it, over the connection whose login it answers. Nothing is staged
+     *  until then. */
     int resume_frame;
-    /** A recorded RESUME_P_*DIALOG waiting, as a RECONNECT does, for the bytes
-     *  before it to reach the bus (-1: none; else its GameProtoPktOutName). */
-    int dialog_resumed;
+    /** The connection is still to be ended at resume_frame: once the client
+     *  has executed everything before it. */
+    int resume_drop;
+    /** A LOGOUT_TRANSFER has been handed out: the client closes this
+     *  connection and logs in to the next world. Nothing is staged until it
+     *  has. */
+    int hop;
+    /** This connection's login continued the session (RECONNECT_OK, or a
+     *  hop's Ok): the stream goes on from the cursor, not from frame 0. */
+    int continuing;
+    /** Sessions continued over a new connection (status). */
+    int resumed;
+    /** Polls so far, and the one that put the last staged byte on the bus:
+     *  bytes pushed this poll reach the client after it. */
+    unsigned polls;
+    unsigned last_push_poll;
+    /** The client's packet pipeline is held (NetTransport_ReplayClientBusy). */
+    int client_busy;
 
     /* The two clocks, read every poll so a switch between them is seamless. */
     int unlocked;
@@ -309,8 +370,10 @@ cin_consume(
     self->cin_len -= n;
 }
 
+/* A connection's own state: the client's bytes and framer, what is staged.
+ * The session -- the cursor, a reconnect or hop it is owed -- is not. */
 static void
-replay_reset(struct NetTransportReplay* self)
+connection_reset(struct NetTransportReplay* self)
 {
     self->cin_len = 0;
     self->c_opcode = -1;
@@ -319,8 +382,7 @@ replay_reset(struct NetTransportReplay* self)
     self->c_skip = 0;
     self->pend_len = 0;
     self->pend_off = 0;
-    self->resume_frame = -1;
-    self->dialog_resumed = -1;
+    self->resume_drop = 0;
     /* A keyframe whose frame goes with the staged bytes is never asked for:
      * the session it belonged to is over, and the client's side resets with
      * it (its socket closes; the reconnect starts a fresh framer and cipher).
@@ -328,7 +390,24 @@ replay_reset(struct NetTransportReplay* self)
     if( self->world_serial && self->bus_total < self->world_end )
         ReplayWorld_Withdraw(self->world_serial);
     self->world_serial = 0;
+}
+
+/* The session from the start: the next login plays frame 0. */
+static void
+replay_reset(struct NetTransportReplay* self)
+{
+    connection_reset(self);
+    self->resume_frame = -1;
+    self->hop = 0;
+    self->continuing = 0;
     ReplayScrub_Rewind(self->scrub);
+}
+
+/* A login now continues the session rather than starting it again. */
+static int
+session_owed(struct NetTransportReplay const* self)
+{
+    return self->resume_frame >= 0 || self->hop;
 }
 
 /* Staged bytes onto the bus, as far as it has room. 1 when none are left. */
@@ -348,6 +427,7 @@ flush_pend(
         CmdBus_Push(bus, TORIRS_CMD_NET_RECV, self->pend + self->pend_off, (uint16_t)chunk);
         self->pend_off += chunk;
         self->bus_total += (uint64_t)chunk;
+        self->last_push_poll = self->polls;
     }
     if( self->world_serial && self->bus_total >= self->world_end )
         self->world_serial = 0;
@@ -357,6 +437,126 @@ flush_pend(
 }
 
 /* --- the handshake ------------------------------------------------------- */
+
+/* LoginResponse.Ok (ReplayClientLoginHandler.sendLoginOk): no authenticator,
+ * no staff level, the slot `index`, a member. */
+static void
+pend_login_ok(
+    struct NetTransportReplay* self,
+    int index)
+{
+    uint8_t ok[2 + REPLAY_LOGIN_OK_BODY];
+    int o = 0;
+
+    assert(index >= 0);
+    memset(ok, 0, sizeof(ok));
+    ok[o++] = REPLAY_LOGINRES_OK;
+    ok[o++] = REPLAY_LOGIN_OK_LENGTH;
+    o += 1 + 4 + 1 + 1; /* authenticator kind + code, staffModLevel, playerMod */
+    ok[o++] = (uint8_t)(index >> 8);
+    ok[o++] = (uint8_t)index;
+    ok[o++] = 1; /* member */
+    o += 8 + 8 + 8; /* accountHash, userId, userHash */
+    assert(o == (int)sizeof(ok));
+    pend_bytes(self, ok, o);
+}
+
+/* RECONNECT_OK: the reply byte, a var-short, the recorded GPI init block. */
+static void
+pend_reconnect_ok(
+    struct NetTransportReplay* self,
+    struct RsproxRecordingFrame const* f)
+{
+    assert(f);
+    assert(f->opcode == RSPROX_RECORDING_RECONNECT);
+    assert(f->length <= 0xffff);
+    pend_byte(self, REPLAY_LOGINRES_RECONNECT_OK);
+    pend_byte(self, (int)(f->length >> 8));
+    pend_byte(self, (int)f->length);
+    if( f->length > 0 )
+        pend_bytes(self, self->rec.data + f->offset, (int)f->length);
+}
+
+/*
+ * A login (GAMELOGIN or GAMERECONNECT, `op`), answered as the official client
+ * would have been answered at this point of the session (THE SESSION'S
+ * CONNECTIONS, at the top).
+ */
+static void
+answer_login(
+    struct NetTransportReplay* self,
+    struct ToriRS_Network const* net,
+    int op)
+{
+    self->sessions++;
+    if( self->resume_frame >= 0 )
+    {
+        struct RsproxRecordingFrame const* f = &self->rec.frames[self->resume_frame];
+
+        /* The recorded RECONNECT_OK, to the GAMERECONNECT of a session that
+         * holds the index it was written under: the deob keeps its index
+         * across RECONNECT_OK. */
+        assert(!self->hop);
+        if( op == REPLAY_LOGIN_GAMERECONNECT && net->local_index == f->reconnect_index )
+        {
+            pend_reconnect_ok(self, f);
+            TORIRS_REPORT("replay: tick %d: RECONNECT_OK (the recorded %u-byte player-info block); "
+                          "player %d's session goes on\n",
+                          f->tick, (unsigned)f->length, f->reconnect_index);
+            self->resume_frame = -1;
+            self->continuing = 1;
+            self->resumed++;
+            self->phase = REPLAY_AWAIT_GAME;
+            return;
+        }
+        /* A session under another slot (a restored checkpoint can leave the
+         * client there), or a fresh GAMELOGIN: the login whose Ok gave the
+         * session the slot its RECONNECT was written under, which this
+         * recording does not have. Its connection ends again at once: the
+         * recorded RECONNECT is still owed. */
+        pend_login_ok(self, f->reconnect_index);
+        TORIRS_REPORT("replay: tick %d: %s as player %d answered LoginResponse.Ok as player %d -- "
+                      "the login this recording does not have; its connection ends where the "
+                      "recorded RECONNECT begins the next\n",
+                      f->tick, op == REPLAY_LOGIN_GAMELOGIN ? "GAMELOGIN" : "GAMERECONNECT",
+                      net->local_index, f->reconnect_index);
+        self->continuing = 1;
+        self->resumed++;
+        self->resume_drop = 1;
+        self->phase = REPLAY_AWAIT_GAME;
+        return;
+    }
+    if( self->hop )
+    {
+        /* The hop's login. When a RECONNECT is what the recording has next,
+         * this is the unrecorded login before it, and its Ok gives the slot
+         * that RECONNECT was written under; otherwise the stream goes on
+         * after the hop under the slot the client has. */
+        int const next = ReplayScrub_NextReconnect(self->scrub);
+        int index = net->local_index >= 0 ? net->local_index : self->rec.local_player_index;
+
+        if( next >= 0 )
+            index = self->rec.frames[next].reconnect_index;
+
+        pend_login_ok(self, index);
+        TORIRS_REPORT("replay: tick %d: the hop's GAMELOGIN answered LoginResponse.Ok as player %d%s\n",
+                      ReplayScrub_LastTick(self->scrub), index,
+                      next >= 0 ? " (the slot the recording's next RECONNECT was written under; the hop's "
+                                  "own session went to another RSProx recording)"
+                                : "");
+        self->hop = 0;
+        self->continuing = 1;
+        self->resumed++;
+        self->phase = REPLAY_AWAIT_GAME;
+        return;
+    }
+    pend_login_ok(self, self->rec.local_player_index);
+    self->continuing = 0;
+    self->phase = REPLAY_AWAIT_GAME;
+    TORIRS_REPORT("replay: logged in as player %d; %d packets over %d ticks (%.1f s)%s\n",
+                  self->rec.local_player_index, self->rec.frame_count, self->rec.tick_count,
+                  (double)self->rec.duration_ms / 1000.0, self->sessions > 1 ? ", from the start" : "");
+}
 
 static void
 answer_handshake(
@@ -385,8 +585,6 @@ answer_handshake(
     {
         int const op = self->cin[0];
         int const len = (self->cin[1] << 8) | self->cin[2];
-        uint8_t ok[2 + REPLAY_LOGIN_OK_BODY];
-        int o = 0;
 
         if( op != REPLAY_LOGIN_GAMELOGIN && op != REPLAY_LOGIN_GAMERECONNECT )
         {
@@ -398,27 +596,7 @@ answer_handshake(
         if( self->cin_len < 3 + len )
             return;
         cin_consume(self, 3 + len);
-
-        /* LoginResponse.Ok (ReplayClientLoginHandler.sendLoginOk): no
-         * authenticator, no staff level, the recorder's slot, a member. A
-         * GAMERECONNECT gets it too -- RSProx treats a reconnect it cannot
-         * hand a session back to as a clean login, and so does this. */
-        memset(ok, 0, sizeof(ok));
-        ok[o++] = REPLAY_LOGINRES_OK;
-        ok[o++] = REPLAY_LOGIN_OK_LENGTH;
-        o += 1 + 4 + 1 + 1; /* authenticator kind + code, staffModLevel, playerMod */
-        ok[o++] = (uint8_t)(self->rec.local_player_index >> 8);
-        ok[o++] = (uint8_t)self->rec.local_player_index;
-        ok[o++] = 1; /* member */
-        o += 8 + 8 + 8; /* accountHash, userId, userHash */
-        assert(o == (int)sizeof(ok));
-        pend_bytes(self, ok, o);
-        self->phase = REPLAY_AWAIT_GAME;
-        TORIRS_REPORT("replay: logged in as player %d; %d packets over %d ticks (%.1f s)%s\n",
-                      self->rec.local_player_index, self->rec.frame_count, self->rec.tick_count,
-                      (double)self->rec.duration_ms / 1000.0,
-                      self->sessions > 0 ? ", from the start" : "");
-        self->sessions++;
+        answer_login(self, net, op);
     }
     if( self->phase == REPLAY_AWAIT_GAME && net->state == TORIRS_NET_GAME && net->has_prev_seed )
     {
@@ -440,7 +618,13 @@ answer_handshake(
         self->wall_last = PlatformWindow_Ticks64();
         self->cycles_last = self->cycles_now;
         self->phase = REPLAY_PLAYING;
-        ReplayScrub_SessionBegin(self->scrub);
+        /* A continued session keeps its cursor and its executed-tick count;
+         * a new one counts from here. */
+        if( self->continuing )
+            ReplayScrub_ConnectionResumed(self->scrub);
+        else
+            ReplayScrub_SessionBegin(self->scrub);
+        self->continuing = 0;
     }
 }
 
@@ -505,8 +689,8 @@ replay_unlocked(struct NetTransportReplay* self)
  * A seek behind the playhead (REPLAY_NEXT_RESTART): the session ends the way a
  * server that went away ends it. What is staged goes with it, the client sees
  * the socket close, and its link watch re-establishes the session
- * (app_net_link_watch); this answers the GAMERECONNECT as a clean login and
- * the scrubber plays from frame 0.
+ * (app_net_link_watch); nothing is owed, so answer_login answers its
+ * GAMERECONNECT with LoginResponse.Ok and the scrubber plays from frame 0.
  */
 static void
 restart_session(
@@ -540,8 +724,9 @@ play(
     self->wall_last = wall;
     ReplayScrub_Advance(self->scrub, step, wall);
 
-    while( self->resume_frame < 0 && self->dialog_resumed < 0 &&
-           self->pend_len - self->pend_off < REPLAY_PENDING_CAP )
+    /* A recorded RECONNECT or a LOGOUT_TRANSFER ends this connection: nothing
+     * more goes on it. */
+    while( !session_owed(self) && self->pend_len - self->pend_off < REPLAY_PENDING_CAP )
     {
         struct ReplayStep next;
         enum ReplayNext const what = ReplayScrub_Next(self->scrub, &next);
@@ -553,6 +738,15 @@ play(
         {
             f = &self->rec.frames[next.frame];
             pend_packet(self, f->opcode, self->rec.data + f->offset, (int)f->length);
+            /* The server's side of a hop: it closes the connection after
+             * this, and the client moves (THE SESSION'S CONNECTIONS). */
+            if( f->opcode == self->logout_transfer_wire )
+            {
+                self->hop = 1;
+                TORIRS_REPORT("replay: tick %d: LOGOUT_TRANSFER; the client moves world and logs in "
+                              "again\n",
+                              f->tick);
+            }
         }
         else if( what == REPLAY_NEXT_COORD )
         {
@@ -586,9 +780,23 @@ play(
             self->world_end = self->staged_total;
         }
         else if( what == REPLAY_NEXT_RESUME )
+        {
+            /* The recorded session lost its connection here. Behind a
+             * LOGOUT_TRANSFER the client is closing it already; otherwise the
+             * transport closes it once the client has executed what is
+             * before it (replay_poll). */
             self->resume_frame = next.frame;
+            self->resume_drop = !self->hop;
+        }
         else if( what == REPLAY_NEXT_DIALOG )
-            self->dialog_resumed = next.dialog_name;
+        {
+            /* The recorder's client answered its chatbox prompt here
+             * (torirs_control.h, REPLAY_DIALOG). */
+            uint8_t payload[TORIRS_CONTROL_REPLAY_DIALOG_BYTES];
+            int const len = torirs_control_replay_dialog_encode(next.dialog_name, payload);
+
+            pend_control(self, TORIRS_CONTROL_REPLAY_DIALOG, payload, len);
+        }
         else if( what == REPLAY_NEXT_RESTART )
         {
             restart_session(self, bus);
@@ -612,44 +820,36 @@ play(
 }
 
 /*
- * A recorded RECONNECT, as the client takes it from a real server: the index
- * the session continues under (rsprox_recording_resolve_reconnects; the
- * recording's own unless it found a world hop), then the GPI init block.
+ * The recorded session's connection ends at resume_frame, as the socket under
+ * it went away: once every byte before the frame is on the bus (pushed on an
+ * earlier poll, so the client has drained it since) and the client has
+ * executed all of it -- nothing parsed and waiting, its pipeline not held. A
+ * client reads what its socket holds before it sees the close. Its link watch
+ * then reconnects (app_net_link_watch), and answer_login answers.
  */
 static void
-push_resume(
+drop_for_reconnect(
     struct NetTransportReplay* self,
+    struct ToriRS_Network const* net,
     struct ToriRS_CmdBus* bus)
 {
-    struct RsproxRecordingFrame const* f = &self->rec.frames[self->resume_frame];
-    static uint8_t cmd[TORIRS_CMD_MAX_PAYLOAD];
+    struct RsproxRecordingFrame const* f;
 
-    assert((int)f->length + 2 <= (int)sizeof(cmd));
-    if( !CmdBus_CanPush(bus, (uint16_t)(f->length + 2)) )
+    if( self->pend_len != self->pend_off || self->polls <= self->last_push_poll )
         return;
-    cmd[0] = (uint8_t)(f->reconnect_index >> 8);
-    cmd[1] = (uint8_t)f->reconnect_index;
-    memcpy(cmd + 2, self->rec.data + f->offset, f->length);
-    CmdBus_Push(bus, TORIRS_CMD_NET_RESUMED, cmd, (uint16_t)(f->length + 2));
-    TORIRS_REPORT("replay: tick %d: the recorded session reconnected; continuing as player %d\n",
-                  f->tick, f->reconnect_index);
-    self->resume_frame = -1;
-}
-
-/* A recorded RESUME_P_*DIALOG, after the bytes before it. */
-static void
-push_dialog_resumed(
-    struct NetTransportReplay* self,
-    struct ToriRS_CmdBus* bus)
-{
-    uint8_t cmd[2];
-
-    if( !CmdBus_CanPush(bus, (uint16_t)sizeof(cmd)) )
+    if( net->packets_head || self->client_busy )
         return;
-    cmd[0] = (uint8_t)(self->dialog_resumed >> 8);
-    cmd[1] = (uint8_t)self->dialog_resumed;
-    CmdBus_Push(bus, TORIRS_CMD_NET_DIALOG_RESUMED, cmd, (uint16_t)sizeof(cmd));
-    self->dialog_resumed = -1;
+    f = &self->rec.frames[self->resume_frame];
+    TORIRS_REPORT("replay: tick %d: the recorded session's connection ends here (RSProx's RECONNECT, "
+                  "%.1f s after the packet before it); the client reconnects\n",
+                  f->tick,
+                  self->resume_frame > 0
+                      ? (double)(f->t_ms - self->rec.frames[self->resume_frame - 1].t_ms) / 1000.0
+                      : 0.0);
+    connection_reset(self);
+    self->phase = REPLAY_IDLE;
+    ReplayScrub_ConnectionLost(self->scrub);
+    emit_status(self, bus, TORIRS_NET_STATUS_DISCONNECTED);
 }
 
 /* --- the transport ------------------------------------------------------- */
@@ -666,6 +866,7 @@ replay_poll(
 
     assert(net);
     assert(bus);
+    self->polls++;
     ReplayScrub_Wall(self->scrub, PlatformWindow_Ticks64());
 
     /* 1. client -> "server" */
@@ -673,7 +874,12 @@ replay_poll(
     {
         if( header.type == TORIRS_NET_OUT_CONNECT )
         {
-            replay_reset(self);
+            /* A connection that takes the session up again keeps the
+             * cursor; any other plays from the start. */
+            if( session_owed(self) )
+                connection_reset(self);
+            else
+                replay_reset(self);
             self->phase = REPLAY_AWAIT_INIT;
             /* A fresh connection reports itself even after a FAILED or a
              * DISCONNECTED: the login screen waits for this edge. */
@@ -688,9 +894,23 @@ replay_poll(
         }
         else if( header.type == TORIRS_NET_OUT_DISCONNECT )
         {
+            if( session_owed(self) )
+            {
+                /* The close the session is owed: a hop's, or the client's
+                 * half of the one the transport made at a RECONNECT. The
+                 * cursor stays where the recording's connection ended. A
+                 * hop's close is the client's own; it is told nothing. */
+                if( self->hop && self->phase == REPLAY_PLAYING )
+                    ReplayScrub_ConnectionLost(self->scrub);
+                connection_reset(self);
+                self->phase = REPLAY_IDLE;
+                if( !self->hop )
+                    emit_status(self, bus, TORIRS_NET_STATUS_DISCONNECTED);
+                continue;
+            }
             if( self->phase == REPLAY_PLAYING )
                 TORIRS_REPORT("replay: the client closed the session at tick %d of %d "
-                              "(%.1f s in)\n",
+                              "(%.1f s in); its next login plays from the start\n",
                               ReplayScrub_LastTick(self->scrub), self->rec.tick_count,
                               (double)ReplayScrub_ClockMs(self->scrub) / 1000.0);
             replay_reset(self);
@@ -710,10 +930,8 @@ replay_poll(
     /* 3. server -> client, as the bus has room. What the bus refuses stays
      * staged: a byte consumed and not delivered is a hole in the stream. */
     flush_pend(self, bus);
-    if( self->resume_frame >= 0 && self->pend_len == 0 )
-        push_resume(self, bus);
-    if( self->dialog_resumed >= 0 && self->pend_len == 0 )
-        push_dialog_resumed(self, bus);
+    if( self->phase == REPLAY_PLAYING && self->resume_frame >= 0 && self->resume_drop )
+        drop_for_reconnect(self, net, bus);
 }
 
 static void
@@ -764,6 +982,7 @@ NetTransport_NewReplay(
     assert(self->dec);
     self->map_build_complete_wire = rev->packetout_code(PKTOUT_NAME_MAP_BUILD_COMPLETE);
     self->logout_wire = rev->packetin_wire(PKT_NAME_LOGOUT);
+    self->logout_transfer_wire = rev->packetin_wire(PKT_NAME_LOGOUT_TRANSFER);
     assert(self->map_build_complete_wire >= 0);
     assert(self->logout_wire >= 0);
     /* After the move: the scrubber reads the transport's copy. */
@@ -871,6 +1090,7 @@ NetTransport_ReplayClientBusy(
     struct NetTransport* t,
     int busy)
 {
+    as_replay(t)->client_busy = busy != 0;
     ReplayScrub_ClientBusy(as_replay(t)->scrub, busy);
 }
 
@@ -911,13 +1131,12 @@ NetTransport_ReplayHoldAt(
 }
 
 /* Nothing of the stream is in flight between the transport and the client:
- * the staged bytes (control frames among them) are all on the bus, no
- * RECONNECT or dialog answer waits. */
+ * the staged bytes (control frames among them) are all on the bus, and the
+ * connection is not owed a reconnect or a hop. */
 static int
 replay_quiet(struct NetTransportReplay const* self)
 {
-    return self->phase == REPLAY_PLAYING && self->pend_len == self->pend_off && self->resume_frame < 0 &&
-           self->dialog_resumed < 0;
+    return self->phase == REPLAY_PLAYING && self->pend_len == self->pend_off && !session_owed(self);
 }
 
 int
@@ -1047,6 +1266,7 @@ NetTransport_ReplayGetStatus(
     out->revision = self->rec.revision;
     out->world = self->rec.world_id;
     out->sessions = self->sessions;
+    out->resumed = self->resumed;
     out->held = ReplayScrub_Held(scrub);
     out->seeking = ReplayScrub_Plan(scrub, &plan);
     out->seek_target = out->seeking ? plan.target : -1;

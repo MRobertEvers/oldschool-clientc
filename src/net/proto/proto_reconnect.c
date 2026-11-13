@@ -3,13 +3,18 @@
  *
  * A reconnect proper keeps the index (the deob's RECONNECT_OK path reads only
  * the GPI block), and RSProx's ReconnectDecoder re-seeds under the session's.
- * A world hop does not: the new world assigns a new slot, in a LOGIN_OK the
- * proxy does not record -- it writes the RECONNECT pseudo-packet instead. The
- * stream still parses under the old index (the bit sections walk the same
- * counts), so nothing fails until a player whose slot lies between the old
- * and new one enters view, and then every PLAYER_INFO does: recording 4282
- * (rev 227) hops at tick 1579 from 177 to 163 and RSProx's own transcript loses
- * PLAYER_INFO from tick 2470 to the end.
+ * But RSProx writes a RECONNECT into the blob of the first connection it has
+ * on the proxy's port (ServerGameLoginDecoder, RECONNECT_OK_READ_DATA), and
+ * a world hop's own session goes to a NEW recording (its LoginResponse.Ok
+ * starts one). So a RECONNECT behind a LOGOUT_TRANSFER can be a later
+ * session's, under the slot that session's unrecorded Ok gave it: recording
+ * 4282 (rev 227) hops at tick 1579, and its RECONNECT comes 2 h 22 min of
+ * recording clock later, under 163 rather than 177. The stream still parses
+ * under the old index (the bit sections walk the same counts), so nothing
+ * fails until a player whose slot lies between the old and new one enters
+ * view, and then every PLAYER_INFO does: RSProx's own transcript loses
+ * PLAYER_INFO from tick 2470 to the end. The replay transport answers that
+ * hop's login with this slot (net_transport_replay.c).
  *
  * The new slot is taken from the camera: the first CAM_TARGET after the
  * RECONNECT that targets a player. It is kept only when PLAYER_INFO decodes

@@ -192,6 +192,9 @@ App_Logout(struct App* app)
 
     app->logout_requested = 0;
     app->logout_wait_cycles = 0;
+    /* A LOGOUT_TRANSFER behind which the session logged out (a recording's
+     * appended LOGOUT) moves nowhere. */
+    app->net_hop_pending = 0;
     /* What the deob's logout reset clears (Statics.method5943's neighbours:
      * field1275, field3246, field1008, the group store). */
     app->cam_script.cam_mode = 0;
@@ -490,6 +493,29 @@ app_net_link_watch(
     assert(app);
     if( !app->net || !app->net_enabled )
         return;
+
+    /*
+     * A LOGOUT_TRANSFER: the server closed this session to move it (deob
+     * gameState 45). The client closes its side, and the watch dials again
+     * as for any lost link -- but as a FRESH login with the account's
+     * credentials, which is what state 45 sends, not the GAMERECONNECT of a
+     * lost connection (ToriRS_Network_Hop). The world's host is not dialled:
+     * this client's transports name their server at boot.
+     */
+    if( app->net_hop_pending )
+    {
+        app->net_hop_pending = 0;
+        if( NetLinkWatch_Drop(&app->net_link) )
+        {
+            TORIRS_LOG("net: LOGOUT_TRANSFER: the session moves to world %d; logging in there\n",
+                       app->net_hop_world);
+            ToriRS_Network_Hop(app->net);
+            app->net_force_rebuild = 1;
+            ToriRS_Network_Logout(app->net);
+            App_NetSessionReset(app);
+            return;
+        }
+    }
 
     memset(&seen, 0, sizeof(seen));
     seen.now_ms = now_ms;

@@ -15,8 +15,10 @@
  *              Withheld during a chase; the pre-roll plays the ones that still
  *              show at the target.
  *   STREAM     the stream's own structure: the tick end, packet groups, the
- *              session's end, and the replay's injected packets (RECONNECT, a
- *              recorded dialog answer, the keyframe). Executed as they are now.
+ *              session's end. Executed as they are now. (The replay's own
+ *              messages -- a chase's tile, a withheld chat line, the keyframe,
+ *              a recorded dialog answer -- are control frames, and a recorded
+ *              RECONNECT is the connection ending: neither has a name.)
  *
  * The table (replay_classify.c) states every name; ReplayClassify_Check
  * asserts none is missing, so a name appended to pktnames.h fails the first

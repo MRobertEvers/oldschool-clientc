@@ -6,7 +6,9 @@
  * SERVER_TICK_ENDs are counted as App.server_tick_serial counts them and
  * handed over every frame, a REBUILD is answered with MAP_BUILD_COMPLETE, and
  * a session the transport drops is re-established the way app_net_link_watch
- * does it (logout, then a reconnect).
+ * does it (logout, then a reconnect). A reconnect the transport answers with
+ * the recorded RECONNECT_OK continues the session: its executed ticks go on
+ * counting, and it is not a login.
  *
  * The recording is built here (net/rsprox_recording.h's layout): tick t
  * carries one VARP_SMALL whose variable is t, so the last variable executed
@@ -307,6 +309,9 @@ struct Client
     int mid_tick;
     int logouts;
     int dialogs;
+    /** Sessions continued over a recorded RECONNECT (the transport's
+     *  `resumed`, last seen). */
+    int resumed;
     int reconnects;
     /** varp_count when the dialog / RECONNECT arrived. */
     int dialog_at;
@@ -383,10 +388,23 @@ frame(struct Client* c)
         ToriRS_Network_HandleCmd(&c->net, header.type, payload, (int)header.length);
     if( c->net.state == TORIRS_NET_GAME && !c->in_game )
     {
+        struct NetTransportReplayStatus st;
+
+        NetTransport_ReplayGetStatus(c->t, &st);
         c->in_game = 1;
-        c->logins++;
-        c->session_serial = c->serial;
-        c->last_varp = -1;
+        if( st.resumed > c->resumed )
+        {
+            /* The recorded RECONNECT's RECONNECT_OK: the same session. */
+            c->resumed = st.resumed;
+            c->reconnects++;
+            c->reconnect_at = c->varp_count;
+        }
+        else
+        {
+            c->logins++;
+            c->session_serial = c->serial;
+            c->last_varp = -1;
+        }
     }
     while( ToriRS_Network_PopPacket(&c->net, &packet) )
     {
@@ -440,18 +458,17 @@ frame(struct Client* c)
             }
             ReplayWorldDelivery_Free(d);
         }
-        else if( packet.packet_type == PKT_NAME_LOGOUT )
-            c->logouts++;
-        else if( packet.packet_type == PKT_NAME_DIALOG_RESUMED )
+        else if( packet._control && packet._control->type == TORIRS_CONTROL_REPLAY_DIALOG )
         {
+            int name = 0;
+
+            TEST_CHECK(torirs_control_replay_dialog_decode(packet._control, &name));
+            TEST_CHECK(name == PKTOUT_NAME_RESUME_P_OBJDIALOG);
             c->dialogs++;
             c->dialog_at = c->varp_count;
         }
-        else if( packet.packet_type == PKT_NAME_RECONNECT )
-        {
-            c->reconnects++;
-            c->reconnect_at = c->varp_count;
-        }
+        else if( packet.packet_type == PKT_NAME_LOGOUT )
+            c->logouts++;
         gameproto_free(&packet);
     }
     if( rebuilt )
@@ -541,11 +558,15 @@ test_normal_play(void)
     TEST_CHECK(c.varp_count == TICKS - 1);
     for( int i = 0; i < c.varp_count; i++ )
         TEST_CHECK(c.varps[i] == i + 1);
-    /* The answer goes after tick 10's VARP, the RECONNECT after tick 25's. */
+    st = status(&c);
+    /* The answer goes after tick 10's VARP; the connection ends after tick
+     * 25's and the session goes on over the next one. */
     TEST_CHECK(c.dialogs == 1);
     TEST_CHECK(c.dialog_at == 10);
     TEST_CHECK(c.reconnects == 1);
     TEST_CHECK(c.reconnect_at == 25);
+    TEST_CHECK(st.sessions == 2);
+    TEST_CHECK(st.resumed == 1);
     /* On the recording's clock, one cycle a frame (20 ms): tick 5 at 3 s.
      * The stall before tick 31 is cut to REPLAY_MAX_GAP_MS. */
     TEST_CHECK(c.varp5_frame >= 150);
@@ -801,6 +822,56 @@ test_fast_seek(void)
     client_close(&c);
 }
 
+/*
+ * Back across a recorded reconnect: held past tick 25's RECONNECT (one
+ * session, two connections), a seek to 20 starts again from the login -- the
+ * session there is the first connection's -- and lands with every tick once;
+ * playing on crosses the RECONNECT again, reconnecting again, and a forward
+ * seek across it from before it lands too. Both plans.
+ */
+static void
+test_seek_back_across_a_reconnect(void)
+{
+    for( int fast = 0; fast <= 1; fast++ )
+    {
+        struct Client c;
+        int session_from;
+
+        client_open(&c, 10);
+        NetTransport_ReplaySetSeekFast(c.t, fast);
+        RUN_UNTIL(&c, executed(&c) >= 2, 1000);
+        NetTransport_ReplayHold(c.t);
+        NetTransport_ReplaySeek(c.t, 30);
+        RUN_UNTIL(&c, !status(&c).seeking, 4000);
+        check_held_at(&c, 30);
+        TEST_CHECK(c.logins == 1);
+        TEST_CHECK(c.reconnects == 1);
+        TEST_CHECK(c.reconnect_at == 25);
+        check_session_varps(&c, 0, 30);
+
+        /* Back across it: the login again, executed counted from it. */
+        session_from = c.varp_count;
+        NetTransport_ReplaySeek(c.t, 20);
+        RUN_UNTIL(&c, !status(&c).seeking, 4000);
+        check_held_at(&c, 20);
+        TEST_CHECK(c.logins == 2);
+        TEST_CHECK(c.reconnects == 1);
+        check_session_varps(&c, session_from, 20);
+
+        /* Forward across it from before it: a reconnect on the way, the
+         * tick count unbroken. */
+        NetTransport_ReplaySeek(c.t, 40);
+        RUN_UNTIL(&c, !status(&c).seeking, 4000);
+        check_held_at(&c, 40);
+        TEST_CHECK(c.logins == 2);
+        TEST_CHECK(c.reconnects == 2);
+        TEST_CHECK(c.reconnect_at - session_from == 25);
+        check_session_varps(&c, session_from, 40);
+        TEST_CHECK(status(&c).resumed == 2);
+        client_close(&c);
+    }
+}
+
 /* --- the stalled-seek watchdog, on a clock the test steps -------------------- */
 
 /*
@@ -981,6 +1052,7 @@ main(void)
     test_seek_replaced();
     test_seek_to_the_end();
     test_fast_seek();
+    test_seek_back_across_a_reconnect();
     test_watchdog_long_map_wait();
     test_watchdog_real_stall();
     printf("replay_scrub_test: ok\n");

@@ -103,7 +103,8 @@ RS_EntitySync_Init(struct RS_EntitySync* sync);
 void
 RS_EntitySync_Free(struct RS_EntitySync* sync);
 
-/** Drop every tracked entity (logout / rebuild): despawns through World. */
+/** Drop every player and npc it knows -- the tracked lists and every
+ *  registered one (logout, a lost or moved session): despawns through World. */
 void
 RS_EntitySync_Clear(
     struct RS_EntitySync* sync,

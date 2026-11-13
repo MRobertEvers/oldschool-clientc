@@ -15,6 +15,7 @@
 #include "net/rev/revpacket.h"
 #include "net/rev/gameproto_revisions.h"
 #include "net/rsprox_recording.h"
+#include "net/torirs_control.h"
 #include "mem/torirs_mem.h"
 #include "platform/net_transport.h"
 
@@ -497,29 +498,23 @@ w_pseudo(
 }
 
 /*
- * A session that moved to a new connection mid-recording. The proxy's notes
- * never reach the client as bytes: PACKET_GROUP_END is dropped, and RECONNECT
- * arrives as PKT_NAME_RECONNECT between the packets either side of it -- the
- * VARP before it executes first -- carrying the index and the GPI block.
+ * A RECONNECT recording: tick 0's login rebuild, then in tick 1 a packet
+ * group, a VARP (7), RSProx's RECONNECT (the GPI block RECONNECT_OK carried),
+ * a VARP (8) and the tick end. With `hop`, a LOGOUT_TRANSFER goes in front of
+ * the RECONNECT, as in index 4282.
  */
-static void
-test_replay_reconnects_where_the_recording_did(void)
+static struct Rec
+build_reconnect_recording(
+    struct GameProtoRevTable const* rev,
+    uint8_t const* gpi,
+    int hop)
 {
-    struct GameProtoRevTable const* rev = GameProtoRev_Osrs(241);
     struct Rec r;
-    struct RsproxRecording rec;
-    struct ToriRS_Network net;
-    static struct ToriRS_CmdBus bus;
     static uint8_t login_rebuild[GPI_INIT_BYTES + 6];
-    static uint8_t gpi[GPI_INIT_BYTES];
     uint8_t group[2] = { 0, 9 };
     uint8_t varp[3] = { 7, 0, 1 };
-    struct NetTransport* t;
-    unsigned long long cycles = 0;
-    char err[256];
-    int seen_names[64];
-    int seen_count = 0;
-    int reconnect_at = -1;
+    /* LOGOUT_TRANSFER: jstr host, p2 world, p4 flags. */
+    static uint8_t const transfer[] = { 'w', '4', '5', '1', 0, 0x01, 0xc3, 0, 0, 0, 1 };
 
     memset(&r, 0, sizeof(r));
     w_header(&r);
@@ -527,7 +522,6 @@ test_replay_reconnects_where_the_recording_did(void)
     rebuild_tail(login_rebuild + GPI_INIT_BYTES, 365, 435, 0);
     w_server(&r, rev, 3, PKT_NAME_REBUILD_NORMAL, login_rebuild, (int)sizeof(login_rebuild));
     w_server(&r, rev, 6, PKT_NAME_SERVER_TICK_END, NULL, 0);
-    /* tick 1: a group, the hop, and the new world's first packet */
     /* PACKET_GROUP_START (gen/osrs241_prot.h: 58, two bytes), which the
      * client frames and drops. */
     w_packet_head(&r, 600, 1, 58);
@@ -535,13 +529,148 @@ test_replay_reconnects_where_the_recording_did(void)
     w1(&r, group[1]);
     w_server(&r, rev, 600, PKT_NAME_VARP_SMALL, varp, 3);
     w_pseudo(&r, 600, RSPROX_RECORDING_PACKET_GROUP_END, NULL, 0);
-    for( int i = 0; i < GPI_INIT_BYTES; i++ )
-        gpi[i] = (uint8_t)(i * 7);
+    if( hop )
+        w_server(&r, rev, 600, PKT_NAME_LOGOUT_TRANSFER, transfer, (int)sizeof(transfer));
     w_pseudo(&r, 601, RSPROX_RECORDING_RECONNECT, gpi, GPI_INIT_BYTES);
     varp[0] = 8;
     w_server(&r, rev, 602, PKT_NAME_VARP_SMALL, varp, 3);
     w_server(&r, rev, 603, PKT_NAME_SERVER_TICK_END, NULL, 0);
+    return r;
+}
 
+/*
+ * Plays a RECONNECT recording into a client that does what app_net_link_watch
+ * does: a connection the transport closes is re-established with
+ * ToriRS_Network_Reconnect (GAMERECONNECT, the seed), and a LOGOUT_TRANSFER
+ * executed closes the session and logs in afresh (ToriRS_Network_Hop) on the
+ * next frame. Records every packet name, and the index the client holds at
+ * every login.
+ */
+struct ReconnectRun
+{
+    int names[64];
+    int count;
+    int logins;
+    int login_index[8];
+    /** The UPDATE_PIDs each login queues (net.c loginproto_drive): not
+     *  recorded in `names`, which are the stream's. */
+    int update_pids;
+};
+
+static void
+run_reconnect(
+    struct GameProtoRevTable const* rev,
+    struct RsproxRecording* rec,
+    struct ReconnectRun* out,
+    struct NetTransportReplayStatus* st)
+{
+    struct ToriRS_Network net;
+    static struct ToriRS_CmdBus bus;
+    struct NetTransport* t;
+    unsigned long long cycles = 0;
+    int in_game = 0;
+    int hop_next = 0;
+
+    memset(out, 0, sizeof(*out));
+    ToriRS_Network_Init(&net, rev, TEST_RSA_E, TEST_RSA_N);
+    CmdBus_Init(&bus);
+    t = NetTransport_NewReplay(rec, rev);
+    NetTransport_ReplaySetUnlocked(t, 1);
+    ToriRS_Network_ConnectLogin(&net, "replay", "replay", "replay");
+    for( int i = 0; i < 600; i++ )
+    {
+        struct ToriRS_CmdHeader header;
+        static uint8_t payload[TORIRS_CMD_MAX_PAYLOAD];
+        struct RevPacket packet;
+
+        if( i == 200 )
+            map_built(rev, &net, 0);
+        if( hop_next )
+        {
+            /* The executor's LOGOUT_TRANSFER, at the head of the next frame. */
+            hop_next = 0;
+            in_game = 0;
+            ToriRS_Network_Hop(&net);
+            ToriRS_Network_Logout(&net);
+            TEST_CHECK(ToriRS_Network_Reconnect(&net));
+        }
+        cycles++;
+        NetTransport_ReplayClock(t, cycles);
+        NetTransport_Poll(t, &net, &bus);
+        while( CmdBus_Pop(&bus, &header, payload) )
+            ToriRS_Network_HandleCmd(&net, header.type, payload, (int)header.length);
+        if( net.state == TORIRS_NET_GAME && !in_game )
+        {
+            in_game = 1;
+            TEST_CHECK(out->logins < 8);
+            out->login_index[out->logins++] = net.local_index;
+        }
+        while( ToriRS_Network_PopPacket(&net, &packet) )
+        {
+            TEST_CHECK(out->count < 64);
+            TEST_CHECK(!packet._control);
+            if( packet.packet_type == PKT_NAME_LOGOUT_TRANSFER )
+                hop_next = 1;
+            if( packet.packet_type == PKT_NAME_UPDATE_PID )
+            {
+                out->update_pids++;
+                gameproto_free(&packet);
+                continue;
+            }
+            out->names[out->count++] = packet.packet_type;
+            gameproto_free(&packet);
+        }
+        /* The server went away: what app_net_link_watch does about it. */
+        if( in_game && net.state == TORIRS_NET_DISCONNECTED )
+        {
+            in_game = 0;
+            ToriRS_Network_Logout(&net);
+            TEST_CHECK(ToriRS_Network_Reconnect(&net));
+        }
+    }
+    NetTransport_ReplayGetStatus(t, st);
+    NetTransport_Free(t);
+    ToriRS_Network_Free(&net);
+}
+
+static int
+index_of(
+    struct ReconnectRun const* run,
+    int name,
+    int nth)
+{
+    for( int i = 0; i < run->count; i++ )
+    {
+        if( run->names[i] == name && nth-- == 0 )
+            return i;
+    }
+    return -1;
+}
+
+/*
+ * A session whose connection was lost mid-recording: the RECONNECT is where
+ * the official client, in gameState 40, sent GAMERECONNECT and was answered
+ * RECONNECT_OK. The transport ends the connection after the VARP before it has
+ * executed, the client reconnects presenting its seed, RECONNECT_OK hands the
+ * session back under the same index (it restates none), and the stream goes on
+ * with the VARP after it -- nothing replayed twice, nothing skipped. The
+ * proxy's PACKET_GROUP_END never reaches the client.
+ */
+static void
+test_replay_reconnects_where_the_recording_did(void)
+{
+    struct GameProtoRevTable const* rev = GameProtoRev_Osrs(241);
+    static uint8_t gpi[GPI_INIT_BYTES];
+    struct Rec r;
+    struct RsproxRecording rec;
+    struct ReconnectRun run;
+    struct NetTransportReplayStatus st;
+    char err[256];
+    int v7;
+
+    for( int i = 0; i < GPI_INIT_BYTES; i++ )
+        gpi[i] = 0;
+    r = build_reconnect_recording(rev, gpi, 0);
     TEST_CHECK(RsproxRecording_Open(&rec, r.data, r.len, err, sizeof(err)) == 0);
     TEST_CHECK(RsproxRecording_Index(&rec, rev, err, sizeof(err)) == 0);
     TEST_CHECK(rec.frame_count == 8);
@@ -550,56 +679,81 @@ test_replay_reconnects_where_the_recording_did(void)
      * recording's own index. */
     TEST_CHECK(rsprox_recording_resolve_reconnects(GameProtoRev_Osrs(241), &rec) == 0);
     TEST_CHECK(rec.frames[5].reconnect_index == LOCAL_INDEX);
+
+    run_reconnect(rev, &rec, &run, &st);
+    /* Two logins: the first, and the reconnect -- the same index both. */
+    TEST_CHECK(run.logins == 2);
+    TEST_CHECK(run.login_index[0] == LOCAL_INDEX);
+    TEST_CHECK(run.login_index[1] == LOCAL_INDEX);
+    TEST_CHECK(st.sessions == 2);
+    TEST_CHECK(st.resumed == 1);
+    TEST_CHECK(run.update_pids == 2);
+    v7 = index_of(&run, PKT_NAME_VARP_SMALL, 0);
+    TEST_CHECK(v7 > 0);
+    TEST_CHECK(index_of(&run, PKT_NAME_VARP_SMALL, 2) < 0);
+    /* After the reconnect: the VARP after the frame, the tick end, the end. */
+    TEST_CHECK(run.names[v7 + 1] == PKT_NAME_VARP_SMALL);
+    TEST_CHECK(run.names[v7 + 2] == PKT_NAME_SERVER_TICK_END);
+    TEST_CHECK(run.names[run.count - 1] == PKT_NAME_LOGOUT);
+    TEST_CHECK(index_of(&run, PKT_NAME_REBUILD_NORMAL, 1) < 0);
+    TEST_CHECK(strcmp(st.phase, "finished") == 0);
+}
+
+/*
+ * Index 4282's shape: a LOGOUT_TRANSFER, then a RECONNECT the resolver puts
+ * under another slot. The client hops (closes, GAMELOGIN with its
+ * credentials), and that login -- whose session RSProx wrote to another file
+ * -- is answered LoginResponse.Ok carrying the slot the RECONNECT was written
+ * under: how a hop learns its index. Its connection ends where the RECONNECT
+ * says the next began, the GAMERECONNECT gets RECONNECT_OK, and the stream
+ * goes on under 163.
+ */
+static void
+test_replay_hops_where_the_recording_did(void)
+{
+    struct GameProtoRevTable const* rev = GameProtoRev_Osrs(241);
+    static uint8_t gpi[GPI_INIT_BYTES];
+    struct Rec r;
+    struct RsproxRecording rec;
+    struct ReconnectRun run;
+    struct NetTransportReplayStatus st;
+    char err[256];
+    int transfer;
+
+    memset(gpi, 0, sizeof(gpi));
+    r = build_reconnect_recording(rev, gpi, 1);
+    TEST_CHECK(RsproxRecording_Open(&rec, r.data, r.len, err, sizeof(err)) == 0);
+    TEST_CHECK(RsproxRecording_Index(&rec, rev, err, sizeof(err)) == 0);
+    TEST_CHECK(rec.frame_count == 9);
+    TEST_CHECK(rec.frames[6].opcode == RSPROX_RECORDING_RECONNECT);
     /* A hop the resolver found, as the transport would carry it. */
-    rec.frames[5].reconnect_index = 163;
+    rec.frames[6].reconnect_index = 163;
 
-    ToriRS_Network_Init(&net, rev, TEST_RSA_E, TEST_RSA_N);
-    CmdBus_Init(&bus);
-    t = NetTransport_NewReplay(&rec, rev);
-    NetTransport_ReplaySetUnlocked(t, 1);
-    ToriRS_Network_ConnectLogin(&net, "replay", "replay", "replay");
-    for( int i = 0; i < 400; i++ )
-    {
-        struct ToriRS_CmdHeader header;
-        static uint8_t payload[TORIRS_CMD_MAX_PAYLOAD];
-        struct RevPacket packet;
-
-        if( i == 200 )
-            map_built(rev, &net, 0);
-        cycles++;
-        NetTransport_ReplayClock(t, cycles);
-        NetTransport_Poll(t, &net, &bus);
-        while( CmdBus_Pop(&bus, &header, payload) )
-            ToriRS_Network_HandleCmd(&net, header.type, payload, (int)header.length);
-        while( ToriRS_Network_PopPacket(&net, &packet) )
-        {
-            TEST_CHECK(seen_count < 64);
-            if( packet.packet_type == PKT_NAME_RECONNECT )
-            {
-                reconnect_at = seen_count;
-                TEST_CHECK(packet._reconnect.local_player_index == 163);
-                TEST_CHECK(packet._reconnect.length == GPI_INIT_BYTES);
-                TEST_CHECK(memcmp(packet._reconnect.data, gpi, GPI_INIT_BYTES) == 0);
-            }
-            seen_names[seen_count++] = packet.packet_type;
-            gameproto_free(&packet);
-        }
-    }
-    TEST_CHECK(reconnect_at > 0);
-    TEST_CHECK(seen_names[reconnect_at - 1] == PKT_NAME_VARP_SMALL);
-    TEST_CHECK(seen_names[reconnect_at + 1] == PKT_NAME_VARP_SMALL);
-    TEST_CHECK(seen_names[reconnect_at + 2] == PKT_NAME_SERVER_TICK_END);
-    TEST_CHECK(seen_names[seen_count - 1] == PKT_NAME_LOGOUT);
-
-    NetTransport_Free(t);
-    ToriRS_Network_Free(&net);
+    run_reconnect(rev, &rec, &run, &st);
+    /* The first login, the hop's (Ok: 163), the reconnect (RECONNECT_OK keeps
+     * 163). */
+    TEST_CHECK(run.logins == 3);
+    TEST_CHECK(run.login_index[0] == LOCAL_INDEX);
+    TEST_CHECK(run.login_index[1] == 163);
+    TEST_CHECK(run.login_index[2] == 163);
+    TEST_CHECK(st.sessions == 3);
+    TEST_CHECK(st.resumed == 2);
+    TEST_CHECK(run.update_pids == 3);
+    transfer = index_of(&run, PKT_NAME_LOGOUT_TRANSFER, 0);
+    TEST_CHECK(transfer > 0);
+    TEST_CHECK(run.names[transfer - 1] == PKT_NAME_VARP_SMALL);
+    TEST_CHECK(run.names[transfer + 1] == PKT_NAME_VARP_SMALL);
+    TEST_CHECK(run.names[transfer + 2] == PKT_NAME_SERVER_TICK_END);
+    TEST_CHECK(index_of(&run, PKT_NAME_VARP_SMALL, 2) < 0);
+    TEST_CHECK(run.names[run.count - 1] == PKT_NAME_LOGOUT);
 }
 
 /*
  * The recorder answered a chatbox prompt (the GE search, an amount). Its client
  * closed the prompt itself as it sent the answer, and no server packet says
- * so: the answer arrives as PKT_NAME_DIALOG_RESUMED between the server packets
- * either side of it, once, and the client packets that are not answers do not.
+ * so: the answer arrives as a REPLAY_DIALOG control frame naming the answering
+ * prot, between the server packets either side of it, once, and the client
+ * packets that are not answers do not.
  */
 static void
 test_replay_answers_prompts_where_the_recording_did(void)
@@ -660,11 +814,18 @@ test_replay_answers_prompts_where_the_recording_did(void)
         while( ToriRS_Network_PopPacket(&net, &packet) )
         {
             TEST_CHECK(seen_count < 64);
-            if( packet.packet_type == PKT_NAME_DIALOG_RESUMED )
+            if( packet._control )
             {
+                int name = 0;
+
+                TEST_CHECK(packet._control->type == TORIRS_CONTROL_REPLAY_DIALOG);
+                TEST_CHECK(torirs_control_replay_dialog_decode(packet._control, &name));
+                TEST_CHECK(name == PKTOUT_NAME_RESUME_P_OBJDIALOG);
                 TEST_CHECK(answered_at < 0);
                 answered_at = seen_count;
-                TEST_CHECK(packet._dialog_resumed.pkt_out_name == PKTOUT_NAME_RESUME_P_OBJDIALOG);
+                seen_names[seen_count++] = -1;
+                gameproto_free(&packet);
+                continue;
             }
             seen_names[seen_count++] = packet.packet_type;
             gameproto_free(&packet);
@@ -686,6 +847,7 @@ main(void)
     test_replay_plays_a_recording();
     test_replay_refuses_what_it_cannot_frame();
     test_replay_reconnects_where_the_recording_did();
+    test_replay_hops_where_the_recording_did();
     test_replay_answers_prompts_where_the_recording_did();
     printf("rsprox_replay_test: ok\n");
     return 0;

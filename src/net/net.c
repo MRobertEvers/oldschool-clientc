@@ -261,12 +261,23 @@ connect_login(
     loginproto_drive(net);
 }
 
+void
+ToriRS_Network_Hop(struct ToriRS_Network* net)
+{
+    assert(net);
+    net->hop = 1;
+}
+
 int
 ToriRS_Network_Reconnect(struct ToriRS_Network* net)
 {
+    int fresh;
+
     assert(net);
     if( !net->host[0] )
         return 0;
+    fresh = net->hop;
+    net->hop = 0;
 
     /* Drop whatever is left of the dead session first: a half-read frame in
      * the packet buffer would otherwise be prefixed onto the new stream, and
@@ -287,7 +298,7 @@ ToriRS_Network_Reconnect(struct ToriRS_Network* net)
         memcpy(host, net->host, sizeof(host));
         memcpy(user, net->username, sizeof(user));
         memcpy(pass, net->password, sizeof(pass));
-        connect_login(net, host, user, pass, /* reconnect */ 1);
+        connect_login(net, host, user, pass, /* reconnect */ !fresh);
     }
     return 1;
 }
@@ -687,37 +698,6 @@ ToriRS_Network_HandleCmd(
     case TORIRS_CMD_NET_CONNECT:
         /* Producer-only echo; ConnectLogin drives the real transition. */
         break;
-    case TORIRS_CMD_NET_RESUMED:
-    {
-        /* Queued, not applied: the packets before it are still waiting to
-         * execute, and their PLAYER_INFO reads the table as it was. */
-        struct RevPacket packet;
-
-        assert(net->state == TORIRS_NET_GAME);
-        assert(len >= 2);
-        memset(&packet, 0, sizeof(packet));
-        packet.packet_type = PKT_NAME_RECONNECT;
-        packet._reconnect.local_player_index = (data[0] << 8) | data[1];
-        packet._reconnect.length = len - 2;
-        packet._reconnect.data = ToriMem_Alloc(ToriMem_Net(), (size_t)(len > 2 ? len - 2 : 1));
-        assert(packet._reconnect.data);
-        memcpy(packet._reconnect.data, data + 2, (size_t)(len - 2));
-        push_parsed_packet(net, &packet);
-        break;
-    }
-    case TORIRS_CMD_NET_DIALOG_RESUMED:
-    {
-        /* Queued for the same reason: the packets before it run first. */
-        struct RevPacket packet;
-
-        assert(net->state == TORIRS_NET_GAME);
-        assert(len == 2);
-        memset(&packet, 0, sizeof(packet));
-        packet.packet_type = PKT_NAME_DIALOG_RESUMED;
-        packet._dialog_resumed.pkt_out_name = (data[0] << 8) | data[1];
-        push_parsed_packet(net, &packet);
-        break;
-    }
     default:
         break;
     }
