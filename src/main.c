@@ -6034,7 +6034,15 @@ frame_loop_step(void)
         {
             char url[512];
             if( App_TakeOpenUrl(&app, url, (int)sizeof(url)) )
-                PlatformWindow_OpenUrl(platform, url);
+            {
+                /* A replay's URL_OPEN is what a server once sent the session
+                 * that was recorded. Playing it back must not act on the
+                 * viewer's browser: every headless replay run opened a tab. */
+                if( rsprox_replay_path )
+                    TORIRS_LOG("replay: URL_OPEN dropped '%s'\n", url);
+                else
+                    PlatformWindow_OpenUrl(platform, url);
+            }
         }
         {
             /* The App's requests of the platform. */
