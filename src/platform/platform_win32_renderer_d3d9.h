@@ -105,6 +105,12 @@ ToriPlatformWin32_Renderer_D3D9_SetClientScaling(
 void
 ToriPlatformWin32_Renderer_D3D9_SetPick(struct ToriPlatformWin32_Renderer_D3D9* d3d9, int mouse_x, int mouse_y);
 
+/** The host's work this frame before the render, in microseconds: the world
+ *  build's prefill takes what the frame has left of its budget after it
+ *  (core/trspk_world_build.h). Told once a frame, before RenderFrame. */
+void
+ToriPlatformWin32_Renderer_D3D9_SetFrameElapsed(struct ToriPlatformWin32_Renderer_D3D9* d3d9, uint64_t elapsed_us);
+
 struct ToriRS_PickHits const*
 ToriPlatformWin32_Renderer_D3D9_PickHits(struct ToriPlatformWin32_Renderer_D3D9 const* d3d9);
 

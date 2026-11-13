@@ -317,7 +317,10 @@ trspk_batch16_reserve_pose(
     else
     {
         chunk->vbo->vertex_count = new_vertex_count;
-        trspk_vbo_set_dirty(chunk->vbo);
+        /* The reservation only: a build baked a record at a time uploads
+         * what each bake added, and marking the whole chunk here made every
+         * one of those uploads the chunk's whole page. */
+        trspk_vbo_mark_dirty_range(chunk->vbo, vertex_base, vertex_count);
     }
     trspk_triangles_ensure(&chunk->triangles, new_vertex_count / 3u);
     chunk->vertex_count = new_vertex_count;

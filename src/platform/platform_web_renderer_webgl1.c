@@ -83,6 +83,14 @@ ToriPlatformWeb_Renderer_WebGL1_SetPick(
     TRSPK_Renderer_ES2_SetPick((struct TRSPK_Renderer_ES2*)renderer, mouse_x, mouse_y);
 }
 
+void
+ToriPlatformWeb_Renderer_WebGL1_SetFrameElapsed(
+    struct ToriPlatformWeb_Renderer_WebGL1* renderer,
+    uint64_t elapsed_us)
+{
+    TRSPK_Renderer_ES2_SetFrameElapsed((struct TRSPK_Renderer_ES2*)renderer, elapsed_us);
+}
+
 struct ToriRS_PickHits const*
 ToriPlatformWeb_Renderer_WebGL1_PickHits(
     struct ToriPlatformWeb_Renderer_WebGL1 const* renderer)

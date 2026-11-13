@@ -69,8 +69,10 @@ enum ToriRS_RenderCommandKind
     TORIRSRC_BATCH3D_CLEAR,
     /*
      * A STAGED world batch, for a renderer that can hold two (the GL3,
-     * WebGL2 and GLES3 lanes, on core/trspk_world_build.h; each says so with
-     * ToriDraw_SceneSetBatchStaging, and no other lane is ever sent these). The background rebuild builds the next scene beside
+     * WebGL2, GLES3, WebGL1, GLES2 and D3D9 lanes, on
+     * core/trspk_world_build.h; each says so with
+     * ToriDraw_SceneSetBatchStaging, and no other lane -- soft3d, which
+     * prepares nothing -- is ever sent these). The background rebuild builds the next scene beside
      * the one on screen; these let the renderer prepare its batch over the
      * frames before the swap instead of all in the swap's frame:
      *

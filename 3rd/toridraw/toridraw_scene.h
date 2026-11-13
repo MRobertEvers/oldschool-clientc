@@ -557,8 +557,9 @@ ToriDraw_SceneAdoptPool(
 
 /**
  * STAGED BATCHES. A retained renderer that can hold a second world batch
- * beside the one it draws says so here (GL3, WebGL2, GLES3, at init). Every other
- * renderer leaves it off and sees exactly the stream it always has.
+ * beside the one it draws says so here (GL3, WebGL2, GLES3, WebGL1, GLES2,
+ * D3D9, at init). Every other renderer leaves it off and sees exactly the
+ * stream it always has.
  */
 void
 ToriDraw_SceneSetBatchStaging(
@@ -601,6 +602,17 @@ ToriDraw_SceneStageBatchStep(
  */
 void
 ToriDraw_SceneStageBatchMarkPrepared(
+    struct ToriDraw_Scene* scene,
+    int batch_id);
+
+/**
+ * The renderer's word withdrawn: what it had prepared of batch `batch_id` is
+ * gone from the GPU (a D3D9 device Reset releases its buffers), and it will
+ * say MarkPrepared again once it has re-sent it. The swap waits for that, as
+ * it waits for the first word. A stale or unknown id is ignored.
+ */
+void
+ToriDraw_SceneStageBatchMarkUnprepared(
     struct ToriDraw_Scene* scene,
     int batch_id);
 

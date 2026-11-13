@@ -131,7 +131,11 @@ struct D3D9ZBufferWorld
     /* Face classification, mirroring the two retained pose tables the core
      * keeps, plus a scratch entry for geometry that is not retained at all. */
     struct D3D9MaterialTable materials;
+    /* The drawn world build's poses, and the stage's: each pose is
+     * classified as it is baked into its build, and the two tables change
+     * places with the builds at the swap. */
     struct D3D9MaterialTable batch_materials;
+    struct D3D9MaterialTable stage_materials;
     struct D3D9MaterialPose dynamic_material;
 
     /* Blended model submissions are the only world objects that still get
@@ -642,6 +646,7 @@ d3d9_zbuffer_destroy(struct ToriPlatformWin32_Renderer_D3D9* renderer)
         trspk_ibochain_free(world->alpha_ibo_chain);
     d3d9_material_table_free(&world->materials);
     d3d9_material_table_free(&world->batch_materials);
+    d3d9_material_table_free(&world->stage_materials);
     d3d9_material_pose_clear(&world->dynamic_material);
     ToriMem_Free(ToriMem_Renderer(), world->alpha_indices);
     ToriMem_Free(ToriMem_Renderer(), world->alpha_submissions);
@@ -729,7 +734,8 @@ d3d9_zbuffer_report_memory(struct ToriPlatformWin32_Renderer_D3D9* renderer)
         "d3d9_mem: zb_alpha_chain        %10.2f MB (%u nodes)\n"
         "d3d9_mem: zb_opaque_buckets     %10.2f MB\n",
         (double)d3d9_material_table_bytes(&world->materials) / 1048576.0,
-        (double)d3d9_material_table_bytes(&world->batch_materials) / 1048576.0,
+        ((double)d3d9_material_table_bytes(&world->batch_materials) +
+            (double)d3d9_material_table_bytes(&world->stage_materials)) / 1048576.0,
         ((double)world->alpha_index_capacity * sizeof(uint16_t) +
             (double)world->alpha_submission_capacity *
                 sizeof(struct D3D9AlphaSubmission)) /
@@ -1115,9 +1121,21 @@ d3d9_zbuffer_track_dropped(
     d3d9_material_table_remove_track(&world->materials, element_id, anim_index);
 }
 
+/* The material table of `slot`: the drawn build's or the stage's. */
+static struct D3D9MaterialTable*
+d3d9_zbuffer_slot_materials(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    struct D3D9ZBufferWorld* world,
+    const struct TRSPK_WorldSlot* slot)
+{
+    assert(slot == &renderer->build.world || slot == &renderer->build.stage);
+    return slot == &renderer->build.stage ? &world->stage_materials : &world->batch_materials;
+}
+
 void
 d3d9_zbuffer_batch_pose_baked(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct TRSPK_WorldSlot* slot,
     int element_id,
     int anim_index,
     int pose_id,
@@ -1127,7 +1145,7 @@ d3d9_zbuffer_batch_pose_baked(
     if( !world )
         return;
     (void)d3d9_material_table_set(
-        &world->batch_materials,
+        d3d9_zbuffer_slot_materials(renderer, world, slot),
         renderer,
         element_id,
         anim_index,
@@ -1136,20 +1154,33 @@ d3d9_zbuffer_batch_pose_baked(
 }
 
 void
-d3d9_zbuffer_batch_dropped(struct ToriPlatformWin32_Renderer_D3D9* renderer, struct TRSPK_Batch16* cpu)
+d3d9_zbuffer_batch_dropped(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct TRSPK_WorldSlot* slot)
 {
     struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
+    struct D3D9MaterialTable* table;
     uint32_t entry_count;
     uint32_t entry_index;
+    assert(slot);
     if( !world )
         return;
-    entry_count = trspk_batch16_entry_count(cpu);
+    assert(slot->pages);
+    table = d3d9_zbuffer_slot_materials(renderer, world, slot);
+    entry_count = trspk_batch16_entry_count(slot->pages);
     for( entry_index = 0u; entry_index < entry_count; entry_index++ )
-    {
-        const struct TRSPK_Batch16Entry* entry =
-            trspk_batch16_get_entry(cpu, entry_index);
-        if( entry )
-            d3d9_material_table_remove_element(
-                &world->batch_materials, entry->element_id);
-    }
+        d3d9_material_table_remove_element(
+            table, trspk_batch16_get_entry(slot->pages, entry_index)->element_id);
+}
+
+void
+d3d9_zbuffer_batch_swapped(struct ToriPlatformWin32_Renderer_D3D9* renderer)
+{
+    struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
+    struct D3D9MaterialTable table;
+    if( !world )
+        return;
+    table = world->batch_materials;
+    world->batch_materials = world->stage_materials;
+    world->stage_materials = table;
 }

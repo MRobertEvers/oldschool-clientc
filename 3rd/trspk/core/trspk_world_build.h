@@ -1,6 +1,7 @@
 #ifndef TRSPK_WORLD_BUILD_H
 #define TRSPK_WORLD_BUILD_H
 
+#include "trspk_batch16.h"
 #include "trspk_batch32.h"
 #include "trspk_element_mask.h"
 #include "trspk_vertex.h"
@@ -12,7 +13,9 @@
 
 /*
  * THE WORLD BUILD, PREPARED A SLICE AT A TIME (2026-11-12): the part of it
- * every retained Batch32 lane shares (GL3, WebGL2, GLES3).
+ * every retained lane shares -- the Batch32 lanes (GL3, WebGL2, GLES3) and
+ * the PAGED ones (trspk_world_build_init_paged: the ES2 family and D3D9,
+ * whose builds are Batch16 pages under 16-bit page-local indices).
  *
  * A world build is a batch of ~18,500 element poses, ~700k faces, ~100 MB of
  * vertices. It used to be baked whole on the frame that received it, together
@@ -71,6 +74,8 @@ struct TRSPK_WorldRecord
  *   batch       the baked poses (Batch32): reservations made as records bake.
  *               Begun at BEGIN and never ended: it takes reservations until
  *               every record is baked.
+ *   pages       a paged build's baked poses instead (Batch16), the same way;
+ *               exactly one of the two is set, by how the build was made
  *   batch_id    the scene's id for it, -1 none
  *   drawable    draws may resolve to it (END or SWAP seen)
  *   adds_open   ADDs naming batch_id are taken (BEGIN/STAGE_BEGIN .. END/SWAP)
@@ -83,6 +88,7 @@ struct TRSPK_WorldRecord
 struct TRSPK_WorldSlot
 {
     struct TRSPK_Batch32* batch;
+    struct TRSPK_Batch16* pages;
     int batch_id;
     bool drawable;
     bool adds_open;
@@ -116,6 +122,8 @@ struct TRSPK_WorldBuild
     /* After a swap the stage holds the retired build's CPU storage; a later
      * prefill with room releases it (a ~100 MB free). */
     bool stage_release_pending;
+    /* Builds are Batch16 pages (trspk_world_build_init_paged), not Batch32. */
+    bool paged;
     enum TRSPK_VertexFormat format;
     uint64_t prep_target_us;
     uint64_t prep_slice_us;
@@ -127,6 +135,16 @@ struct TRSPK_WorldBuild
  * empty for the defaults. */
 void
 trspk_world_build_init(
+    struct TRSPK_WorldBuild* build,
+    enum TRSPK_VertexFormat format,
+    const char* prep_target_us,
+    const char* prep_slice_us);
+
+/* The same, for a lane whose builds are Batch16 pages: every slot holds
+ * `pages`, never `batch`, and a record must fit one page
+ * (TRSPK_BATCH16_MAX_VERTICES) -- the lane does not add one that cannot. */
+void
+trspk_world_build_init_paged(
     struct TRSPK_WorldBuild* build,
     enum TRSPK_VertexFormat format,
     const char* prep_target_us,
@@ -166,6 +184,15 @@ trspk_world_record_take(
     struct TRSPK_WorldSlot* w,
     int r,
     struct TRSPK_Batch32Reservation* out_reservation);
+
+/* trspk_world_record_take for a paged build: the reservation in its pages,
+ * and the Batch16 entry it made (what a paged lane's pose table names). */
+void
+trspk_world_record_take_paged(
+    struct TRSPK_WorldSlot* w,
+    int r,
+    struct TRSPK_Batch16Reservation* out_reservation,
+    uint32_t* out_entry_index);
 
 /* Draws may resolve `element_id` to `w`: it is drawable and the element is
  * not detached from it. */
@@ -285,7 +312,9 @@ trspk_world_build_swap(
 
 /* The stage's whole size plus an eighth, to reserve before its first bake
  * (its adds arrive together, so neither buffer grows mid-bake), or 0 once
- * reserved or while empty. */
+ * reserved or while empty. "Reserved" is "has baked anything": a paged
+ * build's pages grow a page at a time, so its lane reserves GPU pages for
+ * this many vertices rather than CPU storage. */
 uint64_t
 trspk_world_build_stage_reserve_wanted(struct TRSPK_WorldBuild* build);
 

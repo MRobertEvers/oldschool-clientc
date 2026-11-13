@@ -722,9 +722,10 @@ main_damage_to_buffer(
  * @see renderer_active_is_depth. */
 /* The current frame's start: how much of the frame had gone before the
  * render, for the world-build prefill budget of the lanes that stage builds
- * (GL3, WebGL2, GLES3: each one's SetFrameElapsed) and GL3's
- * TORIRS_REBUILD_TIMING line. */
-#if defined(TORIRS_HAVE_GL3) || defined(TORIRS_HAVE_WEBGL2) || defined(TORIRS_HAVE_GLES3)
+ * (GL3, WebGL2, GLES3, WebGL1, GLES2, D3D9: each one's SetFrameElapsed) and
+ * GL3's TORIRS_REBUILD_TIMING line. */
+#if defined(TORIRS_HAVE_GL3) || defined(TORIRS_HAVE_WEBGL2) || defined(TORIRS_HAVE_GLES3) || \
+    defined(TORIRS_HAVE_WEBGL1) || defined(TORIRS_HAVE_GLES2) || defined(TORIRS_HAVE_D3D9)
 static uint64_t s_timing_frame_start_us;
 #endif
 
@@ -808,6 +809,8 @@ interactive_render_present(
                 pick_armed = 1;
                 FrameStats_Count(FRAME_STATS_CTR_PICK_FRAMES, 1);
             }
+            ToriPlatformWin32_Renderer_D3D9_SetFrameElapsed(
+                d3d9, PlatformWindow_TicksUs() - s_timing_frame_start_us);
             {
                 uint64_t const t_rf = FrameStats_Now();
                 TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
@@ -890,6 +893,9 @@ interactive_render_present(
                     gles2, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
                 pick_armed = 1;
             }
+            /* The dual-core lane renders this same renderer: told once. */
+            ToriPlatformAndroid_Renderer_GLES2_SetFrameElapsed(
+                gles2, PlatformWindow_TicksUs() - s_timing_frame_start_us);
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
             {
 #if defined(TORIRS_HAVE_GLES2_DUALCORE)
@@ -1045,6 +1051,8 @@ interactive_render_present(
                     webgl1, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
                 pick_armed = 1;
             }
+            ToriPlatformWeb_Renderer_WebGL1_SetFrameElapsed(
+                webgl1, PlatformWindow_TicksUs() - s_timing_frame_start_us);
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
             {
                 if( world_depth )
@@ -3833,7 +3841,8 @@ frame_loop_step(void)
      * on every platform: the browser lane has no sleep to exclude but has the
      * same question to answer. */
     frame_start_us = PlatformWindow_TicksUs();
-#if defined(TORIRS_HAVE_GL3) || defined(TORIRS_HAVE_WEBGL2) || defined(TORIRS_HAVE_GLES3)
+#if defined(TORIRS_HAVE_GL3) || defined(TORIRS_HAVE_WEBGL2) || defined(TORIRS_HAVE_GLES3) || \
+    defined(TORIRS_HAVE_WEBGL1) || defined(TORIRS_HAVE_GLES2) || defined(TORIRS_HAVE_D3D9)
     s_timing_frame_start_us = frame_start_us;
 #endif
 #if defined(TORIRS_FRAME_TIMES)

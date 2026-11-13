@@ -27,7 +27,9 @@
 #include "core/trspk_math.h"
 #include "trspk_alloc.h"
 #include "perf/torirs_perf.h"
+#include "platform/platform_window.h"
 #include "render/trspk_sprite.h"
+#include "torirs_env.h"
 
 #include "toridraw.h"
 #include "toridraw_math.h"
@@ -784,7 +786,7 @@ d3d9_resolve_offscreen(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 }
 
 static void
-d3d9_mark_active_static_batches_dirty(struct ToriPlatformWin32_Renderer_D3D9* renderer);
+d3d9_mark_static_batches_dirty(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 
 static void
 d3d9_ui_layer_release(struct ToriPlatformWin32_Renderer_D3D9* renderer);
@@ -821,12 +823,16 @@ d3d9_release_default_pool(struct ToriPlatformWin32_Renderer_D3D9* renderer)
         renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_gpu = NULL;
     }
     renderer->groups[TRSPK_VBO_GROUP_STATIC].gpu_capacity = 0u;
-    if( renderer->static_batch_vbo )
+    for( uint32_t side = 0u; side < renderer->static_batch_count; side++ )
     {
-        IDirect3DVertexBuffer9_Release(renderer->static_batch_vbo);
-        renderer->static_batch_vbo = NULL;
+        struct D3D9StaticBatch* batch = &renderer->static_batches[side];
+        if( batch->gpu_vbo )
+        {
+            IDirect3DVertexBuffer9_Release(batch->gpu_vbo);
+            batch->gpu_vbo = NULL;
+        }
+        batch->gpu_page_capacity = 0u;
     }
-    renderer->static_batch_gpu_page_capacity = 0u;
 }
 
 static void
@@ -866,8 +872,15 @@ d3d9_reset_device(struct ToriPlatformWin32_Renderer_D3D9* renderer, int width, i
     /* Reset released every DEFAULT-pool buffer, including the retained static
      * geometry (the batch arena and the static group). Their CPU copies are
      * intact; re-mark them dirty so the next draw's upload pass rebuilds the
-     * buffers from them. */
-    d3d9_mark_active_static_batches_dirty(renderer);
+     * buffers from them -- the drawn build's and a stage's alike. A stage
+     * already reported prepared is not any more: the swap waits until the
+     * prefill has sent it again (d3d9_world_stage_upload). */
+    d3d9_mark_static_batches_dirty(renderer);
+    if( trspk_world_build_stage_open(&renderer->build) && renderer->scene )
+    {
+        ToriDraw_SceneStageBatchMarkUnprepared(renderer->scene, renderer->build.stage.batch_id);
+        renderer->stage_prepared_said = false;
+    }
     if( renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_cpu )
         trspk_vbo_set_dirty(renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_cpu);
     return true;
@@ -4057,12 +4070,15 @@ d3d9_reclassify_texture_faces(
 
     /* Batch pages are scanned only when a texture changes class.  Normal
      * frames keep both their CPU geometry and managed D3D9 buffers untouched. */
+    /* Both builds: a stage baked before the texture arrived is drawn after
+     * the swap. The drawn build's chunks go with the next upload, the
+     * stage's with its prefill's. */
     for( group_index = 0u; group_index < renderer->static_batch_count; group_index++ )
     {
         struct D3D9StaticBatch* batch = &renderer->static_batches[group_index];
         uint32_t chunk_count;
         uint32_t chunk_index;
-        if( !batch->cpu || (!batch->active && !batch->building) )
+        if( !batch->cpu )
             continue;
         chunk_count = trspk_batch16_chunk_count(batch->cpu);
         for( chunk_index = 0u; chunk_index < chunk_count; chunk_index++ )
@@ -4082,7 +4098,8 @@ d3d9_reclassify_texture_faces(
                     origin_v) )
             {
                 trspk_vbo_set_dirty(chunk->vbo);
-                renderer->static_batch_upload_pending = true;
+                if( group_index == renderer->world_side )
+                    renderer->static_batch_upload_pending = true;
             }
         }
     }
@@ -4196,79 +4213,61 @@ d3d9_upload_group(struct ToriPlatformWin32_Renderer_D3D9* renderer, struct D3D9M
     return true;
 }
 
-static bool
-d3d9_grow_static_batches(struct ToriPlatformWin32_Renderer_D3D9* renderer, uint32_t needed)
+/*
+ * The world build's two sides (struct D3D9StaticBatch): the drawn build's at
+ * static_batches[world_side], the stage's at the other. The core owns the
+ * builds (core/trspk_world_build.h); a side is where this renderer keeps
+ * what it adds to one -- its pages, its pose table and (on the depth path)
+ * its materials.
+ */
+
+static uint32_t
+d3d9_world_side_index(
+    const struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct TRSPK_WorldSlot* slot)
 {
-    struct D3D9StaticBatch* grown;
-    uint32_t capacity;
-    if( needed <= renderer->static_batch_capacity )
-        return true;
-    capacity = renderer->static_batch_capacity ? renderer->static_batch_capacity : 8u;
-    while( capacity < needed )
-    {
-        if( capacity > UINT32_MAX / 2u )
-            return false;
-        capacity *= 2u;
-    }
-    grown = (struct D3D9StaticBatch*)ToriMem_Realloc(
-        ToriMem_Renderer(), renderer->static_batches, (size_t)capacity * sizeof(*grown));
-    memset(
-        grown + renderer->static_batch_capacity,
-        0,
-        (size_t)(capacity - renderer->static_batch_capacity) * sizeof(*grown));
-    renderer->static_batches = grown;
-    renderer->static_batch_capacity = capacity;
-    return true;
+    assert(renderer);
+    assert(slot == &renderer->build.world || slot == &renderer->build.stage);
+    return slot == &renderer->build.world ? renderer->world_side : 1u - renderer->world_side;
 }
 
-static int
-d3d9_static_batch_slot(
-    struct ToriPlatformWin32_Renderer_D3D9* renderer,
-    int batch_id,
-    bool create)
+static struct D3D9StaticBatch*
+d3d9_world_side(struct ToriPlatformWin32_Renderer_D3D9* renderer, const struct TRSPK_WorldSlot* slot)
 {
-    uint32_t i;
-    uint32_t reusable = UINT32_MAX;
-    if( batch_id < 0 )
-        return -1;
-    assert(renderer);
-    for( i = 0u; i < renderer->static_batch_count; i++ )
-    {
-        if( renderer->static_batches[i].batch_id == batch_id )
-            return (int)i;
-        if( reusable == UINT32_MAX && !renderer->static_batches[i].active &&
-            !renderer->static_batches[i].building &&
-            trspk_batch16_entry_count(renderer->static_batches[i].cpu) == 0u )
-            reusable = i;
-    }
-    if( create && reusable != UINT32_MAX )
-    {
-        renderer->static_batches[reusable].batch_id = batch_id;
-        return (int)reusable;
-    }
-    if( !create || !d3d9_grow_static_batches(
-            renderer, renderer->static_batch_count + 1u) )
-        return -1;
-    i = renderer->static_batch_count++;
-    renderer->static_batches[i].batch_id = batch_id;
-    renderer->static_batches[i].cpu =
-        trspk_batch16_create(TRSPK_VERTEX_FORMAT_D3D9);
-    if( !renderer->static_batches[i].cpu )
-    {
-        renderer->static_batch_count--;
-        memset(&renderer->static_batches[i], 0, sizeof(renderer->static_batches[i]));
-        return -1;
-    }
-    return (int)i;
+    return &renderer->static_batches[d3d9_world_side_index(renderer, slot)];
+}
+
+/* The pose table naming `slot`'s baked poses. */
+static struct TRSPK_PoseTable*
+d3d9_world_side_poses(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct TRSPK_WorldSlot* slot)
+{
+    assert(slot == &renderer->build.world || slot == &renderer->build.stage);
+    return slot == &renderer->build.world ? &renderer->batch_poses : &renderer->stage_batch_poses;
+}
+
+/* The sides after the core made, emptied, swapped or released a build: each
+ * names its build's pages, and only the drawn one resolves. */
+static void
+d3d9_world_sides_sync(struct ToriPlatformWin32_Renderer_D3D9* renderer)
+{
+    struct D3D9StaticBatch* world = &renderer->static_batches[renderer->world_side];
+    struct D3D9StaticBatch* stage = &renderer->static_batches[1u - renderer->world_side];
+    world->cpu = renderer->build.world.pages;
+    world->active = renderer->build.world.drawable;
+    stage->cpu = renderer->build.stage.pages;
+    stage->active = false;
 }
 
 /*
  * A batched element that has been reloaded, animated or removed since the
  * build: its batch pose is stale, so draws stop resolving it there until the
- * next build. Runtime locs are not batches (world_builder), and the scene hands
- * a freed element index straight back out, so the loc a script spawns over a
- * world loc usually arrives under the world loc's id -- without this, batch-
- * first resolution drew the old loc in its place.
+ * next build -- on the stage too, whose record must not be baked from a
+ * model that may be gone. Runtime locs are not batches (world_builder), and
+ * the scene hands a freed element index straight back out, so the loc a
+ * script spawns over a world loc usually arrives under the world loc's id --
+ * without this, batch-first resolution drew the old loc in its place.
  */
 static void
 d3d9_batch_detach(
@@ -4278,59 +4277,9 @@ d3d9_batch_detach(
     assert(renderer);
     if( element_id < 0 )
         return;
-    trspk_element_mask_set(&renderer->batch_detached, element_id);
+    trspk_world_build_detach(&renderer->build, element_id);
     trspk_pose_table_remove_element(&renderer->batch_poses, element_id);
-}
-
-static void
-d3d9_rebuild_batch_pose_table(struct ToriPlatformWin32_Renderer_D3D9* renderer)
-{
-    uint32_t batch_slot;
-    assert(renderer);
-    trspk_pose_table_clear(&renderer->batch_poses);
-    /* The detach mask records how elements differ from the ACTIVE build;
-     * with none active there is nothing to differ from. */
-    {
-        bool any_active = false;
-        for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
-            any_active = any_active || renderer->static_batches[batch_slot].active;
-        if( !any_active )
-            trspk_element_mask_clear(&renderer->batch_detached);
-    }
-    for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
-    {
-        const struct D3D9StaticBatch* batch = &renderer->static_batches[batch_slot];
-        uint32_t entry_count;
-        uint32_t i;
-        if( !batch->active || !batch->cpu )
-            continue;
-        entry_count = trspk_batch16_entry_count(batch->cpu);
-        for( i = 0u; i < entry_count; i++ )
-        {
-            const struct TRSPK_Batch16Entry* entry =
-                trspk_batch16_get_entry(batch->cpu, i);
-            uint32_t page_id;
-            uint32_t locator;
-            if( !entry || entry->element_id < 0 ||
-                trspk_element_mask_test(&renderer->batch_detached, entry->element_id) ||
-                entry->chunk_index >= batch->page_id_capacity ||
-                entry->vertex_base > D3D9_BATCH_POSE_BASE_MASK )
-                continue;
-            page_id = batch->page_ids[entry->chunk_index];
-            if( page_id > D3D9_BATCH_POSE_PAGE_MASK ||
-                page_id >= renderer->static_page_count ||
-                !renderer->static_pages[page_id].valid )
-                continue;
-            locator = D3D9_BATCH_POSE_FLAG | (page_id << 16u) |
-                entry->vertex_base;
-            trspk_pose_table_set(
-                &renderer->batch_poses,
-                entry->element_id,
-                entry->anim_index,
-                entry->pose_id,
-                locator);
-        }
-    }
+    trspk_pose_table_remove_element(&renderer->stage_batch_poses, element_id);
 }
 
 static bool
@@ -4354,6 +4303,7 @@ d3d9_grow_static_pages(struct ToriPlatformWin32_Renderer_D3D9* renderer, uint32_
     }
     grown = (struct D3D9StaticPageRef*)ToriMem_Realloc(
         ToriMem_Renderer(), renderer->static_pages, (size_t)capacity * sizeof(*grown));
+    assert(grown);
     memset(
         grown + renderer->static_page_capacity,
         0,
@@ -4363,76 +4313,108 @@ d3d9_grow_static_pages(struct ToriPlatformWin32_Renderer_D3D9* renderer, uint32_
     return true;
 }
 
-static bool
-d3d9_static_batch_ensure_chunk_storage(
-    struct ToriPlatformWin32_Renderer_D3D9* renderer,
-    uint32_t batch_slot,
-    uint32_t chunk_count)
+static void
+d3d9_static_batch_ensure_chunk_storage(struct D3D9StaticBatch* batch, uint32_t chunk_count)
 {
-    struct D3D9StaticBatch* batch;
     uint32_t* grown_ids;
     uint32_t old_capacity;
     uint32_t capacity;
     uint32_t i;
-    assert(renderer);
-    if( batch_slot >= renderer->static_batch_count )
-        return false;
-    batch = &renderer->static_batches[batch_slot];
+    assert(batch);
     if( chunk_count <= batch->page_id_capacity )
-        return true;
+        return;
     old_capacity = batch->page_id_capacity;
-    capacity = batch->page_id_capacity;
-    if( capacity == 0u )
-        capacity = 4u;
+    capacity = batch->page_id_capacity ? batch->page_id_capacity : 4u;
     while( capacity < chunk_count )
-    {
-        if( capacity > UINT32_MAX / 2u )
-            return false;
         capacity *= 2u;
-    }
     grown_ids = (uint32_t*)ToriMem_Realloc(
         ToriMem_Renderer(), batch->page_ids, (size_t)capacity * sizeof(*grown_ids));
+    assert(grown_ids);
     batch->page_ids = grown_ids;
     for( i = old_capacity; i < capacity; i++ )
-    {
         batch->page_ids[i] = UINT32_MAX;
-    }
     batch->page_id_capacity = capacity;
-    return true;
 }
 
-static bool
-d3d9_static_batch_assign_page(
+/* Side `side_index`'s page for chunk `chunk_index`, made the first time the
+ * side has that many chunks: a side keeps its pages from build to build. */
+static uint32_t
+d3d9_world_side_claim_page(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
-    uint32_t batch_slot,
+    uint32_t side_index,
     uint32_t chunk_index)
 {
     struct D3D9StaticBatch* batch;
     uint32_t page_id;
+    bool grown;
     assert(renderer);
-    if( batch_slot >= renderer->static_batch_count )
-        return false;
-    batch = &renderer->static_batches[batch_slot];
-    if( chunk_index >= batch->page_id_capacity )
-        return false;
+    assert(side_index < renderer->static_batch_count);
+    batch = &renderer->static_batches[side_index];
+    d3d9_static_batch_ensure_chunk_storage(batch, chunk_index + 1u);
     page_id = batch->page_ids[chunk_index];
-    if( page_id == UINT32_MAX )
-    {
-        if( renderer->static_page_count >= D3D9_BATCH_PAGE_LIMIT ||
-            !d3d9_grow_static_pages(renderer, renderer->static_page_count + 1u) )
-            return false;
-        page_id = renderer->static_page_count++;
-        batch->page_ids[chunk_index] = page_id;
-    }
-    renderer->static_pages[page_id].batch_slot = batch_slot;
+    if( page_id != UINT32_MAX )
+        return page_id;
+    /* A pose's locator holds the chunk in 15 bits (D3D9_BATCH_POSE_PAGE_MASK):
+     * 2 TB of vertices. A build never comes near it (d3d9_world_side_claim_pages
+     * caps what it asks for). */
+    assert(chunk_index <= D3D9_BATCH_POSE_PAGE_MASK);
+    grown = d3d9_grow_static_pages(renderer, renderer->static_page_count + 1u);
+    assert(grown);
+    (void)grown; /* read by the assert alone */
+    page_id = renderer->static_page_count++;
+    batch->page_ids[chunk_index] = page_id;
+    if( chunk_index + 1u > batch->pages_claimed )
+        batch->pages_claimed = chunk_index + 1u;
+    renderer->static_pages[page_id].batch_slot = side_index;
     renderer->static_pages[page_id].chunk_index = chunk_index;
-    renderer->static_pages[page_id].valid = true;
-    return true;
+    renderer->static_pages[page_id].valid = false;
+    return page_id;
+}
+
+/* The pages a build of `vertices` will fill, claimed before it bakes: what
+ * the page buffer has to hold is then known up front, so it is made anew
+ * (and everything in it re-sent) once rather than a page at a time
+ * mid-build. A page holds a little under a page of poses (none crosses
+ * one), hence the extra. */
+static void
+d3d9_world_side_claim_pages(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    uint32_t side_index,
+    uint64_t vertices)
+{
+    uint64_t pages = vertices / TRSPK_BATCH16_MAX_VERTICES + 2u;
+    uint32_t chunk;
+    if( pages > 512u )
+        pages = 512u;
+    for( chunk = 0u; chunk < (uint32_t)pages; chunk++ )
+        (void)d3d9_world_side_claim_page(renderer, side_index, chunk);
+}
+
+/* `slot`'s build is gone: its pages stop resolving, its pose table is
+ * forgotten, and the core empties the slot (trspk_world_slot_drop). Its page
+ * ids and their GPU ranges stay the side's. */
+static void
+d3d9_world_side_drop(struct ToriPlatformWin32_Renderer_D3D9* renderer, struct TRSPK_WorldSlot* slot)
+{
+    struct D3D9StaticBatch* side = d3d9_world_side(renderer, slot);
+    uint32_t chunk;
+    for( chunk = 0u; chunk < side->page_id_capacity; chunk++ )
+    {
+        uint32_t const page_id = side->page_ids[chunk];
+        if( page_id == UINT32_MAX )
+            continue;
+        assert(page_id < renderer->static_page_count);
+        renderer->static_pages[page_id].valid = false;
+    }
+    trspk_pose_table_clear(d3d9_world_side_poses(renderer, slot));
+    trspk_world_slot_drop(slot);
+    d3d9_world_sides_sync(renderer);
 }
 
 static bool
 d3d9_ensure_static_batch_vbo(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    struct D3D9StaticBatch* batch,
     uint32_t required_pages,
     bool* out_recreated)
 {
@@ -4446,15 +4428,13 @@ d3d9_ensure_static_batch_vbo(
     if( required_pages == 0u )
         return renderer != NULL;
     assert(renderer);
-    if( renderer->static_batch_vbo &&
-        renderer->static_batch_gpu_page_capacity >= required_pages )
+    assert(batch);
+    if( batch->gpu_vbo && batch->gpu_page_capacity >= required_pages )
         return true;
     if( !renderer->device )
         return true;
 
-    capacity = renderer->static_batch_gpu_page_capacity
-        ? renderer->static_batch_gpu_page_capacity
-        : 4u;
+    capacity = batch->gpu_page_capacity ? batch->gpu_page_capacity : 4u;
     while( capacity < required_pages )
     {
         if( capacity > D3D9_BATCH_PAGE_LIMIT / 2u )
@@ -4470,9 +4450,9 @@ d3d9_ensure_static_batch_vbo(
         return false;
     /* DEFAULT, not MANAGED: the runtime keeps a full sysmem mirror of every
      * MANAGED resource in-process, which doubled this arena's footprint. The
-     * batch16 chunks are the restore source instead — the arena is released
-     * before Reset and every chunk re-marked dirty after (d3d9_reset_device),
-     * so the next d3d9_upload_dirty_static_batches refills it. */
+     * batch16 chunks are the restore source instead -- the arena is released
+     * before Reset and every chunk of both sides re-marked dirty after
+     * (d3d9_reset_device), so the next uploads refill it. */
     hr = IDirect3DDevice9_CreateVertexBuffer(
         renderer->device,
         (UINT)byte_capacity,
@@ -4488,15 +4468,17 @@ d3d9_ensure_static_batch_vbo(
     }
     if( renderer->device )
         IDirect3DDevice9_SetStreamSource(renderer->device, 0u, NULL, 0u, 0u);
-    if( renderer->static_batch_vbo )
-        IDirect3DVertexBuffer9_Release(renderer->static_batch_vbo);
-    renderer->static_batch_vbo = replacement;
-    renderer->static_batch_gpu_page_capacity = capacity;
+    if( batch->gpu_vbo )
+        IDirect3DVertexBuffer9_Release(batch->gpu_vbo);
+    batch->gpu_vbo = replacement;
+    batch->gpu_page_capacity = capacity;
     if( out_recreated )
         *out_recreated = true;
     return true;
 }
 
+/* What `chunk_index` of `batch` baked since it last went up: its dirty span,
+ * at its page. True when the chunk is on the GPU (or has nothing to send). */
 static bool
 d3d9_upload_static_batch_chunk(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
@@ -4505,197 +4487,191 @@ d3d9_upload_static_batch_chunk(
 {
     struct TRSPK_Batch16Chunk* chunk;
     uint32_t page_id;
+    uint32_t first;
+    uint32_t end;
     UINT byte_offset;
-    uint32_t vertex_count;
     UINT byte_count;
     void* locked = NULL;
     HRESULT hr;
-    if( !renderer || !batch || !batch->cpu ||
-        chunk_index >= batch->page_id_capacity )
-        return false;
+    assert(renderer);
+    assert(batch);
+    assert(batch->cpu);
     chunk = trspk_batch16_get_chunk(batch->cpu, chunk_index);
-    if( !chunk || !chunk->vbo )
-        return false;
-    vertex_count = chunk->vertex_count;
-    if( vertex_count == 0u )
+    assert(chunk);
+    assert(chunk->vbo);
+    if( !trspk_vbo_is_dirty(chunk->vbo) )
+        return true;
+    if( chunk->vertex_count == 0u )
     {
         trspk_vbo_clear_dirty(chunk->vbo);
         return true;
     }
-    if( !renderer->device )
-        return true;
-    if( !renderer->static_batch_vbo )
+    if( !renderer->device || !batch->gpu_vbo || chunk_index >= batch->gpu_page_capacity )
         return false;
-    if( !trspk_vbo_is_dirty(chunk->vbo) )
-        return true;
-    if( chunk_index >= batch->page_id_capacity )
-        return false;
+    assert(chunk_index < batch->page_id_capacity);
     page_id = batch->page_ids[chunk_index];
-    if( page_id == UINT32_MAX || page_id >= renderer->static_page_count ||
-        page_id >= renderer->static_batch_gpu_page_capacity )
+    if( page_id == UINT32_MAX )
         return false;
-    byte_offset = (UINT)((uint64_t)page_id * D3D9_VBO_PAGE *
-        sizeof(struct TRSPK_VertexD3D9));
-    byte_count = (UINT)(vertex_count * sizeof(struct TRSPK_VertexD3D9));
-    hr = IDirect3DVertexBuffer9_Lock(
-        renderer->static_batch_vbo,
-        byte_offset,
-        byte_count,
-        &locked,
-        0u);
-    if( FAILED(hr) )
+    /* The chunk's own dirty span, when it has one; a fresh page sends all. */
+    first = 0u;
+    end = chunk->vertex_count;
+    if( chunk->vbo->dirty_end > chunk->vbo->dirty_first )
     {
-        d3d9_log_hr("Lock(static batch vertex buffer)", hr);
-        return false;
+        first = chunk->vbo->dirty_first;
+        end = chunk->vbo->dirty_end < chunk->vertex_count ? chunk->vbo->dirty_end
+                                                          : chunk->vertex_count;
+        if( first > end )
+            first = end;
     }
-    memcpy(locked, chunk->vbo->vertices.as_d3d9, byte_count);
-    hr = IDirect3DVertexBuffer9_Unlock(renderer->static_batch_vbo);
-    if( FAILED(hr) )
+    if( first < end )
     {
-        d3d9_log_hr("Unlock(static batch vertex buffer)", hr);
-        return false;
+        byte_offset = (UINT)(((uint64_t)chunk_index * D3D9_VBO_PAGE + first) *
+                             sizeof(struct TRSPK_VertexD3D9));
+        byte_count = (UINT)((end - first) * sizeof(struct TRSPK_VertexD3D9));
+        hr = IDirect3DVertexBuffer9_Lock(
+            batch->gpu_vbo,
+            byte_offset,
+            byte_count,
+            &locked,
+            0u);
+        if( FAILED(hr) )
+        {
+            d3d9_log_hr("Lock(static batch vertex buffer)", hr);
+            return false;
+        }
+        memcpy(locked, &chunk->vbo->vertices.as_d3d9[first], byte_count);
+        hr = IDirect3DVertexBuffer9_Unlock(batch->gpu_vbo);
+        if( FAILED(hr) )
+        {
+            d3d9_log_hr("Unlock(static batch vertex buffer)", hr);
+            return false;
+        }
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_STATIC_VBO_UPLOAD_BYTES, byte_count);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_STATIC_VBO_UPLOADS, 1);
     }
     trspk_vbo_clear_dirty(chunk->vbo);
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_STATIC_VBO_UPLOAD_BYTES, byte_count);
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_STATIC_VBO_UPLOADS, 1);
     return true;
 }
 
-static bool
-d3d9_upload_dirty_static_batches(struct ToriPlatformWin32_Renderer_D3D9* renderer);
+/* The page buffer is new (made, grown, or lost to a device Reset): no page's
+ * bytes are on the GPU. Both sides' chunks go up again from their CPU
+ * copies -- the drawn build's before its next draw, the stage's before it is
+ * reported prepared. */
+static void
+d3d9_mark_static_side_dirty(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    struct D3D9StaticBatch* batch)
+{
+    uint32_t chunk_count;
+    uint32_t chunk_index;
+    assert(renderer);
+    assert(batch);
+    if( !batch->cpu )
+        return;
+    chunk_count = trspk_batch16_chunk_count(batch->cpu);
+    for( chunk_index = 0u; chunk_index < chunk_count; chunk_index++ )
+    {
+        struct TRSPK_Batch16Chunk* chunk =
+            trspk_batch16_get_chunk(batch->cpu, chunk_index);
+        if( chunk && chunk->vbo )
+            trspk_vbo_set_dirty(chunk->vbo);
+    }
+    if( batch == &renderer->static_batches[renderer->world_side] )
+        renderer->static_batch_upload_pending = true;
+}
 
 static void
-d3d9_mark_active_static_batches_dirty(struct ToriPlatformWin32_Renderer_D3D9* renderer)
+d3d9_mark_static_batches_dirty(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     uint32_t batch_slot;
     assert(renderer);
     for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
-    {
-        struct D3D9StaticBatch* batch = &renderer->static_batches[batch_slot];
-        uint32_t chunk_count;
-        uint32_t chunk_index;
-        if( !batch->active || !batch->cpu )
-            continue;
-        chunk_count = trspk_batch16_chunk_count(batch->cpu);
-        for( chunk_index = 0u; chunk_index < chunk_count; chunk_index++ )
-        {
-            struct TRSPK_Batch16Chunk* chunk =
-                trspk_batch16_get_chunk(batch->cpu, chunk_index);
-            if( chunk && chunk->vbo )
-                trspk_vbo_set_dirty(chunk->vbo);
-        }
-    }
-    renderer->static_batch_upload_pending = true;
+        d3d9_mark_static_side_dirty(renderer, &renderer->static_batches[batch_slot]);
 }
 
+/* `batch`'s buffer holds every page the side has claimed; when it had to be
+ * made anew, every chunk of the side goes up again. */
 static bool
-d3d9_static_batch_commit(struct ToriPlatformWin32_Renderer_D3D9* renderer, uint32_t batch_slot)
+d3d9_static_pages_ensure(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    struct D3D9StaticBatch* batch)
 {
-    struct D3D9StaticBatch* batch;
-    uint32_t chunk_count;
-    uint32_t i;
     bool recreated = false;
-    assert(renderer);
-    if( batch_slot >= renderer->static_batch_count )
+    if( !d3d9_ensure_static_batch_vbo(renderer, batch, batch->pages_claimed, &recreated) )
         return false;
-    batch = &renderer->static_batches[batch_slot];
-    if( !batch->cpu )
-        return false;
-    batch->active = false;
-    chunk_count = trspk_batch16_chunk_count(batch->cpu);
-    if( !d3d9_static_batch_ensure_chunk_storage(
-            renderer, batch_slot, chunk_count) )
-        return false;
-    for( i = 0u; i < batch->page_id_capacity; i++ )
-    {
-        uint32_t page_id = batch->page_ids[i];
-        if( page_id != UINT32_MAX && page_id < renderer->static_page_count )
-            renderer->static_pages[page_id].valid = false;
-    }
-    for( i = 0u; i < chunk_count; i++ )
-        if( !d3d9_static_batch_assign_page(renderer, batch_slot, i) )
-            goto fail;
-    if( !d3d9_ensure_static_batch_vbo(
-            renderer, renderer->static_page_count, &recreated) )
-        goto fail;
     if( recreated )
-    {
-        d3d9_mark_active_static_batches_dirty(renderer);
-        if( !d3d9_upload_dirty_static_batches(renderer) )
-            goto fail;
-    }
-    for( i = 0u; i < chunk_count; i++ )
-        if( !d3d9_upload_static_batch_chunk(renderer, batch, i) )
-            goto fail;
-    batch->active = true;
-    d3d9_rebuild_batch_pose_table(renderer);
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_STATIC_BATCH_BUILDS, 1);
+        d3d9_mark_static_side_dirty(renderer, batch);
     return true;
-
-fail:
-    for( i = 0u; i < batch->page_id_capacity; i++ )
-    {
-        uint32_t page_id = batch->page_ids[i];
-        if( page_id != UINT32_MAX && page_id < renderer->static_page_count )
-            renderer->static_pages[page_id].valid = false;
-    }
-    d3d9_rebuild_batch_pose_table(renderer);
-    return false;
 }
 
+/* Every chunk of `batch` that baked since its last upload. True when all of
+ * the side is on the GPU. */
+static bool
+d3d9_upload_static_side(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    struct D3D9StaticBatch* batch)
+{
+    uint32_t chunk_count;
+    uint32_t chunk;
+    bool whole = true;
+    if( !batch->cpu )
+        return true;
+    chunk_count = trspk_batch16_chunk_count(batch->cpu);
+    for( chunk = 0u; chunk < chunk_count; chunk++ )
+        whole = d3d9_upload_static_batch_chunk(renderer, batch, chunk) && whole;
+    return whole;
+}
+
+/* The drawn build's bakes since the last upload, before the draw that reads
+ * them. */
 static bool
 d3d9_upload_dirty_static_batches(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
-    uint32_t batch_slot;
-    bool recreated = false;
     assert(renderer);
     if( !renderer->static_batch_upload_pending )
         return true;
     /* A device Reset releases the DEFAULT-pool arena; rebuild it before
      * uploading. If it came back fresh, no page's contents survived. */
-    if( !d3d9_ensure_static_batch_vbo(
-            renderer, renderer->static_page_count, &recreated) )
+    if( !d3d9_static_pages_ensure(renderer, d3d9_world_side(renderer, &renderer->build.world)) )
         return false;
-    if( recreated )
-        d3d9_mark_active_static_batches_dirty(renderer);
-    for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
-    {
-        struct D3D9StaticBatch* batch = &renderer->static_batches[batch_slot];
-        uint32_t chunk_count;
-        uint32_t chunk;
-        if( !batch->active || !batch->cpu )
-            continue;
-        chunk_count = trspk_batch16_chunk_count(batch->cpu);
-        for( chunk = 0u; chunk < chunk_count; chunk++ )
-            if( !d3d9_upload_static_batch_chunk(renderer, batch, chunk) )
-                return false;
-    }
+    if( !d3d9_upload_static_side(renderer, d3d9_world_side(renderer, &renderer->build.world)) )
+        return false;
     renderer->static_batch_upload_pending = false;
     return true;
 }
 
+/* The draw's half of the world build (defined with the build's commands,
+ * below the bake it calls). */
+static void
+d3d9_world_bake_on_draw(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    int element_id,
+    int anim_index,
+    int pose_id);
+
+/* The drawn build's page `chunk_index` (what a batch pose's locator names,
+ * and what a draw's page base is a multiple of): its side, its CPU chunk and
+ * its side's buffer. False when the drawn build has no such baked page. */
 static bool
 d3d9_resolve_static_page(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
-    uint32_t page_id,
+    uint32_t chunk_index,
     struct D3D9StaticBatch** out_batch,
     struct TRSPK_Batch16Chunk** out_chunk,
     IDirect3DVertexBuffer9** out_vbo)
 {
-    const struct D3D9StaticPageRef* ref;
     struct D3D9StaticBatch* batch;
     struct TRSPK_Batch16Chunk* chunk;
-    if( !renderer || page_id >= renderer->static_page_count ||
-        !renderer->static_pages[page_id].valid )
+    uint32_t page_id;
+    assert(renderer);
+    batch = &renderer->static_batches[renderer->world_side];
+    if( !batch->active || !batch->cpu || chunk_index >= batch->page_id_capacity ||
+        chunk_index >= trspk_batch16_chunk_count(batch->cpu) )
         return false;
-    ref = &renderer->static_pages[page_id];
-    if( ref->batch_slot >= renderer->static_batch_count )
+    page_id = batch->page_ids[chunk_index];
+    if( page_id == UINT32_MAX || !renderer->static_pages[page_id].valid )
         return false;
-    batch = &renderer->static_batches[ref->batch_slot];
-    if( !batch->active || !batch->cpu ||
-        ref->chunk_index >= trspk_batch16_chunk_count(batch->cpu) )
-        return false;
-    chunk = trspk_batch16_get_chunk(batch->cpu, ref->chunk_index);
+    chunk = trspk_batch16_get_chunk(batch->cpu, chunk_index);
     if( !chunk )
         return false;
     if( out_batch )
@@ -4703,7 +4679,7 @@ d3d9_resolve_static_page(
     if( out_chunk )
         *out_chunk = chunk;
     if( out_vbo )
-        *out_vbo = renderer->static_batch_vbo;
+        *out_vbo = batch->gpu_vbo;
     return true;
 }
 
@@ -5031,8 +5007,10 @@ d3d9_model_unload(struct ToriPlatformWin32_Renderer_D3D9* renderer, int element_
 {
     assert(renderer);
     /* The arena's copy goes here; the batch's stays in its pages until the
-     * next build, but no draw resolves this element to it again. */
+     * next build, but no draw resolves this element to it again. Nor is a
+     * pose of its announced tracks baked from a model that may be gone. */
     d3d9_batch_detach(renderer, element_id);
+    trspk_anim_track_forget_element(&renderer->anim_tracks, element_id);
     if( !renderer || element_id < 0 ||
         !renderer->groups[TRSPK_VBO_GROUP_STATIC].arena ||
         !d3d9_pose_element_is_retained(renderer, element_id) )
@@ -5057,6 +5035,8 @@ d3d9_animation_track_unload(
     if( !renderer || element_id < 0 || anim_index < 0 ||
         anim_index >= TRSPK_POSE_TRACK_COUNT )
         return;
+    /* Announced but never drawn is still announced: forgotten either way. */
+    trspk_anim_track_forget(&renderer->anim_tracks, element_id, anim_index);
     arena = renderer->groups[TRSPK_VBO_GROUP_STATIC].arena;
     if( !arena || !d3d9_pose_track_is_retained(renderer, element_id, anim_index) )
         return;
@@ -5095,23 +5075,86 @@ d3d9_model_load(
         true);
 }
 
+/*
+ * One frame of ANIM_LOAD's animation, posed into a throwaway model at render
+ * scale: what d3d9_animation_load baked for every frame, now baked for the
+ * one a draw asks for (d3d9_bake_track_pose). NULL when the copy failed;
+ * otherwise the caller bakes it and ToriDraw_ModelFree's it.
+ */
+static struct ToriDraw_Model*
+d3d9_animation_pose_frame(
+    const struct ToriRS_RenderCommand_AnimLoad* command,
+    int frame)
+{
+    struct ToriDraw_Animation* animation = command->animation;
+    struct ToriDraw_SkeletalAnim* skeletal = animation->skeletal;
+    struct ToriDraw_Model* source = command->model.u.model.model;
+    struct ToriDraw_Model* baked = ToriDraw_ModelCopy(source);
+    bool posed = false;
+    if( !baked )
+        return NULL;
+
+    /* A lazy retained bake can run after the scene model was posed for a
+     * previous draw.  ModelCopy copies the current vertices, not the
+     * captured rest arrays, so explicitly seed the copy from the source's
+     * rest pose when one exists. */
+    if( source->original_vertices_x && source->original_vertices_y &&
+        source->original_vertices_z && baked->vertex_count == source->vertex_count )
+    {
+        size_t vertex_bytes =
+            (size_t)baked->vertex_count * sizeof(*baked->vertices_x);
+        memcpy(baked->vertices_x, source->original_vertices_x, vertex_bytes);
+        memcpy(baked->vertices_y, source->original_vertices_y, vertex_bytes);
+        memcpy(baked->vertices_z, source->original_vertices_z, vertex_bytes);
+    }
+    if( baked->face_alphas && source->original_face_alphas &&
+        baked->face_count == source->face_count )
+        memcpy(
+            baked->face_alphas,
+            source->original_face_alphas,
+            (size_t)baked->face_count * sizeof(*baked->face_alphas));
+
+    ToriDraw_ModelCaptureOriginalVertices(baked);
+    /* Missing/empty cache frames hold the rest pose.  Calling the classic
+     * animator for one would assert instead of producing that pose. */
+    if( skeletal )
+    {
+        int skeletal_frame = frame < skeletal->frame_count ? frame : 0;
+        if( skeletal->frame_count > 0 && skeletal->matrices &&
+            baked->animaya_vertex_count > 0 && baked->animaya_group_counts &&
+            baked->animaya_groups && baked->animaya_scales )
+        {
+            ToriDraw_ModelAnimateSkeletal(baked, skeletal, skeletal_frame);
+            posed = true;
+        }
+    }
+    else if( animation->frames[frame].length > 0 )
+    {
+        ToriDraw_ModelAnimateFrame(
+            baked, animation->base, &animation->frames[frame]);
+        posed = true;
+    }
+    /* Every pose that DID run has already re-applied the model's
+     * post-animation resize; the rest pose is the one path that has not,
+     * and it still has to be baked at render scale. */
+    if( !posed )
+        ToriDraw_ModelApplyPostTransforms(baked);
+    return baked;
+}
+
 static void
 d3d9_animation_load(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_AnimLoad* command)
 {
     struct ToriDraw_Animation* animation;
-    struct ToriDraw_SkeletalAnim* skeletal;
-    struct ToriDraw_Model* source;
     int anim_index;
-    int frame;
     if( !command || command->element_id < 0 || !command->animation ||
         command->animation->frame_count <= 0 ||
         !ToriDraw_ModelKindIsFull(command->model.kind) || !command->model.u.model.model )
         return;
     animation = command->animation;
-    skeletal = animation->skeletal;
-    if( !skeletal && (!animation->base || !animation->frames) )
+    if( !animation->skeletal && (!animation->base || !animation->frames) )
         return;
 
     anim_index = d3d9_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1);
@@ -5119,74 +5162,80 @@ d3d9_animation_load(
      * cannot keep resolving to MODEL_LOAD's rest pose and a shorter replacement
      * cannot serve stale tail frames. */
     d3d9_animation_track_unload(renderer, command->element_id, anim_index);
-    source = command->model.u.model.model;
-    for( frame = 0; frame < animation->frame_count; frame++ )
-    {
-        struct ToriDraw_Model* baked = ToriDraw_ModelCopy(source);
-        struct ToriDraw_ModelHandle handle;
-        if( !baked )
-            continue;
+    /* Announced, not baked: each pose is baked the first time a draw asks
+     * for it (d3d9_draw_model -> d3d9_bake_track_pose). What baking every
+     * frame used to do as a side effect, the build stops describing it. */
+    d3d9_batch_detach(renderer, command->element_id);
+    trspk_anim_track_announce(
+        &renderer->anim_tracks,
+        command->element_id,
+        anim_index,
+        command->model.u.model.model,
+        command->animation,
+        &command->world_position);
+}
 
-        /* A lazy retained bake can run after the scene model was posed for a
-         * previous draw.  ModelCopy copies the current vertices, not the
-         * captured rest arrays, so explicitly seed the copy from the source's
-         * rest pose when one exists. */
-        if( source->original_vertices_x && source->original_vertices_y &&
-            source->original_vertices_z && baked->vertex_count == source->vertex_count )
-        {
-            size_t vertex_bytes =
-                (size_t)baked->vertex_count * sizeof(*baked->vertices_x);
-            memcpy(baked->vertices_x, source->original_vertices_x, vertex_bytes);
-            memcpy(baked->vertices_y, source->original_vertices_y, vertex_bytes);
-            memcpy(baked->vertices_z, source->original_vertices_z, vertex_bytes);
-        }
-        if( baked->face_alphas && source->original_face_alphas &&
-            baked->face_count == source->face_count )
-            memcpy(
-                baked->face_alphas,
-                source->original_face_alphas,
-                (size_t)baked->face_count * sizeof(*baked->face_alphas));
+/* The draw's pose of an announced track, baked into the static arena under
+ * the announced id (and classified there, d3d9_bake_into_arena). False when
+ * no track matches it. */
+static bool
+d3d9_bake_track_pose(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    int anim_index,
+    int pose_id,
+    uint32_t* out_vertex_base)
+{
+    const struct TRSPK_AnimTrack* track;
+    struct ToriRS_RenderCommand_AnimLoad load;
+    struct ToriDraw_ModelHandle handle;
+    struct ToriDraw_Model* baked;
+    uint32_t vertex_base;
 
-        ToriDraw_ModelCaptureOriginalVertices(baked);
-        bool posed = false;
-        /* Missing/empty cache frames hold the rest pose.  Calling the classic
-         * animator for one would assert instead of producing that pose. */
-        if( skeletal )
-        {
-            int skeletal_frame = frame < skeletal->frame_count ? frame : 0;
-            if( skeletal->frame_count > 0 && skeletal->matrices &&
-                baked->animaya_vertex_count > 0 && baked->animaya_group_counts &&
-                baked->animaya_groups && baked->animaya_scales )
-            {
-                ToriDraw_ModelAnimateSkeletal(baked, skeletal, skeletal_frame);
-                posed = true;
-            }
-        }
-        else if( animation->frames[frame].length > 0 )
-        {
-            ToriDraw_ModelAnimateFrame(
-                baked, animation->base, &animation->frames[frame]);
-            posed = true;
-        }
-        /* Every pose that DID run has already re-applied the model's
-         * post-animation resize; the rest pose is the one path that has not,
-         * and it still has to be baked at render scale. */
-        if( !posed )
-            ToriDraw_ModelApplyPostTransforms(baked);
-        memset(&handle, 0, sizeof(handle));
-        handle.kind = TORIDRAWMK_MODEL;
-        handle.u.model.model = baked;
-        (void)d3d9_bake_into_arena(
-            renderer,
-            &renderer->groups[TRSPK_VBO_GROUP_STATIC],
-            command->element_id,
-            anim_index,
-            frame,
-            handle,
-            &command->world_position,
-            true);
-        ToriDraw_ModelFree(baked);
-    }
+    assert(renderer);
+    assert(command);
+    assert(out_vertex_base);
+    if( !command->animation || command->element_id < 0 ||
+        !ToriDraw_ModelKindIsFull(command->model.kind) || pose_id < 0 ||
+        pose_id >= command->animation->frame_count )
+        return false;
+    track = trspk_anim_track_match(
+        &renderer->anim_tracks,
+        command->element_id,
+        anim_index,
+        command->model.u.model.model,
+        command->animation);
+    if( !track )
+        return false;
+    /* The pose ANIM_LOAD would have baked for this frame: the announced
+     * model's rest pose, posed, at the announced placement, under the
+     * announced id. */
+    memset(&load, 0, sizeof(load));
+    load.element_id = track->announced_id;
+    load.anim_index = anim_index;
+    load.animation = command->animation;
+    load.model = command->model;
+    load.world_position = track->world_position;
+    baked = d3d9_animation_pose_frame(&load, pose_id);
+    if( !baked )
+        return false;
+    memset(&handle, 0, sizeof(handle));
+    handle.kind = TORIDRAWMK_MODEL;
+    handle.u.model.model = baked;
+    vertex_base = d3d9_bake_into_arena(
+        renderer,
+        &renderer->groups[TRSPK_VBO_GROUP_STATIC],
+        track->announced_id,
+        anim_index,
+        pose_id,
+        handle,
+        &track->world_position,
+        true);
+    ToriDraw_ModelFree(baked);
+    if( vertex_base == UINT32_MAX )
+        return false;
+    *out_vertex_base = vertex_base;
+    return true;
 }
 
 bool
@@ -5491,6 +5540,10 @@ d3d9_draw_model(
         pose_id = 0;
     group = dynamic ? TRSPK_VBO_GROUP_DYNAMIC : TRSPK_VBO_GROUP_STATIC;
     binding = group;
+    /* A pose the drawn build holds but has not baked yet is baked here, on
+     * the draw that first needs it. */
+    if( !dynamic )
+        d3d9_world_bake_on_draw(renderer, command->element_id, anim_index, pose_id);
     if( dynamic )
     {
         vertex_base = d3d9_bake_dynamic(renderer, &renderer->groups[group], command, anim_index, pose_id);
@@ -5502,15 +5555,15 @@ d3d9_draw_model(
                  pose_id,
                  &vertex_base) )
     {
-        uint32_t page_id;
+        uint32_t chunk_index;
         if( (vertex_base & D3D9_BATCH_POSE_FLAG) == 0u )
             return;
-        page_id = (vertex_base >> 16u) & D3D9_BATCH_POSE_PAGE_MASK;
-        if( page_id >= renderer->static_page_count ||
-            !renderer->static_pages[page_id].valid )
+        /* The drawn build's page, in its side's buffer. */
+        chunk_index = (vertex_base >> 16u) & D3D9_BATCH_POSE_PAGE_MASK;
+        if( !d3d9_resolve_static_page(renderer, chunk_index, NULL, NULL, NULL) )
             return;
         binding = D3D9_STATIC_PAGE_BINDING_BASE;
-        page_base = page_id * D3D9_VBO_PAGE;
+        page_base = chunk_index * D3D9_VBO_PAGE;
         vertex_base &= D3D9_BATCH_POSE_BASE_MASK;
     }
     else if( !trspk_pose_table_get(
@@ -5520,22 +5573,30 @@ d3d9_draw_model(
                   pose_id,
                   &vertex_base) )
     {
-        /* Renderer creation or an event-queue overflow can leave a live static
-         * element without its load event.  Preserve the retained contract by
-         * baking the complete animation once on the first miss, not one pose
-         * every frame. */
+        /* A pose of an announced track is baked now, on the first draw that
+         * asks for it. Renderer creation or an event-queue overflow can leave
+         * a live static element without its load event: its track is
+         * announced here first, as its ANIM_LOAD would have. */
+        bool track_baked = false;
         if( command->animation )
         {
-            struct ToriRS_RenderCommand_AnimLoad load;
-            memset(&load, 0, sizeof(load));
-            load.element_id = command->element_id;
-            load.anim_index = anim_index;
-            load.animation = command->animation;
-            load.model = command->model;
-            load.world_position = command->world_position;
-            d3d9_animation_load(renderer, &load);
+            track_baked = d3d9_bake_track_pose(renderer, command, anim_index, pose_id, &vertex_base);
+            if( !track_baked )
+            {
+                struct ToriRS_RenderCommand_AnimLoad load;
+                memset(&load, 0, sizeof(load));
+                load.element_id = command->element_id;
+                load.anim_index = anim_index;
+                load.animation = command->animation;
+                load.model = command->model;
+                load.world_position = command->world_position;
+                d3d9_animation_load(renderer, &load);
+                track_baked =
+                    d3d9_bake_track_pose(renderer, command, anim_index, pose_id, &vertex_base);
+            }
         }
-        if( !trspk_pose_table_get(
+        if( !track_baked &&
+            !trspk_pose_table_get(
                 &renderer->poses,
                 command->element_id,
                 anim_index,
@@ -5875,7 +5936,8 @@ d3d9_draw_retained(
                 if( range->group < TRSPK_VBO_GROUP_COUNT )
                     vbo = renderer->groups[range->group].vbo_gpu;
                 else if( range->group == D3D9_STATIC_PAGE_BINDING_BASE )
-                    vbo = renderer->static_batch_vbo;
+                    /* Only the drawn build is drawn. */
+                    vbo = renderer->static_batches[renderer->world_side].gpu_vbo;
                 if( !vbo )
                 {
                     range = trspk_drawrangelist_next(renderer->draw_ranges, range);
@@ -6264,134 +6326,325 @@ d3d9_end_2d(
     renderer->in2d = false;
 }
 
+/* ---- the world build (core/trspk_world_build.h) ---------------------------------- */
+
 static void
-d3d9_batch_begin(
+d3d9_world_begin(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Batch* command)
 {
-    struct D3D9StaticBatch* batch;
-    uint32_t i;
-    int slot;
+    assert(renderer);
     assert(command);
     if( command->batch_id < 0 )
         return;
-    assert(renderer);
-    slot = d3d9_static_batch_slot(renderer, command->batch_id, true);
-    if( slot < 0 )
-        return;
-    batch = &renderer->static_batches[slot];
-    d3d9_zbuffer_batch_dropped(renderer, batch->cpu);
-    for( i = 0u; i < batch->page_id_capacity; i++ )
-    {
-        uint32_t page_id = batch->page_ids[i];
-        if( page_id != UINT32_MAX && page_id < renderer->static_page_count )
-            renderer->static_pages[page_id].valid = false;
-    }
-    trspk_batch16_begin(batch->cpu);
-    batch->active = false;
-    batch->building = true;
-    d3d9_rebuild_batch_pose_table(renderer);
-    renderer->current_batch_slot = slot;
+    /* Before the build is rewritten: the materials are keyed by its poses. */
+    d3d9_zbuffer_batch_dropped(renderer, &renderer->build.world);
+    d3d9_world_side_drop(renderer, &renderer->build.world);
+    trspk_world_slot_begin(&renderer->build.world, command->batch_id);
+    renderer->static_batch_upload_pending = false;
 }
 
+/* A BATCH3D_*_ADD: a record of the build it names, baked later (by the
+ * first draw that needs it, or the prefill) and classified then. */
 static void
-d3d9_batch_add(
+d3d9_world_add(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Batch* command,
     bool animated)
 {
-    struct D3D9StaticBatch* batch;
-    struct TRSPK_Batch16Reservation reservation;
-    int anim_index;
-    int pose_id;
+    struct TRSPK_WorldSlot* slot;
     int face_count;
-    uint32_t vertex_count;
+    assert(renderer);
     assert(command);
-    if( command->element_id < 0 || command->model.kind == TORIDRAWMK_NONE )
-        return;
-    if( renderer->current_batch_slot < 0 ||
-        (uint32_t)renderer->current_batch_slot >= renderer->static_batch_count )
-        return;
-    batch = &renderer->static_batches[renderer->current_batch_slot];
-    if( !batch->building || batch->batch_id != command->batch_id )
+    slot = trspk_world_build_open_slot(&renderer->build, command->batch_id);
+    if( !slot || command->element_id < 0 || command->model.kind == TORIDRAWMK_NONE )
         return;
     face_count = trspk_toridraw_face_count(command->model);
-    if( face_count <= 0 || (uint32_t)face_count > UINT32_MAX / 3u )
+    /* A model larger than one page was never a batch pose here (Batch16
+     * refused it): its draws bake it into the arena, as they always did. */
+    if( face_count <= 0 || (uint32_t)face_count > TRSPK_BATCH16_MAX_VERTICES / 3u )
         return;
-    vertex_count = (uint32_t)face_count * 3u;
-    anim_index = animated
-        ? d3d9_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1)
-        : 0;
-    pose_id = command->pose_id >= 0 ? command->pose_id : 0;
-    if( !trspk_batch16_reserve_pose(
-            batch->cpu,
-            command->element_id,
-            anim_index,
-            pose_id,
-            vertex_count,
-            &reservation) )
-        return;
+    trspk_world_record_add(
+        slot,
+        command->element_id,
+        animated ? d3d9_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1) : 0,
+        command->pose_id >= 0 ? command->pose_id : 0,
+        (uint32_t)face_count * 3u,
+        command->model,
+        &command->world_position);
+}
+
+/* Bake record `record` of `slot` into its pages, classify it (the depth
+ * path), and name it in its side's pose table. */
+static void
+d3d9_world_record_bake(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    struct TRSPK_WorldSlot* slot,
+    int record)
+{
+    struct TRSPK_WorldRecord const* baking;
+    struct TRSPK_Batch16Reservation reservation;
+    uint32_t entry_index;
+    uint32_t page_id;
+    assert(renderer);
+    assert(slot);
+    baking = &slot->records[record];
+    trspk_world_record_take_paged(slot, record, &reservation, &entry_index);
+    (void)entry_index; /* this lane names a pose by page and base */
+    page_id = d3d9_world_side_claim_page(
+        renderer, d3d9_world_side_index(renderer, slot), reservation.chunk_index);
+    renderer->static_pages[page_id].valid = true;
     if( d3d9_bake_pose_vertices(
             renderer,
             reservation.vbo,
             reservation.triangles,
             reservation.vertex_base,
-            command->model,
-            &command->world_position) )
+            baking->model,
+            &baking->world_position) )
         d3d9_zbuffer_batch_pose_baked(
-            renderer, command->element_id, anim_index, pose_id, command->model);
+            renderer, slot, baking->element_id, baking->anim_index, baking->pose_id, baking->model);
+    if( reservation.vertex_base <= D3D9_BATCH_POSE_BASE_MASK )
+        trspk_pose_table_set(
+            d3d9_world_side_poses(renderer, slot),
+            baking->element_id,
+            baking->anim_index,
+            baking->pose_id,
+            D3D9_BATCH_POSE_FLAG | (reservation.chunk_index << 16u) | reservation.vertex_base);
+    if( slot == &renderer->build.world )
+        renderer->static_batch_upload_pending = true;
+}
+
+/* The draw of a pose the drawn build holds but has not baked: baked now. */
+static void
+d3d9_world_bake_on_draw(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    int element_id,
+    int anim_index,
+    int pose_id)
+{
+    struct TRSPK_WorldSlot* world;
+    int record;
+    assert(renderer);
+    world = &renderer->build.world;
+    if( world->unbaked == 0u || !trspk_world_slot_describes(world, element_id) )
+        return;
+    record = trspk_world_record_unbaked(world, element_id, anim_index, pose_id);
+    if( record >= 0 )
+        d3d9_world_record_bake(renderer, world, record);
 }
 
 static void
-d3d9_batch_end(
+d3d9_world_end(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Batch* command)
 {
-    struct D3D9StaticBatch* batch;
-    int slot;
+    struct TRSPK_WorldSlot* world;
     assert(renderer);
     assert(command);
-    slot = renderer->current_batch_slot;
-    if( slot < 0 || (uint32_t)slot >= renderer->static_batch_count )
+    world = &renderer->build.world;
+    /* Drawable now; the build keeps taking reservations until every record
+     * is baked (d3d9_world_bake_on_draw, d3d9_world_prefill). */
+    if( !trspk_world_build_end(&renderer->build, command->batch_id) )
         return;
-    batch = &renderer->static_batches[slot];
-    if( !batch->building || batch->batch_id != command->batch_id )
-        return;
-    trspk_batch16_end(batch->cpu);
-    batch->building = false;
-    (void)d3d9_static_batch_commit(renderer, (uint32_t)slot);
-    renderer->current_batch_slot = -1;
+    d3d9_world_side_claim_pages(
+        renderer, renderer->world_side, world->record_vertices + world->record_vertices / 8u);
+    d3d9_world_sides_sync(renderer);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_STATIC_BATCH_BUILDS, 1);
+    if( renderer->rebuild_log )
+        TORIRS_REPORT(
+            "d3d9_world: end id=%d records=%u vertices=%llu (baked on draw and in the prefill)\n",
+            command->batch_id,
+            world->record_count,
+            (unsigned long long)world->record_vertices);
 }
 
 static void
-d3d9_batch_clear(
+d3d9_world_clear(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
-    int batch_id,
-    bool clear_all)
+    const struct ToriRS_RenderCommand_Batch* command)
 {
-    uint32_t i;
     assert(renderer);
+    assert(command);
     if( renderer->device )
         IDirect3DDevice9_SetStreamSource(renderer->device, 0u, NULL, 0u, 0u);
-    for( i = 0u; i < renderer->static_batch_count; i++ )
+    /* The stage goes with a cancelled rebuild (its own id) or a whole-scene
+     * reset; view 0's static pool cleared for the swap leaves it. */
+    if( trspk_world_build_clear_hits_stage(&renderer->build, command->batch_id, command->scene_reset) )
     {
-        struct D3D9StaticBatch* batch = &renderer->static_batches[i];
-        uint32_t page;
-        if( !clear_all && batch->batch_id != batch_id )
-            continue;
-        d3d9_zbuffer_batch_dropped(renderer, batch->cpu);
-        for( page = 0u; page < batch->page_id_capacity; page++ )
-        {
-            uint32_t page_id = batch->page_ids[page];
-            if( page_id != UINT32_MAX && page_id < renderer->static_page_count )
-                renderer->static_pages[page_id].valid = false;
-        }
-        trspk_batch16_clear(batch->cpu);
-        batch->active = false;
-        batch->building = false;
+        d3d9_zbuffer_batch_dropped(renderer, &renderer->build.stage);
+        d3d9_world_side_drop(renderer, &renderer->build.stage);
     }
-    d3d9_rebuild_batch_pose_table(renderer);
-    renderer->current_batch_slot = -1;
+    if( !trspk_world_build_clear_hits_world(&renderer->build, command->batch_id, command->clear_all) )
+        return;
+    d3d9_zbuffer_batch_dropped(renderer, &renderer->build.world);
+    d3d9_world_side_drop(renderer, &renderer->build.world);
+    renderer->static_batch_upload_pending = false;
+}
+
+/*
+ * STAGE_BEGIN: the next scene's build, beside the drawn one, in the other
+ * side. Its pages are the side's own from earlier builds, claimed for its
+ * size before its first bake (d3d9_world_prefill), so the page buffer has
+ * room for it before anything of it is uploaded.
+ */
+static void
+d3d9_world_stage_begin(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    int batch_id)
+{
+    assert(renderer);
+    assert(batch_id >= 0);
+    (void)trspk_world_build_stage_ensure(&renderer->build);
+    d3d9_world_sides_sync(renderer);
+    /* A stage reused after a swap holds the retired build until dropped. */
+    d3d9_zbuffer_batch_dropped(renderer, &renderer->build.stage);
+    d3d9_world_side_drop(renderer, &renderer->build.stage);
+    trspk_world_build_stage_begin(&renderer->build, batch_id);
+    renderer->stage_prepared_said = false;
+    renderer->stage_prefill_frames = 0u;
+    if( renderer->rebuild_log )
+        TORIRS_REPORT("d3d9_world: stage_begin id=%d\n", batch_id);
+}
+
+/*
+ * SWAP: the stage becomes the drawn build. Its side becomes the drawn side,
+ * its pose table and materials the drawn ones; its pages are already in the
+ * page buffer, so nothing moves. What it had not baked yet bakes as the
+ * drawn build's would, and whatever of it is not on the GPU -- not uploaded
+ * yet, or lost to a device Reset since -- goes up before the first draw that
+ * reads it (d3d9_upload_dirty_static_batches). The retired CPU storage is
+ * released by a later prefill.
+ */
+static void
+d3d9_world_swap(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    int batch_id)
+{
+    struct TRSPK_PoseTable poses;
+    assert(renderer);
+    d3d9_zbuffer_batch_dropped(renderer, &renderer->build.world);
+    d3d9_world_side_drop(renderer, &renderer->build.world);
+    trspk_world_build_swap(&renderer->build, batch_id);
+    renderer->world_side = 1u - renderer->world_side;
+    poses = renderer->batch_poses;
+    renderer->batch_poses = renderer->stage_batch_poses;
+    renderer->stage_batch_poses = poses;
+    d3d9_world_sides_sync(renderer);
+    d3d9_zbuffer_batch_swapped(renderer);
+    renderer->static_batch_upload_pending = true;
+    if( renderer->rebuild_log )
+        TORIRS_REPORT(
+            "d3d9_world: swap id=%d records=%u unbaked=%u prepared_said=%d\n",
+            batch_id,
+            renderer->build.world.record_count,
+            renderer->build.world.unbaked,
+            renderer->stage_prepared_said ? 1 : 0);
+}
+
+/* Bake `slot`'s records in arrival order until `deadline_us`. True: the
+ * deadline came first. The clock is read before each record, so the slice
+ * overruns by at most the largest model's bake. */
+static bool
+d3d9_world_prefill_slot(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    struct TRSPK_WorldSlot* slot,
+    uint64_t deadline_us)
+{
+    while( trspk_world_prefill_more(slot) )
+    {
+        int record;
+        if( PlatformWindow_TicksUs() >= deadline_us )
+            return true;
+        record = trspk_world_prefill_next(slot);
+        if( record >= 0 )
+            d3d9_world_record_bake(renderer, slot, record);
+    }
+    return false;
+}
+
+/* After a frame is drawn: bake what the frame's budget allows, the drawn
+ * build first, then the stage. True when a stage is open and wholly baked. */
+static bool
+d3d9_world_prefill(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    uint64_t render_start_us)
+{
+    struct TRSPK_WorldBuild* build;
+    uint64_t now_us;
+    uint64_t deadline_us;
+    bool finished_here;
+    assert(renderer);
+    build = &renderer->build;
+    if( trspk_world_build_has_work(build) )
+    {
+        now_us = PlatformWindow_TicksUs();
+        deadline_us = now_us + trspk_world_build_slice_us(
+                                   build, now_us > render_start_us ? now_us - render_start_us : 0u);
+        /* True: the slice ran out on the drawn build. */
+        finished_here = build->world.drawable &&
+                        d3d9_world_prefill_slot(renderer, &build->world, deadline_us);
+    }
+    else
+    {
+        deadline_us = 0u;
+        finished_here = true;
+    }
+    if( !finished_here && trspk_world_build_stage_open(build) )
+    {
+        /* Its pages claimed once, before the first bake, for every add
+         * received (they arrive together) plus an eighth. */
+        uint64_t const reserve = trspk_world_build_stage_reserve_wanted(build);
+        if( reserve > 0u )
+            d3d9_world_side_claim_pages(renderer, 1u - renderer->world_side, reserve);
+        (void)d3d9_world_prefill_slot(renderer, &build->stage, deadline_us);
+        renderer->stage_prefill_frames++;
+    }
+    else if( !finished_here && build->stage_release_pending && PlatformWindow_TicksUs() < deadline_us )
+    {
+        /* Nothing left to bake: the retired build's storage goes now. Its
+         * side's pages were invalidated when it was dropped at the swap. */
+        trspk_world_build_stage_release(build);
+        d3d9_world_sides_sync(renderer);
+    }
+    return trspk_world_build_stage_open(build) && build->stage.unbaked == 0u;
+}
+
+/* What the stage baked goes to the page buffer, a range per chunk, so no
+ * frame carries the whole build's upload. True when all of it is there. A
+ * lost device (or one waiting for its Reset) uploads nothing: the stage is
+ * not prepared until the device is back and has had all of it again. */
+static bool
+d3d9_world_stage_upload(struct ToriPlatformWin32_Renderer_D3D9* renderer)
+{
+    assert(renderer);
+    if( !trspk_world_build_stage_open(&renderer->build) || !renderer->device ||
+        renderer->reset_pending )
+        return false;
+    if( !d3d9_static_pages_ensure(renderer, d3d9_world_side(renderer, &renderer->build.stage)) )
+        return false;
+    return d3d9_upload_static_side(renderer, d3d9_world_side(renderer, &renderer->build.stage));
+}
+
+static void
+d3d9_world_stage_prepared(struct ToriPlatformWin32_Renderer_D3D9* renderer)
+{
+    struct TRSPK_WorldSlot* stage;
+    assert(renderer);
+    assert(renderer->scene);
+    stage = &renderer->build.stage;
+    /* The job may swap it in now (it waits for this, app_world_job.c, up to
+     * its deadline). */
+    ToriDraw_SceneStageBatchMarkPrepared(renderer->scene, stage->batch_id);
+    if( renderer->rebuild_log && !renderer->stage_prepared_said )
+        TORIRS_REPORT(
+            "d3d9_world: stage id=%d prepared records=%u chunks=%u pages=%u gpu_pages=%u frames=%u\n",
+            stage->batch_id,
+            stage->record_count,
+            trspk_batch16_chunk_count(stage->pages),
+            renderer->static_page_count,
+            d3d9_world_side(renderer, stage)->gpu_page_capacity,
+            renderer->stage_prefill_frames);
+    renderer->stage_prepared_said = true;
 }
 
 static void
@@ -6441,23 +6694,30 @@ d3d9_dispatch(
             command->u.anim_load.anim_index);
         break;
     case TORIRSRC_BATCH3D_BEGIN:
-        d3d9_batch_begin(renderer, &command->u.batch);
+        d3d9_world_begin(renderer, &command->u.batch);
         break;
     case TORIRSRC_BATCH3D_MODEL_ADD:
-        d3d9_batch_add(renderer, &command->u.batch, false);
+        d3d9_world_add(renderer, &command->u.batch, false);
         break;
     case TORIRSRC_BATCH3D_ANIM_ADD:
-        d3d9_batch_add(renderer, &command->u.batch, true);
+        d3d9_world_add(renderer, &command->u.batch, true);
         break;
     case TORIRSRC_BATCH3D_END:
-        d3d9_batch_end(renderer, &command->u.batch);
+        d3d9_world_end(renderer, &command->u.batch);
+        break;
+    case TORIRSRC_BATCH3D_STAGE_BEGIN:
+        d3d9_world_stage_begin(renderer, command->u.batch.batch_id);
+        break;
+    case TORIRSRC_BATCH3D_SWAP:
+        d3d9_world_swap(renderer, command->u.batch.batch_id);
         break;
     case TORIRSRC_BATCH3D_CLEAR:
-        d3d9_batch_clear(
-            renderer, command->u.batch.batch_id, command->u.batch.clear_all);
+        d3d9_world_clear(renderer, &command->u.batch);
         if( command->u.batch.clear_all )
         {
+            /* A scene reset: the retained models went with it. */
             trspk_pose_table_clear(&renderer->poses);
+            trspk_anim_track_forget_all(&renderer->anim_tracks);
             d3d9_reset_group(&renderer->groups[TRSPK_VBO_GROUP_STATIC]);
         }
         break;
@@ -6488,10 +6748,6 @@ d3d9_dispatch(
     case TORIRSRC_SPRITE_BEGIN:
     case TORIRSRC_SPRITE_END:
     case TORIRSRC_FONT_BEGIN:
-    /* Staged world builds: this lane does not ask for them
-     * (ToriDraw_SceneSetBatchStaging), so the scene never sends these. */
-    case TORIRSRC_BATCH3D_STAGE_BEGIN:
-    case TORIRSRC_BATCH3D_SWAP:
     case TORIRSRC_FONT_END:
         break;
 
@@ -6597,7 +6853,6 @@ ToriPlatformWin32_Renderer_D3D9_New(int width, int height)
     renderer->height = height;
     renderer->interface_scale_mode = 2;
     renderer->tex_slot_next = 1u;
-    renderer->current_batch_slot = -1;
     for( texture = 0; texture < TORIDRAW_TEXTURE_ID_CAPACITY; texture++ )
         renderer->tex_slot_of_id[texture] = -1;
     for( texture = 0; texture < D3D9_UI_FONT_CAP; texture++ )
@@ -6605,6 +6860,21 @@ ToriPlatformWin32_Renderer_D3D9_New(int width, int height)
 
     trspk_pose_table_init(&renderer->poses);
     trspk_pose_table_init(&renderer->batch_poses);
+    trspk_pose_table_init(&renderer->stage_batch_poses);
+    /* The world build's two sides (struct D3D9StaticBatch); the drawn one is
+     * side 0 until the first swap. */
+    trspk_world_build_init_paged(&renderer->build, TRSPK_VERTEX_FORMAT_D3D9,
+        torirs_env_prep_target_us(), torirs_env_prep_slice_us());
+    renderer->static_batches = (struct D3D9StaticBatch*)ToriMem_Calloc(
+        ToriMem_Renderer(), 2u, sizeof(*renderer->static_batches));
+    assert(renderer->static_batches);
+    renderer->static_batch_count = 2u;
+    renderer->world_side = 0u;
+    d3d9_world_sides_sync(renderer);
+    {
+        char const* timing = torirs_env_rebuild_timing();
+        renderer->rebuild_log = timing && timing[0] && timing[0] != '0';
+    }
     renderer->ibo_chain = trspk_ibochain_create(TRSPK_INDEX_FORMAT_U16);
     renderer->draw_ranges = trspk_drawrangelist_create(D3D9_DRAWRANGE_CAP);
     renderer->ui_batch.vertices = (struct D3D9OverlayVertex*)ToriMem_Alloc(
@@ -6860,9 +7130,10 @@ d3d9_report_retained_memory(struct ToriPlatformWin32_Renderer_D3D9* renderer)
         (double)batch_vbo_cpu / 1048576.0,
         batch_chunks,
         (double)batch_tri_cpu / 1048576.0,
-        (double)renderer->static_batch_gpu_page_capacity * D3D9_VBO_PAGE *
+        (double)(renderer->static_batches[0].gpu_page_capacity +
+                 renderer->static_batches[1].gpu_page_capacity) * D3D9_VBO_PAGE *
             sizeof(struct TRSPK_VertexD3D9) / 1048576.0,
-        renderer->static_batch_gpu_page_capacity,
+        renderer->static_batches[0].gpu_page_capacity + renderer->static_batches[1].gpu_page_capacity,
         (double)group_vbo_cpu[TRSPK_VBO_GROUP_STATIC] / 1048576.0,
         (double)group_tri_cpu[TRSPK_VBO_GROUP_STATIC] / 1048576.0,
         (double)group_slots_cpu[TRSPK_VBO_GROUP_STATIC] / 1048576.0,
@@ -6915,8 +7186,9 @@ ToriPlatformWin32_Renderer_D3D9_Free(struct ToriPlatformWin32_Renderer_D3D9* ren
         if( renderer->groups[group].vbo_gpu )
             IDirect3DVertexBuffer9_Release(renderer->groups[group].vbo_gpu);
     }
-    if( renderer->static_batch_vbo )
-        IDirect3DVertexBuffer9_Release(renderer->static_batch_vbo);
+    for( group = 0u; group < renderer->static_batch_count; group++ )
+        if( renderer->static_batches[group].gpu_vbo )
+            IDirect3DVertexBuffer9_Release(renderer->static_batches[group].gpu_vbo);
     if( renderer->device )
         IDirect3DDevice9_Release(renderer->device);
     if( renderer->d3d )
@@ -6936,14 +7208,14 @@ ToriPlatformWin32_Renderer_D3D9_Free(struct ToriPlatformWin32_Renderer_D3D9* ren
         trspk_drawrangelist_free(renderer->draw_ranges);
     trspk_pose_table_free(&renderer->poses);
     trspk_pose_table_free(&renderer->batch_poses);
-    trspk_element_mask_free(&renderer->batch_detached);
+    trspk_pose_table_free(&renderer->stage_batch_poses);
     trspk_pose_pool_free(&renderer->pose_pool);
     d3d9_zbuffer_destroy(renderer);
+    /* The sides' pages are the build's (trspk_world_build_free). */
+    trspk_world_build_free(&renderer->build);
+    trspk_anim_tracks_free(&renderer->anim_tracks);
     for( batch = 0u; batch < renderer->static_batch_count; batch++ )
-    {
-        trspk_batch16_destroy(renderer->static_batches[batch].cpu);
         ToriMem_Free(ToriMem_Renderer(), renderer->static_batches[batch].page_ids);
-    }
     trspk_atlas_free(&renderer->atlas);
     trspk_atlas_free(&renderer->ui_sprite_atlas);
     for( texture = 0; texture < D3D9_UI_SPRITE_CAP; texture++ )
@@ -7062,17 +7334,14 @@ ToriPlatformWin32_Renderer_D3D9_Init(
     d3d9_restore_after_reset(renderer);
     if( !d3d9_upload_atlas(renderer) )
         return false;
+    /* A device made after a build has pages: they go up with the next
+     * uploads (the drawn build's before its first draw, a stage's before it
+     * is reported prepared). */
     if( renderer->static_page_count > 0u )
-    {
-        bool recreated = false;
-        if( !d3d9_ensure_static_batch_vbo(
-                renderer, renderer->static_page_count, &recreated) )
-            return false;
-        if( recreated )
-            d3d9_mark_active_static_batches_dirty(renderer);
-        if( !d3d9_upload_dirty_static_batches(renderer) )
-            return false;
-    }
+        d3d9_mark_static_batches_dirty(renderer);
+    /* Both world passes can hold a staged world build beside the drawn one
+     * (TORIRSRC_BATCH3D_STAGE_BEGIN / _SWAP in render/torirs_render.h). */
+    ToriDraw_SceneSetBatchStaging(scene, true);
     return true;
 }
 
@@ -7228,10 +7497,20 @@ ToriPlatformWin32_Renderer_D3D9_DrawBootBar(
 }
 
 void
+ToriPlatformWin32_Renderer_D3D9_SetFrameElapsed(struct ToriPlatformWin32_Renderer_D3D9* renderer, uint64_t elapsed_us)
+{
+    assert(renderer);
+    renderer->build.frame_elapsed_us = elapsed_us;
+}
+
+void
 ToriPlatformWin32_Renderer_D3D9_RenderFrame(struct ToriPlatformWin32_Renderer_D3D9* renderer, struct ToriRS_Frame* frame)
 {
     struct ToriRS_RenderCommand command;
+    uint64_t render_start_us;
+    bool baked;
     assert(renderer);
+    render_start_us = PlatformWindow_TicksUs();
     if( !d3d9_begin_frame_scene(renderer) )
         return;
     assert(frame);
@@ -7253,6 +7532,13 @@ ToriPlatformWin32_Renderer_D3D9_RenderFrame(struct ToriPlatformWin32_Renderer_D3
         d3d9_end_2d(renderer, &end_command);
     }
     d3d9_end_frame_scene(renderer);
+    /* The frame is drawn: what is left of the world builds' bake takes its
+     * slice now; the drawn build's goes up with the next frame's draw, the
+     * stage's here. Both world paths draw a build from the page buffer, so
+     * a stage is prepared once it is baked whole AND on the GPU. */
+    baked = d3d9_world_prefill(renderer, render_start_us);
+    if( d3d9_world_stage_upload(renderer) && baked )
+        d3d9_world_stage_prepared(renderer);
 }
 
 /*

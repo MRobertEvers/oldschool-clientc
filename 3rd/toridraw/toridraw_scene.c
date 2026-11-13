@@ -1723,6 +1723,16 @@ ToriDraw_SceneStageBatchMarkPrepared(
         scene->staged_prepared = true;
 }
 
+void
+ToriDraw_SceneStageBatchMarkUnprepared(
+    struct ToriDraw_Scene* scene,
+    int batch_id)
+{
+    assert(scene);
+    if( scene->staged_batch_plus1 == batch_id + 1 )
+        scene->staged_prepared = false;
+}
+
 bool
 ToriDraw_SceneStageBatchPrepared(const struct ToriDraw_Scene* scene)
 {

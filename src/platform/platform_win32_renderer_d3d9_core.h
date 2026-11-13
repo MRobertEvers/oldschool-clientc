@@ -35,6 +35,7 @@
 #include "core/trspk_pose.h"
 #include "core/trspk_triangles.h"
 #include "core/trspk_vbo.h"
+#include "core/trspk_world_build.h"
 #include "render/torirs_frame.h"
 #include "render/trspk_pose_pool.h"
 #include "render/trspk_toridraw.h"
@@ -221,14 +222,33 @@ struct D3D9WidgetVertex
     float v;
 };
 
+/*
+ * One SIDE of the world build: the drawn build's or the stage's
+ * (core/trspk_world_build.h). There are exactly two, and they change roles at
+ * a swap (::world_side) rather than contents.
+ *
+ *   cpu        the side's Batch16 pages: the core slot's (TRSPK_WorldSlot::
+ *              pages), re-pointed whenever the core makes or swaps one
+ *              (d3d9_world_sides_sync)
+ *   page_ids   by chunk: the side's page (struct D3D9StaticPageRef). A side
+ *              keeps its pages across builds, so a build's GPU home is fixed
+ *              before it bakes and a swap moves no bytes.
+ *   gpu_vbo    the side's own page buffer (DEFAULT pool), chunk c at
+ *              c * D3D9_VBO_PAGE. One per side, not one shared: a Lock of a
+ *              buffer a draw in flight reads waits for the GPU, and the
+ *              stage's buffer is never drawn from while it is the stage.
+ *   pages_claimed  chunks with a page: what gpu_vbo has to hold
+ *   active     the drawn side, while its build is drawable
+ */
 struct D3D9StaticBatch
 {
-    int batch_id;
     struct TRSPK_Batch16* cpu;
     uint32_t* page_ids;
     uint32_t page_id_capacity;
+    uint32_t pages_claimed;
+    IDirect3DVertexBuffer9* gpu_vbo;
+    uint32_t gpu_page_capacity;
     bool active;
-    bool building;
 };
 
 struct D3D9StaticPageRef
@@ -342,11 +362,26 @@ struct ToriPlatformWin32_Renderer_D3D9
     IDirect3DIndexBuffer9* ibo;
     uint32_t gpu_ibo_capacity;
     struct TRSPK_PoseTable poses;
+    /* The drawn build's poses (D3D9_BATCH_POSE_FLAG | page | base), and the
+     * stage's, filled as each pose is baked; they change places at a swap. */
     struct TRSPK_PoseTable batch_poses;
-    /* Elements the active world build no longer describes -- reloaded,
-     * animated or removed since it was baked (see trspk_element_mask.h).
-     * Their batch poses are dropped and stay dropped across rebuilds. */
-    struct TRSPK_ElementMask batch_detached;
+    struct TRSPK_PoseTable stage_batch_poses;
+    /*
+     * The world build (core/trspk_world_build.h, paged): a BATCH3D add is a
+     * record, baked by the first draw that needs it or by the prefill after
+     * a frame (d3d9_world_prefill); a background rebuild stages the next
+     * build beside the drawn one and swaps the two. `world_side` says which
+     * of the two static_batches is the drawn build's.
+     */
+    struct TRSPK_WorldBuild build;
+    uint32_t world_side;
+    /* ANIM_LOAD's announced tracks: each pose is baked when a draw first
+     * asks for it (d3d9_bake_track_pose). */
+    struct TRSPK_AnimTracks anim_tracks;
+    /* TORIRS_REBUILD_TIMING: the build's begin / end / stage / swap lines. */
+    bool rebuild_log;
+    bool stage_prepared_said;
+    uint32_t stage_prefill_frames;
     struct TRSPK_IBOChain* ibo_chain;
     struct TRSPK_DrawRangeList* draw_ranges;
 
@@ -358,13 +393,10 @@ struct ToriPlatformWin32_Renderer_D3D9
      * vertex stream. */
     struct D3D9StaticBatch* static_batches;
     uint32_t static_batch_count;
-    uint32_t static_batch_capacity;
     struct D3D9StaticPageRef* static_pages;
     uint32_t static_page_count;
     uint32_t static_page_capacity;
-    IDirect3DVertexBuffer9* static_batch_vbo;
-    uint32_t static_batch_gpu_page_capacity;
-    int current_batch_slot;
+    /* The drawn build has bakes its buffer does not have yet. */
     bool static_batch_upload_pending;
 
     /* Reused scratch makes each sorted model one U16-chain append. */
@@ -554,9 +586,12 @@ d3d9_zbuffer_track_dropped(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int element_id,
     int anim_index);
+/* The world build's materials: one table per build (`slot` the drawn one or
+ * the stage), changing places with the builds at a swap. */
 void
 d3d9_zbuffer_batch_pose_baked(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    const struct TRSPK_WorldSlot* slot,
     int element_id,
     int anim_index,
     int pose_id,
@@ -564,7 +599,9 @@ d3d9_zbuffer_batch_pose_baked(
 void
 d3d9_zbuffer_batch_dropped(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
-    struct TRSPK_Batch16* cpu);
+    const struct TRSPK_WorldSlot* slot);
+void
+d3d9_zbuffer_batch_swapped(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 
 /*
  * Core services both implementations draw on.  These stay owned by

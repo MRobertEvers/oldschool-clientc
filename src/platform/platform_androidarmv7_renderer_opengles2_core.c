@@ -30,6 +30,8 @@
 #include "log/torirs_log.h"
 #include "mem/torirs_mem.h"
 #include "perf/torirs_perf.h"
+#include "platform/platform_window.h"
+#include "torirs_env.h"
 #include "es2/es2_shaders.h"
 
 #include "core/trspk_math.h"
@@ -997,12 +999,15 @@ es2_refresh_texture_animation(struct TRSPK_Renderer_ES2* renderer, int tex_id)
                 anim_v);
         }
     }
+    /* Both builds: a stage baked before the texture arrived is drawn after
+     * the swap. The span a refresh changes is marked dirty; the drawn
+     * build's goes with the next upload, the stage's with its prefill's. */
     for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
     {
         struct ES2StaticBatch* batch = &renderer->static_batches[batch_slot];
         uint32_t chunk_count;
         uint32_t chunk_index;
-        if( !batch->cpu || (!batch->active && !batch->building) )
+        if( !batch->cpu )
             continue;
         chunk_count = trspk_batch16_chunk_count(batch->cpu);
         for( chunk_index = 0u; chunk_index < chunk_count; chunk_index++ )
@@ -1016,7 +1021,8 @@ es2_refresh_texture_animation(struct TRSPK_Renderer_ES2* renderer, int tex_id)
                     chunk->vertex_count,
                     tex_id,
                     anim_u,
-                    anim_v) )
+                    anim_v) &&
+                batch_slot == renderer->world_side )
                 renderer->static_batch_upload_pending = true;
         }
     }
@@ -1320,92 +1326,93 @@ es2_reset_group(struct ES2ModelGroup* group)
 
 /* ---- static batches (Batch16 pages) ------------------------------------------ */
 
+/*
+ * The world build's two sides (struct ES2StaticBatch): the drawn build's at
+ * static_batches[world_side], the stage's at the other. The core owns the
+ * builds (core/trspk_world_build.h); a side is where this renderer keeps
+ * what it adds to one -- its pages, its pose table, the painter's residency
+ * serials, and (on the depth path) its materials.
+ */
+
+static uint32_t
+es2_world_side_index(
+    const struct TRSPK_Renderer_ES2* renderer,
+    const struct TRSPK_WorldSlot* slot)
+{
+    assert(renderer);
+    assert(slot == &renderer->build.world || slot == &renderer->build.stage);
+    return slot == &renderer->build.world ? renderer->world_side : 1u - renderer->world_side;
+}
+
+struct ES2StaticBatch*
+es2_world_side(struct TRSPK_Renderer_ES2* renderer, const struct TRSPK_WorldSlot* slot)
+{
+    return &renderer->static_batches[es2_world_side_index(renderer, slot)];
+}
+
+/* The pose table naming `slot`'s baked poses. */
+static struct TRSPK_PoseTable*
+es2_world_side_poses(struct TRSPK_Renderer_ES2* renderer, const struct TRSPK_WorldSlot* slot)
+{
+    assert(slot == &renderer->build.world || slot == &renderer->build.stage);
+    return slot == &renderer->build.world ? &renderer->batch_poses : &renderer->stage_batch_poses;
+}
+
+/* The sides after the core made, emptied, swapped or released a build: each
+ * names its build's pages, and only the drawn one resolves. */
+static void
+es2_world_sides_sync(struct TRSPK_Renderer_ES2* renderer)
+{
+    struct ES2StaticBatch* world = &renderer->static_batches[renderer->world_side];
+    struct ES2StaticBatch* stage = &renderer->static_batches[1u - renderer->world_side];
+    world->cpu = renderer->build.world.pages;
+    world->active = renderer->build.world.drawable;
+    stage->cpu = renderer->build.stage.pages;
+    stage->active = false;
+}
+
 static bool
 es2_upload_dirty_static_batches(struct TRSPK_Renderer_ES2* renderer);
 
+/* `batch`'s page buffer is new (or the context is): none of its bytes are
+ * on the GPU, and its chunks go up again from their CPU copies. */
 static void
-es2_mark_active_static_batches_dirty(struct TRSPK_Renderer_ES2* renderer)
+es2_mark_static_side_dirty(struct TRSPK_Renderer_ES2* renderer, struct ES2StaticBatch* batch)
+{
+    uint32_t chunk_count;
+    uint32_t chunk_index;
+    assert(renderer);
+    assert(batch);
+    if( !batch->cpu )
+        return;
+    chunk_count = trspk_batch16_chunk_count(batch->cpu);
+    for( chunk_index = 0u; chunk_index < chunk_count; chunk_index++ )
+    {
+        struct TRSPK_Batch16Chunk* chunk = trspk_batch16_get_chunk(batch->cpu, chunk_index);
+        if( chunk && chunk->vbo )
+            trspk_vbo_set_dirty(chunk->vbo);
+    }
+    if( batch == &renderer->static_batches[renderer->world_side] )
+        renderer->static_batch_upload_pending = true;
+}
+
+static void
+es2_mark_static_batches_dirty(struct TRSPK_Renderer_ES2* renderer)
 {
     uint32_t batch_slot;
     assert(renderer);
     for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
-    {
-        struct ES2StaticBatch* batch = &renderer->static_batches[batch_slot];
-        uint32_t chunk_count;
-        uint32_t chunk_index;
-        if( !batch->active || !batch->cpu )
-            continue;
-        chunk_count = trspk_batch16_chunk_count(batch->cpu);
-        for( chunk_index = 0u; chunk_index < chunk_count; chunk_index++ )
-        {
-            struct TRSPK_Batch16Chunk* chunk = trspk_batch16_get_chunk(batch->cpu, chunk_index);
-            if( chunk && chunk->vbo )
-                trspk_vbo_set_dirty(chunk->vbo);
-        }
-    }
-    renderer->static_batch_upload_pending = true;
-}
-
-static void
-es2_grow_static_batches(struct TRSPK_Renderer_ES2* renderer, uint32_t needed)
-{
-    struct ES2StaticBatch* grown;
-    uint32_t capacity;
-    if( needed <= renderer->static_batch_capacity )
-        return;
-    capacity = renderer->static_batch_capacity ? renderer->static_batch_capacity : 8u;
-    while( capacity < needed )
-        capacity *= 2u;
-    grown = (struct ES2StaticBatch*)ToriMem_Realloc(ToriMem_Renderer(),
-        renderer->static_batches, (size_t)capacity * sizeof(*grown));
-    assert(grown);
-    memset(
-        grown + renderer->static_batch_capacity,
-        0,
-        (size_t)(capacity - renderer->static_batch_capacity) * sizeof(*grown));
-    renderer->static_batches = grown;
-    renderer->static_batch_capacity = capacity;
-}
-
-int
-es2_static_batch_slot(struct TRSPK_Renderer_ES2* renderer, int batch_id, bool create)
-{
-    uint32_t slot;
-    uint32_t reusable = UINT32_MAX;
-    assert(renderer);
-    if( batch_id < 0 )
-        return -1;
-    for( slot = 0u; slot < renderer->static_batch_count; slot++ )
-    {
-        if( renderer->static_batches[slot].batch_id == batch_id )
-            return (int)slot;
-        if( reusable == UINT32_MAX && !renderer->static_batches[slot].active &&
-            !renderer->static_batches[slot].building &&
-            trspk_batch16_entry_count(renderer->static_batches[slot].cpu) == 0u )
-            reusable = slot;
-    }
-    if( !create )
-        return -1;
-    if( reusable != UINT32_MAX )
-    {
-        renderer->static_batches[reusable].batch_id = batch_id;
-        return (int)reusable;
-    }
-    es2_grow_static_batches(renderer, renderer->static_batch_count + 1u);
-    slot = renderer->static_batch_count++;
-    renderer->static_batches[slot].batch_id = batch_id;
-    renderer->static_batches[slot].cpu = trspk_batch16_create(TRSPK_VERTEX_FORMAT_GLES2);
-    assert(renderer->static_batches[slot].cpu);
-    return (int)slot;
+        es2_mark_static_side_dirty(renderer, &renderer->static_batches[batch_slot]);
 }
 
 /*
  * A batched element that has been reloaded, animated or removed since the
  * build: its batch pose is stale, so draws stop resolving it there until the
- * next build. Runtime locs are not batches (world_builder), and the scene hands
- * a freed element index straight back out, so the loc a script spawns over a
- * world loc usually arrives under the world loc's id -- without this, batch-
- * first resolution drew the old loc in its place.
+ * next build -- on the stage too, whose record must not be baked from a
+ * model that may be gone. Runtime locs are not batches (world_builder), and
+ * the scene hands a freed element index straight back out, so the loc a
+ * script spawns over a world loc usually arrives under the world loc's id --
+ * without this, batch-first resolution drew the old loc in its place.
  */
 static void
 es2_batch_detach(
@@ -1416,58 +1423,12 @@ es2_batch_detach(
     assert(renderer);
     if( element_id < 0 )
         return;
-    trspk_element_mask_set(&renderer->batch_detached, element_id);
+    trspk_world_build_detach(&renderer->build, element_id);
     trspk_pose_table_remove_element(&renderer->batch_poses, element_id);
+    trspk_pose_table_remove_element(&renderer->stage_batch_poses, element_id);
     index = (uint32_t)ToriDraw_ElementIndexOfRaw(element_id);
     if( index < renderer->static_primary_capacity )
         renderer->static_primary_bits[index >> 5] &= ~(1u << (index & 31u));
-}
-
-void
-es2_rebuild_batch_pose_table(struct TRSPK_Renderer_ES2* renderer)
-{
-    uint32_t batch_slot;
-    assert(renderer);
-    trspk_pose_table_clear(&renderer->batch_poses);
-    /* The detach mask records how elements differ from the ACTIVE build;
-     * with none active there is nothing to differ from. */
-    {
-        bool any_active = false;
-        for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
-            any_active = any_active || renderer->static_batches[batch_slot].active;
-        if( !any_active )
-            trspk_element_mask_clear(&renderer->batch_detached);
-    }
-    for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
-    {
-        const struct ES2StaticBatch* batch = &renderer->static_batches[batch_slot];
-        uint32_t entry_count;
-        uint32_t entry_index;
-        if( !batch->active || !batch->cpu )
-            continue;
-        entry_count = trspk_batch16_entry_count(batch->cpu);
-        for( entry_index = 0u; entry_index < entry_count; entry_index++ )
-        {
-            const struct TRSPK_Batch16Entry* entry =
-                trspk_batch16_get_entry(batch->cpu, entry_index);
-            uint32_t page_id;
-            if( !entry || entry->element_id < 0 ||
-                trspk_element_mask_test(&renderer->batch_detached, entry->element_id) || entry->chunk_index >= batch->page_id_capacity ||
-                entry_index > ES2_BATCH_POSE_ENTRY_MASK ||
-                batch_slot > ES2_BATCH_POSE_SLOT_MASK )
-                continue;
-            page_id = batch->page_ids[entry->chunk_index];
-            if( page_id >= renderer->static_page_count || !renderer->static_pages[page_id].valid )
-                continue;
-            trspk_pose_table_set(
-                &renderer->batch_poses,
-                entry->element_id,
-                entry->anim_index,
-                entry->pose_id,
-                ES2_BATCH_POSE_FLAG | (batch_slot << ES2_BATCH_POSE_SLOT_SHIFT) | entry_index);
-        }
-    }
-    es2_static_primary_rebuild(renderer);
 }
 
 static bool
@@ -1523,139 +1484,153 @@ es2_static_batch_ensure_chunk_storage(struct ES2StaticBatch* batch, uint32_t chu
     batch->page_id_capacity = capacity;
 }
 
-static bool
-es2_static_batch_assign_page(
+/* Side `side_index`'s page for chunk `chunk_index`, made the first time the
+ * side has that many chunks: a side keeps its pages from build to build. */
+static uint32_t
+es2_world_side_claim_page(
     struct TRSPK_Renderer_ES2* renderer,
-    uint32_t batch_slot,
+    uint32_t side_index,
     uint32_t chunk_index)
 {
-    struct ES2StaticBatch* batch = &renderer->static_batches[batch_slot];
-    const struct TRSPK_Batch16Chunk* chunk;
+    struct ES2StaticBatch* batch;
     struct ES2StaticPageRef* page;
     uint32_t page_id;
-    uint32_t needed;
-    assert(chunk_index < batch->page_id_capacity);
-    chunk = trspk_batch16_get_chunk(batch->cpu, chunk_index);
-    needed = chunk ? chunk->vertex_count : 0u;
-    page_id = batch->page_ids[chunk_index];
-    if( page_id == UINT32_MAX )
-    {
-        if( renderer->static_page_count >= ES2_BATCH_PAGE_LIMIT ||
-            !es2_grow_static_pages(renderer, renderer->static_page_count + 1u) )
-            return false;
-        page_id = renderer->static_page_count++;
-        batch->page_ids[chunk_index] = page_id;
-        renderer->static_pages[page_id].gpu_offset = 0u;
-        renderer->static_pages[page_id].gpu_capacity = 0u;
-    }
-    page = &renderer->static_pages[page_id];
-    page->batch_slot = batch_slot;
-    page->chunk_index = chunk_index;
-    /* The painter's placement reads the bake through this (see the field). */
-    page->cpu_vbo = chunk ? chunk->vbo : NULL;
-    page->valid = page->cpu_vbo != NULL;
-    /* A range it outgrew is abandoned, not extended: the bump allocator only
-     * ever hands out the tail, and the commit compacts when the tail runs
-     * out (es2_compact_static_pages). */
-    if( needed > page->gpu_capacity )
-    {
-        page->gpu_offset = renderer->static_batch_gpu_vertex_used;
-        page->gpu_capacity = needed;
-        renderer->static_batch_gpu_vertex_used += needed;
-    }
-    return true;
-}
-
-/* Re-pack every valid page densely, in page order, and re-send them all.
- * Returns the packed high-water mark. */
-static uint32_t
-es2_compact_static_pages(struct TRSPK_Renderer_ES2* renderer)
-{
-    uint32_t page_id;
-    uint32_t used = 0u;
+    bool grown;
     assert(renderer);
-    for( page_id = 0u; page_id < renderer->static_page_count; page_id++ )
-    {
-        struct ES2StaticPageRef* page = &renderer->static_pages[page_id];
-        const struct ES2StaticBatch* batch;
-        const struct TRSPK_Batch16Chunk* chunk;
-        if( !page->valid || page->batch_slot >= renderer->static_batch_count )
-        {
-            page->gpu_capacity = 0u;
-            continue;
-        }
-        batch = &renderer->static_batches[page->batch_slot];
-        chunk = batch->cpu ? trspk_batch16_get_chunk(batch->cpu, page->chunk_index) : NULL;
-        page->gpu_capacity = chunk ? chunk->vertex_count : 0u;
-        page->gpu_offset = used;
-        used += page->gpu_capacity;
-    }
-    renderer->static_batch_gpu_vertex_used = used;
-    es2_mark_active_static_batches_dirty(renderer);
-    return used;
+    assert(side_index < renderer->static_batch_count);
+    batch = &renderer->static_batches[side_index];
+    es2_static_batch_ensure_chunk_storage(batch, chunk_index + 1u);
+    page_id = batch->page_ids[chunk_index];
+    if( page_id != UINT32_MAX )
+        return page_id;
+    /* ES2_BATCH_PAGE_LIMIT pages is 2 TB of vertices: a build never comes
+     * near it (es2_world_side_claim_pages caps what it asks for). */
+    grown = es2_grow_static_pages(renderer, renderer->static_page_count + 1u);
+    assert(grown);
+    (void)grown; /* read by the assert alone */
+    page_id = renderer->static_page_count++;
+    batch->page_ids[chunk_index] = page_id;
+    if( chunk_index + 1u > batch->pages_claimed )
+        batch->pages_claimed = chunk_index + 1u;
+    page = &renderer->static_pages[page_id];
+    page->batch_slot = side_index;
+    page->chunk_index = chunk_index;
+    page->gpu_offset = chunk_index * ES2_VBO_PAGE;
+    page->cpu_vbo = NULL;
+    page->valid = false;
+    return page_id;
 }
 
-void
-es2_invalidate_batch_pages(struct TRSPK_Renderer_ES2* renderer, const struct ES2StaticBatch* batch)
+/* The pages a build of `vertices` will fill, claimed before it bakes: what
+ * the page buffer has to hold is then known up front, so it grows (and
+ * re-sends what it held) once rather than a page at a time mid-build. A
+ * page holds a little under a page of poses (none crosses one), hence the
+ * extra. */
+static void
+es2_world_side_claim_pages(
+    struct TRSPK_Renderer_ES2* renderer,
+    uint32_t side_index,
+    uint64_t vertices)
 {
+    uint64_t pages = vertices / TRSPK_BATCH16_MAX_VERTICES + 2u;
     uint32_t chunk;
-    for( chunk = 0u; chunk < batch->page_id_capacity; chunk++ )
-    {
-        uint32_t page_id = batch->page_ids[chunk];
-        if( page_id != UINT32_MAX && page_id < renderer->static_page_count )
-        {
-            renderer->static_pages[page_id].valid = false;
-            renderer->static_pages[page_id].cpu_vbo = NULL;
-        }
-    }
+    if( pages > 512u )
+        pages = 512u;
+    for( chunk = 0u; chunk < (uint32_t)pages; chunk++ )
+        (void)es2_world_side_claim_page(renderer, side_index, chunk);
 }
 
-/* The page buffer holds `capacity` vertices; growing it is a fresh
- * allocation and every page has to be re-sent from its CPU chunk. */
+/* `slot`'s build is gone: its pages stop resolving, its pose table and the
+ * painter's residency serials for its entries are forgotten, and the core
+ * empties the slot (trspk_world_slot_drop). Its page ids and their GPU
+ * ranges stay the side's. */
+static void
+es2_world_side_drop(struct TRSPK_Renderer_ES2* renderer, struct TRSPK_WorldSlot* slot)
+{
+    struct ES2StaticBatch* side = es2_world_side(renderer, slot);
+    uint32_t chunk;
+    for( chunk = 0u; chunk < side->page_id_capacity; chunk++ )
+    {
+        uint32_t const page_id = side->page_ids[chunk];
+        if( page_id == UINT32_MAX )
+            continue;
+        assert(page_id < renderer->static_page_count);
+        renderer->static_pages[page_id].valid = false;
+        renderer->static_pages[page_id].cpu_vbo = NULL;
+    }
+    trspk_pose_table_clear(es2_world_side_poses(renderer, slot));
+    /* Entry indices restart with the next build: a serial kept for one would
+     * name some other model's ring bytes (the painter's resident window). */
+    if( side->hot_serial_capacity )
+        memset(side->hot_serial, 0, (size_t)side->hot_serial_capacity * sizeof(*side->hot_serial));
+    trspk_world_slot_drop(slot);
+    es2_world_sides_sync(renderer);
+}
+
+/* `batch`'s page buffer holds `required_pages` or more; growing it is a
+ * fresh allocation and every page of the side has to be re-sent from its CPU
+ * chunk. */
 static bool
 es2_ensure_static_batch_vbo(
     struct TRSPK_Renderer_ES2* renderer,
-    uint32_t required_vertices,
+    struct ES2StaticBatch* batch,
+    uint32_t required_pages,
     bool* out_recreated)
 {
     uint32_t capacity;
     uint64_t byte_capacity;
     assert(renderer);
+    assert(batch);
     assert(out_recreated);
     *out_recreated = false;
-    if( required_vertices == 0u )
+    if( required_pages == 0u )
         return true;
-    if( renderer->static_batch_vbo &&
-        renderer->static_batch_gpu_vertex_capacity >= required_vertices )
+    if( batch->gpu_vbo && batch->gpu_page_capacity >= required_pages )
         return true;
     if( !renderer->gl_context )
         return true;
-    capacity = renderer->static_batch_gpu_vertex_capacity
-        ? renderer->static_batch_gpu_vertex_capacity
-        : ES2_STATIC_BATCH_VBO_INIT_VERTICES;
-    while( capacity < required_vertices )
-    {
-        if( capacity > UINT32_MAX / 2u )
-        {
-            capacity = required_vertices;
-            break;
-        }
+    capacity = batch->gpu_page_capacity ? batch->gpu_page_capacity : ES2_STATIC_BATCH_VBO_INIT_PAGES;
+    while( capacity < required_pages )
         capacity *= 2u;
-    }
-    byte_capacity = (uint64_t)capacity * sizeof(struct TRSPK_VertexGLES2);
+    byte_capacity = (uint64_t)capacity * ES2_VBO_PAGE * sizeof(struct TRSPK_VertexGLES2);
     if( byte_capacity > (uint64_t)INT32_MAX )
-        return false;
-    if( !renderer->static_batch_vbo )
-        glGenBuffers(1, &renderer->static_batch_vbo);
-    es2_bind_array_buffer(renderer, renderer->static_batch_vbo);
-    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)byte_capacity, NULL, GL_STATIC_DRAW);
+    {
+        capacity = required_pages;
+        byte_capacity = (uint64_t)capacity * ES2_VBO_PAGE * sizeof(struct TRSPK_VertexGLES2);
+        if( byte_capacity > (uint64_t)INT32_MAX )
+            return false;
+    }
+    if( !batch->gpu_vbo )
+        glGenBuffers(1, &batch->gpu_vbo);
+    es2_bind_array_buffer(renderer, batch->gpu_vbo);
+    /* Allocated once at its size and then written in ranges
+     * (glBufferSubData): ES2 has no mapping, and WebGL zero-fills a
+     * glBufferData(NULL) -- a buffer re-specified per build would pay that
+     * fill and a whole re-send every time. DYNAMIC: a build is written a
+     * slice at a time over the frames after it arrives. */
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)byte_capacity, NULL, GL_DYNAMIC_DRAW);
     if( !es2_check_error("static batch page buffer") )
         return false;
-    renderer->static_batch_gpu_vertex_capacity = capacity;
+    batch->gpu_page_capacity = capacity;
     *out_recreated = true;
     return true;
 }
 
+/* `batch`'s buffer holds every page the side has claimed; when it had to be
+ * made anew, every chunk of the side goes up again. */
+static bool
+es2_static_pages_ensure(struct TRSPK_Renderer_ES2* renderer, struct ES2StaticBatch* batch)
+{
+    bool recreated = false;
+    if( !es2_ensure_static_batch_vbo(renderer, batch, batch->pages_claimed, &recreated) )
+        return false;
+    if( recreated )
+        es2_mark_static_side_dirty(renderer, batch);
+    return true;
+}
+
+/* What `chunk_index` of `batch` baked since it last went up: its dirty span,
+ * at its page. True when the chunk is on the GPU (or has nothing to send). */
 static bool
 es2_upload_static_batch_chunk(
     struct TRSPK_Renderer_ES2* renderer,
@@ -1671,25 +1646,21 @@ es2_upload_static_batch_chunk(
     assert(renderer);
     assert(batch);
     assert(batch->cpu);
-    if( chunk_index >= batch->page_id_capacity )
-        return false;
     chunk = trspk_batch16_get_chunk(batch->cpu, chunk_index);
-    if( !chunk || !chunk->vbo )
-        return false;
+    assert(chunk);
+    assert(chunk->vbo);
+    if( !trspk_vbo_is_dirty(chunk->vbo) )
+        return true;
     if( chunk->vertex_count == 0u )
     {
         trspk_vbo_clear_dirty(chunk->vbo);
         return true;
     }
-    if( !renderer->gl_context )
-        return true;
-    if( !renderer->static_batch_vbo || !trspk_vbo_is_dirty(chunk->vbo) )
-        return renderer->static_batch_vbo != 0u;
+    if( !renderer->gl_context || !batch->gpu_vbo || chunk_index >= batch->gpu_page_capacity )
+        return false;
+    assert(chunk_index < batch->page_id_capacity);
     page_id = batch->page_ids[chunk_index];
-    if( page_id == UINT32_MAX || page_id >= renderer->static_page_count ||
-        !renderer->static_pages[page_id].valid ||
-        renderer->static_pages[page_id].gpu_offset + chunk->vertex_count >
-            renderer->static_batch_gpu_vertex_capacity )
+    if( page_id == UINT32_MAX )
         return false;
     /* The chunk's own dirty span, when it has one; a fresh page sends all. */
     first = 0u;
@@ -1705,7 +1676,7 @@ es2_upload_static_batch_chunk(
     byte_count = (size_t)(end - first) * sizeof(struct TRSPK_VertexGLES2);
     if( byte_count > 0u )
     {
-        es2_bind_array_buffer(renderer, renderer->static_batch_vbo);
+        es2_bind_array_buffer(renderer, batch->gpu_vbo);
         glBufferSubData(
             GL_ARRAY_BUFFER,
             (GLintptr)(((uint64_t)renderer->static_pages[page_id].gpu_offset + first) *
@@ -1719,79 +1690,38 @@ es2_upload_static_batch_chunk(
     return true;
 }
 
+/* Every chunk of `batch` that baked since its last upload. True when all of
+ * the side is on the GPU. */
+static bool
+es2_upload_static_side(struct TRSPK_Renderer_ES2* renderer, struct ES2StaticBatch* batch)
+{
+    uint32_t chunk_count;
+    uint32_t chunk;
+    bool whole = true;
+    if( !batch->cpu )
+        return true;
+    chunk_count = trspk_batch16_chunk_count(batch->cpu);
+    for( chunk = 0u; chunk < chunk_count; chunk++ )
+        whole = es2_upload_static_batch_chunk(renderer, batch, chunk) && whole;
+    return whole;
+}
+
+/* The drawn build's bakes since the last upload (the depth path, before the
+ * draw that reads them). */
 static bool
 es2_upload_dirty_static_batches(struct TRSPK_Renderer_ES2* renderer)
 {
-    uint32_t batch_slot;
-    bool recreated = false;
+    struct ES2StaticBatch* world;
     assert(renderer);
-    if( !renderer->static_batch_upload_pending )
+    if( !renderer->static_batch_upload_pending || !renderer->gl_context )
         return true;
-    if( !es2_ensure_static_batch_vbo(
-            renderer, renderer->static_batch_gpu_vertex_used, &recreated) )
+    world = es2_world_side(renderer, &renderer->build.world);
+    if( !es2_static_pages_ensure(renderer, world) )
         return false;
-    if( recreated )
-        es2_mark_active_static_batches_dirty(renderer);
-    for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
-    {
-        struct ES2StaticBatch* batch = &renderer->static_batches[batch_slot];
-        uint32_t chunk_count;
-        uint32_t chunk;
-        if( !batch->active || !batch->cpu )
-            continue;
-        chunk_count = trspk_batch16_chunk_count(batch->cpu);
-        for( chunk = 0u; chunk < chunk_count; chunk++ )
-            if( !es2_upload_static_batch_chunk(renderer, batch, chunk) )
-                return false;
-    }
+    if( !es2_upload_static_side(renderer, world) )
+        return false;
     renderer->static_batch_upload_pending = false;
     return true;
-}
-
-bool
-es2_static_batch_commit(struct TRSPK_Renderer_ES2* renderer, uint32_t batch_slot)
-{
-    struct ES2StaticBatch* batch;
-    uint32_t chunk_count;
-    uint32_t chunk;
-    bool recreated = false;
-
-    assert(renderer);
-    assert(batch_slot < renderer->static_batch_count);
-    batch = &renderer->static_batches[batch_slot];
-    assert(batch->cpu);
-    batch->active = false;
-    chunk_count = trspk_batch16_chunk_count(batch->cpu);
-    es2_static_batch_ensure_chunk_storage(batch, chunk_count);
-    es2_invalidate_batch_pages(renderer, batch);
-    for( chunk = 0u; chunk < chunk_count; chunk++ )
-        if( !es2_static_batch_assign_page(renderer, batch_slot, chunk) )
-            goto fail;
-    /* The tail ran past the buffer: pack the holes the rebuilt chunks left
-     * before buying a bigger buffer, since either way everything re-sends. */
-    if( renderer->static_batch_vbo &&
-        renderer->static_batch_gpu_vertex_used > renderer->static_batch_gpu_vertex_capacity )
-        (void)es2_compact_static_pages(renderer);
-    if( !es2_ensure_static_batch_vbo(
-            renderer, renderer->static_batch_gpu_vertex_used, &recreated) )
-        goto fail;
-    if( recreated || renderer->static_batch_upload_pending )
-    {
-        es2_mark_active_static_batches_dirty(renderer);
-        if( !es2_upload_dirty_static_batches(renderer) )
-            goto fail;
-    }
-    for( chunk = 0u; chunk < chunk_count; chunk++ )
-        if( !es2_upload_static_batch_chunk(renderer, batch, chunk) )
-            goto fail;
-    batch->active = true;
-    es2_rebuild_batch_pose_table(renderer);
-    return true;
-
-fail:
-    es2_invalidate_batch_pages(renderer, batch);
-    es2_rebuild_batch_pose_table(renderer);
-    return false;
 }
 
 static bool
@@ -1854,6 +1784,339 @@ es2_binding_cpu_source(
         return *out_vbo != NULL;
     }
     return false;
+}
+
+/* ---- the world build (core/trspk_world_build.h) ---------------------------------- */
+
+void
+es2_world_begin(
+    struct TRSPK_Renderer_ES2* renderer,
+    int batch_id)
+{
+    assert(renderer);
+    if( batch_id < 0 )
+        return;
+    es2_world_side_drop(renderer, &renderer->build.world);
+    trspk_world_slot_begin(&renderer->build.world, batch_id);
+    renderer->static_batch_upload_pending = false;
+    es2_static_primary_rebuild(renderer);
+    renderer->static_primary_partial = false;
+}
+
+void
+es2_world_add(
+    struct TRSPK_Renderer_ES2* renderer,
+    const struct ToriRS_RenderCommand_Batch* command,
+    bool animated)
+{
+    struct TRSPK_WorldSlot* slot;
+    int face_count;
+    assert(renderer);
+    assert(command);
+    slot = trspk_world_build_open_slot(&renderer->build, command->batch_id);
+    if( !slot || command->element_id < 0 || command->model.kind == TORIDRAWMK_NONE )
+        return;
+    face_count = trspk_toridraw_face_count(command->model);
+    /* A model larger than one page was never a batch pose here (Batch16
+     * refused it): its draws bake it into the arena, as they always did. */
+    if( face_count <= 0 || (uint32_t)face_count > TRSPK_BATCH16_MAX_VERTICES / 3u )
+        return;
+    trspk_world_record_add(
+        slot,
+        command->element_id,
+        animated ? es2_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1) : 0,
+        command->pose_id >= 0 ? command->pose_id : 0,
+        (uint32_t)face_count * 3u,
+        command->model,
+        &command->world_position);
+}
+
+bool
+es2_world_record_bake(
+    struct TRSPK_Renderer_ES2* renderer,
+    struct TRSPK_WorldSlot* slot,
+    int record)
+{
+    struct TRSPK_WorldRecord const* baking;
+    struct TRSPK_Batch16Reservation reservation;
+    struct TRSPK_Batch16Chunk* chunk;
+    struct ES2StaticPageRef* page;
+    uint32_t entry_index;
+    uint32_t side_index;
+    bool baked;
+    assert(renderer);
+    assert(slot);
+    baking = &slot->records[record];
+    side_index = es2_world_side_index(renderer, slot);
+    trspk_world_record_take_paged(slot, record, &reservation, &entry_index);
+    page = &renderer->static_pages[es2_world_side_claim_page(renderer, side_index, reservation.chunk_index)];
+    chunk = trspk_batch16_get_chunk(slot->pages, reservation.chunk_index);
+    assert(chunk);
+    /* The painter's placement reads the bake through this (see the field). */
+    page->cpu_vbo = chunk->vbo;
+    page->valid = true;
+    baked = es2_bake_pose_vertices(
+        renderer,
+        reservation.vbo,
+        reservation.triangles,
+        reservation.vertex_base,
+        baking->model,
+        &baking->world_position,
+        NULL,
+        0,
+        false);
+    if( entry_index <= ES2_BATCH_POSE_ENTRY_MASK )
+        trspk_pose_table_set(
+            es2_world_side_poses(renderer, slot),
+            baking->element_id,
+            baking->anim_index,
+            baking->pose_id,
+            ES2_BATCH_POSE_FLAG | (side_index << ES2_BATCH_POSE_SLOT_SHIFT) | entry_index);
+    if( slot == &renderer->build.world )
+        renderer->static_batch_upload_pending = true;
+    return baked;
+}
+
+bool
+es2_world_bake_on_draw(
+    struct TRSPK_Renderer_ES2* renderer,
+    int element_id,
+    int anim_index,
+    int pose_id,
+    ES2WorldRecordBake bake)
+{
+    struct TRSPK_WorldSlot* world;
+    int record;
+    assert(renderer);
+    assert(bake);
+    world = &renderer->build.world;
+    if( world->unbaked == 0u || !trspk_world_slot_describes(world, element_id) )
+        return false;
+    record = trspk_world_record_unbaked(world, element_id, anim_index, pose_id);
+    if( record < 0 )
+        return false;
+    bake(renderer, world, record);
+    return true;
+}
+
+void
+es2_batch_end(struct TRSPK_Renderer_ES2* renderer, const struct ToriRS_RenderCommand_Batch* command)
+{
+    struct TRSPK_WorldSlot* world;
+    assert(renderer);
+    assert(command);
+    world = &renderer->build.world;
+    /* Drawable now; the build keeps taking reservations until every record
+     * is baked (es2_world_bake_on_draw, es2_world_prefill). */
+    if( !trspk_world_build_end(&renderer->build, command->batch_id) )
+        return;
+    es2_world_side_claim_pages(
+        renderer, renderer->world_side, world->record_vertices + world->record_vertices / 8u);
+    es2_world_sides_sync(renderer);
+    es2_static_primary_rebuild(renderer);
+    renderer->static_primary_partial = world->unbaked > 0u;
+    if( renderer->rebuild_log )
+        es2_report_line(
+            "es2_world: end id=%d records=%u vertices=%llu (baked on draw and in the prefill)",
+            command->batch_id,
+            world->record_count,
+            (unsigned long long)world->record_vertices);
+}
+
+void
+es2_world_clear(
+    struct TRSPK_Renderer_ES2* renderer,
+    int batch_id,
+    bool clear_all,
+    bool scene_reset)
+{
+    assert(renderer);
+    /* The stage goes with a cancelled rebuild (its own id) or a whole-scene
+     * reset; view 0's static pool cleared for the swap leaves it. */
+    if( trspk_world_build_clear_hits_stage(&renderer->build, batch_id, scene_reset) )
+        es2_world_side_drop(renderer, &renderer->build.stage);
+    if( !trspk_world_build_clear_hits_world(&renderer->build, batch_id, clear_all) )
+        return;
+    es2_world_side_drop(renderer, &renderer->build.world);
+    renderer->static_batch_upload_pending = false;
+    es2_static_primary_rebuild(renderer);
+    renderer->static_primary_partial = false;
+}
+
+/*
+ * STAGE_BEGIN: the next scene's build, beside the drawn one, in the other
+ * side. Its pages are the side's own from earlier builds, claimed for its
+ * size before its first bake (es2_world_prefill), so the page buffer has
+ * room for it before anything of it is uploaded.
+ */
+void
+es2_world_stage_begin(
+    struct TRSPK_Renderer_ES2* renderer,
+    int batch_id)
+{
+    assert(renderer);
+    assert(batch_id >= 0);
+    (void)trspk_world_build_stage_ensure(&renderer->build);
+    es2_world_sides_sync(renderer);
+    es2_world_side_drop(renderer, &renderer->build.stage);
+    trspk_world_build_stage_begin(&renderer->build, batch_id);
+    renderer->stage_prepared_said = false;
+    renderer->stage_prefill_frames = 0u;
+    if( renderer->rebuild_log )
+        es2_report_line("es2_world: stage_begin id=%d", batch_id);
+}
+
+/*
+ * SWAP: the stage becomes the drawn build. Its side becomes the drawn side,
+ * its pose table the drawn table; its pages are already in the page buffer,
+ * so nothing moves. What it had not baked yet bakes as the drawn build's
+ * would -- on first draw or in the prefill -- and what it baked but had not
+ * uploaded goes with this frame's upload. The retired CPU storage is
+ * released by a later prefill.
+ */
+void
+es2_world_swap(
+    struct TRSPK_Renderer_ES2* renderer,
+    int batch_id)
+{
+    struct TRSPK_PoseTable poses;
+    assert(renderer);
+    es2_world_side_drop(renderer, &renderer->build.world);
+    trspk_world_build_swap(&renderer->build, batch_id);
+    renderer->world_side = 1u - renderer->world_side;
+    poses = renderer->batch_poses;
+    renderer->batch_poses = renderer->stage_batch_poses;
+    renderer->stage_batch_poses = poses;
+    es2_world_sides_sync(renderer);
+    renderer->static_batch_upload_pending = true;
+    es2_static_primary_rebuild(renderer);
+    renderer->static_primary_partial = renderer->build.world.unbaked > 0u;
+    if( renderer->rebuild_log )
+        es2_report_line(
+            "es2_world: swap id=%d records=%u unbaked=%u prepared_said=%d track_poses_baked=%llu",
+            batch_id,
+            renderer->build.world.record_count,
+            renderer->build.world.unbaked,
+            renderer->stage_prepared_said ? 1 : 0,
+            (unsigned long long)renderer->track_poses_baked);
+}
+
+/* Bake `slot`'s records in arrival order until `deadline_us`. True: the
+ * deadline came first. The clock is read before each record, so the slice
+ * overruns by at most the largest model's bake. */
+static bool
+es2_world_prefill_slot(
+    struct TRSPK_Renderer_ES2* renderer,
+    struct TRSPK_WorldSlot* slot,
+    uint64_t deadline_us,
+    ES2WorldRecordBake bake)
+{
+    while( trspk_world_prefill_more(slot) )
+    {
+        int record;
+        if( PlatformWindow_TicksUs() >= deadline_us )
+            return true;
+        record = trspk_world_prefill_next(slot);
+        if( record >= 0 )
+            bake(renderer, slot, record);
+    }
+    return false;
+}
+
+bool
+es2_world_prefill(
+    struct TRSPK_Renderer_ES2* renderer,
+    uint64_t render_start_us,
+    ES2WorldRecordBake bake)
+{
+    struct TRSPK_WorldBuild* build;
+    uint64_t now_us;
+    uint64_t deadline_us;
+    bool finished_here;
+    assert(renderer);
+    assert(bake);
+    build = &renderer->build;
+    if( trspk_world_build_has_work(build) )
+    {
+        now_us = PlatformWindow_TicksUs();
+        deadline_us = now_us + trspk_world_build_slice_us(
+                                   build, now_us > render_start_us ? now_us - render_start_us : 0u);
+        /* True: the slice ran out on the drawn build. */
+        finished_here = build->world.drawable &&
+                        es2_world_prefill_slot(renderer, &build->world, deadline_us, bake);
+    }
+    else
+    {
+        /* Nothing to bake or release: only the table below may be due. */
+        deadline_us = 0u;
+        finished_here = true;
+    }
+    /* The drawn build is whole (here or by its draws): the static-primary
+     * table can describe it now. */
+    if( renderer->static_primary_partial && build->world.unbaked == 0u )
+    {
+        es2_static_primary_rebuild(renderer);
+        renderer->static_primary_partial = false;
+    }
+    if( !finished_here && trspk_world_build_stage_open(build) )
+    {
+        /* Its pages claimed once, before the first bake, for every add
+         * received (they arrive together: ToriDraw_SceneStageBatchStep sends
+         * a region's in one slice) plus an eighth. */
+        uint64_t const reserve = trspk_world_build_stage_reserve_wanted(build);
+        if( reserve > 0u )
+            es2_world_side_claim_pages(renderer, 1u - renderer->world_side, reserve);
+        (void)es2_world_prefill_slot(renderer, &build->stage, deadline_us, bake);
+        renderer->stage_prefill_frames++;
+    }
+    else if( !finished_here && build->stage_release_pending && PlatformWindow_TicksUs() < deadline_us )
+    {
+        /* Nothing left to bake: the retired build's storage goes now. Its
+         * side's pages were invalidated when it was dropped at the swap. */
+        trspk_world_build_stage_release(build);
+        es2_world_sides_sync(renderer);
+    }
+    return trspk_world_build_stage_open(build) && build->stage.unbaked == 0u;
+}
+
+bool
+es2_world_stage_upload(struct TRSPK_Renderer_ES2* renderer)
+{
+    struct ES2StaticBatch* stage;
+    assert(renderer);
+    /* Without a context nothing goes up, and the job's deadline decides
+     * (app_world_job.c) -- as it does while a lost context never returns. */
+    if( !trspk_world_build_stage_open(&renderer->build) || !renderer->gl_context )
+        return false;
+    stage = es2_world_side(renderer, &renderer->build.stage);
+    if( !es2_static_pages_ensure(renderer, stage) )
+        return false;
+    /* What this slice baked goes up now, one range per chunk, so no frame
+     * carries the whole build's upload. */
+    return es2_upload_static_side(renderer, stage);
+}
+
+void
+es2_world_stage_prepared(struct TRSPK_Renderer_ES2* renderer)
+{
+    struct TRSPK_WorldSlot* stage;
+    assert(renderer);
+    assert(renderer->scene);
+    stage = &renderer->build.stage;
+    assert(trspk_world_build_stage_open(&renderer->build));
+    /* The job may swap it in now (it waits for this, app_world_job.c, up to
+     * its deadline). */
+    ToriDraw_SceneStageBatchMarkPrepared(renderer->scene, stage->batch_id);
+    if( renderer->rebuild_log && !renderer->stage_prepared_said )
+        es2_report_line(
+            "es2_world: stage id=%d prepared records=%u chunks=%u pages=%u gpu_pages=%u frames=%u",
+            stage->batch_id,
+            stage->record_count,
+            trspk_batch16_chunk_count(stage->pages),
+            renderer->static_page_count,
+            es2_world_side(renderer, stage)->gpu_page_capacity,
+            renderer->stage_prefill_frames);
+    renderer->stage_prepared_said = true;
 }
 
 /* ---- pose tables and the static arena ------------------------------------------ */
@@ -2225,8 +2488,10 @@ es2_model_unload(struct TRSPK_Renderer_ES2* renderer, int element_id)
 {
     assert(renderer);
     /* The arena's copy goes here; the batch's stays in its pages until the
-     * next build, but no draw resolves this element to it again. */
+     * next build, but no draw resolves this element to it again. Nor is a
+     * pose of its announced tracks baked from a model that may be gone. */
     es2_batch_detach(renderer, element_id);
+    trspk_anim_track_forget_element(&renderer->anim_tracks, element_id);
     if( element_id < 0 || !renderer->groups[TRSPK_VBO_GROUP_STATIC].arena ||
         !es2_pose_element_is_retained(renderer, element_id) )
         return false;
@@ -2244,6 +2509,8 @@ es2_animation_track_unload(struct TRSPK_Renderer_ES2* renderer, int element_id, 
     assert(renderer);
     if( element_id < 0 || anim_index < 0 || anim_index >= TRSPK_POSE_TRACK_COUNT )
         return false;
+    /* Announced but never drawn is still announced: forgotten either way. */
+    trspk_anim_track_forget(&renderer->anim_tracks, element_id, anim_index);
     arena = renderer->groups[TRSPK_VBO_GROUP_STATIC].arena;
     if( !arena || !es2_pose_track_is_retained(renderer, element_id, anim_index) )
         return false;
@@ -2346,6 +2613,90 @@ es2_animation_pose_frame(
     return baked;
 }
 
+void
+es2_animation_announce(
+    struct TRSPK_Renderer_ES2* renderer,
+    const struct ToriRS_RenderCommand_AnimLoad* command,
+    int anim_index)
+{
+    assert(renderer);
+    assert(command);
+    /* What baking the track's every frame into the arena used to do as a
+     * side effect (es2_bake_into_arena): the build stops describing it. */
+    es2_batch_detach(renderer, command->element_id);
+    trspk_anim_track_announce(
+        &renderer->anim_tracks,
+        command->element_id,
+        anim_index,
+        command->model.u.model.model,
+        command->animation,
+        &command->world_position);
+}
+
+bool
+es2_bake_track_pose(
+    struct TRSPK_Renderer_ES2* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    int anim_index,
+    int pose_id,
+    uint32_t* out_vertex_base,
+    struct ToriDraw_Model** out_baked)
+{
+    const struct TRSPK_AnimTrack* track;
+    struct ToriRS_RenderCommand_AnimLoad load;
+    struct ToriDraw_ModelHandle handle;
+    struct ToriDraw_Model* baked;
+    uint32_t vertex_base;
+
+    assert(renderer);
+    assert(command);
+    assert(out_vertex_base);
+    assert(out_baked);
+    if( !command->animation || command->element_id < 0 ||
+        !ToriDraw_ModelKindIsFull(command->model.kind) || pose_id < 0 ||
+        pose_id >= command->animation->frame_count )
+        return false;
+    track = trspk_anim_track_match(
+        &renderer->anim_tracks,
+        command->element_id,
+        anim_index,
+        command->model.u.model.model,
+        command->animation);
+    if( !track )
+        return false;
+    /* The pose ANIM_LOAD would have baked for this frame: the announced
+     * model's rest pose, posed, at the announced placement, under the
+     * announced id. */
+    memset(&load, 0, sizeof(load));
+    load.element_id = track->announced_id;
+    load.anim_index = anim_index;
+    load.animation = command->animation;
+    load.model = command->model;
+    load.world_position = track->world_position;
+    baked = es2_animation_pose_frame(&load, pose_id);
+    memset(&handle, 0, sizeof(handle));
+    handle.kind = TORIDRAWMK_MODEL;
+    handle.u.model.model = baked;
+    vertex_base = es2_bake_into_arena(
+        renderer,
+        &renderer->groups[TRSPK_VBO_GROUP_STATIC],
+        track->announced_id,
+        anim_index,
+        pose_id,
+        handle,
+        &track->world_position,
+        true);
+    if( vertex_base == UINT32_MAX )
+    {
+        ToriDraw_ModelFree(baked);
+        return false;
+    }
+    renderer->track_poses_baked++;
+    *out_vertex_base = vertex_base;
+    *out_baked = baked;
+    return true;
+}
+
 bool
 es2_reserve_model_indices(struct TRSPK_Renderer_ES2* renderer, uint32_t needed)
 {
@@ -2386,7 +2737,8 @@ es2_bind_stream(struct TRSPK_Renderer_ES2* renderer, uint32_t binding, uint32_t 
         base_vertex += renderer->groups[binding].gpu_base_vertex;
     }
     else if( binding == ES2_STATIC_PAGE_BINDING )
-        buffer = renderer->static_batch_vbo;
+        /* Only the drawn build is drawn. */
+        buffer = renderer->static_batches[renderer->world_side].gpu_vbo;
     else if( binding == ES2_FRAME_STREAM_BINDING )
     {
         buffer = renderer->frame_stream_vbo;
@@ -2768,30 +3120,6 @@ es2_set_letterbox_viewport(struct TRSPK_Renderer_ES2* renderer)
 }
 
 
-/* ---- batch commands --------------------------------------------------------------- */
-
-
-
-void
-es2_batch_end(struct TRSPK_Renderer_ES2* renderer, const struct ToriRS_RenderCommand_Batch* command)
-{
-    struct ES2StaticBatch* batch;
-    int slot;
-    assert(renderer);
-    assert(command);
-    slot = renderer->current_batch_slot;
-    if( slot < 0 || (uint32_t)slot >= renderer->static_batch_count )
-        return;
-    batch = &renderer->static_batches[slot];
-    if( !batch->building || batch->batch_id != command->batch_id )
-        return;
-    trspk_batch16_end(batch->cpu);
-    batch->building = false;
-    (void)es2_static_batch_commit(renderer, (uint32_t)slot);
-    renderer->current_batch_slot = -1;
-}
-
-
 /* ---- dispatch ---------------------------------------------------------------------- */
 
 
@@ -2841,7 +3169,6 @@ TRSPK_Renderer_ES2_New(int width, int height, char const* name)
     renderer->height = height;
     renderer->interface_scale_mode = 2;
     renderer->tex_slot_next = 1u;
-    renderer->current_batch_slot = -1;
     /* TORIRS_GLES2_DEBUG=1: the 300-frame counters and the debug-only GL
      * error checks. Read once here; it used to be a getenv in es2_end_3d. */
     renderer->debug = getenv("TORIRS_GLES2_DEBUG") != NULL;
@@ -2860,6 +3187,21 @@ TRSPK_Renderer_ES2_New(int width, int height, char const* name)
         renderer->tex_slot_of_id[texture] = -1;
     trspk_pose_table_init(&renderer->poses);
     trspk_pose_table_init(&renderer->batch_poses);
+    trspk_pose_table_init(&renderer->stage_batch_poses);
+    /* The world build's two sides (struct ES2StaticBatch); the drawn one is
+     * side 0 until the first swap. */
+    trspk_world_build_init_paged(&renderer->build, TRSPK_VERTEX_FORMAT_GLES2,
+        torirs_env_prep_target_us(), torirs_env_prep_slice_us());
+    renderer->static_batches = (struct ES2StaticBatch*)ToriMem_Calloc(
+        ToriMem_Renderer(), 2u, sizeof(*renderer->static_batches));
+    assert(renderer->static_batches);
+    renderer->static_batch_count = 2u;
+    renderer->world_side = 0u;
+    es2_world_sides_sync(renderer);
+    {
+        char const* timing = torirs_env_rebuild_timing();
+        renderer->rebuild_log = timing && timing[0] && timing[0] != '0';
+    }
     renderer->frame_stream_cpu = trspk_vbo_create(0u, TRSPK_VERTEX_FORMAT_GLES2);
     assert(renderer->frame_stream_cpu);
     if( !trspk_atlas_init_grid(
@@ -2960,7 +3302,8 @@ es2_report_retained_memory(struct TRSPK_Renderer_ES2* renderer)
             (uint64_t)model_group->gpu_capacity * sizeof(struct TRSPK_VertexGLES2);
     }
     pose_table_megabytes = ((double)es2_pose_table_bytes(&renderer->poses) +
-                               (double)es2_pose_table_bytes(&renderer->batch_poses)) /
+                               (double)es2_pose_table_bytes(&renderer->batch_poses) +
+                               (double)es2_pose_table_bytes(&renderer->stage_batch_poses)) /
         1048576.0;
     /* TORIRS_LOG compiles out of a release build; the figure is still computed
      * so the function that produces it is not dead code there. */
@@ -2968,7 +3311,7 @@ es2_report_retained_memory(struct TRSPK_Renderer_ES2* renderer)
     TORIRS_LOG("es2_mem: === retained memory report ===\n"
                "es2_mem: batch16_cpu_vertices  %10.2f MB (%u chunks)\n"
                "es2_mem: batch16_cpu_configs   %10.2f MB\n"
-               "es2_mem: static_pages_gpu      %10.2f MB (%u pages)\n"
+               "es2_mem: static_pages_gpu      %10.2f MB (%u of %u pages)\n"
                "es2_mem: group_static_cpu      %10.2f MB (vbo) + %.2f MB (configs) + %.2f MB (slots)\n"
                "es2_mem: group_static_gpu      %10.2f MB\n"
                "es2_mem: group_dynamic_cpu     %10.2f MB (vbo) + %.2f MB (configs)\n"
@@ -2983,9 +3326,11 @@ es2_report_retained_memory(struct TRSPK_Renderer_ES2* renderer)
         (double)batch_vbo_cpu / 1048576.0,
         batch_chunks,
         (double)batch_tri_cpu / 1048576.0,
-        (double)renderer->static_batch_gpu_vertex_capacity * sizeof(struct TRSPK_VertexGLES2) /
-            1048576.0,
+        (double)(renderer->static_batches[0].gpu_page_capacity +
+                 renderer->static_batches[1].gpu_page_capacity) * ES2_VBO_PAGE *
+            sizeof(struct TRSPK_VertexGLES2) / 1048576.0,
         renderer->static_page_count,
+        renderer->static_batches[0].gpu_page_capacity + renderer->static_batches[1].gpu_page_capacity,
         (double)group_vbo_cpu[TRSPK_VBO_GROUP_STATIC] / 1048576.0,
         (double)group_tri_cpu[TRSPK_VBO_GROUP_STATIC] / 1048576.0,
         (double)group_slots_cpu[TRSPK_VBO_GROUP_STATIC] / 1048576.0,
@@ -3257,10 +3602,14 @@ es2_destroy_gl_resources(struct TRSPK_Renderer_ES2* renderer)
         renderer->groups[group].vbo_gpu = 0u;
         renderer->groups[group].gpu_capacity = 0u;
     }
-    if( renderer->static_batch_vbo )
-        glDeleteBuffers(1, &renderer->static_batch_vbo);
-    renderer->static_batch_vbo = 0u;
-    renderer->static_batch_gpu_vertex_capacity = 0u;
+    for( group = 0u; group < renderer->static_batch_count; group++ )
+    {
+        struct ES2StaticBatch* side = &renderer->static_batches[group];
+        if( side->gpu_vbo )
+            glDeleteBuffers(1, &side->gpu_vbo);
+        side->gpu_vbo = 0u;
+        side->gpu_page_capacity = 0u;
+    }
     if( renderer->hot_vbo )
         glDeleteBuffers(1, &renderer->hot_vbo);
     renderer->hot_vbo = 0u;
@@ -3308,13 +3657,15 @@ TRSPK_Renderer_ES2_Free(struct TRSPK_Renderer_ES2* renderer)
     ToriMem_Free(ToriMem_Renderer(), renderer->draw_items);
     trspk_pose_table_free(&renderer->poses);
     trspk_pose_table_free(&renderer->batch_poses);
-    trspk_element_mask_free(&renderer->batch_detached);
+    trspk_pose_table_free(&renderer->stage_batch_poses);
     ToriMem_Free(ToriMem_Renderer(), renderer->static_primary);
     ToriMem_Free(ToriMem_Renderer(), renderer->static_primary_bits);
     es2_zbuffer_destroy(renderer);
+    /* The sides' pages are the build's (trspk_world_build_free). */
+    trspk_world_build_free(&renderer->build);
+    trspk_anim_tracks_free(&renderer->anim_tracks);
     for( batch = 0u; batch < renderer->static_batch_count; batch++ )
     {
-        trspk_batch16_destroy(renderer->static_batches[batch].cpu);
         ToriMem_Free(ToriMem_Renderer(), renderer->static_batches[batch].page_ids);
         ToriMem_Free(ToriMem_Renderer(), renderer->static_batches[batch].hot_serial);
     }
@@ -3411,16 +3762,16 @@ es2_init_gl(
     if( !es2_check_error("init") )
         goto fail;
 
+    /* A context that comes up after a build has pages gets all of them,
+     * the drawn build's and a stage's alike: the page buffer is made and
+     * filled by the depth path's next upload (es2_upload_dirty_static_batches,
+     * es2_world_stage_upload), and a stage is not reported prepared until its
+     * part has gone up. The painter never reads the buffer and never makes it. */
     if( renderer->static_page_count > 0u )
-    {
-        bool recreated = false;
-        if( !es2_ensure_static_batch_vbo(renderer, renderer->static_page_count, &recreated) )
-            goto fail;
-        if( recreated )
-            es2_mark_active_static_batches_dirty(renderer);
-        if( !es2_upload_dirty_static_batches(renderer) )
-            goto fail;
-    }
+        es2_mark_static_batches_dirty(renderer);
+    /* Both world passes can hold a staged world build beside the drawn one
+     * (TORIRSRC_BATCH3D_STAGE_BEGIN / _SWAP in render/torirs_render.h). */
+    ToriDraw_SceneSetBatchStaging(scene, true);
     TORIRS_LOG("%s: renderer up (%s world pass)\n", g_es2_name, world_pass);
     return true;
 
@@ -3461,6 +3812,13 @@ TRSPK_Renderer_ES2_SetClientScaling(
     assert(renderer);
     assert(settings);
     renderer->client_scale = *settings;
+}
+
+void
+TRSPK_Renderer_ES2_SetFrameElapsed(struct TRSPK_Renderer_ES2* renderer, uint64_t elapsed_us)
+{
+    assert(renderer);
+    renderer->build.frame_elapsed_us = elapsed_us;
 }
 
 void

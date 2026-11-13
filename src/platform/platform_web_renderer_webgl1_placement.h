@@ -55,7 +55,7 @@ es2_static_resolve_reference(
     uint32_t page = batch->page_ids[entry->chunk_index];
     if( page >= renderer->static_page_count || !renderer->static_pages[page].valid )
         return -1;
-    *out = (struct ES2StaticPrimary){ (uint32_t)element_id + 1u,
+    *out = (struct ES2StaticPrimary){ (uint32_t)ToriDraw_ElementIndexOfRaw(element_id) + 1u,
                                         slot,
                                         index,
                                         page,
@@ -79,7 +79,7 @@ es2_static_resolve(
         uint32_t index = (uint32_t)ToriDraw_ElementIndexOfRaw(element_id);
         if( index < renderer->static_primary_capacity &&
             (renderer->static_primary_bits[index >> 5] & (1u << (index & 31))) &&
-            renderer->static_primary[index].element_tag == (uint32_t)element_id + 1u )
+            renderer->static_primary[index].element_tag == index + 1u )
         {
             *out = renderer->static_primary[index];
             return 1;
@@ -88,8 +88,12 @@ es2_static_resolve(
     return es2_static_resolve_reference(renderer, element_id, anim_index, pose_id, out);
 }
 
-/* Called after every complete batch-pose rebuild. Indices/values survive
- * array relocation; page compaction must finish before this snapshot. */
+/* Called after every change to the world build: begin, end, clear, swap, and
+ * when the prefill has baked it whole (es2_world_prefill) -- before that a
+ * build's poses are still arriving, and the reference path finds them. The
+ * tag is the element INDEX + 1: a build is keyed by index (an adopted scene's
+ * adds are untagged, its draws tagged; see trspk_world_record_find). A
+ * detach clears an element's bit directly (es2_batch_detach). */
 static inline void
 es2_static_primary_rebuild(struct TRSPK_Renderer_ES2* renderer)
 {
@@ -144,7 +148,7 @@ es2_static_primary_rebuild(struct TRSPK_Renderer_ES2* renderer)
             if( page >= renderer->static_page_count || !renderer->static_pages[page].valid )
                 continue;
             renderer->static_primary[index] =
-                (struct ES2StaticPrimary){ (uint32_t)entry->element_id + 1u,
+                (struct ES2StaticPrimary){ index + 1u,
                                              slot,
                                              i,
                                              page,

@@ -6,6 +6,7 @@
 #include "log/torirs_log.h"
 #include "mem/torirs_mem.h"
 #include "painters/painters.h"
+#include "platform/platform_window.h"
 #include "es2/trspk_es2.h"
 #include "es2/es2_core.h"
 #include "platform/platform_androidarmv7_renderer_opengles2_dualcore_stage.h"
@@ -1151,9 +1152,11 @@ void
 ToriPlatformAndroid_Renderer_GLES2_DualCore_RenderFrame(struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane, struct ToriRS_Frame* frame)
 {
     struct TRSPK_Renderer_ES2* renderer;
+    uint64_t render_start_us;
 
     assert(lane);
     assert(frame);
+    render_start_us = PlatformWindow_TicksUs();
     renderer = lane->renderer;
     renderer->poses_prepared=false;
     lane->armed = false;
@@ -1202,6 +1205,12 @@ ToriPlatformAndroid_Renderer_GLES2_DualCore_RenderFrame(struct ToriPlatformAndro
         es2z_render_frame_end(renderer);
     else
         es2p_render_frame_end(renderer);
+    /* The world build's prefill, after the frame: the worker is joined, so
+     * the bakes it runs read the scene's models alone. */
+    if( lane->z_buffer )
+        es2z_render_frame_prefill(renderer, render_start_us);
+    else
+        es2p_render_frame_prefill(renderer, render_start_us);
 #if defined(TORIRS_PIPELINE_PMU)
     pipeline_pmu_frame_end(lane);
 #endif

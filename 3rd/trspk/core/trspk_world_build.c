@@ -7,18 +7,43 @@
 #include <stdlib.h>
 #include <string.h>
 
-void
-trspk_world_build_init(
+/* A slot's storage, of the kind the build was made with. */
+static void
+trspk_world_slot_create_storage(
+    const struct TRSPK_WorldBuild* build,
+    struct TRSPK_WorldSlot* w)
+{
+    if( build->paged )
+    {
+        w->pages = trspk_batch16_create(build->format);
+        assert(w->pages);
+    }
+    else
+    {
+        w->batch = trspk_batch32_create(build->format);
+        assert(w->batch);
+    }
+}
+
+static bool
+trspk_world_slot_has_storage(const struct TRSPK_WorldSlot* w)
+{
+    return w->batch != NULL || w->pages != NULL;
+}
+
+static void
+trspk_world_build_init_common(
     struct TRSPK_WorldBuild* build,
+    bool paged,
     enum TRSPK_VertexFormat format,
     const char* prep_target_us,
     const char* prep_slice_us)
 {
     assert(build);
     memset(build, 0, sizeof(*build));
+    build->paged = paged;
     build->format = format;
-    build->world.batch = trspk_batch32_create(format);
-    assert(build->world.batch);
+    trspk_world_slot_create_storage(build, &build->world);
     build->world.batch_id = -1;
     build->stage.batch_id = -1;
     build->prep_target_us =
@@ -28,12 +53,34 @@ trspk_world_build_init(
     build->prep_floor_us = 500u;
 }
 
+void
+trspk_world_build_init(
+    struct TRSPK_WorldBuild* build,
+    enum TRSPK_VertexFormat format,
+    const char* prep_target_us,
+    const char* prep_slice_us)
+{
+    trspk_world_build_init_common(build, false, format, prep_target_us, prep_slice_us);
+}
+
+void
+trspk_world_build_init_paged(
+    struct TRSPK_WorldBuild* build,
+    enum TRSPK_VertexFormat format,
+    const char* prep_target_us,
+    const char* prep_slice_us)
+{
+    trspk_world_build_init_common(build, true, format, prep_target_us, prep_slice_us);
+}
+
 static void
 trspk_world_slot_free(struct TRSPK_WorldSlot* w)
 {
     if( w->batch )
         trspk_batch32_destroy(w->batch);
     w->batch = NULL;
+    trspk_batch16_destroy(w->pages);
+    w->pages = NULL;
     trspk_element_mask_free(&w->detached);
     TRSPK_FREE(w->records);
     w->records = NULL;
@@ -118,6 +165,9 @@ trspk_world_record_add(
     assert(world_position);
     assert(index >= 0);
     assert(vertex_count > 0u);
+    /* A page holds a pose whole; a model that cannot fit one is not a record
+     * of a paged build (its lane bakes it into its arena on draw instead). */
+    assert(!w->pages || vertex_count <= TRSPK_BATCH16_MAX_VERTICES);
     if( (uint32_t)index >= w->record_head_cap )
     {
         uint32_t cap = w->record_head_cap ? w->record_head_cap : 4096u;
@@ -157,10 +207,22 @@ trspk_world_record_add(
         /* Baked already, under a reservation sized for the model it had. A
          * different size cannot go back into it: the build stops describing
          * the element, and its draws bake it on their own. */
-        const struct TRSPK_Batch32Entry* entry =
-            trspk_batch32_find_entry(w->batch, index, anim_index, pose_id);
-        assert(entry);
-        if( entry->vertex_count != vertex_count )
+        uint32_t reserved;
+        if( w->pages )
+        {
+            const struct TRSPK_Batch16Entry* entry =
+                trspk_batch16_find_entry(w->pages, index, anim_index, pose_id);
+            assert(entry);
+            reserved = entry->vertex_count;
+        }
+        else
+        {
+            const struct TRSPK_Batch32Entry* entry =
+                trspk_batch32_find_entry(w->batch, index, anim_index, pose_id);
+            assert(entry);
+            reserved = entry->vertex_count;
+        }
+        if( reserved != vertex_count )
         {
             trspk_element_mask_set(&w->detached, index);
             return;
@@ -175,15 +237,13 @@ trspk_world_record_add(
     w->records[r].world_position = *world_position;
 }
 
-void
-trspk_world_record_take(
+/* Record `r` is baked from now: the bookkeeping both kinds of take share. */
+static struct TRSPK_WorldRecord*
+trspk_world_record_mark_taken(
     struct TRSPK_WorldSlot* w,
-    int r,
-    struct TRSPK_Batch32Reservation* out_reservation)
+    int r)
 {
     struct TRSPK_WorldRecord* record;
-    assert(w);
-    assert(out_reservation);
     assert(r >= 0);
     assert((uint32_t)r < w->record_count);
     record = &w->records[r];
@@ -192,6 +252,20 @@ trspk_world_record_take(
     record->baked = true;
     assert(w->unbaked > 0u);
     w->unbaked--;
+    return record;
+}
+
+void
+trspk_world_record_take(
+    struct TRSPK_WorldSlot* w,
+    int r,
+    struct TRSPK_Batch32Reservation* out_reservation)
+{
+    struct TRSPK_WorldRecord* record;
+    assert(w);
+    assert(w->batch);
+    assert(out_reservation);
+    record = trspk_world_record_mark_taken(w, r);
     trspk_batch32_reserve_pose(
         w->batch,
         record->element_id,
@@ -199,6 +273,37 @@ trspk_world_record_take(
         record->pose_id,
         record->vertex_count,
         out_reservation);
+}
+
+void
+trspk_world_record_take_paged(
+    struct TRSPK_WorldSlot* w,
+    int r,
+    struct TRSPK_Batch16Reservation* out_reservation,
+    uint32_t* out_entry_index)
+{
+    struct TRSPK_WorldRecord* record;
+    const struct TRSPK_Batch16Entry* entry;
+    bool reserved;
+    assert(w);
+    assert(w->pages);
+    assert(out_reservation);
+    assert(out_entry_index);
+    record = trspk_world_record_mark_taken(w, r);
+    /* Fits a page (trspk_world_record_add), and a key already reserved has
+     * this size (a different one detaches there): it cannot be refused. */
+    reserved = trspk_batch16_reserve_pose(
+        w->pages,
+        record->element_id,
+        record->anim_index,
+        record->pose_id,
+        record->vertex_count,
+        out_reservation);
+    assert(reserved);
+    (void)reserved; /* read by the assert alone */
+    entry = trspk_batch16_find_entry(w->pages, record->element_id, record->anim_index, record->pose_id);
+    assert(entry);
+    *out_entry_index = (uint32_t)(entry - trspk_batch16_get_entry(w->pages, 0u));
 }
 
 bool
@@ -258,9 +363,12 @@ void
 trspk_world_slot_drop(struct TRSPK_WorldSlot* w)
 {
     assert(w);
-    assert(w->batch);
+    assert(trspk_world_slot_has_storage(w));
     trspk_element_mask_clear(&w->detached);
-    trspk_batch32_clear(w->batch);
+    if( w->pages )
+        trspk_batch16_clear(w->pages);
+    else
+        trspk_batch32_clear(w->batch);
     trspk_world_records_reset(w);
     w->drawable = false;
     w->adds_open = false;
@@ -273,10 +381,13 @@ trspk_world_slot_begin(
     int batch_id)
 {
     assert(w);
-    assert(w->batch);
+    assert(trspk_world_slot_has_storage(w));
     assert(batch_id >= 0);
     assert(w->record_count == 0u);
-    trspk_batch32_begin(w->batch);
+    if( w->pages )
+        trspk_batch16_begin(w->pages);
+    else
+        trspk_batch32_begin(w->batch);
     w->batch_id = batch_id;
     w->adds_open = true;
 }
@@ -289,7 +400,8 @@ trspk_world_build_open_slot(
     assert(build);
     if( build->world.adds_open && batch_id == build->world.batch_id )
         return &build->world;
-    if( build->stage.batch && build->stage.adds_open && batch_id == build->stage.batch_id )
+    if( trspk_world_slot_has_storage(&build->stage) && build->stage.adds_open &&
+        batch_id == build->stage.batch_id )
         return &build->stage;
     return NULL;
 }
@@ -316,7 +428,7 @@ trspk_world_build_detach(
     if( element_id < 0 )
         return;
     trspk_element_mask_set(&build->world.detached, element_id);
-    if( build->stage.batch )
+    if( trspk_world_slot_has_storage(&build->stage) )
         trspk_element_mask_set(&build->stage.detached, element_id);
 }
 
@@ -324,10 +436,9 @@ bool
 trspk_world_build_stage_ensure(struct TRSPK_WorldBuild* build)
 {
     assert(build);
-    if( build->stage.batch )
+    if( trspk_world_slot_has_storage(&build->stage) )
         return false;
-    build->stage.batch = trspk_batch32_create(build->format);
-    assert(build->stage.batch);
+    trspk_world_slot_create_storage(build, &build->stage);
     build->stage.batch_id = -1;
     return true;
 }
@@ -338,7 +449,7 @@ trspk_world_build_stage_begin(
     int batch_id)
 {
     assert(build);
-    assert(build->stage.batch);
+    assert(trspk_world_slot_has_storage(&build->stage));
     /* Not released yet: reused as it is. */
     build->stage_release_pending = false;
     trspk_world_slot_begin(&build->stage, batch_id);
@@ -348,7 +459,7 @@ bool
 trspk_world_build_stage_open(const struct TRSPK_WorldBuild* build)
 {
     assert(build);
-    return build->stage.batch && build->stage.batch_id >= 0;
+    return trspk_world_slot_has_storage(&build->stage) && build->stage.batch_id >= 0;
 }
 
 bool
@@ -380,7 +491,7 @@ trspk_world_build_swap(
     struct TRSPK_WorldSlot slot;
     assert(build);
     /* The scene sends SWAP only for the stage it opened. */
-    assert(build->stage.batch);
+    assert(trspk_world_slot_has_storage(&build->stage));
     assert(batch_id == build->stage.batch_id);
     (void)batch_id; /* read by the asserts alone */
     assert(!build->world.drawable);
@@ -400,7 +511,8 @@ trspk_world_build_stage_reserve_wanted(struct TRSPK_WorldBuild* build)
 {
     assert(build);
     if( !trspk_world_build_stage_open(build) ||
-        trspk_batch32_vbo(build->stage.batch)->vertex_count != 0u ||
+        (build->stage.pages ? trspk_batch16_chunk_count(build->stage.pages) != 0u
+                            : trspk_batch32_vbo(build->stage.batch)->vertex_count != 0u) ||
         build->stage.record_vertices == 0u )
         return 0u;
     return build->stage.record_vertices + build->stage.record_vertices / 8u;
@@ -412,9 +524,12 @@ trspk_world_build_stage_release(struct TRSPK_WorldBuild* build)
     assert(build);
     assert(build->stage_release_pending);
     assert(build->stage.record_count == 0u);
-    trspk_batch32_destroy(build->stage.batch);
-    build->stage.batch = trspk_batch32_create(build->format);
-    assert(build->stage.batch);
+    if( build->stage.batch )
+        trspk_batch32_destroy(build->stage.batch);
+    build->stage.batch = NULL;
+    trspk_batch16_destroy(build->stage.pages);
+    build->stage.pages = NULL;
+    trspk_world_slot_create_storage(build, &build->stage);
     build->stage_release_pending = false;
 }
 
@@ -422,7 +537,8 @@ bool
 trspk_world_build_has_work(const struct TRSPK_WorldBuild* build)
 {
     assert(build);
-    return build->world.unbaked > 0u || (build->stage.batch && build->stage.unbaked > 0u) ||
+    return build->world.unbaked > 0u ||
+           (trspk_world_slot_has_storage(&build->stage) && build->stage.unbaked > 0u) ||
            build->stage_release_pending;
 }
 
