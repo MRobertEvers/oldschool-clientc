@@ -264,6 +264,41 @@ local function walk_to_zooknock(t, step)
         { 2780, 9142 }, { 2788, 9142 }, { 2794, 9140 }, { 2799, 9139 }, { 2804, 9141 } })
 end
 
+-- A crate's item box (RSProx 4562 [8489]): its two buttons are "No|Yes", built by objbox_setbuttons as
+-- children of objectbox:universe; Yes is child 1 and answers with the resume the script waits for.
+local function crate_yes(t)
+    if t.chat.kind() ~= "objbox" then
+        return "no_row", "the crate's box is not up (" .. tostring(t.chat.kind()) .. ")"
+    end
+    -- objbox_setbuttons (2868) builds four children of objectbox:universe: 0 and 1 are hidden
+    -- rectangles (the resume targets), 2 is the "No" text and 3 the "Yes" text, each with op 1.
+    -- The player clicks the text; its objbox_listener resumes on child 1 for Yes. On the client the
+    -- labelled child is clicked; scriptrun, with no clientscripts, sends that resume.
+    return t.ui.press_row({ syms = { "objectbox:universe" }, label = "Yes" },
+        { resume = { "objectbox:universe", 1 } })
+end
+
+-- A chapter card: the quest's own interface in the main modal, shut by the player
+-- (RSProx 4562 [213]..[224]); the area's song comes back with its close.
+local function close_card(t, name)
+    t.expect(name .. "-up", t.ui.await_open("mm_message", 80))
+    t.ui.close_modal()
+    t.expect(name .. "-shut", t.ui.await_close("mm_message", 20))
+    t.ticks(2)
+end
+
+-- One of the three "meanwhile" scenes: the card and the black for five ticks,
+-- then `pages` pages each waited for and continued, then the black and the way back.
+local function play_scene(t, name, pages)
+    t.expect(name .. "-card", t.ui.await_open("mm_message", 20))
+    for page = 1, pages do
+        t.expect(name .. "-page" .. page, t.await({ level = function() return t.chat.kind() ~= "none" end,
+            note = "page " .. page .. " of the scene" }, 30))
+        t.chat.continue_(true)
+        t.ticks(1)
+    end
+end
+
 return {
     id = "mm",
     max_frames = 150000, -- the full file passes 2000 server ticks before leg 6 (relay run budget)
@@ -403,8 +438,8 @@ return {
                 "npc:Thank you very much",
                 "npc:Please report to me",
             })
-            t.exec("talkToNarnode-chapter1", t.chat.drain, {})
-            t.ticks(2)
+            -- the Chapter 1 card: mm_message in the main modal, the tick after the last page (RSProx 4562 [213])
+            close_card(t, "talkToNarnode-chapter1")
             t.expect("quest.stage.monkeymadness_started", t.quest.expect_stage("monkeymadness_started"))
             t.exec("talkToNarnode-seal", t.inv.await, "mm_gnome_royal_seal", 1, 5)
 
@@ -514,18 +549,18 @@ return {
                 "npc:We do not know.",
                 "player:Monkeys? Like on Karamja?",
                 "npc:From what I have heard",
-                "choose:Return to previous menu",
+                "choose:/Return to previous menu/",
                 "choose:Talk about the 10th squad...",
                 "choose:Who is Garkor?",
                 "player:Who is Garkor?",
                 "npc:Sergeant Garkor holds the command",
                 "npc:You should aim to make contact",
-                "choose:Return to previous menu",
+                "choose:/Return to previous menu/",
                 "choose:Talk about Caranock...",
                 "choose:Who is Caranock?",
                 "player:Who is Caranock?",
                 "npc:I have never heard of him.",
-                "choose:Return to previous menu",
+                "choose:/Return to previous menu/",
                 "choose:Leave...",
                 "player:Let us go then.",
                 "npc:I must first introduce you",
@@ -576,8 +611,9 @@ return {
             solve_puzzle(t)
             -- the hangar scene after the solved panel (mm_puzzle.rs2:238-239), followed to its CAM_RESET
             t.exec("clickPuzzle.cutscene", t.cutscene.await, "clickPuzzle", { since = puzzle_mark, timeout = 60, quiet = 200, expect = {
-                { op = "moveto", coord = "0_40_70_31_26", height = 600 },
-                { op = "lookat", coord = "0_40_70_16_38" },
+                -- a private copy of square 40,70: the op and the height, not a template tile (RSProx 4562 [2561])
+                { op = "moveto", height = 600 },
+                { op = "lookat", height = 350 },
             } })
             t.expect("clickPuzzle-camera-free", t.await({ level = function()
                 local camera = t.world.camera()
@@ -693,16 +729,13 @@ return {
                 "player:But it is your mission to protect me!",
                 "npc:Enough. Return here when you are done.",
             })
-            t.exec("chapter2-scene", t.chat.drain, {})
-            t.ticks(6)
-            t.expect("chapter2-cards-up", t.await({ level = function() return t.chat.kind() ~= "none" end,
-                note = "the Chapter 2 title card" }, 40))
-            t.exec("chapter2-cards", t.chat.drain, {})
-            t.ticks(4)
+            -- "Meanwhile, far away in Karamja...": the card, the lock five ticks on, fourteen pages (RSProx 4562 [3689]..[3831])
+            play_scene(t, "chapter2-scene", 14)
+            close_card(t, "chapter2-card")
             t.expect("quest.stage.monkeymadness_arrived_atoll", t.quest.expect_stage("monkeymadness_arrived_atoll"))
             t.exec("chapter2-scene.cutscene", t.cutscene.await, "chapter2-scene", { since = ch2_mark, expect = {
-                { op = "moveto", coord = "0_40_71_39_37", height = 400 },
-                { op = "lookat", coord = "0_40_71_49_37" },
+                { op = "moveto", height = 400 },
+                { op = "lookat", height = 160 },
             } })
             t.expect("chapter2-camera-free", t.await({ level = function()
                 local camera = t.world.camera()
@@ -837,11 +870,15 @@ return {
                 local gr = t.player.walk_to(2807, 2764, 40)
                 if gr == "ok" then break end
             end
+            -- a guard who saw the player on the way calls out six ticks later (aa_guards_queue) and its page
+            -- would take Garkor's place: let that land before the talk starts
+            t.ticks(10)
+            t.chat.drain({})
             t.exec("talkToGarkor", t.player.talk_to, "mm_garkor", 1)
             t.exec("talkToGarkor-dialog", t.chat.play, {
                 "player:Hello?",
                 "npc:A fine day you have chosen to visit th",
-                "player:Good day to you to Sergeant. I've been",
+                "player:Good day to you too Sergeant. I've been",
                 "npc:Investigate the circumstances surround",
                 "player:How did you know that?",
                 "npc:The King and I are still in communicat",
@@ -949,7 +986,7 @@ return {
             local hops = { { 2798, 2762 }, { 2790, 2761 }, { 2782, 2761 }, { 2774, 2761 }, { 2766, 2761 }, { 2765, 2763 } }
             local landed = false
             local visit = 0
-            while not landed and visit < 4 do
+            while not landed and visit < 6 do
                 visit = visit + 1
                 -- row names: the first visit keeps the guide step names, a return after a capture is suffixed
                 local function R(name) return visit == 1 and name or (name .. ".visit" .. visit) end
@@ -964,33 +1001,41 @@ return {
                             local dr, dd = t.player.walk_to(hop[1], hop[2], 20)
                             local hr, hp = t.skill.read("hitpoints")
                             t.note("hop " .. hop[1] .. " " .. tostring(dr) .. " hp=" .. tostring(hr == "ok" and hp.level))
-                            if dr == "ok" then break end
+                            -- a guard's knockout on the way (the jail's guards really punch since the
+                            -- RSProx 4562 [4958] rebuild) ends this visit: the next one breaks out again
+                            if dr == "ok" or in_prison() then break end
                         end
+                        if in_prison() then break end
                     end
                     if visit == 1 then
                         set_retaliate("enterDentureBuilding-retaliateOff", true)
                     end
-                    -- the door is a bare p_teleport + p_delay: click_loc reads settle_after_click, so grade the landing tile
-                    t.player.click_loc("mm_bamboo_door_secure", 1)
-                    t.await({ level = function()
-                        local atile = tile_now()
-                        return atile ~= nil and atile.z >= 2765
-                    end, note = "the player through the secure door" }, 20)
-                    local btile = tile_now()
-                    t.check(R("enterDentureBuilding"), btile ~= nil and btile.x >= 2760 and btile.x <= 2772 and btile.z >= 2764,
-                        "through the secure door (mm_bamboo_doors.rs2:9); standing at " .. tile_text())
+                    if not in_prison() then
+                        -- the door is a bare p_teleport + p_delay: click_loc reads settle_after_click, so grade the landing tile
+                        t.player.click_loc("mm_bamboo_door_secure", 1)
+                        t.await({ level = function()
+                            local atile = tile_now()
+                            return in_prison() or (atile ~= nil and atile.z >= 2765)
+                        end, note = "the player through the secure door" }, 20)
+                        if not in_prison() then
+                            local btile = tile_now()
+                            t.check(R("enterDentureBuilding"), btile ~= nil and btile.x >= 2760 and btile.x <= 2772 and btile.z >= 2764,
+                                "through the secure door (mm_bamboo_doors.rs2:9); standing at " .. tile_text())
+                        end
+                    end
                 end
 
                 -- searchForDentures: mm_quest_crates.rs2:9, "Do you wish to take one?" -> Yes, from QH's tile 2768,2769
                 local _, held = t.inv.count("mm_monkey_dentures")
-                if (held or 0) == 0 then
+                if (held or 0) == 0 and in_warehouse() then
                     t.player.walk_to(2768, 2766, 12)
                     t.player.walk_to(2768, 2769, 12)
                     t.exec(R("searchForDentures"), t.player.click_loc, "mm_denture_crate", 1)
-                    t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the crate's mesbox" }, 30)
-                    t.chat.play({ "*" })
-                    t.await({ level = function() return t.chat.kind() == "options" end, note = "the take-one options" }, 10)
-                    local choose_result, choose_detail = t.chat.choose("Yes")
+                    t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the crate's box" }, 30)
+                    -- one item box, its buttons "No|Yes" (RSProx 4562 [8767]): Yes is sub 1
+                    local choose_result, choose_detail = "no_box", nil
+                    choose_result, choose_detail = crate_yes(t)
+                    t.note("searchForDentures press: " .. tostring(choose_result) .. " " .. tostring(choose_detail) .. " kind=" .. tostring(t.chat.kind()))
                     t.ticks(2)
                     _, held = t.inv.count("mm_monkey_dentures")
                     if (held or 0) == 1 then
@@ -1041,10 +1086,9 @@ return {
             -- searchForMould: the crate in the north west of the cavern (mm_quest_crates.rs2:23 oploc1)
             t.exec("goto-searchForMould", t.player.goto_tile, 2783, 9170, 0)
             t.exec("searchForMould", t.player.click_loc, "mm_monkey_amulet_mould_crate", 1)
-            t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the crate's mesbox" }, 30)
-            t.exec("searchForMould-page", t.chat.play, { "*" })
-            t.await({ level = function() return t.chat.kind() == "options" end, note = "the take-one options" }, 10)
-            t.exec("searchForMould-dialog", t.chat.choose, "Yes")
+            t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the crate's box" }, 30)
+            t.check("searchForMould-box", t.chat.kind() == "objbox", "the crate's box is " .. tostring(t.chat.kind()))
+            t.exec("searchForMould-dialog", crate_yes, t)
             t.exec("searchForMould-got", t.inv.await, "mm_monkey_amulet_mould", 1, 10)
 
             -- leaveToPrepareForBar: the guide's "teleport out to prepare" (MonkeyMadnessI.java:597), then
@@ -1056,7 +1100,7 @@ return {
                 "npc:Hello again, adventurer.",
                 "choose:Yes",
                 "player:Yes please.",
-                "mesbox:blindfold",
+                "objbox:blindfold",
             })
             t.ticks(8)
             local hr, htile = t.world.tile()
@@ -1098,7 +1142,7 @@ return {
             t.exec("talkToZooknock", t.player.talk_to, "mm_zooknock", 1)
             t.exec("talkToZooknock-dialog", t.chat.play, {
                 "player:Hello?",
-                "npc:A human ... here? What business ha",
+                "npc:A human... here? What business ha",
                 "player:I am on a mission for King Narnode",
                 "player:I have been sent to investigate th",
                 "npc:Well you've found us - what's left",
@@ -1222,7 +1266,7 @@ return {
                 "npc:Hello again, adventurer.",
                 "choose:Yes",
                 "player:Yes please.",
-                "mesbox:blindfold",
+                "objbox:blindfold",
             })
             t.ticks(8)
             local hr, htile = t.world.tile()
@@ -1705,7 +1749,7 @@ return {
                 "npc:Hello again, adventurer.",
                 "choose:Yes",
                 "player:Yes please.",
-                "mesbox:blindfold",
+                "objbox:blindfold",
             })
             t.ticks(8)
             local hr, htile = t.world.tile()
@@ -1767,14 +1811,12 @@ return {
                 "npc:The range at which I will be able",
                 "npc:Furthermore, you will not be able to attack",
             })
-            t.ticks(6)
-            -- the chapter 3 scene is queued after Zooknock's last page (mm_zooknock.rs2:244): let it play out, then dismiss what is left
-            t.exec("useBones-after", t.chat.drain, {})
-            t.ticks(10)
-            t.exec("useBones-after2", t.chat.drain, {})
+            -- "Meanwhile, somewhere far below the Ape Atoll...": nineteen pages, then the Chapter 3 card (RSProx 4563 [5051]..[5172])
+            play_scene(t, "useBones-scene", 19)
+            close_card(t, "useBones-chapter3")
             t.exec("useBones.cutscene", t.cutscene.await, "useBones", { since = ch3_mark, expect = {
-                { op = "moveto", coord = "0_41_71_47_24", height = 600 },
-                { op = "lookat", coord = "0_41_71_47_15" },
+                { op = "moveto", height = 600 },
+                { op = "lookat", height = 160 },
             } })
             local fr, ftile = t.world.tile()
             local sr, stage = t.var.server("varp365_mm_main")
@@ -1876,7 +1918,7 @@ return {
                 "npc:Hello again, adventurer.",
                 "choose:Yes",
                 "player:Yes please.",
-                "mesbox:blindfold",
+                "objbox:blindfold",
             })
             t.ticks(8)
             local hr2, htile = t.world.tile()
@@ -2071,16 +2113,13 @@ return {
                 "player:Who was speaking? What was said?",
                 "npc:Listen closely whilst I narrate the details...",
             })
-            for _ = 1, 3 do
-                t.ticks(10)
-                t.chat.drain({})
-            end
-            t.ticks(10)
-            t.exec("talkToGarkorForSigil-chapter4", t.chat.drain, {})
+            -- "Somewhere far below the Ape Atoll...": twenty-five pages, then the Chapter 4 card (RSProx 4565 [1492]..[1614])
+            play_scene(t, "talkToGarkorForSigil-scene", 25)
+            close_card(t, "talkToGarkorForSigil-chapter4")
             -- the chapter 4 scene under the atoll (mm_cutscene.rs2:243-244): Awowogei, Waydar and Caranock plot against the squad
             t.exec("talkToGarkorForSigil.cutscene", t.cutscene.await, "talkToGarkorForSigil", { since = ch4_mark, expect = {
-                { op = "moveto", coord = "1_41_71_47_35", height = 740 },
-                { op = "lookat" },
+                { op = "moveto", height = 600 },
+                { op = "lookat", height = 160 },
             } })
             t.expect("quest.stage.monkeymadness_completed_ch3", t.quest.expect_stage("monkeymadness_completed_ch3"))
             t.exec("talkToGarkorForSigil-again", t.player.talk_to, "mm_garkor_aa", 1)
@@ -2151,7 +2190,7 @@ return {
             -- equip the sigil (mm_demon.rs2:13): the arena is a private instance, the squad appears in smoke and Garkor opens the battle
             local demon_mark = t.cutscene.mark()
             t.exec("killDemon-sigil", t.player.inv_op, "mm_sigil", 2)
-            t.exec("killDemon-sigil-choose", t.chat.choose, "Let the sigil teleport you")
+            t.exec("killDemon-sigil-choose", t.chat.choose, "Yes")
             t.ticks(40)
             t.exec("killDemon-arrival", t.chat.drain, {})
             -- the pull-back over the plantation (mm_demon.rs2:55-58)
@@ -2182,8 +2221,7 @@ return {
                 "npc:Well done, human!",
                 "player:Thank you.",
                 "npc:You should report to King Narnode immediately.",
-                "player:Rest assured, I will do so.",
-                "player:How do I leave this place?",
+                "player:Rest assured, I will do so. How do I leave this place?",
                 "npc:Speak to Zooknock.",
             })
             t.ticks(2)

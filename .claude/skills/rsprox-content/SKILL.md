@@ -44,6 +44,30 @@ recording. A quest is done when every row of steps 1-3 and every recorded npc-in
    (`skill_magic/scripts/spells/teleport_tablet.rs2`). Every teleport ITEM (jewellery, tablets,
    scrolls, capes, books) and every maplink is captured from the recordings like any other
    content: §2b.
+2b. **Every cutscene. REQUIRED: find them all, port each one (§12b).** A quest port that has not
+   listed its scenes has not looked. Over EVERY session of the recording:
+   `grep -n "cutscene_status (542)\|cam_moveto\|cam_lookat\|cam_shake\|cam_reset\|fade_overlay (948\|minimap_toggle\|midi_jingle\|hidenpcops\|mainmodal" <txt>`,
+   then one row per scene in the doc: session, T..E, what starts it, whether it is a copy
+   (the `--raw` teleport), the cast (types, tiles, spawn angles), every camera line, the
+   pages, the tick the stage is written, verdict.
+   - **A scene need not set `cutscene_status`.** These are scenes too, and each is ported:
+     a card or title interface opened in the main modal with a jingle (Monkey Madness I's
+     chapter and "Meanwhile..." cards are interface `mm_message` 225, not message boxes); a
+     fade with a move inside it (a guide's journey, a capture, a jailing, a trapdoor, a boat);
+     a camera pull-back on an arrival; a `cam_shake`.
+   - **Every fade is a recorded frame.** Tabulate each black fade as offsets from the fade:
+     the move, the fade back, the overlay's close, any line or box, the `busy` varbit
+     (12393) going back to 0. Fit one proc per shape and use it at every call site (step 8).
+     Monkey Madness I has 93: the long one (move T+4, lift T+5 in 66, the overlay shut at
+     T+9 in 46 of those), the short boat (T+3, T+4, T+6: 12), the trapdoor (T+2, T+3, T+5: 3),
+     the knockout (move, lift and box together at T+3: 6).
+   - **"Narrated as dialogue", a stand-in actor, a template tile where Jagex makes a copy, a
+     camera rate of 100 where the recording says 232, a card written as a mesbox: each is a
+     defect**, however the file's header explains it. Monkey Madness I (2026-11-13) passed its
+     gate with all five, from a LostCity port in which 862 of the recording's 1,092 distinct
+     strings were already verbatim.
+   - Done when each scene has a `t.cutscene.await` row in the test (op and height in a copy),
+     a row in `docs/quests/CUTSCENES.tsv`, and its table in the doc.
 3. **The zone's ambience is content.** Count what happens near the player that the player did
    not cause: `sound_area`, `map_projanim`, npc seqs/says/hits between npcs, `loc_anim`,
    `map_anim`. `rsprox_npcinfo.py --match '<area prefix>'` per npc type; a type with attack
@@ -993,6 +1017,9 @@ gate checks the stage machine, not the words, the scenes or the sounds. Romeo & 
 
 ## Traps that have each cost a wrong fix
 
+- **A quest's cutscenes are part of the port, always** (step 2b): list every scene, card, fade
+  and camera move in every session before writing a line, and port each from its packets. A
+  scene "narrated" in message boxes is not ported (Monkey Madness I, 2026-11-13).
 - **The scope is the recording, not the files.** Run `rsprox_actions.py` before anything and
   give every action and every teleport a verdict; a click that is "not the quest" (a tablet
   break) still has to work (Tree Gnome Village, 2026-10-27: no standard tablet had a Break).
