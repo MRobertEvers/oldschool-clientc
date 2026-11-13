@@ -3043,6 +3043,35 @@ struct App
      *  finished there and then (TORIRS_WORLD_JOB_DEADLINE_MS, default 600). */
     uint64_t world_job_deadline_us;
     /**
+     * The paced catch-up after a background rebuild's commit.
+     *
+     * The commit frame does the commit and nothing else: no packet is popped
+     * on it. For `pace_window_us` after it, the packets held behind the
+     * REBUILD and the scripts they dispatch are applied `pace_budget_us` of
+     * work a frame, stopping between packets and between tasks. A frame that
+     * stops part way through a server tick is latched like any frame whose
+     * tick has not finished arriving (App_FrameSettled), so nothing half
+     * applied is shown. @see App_PaceArm, App_PacedDeadline.
+     */
+    uint64_t pace_budget_us;
+    uint64_t pace_window_us;
+    /** Pacing ends at this time on the background queue's clock; 0: not pacing. */
+    uint64_t pace_until_us;
+    /** However much is still stopping, pacing ends here (App_PaceNoteStop). */
+    uint64_t pace_hard_until_us;
+    /** This frame's paced work stops here; valid for `pace_deadline_frame`. */
+    uint64_t pace_deadline_us;
+    uint64_t pace_deadline_frame;
+    /** The frame the commit ran on. */
+    uint64_t pace_commit_frame;
+    /** The last frame a packet was popped on while paced. */
+    uint64_t pace_pop_frame;
+    /** Counts App_RunOnce calls: what "this frame" means to the pacing. */
+    uint64_t run_once_serial;
+    /** TORIRS_REBUILD_TIMING: paced frames and stops since the last commit. */
+    int pace_stat_pop_stops;
+    int pace_stat_settle_stops;
+    /**
      * The background rebuild in progress, if any (`pending`).
      *
      * While it is pending the packet pump pops nothing: everything the server
@@ -4507,6 +4536,35 @@ App_WorldJobPending(struct App const* app);
  */
 int
 App_WorldJobPoll(struct App* app);
+
+/**
+ * Start the paced catch-up: called by the commit, on the frame it ran. No-op
+ * when pacing is off (pace_budget_us 0).
+ */
+void
+App_PaceArm(struct App* app);
+
+/**
+ * The time this frame's paced packet and script work must stop at, or 0 when
+ * nothing is paced (never armed, or the window after the commit is over).
+ * The first ask of a frame fixes that frame's deadline one budget ahead, so a
+ * frame always gets its budget however late in it the work starts.
+ */
+uint64_t
+App_PacedDeadline(struct App* app);
+
+/** Is the pump barred from popping another packet this frame? */
+int
+App_PaceHoldsPop(struct App* app);
+
+/**
+ * Paced work was stopped for this frame's deadline. Pacing then lasts a
+ * little past the stop even if its window is over, so what the window left
+ * queued does not all run on the frame the window ends (a new scene's music
+ * samples were still loading 700 ms after its commit), up to a hard limit.
+ */
+void
+App_PaceNoteStop(struct App* app);
 
 /**
  * End a pending job without building anything: session teardown, logout,

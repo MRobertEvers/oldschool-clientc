@@ -57,6 +57,9 @@ struct TaskRunner
      * returned TASK_RUNNER_RENDER. */
     struct ToriRS_RenderRequest render;
     struct TaskRunnerTelemetry telemetry;
+    /* TORIRS_TASK_SLOW_MS: name every task whose single run took at least
+     * this long (0: off). Needs the queue's clock (TaskRunner_SetClock). */
+    uint64_t slow_task_us;
 };
 
 /* The most reads one pass with a deadline queues before it stops the walk,
@@ -297,7 +300,21 @@ TaskRunner_Step(struct TaskRunner* runner)
             row = TaskRunnerTelemetry_Row(&runner->telemetry, task);
             TaskRunnerTelemetry_Run(&runner->telemetry, row);
             runs++;
-            stat = ToriRS_TaskQueue_RunTask(runner->queue, runner->io, task);
+            if( runner->slow_task_us )
+            {
+                /* The name is copied first: a task that ends is freed by its run. */
+                char name[sizeof(task->name)];
+                uint64_t t0 = TaskRunner_Now(runner);
+                uint64_t dt;
+
+                memcpy(name, task->name, sizeof(name));
+                stat = ToriRS_TaskQueue_RunTask(runner->queue, runner->io, task);
+                dt = TaskRunner_Now(runner) - t0;
+                if( dt >= runner->slow_task_us )
+                    fprintf(stderr, "task_slow: %s %.2f ms\n", name[0] ? name : "(unnamed)", (double)dt / 1000.0);
+            }
+            else
+                stat = ToriRS_TaskQueue_RunTask(runner->queue, runner->io, task);
             if( stat == TORIRS_ASYNCIO_STAT_DONE )
             {
                 /* Freed; the successor taken before it ran stands. */
@@ -469,6 +486,48 @@ TaskRunner_SettleFrame(struct TaskRunner* runner)
         }
         if( stat != TASK_RUNNER_PROGRESSED )
             break;
+    }
+    runner->progressed = progressed;
+    return stat;
+}
+
+/*
+ * TaskRunner_SettleFrame with a deadline on the queue's clock (0: none, an
+ * ordinary settle). When the deadline passes with ready work still queued it
+ * returns TASK_RUNNER_SPENT, which every caller of a settle already treats as
+ * "not settled, resume on a later turn" -- the answer a parked read gives.
+ * The clock is read between tasks, never inside one, and a pass always runs
+ * at least one task, so a settle given an expired deadline still moves.
+ */
+static inline enum TaskRunnerStat
+TaskRunner_SettleFrameUntil(
+    struct TaskRunner* runner,
+    uint64_t deadline_us)
+{
+    enum TaskRunnerStat stat;
+    int progressed = 0;
+
+    assert(runner);
+    if( deadline_us == 0 )
+        return TaskRunner_SettleFrame(runner);
+    for( ;; )
+    {
+        stat = TaskRunner_StepUntil(runner, deadline_us);
+        progressed |= runner->progressed;
+        if( stat == TASK_RUNNER_RENDER )
+            break;
+        if( !TaskRunner_RenderBlockingRemains(runner) )
+        {
+            stat = TASK_RUNNER_IDLE;
+            break;
+        }
+        if( stat != TASK_RUNNER_PROGRESSED )
+            break;
+        if( TaskRunner_Now(runner) >= deadline_us )
+        {
+            stat = TASK_RUNNER_SPENT;
+            break;
+        }
     }
     runner->progressed = progressed;
     return stat;

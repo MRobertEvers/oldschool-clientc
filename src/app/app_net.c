@@ -559,6 +559,8 @@ app_pump_net_packets(struct App* app)
     int drained = 0;
     int fence_queued = 0;
     int last_exec_packet_type = -1;
+    /* A background rebuild was committed on the last turn of the loop. */
+    int committed = 0;
 
     for( ;; )
     {
@@ -591,7 +593,21 @@ app_pump_net_packets(struct App* app)
                 slow_ms = (v && v[0]) ? atoi(v) : 0;
             }
             t0 = slow_ms > 0 ? PlatformWindow_TicksUs() : 0;
-            stat = TaskRunner_SettleFrame(&app->exec_runner);
+            /* In the paced catch-up after a rebuild's commit the settle has
+             * this frame's deadline (App_PacedDeadline; 0 otherwise, an
+             * ordinary settle). Out of time is the same answer as a parked
+             * read: exec_runner_had_work, and the next turn resumes it.
+             *
+             * The work the commit itself queued here (App_WorldLoadFinish's
+             * loc re-place) is part of the commit and settles whole; the
+             * pacing starts once it has. */
+            stat = TaskRunner_SettleFrameUntil(
+                &app->exec_runner, committed ? 0 : App_PacedDeadline(app));
+            if( committed )
+            {
+                App_PaceArm(app);
+                committed = 0;
+            }
             if( slow_ms > 0 && last_exec_packet_type >= 0 )
             {
                 uint64_t dt = PlatformWindow_TicksUs() - t0;
@@ -705,8 +721,21 @@ app_pump_net_packets(struct App* app)
             if( !App_WorldJobPoll(app) )
                 break;
             redraw = 1;
+            committed = 1;
             continue;
         }
+
+        /*
+         * The paced catch-up. The commit frame pops nothing, and each frame
+         * of the window after it stops popping when its budget is spent.
+         * What is left stays queued, exactly as if it had not arrived yet: a
+         * tick's packets reach the client over several reads anyway, and a
+         * frame that ends inside a tick is latched by server_tick_open until
+         * its fence. This is not `drained`: the fence backstops below are
+         * for a queue that really ran dry.
+         */
+        if( App_PaceHoldsPop(app) )
+            break;
 
         {
             struct RevPacket packet;

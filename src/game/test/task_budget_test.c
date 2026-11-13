@@ -581,6 +581,40 @@ test_a_cancelled_parent_detaches_its_loaders(void)
     runner_free(&runner);
 }
 
+/* 8. */
+static void
+test_a_settle_with_a_deadline_stops_between_tasks_and_resumes(void)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px = { 0 };
+    struct FakeClock clock = { 0 };
+    int ran = 0;
+
+    runner_init(&runner, &px, &clock);
+    for( int i = 0; i < 10; i++ )
+        TaskRunner_AddRenderBlockingSerialTask(&runner, new_burst(&clock, 1000, &ran));
+
+    /* 2.5 ms of 1 ms tasks: three run, and the settle says it is not done
+     * the way a parked read would -- not IDLE, so its caller keeps the frame. */
+    TEST_CHECK(TaskRunner_SettleFrameUntil(&runner, clock.now_us + 2500) == TASK_RUNNER_SPENT);
+    TEST_CHECK(ran == 3);
+    TEST_CHECK(TaskRunner_RenderBlockingRemains(&runner));
+    TEST_CHECK(runner.io->slice.deadline_us == 0);
+
+    /* A deadline already past still moves the queue by one task. */
+    TEST_CHECK(TaskRunner_SettleFrameUntil(&runner, clock.now_us) == TASK_RUNNER_SPENT);
+    TEST_CHECK(ran == 4);
+
+    /* No deadline is an ordinary settle: to the end, never reading the clock. */
+    clock.reads = 0;
+    TEST_CHECK(TaskRunner_SettleFrameUntil(&runner, 0) == TASK_RUNNER_IDLE);
+    TEST_CHECK(ran == 10);
+    TEST_CHECK(clock.reads == 0);
+    TEST_CHECK(!TaskRunner_RenderBlockingRemains(&runner));
+    printf("ok - a settle given 2.5 ms runs 3 of 10 tasks and reports SPENT; without a deadline it finishes\n");
+    runner_free(&runner);
+}
+
 int
 main(void)
 {
@@ -590,6 +624,7 @@ main(void)
     test_a_joined_fanout_completes_across_slices();
     test_a_sliced_pass_caps_the_batch_it_queues();
     test_a_cancelled_parent_detaches_its_loaders();
+    test_a_settle_with_a_deadline_stops_between_tasks_and_resumes();
     printf("task-budget: all tests passed\n");
     return 0;
 }

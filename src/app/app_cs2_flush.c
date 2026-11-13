@@ -693,8 +693,17 @@ app_settle_cs2_frame(struct App* app)
 {
     for( ;; )
     {
-        enum TaskRunnerStat stat = TaskRunner_SettleFrame(&app->runner);
+        /* Paced after a background rebuild's commit (App_PacedDeadline; 0
+         * otherwise): out of time between two tasks is TASK_RUNNER_SPENT,
+         * and the caller keeps the previous frame and resumes, as it does
+         * for a read that has not landed. */
+        enum TaskRunnerStat stat = TaskRunner_SettleFrameUntil(&app->runner, App_PacedDeadline(app));
 
+        if( stat == TASK_RUNNER_SPENT )
+        {
+            app->pace_stat_settle_stops++;
+            App_PaceNoteStop(app);
+        }
         if( stat != TASK_RUNNER_IDLE )
             return stat;
         /* Resize listeners and transmit painters must observe the geometry

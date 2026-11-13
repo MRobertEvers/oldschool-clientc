@@ -621,7 +621,15 @@ App_PumpAsync(
                 steps++;
                 if( booting )
                     app->boot_steps++;
-                stat = TaskRunner_Step(&app->runner);
+                /* Paced after a background rebuild's commit, like the packets
+                 * and scripts behind it (App_PacedDeadline; 0 otherwise): the
+                 * loads a new scene asks for -- its music track's samples are
+                 * 2-3 ms apiece -- otherwise all land in one frame. SPENT
+                 * ends the pumping as WAITING does, and async_pending below
+                 * brings the next frame straight back. Never during boot. */
+                stat = TaskRunner_StepUntil(&app->runner, booting ? 0 : App_PacedDeadline(app));
+                if( stat == TASK_RUNNER_SPENT )
+                    App_PaceNoteStop(app);
                 if( stat != TASK_RUNNER_PROGRESSED )
                     break;
             }
@@ -711,6 +719,7 @@ App_RunOnce(
         atexit(FrameStats_Report);
     }
     app->rebuild_frames.marks = 0;
+    app->run_once_serial++;
     app_rebuild_mark(app, "start");
     result = app_run_once_body(app, now_ms, input);
     app_rebuild_mark(app, "body_rest");

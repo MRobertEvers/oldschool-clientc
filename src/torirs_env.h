@@ -81,6 +81,17 @@ TORIRS_ENV_KNOB(torirs_env_rebuild_timing, "TORIRS_REBUILD_TIMING")
 /* The LOC_ADD/NPC_ADD trigger trace. Asked once per loc of a rebuilt scene:
  * a getenv there was ~3 ms of every rebuild's finish. */
 TORIRS_ENV_KNOB(torirs_env_trigger_debug, "TORIRS_TRIGGER_DEBUG")
+/* Name every task whose single run took at least this many ms, on the packet
+ * FIFO, the asset queue and the background queue (task_slow:). The companion
+ * of TORIRS_PKT_SLOW_MS, for the work a packet leaves behind it. */
+TORIRS_ENV_KNOB(torirs_env_task_slow_ms, "TORIRS_TASK_SLOW_MS")
+/* The paced catch-up after a background rebuild's commit (App_PaceArm): the
+ * packet and script work one frame may do, in microseconds (default 4000; 0
+ * turns pacing off), and how long after the commit it stays paced, in ms
+ * (default 1000: the loads a new scene asks for, its music among them, arrive up to a
+ * server tick behind the commit). */
+TORIRS_ENV_KNOB(torirs_env_pace_budget_us, "TORIRS_PACE_BUDGET_US")
+TORIRS_ENV_KNOB(torirs_env_pace_window_ms, "TORIRS_PACE_WINDOW_MS")
 /* A retained renderer's world-build prefill: the frame work it fills up to,
  * and its largest slice, in microseconds (default 6000 and 4000). One pair
  * for every lane that prefills. */

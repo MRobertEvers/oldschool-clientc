@@ -43,6 +43,17 @@ PlatformWindow_TicksUs(void);
 #define APP_GRAVEYARD_SLICE_US 500u
 
 #define APP_WORLD_JOB_DEADLINE_MS_DEFAULT 600
+/* The paced catch-up's defaults: packet and script work per frame, how long
+ * after a commit it lasts, and the slice the commit frame's own follow-up
+ * scripts get. A packet is never cut, so a frame can overrun the budget by
+ * one packet (an interface mount is 2-5 ms). */
+#define APP_PACE_BUDGET_US_DEFAULT 4000
+#define APP_PACE_WINDOW_MS_DEFAULT 1000
+#define APP_PACE_COMMIT_FRAME_US 2000
+/* A stop keeps pacing alive this long past it; nothing keeps it alive longer
+ * than the hard limit after the commit. */
+#define APP_PACE_STOP_LINGER_US 100000
+#define APP_PACE_HARD_LIMIT_US 3000000
 
 /* The scene side a root rebuild builds (the packet task passes the same). */
 #define APP_WORLD_JOB_SCENE_SIZE 104
@@ -52,6 +63,101 @@ app_bg_clock(void* ud)
 {
     (void)ud;
     return PlatformWindow_TicksUs();
+}
+
+void
+App_PaceArm(struct App* app)
+{
+    uint64_t now;
+
+    assert(app);
+    if( app->pace_budget_us == 0 )
+        return;
+    now = TaskRunner_Now(&app->bg_runner);
+    app->pace_until_us = now + app->pace_window_us;
+    app->pace_hard_until_us = now + APP_PACE_HARD_LIMIT_US;
+    if( app->pace_hard_until_us < app->pace_until_us )
+        app->pace_hard_until_us = app->pace_until_us;
+    app->pace_commit_frame = app->run_once_serial;
+    app->pace_pop_frame = app->run_once_serial;
+    /* The commit frame has had its work: the scripts the commit itself
+     * queued get a short slice, and the first packet waits for the next
+     * frame (App_PaceHoldsPop). */
+    app->pace_deadline_frame = app->run_once_serial;
+    app->pace_deadline_us = now + APP_PACE_COMMIT_FRAME_US;
+    app->pace_stat_pop_stops = 0;
+    app->pace_stat_settle_stops = 0;
+}
+
+uint64_t
+App_PacedDeadline(struct App* app)
+{
+    uint64_t now;
+
+    assert(app);
+    if( app->pace_until_us == 0 )
+        return 0;
+    now = TaskRunner_Now(&app->bg_runner);
+    if( now >= app->pace_until_us )
+    {
+        /* The window is the bound: whatever is still held applies at once
+         * from here, as it always did. */
+        if( WorldBuilder_TimingOn() )
+            TORIRS_REPORT(
+                "rebuild_pace: ended pop_stops=%d settle_stops=%d\n",
+                app->pace_stat_pop_stops,
+                app->pace_stat_settle_stops);
+        app->pace_until_us = 0;
+        return 0;
+    }
+    if( app->pace_deadline_frame != app->run_once_serial )
+    {
+        app->pace_deadline_frame = app->run_once_serial;
+        app->pace_deadline_us = now + app->pace_budget_us;
+    }
+    return app->pace_deadline_us;
+}
+
+void
+App_PaceNoteStop(struct App* app)
+{
+    uint64_t until;
+
+    assert(app);
+    if( app->pace_until_us == 0 )
+        return;
+    until = TaskRunner_Now(&app->bg_runner) + APP_PACE_STOP_LINGER_US;
+    if( until > app->pace_hard_until_us )
+        until = app->pace_hard_until_us;
+    if( until > app->pace_until_us )
+        app->pace_until_us = until;
+}
+
+int
+App_PaceHoldsPop(struct App* app)
+{
+    uint64_t deadline;
+
+    assert(app);
+    deadline = App_PacedDeadline(app);
+    if( deadline == 0 )
+        return 0;
+    if( app->pace_commit_frame != app->run_once_serial )
+    {
+        /* Inside the budget; or the frame's first packet, which goes
+         * whatever the budget says: the asset queue is paced from the same
+         * deadline and runs first, and a frame it filled must not leave the
+         * packets behind it standing for the whole window. */
+        if( TaskRunner_Now(&app->bg_runner) < deadline ||
+            app->pace_pop_frame != app->run_once_serial )
+        {
+            app->pace_pop_frame = app->run_once_serial;
+            return 0;
+        }
+    }
+    app->pace_stat_pop_stops++;
+    App_PaceNoteStop(app);
+    return 1;
 }
 
 void
@@ -65,6 +171,18 @@ app_bg_runner_init(struct App* app)
     app->bg_runner.px = app->runner.px;
     app->bg_runner.parallel = 1;
     TaskRunner_SetClock(&app->bg_runner, app_bg_clock, NULL);
+    /* The packet FIFO and the asset queue read the same clock: a paced
+     * catch-up gives their passes a deadline too (App_PacedDeadline). */
+    TaskRunner_SetClock(&app->runner, app_bg_clock, NULL);
+    TaskRunner_SetClock(&app->exec_runner, app_bg_clock, NULL);
+    {
+        char const* slow = torirs_env_task_slow_ms();
+        uint64_t const slow_us = (slow && slow[0]) ? (uint64_t)atoi(slow) * 1000u : 0;
+
+        app->bg_runner.slow_task_us = slow_us;
+        app->runner.slow_task_us = slow_us;
+        app->exec_runner.slow_task_us = slow_us;
+    }
     App_WorldRebuildModeInit(app);
 }
 
@@ -110,6 +228,17 @@ App_WorldRebuildModeInit(struct App* app)
             deadline_ms = value;
     }
     app->world_job_deadline_us = (uint64_t)deadline_ms * 1000u;
+    {
+        char const* budget = torirs_env_pace_budget_us();
+        char const* window = torirs_env_pace_window_ms();
+
+        app->pace_budget_us = APP_PACE_BUDGET_US_DEFAULT;
+        app->pace_window_us = (uint64_t)APP_PACE_WINDOW_MS_DEFAULT * 1000u;
+        if( budget && budget[0] )
+            app->pace_budget_us = (uint64_t)strtoul(budget, NULL, 0);
+        if( window && window[0] )
+            app->pace_window_us = (uint64_t)strtoul(window, NULL, 0) * 1000u;
+    }
     if( app->world_rebuild_background )
         TORIRS_LOG("world rebuild: background (job deadline %ld ms)\n", deadline_ms);
 }
@@ -1382,7 +1511,9 @@ app_rebuild_mark(
 {
     assert(app);
     assert(name);
-    if( !app->rebuild_frames.open || app->rebuild_frames.marks >= 32 )
+    /* Kept through the tail too (rebuild_marks_after). */
+    if( (!app->rebuild_frames.open && app->rebuild_frames.after_left == 0) ||
+        app->rebuild_frames.marks >= 32 )
         return;
     app->rebuild_frames.mark_name[app->rebuild_frames.marks] = name;
     app->rebuild_frames.mark_us[app->rebuild_frames.marks] = PlatformWindow_TicksUs();
@@ -1412,6 +1543,26 @@ app_rebuild_frames_note(
         {
             app->rebuild_frames.after[app->rebuild_frames.after_frames++] =
                 app_rebuild_tenths(frame_us);
+            /* A slow frame in the tail says where its RunOnce went, as the
+             * commit frame does (rebuild_marks). */
+            if( frame_us >= 12000u && app->rebuild_frames.marks > 1 )
+            {
+                char line[32 * 40];
+                size_t used = 0u;
+
+                line[0] = '\0';
+                for( int i = 1; i < app->rebuild_frames.marks && used + 40u < sizeof(line); i++ )
+                {
+                    double const ms =
+                        (double)(app->rebuild_frames.mark_us[i] - app->rebuild_frames.mark_us[i - 1]) / 1000.0;
+                    if( ms >= 0.3 )
+                        used += (size_t)snprintf(line + used, sizeof(line) - used, " %s=%.2f",
+                            app->rebuild_frames.mark_name[i], ms);
+                }
+                TORIRS_REPORT("rebuild_marks_after: zone=%d,%d +%d %.1fms RunOnce:%s\n",
+                    app->rebuild_zone_x, app->rebuild_zone_z, app->rebuild_frames.after_frames,
+                    (double)frame_us / 1000.0, line);
+            }
             if( --app->rebuild_frames.after_left == 0 )
                 app_rebuild_frames_after_report(app);
         }
