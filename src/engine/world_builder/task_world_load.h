@@ -110,6 +110,14 @@ WorldLoad_Build(
     const int32_t* zones);
 
 /**
+ * The world_load_timing line CreateTask_WorldLoad prints after its build, for
+ * an owner that ran the two halves itself: called right after WorldLoad_Build
+ * with the ended gather's report. Prints nothing with timing off.
+ */
+void
+WorldLoad_ReportTiming(const struct WorldLoadGatherReport* report);
+
+/**
  * Take a gather that has not ended off `queue` and free it. The loads it
  * fanned out stay queued and run to their own end, counted by nothing; what
  * they land is ordinary cache residency. Its report is not written.

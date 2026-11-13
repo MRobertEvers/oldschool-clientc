@@ -36,6 +36,8 @@ struct Task_GameProtoExec
     int had_world;
     /* This REBUILD is a background world job (App_WorldJobWanted). */
     int background;
+    /* The awaited gather's findings, for the timing line after the build. */
+    struct WorldLoadGatherReport gather_report;
     int zone_x;
     int zone_z;
     /* REBUILD_WORLDENTITY (SAILING_PLAN C2): the target view id (the
@@ -281,31 +283,45 @@ Task_GameProtoExec_Run(
             app->world_active && app->world && rebuild_view(self)->world->load_complete;
         self->prev_base_x = self->had_world ? rebuild_view(self)->world->_base_tile_x : 0;
         self->prev_base_z = self->had_world ? rebuild_view(self)->world->_base_tile_z : 0;
+        /* The load in its two halves, so the drain below can sit between
+         * them: the assets are awaited, then the build runs here, in place
+         * and in one piece. */
+        memset(&self->gather_report, 0, sizeof(self->gather_report));
+        PT_TASK_AWAITSELF_IF(CreateTask_WorldGather(
+            app->provider, rebuild_view(self)->builder, app->runner.queue, self->chunks,
+            self->chunk_count, self->zone_x, self->zone_z, 104,
+            self->packet._map_rebuild.zones, &self->gather_report));
         /* The same C2 drain rule the boat branch below obeys, for the ROOT
-         * world: World_ResetSceneAlloc asserts the queue is empty, and the
-         * rebuild reaches it from inside the load task.
+         * world: World_ResetSceneAlloc asserts the queue is empty.
          *
          * The per-tick drain (app_world_frame) cannot cover this. A despawn
          * that arrives in the same packet pump as the rebuild — a boat sinking
          * one packet before the teleport that follows it — queues an
          * EntityRemoved that no tick has seen yet, and the rebuild execs
          * behind it on the same serial queue. Draining rather than clearing is
-         * the point: the queue names DYNAMIC scene elements, and this is the
-         * call that hands them to the plugins and frees them
+         * the point: the queue names scene elements, and this is the call
+         * that hands them to the plugins and frees them
          * (ToriDraw_SceneElementRemove) before the reset makes their ids
-         * unreachable. */
+         * unreachable.
+         *
+         * After the gather, not before it. The old scene is live for as long
+         * as the assets take, and a loc change that was waiting on its model
+         * lands on the asset queue in that time (Task_AppSpawn_Run ->
+         * World_SceneryRemove). Drained before the await, those removals
+         * reached the reset still queued: the build handed their element
+         * ids to new scenery, the next tick's drain freed them, and the
+         * next loc placed took an id a ground decoration still owned — six
+         * decorations gone after a walk into Lumbridge (2026-11-12). */
         App_WorldDrainEntityRemovedFor(app, rebuild_view(self)->world);
-        /* on_done is NULL: we await the load and run the tail ourselves
-         * below, so the entity shift can land between the scene swap and
-         * App_WorldLoadFinish (which the shift must precede). */
-        PT_TASK_AWAITSELF_IF(CreateTask_WorldLoad(
-            app->provider, rebuild_view(self)->builder, app->runner.queue, self->chunks,
-            self->chunk_count, self->zone_x, self->zone_z, 104,
-            self->packet._map_rebuild.zones, NULL, NULL));
-        /* The load's final step swapped the scene synchronously (same
-         * task drain — no frame renders in between): relocate the kept
-         * entities before any later packet or frame reads them, then run
-         * the post-load wiring (height fn, minimap bake, MAP_BUILD_COMPLETE). */
+        WorldLoad_Build(
+            rebuild_view(self)->builder, self->chunks, self->chunk_count, self->zone_x,
+            self->zone_z, 104, self->packet._map_rebuild.zones);
+        WorldLoad_ReportTiming(&self->gather_report);
+        /* The build replaced the scene synchronously (no frame renders in
+         * between): relocate the kept entities before any later packet or
+         * frame reads them, then run the post-load wiring (height fn,
+         * minimap bake, MAP_BUILD_COMPLETE). The entity shift lands between
+         * the build and App_WorldLoadFinish, which it must precede. */
         if( self->had_world && rebuild_view(self)->world->load_complete )
             App_WorldRebuildShift(
                 app,
@@ -403,17 +419,12 @@ Task_GameProtoExec_Run(
             self->zone_z = self->packet._rebuild_wev.base_z / 8 + self->wev_scene_size / 16;
 
             rebuild_instance_compute_chunks(self, self->wev_zones);
-
-            /* C2 drain rule: the boat's own EntityRemoved queue must be
-             * empty before its rebuild resets the scene allocation
-             * (World_ResetSceneAlloc asserts exactly that). */
-            App_WorldDrainEntityRemovedFor(app, view->world);
         }
         /* Awaited like the root rebuild so later packets (zone state for the
-         * deck, entity info) exec against a landed world. The load's tail
-         * already set load_complete; no entity shift (the view held nothing
-         * until now) and no MAP_BUILD_COMPLETE — the server gates that ack
-         * on the ROOT map load alone. */
+         * deck, entity info) exec against a landed world. The build sets
+         * load_complete; no entity shift (the view held nothing until now)
+         * and no MAP_BUILD_COMPLETE — the server gates that ack on the ROOT
+         * map load alone. */
         if( getenv("TORIRS_WEV_DEBUG") )
             fprintf(
                 stderr,
@@ -424,10 +435,20 @@ Task_GameProtoExec_Run(
                 self->packet._rebuild_wev.base_z,
                 self->wev_scene_size,
                 self->chunk_count);
-        PT_TASK_AWAITSELF_IF(CreateTask_WorldLoad(
+        memset(&self->gather_report, 0, sizeof(self->gather_report));
+        PT_TASK_AWAITSELF_IF(CreateTask_WorldGather(
             app->provider, wev_view(self)->builder, app->runner.queue, self->chunks,
             self->chunk_count, self->zone_x, self->zone_z, self->wev_scene_size,
-            self->wev_zones, NULL, NULL));
+            self->wev_zones, &self->gather_report));
+        /* C2 drain rule: the boat's own EntityRemoved queue must be empty
+         * before its rebuild resets the scene allocation
+         * (World_ResetSceneAlloc asserts exactly that). After the gather,
+         * for the root branch's reason. */
+        App_WorldDrainEntityRemovedFor(app, wev_view(self)->world);
+        WorldLoad_Build(
+            wev_view(self)->builder, self->chunks, self->chunk_count, self->zone_x,
+            self->zone_z, self->wev_scene_size, self->wev_zones);
+        WorldLoad_ReportTiming(&self->gather_report);
         if( getenv("TORIRS_WEV_DEBUG") )
             fprintf(
                 stderr,

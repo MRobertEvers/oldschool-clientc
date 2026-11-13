@@ -278,6 +278,33 @@ world_load_scan_chunk_refs(struct Task_WorldLoad* self)
     }
 }
 
+/* TORIRS_REBUILD_TIMING's line for one load, printed once its build has
+ * returned: `rebuild` is everything since the assets landed. */
+static void
+world_load_report_timing(
+    double t_start_ms,
+    double t_assets_ms,
+    int resumes,
+    int chunk_count,
+    int locs,
+    int models,
+    int textures,
+    int seqs)
+{
+    double const t_end = WorldBuilder_TimingNowMs();
+    TORIRS_REPORT("world_load_timing: total=%.1fms assets=%.1fms rebuild=%.1fms resumes=%d "
+        "chunks=%d locs=%d models=%d textures=%d seqs=%d\n",
+        t_end - t_start_ms,
+        t_assets_ms - t_start_ms,
+        t_end - t_assets_ms,
+        resumes,
+        chunk_count,
+        locs,
+        models,
+        textures,
+        seqs);
+}
+
 static int
 Task_WorldLoad_Run(
     struct ToriRS_Task* task_base,
@@ -525,20 +552,9 @@ Task_WorldLoad_Run(
         self->zone_center_z, self->scene_size, self->have_zones ? self->zones : NULL);
 
     if( WorldBuilder_TimingOn() )
-    {
-        double const t_end = WorldBuilder_TimingNowMs();
-        TORIRS_REPORT("world_load_timing: total=%.1fms assets=%.1fms rebuild=%.1fms resumes=%d "
-            "chunks=%d locs=%d models=%d textures=%d seqs=%d\n",
-            t_end - self->t_start_ms,
-            self->t_assets_ms - self->t_start_ms,
-            t_end - self->t_assets_ms,
-            self->resumes,
-            self->chunk_count,
-            self->locs.count,
-            self->models.count,
-            self->textures.count,
-            self->seqs.count);
-    }
+        world_load_report_timing(
+            self->t_start_ms, self->t_assets_ms, self->resumes, self->chunk_count,
+            self->locs.count, self->models.count, self->textures.count, self->seqs.count);
 
     /* 6. "The load landed" hook — runs here, in the same synchronous span as the
      * rebuild, so callers get completion without polling a flag. NULL for callers
@@ -586,6 +602,18 @@ WorldLoad_Build(
     else
         WorldBuilder_RebuildChunklist(builder, chunks_xz, chunk_count);
     World_SetLoadComplete(builder->world, true);
+}
+
+void
+WorldLoad_ReportTiming(const struct WorldLoadGatherReport* report)
+{
+    assert(report);
+    assert(report->done);
+    if( !WorldBuilder_TimingOn() )
+        return;
+    world_load_report_timing(
+        report->t_start_ms, report->t_assets_ms, report->resumes, report->chunk_count,
+        report->locs, report->models, report->textures, report->seqs);
 }
 
 static struct Task_WorldLoad*
