@@ -294,13 +294,6 @@ enum GameProtoPktName
      * 6 (struct PktNpcInfo.large). Appended likewise. */
     PKT_NAME_NPC_INFO_LARGE,
 
-    /* The session continued on a new connection, its player table restarted
-     * from a GPI init block under a local index (struct PktReconnect). Never on
-     * the wire: net queues it from TORIRS_CMD_NET_RESUMED in packet order, so
-     * the PLAYER_INFO before it decodes under the old table and the one after
-     * it under the new. Appended likewise. */
-    PKT_NAME_RECONNECT,
-
     /* What the camera follows (struct PktCamTarget). Appended likewise. */
     PKT_NAME_CAM_TARGET,
 
@@ -373,12 +366,6 @@ enum GameProtoPktName
     PKT_NAME_CAM_SKYBOX,
     PKT_NAME_SET_HEATMAP_ENABLED,
     PKT_NAME_GROUP_VAR,
-
-    /* A replay's recorded client answered its chatbox prompt here
-     * (struct PktDialogResumed). Never on the wire: net queues it from
-     * TORIRS_CMD_NET_DIALOG_RESUMED in packet order, as PKT_NAME_RECONNECT.
-     * Appended likewise. */
-    PKT_NAME_DIALOG_RESUMED,
 
     PKT_NAME_COUNT
 };

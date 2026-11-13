@@ -3245,7 +3245,20 @@ World_LocChangePushOps(
     if( !loc )
     {
         if( world->loc_change_count >= WORLD_LOC_CHANGE_MAX )
+        {
+            /* The scene still takes the change (the caller applies it); what
+             * is lost is its place in the list a rebuild re-places and a zone
+             * reset restores from. Said on the first and every 256th, so a
+             * scene past the bound is known rather than quietly wrong. */
+            static unsigned dropped;
+
+            if( dropped++ % 256 == 0 )
+                TORIRS_ERR("world: the loc change list is full (%d keys); the change at level %d "
+                           "layer %d (%d, %d) to loc %d is not recorded and will not survive a "
+                           "rebuild (%u dropped so far)\n",
+                           WORLD_LOC_CHANGE_MAX, level, layer, x, z, new_type, dropped);
             return;
+        }
         loc = &world->loc_changes[world->loc_change_count++];
         loc->level = level;
         loc->layer = layer;

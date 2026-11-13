@@ -193,7 +193,6 @@ static unsigned char const k_class[PKT_NAME_COUNT] = {
     [PKT_NAME_SCRIPTEDPROJ_ADD] = T,
     [PKT_NAME_CAM_UNLOCK] = S,
     [PKT_NAME_NPC_INFO_LARGE] = W,
-    [PKT_NAME_RECONNECT] = X,
     [PKT_NAME_CAM_TARGET] = S,
     [PKT_NAME_CAM_MOVETO_ARC] = S,
     [PKT_NAME_SEND_PING] = S,
@@ -242,7 +241,6 @@ static unsigned char const k_class[PKT_NAME_COUNT] = {
     [PKT_NAME_CAM_SKYBOX] = S,
     [PKT_NAME_SET_HEATMAP_ENABLED] = S,
     [PKT_NAME_GROUP_VAR] = S,
-    [PKT_NAME_DIALOG_RESUMED] = X,
 };
 
 #undef W

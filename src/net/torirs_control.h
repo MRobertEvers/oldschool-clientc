@@ -77,7 +77,7 @@ enum TorirsControlType
     TORIRS_CONTROL_CACHE_INVALIDATE = 1,
 
     /*
-     * The replay's three (2..4). No server sends them: the RSProx replay
+     * The replay's four (2..5). No server sends them: the RSProx replay
      * transport (src/platform/net_transport_replay.c), which plays a recording
      * as the server inside the client's own process, writes them into the
      * stream it enciphers, at the byte where they belong among the recorded
@@ -127,6 +127,19 @@ enum TorirsControlType
      * TORIRS_CONTROL_REPLAY_CHAT_DATA_MAX.
      */
     TORIRS_CONTROL_REPLAY_CHAT = 4,
+
+    /**
+     * The recorder's client answered its chatbox prompt here: a client packet
+     * RSProx recorded among the server's (RESUME_P_OBJDIALOG, _COUNTDIALOG,
+     * _COUNTDIALOG_LONG, _NAMEDIALOG, _STRINGDIALOG), staged where it was
+     * sent. The official client closes the prompt itself as it sends the
+     * answer and no server packet says so; a replay drops client packets, so
+     * the executor runs that close here (rs_gameproto_exec.c
+     * exec_control_replay_dialog).
+     * Payload `u32 prot`: the answer's GameProtoPktOutName (net/rev/pktnames.h),
+     * which names the kind of prompt answered.
+     */
+    TORIRS_CONTROL_REPLAY_DIALOG = 5,
 };
 
 /** Room for a replay name, its NUL included (a name is at most 12 characters;
@@ -140,6 +153,7 @@ enum TorirsControlType
 /** Room for each replay frame's payload. */
 #define TORIRS_CONTROL_REPLAY_COORD_BYTES_MAX (12 + TORIRS_CONTROL_REPLAY_NAME_MAX)
 #define TORIRS_CONTROL_REPLAY_WORLD_BYTES 8
+#define TORIRS_CONTROL_REPLAY_DIALOG_BYTES 4
 #define TORIRS_CONTROL_REPLAY_CHAT_BYTES_MAX                                                       \
     (20 + TORIRS_CONTROL_REPLAY_NAME_MAX + TORIRS_CONTROL_REPLAY_CHAT_DATA_MAX)
 
@@ -172,6 +186,8 @@ torirs_control_type_name(int type)
         return "REPLAY_WORLD";
     if( type == TORIRS_CONTROL_REPLAY_CHAT )
         return "REPLAY_CHAT";
+    if( type == TORIRS_CONTROL_REPLAY_DIALOG )
+        return "REPLAY_DIALOG";
     return "?";
 }
 
@@ -180,7 +196,7 @@ static inline int
 torirs_control_type_is_replay(int type)
 {
     return type == TORIRS_CONTROL_REPLAY_COORD || type == TORIRS_CONTROL_REPLAY_WORLD ||
-           type == TORIRS_CONTROL_REPLAY_CHAT;
+           type == TORIRS_CONTROL_REPLAY_CHAT || type == TORIRS_CONTROL_REPLAY_DIALOG;
 }
 
 static inline void
@@ -493,6 +509,36 @@ torirs_control_replay_chat_decode(
     out->data = frame->payload + at + 4;
     out->length = (int)len;
     return 1;
+}
+
+/** REPLAY_DIALOG's payload, into `out` (TORIRS_CONTROL_REPLAY_DIALOG_BYTES):
+ *  the answer's GameProtoPktOutName. Returns the length. */
+static inline int
+torirs_control_replay_dialog_encode(
+    int pkt_out_name,
+    uint8_t* out)
+{
+    assert(pkt_out_name > 0);
+    assert(out);
+    torirs_control_put_u32(out, (uint32_t)pkt_out_name);
+    return TORIRS_CONTROL_REPLAY_DIALOG_BYTES;
+}
+
+/** The answer's GameProtoPktOutName into `*pkt_out_name`; 0 when the payload
+ *  is not one the transport can have written. Which names are answers is the
+ *  executor's to check. */
+static inline int
+torirs_control_replay_dialog_decode(
+    struct TorirsControlFrame const* frame,
+    int* pkt_out_name)
+{
+    assert(frame);
+    assert(pkt_out_name);
+    assert(frame->type == TORIRS_CONTROL_REPLAY_DIALOG);
+    if( frame->length != TORIRS_CONTROL_REPLAY_DIALOG_BYTES )
+        return 0;
+    *pkt_out_name = (int)torirs_control_get_u32(frame->payload);
+    return *pkt_out_name > 0;
 }
 
 #endif

@@ -74,12 +74,16 @@ enum ReplayNext
     REPLAY_NEXT_WAIT = 0,
     /** A server packet: frames[step.frame], re-enciphered as recorded. */
     REPLAY_NEXT_FRAME,
-    /** RSProx's RECONNECT at frames[step.frame]: TORIRS_CMD_NET_RESUMED once
-     *  the bytes before it are on the bus; nothing is staged until then. */
+    /** RSProx's RECONNECT at frames[step.frame]: the recorded session's
+     *  connection ended here. The transport ends this one once the client
+     *  has executed everything before it, and answers the client's
+     *  GAMERECONNECT with RECONNECT_OK carrying the frame's block
+     *  (net_transport_replay.c); the cursor goes on after the frame, the
+     *  executed-tick count with it (ReplayScrub_ConnectionLost / _Resumed). */
     REPLAY_NEXT_RESUME,
     /** A recorded RESUME_P_*DIALOG (step.dialog_name, a GameProtoPktOutName):
-     *  TORIRS_CMD_NET_DIALOG_RESUMED once the bytes before it are on the bus;
-     *  nothing is staged until then. */
+     *  a REPLAY_DIALOG control frame (net/torirs_control.h) at this byte of
+     *  the stream. */
     REPLAY_NEXT_DIALOG,
     /** A seek behind the playhead: drop the session. The client's next login
      *  plays from frame 0 and the seek continues from there. */
@@ -406,6 +410,24 @@ ReplayScrub_Rewind(struct ReplayScrub* scrub);
  *  the client tick count last handed over. */
 void
 ReplayScrub_SessionBegin(struct ReplayScrub* scrub);
+
+/** The session's connection ended where the recording's did (a RECONNECT, a
+ *  hop): nothing goes, no checkpoint is taken, and a seek counts the wait as
+ *  a bounded one, until _ConnectionResumed. The cursor and the executed-tick
+ *  count are kept. */
+void
+ReplayScrub_ConnectionLost(struct ReplayScrub* scrub);
+
+/** A new connection took the session up again (RECONNECT_OK, a hop's login):
+ *  the session goes on from the cursor, its executed ticks still counted from
+ *  the session's start. */
+void
+ReplayScrub_ConnectionResumed(struct ReplayScrub* scrub);
+
+/** The frame Next hands out next when it is a RECONNECT (PACKET_GROUP_ENDs
+ *  stepped over), else -1: what a hop's login is followed by. */
+int
+ReplayScrub_NextReconnect(struct ReplayScrub const* scrub);
 
 /** SERVER_TICK_ENDs the client has executed, ever (App.server_tick_serial),
  *  handed over every frame. */

@@ -40,10 +40,16 @@ struct GameProtoRevTable;
  * ends with them, above any real prot (which stop at 151 through 241).
  *
  *   PACKET_GROUP_END  0xFE, no payload: closes a PACKET_GROUP_START group.
- *   RECONNECT         0xFF, var-short: the session reconnected (a world hop,
- *                     a dropped link) and this is the reconnect login's body,
- *                     the GPI init block (ReconnectDecoder). The player table
- *                     restarts from it, under `reconnect_index`.
+ *   RECONNECT         0xFF, var-short: the server answered a reconnect with
+ *                     RECONNECT_OK (login reply 15; proxy
+ *                     ServerGameLoginDecoder), and this is that reply's body,
+ *                     the GPI init block (ReconnectDecoder). The client sends
+ *                     the reconnect after its connection was lost (deob
+ *                     gameState 40), so the recorded session's connection
+ *                     ended here. The player table restarts from it, under
+ *                     `reconnect_index`. A world hop is NOT one of these:
+ *                     its login is answered LoginResponse.Ok, at which RSProx
+ *                     starts a new recording.
  *
  * The index frames both; a consumer that plays frames to a client must treat
  * them as what they are, never as game packets.
@@ -71,10 +77,13 @@ struct RsproxRecordingFrame
     uint32_t offset;
     uint32_t length;
     /** RECONNECT only: the local index the session continues under. The index
-     *  writes RSProx's rule, the index it had; a world hop moves the player to
-     *  a new slot the recording does not log (RSProx records the new world's
-     *  LOGIN_OK as this RECONNECT), and rsprox_recording_resolve_reconnects
-     *  (net/proto/) puts that slot here. -1 on every other frame. */
+     *  writes RSProx's rule, the index it had. RECONNECT_OK states no index;
+     *  but RSProx appends a reconnect to the blob it finds by the proxy's
+     *  port, which can be an older session's -- index 4282's, after a hop to
+     *  a session recorded in another file, continues under the slot that
+     *  session's unrecorded LoginResponse.Ok gave it -- and
+     *  rsprox_recording_resolve_reconnects (net/proto/) puts that slot here.
+     *  -1 on every other frame. */
     int reconnect_index;
 };
 

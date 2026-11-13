@@ -265,7 +265,9 @@ digest_ui(
 /* --- world ----------------------------------------------------------------- */
 
 static uint64_t
-digest_players(struct App const* app)
+digest_players(
+    struct App const* app,
+    FILE* dump)
 {
     struct RS_EntitySync const* es = &app->esync;
     uint64_t sum = 0;
@@ -294,8 +296,16 @@ digest_players(struct App const* app)
         h = fnv_int(h, p->combat_level);
         h = fnv_int(h, p->gender);
         h = fnv_int(h, p->transmog_npc_id);
+        if( dump )
+            fprintf(dump, "player %d tile %d,%d,%d name '%s' combat %d gender %d transmog %d hash=%016llx\n",
+                    (int)WORLD_ENTITY_INDEX_OF(r->entity_id),
+                    p->view_placement.has_abs ? p->view_placement.abs_x : -1,
+                    p->view_placement.has_abs ? p->view_placement.abs_z : -1, p->grid_position.level,
+                    p->name, p->combat_level, p->gender, p->transmog_npc_id, (unsigned long long)h);
         sum += mix(h);
     }
+    if( dump )
+        fprintf(dump, "player local %d\n", es->local_pid);
     return fnv_int(sum, es->local_pid);
 }
 
@@ -469,7 +479,7 @@ digest_take(
     out->v[REPLAY_DIGEST_STATS] = digest_stats(&app->stats);
     out->v[REPLAY_DIGEST_UI] = digest_ui(app->tree, dump);
     out->v[REPLAY_DIGEST_CS2] = digest_cs2(&app->varcs, dump);
-    out->v[REPLAY_DIGEST_PLAYERS] = digest_players(app);
+    out->v[REPLAY_DIGEST_PLAYERS] = digest_players(app, dump);
     out->v[REPLAY_DIGEST_PLAYER_TABLE] = digest_player_table(app);
     out->v[REPLAY_DIGEST_NPCS] = digest_npcs(app);
     out->v[REPLAY_DIGEST_ZONES] = digest_zones(app, dump);

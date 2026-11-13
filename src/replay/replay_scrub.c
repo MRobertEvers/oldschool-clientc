@@ -50,8 +50,9 @@
 #define REPLAY_SEEK_WAIT_STALL_MS 180000
 #define REPLAY_SEEK_STALL_POLL_MS 250
 /* The answers to a chatbox prompt. The recorder's client closed the prompt as
- * it sent one (rs_gameproto_exec.c, PKT_NAME_DIALOG_RESUMED), and no server
- * packet says so, so the replay passes each one on where it was sent. */
+ * it sent one (rs_gameproto_exec.c, exec_control_replay_dialog), and no server
+ * packet says so, so the replay passes each one on where it was sent, as a
+ * REPLAY_DIALOG control frame (net/torirs_control.h). */
 #define REPLAY_DIALOG_PROTS 5
 static int const k_dialog_names[REPLAY_DIALOG_PROTS] = {
     PKTOUT_NAME_RESUME_P_OBJDIALOG,     PKTOUT_NAME_RESUME_P_COUNTDIALOG,
@@ -86,6 +87,9 @@ struct ReplayScrub
     unsigned client_serial;
     unsigned serial_base;
     int session_live;
+    /** The session's connection ended at a RECONNECT or a hop and no new
+     *  one has taken it up yet (ReplayScrub_ConnectionLost). */
+    int reconnecting;
 
     int hold;
     int hold_tick;
@@ -886,7 +890,7 @@ ReplayScrub_CheckpointWanted(
     assert(scrub);
     assert(out_tick);
     assert(out_clock_ms);
-    if( !scrub->session_live || scrub->restarting || scrub->cursor == 0 )
+    if( !scrub->session_live || scrub->restarting || scrub->reconnecting || scrub->cursor == 0 )
         return 0;
     if( scrub->seeking )
     {
@@ -1097,6 +1101,7 @@ ReplayScrub_Rewind(struct ReplayScrub* scrub)
     scrub->wait_map = 0;
     scrub->map_built = 0;
     scrub->session_live = 0;
+    scrub->reconnecting = 0;
     scrub->world_wait = 0;
     /* client_scene_frame stays: a new connection does not unload the
      * client's scene (nothing clears App.world_active), so a seek's keyframe
@@ -1134,6 +1139,43 @@ ReplayScrub_SessionBegin(struct ReplayScrub* scrub)
     if( scrub->mode == REPLAY_SEEK_MODE_FAST )
         (void)ledger_ready(scrub);
     try_land(scrub);
+}
+
+void
+ReplayScrub_ConnectionLost(struct ReplayScrub* scrub)
+{
+    assert(scrub);
+    assert(scrub->session_live);
+    scrub->reconnecting = 1;
+}
+
+void
+ReplayScrub_ConnectionResumed(struct ReplayScrub* scrub)
+{
+    assert(scrub);
+    assert(scrub->session_live);
+    scrub->reconnecting = 0;
+    if( scrub->seeking && scrub->restarting )
+        scrub->times.session_ms = scrub->wall_ms;
+    try_land(scrub);
+}
+
+int
+ReplayScrub_NextReconnect(struct ReplayScrub const* scrub)
+{
+    struct RsproxRecording const* rec;
+    int f;
+
+    assert(scrub);
+    rec = scrub->rec;
+    for( f = scrub->cursor; f < rec->frame_count; f++ )
+    {
+        if( rec->frames[f].opcode != RSPROX_RECORDING_PACKET_GROUP_END )
+            break;
+    }
+    if( f < rec->frame_count && rec->frames[f].opcode == RSPROX_RECORDING_RECONNECT )
+        return f;
+    return -1;
 }
 
 void
@@ -1190,6 +1232,8 @@ seek_waiting_on(struct ReplayScrub const* scrub)
         return "the map-build barrier";
     if( scrub->restarting || !scrub->session_live )
         return "the restart's login";
+    if( scrub->reconnecting )
+        return "the recorded reconnect's login";
     if( scrub->client_busy )
         return "the client's load";
     return NULL;
@@ -1473,9 +1517,10 @@ ReplayScrub_Next(
         }
         /* RSProx's pseudo-packets are the proxy's notes, not Jagex bytes. A
          * PACKET_GROUP_END closes what PACKET_GROUP_START already sized. A
-         * RECONNECT is where the session moved to a new connection (a
-         * reconnect, a world hop): the client restarts its player table there,
-         * so nothing after it is staged until it is on the bus. */
+         * RECONNECT is where the recorded session's connection ended and the
+         * server answered its reconnect: the transport ends this connection
+         * there and answers the client's own reconnect with the frame's
+         * block (REPLAY_NEXT_RESUME). */
         if( f->opcode == RSPROX_RECORDING_PACKET_GROUP_END )
         {
             scrub->cursor++;

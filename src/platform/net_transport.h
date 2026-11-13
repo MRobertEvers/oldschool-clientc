@@ -183,6 +183,10 @@ struct NetTransportReplayStatus
     int world;
     /** Logins answered so far: "idle" with none is a client still booting. */
     int sessions;
+    /** Of those, the ones that took the session up again over a new
+     *  connection -- a recorded RECONNECT's RECONNECT_OK, a hop's login --
+     *  rather than playing it from the start. */
+    int resumed;
     /** The replay clock is held (a hold, or after a step). */
     int held;
     /** A seek is in flight; seek_target / seek_from are -1 when not. */

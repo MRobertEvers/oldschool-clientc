@@ -191,6 +191,21 @@ RS_EntitySync_Clear(
         RS_EntitySync_ClearViewNpcs(sync, world, v);
     if( sync->local_pid >= 0 )
         RS_EntitySync_RemovePlayer(sync, world, sync->local_pid);
+    /* Every registered player and npc, not only the tracked lists: the OSRS
+     * player stream lists only the players a packet touched, so one standing
+     * still is in the registry and in no list (as ReplayWorld_ClearEntities
+     * says). Left, it stands on in the next session where the last one saw
+     * it -- found on index 4282's hop, a player from the world it left.
+     * Backwards: a removal moves the last record into the hole. */
+    for( int i = sync->registry.count - 1; i >= 0; i-- )
+    {
+        int const id = sync->registry.records[i].entity_id;
+
+        if( WORLD_ENTITY_KIND_OF(id) == WORLD_ENTITY_KIND_PLAYER )
+            RS_EntitySync_RemovePlayer(sync, world, WORLD_ENTITY_INDEX_OF(id));
+        else if( WORLD_ENTITY_KIND_OF(id) == WORLD_ENTITY_KIND_NPC )
+            RS_EntitySync_RemoveNpc(sync, world, WORLD_ENTITY_INDEX_OF(id));
+    }
     sync->active_player_count = 0;
     sync->active_npc_count = 0;
 }

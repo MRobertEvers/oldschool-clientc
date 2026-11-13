@@ -35,7 +35,7 @@ Task_Dat2IdkLoad_Run(
 
     /* The whole group decodes on first touch; later tasks skip the archive
      * load entirely instead of re-decompressing it per id. */
-    if( !dat2_buildcache_identkit_get(task->bc, task->idk_id) )
+    if( !task->bc->identkits_whole && !dat2_buildcache_identkit_get(task->bc, task->idk_id) )
     {
         RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_IDENTKIT);
         PT_YIELD(&task->pt);
@@ -54,7 +54,19 @@ Task_Dat2IdkLoad_Run(
     rscache_idk = dat2_buildcache_identkit_get(task->bc, task->idk_id);
     if( !rscache_idk )
     {
-        TORIRS_ERR("Failed to load dat2 idk %d\n", task->idk_id);
+        /* Absent from the cache. Said once per kit: whoever asks keeps
+         * asking (a player wearing it is composed again every time its
+         * appearance is), and the answer does not change. */
+        static uint8_t said[4096 / 8];
+
+        if( task->idk_id < 0 || task->idk_id >= 4096 ||
+            !(said[task->idk_id >> 3] & (1u << (task->idk_id & 7))) )
+        {
+            if( task->idk_id >= 0 && task->idk_id < 4096 )
+                said[task->idk_id >> 3] |= (uint8_t)(1u << (task->idk_id & 7));
+            TORIRS_ERR("Failed to load dat2 idk %d: the cache's identkit group has no such kit\n",
+                       task->idk_id);
+        }
         PT_EXIT(&task->pt);
     }
 

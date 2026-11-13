@@ -2013,6 +2013,11 @@ struct App
      * because that rebuild is the server's whole world state arriving again
      * and its acknowledgement is what releases the rest of the burst. */
     int net_force_rebuild;
+    /** A LOGOUT_TRANSFER executed: the session moves to world net_hop_world,
+     *  closed and logged in again by app_net_link_watch at the head of the
+     *  next frame (app_net.c). */
+    int net_hop_pending;
+    int net_hop_world;
     /** The connection is the RSProx replay transport's (main.c, `--replay`):
      *  the one writer of the replay control frames (net/torirs_control.h,
      *  TORIRS_CONTROL_REPLAY_*). Set once at boot; a replay frame on any other

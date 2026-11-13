@@ -132,6 +132,10 @@ struct ToriRS_Network
      * either succeeds or fails, so a later fresh login is not mislabelled.
      */
     int reconnect;
+    /** The next ToriRS_Network_Reconnect is a world hop's login: a fresh
+     * GAMELOGIN with the credentials, as the deob's gameState 45 sends, not
+     * a GAMERECONNECT. Set by ToriRS_Network_Hop, spent by the reconnect. */
+    int hop;
 
     /** The cipher seed the previous session authenticated with; what a
      * reconnect presents in place of a password. Valid when `has_prev_seed`. */
@@ -220,6 +224,15 @@ ToriRS_Network_ConnectLogin(
  */
 int
 ToriRS_Network_Reconnect(struct ToriRS_Network* net);
+
+/**
+ * The session moved world (LOGOUT_TRANSFER): the next ToriRS_Network_Reconnect
+ * logs in afresh -- GAMELOGIN with the credentials it has, which the deob sends
+ * from gameState 45 -- rather than presenting the seed. The answer is
+ * LoginResponse.Ok, whose index the new world assigned.
+ */
+void
+ToriRS_Network_Hop(struct ToriRS_Network* net);
 
 /**
  * Hand this network a session that another process was playing: the cipher

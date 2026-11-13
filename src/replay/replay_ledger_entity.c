@@ -85,11 +85,12 @@
  * slots, and the fold only keeps their sticky references. REMOVE_PID (:444)
  * drops a player and with it its sticky state.
  *
- * A RECONNECT re-seeds the table (rs_gameproto_exec.c:3141, the same init the
- * login runs). The replay client keeps its entity lists across it (no
- * RS_EntitySync_Clear on that path), but the table it will decode against
- * holds only the local player in high resolution: the keyframe is the
- * server's view, so every other player's sticky state goes with the re-seed.
+ * A RECONNECT re-seeds the table (the client's RECONNECT_OK: net.c
+ * loginproto_drive, set_local then init from the block). The replay client's
+ * session reset clears its entity lists there too (App_NetSessionReset), and
+ * the table it will decode against holds only the local player in high
+ * resolution: the keyframe is the server's view, so every other player's
+ * sticky state goes with the re-seed.
  */
 #include "replay/replay_ledger_internal.h"
 
@@ -628,7 +629,8 @@ ledger_entity_step(
         int const index = fr->reconnect_index >= 0 ? fr->reconnect_index
                                                    : state->pi.local_index;
 
-        /* rs_gameproto_exec.c:3141: set_local, then init from the block. */
+        /* RECONNECT_OK (net.c loginproto_drive): set_local, then init from
+         * the block. */
         rsprot_player_info_reset(&seeded, index);
         rsprot_player_info_init(&seeded, ledger->rec->data + fr->offset, (int32_t)fr->length);
         ledger_entity_seed_table(state, &seeded);

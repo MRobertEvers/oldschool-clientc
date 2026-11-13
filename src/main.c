@@ -2629,8 +2629,11 @@ main_rsprox_replay_frame(void)
     /* What the client has executed, before the seek's edge is read: a seek
      * lands on it. */
     NetTransport_ReplayClientTicks(sock, app.server_tick_serial);
-    /* A pipeline held on a scene build or a cache read is not a stalled seek. */
-    NetTransport_ReplayClientBusy(sock, app.world_load_inflight || app.packet_runner_had_work);
+    /* A pipeline held on a scene build or a cache read is not a stalled seek.
+     * App_WorldSettled, not world_load_inflight: a background world job sets
+     * no load in flight while it gathers and stages, and the packet pump pops
+     * nothing until it commits (app_world_job.c). */
+    NetTransport_ReplayClientBusy(sock, !App_WorldSettled(&app) || app.packet_runner_had_work);
     /* Session checkpoints: take one at a clean boundary, restore one for a
      * seek (replay/replay_checkpoint_play.h). */
     ReplayCheckpointPlay_Frame(&app, sock);
