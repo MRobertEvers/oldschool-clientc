@@ -281,3 +281,137 @@ VarCManager_ResetAll(struct VarCManager* mgr)
         }
     }
 }
+
+/* --- session checkpoint (replay/replay_checkpoint.h) --------------------- */
+
+#include "replay/replay_checkpoint_util.h"
+
+static void
+varc_checkpoint_copy(
+    struct VarCManager* dst,
+    struct VarCManager const* src)
+{
+    struct ToriMem_Group* g = ToriMem_Session();
+
+    dst->int_count = src->int_count;
+    dst->ints = Ckpt_Dup(g, src->ints, (size_t)src->int_count * sizeof(int));
+    dst->string_count = src->string_count;
+    dst->strings = NULL;
+    if( src->strings )
+    {
+        dst->strings = ToriMem_Calloc(g, (size_t)(src->string_count > 0 ? src->string_count : 1),
+                                      sizeof(char*));
+        assert(dst->strings);
+        for( int i = 0; i < src->string_count; i++ )
+            dst->strings[i] = Ckpt_StrDup(g, src->strings[i]);
+    }
+    dst->long_count = src->long_count;
+    dst->longs = Ckpt_Dup(g, src->longs, (size_t)src->long_count * sizeof(int64_t));
+    dst->long_set = Ckpt_Dup(g, src->long_set, (size_t)src->long_count);
+}
+
+static void
+varc_checkpoint_free_values(struct VarCManager* mgr)
+{
+    struct ToriMem_Group* g = ToriMem_Session();
+
+    ToriMem_Free(g, mgr->ints);
+    for( int i = 0; mgr->strings && i < mgr->string_count; i++ )
+        ToriMem_Free(g, mgr->strings[i]);
+    ToriMem_Free(g, mgr->strings);
+    ToriMem_Free(g, mgr->longs);
+    ToriMem_Free(g, mgr->long_set);
+    mgr->ints = NULL;
+    mgr->strings = NULL;
+    mgr->longs = NULL;
+    mgr->long_set = NULL;
+}
+
+struct VarCManager*
+VarCManager_CheckpointTake(struct VarCManager const* mgr)
+{
+    struct VarCManager* cp;
+
+    assert(mgr);
+    cp = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*cp));
+    assert(cp);
+    varc_checkpoint_copy(cp, mgr);
+    return cp;
+}
+
+void
+VarCManager_CheckpointRestore(
+    struct VarCManager* mgr,
+    struct VarCManager const* cp)
+{
+    assert(mgr);
+    assert(cp);
+    varc_checkpoint_free_values(mgr);
+    varc_checkpoint_copy(mgr, cp);
+}
+
+void
+VarCManager_CheckpointFree(struct VarCManager* cp)
+{
+    if( !cp )
+        return;
+    varc_checkpoint_free_values(cp);
+    ToriMem_Free(ToriMem_Session(), cp);
+}
+
+size_t
+VarCManager_CheckpointBytes(struct VarCManager const* cp)
+{
+    size_t bytes;
+
+    assert(cp);
+    bytes = sizeof(*cp) + (size_t)cp->int_count * sizeof(int) +
+            (size_t)cp->string_count * sizeof(char*) + (size_t)cp->long_count * (sizeof(int64_t) + 1u);
+    for( int i = 0; cp->strings && i < cp->string_count; i++ )
+        bytes += cp->strings[i] ? strlen(cp->strings[i]) + 1u : 0u;
+    return bytes;
+}
+
+int
+VarCManager_CheckpointEqual(
+    struct VarCManager const* a,
+    struct VarCManager const* b,
+    char* why,
+    int why_cap)
+{
+    assert(a);
+    assert(b);
+    CKPT_EQ_INT(a, b, int_count, why, why_cap);
+    for( int i = 0; i < a->int_count; i++ )
+    {
+        if( a->ints[i] != b->ints[i] )
+        {
+            Ckpt_Why(why, why_cap, "varc int %d: %d != %d", i, a->ints[i], b->ints[i]);
+            return 0;
+        }
+    }
+    CKPT_EQ_INT(a, b, string_count, why, why_cap);
+    for( int i = 0; i < a->string_count; i++ )
+    {
+        char const* sa = a->strings ? a->strings[i] : NULL;
+        char const* sb = b->strings ? b->strings[i] : NULL;
+
+        if( !Ckpt_StrEq(sa, sb) )
+        {
+            Ckpt_Why(why, why_cap, "varc string %d: \"%s\" != \"%s\"", i, sa ? sa : "(null)",
+                     sb ? sb : "(null)");
+            return 0;
+        }
+    }
+    CKPT_EQ_INT(a, b, long_count, why, why_cap);
+    for( int i = 0; i < a->long_count; i++ )
+    {
+        if( a->long_set[i] != b->long_set[i] || a->longs[i] != b->longs[i] )
+        {
+            Ckpt_Why(why, why_cap, "varc long %d: %lld != %lld", i, (long long)a->longs[i],
+                     (long long)b->longs[i]);
+            return 0;
+        }
+    }
+    return 1;
+}

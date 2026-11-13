@@ -1992,6 +1992,17 @@ struct App
      * because that rebuild is the server's whole world state arriving again
      * and its acknowledgement is what releases the rest of the burst. */
     int net_force_rebuild;
+    /** The connection is the RSProx replay transport's (main.c, `--replay`):
+     *  the one writer of the replay control frames (net/torirs_control.h,
+     *  TORIRS_CONTROL_REPLAY_*). Set once at boot; a replay frame on any other
+     *  connection aborts (RS_GameProto_ReplayControlExpected). */
+    int net_replay;
+    /** A replay seek's chase (TORIRS_CONTROL_REPLAY_COORD): the world packets are
+     *  withheld, so the local player's tile is the recording's, stated per
+     *  tick, and `coord` reads it (app_tick.c) until the seek's world keyframe
+     *  clears the flag (replay/replay_world_apply.c). */
+    int replay_chase_coord_valid;
+    int replay_chase_coord;
     /**
      * The player asked to leave, and the request has not been acted on yet.
      *
@@ -2437,6 +2448,10 @@ struct App
         uint64_t frames_drawn;
         uint64_t frames_skipped;
         uint64_t frames_caught_up;
+        /** A replay seek (App_RenderSkipHold): nothing is drawn but what a
+         *  retained renderer or a capture must have; the last frame stays on
+         *  screen. Independent of `enabled`. */
+        int hold;
     } render_skip;
     /** The last few frame durations, and their mean. See
      *  perf/frame_time_ring.h. */
@@ -3774,6 +3789,21 @@ App_LogicCyclesNote(int cycles);
 uint64_t
 App_LogicCyclesRun(void);
 
+/** The most App_SetLogicCyclesPerFrame takes: ten server ticks a frame. */
+#define APP_LOGIC_CYCLES_PER_FRAME_MAX 300
+
+/** Run `cycles` logic cycles a frame while the frame lock is on, in place of
+ *  TORIRS_LOGIC_CYCLES_PER_FRAME (0 puts the env's value back). For a replay
+ *  seek (main.c main_rsprox_replay_frame), which runs the client as fast as
+ *  it goes: the replay's clock is the client's cycles, so any k keeps a tick
+ *  at 30 cycles. The frame clock a frame hands its timers keeps the env's
+ *  stretch, and nothing in an embedded-server build calls this. */
+void
+App_SetLogicCyclesPerFrame(int cycles);
+
+int
+App_LogicCyclesPerFrameSet(void);
+
 /** Swap which view the input stage acts through: 1 = the PlayerClient view
  *  (its menu is moved into interact.minimenu, the storage the UI step
  *  drives), 0 = back to the runner's. Only while attached. */
@@ -5107,6 +5137,18 @@ App_RenderSkipSet(
 
 int
 App_RenderSkipEnabled(struct App const* app);
+
+/**
+ * Hold the screen (1) or release it (0): while held, App_RenderSkipFrame draws
+ * only a frame that is forced (a retained GPU renderer's, which learns the
+ * scene from the draw) or a capture, whatever `enabled` says. A replay seek
+ * holds it so the frames it fast-forwards through are never shown; the
+ * release owes one drawn frame.
+ */
+void
+App_RenderSkipHold(
+    struct App* app,
+    int hold);
 
 /**
  * Owe `frames` drawn frames, starting with the current one -- asked by input

@@ -309,6 +309,13 @@ def write_manifest(stage: Path, game_port: int, ws_host: str, auth: str) -> None
     dst = stage / "manifests" / f"manifest_{WORLD}.ini"
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text("".join(out_lines), encoding="utf-8")
+    # manifest_latest.ini: the same bytes under a name that never changes, so
+    # the gate's landing and a phone's home-screen icon keep working when the
+    # world moves to the next revision. The page keys its cache on [cache:boot]
+    # dir, not on this file's name, so a new revision is a new cache.
+    latest = stage / "manifests" / "manifest_latest.ini"
+    latest.write_text(f"; manifest_latest.ini = manifest_{WORLD}.ini (this package's world)\n"
+                      + "".join(out_lines), encoding="utf-8")
 
 
 RUN_CMD = r"""@echo off
@@ -484,7 +491,7 @@ if (Get-ScheduledTask -TaskName $task -ErrorAction SilentlyContinue) {{
 Register-ScheduledTask -TaskName $task -Action $action -Trigger $trigger -Settings $settings -Principal $principal | Out-Null
 Start-ScheduledTask -TaskName $task
 Write-Host "task $task registered (at startup, as $user) and started"
-Write-Host "page: http://localhost:$WebPort/?args=--manifest,manifests/manifest_osrs239.ini"
+Write-Host "page: http://localhost:$WebPort/?args=--manifest,manifests/manifest_latest.ini"
 """
 
 README = r"""# torirs-osrs239
@@ -498,10 +505,12 @@ client, the cache and the content the server reads. Unpack anywhere and run.
 
 Then open
 
-    http://localhost:{web_port}/?args=--manifest,manifests/manifest_osrs239.ini
+    http://localhost:{web_port}/?args=--manifest,manifests/manifest_latest.ini
 
-The page dials the game server over a WebSocket at `ws_host:ws_port` from
-`manifests/manifest_osrs239.ini` ({ws_host}:{game_port}). Behind a reverse proxy
+`manifest_latest.ini` is a copy of `manifests/manifest_osrs239.ini` under a
+name the next revision keeps: link to it, not to the revision. The page dials
+the game server over a WebSocket at `ws_host:ws_port` from it
+({ws_host}:{game_port}). Behind a reverse proxy
 that terminates TLS, add `&ws=ws` (or `&ws=wss://host/path`) to the page URL
 and have the proxy pipe that path's WebSocket upgrade to the game port.
 

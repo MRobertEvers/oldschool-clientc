@@ -6,8 +6,10 @@
 #include "rs_gameproto_exec.h"
 #include "plugin/torirs_plugin_host.h"
 #include "net/net.h"
+#include "net/torirs_control.h"
 #include "task_exec_entity_info.h"
 #include "engine/world_builder/task_world_load.h"
+#include "replay/replay_world.h"
 #include "world/world.h"
 #include "log/torirs_log.h"
 
@@ -185,6 +187,36 @@ rebuild_put_keys(struct Task_GameProtoExec* self)
     for( int i = 0; i < p->region_count; i++ )
         RSCache_XteaConfigPutSquareKey(
             self->chunks[i * 2], self->chunks[i * 2 + 1], &p->region_keys[i * 4]);
+}
+
+/* A REPLAY_WORLD control frame (net/torirs_control.h): the keyframe it names,
+ * taken from the replay world mailbox and applied. The frame carries the
+ * keyframe's tick and mailbox serial and the mailbox holds that one delivery,
+ * or the stream and the transport have parted: stop there. */
+static struct ToriRS_Task*
+replay_world_task(
+    struct App* app,
+    struct TorirsControlFrame const* frame)
+{
+    struct TorirsControlReplayWorld w;
+    struct ReplayWorldDelivery* d;
+    int decoded;
+
+    RS_GameProto_ReplayControlExpected(app, frame);
+    decoded = torirs_control_replay_world_decode(frame, &w);
+    d = decoded ? ReplayWorld_Take(w.serial) : NULL;
+    /* An assertion, written out: the shipping lane compiles assert() away,
+     * and a keyframe applied in the wrong place is a world that looks right
+     * and is not. */
+    if( !d || d->tick != w.tick )
+    {
+        TORIRS_ERR("replay: a REPLAY_WORLD frame (%d bytes, tick %d, serial %u) is not the keyframe in the "
+                   "mailbox (%s)\n",
+                   frame->length, decoded ? w.tick : -1, decoded ? (unsigned)w.serial : 0u,
+                   !decoded ? "the payload does not decode" : !d ? "another serial, or none" : "another tick");
+        abort();
+    }
+    return CreateTask_ReplayWorldApply(app, d);
 }
 
 static int
@@ -536,6 +568,14 @@ Task_GameProtoExec_Run(
         PT_TASK_AWAITSELF_IF(CreateTask_ExecNpcInfo(
             app, self->packet._npc_info.data, self->packet._npc_info.length,
             self->packet._npc_info.large));
+    }
+    else if( self->packet._control && self->packet._control->type == TORIRS_CONTROL_REPLAY_WORLD )
+    {
+        /* A replay seek's world keyframe: the scene (a rebuild through this
+         * same task's REBUILD arm, awaited), zones, the player table and the
+         * entities -- awaited, so the pre-roll's packets queued behind it
+         * apply to the world it leaves. replay/replay_world_apply.c. */
+        PT_TASK_AWAITSELF_IF(replay_world_task(app, self->packet._control));
     }
     else
     {

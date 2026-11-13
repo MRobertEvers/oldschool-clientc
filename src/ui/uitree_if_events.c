@@ -198,3 +198,39 @@ UIIfEventTable_Effective(
         return (unsigned)tree->components[idx].behavior.click_mask;
     return 0;
 }
+
+/* --- session checkpoint (replay/replay_checkpoint.h) --------------------- */
+
+#include "replay/replay_checkpoint_util.h"
+
+void
+UIIfEventTable_CheckpointCopy(
+    struct UIIfEventTable* dst,
+    struct UIIfEventTable const* src)
+{
+    assert(dst);
+    assert(src);
+    *dst = *src;
+    dst->ranges = Ckpt_Dup(ToriMem_Ui(), src->ranges, (size_t)src->cap * sizeof(src->ranges[0]));
+}
+
+int
+UIIfEventTable_CheckpointEqual(
+    struct UIIfEventTable const* a,
+    struct UIIfEventTable const* b,
+    char* why,
+    int why_cap)
+{
+    assert(a);
+    assert(b);
+    CKPT_EQ_INT(a, b, count, why, why_cap);
+    for( int i = 0; i < a->count; i++ )
+        if( a->ranges[i].com_id != b->ranges[i].com_id || a->ranges[i].from != b->ranges[i].from ||
+            a->ranges[i].to != b->ranges[i].to || a->ranges[i].events != b->ranges[i].events )
+        {
+            Ckpt_Why(why, why_cap, "range %d (com 0x%08x %d..%d)", i, (unsigned)a->ranges[i].com_id,
+                     a->ranges[i].from, a->ranges[i].to);
+            return 0;
+        }
+    return 1;
+}

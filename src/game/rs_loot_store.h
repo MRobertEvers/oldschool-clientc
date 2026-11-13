@@ -2,6 +2,7 @@
 #define RS_LOOT_STORE_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 /*
@@ -433,5 +434,27 @@ LootStore_RemoveById(
 
 uint64_t
 LootStore_Revision(const struct LootStore* store);
+/* --- session checkpoint (replay/replay_checkpoint.h) --------------------- */
+struct LootStore*
+LootStore_CheckpointTake(struct LootStore const* store);
+
+void
+LootStore_CheckpointRestore(
+    struct LootStore* store,
+    struct LootStore const* cp);
+
+/** Accepts NULL. */
+void
+LootStore_CheckpointFree(struct LootStore* cp);
+
+size_t
+LootStore_CheckpointBytes(struct LootStore const* cp);
+
+int
+LootStore_CheckpointEqual(
+    struct LootStore const* a,
+    struct LootStore const* b,
+    char* why,
+    int why_cap);
 
 #endif /* RS_LOOT_STORE_H */

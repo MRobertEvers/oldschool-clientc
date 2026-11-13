@@ -1260,3 +1260,311 @@ RS_ClanChannel_SortedUserSlot(
     }
     return channel->sorted[position];
 }
+
+/* --- session checkpoint (replay/replay_checkpoint.h) --------------------- */
+
+#include "replay/replay_checkpoint_util.h"
+
+static struct RS_ClanChannel*
+clan_ckpt_channel_dup(struct RS_ClanChannel const* src)
+{
+    struct RS_ClanChannel* dst;
+
+    if( !src )
+        return NULL;
+    dst = ToriMem_Memdup(ToriMem_Session(), src, sizeof(*dst));
+    assert(dst);
+    dst->users = Ckpt_Dup(ToriMem_Session(), src->users, (size_t)src->user_cap * sizeof(src->users[0]));
+    /* The sort is a lookup cache, rebuilt on the next ask. */
+    dst->sorted = NULL;
+    return dst;
+}
+
+static struct RS_ClanSettings*
+clan_ckpt_settings_dup(struct RS_ClanSettings const* src)
+{
+    struct RS_ClanSettings* dst;
+    struct ToriMem_Group* g = ToriMem_Session();
+    size_t const ac = (size_t)src->affined_cap;
+    size_t const bc = (size_t)src->banned_cap;
+
+    dst = ToriMem_Memdup(g, src, sizeof(*dst));
+    assert(dst);
+    dst->affined_hash = Ckpt_Dup(g, src->affined_hash, ac * sizeof(src->affined_hash[0]));
+    dst->affined_name = Ckpt_Dup(g, src->affined_name, ac * sizeof(src->affined_name[0]));
+    dst->affined_has_name = Ckpt_Dup(g, src->affined_has_name, ac * sizeof(src->affined_has_name[0]));
+    dst->affined_rank = Ckpt_Dup(g, src->affined_rank, ac * sizeof(src->affined_rank[0]));
+    dst->affined_extra_info = Ckpt_Dup(g, src->affined_extra_info, ac * sizeof(src->affined_extra_info[0]));
+    dst->affined_join_runeday =
+        Ckpt_Dup(g, src->affined_join_runeday, ac * sizeof(src->affined_join_runeday[0]));
+    dst->affined_muted = Ckpt_Dup(g, src->affined_muted, ac * sizeof(src->affined_muted[0]));
+    dst->sorted = NULL;
+    dst->banned_hash = Ckpt_Dup(g, src->banned_hash, bc * sizeof(src->banned_hash[0]));
+    dst->banned_name = Ckpt_Dup(g, src->banned_name, bc * sizeof(src->banned_name[0]));
+    dst->banned_has_name = Ckpt_Dup(g, src->banned_has_name, bc * sizeof(src->banned_has_name[0]));
+    dst->settings = Ckpt_Dup(g, src->settings, (size_t)src->setting_cap * sizeof(src->settings[0]));
+    for( int i = 0; i < src->setting_count; i++ )
+        dst->settings[i].string_value = Ckpt_StrDup(g, src->settings[i].string_value);
+    return dst;
+}
+
+static struct RS_ClanSettings*
+clan_ckpt_settings_dup_or_null(struct RS_ClanSettings const* src)
+{
+    return src ? clan_ckpt_settings_dup(src) : NULL;
+}
+
+/* `dst` holds nothing; it becomes a deep copy of `src`, the active pointers
+ * aimed at the copies of what they aimed at in `src`. */
+static void
+clan_ckpt_copy(
+    struct RS_ClanStore* dst,
+    struct RS_ClanStore const* src)
+{
+    struct ToriMem_Group* g = ToriMem_Session();
+
+    *dst = *src;
+    for( int i = 0; i < RS_CLAN_AFFINED_SLOTS; i++ )
+    {
+        dst->affined_channel[i] = clan_ckpt_channel_dup(src->affined_channel[i]);
+        dst->affined_settings[i] = clan_ckpt_settings_dup_or_null(src->affined_settings[i]);
+        if( src->active_channel && src->active_channel == src->affined_channel[i] )
+            dst->active_channel = dst->affined_channel[i];
+        if( src->active_settings && src->active_settings == src->affined_settings[i] )
+            dst->active_settings = dst->affined_settings[i];
+    }
+    dst->listened_channel = clan_ckpt_channel_dup(src->listened_channel);
+    dst->listened_settings = clan_ckpt_settings_dup_or_null(src->listened_settings);
+    dst->retired_channel = clan_ckpt_channel_dup(src->retired_channel);
+    dst->retired_settings = clan_ckpt_settings_dup_or_null(src->retired_settings);
+    if( src->active_channel && src->active_channel == src->listened_channel )
+        dst->active_channel = dst->listened_channel;
+    if( src->active_channel && src->active_channel == src->retired_channel )
+        dst->active_channel = dst->retired_channel;
+    if( src->active_settings && src->active_settings == src->listened_settings )
+        dst->active_settings = dst->listened_settings;
+    if( src->active_settings && src->active_settings == src->retired_settings )
+        dst->active_settings = dst->retired_settings;
+    /* The active pointer only ever names one of the objects above. */
+    assert(!src->active_channel || dst->active_channel != src->active_channel);
+    assert(!src->active_settings || dst->active_settings != src->active_settings);
+    dst->varclans = Ckpt_Dup(g, src->varclans, (size_t)src->varclan_cap * sizeof(src->varclans[0]));
+    for( int i = 0; i < src->varclan_count; i++ )
+        dst->varclans[i].string_value = Ckpt_StrDup(g, src->varclans[i].string_value);
+}
+
+struct RS_ClanStore*
+RS_ClanStore_CheckpointTake(struct RS_ClanStore const* store)
+{
+    struct RS_ClanStore* cp;
+
+    assert(store);
+    cp = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*cp));
+    assert(cp);
+    clan_ckpt_copy(cp, store);
+    return cp;
+}
+
+void
+RS_ClanStore_CheckpointRestore(
+    struct RS_ClanStore* store,
+    struct RS_ClanStore const* cp)
+{
+    assert(store);
+    assert(cp);
+    RS_ClanStore_Free(store);
+    clan_ckpt_copy(store, cp);
+}
+
+void
+RS_ClanStore_CheckpointFree(struct RS_ClanStore* cp)
+{
+    if( !cp )
+        return;
+    RS_ClanStore_Free(cp);
+    ToriMem_Free(ToriMem_Session(), cp);
+}
+
+static size_t
+clan_ckpt_settings_bytes(struct RS_ClanSettings const* s)
+{
+    size_t bytes;
+
+    if( !s )
+        return 0;
+    bytes = sizeof(*s) +
+            (size_t)s->affined_cap * (sizeof(s->affined_hash[0]) + sizeof(s->affined_name[0]) + 1u + 1u +
+                                      2u * sizeof(int) + 1u) +
+            (size_t)s->banned_cap * (sizeof(s->banned_hash[0]) + sizeof(s->banned_name[0]) + 1u) +
+            (size_t)s->setting_cap * sizeof(s->settings[0]);
+    for( int i = 0; i < s->setting_count; i++ )
+        bytes += s->settings[i].string_value ? strlen(s->settings[i].string_value) + 1u : 0u;
+    return bytes;
+}
+
+size_t
+RS_ClanStore_CheckpointBytes(struct RS_ClanStore const* cp)
+{
+    size_t bytes;
+    struct RS_ClanChannel const* channels[RS_CLAN_AFFINED_SLOTS + 2];
+    struct RS_ClanSettings const* settings[RS_CLAN_AFFINED_SLOTS + 2];
+
+    assert(cp);
+    bytes = sizeof(*cp) + (size_t)cp->varclan_cap * sizeof(cp->varclans[0]);
+    for( int i = 0; i < RS_CLAN_AFFINED_SLOTS; i++ )
+    {
+        channels[i] = cp->affined_channel[i];
+        settings[i] = cp->affined_settings[i];
+    }
+    channels[RS_CLAN_AFFINED_SLOTS] = cp->listened_channel;
+    channels[RS_CLAN_AFFINED_SLOTS + 1] = cp->retired_channel;
+    settings[RS_CLAN_AFFINED_SLOTS] = cp->listened_settings;
+    settings[RS_CLAN_AFFINED_SLOTS + 1] = cp->retired_settings;
+    for( int i = 0; i < RS_CLAN_AFFINED_SLOTS + 2; i++ )
+    {
+        if( channels[i] )
+            bytes += sizeof(*channels[i]) + (size_t)channels[i]->user_cap * sizeof(channels[i]->users[0]);
+        bytes += clan_ckpt_settings_bytes(settings[i]);
+    }
+    return bytes;
+}
+
+static int
+clan_ckpt_channel_equal(
+    struct RS_ClanChannel const* a,
+    struct RS_ClanChannel const* b)
+{
+    if( !a || !b )
+        return a == b;
+    if( a->clan_hash != b->clan_hash || a->update_num != b->update_num || strcmp(a->name, b->name) != 0 ||
+        a->rank_kick != b->rank_kick || a->rank_talk != b->rank_talk ||
+        a->has_display_names != b->has_display_names || a->user_count != b->user_count )
+        return 0;
+    for( int i = 0; i < a->user_count; i++ )
+        if( strcmp(a->users[i].name, b->users[i].name) != 0 || a->users[i].rank != b->users[i].rank ||
+            a->users[i].world != b->users[i].world )
+            return 0;
+    return 1;
+}
+
+static int
+clan_ckpt_settings_equal(
+    struct RS_ClanSettings const* a,
+    struct RS_ClanSettings const* b)
+{
+    if( !a || !b )
+        return a == b;
+    if( a->update_num != b->update_num || a->creation_time != b->creation_time ||
+        strcmp(a->name, b->name) != 0 || a->allow_unaffined != b->allow_unaffined ||
+        a->rank_talk != b->rank_talk || a->rank_kick != b->rank_kick ||
+        a->rank_lootshare != b->rank_lootshare || a->rank_coinshare != b->rank_coinshare ||
+        a->has_hashes != b->has_hashes || a->has_display_names != b->has_display_names ||
+        a->affined_count != b->affined_count || a->banned_count != b->banned_count ||
+        a->owner_slot != b->owner_slot || a->replacement_owner_slot != b->replacement_owner_slot ||
+        a->setting_count != b->setting_count )
+        return 0;
+    for( int i = 0; i < a->affined_count; i++ )
+        if( a->affined_hash[i] != b->affined_hash[i] || strcmp(a->affined_name[i], b->affined_name[i]) != 0 ||
+            a->affined_has_name[i] != b->affined_has_name[i] || a->affined_rank[i] != b->affined_rank[i] ||
+            a->affined_extra_info[i] != b->affined_extra_info[i] ||
+            a->affined_join_runeday[i] != b->affined_join_runeday[i] || a->affined_muted[i] != b->affined_muted[i] )
+            return 0;
+    for( int i = 0; i < a->banned_count; i++ )
+        if( a->banned_hash[i] != b->banned_hash[i] || strcmp(a->banned_name[i], b->banned_name[i]) != 0 ||
+            a->banned_has_name[i] != b->banned_has_name[i] )
+            return 0;
+    for( int i = 0; i < a->setting_count; i++ )
+        if( a->settings[i].id != b->settings[i].id || a->settings[i].type != b->settings[i].type ||
+            a->settings[i].int_value != b->settings[i].int_value ||
+            a->settings[i].long_value != b->settings[i].long_value ||
+            !Ckpt_StrEq(a->settings[i].string_value, b->settings[i].string_value) )
+            return 0;
+    return 1;
+}
+
+/* Which object an active pointer names: 0..3 an affined slot, 4 listened,
+ * 5 retired, -1 none. */
+static int
+clan_ckpt_active_channel(struct RS_ClanStore const* s)
+{
+    for( int i = 0; i < RS_CLAN_AFFINED_SLOTS; i++ )
+        if( s->active_channel && s->active_channel == s->affined_channel[i] )
+            return i;
+    if( s->active_channel && s->active_channel == s->listened_channel )
+        return RS_CLAN_AFFINED_SLOTS;
+    if( s->active_channel && s->active_channel == s->retired_channel )
+        return RS_CLAN_AFFINED_SLOTS + 1;
+    return -1;
+}
+
+static int
+clan_ckpt_active_settings(struct RS_ClanStore const* s)
+{
+    for( int i = 0; i < RS_CLAN_AFFINED_SLOTS; i++ )
+        if( s->active_settings && s->active_settings == s->affined_settings[i] )
+            return i;
+    if( s->active_settings && s->active_settings == s->listened_settings )
+        return RS_CLAN_AFFINED_SLOTS;
+    if( s->active_settings && s->active_settings == s->retired_settings )
+        return RS_CLAN_AFFINED_SLOTS + 1;
+    return -1;
+}
+
+int
+RS_ClanStore_CheckpointEqual(
+    struct RS_ClanStore const* a,
+    struct RS_ClanStore const* b,
+    char* why,
+    int why_cap)
+{
+    assert(a);
+    assert(b);
+    for( int i = 0; i < RS_CLAN_AFFINED_SLOTS; i++ )
+    {
+        if( !clan_ckpt_channel_equal(a->affined_channel[i], b->affined_channel[i]) )
+        {
+            Ckpt_Why(why, why_cap, "clan affined_channel[%d]", i);
+            return 0;
+        }
+        if( !clan_ckpt_settings_equal(a->affined_settings[i], b->affined_settings[i]) )
+        {
+            Ckpt_Why(why, why_cap, "clan affined_settings[%d]", i);
+            return 0;
+        }
+    }
+    if( !clan_ckpt_channel_equal(a->listened_channel, b->listened_channel) ||
+        !clan_ckpt_channel_equal(a->retired_channel, b->retired_channel) )
+    {
+        Ckpt_Why(why, why_cap, "clan listened/retired channel");
+        return 0;
+    }
+    if( !clan_ckpt_settings_equal(a->listened_settings, b->listened_settings) ||
+        !clan_ckpt_settings_equal(a->retired_settings, b->retired_settings) )
+    {
+        Ckpt_Why(why, why_cap, "clan listened/retired settings");
+        return 0;
+    }
+    if( clan_ckpt_active_channel(a) != clan_ckpt_active_channel(b) ||
+        clan_ckpt_active_settings(a) != clan_ckpt_active_settings(b) )
+    {
+        Ckpt_Why(why, why_cap, "clan active channel/settings");
+        return 0;
+    }
+    CKPT_EQ_INT(a, b, active_channel_affined_index, why, why_cap);
+    CKPT_EQ_INT(a, b, varclan_enabled, why, why_cap);
+    CKPT_EQ_INT(a, b, varclan_count, why, why_cap);
+    for( int i = 0; i < a->varclan_count; i++ )
+    {
+        if( a->varclans[i].id != b->varclans[i].id || a->varclans[i].type != b->varclans[i].type ||
+            a->varclans[i].int_value != b->varclans[i].int_value ||
+            a->varclans[i].long_value != b->varclans[i].long_value ||
+            !Ckpt_StrEq(a->varclans[i].string_value, b->varclans[i].string_value) )
+        {
+            Ckpt_Why(why, why_cap, "varclan[%d] (id %d)", i, a->varclans[i].id);
+            return 0;
+        }
+    }
+    CKPT_EQ_INT(a, b, channel_transmit_serial, why, why_cap);
+    CKPT_EQ_INT(a, b, settings_transmit_serial, why, why_cap);
+    return 1;
+}

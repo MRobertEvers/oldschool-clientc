@@ -948,17 +948,23 @@ Task_ExecPlayerInfo_Run(
 
     PT_BEGIN(&self->pt);
 
-    info_list_borrow(
-        &app->player_info_ops_scratch,
-        &app->player_info_bytes_scratch,
-        &app->player_info_ops_scratch_busy,
-        &self->info);
-    self->ops = self->info.ops;
-    /* The revision's reader (GameProtoRevTable.player_info_read). Every
-     * reader writes the same op list, so nothing below this line branches. */
-    assert(app->net);
-    assert(app->net->rev->player_info_read);
-    self->op_count = app->net->rev->player_info_read(self->data, self->length, &self->info);
+    /* A replay keyframe hands its op list over already decoded
+     * (CreateTask_ExecPlayerInfoOps); a packet is read here. */
+    if( !self->ops )
+    {
+        info_list_borrow(
+            &app->player_info_ops_scratch,
+            &app->player_info_bytes_scratch,
+            &app->player_info_ops_scratch_busy,
+            &self->info);
+        self->ops = self->info.ops;
+        /* The revision's reader (GameProtoRevTable.player_info_read). Every
+         * reader writes the same op list, so nothing below this line
+         * branches. */
+        assert(app->net);
+        assert(app->net->rev->player_info_read);
+        self->op_count = app->net->rev->player_info_read(self->data, self->length, &self->info);
+    }
 
     /* Snapshot the tracked list: ADD_OLD indexes the PREVIOUS packet's
      * order while the walk rebuilds the live list in place. */
@@ -1087,6 +1093,29 @@ CreateTask_ExecPlayerInfo(
     task->app = app;
     task->data = data;
     task->length = length;
+    PT_INIT(&task->pt);
+    return &task->task;
+}
+
+struct ToriRS_Task*
+CreateTask_ExecPlayerInfoOps(
+    struct App* app,
+    struct RsprotInfoOp const* ops,
+    int count)
+{
+    struct Task_ExecPlayerInfo* task;
+
+    assert(app);
+    assert(ops);
+    assert(count > 0);
+    task = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_ExecPlayerInfo_VTable;
+    strncpy(task->task.name, "ExecPlayerInfoOps", sizeof(task->task.name) - 1);
+    task->app = app;
+    /* Borrowed for the task's life; never written. */
+    task->ops = (struct RsprotInfoOp*)ops;
+    task->op_count = count;
     PT_INIT(&task->pt);
     return &task->task;
 }
@@ -1817,12 +1846,17 @@ Task_ExecNpcInfo_Run(
     g_bd_ops = g_bd_spawns = 0;
     self->bd_start = BD_T0();
 
-    info_list_borrow(
-        &app->npc_info_ops_scratch,
-        &app->npc_info_bytes_scratch,
-        &app->npc_info_ops_scratch_busy,
-        &self->info);
-    self->ops = self->info.ops;
+    /* A replay keyframe's list arrives decoded (CreateTask_ExecNpcInfoOps). */
+    if( !self->ops )
+    {
+        info_list_borrow(
+            &app->npc_info_ops_scratch,
+            &app->npc_info_bytes_scratch,
+            &app->npc_info_ops_scratch_busy,
+            &self->info);
+        self->ops = self->info.ops;
+    }
+    if( self->info.ops )
     {
         struct GameProtoRevTable const* rev;
         uint64_t t0 = BD_T0();
@@ -2059,6 +2093,29 @@ CreateTask_ExecNpcInfo(
     task->length = length;
     task->large = large;
     task->view = app->active_world;
+    PT_INIT(&task->pt);
+    return &task->task;
+}
+
+struct ToriRS_Task*
+CreateTask_ExecNpcInfoOps(
+    struct App* app,
+    struct RsprotInfoOp const* ops,
+    int count)
+{
+    struct Task_ExecNpcInfo* task;
+
+    assert(app);
+    assert(ops);
+    assert(count > 0);
+    task = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_ExecNpcInfo_VTable;
+    strncpy(task->task.name, "ExecNpcInfoOps", sizeof(task->task.name) - 1);
+    task->app = app;
+    task->ops = (struct RsprotInfoOp*)ops;
+    task->op_count = count;
+    task->view = WORLDVIEW_ROOT;
     PT_INIT(&task->pt);
     return &task->task;
 }

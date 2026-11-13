@@ -3212,20 +3212,49 @@ World_LocChangePushOps(
     int op_flags,
     const char ops[5][32])
 {
-    struct World_LocChange* loc;
+    struct World_LocChange* loc = NULL;
 
     assert(world);
     assert(ops);
-    if( world->loc_change_count >= WORLD_LOC_CHANGE_MAX )
-        return;
-    loc = &world->loc_changes[world->loc_change_count++];
-    loc->level = level;
-    loc->layer = layer;
-    loc->x = x;
-    loc->z = z;
-    loc->old_type = old_type;
-    loc->old_angle = old_angle;
-    loc->old_shape = old_shape;
+    /*
+     * One record per (level, layer, x, z), as the deob holds one per key:
+     * Statics.method5669 (gl.dw, osrs239 rl1.12.33) walks the worldview's list
+     * for that key and creates a record -- capturing the loc that stands there
+     * (method5668) -- only when there is none; a later change, LOC_MERGE's
+     * countdown included (its call at Statics.java:45130), overwrites the new
+     * loc and the timing of the one it found. So the key's old_* stays the loc
+     * that stood before its FIRST change, the map's, which is what the
+     * UPDATE_ZONE_FULL_FOLLOWS restore and the rebuild's re-place read.
+     *
+     * A record appended per change instead filled the 256 within ~64 ticks of
+     * a zone the server re-sends every tick (an instance's four corner locs,
+     * rev-241 recording 20261022T192814), and every change after that reached
+     * the scene but not the list: the next rebuild re-placed, and the next
+     * full-follows restored, a stale loc.
+     */
+    for( int i = 0; i < world->loc_change_count; i++ )
+    {
+        struct World_LocChange* rec = &world->loc_changes[i];
+
+        if( rec->level == level && rec->layer == layer && rec->x == x && rec->z == z )
+        {
+            loc = rec;
+            break;
+        }
+    }
+    if( !loc )
+    {
+        if( world->loc_change_count >= WORLD_LOC_CHANGE_MAX )
+            return;
+        loc = &world->loc_changes[world->loc_change_count++];
+        loc->level = level;
+        loc->layer = layer;
+        loc->x = x;
+        loc->z = z;
+        loc->old_type = old_type;
+        loc->old_angle = old_angle;
+        loc->old_shape = old_shape;
+    }
     loc->new_type = new_type;
     loc->new_angle = new_angle;
     loc->new_shape = new_shape;

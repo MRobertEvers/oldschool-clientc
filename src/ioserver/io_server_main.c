@@ -1803,7 +1803,7 @@ usage(char const* argv0)
         "  --gate       serve only the sign-in pages until the visitor signs in\n"
         "               with a web login (the account server: account_server), then send\n"
         "               them to LANDING, e.g.\n"
-        "               '/?args=--manifest,manifests/manifest_osrs242.ini&ws=ws'.\n"
+        "               '/?args=--manifest,manifests/manifest_latest.ini&ws=ws'.\n"
         "               Run torirsserver with --gate too: it checks the same\n"
         "               ticket on the game socket\n",
         argv0,

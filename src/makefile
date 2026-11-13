@@ -978,6 +978,12 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c \
 	platform/net_transport_embed.c platform/launch_sessions.c \
 	platform/net_transport_replay.c net/rsprox_recording.c \
+	replay/replay_timeline.c replay/replay_scrub.c \
+	replay/replay_ledger.c replay/replay_ledger_entity.c replay/replay_ledger_verify.c \
+	replay/replay_classify.c replay/replay_world.c replay/replay_world_apply.c \
+	replay/replay_digest.c \
+	replay/replay_checkpoint.c replay/replay_checkpoint_check.c ui/uitree_checkpoint.c app/app_checkpoint.c \
+	replay/replay_checkpoint_store.c replay/replay_checkpoint_play.c \
 	net/sha256.c net/pow_sha256.c net/flat_json.c net/proto/proto_info.c \
 	torirsserver/wire/osrs241_clientprot.c \
 	$(PROTO_SRCS) $(REV_EXEC_SRCS) \
@@ -3863,6 +3869,84 @@ test-rsprox-replay: $(OBJ_DIR) $(OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rsprox_replay_test \
 		net/test/rsprox_replay_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/rsprox_replay_test
+
+# The replay scrubber's world ledger (replay/replay_ledger*.c): scenes, zone-op
+# intervals and entity keys folded offline from a recording. Compiled here, not
+# in the client's source list, and linked against the net core only: the ledger
+# is a pure function of the recording and the revision table.
+REPLAY_LEDGER_ONLY_SRCS = replay/replay_ledger.c replay/replay_ledger_entity.c \
+	replay/replay_ledger_verify.c net/rsprox_recording.c
+
+# Over a synthetic rev-241 recording: interval invariants, the live set against
+# the full history, a key advanced to P against a fold from 0, the npc list's
+# order, and the session's player table untouched.
+.PHONY: test-replay-ledger
+test-replay-ledger: $(OBJ_DIR) $(NET_CORE_OBJS)
+	$(CC) $(CFLAGS) -UNDEBUG $(RSPROT_INCLUDES) -o $(OBJ_DIR)/replay_ledger_test $(TORIMEM_SRCS) \
+		replay/test/replay_ledger_test.c $(REPLAY_LEDGER_ONLY_SRCS) \
+		torirsserver/mock239_playerinfo.c torirsserver/mock241_playerinfo.c \
+		torirsserver/mock242_playerinfo.c $(RSAREABUF_DIR)/rsareabuf.c \
+		$(NET_CORE_OBJS) -lm
+	./$(OBJ_DIR)/replay_ledger_test
+
+# The same equalities on real recordings, with a size and timing report:
+# `RECORDINGS="a.bin b.bin.gz"`. Not a suite test -- it needs recordings.
+.PHONY: replay-ledger-check
+replay-ledger-check: $(OBJ_DIR) $(NET_CORE_OBJS)
+	$(CC) $(CFLAGS) -UNDEBUG $(RSPROT_INCLUDES) -o $(OBJ_DIR)/replay_ledger_check $(TORIMEM_SRCS) \
+		replay/test/replay_ledger_check.c $(REPLAY_LEDGER_ONLY_SRCS) $(NET_CORE_OBJS) -lm
+	./$(OBJ_DIR)/replay_ledger_check $(RECORDINGS)
+
+# The replay scrubber's timeline (replay/replay_timeline.c) over a synthetic
+# rev-241 recording: the tick table, the time maps across a stall, the lanes,
+# next / previous mark, the density pyramid and the page's timeline() JSON.
+.PHONY: test-replay-timeline
+test-replay-timeline: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/replay_timeline_test \
+		replay/test/replay_timeline_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/replay_timeline_test
+
+# The replay scrubber's playhead (replay/replay_scrub.c) driving the replay
+# transport into a real rev-241 network: seeks forward and back (a restart from
+# the login) land on the exact tick boundary, a hold stops the clock at one,
+# step, a seek replaced in flight, and normal playback unchanged.
+.PHONY: test-replay-scrub
+test-replay-scrub: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/replay_scrub_test \
+		replay/test/replay_scrub_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/replay_scrub_test
+
+# A fast seek against linear play on a real recording: the private client
+# runs each tick twice (TORIRS_REPLAY_SEEK=fullsim, then fast) and every
+# --replay-digest domain is compared at the tick and 64 ticks later
+# (replay/test/replay_seek_check.py). Not a suite test -- it needs a recording
+# and a built client:
+#   make -C src OPT=1 PLATFORM_OBJ_BASE=build_seek_opt PLATFORM_TARGET=build_seek_opt/torirs build_seek_opt/torirs
+#   make -C src OPT=1 PLATFORM_OBJ_BASE=build_seek_opt replay-seek-check RECORDING=<file.bin> TICKS="t1 t2 ..."
+# (the objdir is named so that this make's object verification looks at the
+# private objdir, not the shared default). Optional: CHASE_CYCLES=1..30, OUT=<dir>,
+# MANIFEST=<ini>.
+REPLAY_SEEK_CHECK_BINARY ?= build_seek_opt/torirs
+.PHONY: replay-seek-check
+replay-seek-check:
+	cd $(REPO_ROOT) && python3 -I $(SRC_DIR)/replay/test/replay_seek_check.py \
+		"$(CURDIR)/$(REPLAY_SEEK_CHECK_BINARY)" "$(RECORDING)" "$(TICKS)" "$(MANIFEST)" \
+		"$(CHASE_CYCLES)" "$(OUT)"
+
+# Session checkpoints (replay/replay_checkpoint.h) on a real recording, with
+# the real client headless, in an object directory of its own: the take /
+# restore / take round trip and the two-pass completeness check per window
+# (K,N: no REBUILD inside), a backward seek and a one-tick back-step through
+# checkpoints compared by session digest with a seek from the login, and the
+# stalled-seek watchdog. replay/test/replay_checkpoint_check.py says how.
+CKPT_CHECK_RECORDING ?= $(HOME)/.rsprox/binary/archive/96.bin
+CKPT_CHECK_WINDOWS ?= 1000,150 2110,130
+.PHONY: replay-checkpoint-check
+replay-checkpoint-check:
+	$(MAKE) OPT=1 PLATFORM_OBJ_BASE=build_ckptcheck PLATFORM_TARGET=build_ckptcheck/torirs build_ckptcheck/torirs
+	cd $(REPO_ROOT) && python3 -I $(SRC_DIR)/replay/test/replay_checkpoint_check.py \
+		"$(SRC_DIR)/build_ckptcheck/torirs" "$(CKPT_CHECK_RECORDING)" manifests/manifest_osrs242_replay.ini \
+		$(CKPT_CHECK_WINDOWS)
 
 # Full login -> GAME -> parsed-packet pipeline through a scripted mock server.
 test-net-loopback: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o

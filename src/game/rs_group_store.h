@@ -14,6 +14,7 @@
 #include "engine/torirs_types.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #define RS_GROUP_SLOTS 256
@@ -74,5 +75,27 @@ struct RS_GroupInstance const*
 RS_GroupStore_FindUid(
     struct RS_GroupStore const* store,
     int64_t uid);
+/* --- session checkpoint (replay/replay_checkpoint.h) --------------------- */
+struct RS_GroupStore*
+RS_GroupStore_CheckpointTake(struct RS_GroupStore const* store);
+
+void
+RS_GroupStore_CheckpointRestore(
+    struct RS_GroupStore* store,
+    struct RS_GroupStore const* cp);
+
+/** Accepts NULL. */
+void
+RS_GroupStore_CheckpointFree(struct RS_GroupStore* cp);
+
+size_t
+RS_GroupStore_CheckpointBytes(struct RS_GroupStore const* cp);
+
+int
+RS_GroupStore_CheckpointEqual(
+    struct RS_GroupStore const* a,
+    struct RS_GroupStore const* b,
+    char* why,
+    int why_cap);
 
 #endif

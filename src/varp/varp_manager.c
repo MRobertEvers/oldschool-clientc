@@ -874,3 +874,140 @@ VarPManager_TransformDependsOnVarp(
 
     return false;
 }
+
+/* --- session checkpoint (replay/replay_checkpoint.h) --------------------- */
+
+#include "replay/replay_checkpoint_util.h"
+
+struct VarPManager*
+VarPManager_CheckpointTake(struct VarPManager const* mgr)
+{
+    struct VarPManager* cp;
+    struct ToriMem_Group* g = ToriMem_Session();
+
+    assert(mgr);
+    cp = ToriMem_Calloc(g, 1, sizeof(*cp));
+    assert(cp);
+    /* The values only: the type tables are the cache's, loaded once per
+     * session (App.boot_config_ready), and the callbacks are the App's. */
+    cp->varp_count = mgr->varp_count;
+    cp->var = Ckpt_Dup(g, mgr->var, (size_t)mgr->varp_count * sizeof(int));
+    cp->var_serv = Ckpt_Dup(g, mgr->var_serv, (size_t)mgr->varp_count * sizeof(int));
+    cp->var_long_count = mgr->var_long_count;
+    cp->var_long = Ckpt_Dup(g, mgr->var_long, (size_t)mgr->var_long_count * sizeof(int64_t));
+    cp->var_long_serv = Ckpt_Dup(g, mgr->var_long_serv, (size_t)mgr->var_long_count * sizeof(int64_t));
+    cp->var_long_set = Ckpt_Dup(g, mgr->var_long_set, (size_t)mgr->var_long_count);
+    return cp;
+}
+
+void
+VarPManager_CheckpointRestore(
+    struct VarPManager* mgr,
+    struct VarPManager const* cp)
+{
+    struct ToriMem_Group* g = ToriMem_Session();
+    struct VarPManager old;
+    int n;
+
+    assert(mgr);
+    assert(cp);
+    old = *mgr;
+    mgr->varp_count = cp->varp_count;
+    mgr->var = Ckpt_Dup(g, cp->var, (size_t)cp->varp_count * sizeof(int));
+    mgr->var_serv = Ckpt_Dup(g, cp->var_serv, (size_t)cp->varp_count * sizeof(int));
+    mgr->var_long_count = cp->var_long_count;
+    mgr->var_long = Ckpt_Dup(g, cp->var_long, (size_t)cp->var_long_count * sizeof(int64_t));
+    mgr->var_long_serv = Ckpt_Dup(g, cp->var_long_serv, (size_t)cp->var_long_count * sizeof(int64_t));
+    mgr->var_long_set = Ckpt_Dup(g, cp->var_long_set, (size_t)cp->var_long_count);
+    /* A debug preview overlay belongs to the moment it was posed. */
+    mgr->preview_count = 0;
+
+    /* Every value that moved reaches the change callback, as a packet's write
+     * does (VarPManager_ApplySync): loc and npc transforms re-resolve from it.
+     * After all of them are in, so a callback reading another varp reads the
+     * restored one. Not the server-update callback: what the transmit hooks
+     * made of these values is restored with the CS2 host and the tree. */
+    n = old.varp_count > mgr->varp_count ? old.varp_count : mgr->varp_count;
+    for( int i = 0; i < n; i++ )
+    {
+        int const was = i < old.varp_count ? old.var[i] : 0;
+        int const now = i < mgr->varp_count ? mgr->var[i] : 0;
+
+        if( was != now )
+            notify_change(mgr, i);
+    }
+    n = old.var_long_count > mgr->var_long_count ? old.var_long_count : mgr->var_long_count;
+    for( int i = 0; i < n; i++ )
+    {
+        int64_t const was = i < old.var_long_count && old.var_long_set[i] ? old.var_long[i] : 0;
+        int64_t const now = i < mgr->var_long_count && mgr->var_long_set[i] ? mgr->var_long[i] : 0;
+
+        if( was != now )
+            notify_change(mgr, i);
+    }
+    ToriMem_Free(g, old.var);
+    ToriMem_Free(g, old.var_serv);
+    ToriMem_Free(g, old.var_long);
+    ToriMem_Free(g, old.var_long_serv);
+    ToriMem_Free(g, old.var_long_set);
+}
+
+void
+VarPManager_CheckpointFree(struct VarPManager* cp)
+{
+    struct ToriMem_Group* g = ToriMem_Session();
+
+    if( !cp )
+        return;
+    ToriMem_Free(g, cp->var);
+    ToriMem_Free(g, cp->var_serv);
+    ToriMem_Free(g, cp->var_long);
+    ToriMem_Free(g, cp->var_long_serv);
+    ToriMem_Free(g, cp->var_long_set);
+    ToriMem_Free(g, cp);
+}
+
+size_t
+VarPManager_CheckpointBytes(struct VarPManager const* cp)
+{
+    assert(cp);
+    return sizeof(*cp) + (size_t)cp->varp_count * 2u * sizeof(int) +
+           (size_t)cp->var_long_count * (2u * sizeof(int64_t) + 1u);
+}
+
+int
+VarPManager_CheckpointEqual(
+    struct VarPManager const* a,
+    struct VarPManager const* b,
+    char* why,
+    int why_cap)
+{
+    assert(a);
+    assert(b);
+    CKPT_EQ_INT(a, b, varp_count, why, why_cap);
+    for( int i = 0; i < a->varp_count; i++ )
+    {
+        if( a->var[i] != b->var[i] )
+        {
+            Ckpt_Why(why, why_cap, "var[%d] %d != %d", i, a->var[i], b->var[i]);
+            return 0;
+        }
+        if( a->var_serv[i] != b->var_serv[i] )
+        {
+            Ckpt_Why(why, why_cap, "var_serv[%d] %d != %d", i, a->var_serv[i], b->var_serv[i]);
+            return 0;
+        }
+    }
+    CKPT_EQ_INT(a, b, var_long_count, why, why_cap);
+    for( int i = 0; i < a->var_long_count; i++ )
+    {
+        if( a->var_long_set[i] != b->var_long_set[i] || a->var_long[i] != b->var_long[i] ||
+            a->var_long_serv[i] != b->var_long_serv[i] )
+        {
+            Ckpt_Why(why, why_cap, "var_long[%d] %lld != %lld", i, (long long)a->var_long[i],
+                     (long long)b->var_long[i]);
+            return 0;
+        }
+    }
+    return 1;
+}

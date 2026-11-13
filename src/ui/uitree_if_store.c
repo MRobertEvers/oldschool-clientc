@@ -193,3 +193,82 @@ UIIfTextStore_Free(struct UIIfTextStore* store)
     store->cap = 0;
     store->applied_generation = 0;
 }
+
+/* --- session checkpoint (replay/replay_checkpoint.h) --------------------- */
+
+#include "replay/replay_checkpoint_util.h"
+
+void
+UIIfIntStore_CheckpointCopy(
+    struct UIIfIntStore* dst,
+    struct UIIfIntStore const* src)
+{
+    assert(dst);
+    assert(src);
+    *dst = *src;
+    dst->entries = Ckpt_Dup(ToriMem_Ui(), src->entries, (size_t)src->cap * sizeof(src->entries[0]));
+}
+
+int
+UIIfIntStore_CheckpointEqual(
+    struct UIIfIntStore const* a,
+    struct UIIfIntStore const* b,
+    char* why,
+    int why_cap)
+{
+    assert(a);
+    assert(b);
+    CKPT_EQ_INT(a, b, count, why, why_cap);
+    for( int i = 0; i < a->count; i++ )
+        if( a->entries[i].com_id != b->entries[i].com_id || a->entries[i].value != b->entries[i].value )
+        {
+            Ckpt_Why(why, why_cap, "entry %d (com 0x%08x)", i, (unsigned)a->entries[i].com_id);
+            return 0;
+        }
+    return 1;
+}
+
+void
+UIIfTextStore_CheckpointCopy(
+    struct UIIfTextStore* dst,
+    struct UIIfTextStore const* src)
+{
+    assert(dst);
+    assert(src);
+    *dst = *src;
+    dst->entries = Ckpt_Dup(ToriMem_Ui(), src->entries, (size_t)src->cap * sizeof(src->entries[0]));
+    for( int i = 0; i < src->count; i++ )
+        dst->entries[i].text = Ckpt_StrDup(ToriMem_Ui(), src->entries[i].text);
+}
+
+int
+UIIfTextStore_CheckpointEqual(
+    struct UIIfTextStore const* a,
+    struct UIIfTextStore const* b,
+    char* why,
+    int why_cap)
+{
+    assert(a);
+    assert(b);
+    CKPT_EQ_INT(a, b, count, why, why_cap);
+    for( int i = 0; i < a->count; i++ )
+        if( a->entries[i].com_id != b->entries[i].com_id ||
+            !Ckpt_StrEq(a->entries[i].text, b->entries[i].text) )
+        {
+            Ckpt_Why(why, why_cap, "entry %d (com 0x%08x)", i, (unsigned)a->entries[i].com_id);
+            return 0;
+        }
+    return 1;
+}
+
+size_t
+UIIfTextStore_CheckpointBytes(struct UIIfTextStore const* store)
+{
+    size_t bytes;
+
+    assert(store);
+    bytes = (size_t)store->cap * sizeof(store->entries[0]);
+    for( int i = 0; i < store->count; i++ )
+        bytes += store->entries[i].text ? strlen(store->entries[i].text) + 1u : 0u;
+    return bytes;
+}

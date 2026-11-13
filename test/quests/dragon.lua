@@ -4,6 +4,9 @@
 -- Written as a 4-leg relay (docs/quest_authoring/relay.md): leg 1 = guide steps 1-11
 -- (startQuest .. optionsForLozarPiece), leg 2 = 12-22, leg 3 = 23-33, leg 4 = 34-44.
 --
+-- Rebuilt 2026-11-12 on RSProx index 4555..4559 (rev 242, the whole quest): every page,
+-- menu and stage below is the recording's (docs/rsprox-analysis/quests/dragon_slayer_i.md).
+--
 -- Door rule (docs/QUEST_ORCHESTRATOR.md, owner 2026-10-03; re-driven b62): a goto only hops
 -- between open tiles outside. Every closed space is entered and left by its own door, stair,
 -- ladder or gangplank, on every visit:
@@ -123,6 +126,19 @@ local function dragon_helpers(t)
             at = { 3047, 3205, 0 }, loc_level = H.raw_level("dragonshipgangplank_on", 3047, 3205),
             dest = { 3047, 3207, 1 }, slack = 1 })
     end
+    -- A box a click opens a tick or two later (a loc op's arrival delay, a p_delay before
+    -- the page): wait for it before reading it, never read an empty chatbox.
+    function H.await_box(name, kind, want, ticks)
+        local r, d = t.await({
+            level = function()
+                if t.chat.kind() ~= kind then return false end
+                local _, txt = t.chat.text()
+                return tostring(txt):find(want, 1, true) ~= nil
+            end,
+            note = name .. ": " .. kind .. " '" .. want .. "'",
+        }, ticks or 8)
+        t.check(name, r == "ok", tostring(r) .. " " .. tostring(d))
+    end
     return H
 end
 
@@ -146,18 +162,21 @@ return {
     },
     bind = {
         varp = "varp176_dragonquest",
+        -- Jagex's own stages (RSProx index 4556, 4558; quest_dragon.constant).
         constants = {
             complete = 10,
             not_started = 0,
-            spoken_to_guildmaster = 1,
+            started = 1,
             spoken_to_oziach = 2,
             bought_ship = 3,
-            repaired_ship = 7,
-            ned_given_map = 8,
+            repaired_ship = 6,
+            ned_given_map = 7,
+            crashed = 8,
+            elvarg_slain = 9,
         },
         row = "quest_dragonslayer1",
         display = "Dragon Slayer I", -- the questlist row text (quest_dragonslayer1 displayname)
-        journal_title = "Dragon Slayer", -- dragon_journal.rs2:34 own title
+        journal_title = "Dragon Slayer I", -- RSProx index 4556 [233]: questjournal:title
         points = 2,
     },
 
@@ -170,111 +189,135 @@ return {
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
         t.exec("equip-scimitar", t.player.equip, "rune_scimitar")
 
-        -- startQuest: Guildmaster, "Do you know where I could get a Rune Plate mail body?"
-        -- The fixture's tile (3206,3233) is open Lumbridge (reach.py: REACH 31 to 3222,3218).
+        -- startQuest: the Guildmaster's offer and the start menu (RSProx index 4556
+        -- [139]..[173]). The fixture's tile (3206,3233) is open Lumbridge (reach.py: REACH 31
+        -- to 3222,3218).
         H.guild_in("startQuest")
         t.exec("startQuest", t.player.talk_to, "guildmaster", 1)
         t.exec("startQuest-dialog", t.chat.play, {
             "npc:Greetings!",
-            "choose:Do you know where I could get a Rune Plate mail body?",
-            "player:Do you know where I could get a Rune Plate mail body?",
-            "npc:I have a friend called Oziach",
+            "options",
+            "choose:Can I have a quest?",
+            "player:Can I have a quest?",
+            "npc:Aha!",
+            "npc:Yes! A mighty and perilous quest",
+            "options",
+            "choose:Yes.",
+            "player:So, what is this quest?",
+            "npc:You'll have to speak to Oziach",
             "npc:Oziach lives in a hut",
         })
-        t.expect("quest.stage.spoken_to_guildmaster", t.quest.expect_stage("spoken_to_guildmaster"))
+        t.expect("quest.stage.started", t.quest.expect_stage("started"))
+        t.expect("startQuest.line", t.msg.expect("You've started a new quest"))
 
         -- talkToOziach
         H.guild_out("talkToOziach")
         H.oziach_in("talkToOziach")
         t.exec("talkToOziach", t.player.talk_to, "oziach", 1)
+        -- RSProx index 4556 [364]..[417]: the quest given; the stage and the five
+        -- dragonslayer_instructions_* varbits on the click of "But how can I defeat the dragon?".
         t.exec("talkToOziach-dialog", t.chat.play, {
-            "npc:Aye, 'tis a fair day my friend",
-            "choose:Can you sell me some Rune plate mail?",
-            "player:Can you sell me some Rune plate mail?",
-            "npc:So, how does thee know",
-            "choose:The guildmaster of the Champions' Guild told me.",
-            "player:The guildmaster of the Champions' Guild told me.",
-            "npc:Well if you're worthy",
-            "npc:He has been known",
-            "npc:I don't want just any old",
-            "npc:This is armour fit for a hero",
-            "choose:So how am I meant to prove that?",
-            "player:So how am I meant to prove that?",
-            "npc:Well if you want to prove yourself",
-            "choose:A dragon, that sounds like fun!",
+            "npc:Aye, 'tis a fair day my friend.",
+            "options",
+            "choose:Can you sell me a rune platebody?",
+            "player:Can you sell me a rune platebody?",
+            "npc:So, how does thee know I 'ave some?",
+            "options",
+            "choose:The Guildmaster of the Champions' Guild told me.",
+            "player:The Guildmaster of the Champions' Guild told me.",
+            "npc:Yes, I suppose he would",
+            "npc:Well, I'm not going to let just anyone",
+            "options",
+            "choose:I thought you were going to give me a quest.",
+            "player:I thought you were going to give me a quest.",
+            "npc:*Sigh*",
+            "npc:All right, I'll give ye a quest.",
+            "npc:Slay the dragon of Crandor!",
+            "options",
+            "choose:A dragon, that sounds like fun.",
             "player:A dragon, that sounds like fun!",
-            "npc:Elvarg really is",
-            "npc:Her breath is the main thing",
-            "npc:It won't totally protect you",
-            "choose:Where can I get an antidragon shield?",
-            "player:Where can I get an antidragon shield?",
-            "npc:I believe the Duke of Lumbridge",
-            "choose:So where can I find this dragon?",
-            "player:So where can I find this dragon?",
-            "npc:That is a problem too",
-            "npc:There was a map",
-            "npc:You'll also struggle",
-            "choose:Where is the second piece of the map?",
-            "player:Where is the second piece of the map?",
-            "npc:You will need to talk to the oracle",
-            "choose:Where is the third piece of the map?",
-            "player:Where is the third piece of the map?",
-            "npc:That was stolen by one of the goblins",
-            "choose:Where is the first piece of the map?",
-            "player:Where is the first piece of the map?",
-            "npc:Deep in a strange building",
-            "npc:You will need this to get in",
-            "mesbox:Oziach hands you a key.",
-            "choose:Ok I'll try and get everything together.",
-            "player:Ok I'll try and get everything together.",
-            "npc:Fare ye well.",
+            "npc:Hah, yes, you are a typical reckless adventurer",
+            "player:But how can I defeat the dragon?",
+            "npc:Go talk to the Guildmaster in the Champions' Guild.",
         })
         t.expect("quest.stage.spoken_to_oziach", t.quest.expect_stage("spoken_to_oziach"))
-        t.check("melzarkey-from-oziach", select(2, t.inv.count("melzarkey")) == 1, "melzarkey count " .. tostring(select(2, t.inv.count("melzarkey"))))
+        t.check("oziach-instructions", select(2, t.var.varbit("varb3742_dragonslayer_instructions_melzar")) == 1
+            and select(2, t.var.varbit("varb3746_dragonslayer_instructions_shield")) == 1,
+            "instructions_melzar=" .. tostring(select(2, t.var.varbit("varb3742_dragonslayer_instructions_melzar")))
+            .. " instructions_shield=" .. tostring(select(2, t.var.varbit("varb3746_dragonslayer_instructions_shield"))))
 
 
-        -- returnToGuildmaster / askAbout*: the guide asks him every question after Oziach
-        -- (guild_master.rs2 guild_master_about_my_quest, seam31).
+        -- returnToGuildmaster: "I talked to Oziach...", the story of Crandor and every topic
+        -- (RSProx index 4556 [462]..[598]: the menus drop the topic just answered).
         H.oziach_out("returnToGuildmaster")
         H.guild_in("returnToGuildmaster")
         t.exec("returnToGuildmaster", t.player.talk_to, "guildmaster", 1)
         t.exec("returnToGuildmaster-dialog", t.chat.play, {
             "npc:Greetings!",
             "options",
-            "choose:About my quest to kill the dragon...",
-            "player:About my quest to kill the dragon...",
+            "choose:I talked to Oziach...",
+            "player:I talked to Oziach and he gave me a quest.",
+            "npc:Oh? What did he tell you to do?",
+            "player:Defeat the dragon of Crandor.",
+            "npc:The dragon of Crandor?",
+            "player:Um, yes...",
+            "npc:Goodness, he hasn't given you an easy job",
+            "player:What's so special about this dragon?",
+            "npc:Thirty years ago",
+            "npc:One of their adventurers went too far",
+            "npc:He must have fought valiantly",
+            "npc:but the dragon still won the fight.",
+            "npc:Some refugees managed to escape",
+            "npc:Out of all the people of Crandor",
+            "npc:If you're serious about taking on Elvarg",
+            "player:So I just sail over there?",
+            "npc:If only that were true.",
+            "npc:And then of course there's the dragon herself.",
+            "options",
+            "choose:Where can I find a map to Crandor?",
+            "player:Where can I find a map to Crandor?",
+            "npc:After what happened",
+            "npc:However, the three apparently split the map",
+            "options",
+            "choose:Where is Melzar's map piece?",
+            "player:Where is Melzar's map piece?",
+            "npc:Melzar built a castle",
+            "npc:The inside of his castle is like a maze",
+            "npc:Adventurers sometimes go in there",
         })
-        t.exec("returnToGuildmaster-brief", t.chat.drain, { stop_at = "options" })
-        t.exec("askAboutShip", t.chat.choose, "Where can I find the right ship?")
-        t.exec("askAboutShip-pages", t.chat.drain, {})
-        t.exec("askAboutShield", t.player.talk_to, "guildmaster", 1)
-        t.exec("askAboutShield-menu", t.chat.play, { "npc:Greetings!", "options", "choose:About my quest to kill the dragon...", "player:About my quest" })
-        t.exec("askAboutShield-brief", t.chat.drain, { stop_at = "options" })
-        t.exec("askAboutShield-choose", t.chat.choose, "How can I protect myself from the dragon's breath?")
-        t.exec("askAboutShield-pages", t.chat.drain, {})
-        t.exec("askAboutMelzar", t.player.talk_to, "guildmaster", 1)
-        t.exec("askAboutMelzar-menu", t.chat.play, { "npc:Greetings!", "options", "choose:About my quest to kill the dragon...", "player:About my quest" })
-        t.exec("askAboutMelzar-brief", t.chat.drain, { stop_at = "options" })
-        t.exec("askAboutMelzar-route", t.chat.choose, "How can I find the route to Crandor?")
-        t.exec("askAboutMelzar-route-pages", t.chat.drain, { stop_at = "options" })
-        t.exec("askAboutMelzar-choose", t.chat.choose, "Where is Melzar's map piece?")
-        t.exec("askAboutMelzar-pages", t.chat.drain, {})
-        t.exec("askAboutThalzar", t.player.talk_to, "guildmaster", 1)
-        t.exec("askAboutThalzar-menu", t.chat.play, { "npc:Greetings!", "options", "choose:About my quest to kill the dragon...", "player:About my quest" })
-        t.exec("askAboutThalzar-brief", t.chat.drain, { stop_at = "options" })
-        t.exec("askAboutThalzar-route", t.chat.choose, "How can I find the route to Crandor?")
-        t.exec("askAboutThalzar-route-pages", t.chat.drain, { stop_at = "options" })
-        t.exec("askAboutThalzar-choose", t.chat.choose, "Where is Thalzar's map piece?")
-        t.exec("askAboutThalzar-pages", t.chat.drain, {})
-        t.exec("askAboutLozar", t.player.talk_to, "guildmaster", 1)
-        t.exec("askAboutLozar-menu", t.chat.play, { "npc:Greetings!", "options", "choose:About my quest to kill the dragon...", "player:About my quest" })
-        t.exec("askAboutLozar-brief", t.chat.drain, { stop_at = "options" })
-        t.exec("askAboutLozar-route", t.chat.choose, "How can I find the route to Crandor?")
-        t.exec("askAboutLozar-route-pages", t.chat.drain, { stop_at = "options" })
-        t.exec("askAboutLozar-choose", t.chat.choose, "Where is Lozar's map piece?")
-        t.exec("askAboutLozar-pages", t.chat.drain, {})
-        t.check("askAbout-flags", select(2, t.var.server("varp6416_dragon_oracle")) >= 1 and select(2, t.var.server("varp6414_dragon_goblin")) == 1 and select(2, t.var.server("varp6417_dragon_shield")) == 1,
-            "dragon_oracle=" .. tostring(select(2, t.var.server("varp6416_dragon_oracle"))) .. " dragon_goblin=" .. tostring(select(2, t.var.server("varp6414_dragon_goblin"))) .. " dragon_shield=" .. tostring(select(2, t.var.server("varp6417_dragon_shield"))))
+        H.await_box("askAboutMelzar.keyBox", "objbox", "The Guildmaster hands you a key.", 6)
+        t.exec("askAboutMelzar.key", t.chat.continue_, true)
+        t.check("melzarkey-from-guildmaster", t.inv.await("melzarkey", 1, 5), "melzarkey count " .. tostring(select(2, t.inv.count("melzarkey"))))
+        t.exec("askAboutThalzar", t.chat.play, {
+            "options",
+            "choose:Where is Thalzar's map piece?",
+            "player:Where is Thalzar's map piece?",
+            "npc:Thalzar was the most paranoid",
+            "npc:I don't think you'd be able to find out",
+            "options",
+            "choose:Where is Lozar's map piece?",
+            "player:Where is Lozar's map piece?",
+            "npc:A few weeks ago",
+            "npc:Unfortunately, goblin raiders killed her",
+            "options",
+            "choose:What kind of ship do I need?",
+            "player:What kind of ship do I need?",
+            "npc:Quite a specific one",
+            "npc:If there's still one in existence",
+            "options",
+            "choose:How can I protect myself from the dragon's breath?",
+            "player:How can I protect myself from the dragon's breath?",
+            "npc:That part shouldn't be too difficult",
+            "options",
+            "choose:Okay, I'll get going!",
+            "player:Okay, I'll get going!",
+        })
+        t.check("askAbout-flags", select(2, t.var.varbit("varb18306_dragonslayer_champion_explained_elvarg")) == 1
+            and select(2, t.var.varbit("varb3742_dragonslayer_instructions_melzar")) == 0
+            and select(2, t.var.varbit("varb3746_dragonslayer_instructions_shield")) == 0,
+            "champion_explained=" .. tostring(select(2, t.var.varbit("varb18306_dragonslayer_champion_explained_elvarg")))
+            .. " instructions_melzar=" .. tostring(select(2, t.var.varbit("varb3742_dragonslayer_instructions_melzar")))
+            .. " instructions_shield=" .. tostring(select(2, t.var.varbit("varb3746_dragonslayer_instructions_shield"))))
 
         -- talkToOracle: on top of Ice Mountain, open ground (reach.py from the guild door: REACH 329)
         H.guild_out("talkToOracle")
@@ -287,7 +330,8 @@ return {
             "npc:The map's behind a door below",
             "npc:First, a drink used by a mage",
         })
-        t.check("oracle-varp", select(2, t.var.server("varp6416_dragon_oracle")) == 2, "dragon_oracle=" .. tostring(select(2, t.var.server("varp6416_dragon_oracle"))) .. " (has_spoken_to_oracle)")
+        t.check("oracle-secret-told", select(2, t.var.varbit("varb1832_dragonslayer_secret_told")) == 1,
+            "secret_told=" .. tostring(select(2, t.var.varbit("varb1832_dragonslayer_secret_told"))))
 
         -- goIntoDwarvenMine: the trapdoor in the dwarven camp. 3019,3450 is the trapdoor's own
         -- (solid) tile; 3018,3450 is its maplink src (maplink.dbrow maplink_0_47_53_10_58_down ->
@@ -305,17 +349,31 @@ return {
         t.exec("useSilkOnDoor", t.player.use_on, "silk", magic_door)
         t.exec("usePotOnDoor", t.player.use_on, "lobster_pot", magic_door)
         t.exec("useUnfiredBowlOnDoor", t.player.use_on, "bowl_unfired", magic_door)
-        t.check("door-shut-after-three", select(2, t.var.server("varp6416_dragon_oracle")) == 2, "dragon_oracle=" .. tostring(select(2, t.var.server("varp6416_dragon_oracle"))) .. " dragon_door_items=" .. tostring(select(2, t.var.server("varp7865_dragon_door_items"))))
+        t.check("door-three-in", select(2, t.var.varbit("varb3747_dragonslayer_used_silk")) == 1
+            and select(2, t.var.varbit("varb3750_dragonslayer_used_wizards_mind_bomb")) == 0,
+            "used_silk=" .. tostring(select(2, t.var.varbit("varb3747_dragonslayer_used_silk")))
+            .. " used_mind_bomb=" .. tostring(select(2, t.var.varbit("varb3750_dragonslayer_used_wizards_mind_bomb"))))
         t.exec("useMindBombOnDoor", t.player.use_on, "wizards_mind_bomb", magic_door)
-        t.exec("door-opens", t.var.await_server, "varp6416_dragon_oracle", 3, 8)
-        t.ticks(3)
+        -- RSProx index 4558 [3829]..[3836]: "The door opens...", the player through seven ticks on.
+        t.exec("door-opens", t.msg.await, "The door opens...", 4)
+        t.ticks(10)
         t.check("door-consumed-items", select(2, t.inv.count("silk")) == 0 and select(2, t.inv.count("wizards_mind_bomb")) == 0 and select(2, t.inv.count("lobster_pot")) == 0 and select(2, t.inv.count("bowl_unfired")) == 0 and select(2, t.world.tile()).x >= 3050, "silk=" .. tostring(select(2, t.inv.count("silk"))) .. " mind_bomb=" .. tostring(select(2, t.inv.count("wizards_mind_bomb"))) .. " tile " .. tostring(select(2, t.world.tile()).x) .. "," .. tostring(select(2, t.world.tile()).z))
 
         -- searchThalzarChest
+        -- RSProx index 4558 [3844]..[3870]: the inscription, the chest opens, the search.
         t.exec("searchThalzarChest-open", t.player.click_loc, "oraclechestshut", 1)
+        H.await_box("searchThalzarChest-box", "mesbox", "inscription on the lid", 8)
+        t.exec("searchThalzarChest-inscription", t.chat.play, {
+            "mesbox:As you open the chest, you notice an inscription on the lid:",
+            "mesbox:Here I rest the map to my beloved home.",
+            "mesbox:This map leads to the lair of the beast",
+            "mesbox:I cannot stop you from taking this map piece now",
+        })
         t.ticks(2)
         t.exec("searchThalzarChest", t.player.click_loc, "oraclechestopen", 1)
+        H.await_box("searchThalzarChest-objbox", "objbox", "You find a map piece in the chest.", 8)
         t.exec("mappart3-page", t.chat.continue_, true)
+        t.ticks(2)
         t.check("mappart3-from-chest", t.inv.await("mappart3", 1, 5), "mappart3 count " .. tostring(select(2, t.inv.count("mappart3"))))
 
         -- optionsForLozarPiece: Wormbrain, Port Sarim jail: pay the 10,000 (guide item telegrabOrTenK).
@@ -328,19 +386,24 @@ return {
         H.jail_in("optionsForLozarPiece")
         t.exec("optionsForLozarPiece.toCellBars", t.player.walk_route, { { 3011, 3192 }, { 3011, 3189 } }, { level = 0 })
         t.exec("optionsForLozarPiece", t.player.talk_to, "wormbrain", 1)
+        -- RSProx index 4558 [842]..[864]
         t.exec("optionsForLozarPiece-dialog", t.chat.play, {
+            "npc:Whut you want?",
             "options",
             "choose:I believe you've got a piece of map that I need.",
-            "player:I believe you've got a piece of map that I need.",
+            "player:I believe you've got piece of a map that I need.",
             "npc:So? Why should I be giving it to you",
+            "options",
             "choose:I suppose I could pay you for the map piece...",
             "player:I suppose I could pay you for the map piece",
             "npc:Me not stoopid",
+            "options",
             "choose:Alright then, 10,000 it is.",
             "player:Alright then, 10,000 coins it is.",
-            "mesbox:You buy the map piece from Wormbrain.",
-            "npc:Fank you very much",
         })
+        H.await_box("optionsForLozarPiece-box", "objbox", "You buy the map piece from Wormbrain.", 6)
+        t.exec("optionsForLozarPiece-bought", t.chat.continue_, true)
+        t.exec("optionsForLozarPiece-thanks", t.chat.play, { "npc:Fank you very much" })
         t.check("mappart2-from-wormbrain", t.inv.await("mappart2", 1, 5), "mappart2 count " .. tostring(select(2, t.inv.count("mappart2"))))
         local cell_r, cell_tile = t.world.tile()
         t.check("optionsForLozarPiece.outsideCell", cell_r == "ok" and cell_tile.x <= 3011,
@@ -474,7 +537,9 @@ return {
         t.exec("openMelzarChest", t.player.click_loc, "funchestshut", 1)
         t.ticks(2)
         t.exec("openMelzarChest-search", t.player.click_loc, "funchestopen", 1)
+        H.await_box("openMelzarChest-objbox", "objbox", "You find a map piece in the chest.", 8)
         t.exec("mappart1-page", t.chat.continue_, true)
+        t.ticks(2)
         t.check("mappart1-from-chest", t.inv.await("mappart1", 1, 5), "mappart1 count " .. tostring(select(2, t.inv.count("mappart1"))))
 
         -- getShield: Duke Horacio, first floor of Lumbridge castle. Out of the basement by
@@ -490,13 +555,46 @@ return {
         t.exec("getShield.dukeDoorIn", t.player.pass_door, { closed = "elfdoor", open = "elfdooropen",
             at = { 3207, 3222, 1 }, near = { 3207, 3222 }, far = { 3209, 3221 },
             far_ok = function(tt) return tt.x >= 3208 end, far_desc = "in the Duke's room, x >= 3208" })
-        t.exec("getShield", t.player.talk_to, "duke_of_lumbridge", 1)
+        -- The Duke wanders his room and can stand where the press reads "I can't reach that!";
+        -- one more press after he has moved on.
+        local duke_r = t.player.talk_to("duke_of_lumbridge", 1)
+        local duke_tries = 1
+        while duke_r ~= "ok" and duke_tries < 4 do
+            t.ticks(8)
+            t.player.walk_route({ { 3210, 3221 } }, { level = 1 })
+            duke_r = t.player.talk_to("duke_of_lumbridge", 1)
+            duke_tries = duke_tries + 1
+        end
+        t.check("getShield", duke_r == "ok", "talk_to duke_of_lumbridge -> " .. tostring(duke_r) .. " after " .. duke_tries .. " press(es)")
+        -- RSProx index 4556 [829]..[853]
         t.exec("getShield-dialog", t.chat.play, {
             "npc:Greetings. Welcome to my castle.",
-            "choose:I seek a shield that will protect me from the dragon's breath.",
-            "player:I seek a shield that will protect me",
+            "options",
+            "choose:I seek a shield that will protect me from dragonbreath.",
+            "player:I seek a shield that will protect me from dragonbreath.",
             "npc:A knight going on a dragon quest",
-            "mesbox:The Duke hands you a shield.",
+            "options",
+            "choose:Elvarg, the dragon of Crandor island!",
+            "player:Elvarg, the dragon of Crandor island!",
+            "npc:Elvarg? Are you sure?",
+            "options",
+            "choose:Yes",
+            "player:Yes!",
+            "npc:Well, you're braver than I!",
+            "player:Why is everyone so scared of this dragon?",
+            "npc:Back in my father's day",
+            "npc:But, one day when I was little",
+            "npc:I remember my father being very scared.",
+            "options",
+            "choose:So, are you going to give me the shield or not?",
+            "player:So, are you going to give me the shield or not?",
+            "npc:If you really think you're up to it",
+        })
+        H.await_box("getShield-box", "objbox", "heavy orange shield", 6)
+        t.exec("getShield-objbox", t.chat.continue_, true)
+        t.exec("getShield-farewell", t.chat.play, {
+            "npc:Take care out there. If you kill it...",
+            "npc:If you kill it, for Saradomin's sake",
         })
         t.check("shield-from-duke", t.inv.await("antidragonbreathshield", 1, 5), "shield count " .. tostring(select(2, t.inv.count("antidragonbreathshield"))))
 
@@ -513,16 +611,23 @@ return {
             { { 3207, 3227 }, { 3214, 3226 }, { 3215, 3219 }, { 3222, 3218 } }, { level = 0 })
         t.exec("goto-talkToKlarense", t.player.goto_tile, 3044, 3203, 0)
         t.exec("talkToKlarense", t.player.talk_to, "klarense", 1)
+        -- RSProx index 4556 [1156]..[1228]
         t.exec("talkToKlarense-dialog", t.chat.play, {
-            "npc:You're interested in a trip on the Lady Lumbridge",
+            "npc:Hello there! Interested in buying this fine ship?",
+            "player:A much better price? What's the catch?",
+            "npc:Well, she's not quite seaworthy right now...",
+            "player:Not seaworthy? Why would I want to buy her then?",
+            "npc:Because this isn't just any ship!",
+            "player:Except she's not seaworthy...",
+            "npc:No, but a bit of work will quickly sort that out!",
             "options",
-            "choose:I don't suppose I could buy it?",
-            "player:I don't suppose I could buy it?",
-            "npc:I guess you could",
-            "npc:I'll even throw in",
+            "choose:I'd like to buy her.",
+            "player:I'd like to buy her.",
+            "npc:Of course! How does 2,000 coins sound?",
+            "options",
             "choose:Yep, sounds good.",
             "player:Yep, sounds good.",
-            "npc:Okey dokey",
+            "npc:Okey-dokey! She's all yours!",
         })
         t.expect("quest.stage.bought_ship", t.quest.expect_stage("bought_ship"))
         t.check("ship-cost-2000", select(2, t.inv.count("coins")) == 1000, "coins " .. tostring(select(2, t.inv.count("coins"))))
@@ -545,22 +650,28 @@ return {
         local hull_result, hull_tile = t.world.tile()
         t.check("in-ship-hull", hull_tile.z > 9000, "tile " .. tostring(hull_tile.x) .. "," .. tostring(hull_tile.z))
 
-        -- repairShip x3: planks on the hole (30 nails + hammer each)
-        local ship_hole = t.player.by_symbol("loc", "shiphole")
-        t.exec("repairShip", t.player.use_on, "woodplank", ship_hole)
-        t.exec("repairShip-page", t.chat.continue_, true)
-        t.exec("repairShip2", t.player.use_on, "woodplank", ship_hole)
-        t.exec("repairShip2-page", t.chat.continue_, true)
-        t.exec("repairShip3", t.player.use_on, "woodplank", ship_hole)
-        t.exec("repairShip3-page", t.chat.continue_, true)
+        -- repairShip x3: the hole's Repair op (RSProx index 4558 [4358]..[4375]: a plank and
+        -- 30 nails each, one hull varbit each, the stage with the third).
+        t.exec("repairShip", t.player.click_loc, "dragonslayer_shiphole", 1)
+        H.await_box("repairShip-box", "mesbox", "you still need more planks", 8)
+        t.exec("repairShip-page", t.chat.play, { "mesbox:You nail a plank over the hole, but you still need more planks" })
+        t.exec("repairShip2", t.player.click_loc, "dragonslayer_shiphole", 1)
+        H.await_box("repairShip2-box", "mesbox", "you still need one more plank", 8)
+        t.exec("repairShip2-page", t.chat.play, { "mesbox:You nail a plank over the hole, but you still need one more plank" })
+        t.exec("repairShip3", t.player.click_loc, "dragonslayer_shiphole", 1)
+        H.await_box("repairShip3-box", "mesbox", "You nail a final plank", 8)
+        t.exec("repairShip3-page", t.chat.play, { "mesbox:You nail a final plank over the hole." })
         t.expect("quest.stage.repaired_ship", t.quest.expect_stage("repaired_ship"))
+        t.check("hull-fullyfixed", select(2, t.var.varbit("varb1837_dragonslayer_ship_fullyfixed")) == 1,
+            "ship_fullyfixed=" .. tostring(select(2, t.var.varbit("varb1837_dragonslayer_ship_fullyfixed"))))
         t.check("repair-consumed", select(2, t.inv.count("nails")) == 0 and select(2, t.inv.count("woodplank")) == 0, "nails " .. tostring(select(2, t.inv.count("nails"))) .. " planks " .. tostring(select(2, t.inv.count("woodplank"))))
 
         -- repairMap: the three pieces together
         t.exec("repairMap", t.player.use_item_on_item, "mappart1", "mappart2")
+        H.await_box("repairMap-box", "objbox", "You put the three pieces together", 8)
         -- read, not photographed: the frame after this page is byte-identical to repairShip3-page's (the hull view does not repaint)
         local map_page_result = t.chat.continue_(true)
-        t.expect("repairMap-page", map_page_result, "continue_ on the map-joined mesbox -> " .. tostring(map_page_result))
+        t.expect("repairMap-page", map_page_result, "continue_ on the map-joined object box -> " .. tostring(map_page_result))
         t.check("dragonmap-made", t.inv.await("dragonmap", 1, 5), "dragonmap " .. tostring(select(2, t.inv.count("dragonmap"))))
         local p1, p2, p3 = select(2, t.inv.count("mappart1")), select(2, t.inv.count("mappart2")), select(2, t.inv.count("mappart3"))
         t.check("repairMap.piecesUsed", p1 == 0 and p2 == 0 and p3 == 0,
@@ -570,100 +681,168 @@ return {
         -- (lady_lumbridge.rs2 [oploc1,dragonshipladder] -> 3047,3207,1), off by the gangplank
         -- ([oploc1,dragonshipgangplank_off] -> 3047,3204,0), then Draynor is open ground
         -- (reach.py 3047,3204 -> 3102,3258: REACH 199).
-        local hull_level = select(2, t.world.level())
+        -- One hull at level 1; up to 3048,3208,1 (RSProx index 4558 [4382]).
         t.exec("talkToNed.hullLadderUp", t.player.climb, { loc = "dragonshipladder", op = 1, op_name = "Climb-up",
-            at = { 3049, 9640, hull_level }, -- the hull has a copy per plane 1-3; this one is the player's
-            dest = { 3047, 3207, 1 }, slack = 1 })
+            at = { 3049, 9640, 1 }, dest = { 3048, 3208, 1 }, slack = 1 })
         t.exec("talkToNed.gangplankOff", t.player.climb, { loc = "dragonshipgangplank_off", op = 1, op_name = "Cross",
             at = { 3047, 3206, 1 }, loc_level = H.raw_level("dragonshipgangplank_off", 3047, 3206),
             dest = { 3047, 3204, 0 }, slack = 1 })
         H.ned_in("talkToNed")
         t.exec("talkToNed", t.player.talk_to, "ned", 1)
+        -- RSProx index 4559 [113]..[133] and 4558 [4421]..[4429], the fresh fixture's first
+        -- meeting greeting aside ([wiki] "Why, hello there, lad...").
         t.exec("talkToNed-dialog", t.chat.play, {
-            "npc:Why hello there, me friends call me Ned",
+            "npc:Why, hello there",
             "options",
-            "choose:You're a sailor? Could you take me to the island of Crandor?",
-            "player:You're a sailor?",
-            "npc:Well, I was a sailor",
-            "mesbox:There is a wistfull look in Ned's eyes.",
-            "npc:I miss those days",
-            "player:As it happens I do have a ship ready to sail!",
-            "npc:That'd be grand",
-            "player:It's called Lady Lumbridge",
-            "npc:I'll meet you there then.",
-            "npc:Just show me the map",
-        })
-        t.check("ned-hired", select(2, t.var.server("varp6415_dragon_ned_hired")) == 1, "dragon_ned_hired=" .. tostring(select(2, t.var.server("varp6415_dragon_ned_hired"))))
-        local ned_target = t.player.by_symbol("npc", "ned")
-        t.exec("giveMapToNed", t.player.use_on, "dragonmap", ned_target)
-        t.exec("giveMapToNed-dialog", t.chat.play, {
-            "mesbox:You give the map to Ned.",
+            "choose:You're a sailor? Could you take me to Crandor?",
+            "player:You're a sailor? Could you take me to the island of Crandor?",
+            "npc:Well, I was a sailor.",
+            "npc:Sorry, where was it you said you wanted to go?",
+            "player:To the island of Crandor.",
+            "npc:Crandor?",
+            "npc:But... It would be a chance to sail a ship once more.",
+            "npc:Then again, no captain in his right mind",
+            "npc:Ah, you only live once! I'll do it!",
+            "npc:So, where's your ship?",
+            "player:It's the Lady Lumbridge, in Port Sarim.",
+            "npc:That old pile of junk?",
+            "player:I fixed her up!",
+            "npc:You did? Excellent!",
+            "npc:Just show me the map and we can get ready to go!",
             "player:Here you go.",
-            "npc:I'll meet you at the ship then.",
         })
+        H.await_box("giveMapToNed-box", "objbox", "You hand the map to Ned.", 6)
+        t.exec("giveMapToNed-objbox", t.chat.continue_, true)
+        t.exec("giveMapToNed-dialog", t.chat.play, { "npc:Excellent! I'll meet you at the ship, then." })
         t.expect("quest.stage.ned_given_map", t.quest.expect_stage("ned_given_map"))
         t.check("giveMapToNed.mapLeftPack", select(2, t.inv.count("dragonmap")) == 0,
-            "dragonmap after the use on Ned: " .. tostring(select(2, t.inv.count("dragonmap"))) .. " (want 0)")
+            "dragonmap after the hand-over: " .. tostring(select(2, t.inv.count("dragonmap"))) .. " (want 0)")
+        t.check("ned-varbits", select(2, t.var.varbit("varb3751_dragonslayer_asked_ned")) == 1
+            and select(2, t.var.varbit("varb3752_dragonslayer_ned_knows_ship_is_fixed")) == 1,
+            "asked_ned=" .. tostring(select(2, t.var.varbit("varb3751_dragonslayer_asked_ned")))
+            .. " ned_knows_ship_is_fixed=" .. tostring(select(2, t.var.varbit("varb3752_dragonslayer_ned_knows_ship_is_fixed"))))
 
         -- boardShipToGo
         H.ned_out("boardShipToGo")
         H.board("boardShipToGo")
         t.exec("talkToNedOnShip", t.player.talk_to, "dragonslayer_ned_on_ship", 1)
+        -- The voyage (RSProx index 4558 [4539]..[4695]): the pages come between scripted beats;
+        -- the four boxes with no continue are waited out, never clicked.
+        local sail_mark = t.cutscene.mark()
         t.exec("talkToNedOnShip-dialog", t.chat.play, {
-            "npc:Ah! There you are! Ready to go?",
+            "npc:Ah, it's good to be on board a ship again!",
             "options",
-            "choose:Yep lets go!",
-            "player:Yep lets go!",
-            "mesbox:You hear a loud crack",
-            "npc:Um... I think we're there.",
-            "player:Gee.. you think?",
+            "choose:Yes, let's go!",
+            "player:Yes, let's go!",
         })
-        t.check("sailed", select(2, t.var.server("varp7861_dragon_sailed")) == 1, "dragon_sailed=" .. tostring(select(2, t.var.server("varp7861_dragon_sailed"))))
+        local function await_page(name, kind, want, ticks)
+            local r, d = t.await({
+                level = function()
+                    if t.chat.kind() ~= kind then return false end
+                    local _, txt = t.chat.text()
+                    return tostring(txt):find(want, 1, true) ~= nil
+                end,
+                note = name .. ": " .. kind .. " '" .. want .. "'",
+            }, ticks)
+            t.check(name, r == "ok", tostring(r) .. " " .. tostring(d))
+        end
+        await_page("voyage.atSea", "npc", "salt spray", 40)
+        t.exec("voyage.deck", t.chat.play, {
+            "npc:Ah, it's good to feel the salt spray",
+            "npc:And this is a mighty fine ship.",
+            "player:How much longer until we reach Crandor?",
+            "npc:Not long now!",
+        })
+        await_page("voyage.storm", "npc", "storm coming up", 12)
+        t.exec("voyage.stormPages", t.chat.play, {
+            "npc:Looks like there's a storm coming up",
+            "npc:Oh, well. The weather had been so good",
+        })
+        await_page("voyage.sawThat", "player", "Did you see that?", 6)
+        t.exec("voyage.dragonPages", t.chat.play, {
+            "player:Did you see that?",
+            "npc:See what?",
+            "player:I thought I saw something up above us.",
+        })
+        await_page("voyage.fire", "npc", "It's the dragon!", 10)
+        t.exec("voyage.dragon", t.chat.play, { "npc:It's the dragon!" })
+        await_page("voyage.sink", "npc", "going to sink", 16)
+        t.exec("voyage.crash", t.chat.play, {
+            "npc:We're going to sink!",
+            "player:Look! Land ahead!",
+            "npc:We're going to crash!",
+        })
+        await_page("voyage.beach", "mesbox", "knocked unconscious", 10)
+        t.expect("quest.stage.crashed", t.quest.expect_stage("crashed"))
+        t.exec("voyage.beachPage", t.chat.play, { "mesbox:You are knocked unconscious" })
+        -- dragonslayer_ned.rs2 [label,ds_sail_first]: the first camera at sea ([4564]).
+        t.exec("voyage.cutscene", t.cutscene.await, "voyage", { since = sail_mark, timeout = 30, quiet = 10,
+            expect = { { op = "lookat", height = 25 }, { op = "moveto", height = 100 }, { op = "reset" } } })
         local crandor_result, crandor_tile = t.world.tile()
-        t.check("on-crandor", crandor_tile.x < 2900 and crandor_tile.x > 2800, "tile " .. tostring(crandor_tile.x) .. "," .. tostring(crandor_tile.z))
+        t.check("on-crandor", crandor_result == "ok" and crandor_tile.x == 2849 and crandor_tile.z == 3238,
+            "tile " .. H.tile_text() .. " (want the beach 2849,3238, RSProx index 4558 [4680])")
         t.exec("goto-enterCrandorHole", t.player.goto_tile, 2834, 3254, 0)
+        -- At stage 8 the way down shows Elvarg first (crandor.rs2, RSProx index 4558
+        -- [5033]..[5058]): the lair in a copy, the camera over it, the real cave after.
+        local lair_mark = t.cutscene.mark()
         t.exec("enterCrandorHole", t.player.click_loc, "dragon_slayer_qip_ruin_entrance", 1)
-        t.ticks(4)
+        t.exec("enterCrandorHole.cutscene", t.cutscene.await, "lair", { since = lair_mark, timeout = 40, quiet = 20, shots = "held",
+            expect = { { op = "lookat", height = 150 }, { op = "moveto", height = 475 }, { op = "reset" } } })
+        -- Never move on while the scene holds the player: wait until the real cave
+        -- (out of the copy, the lock released at O+21).
+        local cave_r, cave_d = t.await({
+            level = function()
+                local r, tt = t.world.tile()
+                return r == "ok" and tt.x < 6400 and tt.z > 9000
+            end,
+            note = "enterCrandorHole: the real cave after the scene",
+        }, 30)
+        t.check("enterCrandorHole.sceneOver", cave_r == "ok", tostring(cave_r) .. " " .. tostring(cave_d))
+        t.ticks(2)
         local hole_result, hole_tile = t.world.tile()
         t.check("in-crandor-cave", hole_tile.z > 9000, "tile " .. tostring(hole_tile.x) .. "," .. tostring(hole_tile.z) .. " level " .. tostring(select(2, t.world.level())))
         -- unlockShortcut: the secret wall opens only from the tile on its own row (door_procs.rs2 check_axis_locactive)
         t.exec("goto-unlockShortcut", t.player.goto_tile, 2836, 9600, 0)
         t.exec("unlockShortcut", t.player.click_loc, "dragonsecretdoor", 1)
         t.ticks(3)
-        t.check("unlockShortcut-wall", select(2, t.var.server("varp6418_dragon_wall")) == 1 and select(2, t.world.tile()).z <= 9599, "walked through to the Karamja side (z <= 9599); dragon_wall=" .. tostring(select(2, t.var.server("varp6418_dragon_wall"))) .. " tile " .. tostring(select(2, t.world.tile()).x) .. "," .. tostring(select(2, t.world.tile()).z))
-        t.exec("returnThroughShortcut", t.player.click_loc, "dragonsecretdoor", 1)
-        t.ticks(3)
-        t.check("returnThroughShortcut-tile", select(2, t.world.tile()).z >= 9600, "tile " .. tostring(select(2, t.world.tile()).x) .. "," .. tostring(select(2, t.world.tile()).z))
+        t.check("unlockShortcut-wall", select(2, t.var.varbit("varb3741_dragonslayer_crandor_found_secret_door")) == 1 and select(2, t.world.tile()).z <= 9599, "walked through to the Karamja side (z <= 9599); found_secret_door=" .. tostring(select(2, t.var.varbit("varb3741_dragonslayer_crandor_found_secret_door"))) .. " tile " .. tostring(select(2, t.world.tile()).x) .. "," .. tostring(select(2, t.world.tile()).z))
+        -- Back through from the Karamja side: one tile, a walk-through door (RSProx 4558 [5099]).
+        t.exec("returnThroughShortcut", t.player.cross_gate, { loc = "dragonsecretdoor", at = { 2836, 9600, 0 },
+            near = { 2836, 9599 }, far_ok = function(tt) return tt.z >= 9600 end,
+            far_desc = "back through the secret wall to Crandor's caves, z >= 9600" })
+        -- The shield goes on before the wall, as the recorder wore it: she hunts at 11
+        -- tiles and breathes on the climber at once (RSProx 4558 [5121]..[5123], "Your
+        -- shield absorbs most of the dragon fire.").
+        t.exec("killElvarg.shield", t.player.equip, "antidragonbreathshield")
+        t.check("killElvarg.shield-worn", select(2, t.inv.count("antidragonbreathshield")) == 0, "shield left the backpack: " .. tostring(select(2, t.inv.count("antidragonbreathshield"))) .. " remain")
         t.exec("goto-enterElvargArea", t.player.goto_tile, 2845, 9636, 0)
         t.exec("enterElvargArea", t.player.click_loc, "dragon_slayer_qip_stalagtite_jump", 1)
         t.ticks(4)
         local lair_tile = select(2, t.world.tile())
         t.check("enterElvargArea-tile", lair_tile.x == 2847, "climbed over the wall to " .. tostring(lair_tile.x) .. "," .. tostring(lair_tile.z))
 
-        -- killElvarg: shield worn (guide: Anti-dragon shield), lobsters carried, the rune scimitar is already worn
-        t.exec("killElvarg.shield", t.player.equip, "antidragonbreathshield")
-        t.check("killElvarg.shield-worn", select(2, t.inv.count("antidragonbreathshield")) == 0, "shield left the backpack: " .. tostring(select(2, t.inv.count("antidragonbreathshield"))) .. " remain")
-        local reward_snapshot_result, reward_snapshot = t.skill.snapshot()
         t.exec("killElvarg", t.player.attack, "elvarg_alive", 2, 30)
         H.fight_dead("killElvarg", 600, 60)
-        t.ticks(2)
-        t.expect("quest.stage.complete", t.quest.expect_stage("complete"))
-        t.quest.expect_complete()
-        t.expect("reward.strength_xp", t.skill.expect_gain("strength", 18650, reward_snapshot))
-        t.expect("reward.defence_xp", t.skill.expect_gain("defence", 18650, reward_snapshot))
+        -- RSProx index 4558 [5168]..[5194]: stage 9 six ticks after the kill, the head in the
+        -- pack at twenty-six, the line at sixteen.
+        t.exec("killElvarg.stage", t.var.await, "varp176_dragonquest", 9, 12)
+        t.check("killElvarg.head", t.inv.await("dragon_slayer_qip_elvargs_head", 1, 30),
+            "head count " .. tostring(select(2, t.inv.count("dragon_slayer_qip_elvargs_head"))))
+        t.expect("killElvarg.line", t.msg.expect("You cut off Elvarg's head as proof of your victory!"))
 
-        -- finishQuest: Oziach in Edgeville, walked out the way a player leaves after the kill.
-        -- The kill's queue puts the player on the cave side of the lair wall
-        -- (quest_dragon.rs2 [queue,dragon_complete] -> 2845,9636). South through Crandor's caves
-        -- to the secret wall (reach.py 2845,9636 -> 2836,9600: REACH closed-doors 45; waypoints
-        -- every ~7 tiles of its path), through it to the Karamja volcano's dungeon (crandor.rs2
+        -- finishQuest: Oziach in Edgeville, walked out the way a player leaves after the kill:
+        -- back over the lair's low wall, south through Crandor's caves to the secret wall
+        -- (reach.py 2845,9636 -> 2836,9600: REACH closed-doors 45; waypoints every ~7 tiles of
+        -- its path), through it to the Karamja volcano's dungeon (crandor.rs2
         -- [oploc1,dragonsecretdoor], unlocked above), on to climbing_rope2 (reach.py 2836,9599
         -- -> 2855,9569: REACH 53) and up it to the volcano rim (volcano.rs2 [oploc1,climbing_rope2]
         -- p_teleport(0_44_49_40_30) = 2856,3166; seam b62-seam1 scratch b62s1_crandor_ropes).
+        t.exec("goto-finishQuest.lairWall", t.player.goto_tile, 2847, 9635, 0)
+        t.exec("finishQuest.lairWall", t.player.click_loc, "dragon_slayer_qip_stalagtite_jump", 1)
+        t.ticks(4)
         local out_r, out_tile = t.world.tile()
-        t.check("finishQuest.afterKillTile", out_r == "ok" and out_tile.x == 2845 and out_tile.z == 9636
-            and out_tile.level == 0,
-            "after the kill: " .. H.tile_text() .. " (want 2845,9636,0, quest_dragon.rs2 [queue,dragon_complete])")
+        t.check("finishQuest.overWall", out_r == "ok" and out_tile.x <= 2845,
+            "over the lair wall to " .. H.tile_text() .. " (want x <= 2845)")
         t.exec("finishQuest.toSecretWall", t.player.walk_route, {
             { 2840, 9634 }, { 2840, 9627 }, { 2838, 9622 }, { 2838, 9615 }, { 2837, 9609 },
             { 2836, 9603 }, { 2836, 9600 },
@@ -721,10 +900,25 @@ return {
         -- Port Sarim pier -> Oziach's door is open ground (reach.py 3029,3217 -> 3070,3514:
         -- REACH closed-doors 344, margins 30 and 160).
         H.oziach_in("finishQuest")
+        local reward_snapshot_result, reward_snapshot = t.skill.snapshot()
+        -- RSProx index 4558 [5279]..[5310]: the stage and the scroll on the click of
+        -- "Yer a true hero...", the menu once the scroll is shut.
         t.exec("finishQuest", t.player.talk_to, "oziach", 1)
         t.exec("finishQuest-dialog", t.chat.play, {
-            "player:I have slain the dragon!",
-            "npc:Well done!",
+            "npc:Have ye slayed that dragon yet?",
+            "player:Yes, I have!",
+            "player:I have its head here.",
+            "npc:You actually did it?",
+            "npc:I underestimated ye, adventurer. I apologise.",
+            "npc:Yer a true hero, and I'd be happy to sell ye rune platebodies.",
+        })
+        t.ticks(2)
+        t.expect("quest.stage.complete", t.quest.expect_stage("complete"))
+        t.quest.expect_complete()
+        t.expect("reward.strength_xp", t.skill.expect_gain("strength", 18650, reward_snapshot))
+        t.expect("reward.defence_xp", t.skill.expect_gain("defence", 18650, reward_snapshot))
+        -- t.quest.expect_complete has read and shut the scroll; Oziach's menu follows.
+        t.exec("finishQuest-after", t.chat.play, {
             "options",
             "choose:Thank you.",
             "player:Thank you.",

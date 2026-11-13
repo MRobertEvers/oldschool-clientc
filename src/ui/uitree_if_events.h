@@ -149,5 +149,18 @@ UIIfEventTable_Effective(
     struct UIIfEventTable const* table,
     struct UITree const* tree,
     int com_id);
+/* --- session checkpoint (replay/replay_checkpoint.h) ---------------------
+ * Copy `src` into `dst`, which owns nothing, and compare two copies. */
+void
+UIIfEventTable_CheckpointCopy(
+    struct UIIfEventTable* dst,
+    struct UIIfEventTable const* src);
+
+int
+UIIfEventTable_CheckpointEqual(
+    struct UIIfEventTable const* a,
+    struct UIIfEventTable const* b,
+    char* why,
+    int why_cap);
 
 #endif /* SRC_UI_UITREE_IF_EVENTS_H */

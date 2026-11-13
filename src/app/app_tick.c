@@ -84,7 +84,10 @@ app_logic_tick(struct App* app)
     /* Rasterize inventory item icons that the server's inv packets left
      * unresolved (queued on the same serial pipeline, so it runs after the
      * packets that dirtied the slots). */
-    app_inv_icon_reconcile_tick(app);
+    /* Not while a replay seek holds the screen: the icons are polled for, so
+     * the frame that releases the hold bakes what is still unbaked then. */
+    if( !app->render_skip.hold )
+        app_inv_icon_reconcile_tick(app);
 
     /* And release a burst of the placeholders a clientscript asked for: the
      * settle it ran in drains the same runner, so this tick is the frame
@@ -319,7 +322,10 @@ app_logic_tick(struct App* app)
         /* A music request the player has accepted but no loader has picked up
          * yet becomes a task here, once. The player refuses to hand out the
          * same request twice, so this cannot pile up. */
-        if( app->provider && !app->audio.music_loading )
+        /* Not while there is no device (a replay seek takes it away): the
+         * request waits, and the track in force when the device returns is
+         * the one fetched and decoded. */
+        if( app->provider && !app->audio.music_loading && app->audio.device_present )
         {
             int song_id = -1;
             enum ToriRS_MusicSource source = TORIRS_MUSIC_SOURCE_TRACK;
@@ -363,6 +369,10 @@ app_logic_tick(struct App* app)
                 coord = (level << 28) | ((x & 0x3fff) << 14) | (z & 0x3fff);
             }
         }
+        /* A replay seek's chase withholds the world: the tile is the one the
+         * recording states for this tick (the REPLAY_COORD control frame). */
+        if( app->replay_chase_coord_valid )
+            coord = app->replay_chase_coord;
         app->host.local_coord = coord;
         /* LOCALPLAYER_GETUID, and the other half of every
          * ACTIVEPLAYER_GETUID = LOCALPLAYER_GETUID comparison a per-player

@@ -607,7 +607,7 @@ static const struct ToriRSServerMusicRegion k_ToriRSServer_MusicRegions[] = {
     { 11409,  365, 1009,   9, "Maze, The" },
     { 11412,  162,  23,  31, "Tribal Background" },
     { 11413,  336, 346,   7, "Dangerous Road" },
-    { 11414,   25,  20,  11, "Attack 2" },
+    { 11414,  336, 346,   7, "Dangerous Road" },
     { 11415,  549, 1338,  25, "Relics" },
     { 11416,  179,  24,   4, "Underground" },
     { 11417,   19,  20,   7, "Arabique" },
@@ -1047,6 +1047,7 @@ struct ToriRSServerMusicArea
 static const struct ToriRSServerMusicArea k_ToriRSServer_MusicAreas[] = {
     { 1376, 3817, 1388, 3829, 0, 3, {  5435,  624, 2065,  10, "Forsaken Tower, The" } },
     { 2688, 4864, 2751, 4927, 2, 2, { 10828,  379, 414,   9, "Throne of the Demon" } },
+    { 2847, 9628, 2863, 9646, 0, 0, { 11414,   25,  20,  11, "Attack 2" } },
 };
 
 static const int k_ToriRSServer_MusicAreaCount =

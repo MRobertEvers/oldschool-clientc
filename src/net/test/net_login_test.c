@@ -610,6 +610,105 @@ test_control_escape(void)
     printf("ok - control escape between packets, every chunk size (%d bytes)\n", total);
 }
 
+/*
+ * The replay's three control frames (TORIRS_CONTROL_REPLAY_*) as the replay
+ * transport stages them: each through the escape, read back by the same
+ * reader byte by byte, and decoded to what was encoded. A payload that does not
+ * match its own lengths does not decode.
+ */
+static void
+test_control_replay_frames(void)
+{
+    int32_t seed[4] = { 7, 8, 9, 10 };
+    struct GameProtoRevTable const* rev = GameProtoRev_OSRS241();
+    static uint8_t wire[4096];
+    uint8_t coord_payload[TORIRS_CONTROL_REPLAY_COORD_BYTES_MAX];
+    uint8_t world_payload[TORIRS_CONTROL_REPLAY_WORLD_BYTES];
+    static uint8_t chat_payload[TORIRS_CONTROL_REPLAY_CHAT_BYTES_MAX];
+    uint8_t const chat_text[5] = { 'h', 'e', 'l', 'l', 'o' };
+    int const lens[3] = {
+        torirs_control_replay_coord_encode((1 << 28) | (3222 << 14) | 3218, 870, "Zezima", coord_payload),
+        torirs_control_replay_world_encode(2983, 17, world_payload),
+        torirs_control_replay_chat_encode(1, 2, 0x0102, "", chat_text, 5, chat_payload),
+    };
+    int const types[3] = { TORIRS_CONTROL_REPLAY_COORD, TORIRS_CONTROL_REPLAY_WORLD,
+                           TORIRS_CONTROL_REPLAY_CHAT };
+    uint8_t const* const payloads[3] = { coord_payload, world_payload, chat_payload };
+    struct Isaac* enc = isaac_new(seed, 4);
+    struct Isaac* dec = isaac_new(seed, 4);
+    struct PacketBuffer pb;
+    int total = 0;
+    int fed = 0;
+    int seen = 0;
+
+    for( int i = 0; i < 3; i++ )
+    {
+        assert(torirs_control_type_is_replay(types[i]));
+        total += put_opcode(enc, rev, TORIRS_CONTROL_ESCAPE, wire + total);
+        torirs_control_put_header(wire + total, types[i], lens[i]);
+        total += TORIRS_CONTROL_HEADER_BYTES;
+        memcpy(wire + total, payloads[i], (size_t)lens[i]);
+        total += lens[i];
+    }
+    assert(!torirs_control_type_is_replay(TORIRS_CONTROL_CACHE_INVALIDATE));
+    packetbuffer_init(&pb, dec, rev);
+    while( fed < total )
+    {
+        fed += packetbuffer_read(&pb, wire + fed, 1);
+        if( !packetbuffer_ready(&pb) )
+            continue;
+        {
+            struct TorirsControlFrame frame;
+
+            assert(packetbuffer_is_control(&pb));
+            frame.type = packetbuffer_control_type(&pb);
+            frame.length = packetbuffer_size(&pb);
+            frame.payload = packetbuffer_data(&pb);
+            assert(frame.type == types[seen]);
+            assert(frame.length == lens[seen]);
+            if( seen == 0 )
+            {
+                struct TorirsControlReplayCoord c;
+
+                assert(torirs_control_replay_coord_decode(&frame, &c));
+                assert(c.coord == ((1 << 28) | (3222 << 14) | 3218));
+                assert(c.charge == 870);
+                assert(strcmp(c.name, "Zezima") == 0);
+                /* One byte short: the name runs off the end. */
+                frame.length--;
+                assert(!torirs_control_replay_coord_decode(&frame, &c));
+            }
+            else if( seen == 1 )
+            {
+                struct TorirsControlReplayWorld w;
+
+                assert(torirs_control_replay_world_decode(&frame, &w));
+                assert(w.tick == 2983);
+                assert(w.serial == 17);
+            }
+            else
+            {
+                struct TorirsControlReplayChat c;
+
+                assert(torirs_control_replay_chat_decode(&frame, &c));
+                assert(c.say == 1);
+                assert(c.crown == 2);
+                assert(c.colour_effect == 0x0102);
+                assert(c.name[0] == '\0');
+                assert(c.length == 5);
+                assert(memcmp(c.data, "hello", 5) == 0);
+            }
+        }
+        seen++;
+        packetbuffer_reset(&pb);
+    }
+    assert(seen == 3);
+    assert(isaac_next(enc) == isaac_next(dec));
+    isaac_free(enc);
+    isaac_free(dec);
+    printf("ok - the replay's control frames through the escape (%d bytes)\n", total);
+}
+
 int
 main(void)
 {
@@ -622,6 +721,7 @@ main(void)
     test_packet_framing();
     test_packet_varu16();
     test_control_escape();
+    test_control_replay_frames();
     test_osrs239_partial_empty_slot();
     test_lc_inv_full_size_is_two_bytes();
     test_lc_inv_partial_slot_is_smart();

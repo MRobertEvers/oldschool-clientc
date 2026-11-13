@@ -13029,3 +13029,419 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_ERROR;
     }
 }
+
+/* =========================================================================
+ * Session checkpoint (replay/replay_checkpoint.h)
+ *
+ * The host is three kinds of field, and the checkpoint treats each its own
+ * way:
+ *
+ *   LIVE   the App's wiring (the stores it points at, every callback) and what
+ *          the DEVICE says (the window, the battery, the pointer and the keys
+ *          as of this frame, the event context of a hook that is not running).
+ *          Never copied back: a restore keeps the values it finds.
+ *   DEEP   heap the host owns (the clan and group stores, the trading post,
+ *          the three transmit-hook tables, the item search, the db rows) and
+ *          the queues whose entries carry a UI node ref. Duplicated whole.
+ *   PLAIN  everything else -- what a session packet or a script wrote. Copied
+ *          by value, and compared one named field at a time.
+ *
+ * A field added to RS_CS2Host is PLAIN unless it is named in one of the two
+ * other lists, which is the safe default: it is restored, and if it is
+ * something a frame writes rather than the session, the checkpoint check
+ * (`TORIRS_REPLAY_CHECKPOINT_CHECK`) says which field moved.
+ * ========================================================================= */
+
+#include "replay/replay_checkpoint_util.h"
+
+#define RS_CS2_HOST_CKPT_PLAIN_FIELDS(F) \
+    F(map_world) F(local_player_name) F(staff_mod_level) F(client_clock) \
+    F(script_highlight_hover_tile) \
+    F(script_highlight_current_tile) F(script_highlight_dest_tile) F(script_onclick_npc) \
+    F(script_onclick_loc) F(script_onclick_obj) F(script_onclick_player) \
+    F(script_ground_items_overlay) F(active_obj) F(active_obj_valid) F(friends_chat) F(stockmarket) \
+    F(hiscore_error) F(hiscore_source_mode) F(world_entity_draw_limit) F(window_mode) \
+    F(default_window_mode) F(default_window_mode_from_script) F(window_mode_dirty) \
+    F(client_layout_mode) F(client_layout_dirty) F(script_settings_client_mode) \
+    F(script_settings_client_apply) F(varbit_settings_last_changed) F(highlight) F(clientop) \
+    F(overlay) F(settings_action_id) F(settings_action_value) F(settings_action_count) \
+    F(settings_mirror_varbit) F(settings_mirror_value) F(settings_mirror_count) \
+    F(settings_mirror_root_script) F(settings_colour_setting) F(settings_colour_varp) \
+    F(settings_colour_count) F(script_settings_colour_click) F(script_settings_colour_get) \
+    F(settings_colour_request) F(settings_colour_pending) F(settings_number_setting) \
+    F(settings_number_varp) F(settings_number_count) F(script_settings_number_click) \
+    F(script_settings_number_get) F(settings_number_request) F(settings_number_pending) \
+    F(varbit_ground_items_enabled) F(varbit_ground_items_modifier_key) F(cam_follow_height) \
+    F(top_interface_id) F(volume_music) F(volume_sounds) F(volume_area_sounds) F(game_options) \
+    F(device_options) F(audio_settings_dirty) F(minimap_zoom) F(logout_requested) \
+    F(keyboard_request) F(close_modal_requested) F(resume_pausebutton_component_id) \
+    F(viewport_zoom) F(viewport_zoom_max) F(viewport_zoom_near) F(viewport_zoom_far) \
+    F(viewport_fov_min) F(viewport_fov_max_clamp) F(viewport_aspect_min) F(viewport_aspect_max) \
+    F(client_scale_dirty) F(cam_yaw) F(cam_angle_x) F(cam_angle_y) F(cam_angle_forced) \
+    F(inv_transmit_hook_count) F(var_transmit_hook_count) F(stat_transmit_hook_count) \
+    F(widgets_loaded_dirty) F(var_transmit_dirty) F(inv_transmit_dirty) F(stat_transmit_dirty) \
+    F(stat_changed_ids) F(stat_changed_count) F(stat_changed_all) F(misc_transmit_dirty) \
+    F(friend_transmit_dirty) F(clan_transmit_dirty) F(stock_transmit_dirty) \
+    F(active_offers_transmit_dirty) F(clan_settings_transmit_dirty) F(clan_channel_transmit_dirty) \
+    F(chat_transmit_dirty) F(inv_changed_ids) F(inv_changed_count) F(inv_changed_all) \
+    F(var_changed_ids) F(var_changed_count) F(var_changed_all) F(var_change_serial) \
+    F(inv_change_serial) F(stat_change_serial) F(item_search_count) F(item_search_index) \
+    F(db_find_count) F(db_find_cursor) F(social_send) F(social_send_count) F(social_send_head) \
+    F(call_on_resize_count) F(call_on_resize_head) F(trigger_op_count) F(trigger_op_head) F(sound) \
+    F(sound_count) F(sound_head) F(triggeroplocal_count) F(triggeroplocal_head)
+
+/* The world's, mirrored into the host every tick for the scripts that read
+ * it: restored with the rest (a script run before the next mirror reads the
+ * checkpoint's), not compared (the world is not in a checkpoint). */
+#define RS_CS2_HOST_CKPT_WORLD_FIELDS(F) F(local_coord) F(local_pid) F(dest_coord) F(hover_coord)
+
+#define RS_CS2_HOST_CKPT_LIVE_FIELDS(F)                                                            \
+    F(tree) F(provider) F(invs) F(varps) F(stats) F(social) F(chat) F(chat_filter_mode) F(bridge)  \
+    F(events_override_for_component) F(events_user) F(if_written) F(if_written_user)               \
+    F(script_callback) F(script_callback_user) F(script_callback_running) F(loc_at_coord)          \
+    F(coord_in_scene) F(player_slot_by_name) F(worldentity_config_name) F(npc_by_uid)               \
+    F(widget_model_lazy) F(widget_npc_head_lazy) F(widget_model_direct) F(widget_obj_icon_lazy)    \
+    F(player_route) F(objs_on_coord) F(world_user) F(varcs) F(loot) F(worldmap) F(viewport_w)      \
+    F(viewport_h) F(battery_percent) F(battery_charging) F(network_kind) F(renderer_active)        \
+    F(renderer_available) F(renderer_refused) F(renderer_launch_flagged) F(renderer_picked)        \
+    F(safe_area_px) F(safe_area_window_w) F(safe_area_window_h) F(mouse_x) F(mouse_y)              \
+    F(event_mouse_x) F(event_mouse_y) F(event_drag_target_id) F(event_drag_target_child_index)     \
+    F(event_key_typed) F(event_key_pressed) F(event_op_index) F(event_op_subindex)                 \
+    F(osrs_key_held) F(osrs_key_pressed) F(trace_script_id) F(has_pending) F(pending)              \
+    F(client.last_input_ms) F(client.now_ms)
+
+/* The hook tables are copied to their count, not their capacity (a table of
+ * 512 records is megabytes); the restored table grows again on demand. */
+static void
+rs_cs2_host_ckpt_dup_deep(
+    struct RS_CS2Host* dst,
+    struct RS_CS2Host const* src)
+{
+    struct ToriMem_Group* g = ToriMem_Script();
+    struct RS_ClanStore* clan;
+    struct RS_GroupStore* groups;
+
+    /* The two stores have their own checkpoint copies; borrow the result. */
+    clan = RS_ClanStore_CheckpointTake(&src->clan);
+    dst->clan = *clan;
+    ToriMem_Free(ToriMem_Session(), clan);
+    groups = RS_GroupStore_CheckpointTake(&src->groups);
+    dst->groups = *groups;
+    ToriMem_Free(ToriMem_Assets(), groups);
+    dst->trading_post.offers =
+        Ckpt_Dup(g, src->trading_post.offers, (size_t)src->trading_post.cap * sizeof(src->trading_post.offers[0]));
+    dst->inv_transmit_hooks = Ckpt_Dup(
+        g, src->inv_transmit_hooks, (size_t)src->inv_transmit_hook_count * sizeof(src->inv_transmit_hooks[0]));
+    dst->inv_transmit_hook_cap = src->inv_transmit_hook_count;
+    dst->var_transmit_hooks = Ckpt_Dup(
+        g, src->var_transmit_hooks, (size_t)src->var_transmit_hook_count * sizeof(src->var_transmit_hooks[0]));
+    dst->var_transmit_hook_cap = src->var_transmit_hook_count;
+    dst->stat_transmit_hooks = Ckpt_Dup(
+        g, src->stat_transmit_hooks, (size_t)src->stat_transmit_hook_count * sizeof(src->stat_transmit_hooks[0]));
+    dst->stat_transmit_hook_cap = src->stat_transmit_hook_count;
+    dst->item_search_results =
+        Ckpt_Dup(g, src->item_search_results, (size_t)src->item_search_cap * sizeof(int));
+    dst->db_find_rows = Ckpt_Dup(g, src->db_find_rows, (size_t)src->db_find_count * sizeof(int));
+}
+
+static void
+rs_cs2_host_ckpt_free_deep(struct RS_CS2Host* host)
+{
+    struct ToriMem_Group* g = ToriMem_Script();
+
+    RS_ClanStore_Free(&host->clan);
+    RS_GroupStore_Free(&host->groups);
+    ToriMem_Free(g, host->trading_post.offers);
+    ToriMem_Free(g, host->inv_transmit_hooks);
+    ToriMem_Free(g, host->var_transmit_hooks);
+    ToriMem_Free(g, host->stat_transmit_hooks);
+    ToriMem_Free(g, host->item_search_results);
+    ToriMem_Free(g, host->db_find_rows);
+    host->trading_post.offers = NULL;
+    host->inv_transmit_hooks = NULL;
+    host->var_transmit_hooks = NULL;
+    host->stat_transmit_hooks = NULL;
+    host->item_search_results = NULL;
+    host->db_find_rows = NULL;
+}
+
+struct RS_CS2Host*
+RS_CS2Host_CheckpointTake(struct RS_CS2Host const* host)
+{
+    struct RS_CS2Host* cp;
+
+    assert(host);
+    /* A host request in flight belongs to a script that is not finished
+     * (ReplayCheckpoint_CanTake refuses that moment). */
+    assert(!host->has_pending);
+    cp = ToriMem_Memdup(ToriMem_Script(), host, sizeof(*cp));
+    assert(cp);
+    rs_cs2_host_ckpt_dup_deep(cp, host);
+    return cp;
+}
+
+void
+RS_CS2Host_CheckpointRestore(
+    struct RS_CS2Host* host,
+    struct RS_CS2Host const* cp)
+{
+    struct RS_CS2Host* live;
+
+    assert(host);
+    assert(cp);
+    assert(!host->has_pending);
+    live = ToriMem_Memdup(ToriMem_Script(), host, sizeof(*live));
+    assert(live);
+    rs_cs2_host_ckpt_free_deep(host);
+    memcpy(host, cp, sizeof(*host));
+    rs_cs2_host_ckpt_dup_deep(host, cp);
+#define RS_CS2_HOST_CKPT_KEEP(f) memcpy(&host->f, &live->f, sizeof(host->f));
+    RS_CS2_HOST_CKPT_LIVE_FIELDS(RS_CS2_HOST_CKPT_KEEP)
+#undef RS_CS2_HOST_CKPT_KEEP
+    ToriMem_Free(ToriMem_Script(), live);
+}
+
+void
+RS_CS2Host_CheckpointFree(struct RS_CS2Host* cp)
+{
+    if( !cp )
+        return;
+    rs_cs2_host_ckpt_free_deep(cp);
+    ToriMem_Free(ToriMem_Script(), cp);
+}
+
+size_t
+RS_CS2Host_CheckpointBytes(struct RS_CS2Host const* cp)
+{
+    assert(cp);
+    return sizeof(*cp) + RS_ClanStore_CheckpointBytes(&cp->clan) - sizeof(cp->clan) +
+           RS_GroupStore_CheckpointBytes(&cp->groups) - sizeof(cp->groups) +
+           (size_t)cp->trading_post.cap * sizeof(cp->trading_post.offers[0]) +
+           (size_t)cp->inv_transmit_hook_count * sizeof(cp->inv_transmit_hooks[0]) +
+           (size_t)cp->var_transmit_hook_count * sizeof(cp->var_transmit_hooks[0]) +
+           (size_t)cp->stat_transmit_hook_count * sizeof(cp->stat_transmit_hooks[0]) +
+           (size_t)cp->item_search_cap * sizeof(int) + (size_t)cp->db_find_count * sizeof(int);
+}
+
+/* A node ref names the same node in two runs when its index does: the
+ * incarnation is a process-wide serial, so a node created after a restore
+ * carries a new one for the same slot. */
+static int
+rs_cs2_host_ckpt_ref_eq(
+    struct UITreeNodeRef a,
+    struct UITreeNodeRef b)
+{
+    return a.tree_instance == b.tree_instance && a.index == b.index;
+}
+
+/* The three transmit-hook records share a shape. */
+#define RS_CS2_HOST_CKPT_HOOK_EQ(fn, type)                                                         \
+    static int fn(type const* a, type const* b)                                                    \
+    {                                                                                              \
+        if( a->component_id != b->component_id || !rs_cs2_host_ckpt_ref_eq(a->ref, b->ref) ||       \
+            a->script_id != b->script_id || a->int_arg_count != b->int_arg_count ||                \
+            a->str_arg_mask != b->str_arg_mask || a->str_arg_count != b->str_arg_count ||          \
+            a->trigger_count != b->trigger_count || a->last_seen_serial != b->last_seen_serial ||  \
+            a->pending_unhide != b->pending_unhide )                                               \
+            return 0;                                                                              \
+        for( int i = 0; i < a->int_arg_count; i++ )                                                \
+            if( a->int_args[i] != b->int_args[i] )                                                 \
+                return 0;                                                                          \
+        for( int i = 0; i < a->str_arg_count && i < CS2VM_SETON_STR_ARG_MAX; i++ )                 \
+            if( strcmp(a->str_args[i], b->str_args[i]) != 0 )                                      \
+                return 0;                                                                          \
+        for( int i = 0; i < a->trigger_count; i++ )                                                \
+            if( a->trigger_ids[i] != b->trigger_ids[i] )                                           \
+                return 0;                                                                          \
+        return 1;                                                                                  \
+    }
+RS_CS2_HOST_CKPT_HOOK_EQ(rs_cs2_host_ckpt_inv_hook_eq, struct RS_CS2InvTransmitHook)
+RS_CS2_HOST_CKPT_HOOK_EQ(rs_cs2_host_ckpt_var_hook_eq, struct RS_CS2VarTransmitHook)
+RS_CS2_HOST_CKPT_HOOK_EQ(rs_cs2_host_ckpt_stat_hook_eq, struct RS_CS2StatTransmitHook)
+#undef RS_CS2_HOST_CKPT_HOOK_EQ
+
+int
+RS_CS2Host_CheckpointEqual(
+    struct RS_CS2Host const* a,
+    struct RS_CS2Host const* b,
+    char* why,
+    int why_cap)
+{
+    assert(a);
+    assert(b);
+#define RS_CS2_HOST_CKPT_CMP(f) CKPT_EQ_FIELD(a, b, f, why, why_cap);
+    RS_CS2_HOST_CKPT_PLAIN_FIELDS(RS_CS2_HOST_CKPT_CMP)
+#undef RS_CS2_HOST_CKPT_CMP
+    {
+        /* The client-state block, less the two wall clocks in it. */
+        struct RS_CS2ClientState ca;
+        struct RS_CS2ClientState cb;
+
+        /* memcpy, not assignment: the padding has to come along too. */
+        memcpy(&ca, &a->client, sizeof(ca));
+        memcpy(&cb, &b->client, sizeof(cb));
+        ca.last_input_ms = cb.last_input_ms = 0;
+        ca.now_ms = cb.now_ms = 0;
+        if( memcmp(&ca, &cb, sizeof(ca)) != 0 )
+        {
+            Ckpt_Why(why, why_cap, "client (RS_CS2ClientState)");
+            return 0;
+        }
+    }
+    if( !RS_ClanStore_CheckpointEqual(&a->clan, &b->clan, why, why_cap) )
+        return 0;
+    if( !RS_GroupStore_CheckpointEqual(&a->groups, &b->groups, why, why_cap) )
+        return 0;
+    CKPT_EQ_INT(a, b, trading_post.present, why, why_cap);
+    CKPT_EQ_INT(a, b, trading_post.obj, why, why_cap);
+    CKPT_EQ_INT(a, b, trading_post.sell, why, why_cap);
+    CKPT_EQ_INT(a, b, trading_post.count, why, why_cap);
+    CKPT_EQ_INT(a, b, trading_post.clock_offset_ms, why, why_cap);
+    for( int i = 0; i < a->trading_post.count; i++ )
+    {
+        struct RS_CS2TradingPostOffer const* oa = &a->trading_post.offers[i];
+        struct RS_CS2TradingPostOffer const* ob = &b->trading_post.offers[i];
+
+        if( strcmp(oa->name, ob->name) != 0 || strcmp(oa->previous_name, ob->previous_name) != 0 ||
+            oa->world != ob->world || oa->time_ms != ob->time_ms || oa->price != ob->price ||
+            oa->count != ob->count )
+        {
+            Ckpt_Why(why, why_cap, "trading_post.offers[%d]", i);
+            return 0;
+        }
+    }
+    CKPT_EQ_INT(a, b, inv_transmit_hook_count, why, why_cap);
+    for( int i = 0; i < a->inv_transmit_hook_count; i++ )
+    {
+        if( !rs_cs2_host_ckpt_inv_hook_eq(&a->inv_transmit_hooks[i], &b->inv_transmit_hooks[i]) )
+        {
+            Ckpt_Why(why, why_cap, "inv_transmit_hooks[%d] (component %d script %d)", i,
+                     a->inv_transmit_hooks[i].component_id, a->inv_transmit_hooks[i].script_id);
+            return 0;
+        }
+    }
+    CKPT_EQ_INT(a, b, var_transmit_hook_count, why, why_cap);
+    for( int i = 0; i < a->var_transmit_hook_count; i++ )
+    {
+        if( !rs_cs2_host_ckpt_var_hook_eq(&a->var_transmit_hooks[i], &b->var_transmit_hooks[i]) )
+        {
+            struct RS_CS2VarTransmitHook const* ha = &a->var_transmit_hooks[i];
+            struct RS_CS2VarTransmitHook const* hb = &b->var_transmit_hooks[i];
+
+            for( int k = 0; k < ha->int_arg_count && k < hb->int_arg_count; k++ )
+                if( ha->int_args[k] != hb->int_args[k] )
+                {
+                    Ckpt_Why(why, why_cap, "var_transmit_hooks[%d] (component %d script %d) int arg %d: %d != %d", i,
+                             ha->component_id, ha->script_id, k, ha->int_args[k], hb->int_args[k]);
+                    return 0;
+                }
+            for( int k = 0; k < ha->str_arg_count && k < CS2VM_SETON_STR_ARG_MAX; k++ )
+                if( strcmp(ha->str_args[k], hb->str_args[k]) != 0 )
+                {
+                    Ckpt_Why(why, why_cap, "var_transmit_hooks[%d] (component %d script %d) str arg %d: \"%s\" != \"%s\"",
+                             i, ha->component_id, ha->script_id, k, ha->str_args[k], hb->str_args[k]);
+                    return 0;
+                }
+            for( int k = 0; k < ha->trigger_count && k < hb->trigger_count; k++ )
+                if( ha->trigger_ids[k] != hb->trigger_ids[k] )
+                {
+                    Ckpt_Why(why, why_cap, "var_transmit_hooks[%d] (component %d) trigger %d: %d != %d", i,
+                             ha->component_id, k, ha->trigger_ids[k], hb->trigger_ids[k]);
+                    return 0;
+                }
+            {
+                unsigned char const* pa = (unsigned char const*)ha;
+                unsigned char const* pb = (unsigned char const*)hb;
+                size_t first = 0;
+
+                while( first < sizeof(*ha) && pa[first] == pb[first] )
+                    first++;
+                Ckpt_Why(why, why_cap, "var_transmit_hooks[%d] first byte %zu of %zu (ref at %zu, str_args at %zu, "
+                         "triggers at %zu)", i, first, sizeof(*ha), offsetof(struct RS_CS2VarTransmitHook, ref),
+                         offsetof(struct RS_CS2VarTransmitHook, str_args),
+                         offsetof(struct RS_CS2VarTransmitHook, trigger_ids));
+            }
+            if( ha->ref.tree_instance != hb->ref.tree_instance )
+            {
+                Ckpt_Why(why, why_cap, "var_transmit_hooks[%d] (component %d) tree %llu != %llu", i, ha->component_id,
+                         (unsigned long long)ha->ref.tree_instance, (unsigned long long)hb->ref.tree_instance);
+                return 0;
+            }
+            if( ha->trigger_count != hb->trigger_count || ha->str_arg_mask != hb->str_arg_mask ||
+                ha->str_arg_count != hb->str_arg_count || ha->int_arg_count != hb->int_arg_count )
+            {
+                Ckpt_Why(why, why_cap, "var_transmit_hooks[%d] (component %d) counts: triggers %d/%d str %d/%d int %d/%d",
+                         i, ha->component_id, ha->trigger_count, hb->trigger_count, ha->str_arg_count,
+                         hb->str_arg_count, ha->int_arg_count, hb->int_arg_count);
+                return 0;
+            }
+            Ckpt_Why(why, why_cap,
+                     "var_transmit_hooks[%d] (component %d script %d; ref %d/%d, serial %u/%u, unhide %d/%d, "
+                     "script %d)",
+                     i, a->var_transmit_hooks[i].component_id, a->var_transmit_hooks[i].script_id,
+                     a->var_transmit_hooks[i].ref.index, b->var_transmit_hooks[i].ref.index,
+                     a->var_transmit_hooks[i].last_seen_serial, b->var_transmit_hooks[i].last_seen_serial,
+                     a->var_transmit_hooks[i].pending_unhide, b->var_transmit_hooks[i].pending_unhide,
+                     b->var_transmit_hooks[i].script_id);
+            return 0;
+        }
+    }
+    CKPT_EQ_INT(a, b, stat_transmit_hook_count, why, why_cap);
+    for( int i = 0; i < a->stat_transmit_hook_count; i++ )
+    {
+        if( !rs_cs2_host_ckpt_stat_hook_eq(&a->stat_transmit_hooks[i], &b->stat_transmit_hooks[i]) )
+        {
+            Ckpt_Why(why, why_cap, "stat_transmit_hooks[%d] (component %d script %d)", i,
+                     a->stat_transmit_hooks[i].component_id, a->stat_transmit_hooks[i].script_id);
+            return 0;
+        }
+    }
+    CKPT_EQ_INT(a, b, item_search_count, why, why_cap);
+    for( int i = 0; i < a->item_search_count; i++ )
+        if( a->item_search_results[i] != b->item_search_results[i] )
+        {
+            Ckpt_Why(why, why_cap, "item_search_results[%d]", i);
+            return 0;
+        }
+    CKPT_EQ_INT(a, b, db_find_count, why, why_cap);
+    for( int i = 0; i < a->db_find_count; i++ )
+        if( a->db_find_rows[i] != b->db_find_rows[i] )
+        {
+            Ckpt_Why(why, why_cap, "db_find_rows[%d]", i);
+            return 0;
+        }
+    for( int i = 0; i < RS_CS2_HOST_CALL_ON_RESIZE_MAX; i++ )
+        if( !rs_cs2_host_ckpt_ref_eq(a->call_on_resize[i], b->call_on_resize[i]) )
+        {
+            Ckpt_Why(why, why_cap, "call_on_resize[%d]", i);
+            return 0;
+        }
+    CKPT_EQ_INT(a, b, call_on_resize_count, why, why_cap);
+    CKPT_EQ_INT(a, b, call_on_resize_head, why, why_cap);
+    for( int i = 0; i < RS_CS2_HOST_TRIGGER_OP_MAX; i++ )
+        if( a->trigger_op[i].component_id != b->trigger_op[i].component_id ||
+            a->trigger_op[i].op_index != b->trigger_op[i].op_index ||
+            !rs_cs2_host_ckpt_ref_eq(a->trigger_op[i].ref, b->trigger_op[i].ref) )
+        {
+            Ckpt_Why(why, why_cap, "trigger_op[%d]", i);
+            return 0;
+        }
+    CKPT_EQ_INT(a, b, trigger_op_count, why, why_cap);
+    CKPT_EQ_INT(a, b, trigger_op_head, why, why_cap);
+    for( int i = 0; i < RS_CS2_HOST_TRIGGEROPLOCAL_MAX; i++ )
+    {
+        struct RS_CS2TriggerOpLocal const* ta = &a->triggeroplocal[i];
+        struct RS_CS2TriggerOpLocal const* tb = &b->triggeroplocal[i];
+
+        if( ta->component_id != tb->component_id || !rs_cs2_host_ckpt_ref_eq(ta->ref, tb->ref) ||
+            ta->sub != tb->sub || ta->crc != tb->crc || ta->child != tb->child ||
+            strcmp(ta->signature, tb->signature) != 0 || memcmp(ta->values, tb->values, sizeof(ta->values)) != 0 )
+        {
+            Ckpt_Why(why, why_cap, "triggeroplocal[%d]", i);
+            return 0;
+        }
+    }
+    CKPT_EQ_INT(a, b, triggeroplocal_count, why, why_cap);
+    CKPT_EQ_INT(a, b, triggeroplocal_head, why, why_cap);
+    return 1;
+}

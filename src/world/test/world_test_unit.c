@@ -1881,6 +1881,29 @@ test_loc_changes_take_standing(void)
     TEST_ASSERT(out[1].x == 20 && out[1].new_type == -1 && out[1].old_type == 300,
                 "a delete is re-placed");
 
+    /* A zone the server re-sends every tick (an instance's corner locs): one
+     * record for the key however often it changes, old the map's, new the
+     * last -- and room for the next key. A record per change filled the list
+     * in 64 ticks, and every change after that reached the scene and not the
+     * list, so a rebuild re-placed a stale loc. */
+    {
+        int const changes = 4 * WORLD_LOC_CHANGE_MAX + 1;
+
+        for( int i = 0; i < changes; i++ )
+            World_LocChangePush(
+                world, 1, 2, 60, 70, i == 0 ? 500 : 600 + (i - 1) % 4, 0, 10, 600 + i % 4, 0, 10,
+                0, -1);
+        World_LocChangePush(world, 1, 2, 61, 70, 501, 0, 10, 700, 0, 10, 0, -1);
+        TEST_ASSERT(world->loc_change_count == 2, "a re-sent key keeps one record");
+        count = World_LocChangesTakeStanding(world, out, WORLD_LOC_CHANGE_MAX);
+        TEST_ASSERT(count == 2, "both keys stand");
+        TEST_ASSERT(out[0].x == 60 && out[0].old_type == 500 &&
+                        out[0].new_type == 600 + (changes - 1) % 4,
+                    "the re-sent key's last change stands over the map's loc");
+        TEST_ASSERT(count == 2 && out[1].x == 61 && out[1].new_type == 700,
+                    "a change after a thousand others is still recorded");
+    }
+
     World_Free(world);
 }
 

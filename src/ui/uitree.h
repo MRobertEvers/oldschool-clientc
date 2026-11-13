@@ -2059,6 +2059,31 @@ UITree_New(uint32_t hint);
 void
 UITree_Free(struct UITree* tree);
 
+
+/*
+ * Session checkpoint support (ui/uitree_checkpoint.h holds the checkpoint).
+ *
+ * UITree_CheckpointFreeContents frees everything the tree OWNS -- every
+ * node's heap, the node array, the live sets, the group map, the id index,
+ * the layout and anchor tables -- and leaves the struct, its identity, its
+ * walk scratch and its emit epoch table, so the struct can take a copy back.
+ * The three geometry helpers are the plugin widget-edit lists, whose record
+ * is private to uitree.c.
+ */
+void
+UITree_CheckpointFreeContents(struct UITree* tree);
+
+struct UITreeWidgetGeometry*
+UITree_CheckpointGeometryDup(struct UITreeWidgetGeometry const* list);
+
+int
+UITree_CheckpointGeometryCount(struct UITreeWidgetGeometry const* list);
+
+int
+UITree_CheckpointGeometryEqual(
+    struct UITreeWidgetGeometry const* a,
+    struct UITreeWidgetGeometry const* b);
+
 /**
  * Free every parked plugin edit (@see UITree::parked_edits). Called at the top
  * of UITree_EmitWalk: by then every script this frame has run, so an entry no

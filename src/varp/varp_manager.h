@@ -312,4 +312,33 @@ VarPManager_TransformDependsOnVarp(
     int transform_varp,
     int varp_id);
 
+/* --- session checkpoint (replay/replay_checkpoint.h) ---------------------
+ * A private copy of the varp VALUES (not the cache's type tables, not the
+ * callbacks). Restore replaces the value arrays whole, then fires the change
+ * callback for every varp whose value moved, as a packet's write would (loc
+ * and npc transforms re-resolve from it) -- but not the server-update one:
+ * what the transmit hooks made of the values is restored with them. */
+struct VarPManager*
+VarPManager_CheckpointTake(struct VarPManager const* mgr);
+
+void
+VarPManager_CheckpointRestore(
+    struct VarPManager* mgr,
+    struct VarPManager const* cp);
+
+/** Accepts NULL. */
+void
+VarPManager_CheckpointFree(struct VarPManager* cp);
+
+size_t
+VarPManager_CheckpointBytes(struct VarPManager const* cp);
+
+/** 1 when equal; else 0 and the first difference in `why`. */
+int
+VarPManager_CheckpointEqual(
+    struct VarPManager const* a,
+    struct VarPManager const* b,
+    char* why,
+    int why_cap);
+
 #endif /* VARP_MANAGER_H */

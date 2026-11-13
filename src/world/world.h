@@ -1932,8 +1932,10 @@ World_ShiftEntities(
     int dx,
     int dz);
 
-/** Record a temporary loc change (Client-TS locChanges.push). old_* may be
- * -1 when unknown; end_time of -1 means "permanent until replaced" (not
+/** Record a temporary loc change (Client-TS locChanges.push). One record per
+ * (level, layer, x, z): a change to a key that has one updates its new_*,
+ * timing and menu and keeps its old_* (the loc before the key's first change).
+ * old_* may be -1 when unknown; end_time of -1 means "permanent until replaced" (not
  * countdown-ticked). end_time > 0 is a countdown (locChangeDoQueue): hide/apply
  * new_type when start_time reaches 0, restore old_type when end_time reaches 0. */
 void

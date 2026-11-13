@@ -2,6 +2,7 @@
 #define VARC_MANAGER_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 /*
@@ -103,5 +104,30 @@ VarCManager_SetLong(
 /** Unset every int and clear every string (fires change_fn per changed id). */
 void
 VarCManager_ResetAll(struct VarCManager* mgr);
+/* --- session checkpoint (replay/replay_checkpoint.h) ---------------------
+ * A private copy of every varc int, string and long. Restore replaces them
+ * whole and fires no change callback. */
+struct VarCManager*
+VarCManager_CheckpointTake(struct VarCManager const* mgr);
+
+void
+VarCManager_CheckpointRestore(
+    struct VarCManager* mgr,
+    struct VarCManager const* cp);
+
+/** Accepts NULL. */
+void
+VarCManager_CheckpointFree(struct VarCManager* cp);
+
+size_t
+VarCManager_CheckpointBytes(struct VarCManager const* cp);
+
+/** 1 when equal; else 0 and the first difference in `why`. */
+int
+VarCManager_CheckpointEqual(
+    struct VarCManager const* a,
+    struct VarCManager const* b,
+    char* why,
+    int why_cap);
 
 #endif /* VARC_MANAGER_H */

@@ -73,10 +73,10 @@ app_host_request(
              *
              * Jagex Android 241 FUN_00617174 (DrawFeedback): the life is
              * max(run * 2, 20) client cycles -- two cycles a frame, never under
-             * 20 -- and the frame is cycle * run / life. clickcircle_filled's
-             * 20 a run is 40 cycles, 800 ms; the cross's 4 is the 20-cycle
-             * floor, 400 ms. With the fade on, alpha falls 255 -> 0 over the
-             * life.
+             * 20 -- halved for a touch tap, and the frame is cycle * run / life.
+             * clickcircle_filled's 20 a run is 40 cycles, 800 ms, so a tap's
+             * is 20 cycles, 400 ms, one frame a cycle. With the fade on, alpha
+             * falls 255 -> 0 over the life.
              */
             int count = 0;
             struct ToriDraw_Sprite** frames = ToriDraw_SceneSpriteGet(app->bridge.scene, scene_id, &count);
@@ -87,6 +87,8 @@ app_host_request(
                 return 0; /* not resident yet */
             run = count / 2;
             life_ms = (run * 2 > 20 ? run * 2 : 20) * APP_FEEDBACK_CYCLE_MS;
+            if( app->ink.halve )
+                life_ms /= 2;
             if( app->ink.cycle >= life_ms )
                 return 0;
             atlas = (colour == TORIRS_INKWELL_RED ? run : 0) + app->ink.cycle * run / life_ms;

@@ -14,3 +14,11 @@ x1	z1	x2	z2	level_min	level_max	track_name	source
 # RSProx index 4473 starts Throne of the Demon on the portal's step in
 # ([1450]) and Forgotten again on the way out ([1506]).
 2688	4864	2751	4927	2	2	Throne of the Demon	RSProx 4473
+# Elvarg's lair in Crandor's caves (square 44_150 plays Dangerous Road: RSProx
+# index 4558 starts it on landing at 2833,9658 [5058] and again on stepping
+# back into the square at 2836,9602 [5100]). Attack 2 starts on the climb
+# over the lair's low wall onto 2847,9635 ([5121] -> [5124]) and plays to the
+# end of the fight ([5197] after the victory jingle). The east wall of the
+# lair bounds it; the rectangle is the lair's floor (LostCity's lair zone,
+# 2847..2863, 9628..9646).
+2847	9628	2863	9646	0	0	Attack 2	RSProx 4558

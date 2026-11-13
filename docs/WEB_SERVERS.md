@@ -267,8 +267,14 @@ either answers without the gate's cookie**:
 TORIRSSERVER_SAVES=saves torirsserver 43594 --rev osrs241 --gate
 TORIRSSERVER_SAVES=saves io_server --manifest manifests/manifest_osrs242.ini \
     --root build-web --boot-root . --port 8088 \
-    --gate '/?args=--manifest,manifests/manifest_osrs242.ini&ws=ws'
+    --gate '/?args=--manifest,manifests/manifest_latest.ini&ws=ws'
 ```
+
+Land on `manifest_latest.ini`, never on a revision's manifest: the package
+writes it as a copy of `manifest_<world>.ini`, so the landing, a bookmark and a
+phone's home-screen icon (which saves the page's URL) survive the move to the
+next revision. The page keys its cache on `[cache:boot] dir`, not the
+manifest's name, so the new revision still gets its own cache.
 
 | server | without a good cookie |
 | --- | --- |

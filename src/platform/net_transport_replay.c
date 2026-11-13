@@ -55,7 +55,11 @@
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/pktnames.h"
 #include "net/rsprox_recording.h"
+#include "net/torirs_control.h"
 #include "platform_window.h"
+#include "replay/replay_scrub.h"
+#include "replay/replay_checkpoint_store.h"
+#include "replay/replay_world.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -80,28 +84,9 @@
 /* A locked frame advances the clock by its wall time, but never by more than
  * this: a stall (a hidden tab, a synchronous load) is not recorded time. */
 #define REPLAY_MAX_STEP_MS 1000
-/* Below NET_LINK_TIMEOUT_MS (15 s): a client that never sends
- * MAP_BUILD_COMPLETE is played on, not dropped for silence. */
-#define REPLAY_MAP_WAIT_MS 10000
-/* The longest recorded silence played as silence. A server writes every
- * 600 ms tick; a longer gap is the recorder's side stalling (a frozen client,
- * a suspended machine), and the recorder's own session survived it. Played in
- * full, a gap past NET_LINK_TIMEOUT_MS reads to this client as a dead server:
- * RSProx 4407 is silent for 18.8 s after tick 747, so the replay dropped and
- * restarted from the login every time it got there. */
-#define REPLAY_MAX_GAP_MS 5000
 /* Bytes enciphered ahead of the bus. Unlocked, a frame can owe many ticks;
  * this keeps the staging buffer from holding the whole recording. */
 #define REPLAY_PENDING_CAP (256 * 1024)
-/* The answers to a chatbox prompt. The recorder's client closed the prompt as
- * it sent one (rs_gameproto_exec.c, PKT_NAME_DIALOG_RESUMED), and no server
- * packet says so, so the replay passes each one on where it was sent. */
-#define REPLAY_DIALOG_PROTS 5
-static int const k_dialog_names[REPLAY_DIALOG_PROTS] = {
-    PKTOUT_NAME_RESUME_P_OBJDIALOG,     PKTOUT_NAME_RESUME_P_COUNTDIALOG,
-    PKTOUT_NAME_RESUME_P_COUNTDIALOG_LONG, PKTOUT_NAME_RESUME_P_NAMEDIALOG,
-    PKTOUT_NAME_RESUME_P_STRINGDIALOG,
-};
 
 enum ReplayPhase
 {
@@ -151,27 +136,28 @@ struct NetTransportReplay
     int pend_len;
     int pend_off;
     int pend_cap;
+    /** Bytes ever staged, and ever pushed onto the bus: a staged byte is
+     *  delivered once bus_total has passed it. */
+    uint64_t staged_total;
+    uint64_t bus_total;
+    /** The REPLAY_WORLD control frame staged and not yet wholly on the bus
+     *  (0: none): its keyframe's mailbox serial, and staged_total at its end.
+     *  A session dropped before it went takes its keyframe back out of the
+     *  mailbox (ReplayWorld_Withdraw), since no client will ever ask. */
+    uint32_t world_serial;
+    uint64_t world_end;
 
-    /* Playback. */
-    int next_frame;
-    uint64_t clock_ms;
-    int wait_map;
-    int wait_tick;
-    int map_built;
-    uint64_t wait_since_ms;
+    /* Playback. What goes next, on what clock, and seeks: the scrubber
+     * (replay/replay_scrub.h). */
+    struct ReplayScrub* scrub;
     int logout_wire;
-    int last_tick;
     /** A RECONNECT frame waiting for the bytes before it to reach the bus
      *  (-1: none): it goes as TORIRS_CMD_NET_RESUMED, which the stream's bytes
      *  must not overtake. */
     int resume_frame;
-    /** The recorded client packets: the next one not yet passed, and the
-     *  RESUME_P_*DIALOG waiting, as a RECONNECT does, for the bytes before it
-     *  to reach the bus (-1: none; else its GameProtoPktOutName). */
-    int next_input;
+    /** A recorded RESUME_P_*DIALOG waiting, as a RECONNECT does, for the bytes
+     *  before it to reach the bus (-1: none; else its GameProtoPktOutName). */
     int dialog_resumed;
-    /** k_dialog_names' wire opcodes in this revision (-1: not in it). */
-    int dialog_wire[REPLAY_DIALOG_PROTS];
 
     /* The two clocks, read every poll so a switch between them is seamless. */
     int unlocked;
@@ -237,6 +223,7 @@ pend_bytes(
     grow(&self->pend, &self->pend_cap, self->pend_len + len);
     memcpy(self->pend + self->pend_len, data, (size_t)len);
     self->pend_len += len;
+    self->staged_total += (uint64_t)len;
 }
 
 static void
@@ -285,6 +272,33 @@ pend_packet(
         pend_bytes(self, payload, len);
 }
 
+/*
+ * One control frame (net/torirs_control.h), as torirs_server_encode.c writes
+ * one: the escape opcode through the cipher as pSmart1Or2 (two cipher bytes),
+ * then the magic, the type, the length and the payload in the clear. Staged
+ * like a packet, so it reaches the client at exactly this byte of the stream.
+ */
+static void
+pend_control(
+    struct NetTransportReplay* self,
+    int type,
+    uint8_t const* payload,
+    int len)
+{
+    uint8_t header[TORIRS_CONTROL_HEADER_BYTES];
+
+    assert(torirs_control_type_is_replay(type));
+    assert(len >= 0);
+    if( len > 0 )
+        assert(payload);
+    pend_byte(self, ((TORIRS_CONTROL_ESCAPE >> 8) | 0x80) + isaac_next(self->enc));
+    pend_byte(self, (TORIRS_CONTROL_ESCAPE & 0xff) + isaac_next(self->enc));
+    torirs_control_put_header(header, type, len);
+    pend_bytes(self, header, TORIRS_CONTROL_HEADER_BYTES);
+    if( len > 0 )
+        pend_bytes(self, payload, len);
+}
+
 static void
 cin_consume(
     struct NetTransportReplay* self,
@@ -305,14 +319,41 @@ replay_reset(struct NetTransportReplay* self)
     self->c_skip = 0;
     self->pend_len = 0;
     self->pend_off = 0;
-    self->next_frame = 0;
-    self->clock_ms = 0;
-    self->wait_map = 0;
-    self->map_built = 0;
-    self->last_tick = 0;
     self->resume_frame = -1;
-    self->next_input = 0;
     self->dialog_resumed = -1;
+    /* A keyframe whose frame goes with the staged bytes is never asked for:
+     * the session it belonged to is over, and the client's side resets with
+     * it (its socket closes; the reconnect starts a fresh framer and cipher).
+     * One already on the bus is the client's, and it takes it. */
+    if( self->world_serial && self->bus_total < self->world_end )
+        ReplayWorld_Withdraw(self->world_serial);
+    self->world_serial = 0;
+    ReplayScrub_Rewind(self->scrub);
+}
+
+/* Staged bytes onto the bus, as far as it has room. 1 when none are left. */
+static int
+flush_pend(
+    struct NetTransportReplay* self,
+    struct ToriRS_CmdBus* bus)
+{
+    while( self->pend_off < self->pend_len )
+    {
+        int chunk = self->pend_len - self->pend_off;
+
+        if( chunk > TORIRS_CMD_MAX_PAYLOAD )
+            chunk = TORIRS_CMD_MAX_PAYLOAD;
+        if( !CmdBus_CanPush(bus, (uint16_t)chunk) )
+            break;
+        CmdBus_Push(bus, TORIRS_CMD_NET_RECV, self->pend + self->pend_off, (uint16_t)chunk);
+        self->pend_off += chunk;
+        self->bus_total += (uint64_t)chunk;
+    }
+    if( self->world_serial && self->bus_total >= self->world_end )
+        self->world_serial = 0;
+    if( self->pend_off == self->pend_len )
+        self->pend_off = self->pend_len = 0;
+    return self->pend_len == 0;
 }
 
 /* --- the handshake ------------------------------------------------------- */
@@ -399,6 +440,7 @@ answer_handshake(
         self->wall_last = PlatformWindow_Ticks64();
         self->cycles_last = self->cycles_now;
         self->phase = REPLAY_PLAYING;
+        ReplayScrub_SessionBegin(self->scrub);
     }
 }
 
@@ -424,8 +466,8 @@ read_client_stream(struct NetTransportReplay* self)
             int size;
 
             self->c_opcode = (self->cin[off++] - isaac_next(self->dec)) & 0xff;
-            if( self->c_opcode == self->map_build_complete_wire && self->wait_map )
-                self->map_built = 1;
+            if( self->c_opcode == self->map_build_complete_wire )
+                ReplayScrub_MapBuilt(self->scrub);
             size = self->rev->packetout_size(self->c_opcode);
             if( size == PKTIN_LENGTH_VARU8 )
                 self->c_len_bytes = 1;
@@ -451,48 +493,42 @@ read_client_stream(struct NetTransportReplay* self)
 
 /* --- playback ------------------------------------------------------------ */
 
+/* The clock moves with the client's cycles while unlocked, and with the wall
+ * clock while locked. A seek runs unlocked whatever the setting. */
 static int
-frame_is_rebuild(
-    struct NetTransportReplay* self,
-    struct RsproxRecordingFrame const* f)
+replay_unlocked(struct NetTransportReplay* self)
 {
-    int const name = self->rev->packetin_code(f->opcode);
-
-    return name == PKT_NAME_REBUILD_NORMAL || name == PKT_NAME_REBUILD_REGION;
+    return self->unlocked || ReplayScrub_Seeking(self->scrub);
 }
 
 /*
- * Step over the client packets sent before the next server one. True when one
- * of them answered a chatbox prompt: it is then `dialog_resumed`, and nothing
- * after it is staged until it is on the bus.
+ * A seek behind the playhead (REPLAY_NEXT_RESTART): the session ends the way a
+ * server that went away ends it. What is staged goes with it, the client sees
+ * the socket close, and its link watch re-establishes the session
+ * (app_net_link_watch); this answers the GAMERECONNECT as a clean login and
+ * the scrubber plays from frame 0.
  */
-static int
-pass_inputs(struct NetTransportReplay* self)
+static void
+restart_session(
+    struct NetTransportReplay* self,
+    struct ToriRS_CmdBus* bus)
 {
-    while( self->next_input < self->rec.client_packet_count &&
-           self->rec.inputs[self->next_input].frame <= self->next_frame )
-    {
-        int const opcode = self->rec.inputs[self->next_input++].opcode;
-
-        for( int i = 0; i < REPLAY_DIALOG_PROTS; i++ )
-        {
-            if( self->dialog_wire[i] == opcode )
-            {
-                self->dialog_resumed = k_dialog_names[i];
-                return 1;
-            }
-        }
-    }
-    return 0;
+    TORIRS_REPORT("replay: restarting the session from the login (a seek behind tick %d)\n",
+                  ReplayScrub_LastTick(self->scrub));
+    replay_reset(self);
+    self->phase = REPLAY_IDLE;
+    emit_status(self, bus, TORIRS_NET_STATUS_DISCONNECTED);
 }
 
 static void
-play(struct NetTransportReplay* self)
+play(
+    struct NetTransportReplay* self,
+    struct ToriRS_CmdBus* bus)
 {
     uint64_t const wall = PlatformWindow_Ticks64();
     uint64_t step;
 
-    if( self->unlocked )
+    if( replay_unlocked(self) )
         step = (uint64_t)(self->cycles_now - self->cycles_last) * REPLAY_CYCLE_MS;
     else
     {
@@ -502,80 +538,76 @@ play(struct NetTransportReplay* self)
     }
     self->cycles_last = self->cycles_now;
     self->wall_last = wall;
-
-    if( self->wait_map && !self->map_built && wall - self->wait_since_ms > REPLAY_MAP_WAIT_MS )
-    {
-        TORIRS_ERR("replay: no MAP_BUILD_COMPLETE %d s after the tick %d rebuild; playing on\n",
-                   REPLAY_MAP_WAIT_MS / 1000, self->wait_tick);
-        self->map_built = 1;
-    }
-    /* The barrier holds the clock too: the time the client spends building
-     * is not recorded time, so the packets behind it keep their spacing. */
-    if( !self->wait_map || self->map_built )
-        self->clock_ms += step;
+    ReplayScrub_Advance(self->scrub, step, wall);
 
     while( self->resume_frame < 0 && self->dialog_resumed < 0 &&
-           self->next_frame < self->rec.frame_count &&
            self->pend_len - self->pend_off < REPLAY_PENDING_CAP )
     {
-        struct RsproxRecordingFrame const* f = &self->rec.frames[self->next_frame];
+        struct ReplayStep next;
+        enum ReplayNext const what = ReplayScrub_Next(self->scrub, &next);
+        struct RsproxRecordingFrame const* f;
 
-        if( pass_inputs(self) )
+        if( what == REPLAY_NEXT_WAIT )
             break;
-        if( self->wait_map && f->tick > self->wait_tick )
+        if( what == REPLAY_NEXT_FRAME )
         {
-            if( !self->map_built )
-                break;
-            self->wait_map = 0;
+            f = &self->rec.frames[next.frame];
+            pend_packet(self, f->opcode, self->rec.data + f->offset, (int)f->length);
         }
-        if( f->t_ms > self->clock_ms )
+        else if( what == REPLAY_NEXT_COORD )
         {
-            /* A stall in the recording: skip what is left of it. The clock
-             * jumps, so everything after keeps its own spacing. */
-            if( self->next_frame > 0 &&
-                self->clock_ms >= self->rec.frames[self->next_frame - 1].t_ms + REPLAY_MAX_GAP_MS )
-                self->clock_ms = f->t_ms;
-            else
-                break;
-        }
-        /* RSProx's pseudo-packets are the proxy's notes, not Jagex bytes. A
-         * PACKET_GROUP_END closes what PACKET_GROUP_START already sized. A
-         * RECONNECT is where the session moved to a new connection (a
-         * reconnect, a world hop): the client restarts its player table there,
-         * so nothing after it is staged until it is on the bus. */
-        if( f->opcode == RSPROX_RECORDING_PACKET_GROUP_END )
-        {
-            self->next_frame++;
-            continue;
-        }
-        if( f->opcode == RSPROX_RECORDING_RECONNECT )
-        {
-            self->resume_frame = self->next_frame++;
-            self->last_tick = f->tick;
-            break;
-        }
-        pend_packet(self, f->opcode, self->rec.data + f->offset, (int)f->length);
-        self->last_tick = f->tick;
-        self->next_frame++;
-        if( frame_is_rebuild(self, f) )
-        {
-            self->wait_map = 1;
-            self->wait_tick = f->tick;
-            self->map_built = 0;
-            self->wait_since_ms = wall;
-        }
-    }
+            /* The seek's three are control frames in the stream itself
+             * (net/torirs_control.h), so the bytes around them keep their
+             * order without anything waiting for the bus. */
+            uint8_t payload[TORIRS_CONTROL_REPLAY_COORD_BYTES_MAX];
+            int const len = torirs_control_replay_coord_encode(next.coord, next.charge, next.name, payload);
 
-    if( self->next_frame == self->rec.frame_count && self->resume_frame < 0 )
-    {
-        /* The recording ends the session, as RSProx's replay does
-         * (ReplaySession.logoutClient): with its own LOGOUT when it has one. */
-        if( self->rec.frame_count == 0 ||
-            self->rec.frames[self->rec.frame_count - 1].opcode != self->logout_wire )
-            pend_packet(self, self->logout_wire, NULL, 0);
-        self->phase = REPLAY_ENDED;
-        TORIRS_REPORT("replay: finished at tick %d (%.1f s of recording)\n", self->rec.tick_count,
-                      (double)self->rec.duration_ms / 1000.0);
+            pend_control(self, TORIRS_CONTROL_REPLAY_COORD, payload, len);
+        }
+        else if( what == REPLAY_NEXT_CHAT )
+        {
+            static uint8_t payload[TORIRS_CONTROL_REPLAY_CHAT_BYTES_MAX];
+            int const len = torirs_control_replay_chat_encode(
+                next.chat_say, next.chat_crown, next.chat_colour_effect, next.name, next.chat_data,
+                next.chat_len, payload);
+
+            pend_control(self, TORIRS_CONTROL_REPLAY_CHAT, payload, len);
+        }
+        else if( what == REPLAY_NEXT_WORLD )
+        {
+            /* The keyframe waits in the mailbox; the frame names it. */
+            uint8_t payload[TORIRS_CONTROL_REPLAY_WORLD_BYTES];
+            int const tick = next.world->tick;
+            uint32_t const serial = ReplayWorld_Post(next.world);
+            int const len = torirs_control_replay_world_encode(tick, serial, payload);
+
+            pend_control(self, TORIRS_CONTROL_REPLAY_WORLD, payload, len);
+            self->world_serial = serial;
+            self->world_end = self->staged_total;
+        }
+        else if( what == REPLAY_NEXT_RESUME )
+            self->resume_frame = next.frame;
+        else if( what == REPLAY_NEXT_DIALOG )
+            self->dialog_resumed = next.dialog_name;
+        else if( what == REPLAY_NEXT_RESTART )
+        {
+            restart_session(self, bus);
+            return;
+        }
+        else
+        {
+            assert(what == REPLAY_NEXT_END);
+            /* The recording ends the session, as RSProx's replay does
+             * (ReplaySession.logoutClient): with its own LOGOUT when it has
+             * one. */
+            if( self->rec.frame_count == 0 ||
+                self->rec.frames[self->rec.frame_count - 1].opcode != self->logout_wire )
+                pend_packet(self, self->logout_wire, NULL, 0);
+            self->phase = REPLAY_ENDED;
+            TORIRS_REPORT("replay: finished at tick %d (%.1f s of recording)\n", self->rec.tick_count,
+                          (double)self->rec.duration_ms / 1000.0);
+            break;
+        }
     }
 }
 
@@ -634,6 +666,7 @@ replay_poll(
 
     assert(net);
     assert(bus);
+    ReplayScrub_Wall(self->scrub, PlatformWindow_Ticks64());
 
     /* 1. client -> "server" */
     while( ToriRS_Network_PopOut(net, &header, payload) )
@@ -658,8 +691,8 @@ replay_poll(
             if( self->phase == REPLAY_PLAYING )
                 TORIRS_REPORT("replay: the client closed the session at tick %d of %d "
                               "(%.1f s in)\n",
-                              self->last_tick, self->rec.tick_count,
-                              (double)self->clock_ms / 1000.0);
+                              ReplayScrub_LastTick(self->scrub), self->rec.tick_count,
+                              (double)ReplayScrub_ClockMs(self->scrub) / 1000.0);
             replay_reset(self);
             self->phase = REPLAY_IDLE;
             emit_status(self, bus, TORIRS_NET_STATUS_DISCONNECTED);
@@ -672,23 +705,11 @@ replay_poll(
     if( self->phase == REPLAY_PLAYING || self->phase == REPLAY_ENDED )
         read_client_stream(self);
     if( self->phase == REPLAY_PLAYING )
-        play(self);
+        play(self, bus);
 
     /* 3. server -> client, as the bus has room. What the bus refuses stays
      * staged: a byte consumed and not delivered is a hole in the stream. */
-    while( self->pend_off < self->pend_len )
-    {
-        int chunk = self->pend_len - self->pend_off;
-
-        if( chunk > TORIRS_CMD_MAX_PAYLOAD )
-            chunk = TORIRS_CMD_MAX_PAYLOAD;
-        if( !CmdBus_CanPush(bus, (uint16_t)chunk) )
-            break;
-        CmdBus_Push(bus, TORIRS_CMD_NET_RECV, self->pend + self->pend_off, (uint16_t)chunk);
-        self->pend_off += chunk;
-    }
-    if( self->pend_off == self->pend_len )
-        self->pend_off = self->pend_len = 0;
+    flush_pend(self, bus);
     if( self->resume_frame >= 0 && self->pend_len == 0 )
         push_resume(self, bus);
     if( self->dialog_resumed >= 0 && self->pend_len == 0 )
@@ -700,6 +721,7 @@ replay_free(struct NetTransport* transport)
 {
     struct NetTransportReplay* self = as_replay(transport);
 
+    ReplayScrub_Free(self->scrub);
     RsproxRecording_Free(&self->rec);
     isaac_free(self->enc);
     isaac_free(self->dec);
@@ -744,10 +766,60 @@ NetTransport_NewReplay(
     self->logout_wire = rev->packetin_wire(PKT_NAME_LOGOUT);
     assert(self->map_build_complete_wire >= 0);
     assert(self->logout_wire >= 0);
-    for( int i = 0; i < REPLAY_DIALOG_PROTS; i++ )
-        self->dialog_wire[i] = rev->packetout_code(k_dialog_names[i]);
+    /* After the move: the scrubber reads the transport's copy. */
+    self->scrub = ReplayScrub_New(&self->rec, rev);
+    /* TORIRS_REPLAY_SEEK=fullsim|fast picks the seek plan; anything else is
+     * refused aloud and the default kept. */
+    {
+        char const* seek = getenv("TORIRS_REPLAY_SEEK");
+        char const* cycles = getenv("TORIRS_REPLAY_CHASE_CYCLES");
+
+        ReplayScrub_SetSeekMode(self->scrub, REPLAY_SEEK_DEFAULT_MODE);
+        if( seek && strcmp(seek, "fast") == 0 )
+            ReplayScrub_SetSeekMode(self->scrub, REPLAY_SEEK_MODE_FAST);
+        else if( seek && strcmp(seek, "fullsim") == 0 )
+            ReplayScrub_SetSeekMode(self->scrub, REPLAY_SEEK_MODE_FULLSIM);
+        else if( seek && seek[0] )
+            TORIRS_ERR("replay: TORIRS_REPLAY_SEEK=%s is neither fast nor fullsim; ignored\n", seek);
+        ReplayScrub_SetChaseCycles(self->scrub, REPLAY_CHASE_DEFAULT_CYCLES);
+        if( cycles && cycles[0] )
+        {
+            int const k = atoi(cycles);
+
+            if( k >= 1 && k <= REPLAY_TICK_CYCLES )
+                ReplayScrub_SetChaseCycles(self->scrub, k);
+            else
+                TORIRS_ERR("replay: TORIRS_REPLAY_CHASE_CYCLES=%s is not 1..%d; ignored\n", cycles,
+                           REPLAY_TICK_CYCLES);
+        }
+    }
     replay_reset(self);
     return &self->base;
+}
+
+void
+NetTransport_ReplaySeekTimes(
+    struct NetTransport* t,
+    struct ReplaySeekTimes* out)
+{
+    ReplayScrub_SeekTimes(as_replay(t)->scrub, out);
+}
+
+void
+NetTransport_ReplaySetSeekFast(
+    struct NetTransport* t,
+    int fast)
+{
+    ReplayScrub_SetSeekMode(as_replay(t)->scrub,
+                            fast ? REPLAY_SEEK_MODE_FAST : REPLAY_SEEK_MODE_FULLSIM);
+}
+
+void
+NetTransport_ReplaySetChaseCycles(
+    struct NetTransport* t,
+    int cycles)
+{
+    ReplayScrub_SetChaseCycles(as_replay(t)->scrub, cycles);
 }
 
 int
@@ -783,7 +855,165 @@ NetTransport_ReplaySetUnlocked(
 int
 NetTransport_ReplayUnlocked(struct NetTransport* t)
 {
-    return as_replay(t)->unlocked;
+    return replay_unlocked(as_replay(t));
+}
+
+void
+NetTransport_ReplayClientTicks(
+    struct NetTransport* t,
+    unsigned serial)
+{
+    ReplayScrub_ClientTicks(as_replay(t)->scrub, serial);
+}
+
+void
+NetTransport_ReplayClientBusy(
+    struct NetTransport* t,
+    int busy)
+{
+    ReplayScrub_ClientBusy(as_replay(t)->scrub, busy);
+}
+
+void
+NetTransport_ReplaySeek(
+    struct NetTransport* t,
+    int tick)
+{
+    ReplayScrub_SeekTick(as_replay(t)->scrub, tick);
+}
+
+void
+NetTransport_ReplayStep(
+    struct NetTransport* t,
+    int ticks)
+{
+    ReplayScrub_Step(as_replay(t)->scrub, ticks);
+}
+
+void
+NetTransport_ReplayHold(struct NetTransport* t)
+{
+    ReplayScrub_Hold(as_replay(t)->scrub);
+}
+
+void
+NetTransport_ReplayRun(struct NetTransport* t)
+{
+    ReplayScrub_Run(as_replay(t)->scrub);
+}
+
+void
+NetTransport_ReplayHoldAt(
+    struct NetTransport* t,
+    int tick)
+{
+    ReplayScrub_HoldAt(as_replay(t)->scrub, tick);
+}
+
+/* Nothing of the stream is in flight between the transport and the client:
+ * the staged bytes (control frames among them) are all on the bus, no
+ * RECONNECT or dialog answer waits. */
+static int
+replay_quiet(struct NetTransportReplay const* self)
+{
+    return self->phase == REPLAY_PLAYING && self->pend_len == self->pend_off && self->resume_frame < 0 &&
+           self->dialog_resumed < 0;
+}
+
+int
+NetTransport_ReplayCheckpointWanted(
+    struct NetTransport* t,
+    int* out_tick,
+    unsigned long long* out_clock_ms)
+{
+    struct NetTransportReplay* self = as_replay(t);
+    uint64_t clock = 0;
+
+    assert(out_tick);
+    assert(out_clock_ms);
+    if( !replay_quiet(self) || !ReplayScrub_CheckpointWanted(self->scrub, out_tick, &clock) )
+        return 0;
+    *out_clock_ms = clock;
+    return 1;
+}
+
+void
+NetTransport_ReplayCheckpointAdd(
+    struct NetTransport* t,
+    int tick,
+    unsigned long long clock_ms,
+    struct ReplayCheckpoint* cp)
+{
+    struct NetTransportReplay* self = as_replay(t);
+
+    ReplayCheckpointStore_Add(ReplayScrub_Checkpoints(self->scrub), tick, (uint64_t)clock_ms, cp,
+                              ReplayScrub_Tick(self->scrub));
+}
+
+struct ReplayCheckpoint const*
+NetTransport_ReplayRestoreWanted(struct NetTransport* t)
+{
+    struct NetTransportReplay* self = as_replay(t);
+
+    if( !replay_quiet(self) )
+        return NULL;
+    return ReplayScrub_RestoreWanted(self->scrub);
+}
+
+void
+NetTransport_ReplayRestored(
+    struct NetTransport* t,
+    double cost_ms)
+{
+    struct NetTransportReplay* self = as_replay(t);
+
+    /* At the boundary every staged byte is on the bus. */
+    assert(self->pend_len == self->pend_off);
+    ReplayScrub_Restored(self->scrub, cost_ms);
+}
+
+void
+NetTransport_ReplaySeekFromCheckpoint(
+    struct NetTransport* t,
+    int tick,
+    struct ReplayCheckpoint const* cp,
+    int cp_tick,
+    unsigned long long cp_clock_ms,
+    int preroll)
+{
+    ReplayScrub_SeekFromCheckpoint(as_replay(t)->scrub, tick, cp, cp_tick, (uint64_t)cp_clock_ms, preroll);
+}
+
+void
+NetTransport_ReplayCheckpointStats(
+    struct NetTransport* t,
+    int* out_count,
+    unsigned long long* out_bytes)
+{
+    struct ReplayCheckpointStore const* store = ReplayScrub_Checkpoints(as_replay(t)->scrub);
+
+    assert(out_count);
+    assert(out_bytes);
+    *out_count = ReplayCheckpointStore_Count(store);
+    *out_bytes = ReplayCheckpointStore_Bytes(store);
+}
+
+int
+NetTransport_ReplaySeeking(struct NetTransport* t)
+{
+    return ReplayScrub_Seeking(as_replay(t)->scrub);
+}
+
+int
+NetTransport_ReplayHeld(struct NetTransport* t)
+{
+    return ReplayScrub_Held(as_replay(t)->scrub);
+}
+
+char*
+NetTransport_ReplayTimelineJson(struct NetTransport* t)
+{
+    return ReplayTimeline_Json(ReplayScrub_Timeline(as_replay(t)->scrub));
 }
 
 void
@@ -792,6 +1022,8 @@ NetTransport_ReplayGetStatus(
     struct NetTransportReplayStatus* out)
 {
     struct NetTransportReplay* self = as_replay(t);
+    struct ReplayScrub const* scrub = self->scrub;
+    struct ReplaySeekPlan plan;
     static char const* const k_phase[] = {
         "idle", "connecting", "logging_in", "logging_in", "playing", "finished",
     };
@@ -799,13 +1031,26 @@ NetTransport_ReplayGetStatus(
     assert(out);
     memset(out, 0, sizeof(*out));
     out->phase = k_phase[self->phase];
-    out->tick = self->last_tick;
+    /* While seeking, the tick the work has reached; held, the tick it holds
+     * at; playing, the tick of the last packet staged. */
+    if( ReplayScrub_Seeking(scrub) )
+        out->tick = ReplayScrub_Reached(scrub);
+    else if( ReplayScrub_Held(scrub) )
+        out->tick = ReplayScrub_Tick(scrub);
+    else
+        out->tick = ReplayScrub_LastTick(scrub);
     out->tick_count = self->rec.tick_count;
-    out->clock_ms = self->clock_ms;
+    out->clock_ms = ReplayScrub_ClockMs(scrub);
     out->duration_ms = self->rec.duration_ms;
-    out->unlocked = self->unlocked;
-    out->waiting_map = self->wait_map && !self->map_built;
+    out->unlocked = replay_unlocked(self);
+    out->waiting_map = ReplayScrub_WaitingMap(scrub);
     out->revision = self->rec.revision;
     out->world = self->rec.world_id;
     out->sessions = self->sessions;
+    out->held = ReplayScrub_Held(scrub);
+    out->seeking = ReplayScrub_Plan(scrub, &plan);
+    out->seek_target = out->seeking ? plan.target : -1;
+    out->seek_from = out->seeking ? plan.from : -1;
+    out->seek_phase = ReplayScrub_SeekPhase(scrub);
+    out->timestamp_ms = self->rec.timestamp_ms;
 }

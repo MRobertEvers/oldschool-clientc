@@ -24,6 +24,7 @@
  */
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #define RS_CLAN_AFFINED_SLOTS 4
@@ -285,5 +286,30 @@ struct RS_VarClan const*
 RS_ClanStore_VarClan(
     struct RS_ClanStore const* store,
     int id);
+/* --- session checkpoint (replay/replay_checkpoint.h) ---------------------
+ * A deep copy of the clan store: every channel and settings object (the
+ * retired ones a live active pointer may still name), the active pointers
+ * re-aimed at the copies, and the varclans. */
+struct RS_ClanStore*
+RS_ClanStore_CheckpointTake(struct RS_ClanStore const* store);
+
+void
+RS_ClanStore_CheckpointRestore(
+    struct RS_ClanStore* store,
+    struct RS_ClanStore const* cp);
+
+/** Accepts NULL. */
+void
+RS_ClanStore_CheckpointFree(struct RS_ClanStore* cp);
+
+size_t
+RS_ClanStore_CheckpointBytes(struct RS_ClanStore const* cp);
+
+int
+RS_ClanStore_CheckpointEqual(
+    struct RS_ClanStore const* a,
+    struct RS_ClanStore const* b,
+    char* why,
+    int why_cap);
 
 #endif

@@ -951,3 +951,233 @@ RS_Chat_EffectColourArgb(int chat_colour, int timer, int cycle)
      * than prevent one. The test sweeps the whole range and says so. */
     return 0xff000000u | (uint32_t)rgb;
 }
+
+/* --- session checkpoint (replay/replay_checkpoint.h) --------------------- */
+
+#include "replay/replay_checkpoint_util.h"
+
+struct rs_chat_ckpt_pair
+{
+    struct RS_ChatNode const* from;
+    struct RS_ChatNode* to;
+};
+
+static int
+rs_chat_ckpt_pair_cmp(
+    void const* a,
+    void const* b)
+{
+    uintptr_t const x = (uintptr_t)((struct rs_chat_ckpt_pair const*)a)->from;
+    uintptr_t const y = (uintptr_t)((struct rs_chat_ckpt_pair const*)b)->from;
+
+    return x < y ? -1 : x > y ? 1 : 0;
+}
+
+static struct RS_ChatNode*
+rs_chat_ckpt_map(
+    struct rs_chat_ckpt_pair const* pairs,
+    int count,
+    struct RS_ChatNode const* from)
+{
+    struct rs_chat_ckpt_pair key;
+    struct rs_chat_ckpt_pair const* hit;
+
+    if( !from )
+        return NULL;
+    key.from = from;
+    key.to = NULL;
+    hit = bsearch(&key, pairs, (size_t)count, sizeof(*pairs), rs_chat_ckpt_pair_cmp);
+    /* Every node on the global order is on exactly one type ring. */
+    assert(hit);
+    return hit->to;
+}
+
+/* Deep copy of `src`'s messages and rings into `dst`, whose own rings are
+ * already gone. The global order's links are rebuilt through a map from each
+ * source node to its copy. */
+static void
+rs_chat_checkpoint_copy(
+    struct RS_Chat* dst,
+    struct RS_Chat const* src)
+{
+    struct ToriMem_Group* g = ToriMem_Session();
+    struct rs_chat_ckpt_pair* pairs;
+    int count = 0;
+    int t;
+    int i;
+
+    *dst = *src;
+    for( t = 0; t < RS_CHAT_TYPE_MAX; t++ )
+        count += src->rings[t] ? src->rings[t]->count : 0;
+    pairs = count > 0 ? ToriMem_Alloc(g, (size_t)count * sizeof(*pairs)) : NULL;
+    assert(count == 0 || pairs);
+    count = 0;
+    for( t = 0; t < RS_CHAT_TYPE_MAX; t++ )
+    {
+        struct RS_ChatTypeRing const* ring = src->rings[t];
+
+        dst->rings[t] = NULL;
+        if( !ring )
+            continue;
+        dst->rings[t] = ToriMem_Calloc(g, 1, sizeof(*dst->rings[t]));
+        assert(dst->rings[t]);
+        dst->rings[t]->count = ring->count;
+        for( i = 0; i < ring->count; i++ )
+        {
+            struct RS_ChatNode* node = ToriMem_Memdup(g, ring->lines[i], sizeof(*node));
+
+            assert(node);
+            dst->rings[t]->lines[i] = node;
+            pairs[count].from = ring->lines[i];
+            pairs[count].to = node;
+            count++;
+        }
+    }
+    if( count > 0 )
+        qsort(pairs, (size_t)count, sizeof(*pairs), rs_chat_ckpt_pair_cmp);
+    for( i = 0; i < count; i++ )
+    {
+        pairs[i].to->newer = rs_chat_ckpt_map(pairs, count, pairs[i].from->newer);
+        pairs[i].to->older = rs_chat_ckpt_map(pairs, count, pairs[i].from->older);
+    }
+    dst->newest = rs_chat_ckpt_map(pairs, count, src->newest);
+    dst->oldest = rs_chat_ckpt_map(pairs, count, src->oldest);
+    /* A lookup memo, not state. */
+    dst->uid_memo = NULL;
+    ToriMem_Free(g, pairs);
+}
+
+struct RS_Chat*
+RS_Chat_CheckpointTake(struct RS_Chat const* chat)
+{
+    struct RS_Chat* cp;
+
+    assert(chat);
+    cp = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*cp));
+    assert(cp);
+    rs_chat_checkpoint_copy(cp, chat);
+    cp->drive_app = NULL;
+    return cp;
+}
+
+void
+RS_Chat_CheckpointRestore(
+    struct RS_Chat* chat,
+    struct RS_Chat const* cp)
+{
+    struct App* drive_app;
+
+    assert(chat);
+    assert(cp);
+    drive_app = chat->drive_app;
+    RS_Chat_Free(chat);
+    rs_chat_checkpoint_copy(chat, cp);
+    chat->drive_app = drive_app;
+}
+
+void
+RS_Chat_CheckpointFree(struct RS_Chat* cp)
+{
+    if( !cp )
+        return;
+    RS_Chat_Free(cp);
+    ToriMem_Free(ToriMem_Session(), cp);
+}
+
+size_t
+RS_Chat_CheckpointBytes(struct RS_Chat const* cp)
+{
+    size_t bytes;
+
+    assert(cp);
+    bytes = sizeof(*cp);
+    for( int t = 0; t < RS_CHAT_TYPE_MAX; t++ )
+        if( cp->rings[t] )
+            bytes += sizeof(*cp->rings[t]) + (size_t)cp->rings[t]->count * sizeof(struct RS_ChatNode);
+    return bytes;
+}
+
+static int
+rs_chat_node_equal(
+    struct RS_ChatNode const* a,
+    struct RS_ChatNode const* b)
+{
+    if( !a || !b )
+        return a == b;
+    return a->uid == b->uid && a->clock == b->clock && a->type == b->type &&
+           strcmp(a->name, b->name) == 0 && strcmp(a->sender, b->sender) == 0 &&
+           strcmp(a->text, b->text) == 0;
+}
+
+int
+RS_Chat_CheckpointEqual(
+    struct RS_Chat const* a,
+    struct RS_Chat const* b,
+    char* why,
+    int why_cap)
+{
+    struct RS_ChatNode const* na;
+    struct RS_ChatNode const* nb;
+    int line = 0;
+
+    assert(a);
+    assert(b);
+    CKPT_EQ_INT(a, b, message_count, why, why_cap);
+    for( int i = 0; i < a->message_count; i++ )
+    {
+        struct RS_ChatMessage const* ma = &a->messages[i];
+        struct RS_ChatMessage const* mb = &b->messages[i];
+
+        if( ma->type != mb->type || ma->serial != mb->serial || strcmp(ma->sender, mb->sender) != 0 ||
+            strcmp(ma->text, mb->text) != 0 )
+        {
+            Ckpt_Why(why, why_cap, "messages[%d] \"%s\" != \"%s\"", i, ma->text, mb->text);
+            return 0;
+        }
+    }
+    for( int t = 0; t < RS_CHAT_TYPE_MAX; t++ )
+    {
+        int const ca = a->rings[t] ? a->rings[t]->count : 0;
+        int const cb = b->rings[t] ? b->rings[t]->count : 0;
+
+        if( ca != cb )
+        {
+            Ckpt_Why(why, why_cap, "ring type %d: %d lines != %d", t, ca, cb);
+            return 0;
+        }
+        for( int i = 0; i < ca; i++ )
+        {
+            if( !rs_chat_node_equal(a->rings[t]->lines[i], b->rings[t]->lines[i]) )
+            {
+                Ckpt_Why(why, why_cap, "ring type %d line %d: \"%s\" != \"%s\"", t, i,
+                         a->rings[t]->lines[i]->text, b->rings[t]->lines[i]->text);
+                return 0;
+            }
+        }
+    }
+    /* The global order, newest first. */
+    for( na = a->newest, nb = b->newest; na || nb; na = na->older, nb = nb->older, line++ )
+    {
+        if( !rs_chat_node_equal(na, nb) )
+        {
+            Ckpt_Why(why, why_cap, "history line %d differs", line);
+            return 0;
+        }
+    }
+    CKPT_EQ_INT(a, b, next_uid, why, why_cap);
+    CKPT_EQ_INT(a, b, next_message_serial, why, why_cap);
+    CKPT_EQ_FIELD(a, b, message_filter, why, why_cap);
+    CKPT_EQ_INT(a, b, timestamps, why, why_cap);
+    CKPT_EQ_INT(a, b, scroll_pos, why, why_cap);
+    CKPT_EQ_INT(a, b, social_input_open, why, why_cap);
+    CKPT_EQ_INT(a, b, social_input_type, why, why_cap);
+    CKPT_EQ_INT(a, b, dialog_input_open, why, why_cap);
+    if( strcmp(a->input, b->input) != 0 || strcmp(a->social_input, b->social_input) != 0 ||
+        strcmp(a->social_header, b->social_header) != 0 || strcmp(a->dialog_input, b->dialog_input) != 0 ||
+        strcmp(a->username, b->username) != 0 )
+    {
+        Ckpt_Why(why, why_cap, "typed input or username");
+        return 0;
+    }
+    return 1;
+}

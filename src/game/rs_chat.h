@@ -423,5 +423,30 @@ RS_Chat_HandleKey(
  */
 uint32_t
 RS_Chat_EffectColourArgb(int chat_colour, int timer, int cycle);
+/* --- session checkpoint (replay/replay_checkpoint.h) ---------------------
+ * A private copy of the message store: the flat message list, every type ring
+ * and the global order (rebuilt between the copies), the typed lines. */
+struct RS_Chat*
+RS_Chat_CheckpointTake(struct RS_Chat const* chat);
+
+void
+RS_Chat_CheckpointRestore(
+    struct RS_Chat* chat,
+    struct RS_Chat const* cp);
+
+/** Accepts NULL. */
+void
+RS_Chat_CheckpointFree(struct RS_Chat* cp);
+
+size_t
+RS_Chat_CheckpointBytes(struct RS_Chat const* cp);
+
+/** 1 when equal; else 0 and the first difference in `why`. */
+int
+RS_Chat_CheckpointEqual(
+    struct RS_Chat const* a,
+    struct RS_Chat const* b,
+    char* why,
+    int why_cap);
 
 #endif

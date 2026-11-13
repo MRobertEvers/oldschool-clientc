@@ -237,5 +237,30 @@ InvManager_SelectionMatches(
     struct InvManager const* mgr,
     int source_id,
     int slot);
+/* --- session checkpoint (replay/replay_checkpoint.h) ---------------------
+ * A private copy of every container, the named sources and the selection.
+ * Restore replaces them whole and fires no change callback. */
+struct InvManager*
+InvManager_CheckpointTake(struct InvManager const* mgr);
+
+void
+InvManager_CheckpointRestore(
+    struct InvManager* mgr,
+    struct InvManager const* cp);
+
+/** Accepts NULL. */
+void
+InvManager_CheckpointFree(struct InvManager* cp);
+
+size_t
+InvManager_CheckpointBytes(struct InvManager const* cp);
+
+/** 1 when equal; else 0 and the first difference in `why`. */
+int
+InvManager_CheckpointEqual(
+    struct InvManager const* a,
+    struct InvManager const* b,
+    char* why,
+    int why_cap);
 
 #endif /* INV_MANAGER_H */

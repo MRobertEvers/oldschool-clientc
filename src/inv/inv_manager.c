@@ -740,3 +740,133 @@ InvManager_SelectionMatches(
     assert(mgr);
     return mgr->selection.source_id == source_id && mgr->selection.slot == slot;
 }
+
+/* --- session checkpoint (replay/replay_checkpoint.h) --------------------- */
+
+#include "replay/replay_checkpoint_util.h"
+
+static void
+inv_checkpoint_copy(
+    struct InvManager* dst,
+    struct InvManager const* src)
+{
+    for( int i = 0; i < INV_MANAGER_STORE_MAX; i++ )
+    {
+        dst->containers[i] = src->containers[i];
+        dst->containers[i].slots =
+            Ckpt_Dup(ToriMem_Session(), src->containers[i].slots,
+                     (size_t)src->containers[i].slot_count * sizeof(struct InvSlot));
+    }
+    dst->container_count = src->container_count;
+    memcpy(dst->sources, src->sources, sizeof(dst->sources));
+    dst->source_count = src->source_count;
+    dst->selection = src->selection;
+}
+
+static void
+inv_checkpoint_free_slots(struct InvManager* mgr)
+{
+    for( int i = 0; i < INV_MANAGER_STORE_MAX; i++ )
+    {
+        ToriMem_Free(ToriMem_Session(), mgr->containers[i].slots);
+        mgr->containers[i].slots = NULL;
+    }
+}
+
+struct InvManager*
+InvManager_CheckpointTake(struct InvManager const* mgr)
+{
+    struct InvManager* cp;
+
+    assert(mgr);
+    cp = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*cp));
+    assert(cp);
+    inv_checkpoint_copy(cp, mgr);
+    return cp;
+}
+
+void
+InvManager_CheckpointRestore(
+    struct InvManager* mgr,
+    struct InvManager const* cp)
+{
+    assert(mgr);
+    assert(cp);
+    inv_checkpoint_free_slots(mgr);
+    /* The icons the slots name (scene_id / atlas_index) are kept: the UI scene
+     * bridge never evicts an obj icon, so a restored slot's icon is still the
+     * one the reconcile pass rasterised for it. */
+    inv_checkpoint_copy(mgr, cp);
+}
+
+void
+InvManager_CheckpointFree(struct InvManager* cp)
+{
+    if( !cp )
+        return;
+    inv_checkpoint_free_slots(cp);
+    ToriMem_Free(ToriMem_Session(), cp);
+}
+
+size_t
+InvManager_CheckpointBytes(struct InvManager const* cp)
+{
+    size_t bytes;
+
+    assert(cp);
+    bytes = sizeof(*cp);
+    for( int i = 0; i < INV_MANAGER_STORE_MAX; i++ )
+        bytes += (size_t)cp->containers[i].slot_count * sizeof(struct InvSlot);
+    return bytes;
+}
+
+int
+InvManager_CheckpointEqual(
+    struct InvManager const* a,
+    struct InvManager const* b,
+    char* why,
+    int why_cap)
+{
+    assert(a);
+    assert(b);
+    CKPT_EQ_INT(a, b, container_count, why, why_cap);
+    for( int i = 0; i < INV_MANAGER_STORE_MAX; i++ )
+    {
+        struct InvContainer const* ca = &a->containers[i];
+        struct InvContainer const* cb = &b->containers[i];
+
+        if( ca->inv_id != cb->inv_id || ca->slot_count != cb->slot_count )
+        {
+            Ckpt_Why(why, why_cap, "container[%d] inv %d (%d slots) != inv %d (%d slots)", i,
+                     ca->inv_id, ca->slot_count, cb->inv_id, cb->slot_count);
+            return 0;
+        }
+        for( int s = 0; s < ca->slot_count; s++ )
+        {
+            /* What the server made true; the icon is the client's drawing of it. */
+            if( ca->slots[s].obj_id != cb->slots[s].obj_id ||
+                ca->slots[s].obj_count != cb->slots[s].obj_count )
+            {
+                Ckpt_Why(why, why_cap, "inv %d slot %d: obj %d x%d != obj %d x%d", ca->inv_id, s,
+                         ca->slots[s].obj_id, ca->slots[s].obj_count, cb->slots[s].obj_id,
+                         cb->slots[s].obj_count);
+                return 0;
+            }
+        }
+    }
+    CKPT_EQ_INT(a, b, source_count, why, why_cap);
+    for( int i = 0; i < INV_MANAGER_SOURCE_MAX; i++ )
+    {
+        if( strcmp(a->sources[i].name, b->sources[i].name) != 0 ||
+            a->sources[i].container_id != b->sources[i].container_id ||
+            a->sources[i].slot_count != b->sources[i].slot_count ||
+            a->sources[i].used != b->sources[i].used )
+        {
+            Ckpt_Why(why, why_cap, "sources[%d] (%s)", i, a->sources[i].name);
+            return 0;
+        }
+    }
+    CKPT_EQ_INT(a, b, selection.source_id, why, why_cap);
+    CKPT_EQ_INT(a, b, selection.slot, why, why_cap);
+    return 1;
+}

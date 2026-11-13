@@ -11,12 +11,13 @@ UIInk_Reset(struct UIInk* ink)
 }
 
 void
-UIInk_Show(struct UIInk* ink, int colour, int x, int y)
+UIInk_Show(struct UIInk* ink, int colour, int halve, int x, int y)
 {
     assert(ink);
     ink->x = x;
     ink->y = y;
     ink->colour = colour;
+    ink->halve = halve;
     ink->cycle = 0;
     ink->active = 1;
 }

@@ -1020,8 +1020,13 @@ app_run_once_body(
          * app_logic_cycles_per_frame), plus any a fence held back last frame.
          * It is a headless knob: without TORIRS_MAX_FRAMES the accumulator
          * pays whatever the wall clock says, and k would mean nothing.
+         *
+         * A replay seek sets k at run time (App_SetLogicCyclesPerFrame) while
+         * it holds the frame lock; it is 0, and this the env's k, otherwise.
          */
-        int const cycles_per_frame = app_logic_cycles_per_frame();
+        int const cycles_per_frame = App_FrameLocked() && App_LogicCyclesPerFrameSet() > 0
+                                         ? App_LogicCyclesPerFrameSet()
+                                         : app_logic_cycles_per_frame();
 
         if( App_FrameLocked() )
         {
@@ -2532,6 +2537,14 @@ app_run_once_body(
         /* Publication invariant: an emit list is a frame commit, not a view of
          * whatever intermediate state the cooperative schedulers reached. */
         assert(App_FrameSettled(app));
+        /* A replay seek holds the screen (App_RenderSkipHold): no frame it
+         * runs is drawn, so the overlay layout and the emit walk that build
+         * one wait, need_redraw still set, for the frame that releases it. */
+        if( app->render_skip.hold )
+        {
+            app->frame_view = App_RunnerView(app);
+            return 0;
+        }
 #if defined(TORIRS_UI_EMIT_PMU)
         ui_emit_pmu_begin();
         int overlay_motion_reused = 0;

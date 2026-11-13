@@ -32,6 +32,23 @@ CreateTask_ExecNpcInfo(
     int length,
     int large);
 
+struct RsprotInfoOp;
+
+/** A replay keyframe's players or npcs (replay/replay_world_apply.c): an op
+ *  list already decoded, applied through the same op arms a packet's are.
+ *  `ops` is borrowed until the task ends; the npc one addresses the root. */
+struct ToriRS_Task*
+CreateTask_ExecPlayerInfoOps(
+    struct App* app,
+    struct RsprotInfoOp const* ops,
+    int count);
+
+struct ToriRS_Task*
+CreateTask_ExecNpcInfoOps(
+    struct App* app,
+    struct RsprotInfoOp const* ops,
+    int count);
+
 /*
  * Releases the op-array scratch both decoders borrow from App. Call once at
  * teardown; safe on an App that never ran a packet.
