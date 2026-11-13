@@ -351,6 +351,12 @@ NPC_SPAWN_RELOCATIONS = {
     # sends him on 3155,3512 (index 4474, 2 of 2) and never in the courtyard,
     # which 4465, 4466 and 4478 all had in view.
     ("league_tutor", 3225, 3213, 0): (3155, 3512, 0),
+    # Duke Horacio stands in his study, by its door: every recorded add of him
+    # is on 3209..3211,3223..3224 (RSProx index 4556 and older sessions: 3209,3223
+    # most, 13 adds), never on the dump's 3212,3220, which is behind the
+    # study's east wall -- the Dragon Slayer test could not reach him from
+    # the door in three runs (2026-11-12).
+    ("duke_of_lumbridge", 3212, 3220, 1): (3209, 3223, 1),
 }
 
 
