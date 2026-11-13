@@ -147,6 +147,7 @@ test_load_fields(void)
     CHECK(bm.player_head_ambient_set == 1);
     CHECK(bm.player_head_ambient == 128);
     CHECK(bm.features_painter_draw_distance == 90);
+    CHECK(bm.features_world_rebuild_model == TORIRS_WORLD_REBUILD_BLOCKING);
 }
 
 static void
@@ -239,6 +240,9 @@ test_apply_to_config(void)
     CHECK(cfg.features_ground_click_offmap == 1);
     CHECK(cfg.features_painter_draw_distance_set == 1);
     CHECK(cfg.features_painter_draw_distance == 90);
+    /* 0 is a real model (blocking), so the override is the _set flag. */
+    CHECK(cfg.features_world_rebuild_model_set == 1);
+    CHECK(cfg.features_world_rebuild_model == TORIRS_WORLD_REBUILD_BLOCKING);
 }
 
 /* ApplyToConfig must only write fields the manifest actually set, so a
@@ -255,6 +259,8 @@ test_partial_apply_preserves_unset(void)
     /* 0 is TORIRS_NEAREST_RING3_STEPS, a real model — the sentinel keeps a
      * zeroed manifest from reading as "override the era to the 2004 ring". */
     bm.features_ground_click_nearest = -1;
+    /* Likewise: 0 is blocking, a real answer. */
+    bm.features_world_rebuild_model = -1;
     /* Only a host is provided; everything else stays unset. */
     snprintf(bm.host, sizeof(bm.host), "manifesthost");
 
@@ -272,6 +278,7 @@ test_partial_apply_preserves_unset(void)
     CHECK(cfg.connect_port == 0);
     CHECK(cfg.features_ground_click_nearest_set == 0);
     CHECK(cfg.features_painter_draw_distance_set == 0);
+    CHECK(cfg.features_world_rebuild_model_set == 0);
     CHECK(cfg.debug_hotkey_count == 1);
     CHECK(cfg.debug_hotkeys[0].key == TORIRSK_Q);
     CHECK(cfg.debug_hotkeys[0].target == APP_DEBUG_HOTKEY_CAMERA_FORWARD);

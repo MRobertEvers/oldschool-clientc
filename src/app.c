@@ -1002,6 +1002,14 @@ App_Init(
                 app->features_storage.mover_model = model;
         }
 
+        /* How a server REBUILD replaces the scene, on top of the era: the
+         * manifest's `[features:boot] world_rebuild`, then the launch's
+         * TORIRS_WORLD_REBUILD and the runs that must block whatever is said,
+         * both inside App_WorldRebuildModeInit. */
+        if( cfg->features_world_rebuild_model_set )
+            app->features_storage.world_rebuild_model = cfg->features_world_rebuild_model;
+        App_WorldRebuildModeInit(app);
+
         if( torirs_env_net_debug() )
             TORIRS_LOG(
                 "app: features era=%s ground_click_nearest=%s "

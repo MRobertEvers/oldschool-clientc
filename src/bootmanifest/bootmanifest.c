@@ -1189,6 +1189,19 @@ bm_set_kv(
                 bm->features_ground_click_offmap = on ? 1 : 0;
             return;
         }
+        if( strcmp(key, "world_rebuild") == 0 )
+        {
+            int model = ToriRS_Features_WorldRebuildModelByName(value);
+            if( model < 0 )
+            {
+                TORIRS_LOG(
+                    "bootmanifest: [features] world_rebuild must be background|blocking, got '%s'\n",
+                    value);
+                return;
+            }
+            bm->features_world_rebuild_model = model;
+            return;
+        }
         if( strcmp(key, "mover") == 0 )
         {
             int model = ToriRS_Features_MoverModelByName(value);
@@ -1337,6 +1350,7 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
      * zeroed struct must not read as an override to it. */
     bm->features_ground_click_nearest = -1;
     bm->features_mover_model = -1;
+    bm->features_world_rebuild_model = -1;
     bm->features_ground_click_unbounded = -1;
     bm->features_ground_click_offmap = -1;
     bm->spawn_x = -1;
@@ -1700,6 +1714,11 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
     {
         cfg->features_mover_model = bm->features_mover_model;
         cfg->features_mover_model_set = 1;
+    }
+    if( bm->features_world_rebuild_model >= 0 )
+    {
+        cfg->features_world_rebuild_model = bm->features_world_rebuild_model;
+        cfg->features_world_rebuild_model_set = 1;
     }
     if( bm->features_painter_draw_distance > 0 )
     {

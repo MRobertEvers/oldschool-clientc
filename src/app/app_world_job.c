@@ -29,6 +29,7 @@
  */
 
 #include "app/app_internal.h"
+#include "features/features.h"
 #include "game/content_test.h"
 #include "mem/torirs_mem.h"
 
@@ -203,24 +204,36 @@ App_WorldRebuildModeInit(struct App* app)
     char const* mode = torirs_env_world_rebuild();
     char const* deadline = torirs_env_world_job_deadline_ms();
     long deadline_ms = APP_WORLD_JOB_DEADLINE_MS_DEFAULT;
+    int model;
 
     assert(app);
-    app->world_rebuild_background = 0;
-    if( mode && strcmp(mode, "background") == 0 )
-        app->world_rebuild_background = 1;
-    else if( mode && mode[0] && strcmp(mode, "blocking") != 0 )
-        TORIRS_LOG("world rebuild: TORIRS_WORLD_REBUILD=%s is not blocking|background; blocking\n", mode);
+    /*
+     * What the world says: its era table (background), or its manifest's
+     * `[features:boot] world_rebuild` on top of that (app.c). This runs once
+     * when the queues are made and again when the features are bound; before
+     * that there is no world to rebuild, and it reads blocking.
+     * TORIRS_WORLD_REBUILD overrides the world's statement for one launch.
+     */
+    model = app->features ? app->features->world_rebuild_model : TORIRS_WORLD_REBUILD_BLOCKING;
+    if( mode && mode[0] )
+    {
+        int const from_env = ToriRS_Features_WorldRebuildModelByName(mode);
+
+        if( from_env < 0 )
+            TORIRS_LOG("world rebuild: TORIRS_WORLD_REBUILD=%s is not blocking|background; ignored\n", mode);
+        else
+            model = from_env;
+    }
+    app->world_rebuild_background = model == TORIRS_WORLD_REBUILD_BACKGROUND;
     /*
      * A content test keys every step on the tick a state is reached and waits
      * for it with frames. A hold measured in wall time moves every packet
      * behind a REBUILD by a different number of frames on every run, which is
-     * exactly what such a run must not vary; it keeps the default.
+     * exactly what such a run must not vary; it blocks whatever the world or
+     * the launch says.
      */
     if( app->world_rebuild_background && ContentTest_Enabled() )
-    {
-        TORIRS_LOG("world rebuild: background refused under TORIRS_CONTENT_TEST; blocking\n");
         app->world_rebuild_background = 0;
-    }
     if( deadline && deadline[0] )
     {
         long const value = strtol(deadline, NULL, 0);

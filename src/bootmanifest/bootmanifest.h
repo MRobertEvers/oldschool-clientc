@@ -72,6 +72,12 @@
  *                 era=server_routed), or a lane whose mover is not its
  *                 lineage's. This block overrides the profile, which in turn
  *                 overrides ToriRS_Features_ForCache.
+ *                 world_rebuild=background|blocking
+ *                 How a server REBUILD replaces the scene (features.h):
+ *                 `background` makes the new scene beside the one being drawn
+ *                 and swaps it in, `blocking` builds it in place in one frame
+ *                 and never holds two. Every era's table says background;
+ *                 TORIRS_WORLD_REBUILD overrides the manifest for one launch.
  *                 ground_click_nearest=ring3|box10_rect|none
  *                 Per-item override of the era's unreachable-ground-click
  *                 fallback (enum ToriRS_NearestModel): `ring3` is Client-TS's
@@ -463,6 +469,10 @@ struct BootManifest
      * is the 2004 one; a lane that is not reproducing the 2004 client says so
      * here. Defaulted in BootManifest_Init. */
     int features_mover_model;
+    /* [features:boot] world_rebuild — enum ToriRS_WorldRebuildModel, or -1 for
+     * "not stated, keep the era's" (background). A world whose machines are
+     * short of memory states `blocking`. Defaulted in BootManifest_Init. */
+    int features_world_rebuild_model;
     /* [features:boot] ground_click_unbounded / ground_click_offmap — the two
      * permissive ground-click extensions (features.h), 0/1, or -1 for "not
      * stated". Every era table leaves both off, so these keys are how a boot

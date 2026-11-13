@@ -155,6 +155,27 @@ enum ToriRS_RunEnergyModel
     TORIRS_RUN_ENERGY_OSRS_2025 = 1,
 };
 
+/*
+ * How a server REBUILD (REBUILD_NORMAL / REBUILD_REGION) replaces the scene.
+ * Not an era's behaviour but a machine's: the two differ in how much is
+ * resident while the new scene is made, and in whether the frame waits for it.
+ */
+enum ToriRS_WorldRebuildModel
+{
+    /**
+     * Gather the assets, then build in place in one frame. One scene is ever
+     * resident: the mode for a machine short of memory, and the only one a
+     * content test, the editor, a login and a boat's deck rebuild use.
+     */
+    TORIRS_WORLD_REBUILD_BLOCKING = 0,
+    /**
+     * Gather, build and prepare the renderer's batch beside the scene being
+     * drawn, a slice a frame, then swap (app/app_world_job.c). Two scenes are
+     * resident for the length of the job. Every era table states this one.
+     */
+    TORIRS_WORLD_REBUILD_BACKGROUND = 1,
+};
+
 /**
  * How an actor's draw position is integrated between the tiles the server
  * hands out — the difference between a walk that glides and one that ticks.
@@ -262,6 +283,9 @@ struct ToriRS_FeatureTable
      *  switch carries the per-cycle actor order (facing before or after the
      *  move) and the rev-239 anim-set choices; see world_cycle.c. */
     int mover_model;
+    /** enum ToriRS_WorldRebuildModel. `[features:boot] world_rebuild` states
+     *  it for one world; TORIRS_WORLD_REBUILD overrides both for a launch. */
+    int world_rebuild_model;
     /** enum ToriRS_ProjectileModel. 0 = Client-TS. */
     int projectile_model;
     /** enum ToriRS_ApproachModel. 0 = legacy shape tests. */
@@ -545,6 +569,18 @@ ToriRS_Features_MoverModelByName(char const* name);
 /** Name of an enum ToriRS_MoverModel, for diagnostics. */
 char const*
 ToriRS_Features_MoverModelName(int model);
+
+/**
+ * Resolve an enum ToriRS_WorldRebuildModel by name, for the manifest key and
+ * its env twin. Returns -1 for an unknown name. Names: `blocking` |
+ * `background`.
+ */
+int
+ToriRS_Features_WorldRebuildModelByName(char const* name);
+
+/** Name of an enum ToriRS_WorldRebuildModel, for diagnostics. */
+char const*
+ToriRS_Features_WorldRebuildModelName(int model);
 
 /**
  * Resolve an enum ToriRS_RunEnergyModel by name, for the mock server's env

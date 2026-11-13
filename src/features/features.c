@@ -24,6 +24,7 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
     /* The era's own client moves actors once per 20ms cycle and nowhere else;
      * a frame-paced mover would be smoother than the thing being reproduced. */
     .mover_model = TORIRS_MOVER_CYCLE_INTEGER,
+    .world_rebuild_model = TORIRS_WORLD_REBUILD_BACKGROUND,
     .projectile_model = TORIRS_PROJECTILE_MODEL_CLASSIC,
     .approach_model = TORIRS_APPROACH_LEGACY_SHAPE,
     .npc_approach_uses_size = 0,
@@ -83,6 +84,7 @@ static struct ToriRS_FeatureTable const k_features_osrs = {
     /* class105.method3611 per rendered frame; method3520 keeps only the
      * per-cycle facing/sequence half. See the enum. */
     .mover_model = TORIRS_MOVER_FRAME_DELTA,
+    .world_rebuild_model = TORIRS_WORLD_REBUILD_BACKGROUND,
     .projectile_model = TORIRS_PROJECTILE_MODEL_REV239,
     .approach_model = TORIRS_APPROACH_RECT,
     .npc_approach_uses_size = 1,
@@ -139,6 +141,7 @@ static struct ToriRS_FeatureTable const k_features_server_routed = {
     .pathing_mode = TORIRS_PATHING_SERVER_AUTHORITATIVE,
     /* Any post-2004 client this tree speaks draws on the frame clock. */
     .mover_model = TORIRS_MOVER_FRAME_DELTA,
+    .world_rebuild_model = TORIRS_WORLD_REBUILD_BACKGROUND,
     .projectile_model = TORIRS_PROJECTILE_MODEL_REV239,
     .approach_model = TORIRS_APPROACH_RECT,
     .npc_approach_uses_size = 1,
@@ -231,6 +234,35 @@ ToriRS_Features_MoverModelName(int model)
     for( size_t i = 0; i < sizeof(k_mover_models) / sizeof(k_mover_models[0]); i++ )
         if( k_mover_models[i].model == model )
             return k_mover_models[i].name;
+    return "?";
+}
+
+static struct
+{
+    char const* name;
+    int model;
+} const k_world_rebuild_models[] = {
+    { "blocking", TORIRS_WORLD_REBUILD_BLOCKING },
+    { "background", TORIRS_WORLD_REBUILD_BACKGROUND },
+};
+
+int
+ToriRS_Features_WorldRebuildModelByName(char const* name)
+{
+    if( !name || !name[0] )
+        return -1;
+    for( size_t i = 0; i < sizeof(k_world_rebuild_models) / sizeof(k_world_rebuild_models[0]); i++ )
+        if( strcmp(name, k_world_rebuild_models[i].name) == 0 )
+            return k_world_rebuild_models[i].model;
+    return -1;
+}
+
+char const*
+ToriRS_Features_WorldRebuildModelName(int model)
+{
+    for( size_t i = 0; i < sizeof(k_world_rebuild_models) / sizeof(k_world_rebuild_models[0]); i++ )
+        if( k_world_rebuild_models[i].model == model )
+            return k_world_rebuild_models[i].name;
     return "?";
 }
 

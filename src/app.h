@@ -568,6 +568,11 @@ struct AppConfig
      * table; TORIRS_MOVER_MODEL overrides both. */
     int features_mover_model;
     int features_mover_model_set;
+    /** `[features:boot] world_rebuild` — enum ToriRS_WorldRebuildModel, only
+     * read when the _set flag is 1 (0 is a real model, BLOCKING). Overrides
+     * the era table; TORIRS_WORLD_REBUILD overrides both. */
+    int features_world_rebuild_model;
+    int features_world_rebuild_model_set;
     /** `[features:boot] painter_draw_distance`, in the official OSRS 25..90
      * tile interval. Absent keeps Client-TS's fixed 25-tile radius;
      * TORIRS_DRAW_DISTANCE overrides it at runtime. */
@@ -3042,7 +3047,9 @@ struct App
     bool rebuild_instance_active;
 
     /**
-     * How a server REBUILD is done. Resolved once (App_WorldRebuildModeInit).
+     * How a server REBUILD is done: the world's `[features:boot] world_rebuild`
+     * (background unless it says blocking), TORIRS_WORLD_REBUILD over that.
+     * Resolved when the features are bound (App_WorldRebuildModeInit).
      *
      * Blocking, the default: the packet task awaits the whole load inline and
      * the scene is rebuilt in place inside that packet -- the least memory,
