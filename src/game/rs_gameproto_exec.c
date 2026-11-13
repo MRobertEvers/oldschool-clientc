@@ -8,6 +8,7 @@
 #include "net/net.h"
 #include "net/rev/revpacket.h"
 #include "net/torirs_control.h"
+#include "replay/replay_world.h"
 #include "rs_attack_option.h"
 #include "rs_audio.h"
 #include "rs_chat.h"
@@ -653,6 +654,103 @@ exec_zone_sub_packet(
     at.level = app->zone_level;
     at.view = app->active_world;
     exec_zone_sub_packet_at(ctx, name, payload, &at);
+}
+
+void
+RS_GameProto_ReplayZoneOp(
+    struct RS_GameProtoCtx const* ctx,
+    struct PktZoneSubPacket const* pkt,
+    int base_x,
+    int base_z,
+    int level)
+{
+    struct App* app;
+    struct ZoneAt at;
+
+    assert(ctx);
+    assert(pkt);
+    app = ctx->app;
+    assert(app);
+    assert(app->world);
+    at.base_x = base_x;
+    at.base_z = base_z;
+    at.level = level;
+    at.view = WORLDVIEW_ROOT;
+    if( !App_ActiveWorldview(app)->world->load_complete )
+    {
+        zone_pending_push_at(app, pkt->name, &pkt->_loc_add_change, &at);
+        return;
+    }
+    if( app->pending_zone_count > 0 )
+        RS_GameProto_FlushPendingZone(ctx);
+    exec_zone_sub_packet_at(ctx, pkt->name, &pkt->_loc_add_change, &at);
+}
+
+void
+RS_GameProto_ReplayClearScene(struct App* app)
+{
+    /* The zones holding a loc change or a ground item, as a bitmap over the
+     * scene's 8x8 zones: a reset of each of the 13x13x4 is the same answer
+     * and a quadratic walk of the change list per zone. */
+    enum
+    {
+        ZONES = 32
+    };
+    unsigned char marked[ZONES][ZONES];
+    struct World* world;
+    struct World_EntityPool const* pool;
+    int saved_x;
+    int saved_z;
+    int saved_level;
+
+    assert(app);
+    saved_x = app->zone_base_x;
+    saved_z = app->zone_base_z;
+    saved_level = app->zone_level;
+    assert(app->world);
+    assert(app->active_world == WORLDVIEW_ROOT);
+    world = app->world;
+    memset(marked, 0, sizeof(marked));
+    for( int i = 0; i < world->loc_change_count; i++ )
+    {
+        int const zx = world->loc_changes[i].x >> 3;
+        int const zz = world->loc_changes[i].z >> 3;
+
+        if( zx >= 0 && zx < ZONES && zz >= 0 && zz < ZONES )
+            marked[zx][zz] = 1;
+    }
+    pool = &world->entities.obj_stack;
+    for( int i = World_EntityPoolHead(pool); i >= 0; i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_ObjStack const* stack = World_EntityPoolAt(pool, i);
+        int const zx = stack->grid_position.x >> 3;
+        int const zz = stack->grid_position.z >> 3;
+
+        if( zx >= 0 && zx < ZONES && zz >= 0 && zz < ZONES )
+            marked[zx][zz] = 1;
+    }
+    for( int zx = 0; zx < ZONES; zx++ )
+    {
+        for( int zz = 0; zz < ZONES; zz++ )
+        {
+            if( !marked[zx][zz] )
+                continue;
+            for( int level = 0; level < 4; level++ )
+            {
+                /* UPDATE_ZONE_FULL_FOLLOWS's arm, for this zone and plane. */
+                app->zone_base_x = zx * 8;
+                app->zone_base_z = zz * 8;
+                app->zone_level = level;
+                zone_full_reset_locs(app);
+                for( int dz = 0; dz < 8; dz++ )
+                    for( int dx = 0; dx < 8; dx++ )
+                        App_WorldObjStackClearTile(app, zx * 8 + dx, zz * 8 + dz, level);
+            }
+        }
+    }
+    app->zone_base_x = saved_x;
+    app->zone_base_z = saved_z;
+    app->zone_level = saved_level;
 }
 
 /*
@@ -1999,17 +2097,154 @@ exec_control_cache_invalidate(
                    index, count, evicted, deferred);
 }
 
-/* A control frame (net/torirs_control.h), in its place among the packets. */
+/* TORIRS_TRACE_NATIVE_UI, read once: the two packets that ask arrive by the
+ * thousand on a replay seek, and getenv walks the environment each time. */
+static int
+exec_trace_native_ui(void)
+{
+    static int on = -1;
+
+    if( on < 0 )
+        on = getenv("TORIRS_TRACE_NATIVE_UI") != NULL;
+    return on;
+}
+
+_Noreturn static void
+exec_control_replay_malformed(struct TorirsControlFrame const* frame)
+{
+    TORIRS_ERR("control: a %s frame of %d bytes does not decode\n", torirs_control_type_name(frame->type),
+               frame->length);
+    abort();
+}
+
+/*
+ * REPLAY_COORD (net/torirs_control.h): a replay seek's chase tick. Its world
+ * packets are withheld, so the world under the client is not where the
+ * recording is. A script reading `coord` reads this instead (app_tick.c) until
+ * the keyframe puts the world back (replay_world_apply.c). The clock is
+ * charged the cycles of the tick the chase did not run.
+ */
+static void
+exec_control_replay_coord(
+    struct App* app,
+    struct TorirsControlFrame const* frame)
+{
+    struct TorirsControlReplayCoord c;
+
+    /* Only the replay transport, in this process, writes it: one that does
+     * not decode is a stream out of step (abort, not assert: the shipping
+     * lane compiles assert() away). */
+    if( !torirs_control_replay_coord_decode(frame, &c) )
+        exec_control_replay_malformed(frame);
+    /* A chase's first tick: the world it withholds is replaced whole by the
+     * keyframe, so the players and npcs left standing from where the seek
+     * started stop now rather than animate through the chase. */
+    if( !app->replay_chase_coord_valid && app->world )
+        ReplayWorld_ClearEntities(app);
+    app->replay_chase_coord_valid = 1;
+    app->replay_chase_coord = c.coord;
+    app->host.local_coord = c.coord;
+    app->host.client_clock += c.charge;
+    /* What the local player's appearance would have published
+     * (app_world_apply.c): the chat's name and CHAT_PLAYERNAME. */
+    if( c.name[0] )
+    {
+        snprintf(app->chat.username, sizeof(app->chat.username), "%s", c.name);
+        snprintf(app->host.local_player_name, sizeof(app->host.local_player_name), "%s", c.name);
+    }
+}
+
+/*
+ * REPLAY_CHAT: a public chat line of a PLAYER_INFO a replay seek's chase
+ * withheld -- what player_apply_op's SAY / CHAT arms put in the chatbox
+ * (task_exec_entity_info.c), less the overhead text of an entity the chase
+ * has not got.
+ */
+static void
+exec_control_replay_chat(
+    struct App* app,
+    struct TorirsControlFrame const* frame)
+{
+    struct TorirsControlReplayChat c;
+    char const* name;
+
+    if( !torirs_control_replay_chat_decode(frame, &c) )
+        exec_control_replay_malformed(frame);
+    name = c.name[0] ? c.name : NULL;
+    if( c.say )
+    {
+        char* text = ToriMem_Alloc(ToriMem_Net(), (size_t)c.length + 1);
+
+        assert(text);
+        memcpy(text, c.data, (size_t)c.length);
+        text[c.length] = '\0';
+        RS_CS2Host_ChatAdd(&app->host, RS_CHAT_TYPE_PUBLIC, name ? name : "Player", name, text);
+        App_NotifyChatMessage(app, RS_CHAT_TYPE_PUBLIC, name ? name : "Player", text);
+        ToriMem_Free(ToriMem_Net(), text);
+    }
+    else
+    {
+        char* text;
+
+        assert(app->net);
+        assert(app->net->rev->chat_unpack);
+        text = app->net->rev->chat_unpack(c.data, c.length);
+        if( text )
+        {
+            char crowned[RS_CHAT_SENDER_LEN];
+
+            RS_Chat_CrownedName(c.crown, name ? name : "Player", crowned, sizeof(crowned));
+            RS_CS2Host_ChatAdd(&app->host, RS_CHAT_TYPE_PUBLIC, crowned, name, text);
+            App_NotifyChatMessage(app, RS_CHAT_TYPE_PUBLIC, name ? name : "Player", text);
+            ToriMem_Free(ToriMem_Net(), text);
+        }
+    }
+}
+
+/*
+ * A control frame (net/torirs_control.h), in its place among the packets.
+ *
+ * The replay's types are written by the RSProx replay transport alone, into
+ * the stream it enciphers in this process. On any other transport one is a
+ * stream out of step -- a server cannot have sent it -- and the client stops
+ * here rather than read on. REPLAY_WORLD never reaches this: Task_GameProtoExec
+ * awaits it (task_gameproto_exec.c).
+ */
+void
+RS_GameProto_ReplayControlExpected(
+    struct App const* app,
+    struct TorirsControlFrame const* frame)
+{
+    assert(frame);
+    if( app && app->net_replay )
+        return;
+    TORIRS_ERR("control: a %s frame (%d bytes) on a connection that is not an RSProx replay: "
+               "only the replay transport writes it\n",
+               torirs_control_type_name(frame->type), frame->length);
+    abort();
+}
+
 static void
 exec_control(
     struct RS_GameProtoCtx const* ctx,
     struct TorirsControlFrame const* frame)
 {
     if( frame->type == TORIRS_CONTROL_CACHE_INVALIDATE )
+    {
         exec_control_cache_invalidate(ctx, frame);
-    else
-        TORIRS_LOG("control: unknown frame type %d (%d bytes) -- dropped\n", frame->type,
-                   frame->length);
+        return;
+    }
+    if( torirs_control_type_is_replay(frame->type) )
+    {
+        RS_GameProto_ReplayControlExpected(ctx->app, frame);
+        assert(frame->type != TORIRS_CONTROL_REPLAY_WORLD);
+        if( frame->type == TORIRS_CONTROL_REPLAY_COORD )
+            exec_control_replay_coord(ctx->app, frame);
+        else
+            exec_control_replay_chat(ctx->app, frame);
+        return;
+    }
+    TORIRS_ERR("control: unknown frame type %d (%d bytes) -- dropped\n", frame->type, frame->length);
 }
 
 void
@@ -2030,7 +2265,7 @@ RS_GameProto_Exec(
     /* ---- varps ---- */
     case PKT_NAME_VARP_SMALL:
         VarPManager_ApplySmall(ctx->varps, packet->_varp_small.variable, packet->_varp_small.value);
-        if( getenv("TORIRS_TRACE_NATIVE_UI") )
+        if( exec_trace_native_ui() )
             TORIRS_REPORT("NATIVE_PACKET VARP_SMALL variable=%d value=%d\n",
                 packet->_varp_small.variable, packet->_varp_small.value);
         break;
@@ -2048,7 +2283,7 @@ RS_GameProto_Exec(
         {
             RS_PlayerStats_SetXp(ctx->stats, packet->_update_stat.stat, packet->_update_stat.xp);
             ctx->stats->current_level[packet->_update_stat.stat] = packet->_update_stat.level;
-            if( getenv("TORIRS_TRACE_NATIVE_UI") )
+            if( exec_trace_native_ui() )
                 TORIRS_REPORT("NATIVE_PACKET UPDATE_STAT applied stat=%d level=%d xp=%d\n",
                     packet->_update_stat.stat, ctx->stats->current_level[packet->_update_stat.stat],
                     packet->_update_stat.xp);

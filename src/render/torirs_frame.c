@@ -268,6 +268,30 @@ frame_take_scene_event(
     return false;
 }
 
+bool
+ToriRS_SceneNextResourceCommand(
+    struct ToriDraw_Scene* scene,
+    int* cursor,
+    struct ToriRS_RenderCommand* out)
+{
+    struct ToriDraw_EventQueue* eq;
+
+    assert(scene);
+    assert(cursor);
+    assert(out);
+    eq = ToriDraw_SceneEvents(scene);
+    if( !eq )
+        return false;
+    while( *cursor < eq->count )
+    {
+        struct ToriDraw_Event const* ev = &eq->events[(*cursor)++];
+
+        if( frame_translate_scene_event(scene, ev, out) )
+            return true;
+    }
+    return false;
+}
+
 static void
 frame_emit_begin_2d(
     struct ToriRS_Frame* frame,

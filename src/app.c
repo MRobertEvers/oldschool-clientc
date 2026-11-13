@@ -106,6 +106,23 @@ App_LogicCyclesRun(void)
     return s_logic_cycles_run;
 }
 
+/* Set at run time by a replay seek (App_SetLogicCyclesPerFrame); 0 = none. */
+static int s_logic_cycles_per_frame_set = 0;
+
+void
+App_SetLogicCyclesPerFrame(int cycles)
+{
+    assert(cycles >= 0);
+    assert(cycles <= APP_LOGIC_CYCLES_PER_FRAME_MAX);
+    s_logic_cycles_per_frame_set = cycles;
+}
+
+int
+App_LogicCyclesPerFrameSet(void)
+{
+    return s_logic_cycles_per_frame_set;
+}
+
 void
 App_FrameLockEngage(void)
 {

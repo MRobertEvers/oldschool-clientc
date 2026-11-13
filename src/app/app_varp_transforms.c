@@ -445,6 +445,117 @@ app_loc_chain_depends_on_varp(
     return depends;
 }
 
+/*
+ * Which varps a view's placed and multiloc-hidden locs can depend on right
+ * now, so a change to any OTHER varp does not walk the scenery pool.
+ *
+ * The walk below asks every placed loc "does this varp drive a link of your
+ * transform chain?". The root scene holds about 23,000 scenery entities and a
+ * session sends a varp every tick or so, almost none of which drive a loc: on
+ * RSProx 96 the walk was 10% of a replay's whole run time (2026-11-12), each
+ * one a CacheProvider lookup per entity to answer "no".
+ *
+ * The set is exact while nothing that decides a chain has changed:
+ *   - which locs are placed: the pool's epoch, bumped on every activate,
+ *     release, reset and re-register (World_SceneryRegister);
+ *   - which are hidden: the builder's hidden count;
+ *   - how each chain resolves: only a varp IN the set can change that, and
+ *     every write of a varp value reaches app_varp_change (ApplySmall/Large,
+ *     ApplySync, ResetAll, the optimistic setters, SetPreview), so a walk on
+ *     a hit drops the set and the next change rebuilds it.
+ * A chain with a link that is not resident cannot be listed, and a config
+ * arriving later moves no epoch, so that is its own state: "cannot say",
+ * which walks every time as before.
+ *
+ * TORIRS_LOC_VARP_INDEX_CHECK=1 walks even where the set says there is
+ * nothing to find, and aborts if the walk finds something.
+ */
+enum
+{
+    APP_LOC_VARP_BITS = 1 << 15
+};
+
+struct AppLocVarpIndex
+{
+    struct World const* world;
+    unsigned int epoch;
+    int hidden_count;
+    /** 0: not built. 1: complete. -1: cannot say. */
+    int state;
+    uint32_t bits[APP_LOC_VARP_BITS / 32];
+};
+
+static struct AppLocVarpIndex s_loc_varp_index[WORLDVIEW_MAX];
+
+static void
+app_loc_varp_index_note(
+    struct App* app,
+    struct AppLocVarpIndex* index,
+    struct ToriRS_Location const* loc)
+{
+    /* The two keys VarPManager_TransformDependsOnVarp tests. */
+    int keys[2];
+
+    if( loc->transform_count <= 0 || !loc->transforms )
+        return;
+    keys[0] = loc->transform_varp;
+    keys[1] = VarPManager_VarbitBaseVar(&app->varps, loc->transform_varbit);
+    for( int i = 0; i < 2; ++i )
+    {
+        if( keys[i] < 0 )
+            continue;
+        if( keys[i] >= APP_LOC_VARP_BITS )
+        {
+            index->state = -1;
+            continue;
+        }
+        index->bits[keys[i] >> 5] |= 1u << (keys[i] & 31);
+    }
+}
+
+/* Every link the walks below can reach from `loc`, as they reach it. */
+static void
+app_loc_varp_index_note_chain(
+    struct App* app,
+    struct AppLocVarpIndex* index,
+    struct ToriRS_Location const* loc)
+{
+    for( int depth = 0; depth < 16; ++depth )
+    {
+        if( !loc )
+        {
+            index->state = -1;
+            return;
+        }
+        app_loc_varp_index_note(app, index, loc);
+        if( loc->transform_count <= 0 || !loc->transforms )
+            return;
+        int next = VarPManager_ResolveTransform(
+            &app->varps,
+            loc->transforms,
+            loc->transform_count,
+            loc->transform_varbit,
+            loc->transform_varp);
+        if( next < 0 || next == loc->id )
+            return;
+        loc = CacheProvider_LocationGet(app->provider, next);
+    }
+}
+
+static int
+app_loc_varp_index_check(void)
+{
+    static int cached = -1;
+
+    if( cached < 0 )
+    {
+        char const* env = getenv("TORIRS_LOC_VARP_INDEX_CHECK");
+
+        cached = env && env[0] == '1';
+    }
+    return cached;
+}
+
 static void
 app_varp_refresh_loc_transforms(
     struct App* app,
@@ -474,6 +585,31 @@ app_varp_refresh_loc_transforms(
         } pending[MAX_REFRESH];
         int n = 0;
         struct World_EntityPool* pool = &world->entities.scenery;
+        struct AppLocVarpIndex* index = &s_loc_varp_index[view];
+        struct WorldBuilder* index_builder =
+            WorldviewRegistry_Get(&app->worldviews, view)->builder;
+        int const index_hidden = index_builder ? WorldBuilder_HiddenLocCount(index_builder) : 0;
+        int const building = index->world != world || index->epoch != pool->epoch ||
+                             index->hidden_count != index_hidden || index->state <= 0;
+        int const skip = !building && varp_id < APP_LOC_VARP_BITS &&
+                         !(index->bits[varp_id >> 5] & (1u << (varp_id & 31)));
+
+        if( skip && !app_loc_varp_index_check() )
+            continue;
+        if( building )
+        {
+            memset(index->bits, 0, sizeof(index->bits));
+            index->world = world;
+            index->epoch = pool->epoch;
+            index->hidden_count = index_hidden;
+            index->state = 1;
+            for( int i = 0; i < index_hidden; ++i )
+                app_loc_varp_index_note_chain(
+                    app,
+                    index,
+                    CacheProvider_LocationGet(
+                        app->provider, WorldBuilder_HiddenLocGet(index_builder, i)->loc_id));
+        }
         for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
              i = World_EntityPoolNext(pool, i) )
         {
@@ -481,6 +617,8 @@ app_varp_refresh_loc_transforms(
             assert(sc);
             struct ToriRS_Location* loc = CacheProvider_LocationGet(app->provider, sc->loc_id);
             int depends = 0;
+            if( building )
+                app_loc_varp_index_note_chain(app, index, loc);
             /* A varp may drive a descendant of the placed wrapper. Every
              * config along a previously materialised chain is resident. */
             for( int depth = 0; loc && depth < 16; ++depth )
@@ -515,7 +653,12 @@ app_varp_refresh_loc_transforms(
             if( duplicate )
                 continue;
             if( n == MAX_REFRESH )
+            {
+                /* The entities after this one were not listed. */
+                if( building )
+                    index->state = -1;
                 break;
+            }
             pending[n].x = sc->grid_position.x;
             pending[n].z = sc->grid_position.z;
             pending[n].level = sc->grid_position.level;
@@ -590,6 +733,28 @@ app_varp_refresh_loc_transforms(
             for( int op = 0; op < 5; ++op )
                 snprintf(pending[n].ops[op], sizeof(pending[n].ops[op]), "%s", hidden->ops[op]);
             ++n;
+        }
+        if( skip )
+        {
+            /* Only under TORIRS_LOC_VARP_INDEX_CHECK: the set said no loc
+             * here depends on this varp, and the walk must agree. */
+            if( n != 0 )
+            {
+                fprintf(
+                    stderr,
+                    "app: the loc varp index said nothing in view %d depends on varp %d, "
+                    "and the walk found %d placements that do\n",
+                    view,
+                    varp_id,
+                    n);
+                abort();
+            }
+        }
+        else if( !building )
+        {
+            /* Walked on a hit: this varp drives a chain, which may resolve
+             * to other links now. List them again on the next change. */
+            index->state = 0;
         }
         app->active_world = view;
         for( int i = 0; i < n; ++i )

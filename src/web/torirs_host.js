@@ -703,27 +703,39 @@
 
   /*
    * The replay's controls, for a page that embeds this one (rsprox-index's
-   * replay view reaches them as iframe.contentWindow.ToriRS_Replay). Both are
-   * quiet until the client has made its replay transport: setUnlocked answers
-   * false and status() null, and the caller polls.
+   * replay view reaches them as iframe.contentWindow.ToriRS_Replay). All are
+   * quiet until the client has made its replay transport: the verbs answer
+   * false and status() / timeline() null, and the caller polls.
+   *
+   * seek(tick), step(ticks), hold() and run() drive the scrubber
+   * (src/replay/replay_scrub.h): a tick is a position, every packet before it
+   * executed. step holds afterwards; seek keeps the hold / run state.
+   * timeline() is the recording's tick table and marker lanes, which do not
+   * change: parse it once.
    */
+  function replayVerb(name, ...args) {
+    try {
+      return typeof Module[name] === 'function' && Module[name](...args) === 1;
+    } catch (err) { return false; }
+  }
+  function replayJson(name) {
+    try {
+      if (typeof Module[name] !== 'function') { return null; }
+      const ptr = Module[name]();
+      if (!ptr) { return null; }
+      const text = Module.UTF8ToString(ptr);
+      Module._free(ptr);
+      return JSON.parse(text);
+    } catch (err) { return null; }
+  }
   window.ToriRS_Replay = {
-    setUnlocked(on) {
-      try {
-        return typeof Module._torirs_replay_set_unlocked === 'function' &&
-          Module._torirs_replay_set_unlocked(on ? 1 : 0) === 1;
-      } catch (err) { return false; }
-    },
-    status() {
-      try {
-        if (typeof Module._torirs_replay_status_json !== 'function') { return null; }
-        const ptr = Module._torirs_replay_status_json();
-        if (!ptr) { return null; }
-        const status = JSON.parse(Module.UTF8ToString(ptr));
-        Module._free(ptr);
-        return status;
-      } catch (err) { return null; }
-    },
+    setUnlocked(on) { return replayVerb('_torirs_replay_set_unlocked', on ? 1 : 0); },
+    seek(tick) { return replayVerb('_torirs_replay_seek', tick | 0); },
+    step(ticks) { return replayVerb('_torirs_replay_step', ticks | 0); },
+    hold() { return replayVerb('_torirs_replay_hold'); },
+    run() { return replayVerb('_torirs_replay_run'); },
+    status() { return replayJson('_torirs_replay_status_json'); },
+    timeline() { return replayJson('_torirs_replay_timeline_json'); },
   };
 
   /*

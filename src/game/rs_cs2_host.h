@@ -2295,5 +2295,33 @@ int
 RS_CS2Host_Exec(
     struct CS2VM2_Thread* thread,
     struct CS2VM_HostRequest* request);
+/* --- session checkpoint (replay/replay_checkpoint.h) ---------------------
+ * A private copy of everything a session packet or a clientscript wrote into
+ * the host: its own state, the friends chat, the clan and group stores, the
+ * Grand Exchange, the transmit hooks, and the queues the App drains per tick.
+ * The App's wiring and what the device reports are left as the restore finds
+ * them (rs_cs2_host.c says which fields those are). The host must have no
+ * request in flight at either end. */
+struct RS_CS2Host*
+RS_CS2Host_CheckpointTake(struct RS_CS2Host const* host);
+
+void
+RS_CS2Host_CheckpointRestore(
+    struct RS_CS2Host* host,
+    struct RS_CS2Host const* cp);
+
+/** Accepts NULL. */
+void
+RS_CS2Host_CheckpointFree(struct RS_CS2Host* cp);
+
+size_t
+RS_CS2Host_CheckpointBytes(struct RS_CS2Host const* cp);
+
+int
+RS_CS2Host_CheckpointEqual(
+    struct RS_CS2Host const* a,
+    struct RS_CS2Host const* b,
+    char* why,
+    int why_cap);
 
 #endif /* RS_CS2_HOST_H */

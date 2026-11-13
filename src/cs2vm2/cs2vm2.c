@@ -15653,6 +15653,16 @@ static int g_cs2_script_depth = 0;
  *  is the task machinery proper — the subtraction that sizes it without
  *  reconstructing it from per-script means times per-frame call rates. */
 static int
+cs2_script_share_wanted(void)
+{
+#ifndef TORIRS_PERF_DISABLE
+    return g_torirs_perf_enabled;
+#else
+    return 0;
+#endif
+}
+
+static int
 cs2vm2_run_script_body_timed(struct CS2VM2_Thread* vm)
 {
     int r = CS2VM_EXECNO_ERROR;
@@ -15660,6 +15670,17 @@ cs2vm2_run_script_body_timed(struct CS2VM2_Thread* vm)
     assert(vm);
 
     if( g_cs2_script_depth++ )
+    {
+        r = cs2vm2_run_script_body(vm);
+        g_cs2_script_depth--;
+        return r;
+    }
+    /* The script share is read by the perf harness alone (TORIRS_PERF_CARRY),
+     * so the clock is too. An interface runs hundreds of timer scripts a
+     * tick, each a fraction of a microsecond, and in a browser clock_gettime
+     * is a call out to JavaScript: the two reads a script were 5% of an RSProx
+     * replay's seek (CDP profile, 2026-11-12). */
+    if( !cs2_script_share_wanted() )
     {
         r = cs2vm2_run_script_body(vm);
         g_cs2_script_depth--;

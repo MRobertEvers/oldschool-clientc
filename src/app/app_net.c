@@ -129,6 +129,8 @@ App_NetSessionReset(struct App* app)
      * (task_gameproto_exec.c). A reconnect and a logout-then-login both end
      * here. */
     app->net_force_rebuild = 1;
+    /* A replay seek's chase tile belongs to the session it was stated in. */
+    app->replay_chase_coord_valid = 0;
     /* The reference's game-state reset puts both Attack options back to their
      * boot value rather than recomputing them from the varp table it is about
      * to clear (rs_attack_option.h): a re-established session onto an account

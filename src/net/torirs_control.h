@@ -47,6 +47,7 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <string.h>
 
 /** The opcode value that announces a control frame (pSmart1Or2's largest). */
 #define TORIRS_CONTROL_ESCAPE 0x7FFF
@@ -74,7 +75,73 @@ enum TorirsControlType
      * a square or loc-record reload owes, on the same connection.
      */
     TORIRS_CONTROL_CACHE_INVALIDATE = 1,
+
+    /*
+     * The replay's three (2..4). No server sends them: the RSProx replay
+     * transport (src/platform/net_transport_replay.c), which plays a recording
+     * as the server inside the client's own process, writes them into the
+     * stream it enciphers, at the byte where they belong among the recorded
+     * packets -- so the stream's order is their order, and nothing waits for
+     * the bytes before them to drain. A client on any other transport that
+     * reads one aborts (rs_gameproto_exec.c exec_control): it is a stream out
+     * of step, not a message to skip. torirs_control_type_is_replay.
+     */
+
+    /**
+     * A replay seek's chase tick begins (replay/replay_scrub.h, CHASE): its
+     * world packets are withheld, so the local player's tile is stated here
+     * for the scripts that read `coord`, and the client clocks the tick did
+     * not run are charged. Ahead of the tick's packets.
+     * Payload `u32 coord, u32 charge, u32 len, len bytes name`: `coord` packed
+     * as the coord type is (level << 28 | x << 14 | z), `charge` the clocks to
+     * add to clientclock (>= 0), `name` the local player's name on a chase's
+     * first tick (len 0 on the others; never NUL-terminated, at most
+     * TORIRS_CONTROL_REPLAY_NAME_MAX - 1 bytes).
+     */
+    TORIRS_CONTROL_REPLAY_COORD = 2,
+
+    /**
+     * A replay seek's world keyframe at tick P (replay/replay_world.h): the
+     * world the ledger says a client arriving at P is sent, applied in its
+     * place in the stream (replay/replay_world_apply.c) after the chase's
+     * packets and before the pre-roll's.
+     * Payload `u32 tick, u32 serial`. The keyframe itself -- megabytes of
+     * tables and op lists -- does NOT travel in the frame: the transport and
+     * the client are one process, and it waits in the replay world mailbox
+     * (ReplayWorld_Post), one slot. `serial` is the mailbox serial it was
+     * posted under and `tick` its tick; the handler asserts that the mailbox
+     * holds exactly that delivery, so a frame and a keyframe that disagree
+     * stop the client where they part.
+     */
+    TORIRS_CONTROL_REPLAY_WORLD = 3,
+
+    /**
+     * A public chat line of a PLAYER_INFO a replay seek's chase withheld: the
+     * chatbox keeps it, so it goes where the PLAYER_INFO stood.
+     * Payload `u32 say, u32 crown, u32 colour_effect, u32 name_len, name_len
+     * bytes name, u32 data_len, data_len bytes data`: `say` 1 for a SAY (data
+     * is its text, not NUL-terminated) and 0 for a CHAT (data is the
+     * revision's packed text, for chat_unpack); `name` the speaker's name as
+     * its appearance states it (name_len 0: none; at most
+     * TORIRS_CONTROL_REPLAY_NAME_MAX - 1 bytes); data_len at most
+     * TORIRS_CONTROL_REPLAY_CHAT_DATA_MAX.
+     */
+    TORIRS_CONTROL_REPLAY_CHAT = 4,
 };
+
+/** Room for a replay name, its NUL included (a name is at most 12 characters;
+ *  the room is the scrubber's). */
+#define TORIRS_CONTROL_REPLAY_NAME_MAX 32
+
+/** The longest chat data a REPLAY_CHAT carries (a SAY's text or a CHAT's packed
+ *  bytes: both are a u8-length field on the wire, well inside this). */
+#define TORIRS_CONTROL_REPLAY_CHAT_DATA_MAX 1024
+
+/** Room for each replay frame's payload. */
+#define TORIRS_CONTROL_REPLAY_COORD_BYTES_MAX (12 + TORIRS_CONTROL_REPLAY_NAME_MAX)
+#define TORIRS_CONTROL_REPLAY_WORLD_BYTES 8
+#define TORIRS_CONTROL_REPLAY_CHAT_BYTES_MAX                                                       \
+    (20 + TORIRS_CONTROL_REPLAY_NAME_MAX + TORIRS_CONTROL_REPLAY_CHAT_DATA_MAX)
 
 /** Archives one CACHE_INVALIDATE frame names; a longer list is several frames. */
 #define TORIRS_CONTROL_INVALIDATE_PER_FRAME 4096
@@ -99,7 +166,21 @@ torirs_control_type_name(int type)
 {
     if( type == TORIRS_CONTROL_CACHE_INVALIDATE )
         return "CACHE_INVALIDATE";
+    if( type == TORIRS_CONTROL_REPLAY_COORD )
+        return "REPLAY_COORD";
+    if( type == TORIRS_CONTROL_REPLAY_WORLD )
+        return "REPLAY_WORLD";
+    if( type == TORIRS_CONTROL_REPLAY_CHAT )
+        return "REPLAY_CHAT";
     return "?";
+}
+
+/** 1 for the types only the replay transport writes (never a server). */
+static inline int
+torirs_control_type_is_replay(int type)
+{
+    return type == TORIRS_CONTROL_REPLAY_COORD || type == TORIRS_CONTROL_REPLAY_WORLD ||
+           type == TORIRS_CONTROL_REPLAY_CHAT;
 }
 
 static inline void
@@ -203,6 +284,215 @@ torirs_control_invalidate_archive(
     int i)
 {
     return (int)torirs_control_get_u32(frame->payload + 8 + 4 * i);
+}
+
+/* --- the replay's frames (TORIRS_CONTROL_REPLAY_*) ------------------------- */
+
+/** A `u32 len, bytes` string at `out`; returns the bytes written. */
+static inline int
+torirs_control_put_str(
+    uint8_t* out,
+    char const* s,
+    int len)
+{
+    assert(out);
+    assert(len >= 0);
+    if( len > 0 )
+        assert(s);
+    torirs_control_put_u32(out, (uint32_t)len);
+    if( len > 0 )
+        memcpy(out + 4, s, (size_t)len);
+    return 4 + len;
+}
+
+/**
+ * A `u32 len, bytes` string at `*at` of `frame`, into `out` (room `cap`, NUL
+ * added). 0 when it runs past the payload or does not fit.
+ */
+static inline int
+torirs_control_get_str(
+    struct TorirsControlFrame const* frame,
+    int* at,
+    char* out,
+    int cap)
+{
+    uint32_t len;
+
+    assert(frame);
+    assert(at);
+    assert(out);
+    assert(cap > 0);
+    if( *at + 4 > frame->length )
+        return 0;
+    len = torirs_control_get_u32(frame->payload + *at);
+    if( len >= (uint32_t)cap || (int)len > frame->length - *at - 4 )
+        return 0;
+    memcpy(out, frame->payload + *at + 4, len);
+    out[len] = '\0';
+    *at += 4 + (int)len;
+    return 1;
+}
+
+struct TorirsControlReplayCoord
+{
+    int coord;
+    int charge;
+    /** "" on every chase tick but the first. */
+    char name[TORIRS_CONTROL_REPLAY_NAME_MAX];
+};
+
+struct TorirsControlReplayWorld
+{
+    int tick;
+    uint32_t serial;
+};
+
+struct TorirsControlReplayChat
+{
+    int say;
+    int crown;
+    int colour_effect;
+    char name[TORIRS_CONTROL_REPLAY_NAME_MAX];
+    /** Borrowed from the frame: `length` bytes, not NUL-terminated. */
+    uint8_t const* data;
+    int length;
+};
+
+/** REPLAY_COORD's payload, into `out` (TORIRS_CONTROL_REPLAY_COORD_BYTES_MAX).
+ *  Returns the length. */
+static inline int
+torirs_control_replay_coord_encode(
+    int coord,
+    int charge,
+    char const* name,
+    uint8_t* out)
+{
+    int name_len;
+
+    assert(charge >= 0);
+    assert(name);
+    assert(out);
+    name_len = (int)strlen(name);
+    assert(name_len < TORIRS_CONTROL_REPLAY_NAME_MAX);
+    torirs_control_put_u32(out, (uint32_t)coord);
+    torirs_control_put_u32(out + 4, (uint32_t)charge);
+    return 8 + torirs_control_put_str(out + 8, name, name_len);
+}
+
+/** 0 when the payload is not one the transport can have written. */
+static inline int
+torirs_control_replay_coord_decode(
+    struct TorirsControlFrame const* frame,
+    struct TorirsControlReplayCoord* out)
+{
+    int at = 8;
+
+    assert(frame);
+    assert(out);
+    assert(frame->type == TORIRS_CONTROL_REPLAY_COORD);
+    if( frame->length < 12 )
+        return 0;
+    out->coord = (int)torirs_control_get_u32(frame->payload);
+    out->charge = (int)torirs_control_get_u32(frame->payload + 4);
+    if( out->charge < 0 )
+        return 0;
+    if( !torirs_control_get_str(frame, &at, out->name, (int)sizeof(out->name)) )
+        return 0;
+    return at == frame->length;
+}
+
+/** REPLAY_WORLD's payload, into `out` (TORIRS_CONTROL_REPLAY_WORLD_BYTES).
+ *  Returns the length. */
+static inline int
+torirs_control_replay_world_encode(
+    int tick,
+    uint32_t serial,
+    uint8_t* out)
+{
+    assert(tick >= 0);
+    assert(serial != 0);
+    assert(out);
+    torirs_control_put_u32(out, (uint32_t)tick);
+    torirs_control_put_u32(out + 4, serial);
+    return TORIRS_CONTROL_REPLAY_WORLD_BYTES;
+}
+
+static inline int
+torirs_control_replay_world_decode(
+    struct TorirsControlFrame const* frame,
+    struct TorirsControlReplayWorld* out)
+{
+    assert(frame);
+    assert(out);
+    assert(frame->type == TORIRS_CONTROL_REPLAY_WORLD);
+    if( frame->length != TORIRS_CONTROL_REPLAY_WORLD_BYTES )
+        return 0;
+    out->tick = (int)torirs_control_get_u32(frame->payload);
+    out->serial = torirs_control_get_u32(frame->payload + 4);
+    return out->tick >= 0 && out->serial != 0;
+}
+
+/** REPLAY_CHAT's payload, into `out` (TORIRS_CONTROL_REPLAY_CHAT_BYTES_MAX).
+ *  `name` "" for none. Returns the length. */
+static inline int
+torirs_control_replay_chat_encode(
+    int say,
+    int crown,
+    int colour_effect,
+    char const* name,
+    uint8_t const* data,
+    int length,
+    uint8_t* out)
+{
+    int name_len;
+    int at = 0;
+
+    assert(say == 0 || say == 1);
+    assert(name);
+    name_len = (int)strlen(name);
+    assert(name_len < TORIRS_CONTROL_REPLAY_NAME_MAX);
+    assert(length >= 0);
+    assert(length <= TORIRS_CONTROL_REPLAY_CHAT_DATA_MAX);
+    assert(out);
+    torirs_control_put_u32(out + at, (uint32_t)say);
+    at += 4;
+    torirs_control_put_u32(out + at, (uint32_t)crown);
+    at += 4;
+    torirs_control_put_u32(out + at, (uint32_t)colour_effect);
+    at += 4;
+    at += torirs_control_put_str(out + at, name, name_len);
+    at += torirs_control_put_str(out + at, (char const*)data, length);
+    return at;
+}
+
+static inline int
+torirs_control_replay_chat_decode(
+    struct TorirsControlFrame const* frame,
+    struct TorirsControlReplayChat* out)
+{
+    int at = 12;
+    uint32_t len;
+
+    assert(frame);
+    assert(out);
+    assert(frame->type == TORIRS_CONTROL_REPLAY_CHAT);
+    if( frame->length < 12 )
+        return 0;
+    out->say = (int)torirs_control_get_u32(frame->payload);
+    out->crown = (int)torirs_control_get_u32(frame->payload + 4);
+    out->colour_effect = (int)torirs_control_get_u32(frame->payload + 8);
+    if( out->say != 0 && out->say != 1 )
+        return 0;
+    if( !torirs_control_get_str(frame, &at, out->name, (int)sizeof(out->name)) )
+        return 0;
+    if( at + 4 > frame->length )
+        return 0;
+    len = torirs_control_get_u32(frame->payload + at);
+    if( len > TORIRS_CONTROL_REPLAY_CHAT_DATA_MAX || (int)len != frame->length - at - 4 )
+        return 0;
+    out->data = frame->payload + at + 4;
+    out->length = (int)len;
+    return 1;
 }
 
 #endif

@@ -490,6 +490,9 @@ ToriRSServer_SendControl(
 
     assert(player);
     assert(type > 0);
+    /* The replay's types are the RSProx replay transport's alone: a client
+     * aborts on one from a server (net/torirs_control.h). */
+    assert(!torirs_control_type_is_replay(type));
     assert(len >= 0);
     assert(len <= (int)sizeof(frame) - 2 - TORIRS_CONTROL_HEADER_BYTES);
     if( len > 0 )

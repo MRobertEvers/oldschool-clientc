@@ -1053,3 +1053,162 @@ LootStore_Revision(const struct LootStore* store)
     assert(store);
     return store->revision;
 }
+
+/* --- session checkpoint (replay/replay_checkpoint.h) --------------------- */
+
+#include "replay/replay_checkpoint_util.h"
+
+static char**
+loot_ckpt_strlist_dup(
+    char* const* entries,
+    int count,
+    int cap)
+{
+    char** out;
+
+    if( !entries )
+        return NULL;
+    out = ToriMem_Calloc(ToriMem_Session(), (size_t)(cap > 0 ? cap : 1), sizeof(char*));
+    assert(out);
+    for( int i = 0; i < count; i++ )
+        out[i] = Ckpt_StrDup(ToriMem_Session(), entries[i]);
+    return out;
+}
+
+static void
+loot_ckpt_copy(
+    struct LootStore* dst,
+    struct LootStore const* src)
+{
+    struct ToriMem_Group* g = ToriMem_Session();
+
+    *dst = *src;
+    dst->sources = Ckpt_Dup(g, src->sources, (size_t)src->source_cap * sizeof(src->sources[0]));
+    for( int i = 0; i < src->source_count; i++ )
+    {
+        dst->sources[i].name = Ckpt_StrDup(g, src->sources[i].name);
+        dst->sources[i].rows =
+            Ckpt_Dup(g, src->sources[i].rows, (size_t)src->sources[i].row_cap * sizeof(src->sources[i].rows[0]));
+    }
+    dst->item_ignored = loot_ckpt_strlist_dup(src->item_ignored, src->item_ignored_count, src->item_ignored_cap);
+    dst->source_ignored =
+        loot_ckpt_strlist_dup(src->source_ignored, src->source_ignored_count, src->source_ignored_cap);
+    for( int k = 0; k < LOOT_AUX_KIND_MAX; k++ )
+        dst->aux[k].entries = loot_ckpt_strlist_dup(src->aux[k].entries, src->aux[k].count, src->aux[k].cap);
+    dst->query_ids = Ckpt_Dup(g, src->query_ids, (size_t)src->query_cap * sizeof(int));
+}
+
+struct LootStore*
+LootStore_CheckpointTake(struct LootStore const* store)
+{
+    struct LootStore* cp;
+
+    assert(store);
+    cp = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*cp));
+    assert(cp);
+    loot_ckpt_copy(cp, store);
+    return cp;
+}
+
+void
+LootStore_CheckpointRestore(
+    struct LootStore* store,
+    struct LootStore const* cp)
+{
+    assert(store);
+    assert(cp);
+    LootStore_Free(store);
+    loot_ckpt_copy(store, cp);
+}
+
+void
+LootStore_CheckpointFree(struct LootStore* cp)
+{
+    if( !cp )
+        return;
+    LootStore_Free(cp);
+    ToriMem_Free(ToriMem_Session(), cp);
+}
+
+size_t
+LootStore_CheckpointBytes(struct LootStore const* cp)
+{
+    size_t bytes;
+
+    assert(cp);
+    bytes = sizeof(*cp) + (size_t)cp->source_cap * sizeof(cp->sources[0]) + (size_t)cp->query_cap * sizeof(int) +
+            (size_t)(cp->item_ignored_cap + cp->source_ignored_cap) * sizeof(char*);
+    for( int i = 0; i < cp->source_count; i++ )
+        bytes += (size_t)cp->sources[i].row_cap * sizeof(cp->sources[i].rows[0]);
+    for( int k = 0; k < LOOT_AUX_KIND_MAX; k++ )
+        bytes += (size_t)cp->aux[k].cap * sizeof(char*);
+    return bytes;
+}
+
+static int
+loot_ckpt_strlist_eq(
+    char* const* a,
+    char* const* b,
+    int count)
+{
+    for( int i = 0; i < count; i++ )
+        if( !Ckpt_StrEq(a[i], b[i]) )
+            return 0;
+    return 1;
+}
+
+int
+LootStore_CheckpointEqual(
+    struct LootStore const* a,
+    struct LootStore const* b,
+    char* why,
+    int why_cap)
+{
+    assert(a);
+    assert(b);
+    CKPT_EQ_INT(a, b, source_count, why, why_cap);
+    for( int i = 0; i < a->source_count; i++ )
+    {
+        struct LootSource const* sa = &a->sources[i];
+        struct LootSource const* sb = &b->sources[i];
+
+        if( sa->id != sb->id || !Ckpt_StrEq(sa->name, sb->name) || sa->row_count != sb->row_count ||
+            sa->kill_count != sb->kill_count || sa->last_event_id != sb->last_event_id ||
+            sa->category != sb->category || sa->level != sb->level ||
+            (sa->row_count > 0 && memcmp(sa->rows, sb->rows, (size_t)sa->row_count * sizeof(sa->rows[0])) != 0) )
+        {
+            Ckpt_Why(why, why_cap, "loot source %d", i);
+            return 0;
+        }
+    }
+    CKPT_EQ_INT(a, b, next_source_id, why, why_cap);
+    CKPT_EQ_INT(a, b, drop_limit, why, why_cap);
+    CKPT_EQ_INT(a, b, item_ignored_count, why, why_cap);
+    CKPT_EQ_INT(a, b, source_ignored_count, why, why_cap);
+    if( !loot_ckpt_strlist_eq(a->item_ignored, b->item_ignored, a->item_ignored_count) ||
+        !loot_ckpt_strlist_eq(a->source_ignored, b->source_ignored, a->source_ignored_count) )
+    {
+        Ckpt_Why(why, why_cap, "loot ignore lists");
+        return 0;
+    }
+    for( int k = 0; k < LOOT_AUX_KIND_MAX; k++ )
+    {
+        if( a->aux[k].count != b->aux[k].count ||
+            !loot_ckpt_strlist_eq(a->aux[k].entries, b->aux[k].entries, a->aux[k].count) ||
+            a->aux_revision[k] != b->aux_revision[k] )
+        {
+            Ckpt_Why(why, why_cap, "loot aux list %d", k);
+            return 0;
+        }
+    }
+    CKPT_EQ_INT(a, b, query_count, why, why_cap);
+    for( int i = 0; i < a->query_count; i++ )
+        if( a->query_ids[i] != b->query_ids[i] )
+        {
+            Ckpt_Why(why, why_cap, "loot query_ids[%d]", i);
+            return 0;
+        }
+    CKPT_EQ_INT(a, b, next_event_id, why, why_cap);
+    CKPT_EQ_INT(a, b, revision, why, why_cap);
+    return 1;
+}

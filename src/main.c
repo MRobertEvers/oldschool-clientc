@@ -30,6 +30,10 @@
 #endif
 #include "platform/net_transport.h"
 #include "net/rsprox_recording.h"
+#include "replay/replay_digest.h"
+#include "replay/replay_checkpoint_check.h"
+#include "replay/replay_checkpoint_play.h"
+#include "replay/replay_scrub.h"
 #include "platform/platform_audio.h"
 #include "platform/platform_window.h"
 #if !defined(TORIRS_PLATFORM_WEB)
@@ -1485,6 +1489,54 @@ renderer_is_software(enum ToriRS_RendererKind kind)
     return kind == TORIRS_RENDERER_KIND_SOFTWARE || kind == TORIRS_RENDERER_KIND_SOFTWARE_DEPTH ||
            kind == TORIRS_RENDERER_KIND_SOFTWARE_RSZBUF;
 }
+/*
+ * A frame a replay seek holds (App_RenderSkipHold) on a retained renderer.
+ *
+ * A retained renderer learns the scene from the load events a drawn frame
+ * hands it ahead of its passes (models, poses and textures baked, batches,
+ * sprites dropped), and a frame that drains them without drawing loses them
+ * for good: the next one draws a scene the renderer never saw. So a held
+ * frame used to be drawn -- and presented -- on a GPU lane, and the browser
+ * showed every seek: the session restarting, the chase, the pre-roll. Here the
+ * events go to the renderer one command at a time instead, outside any frame:
+ * nothing is cleared, drawn or presented, the last frame drawn before the seek
+ * stays up, and the frame the seek lands on draws a scene the renderer is
+ * level with. The caller spends the queue (ToriDraw_SceneFrameEnd) after.
+ *
+ * WebGL2 only, the replay page's renderer, which is where this was proved
+ * (painter and depth run one ES3 core); false on any other lane, which keeps
+ * drawing its held frames as before.
+ */
+static bool
+renderer_can_learn_held_frame(void)
+{
+#if defined(TORIRS_HAVE_WEBGL2)
+    if( webgl2 )
+        return true;
+#endif
+    return false;
+}
+
+static void
+renderer_learn_held_frame(void)
+{
+    assert(renderer_can_learn_held_frame());
+#if defined(TORIRS_HAVE_WEBGL2)
+    {
+        struct ToriRS_RenderCommand command;
+        int cursor = 0;
+
+        while( ToriRS_SceneNextResourceCommand(app.scene, &cursor, &command) )
+        {
+            if( renderer_active_is_depth() )
+                ToriPlatformWeb_Renderer_WebGL2_ZBufferExecute(webgl2, &command);
+            else
+                ToriPlatformWeb_Renderer_WebGL2_PainterExecute(webgl2, &command);
+        }
+    }
+#endif
+}
+
 /* What the launch's flags chose -- the meaning of RS_CS2_RENDERER_LAUNCH_DEFAULT.
  * Moved to the renderer actually running if the launch's could not start. */
 static enum ToriRS_RendererKind renderer_launch;
@@ -2248,6 +2300,50 @@ main_parse_maped_url(
 }
 static struct RsproxRecording rsprox_replay_rec;
 static int rsprox_replay_uncapped;
+/*
+ * --replay-at T[,T2,...] (or TORIRS_REPLAY_AT): once the login completes, seek
+ * to T and hold there; each later tick is sought, and held at, once the one
+ * before it has landed. The rest of the list is `rsprox_replay_at`.
+ */
+static char const* rsprox_replay_at;
+/*
+ * --replay-digest (or TORIRS_REPLAY_DIGEST=1): once the last --replay-at seek
+ * has landed and the client has settled, print one `replay: digest` line of
+ * the authoritative state (replay/replay_digest.h), play 64 more ticks, print
+ * another, and exit. What `make -C src replay-seek-check` compares between a
+ * full simulation and a fast seek.
+ */
+#define RSPROX_REPLAY_DIGEST_AFTER 64
+#define RSPROX_REPLAY_DIGEST_SETTLE_FRAMES 3
+static struct
+{
+    int on;
+    /** 0 waiting for the seek, 1 settling at T, 2 playing to T + 64,
+     *  3 settling there, 4 done. */
+    int stage;
+    int seek_issued;
+    int tick;
+    int settle;
+    unsigned long long serial_at;
+} rsprox_replay_digest;
+/*
+ * What a seek changes for as long as it runs, and puts back when it lands: the
+ * replay as fast as the client can go (the transport reports itself unlocked,
+ * k cycles a frame), nothing drawn (App_RenderSkipHold), nothing heard.
+ */
+#define RSPROX_REPLAY_SEEK_CYCLES_PER_FRAME 30
+static struct
+{
+    int active;
+    int cycles_per_frame;
+    int master_volume;
+    /** The audio device as it was: a seek runs with none, so nothing is
+     *  fetched or decoded for a sound nobody hears (RS_Audio_Tick). */
+    bool device_present;
+    /** A seek landed last frame: its breakdown is printed once the frame
+     *  that presents it has run. */
+    int present_pending;
+} rsprox_replay_seek;
 static int sim_openmain = -1;
 static int sim_openmain_done;
 static int sim_openside = -1;
@@ -2278,11 +2374,233 @@ static int pace_spin;
  * while it is set, the wall clock again when it is not. The transport reads
  * the cycles, so the recording's gaps are kept in cycles either way.
  */
+/*
+ * A seek from a client that is not in a session: the recording finished, its
+ * LOGOUT put the title screen up, and the automatic login was spent on the
+ * session that ended. The seek restarts from the login, so the title's
+ * prefill is armed once more with the throwaway credentials the replay booted
+ * with (main_rsprox_replay_open). A link that is being re-established
+ * (app_net_link_watch) needs nothing.
+ */
+#if defined(__EMSCRIPTEN__)
+static void
+main_rsprox_replay_relogin(void)
+{
+    if( !app.net || app.net->state != TORIRS_NET_DISCONNECTED || NetLinkWatch_Lost(&app.net_link) )
+        return;
+    if( app.title_session.autologin_spent )
+        TORIRS_REPORT("replay: the session has ended; logging in again for the seek\n");
+    app.title_session.autologin_spent = false;
+}
+#endif
+
+/* --replay-digest's frames (rsprox_replay_digest above). */
+static void
+main_rsprox_replay_digest_frame(int seeking)
+{
+    struct NetTransportReplayStatus st;
+
+    if( !rsprox_replay_digest.on || rsprox_replay_digest.stage >= 4 || seeking || rsprox_replay_at ||
+        !rsprox_replay_digest.seek_issued )
+        return;
+    NetTransport_ReplayGetStatus(sock, &st);
+    if( strcmp(st.phase, "playing") != 0 || !st.held )
+        return;
+    if( rsprox_replay_digest.stage == 0 )
+    {
+        rsprox_replay_digest.stage = 1;
+        rsprox_replay_digest.tick = st.tick;
+        rsprox_replay_digest.settle = 0;
+    }
+    if( rsprox_replay_digest.stage == 2 )
+    {
+        if( app.server_tick_serial - rsprox_replay_digest.serial_at < RSPROX_REPLAY_DIGEST_AFTER )
+            return;
+        rsprox_replay_digest.stage = 3;
+        rsprox_replay_digest.settle = 0;
+    }
+    /* Settled: the tick's scripts have run and nothing is parked. */
+    if( !App_FrameSettled(&app) || app.exec_runner_had_work )
+    {
+        rsprox_replay_digest.settle = 0;
+        return;
+    }
+    if( ++rsprox_replay_digest.settle < RSPROX_REPLAY_DIGEST_SETTLE_FRAMES )
+        return;
+    {
+        struct ReplayDigest d;
+        char const* dump = getenv("TORIRS_REPLAY_DIGEST_DUMP");
+
+        if( dump && dump[0] )
+        {
+            char path[1024];
+
+            snprintf(path, sizeof(path), "%s.%d.txt", dump, rsprox_replay_digest.tick);
+            ReplayDigest_TakeDumping(&app, &d, path);
+        }
+        else
+            ReplayDigest_Take(&app, &d);
+        ReplayDigest_Print(&d, rsprox_replay_digest.tick);
+    }
+    if( rsprox_replay_digest.stage == 1 &&
+        rsprox_replay_digest.tick + RSPROX_REPLAY_DIGEST_AFTER <= st.tick_count )
+    {
+        rsprox_replay_digest.stage = 2;
+        rsprox_replay_digest.serial_at = app.server_tick_serial;
+        rsprox_replay_digest.tick += RSPROX_REPLAY_DIGEST_AFTER;
+        NetTransport_ReplayHoldAt(sock, rsprox_replay_digest.tick);
+        return;
+    }
+    /* Both printed: the run is over. */
+    rsprox_replay_digest.stage = 4;
+    max_frames = frame_count;
+}
+
+/* One line per landed seek: where its milliseconds went, phase by phase, on
+ * the transport's wall clock. Printed the frame after it landed, so the
+ * present (the first frame drawn again) is in it. */
+static void
+main_rsprox_replay_seek_report(void)
+{
+    struct ReplaySeekTimes t;
+    uint64_t const now = PlatformWindow_Ticks64();
+    uint64_t chase_from;
+    uint64_t preroll_from;
+
+    static unsigned printed;
+
+    NetTransport_ReplaySeekTimes(sock, &t);
+    if( t.serial == 0 || t.serial == printed )
+        return;
+    printed = t.serial;
+#define RSPROX_SPAN(a, b) ((a) && (b) && (b) >= (a) ? (double)((b) - (a)) : 0.0)
+    if( !t.fast )
+    {
+        TORIRS_REPORT("replay: seek breakdown to tick %d from %d (full simulation): restart+login "
+                      "%.0f ms, simulate %.0f ms, present %.0f ms, total %.0f ms\n",
+                      t.target, t.from, RSPROX_SPAN(t.start_ms, t.session_ms),
+                      RSPROX_SPAN(t.session_ms ? t.session_ms : t.start_ms, t.landed_ms),
+                      RSPROX_SPAN(t.landed_ms, now), RSPROX_SPAN(t.start_ms, now));
+        return;
+    }
+    chase_from = t.session_ms ? t.session_ms : t.start_ms;
+    preroll_from = t.world_built_ms ? t.world_built_ms : t.world_ms;
+    if( t.restore_tick >= 0 && t.restored_ms )
+    {
+        /* From a session checkpoint (replay/replay_checkpoint.h): the tick in
+         * hand finished, then the restore, then the chase from there. */
+        TORIRS_REPORT("replay: seek breakdown to tick %d from %d (fast, checkpoint at %d): finish tick %.0f ms, "
+                      "restore %.2f ms, chase %.0f ms (%d ticks), keyframe %s %.0f ms, pre-roll %.0f ms, "
+                      "present %.0f ms, total %.0f ms\n",
+                      t.target, t.from, t.restore_tick, RSPROX_SPAN(t.start_ms, t.restored_ms), t.restore_cost_ms,
+                      RSPROX_SPAN(t.restored_ms, t.world_ms), t.chase_ticks,
+                      t.world_rebuilt ? "scene build" : "(scene kept)", RSPROX_SPAN(t.world_ms, preroll_from),
+                      RSPROX_SPAN(preroll_from, t.landed_ms), RSPROX_SPAN(t.landed_ms, now),
+                      RSPROX_SPAN(t.start_ms, now));
+        return;
+    }
+    TORIRS_REPORT("replay: seek breakdown to tick %d from %d (fast): restart+login %.0f ms, "
+                  "chase %.0f ms (%d ticks), keyframe %s %.0f ms, pre-roll %.0f ms, present "
+                  "%.0f ms, total %.0f ms\n",
+                  t.target, t.from, RSPROX_SPAN(t.start_ms, t.session_ms),
+                  RSPROX_SPAN(chase_from, t.world_ms), t.chase_ticks,
+                  t.world_rebuilt ? "scene build" : "(scene kept)",
+                  RSPROX_SPAN(t.world_ms, preroll_from), RSPROX_SPAN(preroll_from, t.landed_ms),
+                  RSPROX_SPAN(t.landed_ms, now), RSPROX_SPAN(t.start_ms, now));
+#undef RSPROX_SPAN
+}
+
+static void
+main_rsprox_replay_seek_frame(void)
+{
+    int const seeking = NetTransport_ReplaySeeking(sock);
+
+    if( seeking && !rsprox_replay_seek.active )
+    {
+        rsprox_replay_seek.active = 1;
+        rsprox_replay_seek.cycles_per_frame = App_LogicCyclesPerFrameSet();
+        rsprox_replay_seek.master_volume = app.audio.master_volume;
+        rsprox_replay_seek.device_present = app.audio.device_present;
+        RS_Audio_SetDevicePresent(&app.audio, false);
+        App_SetLogicCyclesPerFrame(RSPROX_REPLAY_SEEK_CYCLES_PER_FRAME);
+        App_RenderSkipHold(&app, 1);
+    }
+    else if( !seeking && rsprox_replay_seek.present_pending )
+    {
+        rsprox_replay_seek.present_pending = 0;
+        main_rsprox_replay_seek_report();
+    }
+    if( !seeking && rsprox_replay_seek.active )
+    {
+        rsprox_replay_seek.active = 0;
+        rsprox_replay_seek.present_pending = 1;
+        App_SetLogicCyclesPerFrame(rsprox_replay_seek.cycles_per_frame);
+        App_RenderSkipHold(&app, 0);
+        RS_Audio_SetDevicePresent(&app.audio, rsprox_replay_seek.device_present);
+        RS_Audio_SetMasterVolume(&app.audio, rsprox_replay_seek.master_volume, &app.audio_out);
+    }
+    /* Silent every frame of it: a setting the replay's own packets move
+     * (RS_CS2Host_SyncAudioVarp) is kept for the end of the seek instead. */
+    if( rsprox_replay_seek.active && app.audio.master_volume != 0 )
+    {
+        rsprox_replay_seek.master_volume = app.audio.master_volume;
+        RS_Audio_SetMasterVolume(&app.audio, 0, &app.audio_out);
+    }
+    /* Held, or seeking past a quiet stretch, the replay sends nothing for as
+     * long as the page likes; that is not a server gone quiet
+     * (NET_LINK_TIMEOUT_MS). */
+    if( (seeking || NetTransport_ReplayHeld(sock)) && app.net_link.last_recv_ms &&
+        !NetLinkWatch_Lost(&app.net_link) && app.last_frame_ms > app.net_link.last_recv_ms )
+        NetLinkWatch_NotePacket(&app.net_link, app.last_frame_ms);
+
+    /* --replay-at: the next tick in the list, once the session plays and the
+     * seek before it has landed. */
+    if( rsprox_replay_at && !seeking )
+    {
+        struct NetTransportReplayStatus st;
+
+        NetTransport_ReplayGetStatus(sock, &st);
+        if( strcmp(st.phase, "playing") == 0 )
+        {
+            char* end = NULL;
+            long const tick = strtol(rsprox_replay_at, &end, 10);
+
+            if( end == rsprox_replay_at )
+            {
+                TORIRS_ERR("replay: --replay-at: '%s' is not a tick\n", rsprox_replay_at);
+                rsprox_replay_at = NULL;
+            }
+            else
+            {
+                rsprox_replay_at = *end == ',' ? end + 1 : NULL;
+                NetTransport_ReplayHold(sock);
+                NetTransport_ReplaySeek(sock, (int)tick);
+                rsprox_replay_digest.seek_issued = 1;
+                return;
+            }
+        }
+    }
+    main_rsprox_replay_digest_frame(seeking);
+    /* TORIRS_REPLAY_CHECKPOINT_CHECK (replay/replay_checkpoint_check.h). */
+    if( ReplayCheckpointCheck_Frame(&app, sock, seeking) )
+        max_frames = frame_count;
+}
+
 static void
 main_rsprox_replay_frame(void)
 {
-    int const unlocked = NetTransport_ReplayUnlocked(sock);
+    int unlocked;
 
+    /* What the client has executed, before the seek's edge is read: a seek
+     * lands on it. */
+    NetTransport_ReplayClientTicks(sock, app.server_tick_serial);
+    /* A pipeline held on a scene build or a cache read is not a stalled seek. */
+    NetTransport_ReplayClientBusy(sock, app.world_load_inflight || app.exec_runner_had_work);
+    /* Session checkpoints: take one at a clean boundary, restore one for a
+     * seek (replay/replay_checkpoint_play.h). */
+    ReplayCheckpointPlay_Frame(&app, sock);
+    main_rsprox_replay_seek_frame();
+    unlocked = NetTransport_ReplayUnlocked(sock);
     if( unlocked != App_SpeedUnlocked() )
     {
         if( unlocked )
@@ -3685,6 +4003,9 @@ frame_loop_step(void)
      */
     uint64_t logic_now;
     int app_redraw;
+    /* A replay seek's held frame on a renderer that is handed its scene
+     * events without a draw (renderer_learn_held_frame). */
+    int held_learns = 0;
     int app_committed = 0;
     uint64_t frame_start_us;
     /* When the screen is next allowed to be redrawn.
@@ -5860,9 +6181,14 @@ frame_loop_step(void)
          * the scene from the load events the draw drains, and a skipped
          * frame would leave them to pile up against the queue's cap and be
          * dropped; Soft3D reads the scene directly, so the skipped frame's
-         * own ToriDraw_SceneFrameEnd below is all it is owed. */
-        app_redraw = App_RenderSkipFrame(
-            &app, app_redraw, content_draw || !renderer_is_software(renderer_active));
+         * own ToriDraw_SceneFrameEnd below is all it is owed. A replay seek's
+         * held frame is the exception where the renderer can be handed its
+         * events without a frame (renderer_learn_held_frame): it is not
+         * drawn on that lane either. */
+        int const retained = !renderer_is_software(renderer_active);
+
+        held_learns = app.render_skip.hold && retained && renderer_can_learn_held_frame();
+        app_redraw = App_RenderSkipFrame(&app, app_redraw, content_draw || (retained && !held_learns));
     }
     /* The runner camera split: the offscreen runner frame a driver push owed
      * is drawn here, BEFORE the presented one (one branch while detached). */
@@ -5883,9 +6209,14 @@ frame_loop_step(void)
         }
         app.frame_view = App_RunnerView(&app);
     }
-    else if( App_RenderSkipEnabled(&app) )
+    else if( App_RenderSkipEnabled(&app) || app.render_skip.hold )
     {
-        /* A skipped frame presents nothing either: re-uploading the last
+        /* Not drawn, on a lane that learns the scene from its draws: what the
+         * draw would have handed it, without the draw. */
+        if( held_learns )
+            renderer_learn_held_frame();
+        /* A skipped frame -- or one a replay seek holds -- presents nothing
+         * either: re-uploading the last
          * picture is the present's whole cost, for a screen that has not
          * changed. What Soft3D's own frame end (ToriRS_FrameEnd) would have
          * done still happens: the scene's load-event queue is spent (audio
@@ -6119,7 +6450,12 @@ frame_loop_step(void)
 
         PlatformAudio_SubmitAll(
             audio, audio_commands, App_DrainAudio(&app, audio_commands, TORIRS_AUDIO_QUEUE_MAX));
-        PlatformAudio_Update(audio);
+        /* A replay's seek is silent (main_rsprox_replay_seek_frame) and runs
+         * as many frames a second as the machine allows: mixing a muted
+         * stream every one of them was 7% of a browser seek (CDP profile,
+         * 2026-11-12). The stream is fed again from the frame the seek lands. */
+        if( !rsprox_replay_seek.active )
+            PlatformAudio_Update(audio);
         PlatformAudio_Feedback(audio, &audio_feedback);
         App_SetAudioFeedback(&app, &audio_feedback);
     }
@@ -6970,6 +7306,18 @@ frame_loop_teardown(void)
     }
     CmdBus_RecordClose(&bus);
 
+    /* Where a replay stood at exit: what --replay-at under TORIRS_MAX_FRAMES
+     * is read for. */
+    if( sock && NetTransport_IsReplay(sock) )
+    {
+        struct NetTransportReplayStatus st;
+
+        NetTransport_ReplayGetStatus(sock, &st);
+        TORIRS_REPORT("replay: at exit %s, tick %d of %d, clock %.1f s, held %d, seeking %d, "
+                      "%llu server ticks executed\n",
+                      st.phase, st.tick, st.tick_count, (double)st.clock_ms / 1000.0, st.held,
+                      st.seeking, (unsigned long long)app.server_tick_serial);
+    }
     NetTransport_Free(sock);
     /*
      * The audio ledger, and the leak check the retained API makes possible.
@@ -7079,26 +7427,83 @@ torirs_replay_set_unlocked(int unlocked)
     return 1;
 }
 
+/*
+ * The scrubber (replay/replay_scrub.h, the page's seek / step / hold / run).
+ * Each answers 1 when the transport took it. A seek from a client the
+ * recording's end logged out logs it back in (main_rsprox_replay_relogin).
+ */
+EMSCRIPTEN_KEEPALIVE int
+torirs_replay_seek(int tick)
+{
+    if( !sock || !NetTransport_IsReplay(sock) )
+        return 0;
+    NetTransport_ReplaySeek(sock, tick);
+    main_rsprox_replay_relogin();
+    return 1;
+}
+
+EMSCRIPTEN_KEEPALIVE int
+torirs_replay_step(int ticks)
+{
+    if( !sock || !NetTransport_IsReplay(sock) )
+        return 0;
+    NetTransport_ReplayStep(sock, ticks);
+    main_rsprox_replay_relogin();
+    return 1;
+}
+
+EMSCRIPTEN_KEEPALIVE int
+torirs_replay_hold(void)
+{
+    if( !sock || !NetTransport_IsReplay(sock) )
+        return 0;
+    NetTransport_ReplayHold(sock);
+    return 1;
+}
+
+EMSCRIPTEN_KEEPALIVE int
+torirs_replay_run(void)
+{
+    if( !sock || !NetTransport_IsReplay(sock) )
+        return 0;
+    NetTransport_ReplayRun(sock);
+    return 1;
+}
+
 /* {"phase","tick","ticks","clock_ms","duration_ms","unlocked","waiting_map",
- * "revision","world","sessions"}, malloc'd; the page frees it with _free. */
+ * "revision","world","sessions","held","seeking","seek_target","seek_from",
+ * "seek_phase","timestamp_ms"}, malloc'd; the page frees it with _free. */
 EMSCRIPTEN_KEEPALIVE char*
 torirs_replay_status_json(void)
 {
     struct NetTransportReplayStatus st;
     char* json;
+    int const cap = 512;
 
     if( !sock || !NetTransport_IsReplay(sock) )
         return NULL;
     NetTransport_ReplayGetStatus(sock, &st);
-    json = malloc(256);
+    json = malloc((size_t)cap);
     assert(json);
-    snprintf(json, 256,
+    snprintf(json, (size_t)cap,
              "{\"phase\":\"%s\",\"tick\":%d,\"ticks\":%d,\"clock_ms\":%llu,"
              "\"duration_ms\":%llu,\"unlocked\":%d,\"waiting_map\":%d,\"revision\":%d,"
-             "\"world\":%d,\"sessions\":%d}",
+             "\"world\":%d,\"sessions\":%d,\"held\":%d,\"seeking\":%d,\"seek_target\":%d,"
+             "\"seek_from\":%d,\"seek_phase\":\"%s\",\"timestamp_ms\":%lld}",
              st.phase, st.tick, st.tick_count, st.clock_ms, st.duration_ms, st.unlocked,
-             st.waiting_map, st.revision, st.world, st.sessions);
+             st.waiting_map, st.revision, st.world, st.sessions, st.held, st.seeking,
+             st.seek_target, st.seek_from, st.seek_phase, st.timestamp_ms);
     return json;
+}
+
+/* The page's timeline() object (replay/replay_timeline.h), malloc'd; the page
+ * parses it once and frees it with _free. */
+EMSCRIPTEN_KEEPALIVE char*
+torirs_replay_timeline_json(void)
+{
+    if( !sock || !NetTransport_IsReplay(sock) )
+        return NULL;
+    return NetTransport_ReplayTimelineJson(sock);
 }
 
 /* The boot marks and both runners' counters as JSON, malloc'd; the page
@@ -7357,7 +7762,7 @@ main_print_usage(char const* program)
         "[--pass P] [--rev lc254|lc245_2|lc289|osrs230|osrs239|osrs241|osrs242] "
         "[--js5|--no-js5] [--js5-host H] [--js5-port N] "
         "[--js5-fallback-port N] [--js5-revision N] [--uncapped] [--unlocked] "
-        "[--replay <rsprox.bin[.gz]>] "
+        "[--replay <rsprox.bin[.gz]>] [--replay-at <tick>[,<tick>...]] [--replay-digest] "
         "[--world-layout static|edit] "
         "[--editor-view] [--maped tcp://host:port] [--maped-group N] "
         "[--camera x,z,level,yaw,pitch,zoom] "
@@ -7591,6 +7996,16 @@ main_parse_argument_layer(
         if( strcmp(argv[argi], "--replay") == 0 && argi + 1 < argc )
         {
             rsprox_replay_path = argv[++argi];
+            continue;
+        }
+        if( strcmp(argv[argi], "--replay-at") == 0 && argi + 1 < argc )
+        {
+            rsprox_replay_at = argv[++argi];
+            continue;
+        }
+        if( strcmp(argv[argi], "--replay-digest") == 0 )
+        {
+            rsprox_replay_digest.on = 1;
             continue;
         }
         if( strcmp(argv[argi], "--pacer") == 0 && argi + 1 < argc )
@@ -7980,6 +8395,7 @@ main_argument_takes_value(char const* argument)
            strcmp(argument, "--js5-fallback-port") == 0 ||
            strcmp(argument, "--js5-revision") == 0 || strcmp(argument, "--windowmode") == 0 ||
            strcmp(argument, "--window") == 0 || strcmp(argument, "--replay") == 0 ||
+           strcmp(argument, "--replay-at") == 0 ||
            strcmp(argument, "--world-layout") == 0 || strcmp(argument, "--maped") == 0 ||
            strcmp(argument, "--maped-group") == 0 || strcmp(argument, "--camera") == 0 ||
            strcmp(argument, "--editor-panel") == 0 || strcmp(argument, "--agent-port") == 0 ||
@@ -8270,6 +8686,10 @@ main(
         return 1;
     if( !rsprox_replay_path && getenv("TORIRS_RSPROX_REPLAY") && getenv("TORIRS_RSPROX_REPLAY")[0] )
         rsprox_replay_path = getenv("TORIRS_RSPROX_REPLAY");
+    if( !rsprox_replay_at && getenv("TORIRS_REPLAY_AT") && getenv("TORIRS_REPLAY_AT")[0] )
+        rsprox_replay_at = getenv("TORIRS_REPLAY_AT");
+    if( getenv("TORIRS_REPLAY_DIGEST") && strcmp(getenv("TORIRS_REPLAY_DIGEST"), "1") == 0 )
+        rsprox_replay_digest.on = 1;
     if( rsprox_replay_path && !main_rsprox_replay_open() )
         return 2;
 
@@ -10030,6 +10450,8 @@ main(
                 rsprox_recording_resolve_reconnects(RsproxRecording_Rev(&rsprox_replay_rec),
                                                     &rsprox_replay_rec);
                 sock = NetTransport_NewReplay(&rsprox_replay_rec, app.net->rev);
+                /* Its control frames are expected (net/torirs_control.h). */
+                app.net_replay = 1;
             }
             else
                 sock = app.net ? NetTransport_New(

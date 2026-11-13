@@ -349,3 +349,137 @@ RS_GroupStore_FindUid(
             return store->slots[i];
     return NULL;
 }
+
+/* --- session checkpoint (replay/replay_checkpoint.h) --------------------- */
+
+#include "replay/replay_checkpoint_util.h"
+
+static void
+group_ckpt_copy(
+    struct RS_GroupStore* dst,
+    struct RS_GroupStore const* src)
+{
+    struct ToriMem_Group* g = ToriMem_Assets();
+
+    for( int i = 0; i < RS_GROUP_SLOTS; i++ )
+    {
+        struct RS_GroupInstance const* from = src->slots[i];
+        struct RS_GroupInstance* to;
+
+        dst->slots[i] = NULL;
+        if( !from )
+            continue;
+        to = ToriMem_Memdup(g, from, sizeof(*to));
+        assert(to);
+        for( int scope = 0; scope < RS_GROUP_SCOPES; scope++ )
+        {
+            to->values[scope] =
+                Ckpt_Dup(g, from->values[scope], (size_t)from->value_count[scope] * sizeof(from->values[scope][0]));
+            for( int v = 0; v < from->value_count[scope]; v++ )
+                to->values[scope][v].string_value = Ckpt_StrDup(g, from->values[scope][v].string_value);
+        }
+        dst->slots[i] = to;
+    }
+}
+
+struct RS_GroupStore*
+RS_GroupStore_CheckpointTake(struct RS_GroupStore const* store)
+{
+    struct RS_GroupStore* cp;
+
+    assert(store);
+    cp = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*cp));
+    assert(cp);
+    group_ckpt_copy(cp, store);
+    return cp;
+}
+
+void
+RS_GroupStore_CheckpointRestore(
+    struct RS_GroupStore* store,
+    struct RS_GroupStore const* cp)
+{
+    assert(store);
+    assert(cp);
+    RS_GroupStore_Free(store);
+    group_ckpt_copy(store, cp);
+}
+
+void
+RS_GroupStore_CheckpointFree(struct RS_GroupStore* cp)
+{
+    if( !cp )
+        return;
+    RS_GroupStore_Free(cp);
+    ToriMem_Free(ToriMem_Assets(), cp);
+}
+
+size_t
+RS_GroupStore_CheckpointBytes(struct RS_GroupStore const* cp)
+{
+    size_t bytes;
+
+    assert(cp);
+    bytes = sizeof(*cp);
+    for( int i = 0; i < RS_GROUP_SLOTS; i++ )
+    {
+        if( !cp->slots[i] )
+            continue;
+        bytes += sizeof(*cp->slots[i]);
+        for( int scope = 0; scope < RS_GROUP_SCOPES; scope++ )
+            bytes += (size_t)cp->slots[i]->value_count[scope] * sizeof(struct RS_GroupValue);
+    }
+    return bytes;
+}
+
+int
+RS_GroupStore_CheckpointEqual(
+    struct RS_GroupStore const* a,
+    struct RS_GroupStore const* b,
+    char* why,
+    int why_cap)
+{
+    assert(a);
+    assert(b);
+    for( int i = 0; i < RS_GROUP_SLOTS; i++ )
+    {
+        struct RS_GroupInstance const* ga = a->slots[i];
+        struct RS_GroupInstance const* gb = b->slots[i];
+
+        if( !ga || !gb )
+        {
+            if( ga != gb )
+            {
+                Ckpt_Why(why, why_cap, "group slot %d present in one only", i);
+                return 0;
+            }
+            continue;
+        }
+        if( ga->def_id != gb->def_id || ga->index != gb->index || ga->uid != gb->uid )
+        {
+            Ckpt_Why(why, why_cap, "group slot %d identity", i);
+            return 0;
+        }
+        for( int scope = 0; scope < RS_GROUP_SCOPES; scope++ )
+        {
+            if( ga->value_count[scope] != gb->value_count[scope] )
+            {
+                Ckpt_Why(why, why_cap, "group slot %d scope %d count", i, scope);
+                return 0;
+            }
+            for( int v = 0; v < ga->value_count[scope]; v++ )
+            {
+                struct RS_GroupValue const* va = &ga->values[scope][v];
+                struct RS_GroupValue const* vb = &gb->values[scope][v];
+
+                if( va->base != vb->base || va->int_value != vb->int_value || va->long_value != vb->long_value ||
+                    !Ckpt_StrEq(va->string_value, vb->string_value) )
+                {
+                    Ckpt_Why(why, why_cap, "group slot %d scope %d value %d", i, scope, v);
+                    return 0;
+                }
+            }
+        }
+    }
+    return 1;
+}

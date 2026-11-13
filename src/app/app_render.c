@@ -257,6 +257,21 @@ App_RenderSkipEnabled(struct App const* app)
 }
 
 void
+App_RenderSkipHold(
+    struct App* app,
+    int hold)
+{
+    assert(app);
+    if( !hold && app->render_skip.hold )
+    {
+        /* What was held back is drawn now, skip on or off. */
+        app->render_skip.draw_frames = app->render_skip.draw_frames > 1 ? app->render_skip.draw_frames : 1;
+        app->need_redraw = 1;
+    }
+    app->render_skip.hold = hold ? 1 : 0;
+}
+
+void
 App_RenderSkipRequestDraw(
     struct App* app,
     int frames)
@@ -381,6 +396,24 @@ App_RenderSkipFrame(
     int draw = redraw;
 
     assert(app);
+    if( app->render_skip.hold && !forced )
+    {
+        /* A replay seek (App_RenderSkipHold): the last drawn frame stays up.
+         * A capture still draws -- it was asked for -- and a forced (retained
+         * GPU) frame is not refused, for the reason the caller forces it. */
+        int capture_pending = 0;
+
+        for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
+            capture_pending |= app->plugin_screenshots[i].in_use;
+        if( !capture_pending )
+        {
+            if( redraw )
+                app->render_skip.fresh = 0;
+            app->render_skip.catch_up_ok = 0;
+            app->render_skip.frames_skipped++;
+            return 0;
+        }
+    }
     if( app->render_skip.enabled )
     {
         int capture_pending = 0;

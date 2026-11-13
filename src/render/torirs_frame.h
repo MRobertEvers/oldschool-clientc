@@ -321,6 +321,21 @@ void
 ToriRS_FrameEnd(struct ToriRS_Frame* frame);
 
 /*
+ * The scene's queued resource events -- model, animation and texture loads and
+ * unloads, the batches, sprite unloads -- as the commands a drawn frame hands
+ * a retained renderer ahead of its passes (ToriRS_FrameNextCommand), for a
+ * frame that is NOT drawn: a replay seek holds the screen, and the renderer
+ * still has to learn the scene it will draw when the seek lands. `*cursor`
+ * (0 to start) walks the queue; false at its end. The queue stays the scene's
+ * to spend (ToriDraw_SceneFrameEnd), as after a drawn frame.
+ */
+bool
+ToriRS_SceneNextResourceCommand(
+    struct ToriDraw_Scene* scene,
+    int* cursor,
+    struct ToriRS_RenderCommand* out);
+
+/*
  * Painter-command stepping (the v0 client's `cc` cap, docs/ORANGE_WEDGE.md).
  *
  * A limit >= 0 truncates the world pass after that many painter commands —

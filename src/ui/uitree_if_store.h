@@ -24,6 +24,7 @@
  */
 
 #include <stdbool.h>
+#include <stddef.h>
 
 struct UIIfIntEntry
 {
@@ -145,5 +146,34 @@ UIIfTextStore_DropGroup(
 /** Release the entries AND every string they own. */
 void
 UIIfTextStore_Free(struct UIIfTextStore* store);
+/* --- session checkpoint (replay/replay_checkpoint.h) ---------------------
+ * Copy `src` into `dst`, which owns nothing (its old contents are not freed),
+ * and compare two copies. */
+void
+UIIfIntStore_CheckpointCopy(
+    struct UIIfIntStore* dst,
+    struct UIIfIntStore const* src);
+
+int
+UIIfIntStore_CheckpointEqual(
+    struct UIIfIntStore const* a,
+    struct UIIfIntStore const* b,
+    char* why,
+    int why_cap);
+
+void
+UIIfTextStore_CheckpointCopy(
+    struct UIIfTextStore* dst,
+    struct UIIfTextStore const* src);
+
+int
+UIIfTextStore_CheckpointEqual(
+    struct UIIfTextStore const* a,
+    struct UIIfTextStore const* b,
+    char* why,
+    int why_cap);
+
+size_t
+UIIfTextStore_CheckpointBytes(struct UIIfTextStore const* store);
 
 #endif /* SRC_UI_UITREE_IF_STORE_H */

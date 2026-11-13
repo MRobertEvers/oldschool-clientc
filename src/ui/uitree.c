@@ -2198,6 +2198,102 @@ UITree_Free(struct UITree* tree)
     ToriMem_Free(ToriMem_Ui(), tree);
 }
 
+/* ---- session checkpoint helpers (ui/uitree_checkpoint.c) ------------------
+ * The checkpoint's copy lives in uitree_checkpoint.c; these are the parts of
+ * it that need this file's private types and teardown. */
+
+void
+UITree_CheckpointFreeContents(struct UITree* tree)
+{
+    assert(tree);
+
+    /* tree-walk-exempt: session checkpoint teardown, never per frame */
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+        uitree_component_free_owned(tree, &tree->components[i]);
+    UITree_ParkedEditsDrop(tree);
+    ToriMem_Free(ToriMem_Ui(), tree->id_index_keys);
+    ToriMem_Free(ToriMem_Ui(), tree->id_index_vals);
+    ToriMem_Free(ToriMem_Ui(), tree->layout_order);
+    ToriMem_Free(ToriMem_Ui(), tree->layout_depth);
+    ToriMem_Free(ToriMem_Ui(), tree->layout_changed);
+    ToriMem_Free(ToriMem_Ui(), tree->layout_dirty);
+    ToriMem_Free(ToriMem_Ui(), tree->canvas_candidate_ids);
+    ToriMem_Free(ToriMem_Ui(), tree->anchor_nodes);
+    UITree_FrameAnchorPlanFree(tree);
+    uitree_all_sets_free(tree);
+    UITree_FrameForget(tree);
+    ToriMem_Free(ToriMem_Ui(), tree->components);
+    tree->components = NULL;
+    tree->component_count = 0;
+    tree->component_capacity = 0;
+    tree->id_index_keys = NULL;
+    tree->id_index_vals = NULL;
+    tree->id_index_cap = 0;
+    tree->id_index_valid = 0;
+    tree->layout_order = NULL;
+    tree->layout_depth = NULL;
+    tree->layout_changed = NULL;
+    tree->layout_cap = 0;
+    tree->layout_order_valid = 0;
+    tree->layout_dirty = NULL;
+    tree->layout_dirty_cap = 0;
+    tree->layout_dirty_count = 0;
+    tree->canvas_candidate_ids = NULL;
+    tree->canvas_candidate_count = 0;
+    tree->canvas_candidate_capacity = 0;
+    tree->canvas_candidates_valid = 0;
+    tree->anchor_nodes = NULL;
+    tree->anchor_node_count = 0;
+    tree->anchor_node_capacity = 0;
+    tree->widget_anchor_edits = 0;
+}
+
+struct UITreeWidgetGeometry*
+UITree_CheckpointGeometryDup(struct UITreeWidgetGeometry const* list)
+{
+    struct UITreeWidgetGeometry* head = NULL;
+    struct UITreeWidgetGeometry** tail = &head;
+
+    for( ; list; list = list->next )
+    {
+        struct UITreeWidgetGeometry* copy = ToriMem_Memdup(ToriMem_Ui(), list, sizeof(*copy));
+
+        assert(copy);
+        copy->next = NULL;
+        *tail = copy;
+        tail = &copy->next;
+    }
+    return head;
+}
+
+int
+UITree_CheckpointGeometryCount(struct UITreeWidgetGeometry const* list)
+{
+    int count = 0;
+
+    for( ; list; list = list->next )
+        count++;
+    return count;
+}
+
+int
+UITree_CheckpointGeometryEqual(
+    struct UITreeWidgetGeometry const* a,
+    struct UITreeWidgetGeometry const* b)
+{
+    for( ; a && b; a = a->next, b = b->next )
+    {
+        /* The serials are a process-wide clock; what was stated is compared. */
+        if( a->owner != b->owner || a->projection_height != b->projection_height || a->x != b->x ||
+            a->y != b->y || a->width != b->width || a->height != b->height || a->hidden != b->hidden ||
+            a->outline != b->outline || a->anchor_relation != b->anchor_relation ||
+            a->anchor_target.index != b->anchor_target.index || a->art_scene_id != b->art_scene_id ||
+            a->mask_scene_id != b->mask_scene_id )
+            return 0;
+    }
+    return a == b;
+}
+
 /* A tree root that is an interface group's pack root a script loaded and
  * nothing has opened: task_cs2_run's speculative bake (or a root the
  * spillover sweep hid), which sits at the root list with mount_hidden. */

@@ -45,4 +45,34 @@ RS_GameProto_Exec(
 void
 RS_GameProto_FlushPendingZone(struct RS_GameProtoCtx const* ctx);
 
+struct PktZoneSubPacket;
+struct TorirsControlFrame;
+
+/** A replay control frame (net/torirs_control.h, TORIRS_CONTROL_REPLAY_*) is
+ *  only ever written by the RSProx replay transport (App.net_replay): on any
+ *  other connection this says so and aborts. Returns when it is expected. */
+void
+RS_GameProto_ReplayControlExpected(
+    struct App const* app,
+    struct TorirsControlFrame const* frame);
+
+/* A replay seek's world keyframe (replay/replay_world_apply.c), through the
+ * arms the zone packets themselves run through. */
+
+/** One zone op, at the zone base (scene-local) and plane it was decoded for,
+ *  in the root view; queued like a live one while the scene is loading. */
+void
+RS_GameProto_ReplayZoneOp(
+    struct RS_GameProtoCtx const* ctx,
+    struct PktZoneSubPacket const* pkt,
+    int base_x,
+    int base_z,
+    int level);
+
+/** Every zone of the loaded root scene back to the map, as
+ *  UPDATE_ZONE_FULL_FOLLOWS puts one back: the client's loc changes restored
+ *  and its ground items gone. */
+void
+RS_GameProto_ReplayClearScene(struct App* app);
+
 #endif
