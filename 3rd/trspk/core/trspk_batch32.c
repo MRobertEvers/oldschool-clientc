@@ -191,6 +191,16 @@ trspk_batch32_reserve_pose(
 }
 
 void
+trspk_batch32_reserve_vertices(
+    struct TRSPK_Batch32* batch,
+    uint32_t vertex_count)
+{
+    assert(batch);
+    trspk_vbo_reserve(batch->vbo, vertex_count);
+    trspk_triangles_ensure(&batch->triangles, vertex_count / 3u);
+}
+
+void
 trspk_batch32_end(struct TRSPK_Batch32* batch)
 {
     assert(batch);
@@ -257,10 +267,17 @@ trspk_batch32_find_entry(
 
     uint32_t slot =
         trspk_batch32_hash_key(element_id, anim_index, pose_id) & (batch->lookup_capacity - 1u);
+    /* By element INDEX, as the hash is: a scene adopted whole
+     * (ToriDraw_SceneAdoptPool) names its adds by the scene's untagged index,
+     * while the frame's draws name the same elements by the world's tagged id
+     * (kind in the top bits). Compared exactly, every draw of an adopted scene
+     * missed its batch. Two live elements never share an index. */
+    int const index = ToriDraw_ElementIndexOfRaw(element_id);
     while( batch->lookup[slot] != 0u )
     {
         const struct TRSPK_Batch32Entry* entry = &batch->entries[batch->lookup[slot] - 1u];
-        if( entry->element_id == element_id && entry->anim_index == anim_index &&
+        if( ToriDraw_ElementIndexOfRaw(entry->element_id) == index &&
+            entry->anim_index == anim_index &&
             entry->pose_id == pose_id )
             return entry;
         slot = (slot + 1u) & (batch->lookup_capacity - 1u);

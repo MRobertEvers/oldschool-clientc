@@ -75,6 +75,21 @@ ToriPlatformSDL2_Renderer_GL3_SetPick(struct ToriPlatformSDL2_Renderer_GL3* gl3,
 void
 ToriPlatformSDL2_Renderer_GL3_RenderFrame(struct ToriPlatformSDL2_Renderer_GL3* gl3, struct ToriRS_Frame* frame);
 
+/* The host's work so far this frame, before RenderFrame: the world build's
+ * prefill fills what is left of its target (the prefill in RenderFrame). */
+void
+ToriPlatformSDL2_Renderer_GL3_SetFrameElapsed(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    uint64_t elapsed_us);
+
+/* TORIRS_REBUILD_TIMING: report the frame just rendered (see the .c). */
+void
+ToriPlatformSDL2_Renderer_GL3_TimingReport(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    uint64_t before_us,
+    uint64_t build_us,
+    uint64_t present_us);
+
 void
 ToriPlatformSDL2_Renderer_GL3_Execute(
     struct ToriPlatformSDL2_Renderer_GL3* gl3,

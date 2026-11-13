@@ -27,6 +27,7 @@
 #include "core/trspk_ibo.h"
 #include "core/trspk_modelarena.h"
 #include "core/trspk_pose.h"
+#include "core/trspk_world_build.h"
 #include "core/trspk_triangles.h"
 #include "core/trspk_vbo.h"
 #include "opengl3/opengl3_2d_shaders.h"
@@ -476,14 +477,65 @@ struct ToriPlatformSDL2_Renderer_GL3
      * loc is not in it (world_builder spawns runtime locs off the batch path).
      * GL3 used to keep the world build and every retained model in one arena,
      * and each loc a script added leaked its poses there and re-uploaded the
-     * whole world (Ocellus phase 2, 2026-10-22). world_live: the build is
-     * complete. world_detached, by element index: a batched element that has
-     * since been reloaded, animated or removed, so its batch entry no longer
-     * describes it. */
-    struct TRSPK_Batch32* world;
-    int world_batch_id;
-    bool world_live;
-    struct TRSPK_ElementMask world_detached;
+     * whole world (Ocellus phase 2, 2026-10-22). See TRSPK_WorldSlot.
+     *
+     * `build.world` is the one drawn, its GPU side
+     * groups[TRSPK_VBO_GROUP_WORLD]. `build.stage` is the next one, prepared
+     * beside it during a background rebuild (TORIRSRC_BATCH3D_STAGE_BEGIN ..
+     * _SWAP), its GPU side stage_group; it and stage_group are allocated by
+     * the first STAGE_BEGIN, so a client that only ever rebuilds blocking
+     * never holds a second build. The swap exchanges the two slots and the
+     * two groups. The records, the slots, the prefill's order and budget are
+     * the shared core's (core/trspk_world_build.h); the bake, the buffers and
+     * the upload are this file's. */
+    struct TRSPK_WorldBuild build;
+    struct GL3ModelGroup stage_group;
+
+    /* ANIM_LOAD's tracks (core/trspk_world_build.h): a track's pose is baked
+     * when a draw first asks for it (gl3_bake_track_pose). */
+    struct TRSPK_AnimTracks anim_tracks;
+
+    /* TORIRS_REBUILD_TIMING: where one frame's renderer time went, reported
+     * (ToriPlatformSDL2_Renderer_GL3_TimingReport) for a frame that carried
+     * world-build commands, the few after it, and any slow frame. Times are
+     * SDL performance-counter ticks. */
+    struct
+    {
+        bool on;
+        int after_batch; /* frames still to report after a batch frame */
+        uint64_t frame_ticks;
+        uint64_t compact_ticks;
+        uint64_t kind_ticks[64];
+        uint32_t kind_n[64];
+        uint64_t add_bake_ticks;
+        uint32_t add_faces;
+        uint64_t anim_scan_ticks;
+        uint64_t anim_bake_ticks;
+        uint32_t anim_poses;
+        uint64_t stage_ticks;
+        uint64_t stage_upload_ticks;
+        uint64_t release_ticks;
+        uint64_t swap_ticks;
+        uint32_t stage_left;
+        uint32_t miss_why[3];
+        uint64_t world_draw_bake_ticks;
+        uint32_t world_draw_bakes;
+        uint64_t prefill_ticks;
+        uint64_t prefill_max_unit_ticks;
+        uint32_t prefill_bakes;
+        uint32_t prefill_left;
+        uint64_t record_ticks;
+        uint64_t lazy_bake_ticks;
+        uint32_t lazy_bakes;
+        uint32_t lazy_faces;
+        uint32_t world_hits;
+        uint64_t upload_ticks[4];
+        uint64_t upload_bytes[4];
+        uint32_t upload_grew[4];
+        uint64_t ibo_ticks;
+        uint64_t draw_ticks;
+        uint32_t ibo_indices;
+    } dbg_timing;
 
     struct TRSPK_IBOChain* ibo_chain;
     struct TRSPK_IBO* ibo_staging;

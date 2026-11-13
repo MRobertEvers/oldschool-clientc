@@ -66,6 +66,7 @@
 #include "platform/platform_gl_context.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 
 struct ClientScaleSettings;
 struct ToriDraw_Scene;
@@ -144,6 +145,12 @@ TRSPK_Renderer_ES3_SetClientScaling(
 
 void
 TRSPK_Renderer_ES3_SetPick(struct TRSPK_Renderer_ES3* renderer, int mouse_x, int mouse_y);
+
+/** The host's work this frame before the render, in microseconds: the world
+ *  build's prefill takes what the frame has left of its budget after it
+ *  (core/trspk_world_build.h). Told once a frame, before RenderFrame. */
+void
+TRSPK_Renderer_ES3_SetFrameElapsed(struct TRSPK_Renderer_ES3* renderer, uint64_t elapsed_us);
 
 struct ToriRS_PickHits const*
 TRSPK_Renderer_ES3_PickHits(struct TRSPK_Renderer_ES3 const* renderer);

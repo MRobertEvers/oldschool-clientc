@@ -720,6 +720,14 @@ main_damage_to_buffer(
  * the one place that knows which was brought up, and calling the right entry
  * point here is what keeps the test out of the renderers themselves.
  * @see renderer_active_is_depth. */
+/* The current frame's start: how much of the frame had gone before the
+ * render, for the world-build prefill budget of the lanes that stage builds
+ * (GL3, WebGL2, GLES3: each one's SetFrameElapsed) and GL3's
+ * TORIRS_REBUILD_TIMING line. */
+#if defined(TORIRS_HAVE_GL3) || defined(TORIRS_HAVE_WEBGL2) || defined(TORIRS_HAVE_GLES3)
+static uint64_t s_timing_frame_start_us;
+#endif
+
 static void
 interactive_render_present(
     struct App* app,
@@ -963,6 +971,8 @@ interactive_render_present(
                     webgl2, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
                 pick_armed = 1;
             }
+            ToriPlatformWeb_Renderer_WebGL2_SetFrameElapsed(
+                webgl2, PlatformWindow_TicksUs() - s_timing_frame_start_us);
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
             {
                 if( world_depth )
@@ -1108,6 +1118,8 @@ interactive_render_present(
                     gles3, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
                 pick_armed = 1;
             }
+            ToriPlatformAndroid_Renderer_GLES3_SetFrameElapsed(
+                gles3, PlatformWindow_TicksUs() - s_timing_frame_start_us);
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
             {
                 if( world_depth )
@@ -1158,6 +1170,10 @@ interactive_render_present(
         int pick_armed = 0;
         int const chrome_w = PlatformWindow_ChromeWidth(platform);
         int const chrome_h = PlatformWindow_ChromeHeight(platform);
+        /* TORIRS_REBUILD_TIMING's host half (ToriPlatformSDL2_Renderer_GL3_TimingReport). */
+        uint64_t const gl3_before_us = PlatformWindow_TicksUs() - s_timing_frame_start_us;
+        uint64_t gl3_build_us = 0u;
+        uint64_t gl3_present_us;
 
         App_NoteFrameDrawn(app);
         ToriPlatformSDL2_Renderer_GL3_SetInterfaceScaleMode(gl3, interface_scale_mode);
@@ -1176,14 +1192,18 @@ interactive_render_present(
             ToriPlatformSDL2_Renderer_GL3_DrawBootBar(
                 gl3, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
         }
-        else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
+        else if( (gl3_build_us = PlatformWindow_TicksUs()),
+                 App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
+            gl3_build_us = PlatformWindow_TicksUs() - gl3_build_us;
             if( app->frame_view->world_mouse_in_viewport )
             {
                 ToriPlatformSDL2_Renderer_GL3_SetPick(
                     gl3, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
                 pick_armed = 1;
             }
+            ToriPlatformSDL2_Renderer_GL3_SetFrameElapsed(
+                gl3, PlatformWindow_TicksUs() - s_timing_frame_start_us);
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
             {
                 ToriPlatformSDL2_Renderer_GL3_RenderFrame(gl3, &frame);
@@ -1216,10 +1236,13 @@ interactive_render_present(
          * there is no retained SDL chrome texture underneath it to composite. */
         (void)chrome_h;
 #endif
+        gl3_present_us = PlatformWindow_TicksUs();
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
         {
             PlatformWindow_PresentGL(platform);
         }
+        ToriPlatformSDL2_Renderer_GL3_TimingReport(
+            gl3, gl3_before_us, gl3_build_us, PlatformWindow_TicksUs() - gl3_present_us);
         /*
          * AFTER the swap, and that is measured rather than reasoned.
          *
@@ -1892,6 +1915,10 @@ renderer_switch(enum ToriRS_RendererKind kind)
 
     assert(kind != renderer_active);
     renderer_stop();
+    /* A stage the old renderer was preparing went with it, and the new one
+     * opts back in to staging (ToriDraw_SceneSetBatchStaging) only if it can
+     * hold one. */
+    ToriDraw_SceneStageBatchForget(app.scene);
     started = renderer_bring_up(kind);
     if( started )
         renderer_active = kind;
@@ -3806,6 +3833,9 @@ frame_loop_step(void)
      * on every platform: the browser lane has no sleep to exclude but has the
      * same question to answer. */
     frame_start_us = PlatformWindow_TicksUs();
+#if defined(TORIRS_HAVE_GL3) || defined(TORIRS_HAVE_WEBGL2) || defined(TORIRS_HAVE_GLES3)
+    s_timing_frame_start_us = frame_start_us;
+#endif
 #if defined(TORIRS_FRAME_TIMES)
     ToriRS_FrameTimes_Begin(frame_start_us);
 #endif

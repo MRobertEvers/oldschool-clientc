@@ -84,6 +84,12 @@ ToriPlatformWeb_Renderer_WebGL2_SetPick(
     int mouse_x,
     int mouse_y);
 
+/** The host's work this frame before the render (TRSPK_Renderer_ES3_SetFrameElapsed). */
+void
+ToriPlatformWeb_Renderer_WebGL2_SetFrameElapsed(
+    struct ToriPlatformWeb_Renderer_WebGL2* renderer,
+    uint64_t elapsed_us);
+
 struct ToriRS_PickHits const*
 ToriPlatformWeb_Renderer_WebGL2_PickHits(
     struct ToriPlatformWeb_Renderer_WebGL2 const* renderer);

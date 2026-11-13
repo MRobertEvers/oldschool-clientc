@@ -38,13 +38,13 @@ es3_static_resolve_reference(
     struct ES3StaticPrimary* out)
 {
     const struct TRSPK_Batch32Entry* entry;
-    if( !renderer->world_live || trspk_element_mask_test(&renderer->batch_detached, element_id) )
+    if( !renderer->build.world.drawable || trspk_element_mask_test(&renderer->build.world.detached, element_id) )
         return 0;
-    entry = trspk_batch32_find_entry(renderer->world, element_id, anim_index, pose_id);
+    entry = trspk_batch32_find_entry(renderer->build.world.batch, element_id, anim_index, pose_id);
     if( !entry )
         return 0;
-    *out = (struct ES3StaticPrimary){ (uint32_t)element_id + 1u,
-                                         (uint32_t)(entry - trspk_batch32_get_entry(renderer->world, 0u)),
+    *out = (struct ES3StaticPrimary){ (uint32_t)ToriDraw_ElementIndexOfRaw(element_id) + 1u,
+                                         (uint32_t)(entry - trspk_batch32_get_entry(renderer->build.world.batch, 0u)),
                                          entry->vertex_base,
                                          entry->vertex_count };
     return 1;
@@ -63,7 +63,7 @@ es3_static_resolve(
         uint32_t index = (uint32_t)ToriDraw_ElementIndexOfRaw(element_id);
         if( index < renderer->static_primary_capacity &&
             (renderer->static_primary_bits[index >> 5] & (1u << (index & 31))) &&
-            renderer->static_primary[index].element_tag == (uint32_t)element_id + 1u )
+            renderer->static_primary[index].element_tag == index + 1u )
         {
             *out = renderer->static_primary[index];
             return 1;
@@ -72,7 +72,11 @@ es3_static_resolve(
     return es3_static_resolve_reference(renderer, element_id, anim_index, pose_id, out);
 }
 
-/* Called after every change to the world build: begin, end, clear. An element
+/* Called after every change to the world build: begin, end, clear, swap, and
+ * when the prefill has baked it whole (es3_world_prefill) -- before that a
+ * build's poses are still arriving, and the reference path finds them. The
+ * tag is the element INDEX + 1: a build is keyed by index (an adopted scene's
+ * adds are untagged, its draws tagged; see trspk_world_record_find). An element
  * gets a descriptor only when its sole pose in the build is the rest pose
  * (0, 0); an animated one resolves through the build's own lookup. A detach
  * clears its bit directly (es3_batch_detach). */
@@ -89,13 +93,13 @@ es3_static_primary_rebuild(struct TRSPK_Renderer_ES3* renderer)
             0,
             ((size_t)renderer->static_primary_capacity + 31) / 32 * 4);
     }
-    if( !renderer->world_live )
+    if( !renderer->build.world.drawable )
         return;
-    uint32_t count = trspk_batch32_entry_count(renderer->world);
+    uint32_t count = trspk_batch32_entry_count(renderer->build.world.batch);
     uint32_t want = 0u;
     for( uint32_t i = 0; i < count; i++ )
     {
-        const struct TRSPK_Batch32Entry* entry = trspk_batch32_get_entry(renderer->world, i);
+        const struct TRSPK_Batch32Entry* entry = trspk_batch32_get_entry(renderer->build.world.batch, i);
         uint32_t index;
         if( entry->element_id < 0 )
             continue;
@@ -119,20 +123,20 @@ es3_static_primary_rebuild(struct TRSPK_Renderer_ES3* renderer)
      * an element with more than one pose must take the full lookup. */
     for( uint32_t i = 0; i < count; i++ )
     {
-        const struct TRSPK_Batch32Entry* entry = trspk_batch32_get_entry(renderer->world, i);
+        const struct TRSPK_Batch32Entry* entry = trspk_batch32_get_entry(renderer->build.world.batch, i);
         uint32_t index;
         if( entry->element_id < 0 || entry->anim_index != 0 || entry->pose_id != 0 ||
-            trspk_element_mask_test(&renderer->batch_detached, entry->element_id) )
+            trspk_element_mask_test(&renderer->build.world.detached, entry->element_id) )
             continue;
         index = (uint32_t)ToriDraw_ElementIndexOfRaw(entry->element_id);
         renderer->static_primary[index] = (struct ES3StaticPrimary){
-            (uint32_t)entry->element_id + 1u, i, entry->vertex_base, entry->vertex_count
+            index + 1u, i, entry->vertex_base, entry->vertex_count
         };
         renderer->static_primary_bits[index >> 5] |= 1u << (index & 31);
     }
     for( uint32_t i = 0; i < count; i++ )
     {
-        const struct TRSPK_Batch32Entry* entry = trspk_batch32_get_entry(renderer->world, i);
+        const struct TRSPK_Batch32Entry* entry = trspk_batch32_get_entry(renderer->build.world.batch, i);
         uint32_t index;
         if( entry->element_id < 0 || (entry->anim_index == 0 && entry->pose_id == 0) )
             continue;
@@ -167,7 +171,7 @@ es3_static_prefetch_ids(
     assert(renderer);
     (void)id_plus1;
     (void)id_plus2;
-    if( !renderer->world_live || !renderer->has_3d )
+    if( !renderer->build.world.drawable || !renderer->has_3d )
         return;
     if( es3_primary_prefetch_complete(renderer, id_plus3) )
     {

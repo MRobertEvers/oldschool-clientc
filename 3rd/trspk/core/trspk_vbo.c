@@ -106,6 +106,32 @@ trspk_vbo_growby(
 }
 
 void
+trspk_vbo_reserve(
+    struct TRSPK_VBO* vbo,
+    uint32_t capacity)
+{
+    assert(vbo);
+    if( capacity <= vbo->capacity )
+        return;
+    if( vbo->vertex_count == 0u )
+    {
+        /* Nothing to keep: a realloc would copy the whole old block. */
+        void* fresh = TRSPK_MALLOC(trspk_vbo_vertex_size(vbo->format) * capacity);
+        assert(fresh != NULL);
+        TRSPK_FREE(vbo->vertices.as_webgl1);
+        vbo->vertices.as_webgl1 = (struct TRSPK_VertexWebGL1*)fresh;
+        vbo->capacity = capacity;
+        return;
+    }
+    {
+        void* grown = TRSPK_REALLOC(vbo->vertices.as_webgl1, trspk_vbo_vertex_size(vbo->format) * capacity);
+        assert(grown != NULL);
+        vbo->vertices.as_webgl1 = (struct TRSPK_VertexWebGL1*)grown;
+        vbo->capacity = capacity;
+    }
+}
+
+void
 trspk_vbo_ensure_capacity(
     struct TRSPK_VBO* vbo,
     uint32_t min_vertex_count)

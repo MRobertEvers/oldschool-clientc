@@ -32,6 +32,8 @@
 #include "mem/torirs_mem.h"
 #include "painters/painters.h"
 #include "perf/torirs_perf.h"
+#include "platform/platform_window.h"
+#include "torirs_env.h"
 #include "platform/platform_androidarmv7_renderer_opengles3_placement.h"
 #include "es3/es3_shaders.h"
 #include "toridraw.h"
@@ -264,7 +266,7 @@ es3_prefetch_ahead(
 {
     assert(renderer);
     assert(frame);
-    if( !renderer->world_live || !renderer->has_3d )
+    if( !renderer->build.world.drawable || !renderer->has_3d )
         return;
     es3_prefetch_ahead_ids(
         renderer,
@@ -1020,18 +1022,26 @@ es3_refresh_texture_animation(
                 anim_v);
         }
     }
-    if( renderer->world_live || trspk_batch32_building(renderer->world) )
+    /* Both builds: a stage baked before the texture arrived is drawn after
+     * the swap. The span a refresh changes is marked dirty, and a build's
+     * upload sends whatever is dirty. */
     {
-        struct TRSPK_VBO* vbo = trspk_batch32_vbo(renderer->world);
-        if( es3_refresh_anim_range(
+        struct TRSPK_WorldSlot* const slots[2] = { &renderer->build.world, &renderer->build.stage };
+        for( uint32_t s = 0u; s < 2u; s++ )
+        {
+            struct TRSPK_VBO* vbo;
+            if( !slots[s]->batch )
+                continue;
+            vbo = trspk_batch32_vbo(slots[s]->batch);
+            (void)es3_refresh_anim_range(
                 vbo,
-                trspk_batch32_triangles(renderer->world),
+                trspk_batch32_triangles(slots[s]->batch),
                 0u,
                 vbo->vertex_count,
                 tex_id,
                 anim_u,
-                anim_v) )
-            renderer->world_upload_pending = true;
+                anim_v);
+        }
     }
 }
 
@@ -1390,15 +1400,16 @@ es3_reset_group(struct ES3ModelGroup* group)
         trspk_modelarena_clear(group->arena);
 }
 
-/* ---- the world build (Batch32) ------------------------------------------------- */
+/* ---- the world build (core/trspk_world_build.h) ---------------------------------- */
 
 /*
  * A batched element that has been reloaded, animated or removed since the
  * build: its batch pose is stale, so draws stop resolving it there until the
- * next build. Runtime locs are not batches (world_builder), and the scene hands
- * a freed element index straight back out, so the loc a script spawns over a
- * world loc usually arrives under the world loc's id -- without this, batch-
- * first resolution drew the old loc in its place.
+ * next build -- on the stage too, whose record must not be baked from a model
+ * that may be gone. Runtime locs are not batches (world_builder), and the
+ * scene hands a freed element index straight back out, so the loc a script
+ * spawns over a world loc usually arrives under the world loc's id -- without
+ * this, batch-first resolution drew the old loc in its place.
  */
 static void
 es3_batch_detach(
@@ -1409,26 +1420,29 @@ es3_batch_detach(
     assert(renderer);
     if( element_id < 0 )
         return;
-    trspk_element_mask_set(&renderer->batch_detached, element_id);
+    trspk_world_build_detach(&renderer->build, element_id);
     index = (uint32_t)ToriDraw_ElementIndexOfRaw(element_id);
     if( index < renderer->static_primary_capacity )
         renderer->static_primary_bits[index >> 5] &= ~(1u << (index & 31u));
 }
 
-/* The build's buffer holds `required_vertices` or more; growing it is a fresh
- * allocation, so the whole build goes up again. */
+/* `gpu` holds `required_vertices` or more; growing it is a fresh allocation,
+ * so the whole of `slot`'s build goes up again. */
 static bool
-es3_ensure_world_vbo(
+es3_ensure_build_vbo(
     struct TRSPK_Renderer_ES3* renderer,
+    struct TRSPK_WorldSlot* slot,
+    struct ES3WorldGpu* gpu,
     uint32_t required_vertices)
 {
     uint32_t capacity;
     uint64_t byte_capacity;
     assert(renderer);
-    if( renderer->world_vbo && renderer->world_gpu_vertex_capacity >= required_vertices )
+    assert(slot);
+    assert(gpu);
+    if( gpu->vbo && gpu->vertex_capacity >= required_vertices )
         return true;
-    capacity = renderer->world_gpu_vertex_capacity ? renderer->world_gpu_vertex_capacity
-                                                   : ES3_WORLD_VBO_INIT_VERTICES;
+    capacity = gpu->vertex_capacity ? gpu->vertex_capacity : ES3_WORLD_VBO_INIT_VERTICES;
     while( capacity < required_vertices )
     {
         if( capacity > UINT32_MAX / 2u )
@@ -1441,34 +1455,42 @@ es3_ensure_world_vbo(
     byte_capacity = (uint64_t)capacity * sizeof(struct TRSPK_VertexGLES2);
     if( byte_capacity > (uint64_t)INT32_MAX )
         return false;
-    if( !renderer->world_vbo )
-        glGenBuffers(1, &renderer->world_vbo);
-    es3_bind_array_buffer(renderer, renderer->world_vbo);
-    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)byte_capacity, NULL, GL_STATIC_DRAW);
+    if( !gpu->vbo )
+        glGenBuffers(1, &gpu->vbo);
+    es3_bind_array_buffer(renderer, gpu->vbo);
+    /* DYNAMIC: a build is written a slice at a time over the frames after
+     * it arrives (and a stage while the drawn build is in use), not once. */
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)byte_capacity, NULL, GL_DYNAMIC_DRAW);
     if( !es3_check_error("world build buffer") )
         return false;
-    renderer->world_gpu_vertex_capacity = capacity;
-    trspk_vbo_set_dirty(trspk_batch32_vbo(renderer->world));
+    gpu->vertex_capacity = capacity;
+    trspk_vbo_set_dirty(trspk_batch32_vbo(slot->batch));
     return true;
 }
 
-/* Send what changed of the build: all of it after a build or a new buffer,
- * a texture's scroll bytes otherwise. */
+/* Send what changed of a build: all of it after a new buffer or a context
+ * that came back, otherwise the span the bakes (and a texture's scroll
+ * bytes) dirtied since the last upload. */
 static bool
-es3_upload_world(struct TRSPK_Renderer_ES3* renderer)
+es3_upload_build(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct TRSPK_WorldSlot* slot,
+    struct ES3WorldGpu* gpu)
 {
     struct TRSPK_VBO* vbo;
     uint32_t count;
     uint32_t first;
     uint32_t end;
     assert(renderer);
-    if( !renderer->world_upload_pending || !renderer->gl_context )
+    assert(slot);
+    assert(gpu);
+    vbo = trspk_batch32_vbo(slot->batch);
+    if( !renderer->gl_context || (!gpu->upload_pending && !trspk_vbo_is_dirty(vbo)) )
         return true;
-    vbo = trspk_batch32_vbo(renderer->world);
     count = vbo->vertex_count;
     if( count > 0u )
     {
-        if( !es3_ensure_world_vbo(renderer, count) )
+        if( !es3_ensure_build_vbo(renderer, slot, gpu, count) )
             return false;
         if( trspk_vbo_is_dirty(vbo) )
         {
@@ -1477,7 +1499,7 @@ es3_upload_world(struct TRSPK_Renderer_ES3* renderer)
             if( first < end )
             {
                 size_t const byte_count = (size_t)(end - first) * sizeof(struct TRSPK_VertexGLES2);
-                es3_bind_array_buffer(renderer, renderer->world_vbo);
+                es3_bind_array_buffer(renderer, gpu->vbo);
                 glBufferSubData(
                     GL_ARRAY_BUFFER,
                     (GLintptr)((uint64_t)first * sizeof(struct TRSPK_VertexGLES2)),
@@ -1489,8 +1511,32 @@ es3_upload_world(struct TRSPK_Renderer_ES3* renderer)
         }
     }
     trspk_vbo_clear_dirty(vbo);
-    renderer->world_upload_pending = false;
+    gpu->upload_pending = false;
     return true;
+}
+
+static bool
+es3_upload_world(struct TRSPK_Renderer_ES3* renderer)
+{
+    return es3_upload_build(renderer, &renderer->build.world, &renderer->world_gpu);
+}
+
+/* Storage for the whole build up front: one allocation where the bake would
+ * otherwise grow the CPU copy by doubling (a copy of up to ~100 MB inside one
+ * record's bake) and the GPU buffer likewise (a whole re-upload). */
+static void
+es3_world_reserve(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct TRSPK_WorldSlot* slot,
+    struct ES3WorldGpu* gpu,
+    uint64_t vertices)
+{
+    assert(renderer);
+    if( vertices == 0u || vertices > UINT32_MAX / 2u )
+        return;
+    trspk_batch32_reserve_vertices(slot->batch, (uint32_t)vertices);
+    if( renderer->gl_context )
+        (void)es3_ensure_build_vbo(renderer, slot, gpu, (uint32_t)vertices);
 }
 
 void
@@ -1501,54 +1547,84 @@ es3_world_begin(
     assert(renderer);
     if( batch_id < 0 )
         return;
-    trspk_batch32_begin(renderer->world);
-    trspk_element_mask_clear(&renderer->batch_detached);
-    renderer->world_batch_id = batch_id;
-    renderer->world_live = false;
-    renderer->world_upload_pending = false;
+    trspk_world_slot_drop(&renderer->build.world);
+    trspk_world_slot_begin(&renderer->build.world, batch_id);
+    renderer->world_gpu.upload_pending = false;
     es3_static_primary_rebuild(renderer);
+    renderer->static_primary_partial = false;
 }
 
-bool
+void
 es3_world_add(
     struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_Batch* command,
-    bool animated,
-    int* out_anim_index,
-    int* out_pose_id)
+    bool animated)
 {
-    struct TRSPK_Batch32Reservation reservation;
+    struct TRSPK_WorldSlot* slot;
     int face_count;
     assert(renderer);
     assert(command);
-    assert(out_anim_index);
-    assert(out_pose_id);
-    if( !trspk_batch32_building(renderer->world) || command->batch_id != renderer->world_batch_id ||
-        command->element_id < 0 || command->model.kind == TORIDRAWMK_NONE )
-        return false;
+    slot = trspk_world_build_open_slot(&renderer->build, command->batch_id);
+    if( !slot || command->element_id < 0 || command->model.kind == TORIDRAWMK_NONE )
+        return;
     face_count = trspk_toridraw_face_count(command->model);
     if( face_count <= 0 || (uint32_t)face_count > UINT32_MAX / 3u )
-        return false;
-    *out_anim_index =
-        animated ? es3_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1) : 0;
-    *out_pose_id = command->pose_id >= 0 ? command->pose_id : 0;
-    trspk_batch32_reserve_pose(
-        renderer->world,
+        return;
+    trspk_world_record_add(
+        slot,
         command->element_id,
-        *out_anim_index,
-        *out_pose_id,
+        animated ? es3_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1) : 0,
+        command->pose_id >= 0 ? command->pose_id : 0,
         (uint32_t)face_count * 3u,
-        &reservation);
-    return es3_bake_pose_vertices(
+        command->model,
+        &command->world_position);
+}
+
+void
+es3_world_record_bake(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct TRSPK_WorldSlot* slot,
+    int record)
+{
+    struct TRSPK_WorldRecord const* baking;
+    struct TRSPK_Batch32Reservation reservation;
+    assert(renderer);
+    assert(slot);
+    baking = &slot->records[record];
+    trspk_world_record_take(slot, record, &reservation);
+    (void)es3_bake_pose_vertices(
         renderer,
         reservation.vbo,
         reservation.triangles,
         reservation.vertex_base,
-        command->model,
-        &command->world_position,
+        baking->model,
+        &baking->world_position,
         NULL,
         0,
         false);
+}
+
+bool
+es3_world_bake_on_draw(
+    struct TRSPK_Renderer_ES3* renderer,
+    int element_id,
+    int anim_index,
+    int pose_id,
+    ES3WorldRecordBake bake)
+{
+    struct TRSPK_WorldSlot* world;
+    int record;
+    assert(renderer);
+    assert(bake);
+    world = &renderer->build.world;
+    if( world->unbaked == 0u || !trspk_world_slot_describes(world, element_id) ||
+        trspk_batch32_find_entry(world->batch, element_id, anim_index, pose_id) )
+        return false;
+    record = trspk_world_record_unbaked(world, element_id, anim_index, pose_id);
+    if( record < 0 )
+        return false;
+    bake(renderer, world, record);
+    return true;
 }
 
 void
@@ -1558,30 +1634,188 @@ es3_batch_end(
 {
     assert(renderer);
     assert(command);
-    if( !trspk_batch32_building(renderer->world) || command->batch_id != renderer->world_batch_id )
+    /* Drawable now; the batch keeps taking reservations until every record
+     * is baked (es3_world_bake_on_draw, es3_world_prefill). */
+    if( !trspk_world_build_end(&renderer->build, command->batch_id) )
         return;
-    trspk_batch32_end(renderer->world);
-    renderer->world_live = true;
-    renderer->world_upload_pending = true;
-    (void)es3_upload_world(renderer);
+    es3_world_reserve(
+        renderer, &renderer->build.world, &renderer->world_gpu, renderer->build.world.record_vertices);
     es3_static_primary_rebuild(renderer);
+    renderer->static_primary_partial = renderer->build.world.unbaked > 0u;
+    if( renderer->rebuild_log )
+        es3_report_line(
+            "es3_world: end id=%d records=%u vertices=%llu (baked on draw and in the prefill)",
+            command->batch_id,
+            renderer->build.world.record_count,
+            (unsigned long long)renderer->build.world.record_vertices);
 }
 
 void
 es3_world_clear(
     struct TRSPK_Renderer_ES3* renderer,
     int batch_id,
-    bool clear_all)
+    bool clear_all,
+    bool scene_reset)
 {
     assert(renderer);
-    if( !clear_all && batch_id != renderer->world_batch_id )
+    /* The stage goes with a cancelled rebuild (its own id) or a whole-scene
+     * reset; view 0's static pool cleared for the swap leaves it. */
+    if( trspk_world_build_clear_hits_stage(&renderer->build, batch_id, scene_reset) )
+        trspk_world_slot_drop(&renderer->build.stage);
+    if( !trspk_world_build_clear_hits_world(&renderer->build, batch_id, clear_all) )
         return;
-    trspk_batch32_clear(renderer->world);
-    trspk_element_mask_clear(&renderer->batch_detached);
-    renderer->world_batch_id = -1;
-    renderer->world_live = false;
-    renderer->world_upload_pending = false;
+    trspk_world_slot_drop(&renderer->build.world);
+    renderer->world_gpu.upload_pending = false;
     es3_static_primary_rebuild(renderer);
+    renderer->static_primary_partial = false;
+}
+
+/*
+ * STAGE_BEGIN: the next scene's build, beside the drawn one. Its GPU buffer
+ * is made (or grown) when the prefill reserves the stage's size, before its
+ * first bake; after a swap it is the previous build's, still resident.
+ */
+void
+es3_world_stage_begin(
+    struct TRSPK_Renderer_ES3* renderer,
+    int batch_id)
+{
+    assert(renderer);
+    assert(batch_id >= 0);
+    (void)trspk_world_build_stage_ensure(&renderer->build);
+    trspk_world_slot_drop(&renderer->build.stage);
+    trspk_world_build_stage_begin(&renderer->build, batch_id);
+    renderer->stage_prepared_said = false;
+    renderer->stage_prefill_frames = 0u;
+    if( renderer->rebuild_log )
+        es3_report_line("es3_world: stage_begin id=%d", batch_id);
+}
+
+/*
+ * SWAP: the stage becomes the drawn build, with its GPU buffer. What it had
+ * not baked yet bakes as the drawn build's would -- on first draw or in the
+ * prefill -- and what it baked but had not uploaded goes with this frame's
+ * upload. The retired CPU storage is released by a later prefill; the
+ * retired GPU buffer stays resident for the next stage.
+ */
+void
+es3_world_swap(
+    struct TRSPK_Renderer_ES3* renderer,
+    int batch_id)
+{
+    struct ES3WorldGpu gpu;
+    assert(renderer);
+    trspk_world_slot_drop(&renderer->build.world);
+    trspk_world_build_swap(&renderer->build, batch_id);
+    gpu = renderer->world_gpu;
+    renderer->world_gpu = renderer->stage_gpu;
+    renderer->stage_gpu = gpu;
+    renderer->stage_gpu.upload_pending = false;
+    es3_static_primary_rebuild(renderer);
+    renderer->static_primary_partial = renderer->build.world.unbaked > 0u;
+    if( renderer->rebuild_log )
+        es3_report_line(
+            "es3_world: swap id=%d records=%u unbaked=%u prepared_said=%d",
+            batch_id,
+            renderer->build.world.record_count,
+            renderer->build.world.unbaked,
+            renderer->stage_prepared_said ? 1 : 0);
+}
+
+/* Bake `slot`'s records in arrival order until `deadline_us`. True: the
+ * deadline came first. The clock is read before each record, so the slice
+ * overruns by at most the largest model's bake. */
+static bool
+es3_world_prefill_slot(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct TRSPK_WorldSlot* slot,
+    uint64_t deadline_us,
+    ES3WorldRecordBake bake)
+{
+    while( trspk_world_prefill_more(slot) )
+    {
+        int record;
+        if( PlatformWindow_TicksUs() >= deadline_us )
+            return true;
+        record = trspk_world_prefill_next(slot);
+        if( record >= 0 )
+            bake(renderer, slot, record);
+    }
+    return false;
+}
+
+void
+es3_world_prefill(
+    struct TRSPK_Renderer_ES3* renderer,
+    uint64_t render_start_us,
+    ES3WorldRecordBake bake)
+{
+    struct TRSPK_WorldBuild* build;
+    uint64_t now_us;
+    uint64_t deadline_us;
+    bool finished_here;
+    assert(renderer);
+    assert(bake);
+    build = &renderer->build;
+    if( trspk_world_build_has_work(build) )
+    {
+        now_us = PlatformWindow_TicksUs();
+        deadline_us = now_us + trspk_world_build_slice_us(
+                                   build, now_us > render_start_us ? now_us - render_start_us : 0u);
+        /* True: the slice ran out on the drawn build. */
+        finished_here = build->world.drawable &&
+                        es3_world_prefill_slot(renderer, &build->world, deadline_us, bake);
+    }
+    else
+    {
+        /* Nothing to bake or release: only the table below may be due. */
+        deadline_us = 0u;
+        finished_here = true;
+    }
+    /* The drawn build is whole (here or by its draws): the static-primary
+     * table can describe it now. */
+    if( renderer->static_primary_partial && build->world.unbaked == 0u )
+    {
+        es3_static_primary_rebuild(renderer);
+        renderer->static_primary_partial = false;
+    }
+    if( finished_here )
+        return;
+    if( trspk_world_build_stage_open(build) )
+    {
+        /* Sized once, before the first bake, for every add received (they
+         * arrive together: ToriDraw_SceneStageBatchStep sends a region's in
+         * one slice) plus an eighth, so neither buffer grows mid-bake. */
+        uint64_t const reserve = trspk_world_build_stage_reserve_wanted(build);
+        if( reserve > 0u )
+            es3_world_reserve(renderer, &build->stage, &renderer->stage_gpu, reserve);
+        (void)es3_world_prefill_slot(renderer, &build->stage, deadline_us, bake);
+        /* What this slice baked goes up now, one range per frame, so no
+         * frame carries the whole build's upload. */
+        (void)es3_upload_build(renderer, &build->stage, &renderer->stage_gpu);
+        renderer->stage_prefill_frames++;
+        /* Baked and uploaded: the job may swap it in (it waits for this,
+         * app_world_job.c, up to its deadline). Without a context nothing
+         * was uploaded, and the job's deadline decides instead. */
+        if( build->stage.unbaked == 0u && renderer->gl_context && !renderer->stage_gpu.upload_pending &&
+            !trspk_vbo_is_dirty(trspk_batch32_vbo(build->stage.batch)) )
+        {
+            ToriDraw_SceneStageBatchMarkPrepared(renderer->scene, build->stage.batch_id);
+            if( renderer->rebuild_log && !renderer->stage_prepared_said )
+                es3_report_line(
+                    "es3_world: stage id=%d prepared records=%u vertices=%u gpu=%u frames=%u",
+                    build->stage.batch_id,
+                    build->stage.record_count,
+                    trspk_batch32_vbo(build->stage.batch)->vertex_count,
+                    renderer->stage_gpu.vertex_capacity,
+                    renderer->stage_prefill_frames);
+            renderer->stage_prepared_said = true;
+        }
+        return;
+    }
+    /* Nothing left to bake: the retired build's storage goes now. */
+    if( build->stage_release_pending && PlatformWindow_TicksUs() < deadline_us )
+        trspk_world_build_stage_release(build);
 }
 
 bool
@@ -1602,10 +1836,10 @@ es3_binding_cpu_source(
     }
     if( binding == ES3_WORLD_BINDING )
     {
-        if( !renderer->world_live )
+        if( !renderer->build.world.drawable )
             return false;
-        *out_vbo = trspk_batch32_vbo(renderer->world);
-        *out_triangles = trspk_batch32_triangles(renderer->world);
+        *out_vbo = trspk_batch32_vbo(renderer->build.world.batch);
+        *out_triangles = trspk_batch32_triangles(renderer->build.world.batch);
         return true;
     }
     if( binding == ES3_FRAME_STREAM_BINDING )
@@ -2077,8 +2311,10 @@ es3_model_unload(
 {
     assert(renderer);
     /* The arena's copy goes here; the batch's stays in its pages until the
-     * next build, but no draw resolves this element to it again. */
+     * next build, but no draw resolves this element to it again. Nor is a
+     * pose of its announced tracks baked from a model that may be gone. */
     es3_batch_detach(renderer, element_id);
+    trspk_anim_track_forget_element(&renderer->anim_tracks, element_id);
     if( element_id < 0 || !renderer->groups[TRSPK_VBO_GROUP_STATIC].arena ||
         !es3_pose_element_is_retained(renderer, element_id) )
         return false;
@@ -2098,6 +2334,8 @@ es3_animation_track_unload(
     assert(renderer);
     if( element_id < 0 || anim_index < 0 || anim_index >= TRSPK_POSE_TRACK_COUNT )
         return false;
+    /* Announced but never drawn is still announced: forgotten either way. */
+    trspk_anim_track_forget(&renderer->anim_tracks, element_id, anim_index);
     arena = renderer->groups[TRSPK_VBO_GROUP_STATIC].arena;
     if( !arena || !es3_pose_track_is_retained(renderer, element_id, anim_index) )
         return false;
@@ -2198,6 +2436,89 @@ es3_animation_pose_frame(
     if( !posed )
         ToriDraw_ModelApplyPostTransforms(baked);
     return baked;
+}
+
+void
+es3_animation_announce(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand_AnimLoad* command,
+    int anim_index)
+{
+    assert(renderer);
+    assert(command);
+    /* What baking the track's every frame into the arena used to do as a
+     * side effect (es3_bake_into_arena): the build stops describing it. */
+    es3_batch_detach(renderer, command->element_id);
+    trspk_anim_track_announce(
+        &renderer->anim_tracks,
+        command->element_id,
+        anim_index,
+        command->model.u.model.model,
+        command->animation,
+        &command->world_position);
+}
+
+bool
+es3_bake_track_pose(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    int anim_index,
+    int pose_id,
+    uint32_t* out_vertex_base,
+    struct ToriDraw_Model** out_baked)
+{
+    const struct TRSPK_AnimTrack* track;
+    struct ToriRS_RenderCommand_AnimLoad load;
+    struct ToriDraw_ModelHandle handle;
+    struct ToriDraw_Model* baked;
+    uint32_t vertex_base;
+
+    assert(renderer);
+    assert(command);
+    assert(out_vertex_base);
+    assert(out_baked);
+    if( !command->animation || command->element_id < 0 ||
+        !ToriDraw_ModelKindIsFull(command->model.kind) || pose_id < 0 ||
+        pose_id >= command->animation->frame_count )
+        return false;
+    track = trspk_anim_track_match(
+        &renderer->anim_tracks,
+        command->element_id,
+        anim_index,
+        command->model.u.model.model,
+        command->animation);
+    if( !track )
+        return false;
+    /* The pose ANIM_LOAD would have baked for this frame: the announced
+     * model's rest pose, posed, at the announced placement, under the
+     * announced id. */
+    memset(&load, 0, sizeof(load));
+    load.element_id = track->announced_id;
+    load.anim_index = anim_index;
+    load.animation = command->animation;
+    load.model = command->model;
+    load.world_position = track->world_position;
+    baked = es3_animation_pose_frame(&load, pose_id);
+    memset(&handle, 0, sizeof(handle));
+    handle.kind = TORIDRAWMK_MODEL;
+    handle.u.model.model = baked;
+    vertex_base = es3_bake_into_arena(
+        renderer,
+        &renderer->groups[TRSPK_VBO_GROUP_STATIC],
+        track->announced_id,
+        anim_index,
+        pose_id,
+        handle,
+        &track->world_position,
+        true);
+    if( vertex_base == UINT32_MAX )
+    {
+        ToriDraw_ModelFree(baked);
+        return false;
+    }
+    *out_vertex_base = vertex_base;
+    *out_baked = baked;
+    return true;
 }
 
 bool
@@ -2337,7 +2658,7 @@ es3_bind_stream(struct TRSPK_Renderer_ES3* renderer, uint32_t binding)
     }
     else if( binding == ES3_WORLD_BINDING )
     {
-        buffer = renderer->world_vbo;
+        buffer = renderer->world_gpu.vbo;
         base_vertex = 0u;
     }
     else if( binding == ES3_FRAME_STREAM_BINDING )
@@ -2939,7 +3260,6 @@ TRSPK_Renderer_ES3_New(
     renderer->height = height;
     renderer->interface_scale_mode = 2;
     renderer->tex_slot_next = 1u;
-    renderer->world_batch_id = -1;
     /* TORIRS_ES3_DEBUG=1: the 300-frame counters and the debug-only GL
      * error checks. Read once here; it used to be a getenv in es3_end_3d. */
     renderer->debug = getenv("TORIRS_ES3_DEBUG") != NULL;
@@ -2960,7 +3280,12 @@ TRSPK_Renderer_ES3_New(
     for( texture = 0; texture < TORIDRAW_TEXTURE_ID_CAPACITY; texture++ )
         renderer->tex_slot_of_id[texture] = -1;
     trspk_pose_table_init(&renderer->poses);
-    renderer->world = trspk_batch32_create(TRSPK_VERTEX_FORMAT_GLES2);
+    trspk_world_build_init(&renderer->build, TRSPK_VERTEX_FORMAT_GLES2,
+        torirs_env_prep_target_us(), torirs_env_prep_slice_us());
+    {
+        char const* timing = torirs_env_rebuild_timing();
+        renderer->rebuild_log = timing && timing[0] && timing[0] != '0';
+    }
     renderer->frame_stream_cpu = trspk_vbo_create(0u, TRSPK_VERTEX_FORMAT_GLES2);
     assert(renderer->frame_stream_cpu);
     if( !trspk_atlas_init_grid(
@@ -3031,9 +3356,9 @@ es3_report_retained_memory(struct TRSPK_Renderer_ES3* renderer)
     uint32_t group;
 
     assert(renderer);
-    world_vbo_cpu = (uint64_t)trspk_batch32_vbo(renderer->world)->capacity *
+    world_vbo_cpu = (uint64_t)trspk_batch32_vbo(renderer->build.world.batch)->capacity *
                     sizeof(struct TRSPK_VertexGLES2);
-    world_tri_cpu = (uint64_t)trspk_batch32_triangles(renderer->world)->cap * sizeof(int);
+    world_tri_cpu = (uint64_t)trspk_batch32_triangles(renderer->build.world.batch)->cap * sizeof(int);
     for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
     {
         const struct ES3ModelGroup* model_group = &renderer->groups[group];
@@ -3056,6 +3381,8 @@ es3_report_retained_memory(struct TRSPK_Renderer_ES3* renderer)
         "es3_mem: world_cpu_vertices    %10.2f MB (%u poses)\n"
         "es3_mem: world_cpu_configs     %10.2f MB\n"
         "es3_mem: world_gpu             %10.2f MB\n"
+        "es3_mem: stage_cpu_vertices    %10.2f MB\n"
+        "es3_mem: stage_gpu             %10.2f MB\n"
         "es3_mem: group_static_cpu      %10.2f MB (vbo) + %.2f MB (configs) + %.2f MB (slots)\n"
         "es3_mem: group_static_gpu      %10.2f MB\n"
         "es3_mem: group_dynamic_cpu     %10.2f MB (vbo) + %.2f MB (configs)\n"
@@ -3068,9 +3395,14 @@ es3_report_retained_memory(struct TRSPK_Renderer_ES3* renderer)
         "es3_mem: atlas_cpu             %10.2f MB world + %.2f MB ui\n"
         "es3_mem: pose_tables_cpu       %10.2f MB\n",
         (double)world_vbo_cpu / 1048576.0,
-        trspk_batch32_entry_count(renderer->world),
+        trspk_batch32_entry_count(renderer->build.world.batch),
         (double)world_tri_cpu / 1048576.0,
-        (double)renderer->world_gpu_vertex_capacity * sizeof(struct TRSPK_VertexGLES2) /
+        (double)renderer->world_gpu.vertex_capacity * sizeof(struct TRSPK_VertexGLES2) /
+            1048576.0,
+        renderer->build.stage.batch ? (double)trspk_batch32_vbo(renderer->build.stage.batch)->capacity *
+                                          sizeof(struct TRSPK_VertexGLES2) / 1048576.0
+                                    : 0.0,
+        (double)renderer->stage_gpu.vertex_capacity * sizeof(struct TRSPK_VertexGLES2) /
             1048576.0,
         (double)group_vbo_cpu[TRSPK_VBO_GROUP_STATIC] / 1048576.0,
         (double)group_tri_cpu[TRSPK_VBO_GROUP_STATIC] / 1048576.0,
@@ -3447,10 +3779,14 @@ es3_destroy_gl_resources(struct TRSPK_Renderer_ES3* renderer)
         renderer->groups[group].vbo_gpu = 0u;
         renderer->groups[group].gpu_capacity = 0u;
     }
-    if( renderer->world_vbo )
-        glDeleteBuffers(1, &renderer->world_vbo);
-    renderer->world_vbo = 0u;
-    renderer->world_gpu_vertex_capacity = 0u;
+    if( renderer->world_gpu.vbo )
+        glDeleteBuffers(1, &renderer->world_gpu.vbo);
+    renderer->world_gpu.vbo = 0u;
+    renderer->world_gpu.vertex_capacity = 0u;
+    if( renderer->stage_gpu.vbo )
+        glDeleteBuffers(1, &renderer->stage_gpu.vbo);
+    renderer->stage_gpu.vbo = 0u;
+    renderer->stage_gpu.vertex_capacity = 0u;
     es3_stream_set_destroy(&renderer->index_stream);
     es3_stream_set_destroy(&renderer->dynamic_stream);
     es3_stream_set_destroy(&renderer->frame_stream);
@@ -3492,11 +3828,11 @@ TRSPK_Renderer_ES3_Free(struct TRSPK_Renderer_ES3* renderer)
     trspk_triangles_free(&renderer->frame_stream_triangles);
     ToriMem_Free(ToriMem_Renderer(), renderer->draw_items);
     trspk_pose_table_free(&renderer->poses);
-    trspk_element_mask_free(&renderer->batch_detached);
     ToriMem_Free(ToriMem_Renderer(), renderer->static_primary);
     ToriMem_Free(ToriMem_Renderer(), renderer->static_primary_bits);
     es3_zbuffer_destroy(renderer);
-    trspk_batch32_destroy(renderer->world);
+    trspk_world_build_free(&renderer->build);
+    trspk_anim_tracks_free(&renderer->anim_tracks);
     if( trspk_atlas_is_initialized(&renderer->atlas) )
         trspk_atlas_free(&renderer->atlas);
     es3_ui_free(renderer);
@@ -3591,14 +3927,25 @@ es3_init_gl(
         goto fail;
 
     /* A context that comes back (or comes up after the first build) gets
-     * the whole build: the new buffer has none of it. */
-    if( renderer->world_live )
+     * the whole build: the new buffer has none of it. So does a stage that
+     * was being prepared when the old context went: its baked span goes up
+     * whole with the next prefill, and it is not reported prepared until it
+     * has (es3_world_prefill). */
+    if( renderer->build.world.drawable )
     {
-        renderer->world_upload_pending = true;
-        trspk_vbo_set_dirty(trspk_batch32_vbo(renderer->world));
+        renderer->world_gpu.upload_pending = true;
+        trspk_vbo_set_dirty(trspk_batch32_vbo(renderer->build.world.batch));
         if( !es3_upload_world(renderer) )
             goto fail;
     }
+    if( trspk_world_build_stage_open(&renderer->build) )
+    {
+        renderer->stage_gpu.upload_pending = true;
+        trspk_vbo_set_dirty(trspk_batch32_vbo(renderer->build.stage.batch));
+    }
+    /* Both world passes can hold a staged world build beside the drawn one
+     * (TORIRSRC_BATCH3D_STAGE_BEGIN / _SWAP in render/torirs_render.h). */
+    ToriDraw_SceneSetBatchStaging(scene, true);
     TORIRS_LOG("%s: renderer up (%s world pass)\n", g_es3_name, world_pass);
     return true;
 
@@ -3657,6 +4004,15 @@ TRSPK_Renderer_ES3_SetPick(
     renderer->pick_mouse_x = mouse_x;
     renderer->pick_mouse_y = mouse_y;
     ToriRS_PickHitsReset(&renderer->pick_hits);
+}
+
+void
+TRSPK_Renderer_ES3_SetFrameElapsed(
+    struct TRSPK_Renderer_ES3* renderer,
+    uint64_t elapsed_us)
+{
+    assert(renderer);
+    renderer->build.frame_elapsed_us = elapsed_us;
 }
 
 struct ToriRS_PickHits const*

@@ -35,13 +35,13 @@ placement_capture_open(const struct TRSPK_Renderer_ES3* r)
     struct PlacementChainHeader h = { PLACEMENT_CHAIN_MAGIC,
                                       3,
                                       placement_capture.frame,
-                                      trspk_batch32_entry_count(r->world),
-                                      r->world_live ? 1u : 0u,
+                                      trspk_batch32_entry_count(r->build.world.batch),
+                                      r->build.world.drawable ? 1u : 0u,
                                       0u,
                                       r->static_resource_epoch };
     placement_write(&h, sizeof(h));
     for( uint32_t e = 0; e < h.elements; e++ )
-        placement_write(trspk_batch32_get_entry(r->world, e), sizeof(struct TRSPK_Batch32Entry));
+        placement_write(trspk_batch32_get_entry(r->build.world.batch, e), sizeof(struct TRSPK_Batch32Entry));
 }
 static bool
 es3_placement_capture_wanted(const struct TRSPK_Renderer_ES3* r)

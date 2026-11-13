@@ -710,11 +710,15 @@ App_RunOnce(
         report_armed = 1;
         atexit(FrameStats_Report);
     }
+    app->rebuild_frames.marks = 0;
+    app_rebuild_mark(app, "start");
     result = app_run_once_body(app, now_ms, input);
+    app_rebuild_mark(app, "body_rest");
     /* Outside the body, so that none of its early returns (a latched frame,
      * a boot) can starve the background queue: every platform loop gives it
      * this floor, whatever else it does with its slack (App_RunBackground). */
     app_run_background_floor(app);
+    app_rebuild_mark(app, "bg_floor");
     FrameStats_Span(FRAME_STATS_FRAME, t0);
     return result;
 }
@@ -932,9 +936,11 @@ app_run_once_body(
         return 0;
     }
 
+    app_rebuild_mark(app, "pre");
     /* Async completions: world load finish, texture publish, deferred seq
      * binds, and any queued tree refresh (relayout + CS1 + redraw). */
     app_async_polls(app);
+    app_rebuild_mark(app, "async_polls");
 
     /* Logic ticks at 20ms with bounded catch-up after a stall. */
     if( app->last_logic_ms == 0 )
@@ -1076,6 +1082,7 @@ app_run_once_body(
                     if( app_logic_tick(app) )
                         app->need_redraw = 1;
                 }
+                app_rebuild_mark(app, "tick");
 
                 /* A catch-up pass can process several server ticks in one
                  * App_RunOnce.  Settle tick N's client scripts before tick
@@ -1090,6 +1097,7 @@ app_run_once_body(
                     {
                         stat = app_settle_cs2_frame(app);
                     }
+                    app_rebuild_mark(app, "tick_cs2run");
                     if( stat != TASK_RUNNER_IDLE )
                     {
                         app->runner_had_work = 1;
@@ -1101,6 +1109,7 @@ app_run_once_body(
                         UITree_LayoutResolve(
                             app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
                     }
+                    app_rebuild_mark(app, "tick_layout");
                 }
             }
             /* The settle fence above can stop the catch-up part way through.
@@ -1135,6 +1144,7 @@ app_run_once_body(
         app_world_frame(app, ticks, (float)app->logic_frame_ms / (float)APP_LOGIC_TICK_MS);
     }
     FrameStats_Span(FRAME_STATS_LOGIC, t_logic);
+    app_rebuild_mark(app, "logic");
 
     /* A logout inside one of those ticks took the gameframe down with it: the
      * tree below is empty and the bake that replaces it has asked for the last
@@ -1172,6 +1182,7 @@ app_run_once_body(
                 app->need_redraw = 1;
         }
     }
+    app_rebuild_mark(app, "pump");
 
     /* Timer hooks, packet-fence RUNCLIENTSCRIPTs, and other tick work enqueue
      * CS2 before interaction.  Settle them now so hit testing sees one coherent
@@ -1255,6 +1266,7 @@ app_run_once_body(
      * per-cycle timer, and the repeat is what puts the tooltip back. */
     app->interact.client_cycle = app->logic_cycle;
 
+    app_rebuild_mark(app, "cs2_settle_plugins");
     uint64_t const t_interact = FrameStats_Now();
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_INTERACT)
     {
@@ -1269,6 +1281,7 @@ app_run_once_body(
             &out);
     }
     FrameStats_Span(FRAME_STATS_INTERACT, t_interact);
+    app_rebuild_mark(app, "interact");
     plugin_pointer_consumed = out.minimenu_consumed_pointer;
 
     /* World hover: gate on the mouse being over the world element. The pick

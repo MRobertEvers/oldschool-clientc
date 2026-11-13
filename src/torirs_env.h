@@ -75,6 +75,17 @@ TORIRS_ENV_KNOB(torirs_env_loc_lane_trace, "TORIRS_LOC_LANE_TRACE")
  * background rebuild's deadline in ms (App_WorldRebuildModeInit). */
 TORIRS_ENV_KNOB(torirs_env_world_rebuild, "TORIRS_WORLD_REBUILD")
 TORIRS_ENV_KNOB(torirs_env_world_job_deadline_ms, "TORIRS_WORLD_JOB_DEADLINE_MS")
+/* Where a rebuild's milliseconds go; the renderers read it here (the world
+ * builder keeps its own reading, WorldBuilder_TimingOn). */
+TORIRS_ENV_KNOB(torirs_env_rebuild_timing, "TORIRS_REBUILD_TIMING")
+/* The LOC_ADD/NPC_ADD trigger trace. Asked once per loc of a rebuilt scene:
+ * a getenv there was ~3 ms of every rebuild's finish. */
+TORIRS_ENV_KNOB(torirs_env_trigger_debug, "TORIRS_TRIGGER_DEBUG")
+/* A retained renderer's world-build prefill: the frame work it fills up to,
+ * and its largest slice, in microseconds (default 6000 and 4000). One pair
+ * for every lane that prefills. */
+TORIRS_ENV_KNOB(torirs_env_prep_target_us, "TORIRS_PREP_TARGET_US")
+TORIRS_ENV_KNOB(torirs_env_prep_slice_us, "TORIRS_PREP_SLICE_US")
 
 /* The painter's knobs: these change what is drawn, not just what is logged. */
 TORIRS_ENV_KNOB(torirs_env_draw_distance, "TORIRS_DRAW_DISTANCE")

@@ -55,6 +55,7 @@
 #include "log/torirs_log.h"
 #include "painters/painters.h"
 #include "perf/torirs_perf.h"
+#include "platform/platform_window.h"
 #include "platform/platform_web_renderer_webgl2_placement.h"
 #include "es3/es3_indices.h"
 #include "toridraw.h"
@@ -301,7 +302,7 @@ es3p_sequence_issue(
                     : -1,
                 (unsigned)renderer->groups[TRSPK_VBO_GROUP_STATIC].gpu_capacity,
                 (unsigned)renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].vbo_gpu,
-                (unsigned)renderer->world_vbo);
+                (unsigned)renderer->world_gpu.vbo);
     }
 }
 
@@ -603,6 +604,10 @@ es3p_draw_model(
         es3p_emit_model(renderer, &placement);
         return;
     }
+    /* A pose the drawn build holds but has not baked yet is baked here, on
+     * the draw that first needs it. */
+    (void)es3_world_bake_on_draw(
+        renderer, command->element_id, anim_index, pose_id, es3_world_record_bake);
     if( (static_state = es3_static_resolve_recorded(
              renderer, command->element_id, anim_index, pose_id, &static_placement)) != 0 )
     {
@@ -619,11 +624,14 @@ es3p_draw_model(
     else if( !trspk_pose_table_get(
                  &renderer->poses, command->element_id, anim_index, pose_id, &vertex_base) )
     {
+        struct ToriDraw_Model* posed = NULL;
         renderer->stat_static_rebake += 1.0;
-        /* A live static element without its load event (renderer creation,
-         * an event-queue overflow): bake the complete animation once on the
-         * first miss, not one pose every frame. */
-        if( command->animation )
+        /* A pose of an announced track is baked now, on the first draw that
+         * asks for it. A live static element without its load event
+         * (renderer creation, an event-queue overflow) has its track
+         * announced here first, as its ANIM_LOAD would have. */
+        if( command->animation &&
+            !es3_bake_track_pose(renderer, command, anim_index, pose_id, &vertex_base, &posed) )
         {
             struct ToriRS_RenderCommand_AnimLoad load;
             memset(&load, 0, sizeof(load));
@@ -633,9 +641,12 @@ es3p_draw_model(
             load.model = command->model;
             load.world_position = command->world_position;
             es3p_animation_load(renderer, &load);
+            (void)es3_bake_track_pose(renderer, command, anim_index, pose_id, &vertex_base, &posed);
         }
-        if( !trspk_pose_table_get(
-                &renderer->poses, command->element_id, anim_index, pose_id, &vertex_base) )
+        if( posed )
+            ToriDraw_ModelFree(posed);
+        else if( !trspk_pose_table_get(
+                     &renderer->poses, command->element_id, anim_index, pose_id, &vertex_base) )
             vertex_base = es3_bake_into_arena(
                 renderer,
                 &renderer->groups[group],
@@ -728,8 +739,8 @@ es3p_end_3d(struct TRSPK_Renderer_ES3* renderer)
             renderer->painter_stat_faces_indexed / 300.0,
             renderer->painter_stat_faces_actor / 300.0,
             renderer->painter_stat_draws / 300.0,
-            trspk_batch32_entry_count(renderer->world),
-            trspk_batch32_vbo(renderer->world)->vertex_count,
+            trspk_batch32_entry_count(renderer->build.world.batch),
+            trspk_batch32_vbo(renderer->build.world.batch)->vertex_count,
             renderer->stat_static_page / 300.0,
             renderer->stat_static_pose_table / 300.0,
             renderer->stat_static_rebake / 300.0);
@@ -865,7 +876,6 @@ es3p_animation_load(
     const struct ToriRS_RenderCommand_AnimLoad* command)
 {
     int anim_index = 0;
-    int frame;
 
     assert(renderer);
     assert(command);
@@ -875,24 +885,9 @@ es3p_animation_load(
      * cannot keep resolving to MODEL_LOAD's rest pose and a shorter
      * replacement cannot serve stale tail frames. */
     (void)es3_animation_track_unload(renderer, command->element_id, anim_index);
-    for( frame = 0; frame < command->animation->frame_count; frame++ )
-    {
-        struct ToriDraw_Model* baked = es3_animation_pose_frame(command, frame);
-        struct ToriDraw_ModelHandle handle;
-        memset(&handle, 0, sizeof(handle));
-        handle.kind = TORIDRAWMK_MODEL;
-        handle.u.model.model = baked;
-        (void)es3_bake_into_arena(
-            renderer,
-            &renderer->groups[TRSPK_VBO_GROUP_STATIC],
-            command->element_id,
-            anim_index,
-            frame,
-            handle,
-            &command->world_position,
-            true);
-        ToriDraw_ModelFree(baked);
-    }
+    /* Announced, not baked: each pose is baked the first time a draw asks
+     * for it (es3p_draw_model -> es3_bake_track_pose). */
+    es3_animation_announce(renderer, command, anim_index);
 }
 
 /* ---- batch commands ----------------------------------------------------------------- */
@@ -913,19 +908,16 @@ es3p_batch_add(
     const struct ToriRS_RenderCommand_Batch* command,
     bool animated)
 {
-    int anim_index;
-    int pose_id;
-    (void)es3_world_add(renderer, command, animated, &anim_index, &pose_id);
+    es3_world_add(renderer, command, animated);
 }
 
 
 static void
 es3p_batch_clear(
     struct TRSPK_Renderer_ES3* renderer,
-    int batch_id,
-    bool clear_all)
+    const struct ToriRS_RenderCommand_Batch* command)
 {
-    es3_world_clear(renderer, batch_id, clear_all);
+    es3_world_clear(renderer, command->batch_id, command->clear_all, command->scene_reset);
 }
 
 
@@ -985,11 +977,19 @@ es3p_dispatch(
     case TORIRSRC_BATCH3D_END:
         es3_batch_end(renderer, &command->u.batch);
         break;
+    case TORIRSRC_BATCH3D_STAGE_BEGIN:
+        es3_world_stage_begin(renderer, command->u.batch.batch_id);
+        break;
+    case TORIRSRC_BATCH3D_SWAP:
+        es3_world_swap(renderer, command->u.batch.batch_id);
+        break;
     case TORIRSRC_BATCH3D_CLEAR:
-        es3p_batch_clear(renderer, command->u.batch.batch_id, command->u.batch.clear_all);
+        es3p_batch_clear(renderer, &command->u.batch);
         if( command->u.batch.clear_all )
         {
+            /* A scene reset: the retained models went with it. */
             trspk_pose_table_clear(&renderer->poses);
+            trspk_anim_track_forget_all(&renderer->anim_tracks);
             es3_reset_group(&renderer->groups[TRSPK_VBO_GROUP_STATIC]);
         }
         break;
@@ -1180,14 +1180,19 @@ TRSPK_Renderer_ES3_PainterRenderFrame(
     struct TRSPK_Renderer_ES3* renderer,
     struct ToriRS_Frame* frame)
 {
+    uint64_t render_start_us;
     assert(renderer);
     assert(frame);
+    render_start_us = PlatformWindow_TicksUs();
     if( !es3p_render_frame_begin(renderer) )
         return;
     ToriRS_FrameBegin(frame);
     es3p_render_frame_commands(renderer, frame);
     ToriRS_FrameEnd(frame);
     es3p_render_frame_end(renderer);
+    /* The frame is drawn: what is left of the world builds' bake takes its
+     * slice now, and goes to the GPU with the next frame's upload. */
+    es3_world_prefill(renderer, render_start_us, es3_world_record_bake);
 }
 
 

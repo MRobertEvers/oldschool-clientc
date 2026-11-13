@@ -688,6 +688,14 @@ ToriDraw_SceneGraphShutdown(struct ToriDraw_Scene* scene)
 {
     assert(scene);
 
+    /* The buried models first: some hold shared-store models the store's
+     * teardown asserts are returned. */
+    while( scene->graveyard_count > 0 )
+        ToriDraw_SceneGraveyardDrain(scene, 4096);
+    TORIDRAW_FREE(scene->graveyard);
+    scene->graveyard = NULL;
+    scene->graveyard_cap = 0;
+
     td_scene_free_all_elements(scene);
 
     for( int i = 0; i < scene->pending_pose_count; i++ )
@@ -1373,14 +1381,75 @@ ToriDraw_SceneClear(struct ToriDraw_Scene* scene)
     scene->current_batch_element_count = 0;
     scene->next_batch_id = 0;
     scene->anim_list_dirty = true;
+    /* The reset takes a stage with it (a renderer drops both batches). */
+    scene->staged_batch_plus1 = 0;
+    scene->staged_pool = -1;
+    scene->staged_cursor = 0;
 
     td_scene_emit(scene, TORIDRAW_EVENT_SCENE_RESET, 0, 0, 0, 0, NULL, NULL, NULL);
 }
+
+/* Bury a model for ToriDraw_SceneGraveyardDrain. */
+static void
+td_scene_bury_model(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_SceneElement* element)
+{
+    if( element->model.kind == TORIDRAWMK_NONE )
+        return;
+    if( scene->graveyard_count == scene->graveyard_cap )
+    {
+        int const cap = scene->graveyard_cap ? scene->graveyard_cap * 2 : 4096;
+        struct ToriDraw_ModelHandle* grown = (struct ToriDraw_ModelHandle*)TORIDRAW_REALLOC(
+            scene->graveyard, (size_t)cap * sizeof(*grown));
+        assert(grown);
+        scene->graveyard = grown;
+        scene->graveyard_cap = cap;
+    }
+    scene->graveyard[scene->graveyard_count++] = element->model;
+    element->model.kind = TORIDRAWMK_NONE;
+    element->model.u.model.model = NULL;
+}
+
+int
+ToriDraw_SceneGraveyardDrain(
+    struct ToriDraw_Scene* scene,
+    int max_models)
+{
+    assert(scene);
+    assert(max_models > 0);
+    while( scene->graveyard_count > 0 && max_models-- > 0 )
+        ToriDraw_ModelHandleFree(scene->graveyard[--scene->graveyard_count]);
+    return scene->graveyard_count;
+}
+
+static void
+td_scene_clear_pool(
+    struct ToriDraw_Scene* scene,
+    int pool,
+    bool defer_free);
 
 void
 ToriDraw_SceneClearPool(
     struct ToriDraw_Scene* scene,
     int pool)
+{
+    td_scene_clear_pool(scene, pool, false);
+}
+
+void
+ToriDraw_SceneClearPoolDeferFree(
+    struct ToriDraw_Scene* scene,
+    int pool)
+{
+    td_scene_clear_pool(scene, pool, true);
+}
+
+static void
+td_scene_clear_pool(
+    struct ToriDraw_Scene* scene,
+    int pool,
+    bool defer_free)
 {
     int i;
     int next;
@@ -1430,19 +1499,35 @@ ToriDraw_SceneClearPool(
                 ToriDraw_ModelKindIsFull(element->model.kind) ? &element->model : NULL,
                 NULL,
                 NULL);
-        td_scene_dispose_element_model(element);
+        if( defer_free )
+            td_scene_bury_model(scene, element);
+        else
+            td_scene_dispose_element_model(element);
         td_scene_reset_element(element);
         ToriDraw_IntrusiveListRelease(&scene->elements, i);
     }
 
     scene->anim_list_dirty = true;
 
+    /* The staged pool's clear before its adoption: the stage goes with it. */
+    if( scene->staged_batch_plus1 != 0 && pool == scene->staged_pool )
+    {
+        td_scene_emit(
+            scene, TORIDRAW_EVENT_BATCH_CLEAR, (scene->staged_batch_plus1 - 1), 0, 0, 0, NULL, NULL, NULL);
+        scene->staged_batch_plus1 = 0;
+        scene->staged_pool = -1;
+        scene->staged_cursor = 0;
+    }
+
     if( pool == TORIDRAW_SCENE_POOL_STATIC )
     {
         scene->batch_building = false;
         scene->current_batch_id = 0;
         scene->current_batch_element_count = 0;
-        scene->next_batch_id = 0;
+        /* Ids restart, past a stage that is still to be swapped in. */
+        scene->next_batch_id = scene->staged_batch_plus1 != 0
+                                   ? scene->staged_batch_plus1
+                                   : 0;
         /* Static geometry and all prebaked poses share one retained arena.
          * Clear it wholesale on a map rebuild instead of issuing thousands of
          * append-only per-element unloads. */
@@ -1550,12 +1635,139 @@ ToriDraw_SceneSetDeferredPool(
 }
 
 void
+ToriDraw_SceneSetBatchStaging(
+    struct ToriDraw_Scene* scene,
+    bool supported)
+{
+    assert(scene);
+    scene->batch_staging_supported = supported;
+}
+
+bool
+ToriDraw_SceneBatchStagingSupported(const struct ToriDraw_Scene* scene)
+{
+    assert(scene);
+    return scene->batch_staging_supported;
+}
+
+void
+ToriDraw_SceneStageBatchBegin(
+    struct ToriDraw_Scene* scene,
+    int pool)
+{
+    assert(scene);
+    assert(scene->batch_staging_supported);
+    assert(td_scene_pool_deferred(scene, pool));
+    assert(scene->staged_batch_plus1 == 0);
+    assert(!scene->batch_building);
+    scene->staged_batch_plus1 = 1 + scene->next_batch_id++;
+    scene->staged_pool = pool;
+    scene->staged_cursor = 0;
+    scene->staged_sent = false;
+    scene->staged_prepared = false;
+    td_scene_emit(
+        scene, TORIDRAW_EVENT_BATCH_STAGE_BEGIN, (scene->staged_batch_plus1 - 1), 0, 0, 0, NULL, NULL, NULL);
+}
+
+bool
+ToriDraw_SceneStageBatchStep(
+    struct ToriDraw_Scene* scene,
+    int max_adds)
+{
+    int adds = 0;
+    int looked = 0;
+
+    assert(scene);
+    assert(max_adds > 0);
+    assert(scene->staged_batch_plus1 != 0);
+    /* By index rather than along the element list: the list changes between
+     * steps (the live scene's entities come and go), an index does not. */
+    while( scene->staged_cursor < TORIDRAW_SCENE_MAX_ELEMENTS )
+    {
+        struct ToriDraw_SceneElement* element;
+        int const id = scene->staged_cursor;
+
+        if( adds >= max_adds || looked >= 8 * max_adds )
+            return false;
+        scene->staged_cursor++;
+        looked++;
+        element = td_scene_element_ptr(scene, id);
+        if( !element || element->pool != (uint8_t)scene->staged_pool || !element->load_deferred ||
+            element->stage_emitted )
+            continue;
+        element->stage_emitted = true;
+        td_scene_emit(
+            scene,
+            TORIDRAW_EVENT_BATCH_MODEL_ADD,
+            (scene->staged_batch_plus1 - 1),
+            id,
+            0,
+            0,
+            &element->model,
+            NULL,
+            NULL);
+        adds++;
+        scene->staged_prepared = false;
+    }
+    scene->staged_sent = true;
+    return true;
+}
+
+void
+ToriDraw_SceneStageBatchMarkPrepared(
+    struct ToriDraw_Scene* scene,
+    int batch_id)
+{
+    assert(scene);
+    if( scene->staged_batch_plus1 == batch_id + 1 && scene->staged_sent )
+        scene->staged_prepared = true;
+}
+
+bool
+ToriDraw_SceneStageBatchPrepared(const struct ToriDraw_Scene* scene)
+{
+    assert(scene);
+    return scene->staged_batch_plus1 != 0 && scene->staged_sent && scene->staged_prepared;
+}
+
+bool
+ToriDraw_SceneStageBatchOpen(const struct ToriDraw_Scene* scene)
+{
+    assert(scene);
+    return scene->staged_batch_plus1 != 0;
+}
+
+void
+ToriDraw_SceneStageBatchForget(struct ToriDraw_Scene* scene)
+{
+    assert(scene);
+    scene->batch_staging_supported = false;
+    if( scene->staged_batch_plus1 == 0 )
+        return;
+    /* What was sent went to the renderer that is gone: the adoption sends
+     * the whole pool again, as an ordinary batch. */
+    for( int id = scene->elements.head; id != TORIDRAW_INTRUSIVE_NIL;
+         id = scene->elements.nodes[id].next )
+    {
+        struct ToriDraw_SceneElement* element = td_scene_element_ptr(scene, id);
+        if( element && element->pool == (uint8_t)scene->staged_pool )
+            element->stage_emitted = false;
+    }
+    scene->staged_batch_plus1 = 0;
+    scene->staged_pool = -1;
+    scene->staged_cursor = 0;
+    scene->staged_sent = false;
+    scene->staged_prepared = false;
+}
+
+void
 ToriDraw_SceneAdoptPool(
     struct ToriDraw_Scene* scene,
     int from_pool,
     int to_pool)
 {
     bool batch;
+    bool staged;
 
     assert(scene);
     assert(from_pool >= 0);
@@ -1574,7 +1786,15 @@ ToriDraw_SceneAdoptPool(
      * exactly as it bakes a build. Any other pool loads element by element,
      * as a boat deck always has. */
     batch = to_pool == TORIDRAW_SCENE_POOL_STATIC;
-    if( batch )
+    /* Staged: the renderer has (most of) this batch already. What it lacks
+     * goes into the stage, the stage is swapped in after the loop, and the
+     * tracks' ANIM_LOADs below mark their elements on the stage as they would
+     * on a batch built here. */
+    staged = batch && scene->staged_batch_plus1 != 0 &&
+             scene->staged_pool == from_pool;
+    if( staged )
+        scene->current_batch_id = (scene->staged_batch_plus1 - 1);
+    else if( batch )
         ToriDraw_SceneBatchBegin(scene);
     for( int id = scene->elements.head; id != TORIDRAW_INTRUSIVE_NIL;
          id = scene->elements.nodes[id].next )
@@ -1587,7 +1807,9 @@ ToriDraw_SceneAdoptPool(
         if( !element->load_deferred )
             continue;
         element->load_deferred = false;
-        if( batch )
+        if( staged && element->stage_emitted )
+            element->stage_emitted = false;
+        else if( batch )
             td_scene_emit(
                 scene,
                 TORIDRAW_EVENT_BATCH_MODEL_ADD,
@@ -1615,7 +1837,17 @@ ToriDraw_SceneAdoptPool(
                 scene->event_queue.events[scene->event_queue.count - 1].anim_index = anim_index;
         }
     }
-    if( batch )
+    if( staged )
+    {
+        td_scene_emit(
+            scene, TORIDRAW_EVENT_BATCH_SWAP, (scene->staged_batch_plus1 - 1), 0, 0, 0, NULL, NULL, NULL);
+        if( scene->next_batch_id < scene->staged_batch_plus1 )
+            scene->next_batch_id = scene->staged_batch_plus1;
+        scene->staged_batch_plus1 = 0;
+        scene->staged_pool = -1;
+        scene->staged_cursor = 0;
+    }
+    else if( batch )
         ToriDraw_SceneBatchEnd(scene);
     /* The adopted locs' sequences start ticking now. */
     scene->anim_list_dirty = true;
@@ -1859,7 +2091,10 @@ td_scene_element_assign_model(
     /* Ahead of the batch test: a deferred element is in no batch, open or not,
      * until its pool is adopted (ToriDraw_SceneAdoptPool). */
     if( td_scene_pool_deferred(scene, element->pool) )
+    {
         element->load_deferred = true;
+        element->stage_emitted = false;
+    }
     else if( scene->batch_building )
         element->pending_batch_add = true;
     else
@@ -2493,6 +2728,7 @@ ToriDraw_SceneElementSetPosition(
     element->world_position.yaw = ToriDraw_NormalizeAngle(yaw);
     element->world_position.pitch = 0;
     element->world_position.roll = 0;
+    element->stage_emitted = false;
 
     if( scene->batch_building && element->pending_batch_add )
     {

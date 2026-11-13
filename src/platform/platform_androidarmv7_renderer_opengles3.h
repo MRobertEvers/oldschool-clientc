@@ -90,6 +90,12 @@ ToriPlatformAndroid_Renderer_GLES3_SetPick(
     int mouse_x,
     int mouse_y);
 
+/** The host's work this frame before the render (TRSPK_Renderer_ES3_SetFrameElapsed). */
+void
+ToriPlatformAndroid_Renderer_GLES3_SetFrameElapsed(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    uint64_t elapsed_us);
+
 struct ToriRS_PickHits const*
 ToriPlatformAndroid_Renderer_GLES3_PickHits(
     struct ToriPlatformAndroid_Renderer_GLES3 const* renderer);

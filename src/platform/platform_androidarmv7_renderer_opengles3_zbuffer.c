@@ -26,6 +26,7 @@
 #include "log/torirs_log.h"
 #include "mem/torirs_mem.h"
 #include "perf/torirs_perf.h"
+#include "platform/platform_window.h"
 #include "toridraw.h"
 #include "toridraw_element_id.h"
 
@@ -139,7 +140,11 @@ struct ES3ZBufferWorld
     /* Dynamic bakes kept by pose (render/trspk_pose_pool.h). */
     struct TRSPK_PosePool pose_pool;
     struct ES3MaterialTable materials;
+    /* The drawn world build's poses, and the stage's: each pose is
+     * classified as it is baked into its build, and the two tables change
+     * places with the builds at the swap. */
     struct ES3MaterialTable batch_materials;
+    struct ES3MaterialTable stage_materials;
     struct ES3MaterialPose dynamic_material;
 
     uint32_t* alpha_indices;
@@ -702,6 +707,7 @@ es3_zbuffer_destroy(struct TRSPK_Renderer_ES3* renderer)
     world = renderer->zbuffer;
     es3_material_table_free(&world->materials);
     es3_material_table_free(&world->batch_materials);
+    es3_material_table_free(&world->stage_materials);
     es3_material_pose_clear(&world->dynamic_material);
     ToriMem_Free(ToriMem_Renderer(), world->alpha_indices);
     ToriMem_Free(ToriMem_Renderer(), world->alpha_submissions);
@@ -730,7 +736,8 @@ es3_zbuffer_report_memory(struct TRSPK_Renderer_ES3* renderer)
         bucket_bytes += sizeof(world->opaque_buckets[bucket_index]) +
             (uint64_t)world->opaque_buckets[bucket_index].index_capacity * sizeof(uint32_t);
     material_bytes = es3_material_table_bytes(&world->materials);
-    batch_material_bytes = es3_material_table_bytes(&world->batch_materials);
+    batch_material_bytes = es3_material_table_bytes(&world->batch_materials) +
+                           es3_material_table_bytes(&world->stage_materials);
     /* TORIRS_LOG compiles out of a release build; computed regardless so the
      * function producing the figure is not dead code there. */
     (void)material_bytes;
@@ -1179,9 +1186,21 @@ es3_zbuffer_track_dropped(
     es3_material_table_remove_track(&world->materials, element_id, anim_index);
 }
 
+/* The material table of `slot`: the drawn build's or the stage's. */
+static struct ES3MaterialTable*
+es3_zbuffer_slot_materials(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct ES3ZBufferWorld* world,
+    const struct TRSPK_WorldSlot* slot)
+{
+    assert(slot == &renderer->build.world || slot == &renderer->build.stage);
+    return slot == &renderer->build.stage ? &world->stage_materials : &world->batch_materials;
+}
+
 void
 es3_zbuffer_batch_pose_baked(
     struct TRSPK_Renderer_ES3* renderer,
+    const struct TRSPK_WorldSlot* slot,
     int element_id,
     int anim_index,
     int pose_id,
@@ -1190,21 +1209,53 @@ es3_zbuffer_batch_pose_baked(
     struct ES3ZBufferWorld* world = es3_zbuffer_state(renderer);
     assert(world);
     (void)es3_material_table_set(
-        &world->batch_materials, renderer, element_id, anim_index, pose_id, handle);
+        es3_zbuffer_slot_materials(renderer, world, slot), renderer, element_id, anim_index,
+        pose_id, handle);
 }
 
 void
-es3_zbuffer_batch_dropped(struct TRSPK_Renderer_ES3* renderer)
+es3_zbuffer_batch_dropped(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct TRSPK_WorldSlot* slot)
 {
     struct ES3ZBufferWorld* world = es3_zbuffer_state(renderer);
+    struct ES3MaterialTable* table;
     uint32_t entry_count;
     uint32_t entry_index;
     assert(world);
-    entry_count = trspk_batch32_entry_count(renderer->world);
+    assert(slot);
+    assert(slot->batch);
+    table = es3_zbuffer_slot_materials(renderer, world, slot);
+    entry_count = trspk_batch32_entry_count(slot->batch);
     for( entry_index = 0u; entry_index < entry_count; entry_index++ )
         es3_material_table_remove_element(
-            &world->batch_materials,
-            trspk_batch32_get_entry(renderer->world, entry_index)->element_id);
+            table, trspk_batch32_get_entry(slot->batch, entry_index)->element_id);
+}
+
+void
+es3_zbuffer_batch_swapped(struct TRSPK_Renderer_ES3* renderer)
+{
+    struct ES3ZBufferWorld* world = es3_zbuffer_state(renderer);
+    struct ES3MaterialTable table;
+    assert(world);
+    table = world->batch_materials;
+    world->batch_materials = world->stage_materials;
+    world->stage_materials = table;
+}
+
+/* The depth path's record bake: the pose is classified into its build's
+ * material table as it is baked, as BATCH3D_*_ADD classified it on arrival
+ * before the bake was deferred. */
+static void
+es3z_world_record_bake(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct TRSPK_WorldSlot* slot,
+    int record)
+{
+    struct TRSPK_WorldRecord const* baking = &slot->records[record];
+    es3_world_record_bake(renderer, slot, record);
+    es3_zbuffer_batch_pose_baked(
+        renderer, slot, baking->element_id, baking->anim_index, baking->pose_id, baking->model);
 }
 
 void
@@ -1300,7 +1351,7 @@ es3z_sequence_issue(
                     : -1,
                 (unsigned)renderer->groups[TRSPK_VBO_GROUP_STATIC].gpu_capacity,
                 (unsigned)renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].vbo_gpu,
-                (unsigned)renderer->world_vbo);
+                (unsigned)renderer->world_gpu.vbo);
     }
 }
 
@@ -1625,6 +1676,11 @@ es3z_draw_model(
         pose_id = 0;
     group = dynamic ? TRSPK_VBO_GROUP_DYNAMIC : TRSPK_VBO_GROUP_STATIC;
     binding = group;
+    /* A pose the drawn build holds but has not baked yet is baked here, on
+     * the draw that first needs it. */
+    if( !dynamic )
+        (void)es3_world_bake_on_draw(
+            renderer, command->element_id, anim_index, pose_id, es3z_world_record_bake);
     if( dynamic )
     {
         vertex_base =
@@ -1647,11 +1703,14 @@ es3z_draw_model(
     else if( !trspk_pose_table_get(
                  &renderer->poses, command->element_id, anim_index, pose_id, &vertex_base) )
     {
+        struct ToriDraw_Model* posed = NULL;
         renderer->stat_static_rebake += 1.0;
-        /* A live static element without its load event (renderer creation,
-         * an event-queue overflow): bake the complete animation once on the
-         * first miss, not one pose every frame. */
-        if( command->animation )
+        /* A pose of an announced track is baked now, on the first draw that
+         * asks for it. A live static element without its load event
+         * (renderer creation, an event-queue overflow) has its track
+         * announced here first, as its ANIM_LOAD would have. */
+        if( command->animation &&
+            !es3_bake_track_pose(renderer, command, anim_index, pose_id, &vertex_base, &posed) )
         {
             struct ToriRS_RenderCommand_AnimLoad load;
             memset(&load, 0, sizeof(load));
@@ -1661,9 +1720,19 @@ es3z_draw_model(
             load.model = command->model;
             load.world_position = command->world_position;
             es3z_animation_load(renderer, &load);
+            (void)es3_bake_track_pose(renderer, command, anim_index, pose_id, &vertex_base, &posed);
         }
-        if( !trspk_pose_table_get(
-                &renderer->poses, command->element_id, anim_index, pose_id, &vertex_base) )
+        if( posed )
+        {
+            struct ToriDraw_ModelHandle handle;
+            memset(&handle, 0, sizeof(handle));
+            handle.kind = TORIDRAWMK_MODEL;
+            handle.u.model.model = posed;
+            es3_zbuffer_pose_baked(renderer, command->element_id, anim_index, pose_id, handle);
+            ToriDraw_ModelFree(posed);
+        }
+        else if( !trspk_pose_table_get(
+                     &renderer->poses, command->element_id, anim_index, pose_id, &vertex_base) )
         {
             vertex_base = es3_bake_into_arena(
                 renderer,
@@ -1782,7 +1851,6 @@ es3z_animation_load(
     const struct ToriRS_RenderCommand_AnimLoad* command)
 {
     int anim_index = 0;
-    int frame;
 
     assert(renderer);
     assert(command);
@@ -1793,26 +1861,9 @@ es3z_animation_load(
      * replacement cannot serve stale tail frames. */
     if( es3_animation_track_unload(renderer, command->element_id, anim_index) )
         es3_zbuffer_track_dropped(renderer, command->element_id, anim_index);
-    for( frame = 0; frame < command->animation->frame_count; frame++ )
-    {
-        struct ToriDraw_Model* baked = es3_animation_pose_frame(command, frame);
-        struct ToriDraw_ModelHandle handle;
-        memset(&handle, 0, sizeof(handle));
-        handle.kind = TORIDRAWMK_MODEL;
-        handle.u.model.model = baked;
-        if( es3_bake_into_arena(
-                renderer,
-                &renderer->groups[TRSPK_VBO_GROUP_STATIC],
-                command->element_id,
-                anim_index,
-                frame,
-                handle,
-                &command->world_position,
-                true) != UINT32_MAX )
-            es3_zbuffer_pose_baked(
-                renderer, command->element_id, anim_index, frame, handle);
-        ToriDraw_ModelFree(baked);
-    }
+    /* Announced, not baked: each pose is baked and classified the first
+     * time a draw asks for it (es3z_draw_model -> es3_bake_track_pose). */
+    es3_animation_announce(renderer, command, anim_index);
 }
 
 /* ---- batch commands ----------------------------------------------------------------- */
@@ -1826,7 +1877,7 @@ es3z_batch_begin(
     if( command->batch_id < 0 )
         return;
     /* Before the build is rewritten: the materials are keyed by its poses. */
-    es3_zbuffer_batch_dropped(renderer);
+    es3_zbuffer_batch_dropped(renderer, &renderer->build.world);
     es3_world_begin(renderer, command->batch_id);
 }
 
@@ -1837,24 +1888,48 @@ es3z_batch_add(
     const struct ToriRS_RenderCommand_Batch* command,
     bool animated)
 {
-    int anim_index;
-    int pose_id;
-    if( es3_world_add(renderer, command, animated, &anim_index, &pose_id) )
-        es3_zbuffer_batch_pose_baked(
-            renderer, command->element_id, anim_index, pose_id, command->model);
+    /* Classified when it is baked (es3z_world_record_bake). */
+    es3_world_add(renderer, command, animated);
 }
 
 
 static void
 es3z_batch_clear(
     struct TRSPK_Renderer_ES3* renderer,
-    int batch_id,
-    bool clear_all)
+    const struct ToriRS_RenderCommand_Batch* command)
 {
     assert(renderer);
-    if( clear_all || batch_id == renderer->world_batch_id )
-        es3_zbuffer_batch_dropped(renderer);
-    es3_world_clear(renderer, batch_id, clear_all);
+    assert(command);
+    if( trspk_world_build_clear_hits_stage(&renderer->build, command->batch_id, command->scene_reset) )
+        es3_zbuffer_batch_dropped(renderer, &renderer->build.stage);
+    if( trspk_world_build_clear_hits_world(&renderer->build, command->batch_id, command->clear_all) )
+        es3_zbuffer_batch_dropped(renderer, &renderer->build.world);
+    es3_world_clear(renderer, command->batch_id, command->clear_all, command->scene_reset);
+}
+
+static void
+es3z_batch_stage_begin(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand_Batch* command)
+{
+    assert(renderer);
+    assert(command);
+    /* A stage reused after a swap holds the retired build until dropped. */
+    if( renderer->build.stage.batch )
+        es3_zbuffer_batch_dropped(renderer, &renderer->build.stage);
+    es3_world_stage_begin(renderer, command->batch_id);
+}
+
+static void
+es3z_batch_swap(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand_Batch* command)
+{
+    assert(renderer);
+    assert(command);
+    es3_zbuffer_batch_dropped(renderer, &renderer->build.world);
+    es3_world_swap(renderer, command->batch_id);
+    es3_zbuffer_batch_swapped(renderer);
 }
 
 
@@ -1919,11 +1994,19 @@ es3z_dispatch(
     case TORIRSRC_BATCH3D_END:
         es3_batch_end(renderer, &command->u.batch);
         break;
+    case TORIRSRC_BATCH3D_STAGE_BEGIN:
+        es3z_batch_stage_begin(renderer, &command->u.batch);
+        break;
+    case TORIRSRC_BATCH3D_SWAP:
+        es3z_batch_swap(renderer, &command->u.batch);
+        break;
     case TORIRSRC_BATCH3D_CLEAR:
-        es3z_batch_clear(renderer, command->u.batch.batch_id, command->u.batch.clear_all);
+        es3z_batch_clear(renderer, &command->u.batch);
         if( command->u.batch.clear_all )
         {
+            /* A scene reset: the retained models went with it. */
             trspk_pose_table_clear(&renderer->poses);
+            trspk_anim_track_forget_all(&renderer->anim_tracks);
             es3_reset_group(&renderer->groups[TRSPK_VBO_GROUP_STATIC]);
         }
         break;
@@ -2115,14 +2198,19 @@ TRSPK_Renderer_ES3_ZBufferRenderFrame(
     struct TRSPK_Renderer_ES3* renderer,
     struct ToriRS_Frame* frame)
 {
+    uint64_t render_start_us;
     assert(renderer);
     assert(frame);
+    render_start_us = PlatformWindow_TicksUs();
     if( !es3z_render_frame_begin(renderer) )
         return;
     ToriRS_FrameBegin(frame);
     es3z_render_frame_commands(renderer, frame);
     ToriRS_FrameEnd(frame);
     es3z_render_frame_end(renderer);
+    /* The frame is drawn: what is left of the world builds' bake takes its
+     * slice now, and goes to the GPU with the next frame's upload. */
+    es3_world_prefill(renderer, render_start_us, es3z_world_record_bake);
 }
 
 /* ---- lifetime ------------------------------------------------------------------------ */

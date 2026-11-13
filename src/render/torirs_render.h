@@ -67,6 +67,34 @@ enum ToriRS_RenderCommandKind
     TORIRSRC_BATCH3D_ANIM_ADD,
     TORIRSRC_BATCH3D_END,
     TORIRSRC_BATCH3D_CLEAR,
+    /*
+     * A STAGED world batch, for a renderer that can hold two (the GL3,
+     * WebGL2 and GLES3 lanes, on core/trspk_world_build.h; each says so with
+     * ToriDraw_SceneSetBatchStaging, and no other lane is ever sent these). The background rebuild builds the next scene beside
+     * the one on screen; these let the renderer prepare its batch over the
+     * frames before the swap instead of all in the swap's frame:
+     *
+     *   BATCH3D_STAGE_BEGIN(id)  open batch `id` beside the live batch; the
+     *                            live one keeps drawing.
+     *   BATCH3D_MODEL_ADD(id,..) as ever, routed by batch_id: an add naming
+     *                            the stage goes into the stage. They arrive
+     *                            a few hundred a frame (ToriDraw_SceneStage-
+     *                            BatchStep); the renderer bakes them in its
+     *                            own per-frame slice.
+     *   BATCH3D_SWAP(id)         the stage becomes the live batch (as if its
+     *                            END had come) and the old live batch is
+     *                            dropped. Sent by the adoption, after the
+     *                            BATCH3D_CLEAR(clear_all) of the old static
+     *                            pool, which must therefore leave a stage
+     *                            alone unless scene_reset is set.
+     *   BATCH3D_CLEAR(id)        with the stage's id: the stage is dropped
+     *                            (the rebuild was cancelled).
+     *
+     * A blocking rebuild, or a lane that never asked, sees BEGIN / ADD.. /
+     * END exactly as before.
+     */
+    TORIRSRC_BATCH3D_STAGE_BEGIN,
+    TORIRSRC_BATCH3D_SWAP,
 
     /* --- BATCHING (2D) --- */
     TORIRSRC_TEX_BEGIN,
@@ -165,6 +193,10 @@ struct ToriRS_RenderCommand_Batch
 {
     int batch_id;
     bool clear_all;
+    /* BATCH3D_CLEAR from a whole-scene reset: a staged batch goes too. A
+     * clear_all without it (view 0's static pool cleared for a rebuild)
+     * leaves the stage to be swapped in. */
+    bool scene_reset;
     int element_id;
     int pose_id;
     int anim_index;

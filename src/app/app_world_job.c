@@ -39,6 +39,9 @@ PlatformWindow_TicksUs(void);
  * loop moves it with no change of its own. */
 #define APP_BACKGROUND_FLOOR_US 2000u
 
+/* What the floor spends freeing a swapped-out scene's models per frame. */
+#define APP_GRAVEYARD_SLICE_US 500u
+
 #define APP_WORLD_JOB_DEADLINE_MS_DEFAULT 600
 
 /* The scene side a root rebuild builds (the packet task passes the same). */
@@ -385,6 +388,10 @@ struct AppWorldStageSlice
     struct ToriRS_Slice* slice;
 };
 
+/* The scene's staged-batch step: adds sent per unit, between slice checks. A
+ * unit measured ~0.05 ms (each add is an event; its bake is the renderer's). */
+#define APP_WORLD_STAGE_ADDS_PER_UNIT 512
+
 /* WorldBuilder_BuildStep's `spent`, asked after every unit but a build's last. */
 static int
 app_world_stage_spent(void* userdata)
@@ -440,6 +447,36 @@ Task_AppWorldStage_Run(
         /* BuildStep stopped for the slice (it stops for nothing else). */
         assert(ToriRS_SliceSpent(&io->slice));
         PT_TASK_YIELD_IF_SPENT();
+    }
+
+    /*
+     * The renderer's half of the staging: a renderer that can hold a second
+     * world batch (GL3, WebGL2, GLES3) is sent the new scene's adds now, a few
+     * hundred a slice, and bakes them in its own per-frame slice before the
+     * swap (ToriDraw_SceneStageBatchBegin; the design is in torirs_render.h
+     * at TORIRSRC_BATCH3D_STAGE_BEGIN). Every other renderer is sent the
+     * whole batch at the swap, as before.
+     */
+    if( self->done && !job->stage_crowded &&
+        ToriDraw_SceneBatchStagingSupported(self->app->scene) )
+    {
+        ToriDraw_SceneStageBatchBegin(self->app->scene, job->stage_builder->static_pool);
+        /* Open: a live renderer switch forgets the stage
+         * (ToriDraw_SceneStageBatchForget) and the adoption sends a batch. */
+        while( ToriDraw_SceneStageBatchOpen(self->app->scene) &&
+               !ToriDraw_SceneStageBatchStep(self->app->scene, APP_WORLD_STAGE_ADDS_PER_UNIT) )
+            PT_TASK_YIELD_IF_SPENT();
+        /* Then a frame at a time until the renderer has it baked and
+         * uploaded -- its bake is paid in its own slice at the end of each
+         * frame, not here. A promoted job (past its deadline) stops waiting:
+         * the swap then takes what is ready and the rest bakes as drawn. */
+        while( ToriDraw_SceneStageBatchOpen(self->app->scene) &&
+               !ToriDraw_SceneStageBatchPrepared(self->app->scene) && !job->job.promoted )
+        {
+            job->prep_frames++;
+            self->task.spent = 1;
+            PT_YIELD(&self->pt);
+        }
     }
 
     PT_END(&self->pt);
@@ -629,6 +666,7 @@ App_WorldJobStart(
     job->build_slice_us_sum = 0;
     job->build_slice_us_max = 0;
     job->build_units = 0;
+    job->prep_frames = 0;
     job->stage_crowded = 0;
     job->held_open = 0;
     /* The varps the scene is built against are the REBUILD's, as a build in
@@ -726,6 +764,8 @@ app_world_job_commit(struct App* app)
     uint64_t t_commit;
     uint64_t t_swapped;
     uint64_t t_shifted;
+    uint64_t t_finished;
+    uint64_t t_varps;
     uint64_t t_done;
 
     assert(ToriRS_TaskJob_Done(&job->job));
@@ -787,14 +827,20 @@ app_world_job_commit(struct App* app)
     app->rebuild_frames.shift_ms = (double)(t_shifted - t_swapped) / 1000.0;
     /* Clears world_load_inflight, which a stalled promotion set. */
     App_WorldLoadFinish(app);
+    t_finished = TaskRunner_Now(&app->bg_runner);
     /* After the finish, where a varp written after a build in place would
      * land: its re-place runs behind the standing loc changes'. */
     if( swapped )
         varps_moved = app_world_job_varps_reresolve(app, &varps_replaced);
+    t_varps = TaskRunner_Now(&app->bg_runner);
     /* The old scene (the swap left it on the staging side) and everything
      * that kept the job's own: one scene resident from here on. */
     app_world_job_stage_free(app);
     t_done = TaskRunner_Now(&app->bg_runner);
+    if( WorldBuilder_TimingOn() )
+        TORIRS_REPORT("rebuild_timing: commit finish load_finish=%.2fms varps=%.2fms stage_free=%.2fms\n",
+            (double)(t_finished - t_shifted) / 1000.0, (double)(t_varps - t_finished) / 1000.0,
+            (double)(t_done - t_varps) / 1000.0);
     app->rebuild_frames.tail_ms = (double)(t_done - t_swapped) / 1000.0;
     app->rebuild_frames.finish_ms = (double)(t_done - t_shifted) / 1000.0;
     job->pending = 0;
@@ -819,7 +865,8 @@ app_world_job_commit(struct App* app)
             "world_job: commit zone=%d,%d wall=%.1fms gather=%.1fms slices=%d slice_sum=%.1fms "
             "slice_max=%.2fms promoted=%d mode=%s build_slices=%d build_units=%d "
             "build_slice_max=%.2fms build_slice_sum=%.1fms swap=%.2fms shift=%.2fms finish=%.2fms "
-            "varps_moved=%d replaced=%d trims_held=%d resumes=%d chunks=%d locs=%d models=%d textures=%d seqs=%d\n",
+            "varps_moved=%d replaced=%d trims_held=%d resumes=%d chunks=%d locs=%d models=%d textures=%d seqs=%d "
+            "prep_frames=%d staged=%d\n",
             job->zone_x,
             job->zone_z,
             (double)(t_done - job->t_begin_us) / 1000.0,
@@ -844,7 +891,9 @@ app_world_job_commit(struct App* app)
             job->report.locs,
             job->report.models,
             job->report.textures,
-            job->report.seqs);
+            job->report.seqs,
+            job->prep_frames,
+            ToriDraw_SceneBatchStagingSupported(app->scene));
     app_world_job_repeat_requested(app);
 }
 
@@ -1093,6 +1142,14 @@ void
 app_run_background_floor(struct App* app)
 {
     assert(app);
+    /* The models a swap buried (WorldBuilder_HotSwap): freed in chunks while
+     * the floor's slice lasts. A chunk of 512 measured ~0.07 ms. */
+    if( app->scene && app->scene->graveyard_count > 0 )
+    {
+        uint64_t const until = PlatformWindow_TicksUs() + APP_GRAVEYARD_SLICE_US;
+        while( ToriDraw_SceneGraveyardDrain(app->scene, 512) > 0 && PlatformWindow_TicksUs() < until )
+            ;
+    }
     if( !app->bg_runner.queue->head )
         return;
     App_RunBackground(app, PlatformWindow_TicksUs() + APP_BACKGROUND_FLOOR_US);
@@ -1244,6 +1301,65 @@ app_world_digest_tick(struct App* app)
 
 /* --- TORIRS_REBUILD_TIMING's frame window --------------------------------- */
 
+/* Frames reported after a rebuild's window closes. */
+#define APP_REBUILD_AFTER_FRAMES 48
+
+/* "a,b,c" in ms with one decimal, into `out` (truncated to fit). */
+static void
+app_rebuild_series_format(
+    uint16_t const* tenths,
+    int count,
+    char* out,
+    size_t out_size)
+{
+    size_t used = 0u;
+    assert(out);
+    assert(out_size > 0u);
+    out[0] = '\0';
+    for( int i = 0; i < count && used + 12u < out_size; i++ )
+        used += (size_t)snprintf(out + used, out_size - used, "%s%u.%u", i ? "," : "",
+            (unsigned)(tenths[i] / 10u), (unsigned)(tenths[i] % 10u));
+}
+
+static uint16_t
+app_rebuild_tenths(uint64_t frame_us)
+{
+    uint64_t const tenths = frame_us / 100u;
+    return tenths > 65535u ? 65535u : (uint16_t)tenths;
+}
+
+/* The frames after the window: what the renderer's tail cost them. */
+static void
+app_rebuild_frames_after_report(struct App* app)
+{
+    char series[64 * 8];
+    int over8 = 0;
+    int over16 = 0;
+    unsigned max_tenths = 0u;
+    for( int i = 0; i < app->rebuild_frames.after_frames; i++ )
+    {
+        unsigned const t = app->rebuild_frames.after[i];
+        over8 += t > 83u;
+        over16 += t > 167u;
+        if( t > max_tenths )
+            max_tenths = t;
+    }
+    app_rebuild_series_format(
+        app->rebuild_frames.after, app->rebuild_frames.after_frames, series, sizeof(series));
+    TORIRS_REPORT(
+        "rebuild_after: mode=%s zone=%d,%d frames=%d max=%u.%ums over8.3=%d over16.7=%d series=%s\n",
+        app->rebuild_frames.background ? "background" : "blocking",
+        app->rebuild_zone_x,
+        app->rebuild_zone_z,
+        app->rebuild_frames.after_frames,
+        max_tenths / 10u,
+        max_tenths % 10u,
+        over8,
+        over16,
+        series);
+    app->rebuild_frames.after_left = 0;
+}
+
 void
 app_rebuild_frames_open(
     struct App* app,
@@ -1252,9 +1368,25 @@ app_rebuild_frames_open(
     assert(app);
     if( !WorldBuilder_TimingOn() )
         return;
+    if( app->rebuild_frames.after_left > 0 )
+        app_rebuild_frames_after_report(app);
     memset(&app->rebuild_frames, 0, sizeof(app->rebuild_frames));
     app->rebuild_frames.open = 1;
     app->rebuild_frames.background = background;
+}
+
+void
+app_rebuild_mark(
+    struct App* app,
+    char const* name)
+{
+    assert(app);
+    assert(name);
+    if( !app->rebuild_frames.open || app->rebuild_frames.marks >= 32 )
+        return;
+    app->rebuild_frames.mark_name[app->rebuild_frames.marks] = name;
+    app->rebuild_frames.mark_us[app->rebuild_frames.marks] = PlatformWindow_TicksUs();
+    app->rebuild_frames.marks++;
 }
 
 void
@@ -1275,7 +1407,18 @@ app_rebuild_frames_note(
 
     assert(app);
     if( !app->rebuild_frames.open )
+    {
+        if( app->rebuild_frames.after_left > 0 )
+        {
+            app->rebuild_frames.after[app->rebuild_frames.after_frames++] =
+                app_rebuild_tenths(frame_us);
+            if( --app->rebuild_frames.after_left == 0 )
+                app_rebuild_frames_after_report(app);
+        }
         return;
+    }
+    if( app->rebuild_frames.frames < 192 )
+        app->rebuild_frames.series[app->rebuild_frames.frames] = app_rebuild_tenths(frame_us);
     for( int i = 0; i < 5; i++ )
         if( frame_us < edges_us[i] )
         {
@@ -1315,5 +1458,40 @@ app_rebuild_frames_note(
         app->rebuild_frames.shift_ms,
         app->rebuild_frames.finish_ms,
         app->rebuild_frames.held_ms);
+    {
+        char series[192 * 8];
+        int over8 = 0;
+        int over16 = 0;
+        int const n = app->rebuild_frames.frames < 192 ? app->rebuild_frames.frames : 192;
+        for( int i = 0; i < n; i++ )
+        {
+            over8 += app->rebuild_frames.series[i] > 83u;
+            over16 += app->rebuild_frames.series[i] > 167u;
+        }
+        app_rebuild_series_format(app->rebuild_frames.series, n, series, sizeof(series));
+        TORIRS_REPORT("rebuild_series: mode=%s zone=%d,%d frames=%d over8.3=%d over16.7=%d series=%s\n",
+            app->rebuild_frames.background ? "background" : "blocking",
+            app->rebuild_zone_x,
+            app->rebuild_zone_z,
+            app->rebuild_frames.frames,
+            over8,
+            over16,
+            series);
+    }
+    if( app->rebuild_frames.marks > 1 )
+    {
+        char line[32 * 40];
+        size_t used = 0u;
+        line[0] = '\0';
+        for( int i = 1; i < app->rebuild_frames.marks && used + 40u < sizeof(line); i++ )
+            used += (size_t)snprintf(line + used, sizeof(line) - used, " %s=%.2f",
+                app->rebuild_frames.mark_name[i],
+                (double)(app->rebuild_frames.mark_us[i] - app->rebuild_frames.mark_us[i - 1]) /
+                    1000.0);
+        TORIRS_REPORT("rebuild_marks: zone=%d,%d last frame's RunOnce:%s\n",
+            app->rebuild_zone_x, app->rebuild_zone_z, line);
+    }
     app->rebuild_frames.open = 0;
+    app->rebuild_frames.after_left = APP_REBUILD_AFTER_FRAMES;
+    app->rebuild_frames.after_frames = 0;
 }

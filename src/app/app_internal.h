@@ -884,6 +884,13 @@ app_rebuild_frames_open(
     int background);
 void
 app_rebuild_frames_finished(struct App* app);
+/* TORIRS_REBUILD_TIMING: stamp the end of a stage of this frame's
+ * App_RunOnce while a rebuild's window is open. `name` must be a literal. */
+void
+app_rebuild_mark(
+    struct App* app,
+    char const* name);
+
 void
 app_rebuild_frames_note(
     struct App* app,

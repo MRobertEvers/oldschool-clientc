@@ -2190,8 +2190,14 @@ WorldBuilder_HotSwap(
     assert(live->static_pool != staged->static_pool);
     assert(live->dynamic_pool != staged->dynamic_pool);
 
+    double const t_swap0 = wb_timing_on() ? wb_now_ms() : 0.0;
+    double t_world;
+    double t_clear;
+    double t_adopt;
+
     /* The world's scene half... */
     World_SwapScene(live->world, staged->world);
+    t_world = wb_timing_on() ? wb_now_ms() : 0.0;
 
     /* ...and the builder state that describes it: the placements its build
      * found hidden behind a -1 multiloc rung. Every other field of a builder
@@ -2217,16 +2223,28 @@ WorldBuilder_HotSwap(
      * and go out now, for view 0 as one batch: the stream a retained renderer
      * sees is BATCH_CLEAR, BATCH_BEGIN, a BATCH_MODEL_ADD per element (each
      * animated loc's ANIM_LOAD after its add), BATCH_END -- a blocking
-     * rebuild's, in one frame as that is.
+     * rebuild's, in one frame as that is. A renderer that staged the batch
+     * already (ToriDraw_SceneStageBatchBegin) sees BATCH_CLEAR, the adds it
+     * lacks, the ANIM_LOADs and BATCH_SWAP instead.
      */
-    ToriDraw_SceneClearPool(live->scene, live->static_pool);
+    /* The old scene's ~18k models are freed over the next frames
+     * (ToriDraw_SceneGraveyardDrain, app_run_background_floor): both scenes
+     * are resident during a background rebuild anyway, and the free was ~2.6 ms
+     * of the swap's frame. */
+    ToriDraw_SceneClearPoolDeferFree(live->scene, live->static_pool);
+    t_clear = wb_timing_on() ? wb_now_ms() : 0.0;
     ToriDraw_SceneAdoptPool(live->scene, staged->static_pool, live->static_pool);
+    t_adopt = wb_timing_on() ? wb_now_ms() : 0.0;
 
     /* The orphan sweep a build in place runs at its reset (RESET_POOL), over
      * the LIVE world's entities and dynamic pool: the staged build ran it over
      * its own, empty ones. Entity records and their element ids are not
      * otherwise touched by the swap. */
     world_builder_reconcile_dynamic_elements(live);
+    if( wb_timing_on() )
+        fprintf(stderr,
+            "rebuild_timing: hotswap world=%.2fms clear_old=%.2fms adopt=%.2fms reconcile=%.2fms\n",
+            t_world - t_swap0, t_clear - t_world, t_adopt - t_clear, wb_now_ms() - t_adopt);
 }
 
 /* Client-TS locChangeUnchecked (Client.ts:7733): a zone LOC_ADD_CHANGE/LOC_DEL

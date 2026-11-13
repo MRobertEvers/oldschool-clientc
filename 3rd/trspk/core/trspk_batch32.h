@@ -60,6 +60,14 @@ trspk_batch32_begin(struct TRSPK_Batch32* batch);
  * divisible by three. Repeating a key in one build returns the original
  * reservation; repeating it with a different vertex count is a caller bug.
  */
+/* Room for `vertex_count` vertices of reservations (and their triangles)
+ * without growing as they are made. The lanes that defer the world bake
+ * (core/trspk_world_build.h: GL3, WebGL2, GLES3) size a build with it. */
+void
+trspk_batch32_reserve_vertices(
+    struct TRSPK_Batch32* batch,
+    uint32_t vertex_count);
+
 void
 trspk_batch32_reserve_pose(
     struct TRSPK_Batch32* batch,

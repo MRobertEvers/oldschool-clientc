@@ -83,6 +83,14 @@ ToriPlatformAndroid_Renderer_GLES3_SetPick(
     TRSPK_Renderer_ES3_SetPick((struct TRSPK_Renderer_ES3*)renderer, mouse_x, mouse_y);
 }
 
+void
+ToriPlatformAndroid_Renderer_GLES3_SetFrameElapsed(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    uint64_t elapsed_us)
+{
+    TRSPK_Renderer_ES3_SetFrameElapsed((struct TRSPK_Renderer_ES3*)renderer, elapsed_us);
+}
+
 struct ToriRS_PickHits const*
 ToriPlatformAndroid_Renderer_GLES3_PickHits(
     struct ToriPlatformAndroid_Renderer_GLES3 const* renderer)

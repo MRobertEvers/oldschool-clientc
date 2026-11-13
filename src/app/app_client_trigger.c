@@ -9,6 +9,7 @@
 
 #include "app/app_internal.h"
 #include "mem/torirs_mem.h"
+#include "torirs_env.h"
 
 /*
  * ---------------------------------------------------------------------------
@@ -86,6 +87,13 @@ app_client_trigger_npc(
     struct App* app,
     struct WorldEntity_NPC* npc,
     int trigger);
+static void
+app_client_trigger_loc_fire(
+    struct App* app,
+    struct WorldEntity_Scenery* loc,
+    int trigger,
+    int category,
+    int script_id);
 
 static int
 Task_ClientTriggerSubject_Run(
@@ -170,7 +178,7 @@ app_client_trigger_debug(
     int category,
     int script_id)
 {
-    if( !getenv("TORIRS_TRIGGER_DEBUG") )
+    if( !torirs_env_trigger_debug() )
         return;
     TORIRS_LOG(
         "trigger: %s %d (subject=%d category=%d) -> script %d\n",
@@ -191,7 +199,7 @@ app_client_trigger_debug_coord(
     int subject,
     int coord)
 {
-    if( !getenv("TORIRS_TRIGGER_DEBUG") )
+    if( !torirs_env_trigger_debug() )
         return;
     TORIRS_LOG("trigger: %s %d subject=%d coord=%d\n", what, trigger, subject, coord);
 }
@@ -248,8 +256,6 @@ app_client_trigger_loc(
     int trigger)
 {
     struct ToriRS_Location* type;
-    struct RS_ClientOpContext ctx;
-    int script_id;
 
     assert(app);
     assert(loc);
@@ -257,8 +263,25 @@ app_client_trigger_loc(
     if( !app->world )
         return;
     type = CacheProvider_LocationGet(app->provider, loc->loc_id);
-    script_id = app_client_trigger_script(app, trigger, loc->loc_id, type ? type->category : 0);
-    app_client_trigger_debug("loc", trigger, loc->loc_id, type ? type->category : 0, script_id);
+    app_client_trigger_loc_fire(app, loc, trigger, type ? type->category : 0,
+        app_client_trigger_script(app, trigger, loc->loc_id, type ? type->category : 0));
+}
+
+/* The trigger for `loc` once its script is known (-1: none). */
+static void
+app_client_trigger_loc_fire(
+    struct App* app,
+    struct WorldEntity_Scenery* loc,
+    int trigger,
+    int category,
+    int script_id)
+{
+    struct RS_ClientOpContext ctx;
+
+    assert(app);
+    assert(loc);
+    assert(app->world);
+    app_client_trigger_debug("loc", trigger, loc->loc_id, category, script_id);
     if( script_id < 0 )
         return;
 
@@ -322,12 +345,56 @@ app_client_triggers_world_loaded(struct App* app)
     if( !app->world || !app->provider )
         return;
     pool = &app->world->entities.scenery;
-    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
-         i = World_EntityPoolNext(pool, i) )
     {
-        struct WorldEntity_Scenery* loc = World_EntityPoolGet(pool, i);
-        if( loc )
-            app_client_trigger_loc(app, loc, RS_TRIGGER_LOC_ADD);
+        /*
+         * The script a loc's trigger runs is a function of its type alone, and
+         * a region's few thousand locs are a few hundred types: each type is
+         * resolved once (three name-hash lookups and a type fetch) and
+         * remembered for the pass. Every loc still fires, in pool order.
+         */
+        enum
+        {
+            MEMO_CAP = 4096
+        };
+        struct
+        {
+            int loc_id_plus1;
+            int category;
+            int script_id;
+        } memo[MEMO_CAP];
+        memset(memo, 0, sizeof(memo));
+        for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+             i = World_EntityPoolNext(pool, i) )
+        {
+            struct WorldEntity_Scenery* loc = World_EntityPoolGet(pool, i);
+            unsigned slot;
+            int probes = 0;
+            if( !loc )
+                continue;
+            slot = ((unsigned)loc->loc_id * 2654435761u) & (MEMO_CAP - 1);
+            while( memo[slot].loc_id_plus1 != 0 && memo[slot].loc_id_plus1 != loc->loc_id + 1 &&
+                   probes < MEMO_CAP )
+            {
+                slot = (slot + 1u) & (MEMO_CAP - 1);
+                probes++;
+            }
+            if( probes >= MEMO_CAP )
+            {
+                /* Full (no region has this many types): unmemoised. */
+                app_client_trigger_loc(app, loc, RS_TRIGGER_LOC_ADD);
+                continue;
+            }
+            if( memo[slot].loc_id_plus1 == 0 )
+            {
+                struct ToriRS_Location* type = CacheProvider_LocationGet(app->provider, loc->loc_id);
+                memo[slot].loc_id_plus1 = loc->loc_id + 1;
+                memo[slot].category = type ? type->category : 0;
+                memo[slot].script_id = app_client_trigger_script(
+                    app, RS_TRIGGER_LOC_ADD, loc->loc_id, memo[slot].category);
+            }
+            app_client_trigger_loc_fire(
+                app, loc, RS_TRIGGER_LOC_ADD, memo[slot].category, memo[slot].script_id);
+        }
     }
 }
 

@@ -1750,6 +1750,11 @@ test_world_builder_hot_swap(void)
         ToriDraw_SceneFrameEnd(scene);
         WorldBuilder_HotSwap(builder, stage);
         ToriDraw_SceneSetDeferredPool(scene, -1);
+        /* The swap buries the old scene's models; the client frees them over
+         * the next frames (app_run_background_floor), this test at once. */
+        TEST_ASSERT(scene->graveyard_count > 0, "the swap defers the old scene's model frees");
+        while( ToriDraw_SceneGraveyardDrain(scene, 4096) > 0 )
+            ;
 
         {
             struct WbState const swapped = wb_state(builder, world, scene);

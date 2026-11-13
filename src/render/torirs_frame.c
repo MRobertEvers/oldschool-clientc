@@ -238,6 +238,15 @@ frame_translate_scene_event(
         out->kind = TORIRSRC_BATCH3D_CLEAR;
         out->u.batch.batch_id = TORIDRAW_SCENE_INVALID_BATCH_ID;
         out->u.batch.clear_all = true;
+        out->u.batch.scene_reset = true;
+        return true;
+    case TORIDRAW_EVENT_BATCH_STAGE_BEGIN:
+        out->kind = TORIRSRC_BATCH3D_STAGE_BEGIN;
+        out->u.batch.batch_id = ev->batch_id;
+        return true;
+    case TORIDRAW_EVENT_BATCH_SWAP:
+        out->kind = TORIRSRC_BATCH3D_SWAP;
+        out->u.batch.batch_id = ev->batch_id;
         return true;
     default:
         return false;

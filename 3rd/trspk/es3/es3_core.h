@@ -119,6 +119,7 @@
 #include "core/trspk_pose.h"
 #include "core/trspk_triangles.h"
 #include "core/trspk_vbo.h"
+#include "core/trspk_world_build.h"
 #include "render/torirs_frame.h"
 #include "render/torirs_polygon.h"
 #include "render/trspk_toridraw.h"
@@ -470,6 +471,18 @@ struct ES3UIBatch
 /* The world build's buffer starts at one 16-bit window's worth and doubles. */
 #define ES3_WORLD_VBO_INIT_VERTICES 65536u
 
+/* One world build's GPU side: the drawn build's or the stage's. Exchanged
+ * with the slots at the swap; neither is ever shrunk, so storage that stays
+ * resident takes the next build's ranged uploads (a fresh glBufferData is a
+ * zero-fill of the whole size on WebGL). upload_pending: the CPU copy must be
+ * sent whole (a new buffer, or the context came back). */
+struct ES3WorldGpu
+{
+    GLuint vbo;
+    uint32_t vertex_capacity;
+    bool upload_pending;
+};
+
 struct ES3ModelGroup
 {
     struct TRSPK_VBO* vbo_cpu;
@@ -815,29 +828,40 @@ struct TRSPK_Renderer_ES3
     struct TRSPK_PoseTable poses;
 
     /*
-     * The world build (TORIRSRC_BATCH3D_*): one Batch32, written once between
-     * BEGIN and END, uploaded once into world_vbo, and left alone until the
-     * next build or clear -- never unloaded from, never compacted. A pose is
-     * located by its vertex base alone: with 32-bit indices there are no
-     * pages, no per-page offsets and no bump allocator (the GL3 design,
-     * platform_sdl2_renderer_gl3.c). A script's loc is not in it
-     * (world_builder spawns runtime locs off the batch path); it is a
-     * retained model in groups[TRSPK_VBO_GROUP_STATIC].
+     * The world build (TORIRSRC_BATCH3D_*), the GL3 design
+     * (platform_sdl2_renderer_gl3.c) on the shared core
+     * (core/trspk_world_build.h): an ADD is a record, baked by the first
+     * draw that resolves to it (es3_world_bake_on_draw) or by the prefill
+     * after the frame (es3_world_prefill), whichever is first; the span the
+     * bakes dirtied goes up with the next frame's upload. Left alone until
+     * the next build or clear -- never unloaded from, never compacted. A
+     * pose is located by its vertex base alone: with 32-bit indices there
+     * are no pages, no per-page offsets and no bump allocator. A script's
+     * loc is not in it (world_builder spawns runtime locs off the batch
+     * path); it is a retained model in groups[TRSPK_VBO_GROUP_STATIC].
      *
-     * world_live: the build is complete and drawable. world_upload_pending:
-     * world_vbo needs the CPU copy re-sent (a texture's scroll bytes changed,
-     * or the context came back).
+     * build.world is drawn from world_gpu. build.stage, the next scene's
+     * build during a background rebuild (TORIRSRC_BATCH3D_STAGE_BEGIN ..
+     * _SWAP), is baked and uploaded into stage_gpu by the prefill, and the
+     * swap exchanges the two. build.world.detached: elements the drawn
+     * build no longer describes (see trspk_element_mask.h).
      */
-    struct TRSPK_Batch32* world;
-    int world_batch_id;
-    bool world_live;
-    bool world_upload_pending;
-    GLuint world_vbo;
-    uint32_t world_gpu_vertex_capacity;
-    /* Elements the active world build no longer describes -- reloaded,
-     * animated or removed since it was baked (see trspk_element_mask.h).
-     * Draws stop resolving them to the build until the next one. */
-    struct TRSPK_ElementMask batch_detached;
+    struct TRSPK_WorldBuild build;
+    struct ES3WorldGpu world_gpu;
+    struct ES3WorldGpu stage_gpu;
+    /* ANIM_LOAD's tracks: each pose is baked into the static arena by the
+     * first draw that asks for it (es3_bake_track_pose), not every frame of
+     * every track at the announce. */
+    struct TRSPK_AnimTracks anim_tracks;
+    /* TORIRS_REBUILD_TIMING: one es3_world line per build event (END,
+     * STAGE_BEGIN, the stage prepared, SWAP). stage_prepared_said: the
+     * prepared line was printed for the open stage. */
+    bool rebuild_log;
+    bool stage_prepared_said;
+    uint32_t stage_prefill_frames;
+    /* The static-primary table was built while the drawn build still had
+     * poses to bake: built again once it has none (es3_world_prefill). */
+    bool static_primary_partial;
 
     /* Reused scratch makes each model one U16-chain append. */
     uint32_t* model_indices;
@@ -1098,14 +1122,20 @@ es3_zbuffer_track_dropped(
 void
 es3_zbuffer_batch_pose_baked(
     struct TRSPK_Renderer_ES3* renderer,
+    const struct TRSPK_WorldSlot* slot,
     int element_id,
     int anim_index,
     int pose_id,
     struct ToriDraw_ModelHandle handle);
-/** The world build is about to be dropped or rewritten: forget the depth
- *  materials of every pose it holds. */
+/** A world build (the drawn one or the stage) is about to be dropped or
+ *  rewritten: forget the depth materials of every pose it holds. */
 void
-es3_zbuffer_batch_dropped(struct TRSPK_Renderer_ES3* renderer);
+es3_zbuffer_batch_dropped(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct TRSPK_WorldSlot* slot);
+/** The stage and the drawn build changed places: so do their materials. */
+void
+es3_zbuffer_batch_swapped(struct TRSPK_Renderer_ES3* renderer);
 
 
 /* ---- the toolkit the two renderers compose from ------------------------- */
@@ -1291,27 +1321,95 @@ es3_apply_animation(
 
 /*
  * The world build. es3_world_begin drops whatever was there and starts a new
- * one; es3_world_add reserves and bakes one pose of it (false when the command
- * is not for the build being written, or the model has no faces), reporting
- * the pose's key; es3_batch_end completes it and sends it to the GPU;
- * es3_world_clear drops it when the scene says so. The depth path wraps them
- * with its material hooks.
+ * one; es3_world_add records one pose of it (or of the stage, by batch id);
+ * es3_batch_end makes it drawable and sizes its buffers; es3_world_clear
+ * drops the builds the scene says to. es3_world_stage_begin and
+ * es3_world_swap are the background rebuild's (see TRSPK_WorldBuild). The
+ * depth path wraps them with its material hooks.
+ *
+ * A record is baked by es3_world_record_bake. The two paths bake through a
+ * function of this type -- the painter passes es3_world_record_bake itself,
+ * the depth path its own that also classifies the pose -- so nothing here
+ * asks which path is running.
  */
+typedef void (*ES3WorldRecordBake)(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct TRSPK_WorldSlot* slot,
+    int record);
+
 void
 es3_world_begin(struct TRSPK_Renderer_ES3* renderer, int batch_id);
-bool
+void
 es3_world_add(
     struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_Batch* command,
-    bool animated,
-    int* out_anim_index,
-    int* out_pose_id);
+    bool animated);
 void
-es3_world_clear(struct TRSPK_Renderer_ES3* renderer, int batch_id, bool clear_all);
+es3_world_clear(
+    struct TRSPK_Renderer_ES3* renderer,
+    int batch_id,
+    bool clear_all,
+    bool scene_reset);
 void
 es3_batch_end(
     struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_Batch* command);
+void
+es3_world_stage_begin(struct TRSPK_Renderer_ES3* renderer, int batch_id);
+void
+es3_world_swap(struct TRSPK_Renderer_ES3* renderer, int batch_id);
+
+/** Bake record `record` of `slot` into its build: what BATCH3D_*_ADD baked
+ *  on arrival before the bake was deferred. */
+void
+es3_world_record_bake(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct TRSPK_WorldSlot* slot,
+    int record);
+
+/** A draw of (element, track, pose) that the drawn build holds unbaked: bake
+ *  it now with `bake`. True when it did. One load and a branch once the
+ *  build is all baked. */
+bool
+es3_world_bake_on_draw(
+    struct TRSPK_Renderer_ES3* renderer,
+    int element_id,
+    int anim_index,
+    int pose_id,
+    ES3WorldRecordBake bake);
+
+/** After the frame is drawn: what is left of the builds' bake takes the
+ *  frame's remaining budget (trspk_world_build_slice_us), the drawn build's
+ *  first, then the stage's, whose baked span goes to stage_gpu in the same
+ *  slice; a stage baked and uploaded whole is reported prepared.
+ *  `render_start_us`: PlatformWindow_TicksUs at the render's start. */
+void
+es3_world_prefill(
+    struct TRSPK_Renderer_ES3* renderer,
+    uint64_t render_start_us,
+    ES3WorldRecordBake bake);
+
+/** ANIM_LOAD accepted by es3_animation_load_check: the track is announced,
+ *  not baked (each pose is baked by es3_bake_track_pose on first draw). */
+void
+es3_animation_announce(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand_AnimLoad* command,
+    int anim_index);
+
+/** A draw's pose from its element's announced track, baked into the static
+ *  arena now -- the first draw that asks for it -- and recorded in the pose
+ *  table. False when no announced track matches the draw. On true,
+ *  *out_baked is the posed model the bake read (the depth path classifies
+ *  it); the caller frees it with ToriDraw_ModelFree. */
+bool
+es3_bake_track_pose(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    int anim_index,
+    int pose_id,
+    uint32_t* out_vertex_base,
+    struct ToriDraw_Model** out_baked);
 /** Reclaim the retained arena's unloaded ranges. Between frames only: the
  *  frame's draw sequence holds vertex bases into it. */
 void

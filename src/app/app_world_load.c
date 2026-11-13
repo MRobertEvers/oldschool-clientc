@@ -430,6 +430,11 @@ app_world_load_begin(
 void
 App_WorldLoadFinish(struct App* app)
 {
+    /* TORIRS_REBUILD_TIMING: the finish's stages, one line. */
+    double tf[8] = { 0 };
+    int const timing = WorldBuilder_TimingOn();
+    if( timing )
+        tf[0] = WorldBuilder_TimingNowMs();
     app->world_load_inflight = 0;
     ToriRS_BootTelemetry_Mark("world_loaded");
 
@@ -447,10 +452,14 @@ App_WorldLoadFinish(struct App* app)
          * rebuild is materialised by its own set_position rather than being
          * swept up by a pass that already ran. */
         app_plugin_objects_rebuild(app);
+        if( timing )
+            tf[1] = WorldBuilder_TimingNowMs();
         /* Every loc in the new scene gets its LOC_ADD trigger. After the
          * plugin seam because a trigger script can create overlays, and the
          * object rebuild sweeps anything placed before it. */
         app_client_triggers_world_loaded(app);
+        if( timing )
+            tf[2] = WorldBuilder_TimingNowMs();
         /* Ground items that were still waiting for a model when the scene was
          * rebuilt: their placeholders dropped themselves for the rebuild and
          * take new ones now, against this generation. */
@@ -463,6 +472,8 @@ App_WorldLoadFinish(struct App* app)
          * arrives after this lands after it. */
         if( server_driven )
             app_world_loc_changes_replace(app);
+        if( timing )
+            tf[3] = WorldBuilder_TimingNowMs();
         World_SetHeightFn(app->world, app_world_height, app);
         {
             struct World_SeqSource seq_source;
@@ -532,7 +543,11 @@ App_WorldLoadFinish(struct App* app)
         }
         /* World scenery models reference textures; the bridge scan walks the
          * scene elements the rebuild just created. */
+        if( timing )
+            tf[4] = WorldBuilder_TimingNowMs();
         app_sync_textures(app);
+        if( timing )
+            tf[5] = WorldBuilder_TimingNowMs();
         /* Decouple the BFS window from the resident scene size: rsmod floods a
          * fixed 128x128 box around the mover. LostCity leaves this at 0
          * (whole map). */
@@ -548,6 +563,14 @@ App_WorldLoadFinish(struct App* app)
         {
             struct WorldEntity_Player* local = app_local_player(app);
             app_rebuild_world_map(app, app_minimap_level(app, local));
+        }
+        if( timing )
+        {
+            tf[6] = WorldBuilder_TimingNowMs();
+            TORIRS_REPORT("rebuild_timing: load_finish plugins=%.2fms triggers=%.2fms loc_changes=%.2fms "
+                          "seq_cam=%.2fms textures=%.2fms minimap=%.2fms\n",
+                tf[1] - tf[0], tf[2] - tf[1], tf[3] - tf[2], tf[4] - tf[3], tf[5] - tf[4],
+                tf[6] - tf[5]);
         }
 
         if( server_driven )

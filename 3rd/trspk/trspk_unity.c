@@ -17,3 +17,4 @@
 #include "core/trspk_triangles.c"
 #include "core/trspk_vbo.c"
 #include "core/trspk_vbochain16.c"
+#include "core/trspk_world_build.c"

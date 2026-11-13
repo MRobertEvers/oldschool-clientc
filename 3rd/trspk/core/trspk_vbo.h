@@ -60,6 +60,15 @@ trspk_vbo_growby(
     struct TRSPK_VBO* vbo,
     uint32_t amount);
 
+/* Room for `capacity` vertices without changing vertex_count. An empty VBO
+ * takes fresh storage instead of copying its old contents. A deferred world
+ * build reserves the size it is about to bake with it
+ * (trspk_batch32_reserve_vertices). */
+void
+trspk_vbo_reserve(
+    struct TRSPK_VBO* vbo,
+    uint32_t capacity);
+
 void
 trspk_vbo_ensure_capacity(
     struct TRSPK_VBO* vbo,

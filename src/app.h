@@ -3116,6 +3116,8 @@ struct App
         uint64_t build_slice_us_sum;
         uint64_t build_slice_us_max;
         int build_units;
+        /* Frames the job waited for the renderer's staged batch (GL3). */
+        int prep_frames;
         /* TORIRS_REBUILD_TIMING: the commit frame's packet work after the
          * commit itself (the held packets), measured to the pump's return. */
         int held_open;
@@ -3145,6 +3147,18 @@ struct App
         double shift_ms;
         double finish_ms;
         double held_ms;
+        /* Every frame's time, in tenths of a ms: the window's (series) and,
+         * after it closes, the APP_REBUILD_AFTER_FRAMES that follow it (a
+         * GPU lane is still baking the new build's tail on those). */
+        uint16_t series[192];
+        int after_left;
+        int after_frames;
+        uint16_t after[64];
+        /* The current frame's App_RunOnce, by stage (app_rebuild_mark):
+         * reported for the frame that closes the window. */
+        char const* mark_name[32];
+        uint64_t mark_us[32];
+        int marks;
     } rebuild_frames;
 
     /* ---- interaction state (Part 6) ---- */

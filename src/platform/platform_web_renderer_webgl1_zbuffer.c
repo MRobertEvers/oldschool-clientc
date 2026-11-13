@@ -1916,6 +1916,10 @@ es2z_dispatch(struct TRSPK_Renderer_ES2* renderer, const struct ToriRS_RenderCom
     case TORIRSRC_SPRITE_BEGIN:
     case TORIRSRC_SPRITE_END:
     case TORIRSRC_FONT_BEGIN:
+    /* Staged world builds: this lane does not ask for them
+     * (ToriDraw_SceneSetBatchStaging), so the scene never sends these. */
+    case TORIRSRC_BATCH3D_STAGE_BEGIN:
+    case TORIRSRC_BATCH3D_SWAP:
     case TORIRSRC_FONT_END:
         break;
     case TORIRSRC_SPRITE_LOAD:

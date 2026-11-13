@@ -795,6 +795,12 @@ enum ToriDraw_EventKind
     TORIDRAW_EVENT_BATCH_END,
     TORIDRAW_EVENT_BATCH_CLEAR,
     TORIDRAW_EVENT_SCENE_RESET,
+    /* A staged batch (ToriDraw_SceneStageBatchBegin): opened beside the live
+     * one, filled by BATCH_MODEL_ADDs carrying its id, and made the live batch
+     * by BATCH_SWAP at the adoption. Emitted only to a scene whose renderer
+     * said it can hold two (ToriDraw_SceneSetBatchStaging). */
+    TORIDRAW_EVENT_BATCH_STAGE_BEGIN,
+    TORIDRAW_EVENT_BATCH_SWAP,
 };
 
 struct ToriDraw_Event
@@ -865,6 +871,10 @@ struct ToriDraw_SceneElement
      *  pool is the scene's deferred pool (ToriDraw_SceneSetDeferredPool): no
      *  renderer has seen it, and ToriDraw_SceneAdoptPool emits its loads. */
     bool load_deferred;
+    /** Its BATCH_MODEL_ADD went out in the scene's staged batch with the
+     *  model and position it still has (ToriDraw_SceneStageBatchStep);
+     *  cleared by a change to either, so the adoption sends it again. */
+    bool stage_emitted;
     bool is_skeletal; /* true: use skeletal_animation; false: use animation */
     int skeletal_play_frames; /* playback length from seq anim_maya_end-start; -1 = palette size */
     int anim_seq_id;
@@ -1195,6 +1205,25 @@ struct ToriDraw_Scene
      *  none (ToriDraw_SceneSetDeferredPool). Plus one so a zeroed scene --
      *  every scene, at creation -- defers nothing. */
     int deferred_pool_plus1;
+    /** The staged batch (ToriDraw_SceneStageBatchBegin): whether the renderer
+     *  can hold one beside the live batch, its id plus one (0: none, so a
+     *  zeroed scene has none), the pool it stages, and the next element
+     *  index ToriDraw_SceneStageBatchStep looks at. */
+    bool batch_staging_supported;
+    int staged_batch_plus1;
+    int staged_pool;
+    int staged_cursor;
+    /** Every element has been sent (the last step returned 1), and the
+     *  renderer has since said it holds the whole stage baked and uploaded
+     *  (ToriDraw_SceneStageBatchMarkPrepared). */
+    bool staged_sent;
+    bool staged_prepared;
+    /** Models of cleared elements whose free was deferred
+     *  (ToriDraw_SceneClearPoolDeferFree), freed a few at a time by
+     *  ToriDraw_SceneGraveyardDrain. */
+    struct ToriDraw_ModelHandle* graveyard;
+    int graveyard_count;
+    int graveyard_cap;
 
     struct ToriDraw_ScenePendingPose* pending_poses;
     int pending_pose_count;

@@ -67,11 +67,13 @@ app_logic_tick(struct App* app)
      * (on_server_tick, raised at the tick fence). */
     PluginHost_LogicTick(app->plugins, (int)app->logic_cycle);
 
+    app_rebuild_mark(app, "tick_pre");
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TICK_PACKETS)
     {
         if( app_pump_net_packets(app) )
             redraw = 1;
     }
+    app_rebuild_mark(app, "tick_pump");
 
     /* No widget hook may observe a half-applied packet/interface transaction.
      * The next logic tick resumes the serial runner; the shell keeps presenting

@@ -458,6 +458,25 @@ ToriDraw_SceneClear(struct ToriDraw_Scene* scene);
  *  STATIC pool (view 0's static half) also resets batch bookkeeping and drops
  *  the retained batch arena — batches are that pool's alone; every other pool
  *  is unloaded element by element instead. */
+/**
+ * ToriDraw_SceneClearPool, but the elements' models are not freed here: they
+ * go to the scene's graveyard and ToriDraw_SceneGraveyardDrain frees them over
+ * the following frames. For a clear whose cost lands on one frame that must
+ * stay short (the background rebuild's swap: ~18k old models, ~2.6 ms). The
+ * elements and their ids are released at once, as by ToriDraw_SceneClearPool;
+ * nothing can reach a buried model.
+ */
+void
+ToriDraw_SceneClearPoolDeferFree(
+    struct ToriDraw_Scene* scene,
+    int pool);
+
+/** Free up to `max_models` buried models. Returns how many are left. */
+int
+ToriDraw_SceneGraveyardDrain(
+    struct ToriDraw_Scene* scene,
+    int max_models);
+
 void
 ToriDraw_SceneClearPool(
     struct ToriDraw_Scene* scene,
@@ -535,6 +554,75 @@ ToriDraw_SceneAdoptPool(
     struct ToriDraw_Scene* scene,
     int from_pool,
     int to_pool);
+
+/**
+ * STAGED BATCHES. A retained renderer that can hold a second world batch
+ * beside the one it draws says so here (GL3, WebGL2, GLES3, at init). Every other
+ * renderer leaves it off and sees exactly the stream it always has.
+ */
+void
+ToriDraw_SceneSetBatchStaging(
+    struct ToriDraw_Scene* scene,
+    bool supported);
+
+bool
+ToriDraw_SceneBatchStagingSupported(const struct ToriDraw_Scene* scene);
+
+/**
+ * Open a staged batch for the deferred pool `pool`: BATCH_STAGE_BEGIN with a
+ * fresh batch id. ToriDraw_SceneStageBatchStep then sends the pool's elements
+ * into it a few at a time, so the renderer can prepare the next scene over
+ * the frames before the swap; ToriDraw_SceneAdoptPool sends whatever is still
+ * missing and BATCH_SWAP instead of a whole batch. Clearing `pool` before
+ * the adoption drops the stage (BATCH_CLEAR with its id). Requires
+ * ToriDraw_SceneBatchStagingSupported; one stage at a time.
+ */
+void
+ToriDraw_SceneStageBatchBegin(
+    struct ToriDraw_Scene* scene,
+    int pool);
+
+/**
+ * Send up to `max_adds` of the staged pool's elements (a BATCH_MODEL_ADD
+ * each, looking at no more than 8 x max_adds element slots). 1: every
+ * element has been sent; it may be called again, and sends only what has
+ * changed since.
+ */
+bool
+ToriDraw_SceneStageBatchStep(
+    struct ToriDraw_Scene* scene,
+    int max_adds);
+
+/**
+ * The renderer's word that batch `batch_id` is baked and uploaded whole, as of
+ * the events it has consumed. It drains the scene's events every frame before
+ * saying so, so once every add has been sent the word covers all of them;
+ * said before that, it is ignored. A stale or unknown id is ignored.
+ */
+void
+ToriDraw_SceneStageBatchMarkPrepared(
+    struct ToriDraw_Scene* scene,
+    int batch_id);
+
+/** 1: there is a stage, all of it has been sent, and the renderer has it
+ *  prepared -- the swap will cost the renderer next to nothing. */
+bool
+ToriDraw_SceneStageBatchPrepared(const struct ToriDraw_Scene* scene);
+
+/** 1: a stage is open -- begun, and not yet swapped in, cleared or forgotten. */
+bool
+ToriDraw_SceneStageBatchOpen(const struct ToriDraw_Scene* scene);
+
+/**
+ * The renderer is being replaced (a live renderer switch): the stage it held
+ * goes with it. The stage is forgotten -- its pool's adoption sends an
+ * ordinary BATCH_BEGIN .. END instead of a SWAP the next renderer could not
+ * honour -- and staging is off until the next renderer says it can
+ * (ToriDraw_SceneSetBatchStaging), so a lane that cannot hold a stage is
+ * never sent one.
+ */
+void
+ToriDraw_SceneStageBatchForget(struct ToriDraw_Scene* scene);
 
 int
 ToriDraw_SceneElementRemove(
