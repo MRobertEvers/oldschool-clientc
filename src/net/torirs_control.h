@@ -90,11 +90,14 @@ enum TorirsControlType
     /**
      * A replay seek's chase tick begins (replay/replay_scrub.h, CHASE): its
      * world packets are withheld, so the local player's tile is stated here
-     * for the scripts that read `coord`, and the client clocks the tick did
-     * not run are charged. Ahead of the tick's packets.
-     * Payload `u32 coord, u32 charge, u32 len, len bytes name`: `coord` packed
-     * as the coord type is (level << 28 | x << 14 | z), `charge` the clocks to
-     * add to clientclock (>= 0), `name` the local player's name on a chase's
+     * for the scripts that read `coord`, and the client charges its clock
+     * the cycles the chase did not run. Ahead of the tick's packets.
+     * Payload `u32 coord, u32 cycle, u32 len, len bytes name`: `coord` packed
+     * as the coord type is (level << 28 | x << 14 | z); `cycle` the client
+     * cycle, counted from the chase's start, in which a chase of 30 cycles a
+     * tick executes this tick (bits 0..30), and bit 31 set on a chase's first
+     * tick, which the count starts from (the client's arithmetic is
+     * exec_control_replay_coord's); `name` the local player's name on a chase's
      * first tick (len 0 on the others; never NUL-terminated, at most
      * TORIRS_CONTROL_REPLAY_NAME_MAX - 1 bytes).
      */
@@ -352,7 +355,10 @@ torirs_control_get_str(
 struct TorirsControlReplayCoord
 {
     int coord;
-    int charge;
+    /** The full-rate chase's cycle for the tick, and whether the chase
+     *  starts here. */
+    int cycle;
+    int first;
     /** "" on every chase tick but the first. */
     char name[TORIRS_CONTROL_REPLAY_NAME_MAX];
 };
@@ -379,19 +385,20 @@ struct TorirsControlReplayChat
 static inline int
 torirs_control_replay_coord_encode(
     int coord,
-    int charge,
+    int cycle,
+    int first,
     char const* name,
     uint8_t* out)
 {
     int name_len;
 
-    assert(charge >= 0);
+    assert(cycle >= 0);
     assert(name);
     assert(out);
     name_len = (int)strlen(name);
     assert(name_len < TORIRS_CONTROL_REPLAY_NAME_MAX);
     torirs_control_put_u32(out, (uint32_t)coord);
-    torirs_control_put_u32(out + 4, (uint32_t)charge);
+    torirs_control_put_u32(out + 4, (uint32_t)cycle | (first ? 0x80000000u : 0u));
     return 8 + torirs_control_put_str(out + 8, name, name_len);
 }
 
@@ -409,9 +416,8 @@ torirs_control_replay_coord_decode(
     if( frame->length < 12 )
         return 0;
     out->coord = (int)torirs_control_get_u32(frame->payload);
-    out->charge = (int)torirs_control_get_u32(frame->payload + 4);
-    if( out->charge < 0 )
-        return 0;
+    out->cycle = (int)(torirs_control_get_u32(frame->payload + 4) & 0x7fffffffu);
+    out->first = (torirs_control_get_u32(frame->payload + 4) & 0x80000000u) != 0;
     if( !torirs_control_get_str(frame, &at, out->name, (int)sizeof(out->name)) )
         return 0;
     return at == frame->length;

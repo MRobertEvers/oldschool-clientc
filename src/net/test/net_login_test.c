@@ -628,7 +628,7 @@ test_control_replay_frames(void)
     uint8_t dialog_payload[TORIRS_CONTROL_REPLAY_DIALOG_BYTES];
     uint8_t const chat_text[5] = { 'h', 'e', 'l', 'l', 'o' };
     int const lens[4] = {
-        torirs_control_replay_coord_encode((1 << 28) | (3222 << 14) | 3218, 870, "Zezima", coord_payload),
+        torirs_control_replay_coord_encode((1 << 28) | (3222 << 14) | 3218, 870, 1, "Zezima", coord_payload),
         torirs_control_replay_world_encode(2983, 17, world_payload),
         torirs_control_replay_chat_encode(1, 2, 0x0102, "", chat_text, 5, chat_payload),
         torirs_control_replay_dialog_encode(PKTOUT_NAME_RESUME_P_COUNTDIALOG, dialog_payload),
@@ -674,7 +674,8 @@ test_control_replay_frames(void)
 
                 assert(torirs_control_replay_coord_decode(&frame, &c));
                 assert(c.coord == ((1 << 28) | (3222 << 14) | 3218));
-                assert(c.charge == 870);
+                assert(c.cycle == 870);
+                assert(c.first == 1);
                 assert(strcmp(c.name, "Zezima") == 0);
                 /* One byte short: the name runs off the end. */
                 frame.length--;

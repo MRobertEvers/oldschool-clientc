@@ -322,6 +322,12 @@ struct Client
     /** The fast plan's control frames (net/torirs_control.h): chase tiles,
      *  keyframes (and how many asked for a rebuild); REBUILDs executed. */
     int coords;
+    /** The chase ticks' cycles (TorirsControlReplayCoord.cycle): how many
+     *  started a chase, the last one stated, and whether any tick stated a
+     *  cycle that was not past its predecessor's. */
+    int coord_firsts;
+    int coord_cycle_last;
+    int coord_cycle_unordered;
     int worlds;
     int world_rebuilds;
     int world_tick;
@@ -433,6 +439,11 @@ frame(struct Client* c)
 
             TEST_CHECK(torirs_control_replay_coord_decode(packet._control, &coord));
             c->coords++;
+            if( coord.first )
+                c->coord_firsts++;
+            else if( coord.cycle <= c->coord_cycle_last )
+                c->coord_cycle_unordered++;
+            c->coord_cycle_last = coord.cycle;
         }
         else if( packet._control && packet._control->type == TORIRS_CONTROL_REPLAY_WORLD )
         {
@@ -777,6 +788,11 @@ test_fast_seek(void)
     TEST_CHECK(c.world_tick == 22);
     TEST_CHECK(c.world_rebuilds == 1);
     TEST_CHECK(c.coords >= 18);
+    /* The chase's schedule: one chase, and its ticks, recorded 600 ms apart,
+     * each on a poll of its own -- 30 cycles after the tick before it. */
+    TEST_CHECK(c.coord_firsts == 1);
+    TEST_CHECK(c.coord_cycle_unordered == 0);
+    TEST_CHECK(c.coord_cycle_last == 30 * (c.coords - 1));
     /* Session packets are never withheld: every VARP, once, in order; the
      * chase's dialog answer and the pre-roll's RECONNECT where they were. */
     check_session_varps(&c, 0, 38);

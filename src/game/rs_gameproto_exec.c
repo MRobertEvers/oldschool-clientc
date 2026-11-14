@@ -2144,7 +2144,39 @@ exec_control_replay_coord(
     app->replay_chase_coord_valid = 1;
     app->replay_chase_coord = c.coord;
     app->host.local_coord = c.coord;
-    app->host.client_clock += c.charge;
+    /* The clock: c.cycle is the cycle a chase of 30 cycles a tick executes
+     * this tick in, were its pipeline never busy. That chase runs every
+     * cycle this one ran since the last tick (a tick held up runs late there
+     * too) and the rest to c.cycle besides; those are charged. The cycles
+     * that did not tick clientclock here (a busy pipeline) did not there. */
+    {
+        int64_t cycle = c.cycle;
+        int64_t charge = c.cycle;
+
+        if( !c.first )
+        {
+            int64_t const ran = (int64_t)(app->logic_cycle - app->replay_chase_logic_cycle);
+
+            if( cycle < app->replay_chase_cycle + ran )
+                cycle = app->replay_chase_cycle + ran;
+            charge = cycle - app->replay_chase_cycle - ran;
+        }
+        app->replay_chase_cycle = cycle;
+        app->replay_chase_logic_cycle = app->logic_cycle;
+        app->host.client_clock += (int)charge;
+        {
+            static int trace = -1;
+
+            /* TORIRS_REPLAY_CHASE_TRACE=1 (replay_scrub.c has the other half). */
+            if( trace < 0 )
+                trace = getenv("TORIRS_REPLAY_CHASE_TRACE") != NULL;
+            if( trace )
+                TORIRS_REPORT("replay: chase coord executed: clientclock %d (charged %lld), "
+                              "logic cycle %llu\n",
+                              app->host.client_clock, (long long)charge,
+                              (unsigned long long)app->logic_cycle);
+        }
+    }
     /* What the local player's appearance would have published
      * (app_world_apply.c): the chat's name and CHAT_PLAYERNAME. */
     if( c.name[0] )

@@ -2029,6 +2029,11 @@ struct App
      *  clears the flag (replay/replay_world_apply.c). */
     int replay_chase_coord_valid;
     int replay_chase_coord;
+    /** The chase's clock (rs_gameproto_exec.c, exec_control_replay_coord):
+     *  the cycle of a chase of 30 cycles a tick in which the last chase tick
+     *  was executed, and the logic cycle this client executed it in. */
+    int64_t replay_chase_cycle;
+    uint64_t replay_chase_logic_cycle;
     /**
      * The player asked to leave, and the request has not been acted on yet.
      *

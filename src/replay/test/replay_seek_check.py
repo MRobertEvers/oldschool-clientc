@@ -16,7 +16,7 @@ clientscript-variable items behind a differing digest are listed.
 
     make -C src replay-seek-check RECORDING=<file.bin> TICKS="t1 t2 ..."
         [REPLAY_SEEK_CHECK_BINARY=build_seek_opt/torirs] [MANIFEST=...]
-        [CHASE_CYCLES=30] [OUT=<dir>]
+        [CHASE_CYCLES=1] [OUT=<dir>]
 
 Exit 0 when every domain matches at every tick.
 """
@@ -96,7 +96,7 @@ def main():
         return 2
     binary, recording, ticks = sys.argv[1], sys.argv[2], [int(t) for t in sys.argv[3].split()]
     manifest = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] else "manifests/manifest_osrs242_replay.ini"
-    cycles = int(sys.argv[5]) if len(sys.argv) > 5 and sys.argv[5] else 30
+    cycles = int(sys.argv[5]) if len(sys.argv) > 5 and sys.argv[5] else 1
     out_dir = sys.argv[6] if len(sys.argv) > 6 and sys.argv[6] else tempfile.mkdtemp(prefix="replay_seek_check_")
     os.makedirs(out_dir, exist_ok=True)
     print("replay-seek-check: %s, ticks %s, chase %d cycles a tick, logs in %s"

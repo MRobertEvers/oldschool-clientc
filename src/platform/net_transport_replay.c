@@ -754,7 +754,8 @@ play(
              * (net/torirs_control.h), so the bytes around them keep their
              * order without anything waiting for the bus. */
             uint8_t payload[TORIRS_CONTROL_REPLAY_COORD_BYTES_MAX];
-            int const len = torirs_control_replay_coord_encode(next.coord, next.charge, next.name, payload);
+            int const len = torirs_control_replay_coord_encode(
+                next.coord, next.cycle, next.cycle_first, next.name, payload);
 
             pend_control(self, TORIRS_CONTROL_REPLAY_COORD, payload, len);
         }

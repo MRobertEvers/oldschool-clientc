@@ -104,6 +104,17 @@ struct ReplayScrub
     /* The fast plan. */
     enum ReplaySeekMode mode;
     int chase_cycles;
+    /** The chase's schedule (chase_cycle), kept while a chase of fewer than
+     *  30 cycles a tick runs: the replay clock its polls are counted from
+     *  and the cycle of the poll there; the first poll a tick can go out on
+     *  (1, or 0 behind a stall); the cycle of the last tick handed out (-1:
+     *  none yet) and the full-rate chase's clock at the poll it went on. */
+    int chase_sched_set;
+    int64_t chase_grid_ms;
+    int64_t chase_grid_cycle;
+    int chase_grid_first_poll;
+    int64_t chase_cycle_last;
+    int64_t chase_poll_ms;
     /** Built on the first fast seek (ReplayLedger_Build): the keyframes and
      *  the chase's tiles. */
     struct ReplayLedger* ledger;
@@ -146,6 +157,10 @@ struct ReplayScrub
 };
 
 /* --- helpers ------------------------------------------------------------- */
+
+/* The chase's schedule, below the seek plans that close one. */
+static void
+chase_sched_end(struct ReplayScrub* scrub);
 
 /* The first tick none of whose packets has been handed out. */
 static int
@@ -480,6 +495,8 @@ plan_build(
         /* The chase starts at the live client's frontier: a tick partly
          * handed out before the seek gets no tile of its own. */
         scrub->chase_tick = restart ? -1 : from_tick - 1;
+        /* A chase in flight is closed: this one counts from here. */
+        chase_sched_end(scrub);
         chase_name(scrub, from_tick > 0 ? from_tick : 1);
         scrub->chat_count = 0;
         scrub->chat_at = 0;
@@ -494,29 +511,139 @@ plan_build(
     scrub->plan.steps[scrub->plan.count++] = REPLAY_SEEK_PRESENT;
 }
 
-/* The clientclock a chase tick does not run: the tick's span on the replay
- * clock (from its first packet to the next tick's, each gap cut at
- * REPLAY_MAX_GAP_MS as playback cuts it) in client cycles, less the
- * chase_cycles / 30 of it the client does run. */
-static int
-chase_charge(
-    struct ReplayScrub const* scrub,
-    int tick)
+/* --- the chase's schedule --------------------------------------------------
+ *
+ * A chase of 30 cycles a tick (the measure: REPLAY_TICK_CYCLES) polls the
+ * recording once a client frame of 30 cycles, 600 ms of the replay clock a
+ * poll. A tick goes out on the first poll at or past its first packet and is
+ * executed in that frame's first cycle; ticks of one poll are executed a
+ * cycle apart. So every chase tick has a cycle, counted from the chase's
+ * start, that the full-rate chase executes it in -- a function of the
+ * recording alone.
+ *
+ * A chase of fewer cycles runs the replay clock 30 / k times as fast and
+ * states that cycle in each tick's COORD. The client charges its clock the
+ * difference between the tick's cycle and the cycles it really ran
+ * (rs_gameproto_exec.c, exec_control_replay_coord): a script the tick's
+ * packets run stamps the clock the full-rate chase has there, and nothing
+ * drifts. (The charge used to be made here, a tick's whole span ahead of its
+ * packets and rounded per tick: every stamp of a tick was late by its span,
+ * and the clock ran 88 cycles ahead over 3,000 ticks of a rev-242
+ * recording.) */
+
+#define REPLAY_POLL_MS ((int64_t)REPLAY_TICK_CYCLES * REPLAY_CYCLE_MS)
+
+static void
+chase_sched_begin(struct ReplayScrub* scrub)
 {
-    struct RsproxRecording const* rec = scrub->rec;
-    uint32_t const first = ReplayLedger_FirstFrame(scrub->ledger, tick);
-    uint32_t const next = ReplayLedger_FirstFrame(scrub->ledger, tick + 1);
-    uint64_t span_ms = 0;
-    uint64_t span_cycles;
+    if( scrub->chase_sched_set || scrub->chase_cycles == REPLAY_TICK_CYCLES )
+        return;
+    scrub->chase_sched_set = 1;
+    /* The first poll is 600 ms from here, and its ticks are cycle 0. */
+    scrub->chase_grid_ms = (int64_t)scrub->clock_ms;
+    scrub->chase_grid_cycle = -REPLAY_TICK_CYCLES;
+    scrub->chase_grid_first_poll = 1;
+    scrub->chase_cycle_last = -1;
+    scrub->chase_poll_ms = (int64_t)scrub->clock_ms;
+}
 
-    for( uint32_t f = first; f < next && f + 1 < (uint32_t)rec->frame_count; f++ )
+/* The schedule closed where the clock is about to be set anyway. */
+static void
+chase_sched_drop(struct ReplayScrub* scrub)
+{
+    scrub->chase_sched_set = 0;
+}
+
+/* The poll, counted from the grid, a packet recorded at t_ms goes out on. */
+static int64_t
+chase_poll_of(
+    struct ReplayScrub const* scrub,
+    uint64_t t_ms)
+{
+    int64_t poll = 0;
+
+    if( (int64_t)t_ms > scrub->chase_grid_ms )
+        poll = ((int64_t)t_ms - scrub->chase_grid_ms + REPLAY_POLL_MS - 1) / REPLAY_POLL_MS;
+    return poll < scrub->chase_grid_first_poll ? scrub->chase_grid_first_poll : poll;
+}
+
+/* The replay clock of the full-rate chase where this one stands: the poll
+ * its last tick went out on, or, with none handed out yet, the polls run. */
+static uint64_t
+chase_full_rate_ms(struct ReplayScrub const* scrub)
+{
+    int64_t ran;
+
+    if( !scrub->chase_sched_set )
+        return scrub->clock_ms;
+    if( scrub->chase_cycle_last >= 0 )
+        return (uint64_t)scrub->chase_poll_ms;
+    ran = (int64_t)scrub->clock_ms - scrub->chase_grid_ms;
+    if( ran <= 0 )
+        return scrub->clock_ms;
+    return (uint64_t)(scrub->chase_grid_ms + ran * scrub->chase_cycles / REPLAY_TICK_CYCLES);
+}
+
+/* The schedule closed where play goes on from the chase's cursor: the replay
+ * clock goes back to the full-rate chase's, which is where the client's
+ * clock stands, so the packets in front keep their spacing on it. */
+static void
+chase_sched_end(struct ReplayScrub* scrub)
+{
+    scrub->clock_ms = chase_full_rate_ms(scrub);
+    chase_sched_drop(scrub);
+}
+
+/* The cycle of the chase tick whose first packet was recorded at t_ms, and
+ * whether it is the chase's first. */
+static int
+chase_cycle(
+    struct ReplayScrub* scrub,
+    uint64_t t_ms,
+    int* out_first)
+{
+    int64_t poll;
+    int64_t cycle;
+
+    /* The measure itself charges nothing: every tick is a first one at 0. */
+    if( scrub->chase_cycles == REPLAY_TICK_CYCLES )
     {
-        uint64_t gap = rec->frames[f + 1].t_ms - rec->frames[f].t_ms;
-
-        span_ms += gap < REPLAY_MAX_GAP_MS ? gap : REPLAY_MAX_GAP_MS;
+        *out_first = 1;
+        return 0;
     }
-    span_cycles = span_ms / REPLAY_CYCLE_MS;
-    return (int)(span_cycles - span_cycles * (uint64_t)scrub->chase_cycles / REPLAY_TICK_CYCLES);
+    chase_sched_begin(scrub);
+    *out_first = scrub->chase_cycle_last < 0;
+    poll = chase_poll_of(scrub, t_ms);
+    cycle = scrub->chase_grid_cycle + poll * REPLAY_TICK_CYCLES;
+    if( cycle <= scrub->chase_cycle_last )
+        cycle = scrub->chase_cycle_last + 1;
+    scrub->chase_cycle_last = cycle;
+    if( scrub->chase_grid_ms + poll * REPLAY_POLL_MS > scrub->chase_poll_ms )
+        scrub->chase_poll_ms = scrub->chase_grid_ms + poll * REPLAY_POLL_MS;
+    assert(cycle <= INT_MAX);
+    return (int)cycle;
+}
+
+/* A stall in the recording, which playback skips: the full-rate chase waits
+ * it out to stall_end_ms on its polls, then its clock jumps to the packet
+ * behind the stall, which goes out on that same poll; the polls count from
+ * there. */
+static void
+chase_sched_stall(
+    struct ReplayScrub* scrub,
+    uint64_t stall_end_ms,
+    uint64_t resume_ms)
+{
+    int64_t poll;
+
+    if( !scrub->chase_sched_set )
+        return;
+    poll = chase_poll_of(scrub, stall_end_ms);
+    scrub->chase_grid_cycle += poll * REPLAY_TICK_CYCLES;
+    scrub->chase_grid_ms = (int64_t)resume_ms;
+    scrub->chase_grid_first_poll = 0;
+    if( (int64_t)resume_ms > scrub->chase_poll_ms )
+        scrub->chase_poll_ms = (int64_t)resume_ms;
 }
 
 /* The chase reached P: the keyframe, and whether the client's scene is
@@ -580,6 +707,7 @@ world_step(
     if( d->kf.scene >= 0 )
         scrub->client_scene_frame = (int)d->kf.scene_row.frame;
     /* The pre-roll plays on the recording's clock from P's first packet. */
+    chase_sched_end(scrub);
     if( scrub->cursor < rec->frame_count )
         scrub->clock_ms = rec->frames[scrub->cursor].t_ms;
     scrub->chase_wall_end = scrub->wall_ms;
@@ -860,6 +988,7 @@ cursor_back(
     scrub->cursor = f;
     scrub->next_input = i;
     scrub->last_tick = f > 0 ? rec->frames[f - 1].tick : 0;
+    chase_sched_drop(scrub);
     scrub->clock_ms = clock_ms;
     scrub->wait_map = 0;
     scrub->map_built = 0;
@@ -898,7 +1027,7 @@ ReplayScrub_CheckpointWanted(
 
         if( step == REPLAY_SEEK_RESTORE || step == REPLAY_SEEK_RESTART || step == REPLAY_SEEK_WORLD )
             return 0;
-        /* A chase tick's COORD charges the client clock before its packets:
+        /* A chase tick's COORD moves the client clock before its packets:
          * once it has gone, the boundary is no longer clean. */
         if( step == REPLAY_SEEK_CHASE && scrub->chase_tick >= staged_frontier(scrub) )
             return 0;
@@ -909,7 +1038,10 @@ ReplayScrub_CheckpointWanted(
     if( !ReplayCheckpointStore_Wants(scrub->checkpoints, tick) )
         return 0;
     *out_tick = tick;
-    *out_clock_ms = scrub->clock_ms;
+    /* A chase's own clock runs ahead of the client's: the checkpoint keeps
+     * the clock the full-rate chase has here, so the two agree when it is
+     * put back. */
+    *out_clock_ms = chase_full_rate_ms(scrub);
     return 1;
 }
 
@@ -1097,6 +1229,7 @@ ReplayScrub_Rewind(struct ReplayScrub* scrub)
     scrub->cursor = 0;
     scrub->next_input = 0;
     scrub->last_tick = 0;
+    chase_sched_drop(scrub);
     scrub->clock_ms = 0;
     scrub->wait_map = 0;
     scrub->map_built = 0;
@@ -1329,6 +1462,9 @@ ReplayScrub_Advance(
     assert(scrub);
     scrub->wall_ms = wall_ms;
     seek_watchdog(scrub);
+    /* Play going on from a chase that was cut short (a seek over it). */
+    if( scrub->chase_sched_set && (!scrub->seeking || step_plays(seek_step(scrub))) )
+        chase_sched_end(scrub);
     if( scrub->wait_map && !scrub->map_built && wall_ms - scrub->wait_since_ms > REPLAY_MAP_WAIT_MS )
     {
         TORIRS_ERR("replay: no MAP_BUILD_COMPLETE %d s after the tick %d rebuild; playing on\n",
@@ -1340,10 +1476,13 @@ ReplayScrub_Advance(
     if( scrub->wait_map && !scrub->map_built )
         return;
     /* A chase runs the recording's clock 30 / chase_cycles times as fast:
-     * a tick of it is chase_cycles client cycles, and the rest of the tick's
-     * clientclock is charged (ReplayScrub_Next, chase_charge). */
+     * a tick of it is chase_cycles client cycles, and the client charges its
+     * clock the rest from the cycle each tick states (chase_cycle). */
     if( scrub->seeking && seek_step(scrub) == REPLAY_SEEK_CHASE )
+    {
+        chase_sched_begin(scrub);
         step_ms = step_ms * REPLAY_TICK_CYCLES / (uint64_t)scrub->chase_cycles;
+    }
     /* So does a hold, or a seek, at its boundary. */
     if( at_stop(scrub) )
     {
@@ -1444,7 +1583,11 @@ ReplayScrub_Next(
              * jumps, so everything after keeps its own spacing. */
             if( scrub->cursor > 0 &&
                 scrub->clock_ms >= rec->frames[scrub->cursor - 1].t_ms + REPLAY_MAX_GAP_MS )
+            {
+                chase_sched_stall(
+                    scrub, rec->frames[scrub->cursor - 1].t_ms + REPLAY_MAX_GAP_MS, f->t_ms);
                 scrub->clock_ms = f->t_ms;
+            }
             else
                 return REPLAY_NEXT_WAIT;
         }
@@ -1481,7 +1624,22 @@ ReplayScrub_Next(
                 scrub->chase_tick = f->tick;
                 /* Tick 0's tile is the one its login REBUILD seeds. */
                 out->coord = (int)ReplayLedger_LocalTile(scrub->ledger, f->tick > 0 ? f->tick : 1);
-                out->charge = chase_charge(scrub, f->tick);
+                out->cycle = chase_cycle(scrub, f->t_ms, &out->cycle_first);
+                {
+                    static int trace = -1;
+
+                    /* TORIRS_REPLAY_CHASE_TRACE=1: with the client's line
+                     * (exec_control_replay_coord), a chase of few cycles set
+                     * beside a full-rate one, tick by tick. */
+                    if( trace < 0 )
+                        trace = getenv("TORIRS_REPLAY_CHASE_TRACE") != NULL;
+                    if( trace )
+                        TORIRS_REPORT("replay: chase coord tick %d: t %llu ms, clock %llu ms, "
+                                      "cycle %d%s\n",
+                                      f->tick, (unsigned long long)f->t_ms,
+                                      (unsigned long long)scrub->clock_ms, out->cycle,
+                                      out->cycle_first ? " (first)" : "");
+                }
                 snprintf(out->name, sizeof(out->name), "%s", scrub->chase_name);
                 scrub->chase_name[0] = '\0';
                 return REPLAY_NEXT_COORD;

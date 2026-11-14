@@ -91,7 +91,9 @@ enum ReplayNext
     /** Every frame has been handed out: end the session (the LOGOUT). */
     REPLAY_NEXT_END,
     /** A chase tick begins: step.coord is the local player's tile (packed as
-     *  `coord`), step.charge the client clocks the tick did not run.
+     *  `coord`), step.cycle the client cycle, counted from the chase's start,
+     *  that a chase of 30 cycles a tick executes it in (step.cycle_first on
+     *  the chase's first tick): the client charges its clock from it.
      *  A REPLAY_COORD control frame (net/torirs_control.h) at this
      *  byte of the stream. */
     REPLAY_NEXT_COORD,
@@ -115,7 +117,8 @@ struct ReplayStep
     int frame;
     int dialog_name;
     int coord;
-    int charge;
+    int cycle;
+    int cycle_first;
     /** COORD: the local player's name on a chase's first tick, else "".
      *  CHAT: the speaker's. */
     char name[32];
@@ -153,8 +156,15 @@ enum ReplaySeekMode
  *  varps, invs, stats, scene) equal to linear play at T and T+64 on a rev-241
  *  recording (500..4400) and a rev-227 one (3000, 16000). */
 #define REPLAY_SEEK_DEFAULT_MODE REPLAY_SEEK_MODE_FAST
-/** Client cycles a chase tick is given (TORIRS_REPLAY_CHASE_CYCLES). */
-#define REPLAY_CHASE_DEFAULT_CYCLES 30
+/** Client cycles a chase tick is given (TORIRS_REPLAY_CHASE_CYCLES). One: a
+ *  chase then takes half the time it takes at 30, and what it leaves differs
+ *  from a chase of 30 only in what interface scripts keep from the cycles
+ *  themselves -- clientclock stamps a few cycles apart where the pipeline
+ *  was busy for another length, the stage a timer-driven animation was
+ *  parked in, a `random` draw. Every world domain equals linear play's
+ *  (replay-seek-check: a rev-242 recording at 500, 3000, 4400; a rev-227 one
+ *  at 1500, 2600), and the login's stamps equal a chase of 30's. */
+#define REPLAY_CHASE_DEFAULT_CYCLES 1
 
 /** Ticks played in full in front of a fast seek's target. */
 #define REPLAY_PREROLL_TICKS 16
@@ -381,7 +391,8 @@ enum ReplaySeekMode
 ReplayScrub_SeekMode(struct ReplayScrub const* scrub);
 
 /** Client cycles a chase tick is given (1..REPLAY_TICK_CYCLES); the rest of
- *  the tick's 30 are charged to clientclock instead of run. */
+ *  the tick's 30 are charged to clientclock instead of run, so that it reads
+ *  at every tick what it reads in a chase of 30. */
 void
 ReplayScrub_SetChaseCycles(
     struct ReplayScrub* scrub,
