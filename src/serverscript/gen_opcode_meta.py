@@ -1586,6 +1586,17 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # under it. 0 releases a hold.
     "MIDI_HOLD": (11133, 1, 0, 0, 0),
 
+    # midi_song_here()
+    #
+    # The track of where the active player stands starts now, cut (fades
+    # 0/0/0/0), and any midi_hold is released: what Jagex sends as a scene's
+    # last card is shut and the player is free again (RSProx index 4563 [5182]
+    # Find My Way, 4565 [1626] Anywhere). Where the scene left the player in
+    # another music area than the one last heard, the region's own send
+    # (0/60/60/0) follows on the same tick (4562 [3863]: Island Life twice).
+    # A square with no track sends nothing.
+    "MIDI_SONG_HERE": (11137, 0, 0, 0, 0),
+
     # spotanim_npc_slot(spotanim $spot, int $height, int $delay, int $slot)
     #
     # `spotanim_npc` into one of the rev-239 npc's numbered graphic slots: the
@@ -2003,6 +2014,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_HEADBAR_FROM": (1 << POINTER_BITS["active_npc"], 0),
     "HPBAR_HUD_NPC": (1 << POINTER_BITS["active_player"], 0),
     "MIDI_HOLD": (1 << POINTER_BITS["active_player"], 0),
+    "MIDI_SONG_HERE": (1 << POINTER_BITS["active_player"], 0),
     "SPOTANIM_NPC_SLOT": (1 << POINTER_BITS["active_npc"], 0),
     "SPOTANIM_PL_SLOT": (1 << POINTER_BITS["active_player"], 0),
     "NPC_HEADICON": (1 << POINTER_BITS["active_npc"], 0),

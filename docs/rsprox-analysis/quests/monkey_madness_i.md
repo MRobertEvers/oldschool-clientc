@@ -36,7 +36,7 @@ varbits `mm_narnode` 121, `mm_caranock` 122, `mm_daero` 123, `mm_waydar` 124, `m
 | mm_caranock 0→1→2→3 | 4562 [759], [773], [774] | Caranock's pages | not checked |
 | mm_narnode 3→7 | 4562 [1100]..[1134] | Narnode's report pages | not checked |
 | mm_daero 0→7 | 4562 [1301]..[2619] | 5→6 goes out with the hangar scene's unlock [2578] | **fixed** for 5→6; others not checked |
-| mm_waydar 0→1 | 4562 [2748] | | not checked |
+| mm_waydar 0→1 | 4562 [2748] | "Did our glider survive?"; the Travel op appears with it | written there; **fixed**: it was never sent (varp 372) |
 | mm_lumdo 0→1→2 | 4562 [3043], [3084] | | not checked |
 | mm_main 2→3, mm_lumdo 2→3 | 4562 [3835] | the move out of the Karamja scene (E+4) | **fixed** (was before the fade back) |
 | mm_zooknock 0→5 | 4562 [4272]..[7678] | | not checked |
@@ -52,7 +52,9 @@ varbits `mm_narnode` 121, `mm_caranock` 122, `mm_daero` 123, `mm_waydar` 124, `m
 
 The monkey child, Awowogei, Kruk and elder-guard varbits never appear on the wire (their
 base varp is not transmitted, or Jagex keeps them elsewhere): our `varbit_1xx` copies of
-LostCity's flags are unverified. `tools/rsprox/varp_transmit_audit.py` was not run.
+LostCity's flags are unverified. `tools/rsprox/varp_transmit_audit.py` was run on 2026-11-14,
+after `varp372_mm_gnomes` was found unsent (see "Glider flights"): no Monkey Madness or glider
+variable is left in its list; `atjun_med_glider` (the Karamja diary's, [366]) is.
 
 ## Cutscenes
 
@@ -72,11 +74,44 @@ header), and every fade ran T, T+3, T+5, T+8.
 | "Meanwhile, far away in Karamja..." etc. | 4562 [3689]; 4563 [5051]; 4565 [1492] | `mm_ms5` alone in 32767, no "Close Window", jingle `meanwhile_monkey_madness` (135) | rebuilt (`~mm_card_line`) |
 | "Several hours later..." | 4565 [2597], shut by the server [2612] | `mm_ms5` alone, no jingle | rebuilt |
 
-On the player's close of a chapter card the fade overlay is closed and the area's song is
-sent ([3863] Island Life with three unlock lines, [5182] Find My Way, [1626] Anywhere).
-Ours closes the overlay and releases the music hold (`[if_close,mm_message]`); **open**: the
-engine has no "start the area's song now", so the song returns at the next square crossed.
 The female wording ("heroine", "herself") is LostCity's and unrecorded.
+
+### The card's close and the music (fixed 2026-11-14)
+
+Ours closed the overlay and released the hold, and the area's song came back only at the
+next map square crossed. What the four closes send, and ours now (`test/quests/_mm_cards.lua`,
+77/77; ticks from its tick log, J = the card's own tick):
+
+| | recorded | ours before | ours now |
+|---|---|---|---|
+| a scene's last click (E) | `music_current_track` -> -1, `midi_song 147 (0,50,0,0)`, clientscript 3932 ([3831], [5163], [1605]) | the song only | all three (`~mm_scene_close`) |
+| chapter 1, no scene before it | [213] the card; [224] shut: no song; [235] = J+22 the Grand Tree's track, cut | the same, a tick late (J+23) | J+22 (jingle 136 is 13,523 ms: `tools/jingle_lengths_recorded.tsv`; the decode said 14,250) |
+| "Suspicious" under the meanwhile jingle | T+5 the track, cut; T+11 the same track again, cut, as jingle 135 (7,083 ms) ends ([3694] -> [3700], and the other two scenes) | T+5 only | T+5 and T+11 |
+| chapter 2, shut after the jingle | [3862] = J+22 clientscript 3932 alone; [3863] three unlock lines (Island Life, then Anywhere and Monkey Madness), the tab -1 -> Island Life, `midi_song 306 (0,0,0,0)` then `306 (0,60,60,0)` | nothing | J+22 the label; on the close three unlock lines, an atoll track cut, the same track 0/60/60/0 |
+| chapter 3, shut 10 ticks in | [5182] the tab -1 -> Find My Way, `312 (0,0,0,0)`; [5194] = J+22 the same again, cut | nothing | the close: 312 cut; J+22: 312 cut |
+| chapter 4, shut 12 ticks in | [1626] the tab -> Anywhere (the track the scene interrupted), `305 (0,0,0,0)`; [1636] = J+22 again | nothing | the close: the interrupted track, cut; J+22 again |
+
+What it took:
+
+- **`midi_song_here`** (engine, new): the track of where the player stands starts now, cut,
+  and a hold is released. The track is the one the region last chose while the player is
+  still in its music area (2 of 2), a pick of the new area otherwise; the region's own send
+  (0/60/60/0) follows when the region's choice moved (1 of 1: the scene began on Crash Island).
+  `[if_close,mm_message]` calls it when the tab names nothing, as after a scene.
+- **A jingle's end brings back the track the tab names THEN** (engine). Ours remembered the
+  track at the jingle's start and dropped the comeback when another track started. Over the
+  816 cached transcripts, 38 of 40 jingles with a new track inside them re-send the new track
+  on the end tick. The exception kept: a script's track on the tick right after the jingle
+  (a house teleport's and a respawn's, 22 of 22, one recorder) ends it. That one is a fit, not
+  a mechanism.
+- **A music area unlocks whole** (engine): the track that starts, then the area's others in
+  table order, each with its line (20 recorded entries with 2, 3 or 8 lines on a tick).
+- **The atoll's squares** (`docs/audio/music_regions.tsv`): 43_42 had no row (Lumdo's beach
+  was silent) and 43_43 named Monkey Badness, Monkey Madness II's track; the four sessions
+  start only Anywhere / Island Life / Monkey Madness on all four surface squares (81 starts).
+
+Not compared: packet order inside the close tick (ours sends the overlay's close first; the
+recording has the unlock lines and the tab first).
 
 ### The scene frame (three scenes, identical)
 
@@ -129,19 +164,74 @@ back to 0 with it (4562 [4969]).
 | knockout | T+3 with the box "You are knocked unconscious by a blow to the head!" and the lift | T+3 | T+5..T+7, with the box's click | 6 | T+3 / T+5, box after | fixed |
 | trapdoor (temple) | T+2 | T+3 | T+5, no line | 3 | a line "You climb down the trapdoor." and T+3 / T+5 / T+8 | fixed, line removed |
 | the hole under the crate | T+4 to 2802,9166 | T+5 with the landing box | — | 1 | landing 2801,9169 | fixed |
-| glider flights (fade colour 1512708, 20 cycles) | T+1 | T+3 | — | not counted here (the tabulator skipped this colour) | not this quest's script | **open**: not compared |
-| bunker teleport pad | T+4, synth `teleport_all` at T | T+5 | T+7 | 2 | not compared | **open** |
+| glider flights (fade colour 1512708, 20 cycles) | J+1 | J+3 | J+4 | 15 of 15 (below) | no fade, no map, the move four ticks on | rebuilt (`~gnome_glider_fly`) |
+| bunker teleport pad | T+4, synth `teleport_all` at T | T+5 | T+7 | 2 of 2 | the cast and the move, no fade, no synth | rebuilt (`@mm_bunker_teleport`) |
 
 The scene opens are the three fades with the move at T+5 and the lift at T+6.
 
-The jail guard's punch (4562 [4958]/[4959]; 22 recorded: 17, 4 and 1 in 4562..4564): the guard turns to the player's
-tile and the player's page is shut on one tick; on the next the guard plays
-`m_gorilla_attack`, the player is thrown (`exactmove` 20/40) with `human_mm_flyback`
-delay 20, takes a hit (12 at [4959]; ours deals a fifth of current hitpoints, LostCity's rule, unverified), synths `gorilla_bigpunch` and `human_hit`; the
-black the tick after. Ours did this from the guard's `ai_timer` with a `p_delay`, which the
-server aborts ("suspended on p_delay/p_arrivedelay with no player", seen in the first test
-run of this pass): **the punch never happened**. It is now a player queue raised by the
-timer. Not yet compared on our wire.
+### Glider flights (fixed 2026-11-14)
+
+Fifteen flights in 4562, one frame. J is the tick the journey starts: the tick after a map
+button's click ([363], [861], [1372], [1605]), the tick of Waydar's Travel op ([2752], [3114],
+[3210], [3495], [3562], [3649], [4712], [7961]), or the click that shuts his last page
+([2679], [2868], [3247]).
+
+| tick | recorded (15 of 15) | ours before | ours now (`test/quests/_mm_glider.lua`, 42/42) |
+|---|---|---|---|
+| J | `pilot_journey` = the route; the glider map opened if it is not up; `948 (1512708, 255, 1512708, 0, 20)`; a page's chat shut | the varp (8 / 9, LostCity's), nothing else | all of it |
+| J+1 | the teleport | — | the teleport |
+| J+3 | `pilot_previous_destination` (map flights: 1 at Gandius, 0 at the tree); `948 (1512708, 0, 1512708, 255, 20)` | — | both |
+| J+4 | `pilot_journey` -1; the spam line on the way home; the overlay shut; the map shut | the move, here | all of it |
+
+- **The route** is `from * 16384 + to` (clientscript 1290 reads it with coordx/coordz):
+  recorded 1 (the tree to Gandius), 16384 (back), 147464 (the hangar, 9, to Crash Island, 8)
+  and 131081 (back). Ours sent LostCity's 1..9.
+- **Landings**: Crash Island fills 2893..2895 x 2725..2727 (15 landings, 7 of the 9 tiles;
+  ours was one tile); the Gnomeball pitch 2393,3466 in 4 of 5 and 2393,3467 once (ours the
+  first; the second is unexplained); Ta Quir Priw 2465,3501,3 in 2 of 2; Gandius 2971,2970 and
+  2970,2968.
+- **Waydar's Travel** (op3 of `mm_waydar_2ops`) had no binding, and could not be seen: his
+  form is picked by `mm_waydar` (varbit 124), on `varp372_mm_gnomes`, which the generated
+  block had `scope=temp, transmit=no`. So were 371, 373 and 374: **every sub-stage of the
+  quest was dropped at logout**, and the gnomes' word never reached the client. All four are
+  kept now and 372 is sent (`quest_mm.varp`); the recording carries every write of the eight
+  gnome varbits.
+- **The pilots' ops** are the cache's now: op1 Glider opens the map at once ([859], [1369],
+  [1597]), op3 Talk-to is the menu ([351]), and "Of course!" opens the map on its click
+  ([360]) where ours opened a five-row chat menu. The map's Close shuts it on the click
+  ([380]). `pilot_previous_destination` sits on varp 415, also `temp, transmit=no` before.
+- **The Gandius station's square** (46_46) had no music row; the recording starts Karamja's
+  area on both landings ([367], [1376]).
+- The corner pieces of the teleportation device do nothing (2 of 2); ours teleported.
+
+Unverified: routes between the other stations (the client script has a path for every pair
+of the five, and none out of Lemanto Andra, so LostCity's "only to or from the tree" is
+gone); the pilots' op4 "Glider-to <the last station>"; op1 before The Grand Tree is done;
+Lemantolly Undri and Ookookolly Undri are not built.
+
+### The jail guard's punch (compared 2026-11-14)
+
+22 recorded (17, 4 and 1 in 4562..4564). It never happened before this pass (the guard's
+`ai_timer` waited on a player and aborted); it is a player queue raised by the timer now.
+`test/quests/_mm_punch.lua` takes three from tiles the recorder was punched on:
+
+| tick | recorded (22) | ours (3 of 3) | verdict |
+|---|---|---|---|
+| P-1 | the guard `[facing] coord=` the player's tile; an open page shut | `npc_face` the tile; the page shut | matched |
+| P | `m_gorilla_attack` (1402) | 1402 | matched |
+| P | `synth gorilla_bigpunch` (1673), one play | 1673, loops 0 | **fixed** (loops 1) |
+| P | `human_mm_flyback` (1379) delay 20 | 1379 delay 20 | matched |
+| P | `exactmove` delays 20/40, angle 1536 (west, south-west) or 1024 (south) | 20/40, `^exact_east` / `^exact_north` | matched |
+| P | the throw: 2772,2795 -> 2770,2793; 2773,2795 -> 2773,2793; 2771,2797 -> 2766,2797 | the same three tiles from the same three | matched |
+| P | the splat: floor(hitpoints / 5), 21 of 21 (60 -> 12, 48 -> 9, 39 -> 7) | 12, 9, 7 from 60, 48, 39 | matched (LostCity's rule is OSRS's) |
+| P | `synth human_hit_1..4` (518..521: 5, 6, 9, 2 of 22) delay 20 | 519 delay 20 | matched (the engine's pick) |
+| P+1 | the black | the black | matched |
+| P+5 | the cell, 2770..2776 x 2793..2794 | 2775,2793; 2776,2793; 2774,2794 | matched |
+| P+6 | the black lifts | the same | matched |
+| P+10 | the overlay shut (P+11 in 2 of 22) | P+10 | matched |
+
+Five recorded punches have no `exactmove`: the player stood in a corner with no tile to be
+thrown to, which the same rule gives.
 
 ## Pages
 
@@ -231,7 +321,7 @@ checked.
    wander in the recording) and the multinpc shells (`mm_daero` 2020, `mm_waydar` 2021,
    `mm_lumdo` 2022, `mm_garkor` 7181, `mm_zooknock` 7193, …) are unchecked.
 3. **Ambience** (step 3) not counted.
-4. The chapter card's close does not start the area's song (needs an engine command).
+4. (closed 2026-11-14: "The card's close and the music".)
 5. Daero's training: on T+5/T+6 the recorder is hit (`human_hit`, shield-block synths); the
    exercises are real blows and are not built. The strength course's tile is unrecorded.
 6. Text with no home yet: the three wise monkeys before Recipe for Disaster ("These monkeys
@@ -249,6 +339,10 @@ checked.
 9. The poison on an archer capture: one in five recorded, odds unverified (kept at 1 in 10).
 10. Music unlock lines are sent as `@mes_hl_red@Name` at rev 242; our shared proc sends
     `<col=ff3045>Name`. Shared code, not changed here.
-11. The glider and teleport-pad fades (table above).
+11. (closed 2026-11-14: "Glider flights".) Left from it: the second Gnomeball-pitch landing
+    tile (2393,3467, once in five); glider routes no recording flies and the pilots' op4;
+    a teleport's region track goes out twice in the recording on most arrivals ([865],
+    [1376], [1609], [2756]) and once in ours (the engine's region send, not this content);
+    the player's `[facing] angle=` on the tick a Travel flight moves them (engine).
 12. The quest test (`test/quests/mm.lua`): see the hand-off message for its last run; the
     jail guards now really punch, which the test's routes were not written for.

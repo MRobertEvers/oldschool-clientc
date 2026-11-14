@@ -4697,10 +4697,15 @@ struct ToriRSServerPlayer
     /** Two ticks after a track ran out: the same row again from the top. */
     int music_replay_tick;
     int music_replay_row;
-    /** A jingle's end (`ToriRSServer_MusicJingleStarted`): the tick the area's
-     *  track comes back, cut, and its row; -1 with no jingle running. */
+    /** A jingle's start and end (`ToriRSServer_MusicJingleStarted`): on the
+     *  end tick the track the music tab then names comes back, cut; -1 with
+     *  no jingle running. */
+    int music_jingle_start_tick;
     int music_jingle_end_tick;
-    int music_jingle_row;
+    /** The track the region last chose for the player (music_enter_track,
+     *  `midi_song_here`), whatever a script has played over it since; -1
+     *  before the first. */
+    int music_region_song;
     /** Content's own `%varb12393_busy` write, held: `busy` on the wire is this
      *  OR delayed OR a modal open (ToriRSServer_BusyUpdate). */
     int busy_hold;

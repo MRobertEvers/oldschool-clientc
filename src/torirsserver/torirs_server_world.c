@@ -16888,8 +16888,9 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
     player->music_end_row = -1;
     player->music_replay_tick = -1;
     player->music_replay_row = -1;
+    player->music_jingle_start_tick = -1;
     player->music_jingle_end_tick = -1;
-    player->music_jingle_row = -1;
+    player->music_region_song = -1;
     player->ambient_scape = -1;
     player->ambient_script_map_x = -1;
     player->ambient_script_map_z = -1;
@@ -20412,10 +20413,14 @@ ToriRSServer_MusicPlay(
     assert(song >= 0);
     player->music_track = song;
     player->music_replay_tick = -1;
-    /* Another track over a jingle owns the music: nothing comes back when the
-     * jingle ends (the Colosseum's death: `you_are_dead`, then the lobby's
-     * track the next tick and never the arena's again, 12/12). */
-    if( row >= 0 && row != player->music_jingle_row )
+    /* A script's track on the tick after a jingle owns the music, and nothing
+     * comes back when the jingle ends: a house teleport's `poh yanille` and a
+     * respawn's `death2`, each with the destination's track the next tick
+     * (RSProx index 4498, 4499: 22 of 22; the Colosseum's `you_are_dead` and
+     * its lobby, 12 of 12). A track started on any other tick of the jingle
+     * is the one that comes back (ToriRSServer_MusicClockTick). */
+    if( row >= 0 && source == TORIRSSERVER_TICKLOG_MUSIC_SCRIPT &&
+        player->music_jingle_start_tick >= 0 && srv->tick == player->music_jingle_start_tick + 1 )
         player->music_jingle_end_tick = -1;
     if( row >= 0 )
         music_unlock_row(player, row);
@@ -20424,6 +20429,25 @@ ToriRSServer_MusicPlay(
         ToriRSServer_WorldSetVarpOn(srv, player, varp, row);
         player->music_end_tick = duration >= 0 ? srv->tick + duration + 1 : -1;
         player->music_end_row = row;
+    }
+    /* A music area unlocks whole: the track that starts first, then the
+     * area's others in table order, each with its line. RSProx index 4562
+     * [3863] Island Life, then Anywhere and Monkey Madness; 4429 [921]
+     * Karamja's eight; 4448 [1216] the desert's eight. Over the rev 241 and
+     * 242 sessions (index 4300 on) 38 area entries unlock every member on
+     * the one tick, 6 the rest of an area the recorder partly had, and no
+     * member of an area is ever unlocked on a later tick than its first (0
+     * of 44). Older revisions unlocked a track at a time (20 such in the
+     * sessions before 4300); this is the current rule, which is the cache
+     * ours is. */
+    if( row >= 0 && music_area(row) >= 0 )
+    {
+        int rows[MUSIC_AREA_MEMBERS_MAX];
+        int const n = music_area_members(music_area(row), rows, MUSIC_AREA_MEMBERS_MAX);
+
+        for( int i = 0; i < n; i++ )
+            if( rows[i] != row )
+                music_unlock_row(player, rows[i]);
     }
     {
         /* A track with a secondary arrangement goes out as both, the second
@@ -20490,26 +20514,44 @@ ToriRSServer_MusicClockTick(struct ToriRSServerPlayer* player)
     }
     if( player->music_jingle_end_tick >= 0 && srv->tick >= player->music_jingle_end_tick )
     {
-        const struct ToriRSServerDbRow* row = ToriRSServer_DbRow(player->music_jingle_row);
+        int const tab = ToriRSServer_Varp(player, varp);
+        const struct ToriRSServerDbRow* row = tab >= 0 ? ToriRSServer_DbRow(tab) : NULL;
         static const int k_cut[4] = { 0, 0, 0, 0 };
 
         player->music_jingle_end_tick = -1;
-        assert(row);
-        ToriRSServer_MusicPlay(player, music_cell(row, MUSIC_COL_MIDI), k_cut,
-                               TORIRSSERVER_TICKLOG_MUSIC_CLOCK);
+        if( row )
+            ToriRSServer_MusicPlay(player, music_cell(row, MUSIC_COL_MIDI), k_cut,
+                                   TORIRSSERVER_TICKLOG_MUSIC_CLOCK);
+        else
+            /* Nothing to bring back: the tab's label alone is redrawn (RSProx
+             * index 4562 [3862], 22 ticks after the chapter jingle of [3840],
+             * the tab emptied by the scene before it; 1 of 1). */
+            ToriRSServer_SendRunClientscript(player, MUSIC_NOW_PLAYING_SCRIPT, NULL, 0);
     }
 }
 
 /*
- * A jingle has started: when it ends, the track the music tab names comes back
- * from the top, cut (fades 0/0/0/0), whatever silenced it for the jingle. RSProx
- * index 4368: Doric's two jingles at [221] (5,869 ms) and [225] (5,908 ms), song
- * 54 cut at [230] and [235]; the fortress's 35,050 ms jingle at [723], Knightmare
- * cut at [781]; the completion's 6,325 ms at [861], song 15 cut at [871]. The
- * delay is the length in whole ticks, rounded down (3 of 4; [225] came a tick
- * later). One jingle is tracked: a second one before the first ends moves the
- * comeback to its own end (Doric's [230] is the one this does not send). A tab
- * naming nothing (varp -1, a script track with no music row) brings nothing back.
+ * A jingle has started: when it ends, the track the music tab names THEN comes
+ * back from the top, cut (fades 0/0/0/0), whatever silenced it for the jingle.
+ * RSProx index 4368: Doric's two jingles at [221] (5,869 ms) and [225]
+ * (5,908 ms), song 54 cut at [230] and [235]; the fortress's 35,050 ms jingle
+ * at [723], Knightmare cut at [781]; the completion's 6,325 ms at [861], song
+ * 15 cut at [871]. The delay is the length in whole ticks, rounded down (3 of
+ * 4; [225] came a tick later). One jingle is tracked: a second one before the
+ * first ends moves the comeback to its own end (Doric's [230] is the one this
+ * does not send).
+ *
+ * The tab is read at the END, not at the start. A track that starts under the
+ * jingle is the one that comes back: over the 816 transcripts cached on
+ * 2026-11-14, 38 of 40 jingles with a new track inside them (a magic carpet's
+ * 76 ticks crossing the desert, a teleport's landing, Monkey Madness I's
+ * "Suspicious" five ticks into the "meanwhile" jingle and again at its end,
+ * 4562 [3694] -> [3700]) re-send the new track, cut, on the end tick; a tab
+ * naming nothing at the start and a track at the end sends that track (4563
+ * [5172] -> [5194], 4565 [1614] -> [1636]). A tab naming nothing at the end
+ * (varp -1, a script track with no music row) brings nothing back. The one
+ * exception is ToriRSServer_MusicPlay's: a script's track on the tick after
+ * the jingle.
  */
 void
 ToriRSServer_MusicJingleStarted(
@@ -20517,14 +20559,14 @@ ToriRSServer_MusicJingleStarted(
     int length_ms)
 {
     struct ToriRSServer* srv = player->world;
-    int const varp = music_current_track_varp();
 
     assert(srv);
     assert(length_ms >= 0);
+    player->music_jingle_start_tick = -1;
     player->music_jingle_end_tick = -1;
-    if( varp < 0 || ToriRSServer_Varp(player, varp) < 0 || !ToriRSServer_DbRow(ToriRSServer_Varp(player, varp)) )
+    if( music_current_track_varp() < 0 )
         return;
-    player->music_jingle_row = ToriRSServer_Varp(player, varp);
+    player->music_jingle_start_tick = srv->tick;
     player->music_jingle_end_tick = srv->tick + length_ms / 600;
 }
 
@@ -20551,14 +20593,44 @@ ToriRSServer_MusicEnterTile(
     music_enter_track(player, ToriRSServer_MusicForTile(x, z, level));
 }
 
+/*
+ * The song a region track stands for, for this player: the track's music area
+ * is what plays (`music_area_pick`). A track of the area already going --
+ * `current`, a song or -1 -- goes on: walking Varrock's streets re-sends the
+ * one track at every square, 329 times over the rev 241 recordings and never
+ * another. Walking in from anywhere else picks one of the area's at random.
+ */
+static int
+music_song_for_track(
+    struct ToriRSServerPlayer* player,
+    const struct ToriRSServerMusicRegion* track,
+    int current)
+{
+    int duration;
+    int area;
+
+    assert(player);
+    assert(track);
+    area = music_area(music_row_for_song(track->song, &duration));
+    if( area < 0 )
+        return track->song;
+    {
+        int const playing = current >= 0 ? music_row_for_song(current, &duration) : -1;
+        int pick;
+
+        if( playing >= 0 && music_area(playing) == area )
+            return current;
+        pick = music_area_pick(player, area, -1);
+        return pick >= 0 ? music_cell(ToriRSServer_DbRow(pick), MUSIC_COL_MIDI) : track->song;
+    }
+}
+
 static void
 music_enter_track(
     struct ToriRSServerPlayer* player,
     const struct ToriRSServerMusicRegion* track)
 {
-    int duration;
     int song;
-    int area;
 
     if( !track )
         return; /* 433 squares are mapped; the rest of the world is silent */
@@ -20570,35 +20642,13 @@ music_enter_track(
         return;
 
     /*
-     * The square names a track, and the track's music area is what plays
-     * (`music_area_pick`): a track of the area already playing goes on --
-     * walking Varrock's streets re-sends the one track at every square, 329
-     * times over the rev 241 recordings and never another -- and walking in
-     * from anywhere else picks one of the area's at random.
-     *
      * The unlock and its line are ToriRSServer_MusicPlay's, for whatever track
      * actually starts (`music_unlock_row`). This used to unlock the square's
      * own track before anything played, which for an area is a track the
      * player may not hear at all.
      */
-    song = track->song;
-    area = music_area(music_row_for_song(track->song, &duration));
-    if( area >= 0 )
-    {
-        int const playing = player->music_track >= 0
-                                ? music_row_for_song(player->music_track, &duration)
-                                : -1;
-
-        if( playing >= 0 && music_area(playing) == area )
-            song = player->music_track;
-        else
-        {
-            int const pick = music_area_pick(player, area, -1);
-
-            if( pick >= 0 )
-                song = music_cell(ToriRSServer_DbRow(pick), MUSIC_COL_MIDI);
-        }
-    }
+    song = music_song_for_track(player, track, player->music_track);
+    player->music_region_song = song;
     if( player->music_track != song )
     {
         /* As Jagex sends a region's track: the old one fades out over 60
@@ -20610,6 +20660,52 @@ music_enter_track(
          * ToriRSServer_MusicPlay sends (rev 237+; no IF_SETTEXT). */
         static const int k_region_fades[4] = { 0, 60, 60, 0 };
 
+        ToriRSServer_MusicPlay(player, song, k_region_fades, TORIRSSERVER_TICKLOG_MUSIC_REGION);
+    }
+}
+
+/*
+ * `midi_song_here`: a scene that silenced the music and emptied the tab hands
+ * it back. The track of where the player stands starts on this tick, cut, as
+ * Jagex sends it when the last card of a Monkey Madness I scene is shut:
+ *
+ *   4563 [5182]  the tab -1 -> Find My Way, MIDI_SONG 312 0/0/0/0   (the
+ *                dungeon the scene was started in)
+ *   4565 [1626]  the tab -1 -> Anywhere, MIDI_SONG 305 0/0/0/0      (the atoll
+ *                the scene was started on, and the track it was playing)
+ *   4562 [3863]  the tab -1 -> Island Life, MIDI_SONG 306 0/0/0/0, then
+ *                MIDI_SONG 306 0/60/60/0: the scene started on Crash Island
+ *                (Marooned) and ended on the atoll, so the region's own send
+ *                for the new area follows the cut one.
+ *
+ * So the track is the one the region last chose while the player is still in
+ * its area (2 of 2), a pick of the new area otherwise, and the second send
+ * goes out exactly when the region's choice moves. A hold is released: the
+ * script is done with the music.
+ */
+void
+ToriRSServer_MusicPlayHere(struct ToriRSServerPlayer* player)
+{
+    static const int k_cut[4] = { 0, 0, 0, 0 };
+    static const int k_region_fades[4] = { 0, 60, 60, 0 };
+    const struct ToriRSServerMusicRegion* track;
+    int x;
+    int z;
+    int level;
+    int song;
+
+    assert(player);
+    assert(player->world);
+    player->music_hold_until = -1;
+    ToriRSServer_RegionTileFor(player, &x, &z, &level);
+    track = ToriRSServer_MusicForTile(x, z, level);
+    if( !track )
+        return;
+    song = music_song_for_track(player, track, player->music_region_song);
+    ToriRSServer_MusicPlay(player, song, k_cut, TORIRSSERVER_TICKLOG_MUSIC_SCRIPT);
+    if( player->music_region_song != song )
+    {
+        player->music_region_song = song;
         ToriRSServer_MusicPlay(player, song, k_region_fades, TORIRSSERVER_TICKLOG_MUSIC_REGION);
     }
 }

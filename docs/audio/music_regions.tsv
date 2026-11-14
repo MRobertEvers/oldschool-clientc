@@ -185,7 +185,6 @@ region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
 10905	42	153	2688	9792	Chain Of Command	chain of command
 10906	42	154	2688	9856	Twilight	twilight
 10908	42	156	2688	9984	Masquerade	masquerade
-11051	43	43	2752	2752	Monkey Badness	monkey badness
 11053	43	45	2752	2880	Spooky Jungle	spookyjungle
 11054	43	46	2752	2944	Jungly 1	jungly1
 11055	43	47	2752	3008	Jungly 3	jungly3
@@ -1114,3 +1113,22 @@ region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
 # Forgotten on every step down the stairs ([389], [1302], [1402]) and on the
 # way back from the throne room ([1506]); level 2 is music_areas.tsv's.
 10828	42	76	2688	4864	Forgotten	forgotten
+#
+# 11050, 11051 -- the east half of Ape Atoll. Kronos had no row for 43_42 (the
+# beach Lumdo lands on was silent) and gave 43_43 Monkey Badness, which is
+# Monkey Madness II's track. RSProx index 4562..4565 (rev 242, a player who has
+# not done Monkey Madness II) start only the atoll's music area on all four
+# surface squares -- Anywhere, Island Life and Monkey Madness (`music:area`
+# 24): 43_42 fifteen times (Lumdo's landing 2802,2707 at 4562 [3863], [3898]),
+# 43_43 thirty-three times (Garkor's corner 2805,2761 at 4565 [1626]), 42_42
+# eight, 42_43 twenty-five -- and never Monkey Badness. The row names one of
+# the area's tracks; the engine picks among the three (music_area_pick).
+11050	43	42	2752	2688	Island Life	island life
+11051	43	43	2752	2752	Monkey Madness	monkey madness
+#
+# 11822 -- the Gandius glider station on south Karamja, a square Kronos has no
+# row for (landing there was silent). RSProx index 4562 starts Karamja's music
+# area (`music:area` 16) on both landings at 2970..2971,2968..2970: Tribal 2 at
+# [367], Reggae at [1376]. The row names one of the area's tracks; the engine
+# picks among them.
+11822	46	46	2944	2944	Reggae	reggae

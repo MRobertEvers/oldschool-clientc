@@ -16017,6 +16017,18 @@ script_command(
         return 1;
     }
 
+    case SS_OP_MIDI_SONG_HERE:
+    {
+        /* The area's track, now and cut (ToriRSServer_MusicPlayHere). */
+        if( !player )
+        {
+            SSVM_Abort(state, "midi_song_here with no active player");
+            return 1;
+        }
+        ToriRSServer_MusicPlayHere(player);
+        return 1;
+    }
+
     case SS_OP_HPBAR_HUD_NPC:
     {
         /* hpbar_hud_npc(npc_uid): the active player's health overlay follows

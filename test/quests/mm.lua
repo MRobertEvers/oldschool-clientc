@@ -129,13 +129,18 @@ local function solve_puzzle(t)
     t.shot("clickPuzzle-solved")
 end
 
+-- The pilot's Glider op (op1, the caller's talk_to(.., 1)) opens the glider map at once and the
+-- destination's button flies (RSProx 4562 [859] -> [860] Ta Quir Priw, [1369] -> [1371] Gandius).
+local GLIDER_BUTTON = {
+    ["Karamja"] = "glidermap:karamja_button",
+    ["The Grand Tree"] = "glidermap:grandtree_button",
+}
 local function glider_to(t, row_name, destination)
-    t.exec(row_name, t.chat.play, {
-        "choose:Can you take me on the glider?",
-        "player:Can you take me on the glider?",
-        "npc:Of course!",
-        "choose:" .. destination,
-    })
+    t.expect(row_name .. "-map", t.ui.await_open("glidermap", 20))
+    local r, button = t.ui.widget(GLIDER_BUTTON[destination])
+    t.check(row_name .. "-button", r == "ok", "the map's button for " .. destination .. ": " .. tostring(r))
+    t.exec(row_name, t.ui.invoke, button, 1)
+    t.expect(row_name .. "-flown", t.ui.await_close("glidermap", 20))
 end
 
 -- Door rule (owner 2026-10-03): every closed space is crossed on foot, in and out, on every visit.

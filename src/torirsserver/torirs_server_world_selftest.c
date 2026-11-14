@@ -15024,8 +15024,12 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(ToriRSServer_Varp(player, 5) == 4,
                            "entering Draynor Village must leave varp5 (grail) at 4, got %d",
                            ToriRSServer_Varp(player, 5));
-            SELFTEST_CHECK(ToriRSServer_Varp(player, 24) == (1 << 5),
-                           "entering Draynor Village should set musicmulti_5 bit 5, varp24=%d",
+            /* Unknown Land's music area (`music:area` 2) is Start, Unknown
+             * Land and Wander, and an area unlocks whole
+             * (ToriRSServer_MusicPlay): Wander is musicmulti_5 bit 12, Start
+             * is in musicmulti_4. */
+            SELFTEST_CHECK(ToriRSServer_Varp(player, 24) == ((1 << 5) | (1 << 12)),
+                           "entering Draynor Village should set musicmulti_5 bits 5 and 12 (Unknown Land, Wander), varp24=%d",
                            ToriRSServer_Varp(player, 24));
             ToriRSServer_VarpPut(player, 5, old_varp5);
             ToriRSServer_VarpPut(player, 24, old_varp24);

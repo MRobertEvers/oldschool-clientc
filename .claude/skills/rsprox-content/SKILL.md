@@ -78,7 +78,12 @@ recording. A quest is done when every row of steps 1-3 and every recorded npc-in
    click it goes out with, tick. For every base varp a quest varbit sits on, check the
    generated block's `scope`/`transmit` (`_explicit/configs/server_fields.generated.varp`): TGV's
    five varbits sat on `varp279_awarded_points`, `temp, transmit=no` -- never sent, lost at
-   logout. A varbit set once to an odd value at a stage (`ballista` = 2) is a per-player ROLL:
+   logout. Read BOTH fields for EVERY word the quest writes, sent or not: only `scope=perm`
+   is saved. Monkey Madness I (2026-11-14) kept all four of its state words (varps 371..374)
+   `temp`, so every sub-stage was dropped at logout, and the unsent one hid an npc's op: a
+   multinpc's form is picked on the CLIENT, so a `transmit=no` word under its `multivarbit`
+   means the op the recording presses (Waydar's Travel) is never offered. State the fields
+   in the quest's own `.varp` and delete those lines from the generated block. A varbit set once to an odd value at a stage (`ballista` = 2) is a per-player ROLL:
    find what reads it (a riddle, an answer) and roll it there with `random(n)`.
 5. **The start and the end.** Recorded rev 241 quests start: the combat-level warning mesbox
    ("Before starting this quest, be aware that your combat level is lower than the recommended

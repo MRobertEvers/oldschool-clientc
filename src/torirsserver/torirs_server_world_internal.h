@@ -234,6 +234,12 @@ ToriRSServer_MusicPlay(
     const int* envelope,
     int source);
 
+/* `midi_song_here`: the track of where the player stands, started now and
+ * cut, any hold released; the region's own send after it when the music area
+ * is not the one the region last chose. */
+void
+ToriRSServer_MusicPlayHere(struct ToriRSServerPlayer* player);
+
 /* `busy` (varbit 12393) recomputed: content's hold, a delay or a modal. */
 void
 ToriRSServer_BusyUpdate(
