@@ -471,12 +471,20 @@ soft3d_blit_tiled_alpha(
 /*
  * The layer: a piece drawn at layout resolution by code that only knows how
  * to write 1:1 -- a rotated sprite, a model widget -- then scaled into the
- * buffer. Only opaque writers go through it: the region starts as a sentinel
- * no writer produces, and every other pixel is copied across as it was
- * written. A writer that BLENDS would blend against the sentinel, so those
- * are scaled natively instead.
+ * buffer. The region starts as a layout-sized picture of the buffer under it,
+ * marked SOFT3D_LAYER_UNDRAWN in each texel's top byte, and only texels a
+ * writer replaced the byte of are copied back (the segment's scheme, @see
+ * soft3d_segment_begin).
+ *
+ * The picture is what a writer that BLENDS needs. A model widget is one: a
+ * face with alpha blends with the interface under it, as the reference draws
+ * it straight into the frame (class144.method4901). The region used to start
+ * as a sentinel colour, 0x00FE01FD, and the Stronghold of Security doors'
+ * chatheads -- door_chathead fades their glow faces to 100..255 alpha --
+ * drew that magenta through the glow on every scaled frame (the phone and
+ * tablet layouts), 2026-11-15.
  */
-#define SOFT3D_LAYER_EMPTY ((int)0x00FE01FD)
+#define SOFT3D_LAYER_UNDRAWN 0x01u
 
 static int*
 soft3d_layer_begin(struct ToriPlatform_Renderer_Soft3D* soft, int x0, int y0, int x1, int y1)
@@ -512,11 +520,18 @@ soft3d_layer_begin(struct ToriPlatform_Renderer_Soft3D* soft, int x0, int y0, in
         scratch->layer = grown;
         scratch->layer_cap = n;
     }
+    /* Sampled at each layout texel's centre, as the segment samples it. */
     for( int y = y0; y < y1; y++ )
     {
+        int const by = (int)(((long long)y * 2 + 1) * soft->height / (2LL * soft->layout_h));
+        int const* src = soft->pixels + (size_t)by * (size_t)soft->stride;
         int* row = scratch->layer + (size_t)y * (size_t)soft->layout_w;
         for( int x = x0; x < x1; x++ )
-            row[x] = SOFT3D_LAYER_EMPTY;
+        {
+            unsigned const under =
+                (unsigned)src[((long long)x * 2 + 1) * soft->width / (2LL * soft->layout_w)];
+            row[x] = (int)((under & 0xFFFFFFu) | (SOFT3D_LAYER_UNDRAWN << 24));
+        }
     }
 
     scratch->layer_open = 1;
@@ -571,7 +586,7 @@ soft3d_layer_end(struct ToriPlatform_Renderer_Soft3D* soft)
             int const* row = scratch->layer + (size_t)y * (size_t)soft->layout_w;
             for( int x = scratch->layer_x0; x < scratch->layer_x1; x++ )
             {
-                if( row[x] == SOFT3D_LAYER_EMPTY )
+                if( ((unsigned)row[x] >> 24) == SOFT3D_LAYER_UNDRAWN )
                     continue;
                 if( x < wx0 )
                     wx0 = x;
@@ -609,7 +624,7 @@ soft3d_layer_end(struct ToriPlatform_Renderer_Soft3D* soft)
             for( int x = 0; x < columns; x++ )
             {
                 int const v = srow[lx[x]];
-                if( v != SOFT3D_LAYER_EMPTY )
+                if( ((unsigned)v >> 24) != SOFT3D_LAYER_UNDRAWN )
                     drow[bx0 + x] = v;
             }
         }
