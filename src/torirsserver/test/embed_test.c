@@ -1279,7 +1279,7 @@ main(void)
          * same reason — so a field assertion would be measuring the harness.
          * Where the fields are proved instead: the revision-239 block, which
          * is what the game runs, round-trips through the official decoder in
-         * `test-mock239-playerinfo`, and the whole path is exercised in the
+         * `test-wire-player-info`, and the whole path is exercised in the
          * client by `[debugproc,exactmove]` (engine_op_debug.rs2).
          *
          * What this *can* still say is the load-bearing thing about a new mask

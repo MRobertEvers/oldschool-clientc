@@ -50,8 +50,10 @@
 
 #include <stdint.h>
 
-struct RSAreaBuf;
+struct RsprotBuf;
 struct ToriRSServerZoneEvent;
+struct WirePlayerInfoState;
+struct WirePlayerUpdate;
 
 /* ------------------------------------------------------------------ */
 /* Payload writers                                                     */
@@ -69,71 +71,71 @@ struct ToriRSServerZoneEvent;
  */
 struct ToriRSServerWirePayload
 {
-    void (*if_opentop)(struct RSAreaBuf* buf, int interface_id);
-    void (*if_opensub)(struct RSAreaBuf* buf, int interface_id, int dest_uid, int type);
-    void (*if_closesub)(struct RSAreaBuf* buf, int dest_uid);
-    void (*if_movesub)(struct RSAreaBuf* buf, int source_uid, int dest_uid);
+    void (*if_opentop)(struct RsprotBuf* buf, int interface_id);
+    void (*if_opensub)(struct RsprotBuf* buf, int interface_id, int dest_uid, int type);
+    void (*if_closesub)(struct RsprotBuf* buf, int dest_uid);
+    void (*if_movesub)(struct RsprotBuf* buf, int source_uid, int dest_uid);
     void (*if_setevents)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int component_uid,
         int start,
         int end,
         uint32_t events1,
         uint32_t events2);
-    void (*if_setcolour)(struct RSAreaBuf* buf, int component_uid, int colour);
-    void (*if_sethide)(struct RSAreaBuf* buf, int component_uid, int hide);
-    void (*if_setmodel)(struct RSAreaBuf* buf, int component_uid, int model_id);
-    void (*if_setobject)(struct RSAreaBuf* buf, int component_uid, int obj_id, int value);
-    void (*if_setposition)(struct RSAreaBuf* buf, int component_uid, int x, int y);
-    void (*if_setscroll)(struct RSAreaBuf* buf, int component_uid, int position);
+    void (*if_setcolour)(struct RsprotBuf* buf, int component_uid, int colour);
+    void (*if_sethide)(struct RsprotBuf* buf, int component_uid, int hide);
+    void (*if_setmodel)(struct RsprotBuf* buf, int component_uid, int model_id);
+    void (*if_setobject)(struct RsprotBuf* buf, int component_uid, int obj_id, int value);
+    void (*if_setposition)(struct RsprotBuf* buf, int component_uid, int x, int y);
+    void (*if_setscroll)(struct RsprotBuf* buf, int component_uid, int position);
     void (*if_setrotatespeed)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int component_uid,
         int x_speed,
         int y_speed);
     void (*if_setangle)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int component_uid,
         int zoom,
         int angle_x,
         int angle_y);
-    void (*if_setnpchead_active)(struct RSAreaBuf* buf, int component_uid, int index);
+    void (*if_setnpchead_active)(struct RsprotBuf* buf, int component_uid, int index);
     void (*if_setplayermodel_basecolour)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int component_uid,
         int index,
         int colour);
     void (*if_setplayermodel_bodytype)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int component_uid,
         int body_type);
     void (*if_setplayermodel_obj)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int component_uid,
         int obj_id);
     void (*if_setplayermodel_self)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int component_uid,
         int copy_objs);
-    void (*varp_small)(struct RSAreaBuf* buf, int varp, int value);
-    void (*varp_large)(struct RSAreaBuf* buf, int varp, int value);
-    void (*update_runenergy)(struct RSAreaBuf* buf, int hundredths);
-    void (*update_runweight)(struct RSAreaBuf* buf, int kilograms);
+    void (*varp_small)(struct RsprotBuf* buf, int varp, int value);
+    void (*varp_large)(struct RsprotBuf* buf, int varp, int value);
+    void (*update_runenergy)(struct RsprotBuf* buf, int hundredths);
+    void (*update_runweight)(struct RsprotBuf* buf, int kilograms);
     void (*update_stat)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int stat,
         int level,
         int xp,
         int boosted);
     void (*cam_moveto)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int x,
         int z,
         int height,
         int rate,
         int rate2);
     void (*cam_lookat)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int x,
         int z,
         int height,
@@ -142,7 +144,7 @@ struct ToriRSServerWirePayload
     /* CAM_MOVETO_CYCLES / CAM_ROTATETO_COORDINATE (241): absolute world tiles.
      * NULL at a revision the server does not send them at. */
     void (*cam_moveto_cycles)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int x,
         int z,
         int height,
@@ -150,21 +152,21 @@ struct ToriRSServerWirePayload
         int ignore_terrain,
         int easing);
     void (*cam_rotateto_coordinate)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int x,
         int z,
         int height,
         int cycles,
         int easing);
     void (*cam_shake)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int axis,
         int random,
         int amplitude,
         int rate);
     /** CAM_UNLOCK's one byte (0 or 1), in the revision's byte transform. */
     void (*cam_unlock)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int unlock);
     /**
      * One zone sub-packet's payload, by canonical name.
@@ -180,7 +182,7 @@ struct ToriRSServerWirePayload
      * revisions.
      */
     int (*zone_payload)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int pkt_name,
         const struct ToriRSServerZoneEvent* event,
         int pos,
@@ -194,19 +196,19 @@ struct ToriRSServerWirePayload
      * header takes the first sub-packet's opcode as the level and everything
      * after it is one byte out.
      */
-    void (*zone_header)(struct RSAreaBuf* buf, int pkt_name, int zone_x, int zone_z,
+    void (*zone_header)(struct RsprotBuf* buf, int pkt_name, int zone_x, int zone_z,
                         int level);
 
-    void (*message_game)(struct RSAreaBuf* buf, int type, const char* text);
-    void (*if_settext)(struct RSAreaBuf* buf, int uid, const char* text);
-    void (*if_setnpchead)(struct RSAreaBuf* buf, int uid, int npc_id);
-    void (*if_setanim)(struct RSAreaBuf* buf, int uid, int anim_id);
-    void (*if_setplayerhead)(struct RSAreaBuf* buf, int uid);
-    void (*set_map_flag)(struct RSAreaBuf* buf, int level, int x, int z);
-    void (*chat_filter)(struct RSAreaBuf* buf, int public_, int private_, int trade);
-    void (*synth_sound)(struct RSAreaBuf* buf, int id, int loops, int delay);
+    void (*message_game)(struct RsprotBuf* buf, int type, const char* text);
+    void (*if_settext)(struct RsprotBuf* buf, int uid, const char* text);
+    void (*if_setnpchead)(struct RsprotBuf* buf, int uid, int npc_id);
+    void (*if_setanim)(struct RsprotBuf* buf, int uid, int anim_id);
+    void (*if_setplayerhead)(struct RsprotBuf* buf, int uid);
+    void (*set_map_flag)(struct RsprotBuf* buf, int level, int x, int z);
+    void (*chat_filter)(struct RsprotBuf* buf, int public_, int private_, int trade);
+    void (*synth_sound)(struct RsprotBuf* buf, int id, int loops, int delay);
     void (*midi_song)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int id,
         int fade_out_delay,
         int fade_out_speed,
@@ -216,14 +218,14 @@ struct ToriRSServerWirePayload
      *  packet of its own — MIDI_SONG cannot express it, because every id it can
      *  carry is a track. */
     void (*midi_song_stop)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int fade_out_delay,
         int fade_out_speed);
     /** MIDI_SONG with a second arrangement held for a later MIDI_SWAP: the
      *  music table's `secondary_track` (RSProx index 4408 [318]: 774 over
      *  810). NULL on a revision with no writer; MIDI_SONG is sent instead. */
     void (*midi_song_withsecondary)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int primary_id,
         int secondary_id,
         int fade_out_delay,
@@ -233,15 +235,15 @@ struct ToriRSServerWirePayload
     /** MidiJingleEncoder v16 (revs 239): p3 length_in_millis, p2Alt3 id.
      *  Confirmed against the vendored rsprot codec, the 239 Kotlin
      *  transcription, and the rev-239 deob -- see torirs_server_wire.c. */
-    void (*midi_jingle)(struct RSAreaBuf* buf, int id, int length_ms);
+    void (*midi_jingle)(struct RsprotBuf* buf, int id, int length_ms);
     /** UPDATE_STOCKMARKET_SLOT (rev 241: the 34-byte "version 2" form, RSProx
      *  index 4426 [97..106]): one Grand Exchange offer slot, whole. `status` 0
      *  is the empty slot. NULL where a revision has no such packet. */
     /** VARP_LONG (rev 241): a client varp holding a long (the Grand Exchange's
      *  ge_newoffer_price, RSProx index 4426 [82..106]). NULL where absent. */
-    void (*varp_long)(struct RSAreaBuf* buf, int id, int64_t value);
+    void (*varp_long)(struct RsprotBuf* buf, int id, int64_t value);
     void (*update_stockmarket_slot)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int slot,
         int status,
         int obj,
@@ -251,31 +253,31 @@ struct ToriRSServerWirePayload
         int64_t completed_gold);
     /** AmbientSoundStartEncoder v2: p1Add fade flag, p2 soundscape id. The id
      *  is a config-group-15 record, not a sound effect. */
-    void (*ambientsound_start)(struct RSAreaBuf* buf, int id, int fade);
-    void (*ambientsound_stop)(struct RSAreaBuf* buf, int fade);
-    void (*friendlist_loaded)(struct RSAreaBuf* buf, int status);
+    void (*ambientsound_start)(struct RsprotBuf* buf, int id, int fade);
+    void (*ambientsound_stop)(struct RsprotBuf* buf, int fade);
+    void (*friendlist_loaded)(struct RsprotBuf* buf, int status);
     /**
      * MESSAGE_PRIVATE. RSProt's MessagePrivate (223-241) names the sender by
      * display name and splits the message's identity into the sender's world
      * and a 24-bit per-world counter; the 2004 form is p8 name37 + p4 id. The
      * text is OldSchool's Huffman either way (net/chat_huffman.h).
      */
-    void (*message_private)(struct RSAreaBuf* buf, const char* from, int world, int counter,
+    void (*message_private)(struct RsprotBuf* buf, const char* from, int world, int counter,
                             int crown, uint8_t const* text, int text_len);
     /** One UPDATE_FRIENDLIST row. Rev 239 is a name/string record rather than
      *  the classic p8 base37 + p1 world tuple. */
-    void (*friend_entry)(struct RSAreaBuf* buf, const char* name, int world);
+    void (*friend_entry)(struct RsprotBuf* buf, const char* name, int world);
     /** The header of an inventory update; the slot loop follows in the caller,
      *  which is the only thing that knows the container. */
-    void (*inv_header)(struct RSAreaBuf* buf, int pkt_name, int uid, int container,
+    void (*inv_header)(struct RsprotBuf* buf, int pkt_name, int uid, int container,
                        int capacity);
     /** One inventory slot. `slot` is ignored by the FULL form, which is
      *  positional, and leads the PARTIAL form. */
-    void (*inv_slot)(struct RSAreaBuf* buf, int pkt_name, int slot, int obj_id,
+    void (*inv_slot)(struct RsprotBuf* buf, int pkt_name, int slot, int obj_id,
                      int count);
     /** Stop one inventory transmit. Rev 230 addresses the component; rev 239
      *  removes the client-side container by inventory id. */
-    void (*inv_stop_transmit)(struct RSAreaBuf* buf, int component_uid, int inv_id);
+    void (*inv_stop_transmit)(struct RsprotBuf* buf, int component_uid, int inv_id);
 
     /**
      * RUNCLIENTSCRIPT's argument block.
@@ -285,7 +287,7 @@ struct ToriRSServerWirePayload
      * (which are still written in reverse). `types` is one char per argument.
      */
     void (*run_clientscript)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int script_id,
         const char* types,
         int const* intv,
@@ -294,13 +296,13 @@ struct ToriRSServerWirePayload
 
     /** One ignore-list entry. The list is name-based at this revision rather
      *  than a flat array of base-37 longs. */
-    void (*ignore_entry)(struct RSAreaBuf* buf, const char* name);
+    void (*ignore_entry)(struct RsprotBuf* buf, const char* name);
 
     /** The whole REBUILD_REGION: header, the distinct source-square count and
      *  the descriptor grid. `zones` is level-major, then x, then z, with -1
      *  where the window has no zone (TORIRSSERVER_MAPINSTANCE_* dimensions). */
     void (*rebuild_region)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int zone_x,
         int zone_z,
         int reload,
@@ -318,7 +320,7 @@ struct ToriRSServerWirePayload
      * last selected, which is why the encoder sends this inside a sandwich.
      */
     void (*rebuild_worldentity)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int base_x,
         int base_z,
         int source_squares);
@@ -332,14 +334,14 @@ struct ToriRSServerWirePayload
      * transform bitfield are plain.
      */
     void (*wev_spawn_scalars)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int size_byte,
         int priority_group,
         int config_id);
 
     /** WORLDENTITY_INFO_V7's updateFlags payload: the 5-bit op mask through
      *  `(128 - b) & 0xFF`. Only written when flag bit 0x2 is set. */
-    void (*wev_op_mask)(struct RSAreaBuf* buf, int op_mask);
+    void (*wev_op_mask)(struct RsprotBuf* buf, int op_mask);
 
     /*
      * Revision 241 reordered the world-entity spawn head and the flag
@@ -352,24 +354,35 @@ struct ToriRSServerWirePayload
      * `wev_seq` writes the 0x1 sequence block of an update record.
      */
     void (*wev_spawn_header)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int flags,
         int size_byte,
         int priority_group,
         int config_id);
-    void (*wev_seq)(struct RSAreaBuf* buf, int seq_id, int delay);
+    void (*wev_seq)(struct RsprotBuf* buf, int seq_id, int delay);
     /* The update-flag bits of the sequence block and the op mask. 242 swapped
      * them (sequence 0x2, ops 0x1); 0 means every earlier revision's 0x1 and
      * 0x2. Read through ToriRSServer_WireWevSeqFlag / ToriRSServer_WireWevOpsFlag. */
     int wev_seq_flag;
     int wev_ops_flag;
     void (*rebuild_normal)(
-        struct RSAreaBuf* buf,
+        struct RsprotBuf* buf,
         int world_area,
         int zone_x,
         int zone_z,
         const int32_t* keys,
         int key_squares);
+    /**
+     * PLAYER_INFO, whole: the GPI bit sections every OSRS revision shares
+     * (wire/core/wire_player_info.c) and then this revision's extended-info
+     * tail (wire/osrs<N>/osrs<N>_player_info.c). One slot rather than a field
+     * list because the stream is a codec, not a list of fields.
+     */
+    void (*player_info)(
+        struct RsprotBuf* buf,
+        struct WirePlayerInfoState* state,
+        const struct WirePlayerUpdate* updates,
+        int count);
 };
 
 /* ------------------------------------------------------------------ */
@@ -533,7 +546,7 @@ ToriRSServer_WirePlayerIndex(int pool_pid)
 
 /** MESSAGE_PRIVATE as every OSRS wire writes it (see the hook). */
 void
-ToriRSServer_WireMessagePrivateOsrs(struct RSAreaBuf* buf, const char* from, int world,
+ToriRSServer_WireMessagePrivateOsrs(struct RsprotBuf* buf, const char* from, int world,
                                     int counter, int crown, uint8_t const* text, int text_len);
 
 /** The pool slot a revision-239 wire index names (the inverse of
@@ -544,11 +557,19 @@ ToriRSServer_WirePlayerPid(int wire_index)
     return wire_index - 1;
 }
 
-/** The revision-241 wire (torirs_server_wire241.c). */
+/** The revision-230 hybrid (wire/osrs230/osrs230_wire.c). */
+const struct ToriRSServerWire*
+ToriRSServer_Wire230(void);
+
+/** The revision-239 wire (wire/osrs239/osrs239_wire.c). */
+const struct ToriRSServerWire*
+ToriRSServer_Wire239(void);
+
+/** The revision-241 wire (wire/osrs241/osrs241_wire.c). */
 const struct ToriRSServerWire*
 ToriRSServer_Wire241(void);
 
-/** The revision-242 wire (torirs_server_wire242.c). */
+/** The revision-242 wire (wire/osrs242/osrs242_wire.c). */
 const struct ToriRSServerWire*
 ToriRSServer_Wire242(void);
 

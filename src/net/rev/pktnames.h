@@ -475,7 +475,7 @@ enum GameProtoPktOutName
      * two opcodes became two, and `obj` (0xffff for "not an item") is what
      * separates an inventory verb from a plain widget click.
      *
-     * The server already reads them (`mock239_inbound.c` fans them back out to
+     * The server already reads them (`osrs239_inbound.c` fans them back out to
      * the canonical names); these exist so the *client* can name them, because
      * `net_out_opcode` refuses a canonical name the revision's table does not
      * carry — and refusing is silent. With no row, every equip, every use-on

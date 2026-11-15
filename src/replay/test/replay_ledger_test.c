@@ -4,7 +4,7 @@
  * layout (as net/test/rsprox_replay_test.c builds its own).
  *
  * The recording: a login REBUILD carrying the player-info init block, then 700
- * ticks of PLAYER_INFO (the server's own writer, torirsserver/mock239_playerinfo
+ * ticks of PLAYER_INFO (the server's own writer, torirsserver/wire/osrs241/osrs241_player_info
  * with the 241 tail: players entering with an appearance, moving, leaving),
  * NPC_INFO (written here bit by bit to the 241 reader's layout: kept, walking,
  * removed, added and re-added npcs), and zone packets through RSProt's own
@@ -27,7 +27,7 @@
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/revpacket.h"
 #include "net/rsprox_recording.h"
-#include "rsareabuf.h"
+#include "rsprot_buf.h"
 #include "rsprot_buf.h"
 #include "rsprot_exec.h"
 #include "rsprot_rev.h"
@@ -43,7 +43,7 @@
 #include "packets/update_zone_partial_enclosed.h"
 #include "packets/update_zone_partial_follows.h"
 #include "streams/rsprot_info.h"
-#include "torirsserver/mock239_playerinfo.h"
+#include "torirsserver/wire/osrs241/osrs241_player_info.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -389,7 +389,7 @@ coord(int x, int z, int level)
 struct Gen
 {
     struct Rec rec;
-    struct Mock239PlayerInfoState server;
+    struct WirePlayerInfoState server;
     int local_x;
     int local_z;
     uint8_t local_look[24];
@@ -432,8 +432,8 @@ gen_player_info(
     int tick)
 {
     static uint8_t bytes[16384];
-    struct Mock239PlayerUpdate updates[REMOTES + 1];
-    struct RSAreaBuf buf;
+    struct WirePlayerUpdate updates[REMOTES + 1];
+    struct RsprotBuf buf;
     int n = 0;
     int teleport = tick == REBUILD_TICK;
 
@@ -443,7 +443,7 @@ gen_player_info(
     if( teleport )
     {
         g->local_x += 48;
-        updates[n].movement = MOCK239_PLAYER_TELEPORT;
+        updates[n].movement = WIRE_PLAYER_TELEPORT;
         updates[n].movement_value = coord(48, 0, 0);
     }
     updates[n].coord = coord(g->local_x, g->local_z, 0);
@@ -486,16 +486,16 @@ gen_player_info(
 
             p->x += dx;
             p->z += dz;
-            updates[n].movement = MOCK239_PLAYER_TELEPORT;
+            updates[n].movement = WIRE_PLAYER_TELEPORT;
             updates[n].movement_value = coord(dx, dz, 0);
         }
         updates[n].coord = coord(p->x, p->z, 0);
         n++;
     }
-    rsab_wrap(&buf, bytes, sizeof(bytes));
-    mock239_playerinfo_write_world(&buf, &g->server, updates, n);
-    TEST_CHECK(rsab_ok(&buf));
-    w_server(&g->rec, PKT_NAME_PLAYER_INFO, bytes, (int)rsab_len(&buf));
+    rsprot_buf_wrap(&buf, bytes, sizeof(bytes));
+    osrs241_player_info_write_world(&buf, &g->server, updates, n);
+    TEST_CHECK(rsprot_buf_ok(&buf));
+    w_server(&g->rec, PKT_NAME_PLAYER_INFO, bytes, (int)buf.wpos);
 }
 
 /* NPC_INFO_SMALL_V6 at 241: the bit sections (rsprot_info_npc.c) and 241's
@@ -769,7 +769,7 @@ static void
 build_recording(struct Gen* g)
 {
     static uint8_t login[8192];
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     int len;
 
     memset(g, 0, sizeof(*g));
@@ -781,17 +781,16 @@ build_recording(struct Gen* g)
     w_header(&g->rec);
 
     /* The login REBUILD: the init block, then the six bytes. */
-    rsab_wrap(&buf, login, sizeof(login));
-    mock239_playerinfo_write_init(&buf, LOCAL_INDEX, coord(g->local_x, g->local_z, 0));
-    len = (int)rsab_len(&buf);
+    rsprot_buf_wrap(&buf, login, sizeof(login));
+    wire_player_info_write_init(&buf, LOCAL_INDEX, coord(g->local_x, g->local_z, 0));
+    len = (int)buf.wpos;
     rebuild_tail(login + len, g->local_x >> 3, g->local_z >> 3);
     g_ms = 3;
     w_server(&g->rec, PKT_NAME_REBUILD_NORMAL, login, len + 6);
     g->base_x = ((g->local_x >> 3) - 6) * 8;
     g->base_z = ((g->local_z >> 3) - 6) * 8;
     set_zones(g);
-    mock239_playerinfo_state_init(&g->server, LOCAL_INDEX, coord(g->local_x, g->local_z, 0));
-    g->server.wire_revision = 241;
+    wire_player_info_state_init(&g->server, LOCAL_INDEX, coord(g->local_x, g->local_z, 0));
 
     for( int tick = 0; tick < TICKS; tick++ )
     {

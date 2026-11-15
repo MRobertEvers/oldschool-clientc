@@ -29,7 +29,7 @@ the Huffman chat codec and Base37 name codec (full port), and **generated
 including what is deliberately **not** done yet: message-struct/encoder/
 decoder codec bodies (the ~65k lines of Kotlin under RSProt's `osrs-239-desktop`
 and `osrs-239-model`) and the PLAYER_INFO/NPC_INFO v5 info streams, which
-`mock239_playerinfo.c` (§5c below) still owns. The library is standalone by
+`wire_player_info.c` (§5c below) still owns. The library is standalone by
 design — it does not yet replace or feed `torirs_server_wire.c` /
 `src/net/rev/osrs239/` / `3rd/rsareabuf`, which this doc continues to describe
 as they exist today.
@@ -283,7 +283,7 @@ comes down as writers land rather than a pass/fail.
 
 ## 5c. PLAYER_INFO v5, and the three-way index
 
-`src/torirsserver/mock239_playerinfo.c` writes the v5 player stream. It is a
+`src/torirsserver/wire/core/wire_player_info.c` writes the v5 player stream. It is a
 different **codec** from the classic bitstream, not a different field order,
 so `torirs_server_encode.c` forks to it before writing a bit rather than branching
 per field.
@@ -299,7 +299,7 @@ test tree) rather than its 7,600-line production encoder: the decoder is what a
 client actually does, and a wire format is easier to get right by reading what
 consumes it.
 
-`make -C src test-mock239-playerinfo` round-trips the encoder against a decoder
+`make -C src test-wire-player-info` round-trips the encoder against a decoder
 written independently in the opposite direction. It is mutation-tested: an
 off-by-one in the skip run turns it red. It also turned up a correction worth
 keeping — **an empty bit section emits zero bytes**, so deleting sections 2 and
@@ -414,7 +414,7 @@ Not done, in the order that unblocks the most:
 1. **NPC_INFO v5 is not written**, and PLAYER_INFO v5 carries only the local
    player — other players are held in low resolution and never promoted, so the
    high-resolution movement opcodes and the low-to-high transition are read by
-   the client and written by nobody. `mock239_playerinfo.h` says where. The
+   the client and written by nobody. `wire_player_info.h` says where. The
    writer must follow the official v5 add layout: a 16-bit per-client NPC index
    (`0xffff` terminates the add list), followed by a 14-bit **initial NPC
    definition**. The initial definition is not a slot and is not directly

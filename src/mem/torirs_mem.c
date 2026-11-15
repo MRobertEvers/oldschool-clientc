@@ -1713,15 +1713,6 @@ ToriMem_LibRSProt(void)
 }
 
 struct ToriMem_Group*
-ToriMem_LibRSAreaBuf(void)
-{
-    static struct ToriMem_Group g;
-    if( !g.live )
-        ToriMem_GroupInit(&g, "lib:rsareabuf", ToriMem_Process());
-    return &g;
-}
-
-struct ToriMem_Group*
 ToriMem_LibBZip(void)
 {
     static struct ToriMem_Group g;

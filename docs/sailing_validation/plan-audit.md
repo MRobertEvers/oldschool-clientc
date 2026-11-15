@@ -99,7 +99,7 @@ build and closes nothing here.
 `/tmp/sailing-fin3/<target>.log` each): `test-sailing-paint-order`,
 `test-painters-world-entity`, `test-frame-flat`, `test-world`,
 `test-minimenu-world`, `test-cs2-sailing-settings`, `test-sailing-collision`,
-`test-mock239-playerinfo`, `test-wev-rebuild`, `test-wev`, `test-rsprot-bridge`,
+`test-wire-player-info`, `test-wev-rebuild`, `test-wev`, `test-rsprot-bridge`,
 `test-social`. Two more targets than the 08:08 re-stamp ran, and the same ten
 plus `test-painters-world-entity` and `test-wev`.
 

@@ -3,7 +3,7 @@
 #include "torirs_server_interface_state.h"
 #include <assert.h>
 
-#include <rsareabuf.h>
+#include "rsprot_buf.h"
 
 #include <limits.h>
 #include <stdlib.h>
@@ -278,7 +278,7 @@ ToriRSServer_IfStateSplitClassicEvents(
 
 void
 ToriRSServer_IfStateEncodeSeteventsV2(
-    struct RSAreaBuf* buf,
+    struct RsprotBuf* buf,
     int component_uid,
     int start,
     int end,
@@ -287,21 +287,21 @@ ToriRSServer_IfStateEncodeSeteventsV2(
 {
     assert(buf);
     /* RSProt revision-239 IfSetEventsV2Encoder. */
-    rsab_p2_alt2(buf, end);
-    rsab_p4(buf, (int32_t)events2);
-    rsab_p4_alt2(buf, (int32_t)events1);
-    rsab_p2(buf, start);
-    rsab_p4_alt3(buf, component_uid);
+    rsprot_p2_12_add128(buf, end);
+    rsprot_p4_1234(buf, (int32_t)events2);
+    rsprot_p4_3412(buf, (int32_t)events1);
+    rsprot_p2_12(buf, start);
+    rsprot_p4_2143(buf, component_uid);
 }
 
 void
 ToriRSServer_IfStateEncodeClearinv(
-    struct RSAreaBuf* buf,
+    struct RsprotBuf* buf,
     int component_uid)
 {
     assert(buf);
     /* RSProt revision-239 IfClearInvEncoder: pCombinedIdAlt2. */
-    rsab_p4_alt2(buf, component_uid);
+    rsprot_p4_3412(buf, component_uid);
 }
 
 size_t
@@ -315,7 +315,7 @@ ToriRSServer_IfStateResyncPayloadSize(const struct ToriRSServerInterfaceState* s
 
 void
 ToriRSServer_IfStateEncodeResyncV2(
-    struct RSAreaBuf* buf,
+    struct RsprotBuf* buf,
     const struct ToriRSServerInterfaceState* state)
 {
     assert(state);
@@ -326,20 +326,20 @@ ToriRSServer_IfStateEncodeResyncV2(
     /* RSProt revision-239 IfResyncV2Encoder. There is deliberately no events
      * count: after the stated sub-interface count, all remaining 16-byte
      * records are events. The golden deob uses packet-end as that loop bound. */
-    rsab_p2(buf, state->root_interface);
-    rsab_p2(buf, state->mount_count);
+    rsprot_p2_12(buf, state->root_interface);
+    rsprot_p2_12(buf, state->mount_count);
     for( int i = 0; i < state->mount_count; i++ )
     {
-        rsab_p4(buf, state->mounts[i].target_uid);
-        rsab_p2(buf, state->mounts[i].interface_id);
-        rsab_p1(buf, state->mounts[i].type);
+        rsprot_p4_1234(buf, state->mounts[i].target_uid);
+        rsprot_p2_12(buf, state->mounts[i].interface_id);
+        rsprot_p1(buf, state->mounts[i].type);
     }
     for( int i = 0; i < state->event_count; i++ )
     {
-        rsab_p4(buf, state->events[i].component_uid);
-        rsab_p2(buf, state->events[i].start);
-        rsab_p2(buf, state->events[i].end);
-        rsab_p4(buf, (int32_t)state->events[i].events1);
-        rsab_p4(buf, (int32_t)state->events[i].events2);
+        rsprot_p4_1234(buf, state->events[i].component_uid);
+        rsprot_p2_12(buf, state->events[i].start);
+        rsprot_p2_12(buf, state->events[i].end);
+        rsprot_p4_1234(buf, (int32_t)state->events[i].events1);
+        rsprot_p4_1234(buf, (int32_t)state->events[i].events2);
     }
 }

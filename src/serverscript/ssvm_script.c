@@ -4,7 +4,7 @@
 #include "ss_opcode.h"
 #include "mem/torirs_mem.h"
 
-#include <rsareabuf.h>
+#include "rsprot_buf.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -48,62 +48,33 @@ SSVM_ErrorSet(
 /* Decode helpers                                                      */
 /* ------------------------------------------------------------------ */
 
-/* rsab_wrap takes a mutable pointer because one struct serves both reads and
- * writes. Nothing in this file writes through the buffer, so the cast is safe;
- * keeping it in one place keeps that claim checkable. */
-static void
-wrap_readonly(struct RSAreaBuf* buf, const uint8_t* data, size_t length)
-{
-    union
-    {
-        const uint8_t* readable;
-        void* writable;
-    } alias;
-
-    alias.readable = data;
-    rsab_wrap(buf, alias.writable, length);
-}
-
 /**
  * Read a NUL-terminated string and hand back an exact-sized copy.
  *
- * rsab_gjstr wants a caller-supplied buffer and a cap, but nothing here has a
- * natural cap — script names, absolute source paths and string operands are all
- * unbounded in principle (the corpus's longest operand is 530 bytes). Scanning
- * for the terminator first means one allocation of exactly the right size and
- * no arbitrary limit to be wrong about later.
+ * rsprot_gjstr borrows the bytes in place; script names, absolute source paths
+ * and string operands are all unbounded in principle (the corpus's longest
+ * operand is 530 bytes), so the copy is sized from what it found rather than
+ * from an arbitrary cap.
  *
- * Returns NULL and latches overflow when the terminator is missing.
+ * Returns NULL, with the buffer's error latched, when the terminator is missing.
  */
 static char*
-read_cstr(struct RSAreaBuf* buf)
+read_cstr(struct RsprotBuf* buf)
 {
-    size_t start;
-    size_t end;
-    size_t length;
+    int32_t length;
+    const char* text;
     char* out;
 
-    if( buf->overflow )
+    if( !rsprot_buf_ok(buf) )
         return NULL;
 
-    start = buf->pos;
-    end = start;
-    while( end < buf->capacity && buf->data[end] != 0 )
-        end++;
-
-    if( end >= buf->capacity )
-    {
-        /* Ran off the end without finding a terminator. */
-        buf->overflow = 1;
+    text = rsprot_gjstr(buf, &length);
+    if( !text )
         return NULL;
-    }
 
-    length = end - start;
-    out = (char*)ToriMem_Alloc(ToriMem_ServerScripts(), length + 1);
-    memcpy(out, buf->data + start, length);
+    out = (char*)ToriMem_Alloc(ToriMem_ServerScripts(), (size_t)length + 1);
+    memcpy(out, text, (size_t)length);
     out[length] = '\0';
-
-    buf->pos = end + 1; /* step past the terminator */
     return out;
 }
 
@@ -137,7 +108,7 @@ SSVM_ScriptDecode(
     struct SSVM_Script* out,
     struct SSVM_Error* err)
 {
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     size_t trailer_len;
     size_t trailer_pos;
     int32_t instruction_count;
@@ -156,12 +127,12 @@ SSVM_ScriptDecode(
             err, id, -1, "script is %zu bytes, minimum is %d", length,
             SS_SCRIPT_MIN_BYTES);
 
-    wrap_readonly(&buf, data, length);
+    rsprot_buf_wrap_read(&buf, data, (int32_t)length);
 
     /* ---- locate the trailer --------------------------------------- */
 
-    buf.pos = length - 2;
-    trailer_len = (size_t)rsab_g2(&buf);
+    buf.rpos = (int32_t)(length - 2);
+    trailer_len = (size_t)rsprot_g2_12(&buf);
 
     if( trailer_len + SS_SCRIPT_FOOTER_BYTES > length )
         return SSVM_ErrorSet(
@@ -176,8 +147,8 @@ SSVM_ScriptDecode(
 
     /* ---- trailer --------------------------------------------------- */
 
-    buf.pos = trailer_pos;
-    instruction_count = rsab_g4(&buf);
+    buf.rpos = (int32_t)trailer_pos;
+    instruction_count = rsprot_g4_1234(&buf);
 
     /* Range-check BEFORE allocating: a corrupt count would otherwise ask for
      * gigabytes off a four-byte field. */
@@ -186,15 +157,15 @@ SSVM_ScriptDecode(
             err, id, (long)trailer_pos, "instruction count %d out of range",
             instruction_count);
 
-    out->int_local_count = (uint16_t)rsab_g2(&buf);
-    out->string_local_count = (uint16_t)rsab_g2(&buf);
-    out->int_arg_count = (uint16_t)rsab_g2(&buf);
-    out->string_arg_count = (uint16_t)rsab_g2(&buf);
+    out->int_local_count = (uint16_t)rsprot_g2_12(&buf);
+    out->string_local_count = (uint16_t)rsprot_g2_12(&buf);
+    out->int_arg_count = (uint16_t)rsprot_g2_12(&buf);
+    out->string_arg_count = (uint16_t)rsprot_g2_12(&buf);
 
-    out->switch_table_count = (uint8_t)rsab_g1(&buf);
+    out->switch_table_count = (uint8_t)rsprot_g1(&buf);
     if( out->switch_table_count > SS_MAX_SWITCH_TABLES )
         return SSVM_ErrorSet(
-            err, id, (long)buf.pos, "%u switch tables exceeds the cap of %d",
+            err, id, (long)buf.rpos, "%u switch tables exceeds the cap of %d",
             out->switch_table_count, SS_MAX_SWITCH_TABLES);
 
     if( out->switch_table_count )
@@ -210,10 +181,10 @@ SSVM_ScriptDecode(
         struct SSVM_SwitchTable* table = &out->switch_tables[i];
         int c;
 
-        table->case_count = (uint16_t)rsab_g2(&buf);
+        table->case_count = (uint16_t)rsprot_g2_12(&buf);
         if( table->case_count > SS_MAX_SWITCH_CASES )
             return SSVM_ErrorSet(
-                err, id, (long)buf.pos, "switch table %d has %u cases, cap is %d",
+                err, id, (long)buf.rpos, "switch table %d has %u cases, cap is %d",
                 i, table->case_count, SS_MAX_SWITCH_CASES);
 
         table->cases = (struct SSVM_SwitchCase*)alloc_zeroed(
@@ -223,42 +194,42 @@ SSVM_ScriptDecode(
 
         for( c = 0; c < table->case_count; c++ )
         {
-            table->cases[c].key = rsab_g4(&buf);
-            table->cases[c].delta = rsab_g4(&buf);
+            table->cases[c].key = rsprot_g4_1234(&buf);
+            table->cases[c].delta = rsprot_g4_1234(&buf);
         }
     }
 
-    if( buf.overflow )
-        return SSVM_ErrorSet(err, id, (long)buf.pos, "truncated trailer");
+    if( !rsprot_buf_ok(&buf) )
+        return SSVM_ErrorSet(err, id, (long)buf.rpos, "truncated trailer");
 
     /* The trailer must consume everything up to the trailing length field. If
      * it stops short, the switch block was misread and every delta in it is
      * suspect. */
-    if( buf.pos != length - 2 )
+    if( (size_t)buf.rpos != length - 2 )
         return SSVM_ErrorSet(
-            err, id, (long)buf.pos, "trailer ended at %zu, expected %zu", buf.pos,
+            err, id, (long)buf.rpos, "trailer ended at %zu, expected %zu", (size_t)buf.rpos,
             length - 2);
 
     /* ---- header ---------------------------------------------------- */
 
-    buf.pos = 0;
+    buf.rpos = 0;
     out->name = read_cstr(&buf);
     out->source_path = read_cstr(&buf);
-    out->lookup_key = rsab_g4(&buf);
+    out->lookup_key = rsprot_g4_1234(&buf);
 
-    out->param_type_count = (uint8_t)rsab_g1(&buf);
+    out->param_type_count = (uint8_t)rsprot_g1(&buf);
     if( out->param_type_count > SS_MAX_PARAM_TYPES )
         return SSVM_ErrorSet(
-            err, id, (long)buf.pos, "%u param types exceeds the cap of %d",
+            err, id, (long)buf.rpos, "%u param types exceeds the cap of %d",
             out->param_type_count, SS_MAX_PARAM_TYPES);
     for( i = 0; i < out->param_type_count; i++ )
     {
         /* Unsigned on purpose: NPC_STAT is 254 and AUTOINT is 255, which a
          * signed char turns negative and every later comparison then misses. */
-        out->param_types[i] = (uint8_t)rsab_g1(&buf);
+        out->param_types[i] = (uint8_t)rsprot_g1(&buf);
     }
 
-    out->line_count = (uint16_t)rsab_g2(&buf);
+    out->line_count = (uint16_t)rsprot_g2_12(&buf);
     if( out->line_count )
     {
         out->line_pcs =
@@ -270,13 +241,13 @@ SSVM_ScriptDecode(
 
         for( i = 0; i < out->line_count; i++ )
         {
-            out->line_pcs[i] = rsab_g4(&buf);
-            out->line_numbers[i] = rsab_g4(&buf);
+            out->line_pcs[i] = rsprot_g4_1234(&buf);
+            out->line_numbers[i] = rsprot_g4_1234(&buf);
         }
     }
 
-    if( buf.overflow || buf.pos > trailer_pos )
-        return SSVM_ErrorSet(err, id, (long)buf.pos, "truncated header");
+    if( !rsprot_buf_ok(&buf) || (size_t)buf.rpos > trailer_pos )
+        return SSVM_ErrorSet(err, id, (long)buf.rpos, "truncated header");
 
     /* ---- code ------------------------------------------------------ */
 
@@ -290,17 +261,17 @@ SSVM_ScriptDecode(
         goto oom;
 
     op = 0;
-    while( buf.pos < trailer_pos )
+    while( (size_t)buf.rpos < trailer_pos )
     {
         int opcode;
 
         if( op >= instruction_count )
             return SSVM_ErrorSet(
-                err, id, (long)buf.pos,
+                err, id, (long)buf.rpos,
                 "code stream holds more than the declared %d instructions",
                 instruction_count);
 
-        opcode = rsab_g2(&buf);
+        opcode = rsprot_g2_12(&buf);
         out->opcodes[op] = (uint16_t)opcode;
 
         if( opcode == SS_OP_PUSH_CONSTANT_STRING )
@@ -308,34 +279,34 @@ SSVM_ScriptDecode(
             out->string_operands[op] = read_cstr(&buf);
             if( !out->string_operands[op] )
                 return SSVM_ErrorSet(
-                    err, id, (long)buf.pos, "unterminated string operand at op %d", op);
+                    err, id, (long)buf.rpos, "unterminated string operand at op %d", op);
         }
         else if( ss_is_large_operand(opcode) )
         {
-            out->int_operands[op] = rsab_g4(&buf);
+            out->int_operands[op] = rsprot_g4_1234(&buf);
         }
         else
         {
-            out->int_operands[op] = rsab_g1(&buf);
+            out->int_operands[op] = rsprot_g1(&buf);
         }
         op++;
     }
 
-    if( buf.overflow )
-        return SSVM_ErrorSet(err, id, (long)buf.pos, "truncated code stream");
+    if( !rsprot_buf_ok(&buf) )
+        return SSVM_ErrorSet(err, id, (long)buf.rpos, "truncated code stream");
 
     /* Both of these are the whole reason the decoder is trustworthy. Script
      * bodies are concatenated with no internal length field, so a decode that
      * ends in the wrong place produces a plausible-looking script whose every
      * operand is shifted. */
-    if( buf.pos != trailer_pos )
+    if( (size_t)buf.rpos != trailer_pos )
         return SSVM_ErrorSet(
-            err, id, (long)buf.pos, "code ended at %zu, expected %zu", buf.pos,
+            err, id, (long)buf.rpos, "code ended at %zu, expected %zu", (size_t)buf.rpos,
             trailer_pos);
 
     if( op != instruction_count )
         return SSVM_ErrorSet(
-            err, id, (long)buf.pos, "decoded %d instructions, trailer declares %d", op,
+            err, id, (long)buf.rpos, "decoded %d instructions, trailer declares %d", op,
             instruction_count);
 
     out->op_count = op;
@@ -357,7 +328,7 @@ SSVM_ScriptEncode(
     size_t* out_length,
     struct SSVM_Error* err)
 {
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     size_t switch_bytes;
     size_t needed;
     int i;
@@ -407,24 +378,23 @@ SSVM_ScriptEncode(
             err, script->id, -1, "encode needs %zu bytes, buffer holds %zu", needed,
             capacity);
 
-    rsab_wrap(&buf, out, capacity);
-    buf.pos = 0;
+    rsprot_buf_wrap(&buf, out, (int32_t)capacity);
 
     /* ---- header ---------------------------------------------------- */
 
-    rsab_pjstr(&buf, script->name ? script->name : "", RSAB_JSTR_NUL);
-    rsab_pjstr(&buf, script->source_path ? script->source_path : "", RSAB_JSTR_NUL);
-    rsab_p4(&buf, script->lookup_key);
+    rsprot_pjstr(&buf, script->name ? script->name : "");
+    rsprot_pjstr(&buf, script->source_path ? script->source_path : "");
+    rsprot_p4_1234(&buf, script->lookup_key);
 
-    rsab_p1(&buf, script->param_type_count);
+    rsprot_p1(&buf, script->param_type_count);
     for( i = 0; i < script->param_type_count; i++ )
-        rsab_p1(&buf, script->param_types[i]);
+        rsprot_p1(&buf, script->param_types[i]);
 
-    rsab_p2(&buf, script->line_count);
+    rsprot_p2_12(&buf, script->line_count);
     for( i = 0; i < script->line_count; i++ )
     {
-        rsab_p4(&buf, script->line_pcs[i]);
-        rsab_p4(&buf, script->line_numbers[i]);
+        rsprot_p4_1234(&buf, script->line_pcs[i]);
+        rsprot_p4_1234(&buf, script->line_numbers[i]);
     }
 
     /* ---- code ------------------------------------------------------ */
@@ -433,60 +403,59 @@ SSVM_ScriptEncode(
     {
         int opcode = script->opcodes[i];
 
-        rsab_p2(&buf, opcode);
+        rsprot_p2_12(&buf, opcode);
         if( opcode == SS_OP_PUSH_CONSTANT_STRING )
         {
-            rsab_pjstr(
-                &buf, script->string_operands[i] ? script->string_operands[i] : "",
-                RSAB_JSTR_NUL);
+            rsprot_pjstr(
+                &buf, script->string_operands[i] ? script->string_operands[i] : "");
         }
         else if( ss_is_large_operand(opcode) )
         {
-            rsab_p4(&buf, script->int_operands[i]);
+            rsprot_p4_1234(&buf, script->int_operands[i]);
         }
         else
         {
-            rsab_p1(&buf, script->int_operands[i]);
+            rsprot_p1(&buf, script->int_operands[i]);
         }
     }
 
     /* ---- trailer --------------------------------------------------- */
 
-    rsab_p4(&buf, script->op_count);
-    rsab_p2(&buf, script->int_local_count);
-    rsab_p2(&buf, script->string_local_count);
-    rsab_p2(&buf, script->int_arg_count);
-    rsab_p2(&buf, script->string_arg_count);
+    rsprot_p4_1234(&buf, script->op_count);
+    rsprot_p2_12(&buf, script->int_local_count);
+    rsprot_p2_12(&buf, script->string_local_count);
+    rsprot_p2_12(&buf, script->int_arg_count);
+    rsprot_p2_12(&buf, script->string_arg_count);
 
-    rsab_p1(&buf, script->switch_table_count);
+    rsprot_p1(&buf, script->switch_table_count);
     for( i = 0; i < script->switch_table_count; i++ )
     {
         const struct SSVM_SwitchTable* table = &script->switch_tables[i];
         int c;
 
-        rsab_p2(&buf, table->case_count);
+        rsprot_p2_12(&buf, table->case_count);
         for( c = 0; c < table->case_count; c++ )
         {
-            rsab_p4(&buf, table->cases[c].key);
-            rsab_p4(&buf, table->cases[c].delta);
+            rsprot_p4_1234(&buf, table->cases[c].key);
+            rsprot_p4_1234(&buf, table->cases[c].delta);
         }
     }
 
     /* The decoder finds the trailer by working back from this value, so the
      * "+ 1" is load-bearing: it is what makes trailer_pos land on the
      * instruction count rather than one byte past it. */
-    rsab_p2(&buf, (int32_t)(switch_bytes + 1));
+    rsprot_p2_12(&buf, (int32_t)(switch_bytes + 1));
 
-    if( !rsab_ok(&buf) )
-        return SSVM_ErrorSet(err, script->id, (long)buf.pos, "encode overflowed");
+    if( !rsprot_buf_ok(&buf) )
+        return SSVM_ErrorSet(err, script->id, (long)buf.wpos, "encode overflowed");
 
-    if( buf.pos != needed )
+    if( (size_t)buf.wpos != needed )
         return SSVM_ErrorSet(
-            err, script->id, (long)buf.pos, "encode wrote %zu bytes, sizing said %zu",
-            buf.pos, needed);
+            err, script->id, (long)buf.wpos, "encode wrote %zu bytes, sizing said %zu",
+            (size_t)buf.wpos, needed);
 
     if( out_length )
-        *out_length = buf.pos;
+        *out_length = (size_t)buf.wpos;
     return 1;
 }
 

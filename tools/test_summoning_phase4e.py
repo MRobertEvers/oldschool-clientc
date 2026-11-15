@@ -45,9 +45,9 @@ def main() -> int:
     ):
         expect(path.is_file() and path.stat().st_size > 0, f"missing {label}: {path}")
 
-    wire = (REPO / "src/torirsserver/torirs_server_wire.c").read_text(encoding="utf-8")
+    wire = (REPO / "src/torirsserver/wire/osrs239/osrs239_wire.c").read_text(encoding="utf-8")
     expect(
-        "case PKT_NAME_LOC_ADD_CHANGE:" in wire and "rsab_p2_alt3(buf, id);" in wire,
+        "case PKT_NAME_LOC_ADD_CHANGE:" in wire and "rsprot_p2_21_add128(buf, id);" in wire,
         "rev239 LOC_ADD_CHANGE no longer writes the loc config as an exact 16-bit p2Alt3",
     )
     bridge = (REPO / "src/torirsserver/torirs_server_encode.c").read_text(encoding="utf-8")

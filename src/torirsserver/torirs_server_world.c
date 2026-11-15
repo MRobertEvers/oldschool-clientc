@@ -38,8 +38,8 @@
 #include "torirs_server_scene.h"
 #include "torirs_server_control.h"
 #include "torirs_server_world_internal.h"
-#include "mock239_facing.h"
-#include "mock239_interface_inbound.h"
+#include "torirsserver/wire/core/wire_facing.h"
+#include "torirsserver/wire/core/wire_if_inbound.h"
 #include "engine/world_builder/collision_map.h"
 /* `torirs_server_scene.h` only forward-declares `struct ToriRS_FeatureTable`, so
  * reading a field off `ToriRSServer_SceneFeatures()` needs the definition. */
@@ -53,7 +53,7 @@
 #include "net/rev/pktnames.h"
 #include "net/chat_huffman.h"
 
-#include <rsareabuf.h>
+#include "rsprot_buf.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -7064,7 +7064,7 @@ handle_move(
     int trailer_len)
 {
     struct ToriRSServerPlayer* player = srv->active_player;
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     int ctrl;
     int start_x;
     int start_z;
@@ -7074,11 +7074,11 @@ handle_move(
     int dx_sw;
     int dz_sw;
 
-    rsab_wrap(&buf, (void*)payload, (size_t)len);
-    ctrl = rsab_g1(&buf);
-    start_x = rsab_g2(&buf);
-    start_z = rsab_g2(&buf);
-    if( !rsab_ok(&buf) )
+    rsprot_buf_wrap_read(&buf, (void*)payload, (size_t)len);
+    ctrl = rsprot_g1(&buf);
+    start_x = rsprot_g2_12(&buf);
+    start_z = rsprot_g2_12(&buf);
+    if( !rsprot_buf_ok(&buf) )
         return;
 
     /*
@@ -7190,9 +7190,9 @@ handle_move(
         waypoints = 0;
     for( int i = 0; i < waypoints; i++ )
     {
-        int dx = rsab_g1s(&buf);
-        int dz = rsab_g1s(&buf);
-        if( !rsab_ok(&buf) )
+        int dx = rsprot_g1s(&buf);
+        int dz = rsprot_g1s(&buf);
+        if( !rsprot_buf_ok(&buf) )
             break;
         dest_x = start_x + dx;
         dest_z = start_z + dz;
@@ -7348,18 +7348,18 @@ handle_opheld(
     int len)
 {
     struct ToriRSServerPlayer* player = srv->active_player;
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     int obj_id;
     int slot;
     int component;
     const struct ToriRSServerObjInfo* info;
     const char* verb;
 
-    rsab_wrap(&buf, (void*)payload, (size_t)len);
-    obj_id = rsab_g2(&buf);
-    slot = rsab_g2(&buf);
-    component = rsab_g4(&buf);
-    if( !rsab_ok(&buf) )
+    rsprot_buf_wrap_read(&buf, (void*)payload, (size_t)len);
+    obj_id = rsprot_g2_12(&buf);
+    slot = rsprot_g2_12(&buf);
+    component = rsprot_g4_1234(&buf);
+    if( !rsprot_buf_ok(&buf) )
         return;
 
     /* Worn tab actions are INV_BUTTON triggers, not ObjType actions. Do this
@@ -7680,7 +7680,7 @@ handle_inv_buttond(
     int len)
 {
     struct ToriRSServerPlayer* player = srv->active_player;
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     int src_com;
     int src_obj;
     int src_slot;
@@ -7689,14 +7689,14 @@ handle_inv_buttond(
     int dst_slot;
     const struct ToriRSServerIds* ids = ToriRSServer_Ids();
 
-    rsab_wrap(&buf, (void*)payload, (size_t)len);
-    src_com = rsab_g4_alt1(&buf);
-    src_obj = rsab_g2_alt1(&buf);
-    src_slot = rsab_g2_alt3(&buf);
-    dst_com = rsab_g4(&buf);
-    dst_obj = rsab_g2_alt2(&buf);
-    dst_slot = rsab_g2_alt2(&buf);
-    if( !rsab_ok(&buf) )
+    rsprot_buf_wrap_read(&buf, (void*)payload, (size_t)len);
+    src_com = rsprot_g4_4321(&buf);
+    src_obj = rsprot_g2_21(&buf);
+    src_slot = rsprot_g2_21_add128(&buf);
+    dst_com = rsprot_g4_1234(&buf);
+    dst_obj = rsprot_g2_12_add128(&buf);
+    dst_slot = rsprot_g2_12_add128(&buf);
+    if( !rsprot_buf_ok(&buf) )
         return;
 
     /* Sign-extend the 16-bit item ids: empty slots arrive as 0xffff (-1). */
@@ -7849,12 +7849,12 @@ handle_opnpc(
     const uint8_t* payload,
     int len)
 {
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     int slot;
     struct ToriRSServerNpc* npc;
     const struct ToriRSServerNpcInfo* info;
 
-    rsab_wrap(&buf, (void*)payload, (size_t)len);
+    rsprot_buf_wrap_read(&buf, (void*)payload, (size_t)len);
     /*
      * The client names the npc by what WE called it (ToriRSServerPlayerSlotMap), so
      * this is a translation and not a cast. Using the wire value as a pool
@@ -7862,8 +7862,8 @@ handle_opnpc(
      * different npc, the walk went to that one's tile, and the player was told
      * "I can't reach that" while standing on top of the one they clicked.
      */
-    slot = ToriRSServer_SlotMapWorld(srv->active_player, rsab_g2(&buf));
-    if( !rsab_ok(&buf) || slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
+    slot = ToriRSServer_SlotMapWorld(srv->active_player, rsprot_g2_12(&buf));
+    if( !rsprot_buf_ok(&buf) || slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
         return;
     npc = &srv->npcs[slot];
     if( !npc->active )
@@ -8049,16 +8049,16 @@ handle_opobj(
     const uint8_t* payload,
     int len)
 {
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     int tile_x;
     int tile_z;
     int obj_id;
 
-    rsab_wrap(&buf, (void*)payload, (size_t)len);
-    tile_x = rsab_g2(&buf);
-    tile_z = rsab_g2(&buf);
-    obj_id = rsab_g2(&buf);
-    if( !rsab_ok(&buf) )
+    rsprot_buf_wrap_read(&buf, (void*)payload, (size_t)len);
+    tile_x = rsprot_g2_12(&buf);
+    tile_z = rsprot_g2_12(&buf);
+    obj_id = rsprot_g2_12(&buf);
+    if( !rsprot_buf_ok(&buf) )
         return;
 
     ToriRSServer_WorldClearPendingAction(srv);
@@ -8130,7 +8130,7 @@ handle_oploc(
     const uint8_t* payload,
     int len)
 {
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     int tile_x;
     int tile_z;
     int loc_id;
@@ -8141,11 +8141,11 @@ handle_oploc(
     int resolved;
     const char* op;
 
-    rsab_wrap(&buf, (void*)payload, (size_t)len);
-    tile_x = rsab_g2(&buf);
-    tile_z = rsab_g2(&buf);
-    loc_id = rsab_g2(&buf);
-    if( !rsab_ok(&buf) )
+    rsprot_buf_wrap_read(&buf, (void*)payload, (size_t)len);
+    tile_x = rsprot_g2_12(&buf);
+    tile_z = rsprot_g2_12(&buf);
+    loc_id = rsprot_g2_12(&buf);
+    if( !rsprot_buf_ok(&buf) )
         return;
 
     ToriRSServer_WorldClearPendingAction(srv);
@@ -8253,18 +8253,18 @@ handle_oploc(
 static int
 useon_tail(
     struct ToriRSServer* srv,
-    struct RSAreaBuf* buf,
+    struct RsprotBuf* buf,
     int component_bytes,
     int* out_obj,
     int* out_slot)
 {
     struct ToriRSServerPlayer* player = srv->active_player;
-    int use_obj = rsab_g2(buf);
-    int use_slot = rsab_g2(buf);
-    int use_com = component_bytes == 4 ? rsab_g4(buf) : rsab_g2(buf);
+    int use_obj = rsprot_g2_12(buf);
+    int use_slot = rsprot_g2_12(buf);
+    int use_com = component_bytes == 4 ? rsprot_g4_1234(buf) : rsprot_g2_12(buf);
 
     (void)use_com;
-    if( !rsab_ok(buf) )
+    if( !rsprot_buf_ok(buf) )
         return 0;
     if( use_slot < 0 || use_slot >= TORIRSSERVER_INV_SLOTS )
         return 0;
@@ -8293,7 +8293,7 @@ handle_opheldu(
     int len)
 {
     struct ToriRSServerPlayer* player = srv->active_player;
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     int obj_id;
     int slot;
     int component;
@@ -8302,11 +8302,11 @@ handle_opheldu(
     const struct ToriRSServerObjInfo* info;
     const struct ToriRSServerObjInfo* use_info;
 
-    rsab_wrap(&buf, (void*)payload, (size_t)len);
-    obj_id = rsab_g2(&buf);
-    slot = rsab_g2(&buf);
-    component = rsab_g4(&buf);
-    if( !rsab_ok(&buf) )
+    rsprot_buf_wrap_read(&buf, (void*)payload, (size_t)len);
+    obj_id = rsprot_g2_12(&buf);
+    slot = rsprot_g2_12(&buf);
+    component = rsprot_g4_1234(&buf);
+    if( !rsprot_buf_ok(&buf) )
         return;
     if( slot < 0 || slot >= TORIRSSERVER_INV_SLOTS || player->inv[slot].obj_id != obj_id )
         return;
@@ -8478,14 +8478,14 @@ spell_interact(
 
 /* The `p4 spellComponent` tail every targeted-cast body ends with. Four bytes,
  * unlike the use-on tail's two, because the component IS the trigger subject
- * here — see put_spell_tail in mock239_inbound.c. */
+ * here — see put_spell_tail in osrs239_inbound.c. */
 static int
 spell_tail(
-    struct RSAreaBuf* buf,
+    struct RsprotBuf* buf,
     int* out_spell)
 {
-    int spell = rsab_g4(buf);
-    if( !rsab_ok(buf) || spell <= 0 )
+    int spell = rsprot_g4_1234(buf);
+    if( !rsprot_buf_ok(buf) || spell <= 0 )
         return 0;
     *out_spell = spell;
     return 1;
@@ -8498,7 +8498,7 @@ handle_oploct(
     const uint8_t* payload,
     int len)
 {
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     int tile_x;
     int tile_z;
     int loc_id;
@@ -8508,11 +8508,11 @@ handle_oploct(
     int size_x = 1;
     int size_z = 1;
 
-    rsab_wrap(&buf, (void*)payload, (size_t)len);
-    tile_x = rsab_g2(&buf);
-    tile_z = rsab_g2(&buf);
-    loc_id = rsab_g2(&buf);
-    if( !rsab_ok(&buf) || !spell_tail(&buf, &spell) )
+    rsprot_buf_wrap_read(&buf, (void*)payload, (size_t)len);
+    tile_x = rsprot_g2_12(&buf);
+    tile_z = rsprot_g2_12(&buf);
+    loc_id = rsprot_g2_12(&buf);
+    if( !rsprot_buf_ok(&buf) || !spell_tail(&buf, &spell) )
         return;
 
     if( srv->verbose )
@@ -8539,13 +8539,13 @@ handle_opnpct(
     const uint8_t* payload,
     int len)
 {
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     int slot;
     int spell;
     struct ToriRSServerNpc* npc;
     const struct ToriRSServerNpcInfo* info;
 
-    rsab_wrap(&buf, (void*)payload, (size_t)len);
+    rsprot_buf_wrap_read(&buf, (void*)payload, (size_t)len);
     /*
      * The client names the npc by what WE called it (ToriRSServerPlayerSlotMap), so
      * this is a translation and not a cast. Using the wire value as a pool
@@ -8553,8 +8553,8 @@ handle_opnpct(
      * different npc, the walk went to that one's tile, and the player was told
      * "I can't reach that" while standing on top of the one they clicked.
      */
-    slot = ToriRSServer_SlotMapWorld(srv->active_player, rsab_g2(&buf));
-    if( !rsab_ok(&buf) || slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
+    slot = ToriRSServer_SlotMapWorld(srv->active_player, rsprot_g2_12(&buf));
+    if( !rsprot_buf_ok(&buf) || slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
         return;
     if( !spell_tail(&buf, &spell) )
         return;
@@ -8597,17 +8597,17 @@ handle_opobjt(
     const uint8_t* payload,
     int len)
 {
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     int tile_x;
     int tile_z;
     int obj_id;
     int spell;
 
-    rsab_wrap(&buf, (void*)payload, (size_t)len);
-    tile_x = rsab_g2(&buf);
-    tile_z = rsab_g2(&buf);
-    obj_id = rsab_g2(&buf);
-    if( !rsab_ok(&buf) || !spell_tail(&buf, &spell) )
+    rsprot_buf_wrap_read(&buf, (void*)payload, (size_t)len);
+    tile_x = rsprot_g2_12(&buf);
+    tile_z = rsprot_g2_12(&buf);
+    obj_id = rsprot_g2_12(&buf);
+    if( !rsprot_buf_ok(&buf) || !spell_tail(&buf, &spell) )
         return;
 
     if( srv->verbose )
@@ -8627,15 +8627,15 @@ handle_opplayert(
     const uint8_t* payload,
     int len)
 {
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     int pid;
     int spell;
     int slot = -1;
     struct ToriRSServerPlayer* target;
 
-    rsab_wrap(&buf, (void*)payload, (size_t)len);
-    pid = rsab_g2(&buf);
-    if( !rsab_ok(&buf) || !spell_tail(&buf, &spell) )
+    rsprot_buf_wrap_read(&buf, (void*)payload, (size_t)len);
+    pid = rsprot_g2_12(&buf);
+    if( !rsprot_buf_ok(&buf) || !spell_tail(&buf, &spell) )
         return;
 
     /* The packet names the player by the GPI index the server published in
@@ -8680,17 +8680,17 @@ handle_opheldt(
     int len)
 {
     struct ToriRSServerPlayer* player = srv->active_player;
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     int obj_id;
     int slot;
     int component;
     int spell;
 
-    rsab_wrap(&buf, (void*)payload, (size_t)len);
-    obj_id = rsab_g2(&buf);
-    slot = rsab_g2(&buf);
-    component = rsab_g4(&buf);
-    if( !rsab_ok(&buf) || !spell_tail(&buf, &spell) )
+    rsprot_buf_wrap_read(&buf, (void*)payload, (size_t)len);
+    obj_id = rsprot_g2_12(&buf);
+    slot = rsprot_g2_12(&buf);
+    component = rsprot_g4_1234(&buf);
+    if( !rsprot_buf_ok(&buf) || !spell_tail(&buf, &spell) )
         return;
     if( slot < 0 || slot >= TORIRSSERVER_INV_SLOTS || player->inv[slot].obj_id != obj_id )
         return;
@@ -8718,7 +8718,7 @@ handle_oplocu(
     const uint8_t* payload,
     int len)
 {
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     int tile_x;
     int tile_z;
     int loc_id;
@@ -8729,11 +8729,11 @@ handle_oplocu(
     int size_x = 1;
     int size_z = 1;
 
-    rsab_wrap(&buf, (void*)payload, (size_t)len);
-    tile_x = rsab_g2(&buf);
-    tile_z = rsab_g2(&buf);
-    loc_id = rsab_g2(&buf);
-    if( !rsab_ok(&buf) )
+    rsprot_buf_wrap_read(&buf, (void*)payload, (size_t)len);
+    tile_x = rsprot_g2_12(&buf);
+    tile_z = rsprot_g2_12(&buf);
+    loc_id = rsprot_g2_12(&buf);
+    if( !rsprot_buf_ok(&buf) )
         return;
     if( !useon_tail(srv, &buf, 2, &use_obj, &use_slot) )
         return;
@@ -8772,14 +8772,14 @@ handle_opnpcu(
     const uint8_t* payload,
     int len)
 {
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     int slot;
     int use_obj;
     int use_slot;
     struct ToriRSServerNpc* npc;
     const struct ToriRSServerNpcInfo* info;
 
-    rsab_wrap(&buf, (void*)payload, (size_t)len);
+    rsprot_buf_wrap_read(&buf, (void*)payload, (size_t)len);
     /*
      * The client names the npc by what WE called it (ToriRSServerPlayerSlotMap), so
      * this is a translation and not a cast. Using the wire value as a pool
@@ -8787,8 +8787,8 @@ handle_opnpcu(
      * different npc, the walk went to that one's tile, and the player was told
      * "I can't reach that" while standing on top of the one they clicked.
      */
-    slot = ToriRSServer_SlotMapWorld(srv->active_player, rsab_g2(&buf));
-    if( !rsab_ok(&buf) || slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
+    slot = ToriRSServer_SlotMapWorld(srv->active_player, rsprot_g2_12(&buf));
+    if( !rsprot_buf_ok(&buf) || slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
         return;
     if( !useon_tail(srv, &buf, 2, &use_obj, &use_slot) )
         return;
@@ -8818,18 +8818,18 @@ handle_opobju(
     const uint8_t* payload,
     int len)
 {
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     int tile_x;
     int tile_z;
     int obj_id;
     int use_obj;
     int use_slot;
 
-    rsab_wrap(&buf, (void*)payload, (size_t)len);
-    tile_x = rsab_g2(&buf);
-    tile_z = rsab_g2(&buf);
-    obj_id = rsab_g2(&buf);
-    if( !rsab_ok(&buf) )
+    rsprot_buf_wrap_read(&buf, (void*)payload, (size_t)len);
+    tile_x = rsprot_g2_12(&buf);
+    tile_z = rsprot_g2_12(&buf);
+    obj_id = rsprot_g2_12(&buf);
+    if( !rsprot_buf_ok(&buf) )
         return;
     if( !useon_tail(srv, &buf, 2, &use_obj, &use_slot) )
         return;
@@ -11091,7 +11091,7 @@ ToriRSServer_RunCheatLadder(
         int mode = -1;
         int layout_buttons;
         uint8_t button[6];
-        struct RSAreaBuf out;
+        struct RsprotBuf out;
 
         if( sscanf(text, "layout %d", &mode) != 1 || mode < 0 || mode > 2 )
         {
@@ -11106,11 +11106,11 @@ ToriRSServer_RunCheatLadder(
             say(srv, "layout: this cache has no Display row to press.");
             return TORIRSSERVER_TRIGGER_RAN;
         }
-        rsab_wrap(&out, button, sizeof(button));
-        rsab_p4(&out, layout_buttons);
-        rsab_p2(&out, mode + 1);
+        rsprot_buf_wrap(&out, button, sizeof(button));
+        rsprot_p4_1234(&out, layout_buttons);
+        rsprot_p2_12(&out, mode + 1);
         handle_if_button_op(
-            srv, PKTOUT_NAME_IF_BUTTON1, button, (int)rsab_len(&out));
+            srv, PKTOUT_NAME_IF_BUTTON1, button, (int)out.wpos);
         fprintf(stderr, "layout: pressed Display row sub %d\n", mode + 1);
         return TORIRSSERVER_TRIGGER_RAN;
     }
@@ -11239,13 +11239,13 @@ ToriRSServer_RunCheatLadder(
         }
         {
             uint8_t held[8];
-            struct RSAreaBuf out;
+            struct RsprotBuf out;
 
-            rsab_wrap(&out, held, sizeof(held));
-            rsab_p2(&out, obj_id);
-            rsab_p2(&out, slot);
-            rsab_p4(&out, ToriRSServer_Ids()->com_inventory_items);
-            handle_opheld(srv, 2, held, (int)rsab_len(&out));
+            rsprot_buf_wrap(&out, held, sizeof(held));
+            rsprot_p2_12(&out, obj_id);
+            rsprot_p2_12(&out, slot);
+            rsprot_p4_1234(&out, ToriRSServer_Ids()->com_inventory_items);
+            handle_opheld(srv, 2, held, (int)out.wpos);
         }
         /* "Sent", not "Wielded": content may refuse it (level, quest). */
         say(srv, "::wield: sent Wield for %s (%d) from slot %d.", arg, obj_id, slot);
@@ -11447,18 +11447,18 @@ ToriRSServer_RunCheatLadder(
 
         {
             uint8_t body[16];
-            struct RSAreaBuf out;
+            struct RsprotBuf out;
 
-            rsab_wrap(&out, body, sizeof(body));
-            rsab_p2(&out, b);
-            rsab_p2(&out, slot_b);
-            rsab_p4(&out, 0);
-            rsab_p2(&out, a);
-            rsab_p2(&out, slot_a);
-            rsab_p4(&out, 0);
+            rsprot_buf_wrap(&out, body, sizeof(body));
+            rsprot_p2_12(&out, b);
+            rsprot_p2_12(&out, slot_b);
+            rsprot_p4_1234(&out, 0);
+            rsprot_p2_12(&out, a);
+            rsprot_p2_12(&out, slot_a);
+            rsprot_p4_1234(&out, 0);
             fprintf(stderr, "torirsserver: ::useon %s(%d,slot %d) on %s(%d,slot %d)\n", arg_a, a,
                     slot_a, arg_b, b, slot_b);
-            ToriRSServer_WorldHandle(player, PKTOUT_NAME_OPHELDU, body, (int)rsab_len(&out));
+            ToriRSServer_WorldHandle(player, PKTOUT_NAME_OPHELDU, body, (int)out.wpos);
         }
         return TORIRSSERVER_TRIGGER_RAN;
     }
@@ -11646,7 +11646,7 @@ ToriRSServer_RunCheatLadder(
             int pipe_now = step == 0 ? pipe_empty : pipe_loaded;
             int use_obj = step == 0 ? dart_obj : scale_obj;
             uint8_t body[16];
-            struct RSAreaBuf out;
+            struct RsprotBuf out;
 
             pipe_slot = -1;
             use_slot = -1;
@@ -11665,14 +11665,14 @@ ToriRSServer_RunCheatLadder(
                     ToriRSServer_ObjInfo(use_obj)->name);
                 return TORIRSSERVER_TRIGGER_FAILED;
             }
-            rsab_wrap(&out, body, sizeof(body));
-            rsab_p2(&out, pipe_now);
-            rsab_p2(&out, pipe_slot);
-            rsab_p4(&out, ToriRSServer_Ids()->com_inventory_items);
-            rsab_p2(&out, use_obj);
-            rsab_p2(&out, use_slot);
-            rsab_p4(&out, ToriRSServer_Ids()->com_inventory_items);
-            handle_opheldu(srv, body, (int)rsab_len(&out));
+            rsprot_buf_wrap(&out, body, sizeof(body));
+            rsprot_p2_12(&out, pipe_now);
+            rsprot_p2_12(&out, pipe_slot);
+            rsprot_p4_1234(&out, ToriRSServer_Ids()->com_inventory_items);
+            rsprot_p2_12(&out, use_obj);
+            rsprot_p2_12(&out, use_slot);
+            rsprot_p4_1234(&out, ToriRSServer_Ids()->com_inventory_items);
+            handle_opheldu(srv, body, (int)out.wpos);
         }
 
         pipe_slot = -1;
@@ -13127,13 +13127,13 @@ handle_cheat(
     const uint8_t* payload,
     int len)
 {
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     char text[128];
 
-    rsab_wrap(&buf, (void*)payload, (size_t)len);
+    rsprot_buf_wrap_read(&buf, (void*)payload, (size_t)len);
     /* net_out_client_cheat writes the body newline-terminated, without the
      * leading "::". */
-    rsab_gjstr(&buf, text, sizeof(text), RSAB_JSTR_NEWLINE);
+    rsprot_gstrnl_copy(&buf, text, sizeof(text));
 
     /* Before anything runs or is logged as run: a client only sends this for
      * staff, so a player's CLIENT_CHEAT is a modified client. Logged, so an
@@ -13448,20 +13448,20 @@ handle_resume_pausebutton(
     const uint8_t* payload,
     int len)
 {
-    struct RSAreaBuf resume;
+    struct RsprotBuf resume;
     int uid;
 
     (void)name;
-    rsab_wrap(&resume, (void*)payload, (size_t)len);
-    uid = rsab_g4(&resume);
+    rsprot_buf_wrap_read(&resume, (void*)payload, (size_t)len);
+    uid = rsprot_g4_1234(&resume);
     int sub = -1;
     if( len >= 6 )
     {
-        sub = rsab_g2(&resume);
+        sub = rsprot_g2_12(&resume);
         if( sub == 0xffff )
             sub = -1;
     }
-    if( !rsab_ok(&resume) )
+    if( !rsprot_buf_ok(&resume) )
         return;
     if( srv->verbose )
         fprintf(stderr, "torirsserver: <- RESUME_PAUSEBUTTON %d:%d sub=%d\n", uid >> 16,
@@ -13571,13 +13571,13 @@ handle_if_button(
     const uint8_t* payload,
     int len)
 {
-    struct RSAreaBuf button;
+    struct RsprotBuf button;
     int uid;
 
     (void)name;
-    rsab_wrap(&button, (void*)payload, (size_t)len);
-    uid = rsab_g4(&button);
-    if( !rsab_ok(&button) )
+    rsprot_buf_wrap_read(&button, (void*)payload, (size_t)len);
+    uid = rsprot_g4_1234(&button);
+    if( !rsprot_buf_ok(&button) )
         return;
     if( srv->verbose )
         fprintf(stderr, "torirsserver: <- IF_BUTTON %d:%d\n", uid >> 16, uid & 0xffff);
@@ -13625,15 +13625,15 @@ handle_if_button_op(
     const uint8_t* payload,
     int len)
 {
-    struct RSAreaBuf button;
+    struct RsprotBuf button;
     int uid;
     int sub;
     int op_num = name - PKTOUT_NAME_IF_BUTTON1 + 1;
 
-    rsab_wrap(&button, (void*)payload, (size_t)len);
-    uid = rsab_g4(&button);
-    sub = (int16_t)rsab_g2(&button);
-    if( !rsab_ok(&button) )
+    rsprot_buf_wrap_read(&button, (void*)payload, (size_t)len);
+    uid = rsprot_g4_1234(&button);
+    sub = (int16_t)rsprot_g2_12(&button);
+    if( !rsprot_buf_ok(&button) )
         return;
     /* A click on the live gameframe's own component (a side stone on the Fixed
      * frame) reaches triggers on content's one spelling of it. */
@@ -13763,12 +13763,12 @@ handle_if_buttonx_packet(
     const uint8_t* payload,
     int len)
 {
-    struct Mock239IfButton button;
+    struct WireIfButton button;
     struct ToriRSServerPlayer* player = srv->active_player;
     int has_subop = name == PKTOUT_NAME_IF_SUBOP;
     int held_op = 0;
 
-    if( !mock239_if_button_decode(payload, len, has_subop, &button) )
+    if( !wire_if_button_decode(payload, len, has_subop, &button) )
         return;
     /* `last_subop` is the entry as the obj record numbers it, 1-based
      * (`subaction=<op>,<n>,<name>`), which is what every content reader
@@ -13811,36 +13811,36 @@ handle_if_buttonx_packet(
     }
 
     if( button.component_id == ToriRSServer_Ids()->com_inventory_items )
-        held_op = mock239_if_button_backpack_op(&button);
+        held_op = wire_if_button_backpack_op(&button);
 
     if( held_op )
     {
         uint8_t held[8];
-        struct RSAreaBuf out;
+        struct RsprotBuf out;
 
-        rsab_wrap(&out, held, sizeof(held));
-        rsab_p2(&out, button.object_id);
-        rsab_p2(&out, button.sub);
-        rsab_p4(&out, button.component_id);
-        handle_opheld(srv, held_op, held, (int)rsab_len(&out));
+        rsprot_buf_wrap(&out, held, sizeof(held));
+        rsprot_p2_12(&out, button.object_id);
+        rsprot_p2_12(&out, button.sub);
+        rsprot_p4_1234(&out, button.component_id);
+        handle_opheld(srv, held_op, held, (int)out.wpos);
         return;
     }
 
     {
         uint8_t component_op[6];
-        struct RSAreaBuf out;
+        struct RsprotBuf out;
 
         /* Preserve the row's object even though old IF_BUTTON payloads have no
          * object field. This is diagnostic/state parity; the numbered trigger
          * is still selected by op. */
-        player->last_item = button.object_id == MOCK239_IF_OBJ_NONE
+        player->last_item = button.object_id == WIRE_IF_OBJ_NONE
                                 ? -1
                                 : button.object_id;
-        rsab_wrap(&out, component_op, sizeof(component_op));
-        rsab_p4(&out, button.component_id);
-        rsab_p2(&out, button.sub);
+        rsprot_buf_wrap(&out, component_op, sizeof(component_op));
+        rsprot_p4_1234(&out, button.component_id);
+        rsprot_p2_12(&out, button.sub);
         handle_if_button_op(srv, PKTOUT_NAME_IF_BUTTON1 + (button.op - 1),
-                            component_op, (int)rsab_len(&out));
+                            component_op, (int)out.wpos);
     }
 }
 
@@ -13872,7 +13872,7 @@ static const struct IfScriptTriggerRoute IF_SCRIPT_TRIGGER_ROUTES[] = {
      * reports piece, x, y and rotation, the piece also being the child.
      * Scrambled!'s Humphrey Dumphrey is the cache's one puzzle (dbrow
      * jigsaw_scrambled). */
-    { "jigsaw:pieces", MOCK239_JIGSAW_TRIGGER_CRC, "iiii" },
+    { "jigsaw:pieces", WIRE_JIGSAW_TRIGGER_CRC, "iiii" },
     /* The Audio tab's four sliders (interface 116). Released, or crossing
      * zero, the drag scripts 9232/9238/9244/9250 report the new volume --
      * this is how the account learns it, and why it survives a relog. */
@@ -13893,7 +13893,7 @@ if_script_trigger_typed_route(
     struct ToriRSServer* srv,
     const uint8_t* payload,
     int len,
-    const struct Mock239IfScriptTrigger* head)
+    const struct WireIfScriptTrigger* head)
 {
     struct ToriRSServerPlayer* player = srv->active_player;
 
@@ -13903,31 +13903,31 @@ if_script_trigger_typed_route(
          r++ )
     {
         const struct IfScriptTriggerRoute* route = &IF_SCRIPT_TRIGGER_ROUTES[r];
-        struct Mock239IfScriptTrigger trigger;
+        struct WireIfScriptTrigger trigger;
         int component = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, route->component);
         int count = (int)strlen(route->signature);
         uint8_t component_op[6];
-        struct RSAreaBuf out;
+        struct RsprotBuf out;
 
         assert(count <= TORIRSSERVER_TRIGGER_INT_MAX);
         if( component < 0 || head->component_id != component || head->crc != route->crc )
             continue;
         /* Wire input: a tail that does not decode to the route's signature is
          * a malformed packet, dropped as every other undecodable packet is. */
-        if( !mock239_if_script_trigger_decode(payload, len, route->signature, &trigger) )
+        if( !wire_if_script_trigger_decode(payload, len, route->signature, &trigger) )
             return 1;
         for( int i = 0; i < count; i++ )
         {
-            assert(trigger.values[i].kind == MOCK239_IF_SCRIPT_INT);
+            assert(trigger.values[i].kind == WIRE_IF_SCRIPT_INT);
             player->last_trigger_ints[i] = trigger.values[i].as.integer;
         }
         player->last_trigger_int_count = count;
         player->last_item = -1;
         player->last_subop = -1;
-        rsab_wrap(&out, component_op, sizeof(component_op));
-        rsab_p4(&out, trigger.component_id);
-        rsab_p2(&out, trigger.child);
-        handle_if_button_op(srv, PKTOUT_NAME_IF_BUTTON1, component_op, (int)rsab_len(&out));
+        rsprot_buf_wrap(&out, component_op, sizeof(component_op));
+        rsprot_p4_1234(&out, trigger.component_id);
+        rsprot_p2_12(&out, trigger.child);
+        handle_if_button_op(srv, PKTOUT_NAME_IF_BUTTON1, component_op, (int)out.wpos);
         /* The values belong to this dispatch only: a script that suspends and
          * reads them after, or the next unrelated trigger, finds none. */
         player->last_trigger_int_count = 0;
@@ -13948,12 +13948,12 @@ handle_if_script_trigger(
     const uint8_t* payload,
     int len)
 {
-    struct Mock239IfScriptTrigger trigger;
+    struct WireIfScriptTrigger trigger;
     int skill_guide_trigger = ToriRSServer_ContentSymbol(
         TORIRSSERVER_PACK_COMPONENT, "skill_guide_v2:quest_journal_button_trigger");
 
     (void)name;
-    if( !mock239_if_script_trigger_decode(payload, len, NULL, &trigger) )
+    if( !wire_if_script_trigger_decode(payload, len, NULL, &trigger) )
         return;
     if( srv->verbose )
         fprintf(stderr,
@@ -13976,38 +13976,38 @@ handle_if_script_trigger(
     if( custom_trigger >= 0 && trigger.component_id == custom_trigger &&
         trigger.crc == INT32_C(-852562543) )
     {
-        if( !mock239_if_script_trigger_decode(payload, len, "ii", &trigger) )
+        if( !wire_if_script_trigger_decode(payload, len, "ii", &trigger) )
             return;
         uint8_t component_op[6];
-        struct RSAreaBuf out;
+        struct RsprotBuf out;
         srv->active_player->last_item = trigger.values[0].as.integer;
         srv->active_player->last_subop = trigger.values[1].as.integer;
-        rsab_wrap(&out, component_op, sizeof(component_op));
-        rsab_p4(&out, trigger.component_id);
-        rsab_p2(&out, trigger.child);
-        handle_if_button_op(srv, PKTOUT_NAME_IF_BUTTON1, component_op, (int)rsab_len(&out));
+        rsprot_buf_wrap(&out, component_op, sizeof(component_op));
+        rsprot_p4_1234(&out, trigger.component_id);
+        rsprot_p2_12(&out, trigger.child);
+        handle_if_button_op(srv, PKTOUT_NAME_IF_BUTTON1, component_op, (int)out.wpos);
         return;
     }
 
     {
         uint8_t component_op[6];
-        struct RSAreaBuf out;
+        struct RsprotBuf out;
         int32_t sub;
         int32_t object_id;
 
         if( skill_guide_trigger < 0 ||
-            !mock239_if_script_trigger_skill_guide_sub(
+            !wire_if_script_trigger_skill_guide_sub(
                 payload, len, skill_guide_trigger, &sub, &object_id) )
             return;
 
         srv->active_player->last_item =
-            object_id == MOCK239_IF_OBJ_NONE ? -1 : object_id;
+            object_id == WIRE_IF_OBJ_NONE ? -1 : object_id;
         srv->active_player->last_subop = -1;
-        rsab_wrap(&out, component_op, sizeof(component_op));
-        rsab_p4(&out, trigger.component_id);
-        rsab_p2(&out, sub);
+        rsprot_buf_wrap(&out, component_op, sizeof(component_op));
+        rsprot_p4_1234(&out, trigger.component_id);
+        rsprot_p2_12(&out, sub);
         handle_if_button_op(srv, PKTOUT_NAME_IF_BUTTON1,
-                            component_op, (int)rsab_len(&out));
+                            component_op, (int)out.wpos);
     }
 }
 
@@ -14018,13 +14018,13 @@ handle_click_world_map(
     const uint8_t* payload,
     int len)
 {
-    struct RSAreaBuf click;
+    struct RsprotBuf click;
     int packed;
 
     (void)name;
-    rsab_wrap(&click, (void*)payload, (size_t)len);
-    packed = rsab_g4(&click);
-    if( !rsab_ok(&click) )
+    rsprot_buf_wrap_read(&click, (void*)payload, (size_t)len);
+    packed = rsprot_g4_1234(&click);
+    if( !rsprot_buf_ok(&click) )
         return;
     ToriRSServer_WorldMapClick(srv, (packed >> 28) & 0x3, (packed >> 14) & 0x3fff,
                            packed & 0x3fff);
@@ -14345,13 +14345,13 @@ handle_resume_countdialog(
     const uint8_t* payload,
     int len)
 {
-    struct RSAreaBuf count;
+    struct RsprotBuf count;
     int32_t value;
 
     (void)name;
-    rsab_wrap(&count, (void*)payload, (size_t)len);
-    value = rsab_g4(&count);
-    if( !rsab_ok(&count) )
+    rsprot_buf_wrap_read(&count, (void*)payload, (size_t)len);
+    value = rsprot_g4_1234(&count);
+    if( !rsprot_buf_ok(&count) )
         return;
     if( srv->verbose )
         fprintf(stderr, "torirsserver: <- RESUME_P_COUNTDIALOG %d\n", (int)value);
@@ -14372,9 +14372,9 @@ handle_resume_textdialog(
     const uint8_t* payload,
     int len)
 {
-    struct Mock239ByteString text;
+    struct WireByteString text;
 
-    if( !mock239_resume_text_decode(payload, len, &text) )
+    if( !wire_resume_text_decode(payload, len, &text) )
         return;
     if( srv->verbose )
         fprintf(stderr, "torirsserver: <- %s \"%.*s\"\n",
@@ -14411,7 +14411,7 @@ handle_resume_countdialog_long(
     int64_t value;
 
     (void)name;
-    if( !mock239_resume_count_long_decode(payload, len, &value) )
+    if( !wire_resume_count_long_decode(payload, len, &value) )
         return;
     if( srv->verbose )
         fprintf(stderr, "torirsserver: <- RESUME_P_COUNTDIALOG_LONG %lld\n",
@@ -14437,7 +14437,7 @@ handle_resume_objdialog(
     int32_t object_id;
 
     (void)name;
-    if( !mock239_resume_object_decode(payload, len, &object_id) )
+    if( !wire_resume_object_decode(payload, len, &object_id) )
         return;
     /* The item search answers a script that opened it itself (clientscript
      * meslayer_mode14, the Grand Exchange's "What would you like to buy?",
@@ -14745,12 +14745,12 @@ social_read_name37(
     const uint8_t* payload,
     int len)
 {
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     int64_t name37;
 
-    rsab_wrap(&buf, (void*)payload, (size_t)len);
-    name37 = rsab_g8(&buf);
-    return rsab_ok(&buf) ? name37 : 0;
+    rsprot_buf_wrap_read(&buf, (void*)payload, (size_t)len);
+    name37 = rsprot_g8_12345678(&buf);
+    return rsprot_buf_ok(&buf) ? name37 : 0;
 }
 
 /*
@@ -14850,17 +14850,17 @@ handle_chat_setmode(
     int len)
 {
     struct ToriRSServerPlayer* player = srv->active_player;
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     int public_mode, private_mode, trade_mode;
 
     (void)name;
     if( !player || player->name37 == 0 )
         return;
-    rsab_wrap(&buf, (void*)payload, (size_t)len);
-    public_mode = rsab_g1(&buf);
-    private_mode = rsab_g1(&buf);
-    trade_mode = rsab_g1(&buf);
-    if( !rsab_ok(&buf) )
+    rsprot_buf_wrap_read(&buf, (void*)payload, (size_t)len);
+    public_mode = rsprot_g1(&buf);
+    private_mode = rsprot_g1(&buf);
+    trade_mode = rsprot_g1(&buf);
+    if( !rsprot_buf_ok(&buf) )
         return;
 
     ToriRSServer_FriendsSetChatModes(player->name37, public_mode, private_mode, trade_mode);
@@ -15033,7 +15033,7 @@ handle_message_private(
 
 /*
  * MESSAGE_PUBLIC: p1 colour, p1 effect, then the Huffman text -- the body a
- * wire's translator makes of OldSchool's MessagePublic (mock239_inbound.c).
+ * wire's translator makes of OldSchool's MessagePublic (osrs239_inbound.c).
  *
  * The opposite decision to MESSAGE_PRIVATE above: the packed bytes are stored
  * and re-emitted verbatim rather than unpacked and re-packed. A public line is

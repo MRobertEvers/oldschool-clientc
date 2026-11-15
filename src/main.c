@@ -8730,9 +8730,6 @@ main(
     ToriMem_InstallRSProt();
     ToriMem_InstallBZip();
     ToriMem_InstallTRSPK();
-#ifdef TORIRS_EMBED_SERVER
-    ToriMem_InstallRSAreaBuf();
-#endif
 
     ToriRS_ExecutorConfig_Init(&executor_cfg);
 

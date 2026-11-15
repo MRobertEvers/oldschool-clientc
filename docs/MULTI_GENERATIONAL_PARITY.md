@@ -717,7 +717,7 @@ ever matters.
     call site — every login block was read as revision 230 and reported
     `rsa decrypt failed`, pointing at the key rather than at four bytes of
     `serverVersion`.
-  - `mock239_playerinfo.c` writes the v5 stream (local player only), with a
+  - `wire_player_info.c` writes the v5 stream (local player only), with a
     round-trip test against a decoder transcribed from RSProt's reference
     client. Mutation-tested. Correction it produced: an empty bit section emits
     zero bytes, so the four sections are not four markers on the wire.
@@ -744,7 +744,7 @@ ever matters.
   - 1.12.33 passes the revision gate (`JS5 session opened at revision 239`) and
     then crashes in its own init before any request (`cq.gh is null`). Ruled
     out: plugin-hub plugins, and a cache written by the 240 client.
-  - `mock239_npcinfo_write_empty` — the canonical NPC_INFO v5 add rule is
+  - `wire_npc_info_write_empty` — the canonical NPC_INFO v5 add rule is
     distinct from the legacy classic bitcodec: an entering/add entry begins
     with a 16-bit **per-client NPC index**, and `0xffff` terminates the add
     list. Its next type field is a 14-bit **initial NPC definition**, not a
@@ -798,7 +798,7 @@ ever matters.
     classic obj tag read under the 239 encoding lands as a *kit*, not an
     error — the silent-failure case this module exists to prevent; malformed
     customisation flags and truncated blocks are refused; 239 transmog ends
-    the equipment array early), `test-mock239-playerinfo`,
+    the equipment array early), `test-wire-player-info`,
     `test-torirsserver-embed`, `ToriRSServer_Pack --check-only` (0 errors), and a
     headless `torirs --manifest manifests/manifest_osrs230_embed.ini` run
     (`SDL_VIDEODRIVER=dummy`) with `TORIRS_NET_CHEAT="equip 0;equip 1;..."`

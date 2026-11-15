@@ -78,7 +78,7 @@ struct RSCache_ServerPack;
  * rather than its local-prediction ones.
  *
  * Wire encoding lives entirely in torirs_server_encode.c and goes through
- * 3rd/rsareabuf. See docs/osrs230_mockserver.md for the protocol notes, the
+ * rsprot's buffer (3rd/rsprot/src/rsprot_buf.h). See docs/osrs230_mockserver.md for the protocol notes, the
  * transport seam (§3.13b), the interaction model (§3.13c), the dispatch tables
  * and opcode gap report (§3.13d), and the roadmap (§6.1).
  */
@@ -111,8 +111,8 @@ struct RSCache_ServerPack;
 #include "torirs_server_interface_state.h"
 #include "torirs_server_poh.h"
 #include "torirs_server_wire.h"
-#include "mock239_runclientscript.h"
-#include "mock239_playerinfo.h"
+#include "torirsserver/wire/core/wire_runclientscript.h"
+#include "torirsserver/wire/core/wire_player_info.h"
 #include "torirs_server_vessel.h"
 #include "torirs_server_zone.h"
 
@@ -754,7 +754,7 @@ enum
     TORIRSSERVER_RESUME_BUTTON_MAX = 32,
     /*
      * Typed int values one IF_SCRIPT_TRIGGER can hand a script through
-     * `last_trigger_int(n)`. The wire allows 32 (MOCK239_IF_SCRIPT_VALUE_MAX);
+     * `last_trigger_int(n)`. The wire allows 32 (WIRE_IF_SCRIPT_VALUE_MAX);
      * the routes the server decodes carry at most four (the jigsaw's piece, x,
      * y, rotation), and a route wider than this is refused at the decode.
      */
@@ -3888,7 +3888,7 @@ struct ToriRSServerPlayer
      * Per-slot membership and cycle flags live in v5_gpi; this latch also
      * supports the direct local-only encoder fixtures. */
     int v5_playerinfo_sent;
-    struct Mock239PlayerInfoState v5_gpi;
+    struct WirePlayerInfoState v5_gpi;
     uint32_t v5_player_generation[TORIRSSERVER_PLAYER_MAX];
 
     /**
@@ -9536,7 +9536,7 @@ ToriRSServer_SendRunClientscriptTyped(
     struct ToriRSServerPlayer* player,
     int script_id,
     const char* types,
-    const struct Mock239ClientScriptArg* args,
+    const struct WireClientScriptArg* args,
     int argc);
 /* Interface setters. `uid` is the packed (interface << 16) | child. */
 void

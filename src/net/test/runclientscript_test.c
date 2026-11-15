@@ -7,7 +7,7 @@
  * bytes, and ends where `App_RunClientScript` picks the struct up.
  *
  * Layout, revision 239's (RSProt's RUNCLIENTSCRIPT, which the server writes
- * through `torirsserver/mock239_runclientscript.c`):
+ * through `torirsserver/wire/core/wire_runclientscript.c`):
  *
  *     p1 * argc      one type character per argument, in DECLARATION order
  *     p1             0
@@ -35,7 +35,7 @@
 #include "mem/torirs_mem.h"
 #include "net/rev/pktnames.h"
 #include "net/rev/revpacket.h"
-#include "rsareabuf.h"
+#include "rsprot_buf.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -85,21 +85,21 @@ write_runclientscript(
     const char* const* strv,
     int argc)
 {
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
 
-    rsab_wrap(&buf, out, capacity);
+    rsprot_buf_wrap(&buf, out, capacity);
     for( int i = 0; i < argc; i++ )
-        rsab_p1(&buf, (uint8_t)types[i]);
-    rsab_p1(&buf, 0);
+        rsprot_p1(&buf, (uint8_t)types[i]);
+    rsprot_p1(&buf, 0);
     for( int i = argc - 1; i >= 0; i-- )
     {
         if( types[i] == 's' )
-            rsab_pjstr(&buf, strv && strv[i] ? strv[i] : "", RSAB_JSTR_NUL);
+            rsprot_pjstr(&buf, strv && strv[i] ? strv[i] : "");
         else
-            rsab_p4(&buf, intv ? intv[i] : 0);
+            rsprot_p4_1234(&buf, intv ? intv[i] : 0);
     }
-    rsab_p4(&buf, script_id);
-    return rsab_ok(&buf) ? (int)rsab_len(&buf) : -1;
+    rsprot_p4_1234(&buf, script_id);
+    return rsprot_buf_ok(&buf) ? (int)buf.wpos : -1;
 }
 
 static int

@@ -58,7 +58,7 @@ never invoked.
 | 14 | `test-cs2-sailing-settings` | 0 | PASS | 3.3 | PASS native cargo privacy0..2 through script3852 label writes, the8830/3967 paths, isolated script/varbit/struct scope and last-choice coalescing |
 | 15 | `test-cs2-host-request-kinds` | 0 | PASS | 0.6 | host request kind contract: 655 exact, unique kinds in opcode order |
 | 16 | `test-cs2-host-request-producers` | 0 | PASS | 1.5 | host request producer replay: 655 exact kinds and CC/IF input payloads preserved across yield/retry |
-| 17 | `test-mock239-playerinfo` | 0 | PASS | 2.8 | mock239-playerinfo: all tests passed |
+| 17 | `test-wire-player-info` | 0 | PASS | 2.8 | mock239-playerinfo: all tests passed |
 | 18 | `test-sailing-collision` | 0 | PASS | 6.8 | sailing_collision_test: passed (0 failures) |
 | 19 | `test-entity-info-shrink` | 0 | PASS | 11.8 | ALL PASS |
 | 20 | `test-scanline` | 0 | PASS | 2.7 | all scanline variants agree with their branching counterparts |
@@ -351,16 +351,16 @@ this gate.
 | production | `src/cs2vm2/cs2vm2_strpool.c` | `0d2eff84a28268b1e5b0bc8c3dadd712238fa1431e759d251e087d781b403043` |
 | production | `src/perf/torirs_perf.c` | `278bab111e96ad1061dcfe408a9bfce91aca78e9f5cb8eeeacc492eb35ad7271` |
 
-### `test-mock239-playerinfo`
+### `test-wire-player-info`
 
 | role | file | sha256 |
 |---|---|---|
-| test | `src/torirsserver/test/mock239_playerinfo_test.c` | `96dbf90349a168efead3f6b76d7bb85498fd717614f3cc587e5adefc22c390a7` |
+| test | `src/torirsserver/test/wire_player_info_test.c` | `96dbf90349a168efead3f6b76d7bb85498fd717614f3cc587e5adefc22c390a7` |
 | production | `src/net/bitbuffer.c` | `9938cfda6c8442ac3e45c76d6540b6e1c1cf11b7b10565800fb90409f405d29c` |
 | production | `src/net/rev/osrs239/osrs239_entity_info.c` | `36b643f2301c13fb79669479dfe07eac87fad2799f4737fae7442e98cbe25923` |
 | production | `src/net/rev/packets/pkt_npc_info.c` | `99858d3df65183df063fddee120c6fede3814940c3fb05e56e4666f7fb022deb` |
 | production | `src/net/rev/packets/pkt_player_info.c` | `c2e38a36e4b7de47b0031177cd2c0e505d3179f9c28a65728e765c8a4bdf0855` |
-| production | `src/torirsserver/mock239_playerinfo.c` | `fa3d4d2c0707588c2cd79800eb99e047552d0ba5a92666ab5928f795d7c9a5be` |
+| production | `src/torirsserver/wire/core/wire_player_info.c` | `fa3d4d2c0707588c2cd79800eb99e047552d0ba5a92666ab5928f795d7c9a5be` |
 | production | `src/torirsserver/torirs_server_wire.c` | `eaa360b421e38250b44000292e6ef7276146b2390f3cfac7ac567002938e3250` |
 
 ### `test-sailing-collision`
@@ -623,7 +623,7 @@ own executable in the objdir. Logs: `/tmp/sailing-fin-gates/<target>.log`.
 | 2 | `test-wev-rebuild` | 0 | PASS | 5.9 | wev_rebuild_test: all passed |
 | 3 | `test-minimenu-world` | 0 | PASS | 2.6 | All tests passed. |
 | 4 | `test-sailing-collision` | 0 | PASS | 2.0 | sailing_collision_test: passed (0 failures) |
-| 5 | `test-mock239-playerinfo` | 0 | PASS | 1.1 | mock239-playerinfo: all tests passed |
+| 5 | `test-wire-player-info` | 0 | PASS | 1.1 | mock239-playerinfo: all tests passed |
 | 6 | `test-cs2-sailing-settings` | 0 | PASS | 3.2 | PASS native cargo privacy0..2 through script3852 label writes, the8830/3967 paths, isolated script/varbit/struct scope and last-choice coalescing |
 | 7 | `test-frame-flat` | 0 | PASS | 1.0 | frame flat live geometry, scale, colour, no-pick, replay lifetime and root identity PASS |
 | 8 | `test-sailing-paint-order` | 0 | PASS | 0.6 | scene dependencies: flat before full, parent ground before boat; nested ownership, raised shore, loc order and zero-boat bytes PASS |
@@ -723,7 +723,7 @@ Logs: `/tmp/sailing-fin3/<target>.log`; exit codes: `/tmp/sailing-fin3/status.tx
 | 5 | `test-minimenu-world` | 0 | PASS | All tests passed. |
 | 6 | `test-cs2-sailing-settings` | 0 | PASS | PASS native cargo privacy0..2 through script3852 label writes, the8830/3967 paths, isolated script/varbit/struct scope and last-choice coalescing |
 | 7 | `test-sailing-collision` | 0 | PASS | sailing_collision_test: passed (0 failures) |
-| 8 | `test-mock239-playerinfo` | 0 | PASS | mock239-playerinfo: all tests passed |
+| 8 | `test-wire-player-info` | 0 | PASS | mock239-playerinfo: all tests passed |
 | 9 | `test-wev-rebuild` | 0 | PASS | wev_rebuild_test: all passed |
 | 10 | `test-wev` | 0 | PASS | wev_test: all passed |
 | 11 | `test-rsprot-bridge` | 0 | PASS | rsprot-bridge: rsprot and osrs239_parse agree on every migrated packet |

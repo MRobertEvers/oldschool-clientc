@@ -405,11 +405,13 @@ CS2_BIN = $(RSCACHE_DIR)/tools/cs2/cs2$(PLATFORM_EXE_SUFFIX)
 
 RSCACHE_DIR  := $(REPO_ROOT)/3rd/rscache
 RSPROT_DIR   := $(REPO_ROOT)/3rd/rsprot
+# The packet buffer on its own, for a standalone target that links no rsprot
+# object. Anything linking $(OBJ_DIR)/rsprot_buf.o must not also compile this.
+RSPROT_BUF_SRC := $(RSPROT_DIR)/src/rsprot_buf.c
 TORIDRAW_DIR := $(REPO_ROOT)/3rd/toridraw
 TRSPK_DIR    := $(REPO_ROOT)/3rd/trspk
 BMP_DIR      := $(REPO_ROOT)/3rd/bmp
 HMAP_DIR     := $(REPO_ROOT)/3rd/hmap
-RSAREABUF_DIR := $(REPO_ROOT)/3rd/rsareabuf
 LUA_DIR      := $(REPO_ROOT)/3rd/lua
 STB_DIR      := $(REPO_ROOT)/3rd/stb
 
@@ -427,7 +429,7 @@ CFLAGS = -std=c11 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -Wall -Wextra \
 	$(TORIDRAW_PROBE_CFLAGS) $(PAINTERS_PROBE_CFLAGS) \
 	-I$(SRC_DIR) -I$(SRC_DIR)/cs2vm2 -I$(SRC_DIR)/serverscript \
 	-I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
-	-I$(TORIDRAW_DIR) -I$(TRSPK_DIR) -I$(BMP_DIR) -I$(HMAP_DIR) -I$(RSAREABUF_DIR) \
+	-I$(TORIDRAW_DIR) -I$(TRSPK_DIR) -I$(BMP_DIR) -I$(HMAP_DIR) \
 	-I$(REPO_ROOT)/3rd/miniz \
 	-I$(REPO_ROOT)/3rd/xteas \
 	-I$(REPO_ROOT)/3rd/sqlite \
@@ -985,7 +987,6 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	replay/replay_checkpoint.c replay/replay_checkpoint_check.c ui/uitree_checkpoint.c app/app_checkpoint.c \
 	replay/replay_checkpoint_store.c replay/replay_checkpoint_play.c \
 	net/sha256.c net/pow_sha256.c net/flat_json.c net/proto/proto_info.c \
-	torirsserver/wire/osrs241_clientprot.c \
 	$(PROTO_SRCS) $(REV_EXEC_SRCS) \
 	revconfig/revconfig.c revconfig/revconfig_load.c revconfig/revconfig_refs.c \
 	revconfig/revconfig_profile.c \
@@ -1040,31 +1041,40 @@ endif
 # with "no such file or directory: build/ssvm.o" for things it never compiled.
 SS_SRCS = serverscript/ss_meta.c serverscript/ssvm_script.c \
 	serverscript/ssvm_provider.c serverscript/ssvm_strpool.c serverscript/ssvm.c \
-	$(RSAREABUF_DIR)/rsareabuf.c
+	$(RSPROT_BUF_SRC)
+
+# The wire layer (torirsserver/wire/, see torirs_server_wire.h): the
+# revision-independent core every OSRS revision shares, then each revision's
+# adapter -- its opcode tables, writer set, PLAYER_INFO tail and inbound
+# translator. Inbound packets are decoded with rsprot's per-revision codecs.
+TORIRSSERVER_WIRE_SRCS = torirsserver/torirs_server_wire.c \
+	torirsserver/wire/core/wire_in.c \
+	torirsserver/wire/core/wire_if_inbound.c \
+	torirsserver/wire/core/wire_player_info.c \
+	torirsserver/wire/core/wire_runclientscript.c \
+	torirsserver/wire/osrs230/osrs230_wire.c \
+	torirsserver/wire/osrs239/osrs239_wire.c \
+	torirsserver/wire/osrs239/osrs239_inbound.c \
+	torirsserver/wire/osrs239/osrs239_player_info.c \
+	torirsserver/wire/osrs239/osrs239_interface_setters.c \
+	torirsserver/wire/osrs239/osrs239_varp.c \
+	torirsserver/wire/osrs241/osrs241_wire.c \
+	torirsserver/wire/osrs241/osrs241_inbound.c \
+	torirsserver/wire/osrs241/osrs241_player_info.c \
+	torirsserver/wire/osrs242/osrs242_wire.c \
+	torirsserver/wire/osrs242/osrs242_inbound.c \
+	torirsserver/wire/osrs242/osrs242_player_info.c
 
 TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	$(TORIMEM_SRCS) \
 	torirsserver/torirs_server_world_selftest.c \
 	torirsserver/torirs_server_cox_sim.c \
 	torirsserver/torirs_server_botrun.c \
-	torirsserver/torirs_server_encode.c torirsserver/torirs_server_wire.c js5/server/js5_server_cache.c \
+	torirsserver/torirs_server_encode.c js5/server/js5_server_cache.c \
 	torirsserver/torirs_server_interface_state.c \
 	torirsserver/torirs_server_poh.c \
-	torirsserver/mock239_playerinfo.c \
 	net/proto/proto_info.c \
-	torirsserver/mock239_interface_setters.c \
-	torirsserver/mock239_varp.c \
-	torirsserver/mock239_interface_inbound.c \
-	torirsserver/mock239_runclientscript.c \
-	torirsserver/mock239_inbound.c \
-	torirsserver/torirs_server_wire241.c \
-	torirsserver/mock241_inbound.c \
-	torirsserver/mock241_playerinfo.c \
-	torirsserver/wire/osrs241_clientprot.c \
-	torirsserver/torirs_server_wire242.c \
-	torirsserver/mock242_inbound.c \
-	torirsserver/mock242_playerinfo.c \
-	torirsserver/wire/osrs242_clientprot.c \
+	$(TORIRSSERVER_WIRE_SRCS) \
 	torirsserver/torirs_server_objinfo.c \
 	torirsserver/torirs_server_split.c \
 	torirsserver/torirs_server_runenergy.c \
@@ -1098,7 +1108,8 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	world/wev.c \
 	torirsserver/torirs_server_zone.c torirsserver/torirs_server_zone_index.c torirsserver/torirs_server_worldmap.c torirsserver/torirs_server_varbit.c \
 	engine/world_builder/collision_map.c engine/world_builder/action_plan.c features/features.c \
-	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c $(SS_SRCS)
+	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c \
+	$(filter-out $(RSPROT_BUF_SRC),$(SS_SRCS))
 
 # EMBED_SERVER=1: link the rev-230 server into the client, so a manifest saying
 # `[net:boot] transport=embed` runs the whole game in one process with no socket.
@@ -1117,16 +1128,13 @@ CFLAGS += -DTORIRS_EMBED_SERVER=1
 # OBJ_DIR basename (and, depending on rule order, can select the wrong recipe).
 EMBED_SERVER_DUP_SRCS = features/features.c $(TORIMEM_SRCS) \
 	net/proto/proto_info.c net/flat_json.c \
-	torirsserver/wire/osrs241_clientprot.c \
 	world/wev.c \
 	platform/net_transport_ws_frame.c \
 	platform/net_transport_ws_handshake.c \
 	engine/world_builder/collision_map.c \
 	engine/world_builder/action_plan.c \
-	$(RSAREABUF_DIR)/rsareabuf.c \
 	$(INI_SRC)
 SRCS += $(filter-out $(EMBED_SERVER_DUP_SRCS),$(TORIRSSERVER_CORE_SRCS))
-EMBED_SERVER_OBJS = $(OBJ_DIR)/rsareabuf.o
 endif
 # Fragment client sources (src/maped/*.mk) link into every client build, not
 # only the embedded-server one: editor_doc.c needs editor_cfg.c either way.
@@ -1374,7 +1382,7 @@ GPU_OBJS = $(addprefix $(OBJ_DIR)/,$(PLATFORM_GPU_OBJ_NAMES))
 OBJC_OBJS = $(addprefix $(OBJ_DIR)/,$(notdir $(PLATFORM_OBJC_SRCS:.m=.o)))
 OBJS = $(sort $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) $(OBJC_OBJS) \
 	$(OBJ_DIR)/ini.o $(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o \
-	$(OBJ_DIR)/hmap.o $(EMBED_SERVER_OBJS) \
+	$(OBJ_DIR)/hmap.o \
 	$(OBJ_DIR)/rscache_unity.o $(TORIDRAW_UNITY_LINK_OBJS) \
 	$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/rsprot_packets_unity.o \
 	$(OBJ_DIR)/pkt_exec.o $(OBJ_DIR)/pkt_codec_storage.o \
@@ -1431,8 +1439,8 @@ endif
 endif
 
 .PHONY: test-toridraw-mini test-toridraw-mini-16bpp test-toridraw-rscache test-toridraw-small toridraw-tables-gen test-toridraw-tables-precomputed toridraw-model-to-ppm
-.PHONY: test-hmap test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-ondemand-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-quest-contract-sweeps check-npc-script-player-suspend check-chatnpc-without-npc check-quest-journal-banner check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-mdns test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-drive-event-ring test-walkmerge test-entity-decode check-no-drain check-pt-switch check-rscache-isolation check-revconfig-roles test-quests test-quest-conformance check-quest-verbs test-task-order test-task-join test-task-budget test-cs2-frame-settle test-db test-cs2-math test-cs2-long test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-ground-items test-cs2-transmit-pump test-minimenu-world test-design-panel test-mouseover-entry test-logout-wait test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
-.PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-torirsserver-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-pktsweep test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review test-preview-state
+.PHONY: test-hmap test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-ondemand-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-quest-contract-sweeps check-npc-script-player-suspend check-chatnpc-without-npc check-quest-journal-banner check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-mdns test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-drive-event-ring test-walkmerge test-entity-decode check-no-drain check-pt-switch check-rscache-isolation check-revconfig-roles test-quests test-quest-conformance check-quest-verbs test-task-order test-task-join test-task-budget test-cs2-frame-settle test-db test-cs2-math test-cs2-long test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-ground-items test-cs2-transmit-pump test-minimenu-world test-design-panel test-mouseover-entry test-logout-wait test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
+.PHONY: test-server-clean test-painters-terrain-levels test-wire-if-inbound test-wire-runclientscript test-osrs239-interface-setters test-osrs239-varp test-torirsserver-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-pktsweep test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review test-preview-state
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash test-summoning-instance summoning-dialogue
 .PHONY: check-dks-contract check-boss-contract check-stronghold-contract
 .PHONY: bench-trspk-bake test-trspk-color-simd test-trspk-swizzle-simd test-trspk-modelarena-index test-trspk-order-sort test-trspk-batch32 test-es3-index-pack
@@ -2819,15 +2827,6 @@ test-db: $(OBJ_DIR) $(DB_TEST_OBJS)
 $(OBJ_DIR)/hmap.o: $(HMAP_DIR)/hmap.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(HMAP_DIR)/hmap.c -o $@
 
-$(OBJ_DIR)/rsareabuf.o: $(RSAREABUF_DIR)/rsareabuf.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $(RSAREABUF_DIR)/rsareabuf.c -o $@
-
-# rsareabuf: byte/bit/alt-order round-trips + arena + psize back-patching.
-test-rsareabuf: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rsareabuf_test \
-		$(RSAREABUF_DIR)/rsareabuf.c $(RSAREABUF_DIR)/rsareabuf_test.c
-	./$(OBJ_DIR)/rsareabuf_test
-
 $(OBJ_DIR)/ini.o: $(INI_SRC) | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(INI_SRC) -o $@
 
@@ -3567,7 +3566,7 @@ test-game-events: $(OBJ_DIR) game/rs_game_events.c game/test/rs_game_events_test
 # ---------------------------------------------------------------------------
 # ServerScript (LostCity RuneScript) reader / compiler / VM.
 #
-# Engine-agnostic by construction: libc plus 3rd/rsareabuf and nothing else, so
+# Engine-agnostic by construction: libc plus rsprot's buffer and nothing else, so
 # it links into the standalone ToriRSServer server without dragging in SDL, the task
 # queue or the client's UI tree. Every target here links only the subsystem's
 # own sources. See docs/serverscript.md.
@@ -3716,7 +3715,7 @@ NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 	$(OBJ_DIR)/packetbuffer.o $(OBJ_DIR)/gameproto_rev_params.o \
 	$(OBJ_DIR)/proto_info.o $(OBJ_DIR)/pkt_player_appearance.o \
 	$(OBJ_DIR)/sha256.o $(OBJ_DIR)/pow_sha256.o \
-	$(OBJ_DIR)/osrs241_clientprot.o $(OBJ_DIR)/login_osrs.o $(REV_EXEC_OBJS) \
+	$(OBJ_DIR)/login_osrs.o $(REV_EXEC_OBJS) \
 	\
 	$(OBJ_DIR)/revpacket.o $(OBJ_DIR)/tommath.o \
 	$(RSPROT_PARSE_OBJS) \
@@ -3734,13 +3733,13 @@ RSPROT_INFO_OBJS = $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/rsprot_buf.o $(O
 # RSProt's own reference client, written in the opposite direction. Catches the
 # skip-run off-by-ones and misaligned bit sections that otherwise decode into
 # the wrong players rather than erroring.
-test-mock239-playerinfo: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_playerinfo_test $(TORIMEM_SRCS) \
-		torirsserver/test/mock239_playerinfo_test.c torirsserver/mock239_playerinfo.c \
-		torirsserver/mock241_playerinfo.c torirsserver/mock242_playerinfo.c \
+test-wire-player-info: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/wire_player_info_test $(TORIMEM_SRCS) \
+		torirsserver/test/wire_player_info_test.c torirsserver/wire/core/wire_player_info.c \
+		torirsserver/wire/osrs239/osrs239_player_info.c \
 		net/proto/proto_info.c \
-		$(RSAREABUF_DIR)/rsareabuf.c $(RSPROT_INFO_OBJS) -lm
-	./$(OBJ_DIR)/mock239_playerinfo_test
+		$(RSPROT_INFO_OBJS) -lm
+	./$(OBJ_DIR)/wire_player_info_test
 
 # NPC_INFO_LARGE_V6: the 241 reader's 8-bit low-resolution deltas, against a
 # record hand-packed in RSProx's read order (Brutus, index 4381 [640]).
@@ -3748,62 +3747,63 @@ test-mock239-playerinfo: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
 test-osrs241-npcinfo-large: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/osrs241_npc_info_large_test $(TORIMEM_SRCS) \
 		net/rev/test/osrs241_npc_info_large_test.c \
-		net/proto/proto_info.c $(RSAREABUF_DIR)/rsareabuf.c \
+		net/proto/proto_info.c \
 		$(RSPROT_INFO_OBJS) -lm
 	./$(OBJ_DIR)/osrs241_npc_info_large_test
 
 # PLAYER_INFO's rev-241 tail: the server's writer against the client's 241
 # reader, block by block (the face angle and TRANSPARENCY above all).
-test-mock241-playerinfo: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock241_playerinfo_test $(TORIMEM_SRCS) \
-		torirsserver/test/mock241_playerinfo_test.c torirsserver/mock239_playerinfo.c \
-		torirsserver/mock241_playerinfo.c torirsserver/mock242_playerinfo.c \
-		net/proto/proto_info.c $(RSAREABUF_DIR)/rsareabuf.c \
+test-osrs241-player-info: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/osrs241_player_info_test $(TORIMEM_SRCS) \
+		torirsserver/test/osrs241_player_info_test.c torirsserver/wire/core/wire_player_info.c \
+		torirsserver/wire/osrs241/osrs241_player_info.c \
+		net/proto/proto_info.c \
 		$(RSPROT_INFO_OBJS) -lm
-	./$(OBJ_DIR)/mock241_playerinfo_test
+	./$(OBJ_DIR)/osrs241_player_info_test
 
 # PLAYER_INFO's rev-242 tail against RSProt's 242 reader, every block the
 # server writes in one update (order, continuation bits, transforms).
-test-mock242-playerinfo: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock242_playerinfo_test $(TORIMEM_SRCS) \
-		torirsserver/test/mock242_playerinfo_test.c torirsserver/mock239_playerinfo.c \
-		torirsserver/mock241_playerinfo.c torirsserver/mock242_playerinfo.c \
-		net/proto/proto_info.c $(RSAREABUF_DIR)/rsareabuf.c \
+test-osrs242-player-info: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/osrs242_player_info_test $(TORIMEM_SRCS) \
+		torirsserver/test/osrs242_player_info_test.c torirsserver/wire/core/wire_player_info.c \
+		torirsserver/wire/osrs242/osrs242_player_info.c \
+		net/proto/proto_info.c \
 		$(RSPROT_INFO_OBJS) -lm
-	./$(OBJ_DIR)/mock242_playerinfo_test
+	./$(OBJ_DIR)/osrs242_player_info_test
 
 # Golden client->server interface callback layouts. Kept independent of the
 # world/server link so byte order, inner framing and typed-tail losslessness can
 # fail directly rather than only as a click that appears to do nothing.
-test-mock239-inbound: $(OBJ_DIR) $(OBJ_DIR)/jbase37.o $(OBJ_DIR)/rsprot_buf.o
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_interface_inbound_test \
-		torirsserver/test/mock239_interface_inbound_test.c \
-		torirsserver/mock239_interface_inbound.c torirsserver/mock239_inbound.c \
-		$(OBJ_DIR)/jbase37.o $(OBJ_DIR)/rsprot_buf.o $(RSAREABUF_DIR)/rsareabuf.c
-	./$(OBJ_DIR)/mock239_interface_inbound_test
+test-wire-if-inbound: $(OBJ_DIR) $(OBJ_DIR)/jbase37.o $(RSPROT_TEST_DEPS) $(OBJ_DIR)/rsprot_packets_unity.o
+	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/wire_if_inbound_test \
+		torirsserver/test/wire_if_inbound_test.c \
+		torirsserver/wire/core/wire_if_inbound.c torirsserver/wire/core/wire_in.c \
+		torirsserver/wire/osrs239/osrs239_inbound.c \
+		$(OBJ_DIR)/jbase37.o $(OBJ_DIR)/rsprot_packets_unity.o $(RSPROT_TEST_DEPS) -lm
+	./$(OBJ_DIR)/wire_if_inbound_test
 
 # Full revision-239 RUNCLIENTSCRIPT argument alphabet. Literal bytes cover the
 # scalar, array, string-array and long paths rather than round-tripping through
 # a second implementation with the same possible mistake.
-test-mock239-runclientscript: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_runclientscript_test \
-		torirsserver/test/mock239_runclientscript_test.c \
-		torirsserver/mock239_runclientscript.c $(RSAREABUF_DIR)/rsareabuf.c
-	./$(OBJ_DIR)/mock239_runclientscript_test
+test-wire-runclientscript: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/wire_runclientscript_test \
+		torirsserver/test/wire_runclientscript_test.c \
+		torirsserver/wire/core/wire_runclientscript.c $(RSPROT_BUF_SRC)
+	./$(OBJ_DIR)/wire_runclientscript_test
 
 # Every additional fixed-body rev239 model/interface setter. The expected
 # bodies are independent literal RSProt fixtures, not a decode round-trip.
-test-mock239-interface-setters: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_interface_setters_test \
-		torirsserver/test/mock239_interface_setters_test.c \
-		torirsserver/mock239_interface_setters.c $(RSAREABUF_DIR)/rsareabuf.c
-	./$(OBJ_DIR)/mock239_interface_setters_test
+test-osrs239-interface-setters: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/osrs239_interface_setters_test \
+		torirsserver/test/osrs239_interface_setters_test.c \
+		torirsserver/wire/osrs239/osrs239_interface_setters.c $(RSPROT_BUF_SRC)
+	./$(OBJ_DIR)/osrs239_interface_setters_test
 
-test-mock239-varp: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_varp_test \
-		torirsserver/test/mock239_varp_test.c \
-		torirsserver/mock239_varp.c $(RSAREABUF_DIR)/rsareabuf.c
-	./$(OBJ_DIR)/mock239_varp_test
+test-osrs239-varp: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/osrs239_varp_test \
+		torirsserver/test/osrs239_varp_test.c \
+		torirsserver/wire/osrs239/osrs239_varp.c $(RSPROT_BUF_SRC)
+	./$(OBJ_DIR)/osrs239_varp_test
 
 # Server->client revision-239 interface authority and golden packet bodies.
 # Expected bytes are literal fixtures taken from RSProt's encoders rather than
@@ -3811,7 +3811,7 @@ test-mock239-varp: $(OBJ_DIR)
 test-torirsserver-interface-state: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_InterfaceStateTest \
 		torirsserver/test/torirs_server_interface_state_test.c \
-		torirsserver/torirs_server_interface_state.c $(RSAREABUF_DIR)/rsareabuf.c
+		torirsserver/torirs_server_interface_state.c $(RSPROT_BUF_SRC)
 	./$(OBJ_DIR)/ToriRSServer_InterfaceStateTest
 
 test-net-login: $(OBJ_DIR) $(NET_CORE_OBJS)
@@ -3884,8 +3884,7 @@ REPLAY_LEDGER_ONLY_SRCS = replay/replay_ledger.c replay/replay_ledger_entity.c \
 test-replay-ledger: $(OBJ_DIR) $(NET_CORE_OBJS)
 	$(CC) $(CFLAGS) -UNDEBUG $(RSPROT_INCLUDES) -o $(OBJ_DIR)/replay_ledger_test $(TORIMEM_SRCS) \
 		replay/test/replay_ledger_test.c $(REPLAY_LEDGER_ONLY_SRCS) \
-		torirsserver/mock239_playerinfo.c torirsserver/mock241_playerinfo.c \
-		torirsserver/mock242_playerinfo.c $(RSAREABUF_DIR)/rsareabuf.c \
+		torirsserver/wire/core/wire_player_info.c torirsserver/wire/osrs241/osrs241_player_info.c \
 		$(NET_CORE_OBJS) -lm
 	./$(OBJ_DIR)/replay_ledger_test
 
@@ -3951,7 +3950,7 @@ replay-checkpoint-check:
 # Full login -> GAME -> parsed-packet pipeline through a scripted mock server.
 test-net-loopback: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/net_loopback_test $(TORIMEM_SRCS) \
-		net/test/net_loopback_test.c torirsserver/mock_server.c \
+		net/test/net_loopback_test.c net/test/mock_server.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	./$(OBJ_DIR)/net_loopback_test
 
@@ -4520,7 +4519,7 @@ test-entity-decode: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
 .PHONY: test-runclientscript
 test-runclientscript: $(OBJ_DIR) $(OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/runclientscript_test \
-		net/test/runclientscript_test.c $(RSAREABUF_DIR)/rsareabuf.c \
+		net/test/runclientscript_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/runclientscript_test
 
@@ -5577,7 +5576,7 @@ test-torirsserver-alt: torirsserver-alt
 # two above: a live session that owns its own port and its own output file.
 # manifests/manifest_osrs230_bank.ini points at it.
 # `rsprot_buf.o` is in this list because $(TORIRSSERVER_SRCS) includes
-# mock239_interface_inbound.c, which wraps the rev-239 buffer readers. `ToriRSServer`
+# wire_if_inbound.c, which wraps the rev-239 buffer readers. `ToriRSServer`
 # links it and this target did not, so `torirsserver-bank` had been failing to link
 # since that file joined the sources â a build break nothing ran often enough to
 # notice.
@@ -5968,7 +5967,7 @@ torirsserver-scripts-rs2012:
 		TORIRSSERVER_SCRIPT_LANES=rs2012_qbd_td \
 		TORIRSSERVER_SCRIPT_OUT=$(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_rs2012
 
-test-summoning-phase3: torirsserver-scripts torirsserver-scripts-summoning test-mock239-playerinfo
+test-summoning-phase3: torirsserver-scripts torirsserver-scripts-summoning test-wire-player-info
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase3.py
 
 # The server band, `torirsserver-scripts`' sibling (PORTING_GUIDE Â§3.6 item 1): the
@@ -7075,16 +7074,9 @@ test-loc-ops-wire: $(OBJ_DIR) $(RSPROT_TEST_DEPS) $(OBJ_DIR)/rsprot_packets_unit
 		$(OBJ_DIR)/jbase37.o
 	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/loc_ops_wire_test $(TORIMEM_SRCS) \
 		torirsserver/test/loc_ops_wire_test.c \
-		torirsserver/torirs_server_wire.c torirsserver/torirs_server_loc_ops.c \
-		torirsserver/torirs_server_wire241.c torirsserver/mock241_inbound.c \
-		torirsserver/wire/osrs241_clientprot.c \
-		torirsserver/torirs_server_wire242.c torirsserver/mock242_inbound.c \
-		torirsserver/wire/osrs242_clientprot.c \
-		torirsserver/torirs_server_interface_state.c torirsserver/mock239_interface_setters.c \
-		torirsserver/mock239_runclientscript.c torirsserver/mock239_varp.c \
-		torirsserver/mock239_inbound.c torirsserver/mock239_interface_inbound.c \
+		$(TORIRSSERVER_WIRE_SRCS) torirsserver/torirs_server_loc_ops.c \
+		torirsserver/torirs_server_interface_state.c \
 		net/wordpack.c $(RSCACHE_DIR)/src/rsbuffer.c \
-		$(RSAREABUF_DIR)/rsareabuf.c \
 		$(OBJ_DIR)/rsprot_packets_unity.o $(RSPROT_TEST_DEPS) \
 		$(OBJ_DIR)/jbase37.o -lm
 	./$(OBJ_DIR)/loc_ops_wire_test
@@ -7129,7 +7121,7 @@ test-content-name-index: $(OBJ_DIR)
 # saying so.
 test-torirsserver-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_EmbedTest \
-		torirsserver/test/embed_test.c $(filter-out net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c,$(TORIRSSERVER_CORE_SRCS)) \
+		torirsserver/test/embed_test.c $(filter-out net/proto/proto_info.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_EmbedTest
@@ -7145,7 +7137,7 @@ test-torirsserver-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)
 .PHONY: test-embed-party-link
 test-embed-party-link: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_EmbedPartyLinkTest \
-		torirsserver/test/embed_party_link_test.c $(filter-out net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c,$(TORIRSSERVER_CORE_SRCS)) \
+		torirsserver/test/embed_party_link_test.c $(filter-out net/proto/proto_info.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_EmbedPartyLinkTest
@@ -7157,7 +7149,7 @@ test-embed-party-link: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/c
 # machine, not by the server checking its own arithmetic.
 test-torirsserver-login-index: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_LoginIndexTest \
-		torirsserver/test/login_index_test.c $(filter-out net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c,$(TORIRSSERVER_CORE_SRCS)) \
+		torirsserver/test/login_index_test.c $(filter-out net/proto/proto_info.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_LoginIndexTest
@@ -7166,7 +7158,7 @@ test-torirsserver-login-index: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OB
 # client holds, only to the session's own key, and never seats a second copy.
 test-torirsserver-reconnect-claim: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_ReconnectClaimTest \
-		torirsserver/test/reconnect_claim_test.c $(filter-out net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c,$(TORIRSSERVER_CORE_SRCS)) \
+		torirsserver/test/reconnect_claim_test.c $(filter-out net/proto/proto_info.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_ReconnectClaimTest
@@ -7177,7 +7169,7 @@ test-torirsserver-reconnect-claim: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o 
 # over the session playing, development mode lets anything in.
 test-torirsserver-login-password: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o $(ACCOUNT_SQLITE_OBJ)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_LoginPasswordTest \
-		torirsserver/test/login_password_test.c $(filter-out net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c,$(TORIRSSERVER_CORE_SRCS)) \
+		torirsserver/test/login_password_test.c $(filter-out net/proto/proto_info.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c accountserver/account_db.c accountserver/account_proto.c \
 		accountserver/account_server.c ioserver/http_server.c torirsserver/torirs_server_history.c \
 		torirsserver/torirs_server_accountlink.c \

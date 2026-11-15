@@ -8,8 +8,8 @@
  * below is 239's. RSProx treats the CRCs as opaque bytes, so the order at
  * other revisions is unknown; this server reads none of them.
  *
- * The client driver (src/net/login/login_osrs.c) writes it and the mock
- * server (src/torirsserver/mock239_login.c) reads it, and they must agree byte for
+ * The client driver (src/net/login/login_osrs.c) writes it and the server
+ * (src/torirsserver/torirs_server_session.c) reads it, and they must agree byte for
  * byte or the ISAAC seeds come out wrong and every packet after the handshake
  * is noise. Stating the layout here rather than twice in prose is the whole
  * point of the file: the transcription source is RSProt's LoginBlockDecoder

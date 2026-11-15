@@ -161,18 +161,18 @@ selftest_combat_reach_flag(
         {
             static struct ToriRSServerCapture flag_capture;
             uint8_t payload[16];
-            struct RSAreaBuf out;
+            struct RsprotBuf out;
 
             ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             player->clear_map_flag = 0;
-            rsab_wrap(&out, payload, sizeof(payload));
-            rsab_p2(&out, ToriRSServer_SlotMapAcquire(player, slot));
-            rsab_p4(&out, spell);
+            rsprot_buf_wrap(&out, payload, sizeof(payload));
+            rsprot_p2_12(&out, ToriRSServer_SlotMapAcquire(player, slot));
+            rsprot_p4_1234(&out, spell);
             /* The click is handled inside the tick that resolves it, so the
              * walk it queues and the cast that drops it are one tick's: the
              * capture is that tick. */
             ToriRSServer_CaptureBegin(srv, &flag_capture);
-            selftest_handle(player, PKTOUT_NAME_OPNPCT, payload, (int)rsab_len(&out));
+            selftest_handle(player, PKTOUT_NAME_OPNPCT, payload, (int)out.wpos);
             ToriRSServer_CaptureEnd(srv);
             SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 50,
                            "combat_reach_flag: the cast resolved at range, progress %d",

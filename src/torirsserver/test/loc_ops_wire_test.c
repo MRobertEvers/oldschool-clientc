@@ -37,7 +37,7 @@
  * number.
  */
 
-#include "rsareabuf.h"
+#include "rsprot_buf.h"
 
 #include "../torirs_server_wire.h"
 #include "../torirs_server_zone.h"
@@ -105,7 +105,7 @@ roundtrip(
     struct Decoded* out)
 {
     const struct ToriRSServerWire* wire = ToriRSServer_WireByName("osrs239");
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     uint8_t bytes[512];
     Rsprot_MsgLocAddChangeV2_opsElem ops[256];
     MsgLocAddChangeV2 m;
@@ -116,10 +116,10 @@ roundtrip(
 
     if( !wire || !wire->payload || !wire->payload->zone_payload )
         return 0;
-    rsab_wrap(&buf, bytes, sizeof(bytes));
+    rsprot_buf_wrap(&buf, bytes, sizeof(bytes));
     if( !wire->payload->zone_payload(&buf, PKT_NAME_LOC_ADD_CHANGE, event, event->pos, props) )
         return 0;
-    written = (int)rsab_len(&buf);
+    written = (int)buf.wpos;
 
     memset(&m, 0, sizeof(m));
     m.ops = ops;

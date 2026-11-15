@@ -16,7 +16,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-struct RSAreaBuf;
+struct RsprotBuf;
 
 enum
 {
@@ -120,7 +120,7 @@ ToriRSServer_IfStateSplitClassicEvents(
  * decoding them through a mirror of the same implementation. */
 void
 ToriRSServer_IfStateEncodeSeteventsV2(
-    struct RSAreaBuf* buf,
+    struct RsprotBuf* buf,
     int component_uid,
     int start,
     int end,
@@ -129,12 +129,12 @@ ToriRSServer_IfStateEncodeSeteventsV2(
 
 void
 ToriRSServer_IfStateEncodeClearinv(
-    struct RSAreaBuf* buf,
+    struct RsprotBuf* buf,
     int component_uid);
 
 void
 ToriRSServer_IfStateEncodeResyncV2(
-    struct RSAreaBuf* buf,
+    struct RsprotBuf* buf,
     const struct ToriRSServerInterfaceState* state);
 
 size_t

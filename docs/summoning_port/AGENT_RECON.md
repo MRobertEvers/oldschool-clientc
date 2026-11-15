@@ -2823,7 +2823,7 @@ Also: `npc_add(coord, type, duration)` gives a free expiry — `despawn_tick` is
 
 `%name = value` in a script → `SS_OP_POP_VARP` (`torirs_server_scripts.c:3962`); varbits via `SS_OP_POP_VARBIT 2130` (`torirs_server_scripts.c:8137`) → `ToriRSServer_BankSetVarbit`.
 
-Transmit path: `ToriRSServer_WorldMarkVarp` (`torirs_server_world.c:6752`) sends **immediately, inside the setter**, not batched — because a script's source order must be the packet order (documented incident: Slayer Rewards, `torirs_server_world.c:6709-6746`). Encoder chosen by value width: `ToriRSServer_SendVarpSmall` (single signed byte, `mock239_varp.c` `VarpSmallEncoder`: `p1Alt1(value)`, `p2Alt3(id)`) vs `_large`.
+Transmit path: `ToriRSServer_WorldMarkVarp` (`torirs_server_world.c:6752`) sends **immediately, inside the setter**, not batched — because a script's source order must be the packet order (documented incident: Slayer Rewards, `torirs_server_world.c:6709-6746`). Encoder chosen by value width: `ToriRSServer_SendVarpSmall` (single signed byte, `osrs239_varp.c` `VarpSmallEncoder`: `p1Alt1(value)`, `p2Alt3(id)`) vs `_large`.
 
 Gate: `ToriRSServer_ContentVarp(varp)->transmit`. Declared in a `.varp` config; `fields/varp.ini` routes `transmit`/`scope`/`protect`/`wholewrite` as `scope = server, client = drop`.
 

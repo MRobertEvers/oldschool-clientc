@@ -506,6 +506,43 @@ const uint8_t *rsprot_gstrnl(RsprotBuf *b, int32_t *out_len)
 	return NULL;
 }
 
+static int32_t copy_cut(char *out, int32_t out_cap, const void *text, int32_t len)
+{
+	if (!text) {
+		out[0] = '\0';
+		return -1;
+	}
+	if (len > out_cap - 1)
+		len = out_cap - 1;
+	memcpy(out, text, (size_t)len);
+	out[len] = '\0';
+	return len;
+}
+
+int32_t rsprot_gjstr_copy(RsprotBuf *b, char *out, int32_t out_cap)
+{
+	int32_t len;
+	const char *text;
+
+	assert(b);
+	assert(out);
+	assert(out_cap > 0);
+	text = rsprot_gjstr(b, &len);
+	return copy_cut(out, out_cap, text, len);
+}
+
+int32_t rsprot_gstrnl_copy(RsprotBuf *b, char *out, int32_t out_cap)
+{
+	int32_t len;
+	const uint8_t *text;
+
+	assert(b);
+	assert(out);
+	assert(out_cap > 0);
+	text = rsprot_gstrnl(b, &len);
+	return copy_cut(out, out_cap, text, len);
+}
+
 void rsprot_pstrnl(RsprotBuf *b, const uint8_t *s, int32_t len)
 {
 	rsprot_pdata(b, s, len);

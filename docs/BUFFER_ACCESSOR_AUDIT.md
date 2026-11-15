@@ -38,8 +38,8 @@ ones.
 | `net/rev/packets/pkt_player_appearance.c` | 2 | (local `g`-helpers) |
 | `torirsserver/torirs_server_wire.c` | 2 | `w239_p3_alt2` `w239_psmart1or2` |
 | `torirsserver/torirs_server_encode.c` | 1 | `ext_psmart1or2` |
-| `torirsserver/mock239_playerinfo.c` | 1 | `v5_psmart1or2` |
-| `torirsserver/mock239_interface_inbound.c` | 1 | `anim_g2` |
+| `torirsserver/wire/core/wire_player_info.c` | 1 | `v5_psmart1or2` |
+| `torirsserver/wire/core/wire_if_inbound.c` | 1 | `anim_g2` |
 
 **The same smart-encoding is written five times** under five names —
 `gsmart1or2`, `c_gsmart`, `ext_psmart1or2`, `v5_psmart1or2`,
@@ -153,14 +153,14 @@ checks each reader inverts its writer. Verified to fail: pointing `P4_3412` at
 | `net/rev/packets/pkt_player_appearance.c` | 2 | 2 |
 | `torirsserver/torirs_server_wire.c` | 2 | 0 |
 | `torirsserver/torirs_server_encode.c` | 1 | 0 |
-| `torirsserver/mock239_playerinfo.c` | 1 | 0 |
-| `torirsserver/mock239_interface_inbound.c` | 1 | 0 |
+| `torirsserver/wire/core/wire_player_info.c` | 1 | 0 |
+| `torirsserver/wire/core/wire_if_inbound.c` | 1 | 0 |
 
 Two private cursors are gone — `struct Cur` (osrs239) and
 `struct Osrs230Cursor` — replaced by `RSProt_Buffer`. All five copies of
 pSmart1or2 are now one call. Three files also had byte orders written out
 *inline* rather than as functions, so the audit never counted them:
-`mock239_interface_inbound.c` open-coded p2Alt3, a big-endian u16, a
+`wire_if_inbound.c` open-coded p2Alt3, a big-endian u16, a
 little-endian u32 and an 8-byte big-endian read against a raw pointer with no
 cursor at all; those are now cursor reads that latch an error on a short
 payload instead of running off the end.
@@ -220,13 +220,13 @@ Remaining, largest first:
 
 | file | accessors | notes |
 |---|---|---|
-| `net/rev/osrs239/osrs239_parse.c` | 17 | **257 call sites**, and a private `struct Cur` to swap for `RSProt_Buffer`. Covered by `test-rsprot-bridge` (8 packets × 32 seeds) and `test-mock239-inbound` (57 checks), so a mistake here is caught. |
+| `net/rev/osrs239/osrs239_parse.c` | 17 | **257 call sites**, and a private `struct Cur` to swap for `RSProt_Buffer`. Covered by `test-rsprot-bridge` (8 packets × 32 seeds) and `test-wire-if-inbound` (57 checks), so a mistake here is caught. |
 | `net/net_out.c` | 10 | `out_p*` writers |
 | `net/rev/osrs230/osrs230_parse.c` | 6 | `c_g*`, own cursor |
 | `net/rev/packets/pkt_player_appearance.c` | 2 | |
 | `torirsserver/torirs_server_encode.c` | 1 | `ext_psmart1or2` → `rsab_psmart` |
-| `torirsserver/mock239_playerinfo.c` | 1 | `v5_psmart1or2` → `rsab_psmart` |
-| `torirsserver/mock239_interface_inbound.c` | 1 | `anim_g2` |
+| `torirsserver/wire/core/wire_player_info.c` | 1 | `v5_psmart1or2` → `rsab_psmart` |
+| `torirsserver/wire/core/wire_if_inbound.c` | 1 | `anim_g2` |
 | `3rd/rscache/.../dat2_config_loc.c` | 2 | `gstringfl`, `loc_pstringfl` → `rsbuffer.h` |
 
 Three of the five duplicate smart encoders are still out there

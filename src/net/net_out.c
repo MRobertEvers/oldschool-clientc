@@ -743,10 +743,10 @@ net_out_opheld(
      * NOT consecutive. Rev 239's backpack is scripted (script_7779 over
      * enum_4303): generic Use owns op 1, op 5 stays a plain component action,
      * and the five iop rows land on 2, 3, 4, 6, 7. This table is the exact
-     * inverse of the server's own decoder, mock239_if_button_backpack_op
-     * (src/torirsserver/mock239_interface_inbound.c), which a captured official
+     * inverse of the server's own decoder, wire_if_button_backpack_op
+     * (src/torirsserver/wire/core/wire_if_inbound.c), which a captured official
      * packet pins: the Dreadfowl pouch's iop4 Summon arrives as wire op 6
-     * (src/torirsserver/test/mock239_interface_inbound_test.c).
+     * (src/torirsserver/test/wire_if_inbound_test.c).
      *
      * This used to be a flat `op_num + 1`, which got ops 1..3 right by accident
      * and both of the others wrong: OPHELD4 went out as op 5 and decoded as no
@@ -898,8 +898,8 @@ net_out_inv_button(
 }
 
 /* Jagex alt byte-order writers used by the rev-230 IfButtonD frame.
- * Naming matches rsareabuf / RSProt: alt1 = LE, alt2 = BE+128, alt3 = LE+128.
- * Mask every byte: Java writes `(byte)(n + 128)` and rsareabuf's put truncates;
+ * Naming follows RSProt's Kotlin: alt1 = LE, alt2 = BE+128, alt3 = LE+128.
+ * Mask every byte: Java writes `(byte)(n + 128)` and rsprot_buf's put truncates;
  * RSCache_BufferP1 asserts value < 256 without accepting (v+128) >= 256. */
 /* p4Alt2: [v>>8, v, v>>24, v>>16]. */
 /* p4Alt3: [v>>16, v>>24, v, v>>8]. */

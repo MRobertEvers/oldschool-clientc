@@ -13,7 +13,6 @@ AREAS = [
     ("net",     "src/net"),
     ("rscache", "3rd/rscache"),
     ("rsprot",  "3rd/rsprot"),
-    ("rsareabuf", "3rd/rsareabuf"),
     ("trspk",   "3rd/trspk"),
     ("serverscript", "src/serverscript"),
     ("engine",  "src/engine"),

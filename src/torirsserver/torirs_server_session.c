@@ -27,7 +27,7 @@
 #include "torirsserver/wire/osrs230/packetout.h"
 #include "net/rsa.h"
 
-#include <rsareabuf.h>
+#include "rsprot_buf.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -506,7 +506,7 @@ step_init(
     struct ToriRSServer* srv)
 {
     uint8_t out[16];
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
 
     if( session->in_len < 1 )
         return 0;
@@ -528,10 +528,10 @@ step_init(
     }
     consume(session, 1);
 
-    rsab_wrap(&buf, out, sizeof(out));
-    rsab_p1(&buf, 0);
-    rsab_p8(&buf, (int64_t)SESSION_ID);
-    if( ToriRSServer_SessionSend(session, out, (int)rsab_len(&buf)) < 0 )
+    rsprot_buf_wrap(&buf, out, sizeof(out));
+    rsprot_p1(&buf, 0);
+    rsprot_p8_12345678(&buf, (int64_t)SESSION_ID);
+    if( ToriRSServer_SessionSend(session, out, (int)buf.wpos) < 0 )
     {
         session->state = TORIRSSERVER_SESSION_DEAD;
         return 1;
@@ -696,7 +696,7 @@ step_login(
     struct ToriRSServerSession* session,
     struct ToriRSServer* srv)
 {
-    struct RSAreaBuf in;
+    struct RsprotBuf in;
     struct rsa rsa;
     uint8_t plain[512];
     int payload_len;
@@ -765,23 +765,23 @@ step_login(
      * The layout for both is stated once in src/net/login/login_osrs_block.h;
      * the client driver writes it from the same file.
      */
-    rsab_wrap(&in, session->in + 3, (size_t)payload_len);
-    (void)rsab_g4(&in); /* version */
+    rsprot_buf_wrap_read(&in, session->in + 3, (size_t)payload_len);
+    (void)rsprot_g4_1234(&in); /* version */
     /* subVersion: our client's flag that it reads control frames. */
-    session->torirs_control = rsab_g4(&in) == TORIRS_CONTROL_LOGIN_SUBVERSION;
+    session->torirs_control = rsprot_g4_1234(&in) == TORIRS_CONTROL_LOGIN_SUBVERSION;
     if( login_is_239(srv) )
-        (void)rsab_g4(&in); /* serverVersion, new at revision 237 */
-    session->client_type = rsab_g1(&in);   /* clientType (LoginClientType) */
-    session->platform_type = rsab_g1(&in); /* platformType (LoginPlatformType) */
-    (void)rsab_g1(&in);                    /* externalAuth */
-    rsa_size = rsab_g2(&in);
+        (void)rsprot_g4_1234(&in); /* serverVersion, new at revision 237 */
+    session->client_type = rsprot_g1(&in);   /* clientType (LoginClientType) */
+    session->platform_type = rsprot_g1(&in); /* platformType (LoginPlatformType) */
+    (void)rsprot_g1(&in);                    /* externalAuth */
+    rsa_size = rsprot_g2_12(&in);
     /*
      * Where the XTEA body starts, captured now because `in` is about to be
      * re-wrapped over the RSA plaintext and the offset would be gone.
      */
-    body_off = 3 + (int)in.pos + rsa_size;
-    body_len = payload_len - (int)in.pos - rsa_size;
-    if( !rsab_ok(&in) )
+    body_off = 3 + in.rpos + rsa_size;
+    body_len = payload_len - in.rpos - rsa_size;
+    if( !rsprot_buf_ok(&in) )
     {
         session->state = TORIRSSERVER_SESSION_DEAD;
         return 1;
@@ -793,7 +793,7 @@ step_login(
         session->state = TORIRSSERVER_SESSION_DEAD;
         return 1;
     }
-    plain_len = rsa_crypt(&rsa, session->in + 3 + in.pos, (size_t)rsa_size, plain,
+    plain_len = rsa_crypt(&rsa, session->in + 3 + in.rpos, (size_t)rsa_size, plain,
                           sizeof(plain));
     if( plain_len <= 0 )
     {
@@ -802,9 +802,9 @@ step_login(
         return 1;
     }
 
-    rsab_wrap(&in, plain, (size_t)plain_len);
+    rsprot_buf_wrap_read(&in, plain, (size_t)plain_len);
     {
-        int check = rsab_g1(&in);
+        int check = rsprot_g1(&in);
         /*
          * The one place a wrong RSA key announces itself.
          *
@@ -824,10 +824,10 @@ step_login(
         }
     }
     for( int i = 0; i < 4; i++ )
-        seed[i] = rsab_g4(&in);
+        seed[i] = rsprot_g4_1234(&in);
     memcpy(session->seed, seed, sizeof(session->seed));
     memset(session->presented_seed, 0, sizeof(session->presented_seed));
-    claimed = (uint64_t)rsab_g8(&in);
+    claimed = (uint64_t)rsprot_g8_12345678(&in);
     if( session->reconnect )
     {
         /*
@@ -838,7 +838,7 @@ step_login(
          * (torirs_server_host.c, host_claim_character).
          */
         for( int i = 0; i < 4; i++ )
-            session->presented_seed[i] = rsab_g4(&in);
+            session->presented_seed[i] = rsprot_g4_1234(&in);
         pass[0] = '\0';
     }
     else if( login_is_239(srv) )
@@ -850,8 +850,8 @@ step_login(
          * this server authenticates none of them — but they must be CONSUMED,
          * because the username and password follow immediately after.
          */
-        int otp = rsab_g1(&in);
-        (void)rsab_g4(&in);
+        int otp = rsprot_g1(&in);
+        (void)rsprot_g4_1234(&in);
         if( otp < 0 || otp > 3 )
         {
             fprintf(stderr, "torirsserver: unknown OTP kind %d in login block\n", otp);
@@ -860,7 +860,7 @@ step_login(
         }
     }
     if( !session->reconnect )
-        auth_type = rsab_g1(&in); /* 0 password, 2 token */
+        auth_type = rsprot_g1(&in); /* 0 password, 2 token */
     if( login_is_239(srv) )
     {
         /*
@@ -872,7 +872,7 @@ step_login(
          * password to read — but the body, and so the username, is unchanged.
          */
         if( !session->reconnect )
-            rsab_gjstr(&in, pass, sizeof(pass), RSAB_JSTR_NUL);
+            rsprot_gjstr_copy(&in, pass, sizeof(pass));
         /*
          * The username is the first field of the XTEA body, keyed on the seeds
          * we just recovered. Decrypting in place is safe: the block is fully
@@ -887,11 +887,11 @@ step_login(
         snprintf(user, sizeof(user), "%s", "Player");
         if( body_len > 0 && body_off + body_len <= session->in_len )
         {
-            struct RSAreaBuf body;
+            struct RsprotBuf body;
             xteas_decrypt((char*)session->in + body_off, body_len, seed);
-            rsab_wrap(&body, session->in + body_off, (size_t)body_len);
-            rsab_gjstr(&body, user, sizeof(user), RSAB_JSTR_NUL);
-            if( !rsab_ok(&body) || !user[0] )
+            rsprot_buf_wrap_read(&body, session->in + body_off, (size_t)body_len);
+            rsprot_gjstr_copy(&body, user, sizeof(user));
+            if( !rsprot_buf_ok(&body) || !user[0] )
                 snprintf(user, sizeof(user), "%s", "Player");
         }
     }
@@ -905,8 +905,8 @@ step_login(
     }
     else
     {
-        rsab_gjstr(&in, user, sizeof(user), RSAB_JSTR_NUL);
-        rsab_gjstr(&in, pass, sizeof(pass), RSAB_JSTR_NUL);
+        rsprot_gjstr_copy(&in, user, sizeof(user));
+        rsprot_gjstr_copy(&in, pass, sizeof(pass));
     }
 
     /*
@@ -958,7 +958,7 @@ int
 ToriRSServer_SessionSendLoginOk(struct ToriRSServerSession* session)
 {
     uint8_t body[64];
-    struct RSAreaBuf out;
+    struct RsprotBuf out;
     int index;
 
     assert(session);
@@ -981,19 +981,19 @@ ToriRSServer_SessionSendLoginOk(struct ToriRSServerSession* session)
      * `index` is the slot the client will treat as itself, and it must be
      * the same number the GPI init block skipped and PLAYER_INFO keys on.
      */
-    rsab_wrap(&out, body, sizeof(body));
-    rsab_p1(&out, OSRS_LOGINRES_OK);
-    rsab_p1(&out, 34 + 3);
-    rsab_p1(&out, 0); /* no authenticator */
-    rsab_p4(&out, 0); /* ...and no code */
-    rsab_p1(&out, session->staff_level);
-    rsab_p1(&out, 0); /* playerMod */
-    rsab_p2(&out, index);
-    rsab_p1(&out, 1); /* member */
-    rsab_p8(&out, 0); /* accountHash */
-    rsab_p8(&out, 0); /* userId */
-    rsab_p8(&out, 0); /* userHash */
-    if( ToriRSServer_SessionSend(session, body, (int)rsab_len(&out)) < 0 )
+    rsprot_buf_wrap(&out, body, sizeof(body));
+    rsprot_p1(&out, OSRS_LOGINRES_OK);
+    rsprot_p1(&out, 34 + 3);
+    rsprot_p1(&out, 0); /* no authenticator */
+    rsprot_p4_1234(&out, 0); /* ...and no code */
+    rsprot_p1(&out, session->staff_level);
+    rsprot_p1(&out, 0); /* playerMod */
+    rsprot_p2_12(&out, index);
+    rsprot_p1(&out, 1); /* member */
+    rsprot_p8_12345678(&out, 0); /* accountHash */
+    rsprot_p8_12345678(&out, 0); /* userId */
+    rsprot_p8_12345678(&out, 0); /* userHash */
+    if( ToriRSServer_SessionSend(session, body, (int)out.wpos) < 0 )
     {
         session->state = TORIRSSERVER_SESSION_DEAD;
         return 0;

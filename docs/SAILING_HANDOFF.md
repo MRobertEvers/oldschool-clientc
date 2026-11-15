@@ -55,7 +55,7 @@ Nothing under `src/` is newer than the build.
 - **Twelve unit gates, all exit 0**, serially in `src/build_opt_es`:
   `test-sailing-paint-order`, `test-painters-world-entity`, `test-frame-flat`,
   `test-world`, `test-minimenu-world`, `test-cs2-sailing-settings`,
-  `test-sailing-collision`, `test-mock239-playerinfo`, `test-wev-rebuild`,
+  `test-sailing-collision`, `test-wire-player-info`, `test-wev-rebuild`,
   `test-wev`, `test-rsprot-bridge`, `test-social`
   (`/tmp/sailing-fin3/status.txt`, one `<target>.log` each).
 - **Sailing-only server suite: 563 checks, 0 failures**

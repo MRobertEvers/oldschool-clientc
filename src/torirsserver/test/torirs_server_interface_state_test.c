@@ -1,6 +1,6 @@
 #include "torirsserver/torirs_server_interface_state.h"
 
-#include <rsareabuf.h>
+#include "rsprot_buf.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -51,16 +51,15 @@ test_setevents_golden(void)
         0x34, 0x12, 0x78, 0x56,             /* combined id p4Alt3 */
     };
     uint8_t bytes[32] = { 0 };
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
     uint32_t events1 = 0;
     uint32_t events2 = 0;
 
-    rsab_wrap(&buf, bytes, sizeof(bytes));
-    buf.pos = 0; /* rsab_wrap is normally a reader; rewind it for this fixture. */
+    rsprot_buf_wrap(&buf, bytes, sizeof(bytes));
     ToriRSServer_IfStateEncodeSeteventsV2(
         &buf, 0x12345678, 0x0102, 0x0304, UINT32_C(0x11223344),
         UINT32_C(0x55667788));
-    check_bytes("IF_SETEVENTS_V2 golden body", bytes, rsab_len(&buf), want, sizeof(want));
+    check_bytes("IF_SETEVENTS_V2 golden body", bytes, buf.wpos, want, sizeof(want));
 
     /* This expected pair is stated as literals, not computed through a decoder
      * mirror. 0x00200c0b contains pause, op1/op3/op10, target-object and target. */
@@ -76,12 +75,11 @@ test_clearinv_golden(void)
 {
     static const uint8_t want[] = { 0x56, 0x78, 0x12, 0x34 };
     uint8_t bytes[8] = { 0 };
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
 
-    rsab_wrap(&buf, bytes, sizeof(bytes));
-    buf.pos = 0;
+    rsprot_buf_wrap(&buf, bytes, sizeof(bytes));
     ToriRSServer_IfStateEncodeClearinv(&buf, 0x12345678);
-    check_bytes("IF_CLEARINV golden body", bytes, rsab_len(&buf), want, sizeof(want));
+    check_bytes("IF_CLEARINV golden body", bytes, buf.wpos, want, sizeof(want));
 }
 
 static void
@@ -179,7 +177,7 @@ test_resync_golden(void)
     };
     struct ToriRSServerInterfaceState state;
     uint8_t bytes[128] = { 0 };
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
 
     ToriRSServer_IfStateInit(&state);
     ToriRSServer_IfStateOpenTop(&state, 0x1234);
@@ -191,13 +189,12 @@ test_resync_golden(void)
               UINT32_C(0x99aabbcc)),
           "resync event");
 
-    rsab_wrap(&buf, bytes, sizeof(bytes));
-    buf.pos = 0;
+    rsprot_buf_wrap(&buf, bytes, sizeof(bytes));
     ToriRSServer_IfStateEncodeResyncV2(&buf, &state);
     CHECK(ToriRSServer_IfStateResyncPayloadSize(&state) == sizeof(want),
           "resync size must be 4 + 7N + 16M, got %zu",
           ToriRSServer_IfStateResyncPayloadSize(&state));
-    check_bytes("IF_RESYNC_V2 golden body", bytes, rsab_len(&buf), want, sizeof(want));
+    check_bytes("IF_RESYNC_V2 golden body", bytes, buf.wpos, want, sizeof(want));
 }
 
 int

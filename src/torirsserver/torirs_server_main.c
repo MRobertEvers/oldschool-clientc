@@ -481,7 +481,6 @@ main(
      * code that frees rscache's output names lib:rscache
      * (src/mem/torirs_mem_libs.h). */
     ToriMem_InstallBZip();
-    ToriMem_InstallRSAreaBuf();
     ToriMem_InstallRSProt();
     ToriMem_InstallRSCache();
 

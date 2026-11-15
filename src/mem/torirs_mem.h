@@ -442,9 +442,6 @@ struct ToriMem_Group*
 ToriMem_LibRSProt(void);
 
 struct ToriMem_Group*
-ToriMem_LibRSAreaBuf(void);
-
-struct ToriMem_Group*
 ToriMem_LibBZip(void);
 
 

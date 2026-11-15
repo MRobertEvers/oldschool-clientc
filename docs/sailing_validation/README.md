@@ -274,7 +274,7 @@ Unit gates and the sailing suite on the same pair: **twelve targets, all exit
 0**, run serially in `src/build_opt_es` — `test-sailing-paint-order`,
 `test-painters-world-entity`, `test-frame-flat`, `test-world`,
 `test-minimenu-world`, `test-cs2-sailing-settings`, `test-sailing-collision`,
-`test-mock239-playerinfo`, `test-wev-rebuild`, `test-wev`, `test-rsprot-bridge`,
+`test-wire-player-info`, `test-wev-rebuild`, `test-wev`, `test-rsprot-bridge`,
 `test-social` (`/tmp/sailing-fin3/status.txt`, one `<target>.log` each) — and
 the sailing-only server suite at **563 checks, 0 failures**
 (`/tmp/sailing-fin3/sailing-selftest.log`, `.tsv`). See

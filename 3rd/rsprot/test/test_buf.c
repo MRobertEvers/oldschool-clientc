@@ -211,6 +211,22 @@ static void test_strings(void)
 
 	s = rsprot_gjstr2(&b, &len);
 	CHECK(s != NULL && len == 3 && memcmp(s, "abc", 3) == 0, "gjstr2");
+
+	/* The _copy forms cut to fit but always step past the whole string. */
+	{
+		char out[4];
+		rsprot_buf_wrap(&b, mem, sizeof(mem));
+		rsprot_pjstr(&b, "hello");
+		rsprot_pstrnl(&b, (const uint8_t *)"ab", 2);
+		rsprot_p1(&b, 'x');
+		rsprot_buf_wrap_read(&b, mem, b.wpos);
+		CHECK_EQ_I(rsprot_gjstr_copy(&b, out, sizeof(out)), 3, "gjstr_copy cuts to fit");
+		CHECK(strcmp(out, "hel") == 0, "gjstr_copy keeps the head");
+		CHECK_EQ_I(rsprot_gstrnl_copy(&b, out, sizeof(out)), 2, "gstrnl_copy after a cut string");
+		CHECK(strcmp(out, "ab") == 0 && rsprot_buf_ok(&b), "gstrnl_copy reads the next string");
+		CHECK_EQ_I(rsprot_gjstr_copy(&b, out, sizeof(out)), -1, "gjstr_copy with no terminator");
+		CHECK(out[0] == '\0' && !rsprot_buf_ok(&b), "an unterminated string empties out and latches");
+	}
 }
 
 static void test_bits(void)

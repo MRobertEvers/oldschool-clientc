@@ -835,17 +835,17 @@ selftest_sailing(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
             SELFTEST_CHECK(at >= 0, "the spawn tick sends the deck's REBUILD_WORLDENTITY");
             if( at >= 0 && boat )
             {
-                struct RSAreaBuf rb;
+                struct RsprotBuf rb;
                 int got_base_x;
                 int got_base_z;
                 int got_squares;
                 int grid_bits = 0;
 
-                rsab_wrap(&rb, (void*)wev_cap.packets[at].data,
+                rsprot_buf_wrap_read(&rb, (void*)wev_cap.packets[at].data,
                           (size_t)wev_cap.packets[at].len);
-                got_base_x = rsab_g2(&rb);
-                got_base_z = rsab_g2(&rb);
-                got_squares = rsab_g2(&rb);
+                got_base_x = rsprot_g2_12(&rb);
+                got_base_z = rsprot_g2_12(&rb);
+                got_squares = rsprot_g2_12(&rb);
 
                 /* The header is the deck's SW TILE — the client asserts it is
                  * zone-aligned and strides its own grid from it. */
@@ -896,16 +896,16 @@ selftest_sailing(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                                "the deck map is bracketed by two world selects");
                 if( before >= 0 && after >= 0 )
                 {
-                    struct RSAreaBuf rb;
+                    struct RsprotBuf rb;
                     int selected;
                     int restored;
 
-                    rsab_wrap(&rb, (void*)wev_cap.packets[before].data,
+                    rsprot_buf_wrap_read(&rb, (void*)wev_cap.packets[before].data,
                               (size_t)wev_cap.packets[before].len);
-                    selected = rsab_g2(&rb);
-                    rsab_wrap(&rb, (void*)wev_cap.packets[after].data,
+                    selected = rsprot_g2_12(&rb);
+                    rsprot_buf_wrap_read(&rb, (void*)wev_cap.packets[after].data,
                               (size_t)wev_cap.packets[after].len);
-                    restored = rsab_g2(&rb);
+                    restored = rsprot_g2_12(&rb);
                     SELFTEST_CHECK(selected == boat->view_id,
                                    "the first names the hull's view %d, got %d", boat->view_id,
                                    selected);

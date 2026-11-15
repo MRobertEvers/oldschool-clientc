@@ -1367,7 +1367,7 @@ across identical runs, and a suite whose failure count wanders cannot answer
 | CS2 VM | `test-cs2-math`, `test-cs2-string`, `test-cs2-component-param`, `test-cs2-text-align`, `test-cs2-target-verb`, `test-cs2-triggerop`, `test-cs2-dialect`, `test-cs2-transmit-pump`, `test-cs2-resume-countdialog`, `test-runclientscript` |
 | CS1 VM | `test-cs1vm`, `test-cs1` |
 | Net / protocol | `test-net-login`, `test-net-loopback`, `test-net-exec`, `test-net-out-resume`, `test-rsprot`, `test-rsprot-bridge`, `test-pktexec`, `test-pktpackets`, `test-entity-decode`, `test-walkmerge`, `test-ws-frame` |
-| rev-239 mock | `test-mock239-inbound`, `test-mock239-playerinfo`, `test-mock239-runclientscript`, `test-mock239-interface-setters`, `test-mock239-varp` |
+| rev-239 mock | `test-wire-if-inbound`, `test-wire-player-info`, `test-wire-runclientscript`, `test-osrs239-interface-setters`, `test-osrs239-varp` |
 | ToriRSServer | `test-ToriRSServer`, `test-torirsserver-dev`, `test-torirsserver-alt`, `test-torirsserver-bank`, `test-torirsserver-embed`, `test-torirsserver-param`, `test-torirsserver-loc`, `test-torirsserver-npc`, `test-torirsserver-interface-state` |
 | UI | `test-uitree`, `test-uitree-builder`, `test-uitree-builder-dat1`, `test-ui-slots`, `test-chat-widgets`, `test-minimenu-world`, `test-design-panel`, `test-minimap`, `test-social`, `test-debug-overlay-visual`, `bench-uitree` |
 | World / render | `test-world`, `test-world-builder`, `test-light-model`, `test-animation-object-step`, `test-scene-profiles`, `test-painters-occluders`, `test-painters-terrain-levels`, `test-scanline`, `test-raster-kernel`, `test-raster-kernel-pixel16`, `test-rotate-blit`, `test-retained-renderer-leak`, `test-proctex-coverage` |

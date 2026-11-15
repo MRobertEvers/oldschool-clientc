@@ -123,13 +123,13 @@ INPUT_FILES = [
     os.path.join(REPO_ROOT, "src", "content", "content_register.h"),
     os.path.join(REPO_ROOT, "3rd", "ini", "ini.c"),
     os.path.join(REPO_ROOT, "3rd", "ini", "ini.h"),
-    os.path.join(REPO_ROOT, "3rd", "rsareabuf", "rsareabuf.c"),
-    os.path.join(REPO_ROOT, "3rd", "rsareabuf", "rsareabuf.h"),
+    os.path.join(REPO_ROOT, "3rd", "rsprot", "src", "rsprot_buf.c"),
+    os.path.join(REPO_ROOT, "3rd", "rsprot", "src", "rsprot_buf.h"),
 ]
 # The Makefile's rules for the pack: hashed as TEXT (the file's mtime moves
 # with every unrelated edit to a 5,000-line Makefile).
 MAKE_TARGETS = ["torirsserver-scripts", "torirsserver-scripts-lanes", "sscompile"]
-MAKE_VARIABLES = ["SSC_SRCS", "SS_SRCS", "SSC_CFLAGS", "RSAREABUF_DIR", "INI_SRC",
+MAKE_VARIABLES = ["SSC_SRCS", "SS_SRCS", "SSC_CFLAGS", "RSPROT_BUF_SRC", "INI_SRC",
                   "TORIRSSERVER_CONTENT_DIR", "TORIRSSERVER_SCRIPT_OUT",
                   "TORIRSSERVER_SCRIPT_LANES"]
 

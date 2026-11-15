@@ -4,7 +4,7 @@
 #include "ss_meta.h"
 #include "mem/torirs_mem.h"
 
-#include <rsareabuf.h>
+#include "rsprot_buf.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -53,22 +53,6 @@ cmp_key_entry(const void* a, const void* b)
     if( x->key > y->key )
         return 1;
     return (x->id > y->id) - (x->id < y->id);
-}
-
-/* rsab_wrap takes a mutable pointer because one struct serves both reads and
- * writes. Nothing in this file writes through the buffer, so the cast is safe;
- * keeping it in one place keeps that claim checkable. */
-static void
-wrap_readonly(struct RSAreaBuf* buf, const uint8_t* data, size_t length)
-{
-    union
-    {
-        const uint8_t* readable;
-        void* writable;
-    } alias;
-
-    alias.readable = data;
-    rsab_wrap(buf, alias.writable, length);
 }
 
 static uint8_t*
@@ -186,8 +170,8 @@ SSVM_ProviderLoadMem(
     size_t idx_length,
     struct SSVM_Error* err)
 {
-    struct RSAreaBuf dat_buf;
-    struct RSAreaBuf idx_buf;
+    struct RsprotBuf dat_buf;
+    struct RsprotBuf idx_buf;
     int32_t dat_entries;
     int32_t idx_entries;
     int32_t i;
@@ -202,12 +186,12 @@ SSVM_ProviderLoadMem(
             err, -1, -1, "script container is truncated (dat %zu, idx %zu bytes)",
             dat_length, idx_length);
 
-    wrap_readonly(&dat_buf, dat, dat_length);
-    wrap_readonly(&idx_buf, idx, idx_length);
+    rsprot_buf_wrap_read(&dat_buf, dat, (int32_t)dat_length);
+    rsprot_buf_wrap_read(&idx_buf, idx, (int32_t)idx_length);
 
-    dat_entries = rsab_g4(&dat_buf);
-    provider->compiler_version = rsab_g4(&dat_buf);
-    idx_entries = rsab_g4(&idx_buf);
+    dat_entries = rsprot_g4_1234(&dat_buf);
+    provider->compiler_version = rsprot_g4_1234(&dat_buf);
+    idx_entries = rsprot_g4_1234(&idx_buf);
 
     if( provider->compiler_version != SSVM_COMPILER_VERSION )
         return SSVM_ErrorSet(
@@ -237,10 +221,10 @@ SSVM_ProviderLoadMem(
             ToriMem_ServerScripts(), (size_t)dat_entries, sizeof(struct SSVM_Script));
     }
 
-    offset = dat_buf.pos;
+    offset = (size_t)dat_buf.rpos;
     for( i = 0; i < dat_entries; i++ )
     {
-        int32_t size = rsab_g4(&idx_buf);
+        int32_t size = rsprot_g4_1234(&idx_buf);
 
         provider->scripts[i].id = i;
         provider->scripts[i].lookup_key = -1;

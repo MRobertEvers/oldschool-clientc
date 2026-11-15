@@ -1499,7 +1499,7 @@ OPNPC2 callback.
 - 2026-08-06: Visually inspected the final inventory/menu, run, world-map,
   music/chat, emote, Account Benefits, and direct item-sprite artifacts. Updated
   this record with the final findings and proof paths.
-- 2026-08-06: Re-ran `make -C src test-mock239-playerinfo test-db`; the run
+- 2026-08-06: Re-ran `make -C src test-wire-player-info test-db`; the run
   traversal codec and DB default/fallback suites passed. Python compilation of
   both control/verifier tools and `git diff --check` also passed. The final
   deob API gate reports 723/10,469 original classes/members versus 740/10,735
@@ -1581,7 +1581,7 @@ OPNPC2 callback.
   normalisation and the NPC_INFO bit-45/byte-aligned sentinel thresholds.
   Added a world self-test for the side-only poh_options close and changed the
   Hans self-test to exercise the actual six-byte resume packet.
-- 2026-08-06: Ran `test-mock239-playerinfo` and `test-mock239-inbound` (48
+- 2026-08-06: Ran `test-wire-player-info` and `test-wire-if-inbound` (48
   inbound checks) plus a full ToriRSServer build successfully. The broad cached
   ToriRSServer self-test reached the new side-only section without a new failure but
   retains 25 pre-existing content-gap/shadow failures; the complete output is

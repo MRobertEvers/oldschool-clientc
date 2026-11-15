@@ -7,7 +7,7 @@ revision239 cache and actual ocean at **3072,3160**. It never marks land as sea.
 ```sh
 make -C src OPT=1 test-sailing-server
 make -C src OPT=1 test-sailing-collision
-make -C src OPT=1 test-mock239-playerinfo
+make -C src OPT=1 test-wire-player-info
 make -C src OPT=1 test-entity-info-shrink
 ```
 

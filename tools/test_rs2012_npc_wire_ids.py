@@ -27,7 +27,7 @@ def main() -> int:
     encoder = ENCODER.read_text()
     assert "npc_add_requires_transformation(npc)" in encoder
     assert "force_type_latch ? npc->type : npc->change_type" in encoder
-    assert "rsab_p2_alt3" in encoder
+    assert "rsprot_p2_21_add128" in encoder
     print("rs2012 NPC wire ids: PASS (25000..25009 use rev239 transformation update)")
     return 0
 

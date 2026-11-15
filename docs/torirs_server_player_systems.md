@@ -438,7 +438,7 @@ those particular array bits are present: their lengths come from the current
 Guessing a length there would recreate the packet-tail corruption this audit is
 meant to remove.
 
-`test-mock239-playerinfo` pins a literal entering-view record with a nonzero
+`test-wire-player-info` pins a literal entering-view record with a nonzero
 spawn cycle and a mixed player and NPC tail. It asserts the last operation in
 each tail as well as the earlier values, so a transform or block-order error
 cannot pass merely by decoding the first field.
@@ -582,7 +582,7 @@ bit to its prayer archive index; the rev239 decoder converts that index back to
 one generic bit for `app_overlay_build_player_headicons`. Bit position/index is
 therefore still the sprite index: 0 protect-melee, 1 protect-missiles,
 2 protect-magic, 3 retribution, 4 smite, 5 redemption. The conversion is pinned
-by `mock239_playerinfo_test`; `TORIRS_OVERLAY_DEBUG=1` with `pray 18` verifies a
+by `wire_player_info_test`; `TORIRS_OVERLAY_DEBUG=1` with `pray 18` verifies a
 kind-1 sprite follows the player in the headless client.
 
 The classic mock block retains its older one-byte mask for its classic C-client

@@ -1057,7 +1057,7 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # the 2004 IF1 protocol and has neither command (engine.rs2 and
     # ScriptOpcode.ts carry no angle/rotate op), so the wire half already
     # existed -- ToriRSServer_SendIfSetangle / _SendIfSetrotatespeed,
-    # mock239_encode_if_setangle (3rd/rsprot/packets/if_setangle.c) and the
+    # osrs239_encode_if_setangle (3rd/rsprot/packets/if_setangle.c) and the
     # client's UITree_ApplyModelAngle -- with no script able to send it.
     # Argument order follows this dialect's if_setposition: the component
     # first, then the values in the order the client's IF_SETANGLE handler
@@ -1795,7 +1795,7 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # IF_BUTTON1..10 above already describes for a component's op index, just
     # for a submenu's slot index instead.
     #
-    # The wire already carries it (mock239_interface_inbound.c decodes
+    # The wire already carries it (wire_if_inbound.c decodes
     # `button.subop`) and torirs_server_world.c already stores it
     # (`player->last_subop`), same as `last_slot`/`last_item` — this command
     # is only the missing read side. LostCity's reference predates rev-239's

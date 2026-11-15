@@ -28,8 +28,8 @@
 #include "torirs_server_session.h"
 #include "torirs_server_scene.h"
 #include "torirs_server_world_internal.h"
-#include "mock239_facing.h"
-#include "mock239_interface_inbound.h"
+#include "torirsserver/wire/core/wire_facing.h"
+#include "torirsserver/wire/core/wire_if_inbound.h"
 #include "engine/world_builder/collision_map.h"
 /* `torirs_server_scene.h` only forward-declares `struct ToriRS_FeatureTable`, so
  * reading a field off `ToriRSServer_SceneFeatures()` needs the definition. */
@@ -43,7 +43,7 @@
 #include "net/rev/pktnames.h"
 #include "net/rev/revpacket.h"
 
-#include <rsareabuf.h>
+#include "rsprot_buf.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -690,13 +690,13 @@ selftest_capture_find_varp_large(
     for( int i = 0; i < capture->count; i++ )
     {
         struct ToriRSServerCapturedPacket* pkt = &capture->packets[i];
-        struct RSAreaBuf body;
+        struct RsprotBuf body;
         int id;
 
         if( pkt->opcode != opcode || pkt->len != 6 )
             continue;
-        rsab_wrap(&body, pkt->data, (size_t)pkt->len);
-        id = strcmp(wire->name, "osrs239") == 0 ? rsab_g2_alt2(&body) : rsab_g2(&body);
+        rsprot_buf_wrap_read(&body, pkt->data, (size_t)pkt->len);
+        id = strcmp(wire->name, "osrs239") == 0 ? rsprot_g2_12_add128(&body) : rsprot_g2_12(&body);
         if( id == varp_id )
             return i;
     }
@@ -749,26 +749,26 @@ selftest_capture_has_if_settext(
     for( int i = 0; i < capture->count; i++ )
     {
         struct ToriRSServerCapturedPacket const* packet = &capture->packets[i];
-        struct RSAreaBuf body;
+        struct RsprotBuf body;
         char text[128];
         int uid;
 
         if( packet->opcode != opcode )
             continue;
-        rsab_wrap(&body, (void*)packet->data, (size_t)packet->len);
+        rsprot_buf_wrap_read(&body, (void*)packet->data, (size_t)packet->len);
         if( strcmp(wire->name, "osrs239") == 0 )
         {
-            if( rsab_gjstr(&body, text, sizeof(text), RSAB_JSTR_NUL) < 0 )
+            if( rsprot_gjstr_copy(&body, text, sizeof(text)) < 0 )
                 continue;
-            uid = rsab_g4_alt2(&body);
+            uid = rsprot_g4_3412(&body);
         }
         else
         {
-            uid = rsab_g4(&body);
-            if( rsab_gjstr(&body, text, sizeof(text), RSAB_JSTR_NEWLINE) < 0 )
+            uid = rsprot_g4_1234(&body);
+            if( rsprot_gstrnl_copy(&body, text, sizeof(text)) < 0 )
                 continue;
         }
-        if( rsab_ok(&body) && uid == component_id && strcmp(text, expected) == 0 )
+        if( rsprot_buf_ok(&body) && uid == component_id && strcmp(text, expected) == 0 )
             return 1;
     }
     return 0;
@@ -795,7 +795,7 @@ selftest_capture_has_midi_song_envelope(
     for( int i = 0; i < capture->count; i++ )
     {
         struct ToriRSServerCapturedPacket const* packet = &capture->packets[i];
-        struct RSAreaBuf body;
+        struct RsprotBuf body;
         int got_fade_in_delay;
         int got_fade_out_delay;
         int got_song;
@@ -804,13 +804,13 @@ selftest_capture_has_midi_song_envelope(
 
         if( packet->opcode != opcode || packet->len != 10 )
             continue;
-        rsab_wrap(&body, (void*)packet->data, (size_t)packet->len);
-        got_fade_in_delay = rsab_g2_alt1(&body);
-        got_fade_out_delay = rsab_g2(&body);
-        got_song = rsab_g2_alt3(&body);
-        got_fade_in_speed = rsab_g2(&body);
-        got_fade_out_speed = rsab_g2_alt3(&body);
-        if( rsab_ok(&body) && got_song == song_id && got_fade_out_delay == fade_out_delay &&
+        rsprot_buf_wrap_read(&body, (void*)packet->data, (size_t)packet->len);
+        got_fade_in_delay = rsprot_g2_21(&body);
+        got_fade_out_delay = rsprot_g2_12(&body);
+        got_song = rsprot_g2_21_add128(&body);
+        got_fade_in_speed = rsprot_g2_12(&body);
+        got_fade_out_speed = rsprot_g2_21_add128(&body);
+        if( rsprot_buf_ok(&body) && got_song == song_id && got_fade_out_delay == fade_out_delay &&
             got_fade_out_speed == fade_out_speed && got_fade_in_delay == fade_in_delay &&
             got_fade_in_speed == fade_in_speed )
             return 1;
@@ -1817,7 +1817,7 @@ struct selftest_wev_packet
 
 static int
 selftest_wev_delta(
-    struct RSAreaBuf* buf,
+    struct RsprotBuf* buf,
     int code)
 {
     switch( code & 3 )
@@ -1825,24 +1825,24 @@ selftest_wev_delta(
     case 0:
         return 0;
     case 1:
-        return rsab_g1s(buf);
+        return rsprot_g1s(buf);
     case 2:
-        return rsab_g2s(buf);
+        return rsprot_g2s_12(buf);
     default:
-        return rsab_g4(buf);
+        return rsprot_g4_1234(buf);
     }
 }
 
 static void
 selftest_wev_transform(
-    struct RSAreaBuf* buf,
+    struct RsprotBuf* buf,
     int* dx,
     int* dy,
     int* dz,
     int* dangle)
 {
     /* Two bits per axis, LSB-first across x, y, z, angle. */
-    int mask = rsab_g1(buf);
+    int mask = rsprot_g1(buf);
 
     *dx = selftest_wev_delta(buf, mask);
     *dy = selftest_wev_delta(buf, mask >> 2);
@@ -1856,63 +1856,63 @@ selftest_wev_decode(
     int len,
     struct selftest_wev_packet* out)
 {
-    struct RSAreaBuf buf;
+    struct RsprotBuf buf;
 
     assert(data);
     assert(out);
     memset(out, 0, sizeof(*out));
-    rsab_wrap(&buf, (void*)data, (size_t)len);
+    rsprot_buf_wrap_read(&buf, (void*)data, (size_t)len);
 
-    out->count = rsab_g1(&buf);
+    out->count = rsprot_g1(&buf);
     for( int i = 0; i < out->count && i < SELFTEST_WEV_MAX; i++ )
     {
         struct selftest_wev_move* move = &out->moves[i];
 
-        move->op = rsab_g1(&buf);
+        move->op = rsprot_g1(&buf);
         /* Op 0 is a despawn and carries NOTHING else — not even the flags
          * byte. The client's `if (op != 0)` guards every read below. */
         if( move->op == 0 )
             continue;
         if( move->op == 2 || move->op == 3 )
             selftest_wev_transform(&buf, &move->dx, &move->dy, &move->dz, &move->dangle);
-        move->update_flags = rsab_g1(&buf);
+        move->update_flags = rsprot_g1(&buf);
         if( move->update_flags & 0x2 )
-            rsab_g1_sub128(&buf);
+            rsprot_g1_sub128(&buf);
         if( move->update_flags & 0x1 )
         {
-            rsab_g2(&buf);
-            rsab_g1(&buf);
+            rsprot_g2_12(&buf);
+            rsprot_g1(&buf);
         }
     }
 
     /* The spawn trailer is read "while bytes remain" — it has no count. */
-    while( rsab_remaining(&buf) > 0 && out->spawn_count < SELFTEST_WEV_MAX )
+    while( rsprot_buf_readable(&buf) > 0 && out->spawn_count < SELFTEST_WEV_MAX )
     {
         struct selftest_wev_spawn* spawn = &out->spawns[out->spawn_count++];
 
-        spawn->view_id = rsab_g2(&buf);
-        spawn->update_flags = rsab_g1(&buf);
-        spawn->size_byte = rsab_g1_neg(&buf);
+        spawn->view_id = rsprot_g2_12(&buf);
+        spawn->update_flags = rsprot_g1(&buf);
+        spawn->size_byte = rsprot_g1_neg(&buf);
         spawn->zones_x = (spawn->size_byte >> 4) & 0xf;
         spawn->zones_z = spawn->size_byte & 0xf;
-        spawn->priority = rsab_g1_add128(&buf);
-        spawn->config_id = rsab_g2_le(&buf);
+        spawn->priority = rsprot_g1_add128(&buf);
+        spawn->config_id = rsprot_g2_21(&buf);
         if( spawn->config_id > 32767 )
             spawn->config_id -= 65536;
         selftest_wev_transform(
             &buf, &spawn->fine_x, &spawn->fine_y, &spawn->fine_z, &spawn->angle);
         if( spawn->update_flags & 0x2 )
         {
-            spawn->op_mask = rsab_g1_sub128(&buf);
+            spawn->op_mask = rsprot_g1_sub128(&buf);
             spawn->has_op_mask = 1;
         }
         if( spawn->update_flags & 0x1 )
         {
-            rsab_g2(&buf);
-            rsab_g1(&buf);
+            rsprot_g2_12(&buf);
+            rsprot_g1(&buf);
         }
     }
-    out->trailing = (int)rsab_remaining(&buf);
+    out->trailing = (int)rsprot_buf_readable(&buf);
 }
 
 /*
@@ -2438,12 +2438,10 @@ selftest_charter_choose(
  *
  * Four ints, emitted in reverse on the wire, then the script id.
  */
-/* Not `const`: rsab_wrap takes a mutable buffer, and the capture's packet
- * bytes are what it has to read. */
 static int
 selftest_capture_has_textalign(
     struct ToriRSServer* srv,
-    struct ToriRSServerCapture* capture,
+    const struct ToriRSServerCapture* capture,
     int lineheight,
     int com_uid)
 {
@@ -2851,7 +2849,7 @@ selftest_useon(
         SLOT_B = 25
     };
     uint8_t payload[16];
-    struct RSAreaBuf out;
+    struct RsprotBuf out;
 
     /*
      * Start from an empty backpack, no parked script, and the levels re-asserted.
@@ -2878,14 +2876,14 @@ selftest_useon(
     inv_set(player, SLOT_A, a, a_count);
     inv_set(player, SLOT_B, b, b_count);
 
-    rsab_wrap(&out, payload, sizeof(payload));
-    rsab_p2(&out, b);
-    rsab_p2(&out, SLOT_B);
-    rsab_p4(&out, 0);
-    rsab_p2(&out, a);
-    rsab_p2(&out, SLOT_A);
-    rsab_p4(&out, 0);
-    selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+    rsprot_buf_wrap(&out, payload, sizeof(payload));
+    rsprot_p2_12(&out, b);
+    rsprot_p2_12(&out, SLOT_B);
+    rsprot_p4_1234(&out, 0);
+    rsprot_p2_12(&out, a);
+    rsprot_p2_12(&out, SLOT_A);
+    rsprot_p4_1234(&out, 0);
+    selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)out.wpos);
 
     /*
      * Answer the make-menu, if the recipe opened one.
@@ -4997,7 +4995,7 @@ selftest_apmeng_engine(
     /* ---- p_tint ---------------------------------------------------------- */
     {
         uint8_t want[8];
-        struct RSAreaBuf expect;
+        struct RsprotBuf expect;
         int pi = -1;
         int seen = 0;
 
@@ -5010,13 +5008,13 @@ selftest_apmeng_engine(
                            player->tint_lightness == 24 && player->tint_weight == 112,
                        "apmeng: p_tint(0, 600, 0, 6, 24, 112) sets the mask and the six fields");
         /* PlayerTintingEncoder's eight bytes, written independently here. */
-        rsab_wrap(&expect, want, sizeof(want));
-        rsab_p2_alt1(&expect, 0);
-        rsab_p2(&expect, 600);
-        rsab_p1_alt2(&expect, 0);
-        rsab_p1(&expect, 6);
-        rsab_p1_alt3(&expect, 24);
-        rsab_p1_alt3(&expect, 112);
+        rsprot_buf_wrap(&expect, want, sizeof(want));
+        rsprot_p2_21(&expect, 0);
+        rsprot_p2_12(&expect, 600);
+        rsprot_p1_neg(&expect, 0);
+        rsprot_p1(&expect, 6);
+        rsprot_p1_sub128(&expect, 24);
+        rsprot_p1_sub128(&expect, 112);
         ToriRSServer_CaptureBegin(srv, &cap);
         selftest_tick(srv);
         ToriRSServer_CaptureEnd(srv);
@@ -16776,7 +16774,7 @@ ToriRSServer_WorldSelftest(void)
                 uint32_t saved_stat_dirty = player->stat_dirty;
                 uint8_t move[5];
                 uint8_t opnpc[2];
-                struct RSAreaBuf walk;
+                struct RsprotBuf walk;
 
                 selftest_park_player(srv, player->x, player->z);
                 /* The pre-login fixture starts at the engine floor of one HP;
@@ -16815,12 +16813,12 @@ ToriRSServer_WorldSelftest(void)
                                    player->interaction.kind == TORIRSSERVER_INTERACT_NONE,
                                "player_lock clears outgoing combat and interaction");
 
-                rsab_wrap(&walk, move, sizeof(move));
-                rsab_p1(&walk, 0);
-                rsab_p2(&walk, target_x);
-                rsab_p2(&walk, player->z);
+                rsprot_buf_wrap(&walk, move, sizeof(move));
+                rsprot_p1(&walk, 0);
+                rsprot_p2_12(&walk, target_x);
+                rsprot_p2_12(&walk, player->z);
                 selftest_handle(player, PKTOUT_NAME_MOVE_GAMECLICK, move,
-                                     (int)rsab_len(&walk));
+                                     (int)walk.wpos);
                 SELFTEST_CHECK(player->waypoint_index < 0 && player->dest_x < 0,
                                "movement input is rejected while action-locked");
 
@@ -16873,7 +16871,7 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(!player->action_locked,
                                "player_unlock restores player action input");
                 selftest_handle(player, PKTOUT_NAME_MOVE_GAMECLICK, move,
-                                     (int)rsab_len(&walk));
+                                     (int)walk.wpos);
                 SELFTEST_CHECK(player->dest_x == target_x,
                                "movement input is accepted again after player_unlock");
                 ToriRSServer_WorldStepsClear(player);
@@ -16960,7 +16958,7 @@ ToriRSServer_WorldSelftest(void)
                 int start_x;
                 uint8_t move[5];
                 uint8_t opnpc[2];
-                struct RSAreaBuf walk;
+                struct RsprotBuf walk;
                 /* Every tick from the landing on, the two refused packets'
                  * included: each is handled inside a tick of its own. */
                 int stunned_ticks = 0;
@@ -17004,14 +17002,14 @@ ToriRSServer_WorldSelftest(void)
                                "a landing stun clears outgoing combat and interaction");
 
                 /* The route the stun took away must not come back by asking. */
-                rsab_wrap(&walk, move, sizeof(move));
-                rsab_p1(&walk, 0);
-                rsab_p2(&walk, target_x);
-                rsab_p2(&walk, player->z);
+                rsprot_buf_wrap(&walk, move, sizeof(move));
+                rsprot_p1(&walk, 0);
+                rsprot_p2_12(&walk, target_x);
+                rsprot_p2_12(&walk, player->z);
                 stunned_ticks += player->stun_ticks > 0;
                 stun_ticks_run++;
                 selftest_handle(player, PKTOUT_NAME_MOVE_GAMECLICK, move,
-                                     (int)rsab_len(&walk));
+                                     (int)walk.wpos);
                 SELFTEST_CHECK(player->waypoint_index < 0 && player->dest_x < 0,
                                "movement input is rejected while stunned");
 
@@ -17634,7 +17632,7 @@ ToriRSServer_WorldSelftest(void)
                         SELFTEST_CHECK(at >= 0, "if_setangle emits IF_SETANGLE");
                         if( at >= 0 )
                         {
-                            struct RSAreaBuf body;
+                            struct RsprotBuf body;
                             int uid;
                             int zoom;
                             int xan;
@@ -17643,14 +17641,14 @@ ToriRSServer_WorldSelftest(void)
                             SELFTEST_CHECK(iface_capture.packets[at].len == 10,
                                            "IF_SETANGLE has ten bytes, got %d",
                                            iface_capture.packets[at].len);
-                            rsab_wrap(&body, (void*)iface_capture.packets[at].data,
+                            rsprot_buf_wrap_read(&body, (void*)iface_capture.packets[at].data,
                                       (size_t)iface_capture.packets[at].len);
                             /* 3rd/rsprot/packets/if_setangle.c at 239:
                              * p4Alt3(uid) p2(zoom) p2(angleX) p2Alt3(angleY). */
-                            uid = rsab_g4_alt3(&body);
-                            zoom = rsab_g2(&body);
-                            xan = rsab_g2(&body);
-                            yan = rsab_g2_alt3(&body);
+                            uid = rsprot_g4_2143(&body);
+                            zoom = rsprot_g2_12(&body);
+                            xan = rsprot_g2_12(&body);
+                            yan = rsprot_g2_21_add128(&body);
                             SELFTEST_CHECK(uid == piece,
                                            "IF_SETANGLE targets the piece (got 0x%x, want 0x%x)",
                                            uid, piece);
@@ -17663,18 +17661,18 @@ ToriRSServer_WorldSelftest(void)
                         SELFTEST_CHECK(at >= 0, "if_setrotatespeed emits IF_SETROTATESPEED");
                         if( at >= 0 )
                         {
-                            struct RSAreaBuf body;
+                            struct RsprotBuf body;
                             int uid;
                             int x_speed;
                             int y_speed;
 
-                            rsab_wrap(&body, (void*)iface_capture.packets[at].data,
+                            rsprot_buf_wrap_read(&body, (void*)iface_capture.packets[at].data,
                                       (size_t)iface_capture.packets[at].len);
                             /* IfSetRotateSpeedEncoder:
                              * p2(ySpeed) p2Alt2(xSpeed) p4Alt3(uid). */
-                            y_speed = rsab_g2(&body);
-                            x_speed = rsab_g2_alt2(&body);
-                            uid = rsab_g4_alt3(&body);
+                            y_speed = rsprot_g2_12(&body);
+                            x_speed = rsprot_g2_12_add128(&body);
+                            uid = rsprot_g4_2143(&body);
                             SELFTEST_CHECK(uid == piece && x_speed == 12 && y_speed == 34,
                                            "IF_SETROTATESPEED keeps piece/x/y, got 0x%x/%d/%d",
                                            uid, x_speed, y_speed);
@@ -25513,7 +25511,7 @@ ToriRSServer_WorldSelftest(void)
         {
             static struct ToriRSServerCapture capture;
             uint8_t button[6];
-            struct RSAreaBuf out;
+            struct RsprotBuf out;
             int layout_buttons = ToriRSServer_ContentSymbol(
                 TORIRSSERVER_PACK_COMPONENT,
                 "settings_side:display_dynamic_setting_1_buttons");
@@ -25524,12 +25522,12 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(layout_buttons > 0 && arrangement >= 0,
                            "layout callback/varbit symbols should resolve (%d/%d)",
                            layout_buttons, arrangement);
-            rsab_wrap(&out, button, sizeof(button));
-            rsab_p4(&out, layout_buttons);
-            rsab_p2(&out, 3);
+            rsprot_buf_wrap(&out, button, sizeof(button));
+            rsprot_p4_1234(&out, layout_buttons);
+            rsprot_p2_12(&out, 3);
             ToriRSServer_CaptureBegin(srv, &capture);
             handle_if_button_op(srv, PKTOUT_NAME_IF_BUTTON1,
-                                button, (int)rsab_len(&out));
+                                button, (int)out.wpos);
             selftest_tick(srv);
             selftest_tick(srv);
             selftest_tick(srv);
@@ -25565,7 +25563,7 @@ ToriRSServer_WorldSelftest(void)
             static struct ToriRSServerCapture capture;
             uint8_t button[6];
             uint8_t status[5];
-            struct RSAreaBuf out;
+            struct RsprotBuf out;
             int dropdown = ToriRSServer_ContentSymbol(
                 TORIRSSERVER_PACK_COMPONENT, "settings:dropdown_buttons");
 
@@ -25573,11 +25571,11 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_GameframeOpentop(player, ids->iface_gameframe);
             SELFTEST_CHECK(dropdown > 0,
                            "settings:dropdown_buttons should resolve, got %d", dropdown);
-            rsab_wrap(&out, button, sizeof(button));
-            rsab_p4(&out, dropdown);
-            rsab_p2(&out, 8);
+            rsprot_buf_wrap(&out, button, sizeof(button));
+            rsprot_p4_1234(&out, dropdown);
+            rsprot_p2_12(&out, 8);
             ToriRSServer_CaptureBegin(srv, &capture);
-            handle_if_button_op(srv, PKTOUT_NAME_IF_BUTTON1, button, (int)rsab_len(&out));
+            handle_if_button_op(srv, PKTOUT_NAME_IF_BUTTON1, button, (int)out.wpos);
             SELFTEST_CHECK(player->settings_dropdown_choice == 2,
                            "dropdown sub 8 should latch choice 2, got %d",
                            player->settings_dropdown_choice);
@@ -27467,16 +27465,16 @@ ToriRSServer_WorldSelftest(void)
              */
             int on_floor = 0;
             uint8_t payload[8];
-            struct RSAreaBuf drop;
+            struct RsprotBuf drop;
 
             SELFTEST_CHECK(ToriRSServer_ObjInfo(526)->if_ops[4] == NULL,
                            "the cache should NOT name a Drop op — the client adds it");
 
-            rsab_wrap(&drop, payload, sizeof(payload));
-            rsab_p2(&drop, 526);
-            rsab_p2(&drop, free_before);
-            rsab_p4(&drop, ToriRSServer_Ids()->com_inventory_items);
-            selftest_handle(player, PKTOUT_NAME_OPHELD5, payload, (int)rsab_len(&drop));
+            rsprot_buf_wrap(&drop, payload, sizeof(payload));
+            rsprot_p2_12(&drop, 526);
+            rsprot_p2_12(&drop, free_before);
+            rsprot_p4_1234(&drop, ToriRSServer_Ids()->com_inventory_items);
+            selftest_handle(player, PKTOUT_NAME_OPHELD5, payload, (int)drop.wpos);
             for( int i = 0; i < TORIRSSERVER_GROUND_MAX; i++ )
             {
                 if( srv->ground[i].active && srv->ground[i].obj_id == 526 &&
@@ -28184,17 +28182,17 @@ ToriRSServer_WorldSelftest(void)
                                    (uint8_t)(obj_z >> 8), (uint8_t)obj_z,
                                    (uint8_t)(526 >> 8),   (uint8_t)526 };
             uint8_t move[5];
-            struct RSAreaBuf walk;
+            struct RsprotBuf walk;
 
             selftest_handle(player, PKTOUT_NAME_OPOBJ1, payload, 6);
             SELFTEST_CHECK(player->interaction.kind == TORIRSSERVER_INTERACT_OBJ,
                            "the interaction is armed");
 
-            rsab_wrap(&walk, move, sizeof(move));
-            rsab_p1(&walk, 0);
-            rsab_p2(&walk, 3224);
-            rsab_p2(&walk, 3218);
-            selftest_handle(player, PKTOUT_NAME_MOVE_GAMECLICK, move, (int)rsab_len(&walk));
+            rsprot_buf_wrap(&walk, move, sizeof(move));
+            rsprot_p1(&walk, 0);
+            rsprot_p2_12(&walk, 3224);
+            rsprot_p2_12(&walk, 3218);
+            selftest_handle(player, PKTOUT_NAME_MOVE_GAMECLICK, move, (int)walk.wpos);
             SELFTEST_CHECK(player->interaction.kind == TORIRSSERVER_INTERACT_NONE,
                            "and walking somewhere else abandons it");
         }
@@ -29964,7 +29962,7 @@ ToriRSServer_WorldSelftest(void)
          * FOUR bit sections rather than one — so there is no fixed offset to
          * read it at. Porting these assertions means writing a v5 bit-section
          * parser in the harness, which would be a second copy of the codec in
-         * `mock239_playerinfo.c` agreeing with itself. That is a test worth
+         * `wire_player_info.c` agreeing with itself. That is a test worth
          * having and it is not this one.
          *
          * So this says what it can prove and names what it cannot, rather than
@@ -29983,7 +29981,7 @@ ToriRSServer_WorldSelftest(void)
             const struct ToriRSServerCapturedPacket* packet = &capture.packets[index];
             /* Bit section: 1 (has update) + 2 (op 0) + 8 (tracked count) +
              * 11 (terminator) = 22 bits, so the extended block starts at byte
-             * 3 once rsab_bytes rounds up. */
+             * 3 once rsprot_buf_bit_end rounds up. */
             int mask_low = packet->data[3];
             int mask_high = packet->data[4];
 
@@ -40190,7 +40188,7 @@ ToriRSServer_WorldSelftest(void)
     fprintf(stderr, "ToriRSServer selftest: inventory drag\n");
     {
         uint8_t payload[16];
-        struct RSAreaBuf buf;
+        struct RsprotBuf buf;
         int from_obj;
         int to_obj;
         int com = ToriRSServer_Ids()->com_inventory_items;
@@ -40212,14 +40210,14 @@ ToriRSServer_WorldSelftest(void)
         to_obj = player->inv[to_slot].obj_id;
 
         /* Rev-230 IfButtonD dual-endpoint frame. */
-        rsab_wrap(&buf, payload, sizeof(payload));
-        rsab_p4_alt1(&buf, com);
-        rsab_p2_alt1(&buf, from_obj);
-        rsab_p2_alt3(&buf, from_slot);
-        rsab_p4(&buf, com);
-        rsab_p2_alt2(&buf, to_obj);
-        rsab_p2_alt2(&buf, to_slot);
-        selftest_handle(player, PKTOUT_NAME_INV_BUTTOND, payload, (int)rsab_len(&buf));
+        rsprot_buf_wrap(&buf, payload, sizeof(payload));
+        rsprot_p4_4321(&buf, com);
+        rsprot_p2_21(&buf, from_obj);
+        rsprot_p2_21_add128(&buf, from_slot);
+        rsprot_p4_1234(&buf, com);
+        rsprot_p2_12_add128(&buf, to_obj);
+        rsprot_p2_12_add128(&buf, to_slot);
+        selftest_handle(player, PKTOUT_NAME_INV_BUTTOND, payload, (int)buf.wpos);
 
         SELFTEST_CHECK(player->inv[from_slot].obj_id == to_obj, "slots swapped (from)");
         SELFTEST_CHECK(player->inv[to_slot].obj_id == from_obj, "slots swapped (to)");
@@ -40236,14 +40234,14 @@ ToriRSServer_WorldSelftest(void)
             int painted_src = player->inv[to_slot].obj_id;
             int painted_dst = player->inv[from_slot].obj_id;
 
-            rsab_wrap(&buf, payload, sizeof(payload));
-            rsab_p4_alt1(&buf, com);
-            rsab_p2_alt1(&buf, painted_src);
-            rsab_p2_alt3(&buf, from_slot);
-            rsab_p4(&buf, com);
-            rsab_p2_alt2(&buf, painted_dst);
-            rsab_p2_alt2(&buf, to_slot);
-            selftest_handle(player, PKTOUT_NAME_INV_BUTTOND, payload, (int)rsab_len(&buf));
+            rsprot_buf_wrap(&buf, payload, sizeof(payload));
+            rsprot_p4_4321(&buf, com);
+            rsprot_p2_21(&buf, painted_src);
+            rsprot_p2_21_add128(&buf, from_slot);
+            rsprot_p4_1234(&buf, com);
+            rsprot_p2_12_add128(&buf, painted_dst);
+            rsprot_p2_12_add128(&buf, to_slot);
+            selftest_handle(player, PKTOUT_NAME_INV_BUTTOND, payload, (int)buf.wpos);
 
             SELFTEST_CHECK(player->inv[from_slot].obj_id == from_obj,
                            "a repainted (deob-order) frame still swaps (from)");
@@ -40262,15 +40260,15 @@ ToriRSServer_WorldSelftest(void)
             if( empty_slot >= 0 )
             {
                 from_obj = player->inv[from_slot].obj_id;
-                rsab_wrap(&buf, payload, sizeof(payload));
-                rsab_p4_alt1(&buf, com);
-                rsab_p2_alt1(&buf, from_obj);
-                rsab_p2_alt3(&buf, from_slot);
-                rsab_p4(&buf, com);
-                rsab_p2_alt2(&buf, to_obj);
-                rsab_p2_alt2(&buf, empty_slot);
+                rsprot_buf_wrap(&buf, payload, sizeof(payload));
+                rsprot_p4_4321(&buf, com);
+                rsprot_p2_21(&buf, from_obj);
+                rsprot_p2_21_add128(&buf, from_slot);
+                rsprot_p4_1234(&buf, com);
+                rsprot_p2_12_add128(&buf, to_obj);
+                rsprot_p2_12_add128(&buf, empty_slot);
                 selftest_handle(
-                    player, PKTOUT_NAME_INV_BUTTOND, payload, (int)rsab_len(&buf));
+                    player, PKTOUT_NAME_INV_BUTTOND, payload, (int)buf.wpos);
 
                 SELFTEST_CHECK(player->inv[from_slot].obj_id < 0,
                                "dragging to an empty slot clears the source");
@@ -40302,15 +40300,15 @@ ToriRSServer_WorldSelftest(void)
                 int cosmetic_obj = bank_from_obj;
                 int bank_com = ToriRSServer_Ids()->com_bankside_items;
 
-                rsab_wrap(&buf, payload, sizeof(payload));
-                rsab_p4_alt1(&buf, bank_com);
-                rsab_p2_alt1(&buf, bank_from_obj);
-                rsab_p2_alt3(&buf, bank_from_slot);
-                rsab_p4(&buf, bank_com);
-                rsab_p2_alt2(&buf, cosmetic_obj);
-                rsab_p2_alt2(&buf, empty_slot);
+                rsprot_buf_wrap(&buf, payload, sizeof(payload));
+                rsprot_p4_4321(&buf, bank_com);
+                rsprot_p2_21(&buf, bank_from_obj);
+                rsprot_p2_21_add128(&buf, bank_from_slot);
+                rsprot_p4_1234(&buf, bank_com);
+                rsprot_p2_12_add128(&buf, cosmetic_obj);
+                rsprot_p2_12_add128(&buf, empty_slot);
                 selftest_handle(
-                    player, PKTOUT_NAME_INV_BUTTOND, payload, (int)rsab_len(&buf));
+                    player, PKTOUT_NAME_INV_BUTTOND, payload, (int)buf.wpos);
 
                 SELFTEST_CHECK(player->inv[bank_from_slot].obj_id < 0,
                                "bank-side drag clears its backpack source");
@@ -42470,7 +42468,7 @@ ToriRSServer_WorldSelftest(void)
                 int32_t open_args[4];
                 const char* title[1] = { "Selftest Store" };
                 uint8_t button[6];
-                struct RSAreaBuf out;
+                struct RsprotBuf out;
                 int before;
                 int after;
                 int coins_before;
@@ -42499,9 +42497,9 @@ ToriRSServer_WorldSelftest(void)
 
                 before = selftest_shop_total(srv, shop, obj);
                 coins_before = selftest_count(player, coins);
-                rsab_wrap(&out, button, sizeof(button));
-                rsab_p4(&out, side);
-                rsab_p2(&out, 0);
+                rsprot_buf_wrap(&out, button, sizeof(button));
+                rsprot_p4_1234(&out, side);
+                rsprot_p2_12(&out, 0);
                 /* The tick is inside the capture because a shared row is
                  * flushed once per tick from `phase_clients_out`, not at the
                  * moment of the write — so "the shop's own stock changed" and
@@ -42509,7 +42507,7 @@ ToriRSServer_WorldSelftest(void)
                  * second is what the player in front of the store sees. It is
                  * the click's own tick, which handles it and flushes it. */
                 ToriRSServer_CaptureBegin(srv, &capture);
-                selftest_handle(player, PKTOUT_NAME_IF_BUTTON2, button, (int)rsab_len(&out));
+                selftest_handle(player, PKTOUT_NAME_IF_BUTTON2, button, (int)out.wpos);
                 ToriRSServer_CaptureEnd(srv);
                 after = selftest_shop_total(srv, shop, obj);
 
@@ -45583,7 +45581,7 @@ ToriRSServer_WorldSelftest(void)
                                        : -1;
 
                         SELFTEST_CHECK(len >= 5 && packet->data[len - 5] == 0 &&
-                                           packet->data[len - 4] == MOCK239_FACE_NPC &&
+                                           packet->data[len - 4] == WIRE_FACE_NPC &&
                                            packet->data[len - 1] == 0,
                                        "rev-239 PLAYER_INFO should end in an NPC Face.Entity");
                         SELFTEST_CHECK(face == name,
@@ -46350,7 +46348,7 @@ ToriRSServer_WorldSelftest(void)
                 SLOT_SPARE = 3
             };
             uint8_t payload[16];
-            struct RSAreaBuf out;
+            struct RsprotBuf out;
 
             SELFTEST_CHECK(knife > 0 && bones > 0 && bucket > 0,
                            "knife, bones and bucket_water should resolve by name");
@@ -46385,14 +46383,14 @@ ToriRSServer_WorldSelftest(void)
              * would have made the swap invisible, which is why only one is bound.
              */
             ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
-            rsab_wrap(&out, payload, sizeof(payload));
-            rsab_p2(&out, knife);
-            rsab_p2(&out, SLOT_KNIFE);
-            rsab_p4(&out, 0);
-            rsab_p2(&out, bucket);
-            rsab_p2(&out, SLOT_BUCKET);
-            rsab_p4(&out, 0);
-            selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+            rsprot_buf_wrap(&out, payload, sizeof(payload));
+            rsprot_p2_12(&out, knife);
+            rsprot_p2_12(&out, SLOT_KNIFE);
+            rsprot_p4_1234(&out, 0);
+            rsprot_p2_12(&out, bucket);
+            rsprot_p2_12(&out, SLOT_BUCKET);
+            rsprot_p4_1234(&out, 0);
+            selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)out.wpos);
             SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 1,
                            "bucket on knife runs [opheldu,knife] with both halves in place, got %d",
                            ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
@@ -46404,14 +46402,14 @@ ToriRSServer_WorldSelftest(void)
                            player->last_slot, player->last_useslot);
 
             ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
-            rsab_wrap(&out, payload, sizeof(payload));
-            rsab_p2(&out, bucket);
-            rsab_p2(&out, SLOT_BUCKET);
-            rsab_p4(&out, 0);
-            rsab_p2(&out, knife);
-            rsab_p2(&out, SLOT_KNIFE);
-            rsab_p4(&out, 0);
-            selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+            rsprot_buf_wrap(&out, payload, sizeof(payload));
+            rsprot_p2_12(&out, bucket);
+            rsprot_p2_12(&out, SLOT_BUCKET);
+            rsprot_p4_1234(&out, 0);
+            rsprot_p2_12(&out, knife);
+            rsprot_p2_12(&out, SLOT_KNIFE);
+            rsprot_p4_1234(&out, 0);
+            selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)out.wpos);
             SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 1,
                            "knife on bucket runs the same script, the other way round, got %d",
                            ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
@@ -46438,14 +46436,14 @@ ToriRSServer_WorldSelftest(void)
              * docs/USEON_DISPATCH_ENGINE_PLAN.md E2 and `opheldu_orient`.
              */
             ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
-            rsab_wrap(&out, payload, sizeof(payload));
-            rsab_p2(&out, bones);
-            rsab_p2(&out, SLOT_BONES);
-            rsab_p4(&out, 0);
-            rsab_p2(&out, bucket);
-            rsab_p2(&out, SLOT_BUCKET);
-            rsab_p4(&out, 0);
-            selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+            rsprot_buf_wrap(&out, payload, sizeof(payload));
+            rsprot_p2_12(&out, bones);
+            rsprot_p2_12(&out, SLOT_BONES);
+            rsprot_p4_1234(&out, 0);
+            rsprot_p2_12(&out, bucket);
+            rsprot_p2_12(&out, SLOT_BUCKET);
+            rsprot_p4_1234(&out, 0);
+            selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)out.wpos);
             SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 2,
                            "bucket on bones reaches [opheldu,_bones] by rung 3, got %d",
                            ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
@@ -46458,14 +46456,14 @@ ToriRSServer_WorldSelftest(void)
                            player->last_useslot);
 
             ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
-            rsab_wrap(&out, payload, sizeof(payload));
-            rsab_p2(&out, bucket);
-            rsab_p2(&out, SLOT_BUCKET);
-            rsab_p4(&out, 0);
-            rsab_p2(&out, bones);
-            rsab_p2(&out, SLOT_BONES);
-            rsab_p4(&out, 0);
-            selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+            rsprot_buf_wrap(&out, payload, sizeof(payload));
+            rsprot_p2_12(&out, bucket);
+            rsprot_p2_12(&out, SLOT_BUCKET);
+            rsprot_p4_1234(&out, 0);
+            rsprot_p2_12(&out, bones);
+            rsprot_p2_12(&out, SLOT_BONES);
+            rsprot_p4_1234(&out, 0);
+            selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)out.wpos);
             SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 2,
                            "bones on bucket reaches it by rung 4 instead, got %d",
                            ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
@@ -46481,14 +46479,14 @@ ToriRSServer_WorldSelftest(void)
              * nothing else — there is no engine "use" behaviour to fall back to.
              */
             ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 77);
-            rsab_wrap(&out, payload, sizeof(payload));
-            rsab_p2(&out, bucket);
-            rsab_p2(&out, SLOT_SPARE);
-            rsab_p4(&out, 0);
-            rsab_p2(&out, bucket);
-            rsab_p2(&out, SLOT_BUCKET);
-            rsab_p4(&out, 0);
-            selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+            rsprot_buf_wrap(&out, payload, sizeof(payload));
+            rsprot_p2_12(&out, bucket);
+            rsprot_p2_12(&out, SLOT_SPARE);
+            rsprot_p4_1234(&out, 0);
+            rsprot_p2_12(&out, bucket);
+            rsprot_p2_12(&out, SLOT_BUCKET);
+            rsprot_p4_1234(&out, 0);
+            selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)out.wpos);
             SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 77,
                            "a use-on nothing binds runs no script at all, got %d",
                            ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
@@ -46505,14 +46503,14 @@ ToriRSServer_WorldSelftest(void)
              */
             selftest_park_player(srv, 3222, 3218);
             ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
-            rsab_wrap(&out, payload, sizeof(payload));
-            rsab_p2(&out, 3212);
-            rsab_p2(&out, 3215);
-            rsab_p2(&out, range);
-            rsab_p2(&out, bucket);
-            rsab_p2(&out, SLOT_BUCKET);
-            rsab_p2(&out, 0);
-            selftest_handle(player, PKTOUT_NAME_OPLOCU, payload, (int)rsab_len(&out));
+            rsprot_buf_wrap(&out, payload, sizeof(payload));
+            rsprot_p2_12(&out, 3212);
+            rsprot_p2_12(&out, 3215);
+            rsprot_p2_12(&out, range);
+            rsprot_p2_12(&out, bucket);
+            rsprot_p2_12(&out, SLOT_BUCKET);
+            rsprot_p2_12(&out, 0);
+            selftest_handle(player, PKTOUT_NAME_OPLOCU, payload, (int)out.wpos);
             SELFTEST_CHECK(selftest_settle(srv, 40) > 0,
                            "a use-on out of reach walks first, like every other interaction");
             /* 11 and not 10 since the script gained a `loc_coord` read ahead of
@@ -46537,14 +46535,14 @@ ToriRSServer_WorldSelftest(void)
              */
             selftest_park_player(srv, 3222, 3218);
             ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
-            rsab_wrap(&out, payload, sizeof(payload));
-            rsab_p2(&out, 3212);
-            rsab_p2(&out, 3215);
-            rsab_p2(&out, range);
-            rsab_p2(&out, knife);
-            rsab_p2(&out, SLOT_KNIFE);
-            rsab_p2(&out, 0);
-            selftest_handle(player, PKTOUT_NAME_OPLOCU, payload, (int)rsab_len(&out));
+            rsprot_buf_wrap(&out, payload, sizeof(payload));
+            rsprot_p2_12(&out, 3212);
+            rsprot_p2_12(&out, 3215);
+            rsprot_p2_12(&out, range);
+            rsprot_p2_12(&out, knife);
+            rsprot_p2_12(&out, SLOT_KNIFE);
+            rsprot_p2_12(&out, 0);
+            selftest_handle(player, PKTOUT_NAME_OPLOCU, payload, (int)out.wpos);
             SELFTEST_CHECK(selftest_settle(srv, 40) >= 0, "the walk should complete");
             SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 0,
                            "a different item on the same loc is declined by the same "
@@ -46577,14 +46575,14 @@ ToriRSServer_WorldSelftest(void)
                  * rule `p_oploc` follows for a suspended script's active loc. */
                 door_slot = ToriRSServer_SceneFindLoc(3226, 3223, 0, door);
                 ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 78);
-                rsab_wrap(&out, payload, sizeof(payload));
-                rsab_p2(&out, 3226);
-                rsab_p2(&out, 3223);
-                rsab_p2(&out, door);
-                rsab_p2(&out, bucket);
-                rsab_p2(&out, SLOT_BUCKET);
-                rsab_p2(&out, 0);
-                selftest_handle(player, PKTOUT_NAME_OPLOCU, payload, (int)rsab_len(&out));
+                rsprot_buf_wrap(&out, payload, sizeof(payload));
+                rsprot_p2_12(&out, 3226);
+                rsprot_p2_12(&out, 3223);
+                rsprot_p2_12(&out, door);
+                rsprot_p2_12(&out, bucket);
+                rsprot_p2_12(&out, SLOT_BUCKET);
+                rsprot_p2_12(&out, 0);
+                selftest_handle(player, PKTOUT_NAME_OPLOCU, payload, (int)out.wpos);
                 SELFTEST_CHECK(selftest_settle(srv, 40) >= 0, "the walk to the door completes");
                 SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 78,
                                "a loc with no *u binding runs nothing, got %d",
@@ -46610,14 +46608,14 @@ ToriRSServer_WorldSelftest(void)
             selftest_park_player(srv, 3222, 3218);
             ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_useon_addloc]", NULL, 0);
             ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
-            rsab_wrap(&out, payload, sizeof(payload));
-            rsab_p2(&out, 3220);
-            rsab_p2(&out, 3224);
-            rsab_p2(&out, remains);
-            rsab_p2(&out, bucket);
-            rsab_p2(&out, SLOT_BUCKET);
-            rsab_p2(&out, 0);
-            selftest_handle(player, PKTOUT_NAME_OPLOCU, payload, (int)rsab_len(&out));
+            rsprot_buf_wrap(&out, payload, sizeof(payload));
+            rsprot_p2_12(&out, 3220);
+            rsprot_p2_12(&out, 3224);
+            rsprot_p2_12(&out, remains);
+            rsprot_p2_12(&out, bucket);
+            rsprot_p2_12(&out, SLOT_BUCKET);
+            rsprot_p2_12(&out, 0);
+            selftest_handle(player, PKTOUT_NAME_OPLOCU, payload, (int)out.wpos);
             /* The click latches; the next tick's phase_player tries it before
              * the first step (handle_opnpc). */
             selftest_tick(srv);
@@ -46652,14 +46650,14 @@ ToriRSServer_WorldSelftest(void)
                     hnpc->waypoint_index = -1;
                     selftest_park_player(srv, hnpc->x + 1, hnpc->z);
                     ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
-                    rsab_wrap(&out, payload, sizeof(payload));
+                    rsprot_buf_wrap(&out, payload, sizeof(payload));
                     /* The client's name for him, same as every other packet
                      * that points at an npc. */
-                    rsab_p2(&out, ToriRSServer_SlotMapAcquire(player, hans));
-                    rsab_p2(&out, bucket);
-                    rsab_p2(&out, SLOT_BUCKET);
-                    rsab_p2(&out, 0);
-                    selftest_handle(player, PKTOUT_NAME_OPNPCU, payload, (int)rsab_len(&out));
+                    rsprot_p2_12(&out, ToriRSServer_SlotMapAcquire(player, hans));
+                    rsprot_p2_12(&out, bucket);
+                    rsprot_p2_12(&out, SLOT_BUCKET);
+                    rsprot_p2_12(&out, 0);
+                    selftest_handle(player, PKTOUT_NAME_OPNPCU, payload, (int)out.wpos);
                     SELFTEST_CHECK(selftest_settle(srv, 80) >= 0,
                                    "the walk to the npc should complete");
                     SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 30,
@@ -46680,14 +46678,14 @@ ToriRSServer_WorldSelftest(void)
             selftest_park_player(srv, 3222, 3218);
             ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_useon_addobj]", NULL, 0);
             ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
-            rsab_wrap(&out, payload, sizeof(payload));
-            rsab_p2(&out, 3224);
-            rsab_p2(&out, 3218);
-            rsab_p2(&out, bones);
-            rsab_p2(&out, bucket);
-            rsab_p2(&out, SLOT_BUCKET);
-            rsab_p2(&out, 0);
-            selftest_handle(player, PKTOUT_NAME_OPOBJU, payload, (int)rsab_len(&out));
+            rsprot_buf_wrap(&out, payload, sizeof(payload));
+            rsprot_p2_12(&out, 3224);
+            rsprot_p2_12(&out, 3218);
+            rsprot_p2_12(&out, bones);
+            rsprot_p2_12(&out, bucket);
+            rsprot_p2_12(&out, SLOT_BUCKET);
+            rsprot_p2_12(&out, 0);
+            selftest_handle(player, PKTOUT_NAME_OPOBJU, payload, (int)out.wpos);
             SELFTEST_CHECK(selftest_settle(srv, 20) >= 0, "the walk onto the pile completes");
             SELFTEST_CHECK(player->x == 3224 && player->z == 3218,
                            "standing on the tile, not beside it, at %d,%d", player->x, player->z);
@@ -46731,13 +46729,13 @@ ToriRSServer_WorldSelftest(void)
                      * `last_item` — the alchemy scripts read it from there. */
                     selftest_park_player(srv, 3222, 3218);
                     ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
-                    rsab_wrap(&out, payload, sizeof(payload));
-                    rsab_p2(&out, bucket);
-                    rsab_p2(&out, SLOT_BUCKET);
-                    rsab_p4(&out, 0);
-                    rsab_p4(&out, spell);
+                    rsprot_buf_wrap(&out, payload, sizeof(payload));
+                    rsprot_p2_12(&out, bucket);
+                    rsprot_p2_12(&out, SLOT_BUCKET);
+                    rsprot_p4_1234(&out, 0);
+                    rsprot_p4_1234(&out, spell);
                     selftest_handle(player, PKTOUT_NAME_OPHELDT, payload,
-                                         (int)rsab_len(&out));
+                                         (int)out.wpos);
                     SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 80,
                                    "[opheldt,<spell>] runs with the spell as its subject and the "
                                    "clicked item in last_item, got %d",
@@ -46750,12 +46748,12 @@ ToriRSServer_WorldSelftest(void)
                     selftest_park_player(srv, 3222, 3218);
                     ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_useon_addloc]", NULL, 0);
                     ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
-                    rsab_wrap(&out, payload, sizeof(payload));
-                    rsab_p2(&out, 3220);
-                    rsab_p2(&out, 3224);
-                    rsab_p2(&out, remains);
-                    rsab_p4(&out, spell);
-                    selftest_handle(player, PKTOUT_NAME_OPLOCT, payload, (int)rsab_len(&out));
+                    rsprot_buf_wrap(&out, payload, sizeof(payload));
+                    rsprot_p2_12(&out, 3220);
+                    rsprot_p2_12(&out, 3224);
+                    rsprot_p2_12(&out, remains);
+                    rsprot_p4_1234(&out, spell);
+                    selftest_handle(player, PKTOUT_NAME_OPLOCT, payload, (int)out.wpos);
                     selftest_tick(srv);
                     SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 60,
                                    "[aploct,<spell>] runs keyed by the spell, not by the loc and "
@@ -46801,13 +46799,13 @@ ToriRSServer_WorldSelftest(void)
                             selftest_park_player(srv, 3222, 3218);
                             ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_useon_addloc]", NULL, 0);
                             ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
-                            rsab_wrap(&out, payload, sizeof(payload));
-                            rsab_p2(&out, 3220);
-                            rsab_p2(&out, 3224);
-                            rsab_p2(&out, remains);
-                            rsab_p4(&out, op_spell);
+                            rsprot_buf_wrap(&out, payload, sizeof(payload));
+                            rsprot_p2_12(&out, 3220);
+                            rsprot_p2_12(&out, 3224);
+                            rsprot_p2_12(&out, remains);
+                            rsprot_p4_1234(&out, op_spell);
                             selftest_handle(player, PKTOUT_NAME_OPLOCT, payload,
-                                                 (int)rsab_len(&out));
+                                                 (int)out.wpos);
                             SELFTEST_CHECK(selftest_settle(srv, 20) >= 0,
                                            "the walk to the loc completes");
                             SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 65,
@@ -46822,12 +46820,12 @@ ToriRSServer_WorldSelftest(void)
                     selftest_park_player(srv, 3222, 3218);
                     ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_useon_addobj]", NULL, 0);
                     ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
-                    rsab_wrap(&out, payload, sizeof(payload));
-                    rsab_p2(&out, 3224);
-                    rsab_p2(&out, 3218);
-                    rsab_p2(&out, bones);
-                    rsab_p4(&out, spell);
-                    selftest_handle(player, PKTOUT_NAME_OPOBJT, payload, (int)rsab_len(&out));
+                    rsprot_buf_wrap(&out, payload, sizeof(payload));
+                    rsprot_p2_12(&out, 3224);
+                    rsprot_p2_12(&out, 3218);
+                    rsprot_p2_12(&out, bones);
+                    rsprot_p4_1234(&out, spell);
+                    selftest_handle(player, PKTOUT_NAME_OPOBJT, payload, (int)out.wpos);
                     SELFTEST_CHECK(selftest_settle(srv, 20) >= 0,
                                    "the walk onto the pile completes");
                     SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 70,
@@ -46850,11 +46848,11 @@ ToriRSServer_WorldSelftest(void)
                             hnpc->waypoint_index = -1;
                             selftest_park_player(srv, hnpc->x + 1, hnpc->z);
                             ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
-                            rsab_wrap(&out, payload, sizeof(payload));
-                            rsab_p2(&out, ToriRSServer_SlotMapAcquire(player, hans));
-                            rsab_p4(&out, spell);
+                            rsprot_buf_wrap(&out, payload, sizeof(payload));
+                            rsprot_p2_12(&out, ToriRSServer_SlotMapAcquire(player, hans));
+                            rsprot_p4_1234(&out, spell);
                             selftest_handle(player, PKTOUT_NAME_OPNPCT, payload,
-                                                 (int)rsab_len(&out));
+                                                 (int)out.wpos);
                             /*
                              * Beside Hans the cast fires on the click's tick and
                              * clears the interaction. The turn derives the latch
@@ -46895,13 +46893,13 @@ ToriRSServer_WorldSelftest(void)
                                                              "magic_spellbook:back_button");
                         selftest_park_player(srv, 3222, 3218);
                         ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 78);
-                        rsab_wrap(&out, payload, sizeof(payload));
-                        rsab_p2(&out, bucket);
-                        rsab_p2(&out, SLOT_BUCKET);
-                        rsab_p4(&out, 0);
-                        rsab_p4(&out, unbound);
+                        rsprot_buf_wrap(&out, payload, sizeof(payload));
+                        rsprot_p2_12(&out, bucket);
+                        rsprot_p2_12(&out, SLOT_BUCKET);
+                        rsprot_p4_1234(&out, 0);
+                        rsprot_p4_1234(&out, unbound);
                         selftest_handle(player, PKTOUT_NAME_OPHELDT, payload,
-                                             (int)rsab_len(&out));
+                                             (int)out.wpos);
                         SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 78,
                                        "a cast nothing binds runs no script at all, got %d",
                                        ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
@@ -46998,17 +46996,17 @@ ToriRSServer_WorldSelftest(void)
                 if( bat > 0 )
                 {
                     uint8_t held[8];
-                    struct RSAreaBuf out;
+                    struct RsprotBuf out;
 
                     player->active_script = NULL;
                     player->delayed_until = 0;
                     ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
                     inv_set(player, SLOT_BAT, bat, 1);
-                    rsab_wrap(&out, held, sizeof(held));
-                    rsab_p2(&out, bat);
-                    rsab_p2(&out, SLOT_BAT);
-                    rsab_p4(&out, 0);
-                    selftest_handle(player, PKTOUT_NAME_OPHELD1, held, (int)rsab_len(&out));
+                    rsprot_buf_wrap(&out, held, sizeof(held));
+                    rsprot_p2_12(&out, bat);
+                    rsprot_p2_12(&out, SLOT_BAT);
+                    rsprot_p4_1234(&out, 0);
+                    selftest_handle(player, PKTOUT_NAME_OPHELD1, held, (int)out.wpos);
                     SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 3,
                                    "the declining [opheld1,bat_bones] should run, got %d",
                                    ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
@@ -57853,18 +57851,18 @@ ToriRSServer_WorldSelftest(void)
              * [opheldu,zqbevsword] / [opheldu,zqbonebeads]) ---- */
             {
                 uint8_t payload[16];
-                struct RSAreaBuf out;
+                struct RsprotBuf out;
 
                 inv_set(player, 0, obj_chisel, 1);
                 inv_set(player, 1, obj_pommel, 1);
-                rsab_wrap(&out, payload, sizeof(payload));
-                rsab_p2(&out, obj_chisel);
-                rsab_p2(&out, 0);
-                rsab_p4(&out, 0);
-                rsab_p2(&out, obj_pommel);
-                rsab_p2(&out, 1);
-                rsab_p4(&out, 0);
-                selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+                rsprot_buf_wrap(&out, payload, sizeof(payload));
+                rsprot_p2_12(&out, obj_chisel);
+                rsprot_p2_12(&out, 0);
+                rsprot_p4_1234(&out, 0);
+                rsprot_p2_12(&out, obj_pommel);
+                rsprot_p2_12(&out, 1);
+                rsprot_p4_1234(&out, 0);
+                selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)out.wpos);
                 selftest_run_out(srv, 60);
                 ToriRSServer_WorldCloseModal(srv);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_bonebeads) > 0,
@@ -57872,14 +57870,14 @@ ToriRSServer_WorldSelftest(void)
 
                 inv_set(player, 0, obj_wire, 1);
                 inv_set(player, 1, obj_bonebeads, 1);
-                rsab_wrap(&out, payload, sizeof(payload));
-                rsab_p2(&out, obj_bonebeads);
-                rsab_p2(&out, 1);
-                rsab_p4(&out, 0);
-                rsab_p2(&out, obj_wire);
-                rsab_p2(&out, 0);
-                rsab_p4(&out, 0);
-                selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+                rsprot_buf_wrap(&out, payload, sizeof(payload));
+                rsprot_p2_12(&out, obj_bonebeads);
+                rsprot_p2_12(&out, 1);
+                rsprot_p4_1234(&out, 0);
+                rsprot_p2_12(&out, obj_wire);
+                rsprot_p2_12(&out, 0);
+                rsprot_p4_1234(&out, 0);
+                selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)out.wpos);
                 selftest_run_out(srv, 60);
                 ToriRSServer_WorldCloseModal(srv);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_beads) > 0,
@@ -57894,14 +57892,14 @@ ToriRSServer_WorldSelftest(void)
                  * bone lock on the hillside door has been seen (zq_found_door). */
                 inv_set(player, 0, obj_chisel, 1);
                 inv_set(player, 1, obj_shard, 1);
-                rsab_wrap(&out, payload, sizeof(payload));
-                rsab_p2(&out, obj_chisel);
-                rsab_p2(&out, 0);
-                rsab_p4(&out, 0);
-                rsab_p2(&out, obj_shard);
-                rsab_p2(&out, 1);
-                rsab_p4(&out, 0);
-                selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+                rsprot_buf_wrap(&out, payload, sizeof(payload));
+                rsprot_p2_12(&out, obj_chisel);
+                rsprot_p2_12(&out, 0);
+                rsprot_p4_1234(&out, 0);
+                rsprot_p2_12(&out, obj_shard);
+                rsprot_p2_12(&out, 1);
+                rsprot_p4_1234(&out, 0);
+                selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)out.wpos);
                 selftest_run_out(srv, 60);
                 ToriRSServer_WorldCloseModal(srv);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_key) == 0,
@@ -57918,7 +57916,7 @@ ToriRSServer_WorldSelftest(void)
             {
                 int px, pz;
                 uint8_t payload[16];
-                struct RSAreaBuf out;
+                struct RsprotBuf out;
 
                 /* LostCity zq_tombdoor_outer_op2: searching the door at
                  * entered_tomb_bervirius finds the bone lock. */
@@ -57933,21 +57931,21 @@ ToriRSServer_WorldSelftest(void)
 
                 inv_set(player, 0, obj_chisel, 1);
                 inv_set(player, 1, obj_shard, 1);
-                rsab_wrap(&out, payload, sizeof(payload));
-                rsab_p2(&out, obj_chisel);
-                rsab_p2(&out, 0);
-                rsab_p4(&out, 0);
-                rsab_p2(&out, obj_shard);
-                rsab_p2(&out, 1);
-                rsab_p4(&out, 0);
+                rsprot_buf_wrap(&out, payload, sizeof(payload));
+                rsprot_p2_12(&out, obj_chisel);
+                rsprot_p2_12(&out, 0);
+                rsprot_p4_1234(&out, 0);
+                rsprot_p2_12(&out, obj_shard);
+                rsprot_p2_12(&out, 1);
+                rsprot_p4_1234(&out, 0);
                 ToriRSServer_CombatSetLevel(player, stat_crafting, 5);
-                selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+                selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)out.wpos);
                 selftest_run_out(srv, 60);
                 ToriRSServer_WorldCloseModal(srv);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_key) == 0,
                                "the bone key should require Crafting 20, not craft below it");
                 ToriRSServer_CombatSetLevel(player, stat_crafting, 99);
-                selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+                selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)out.wpos);
                 selftest_run_out(srv, 60);
                 ToriRSServer_WorldCloseModal(srv);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_key) > 0,
@@ -61012,7 +61010,7 @@ ToriRSServer_WorldSelftest(void)
                 struct ToriRSServerSceneLoc* l = ToriRSServer_SceneLoc(slot);
                 int px = l->x, pz = l->z, sx = l->size_x, sz = l->size_z;
                 uint8_t pay[16];
-                struct RSAreaBuf out;
+                struct RsprotBuf out;
                 int ticks;
 
                 selftest_clear_inv(player);
@@ -61041,14 +61039,14 @@ ToriRSServer_WorldSelftest(void)
                                selftest_count(player, weeds));
 
                 /* ---- compost the raked patch ----------------------------- */
-                rsab_wrap(&out, pay, sizeof(pay));
-                rsab_p2(&out, px);
-                rsab_p2(&out, pz);
-                rsab_p2(&out, patch_loc);
-                rsab_p2(&out, compost);
-                rsab_p2(&out, 4);
-                rsab_p2(&out, 0);
-                selftest_handle(player, PKTOUT_NAME_OPLOCU, pay, (int)rsab_len(&out));
+                rsprot_buf_wrap(&out, pay, sizeof(pay));
+                rsprot_p2_12(&out, px);
+                rsprot_p2_12(&out, pz);
+                rsprot_p2_12(&out, patch_loc);
+                rsprot_p2_12(&out, compost);
+                rsprot_p2_12(&out, 4);
+                rsprot_p2_12(&out, 0);
+                selftest_handle(player, PKTOUT_NAME_OPLOCU, pay, (int)out.wpos);
                 /* A use-on the player is already standing beside resolves inside the
                  * packet handler and then `p_delay`s, so there is no interaction left
                  * for selftest_settle to wait on — the work happens in the parked
@@ -61060,14 +61058,14 @@ ToriRSServer_WorldSelftest(void)
                                selftest_count(player, compost));
 
                 /* ---- plant ----------------------------------------------- */
-                rsab_wrap(&out, pay, sizeof(pay));
-                rsab_p2(&out, px);
-                rsab_p2(&out, pz);
-                rsab_p2(&out, patch_loc);
-                rsab_p2(&out, seed);
-                rsab_p2(&out, 2);
-                rsab_p2(&out, 0);
-                selftest_handle(player, PKTOUT_NAME_OPLOCU, pay, (int)rsab_len(&out));
+                rsprot_buf_wrap(&out, pay, sizeof(pay));
+                rsprot_p2_12(&out, px);
+                rsprot_p2_12(&out, pz);
+                rsprot_p2_12(&out, patch_loc);
+                rsprot_p2_12(&out, seed);
+                rsprot_p2_12(&out, 2);
+                rsprot_p2_12(&out, 0);
+                selftest_handle(player, PKTOUT_NAME_OPLOCU, pay, (int)out.wpos);
                 /* A use-on the player is already standing beside resolves inside the
                  * packet handler and then `p_delay`s, so there is no interaction left
                  * for selftest_settle to wait on — the work happens in the parked
@@ -61085,14 +61083,14 @@ ToriRSServer_WorldSelftest(void)
                                seed_art, ToriRSServer_LocResolveTransform(player, patch_loc));
 
                 /* ---- water ----------------------------------------------- */
-                rsab_wrap(&out, pay, sizeof(pay));
-                rsab_p2(&out, px);
-                rsab_p2(&out, pz);
-                rsab_p2(&out, patch_loc);
-                rsab_p2(&out, can8);
-                rsab_p2(&out, 3);
-                rsab_p2(&out, 0);
-                selftest_handle(player, PKTOUT_NAME_OPLOCU, pay, (int)rsab_len(&out));
+                rsprot_buf_wrap(&out, pay, sizeof(pay));
+                rsprot_p2_12(&out, px);
+                rsprot_p2_12(&out, pz);
+                rsprot_p2_12(&out, patch_loc);
+                rsprot_p2_12(&out, can8);
+                rsprot_p2_12(&out, 3);
+                rsprot_p2_12(&out, 0);
+                selftest_handle(player, PKTOUT_NAME_OPLOCU, pay, (int)out.wpos);
                 /* A use-on the player is already standing beside resolves inside the
                  * packet handler and then `p_delay`s, so there is no interaction left
                  * for selftest_settle to wait on — the work happens in the parked
@@ -61758,7 +61756,7 @@ ToriRSServer_WorldSelftest(void)
              * carries the same information across FOUR sections with different
              * widths and a per-player cycle bit, so this walk cannot be pointed
              * at it; parsing that here means a second copy of
-             * `mock239_playerinfo.c` agreeing with itself.
+             * `wire_player_info.c` agreeing with itself.
              *
              * The half above — that `~push_player` steps the lighter off and it
              * goes out as a glide rather than a snap — is asserted on both
@@ -61893,12 +61891,12 @@ ToriRSServer_WorldSelftest(void)
                 struct ToriRSServerSceneLoc* l = ToriRSServer_SceneLoc(slot);
                 static struct ToriRSServerCapture cook_menu_capture;
                 uint8_t click[6];
-                struct RSAreaBuf out;
+                struct RsprotBuf out;
 
-                rsab_wrap(&out, click, sizeof(click));
-                rsab_p2(&out, l->x);
-                rsab_p2(&out, l->z);
-                rsab_p2(&out, range_loc);
+                rsprot_buf_wrap(&out, click, sizeof(click));
+                rsprot_p2_12(&out, l->x);
+                rsprot_p2_12(&out, l->z);
+                rsprot_p2_12(&out, range_loc);
 
                 selftest_clear_inv(player);
                 /* Five separate slots, because raw shrimp does not stack — and

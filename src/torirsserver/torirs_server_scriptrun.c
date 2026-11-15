@@ -2712,7 +2712,7 @@ d_loc_row(lua_State* L)
  * the nearest (or pinned) copy of a content type -- the client's held-item
  * row, which collapses the target's menu to one "Use <item> -> <target>" row
  * (add_world_select_row) and leaves as OPLOCU / OPNPCU with the selected
- * cell in the tail (mock239_inbound.c put_useon_tail). The selection is
+ * cell in the tail (osrs239_inbound.c put_useon_tail). The selection is
  * spent by the press, as the client's is.
  *
  * With a SPELL armed (d_spell_arm) the one row is "Cast <spell> -> <npc>"
@@ -2797,7 +2797,7 @@ d_world_use(lua_State* L)
     return 2;
 }
 
-/* IF_BUTTONX: g4 component, g2 sub, g2 obj, g1 op (mock239_if_button_decode). */
+/* IF_BUTTONX: g4 component, g2 sub, g2 obj, g1 op (wire_if_button_decode). */
 static void
 send_if_buttonx(
     struct ScriptBot* bot,
@@ -2912,7 +2912,7 @@ d_spell_arm(lua_State* L)
 }
 
 /* A backpack cell's held op: OPHELD1..5 go out as the rev-239 backpack's
- * IF_BUTTONX ops 2, 3, 4, 6, 7 (mock239_if_button_backpack_op); with arg 6, a
+ * IF_BUTTONX ops 2, 3, 4, 6, 7 (wire_if_button_backpack_op); with arg 6, a
  * 1-based submenu entry of that op, as IF_SUBOP. */
 static int
 d_inv_op(lua_State* L)
@@ -2956,7 +2956,7 @@ d_inv_arm(lua_State* L)
 
 /* api_drive.inv_use_on(component, slot, obj, count): the armed item used on
  * this cell -- OPHELDU's canonical body, target then selection
- * (mock239_inbound.c's IF_BUTTONT translation, handle_opheldu). */
+ * (osrs239_inbound.c's IF_BUTTONT translation, handle_opheldu). */
 static int
 d_inv_use_on(lua_State* L)
 {
@@ -3412,7 +3412,7 @@ d_sail_build(lua_State* L)
         return push_result(L, "refused", "the server has not armed the catalogue's rows (IF_SETEVENTS op 1)");
     disarm(bot);
     /* G2 LE add128 child, G2 object, G4 LE component, G4 LE crc, then the
-     * zigzag ints (mock239_if_script_trigger_decode). */
+     * zigzag ints (wire_if_script_trigger_decode). */
     payload[n++] = (uint8_t)((0 + 128) & 0xff);
     payload[n++] = 0;
     payload[n++] = 0xff;

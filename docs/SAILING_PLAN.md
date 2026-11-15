@@ -508,7 +508,7 @@ settled from the shipped cache or from source, not from a summary.
   (`ToriRSServer_WirePlayerIndex`); `handle_opplayert` reads only
   `(index, component)`. `net_out.c` is deliberately **unchanged**: rev-239
   `OPPLAYERT` does carry a selected-sub field (`g2Alt2`), but
-  `mock239_inbound.c` reads `sub == 0xffff && obj == 0xffff` as the sentinel
+  `osrs239_inbound.c` reads `sub == 0xffff && obj == 0xffff` as the sentinel
   meaning "a target or spell rather than an item", so writing the child index
   there would route the grant to `OPPLAYERU`. Evidence:
   `sailing_validation/social/editnav-arming-results.json`.

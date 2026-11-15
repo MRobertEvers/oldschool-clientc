@@ -135,7 +135,7 @@ deob (`Deobfuscator/src_osrs241_rl1_13_3`):
 | TRANSPARENCY | class81 flag 0x10000: g2sAlt3 start, g2sAlt3 end (each + the client cycle), g1sAlt1 from, g1sAlt1 to, g1Alt3 use-start, into class17.method328 -- the same state an npc's fade lives in (class83.field844) | `p_transparency(int $start, int $end, int $from, int $to, boolean $usestart)` (opcode 11281), after EXACT_MOVE in mock241's tail; the client's 241 reader now keeps it (PKT_PLAYER_INFO_OP_TRANSPARENCY) and fades the player's body as it does an npc's (`app_world_sync_player_transparency`) |
 
 Both are rev 241 only, like `npc_transparency`. `src/torirsserver/test/
-mock241_playerinfo_test.c` round-trips them through the client's reader.
+osrs241_player_info_test.c` round-trips them through the client's reader.
 
 Found on the way: on the tick a move into another instance armed the rebuild
 barrier, `maybe_rebuild` sent that tick's PLAYER_INFO but phase 11 kept the

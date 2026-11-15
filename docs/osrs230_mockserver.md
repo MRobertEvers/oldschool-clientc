@@ -2139,7 +2139,7 @@ partial — see `CLIENT_TS_PARITY.md` §56).
 pair.** Every agility obstacle in the tree reaches it through
 `[proc,agility_exactmove]` (53 call sites / 17 files), which calls `p_locmerge`
 and `p_exactmove` back to back. Everything below the opcode already existed —
-`TORIRSSERVER_PMASK_EXACT_MOVE`, `Mock239PlayerExt.has_exact_move`,
+`TORIRSSERVER_PMASK_EXACT_MOVE`, `WirePlayerExt.has_exact_move`,
 `PKT_PLAYER_INFO_OP_EXACT_MOVE` and `World_PlayerSetExactMoveDetailed` — so what
 was missing was the opcode body and one arm in each of the two encoders.
 

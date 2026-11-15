@@ -25,7 +25,6 @@
 
 #include "3rd/bzip/bzip.h"
 #include "3rd/hmap/hmap.h"
-#include "3rd/rsareabuf/rsareabuf.h"
 #include "3rd/rsprot/src/rsprot_alloc.h"
 #include "3rd/trspk/trspk_alloc.h"
 
@@ -60,12 +59,6 @@ static inline void
 ToriMem_InstallRSProt(void)
 {
     TORIMEM_INSTALL_LIB(RSProt, rsprot_set_allocator, ToriMem_LibRSProt);
-}
-
-static inline void
-ToriMem_InstallRSAreaBuf(void)
-{
-    TORIMEM_INSTALL_LIB(RSAreaBuf, rsab_set_allocator, ToriMem_LibRSAreaBuf);
 }
 
 static inline void

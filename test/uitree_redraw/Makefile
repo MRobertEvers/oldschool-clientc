@@ -83,7 +83,6 @@ CPPFLAGS += \
 	-I$(SOURCE_ROOT)/3rd/rscache/src \
 	-I$(SOURCE_ROOT)/3rd/trspk \
 	-I$(SOURCE_ROOT)/3rd/hmap \
-	-I$(SOURCE_ROOT)/3rd/rsareabuf \
 	-I$(SOURCE_ROOT)/3rd/rsprot/src \
 	-I$(SOURCE_ROOT)/3rd/rsprot/include \
 	-I$(SOURCE_ROOT)/3rd/rsprot
