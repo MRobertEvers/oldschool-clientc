@@ -5,6 +5,7 @@
 #include "torirs_server_claim.h"
 #include "torirs_server_savefile.h"
 #include "torirs_server_wire.h"
+#include "net/rsprox_recording.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -249,7 +250,17 @@ put_header(
     put_jstr(rec, player->display_name);            /* activity: who it is */
     put_u16(rec, (uint32_t)ToriRSServer_WirePlayerIndex(player->pid));
     put_u16(rec, 0);                                /* accountHash: none */
-    put_jstr(rec, "torirsserver");                  /* clientName */
+    /* clientName: who wrote it and the wire it speaks. The client type above
+     * is the client's own (7 for the phone, which the replay's layout needs),
+     * but this server answers every client in its one wire, so the replay
+     * frames the file by this name (RsproxRecording_Rev). */
+    {
+        char client_name[64];
+
+        snprintf(client_name, sizeof(client_name), "%s:%s", RSPROX_RECORDING_TORIRSSERVER,
+                 wire->name);
+        put_jstr(rec, client_name);
+    }
     put_u32(rec, 0);                                /* js5MasterIndex: none */
 }
 

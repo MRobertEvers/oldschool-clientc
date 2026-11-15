@@ -409,6 +409,24 @@ RsproxRecording_Rev(struct RsproxRecording const* rec)
      * A recording of an Enhanced mobile client is that client's protocol,
      * not the desktop's: its opcodes, payloads and info-stream bits are its
      * own (src/net/rev/osrsm<N>/). */
+    /* A recording torirsserver wrote (torirsserver/torirs_server_recording.c)
+     * names the wire it spoke after a colon: "torirsserver:osrs242". The
+     * client type cannot say it there -- the server speaks its one wire to
+     * every client, so a phone (clientType 7) is answered in the desktop
+     * protocol, and the 7 is kept for the replay's mobile layout
+     * (RsproxRecording_Mobile, main.c's on_mobile). The first ones were
+     * written as a bare "torirsserver", before any server spoke anything but
+     * the desktop table of its revision. */
+    if( strncmp(rec->client_name, RSPROX_RECORDING_TORIRSSERVER,
+                sizeof(RSPROX_RECORDING_TORIRSSERVER) - 1) == 0 )
+    {
+        char const* wire = rec->client_name + sizeof(RSPROX_RECORDING_TORIRSSERVER) - 1;
+
+        if( wire[0] == ':' && wire[1] )
+            return GameProtoRev_GeneratedByName(wire + 1);
+        if( wire[0] == '\0' )
+            return GameProtoRev_Osrs(rec->revision);
+    }
     if( RsproxRecording_Mobile(rec) )
         return GameProtoRev_OsrsMobile(rec->revision);
     return GameProtoRev_Osrs(rec->revision);

@@ -62,6 +62,13 @@ struct GameProtoRevTable;
  * Enhanced mobile clients, whose protocol is RSProt's osrsm family rather than
  * the desktop's (RSProx AndroidProtocol.isMobile).
  */
+/*
+ * The clientName torirsserver writes into its own recordings, followed by
+ * ":<wire>" -- the protocol it spoke, which RsproxRecording_Rev prefers to the
+ * client type (torirsserver/torirs_server_recording.h).
+ */
+#define RSPROX_RECORDING_TORIRSSERVER "torirsserver"
+
 #define RSPROX_RECORDING_CLIENT_ENHANCED_ANDROID 7
 #define RSPROX_RECORDING_CLIENT_ENHANCED_IOS 8
 
