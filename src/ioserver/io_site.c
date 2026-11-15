@@ -12,6 +12,8 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <dirent.h>
+#include <sys/stat.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -348,6 +350,26 @@ site_landing(struct IoGate const* gate)
     return gate->landing;
 }
 
+/* Staff: a web login one of whose linked player accounts is `admin = 1`.
+ * The gate's login itself makes nobody staff (torirs_server_auth.h); the
+ * admin flag lives on the player accounts, so a login is as staff as the
+ * accounts it holds. */
+static int
+site_is_staff(
+    struct IoGate const* gate,
+    char const* who)
+{
+    char names[IO_GATE_LINKS_LIST_MAX][IO_GATE_LINKS_NAME_MAX];
+    int linked = IoGateLinks_List(gate->links, who, names, IO_GATE_LINKS_LIST_MAX);
+
+    for( int i = 0; i < linked; i++ )
+    {
+        if( ToriRSServer_AuthIsAdmin(names[i]) )
+            return 1;
+    }
+    return 0;
+}
+
 static void
 page_begin(
     struct SiteBuf* b,
@@ -374,6 +396,9 @@ page_begin(
     for( size_t i = 0; i < sizeof(k_nav) / sizeof(k_nav[0]); i++ )
         buf_printf(b, "<a href=\"%s\"%s>%s</a>", k_nav[i][0],
                    strcmp(nav, k_nav[i][0]) == 0 ? " class=\"on\"" : "", k_nav[i][1]);
+    if( site_is_staff(gate, who) )
+        buf_printf(b, "<a href=\"/admin/recordings\"%s>Recordings</a>",
+                   strcmp(nav, "/admin/recordings") == 0 ? " class=\"on\"" : "");
     buf_puts(b, "</nav><div class=\"who\"><span>Signed in as <b>");
     buf_esc(b, who);
     buf_puts(b, "</b></span><a class=\"mini\" href=\"");
@@ -1242,6 +1267,503 @@ redirect_done(
     ToriMem_Free(ToriMem_Net(), b.data);
 }
 
+
+/* ------------------------------------------------------------------ */
+/* Staff: session recordings                                           */
+/* ------------------------------------------------------------------ */
+/*
+ * torirsserver writes every session of an account whose record says
+ * `record = 1` to <saves>/recordings/<account>/<yyyymmdd-hhmmss>.bin, an
+ * RSProx recording (torirsserver/torirs_server_recording.h). These pages list
+ * them, switch recording on and off per account, serve the files, and play
+ * one in the game page's replay mode (`/?replay=<url>`, web/torirs_host.js)
+ * under manifests/manifest_replay.ini, the package's replay manifest. Staff
+ * only: a recording holds everything the player saw and typed, private chat
+ * included.
+ */
+
+#define SITE_RECORDINGS_MAX 4000
+
+struct SiteRecording
+{
+    char account[SITE_NAME_MAX];
+    /** "yyyymmdd-hhmmss.bin" */
+    char file[32];
+    /** Unix seconds: the name's start, and the file's last write. */
+    long long start;
+    long long last;
+    long long size;
+};
+
+/* [a-z0-9_]+: what ToriRSServer_SaveFileName makes, so nothing else can name
+ * a directory under recordings/. */
+static int
+recording_account_ok(char const* name)
+{
+    if( !name[0] || strlen(name) >= SITE_NAME_MAX )
+        return 0;
+    for( char const* c = name; *c; c++ )
+    {
+        if( !(islower((unsigned char)*c) || isdigit((unsigned char)*c) || *c == '_') )
+            return 0;
+    }
+    return 1;
+}
+
+/* Days from 1970-01-01 to y-m-d (proleptic Gregorian). */
+static long long
+days_from_civil(
+    long long y,
+    unsigned m,
+    unsigned d)
+{
+    long long era;
+    unsigned yoe, doy, doe;
+
+    y -= m <= 2;
+    era = (y >= 0 ? y : y - 399) / 400;
+    yoe = (unsigned)(y - era * 400);
+    doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+    doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    return era * 146097 + (long long)doe - 719468;
+}
+
+/* "yyyymmdd-hhmmss.bin" -> its UTC start in unix seconds, or -1. */
+static long long
+recording_file_start(char const* name)
+{
+    int y, mo, d, h, mi, se;
+    char tail[8];
+
+    if( strlen(name) != 19 )
+        return -1;
+    for( int i = 0; i < 15; i++ )
+    {
+        if( i == 8 ? name[i] != '-' : !isdigit((unsigned char)name[i]) )
+            return -1;
+    }
+    if( strcmp(name + 15, ".bin") != 0 )
+        return -1;
+    if( sscanf(name, "%4d%2d%2d-%2d%2d%2d%4s", &y, &mo, &d, &h, &mi, &se, tail) != 7 )
+        return -1;
+    return days_from_civil(y, (unsigned)mo, (unsigned)d) * 86400 + h * 3600 + mi * 60 + se;
+}
+
+static void
+recordings_dir(
+    char* out,
+    size_t cap)
+{
+    snprintf(out, cap, "%s/recordings", ToriRSServer_SaveDir());
+}
+
+static int
+recording_cmp(
+    void const* a,
+    void const* b)
+{
+    struct SiteRecording const* x = a;
+    struct SiteRecording const* y = b;
+
+    if( x->start != y->start )
+        return x->start < y->start ? 1 : -1;
+    return strcmp(x->account, y->account);
+}
+
+/* Every recording, newest first, or only `account`'s when it is not "". The
+ * caller frees *out (ToriMem_Net). */
+static int
+recordings_list(
+    char const* account,
+    struct SiteRecording** out)
+{
+    char root[1024];
+    DIR* top;
+    struct dirent* entry;
+    struct SiteRecording* list =
+        ToriMem_Alloc(ToriMem_Net(), SITE_RECORDINGS_MAX * sizeof(*list));
+    int count = 0;
+
+    assert(list);
+    *out = list;
+    recordings_dir(root, sizeof(root));
+    top = opendir(root);
+    if( !top )
+        return 0;
+    while( (entry = readdir(top)) != NULL && count < SITE_RECORDINGS_MAX )
+    {
+        char dir[1280];
+        DIR* files;
+        struct dirent* file;
+
+        if( !recording_account_ok(entry->d_name) )
+            continue;
+        if( account[0] && strcmp(account, entry->d_name) != 0 )
+            continue;
+        snprintf(dir, sizeof(dir), "%s/%s", root, entry->d_name);
+        files = opendir(dir);
+        if( !files )
+            continue;
+        while( (file = readdir(files)) != NULL && count < SITE_RECORDINGS_MAX )
+        {
+            char path[1600];
+            struct stat st;
+            long long start = recording_file_start(file->d_name);
+            struct SiteRecording* r;
+
+            if( start < 0 )
+                continue;
+            snprintf(path, sizeof(path), "%s/%s", dir, file->d_name);
+            if( stat(path, &st) != 0 )
+                continue;
+            r = &list[count++];
+            snprintf(r->account, sizeof(r->account), "%s", entry->d_name);
+            snprintf(r->file, sizeof(r->file), "%s", file->d_name);
+            r->start = start;
+            r->last = (long long)st.st_mtime;
+            r->size = (long long)st.st_size;
+        }
+        closedir(files);
+    }
+    closedir(top);
+    qsort(list, (size_t)count, sizeof(*list), recording_cmp);
+    return count;
+}
+
+static void
+buf_bytes(
+    struct SiteBuf* b,
+    long long n)
+{
+    if( n < 1024 * 1024 )
+        buf_printf(b, "%lld KB", (n + 1023) / 1024);
+    else
+        buf_printf(b, "%.1f MB", (double)n / (1024.0 * 1024.0));
+}
+
+static void
+page_staff_only(
+    struct IoGate* gate,
+    char const* who,
+    struct HttpResponse* res)
+{
+    struct SiteBuf b;
+
+    page_begin(&b, gate, who, "Staff only", "");
+    buf_puts(&b, "<section class=\"panel\" style=\"max-width:560px\"><h2>Staff only</h2>"
+                 "<p>Recordings are for staff: a web login with a linked player account "
+                 "that is an admin.</p></section>");
+    page_send(&b, res, 403);
+}
+
+/* One player account's row in the "who is recorded" table. */
+struct SiteRecordedAccount
+{
+    char key[SITE_NAME_MAX];
+    int record;
+};
+
+static int
+recorded_account_cmp(
+    void const* a,
+    void const* b)
+{
+    struct SiteRecordedAccount const* x = a;
+    struct SiteRecordedAccount const* y = b;
+
+    if( x->record != y->record )
+        return y->record - x->record;
+    return strcmp(x->key, y->key);
+}
+
+static void
+page_recordings(
+    struct IoGate* gate,
+    char const* who,
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    struct SiteBuf b;
+    struct SiteRecording* list;
+    char account[SITE_NAME_MAX] = "";
+    char done[16] = "";
+    char player[SITE_NAME_MAX] = "";
+    char accounts_dir[1024];
+    struct SiteRecordedAccount* accounts =
+        ToriMem_Alloc(ToriMem_Net(), 1024 * sizeof(*accounts));
+    int account_count = 0;
+    DIR* dir;
+    struct dirent* entry;
+    long long total = 0;
+    long long now = (long long)time(NULL);
+    int count;
+
+    assert(accounts);
+    IoGate_QueryField(req, "account", account, sizeof(account));
+    if( account[0] && !recording_account_ok(account) )
+        account[0] = '\0';
+    IoGate_QueryField(req, "done", done, sizeof(done));
+    IoGate_QueryField(req, "player", player, sizeof(player));
+    count = recordings_list(account, &list);
+
+    snprintf(accounts_dir, sizeof(accounts_dir), "%s/accounts", ToriRSServer_SaveDir());
+    dir = opendir(accounts_dir);
+    if( dir )
+    {
+        while( (entry = readdir(dir)) != NULL && account_count < 1024 )
+        {
+            size_t len = strlen(entry->d_name);
+            struct SiteRecordedAccount* a;
+
+            if( len <= 4 || len - 4 >= SITE_NAME_MAX ||
+                strcmp(entry->d_name + len - 4, ".ini") != 0 )
+                continue;
+            a = &accounts[account_count++];
+            snprintf(a->key, sizeof(a->key), "%.*s", (int)(len - 4), entry->d_name);
+            a->record = ToriRSServer_AuthIsRecorded(a->key);
+        }
+        closedir(dir);
+    }
+    qsort(accounts, (size_t)account_count, sizeof(*accounts), recorded_account_cmp);
+
+    page_begin(&b, gate, who, "Recordings", "/admin/recordings");
+    buf_puts(&b, "<div class=\"title\"><h1>Recordings<small>every packet of a recorded "
+                 "account's sessions, both ways</small></h1></div>\n");
+    if( done[0] && player[0] )
+    {
+        buf_puts(&b, "<p class=\"flash ok\">Recording ");
+        buf_esc(&b, strcmp(done, "on") == 0 ? "on" : "off");
+        buf_puts(&b, " for <b>");
+        buf_esc(&b, player);
+        buf_puts(&b, "</b>, from its next login.</p>");
+    }
+    buf_puts(&b, "<div class=\"stack\">");
+
+    /* The sessions. */
+    buf_puts(&b, "<section class=\"panel\"><h2>Sessions");
+    if( account[0] )
+    {
+        buf_puts(&b, " of ");
+        buf_esc(&b, account);
+        buf_puts(&b, " <a class=\"note\" href=\"/admin/recordings\">(all)</a>");
+    }
+    buf_puts(&b, "</h2>");
+    if( count == 0 )
+        buf_puts(&b, "<p>No recordings yet. Switch an account on below; its next login is "
+                     "recorded.</p>");
+    else
+    {
+        buf_puts(&b, "<div class=\"scroll\"><table><thead><tr><th>Account</th><th>Started</th>"
+                     "<th class=\"num\">Length</th><th class=\"num\">Size</th><th></th>"
+                     "</tr></thead><tbody>");
+        for( int i = 0; i < count; i++ )
+        {
+            struct SiteRecording const* r = &list[i];
+            long long length = r->last - r->start;
+
+            total += r->size;
+            buf_puts(&b, "<tr><td><a href=\"/admin/recordings?account=");
+            buf_url(&b, r->account);
+            buf_puts(&b, "\">");
+            buf_esc(&b, r->account);
+            buf_puts(&b, "</a></td><td class=\"when\">");
+            buf_when(&b, r->start);
+            buf_puts(&b, "</td><td class=\"num\">");
+            buf_duration(&b, length > 0 ? length : 0);
+            /* Written in the last minute: probably still being recorded. */
+            if( now - r->last < 60 )
+                buf_puts(&b, " <span class=\"badge\">live</span>");
+            buf_puts(&b, "</td><td class=\"num\">");
+            buf_bytes(&b, r->size);
+            buf_puts(&b, "</td><td class=\"row\" style=\"flex-wrap:nowrap\">"
+                         "<a href=\"/admin/replay?f=");
+            buf_url(&b, r->account);
+            buf_puts(&b, "/");
+            buf_url(&b, r->file);
+            buf_puts(&b, "\">Watch</a><a href=\"/admin/recordings/file/");
+            buf_esc(&b, r->account);
+            buf_puts(&b, "/");
+            buf_esc(&b, r->file);
+            buf_puts(&b, "\" download>.bin</a></td></tr>");
+        }
+        buf_puts(&b, "</tbody></table></div><p class=\"note\" style=\"margin-top:12px\">");
+        buf_printf(&b, "%d recording%s, ", count, count == 1 ? "" : "s");
+        buf_bytes(&b, total);
+        buf_puts(&b, " on disk. A .bin is an RSProx recording: the rsprox tools read it "
+                     "too.</p>");
+    }
+    buf_puts(&b, "</section>");
+
+    /* Who is recorded. */
+    buf_puts(&b, "<section class=\"panel\"><h2>Recorded accounts</h2>"
+                 "<p class=\"note\">Read at each login: switching takes effect the next time "
+                 "the player logs in. The same switch is <code>./torirsctl record &lt;name&gt; "
+                 "on|off</code>.</p><div class=\"scroll\"><table><thead><tr><th>Player "
+                 "account</th><th>Recording</th><th></th></tr></thead><tbody>");
+    for( int i = 0; i < account_count; i++ )
+    {
+        struct SiteRecordedAccount const* a = &accounts[i];
+
+        buf_puts(&b, "<tr><td>");
+        buf_esc(&b, a->key);
+        buf_puts(&b, "</td><td>");
+        buf_puts(&b, a->record ? "<b>on</b>" : "off");
+        buf_puts(&b, "</td><td><form method=\"post\" action=\"/admin/recordings/record\" "
+                     "style=\"margin:0\"><input type=\"hidden\" name=\"player\" value=\"");
+        buf_esc(&b, a->key);
+        buf_printf(&b, "\"><input type=\"hidden\" name=\"state\" value=\"%s\">"
+                       "<button class=\"btn%s\">Turn %s</button></form></td></tr>",
+                   a->record ? "off" : "on", a->record ? " quiet" : "",
+                   a->record ? "off" : "on");
+    }
+    buf_puts(&b, "</tbody></table></div></section></div>");
+    ToriMem_Free(ToriMem_Net(), accounts);
+    ToriMem_Free(ToriMem_Net(), list);
+    page_send(&b, res, 200);
+}
+
+/* `/admin/recordings/file/<account>/<file>`: the bytes. */
+static void
+serve_recording(
+    char const* rest,
+    struct HttpResponse* res)
+{
+    char account[SITE_NAME_MAX];
+    char file[32];
+    char root[1024];
+    char path[1600];
+    size_t slash = strcspn(rest, "/");
+    FILE* f;
+    long size;
+    uint8_t* data;
+
+    res->status = 404;
+    if( slash == 0 || slash >= sizeof(account) || rest[slash] != '/' )
+        return;
+    snprintf(account, sizeof(account), "%.*s", (int)slash, rest);
+    snprintf(file, sizeof(file), "%.*s", (int)strcspn(rest + slash + 1, "?#"), rest + slash + 1);
+    if( !recording_account_ok(account) || recording_file_start(file) < 0 )
+        return;
+    recordings_dir(root, sizeof(root));
+    snprintf(path, sizeof(path), "%s/%s/%s", root, account, file);
+    f = fopen(path, "rb");
+    if( !f )
+        return;
+    if( fseek(f, 0, SEEK_END) != 0 || (size = ftell(f)) < 0 || fseek(f, 0, SEEK_SET) != 0 )
+    {
+        fclose(f);
+        return;
+    }
+    data = ToriMem_Alloc(ToriMem_Net(), (size_t)(size > 0 ? size : 1));
+    assert(data);
+    /* A recording still being written grows while this reads: the length
+     * read is what is sent, and it ends on a record boundary because the
+     * server writes whole records. */
+    size = (long)fread(data, 1, (size_t)size, f);
+    fclose(f);
+    res->status = 200;
+    snprintf(res->content_type, sizeof(res->content_type), "application/octet-stream");
+    res->body = data;
+    res->body_len = (int)size;
+    res->owns_body = 1;
+}
+
+/* `/admin/replay?f=<account>/<file>`: the game page in replay mode, framed,
+ * with a scrubber over its ToriRS_Replay controls (web/torirs_host.js). */
+static void
+page_replay(
+    struct IoGate* gate,
+    char const* who,
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    struct SiteBuf b;
+    char f[96] = "";
+    char account[SITE_NAME_MAX];
+    char const* file;
+    size_t slash;
+
+    IoGate_QueryField(req, "f", f, sizeof(f));
+    slash = strcspn(f, "/");
+    if( slash == 0 || slash >= sizeof(account) || f[slash] != '/' )
+    {
+        redirect(res, "/admin/recordings");
+        return;
+    }
+    snprintf(account, sizeof(account), "%.*s", (int)slash, f);
+    file = f + slash + 1;
+    if( !recording_account_ok(account) || recording_file_start(file) < 0 )
+    {
+        redirect(res, "/admin/recordings");
+        return;
+    }
+
+    page_begin(&b, gate, who, "Replay", "/admin/recordings");
+    buf_puts(&b, "<style>main{max-width:1400px}"
+                 ".replay{display:block;width:100%;aspect-ratio:4/3;max-height:80vh;"
+                 "border:2px solid var(--edge);border-radius:4px;background:#000}"
+                 ".scrub{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:12px 0}"
+                 ".scrub input[type=range]{flex:1;min-width:200px;max-width:none;margin:0}"
+                 ".scrub .tick{font-variant-numeric:tabular-nums;min-width:150px}"
+                 ".scrub input[type=number]{width:110px;margin:0;display:inline-block}</style>");
+    buf_puts(&b, "<div class=\"title\"><h1>Replay<small>");
+    buf_esc(&b, account);
+    buf_puts(&b, " &middot; ");
+    buf_when(&b, recording_file_start(file));
+    buf_puts(&b, " &middot; <a href=\"/admin/recordings?account=");
+    buf_url(&b, account);
+    buf_puts(&b, "\">back</a></small></h1></div>");
+    buf_puts(&b, "<iframe class=\"replay\" id=\"replay\" allow=\"autoplay; fullscreen\" "
+                 "title=\"Replay\"></iframe>"
+                 "<div class=\"scrub\">"
+                 "<button class=\"btn\" id=\"play\" disabled>Pause</button>"
+                 "<label style=\"margin:0\"><input type=\"checkbox\" id=\"fast\" "
+                 "style=\"display:inline;width:auto\"> Fast</label>"
+                 "<input type=\"range\" id=\"pos\" min=\"0\" max=\"0\" value=\"0\" disabled>"
+                 "<span class=\"tick\" id=\"tick\">loading&hellip;</span>"
+                 "<form id=\"go\" style=\"margin:0\" class=\"row\"><input type=\"number\" "
+                 "id=\"to\" min=\"0\" placeholder=\"tick\"><button class=\"btn quiet\">Go"
+                 "</button></form></div>"
+                 "<p class=\"note\">A tick is 0.6 s. Seeking replays the session from the "
+                 "nearest checkpoint, so a far jump forward takes a moment the first time. "
+                 "The player's own clicks are not shown, only what the server sent "
+                 "back.</p>");
+    buf_puts(&b, "<script>(function(){\n"
+                 "var file='/admin/recordings/file/");
+    buf_esc(&b, account);
+    buf_puts(&b, "/");
+    buf_esc(&b, file);
+    buf_puts(&b, "';\n"
+        "var gl=false;try{gl=!!document.createElement('canvas').getContext('webgl2');}catch(e){}\n"
+        "var q=new URLSearchParams({replay:file,args:'--manifest,manifests/manifest_replay.ini'"
+        "+(gl?',--webgl2-zbuffer':''),ws:'ws'});\n"
+        "var frame=document.getElementById('replay');frame.src='/?'+q;\n"
+        "var play=document.getElementById('play'),fast=document.getElementById('fast'),"
+        "pos=document.getElementById('pos'),tick=document.getElementById('tick'),"
+        "go=document.getElementById('go'),to=document.getElementById('to');\n"
+        "var dragging=false;\n"
+        "function ctl(){try{return frame.contentWindow&&frame.contentWindow.ToriRS_Replay;}"
+        "catch(e){return null;}}\n"
+        "function secs(t){var s=Math.round(t*0.6),m=Math.floor(s/60),h=Math.floor(m/60);"
+        "return (h?h+':'+String(m%60).padStart(2,'0'):m)+':'+String(s%60).padStart(2,'0');}\n"
+        "function seek(t){var c=ctl();if(c)c.seek(Math.max(0,t|0));}\n"
+        "play.onclick=function(){var c=ctl();if(!c)return;var st=c.status();if(!st)return;"
+        "if(st.held)c.run();else c.hold();};\n"
+        "fast.onchange=function(){var c=ctl();if(c)c.setUnlocked(fast.checked);};\n"
+        "pos.oninput=function(){dragging=true;tick.textContent='tick '+pos.value+' ('+secs(+pos.value)+')';};\n"
+        "pos.onchange=function(){dragging=false;seek(+pos.value);};\n"
+        "go.onsubmit=function(e){e.preventDefault();if(to.value!=='')seek(+to.value);};\n"
+        "setInterval(function(){var c=ctl();var st=null;try{st=c&&c.status();}catch(e){}\n"
+        "if(!st){return;}\n"
+        "play.disabled=false;pos.disabled=false;pos.max=st.ticks;\n"
+        "if(!dragging)pos.value=st.tick;\n"
+        "play.textContent=st.held?'Play':'Pause';fast.checked=!!st.unlocked;\n"
+        "if(!dragging)tick.textContent='tick '+st.tick+' / '+st.ticks+' ('+secs(st.tick)+' / '"
+        "+secs(st.ticks)+')'+(st.seeking?' seeking\\u2026':'');},250);\n"
+        "})();</script>");
+    page_send(&b, res, 200);
+}
+
 /* ------------------------------------------------------------------ */
 /* Routes                                                              */
 /* ------------------------------------------------------------------ */
@@ -1343,6 +1865,54 @@ IoSite_Handle(
             page_account(gate, who, req, res, 400, "That account is not linked to this login.",
                          NULL);
         return 1;
+    }
+    if( strncmp(req->path, "/admin/", 7) == 0 )
+    {
+        if( !site_is_staff(gate, who) )
+        {
+            page_staff_only(gate, who, res);
+            return 1;
+        }
+        if( is_get && IoGate_PathIs(req->path, "/admin/recordings") )
+        {
+            page_recordings(gate, who, req, res);
+            return 1;
+        }
+        if( is_get && strncmp(req->path, "/admin/recordings/file/", 23) == 0 )
+        {
+            serve_recording(req->path + 23, res);
+            return 1;
+        }
+        if( is_get && IoGate_PathIs(req->path, "/admin/replay") )
+        {
+            page_replay(gate, who, req, res);
+            return 1;
+        }
+        if( is_post && IoGate_PathIs(req->path, "/admin/recordings/record") )
+        {
+            char player[SITE_NAME_MAX] = "";
+            char state[8] = "";
+            int on;
+            struct SiteBuf to;
+
+            IoGate_FormField(req, "player", player, sizeof(player));
+            IoGate_FormField(req, "state", state, sizeof(state));
+            on = strcmp(state, "on") == 0;
+            if( !player[0] || !ToriRSServer_AuthSetRecorded(player, on) )
+            {
+                redirect(res, "/admin/recordings");
+                return 1;
+            }
+            fprintf(stderr, "io_server: '%s' turned recording %s for '%s'\n", who,
+                    on ? "on" : "off", player);
+            buf_init(&to);
+            buf_printf(&to, "/admin/recordings?done=%s&player=", on ? "on" : "off");
+            buf_url(&to, player);
+            redirect(res, to.data);
+            ToriMem_Free(ToriMem_Net(), to.data);
+            return 1;
+        }
+        return 0;
     }
     return 0;
 }

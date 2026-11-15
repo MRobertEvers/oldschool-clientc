@@ -552,7 +552,20 @@ check_links(void)
     check(ToriRSServer_AuthSetAdmin("frank", 1) && ToriRSServer_AuthLinkVerify("frank", "matt", again),
           "link: setting admin keeps the link");
     check(ToriRSServer_AuthSetAdmin("frank", 0), "(and clearing it)");
+    check(!ToriRSServer_AuthIsRecorded("frank"), "record: off until it is set");
+    check(ToriRSServer_AuthSetRecorded("frank", 1) && ToriRSServer_AuthIsRecorded("frank") &&
+              ToriRSServer_AuthLinkVerify("frank", "matt", again) &&
+              !ToriRSServer_AuthIsAdmin("frank"),
+          "record: setting it keeps the link and leaves admin alone");
+    check(ToriRSServer_AuthSetAdmin("frank", 1) && ToriRSServer_AuthIsRecorded("frank"),
+          "record: setting admin keeps it");
+    check(ToriRSServer_AuthSetAdmin("frank", 0), "(and clearing admin)");
+    check(!ToriRSServer_AuthSetRecorded("nobody_here", 1),
+          "record: an account with no record cannot be switched on");
     check(ToriRSServer_AuthUnlink("frank"), "link: unlink");
+    check(ToriRSServer_AuthIsRecorded("frank"), "record: unlinking keeps it");
+    check(ToriRSServer_AuthSetRecorded("frank", 0) && !ToriRSServer_AuthIsRecorded("frank"),
+          "record: and it clears");
     check(ToriRSServer_AuthManagedBy("frank", owner, sizeof(owner)) == 0 &&
               !ToriRSServer_AuthLinkVerify("frank", "matt", again),
           "link: leaves him unlinked, the token dead");

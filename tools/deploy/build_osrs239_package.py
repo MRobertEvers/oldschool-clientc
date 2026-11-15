@@ -318,6 +318,37 @@ def write_manifest(stage: Path, game_port: int, ws_host: str, auth: str) -> None
                       + "".join(out_lines), encoding="utf-8")
 
 
+def write_replay_manifest(stage: Path) -> None:
+    """manifests/manifest_replay.ini: manifests/manifest_<world>_replay.ini with
+    this package's cache, for the site's /admin/recordings, which boots the web
+    page with `?replay=<recording>` (src/web/torirs_host.js) on it. The cache
+    dir is the live manifest's, so a replay reads the groups the browser already
+    holds for the game, and JS5 rides the game socket (`ws=ws`) as play does."""
+    src = REPO / "manifests" / f"manifest_{WORLD}_replay.ini"
+    if not src.exists():
+        log(f"no {src.name}: the package has no replay manifest; /admin/recordings cannot play")
+        return
+    out_lines: list[str] = []
+    section = ""
+    for line in src.read_text(encoding="utf-8").splitlines(keepends=True):
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            section = stripped[1:-1]
+            if section.startswith("derived:"):
+                continue
+            out_lines.append(line)
+            continue
+        if section.startswith("derived:"):
+            continue
+        key = stripped.split("=", 1)[0].strip() if "=" in stripped else ""
+        if section == "cache:boot" and key == "dir":
+            line = f"dir=../cache.{WORLD}\n"
+        out_lines.append(line)
+    dst = stage / "manifests" / "manifest_replay.ini"
+    dst.write_text(f"; manifest_replay.ini = manifest_{WORLD}_replay.ini (session recordings)\n"
+                   + "".join(out_lines), encoding="utf-8")
+
+
 RUN_CMD = r"""@echo off
 setlocal
 cd /d "%~dp0"
@@ -534,6 +565,8 @@ on the command line):
     ./torirsctl create-admin <name>     new player account that is staff
     ./torirsctl create-player <name>    new player account
     ./torirsctl admin <name> on|off     make an existing player staff, or not
+    ./torirsctl record <name> on|off    record every session's packets (replays
+                                        at /admin/recordings, staff only)
     ./torirsctl password <name>         new password for a player account
     ./torirsctl unlink <name>           release a player from its web login
     ./torirsctl create-login <name>     new web login (the sign-in gate)
@@ -567,6 +600,9 @@ TORIRSCTL = r"""#!/usr/bin/env bash
 #   ./torirsctl create-admin <name>     new PLAYER account that is staff
 #   ./torirsctl create-player <name>    new PLAYER account
 #   ./torirsctl admin <name> on|off     make an existing player staff, or not
+#   ./torirsctl record <name> on|off    record every session of a player (both
+#                                       directions, saves/recordings/<name>/);
+#                                       staff watch them at /admin/recordings
 #   ./torirsctl password <name>         new password for a player account
 #   ./torirsctl unlink <name>           release a player from its web login
 #   ./torirsctl create-login <name>     new web login (site + game page)
@@ -628,6 +664,9 @@ case "$command" in
     admin)
         [ $# -eq 2 ] || usage
         "$BIN" --account admin "$1" "$2" ;;
+    record)
+        [ $# -eq 2 ] || usage
+        "$BIN" --account record "$1" "$2" ;;
     password)
         [ $# -eq 1 ] || usage
         with_password "$1" password "$1" ;;
@@ -782,6 +821,7 @@ def main() -> int:
     log(f"cache.{WORLD}: {cache_bytes / 1e6:.0f} MB from {cache_src.name}")
     stage_content(stage)
     write_manifest(stage, args.game_port, args.ws_host, args.auth)
+    write_replay_manifest(stage)
     copy_tree(REPO / "revconfig" / WORLD, stage / "revconfig" / WORLD)
     copy_tree(REPO / "script", stage / "script")
     stage_scripts(stage, args.game_port, args.web_port, args.ws_host, sha, content_sha, date)

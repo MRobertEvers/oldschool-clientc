@@ -159,6 +159,11 @@ on_stop_signal(int sig)
  *                                     takes effect at the next login, except
  *                                     on the hiscores, which drop or list the
  *                                     player at once
+ *   --account record <name> on|off    record every session of a PLAYER account,
+ *                                     both directions, to
+ *                                     <saves>/recordings/<name>/ as RSProx
+ *                                     .bin files (torirs_server_recording.h);
+ *                                     from its next login
  *   --account unlink <name>           release a PLAYER account from the web
  *                                     login it is linked to: its own password
  *                                     signs it in again
@@ -223,7 +228,8 @@ account_list_player(const char* key)
     char owner[64];
     int managed = ToriRSServer_AuthManagedBy(key, owner, sizeof(owner));
 
-    printf("  %-14s %-6s %s%s\n", key, ToriRSServer_AuthIsAdmin(key) ? "admin" : "",
+    printf("  %-14s %-6s %-7s %s%s\n", key, ToriRSServer_AuthIsAdmin(key) ? "admin" : "",
+           ToriRSServer_AuthIsRecorded(key) ? "record" : "",
            managed > 0 ? "linked to " : managed < 0 ? "UNREADABLE RECORD" : "",
            managed > 0 ? owner : "");
 }
@@ -379,6 +385,24 @@ account_command(
         fprintf(stderr, "torirsserver: '%s' admin %s\n", argv[3], admin ? "on" : "off");
         return 0;
     }
+    /* Recording: every packet of the account's sessions, both ways, to
+     * <saves>/recordings/<name>/ (torirs_server_recording.h), from its next
+     * login. The gate's /admin/recordings plays them back. */
+    if( argc == 5 && strcmp(argv[2], "record") == 0 &&
+        (strcmp(argv[4], "on") == 0 || strcmp(argv[4], "off") == 0) )
+    {
+        int record = strcmp(argv[4], "on") == 0;
+
+        if( !ToriRSServer_AuthSetRecorded(argv[3], record) )
+        {
+            fprintf(stderr, "torirsserver: '%s' has no usable account record (%s)\n", argv[3],
+                    ToriRSServer_AccountPath(argv[3]));
+            return 1;
+        }
+        fprintf(stderr, "torirsserver: '%s' recording %s (from the next login)\n", argv[3],
+                record ? "on" : "off");
+        return 0;
+    }
     if( argc == 4 && strcmp(argv[2], "unlink") == 0 )
     {
         char owner[64];
@@ -426,8 +450,10 @@ main(
                             "       %s --account revoke <login>\n"
                             "       %s --account invite [name]\n"
                             "       %s --account admin <name> on|off\n"
+                            "       %s --account record <name> on|off\n"
                             "       %s --account unlink <name>\n",
-                    argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0]);
+                    argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0],
+                    argv[0]);
         return status;
     }
     /* A leading flag is not a port: `torirsserver --dev` must not atoi to 0

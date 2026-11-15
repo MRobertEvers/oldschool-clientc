@@ -426,6 +426,23 @@ still the landing URL given to `--gate` (`/?args=...`), which every page's
 | `/hiscores[?skill=N&page=P]` | everyone ranked overall (total level, then XP) or by one skill, 50 to a page, with a player search |
 | `/players/<name>` | combat and total level, total XP, quest points, overall rank, last played, every skill's level, XP and rank, and the adventure log (quests completed). For an account linked to the viewer, also total XP over time (SVG), XP gained over the last day, week and month, and the recent sessions with their length, XP gained and most-trained skill |
 | `/account` | the linked accounts (Stats, Unlink) and a form to link another one with its name and password, under the same rules as the game's Link account |
+| `/admin/recordings[?account=K]` | staff only: every recorded session (account, start, length, size, Watch, .bin) and every player account's recording switch |
+| `/admin/replay?f=<account>/<file>` | staff only: the game page in replay mode (`/?replay=...` on `manifests/manifest_replay.ini`, JS5 over the game socket), with play/pause, Fast, and a tick scrubber over its `ToriRS_Replay` controls |
+
+### Session recordings
+
+An account whose record says `record = 1` has every packet of every session
+written down, both directions, as an RSProx recording
+(`src/torirsserver/torirs_server_recording.h`):
+`<saves>/recordings/<account>/<yyyymmdd-hhmmss>.bin`, one file per login, a
+reconnect continuing the same file as RSProx's RECONNECT frame. The login block
+(password or token) is never written. Switch it with
+`./torirsctl record <name> on|off` or the buttons on `/admin/recordings`; it is
+read at each login. Staff is a web login with a linked player account that has
+`admin = 1`; nobody else gets the pages or the files. An idle player is about
+20 KB a minute. The files are the same format the rsprox tools and
+rsprox-index read, and the native client plays one with
+`--manifest manifests/manifest_osrs242_replay.ini --replay <file>`.
 
 ### The account server
 

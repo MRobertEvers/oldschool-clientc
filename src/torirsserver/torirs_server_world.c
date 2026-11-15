@@ -18,6 +18,7 @@
  */
 #include "mem/torirs_mem.h"
 #include "torirs_server.h"
+#include "torirs_server_recording.h"
 #include "torirs_server_gwd_manifest.gen.h"
 #include "torirs_server_music_regions.gen.h"
 #include "game/sailing_settings.h"
@@ -16270,6 +16271,9 @@ ToriRSServer_WorldRemovePlayer(
     assert(player);
     if( !player->active )
         return;
+    /* The client is gone; nothing after this reaches it, so nothing after this
+     * is recorded. Parked, not closed: a reconnect continues the file. */
+    ToriRSServer_RecordingPark(player);
     /* Session-local mechanic state must not reach [logout] or a reused slot. */
     player->action_locked = 0;
     name37 = player->name37;
@@ -21338,6 +21342,8 @@ phase_cleanup(struct ToriRSServer* srv)
     ToriRSServer_WorldNpcReap(srv);
     /* Same reasoning, same timing, for pids — see ToriRSServer_WorldPlayerFree. */
     ToriRSServer_WorldPlayerReap(srv);
+    /* The tick's packets are all out: recordings write them as whole records. */
+    ToriRSServer_RecordingTick();
 
     /* The zones' event buffers, now that every client has been given them. The
      * state they hold — loc records, obj and npc membership — is not touched. */

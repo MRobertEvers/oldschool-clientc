@@ -4030,6 +4030,10 @@ struct ToriRSServerPlayer
      */
     struct ToriRSServer* world;
     struct ToriRSServerSession* session;
+    /** The account's session recording, when its record says `record = 1`
+     *  (torirs_server_recording.h); NULL otherwise. Set at login after the
+     *  init clears the slot, cleared when the player leaves it. */
+    struct ToriRSServerRecording* recording;
 
     /**
      * 1 while this slot holds a player.

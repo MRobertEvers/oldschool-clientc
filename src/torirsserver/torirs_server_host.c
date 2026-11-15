@@ -21,6 +21,7 @@
  * tick boundary, by the work queue (host_drain_queue), as before.
  */
 #include "torirs_server_host.h"
+#include "torirs_server_recording.h"
 
 #include "mem/torirs_mem.h"
 #include "torirs_server.h"
@@ -823,6 +824,9 @@ host_stage_login(
     ToriRSServer_WorldSetDisplayName(player, c->session.display_name);
     player->staff_level = c->session.staff_level;
     player->account_admin = c->session.account_admin;
+    /* Before the login sends anything: RECONNECT_OK and the login's REBUILD
+     * are the first records of a recorded session. */
+    ToriRSServer_RecordingLogin(player, c->session.reconnect);
     ToriRSServer_WorldLogin(player);
     fprintf(stderr, "torirsserver: %s logged in (pid %d)\n", player->display_name, player->pid);
 

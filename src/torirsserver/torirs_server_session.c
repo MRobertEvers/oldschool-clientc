@@ -7,6 +7,7 @@
  */
 
 #include "torirs_server_session.h"
+#include "torirs_server_recording.h"
 #include "mem/torirs_mem.h"
 
 #include "net/login/login_osrs_block.h"
@@ -1148,6 +1149,13 @@ step_online(
          * rather than kept from the table. See torirs_server_wire.h.
          */
         bd_t0 = bd_on ? pkt_bd_now_us() : 0;
+
+        /* As it arrived, before translate_in rewrites it: the recording is
+         * framed by the revision's own table, as the client framed it. */
+        if( session->player && session->player->recording )
+            ToriRSServer_RecordingClientPacket(session->player->recording,
+                                               session->pending_opcode, session->in + len_bytes,
+                                               payload_len, len_bytes);
 
         if( wire->translate_in )
         {

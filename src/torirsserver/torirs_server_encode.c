@@ -15,6 +15,7 @@
  * as garbage entities.
  */
 #include "torirs_server.h"
+#include "torirs_server_recording.h"
 
 #include "torirs_server_content.h"
 #include "torirs_server_ids.h"
@@ -434,6 +435,9 @@ ToriRSServer_Send(
     if( !player->session || !ToriRSServer_SessionAlive(player->session) ||
         !player->session->cipher_out )
         return;
+    /* Only what reaches a client: past the session check, before the cipher. */
+    if( player->recording )
+        ToriRSServer_RecordingServerPacket(player->recording, opcode, payload, len, var);
     rsab_wrap(&buf, frame, sizeof(frame));
     /*
      * pSmart1Or2: a revision whose opcodes reach 0x80 writes the high ones as
@@ -952,6 +956,11 @@ ToriRSServer_SendReconnectOk(struct ToriRSServerPlayer* player)
     player->v5_last_x = player->x;
     player->v5_last_z = player->z;
     player->v5_last_level = player->level;
+
+    /* RSProx's RECONNECT frame: the replay drops the connection here and
+     * answers the client's reconnect with this block. */
+    if( player->recording )
+        ToriRSServer_RecordingReconnect(player->recording, buf.data, (int)rsab_len(&buf));
 
     rsab_wrap(&out, header, sizeof(header));
     rsab_p1(&out, OSRS_LOGINRES_RECONNECT_OK);

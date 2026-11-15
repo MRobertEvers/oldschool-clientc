@@ -1092,7 +1092,7 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_friends.c \
 	torirsserver/torirs_server_ge.c \
 	torirsserver/torirs_server_ids.c \
-	torirsserver/torirs_server_boot.c torirsserver/torirs_server_save.c torirsserver/torirs_server_savefile.c torirsserver/torirs_server_accountlog.c torirsserver/torirs_server_transport.c torirsserver/torirs_server_session.c \
+	torirsserver/torirs_server_boot.c torirsserver/torirs_server_save.c torirsserver/torirs_server_savefile.c torirsserver/torirs_server_accountlog.c torirsserver/torirs_server_recording.c torirsserver/torirs_server_transport.c torirsserver/torirs_server_session.c \
 	torirsserver/torirs_server_embed.c torirsserver/torirs_server_claim.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c net/flat_json.c content/content_register.c content/content_fields.c $(INI_SRC) \
 	torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c torirsserver/torirs_server_vessel.c \
 	world/wev.c \

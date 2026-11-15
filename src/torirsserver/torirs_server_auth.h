@@ -169,6 +169,18 @@ ToriRSServer_AuthSetAdmin(
     const char* display_name,
     int admin);
 
+/** Whether `display_name`'s record says `record = 1`: its sessions are
+ *  written to a recording (torirs_server_recording.h). 0 for no record. */
+int
+ToriRSServer_AuthIsRecorded(const char* display_name);
+
+/** Set or clear `record = 1`, keeping every other key. 0 when there is no
+ *  usable record. Takes effect at the account's next login. */
+int
+ToriRSServer_AuthSetRecorded(
+    const char* display_name,
+    int record);
+
 /**
  * The web login a player account is linked to, as it is keyed, into
  * `out_user`. 1 when it is linked; 0 when it is not or has no record; -1 when

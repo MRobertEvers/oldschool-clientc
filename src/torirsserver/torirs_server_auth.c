@@ -303,6 +303,9 @@ struct AuthFile
     int has_password;
     char name[TORIRSSERVER_AUTH_NAME_MAX + 1];
     int admin;
+    /** Every packet of this account's sessions is written to a recording
+     *  (torirs_server_recording.h). */
+    int record;
     /** The web login that owns this player account (ToriRSServer_AuthLink);
      *  "" when it signs in with its own password. */
     char managed_by[64];
@@ -398,6 +401,8 @@ auth_read_file(
             snprintf(out->name, sizeof(out->name), "%s", element._keyval.value);
         else if( strcmp(element._keyval.name, "admin") == 0 )
             out->admin = atoi(element._keyval.value) != 0;
+        else if( strcmp(element._keyval.name, "record") == 0 )
+            out->record = atoi(element._keyval.value) != 0;
         else if( strcmp(element._keyval.name, "managed_by") == 0 )
             snprintf(out->managed_by, sizeof(out->managed_by), "%s", element._keyval.value);
         else if( strcmp(element._keyval.name, "link_hash") == 0 )
@@ -422,25 +427,25 @@ auth_read_record(
     return have;
 }
 
-/* `managed_by` is the web login that owns the account and `link_hash` its
- * link token's hash, or both "" for none. */
+/* `record` is the password record to write; every other key comes from
+ * `keep` (admin, record, managed_by -- the web login that owns the account --
+ * and link_hash, its link token's hash, both "" for none). A new account
+ * passes a zeroed `keep`. */
 static int
 auth_write_record(
     const char* path,
     const char* record,
-    int admin,
-    const char* managed_by,
-    const char* link_hash)
+    const struct AuthFile* keep)
 {
-    char text[896];
+    char text[1024];
     char managed_line[192] = "";
 
-    assert(managed_by);
-    assert(link_hash);
-    assert(!managed_by[0] == !link_hash[0]);
-    if( managed_by[0] )
+    assert(record);
+    assert(keep);
+    assert(!keep->managed_by[0] == !keep->link_hash[0]);
+    if( keep->managed_by[0] )
         snprintf(managed_line, sizeof(managed_line), "managed_by = %s\nlink_hash = %s\n",
-                 managed_by, link_hash);
+                 keep->managed_by, keep->link_hash);
     snprintf(text, sizeof(text),
              "; ToriRSServer account. Written by torirs_server_auth.c.\n"
              "; Delete this file to reset the password: the next login sets it.\n"
@@ -450,10 +455,13 @@ auth_write_record(
              "; in only through the gate's session presenting the link token whose\n"
              "; hash is link_hash, never with this password\n"
              "; (torirsserver --account unlink <name> undoes it).\n"
+             "; record = 1 writes every session's packets to saves/recordings/<name>/\n"
+             "; (torirsserver --account record <name> on).\n"
              "\n[account]\n"
              "password = %s\n"
-             "%s%s",
-             record, admin ? "admin = 1\n" : "", managed_line);
+             "%s%s%s",
+             record, keep->admin ? "admin = 1\n" : "", keep->record ? "record = 1\n" : "",
+             managed_line);
     return ToriRSServer_SaveWriteText(path, text);
 }
 
@@ -549,6 +557,7 @@ ToriRSServer_AuthLogin(
     char path[1024];
     char record[TORIRSSERVER_AUTH_RECORD_MAX];
     struct AuthFile file;
+    struct AuthFile fresh;
     uint8_t salt[TORIRSSERVER_AUTH_SALT_BYTES];
     int have;
 
@@ -596,7 +605,8 @@ ToriRSServer_AuthLogin(
     ToriRSServer_AuthRecord(password, salt, TORIRSSERVER_AUTH_ITERATIONS, record);
     /* A claim that could not be written must not log in: the next login would
      * find no record and claim the name again, with any password. */
-    if( !auth_write_record(path, record, 0, "", "") )
+    memset(&fresh, 0, sizeof(fresh));
+    if( !auth_write_record(path, record, &fresh) )
         return TORIRSSERVER_AUTH_REFUSED;
     return TORIRSSERVER_AUTH_CLAIMED;
 }
@@ -630,7 +640,43 @@ ToriRSServer_AuthSetAdmin(
     snprintf(path, sizeof(path), "%s", ToriRSServer_AccountPath(display_name));
     if( !path[0] || auth_read_record(path, &file) <= 0 )
         return 0;
-    written = auth_write_record(path, file.password, admin, file.managed_by, file.link_hash);
+    file.admin = admin;
+    written = auth_write_record(path, file.password, &file);
+    auth_wipe(&file, sizeof(file));
+    return written;
+}
+
+int
+ToriRSServer_AuthIsRecorded(const char* display_name)
+{
+    char path[1024];
+    struct AuthFile file;
+    int record;
+
+    assert(display_name);
+    snprintf(path, sizeof(path), "%s", ToriRSServer_AccountPath(display_name));
+    if( !path[0] || auth_read_record(path, &file) <= 0 )
+        return 0;
+    record = file.record;
+    auth_wipe(&file, sizeof(file));
+    return record;
+}
+
+int
+ToriRSServer_AuthSetRecorded(
+    const char* display_name,
+    int record)
+{
+    char path[1024];
+    struct AuthFile file;
+    int written;
+
+    assert(display_name);
+    snprintf(path, sizeof(path), "%s", ToriRSServer_AccountPath(display_name));
+    if( !path[0] || auth_read_record(path, &file) <= 0 )
+        return 0;
+    file.record = record;
+    written = auth_write_record(path, file.password, &file);
     auth_wipe(&file, sizeof(file));
     return written;
 }
@@ -738,7 +784,9 @@ ToriRSServer_AuthLink(
         return TORIRSSERVER_LINK_OTHER_USER;
     }
     auth_link_mint(out_token, hash);
-    written = auth_write_record(path, file.password, file.admin, owner, hash);
+    snprintf(file.managed_by, sizeof(file.managed_by), "%s", owner);
+    snprintf(file.link_hash, sizeof(file.link_hash), "%s", hash);
+    written = auth_write_record(path, file.password, &file);
     auth_wipe(&file, sizeof(file));
     if( written )
         return TORIRSSERVER_LINK_OK;
@@ -757,7 +805,9 @@ ToriRSServer_AuthUnlink(const char* display_name)
     snprintf(path, sizeof(path), "%s", ToriRSServer_AccountPath(display_name));
     if( !path[0] || auth_read_record(path, &file) <= 0 )
         return 0;
-    written = auth_write_record(path, file.password, file.admin, "", "");
+    file.managed_by[0] = '\0';
+    file.link_hash[0] = '\0';
+    written = auth_write_record(path, file.password, &file);
     auth_wipe(&file, sizeof(file));
     return written;
 }
@@ -1058,6 +1108,7 @@ ToriRSServer_AuthCreate(
     char record[TORIRSSERVER_AUTH_RECORD_MAX];
     uint8_t salt[TORIRSSERVER_AUTH_SALT_BYTES];
     enum ToriRSServerCreateResult result;
+    struct AuthFile fresh;
 
     assert(display_name);
     assert(password);
@@ -1068,8 +1119,10 @@ ToriRSServer_AuthCreate(
         return result;
     auth_random(salt, sizeof(salt));
     ToriRSServer_AuthRecord(password, salt, TORIRSSERVER_AUTH_ITERATIONS, record);
-    return auth_write_record(path, record, admin, "", "") ? TORIRSSERVER_CREATE_OK
-                                                          : TORIRSSERVER_CREATE_WRITE_FAILED;
+    memset(&fresh, 0, sizeof(fresh));
+    fresh.admin = admin;
+    return auth_write_record(path, record, &fresh) ? TORIRSSERVER_CREATE_OK
+                                                   : TORIRSSERVER_CREATE_WRITE_FAILED;
 }
 
 int
@@ -1098,8 +1151,8 @@ ToriRSServer_AuthSetPassword(
     }
     auth_random(salt, sizeof(salt));
     ToriRSServer_AuthRecord(password, salt, TORIRSSERVER_AUTH_ITERATIONS, record);
-    /* Admin and any link stay as they were: this is the password only. */
-    written = auth_write_record(path, record, file.admin, file.managed_by, file.link_hash);
+    /* Admin, recording and any link stay as they were: this is the password only. */
+    written = auth_write_record(path, record, &file);
     auth_wipe(&file, sizeof(file));
     auth_wipe(record, sizeof(record));
     if( !written )
