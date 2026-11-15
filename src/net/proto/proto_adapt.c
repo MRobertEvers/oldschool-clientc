@@ -2903,7 +2903,7 @@ adapt_set_npc_update_origin(MsgSetNpcUpdateOrigin const* m, struct RevPacket* ou
  *     layer does not know.
  *
  * RSProt calls this SET_MAP_FLAG_V2; the client's canonical name is
- * UNSET_MAP_FLAG, and src/torirsserver/wire/osrs239/packetin.h has recorded the mapping
+ * UNSET_MAP_FLAG, and the server's 239 prot map (wire/osrs239/osrs239_prots.h) has recorded the mapping
  * all along. It was reported as "not vendored in RSProt" twice before anyone
  * read that row.
  */

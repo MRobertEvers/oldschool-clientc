@@ -1,14 +1,12 @@
 #include "torirsserver/torirs_server_wire.h"
-#include "torirsserver/wire/osrs242/osrs242_player_info.h"
+#include "streams/player_info_write.h"
 
 #include "torirsserver/wire/core/wire_runclientscript.h"
 #include "torirsserver/wire/osrs242/osrs242_inbound.h"
 #include "torirsserver/torirs_server_scene.h"
 #include "torirsserver/torirs_server_zone.h"
 
-#include "torirsserver/wire/osrs242/packetin.h"
-#include "torirsserver/wire/osrs242/packetout.h"
-#include "torirsserver/wire/osrs242/zoneprot.h"
+#include "torirsserver/wire/osrs242/osrs242_prots.h"
 
 #include "rsprot_buf.h"
 #include "rsprot_exec.h"
@@ -144,57 +142,57 @@ osrs242_opcode(int pkt_name)
     /* No 242 layout: neither as its own prot nor inside a zone. */
     if( pkt_name == PKT_NAME_LOC_MERGE )
         return -1;
-    return packetin_wire_osrs242(pkt_name);
+    return wire_prot_in_code(&g_osrs242_prots, pkt_name);
 }
 
 static int
 osrs242_size(int wire_opcode)
 {
-    return packetin_size_osrs242(wire_opcode);
+    return wire_prot_in_size(&g_osrs242_prots, wire_opcode);
 }
 
 static char const*
 osrs242_prot_name(int wire_opcode)
 {
-    return packetin_protname_osrs242(wire_opcode);
+    return wire_prot_in_protname(&g_osrs242_prots, wire_opcode);
 }
 
 static int
 osrs242_out_size(int wire_opcode)
 {
-    return osrs242_packetout_size(wire_opcode);
+    return wire_prot_out_size(&g_osrs242_prots, wire_opcode);
 }
 
 static int
 osrs242_out_name(int wire_opcode)
 {
-    return osrs242_packetout_name(wire_opcode);
+    return wire_prot_out_name(&g_osrs242_prots, wire_opcode);
 }
 
 static char const*
 osrs242_out_prot_name(int wire_opcode)
 {
-    return osrs242_packetout_protname(wire_opcode);
+    return wire_prot_out_protname(&g_osrs242_prots, wire_opcode);
 }
 
 /* The enclosed sub-packet ordinal: RSProx 242's IndexedZoneProtDecoder order
- * (zoneprot.h), another permutation. LOC_MERGE has none to send. */
+ * (RSPROT_OSRS242_ZONE_*, 3rd/rsprot/gen/osrs242_prot.h), another permutation. LOC_MERGE has none to send. */
 static int
 osrs242_zone_sub(int pkt_name)
 {
     switch( pkt_name )
     {
-    case PKT_NAME_LOC_DEL: return OSRS242_ZONE_LOC_DEL;
-    case PKT_NAME_OBJ_COUNT: return OSRS242_ZONE_OBJ_COUNT;
-    case PKT_NAME_MAP_ANIM: return OSRS242_ZONE_MAP_ANIM;
-    case PKT_NAME_SOUND_AREA: return OSRS242_ZONE_SOUND_AREA;
-    case PKT_NAME_LOC_ADD_CHANGE: return OSRS242_ZONE_LOC_ADD_CHANGE_V2;
-    case PKT_NAME_OBJ_ADD: return OSRS242_ZONE_OBJ_ADD;
-    case PKT_NAME_LOC_ANIM: return OSRS242_ZONE_LOC_ANIM;
-    case PKT_NAME_OBJ_DEL: return OSRS242_ZONE_OBJ_DEL;
-    case PKT_NAME_OBJ_REVEAL: return OSRS242_ZONE_OBJ_ENABLED_OPS;
-    case PKT_NAME_MAP_PROJANIM: return OSRS242_ZONE_MAP_PROJANIM_V2;
-    case PKT_NAME_SCRIPTEDPROJ_ADD: return OSRS242_ZONE_SCRIPTEDPROJ_ADD;
+    case PKT_NAME_LOC_DEL: return RSPROT_OSRS242_ZONE_LOC_DEL;
+    case PKT_NAME_OBJ_COUNT: return RSPROT_OSRS242_ZONE_OBJ_COUNT;
+    case PKT_NAME_MAP_ANIM: return RSPROT_OSRS242_ZONE_MAP_ANIM;
+    case PKT_NAME_SOUND_AREA: return RSPROT_OSRS242_ZONE_SOUND_AREA;
+    case PKT_NAME_LOC_ADD_CHANGE: return RSPROT_OSRS242_ZONE_LOC_ADD_CHANGE_V2;
+    case PKT_NAME_OBJ_ADD: return RSPROT_OSRS242_ZONE_OBJ_ADD;
+    case PKT_NAME_LOC_ANIM: return RSPROT_OSRS242_ZONE_LOC_ANIM;
+    case PKT_NAME_OBJ_DEL: return RSPROT_OSRS242_ZONE_OBJ_DEL;
+    case PKT_NAME_OBJ_REVEAL: return RSPROT_OSRS242_ZONE_OBJ_ENABLED_OPS;
+    case PKT_NAME_MAP_PROJANIM: return RSPROT_OSRS242_ZONE_MAP_PROJANIM_V2;
+    case PKT_NAME_SCRIPTEDPROJ_ADD: return RSPROT_OSRS242_ZONE_SCRIPTEDPROJ_ADD;
     default: return -1;
     }
 }
@@ -1140,7 +1138,7 @@ w242_zone_payload(
 /* ------------------------------------------------------------------ */
 
 static const struct ToriRSServerWirePayload k_payload_osrs242 = {
-    .player_info = osrs242_player_info_write_world,
+    .player_info = player_info_osrs242_write,
     .message_private = ToriRSServer_WireMessagePrivateOsrs,
     .if_movesub = w242_if_movesub,
     .if_setcolour = w242_if_setcolour,

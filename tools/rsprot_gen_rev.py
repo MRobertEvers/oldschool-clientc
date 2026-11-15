@@ -1,27 +1,26 @@
 #!/usr/bin/env python3
 """
-Generate a revision module's wire tables from RSProt.
+Generate a revision's prot map for the server's wire layer from RSProt.
 
     tools/rsprot_gen_rev.py 239 --out src/torirsserver/wire/osrs239
 
-Writes `packetin.h` (server->client), `packetout.h` (client->server) and
-`zoneprot.h` (the UPDATE_ZONE_PARTIAL_ENCLOSED sub-packet index). Every prot the
-revision defines gets a row, including the ones this engine has no decoder for:
-a row it cannot decode still frames to the right length, and a length this table
-does not state is a stream desync rather than a dropped packet.
+Writes `osrs<rev>_prots.h`: which canonical name (src/net/rev/pktnames.h) this
+server writes each server->client prot as and reads each client->server prot
+as. It holds no opcode or size: every row names its prot by RSProt's constant
+(RSPROT_OSRS<rev>_SERVER_<prot>, 3rd/rsprot/gen/osrs<rev>_prot.h), and the
+lookups in src/torirsserver/wire/core/wire_prot.h read sizes and prot names
+from RSProt's table. A prot with no row is never written, and is framed by its
+RSProt size and dropped when read. The zone sub-packet ordinals are RSProt's
+too (RSPROT_OSRS<rev>_ZONE_<prot>).
 
-The two maps below are the only hand-written part, and they are the only part
+The maps below are the only hand-written part, and they are the only part
 that can be wrong in a way the compiler will not catch. `CANON_IN` / `CANON_OUT`
-say which RSProt prot answers to which of this engine's canonical packet names
-(src/net/rev/pktnames.h). A name mapped here is a claim that the *payload* this
-engine reads matches what the revision writes — mapping a prot whose layout
-changed is how you get a packet that frames cleanly and decodes to garbage. When
-a revision renames a prot with a `_V<n>` suffix it is telling you the layout
-moved; check the encoder before carrying the mapping forward.
-
-Prots RSProt gives opcode -1 exist only inside UPDATE_ZONE_PARTIAL_ENCLOSED.
-They keep their row (the size is still the truth for the sub-packet) and are
-emitted with code -1, which no wire byte can match.
+say which RSProt prot answers to which of this engine's canonical packet names.
+A name mapped here is a claim that the *payload* this engine reads or writes
+matches what the revision carries -- mapping a prot whose layout changed is how
+you get a packet that frames cleanly and decodes to garbage. When a revision
+renames a prot with a `_V<n>` suffix it is telling you the layout moved; check
+the encoder before carrying the mapping forward.
 """
 
 import argparse
@@ -364,264 +363,82 @@ BANNER = """/*
 BANNER_EXTRA = ""
 
 
-def size_literal(n, prefix):
-    if n == -1:
-        return f"{prefix}_LENGTH_VARU8"
-    if n == -2:
-        return f"{prefix}_LENGTH_VARU16"
-    return str(n)
-
-
-def gen_packetin(rev, rows, src):
+def gen_prots(rev, server_rows, client_rows, src):
+    R = f"OSRS{rev}"
     lines = [
-        f"#ifndef SRC_NET_REV_OSRS{rev}_PACKETIN_H",
-        f"#define SRC_NET_REV_OSRS{rev}_PACKETIN_H",
+        f"#ifndef SRC_TORIRSSERVER_WIRE_OSRS{rev}_PROTS_H",
+        f"#define SRC_TORIRSSERVER_WIRE_OSRS{rev}_PROTS_H",
         "",
         BANNER.format(rev=rev, src=src, extra=BANNER_EXTRA),
         "",
         "/*",
-        f" * OSRS revision {rev} server->client wire opcodes and payload sizes.",
+        f" * Revision {rev}: the canonical name this server writes each server->client",
+        " * prot as, and reads each client->server prot as. Opcodes, sizes and prot",
+        f" * names are RSProt's (3rd/rsprot/gen/osrs{rev}_prot.h); the lookups are",
+        " * src/torirsserver/wire/core/wire_prot.h.",
         " *",
-        " * Every prot the revision defines has a row, whether or not this engine",
-        " * decodes it: an undecoded row still frames to the right length, and a length",
-        " * this table omits desynchronises the stream rather than dropping one packet.",
-        " * `name` is PKT_NAME_NONE for the rows with no decoder.",
+        " * A server->client prot with no row is one this server never writes; a",
+        " * client->server prot with no row is framed by its RSProt size and dropped.",
+        " * A code of -1 is a prot with no top-level opcode: a sub-packet of",
+        f" * UPDATE_ZONE_PARTIAL_ENCLOSED only, sent by its RSPROT_{R}_ZONE_ ordinal.",
         " *",
-        " * Opcodes >= 0x80 are written by the server as TWO stream-cipher bytes",
-        " * (`(op >>> 8) | 0x80`, then `op & 0xFF`) -- RSProt's pSmart1Or2Enc. The framer",
-        " * reads that form when the revision sets `opcode_smart2`.",
-        " *",
-        " * A code of -1 means the prot has no top-level opcode: it exists only as a",
-        " * sub-packet inside UPDATE_ZONE_PARTIAL_ENCLOSED (see zoneprot.h). Its size is",
-        " * still the truth for that sub-packet.",
-        " */",
-        "",
-        '#include "net/rev/pktnames.h"',
-        "",
-        "#ifndef PKTIN_LENGTH_VARU8",
-        "#define PKTIN_LENGTH_VARU8 (-1)",
-        "#define PKTIN_LENGTH_VARU16 (-2)",
-        "#endif",
-        "",
-        f"struct Osrs{rev}PacketInDef",
-        "{",
-        "    int code;   /* wire opcode, or -1 for enclosed-only */",
-        "    int length;",
-        "    int name;   /* canonical GameProtoPktName, PKT_NAME_NONE if undecoded */",
-        "    char const* prot; /* RSProt's own name, for logs and for grepping back */",
-        "};",
-        "",
-        "/* clang-format off */",
-        f"static const struct Osrs{rev}PacketInDef g_packet_in_definitions_osrs{rev}[] = {{",
-    ]
-    for r in rows:
-        canon = CANON_IN.get(r["name"])
-        nm = f"PKT_NAME_{canon}" if canon else "PKT_NAME_NONE"
-        lines.append(
-            "    { %4d, %-22s %-36s \"%s\" },"
-            % (r["code"], size_literal(r["size"], "PKTIN") + ",", nm + ",", r["name"])
-        )
-    lines += [
-        "};",
-        "/* clang-format on */",
-        "",
-        f"#define OSRS{rev}_PACKET_IN_COUNT                                                                    \\",
-        f"    ((int)(sizeof(g_packet_in_definitions_osrs{rev}) /                                               \\",
-        f"           sizeof(g_packet_in_definitions_osrs{rev}[0])))",
-        "",
-        "static inline int",
-        f"packetin_size_osrs{rev}(int wire_opcode)",
-        "{",
-        f"    for( int i = 0; i < OSRS{rev}_PACKET_IN_COUNT; i++ )",
-        f"        if( g_packet_in_definitions_osrs{rev}[i].code == wire_opcode )",
-        f"            return g_packet_in_definitions_osrs{rev}[i].length;",
-        "    return 0; /* unknown -> zero-length; the framer completes and resets */",
-        "}",
-        "",
-        "static inline int",
-        f"packetin_code_osrs{rev}(int wire_opcode)",
-        "{",
-        f"    for( int i = 0; i < OSRS{rev}_PACKET_IN_COUNT; i++ )",
-        f"        if( g_packet_in_definitions_osrs{rev}[i].code == wire_opcode )",
-        f"            return g_packet_in_definitions_osrs{rev}[i].name;",
-        "    return PKT_NAME_NONE;",
-        "}",
-        "",
-        "static inline int",
-        f"packetin_wire_osrs{rev}(int pkt_name)",
-        "{",
-        f"    for( int i = 0; i < OSRS{rev}_PACKET_IN_COUNT; i++ )",
-        f"        if( g_packet_in_definitions_osrs{rev}[i].name == pkt_name &&",
-        f"            g_packet_in_definitions_osrs{rev}[i].name != PKT_NAME_NONE )",
-        f"            return g_packet_in_definitions_osrs{rev}[i].code;",
-        "    return -1;",
-        "}",
-        "",
-        "/** RSProt's own prot name for a wire opcode; NULL when unknown. Logs read as",
-        " *  the revision spells them, so a trace can be grepped straight into RSProt. */",
-        "static inline char const*",
-        f"packetin_protname_osrs{rev}(int wire_opcode)",
-        "{",
-        f"    for( int i = 0; i < OSRS{rev}_PACKET_IN_COUNT; i++ )",
-        f"        if( g_packet_in_definitions_osrs{rev}[i].code == wire_opcode )",
-        f"            return g_packet_in_definitions_osrs{rev}[i].prot;",
-        "    return 0;",
-        "}",
-        "",
-        "#endif",
-        "",
-    ]
-    return "\n".join(lines)
-
-
-def gen_packetout(rev, rows, src):
-    lines = [
-        f"#ifndef SRC_NET_REV_OSRS{rev}_PACKETOUT_H",
-        f"#define SRC_NET_REV_OSRS{rev}_PACKETOUT_H",
-        "",
-        BANNER.format(rev=rev, src=src, extra=BANNER_EXTRA),
-        "",
-        "/*",
-        f" * OSRS revision {rev} client->server wire opcodes and payload sizes.",
-        " *",
-        " * Same rule as packetin.h: every prot gets a row so the receiving side (the",
-        " * mock server) frames the whole stream, not only the packets it acts on.",
-        " * `name` is PKTOUT_NAME_NONE for prots this engine never builds.",
-        " *",
-        " * Canonical names with NO row in this revision, and what replaced them:",
+        " * Canonical client->server names with NO row in this revision, and what",
+        " * replaced them:",
     ]
     for k, v in NO_PROT_OUT.items():
         lines.append(f" *   {k:<16} -> {v}")
     lines += [
         " *",
-        " * That list is operational, not just documentation: IF_BUTTONX and",
-        " * IF_SUBOP carry canonical names below, and net_out.c falls back to",
-        " * them for the collapsed classic families. An unmapped row silently",
-        " * makes every corresponding interaction unsendable.",
+        " * That list is operational, not just documentation: IF_BUTTONX and IF_SUBOP",
+        " * carry canonical names below, and net_out.c falls back to them for the",
+        " * collapsed classic families. An unmapped row silently makes every",
+        " * corresponding interaction unsendable.",
         " *",
         " * The login prots (INIT_GAME_CONNECTION, GAMELOGIN, POW_REPLY) are not here:",
         " * they live in a different prot space and are built by the login driver.",
         " */",
         "",
+        f'#include "3rd/rsprot/gen/osrs{rev}_prot.h"',
         '#include "net/rev/pktnames.h"',
-        "",
-        "#ifndef PKTOUT_LENGTH_VARU8",
-        "#define PKTOUT_LENGTH_VARU8 (-1)",
-        "#define PKTOUT_LENGTH_VARU16 (-2)",
-        "#endif",
-        "",
-        f"struct Osrs{rev}PacketOutDef",
-        "{",
-        "    int name;   /* canonical GameProtoPktOutName */",
-        "    int code;",
-        "    int length;",
-        "    char const* prot;",
-        "};",
+        '#include "torirsserver/wire/core/wire_prot.h"',
         "",
         "/* clang-format off */",
-        f"static const struct Osrs{rev}PacketOutDef g_packet_out_definitions_osrs{rev}[] = {{",
+        f"static const struct WireProtName g_osrs{rev}_server_names[] = {{",
     ]
-    for r in rows:
+    n_server = 0
+    for r in server_rows:
+        canon = CANON_IN.get(r["name"])
+        if not canon:
+            continue
+        n_server += 1
+        lines.append("    { %-58s PKT_NAME_%s }," % (f"RSPROT_{R}_SERVER_{r['rsprot']},", canon))
+    lines += ["};", "", f"static const struct WireProtName g_osrs{rev}_client_names[] = {{"]
+    for r in client_rows:
         canon = CANON_OUT.get(r["name"])
-        nm = f"PKTOUT_NAME_{canon}" if canon else "PKTOUT_NAME_NONE"
-        lines.append(
-            "    { %-36s %4d, %-24s \"%s\" },"
-            % (nm + ",", r["code"], size_literal(r["size"], "PKTOUT") + ",", r["name"])
-        )
+        if not canon:
+            continue
+        lines.append("    { %-58s PKTOUT_NAME_%s }," % (f"RSPROT_{R}_CLIENT_{r['rsprot']},", canon))
+    lines.append("};")
     extras = EXTRA_OUT.get(str(rev), [])
     if extras:
         lines += [
             "",
-            "    /* Client-table-only fixed packets. These are framing rows; the",
-            "     * mock intentionally drops their bodies after consuming them. */",
+            "/* Client-table-only fixed packets RSProt does not table. The server",
+            " * frames them and drops their bodies. */",
+            f"static const struct WireProtFrame g_osrs{rev}_client_extra[] = {{",
         ]
         for code, size, name in extras:
-            lines.append(
-                "    { %-36s %4d, %-24s \"%s\" },"
-                % ("PKTOUT_NAME_NONE,", code, str(size) + ",", name)
-            )
+            lines.append('    { %4d, %d, "%s" },' % (code, size, name))
+        lines.append("};")
+    lines += ["/* clang-format on */", ""]
+    count = lambda arr: f"(int)(sizeof({arr}) / sizeof({arr}[0]))"
     lines += [
-        "};",
-        "/* clang-format on */",
-        "",
-        f"#define OSRS{rev}_PACKET_OUT_COUNT                                                                   \\",
-        f"    ((int)(sizeof(g_packet_out_definitions_osrs{rev}) /                                              \\",
-        f"           sizeof(g_packet_out_definitions_osrs{rev}[0])))",
-        "",
-        "/** Canonical PKTOUT_NAME_* -> wire opcode; -1 = absent from this revision. */",
-        "static inline int",
-        f"packetout_code_osrs{rev}(int pkt_out_name)",
-        "{",
-        "    if( pkt_out_name == PKTOUT_NAME_NONE )",
-        "        return -1;",
-        f"    for( int i = 0; i < OSRS{rev}_PACKET_OUT_COUNT; i++ )",
-        f"        if( g_packet_out_definitions_osrs{rev}[i].name == pkt_out_name )",
-        f"            return g_packet_out_definitions_osrs{rev}[i].code;",
-        "    return -1;",
-        "}",
-        "",
-        "/** Wire opcode -> payload size for the receiving side. 0 for an unknown",
-        " *  opcode, which frames as empty and lets the stream resynchronise rather",
-        " *  than desyncing on a guessed length. */",
-        "static inline int",
-        f"osrs{rev}_packetout_size(int wire_opcode)",
-        "{",
-        f"    for( int i = 0; i < OSRS{rev}_PACKET_OUT_COUNT; i++ )",
-        f"        if( g_packet_out_definitions_osrs{rev}[i].code == wire_opcode )",
-        f"            return g_packet_out_definitions_osrs{rev}[i].length;",
-        "    return 0;",
-        "}",
-        "",
-        "/** Wire opcode -> canonical PKTOUT_NAME_*, or PKTOUT_NAME_NONE. */",
-        "static inline int",
-        f"osrs{rev}_packetout_name(int wire_opcode)",
-        "{",
-        f"    for( int i = 0; i < OSRS{rev}_PACKET_OUT_COUNT; i++ )",
-        f"        if( g_packet_out_definitions_osrs{rev}[i].code == wire_opcode )",
-        f"            return g_packet_out_definitions_osrs{rev}[i].name;",
-        "    return PKTOUT_NAME_NONE;",
-        "}",
-        "",
-        "static inline char const*",
-        f"osrs{rev}_packetout_protname(int wire_opcode)",
-        "{",
-        f"    for( int i = 0; i < OSRS{rev}_PACKET_OUT_COUNT; i++ )",
-        f"        if( g_packet_out_definitions_osrs{rev}[i].code == wire_opcode )",
-        f"            return g_packet_out_definitions_osrs{rev}[i].prot;",
-        "    return 0;",
-        "}",
-        "",
-        "#endif",
-        "",
-    ]
-    return "\n".join(lines)
-
-
-def gen_zoneprot(rev, order, src):
-    lines = [
-        f"#ifndef SRC_NET_REV_OSRS{rev}_ZONEPROT_H",
-        f"#define SRC_NET_REV_OSRS{rev}_ZONEPROT_H",
-        "",
-        BANNER.format(rev=rev, src=src, extra=BANNER_EXTRA),
-        "",
-        "/*",
-        " * UPDATE_ZONE_PARTIAL_ENCLOSED sub-packet index.",
-        " *",
-        " * A sub-packet inside the enclosed zone payload is NOT addressed by its",
-        " * top-level opcode, and not by RSProt's OldSchoolZoneProt id either. It is",
-        " * addressed by the ORDINAL of RSProt's IndexedZoneProtEncoder enum, which is",
-        " * declaration order and matches a table inside the client. Using either of the",
-        " * other two numbers writes a well-formed packet the client reads as a",
-        " * different sub-packet.",
-        " */",
-        "",
-        "enum Osrs%sZoneProt" % rev,
-        "{",
-    ]
-    for i, name in enumerate(order):
-        lines.append(f"    OSRS{rev}_ZONE_{name} = {i},")
-    lines += [
-        f"    OSRS{rev}_ZONE_COUNT = {len(order)}",
+        f"static const struct WireProtTable g_osrs{rev}_prots = {{",
+        f"    rsprot_osrs{rev}_server, RSPROT_{R}_SERVER_COUNT,",
+        f"    rsprot_osrs{rev}_client, RSPROT_{R}_CLIENT_COUNT,",
+        f"    g_osrs{rev}_server_names, {count(f'g_osrs{rev}_server_names')},",
+        f"    g_osrs{rev}_client_names, {count(f'g_osrs{rev}_client_names')},",
+        (f"    g_osrs{rev}_client_extra, {count(f'g_osrs{rev}_client_extra')}," if extras else "    NULL, 0,"),
         "};",
         "",
         "#endif",
@@ -638,7 +455,7 @@ def load_table(rev):
     size = {"VARU8": -1, "VARU16": -2}
 
     def rows(key):
-        return [{"name": r[0], "code": r[1], "size": size.get(r[2], r[2])} for r in t[key]]
+        return [{"name": r[0], "rsprot": r[0], "code": r[1], "size": size.get(r[2], r[2])} for r in t[key]]
 
     return {"server": rows("server"), "client": rows("client"), "zone_order": t["zone_order"],
             "source": t["source"]}
@@ -653,7 +470,6 @@ def main():
 
     dump = load_table(args.rev)
     src = dump["source"]
-    zone_order = dump["zone_order"]
     # A table RSProt took from RSProx (240+): this engine names its rows as
     # RSProx does, so its wire logs read against the recordings.
     if src.startswith("RSProx"):
@@ -671,9 +487,7 @@ def main():
     os.makedirs(args.out, exist_ok=True)
     written = []
     for fname, text in (
-        ("packetin.h", gen_packetin(args.rev, dump["server"], src)),
-        ("packetout.h", gen_packetout(args.rev, dump["client"], src)),
-        ("zoneprot.h", gen_zoneprot(args.rev, zone_order, src)),
+        (f"osrs{args.rev}_prots.h", gen_prots(args.rev, dump["server"], dump["client"], src)),
     ):
         path = os.path.join(args.out, fname)
         with open(path, "w") as fh:

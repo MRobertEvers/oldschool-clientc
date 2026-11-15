@@ -1,15 +1,15 @@
-#include "torirsserver/wire/osrs242/osrs242_player_info.h"
+#include "player_info_write.h"
 
-#include "torirsserver/wire/core/wire_facing.h"
+#include "face_write.h"
 
 #include <assert.h>
-#include "rsprot_buf.h"
+#include "../src/rsprot_buf.h"
 
 /*
  * PLAYER_INFO's extended-info tail at revision 242.
  *
  * The bit sections ahead of it are 241's (RSProt player_info version 6 covers
- * 240..242), so wire_player_info.c still writes them. The tail is
+ * 240..242), so player_info_write.c still writes them. The tail is
  * transcribed from the reader it must satisfy, RSProt's player_info osrs242
  * (3rd/rsprot/spec/streams/player_info.ini, from RSProx 8c514346's
  * PlayerInfoClient): new flag bits, continuation bits, block order and nearly
@@ -43,11 +43,11 @@ enum
 };
 
 static void
-osrs242_player_info_extended(
+player_info_osrs242_write_extended(
     struct RsprotBuf* buf,
     const uint8_t* appearance,
     int appearance_len,
-    const struct WirePlayerExt* ext)
+    const struct RsprotPlayerExt* ext)
 {
     int const has_appearance = appearance && appearance_len > 0;
     int const has_hit = ext && ext->has_hit;
@@ -156,11 +156,11 @@ osrs242_player_info_extended(
     if( has_spotanim )
     {
         assert(ext->spotanim_count > 0);
-        assert(ext->spotanim_count <= WIRE_PLAYER_SPOTANIM_MAX);
+        assert(ext->spotanim_count <= RSPROT_PLAYER_SPOTANIM_MAX);
         rsprot_p1(buf, ext->spotanim_count);
         for( int i = 0; i < ext->spotanim_count; i++ )
         {
-            struct WirePlayerSpotanim const* spot = &ext->spotanims[i];
+            struct RsprotPlayerSpotanim const* spot = &ext->spotanims[i];
 
             rsprot_p1_add128(buf, spot->slot);
             rsprot_p2_21_add128(buf, spot->id < 0 ? 65535 : spot->id);
@@ -175,7 +175,7 @@ osrs242_player_info_extended(
         rsprot_p1_neg(buf, 1 + ext->headbar_extra_count);
         rsprot_psmart1or2(buf, ext->headbar_type);
         rsprot_psmart1or2(buf, ext->headbar_duration);
-        if( ext->headbar_duration != WIRE_HEADBAR_REMOVE )
+        if( ext->headbar_duration != RSPROT_HEADBAR_REMOVE )
         {
             rsprot_psmart1or2(buf, ext->headbar_start_delay);
             rsprot_p1_sub128(buf, ext->headbar_start_fill);
@@ -226,7 +226,7 @@ osrs242_player_info_extended(
                      (ext->face.instant ? 0x40 : 0);
 
         rsprot_p1_sub128(buf, header);
-        wire_face_write_payload(buf, &ext->face);
+        rsprot_face_write_payload(buf, &ext->face);
     }
     /* temporary move speed: g1sAlt3. */
     if( has_temp_move_speed )
@@ -234,16 +234,16 @@ osrs242_player_info_extended(
 }
 
 void
-osrs242_player_info_write_world(
+player_info_osrs242_write(
     struct RsprotBuf* buf,
-    struct WirePlayerInfoState* state,
-    const struct WirePlayerUpdate* updates,
+    struct RsprotPlayerInfoWriter* state,
+    const struct RsprotPlayerUpdate* updates,
     int count)
 {
-    const struct WirePlayerUpdate* extended[WIRE_PLAYER_SLOTS];
-    int n = wire_player_info_write_sections(buf, state, updates, count, extended);
+    const struct RsprotPlayerUpdate* extended[RSPROT_INFO_PLAYER_SLOTS];
+    int n = rsprot_player_info_write_sections(buf, state, updates, count, extended);
 
     for( int i = 0; i < n; ++i )
-        osrs242_player_info_extended(
+        player_info_osrs242_write_extended(
             buf, extended[i]->appearance, extended[i]->appearance_len, extended[i]->ext);
 }

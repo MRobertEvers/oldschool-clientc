@@ -23,9 +23,9 @@
 #include "torirs_server_session.h"
 #include "torirs_server_vessel.h"
 #include "torirsserver/wire/core/wire_runclientscript.h"
-#include "torirsserver/wire/core/wire_appearance.h"
-#include "torirsserver/wire/core/wire_facing.h"
-#include "torirsserver/wire/core/wire_player_info.h"
+#include "streams/player_info_write.h"
+#include "streams/npc_info_write.h"
+#include "streams/face_write.h"
 
 #include "net/isaac.h"
 #include "net/torirs_control.h"
@@ -53,7 +53,7 @@
 #include <unistd.h>
 
 static int v5_face_from_classic(
-    struct WireFace* face,
+    struct RsprotFace* face,
     struct ToriRSServerPlayer const* recipient,
     uint32_t classic,
     uint32_t entity_mask,
@@ -938,7 +938,7 @@ ToriRSServer_SendReconnectOk(struct ToriRSServerPlayer* player)
     open_packet(&buf, 8192);
     coord = (int32_t)(((player->level & 0x3) << 28) | ((player->x & 0x3fff) << 14) |
                       (player->z & 0x3fff));
-    wire_player_info_write_init(&buf, ToriRSServer_WirePlayerIndex(player->pid), coord);
+    rsprot_player_info_write_init(&buf, ToriRSServer_WirePlayerIndex(player->pid), coord);
     if( !rsprot_buf_ok(&buf) )
     {
         fprintf(stderr, "torirsserver: reconnect init block overflowed\n");
@@ -953,7 +953,7 @@ ToriRSServer_SendReconnectOk(struct ToriRSServerPlayer* player)
      */
     ToriRSServer_PidSetAdd(&player->player_tracked, player->pid);
     player->v5_playerinfo_sent = 0;
-    wire_player_info_state_init(&player->v5_gpi, ToriRSServer_WirePlayerIndex(player->pid), coord);
+    rsprot_player_info_writer_init(&player->v5_gpi, ToriRSServer_WirePlayerIndex(player->pid), coord);
     memset(player->v5_player_generation, 0, sizeof(player->v5_player_generation));
     player->v5_last_x = player->x;
     player->v5_last_z = player->z;
@@ -1019,14 +1019,14 @@ send_rebuild_normal_at(
     {
         int32_t coord = (int32_t)(((player->level & 0x3) << 28) |
                                   ((player->x & 0x3fff) << 14) | (player->z & 0x3fff));
-        wire_player_info_write_init(&buf, ToriRSServer_WirePlayerIndex(player->pid),
+        rsprot_player_info_write_init(&buf, ToriRSServer_WirePlayerIndex(player->pid),
                                       coord);
         ToriRSServer_PidSetAdd(&player->player_tracked, player->pid);
         /* The init block resets the client's cycle bits, so the next
          * PLAYER_INFO must place the crowd in section 4 again — and it stated
          * the absolute position, so the next delta is measured from there. */
         player->v5_playerinfo_sent = 0;
-        wire_player_info_state_init(&player->v5_gpi, ToriRSServer_WirePlayerIndex(player->pid), coord);
+        rsprot_player_info_writer_init(&player->v5_gpi, ToriRSServer_WirePlayerIndex(player->pid), coord);
         memset(player->v5_player_generation, 0, sizeof(player->v5_player_generation));
         player->v5_last_x = player->x;
         player->v5_last_z = player->z;
@@ -4299,7 +4299,7 @@ put_appearance_v5(
      * bitmask. Content still owns the mask through HEADICONS_SET; choose its
      * active bit at the wire boundary, just as the decoder converts the index
      * back into the client's generic mask. */
-    headicon = wire_appearance_headicon_index(player->headicons);
+    headicon = rsprot_appearance_headicon_index(player->headicons);
 
     rsprot_p1(buf, (uint8_t)player->gender);
     rsprot_p1(buf, 255); /* skullIcon: -1, none */
@@ -4628,7 +4628,7 @@ put_player_extended(
          * Client-TS `Client.ts:8202`: four unsigned bytes, two cycle words,
          * one direction byte — and the tiles are read absolutely, as
          * scene-local squares, with no `pathX[0]` added. That is the whole
-         * difference from the v239 block in `wire_player_info.c`, which
+         * difference from the v239 block in `player_info_write.c`, which
          * states the same two tiles as signed deltas from the player.
          *
          * This arm exists whether or not a classic client is watching: the
@@ -5356,11 +5356,11 @@ player_hit_type_for_viewer(
 
 static void
 player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
-                   struct ToriRSServerPlayer* subject, enum WirePlayerMovement movement,
+                   struct ToriRSServerPlayer* subject, enum RsprotGpiMove movement,
                    int movement_value, int appearance_len, int entering,
-                   struct WirePlayerExt* output)
+                   struct RsprotPlayerExt* output)
 {
-            struct WirePlayerExt ext;
+            struct RsprotPlayerExt ext;
 
             memset(&ext, 0, sizeof(ext));
             if( subject->masks & (TORIRSSERVER_PMASK_DAMAGE | TORIRSSERVER_PMASK_DAMAGE2) )
@@ -5486,7 +5486,7 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
             {
                 ext.has_headbar = 1;
                 ext.headbar_type = subject->headbar_clear_type;
-                ext.headbar_duration = WIRE_HEADBAR_REMOVE;
+                ext.headbar_duration = RSPROT_HEADBAR_REMOVE;
             }
             if( (subject->masks & TORIRSSERVER_PMASK_SEQUENCE) || (entering && subject->anim_id >= 0) )
             {
@@ -5512,7 +5512,7 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                  * has the last one alone. Keeping this bridge here matters
                  * when ANIM and SPOTANIM_PL are set in the same tick: both
                  * masks must survive into one extended-info packet. */
-                _Static_assert(WIRE_PLAYER_SPOTANIM_MAX == TORIRSSERVER_NPC_SPOTANIM_MAX,
+                _Static_assert(RSPROT_PLAYER_SPOTANIM_MAX == TORIRSSERVER_NPC_SPOTANIM_MAX,
                                "one wire entry per server slot");
                 assert(subject->spotanim_count > 0);
                 ext.has_spotanim = 1;
@@ -5529,8 +5529,8 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                 /* `p_faceangle`: the FACING block's angle kind (deob
                  * class64.method1691 kind 2), which replaces whatever the
                  * client was facing. */
-                wire_face_init(&ext.face);
-                ext.face.kind = WIRE_FACE_ANGLE;
+                rsprot_face_init(&ext.face);
+                ext.face.kind = RSPROT_FACE_KIND_ANGLE;
                 ext.face.angle = subject->face_angle;
                 ext.face.instant = subject->face_angle_instant;
                 ext.has_face = 1;
@@ -5544,7 +5544,7 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
              * centre: RSProx 4428 [342] `coord=(3302, 3163, 3), sizex=3` for
              * the zip line at (3302,3163); 600 of 601 sized faces. face_x is
              * 2 * tile + size (ToriRSServer_CoordFine). */
-            if( ext.has_face && ext.face.kind == WIRE_FACE_LOC &&
+            if( ext.has_face && ext.face.kind == RSPROT_FACE_KIND_LOC &&
                 (subject->face_size_x > 1 || subject->face_size_z > 1) )
             {
                 int const size_x = subject->face_size_x > 1 ? subject->face_size_x : 1;
@@ -5565,7 +5565,7 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                 ext.transparency_use_start = subject->transparency_use_start;
             }
             if( subject->running && subject->move_count > 1 &&
-                movement != WIRE_PLAYER_TELEPORT )
+                movement != RSPROT_GPI_TELEPORT )
             {
                 /*
                  * The movement opcode states geometry, not traversal: a two-step
@@ -5594,7 +5594,7 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                 ext.has_temp_move_speed = 1;
                 ext.temp_move_speed = 2;
             }
-            else if( subject->tele_glide && movement == WIRE_PLAYER_RUN )
+            else if( subject->tele_glide && movement == RSPROT_GPI_RUN )
             {
                 /*
                  * A short `p_teleport` the client should WALK (`tele_glide`):
@@ -5659,26 +5659,26 @@ player_coord_v5(int level, int x, int z)
 
 static void
 player_world_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
-                struct RsprotBuf* buf, enum WirePlayerMovement local_movement,
+                struct RsprotBuf* buf, enum RsprotGpiMove local_movement,
                 int local_value, const uint8_t* local_appearance, int local_appearance_len,
-                const struct WirePlayerExt* local_ext)
+                const struct RsprotPlayerExt* local_ext)
 {
     /* Scratch for one viewer's packet, static rather than on the stack: at a
      * 2000-player cap the appearances alone are 1 MB. The encoder is never
      * re-entered (one viewer at a time, from phase 10). */
-    static struct WirePlayerUpdate updates[TORIRSSERVER_PLAYER_MAX];
-    static struct WirePlayerExt extensions[TORIRSSERVER_PLAYER_MAX];
+    static struct RsprotPlayerUpdate updates[TORIRSSERVER_PLAYER_MAX];
+    static struct RsprotPlayerExt extensions[TORIRSSERVER_PLAYER_MAX];
     static uint8_t appearances[TORIRSSERVER_PLAYER_MAX][512];
     int count = 0;
     int local_index = ToriRSServer_WirePlayerIndex(viewer->pid);
     if( !viewer->v5_gpi.initialized )
     {
-        wire_player_info_state_init(&viewer->v5_gpi, local_index,
+        rsprot_player_info_writer_init(&viewer->v5_gpi, local_index,
             player_coord_v5(viewer->v5_last_level, viewer->v5_last_x, viewer->v5_last_z));
         /* Direct encoder tests may start after a previously seeded local-only
          * stream. Real logins initialize this state alongside the wire init. */
         if( viewer->v5_playerinfo_sent )
-            for( int i = 1; i < WIRE_PLAYER_SLOTS; ++i )
+            for( int i = 1; i < RSPROT_INFO_PLAYER_SLOTS; ++i )
                 if( i != local_index ) viewer->v5_gpi.inactive[i] = 1;
     }
     for( int pid = 0; pid < TORIRSSERVER_PLAYER_MAX; ++pid )
@@ -5686,7 +5686,7 @@ player_world_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
         struct ToriRSServerPlayer* subject = pid == viewer->pid ? viewer : &srv->players[pid];
         if( !subject->active || subject->world != srv ) continue;
         int index = ToriRSServer_WirePlayerIndex(pid);
-        struct WirePlayerUpdate* update = &updates[count];
+        struct RsprotPlayerUpdate* update = &updates[count];
         memset(update, 0, sizeof(*update));
         update->index = index;
         update->visible = subject == viewer || player_in_view(viewer, subject);
@@ -5724,7 +5724,7 @@ player_world_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
             {
                 if( dx || dz )
                 {
-                    update->movement = WIRE_PLAYER_WALK;
+                    update->movement = RSPROT_GPI_WALK;
                     update->movement_value = ToriRSServer_StepDirection(dx, -dz);
                 }
             }
@@ -5733,12 +5733,12 @@ player_world_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
             {
                 static const int run[5][5] = {{0,1,2,3,4},{5,-1,-1,-1,6},
                     {7,-1,-1,-1,8},{9,-1,-1,-1,10},{11,12,13,14,15}};
-                update->movement = WIRE_PLAYER_RUN;
+                update->movement = RSPROT_GPI_RUN;
                 update->movement_value = run[dz + 2][dx + 2];
             }
             else
             {
-                update->movement = WIRE_PLAYER_TELEPORT;
+                update->movement = RSPROT_GPI_TELEPORT;
                 update->movement_value = player_coord_v5(dl, dx, dz);
             }
             player_extended_v5(srv, viewer, subject, update->movement, update->movement_value,
@@ -5805,7 +5805,7 @@ ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
         uint8_t appearance[512];
         struct RsprotBuf ap;
         int32_t coord;
-        enum WirePlayerMovement movement = WIRE_PLAYER_NOMOVE;
+        enum RsprotGpiMove movement = RSPROT_GPI_NOMOVE;
         int32_t movement_value = 0;
 
         /*
@@ -5865,13 +5865,13 @@ ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
 
             if( !glide && (player->place_dirty || player->level != player->v5_last_level) )
             {
-                movement = WIRE_PLAYER_TELEPORT;
+                movement = RSPROT_GPI_TELEPORT;
                 movement_value = coord;
             }
             else if( dx >= -1 && dx <= 1 && dz >= -1 && dz <= 1 &&
                      (dx != 0 || dz != 0) )
             {
-                movement = WIRE_PLAYER_WALK;
+                movement = RSPROT_GPI_WALK;
                 movement_value = ToriRSServer_StepDirection(dx, -dz);
             }
             else if( dx >= -2 && dx <= 2 && dz >= -2 && dz <= 2 &&
@@ -5885,12 +5885,12 @@ ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
                     { 11, 12, 13, 14, 15 },
                 };
 
-                movement = WIRE_PLAYER_RUN;
+                movement = RSPROT_GPI_RUN;
                 movement_value = k_run_dir[dz + 2][dx + 2];
             }
             else if( dx != 0 || dz != 0 )
             {
-                movement = WIRE_PLAYER_TELEPORT;
+                movement = RSPROT_GPI_TELEPORT;
                 movement_value = coord;
             }
         }
@@ -5901,7 +5901,7 @@ ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
          * does not" -- the packets were fine, the block was simply never built.
          */
         {
-            struct WirePlayerExt ext;
+            struct RsprotPlayerExt ext;
             player_extended_v5(srv, player, player, movement, movement_value,
                                (int)ap.wpos, !player->v5_playerinfo_sent, &ext);
             player_world_v5(srv, player, &buf, movement, movement_value, appearance,
@@ -6235,7 +6235,7 @@ enum
  * Face.Loc wants absolute tile coordinates plus a footprint. */
 static int
 v5_face_from_classic(
-    struct WireFace* face,
+    struct RsprotFace* face,
     struct ToriRSServerPlayer const* recipient,
     uint32_t classic,
     uint32_t entity_mask,
@@ -6245,7 +6245,7 @@ v5_face_from_classic(
     int face_z,
     int force_latch)
 {
-    wire_face_init(face);
+    rsprot_face_init(face);
 
     /* A loc and an entity cannot coexist in a V5 Face block.  `reorient`
      * intentionally clears the entity and emits the loc in its completion
@@ -6253,7 +6253,7 @@ v5_face_from_classic(
     if( (classic & coord_mask) != 0 ||
         (force_latch && face_entity < 0 && (face_x != 0 || face_z != 0)) )
     {
-        face->kind = WIRE_FACE_LOC;
+        face->kind = RSPROT_FACE_KIND_LOC;
         face->x = face_x / 2;
         face->z = face_z / 2;
         return 1;
@@ -6263,15 +6263,15 @@ v5_face_from_classic(
 
     if( face_entity < 0 )
     {
-        face->kind = WIRE_FACE_RESET;
+        face->kind = RSPROT_FACE_KIND_RESET;
         return 1;
     }
-    face->kind = WIRE_FACE_ENTITY;
+    face->kind = RSPROT_FACE_KIND_ENTITY;
     if( face_entity >= TORIRSSERVER_FACE_PLAYER_BASE )
     {
         int const pool_pid = face_entity - TORIRSSERVER_FACE_PLAYER_BASE;
 
-        face->entity_type = WIRE_FACE_PLAYER;
+        face->entity_type = RSPROT_FACE_TARGET_PLAYER;
         /* Rev-239 NpcFaceEncoder writes the player's GPI index. The classic
          * latch stores the mock's pool pid, so it needs the same +1 mapping as
          * login and PLAYER_INFO. Sending pool pid 0 here names the unoccupied
@@ -6280,7 +6280,7 @@ v5_face_from_classic(
     }
     else
     {
-        face->entity_type = WIRE_FACE_NPC;
+        face->entity_type = RSPROT_FACE_TARGET_NPC;
         face->entity_index = ToriRSServer_FaceEntityForClient(recipient, face_entity);
     }
     return 1;
@@ -6292,7 +6292,7 @@ v5_face_from_classic(
  * RSProx 4301 [994..1018]), else the entity / coord / reset latch. */
 static int
 npc_face_block(
-    struct WireFace* face,
+    struct RsprotFace* face,
     struct ToriRSServerPlayer const* recipient,
     const struct ToriRSServerNpc* npc,
     int force_latch)
@@ -6301,8 +6301,8 @@ npc_face_block(
 
     if( npc->masks & TORIRSSERVER_NMASK_FACE_ANGLE )
     {
-        wire_face_init(face);
-        face->kind = WIRE_FACE_ANGLE;
+        rsprot_face_init(face);
+        face->kind = RSPROT_FACE_KIND_ANGLE;
         face->angle = npc->face_angle;
         face->instant = npc->face_angle_instant;
         face->walk_mode = npc->face_walktype;
@@ -6318,8 +6318,8 @@ npc_face_block(
             return 0;
         if( npc->face_add_latch == TORIRSSERVER_NPCFACEADD_RESET )
         {
-            wire_face_init(face);
-            face->kind = WIRE_FACE_RESET;
+            rsprot_face_init(face);
+            face->kind = RSPROT_FACE_KIND_RESET;
             face->walk_mode = npc->face_walktype;
             return 1;
         }
@@ -6328,9 +6328,9 @@ npc_face_block(
                                TORIRSSERVER_NMASK_FACE_COORD, npc->face_entity, npc->face_x,
                                npc->face_z, force_latch);
     face->walk_mode = npc->face_walktype;
-    if( has && face->kind == WIRE_FACE_LOC )
+    if( has && face->kind == RSPROT_FACE_KIND_LOC )
         face->instant = npc->face_coord_instant;
-    if( has && face->kind == WIRE_FACE_ENTITY )
+    if( has && face->kind == RSPROT_FACE_KIND_ENTITY )
         face->instant = npc->face_entity_instant;
     return has;
 }
@@ -6340,7 +6340,7 @@ npc_face_block(
  * reading `[facing]` per `[add]` would otherwise count none of what went out. */
 static void
 npc_ticklog_add_face(
-    const struct WireFace* face,
+    const struct RsprotFace* face,
     const struct ToriRSServerNpc* npc,
     int has_face,
     int added)
@@ -6350,9 +6350,9 @@ npc_ticklog_add_face(
     if( npc->masks &
         (TORIRSSERVER_NMASK_FACE_ENTITY | TORIRSSERVER_NMASK_FACE_COORD | TORIRSSERVER_NMASK_FACE_ANGLE) )
         return;
-    if( face->kind == WIRE_FACE_RESET )
+    if( face->kind == RSPROT_FACE_KIND_RESET )
         ToriRSServer_TicklogNpcFaceAdd(npc, -1, -1);
-    else if( face->kind == WIRE_FACE_LOC )
+    else if( face->kind == RSPROT_FACE_KIND_LOC )
         ToriRSServer_TicklogNpcFaceAdd(npc, face->x, face->z);
     else
         ToriRSServer_TicklogNpcFaceAdd(npc, -1, npc->face_entity);
@@ -6650,7 +6650,7 @@ put_npc_extended_v5(
     uint32_t const classic = npc->masks;
     uint32_t flag = 0;
     int const hit = (classic & (TORIRSSERVER_NMASK_DAMAGE | TORIRSSERVER_NMASK_DAMAGE2)) != 0;
-    struct WireFace face;
+    struct RsprotFace face;
     int const has_face = npc_face_block(&face, recipient, npc, force_face_latch);
     npc_ticklog_add_face(&face, npc, has_face, force_face_latch);
 
@@ -6997,7 +6997,7 @@ put_npc_extended_v5(
         rsprot_p2_21_add128(buf, force_type_latch ? npc->type : npc->change_type);
     }
     if( has_face )
-        wire_face_write_npc(buf, &face);
+        rsprot_face_write_npc(buf, &face);
 
 }
 
@@ -7074,7 +7074,7 @@ put_npc_extended_v241(
     uint32_t const classic = npc->masks;
     uint32_t flag = 0;
     int const hit = (classic & (TORIRSSERVER_NMASK_DAMAGE | TORIRSSERVER_NMASK_DAMAGE2)) != 0;
-    struct WireFace face;
+    struct RsprotFace face;
     int const has_face = npc_face_block(&face, recipient, npc, force_face_latch);
     npc_ticklog_add_face(&face, npc, has_face, force_face_latch);
     int const splat = hit && npc_shows_hitsplat(npc);
@@ -7246,7 +7246,7 @@ put_npc_extended_v241(
         int header = face.walk_mode | ((int)face.kind << 3) | (face.instant ? 0x40 : 0);
 
         rsprot_p1_neg(buf, header);
-        wire_face_write_payload(buf, &face);
+        rsprot_face_write_payload(buf, &face);
     }
     /* decodeHeadiconCustomisation: g1 slot mask (239: g1Alt3). */
     if( flag & V241_NPC_HEADICON_CUSTOMISATION )
@@ -7418,7 +7418,7 @@ put_npc_extended_v242(
     uint32_t const classic = npc->masks;
     uint32_t flag = 0;
     int const hit = (classic & (TORIRSSERVER_NMASK_DAMAGE | TORIRSSERVER_NMASK_DAMAGE2)) != 0;
-    struct WireFace face;
+    struct RsprotFace face;
     int const has_face = npc_face_block(&face, recipient, npc, force_face_latch);
     npc_ticklog_add_face(&face, npc, has_face, force_face_latch);
     int const splat = hit && npc_shows_hitsplat(npc);
@@ -7622,7 +7622,7 @@ put_npc_extended_v242(
         int header = face.walk_mode | ((int)face.kind << 3) | (face.instant ? 0x40 : 0);
 
         rsprot_p1_add128(buf, header);
-        wire_face_write_payload(buf, &face);
+        rsprot_face_write_payload(buf, &face);
     }
     /* tinting: g2Alt2 start, g2 end, g1Alt2 hue, g1Alt3 saturation, g1Alt2
      * lightness, g1Alt3 weight. */
@@ -7800,7 +7800,7 @@ npc_extended_pending_v5(
     /* Blocks only the rev-241 writer has: an older recipient is sent none of
      * them, so they must not claim a block it would write empty. */
     uint32_t const supported_241 = TORIRSSERVER_NMASK_TRANSPARENCY | TORIRSSERVER_NMASK_TIMED_BAR;
-    struct WireFace face;
+    struct RsprotFace face;
 
     if( srv_wire_revision(recipient) >= 241 &&
         ((npc->masks & supported_241) != 0 || npc_v241_sends_bas(npc, force_face_latch)) )
@@ -8126,7 +8126,7 @@ npc_info_encode_deck(
         put_npc_extended_for(&extended_buf, player, &srv->npcs[queued[i].slot],
                             queued[i].force_face, queued[i].force_type);
     /* The root stream's terminator rule, for the same reason (see there). */
-    if( wire_npc_info_tail_needs_sentinel(buf.bit_wpos, extended_buf.wpos) )
+    if( rsprot_npc_info_tail_needs_sentinel(buf.bit_wpos, extended_buf.wpos) )
         rsprot_pbits(&buf, 16, 0xffff);
     rsprot_buf_bit_end(&buf);
     rsprot_pdata(&buf, extended_data, extended_buf.wpos);
@@ -8656,7 +8656,7 @@ npc_info_encode(struct ToriRSServerPlayer* player)
          * then decodes the 0xffff sentinel as the mask, producing a framing error on
          * the literal nine-byte packet. Mirror the guard instead.
          */
-        if( wire_npc_info_tail_needs_sentinel(buf.bit_wpos, extended_buf.wpos) )
+        if( rsprot_npc_info_tail_needs_sentinel(buf.bit_wpos, extended_buf.wpos) )
             rsprot_pbits(&buf, 16, 0xffff);
         rsprot_buf_bit_end(&buf);
 

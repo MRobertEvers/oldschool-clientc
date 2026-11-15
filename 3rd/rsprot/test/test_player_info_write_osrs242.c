@@ -1,6 +1,6 @@
 /*
  * PLAYER_INFO's rev-242 extended-info tail, written by the server
- * (osrs242_player_info.c) and read back by the client's 242 reader (RSProt's
+ * (player_info_write_osrs242.c) and read back by the client's 242 reader (RSProt's
  * player_info_osrs242, from RSProx 8c514346's PlayerInfoClient).
  *
  * One update carries every block the server writes, so a block in the wrong
@@ -8,10 +8,8 @@
  * in that block or the ones after it. Each value is chosen so a transform
  * slip (+128, negation, byte order) changes it.
  */
-#include "mem/torirs_mem.h"
-#include "torirsserver/wire/osrs242/osrs242_player_info.h"
+#include "streams/player_info_write.h"
 #include "streams/rsprot_info.h"
-#include "net/proto/proto_info.h"
 #include "streams/npc_info.h"
 #include "streams/player_info.h"
 
@@ -19,6 +17,10 @@
 
 #include <stdio.h>
 #include <string.h>
+
+/* The client's reader state: one player table, as the client's executor holds
+ * it (net/proto/proto_info.c wraps the same three calls). */
+static RsprotPlayerInfo g_pi;
 
 static int g_failures;
 static uint8_t g_info_bytes[1 << 16];
@@ -42,13 +44,13 @@ gpi_coord(int level, int x, int z)
 }
 
 static int
-roundtrip(struct WirePlayerInfoState* server, const struct WirePlayerExt* ext,
+roundtrip(struct RsprotPlayerInfoWriter* server, const struct RsprotPlayerExt* ext,
           uint8_t const* appearance, int appearance_len, struct RsprotInfoOp* ops, int cap)
 {
     uint8_t bytes[4096];
     struct RsprotBuf buf;
     RsprotInfoList list;
-    struct WirePlayerUpdate update = {
+    struct RsprotPlayerUpdate update = {
         .index = LOCAL_INDEX,
         .visible = 1,
         .coord = gpi_coord(0, 3200, 3200),
@@ -58,10 +60,10 @@ roundtrip(struct WirePlayerInfoState* server, const struct WirePlayerExt* ext,
     };
 
     rsprot_buf_wrap(&buf, bytes, sizeof(bytes));
-    osrs242_player_info_write_world(&buf, server, &update, 1);
+    player_info_osrs242_write(&buf, server, &update, 1);
     CHECK(rsprot_buf_ok(&buf), "the packet stays within its buffer");
     rsprot_info_list_init(&list, ops, cap, g_info_bytes, (int)sizeof(g_info_bytes));
-    return proto_info_player_read(player_info_osrs242, bytes, (int)buf.wpos, &list);
+    return player_info_osrs242(&g_pi, bytes, (int)buf.wpos, &list);
 }
 
 static struct RsprotInfoOp const*
@@ -76,25 +78,25 @@ find_nth(struct RsprotInfoOp const* ops, int n, RsprotInfoOpKind kind, int nth)
 int
 main(void)
 {
-    struct WirePlayerInfoState server;
+    struct RsprotPlayerInfoWriter server;
     struct RsprotInfoOp ops[64];
     /* 30 + 2047 * 18 bits = 4608 bytes; a 4096-byte array here was read
      * 512 bytes past its end for as long as the buffer let a cursor run on. */
     uint8_t init_bytes[4608];
     struct RsprotBuf init;
-    struct WirePlayerExt ext;
+    struct RsprotPlayerExt ext;
     static uint8_t const appearance[] = { 0x00, 0x01, 0x83, 0xff, 0x10, 0x7f };
     static uint8_t const chat[] = { 0x11, 0x92, 0x03, 0xf4 };
     struct RsprotInfoOp const* op;
     int n;
 
     rsprot_buf_wrap(&init, init_bytes, sizeof(init_bytes));
-    wire_player_info_write_init(&init, LOCAL_INDEX, gpi_coord(0, 3200, 3200));
-    proto_info_set_local(LOCAL_INDEX);
+    rsprot_player_info_write_init(&init, LOCAL_INDEX, gpi_coord(0, 3200, 3200));
+    rsprot_player_info_reset(&g_pi, LOCAL_INDEX);
     CHECK(rsprot_buf_ok(&init) && init.wpos == 4608, "the init block fits its buffer (%d bytes)",
           (int)init.wpos);
-    proto_info_init(init_bytes, (int)init.wpos);
-    wire_player_info_state_init(&server, LOCAL_INDEX, gpi_coord(0, 3200, 3200));
+    rsprot_player_info_init(&g_pi, init_bytes, (int)init.wpos);
+    rsprot_player_info_writer_init(&server, LOCAL_INDEX, gpi_coord(0, 3200, 3200));
 
     memset(&ext, 0, sizeof(ext));
     ext.has_exact_move = 1;
@@ -150,8 +152,8 @@ main(void)
     ext.chat_data = chat;
     ext.chat_len = (int)sizeof(chat);
     ext.has_face = 1;
-    wire_face_init(&ext.face);
-    ext.face.kind = WIRE_FACE_ANGLE;
+    rsprot_face_init(&ext.face);
+    ext.face.kind = RSPROT_FACE_KIND_ANGLE;
     ext.face.angle = 1536;
     ext.has_temp_move_speed = 1;
     ext.temp_move_speed = 2;

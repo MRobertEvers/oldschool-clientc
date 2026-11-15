@@ -33,10 +33,10 @@ osrs239_npc_info_read_ops(const uint8_t* data, int len, struct RsprotInfoOp* ops
 struct SailingClientProbe
 {
     int local_index;
-    int present[WIRE_PLAYER_SLOTS];
-    int x[WIRE_PLAYER_SLOTS], z[WIRE_PLAYER_SLOTS], level[WIRE_PLAYER_SLOTS];
-    int speed[WIRE_PLAYER_SLOTS], jump[WIRE_PLAYER_SLOTS];
-    int appearances[WIRE_PLAYER_SLOTS], removals[WIRE_PLAYER_SLOTS];
+    int present[RSPROT_INFO_PLAYER_SLOTS];
+    int x[RSPROT_INFO_PLAYER_SLOTS], z[RSPROT_INFO_PLAYER_SLOTS], level[RSPROT_INFO_PLAYER_SLOTS];
+    int speed[RSPROT_INFO_PLAYER_SLOTS], jump[RSPROT_INFO_PLAYER_SLOTS];
+    int appearances[RSPROT_INFO_PLAYER_SLOTS], removals[RSPROT_INFO_PLAYER_SLOTS];
 };
 
 static void
@@ -98,10 +98,10 @@ sailing_client_seed(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
     /* The init block has no observer-dependent fields beyond this coordinate.
      * Seed exactly as REBUILD_LOGIN does, then use only real packet captures. */
     rsprot_buf_wrap(&buf, init, sizeof(init));
-    wire_player_info_write_init(&buf, index, coord);
+    rsprot_player_info_write_init(&buf, index, coord);
     GameProtoRev_OSRS239()->player_info_set_local(index);
     GameProtoRev_OSRS239()->player_info_init(init, (int)buf.wpos);
-    wire_player_info_state_init(&viewer->v5_gpi, index, coord);
+    rsprot_player_info_writer_init(&viewer->v5_gpi, index, coord);
     memset(viewer->v5_player_generation, 0, sizeof(viewer->v5_player_generation));
     viewer->v5_playerinfo_sent = 0;
     viewer->v5_last_x = viewer->x;

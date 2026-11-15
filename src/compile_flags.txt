@@ -6,6 +6,7 @@
 -I../3rd/hmap
 -I../3rd/bmp
 -I../3rd/rsprot/src
+-I../3rd/rsprot
 -I../3rd/toridraw
 -I../3rd/rscache/include
 -I../3rd/rscache/src

@@ -15,7 +15,6 @@
 #include "net/isaac.h"
 #include "net/net_out.h"
 #include "net/rev/gameproto_revisions.h"
-#include "torirsserver/wire/osrs239/packetout.h"
 
 #include "rsprot_exec.h"
 #include "packets/affinedclansettings_addbanned_fromchannel.h"

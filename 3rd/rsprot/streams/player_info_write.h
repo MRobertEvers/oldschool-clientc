@@ -1,22 +1,25 @@
-#ifndef SRC_TORIRSSERVER_WIRE_CORE_WIRE_PLAYER_INFO_H
-#define SRC_TORIRSSERVER_WIRE_CORE_WIRE_PLAYER_INFO_H
+#ifndef RSPROT_STREAM_PLAYER_INFO_WRITE_H
+#define RSPROT_STREAM_PLAYER_INFO_WRITE_H
 
 /*
- * PLAYER_INFO's GPI bit sections -- the part every OSRS revision this server
- * speaks shares (239..242). The extended-info blocks behind them differ by
- * revision and are each revision's own: wire/osrs239/osrs239_player_info.c,
- * wire/osrs241/osrs241_player_info.c, wire/osrs242/osrs242_player_info.c.
- * Each revision's `osrs<N>_player_info_write_world` calls
- * `wire_player_info_write_sections` here and then writes its own tail.
+ * PLAYER_INFO, the writer side: what a server sends, beside the reader in
+ * player_info.h that a client runs on the same bytes.
+ *
+ * The GPI bit sections here are shared by every OSRS revision written so far
+ * (239..242). The extended-info blocks behind them differ by revision and are
+ * each revision's own: player_info_write_osrs239.c, player_info_write_osrs241.c,
+ * player_info_write_osrs242.c. Each revision's `player_info_osrs<N>_write`
+ * calls `rsprot_player_info_write_sections` here and then writes its own tail.
  *
  * The stream was first written for revision 239, so the history below speaks
- * of it as "the revision-239 player stream".
+ * of it as "the revision-239 player stream". It moved here from
+ * src/torirsserver/wire/ (2026-11-15), where torirs_server_encode.c drives it;
+ * "the server" below is that caller.
  *
- * This is a different CODEC from the classic bitstream next door in
- * torirs_server_encode.c, not a different field order, which is why it is its own
- * file and why the wire adapter refuses PLAYER_INFO at 239 until this is
- * wired in. Without it no OldSchool client reaches the world: the stream is
- * how a client learns that it exists.
+ * This is a different CODEC from the classic bitstream torirs_server_encode.c
+ * writes for revision 230, not a different field order. Without it no
+ * OldSchool client reaches the world: the stream is how a client learns that
+ * it exists.
  *
  * ## The shape
  *
@@ -62,20 +65,17 @@
  * focused codec fixtures.
  */
 
-#include "torirsserver/wire/core/wire_facing.h"
+#include "face_write.h"
+#include "rsprot_info.h" /* RSPROT_INFO_PLAYER_SLOTS */
 
 #include <stddef.h>
 #include <stdint.h>
 
 struct RsprotBuf;
 
-/** Slots in the player table; index 0 is unused, so the init block carries
- *  2047 low-resolution entries when the local player is one of them. */
-#define WIRE_PLAYER_SLOTS 2048
-
 /** Graphics one PLAYER_INFO spotanim block carries (the server's per-tick
  *  slot list, TORIRSSERVER_NPC_SPOTANIM_MAX). */
-#define WIRE_PLAYER_SPOTANIM_MAX 8
+#define RSPROT_PLAYER_SPOTANIM_MAX 8
 
 /**
  * The init block that rides inside REBUILD_LOGIN.
@@ -85,7 +85,7 @@ struct RsprotBuf;
  * byte-aligned.
  */
 void
-wire_player_info_write_init(
+rsprot_player_info_write_init(
     struct RsprotBuf* buf,
     int local_index,
     int32_t coord);
@@ -132,14 +132,14 @@ wire_player_info_write_init(
 
 /* A HEADBARS entry's end time that removes the bar (RSProx decodeHeadbars:
  * `removed=true`, no start delay or fills after it). */
-#define WIRE_HEADBAR_REMOVE 0x7fff
+#define RSPROT_HEADBAR_REMOVE 0x7fff
 
-struct WirePlayerExt
+struct RsprotPlayerExt
 {
     /** Revision-239 FACE block.  This is the generic entity/loc/reset model,
      * not either of the legacy player-mask fields. */
     int has_face;
-    struct WireFace face;
+    struct RsprotFace face;
     /** A hitsplat landing this tick: the hitmark TYPE from content, and the
      *  damage. Zero `has_hit` when nothing was hit.
      *
@@ -162,7 +162,7 @@ struct WirePlayerExt
     } hit_extra[3];
     int hit_extra_count;
     /** The actor HEADBARS block is independent from a hitmark. A duration
-     *  of WIRE_HEADBAR_REMOVE removes the bar: nothing follows it. */
+     *  of RSPROT_HEADBAR_REMOVE removes the bar: nothing follows it. */
     int has_headbar;
     int headbar_type;
     int headbar_duration;
@@ -189,13 +189,13 @@ struct WirePlayerExt
      *  replacing only its own slot's on the client. */
     int has_spotanim;
     int spotanim_count;
-    struct WirePlayerSpotanim
+    struct RsprotPlayerSpotanim
     {
         int slot;
         int id;
         /** height << 16 | delay, as the wire carries it. */
         int height_delay;
-    } spotanims[WIRE_PLAYER_SPOTANIM_MAX];
+    } spotanims[RSPROT_PLAYER_SPOTANIM_MAX];
     /** A sequence to play: `seq_id` < 0 cancels whatever is running. */
     int has_seq;
     int seq_id;
@@ -239,19 +239,19 @@ struct WirePlayerExt
 /** The rev-239 high-resolution movement opcode.  `movement_value` below is a
  * 3-bit direction for WALK, a 4-bit direction for RUN, and a packed 30-bit
  * coordinate delta for TELEPORT. */
-enum WirePlayerMovement
+enum RsprotGpiMove
 {
-    WIRE_PLAYER_NOMOVE = 0,
-    WIRE_PLAYER_WALK = 1,
-    WIRE_PLAYER_RUN = 2,
-    WIRE_PLAYER_TELEPORT = 3,
+    RSPROT_GPI_NOMOVE = 0,
+    RSPROT_GPI_WALK = 1,
+    RSPROT_GPI_RUN = 2,
+    RSPROT_GPI_TELEPORT = 3,
 };
 
 void
-wire_player_info_write_local(
+rsprot_player_info_write_local(
     struct RsprotBuf* buf,
     int local_index,
-    enum WirePlayerMovement movement,
+    enum RsprotGpiMove movement,
     int32_t movement_value,
     int low_res_inactive,
     int has_extended);
@@ -260,88 +260,118 @@ wire_player_info_write_local(
  *  appearance, or any of `ext`'s blocks. Decides the GPI's extended bit, so
  *  every revision's tail must write exactly the players this says yes to. */
 int
-wire_player_info_has_extended(
+rsprot_player_info_has_extended(
     const uint8_t* appearance,
     int appearance_len,
-    const struct WirePlayerExt* ext);
+    const struct RsprotPlayerExt* ext);
 
 /** Per-observer GPI state. Membership and cycle flags describe the last
  * packet, not the current world; reset only with the login/reconnect init. */
-struct WirePlayerInfoState
+struct RsprotPlayerInfoWriter
 {
     int initialized;
     int local_index;
-    uint8_t high[WIRE_PLAYER_SLOTS];
-    uint8_t inactive[WIRE_PLAYER_SLOTS];
-    int32_t coord[WIRE_PLAYER_SLOTS];
-    uint32_t region[WIRE_PLAYER_SLOTS];
+    uint8_t high[RSPROT_INFO_PLAYER_SLOTS];
+    uint8_t inactive[RSPROT_INFO_PLAYER_SLOTS];
+    int32_t coord[RSPROT_INFO_PLAYER_SLOTS];
+    uint32_t region[RSPROT_INFO_PLAYER_SLOTS];
 };
 
-struct WirePlayerUpdate
+struct RsprotPlayerUpdate
 {
     int index;
     int visible;
     int32_t coord;
-    enum WirePlayerMovement movement;
+    enum RsprotGpiMove movement;
     int32_t movement_value;
     const uint8_t* appearance;
     int appearance_len;
-    const struct WirePlayerExt* ext;
+    const struct RsprotPlayerExt* ext;
 };
 
 void
-wire_player_info_state_init(
-    struct WirePlayerInfoState* state,
+rsprot_player_info_writer_init(
+    struct RsprotPlayerInfoWriter* state,
     int local_index,
     int32_t coord);
 /**
  * The four GPI bit sections for `updates`, against `state`. Fills `extended`
  * with the players whose extended-info blocks must follow, in the order the
  * client reads them, and returns how many. The caller -- a revision's
- * `osrs<N>_player_info_write_world` -- writes those blocks in its own layout.
+ * `player_info_osrs<N>_write` -- writes those blocks in its own layout.
  */
 int
-wire_player_info_write_sections(
+rsprot_player_info_write_sections(
     struct RsprotBuf* buf,
-    struct WirePlayerInfoState* state,
-    const struct WirePlayerUpdate* updates,
+    struct RsprotPlayerInfoWriter* state,
+    const struct RsprotPlayerUpdate* updates,
     int count,
-    const struct WirePlayerUpdate* extended[WIRE_PLAYER_SLOTS]);
+    const struct RsprotPlayerUpdate* extended[RSPROT_INFO_PLAYER_SLOTS]);
 
-/**
- * One tick of NPC_INFO v5 carrying no npcs.
- *
- * A far simpler codec than PLAYER_INFO: ONE bit section, not four.
- *
- *     8 bits    how many high-resolution npcs follow
- *     ...       one update per high-resolution npc
- *     16 bits   a client-local instance index per npc, terminated by 0xFFFF
- *     ...       each add record finishes with a 14-bit initial NPC type
- *
- * The index is not the NPC's cache/config id. A type above 0x3FFF is sent as a
- * valid 14-bit initial type plus the add record's update flag; the queued
- * update then uses mask 0x1 and a transformed unsigned 16-bit (p2Alt3)
- * replacement type in the same packet.
- *
- * The 0xFFFF terminator is required only when the padding plus extended-info
- * tail leaves at least 28 readable bits. That is this codec's exact
- * `16 + 12` low-resolution-record guard. Below that threshold the client exits
- * before reading an index, so writing a sentinel makes it consume 0xffff as the
- * first extended mask instead.
- *
- * This writes the empty case only: no high-resolution npcs, no additions. That
- * is what the server needs to be able to SEND the packet at all rather than
- * refuse it; populating it is the next step and is a smaller job than
- * PLAYER_INFO was.
- */
+
+/* ------------------------------------------------------------------ */
+/* Per revision: player_info_<rev>_write is the writer beside          */
+/* player_info_<rev> (player_info.h), the reader of the same stream.   */
+/* ------------------------------------------------------------------ */
+
+/* ---- revision 239: the GPI sections, then 239's extended-info tail ---- */
+
+/** One tick carrying only the local player (see rsprot_player_info_write_local). */
 void
-wire_npc_info_write_empty(struct RsprotBuf* buf);
+player_info_osrs239_write_local(
+    struct RsprotBuf* buf,
+    int local_index,
+    enum RsprotGpiMove movement,
+    int32_t movement_value,
+    int low_res_inactive,
+    const uint8_t* appearance,
+    int appearance_len,
+    const struct RsprotPlayerExt* ext);
 
-/** Mirror the client's 28-bit low-resolution guard at the boundary
- * between the last add record and byte-aligned extended info. */
-int
-wire_npc_info_tail_needs_sentinel(
-    size_t bit_position,
-    size_t extended_bytes);
+/** One tick of the whole world, against the observer's GPI `state`. */
+void
+player_info_osrs239_write(
+    struct RsprotBuf* buf,
+    struct RsprotPlayerInfoWriter* state,
+    const struct RsprotPlayerUpdate* updates,
+    int count);
+
+/* ---- revision 241: the GPI sections, then 241's extended-info tail ---- */
+
+/** One tick of the whole world, against the observer's GPI `state`. */
+void
+player_info_osrs241_write(
+    struct RsprotBuf* buf,
+    struct RsprotPlayerInfoWriter* state,
+    const struct RsprotPlayerUpdate* updates,
+    int count);
+
+/* ---- revision 242: the GPI sections, then 242's extended-info tail ---- */
+
+/** One tick of the whole world, against the observer's GPI `state`. */
+void
+player_info_osrs242_write(
+    struct RsprotBuf* buf,
+    struct RsprotPlayerInfoWriter* state,
+    const struct RsprotPlayerUpdate* updates,
+    int count);
+
+/* Rev 239 writes one overhead-icon archive index in an appearance block;
+ * generic server/content state uses the older bitmask vocabulary.
+ *
+ * 31 bits, not 8. The eight came from the classic wire field being one byte,
+ * but this is the index side of the conversion, not the mask side — and
+ * `headicons_prayer` already has 24 frames in the base cache and 30 with the
+ * Ancient Curses lane's own icons appended. At 8 the six curse overheads
+ * (24..29) were unreachable: the mask carried the bit, this loop never looked
+ * at it, and the appearance went out as 255 "no icon". */
+static inline int
+rsprot_appearance_headicon_index(int mask)
+{
+    for( int icon = 0; icon < 31; icon++ )
+        if( mask & (1 << icon) )
+            return icon;
+    return -1;
+}
 
 #endif

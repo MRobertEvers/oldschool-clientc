@@ -212,6 +212,31 @@ def table_h(t):
     for part, arr in (("SERVER", "server"), ("CLIENT", "client"), ("ZONE", "zone_order")):
         out.append("#define RSPROT_%s_%s_COUNT ((int)(sizeof(rsprot_%s_%s) / sizeof(rsprot_%s_%s[0])))"
                    % (N, part, n, arr, n, arr))
+    out += [""]
+    out += comment_block(["Each prot's opcode by name, so code that names a prot reads its number",
+                          "from here rather than from a copy: RSPROT_%s_SERVER_<prot> for" % N,
+                          "server->client, _CLIENT_ for client->server. -1 is a prot with no",
+                          "top-level opcode (a sub-packet of UPDATE_ZONE_PARTIAL_ENCLOSED only)."])
+    for part, arr in (("SERVER", "server"), ("CLIENT", "client")):
+        names = [r[0] for r in t[arr]]
+        assert len(names) == len(set(names)), "%s %s: a prot is tabled twice" % (n, arr)
+        if not names:
+            continue
+        out.append("enum")
+        out.append("{")
+        out += ["    RSPROT_%s_%s_%s = %d," % (N, part, r[0], r[1]) for r in t[arr]]
+        out.append("};")
+    out += [""]
+    out += comment_block(["UPDATE_ZONE_PARTIAL_ENCLOSED's sub-packet index: the ordinal of RSProt's",
+                          "IndexedZoneProtEncoder, which is declaration order and matches a table in",
+                          "the client. Neither the prot's opcode nor RSProt's zone prot id is this",
+                          "number, and writing either gives a well-formed packet the client reads as",
+                          "a different sub-packet."])
+    if t["zone_order"]:
+        out.append("enum")
+        out.append("{")
+        out += ["    RSPROT_%s_ZONE_%s = %d," % (N, z, i) for i, z in enumerate(t["zone_order"])]
+        out.append("};")
     out += ["", "#endif", ""]
     return "\n".join(out)
 

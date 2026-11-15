@@ -1,6 +1,6 @@
 /*
  * PLAYER_INFO's rev-241 extended-info tail, written by the server
- * (osrs241_player_info.c) and read back by the client's own 241 reader
+ * (player_info_write_osrs241.c) and read back by the client's own 241 reader
  * (net/rev/osrs241/osrs241_entity_info.c).
  *
  * The two blocks the Fractured Archive's doors need are checked field by
@@ -18,10 +18,8 @@
  * back as garbage in the blocks around it: the exact move rides along to prove
  * the order.
  */
-#include "mem/torirs_mem.h"
-#include "torirsserver/wire/osrs241/osrs241_player_info.h"
+#include "streams/player_info_write.h"
 #include "streams/rsprot_info.h"
-#include "net/proto/proto_info.h"
 #include "streams/npc_info.h"
 #include "streams/player_info.h"
 
@@ -30,26 +28,30 @@
 #include <stdio.h>
 #include <string.h>
 
+/* The client's reader state: one player table, as the client's executor holds
+ * it (net/proto/proto_info.c wraps the same three calls). */
+static RsprotPlayerInfo g_pi;
+
 static int g_failures;
 
 /* The client's 241 readers: the revision's own stream entry points over the
- * player table (net/proto/proto_info.c), as its executor binds them. */
+ * player table g_pi, as the client's executor binds them. */
 static void
 osrs241_playerinfo_set_local(int local_index)
 {
-    proto_info_set_local(local_index);
+    rsprot_player_info_reset(&g_pi, local_index);
 }
 
 static void
 osrs241_playerinfo_init(uint8_t const* data, int len)
 {
-    proto_info_init(data, len);
+    rsprot_player_info_init(&g_pi, data, len);
 }
 
 static int
 osrs241_player_info_read(uint8_t const* data, int len, RsprotInfoList* out)
 {
-    return proto_info_player_read(player_info_osrs241, data, len, out);
+    return player_info_osrs241(&g_pi, data, len, out);
 }
 
 /* The readers write a list; these hand the test its ops, with the strings
@@ -86,12 +88,12 @@ gpi_coord(int level, int x, int z)
 
 /* One tick of the local player with `ext`, through the 241 reader. */
 static int
-roundtrip(struct WirePlayerInfoState* server, const struct WirePlayerExt* ext,
+roundtrip(struct RsprotPlayerInfoWriter* server, const struct RsprotPlayerExt* ext,
           struct RsprotInfoOp* ops, int cap)
 {
     uint8_t bytes[4096];
     struct RsprotBuf buf;
-    struct WirePlayerUpdate update = {
+    struct RsprotPlayerUpdate update = {
         .index = LOCAL_INDEX,
         .visible = 1,
         .coord = gpi_coord(0, 3200, 3200),
@@ -99,7 +101,7 @@ roundtrip(struct WirePlayerInfoState* server, const struct WirePlayerExt* ext,
     };
 
     rsprot_buf_wrap(&buf, bytes, sizeof(bytes));
-    osrs241_player_info_write_world(&buf, server, &update, 1);
+    player_info_osrs241_write(&buf, server, &update, 1);
     CHECK(rsprot_buf_ok(&buf), "the packet stays within its buffer");
     return osrs241_player_info_read_ops(bytes, (int)buf.wpos, ops, cap);
 }
@@ -116,7 +118,7 @@ find(struct RsprotInfoOp const* ops, int n, RsprotInfoOpKind kind)
 int
 main(void)
 {
-    struct WirePlayerInfoState server;
+    struct RsprotPlayerInfoWriter server;
     struct RsprotInfoOp ops[64];
     /* 30 + 2047 * 18 bits = 4608 bytes; a 4096-byte array here was read
      * 512 bytes past its end for as long as the buffer let a cursor run on. */
@@ -125,16 +127,16 @@ main(void)
     int n;
 
     rsprot_buf_wrap(&init, init_bytes, sizeof(init_bytes));
-    wire_player_info_write_init(&init, LOCAL_INDEX, gpi_coord(0, 3200, 3200));
+    rsprot_player_info_write_init(&init, LOCAL_INDEX, gpi_coord(0, 3200, 3200));
     osrs241_playerinfo_set_local(LOCAL_INDEX);
     CHECK(rsprot_buf_ok(&init) && init.wpos == 4608, "the init block fits its buffer (%d bytes)",
           (int)init.wpos);
     osrs241_playerinfo_init(init_bytes, (int)init.wpos);
-    wire_player_info_state_init(&server, LOCAL_INDEX, gpi_coord(0, 3200, 3200));
+    rsprot_player_info_writer_init(&server, LOCAL_INDEX, gpi_coord(0, 3200, 3200));
 
     fprintf(stderr, "osrs241-player-info: the Ocellus door's fade out, with an exact move\n");
     {
-        struct WirePlayerExt ext;
+        struct RsprotPlayerExt ext;
         struct RsprotInfoOp const* t;
         struct RsprotInfoOp const* x;
 
@@ -171,7 +173,7 @@ main(void)
 
     fprintf(stderr, "osrs241-player-info: the fade in on arrival, and \"gone already\"\n");
     {
-        struct WirePlayerExt ext;
+        struct RsprotPlayerExt ext;
         struct RsprotInfoOp const* t;
 
         memset(&ext, 0, sizeof(ext));
@@ -198,13 +200,13 @@ main(void)
 
     fprintf(stderr, "osrs241-player-info: a landing's face angle\n");
     {
-        struct WirePlayerExt ext;
+        struct RsprotPlayerExt ext;
         struct RsprotInfoOp const* f;
 
         memset(&ext, 0, sizeof(ext));
         ext.has_face = 1;
-        wire_face_init(&ext.face);
-        ext.face.kind = WIRE_FACE_ANGLE;
+        rsprot_face_init(&ext.face);
+        ext.face.kind = RSPROT_FACE_KIND_ANGLE;
         ext.face.angle = 1536;
         n = roundtrip(&server, &ext, ops, 64);
         f = find(ops, n, RSPROT_OP_FACE_ANGLE);

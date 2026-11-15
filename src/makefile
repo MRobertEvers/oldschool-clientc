@@ -1045,25 +1045,22 @@ SS_SRCS = serverscript/ss_meta.c serverscript/ssvm_script.c \
 
 # The wire layer (torirsserver/wire/, see torirs_server_wire.h): the
 # revision-independent core every OSRS revision shares, then each revision's
-# adapter -- its opcode tables, writer set, PLAYER_INFO tail and inbound
-# translator. Inbound packets are decoded with rsprot's per-revision codecs.
+# adapter -- its prot map, writer set and inbound translator. Inbound packets
+# are decoded with rsprot's per-revision codecs; PLAYER_INFO is written by
+# rsprot's streams/player_info_write*.c, in the codec unity.
 TORIRSSERVER_WIRE_SRCS = torirsserver/torirs_server_wire.c \
 	torirsserver/wire/core/wire_in.c \
 	torirsserver/wire/core/wire_if_inbound.c \
-	torirsserver/wire/core/wire_player_info.c \
 	torirsserver/wire/core/wire_runclientscript.c \
 	torirsserver/wire/osrs230/osrs230_wire.c \
 	torirsserver/wire/osrs239/osrs239_wire.c \
 	torirsserver/wire/osrs239/osrs239_inbound.c \
-	torirsserver/wire/osrs239/osrs239_player_info.c \
 	torirsserver/wire/osrs239/osrs239_interface_setters.c \
 	torirsserver/wire/osrs239/osrs239_varp.c \
 	torirsserver/wire/osrs241/osrs241_wire.c \
 	torirsserver/wire/osrs241/osrs241_inbound.c \
-	torirsserver/wire/osrs241/osrs241_player_info.c \
 	torirsserver/wire/osrs242/osrs242_wire.c \
-	torirsserver/wire/osrs242/osrs242_inbound.c \
-	torirsserver/wire/osrs242/osrs242_player_info.c
+	torirsserver/wire/osrs242/osrs242_inbound.c
 
 TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	$(TORIMEM_SRCS) \
@@ -3729,16 +3726,14 @@ RSPROT_PARSE_OBJS = $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/rsprot_buf.o \
 # The info streams' readers and the list they write (3rd/rsprot/streams, in the
 # codec unity), for a test that links an entity reader without net.o.
 RSPROT_INFO_OBJS = $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/rsprot_unity.o
-# PLAYER_INFO v5 round-trip: the encoder against a decoder transcribed from
-# RSProt's own reference client, written in the opposite direction. Catches the
+# PLAYER_INFO v5 round-trip: rsprot's writer (3rd/rsprot/streams/
+# player_info_write*.c) against its reader for the same revision; the tests live
+# in 3rd/rsprot/test and also run under `make -C 3rd/rsprot test`. Catches the
 # skip-run off-by-ones and misaligned bit sections that otherwise decode into
 # the wrong players rather than erroring.
 test-wire-player-info: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/wire_player_info_test $(TORIMEM_SRCS) \
-		torirsserver/test/wire_player_info_test.c torirsserver/wire/core/wire_player_info.c \
-		torirsserver/wire/osrs239/osrs239_player_info.c \
-		net/proto/proto_info.c \
-		$(RSPROT_INFO_OBJS) -lm
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/wire_player_info_test \
+		$(RSPROT_DIR)/test/test_player_info_write.c $(RSPROT_INFO_OBJS) -lm
 	./$(OBJ_DIR)/wire_player_info_test
 
 # NPC_INFO_LARGE_V6: the 241 reader's 8-bit low-resolution deltas, against a
@@ -3751,24 +3746,18 @@ test-osrs241-npcinfo-large: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
 		$(RSPROT_INFO_OBJS) -lm
 	./$(OBJ_DIR)/osrs241_npc_info_large_test
 
-# PLAYER_INFO's rev-241 tail: the server's writer against the client's 241
-# reader, block by block (the face angle and TRANSPARENCY above all).
+# PLAYER_INFO's rev-241 tail: rsprot's 241 writer against its 241 reader,
+# block by block (the face angle and TRANSPARENCY above all).
 test-osrs241-player-info: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/osrs241_player_info_test $(TORIMEM_SRCS) \
-		torirsserver/test/osrs241_player_info_test.c torirsserver/wire/core/wire_player_info.c \
-		torirsserver/wire/osrs241/osrs241_player_info.c \
-		net/proto/proto_info.c \
-		$(RSPROT_INFO_OBJS) -lm
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/osrs241_player_info_test \
+		$(RSPROT_DIR)/test/test_player_info_write_osrs241.c $(RSPROT_INFO_OBJS) -lm
 	./$(OBJ_DIR)/osrs241_player_info_test
 
-# PLAYER_INFO's rev-242 tail against RSProt's 242 reader, every block the
-# server writes in one update (order, continuation bits, transforms).
+# PLAYER_INFO's rev-242 tail: rsprot's 242 writer against its 242 reader, every
+# block the server writes in one update (order, continuation bits, transforms).
 test-osrs242-player-info: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/osrs242_player_info_test $(TORIMEM_SRCS) \
-		torirsserver/test/osrs242_player_info_test.c torirsserver/wire/core/wire_player_info.c \
-		torirsserver/wire/osrs242/osrs242_player_info.c \
-		net/proto/proto_info.c \
-		$(RSPROT_INFO_OBJS) -lm
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/osrs242_player_info_test \
+		$(RSPROT_DIR)/test/test_player_info_write_osrs242.c $(RSPROT_INFO_OBJS) -lm
 	./$(OBJ_DIR)/osrs242_player_info_test
 
 # Golden client->server interface callback layouts. Kept independent of the
@@ -3785,10 +3774,11 @@ test-wire-if-inbound: $(OBJ_DIR) $(OBJ_DIR)/jbase37.o $(RSPROT_TEST_DEPS) $(OBJ_
 # Full revision-239 RUNCLIENTSCRIPT argument alphabet. Literal bytes cover the
 # scalar, array, string-array and long paths rather than round-tripping through
 # a second implementation with the same possible mistake.
-test-wire-runclientscript: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/wire_runclientscript_test \
+test-wire-runclientscript: $(OBJ_DIR) $(RSPROT_TEST_DEPS) $(OBJ_DIR)/rsprot_packets_unity.o
+	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/wire_runclientscript_test \
 		torirsserver/test/wire_runclientscript_test.c \
-		torirsserver/wire/core/wire_runclientscript.c $(RSPROT_BUF_SRC)
+		torirsserver/wire/core/wire_runclientscript.c \
+		$(OBJ_DIR)/rsprot_packets_unity.o $(RSPROT_TEST_DEPS) -lm
 	./$(OBJ_DIR)/wire_runclientscript_test
 
 # Every additional fixed-body rev239 model/interface setter. The expected
@@ -3884,7 +3874,6 @@ REPLAY_LEDGER_ONLY_SRCS = replay/replay_ledger.c replay/replay_ledger_entity.c \
 test-replay-ledger: $(OBJ_DIR) $(NET_CORE_OBJS)
 	$(CC) $(CFLAGS) -UNDEBUG $(RSPROT_INCLUDES) -o $(OBJ_DIR)/replay_ledger_test $(TORIMEM_SRCS) \
 		replay/test/replay_ledger_test.c $(REPLAY_LEDGER_ONLY_SRCS) \
-		torirsserver/wire/core/wire_player_info.c torirsserver/wire/osrs241/osrs241_player_info.c \
 		$(NET_CORE_OBJS) -lm
 	./$(OBJ_DIR)/replay_ledger_test
 

@@ -28,7 +28,7 @@
 #include "torirs_server_session.h"
 #include "torirs_server_scene.h"
 #include "torirs_server_world_internal.h"
-#include "torirsserver/wire/core/wire_facing.h"
+#include "streams/face_write.h"
 #include "torirsserver/wire/core/wire_if_inbound.h"
 #include "engine/world_builder/collision_map.h"
 /* `torirs_server_scene.h` only forward-declares `struct ToriRS_FeatureTable`, so
@@ -1577,7 +1577,7 @@ selftest_rev239_zone_scan(
         const struct ToriRSServerCapturedPacket* packet = &capture->packets[i];
         int at = 0;
 
-        /* Rev 239 top-level opcodes from packetin.h. */
+        /* Rev 239 top-level opcodes (RSPROT_OSRS239_SERVER_*, 3rd/rsprot/gen/osrs239_prot.h). */
         if( (wanted == PKT_NAME_LOC_ADD_CHANGE && packet->opcode == 33) ||
             (wanted == PKT_NAME_LOC_ANIM && packet->opcode == 110) )
         {
@@ -29962,7 +29962,7 @@ ToriRSServer_WorldSelftest(void)
          * FOUR bit sections rather than one — so there is no fixed offset to
          * read it at. Porting these assertions means writing a v5 bit-section
          * parser in the harness, which would be a second copy of the codec in
-         * `wire_player_info.c` agreeing with itself. That is a test worth
+         * `player_info_write.c` agreeing with itself. That is a test worth
          * having and it is not this one.
          *
          * So this says what it can prove and names what it cannot, rather than
@@ -45581,7 +45581,7 @@ ToriRSServer_WorldSelftest(void)
                                        : -1;
 
                         SELFTEST_CHECK(len >= 5 && packet->data[len - 5] == 0 &&
-                                           packet->data[len - 4] == WIRE_FACE_NPC &&
+                                           packet->data[len - 4] == RSPROT_FACE_TARGET_NPC &&
                                            packet->data[len - 1] == 0,
                                        "rev-239 PLAYER_INFO should end in an NPC Face.Entity");
                         SELFTEST_CHECK(face == name,
@@ -61756,7 +61756,7 @@ ToriRSServer_WorldSelftest(void)
              * carries the same information across FOUR sections with different
              * widths and a per-player cycle bit, so this walk cannot be pointed
              * at it; parsing that here means a second copy of
-             * `wire_player_info.c` agreeing with itself.
+             * `player_info_write.c` agreeing with itself.
              *
              * The half above — that `~push_player` steps the lighter off and it
              * goes out as a glide rather than a snap — is asserted on both

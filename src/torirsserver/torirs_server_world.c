@@ -38,7 +38,7 @@
 #include "torirs_server_scene.h"
 #include "torirs_server_control.h"
 #include "torirs_server_world_internal.h"
-#include "torirsserver/wire/core/wire_facing.h"
+#include "streams/face_write.h"
 #include "torirsserver/wire/core/wire_if_inbound.h"
 #include "engine/world_builder/collision_map.h"
 /* `torirs_server_scene.h` only forward-declares `struct ToriRS_FeatureTable`, so

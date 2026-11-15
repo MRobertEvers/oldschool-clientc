@@ -1,5 +1,5 @@
-#ifndef SRC_TORIRSSERVER_WIRE_CORE_WIRE_FACING_H
-#define SRC_TORIRSSERVER_WIRE_CORE_WIRE_FACING_H
+#ifndef RSPROT_STREAM_FACE_WRITE_H
+#define RSPROT_STREAM_FACE_WRITE_H
 
 /*
  * Revision-239's actor facing block.
@@ -11,26 +11,20 @@
  * header (PlayerFacingEncoder / NpcFaceEncoder in RSProt).
  */
 
-#include "rsprot_buf.h"
+#include "../src/rsprot_buf.h"
+#include "rsprot_info.h" /* RSPROT_FACE_TARGET_*: the same numbers the reader names */
 
-enum WireFaceKind
+enum RsprotFaceKind
 {
-    WIRE_FACE_ENTITY = 0,
-    WIRE_FACE_LOC = 1,
-    WIRE_FACE_ANGLE = 2,
-    WIRE_FACE_RESET = 3,
+    RSPROT_FACE_KIND_ENTITY = 0,
+    RSPROT_FACE_KIND_LOC = 1,
+    RSPROT_FACE_KIND_ANGLE = 2,
+    RSPROT_FACE_KIND_RESET = 3,
 };
 
-enum WireFaceEntityType
+struct RsprotFace
 {
-    WIRE_FACE_NPC = 1,
-    WIRE_FACE_PLAYER = 2,
-    WIRE_FACE_WORLD_ENTITY = 3,
-};
-
-struct WireFace
-{
-    enum WireFaceKind kind;
+    enum RsprotFaceKind kind;
     int entity_type;
     int entity_index;
     int entity_fallback_angle;
@@ -44,10 +38,10 @@ struct WireFace
 };
 
 static inline void
-wire_face_init(struct WireFace* face)
+rsprot_face_init(struct RsprotFace* face)
 {
-    face->kind = WIRE_FACE_RESET;
-    face->entity_type = WIRE_FACE_NPC;
+    face->kind = RSPROT_FACE_KIND_RESET;
+    face->entity_type = RSPROT_FACE_TARGET_NPC;
     face->entity_index = -1;
     face->entity_fallback_angle = 0;
     face->angle = 0;
@@ -60,47 +54,47 @@ wire_face_init(struct WireFace* face)
 }
 
 static inline void
-wire_face_write_payload(struct RsprotBuf* buf, struct WireFace const* face)
+rsprot_face_write_payload(struct RsprotBuf* buf, struct RsprotFace const* face)
 {
     switch( face->kind )
     {
-    case WIRE_FACE_ENTITY:
+    case RSPROT_FACE_KIND_ENTITY:
         rsprot_psmart1or2(buf, face->entity_type);
         /* Any negative index is "no entity" (FaceEntityForClient passes the
          * server's face_entity through unchanged); smart2or4null's null is -1. */
         rsprot_psmart2or4null(buf, face->entity_index < 0 ? -1 : face->entity_index);
         rsprot_psmart1or2(buf, face->entity_fallback_angle);
         break;
-    case WIRE_FACE_LOC:
+    case RSPROT_FACE_KIND_LOC:
         rsprot_psmart1or2(buf, face->x);
         rsprot_psmart1or2(buf, face->z);
         rsprot_psmart1or2(buf, (face->size_z << 4) | face->size_x);
         break;
-    case WIRE_FACE_ANGLE:
+    case RSPROT_FACE_KIND_ANGLE:
         rsprot_psmart1or2(buf, face->angle);
         break;
-    case WIRE_FACE_RESET:
+    case RSPROT_FACE_KIND_RESET:
     default:
         break;
     }
 }
 
 static inline void
-wire_face_write_player(struct RsprotBuf* buf, struct WireFace const* face)
+rsprot_face_write_player(struct RsprotBuf* buf, struct RsprotFace const* face)
 {
     int header = face->walk_mode | ((int)face->kind << 3) | (face->instant ? 0x40 : 0);
 
     rsprot_p1_neg(buf, header);
-    wire_face_write_payload(buf, face);
+    rsprot_face_write_payload(buf, face);
 }
 
 static inline void
-wire_face_write_npc(struct RsprotBuf* buf, struct WireFace const* face)
+rsprot_face_write_npc(struct RsprotBuf* buf, struct RsprotFace const* face)
 {
     int header = face->walk_mode | ((int)face->kind << 3) | (face->instant ? 0x40 : 0);
 
     rsprot_p1_add128(buf, header);
-    wire_face_write_payload(buf, face);
+    rsprot_face_write_payload(buf, face);
 }
 
 #endif

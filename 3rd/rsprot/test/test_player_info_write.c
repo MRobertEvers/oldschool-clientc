@@ -33,12 +33,9 @@
  *     make -C src test-wire-player-info
  */
 
-#include "mem/torirs_mem.h"
-#include "torirsserver/wire/osrs239/osrs239_player_info.h"
-#include "torirsserver/torirs_server_wire.h"
-#include "torirsserver/wire/core/wire_appearance.h"
+#include "streams/player_info_write.h"
+#include "streams/npc_info_write.h"
 #include "streams/rsprot_info.h"
-#include "net/proto/proto_info.h"
 #include "streams/npc_info.h"
 #include "streams/player_info.h"
 
@@ -48,32 +45,36 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* The client's reader state: one player table, as the client's executor holds
+ * it (net/proto/proto_info.c wraps the same three calls). */
+static RsprotPlayerInfo g_pi;
+
 static int g_failures;
 
 /* The client's 239 readers: the revision's own stream entry points over the
- * player table (net/proto/proto_info.c), as its executor binds them. */
+ * player table g_pi, as the client's executor binds them. */
 static void
 osrs239_playerinfo_set_local(int local_index)
 {
-    proto_info_set_local(local_index);
+    rsprot_player_info_reset(&g_pi, local_index);
 }
 
 static void
 osrs239_playerinfo_init(uint8_t const* data, int len)
 {
-    proto_info_init(data, len);
+    rsprot_player_info_init(&g_pi, data, len);
 }
 
 static int
 osrs239_player_info_read(uint8_t const* data, int len, RsprotInfoList* out)
 {
-    return proto_info_player_read(player_info_osrs239, data, len, out);
+    return player_info_osrs239(&g_pi, data, len, out);
 }
 
 static int
 osrs239_npc_info_read(uint8_t const* data, int len, RsprotInfoList* out)
 {
-    return proto_info_npc_read(npc_info_small_v5_osrs239, data, len, out);
+    return npc_info_small_v5_osrs239(data, len, NULL, NULL, out);
 }
 
 /* The readers write a list; these hand the test its ops, with the strings
@@ -120,15 +121,15 @@ osrs239_npc_info_read_ops(uint8_t const* data, int len, struct RsprotInfoOp* ops
 static void
 check_appearance_headicon_index(void)
 {
-    CHECK(wire_appearance_headicon_index(0) == -1, "empty icon mask writes -1");
-    CHECK(wire_appearance_headicon_index(1) == 0, "first prayer bit writes index 0");
-    CHECK(wire_appearance_headicon_index(1 << 5) == 5, "prayer bit 5 writes index 5");
+    CHECK(rsprot_appearance_headicon_index(0) == -1, "empty icon mask writes -1");
+    CHECK(rsprot_appearance_headicon_index(1) == 0, "first prayer bit writes index 0");
+    CHECK(rsprot_appearance_headicon_index(1 << 5) == 5, "prayer bit 5 writes index 5");
     CHECK(
-        wire_appearance_headicon_index((1 << 2) | (1 << 6)) == 2,
+        rsprot_appearance_headicon_index((1 << 2) | (1 << 6)) == 2,
         "one-index wire form deterministically chooses the first active bit");
 }
 
-#define SLOTS WIRE_PLAYER_SLOTS
+#define SLOTS RSPROT_INFO_PLAYER_SLOTS
 #define LOCAL_INDEX 42
 
 /* readStationary: 2-bit type selecting the run width. */
@@ -349,7 +350,7 @@ static int32_t gpi_coord(int level, int x, int z)
 { return (int32_t)(((level & 3) << 28) | ((x & 16383) << 14) | (z & 16383)); }
 
 static void
-check_gpi_tick(struct WirePlayerInfoState* server, struct WirePlayerUpdate* updates,
+check_gpi_tick(struct RsprotPlayerInfoWriter* server, struct RsprotPlayerUpdate* updates,
                int count, struct GpiClientProbe* client)
 {
     uint8_t bytes[8192];
@@ -357,7 +358,7 @@ check_gpi_tick(struct WirePlayerInfoState* server, struct WirePlayerUpdate* upda
     struct RsprotInfoOp ops[128];
     int target = -1;
     rsprot_buf_wrap(&buf,bytes,sizeof(bytes));
-    osrs239_player_info_write_world(&buf,server,updates,count);
+    player_info_osrs239_write(&buf,server,updates,count);
     CHECK(rsprot_buf_ok(&buf),"multi-player packet stays within its buffer");
     int n = osrs239_player_info_read_ops(bytes,(int)buf.wpos,ops,128);
     for( int i=0; i<n; ++i )
@@ -385,21 +386,21 @@ check_gpi_tick(struct WirePlayerInfoState* server, struct WirePlayerUpdate* upda
 static void
 check_multiplayer_actual_decoder(void)
 {
-    struct WirePlayerInfoState server;
+    struct RsprotPlayerInfoWriter server;
     struct GpiClientProbe client={0};
-    struct WirePlayerExt run={.has_temp_move_speed=1,.temp_move_speed=2};
+    struct RsprotPlayerExt run={.has_temp_move_speed=1,.temp_move_speed=2};
     uint8_t bytes[8192], look[]={11,22,33};
     struct RsprotBuf buf;
-    struct WirePlayerUpdate updates[3]={
+    struct RsprotPlayerUpdate updates[3]={
         {.index=LOCAL_INDEX,.visible=1,.coord=gpi_coord(0,3200,3200),.appearance=look,.appearance_len=1},
         {.index=7,.visible=1,.coord=gpi_coord(2,9001,9305),.appearance=look+1,.appearance_len=1},
         {.index=1900,.visible=1,.coord=gpi_coord(0,3203,3202),.appearance=look+2,.appearance_len=1}
     };
     rsprot_buf_wrap(&buf,bytes,sizeof(bytes));
-    wire_player_info_write_init(&buf,LOCAL_INDEX,updates[0].coord);
+    rsprot_player_info_write_init(&buf,LOCAL_INDEX,updates[0].coord);
     osrs239_playerinfo_set_local(LOCAL_INDEX);
     osrs239_playerinfo_init(bytes,(int)buf.wpos);
-    wire_player_info_state_init(&server,LOCAL_INDEX,updates[0].coord);
+    rsprot_player_info_writer_init(&server,LOCAL_INDEX,updates[0].coord);
     client.present[LOCAL_INDEX]=1;
     check_gpi_tick(&server,updates,3,&client);
     CHECK(client.present[7] && client.present[1900],"actual client admits both sparse remote player indices");
@@ -408,27 +409,27 @@ check_multiplayer_actual_decoder(void)
     CHECK(client.appearance[7]==22 && client.appearance[1900]==33 && client.appearance[LOCAL_INDEX]==11,
           "extended appearance order follows all four bit sections");
     for( int i=0; i<3; ++i ) { updates[i].appearance=NULL; updates[i].appearance_len=0; }
-    updates[1].coord=gpi_coord(2,9002,9305); updates[1].movement=WIRE_PLAYER_WALK; updates[1].movement_value=4;
-    updates[2].coord=gpi_coord(0,3203,3200); updates[2].movement=WIRE_PLAYER_RUN; updates[2].movement_value=2; updates[2].ext=&run;
+    updates[1].coord=gpi_coord(2,9002,9305); updates[1].movement=RSPROT_GPI_WALK; updates[1].movement_value=4;
+    updates[2].coord=gpi_coord(0,3203,3200); updates[2].movement=RSPROT_GPI_RUN; updates[2].movement_value=2; updates[2].ext=&run;
     check_gpi_tick(&server,updates,3,&client);
     CHECK(client.x[7]==9002 && client.z[1900]==3200 && client.speed[1900]==2,
           "remote WALK and two-tile RUN decode with explicit run traversal");
-    updates[1].movement=WIRE_PLAYER_NOMOVE;
+    updates[1].movement=RSPROT_GPI_NOMOVE;
     updates[2].coord=gpi_coord(0,3203,3197);
-    updates[2].movement=WIRE_PLAYER_TELEPORT;
+    updates[2].movement=RSPROT_GPI_TELEPORT;
     updates[2].movement_value=gpi_coord(0,0,-3);
     check_gpi_tick(&server,updates,3,&client);
     CHECK(client.z[1900]==3197 && client.speed[1900]==2 && !client.jump[1900],
           "large coordinate displacement with explicit RUN queues locomotion");
-    updates[0].coord=gpi_coord(0,3200,3199); updates[0].movement=WIRE_PLAYER_WALK; updates[0].movement_value=1;
-    updates[1].movement=WIRE_PLAYER_NOMOVE;
+    updates[0].coord=gpi_coord(0,3200,3199); updates[0].movement=RSPROT_GPI_WALK; updates[0].movement_value=1;
+    updates[1].movement=RSPROT_GPI_NOMOVE;
     updates[2].visible=0; updates[2].coord=gpi_coord(1,14000,14300); updates[2].ext=NULL;
     check_gpi_tick(&server,updates,3,&client);
     CHECK(!client.present[1900] && client.present[7] && client.z[LOCAL_INDEX]==3199,
           "removal does not reprocess the slot in this packet's low-resolution pass");
-    updates[0].movement=WIRE_PLAYER_NOMOVE;
+    updates[0].movement=RSPROT_GPI_NOMOVE;
     updates[1].visible=0;
-    updates[2].visible=1; updates[2].coord=gpi_coord(1,14004,14301); updates[2].movement=WIRE_PLAYER_NOMOVE;
+    updates[2].visible=1; updates[2].coord=gpi_coord(1,14004,14301); updates[2].movement=RSPROT_GPI_NOMOVE;
     updates[2].appearance=look+2; updates[2].appearance_len=1;
     check_gpi_tick(&server,updates,3,&client);
     CHECK(!client.present[7] && client.present[1900] && client.x[1900]==14004 &&
@@ -466,13 +467,13 @@ main(void)
 
     fprintf(stderr, "wire-player-info: npc tail sentinel threshold\n");
     /* The v5 codec uses a 16-bit per-client index and a 28-bit lookahead. */
-    CHECK(!wire_npc_info_tail_needs_sentinel(45, 1),
+    CHECK(!rsprot_npc_info_tail_needs_sentinel(45, 1),
           "bit 45 + one-byte mask stays below the 28-bit guard");
-    CHECK(!wire_npc_info_tail_needs_sentinel(45, 3),
+    CHECK(!rsprot_npc_info_tail_needs_sentinel(45, 3),
           "bit 45 + three-byte tail stays below the 28-bit guard");
-    CHECK(!wire_npc_info_tail_needs_sentinel(48, 3),
+    CHECK(!rsprot_npc_info_tail_needs_sentinel(48, 3),
           "a byte-aligned three-byte tail remains below the 28-bit guard");
-    CHECK(wire_npc_info_tail_needs_sentinel(48, 4),
+    CHECK(rsprot_npc_info_tail_needs_sentinel(48, 4),
           "a byte-aligned four-byte tail reaches the 28-bit guard");
 
     fprintf(stderr, "wire-player-info: npc entering-view payload\n");
@@ -655,26 +656,26 @@ main(void)
      * NpcFaceEncoder p1Alt1 header and Entity payload. */
     fprintf(stderr, "wire-player-info: literal player/npc face blocks\n");
     {
-        struct WireFace face;
+        struct RsprotFace face;
         static uint8_t const player_loc[] = { 0xf8, 0x8c, 0x96, 0x8c, 0x92, 0x11 };
         static uint8_t const npc_player[] = { 0x80, 0x02, 0x00, 0x01, 0x00 };
 
-        wire_face_init(&face);
-        face.kind = WIRE_FACE_LOC;
+        rsprot_face_init(&face);
+        face.kind = RSPROT_FACE_KIND_LOC;
         face.x = 3222;
         face.z = 3218;
         rsprot_buf_wrap(&buf, storage, sizeof(storage));
-        wire_face_write_player(&buf, &face);
+        rsprot_face_write_player(&buf, &face);
         CHECK(buf.wpos == sizeof(player_loc) &&
                   memcmp(storage, player_loc, sizeof(player_loc)) == 0,
               "player Face.Loc is literal p1Alt2 + smart coords + packed size");
 
-        wire_face_init(&face);
-        face.kind = WIRE_FACE_ENTITY;
-        face.entity_type = WIRE_FACE_PLAYER;
-        face.entity_index = ToriRSServer_WirePlayerIndex(0);
+        rsprot_face_init(&face);
+        face.kind = RSPROT_FACE_KIND_ENTITY;
+        face.entity_type = RSPROT_FACE_TARGET_PLAYER;
+        face.entity_index = 1; /* pool pid 0 is wire index 1 */
         rsprot_buf_wrap(&buf, storage, sizeof(storage));
-        wire_face_write_npc(&buf, &face);
+        rsprot_face_write_npc(&buf, &face);
         CHECK(buf.wpos == sizeof(npc_player) &&
                   memcmp(storage, npc_player, sizeof(npc_player)) == 0,
               "npc Face.Entity maps pool slot zero to GPI slot one");
@@ -684,7 +685,7 @@ main(void)
     memset(&got, 0, sizeof(got));
     got.local_index = LOCAL_INDEX;
     rsprot_buf_wrap(&buf, storage, sizeof(storage));
-    wire_player_info_write_init(&buf, LOCAL_INDEX, coord);
+    rsprot_player_info_write_init(&buf, LOCAL_INDEX, coord);
     {
         size_t written = buf.wpos;
         /* 30 bits + 2046 * 18 bits = 36858 bits = 4608 bytes (rounded up). */
@@ -703,7 +704,7 @@ main(void)
     memset(&got, 0, sizeof(got));
     got.local_index = LOCAL_INDEX;
     rsprot_buf_wrap(&buf, storage, sizeof(storage));
-    osrs239_player_info_write(&buf, LOCAL_INDEX, WIRE_PLAYER_TELEPORT, coord, 0, appearance,
+    player_info_osrs239_write_local(&buf, LOCAL_INDEX, RSPROT_GPI_TELEPORT, coord, 0, appearance,
                              sizeof(appearance), NULL);
     {
         size_t written = buf.wpos;
@@ -731,7 +732,7 @@ main(void)
     memset(&got, 0, sizeof(got));
     got.local_index = LOCAL_INDEX;
     rsprot_buf_wrap(&buf, storage, sizeof(storage));
-    osrs239_player_info_write(&buf, LOCAL_INDEX, WIRE_PLAYER_NOMOVE, 0, 0, NULL, 0, NULL);
+    player_info_osrs239_write_local(&buf, LOCAL_INDEX, RSPROT_GPI_NOMOVE, 0, 0, NULL, 0, NULL);
     {
         size_t written = buf.wpos;
 
@@ -747,7 +748,7 @@ main(void)
     memset(&got, 0, sizeof(got));
     got.local_index = LOCAL_INDEX;
     rsprot_buf_wrap(&buf, storage, sizeof(storage));
-    osrs239_player_info_write(&buf, LOCAL_INDEX, WIRE_PLAYER_WALK, 7, 0, NULL, 0, NULL);
+    player_info_osrs239_write_local(&buf, LOCAL_INDEX, RSPROT_GPI_WALK, 7, 0, NULL, 0, NULL);
     {
         size_t written = buf.wpos;
         rsprot_buf_wrap_read(&buf, storage, written);
@@ -763,7 +764,7 @@ main(void)
      * traversal value, not off the two-bit movement opcode. */
     rsprot_buf_wrap(&buf, storage, sizeof(storage));
     {
-        struct WirePlayerExt ext;
+        struct RsprotPlayerExt ext;
         struct RsprotInfoOp ops[64];
         struct RsprotInfoOp const* move = NULL;
         int op_count;
@@ -771,8 +772,8 @@ main(void)
         memset(&ext, 0, sizeof(ext));
         ext.has_temp_move_speed = 1;
         ext.temp_move_speed = 2;
-        osrs239_player_info_write(
-            &buf, LOCAL_INDEX, WIRE_PLAYER_WALK, 2, 0, NULL, 0, &ext);
+        player_info_osrs239_write_local(
+            &buf, LOCAL_INDEX, RSPROT_GPI_WALK, 2, 0, NULL, 0, &ext);
         op_count = osrs239_player_info_read_ops(storage, (int)buf.wpos, ops, 64);
         for( int i = 0; i < op_count; i++ )
             if( ops[i].kind == RSPROT_OP_ABS_XZLEVEL )
@@ -788,14 +789,14 @@ main(void)
     got.local_index = LOCAL_INDEX;
     rsprot_buf_wrap(&buf, storage, sizeof(storage));
     {
-        struct WirePlayerExt ext;
+        struct RsprotPlayerExt ext;
 
         memset(&ext, 0, sizeof(ext));
         ext.has_hit = 1;
         ext.hit_type = 28;
         ext.hit_value = 73;
-        osrs239_player_info_write(
-            &buf, LOCAL_INDEX, WIRE_PLAYER_NOMOVE, 0, 0, NULL, 0, &ext);
+        player_info_osrs239_write_local(
+            &buf, LOCAL_INDEX, RSPROT_GPI_NOMOVE, 0, 0, NULL, 0, &ext);
     }
     {
         size_t written = buf.wpos;
@@ -818,7 +819,7 @@ main(void)
     fprintf(stderr, "wire-player-info: headbar block\n");
     rsprot_buf_wrap(&buf, storage, sizeof(storage));
     {
-        struct WirePlayerExt ext;
+        struct RsprotPlayerExt ext;
         struct RsprotInfoOp ops[64];
         struct RsprotInfoOp const* bar = NULL;
         int op_count;
@@ -830,8 +831,8 @@ main(void)
         ext.headbar_start_delay = 0;
         ext.headbar_start_fill = 30;
         ext.headbar_end_fill = 18;
-        osrs239_player_info_write(
-            &buf, LOCAL_INDEX, WIRE_PLAYER_NOMOVE, 0, 0, NULL, 0, &ext);
+        player_info_osrs239_write_local(
+            &buf, LOCAL_INDEX, RSPROT_GPI_NOMOVE, 0, 0, NULL, 0, &ext);
         op_count = osrs239_player_info_read_ops(storage, (int)buf.wpos, ops, 64);
         for( int i = 0; i < op_count; i++ )
             if( ops[i].kind == RSPROT_OP_HEADBAR )
@@ -864,13 +865,13 @@ main(void)
     got.local_index = LOCAL_INDEX;
     rsprot_buf_wrap(&buf, storage, sizeof(storage));
     {
-        struct WirePlayerExt ext;
+        struct RsprotPlayerExt ext;
 
         memset(&ext, 0, sizeof(ext));
         ext.has_temp_move_speed = 1;
         ext.temp_move_speed = 2;
-        osrs239_player_info_write(
-            &buf, LOCAL_INDEX, WIRE_PLAYER_RUN, 8, 0, NULL, 0, &ext);
+        player_info_osrs239_write_local(
+            &buf, LOCAL_INDEX, RSPROT_GPI_RUN, 8, 0, NULL, 0, &ext);
     }
     {
         size_t written = buf.wpos;
@@ -906,7 +907,7 @@ main(void)
     rsprot_buf_wrap(&buf, storage, sizeof(storage));
     {
         static uint8_t const chat_data[] = { 0x11, 0x22, 0x33 };
-        struct WirePlayerExt ext;
+        struct RsprotPlayerExt ext;
         struct RsprotInfoOp ops[96];
         struct RsprotInfoOp const* hit = NULL;
         struct RsprotInfoOp const* face = NULL;
@@ -924,8 +925,8 @@ main(void)
         ext.hit_delay = 6;
         ext.hit_slots = 3;
         ext.has_face = 1;
-        wire_face_init(&ext.face);
-        ext.face.kind = WIRE_FACE_ANGLE;
+        rsprot_face_init(&ext.face);
+        ext.face.kind = RSPROT_FACE_KIND_ANGLE;
         ext.face.angle = 1536;
         ext.face.instant = 1;
         ext.face.walk_mode = 1;
@@ -963,8 +964,8 @@ main(void)
         ext.tint_saturation = 6;
         ext.tint_lightness = 24;
         ext.tint_weight = 112;
-        osrs239_player_info_write(
-            &buf, LOCAL_INDEX, WIRE_PLAYER_NOMOVE, 0, 1, NULL, 0, &ext);
+        player_info_osrs239_write_local(
+            &buf, LOCAL_INDEX, RSPROT_GPI_NOMOVE, 0, 1, NULL, 0, &ext);
 
         op_count = osrs239_player_info_read_ops(storage, (int)buf.wpos, ops, 96);
         for( int i = 0; i < op_count; i++ )
@@ -1012,7 +1013,7 @@ main(void)
 
     fprintf(stderr, "wire-player-info: tinting cleared the way Jagex clears it\n");
     {
-        struct WirePlayerExt ext;
+        struct RsprotPlayerExt ext;
         struct RsprotInfoOp ops[32];
         struct RsprotInfoOp const* tint = NULL;
         int op_count;
@@ -1024,7 +1025,7 @@ main(void)
         ext.tint_lightness = 255;
         ext.tint_weight = 0;
         rsprot_buf_wrap(&buf, storage, sizeof(storage));
-        osrs239_player_info_write(&buf, LOCAL_INDEX, WIRE_PLAYER_NOMOVE, 0, 1, NULL, 0, &ext);
+        player_info_osrs239_write_local(&buf, LOCAL_INDEX, RSPROT_GPI_NOMOVE, 0, 1, NULL, 0, &ext);
         op_count = osrs239_player_info_read_ops(storage, (int)buf.wpos, ops, 32);
         for( int i = 0; i < op_count; i++ )
             if( ops[i].kind == RSPROT_OP_TINT )
@@ -1044,7 +1045,7 @@ main(void)
      * back so the decoder's coordinate is where the later ticks expect it. */
     fprintf(stderr, "wire-player-info: an exact move cancels the same update's teleport\n");
     {
-        struct WirePlayerExt ext;
+        struct RsprotPlayerExt ext;
         struct RsprotInfoOp ops[32];
         struct RsprotInfoOp const* move = NULL;
         int op_count;
@@ -1059,7 +1060,7 @@ main(void)
         ext.exact_end_cycle = 255;
         ext.exact_facing = 1024;
         rsprot_buf_wrap(&buf, storage, sizeof(storage));
-        osrs239_player_info_write(&buf, LOCAL_INDEX, WIRE_PLAYER_TELEPORT, 11, 1, NULL, 0, &ext);
+        player_info_osrs239_write_local(&buf, LOCAL_INDEX, RSPROT_GPI_TELEPORT, 11, 1, NULL, 0, &ext);
         op_count = osrs239_player_info_read_ops(storage, (int)buf.wpos, ops, 32);
         for( int i = 0; i < op_count; i++ )
             if( ops[i].kind == RSPROT_OP_ABS_XZLEVEL )
@@ -1069,8 +1070,8 @@ main(void)
 
         move = NULL;
         rsprot_buf_wrap(&buf, storage, sizeof(storage));
-        osrs239_player_info_write(
-            &buf, LOCAL_INDEX, WIRE_PLAYER_TELEPORT, (-11) & 0x3fff, 1, NULL, 0, NULL);
+        player_info_osrs239_write_local(
+            &buf, LOCAL_INDEX, RSPROT_GPI_TELEPORT, (-11) & 0x3fff, 1, NULL, 0, NULL);
         op_count = osrs239_player_info_read_ops(storage, (int)buf.wpos, ops, 32);
         for( int i = 0; i < op_count; i++ )
             if( ops[i].kind == RSPROT_OP_ABS_XZLEVEL )
@@ -1082,7 +1083,7 @@ main(void)
     memset(&got, 0, sizeof(got));
     got.local_index = LOCAL_INDEX;
     rsprot_buf_wrap(&buf, storage, sizeof(storage));
-    osrs239_player_info_write(&buf, LOCAL_INDEX, WIRE_PLAYER_NOMOVE, 0, 1, appearance,
+    player_info_osrs239_write_local(&buf, LOCAL_INDEX, RSPROT_GPI_NOMOVE, 0, 1, appearance,
                              sizeof(appearance), NULL);
     {
         size_t written = buf.wpos;

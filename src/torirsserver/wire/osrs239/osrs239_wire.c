@@ -6,11 +6,9 @@
 #include "torirsserver/wire/core/wire_runclientscript.h"
 #include "torirsserver/wire/osrs239/osrs239_inbound.h"
 #include "torirsserver/wire/osrs239/osrs239_interface_setters.h"
-#include "torirsserver/wire/osrs239/osrs239_player_info.h"
+#include "streams/player_info_write.h"
 #include "torirsserver/wire/osrs239/osrs239_varp.h"
-#include "torirsserver/wire/osrs239/packetin.h"
-#include "torirsserver/wire/osrs239/packetout.h"
-#include "torirsserver/wire/osrs239/zoneprot.h"
+#include "torirsserver/wire/osrs239/osrs239_prots.h"
 
 #include "rsprot_buf.h"
 
@@ -30,19 +28,19 @@
 static int
 osrs239_out_size(int wire_opcode)
 {
-    return osrs239_packetout_size(wire_opcode);
+    return wire_prot_out_size(&g_osrs239_prots, wire_opcode);
 }
 
 static int
 osrs239_out_name(int wire_opcode)
 {
-    return osrs239_packetout_name(wire_opcode);
+    return wire_prot_out_name(&g_osrs239_prots, wire_opcode);
 }
 
 static char const*
 osrs239_out_prot_name(int wire_opcode)
 {
-    return osrs239_packetout_protname(wire_opcode);
+    return wire_prot_out_protname(&g_osrs239_prots, wire_opcode);
 }
 
 /*
@@ -55,17 +53,17 @@ osrs239_zone_sub(int pkt_name)
 {
     switch( pkt_name )
     {
-    case PKT_NAME_LOC_DEL: return OSRS239_ZONE_LOC_DEL;
-    case PKT_NAME_LOC_MERGE: return OSRS239_ZONE_LOC_MERGE;
-    case PKT_NAME_OBJ_COUNT: return OSRS239_ZONE_OBJ_COUNT;
-    case PKT_NAME_MAP_ANIM: return OSRS239_ZONE_MAP_ANIM;
-    case PKT_NAME_SOUND_AREA: return OSRS239_ZONE_SOUND_AREA;
-    case PKT_NAME_LOC_ADD_CHANGE: return OSRS239_ZONE_LOC_ADD_CHANGE_V2;
-    case PKT_NAME_OBJ_ADD: return OSRS239_ZONE_OBJ_ADD;
-    case PKT_NAME_LOC_ANIM: return OSRS239_ZONE_LOC_ANIM;
-    case PKT_NAME_OBJ_DEL: return OSRS239_ZONE_OBJ_DEL;
-    case PKT_NAME_OBJ_REVEAL: return OSRS239_ZONE_OBJ_ENABLED_OPS;
-    case PKT_NAME_MAP_PROJANIM: return OSRS239_ZONE_MAP_PROJANIM_V2;
+    case PKT_NAME_LOC_DEL: return RSPROT_OSRS239_ZONE_LOC_DEL;
+    case PKT_NAME_LOC_MERGE: return RSPROT_OSRS239_ZONE_LOC_MERGE;
+    case PKT_NAME_OBJ_COUNT: return RSPROT_OSRS239_ZONE_OBJ_COUNT;
+    case PKT_NAME_MAP_ANIM: return RSPROT_OSRS239_ZONE_MAP_ANIM;
+    case PKT_NAME_SOUND_AREA: return RSPROT_OSRS239_ZONE_SOUND_AREA;
+    case PKT_NAME_LOC_ADD_CHANGE: return RSPROT_OSRS239_ZONE_LOC_ADD_CHANGE_V2;
+    case PKT_NAME_OBJ_ADD: return RSPROT_OSRS239_ZONE_OBJ_ADD;
+    case PKT_NAME_LOC_ANIM: return RSPROT_OSRS239_ZONE_LOC_ANIM;
+    case PKT_NAME_OBJ_DEL: return RSPROT_OSRS239_ZONE_OBJ_DEL;
+    case PKT_NAME_OBJ_REVEAL: return RSPROT_OSRS239_ZONE_OBJ_ENABLED_OPS;
+    case PKT_NAME_MAP_PROJANIM: return RSPROT_OSRS239_ZONE_MAP_PROJANIM_V2;
     default: return -1;
     }
 }
@@ -73,19 +71,19 @@ osrs239_zone_sub(int pkt_name)
 static int
 osrs239_opcode(int pkt_name)
 {
-    return packetin_wire_osrs239(pkt_name);
+    return wire_prot_in_code(&g_osrs239_prots, pkt_name);
 }
 
 static int
 osrs239_size(int wire_opcode)
 {
-    return packetin_size_osrs239(wire_opcode);
+    return wire_prot_in_size(&g_osrs239_prots, wire_opcode);
 }
 
 static char const*
 osrs239_prot_name(int wire_opcode)
 {
-    return packetin_protname_osrs239(wire_opcode);
+    return wire_prot_in_protname(&g_osrs239_prots, wire_opcode);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1112,7 +1110,7 @@ w239_zone_payload(
 
 
 static const struct ToriRSServerWirePayload k_payload_osrs239 = {
-    .player_info = osrs239_player_info_write_world,
+    .player_info = player_info_osrs239_write,
     .message_private = ToriRSServer_WireMessagePrivateOsrs,
     .if_movesub = w239_if_movesub,
     .if_setcolour = w239_if_setcolour,
@@ -1236,7 +1234,7 @@ static const int k_transcribed_osrs239[] = {
     PKT_NAME_UPDATE_IGNORELIST,
 
     /* PLAYER_INFO has no `payload` writer because it is not a field list — the
-     * whole packet is built by wire_player_info.c, which torirs_server_encode.c
+     * whole packet is built by player_info_write.c, which torirs_server_encode.c
      * forks to before writing a bit. It is listed here so the send is allowed;
      * NPC_INFO is deliberately still absent. */
     PKT_NAME_PLAYER_INFO,

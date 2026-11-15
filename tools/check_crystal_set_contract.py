@@ -31,7 +31,8 @@ from pathlib import Path
 CHAT_ENTER = Path("scripts/chatdefault_onkey.cs2")
 SCRIPTS = Path("server/scripts")
 CRYSTAL_PROC = SCRIPTS / "skill_combat/scripts/player/crystal_set.rs2"
-PACKET_TABLE = Path("src/torirsserver/wire/osrs239/packetout.h")
+PACKET_TABLE = Path("src/torirsserver/wire/osrs239/osrs239_prots.h")
+RSPROT_TABLE = Path("3rd/rsprot/gen/osrs239_prot.h")
 # The cheat dispatch lives in the world, the ::~crystal_set assertions in the
 # self-test that was split out of it. Both halves are read as one text, world
 # first, so the ordering check below still means what it did.
@@ -108,8 +109,11 @@ def check(root: Path, content: Path) -> list[str]:
     errors.extend(crystal_definition_errors(definitions, proc_text))
 
     packet = (root / PACKET_TABLE).read_text(encoding="utf-8")
-    if not re.search(r"PKTOUT_NAME_CLIENT_CHEAT\s*,\s*34\s*,", packet):
-        errors.append(f"{PACKET_TABLE}: revision-239 CLIENT_CHEAT is no longer opcode 34")
+    if not re.search(r"RSPROT_OSRS239_CLIENT_CLIENT_CHEAT\s*,\s*PKTOUT_NAME_CLIENT_CHEAT\b", packet):
+        errors.append(f"{PACKET_TABLE}: revision 239 no longer reads CLIENT_CHEAT as PKTOUT_NAME_CLIENT_CHEAT")
+    rsprot = (root / RSPROT_TABLE).read_text(encoding="utf-8")
+    if not re.search(r"RSPROT_OSRS239_CLIENT_CLIENT_CHEAT\s*=\s*34\s*,", rsprot):
+        errors.append(f"{RSPROT_TABLE}: revision-239 CLIENT_CHEAT is no longer opcode 34")
 
     world = ((root / WORLD).read_text(encoding="utf-8")
              + (root / WORLD_SELFTEST).read_text(encoding="utf-8"))

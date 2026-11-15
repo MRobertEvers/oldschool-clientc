@@ -52,8 +52,8 @@
 
 struct RsprotBuf;
 struct ToriRSServerZoneEvent;
-struct WirePlayerInfoState;
-struct WirePlayerUpdate;
+struct RsprotPlayerInfoWriter;
+struct RsprotPlayerUpdate;
 
 /* ------------------------------------------------------------------ */
 /* Payload writers                                                     */
@@ -374,14 +374,14 @@ struct ToriRSServerWirePayload
         int key_squares);
     /**
      * PLAYER_INFO, whole: the GPI bit sections every OSRS revision shares
-     * (wire/core/wire_player_info.c) and then this revision's extended-info
+     * (3rd/rsprot/streams/player_info_write.c) and then this revision's extended-info
      * tail (wire/osrs<N>/osrs<N>_player_info.c). One slot rather than a field
      * list because the stream is a codec, not a list of fields.
      */
     void (*player_info)(
         struct RsprotBuf* buf,
-        struct WirePlayerInfoState* state,
-        const struct WirePlayerUpdate* updates,
+        struct RsprotPlayerInfoWriter* state,
+        const struct RsprotPlayerUpdate* updates,
         int count);
 };
 
@@ -420,7 +420,7 @@ struct ToriRSServerWire
      *   239  the ORDINAL of RSProt's IndexedZoneProtEncoder enum -- neither the
      *        top-level opcode nor RSProt's own OldSchoolZoneProt id, both of
      *        which are different numbers that would decode as a different
-     *        sub-packet. See src/torirsserver/wire/osrs239/zoneprot.h.
+     *        sub-packet. See RSPROT_OSRS239_ZONE_* in 3rd/rsprot/gen/osrs239_prot.h.
      *
      * Getting this wrong is invisible at the frame level: the enclosed blob is
      * length-prefixed as a whole, so a wrong sub-code produces a well-formed

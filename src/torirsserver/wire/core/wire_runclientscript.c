@@ -1,36 +1,20 @@
-/* The full revision-239 RUNCLIENTSCRIPT argument codec. */
+/*
+ * RUNCLIENTSCRIPT: what this server refuses to send, then rsprot's encoder.
+ *
+ * The bytes are rsprot's (3rd/rsprot/packets/runclientscript.c,
+ * packet_runclientscript_v1_out, one layout for 221..242). What is left here is
+ * the server's side of it: the golden client's limits, and turning the
+ * server's argument list into rsprot's message.
+ */
 
 #include "torirsserver/wire/core/wire_runclientscript.h"
 
+#include "packets/runclientscript.h"
 #include "rsprot_buf.h"
 
-#include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-
-/* class617.method13149: little-endian groups of seven payload bits. */
-static void
-put_varuint(
-    struct RsprotBuf* buf,
-    uint32_t value)
-{
-    do
-    {
-        uint32_t byte = value & 0x7fu;
-        value >>= 7;
-        if( value )
-            byte |= 0x80u;
-        rsprot_p1(buf, (int32_t)byte);
-    } while( value );
-}
-
-/* class617.method13213 reverses this with `u >>> 1 ^ -(u & 1)`. */
-static uint32_t
-zigzag32(int32_t value)
-{
-    return ((uint32_t)value << 1) ^ (uint32_t)-(value < 0);
-}
 
 int
 wire_encode_runclientscript(
@@ -40,54 +24,46 @@ wire_encode_runclientscript(
     struct WireClientScriptArg const* args,
     int argc)
 {
+    char type_string[WIRE_RUNCLIENTSCRIPT_ARG_MAX + 1];
+    MsgRunClientScriptArg margs[WIRE_RUNCLIENTSCRIPT_ARG_MAX];
+    MsgRunClientScript m;
+    RsprotExec x;
+
     if( !buf || argc < 0 || argc > WIRE_RUNCLIENTSCRIPT_ARG_MAX || (argc > 0 && !args) ||
         (types && strlen(types) != (size_t)argc) )
         return 0;
 
+    memset(margs, 0, sizeof(margs));
     for( int i = 0; i < argc; i++ )
-        rsprot_p1(buf, types && types[i] ? (uint8_t)types[i] : (uint8_t)'i');
-    rsprot_p1(buf, 0);
-
-    for( int i = argc - 1; i >= 0; i-- )
     {
-        uint8_t type = types && types[i] ? (uint8_t)types[i] : (uint8_t)'i';
+        char const type = types && types[i] ? types[i] : 'i';
         struct WireClientScriptArg const* arg = &args[i];
+        MsgRunClientScriptArg* out = &margs[i];
 
-        if( type == (uint8_t)'W' || type == (uint8_t)'X' )
+        type_string[i] = type;
+        if( type == 'W' || type == 'X' )
         {
             if( arg->array_count < 0 || arg->array_count > WIRE_RUNCLIENTSCRIPT_ARRAY_MAX )
                 return 0;
             if( arg->array_count > 0 &&
-                ((type == (uint8_t)'W' && !arg->int_array) ||
-                 (type == (uint8_t)'X' && !arg->string_array)) )
+                ((type == 'W' && !arg->int_array) || (type == 'X' && !arg->string_array)) )
                 return 0;
-
-            put_varuint(buf, (uint32_t)arg->array_count);
-            if( type == (uint8_t)'W' )
-            {
-                for( int j = 0; j < arg->array_count; j++ )
-                    put_varuint(buf, zigzag32(arg->int_array[j]));
-            }
-            else
-            {
-                for( int j = 0; j < arg->array_count; j++ )
-                    rsprot_pjstr(buf, arg->string_array[j] ? arg->string_array[j] : "");
-            }
+            out->elem_count = arg->array_count;
+            /* The encoder only reads these; rsprot's message is shared with the
+             * decoder, which is why its pointers are not const. */
+            out->ints = (int32_t*)(uintptr_t)arg->int_array;
+            out->strs = (char const**)(uintptr_t)arg->string_array;
         }
-        else if( type == (uint8_t)'s' )
-        {
-            rsprot_pjstr(buf, arg->string_value ? arg->string_value : "");
-        }
-        else if( type == 0xcfu )
-        {
-            rsprot_p8_12345678(buf, arg->long_value);
-        }
-        else
-        {
-            rsprot_p4_1234(buf, arg->int_value);
-        }
+        out->ival = arg->int_value;
+        out->lval = arg->long_value;
+        out->sval = arg->string_value;
     }
+    type_string[argc] = '\0';
 
-    rsprot_p4_1234(buf, script_id);
-    return rsprot_buf_ok(buf) ? 1 : 0;
+    m.types = type_string;
+    m.id = script_id;
+    m.args = margs;
+    rsprot_exec_encode(&x, buf);
+    packet_runclientscript_v1_out(&x, &m);
+    return rsprot_exec_ok(&x) && rsprot_buf_ok(buf) ? 1 : 0;
 }

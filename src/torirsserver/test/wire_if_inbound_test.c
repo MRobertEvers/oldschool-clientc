@@ -17,7 +17,7 @@
 
 #include "torirsserver/wire/osrs239/osrs239_inbound.h"
 #include "torirsserver/wire/core/wire_if_inbound.h"
-#include "torirsserver/wire/osrs239/packetout.h"
+#include "torirsserver/wire/osrs239/osrs239_prots.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -39,18 +39,6 @@ static int failures;
         }                                                                                          \
     } while( 0 )
 
-static const struct Osrs239PacketOutDef*
-packet_for_code(int code)
-{
-    size_t count =
-        sizeof(g_packet_out_definitions_osrs239) / sizeof(g_packet_out_definitions_osrs239[0]);
-
-    for( size_t i = 0; i < count; i++ )
-        if( g_packet_out_definitions_osrs239[i].code == code )
-            return &g_packet_out_definitions_osrs239[i];
-    return NULL;
-}
-
 static void
 check_table(void)
 {
@@ -60,33 +48,34 @@ check_table(void)
         int name;
         int length;
     } expected[] = {
-        { 56, PKTOUT_NAME_IF_SCRIPT_TRIGGER,         PKTOUT_LENGTH_VARU16 },
-        { 26, PKTOUT_NAME_RESUME_P_NAMEDIALOG,       PKTOUT_LENGTH_VARU8  },
-        { 64, PKTOUT_NAME_RESUME_P_STRINGDIALOG,     PKTOUT_LENGTH_VARU8  },
+        { 56, PKTOUT_NAME_IF_SCRIPT_TRIGGER,         RSPROT_VARU16 },
+        { 26, PKTOUT_NAME_RESUME_P_NAMEDIALOG,       RSPROT_VARU8  },
+        { 64, PKTOUT_NAME_RESUME_P_STRINGDIALOG,     RSPROT_VARU8  },
         { 63, PKTOUT_NAME_RESUME_P_COUNTDIALOG_LONG, 8                    },
         { 32, PKTOUT_NAME_RESUME_P_OBJDIALOG,        2                    },
     };
 
     for( size_t i = 0; i < sizeof(expected) / sizeof(expected[0]); i++ )
     {
-        const struct Osrs239PacketOutDef* def = packet_for_code(expected[i].code);
+        int const name = wire_prot_out_name(&g_osrs239_prots, expected[i].code);
+        int const length = wire_prot_out_size(&g_osrs239_prots, expected[i].code);
 
-        CHECK(def != NULL, "opcode %d has a table row", expected[i].code);
-        if( def )
-        {
-            CHECK(
-                def->name == expected[i].name,
-                "opcode %d canonical name is %d (got %d)",
-                expected[i].code,
-                expected[i].name,
-                def->name);
-            CHECK(
-                def->length == expected[i].length,
-                "opcode %d length is %d (got %d)",
-                expected[i].code,
-                expected[i].length,
-                def->length);
-        }
+        CHECK(
+            wire_prot_out_protname(&g_osrs239_prots, expected[i].code) != NULL,
+            "opcode %d has a table row",
+            expected[i].code);
+        CHECK(
+            name == expected[i].name,
+            "opcode %d canonical name is %d (got %d)",
+            expected[i].code,
+            expected[i].name,
+            name);
+        CHECK(
+            length == expected[i].length,
+            "opcode %d length is %d (got %d)",
+            expected[i].code,
+            expected[i].length,
+            length);
     }
 }
 

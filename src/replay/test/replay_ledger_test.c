@@ -43,7 +43,7 @@
 #include "packets/update_zone_partial_enclosed.h"
 #include "packets/update_zone_partial_follows.h"
 #include "streams/rsprot_info.h"
-#include "torirsserver/wire/osrs241/osrs241_player_info.h"
+#include "streams/player_info_write.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -389,7 +389,7 @@ coord(int x, int z, int level)
 struct Gen
 {
     struct Rec rec;
-    struct WirePlayerInfoState server;
+    struct RsprotPlayerInfoWriter server;
     int local_x;
     int local_z;
     uint8_t local_look[24];
@@ -432,7 +432,7 @@ gen_player_info(
     int tick)
 {
     static uint8_t bytes[16384];
-    struct WirePlayerUpdate updates[REMOTES + 1];
+    struct RsprotPlayerUpdate updates[REMOTES + 1];
     struct RsprotBuf buf;
     int n = 0;
     int teleport = tick == REBUILD_TICK;
@@ -443,7 +443,7 @@ gen_player_info(
     if( teleport )
     {
         g->local_x += 48;
-        updates[n].movement = WIRE_PLAYER_TELEPORT;
+        updates[n].movement = RSPROT_GPI_TELEPORT;
         updates[n].movement_value = coord(48, 0, 0);
     }
     updates[n].coord = coord(g->local_x, g->local_z, 0);
@@ -486,14 +486,14 @@ gen_player_info(
 
             p->x += dx;
             p->z += dz;
-            updates[n].movement = WIRE_PLAYER_TELEPORT;
+            updates[n].movement = RSPROT_GPI_TELEPORT;
             updates[n].movement_value = coord(dx, dz, 0);
         }
         updates[n].coord = coord(p->x, p->z, 0);
         n++;
     }
     rsprot_buf_wrap(&buf, bytes, sizeof(bytes));
-    osrs241_player_info_write_world(&buf, &g->server, updates, n);
+    player_info_osrs241_write(&buf, &g->server, updates, n);
     TEST_CHECK(rsprot_buf_ok(&buf));
     w_server(&g->rec, PKT_NAME_PLAYER_INFO, bytes, (int)buf.wpos);
 }
@@ -782,7 +782,7 @@ build_recording(struct Gen* g)
 
     /* The login REBUILD: the init block, then the six bytes. */
     rsprot_buf_wrap(&buf, login, sizeof(login));
-    wire_player_info_write_init(&buf, LOCAL_INDEX, coord(g->local_x, g->local_z, 0));
+    rsprot_player_info_write_init(&buf, LOCAL_INDEX, coord(g->local_x, g->local_z, 0));
     len = (int)buf.wpos;
     rebuild_tail(login + len, g->local_x >> 3, g->local_z >> 3);
     g_ms = 3;
@@ -790,7 +790,7 @@ build_recording(struct Gen* g)
     g->base_x = ((g->local_x >> 3) - 6) * 8;
     g->base_z = ((g->local_z >> 3) - 6) * 8;
     set_zones(g);
-    wire_player_info_state_init(&g->server, LOCAL_INDEX, coord(g->local_x, g->local_z, 0));
+    rsprot_player_info_writer_init(&g->server, LOCAL_INDEX, coord(g->local_x, g->local_z, 0));
 
     for( int tick = 0; tick < TICKS; tick++ )
     {

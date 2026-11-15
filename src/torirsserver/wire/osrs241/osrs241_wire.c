@@ -1,14 +1,12 @@
 #include "torirsserver/torirs_server_wire.h"
-#include "torirsserver/wire/osrs241/osrs241_player_info.h"
+#include "streams/player_info_write.h"
 
 #include "torirsserver/wire/core/wire_runclientscript.h"
 #include "torirsserver/wire/osrs241/osrs241_inbound.h"
 #include "torirsserver/torirs_server_scene.h"
 #include "torirsserver/torirs_server_zone.h"
 
-#include "torirsserver/wire/osrs241/packetin.h"
-#include "torirsserver/wire/osrs241/packetout.h"
-#include "torirsserver/wire/osrs241/zoneprot.h"
+#include "torirsserver/wire/osrs241/osrs241_prots.h"
 
 #include "rsprot_buf.h"
 #include "rsprot_exec.h"
@@ -144,58 +142,58 @@ w241_run(struct RsprotBuf* buf, RsprotVersionRange const* ranges, int count, voi
 static int
 osrs241_opcode(int pkt_name)
 {
-    return packetin_wire_osrs241(pkt_name);
+    return wire_prot_in_code(&g_osrs241_prots, pkt_name);
 }
 
 static int
 osrs241_size(int wire_opcode)
 {
-    return packetin_size_osrs241(wire_opcode);
+    return wire_prot_in_size(&g_osrs241_prots, wire_opcode);
 }
 
 static char const*
 osrs241_prot_name(int wire_opcode)
 {
-    return packetin_protname_osrs241(wire_opcode);
+    return wire_prot_in_protname(&g_osrs241_prots, wire_opcode);
 }
 
 static int
 osrs241_out_size(int wire_opcode)
 {
-    return osrs241_packetout_size(wire_opcode);
+    return wire_prot_out_size(&g_osrs241_prots, wire_opcode);
 }
 
 static int
 osrs241_out_name(int wire_opcode)
 {
-    return osrs241_packetout_name(wire_opcode);
+    return wire_prot_out_name(&g_osrs241_prots, wire_opcode);
 }
 
 static char const*
 osrs241_out_prot_name(int wire_opcode)
 {
-    return osrs241_packetout_protname(wire_opcode);
+    return wire_prot_out_protname(&g_osrs241_prots, wire_opcode);
 }
 
 /* The enclosed sub-packet ordinal: RSProx 241's IndexedZoneProtDecoder order,
- * which is a different permutation from 239's (zoneprot.h). */
+ * which is a different permutation from 239's (RSPROT_OSRS241_ZONE_*, 3rd/rsprot/gen/osrs241_prot.h). */
 static int
 osrs241_zone_sub(int pkt_name)
 {
     switch( pkt_name )
     {
-    case PKT_NAME_LOC_DEL: return OSRS241_ZONE_LOC_DEL;
-    case PKT_NAME_LOC_MERGE: return OSRS241_ZONE_LOC_MERGE;
-    case PKT_NAME_OBJ_COUNT: return OSRS241_ZONE_OBJ_COUNT;
-    case PKT_NAME_MAP_ANIM: return OSRS241_ZONE_MAP_ANIM;
-    case PKT_NAME_SOUND_AREA: return OSRS241_ZONE_SOUND_AREA;
-    case PKT_NAME_LOC_ADD_CHANGE: return OSRS241_ZONE_LOC_ADD_CHANGE_V2;
-    case PKT_NAME_OBJ_ADD: return OSRS241_ZONE_OBJ_ADD;
-    case PKT_NAME_LOC_ANIM: return OSRS241_ZONE_LOC_ANIM;
-    case PKT_NAME_OBJ_DEL: return OSRS241_ZONE_OBJ_DEL;
-    case PKT_NAME_OBJ_REVEAL: return OSRS241_ZONE_OBJ_ENABLED_OPS;
-    case PKT_NAME_MAP_PROJANIM: return OSRS241_ZONE_MAP_PROJANIM_V2;
-    case PKT_NAME_SCRIPTEDPROJ_ADD: return OSRS241_ZONE_SCRIPTEDPROJ_ADD;
+    case PKT_NAME_LOC_DEL: return RSPROT_OSRS241_ZONE_LOC_DEL;
+    case PKT_NAME_LOC_MERGE: return RSPROT_OSRS241_ZONE_LOC_MERGE;
+    case PKT_NAME_OBJ_COUNT: return RSPROT_OSRS241_ZONE_OBJ_COUNT;
+    case PKT_NAME_MAP_ANIM: return RSPROT_OSRS241_ZONE_MAP_ANIM;
+    case PKT_NAME_SOUND_AREA: return RSPROT_OSRS241_ZONE_SOUND_AREA;
+    case PKT_NAME_LOC_ADD_CHANGE: return RSPROT_OSRS241_ZONE_LOC_ADD_CHANGE_V2;
+    case PKT_NAME_OBJ_ADD: return RSPROT_OSRS241_ZONE_OBJ_ADD;
+    case PKT_NAME_LOC_ANIM: return RSPROT_OSRS241_ZONE_LOC_ANIM;
+    case PKT_NAME_OBJ_DEL: return RSPROT_OSRS241_ZONE_OBJ_DEL;
+    case PKT_NAME_OBJ_REVEAL: return RSPROT_OSRS241_ZONE_OBJ_ENABLED_OPS;
+    case PKT_NAME_MAP_PROJANIM: return RSPROT_OSRS241_ZONE_MAP_PROJANIM_V2;
+    case PKT_NAME_SCRIPTEDPROJ_ADD: return RSPROT_OSRS241_ZONE_SCRIPTEDPROJ_ADD;
     default: return -1;
     }
 }
@@ -1160,7 +1158,7 @@ w241_zone_payload(
 /* ------------------------------------------------------------------ */
 
 static const struct ToriRSServerWirePayload k_payload_osrs241 = {
-    .player_info = osrs241_player_info_write_world,
+    .player_info = player_info_osrs241_write,
     .message_private = ToriRSServer_WireMessagePrivateOsrs,
     .if_movesub = w241_if_movesub,
     .if_setcolour = w241_if_setcolour,

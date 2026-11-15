@@ -1,6 +1,6 @@
-#include "torirsserver/wire/core/wire_player_info.h"
+#include "player_info_write.h"
 
-#include "rsprot_buf.h"
+#include "../src/rsprot_buf.h"
 #include <assert.h>
 #include <string.h>
 
@@ -38,7 +38,7 @@ enum
  * one, so a lone skip is count 0.
  */
 static void
-write_stationary(struct RsprotBuf* buf, int count)
+gpi_write_stationary(struct RsprotBuf* buf, int count)
 {
     if( count == 0 )
     {
@@ -62,7 +62,7 @@ write_stationary(struct RsprotBuf* buf, int count)
 }
 
 void
-wire_player_info_write_init(
+rsprot_player_info_write_init(
     struct RsprotBuf* buf,
     int local_index,
     int32_t coord)
@@ -83,7 +83,7 @@ wire_player_info_write_init(
      * only uses it to place a player it later promotes to high resolution, and
      * a promotion restates the position in full.
      */
-    for( int idx = 1; idx < WIRE_PLAYER_SLOTS; idx++ )
+    for( int idx = 1; idx < RSPROT_INFO_PLAYER_SLOTS; idx++ )
     {
         if( idx == local_index )
             continue;
@@ -93,10 +93,10 @@ wire_player_info_write_init(
 }
 
 void
-wire_player_info_write_local(
+rsprot_player_info_write_local(
     struct RsprotBuf* buf,
     int local_index,
-    enum WirePlayerMovement movement,
+    enum RsprotGpiMove movement,
     int32_t movement_value,
     int low_res_inactive,
     int has_extended)
@@ -133,10 +133,10 @@ wire_player_info_write_local(
      * the extended-info bit set -- without it the client throws outright for
      * the local index. Skipping needs no such care.)
      */
-    if( movement == WIRE_PLAYER_NOMOVE && !has_extended )
+    if( movement == RSPROT_GPI_NOMOVE && !has_extended )
     {
         rsprot_pbits(buf, 1, 0);
-        write_stationary(buf, 0);
+        gpi_write_stationary(buf, 0);
         rsprot_buf_bit_end(buf);
     }
     else
@@ -145,20 +145,20 @@ wire_player_info_write_local(
         rsprot_pbits(buf, 1, has_extended ? 1 : 0);
         switch( movement )
         {
-        case WIRE_PLAYER_NOMOVE:
+        case RSPROT_GPI_NOMOVE:
             /* NOMOVE is legal for the local index only when extended info
              * follows.  The no-extended case took the skip branch above. */
             rsprot_pbits(buf, 2, HIRES_OP_NOMOVE);
             break;
-        case WIRE_PLAYER_WALK:
+        case RSPROT_GPI_WALK:
             rsprot_pbits(buf, 2, HIRES_OP_WALK);
             rsprot_pbits(buf, 3, movement_value & 0x7);
             break;
-        case WIRE_PLAYER_RUN:
+        case RSPROT_GPI_RUN:
             rsprot_pbits(buf, 2, HIRES_OP_RUN);
             rsprot_pbits(buf, 4, movement_value & 0xf);
             break;
-        case WIRE_PLAYER_TELEPORT:
+        case RSPROT_GPI_TELEPORT:
         default:
             /* Far form. `movement_value` is a delta against the coordinate
              * seeded by REBUILD_LOGIN / the preceding PLAYER_INFO. */
@@ -197,13 +197,13 @@ wire_player_info_write_local(
      * other 2045, because a run counts the players AFTER the one it follows.
      */
     {
-        int const low_res_count = WIRE_PLAYER_SLOTS - 1 - 1;
+        int const low_res_count = RSPROT_INFO_PLAYER_SLOTS - 1 - 1;
 
         rsprot_buf_bit_begin(buf);
         if( low_res_inactive )
         {
             rsprot_pbits(buf, 1, 0);
-            write_stationary(buf, low_res_count - 1);
+            gpi_write_stationary(buf, low_res_count - 1);
         }
         rsprot_buf_bit_end(buf);
 
@@ -211,49 +211,14 @@ wire_player_info_write_local(
         if( !low_res_inactive )
         {
             rsprot_pbits(buf, 1, 0);
-            write_stationary(buf, low_res_count - 1);
+            gpi_write_stationary(buf, low_res_count - 1);
         }
         rsprot_buf_bit_end(buf);
     }
 }
 
-void
-wire_npc_info_write_empty(struct RsprotBuf* buf)
-{
-    rsprot_buf_bit_begin(buf);
-    rsprot_pbits(buf, 8, 0); /* no high-resolution npcs */
-    /*
-     * NO 0xFFFF TERMINATOR HERE, and that is the whole subtlety of the empty
-     * packet.
-     *
-     * The client's low-resolution loop only attempts to read an index when at
-     * least 16 + 12 bits remain; below that it stops. With no npcs and no
-     * extended info there is nothing after the count, so it stops immediately
-     * and consumes ONE byte. Writing the terminator anyway makes the packet
-     * three bytes that the client reads one of, and it reports the difference
-     * as `RuntimeException: 1,3` and drops the connection — which presents as
-     * the client returning to the login screen a second after logging in.
-     *
-     * The terminator is required once something follows: with additions or
-     * extended-info bytes in the buffer the loop has enough bits to keep going
-     * and would read them as npc indices. So it belongs in the populated
-     * writer, not here.
-     */
-    rsprot_buf_bit_end(buf);
-}
-
-int
-wire_npc_info_tail_needs_sentinel(
-    size_t bit_position,
-    size_t extended_bytes)
-{
-    size_t const padding_bits = (8u - (bit_position & 7u)) & 7u;
-
-    return padding_bits + extended_bytes * 8u >= 28u;
-}
-
 static uint32_t
-player_region(int32_t coord)
+gpi_player_region(int32_t coord)
 {
     uint32_t value = (uint32_t)coord;
     return ((value >> 28) & 3u) << 16 | ((value >> 27) & 1u) << 8 |
@@ -261,12 +226,12 @@ player_region(int32_t coord)
 }
 
 void
-wire_player_info_state_init(struct WirePlayerInfoState* state,
+rsprot_player_info_writer_init(struct RsprotPlayerInfoWriter* state,
                              int local_index, int32_t coord)
 {
     assert(state);
     assert(local_index > 0);
-    assert(local_index < WIRE_PLAYER_SLOTS);
+    assert(local_index < RSPROT_INFO_PLAYER_SLOTS);
     memset(state, 0, sizeof(*state));
     state->initialized = 1;
     state->local_index = local_index;
@@ -275,10 +240,10 @@ wire_player_info_state_init(struct WirePlayerInfoState* state,
 }
 
 int
-wire_player_info_has_extended(
+rsprot_player_info_has_extended(
     const uint8_t* appearance,
     int appearance_len,
-    const struct WirePlayerExt* ext)
+    const struct RsprotPlayerExt* ext)
 {
     if( appearance && appearance_len > 0 )
         return 1;
@@ -288,25 +253,25 @@ wire_player_info_has_extended(
 }
 
 static int
-player_update_extended(const struct WirePlayerUpdate* update)
+gpi_update_extended(const struct RsprotPlayerUpdate* update)
 {
     if( !update ) return 0;
-    return wire_player_info_has_extended(update->appearance, update->appearance_len, update->ext);
+    return rsprot_player_info_has_extended(update->appearance, update->appearance_len, update->ext);
 }
 
 static int
-player_update_needed(const struct WirePlayerInfoState* state, int index,
-                     const struct WirePlayerUpdate* update)
+gpi_update_needed(const struct RsprotPlayerInfoWriter* state, int index,
+                     const struct RsprotPlayerUpdate* update)
 {
     assert(state);
     if( state->high[index] )
         return !update || !update->visible ||
-               update->movement != WIRE_PLAYER_NOMOVE || player_update_extended(update);
-    return update && (update->visible || player_region(update->coord) != state->region[index]);
+               update->movement != RSPROT_GPI_NOMOVE || gpi_update_extended(update);
+    return update && (update->visible || gpi_player_region(update->coord) != state->region[index]);
 }
 
 static void
-write_region_delta(struct RsprotBuf* buf, uint32_t old_region, uint32_t new_region)
+gpi_write_region_delta(struct RsprotBuf* buf, uint32_t old_region, uint32_t new_region)
 {
     assert(buf);
     uint32_t level = ((new_region >> 16) - (old_region >> 16)) & 3;
@@ -317,14 +282,14 @@ write_region_delta(struct RsprotBuf* buf, uint32_t old_region, uint32_t new_regi
 }
 
 int
-wire_player_info_write_sections(struct RsprotBuf* buf,
-                                struct WirePlayerInfoState* state,
-                                const struct WirePlayerUpdate* updates, int count,
-                                const struct WirePlayerUpdate* extended[WIRE_PLAYER_SLOTS])
+rsprot_player_info_write_sections(struct RsprotBuf* buf,
+                                struct RsprotPlayerInfoWriter* state,
+                                const struct RsprotPlayerUpdate* updates, int count,
+                                const struct RsprotPlayerUpdate* extended[RSPROT_INFO_PLAYER_SLOTS])
 {
-    const struct WirePlayerUpdate* slots[WIRE_PLAYER_SLOTS] = {0};
-    uint8_t old_high[WIRE_PLAYER_SLOTS];
-    uint8_t next_inactive[WIRE_PLAYER_SLOTS] = {0};
+    const struct RsprotPlayerUpdate* slots[RSPROT_INFO_PLAYER_SLOTS] = {0};
+    uint8_t old_high[RSPROT_INFO_PLAYER_SLOTS];
+    uint8_t next_inactive[RSPROT_INFO_PLAYER_SLOTS] = {0};
     int extended_count = 0;
     assert(buf);
     assert(state);
@@ -332,12 +297,12 @@ wire_player_info_write_sections(struct RsprotBuf* buf,
     assert(updates);
     assert(extended);
     assert(count > 0);
-    assert(count < WIRE_PLAYER_SLOTS);
+    assert(count < RSPROT_INFO_PLAYER_SLOTS);
     for( int i = 0; i < count; ++i )
     {
         int index = updates[i].index;
         assert(index > 0);
-        assert(index < WIRE_PLAYER_SLOTS);
+        assert(index < RSPROT_INFO_PLAYER_SLOTS);
         assert(!slots[index]);
         slots[index] = &updates[i];
     }
@@ -352,24 +317,24 @@ wire_player_info_write_sections(struct RsprotBuf* buf,
         int high = pass < 2;
         int inactive = pass == 1 || pass == 2;
         rsprot_buf_bit_begin(buf);
-        for( int index = 1; index < WIRE_PLAYER_SLOTS; ++index )
+        for( int index = 1; index < RSPROT_INFO_PLAYER_SLOTS; ++index )
         {
             if( old_high[index] != high || state->inactive[index] != inactive ) continue;
-            const struct WirePlayerUpdate* update = slots[index];
-            if( !player_update_needed(state, index, update) )
+            const struct RsprotPlayerUpdate* update = slots[index];
+            if( !gpi_update_needed(state, index, update) )
             {
                 int further = 0, last = index;
                 next_inactive[index] = 1;
-                for( int next = index + 1; next < WIRE_PLAYER_SLOTS; ++next )
+                for( int next = index + 1; next < RSPROT_INFO_PLAYER_SLOTS; ++next )
                 {
                     if( old_high[next] != high || state->inactive[next] != inactive ) continue;
-                    if( player_update_needed(state, next, slots[next]) ) break;
+                    if( gpi_update_needed(state, next, slots[next]) ) break;
                     next_inactive[next] = 1;
                     further++;
                     last = next;
                 }
                 rsprot_pbits(buf, 1, 0);
-                write_stationary(buf, further);
+                gpi_write_stationary(buf, further);
                 index = last;
                 continue;
             }
@@ -377,31 +342,31 @@ wire_player_info_write_sections(struct RsprotBuf* buf,
             if( high && (!update || !update->visible) )
             {
                 assert(index != state->local_index);
-                uint32_t region = player_region(state->coord[index]);
-                uint32_t wanted = update ? player_region(update->coord) : region;
+                uint32_t region = gpi_player_region(state->coord[index]);
+                uint32_t wanted = update ? gpi_player_region(update->coord) : region;
                 rsprot_pbits(buf, 1, 0);
                 rsprot_pbits(buf, 2, HIRES_OP_NOMOVE);
                 rsprot_pbits(buf, 1, region != wanted);
-                if( region != wanted ) write_region_delta(buf, region, wanted);
+                if( region != wanted ) gpi_write_region_delta(buf, region, wanted);
                 state->high[index] = 0;
                 state->region[index] = wanted;
                 continue;
             }
             assert(update);
-            int has_extended = player_update_extended(update);
+            int has_extended = gpi_update_extended(update);
             if( !high )
             {
-                uint32_t wanted = player_region(update->coord);
+                uint32_t wanted = gpi_player_region(update->coord);
                 if( !update->visible )
                 {
-                    write_region_delta(buf, state->region[index], wanted);
+                    gpi_write_region_delta(buf, state->region[index], wanted);
                     state->region[index] = wanted;
                     continue;
                 }
                 rsprot_pbits(buf, 2, 0); /* low-to-high promotion */
                 rsprot_pbits(buf, 1, wanted != state->region[index]);
                 if( wanted != state->region[index] )
-                    write_region_delta(buf, state->region[index], wanted);
+                    gpi_write_region_delta(buf, state->region[index], wanted);
                 rsprot_pbits(buf, 13, ((uint32_t)update->coord >> 14) & 8191);
                 rsprot_pbits(buf, 13, (uint32_t)update->coord & 8191);
                 rsprot_pbits(buf, 1, has_extended);
@@ -415,10 +380,10 @@ wire_player_info_write_sections(struct RsprotBuf* buf,
                 rsprot_pbits(buf, 2, update->movement);
                 switch( update->movement )
                 {
-                case WIRE_PLAYER_NOMOVE: assert(has_extended); break;
-                case WIRE_PLAYER_WALK: rsprot_pbits(buf, 3, update->movement_value & 7); break;
-                case WIRE_PLAYER_RUN: rsprot_pbits(buf, 4, update->movement_value & 15); break;
-                case WIRE_PLAYER_TELEPORT:
+                case RSPROT_GPI_NOMOVE: assert(has_extended); break;
+                case RSPROT_GPI_WALK: rsprot_pbits(buf, 3, update->movement_value & 7); break;
+                case RSPROT_GPI_RUN: rsprot_pbits(buf, 4, update->movement_value & 15); break;
+                case RSPROT_GPI_TELEPORT:
                     rsprot_pbits(buf, 1, 1);
                     rsprot_pbits(buf, 30, update->movement_value);
                     break;

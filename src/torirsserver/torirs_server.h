@@ -112,7 +112,7 @@ struct RSCache_ServerPack;
 #include "torirs_server_poh.h"
 #include "torirs_server_wire.h"
 #include "torirsserver/wire/core/wire_runclientscript.h"
-#include "torirsserver/wire/core/wire_player_info.h"
+#include "streams/player_info_write.h"
 #include "torirs_server_vessel.h"
 #include "torirs_server_zone.h"
 
@@ -3888,7 +3888,7 @@ struct ToriRSServerPlayer
      * Per-slot membership and cycle flags live in v5_gpi; this latch also
      * supports the direct local-only encoder fixtures. */
     int v5_playerinfo_sent;
-    struct WirePlayerInfoState v5_gpi;
+    struct RsprotPlayerInfoWriter v5_gpi;
     uint32_t v5_player_generation[TORIRSSERVER_PLAYER_MAX];
 
     /**
