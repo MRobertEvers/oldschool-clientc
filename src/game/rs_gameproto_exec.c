@@ -192,12 +192,8 @@ exec_update_inv_partial(
     struct RS_GameProtoCtx const* ctx,
     struct PktUpdateInvPartial const* p)
 {
-    int src;
     int container = exec_inv_container_id(p->inv_id, p->component_id);
     if( InvManager_EnsureContainer(ctx->invs, container, 0, "server-inv") < 0 )
-        return;
-    src = InvManager_ContainerForSource(ctx->invs, container);
-    if( src < 0 )
         return;
     /* DRIVE_STAMP: inv_packet -- a=container_id. See exec_update_inv_full;
      * ctx->app is NULL in the headless packet harness and unit tests. */
@@ -210,23 +206,19 @@ exec_update_inv_partial(
             p->count);
     for( int i = 0; i < p->count; i++ )
     {
-        /* The packet carries an item, not an icon: say so, rather than
-         * letting the zero-initialiser pass 0 off as a scene id. Zero is
-         * never allocated (the bridge counts up from 1), but it IS >= 0, so
-         * emit drew "sprite 0" — nothing — with the stack count over it, and
-         * it is not INV_MANAGER_NO_SCENE_ID, so the icon reconcile never
-         * looked at the slot again. Every destination of an item that moved
-         * between containers arrives on this path. */
-        struct InvSlot slot = { 0 };
-        slot.obj_id = p->entries[i].obj_id;
-        slot.obj_count = p->entries[i].count;
-        slot.scene_id = INV_MANAGER_NO_SCENE_ID;
-        InvManager_SetSlot(ctx->invs, src, p->entries[i].slot, &slot);
+        /* Addressed by CONTAINER id, as UPDATE_INV_FULL is. This used to go
+         * through InvManager_SetSlot, which takes a SOURCE index and reads any
+         * small number as one: a shop's stock is inv 1, sources[1] is the worn
+         * equipment, so buying a steel axe at Bob's wrote "steel axe x2" (the
+         * shop's new stock line) into the weapon slot (recording
+         * mrobertevers/20261115-170422, tick 178). ApplyPartial also marks a
+         * changed slot iconless (INV_MANAGER_NO_SCENE_ID) for the reconcile. */
+        int const slot = p->entries[i].slot;
+        int const obj_id = p->entries[i].obj_id;
+        int const obj_count = p->entries[i].count;
+        InvManager_ApplyPartial(ctx->invs, container, &slot, &obj_id, &obj_count, 1);
         if( getenv("TORIRS_INV_DEBUG") )
-            TORIRS_LOG("  slot %2d obj=%d x%d\n",
-                p->entries[i].slot,
-                slot.obj_id,
-                slot.obj_count);
+            TORIRS_LOG("  slot %2d obj=%d x%d\n", slot, obj_id, obj_count);
     }
     if( ctx->app && p->count > 0 )
         RS_CS2Host_NotifyInvChanged(&ctx->app->host,

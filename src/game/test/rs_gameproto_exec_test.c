@@ -406,6 +406,57 @@ main(void)
         printf("ok - UPDATE_INV_FULL applied\n");
     }
 
+    /* UPDATE_INV_PARTIAL to an inv whose id is also a small SOURCE index lands
+     * in that inv, not in the source's container. Recording
+     * mrobertevers/20261115-170422: Bob's stock is inv 1, sources[1] was the
+     * worn equipment, and buying a steel axe drew "steel axe x2" in the
+     * weapon slot over the bronze axe the server still had there. */
+    {
+        int const worn_source = InvManager_ResolveSource(&invs, INV_MANAGER_SOURCE_NAME_WORN);
+        int const shop_inv = worn_source; /* the collision, whatever the index */
+        int worn_ids[4] = { -1, -1, -1, 1351 };
+        int worn_counts[4] = { 0, 0, 0, 1 };
+        int shop_ids[4] = { 1351, 1349, 1353, 1353 };
+        int shop_counts[4] = { 5, 3, 2, 3 };
+        struct PktUpdateInvPartialEntry entry = { .slot = 3, .obj_id = 1353, .count = 2 };
+        struct RevPacket p;
+
+        assert(worn_source >= 0);
+        assert(shop_inv < INV_MANAGER_CONTAINER_BACKPACK);
+        memset(&p, 0, sizeof(p));
+        p.packet_type = PKT_NAME_UPDATE_INV_FULL;
+        p._update_inv_full.inv_id = INV_MANAGER_CONTAINER_WORN;
+        p._update_inv_full.size = 4;
+        p._update_inv_full.obj_ids = worn_ids;
+        p._update_inv_full.obj_counts = worn_counts;
+        RS_GameProto_Exec(&ctx, &p);
+
+        memset(&p, 0, sizeof(p));
+        p.packet_type = PKT_NAME_UPDATE_INV_FULL;
+        p._update_inv_full.inv_id = shop_inv;
+        p._update_inv_full.size = 4;
+        p._update_inv_full.obj_ids = shop_ids;
+        p._update_inv_full.obj_counts = shop_counts;
+        RS_GameProto_Exec(&ctx, &p);
+
+        memset(&p, 0, sizeof(p));
+        p.packet_type = PKT_NAME_UPDATE_INV_PARTIAL;
+        p._update_inv_partial.inv_id = shop_inv;
+        p._update_inv_partial.count = 1;
+        p._update_inv_partial.entries = &entry;
+        RS_GameProto_Exec(&ctx, &p);
+
+        TEST_EXEC_ASSERT(InvManager_GetObj(&invs, INV_MANAGER_CONTAINER_WORN, 3) == 1351,
+            "the weapon slot keeps the bronze axe the server put there");
+        TEST_EXEC_ASSERT(InvManager_GetNum(&invs, INV_MANAGER_CONTAINER_WORN, 3) == 1,
+            "with no stock count drawn over it");
+        TEST_EXEC_ASSERT(InvManager_GetObj(&invs, shop_inv, 3) == 1353,
+            "the shop's line is the steel axe");
+        TEST_EXEC_ASSERT(InvManager_GetNum(&invs, shop_inv, 3) == 2,
+            "and its stock went 3 -> 2");
+        printf("ok - UPDATE_INV_PARTIAL to a small inv id stays in that inv\n");
+    }
+
     /* IF_SETTEXT rewrites the TEXT node. */
     {
         char text[] = "after";
