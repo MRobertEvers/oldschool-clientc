@@ -125,6 +125,32 @@ selftest_evidence_field(FILE* out, const char* text)
     }
 }
 
+/*
+ * A loc category's members that are CACHE records: the count the cache-fidelity
+ * pins below are about. A record content minted (`pack/loc.alloc`, a lane's own
+ * pack -- The Thistlewick Howl's thistle_den_ladder, thistle_cellar_door) is a
+ * copy that joins a category without being a cache member, so publishing a
+ * lane's quest must not move these numbers; its own lane tests pin its records.
+ * Minted records live only in the overlay, so only that half is walked.
+ */
+static int
+selftest_cache_loc_category_members(int category)
+{
+    int minted = 0;
+
+    for( int i = 0;; i++ )
+    {
+        const struct ToriRSServerLocDef* def = ToriRSServer_ContentLocAt(i);
+
+        if( !def )
+            break;
+        if( def->category == category &&
+            ToriRSServer_ContentSymbolIsMinted(TORIRSSERVER_PACK_LOC, def->loc_id) )
+            minted++;
+    }
+    return ToriRSServer_LocCategoryMembers(category) - minted;
+}
+
 static int
 selftest_evidence_begin(const struct ToriRSServerWire* wire)
 {
@@ -489,6 +515,37 @@ selftest_tick(struct ToriRSServer* srv)
 {
     selftest_ack_scene(srv);
     ToriRSServer_WorldTick(srv);
+}
+
+/*
+ * Carry the active player's script through its boxes and delays, the way a
+ * player clicking "Click here to continue" would: a debugproc that walks
+ * content through a page (an objbox, a mesbox) parks on it, and its later
+ * lines -- the OK line among them -- run only once the page is answered.
+ */
+static void
+selftest_answer_pauses(struct ToriRSServer* srv)
+{
+    struct ToriRSServerPlayer* player = srv->active_player;
+
+    assert(player);
+    for( int round = 0; round < 400 && player->active_script; round++ )
+    {
+        int exec = player->active_script->execution;
+
+        if( exec == SSVM_PAUSEBUTTON )
+        {
+            if( player->resume_button_count <= 0 )
+                break;
+            if( !ToriRSServer_ScriptsResumeButton(srv, player->resume_buttons[0]) )
+                break;
+        }
+        else if( exec == SSVM_SUSPENDED || exec == SSVM_NPC_SUSPENDED ||
+                 exec == SSVM_WORLD_SUSPENDED )
+            selftest_tick(srv);
+        else
+            break;
+    }
 }
 
 /*
@@ -17697,8 +17754,13 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_CaptureBegin(srv, &capture);
             selftest_tick(srv);
             ToriRSServer_CaptureEnd(srv);
-            SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_MESSAGE_GAME, 0) >= 0,
-                           "[login] should produce a game message");
+            /* Evidence the trigger ran on this tick: [login,_] writes varps
+             * unconditionally (com_mode, the pvp tutorial reset). A game
+             * message was the evidence until OSRS-Content 8f827c1b38 removed
+             * the invented login lines -- Jagex sends none of them. */
+            SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_VARP_SMALL, 0) >= 0 ||
+                               ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_VARP_LARGE, 0) >= 0,
+                           "[login] should run this tick (it writes varps)");
             SELFTEST_CHECK(player->login_pending == 0, "the login latch should be drained");
 
             /*
@@ -18804,8 +18866,11 @@ ToriRSServer_WorldSelftest(void)
                          * so that is what to look for.
                          */
                         const struct ToriRSServerCapturedPacket* pkt = &capture.packets[idx];
+                        /* Hans's menu as Jagex sends it outside The Lost
+                         * Tribe (RSProx: "...been here?|No, I'm good."; the
+                         * quest's cellar variant ends "|Nothing."). */
                         const char* tail =
-                            "Can you tell me how long I've been here?|Nothing.";
+                            "Can you tell me how long I've been here?|No, I'm good.";
                         size_t tail_len = strlen(tail);
                         int found = 0;
 
@@ -23391,7 +23456,7 @@ ToriRSServer_WorldSelftest(void)
              * land only 0-damage hitsplats and leave HP unchanged. Retaliation is
              * still real — content's damage() wrote a splat. Track that. */
             player->damage_type = -1;
-            transformations_before = ToriRSServer_EncodeNpcTransformationWrites();
+            transformations_before = ToriRSServer_EncodeNpcTransformationUnrequested();
             while( npc->hitpoints > 0 && ticks < 200 )
             {
                 ToriRSServer_CaptureBegin(srv, &capture);
@@ -23426,10 +23491,10 @@ ToriRSServer_WorldSelftest(void)
              * one.
              */
             SELFTEST_CHECK(
-                ToriRSServer_EncodeNpcTransformationWrites() == transformations_before,
+                ToriRSServer_EncodeNpcTransformationUnrequested() == transformations_before,
                 "an npc that never transformed must not be sent a TRANSFORMATION "
                 "(the client answers one by cancelling its animation); %ld written",
-                ToriRSServer_EncodeNpcTransformationWrites() - transformations_before);
+                ToriRSServer_EncodeNpcTransformationUnrequested() - transformations_before);
 
             /*
              * A dying npc offers no menu: Jagex sends `enabled_ops 0b00000` on
@@ -28803,10 +28868,11 @@ ToriRSServer_WorldSelftest(void)
          * not play the climb animation. `slp_church_crypt_south_ladder_exit` is
          * one of the five that left, and it left on purpose — this number moved
          * because the content got more correct, not less. Update it with the
-         * content; do not chase it back up. */
-        SELFTEST_CHECK(climb_up > 0 && ToriRSServer_LocCategoryMembers(climb_up) == 231,
-                       "and 231 loc records share it, got %d",
-                       climb_up > 0 ? ToriRSServer_LocCategoryMembers(climb_up) : -1);
+         * content; do not chase it back up. Cache records only: a minted copy
+         * (The Thistlewick Howl's thistle_den_ladder) is its lane's to pin. */
+        SELFTEST_CHECK(climb_up > 0 && selftest_cache_loc_category_members(climb_up) == 231,
+                       "and 231 cache loc records share it, got %d",
+                       climb_up > 0 ? selftest_cache_loc_category_members(climb_up) : -1);
 
         slot = ladder > 0 ? ToriRSServer_SceneFindLoc(3229, 3224, 0, ladder) : -1;
         SELFTEST_CHECK(slot >= 0, "the castle ladder at 3229,3224 should be in the scene");
@@ -29275,10 +29341,11 @@ ToriRSServer_WorldSelftest(void)
          * a half-loaded overlay — the failure that actually happens, a merge
          * dropping one source file — is also caught, at the price of this line
          * moving with the content. 293 -> 298 with the Water Ravine dungeon's
-         * five doors (content 43f4303f5f). */
-        SELFTEST_CHECK(ToriRSServer_LocCategoryMembers(door_closed) == 298,
-                       "and doors.loc states door_closed 298 times, got %d",
-                       ToriRSServer_LocCategoryMembers(door_closed));
+         * five doors (content 43f4303f5f). Cache records only: a minted copy
+         * (The Thistlewick Howl's thistle_cellar_door) is its lane's to pin. */
+        SELFTEST_CHECK(selftest_cache_loc_category_members(door_closed) == 298,
+                       "and doors.loc states door_closed 298 times for cache records, got %d",
+                       selftest_cache_loc_category_members(door_closed));
         {
             int gate_main_closed =
                 ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_CATEGORY, "gate_main_closed");
@@ -49526,12 +49593,22 @@ ToriRSServer_WorldSelftest(void)
                  * answers it with "It's protected by the ice storm." on the
                  * click, no walk (RSProx 4392 [1145]..[1147], 3 of 3). The same
                  * deliberate decline as the two above.
+                 *
+                 * **Seven since 2026-11-15.** `[opnpc3,doti_naiatli]`, Death on
+                 * the Isle's final fight: her cache Attack is a scripted beat (the
+                 * trap, then the player's blow and the stage), and outside that
+                 * stage the quest takes her ops away (`npc_setops`). And
+                 * `[opnpc1,slice_ham_guard]`, the H.A.M. tunnel in Another Slice of
+                 * H.A.M.: striking a guard gets the player caught and thrown out
+                 * (RSProx [3689..3691], [3786..3788], [4067..4068]; 5f350740bc),
+                 * so no fight follows. Both decline the engine's Attack on purpose.
                  */
-                SELFTEST_CHECK(ToriRSServer_ScriptsReportShadowedOps(srv) == 5,
+                SELFTEST_CHECK(ToriRSServer_ScriptsReportShadowedOps(srv) == 7,
                                "only [opnpc1,doti_backupactor], [opnpc5,chompybird], "
                                "[opnpc1,raids_tekton_hammering], "
-                               "[opnpc1,raids_vanguard_walking] and "
-                               "[opnpc1,raids_icedemon_noncombat] should shadow an engine verb — "
+                               "[opnpc1,raids_vanguard_walking], "
+                               "[opnpc1,raids_icedemon_noncombat], [opnpc3,doti_naiatli] and "
+                               "[opnpc1,slice_ham_guard] should shadow an engine verb — "
                                "if this moved, read the new list and say why each entry is "
                                "right");
             }
@@ -52641,6 +52718,9 @@ ToriRSServer_WorldSelftest(void)
 
             ToriRSServer_CaptureBegin(srv, &chargesrun_capture);
             ToriRSServer_ScriptsRunDebugproc(srv, "chargesrun");
+            /* Kharedst's memoirs show the page's box when one is added
+             * (RSProx 4424 [1547]); the run continues once it is answered. */
+            selftest_answer_pauses(srv);
             ToriRSServer_CaptureEnd(srv);
 
             for( int i = ToriRSServer_CaptureFindNamed(&chargesrun_capture, PKT_NAME_MESSAGE_GAME, 0);
@@ -53314,6 +53394,9 @@ ToriRSServer_WorldSelftest(void)
                     player->last_useslot = 0;
                     ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_id,
                                                         ToriRSServer_LocCategory(loc_id), slot);
+                    /* The fourth letter waits a tick for the machinery, then
+                     * writes the stage and opens the trapdoor's box. */
+                    selftest_answer_pauses(srv);
                     player->last_useitem = -1;
                     player->last_useslot = -1;
                 }
@@ -53439,7 +53522,9 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_WorldSetVarp(srv, varp_grandtree, c_defeated_demon);
                 qp_before = ToriRSServer_Varp(player, varp_qp);
 
-                ToriRSServer_ScriptsRunProc(srv, "[queue,grandtree_quest_complete]", NULL, 0);
+                /* A proc Narnode's hand-in calls since 8e8dea4539, not a queue. */
+                ToriRSServer_ScriptsRunProc(srv, "[proc,grandtree_quest_complete]", NULL, 0);
+                selftest_answer_pauses(srv);
 
                 SELFTEST_CHECK(ToriRSServer_Varp(player, varp_grandtree) == c_complete,
                                "the real completion queue should advance %%grandtree to "
@@ -53653,9 +53738,7 @@ ToriRSServer_WorldSelftest(void)
          * pieces that does and does not exercise for real. The core
          * "garlic trick" catch mechanic -- the ONE thing that genuinely
          * cannot be driven from fishingcomporun -- is proven separately
-         * by ::fishingcompo_catchtest_win/_lose below, which each jump
-         * into the real hemenster_catch label for one species combo and
-         * are checked against the exact catch message it prints.
+         * through the real spot ops in quest_fishingcompo_selftest.
          */
         int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
 
@@ -53698,63 +53781,10 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(!said_fail, "::fishingcomporun should report no failures");
             SELFTEST_CHECK(said_ok, "::fishingcomporun should reach its OK line");
 
-            {
-                static struct ToriRSServerCapture catchwin_capture;
-                int said_carp = 0;
-
-                ToriRSServer_CaptureBegin(srv, &catchwin_capture);
-                ToriRSServer_ScriptsRunDebugproc(srv, "fishingcompo_catchtest_win");
-                ToriRSServer_CaptureEnd(srv);
-
-                for( int i = ToriRSServer_CaptureFindNamed(&catchwin_capture, PKT_NAME_MESSAGE_GAME, 0);
-                     i >= 0;
-                     i = ToriRSServer_CaptureFindNamed(&catchwin_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
-                {
-                    const struct ToriRSServerCapturedPacket* packet = &catchwin_capture.packets[i];
-                    const char* text;
-
-                    text = selftest_message_text(srv, packet);
-                    if( !text )
-                        continue;
-                    if( strstr(text, "You catch a giant carp.") != NULL )
-                        said_carp = 1;
-                    if( strstr(text, "FAIL") != NULL )
-                        fprintf(stderr, "  %s\n", text);
-                }
-
-                SELFTEST_CHECK(said_carp, "::fishingcompo_catchtest_win should catch a giant carp at the pipe spot with red vine worm");
-            }
-
-            {
-                static struct ToriRSServerCapture catchlose_capture;
-                int said_sardine = 0;
-                int said_carp = 0;
-
-                ToriRSServer_CaptureBegin(srv, &catchlose_capture);
-                ToriRSServer_ScriptsRunDebugproc(srv, "fishingcompo_catchtest_lose");
-                ToriRSServer_CaptureEnd(srv);
-
-                for( int i = ToriRSServer_CaptureFindNamed(&catchlose_capture, PKT_NAME_MESSAGE_GAME, 0);
-                     i >= 0;
-                     i = ToriRSServer_CaptureFindNamed(&catchlose_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
-                {
-                    const struct ToriRSServerCapturedPacket* packet = &catchlose_capture.packets[i];
-                    const char* text;
-
-                    text = selftest_message_text(srv, packet);
-                    if( !text )
-                        continue;
-                    if( strstr(text, "You catch a sardine.") != NULL )
-                        said_sardine = 1;
-                    if( strstr(text, "You catch a giant carp.") != NULL )
-                        said_carp = 1;
-                    if( strstr(text, "FAIL") != NULL )
-                        fprintf(stderr, "  %s\n", text);
-                }
-
-                SELFTEST_CHECK(said_sardine, "::fishingcompo_catchtest_lose should catch a sardine at the willow-tree spot even with red vine worm");
-                SELFTEST_CHECK(!said_carp, "::fishingcompo_catchtest_lose must NOT catch the winning fish away from the pipe spot");
-            }
+            /* The catch itself (the carp at the pipes, the sardine at the willow)
+             * is driven through the real spot ops in quest_fishingcompo_selftest
+             * since the RSProx 4404 rebuild (4aa3cdfe07) retired the
+             * ::fishingcompo_catchtest_* debugprocs. */
 
             ToriRSServer_ScriptsFree(srv);
         }
@@ -54624,7 +54654,10 @@ ToriRSServer_WorldSelftest(void)
                         SELFTEST_CHECK(player->active_script != NULL,
                                        "ikov_lucien2's death should park on Lucien's defeat line "
                                        "before the Armadyl path completes");
-                        selftest_click_through(srv, 4);
+                        /* Since the RSProx 4483 rebuild the defeat has timed
+                         * beats (the page, the smoke puff a tick on, the
+                         * completion three after): click AND tick through. */
+                        selftest_answer_pauses(srv);
 
                         SELFTEST_CHECK(ToriRSServer_Varp(player, varp_ikov) == 80 /* ikov_completed_armadyl */,
                                        "ikov_lucien2's death should complete the Armadyl path, "
@@ -54874,17 +54907,20 @@ ToriRSServer_WorldSelftest(void)
                     int maiden_slot;
                     int if_messagebox = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_INTERFACE, "messagebox");
 
-                    /* Away from the maiden: ringing should do nothing --
-                     * no ~mesbox mount, no movement. */
+                    /* Away from the maiden: the same "Ting-a-ling-a-ling!"
+                     * box, then "Nothing happens." on its click and no
+                     * movement (RSProx 4435 [3011], in Falador; 7d4f4ad4d0). */
                     ToriRSServer_WorldTeleport(srv, 0, 2700, 4700);
                     selftest_tick(srv);
                     inv_set(player, 0, obj_bell, 1);
                     player->chatmodal_group = 0;
                     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELD1, obj_bell, -1, -1);
-                    SELFTEST_CHECK(player->chatmodal_group == 0,
-                                   "ringing away from the maiden should not open any "
-                                   "chatbox, got chatmodal_group=%d",
-                                   player->chatmodal_group);
+                    SELFTEST_CHECK(if_messagebox >= 0 &&
+                                   player->chatmodal_group == if_messagebox,
+                                   "ringing away from the maiden should open the bell's "
+                                   "box, want %d got chatmodal_group=%d",
+                                   if_messagebox, player->chatmodal_group);
+                    selftest_answer_pauses(srv);
                     SELFTEST_CHECK(player->x == 2700 && player->z == 4700 && player->level == 0,
                                    "ringing away from the maiden should not move the "
                                    "player, got (%d,%d,%d)",
@@ -55212,7 +55248,11 @@ ToriRSServer_WorldSelftest(void)
                         /* Wrong first guess: Aquarius, page 1 slot 1. The
                          * assigned sign is Pisces, so this must NOT
                          * complete the quest. ::itgronigenrun's crafting xp
-                         * leaves level-up boxes queued; dismiss them first. */
+                         * leaves level-up boxes queued; dismiss them first.
+                         * A box waits for its click, so ticking alone (the
+                         * quiesce) leaves it up: answer it as a player would. */
+                        selftest_quiesce(srv, player);
+                        selftest_answer_pauses(srv);
                         selftest_quiesce(srv, player);
                         selftest_handle(player, PKTOUT_NAME_OPNPC1, opnpc, 2);
                         SELFTEST_CHECK(selftest_settle(srv, 10) >= 0,
@@ -58539,36 +58579,10 @@ ToriRSServer_WorldSelftest(void)
         }
         else
         {
-            static struct ToriRSServerCapture dragonrun_capture;
-            int said_ok = 0;
-            int said_fail = 0;
-
-            ToriRSServer_CaptureBegin(srv, &dragonrun_capture);
-            ToriRSServer_ScriptsRunDebugproc(srv, "dragonrun");
-            ToriRSServer_CaptureEnd(srv);
-
-            for( int i = ToriRSServer_CaptureFindNamed(&dragonrun_capture, PKT_NAME_MESSAGE_GAME, 0);
-                 i >= 0;
-                 i = ToriRSServer_CaptureFindNamed(&dragonrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
-            {
-                const struct ToriRSServerCapturedPacket* packet = &dragonrun_capture.packets[i];
-                const char* text;
-
-                text = selftest_message_text(srv, packet);
-                if( !text )
-                    continue;
-                fprintf(stderr, "  DBG %s\n", text);
-                if( strstr(text, "DRAGONRUN OK") != NULL )
-                    said_ok = 1;
-                if( strstr(text, "DRAGONRUN FAIL") != NULL )
-                {
-                    said_fail = 1;
-                    fprintf(stderr, "  %s\n", text);
-                }
-            }
-
-            SELFTEST_CHECK(!said_fail, "::dragonrun should report no failures");
-            SELFTEST_CHECK(said_ok, "::dragonrun should reach its OK line");
+            /* The `::dragonrun` state-ladder debugproc went with the RSProx
+             * rebuild (1347d4352c, index 4555..4559): Jagex's stages, every
+             * page, both scenes and Elvarg are test/quests/dragon.lua's now,
+             * driven by real clicks. What stays is the C-side half. */
 
             /* C-side: the combat-stats fix itself. Melzar's Maze's marked
              * npcs are quest-only and script-spawned, not in any roster,
@@ -59231,11 +59245,14 @@ ToriRSServer_WorldSelftest(void)
                                    pending >= 0 ? "pending" : "gone");
                     if( pending >= 0 )
                     {
-                        SELFTEST_CHECK(npc->death_tick >= 0 &&
-                                           npc->death_stage == TORIRSSERVER_DEATH_REAP,
-                                       "a held titan is still dying (death_tick=%d stage=%d), "
-                                       "so nothing can engage it meanwhile",
-                                       npc->death_tick, npc->death_stage);
+                        /* Since 7d4f4ad4d0 (RSProx 4435) the titan's own death
+                         * script heals him on the spot and queues the refusal
+                         * (`titan_invincible`) on the hero: he is not held
+                         * dying while it decides, he is already back to full. */
+                        SELFTEST_CHECK(npc->death_tick < 0 && npc->hitpoints > 0,
+                                       "the titan should be healed in his death script, "
+                                       "death_tick=%d hp=%d",
+                                       npc->death_tick, npc->hitpoints);
                         /* Give the harness player access and drain by hand. */
                         player->delayed_until = 0;
                         player->mainmodal_group = 0;
@@ -63137,6 +63154,20 @@ ToriRSServer_WorldSelftest(void)
             selftest_reset_world(srv, player, 402, 402);
             selftest_park_player(srv, crop_x - 1, crop_z);
             memcpy(saved_inv, player->inv, sizeof(saved_inv));
+            /* A live player with nothing queued: the stanzas before this one
+             * fight, and a death they left queued swallowed the nettle op and
+             * the first flax pick ("dropping [oploc1,nettles1], which
+             * suspended while [queue,player_death] waits"). */
+            if( player->active_script )
+                ToriRSServer_ScriptsReleaseState(srv, player->active_script);
+            player->active_script = NULL;
+            memset(player->queue, 0, sizeof(player->queue));
+            player->delayed_until = 0;
+            player->dying = 0;
+            if( player->stat_level[TORIRSSERVER_STAT_HITPOINTS] < 10 )
+                player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = 10;
+            player->hitpoints = player->stat_level[TORIRSSERVER_STAT_HITPOINTS];
+            ToriRSServer_CombatSyncHitpoints(player);
 
             for( size_t i = 0; i < sizeof(k_picks) / sizeof(k_picks[0]); i++ )
             {
@@ -65249,9 +65280,13 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(p->stat_level[TORIRSSERVER_STAT_HITPOINTS] == 10 && p->hitpoints == 10,
                                "a fresh account's Hitpoints are 10 (~newplayer_stats), %d/%d",
                                p->hitpoints, p->stat_level[TORIRSSERVER_STAT_HITPOINTS]);
+                /* The backpack is the fixture's: the bucket planted above is
+                 * gone. Whether the fixture states a kit is the fixture's own
+                 * business (its [inv] rows have been empty since d5b504eda). */
                 for( int slot = 0; slot < backpack->slots; slot++ )
-                    kit += backpack->items[slot].obj_id >= 0 && backpack->items[slot].obj_id != 1925;
-                SELFTEST_CHECK(kit > 0, "the fixture's own backpack is restored, %d", kit);
+                    kit += backpack->items[slot].obj_id == 1925;
+                SELFTEST_CHECK(kit == 0, "the fixture's own backpack replaces the old one, "
+                                         "%d bucket(s) left", kit);
             }
             ToriRSServer_ScriptsFree(srv);
         }

@@ -317,24 +317,26 @@ selftest_quest_entertheabyss(struct ToriRSServer* srv, struct ToriRSServerPlayer
 
     ToriRSServer_VarpPut(player, varp_rm, 6);
 
-    /* ---- god-item block Talk ---- */
-    if( obj_cape >= 0 )
-    {
-        player->worn[1].obj_id = obj_cape;
-        player->worn[1].count = 1;
-        eta_talk(srv, player, npc_wildy, slot_w, go_wildy, 1);
-        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_eta) == 0, "worn Saradomin cape must block Talk, got %d",
-                       ToriRSServer_Varp(player, varp_eta));
-        player->worn[1].obj_id = -1;
-        player->worn[1].count = 0;
-        eta_pass("god_block", "OPNPC1", "cape blocked Talk");
-    }
-
     /* ---- Wilderness start 0 -> 1 ---- */
     eta_talk(srv, player, npc_wildy, slot_w, go_wildy, 1);
     SELFTEST_CHECK(ToriRSServer_Varp(player, varp_eta) == 1, "wildy accept should write state 1, got %d",
                    ToriRSServer_Varp(player, varp_eta));
     eta_pass("wildy_start", "OPNPC1", "state=1");
+
+    /* ---- god-item block Talk: the Varrock mage's refusal (RSProx index
+     *      1677 [3858]; the Wilderness mage has no such page, 41989b30b) ---- */
+    if( obj_cape >= 0 )
+    {
+        player->worn[1].obj_id = obj_cape;
+        player->worn[1].count = 1;
+        eta_talk(srv, player, npc_varrock, slot_v, accept_varrock, 4);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_eta) == 1, "worn Saradomin cape must block Talk, got %d",
+                       ToriRSServer_Varp(player, varp_eta));
+        SELFTEST_CHECK(selftest_count(player, obj_empty) == 0, "a blocked Talk must not grant an orb");
+        player->worn[1].obj_id = -1;
+        player->worn[1].count = 0;
+        eta_pass("god_block", "OPNPC1", "cape blocked Talk");
+    }
 
     /* ---- Varrock refuse stays 1 ---- */
     eta_talk(srv, player, npc_varrock, slot_v, refuse_varrock, 1);
@@ -425,23 +427,18 @@ selftest_quest_entertheabyss(struct ToriRSServer* srv, struct ToriRSServerPlayer
                    selftest_count(player, obj_full), selftest_count(player, obj_empty));
     eta_pass("orb_charged", "OPNPC4/OPNPC3", "charged orb");
 
-    /* ---- handover 2 -> 3 ---- */
-    eta_talk(srv, player, npc_varrock, slot_v, NULL, 0);
-    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_eta) == 3, "handover should write state 3, got %d",
-                   ToriRSServer_Varp(player, varp_eta));
-    SELFTEST_CHECK(selftest_count(player, obj_full) == 0, "handover consumes the charged orb");
-    eta_pass("handover", "OPNPC1", "state=3");
-
-    /* ---- full inventory does not lose rewards ---- */
-    selftest_clear_inv(player);
+    /* ---- handover 2 -> 3 with a full pack: the reward waits ----
+     * Since 41989b30b (RSProx 4423 [540..553]) the hand-over runs straight
+     * on into the reward pages; a pack without two free slots stops at 3. */
     for( i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
         selftest_give(player, obj_junk >= 0 ? obj_junk : obj_empty, 1);
-    eta_talk(srv, player, npc_varrock, slot_v, leave_topics, 1);
-    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_eta) == 3, "full inv must not complete, got %d",
+    eta_talk(srv, player, npc_varrock, slot_v, NULL, 0);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_eta) == 3, "handover with a full pack should write state 3, got %d",
                    ToriRSServer_Varp(player, varp_eta));
+    SELFTEST_CHECK(selftest_count(player, obj_full) == 0, "handover consumes the charged orb");
     SELFTEST_CHECK(selftest_count(player, obj_book) == 0 && selftest_count(player, obj_pouch) == 0,
                    "full inv must not drop rewards on the floor");
-    eta_pass("reward_full", "OPNPC1", "state stayed 3");
+    eta_pass("handover", "OPNPC1", "state=3 reward waits");
 
     /* ---- complete 3 -> 4 ---- */
     selftest_clear_inv(player);

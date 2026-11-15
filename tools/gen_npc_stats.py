@@ -171,9 +171,18 @@ class WikiCorpus:
                 return {"status": "resolved", "title": t, "version": v, "candidates": [t]}
             if len(hits) > 1:
                 return {"status": "ambiguous", "candidates": [title]}
-            # A real monster page that simply doesn't list this id — the page
-            # is stale relative to this cache, or this variant was added later.
-            return {"status": "not_in_any_candidate", "candidates": [title]}
+            # Not on the name's own page: an area copy the wiki keeps on a page
+            # of its own (wiki_fetch.VARIANT_PAGES -- the Stronghold of
+            # Security's zombies and skeletons). Otherwise the page is stale
+            # relative to this cache, or this variant was added later.
+            variants = wiki_fetch.VARIANT_PAGES.get(display_name, [])
+            hits = [(t, v) for t in variants for v in self._versions(t) if npc_id in v["ids"]]
+            if len(hits) == 1:
+                t, v = hits[0]
+                return {"status": "resolved", "title": t, "version": v, "candidates": [title] + variants}
+            if len(hits) > 1:
+                return {"status": "ambiguous", "candidates": [t for t, _ in hits]}
+            return {"status": "not_in_any_candidate", "candidates": [title] + variants}
 
         # No Infobox Monster on the direct page: a disambiguation page. Try
         # every candidate `wiki_fetch.py` fetched for this exact name.

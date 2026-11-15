@@ -6400,11 +6400,23 @@ npc_add_requires_transformation(const struct ToriRSServerNpc* npc)
  * test needs to know is only whether one was written at all.
  */
 static long g_npc_transformation_writes;
+/* Of those, the ones nothing asked for: a type latch forced for an npc whose id
+ * the add record carries (npc_add_requires_transformation is the only reason to
+ * force one). That is exactly the uninitialised-latch fault described above; an
+ * npc above TORIRSSERVER_NPC_TYPE_MAX entering view, or a real npc_changetype,
+ * is a transformation the client is owed. */
+static long g_npc_transformation_unrequested;
 
 long
 ToriRSServer_EncodeNpcTransformationWrites(void)
 {
     return g_npc_transformation_writes;
+}
+
+long
+ToriRSServer_EncodeNpcTransformationUnrequested(void)
+{
+    return g_npc_transformation_unrequested;
 }
 
 /*
@@ -6994,6 +7006,8 @@ put_npc_extended_v5(
     {
         /* NpcTransformationEncoder: unsigned little-endian/add short. */
         g_npc_transformation_writes++;
+        if( force_type_latch && !npc_add_requires_transformation(npc) )
+            g_npc_transformation_unrequested++;
         rsprot_p2_21_add128(buf, force_type_latch ? npc->type : npc->change_type);
     }
     if( has_face )
@@ -7285,6 +7299,8 @@ put_npc_extended_v241(
     if( flag & V241_NPC_TRANSFORMATION )
     {
         g_npc_transformation_writes++;
+        if( force_type_latch && !npc_add_requires_transformation(npc) )
+            g_npc_transformation_unrequested++;
         rsprot_p2_12_add128(buf, force_type_latch ? npc->type : npc->change_type);
     }
     /* decodeHitmarks: g1Alt3 count (239: g1Alt1), four smarts per hit. The
@@ -7642,6 +7658,8 @@ put_npc_extended_v242(
     if( flag & V242_NPC_TRANSFORMATION )
     {
         g_npc_transformation_writes++;
+        if( force_type_latch && !npc_add_requires_transformation(npc) )
+            g_npc_transformation_unrequested++;
         rsprot_p2_12_add128(buf, force_type_latch ? npc->type : npc->change_type);
     }
     /* exact_move: g1sAlt3 dx1, g1s dz1, g1sAlt2 dx2, g1sAlt3 dz2, g2Alt1
@@ -7932,6 +7950,8 @@ put_npc_extended(
     if( mask & TORIRSSERVER_NMASK_CHANGE_TYPE )
     {
         g_npc_transformation_writes++;
+        if( force_type_latch && !npc_add_requires_transformation(npc) )
+            g_npc_transformation_unrequested++;
         rsprot_p2_12(buf, force_type_latch ? npc->type : npc->change_type);
     }
     if( mask & TORIRSSERVER_NMASK_SPOTANIM )

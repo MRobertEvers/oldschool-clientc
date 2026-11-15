@@ -14030,6 +14030,9 @@ handle_click_world_map(
                            packed & 0x3fff);
 }
 
+static void
+close_chat_modal(struct ToriRSServer* srv);
+
 /*
  * Remember what is mounted in the gameframe's two modal slots.
  *
@@ -14054,7 +14057,21 @@ ToriRSServer_NoteModalMount(
     /* Compare against the live top's slots (bound by if_opentop), not the
      * stretch-only ids table — after a Display remount those diverge. */
     if( uid == ToriRSServer_PlayerMainmodal(player) )
+    {
         player->mainmodal_group = group;
+        /*
+         * A main modal takes the chatbox dialogue down with it: the
+         * reference's `Player.openMainModal` closes an open chat modal first,
+         * and Jagex does too -- a shop opened from a dialogue answer sends
+         * IF_CLOSESUB chatbox:chatmodal on the shop's own tick (RSProx index
+         * 4433 [1139], the Candle Shop after chat_right's continue). Without
+         * it the conversation that opened a shop or a bank stayed on screen
+         * over it, because a parked script that finishes with a main modal up
+         * leaves the chatbox alone (run_or_park, `Player.executeScript`).
+         */
+        if( group > 0 && player->chatmodal_group > 0 )
+            close_chat_modal(srv);
+    }
     else if( uid == ToriRSServer_PlayerSidemodal(player) )
         player->sidemodal_group = group;
     else if( uid == ToriRSServer_Ids()->com_chatbox_modal )

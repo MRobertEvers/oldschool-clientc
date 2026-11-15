@@ -165,11 +165,12 @@ fishcompo_find_loc_at(int x, int z, int level, int loc_id, int radius)
 static void
 fishcompo_austri_to_offer(struct ToriRSServer* srv, struct ToriRSServerPlayer* player, int npc, int slot)
 {
+    /* Vestri's tree since 4aa3cdfe07 (RSProx 4404): stairs -> Why not? ->
+     * friend -> "Well, let's be friends!", then the start confirm. */
     fishcompo_talk(srv, player, npc, slot);
     fishcompo_choose(srv, player, 1);
     fishcompo_choose(srv, player, 2);
     fishcompo_choose(srv, player, 3);
-    fishcompo_choose(srv, player, 1);
     fishcompo_choose(srv, player, 1);
 }
 
@@ -376,11 +377,15 @@ selftest_quest_fishingcompo(struct ToriRSServer* srv, struct ToriRSServerPlayer*
             fishcompo_release_park(srv, player);
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, gate_id, -1, gate_slot);
             fishcompo_drain(srv, player, 0);
+            /* Shown to Morris: through on the op, the flag spent ([553]). */
+            SELFTEST_CHECK(player->x == 2642 && player->z == 3441,
+                           "gate after Morris should step the player through to 2642,3441, now %d,%d",
+                           player->x, player->z);
             if( vb_passed >= 0 )
-                SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_passed) == 1,
-                               "gate with pass should set fishingcompo_passed, got %d",
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_passed) == 0,
+                               "crossing should spend fishingcompo_passed, got %d",
                                ToriRSServer_VarbitGet(player, vb_passed));
-            fprintf(stderr, "PASS fishingcontest morris_gate trigger=oploc1,fishinggateclosedl observable=passed\n");
+            fprintf(stderr, "PASS fishingcontest morris_gate trigger=oploc1,fishinggateclosedl observable=crossed\n");
         }
     }
 
@@ -398,8 +403,9 @@ selftest_quest_fishingcompo(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     if( j_slot >= 0 )
     {
         selftest_give(player, obj_coins, 20);
+        /* In the contest Jack's menu has five rows; the rod is the 4th. */
         fishcompo_talk(srv, player, npc_jack, j_slot);
-        fishcompo_choose(srv, player, 3);
+        fishcompo_choose(srv, player, 4);
         fishcompo_choose(srv, player, 1);
         fishcompo_drain(srv, player, 0);
         SELFTEST_CHECK(selftest_count(player, obj_rod) == 1, "Jack should sell exactly one fishing rod");
@@ -471,6 +477,41 @@ selftest_quest_fishingcompo(struct ToriRSServer* srv, struct ToriRSServerPlayer*
         fprintf(stderr, "PASS fishingcontest bonzo_pay trigger=opnpc1,bonzo observable=fishingcompo=2 paid=1\n");
     }
 
+    /* ---- The willow spot with the worm: a sardine, never the carp ----
+     * (hemenster_fishing.rs2: the carp is the pipes' and the worm's together;
+     * the willow with a worm is LostCity's sardine.) Was ::fishingcompo_catchtest_lose. */
+    {
+        int npc_willow = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "0_41_53_compofishspot");
+        int obj_sardine = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "raw_sardine");
+        int willow_slot = -1;
+
+        SELFTEST_CHECK(npc_willow > 0 && obj_sardine > 0, "compofishspot/raw_sardine should be named: %d/%d",
+                       npc_willow, obj_sardine);
+        if( npc_willow > 0 && obj_sardine > 0 )
+        {
+            fishcompo_snap(srv, player, 0, 2630, 3436);
+            willow_slot = fishcompo_find_npc_at(srv, npc_willow, 2630, 3435, 0);
+            if( willow_slot < 0 )
+                willow_slot = ToriRSServer_WorldNpcSpawn(srv, npc_willow, 2630, 3435, 0);
+            SELFTEST_CHECK(willow_slot >= 0, "the willow spot should exist at 2630,3435");
+        }
+        if( willow_slot >= 0 )
+        {
+            if( obj_worm >= 0 && selftest_count(player, obj_worm) < 1 )
+                selftest_give(player, obj_worm, 1);
+            if( obj_rod >= 0 && selftest_count(player, obj_rod) < 1 )
+                selftest_give(player, obj_rod, 1);
+            fishcompo_release_park(srv, player);
+            ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_willow, -1, willow_slot);
+            fishcompo_drain(srv, player, 0);
+            SELFTEST_CHECK(selftest_count(player, obj_sardine) == 1,
+                           "the willow spot with a red vine worm should catch one sardine, have %d",
+                           selftest_count(player, obj_sardine));
+            SELFTEST_CHECK(selftest_count(player, obj_carp) == 0, "the willow spot must never give the giant carp");
+            fprintf(stderr, "PASS fishingcontest willow_sardine trigger=opnpc1,0_41_53_compofishspot observable=sardine=1\n");
+        }
+    }
+
     /* ---- Garlic isolation: world stranger must not teleport ---- */
     fishcompo_snap(srv, player, 0, 2637, 3440);
     s_slot = fishcompo_find_npc_at(srv, npc_stranger, 2637, 3440, 0);
@@ -509,10 +550,12 @@ selftest_quest_fishingcompo(struct ToriRSServer* srv, struct ToriRSServerPlayer*
         SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_stranger) == 1,
                        "garlic after pay should set fishingcompo_stranger, got %d",
                        ToriRSServer_VarbitGet(player, vb_stranger));
-    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 3, "garlic after pay should write fishingcompo=3, got %d",
+    /* The stage stays: Bonzo moves the stranger when the player next takes a
+     * spot ([1186..1207]). */
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 2, "garlic should leave fishingcompo=2, got %d",
                    ToriRSServer_Varp(player, varp));
     fprintf(stderr,
-            "PASS fishingcontest garlic_isolation trigger=oplocu,garlicpipe observable=stranger_unmoved fishingcompo=3\n");
+            "PASS fishingcontest garlic_isolation trigger=oplocu,garlicpipe observable=stranger_unmoved fishingcompo=2\n");
 
     /* ---- One carp at the pipe shell ---- */
     fishcompo_snap(srv, player, 0, 2637, 3444);
@@ -533,6 +576,13 @@ selftest_quest_fishingcompo(struct ToriRSServer* srv, struct ToriRSServerPlayer*
             selftest_give(player, obj_worm, 1);
         if( obj_rod >= 0 && selftest_count(player, obj_rod) < 1 )
             selftest_give(player, obj_rod, 1);
+        /* First take of the pipes with garlic in: Bonzo places the player
+         * there (fishingcompo=3); the next cast catches ([1190..1215]). */
+        fishcompo_release_park(srv, player);
+        ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_spot, -1, spot_slot);
+        fishcompo_drain(srv, player, 0);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 3, "taking the pipes with garlic in should write fishingcompo=3, got %d",
+                       ToriRSServer_Varp(player, varp));
         fishcompo_release_park(srv, player);
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_spot, -1, spot_slot);
         fishcompo_drain(srv, player, 0);

@@ -67,6 +67,19 @@ BATCH = 50
 # a fuzzy match, because a wrong title silently binds the wrong monster.
 TITLE_OVERRIDE = {}
 
+# Pages that hold variants of a roster name its own page does not list. The
+# wiki gives some area copies of a common monster a page of their own, linked
+# only from the base page's prose: `Zombie` lists the Varrock zombies, while
+# the Stronghold of Security's (2501..2509) live on "Zombie (Stronghold of
+# Security)", aggressive where the base ones are not. A roster name maps to
+# every such page; `--fetch` pulls them and gen_npc_stats.py tries them when
+# the name's own page does not list the id. Extend by hand, checked on the
+# wiki: a guessed title binds nothing, a wrong one binds the wrong monster.
+VARIANT_PAGES = {
+    "Zombie": ["Zombie (Stronghold of Security)"],
+    "Skeleton": ["Skeleton (Stronghold of Security)"],
+}
+
 
 def safe_filename(title: str) -> str:
     return re.sub(r"[^A-Za-z0-9._ -]", "_", title).strip() + ".wikitext"
@@ -232,6 +245,13 @@ def fetch(refetch: bool) -> None:
         print(f"no wiki page found for {len(not_found)} names:", file=sys.stderr)
         for n in not_found:
             print(f"  {n}", file=sys.stderr)
+
+    variants = sorted({t for ts in VARIANT_PAGES.values() for t in ts if refetch or t not in manifest})
+    if variants:
+        fetched, not_found = fetch_titles(variants, manifest)
+        print(f"fetched {fetched} variant pages", file=sys.stderr)
+        if not_found:
+            print(f"  variant titles that did not resolve: {not_found}", file=sys.stderr)
 
     resolve_disambiguations(manifest)
     write_manifest(manifest)

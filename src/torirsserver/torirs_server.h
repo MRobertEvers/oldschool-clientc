@@ -10472,6 +10472,8 @@ ToriRSServer_WorldNpcRefreshObservation(
  */
 long
 ToriRSServer_EncodeNpcTransformationWrites(void);
+long
+ToriRSServer_EncodeNpcTransformationUnrequested(void);
 
 /* Per-client npc names — see struct ToriRSServerPlayerSlotMap. */
 void

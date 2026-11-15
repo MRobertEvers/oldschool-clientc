@@ -125,7 +125,7 @@ SWANSONG_NPC = CONTENT / "quests/quest_swansong/configs/swansong.npc"
 DREAMMENTOR_NPC = CONTENT / "quests/quest_dreammentor/configs/dreammentor.npc"
 SHADOWSTORM_NPC = CONTENT / "quests/quest_shadowstorm/configs/shadowstorm.npc"
 SHADOWSTORM_CONSTANT = CONTENT / "quests/quest_shadowstorm/configs/shadowstorm.constant"
-SHADOWSTORM_RITUAL = CONTENT / "quests/quest_shadowstorm/scripts/shadowstorm_ritual.rs2"
+SHADOWSTORM_RITUAL = CONTENT / "quests/quest_shadowstorm/scripts/shadowstorm_fight.rs2"
 BETWEENAROCK_NPC = CONTENT / "quests/quest_betweenarock/configs/betweenarock.npc"
 BETWEENAROCK_REALM = CONTENT / "quests/quest_betweenarock/scripts/betweenarock_realm.rs2"
 RUMDEAL_NPC = CONTENT / "quests/quest_rumdeal/configs/rumdeal.npc"
@@ -1629,7 +1629,8 @@ def check_tourist_trap() -> None:
             "[proc,desertrescue_open_camp_gate](int $side)",
             "inv_total(inv, metal_key) < 1",
             "%varp197_desertrescue = ^desertrescue_entered_camp;",
-            "~desertrescue_cross_wall($gate_coord, $gate_angle);",
+            "~desertrescue_pass_camp_gate($entering);",
+            "[proc,desertrescue_pass_camp_gate](boolean $entering)",
             "[timer,desertrescue_mercenary_check]",
             "[label,desertrescue_camp_jail]",
         ),
@@ -1659,16 +1660,20 @@ def check_watchtower() -> None:
         (
             "[opnpc1,gorad]",
             "getbit_range(%varp6865_itwatchtower_bits, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew) = 1",
-            "~npc_retaliate(0);",
+            "[opnpc2,gorad]", "@player_combat_start;",
+            "[proc,watchtower_gorad_needed]()(boolean)",
+            "%varb3138_watchtower_tooth_got = 0",
             "[ai_queue3,gorad]", "if (npc_findhero = ^false)",
             "obj_add_private(npc_coord, big_bones, 1",
             "if (random(128) < 19)", "~watchtower_gorad_uncommon_seed;",
             "if (random(30) = 0)", "arceuus_corpse_ogre",
             "if (random(400) = 0)", "dorgesh_construction_bone",
             "if (random(10025) < 2)", "dorgesh_construction_bone_curved",
-            "queue(defeat_gorad, 0, 0);", "[queue,defeat_gorad]",
-            "getbit_range(%varp6865_itwatchtower_bits, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew) ! 1",
-            "~obj_gettotal(ogretooth) > 0", "inv_freespace(inv) = 0",
+            # RSProx 4527 rebuild (OSRS-Content 1bedd7ad58): the tooth is
+            # gated on its own varbit, queued two ticks after the death.
+            "queue(defeat_gorad, 2, 0);", "[queue,defeat_gorad]",
+            "if (~watchtower_gorad_needed = false)",
+            "%varb3138_watchtower_tooth_got = 1;", "inv_freespace(inv) = 0",
             "inv_add(inv, ogretooth, 1);",
             "[proc,watchtower_gorad_uncommon_seed]()(namedobj, int)",
             "def_int $seed = random(1048);", "if ($seed < 137)",
@@ -1676,7 +1681,7 @@ def check_watchtower() -> None:
         ),
         "Watchtower Gorad encounter",
     )
-    require(gorad.count("return(") == 25,
+    require(len(re.findall(r"return\([a-z_]+_seed, \d+\)", gorad)) == 25,
             "Watchtower: exact uncommon-seed table must retain all 25 outcomes")
     require("obj_add(npc_coord" not in gorad,
             "Watchtower: Gorad drops must remain owner-private")
@@ -1693,7 +1698,8 @@ def check_watchtower() -> None:
         (
             "[opnpc1,grew]", "[label,grew_spoken]", "[opnpcu,grew]",
             "getbit_range(%varp6865_itwatchtower_bits, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew) = 1",
-            "inv_total(inv, ogretooth) > 0",
+            "inv_total(inv, ogretooth) < 1",
+            "last_useitem = ogretooth",
             "setbit_range_toint(%varp6865_itwatchtower_bits, 2, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew)",
             "inv_del(inv, ogretooth, 1);", "inv_add(inv, relicpart2, 1);",
             "inv_add(inv, powering_crystal1, 1);",
@@ -1892,7 +1898,7 @@ def check_big_chompy() -> None:
             "%chompy_baiter = $baiter;", "npc_queue(4, 0, 25);",
             "[ai_queue4,bloated_toad]", "last_int = 3 | last_int = 13",
             "random(5) = 1", "npc_queue(4, $next_state, 25);",
-            "~spawn_chompy_bird($bait_coord, $baiter);",
+            "~spawn_chompy_bird($bait_coord, $baiter, $toad);",
             "damage(uid, hitsplat_damage, add(random(2), 1));",
         ),
         "Big Chompy Bird Hunting bait cycle",
@@ -1904,11 +1910,14 @@ def check_big_chompy() -> None:
     require_text(
         bird,
         (
-            "[proc,spawn_chompy_bird](coord $bait, player_uid $baiter)",
+            # RSProx 4503 rebuild (OSRS-Content 203c539126): the bird is sent
+            # at its own toad by uid, Rantz misses two ticks after the bite,
+            # and the dead bird turns into the carcass in its own slot.
+            "[proc,spawn_chompy_bird](coord $bait, player_uid $baiter, npc_uid $toad)",
             "map_findsquare($bait, 3, 10, ^map_findsquare_lineofsight)",
-            "npc_add($spawn, chompybird, 100);", "npc_setowner;",
-            "queue(chompy_rantz_misses, add(15, random(10)), 0);",
-            "[ai_queue4,chompybird]", "npc_find($here, bloated_toad, 10",
+            "npc_add($spawn, chompybird, 300);", "npc_setowner;",
+            "queue(chompy_rantz_missed, 2, 0);",
+            "[ai_queue4,chompybird]", "npc_finduid(%chompy_target_toad)",
             "[ai_timer,chompybird]", "if (npc_hastarget = true)",
             "npc_setmode(playerescape);",
             "[apnpc5,chompybird]", "[opnpc5,chompybird]",
@@ -1918,7 +1927,7 @@ def check_big_chompy() -> None:
             "~player_hit_npc_prepare($damage, $hit);",
             "~player_ranged_use_weapon($bow, $ammo)",
             "[ai_queue3,chompybird]", "queue(chompybird_kill, 0, 0);",
-            "npc_add($death, chompybird_dead, 200);", "[queue,chompybird_kill]",
+            "npc_changetype(chompybird_dead, ^max_32bit_int);", "[queue,chompybird_kill]",
             "%varp293_chompybird = ^chompybird_player_killed_chompy;",
             "[opnpc4,chompybird_dead]", "add(random(21), 10)",
             "obj_add_private(npc_coord, raw_chompy, 1",
@@ -1928,7 +1937,8 @@ def check_big_chompy() -> None:
     )
     require("gosub(npc_death)" not in bird,
             "Big Chompy Bird Hunting: generic bird drop hook restored")
-    require(bird.count("npc_setowner;") == 2,
+    # One owner for both: the carcass is the bird's own npc, changed type.
+    require(bird.count("npc_setowner;") == 1 and "npc_add($death" not in bird,
             "Big Chompy Bird Hunting: bird and corpse must remain owner-private")
 
     rantz = CHOMPY_RANTZ.read_text()
@@ -2733,7 +2743,7 @@ def check_tai_bwo_wannai_trio() -> None:
             "Tai Bwo Wannai Trio: generated shops must not bind pre-quest/cutscene owners")
     require_text(SHOP_GENERATOR.read_text(),
                  ('"tamayus_spear_stall__1": []', '"tiadeches_karambwan_stall": []',
-                  "QUEST_GATED_OWNER_OVERRIDES.get(shop_key, discovered_owners)"),
+                  "QUEST_GATED_OWNER_OVERRIDES.get(shop_key, override.get(\"owners\", discovered_owners))"),
                  "Tai Bwo Wannai Trio durable shop generation gate")
     require_text(config_text.read_text(TBWT_TAMAYU_STOCK),
                  ("stock1=tbwt_bronze_spear_kp,10,10", "stock6=tbwt_rune_spear_kp,0,100",
@@ -3389,7 +3399,8 @@ def check_monkey_madness_i() -> None:
         npc,
         ("[mm_demon]", "hitpoints=170", "attack=170", "strength=170",
          "defence=170", "magic=170", "ranged=1", "param=attackrate,6",
-         "param=stabattack,50", "param=slashattack,50", "param=strengthbonus,50",
+         # The cache's record: no attack bonus (c62b7beded).
+         "param=stabattack,0", "param=slashattack,0", "param=strengthbonus,50",
          "param=stabdefence,0", "param=slashdefence,50", "param=crushdefence,0",
          "param=magicdefence,50", "param=rangedefence,0",
          "param=elemental_weakness,^element_fire",
@@ -3403,38 +3414,43 @@ def check_monkey_madness_i() -> None:
         "Monkey Madness I private encounter state",
     )
 
+    # RSProx 4565 rebuild (OSRS-Content c62b7beded): the squad and the demon
+    # are public npcs tied to their summoner through %mm_attacking_uid (an owned
+    # npc turns to its owner on every idle turn), the demon fights through its
+    # applayer2 mode on a 6-tick action delay, a gnome hit is exactly 1 and the
+    # one that would kill it leaves it at 35, and the kill runs on queue3/5.
     demon = MM1_DEMON.read_text()
     require_text(
         demon,
         ("[opheld2,mm_sigil]", "%varp365_mm_main ! ^monkeymadness_completed_ch3",
          "%varb126_mm_garkor ! ^garkor_joined_10th_squad", "~wilderness_level(coord) > 0",
-         "~p_choice2(\"Let the sigil teleport you\", 1, \"Not yet\", 2)",
+         "~p_choice2_header(\"Yes\", 1, \"No.\", 2, \"Let the sigil teleport you when worn?\")",
          "p_telejump(1_42_143_14_21);", "[proc,mm_demon_spawn_squad]",
          "mm_garkor_final_battle", "mm_zooknock_final_battle",
          "mm_waymottin_final_battle", "mm_bunkwicket_final_battle",
          "mm_bunkdo_final_battle", "mm_carado_final_battle",
          "mm_lumo_final_battle", "mm_karam_final_battle", "mm_bonzara",
-         "npc_add($spawn, $actor, 2000);", "npc_add($spawn, mm_demon, 2000);",
-         "npc_setowner;", "[ai_timer,mm_demon]", "npc_settimer(6);",
-         "def_int $gnome_hit = add(random(8), 3);",
-         "npc_statheal(hitpoints, add(random(22), 21), 0);",
-         "min($gnome_hit, sub(npc_stat(hitpoints), 10))",
-         "case 0 : $spell = ^wind_wave", "case 1 : $spell = ^water_wave",
-         "case 2 : $spell = ^earth_wave", "default : $spell = ^fire_wave",
-         "npc_range(coord) < 3", "~npc_meleeattack;",
-         "~npc_cast_spell_with_forced_max_hit($spell, 6, 32);",
-         "[ai_queue3,mm_demon]", "if (npc_findhero = ^false)",
-         "def_npc_uid $dead_demon = npc_uid;", "%varp7458_mm_demon_active = 2;",
+         "npc_add($at, $type, 2000);", "npc_add($at, mm_demon, 2000);",
+         "%mm_attacking_uid = uid;", "[ai_applayer2,mm_demon]",
+         "%npc_action_delay = add(map_clock, 6);", "npc_attackdelay(6);",
+         "[proc,mm_demon_gnome_hit]", "npc_statsub(hitpoints, 1, 0);",
+         "npc_statheal(hitpoints, 35, 0);",
+         "$cast = windwave_casting;", "$cast = waterwave_casting;",
+         "$cast = earthwave_casting;", "def_spotanim $cast = firewave_casting;",
+         "~mm_footprint_dist(npc_coord, coord) <= 2", "~npc_meleeattack;",
+         "[proc,mm_demon_cast]", "randominc(32)",
+         "[ai_queue3,mm_demon]", "if (p_finduid($owner) = true)",
+         "def_npc_uid $demon = npc_uid;", "%varp7458_mm_demon_active = 2;",
          "%varp365_mm_main = ^monkeymadness_defeated_demon;",
-         "obj_add_private(npc_coord, malicious_ashes, 1",
-         "npc_finduid($dead_demon);", "~npc_default_death;",
+         "obj_add_private($centre, malicious_ashes, 1",
+         "npc_finduid($demon);", "[ai_queue5,mm_demon]", "npc_del;",
          "[timer,mm_demon_monitor]", "[proc,mm_demon_cleanup]",
          "[proc,mm_demon_on_death]", "[proc,mm_demon_on_logout]",
          "[opnpc1,mm_garkor_final_battle]", "[opnpc1,mm_zooknock_final_battle]",
          "[opnpc1,mm_bonzara]"),
         "Monkey Madness I owner-private final battle controller",
     )
-    require(demon.count("~mm_demon_spawn_squad_member(") == 9,
+    require(demon.count("~mm_squad_add(") == 9,
             "Monkey Madness I: final battle must spawn all nine support actors")
 
     require_text(
@@ -3857,8 +3873,18 @@ def check_anothersliceofham() -> None:
             require(line in block, f"Another Slice of H.A.M.: [{name}] lacks `{line}`")
     require_text(
         SLICE_HAMMAGE.read_text(),
-        ("[ai_opplayer2,slice_ham_mage]\n~npc_generic_magicattack;",
-         "[ai_opplayer2,slice_ham_archer]\n~npc_rangeattack;"),
+        # The tower pair's swings were rebuilt to RSProx index 4524 (5f350740bc):
+        # cast on the swing, projectile + damage on npc_queue 6 three ticks later.
+        ("[ai_opplayer2,slice_ham_mage]\nnpc_anim(human_caststrike_staff, 0);",
+         "spotanim_npc(fireblast_casting, 92, 0);",
+         "[ai_opplayer2,slice_ham_archer]\nnpc_anim(slice_ham_agent_arrow_launch, 0);",
+         "npc_queue(6, uid, 3);",
+         "[ai_queue6,slice_ham_mage]",
+         "~npc_player_hit_roll(^magic_style) = true",
+         "randominc(npc_param(magic_maxhit))",
+         "[ai_queue6,slice_ham_archer]",
+         "randominc(~npc_ranged_maxhit)",
+         "[proc,slice_ham_hit](int $style, int $damage)"),
         "Another Slice of H.A.M. slice_hammage.rs2",
     )
 
@@ -5140,7 +5166,9 @@ def check_shadow_of_the_storm() -> None:
     require(15350581 in {audit["revision"] for audit in rows[0]["source_audits"]},
             "Shadow of the Storm: pinned Agrith_Naar Wiki audit drifted")
     block = _npc_block(config_text.read_text(SHADOWSTORM_NPC), "agrith_naar")
-    for line in ("hitpoints=95", "attack=83", "strength=90", "defence=82", "magic=100",
+    # hitpoints 96: fitted to RSProx 4477's 62 headbar readings (OSRS-Content
+    # db72c124d6; the cache's 95 misses 8 of them).
+    for line in ("hitpoints=96", "attack=83", "strength=90", "defence=82", "magic=100",
                  "ranged=100", "huntmode=aggressive", "param=attackrate,4",
                  "param=damagetype,^crush_style", "param=strengthbonus,0",
                  "param=crushattack,0", "param=crushdefence,0", "param=magicdefence,0",
@@ -5153,7 +5181,10 @@ def check_shadow_of_the_storm() -> None:
         SHADOWSTORM_RITUAL.read_text(),
         ("[opnpc2,agrith_naar]\n@player_combat_start;", "[ai_opplayer2,agrith_naar]",
          "~npc_meleeattack;", "~sots_agrith_fireblast;", "[ai_queue3,agrith_naar]",
-         "npc_statheal(hitpoints, ^sots_agrith_revive_hp, 0);", "queue(sots_agrith_slain, 0, 0);"),
+         # Without Silverlight in melee range the last hitpoint holds (the
+         # RSProx 4477 rebuild clamps the blow instead of reviving him).
+         "[ai_queue2,agrith_naar]", "$damage = sub(npc_stat(hitpoints), 1);",
+         "~sots_agrith_can_slay = false", "queue(sots_agrith_slain, 0, 0);"),
         "Shadow of the Storm Agrith-Naar fight",
     )
 

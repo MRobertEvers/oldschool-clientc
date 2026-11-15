@@ -199,6 +199,7 @@ selftest_quest_fluffs(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
     int loc_fence;
     int varp;
     int varp_crate;
+    int varp_pet;
     int qp_varp;
     int cooking;
     int obj_coins;
@@ -241,6 +242,7 @@ selftest_quest_fluffs(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
     loc_fence = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "gertrudefence");
     varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp180_fluffs");
     varp_crate = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6424_fluffs_crate");
+    varp_pet = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp9497_kitten_pet");
     qp_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
     cooking = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "cooking");
     obj_coins = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "coins");
@@ -432,7 +434,9 @@ selftest_quest_fluffs(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
     }
     fprintf(stderr, "PASS gertrudescat crate_search trigger=opnpc1,kittens_mew observable=all6\n");
 
-    /* ---- Rescue must not delete the shared Fluffs NPC ---- */
+    /* ---- Rescue: Fluffs runs off home with her kitten (RSProx index 4401
+     *      [899..910], content 2e6cc65b28): she is npc_del'd at O+11 and comes
+     *      back on her type's respawn timer, so the slot keeps her type. ---- */
     selftest_clear_inv(player);
     selftest_give(player, obj_lost, 1);
     ToriRSServer_VarpPut(player, varp, 4);
@@ -442,9 +446,8 @@ selftest_quest_fluffs(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
     fluffs_drain(srv, player, 0);
     SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 5, "rescue should write fluffs=5, got %d",
                    ToriRSServer_Varp(player, varp));
-    SELFTEST_CHECK(srv->npcs[f_slot].active, "rescue must not npc_del the shared Fluffs");
-    SELFTEST_CHECK(srv->npcs[f_slot].type == npc_fluffs, "Fluffs type must survive rescue");
-    fprintf(stderr, "PASS gertrudescat rescue trigger=opnpcu,gertrudescat observable=fluffs=5 npc_kept\n");
+    SELFTEST_CHECK(srv->npcs[f_slot].type == npc_fluffs, "Fluffs' slot must keep her type for the respawn");
+    fprintf(stderr, "PASS gertrudescat rescue trigger=opnpcu,gertrudescat observable=fluffs=5\n");
 
     /* ---- Atomic completion ---- */
     fluffs_snap(srv, player, 0, 3151, 3410);
@@ -465,8 +468,11 @@ selftest_quest_fluffs(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
     fluffs_drain_rewards(srv, player);
     SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 6, "completion should commit fluffs=6, got %d",
                    ToriRSServer_Varp(player, varp));
-    SELFTEST_CHECK(fluffs_kitten_total(player, kittens, 6) == 1,
-                   "completion should grant exactly one inventory kitten");
+    /* The reward kitten comes out as a follower (index 4401; kitten_pet.rs2),
+     * into the pack only when one cannot be spawned. */
+    SELFTEST_CHECK(fluffs_kitten_total(player, kittens, 6) + (varp_pet >= 0 && ToriRSServer_Varp(player, varp_pet) > 0) == 1,
+                   "completion should grant exactly one kitten (follower or pack), pack %d pet %d",
+                   fluffs_kitten_total(player, kittens, 6), varp_pet >= 0 ? ToriRSServer_Varp(player, varp_pet) : -1);
     SELFTEST_CHECK(obj_cake < 0 || selftest_count(player, obj_cake) == 1,
                    "completion should grant chocolate cake");
     SELFTEST_CHECK(obj_stew < 0 || selftest_count(player, obj_stew) == 1,

@@ -176,8 +176,6 @@ selftest_quest_animalmagnetism(struct ToriRSServer* srv, struct ToriRSServerPlay
     int varp_notes;
     int obj_ghostspeak;
     int obj_humanspeak;
-    int obj_ecto;
-    int obj_chicken;
     int obj_iron;
     int obj_sel;
     int obj_magnet;
@@ -247,8 +245,6 @@ selftest_quest_animalmagnetism(struct ToriRSServer* srv, struct ToriRSServerPlay
     varp_notes = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6879_anma_note_bits");
     obj_ghostspeak = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "amulet_of_ghostspeak");
     obj_humanspeak = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "amulet_of_humanspeak");
-    obj_ecto = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "ectotoken");
-    obj_chicken = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "anma_chicken_sack_full");
     obj_iron = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "iron_bar");
     obj_sel = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "anma_iron_bar");
     obj_magnet = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "anma_magnet");
@@ -411,34 +407,13 @@ selftest_quest_animalmagnetism(struct ToriRSServer* srv, struct ToriRSServerPlay
                    "amulet hand-in should reach 80+, got %d", state);
     anma_pass("give_amulet", "OPNPC1", "anma_main>=80");
 
-    if( state < 100 )
-    {
-        anma_talk(srv, player, npc_malcolm, mal_slot);
-        anma_drain(srv, player, 0);
-        anma_release(srv, player);
-    }
-    SELFTEST_CHECK(anma_state(player, varbit_anma) == 100,
-                   "chicken scene should write 100, got %d", anma_state(player, varbit_anma));
-    anma_pass("chicken_scene", "OPNPC1", "anma_main=100 leftover-cutscene");
+    /* ---- the chicken scene, the chickens bought and handed to Ava: 80 -> 120 ----
+     * Since ce387ed182 (RSProx 4513 [1445..1652]) Malcolm's catch is a queued
+     * cutscene in a copy of the farm, ten continue clicks long; it and the
+     * purchase are test/quests/animalmagnetism.lua's, driven by real clicks.
+     * This walk takes the stage past them directly. */
+    ToriRSServer_VarbitSet(srv, varbit_anma, 120);
 
-    inv_set(player, 8, obj_ecto, 20);
-    anma_talk(srv, player, npc_malcolm, mal_slot);
-    anma_choose(srv, player, 1);
-    anma_choose(srv, player, 2);
-    anma_drain(srv, player, 0);
-    anma_release(srv, player);
-    SELFTEST_CHECK(anma_state(player, varbit_anma) == 110, "chicken buy should write 110, got %d",
-                   anma_state(player, varbit_anma));
-    SELFTEST_CHECK(selftest_count_obj(player, obj_chicken) >= 2, "should hold two chickens");
-    anma_pass("buy_chickens", "OPNPC1", "anma_main=110");
-
-    anma_snap(srv, player, 0, 3093, 3357);
-    anma_talk(srv, player, npc_ava, ava_slot);
-    anma_drain(srv, player, 0);
-    anma_release(srv, player);
-    SELFTEST_CHECK(anma_state(player, varbit_anma) == 120, "chicken hand-in should write 120, got %d",
-                   anma_state(player, varbit_anma));
-    anma_pass("give_chickens", "OPNPC1", "anma_main=120");
 
     anma_snap(srv, player, 0, 3099, 3370);
     wit_slot = anma_ensure_npc(srv, npc_witch, 3099, 3370, 0, &spawned_wit);
@@ -461,8 +436,19 @@ selftest_quest_animalmagnetism(struct ToriRSServer* srv, struct ToriRSServerPlay
     SELFTEST_CHECK(selftest_count_obj(player, obj_sel) == 1, "witch should grant selected iron");
     anma_pass("witch_bars", "OPNPC1", "anma_main=140");
 
+    /* The magnet is made only facing due north (RSProx 4513: after a north
+     * step 2/2, any other facing 0/16; ce387ed182). South first: refused. */
     anma_snap(srv, player, 0, 2978, 3240);
     inv_set(player, 10, obj_hammer, 1);
+    player->face_entity = -1;
+    player->orientation = 0;
+    player->last_useitem = obj_hammer;
+    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELDU, obj_sel, -1, -1);
+    anma_drain(srv, player, 0);
+    anma_release(srv, player);
+    SELFTEST_CHECK(selftest_count_obj(player, obj_magnet) == 0, "hammering facing south must not make the magnet");
+    player->face_entity = -1;
+    player->orientation = 1024;
     player->last_useitem = obj_hammer;
     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELDU, obj_sel, -1, -1);
     anma_drain(srv, player, 0);
@@ -497,26 +483,29 @@ selftest_quest_animalmagnetism(struct ToriRSServer* srv, struct ToriRSServerPlay
     anma_talk(srv, player, npc_ava, ava_slot);
     anma_drain(srv, player, 0);
     anma_release(srv, player);
-    SELFTEST_CHECK(anma_state(player, varbit_anma) == 170, "Ava bounce report should write 170, got %d",
+    /* Ava's bounce pages leave the stage; Turael's intro moves it ([461..488]). */
+    SELFTEST_CHECK(anma_state(player, varbit_anma) == 160, "Ava bounce report should stay 160, got %d",
                    anma_state(player, varbit_anma));
-    anma_pass("report_bounce", "OPNPC1", "anma_main=170");
+    anma_pass("report_bounce", "OPNPC1", "anma_main=160");
 
     anma_snap(srv, player, 0, 2931, 3536);
     tur_slot = anma_ensure_npc(srv, npc_turael, 2931, 3536, 0, &spawned_tur);
     SELFTEST_CHECK(tur_slot >= 0, "Turael should exist");
     if( tur_slot < 0 )
         goto anma_done;
+    /* His fourth row is the quest's ([454], [505], [1011], ce387ed182). */
     anma_talk(srv, player, npc_turael, tur_slot);
-    anma_choose(srv, player, 3);
+    anma_choose(srv, player, 4);
     anma_drain(srv, player, 0);
     anma_release(srv, player);
-    SELFTEST_CHECK(anma_state(player, varbit_anma) == 170, "Turael intro must not make the axe, state=%d",
+    SELFTEST_CHECK(anma_state(player, varbit_anma) == 170, "Turael intro should write 170 without the axe, state=%d",
                    anma_state(player, varbit_anma));
+    SELFTEST_CHECK(selftest_count_obj(player, obj_axe) == 0, "Turael intro must not make the axe");
     anma_pass("turael_intro", "OPNPC1", "anma_main=170");
 
     inv_set(player, 12, obj_holy, 1);
     anma_talk(srv, player, npc_turael, tur_slot);
-    anma_choose(srv, player, 3);
+    anma_choose(srv, player, 4);
     anma_choose(srv, player, 1);
     anma_drain(srv, player, 0);
     anma_release(srv, player);

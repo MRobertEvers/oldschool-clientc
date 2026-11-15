@@ -95,25 +95,6 @@ slice_choose(struct ToriRSServer* srv, struct ToriRSServerPlayer* player, int ro
         ToriRSServer_ScriptsResumeButton(srv, chatmenu);
 }
 
-static void
-slice_drain_rewards(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
-{
-    int i;
-
-    assert(srv);
-    assert(player);
-    /* Resume pause FIRST -- WorldCloseModal aborts a parked script. */
-    slice_drain(srv, player, 0);
-    for( i = 0; i < 48; i++ )
-    {
-        if( player->active_script && player->active_script->execution == SSVM_PAUSEBUTTON &&
-            player->resume_button_count > 0 )
-            ToriRSServer_ScriptsResumeButton(srv, player->resume_buttons[0]);
-        ToriRSServer_WorldCloseModal(srv);
-        selftest_tick(srv);
-    }
-}
-
 static int
 slice_find_loc(int cx, int cz, int level, int loc_id, int radius)
 {
@@ -231,10 +212,6 @@ selftest_quest_anothersliceofham(struct ToriRSServer* srv, struct ToriRSServerPl
     int npc_scribe;
     int npc_oldak;
     int npc_wartface;
-    int npc_moss;
-    int npc_moss_shell;
-    int npc_ham_mage;
-    int npc_sigmund;
     int obj_trowel;
     int obj_brush;
     int obj_dirty1;
@@ -272,18 +249,11 @@ selftest_quest_anothersliceofham(struct ToriRSServer* srv, struct ToriRSServerPl
     int vb_dttd;
     int vb_gdwarf;
     int varp_itexam;
-    int varp_qp;
     int stat_attack;
     int stat_prayer;
-    int stat_mining;
     int urtag_slot;
     int tegdak_slot;
     int scribe_slot;
-    int oldak_slot;
-    int wart_slot;
-    int moss_slot;
-    int ham_slot;
-    int sig_slot;
     int spawned_urtag;
     int spawned_tegdak;
     int spawned_scribe;
@@ -293,8 +263,6 @@ selftest_quest_anothersliceofham(struct ToriRSServer* srv, struct ToriRSServerPl
     int spawned_ham;
     int spawned_sig;
     int loc_slot;
-    int qp_before;
-    int xp_before;
     int i;
 
     fprintf(stderr, "ToriRSServer selftest: quest_anothersliceofham (Another Slice of H.A.M.)\n");
@@ -319,10 +287,6 @@ selftest_quest_anothersliceofham(struct ToriRSServer* srv, struct ToriRSServerPl
     npc_scribe = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "dorgesh_male_scribe");
     npc_oldak = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "dorgesh_oldak_there");
     npc_wartface = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "general_wartface_green");
-    npc_moss = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "slice_sergeant_mossfists_swamp");
-    npc_moss_shell = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "slice_sergeant_mossfists");
-    npc_ham_mage = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "slice_ham_mage");
-    npc_sigmund = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "slice_sigmund_showdown");
     obj_trowel = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "trowel");
     obj_brush = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "specimen_brush");
     obj_dirty1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "slice_artifact_1_dirty");
@@ -360,10 +324,8 @@ selftest_quest_anothersliceofham(struct ToriRSServer* srv, struct ToriRSServerPl
     vb_dttd = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2258_dttd_main");
     vb_gdwarf = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb571_giantdwarf_quest");
     varp_itexam = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp131_itexamlevel");
-    varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
     stat_attack = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "attack");
     stat_prayer = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "prayer");
-    stat_mining = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "mining");
 
     SELFTEST_CHECK(npc_urtag >= 0 && npc_alvijar >= 0 && npc_tegdak >= 0 && npc_scribe >= 0 &&
                        npc_oldak >= 0 && npc_wartface >= 0 && obj_trowel >= 0 && obj_brush >= 0 &&
@@ -611,195 +573,13 @@ selftest_quest_anothersliceofham(struct ToriRSServer* srv, struct ToriRSServerPl
             slice_pass("scribe", "OPNPC1", "slice_quest=4");
     }
 
-    /* ---- Oldak talkable carrier ---- */
-    slice_snap(srv, player, 0, 2704, 5365);
-    oldak_slot = slice_spawn_npc(srv, npc_oldak, 2704, 5365, 0, &spawned_oldak);
-    SELFTEST_CHECK(oldak_slot >= 0, "dorgesh_oldak_there must be talkable");
-    if( oldak_slot >= 0 )
-    {
-        slice_talk(srv, player, npc_oldak, oldak_slot);
-        slice_drain(srv, player, 0);
-        slice_release(srv, player);
-        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_quest) == 5,
-                       "Oldak teleport should write slice_quest=5, got %d",
-                       ToriRSServer_VarbitGet(player, vb_quest));
-        if( ToriRSServer_VarbitGet(player, vb_quest) == 5 )
-            slice_pass("oldak", "OPNPC1", "slice_quest=5");
-    }
-
-    /* ---- Generals ---- */
-    slice_snap(srv, player, 0, 2957, 3512);
-    wart_slot = slice_spawn_npc(srv, npc_wartface, 2957, 3512, 0, &spawned_wart);
-    if( wart_slot >= 0 )
-    {
-        slice_talk(srv, player, npc_wartface, wart_slot);
-        slice_drain(srv, player, 0);
-        slice_release(srv, player);
-        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_quest) == 6,
-                       "generals ambush should write slice_quest=6, got %d",
-                       ToriRSServer_VarbitGet(player, vb_quest));
-        if( ToriRSServer_VarbitGet(player, vb_quest) == 6 )
-            slice_pass("generals", "OPNPC1", "slice_quest=6");
-    }
-
-    /* Production Attack must not silently complete. */
-    ham_slot = slice_spawn_npc(srv, npc_ham_mage, 2447, 5417, 2, &spawned_ham);
-    if( ham_slot >= 0 && ToriRSServer_VarbitGet(player, vb_quest) == 6 )
-    {
-        slice_release(srv, player);
-        ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC2, npc_ham_mage, -1, ham_slot);
-        slice_drain(srv, player, 0);
-        slice_release(srv, player);
-        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_quest) == 6,
-                       "Attack must not silently complete the tower, got %d",
-                       ToriRSServer_VarbitGet(player, vb_quest));
-        if( ToriRSServer_VarbitGet(player, vb_quest) == 6 )
-            slice_pass("ham-attack-no-skip", "OPNPC2", "slice_quest=6");
-    }
-
-    ToriRSServer_ScriptsRunDebugproc(srv, "anothersliceofham_pass_ham");
-    slice_drain(srv, player, 0);
-    slice_release(srv, player);
-    SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_quest) == 7,
-                   "HAM cheat-skip should write slice_quest=7, got %d",
-                   ToriRSServer_VarbitGet(player, vb_quest));
-    if( ToriRSServer_VarbitGet(player, vb_quest) == 7 )
-    {
-        fprintf(stderr, "PASS anothersliceofham boss=ham_mage,ham_archer CHEAT-SKIP\n");
-        fflush(stderr);
-        slice_pass("ham-skip", "debugproc,anothersliceofham_pass_ham",
-                   "PASS anothersliceofham boss=ham_mage,ham_archer CHEAT-SKIP");
-    }
-
-    if( wart_slot < 0 || !srv->npcs[wart_slot].active )
-        wart_slot = slice_spawn_npc(srv, npc_wartface, 2957, 3512, 0, &spawned_wart);
-    if( wart_slot >= 0 )
-    {
-        slice_talk(srv, player, npc_wartface, wart_slot);
-        slice_drain(srv, player, 0);
-        slice_release(srv, player);
-        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_quest) == 8,
-                       "mace hand-off should write slice_quest=8, got %d",
-                       ToriRSServer_VarbitGet(player, vb_quest));
-        SELFTEST_CHECK(slice_inv_total(player, obj_mace) >= 1,
-                       "generals should grant the Ancient mace");
-        if( ToriRSServer_VarbitGet(player, vb_quest) == 8 )
-            slice_pass("mace-reward", "OPNPC1", "slice_quest=8 mace");
-    }
-
-    /* ---- Sergeants + light + command puzzle ---- */
-    if( obj_candle >= 0 && slice_inv_total(player, obj_candle) == 0 )
-        inv_set(player, 14, obj_candle, 1);
-    slice_snap(srv, player, 0, 3170, 3170);
-    moss_slot = slice_spawn_npc(srv, npc_moss, 3170, 3170, 0, &spawned_moss);
-    if( moss_slot >= 0 )
-    {
-        slice_talk(srv, player, npc_moss, moss_slot);
-        slice_drain(srv, player, 0);
-        slice_release(srv, player);
-        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_quest) == 9,
-                       "sergeant briefing should write slice_quest=9, got %d",
-                       ToriRSServer_VarbitGet(player, vb_quest));
-        if( ToriRSServer_VarbitGet(player, vb_quest) == 9 )
-            slice_pass("sergeant", "OPNPC1", "slice_quest=9");
-    }
-
-    slice_snap(srv, player, 0, 2397, 5558);
-    if( npc_moss_shell >= 0 )
-    {
-        int cmd_slot = slice_spawn_npc(srv, npc_moss_shell, 2398, 5558, 0, &spawned_moss);
-
-        if( cmd_slot >= 0 )
-        {
-            slice_talk(srv, player, npc_moss_shell, cmd_slot);
-            slice_choose(srv, player, 1);
-            slice_drain(srv, player, 0);
-            slice_talk(srv, player, npc_moss_shell, cmd_slot);
-            slice_choose(srv, player, 1);
-            slice_drain(srv, player, 0);
-            slice_talk(srv, player, npc_moss_shell, cmd_slot);
-            slice_choose(srv, player, 2);
-            slice_drain(srv, player, 0);
-            slice_release(srv, player);
-            SELFTEST_CHECK(vb_snipers < 0 || ToriRSServer_VarbitGet(player, vb_snipers) == 1,
-                           "wait/follow commands should set slice_reached_snipers");
-            if( vb_snipers < 0 || ToriRSServer_VarbitGet(player, vb_snipers) == 1 )
-                slice_pass("stealth-commands", "OPNPC1", "wait/follow");
-        }
-    }
-
-    /* Sigmund Attack must not silently complete. */
-    slice_snap(srv, player, 0, 2543, 5511);
-    sig_slot = slice_spawn_npc(srv, npc_sigmund, 2543, 5511, 0, &spawned_sig);
-    if( sig_slot >= 0 && ToriRSServer_VarbitGet(player, vb_quest) == 9 )
-    {
-        slice_release(srv, player);
-        ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC2, npc_sigmund, -1, sig_slot);
-        slice_drain(srv, player, 0);
-        slice_release(srv, player);
-        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_quest) == 9,
-                       "Attack must not silently complete Sigmund, got %d",
-                       ToriRSServer_VarbitGet(player, vb_quest));
-        if( ToriRSServer_VarbitGet(player, vb_quest) == 9 )
-            slice_pass("sigmund-attack-no-skip", "OPNPC2", "slice_quest=9");
-    }
-
-    ToriRSServer_ScriptsRunDebugproc(srv, "anothersliceofham_pass_sigmund");
-    slice_drain(srv, player, 0);
-    slice_release(srv, player);
-    SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_quest) == 10,
-                   "Sigmund cheat-skip should write slice_quest=10, got %d",
-                   ToriRSServer_VarbitGet(player, vb_quest));
-    if( ToriRSServer_VarbitGet(player, vb_quest) == 10 )
-    {
-        fprintf(stderr, "PASS anothersliceofham boss=sigmund CHEAT-SKIP\n");
-        fflush(stderr);
-        slice_pass("sigmund-skip", "debugproc,anothersliceofham_pass_sigmund",
-                   "PASS anothersliceofham boss=sigmund CHEAT-SKIP");
-    }
-
-    /* ---- Untie Zanik + rewards (resume first, then wide close+tick) ---- */
-    slice_snap(srv, player, 0, 2542, 5513);
-    loc_slot = slice_find_loc(2542, 5513, 0, loc_tied, 16);
-    if( loc_slot < 0 && loc_tied >= 0 )
-        loc_slot = ToriRSServer_SceneAddLoc(2542, 5513, 0, loc_tied, 10, 0);
-    SELFTEST_CHECK(loc_slot >= 0, "slice_zanik_tied_up SHELL should be clickable");
-    qp_before = varp_qp >= 0 ? ToriRSServer_Varp(player, varp_qp) : 0;
-    xp_before = stat_mining >= 0 ? player->stat_xp_tenths[stat_mining] : 0;
-    if( loc_slot >= 0 )
-    {
-        slice_release(srv, player);
-        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_tied,
-                                            ToriRSServer_LocCategory(loc_tied), loc_slot);
-        slice_drain_rewards(srv, player);
-        slice_release(srv, player);
-    }
-    SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_quest) == 11,
-                   "untie should write slice_quest=11, got %d",
-                   ToriRSServer_VarbitGet(player, vb_quest));
-    if( varp_qp >= 0 )
-        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_qp) == qp_before + 1,
-                       "completion should award +1 QP, %d -> %d", qp_before,
-                       ToriRSServer_Varp(player, varp_qp));
-    if( stat_mining >= 0 )
-        SELFTEST_CHECK(player->stat_xp_tenths[stat_mining] >= xp_before + 30000,
-                       "completion should award 3000 Mining XP");
-    if( ToriRSServer_VarbitGet(player, vb_quest) == 11 )
-        slice_pass("complete", "OPLOC1", "slice_quest=11 qp+1");
-
-    /* ---- Postquest ---- */
-    slice_snap(srv, player, 1, 2730, 5365);
-    if( urtag_slot < 0 || !srv->npcs[urtag_slot].active )
-        urtag_slot = slice_spawn_npc(srv, npc_urtag, 2730, 5365, 1, &spawned_urtag);
-    if( urtag_slot >= 0 )
-    {
-        slice_talk(srv, player, npc_urtag, urtag_slot);
-        slice_drain(srv, player, 0);
-        slice_release(srv, player);
-        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_quest) == 11,
-                       "postquest must leave slice_quest=11");
-        slice_pass("postquest", "OPNPC1", "slice_quest=11");
-    }
+    /* ---- Oldak's spheres onward: test/quests/anothersliceofham.lua ----
+     * Since 5c54fc061a / 5f350740bc (2026-11-11) every stage past the scribe
+     * runs with Zanik as a follower, in copies of the village and the tunnel,
+     * through queued cutscenes: Oldak answers only with her beside him, the
+     * generals' hut scene, the H.A.M. tower pair, the sergeants, Sigmund. A
+     * walk that calls opnpc1 on spawned shells cannot stand any of that up;
+     * the scriptrun test drives it with real clicks, start to reward. */
 
     (void)npc_zanik;
     (void)owned;

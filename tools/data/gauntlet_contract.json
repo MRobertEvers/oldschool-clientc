@@ -14,12 +14,14 @@
     "archetypes": {"0": "NESW", "1": "ESW", "2": "SW"}
   },
   "recipe_contract_fragments": [
-    "~gauntlet_take_shards(200)", "~gauntlet_take_shards(50)",
-    "~gauntlet_take_shards(10)", "inv_add(inv, $t1, 1);",
-    "inv_add(inv, $t2, 1);", "inv_add(inv, $t3, 1);",
-    "~gauntlet_add_points(2);", "~gauntlet_add_points(5);",
-    "~gauntlet_add_points(10);", "stat_advance(herblore, 100);",
-    "stat_advance(cooking, 150);",
+    "return(200, 0, 0, $none, 0);", "return(50, 0, 0, $none, 0);",
+    "return(10, 0, 0, $none, 0);", "return(10, 0, 0, $none, 1);",
+    "if ($tier = 1) return(50, 1, 0, $none, 0);",
+    "if ($piece = 1) return(100, 2, 0, $none, 0);",
+    "return(100, 2, 0, $none, 0);",
+    "inv_add(inv, $item, 1);", "inv_add(worn, $item, 1);",
+    "stat_advance(herblore, 100);",
+    "stat_advance(cooking, multiply($n, 150));",
     "stat_advance(crafting, multiply($shards, 5));",
     "stat_advance(smithing, multiply($shards, 5));"
   ],
@@ -33,10 +35,14 @@
   ],
   "drop_contract_fragments": [
     "random(24)", "random(21)", "random(18)",
-    "~gauntlet_drop_shards(20, 30)", "~gauntlet_drop_shards(80, 100)",
-    "~gauntlet_drop_shards(50, 60)", "~gauntlet_drop_frame;",
+    "~gauntlet_give_shards(add(20, random(11)));",
+    "~gauntlet_give_shards(add(80, random(21)));",
+    "~gauntlet_give_shards(add(50, random(11)));",
+    "~gauntlet_drop_frame;",
     "~gauntlet_drop_component(1)", "~gauntlet_drop_component(2)",
-    "~gauntlet_drop_component(3)"
+    "~gauntlet_drop_component(3)",
+    "~gauntlet_add_points(2);", "~gauntlet_add_points(5);",
+    "~gauntlet_add_points(10);"
   ],
   "junk_rewards": ["flier_prif", "acne_potion", "rotten_tomato"],
   "incomplete_reward_fragments": [

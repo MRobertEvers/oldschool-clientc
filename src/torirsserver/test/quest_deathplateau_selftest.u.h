@@ -830,9 +830,10 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     death_pass("handin_complete", "opnpc1,death_ig_commander", "death_equiproom=80 claws+qp+xp");
 
     /* ---- postquest + Troll Stronghold start splice ---- */
+    /* Since 9dd50f2609 (RSProx 4455 [258..291]) "How goes your fight..."
+     * runs straight to the start confirm. */
     death_talk(srv, player, npc_denulth, den_slot);
     death_choose(srv, player, 1);
-    death_choose(srv, player, 2);
     death_choose(srv, player, 1);
     death_drain(srv, player, 0);
     death_release(srv, player);

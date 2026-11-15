@@ -380,8 +380,12 @@ def main() -> int:
     # reintroduce the abort.
     for path, text in (("charter_port.rs2", PORT_RS2), ("charter_travel.rs2", TRAVEL_RS2),
                        ("charter_map.rs2", MAP_RS2)):
+        # ~chatnpc_specific* names its npc type as an argument and never reads
+        # NPC_TYPE (interface_chat/scripts/chat.rs2), so it is safe here: Trader
+        # Stan's Crandor refusal (Dragon Slayer I, RSProx 4556, 1347d4352c) uses it.
         for line in text.split("\n"):
-            if line.strip().startswith("~chatnpc"):
+            if (line.strip().startswith("~chatnpc")
+                    and not line.strip().startswith("~chatnpc_specific")):
                 fail("%s calls %s on a path an [if_button1] can reach — NPC_TYPE "
                      "aborts there" % (path, line.strip().split("(")[0]))
 

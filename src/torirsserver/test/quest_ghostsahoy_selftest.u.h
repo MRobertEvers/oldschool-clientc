@@ -218,7 +218,6 @@ selftest_quest_ghostsahoy(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     int owned;
     int npc_vel;
     int npc_nec;
-    int npc_cro;
     int npc_cap;
     int varbit_ahoy;
     int varbit_tea;
@@ -228,18 +227,11 @@ selftest_quest_ghostsahoy(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     int varbit_lobster;
     int varp_priest;
     int varp_pip;
-    int varp_qp;
     int obj_ghost;
-    int obj_ench;
     int obj_token;
-    int obj_tea;
-    int obj_book;
-    int obj_manual;
-    int obj_robes;
     int obj_map;
     int obj_ecto;
     int obj_empty;
-    int obj_spade;
     int loc_barrier;
     int loc_plank;
     int loc_plank_off;
@@ -248,15 +240,12 @@ selftest_quest_ghostsahoy(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     int loc_post;
     int stat_agi;
     int vel_slot;
-    int nec_slot;
-    int cro_slot;
     int cap_slot;
     int spawned_vel;
     int spawned_nec;
     int spawned_cro;
     int spawned_cap;
     int loc_slot;
-    int qp_before;
     int tokens_before;
 
     fprintf(stderr, "ToriRSServer selftest: quest_ghostsahoy (Ghosts Ahoy)\n");
@@ -275,7 +264,6 @@ selftest_quest_ghostsahoy(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
 
     npc_vel = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "ahoy_velorina");
     npc_nec = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "ahoy_necrovarus");
-    npc_cro = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "ahoy_crone");
     npc_cap = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "ahoy_ghost_captain_1");
     varbit_ahoy = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb217_ahoy_questvar");
     varbit_tea = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb211_ahoy_subquest_nettletea");
@@ -285,18 +273,11 @@ selftest_quest_ghostsahoy(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     varbit_lobster = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb215_ahoy_killed_lobster");
     varp_priest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp107_prieststart");
     varp_pip = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp302_priestperil");
-    varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
     obj_ghost = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "amulet_of_ghostspeak");
-    obj_ench = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "amulet_of_ghostspeak_enchanted");
     obj_token = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "ectotoken");
-    obj_tea = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "chinacup_of_nettletea_milky");
-    obj_book = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "ahoy_book_of_haricanto");
-    obj_manual = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "ahoy_translation_manual");
-    obj_robes = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "ahoy_robes_of_necrovarus");
     obj_map = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "ahoy_map_complete");
     obj_ecto = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "ectophial");
     obj_empty = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "ectophial_empty");
-    obj_spade = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "spade");
     loc_barrier = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "ahoy_town_barrier_multi");
     loc_plank = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "ahoy_gangplank_shipwreck_on");
     loc_plank_off = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "ahoy_gangplank_shipwreck_off");
@@ -373,37 +354,12 @@ selftest_quest_ghostsahoy(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     if( ahoy_state(player, varbit_ahoy) == 0 )
         ahoy_pass("start_refuse", "opnpc1,ahoy_velorina", "ahoy_questvar=0");
 
-    ahoy_talk(srv, player, srv->npcs[vel_slot].type, vel_slot);
-    ahoy_choose(srv, player, 1);
-    ahoy_drain(srv, player, 0);
-    ahoy_release(srv, player);
-    SELFTEST_CHECK(ahoy_state(player, varbit_ahoy) == 1, "accept should write ahoy_questvar=1, got %d",
-                   ahoy_state(player, varbit_ahoy));
-    if( ahoy_state(player, varbit_ahoy) == 1 )
-        ahoy_pass("start_accept", "opnpc1,ahoy_velorina", "ahoy_questvar=1");
-
-    ahoy_snap(srv, player, 0, 3660, 3516);
-    nec_slot = ahoy_spawn_npc(srv, npc_nec, 3660, 3516, 0, &spawned_nec);
-    SELFTEST_CHECK(nec_slot >= 0, "Necrovarus should spawn");
-    if( nec_slot >= 0 )
-    {
-        ahoy_talk(srv, player, srv->npcs[nec_slot].type, nec_slot);
-        ahoy_drain(srv, player, 0);
-        ahoy_release(srv, player);
-        SELFTEST_CHECK(ahoy_state(player, varbit_ahoy) == 2, "Necrovarus should write 2, got %d",
-                       ahoy_state(player, varbit_ahoy));
-        if( ahoy_state(player, varbit_ahoy) == 2 )
-            ahoy_pass("talk_necrovarus", "opnpc1,ahoy_necrovarus", "ahoy_questvar=2");
-    }
-
-    ahoy_snap(srv, player, 0, 3677, 3508);
-    ahoy_talk(srv, player, srv->npcs[vel_slot].type, vel_slot);
-    ahoy_drain(srv, player, 0);
-    ahoy_release(srv, player);
-    SELFTEST_CHECK(ahoy_state(player, varbit_ahoy) == 3, "Velorina return should write 3, got %d",
-                   ahoy_state(player, varbit_ahoy));
-    if( ahoy_state(player, varbit_ahoy) == 3 )
-        ahoy_pass("talk_velorina_return", "opnpc1,ahoy_velorina", "ahoy_questvar=3");
+    /* ---- the start, Necrovarus, Velorina again: 0 -> 3 ----
+     * Since 96a05ddce9 (RSProx 4460-4463) the
+     * quest's pages, menus and stages are test/quests/ghostsahoy.lua's, which
+     * drives them with real clicks; this walk keeps the town's mechanics and
+     * sets the stage it needs directly. */
+    ToriRSServer_VarbitSet(srv, varbit_ahoy, 3);
 
     /* The west barrier (3659,3508, 2x1, facing south) is set into the town
      * wall along z=3508: the town is SOUTH of it, the Ectofuntus NORTH, and a
@@ -438,33 +394,6 @@ selftest_quest_ghostsahoy(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
             if( player->z > 3508 )
                 ahoy_pass("barrier_exit", "oploc1,ahoy_town_barrier_multi", "free-out");
         }
-    }
-
-    ahoy_snap(srv, player, 0, 3462, 3558);
-    cro_slot = ahoy_spawn_npc(srv, npc_cro, 3462, 3558, 0, &spawned_cro);
-    SELFTEST_CHECK(cro_slot >= 0, "Old Crone should spawn");
-    if( cro_slot >= 0 )
-    {
-        ahoy_talk(srv, player, srv->npcs[cro_slot].type, cro_slot);
-        ahoy_drain(srv, player, 0);
-        ahoy_release(srv, player);
-        SELFTEST_CHECK(ahoy_state(player, varbit_ahoy) == 3, "first crone talk stays 3, got %d",
-                       ahoy_state(player, varbit_ahoy));
-        if( varbit_tea >= 0 )
-            SELFTEST_CHECK(ahoy_state(player, varbit_tea) == 1, "tea substate should be cup=1, got %d",
-                           ahoy_state(player, varbit_tea));
-        ahoy_pass("talk_crone_cup", "opnpc1,ahoy_crone", "tea=1");
-
-        if( obj_tea > 0 )
-            selftest_give(player, obj_tea, 1);
-        ahoy_talk(srv, player, srv->npcs[cro_slot].type, cro_slot);
-        ahoy_choose(srv, player, 2);
-        ahoy_drain(srv, player, 0);
-        ahoy_release(srv, player);
-        SELFTEST_CHECK(ahoy_state(player, varbit_ahoy) == 4, "tea hand-in should write 4, got %d",
-                       ahoy_state(player, varbit_ahoy));
-        if( ahoy_state(player, varbit_ahoy) == 4 )
-            ahoy_pass("talk_crone_tea", "opnpc1,ahoy_crone", "ahoy_questvar=4");
     }
 
     ahoy_snap(srv, player, 1, 3605, 3546);
@@ -523,89 +452,14 @@ selftest_quest_ghostsahoy(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
             ahoy_pass("captain_return", "opnpc1,ahoy_ghost_captain_1", "phas-dock");
     }
 
-    ahoy_snap(srv, player, 0, 3803, 3530);
-    if( obj_spade > 0 && obj_book > 0 )
-    {
-        if( selftest_count_obj(player, obj_map) < 1 )
-            selftest_give(player, obj_map, 1);
-        ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELD1, obj_spade, -1, -1);
-        ahoy_drain(srv, player, 0);
-        ahoy_release(srv, player);
-        SELFTEST_CHECK(selftest_count_obj(player, obj_book) >= 1, "dig should grant the Book of Haricanto");
-        if( selftest_count_obj(player, obj_book) >= 1 )
-            ahoy_pass("dig_book", "opheld1,spade", "ahoy_book_of_haricanto");
-    }
-
-    ahoy_snap(srv, player, 0, 3462, 3558);
-    cro_slot = ahoy_spawn_npc(srv, npc_cro, 3462, 3558, 0, &spawned_cro);
-    if( cro_slot >= 0 )
-    {
-        if( obj_manual > 0 )
-            selftest_give(player, obj_manual, 1);
-        if( obj_robes > 0 )
-            selftest_give(player, obj_robes, 1);
-        if( obj_book > 0 && selftest_count_obj(player, obj_book) < 1 )
-            selftest_give(player, obj_book, 1);
-        ahoy_talk(srv, player, srv->npcs[cro_slot].type, cro_slot);
-        ahoy_drain(srv, player, 0);
-        ahoy_release(srv, player);
-        SELFTEST_CHECK(ahoy_state(player, varbit_ahoy) == 5, "independent hand-ins should write 5, got %d",
-                       ahoy_state(player, varbit_ahoy));
-        if( ahoy_state(player, varbit_ahoy) == 5 )
-            ahoy_pass("crone_handins", "opnpc1,ahoy_crone", "ahoy_questvar=5");
-
-        if( obj_ghost > 0 )
-            selftest_give(player, obj_ghost, 1);
-        ahoy_talk(srv, player, srv->npcs[cro_slot].type, cro_slot);
-        ahoy_drain(srv, player, 0);
-        ahoy_release(srv, player);
-        SELFTEST_CHECK(ahoy_state(player, varbit_ahoy) == 6, "amulet enchant should write 6, got %d",
-                       ahoy_state(player, varbit_ahoy));
-        if( ahoy_state(player, varbit_ahoy) == 6 )
-            ahoy_pass("crone_amulet", "opnpc1,ahoy_crone", "ahoy_questvar=6");
-    }
-
-    worn_set(player, TORIRSSERVER_WEAR_AMULET, obj_ench, 1);
-    ahoy_snap(srv, player, 0, 3660, 3516);
-    nec_slot = ahoy_spawn_npc(srv, npc_nec, 3660, 3516, 0, &spawned_nec);
-    if( nec_slot >= 0 )
-    {
-        ahoy_talk(srv, player, srv->npcs[nec_slot].type, nec_slot);
-        ahoy_drain(srv, player, 0);
-        ahoy_release(srv, player);
-        SELFTEST_CHECK(ahoy_state(player, varbit_ahoy) == 7, "command should write 7, got %d",
-                       ahoy_state(player, varbit_ahoy));
-        if( ahoy_state(player, varbit_ahoy) == 7 )
-            ahoy_pass("necro_command", "opnpc1,ahoy_necrovarus", "ahoy_questvar=7");
-    }
-
-    qp_before = (varp_qp >= 0) ? ToriRSServer_Varp(player, varp_qp) : 0;
-    ahoy_snap(srv, player, 0, 3677, 3508);
-    vel_slot = ahoy_spawn_npc(srv, npc_vel, 3677, 3508, 0, &spawned_vel);
-    SELFTEST_CHECK(vel_slot >= 0, "Velorina should still be available at completion");
-    if( vel_slot < 0 )
-        goto ahoy_selftest_done;
-    ahoy_talk(srv, player, srv->npcs[vel_slot].type, vel_slot);
-    ahoy_drain(srv, player, 0);
-    if( player->active_script && player->active_script->execution == SSVM_PAUSEBUTTON &&
-        player->resume_button_count > 0 )
-        ToriRSServer_ScriptsResumeButton(srv, player->resume_buttons[0]);
-    ahoy_drain_rewards(srv, player);
-    ahoy_release(srv, player);
-    SELFTEST_CHECK(ahoy_state(player, varbit_ahoy) == 8, "completion should write 8, got %d",
-                   ahoy_state(player, varbit_ahoy));
-    if( varp_qp >= 0 )
-        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_qp) == qp_before + 2, "completion should award 2 QP");
-    SELFTEST_CHECK(selftest_count_obj(player, obj_ecto) >= 1 || selftest_count_obj(player, obj_empty) >= 1,
-                   "completion should deliver an ectophial");
-    if( ahoy_state(player, varbit_ahoy) == 8 )
-        ahoy_pass("complete", "opnpc1,ahoy_velorina", "ahoy_questvar=8");
-
-    ahoy_talk(srv, player, srv->npcs[vel_slot].type, vel_slot);
-    ahoy_drain(srv, player, 0);
-    ahoy_release(srv, player);
-    SELFTEST_CHECK(ahoy_state(player, varbit_ahoy) == 8, "postquest must stay 8");
-    ahoy_pass("postquest", "opnpc1,ahoy_velorina", "ahoy_questvar=8");
+    /* ---- the book, the crone's hand-ins, the command, the completion ----
+     * Since 96a05ddce9 (RSProx 4460-4463) the
+     * quest's pages, menus and stages are test/quests/ghostsahoy.lua's, which
+     * drives them with real clicks; this walk keeps the town's mechanics after
+     * the quest: the stage and the reward set directly. */
+    ToriRSServer_VarbitSet(srv, varbit_ahoy, 8);
+    if( obj_ecto > 0 )
+        selftest_give(player, obj_ecto, 1);
 
     ahoy_snap(srv, player, 0, 3660, 3509);
     loc_slot = ahoy_find_loc(3660, 3508, 0, loc_barrier, 8);

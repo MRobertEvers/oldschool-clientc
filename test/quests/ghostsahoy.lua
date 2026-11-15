@@ -455,7 +455,12 @@ return {
                 if mr ~= "ok" or open ~= true then
                     break
                 end
+                -- The board closes four ticks after a game's last rune, and
+                -- Robin's pages are a modal too: gone means the game is over.
                 local wr, w = t.ui.widget("ahoy_runedraw:runedraw_btn_draw")
+                if wr ~= "ok" then
+                    break
+                end
                 t.ui.invoke(w, 1)
                 draws = draws + 1
                 t.ticks(5)

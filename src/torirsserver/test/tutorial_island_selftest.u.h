@@ -820,9 +820,11 @@ selftest_tutorial_island(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     tut_set_step(player, varp, 500);
     fprintf(stderr, "NUDGE tutorial ranged kill tutorial=480->500 (skill_combat)\n");
 
-    tut_snap(srv, player, 3111, 9525, 0);
-    slot = tut_find_loc(3111, 9526, 0, loc_ladder_out, 2);
-    SELFTEST_CHECK(slot >= 0, "newbieladder2 should be placed at 3111,9526");
+    /* Rev 242 moved the combat area's ladder to 3111,9531 (was 3111,9526;
+     * content c56321cb92, the quest test b5e363293). */
+    tut_snap(srv, player, 3111, 9530, 0);
+    slot = tut_find_loc(3111, 9531, 0, loc_ladder_out, 2);
+    SELFTEST_CHECK(slot >= 0, "newbieladder2 should be placed at 3111,9531");
     if( slot >= 0 )
         tut_oploc(srv, player, SS_TRIGGER_OPLOC1, loc_ladder_out, slot);
     if( !tut_reached(player, varp, 510, "OPLOC1 newbieladder2") )
