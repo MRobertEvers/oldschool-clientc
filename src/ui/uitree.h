@@ -1687,6 +1687,16 @@ struct UITree
      */
     struct UITreeNodeSet models;
     struct UITreeNodeSet timer_hooks;
+    /** `timer_hooks` in the reference walk's order -- @see UITree_TimerWalkOrder.
+     *  A cache, rebuilt only when `timer_walk_order_stale` says the order can
+     *  have moved: a timer armed or cleared, or a node that is a timer or has
+     *  children linked, unlinked or moved. Creating or deleting a fresh leaf
+     *  (the per-cycle cc_deleteall/cc_create of an overlay) cannot reorder the
+     *  timers that remain, so it leaves the cache alone. */
+    int32_t* timer_walk_order;
+    int32_t timer_walk_order_count;
+    int32_t timer_walk_order_cap;
+    uint8_t timer_walk_order_stale;
     struct UITreeNodeSet key_hooks;
     struct UITreeNodeSet wheel_hooks;
     struct UITreeNodeSet opkeys;
@@ -3205,6 +3215,36 @@ UITree_FindDropTargetNodeHost(
     int py,
     int exclude_component_id,
     int* out_component_id);
+
+/**
+ * Put `nodes` (live slot indices) into the order the reference's interface
+ * walk reaches them: depth-first pre-order, a parent before its children,
+ * siblings in their `first_child`/`next_sibling` order (static components by
+ * index, then cc-created children, then a mounted sub-interface -- the order
+ * the walk draws them in too).
+ *
+ * The reference queues every onTimer from that walk and runs the queue in
+ * order (class415.method9488 queues `onTimer` before recursing into the
+ * static, cc and sub-interface children), so a timer lower in the walk sees
+ * what the earlier ones wrote this cycle. Costs the ancestor chains of the
+ * nodes given and one sibling run per comparison -- never the whole tree.
+ */
+void
+UITree_SortNodesPreorder(
+    struct UITree const* tree,
+    int32_t* nodes,
+    int count);
+
+/**
+ * The timer set in walk order (UITree_SortNodesPreorder), for the onTimer
+ * pass. Sorted only when the set or the links under it changed since the last
+ * call; a steady frame pays one flag test. The array is the tree's and is
+ * valid until the next mutation.
+ */
+int
+UITree_TimerWalkOrder(
+    struct UITree* tree,
+    int32_t const** out_nodes);
 
 /** Cache/script hide check, including InterfaceParent mount containers. */
 int

@@ -421,6 +421,7 @@ uitree_all_sets_clear(struct UITree* tree)
     assert(tree);
     UITreeNodeSet_Clear(&tree->models);
     UITreeNodeSet_Clear(&tree->timer_hooks);
+    tree->timer_walk_order_stale = 1;
     UITreeNodeSet_Clear(&tree->key_hooks);
     UITreeNodeSet_Clear(&tree->wheel_hooks);
     UITreeNodeSet_Clear(&tree->opkeys);
@@ -559,6 +560,20 @@ uitree_group_remove(
     UITreeNodeSet_Remove(&b->nodes, idx);
 }
 
+/* `idx` is about to be linked, unlinked or moved. That moves the walk position
+ * of the timers at and under it and of nothing else, so only a node that is a
+ * timer or has children can reorder the timer set. A fresh leaf -- every
+ * cc_create -- cannot. */
+static void
+uitree_timer_order_note_link(
+    struct UITree* tree,
+    int32_t idx)
+{
+    if( tree->components[idx].first_child >= 0 ||
+        UITreeNodeSet_Contains(&tree->timer_hooks, idx) )
+        tree->timer_walk_order_stale = 1;
+}
+
 static void
 uitree_sync_hook_sets(
     struct UITree* tree,
@@ -570,10 +585,16 @@ uitree_sync_hook_sets(
     assert(idx >= 0 && (uint32_t)idx < tree->component_count);
     c = &tree->components[idx];
     h = c->runtime_hooks;
-    if( h && h->on_timer.script_id > 0 )
-        UITreeNodeSet_Add(&tree->timer_hooks, idx);
-    else
-        UITreeNodeSet_Remove(&tree->timer_hooks, idx);
+    {
+        int const want = h && h->on_timer.script_id > 0;
+        /* A re-armed timer (the same node, every cycle) is not a change. */
+        if( want != UITreeNodeSet_Contains(&tree->timer_hooks, idx) )
+            tree->timer_walk_order_stale = 1;
+        if( want )
+            UITreeNodeSet_Add(&tree->timer_hooks, idx);
+        else
+            UITreeNodeSet_Remove(&tree->timer_hooks, idx);
+    }
     /* One set for all three keyboard hooks: they are collected in the same
      * scan and a component that carries any of them is rare enough that
      * splitting the set would only add bookkeeping. */
@@ -606,6 +627,8 @@ uitree_live_unregister(
     assert(idx >= 0 && (uint32_t)idx < tree->component_count);
     c = &tree->components[idx];
     UITreeNodeSet_Remove(&tree->models, idx);
+    if( UITreeNodeSet_Contains(&tree->timer_hooks, idx) )
+        tree->timer_walk_order_stale = 1;
     UITreeNodeSet_Remove(&tree->timer_hooks, idx);
     UITreeNodeSet_Remove(&tree->key_hooks, idx);
     UITreeNodeSet_Remove(&tree->wheel_hooks, idx);
@@ -672,6 +695,8 @@ UITree_FreeHooksAt(
 {
     assert(tree);
     assert(idx >= 0 && (uint32_t)idx < tree->component_count);
+    if( UITreeNodeSet_Contains(&tree->timer_hooks, idx) )
+        tree->timer_walk_order_stale = 1;
     UITreeNodeSet_Remove(&tree->timer_hooks, idx);
     UITreeNodeSet_Remove(&tree->key_hooks, idx);
     UITreeNodeSet_Remove(&tree->wheel_hooks, idx);
@@ -1322,6 +1347,7 @@ link_under_parent(
     int32_t new_index)
 {
     tree->canvas_candidates_valid = 0;
+    uitree_timer_order_note_link(tree, new_index);
     struct UITreeComponent* new_c = &tree->components[new_index];
     new_c->parent = parent_index;
     /* Preserve first_child (bake may attach children before the parent is
@@ -1540,6 +1566,7 @@ UITree_UnlinkChild(
                 tree->components[prev].next_sibling = next;
             uitree_child_key_removed(tree, parent_index, walk);
             uitree_visible_children_removed(tree, parent_index, walk);
+            uitree_timer_order_note_link(tree, walk);
             tree->components[walk].parent = -1;
             tree->components[walk].next_sibling = -1;
             parent->is_dirty = 1;
@@ -1563,6 +1590,7 @@ UITree_UnlinkFromRootList(
 
     if( tree->root_index < 0 )
         return;
+    uitree_timer_order_note_link(tree, child_index);
 
     if( tree->root_index == child_index )
     {
@@ -1629,6 +1657,7 @@ UITree_Reparent(
         UITree_UnlinkChild(tree, old_parent, child_index);
     else
         UITree_UnlinkFromRootList(tree, child_index);
+    uitree_timer_order_note_link(tree, child_index);
 
     /* Preserve first_child subtree; only splice into new sibling list. */
     child->parent = new_parent_index;
@@ -2177,6 +2206,7 @@ UITree_Free(struct UITree* tree)
     UITree_ParkedEditsDrop(tree);
     ToriMem_Free(ToriMem_Ui(), tree->id_index_keys);
     ToriMem_Free(ToriMem_Ui(), tree->id_index_vals);
+    ToriMem_Free(ToriMem_Ui(), tree->timer_walk_order);
     ToriMem_Free(ToriMem_Ui(), tree->layout_order);
     ToriMem_Free(ToriMem_Ui(), tree->layout_depth);
     ToriMem_Free(ToriMem_Ui(), tree->layout_changed);
@@ -2213,6 +2243,7 @@ UITree_CheckpointFreeContents(struct UITree* tree)
     UITree_ParkedEditsDrop(tree);
     ToriMem_Free(ToriMem_Ui(), tree->id_index_keys);
     ToriMem_Free(ToriMem_Ui(), tree->id_index_vals);
+    ToriMem_Free(ToriMem_Ui(), tree->timer_walk_order);
     ToriMem_Free(ToriMem_Ui(), tree->layout_order);
     ToriMem_Free(ToriMem_Ui(), tree->layout_depth);
     ToriMem_Free(ToriMem_Ui(), tree->layout_changed);
@@ -2230,6 +2261,10 @@ UITree_CheckpointFreeContents(struct UITree* tree)
     tree->id_index_vals = NULL;
     tree->id_index_cap = 0;
     tree->id_index_valid = 0;
+    tree->timer_walk_order = NULL;
+    tree->timer_walk_order_cap = 0;
+    tree->timer_walk_order_count = 0;
+    tree->timer_walk_order_stale = 1;
     tree->layout_order = NULL;
     tree->layout_depth = NULL;
     tree->layout_changed = NULL;
@@ -5454,6 +5489,7 @@ UITree_WidgetMoveAfter(struct UITree* tree, struct UITreeNodeRef ref, uint64_t o
         return true;
 
     parent = &tree->components[parent_index];
+    uitree_timer_order_note_link(tree, idx);
     for( int32_t walk = parent->first_child; walk >= 0; walk = tree->components[walk].next_sibling )
     {
         if( walk == idx )
@@ -7563,6 +7599,133 @@ uitree_node_or_ancestor_hidden(
             break;
     }
     return 0;
+}
+
+/* Parent links never form a cycle; a chain longer than this is one. */
+#define UITREE_PREORDER_DEPTH_MAX 4096
+
+static int
+uitree_preorder_depth(
+    struct UITree const* tree,
+    int32_t idx)
+{
+    int depth = 0;
+    while( tree->components[idx].parent >= 0 )
+    {
+        idx = tree->components[idx].parent;
+        assert((uint32_t)idx < tree->component_count);
+        depth++;
+        assert(depth < UITREE_PREORDER_DEPTH_MAX);
+    }
+    return depth;
+}
+
+/* <0 when `a` comes before `b` in the walk, >0 after, 0 when the same node. */
+static int
+uitree_preorder_compare(
+    struct UITree const* tree,
+    int32_t a,
+    int32_t b)
+{
+    int da;
+    int db;
+    int a_deeper_by;
+    int32_t sib;
+
+    if( a == b )
+        return 0;
+    da = uitree_preorder_depth(tree, a);
+    db = uitree_preorder_depth(tree, b);
+    a_deeper_by = da - db;
+    while( da > db )
+    {
+        a = tree->components[a].parent;
+        da--;
+    }
+    while( db > da )
+    {
+        b = tree->components[b].parent;
+        db--;
+    }
+    /* One was the other's ancestor: the walk reaches the ancestor first, and
+     * the ancestor is the shallower of the two. */
+    if( a == b )
+        return a_deeper_by > 0 ? 1 : -1;
+    while( tree->components[a].parent != tree->components[b].parent )
+    {
+        a = tree->components[a].parent;
+        b = tree->components[b].parent;
+    }
+    /* Siblings: the parent's child list, or the root list for two roots. */
+    sib = tree->components[a].parent >= 0
+              ? tree->components[tree->components[a].parent].first_child
+              : tree->root_index;
+    for( ; sib >= 0; sib = tree->components[sib].next_sibling )
+    {
+        if( sib == a )
+            return -1;
+        if( sib == b )
+            return 1;
+    }
+    /* Only an unlinked root (pushed, not yet placed) is on no list; it is
+     * linked -- and the order marked stale -- before it is ever walked. */
+    return a < b ? -1 : 1;
+}
+
+void
+UITree_SortNodesPreorder(
+    struct UITree const* tree,
+    int32_t* nodes,
+    int count)
+{
+    assert(tree);
+    assert(count >= 0);
+    if( count < 2 )
+        return;
+    assert(nodes);
+    /* Insertion sort: the timer set is a few dozen nodes. */
+    for( int i = 1; i < count; i++ )
+    {
+        int32_t const key = nodes[i];
+        int j = i - 1;
+        while( j >= 0 && uitree_preorder_compare(tree, nodes[j], key) > 0 )
+        {
+            nodes[j + 1] = nodes[j];
+            j--;
+        }
+        nodes[j + 1] = key;
+    }
+}
+
+int
+UITree_TimerWalkOrder(
+    struct UITree* tree,
+    int32_t const** out_nodes)
+{
+    int32_t const count = tree->timer_hooks.count;
+
+    assert(tree);
+    assert(out_nodes);
+    if( tree->timer_walk_order_stale )
+    {
+        if( tree->timer_walk_order_cap < count )
+        {
+            int32_t* grown = ToriMem_Realloc(
+                ToriMem_Ui(), tree->timer_walk_order, (size_t)count * sizeof(int32_t));
+            assert(grown);
+            tree->timer_walk_order = grown;
+            tree->timer_walk_order_cap = count;
+        }
+        if( count > 0 )
+            memcpy(tree->timer_walk_order, tree->timer_hooks.slots, (size_t)count * sizeof(int32_t));
+        UITree_SortNodesPreorder(tree, tree->timer_walk_order, count);
+        tree->timer_walk_order_count = count;
+        tree->timer_walk_order_stale = 0;
+    }
+    /* Every membership change marks it stale, so a fresh copy has the set's size. */
+    assert(tree->timer_walk_order_count == count);
+    *out_nodes = tree->timer_walk_order;
+    return count;
 }
 
 int

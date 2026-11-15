@@ -626,11 +626,33 @@ app_logic_tick(struct App* app)
          * the hook current when it runs (RS_CS2_DispatchTimer). With nothing
          * queued the hook cannot change first, and the snapshot is exact. */
         int late_bind = TaskRunner_RenderBlockingRemains(&app->frame_runner);
+        /*
+         * In the order the reference's interface walk reaches them, not the
+         * set's (hook-registration order, shuffled by swap-removal). A timer
+         * reads what the timers before it wrote this cycle.
+         *
+         * The mobile skills tab is the case that showed it: tapping a skill
+         * arms an onTimer on stats:tooltip that stamps %varc1_tooltip_time =
+         * clientclock every cycle, and the toplevel's `mouseover` timer draws
+         * the tip only while clientclock <= that stamp. `mouseover` was armed at
+         * boot, so it ran FIRST, saw last cycle's stamp, and blanked the text:
+         * the tip showed for the one frame the tap drew it directly and never
+         * again. The reference walks safezone -> gameframe -> ... -> stats
+         * before safezone -> mouseover, so the stamp is always fresh.
+         */
+        /* Sorted only when a timer was armed or cleared or something holding
+         * one moved; a steady frame takes the cached order. Copied because a
+         * fire can arm or clear a timer and so rebuild the tree's copy. */
+        int32_t timer_order[256];
+        int32_t const* walk_order = NULL;
+        timer_n = UITree_TimerWalkOrder(app->tree, &walk_order);
         if( timer_n > 256 )
             timer_n = 256;
+        if( timer_n > 0 )
+            memcpy(timer_order, walk_order, (size_t)timer_n * sizeof(timer_order[0]));
         for( int i = 0; i < timer_n; i++ )
         {
-            int32_t idx = app->tree->timer_hooks.slots[i];
+            int32_t idx = timer_order[i];
             int com_id;
             assert(idx >= 0 && (uint32_t)idx < app->tree->component_count);
             com_id = app->tree->components[idx].component_id;

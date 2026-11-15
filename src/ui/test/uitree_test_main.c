@@ -122,6 +122,7 @@ main(void)
     test_pause_pending_please_wait();
     test_reclaim_drops_nested_mount_records();
     test_live_node_sets();
+    test_timer_preorder();
     test_debug_overlay();
     test_chrome_exec();
     test_chrome_panel_draw();

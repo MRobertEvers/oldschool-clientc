@@ -317,6 +317,7 @@ void test_mount_slot_reclaim_no_shadow_text(void);
 void test_pause_pending_please_wait(void);
 void test_reclaim_drops_nested_mount_records(void);
 void test_live_node_sets(void);
+void test_timer_preorder(void);
 void test_debug_overlay(void);
 void test_chrome_exec(void);
 void test_chrome_panel_draw(void);

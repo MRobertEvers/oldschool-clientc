@@ -200,6 +200,10 @@ ckpt_tree_dup(
     dst->id_index_cap = 0;
     dst->id_index_tombs = 0;
     dst->id_index_valid = 0;
+    dst->timer_walk_order = NULL;
+    dst->timer_walk_order_cap = 0;
+    dst->timer_walk_order_count = 0;
+    dst->timer_walk_order_stale = 1;
     dst->layout_order = NULL;
     dst->layout_depth = NULL;
     dst->layout_changed = NULL;

@@ -237,3 +237,108 @@ test_live_node_sets(void)
 
     UITree_Free(tree);
 }
+
+/* The timer pass runs in the reference walk's order (UITree_SortNodesPreorder).
+ * The shape is toplevel_osm's: safezone holds gameframe (whose side panel
+ * mounts the stats tab and its tooltip layer) and, after it, mouseover. The
+ * tooltip's timer stamps a varc that mouseover's timer reads the same cycle,
+ * so the tooltip has to come first even though mouseover was made first. */
+void
+test_timer_preorder(void)
+{
+    struct UITree* tree = UITree_New(0);
+    struct UITreeNodeSpec spec;
+    int32_t control, safezone, gameframe, mouseover, side, stats, tooltip, cc;
+    int32_t order[6];
+
+    printf("TEST: timer pre-order\n");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.width = 100;
+    spec.height = 100;
+    spec.component_id = (601 << 16) | 0;
+    control = UITree_Push(tree, -1, &spec);
+    spec.component_id = (601 << 16) | 19;
+    safezone = UITree_Push(tree, control, &spec);
+    spec.component_id = (601 << 16) | 20;
+    gameframe = UITree_Push(tree, safezone, &spec);
+    spec.component_id = (601 << 16) | 132;
+    mouseover = UITree_Push(tree, safezone, &spec);
+    /* Pushed after mouseover, so a later slot: slot order would put it last. */
+    spec.component_id = (601 << 16) | 116;
+    side = UITree_Push(tree, gameframe, &spec);
+    spec.component_id = (320 << 16) | 0;
+    stats = UITree_Push(tree, side, &spec);
+    spec.component_id = (320 << 16) | 1;
+    tooltip = UITree_Push(tree, stats, &spec);
+    cc = UITree_CcCreate(tree, mouseover, (601 << 16) | 132, 6, 0);
+    TEST_ASSERT(control >= 0 && tooltip > mouseover && cc >= 0, "tree built");
+
+    order[0] = cc;
+    order[1] = mouseover;
+    order[2] = tooltip;
+    order[3] = safezone;
+    order[4] = stats;
+    order[5] = gameframe;
+    UITree_SortNodesPreorder(tree, order, 6);
+    TEST_ASSERT(order[0] == safezone, "an ancestor comes before its subtree");
+    TEST_ASSERT(order[1] == gameframe, "earlier sibling's subtree first");
+    TEST_ASSERT(order[2] == stats, "mounted root before its children");
+    TEST_ASSERT(order[3] == tooltip, "stats tooltip before mouseover");
+    TEST_ASSERT(order[4] == mouseover, "mouseover after the gameframe subtree");
+    TEST_ASSERT(order[5] == cc, "a cc child after its parent");
+
+    /* The cached order the timer pass reads. Armed mouseover-first, the way
+     * boot arms the toplevel before a tap arms the tooltip. */
+    {
+        int32_t const armed[3] = { mouseover, tooltip, gameframe };
+        int32_t const* walk = NULL;
+        int n;
+        int32_t leaf;
+        for( int k = 0; k < 3; k++ )
+        {
+            UITree_HooksMut(&tree->components[armed[k]])->on_timer.script_id = 42;
+            UITree_SyncHookMembership(tree, armed[k]);
+        }
+        n = UITree_TimerWalkOrder(tree, &walk);
+        TEST_ASSERT(n == 3, "three timers");
+        TEST_ASSERT(
+            walk[0] == gameframe && walk[1] == tooltip && walk[2] == mouseover,
+            "timer pass in walk order");
+        TEST_ASSERT(!tree->timer_walk_order_stale, "sorted once");
+
+        /* Re-arming the same timer -- every cycle -- is not a change. */
+        UITree_SyncHookMembership(tree, tooltip);
+        TEST_ASSERT(!tree->timer_walk_order_stale, "re-arm keeps the order");
+
+        /* The overlay's per-cycle rebuild: a fresh leaf under mouseover. */
+        UITree_CcDeleteAll(tree, mouseover);
+        leaf = UITree_CcCreate(tree, mouseover, (601 << 16) | 132, 6, 1);
+        TEST_ASSERT(leaf >= 0, "leaf created");
+        TEST_ASSERT(!tree->timer_walk_order_stale, "a fresh leaf keeps the order");
+
+        /* Moves. Under the side panel mouseover follows stats, so this one
+         * re-sorts to the same order; the two after it change it. */
+        UITree_Reparent(tree, mouseover, side);
+        TEST_ASSERT(tree->timer_walk_order_stale, "a move marks it stale");
+        n = UITree_TimerWalkOrder(tree, &walk);
+        TEST_ASSERT(
+            n == 3 && walk[0] == gameframe && walk[1] == tooltip && walk[2] == mouseover,
+            "moved timer re-sorted after the earlier sibling's subtree");
+        UITree_Reparent(tree, mouseover, gameframe);
+        UITree_Reparent(tree, side, safezone);
+        n = UITree_TimerWalkOrder(tree, &walk);
+        TEST_ASSERT(
+            n == 3 && walk[0] == gameframe && walk[1] == mouseover && walk[2] == tooltip,
+            "a moved subtree carries its timers");
+
+        /* Clearing one drops it from the order. */
+        UITree_HooksMut(&tree->components[tooltip])->on_timer.script_id = 0;
+        UITree_SyncHookMembership(tree, tooltip);
+        n = UITree_TimerWalkOrder(tree, &walk);
+        TEST_ASSERT(n == 2 && walk[0] == gameframe && walk[1] == mouseover, "cleared timer gone");
+    }
+
+    UITree_Free(tree);
+}
