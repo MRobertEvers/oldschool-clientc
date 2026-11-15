@@ -383,7 +383,21 @@ App_SetHighDpiAuto(
  * lowered: the cache's own settings ask a phone for 400%, but only after
  * login, and at the title screen's 100% of device pixels the 765x503 title sat
  * in a corner of a 2796x1290 canvas.
+ *
+ * And at least APP_MOBILE_CANVAS_MIN_W columns, which the phone only meets by
+ * its shape. With a side panel open, chatbox_update_layout_2526 (run from
+ * toplevel_side_customise, 919) sets `mainmodal` in the room left of
+ * `side_container` -- centred there, or flush with `hud_container_front`'s
+ * left edge when it cannot centre -- and the cache does nothing more: below
+ * 58 + 512 + 289 = 859 columns the modal cannot clear the panel at all. A 4:3
+ * tablet fitted to 503 rows alone was 765 wide, and the bank's inventory
+ * panel lay ~94 columns over the bank (iPad, 2026-11-15). 1092 is the phone
+ * canvas Jagex's app draws at 400% interface scaling (a 2000x923 Android
+ * screen measures 1093x504, the bank box 219..731 against the panel's 731),
+ * so a tablet gets the phone's room rather than the bare minimum.
  */
+#define APP_MOBILE_CANVAS_MIN_W 1092
+
 static void
 app_mobile_fit_floor(
     struct ClientScaleSettings const* settings,
@@ -402,6 +416,10 @@ app_mobile_fit_floor(
     assert(floor_h > 0);
     if( !CS2VM2_OnMobile() )
         return;
+    /* The floor carries the chrome strip the canvas carves out on top of the
+     * frame's own 765 (App_CanvasFloorWidth); the frame needs its columns
+     * beside that strip, not including it. */
+    floor_w += APP_MOBILE_CANVAS_MIN_W - APP_CANVAS_MIN_W;
     fit = (int)((long long)window_w * 100 / floor_w);
     fit_h = (int)((long long)window_h * 100 / floor_h);
     if( fit_h < fit )
