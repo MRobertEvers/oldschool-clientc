@@ -541,7 +541,9 @@ return {
         t.check("rangeRat.ranged", ranged_after.experience > ranged_before.experience and arrows_left < 50,
             "ranged xp " .. ranged_before.experience .. " -> " .. ranged_after.experience
             .. ", arrows worn 50 -> " .. tostring(arrows_left) .. " (from outside the pen)")
-        t.player.climb({ loc = "newbieladder2", at = { 3111, 9526, 0 }, dest = { 3111, 3125, 0 }, slack = 2 })
+        -- Rev 242 moved this ladder to 3111,9531 (the top stays at 3111,3126); the
+        -- landing is beside the top ladder whichever side it was climbed from.
+        t.player.climb({ loc = "newbieladder2", at = { 3111, 9531, 0 }, dest = { 3111, 3126, 0 }, slack = 1 })
         stage("open_bank")
 
         ---------------------------------------------------------------
