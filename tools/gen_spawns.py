@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
 """Rebuild the world's `.spawn` roster from an external spawn dump.
 
+    RMV=~/Documents/git_repos/rs-map-viewer
     tools/gen_spawns.py \
         --content OSRS-Content/osrs-content \
-        --npc-json  ~/Documents/git_repos/xrsps-typescript/server/data/npc-spawns.json \
-        --obj-json  ~/Documents/git_repos/xrsps-typescript/server/gamemodes/vanilla/data/groundItemSpawnData.json \
+        --npc-json  $RMV/src/mapviewer/data/npc/npc-spawns-osrs.json \
+        --obj-json  $RMV/src/mapviewer/data/obj/obj-spawns.json \
         --out OSRS-Content/osrs-content/server/scripts/areas/world/configs \
-        --report /tmp/spawn_report.txt
+        --report /tmp/spawn_report.txt \
+        --source "dennisdev/rs-map-viewer"
+
+The committed tree is this dump's output (docs/ITEM_AND_NPCS.md section 7).
+xrsps-typescript's server/data/npc-spawns.json is NOT the same roster: its
+Varrock guards are already other ids, so 38 npc rules match nothing there and
+the run refuses to write.
 
 An OldSchool cache holds no spawns — where an npc stands and what lies on the
 ground is server state, so it has to come from outside the cache and then be
@@ -621,7 +628,61 @@ OBJ_SPAWN_ID_CORRECTIONS = {
 # the zone beside it was loaded 93 times across the RSProx archive (its hook
 # apron, 3016,3229) without a cheese on the manhole, while the wiki's other
 # cheeses were sent every time (3083,3260 x147, 1646,3094 x92).
+#
+# The same doubling, everywhere else it happens: the dump lays the real item on
+# a tile where Jagex lays a stand-in for it -- a loc drawn as the item, or a
+# display obj whose Take gives the real one -- so the two lay stacked. Each row
+# was checked against every cached RSProx transcript of its map square
+# (obj_add on the tile, per session that loaded objs in its zone); the stand-ins'
+# Takes are player/scripts/pickup_display.rs2 unless noted.
+#
+#   * bronze_axe on log_withaxe ("Logs", Take-axe; quest_ribbitingtale's
+#     [oploc1,log_withaxe] gives the axe): Draynor 3097,3239 (0 of 15 sessions),
+#     Lumbridge 3232,3296 (0 of 17), Camelot 2729,3479 (same loc; no session
+#     loaded an obj in its zone).
+#   * bronze_axe at 3368,3238 beside the coins: coins 2 of 2, the axe 0.
+#   * net on the `net` loc ("Small fishing net", Take; RSProx index 3258
+#     [9351], 1842 [13823]): 0 of 11 at Lumbridge Swamp, 0 of 10 at Catherby,
+#     0 of 3 / 1 at Mort'ton / Karamja; the other three tiles carry the same loc.
+#   * Olaf's Quest walkway: olaf2_walkway_repair_rope / _barrel only (2..3 of
+#     2..3), never rope / olaf2_walkway_repair_barrel_inv; olaf_dungeon.rs2
+#     takes either form.
+#   * Deep Wilderness Dungeon: fake_wine_of_zamorak only (index 457, 458).
+#   * The Great Brain Robbery deck: brain_deck_gun_powder_barrel only (index
+#     3015, 3 zone loads); its Take is in brain_door.rs2.
+#   * Trouble Brewing: game_brew_instruction_book_dummy only (7 of 7); its Take
+#     gives the guide (index 1833 [434]).
+#   * Hosidius 1672,3159,1: bread 3 of 3, the papyrus beside it 0.
 OBJ_SPAWN_EXCLUSIONS = {
+    ("bronze_axe", 2729, 3479, 0),
+    ("bronze_axe", 3097, 3239, 0),
+    ("bronze_axe", 3232, 3296, 0),
+    ("bronze_axe", 3368, 3238, 0),
+    ("net", 2169, 2983, 0),
+    ("net", 2608, 3398, 0),
+    ("net", 2935, 5779, 0),
+    ("net", 3000, 3699, 0),
+    ("net", 3167, 2838, 0),
+    ("net", 3244, 3159, 0),
+    ("net", 3245, 3156, 0),
+    ("net", 3511, 3189, 0),
+    ("rope", 2700, 10163, 0),
+    ("rope", 2703, 10155, 0),
+    ("rope", 2718, 10163, 0),
+    ("olaf2_walkway_repair_barrel_inv", 2710, 10157, 0),
+    ("olaf2_walkway_repair_barrel_inv", 2711, 10157, 0),
+    ("wine_of_zamorak", 3018, 10353, 0),
+    ("brain_inv_gun_powder_barrel", 3801, 2870, 1),
+    ("brain_inv_gun_powder_barrel", 3801, 2876, 1),
+    ("brain_inv_gun_powder_barrel", 3803, 2870, 1),
+    ("brain_inv_gun_powder_barrel", 3803, 2876, 1),
+    ("game_brew_instruction_book", 3804, 3010, 0),
+    ("game_brew_instruction_book", 3812, 3017, 0),
+    ("game_brew_instruction_book", 3813, 3014, 0),
+    ("game_brew_instruction_book", 3818, 2998, 0),
+    ("game_brew_instruction_book", 3818, 3010, 0),
+    ("game_brew_instruction_book", 3823, 3001, 0),
+    ("papyrus", 1672, 3159, 1),
     ("mcannonremains", 2567, 3444, 2),
     ("white_apron", 3016, 3229, 0),
     ("cheese", 3018, 3232, 0),
@@ -679,6 +740,10 @@ OBJ_SPAWN_ADDITIONS = (
     # (section 5, local supply sources) records the missing knife.
     ("knife", 1241, 3679, 0, 1),
     ("bucket_empty", 1244, 3682, 0, 1),
+    # Trouble Brewing: two more Brewin' guide dummies the dump lacks, sent on
+    # every zone load of RSProx index 1833 (3 of 3, [obj_add] 8990).
+    ("game_brew_instruction_book_dummy", 3811, 2953, 0, 1),
+    ("game_brew_instruction_book_dummy", 3817, 2953, 0, 1),
 )
 
 

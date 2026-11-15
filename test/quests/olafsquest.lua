@@ -218,10 +218,18 @@ return {
         t.exec("pickUpItems-barrel2", t.player.click_obj, "olaf2_walkway_repair_barrel", 3)
         local _, barrels = t.inv.count("olaf2_walkway_repair_barrel")
         t.check("pickUpItems-barrels", barrels == 2, "rotten barrels in the pack: " .. tostring(barrels))
-        for n, spot in ipairs({ { 2703, 10154 }, { 2701, 10162 }, { 2717, 10162 } }) do
-            t.exec("walk-pickUpItems2-" .. n, t.player.walk_to, spot[1], spot[2], 30)
-            t.exec("pickUpItems2-rope" .. n .. "a", t.player.click_obj, "rope", 3)
-            t.exec("pickUpItems2-rope" .. n .. "b", t.player.click_obj, "olaf2_walkway_repair_rope", 3)
+        -- Jagex lays one olaf2_walkway_repair_rope on each of three tiles (RSProx
+        -- index 231, 1842, 213; never a plain rope there -- gen_spawns.py
+        -- OBJ_SPAWN_EXCLUSIONS), so six ropes is each tile taken twice, the second
+        -- after the map spawn's respawn (^lootdrop_duration, 200 ticks).
+        for pass = 1, 2 do
+            if pass == 2 then
+                t.ticks(205)
+            end
+            for n, spot in ipairs({ { 2703, 10154 }, { 2701, 10162 }, { 2717, 10162 } }) do
+                t.exec("walk-pickUpItems2-" .. pass .. "-" .. n, t.player.walk_to, spot[1], spot[2], 30)
+                t.exec("pickUpItems2-rope" .. pass .. "-" .. n, t.player.click_obj, "olaf2_walkway_repair_rope", 3)
+            end
         end
         local _, ropes_a = t.inv.count("rope")
         local _, ropes_b = t.inv.count("olaf2_walkway_repair_rope")
