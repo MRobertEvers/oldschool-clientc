@@ -1008,7 +1008,10 @@ ToriDraw_SceneBatchBuilding(struct ToriDraw_Scene const* scene);
 /**
  * Queue the load events a retained renderer needs to draw the scene as it
  * stands: every texture, and every non-dynamic element's model and animation
- * tracks.
+ * tracks. View 0's static pool goes out as one batch (BATCH_BEGIN, an ADD per
+ * element, BATCH_END), which a retained renderer takes as a world build --
+ * recorded, sized once, baked a slice at a time -- and everything else as a
+ * MODEL_LOAD.
  *
  * For a renderer started after those loads were first emitted -- a live
  * renderer switch. The queue should be empty first (ToriDraw_SceneFrameEnd),

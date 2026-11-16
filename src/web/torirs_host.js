@@ -1096,6 +1096,44 @@
     return { on: false, why: 'desktop' };
   })();
 
+  /*
+   * The heap, reserved once, for a device that cannot grow one.
+   *
+   * The module's own heap starts at 256 MB and grows by a fifth at a time.
+   * Safari on iOS grows a wasm memory by making a NEW block and copying, so
+   * the old and the new are both resident for the copy: a 2 GB iPad was
+   * killed in a 464 -> 557 MB grow and refused the next two (2026-11-16).
+   * So a low-memory device (lowMemory above) gets its heap from here, at a
+   * size it will not outgrow -- pages nobody has written cost nothing, so
+   * this is address space, not footprint. The first size the browser grants
+   * is the one used; when it grants none, the module makes its own as it
+   * always did. Growth past the reservation is still allowed: on a device
+   * that can do it, it works, and on one that cannot, the allocation is
+   * refused and says so (torimem's out-of-memory line).
+   *
+   * ?heap=<MB> names the size on any device (256 or more).
+   * Needs a module linked with -sIMPORTED_MEMORY (platform.mk); an older
+   * cached one ignores Module.wasmMemory and nothing is lost but the try.
+   */
+  const heapReserve = (() => {
+    const PAGES_PER_MB = 16;
+    const forced = parseInt(params.get('heap') || '', 10);
+    const ladder = forced >= 256 ? [forced] : lowMemory.on ? [640, 512, 384] : [];
+    let refused = null;
+    for (let i = 0; i < ladder.length; i++) {
+      try {
+        Module.wasmMemory = new WebAssembly.Memory({
+          initial: ladder[i] * PAGES_PER_MB,
+          maximum: 65536,
+        });
+        return { mb: ladder[i], refused };
+      } catch (err) {
+        refused = `${ladder[i]} MB: ${err && err.message}`;
+      }
+    }
+    return { mb: 0, refused };
+  })();
+
   Module.arguments = args;
   /* The black box (torirs_telemetry.js, absent under ?telemetry=0): what this
    * boot was asked to run, how big its heap is, and how it died if it did. */
@@ -1103,7 +1141,8 @@
   if (telemetry) {
     telemetry.setArgs(redactArgs(args));
     telemetry.record('mem_class', { low_memory: lowMemory.on, why: lowMemory.why,
-      previous_death: telemetry.previousDeath });
+      previous_death: telemetry.previousDeath, heap_reserved_mb: heapReserve.mb,
+      heap_refused: heapReserve.refused });
     Module.onAbort = what => {
       telemetry.record('wasm_abort', { what: String(what) }, true);
       /* What held the heap when it died. The tree is a few small mallocs, so
@@ -1193,7 +1232,8 @@
         });
       }
       log(`torirs: telemetry session ${telemetry.sid}`);
-      log(`torirs: memory ${lowMemory.on ? 'low' : 'normal'} (${lowMemory.why})`);
+      log(`torirs: memory ${lowMemory.on ? 'low' : 'normal'} (${lowMemory.why})` +
+          (heapReserve.mb ? `, heap reserved ${heapReserve.mb} MB` : ''));
     }
     installMemtraceButton();
     window.requestAnimationFrame(hostFrame);

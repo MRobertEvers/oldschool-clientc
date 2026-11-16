@@ -426,7 +426,7 @@ else ifeq ($(PLATFORM),web)
   # Everything JavaScript calls into. Without these on the list the runtime may
   # drop them, and the failure is a page that loads and then throws on the first
   # read rather than a link error naming the symbol.
-  WEB_CACHE_EXPORTS := ,"_torirs_web_io_pump","_torirs_telemetry_json","_torirs_mem_tree_json","_torirs_heap_in_use","_torirs_replay_set_unlocked","_torirs_replay_status_json","_ToriRS_IO_DescribeAbi","_ToriRS_IO_DescribeAbiCount","_ToriRS_WebApi_ArchiveDecode","_ToriRS_WebApi_ArchiveApplyMetadata","_ToriRS_WebApi_ReferenceTableFromContainer","_ToriRS_WebApi_Dat1ArchiveDecode","_ToriRS_WebApi_Dat1ArchiveStructSize","_ToriRS_WebApi_ArchiveStructSize","_ToriRS_WebApi_ReferenceTableStructSize","_ToriRS_WebApi_ArchiveFree","_ToriRS_WebApi_ArchiveRetain","_ToriRS_WebApi_ArchiveDataSize","_ToriRS_WebApi_Dat2TableDiskId"
+  WEB_CACHE_EXPORTS := ,"_torirs_web_io_pump","_torirs_telemetry_json","_torirs_mem_tree_json","_torirs_heap_in_use","_torirs_web_renderer_request","_torirs_replay_set_unlocked","_torirs_replay_status_json","_ToriRS_IO_DescribeAbi","_ToriRS_IO_DescribeAbiCount","_ToriRS_WebApi_ArchiveDecode","_ToriRS_WebApi_ArchiveApplyMetadata","_ToriRS_WebApi_ReferenceTableFromContainer","_ToriRS_WebApi_Dat1ArchiveDecode","_ToriRS_WebApi_Dat1ArchiveStructSize","_ToriRS_WebApi_ArchiveStructSize","_ToriRS_WebApi_ReferenceTableStructSize","_ToriRS_WebApi_ArchiveFree","_ToriRS_WebApi_ArchiveRetain","_ToriRS_WebApi_ArchiveDataSize","_ToriRS_WebApi_Dat2TableDiskId"
   # UTF8ArrayToString/UTF8ToString read paths out of the queue; setValue is used
   # by the store's EM_JS bodies and the ABI read.
   WEB_CACHE_RUNTIME := ,"setValue","UTF8ToString","UTF8ArrayToString"
@@ -520,6 +520,15 @@ else ifeq ($(PLATFORM),web)
   #
   # The 4GB maximum is the wasm32 limit, i.e. headroom rather than a
   # reservation (growth is on demand).
+  #
+  # IMPORTED_MEMORY: the page may hand the module its heap (Module.wasmMemory,
+  # src/web/torirs_host.js heapReserve), and does on a phone or tablet -- one
+  # reservation made at boot, big enough that the heap never has to grow.
+  # Growing is what an iPad cannot do: Safari makes a new block and copies,
+  # so a 464 -> 557 MB grow needs a gigabyte for a moment, and on 2026-11-16
+  # a 2 GB tablet was killed in one and refused two more. Pages never
+  # touched cost nothing, so the reservation is not the footprint. Without a
+  # page-made heap the runtime makes its own from INITIAL_MEMORY, as before.
   # MIN_WEBGL_VERSION=1 MAX_WEBGL_VERSION=2: the module contains both GPU
   # renderers, so the runtime has to be able to make either context.
   #
@@ -548,6 +557,7 @@ else ifeq ($(PLATFORM),web)
                       -sGL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0 \
                       -sMALLOC=dlmalloc \
                       -sALLOW_MEMORY_GROWTH=1 \
+                      -sIMPORTED_MEMORY=1 \
                       -sINITIAL_MEMORY=268435456 \
                       -sMAXIMUM_MEMORY=4294967296 \
                       -sSTACK_SIZE=8388608 \

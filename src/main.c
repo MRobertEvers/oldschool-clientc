@@ -7630,6 +7630,26 @@ torirs_mem_tree_json(void)
     return ToriMem_TreeJson(5, 1024 * 1024);
 }
 
+/* The page asks for a renderer: 0 is the launch's own, otherwise enum
+ * ToriRS_RendererKind + 1 -- the value Client Settings stores, under the same
+ * two refusals (app_plugin_display_setting_set): one this lane does not
+ * offer is not stored. The switch happens at the next frame boundary
+ * (renderer_follow_request). 1: asked. For the page's own recovery, and for
+ * driving a switch from a browser test. */
+EMSCRIPTEN_KEEPALIVE int
+torirs_web_renderer_request(int value)
+{
+    if( app.host.renderer_active < 0 || value < RS_CS2_RENDERER_LAUNCH_DEFAULT ||
+        value > RS_CS2_RENDERER_MAX )
+        return 0;
+    if( value != RS_CS2_RENDERER_LAUNCH_DEFAULT &&
+        !(app.host.renderer_available & (1u << (unsigned)(value - 1))) )
+        return 0;
+    app.host.renderer_picked = true;
+    RS_CS2Host_SetOption(&app.host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_RENDERER, value);
+    return 1;
+}
+
 /* Bytes malloc has handed out and not had back, its own headers included.
  * The heap's size less this is what is free INSIDE it: the measure of how
  * much of a grown heap is holes. Walks the allocator's chunks, so the page

@@ -2976,6 +2976,28 @@ ToriDraw_SceneBatchBuilding(struct ToriDraw_Scene const* scene)
     return scene->batch_building;
 }
 
+/* An element's tracks, after its model: the order SetModel then SetAnimation
+ * emits them in for a loc built in place. */
+static void
+td_scene_reemit_tracks(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_SceneElement* element,
+    int id)
+{
+    for( int anim_index = 0; anim_index < 2; anim_index++ )
+    {
+        struct ToriDraw_Animation* animation =
+            anim_index == 0 ? element->animation : element->secondary_animation;
+        int const before = scene->event_queue.count;
+        if( !animation )
+            continue;
+        td_scene_emit(
+            scene, TORIDRAW_EVENT_ANIM_LOAD, 0, id, 0, 0, &element->model, animation, NULL);
+        if( scene->event_queue.count > before )
+            scene->event_queue.events[scene->event_queue.count - 1].anim_index = anim_index;
+    }
+}
+
 void
 ToriDraw_SceneReemitRendererLoads(struct ToriDraw_Scene* scene)
 {
@@ -2997,11 +3019,26 @@ ToriDraw_SceneReemitRendererLoads(struct ToriDraw_Scene* scene)
     }
 
     /*
-     * Every retained model as a per-element MODEL_LOAD, batched ones included.
-     * A retained renderer bakes both into the same static arena, and the
-     * per-element load is the one that also clears whatever the renderer held
-     * for that id -- so the replay needs no batch ids of its own.
+     * View 0's static pool goes out as the world build a rebuild emits --
+     * BATCH_BEGIN, a BATCH_MODEL_ADD per element, BATCH_END -- exactly as
+     * ToriDraw_SceneAdoptPool sends an adopted pool. Every other retained
+     * model is a per-element MODEL_LOAD, as it was when it was made.
+     *
+     * The whole scene used to go out as MODEL_LOADs, "so the replay needs no
+     * batch ids of its own". That put a renderer started by a switch on a
+     * different path from one that was running when the scene was built: a
+     * build is recorded, sized once and baked a slice at a time
+     * (trspk_world_build.h); 26,000 MODEL_LOADs are baked whole on the frame
+     * they arrive, into one retained buffer that doubles as it fills. On a
+     * 2 GB tablet (2026-11-16) a switch asked for 198 MB in one block to
+     * hold a 126 MB world, while still holding the 99 MB it was growing out
+     * of, and the tab died there -- twice, on two different renderers.
+     *
+     * The batch gets an id of its own from ToriDraw_SceneBatchBegin; nothing
+     * names the old one any more (the renderer that knew it is gone, and a
+     * rebuild clears a renderer's build whatever its id).
      */
+    ToriDraw_SceneBatchBegin(scene);
     for( int id = scene->elements.head; id != TORIDRAW_INTRUSIVE_NIL;
          id = scene->elements.nodes[id].next )
     {
@@ -3009,21 +3046,33 @@ ToriDraw_SceneReemitRendererLoads(struct ToriDraw_Scene* scene)
         /* A deferred element's loads belong to its adoption, not to a
          * renderer that has only just started. */
         if( !element || element->dynamic || element->load_deferred ||
+            element->pool != TORIDRAW_SCENE_POOL_STATIC ||
+            !ToriDraw_ModelKindIsFull(element->model.kind) )
+            continue;
+        td_scene_emit(
+            scene,
+            TORIDRAW_EVENT_BATCH_MODEL_ADD,
+            scene->current_batch_id,
+            id,
+            0,
+            0,
+            &element->model,
+            NULL,
+            NULL);
+        td_scene_reemit_tracks(scene, element, id);
+    }
+    ToriDraw_SceneBatchEnd(scene);
+
+    for( int id = scene->elements.head; id != TORIDRAW_INTRUSIVE_NIL;
+         id = scene->elements.nodes[id].next )
+    {
+        struct ToriDraw_SceneElement* element = td_scene_element_ptr(scene, id);
+        if( !element || element->dynamic || element->load_deferred ||
+            element->pool == TORIDRAW_SCENE_POOL_STATIC ||
             !ToriDraw_ModelKindIsFull(element->model.kind) )
             continue;
         td_scene_emit(scene, TORIDRAW_EVENT_MODEL_LOAD, 0, id, 0, 0, &element->model, NULL, NULL);
-        for( int anim_index = 0; anim_index < 2; anim_index++ )
-        {
-            struct ToriDraw_Animation* animation =
-                anim_index == 0 ? element->animation : element->secondary_animation;
-            int const before = scene->event_queue.count;
-            if( !animation )
-                continue;
-            td_scene_emit(
-                scene, TORIDRAW_EVENT_ANIM_LOAD, 0, id, 0, 0, &element->model, animation, NULL);
-            if( scene->event_queue.count > before )
-                scene->event_queue.events[scene->event_queue.count - 1].anim_index = anim_index;
-        }
+        td_scene_reemit_tracks(scene, element, id);
     }
 }
 
