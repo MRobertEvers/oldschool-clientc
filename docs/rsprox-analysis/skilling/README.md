@@ -49,6 +49,9 @@ after cooking was found running a batch too fast (OSRS-Content 3b01bbb1f1).
 | green d'hide body | 4569 | 2 | 3 | 4/4 |
 | bread dough | 4570 | 0 (on the pick) | 1, then 2 | 6 |
 | bread on a range | 4570 | 2 | 3 then 4 | 6 |
+| gem bolt tips (diamond, ruby) | 4571 | 1 | 5 | 18/19 |
+| dragon bolt tipping | 4571 | 2 | 2 | 24 sets |
+| Enchant Crossbow Bolt (dragon ruby/diamond) | 4571 | 0 | 2, then 3 | 23 sets |
 
 Weaving, spinning and construction time the first item from the pick, a full
 cycle later. Cooking times it from the panel opening. Gems and herblore resolve
@@ -131,14 +134,31 @@ successfully bake some bread.".
 | leather.rs2 | first on the pick, then 3; stitching synth; a refusal when the leather runs out | +2 then 3; no sound; stops quietly |
 | dough.rs2 | on the pick, then every 3 | on the pick, +1, then every 2 |
 | bolts.rs2, skill_multi.rs2 | tipping cell "Onyx bolts" | "10 x Onyx bolts" (`~skill_multi1_makeable_named`) |
+
+## Fixed from 4571 and by likeness (2026-11-16)
+
+Index 4571: gem bolt tips are a batch, "How many sets of 12 will you make?"
+(mode 2, the yield in the title), the gem's cutting seq + chisel on the pick,
+the first tips the tick after, then a gem every 5 ticks with the seq again on
+all but the last, each "You use your chisel to fletch small bolt tips.". Dragon
+bolt tipping and enchanting match what 4568 set up ("10 x Ruby dragon bolts",
+"Ruby dragon bolts (e)|Diamond dragon bolts (e)").
+
+| file | was | now | evidence |
+|---|---|---|---|
+| bolts.rs2, bolts.dbrow | gem tips one gem per use | the 4571 batch; every gem row has its cutting seq | 4571 |
+| snakeskin.rs2, leather.rs2 | first on the pick, then 3; stitching synth; no thread used; the two shields on the needle panel, thread required, steel nails only | leather's beat and silence, a reel every five (shared `~leather_thread_use`); snakeskin shield = snakeskin on a willow shield (hammer, 15 iron nails); broodoo = hammer on the mask, 2 snakeskins, 8 nails of any kind | wiki (Snakeskin_body .. boots: 3 ticks, needle + thread; Snakeskin_shield: hammer; Broodoo_shield) + leather (4569) |
+| hammer.rs2 | | the three masks dispatch the broodoo shield | wiki |
+| fabric_armour.rs2 | first on the pick, then 3; synth; refusals every pass; no thread used | leather's beat, silence and thread | likeness to leather (4569), unverified |
+| jewellery.rs2 (silver) | first on the click, then 3; a line each | gold's beat and silence | likeness to gold (4567), unverified |
 | cooking_generic.dbrow | bread got the generic line | "You successfully bake some bread." |
 
 ## Open
 
 | action | ours | evidence | note |
 |---|---|---|---|
-| snakeskin, fabric armour, silver jewellery | first item on the pick tick | none | leather (4569) lands the first at +2 |
-| bolt tip cutting (gems) | one per use | no recording | |
+| silver jewellery quantity | each interface-6 click makes one | (gold's 446: one click made 27) | same as gold |
+| broodoo nail order | cheapest kind held | none | which kind Jagex takes first |
 | wooden shields | p_delay(7) = 8 | wiki 7 | the comment says 7 |
 | gold jewellery quantity | each 446 click makes one | 4567: one click made 27 (`makexcrafting` 2224 = 27) | port the 446 quantity |
 | furnace Smelt (op2) with gold bars and moulds | the bar panel | 4567 [594]: opened crafting_gold | |
