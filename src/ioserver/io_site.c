@@ -341,6 +341,14 @@ static char const k_css[] =
     "background:var(--wood);color:var(--gold);vertical-align:middle;font-variant:small-caps;"
     "border:1px solid var(--gold2)}"
     ".up{color:#2f6a12}"
+    "select{display:block;width:100%;max-width:320px;margin-top:4px;padding:8px;font:inherit;"
+    "border:1px solid var(--edge);border-radius:3px;background:#fbf6e8;color:var(--ink)}"
+    ".check{display:flex;gap:8px;align-items:center}"
+    ".check input{display:inline;width:auto;margin:0}"
+    ".asbar{background:#5a1e0e;border-bottom:2px solid var(--gold2);color:var(--parch)}"
+    ".asbar .bar{padding:6px 16px;gap:6px 16px;font-size:15px}"
+    ".asbar b{color:var(--gold)}"
+    ".asbar form{margin:0}"
     "footer{text-align:center;color:#8a7a5a;font-size:13px;padding:16px}";
 
 /* Where the account site's Play Now goes: the gate's landing (the game). */
@@ -370,6 +378,48 @@ site_is_staff(
     return 0;
 }
 
+/* The staff login behind this request when staff have signed in as another
+ * login (io_gate.h IoGate_SignInAs), else "". Set per request by
+ * IoSite_Handle; the handlers run one at a time, as g_view assumes. */
+static char g_staff_behind[SITE_NAME_MAX];
+
+/* Every web login's name, as the account server lists them. */
+#define SITE_LOGINS_MAX 1024
+static char g_logins[SITE_LOGINS_MAX][SITE_NAME_MAX];
+static int g_login_count;
+
+static void
+collect_login(char const* name)
+{
+    if( g_login_count < SITE_LOGINS_MAX )
+        snprintf(g_logins[g_login_count++], SITE_NAME_MAX, "%s", name);
+}
+
+/* Fill g_logins; their count, or -1 when the account server did not answer. */
+static int
+site_logins(void)
+{
+    g_login_count = 0;
+    if( AccountClient_GateLoginEach(collect_login) < 0 )
+        return -1;
+    return g_login_count;
+}
+
+/* The g_logins index of the login keyed `key` (as a ticket names it), or -1. */
+static int
+site_login_find(char const* key)
+{
+    for( int i = 0; i < g_login_count; i++ )
+    {
+        char have[SITE_NAME_MAX];
+
+        ToriRSServer_SaveFileName(g_logins[i], have, sizeof(have));
+        if( strcmp(have, key) == 0 )
+            return i;
+    }
+    return -1;
+}
+
 static void
 page_begin(
     struct SiteBuf* b,
@@ -397,15 +447,31 @@ page_begin(
         buf_printf(b, "<a href=\"%s\"%s>%s</a>", k_nav[i][0],
                    strcmp(nav, k_nav[i][0]) == 0 ? " class=\"on\"" : "", k_nav[i][1]);
     if( site_is_staff(gate, who) )
+    {
+        buf_printf(b, "<a href=\"/admin/users\"%s>Users</a>",
+                   strcmp(nav, "/admin/users") == 0 ? " class=\"on\"" : "");
         buf_printf(b, "<a href=\"/admin/recordings\"%s>Recordings</a>",
                    strcmp(nav, "/admin/recordings") == 0 ? " class=\"on\"" : "");
+    }
     buf_puts(b, "</nav><div class=\"who\"><span>Signed in as <b>");
     buf_esc(b, who);
     buf_puts(b, "</b></span><a class=\"mini\" href=\"");
     buf_esc(b, site_landing(gate));
     buf_puts(b, "\">Play</a><form method=\"post\" action=\"/logout\">"
-                "<button class=\"linkbtn\">Sign out</button></form></div></div></header>\n"
-                "<main>\n");
+                "<button class=\"linkbtn\">Sign out</button></form></div></div></header>\n");
+    if( g_staff_behind[0] )
+    {
+        buf_puts(b, "<div class=\"asbar\"><div class=\"bar\"><span>Staff view: <b>");
+        buf_esc(b, g_staff_behind);
+        buf_puts(b, "</b> is signed in as <b>");
+        buf_esc(b, who);
+        buf_puts(b, "</b>. Play plays this login's accounts.</span>"
+                    "<form method=\"post\" action=\"/account/return\"><button class=\"linkbtn\">"
+                    "Return to ");
+        buf_esc(b, g_staff_behind);
+        buf_puts(b, "</button></form></div></div>\n");
+    }
+    buf_puts(b, "<main>\n");
 }
 
 static void
@@ -693,7 +759,7 @@ page_home(
         linked_cards(&b, mine, mine_count, 0);
     else
         buf_puts(&b, "<p>No player accounts are linked to this login yet.</p>"
-                     "<p class=\"note\">Link one on the <a href=\"/account\">Account</a> page, or "
+                     "<p class=\"note\">Create or link one on the <a href=\"/account\">Account</a> page, or "
                      "choose <i>Link account</i> when you log in to the game. A linked account "
                      "plays from this login's Play Now and keeps its history here.</p>");
     buf_puts(&b, "<p class=\"note\" style=\"margin-top:12px\"><a href=\"/account\">Manage linked "
@@ -1161,6 +1227,31 @@ page_player(
     page_send(&b, res, 200);
 }
 
+/* The name, the password twice, and for staff the admin box: the create
+ * form's fields on /account and /admin/users. */
+static void
+create_form_fields(
+    struct SiteBuf* b,
+    char const* name,
+    int staff,
+    int admin)
+{
+    buf_puts(b, "<label>Player name<input name=\"username\" maxlength=\"12\" required "
+                "autocomplete=\"off\" value=\"");
+    buf_esc(b, name ? name : "");
+    buf_puts(b, "\"></label><label>Password<input name=\"password\" type=\"password\" "
+                "minlength=\"8\" maxlength=\"20\" required autocomplete=\"new-password\">"
+                "</label><label>Password again<input name=\"password2\" type=\"password\" "
+                "minlength=\"8\" maxlength=\"20\" required autocomplete=\"new-password\">"
+                "</label><p class=\"note\">1 to 12 letters, digits, spaces, - or _. The password: "
+                "8 to 20 characters with a letter and a digit, no spaces, not the name.</p>");
+    if( staff )
+        buf_printf(b, "<label class=\"check\"><input type=\"checkbox\" name=\"admin\" "
+                      "value=\"1\"%s> Admin (staff): the jmod crown and ::commands, off the "
+                      "hiscores</label>",
+                   admin ? " checked" : "");
+}
+
 static void
 page_account(
     struct IoGate* gate,
@@ -1169,11 +1260,14 @@ page_account(
     struct HttpResponse* res,
     int status,
     char const* error,
-    char const* typed_name)
+    char const* typed_name,
+    char const* create_name,
+    int create_admin)
 {
     struct SiteBuf b;
     struct SitePlayer* mine;
     int mine_count = linked_players(gate, who, &mine);
+    int staff = site_is_staff(gate, who);
     char done[16] = "";
     char player[SITE_NAME_MAX] = "";
 
@@ -1192,9 +1286,13 @@ page_account(
     {
         buf_puts(&b, "<p class=\"flash ok\">");
         buf_esc(&b, player);
-        buf_puts(&b, strcmp(done, "linked") == 0
-                         ? " is linked to this login. It now plays from this login's Play Now."
-                         : " is unlinked. Its own password signs it in again.");
+        if( strcmp(done, "created") == 0 )
+            buf_puts(&b, " is made and linked to this login. Press Play and choose it on the "
+                         "Play Now screen.");
+        else if( strcmp(done, "linked") == 0 )
+            buf_puts(&b, " is linked to this login. It now plays from this login's Play Now.");
+        else
+            buf_puts(&b, " is unlinked. Its own password signs it in again.");
         buf_puts(&b, "</p>");
     }
     buf_puts(&b, "<div class=\"grid\">\n<section class=\"panel\"><h2>Linked player accounts</h2>");
@@ -1206,6 +1304,14 @@ page_account(
                  "login alone: it signs in only from here, never with its own password, and "
                  "its session history is kept on its page.</p></section>\n");
 
+    buf_puts(&b, "<div class=\"stack\"><section class=\"panel\"><h2>Create a player account</h2>"
+                 "<form method=\"post\" action=\"/account/create\">");
+    create_form_fields(&b, create_name, staff, create_admin);
+    buf_puts(&b, "<button class=\"btn\">Create account</button></form>"
+                 "<p class=\"note\" style=\"margin-top:12px\">The new account is linked to this "
+                 "login: it plays from Play Now. Its password is kept for it, and signs it in "
+                 "only if it is ever unlinked.</p></section>\n");
+
     buf_puts(&b, "<section class=\"panel\"><h2>Link a player account</h2>"
                  "<form method=\"post\" action=\"/account/link-player\">"
                  "<label>Player name<input name=\"username\" maxlength=\"12\" required "
@@ -1216,9 +1322,9 @@ page_account(
                  "<button class=\"btn\">Link account</button></form>"
                  "<p class=\"note\" style=\"margin-top:12px\">The password proves the account "
                  "is yours. After linking, that password stops working: the account plays "
-                 "through this login. The account must already exist: make it by logging in to "
-                 "the game.</p>"
-                 "</section>\n</div>\n");
+                 "through this login. Use this for an account made in the game; a new one is "
+                 "made above.</p>"
+                 "</section></div>\n</div>\n");
     ToriMem_Free(ToriMem_Net(), mine);
     page_send(&b, res, status);
 }
@@ -1451,8 +1557,8 @@ page_staff_only(
 
     page_begin(&b, gate, who, "Staff only", "");
     buf_puts(&b, "<section class=\"panel\" style=\"max-width:560px\"><h2>Staff only</h2>"
-                 "<p>Recordings are for staff: a web login with a linked player account "
-                 "that is an admin.</p></section>");
+                 "<p>This page is for staff: a web login with a linked player account that is "
+                 "an admin.</p></section>");
     page_send(&b, res, 403);
 }
 
@@ -1765,6 +1871,225 @@ page_replay(
 }
 
 /* ------------------------------------------------------------------ */
+/* Staff: users                                                        */
+/* ------------------------------------------------------------------ */
+/*
+ * Every web login with the player accounts linked to it; a player account
+ * made for any of them (admin or not); and Sign in as, which turns this
+ * browser into that login until Return (io_gate.h IoGate_SignInAs) -- its
+ * account page, and its Play Now in the game, which plays its accounts.
+ */
+
+static void
+page_users(
+    struct IoGate* gate,
+    char const* who,
+    struct HttpRequest const* req,
+    struct HttpResponse* res,
+    int status,
+    char const* error,
+    char const* typed_owner,
+    char const* typed_name,
+    int typed_admin)
+{
+    struct SiteBuf b;
+    char done[16] = "";
+    char player[SITE_NAME_MAX] = "";
+    char owner[SITE_NAME_MAX] = "";
+    char selected[SITE_NAME_MAX];
+    int logins = site_logins();
+
+    if( logins < 0 )
+    {
+        unavailable_page(gate, who, "Users", "/admin/users", res);
+        return;
+    }
+    ToriRSServer_SaveFileName(typed_owner && typed_owner[0] ? typed_owner : who, selected,
+                              sizeof(selected));
+    page_begin(&b, gate, who, "Users", "/admin/users");
+    buf_puts(&b, "<div class=\"title\"><h1>Users<small>web logins and the player accounts "
+                 "under them</small></h1></div>\n");
+    if( error )
+    {
+        buf_puts(&b, "<p class=\"flash bad\">");
+        buf_esc(&b, error);
+        buf_puts(&b, "</p>");
+    }
+    else if( IoGate_QueryField(req, "done", done, sizeof(done)) &&
+             IoGate_QueryField(req, "player", player, sizeof(player)) &&
+             IoGate_QueryField(req, "owner", owner, sizeof(owner)) && strcmp(done, "created") == 0 )
+    {
+        buf_puts(&b, "<p class=\"flash ok\"><b>");
+        buf_esc(&b, player);
+        buf_puts(&b, "</b> is made and linked to <b>");
+        buf_esc(&b, owner);
+        buf_puts(&b, "</b>.</p>");
+    }
+
+    buf_puts(&b, "<div class=\"grid\">\n<section class=\"panel\"><h2>Web logins</h2>"
+                 "<div class=\"scroll\"><table><thead><tr><th>Login</th><th>Player accounts</th>"
+                 "<th></th></tr></thead><tbody>");
+    for( int i = 0; i < logins; i++ )
+    {
+        char key[SITE_NAME_MAX];
+        char names[IO_GATE_LINKS_LIST_MAX][IO_GATE_LINKS_NAME_MAX];
+        int linked;
+
+        ToriRSServer_SaveFileName(g_logins[i], key, sizeof(key));
+        if( !key[0] )
+            continue;
+        linked = IoGateLinks_List(gate->links, key, names, IO_GATE_LINKS_LIST_MAX);
+        buf_puts(&b, "<tr><td><b>");
+        buf_esc(&b, g_logins[i]);
+        buf_puts(&b, "</b></td><td>");
+        if( linked == 0 )
+            buf_puts(&b, "<span class=\"note\">none</span>");
+        for( int n = 0; n < linked; n++ )
+        {
+            char player_key[SITE_NAME_MAX];
+
+            ToriRSServer_SaveFileName(names[n], player_key, sizeof(player_key));
+            if( n > 0 )
+                buf_puts(&b, ", ");
+            player_link_to(&b, player_key, names[n]);
+            if( ToriRSServer_AuthIsAdmin(names[n]) )
+                buf_puts(&b, "&nbsp;<span class=\"note\">(admin)</span>");
+        }
+        buf_puts(&b, "</td><td>");
+        if( strcmp(key, who) == 0 )
+            buf_puts(&b, "<span class=\"note\">you</span>");
+        else
+        {
+            buf_puts(&b, "<form method=\"post\" action=\"/admin/users/sign-in-as\" "
+                         "style=\"margin:0\"><input type=\"hidden\" name=\"login\" value=\"");
+            buf_esc(&b, key);
+            buf_puts(&b, "\"><button class=\"btn quiet\" style=\"white-space:nowrap\">Sign in as"
+                         "</button></form>");
+        }
+        buf_puts(&b, "</td></tr>");
+    }
+    buf_puts(&b, "</tbody></table></div><p class=\"note\" style=\"margin-top:12px\">Sign in as "
+                 "makes this browser that login until you press Return in the bar at the top: "
+                 "its account page, and its Play Now in the game, which plays its linked "
+                 "accounts. The game's own staff powers come from the player account played, "
+                 "not from you.</p></section>\n");
+
+    buf_puts(&b, "<section class=\"panel\"><h2>Create a player account</h2>"
+                 "<form method=\"post\" action=\"/admin/users/create\">"
+                 "<label>For the login<select name=\"owner\">");
+    for( int i = 0; i < logins; i++ )
+    {
+        char key[SITE_NAME_MAX];
+
+        ToriRSServer_SaveFileName(g_logins[i], key, sizeof(key));
+        if( !key[0] )
+            continue;
+        buf_puts(&b, "<option value=\"");
+        buf_esc(&b, key);
+        buf_printf(&b, "\"%s>", strcmp(key, selected) == 0 ? " selected" : "");
+        buf_esc(&b, g_logins[i]);
+        if( strcmp(key, who) == 0 )
+            buf_puts(&b, " (you)");
+        buf_puts(&b, "</option>");
+    }
+    buf_puts(&b, "</select></label>");
+    create_form_fields(&b, typed_name, 1, typed_admin);
+    buf_puts(&b, "<button class=\"btn\">Create account</button></form>"
+                 "<p class=\"note\" style=\"margin-top:12px\">The account is linked to the login "
+                 "chosen: it plays from that login's Play Now and shows on its account page. Its "
+                 "owner needs no password for it.</p></section>\n</div>\n");
+    page_send(&b, res, status);
+}
+
+/* POST /account/create and /admin/users/create: the form's fields to
+ * IoGate_CreatePlayer, for `who` itself or, from staff, for the login named
+ * in `owner`. */
+static void
+handle_create(
+    struct IoGate* gate,
+    char const* who,
+    struct HttpRequest const* req,
+    struct HttpResponse* res,
+    int staff_form)
+{
+    char owner[SITE_NAME_MAX] = "";
+    char owner_key[SITE_NAME_MAX] = "";
+    char username[SITE_NAME_MAX] = "";
+    char password[128] = "";
+    char password2[128] = "";
+    char admin_field[8] = "";
+    char const* error = NULL;
+    int staff = site_is_staff(gate, who);
+    int admin;
+    int status = 400;
+
+    IoGate_FormField(req, "username", username, sizeof(username));
+    IoGate_FormField(req, "password", password, sizeof(password));
+    IoGate_FormField(req, "password2", password2, sizeof(password2));
+    IoGate_FormField(req, "admin", admin_field, sizeof(admin_field));
+    admin = strcmp(admin_field, "1") == 0;
+    if( staff_form )
+    {
+        IoGate_FormField(req, "owner", owner, sizeof(owner));
+        ToriRSServer_SaveFileName(owner, owner_key, sizeof(owner_key));
+        if( site_logins() < 0 )
+        {
+            error = "The account service is not answering. Try again in a moment.";
+            status = 503;
+        }
+        else if( !owner_key[0] || site_login_find(owner_key) < 0 )
+            error = "There is no web login by that name.";
+    }
+    else
+        snprintf(owner_key, sizeof(owner_key), "%s", who);
+    if( !error && admin && !staff )
+    {
+        error = "Only staff can make an admin account.";
+        status = 403;
+    }
+    if( !error && strcmp(password, password2) != 0 )
+        error = "The two passwords are not the same.";
+    memset(password2, 0, sizeof(password2));
+    if( !error )
+    {
+        enum IoGateLinkResult result =
+            IoGate_CreatePlayer(gate, owner_key, username, password, sizeof(password), admin,
+                                &error);
+
+        if( result == IO_GATE_LINK_LINKED )
+        {
+            struct SiteBuf to;
+
+            if( staff_form )
+                fprintf(stderr, "io_server: '%s' made player account '%s' for '%s'\n", who,
+                        username, owner_key);
+            buf_init(&to);
+            if( staff_form )
+            {
+                buf_puts(&to, "/admin/users?done=created&player=");
+                buf_url(&to, username);
+                buf_puts(&to, "&owner=");
+                buf_url(&to, owner_key);
+            }
+            else
+            {
+                buf_puts(&to, "/account?done=created&player=");
+                buf_url(&to, username);
+            }
+            redirect(res, to.data);
+            ToriMem_Free(ToriMem_Net(), to.data);
+            return;
+        }
+        status = result == IO_GATE_LINK_FAILED ? 500 : 400;
+    }
+    memset(password, 0, sizeof(password));
+    if( staff_form )
+        page_users(gate, who, req, res, status, error, owner_key, username, admin);
+    else
+        page_account(gate, who, req, res, status, error, NULL, username, admin);
+}
+
+/* ------------------------------------------------------------------ */
 /* Routes                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -1784,6 +2109,9 @@ IoSite_Handle(
     assert(res);
     is_get = strcmp(req->method, "GET") == 0 || strcmp(req->method, "HEAD") == 0;
     is_post = strcmp(req->method, "POST") == 0;
+    if( !IoGate_StaffBehind(req, g_staff_behind, sizeof(g_staff_behind)) ||
+        strcmp(g_staff_behind, who) == 0 )
+        g_staff_behind[0] = '\0';
 
     /* The bare "/" only: "/?args=..." is the game's page. */
     if( is_get && strcmp(req->path, "/") == 0 )
@@ -1824,7 +2152,25 @@ IoSite_Handle(
     }
     if( is_get && IoGate_PathIs(req->path, "/account") )
     {
-        page_account(gate, who, req, res, 200, NULL, NULL);
+        page_account(gate, who, req, res, 200, NULL, NULL, NULL, 0);
+        return 1;
+    }
+    if( IoGate_PathIs(req->path, "/account/create") )
+    {
+        if( !is_post )
+            redirect(res, "/account");
+        else
+            handle_create(gate, who, req, res, 0);
+        return 1;
+    }
+    /* Staff back from Sign in as: the staff cookie is their own ticket, so
+     * this only ever restores the login that set it. */
+    if( IoGate_PathIs(req->path, "/account/return") )
+    {
+        if( is_post && g_staff_behind[0] )
+            IoGate_SignInBack(res, g_staff_behind, who);
+        else
+            redirect(res, "/");
         return 1;
     }
     if( IoGate_PathIs(req->path, "/account/link-player") )
@@ -1844,7 +2190,7 @@ IoSite_Handle(
             IO_GATE_LINK_LINKED )
             redirect_done(res, "linked", username);
         else
-            page_account(gate, who, req, res, 400, message, username);
+            page_account(gate, who, req, res, 400, message, username, NULL, 0);
         return 1;
     }
     if( IoGate_PathIs(req->path, "/account/unlink") )
@@ -1863,7 +2209,7 @@ IoSite_Handle(
             redirect_done(res, "unlinked", player);
         else
             page_account(gate, who, req, res, 400, "That account is not linked to this login.",
-                         NULL);
+                         NULL, NULL, 0);
         return 1;
     }
     if( strncmp(req->path, "/admin/", 7) == 0 )
@@ -1871,6 +2217,31 @@ IoSite_Handle(
         if( !site_is_staff(gate, who) )
         {
             page_staff_only(gate, who, res);
+            return 1;
+        }
+        if( is_get && IoGate_PathIs(req->path, "/admin/users") )
+        {
+            page_users(gate, who, req, res, 200, NULL, NULL, NULL, 0);
+            return 1;
+        }
+        if( is_post && IoGate_PathIs(req->path, "/admin/users/create") )
+        {
+            handle_create(gate, who, req, res, 1);
+            return 1;
+        }
+        if( is_post && IoGate_PathIs(req->path, "/admin/users/sign-in-as") )
+        {
+            char login[SITE_NAME_MAX] = "";
+            char key[SITE_NAME_MAX];
+
+            IoGate_FormField(req, "login", login, sizeof(login));
+            ToriRSServer_SaveFileName(login, key, sizeof(key));
+            if( !key[0] || strcmp(key, who) == 0 || site_logins() < 0 || site_login_find(key) < 0 )
+            {
+                redirect(res, "/admin/users");
+                return 1;
+            }
+            IoGate_SignInAs(res, who, key);
             return 1;
         }
         if( is_get && IoGate_PathIs(req->path, "/admin/recordings") )

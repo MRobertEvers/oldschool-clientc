@@ -56,6 +56,9 @@ struct HttpResponse
     char location[768];
     /** When set, sent as one Set-Cookie header (io_gate.c's ticket). */
     char set_cookie[256];
+    /** When set, a second Set-Cookie header: staff signed in as another
+     *  login keep their own ticket beside it (io_gate.c IoGate_SignInAs). */
+    char set_cookie2[256];
     /** When set, sent as WWW-Authenticate (a Bearer refusal, RFC 6750 3). */
     char www_authenticate[96];
 };

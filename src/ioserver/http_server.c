@@ -369,6 +369,7 @@ send_response(
         "%s%s%s"
         "%s%s%s"
         "%s%s%s"
+        "%s%s%s"
         "Cache-Control: %s\r\n"
         "Connection: keep-alive\r\n"
         "\r\n",
@@ -385,6 +386,9 @@ send_response(
         res->set_cookie[0] ? "Set-Cookie: " : "",
         res->set_cookie[0] ? res->set_cookie : "",
         res->set_cookie[0] ? "\r\n" : "",
+        res->set_cookie2[0] ? "Set-Cookie: " : "",
+        res->set_cookie2[0] ? res->set_cookie2 : "",
+        res->set_cookie2[0] ? "\r\n" : "",
         res->www_authenticate[0] ? "WWW-Authenticate: " : "",
         res->www_authenticate[0] ? res->www_authenticate : "",
         res->www_authenticate[0] ? "\r\n" : "",

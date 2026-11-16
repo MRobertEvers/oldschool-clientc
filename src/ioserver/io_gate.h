@@ -9,7 +9,7 @@
  *   POST /login            name + password -> the ticket cookie, then the game
  *   GET  /invite/<code>    the account form for an invite
  *   POST /invite/<code>    name + password twice -> the web login and the cookie
- *   POST /logout           drop the cookie
+ *   POST /logout           drop the cookie (and a staff sign-in-as's own)
  *   POST /account/players  the player accounts this web login has linked
  *   POST /account/link     a player's name + password -> linked to this login,
  *                          and a one-time login for it
@@ -42,6 +42,13 @@
 #include <stddef.h>
 
 #define IO_GATE_THROTTLE_SLOTS 64
+/* Staff signed in as another web login (IoGate_SignInAs) keep their own
+ * ticket in this cookie, so "Return" needs no password. The game's socket
+ * never reads it: it checks TORIRSSERVER_GATE_COOKIE, the login being
+ * played. */
+#define IO_GATE_STAFF_COOKIE "torirs_gate_staff"
+/* How long a sign-in-as lasts before the browser falls back to /login. */
+#define IO_GATE_SIGN_IN_AS_SECONDS (12LL * 60 * 60)
 
 struct IoGateThrottle
 {
@@ -130,6 +137,51 @@ IoGate_UnlinkPlayer(
     struct IoGate* gate,
     char const* who,
     char const* player);
+
+/**
+ * Make the player account `username` with `password` (wiped here), `admin` 1
+ * for staff, and link it to the web login `owner` at once: it plays from that
+ * login's Play Now and its password signs it in only after an unlink. Never
+ * over an existing account or an existing character save. `*out_message` as
+ * IoGate_LinkPlayer's. Who may name which `owner`, and ask for `admin`, is the
+ * caller's (io_site.c: a login for itself; staff for any login, admin too).
+ */
+enum IoGateLinkResult
+IoGate_CreatePlayer(
+    struct IoGate* gate,
+    char const* owner,
+    char const* username,
+    char* password,
+    size_t password_cap,
+    int admin,
+    char const** out_message);
+
+/** 1 when `req` carries a good IO_GATE_STAFF_COOKIE ticket: staff signed in
+ *  as another login. `out_staff` gets the staff login. Whether that login is
+ *  still staff is the caller's to check. */
+int
+IoGate_StaffBehind(
+    struct HttpRequest const* req,
+    char* out_staff,
+    size_t cap);
+
+/** Sign the browser in as the web login `login` for
+ *  IO_GATE_SIGN_IN_AS_SECONDS, keeping `staff`'s own ticket in the staff
+ *  cookie, and 303 to /account. The caller has checked `staff` is staff and
+ *  `login` exists. */
+void
+IoGate_SignInAs(
+    struct HttpResponse* res,
+    char const* staff,
+    char const* login);
+
+/** Back from IoGate_SignInAs: `staff`'s own ticket again, the staff cookie
+ *  dropped, 303 to /admin/users. */
+void
+IoGate_SignInBack(
+    struct HttpResponse* res,
+    char const* staff,
+    char const* login);
 
 /**
  * 1 when the gate answered `req` itself and `res` is filled; 0 when the

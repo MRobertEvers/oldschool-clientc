@@ -393,7 +393,9 @@ stored token hashes to `link_hash`. So:
 
 - **Only an existing account.** A link never creates a player account: a name
   with no record in `<saves>/accounts/` is refused (`There is no player
-  account by that name.`). Log in to the game once to make it, then link it.
+  account by that name.`). Log in to the game once to make it, then link it --
+  or make it already linked with the account site's **Create a player
+  account** (below).
 - **One owner.** Another login cannot link the account even with its password
   (`That account is already linked to another login.`).
 - **One live link.** Linking again, even by the owner, mints a new token; the
@@ -425,9 +427,30 @@ still the landing URL given to `--gate` (`/?args=...`), which every page's
 | `/` | Play Now, this login's linked accounts, the top five players |
 | `/hiscores[?skill=N&page=P]` | everyone ranked overall (total level, then XP) or by one skill, 50 to a page, with a player search |
 | `/players/<name>` | combat and total level, total XP, quest points, overall rank, last played, every skill's level, XP and rank, and the adventure log (quests completed). For an account linked to the viewer, also total XP over time (SVG), XP gained over the last day, week and month, and the recent sessions with their length, XP gained and most-trained skill |
-| `/account` | the linked accounts (Stats, Unlink) and a form to link another one with its name and password, under the same rules as the game's Link account |
+| `/account` | the linked accounts (Stats, Unlink); **Create a player account** (name, password twice; staff also get an Admin box), made and linked to this login in one step; and a form to link an existing one with its name and password, under the same rules as the game's Link account |
+| `/admin/users` | staff only: every web login with its linked player accounts (admins marked), **Sign in as** for each, and Create a player account for any login, admin or not |
 | `/admin/recordings[?account=K]` | staff only: every recorded session (account, start, length, size, Watch, .bin) and every player account's recording switch |
 | `/admin/replay?f=<account>/<file>` | staff only: the game page in replay mode (`/?replay=...` on `manifests/manifest_replay.ini`, JS5 over the game socket), with play/pause, Fast, and a tick scrubber over its `ToriRS_Replay` controls |
+
+**Creating** (`POST /account/create`, `/admin/users/create`;
+`IoGate_CreatePlayer`) writes the same record `torirsserver --account create`
+does, under the same name and password rules, then links it to the login at
+once (record `managed_by` + `link_hash`, the token in `links.sqlite`). It
+refuses a name that has a record, a name with a character save but no record
+(a pre-password character a first login would claim), and a login already
+holding 16 linked accounts. The password is kept and signs the account in only
+if it is ever unlinked. Only staff may tick Admin (a forged `admin=1` from
+anyone else is a 403); an admin account is taken off the hiscores at creation.
+
+**Sign in as** (`POST /admin/users/sign-in-as`) re-issues the gate cookie for
+the chosen login (12 hours) and keeps the staff login's own ticket in a second
+cookie, `torirs_gate_staff`. The browser then IS that login: its `/account`,
+and in the game its Play Now cards (`/account/players`, `/account/play`), so
+staff play its linked accounts with no client change. Staff pages are closed
+while signed in as a non-staff login; a bar on every page offers **Return to
+<staff>** (`POST /account/return`), which restores the staff ticket from the
+second cookie, and Sign out clears both. io_server logs each sign-in-as,
+return and creation.
 
 ### Session recordings
 

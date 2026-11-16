@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
 
 /* Five wrong passwords for one name in ten minutes, and that name waits out
@@ -1226,6 +1227,192 @@ IoGate_UnlinkPlayer(
     return 1;
 }
 
+/* Make the player account `username` and link it to `owner` in one step:
+ * the record (admin when `admin`), the link token, and the links row. The
+ * password is the account's own, which signs it in only if it is ever
+ * unlinked. */
+enum IoGateLinkResult
+IoGate_CreatePlayer(
+    struct IoGate* gate,
+    char const* owner,
+    char const* username,
+    char* password,
+    size_t password_cap,
+    int admin,
+    char const** out_message)
+{
+    char names[IO_GATE_LINKS_LIST_MAX][IO_GATE_LINKS_NAME_MAX];
+    char token[TORIRSSERVER_LINK_TOKEN_HEX + 1];
+    char const* problem = NULL;
+    char const* save;
+    struct stat st;
+    enum ToriRSServerCreateResult created;
+    enum ToriRSServerLinkResult linked;
+
+    assert(gate);
+    assert(owner);
+    assert(username);
+    assert(password);
+    assert(out_message);
+    *out_message = NULL;
+    if( !player_name_ok(username) || !password[0] )
+    {
+        memset(password, 0, password_cap);
+        *out_message = "Enter a name and a password for the new account.";
+        return IO_GATE_LINK_REFUSED;
+    }
+    if( IoGateLinks_List(gate->links, owner, names, IO_GATE_LINKS_LIST_MAX) >=
+        IO_GATE_LINKS_LIST_MAX )
+    {
+        memset(password, 0, password_cap);
+        *out_message = "That login holds as many player accounts as it can. Unlink one first.";
+        return IO_GATE_LINK_REFUSED;
+    }
+    /* A character saved before passwords existed has no record, and a first
+     * login would claim it; a form that makes NEW accounts must not. */
+    save = ToriRSServer_SavePath(username);
+    if( save[0] && stat(save, &st) == 0 )
+    {
+        memset(password, 0, password_cap);
+        *out_message = "A character by that name already exists. Choose another name.";
+        return IO_GATE_LINK_REFUSED;
+    }
+    created = ToriRSServer_AuthCreate(username, password, admin, &problem);
+    if( created != TORIRSSERVER_CREATE_OK )
+    {
+        memset(password, 0, password_cap);
+        if( created == TORIRSSERVER_CREATE_EXISTS )
+            *out_message = "There is already a player account by that name.";
+        else if( problem )
+            *out_message = problem;
+        else
+            *out_message = "The account could not be saved.";
+        return created == TORIRSSERVER_CREATE_WRITE_FAILED ? IO_GATE_LINK_FAILED
+                                                            : IO_GATE_LINK_REFUSED;
+    }
+    linked = ToriRSServer_AuthLink(username, password, owner, token);
+    memset(password, 0, password_cap);
+    if( linked != TORIRSSERVER_LINK_OK )
+    {
+        fprintf(stderr, "io_server: gate: '%s' was created for '%s' but not linked (%d)\n",
+                username, owner, (int)linked);
+        *out_message = "The account was made, but the link could not be saved.";
+        return IO_GATE_LINK_FAILED;
+    }
+    IoGateLinks_Put(gate->links, owner, username, token, (long long)time(NULL));
+    memset(token, 0, sizeof(token));
+    /* Staff are not ranked: off the hiscores from the start, not at the first
+     * login. A silent account server only delays it to that login. */
+    if( admin && AccountClient_SetRanked(username, 0) < 0 )
+        fprintf(stderr, "io_server: gate: the account server did not answer; the hiscores drop "
+                        "'%s' at its first login\n",
+                username);
+    fprintf(stderr, "io_server: gate: player account '%s'%s created for '%s'\n", username,
+            admin ? " (admin)" : "", owner);
+    return IO_GATE_LINK_LINKED;
+}
+
+/* "<name>=<value>" from a Cookie header: the first pair named `name` whose
+ * value is a good ticket. */
+static int
+cookie_ticket(
+    struct HttpRequest const* req,
+    char const* name,
+    char* out_name,
+    size_t cap)
+{
+    int len = 0;
+    char const* cookie = HttpRequest_Header(req, "Cookie", &len);
+    size_t want = strlen(name);
+    size_t at = 0;
+    long long now = (long long)time(NULL);
+
+    if( !cookie )
+        return 0;
+    while( at < (size_t)len )
+    {
+        size_t end;
+
+        while( at < (size_t)len && (cookie[at] == ' ' || cookie[at] == ';') )
+            at++;
+        end = at;
+        while( end < (size_t)len && cookie[end] != ';' )
+            end++;
+        if( end - at > want + 1 && memcmp(cookie + at, name, want) == 0 &&
+            cookie[at + want] == '=' &&
+            ToriRSServer_GateTicketCheck(cookie + at + want + 1, end - at - want - 1, now,
+                                         out_name, cap) )
+            return 1;
+        at = end;
+    }
+    return 0;
+}
+
+int
+IoGate_StaffBehind(
+    struct HttpRequest const* req,
+    char* out_staff,
+    size_t cap)
+{
+    assert(req);
+    assert(out_staff);
+    out_staff[0] = '\0';
+    return cookie_ticket(req, IO_GATE_STAFF_COOKIE, out_staff, cap);
+}
+
+/* `cookie_name`=<ticket for `name`, good for `seconds`> into `out`. */
+static void
+ticket_cookie(
+    char* out,
+    size_t cap,
+    char const* cookie_name,
+    char const* name,
+    long long seconds)
+{
+    char ticket[TORIRSSERVER_GATE_TICKET_MAX];
+
+    ToriRSServer_GateTicketMint(name, (long long)time(NULL) + seconds, ticket);
+    snprintf(out, cap, "%s=%s; Path=/; Max-Age=%lld; HttpOnly; Secure; SameSite=Lax", cookie_name,
+             ticket, seconds);
+    memset(ticket, 0, sizeof(ticket));
+}
+
+void
+IoGate_SignInAs(
+    struct HttpResponse* res,
+    char const* staff,
+    char const* login)
+{
+    assert(res);
+    assert(staff);
+    assert(login);
+    ticket_cookie(res->set_cookie, sizeof(res->set_cookie), TORIRSSERVER_GATE_COOKIE, login,
+                  IO_GATE_SIGN_IN_AS_SECONDS);
+    ticket_cookie(res->set_cookie2, sizeof(res->set_cookie2), IO_GATE_STAFF_COOKIE, staff,
+                  IO_GATE_SIGN_IN_AS_SECONDS);
+    fprintf(stderr, "io_server: gate: staff '%s' signed in as '%s'\n", staff, login);
+    res->status = 303;
+    snprintf(res->location, sizeof(res->location), "/account");
+}
+
+void
+IoGate_SignInBack(
+    struct HttpResponse* res,
+    char const* staff,
+    char const* login)
+{
+    assert(res);
+    assert(staff);
+    assert(login);
+    ticket_cookie(res->set_cookie, sizeof(res->set_cookie), TORIRSSERVER_GATE_COOKIE, staff,
+                  TORIRSSERVER_GATE_TICKET_SECONDS);
+    snprintf(res->set_cookie2, sizeof(res->set_cookie2),
+             IO_GATE_STAFF_COOKIE "=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax");
+    fprintf(stderr, "io_server: gate: staff '%s' back from '%s'\n", staff, login);
+    res->status = 303;
+    snprintf(res->location, sizeof(res->location), "/admin/users");
+}
+
 static void
 handle_account_link(
     struct IoGate* gate,
@@ -1396,6 +1583,8 @@ IoGate_Handle(
     {
         snprintf(res->set_cookie, sizeof(res->set_cookie),
                  TORIRSSERVER_GATE_COOKIE "=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax");
+        snprintf(res->set_cookie2, sizeof(res->set_cookie2),
+                 IO_GATE_STAFF_COOKIE "=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax");
         res->status = 303;
         snprintf(res->location, sizeof(res->location), "/login");
         return 1;
