@@ -102,7 +102,9 @@ Enchant Jewellery button sets it, the back button clears it); a sapphire ring
 casts with `enchant_sapphire_ring` and no line; after the last click the spell
 goes on through the rest of that item, 6 ticks after the cast then every 7.
 Amethyst: mode 0, `human_amethystcutting`, `chisel`, "You craft some Amethyst
-dart tips.".
+dart tips.". The Enchant Crossbow Bolt panel opens on the click's tick in 4 of 6 casts
+([834], [848], [860], [888]); [827] and [925] are the proxy filing the click a
+tick early, so ours (same tick) is right.
 
 Index 4569: smelting shows only the bars the pack can make ("What would you like
 to smelt?", or "How many would you like to smelt?" for one), mode 13; each bar is
@@ -128,6 +130,7 @@ successfully bake some bread.".
 | spinning.rs2 | a line per spin; no wheel anim; make title | no line; `loc_anim spinningwheel`; "What would you like to spin?" |
 | leather.rs2 | first on the pick, then 3; stitching synth; a refusal when the leather runs out | +2 then 3; no sound; stops quietly |
 | dough.rs2 | on the pick, then every 3 | on the pick, +1, then every 2 |
+| bolts.rs2, skill_multi.rs2 | tipping cell "Onyx bolts" | "10 x Onyx bolts" (`~skill_multi1_makeable_named`) |
 | cooking_generic.dbrow | bread got the generic line | "You successfully bake some bread." |
 
 ## Open
@@ -135,8 +138,6 @@ successfully bake some bread.".
 | action | ours | evidence | note |
 |---|---|---|---|
 | snakeskin, fabric armour, silver jewellery | first item on the pick tick | none | leather (4569) lands the first at +2 |
-| bolt tipping / bolt enchant panel cell names | "Onyx bolts" | 4568: "10 x Onyx bolts"; enchant cells match | needs named cells |
-| Enchant Crossbow Bolt panel | opens on the click | 4568 [827] click, [828] panel | one tick early |
 | bolt tip cutting (gems) | one per use | no recording | |
 | wooden shields | p_delay(7) = 8 | wiki 7 | the comment says 7 |
 | gold jewellery quantity | each 446 click makes one | 4567: one click made 27 (`makexcrafting` 2224 = 27) | port the 446 quantity |
