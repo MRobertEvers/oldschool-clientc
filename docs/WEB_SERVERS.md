@@ -429,6 +429,7 @@ still the landing URL given to `--gate` (`/?args=...`), which every page's
 | `/players/<name>` | combat and total level, total XP, quest points, overall rank, last played, every skill's level, XP and rank, and the adventure log (quests completed). For an account linked to the viewer, also total XP over time (SVG), XP gained over the last day, week and month, and the recent sessions with their length, XP gained and most-trained skill |
 | `/account` | the linked accounts (Stats, Unlink); **Create a player account** (a name only; staff also get an Admin box), made and linked to this login in one step; and a form to link an existing one with its name and password, under the same rules as the game's Link account |
 | `/admin/users` | staff only: every web login with its linked player accounts (admins marked), **Sign in as** for each, and Create a player account for any login, admin or not |
+| `/admin/players[?q=K]` | staff only: every player account (`<saves>/accounts/`) with the login it is linked to; per row a login to **Link** it to (or **Move** it to, from another login) with no player password, and **Unlink** |
 | `/admin/recordings[?account=K]` | staff only: every recorded session (account, start, length, size, Watch, .bin) and every player account's recording switch |
 | `/admin/replay?f=<account>/<file>` | staff only: the game page in replay mode (`/?replay=...` on `manifests/manifest_replay.ini`, JS5 over the game socket), with play/pause, Fast, and a tick scrubber over its `ToriRS_Replay` controls |
 
@@ -443,6 +444,15 @@ signs in with one, so the record gets 20 random hex digits nobody sees. An
 account made this way and later unlinked needs `torirsctl password <name>`
 before it can play. Only staff may tick Admin (a forged `admin=1` from
 anyone else is a 403); an admin account is taken off the hiscores at creation.
+
+Staff pages sit under one **Admin** tab with their own row: Users, Players,
+Recordings. **Players** (`POST /admin/players/link`, `/admin/players/unlink`;
+`IoGate_AssignPlayer`, `ToriRSServer_AuthAssign`) links an existing account
+the way `/account/link` does -- new token, `managed_by`, links row, refresh
+tokens revoked -- but without its password, and from whatever login holds it
+now: the old owner's token is dead and its links row is replaced (the table is
+keyed by player). The Play Now card keeps the spelling the account was last
+linked under.
 
 **Sign in as** (`POST /admin/users/sign-in-as`) re-issues the gate cookie for
 the chosen login (12 hours) and keeps the staff login's own ticket in a second

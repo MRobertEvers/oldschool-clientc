@@ -57,6 +57,15 @@ IoGateLinks_Drop(
     char const* user,
     char const* display_name);
 
+/** The spelling the player keyed `player_key` was linked under, whoever holds
+ *  it, into `out_display`. 1 when there is a row; 0 none. */
+int
+IoGateLinks_Display(
+    struct IoGateLinks* links,
+    char const* player_key,
+    char* out_display,
+    size_t cap);
+
 /** The display names of the players `user` has linked, oldest first, at most
  *  `max`. Rows whose player record no longer agrees are deleted on the way. */
 int

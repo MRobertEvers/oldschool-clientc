@@ -1327,6 +1327,62 @@ IoGate_CreatePlayer(
     return IO_GATE_LINK_LINKED;
 }
 
+enum IoGateLinkResult
+IoGate_AssignPlayer(
+    struct IoGate* gate,
+    char const* login,
+    char const* player_key,
+    char const** out_message)
+{
+    char names[IO_GATE_LINKS_LIST_MAX][IO_GATE_LINKS_NAME_MAX];
+    char display[IO_GATE_LINKS_NAME_MAX];
+    char token[TORIRSSERVER_LINK_TOKEN_HEX + 1];
+    char owner[64];
+    enum ToriRSServerLinkResult result;
+    long long now = (long long)time(NULL);
+
+    assert(gate);
+    assert(login);
+    assert(player_key);
+    assert(out_message);
+    *out_message = NULL;
+    if( !player_name_ok(player_key) )
+    {
+        *out_message = "Choose a player account.";
+        return IO_GATE_LINK_REFUSED;
+    }
+    if( ToriRSServer_AuthManagedBy(player_key, owner, sizeof(owner)) == 1 &&
+        strcmp(owner, login) == 0 )
+    {
+        *out_message = "That account is already linked to that login.";
+        return IO_GATE_LINK_REFUSED;
+    }
+    if( IoGateLinks_List(gate->links, login, names, IO_GATE_LINKS_LIST_MAX) >=
+        IO_GATE_LINKS_LIST_MAX )
+    {
+        *out_message = "That login holds as many player accounts as it can. Unlink one first.";
+        return IO_GATE_LINK_REFUSED;
+    }
+    if( !IoGateLinks_Display(gate->links, player_key, display, sizeof(display)) )
+        snprintf(display, sizeof(display), "%s", player_key);
+    result = ToriRSServer_AuthAssign(player_key, login, token);
+    if( result == TORIRSSERVER_LINK_NO_ACCOUNT )
+    {
+        *out_message = "There is no player account by that name.";
+        return IO_GATE_LINK_REFUSED;
+    }
+    if( result != TORIRSSERVER_LINK_OK )
+    {
+        *out_message = "The link could not be saved.";
+        return IO_GATE_LINK_FAILED;
+    }
+    /* The links row is keyed by player: this replaces the old owner's. */
+    IoGateLinks_Put(gate->links, login, display, token, now);
+    memset(token, 0, sizeof(token));
+    ToriRSServer_OAuthRevokeAccount(display, now);
+    return IO_GATE_LINK_LINKED;
+}
+
 /* "<name>=<value>" from a Cookie header: the first pair named `name` whose
  * value is a good ticket. */
 static int

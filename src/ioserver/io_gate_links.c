@@ -23,6 +23,7 @@ struct IoGateLinks
     sqlite3_stmt* token;
     sqlite3_stmt* list;
     sqlite3_stmt* drop;
+    sqlite3_stmt* display;
 };
 
 static void
@@ -86,6 +87,10 @@ IoGateLinks_Open(char const* path)
          sqlite3_prepare_v2(links->db, "DELETE FROM links WHERE player = ?1 AND user = ?2", -1,
                             &links->drop, NULL),
          "prepare drop");
+    must(links->db,
+         sqlite3_prepare_v2(links->db, "SELECT display FROM links WHERE player = ?1", -1,
+                            &links->display, NULL),
+         "prepare display");
     return links;
 }
 
@@ -172,6 +177,38 @@ IoGateLinks_Drop(
     must(links->db, sqlite3_step(links->drop), "drop");
     sqlite3_reset(links->drop);
     sqlite3_clear_bindings(links->drop);
+}
+
+int
+IoGateLinks_Display(
+    struct IoGateLinks* links,
+    char const* player_key,
+    char* out_display,
+    size_t cap)
+{
+    int found = 0;
+    int rc;
+
+    assert(links);
+    assert(player_key);
+    assert(out_display);
+    out_display[0] = '\0';
+    sqlite3_bind_text(links->display, 1, player_key, -1, SQLITE_TRANSIENT);
+    rc = sqlite3_step(links->display);
+    must(links->db, rc, "display");
+    if( rc == SQLITE_ROW )
+    {
+        char const* display = (char const*)sqlite3_column_text(links->display, 0);
+
+        if( display && display[0] )
+        {
+            snprintf(out_display, cap, "%s", display);
+            found = 1;
+        }
+    }
+    sqlite3_reset(links->display);
+    sqlite3_clear_bindings(links->display);
+    return found;
 }
 
 int

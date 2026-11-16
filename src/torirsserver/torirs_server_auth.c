@@ -794,6 +794,45 @@ ToriRSServer_AuthLink(
     return TORIRSSERVER_LINK_WRITE_FAILED;
 }
 
+enum ToriRSServerLinkResult
+ToriRSServer_AuthAssign(
+    const char* display_name,
+    const char* user,
+    char out_token[TORIRSSERVER_LINK_TOKEN_HEX + 1])
+{
+    char path[1024];
+    char owner[64];
+    char hash[TORIRSSERVER_LINK_TOKEN_HEX + 1];
+    struct AuthFile file;
+    int have;
+    int written;
+
+    assert(display_name);
+    assert(user);
+    assert(out_token);
+    out_token[0] = '\0';
+    ToriRSServer_SaveFileName(user, owner, sizeof(owner));
+    snprintf(path, sizeof(path), "%s", ToriRSServer_AccountPath(display_name));
+    if( !path[0] || !owner[0] )
+        return TORIRSSERVER_LINK_REFUSED;
+    have = auth_read_record(path, &file);
+    if( have < 0 )
+        return TORIRSSERVER_LINK_REFUSED;
+    if( have == 0 )
+        return TORIRSSERVER_LINK_NO_ACCOUNT;
+    /* No password and no owner check: staff decide. A new token either way,
+     * so a previous owner's stored token is dead from here. */
+    auth_link_mint(out_token, hash);
+    snprintf(file.managed_by, sizeof(file.managed_by), "%s", owner);
+    snprintf(file.link_hash, sizeof(file.link_hash), "%s", hash);
+    written = auth_write_record(path, file.password, &file);
+    auth_wipe(&file, sizeof(file));
+    if( written )
+        return TORIRSSERVER_LINK_OK;
+    out_token[0] = '\0';
+    return TORIRSSERVER_LINK_WRITE_FAILED;
+}
+
 int
 ToriRSServer_AuthUnlink(const char* display_name)
 {

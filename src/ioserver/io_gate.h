@@ -155,6 +155,21 @@ IoGate_CreatePlayer(
     int admin,
     char const** out_message);
 
+/**
+ * Staff linking the existing player account keyed `player_key` to the web
+ * login `login` with no password, moving it from any login that has it now
+ * (ToriRSServer_AuthAssign); its refresh tokens are revoked as at any link.
+ * The Play Now card keeps the spelling the account was last linked under,
+ * else the key. `*out_message` as IoGate_LinkPlayer's. The caller has
+ * checked it is staff asking and that `login` exists.
+ */
+enum IoGateLinkResult
+IoGate_AssignPlayer(
+    struct IoGate* gate,
+    char const* login,
+    char const* player_key,
+    char const** out_message);
+
 /** 1 when `req` carries a good IO_GATE_STAFF_COOKIE ticket: staff signed in
  *  as another login. `out_staff` gets the staff login. Whether that login is
  *  still staff is the caller's to check. */

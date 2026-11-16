@@ -222,6 +222,19 @@ ToriRSServer_AuthLink(
     const char* user,
     char out_token[TORIRSSERVER_LINK_TOKEN_HEX + 1]);
 
+/**
+ * Staff's link: the player account `display_name` to the web login `user`
+ * with NO password, taking it from any login it is linked to now (the account
+ * site's /admin/players; the caller has checked it is staff asking). Mints
+ * the new link's token into `out_token` as ToriRSServer_AuthLink does; the
+ * previous owner's token is dead. NO_ACCOUNT when there is no record.
+ */
+enum ToriRSServerLinkResult
+ToriRSServer_AuthAssign(
+    const char* display_name,
+    const char* user,
+    char out_token[TORIRSSERVER_LINK_TOKEN_HEX + 1]);
+
 /** 1 when the account `display_name` is linked to the web login `user` (as
  *  keyed) and `link_token` is its live link's token. */
 int
