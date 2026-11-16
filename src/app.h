@@ -2607,8 +2607,9 @@ struct App
      * the subs stay open, keyed by their old slots, and the IF_MOVESUBs that
      * follow relink each one into the new top (class415.method9481). The tree
      * here is rebuilt instead, so these records are what App_MoveSubInterface
-     * finds a moved sub by. Replaced at every re-root; a record never moved is
-     * simply never shown again, as in the deob.
+     * finds a moved sub by. A record a re-root does not move is kept, as the
+     * deob keeps it: it is in a slot only the old top has, and it reopens when
+     * that top is the root again (app_detach_tree_mounts).
      */
     struct UITreeInterfaceParent detached_parents[UITREE_INTERFACE_PARENT_MAX];
     int detached_parent_count;
@@ -4057,6 +4058,32 @@ App_MoveSubInterface(
     struct App* app,
     int source_uid,
     int dest_uid);
+
+/** The two halves of a re-root's mount handling, apart from the tree rebuild
+ *  between them (App_OpenRootInterface runs both). Detach: the tree's mounts
+ *  join the kept records, and a kept record the last re-root did not move
+ *  stays. Return: what is kept in `interface_id`'s own slots is reopened, with
+ *  whatever was open inside it. */
+void
+App_RootMountsDetach(struct App* app);
+
+void
+App_RootMountsReturn(
+    struct App* app,
+    int interface_id);
+
+/** The mounts kept for a top that is not the live root (see
+ *  App.detached_parents). IF_RESYNC states the whole table, so its handler
+ *  clears these and adds back the mounts whose slot the live top cannot reach. */
+void
+App_KeptMountsClear(struct App* app);
+
+void
+App_KeptMountAdd(
+    struct App* app,
+    int target_uid,
+    int interface_id,
+    int type);
 
 /** RUNCLIENTSCRIPT: run a server-named clientscript with its arguments. Held
  *  until the tick fence (`pending_clientscripts`), but never past an interface

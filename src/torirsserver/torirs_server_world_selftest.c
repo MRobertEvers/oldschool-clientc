@@ -25972,6 +25972,99 @@ ToriRSServer_WorldSelftest(void)
                            "a HUD closed before the switch must not come back");
     }
 
+    fprintf(stderr, "ToriRSServer selftest: the phone's hotkey column across root switches\n");
+    {
+        /*
+         * RSProx index 4398 (Android). toplevel_display has no `hotkeys` slot,
+         * so the welcome screen's Play cannot move the column into
+         * toplevel_osm: the switch opens it, straight after popout's
+         * IF_MOVESUB and before tli_listener's ([36]). The world map then
+         * switches to toplevel_display ([44]) and back ([73]) and Jagex sends
+         * neither an IF_CLOSESUB nor a second IF_OPENSUB for 601:40 -- the
+         * client keeps a mount it was not told to move -- so the record has
+         * to stay in the table through the detour, or the next switch opens a
+         * second column.
+         */
+        static struct ToriRSServerCapture capture;
+        int const osm_hotkeys = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_INTERFACE, "osm_hotkeys");
+        int const slot = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "toplevel_osm:hotkeys");
+        int opens = 0;
+        int open_at = -1;
+        int kept = 0;
+
+        SELFTEST_CHECK(osm_hotkeys > 0 && slot > 0 && ids->iface_toplevel_osm > 0 &&
+                           ids->iface_toplevel_display > 0,
+                       "osm_hotkeys, its slot and both roots must resolve by name");
+
+        ToriRSServer_GameframeOpentop(player, ids->iface_toplevel_display);
+        ToriRSServer_CaptureBegin(srv, &capture);
+        ToriRSServer_GameframeOpentop(player, ids->iface_toplevel_osm);
+        ToriRSServer_CaptureEnd(srv);
+        for( int at = 0; (at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_OPENSUB, at)) >= 0;
+             at++ )
+        {
+            int group = -1;
+            int target = -1;
+            int type = -1;
+
+            ToriRSServer_WireReadIfOpensub(srv->wire, capture.packets[at].data, capture.packets[at].len,
+                                          &group, &target, &type);
+            if( group != osm_hotkeys )
+                continue;
+            opens++;
+            open_at = at;
+            SELFTEST_CHECK(target == slot && type == 1,
+                           "the column opens in toplevel_osm:hotkeys as an overlay "
+                           "(got 0x%08x type %d)",
+                           (unsigned)target, type);
+        }
+        SELFTEST_CHECK(opens == 1, "the switch to toplevel_osm opens the hotkey column once (got %d)",
+                       opens);
+        /* Between two moves: popout's before it, tli_listener's after. */
+        SELFTEST_CHECK(open_at > 0 && open_at + 1 < capture.count &&
+                           capture.packets[open_at - 1].opcode ==
+                               ToriRSServer_WireOpcode(srv->wire, PKT_NAME_IF_MOVESUB) &&
+                           capture.packets[open_at + 1].opcode ==
+                               ToriRSServer_WireOpcode(srv->wire, PKT_NAME_IF_MOVESUB),
+                       "the column opens between popout's move and tli_listener's");
+
+        ToriRSServer_CaptureBegin(srv, &capture);
+        ToriRSServer_GameframeSwitchTop(player, ids->iface_toplevel_display);
+        ToriRSServer_CaptureEnd(srv);
+        SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_CLOSESUB, 0) < 0,
+                       "a switch away from toplevel_osm closes nothing");
+        for( int m = 0; m < player->interfaces.mount_count; m++ )
+            if( player->interfaces.mounts[m].target_uid == slot &&
+                player->interfaces.mounts[m].interface_id == osm_hotkeys )
+                kept = 1;
+        SELFTEST_CHECK(kept, "the column's mount stays in the table while another root is up");
+
+        opens = 0;
+        ToriRSServer_CaptureBegin(srv, &capture);
+        ToriRSServer_GameframeSwitchTop(player, ids->iface_toplevel_osm);
+        ToriRSServer_CaptureEnd(srv);
+        for( int at = 0; (at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_OPENSUB, at)) >= 0;
+             at++ )
+        {
+            int group = -1;
+            int target = -1;
+            int type = -1;
+
+            ToriRSServer_WireReadIfOpensub(srv->wire, capture.packets[at].data, capture.packets[at].len,
+                                          &group, &target, &type);
+            if( group == osm_hotkeys )
+                opens++;
+        }
+        SELFTEST_CHECK(opens == 0, "the switch back opens no second hotkey column (got %d)", opens);
+
+        ToriRSServer_SendIfClosesub(player, slot);
+        player->client_layout_mode = 1;
+        ToriRSServer_GameframeOpentop(player, ids->iface_gameframe);
+        for( int m = 0; m < player->interfaces.mount_count; m++ )
+            SELFTEST_CHECK(player->interfaces.mounts[m].interface_id != osm_hotkeys,
+                           "a column closed before the switch must not come back");
+    }
+
     /*
      * Ranged reach, and the shot that has to cross it.
      *

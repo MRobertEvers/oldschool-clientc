@@ -332,6 +332,68 @@ main(void)
         printf("ok - IF_MOVESUB relinks the subs of a top IF_OPENTOP replaced\n");
     }
 
+    /*
+     * A mount the re-root does not move is kept, and comes back with its top.
+     * The phone's hotkey column sits in toplevel_osm:hotkeys (601:40), a slot
+     * toplevel_display does not have. RSProx index 4398: opened once at [36];
+     * the world map switches to toplevel_display at [44] and back at [73], and
+     * Jagex sends neither a close nor a second open -- its client keeps the
+     * mount by component. This client dropped it at the first switch, so the
+     * column was gone after the first look at the world map.
+     */
+    {
+        struct App* app = calloc(1, sizeof(*app));
+        int const hotkeys = (601 << 16) | 40;
+        int const chat_osm = (601 << 16) | 49;
+        int const chat_display = (165 << 16) | 2;
+
+        assert(app);
+        app->packet_runner.queue = ToriRS_TaskQueue_New();
+        app->tree = UITree_New(2);
+
+        /* toplevel_osm is up; the switch to toplevel_display. */
+        UITree_InterfaceParentSet(app->tree, chat_osm, 162, 1);
+        UITree_InterfaceParentSet(app->tree, hotkeys, 892, 1);
+        App_RootMountsDetach(app);
+        UITree_Free(app->tree);
+        app->tree = UITree_New(2);
+        App_RootMountsReturn(app, 165);
+        App_MoveSubInterface(app, chat_osm, chat_display);
+        TEST_EXEC_ASSERT(app->detached_parent_count == 1 &&
+                             app->detached_parents[0].container_uid == hotkeys &&
+                             app->detached_parents[0].group_id == 892,
+                         "a mount the re-root does not move must stay kept");
+        TEST_EXEC_ASSERT(!queued_open(app, hotkeys, 892),
+                         "a kept mount must not open under a top that has no such slot");
+
+        /* And back: the tree now holds what the moves put in it. */
+        UITree_InterfaceParentSet(app->tree, chat_display, 162, 1);
+        App_RootMountsDetach(app);
+        UITree_Free(app->tree);
+        app->tree = UITree_New(2);
+        App_RootMountsReturn(app, 601);
+        TEST_EXEC_ASSERT(queued_open(app, hotkeys, 892),
+                         "a kept mount must reopen when its top is the root again");
+        App_MoveSubInterface(app, chat_display, chat_osm);
+        TEST_EXEC_ASSERT(queued_open(app, chat_osm, 162), "the moved mount must still follow its IF_MOVESUB");
+        TEST_EXEC_ASSERT(app->detached_parent_count == 0, "nothing is kept once both are back in the tree");
+
+        /* A close names the slot whichever top is up. */
+        UITree_InterfaceParentSet(app->tree, hotkeys, 892, 1);
+        App_RootMountsDetach(app);
+        UITree_Free(app->tree);
+        app->tree = UITree_New(2);
+        App_RootMountsReturn(app, 165);
+        App_CloseSubInterface(app, hotkeys);
+        TEST_EXEC_ASSERT(app->detached_parent_count == 0, "IF_CLOSESUB must close a kept mount too");
+
+        ToriRS_TaskQueue_Free(app->packet_runner.queue);
+        UITree_Free(app->tree);
+        UIIfEventTable_Free(&app->if_events);
+        free(app);
+        printf("ok - a mount a re-root does not move is kept and returns with its top\n");
+    }
+
     /* A TEXT node to receive IF_SETTEXT. */
     struct UITreeNodeSpec spec;
     memset(&spec, 0, sizeof(spec));

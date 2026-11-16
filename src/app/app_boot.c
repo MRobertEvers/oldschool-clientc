@@ -1060,6 +1060,61 @@ app_open_tree(
     ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
 }
 
+static void
+app_reopen_detached_under(
+    struct App* app,
+    int group_id);
+
+static struct UITreeInterfaceParent
+app_take_detached(
+    struct App* app,
+    int container_uid);
+
+/*
+ * The tree's mounts join the kept ones as the tree is replaced.
+ *
+ * A kept record a re-root did not move stays kept: the reference keys a mount
+ * by its component and its open-top touches none of them (rev 239
+ * class415.method9502), so a sub in a slot only the old top has is still open
+ * and is drawn again when that top returns. The phone's hotkey column is the
+ * recorded case: opened in toplevel_osm:hotkeys once, never closed and never
+ * opened again across the world map's switch to toplevel_display and back
+ * (RSProx index 4398 [36], [44], [73]).
+ *
+ * The tree's record wins a slot both name; the tree's own always fit, and a
+ * kept one is dropped only when the table is full.
+ */
+void
+App_RootMountsDetach(struct App* app)
+{
+    struct UITreeInterfaceParent kept[UITREE_INTERFACE_PARENT_MAX];
+    int kept_count = 0;
+    int count;
+
+    assert(app);
+    assert(app->tree);
+    count = app->tree->interface_parent_count;
+    assert(count >= 0);
+    assert(count <= UITREE_INTERFACE_PARENT_MAX);
+    for( int i = 0; i < app->detached_parent_count; i++ )
+        if( UITree_InterfaceParentFind(app->tree, app->detached_parents[i].container_uid) < 0 )
+            kept[kept_count++] = app->detached_parents[i];
+    memcpy(app->detached_parents, app->tree->interface_parents, (size_t)count * sizeof(app->detached_parents[0]));
+    for( int i = 0; i < kept_count; i++ )
+    {
+        if( count >= UITREE_INTERFACE_PARENT_MAX )
+        {
+            TORIRS_ERR(
+                "if-opentop: kept mount table full; iface=%d at 0x%08x is forgotten\n",
+                kept[i].group_id,
+                (unsigned)kept[i].container_uid);
+            continue;
+        }
+        app->detached_parents[count++] = kept[i];
+    }
+    app->detached_parent_count = count;
+}
+
 void
 App_OpenRootInterface(
     struct App* app,
@@ -1068,18 +1123,27 @@ App_OpenRootInterface(
     assert(app);
     /* The mounts go with the tree, but not out of the game: the IF_MOVESUBs
      * after an IF_OPENTOP move them into the new top (detached_parents). */
-    app->detached_parent_count = 0;
     if( app->screen == APP_SCREEN_GAME && app->tree )
-    {
-        app->detached_parent_count = app->tree->interface_parent_count;
-        memcpy(app->detached_parents, app->tree->interface_parents,
-               (size_t)app->detached_parent_count * sizeof(app->detached_parents[0]));
-    }
+        App_RootMountsDetach(app);
+    else
+        app->detached_parent_count = 0;
     app->screen = APP_SCREEN_GAME;
     /* Half a megabyte of simulation buffers that only the title screen wants,
      * and the tree that drew them is about to be cleared. */
     app_title_flames_stop(app);
     app_open_tree(app, interface_id, NULL, APP_TITLE_LAYOUT_GROUP, true);
+    /* What was kept in this top's own slots comes back with it. Queued behind
+     * the boot like any IF_OPENSUB that follows an IF_OPENTOP. */
+    App_RootMountsReturn(app, interface_id);
+}
+
+void
+App_RootMountsReturn(
+    struct App* app,
+    int interface_id)
+{
+    assert(app);
+    app_reopen_detached_under(app, interface_id);
 }
 
 int
@@ -1441,8 +1505,42 @@ App_CloseSubInterface(
     int target_uid)
 {
     assert(app);
+    /* A mount kept for a top that is not the live one closes too: the
+     * reference's table is one table. */
+    (void)app_take_detached(app, target_uid);
     app_close_slot(app, target_uid, 0);
     app_close_sub(app, target_uid);
+}
+
+void
+App_KeptMountsClear(struct App* app)
+{
+    assert(app);
+    app->detached_parent_count = 0;
+}
+
+void
+App_KeptMountAdd(
+    struct App* app,
+    int target_uid,
+    int interface_id,
+    int type)
+{
+    assert(app);
+    assert(interface_id > 0);
+    /* The table's size is this client's; how many the server states is not. */
+    if( app->detached_parent_count >= UITREE_INTERFACE_PARENT_MAX )
+    {
+        TORIRS_ERR(
+            "if-resync: kept mount table full; iface=%d at 0x%08x is forgotten\n",
+            interface_id,
+            (unsigned)target_uid);
+        return;
+    }
+    app->detached_parents[app->detached_parent_count].container_uid = target_uid;
+    app->detached_parents[app->detached_parent_count].group_id = interface_id;
+    app->detached_parents[app->detached_parent_count].type = type;
+    app->detached_parent_count++;
 }
 
 /* Take the kept mount at `container_uid` out of detached_parents: its record,
@@ -1468,9 +1566,10 @@ app_take_detached(
 /* A kept group moved into the new top brings what was open inside it: the
  * quest list in the journal's tab_container, the chat channel in its side
  * panel. Their slots are the group's own components, so their uids do not
- * change; each reopens where it was, after the group it lives in. */
+ * change; each reopens where it was, after the group it lives in. A top that
+ * returns brings back what was kept in its own slots the same way. */
 static void
-app_reopen_detached_inside(
+app_reopen_detached_under(
     struct App* app,
     int group_id)
 {
@@ -1487,7 +1586,7 @@ app_reopen_detached_inside(
         }
         app_take_detached(app, inner.container_uid);
         app_open_sub(app, inner.container_uid, inner.group_id, inner.type);
-        app_reopen_detached_inside(app, inner.group_id);
+        app_reopen_detached_under(app, inner.group_id);
         i = 0;
     }
 }
@@ -1521,7 +1620,7 @@ App_MoveSubInterface(
         if( kept.group_id > 0 )
         {
             app_open_sub(app, dest_uid, kept.group_id, kept.type);
-            app_reopen_detached_inside(app, kept.group_id);
+            app_reopen_detached_under(app, kept.group_id);
         }
         else if( app_queued_slot_group(app, dest_uid) > 0 )
             app_close_sub(app, dest_uid);

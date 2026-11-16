@@ -2679,10 +2679,14 @@ RS_GameProto_Exec(
             int root_changed = sync->root_interface_id > 0 &&
                                sync->root_interface_id != app->boot_interface_id;
             struct UITreeInterfaceParent live[UITREE_INTERFACE_PARENT_MAX];
+            unsigned char* resync_reachable;
             int live_count = 0;
 
             if( root_changed )
                 App_OpenRootInterface(app, sync->root_interface_id);
+            resync_reachable = ToriMem_Calloc(
+                ToriMem_Process(), (size_t)(sync->mount_count > 0 ? sync->mount_count : 1), 1);
+            assert(resync_reachable);
 
             /*
              * RECONCILE against what is already mounted; do not close and
@@ -2731,6 +2735,45 @@ RS_GameProto_Exec(
                     App_CloseSubInterface(app, live[i].container_uid);
             }
             App_IfEventsClear(app);
+            /* The snapshot is one table, and it can state a mount in a slot
+             * the live top does not have: the server keeps what a root switch
+             * did not move (the phone's hotkey column while the world map's
+             * top is up). Those are kept, not opened -- their slot is not in
+             * this tree -- and a kept record the snapshot does not restate is
+             * gone. Reachable = under the root, or inside a reachable group. */
+            {
+                int const root = sync->root_interface_id > 0 ? sync->root_interface_id
+                                                             : app->boot_interface_id;
+                int grew = 1;
+
+                while( grew )
+                {
+                    grew = 0;
+                    for( int i = 0; i < sync->mount_count; i++ )
+                    {
+                        int const slot_group = (int)((uint32_t)sync->mounts[i].target_uid >> 16);
+                        int found = slot_group == root;
+
+                        if( resync_reachable[i] )
+                            continue;
+                        for( int j = 0; !found && j < sync->mount_count; j++ )
+                            found = resync_reachable[j] && sync->mounts[j].interface_id == slot_group;
+                        if( found )
+                        {
+                            resync_reachable[i] = 1;
+                            grew = 1;
+                        }
+                    }
+                }
+                App_KeptMountsClear(app);
+                for( int i = 0; i < sync->mount_count; i++ )
+                    if( !resync_reachable[i] && sync->mounts[i].interface_id > 0 )
+                        App_KeptMountAdd(
+                            app,
+                            sync->mounts[i].target_uid,
+                            sync->mounts[i].interface_id,
+                            sync->mounts[i].type);
+            }
             for( int i = 0; i < sync->mount_count; i++ )
             {
                 int mounted = 0;
@@ -2738,7 +2781,7 @@ RS_GameProto_Exec(
                     mounted = live[j].container_uid == sync->mounts[i].target_uid &&
                               live[j].group_id == sync->mounts[i].interface_id &&
                               live[j].type == sync->mounts[i].type;
-                if( mounted )
+                if( mounted || !resync_reachable[i] )
                     continue;
                 App_OpenSubInterface(
                     app,
@@ -2757,6 +2800,7 @@ RS_GameProto_Exec(
                     sync->events[i].to,
                     (int)mask);
             }
+            ToriMem_Free(ToriMem_Process(), resync_reachable);
         }
         break;
     case PKT_NAME_RUNCLIENTSCRIPT:

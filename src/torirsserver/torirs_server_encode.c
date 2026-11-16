@@ -2167,6 +2167,51 @@ switch_top_role(int uid)
     return NULL;
 }
 
+/*
+ * The slots only the new root has, opened where the recorded switch opens them.
+ *
+ * toplevel_osm's hotkey column is the one there is: toplevel_display has no
+ * `hotkeys` slot, so the welcome screen's Play has nothing to move into it and
+ * Jagex opens it instead, straight after popout's IF_MOVESUB (RSProx index 4398
+ * [36]: `if_movesub ... popout (601:131)`, `if_opensub toplevel_osm:hotkeys
+ * (601:40) <- osm_hotkeys (892)`, `if_movesub ... tli_listener`). That is the
+ * row's place in the root's gameframe enum, so the rule here is the enum's
+ * order: after the move into a slot, open the rows that follow it up to the
+ * next slot the switch carries.
+ *
+ * Once per session: the world map's detour to toplevel_display and back sends
+ * no second open ([44], [73]), because the client keeps a mount it was not told
+ * to move (see the table restore in ToriRSServer_GameframeSwitchTop).
+ */
+static void
+switch_top_open_after(
+    struct ToriRSServerPlayer* player,
+    int group,
+    const struct ToriRSServerEnumDef* frame,
+    int moved_slot)
+{
+    int at = -1;
+
+    assert(player);
+    assert(frame);
+    for( int i = 0; i < frame->count && at < 0; i++ )
+        if( (frame->values[i].key & 0xffff) == TORIRSSERVER_COM_CHILD(moved_slot) )
+            at = i;
+    if( at < 0 )
+        return;
+    for( int i = at + 1; i < frame->count; i++ )
+    {
+        int const child = frame->values[i].key & 0xffff;
+        int const uid = (group << 16) | child;
+
+        if( switch_top_role(uid) )
+            break;
+        if( gameframe_mount_index(&player->interfaces, uid) >= 0 )
+            continue;
+        ToriRSServer_SendIfOpensub(player, group, child, frame->values[i].value, 1);
+    }
+}
+
 void
 ToriRSServer_GameframeSwitchTop(
     struct ToriRSServerPlayer* player,
@@ -2177,6 +2222,7 @@ ToriRSServer_GameframeSwitchTop(
     int old_top;
     const char* old_name;
     const char* new_name;
+    const struct ToriRSServerEnumDef* frame;
 
     assert(player);
     old_top = ToriRSServer_PlayerGameframeIface(player);
@@ -2194,18 +2240,16 @@ ToriRSServer_GameframeSwitchTop(
     ToriRSServer_SendIfOpentop(player, group);
     ToriRSServer_GameframeBindSlots(player, group, new_name);
 
-    for( size_t i = 0; i < sizeof(k_switch_top_roles) / sizeof(k_switch_top_roles[0]); i++ )
-    {
-        int const from = switch_top_slot(old_name, k_switch_top_roles[i]);
-        int const to = switch_top_slot(new_name, k_switch_top_roles[i]);
-
-        if( from > 0 && to > 0 )
-            send_if_movesub_wire(player, from, to);
-    }
-
-    /* The client's table after those moves: a slot on the old root lands on
-     * its namesake, a mount inside a moved interface is untouched, and a slot
-     * the list does not carry is gone with the root that held it. */
+    /* The client's table after the moves below: a slot on the old root lands
+     * on its namesake, a mount inside a moved interface is untouched, and a
+     * slot the list does not carry STAYS where it is. The client keys a mount
+     * by its component, and its open-top touches none of them (rev 239
+     * class415.method9502), so such a mount is simply out of sight until its
+     * root is the top again. Recorded: the hotkey column is opened in
+     * toplevel_osm:hotkeys at [36], the world map switches to toplevel_display
+     * at [44] and back at [73], and no IF_CLOSESUB or second IF_OPENSUB for
+     * 601:40 is ever sent (index 4398). Restored before the moves go out so
+     * the opens between them can see what is already mounted. */
     for( int i = 0; i < carried_count; i++ )
     {
         int uid = carried[i].target_uid;
@@ -2213,36 +2257,43 @@ ToriRSServer_GameframeSwitchTop(
         if( TORIRSSERVER_COM_GROUP(uid) == old_top )
         {
             const char* role = switch_top_role(uid);
+            int const to = role ? switch_top_slot(new_name, role) : 0;
 
-            uid = role ? switch_top_slot(new_name, role) : 0;
-            if( uid <= 0 )
-            {
-                fprintf(stderr,
-                        "torirsserver: switch to %s drops interface %d -- slot 0x%08x is not carried\n",
-                        new_name,
-                        carried[i].interface_id,
-                        (unsigned)carried[i].target_uid);
-                continue;
-            }
+            if( to > 0 )
+                uid = to;
         }
         ToriRSServer_IfStateOpenSub(&player->interfaces, uid, carried[i].interface_id, carried[i].type);
     }
 
-    /* The orbs, opened again in the slot they were just moved to: every
-     * recorded switch does (index 1835, 4339 [5], 4398 [36] [44] [73]), and
-     * it is what runs their onload against the new root. Their [if_open]
-     * re-synchronises the regen timers. */
+    frame = ToriRSServer_ContentEnum(new_name);
+    for( size_t i = 0; i < sizeof(k_switch_top_roles) / sizeof(k_switch_top_roles[0]); i++ )
     {
-        int const orbs_slot = switch_top_slot(new_name, "orbs");
-        int const at = orbs_slot > 0 ? gameframe_mount_index(&player->interfaces, orbs_slot) : -1;
+        int const from = switch_top_slot(old_name, k_switch_top_roles[i]);
+        int const to = switch_top_slot(new_name, k_switch_top_roles[i]);
 
-        if( at >= 0 )
-            ToriRSServer_SendIfOpensub(player,
-                                       TORIRSSERVER_COM_GROUP(orbs_slot),
-                                       TORIRSSERVER_COM_CHILD(orbs_slot),
-                                       player->interfaces.mounts[at].interface_id,
-                                       player->interfaces.mounts[at].type);
+        if( from > 0 && to > 0 )
+            send_if_movesub_wire(player, from, to);
+        if( to > 0 && frame )
+            switch_top_open_after(player, group, frame, to);
+        /* The orbs, opened again in the slot they were just moved to: every
+         * recorded switch does, and always straight after xp_drops' move, the
+         * one that follows their own (index 4339 [5]; 4398 [36], [44], [73]).
+         * It is what runs their onload against the new root. Their [if_open]
+         * re-synchronises the regen timers. */
+        if( strcmp(k_switch_top_roles[i], "xp_drops") == 0 )
+        {
+            int const orbs_slot = switch_top_slot(new_name, "orbs");
+            int const at = orbs_slot > 0 ? gameframe_mount_index(&player->interfaces, orbs_slot) : -1;
+
+            if( at >= 0 )
+                ToriRSServer_SendIfOpensub(player,
+                                           TORIRSSERVER_COM_GROUP(orbs_slot),
+                                           TORIRSSERVER_COM_CHILD(orbs_slot),
+                                           player->interfaces.mounts[at].interface_id,
+                                           player->interfaces.mounts[at].type);
+        }
     }
+
     gameframe_root_opened(player, group);
 }
 
