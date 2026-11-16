@@ -1688,6 +1688,27 @@ renderer_available(void)
 /* A renderer flag was given: the saved pick does not decide this launch. */
 static bool renderer_launch_flagged;
 
+#if defined(__EMSCRIPTEN__)
+/* Which renderer is drawing, told to the page each time it is settled (the
+ * launch, every switch or refusal). The page keeps it: the next boot sizes
+ * the heap for it before the client exists, and a renderer that fails is
+ * remembered against (src/web/torirs_host.js rendererMemory). `picked`: the
+ * player chose a renderer this session, as opposed to the launch's. */
+// clang-format off
+EM_JS(void, web_renderer_active, (int kind, int picked), {
+    if( typeof window === 'undefined' || typeof window.torirsRendererActive !== 'function' )
+        return;
+    try
+    {
+        window.torirsRendererActive(kind, picked);
+    }
+    catch( e )
+    {
+    }
+});
+// clang-format on
+#endif
+
 static void
 renderer_publish(void)
 {
@@ -1697,6 +1718,20 @@ renderer_publish(void)
         renderer_available(),
         renderer_refused,
         renderer_launch_flagged);
+#if defined(__EMSCRIPTEN__)
+    {
+        /* On a change only: this runs every frame (renderer_follow_request). */
+        static int told_kind = -1;
+        static int told_picked = -1;
+        int const picked = app.host.renderer_picked ? 1 : 0;
+        if( told_kind != (int)renderer_active || told_picked != picked )
+        {
+            told_kind = (int)renderer_active;
+            told_picked = picked;
+            web_renderer_active(told_kind, picked);
+        }
+    }
+#endif
 }
 
 /*
@@ -10199,16 +10234,14 @@ main(
         if( !PlatformWindow_SetPresent(platform, renderer_present(renderer_launch)) ||
             !renderer_start(renderer_launch) )
         {
-            /* D3D9 is optional on the XP lane: GDI Soft3D draws the same
-             * frame on any machine. A GL lane that cannot start its renderer
-             * is a failed launch, as it always was -- the flag asked for it. */
-            if( renderer_present(renderer_launch) != PLATFORM_PRESENT_NATIVE )
-            {
-                PlatformWindow_Free(platform);
-                main_shutdown(&app);
-                return 1;
-            }
-            TORIRS_ERR("renderer: falling back to GDI Soft3D\n");
+            /* A renderer that will not start is not a failed launch: Soft3D
+             * draws the same frame on any machine, on every lane, and a live
+             * switch already ends there when nothing else will start
+             * (renderer_switch). A GL lane used to exit here -- "the flag
+             * asked for it" -- which in a browser is a page that never
+             * draws because a WebGL context was refused. */
+            TORIRS_ERR(
+                "renderer: %d would not start; falling back to Soft3D\n", (int)renderer_launch);
             renderer_launch = TORIRS_RENDERER_KIND_SOFTWARE;
             {
                 bool const software = PlatformWindow_SetPresent(platform, PLATFORM_PRESENT_SOFTWARE) &&

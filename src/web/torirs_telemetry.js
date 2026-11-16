@@ -622,9 +622,12 @@
    * clean end, a tab discarded in the background, or no last session.
    */
   const previousDeath = (() => {
-    if (!previous || previous.clean) { return null; }
+    if (!previous) { return null; }
+    /* Before `clean`: the page reloads itself after an abort, and that
+     * reload is a pagehide like any other. */
     const evs = previous.events || [];
     if (evs.some(ev => ev && ev.k === 'wasm_abort')) { return 'abort'; }
+    if (previous.clean) { return null; }
     return previous.visible ? 'killed' : null;
   })();
 

@@ -1097,28 +1097,170 @@
   })();
 
   /*
-   * The heap, reserved once, for a device that cannot grow one.
+   * Which renderer this boot will run, and what failed before.
    *
-   * The module's own heap starts at 256 MB and grows by a fifth at a time.
-   * Safari on iOS grows a wasm memory by making a NEW block and copying, so
-   * the old and the new are both resident for the copy: a 2 GB iPad was
-   * killed in a 464 -> 557 MB grow and refused the next two (2026-11-16).
-   * So a low-memory device (lowMemory above) gets its heap from here, at a
-   * size it will not outgrow -- pages nobody has written cost nothing, so
-   * this is address space, not footprint. The first size the browser grants
-   * is the one used; when it grants none, the module makes its own as it
-   * always did. Growth past the reservation is still allowed: on a device
-   * that can do it, it works, and on one that cannot, the allocation is
-   * refused and says so (torimem's out-of-memory line).
+   * Two things are decided here, before the client exists, and both need to
+   * know the renderer: how big a heap to reserve (heapReserve below), and
+   * whether to start on Soft3D because a GPU renderer failed on this device.
+   * The client's own saved pick is in its preferences, which it has not read
+   * yet -- so the page keeps its own note of the renderer the client last
+   * reported running (window.torirsRendererActive, from main.c
+   * renderer_publish) in localStorage.
    *
-   * ?heap=<MB> names the size on any device (256 or more).
+   * THE RULE (owner, 2026-11-16): if a renderer ever fails, fall back to
+   * software. "Fails" is any of:
+   *   - its WebGL context is lost;
+   *   - the GL refuses its world buffer (the client's gpu_world_alloc ok:0);
+   *   - the client aborts while it is running (out of memory is the abort
+   *     this build has) -- the page reloads, see abortRecover;
+   *   - the tab is killed while it is running (the black box's verdict on
+   *     the last session, torirs_telemetry.js previousDeath);
+   *   - it will not start: the client itself starts Soft3D (main.c).
+   * The first two switch at once (torirs_web_renderer_request). All of them
+   * leave a note, and while the note stands every boot adds --soft3d: a
+   * flagged launch does not follow the saved pick. The note goes when the
+   * player picks a renderer in Client Settings -- that is them asking for it
+   * again, and it gets another go, from boot, under its own heap.
+   *
+   * Kinds are enum ToriRS_RendererKind (render/torirs_renderer_kind.h).
+   */
+  const rendererMemory = (() => {
+    const ACTIVE_KEY = 'torirs.renderer';
+    const FALLBACK_KEY = 'torirs.renderer_fallback';
+    const GPU = { 7: 'webgl2', 8: 'webgl2-zbuffer', 9: 'webgl1', 10: 'webgl1-zbuffer' };
+    const FLAGS = {
+      '--webgl2': 7, '--webgl2-zbuffer': 8, '--webgl1': 9, '--webgl1-zbuffer': 10,
+      '--soft3d': 0, '--soft3d-zbuffer': 13, '--soft3d-rszbuffer': 14,
+    };
+    const read = key => { try { return window.localStorage.getItem(key); } catch (err) { return null; } };
+    const write = (key, value) => {
+      try {
+        if (value === null) { window.localStorage.removeItem(key); }
+        else { window.localStorage.setItem(key, value); }
+      } catch (err) { /* private mode: this session still knows */ }
+    };
+
+    const stored = parseInt(read(ACTIVE_KEY) || '', 10);
+    let fallback = null;
+    try { fallback = JSON.parse(read(FALLBACK_KEY) || 'null'); } catch (err) { fallback = null; }
+    /* The last session died with a GPU renderer running. */
+    const death = window.ToriRS_Telemetry ? window.ToriRS_Telemetry.previousDeath : null;
+    if (!fallback && death && GPU[stored]) {
+      fallback = { kind: stored, why: death === 'abort' ? 'the client aborted' : 'the tab was killed', at: Date.now() };
+      write(FALLBACK_KEY, JSON.stringify(fallback));
+    }
+
+    /* The renderer flag the command line ends on, if it names one. */
+    let flagged = null;
+    args.forEach(argument => { if (Object.prototype.hasOwnProperty.call(FLAGS, argument)) { flagged = FLAGS[argument]; } });
+
+    let boot;
+    let why;
+    if (fallback) {
+      /* Last on the line: --soft3d clears every GPU flag before it. */
+      args.push('--soft3d');
+      boot = 0;
+      why = `software: ${GPU[fallback.kind] || fallback.kind} failed (${fallback.why})`;
+    } else if (flagged !== null) {
+      boot = flagged;
+      why = 'the command line';
+    } else if (!Number.isNaN(stored)) {
+      boot = stored;
+      why = 'the renderer last run here';
+    } else {
+      boot = null;
+      why = 'not known yet';
+    }
+
+    let active = null;
+    let pageAsked = false;
+    const self = {
+      boot, why, fallback,
+      isGpu: kind => !!GPU[kind],
+      name: kind => GPU[kind] || (kind === null ? 'unknown' : 'software'),
+      active: () => active,
+      /** main.c renderer_publish. */
+      report(kind, picked) {
+        if (kind === active && !picked) { return; }
+        active = kind;
+        write(ACTIVE_KEY, String(kind));
+        /* A pick the player made (not the page's own fallback request). */
+        if (picked && !pageAsked && self.fallback) {
+          self.fallback = null;
+          write(FALLBACK_KEY, null);
+          log('torirs: renderer fallback cleared: a renderer was picked in settings');
+        }
+        pageAsked = false;
+        if (window.ToriRS_Telemetry) {
+          window.ToriRS_Telemetry.record('renderer_active', { kind, picked: !!picked });
+        }
+      },
+      /** A GPU renderer failed: remember it, and go to software now if the
+       *  client is still able to. Nothing to do when software is running. */
+      failed(reason, switchNow) {
+        if (!GPU[active]) { return false; }
+        self.fallback = { kind: active, why: reason, at: Date.now() };
+        write(FALLBACK_KEY, JSON.stringify(self.fallback));
+        log(`torirs: renderer ${GPU[active]} failed (${reason}); falling back to software`, true);
+        if (window.ToriRS_Telemetry) {
+          window.ToriRS_Telemetry.record('renderer_fallback', { kind: active, why: reason, now: !!switchNow }, true);
+        }
+        if (switchNow && typeof Module._torirs_web_renderer_request === 'function') {
+          pageAsked = true;
+          try { Module._torirs_web_renderer_request(1); } catch (err) { pageAsked = false; }
+        }
+        return true;
+      },
+    };
+    return self;
+  })();
+  window.torirsRendererActive = (kind, picked) => rendererMemory.report(kind, picked);
+
+  /*
+   * The heap, reserved once, at the size the renderer needs.
+   *
+   * Software runs in the module's own heap: 256 MB to start, grown on
+   * demand, as it always was. A GPU renderer keeps the world's vertices in
+   * the heap as well as on the GPU -- 45 bytes a vertex, 4.7M vertices in a
+   * dense area -- so it gets a heap it will not outgrow, made HERE, because
+   * growing is what a tablet cannot do: Safari grows a wasm memory by
+   * making a new block and copying, so the old and the new are both
+   * resident for the copy. A 2 GB iPad was killed in a 464 -> 557 MB grow
+   * and refused the next two (2026-11-16). Pages nobody has written cost
+   * nothing, so this is address space, not footprint.
+   *
+   *   software                 the module's own (256 MB, grows)
+   *   WebGL1, WebGL1 z-buffer  640 MB, then 512, 384
+   *   WebGL2, WebGL2 z-buffer  768 MB, then 640, 512 -- its world is ONE
+   *                            block (~150 MB) that needs a hole that size
+   *
+   * The first size the browser grants is used; when it grants none the
+   * module makes its own. Growth past the reservation stays allowed.
+   *
+   * The renderer is rendererMemory's: the command line's, else the one last
+   * run here. When neither says (a first visit, or the first boot of a build
+   * that keeps the note), a low-memory device is given the WebGL1 size --
+   * its saved pick may be a GPU renderer, and guessing software would put
+   * that renderer in a heap that has to grow. A renderer picked mid-session
+   * runs in the heap this boot made, which grows if it must; the next boot
+   * makes the right one.
+   *
+   * ?heap=<MB> names the size outright (256 or more).
    * Needs a module linked with -sIMPORTED_MEMORY (platform.mk); an older
    * cached one ignores Module.wasmMemory and nothing is lost but the try.
    */
   const heapReserve = (() => {
     const PAGES_PER_MB = 16;
+    const WEBGL1 = [640, 512, 384];
+    const WEBGL2 = [768, 640, 512];
     const forced = parseInt(params.get('heap') || '', 10);
-    const ladder = forced >= 256 ? [forced] : lowMemory.on ? [640, 512, 384] : [];
+    const kind = rendererMemory.boot;
+    let ladder = [];
+    let why = 'software';
+    if (forced >= 256) { ladder = [forced]; why = '?heap'; }
+    else if (kind === 7 || kind === 8) { ladder = WEBGL2; why = rendererMemory.name(kind); }
+    else if (kind === 9 || kind === 10) { ladder = WEBGL1; why = rendererMemory.name(kind); }
+    else if (kind === null && lowMemory.on) { ladder = WEBGL1; why = 'renderer not known, low-memory device'; }
     let refused = null;
     for (let i = 0; i < ladder.length; i++) {
       try {
@@ -1126,13 +1268,45 @@
           initial: ladder[i] * PAGES_PER_MB,
           maximum: 65536,
         });
-        return { mb: ladder[i], refused };
+        return { mb: ladder[i], why, refused };
       } catch (err) {
         refused = `${ladder[i]} MB: ${err && err.message}`;
       }
     }
-    return { mb: 0, refused };
+    return { mb: 0, why, refused };
   })();
+
+  /*
+   * A client that aborted is a frozen picture: the wasm will never run
+   * another frame. So the page reloads, and the reload comes back to the
+   * same session (createResumeSession). When a GPU renderer was running, it
+   * is recorded as failed first, so the reload starts on software.
+   *
+   * At most twice in five minutes: a client that aborts on every boot must
+   * end as a page that says so, not as a loop.
+   */
+  function abortRecover(what) {
+    const KEY = 'torirs.abort_reloads';
+    const WINDOW_MS = 5 * 60 * 1000;
+    rendererMemory.failed('the client aborted', false);
+    let recent = [];
+    try { recent = JSON.parse(window.localStorage.getItem(KEY) || '[]'); } catch (err) { recent = []; }
+    const now = Date.now();
+    recent = recent.filter(at => now - at < WINDOW_MS);
+    if (recent.length >= 2) {
+      haltedStatus = 'The client stopped and has already reloaded twice. Reload the page to try again.';
+      setStatus(haltedStatus);
+      log(`torirs: aborted (${what}); not reloading again`, true);
+      return;
+    }
+    recent.push(now);
+    try { window.localStorage.setItem(KEY, JSON.stringify(recent)); } catch (err) { /* reload anyway */ }
+    haltedStatus = 'The client stopped. Reloading\u2026';
+    setStatus(haltedStatus);
+    log(`torirs: aborted (${what}); reloading`, true);
+    /* A moment for the black box to post what it holds. */
+    setTimeout(() => { window.location.reload(); }, 1500);
+  }
 
   Module.arguments = args;
   /* The black box (torirs_telemetry.js, absent under ?telemetry=0): what this
@@ -1142,12 +1316,29 @@
     telemetry.setArgs(redactArgs(args));
     telemetry.record('mem_class', { low_memory: lowMemory.on, why: lowMemory.why,
       previous_death: telemetry.previousDeath, heap_reserved_mb: heapReserve.mb,
-      heap_refused: heapReserve.refused });
-    Module.onAbort = what => {
+      heap_why: heapReserve.why, heap_refused: heapReserve.refused,
+      renderer_boot: rendererMemory.boot, renderer_why: rendererMemory.why,
+      renderer_fallback: rendererMemory.fallback });
+  }
+  Module.onAbort = what => {
+    if (telemetry) {
       telemetry.record('wasm_abort', { what: String(what) }, true);
       /* What held the heap when it died. The tree is a few small mallocs, so
        * it usually still works after a large one was refused. */
       telemetry.memTreeNow('abort');
+    }
+    abortRecover(String(what));
+  };
+  /* The client's own events reach the black box through window.__torirs_tel
+   * (platform_web_telemetry.c). One of them is a renderer failing: the GL
+   * refused the world's buffer, and that renderer will draw no world. */
+  {
+    const tel = window.__torirs_tel;
+    window.__torirs_tel = (kind, detail) => {
+      if (typeof tel === 'function') { tel(kind, detail); }
+      if (kind === 'gpu_world_alloc' && /"ok":0/.test(String(detail))) {
+        rendererMemory.failed('the GL refused the world buffer', true);
+      }
     };
   }
   // Without this a lost WebGL context fails silently and the page just stops
@@ -1156,6 +1347,9 @@
     canvas.addEventListener('webglcontextlost', e => {
       log('webgl context lost', true);
       e.preventDefault();
+      /* Only the canvas being drawn to: a switch leaves the old one behind,
+       * and what happens to it afterwards is nobody's failure. */
+      if (e.target === Module.canvas) { rendererMemory.failed('its WebGL context was lost', true); }
     }, false);
     return canvas;
   };
@@ -1232,8 +1426,10 @@
         });
       }
       log(`torirs: telemetry session ${telemetry.sid}`);
-      log(`torirs: memory ${lowMemory.on ? 'low' : 'normal'} (${lowMemory.why})` +
-          (heapReserve.mb ? `, heap reserved ${heapReserve.mb} MB` : ''));
+      log(`torirs: memory ${lowMemory.on ? 'low' : 'normal'} (${lowMemory.why}), heap ` +
+          (heapReserve.mb ? `${heapReserve.mb} MB reserved` : 'the module\'s own 256 MB') +
+          ` (${heapReserve.why})`);
+      if (rendererMemory.fallback) { log(`torirs: renderer ${rendererMemory.why}`); }
     }
     installMemtraceButton();
     window.requestAnimationFrame(hostFrame);
