@@ -13884,6 +13884,15 @@ static const struct IfScriptTriggerRoute IF_SCRIPT_TRIGGER_ROUTES[] = {
      * runs script 9732 (lunar_contact_npc_op), which reports the contact id and the
      * contract-op flag. */
     { "lunar_contact_npc:scrolllayer", INT32_C(1563533850), "ii" },
+    /* The omnishop (interface 819), rev 242: its list ops and buy buttons
+     * reach the server only as these three triggers (index 4474 [231] arms
+     * all three with IF_SCRIPT_TRIGGER). omnishop_main_trigger_item_op (9769)
+     * reports shop, stock slot, quantity; omnishop_main_item_op_trigger
+     * (9770) the obj to examine; torirs_omnishop_info (7147) shop and slot
+     * when it has no info to draw. */
+    { "omnishop_main:trigger_buy", INT32_C(407137374), "iii" },
+    { "omnishop_main:trigger_examine", INT32_C(-958173255), "i" },
+    { "omnishop_main:trigger_request_info", INT32_C(1754529215), "ii" },
 };
 
 /* Returns 1 when the trigger was one of IF_SCRIPT_TRIGGER_ROUTES (consumed,
