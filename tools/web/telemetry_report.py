@@ -18,7 +18,8 @@ browser delivered, what the client's touch policy took it for, where the click
 landed in the UI tree and which menu row ran. A row is marked when the finger
 did nothing a tap should have done:
     NO-CLIENT   the browser saw it, the client's touch layer never did
-    DRAG        a short finger the policy took for a drag (travel vs slop)
+    DRAG        a quick (<=150 ms), short finger the policy took for a drag
+                (travel vs the slop it was held to: 32 on the world, 12 off it)
     HOLD/MULTI  taken for a long press / part of a two-finger gesture
     NOTHING     a tap whose click hit no component and ran no menu row
 
@@ -307,7 +308,9 @@ def touch_verdict(row):
         return 'NO-CLIENT'
     out = t.get('out')
     if out == 'drag':
-        return 'DRAG' if (t.get('travel') or 0) <= 3 * (t.get('slop') or 12) else ''
+        # quick and short: a tap that slid, not a camera turn or a widget drag
+        short = (t.get('travel') or 0) <= 3 * (t.get('slop') or 12)
+        return 'DRAG' if short and (t.get('ms') or 0) <= 150 else ''
     if out == 'hold':
         return 'HOLD' if not row['menus'] else ''
     if out == 'multi':

@@ -34,7 +34,7 @@ touch_free_slot(struct ToriRS_Touch* touch)
 }
 
 static int
-touch_far(struct ToriRS_TouchFinger const* finger)
+touch_far(struct ToriRS_TouchFinger const* finger, int slop)
 {
     int dx;
     int dy;
@@ -42,7 +42,7 @@ touch_far(struct ToriRS_TouchFinger const* finger)
     assert(finger);
     dx = finger->x - finger->start_x;
     dy = finger->y - finger->start_y;
-    return (dx * dx) + (dy * dy) > TORIRS_TOUCH_SLOP * TORIRS_TOUCH_SLOP;
+    return (dx * dx) + (dy * dy) > slop * slop;
 }
 
 /** Distance between the two live fingers, and their midpoint. -1 when there
@@ -187,6 +187,8 @@ touch_release_drag(struct ToriRS_Touch* touch, struct ToriRS_CmdBus* bus, int x,
  *   ms       finger down to finger up, by this layer's clock (a stalled
  *            frame delays both edges, so this is not the finger's own time)
  *   travel   furthest from the landing point, canvas pixels
+ *   slop     the slop this finger was held to: TORIRS_TOUCH_CAMERA_SLOP on
+ *            the world, TORIRS_TOUCH_SLOP elsewhere
  *   end      lift point's distance from the landing point, canvas pixels
  *   cross_ms when the slop was crossed, -1 never
  *   fingers  fingers already down when this one landed
@@ -236,7 +238,7 @@ touch_report_end(
         (int)(now_ms - finger->began_ms),
         touch_isqrt(finger->travel2_max),
         touch_isqrt((dx * dx) + (dy * dy)),
-        TORIRS_TOUCH_SLOP,
+        touch_started_in_view(touch, finger) ? TORIRS_TOUCH_CAMERA_SLOP : TORIRS_TOUCH_SLOP,
         finger->crossed_ms,
         finger->began_count,
         finger->start_x,
@@ -593,7 +595,15 @@ ToriRS_TouchEvent(
             return;
         }
 
-        if( !finger->dragging && touch_far(finger) )
+        /* Past the interface's slop, and -- if the finger landed on the
+         * world -- past the camera's wider one too: a quick tap on the world
+         * slides 12-25 px as it lifts, and at 12 that tap was a camera drag
+         * that clicked nothing (TORIRS_TOUCH_CAMERA_SLOP says how we know).
+         * The world question is asked only once the small slop is crossed,
+         * so a still finger never pays for the overlay test. */
+        if( !finger->dragging && touch_far(finger, TORIRS_TOUCH_SLOP) &&
+            (!touch_started_in_view(touch, finger) ||
+             touch_far(finger, TORIRS_TOUCH_CAMERA_SLOP)) )
         {
             finger->dragging = 1;
             finger->crossed_ms = (int)(now_ms - finger->began_ms);

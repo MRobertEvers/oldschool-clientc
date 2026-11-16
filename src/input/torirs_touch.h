@@ -80,6 +80,29 @@ struct ToriRS_CmdBus;
 #define TORIRS_TOUCH_SLOP 12
 
 /**
+ * How far a finger that landed on the 3D WORLD may wander, in canvas pixels,
+ * before it turns the camera instead of tapping. Wider than TORIRS_TOUCH_SLOP,
+ * which still governs a drag that starts on an interface.
+ *
+ * Measured, not guessed. The owner's iPad (2026-11-16, web black box session
+ * 1c70e56f, `telemetry_report.py --touch`) dropped 6 of 28 one-finger touches,
+ * and every one was the same gesture: a quick tap, 26-64 ms on the glass, that
+ * slid 12-25 canvas px -- in five of the six the slide arrived with the lift,
+ * the contact rolling as the finger came off. At the 12 px slop each became a
+ * camera drag: the MIDDLE button went down, the camera turned by a pixel, no
+ * click was sent, and the player tapped again. The same session's deliberate
+ * camera drags travelled 121-175 px over ~400 ms, so 32 sits well clear of
+ * both. (The web canvas is ~1.07 canvas px per CSS point on that iPad, so this
+ * is ~30 pt: not a density bug, a finger.)
+ *
+ * The interface keeps 12 because a drag there still clicks: the LEFT button
+ * goes down where the finger landed and comes up where it lifted, which a
+ * button takes as a press -- an item drag, a scrollbar or a window move wants
+ * to start promptly. On the world nothing like that rescues the tap.
+ */
+#define TORIRS_TOUCH_CAMERA_SLOP 32
+
+/**
  * Pinch distance must change by this much, in CANVAS pixels, before it is a
  * zoom rather than two fingers resting unevenly.
  *

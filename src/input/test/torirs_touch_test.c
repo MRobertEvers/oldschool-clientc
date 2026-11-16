@@ -372,10 +372,43 @@ main(void)
     ToriRS_TouchReset(&touch);
     ToriRS_TouchSetViewport(&touch, 0, 0, 500, 300);
     ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 1, 300, 200, 0);
-    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, 1, 300 + TORIRS_TOUCH_SLOP + 4, 200, 40);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, 1, 300 + TORIRS_TOUCH_CAMERA_SLOP + 4, 200, 40);
     drain(&bus, &seen);
     CHECK(seen.downs == 1, "a drag presses a button once it passes the slop");
     CHECK(seen.last_button == TORIRSM_MIDDLE, "and on the world that button is the middle one");
+
+    /*
+     * ---- a quick tap on the world that slides as it lifts is still a tap ----
+     *
+     * The iPad's dropped taps (2026-11-16, black box 1c70e56f): 26-64 ms on
+     * the glass, 12-25 px of slide, most of it in the move that arrives with
+     * the lift. At the interface's 12 px slop each was a camera drag and no
+     * click; TORIRS_TOUCH_CAMERA_SLOP is why it is a tap now. The click goes
+     * where the finger landed.
+     */
+    CmdBus_Init(&bus);
+    ToriRS_TouchReset(&touch);
+    ToriRS_TouchSetViewport(&touch, 0, 0, 500, 300);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 1, 300, 200, 0);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, 1, 300 + 18, 200 + 15, 46);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_ENDED, 1, 300 + 18, 200 + 15, 46);
+    drain(&bus, &seen);
+    CHECK(seen.downs == 1 && seen.last_button == TORIRSM_LEFT,
+        "a 23 px slide on the world is a tap, not the camera");
+    CHECK(seen.up_x == 300 && seen.up_y == 200, "clicked where the finger landed");
+
+    /* the interface keeps the tight slop: the same slide on a window there is
+     * a drag, which presses where the finger landed (a button still clicks) */
+    CmdBus_Init(&bus);
+    ToriRS_TouchReset(&touch);
+    ToriRS_TouchSetViewport(&touch, 0, 0, 500, 300);
+    ToriRS_TouchSetOverlayTest(&touch, overlay_top_left, NULL);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 1, 40, 50, 0);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, 1, 40 + 18, 50 + 15, 46);
+    drain(&bus, &seen);
+    CHECK(seen.downs == 1 && seen.last_button == TORIRSM_LEFT,
+        "off the world a 23 px slide is already a drag");
+    ToriRS_TouchSetOverlayTest(&touch, NULL, NULL);
 
     /*
      * ---- a drag on a WINDOW drawn over the world is the window's ----
@@ -402,7 +435,7 @@ main(void)
     ToriRS_TouchSetViewport(&touch, 0, 0, 500, 300);
     ToriRS_TouchSetOverlayTest(&touch, overlay_top_left, NULL);
     ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 1, 300, 200, 0);
-    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, 1, 300, 200 + TORIRS_TOUCH_SLOP + 4, 40);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, 1, 300, 200 + TORIRS_TOUCH_CAMERA_SLOP + 4, 40);
     drain(&bus, &seen);
     CHECK(seen.last_button == TORIRSM_MIDDLE, "a drag beside the window is still the camera");
 
@@ -480,8 +513,8 @@ main(void)
     ToriRS_TouchReset(&touch);
     ToriRS_TouchSetViewport(&touch, 0, 0, 500, 300);
     ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 1, 300, 200, 0);
-    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, 1, 300, 200 + TORIRS_TOUCH_SLOP + 4, 40);
-    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_ENDED, 1, 300, 200 + TORIRS_TOUCH_SLOP + 4, 80);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, 1, 300, 200 + TORIRS_TOUCH_CAMERA_SLOP + 4, 40);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_ENDED, 1, 300, 200 + TORIRS_TOUCH_CAMERA_SLOP + 4, 80);
     ToriRS_TouchTick(&touch, &bus, 96);
     ToriRS_TouchTick(&touch, &bus, 112);
     drain(&bus, &seen);
