@@ -164,6 +164,35 @@ npc_trace(
         (app && app->world) ? app->world->cycle : -1, what, detail);
 }
 
+/* With TORIRS_NPC_TRACE, the state each traced npc holds as the next NPC_INFO
+ * arrives -- what the client did with the last one: the route still queued,
+ * the turn (yaw toward dst_yaw), the face target, and the action track (seq,
+ * its remaining delay, frame) over the movement track the walkmerge blends. */
+static void
+npc_trace_state(struct App* app)
+{
+    struct World_EntityPool* pool;
+
+    if( !app->world )
+        return;
+    pool = &app->world->entities.npc;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_NPC const* npc = World_EntityPoolGet(pool, i);
+
+        if( !npc || !npc_trace_wants(npc->npc_id) )
+            continue;
+        TORIRS_LOG(
+            "npc_state: npc=%d world=%d cycle=%d tile=%d,%d route=%d yaw=%d dst=%d face=%d "
+            "primary=%d delay=%d frame=%d secondary=%d\n",
+            npc->npc_id, i, app->world->cycle, npc->grid_position.x, npc->grid_position.z,
+            npc->pathing.route_length, npc->orientation.yaw, npc->orientation.dst_yaw,
+            npc->facing.entity_id, (int)(int16_t)npc->animation.primary.anim_id,
+            npc->animation.primary.delay, npc->animation.primary.frame,
+            (int)(int16_t)npc->animation.secondary.anim_id);
+    }
+}
+
 /*
  * Op-list scratch.
  *
@@ -1552,6 +1581,9 @@ npc_apply_op(
                     idx >= 0 ? "" : "  <-- NO TARGET, dropped");
         if( idx >= 0 )
         {
+            npc_trace(
+                self->app, npc_trace_type_of(self->app, idx), self->cur_slot,
+                op->sequence.delay, idx, -1, "SEQUENCE", op->sequence.sequence_id);
             self->pending_seq = op->sequence.sequence_id;
             self->pending_delay = op->sequence.delay;
             return NPC_NEED_SEQ;
@@ -1561,6 +1593,12 @@ npc_apply_op(
         if( idx >= 0 )
         {
             int entity_id = op->face_entity.entity_id == 65535 ? -1 : op->face_entity.entity_id;
+            /* list_idx carries the modern movement mode (-1 on a classic
+             * block): whether the npc keeps facing the target while it walks. */
+            npc_trace(
+                self->app, npc_trace_type_of(self->app, idx), self->cur_slot,
+                op->face_entity.modern ? (int)op->face_entity.movement_mode : -1, idx, -1,
+                "FACE_ENTITY", entity_id);
             if( op->face_entity.modern )
                 World_NpcBeginModernFacing(world, idx, op->face_entity.movement_mode);
             /* A world entity has no registry here: the gamepack's
@@ -1845,6 +1883,7 @@ Task_ExecNpcInfo_Run(
     g_bd_decode = g_bd_await = g_bd_spawn = g_bd_retype = g_bd_apply = 0;
     g_bd_ops = g_bd_spawns = 0;
     self->bd_start = BD_T0();
+    npc_trace_state(app);
 
     /* A replay keyframe's list arrives decoded (CreateTask_ExecNpcInfoOps). */
     if( !self->ops )

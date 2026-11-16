@@ -176,6 +176,26 @@ app_world_apply_entity_anim_tracks(
          * animation. That is the caller's condition — the predicate asserts. */
         if( pa && ToriDraw_ElementAnimPlayable(pa) )
         {
+            /* TORIRS_MERGE_TRACE=<seq>: every frame that seq is bound as the
+             * action track, whether the movement track was bound beside it
+             * for the walkmerge blend, and if not, which test refused it. */
+            {
+                static int trace_seq = -2;
+                if( trace_seq == -2 )
+                    trace_seq = getenv("TORIRS_MERGE_TRACE") ? atoi(getenv("TORIRS_MERGE_TRACE")) : -1;
+                if( trace_seq >= 0 && anim->primary.anim_id == (uint16_t)trace_seq )
+                {
+                    struct ToriDraw_Animation* sa_t =
+                        secondary_active ? ToriDraw_SceneAnimationGet(app->scene, anim->secondary.anim_id) : NULL;
+                    TORIRS_LOG(
+                        "merge_trace: element=%d cycle=%d primary=%d frame=%d walkmerge=%d secondary=%d "
+                        "frame2=%d ready=%d sa_loaded=%d sa_frames=%d\n",
+                        element_id, app->world ? app->world->cycle : -1, (int)anim->primary.anim_id,
+                        (int)anim->primary.frame, pa->walkmerge != NULL,
+                        secondary_active ? (int)anim->secondary.anim_id : -1, (int)anim->secondary.frame,
+                        idle ? idle->readyanim : -1, sa_t != NULL, sa_t && sa_t->frames != NULL);
+                }
+            }
             ToriDraw_ElementSetAnim(el, pa);
             el->anim_seq_id = anim->primary.anim_id;
             el->anim_frame = anim->primary.frame < pa->frame_count ? anim->primary.frame : 0;
