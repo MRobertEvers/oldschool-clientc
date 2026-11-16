@@ -30,6 +30,13 @@
  *                could not be allocated
  *   js_error, promise_rejection, wasm_abort, stderr
  *   hidden / visible / pagehide / resize
+ *   touch_js     one per finger lifted, as the BROWSER saw it (CSS pixels)
+ *   touch        the same finger as the client's touch policy took it:
+ *                tap / drag / hold / multi (input/torirs_touch.c)
+ *   ui_click     where the resulting click landed in the UI tree
+ *   menu_use     the menu row the click ran (app_minimenu.c)
+ *                -- the input four are kept only on a touch device, go out
+ *                with the live posts, and stay out of the localStorage ring
  *
  * THREE WAYS IT GETS OUT, one for each way the page can fail:
  *   - running: posted every 30 s, at once for anything urgent, and by
@@ -67,6 +74,11 @@
   const MAX_POSTS = 400;
   const MEM_TREE_EVERY_MS = 5000;
   const MEM_TREES_MAX = 40;
+  /* Input breadcrumbs: several a second while someone plays. They answer "why
+   * did that tap do nothing", which a live post carries; a killed tab's
+   * stored ring is for the crash, and these would push it out. */
+  const INPUT_KINDS = new Set(['touch_js', 'touch', 'ui_click', 'menu_use']);
+  const TOUCH_DEVICE = ((global.navigator && global.navigator.maxTouchPoints) || 0) > 0;
 
   const t0 = performance.now();
   const bootWall = Date.now();
@@ -119,7 +131,7 @@
     if (kind.startsWith('world_') || kind.startsWith('gpu_world')) {
       lastWorld = { k: kind, t: ev.t };
     }
-    persist(false);
+    if (!INPUT_KINDS.has(kind)) { persist(false); }
     if (urgent) { flushSoon(); }
     return ev;
   }
@@ -404,7 +416,7 @@
     try {
       global.localStorage.setItem(STORE_KEY, JSON.stringify({
         sid, boot_wall: bootWall, alive_wall: Date.now(), visible, clean,
-        snapshot: snapshot(), events: events.slice(-STORE_EVENTS),
+        snapshot: snapshot(), events: events.filter(e => !INPUT_KINDS.has(e.k)).slice(-STORE_EVENTS),
       }));
     } catch (err) { /* private mode or full: the live path still works */ }
   }
@@ -660,8 +672,61 @@
     flush(reason) { send(reason || 'manual'); },
   };
 
+  /*
+   * Every finger as the browser delivered it, to set beside the client's
+   * `touch` for the same finger: a lift here with no `touch` after it is a
+   * touch the client never received; `travel` is in CSS pixels (points), and
+   * `scale` converts to the canvas pixels the client's slop is measured in.
+   * `target` is the element the finger landed on ('canvas' for the game).
+   */
+  if (TOUCH_DEVICE) {
+    const fingers = new Map();
+    const opts = { capture: true, passive: true };
+    const canvasScale = () => {
+      const c = global.document.getElementById('canvas');
+      return c && c.clientWidth > 0 ? Math.round((c.width / c.clientWidth) * 100) / 100 : null;
+    };
+    global.document.addEventListener('touchstart', e => {
+      for (const t of e.changedTouches) {
+        fingers.set(t.identifier, {
+          at: performance.now(), x: t.clientX, y: t.clientY, max2: 0,
+          target: (e.target && (e.target.id || e.target.tagName)) || null,
+          down: e.touches.length - e.changedTouches.length,
+        });
+      }
+    }, opts);
+    global.document.addEventListener('touchmove', e => {
+      for (const t of e.changedTouches) {
+        const f = fingers.get(t.identifier);
+        if (!f) { continue; }
+        const dx = t.clientX - f.x;
+        const dy = t.clientY - f.y;
+        f.max2 = Math.max(f.max2, dx * dx + dy * dy);
+      }
+    }, opts);
+    const lift = cancel => e => {
+      for (const t of e.changedTouches) {
+        const f = fingers.get(t.identifier);
+        if (!f) { continue; }
+        fingers.delete(t.identifier);
+        const dx = t.clientX - f.x;
+        const dy = t.clientY - f.y;
+        record('touch_js', {
+          ms: Math.round(performance.now() - f.at),
+          travel: Math.round(Math.sqrt(Math.max(f.max2, dx * dx + dy * dy)) * 10) / 10,
+          end: Math.round(Math.sqrt(dx * dx + dy * dy) * 10) / 10,
+          cancel, target: f.target, fingers: f.down, scale: canvasScale(),
+        });
+      }
+    };
+    global.document.addEventListener('touchend', lift(false), opts);
+    global.document.addEventListener('touchcancel', lift(true), opts);
+  }
+
   /* platform_web_telemetry.c's way in. */
   global.__torirs_tel = (kind, detail) => {
+    /* A desktop's mouse clicks say nothing about a finger's: not kept. */
+    if (!TOUCH_DEVICE && INPUT_KINDS.has(kind)) { return; }
     let d = detail;
     try { d = JSON.parse(detail); } catch (err) { /* keep the string */ }
     const urgent = kind === 'gpu_world_alloc' && d && d.ok === 0;

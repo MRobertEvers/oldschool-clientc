@@ -129,6 +129,17 @@ struct ToriRS_TouchFinger
     /** The long press already fired for this finger, so it is choosing from
      *  the menu it opened: moves are the pointer, the release is the click. */
     int held;
+    /*
+     * For the web black box's `touch` event only (ToriPlatformWeb_Telemetry):
+     * the furthest this finger got from where it landed, squared, in canvas
+     * pixels; how long after landing it crossed the slop (-1 while it has
+     * not); and how many fingers were down when it landed. They decide
+     * nothing -- they say, after a tap that did nothing, which gesture the
+     * policy took it for and by how far.
+     */
+    int travel2_max;
+    int crossed_ms;
+    int began_count;
 };
 
 struct ToriRS_Touch

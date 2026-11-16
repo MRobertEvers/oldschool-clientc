@@ -3,6 +3,7 @@
 #include "cmd/cmdbus.h"
 #include "input/torirs_input.h"
 #include "log/torirs_log.h"
+#include "platform/platform_web_telemetry.h"
 
 #include <assert.h>
 #include <math.h>
@@ -172,6 +173,74 @@ touch_release_drag(struct ToriRS_Touch* touch, struct ToriRS_CmdBus* bus, int x,
     CmdBus_PushMouseButton(
         bus, TORIRS_CMD_INPUT_MOUSE_UP, touch->drag_button, (int16_t)x, (int16_t)y);
     touch->drag_button = 0;
+}
+
+/*
+ * One line in the web black box per finger that lifts: what the policy took
+ * it for. A tap that did nothing on a tablet is either a tap the policy never
+ * saw as one (`out` drag/hold/multi, and `travel` against `slop` says by how
+ * far) or a click that landed on nothing (the `ui_click` and `menu_use`
+ * events after it). Nothing anywhere but the web: the call compiles away.
+ *
+ *   out      tap | drag | hold | multi
+ *   btn      the button a drag held: camera (MIDDLE) | widget (LEFT) | none
+ *   ms       finger down to finger up, by this layer's clock (a stalled
+ *            frame delays both edges, so this is not the finger's own time)
+ *   travel   furthest from the landing point, canvas pixels
+ *   end      lift point's distance from the landing point, canvas pixels
+ *   cross_ms when the slop was crossed, -1 never
+ *   fingers  fingers already down when this one landed
+ */
+static int
+touch_isqrt(int square)
+{
+    int root = 0;
+    while( (root + 1) * (root + 1) <= square )
+        root++;
+    return root;
+}
+
+static void
+touch_report_end(
+    struct ToriRS_Touch const* touch,
+    struct ToriRS_TouchFinger const* finger,
+    int canvas_x,
+    int canvas_y,
+    uint64_t now_ms)
+{
+    char const* out = "tap";
+    char const* btn = "none";
+    int dx;
+    int dy;
+
+    assert(touch);
+    assert(finger);
+    dx = canvas_x - finger->start_x;
+    dy = canvas_y - finger->start_y;
+    if( touch->multi )
+        out = "multi";
+    else if( finger->dragging )
+        out = "drag";
+    else if( finger->held )
+        out = "hold";
+    if( touch->drag_button == TORIRSM_MIDDLE )
+        btn = "camera";
+    else if( touch->drag_button == TORIRSM_LEFT )
+        btn = "widget";
+    ToriPlatformWeb_Telemetry(
+        "touch",
+        "{\"out\":\"%s\",\"btn\":\"%s\",\"ms\":%d,\"travel\":%d,\"end\":%d,\"slop\":%d,"
+        "\"cross_ms\":%d,\"fingers\":%d,\"x\":%d,\"y\":%d}",
+        out,
+        btn,
+        (int)(now_ms - finger->began_ms),
+        touch_isqrt(finger->travel2_max),
+        touch_isqrt((dx * dx) + (dy * dy)),
+        TORIRS_TOUCH_SLOP,
+        finger->crossed_ms,
+        finger->began_count,
+        finger->start_x,
+        finger->start_y);
 }
 
 void
@@ -455,6 +524,9 @@ ToriRS_TouchEvent(
         finger->began_ms = now_ms;
         finger->dragging = 0;
         finger->held = 0;
+        finger->travel2_max = 0;
+        finger->crossed_ms = -1;
+        finger->began_count = touch->count;
         if( touch->count >= 2 )
         {
             /*
@@ -485,6 +557,13 @@ ToriRS_TouchEvent(
 
     finger->x = canvas_x;
     finger->y = canvas_y;
+    {
+        int const dx = canvas_x - finger->start_x;
+        int const dy = canvas_y - finger->start_y;
+        int const d2 = (dx * dx) + (dy * dy);
+        if( d2 > finger->travel2_max )
+            finger->travel2_max = d2;
+    }
 
     if( phase == TORIRS_TOUCH_MOVED )
     {
@@ -515,7 +594,10 @@ ToriRS_TouchEvent(
         }
 
         if( !finger->dragging && touch_far(finger) )
+        {
             finger->dragging = 1;
+            finger->crossed_ms = (int)(now_ms - finger->began_ms);
+        }
 
         /*
          * A drag holds a button down, and WHICH button is the whole policy.
@@ -596,6 +678,9 @@ ToriRS_TouchEvent(
         touch->gesture_moved = 1;
         touch_gesture_close(touch, bus, now_ms);
     }
+    /* Before the drag's button is let go: which button it held is part of
+     * what the gesture was. */
+    touch_report_end(touch, finger, canvas_x, canvas_y, now_ms);
     touch_release_drag(touch, bus, canvas_x, canvas_y);
     /*
      * A tap is a click, and so is the lift after a long press: the press

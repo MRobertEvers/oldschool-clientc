@@ -1,6 +1,7 @@
 #include "uitree_interact.h"
 
 #include "perf/torirs_perf.h"
+#include "platform/platform_web_telemetry.h"
 #include "uitree_hover.h"
 #include "uitree_layout.h"
 
@@ -540,6 +541,20 @@ bridge_input_to_uitree(
         if( getenv("TORIRS_LOGIN_DEBUG") )
             fprintf(stderr, "ui_click: x=%d y=%d hovered=%d clicked=%d\n",
                 up.x, up.y, (int)last.hovered, (int)last.clicked);
+        /* The same answer for the web black box, beside the `touch` event
+         * that made the click (the page keeps it only on a touch device). `com`
+         * is the component id (0xIIIICCCC) of what was clicked, or of what was
+         * under the click when nothing took it; -1 is no node at all. */
+        {
+            int const idx = last.clicked >= 0 ? (int)last.clicked : (int)last.hovered;
+            int const com = idx >= 0 && (uint32_t)idx < tree->component_count
+                                ? tree->components[idx].component_id
+                                : -1;
+            ToriPlatformWeb_Telemetry(
+                "ui_click",
+                "{\"x\":%d,\"y\":%d,\"hovered\":%d,\"clicked\":%d,\"com\":%d}",
+                up.x, up.y, (int)last.hovered, (int)last.clicked, com);
+        }
     }
     else if( LibToriRS_Input_IsDragEnd(input, TORIRSM_LEFT) )
     {

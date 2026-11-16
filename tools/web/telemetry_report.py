@@ -10,6 +10,17 @@ holds and when one is sent.
     tools/web/telemetry_report.py --incidents         # + a timeline before each incident
     tools/web/telemetry_report.py --sid 3f9a...       # one session's whole timeline
     tools/web/telemetry_report.py --ua iPad DIR_OR_FILES...
+    tools/web/telemetry_report.py --ua iPad --touch   # one line per finger, lost taps marked
+
+--touch reads the input breadcrumbs a touch device sends (touch_js, touch,
+ui_click, menu_use; torirs_telemetry.js) as one row per finger: what the
+browser delivered, what the client's touch policy took it for, where the click
+landed in the UI tree and which menu row ran. A row is marked when the finger
+did nothing a tap should have done:
+    NO-CLIENT   the browser saw it, the client's touch layer never did
+    DRAG        a short finger the policy took for a drag (travel vs slop)
+    HOLD/MULTI  taken for a long press / part of a two-finger gesture
+    NOTHING     a tap whose click hit no component and ran no menu row
 
 An INCIDENT is one of: the WebGL context lost, the main thread blocked (the
 watchdog's report), a tab that ended without a pagehide while visible (the
@@ -250,12 +261,100 @@ def print_timeline(s, around=None, before=12):
               f"heap {mb(snap.get('heap'))}, gl {json.dumps(snap.get('gl'), separators=(',', ':'))}")
 
 
+INPUT_KINDS = ('touch_js', 'touch', 'ui_click', 'menu_use')
+
+
+def touch_rows(s):
+    """One dict per finger the browser lifted, with the client's events after it."""
+    rows = []
+    cur = None
+    stalls = []
+    for ev in s.timeline():
+        k = ev.get('k')
+        if k == 'stall' and isinstance(ev.get('d'), dict):
+            stalls.append(ev)
+            if cur is not None and cur['touch'] is None:
+                cur['stall'] = max(cur['stall'], ev['d'].get('ms') or 0)
+            continue
+        if k not in INPUT_KINDS:
+            continue
+        d = ev.get('d') if isinstance(ev.get('d'), dict) else {}
+        if k == 'touch_js':
+            cur = {'t': ev.get('t', 0), 'js': d, 'touch': None, 'clicks': [], 'menus': [], 'stall': 0}
+            rows.append(cur)
+            continue
+        if cur is None:
+            continue
+        if k == 'touch':
+            if cur['touch'] is None:
+                cur['touch'] = d
+            else:  # a second native lift for one browser lift: its own row
+                cur = {'t': ev.get('t', 0), 'js': {}, 'touch': d, 'clicks': [], 'menus': [], 'stall': 0}
+                rows.append(cur)
+        elif k == 'ui_click':
+            cur['clicks'].append(d)
+        elif k == 'menu_use':
+            cur['menus'].append(d)
+    return rows
+
+
+def touch_verdict(row):
+    js = row['js']
+    t = row['touch']
+    if js.get('target') not in (None, 'canvas'):
+        return ''  # a page button, not the game
+    if t is None:
+        return 'NO-CLIENT'
+    out = t.get('out')
+    if out == 'drag':
+        return 'DRAG' if (t.get('travel') or 0) <= 3 * (t.get('slop') or 12) else ''
+    if out == 'hold':
+        return 'HOLD' if not row['menus'] else ''
+    if out == 'multi':
+        return 'MULTI' if (js.get('fingers') or 0) == 0 else ''
+    hit = any(c.get('clicked', -1) >= 0 for c in row['clicks'])
+    return '' if (row['menus'] or hit) else 'NOTHING'
+
+
+def print_touch(s):
+    rows = touch_rows(s)
+    if not rows:
+        print('    (no touch breadcrumbs: page or client older than the touch telemetry)')
+        return
+    counts = defaultdict(int)
+    for row in rows:
+        v = touch_verdict(row)
+        t = row['touch'] or {}
+        js = row['js']
+        counts[t.get('out', 'none')] += 1
+        if v:
+            counts['flag:' + v] += 1
+        click = row['clicks'][-1] if row['clicks'] else None
+        menu = row['menus'][-1] if row['menus'] else None
+        parts = [f"{row['t'] / 1000:9.1f}s",
+                 f"{v or 'ok':9s}",
+                 f"js {js.get('ms', '?')}ms {js.get('travel', '?')}pt"
+                 f"{' CANCEL' if js.get('cancel') else ''} x{js.get('scale')}",
+                 (f"-> {t.get('out')}/{t.get('btn')} {t.get('ms')}ms travel {t.get('travel')}px"
+                  f"/slop {t.get('slop')} cross {t.get('cross_ms')}ms at {t.get('x')},{t.get('y')}")
+                 if t else '-> (client saw nothing)']
+        if click:
+            parts.append(f"click com=0x{(click.get('com') or 0) & 0xffffffff:08x} hit={click.get('clicked')}")
+        if menu:
+            parts.append(f"menu '{menu.get('text')}' a={menu.get('action')} r={menu.get('result')}")
+        if row['stall']:
+            parts.append(f"STALL {row['stall']}ms")
+        print('   ', '  '.join(parts))
+    print('    totals', ' '.join(f'{k}={v}' for k, v in sorted(counts.items())))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('paths', nargs='*', default=['logs/telemetry'])
     ap.add_argument('--sid', help='print this session (a prefix will do) in full')
     ap.add_argument('--ua', help='only sessions whose user agent contains this')
     ap.add_argument('--incidents', action='store_true', help='timeline before each incident')
+    ap.add_argument('--touch', action='store_true', help='one row per finger; lost taps marked')
     a = ap.parse_args()
 
     sessions = build(load(a.paths))
@@ -274,6 +373,8 @@ def main():
         return
     for s in rows:
         print(summary_line(s))
+        if a.touch:
+            print_touch(s)
         if a.incidents and (s.blocked or s.unclean or any(is_incident(ev) for ev in s.timeline())):
             print_timeline(s, around=True)
 

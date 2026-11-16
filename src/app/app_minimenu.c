@@ -7,6 +7,7 @@
  */
 
 #include "app/app_internal.h"
+#include "platform/platform_web_telemetry.h"
 
 /* Private to this unit, declared up front so definition order is free. */
 static bool
@@ -3529,6 +3530,71 @@ app_minimenu_run_option(
     }
 }
 
+/*
+ * The web black box's `menu_use`: which row a click ran (the page keeps it only
+ * on a touch device, after the `touch` and `ui_click` that led here). A tap that
+ * reached this line did something; one that stopped short of it is a tap the
+ * touch policy or the hit test lost. The row's text loses its colour tags and
+ * keeps printable ASCII only -- a name's U+00A0, a quote or a backslash would
+ * otherwise break the JSON the detail is meant to be.
+ */
+/* The row's text as the report carries it, copied BEFORE the row runs: running
+ * it can hide or rebuild the menu under the index. */
+static void
+app_minimenu_report_text(
+    struct UIMinimenu const* menu,
+    int option_index,
+    char* text,
+    int text_size)
+{
+    int len = 0;
+    int in_tag = 0;
+
+    assert(menu);
+    assert(text);
+    assert(text_size > 0);
+    if( option_index >= 0 && option_index < menu->option_count )
+    {
+        char const* src = menu->options[option_index].text;
+        for( int i = 0; src[i] && len < text_size - 1; i++ )
+        {
+            unsigned char const ch = (unsigned char)src[i];
+            if( ch == '<' )
+                in_tag = 1;
+            else if( ch == '>' )
+                in_tag = 0;
+            else if( !in_tag && ch >= 0x20 && ch < 0x7f && ch != '"' && ch != '\\' )
+                text[len++] = (char)ch;
+        }
+    }
+    text[len] = '\0';
+}
+
+static void
+app_minimenu_report_use(
+    char const* text,
+    int option_index,
+    int action,
+    int click_x,
+    int click_y,
+    int result)
+{
+#if defined(TORIRS_PLATFORM_WEB)
+    assert(text);
+    ToriPlatformWeb_Telemetry(
+        "menu_use",
+        "{\"i\":%d,\"action\":%d,\"text\":\"%s\",\"x\":%d,\"y\":%d,\"result\":%d}",
+        option_index, action, text, click_x, click_y, result);
+#else
+    (void)text;
+    (void)option_index;
+    (void)action;
+    (void)click_x;
+    (void)click_y;
+    (void)result;
+#endif
+}
+
 /* Execute one menu row, then apply the reference doAction tail
  * (Client.ts:9506): every executed row clears useMode/targetMode EXCEPT the two
  * arming rows (USEHELD_START / TGT_BUTTON), which return early. So any click
@@ -3546,11 +3612,14 @@ app_minimenu_use_option(
     struct UIMinimenu* menu = app->frame_view->minimenu;
     int action = -1;
     int result;
+    char report_text[64];
 
     if( option_index >= 0 && option_index < menu->option_count )
         action = UIMinimenu_ActionNormalize(menu->options[option_index].action);
 
+    app_minimenu_report_text(menu, option_index, report_text, (int)sizeof(report_text));
     result = app_minimenu_run_option(app, option_index, click_x, click_y);
+    app_minimenu_report_use(report_text, option_index, action, click_x, click_y, result);
 
     if( action != REVCONFIG_MINIMENU_OPHELDT_START && action != REVCONFIG_MINIMENU_TGT_BUTTON )
         app_selection_clear(app);
