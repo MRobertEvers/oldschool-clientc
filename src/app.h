@@ -2542,6 +2542,30 @@ struct App
     int ctrl_held;
     int hover_com_id;
     int clicked_com_id;
+    /**
+     * A finger's tap on the world that arrived before any frame had picked
+     * at its pixel, held until one has (app_frame.c, app_world_tap_*).
+     *
+     * A world click runs the default row of the menu built from the pickset
+     * the LAST rendered frame hittested. A mouse hovers for frames before it
+     * clicks, so that set is the pointer's. A finger has no hover: the set is
+     * reset when it lifts, and a tap whose down and up land in one frame
+     * arrives with an empty set -- "Walk here" to nowhere, no packet, no
+     * cross. The iPad lost the first tap after every login that way
+     * (2026-11-16, black box `world_click` pick n=0 stamp=none): frames are
+     * slow while a swapped-in world bakes, so a quick tap fit in one.
+     *
+     * While `active` the pointer is kept present at (x, y) so the next frame
+     * picks there; the click runs once the set is stamped at (x, y), or after
+     * APP_WORLD_TAP_WAIT_FRAMES on whatever the set holds then.
+     */
+    struct
+    {
+        int active;
+        int x;
+        int y;
+        int frames;
+    } world_tap_pending;
     int need_redraw;
 
     /* Async lifecycle state (no blocking IO outside the platform pump). */

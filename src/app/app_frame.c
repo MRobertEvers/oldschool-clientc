@@ -704,13 +704,16 @@ App_PumpAsync(
  *   stamp                         1 when the set answers a pixel, and which
  *   in_view, absent               the pointer latch the pick was armed from
  *   fallback                      the off-map ground tile was used
+ *   held                          frames a finger's tap waited for its pick
+ *                                 (App.world_tap_pending); 0 = ran at once
  */
 static void
 app_world_click_report(
     struct App const* app,
     int click_x,
     int click_y,
-    struct RS_MinimenuBuildCtx const* mctx)
+    struct RS_MinimenuBuildCtx const* mctx,
+    int held_frames)
 {
     struct World_PickSet const* set;
     int terrain = 0;
@@ -732,7 +735,8 @@ app_world_click_report(
     ToriPlatformWeb_Telemetry(
         "world_click",
         "{\"x\":%d,\"y\":%d,\"picks\":%d,\"terrain\":%d,\"scenery\":%d,\"actors\":%d,"
-        "\"stamp\":%d,\"sx\":%d,\"sy\":%d,\"in_view\":%d,\"absent\":%d,\"fallback\":%d}",
+        "\"stamp\":%d,\"sx\":%d,\"sy\":%d,\"in_view\":%d,\"absent\":%d,\"fallback\":%d,"
+        "\"held\":%d}",
         click_x,
         click_y,
         set->count,
@@ -744,7 +748,109 @@ app_world_click_report(
         set->mouse_y,
         app->frame_view->world_mouse_in_viewport ? 1 : 0,
         app->frame_view->pointer_absent ? 1 : 0,
-        mctx->ground_fallback_valid ? 1 : 0);
+        mctx->ground_fallback_valid ? 1 : 0,
+        held_frames);
+}
+
+/* Frames a finger's world tap waits for a pick at its pixel before it runs on
+ * whatever the set holds (App.world_tap_pending). One drawn frame is enough;
+ * the rest covers a frame that built no world (a skipped draw) without holding
+ * a tap visibly late. */
+#define APP_WORLD_TAP_WAIT_FRAMES 4
+
+/*
+ * A left click over bare world (no UI component hit): run the default menu
+ * entry from world rows only -- Walk here / nearest entity op (reference
+ * chooseDefaultMenuEntry over the last rendered frame's pickset). Returns 1
+ * when a clientscript ran. `held_frames` is how long a finger's tap waited for
+ * the pick (App.world_tap_pending), 0 for every other click.
+ */
+static int
+app_world_left_click(
+    struct App* app,
+    int x,
+    int y,
+    int held_frames)
+{
+    int ran_cs2 = 0;
+
+    assert(app);
+    struct RS_MinimenuBuildCtx mctx = {
+        .tree = app->tree,
+        .ui_host = &app->ui_host,
+        .provider = app->provider,
+        .runner = &app->frame_runner,
+        .invs = &app->invs,
+        .chat = &app->chat_source,
+        .events_for_component = app_minimenu_events_for_component,
+        .events_user = app,
+        .player_ops = (char const(*)[40])app->player_ops,
+        .player_ops_primary = app->player_ops_primary,
+        .player_attack_option = app->player_attack_option,
+        .npc_attack_option = app->npc_attack_option,
+        .attack_option_model = app->features->attack_option_model,
+        .world = app->world,
+        .world_pickset = &app->frame_view->world_pickset,
+        .click_in_world = true,
+        /* Honour an armed "Use"/spell selection so a left-click on a world
+         * target casts/uses (the TGT and USEHELD_ON rows) instead of
+         * falling back to the target's default op. Without this a left-click
+         * on an NPC with a spell armed built the plain ops and defaulted to
+         * Attack (walk-to-melee "run up"), while the right-click menu cast. */
+        .selection = app_minimenu_selection(app),
+        .locedit_active = app->locedit.visible != 0,
+        .mapedit_select_active = app_mapedit_select_active(app),
+        .plugin_io_down = app_plugin_io_down(app) != 0,
+        .wevs = &app->wevs,
+        .view_world_fn = app_minimenu_view_world,
+        .view_world_user = app,
+    };
+    struct UIMinimenu scratch;
+    int default_idx;
+
+    UIMinimenu_Reset(&scratch);
+    scratch.font_id = app->frame_view->minimenu->font_id;
+    app_minimenu_ctx_ground_fallback(app, &mctx, x, y);
+    app_sailing_menu_context(app, &mctx, x, y);
+    RS_Minimenu_Build(&mctx, x, y, &scratch);
+    app_minimenu_apply_modes(app, &scratch, 0);
+    app_minimenu_stamp_node_identities(app, &scratch);
+    app_plugin_menu_build(app, &scratch, 0);
+    default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
+    app_world_click_report(app, x, y, &mctx, held_frames);
+    if( default_idx >= 0 )
+    {
+        struct UIMinimenu saved = *app->frame_view->minimenu;
+        *app->frame_view->minimenu = scratch;
+        if( app_minimenu_use_option(
+                app, default_idx, x, y) )
+            ran_cs2 = 1;
+        *app->frame_view->minimenu = saved;
+    }
+    else if( app->objsel.active || app->targetsel.active )
+    {
+        /* A world click with a use/spell mode armed but no valid target:
+         * "Walk here" is suppressed while armed (rs_minimenu_world.c), so
+         * the scratch menu is Cancel-only and default_idx < 0 — nothing
+         * ran. The reference still runs doAction on that Cancel row, whose
+         * tail (Client.ts:9506) clears useMode/targetMode. Without this the
+         * selection stays armed forever: Walk here never returns, so every
+         * later world click is also inert and the world reads as
+         * "unclickable". Drop the armed selection and its white outline. */
+        app_selection_clear(app);
+    }
+    return ran_cs2;
+}
+
+/* Has the pickset the menu reads been hittested at exactly this pixel? */
+static int
+app_world_pick_answers(struct App const* app, int x, int y)
+{
+    struct World_PickSet const* set;
+
+    assert(app);
+    set = &app->frame_view->world_pickset;
+    return set->mouse_valid && set->mouse_x == x && set->mouse_y == y;
 }
 
 static int
@@ -1382,12 +1488,18 @@ app_run_once_body(
     }
     else
     {
-        app->frame_view->pointer_absent = input->mouse_pointer_absent;
+        /* A held world tap keeps the finger "present" where it landed until a
+         * frame has picked there: the lift's leave would otherwise reset the
+         * set the tap is waiting on (App.world_tap_pending). */
+        int const tap_held = app->world_tap_pending.active;
+        int const pointer_x = tap_held ? app->world_tap_pending.x : input->curr.mouse_x;
+        int const pointer_y = tap_held ? app->world_tap_pending.y : input->curr.mouse_y;
+
+        app->frame_view->pointer_absent = input->mouse_pointer_absent && !tap_held;
         app->frame_view->world_mouse_in_viewport =
-            !app->frame_view->pointer_absent &&
-            app_world_mouse_gate(app, input->curr.mouse_x, input->curr.mouse_y);
-        app->frame_view->world_mouse_x = input->curr.mouse_x;
-        app->frame_view->world_mouse_y = input->curr.mouse_y;
+            !app->frame_view->pointer_absent && app_world_mouse_gate(app, pointer_x, pointer_y);
+        app->frame_view->world_mouse_x = pointer_x;
+        app->frame_view->world_mouse_y = pointer_y;
         if( !app->frame_view->world_mouse_in_viewport )
         {
             app->frame_view->world_hover_tile_x = -1;
@@ -1644,74 +1756,54 @@ app_run_once_body(
                 : -1,
             app_world_drawable(app),
             app->frame_view->world_pickset.count);
-    if( app->inv_drag.component_id < 0 && out.left_click_miss && !out.minimenu_closed &&
-        out.minimenu_select < 0 &&
-        app_world_mouse_gate(app, out.left_click_miss_x, out.left_click_miss_y) &&
-        app_world_drawable(app) )
     {
-        struct RS_MinimenuBuildCtx mctx = {
-            .tree = app->tree,
-            .ui_host = &app->ui_host,
-            .provider = app->provider,
-            .runner = &app->frame_runner,
-            .invs = &app->invs,
-            .chat = &app->chat_source,
-            .events_for_component = app_minimenu_events_for_component,
-            .events_user = app,
-            .player_ops = (char const(*)[40])app->player_ops,
-            .player_ops_primary = app->player_ops_primary,
-            .player_attack_option = app->player_attack_option,
-            .npc_attack_option = app->npc_attack_option,
-            .attack_option_model = app->features->attack_option_model,
-            .world = app->world,
-            .world_pickset = &app->frame_view->world_pickset,
-            .click_in_world = true,
-            /* Honour an armed "Use"/spell selection so a left-click on a world
-             * target casts/uses (the TGT and USEHELD_ON rows) instead of
-             * falling back to the target's default op. Without this a left-click
-             * on an NPC with a spell armed built the plain ops and defaulted to
-             * Attack (walk-to-melee "run up"), while the right-click menu cast. */
-            .selection = app_minimenu_selection(app),
-            .locedit_active = app->locedit.visible != 0,
-            .mapedit_select_active = app_mapedit_select_active(app),
-            .plugin_io_down = app_plugin_io_down(app) != 0,
-            .wevs = &app->wevs,
-            .view_world_fn = app_minimenu_view_world,
-            .view_world_user = app,
-        };
-        struct UIMinimenu scratch;
-        int default_idx;
+        int const world_click =
+            app->inv_drag.component_id < 0 && out.left_click_miss && !out.minimenu_closed &&
+            out.minimenu_select < 0 &&
+            app_world_mouse_gate(app, out.left_click_miss_x, out.left_click_miss_y) &&
+            app_world_drawable(app);
 
-        UIMinimenu_Reset(&scratch);
-        scratch.font_id = app->frame_view->minimenu->font_id;
-        app_minimenu_ctx_ground_fallback(app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
-        app_sailing_menu_context(app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
-        RS_Minimenu_Build(&mctx, out.left_click_miss_x, out.left_click_miss_y, &scratch);
-        app_minimenu_apply_modes(app, &scratch, 0);
-        app_minimenu_stamp_node_identities(app, &scratch);
-        app_plugin_menu_build(app, &scratch, 0);
-        default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
-        app_world_click_report(app, out.left_click_miss_x, out.left_click_miss_y, &mctx);
-        if( default_idx >= 0 )
+        if( world_click )
         {
-            struct UIMinimenu saved = *app->frame_view->minimenu;
-            *app->frame_view->minimenu = scratch;
-            if( app_minimenu_use_option(
-                    app, default_idx, out.left_click_miss_x, out.left_click_miss_y) )
+            /* A new click replaces a held one: the finger has moved on. */
+            app->world_tap_pending.active = 0;
+            /* A finger's tap the pick has not reached yet waits for it
+             * (App.world_tap_pending). A mouse never does: it hovered its
+             * click's pixel for frames, and the reference clicks on the last
+             * frame's set whatever it holds. */
+            if( input->last_touch &&
+                !app_world_pick_answers(app, out.left_click_miss_x, out.left_click_miss_y) )
+            {
+                app->world_tap_pending.active = 1;
+                app->world_tap_pending.x = out.left_click_miss_x;
+                app->world_tap_pending.y = out.left_click_miss_y;
+                app->world_tap_pending.frames = 0;
+                app->need_redraw = 1;
+            }
+            else if( app_world_left_click(app, out.left_click_miss_x, out.left_click_miss_y, 0) )
                 ran_cs2 = 1;
-            *app->frame_view->minimenu = saved;
         }
-        else if( app->objsel.active || app->targetsel.active )
+        else if( app->world_tap_pending.active )
         {
-            /* A world click with a use/spell mode armed but no valid target:
-             * "Walk here" is suppressed while armed (rs_minimenu_world.c), so
-             * the scratch menu is Cancel-only and default_idx < 0 — nothing
-             * ran. The reference still runs doAction on that Cancel row, whose
-             * tail (Client.ts:9506) clears useMode/targetMode. Without this the
-             * selection stays armed forever: Walk here never returns, so every
-             * later world click is also inert and the world reads as
-             * "unclickable". Drop the armed selection and its white outline. */
-            app_selection_clear(app);
+            int const tap_x = app->world_tap_pending.x;
+            int const tap_y = app->world_tap_pending.y;
+
+            app->world_tap_pending.frames++;
+            if( app_world_pick_answers(app, tap_x, tap_y) ||
+                app->world_tap_pending.frames >= APP_WORLD_TAP_WAIT_FRAMES )
+            {
+                app->world_tap_pending.active = 0;
+                /* Still a click the world takes: a menu or a drag that began
+                 * since, or the viewport gone, drops it as it would a fresh
+                 * one. */
+                if( app->inv_drag.component_id < 0 && !out.minimenu_closed &&
+                    out.minimenu_select < 0 && app_world_mouse_gate(app, tap_x, tap_y) &&
+                    app_world_drawable(app) &&
+                    app_world_left_click(app, tap_x, tap_y, app->world_tap_pending.frames) )
+                    ran_cs2 = 1;
+            }
+            else
+                app->need_redraw = 1;
         }
     }
 
