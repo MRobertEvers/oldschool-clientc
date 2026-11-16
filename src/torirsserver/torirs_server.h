@@ -535,8 +535,11 @@ enum
      *
      * Raised 3072 -> 3200 when the world grave (player/configs/gravestone.varp,
      * 9472..9474) followed the Colosseum's 9454..9471 to the old ceiling.
+     *
+     * Raised 3200 -> 3328 when Forestry's tree timer
+     * (skill_woodcutting/configs/tree_timer.varp, 9599..9601) reached it.
      */
-    TORIRSSERVER_VARP_SERVER_HEADROOM = 3200,
+    TORIRSSERVER_VARP_SERVER_HEADROOM = 3328,
     TORIRSSERVER_VARP_COUNT = TORIRSSERVER_VARP_CACHE_MAX + TORIRSSERVER_VARP_SERVER_HEADROOM,
     /*
      * World-shared variables — `%name` resolving to SSC_SYM_VARS, one value per

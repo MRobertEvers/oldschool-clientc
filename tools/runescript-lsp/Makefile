@@ -50,7 +50,9 @@ TS_CONFIG := $(ROOT)/tools/tree-sitter-runeconfig/src/parser.c
 ENGINE_SRC := $(ROOT)/src/serverscript/ss_meta.c \
               $(ROOT)/3rd/rscache/src/cs2/cs2_command.c \
               $(ROOT)/3rd/rscache/src/cs2/cs2_types.c \
-              $(ROOT)/3rd/rscache/src/cs2/cs2_support.c
+              $(ROOT)/3rd/rscache/src/cs2/cs2_support.c \
+              $(ROOT)/3rd/rscache/src/rscache_alloc.c \
+              $(ROOT)/3rd/rscache/src/rscache_profile.c
 
 OWN_SRC := $(SRC_DIR)/server.c $(SRC_DIR)/index.c $(SRC_DIR)/doc.c \
            $(SRC_DIR)/json.c $(SRC_DIR)/util.c $(SRC_DIR)/platform.c
@@ -58,7 +60,7 @@ OWN_SRC := $(SRC_DIR)/server.c $(SRC_DIR)/index.c $(SRC_DIR)/doc.c \
 OBJS := $(OBJ_DIR)/lib.o $(OBJ_DIR)/parser_runescript.o $(OBJ_DIR)/parser_runeconfig.o \
         $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(OWN_SRC)) \
         $(OBJ_DIR)/ss_meta.o $(OBJ_DIR)/cs2_command.o $(OBJ_DIR)/cs2_types.o \
-        $(OBJ_DIR)/cs2_support.o
+        $(OBJ_DIR)/cs2_support.o $(OBJ_DIR)/rscache_alloc.o $(OBJ_DIR)/rscache_profile.o
 
 .PHONY: all clean test grammars command-docs install
 
@@ -99,6 +101,16 @@ $(OBJ_DIR)/cs2_types.o: $(ROOT)/3rd/rscache/src/cs2/cs2_types.c | $(OBJ_DIR)
 
 # cs2_types.c formats a script name through the library's arena allocator.
 $(OBJ_DIR)/cs2_support.o: $(ROOT)/3rd/rscache/src/cs2/cs2_support.c | $(OBJ_DIR)
+	$(CC) -std=c11 $(CFLAGS_OPT) -MMD -MP -I$(ROOT)/3rd/rscache/src -I$(ROOT)/3rd/rscache/include \
+	      -c $< -o $@
+
+# cs2_support.c allocates through g_rscache_allocator, and cs2_command.c asks
+# RSCache_RevisionAtLeastOsrs which era a command profile applies to.
+$(OBJ_DIR)/rscache_alloc.o: $(ROOT)/3rd/rscache/src/rscache_alloc.c | $(OBJ_DIR)
+	$(CC) -std=c11 $(CFLAGS_OPT) -MMD -MP -I$(ROOT)/3rd/rscache/src -I$(ROOT)/3rd/rscache/include \
+	      -c $< -o $@
+
+$(OBJ_DIR)/rscache_profile.o: $(ROOT)/3rd/rscache/src/rscache_profile.c | $(OBJ_DIR)
 	$(CC) -std=c11 $(CFLAGS_OPT) -MMD -MP -I$(ROOT)/3rd/rscache/src -I$(ROOT)/3rd/rscache/include \
 	      -c $< -o $@
 

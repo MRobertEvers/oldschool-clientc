@@ -45,7 +45,9 @@ add_library(runescript_engine_tables STATIC
     "${REPO_ROOT}/src/serverscript/ss_meta.c"
     "${REPO_ROOT}/3rd/rscache/src/cs2/cs2_command.c"
     "${REPO_ROOT}/3rd/rscache/src/cs2/cs2_types.c"
-    "${REPO_ROOT}/3rd/rscache/src/cs2/cs2_support.c")
+    "${REPO_ROOT}/3rd/rscache/src/cs2/cs2_support.c"
+    "${REPO_ROOT}/3rd/rscache/src/rscache_alloc.c"
+    "${REPO_ROOT}/3rd/rscache/src/rscache_profile.c")
 target_include_directories(runescript_engine_tables PUBLIC
     "${REPO_ROOT}/src"
     "${REPO_ROOT}/3rd/rscache/src"
