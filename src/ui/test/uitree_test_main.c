@@ -107,6 +107,7 @@ main(void)
     test_same_frame_press_release_clicks();
     test_owned_control_click_reports_node();
     test_touch_swipe_scrolls_layer();
+    test_touch_drag_on_draggable_does_not_swipe();
     test_feedback_overlay_never_takes_a_click();
     test_minimenu();
     test_id_index();

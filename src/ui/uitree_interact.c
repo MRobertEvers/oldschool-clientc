@@ -578,9 +578,11 @@ touch_scroll_debug(void)
  * when the finger has already travelled past its slop (a drag), and a tap
  * as press-and-release in one frame, which IsClick tells apart. The layer
  * is the nearest scrollable ancestor of whatever is under the finger --
- * an item, a row, or the layer's own blank space -- so a list scrolls from
- * anywhere inside it, which is what a phone expects. A layer that does not
- * need to scroll claims nothing, so an inventory slot still drags.
+ * a row, or the layer's own blank space -- so a list scrolls from anywhere
+ * inside it, which is what a phone expects. A layer that does not need to
+ * scroll claims nothing, and neither does a press on something draggable
+ * (touch_press_is_drag): a bank item drags, and the bank scrolls under it
+ * only at its edges, by its own onDrag script.
  */
 /*
  * The layer a swipe scrolls: the innermost one that can scroll vertically and
@@ -668,10 +670,48 @@ interact_cancel_hidden_touch_capture(
     interact->ts_press_cancelled = 1;
 }
 
+/*
+ * A finger that lands on something that can be picked up is dragging THAT,
+ * not swiping the list it sits in.
+ *
+ * The reference client has no swipe; a list moves under a dragged object only
+ * because the interface asks it to. The dragged component is clamped to its
+ * drag parent and never scrolls anything itself (class163.method5491 /
+ * class415's drag update against class549's parent box), and the bank's edge
+ * scroll is CS2: bankmain_drawitem hangs `cc_setondrag(bankmain_dragscroll)`
+ * on every item, and that handler scrolls only while the pointer is within
+ * 15 px of the list's top or 20 px of its bottom. Claiming the press here took
+ * it from the drag path, so in a scrollable bank an item could not be picked
+ * up at all -- every attempt moved the bank instead.
+ *
+ * Asked of the interactive hit, the same question and the same node the drag
+ * path's press asks (UITree_InputUpdate's UI_INPUT_DOWN), so the two cannot
+ * disagree about who owns the finger.
+ */
+static int
+touch_press_is_drag(
+    struct UITree const* tree,
+    struct UITreeHost const* ui_host,
+    int x,
+    int y)
+{
+    int32_t hit;
+
+    assert(tree);
+    assert(ui_host);
+    if( tree->anti_drag )
+        return 0;
+    hit = UITree_HitTestInteractive(tree, ui_host, x, y);
+    if( hit < 0 || (uint32_t)hit >= tree->component_count )
+        return 0;
+    return UITree_ComponentIsDraggable(&tree->components[hit]);
+}
+
 static int
 interact_touch_scroll(
     struct UIInteraction* interact,
     struct UITree* tree,
+    struct UITreeHost const* ui_host,
     struct LibToriRS_Input* input,
     struct UIInteractOut* out)
 {
@@ -709,7 +749,13 @@ interact_touch_scroll(
     if( LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) &&
         !LibToriRS_Input_IsClick(input, TORIRSM_LEFT) )
     {
-        int32_t node = touch_scroll_layer_at(tree, mx, my);
+        int32_t node = touch_press_is_drag(tree, ui_host, mx, my)
+                           ? -1
+                           : touch_scroll_layer_at(tree, mx, my);
+        if( touch_scroll_debug() && node < 0 )
+            TORIRS_REPORT("swipe:   not claimed (%s)\n",
+                touch_press_is_drag(tree, ui_host, mx, my) ? "draggable under the finger"
+                                                            : "no scrollable layer");
         interact->ts_layer = node;
         if( node >= 0 )
         {
@@ -2048,7 +2094,7 @@ UITree_InteractFrameWithPointerOwner(
 
     sb_owns_mouse = interact_scrollbars(interact, tree, ui_host, input, out);
     if( !sb_owns_mouse )
-        sb_owns_mouse = interact_touch_scroll(interact, tree, input, out);
+        sb_owns_mouse = interact_touch_scroll(interact, tree, ui_host, input, out);
 
     /* While a scrollbar (or a swiping finger) owns the mouse, keep the generic
      * hover/click/drag path from seeing this press at all. */

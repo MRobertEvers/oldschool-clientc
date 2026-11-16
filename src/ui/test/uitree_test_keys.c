@@ -520,6 +520,98 @@ test_touch_swipe_scrolls_layer(void)
 }
 
 /*
+ * A held finger on something draggable inside a scrollable layer drags it;
+ * the layer does not move.
+ *
+ * The bank: every item is draggable and sits in a list taller than its box,
+ * and the swipe took every press in that list -- so an item could not be
+ * picked up by touch, and the bank slid under the finger instead. In the
+ * reference a dragged object never scrolls its list; the bank's own onDrag
+ * (bankmain_dragscroll) scrolls it when the pointer is held at the list's
+ * edge. So the press goes to the drag path and onDrag fires, with the list
+ * where it was. A press beside the slot, on the list's blank space, still
+ * swipes.
+ */
+void
+test_touch_drag_on_draggable_does_not_swipe(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct TestHostState hstate;
+    struct UITreeHost host;
+    struct UIInteraction interact;
+    struct LibToriRS_Input input_storage;
+    struct LibToriRS_Input* input;
+    struct UIInteractOut out;
+    int32_t list;
+    int32_t slot;
+    int found;
+
+    printf("TEST: a held finger on a draggable slot drags it, not its list\n");
+
+    UITree_TestHostInit(&host, &hstate);
+    UIInteraction_Init(&interact);
+    interact.touch_scroll = 1;
+    list = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 10, 0, 0, 200, 100);
+    slot = UITree_TestPushXy(tree, list, UIELEM_RS_RECT, 11, 0, 20, 36, 32);
+    set_on_op(tree, slot, 200);
+    tree->components[slot].behavior.click_mask = 1u;
+    tree->components[slot].draggable = 1;
+    tree->components[slot].drag_dead_zone = 0;
+    tree->components[slot].drag_dead_time = 0;
+    UITree_HooksMut(&tree->components[slot])->on_drag.script_id = 284;
+    UITree_SyncHookMembership(tree, slot);
+    UITree_TestResolve(tree);
+    TEST_ASSERT(UITree_SetScrollSizeAt(tree, list, 200, 400), "the list is taller than its box");
+    TEST_ASSERT(UITree_ScrollLayerNeedsVertical(&tree->components[list]), "and so needs scrolling");
+    input = LibToriRS_Input_Init(&input_storage, 0);
+
+    /* The finger lands on the slot and is held (the touch layer's drag press). */
+    LibToriRS_Input_Begin(input, 1000);
+    LibToriRS_Input_PushMouseMove(input, 18, 36);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 18, 36);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(interact.ts_layer < 0, "the list does not take a press on a draggable");
+    TEST_ASSERT(interact.input_state.drag_source_idx == slot, "the slot is armed to drag");
+
+    /* It travels 40 px up the screen: the slot is dragged, the list stays. */
+    LibToriRS_Input_Begin(input, 1050);
+    LibToriRS_Input_PushMouseMove(input, 18, -4);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(interact.input_state.drag_active, "the slot is being dragged");
+    TEST_ASSERT(tree->components[list].scroll_y == 0, "the list did not scroll under it");
+    found = 0;
+    for( int i = 0; i < out.intent_count; i++ )
+        if( out.intents[i].component_id == 11 && out.intents[i].hook &&
+            out.intents[i].hook->script_id == 284 )
+            found = 1;
+    TEST_ASSERT(found, "the slot's onDrag ran (that is what scrolls at the edge)");
+
+    LibToriRS_Input_Begin(input, 1100);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 18, -4);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(!interact.input_state.drag_active, "the drop ends the drag");
+
+    /* Beside the slot -- the list's blank space -- a held finger still swipes. */
+    LibToriRS_Input_Begin(input, 1200);
+    LibToriRS_Input_PushMouseLeave(input);
+    run_frame(&interact, tree, &host, input, &out);
+    LibToriRS_Input_Begin(input, 1300);
+    LibToriRS_Input_PushMouseMove(input, 150, 60);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 150, 60);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(interact.ts_layer == list, "the blank space beside it still swipes the list");
+    LibToriRS_Input_Begin(input, 1350);
+    LibToriRS_Input_PushMouseMove(input, 150, 30);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(tree->components[list].scroll_y == 30, "and the list follows the finger");
+    LibToriRS_Input_Begin(input, 1400);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 150, 30);
+    run_frame(&interact, tree, &host, input, &out);
+
+    UITree_Free(tree);
+}
+
+/*
  * Feedback overlays never take a click.
  *
  * The touch marker ("inkwell") is a 64x64 late root sibling parked at the
