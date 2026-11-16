@@ -398,6 +398,7 @@ else ifeq ($(PLATFORM),web)
   # with no server the database answers, with an empty database the server does.
   PLATFORM_OBJ_BASE := build_web
   PLATFORM_SRCS     := platform/platform_web_api.c \
+                       platform/platform_web_telemetry.c \
                        platform/platform_audio_wasm.c \
                        platform/platform_gl_context_sdl.c \
                        platform/platform_web_renderer_webgl1_core.c \

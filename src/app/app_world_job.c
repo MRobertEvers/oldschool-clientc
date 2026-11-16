@@ -32,6 +32,7 @@
 #include "features/features.h"
 #include "game/content_test.h"
 #include "mem/torirs_mem.h"
+#include "platform/platform_web_telemetry.h"
 
 extern uint64_t
 PlatformWindow_TicksUs(void);
@@ -697,6 +698,17 @@ app_world_job_stage_begin(struct App* app)
 
     /* The new scene will be about the size of the one it replaces. */
     estimate = ToriDraw_ScenePoolCount(app->scene, TORIDRAW_SCENE_POOL_STATIC);
+    ToriPlatformWeb_Telemetry(
+        "world_job_stage",
+        "{\"zone_x\":%d,\"zone_z\":%d,\"live_elements\":%d,\"estimate\":%d,\"crowded\":%d}",
+        job->zone_x,
+        job->zone_z,
+        ToriDraw_SceneElementLiveCount(app->scene),
+        estimate,
+        ToriDraw_SceneElementLiveCount(app->scene) + estimate + app_world_stage_headroom() >
+                TORIDRAW_SCENE_MAX_ELEMENTS
+            ? 1
+            : 0);
     if( ToriDraw_SceneElementLiveCount(app->scene) + estimate + app_world_stage_headroom() >
         TORIDRAW_SCENE_MAX_ELEMENTS )
     {
@@ -916,6 +928,12 @@ app_world_job_commit(struct App* app)
     job->gather = NULL;
     root = WorldviewRegistry_Get(&app->worldviews, WORLDVIEW_ROOT);
     swapped = !job->stage_crowded;
+    ToriPlatformWeb_Telemetry(
+        "world_job_commit",
+        "{\"zone_x\":%d,\"zone_z\":%d,\"swapped\":%d}",
+        job->zone_x,
+        job->zone_z,
+        swapped ? 1 : 0);
     assert(!swapped || (job->stage_builder && !WorldBuilder_BuildActive(job->stage_builder)));
 
     /* The plugins' copy of the grid goes with the scene it describes, so a
@@ -1125,6 +1143,13 @@ App_WorldJobCancel(
     job = &app->world_job;
     if( !job->pending )
         return;
+    ToriPlatformWeb_Telemetry(
+        "world_job_cancel",
+        "{\"why\":\"%s\",\"phase\":%d,\"zone_x\":%d,\"zone_z\":%d}",
+        why,
+        (int)job->phase,
+        job->zone_x,
+        job->zone_z);
     if( !ToriRS_TaskJob_Done(&job->job) )
     {
         if( job->phase == APP_WORLD_JOB_GATHER )

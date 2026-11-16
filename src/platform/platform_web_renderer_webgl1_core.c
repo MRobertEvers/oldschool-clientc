@@ -25,6 +25,7 @@
 
 #include "es2/es2_core.h"
 #include "platform/platform_web_renderer_webgl1_placement.h"
+#include "platform/platform_web_telemetry.h"
 
 #include "engine/boot_bar.h"
 #include "log/torirs_log.h"
@@ -1598,7 +1599,19 @@ es2_ensure_static_batch_vbo(
      * slice at a time over the frames after it arrives. */
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)byte_capacity, NULL, GL_DYNAMIC_DRAW);
     if( !es2_check_error("static batch page buffer") )
+    {
+        ToriPlatformWeb_Telemetry(
+            "gpu_world_alloc",
+            "{\"renderer\":\"webgl1\",\"ok\":0,\"bytes\":%llu,\"pages\":%u}",
+            (unsigned long long)byte_capacity,
+            capacity);
         return false;
+    }
+    ToriPlatformWeb_Telemetry(
+        "gpu_world_alloc",
+        "{\"renderer\":\"webgl1\",\"ok\":1,\"bytes\":%llu,\"pages\":%u}",
+        (unsigned long long)byte_capacity,
+        capacity);
     batch->gpu_page_capacity = capacity;
     *out_recreated = true;
     return true;
@@ -1903,6 +1916,12 @@ es2_batch_end(struct TRSPK_Renderer_ES2* renderer, const struct ToriRS_RenderCom
     es2_world_sides_sync(renderer);
     es2_static_primary_rebuild(renderer);
     renderer->static_primary_partial = world->unbaked > 0u;
+    ToriPlatformWeb_Telemetry(
+        "gpu_world_end",
+        "{\"renderer\":\"webgl1\",\"records\":%u,\"vertices\":%llu,\"bytes\":%llu}",
+        world->record_count,
+        (unsigned long long)world->record_vertices,
+        (unsigned long long)world->record_vertices * sizeof(struct TRSPK_VertexGLES2));
     if( renderer->rebuild_log )
         es2_report_line(
             "es2_world: end id=%d records=%u vertices=%llu (baked on draw and in the prefill)",
@@ -1979,6 +1998,12 @@ es2_world_swap(
     renderer->static_batch_upload_pending = true;
     es2_static_primary_rebuild(renderer);
     renderer->static_primary_partial = renderer->build.world.unbaked > 0u;
+    ToriPlatformWeb_Telemetry(
+        "gpu_world_swap",
+        "{\"renderer\":\"webgl1\",\"records\":%u,\"unbaked\":%u,\"vertices\":%llu}",
+        renderer->build.world.record_count,
+        renderer->build.world.unbaked,
+        (unsigned long long)renderer->build.world.record_vertices);
     if( renderer->rebuild_log )
         es2_report_line(
             "es2_world: swap id=%d records=%u unbaked=%u prepared_said=%d track_poses_baked=%llu",

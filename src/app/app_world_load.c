@@ -10,6 +10,7 @@
 #include "mem/torimem_toridraw.h"
 #include "app/app_internal.h"
 #include "boot_telemetry.h"
+#include "platform/platform_web_telemetry.h"
 
 struct WevDeckBox;
 
@@ -437,6 +438,11 @@ App_WorldLoadFinish(struct App* app)
         tf[0] = WorldBuilder_TimingNowMs();
     app->world_load_inflight = 0;
     ToriRS_BootTelemetry_Mark("world_loaded");
+    ToriPlatformWeb_Telemetry(
+        "world_load_finish",
+        "{\"complete\":%d,\"server_driven\":%d}",
+        app->world->load_complete ? 1 : 0,
+        app->world_load_server_driven ? 1 : 0);
 
     if( app->world->load_complete )
     {

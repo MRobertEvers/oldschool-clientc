@@ -11,6 +11,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>ToriRS (web)</title>
+<!-- The black box goes first: it has to see the first WebGL context and the
+     first error, and it reports a tab the OS killed on the next load. -->
+<script src="torirs_telemetry.js"></script>
 <script>
 /*
  * Is this a phone or a tablet? Read once, before anything else, because the

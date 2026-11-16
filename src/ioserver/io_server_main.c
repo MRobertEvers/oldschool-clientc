@@ -17,6 +17,9 @@
  *                     one raw dat1 container, proxied off a LostCity server
  *   POST /cache/dat1/batch[?manifest=<path>]
  *                     several of those in one request, pipelined on the socket
+ *   POST /telemetry   one report from the page's black box
+ *                     (src/web/torirs_telemetry.js), appended as a line to
+ *                     <--telemetry-dir>/<UTC date>.jsonl
  *   GET  /status      what this process is serving, as a page
  *   GET  /stats       the same counters, one line, for scripts
  *   GET  /...          a file under --root (default build-web/), "/" -> index.html
@@ -77,6 +80,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+#endif
 #include <time.h>
 
 #define IO_SERVER_DEFAULT_PORT 8088
@@ -203,6 +209,11 @@ struct IoServer
      * signed in (io_gate.h). Off for every local run. */
     int gate_on;
     struct IoGate gate;
+
+    /* `--telemetry-dir`: where POST /telemetry appends (handle_telemetry). */
+    char telemetry_dir[512];
+    long telemetry_reports;
+    long telemetry_refused;
 };
 
 /* Resolve a client-named cache directory under the server's root. The name
@@ -1576,8 +1587,8 @@ render_error_page(
         { 400, "The server could not parse that request." },
         { 404, "No such path on this server." },
         { 405, "That method is not allowed on this path. This server answers "
-               "GET, HEAD and OPTIONS everywhere, and POST at /io and "
-               "/cache/dat1/batch." },
+               "GET, HEAD and OPTIONS everywhere, and POST at /io, "
+               "/cache/dat1/batch and /telemetry." },
         { 500, "The server failed while answering that." },
         { 503, "This server has no LostCity connection, so cache reads that "
                "need one cannot be answered." },
@@ -1672,6 +1683,137 @@ io_server_handler(
 
 #include "io_maped_proxy.c"
 
+/* -------------------------------------------------------------- telemetry */
+
+/* A report is a ring of a few hundred small events; anything near this is
+ * not one. */
+#define IO_TELEMETRY_MAX_BODY (512 * 1024)
+/* One day's file stops growing here: a page stuck in a loop of reports must
+ * not fill the disk the saves live on. */
+#define IO_TELEMETRY_MAX_FILE (256L * 1024L * 1024L)
+
+/* Make `path` and every directory above it; an existing one is fine. */
+static int
+telemetry_mkdirs(char const* path)
+{
+    char partial[512];
+    size_t len;
+
+    assert(path);
+    len = strlen(path);
+    if( len == 0 || len >= sizeof(partial) )
+        return -1;
+    memcpy(partial, path, len + 1);
+    for( size_t i = 1; i <= len; i++ )
+    {
+        if( partial[i] != '/' && partial[i] != '\0' )
+            continue;
+        char const saved = partial[i];
+        partial[i] = '\0';
+#ifdef _WIN32
+        (void)_mkdir(partial);
+#else
+        (void)mkdir(partial, 0755);
+#endif
+        partial[i] = saved;
+    }
+    {
+        struct stat info;
+        return stat(path, &info) == 0 && S_ISDIR(info.st_mode) ? 0 : -1;
+    }
+}
+
+/*
+ * POST /telemetry -- one report from the page's black box.
+ *
+ * The page cannot keep a log anyone reads: on a tablet there is no console,
+ * and a tab the OS kills takes its memory with it. So it posts what it holds
+ * (src/web/torirs_telemetry.js says when and what), and this appends each
+ * report as one line of <telemetry_dir>/<UTC date>.jsonl, wrapped with the
+ * time it arrived:
+ *
+ *   {"recv_ms":1763300000000,"report":{...the page's JSON...}}
+ *
+ * The body is not parsed -- only checked to be one JSON object on one line:
+ * it starts with '{', ends with '}', and holds no control byte, which
+ * JSON.stringify never emits raw. That is what keeps the file one report
+ * per line for tools/web/telemetry_report.py. Behind --gate only a signed-in
+ * visitor reaches this at all.
+ */
+static void
+handle_telemetry(
+    struct IoServer* server,
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    char path[640];
+    struct tm utc;
+    time_t now;
+    FILE* f;
+    long size;
+
+    assert(server);
+    assert(req);
+    assert(res);
+
+    if( req->body_len > IO_TELEMETRY_MAX_BODY )
+    {
+        server->telemetry_refused++;
+        res->status = 413;
+        return;
+    }
+    if( req->body_len < 2 || req->body[0] != '{' || req->body[req->body_len - 1] != '}' )
+    {
+        server->telemetry_refused++;
+        res->status = 400;
+        return;
+    }
+    for( int i = 0; i < req->body_len; i++ )
+    {
+        if( req->body[i] < 0x20 )
+        {
+            server->telemetry_refused++;
+            res->status = 400;
+            return;
+        }
+    }
+
+    if( telemetry_mkdirs(server->telemetry_dir) != 0 )
+    {
+        fprintf(stderr, "io_server: telemetry: cannot make %s\n", server->telemetry_dir);
+        res->status = 500;
+        return;
+    }
+    now = time(NULL);
+    gmtime_r(&now, &utc);
+    snprintf(
+        path, sizeof(path), "%s/%04d-%02d-%02d.jsonl", server->telemetry_dir, utc.tm_year + 1900,
+        utc.tm_mon + 1, utc.tm_mday);
+    f = fopen(path, "ab");
+    if( !f )
+    {
+        fprintf(stderr, "io_server: telemetry: cannot open %s\n", path);
+        res->status = 500;
+        return;
+    }
+    fseek(f, 0, SEEK_END);
+    size = ftell(f);
+    if( size >= 0 && size + req->body_len > IO_TELEMETRY_MAX_FILE )
+    {
+        fclose(f);
+        server->telemetry_refused++;
+        /* Not the page's fault, and nothing it can do about it: no retry. */
+        res->status = 204;
+        return;
+    }
+    fprintf(f, "{\"recv_ms\":%lld,\"report\":", (long long)now * 1000LL);
+    fwrite(req->body, 1, (size_t)req->body_len, f);
+    fputs("}\n", f);
+    fclose(f);
+    server->telemetry_reports++;
+    res->status = 204;
+}
+
 static void
 io_server_route(
     struct IoServer* server,
@@ -1698,6 +1840,11 @@ io_server_route(
     if( strcmp(req->method, "POST") == 0 && strncmp(req->path, "/cache/dat1/batch", 17) == 0 )
     {
         handle_ondemand_batch(server, req, res);
+        return;
+    }
+    if( strcmp(req->method, "POST") == 0 && strcmp(req->path, "/telemetry") == 0 )
+    {
+        handle_telemetry(server, req, res);
         return;
     }
     if( strcmp(req->method, "GET") == 0 || strcmp(req->method, "HEAD") == 0 )
@@ -1783,7 +1930,7 @@ usage(char const* argv0)
         stderr,
         "usage: %s [--manifest <boot.ini> | --rev <name> <cache_dir>]\n"
         "          [--port N] [--root DIR] [--boot-root DIR] [--config DIR]\n"
-        "          [--script DIR] [--gate LANDING] [-v]\n"
+        "          [--script DIR] [--gate LANDING] [--telemetry-dir DIR] [-v]\n"
         "\n"
         "  --manifest   PREOPEN one world's cache (and its LostCity wire) at\n"
         "               startup, so an unreachable server is named here rather\n"
@@ -1805,7 +1952,9 @@ usage(char const* argv0)
         "               them to LANDING, e.g.\n"
         "               '/?args=--manifest,manifests/manifest_latest.ini&ws=ws'.\n"
         "               Run torirsserver with --gate too: it checks the same\n"
-        "               ticket on the game socket\n",
+        "               ticket on the game socket\n"
+        "  --telemetry-dir  where POST /telemetry (the page's black box) appends\n"
+        "               one <UTC date>.jsonl per day (default logs/telemetry)\n",
         argv0,
         IO_SERVER_DEFAULT_ROOT,
         IO_SERVER_DEFAULT_PORT);
@@ -1856,6 +2005,7 @@ main(
     snprintf(server.boot_root, sizeof(server.boot_root), ".");
     snprintf(server.config_dir, sizeof(server.config_dir), "config");
     snprintf(server.script_dir, sizeof(server.script_dir), "script");
+    snprintf(server.telemetry_dir, sizeof(server.telemetry_dir), "logs/telemetry");
 
     for( int i = 1; i < argc; i++ )
     {
@@ -1930,6 +2080,11 @@ main(
             printf("io_server: sign-in gate on; web logins from the account server "
                    "(TORIRS_ACCOUNT_SERVER, default 127.0.0.1:%d)\n",
                    ACCOUNT_SERVER_PORT);
+            continue;
+        }
+        if( strcmp(argv[i], "--telemetry-dir") == 0 && i + 1 < argc )
+        {
+            snprintf(server.telemetry_dir, sizeof(server.telemetry_dir), "%s", argv[++i]);
             continue;
         }
         if( strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0 )

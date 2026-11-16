@@ -35,6 +35,7 @@
 #include "platform/platform_window.h"
 #include "torirs_env.h"
 #include "platform/platform_web_renderer_webgl2_placement.h"
+#include "platform/platform_web_telemetry.h"
 #include "es3/es3_shaders.h"
 #include "toridraw.h"
 #include "toridraw_element_id.h"
@@ -1446,8 +1447,25 @@ es3_ensure_build_vbo(
      * it arrives (and a stage while the drawn build is in use), not once. */
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)byte_capacity, NULL, GL_DYNAMIC_DRAW);
     if( !es3_check_error("world build buffer") )
+    {
+        ToriPlatformWeb_Telemetry(
+            "gpu_world_alloc",
+            "{\"renderer\":\"webgl2\",\"ok\":0,\"bytes\":%llu,\"vertices\":%u}",
+            (unsigned long long)byte_capacity,
+            capacity);
         return false;
+    }
     gpu->vertex_capacity = capacity;
+    /* Both builds' buffers: the background rebuild keeps the retired one
+     * resident for the next stage, so the GPU holds the two at once. */
+    ToriPlatformWeb_Telemetry(
+        "gpu_world_alloc",
+        "{\"renderer\":\"webgl2\",\"ok\":1,\"bytes\":%llu,\"vertices\":%u,"
+        "\"world_bytes\":%llu,\"stage_bytes\":%llu}",
+        (unsigned long long)byte_capacity,
+        capacity,
+        (unsigned long long)renderer->world_gpu.vertex_capacity * sizeof(struct TRSPK_VertexGLES2),
+        (unsigned long long)renderer->stage_gpu.vertex_capacity * sizeof(struct TRSPK_VertexGLES2));
     trspk_vbo_set_dirty(trspk_batch32_vbo(slot->batch));
     return true;
 }
@@ -1626,6 +1644,12 @@ es3_batch_end(
         renderer, &renderer->build.world, &renderer->world_gpu, renderer->build.world.record_vertices);
     es3_static_primary_rebuild(renderer);
     renderer->static_primary_partial = renderer->build.world.unbaked > 0u;
+    ToriPlatformWeb_Telemetry(
+        "gpu_world_end",
+        "{\"renderer\":\"webgl2\",\"records\":%u,\"vertices\":%llu,\"bytes\":%llu}",
+        renderer->build.world.record_count,
+        (unsigned long long)renderer->build.world.record_vertices,
+        (unsigned long long)renderer->build.world.record_vertices * sizeof(struct TRSPK_VertexGLES2));
     if( renderer->rebuild_log )
         es3_report_line(
             "es3_world: end id=%d records=%u vertices=%llu (baked on draw and in the prefill)",
@@ -1697,6 +1721,12 @@ es3_world_swap(
     renderer->stage_gpu.upload_pending = false;
     es3_static_primary_rebuild(renderer);
     renderer->static_primary_partial = renderer->build.world.unbaked > 0u;
+    ToriPlatformWeb_Telemetry(
+        "gpu_world_swap",
+        "{\"renderer\":\"webgl2\",\"records\":%u,\"unbaked\":%u,\"vertices\":%llu}",
+        renderer->build.world.record_count,
+        renderer->build.world.unbaked,
+        (unsigned long long)renderer->build.world.record_vertices);
     if( renderer->rebuild_log )
         es3_report_line(
             "es3_world: swap id=%d records=%u unbaked=%u prepared_said=%d",

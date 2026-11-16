@@ -1528,7 +1528,7 @@ WEB_ASSETS = $(SRC_DIR)/web/index.html $(SRC_DIR)/web/torirs_host.js \
 	$(SRC_DIR)/web/torirs_js5.js $(SRC_DIR)/web/torirs_ondemand.js \
 	$(SRC_DIR)/web/torirs_chrome.js \
 	$(SRC_DIR)/web/torirs_channel.js $(SRC_DIR)/web/panel.html \
-	$(SRC_DIR)/web/torirs_credentials.js
+	$(SRC_DIR)/web/torirs_credentials.js $(SRC_DIR)/web/torirs_telemetry.js
 # The page's icons, generated from res/torirs_icon.jpg by
 # tools/make_app_icons.py. index.html links the first four by name and
 # site.webmanifest names the last three, so every one of them has to land
@@ -7821,6 +7821,7 @@ clean:
 		$(REPO_ROOT)/build-web/torirs_js5.js $(REPO_ROOT)/build-web/torirs_ondemand.js \
 		$(REPO_ROOT)/build-web/torirs_channel.js $(REPO_ROOT)/build-web/torirs_chrome.js \
 		$(REPO_ROOT)/build-web/torirs_credentials.js \
+		$(REPO_ROOT)/build-web/torirs_telemetry.js \
 		$(REPO_ROOT)/build-web/panel.html \
 		$(REPO_ROOT)/build-web/viewer.html \
 		$(REPO_ROOT)/build-web/favicon.ico $(REPO_ROOT)/build-web/icon-16.png \

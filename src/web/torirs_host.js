@@ -463,6 +463,9 @@
   let logDirty = false;
   function log(line, isError) {
     if (isError) { console.error(line); } else { console.log(line); }
+    /* Errors also go to the black box (torirs_telemetry.js): on a tablet
+     * this pane is the only place they would otherwise be. */
+    if (isError && window.ToriRS_Telemetry) { window.ToriRS_Telemetry.stderr(line); }
     logLines.push(line);
     if (logLines.length > LOG_MAX) { logLines.shift(); }
     logDirty = true;
@@ -1059,6 +1062,13 @@
   }
 
   Module.arguments = args;
+  /* The black box (torirs_telemetry.js, absent under ?telemetry=0): what this
+   * boot was asked to run, how big its heap is, and how it died if it did. */
+  const telemetry = window.ToriRS_Telemetry || null;
+  if (telemetry) {
+    telemetry.setArgs(redactArgs(args));
+    Module.onAbort = what => { telemetry.record('wasm_abort', { what: String(what) }, true); };
+  }
   // Without this a lost WebGL context fails silently and the page just stops
   // painting, which looks exactly like a hung client.
   const watchContextLoss = canvas => {
@@ -1130,6 +1140,10 @@
         if (match) { log(`torirs: io server has ${match[1]} open`); }
       })
       .catch(() => { /* older server, or none: not worth a message */ });
+    if (telemetry) {
+      telemetry.setHeapProvider(() => (Module.HEAPU8 ? Module.HEAPU8.buffer.byteLength : 0));
+      log(`torirs: telemetry session ${telemetry.sid}`);
+    }
     installMemtraceButton();
     window.requestAnimationFrame(hostFrame);
     // The runtime is up, so native calls are legal — and main() has not run,
