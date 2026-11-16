@@ -811,6 +811,15 @@ app_title_boot_settled(struct App* app)
  * form comes up EMPTY -- not because the fields are worth clearing, but
  * because they were never filled: the page handed this boot a name and a key
  * and no password, and a login is now the player's to perform.
+ *
+ * On an account-server world that login is not a form at all: the account
+ * plays from a Play Now card, and a linked one's password is refused
+ * everywhere (torirs_server_auth.h "Linked player accounts"). The form there
+ * asked a linked player for a password they do not have on every reload of
+ * a phone tab (2026-11-16). So the screen goes to the title's home -- the cards once the
+ * site session and the device's file are read (RS_Title_SetHome moves it
+ * along if they land later) -- and the player taps Play Now, which is still
+ * their login to perform: nothing signs in on its own.
  */
 static void
 app_title_resume_to_login(struct App* app)
@@ -821,6 +830,18 @@ app_title_resume_to_login(struct App* app)
     RS_Title_SetProgress(&app->title, -1, NULL);
     RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_USERNAME, "");
     RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_PASSWORD, "");
+    if( app->oauth )
+    {
+        RS_Title_SetScreen(&app->title, app->title.home);
+        RS_Title_SetMessages(
+            &app->title,
+            RS_LoginReplies_String(&app->login_replies, "session_expired"),
+            RS_LoginReplies_String(&app->login_replies, "choose_account"),
+            NULL);
+        app->screen = APP_SCREEN_TITLE;
+        app_title_state_changed(app);
+        return;
+    }
     /* After the fields, so the caret starts in the username rather than in the
      * password a prefilled name would have sent it to. */
     RS_Title_SetScreen(&app->title, RS_TITLE_LOGIN_FORM);
