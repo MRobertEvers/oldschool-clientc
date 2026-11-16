@@ -31,6 +31,13 @@ CFLAGS  += $(INCLUDES)
 # that is right at compile time and link time on both clang and gcc.
 CFLAGS  += -pthread
 DEP_CFLAGS := -std=c11 -O3 -g -w $(INCLUDES)
+# glibc declares dladdr (src/mem/torirs_mem.c's leak report) only under
+# _GNU_SOURCE, which -std=c11 does not imply; src/Makefile defines it on Linux
+# for the same reason.
+ifeq ($(HOST_OS),Linux)
+CFLAGS += -D_GNU_SOURCE
+DEP_CFLAGS += -D_GNU_SOURCE
+endif
 
 # Header dependencies.
 #
