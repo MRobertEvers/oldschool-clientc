@@ -22,6 +22,9 @@ did nothing a tap should have done:
                 (travel vs the slop it was held to: 32 on the world, 12 off it)
     HOLD/MULTI  taken for a long press / part of a two-finger gesture
     NOTHING     a tap whose click hit no component and ran no menu row
+    NO-PICK     a world tap whose pick held nothing: "Walk here" to nowhere,
+                no packet sent (gpu_world_swap .. gpu_world_baked is the
+                window the relogin losses fell in)
 
 An INCIDENT is one of: the WebGL context lost, the main thread blocked (the
 watchdog's report), a tab that ended without a pagehide while visible (the
@@ -262,7 +265,7 @@ def print_timeline(s, around=None, before=12):
               f"heap {mb(snap.get('heap'))}, gl {json.dumps(snap.get('gl'), separators=(',', ':'))}")
 
 
-INPUT_KINDS = ('touch_js', 'touch', 'ui_click', 'menu_use')
+INPUT_KINDS = ('touch_js', 'touch', 'ui_click', 'world_click', 'menu_use')
 
 
 def touch_rows(s):
@@ -277,11 +280,15 @@ def touch_rows(s):
             if cur is not None and cur['touch'] is None:
                 cur['stall'] = max(cur['stall'], ev['d'].get('ms') or 0)
             continue
+        if k in ('gpu_world_swap', 'gpu_world_baked', 'gpu_world_end'):
+            rows.append({'marker': k, 't': ev.get('t', 0), 'd': ev.get('d')})
+            continue
         if k not in INPUT_KINDS:
             continue
         d = ev.get('d') if isinstance(ev.get('d'), dict) else {}
         if k == 'touch_js':
-            cur = {'t': ev.get('t', 0), 'js': d, 'touch': None, 'clicks': [], 'menus': [], 'stall': 0}
+            cur = {'t': ev.get('t', 0), 'js': d, 'touch': None, 'clicks': [], 'menus': [], 'stall': 0,
+                   'world': None}
             rows.append(cur)
             continue
         if cur is None:
@@ -290,10 +297,13 @@ def touch_rows(s):
             if cur['touch'] is None:
                 cur['touch'] = d
             else:  # a second native lift for one browser lift: its own row
-                cur = {'t': ev.get('t', 0), 'js': {}, 'touch': d, 'clicks': [], 'menus': [], 'stall': 0}
+                cur = {'t': ev.get('t', 0), 'js': {}, 'touch': d, 'clicks': [], 'menus': [], 'stall': 0,
+                       'world': None}
                 rows.append(cur)
         elif k == 'ui_click':
             cur['clicks'].append(d)
+        elif k == 'world_click':
+            cur['world'] = d
         elif k == 'menu_use':
             cur['menus'].append(d)
     return rows
@@ -315,6 +325,9 @@ def touch_verdict(row):
         return 'HOLD' if not row['menus'] else ''
     if out == 'multi':
         return 'MULTI' if (js.get('fingers') or 0) == 0 else ''
+    w = row.get('world')
+    if w and not w.get('picks') and not w.get('fallback'):
+        return 'NO-PICK'  # Walk here with nowhere to walk: nothing is sent
     hit = any(c.get('clicked', -1) >= 0 for c in row['clicks'])
     return '' if (row['menus'] or hit) else 'NOTHING'
 
@@ -326,6 +339,11 @@ def print_touch(s):
         return
     counts = defaultdict(int)
     for row in rows:
+        if 'marker' in row:
+            d = row['d'] if isinstance(row['d'], dict) else {}
+            print(f"    {row['t'] / 1000:9.1f}s  -- {row['marker']} records={d.get('records')}"
+                  f" unbaked={d.get('unbaked', '-')}")
+            continue
         v = touch_verdict(row)
         t = row['touch'] or {}
         js = row['js']
@@ -345,6 +363,12 @@ def print_touch(s):
             parts.append(f"click com=0x{(click.get('com') or 0) & 0xffffffff:08x} hit={click.get('clicked')}")
         if menu:
             parts.append(f"menu '{menu.get('text')}' a={menu.get('action')} r={menu.get('result')}")
+        w = row.get('world')
+        if w:
+            same = w.get('stamp') and (w.get('sx'), w.get('sy')) == (w.get('x'), w.get('y'))
+            parts.append(f"pick n={w.get('picks')} terrain={w.get('terrain')} scenery={w.get('scenery')} "
+                         f"stamp={'here' if same else ('%s,%s' % (w.get('sx'), w.get('sy')) if w.get('stamp') else 'none')}"
+                         f" in_view={w.get('in_view')} absent={w.get('absent')}")
         if row['stall']:
             parts.append(f"STALL {row['stall']}ms")
         print('   ', '  '.join(parts))

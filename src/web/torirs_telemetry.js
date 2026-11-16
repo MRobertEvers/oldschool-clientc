@@ -34,6 +34,7 @@
  *   touch        the same finger as the client's touch policy took it:
  *                tap / drag / hold / multi (input/torirs_touch.c)
  *   ui_click     where the resulting click landed in the UI tree
+ *   world_click  a click on the world: what the pick it ran on held (app_frame.c)
  *   menu_use     the menu row the click ran (app_minimenu.c)
  *                -- the input four are kept only on a touch device, go out
  *                with the live posts, and stay out of the localStorage ring
@@ -77,7 +78,7 @@
   /* Input breadcrumbs: several a second while someone plays. They answer "why
    * did that tap do nothing", which a live post carries; a killed tab's
    * stored ring is for the crash, and these would push it out. */
-  const INPUT_KINDS = new Set(['touch_js', 'touch', 'ui_click', 'menu_use']);
+  const INPUT_KINDS = new Set(['touch_js', 'touch', 'ui_click', 'world_click', 'menu_use']);
   const TOUCH_DEVICE = ((global.navigator && global.navigator.maxTouchPoints) || 0) > 0;
 
   const t0 = performance.now();

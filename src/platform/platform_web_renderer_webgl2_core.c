@@ -1843,6 +1843,13 @@ es3_world_prefill(
      * table can describe it now. */
     if( renderer->static_primary_partial && build->world.unbaked == 0u )
     {
+        /* The web black box: when a swapped-in world became whole. A tap
+         * between gpu_world_swap and this line is the window the iPad's
+         * first-tap-after-login losses fell in (2026-11-16). */
+        ToriPlatformWeb_Telemetry(
+            "gpu_world_baked",
+            "{\"renderer\":\"webgl2\",\"records\":%u}",
+            build->world.record_count);
         es3_static_primary_rebuild(renderer);
         renderer->static_primary_partial = false;
     }

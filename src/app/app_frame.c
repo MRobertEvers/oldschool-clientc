@@ -11,6 +11,7 @@
 #include "app/app_catalog_palette.h"
 #include "app/app_record_thumbs.h"
 #include "app/app_internal.h"
+#include "platform/platform_web_telemetry.h"
 #include "perf_audit.h"
 #include "perf/frame_stats.h"
 
@@ -689,6 +690,61 @@ App_PumpAsync(
     }
     app->frame_runner.telemetry.in_pump = 0;
     return result;
+}
+
+/*
+ * The web black box's `world_click`: what a left click on the world had to
+ * work with. Its menu is built from the pickset the LAST rendered frame
+ * hittested (app_world_pick_finish), so a click whose set is empty, or was
+ * stamped at another pixel, runs "Walk here" with nowhere to walk and sends
+ * nothing. On the iPad (2026-11-16) the first tap after every relogin did that
+ * while the swapped-in world was still unbaked; this says which it was.
+ *
+ *   picks/terrain/scenery/actors  what the set held, by kind
+ *   stamp                         1 when the set answers a pixel, and which
+ *   in_view, absent               the pointer latch the pick was armed from
+ *   fallback                      the off-map ground tile was used
+ */
+static void
+app_world_click_report(
+    struct App const* app,
+    int click_x,
+    int click_y,
+    struct RS_MinimenuBuildCtx const* mctx)
+{
+    struct World_PickSet const* set;
+    int terrain = 0;
+    int scenery = 0;
+    int actors = 0;
+
+    assert(app);
+    assert(mctx);
+    set = &app->frame_view->world_pickset;
+    for( int i = 0; i < set->count; i++ )
+    {
+        if( set->items[i].type == WORLD_PICK_TERRAIN )
+            terrain++;
+        else if( set->items[i].type == WORLD_PICK_SCENERY )
+            scenery++;
+        else if( set->items[i].type == WORLD_PICK_NPC || set->items[i].type == WORLD_PICK_PLAYER )
+            actors++;
+    }
+    ToriPlatformWeb_Telemetry(
+        "world_click",
+        "{\"x\":%d,\"y\":%d,\"picks\":%d,\"terrain\":%d,\"scenery\":%d,\"actors\":%d,"
+        "\"stamp\":%d,\"sx\":%d,\"sy\":%d,\"in_view\":%d,\"absent\":%d,\"fallback\":%d}",
+        click_x,
+        click_y,
+        set->count,
+        terrain,
+        scenery,
+        actors,
+        set->mouse_valid,
+        set->mouse_x,
+        set->mouse_y,
+        app->frame_view->world_mouse_in_viewport ? 1 : 0,
+        app->frame_view->pointer_absent ? 1 : 0,
+        mctx->ground_fallback_valid ? 1 : 0);
 }
 
 static int
@@ -1635,6 +1691,7 @@ app_run_once_body(
         app_minimenu_stamp_node_identities(app, &scratch);
         app_plugin_menu_build(app, &scratch, 0);
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
+        app_world_click_report(app, out.left_click_miss_x, out.left_click_miss_y, &mctx);
         if( default_idx >= 0 )
         {
             struct UIMinimenu saved = *app->frame_view->minimenu;
