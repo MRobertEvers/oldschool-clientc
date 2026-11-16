@@ -21,6 +21,9 @@
  *                The wasm main loop runs on rAF, so this is the client not
  *                coming back -- a hitch, or the start of a hang.
  *   heap_grow    the wasm heap grew (it never shrinks)
+ *   mem_tree     where the heap is: ToriMem's group tree (live and peak
+ *                bytes per group), after the heap grows and after a world
+ *                build -- so an out-of-memory says what was holding it
  *   world_* gpu_* the client's own events (platform_web_telemetry.h): a
  *                rebuild began / staged / committed / finished, how many
  *                vertices the GPU world build holds, a world buffer that
@@ -62,6 +65,8 @@
   const GL_ERRORS_RECORDED = 20;
   const STDERR_PER_MINUTE = 40;
   const MAX_POSTS = 400;
+  const MEM_TREE_EVERY_MS = 5000;
+  const MEM_TREES_MAX = 40;
 
   const t0 = performance.now();
   const bootWall = Date.now();
@@ -85,6 +90,13 @@
   let sentSeq = 0;
   let args = null;
   let heapProvider = null;
+  /* ToriMem's group tree (torirs_mem_tree_json): taken when there is a reason
+   * -- the heap grew, a world build landed -- on the next heartbeat, never
+   * from inside a call the wasm made (a GL wrapper, an EM_JS event). */
+  let memTreeProvider = null;
+  let memTreeWanted = null;
+  let memTreeLast = -MEM_TREE_EVERY_MS;
+  let memTrees = 0;
   let visible = document.visibilityState !== 'hidden';
   let lastWorld = null;
   let lastStall = null;
@@ -372,7 +384,10 @@
       /* Settled before the record: record() snapshots, which reads again. */
       heapBytes = bytes;
       if (bytes > heapPeak) { heapPeak = bytes; }
-      if (from && bytes > from) { record('heap_grow', { from, to: bytes }); }
+      if (from && bytes > from) {
+        record('heap_grow', { from, to: bytes });
+        memTreeWanted = 'heap_grow';
+      }
     } catch (err) { /* the runtime is not up yet */ }
   }
 
@@ -519,6 +534,29 @@
   }
   global.requestAnimationFrame(frame);
 
+  /* `used` is what malloc has out (torirs_heap_in_use); heap - used is the
+   * room left inside the heap, and used - the tree's process total is what
+   * the allocator and the untracked libraries cost. */
+  function memTreeNow(why, urgent) {
+    if (!memTreeProvider) { return; }
+    memTreeLast = now();
+    memTrees++;
+    try {
+      const got = memTreeProvider();
+      record('mem_tree', { why, heap: heapBytes, used: got.used, tree: got.tree }, urgent);
+    } catch (err) {
+      record('telemetry_error', { where: 'mem_tree', msg: String(err && err.message) });
+    }
+  }
+
+  function takeMemTree() {
+    if (!memTreeWanted || !memTreeProvider || memTrees >= MEM_TREES_MAX) { return; }
+    if (now() - memTreeLast < MEM_TREE_EVERY_MS) { return; }
+    const why = memTreeWanted;
+    memTreeWanted = null;
+    memTreeNow(why, false);
+  }
+
   setInterval(() => {
     const at = performance.now();
     fps = Math.round(frames * 1000 / Math.max(1, at - framesSince));
@@ -528,6 +566,7 @@
       const c = contexts[i];
       if (!c.lost && c.gl && c.gl.isContextLost && c.gl.isContextLost()) { c.lost = true; }
     }
+    takeMemTree();
     persist(false);
     beat();
   }, HEARTBEAT_MS);
@@ -583,6 +622,12 @@
     setArgs(list) { args = list; },
     /** () => the wasm heap's size in bytes. */
     setHeapProvider(fn) { heapProvider = fn; readHeap(); },
+    /** () => { tree, used }: ToriMem's group tree (main.c torirs_mem_tree_json)
+     *  and malloc's bytes in use (torirs_heap_in_use). */
+    setMemTreeProvider(fn) { memTreeProvider = fn; memTreeWanted = memTreeWanted || 'boot'; },
+    /** The tree at once: for the moment the client dies, when no heartbeat
+     *  is coming to take it. */
+    memTreeNow(why) { memTreeNow(why, true); },
     /** A line the client wrote to stderr: kept, rate-limited. */
     stderr(line) {
       if (!String(line).trim()) { return; }
@@ -603,6 +648,10 @@
     try { d = JSON.parse(detail); } catch (err) { /* keep the string */ }
     const urgent = kind === 'gpu_world_alloc' && d && d.ok === 0;
     record(String(kind), d, urgent);
+    if (kind === 'gpu_world_end' || kind === 'gpu_world_swap' || kind === 'world_load_finish' ||
+        kind === 'gpu_stage_prepared') {
+      memTreeWanted = kind;
+    }
   };
 
   global.__torirs_blackbox = () => ({ sid, endpoint, previous, snapshot: snapshot(), events: events.slice() });

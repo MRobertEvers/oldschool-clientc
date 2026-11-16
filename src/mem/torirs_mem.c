@@ -1,5 +1,7 @@
 #include "mem/torirs_mem.h"
 
+#include <assert.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -174,6 +176,25 @@ die(
     const struct ToriMem_Group* group)
 {
     fprintf(stderr, "torimem: FATAL: %s (group %s)\n", what, group && group->name ? group->name : "-");
+    print_stack();
+    fflush(stderr);
+    abort();
+}
+
+/* An allocation the system refused. The size is the evidence: a 90 MB block
+ * that will not fit and a 4 KB one are different failures, and the line is
+ * all that survives a browser tab (the web page's black box keeps stderr). */
+static void
+die_oom(
+    const struct ToriMem_Group* group,
+    size_t size)
+{
+    fprintf(
+        stderr,
+        "torimem: FATAL: out of memory (group %s): %zu bytes refused, the group holds %ld\n",
+        group && group->name ? group->name : "-",
+        size,
+        group ? (long)__atomic_load_n(&group->live_bytes, __ATOMIC_RELAXED) : 0L);
     print_stack();
     fflush(stderr);
     abort();
@@ -907,7 +928,7 @@ plain_alloc(
 {
     struct ToriMem_Hdr* h = zero ? calloc(1, HDR_BYTES + size) : malloc(HDR_BYTES + size);
     if( !h )
-        die("out of memory", g);
+        die_oom(g, size);
     h->group = g;
     h->size = (uint32_t)size;
     h->flags = 0;
@@ -927,7 +948,7 @@ list_alloc(
     size_t total = PREFIX_BYTES + HDR_BYTES + size;
     struct ToriMem_Prefix* pre = zero ? calloc(1, total) : malloc(total);
     if( !pre )
-        die("out of memory", g);
+        die_oom(g, size);
     struct ToriMem_Hdr* h = (struct ToriMem_Hdr*)((unsigned char*)pre + PREFIX_BYTES);
     pre->file = file;
     pre->line = (uint32_t)line;
@@ -1270,7 +1291,7 @@ ToriMem_ReallocAt(
         struct ToriMem_Prefix* next = pre->next;
         struct ToriMem_Prefix* np = realloc(pre, PREFIX_BYTES + HDR_BYTES + size);
         if( !np )
-            die("out of memory", g);
+            die_oom(g, size);
         if( prev )
             prev->next = np;
         else
@@ -1286,7 +1307,7 @@ ToriMem_ReallocAt(
 
     struct ToriMem_Hdr* nh = realloc(h, HDR_BYTES + size);
     if( !nh )
-        die("out of memory", g);
+        die_oom(g, size);
     nh->size = (uint32_t)size;
     counters_resize(g, old, size);
     return nh + 1;
@@ -1857,12 +1878,11 @@ dump_print(
     }
 }
 
-void
-ToriMem_DumpTree(FILE* out)
+/* The registry as nodes, each with its own and its descendants' numbers
+ * rolled up. Called with s_registry_lock held; the caller frees the array. */
+static struct dump_node*
+dump_nodes_build(int* out_n)
 {
-    if( !out )
-        die("DumpTree to NULL", NULL);
-    spin_lock(&s_registry_lock);
     int n = 0;
     for( struct ToriMem_Group* g = s_registry; g; g = g->reg_next )
         n++;
@@ -1898,6 +1918,18 @@ ToriMem_DumpTree(FILE* out)
             }
         }
     }
+    *out_n = n;
+    return nodes;
+}
+
+void
+ToriMem_DumpTree(FILE* out)
+{
+    if( !out )
+        die("DumpTree to NULL", NULL);
+    spin_lock(&s_registry_lock);
+    int n = 0;
+    struct dump_node* nodes = dump_nodes_build(&n);
     fprintf(
         out,
         "torimem: %-40s %12s %9s %12s %12s  (arenas %s)\n",
@@ -1910,6 +1942,120 @@ ToriMem_DumpTree(FILE* out)
     dump_print(out, nodes, n, -1, 0);
     spin_unlock(&s_registry_lock);
     free(nodes);
+}
+
+/* A growing text buffer for ToriMem_TreeJson; bare malloc, like the dump's
+ * own node array: the string leaves through a page that frees it with _free. */
+struct tree_json
+{
+    char* text;
+    size_t len;
+    size_t cap;
+};
+
+static void
+tree_json_printf(
+    struct tree_json* out,
+    const char* fmt,
+    ...)
+{
+    va_list ap;
+    int need;
+
+    va_start(ap, fmt);
+    need = vsnprintf(out->text + out->len, out->cap - out->len, fmt, ap);
+    va_end(ap);
+    assert(need >= 0);
+    if( out->len + (size_t)need + 1 > out->cap )
+    {
+        size_t cap = out->cap * 2;
+        while( out->len + (size_t)need + 1 > cap )
+            cap *= 2;
+        out->text = realloc(out->text, cap);
+        if( !out->text )
+            die("out of memory for the tree json", NULL);
+        out->cap = cap;
+        va_start(ap, fmt);
+        vsnprintf(out->text + out->len, out->cap - out->len, fmt, ap);
+        va_end(ap);
+    }
+    out->len += (size_t)need;
+}
+
+static void
+tree_json_print(
+    struct tree_json* out,
+    struct dump_node* nodes,
+    int n,
+    int idx,
+    int depth,
+    int max_depth,
+    intptr_t min_live,
+    const char* prefix)
+{
+    for( int i = 0; i < n; i++ )
+    {
+        if( nodes[i].parent != idx || nodes[i].printed )
+            continue;
+        intptr_t live = 0;
+        intptr_t peak = 0;
+        int count = 0;
+        for( int j = i; j < n; j++ )
+        {
+            if( nodes[j].parent != idx || nodes[j].printed )
+                continue;
+            if( strcmp(nodes[j].g->name, nodes[i].g->name) != 0 )
+                continue;
+            live += nodes[j].sub_live;
+            intptr_t pk = __atomic_load_n(&nodes[j].g->peak_bytes, __ATOMIC_RELAXED);
+            if( pk > peak )
+                peak = pk;
+            if( j != i )
+                nodes[j].printed = 1;
+            count++;
+        }
+        nodes[i].printed = 1;
+        if( live < min_live )
+            continue;
+        char path[160];
+        snprintf(path, sizeof(path), "%s%s%s", prefix, prefix[0] ? "/" : "", nodes[i].g->name);
+        /* Group names are code identifiers ("task:WorldStage"); a quote or a
+         * backslash in one would be a bug there, and is dropped here rather
+         * than breaking the page's parse. */
+        for( char* c = path; *c; c++ )
+            if( *c == '"' || *c == '\\' || (unsigned char)*c < 0x20 )
+                *c = '_';
+        tree_json_printf(
+            out, "%s\"%s\":[%ld,%ld,%d]", out->len > 1 ? "," : "", path, (long)live, (long)peak,
+            count);
+        if( count == 1 && depth + 1 < max_depth )
+            tree_json_print(out, nodes, n, i, depth + 1, max_depth, min_live, path);
+    }
+}
+
+char*
+ToriMem_TreeJson(
+    int max_depth,
+    intptr_t min_live)
+{
+    struct tree_json out;
+
+    assert(max_depth > 0);
+    out.cap = 4096;
+    out.len = 0;
+    out.text = malloc(out.cap);
+    if( !out.text )
+        die("out of memory for the tree json", NULL);
+    out.text[0] = '\0';
+    tree_json_printf(&out, "{");
+    spin_lock(&s_registry_lock);
+    int n = 0;
+    struct dump_node* nodes = dump_nodes_build(&n);
+    tree_json_print(&out, nodes, n, -1, 0, max_depth, min_live, "");
+    spin_unlock(&s_registry_lock);
+    free(nodes);
+    tree_json_printf(&out, "}");
+    return out.text;
 }
 
 void

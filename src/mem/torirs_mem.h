@@ -491,6 +491,15 @@ ToriMem_LibFree(
 void
 ToriMem_DumpTree(FILE* out);
 
+/** The same tree as one JSON object for the web page's black box:
+ *  `{"path/to/group":[live_bytes,peak_bytes,folded_count],...}`, down to
+ *  `max_depth` levels, leaving out nodes whose live bytes (with their
+ *  children's) are under `min_live`. malloc'd; the caller frees it. */
+char*
+ToriMem_TreeJson(
+    int max_depth,
+    intptr_t min_live);
+
 
 /* Point a library's own allocator interface (struct <Type>_Allocator, set by
  * its <set_fn>) at a lib:* group. The libraries know nothing of ToriMem: each

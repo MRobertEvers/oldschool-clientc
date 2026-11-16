@@ -2120,6 +2120,17 @@ es2_world_stage_prepared(struct TRSPK_Renderer_ES2* renderer)
     /* The job may swap it in now (it waits for this, app_world_job.c, up to
      * its deadline). */
     ToriDraw_SceneStageBatchMarkPrepared(renderer->scene, stage->batch_id);
+    if( !renderer->stage_prepared_said )
+        ToriPlatformWeb_Telemetry(
+            "gpu_stage_prepared",
+            "{\"renderer\":\"webgl1\",\"records\":%u,\"chunks\":%u,\"world_chunks\":%u,"
+            "\"chunk_bytes\":%u,\"gpu_pages\":%u,\"frames\":%u}",
+            stage->record_count,
+            trspk_batch16_chunk_count(stage->pages),
+            renderer->build.world.pages ? trspk_batch16_chunk_count(renderer->build.world.pages) : 0u,
+            (unsigned)(ES2_VBO_PAGE * sizeof(struct TRSPK_VertexGLES2)),
+            es2_world_side(renderer, stage)->gpu_page_capacity,
+            renderer->stage_prefill_frames);
     if( renderer->rebuild_log && !renderer->stage_prepared_said )
         es2_report_line(
             "es2_world: stage id=%d prepared records=%u chunks=%u pages=%u gpu_pages=%u frames=%u",

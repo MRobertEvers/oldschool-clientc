@@ -1067,7 +1067,12 @@
   const telemetry = window.ToriRS_Telemetry || null;
   if (telemetry) {
     telemetry.setArgs(redactArgs(args));
-    Module.onAbort = what => { telemetry.record('wasm_abort', { what: String(what) }, true); };
+    Module.onAbort = what => {
+      telemetry.record('wasm_abort', { what: String(what) }, true);
+      /* What held the heap when it died. The tree is a few small mallocs, so
+       * it usually still works after a large one was refused. */
+      telemetry.memTreeNow('abort');
+    };
   }
   // Without this a lost WebGL context fails silently and the page just stops
   // painting, which looks exactly like a hung client.
@@ -1142,6 +1147,13 @@
       .catch(() => { /* older server, or none: not worth a message */ });
     if (telemetry) {
       telemetry.setHeapProvider(() => (Module.HEAPU8 ? Module.HEAPU8.buffer.byteLength : 0));
+      if (typeof Module._torirs_mem_tree_json === 'function') {
+        telemetry.setMemTreeProvider(() => {
+          const used = typeof Module._torirs_heap_in_use === 'function' ? Module._torirs_heap_in_use() : null;
+          const ptr = Module._torirs_mem_tree_json();
+          try { return { used, tree: JSON.parse(Module.UTF8ToString(ptr)) }; } finally { Module._free(ptr); }
+        });
+      }
       log(`torirs: telemetry session ${telemetry.sid}`);
     }
     installMemtraceButton();

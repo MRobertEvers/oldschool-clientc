@@ -157,6 +157,7 @@ struct ToriPlatformAndroid_Renderer_GLES3;
 #endif
 #if defined(__EMSCRIPTEN__)
 #include <emscripten.h>
+#include <malloc.h>
 
 #endif
 
@@ -7616,6 +7617,28 @@ EMSCRIPTEN_KEEPALIVE char*
 torirs_telemetry_json(void)
 {
     return ToriRS_BootTelemetry_Json(&app.frame_runner, &app.packet_runner);
+}
+
+/* Where the heap is: ToriMem's group tree, three levels deep, groups of 1 MB
+ * and more, as JSON (ToriMem_TreeJson). The black box
+ * (src/web/torirs_telemetry.js) takes one after the heap grows and after a
+ * world build, so a tab that later runs out of memory says what held it.
+ * malloc'd; the page frees it with _free. */
+EMSCRIPTEN_KEEPALIVE char*
+torirs_mem_tree_json(void)
+{
+    return ToriMem_TreeJson(3, 1024 * 1024);
+}
+
+/* Bytes malloc has handed out and not had back, its own headers included.
+ * The heap's size less this is what is free INSIDE it: the measure of how
+ * much of a grown heap is holes. Walks the allocator's chunks, so the page
+ * asks at most once every few seconds. */
+EMSCRIPTEN_KEEPALIVE double
+torirs_heap_in_use(void)
+{
+    struct mallinfo const info = mallinfo();
+    return (double)(unsigned)info.uordblks;
 }
 
 /* The browser owns the frame clock, so the loop is inverted: instead of the

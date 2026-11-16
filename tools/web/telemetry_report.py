@@ -67,6 +67,15 @@ class Session:
         self.unclean = None        # filled from the NEXT session's previous_unclean
         self.last_snapshot = None
         self.last_wall = 0
+        self.gl_peak = 0
+        self.heap_peak = 0
+
+    def note_snapshot(self, snap):
+        if not isinstance(snap, dict):
+            return
+        self.last_snapshot = snap
+        self.heap_peak = max(self.heap_peak, snap.get('heap_peak') or snap.get('heap') or 0)
+        self.gl_peak = max(self.gl_peak, (snap.get('gl') or {}).get('peak') or 0)
 
     def add_events(self, events):
         for ev in events or []:
@@ -104,14 +113,14 @@ def build(reports):
             continue
         s.add_events(r.get('events'))
         if r.get('snapshot'):
-            s.last_snapshot = r['snapshot']
+            s.note_snapshot(r['snapshot'])
         prev = r.get('previous')
         if r.get('reason') == 'previous_unclean' and isinstance(prev, dict) and prev.get('sid'):
             p = get(prev['sid'])
             p.unclean = prev
             p.add_events(prev.get('events'))
             if prev.get('snapshot'):
-                p.last_snapshot = prev['snapshot']
+                p.note_snapshot(prev['snapshot'])
             if prev.get('boot_wall'):
                 p.boot_wall = p.boot_wall or prev['boot_wall']
             if not p.device and r.get('device'):
@@ -146,6 +155,9 @@ def short_ua(device):
     if not device:
         return '?'
     ua = device.get('ua') or ''
+    # iPadOS Safari asks for the desktop site: a "Macintosh" with a touch screen.
+    if 'Macintosh' in ua and (device.get('touch') or 0) > 1:
+        ua = ua.replace('Macintosh', 'iPad')
     for tag in ('iPad', 'iPhone', 'Android', 'Macintosh', 'Windows', 'Linux'):
         if tag in ua:
             ver = ''
@@ -157,8 +169,23 @@ def short_ua(device):
     return ua[:40]
 
 
+def fmt_mem_tree(d):
+    tree = d.get('tree') or {}
+    top = sorted(((k, v) for k, v in tree.items() if '/' not in k), key=lambda kv: -kv[1][0])
+    parts = []
+    for k, v in top[:8]:
+        kids = sorted(((c[len(k) + 1:], cv) for c, cv in tree.items()
+                       if c.startswith(k + '/') and '/' not in c[len(k) + 1:]), key=lambda kv: -kv[1][0])
+        inner = ', '.join(f'{c} {mb(cv[0])}' for c, cv in kids[:4])
+        parts.append(f"{k} {mb(v[0])}" + (f" ({inner})" if inner else ''))
+    used = f" used {mb(d.get('used'))}" if d.get('used') else ''
+    return f"[{d.get('why')}] heap {mb(d.get('heap'))}{used}: " + '; '.join(parts)
+
+
 def fmt_event(ev):
     d = ev.get('d')
+    if ev.get('k') == 'mem_tree' and isinstance(d, dict):
+        return f"{ev.get('t', 0) / 1000:9.1f}s  mem_tree  {fmt_mem_tree(d)}"
     if isinstance(d, (dict, list)):
         d = json.dumps(d, separators=(',', ':'))
     text = f"{ev.get('t', 0) / 1000:9.1f}s  {ev.get('k')}"
@@ -172,8 +199,6 @@ def summary_line(s):
     kinds = defaultdict(int)
     for ev in tl:
         kinds[ev.get('k')] += 1
-    snap = s.last_snapshot or {}
-    gl = snap.get('gl') or {}
     flags = []
     if kinds.get('gl_context_lost'):
         flags.append(f"LOST x{kinds['gl_context_lost']}")
@@ -189,8 +214,8 @@ def summary_line(s):
         flags.append(f'stalls>=2s x{len(big)}')
     rebuilds = kinds.get('world_rebuild_begin', 0)
     return (f"{s.sid}  {short_ua(s.device):22s} {gpu_name(s)[:34]:34s} "
-            f"rebuilds={rebuilds:<3d} heap={mb(snap.get('heap_peak'))} "
-            f"gl_peak={mb(gl.get('peak'))}  {' '.join(flags)}")
+            f"rebuilds={rebuilds:<3d} heap={mb(s.heap_peak)} "
+            f"gl_peak={mb(s.gl_peak)}  {' '.join(flags)}")
 
 
 def print_timeline(s, around=None, before=12):
@@ -236,7 +261,7 @@ def main():
     sessions = build(load(a.paths))
     rows = sorted(sessions.values(), key=lambda s: s.boot_wall or s.last_wall or 0)
     if a.ua:
-        rows = [s for s in rows if s.device and a.ua.lower() in (s.device.get('ua') or '').lower()]
+        rows = [s for s in rows if s.device and a.ua.lower() in short_ua(s.device).lower()]
     if a.sid:
         rows = [s for s in rows if s.sid.startswith(a.sid)]
         for s in rows:

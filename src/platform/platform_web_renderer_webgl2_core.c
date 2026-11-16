@@ -1815,6 +1815,16 @@ es3_world_prefill(
             !trspk_vbo_is_dirty(trspk_batch32_vbo(build->stage.batch)) )
         {
             ToriDraw_SceneStageBatchMarkPrepared(renderer->scene, build->stage.batch_id);
+            if( !renderer->stage_prepared_said )
+                ToriPlatformWeb_Telemetry(
+                    "gpu_stage_prepared",
+                    "{\"renderer\":\"webgl2\",\"records\":%u,\"vertices\":%u,"
+                    "\"world_vertices\":%u,\"gpu_vertices\":%u,\"frames\":%u}",
+                    build->stage.record_count,
+                    trspk_batch32_vbo(build->stage.batch)->vertex_count,
+                    trspk_batch32_vbo(build->world.batch)->vertex_count,
+                    renderer->stage_gpu.vertex_capacity,
+                    renderer->stage_prefill_frames);
             if( renderer->rebuild_log && !renderer->stage_prepared_said )
                 es3_report_line(
                     "es3_world: stage id=%d prepared records=%u vertices=%u gpu=%u frames=%u",
