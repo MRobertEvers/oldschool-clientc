@@ -857,6 +857,9 @@ struct TRSPK_Renderer_ES3
      * STAGE_BEGIN, the stage prepared, SWAP). stage_prepared_said: the
      * prepared line was printed for the open stage. */
     bool rebuild_log;
+    /* TORIRS_LOW_MEMORY: one build's storage resident, never two -- no stage
+     * prebake, and the retired build's GPU buffer is deleted at the swap. */
+    bool low_memory;
     bool stage_prepared_said;
     uint32_t stage_prefill_frames;
     /* The static-primary table was built while the drawn build still had

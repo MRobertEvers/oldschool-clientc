@@ -7619,7 +7619,7 @@ torirs_telemetry_json(void)
     return ToriRS_BootTelemetry_Json(&app.frame_runner, &app.packet_runner);
 }
 
-/* Where the heap is: ToriMem's group tree, three levels deep, groups of 1 MB
+/* Where the heap is: ToriMem's group tree, five levels deep, groups of 1 MB
  * and more, as JSON (ToriMem_TreeJson). The black box
  * (src/web/torirs_telemetry.js) takes one after the heap grows and after a
  * world build, so a tab that later runs out of memory says what held it.
@@ -7627,7 +7627,7 @@ torirs_telemetry_json(void)
 EMSCRIPTEN_KEEPALIVE char*
 torirs_mem_tree_json(void)
 {
-    return ToriMem_TreeJson(3, 1024 * 1024);
+    return ToriMem_TreeJson(5, 1024 * 1024);
 }
 
 /* Bytes malloc has handed out and not had back, its own headers included.

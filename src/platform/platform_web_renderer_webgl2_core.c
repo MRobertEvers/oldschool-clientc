@@ -1427,16 +1427,19 @@ es3_ensure_build_vbo(
     assert(gpu);
     if( gpu->vbo && gpu->vertex_capacity >= required_vertices )
         return true;
-    capacity = gpu->vertex_capacity ? gpu->vertex_capacity : ES3_WORLD_VBO_INIT_VERTICES;
-    while( capacity < required_vertices )
-    {
-        if( capacity > UINT32_MAX / 2u )
-        {
-            capacity = required_vertices;
-            break;
-        }
-        capacity *= 2u;
-    }
+    /*
+     * What was asked for, not the next power of two: the reservations that
+     * reach here already carry their headroom (a build's vertices plus an
+     * eighth, es3_world_reserve), and doubling on top made a 2.9M vertex
+     * build a 4.2M vertex, 117 MB buffer. A buffer that does have to grow
+     * takes a quarter more, so a run of small growths is not a run of whole
+     * re-uploads.
+     */
+    capacity = required_vertices;
+    if( gpu->vertex_capacity && capacity <= UINT32_MAX - capacity / 4u )
+        capacity += capacity / 4u;
+    if( capacity < ES3_WORLD_VBO_INIT_VERTICES )
+        capacity = ES3_WORLD_VBO_INIT_VERTICES;
     byte_capacity = (uint64_t)capacity * sizeof(struct TRSPK_VertexGLES2);
     if( byte_capacity > (uint64_t)INT32_MAX )
         return false;
@@ -1719,6 +1722,45 @@ es3_world_swap(
     renderer->world_gpu = renderer->stage_gpu;
     renderer->stage_gpu = gpu;
     renderer->stage_gpu.upload_pending = false;
+    /* TORIRS_LOW_MEMORY: the retired build's GPU buffer goes back now rather
+     * than waiting, resident, for the next stage. Its build was dropped
+     * above, so nothing draws from it. */
+    if( renderer->low_memory && renderer->stage_gpu.vbo )
+    {
+        if( renderer->gl_context )
+        {
+            /* A deleted buffer lives on while a vertex array still names it,
+             * and the world's does until its next draw re-points it
+             * (es3_bind_stream). The array goes with the buffer, so the
+             * storage is back before the new build's buffer is made below;
+             * es3_bind_stream makes the array again on that draw. */
+            if( renderer->vao_world[ES3_WORLD_BINDING] )
+            {
+                if( renderer->vao_bound == renderer->vao_world[ES3_WORLD_BINDING] )
+                    es3_bind_vao(renderer, 0u);
+                glDeleteVertexArrays(1, &renderer->vao_world[ES3_WORLD_BINDING]);
+                renderer->vao_world[ES3_WORLD_BINDING] = 0u;
+            }
+            if( renderer->bound_array_buffer == renderer->stage_gpu.vbo )
+                es3_bind_array_buffer(renderer, 0u);
+            glDeleteBuffers(1, &renderer->stage_gpu.vbo);
+        }
+        ToriPlatformWeb_Telemetry(
+            "gpu_world_release",
+            "{\"renderer\":\"webgl2\",\"vertices\":%u}",
+            renderer->stage_gpu.vertex_capacity);
+        renderer->stage_gpu.vbo = 0u;
+        renderer->stage_gpu.vertex_capacity = 0u;
+    }
+    /* The build's whole size is known here, as it is at END: both of its
+     * buffers are sized once for it. A stage swapped in before it was
+     * prebaked had reserved nothing, and the CPU copy and the GPU buffer
+     * then grew a doubling at a time under the bake. */
+    es3_world_reserve(
+        renderer,
+        &renderer->build.world,
+        &renderer->world_gpu,
+        renderer->build.world.record_vertices + renderer->build.world.record_vertices / 8u);
     es3_static_primary_rebuild(renderer);
     renderer->static_primary_partial = renderer->build.world.unbaked > 0u;
     ToriPlatformWeb_Telemetry(
@@ -1771,6 +1813,17 @@ es3_world_prefill(
     assert(renderer);
     assert(bake);
     build = &renderer->build;
+    /*
+     * The retired build's storage goes FIRST, before a record of the new one
+     * is baked here. It was dropped at the swap and nothing draws from it;
+     * it used to wait until nothing was left to bake, which kept two builds'
+     * vertices -- about 120 MB each -- resident for the whole bake of the
+     * second (the iPad, 2026-11-16: the heap's peak, and the tab was killed
+     * inside it). The frame is drawn by now, which is why here and not in
+     * the swap itself.
+     */
+    if( build->stage_release_pending )
+        trspk_world_build_stage_release(build);
     if( trspk_world_build_has_work(build) )
     {
         now_us = PlatformWindow_TicksUs();
@@ -1794,6 +1847,12 @@ es3_world_prefill(
         renderer->static_primary_partial = false;
     }
     if( finished_here )
+        return;
+    /* TORIRS_LOW_MEMORY: the stage is not baked beside the drawn build and
+     * reserves nothing. It is never "prepared", so the job's deadline
+     * decides the swap (app_world_job.c) -- as it does without a context --
+     * and the build bakes as the drawn one, on its draws and here. */
+    if( trspk_world_build_stage_open(build) && renderer->low_memory )
         return;
     if( trspk_world_build_stage_open(build) )
     {
@@ -1837,9 +1896,6 @@ es3_world_prefill(
         }
         return;
     }
-    /* Nothing left to bake: the retired build's storage goes now. */
-    if( build->stage_release_pending && PlatformWindow_TicksUs() < deadline_us )
-        trspk_world_build_stage_release(build);
 }
 
 bool
@@ -3310,7 +3366,9 @@ TRSPK_Renderer_ES3_New(
         torirs_env_prep_target_us(), torirs_env_prep_slice_us());
     {
         char const* timing = torirs_env_rebuild_timing();
+        char const* low_memory = torirs_env_low_memory();
         renderer->rebuild_log = timing && timing[0] && timing[0] != '0';
+        renderer->low_memory = low_memory && low_memory[0] == '1';
     }
     renderer->frame_stream_cpu = trspk_vbo_create(0u, TRSPK_VERTEX_FORMAT_GLES2);
     assert(renderer->frame_stream_cpu);

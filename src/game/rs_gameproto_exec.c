@@ -3740,7 +3740,10 @@ RS_GameProto_Exec(
                     packet->_group_var.updates[i].string_value);
         break;
     case PKT_NAME_GROUP_FULL:
-        if( ctx->app && ctx->app->provider )
+        /* A player in no group gets the packet EMPTY (both rev-241 recordings
+         * of 2026-10-22/28 open with one): nothing to apply, and no bytes for
+         * RS_GroupStore_ApplyFull to be handed. */
+        if( ctx->app && ctx->app->provider && packet->_raw_payload.length > 0 )
             RS_GroupStore_ApplyFull(
                 &ctx->app->host.groups,
                 &ctx->app->provider->group_types,

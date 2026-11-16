@@ -1578,9 +1578,21 @@ es2_ensure_static_batch_vbo(
         return true;
     if( !renderer->gl_context )
         return true;
-    capacity = batch->gpu_page_capacity ? batch->gpu_page_capacity : ES2_STATIC_BATCH_VBO_INIT_PAGES;
-    while( capacity < required_pages )
-        capacity *= 2u;
+    /*
+     * What was asked for, not the next power of two. The claims that reach
+     * here already carry their headroom (a build's vertices plus an eighth,
+     * es2_world_side_claim_pages), and doubling on top of it made a 2.8M
+     * vertex build's 50 pages a 64-page, 117 MB buffer -- and, where a build
+     * arrived with nothing claimed, grew it 4 -> 8 -> 16 -> 32 -> 64 with the
+     * whole side sent again at each step (the iPad, 2026-11-16). A buffer
+     * that does have to grow takes a quarter more, so a run of single-page
+     * claims is not a run of re-sends.
+     */
+    capacity = required_pages;
+    if( batch->gpu_page_capacity )
+        capacity += capacity / 4u;
+    if( capacity < ES2_STATIC_BATCH_VBO_INIT_PAGES )
+        capacity = ES2_STATIC_BATCH_VBO_INIT_PAGES;
     byte_capacity = (uint64_t)capacity * ES2_VBO_PAGE * sizeof(struct TRSPK_VertexGLES2);
     if( byte_capacity > (uint64_t)INT32_MAX )
     {
@@ -1974,6 +1986,38 @@ es2_world_stage_begin(
 }
 
 /*
+ * Give a side's page buffer back to the GL. Its pages were invalidated when
+ * its build was dropped, so no draw resolves to it; its page ids stay
+ * claimed, and the buffer is made again, at the size then claimed, by the
+ * first upload that needs it (es2_ensure_static_batch_vbo), which sends the
+ * side's chunks whole.
+ */
+static void
+es2_world_side_gpu_release(
+    struct TRSPK_Renderer_ES2* renderer,
+    uint32_t side_index)
+{
+    struct ES2StaticBatch* side;
+    assert(renderer);
+    assert(side_index < renderer->static_batch_count);
+    side = &renderer->static_batches[side_index];
+    if( !side->gpu_vbo )
+        return;
+    if( renderer->gl_context )
+    {
+        if( renderer->bound_array_buffer == side->gpu_vbo )
+            es2_bind_array_buffer(renderer, 0u);
+        glDeleteBuffers(1, &side->gpu_vbo);
+    }
+    ToriPlatformWeb_Telemetry(
+        "gpu_world_release",
+        "{\"renderer\":\"webgl1\",\"pages\":%u}",
+        side->gpu_page_capacity);
+    side->gpu_vbo = 0u;
+    side->gpu_page_capacity = 0u;
+}
+
+/*
  * SWAP: the stage becomes the drawn build. Its side becomes the drawn side,
  * its pose table the drawn table; its pages are already in the page buffer,
  * so nothing moves. What it had not baked yet bakes as the drawn build's
@@ -1995,6 +2039,17 @@ es2_world_swap(
     renderer->batch_poses = renderer->stage_batch_poses;
     renderer->stage_batch_poses = poses;
     es2_world_sides_sync(renderer);
+    /* The build's whole size is known here, as it is at END (es2_batch_end):
+     * its side's pages are claimed once for it. A stage swapped in before it
+     * was prebaked -- every stage, on a device that gathers slower than the
+     * job's deadline -- had claimed none, and its page buffer then grew a
+     * doubling at a time under the bake. */
+    es2_world_side_claim_pages(
+        renderer,
+        renderer->world_side,
+        renderer->build.world.record_vertices + renderer->build.world.record_vertices / 8u);
+    if( renderer->low_memory )
+        es2_world_side_gpu_release(renderer, 1u - renderer->world_side);
     renderer->static_batch_upload_pending = true;
     es2_static_primary_rebuild(renderer);
     renderer->static_primary_partial = renderer->build.world.unbaked > 0u;
@@ -2049,6 +2104,20 @@ es2_world_prefill(
     assert(renderer);
     assert(bake);
     build = &renderer->build;
+    /*
+     * The retired build's storage goes FIRST, before a record of the new one
+     * is baked here. It was dropped at the swap and nothing draws from it;
+     * it used to wait until nothing was left to bake, which kept two builds'
+     * chunks -- about 120 MB each -- resident for the whole bake of the
+     * second. On a 2 GB tablet that was the heap's peak, and the tab was
+     * killed inside it (2026-11-16). The frame is drawn by now, which is why
+     * here and not in the swap itself.
+     */
+    if( build->stage_release_pending )
+    {
+        trspk_world_build_stage_release(build);
+        es2_world_sides_sync(renderer);
+    }
     if( trspk_world_build_has_work(build) )
     {
         now_us = PlatformWindow_TicksUs();
@@ -2071,7 +2140,11 @@ es2_world_prefill(
         es2_static_primary_rebuild(renderer);
         renderer->static_primary_partial = false;
     }
-    if( !finished_here && trspk_world_build_stage_open(build) )
+    /* TORIRS_LOW_MEMORY: the stage is not baked beside the drawn build, and
+     * claims no pages. It is never "prepared", so the job's deadline decides
+     * the swap (app_world_job.c) -- as it does while a lost context never
+     * returns -- and the build bakes as the drawn one, on its draws and here. */
+    if( !finished_here && trspk_world_build_stage_open(build) && !renderer->low_memory )
     {
         /* Its pages claimed once, before the first bake, for every add
          * received (they arrive together: ToriDraw_SceneStageBatchStep sends
@@ -2082,14 +2155,7 @@ es2_world_prefill(
         (void)es2_world_prefill_slot(renderer, &build->stage, deadline_us, bake);
         renderer->stage_prefill_frames++;
     }
-    else if( !finished_here && build->stage_release_pending && PlatformWindow_TicksUs() < deadline_us )
-    {
-        /* Nothing left to bake: the retired build's storage goes now. Its
-         * side's pages were invalidated when it was dropped at the swap. */
-        trspk_world_build_stage_release(build);
-        es2_world_sides_sync(renderer);
-    }
-    return trspk_world_build_stage_open(build) && build->stage.unbaked == 0u;
+    return trspk_world_build_stage_open(build) && build->stage.unbaked == 0u && !renderer->low_memory;
 }
 
 bool
@@ -2098,8 +2164,12 @@ es2_world_stage_upload(struct TRSPK_Renderer_ES2* renderer)
     struct ES2StaticBatch* stage;
     assert(renderer);
     /* Without a context nothing goes up, and the job's deadline decides
-     * (app_world_job.c) -- as it does while a lost context never returns. */
-    if( !trspk_world_build_stage_open(&renderer->build) || !renderer->gl_context )
+     * (app_world_job.c) -- as it does while a lost context never returns.
+     * TORIRS_LOW_MEMORY bakes no stage, so there is nothing of one to send,
+     * and making its page buffer here would be the second build's worth of
+     * GPU memory the mode exists to avoid. */
+    if( !trspk_world_build_stage_open(&renderer->build) || !renderer->gl_context ||
+        renderer->low_memory )
         return false;
     stage = es2_world_side(renderer, &renderer->build.stage);
     if( !es2_static_pages_ensure(renderer, stage) )
@@ -3225,7 +3295,9 @@ TRSPK_Renderer_ES2_New(int width, int height, char const* name)
     es2_world_sides_sync(renderer);
     {
         char const* timing = torirs_env_rebuild_timing();
+        char const* low_memory = torirs_env_low_memory();
         renderer->rebuild_log = timing && timing[0] && timing[0] != '0';
+        renderer->low_memory = low_memory && low_memory[0] == '1';
     }
     renderer->frame_stream_cpu = trspk_vbo_create(0u, TRSPK_VERTEX_FORMAT_GLES2);
     assert(renderer->frame_stream_cpu);

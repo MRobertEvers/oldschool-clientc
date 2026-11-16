@@ -78,6 +78,11 @@ TORIRS_ENV_KNOB(torirs_env_world_job_deadline_ms, "TORIRS_WORLD_JOB_DEADLINE_MS"
 /* Where a rebuild's milliseconds go; the renderers read it here (the world
  * builder keeps its own reading, WorldBuilder_TimingOn). */
 TORIRS_ENV_KNOB(torirs_env_rebuild_timing, "TORIRS_REBUILD_TIMING")
+/* "1": a device that cannot afford two world builds (a tablet: the web page
+ * decides, src/web/torirs_host.js). The retained GPU renderers then never
+ * prebake a stage beside the drawn build and give the retired build's GPU
+ * buffer back at the swap, so one build's storage is resident, not two. */
+TORIRS_ENV_KNOB(torirs_env_low_memory, "TORIRS_LOW_MEMORY")
 /* The LOC_ADD/NPC_ADD trigger trace. Asked once per loc of a rebuilt scene:
  * a getenv there was ~3 ms of every rebuild's finish. */
 TORIRS_ENV_KNOB(torirs_env_trigger_debug, "TORIRS_TRIGGER_DEBUG")

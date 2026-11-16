@@ -614,8 +614,23 @@
   const stderrWindow = { at: 0, count: 0, dropped: 0 };
   const URGENT_LINE = /abort|cannot enlarge|out of memory|oom|glgeterror|assert|context lost/i;
 
+  /*
+   * How the last session on this device ended, for the page's memory
+   * decision (torirs_host.js lowMemory): 'abort' when the client aborted
+   * (out of memory is the abort this build has), 'killed' when it ended
+   * visible with no pagehide -- the tab was terminated under it. null for a
+   * clean end, a tab discarded in the background, or no last session.
+   */
+  const previousDeath = (() => {
+    if (!previous || previous.clean) { return null; }
+    const evs = previous.events || [];
+    if (evs.some(ev => ev && ev.k === 'wasm_abort')) { return 'abort'; }
+    return previous.visible ? 'killed' : null;
+  })();
+
   global.ToriRS_Telemetry = {
     sid,
+    previousDeath,
     record,
     snapshot,
     /** The page's command line, already redacted (torirs_host.js redactArgs). */

@@ -1061,12 +1061,49 @@
       () => cacheKey, bootUrl, { js5: js5Producer, onDemand: onDemandProducer }, pageDir);
   }
 
+  /*
+   * Can this device afford two world builds at once?
+   *
+   * A background rebuild prepares the next scene beside the drawn one, and
+   * the retained GPU renderers kept both builds' vertices -- about 120 MB of
+   * heap and as much GPU memory, each. A 2018 iPad (2 GB) was killed inside
+   * that peak twice on 2026-11-16. TORIRS_LOW_MEMORY=1 tells the renderers to
+   * hold one build: no stage prebake, and the retired build's GPU buffer
+   * goes back at the swap (torirs_env.h).
+   *
+   * In order: ?lowmem=1 / ?lowmem=0; a phone or tablet (index.html
+   * torirsMobileDevice); a browser that reports 4 GB or less; and any
+   * device whose last session the black box saw die -- aborted, or killed
+   * while visible. That last one is kept (localStorage), so a desktop that
+   * turned out to be too small stays careful. An explicit
+   * ?env=TORIRS_LOW_MEMORY=0 still wins: readEnv is applied after this.
+   */
+  const lowMemory = (() => {
+    const STICKY_KEY = 'torirs.lowmem';
+    const forced = params.get('lowmem');
+    if (forced === '0' || forced === '1') { return { on: forced === '1', why: '?lowmem=' + forced }; }
+    const death = window.ToriRS_Telemetry ? window.ToriRS_Telemetry.previousDeath : null;
+    let sticky = null;
+    try {
+      if (death) { window.localStorage.setItem(STICKY_KEY, death); }
+      sticky = window.localStorage.getItem(STICKY_KEY);
+    } catch (err) { /* private mode: this boot still knows `death` */ }
+    const device = globalThis.torirsMobileDevice;
+    if (device && device.mobile) { return { on: true, why: 'mobile device' }; }
+    const gb = window.navigator.deviceMemory;
+    if (gb && gb <= 4) { return { on: true, why: `${gb} GB device` }; }
+    if (death || sticky) { return { on: true, why: `a session here was ${death || sticky}` }; }
+    return { on: false, why: 'desktop' };
+  })();
+
   Module.arguments = args;
   /* The black box (torirs_telemetry.js, absent under ?telemetry=0): what this
    * boot was asked to run, how big its heap is, and how it died if it did. */
   const telemetry = window.ToriRS_Telemetry || null;
   if (telemetry) {
     telemetry.setArgs(redactArgs(args));
+    telemetry.record('mem_class', { low_memory: lowMemory.on, why: lowMemory.why,
+      previous_death: telemetry.previousDeath });
     Module.onAbort = what => {
       telemetry.record('wasm_abort', { what: String(what) }, true);
       /* What held the heap when it died. The tree is a few small mallocs, so
@@ -1094,6 +1131,7 @@
    * initRuntime, so nothing in it may call into wasm, and the one flag that
    * used to live here had to move -- see Module.noInitialRun above. */
   Module.preRun = [() => {
+    if (lowMemory.on) { ENV.TORIRS_LOW_MEMORY = '1'; }
     readEnv().forEach(pair => { ENV[pair[0]] = pair[1]; });
   }];
 
@@ -1155,6 +1193,7 @@
         });
       }
       log(`torirs: telemetry session ${telemetry.sid}`);
+      log(`torirs: memory ${lowMemory.on ? 'low' : 'normal'} (${lowMemory.why})`);
     }
     installMemtraceButton();
     window.requestAnimationFrame(hostFrame);

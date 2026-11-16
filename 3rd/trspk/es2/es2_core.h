@@ -835,6 +835,9 @@ struct TRSPK_Renderer_ES2
     bool static_primary_partial;
     /* TORIRS_REBUILD_TIMING: the build's begin / end / stage / swap lines. */
     bool rebuild_log;
+    /* TORIRS_LOW_MEMORY: one build's storage resident, never two -- no stage
+     * prebake, and the retired build's GPU buffer is deleted at the swap. */
+    bool low_memory;
     bool stage_prepared_said;
     uint32_t stage_prefill_frames;
     /* Poses of announced tracks baked on a draw's demand, since boot: the
