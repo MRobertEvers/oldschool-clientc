@@ -3127,6 +3127,11 @@ es2_widget_model_output_vertex(
     out->u = source->u;
     out->v = source->v;
     out->rgba = es2_pack_float_rgba(source->color);
+    /* Unit 0, the world atlas the widget record binds (untextured faces
+     * sample its white tile). Left unwritten, the select is whatever the
+     * reused buffer held: >= 1.5 drops the texture and a textured face
+     * draws as its bare lighting -- the level-up tree's white leaves. */
+    out->sel = 0.0f;
 }
 
 static void
