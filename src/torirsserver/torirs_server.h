@@ -612,8 +612,13 @@ enum
      * (torirs_server_world.c), so each slot is TORIRSSERVER_NPC_MAX * 4 bytes of frame.
      * At 64 that frame needs a raised stack or a static/heap `srv`; growing
      * this further without checking segfaults the suite before its first
-     * check. */
-    TORIRSSERVER_NPC_VAR_MAX = 64,
+     * check.
+     *
+     * Raised 64 -> 96 (owner, 2026-11-16) when pack/varn.alloc had handed out
+     * every id under 64 and new content (Forestry) needed more. Every `srv`
+     * now lives in static storage (main's) or inside ToriRSServerEmbed, so
+     * no stack frame holds the array. */
+    TORIRSSERVER_NPC_VAR_MAX = 96,
 
     /**
      * Where an npc is in the death sequence — `ToriRSServerNpc.death_stage`.

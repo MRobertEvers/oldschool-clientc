@@ -72,7 +72,7 @@ buy quantities q1..q4) and `omnishop_stock_data` (obj, filter, cost rows
    Control, Poachers, Enchantment Ritual.
 4. Campfire (forestry_fire / campfire_smoke), rations, Forestry basket.
 
-## Done so far (2026-11-16, uncommitted)
+## Done so far (2026-11-16)
 
 - Omnishop (shop/scripts/omnishop.rs2): open per index 4474 [231]; the
   rev 242 triggers trigger_buy (shop, slot, qty), trigger_examine (obj),
@@ -83,6 +83,36 @@ buy quantities q1..q4) and `omnishop_stock_data` (obj, filter, cost rows
   talk from the current wiki transcript with the recording's moods, Trade.
 - Forestry kit (forestry/scripts/forestry_kit.rs2): View/Wear/Fill, deposit
   and withdraw with the client's op shuffle (varbit 14985), ~fkit_add.
+
+- Rising Roots (forestry/scripts/rising_roots.rs2), index 1834 [7914..8045].
+- Friendly Ent (forestry/scripts/friendly_ent.rs2), index 1101 [6184..6388]:
+  five entlings, requests said every few ticks, Prune chatmenu and op3/4/5,
+  the wrong-cut stun, the pruned form, the warning at +155, the despawn seq
+  at +199 and the end's rewards. Needs npc vars 16/17; the npc var cap went
+  64 -> 96 for the events (torirs_server.h).
+- Struggling Sapling (forestry/scripts/struggling_sapling.rs2), below.
+
+## Struggling Sapling (index 1095 [31918..32318], index 1707 [5127..5346])
+
+| | recorded | ours |
+|---|---|---|
+| spawn E | the tree's/stump's tile becomes `gathering_event_sapling_NxN` at the tree's angle; hp-bar npc (2x2 on the SW tile; a 3x3 tree's sapling gets the 1x1 npc on its centre, 1095 [~31000]); spotanim 2369; headbar 6 60->0 over 12000 cycles + headbar 17 fill 1; 5 piles beside it (mushrooms one of 4a/4b/4c); sound_area 7006, 7000 range 10 | same; the head-bar npc's pool is 900 x players within 8 tiles (wiki: x choppers, cap 9000) |
+| Collect | C+1 seq 827, synth 2581, stage obj, "You create some mulch using X as the first ingredient." / "You add some X ... as the second/third ingredient." (spam); full: "The mulch would be too sloppy..." | same |
+| Add-mulch | C+1 seq 827, "You add the mulch to the sapling..." (spam), "It seems to love it!/like it./accept it. You estimate ... N%" (game message until the whole combination is known, then spam), one "seems to love X as the Nth ingredient" per newly right slot + synth 7012, synths 2427 + 7004 (50%+) / 7009 (accept), heal splat of the hp restored; first 100%: objbox (stage-3 mulch, zoom 400) "The sapling seems to love this combination of ingredients!"; C+2 bark (spam) | same, the objbox at C+2 behind the bark |
+| part-made mulch | "You think this mulch could do with some more ingredients first." | same, also for an empty hand (unrecorded) |
+| Inspect | woodplaque (749) modal: ms2 "Sapling Nutrition: <col=00ffff>N%</col>", best/last combination rows (1707 [5157]) | same |
+| saved | C+2 bark, "<col=3366ff>Well done, you've saved the sapling...</col>", npc del, loc saved_NxN 14 ticks then the tree, piles gone, sound_area 7015; C+3 bonus bark + leaves (game messages), XP | same, to every player within 16 tiles who fed it |
+| withered | E+399 piles gone, tree back; E+400 "<col=ff3045>The sapling withers due to lack of nutrients.</col>", npc del, synth 7018 | same (the trigger player's queue) |
+
+Rewards are the wiki's table (nutrition 10 + 30 per O + 10 per P; per-mulch
+XP/bark; bonus XP level x avg / 2.5; bonus bark by average band; 15-20 leaves
+of a random kind). The recordings' leaves (48..160) carry League multipliers.
+A solo player needs 15 perfect mulches in 400 ticks; 1095's solo recorder got
+to 40/60 and the sapling withered, as ours does in the scriptrun.
+
+Scheduler fixes found by the test: starting a tree now counts as chopping it
+(an event landing before the first roll had made its own trigger player
+ineligible), and an event waits at least 4 ticks.
 
 ## Event spawn rate (APPROXIMATE)
 
@@ -95,4 +125,5 @@ per eligible tree a kit-holder starts, 1 in 2 with 10+ choppers.
 ## Open
 
 Group buff (+1 per chopper; needs per-tree player counts), log storage,
-every event.
+the members' events (Flowering Tree, Leprechaun, Beehive, Pheasant Control,
+Poachers, Enchantment Ritual), the campfire and rations.
