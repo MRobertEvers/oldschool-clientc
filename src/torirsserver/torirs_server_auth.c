@@ -17,6 +17,7 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <dirent.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -831,6 +832,41 @@ ToriRSServer_AuthAssign(
         return TORIRSSERVER_LINK_OK;
     out_token[0] = '\0';
     return TORIRSSERVER_LINK_WRITE_FAILED;
+}
+
+int
+ToriRSServer_AuthLoginIsStaff(const char* login)
+{
+    char dir_path[1024];
+    char owner[64];
+    DIR* dir;
+    struct dirent* entry;
+    int staff = 0;
+
+    assert(login);
+    ToriRSServer_SaveFileName(login, owner, sizeof(owner));
+    if( !owner[0] )
+        return 0;
+    snprintf(dir_path, sizeof(dir_path), "%s/accounts", ToriRSServer_SaveDir());
+    dir = opendir(dir_path);
+    if( !dir )
+        return 0;
+    /* A handful of records; read only at a control link's HELLO. */
+    while( !staff && (entry = readdir(dir)) != NULL )
+    {
+        char path[1400];
+        size_t len = strlen(entry->d_name);
+        struct AuthFile file;
+
+        if( len <= 4 || strcmp(entry->d_name + len - 4, ".ini") != 0 )
+            continue;
+        snprintf(path, sizeof(path), "%s/%s", dir_path, entry->d_name);
+        if( auth_read_record(path, &file) > 0 && file.admin && strcmp(file.managed_by, owner) == 0 )
+            staff = 1;
+        auth_wipe(&file, sizeof(file));
+    }
+    closedir(dir);
+    return staff;
 }
 
 int

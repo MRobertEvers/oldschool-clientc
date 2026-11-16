@@ -271,6 +271,8 @@ deprecated/pokesprite/assets/*.db-shm
 /tools/entity_viewer/ev_server
 /tools/entity_viewer/ev_sheet
 /tools/entity_viewer/ev_sheet.exe
+/tools/entity_viewer/ev_icons
+/tools/entity_viewer/ev_icons.exe
 /tools/entity_viewer/ev_swing
 /tools/entity_viewer/ev_swing.exe
 /tools/entity_viewer/ev_texture_render_probe

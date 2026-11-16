@@ -206,6 +206,34 @@ def copy_tree(src: Path, dst: Path, keep=None) -> int:
     return total
 
 
+def stage_admin_art(stage: Path, jobs: int) -> None:
+    """build-web/admin-art/: the account site's staff player editor
+    (src/ioserver/io_site_editor.c) -- its page script and style, and the art
+    tools/entity_viewer/ev_icons renders from the staged cache: every obj's
+    inventory icon in atlas sheets with an index, the skill and equipment-slot
+    icons, the varp and inv names. Seconds; redone every package because the
+    icons are the cache's. A failure ships the editor without art (it shows
+    ids instead of icons) and says so loudly rather than stopping the deploy."""
+    out = stage / "build-web" / "admin-art"
+    out.mkdir(parents=True, exist_ok=True)
+    for name in ("player_editor.js", "player_editor.css"):
+        shutil.copy2(SRC / "ioserver" / "site" / name, out / name)
+    tool_dir = REPO / "tools" / "entity_viewer"
+    tool = tool_dir / f"ev_icons{EXE}"
+    env = {k: v for k, v in os.environ.items() if k not in ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")}
+    try:
+        subprocess.run(["make", "-C", str(tool_dir), f"-j{max(1, jobs)}", "ev_icons"],
+                       cwd=REPO, check=True, env=env)
+        subprocess.run([str(tool), "--rev", WORLD, str(stage / f"cache.{WORLD}"),
+                        "--names", str(REPO / "OSRS-Content" / "osrs-content"), "--out", str(out)],
+                       cwd=REPO, check=True, env=env)
+    except (subprocess.CalledProcessError, OSError) as e:
+        log(f"WARNING: admin art not rendered ({e}); the player editor will show ids, not icons")
+        return
+    total = sum(f.stat().st_size for f in out.iterdir() if f.is_file())
+    log(f"admin-art: {total / 1e6:.1f} MB")
+
+
 def stage_content(stage: Path) -> None:
     out = stage / "content" / "osrs-content"
     total = 0
@@ -820,6 +848,7 @@ def main() -> int:
     cache_bytes = copy_tree(cache_src, stage / f"cache.{WORLD}")
     log(f"cache.{WORLD}: {cache_bytes / 1e6:.0f} MB from {cache_src.name}")
     stage_content(stage)
+    stage_admin_art(stage, args.jobs)
     write_manifest(stage, args.game_port, args.ws_host, args.auth)
     write_replay_manifest(stage)
     copy_tree(REPO / "revconfig" / WORLD, stage / "revconfig" / WORLD)

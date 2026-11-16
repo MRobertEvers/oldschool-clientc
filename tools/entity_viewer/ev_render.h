@@ -14,6 +14,28 @@
 void
 ev_init(void);
 
+struct ToriDraw_Model;
+struct ToriDraw_Sprite;
+
+/**
+ * An obj's inventory icon: `model` (ev_build_obj_model's EV_OBJ_MODEL_ITEM,
+ * already resized, recoloured and lit) rasterized at the record's 2D camera
+ * exactly as the client's bridge_rasterize_obj_icon does, 36x32 ARGB, with
+ * the client's shadow edge when `shadow`. NULL when nothing drew. The caller
+ * frees it (ToriDraw_SpriteFree). Needs ev_init and, for textured faces, the
+ * textures installed.
+ */
+struct ToriDraw_Sprite*
+ev_obj_icon_sprite(
+    struct ToriDraw_Model* model,
+    int zoom,
+    int xan,
+    int yan,
+    int zan,
+    int xof,
+    int yof,
+    int shadow);
+
 /**
  * Set the colour ev_render clears to, as 0xAARRGGBB. Defaults to the page's
  * panel colour.

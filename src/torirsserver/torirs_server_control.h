@@ -12,7 +12,8 @@
  * the same framing as ToriRSMapEd.
  *
  * Who may: behind the sign-in gate (TORIRSSERVER_GATE=1 / --gate) CTL_HELLO
- * must carry a ticket io_gate.c minted (ToriRSServer_GateTicketCheck); with no
+ * must carry a ticket io_gate.c minted (ToriRSServer_GateTicketCheck) for a
+ * STAFF login (ToriRSServer_AuthLoginIsStaff); with no
  * gate only a loopback peer is accepted, at the first byte. Nothing but
  * CTL_HELLO is answered before a HELLO was accepted.
  *
@@ -45,6 +46,16 @@ enum ToriRSServerCtlFrame
     TORIRSSERVER_CTL_BYE = 6,
     /** Who is on: answered by CTL_FACT_PLAYERS. */
     TORIRSSERVER_CTL_PLAYERS = 7,
+    /** `string player`: log that player out as the server's LOGOUT does
+     *  (the client closes; the teardown saves them); asked again for the
+     *  same login 10+ ticks later, the session is ended outright.
+     *  CTL_FACT_LINE, then CTL_FACT_STATUS. */
+    TORIRSSERVER_CTL_LOGOUT = 8,
+    /** `string player`: write the logged-in player as a save, now, to
+     *  `<saves>/snapshots/<account>.ini` (the checkpoint serialiser: every
+     *  non-zero varp); CTL_FACT_LINE "snapshot: <path>", then
+     *  CTL_FACT_STATUS. The live state, for the account site's editor. */
+    TORIRSSERVER_CTL_SNAPSHOT = 9,
 
     TORIRSSERVER_CTL_FACT_HELLO = 129,
     TORIRSSERVER_CTL_FACT_STATUS = 130,

@@ -1694,7 +1694,8 @@ IO_SERVER_SRCS = $(TORIMEM_SRCS) ioserver/io_server_main.c ioserver/http_server.
 	platform/platform_x_http.c platform/sockstream.c platform/platform_mdns.c \
 	bootmanifest/bootmanifest.c input/torirs_keymap.c features/features.c \
 	ui/torirs_chrome_exec_kind.c $(INI_SRC) \
-	ioserver/io_gate.c ioserver/io_gate_links.c ioserver/io_site.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c \
+	ioserver/io_gate.c ioserver/io_gate_links.c ioserver/io_site.c ioserver/io_ctl.c \
+	torirsmaped/torirs_maped_acctsave.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c \
 	accountserver/account_client.c accountserver/account_proto.c \
 	torirsserver/torirs_server_savefile.c net/sha256.c net/flat_json.c
 # The gate's links are indexed by sqlite: the vendored 3rd/sqlite. The account
@@ -1715,7 +1716,7 @@ io-server:
 # The objdir is order-only: it is a prerequisite so that it exists, and every
 # object written into it bumps its mtime, which as a normal prerequisite relinked
 # the server on every unrelated build.
-$(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) \
+$(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) ioserver/io_site_editor.c \
 		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
 		$(IO_SERVER_OBJ_DIR)/xteas.o $(IO_SERVER_SQLITE_OBJ) | $(IO_SERVER_OBJ_DIR)

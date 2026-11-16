@@ -44,6 +44,12 @@ ev_config_record(
     int* out_size,
     struct RSCache* out_profile);
 
+/** Keep the last decoded archive between ev_config_record calls on this
+ *  thread (1), or stop and free it (0). For a walk over many records of one
+ *  archive (ev_icons); off by default. */
+void
+ev_config_memo(int on);
+
 /* Each returns NULL when the record is absent or does not decode. Free with the
  * matching RSCache_Dat2Config*Free. */
 

@@ -89,7 +89,7 @@ DEP_OBJS := \
 	$(BUILD)/torirs_mem.o
 
 .PHONY: all clean wasm all-web
-all: ev_catalog ev_server ev_swing ev_sheet
+all: ev_catalog ev_server ev_swing ev_sheet ev_icons
 all-web: all wasm
 
 $(BUILD):
@@ -245,7 +245,24 @@ ev_swing: $(BUILD)/ev_swing.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
 $(BUILD)/ev_sheet.o: ev_sheet.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-ev_sheet: $(BUILD)/ev_sheet.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
+$(BUILD)/ev_headless.o: ev_headless.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+ev_sheet: $(BUILD)/ev_sheet.o $(BUILD)/ev_headless.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
+		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
+
+# ---- ev_icons: every obj's inventory icon, for the account site ----------
+#
+# The staff player editor (src/ioserver/io_site.c) shows items as the game
+# does; an icon is a model rasterized by the client's ToriDraw path, so they
+# are drawn here once per cache into atlas sheets plus an index (objs.json),
+# with the skill and equipment-slot sprites and the varp names. The deploy
+# package runs it (tools/deploy/build_osrs239_package.py).
+$(BUILD)/ev_icons.o: ev_icons.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+ev_icons: $(BUILD)/ev_icons.o $(BUILD)/ev_headless.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
 		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
 
@@ -554,5 +571,5 @@ web/ev_wasm_san.js: $(EM_SRCS) $(EM_HEADERS) $(EM_SAN_STAMP)
 -include $(wildcard $(BUILD)/*.d)
 
 clean:
-	rm -rf $(BUILD) ev_catalog ev_server ev_swing web/ev_wasm.js web/ev_wasm.wasm \
+	rm -rf $(BUILD) ev_catalog ev_server ev_swing ev_sheet ev_icons web/ev_wasm.js web/ev_wasm.wasm \
 		web/ev_wasm_san.js web/ev_wasm_san.wasm

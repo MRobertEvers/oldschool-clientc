@@ -20,6 +20,7 @@
  * bytes between the socket and the session. The world is touched only at the
  * tick boundary, by the work queue (host_drain_queue), as before.
  */
+#include "torirs_server_control.h"
 #include "torirs_server_host.h"
 #include "torirs_server_recording.h"
 
@@ -1066,6 +1067,12 @@ ToriRSServer_HostRun(
              */
             if( host->srv->world_built )
                 ToriRSServer_WorldTick(host->srv);
+            else
+                /* The control link still answers before the first login (who
+                 * is online: nobody), or a tool asking right after a restart
+                 * waits on a world nobody has built. The tick runs it first
+                 * thing once there is one. */
+                ToriRSServer_ControlTick(host->srv);
             /* What the tick and the logins/logouts drained above told the
              * account log, into the spool for the account server
              * (torirs_server_accountlink.h): an append, never a wait. */

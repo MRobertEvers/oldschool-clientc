@@ -19,7 +19,10 @@
 #include "torirs_server_boot.h"
 #include "torirs_server_content.h"
 #include "torirs_server_control.h"
+#include "torirs_server_save.h"
+#include "torirs_server_savefile.h"
 #include "torirs_server_servpack.h"
+#include "torirs_server_session.h"
 #include "torirs_server_varps.h"
 #include "torirs_server_wire.h"
 #include "net/rev/pktnames.h"
@@ -996,6 +999,14 @@ ctl_handle_hello(
     if( c->hello_ok && c->gated )
         c->hello_ok = ToriRSServer_GateTicketCheck(ticket, strlen(ticket), (long long)time(NULL),
                                                    who, sizeof(who));
+    /* Behind the gate a ticket alone is any signed-in player, and this link
+     * runs cheats on anyone and reloads the world: staff only, as the account
+     * site decides staff (a linked player account with admin = 1). */
+    if( c->hello_ok && c->gated && !ToriRSServer_AuthLoginIsStaff(who) )
+    {
+        fprintf(stderr, "torirsserver: control link hello: '%s' is not staff\n", who);
+        c->hello_ok = 0;
+    }
     frame = ctl_frame_begin(c, TORIRSSERVER_CTL_FACT_HELLO);
     ctl_frame_u32(&frame, TORIRSSERVER_CTL_VERSION);
     ctl_frame_u32(&frame, (uint32_t)c->hello_ok);
@@ -1153,6 +1164,113 @@ ctl_handle_cheat(
     ctl_send_status(srv, c);
 }
 
+/* Who CTL_LOGOUT asked to leave, and when: the second ask, once the client
+ * has had its chance, ends the session outright. */
+#define CTL_LOGOUT_ASKED_MAX 16
+#define CTL_LOGOUT_GRACE_TICKS 10
+
+static struct
+{
+    int pid;
+    uint32_t login_generation;
+    int tick;
+} g_ctl_logout_asked[CTL_LOGOUT_ASKED_MAX];
+
+/*
+ * CTL_LOGOUT: send the player the server's LOGOUT, which the client answers
+ * as its own Logout button -- closed, back to the title, no reconnect -- and
+ * the host's teardown saves them. Only killing the session is not a logout:
+ * the client takes a dropped link for a lost one and reconnects into the same
+ * player. Asked again for the same login after CTL_LOGOUT_GRACE_TICKS (a
+ * client that ignored it), the session is ended.
+ */
+static void
+ctl_handle_logout(
+    struct ToriRSServer* srv,
+    struct CtlConn* c,
+    struct CtlReader* r)
+{
+    char name[64];
+    char reply[160];
+    struct ToriRSServerPlayer* player;
+    int slot = -1;
+
+    ctl_read_str(r, name, sizeof(name));
+    if( r->bad )
+        return;
+    player = ctl_find_player(srv, name);
+    if( !player || !player->session )
+        snprintf(reply, sizeof(reply), "no player named %s is logged in", name);
+    else
+    {
+        for( int i = 0; i < CTL_LOGOUT_ASKED_MAX && slot < 0; i++ )
+            if( g_ctl_logout_asked[i].pid == player->pid + 1 &&
+                g_ctl_logout_asked[i].login_generation == player->login_generation )
+                slot = i;
+        if( slot >= 0 && srv->tick - g_ctl_logout_asked[slot].tick >= CTL_LOGOUT_GRACE_TICKS )
+        {
+            ToriRSServer_SessionKill(player->session);
+            g_ctl_logout_asked[slot].pid = 0;
+            snprintf(reply, sizeof(reply), "logout: %s (session ended)", name);
+            fprintf(stderr, "torirsserver: control link ended the session of '%s'\n", name);
+        }
+        else
+        {
+            if( slot < 0 )
+            {
+                slot = 0;
+                for( int i = 1; i < CTL_LOGOUT_ASKED_MAX; i++ )
+                    if( g_ctl_logout_asked[i].tick < g_ctl_logout_asked[slot].tick )
+                        slot = i;
+                g_ctl_logout_asked[slot].pid = player->pid + 1;
+                g_ctl_logout_asked[slot].login_generation = player->login_generation;
+                g_ctl_logout_asked[slot].tick = srv->tick;
+            }
+            ToriRSServer_Send(player, PKT_NAME_LOGOUT, NULL, 0, 0);
+            snprintf(reply, sizeof(reply), "logout: %s", name);
+            fprintf(stderr, "torirsserver: control link logged out '%s'\n", name);
+        }
+    }
+    ctl_send_line(c, reply);
+    ctl_send_status(srv, c);
+}
+
+/* CTL_SNAPSHOT: the logged-in player as a save, written now to
+ * `<saves>/snapshots/<account>.ini` -- the checkpoint serialiser, so every
+ * non-zero varp is in it -- for a reader that wants the live state (the
+ * account site's player editor) rather than the last logout's. */
+static void
+ctl_handle_snapshot(
+    struct ToriRSServer* srv,
+    struct CtlConn* c,
+    struct CtlReader* r)
+{
+    char name[64];
+    char key[64];
+    char path[1200];
+    char reply[1300];
+    struct ToriRSServerPlayer* player;
+
+    ctl_read_str(r, name, sizeof(name));
+    if( r->bad )
+        return;
+    player = ctl_find_player(srv, name);
+    if( !player )
+        snprintf(reply, sizeof(reply), "no player named %s is logged in", name);
+    else
+    {
+        ToriRSServer_SaveFileName(player->account_name, key, sizeof(key));
+        snprintf(path, sizeof(path), "%s/snapshots/%s.ini", ToriRSServer_SaveDir(), key);
+        ToriRSServer_SaveMkdirParent(path);
+        if( key[0] && ToriRSServer_SavePlayerCheckpoint(player, path) )
+            snprintf(reply, sizeof(reply), "snapshot: %s", path);
+        else
+            snprintf(reply, sizeof(reply), "snapshot of %s could not be written", name);
+    }
+    ctl_send_line(c, reply);
+    ctl_send_status(srv, c);
+}
+
 static void
 ctl_handle_subscribe(
     struct CtlConn* c,
@@ -1243,6 +1361,10 @@ ctl_dispatch(
         ctl_handle_subscribe(c, &r);
     else if( type == TORIRSSERVER_CTL_PLAYERS )
         ctl_send_players(srv, c);
+    else if( type == TORIRSSERVER_CTL_LOGOUT )
+        ctl_handle_logout(srv, c, &r);
+    else if( type == TORIRSSERVER_CTL_SNAPSHOT )
+        ctl_handle_snapshot(srv, c, &r);
     else if( type == TORIRSSERVER_CTL_BYE )
         c->closing = 1;
     else

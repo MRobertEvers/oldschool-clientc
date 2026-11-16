@@ -2548,6 +2548,9 @@ ToriRSMapEd_SessionPump(struct ToriRSMapEdSession* session)
 
 /* Accounts: the lane's player saves (torirs_maped_accounts.h, BUILD NOTE).
  * After the live half: it reads the jobs' player list and sends cheats. */
+/* Its pure pieces first: the save codec and the tables (torirs_maped_acctsave.h),
+ * also linked alone by io_server. */
+#include "torirs_maped_acctsave.c"
 #include "torirs_maped_accounts.c"
 
 /* Editor lanes (torirs_maped_lanes.h): the module (registry, mirror, changes,

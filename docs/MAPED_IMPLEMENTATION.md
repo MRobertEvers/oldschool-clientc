@@ -229,6 +229,11 @@ On the game port, first byte `0xED` selects the control link (`'G'` is HTTP, `15
 | `CTL_CHEAT 4` | `string player, string line` | `CTL_FACT_LINE` rows, then `CTL_FACT_STATUS` |
 | `CTL_SUBSCRIBE 5` | `string player, u32 n, n × u32 varp_id` (n=0 unsubscribes) | `CTL_FACT_VARS 133` whenever a value changes: `string player, u32 n, n × (u32 varp_id, i32 value)` |
 | `CTL_BYE 6` | — | — |
+| `CTL_PLAYERS 7` | — | `CTL_FACT_PLAYERS 134`: `u32 logins, u32 active, u32 rows, rows × (string account, string display, u32 slot, u32 login_generation, i32 x, i32 z, i32 level)` (also sent once after an accepted HELLO) |
+| `CTL_LOGOUT 8` | `string player` | the player is sent the server's `LOGOUT` (the client closes and returns to the title; the teardown saves them); asked again for the same login 10+ ticks later, the session is ended outright. `CTL_FACT_LINE`, then `CTL_FACT_STATUS` |
+| `CTL_SNAPSHOT 9` | `string player` | the logged-in player written as a save, now, to `<saves>/snapshots/<account>.ini` (the checkpoint serialiser: every non-zero varp); `CTL_FACT_LINE` "snapshot: <path>", then `CTL_FACT_STATUS` |
+
+Behind the sign-in gate, `CTL_HELLO`'s ticket must be a staff login's (`ToriRSServer_AuthLoginIsStaff`: a player account linked to it with `admin = 1`); with no gate only a loopback peer is adopted. The link is serviced from the server's start, before the first login builds the world. The account site's player editor (docs/WEB_SERVERS.md) is the other client of `PLAYERS`, `CHEAT`, `LOGOUT` and `SNAPSHOT`.
 
 Reload applies at the next tick boundary; the answer is sent after it applied. `restart_needed` lists `fields/`, `content.ini`, `.constant` text and symbol-table changes the server cannot take live.
 

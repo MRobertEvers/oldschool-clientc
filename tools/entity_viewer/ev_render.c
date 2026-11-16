@@ -486,6 +486,30 @@ ev_init(void)
         TORIDRAW_SCRATCH_BUFFER_VERYHIGH_16K);
 }
 
+struct ToriDraw_Sprite*
+ev_obj_icon_sprite(
+    struct ToriDraw_Model* model,
+    int zoom,
+    int xan,
+    int yan,
+    int zan,
+    int xof,
+    int yof,
+    int shadow)
+{
+    struct ToriDraw_ModelHandle hnd;
+
+    assert(model);
+    assert(g_scene);
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = model;
+    /* The client's inventory raster: 36x32 with the projection centre at
+     * (16,16) (uitree_scene_bridge.c bridge_rasterize_obj_icon). */
+    return ToriDraw_SpriteNewFromObjIconRaster(g_scene, hnd, zoom > 0 ? zoom : 2000, xan, yan, zan,
+                                               xof, yof, 36, 32, shadow != 0);
+}
+
 /* JS hands bytes over by writing into a block it asked for here. */
 void*
 ev_alloc(int size)

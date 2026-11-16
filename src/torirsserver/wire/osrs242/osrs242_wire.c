@@ -1261,6 +1261,10 @@ static const int k_transcribed_osrs242[] = {
     PKT_NAME_WORLDENTITY_INFO,
     PKT_NAME_SERVER_TICK_END, PKT_NAME_VARP_RESET, PKT_NAME_VARP_SYNC,
     PKT_NAME_CAM_RESET,       PKT_NAME_RESET_ANIMS,
+    /* No body (size 0 in every spec): the server ending a session, which the
+     * client answers by closing and returning to the title, never reconnecting
+     * (torirs_server_control.c CTL_LOGOUT). */
+    PKT_NAME_LOGOUT,
     PKT_NAME_TRIGGER_ONDIALOGABORT,
     /* SET_PLAYER_OP is written by its send site (242 branch). */
     PKT_NAME_SET_PLAYER_OP,

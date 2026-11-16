@@ -429,6 +429,7 @@ still the landing URL given to `--gate` (`/?args=...`), which every page's
 | `/players/<name>` | combat and total level, total XP, quest points, overall rank, last played, every skill's level, XP and rank, and the adventure log (quests completed). For an account linked to the viewer, also total XP over time (SVG), XP gained over the last day, week and month, and the recent sessions with their length, XP gained and most-trained skill |
 | `/account` | the linked accounts (Stats, Unlink); **Create a player account** (a name only; staff also get an Admin box), made and linked to this login in one step; and a form to link an existing one with its name and password, under the same rules as the game's Link account |
 | `/admin/users` | staff only: every web login with its linked player accounts (admins marked), **Sign in as** for each, and Create a player account for any login, admin or not |
+| `/admin/players/<name>` | staff only: the player editor -- skills, backpack and equipment, bank, other containers and varps, with the game's own icons; online players edited live through the game, offline ones in their save (below) |
 | `/admin/players[?q=K]` | staff only: every player account (`<saves>/accounts/`) with the login it is linked to; per row a login to **Link** it to (or **Move** it to, from another login) with no player password, and **Unlink** |
 | `/admin/recordings[?account=K]` | staff only: every recorded session (account, start, length, size, Watch, .bin) and every player account's recording switch |
 | `/admin/replay?f=<account>/<file>` | staff only: the game page in replay mode (`/?replay=...` on `manifests/manifest_replay.ini`, JS5 over the game socket), with play/pause, Fast, and a tick scrubber over its `ToriRS_Replay` controls |
@@ -453,6 +454,38 @@ tokens revoked -- but without its password, and from whatever login holds it
 now: the old owner's token is dead and its links row is replaced (the table is
 keyed by player). The Play Now card keeps the spelling the account was last
 linked under.
+
+**The player editor** (`/admin/players/<name>`, `src/ioserver/io_site_editor.c`;
+the page script `src/ioserver/site/player_editor.{js,css}`) shows one player
+account as the game does -- the skills tab, the 28-slot backpack, the worn
+items on the equipment layout, the bank, every other `[container.<inv>]`, the
+varps by name -- and edits it field by field (`POST .../set`, one `k`/`v` per
+edit). Where the account is, and how an edit lands, depends on whether the
+player is logged in, which io_server asks the game's control link
+(`src/ioserver/io_ctl.c`, docs/MAPED_IMPLEMENTATION.md section 4; port
+`TORIRS_GAME_PORT`, default 43594):
+
+- **Offline**: the save `<saves>/<name>.ini` is the account. It is edited with
+  the map editor's line-preserving codec (`torirsmaped/torirs_maped_acctsave.c`):
+  the one line changes, every other line comes back byte for byte, written
+  atomically. Anything can be changed: levels or exact experience, any slot of
+  any container (an item's vars go with it), varps (0 removes the line), where
+  they log in.
+- **Online**: the save is stale and the next logout overwrites it, so the page
+  shows the game's live state (`CTL_SNAPSHOT`), and an edit is a cheat run as
+  the player (`CTL_CHEAT`): a level (`::setlevel`), a varp by name
+  (`::setvar`), an item into the backpack (`::item`, then `::wield` for an
+  equipment slot), the backpack emptied (`::clearinv`). Everything else is
+  greyed out with why, and **Log out** (`POST .../logout`, `CTL_LOGOUT`) logs
+  the player out, waits until the game has written their save, and the page is
+  then the offline editor.
+
+The art -- every obj's inventory icon in 36x32 atlas sheets (rendered by the
+client's own ToriDraw obj-icon raster, bank notes and stack piles included),
+the skill and equipment-slot icons, and the item, varp and inv names -- is
+`build-web/admin-art/`, made per cache by `tools/entity_viewer/ev_icons`
+(about 4 s, ~10 MB); the deploy package runs it. Without it the editor works
+with ids for names. Each edit and logout is logged by io_server.
 
 **Sign in as** (`POST /admin/users/sign-in-as`) re-issues the gate cookie for
 the chosen login (12 hours) and keeps the staff login's own ticket in a second

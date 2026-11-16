@@ -884,7 +884,7 @@ ev_build_seq_anim(
             struct RSCache_Dat2SkeletalBase* base =
                 fm ? RSCache_Dat2SkeletalBaseNewFromFramemap(fm) : NULL;
             struct ToriDraw_SkeletalAnim* skeletal =
-                base ? ToriDraw_SkeletalAnimFromRSCache(seq_id, maya, base, fm) : NULL;
+                base ? ToriDraw_SkeletalAnimFromRSCache(seq_id, maya, base, fm, 0) : NULL;
 
             if( skeletal )
             {

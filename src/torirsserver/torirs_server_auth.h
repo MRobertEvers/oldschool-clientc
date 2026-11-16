@@ -243,6 +243,13 @@ ToriRSServer_AuthLinkVerify(
     const char* user,
     const char* link_token);
 
+/** 1 when the web login `login` is staff: a player account linked to it
+ *  (`managed_by`) says `admin = 1` -- the account site's definition
+ *  (io_site.c site_is_staff), read from the records alone, so the game server
+ *  can ask it of a gate ticket's login (the control link's HELLO). */
+int
+ToriRSServer_AuthLoginIsStaff(const char* login);
+
 /** Clear `managed_by`, so the account's own password signs it in again. 0
  *  when there is no usable record or it could not be rewritten. */
 int

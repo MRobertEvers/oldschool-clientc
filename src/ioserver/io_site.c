@@ -2193,8 +2193,11 @@ page_players(
             /* The spelling it plays under where it was ever linked, else the key. */
             if( !IoGateLinks_Display(gate->links, a->key, shown, sizeof(shown)) )
                 snprintf(shown, sizeof(shown), "%s", a->key);
-            buf_puts(&b, "<tr><td>");
-            player_link_to(&b, a->key, shown);
+            buf_puts(&b, "<tr><td><a href=\"/admin/players/");
+            buf_esc(&b, a->key);
+            buf_puts(&b, "\" title=\"Edit stats, items and variables\">");
+            buf_esc(&b, shown);
+            buf_puts(&b, "</a>");
             if( a->admin )
                 buf_puts(&b, "&nbsp;<span class=\"note\">(admin)</span>");
             buf_puts(&b, "</td><td>");
@@ -2398,6 +2401,9 @@ handle_create(
         page_account(gate, who, req, res, status, error, NULL, username, admin);
 }
 
+/* The player editor: /admin/players/<key> (its own file, this unit's). */
+#include "io_site_editor.c"
+
 /* ------------------------------------------------------------------ */
 /* Routes                                                              */
 /* ------------------------------------------------------------------ */
@@ -2543,6 +2549,8 @@ IoSite_Handle(
             page_players(gate, who, req, res, 200, NULL);
             return 1;
         }
+        if( pe_route(gate, who, req, res, is_get, is_post) )
+            return 1;
         if( is_post && IoGate_PathIs(req->path, "/admin/players/link") )
         {
             handle_players_link(gate, who, req, res);

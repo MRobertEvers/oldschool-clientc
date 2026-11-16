@@ -12,7 +12,7 @@
  *   4. The control link: 0xED on a real loopback socket through the
  *      connection layer's first-byte select, HELLO, STATUS, RELOAD (lines and
  *      RELOAD_DONE), CHEAT, SUBSCRIBE, BYE; and behind the gate a HELLO
- *      without a good ticket is refused.
+ *      without a good ticket for a staff login is refused.
  *
  * The packs: the script tree is staged under the work directory by the
  * builders' runner (editor/builder/builder_ssc.c, which copies what sscompile
@@ -857,15 +857,32 @@ test_control_link(
     check(ToriRSServer_ControlCount() == 0, "the link closes on BYE");
     close(client);
 
-    /* Behind the gate: a bad ticket is refused, a minted one accepted. */
-    for( int good = 0; good < 2; good++ )
+    /* Behind the gate: a bad ticket is refused, so is a good one for a login
+     * that is not staff, and a staff login's is accepted. Staff is the
+     * account site's rule (ToriRSServer_AuthLoginIsStaff): a player account
+     * linked to the login with admin = 1, made here the way the site does. */
+    {
+        char const* problem = NULL;
+        char token[TORIRSSERVER_LINK_TOKEN_HEX + 1];
+
+        check(ToriRSServer_AuthCreate("editorstaff", "Editor1234", 1, &problem) ==
+                  TORIRSSERVER_CREATE_OK,
+              "gated: an admin player account");
+        check(ToriRSServer_AuthAssign("editorstaff", "editor", token) == TORIRSSERVER_LINK_OK,
+              "gated: linked to the login 'editor'");
+        check(ToriRSServer_AuthLoginIsStaff("editor") && !ToriRSServer_AuthLoginIsStaff("visitor"),
+              "gated: 'editor' is staff, 'visitor' is not");
+    }
+    for( int good = 0; good < 3; good++ )
     {
         char ticket[TORIRSSERVER_GATE_TICKET_MAX];
 
         client = server = -1;
         check(loopback_pair(&client, &server), good ? "gated: a second connection" : "gated: a connection");
-        if( good )
+        if( good == 2 )
             ToriRSServer_GateTicketMint("editor", (long long)time(NULL) + 3600, ticket);
+        else if( good == 1 )
+            ToriRSServer_GateTicketMint("visitor", (long long)time(NULL) + 3600, ticket);
         else
             snprintf(ticket, sizeof(ticket), "%s", "not-a-ticket");
         send(client, &selector, 1, 0);
@@ -876,13 +893,15 @@ test_control_link(
         check(open_through_select(server, 1), "gated: adopted by the select");
         have = await_frame(srv, player, client, TORIRSSERVER_CTL_FACT_HELLO, in, (int)sizeof(in));
         n = find_frame(in, have, TORIRSSERVER_CTL_FACT_HELLO, 0, &payload);
-        check(n >= 8 && get_u32(payload + 4) == (uint32_t)good,
-              good ? "gated: a minted ticket is accepted" : "gated: a bad ticket is refused");
-        if( good )
+        check(n >= 8 && get_u32(payload + 4) == (uint32_t)(good == 2),
+              good == 2   ? "gated: a staff login's ticket is accepted"
+              : good == 1 ? "gated: a good ticket for a login that is not staff is refused"
+                          : "gated: a bad ticket is refused");
+        if( good == 2 )
             send_frame(client, TORIRSSERVER_CTL_BYE, NULL);
         for( int i = 0; i < 10 && ToriRSServer_ControlCount() > 0; i++ )
             tick(srv, player);
-        check(ToriRSServer_ControlCount() == 0, good ? "gated: closed on BYE" : "gated: refused link closed");
+        check(ToriRSServer_ControlCount() == 0, good == 2 ? "gated: closed on BYE" : "gated: refused link closed");
         close(client);
     }
 }
