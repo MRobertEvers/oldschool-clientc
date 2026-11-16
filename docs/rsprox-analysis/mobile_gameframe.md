@@ -75,6 +75,7 @@ client's own copy of each var. Three things were missing:
 | the server's answer to a press | nothing bound: Run lit up and the player kept walking; a toggle was gone at the next varp or login | `[if_button1/2,osm_hotkeys:hotkeyN]` does 7423's arm on the server: the run orb's, quick-prayers' and the special attack's own handlers, and the same write for each setting (`player/scripts/osm_hotkeys.rs2`). Their words are kept and sent |
 | the accordion | Swap-to Loadout reverted at relog | ops 3..5 copy the loadout into the column, op 6 is the lock |
 | `minimenu_setblockmode` / `setaddmode` / `setprioritymode` | unrouted no-ops | kept per property and applied to every built menu, as native `Minimenu::CanAddOp` does (osclient 216): a row goes when a property it has is blocked or none is addable. Tile marking is `setblockmode(2, 0)` + `(4, 0)`, so the tap's only row is "Mark tile" |
+| the popout launcher (XP tracker, loot, hiscores) | a phone's buttons are `popout:osm_buttons`, button at sub 2n and icon at 2n + 1; only the desktop `popout:buttons` was bound, so they did nothing | `[if_button1,popout:osm_buttons]` opens panel n for sub 2n (`interface_chrome/scripts/chrome_panels.rs2`) |
 | client ops on a phone | offered only with the Shift KEY held | also under the simulated shift the cache holds for a phone (`setsimulatedshiftactive`, native `Minimenu::IsShiftDown`); a client op is a tap's default when nothing else is |
 
 Checked on the running client as a phone: Run changes the pace (3.7 -> 1.8

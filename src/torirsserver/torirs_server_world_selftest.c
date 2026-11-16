@@ -26143,6 +26143,46 @@ ToriRSServer_WorldSelftest(void)
         ToriRSServer_WorldSetVarpOn(srv, player, varp_tutorial, saved_tutorial);
     }
 
+    fprintf(stderr, "ToriRSServer selftest: the phone's popout launcher buttons\n");
+    {
+        /*
+         * A phone's XP tracker / loot / hiscores buttons are children of
+         * popout:osm_buttons, in pairs: the button at sub 2n, its icon at
+         * 2n + 1. Only popout:buttons (the desktop strip, one child a panel)
+         * was bound, so on a phone the three buttons did nothing.
+         */
+        int const launcher =
+            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "popout:osm_buttons");
+        int const vb_open = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb13090_popout_open");
+        uint8_t button[6];
+
+        SELFTEST_CHECK(launcher > 0 && vb_open > 0, "popout:osm_buttons and popout_open must resolve by name");
+        ToriRSServer_VarbitSetOn(srv, player, vb_open, 0);
+        button[0] = (uint8_t)(launcher >> 24);
+        button[1] = (uint8_t)(launcher >> 16);
+        button[2] = (uint8_t)(launcher >> 8);
+        button[3] = (uint8_t)launcher;
+        button[4] = 0;
+
+        button[5] = 4; /* the third panel's button */
+        selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_open) == 3,
+                       "the third button opens the third panel (popout_open = %d)",
+                       ToriRSServer_VarbitGet(player, vb_open));
+
+        button[5] = 1; /* an icon: nobody's press */
+        selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_open) == 3, "an icon's sub changes nothing");
+
+        button[5] = 0; /* the first panel's button, over the open third */
+        selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_open) == 1, "the first button opens the first panel");
+
+        selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_open) == 0,
+                       "and the open panel's own button closes it");
+    }
+
     /*
      * Ranged reach, and the shot that has to cross it.
      *
