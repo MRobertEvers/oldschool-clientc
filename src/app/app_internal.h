@@ -1683,6 +1683,17 @@ app_minimenu_ctx_ground_fallback(
     int click_x,
     int click_y);
 
+/** After RS_Minimenu_Build, at every site that builds a menu: add the cache's
+ *  client ops (clientop_*_set) and drop the rows its per-property modes block
+ *  (minimenu_setblockmode / setaddmode; native Minimenu::CanAddOp). `opened` is
+ *  1 for the menu a right click or long press shows, 0 for a hover readout or
+ *  a left click's default row. */
+void
+app_minimenu_apply_modes(
+    struct App* app,
+    struct UIMinimenu* menu,
+    int opened);
+
 void
 app_minimenu_stamp_node_identities(
     struct App const* app,

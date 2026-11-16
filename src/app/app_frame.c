@@ -1501,6 +1501,7 @@ app_run_once_body(
         scratch.font_id = app->frame_view->minimenu->font_id;
         app_sailing_menu_context(app, &mctx, out.clicked_x, out.clicked_y);
         RS_Minimenu_Build(&mctx, out.clicked_x, out.clicked_y, &scratch);
+        app_minimenu_apply_modes(app, &scratch, 0);
         app_minimenu_stamp_node_identities(app, &scratch);
         app_plugin_menu_build(app, &scratch, 0);
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
@@ -1630,6 +1631,7 @@ app_run_once_body(
         app_minimenu_ctx_ground_fallback(app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
         app_sailing_menu_context(app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
         RS_Minimenu_Build(&mctx, out.left_click_miss_x, out.left_click_miss_y, &scratch);
+        app_minimenu_apply_modes(app, &scratch, 0);
         app_minimenu_stamp_node_identities(app, &scratch);
         app_plugin_menu_build(app, &scratch, 0);
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);

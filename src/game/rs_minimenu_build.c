@@ -1258,6 +1258,7 @@ int
 RS_Minimenu_DefaultOptionIndex(struct UIMinimenu const* menu)
 {
     int walk = -1;
+    int clientop = -1;
 
     assert(menu);
     /* Scan from the top row down for the first ordinary action, falling back
@@ -1275,6 +1276,11 @@ RS_Minimenu_DefaultOptionIndex(struct UIMinimenu const* menu)
         }
         if( RS_Minimenu_ActionIsDefaultable(action) )
             return i;
+        /* A client op is the default only when there is nothing else to do:
+         * a phone's tile-marking mode blocks the walk and entity rows, and
+         * what is left under the tap is "Mark tile". */
+        if( action == RS_MINIMENU_ACTION_CLIENTOP && clientop < 0 )
+            clientop = i;
     }
-    return walk;
+    return walk >= 0 ? walk : clientop;
 }

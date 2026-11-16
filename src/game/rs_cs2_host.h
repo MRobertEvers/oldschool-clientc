@@ -510,6 +510,45 @@ enum RS_CS2KeyInputMode
  */
 #define RS_CS2_OBJUNLOCK_WORDS 2048
 
+/*
+ * What a minimenu row IS, as the native client classes it (osclient 216,
+ * jag::oldscape::minimenu::OpProperty; the masks per op are MinimenuOps'
+ * constructor). A row carries several: an npc's "Talk-to" is VISUAL|ENTITY,
+ * its Examine VISUAL|ENTITY|EXAMINE, a player's op VISUAL|ENTITY|PLAYER,
+ * "Walk here" WALK alone, a client op (clientop_*_set) ENTITY|GLOBAL and the
+ * tile's GLOBAL alone. The Minimenu filters settings name the same ten in the
+ * same order ("Disable entity options", "Disable walk option", ...).
+ */
+enum RS_MinimenuProperty
+{
+    RS_MINIMENU_PROP_VISUAL = 0,
+    RS_MINIMENU_PROP_TARGET,
+    RS_MINIMENU_PROP_ENTITY,
+    RS_MINIMENU_PROP_INTERFACE,
+    RS_MINIMENU_PROP_WALK,
+    RS_MINIMENU_PROP_GLOBAL,
+    RS_MINIMENU_PROP_PLAYER,
+    RS_MINIMENU_PROP_USE,
+    RS_MINIMENU_PROP_CANCEL,
+    RS_MINIMENU_PROP_EXAMINE,
+    RS_MINIMENU_PROP_COUNT,
+};
+
+/*
+ * A property's mode, the one enum the add, block and priority tables share
+ * (Minimenu::IsPropertyBlocked / IsPropertyAddable): 0 always, 1 never, 2
+ * while Shift is down, 3 while it is not. "Shift" there is the key OR the
+ * simulated shift a script switches on (3127), which is how a phone holds it.
+ */
+enum RS_MinimenuMode
+{
+    RS_MINIMENU_MODE_ALWAYS = 0,
+    RS_MINIMENU_MODE_NEVER = 1,
+    RS_MINIMENU_MODE_SHIFT = 2,
+    RS_MINIMENU_MODE_NOT_SHIFT = 3,
+    RS_MINIMENU_MODE_COUNT,
+};
+
 struct RS_CS2ClientState
 {
     bool middle_mouse_camera;        /* 3110: the middle button drives the camera */
@@ -531,6 +570,12 @@ struct RS_CS2ClientState
     bool feedback_popup_text;        /* 3131: "<op> <target>" beside an op tap */
     bool show_loading_messages;      /* 3126: the "Loading - please wait." box */
     bool simulated_shift;            /* 3127/3128 */
+    /* 7461 / 7462 / 7464: enum RS_MinimenuMode per enum RS_MinimenuProperty.
+     * A row is dropped when any property it has is BLOCKED (block mode ALWAYS,
+     * or the shift modes), and offered only when one of them is ADDABLE. */
+    unsigned char minimenu_add_mode[RS_MINIMENU_PROP_COUNT];
+    unsigned char minimenu_block_mode[RS_MINIMENU_PROP_COUNT];
+    unsigned char minimenu_priority_mode[RS_MINIMENU_PROP_COUNT];
     int freecam_speed;               /* 3129: free camera step, shift up */
     int freecam_speed_shift;         /* 3129: free camera step, shift held */
     int key_input_mode;              /* 3136..3140: enum RS_CS2KeyInputMode */

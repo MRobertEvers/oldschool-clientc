@@ -14815,6 +14815,13 @@ CS2VM2_RunOp(
     case CS2_OP_MINIMENU_FINDPLAYERAT:
     case CS2_OP_MINIMENU_HOVERED_INDEX:
         return CS2VM2_Op_Minimenu(vm, opcode);
+    /* The minimenu's per-property modes (property, mode): which rows a menu
+     * may hold. Native only, like the indexed family above; popped by their
+     * catalogue signature and kept by rs_cs2_client_ops.c. */
+    case CS2_OP_MINIMENU_SETADDMODE:
+    case CS2_OP_MINIMENU_SETBLOCKMODE:
+    case CS2_OP_MINIMENU_SETPRIORITYMODE:
+        return CS2VM2_Op_HostSignature(vm, opcode);
     case CS2_OP_ENTITYOVERLAY_CREATE_NPC:
     case CS2_OP_ENTITYOVERLAY_CREATE_LOC:
     case CS2_OP_ENTITYOVERLAY_CREATE_PLAYER:

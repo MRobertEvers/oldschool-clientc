@@ -26065,6 +26065,84 @@ ToriRSServer_WorldSelftest(void)
                            "a column closed before the switch must not come back");
     }
 
+    fprintf(stderr, "ToriRSServer selftest: a hotkey press is answered by the server\n");
+    {
+        /*
+         * A slot is osm_hotkeys:hotkeyN with clickmask 6: the client SENDS its
+         * ops, and the cache's own handler (clientscript 7423) only predicts
+         * the result on the client's copy of the var. With nothing bound here
+         * Run lit up and the player kept walking, and a swapped loadout was
+         * gone at the next login.
+         */
+        int const slot0 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "osm_hotkeys:hotkey0");
+        int const accordion =
+            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "osm_hotkeys:master_toggle");
+        int const vb_slot0 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb11534_osm_hotkey_0");
+        int const vb_slot4 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb11538_osm_hotkey_4");
+        int const vb_load1_0 =
+            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb11540_osm_hotkey_loadout1_0");
+        int const vb_load1_4 =
+            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb11544_osm_hotkey_loadout1_4");
+        int const vb_drop = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,
+                                                       "varb16111_settings_mobile_taptodrop_enabled");
+        int const varp_run = ToriRSServer_WorldVarp("varp173_option_run");
+        int const varp_tutorial = ToriRSServer_WorldVarp("varp281_tutorial");
+        int const tutorial_complete = ToriRSServer_ContentConstantInt("tutorial_complete", -1);
+        int const saved_tutorial = varp_tutorial >= 0 ? ToriRSServer_Varp(player, varp_tutorial) : 0;
+        uint8_t button[6];
+        int run_before;
+        int drop_before;
+
+        SELFTEST_CHECK(slot0 > 0 && accordion > 0 && vb_slot0 > 0 && vb_slot4 > 0 && vb_load1_0 > 0 &&
+                           vb_load1_4 > 0 && vb_drop > 0 && varp_run >= 0 && varp_tutorial >= 0 &&
+                           tutorial_complete > 0,
+                       "the hotkey slots, their varbits and the run setting must resolve by name");
+
+        button[0] = (uint8_t)(slot0 >> 24);
+        button[1] = (uint8_t)(slot0 >> 16);
+        button[2] = (uint8_t)(slot0 >> 8);
+        button[3] = (uint8_t)slot0;
+        button[4] = 0xff; /* sub = -1: the slot itself */
+        button[5] = 0xff;
+
+        /* Run in the slot: the press is the run orb's. */
+        ToriRSServer_VarbitSetOn(srv, player, vb_slot0, 22);
+        run_before = ToriRSServer_Varp(player, varp_run);
+        selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_run) == (run_before ? 0 : 1),
+                       "a press on the Run hotkey toggles run (was %d, now %d)",
+                       run_before, ToriRSServer_Varp(player, varp_run));
+        selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_run) == run_before,
+                       "and a second press puts it back");
+
+        /* Tap-to-drop in the slot: the setting is written, so it is kept. */
+        ToriRSServer_VarbitSetOn(srv, player, vb_slot0, 1);
+        drop_before = ToriRSServer_VarbitGet(player, vb_drop);
+        selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_drop) == (drop_before ? 0 : 1),
+                       "a press on the Tap-to-drop hotkey toggles the setting");
+        ToriRSServer_VarbitSetOn(srv, player, vb_drop, drop_before);
+
+        /* Swap-to Loadout 1 (op 3 of the accordion): its five slots into the
+         * column, for a graduate. */
+        ToriRSServer_WorldSetVarpOn(srv, player, varp_tutorial, tutorial_complete);
+        ToriRSServer_VarbitSetOn(srv, player, vb_load1_0, 22);
+        ToriRSServer_VarbitSetOn(srv, player, vb_load1_4, 21);
+        ToriRSServer_VarbitSetOn(srv, player, vb_slot0, 19);
+        ToriRSServer_VarbitSetOn(srv, player, vb_slot4, 3);
+        button[0] = (uint8_t)(accordion >> 24);
+        button[1] = (uint8_t)(accordion >> 16);
+        button[2] = (uint8_t)(accordion >> 8);
+        button[3] = (uint8_t)accordion;
+        selftest_handle(player, PKTOUT_NAME_IF_BUTTON3, button, sizeof(button));
+        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_slot0) == 22 &&
+                           ToriRSServer_VarbitGet(player, vb_slot4) == 21,
+                       "Swap-to Loadout 1 copies the loadout into the column (slot 0 = %d, slot 4 = %d)",
+                       ToriRSServer_VarbitGet(player, vb_slot0), ToriRSServer_VarbitGet(player, vb_slot4));
+        ToriRSServer_WorldSetVarpOn(srv, player, varp_tutorial, saved_tutorial);
+    }
+
     /*
      * Ranged reach, and the shot that has to cross it.
      *

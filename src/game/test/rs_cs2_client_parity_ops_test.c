@@ -756,10 +756,60 @@ test_client_state_dispatch(void)
     fixture_free(&fx);
 }
 
+/*
+ * minimenu_setblockmode / setaddmode / setprioritymode (7462, 7461, 7464):
+ * native 216 Minimenu::SetOpProperty*Mode, a table of ten properties each. The
+ * cache's phone modes are made of them -- tile marking is
+ * minimenu_setblockmode(2, 0) and (4, 0), "no entity rows, no Walk here" -- and
+ * they were unrouted: balanced no-ops that changed nothing, so "Mark tile"
+ * never became the row under a tap.
+ */
+static void
+test_minimenu_modes(void)
+{
+    struct Fixture fx;
+    printf("7461/7462/7464 keep the minimenu's per-property modes\n");
+
+    fixture_init(&fx);
+    CHECK(fx.host.client.minimenu_block_mode[RS_MINIMENU_PROP_WALK] == RS_MINIMENU_MODE_NEVER &&
+              fx.host.client.minimenu_block_mode[RS_MINIMENU_PROP_ENTITY] == RS_MINIMENU_MODE_NEVER,
+        "nothing is blocked until a script says so");
+    CHECK(fx.host.client.minimenu_add_mode[RS_MINIMENU_PROP_GLOBAL] == RS_MINIMENU_MODE_SHIFT &&
+              fx.host.client.minimenu_add_mode[RS_MINIMENU_PROP_VISUAL] == RS_MINIMENU_MODE_NEVER &&
+              fx.host.client.minimenu_add_mode[RS_MINIMENU_PROP_ENTITY] == RS_MINIMENU_MODE_ALWAYS,
+        "a client op alone wants shift, the feedback adds no row, the rest add always");
+
+    struct Step const block_walk[] = { INT(4), INT(0), OP(CS2_OP_MINIMENU_SETBLOCKMODE) };
+    CHECK(run(&fx, block_walk, 3) == CS2VM_EXECNO_DONE, "minimenu_setblockmode(4, 0) runs");
+    CHECK(fx.thread->ints_stack_top == 0, "taking its two ints and pushing nothing");
+    CHECK(fx.host.client.minimenu_block_mode[RS_MINIMENU_PROP_WALK] == RS_MINIMENU_MODE_ALWAYS,
+        "and Walk here is blocked");
+    CHECK(fx.host.client.minimenu_add_mode[RS_MINIMENU_PROP_WALK] == RS_MINIMENU_MODE_ALWAYS,
+        "in the block table only");
+
+    struct Step const add_global[] = { INT(5), INT(0), OP(CS2_OP_MINIMENU_SETADDMODE) };
+    CHECK(run(&fx, add_global, 3) == CS2VM_EXECNO_DONE, "minimenu_setaddmode(5, 0) runs");
+    CHECK(fx.host.client.minimenu_add_mode[RS_MINIMENU_PROP_GLOBAL] == RS_MINIMENU_MODE_ALWAYS,
+        "and a client op no longer wants shift");
+
+    struct Step const priority[] = { INT(2), INT(3), OP(CS2_OP_MINIMENU_SETPRIORITYMODE) };
+    CHECK(run(&fx, priority, 3) == CS2VM_EXECNO_DONE, "minimenu_setprioritymode(2, 3) runs");
+    CHECK(fx.host.client.minimenu_priority_mode[RS_MINIMENU_PROP_ENTITY] == RS_MINIMENU_MODE_NOT_SHIFT,
+        "into the priority table");
+
+    struct Step const beyond[] = { INT(10), INT(0), OP(CS2_OP_MINIMENU_SETBLOCKMODE) };
+    CHECK(run(&fx, beyond, 3) == CS2VM_EXECNO_DONE, "a property past the tenth runs");
+    CHECK(fx.thread->ints_stack_top == 0, "balanced");
+    CHECK(fx.host.client.minimenu_block_mode[RS_MINIMENU_PROP_EXAMINE] == RS_MINIMENU_MODE_NEVER,
+        "and writes nothing");
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
     test_client_state_dispatch();
+    test_minimenu_modes();
     test_find_param();
     test_query_refine();
     test_parent_layer();

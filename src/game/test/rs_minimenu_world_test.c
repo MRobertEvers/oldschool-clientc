@@ -1884,9 +1884,47 @@ test_hull_menu_mask_and_dedup(void)
     World_Free(root);
 }
 
+/*
+ * A client op (the cache's clientop_*_set rows, "Mark tile") is the left
+ * click's default only when nothing else is: a phone's tile-marking mode
+ * blocks the walk and entity rows, and what is left under the tap has to run.
+ * Before, such a menu had no default at all and the tap did nothing.
+ */
+static void
+test_client_op_is_the_default_of_last_resort(void)
+{
+    struct UIMinimenu menu;
+    struct UIMinimenuPick pick;
+
+    memset(&pick, 0, sizeof(pick));
+    pick.kind = UI_MINIMENU_PICK_TERRAIN;
+
+    UIMinimenu_Reset(&menu);
+    UIMinimenu_AddOption(&menu, "Cancel", REVCONFIG_MINIMENU_CANCEL, 0, pick);
+    UIMinimenu_AddOption(&menu, "Mark tile", RS_MINIMENU_ACTION_CLIENTOP, 0, pick);
+    TEST_ASSERT(RS_Minimenu_DefaultOptionIndex(&menu) == 1, "a client op alone is the default");
+
+    UIMinimenu_Reset(&menu);
+    UIMinimenu_AddOption(&menu, "Cancel", REVCONFIG_MINIMENU_CANCEL, 0, pick);
+    UIMinimenu_AddOption(&menu, "Walk here", REVCONFIG_MINIMENU_WALK, 0, pick);
+    UIMinimenu_AddOption(&menu, "Mark tile", RS_MINIMENU_ACTION_CLIENTOP, 0, pick);
+    TEST_ASSERT(RS_Minimenu_DefaultOptionIndex(&menu) == 1, "Walk here outranks a client op");
+
+    UIMinimenu_Reset(&menu);
+    UIMinimenu_AddOption(&menu, "Cancel", REVCONFIG_MINIMENU_CANCEL, 0, pick);
+    UIMinimenu_AddOption(&menu, "Talk-to", REVCONFIG_MINIMENU_OPNPC1, 0, pick);
+    UIMinimenu_AddOption(&menu, "Tag", RS_MINIMENU_ACTION_CLIENTOP, 0, pick);
+    TEST_ASSERT(RS_Minimenu_DefaultOptionIndex(&menu) == 1, "an ordinary op outranks a client op above it");
+
+    UIMinimenu_Reset(&menu);
+    UIMinimenu_AddOption(&menu, "Cancel", REVCONFIG_MINIMENU_CANCEL, 0, pick);
+    TEST_ASSERT(RS_Minimenu_DefaultOptionIndex(&menu) < 0, "Cancel alone still has no default");
+}
+
 int
 main(void)
 {
+    test_client_op_is_the_default_of_last_resort();
     test_owned_widget_row_over_native_button();
     test_owned_widget_operation_rows();
     test_checked_widget_native_actions();

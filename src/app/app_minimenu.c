@@ -557,6 +557,7 @@ app_hover_text_update(
             scratch.font_id = app->hover_text.font_id;
             app_sailing_menu_context(app, &mctx, mouse_x, mouse_y);
             RS_Minimenu_Build(&mctx, mouse_x, mouse_y, &scratch);
+            app_minimenu_apply_modes(app, &scratch, 0);
             app_minimenu_stamp_node_identities(app, &scratch);
             app_plugin_menu_build(app, &scratch, 1);
         }
@@ -635,20 +636,36 @@ app_minimenu_ctx_ground_fallback(
  */
 
 /*
+ * "Shift is down", as the minimenu means it: the key, or the shift a script
+ * holds for a client that has no key (native Minimenu::IsShiftDown reads the
+ * simulated flag first, then key 0x51). The cache switches the simulated one
+ * on for a phone while tile marking or npc tagging is enabled
+ * (setsimulatedshiftactive, clientscript ~torirs_drop_mode_sync).
+ */
+static bool
+app_minimenu_shift_down(struct App const* app)
+{
+    assert(app);
+    if( app->host.client.simulated_shift )
+        return true;
+    if( !app->plugin_input )
+        return false;
+    return LibToriRS_Input_IsKeyHeld(app->plugin_input, TORIRSK_SHIFT);
+}
+
+/*
  * Held SHIFT is what makes them appear, and the cache says so rather than this
  * client deciding it: setting 112's own description is "When enabled, hold
- * shift and right-click the ground to place highlights". Nothing in the
- * installing scripts tests a key, so the gate is the client's to apply — and
- * without it every right click on the ground would carry a "Mark tile" row
- * above "Walk here".
+ * shift and right-click the ground to place highlights" -- and, for a phone,
+ * "When enabled, tap the ground to place highlights", which is the simulated
+ * shift above. Without the gate every right click on the ground would carry a
+ * "Mark tile" row above "Walk here".
  */
 static bool
 app_clientop_armed(struct App const* app)
 {
     assert(app);
-    if( !app->plugin_input )
-        return false;
-    return LibToriRS_Input_IsKeyHeld(app->plugin_input, TORIRSK_SHIFT);
+    return app_minimenu_shift_down(app);
 }
 
 /** Append every installed op of `kind`, labelled against `subject` (which may
@@ -708,9 +725,15 @@ app_clientop_menu_build(
     assert(app);
     assert(menu);
 
-    /* The hover pass runs every frame to compose the top-left readout; a row
-     * added there would be offered as the LEFT-click action. */
-    if( hover_pass || !app->world || !app_clientop_armed(app) )
+    if( !app->world || !app_clientop_armed(app) )
+        return;
+    /* A menu that is not the opened one -- the hover readout, a left click's
+     * default -- takes them only under the SIMULATED shift. With the key held
+     * a desktop's left click still walks; on a phone the tap is the only press
+     * there is, and "tap the ground to place highlights" means the tap's own
+     * menu has to hold the row (it is the default only once the mode's block
+     * modes have taken Walk here out: RS_Minimenu_DefaultOptionIndex). */
+    if( hover_pass && !app->host.client.simulated_shift )
         return;
 
     for( int i = 0; i < count; i++ )
@@ -778,6 +801,150 @@ app_clientop_menu_build(
         seen[kind] = true;
         app_clientop_add_rows(app, menu, kind, subject, opt->pick);
     }
+}
+
+/*
+ * What a row is, in the native client's properties (enum RS_MinimenuProperty).
+ * The masks are MinimenuOps' constructor's, osclient 216: an entity op is
+ * VISUAL|ENTITY (+USE for a held item on it, +TARGET for a spell, +EXAMINE,
+ * +PLAYER on a player), Walk here is WALK, a client op ENTITY|GLOBAL
+ * (+PLAYER) and the tile's GLOBAL alone.
+ *
+ * Three of the ten are left out on purpose. VISUAL rides every entity op, so
+ * honouring "Disable visual feedback" as a block would empty the world of
+ * options, which cannot be what that toggle does on a revision that has it;
+ * INTERFACE would take every button with it; and Cancel is never removed.
+ * A row of this client's own (a plugin's, the editor's) has none and stays.
+ */
+static unsigned
+app_minimenu_row_properties(struct UIMinimenuOption const* opt)
+{
+    unsigned const entity = 1u << RS_MINIMENU_PROP_ENTITY;
+    unsigned const player = 1u << RS_MINIMENU_PROP_PLAYER;
+
+    assert(opt);
+    if( opt->action == RS_MINIMENU_ACTION_CLIENTOP )
+    {
+        unsigned const global = 1u << RS_MINIMENU_PROP_GLOBAL;
+
+        if( RS_MINIMENU_CLIENTOP_KIND(opt->action_index) == RS_CLIENTOP_TILE )
+            return global;
+        if( RS_MINIMENU_CLIENTOP_KIND(opt->action_index) == RS_CLIENTOP_PLAYER )
+            return entity | global | player;
+        return entity | global;
+    }
+    /* Not a switch on the action: these are revconfig values, and two of
+     * them sharing a number in some profile must not be a compile error. */
+    {
+        int const action = UIMinimenu_ActionNormalize(opt->action);
+
+        if( action == REVCONFIG_MINIMENU_WALK )
+            return 1u << RS_MINIMENU_PROP_WALK;
+        if( action == REVCONFIG_MINIMENU_OPNPC6 || action == REVCONFIG_MINIMENU_OPLOC6 ||
+            action == REVCONFIG_MINIMENU_OPOBJ6 )
+            return entity | (1u << RS_MINIMENU_PROP_EXAMINE);
+        if( action == REVCONFIG_MINIMENU_OPNPC1 || action == REVCONFIG_MINIMENU_OPNPC2 ||
+            action == REVCONFIG_MINIMENU_OPNPC3 || action == REVCONFIG_MINIMENU_OPNPC4 ||
+            action == REVCONFIG_MINIMENU_OPNPC5 || action == REVCONFIG_MINIMENU_OPLOC1 ||
+            action == REVCONFIG_MINIMENU_OPLOC2 || action == REVCONFIG_MINIMENU_OPLOC3 ||
+            action == REVCONFIG_MINIMENU_OPLOC4 || action == REVCONFIG_MINIMENU_OPLOC5 ||
+            action == REVCONFIG_MINIMENU_OPOBJ1 || action == REVCONFIG_MINIMENU_OPOBJ2 ||
+            action == REVCONFIG_MINIMENU_OPOBJ3 || action == REVCONFIG_MINIMENU_OPOBJ4 ||
+            action == REVCONFIG_MINIMENU_OPOBJ5 )
+            return entity;
+        if( action == REVCONFIG_MINIMENU_USEHELD_ONLOC || action == REVCONFIG_MINIMENU_USEHELD_ONNPC ||
+            action == REVCONFIG_MINIMENU_USEHELD_ONOBJ )
+            return entity | (1u << RS_MINIMENU_PROP_USE);
+        if( action == REVCONFIG_MINIMENU_USEHELD_ONPLAYER )
+            return entity | player | (1u << RS_MINIMENU_PROP_USE);
+        if( action == REVCONFIG_MINIMENU_TGT_LOC || action == REVCONFIG_MINIMENU_TGT_NPC ||
+            action == REVCONFIG_MINIMENU_TGT_OBJ )
+            return entity | (1u << RS_MINIMENU_PROP_TARGET);
+        if( action == REVCONFIG_MINIMENU_TGT_PLAYER )
+            return entity | player | (1u << RS_MINIMENU_PROP_TARGET);
+        if( action == REVCONFIG_MINIMENU_OPPLAYER1 || action == REVCONFIG_MINIMENU_OPPLAYER2 ||
+            action == REVCONFIG_MINIMENU_OPPLAYER3 || action == REVCONFIG_MINIMENU_OPPLAYER4 ||
+            action == REVCONFIG_MINIMENU_OPPLAYER5 || action == REVCONFIG_MINIMENU_OPPLAYER_TRADEREQ ||
+            action == REVCONFIG_MINIMENU_OPPLAYER_DUELREQ )
+            return entity | player;
+    }
+    return 0;
+}
+
+/* One mode against the shift state: Minimenu::IsPropertyBlocked and
+ * IsPropertyAddable are this same table read for two arrays. */
+static bool
+app_minimenu_mode_holds(
+    int mode,
+    bool shift)
+{
+    assert(mode >= 0);
+    assert(mode < RS_MINIMENU_MODE_COUNT);
+    if( mode == RS_MINIMENU_MODE_ALWAYS )
+        return true;
+    if( mode == RS_MINIMENU_MODE_NEVER )
+        return false;
+    return (mode == RS_MINIMENU_MODE_SHIFT) == shift;
+}
+
+/*
+ * Native Minimenu::CanAddOp over a built menu: a row goes when any property
+ * it has is blocked, or when none of them is addable.
+ *
+ * This is what the cache's menu settings and its phone modes are made of.
+ * "Disable walk option" is minimenu_setblockmode(4, 0); tile marking blocks
+ * walk AND entity, so the only row left under a tap is "Mark tile"; and the
+ * tile's client op, GLOBAL alone, is addable only under shift.
+ */
+static void
+app_minimenu_drop_blocked_rows(
+    struct App const* app,
+    struct UIMinimenu* menu)
+{
+    struct RS_CS2ClientState const* client;
+    bool shift;
+    int kept = 0;
+
+    assert(app);
+    assert(menu);
+    client = &app->host.client;
+    shift = app_minimenu_shift_down(app);
+    for( int i = 0; i < menu->option_count; i++ )
+    {
+        unsigned const props = app_minimenu_row_properties(&menu->options[i]);
+        bool blocked = false;
+        bool addable = props == 0;
+
+        for( int p = 0; p < RS_MINIMENU_PROP_COUNT; p++ )
+        {
+            if( !(props & (1u << p)) )
+                continue;
+            if( app_minimenu_mode_holds(client->minimenu_block_mode[p], shift) )
+                blocked = true;
+            if( app_minimenu_mode_holds(client->minimenu_add_mode[p], shift) )
+                addable = true;
+        }
+        if( blocked || !addable )
+            continue;
+        if( kept != i )
+            menu->options[kept] = menu->options[i];
+        kept++;
+    }
+    menu->option_count = kept;
+}
+
+void
+app_minimenu_apply_modes(
+    struct App* app,
+    struct UIMinimenu* menu,
+    int opened)
+{
+    assert(app);
+    assert(menu);
+    /* The client ops first: the tile's hangs off the Walk here row, which a
+     * blocked walk is about to take out. */
+    app_clientop_menu_build(app, menu, opened ? 0 : 1);
+    app_minimenu_drop_blocked_rows(app, menu);
 }
 
 /*
@@ -944,7 +1111,7 @@ app_minimenu_open(
     /* Before the plugins, so their re-sort covers these rows too -- the client
      * ops are the cache's, and a plugin adding a row after them must not leave
      * the menu half-sorted. */
-    app_clientop_menu_build(app, menu, 0);
+    app_minimenu_apply_modes(app, menu, 1);
     /* Fence native rows before a plugin menu subscriber gets control. Even a
      * synchronous rebuild from inside that callback must not transfer a row
      * which was authored for the prior occupant to its same-id replacement. */
@@ -1466,6 +1633,7 @@ app_run_default_ui_row(
     UIMinimenu_Reset(&scratch);
     scratch.font_id = app->frame_view->minimenu->font_id;
     RS_Minimenu_Build(&mctx, click_x, click_y, &scratch);
+    app_minimenu_apply_modes(app, &scratch, 0);
     app_minimenu_stamp_node_identities(app, &scratch);
     app_plugin_menu_build(app, &scratch, 0);
     default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);

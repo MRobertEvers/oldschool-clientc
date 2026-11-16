@@ -61,6 +61,33 @@ by component and its open-top touches none of them (rev 239
 `class415.method9502`); ours dropped them, so with the server matching row 3
 the column would have vanished after the first look at the world map.
 
+## Presses
+
+No cached session presses a hotkey slot (0 `if_button` on `osm_hotkeys`), so
+this part is built from the cache and the native client, not from a recording.
+
+A slot is `osm_hotkeys:hotkeyN` with clickmask 6: the client SENDS ops 1 and 2,
+and the cache's handler (clientscript `osm_hotkey_op`, 7423) only changes the
+client's own copy of each var. Three things were missing:
+
+| what | before | now |
+|---|---|---|
+| the server's answer to a press | nothing bound: Run lit up and the player kept walking; a toggle was gone at the next varp or login | `[if_button1/2,osm_hotkeys:hotkeyN]` does 7423's arm on the server: the run orb's, quick-prayers' and the special attack's own handlers, and the same write for each setting (`player/scripts/osm_hotkeys.rs2`). Their words are kept and sent |
+| the accordion | Swap-to Loadout reverted at relog | ops 3..5 copy the loadout into the column, op 6 is the lock |
+| `minimenu_setblockmode` / `setaddmode` / `setprioritymode` | unrouted no-ops | kept per property and applied to every built menu, as native `Minimenu::CanAddOp` does (osclient 216): a row goes when a property it has is blocked or none is addable. Tile marking is `setblockmode(2, 0)` + `(4, 0)`, so the tap's only row is "Mark tile" |
+| client ops on a phone | offered only with the Shift KEY held | also under the simulated shift the cache holds for a phone (`setsimulatedshiftactive`, native `Minimenu::IsShiftDown`); a client op is a tap's default when nothing else is |
+
+Checked on the running client as a phone: Run changes the pace (3.7 -> 1.8
+tiles/s); in tile mode a tap marks the tile and does not walk, and leaving the
+mode gives Walk here back; with tagging on a long press on an npc offers "Tag"
+and "Tag-All" while a tap still talks; Swap-to Loadout 2, tap-to-drop, tagging
+and "show tagged" are all there after a relog. A desktop's menus are unchanged.
+
+Inferred, not recorded: the server runs clientscript 7579 (installs the npc
+"Tag" ops) when tagging is toggled and 6685 when "show tagged NPCs" is. Both
+take the new value and are called by nothing in the cache, like the other
+server-run `*_handle_event` scripts.
+
 ## Open
 
 - **`pvp_icons` (90) on a phone.** Mounted in the burst after `hpbar_hud` in
@@ -69,10 +96,20 @@ the column would have vanished after the first look at the world map.
   true`, `if_sethide icon_container true`, `pvp_icons_layout (385)(true)`; the
   same five packets recur mid-session (4397 [65], [663]). What triggers the
   repeats is not established by two sessions. Not built.
-- **Changing a slot or swapping a loadout does not persist.** The cache's
-  scripts write the varbits on the client; no cached session records one, so
-  what Jagex's client tells the server is unknown. A relog restores the
-  server's values.
+- **Customise (the accordion's op 2) and the Hotkeys settings page.** The
+  client does nothing on Customise; Jagex's server opens the page. Not
+  recorded, not built, so a slot still cannot be reassigned.
+- **A tagged npc draws nothing at the recorded defaults.** The outline and tile
+  styles (varbits 14170, 14171) are 0 in every login burst and the Settings
+  page that turns them on is not server-backed here.
+- **The Settings page writes only the client's copy.** A hotkey's write sends
+  its whole word, so another setting on the same word changed in Settings that
+  session goes back to the server's value (varps 3416, 4503, 4660).
+- **Hotkey 20** (the hitpoints orb's cure) and the special attack's second op
+  have no handler on this server to stand for.
+- **Minimenu properties not applied:** visual feedback (0), interface (3) and
+  cancel (8). Visual rides every entity op in the native table, so blocking on
+  it would empty the world; the other two would take buttons and Cancel away.
 - **A brand-new account's values arrive a tick after the root** (`[login,_]`
   runs on tick 1), where Jagex has them in the burst. A returning account's
   are in the burst.

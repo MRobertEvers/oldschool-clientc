@@ -50,6 +50,17 @@ RS_CS2ClientState_Init(struct RS_CS2ClientState* state)
     state->freecam_speed_shift = 6;
     state->key_input_mode = RS_CS2_KEY_INPUT_ALL;
     state->loading_percent = 10;
+    /* Minimenu's constructor (osclient 216): nothing blocked, everything
+     * addable but two -- the click feedback is not a row of its own, and a
+     * client op with nothing else to it (the tile's) wants Shift. */
+    for( int i = 0; i < RS_MINIMENU_PROP_COUNT; i++ )
+    {
+        state->minimenu_add_mode[i] = RS_MINIMENU_MODE_ALWAYS;
+        state->minimenu_block_mode[i] = RS_MINIMENU_MODE_NEVER;
+        state->minimenu_priority_mode[i] = RS_MINIMENU_MODE_ALWAYS;
+    }
+    state->minimenu_add_mode[RS_MINIMENU_PROP_VISUAL] = RS_MINIMENU_MODE_NEVER;
+    state->minimenu_add_mode[RS_MINIMENU_PROP_GLOBAL] = RS_MINIMENU_MODE_SHIFT;
     /* Bit 0 is the members flag of the world-list entry. The worlds this
      * client connects to are members worlds, and nothing on the wire says
      * otherwise; the reference reads it from the world it logged in to. */
@@ -370,6 +381,33 @@ RS_CS2Host_ExecClientOp(
     case CS2_OP_SETSIMULATEDSHIFTACTIVE:
         state->simulated_shift = ints[0] == 1;
         return CS2VM_EXECNO_OK;
+    /*
+     * minimenu_setaddmode / setblockmode / setprioritymode(property, mode):
+     * native 216 0x1d25, 0x1d26, 0x1d28, each a bare
+     * Minimenu::SetOpProperty*Mode. A property or a mode outside its enum is a
+     * script's mistake the native client would index out of its array on;
+     * here it is refused and said.
+     */
+    case CS2_OP_MINIMENU_SETADDMODE:
+    case CS2_OP_MINIMENU_SETBLOCKMODE:
+    case CS2_OP_MINIMENU_SETPRIORITYMODE:
+    {
+        unsigned char* table = state->minimenu_add_mode;
+
+        if( args->opcode == CS2_OP_MINIMENU_SETBLOCKMODE )
+            table = state->minimenu_block_mode;
+        else if( args->opcode == CS2_OP_MINIMENU_SETPRIORITYMODE )
+            table = state->minimenu_priority_mode;
+        if( ints[0] < 0 || ints[0] >= RS_MINIMENU_PROP_COUNT || ints[1] < 0 ||
+            ints[1] >= RS_MINIMENU_MODE_COUNT )
+        {
+            TORIRS_LOG("cs2: minimenu mode op %d (%d, %d) is outside the minimenu's tables\n",
+                args->opcode, ints[0], ints[1]);
+            return CS2VM_EXECNO_OK;
+        }
+        table[ints[0]] = (unsigned char)ints[1];
+        return CS2VM_EXECNO_OK;
+    }
     case CS2_OP_GETSIMULATEDSHIFTACTIVE:
         return push_bool(vm, state->simulated_shift);
     /* setfreecamspeed(normal, shift): no clamping. */
