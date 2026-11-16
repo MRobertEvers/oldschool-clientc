@@ -321,9 +321,13 @@ return {
                 .. ", nearest lookup=" .. tostring(nearest_result)
         end
         t.check("draynor.present", present_result == "ok" and nearest_result == "ok", present_detail)
-        -- The weaken mes() lands in the same tick as npc_add: read it back
-        -- from the ring (msg.expect), not msg.await.
-        t.check("draynor.weakened", t.msg.expect("weakened by the garlic"))
+        -- The weaken line lands at O+11, the tick after npc_add (RSProx 4373
+        -- [263]; quest_vampire.rs2): already in the ring, or awaited.
+        local weak_result, weak_detail = t.msg.expect("weakened by the garlic")
+        if weak_result ~= "ok" then
+            weak_result, weak_detail = t.msg.await("weakened by the garlic", 3)
+        end
+        t.check("draynor.weakened", weak_result, weak_detail)
 
         -- --------------------------------------------------------- killDraynor
         -- The stake is the death (param=death_script, count_draynor.rs2): K+1
