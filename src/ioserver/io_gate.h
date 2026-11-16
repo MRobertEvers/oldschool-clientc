@@ -139,20 +139,19 @@ IoGate_UnlinkPlayer(
     char const* player);
 
 /**
- * Make the player account `username` with `password` (wiped here), `admin` 1
- * for staff, and link it to the web login `owner` at once: it plays from that
- * login's Play Now and its password signs it in only after an unlink. Never
- * over an existing account or an existing character save. `*out_message` as
- * IoGate_LinkPlayer's. Who may name which `owner`, and ask for `admin`, is the
- * caller's (io_site.c: a login for itself; staff for any login, admin too).
+ * Make the player account `username`, `admin` 1 for staff, and link it to the
+ * web login `owner` at once: it plays from that login's Play Now. No password
+ * is asked: the record gets a random one nobody sees, since a linked account
+ * never signs in with one. Never over an existing account or an existing
+ * character save. `*out_message` as IoGate_LinkPlayer's. Who may name which
+ * `owner`, and ask for `admin`, is the caller's (io_site.c: a login for
+ * itself; staff for any login, admin too).
  */
 enum IoGateLinkResult
 IoGate_CreatePlayer(
     struct IoGate* gate,
     char const* owner,
     char const* username,
-    char* password,
-    size_t password_cap,
     int admin,
     char const** out_message);
 

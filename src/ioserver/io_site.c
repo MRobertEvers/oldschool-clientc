@@ -1227,8 +1227,8 @@ page_player(
     page_send(&b, res, 200);
 }
 
-/* The name, the password twice, and for staff the admin box: the create
- * form's fields on /account and /admin/users. */
+/* The name, and for staff the admin box: the create form's fields on
+ * /account and /admin/users. */
 static void
 create_form_fields(
     struct SiteBuf* b,
@@ -1239,12 +1239,8 @@ create_form_fields(
     buf_puts(b, "<label>Player name<input name=\"username\" maxlength=\"12\" required "
                 "autocomplete=\"off\" value=\"");
     buf_esc(b, name ? name : "");
-    buf_puts(b, "\"></label><label>Password<input name=\"password\" type=\"password\" "
-                "minlength=\"8\" maxlength=\"20\" required autocomplete=\"new-password\">"
-                "</label><label>Password again<input name=\"password2\" type=\"password\" "
-                "minlength=\"8\" maxlength=\"20\" required autocomplete=\"new-password\">"
-                "</label><p class=\"note\">1 to 12 letters, digits, spaces, - or _. The password: "
-                "8 to 20 characters with a letter and a digit, no spaces, not the name.</p>");
+    buf_puts(b, "\"></label><p class=\"note\">1 to 12 letters, digits, spaces, - or _, with "
+                "at least one letter.</p>");
     if( staff )
         buf_printf(b, "<label class=\"check\"><input type=\"checkbox\" name=\"admin\" "
                       "value=\"1\"%s> Admin (staff): the jmod crown and ::commands, off the "
@@ -1309,8 +1305,8 @@ page_account(
     create_form_fields(&b, create_name, staff, create_admin);
     buf_puts(&b, "<button class=\"btn\">Create account</button></form>"
                  "<p class=\"note\" style=\"margin-top:12px\">The new account is linked to this "
-                 "login: it plays from Play Now. Its password is kept for it, and signs it in "
-                 "only if it is ever unlinked.</p></section>\n");
+                 "login: press Play and choose it on the Play Now screen. No password needed.</p>"
+                 "</section>\n");
 
     buf_puts(&b, "<section class=\"panel\"><h2>Link a player account</h2>"
                  "<form method=\"post\" action=\"/account/link-player\">"
@@ -1349,7 +1345,9 @@ page_unlink_confirm(
     buf_esc(&b, player);
     buf_puts(&b, "?</h2><p>It leaves this login: its card goes from the Play Now screen, its "
                  "history is no longer shown to you, and it signs in with its own password "
-                 "again.</p><form method=\"post\" action=\"/account/unlink\" class=\"row\">"
+                 "again.</p><p class=\"note\">An account made on this site has no password "
+                 "anyone knows: after unlinking, an operator has to set one before it can "
+                 "play.</p><form method=\"post\" action=\"/account/unlink\" class=\"row\">"
                  "<input type=\"hidden\" name=\"player\" value=\"");
     buf_esc(&b, player);
     buf_puts(&b, "\"><button class=\"btn\">Unlink</button><a href=\"/account\">Cancel</a></form>"
@@ -1996,8 +1994,8 @@ page_users(
     create_form_fields(&b, typed_name, 1, typed_admin);
     buf_puts(&b, "<button class=\"btn\">Create account</button></form>"
                  "<p class=\"note\" style=\"margin-top:12px\">The account is linked to the login "
-                 "chosen: it plays from that login's Play Now and shows on its account page. Its "
-                 "owner needs no password for it.</p></section>\n</div>\n");
+                 "chosen: it plays from that login's Play Now and shows on its account page. No "
+                 "password needed.</p></section>\n</div>\n");
     page_send(&b, res, status);
 }
 
@@ -2015,8 +2013,6 @@ handle_create(
     char owner[SITE_NAME_MAX] = "";
     char owner_key[SITE_NAME_MAX] = "";
     char username[SITE_NAME_MAX] = "";
-    char password[128] = "";
-    char password2[128] = "";
     char admin_field[8] = "";
     char const* error = NULL;
     int staff = site_is_staff(gate, who);
@@ -2024,8 +2020,6 @@ handle_create(
     int status = 400;
 
     IoGate_FormField(req, "username", username, sizeof(username));
-    IoGate_FormField(req, "password", password, sizeof(password));
-    IoGate_FormField(req, "password2", password2, sizeof(password2));
     IoGate_FormField(req, "admin", admin_field, sizeof(admin_field));
     admin = strcmp(admin_field, "1") == 0;
     if( staff_form )
@@ -2047,14 +2041,10 @@ handle_create(
         error = "Only staff can make an admin account.";
         status = 403;
     }
-    if( !error && strcmp(password, password2) != 0 )
-        error = "The two passwords are not the same.";
-    memset(password2, 0, sizeof(password2));
     if( !error )
     {
         enum IoGateLinkResult result =
-            IoGate_CreatePlayer(gate, owner_key, username, password, sizeof(password), admin,
-                                &error);
+            IoGate_CreatePlayer(gate, owner_key, username, admin, &error);
 
         if( result == IO_GATE_LINK_LINKED )
         {
@@ -2082,7 +2072,6 @@ handle_create(
         }
         status = result == IO_GATE_LINK_FAILED ? 500 : 400;
     }
-    memset(password, 0, sizeof(password));
     if( staff_form )
         page_users(gate, who, req, res, status, error, owner_key, username, admin);
     else

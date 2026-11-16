@@ -427,7 +427,7 @@ still the landing URL given to `--gate` (`/?args=...`), which every page's
 | `/` | Play Now, this login's linked accounts, the top five players |
 | `/hiscores[?skill=N&page=P]` | everyone ranked overall (total level, then XP) or by one skill, 50 to a page, with a player search |
 | `/players/<name>` | combat and total level, total XP, quest points, overall rank, last played, every skill's level, XP and rank, and the adventure log (quests completed). For an account linked to the viewer, also total XP over time (SVG), XP gained over the last day, week and month, and the recent sessions with their length, XP gained and most-trained skill |
-| `/account` | the linked accounts (Stats, Unlink); **Create a player account** (name, password twice; staff also get an Admin box), made and linked to this login in one step; and a form to link an existing one with its name and password, under the same rules as the game's Link account |
+| `/account` | the linked accounts (Stats, Unlink); **Create a player account** (a name only; staff also get an Admin box), made and linked to this login in one step; and a form to link an existing one with its name and password, under the same rules as the game's Link account |
 | `/admin/users` | staff only: every web login with its linked player accounts (admins marked), **Sign in as** for each, and Create a player account for any login, admin or not |
 | `/admin/recordings[?account=K]` | staff only: every recorded session (account, start, length, size, Watch, .bin) and every player account's recording switch |
 | `/admin/replay?f=<account>/<file>` | staff only: the game page in replay mode (`/?replay=...` on `manifests/manifest_replay.ini`, JS5 over the game socket), with play/pause, Fast, and a tick scrubber over its `ToriRS_Replay` controls |
@@ -438,8 +438,10 @@ does, under the same name and password rules, then links it to the login at
 once (record `managed_by` + `link_hash`, the token in `links.sqlite`). It
 refuses a name that has a record, a name with a character save but no record
 (a pre-password character a first login would claim), and a login already
-holding 16 linked accounts. The password is kept and signs the account in only
-if it is ever unlinked. Only staff may tick Admin (a forged `admin=1` from
+holding 16 linked accounts. Nobody types a password: a linked account never
+signs in with one, so the record gets 20 random hex digits nobody sees. An
+account made this way and later unlinked needs `torirsctl password <name>`
+before it can play. Only staff may tick Admin (a forged `admin=1` from
 anyone else is a 403); an admin account is taken off the hiscores at creation.
 
 **Sign in as** (`POST /admin/users/sign-in-as`) re-issues the gate cookie for

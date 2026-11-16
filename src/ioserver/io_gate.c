@@ -1228,21 +1228,22 @@ IoGate_UnlinkPlayer(
 }
 
 /* Make the player account `username` and link it to `owner` in one step:
- * the record (admin when `admin`), the link token, and the links row. The
- * password is the account's own, which signs it in only if it is ever
- * unlinked. */
+ * the record (admin when `admin`), the link token, and the links row. Nobody
+ * types a password: a linked account never signs in with one, so the record
+ * gets a random one that is never shown (an unlinked account is given a
+ * known one with `torirsctl password`). */
 enum IoGateLinkResult
 IoGate_CreatePlayer(
     struct IoGate* gate,
     char const* owner,
     char const* username,
-    char* password,
-    size_t password_cap,
     int admin,
     char const** out_message)
 {
     char names[IO_GATE_LINKS_LIST_MAX][IO_GATE_LINKS_NAME_MAX];
     char token[TORIRSSERVER_LINK_TOKEN_HEX + 1];
+    char password[TORIRSSERVER_AUTH_PASSWORD_MAX + 1];
+    int tries = 0;
     char const* problem = NULL;
     char const* save;
     struct stat st;
@@ -1255,16 +1256,18 @@ IoGate_CreatePlayer(
     assert(password);
     assert(out_message);
     *out_message = NULL;
-    if( !player_name_ok(username) || !password[0] )
+    if( !player_name_ok(username) )
     {
-        memset(password, 0, password_cap);
-        *out_message = "Enter a name and a password for the new account.";
+        *out_message = "Enter a name for the new account.";
         return IO_GATE_LINK_REFUSED;
     }
+    /* A bad name is the visitor's to fix: say so before making a password. */
+    *out_message = ToriRSServer_AuthNameProblem(username);
+    if( *out_message )
+        return IO_GATE_LINK_REFUSED;
     if( IoGateLinks_List(gate->links, owner, names, IO_GATE_LINKS_LIST_MAX) >=
         IO_GATE_LINKS_LIST_MAX )
     {
-        memset(password, 0, password_cap);
         *out_message = "That login holds as many player accounts as it can. Unlink one first.";
         return IO_GATE_LINK_REFUSED;
     }
@@ -1273,14 +1276,26 @@ IoGate_CreatePlayer(
     save = ToriRSServer_SavePath(username);
     if( save[0] && stat(save, &st) == 0 )
     {
-        memset(password, 0, password_cap);
         *out_message = "A character by that name already exists. Choose another name.";
         return IO_GATE_LINK_REFUSED;
+    }
+    /* 20 random hex digits under the password rules: almost always the first
+     * draw (all digits, or the name inside it, are the rare redraws). */
+    for( ;; )
+    {
+        uint8_t bytes[TORIRSSERVER_AUTH_PASSWORD_MAX / 2];
+
+        assert(tries++ < 64);
+        ToriRSServer_AuthRandom(bytes, sizeof(bytes));
+        ToriRSServer_AuthHex(bytes, sizeof(bytes), password);
+        memset(bytes, 0, sizeof(bytes));
+        if( !ToriRSServer_AuthPasswordProblem(username, password) )
+            break;
     }
     created = ToriRSServer_AuthCreate(username, password, admin, &problem);
     if( created != TORIRSSERVER_CREATE_OK )
     {
-        memset(password, 0, password_cap);
+        memset(password, 0, sizeof(password));
         if( created == TORIRSSERVER_CREATE_EXISTS )
             *out_message = "There is already a player account by that name.";
         else if( problem )
@@ -1291,7 +1306,7 @@ IoGate_CreatePlayer(
                                                             : IO_GATE_LINK_REFUSED;
     }
     linked = ToriRSServer_AuthLink(username, password, owner, token);
-    memset(password, 0, password_cap);
+    memset(password, 0, sizeof(password));
     if( linked != TORIRSSERVER_LINK_OK )
     {
         fprintf(stderr, "io_server: gate: '%s' was created for '%s' but not linked (%d)\n",
