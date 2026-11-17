@@ -459,6 +459,38 @@ the descent transform's Y (`app_wev_advance_bobs` →
 pitch/roll from the full 4×4 needs a wider descent transform and is deferred.
 `::vesselseq <view> <seq> [delay]` plays a one-shot from the server.
 
+## 8. What the official client sends (RSProx index 4407, rev 241)
+
+The owner's Pandemonium session (index 4407, rev 241.1, Port Sarim tutorial
+through the shipyard) is the reference for the CLIENT's side of boats. Read
+with `tools/rsprox/rsprox_index.py get 4407`; the transcript has 47
+`oploc1_v2`, 3 `oploc2_v2`, 41 `opnpc*_v2` and **no `OPWORLDENTITY*` at all**:
+
+- **Boarding and leaving are a loc op** on the gangplank:
+  `oploc1_v2 sailing_gangplank_port_sarim (59835)` from the quay at
+  `(3051, 3193, 0)` [6140] and from the deck at `(3051, 3193, 1)` [5754]
+  (refused mid-tutorial: "Now's not the time to be disembarking."); the
+  shipyard's `sailing_gangplank_shipyard (59719)` the same [19059], [19404].
+  The server answers `varbit sailing_boarded_boat_world` = the world id
+  [4764].
+- **A loc ON the boat is a loc op in the boat's own map**: the helm
+  `sailing_intro_navigating (59620)` at `(15300, 10182, 1)` [6753],
+  the sails `(15300, 10181, 1)` [7703], the salvaging hook `(15299, 10178, 1)`
+  [5807], a facility placeholder `(15299, 10178, 1)` [19140]. The coordinate
+  is the world entity's map, not the port's.
+- **An npc on the boat is an ordinary `opnpc` by index** [5607], [5860].
+- The server marks the boat with `set_interaction_mode worldentity=(index,
+  id, coord, sizex, sizez) tileinteractionmode=walk entityinteractionmode=all`
+  [6759] and `reset_interaction_mode` [8316].
+
+This engine's client instead sends a hull click as the cheat line
+`::vesselop <view> <op>` (the coverage table in § 7): that path exists only
+for our client, and the official client never takes it.
+
+At 242 the loc ops are `OPLOC1..5_V3` (the 242 menu handler; v3
+c9d2a0e5f), so a deck loc from RuneLite arrives as OPLOC*_V3 at the boat-map
+coordinate.
+
 ## Sources
 
 - [World entity — OSRS Wiki](https://oldschool.runescape.wiki/w/World_entity)

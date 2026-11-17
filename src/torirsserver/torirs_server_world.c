@@ -8031,7 +8031,23 @@ ToriRSServer_WorldPlayerLevelChanged(struct ToriRSServerPlayer* player)
      * level — so this is not only "forget what you were told", it is what makes
      * the next flush compute a new active window. */
     ToriRSServer_ZonePlayerReset(player);
-    ToriRSServer_PidSetClear(&player->player_tracked);
+    /*
+     * The other players are forgotten; the client's OWN entry is not. It is
+     * what the login rebuild's GPI init seeded, and it is how
+     * send_rebuild_normal_at tells the login rebuild from a later one: with it
+     * gone, a level change that also rebuilds the scene (Captain Barnaby's
+     * ferry lands on a deck at level 1) sent the login init again mid-session.
+     * Our client re-seeded and carried on; the official client reads that block
+     * only at login, misread the rest, and lost its own player -- a black
+     * screen for good after every such trip (RuneLite, 2026-11-17).
+     */
+    {
+        int self = ToriRSServer_PidSetHas(&player->player_tracked, player->pid);
+
+        ToriRSServer_PidSetClear(&player->player_tracked);
+        if( self )
+            ToriRSServer_PidSetAdd(&player->player_tracked, player->pid);
+    }
     player->tracked_player_count = 0;
 }
 
