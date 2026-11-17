@@ -15,6 +15,9 @@
  * (canvasW - 765) / 2. Its braziers, and so the fire, sit at this frame's
  * edges whatever backdrop is drawn behind it. */
 #define APP_TITLE_FRAME_W 765
+/* How far past each edge of the frame the deob's braziers burn: it blends its
+ * 128-column fire at titleX-22 and titleX+659 (765 - 128 + 22). */
+#define APP_TITLE_FLAME_OUTSET 22
 
 /* Private to this unit, declared up front so definition order is free. */
 static void
@@ -155,16 +158,27 @@ app_title_flames_start(struct App* app)
      */
     col_h = panel->height < TORIRS_FLAME_COLUMN_H ? panel->height : TORIRS_FLAME_COLUMN_H;
 
-    /* The two strips the reference burns in: hard against each edge of the
-     * 765 frame, which is where title.jpg's braziers are painted. A wider
-     * backdrop (titlewide.png, 1089) is centred on the same frame, so the
-     * strips are cut that far in from its edges -- the deob blends its fire at
-     * titleX-22 and titleX+659 whichever backdrop is under it. */
+    /* The two strips the reference burns in. The deob blends its fire at
+     * titleX-22 and titleX+659 whichever backdrop is under it, so that is
+     * where the strips are cut -- when the backdrop has wall there.
+     *
+     * A wider backdrop (titlewide.png, 1089) is centred on the 765 frame and
+     * does: its strips are cut 22 columns OUTSIDE each frame edge, and the
+     * profile places the two components there with no lean (osrs242_ui.ini).
+     * Cut flush with the frame instead, the fire leant 22 columns out of its
+     * own strip and lost them: on a canvas wider than 765 (a phone's 895) the
+     * outer edge of each flame stopped dead in mid-air.
+     *
+     * title.jpg (765, osrs239 and older) has no wall past the frame, so its
+     * strips stay hard against each edge and the profile keeps the lean; the
+     * 22 columns it loses are off the 765 canvas anyway, as the deob's are. */
     frame_w = panel->width < APP_TITLE_FRAME_W ? panel->width : APP_TITLE_FRAME_W;
     frame_x = (panel->width - frame_w) / 2;
     for( int side = 0; side < TORIRS_FLAME_SIDES; side++ )
     {
-        int src_x = side == TORIRS_FLAME_LEFT ? frame_x : frame_x + frame_w - TORIRS_FLAME_W;
+        int const outset = frame_x >= APP_TITLE_FLAME_OUTSET ? APP_TITLE_FLAME_OUTSET : 0;
+        int src_x = side == TORIRS_FLAME_LEFT ? frame_x - outset
+                                              : frame_x + frame_w - TORIRS_FLAME_W + outset;
         column[side] = ToriMem_Alloc(ToriMem_Process(), (size_t)TORIRS_FLAME_W * col_h * sizeof(*column[side]));
         assert(column[side]);
         for( int y = 0; y < col_h; y++ )
