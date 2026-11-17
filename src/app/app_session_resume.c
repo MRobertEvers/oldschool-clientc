@@ -224,3 +224,27 @@ app_session_resume_user(void)
 {
     return g_resume_user;
 }
+
+int
+App_SessionResume(
+    struct App const* app,
+    char* out_user,
+    int user_size,
+    char* out_token,
+    int token_size)
+{
+    assert(app);
+    assert(out_user);
+    assert(user_size > 0);
+    assert(out_token);
+    assert(token_size > 0);
+    out_user[0] = '\0';
+    out_token[0] = '\0';
+    if( !app->net || app->net->state != TORIRS_NET_GAME || !app->net->username[0] )
+        return 0;
+    app_session_resume_token(app->net, out_token, token_size);
+    if( !out_token[0] )
+        return 0;
+    snprintf(out_user, (size_t)user_size, "%s", app->net->username);
+    return 1;
+}

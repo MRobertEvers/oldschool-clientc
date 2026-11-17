@@ -104,6 +104,7 @@ static jmethodID g_show_keyboard;
 static jmethodID g_open_url;
 static jmethodID g_show_plugin_tab;
 static jmethodID g_boot_failed;
+static jmethodID g_restart_client;
 /**
  * The frame thread has been attached to the JVM.
  *
@@ -357,6 +358,59 @@ PlatformAndroidJni_ShowPluginTab(void)
         (*env)->ExceptionClear(env);
 }
 
+/* ---- a restart into a new Surface ---------------------------------------
+ *
+ * The activity stops this run (nativeStop, which joins the frame thread) and
+ * starts the next on a new SurfaceView. The call posts to the UI thread and
+ * returns at once: the frame loop must keep running for the join to end it.
+ */
+
+int
+PlatformAndroidJni_RequestRestart(
+    char const* const* args,
+    int count)
+{
+    JNIEnv* env = NULL;
+    jclass string_class;
+    jobjectArray array;
+
+    assert(count >= 0);
+    if( !g_vm || !g_activity || !g_restart_client )
+    {
+        LOGE("unable to restart the client: no activity");
+        return 0;
+    }
+    if( (*g_vm)->GetEnv(g_vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK )
+    {
+        if( (*g_vm)->AttachCurrentThread(g_vm, &env, NULL) != JNI_OK )
+            return 0;
+        g_frame_thread_attached = 1;
+    }
+    string_class = (*env)->FindClass(env, "java/lang/String");
+    assert(string_class);
+    array = (*env)->NewObjectArray(env, count, string_class, NULL);
+    assert(array);
+    for( int i = 0; i < count; i++ )
+    {
+        jstring text;
+
+        assert(args[i]);
+        text = (*env)->NewStringUTF(env, args[i]);
+        assert(text);
+        (*env)->SetObjectArrayElement(env, array, i, text);
+        (*env)->DeleteLocalRef(env, text);
+    }
+    (*env)->CallVoidMethod(env, g_activity, g_restart_client, array);
+    (*env)->DeleteLocalRef(env, array);
+    (*env)->DeleteLocalRef(env, string_class);
+    if( (*env)->ExceptionCheck(env) )
+    {
+        (*env)->ExceptionClear(env);
+        return 0;
+    }
+    return 1;
+}
+
 JNIEXPORT void JNICALL
 Java_com_torirs_client_ClientActivity_nativePluginChromeToggle(JNIEnv* env, jobject thiz)
 {
@@ -578,6 +632,10 @@ Java_com_torirs_client_ClientActivity_nativeStart(
         g_boot_failed = (*env)->GetMethodID(env, cls, "bootFailed", "(Ljava/lang/String;)V");
         if( (*env)->ExceptionCheck(env) )
             (*env)->ExceptionClear(env);
+        g_restart_client =
+            (*env)->GetMethodID(env, cls, "restartClient", "([Ljava/lang/String;)V");
+        if( (*env)->ExceptionCheck(env) )
+            (*env)->ExceptionClear(env);
         (*env)->DeleteLocalRef(env, cls);
     }
 
@@ -718,6 +776,7 @@ Java_com_torirs_client_ClientActivity_nativeStop(JNIEnv* env, jobject thiz)
     g_open_url = NULL;
     g_show_plugin_tab = NULL;
     g_boot_failed = NULL;
+    g_restart_client = NULL;
     g_vm = NULL;
     LOGI("frame thread joined");
 }

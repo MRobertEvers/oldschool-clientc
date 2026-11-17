@@ -65,7 +65,7 @@ final class GamePack
      * src/platform/platform_android.h. BUMP BOTH TOGETHER. A pack with another
      * number is refused, and the person is asked to install the new APK.
      */
-    static final int JNI_ABI = 1;
+    static final int JNI_ABI = 2;
 
     private static final String TAG = "torirs";
     private static String loadedPath;

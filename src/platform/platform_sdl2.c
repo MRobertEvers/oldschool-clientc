@@ -5540,6 +5540,33 @@ PlatformWindow_PresentAvailable(
 #endif
 }
 
+/* This window moves between presents live, or not at all: no host here starts
+ * a client over (platform_window.h). */
+bool
+PlatformWindow_PresentOnRestart(
+    struct PlatformWindow const* p,
+    enum PlatformPresent present)
+{
+    assert(p);
+    (void)p;
+    (void)present;
+    return false;
+}
+
+bool
+PlatformWindow_RequestRestart(
+    struct PlatformWindow* p,
+    char const* const* args,
+    int count)
+{
+    assert(p);
+    assert(count >= 0);
+    (void)p;
+    (void)args;
+    (void)count;
+    return false;
+}
+
 bool
 PlatformWindow_SetPresent(
     struct PlatformWindow* platform,

@@ -397,6 +397,19 @@ App_SetHighDpiAuto(
  * so a tablet gets the phone's room rather than the bare minimum.
  */
 #define APP_MOBILE_CANVAS_MIN_W 1092
+/*
+ * But on a PHONE that is not 2:1, 1092 columns cost the whole picture its
+ * size. A 1280x720 phone (the Moto X lane, 5:3) fitted to 1092 columns drew
+ * the 503-row game at 1.09 device pixels to the canvas pixel, a third smaller
+ * than its rows allow, on a 4.7-inch screen. So on a screen that is physically
+ * small -- under APP_MOBILE_PHONE_MAX_POINTS_H points tall in landscape, which
+ * every phone is and no tablet (600+) is -- the minimum is only what the rows
+ * give, down to APP_MOBILE_CANVAS_PANEL_CLEAR_W: the 58 + 512 + 289 columns
+ * below which the bank modal cannot clear the side panel at all. A 2:1 phone
+ * still gets 1092 (its rows give more), and every tablet keeps the room.
+ */
+#define APP_MOBILE_CANVAS_PANEL_CLEAR_W 859
+#define APP_MOBILE_PHONE_MAX_POINTS_H 600
 
 static void
 app_mobile_fit_floor(
@@ -419,7 +432,22 @@ app_mobile_fit_floor(
     /* The floor carries the chrome strip the canvas carves out on top of the
      * frame's own 765 (App_CanvasFloorWidth); the frame needs its columns
      * beside that strip, not including it. */
-    floor_w += APP_MOBILE_CANVAS_MIN_W - APP_CANVAS_MIN_W;
+    {
+        int const strip = floor_w - APP_CANVAS_MIN_W;
+        int min_w = APP_MOBILE_CANVAS_MIN_W;
+
+        assert(settings->density_percent > 0);
+        if( (long long)window_h * 100 / settings->density_percent < APP_MOBILE_PHONE_MAX_POINTS_H )
+        {
+            /* The columns a fit to the floor's rows leaves the frame. */
+            int const by_rows = (int)((long long)window_w * floor_h / window_h) - strip;
+
+            min_w = by_rows < APP_MOBILE_CANVAS_PANEL_CLEAR_W ? APP_MOBILE_CANVAS_PANEL_CLEAR_W
+                    : by_rows > APP_MOBILE_CANVAS_MIN_W       ? APP_MOBILE_CANVAS_MIN_W
+                                                              : by_rows;
+        }
+        floor_w += min_w - APP_CANVAS_MIN_W;
+    }
     fit = (int)((long long)window_w * 100 / floor_w);
     fit_h = (int)((long long)window_h * 100 / floor_h);
     if( fit_h < fit )

@@ -464,7 +464,7 @@ The NDK on the NUC is `~/torirs/android/android-ndk-r27` (`ANDROID_NDK_HOME` in
 
 The game pack runs inside whatever APK the phone already has, so the two must agree on
 the JNI contract: every `native` method in `ClientActivity`, and every Java method the C
-side calls back (`openUrl`, `showPluginTab`, `bootFailed`, `showSoftKeyboard`). The
+side calls back (`openUrl`, `showPluginTab`, `bootFailed`, `showSoftKeyboard`, `restartClient`). The
 contract has a number, `TORIRS_ANDROID_JNI_ABI` in `src/platform/platform_android.h`
 and `GamePack.JNI_ABI`. **Bump both together** whenever the contract changes.
 

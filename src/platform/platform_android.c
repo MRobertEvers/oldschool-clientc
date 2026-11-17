@@ -1573,6 +1573,30 @@ PlatformWindow_PresentAvailable(struct PlatformWindow const* p, enum PlatformPre
     return present == (p->gl_mode ? PLATFORM_PRESENT_GL : PLATFORM_PRESENT_SOFTWARE);
 }
 
+/* The other present is a new SurfaceView away: the activity makes one and the
+ * client boots again into it (ClientActivity.restartClient). */
+bool
+PlatformWindow_PresentOnRestart(
+    struct PlatformWindow const* p,
+    enum PlatformPresent present)
+{
+    assert(p);
+    (void)p;
+    return present == PLATFORM_PRESENT_SOFTWARE || present == PLATFORM_PRESENT_GL;
+}
+
+bool
+PlatformWindow_RequestRestart(
+    struct PlatformWindow* p,
+    char const* const* args,
+    int count)
+{
+    assert(p);
+    assert(count >= 0);
+    (void)p;
+    return PlatformAndroidJni_RequestRestart(args, count);
+}
+
 bool
 PlatformWindow_SetPresent(struct PlatformWindow* p, enum PlatformPresent present)
 {

@@ -13,6 +13,7 @@
 #include "game/cs2_harness.h"
 #include "game/rs_chat.h"
 #include "game/rs_cs2_dispatch.h"
+#include "game/rs_prefs.h"
 #include "game/rs_ui_slots.h"
 #include "input/torirs_gesture.h"
 #include "input/torirs_input.h"
@@ -1677,8 +1678,10 @@ renderer_available(void)
     unsigned mask = 0;
     for( int kind = 0; kind < TORIRS_RENDERER_KIND_COUNT; kind++ )
         if( renderer_built((enum ToriRS_RendererKind)kind) &&
-            PlatformWindow_PresentAvailable(
-                platform, renderer_present((enum ToriRS_RendererKind)kind)) )
+            (PlatformWindow_PresentAvailable(
+                 platform, renderer_present((enum ToriRS_RendererKind)kind)) ||
+             PlatformWindow_PresentOnRestart(
+                 platform, renderer_present((enum ToriRS_RendererKind)kind))) )
             mask |= TORIRS_RENDERER_KIND_BIT(kind);
     /* A lane may be drawing with a renderer its window would not offer again
      * (Android, the browser): that one is still on the list. */
@@ -1687,6 +1690,36 @@ renderer_available(void)
 
 /* A renderer flag was given: the saved pick does not decide this launch. */
 static bool renderer_launch_flagged;
+/* The window was asked to start the client over for a renderer it cannot
+ * present live (PlatformWindow_PresentOnRestart); asked once. */
+static bool renderer_restart_asked;
+
+/*
+ * The renderer pick in preferences.ini, read before the window exists: on a
+ * lane that reaches the other present only by a new window (Android), the
+ * window must be MADE for the pick, because it cannot be moved to it after
+ * (renderer_follow_request asks for that restart). 0 when there is none.
+ */
+static int
+main_saved_renderer_pick(void)
+{
+    static struct RS_Prefs prefs;
+    static char data[64 * 1024];
+    char const* path = RS_Prefs_Path();
+    FILE* file;
+    size_t size;
+
+    if( !path )
+        return RS_CS2_RENDERER_LAUNCH_DEFAULT;
+    file = fopen(path, "rb");
+    if( !file )
+        return RS_CS2_RENDERER_LAUNCH_DEFAULT;
+    size = fread(data, 1, sizeof(data), file);
+    fclose(file);
+    RS_Prefs_Defaults(&prefs);
+    RS_Prefs_Decode(&prefs, data, (int)size);
+    return prefs.options[RS_CS2_OPTION_DEVICE][RS_CS2_DEVICEOPTION_RENDERER];
+}
 
 #if defined(__EMSCRIPTEN__)
 /* Which renderer is drawing, told to the page each time it is settled (the
@@ -2075,6 +2108,30 @@ renderer_follow_request(void)
         }
         /* A world load mid-batch has members still to be announced; the
          * replay would bake them before the batch does. Next frame. */
+        /* Only a new window presents that way (Android): the pick is in the
+         * store, so the restart boots into it (main_saved_renderer_pick). */
+        else if( !PlatformWindow_PresentAvailable(platform, renderer_present(wanted)) )
+        {
+            if( !renderer_restart_asked )
+            {
+                /* A reconnect, not a logout: the next run asks for this very
+                 * session back (--user/--resume, GAMERECONNECT), as a
+                 * reloaded page does. Nothing is sent to end it; the socket
+                 * closing with the client is all the server sees. */
+                char user[64];
+                char token[80];
+                char const* args[4] = { "--user", user, "--resume", token };
+                int const resume = App_SessionResume(&app, user, (int)sizeof(user), token,
+                                                     (int)sizeof(token));
+
+                renderer_restart_asked = true;
+                TORIRS_REPORT(
+                    "renderer: %d needs a new window; restarting the client%s\n", (int)wanted,
+                    resume ? " (reconnecting)" : "");
+                if( !PlatformWindow_RequestRestart(platform, args, resume ? 4 : 0) )
+                    renderer_refused = request;
+            }
+        }
         else if( !ToriDraw_SceneBatchBuilding(app.scene) )
         {
             if( !renderer_switch(wanted) )
@@ -7514,6 +7571,21 @@ frame_loop_teardown(void)
             stats.capture_dropped_frames);
     }
     PlatformAudio_Free(audio);
+    /*
+     * The music player still holds the exclusion the backend handed it -- a
+     * pointer into the backend just freed, mutex and all -- and App_Shutdown
+     * (main_shutdown, after this) frees the player under it. With the device
+     * closed there is no callback thread left to exclude, so the empty
+     * exclusion (a no-op, torirs_audio.h) is the true one now. Locking the
+     * destroyed mutex instead waited forever on Android's libc: every exit
+     * hung in ToriRS_Music_Free, and a renderer restart's nativeStop with it
+     * (an ANR on the phone, 2026-11-17).
+     */
+    {
+        struct ToriRS_AudioExclusion const none = { 0 };
+        ToriRS_Music_SetExclusion(&app.audio.music, none);
+    }
+    audio = NULL;
     renderer_stop();
     PlatformWindow_Free(platform);
 }
@@ -10215,6 +10287,18 @@ main(
         else if( use_d3d9 )
             renderer_launch =
                 d3d9_zbuffer ? TORIRS_RENDERER_KIND_D3D9_DEPTH : TORIRS_RENDERER_KIND_D3D9;
+        /* No flag, on a lane whose window is made for one present for good:
+         * make it for the saved pick, which could not be switched to later. */
+        if( !renderer_launch_flagged )
+        {
+            int const pick = main_saved_renderer_pick();
+
+            if( pick != RS_CS2_RENDERER_LAUNCH_DEFAULT && pick - 1 < TORIRS_RENDERER_KIND_COUNT &&
+                renderer_built((enum ToriRS_RendererKind)(pick - 1)) &&
+                PlatformWindow_PresentOnRestart(
+                    platform, renderer_present((enum ToriRS_RendererKind)(pick - 1))) )
+                renderer_launch = (enum ToriRS_RendererKind)(pick - 1);
+        }
         assert(renderer_built(renderer_launch));
 
         if( renderer_present(renderer_launch) == PLATFORM_PRESENT_GL

@@ -3568,6 +3568,23 @@ App_SetSafeArea(
     struct App* app,
     struct ToriRS_CmdSafeArea const* area);
 
+/**
+ * The session this client is playing, as the next run of it would ask for it
+ * back: the name it was dialled with and its resume token
+ * (app_session_resume_token), which a boot passes as `--user` / `--resume` to
+ * reconnect with GAMERECONNECT instead of logging in. 1 only while in the game
+ * on a revision with seed reconnect; 0 otherwise (and both outputs "").
+ * For a host that starts the client over in place (Android's renderer
+ * restart), as a reloaded page does (src/web/torirs_host.js).
+ */
+int
+App_SessionResume(
+    struct App const* app,
+    char* out_user,
+    int user_size,
+    char* out_token,
+    int token_size);
+
 /** The smallest canvas height the frame now on screen can be laid out in: the
  *  classic frame's, or a plugin layout's own. @see App_CanvasFloorWidth. */
 int

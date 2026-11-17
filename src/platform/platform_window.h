@@ -905,6 +905,34 @@ PlatformWindow_PresentAvailable(
     enum PlatformPresent present);
 
 /**
+ * Can this window's HOST start the client over in a new window that presents
+ * `present` (PlatformWindow_RequestRestart), where it cannot move the live one?
+ *
+ * Android only: a Surface the CPU has drawn into can never become EGL's
+ * (PlatformWindow_PresentAvailable says why), but the activity can make a new
+ * SurfaceView, so the renderer the player picks is honoured by a restart. Every
+ * other lane answers false: it moves the window live, or not at all.
+ */
+bool
+PlatformWindow_PresentOnRestart(
+    struct PlatformWindow const* platform,
+    enum PlatformPresent present);
+
+/**
+ * Ask the host to stop this client and start it again in a new window, the
+ * saved preferences carried over, with `args` (`count` of them, may be 0)
+ * added to the next run's command line -- the session to reconnect to
+ * (`--user`, `--resume`), so the restart is a reconnect and not a logout. The
+ * frame loop keeps running until the host stops it; the caller asks once.
+ * false where the host cannot (every lane but Android).
+ */
+bool
+PlatformWindow_RequestRestart(
+    struct PlatformWindow* platform,
+    char const* const* args,
+    int count);
+
+/**
  * Move the window to `present`, keeping the window itself: its size, position,
  * input and attached chrome are untouched. The caller has already freed the
  * renderer that drew the old way, and starts the new one after this returns.

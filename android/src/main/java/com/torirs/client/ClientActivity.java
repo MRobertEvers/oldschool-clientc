@@ -92,6 +92,10 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     private boolean nativeReady;
 
     private SurfaceView surfaceView;
+    private FrameLayout rootLayout;
+    /** Added to the next run's command line, once: the session a renderer
+     *  restart reconnects to (`--user`, `--resume`). @see #restartClient. */
+    private String[] restartArgs = new String[0];
     private Button hideKeyboardButton;
     /** The plugin edge tab; shown when the client asks. @see #showPluginTab. */
     private PluginTabView pluginTab;
@@ -182,12 +186,7 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
-        surfaceView = new ClientSurfaceView(this);
-        surfaceView.getHolder().addCallback(this);
-        /* The view has to be focusable in touch mode or it never receives key
-         * events from a hardware or soft keyboard. */
-        surfaceView.setFocusable(true);
-        surfaceView.setFocusableInTouchMode(true);
+        surfaceView = newSurfaceView();
 
         /*
          * The surface, with a "Hide keyboard" button floating over it.
@@ -214,7 +213,7 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
                 showSoftKeyboard(false);
             }
         });
-        FrameLayout rootLayout = new FrameLayout(this);
+        rootLayout = new FrameLayout(this);
         rootLayout.addView(
                 surfaceView,
                 new FrameLayout.LayoutParams(
@@ -336,6 +335,94 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
         super.onResume();
         if( nativeReady )
             nativeSetForeground(1);
+        hideSystemBars();
+    }
+
+    /**
+     * Immersive: no status bar, no navigation bar, until the person swipes one
+     * in from the edge (and then only for a moment).
+     *
+     * The bars are not decoration on a phone this lane targets: the navigation
+     * bar took 84 of a 1280x720 screen's columns, and the canvas is sized from
+     * the surface (app_mobile_fit_floor), so every column it took was a smaller
+     * game. Re-applied on focus, because a dialog, the keyboard or a swipe
+     * brings the bars back and clears the flags.
+     */
+    private void hideSystemBars()
+    {
+        getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus)
+    {
+        super.onWindowFocusChanged(hasFocus);
+        if( hasFocus )
+            hideSystemBars();
+    }
+
+    /** The game's surface view, callbacks attached. */
+    private SurfaceView newSurfaceView()
+    {
+        SurfaceView view = new ClientSurfaceView(this);
+        view.getHolder().addCallback(this);
+        /* The view has to be focusable in touch mode or it never receives key
+         * events from a hardware or soft keyboard. */
+        view.setFocusable(true);
+        view.setFocusableInTouchMode(true);
+        return view;
+    }
+
+    /**
+     * Stop the client and start it again on a NEW SurfaceView. Called from the
+     * frame thread when the player picks a renderer that presents the other
+     * way (PlatformWindow_RequestRestart): a Surface the CPU has drawn into can
+     * never become EGL's, nor the reverse, but a new one can be either. The
+     * pick is saved by the client's own shutdown, and the next run reads it
+     * before it makes its window (main_saved_renderer_pick).
+     *
+     * A reconnect, not a logout: `args` is the session the next run asks for
+     * back (`--user <name> --resume <token>`, the GAMERECONNECT a reloaded
+     * browser tab makes), empty when the player was not in the game. No
+     * password is in it -- a refused reconnect shows the title, as on the web.
+     *
+     * Posted: the caller is the frame thread, and nativeStop joins it -- it
+     * must be free to finish its frame and see the quit.
+     */
+    @SuppressWarnings("unused") /* invoked by JNI, by name */
+    public void restartClient(final String[] args)
+    {
+        runOnUiThread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                if( !started || rootLayout == null )
+                    return;
+                restartArgs = args != null ? args : new String[0];
+                nativeStop();
+                started = false;
+                int index = rootLayout.indexOfChild(surfaceView);
+                /* Its surfaceDestroyed hands the native side a null window,
+                 * which a stopped client ignores. */
+                rootLayout.removeView(surfaceView);
+                surfaceView = newSurfaceView();
+                rootLayout.addView(
+                        surfaceView,
+                        index,
+                        new FrameLayout.LayoutParams(
+                                FrameLayout.LayoutParams.MATCH_PARENT,
+                                FrameLayout.LayoutParams.MATCH_PARENT));
+                surfaceView.requestFocus();
+                /* surfaceChanged on the new view starts the next run. */
+            }
+        });
     }
 
     @Override
@@ -622,6 +709,13 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
          * comments ignored.
          */
         args.addAll(readExtraArgs());
+
+        /* Last, so they win over the manifest and extra_args alike (main.c:
+         * within a layer the last value of a flag stands). Once only: a later
+         * start is a new session, not this one again. */
+        for( String a : restartArgs )
+            args.add(a);
+        restartArgs = new String[0];
 
         return args.toArray(new String[0]);
     }

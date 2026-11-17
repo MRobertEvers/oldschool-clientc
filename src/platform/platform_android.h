@@ -36,7 +36,7 @@
  * The version of the contract between this library and the APK's Java side:
  * every `native` method ClientActivity declares, and every Java method this
  * library calls back by name (openUrl, showPluginTab, bootFailed,
- * showSoftKeyboard).
+ * showSoftKeyboard, restartClient).
  *
  * The production app does not carry this library. It downloads the current
  * one from the server (the "game pack", android/README.md) and loads it, so a
@@ -50,7 +50,7 @@
  * BUMP IT, here and in GamePack.java, whenever that contract changes. Every
  * other change to the client ships as a game pack with no new APK.
  */
-#define TORIRS_ANDROID_JNI_ABI 1
+#define TORIRS_ANDROID_JNI_ABI 2
 
 struct ANativeWindow;
 
@@ -285,6 +285,15 @@ PlatformAndroidJni_SetSoftKeyboard(int on);
 /** PlatformWindow_OpenUrl's implementation: the activity's openUrl. */
 void
 PlatformAndroidJni_OpenUrl(char const* url);
+
+/** Ask the activity to stop the client and start it again on a new
+ *  SurfaceView (ClientActivity.restartClient), `args` added to the next run's
+ *  command line: how a renderer that presents the other way is reached.
+ *  Posts and returns; 0 when there is no activity. */
+int
+PlatformAndroidJni_RequestRestart(
+    char const* const* args,
+    int count);
 
 /** Show the activity's plugin edge tab, the phone's way into the plugins.
  *  @see TORIRS_CMD_PLATFORM_PLUGIN_CHROME. */
