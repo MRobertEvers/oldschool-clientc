@@ -374,33 +374,50 @@ after waiting for the recorded rise instead of assuming it.
 
 ## Open
 
-1. **The face re-send rule.** Our engine re-sends an npc's face on the player whenever
-   the angle to him turns (`npc_face_follow`, from rev 238 Colosseum and rev 241
-   Stronghold recordings). The Zulrah recordings (rev 234/235) never do: 2.0 face blocks
-   per snakeling life (48/48), one per spit run on Zulrah (22/22), and 2.0 per life for
-   the Fight Caves swarm in the same session 3259 (513 lives). Either Jagex changed this
-   between 235 and 238 (then ours is right for 242) or it is per type. No rev 238+
-   Zulrah recording exists to tell.
-2. **The menu at a death** goes off on the killing hit's tick in our engine
-   (`npc_death_begin`); every recorded snakeling kill has it a tick later, with the face
-   reset (43/43). For an aged-out snakeling ours rides with the sequence (+50..+52)
-   where Jagex's is on +50 (5/5). No script command hides the menu alone.
+1. **The face re-send rule: settled, a revision change.** Measured across revisions with
+   `tools/rsprox/rsprox_face_resend.py` (a face on the recorder, the angle from the npc's
+   centre to his last-tick tile turned, a face block re-sent or not): rev 234/235 (index
+   3259, 819, 3324) 2 re-sent of 8,184 turns, for EVERY npc type in them (the Fight Caves
+   swarm, nechryaels, the Hunllef, kalphites, snakelings); rev 236 (3909) 0/341, rev 237
+   (1102) 0/40; rev 238 (4169) 26/26, rev 239 (4262) 2378/2429, rev 241 (4292) 891/892,
+   rev 242 (4578) 310/310, (4346) 151/153. Jagex started re-sending between 237 and 238,
+   so `npc_face_follow` is right for every wire this server speaks (239, 241, 242); the
+   Zulrah recordings simply predate it. No change.
+2. **The menu at a death: fixed in the engine.** `tools/rsprox/rsprox_death_ops.py`
+   (the headbar's fill=0 as the kill): the menu goes at kill + 1, where the death
+   animation also plays when nothing delays it, for every ordinary npc on every revision
+   (index 4262 207/207; 3259 554 (+1,+1), 47 (+1,+2), 41 (+1,+3) as (menu, animation)),
+   and at kill + 0 only when the animation goes with the blow (`npc_setdeathanimnow`,
+   60 (0,0)). `npc_death_begin` hid it on the blow for every death; it now waits for the
+   QUEUED step (kill + 1) unless the animation went with the blow, and a scripted
+   `npc_die` still hides it on its own tick (a death transformation keeps its restore).
+   The world selftest's goblin now checks the killing tick keeps the menu and the next
+   tick hides it in one block (both wires). The aged-out snakeling hides its menu with
+   `npc_setops(0)` on +50 beside the face reset, before its arrive delay (5/5).
 3. **An unowned hit's sounds** (the snakelings dying with Zulrah): ours sends
    `sound_area id=-1 range 10` for the hit and the death sound as an area sound; Jagex
    sends no hit sound and `seasnake_death` as a synth on D+1 (819, 2/2). Engine rule
    (`hit_has_player_dealer`).
-4. **The wiki's long-fight deviations** (a different phase than the table's after the
-   first rotation; a green form spitting unpredictably): no recording, no rates. Not
-   implemented.
+4. **The wiki's long-fight deviations: built, at CHOSEN rates (owner, 2026-11-17).** After
+   the first rotation, a phase change detours 1 time in 8 (`^zulrah_detour_in`) to a middle
+   phase (2 .. last - 1) of any rotation, then the table resumes where it would have been;
+   a green spit run goes wild 1 time in 8 (`^zulrah_wild_in`), each spit then magic or
+   ranged at even odds. Neither rate is sourced: no recording shows a deviation (the one
+   post-wrap rotation, 3259 [8686..8847], kept the table 7/7) and the wiki gives none.
+   `::zulrahtable` turns both off (the replay test uses it); `::zulrahrun` check 8 walks
+   400 phase changes (none in rotation 1, none with the table forced, each detour a middle
+   phase that returns to the table).
 5. **Unrecorded rows of the table**: rotations 1 and 3 after phase 2, rotation 2 after
    phase 8's second spit, and every egg/cloud spot in them (Near-Reality's where the wiki
    names none). The rotation-1/2 Jad run's ranged-first start is the wiki's.
 6. **The throw-source lag**: 9 of 274 recorded throws left from the previous heading's
    tile, each the first throw after a spit run; ours always use the throw's own heading.
 7. **The camera-locked first boarding** opens at +13 (3259 [8331]); ours always +11.
-8. **The tail's hit**: never recorded. Damage 20..30, the 5-tick stun and the
-   within-a-tile reach are the wiki's or assumed.
-9. **The damage cap** (50, then 45..50) is the wiki's; Grid Master hits exceed it.
+8. **The tail's hit**: never recorded. Damage 20..30 and "avoided by moving two tiles
+   away" (wiki, Zulrah) as built: it hits within one tile of its target, so two tiles
+   off is clear. The stun is 5 ticks (owner's call, 2026-11-17); the wiki says only
+   "several seconds" and the Stun (status) page does not list Zulrah. UNVERIFIED.
+9. **The damage cap** (50, then 45..50) is Jagex's own statement (Mod Ash, 22 March 2017, quoted by the wiki), built as worded. Every recording is Grid Master and hits Zulrah for up to 221 (827 hits, 3259/819/3324), so none can show it; a normal-world kill would.
 10. **Snakeling spawn angle**: recorded varies (south 23, north 16, east 7, west 4); ours
     south. The rule (toward the player? the spot's side?) is not worked out.
 11. **The reach threshold** for a spit (footprint distance 7) is fitted between 6 (spat

@@ -1610,9 +1610,26 @@ npc_death_begin(
      * across the Inferno, the Colosseum, the Gauntlet and ToB. A Nylocas small,
      * which has no death animation, shows it as the only sign it is dying
      * before it is gone. [RSProx 3285, 3299; docs/rsprox-analysis/tob/nylocas.md]
+     *
+     * Which tick that is, against the killing splat: a killing blow's death
+     * starts the next npc phase (QUEUED), so the menu goes at kill + 1, where
+     * the death animation also plays when nothing delays it -- and still at
+     * kill + 1 when an arrive delay pushes the animation to + 2 or + 3. Only an
+     * animation sent with the blow (`npc_setdeathanimnow`) takes the menu with
+     * it at kill + 0. A scripted `npc_die` starts the death on its own tick and
+     * hides it there. RSProx (tools/rsprox/rsprox_death_ops.py, the headbar's
+     * fill=0 as the kill): index 3259 554 (1,1) / 60 (0,0) / 47 (1,2) / 41
+     * (1,3) as (menu, animation) offsets, index 4262 137 / 9 / 24 of the same
+     * shapes; Zulrah's snakelings 43/43 at + 1; one aged out by `npc_die` 5/5 on
+     * its own tick. Hidden here, every death sent its menu a tick early.
      */
-    npc->ops_hidden = 0x1f;
-    npc->masks |= TORIRSSERVER_NMASK_OPS;
+    int const ops_with_blow = npc->death_stage != TORIRSSERVER_DEATH_QUEUED;
+
+    if( ops_with_blow )
+    {
+        npc->ops_hidden = 0x1f;
+        npc->masks |= TORIRSSERVER_NMASK_OPS;
+    }
     /*
      * The death transformation, on the killing hit's own tick (Jagex's Maiden:
      * dying form at T, its animation at T+1, 31 of 31). After the menu is
@@ -1641,6 +1658,12 @@ npc_death_begin(
         npc_death_sound(srv, npc);
         play_npc_seq(npc, npc->death_seq);
         death_seq_now = npc->death_seq_sent;
+    }
+    /* The animation went with the blow: so does the menu (the (0,0) shape). */
+    if( !ops_with_blow && death_seq_now )
+    {
+        npc->ops_hidden = 0x1f;
+        npc->masks |= TORIRSSERVER_NMASK_OPS;
     }
     /*
      * Drop whatever was already armed on the npc's own queue — a healer's
@@ -3958,6 +3981,14 @@ npc_death_step(
     switch( npc->death_stage )
     {
     case TORIRSSERVER_DEATH_QUEUED:
+        /* The menu, at kill + 1 whatever the animation then waits for
+         * (npc_death_begin says why). Not for a death transformation: its
+         * restore keeps the npc attackable through the fade (the Maiden). */
+        if( npc->ops_hidden != 0x1f && npc->died_as == 0 )
+        {
+            npc->ops_hidden = 0x1f;
+            npc->masks |= TORIRSSERVER_NMASK_OPS;
+        }
         /* Face nothing: the latch the blow left standing (npc_death_begin). */
         if( npc->face_entity != -1 )
         {

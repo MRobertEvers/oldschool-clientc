@@ -62,6 +62,8 @@ return {
         local present = t.npc.await_present("snakeboss_boss_ranged", 30, 8)
         t.check("zulrah.rise", present == "ok", "Zulrah rose: " .. tostring(present))
         t.cheat("::zulrahnext 2", false)
+        -- The recorded fight kept to the table after its wrap: no deviations.
+        t.cheat("::zulrahtable", false)
         local rise = now(t)
         local _, arrive = t.world.tile()
         -- The arrival tile is 2268,3068.
