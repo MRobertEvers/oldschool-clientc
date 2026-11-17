@@ -1730,6 +1730,22 @@ $(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) ioserver/io_site_editor.c \
 		$(IO_SERVER_OBJ_DIR)/xteas.o $(IO_SERVER_SQLITE_OBJ) -lm $(IO_SERVER_SOCKET_LIBS)
 	@echo "built $@"
 
+# The gate's device-code grant (io_gate.h): authorize, poll, the sign-in
+# form's next, approve and deny, the issued ticket -- through IoGate_Handle.
+IO_GATE_DEVICE_TEST_SRCS = $(filter-out ioserver/io_server_main.c,$(IO_SERVER_SRCS))
+test-io-gate-device:
+	$(MAKE) $(IO_SERVER_FLAVOR) $(IO_SERVER_OBJ_DIR)/IoGateDeviceTest
+	cd $(REPO_ROOT) && ./src/$(IO_SERVER_OBJ_DIR)/IoGateDeviceTest
+$(IO_SERVER_OBJ_DIR)/IoGateDeviceTest: ioserver/test/io_gate_device_test.c $(IO_GATE_DEVICE_TEST_SRCS) ioserver/io_site_editor.c \
+		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
+		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
+		$(IO_SERVER_OBJ_DIR)/xteas.o $(IO_SERVER_SQLITE_OBJ) | $(IO_SERVER_OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/ioserver -o $@ ioserver/test/io_gate_device_test.c $(IO_GATE_DEVICE_TEST_SRCS) \
+		-DTORIRS_PLATFORM_X_IO_NO_JS5=1 -DTORIRS_PLATFORM_X_IO_NO_LAUNCH=1 \
+		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
+		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
+		$(IO_SERVER_OBJ_DIR)/xteas.o $(IO_SERVER_SQLITE_OBJ) -lm $(IO_SERVER_SOCKET_LIBS)
+
 # TORIRS_PLATFORM_X_IO_NO_LAUNCH (raid seam37): the standalone io_server does
 # NOT host the launch service (owner, 2026-10-06: only the client's embedded
 # IO server spawns members), and neither link carries launch_sessions.c; a

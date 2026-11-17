@@ -43,6 +43,14 @@ sudo ditto toolchains/unpacked/jdk/temurin-21.jdk \
     /Library/Java/JavaVirtualMachines/temurin-21.jdk
 ```
 
+## The revision-242 client is not in this zip
+
+`run-runelite.sh` takes osrs242 manifests too: RuneLite **1.13.6** (the release
+that ships revision 242), fetched by `tools/torirs_runelite/fetch_repository.py`
+from the pinned `tools/torirs_runelite/bootstrap-1.13.6.json` into
+`build/runelite-1.13.6/repository2`, hashes checked. This zip stays the 239
+toolchain (and the JDK).
+
 ## Why 1.12.33 specifically
 
 It is the RuneLite release that ships a revision-**239** client. 1.12.34 and

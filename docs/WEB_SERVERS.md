@@ -414,6 +414,40 @@ development world) there is no web login: `/account/players` is never answered
 and the form signs in with passwords as before, but a linked account still
 refuses its password there.
 
+### Devices: a gate ticket for an app
+
+An app that is not a browser on the gate's page -- the Android app, the
+RuneLite client -- gets its ticket from io_server itself, before the ticket
+check (`src/ioserver/io_gate.c`):
+
+| route | what it does |
+| --- | --- |
+| `POST /device/token` `grant_type=password&name=&password=` | the web login's password, throttled as `/login` is |
+| `POST /device/token` `grant_type=refresh_token&refresh_token=` | the last refresh token, rotated (a spent one presented again ends the whole sign-in) |
+| `POST /device/authorize` `device=<what the app calls itself>` | the device-code grant (RFC 8628): `{device_code, user_code: "BCDF-GHJK", verification_path_complete: "/device?code=...", expires_in: 600, interval: 5}` |
+| `GET /device?code=` | the approval page, behind the ticket check: signed out, the browser goes through `/login?next=/device?code=...` and back (the form keeps `next`, and accepts no other kind) |
+| `POST /device/approve` `code=&decision=approve\|deny` | from that page; the cookie is SameSite=Lax |
+| `POST /device/token` `grant_type=urn:ietf:params:oauth:grant-type:device_code&device_code=` | `authorization_pending` / `slow_down` / `access_denied` / `expired_token` while it waits, then the password grant's answer |
+| `POST /device/revoke` `refresh_token=` | sign out on the device |
+
+Every answer is a ticket good for a day and a refresh token good for 30 days
+from its last use. The device-code grant exists so the password is typed only
+into the gate's own form in a real browser, where the password filler works,
+or not at all when the browser is signed in already. Its pending codes live in
+io_server's memory for ten minutes (`IoGate.device_codes`, 32 at once).
+
+The approval page must be opened on the **https** host: the ticket cookie is
+`Secure`, and a browser drops it from `http://192.168.1.150:8088`. The app's
+own calls may use either address -- the codes are the same process's. The
+RuneLite client's ToriRS plugin does exactly that (`./launch run
+osrs242-runelite-live`: API over the LAN, page on torirs.mrobertevers.com),
+and through the proxy (`osrs242-runelite-public`) it first gets an IaP device
+session the same way from auth.mrobertevers.com
+(mrobertevers-proxy README, "Device codes").
+
+`make -C src test-io-gate-device` runs the whole exchange through
+`IoGate_Handle`.
+
 ### The account site
 
 Signed in, the gate lands on its own small website (`src/ioserver/io_site.c`)

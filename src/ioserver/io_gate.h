@@ -63,6 +63,43 @@ struct IoGateThrottle
 
 struct IoGateLinks;
 
+/*
+ * The device-code grant (RFC 8628), for a client that cannot show this page
+ * itself -- the RuneLite plugin. The client asks POST /device/authorize for a
+ * pair of codes and opens the browser at /device?code=<user code>; the person
+ * signs in to the gate there (the browser's own form, so its password filler
+ * works) and presses Approve; the client, polling POST /device/token with the
+ * device code, is then answered the same ticket and refresh token as the
+ * password grant. Pending codes are memory only: a restart forgets them, and
+ * the client asks again.
+ */
+#define IO_GATE_DEVICE_CODES 32
+#define IO_GATE_DEVICE_CODE_SECONDS 600
+#define IO_GATE_DEVICE_POLL_SECONDS 5
+
+enum IoGateDeviceState
+{
+    IO_GATE_DEVICE_FREE = 0,
+    IO_GATE_DEVICE_PENDING,
+    IO_GATE_DEVICE_APPROVED,
+    IO_GATE_DEVICE_DENIED,
+};
+
+struct IoGateDeviceCode
+{
+    enum IoGateDeviceState state;
+    /** 64 hex digits: what the client polls with, never shown. */
+    char device_code[65];
+    /** "BCDF-GHJK": what the person sees and the page is opened with. */
+    char user_code[10];
+    /** What the client calls itself ("RuneLite on <host>"), shown on the page. */
+    char device[48];
+    /** The web login that approved it. */
+    char name[64];
+    long long expires;
+    long long last_poll;
+};
+
 struct IoGate
 {
     /** Where a signed-in visitor lands: the page URL with the manifest and
@@ -73,6 +110,7 @@ struct IoGate
     struct IoGateThrottle throttle[IO_GATE_THROTTLE_SLOTS];
     /** `<saves>/gate/links.sqlite`. */
     struct IoGateLinks* links;
+    struct IoGateDeviceCode device_codes[IO_GATE_DEVICE_CODES];
 };
 
 /** Load (or create) the gate key and the links database, and remember

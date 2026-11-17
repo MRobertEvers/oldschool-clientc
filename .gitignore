@@ -292,3 +292,7 @@ deprecated/pokesprite/assets/*.db-shm
 /editor_layout.ini
 /editor_prefs.ini
 /editor_recent.ini
+
+# The ToriRS RuneLite plugin: its Java package directory is net/runelite, which
+# the bare `runelite` rule above would otherwise hide.
+!tools/torirs_runelite/torirs-plugin/src/net/runelite/

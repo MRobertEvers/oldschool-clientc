@@ -143,23 +143,46 @@ gate_page(
     res->owns_body = 1;
 }
 
+/* Where a sign-in may go on to instead of the landing page: only a device
+ * approval page (/device?code=BCDF-GHJK), so the form cannot be made an open
+ * redirect. 1 when `next` is one. */
+static int
+login_next_ok(char const* next)
+{
+    static char const prefix[] = "/device?code=";
+
+    if( !next || strncmp(next, prefix, sizeof(prefix) - 1) != 0 )
+        return 0;
+    for( char const* c = next + sizeof(prefix) - 1; *c; c++ )
+        if( !(isupper((unsigned char)*c) || isdigit((unsigned char)*c) || *c == '-') )
+            return 0;
+    return strlen(next) < sizeof(prefix) + 16;
+}
+
 static void
-login_page(
+login_page_next(
     struct HttpResponse* res,
     int status,
     char const* error,
-    char const* name)
+    char const* name,
+    char const* next)
 {
     char body[IO_GATE_PAGE_MAX / 2];
     char error_html[256] = "";
     char name_html[IO_GATE_FIELD_MAX * 6];
+    char next_html[96] = "";
 
     if( error )
         snprintf(error_html, sizeof(error_html), "<p class=\"error\">%s</p>\n", error);
     html_escape(name ? name : "", name_html, sizeof(name_html));
+    /* login_next_ok's characters need no escaping. */
+    if( login_next_ok(next) )
+        snprintf(next_html, sizeof(next_html), "<input type=\"hidden\" name=\"next\" value=\"%s\">\n",
+                 next);
     snprintf(body, sizeof(body),
              "%s"
              "<form method=\"post\" action=\"/login\">\n"
+             "%s"
              "<label>Name<input name=\"name\" autocomplete=\"username\" maxlength=\"12\" "
              "required autofocus value=\"%s\"></label>\n"
              "<label>Password<input name=\"password\" type=\"password\" "
@@ -168,9 +191,10 @@ login_page(
              "</form>\n"
              "<p class=\"note\">This page needs an invite link. Your player account "
              "is separate: you sign in to it in the game.</p>\n",
-             error_html, name_html);
+             error_html, next_html, name_html);
     gate_page(res, status, body);
 }
+
 
 static void
 invite_page(
@@ -429,17 +453,21 @@ handle_login(
     char key[64];
     struct IoGateThrottle* throttle;
     long long now = (long long)time(NULL);
+    char next[64] = "";
 
+    form_field(req, "next", next, sizeof(next));
+    if( !login_next_ok(next) )
+        next[0] = '\0';
     if( !form_field(req, "name", name, sizeof(name)) ||
         !form_field(req, "password", password, sizeof(password)) )
     {
-        login_page(res, 400, "Enter your name and password.", NULL);
+        login_page_next(res, 400, "Enter your name and password.", NULL, next);
         return;
     }
     ToriRSServer_SaveFileName(name, key, sizeof(key));
     if( !key[0] )
     {
-        login_page(res, 401, "Wrong name or password.", name);
+        login_page_next(res, 401, "Wrong name or password.", name, next);
         return;
     }
     throttle = throttle_slot(gate, key);
@@ -450,7 +478,7 @@ handle_login(
     }
     if( throttle->failures >= IO_GATE_THROTTLE_FAILURES )
     {
-        login_page(res, 429, "Too many attempts. Try again in a few minutes.", name);
+        login_page_next(res, 429, "Too many attempts. Try again in a few minutes.", name, next);
         return;
     }
     auth = AccountClient_GateLogin(name, password);
@@ -458,8 +486,8 @@ handle_login(
     {
         /* Nothing was decided, so nothing counts against the name. */
         memset(password, 0, sizeof(password));
-        login_page(res, 503, "The account service is not answering. Try again in a moment.",
-                   name);
+        login_page_next(res, 503, "The account service is not answering. Try again in a moment.",
+                        name, next);
         return;
     }
     if( auth != TORIRSSERVER_AUTH_OK )
@@ -468,13 +496,15 @@ handle_login(
         throttle->failures++;
         fprintf(stderr, "io_server: gate: sign-in refused for '%s' (%d in this window)\n", key,
                 throttle->failures);
-        login_page(res, 401, "Wrong name or password.", name);
+        login_page_next(res, 401, "Wrong name or password.", name, next);
         return;
     }
     memset(password, 0, sizeof(password));
     throttle->failures = 0;
     fprintf(stderr, "io_server: gate: '%s' signed in\n", key);
     issue_ticket(gate, res, name);
+    if( next[0] )
+        snprintf(res->location, sizeof(res->location), "%s", next);
 }
 
 static void
@@ -706,6 +736,249 @@ device_tokens(
     json_response(res, 200, body);
 }
 
+/* ------------------------------------------------------------------ */
+/* The device-code grant (io_gate.h)                                   */
+/* ------------------------------------------------------------------ */
+
+/* No vowels and no 0/1/O/I lookalikes: a code is read off one screen and
+ * typed into nothing, but it is compared by eye with what the client shows. */
+static char const k_user_code_letters[] = "BCDFGHJKLMNPQRSTVWXZ";
+
+static struct IoGateDeviceCode*
+device_code_by_user(
+    struct IoGate* gate,
+    char const* user_code,
+    long long now)
+{
+    for( int i = 0; i < IO_GATE_DEVICE_CODES; i++ )
+    {
+        struct IoGateDeviceCode* d = &gate->device_codes[i];
+
+        if( d->state != IO_GATE_DEVICE_FREE && now < d->expires &&
+            strcmp(d->user_code, user_code) == 0 )
+            return d;
+    }
+    return NULL;
+}
+
+static struct IoGateDeviceCode*
+device_code_by_device(
+    struct IoGate* gate,
+    char const* device_code)
+{
+    for( int i = 0; i < IO_GATE_DEVICE_CODES; i++ )
+    {
+        struct IoGateDeviceCode* d = &gate->device_codes[i];
+
+        if( d->state != IO_GATE_DEVICE_FREE && strcmp(d->device_code, device_code) == 0 )
+            return d;
+    }
+    return NULL;
+}
+
+/* POST /device/authorize, before the ticket check: a new pair of codes.
+ * `device` (optional) names the client on the approval page. */
+static void
+handle_device_authorize(
+    struct IoGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    struct IoGateDeviceCode* slot = NULL;
+    long long now = (long long)time(NULL);
+    char device[48] = "";
+    uint8_t bytes[32];
+    char body[512];
+
+    if( strcmp(req->method, "POST") != 0 )
+    {
+        res->status = 405;
+        return;
+    }
+    form_field(req, "device", device, sizeof(device));
+    for( char* c = device; *c; c++ )
+        if( !(isalnum((unsigned char)*c) || *c == ' ' || *c == '-' || *c == '.' || *c == '_') )
+            *c = '_';
+    for( int i = 0; i < IO_GATE_DEVICE_CODES && !slot; i++ )
+        if( gate->device_codes[i].state == IO_GATE_DEVICE_FREE || now >= gate->device_codes[i].expires )
+            slot = &gate->device_codes[i];
+    if( !slot )
+    {
+        json_response(res, 503, "{\"error\":\"temporarily_unavailable\",\"error_description\":"
+                                "\"Too many sign-ins are waiting. Try again in a few minutes.\"}");
+        return;
+    }
+    memset(slot, 0, sizeof(*slot));
+    ToriRSServer_AuthRandom(bytes, sizeof(bytes));
+    ToriRSServer_AuthHex(bytes, sizeof(bytes), slot->device_code);
+    do
+    {
+        ToriRSServer_AuthRandom(bytes, 8);
+        for( int k = 0, at = 0; k < 8; k++ )
+        {
+            if( k == 4 )
+                slot->user_code[at++] = '-';
+            slot->user_code[at++] = k_user_code_letters[bytes[k] % (sizeof(k_user_code_letters) - 1)];
+        }
+        slot->user_code[9] = '\0';
+    } while( device_code_by_user(gate, slot->user_code, now) );
+    memset(bytes, 0, sizeof(bytes));
+    snprintf(slot->device, sizeof(slot->device), "%s", device[0] ? device : "A device");
+    slot->expires = now + IO_GATE_DEVICE_CODE_SECONDS;
+    slot->state = IO_GATE_DEVICE_PENDING;
+    /* A path, not a URL: behind the proxy the gate is https://<host>, on the
+     * LAN http://<address>:8088, and the client knows which it dialled. */
+    snprintf(body, sizeof(body),
+             "{\"device_code\":\"%s\",\"user_code\":\"%s\",\"verification_path\":\"/device\","
+             "\"verification_path_complete\":\"/device?code=%s\",\"expires_in\":%d,\"interval\":%d}",
+             slot->device_code, slot->user_code, slot->user_code, IO_GATE_DEVICE_CODE_SECONDS,
+             IO_GATE_DEVICE_POLL_SECONDS);
+    fprintf(stderr, "io_server: gate: device code %s for \"%s\"\n", slot->user_code, slot->device);
+    json_response(res, 200, body);
+}
+
+/* The approval page, behind the ticket check. */
+static void
+device_page(
+    struct HttpResponse* res,
+    int status,
+    char const* who,
+    struct IoGateDeviceCode const* d,
+    char const* message)
+{
+    char body[IO_GATE_PAGE_MAX / 2];
+    char who_html[64 * 6];
+    char device_html[48 * 6];
+
+    html_escape(who, who_html, sizeof(who_html));
+    if( !d )
+    {
+        snprintf(body, sizeof(body), "<p>%s</p>\n",
+                 message ? message : "This code has expired or has already been used. "
+                                     "Start the sign-in again from the app.");
+        gate_page(res, status, body);
+        return;
+    }
+    html_escape(d->device, device_html, sizeof(device_html));
+    snprintf(body, sizeof(body),
+             "<p><b>%s</b> is asking to sign in as <b>%s</b>.</p>\n"
+             "<p>Check that the app shows this code:</p>\n"
+             "<p class=\"code\" style=\"font-size:1.6em;letter-spacing:.15em\">%s</p>\n"
+             "<form method=\"post\" action=\"/device/approve\">\n"
+             "<input type=\"hidden\" name=\"code\" value=\"%s\">\n"
+             "<button name=\"decision\" value=\"approve\">Approve</button>\n"
+             "<button name=\"decision\" value=\"deny\">Deny</button>\n"
+             "</form>\n"
+             "<p class=\"note\">Approve only a sign-in you started. The app gets a ticket "
+             "for this web login, good for 30 days of use.</p>\n",
+             device_html, who_html, d->user_code, d->user_code);
+    gate_page(res, status, body);
+}
+
+/* GET /device?code=, behind the ticket check (a signed-out browser was sent
+ * through /login?next= first). */
+static void
+handle_device_page(
+    struct IoGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res,
+    char const* who)
+{
+    char code[16] = "";
+
+    IoGate_QueryField(req, "code", code, sizeof(code));
+    for( char* c = code; *c; c++ )
+        *c = (char)toupper((unsigned char)*c);
+    device_page(res, 200, who, device_code_by_user(gate, code, (long long)time(NULL)), NULL);
+}
+
+/* POST /device/approve: code, decision=approve|deny. Behind the ticket check,
+ * and the cookie is SameSite=Lax, so another site cannot post it. */
+static void
+handle_device_approve(
+    struct IoGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res,
+    char const* who)
+{
+    char code[16] = "";
+    char decision[16] = "";
+    struct IoGateDeviceCode* d;
+
+    form_field(req, "code", code, sizeof(code));
+    form_field(req, "decision", decision, sizeof(decision));
+    d = device_code_by_user(gate, code, (long long)time(NULL));
+    if( !d || d->state != IO_GATE_DEVICE_PENDING )
+    {
+        device_page(res, 400, who, NULL, NULL);
+        return;
+    }
+    if( strcmp(decision, "approve") == 0 )
+    {
+        d->state = IO_GATE_DEVICE_APPROVED;
+        snprintf(d->name, sizeof(d->name), "%s", who);
+        fprintf(stderr, "io_server: gate: '%s' approved device code %s (\"%s\")\n", who, d->user_code,
+                d->device);
+        device_page(res, 200, who, NULL, "Signed in. You can close this tab and go back to the app.");
+    }
+    else
+    {
+        d->state = IO_GATE_DEVICE_DENIED;
+        device_page(res, 200, who, NULL, "Denied. The app was not signed in.");
+    }
+}
+
+/* The device-code grant of POST /device/token. RFC 8628 3.5's answers while
+ * it waits; the password grant's tokens once approved. */
+static void
+device_code_grant(
+    struct IoGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res,
+    struct ToriRSServerGateDeviceTokens* tokens)
+{
+    char device_code[80];
+    struct IoGateDeviceCode* d;
+    long long now = (long long)time(NULL);
+    enum ToriRSServerOAuthError error;
+
+    if( !form_field(req, "device_code", device_code, sizeof(device_code)) ||
+        !(d = device_code_by_device(gate, device_code)) )
+    {
+        json_response(res, 400, "{\"error\":\"invalid_grant\"}");
+        return;
+    }
+    if( now >= d->expires )
+    {
+        d->state = IO_GATE_DEVICE_FREE;
+        json_response(res, 400, "{\"error\":\"expired_token\"}");
+        return;
+    }
+    if( d->state == IO_GATE_DEVICE_DENIED )
+    {
+        d->state = IO_GATE_DEVICE_FREE;
+        json_response(res, 400, "{\"error\":\"access_denied\"}");
+        return;
+    }
+    if( d->state == IO_GATE_DEVICE_PENDING )
+    {
+        int early = d->last_poll && now - d->last_poll < IO_GATE_DEVICE_POLL_SECONDS - 1;
+
+        d->last_poll = now;
+        json_response(res, 400, early ? "{\"error\":\"slow_down\"}" : "{\"error\":\"authorization_pending\"}");
+        return;
+    }
+    error = ToriRSServer_GateDeviceSignIn(d->name, now, tokens);
+    d->state = IO_GATE_DEVICE_FREE;
+    if( error != TORIRSSERVER_OAUTH_OK )
+    {
+        oauth_error(res, error, "The sign-in could not be recorded.");
+        return;
+    }
+    fprintf(stderr, "io_server: gate: '%s' signed in a device by code\n", d->name);
+    device_tokens(res, tokens);
+}
+
 /*
  * POST /device/token, before the ticket check (it is how a device gets one):
  *
@@ -836,6 +1109,11 @@ handle_device_token(
             return;
         }
         device_tokens(res, &tokens);
+        return;
+    }
+    if( strcmp(grant, "urn:ietf:params:oauth:grant-type:device_code") == 0 )
+    {
+        device_code_grant(gate, req, res, &tokens);
         return;
     }
     oauth_error(res, TORIRSSERVER_OAUTH_UNSUPPORTED_GRANT_TYPE, NULL);
@@ -1847,13 +2125,21 @@ IoGate_Handle(
     {
         if( is_post )
             handle_login(gate, req, res);
-        else if( is_get && signed_in(req, who, sizeof(who)) )
-        {
-            res->status = 303;
-            snprintf(res->location, sizeof(res->location), "/");
-        }
         else if( is_get )
-            login_page(res, 200, NULL, NULL);
+        {
+            char next[64] = "";
+
+            IoGate_QueryField(req, "next", next, sizeof(next));
+            if( !login_next_ok(next) )
+                next[0] = '\0';
+            if( signed_in(req, who, sizeof(who)) )
+            {
+                res->status = 303;
+                snprintf(res->location, sizeof(res->location), "%s", next[0] ? next : "/");
+            }
+            else
+                login_page_next(res, 200, NULL, NULL, next);
+        }
         else
             res->status = 405;
         return 1;
@@ -1889,6 +2175,23 @@ IoGate_Handle(
         handle_device_revoke(req, res);
         return 1;
     }
+    if( path_is(req->path, "/device/authorize") )
+    {
+        handle_device_authorize(gate, req, res);
+        return 1;
+    }
+    /* The approval page, signed out: through the sign-in form and back. */
+    if( is_get && path_is(req->path, "/device") && !signed_in(req, who, sizeof(who)) )
+    {
+        char code[16] = "";
+
+        IoGate_QueryField(req, "code", code, sizeof(code));
+        for( char* c = code; *c; c++ )
+            *c = isalnum((unsigned char)*c) || *c == '-' ? (char)toupper((unsigned char)*c) : 'X';
+        res->status = 303;
+        snprintf(res->location, sizeof(res->location), "/login?next=%%2Fdevice%%3Fcode%%3D%s", code);
+        return 1;
+    }
 
     /* The home-screen icon and the manifest that lists the others, to anyone.
      * "Add to Home Screen" fetches them without the gate's cookie, so behind
@@ -1910,6 +2213,22 @@ IoGate_Handle(
         }
         else
             res->status = 401;
+        return 1;
+    }
+    if( path_is(req->path, "/device") )
+    {
+        if( is_get )
+            handle_device_page(gate, req, res, who);
+        else
+            res->status = 405;
+        return 1;
+    }
+    if( path_is(req->path, "/device/approve") )
+    {
+        if( is_post )
+            handle_device_approve(gate, req, res, who);
+        else
+            res->status = 405;
         return 1;
     }
     /* Player-account OAuth, after the gate: a token is only ever minted for a

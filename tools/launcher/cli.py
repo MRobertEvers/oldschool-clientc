@@ -702,7 +702,9 @@ def _run_plan(plan, args):
     if plan.delegate:
         say("delegating to %s (it owns jar patching and its own services)"
             % plan.delegate)
-        argv = ["./" + plan.delegate,
+        # Through bash, not exec: the script's mode bit has been lost in a
+        # commit before (7c6ac729f), and a 644 delegate is a PermissionError.
+        argv = ["bash", plan.delegate,
                 os.path.relpath(plan.manifest_path, REPO_ROOT)]
         env = dict(os.environ)
         env["TORIRS_NO_PREPARE"] = "1"
