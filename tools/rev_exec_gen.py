@@ -326,12 +326,27 @@ class Gen:
                 zone += self.zone_case(i, prot)
         zone += ["    default:", "        return 0;", "    }", "}", ""]
 
-        out_arms = []
-        out_rows = {}
+        # Which prot a canonical name SENDS: the newest variant the revision
+        # has (OPLOC1_V3 over OPLOC1_V2 at 242), as the official client does --
+        # its 242 menu handler sends every V3 loc op, and only its <=241 handler
+        # the V2 ones (Deobfuscator 242 Statics.method7071 / method7538). Table
+        # order used to decide, so a revision sent whichever variant RSProt
+        # listed first. No suffix is V1; a tie keeps the table's order.
+        def variant(prot):
+            m = re.search(r"_V(\d+)$", prot)
+            return int(m.group(1)) if m else 1
+
+        chosen = {}
         for row in client:
             canon, lines = self.client_arm(row)
-            if not lines or canon in out_rows:
+            if not lines:
                 continue
+            have = chosen.get(canon)
+            if have is None or variant(row[0]) > variant(have[0][0]):
+                chosen[canon] = (row, lines)
+        out_arms = []
+        out_rows = {}
+        for canon, (row, lines) in sorted(chosen.items(), key=lambda kv: client.index(kv[1][0])):
             fn = "out_" + row[0].lower()
             out_arms += ["/* %s, opcode %d */" % (row[0], row[1]), "static int",
                          "%s(struct ProtoOutArgs const* a, RsprotBuf* b)" % fn, "{"]
@@ -342,6 +357,9 @@ class Gen:
             canon = self.names["client"].get(row[0])
             if canon is not None:
                 client_names.setdefault(canon, row[1])
+        # A name that sends has the opcode of the prot it sends.
+        for canon, (w, fn) in out_rows.items():
+            client_names[canon] = w
 
         if self.errors:
             raise SystemExit("%s:\n  %s" % (rev, "\n  ".join(self.errors)))

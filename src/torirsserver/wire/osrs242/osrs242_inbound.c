@@ -13,6 +13,12 @@
 #include "packets/oploc3_v2.h"
 #include "packets/oploc4_v2.h"
 #include "packets/oploc5_v2.h"
+#include "packets/oploc1_v3.h"
+#include "packets/oploc2_v3.h"
+#include "packets/oploc3_v3.h"
+#include "packets/oploc4_v3.h"
+#include "packets/oploc5_v3.h"
+#include "packets/oploct_v2.h"
 #include "packets/opobj1_v2.h"
 #include "packets/opobj2_v2.h"
 #include "packets/opobj3_v2.h"
@@ -40,6 +46,7 @@
 #include "packets/if_script_trigger.h"
 
 #include <assert.h>
+#include "3rd/rsprot/gen/osrs242_prot.h"
 #include "rsprot_buf.h"
 
 /*
@@ -72,12 +79,69 @@ osrs242_inbound_translate(
     struct WireInReader r;
     struct RsprotBuf w;
 
-    (void)wire_opcode;
     assert(in || in_len == 0);
     assert(out);
     assert(out_len);
     *out_len = 0;
     rsprot_buf_wrap(&w, out, (size_t)out_cap);
+
+    /*
+     * The official 242 client's loc ops. They share their canonical names with
+     * the V2/V1 forms this repo's client sends (osrs242_prots.h), so the
+     * decoder is chosen here by opcode, ahead of the switch on the name.
+     *
+     * OPLOC1..5_V3 is V2 plus a sub-op byte, with the loc id in three bytes;
+     * the client sends it from the menu (Deobfuscator 242 Statics.method14555,
+     * class275.field3293) and V2 elsewhere. The sub-op -- which entry of a
+     * loc op's sub-menu -- is read by no handler yet; a plain op sends 0.
+     * OPLOCT_V2 is OPLOCT with the three-byte id. Unread before 2026-11-17:
+     * RuneLite's every loc click was dropped ("not translated").
+     */
+    if( wire_opcode == RSPROT_OSRS242_CLIENT_OPLOC1_V3 )
+    {
+        MsgOpLoc1V3 m = {0};
+        DECODE(packet_oploc1_v3_osrs242_in, m);
+        wire_in_tile(&w, m.x, m.z, m.id);
+        return wire_in_done(&w, PKTOUT_NAME_OPLOC1, out_len);
+    }
+    if( wire_opcode == RSPROT_OSRS242_CLIENT_OPLOC2_V3 )
+    {
+        MsgOpLoc2V3 m = {0};
+        DECODE(packet_oploc2_v3_osrs242_in, m);
+        wire_in_tile(&w, m.x, m.z, m.id);
+        return wire_in_done(&w, PKTOUT_NAME_OPLOC2, out_len);
+    }
+    if( wire_opcode == RSPROT_OSRS242_CLIENT_OPLOC3_V3 )
+    {
+        MsgOpLoc3V3 m = {0};
+        DECODE(packet_oploc3_v3_osrs242_in, m);
+        wire_in_tile(&w, m.x, m.z, m.id);
+        return wire_in_done(&w, PKTOUT_NAME_OPLOC3, out_len);
+    }
+    if( wire_opcode == RSPROT_OSRS242_CLIENT_OPLOC4_V3 )
+    {
+        MsgOpLoc4V3 m = {0};
+        DECODE(packet_oploc4_v3_osrs242_in, m);
+        wire_in_tile(&w, m.x, m.z, m.id);
+        return wire_in_done(&w, PKTOUT_NAME_OPLOC4, out_len);
+    }
+    if( wire_opcode == RSPROT_OSRS242_CLIENT_OPLOC5_V3 )
+    {
+        MsgOpLoc5V3 m = {0};
+        DECODE(packet_oploc5_v3_osrs242_in, m);
+        wire_in_tile(&w, m.x, m.z, m.id);
+        return wire_in_done(&w, PKTOUT_NAME_OPLOC5, out_len);
+    }
+    if( wire_opcode == RSPROT_OSRS242_CLIENT_OPLOCT_V2 )
+    {
+        MsgOpLocTV2 m = {0};
+        int target;
+
+        DECODE(packet_oploct_v2_osrs242_in, m);
+        target = wire_in_tile_target(&w, PKTOUT_NAME_OPLOCT, PKTOUT_NAME_OPLOCU, m.x, m.z, m.id,
+                                     m.selected_obj, m.selected_sub, m.selected_combined_id);
+        return wire_in_done(&w, target, out_len);
+    }
 
     switch( name )
     {

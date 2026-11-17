@@ -725,6 +725,12 @@ say ""
 # OSXFullScreenAdapter with an IllegalAccessError nowhere near the game. -ea is
 # required for --developer-mode, which is a fatal dialog without it. JCTL is the
 # control channel (see the header); JPROF's stage timers stay off unless asked.
+# Plugin Hub plugins (Quest Helper, ...) load as in a normal RuneLite. Safe
+# mode -- no hub plugins, no GPU -- came from the C-vs-Java perf study's
+# harness, which wanted a bare client to time; TORIRS_RL_SAFE_MODE=1 (or
+# `-- --safe-mode`) still asks for it.
+SAFE_MODE=()
+[ "${TORIRS_RL_SAFE_MODE:-0}" = 1 ] && SAFE_MODE=(--safe-mode)
 RC=0
 env \
     JCTL="${JCTL:-1}" JCTL_PORT="${JCTL_PORT:-43601}" \
@@ -739,7 +745,7 @@ env \
     -cp "$CP" \
     net.runelite.client.RuneLite \
     --jav_config="http://127.0.0.1:$JAV_PORT/jav_config.ws" \
-    --safe-mode \
+    ${SAFE_MODE[@]+"${SAFE_MODE[@]}"} \
     ${RL_ARGS[@]+"${RL_ARGS[@]}"} 2>&1 | tee "$(logfile client)" || RC=$?
 
 say ""

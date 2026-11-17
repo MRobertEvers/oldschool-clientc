@@ -253,6 +253,15 @@ CANON_OUT = {
     "OPLOC3_V2": "OPLOC3",
     "OPLOC4_V2": "OPLOC4",
     "OPLOC5_V2": "OPLOC5",
+    # 242's official client sends these from the menu (V2 plus a sub-op byte,
+    # the loc id in three bytes); this repo's client still sends V2. Both
+    # name the same op: osrs242_inbound.c picks the decoder by opcode.
+    "OPLOC1_V3": "OPLOC1",
+    "OPLOC2_V3": "OPLOC2",
+    "OPLOC3_V3": "OPLOC3",
+    "OPLOC4_V3": "OPLOC4",
+    "OPLOC5_V3": "OPLOC5",
+    "OPLOCT_V2": "OPLOCT",
     "OPLOCT": "OPLOCT",
     "OPLOCU": "OPLOCU",
     "OPOBJ1_V2": "OPOBJ1",

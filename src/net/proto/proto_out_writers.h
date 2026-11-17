@@ -77,20 +77,27 @@
 #include "packets/oploc1.h"
 #include "packets/oploc1_v1.h"
 #include "packets/oploc1_v2.h"
+#include "packets/oploc1_v3.h"
 #include "packets/oploc2.h"
 #include "packets/oploc2_v1.h"
 #include "packets/oploc2_v2.h"
+#include "packets/oploc2_v3.h"
 #include "packets/oploc3.h"
 #include "packets/oploc3_v1.h"
 #include "packets/oploc3_v2.h"
+#include "packets/oploc3_v3.h"
 #include "packets/oploc4.h"
 #include "packets/oploc4_v1.h"
 #include "packets/oploc4_v2.h"
+#include "packets/oploc4_v3.h"
 #include "packets/oploc5.h"
 #include "packets/oploc5_v1.h"
 #include "packets/oploc5_v2.h"
+#include "packets/oploc5_v3.h"
 #include "packets/oploc6.h"
+#include "packets/oploc6_v2.h"
 #include "packets/oploct.h"
+#include "packets/oploct_v2.h"
 #include "packets/oplocu.h"
 #include "packets/opnpc1.h"
 #include "packets/opnpc1_v1.h"
@@ -679,6 +686,18 @@ w_oploc1_v2(void* msg, struct ProtoOutArgs const* a)
 }
 
 static inline void
+w_oploc1_v3(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgOpLoc1V3* m = (MsgOpLoc1V3*)msg;
+
+    m->z = a->z;
+    m->subop = a->subop;
+    m->id = a->id;
+    m->control_key = a->control_key;
+    m->x = a->x;
+}
+
+static inline void
 w_oploc2(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpLoc2* m = (MsgOpLoc2*)msg;
@@ -710,6 +729,18 @@ w_oploc2_v2(void* msg, struct ProtoOutArgs const* a)
     m->x = a->x;
     m->subop = a->subop;
     m->control_key = a->control_key;
+}
+
+static inline void
+w_oploc2_v3(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgOpLoc2V3* m = (MsgOpLoc2V3*)msg;
+
+    m->z = a->z;
+    m->subop = a->subop;
+    m->id = a->id;
+    m->control_key = a->control_key;
+    m->x = a->x;
 }
 
 static inline void
@@ -747,6 +778,18 @@ w_oploc3_v2(void* msg, struct ProtoOutArgs const* a)
 }
 
 static inline void
+w_oploc3_v3(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgOpLoc3V3* m = (MsgOpLoc3V3*)msg;
+
+    m->z = a->z;
+    m->subop = a->subop;
+    m->id = a->id;
+    m->control_key = a->control_key;
+    m->x = a->x;
+}
+
+static inline void
 w_oploc4(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpLoc4* m = (MsgOpLoc4*)msg;
@@ -778,6 +821,18 @@ w_oploc4_v2(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
     m->id = a->id;
     m->z = a->z;
+}
+
+static inline void
+w_oploc4_v3(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgOpLoc4V3* m = (MsgOpLoc4V3*)msg;
+
+    m->z = a->z;
+    m->subop = a->subop;
+    m->id = a->id;
+    m->control_key = a->control_key;
+    m->x = a->x;
 }
 
 static inline void
@@ -815,6 +870,18 @@ w_oploc5_v2(void* msg, struct ProtoOutArgs const* a)
 }
 
 static inline void
+w_oploc5_v3(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgOpLoc5V3* m = (MsgOpLoc5V3*)msg;
+
+    m->z = a->z;
+    m->subop = a->subop;
+    m->id = a->id;
+    m->control_key = a->control_key;
+    m->x = a->x;
+}
+
+static inline void
 w_oploc6(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpLoc6* m = (MsgOpLoc6*)msg;
@@ -823,9 +890,31 @@ w_oploc6(void* msg, struct ProtoOutArgs const* a)
 }
 
 static inline void
+w_oploc6_v2(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgOpLoc6V2* m = (MsgOpLoc6V2*)msg;
+
+    m->id = a->id;
+}
+
+static inline void
 w_oploct(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpLocT* m = (MsgOpLocT*)msg;
+
+    m->selected_obj = a->selected_obj;
+    m->x = a->x;
+    m->z = a->z;
+    m->selected_combined_id = a->selected_combined_id;
+    m->id = a->id;
+    m->control_key = a->control_key;
+    m->selected_sub = a->selected_sub;
+}
+
+static inline void
+w_oploct_v2(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgOpLocTV2* m = (MsgOpLocTV2*)msg;
 
     m->selected_obj = a->selected_obj;
     m->x = a->x;

@@ -240,6 +240,12 @@ static const struct WireProtName g_osrs242_client_names[] = {
     { RSPROT_OSRS242_CLIENT_MAP_BUILD_COMPLETE,                  PKTOUT_NAME_MAP_BUILD_COMPLETE },
     { RSPROT_OSRS242_CLIENT_WINDOW_STATUS,                       PKTOUT_NAME_WINDOW_STATUS },
     { RSPROT_OSRS242_CLIENT_SET_HEADING,                         PKTOUT_NAME_SET_HEADING },
+    { RSPROT_OSRS242_CLIENT_OPLOC1_V3,                           PKTOUT_NAME_OPLOC1 },
+    { RSPROT_OSRS242_CLIENT_OPLOC2_V3,                           PKTOUT_NAME_OPLOC2 },
+    { RSPROT_OSRS242_CLIENT_OPLOC3_V3,                           PKTOUT_NAME_OPLOC3 },
+    { RSPROT_OSRS242_CLIENT_OPLOC4_V3,                           PKTOUT_NAME_OPLOC4 },
+    { RSPROT_OSRS242_CLIENT_OPLOC5_V3,                           PKTOUT_NAME_OPLOC5 },
+    { RSPROT_OSRS242_CLIENT_OPLOCT_V2,                           PKTOUT_NAME_OPLOCT },
 };
 /* clang-format on */
 
