@@ -162,8 +162,8 @@ static const struct RSCache_BandBinding k_npc_bindings[] = {
     BIND(struct ToriRSServerNpcDef, nomove),
     /* LostCity's moverestrict; its apply restates nomove (moverestrict 5). */
     BIND_APPLY(struct ToriRSServerNpcDef, "moverestrict", moverestrict, apply_npc_moverestrict),
-    /* `aggressive_melee` packs as 2 and the engine hunts only on 1
-     * (`TORIRSSERVER_HUNT_AGGRESSIVE`), as it did when the text parse read it. */
+    /* `aggressive` packs as 1 and `aggressive_melee` as 2; the engine hunts
+     * players on both (ToriRSServer_HuntModeHuntsPlayers). */
     BIND(struct ToriRSServerNpcDef, huntmode),
     BIND(struct ToriRSServerNpcDef, givechase),
     BIND_APPLY(struct ToriRSServerNpcDef, "defaultmode", defaultmode, apply_npc_defaultmode),

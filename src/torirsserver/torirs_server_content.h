@@ -335,12 +335,28 @@ enum ToriRSServerDamageType
 /* NPC definitions                                                     */
 /* ------------------------------------------------------------------ */
 
-/** LostCity `huntmode`: whether an npc starts fights on its own. */
+/**
+ * LostCity `huntmode`: whether an npc starts fights on its own.
+ *
+ * The numbers are the pack's (fields/npc.ini `[npc.huntmode] values`).
+ * `aggressive` and `aggressive_melee` are the reference's two player hunts
+ * (all.hunt); both carry `check_vis=lineofsight`, and the engine treats them
+ * alike -- see ToriRSServer_HuntModeHuntsPlayers.
+ */
 enum ToriRSServerHuntMode
 {
     TORIRSSERVER_HUNT_NONE = 0,
-    TORIRSSERVER_HUNT_AGGRESSIVE,
+    TORIRSSERVER_HUNT_AGGRESSIVE = 1,
+    TORIRSSERVER_HUNT_AGGRESSIVE_MELEE = 2,
 };
+
+/** Whether `huntmode` makes an npc take players on its own. */
+static inline int
+ToriRSServer_HuntModeHuntsPlayers(int huntmode)
+{
+    return huntmode == TORIRSSERVER_HUNT_AGGRESSIVE ||
+           huntmode == TORIRSSERVER_HUNT_AGGRESSIVE_MELEE;
+}
 
 /** Waypoints one patrol route may carry. The reference's longest is ten. */
 #define TORIRSSERVER_NPC_PATROL_MAX 16

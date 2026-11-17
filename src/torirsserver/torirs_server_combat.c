@@ -3587,6 +3587,18 @@ nearest_victim(
             tolerance = npc_tolerance_ticks(npc);
         if( tolerance > 0 && player->tolerance_ticks >= tolerance )
             continue;
+        /*
+         * It must see them. Both of the reference's player hunts
+         * (`aggressive_melee`, `aggressive_ranged` in all.hunt) say
+         * `check_vis=lineofsight`, and HuntIterator drops a player when
+         * `isLineOfSight(level, player.x, player.z, npc.x, npc.z)` fails --
+         * from the player's tile to the npc's origin, 1x1 at both ends.
+         * Without it an npc took players through walls and out of
+         * safespots.
+         */
+        if( !ToriRSServer_SceneLineOfSight(npc->level, player->x, player->z, npc->x, npc->z, 1,
+                                           1, 1, 1, 0) )
+            continue;
         if( !best || distance < best_distance )
         {
             best = player;
@@ -3608,7 +3620,7 @@ maybe_aggress(
     /* `npc->huntmode`, not `npc->def->huntmode`: the def seeds it at spawn and
      * `npc_sethuntmode` overrides it per npc. Reading the def here would make
      * that opcode a no-op for the one thing content uses it for. */
-    if( !npc->def || npc->huntmode != TORIRSSERVER_HUNT_AGGRESSIVE )
+    if( !npc->def || !ToriRSServer_HuntModeHuntsPlayers(npc->huntmode) )
         return;
     /*
      * `::passive <npc_symbol>` — this TYPE does not start fights in this

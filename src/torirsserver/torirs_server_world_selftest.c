@@ -41995,6 +41995,56 @@ ToriRSServer_WorldSelftest(void)
                 player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = 10;
                 player->hitpoints = player->max_hitpoints;
 
+                /*
+                 * Not through a wall. LostCity's player hunts
+                 * (`aggressive_melee`/`aggressive_ranged`, all.hunt) say
+                 * `check_vis=lineofsight`; the engine had no such check and
+                 * took players through walls and out of safespots. A tile in
+                 * hunt range the spider cannot see must not start a fight.
+                 */
+                {
+                    int range = npc->def ? npc->def->huntrange : 0;
+                    int hid_x = 0;
+                    int hid_z = 0;
+                    int hidden = 0;
+
+                    if( range > maxrange )
+                        range = maxrange;
+                    for( int ox = -range; ox <= range && !hidden; ox++ )
+                    {
+                        for( int oz = -range; oz <= range && !hidden; oz++ )
+                        {
+                            int tx = home_x + ox;
+                            int tz = home_z + oz;
+
+                            if( (ox == 0 && oz == 0) || !ToriRSServer_SceneContains(tx, tz) )
+                                continue;
+                            if( ToriRSServer_SceneLineOfSight(0, tx, tz, home_x, home_z, 1, 1, 1, 1,
+                                                              0) )
+                                continue;
+                            hid_x = tx;
+                            hid_z = tz;
+                            hidden = 1;
+                        }
+                    }
+                    SELFTEST_CHECK(hidden,
+                                   "a tile in the spider's hunt range (%d) it cannot see", range);
+                    if( hidden )
+                    {
+                        selftest_park_player(srv, hid_x, hid_z);
+                        player->hitpoints = player->max_hitpoints;
+                        selftest_tick(srv);
+                        SELFTEST_CHECK(npc->combat_target < 0,
+                                       "an aggressive npc must not take a player it cannot see "
+                                       "(%d,%d, spider at %d,%d), got target %d",
+                                       hid_x, hid_z, npc->x, npc->z, npc->combat_target);
+                        npc->x = home_x;
+                        npc->z = home_z;
+                        selftest_park_player(srv, flee_x[0], flee_z[0]);
+                        player->hitpoints = player->max_hitpoints;
+                    }
+                }
+
                 selftest_tick(srv);
                 SELFTEST_CHECK(npc->combat_target == 0,
                                "an aggressive npc takes the player as a target");
