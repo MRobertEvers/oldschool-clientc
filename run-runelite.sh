@@ -456,7 +456,9 @@ deob_stale() {
     [ -f "$INSTR_JAR" ] || return 0
     local newer
     # shellcheck disable=SC2086  # a word-split list of paths
-    newer=$(find $DEOB_SOURCES -newer "$INSTR_JAR" -not -name '*.pyc' -print -quit 2>/dev/null || true)
+    # Files only: running any instr tool rewrites a __pycache__ directory, and
+    # counting that set off a several-minute regen for nothing.
+    newer=$(find $DEOB_SOURCES -type f -newer "$INSTR_JAR" -not -path '*/__pycache__/*' -print -quit 2>/dev/null || true)
     [ -n "$newer" ]
 }
 

@@ -11,6 +11,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
+import net.runelite.api.Client;
+import net.runelite.api.GameState;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
@@ -34,6 +37,12 @@ public class ToriRSPlugin extends Plugin
 {
 	@Inject
 	private ClientToolbar clientToolbar;
+
+	@Inject
+	private Client client;
+
+	@Inject
+	private ClientThread clientThread;
 
 	private ToriRSSignIn signIn;
 	private ToriRSPanel panel;
@@ -63,6 +72,7 @@ public class ToriRSPlugin extends Plugin
 		panel.signOut.addActionListener(e -> worker.execute(() ->
 		{
 			signIn.signOut();
+			panel.accounts(null, null);
 			panel.say("Signed out.");
 			panel.show(signIn);
 		}));
@@ -80,6 +90,7 @@ public class ToriRSPlugin extends Plugin
 			signIn.load();
 			signIn.refreshDue();
 			panel.show(signIn);
+			loadAccounts();
 			if (signIn.configured() && !(signIn.iapSignedIn() && signIn.gateSignedIn()))
 			{
 				// Not signed in: show the panel, so the login screen's
@@ -129,7 +140,8 @@ public class ToriRSPlugin extends Plugin
 				}
 			}, this::openBrowser);
 			panel.waiting(null, null, null);
-			panel.say("Signed in. Log in to the game.");
+			panel.say("Signed in. Pick an account below, or log in to the game.");
+			loadAccounts();
 		}
 		catch (InterruptedException e)
 		{
@@ -142,6 +154,60 @@ public class ToriRSPlugin extends Plugin
 			panel.say("Sign-in failed: " + e.getMessage());
 		}
 		panel.show(signIn);
+	}
+
+	/** The web login's linked player accounts, as Play buttons. */
+	private void loadAccounts()
+	{
+		if (!signIn.configured() || !signIn.gateSignedIn())
+		{
+			panel.accounts(null, null);
+			return;
+		}
+		try
+		{
+			panel.accounts(signIn.players(), name -> worker.execute(() -> play(name)));
+		}
+		catch (IOException | RuntimeException e)
+		{
+			panel.say("Could not list your accounts: " + e.getMessage());
+		}
+	}
+
+	/**
+	 * Play a linked account: a one-time login from the gate, then the login
+	 * itself, started as the login screen's button would -- the gamepack's
+	 * TorirsLogin sends the token (auth type TOKEN) where the password goes.
+	 */
+	private void play(String player)
+	{
+		String[] answer;
+		try
+		{
+			answer = signIn.play(player);
+		}
+		catch (IOException | RuntimeException e)
+		{
+			panel.say(e.getMessage());
+			return;
+		}
+		String token = answer[0];
+		String name = answer[1];
+		clientThread.invokeLater(() ->
+		{
+			if (client.getGameState() != GameState.LOGIN_SCREEN)
+			{
+				panel.say("Log out first, then press Play.");
+				return;
+			}
+			System.setProperty("torirs.otl", token);
+			client.setUsername(name);
+			// Never sent: the token takes the password's place. The login
+			// screen only wants the field filled.
+			client.setPassword("torirs-one-time-login");
+			client.setGameState(GameState.LOGGING_IN);
+			panel.say("Logging in as " + name.replace('\u00a0', ' ') + "...");
+		});
 	}
 
 	/**

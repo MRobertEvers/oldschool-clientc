@@ -27,6 +27,8 @@ final class ToriRSPanel extends PluginPanel
 	final JButton cancel = new JButton("Cancel");
 	final JButton reopen = new JButton("Open the page again");
 	private String waitingUrl;
+	private final JPanel accounts = new JPanel(new GridLayout(0, 1, 0, 6));
+	private final JLabel accountsTitle = new JLabel("Your accounts");
 
 	ToriRSPanel()
 	{
@@ -56,6 +58,12 @@ final class ToriRSPanel extends PluginPanel
 		buttons.add(signOut);
 		buttons.setAlignmentX(LEFT_ALIGNMENT);
 		col.add(buttons);
+		col.add(gap());
+		accountsTitle.setFont(accountsTitle.getFont().deriveFont(Font.BOLD));
+		accountsTitle.setVisible(false);
+		col.add(accountsTitle);
+		accounts.setAlignmentX(LEFT_ALIGNMENT);
+		col.add(accounts);
 		add(col, BorderLayout.NORTH);
 		message.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
 		waiting(null, null, null);
@@ -97,7 +105,9 @@ final class ToriRSPanel extends PluginPanel
 
 	private static String until(long when)
 	{
-		return " (refreshes before " + DateFormat.getTimeInstance(DateFormat.SHORT).format(new Date(when)) + ")";
+		// The session and the ticket last a day and are refreshed two hours
+		// before they run out: this is when the current one would.
+		return " (good until " + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(new Date(when)) + ")";
 	}
 
 	/** A code waits for approval in the browser; nulls when nothing waits. */
@@ -115,6 +125,31 @@ final class ToriRSPanel extends PluginPanel
 			reopen.setVisible(url != null);
 			cancel.setVisible(url != null);
 			signIn.setEnabled(url == null);
+		});
+	}
+
+	/**
+	 * The linked player accounts, one Play button each (the browser client's
+	 * Play Now cards). Null or empty hides the section.
+	 */
+	void accounts(java.util.List<String> names, java.util.function.Consumer<String> onPlay)
+	{
+		SwingUtilities.invokeLater(() ->
+		{
+			accounts.removeAll();
+			boolean any = names != null && !names.isEmpty();
+			accountsTitle.setVisible(any);
+			if (any)
+			{
+				for (String name : names)
+				{
+					JButton play = new JButton("Play " + name.replace('\u00a0', ' '));
+					play.addActionListener(e -> onPlay.accept(name));
+					accounts.add(play);
+				}
+			}
+			accounts.revalidate();
+			accounts.repaint();
 		});
 	}
 

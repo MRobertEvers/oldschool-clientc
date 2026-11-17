@@ -433,6 +433,64 @@ final class ToriRSSignIn
 		save();
 	}
 
+	// --------------------------------------------------------- linked accounts
+
+	/**
+	 * The player accounts linked to this web login (the gate's
+	 * POST /account/players), as the browser client's Play Now cards show them.
+	 */
+	java.util.List<String> players() throws IOException
+	{
+		Reply r = postSignedIn("/account/players", "");
+		if (r.status != 200)
+		{
+			throw new IOException("the account list: " + describe(r));
+		}
+		java.util.List<String> out = new java.util.ArrayList<>();
+		String all = str(r.json, "players");
+		if (all != null)
+		{
+			for (String name : all.split("\n"))
+			{
+				if (!name.isEmpty())
+				{
+					out.add(name);
+				}
+			}
+		}
+		return out;
+	}
+
+	/**
+	 * A one-time login for a linked account (POST /account/play): { token,
+	 * name }, the name being the one the server will check the token against.
+	 */
+	String[] play(String player) throws IOException
+	{
+		Reply r = postSignedIn("/account/play", "player=" + enc(player));
+		if (r.status != 200 || str(r.json, "token") == null)
+		{
+			throw new IOException("Play " + player + ": " + describe(r));
+		}
+		String name = str(r.json, "name");
+		return new String[]{str(r.json, "token"), name != null ? name : player};
+	}
+
+	/** A form post behind the gate's ticket check: the ticket's cookie, and the IaP's through the proxy. */
+	private Reply postSignedIn(String path, String form) throws IOException
+	{
+		String cookie = System.getProperty("torirs.cookie");
+		HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(gateApi + path))
+			.timeout(Duration.ofSeconds(20))
+			.header("Content-Type", "application/x-www-form-urlencoded")
+			.POST(HttpRequest.BodyPublishers.ofString(form));
+		if (cookie != null)
+		{
+			b.header("Cookie", cookie);
+		}
+		return send(b.build());
+	}
+
 	// ------------------------------------------------------------------- http
 
 	static final class Reply
