@@ -35,9 +35,9 @@
 --
 -- DOORS AND FLOORS (fix_b59, the closed-space rule of docs/
 -- QUEST_ORCHESTRATOR.md): no goto lands in or leaves a closed space. Both
--- ships are left by their own gangplank (general_use/scripts/gangplank.rs2
--- ~gangplank_disembark); the white apron is the guide's, in the Port Sarim
--- fishing shop (m47_50.spawn:53, 3016,3229 -- the other copy at 3009,3204
+-- Port Sarim <-> Musa Point crossings land on the quay at level 0
+-- (transport_ship ~quick_sail, RSProx index 4378), no deck to leave; the
+-- white apron is the guide's, in the Port Sarim fishing shop (m47_50.spawn:53, 3016,3229 -- the other copy at 3009,3204
 -- lies INSIDE Wydin's employees-only back room); Wydin's shop and the fishing
 -- shop are walked into and out of past their map-open doors; the back room
 -- is entered AND left through wydindoor's own click (food_store.rs2
@@ -230,12 +230,12 @@ return {
         -- [opnpc1,seaman_lorris] -> karamja_sailor_talk, a plain p_choice2
         -- ("Yes please." / "No, thank you.") since %dragonquest is untouched
         -- by this fixture. Accepting falls into karamja_sailor_pay: takes
-        -- the 30 coins, logs a mes() line, then p_delay(2) + p_telejump to
-        -- Musa Point before its own ~mesbox reopens -- the identical
-        -- if_close/p_delay/reopen shape as luthas-payout and customs-pay
-        -- above (section 8's recipe): wait for chat.kind()=="mesbox" rather
-        -- than chaining straight into it. Spawn tile from m47_50.spawn
-        -- (3028,3221,0), one tile off the guide's own WorldPoint.
+        -- the 30 coins and ~quick_sail_musa_point (RSProx index 4378
+        -- [92..100]): the fare line and "You board the ship and sail to Musa
+        -- Point." on the paying tick, the teleport five ticks later (behind
+        -- fades) onto the Musa Point quay 2956,3146,0, no arrival mesbox and
+        -- no deck. Spawn tile from m47_50.spawn (3028,3221,0), one tile off
+        -- the guide's own WorldPoint.
         t.exec("goto-seaman", t.player.goto_tile, 3028, 3221, 0)
         t.exec("talk-seaman", t.player.talk_to, "seaman_lorris", 1)
         t.exec("seaman-offer", t.chat.play, {
@@ -245,30 +245,16 @@ return {
             "choose:Yes please.",
             "player:Yes please.",
         })
-        t.expect("hunt.seaman_paid_msg", t.msg.expect("You pay 30 coins and board the ship"))
+        t.expect("hunt.seaman_paid_msg", t.msg.expect("You pay the boarding charge of 30 coins."))
+        t.expect("hunt.seaman_boards_msg", t.msg.expect("You board the ship and sail to Musa Point."))
 
-        local sail_reopen_result, sail_reopen_detail = t.await({
-            level = function()
-                return t.chat.kind() == "mesbox"
-            end,
-            note = "seaman.sail_reopen",
-        }, 15)
-        t.step("hunt.seaman_sail_reopen", sail_reopen_result == "ok" and "PASS" or "FAIL",
-            "await(chat.kind() == mesbox) after pay+p_delay(2)+telejump -> "
-                .. tostring(sail_reopen_result) .. " " .. tostring(sail_reopen_detail)
-                .. " -- chat.kind() now " .. tostring(t.chat.kind()))
-
-        t.exec("seaman-arrive", t.chat.play, {
-            "mesbox:The ship arrives at Karamja.",
-        })
-
-        -- The telejump stands the player on the ship's deck (level 1,
-        -- 2956,3143). Leave it by the gangplank, as a player does:
-        -- sarimshipplank_off (2956,3144,1, angle north) -> ~gangplank_disembark
-        -- drops one level and two tiles north onto the Musa Point pier.
-        cross("hunt.disembarkMusa", "sarimshipplank_off", 2956, 3144, 1, nil, nil,
-            function(tt) return tt.level == 0 and tt.z >= 3145 and math.abs(tt.x - 2956) <= 2 end,
-            "on the Musa Point pier, level 0, z >= 3145")
+        local sail_result, sail_detail = await_tile(function(tt)
+            return tt.x == 2956 and tt.z == 3146
+        end, 12, "seaman.sail")
+        local musa_r, musa_tile = t.world.tile()
+        t.step("hunt.seaman_sail", (sail_result == "ok" and musa_r == "ok" and musa_tile.level == 0) and "PASS" or "FAIL",
+            "await(on the Musa Point quay 2956,3146,0) -> " .. tostring(sail_result) .. " " .. tostring(sail_detail)
+                .. ", tile " .. tile_text(musa_r, musa_tile))
 
         -- ------------------------------------------ fetch the rum, for real
         -- Musa Point -> Brimhaven is through Karamja's members' gate
@@ -476,37 +462,20 @@ return {
             "choose:Ok.",
             "player:Ok.",
         })
-        t.expect("hunt.customs_paid_msg", t.msg.expect("pay 30 coins and board the ship"))
+        t.expect("hunt.customs_paid_msg", t.msg.expect("You pay the boarding charge of 30 coins."))
+        t.expect("hunt.customs_boards_msg", t.msg.expect("You board the ship and sail to Port Sarim."))
 
-        -- customs_officer.rs2's customs_pay continues past that last
-        -- "Ok." page into a plain mes() coin-charge line, p_delay(2), then
-        -- a p_telejump to Port Sarim before its own ~mesbox reopens -- a
-        -- second asynchronous reopen exactly like luthas-payout above, so
-        -- the same split: wait for the page to actually remount rather
-        -- than chaining straight into it (measured: reading immediately
-        -- after "player:Ok." still shows that same page's own "Please
-        -- wait..." transition frame, not yet closed).
-        local customs_reopen_result, customs_reopen_detail = t.await({
-            level = function()
-                return t.chat.kind() == "mesbox"
-            end,
-            note = "customs.pay_reopen",
-        }, 15)
-        t.step("hunt.customs_pay_reopen", customs_reopen_result == "ok" and "PASS" or "FAIL",
-            "await(chat.kind() == mesbox) after pay+p_delay(2)+telejump -> "
-                .. tostring(customs_reopen_result) .. " " .. tostring(customs_reopen_detail)
-                .. " -- chat.kind() now " .. tostring(t.chat.kind()))
-
-        t.exec("customs-arrive", t.chat.play, {
-            "mesbox:ship arrives at Port Sarim",
-        })
-
-        -- Off the ship by its gangplank: karamjashipplank_off (3031,3217,1,
-        -- angle west) -> ~gangplank_disembark drops one level and two tiles
-        -- west onto the Port Sarim pier.
-        cross("hunt.disembarkSarim", "karamjashipplank_off", 3031, 3217, 1, nil, nil,
-            function(tt) return tt.level == 0 and tt.x <= 3030 and math.abs(tt.z - 3217) <= 2 end,
-            "on the Port Sarim pier, level 0, x <= 3030")
+        -- customs_officer.rs2's customs_pay continues past that last "Ok."
+        -- page into the fare line and ~quick_sail_port_sarim (RSProx index
+        -- 4378 [237..245]): the teleport five ticks later onto Port Sarim's
+        -- quay 3029,3217,0, no arrival mesbox and no deck.
+        local customs_sail_result, customs_sail_detail = await_tile(function(tt)
+            return tt.x == 3029 and tt.z == 3217
+        end, 12, "customs.sail")
+        local sarim_r, sarim_tile = t.world.tile()
+        t.step("hunt.customs_sail", (customs_sail_result == "ok" and sarim_r == "ok" and sarim_tile.level == 0) and "PASS" or "FAIL",
+            "await(on Port Sarim's quay 3029,3217,0) -> " .. tostring(customs_sail_result) .. " "
+                .. tostring(customs_sail_detail) .. ", tile " .. tile_text(sarim_r, sarim_tile))
 
         -- A white apron is Wydin's own health-and-safety requirement for
         -- the job, not the quest's own deliverable (trap 16) -- pick up

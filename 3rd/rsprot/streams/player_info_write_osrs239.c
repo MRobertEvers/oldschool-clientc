@@ -20,6 +20,7 @@ enum
 {
     EXTINFO_APPEARANCE = 0x20,
     EXTINFO_FACE = 0x1,
+    EXTINFO_MOVE_SPEED = 0x400,
     EXTINFO_SEQUENCE = 0x40,
     EXTINFO_CHAT = 0x100,
     EXTINFO_TEMP_MOVE_SPEED = 0x1000,
@@ -46,11 +47,12 @@ player_info_osrs239_write_extended(struct RsprotBuf* buf, const uint8_t* appeara
     int const has_chat = ext && ext->has_chat;
     int const has_spotanim = ext && ext->has_spotanim;
     int const has_temp_move_speed = ext && ext->has_temp_move_speed;
+    int const has_move_speed = ext && ext->has_move_speed;
     int const has_exact_move = ext && ext->has_exact_move;
     int const has_tint = ext && ext->has_tint;
     int const has_extended =
         has_appearance || has_hit || has_face || has_seq || has_chat || has_spotanim ||
-        has_temp_move_speed || has_exact_move || has_headbar || has_tint;
+        has_temp_move_speed || has_move_speed || has_exact_move || has_headbar || has_tint;
 
     /* Rev 239 has no TRANSPARENCY block; the encoder sets it at 241 only. */
     assert(!ext || !ext->has_transparency);
@@ -86,6 +88,8 @@ player_info_osrs239_write_extended(struct RsprotBuf* buf, const uint8_t* appeara
             flag |= EXTINFO_HEADBARS;
         if( has_face )
             flag |= EXTINFO_FACE;
+        if( has_move_speed )
+            flag |= EXTINFO_MOVE_SPEED;
         if( has_seq )
             flag |= EXTINFO_SEQUENCE;
         if( has_chat )
@@ -164,6 +168,10 @@ player_info_osrs239_write_extended(struct RsprotBuf* buf, const uint8_t* appeara
              * It is read after hitmarks/reset and before sequence. */
             rsprot_face_write_player(buf, &ext->face);
         }
+        /* MOVE_SPEED: g1sAlt2 (negated) -- after FACE, before SPOTANIM
+         * (RSProx 239 decode order). */
+        if( has_move_speed )
+            rsprot_p1_neg(buf, ext->move_speed);
         if( has_spotanim )
         {
             assert(ext->spotanim_count > 0);

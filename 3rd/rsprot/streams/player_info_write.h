@@ -206,6 +206,13 @@ struct RsprotPlayerExt
      * two tiles per update while visibly playing the walk sequence. */
     int has_temp_move_speed;
     int temp_move_speed;
+    /** The player's own (permanent) move speed: 1 walk, 2 run. Jagex sends
+     * it when it changes (the run toggle, and the login's first update):
+     * RSProx index 4378 [7] `move_speed=run`. Steps at that speed then need
+     * no TEMP_MOVE_SPEED; only a step at another speed does (a single tile
+     * while running is `temp=walk`, a teleport `temp=127`). */
+    int has_move_speed;
+    int move_speed;
     int has_exact_move;
     int exact_start_x;
     int exact_start_z;

@@ -113,6 +113,15 @@ struct LocCategoryRow
     int32_t category;
 };
 
+/* Examine texts, the same shape as the names: 3,437 of 62,194 records carry
+ * one (content's configs/examine.loc). */
+static char* g_desc_blob;
+static size_t g_desc_blob_len;
+static size_t g_desc_blob_cap;
+static struct LocNameRow* g_descs;
+static int g_desc_count;
+static int g_desc_cap;
+
 static char* g_name_blob;
 static size_t g_name_blob_len;
 static size_t g_name_blob_cap;
@@ -220,6 +229,42 @@ add_name(
     g_names[g_name_count].offset = (int32_t)g_name_blob_len;
     g_name_count++;
     g_name_blob_len += length;
+}
+
+static void
+add_desc(
+    int loc_id,
+    const char* desc)
+{
+    size_t length = strlen(desc) + 1;
+
+    if( g_desc_blob_len + length > g_desc_blob_cap )
+    {
+        size_t want = g_desc_blob_cap ? g_desc_blob_cap * 2 : 65536;
+        char* grown;
+
+        while( want < g_desc_blob_len + length )
+            want *= 2;
+        grown = ToriMem_Realloc(ToriMem_ServerContent(), g_desc_blob, want);
+        assert(grown);
+        g_desc_blob = grown;
+        g_desc_blob_cap = want;
+    }
+    if( g_desc_count == g_desc_cap )
+    {
+        int want = g_desc_cap ? g_desc_cap * 2 : 1024;
+        struct LocNameRow* grown =
+            ToriMem_Realloc(ToriMem_ServerContent(), g_descs, (size_t)want * sizeof(*grown));
+
+        assert(grown);
+        g_descs = grown;
+        g_desc_cap = want;
+    }
+    memcpy(g_desc_blob + g_desc_blob_len, desc, length);
+    g_descs[g_desc_count].id = loc_id;
+    g_descs[g_desc_count].offset = (int32_t)g_desc_blob_len;
+    g_desc_count++;
+    g_desc_blob_len += length;
 }
 
 static void
@@ -347,6 +392,28 @@ ToriRSServer_LocKnown(int loc_id)
     if( loc_id < 0 || loc_id >= g_known_bits || !g_known )
         return 0;
     return (g_known[loc_id >> 3] >> (loc_id & 7)) & 1;
+}
+
+const char*
+ToriRSServer_LocDesc(int loc_id)
+{
+    int low = 0;
+    int high = g_desc_count - 1;
+
+    if( !g_descs || !g_desc_blob )
+        return NULL;
+    while( low <= high )
+    {
+        int mid = low + (high - low) / 2;
+
+        if( g_descs[mid].id == loc_id )
+            return g_desc_blob + g_descs[mid].offset;
+        if( g_descs[mid].id < loc_id )
+            low = mid + 1;
+        else
+            high = mid - 1;
+    }
+    return NULL;
 }
 
 const char*
@@ -704,6 +771,8 @@ loc_load_record(
         g_defer_anim[id >> 3] |= (uint8_t)(1u << (id & 7));
     if( loc->name )
         add_name(id, loc->name);
+    if( loc->desc && loc->desc[0] )
+        add_desc(id, loc->desc);
     if( loc->size_x != 1 || loc->size_z != 1 )
         add_size(id, loc->size_x, loc->size_z);
     if( loc->category > 0 )
@@ -764,6 +833,8 @@ ToriRSServer_LocInfoLoad(struct RSCache_ServerPack* pack)
     ToriRSServer_ParamTableSort(&g_loc_params);
     if( g_names && g_name_count > 1 )
         qsort(g_names, (size_t)g_name_count, sizeof(*g_names), compare_name_row);
+    if( g_desc_count > 1 )
+        qsort(g_descs, (size_t)g_desc_count, sizeof(*g_descs), compare_name_row);
     if( g_sizes && g_size_count > 1 )
         qsort(g_sizes, (size_t)g_size_count, sizeof(*g_sizes), compare_size_row);
     if( g_categories && g_category_count > 1 )
@@ -794,6 +865,14 @@ ToriRSServer_LocInfoFree(void)
 
     ToriMem_Free(ToriMem_ServerContent(), g_name_blob);
     g_name_blob = NULL;
+    ToriMem_Free(ToriMem_ServerContent(), g_desc_blob);
+    g_desc_blob = NULL;
+    g_desc_blob_len = 0;
+    g_desc_blob_cap = 0;
+    ToriMem_Free(ToriMem_ServerContent(), g_descs);
+    g_descs = NULL;
+    g_desc_count = 0;
+    g_desc_cap = 0;
     g_name_blob_len = 0;
     g_name_blob_cap = 0;
     ToriMem_Free(ToriMem_ServerContent(), g_names);

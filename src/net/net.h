@@ -97,6 +97,15 @@ struct ToriRS_Network
     /** Parsed inbound packets, oldest first. */
     struct RevPacketItem* packets_head;
     struct RevPacketItem* packets_tail;
+    /**
+     * An open PACKET_GROUP: the bytes of it not yet consumed. Jagex's client
+     * holds its frame until a group's N bytes are all in (deob client.java,
+     * var3.field1554), so the group's packets apply together -- a rebuild
+     * and the placement that depends on it in one frame. The members are
+     * queued `held` and released when this reaches 0.
+     */
+    int group_open;
+    int group_left;
 
     int conn_status;
 

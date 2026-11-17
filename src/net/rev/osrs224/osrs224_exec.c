@@ -136,18 +136,21 @@
 #include "packets/oploc3.h"
 #include "packets/oploc4.h"
 #include "packets/oploc5.h"
+#include "packets/oploc6.h"
 #include "packets/oploct.h"
 #include "packets/opnpc1.h"
 #include "packets/opnpc2.h"
 #include "packets/opnpc3.h"
 #include "packets/opnpc4.h"
 #include "packets/opnpc5.h"
+#include "packets/opnpc6.h"
 #include "packets/opnpct.h"
 #include "packets/opobj1.h"
 #include "packets/opobj2.h"
 #include "packets/opobj3.h"
 #include "packets/opobj4.h"
 #include "packets/opobj5.h"
+#include "packets/opobj6.h"
 #include "packets/opobjt.h"
 #include "packets/opplayer1.h"
 #include "packets/opplayer2.h"
@@ -2931,6 +2934,24 @@ out_opnpc5(struct ProtoOutArgs const* a, RsprotBuf* b)
     return 1;
 }
 
+/* OPNPC6, opcode 91 */
+static int
+out_opnpc6(struct ProtoOutArgs const* a, RsprotBuf* b)
+{
+    MsgOpNpc6 m;
+    RsprotExec x;
+
+    memset(&m, 0, sizeof(m));
+    w_opnpc6(&m, a);
+    rsprot_exec_encode(&x, b);
+    packet_opnpc6_osrs224_in(&x, &m);
+    if( b->err )
+        return 0; /* it does not fit the caller's buffer */
+    /* Arguments the layout cannot carry are the caller's bug. */
+    assert(rsprot_exec_ok(&x));
+    return 1;
+}
+
 /* OPNPCT, opcode 61 */
 static int
 out_opnpct(struct ProtoOutArgs const* a, RsprotBuf* b)
@@ -3039,6 +3060,24 @@ out_oploc5(struct ProtoOutArgs const* a, RsprotBuf* b)
     return 1;
 }
 
+/* OPLOC6, opcode 52 */
+static int
+out_oploc6(struct ProtoOutArgs const* a, RsprotBuf* b)
+{
+    MsgOpLoc6 m;
+    RsprotExec x;
+
+    memset(&m, 0, sizeof(m));
+    w_oploc6(&m, a);
+    rsprot_exec_encode(&x, b);
+    packet_oploc6_osrs224_in(&x, &m);
+    if( b->err )
+        return 0; /* it does not fit the caller's buffer */
+    /* Arguments the layout cannot carry are the caller's bug. */
+    assert(rsprot_exec_ok(&x));
+    return 1;
+}
+
 /* OPLOCT, opcode 59 */
 static int
 out_oploct(struct ProtoOutArgs const* a, RsprotBuf* b)
@@ -3140,6 +3179,24 @@ out_opobj5(struct ProtoOutArgs const* a, RsprotBuf* b)
     w_opobj5(&m, a);
     rsprot_exec_encode(&x, b);
     packet_opobj5_osrs224_in(&x, &m);
+    if( b->err )
+        return 0; /* it does not fit the caller's buffer */
+    /* Arguments the layout cannot carry are the caller's bug. */
+    assert(rsprot_exec_ok(&x));
+    return 1;
+}
+
+/* OPOBJ6, opcode 92 */
+static int
+out_opobj6(struct ProtoOutArgs const* a, RsprotBuf* b)
+{
+    MsgOpObj6 m;
+    RsprotExec x;
+
+    memset(&m, 0, sizeof(m));
+    w_opobj6(&m, a);
+    rsprot_exec_encode(&x, b);
+    packet_opobj6_osrs224_in(&x, &m);
     if( b->err )
         return 0; /* it does not fit the caller's buffer */
     /* Arguments the layout cannot carry are the caller's bug. */
@@ -4503,6 +4560,7 @@ static int16_t const k_out_wire1[PKTOUT_NAME_COUNT] = {
     [PKTOUT_NAME_CLIENT_CHEAT] = 49,
     [PKTOUT_NAME_EVENT_APPLET_FOCUS] = 51,
     [PKTOUT_NAME_EXIT_FREECAM] = 52,
+    [PKTOUT_NAME_OPLOC6] = 53,
     [PKTOUT_NAME_OPOBJT] = 54,
     [PKTOUT_NAME_RESUME_PAUSEBUTTON] = 55,
     [PKTOUT_NAME_OPOBJ1] = 56,
@@ -4538,6 +4596,8 @@ static int16_t const k_out_wire1[PKTOUT_NAME_COUNT] = {
     [PKTOUT_NAME_EVENT_CAMERA_POSITION] = 88,
     [PKTOUT_NAME_IF_SUBOP] = 89,
     [PKTOUT_NAME_IF_BUTTON6] = 90,
+    [PKTOUT_NAME_OPNPC6] = 92,
+    [PKTOUT_NAME_OPOBJ6] = 93,
     [PKTOUT_NAME_MESSAGE_PRIVATE] = 94,
     [PKTOUT_NAME_OPPLAYERT] = 95,
     [PKTOUT_NAME_OPOBJ2] = 96,
@@ -4720,6 +4780,7 @@ static int (*const k_out[PKTOUT_NAME_COUNT])(struct ProtoOutArgs const* a, Rspro
     [PKTOUT_NAME_OPPLAYER4] = out_opplayer4,
     [PKTOUT_NAME_CLIENT_CHEAT] = out_client_cheat,
     [PKTOUT_NAME_EXIT_FREECAM] = out_exit_freecam,
+    [PKTOUT_NAME_OPLOC6] = out_oploc6,
     [PKTOUT_NAME_OPOBJT] = out_opobjt,
     [PKTOUT_NAME_RESUME_PAUSEBUTTON] = out_resume_pausebutton,
     [PKTOUT_NAME_OPOBJ1] = out_opobj1,
@@ -4753,6 +4814,8 @@ static int (*const k_out[PKTOUT_NAME_COUNT])(struct ProtoOutArgs const* a, Rspro
     [PKTOUT_NAME_OPPLAYER6] = out_opplayer6,
     [PKTOUT_NAME_IF_SUBOP] = out_if_subop,
     [PKTOUT_NAME_IF_BUTTON6] = out_if_button6,
+    [PKTOUT_NAME_OPNPC6] = out_opnpc6,
+    [PKTOUT_NAME_OPOBJ6] = out_opobj6,
     [PKTOUT_NAME_MESSAGE_PRIVATE] = out_message_private,
     [PKTOUT_NAME_OPPLAYERT] = out_opplayert,
     [PKTOUT_NAME_OPOBJ2] = out_opobj2,

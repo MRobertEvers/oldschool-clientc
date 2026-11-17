@@ -143,18 +143,21 @@
 #include "packets/oploc3.h"
 #include "packets/oploc4.h"
 #include "packets/oploc5.h"
+#include "packets/oploc6.h"
 #include "packets/oploct.h"
 #include "packets/opnpc1.h"
 #include "packets/opnpc2.h"
 #include "packets/opnpc3.h"
 #include "packets/opnpc4.h"
 #include "packets/opnpc5.h"
+#include "packets/opnpc6.h"
 #include "packets/opnpct.h"
 #include "packets/opobj1.h"
 #include "packets/opobj2.h"
 #include "packets/opobj3.h"
 #include "packets/opobj4.h"
 #include "packets/opobj5.h"
+#include "packets/opobj6.h"
 #include "packets/opobjt.h"
 #include "packets/opplayer1.h"
 #include "packets/opplayer2.h"
@@ -3001,6 +3004,24 @@ out_opnpc5(struct ProtoOutArgs const* a, RsprotBuf* b)
     return 1;
 }
 
+/* OPNPC6, opcode 3 */
+static int
+out_opnpc6(struct ProtoOutArgs const* a, RsprotBuf* b)
+{
+    MsgOpNpc6 m;
+    RsprotExec x;
+
+    memset(&m, 0, sizeof(m));
+    w_opnpc6(&m, a);
+    rsprot_exec_encode(&x, b);
+    packet_opnpc6_osrs232_in(&x, &m);
+    if( b->err )
+        return 0; /* it does not fit the caller's buffer */
+    /* Arguments the layout cannot carry are the caller's bug. */
+    assert(rsprot_exec_ok(&x));
+    return 1;
+}
+
 /* OPNPCT, opcode 77 */
 static int
 out_opnpct(struct ProtoOutArgs const* a, RsprotBuf* b)
@@ -3109,6 +3130,24 @@ out_oploc5(struct ProtoOutArgs const* a, RsprotBuf* b)
     return 1;
 }
 
+/* OPLOC6, opcode 32 */
+static int
+out_oploc6(struct ProtoOutArgs const* a, RsprotBuf* b)
+{
+    MsgOpLoc6 m;
+    RsprotExec x;
+
+    memset(&m, 0, sizeof(m));
+    w_oploc6(&m, a);
+    rsprot_exec_encode(&x, b);
+    packet_oploc6_osrs232_in(&x, &m);
+    if( b->err )
+        return 0; /* it does not fit the caller's buffer */
+    /* Arguments the layout cannot carry are the caller's bug. */
+    assert(rsprot_exec_ok(&x));
+    return 1;
+}
+
 /* OPLOCT, opcode 6 */
 static int
 out_oploct(struct ProtoOutArgs const* a, RsprotBuf* b)
@@ -3210,6 +3249,24 @@ out_opobj5(struct ProtoOutArgs const* a, RsprotBuf* b)
     w_opobj5(&m, a);
     rsprot_exec_encode(&x, b);
     packet_opobj5_osrs232_in(&x, &m);
+    if( b->err )
+        return 0; /* it does not fit the caller's buffer */
+    /* Arguments the layout cannot carry are the caller's bug. */
+    assert(rsprot_exec_ok(&x));
+    return 1;
+}
+
+/* OPOBJ6, opcode 23 */
+static int
+out_opobj6(struct ProtoOutArgs const* a, RsprotBuf* b)
+{
+    MsgOpObj6 m;
+    RsprotExec x;
+
+    memset(&m, 0, sizeof(m));
+    w_opobj6(&m, a);
+    rsprot_exec_encode(&x, b);
+    packet_opobj6_osrs232_in(&x, &m);
     if( b->err )
         return 0; /* it does not fit the caller's buffer */
     /* Arguments the layout cannot carry are the caller's bug. */
@@ -4587,6 +4644,7 @@ static int16_t const k_out_wire1[PKTOUT_NAME_COUNT] = {
     [PKTOUT_NAME_IF_BUTTONX] = 1,
     [PKTOUT_NAME_OPNPC5] = 2,
     [PKTOUT_NAME_OPNPC1] = 3,
+    [PKTOUT_NAME_OPNPC6] = 4,
     [PKTOUT_NAME_RESUME_P_COUNTDIALOG] = 5,
     [PKTOUT_NAME_MESSAGE_PRIVATE] = 6,
     [PKTOUT_NAME_OPLOCT] = 7,
@@ -4602,6 +4660,7 @@ static int16_t const k_out_wire1[PKTOUT_NAME_COUNT] = {
     [PKTOUT_NAME_OPOBJ4] = 20,
     [PKTOUT_NAME_MOVE_MINIMAPCLICK] = 21,
     [PKTOUT_NAME_CLANCHANNEL_FULL_REQUEST] = 22,
+    [PKTOUT_NAME_OPOBJ6] = 24,
     [PKTOUT_NAME_BUG_REPORT] = 25,
     [PKTOUT_NAME_OPPLAYERU] = 26,
     [PKTOUT_NAME_RESUME_PAUSEBUTTON] = 27,
@@ -4609,6 +4668,7 @@ static int16_t const k_out_wire1[PKTOUT_NAME_COUNT] = {
     [PKTOUT_NAME_OPLOC2] = 30,
     [PKTOUT_NAME_CLANCHANNEL_KICKUSER] = 31,
     [PKTOUT_NAME_OPOBJ2] = 32,
+    [PKTOUT_NAME_OPLOC6] = 33,
     [PKTOUT_NAME_OPPLAYER4] = 35,
     [PKTOUT_NAME_OPPLAYER2] = 36,
     [PKTOUT_NAME_FRIENDLIST_DEL] = 37,
@@ -4807,6 +4867,7 @@ static int (*const k_out[PKTOUT_NAME_COUNT])(struct ProtoOutArgs const* a, Rspro
     [PKTOUT_NAME_IF_BUTTONX] = out_if_buttonx,
     [PKTOUT_NAME_OPNPC5] = out_opnpc5,
     [PKTOUT_NAME_OPNPC1] = out_opnpc1,
+    [PKTOUT_NAME_OPNPC6] = out_opnpc6,
     [PKTOUT_NAME_RESUME_P_COUNTDIALOG] = out_resume_p_countdialog,
     [PKTOUT_NAME_MESSAGE_PRIVATE] = out_message_private,
     [PKTOUT_NAME_OPLOCT] = out_oploct,
@@ -4821,12 +4882,14 @@ static int (*const k_out[PKTOUT_NAME_COUNT])(struct ProtoOutArgs const* a, Rspro
     [PKTOUT_NAME_OPOBJ4] = out_opobj4,
     [PKTOUT_NAME_MOVE_MINIMAPCLICK] = out_move_minimapclick,
     [PKTOUT_NAME_CLANCHANNEL_FULL_REQUEST] = out_clanchannel_full_request,
+    [PKTOUT_NAME_OPOBJ6] = out_opobj6,
     [PKTOUT_NAME_BUG_REPORT] = out_bug_report,
     [PKTOUT_NAME_RESUME_PAUSEBUTTON] = out_resume_pausebutton,
     [PKTOUT_NAME_OPLOC1] = out_oploc1,
     [PKTOUT_NAME_OPLOC2] = out_oploc2,
     [PKTOUT_NAME_CLANCHANNEL_KICKUSER] = out_clanchannel_kickuser,
     [PKTOUT_NAME_OPOBJ2] = out_opobj2,
+    [PKTOUT_NAME_OPLOC6] = out_oploc6,
     [PKTOUT_NAME_OPPLAYER4] = out_opplayer4,
     [PKTOUT_NAME_OPPLAYER2] = out_opplayer2,
     [PKTOUT_NAME_FRIENDLIST_DEL] = out_friendlist_del,

@@ -163,6 +163,7 @@ static const struct WireProtName g_osrs242_server_names[] = {
     { RSPROT_OSRS242_SERVER_HIDENPCOPS,                          PKT_NAME_HIDENPCOPS },
     { RSPROT_OSRS242_SERVER_HIDEOBJOPS,                          PKT_NAME_HIDEOBJOPS },
     { RSPROT_OSRS242_SERVER_HIDELOCOPS,                          PKT_NAME_HIDELOCOPS },
+    { RSPROT_OSRS242_SERVER_PACKET_GROUP_START,                  PKT_NAME_PACKET_GROUP_START },
 };
 
 static const struct WireProtName g_osrs242_client_names[] = {
@@ -177,6 +178,7 @@ static const struct WireProtName g_osrs242_client_names[] = {
     { RSPROT_OSRS242_CLIENT_OPNPC3_V2,                           PKTOUT_NAME_OPNPC3 },
     { RSPROT_OSRS242_CLIENT_OPNPC4_V2,                           PKTOUT_NAME_OPNPC4 },
     { RSPROT_OSRS242_CLIENT_OPNPC5_V2,                           PKTOUT_NAME_OPNPC5 },
+    { RSPROT_OSRS242_CLIENT_OPNPC6,                              PKTOUT_NAME_OPNPC6 },
     { RSPROT_OSRS242_CLIENT_OPNPCT,                              PKTOUT_NAME_OPNPCT },
     { RSPROT_OSRS242_CLIENT_OPNPCU,                              PKTOUT_NAME_OPNPCU },
     { RSPROT_OSRS242_CLIENT_OPLOC1_V2,                           PKTOUT_NAME_OPLOC1 },
@@ -184,6 +186,7 @@ static const struct WireProtName g_osrs242_client_names[] = {
     { RSPROT_OSRS242_CLIENT_OPLOC3_V2,                           PKTOUT_NAME_OPLOC3 },
     { RSPROT_OSRS242_CLIENT_OPLOC4_V2,                           PKTOUT_NAME_OPLOC4 },
     { RSPROT_OSRS242_CLIENT_OPLOC5_V2,                           PKTOUT_NAME_OPLOC5 },
+    { RSPROT_OSRS242_CLIENT_OPLOC6,                              PKTOUT_NAME_OPLOC6 },
     { RSPROT_OSRS242_CLIENT_OPLOCT,                              PKTOUT_NAME_OPLOCT },
     { RSPROT_OSRS242_CLIENT_OPLOCU,                              PKTOUT_NAME_OPLOCU },
     { RSPROT_OSRS242_CLIENT_OPOBJ1_V2,                           PKTOUT_NAME_OPOBJ1 },
@@ -191,6 +194,7 @@ static const struct WireProtName g_osrs242_client_names[] = {
     { RSPROT_OSRS242_CLIENT_OPOBJ3_V2,                           PKTOUT_NAME_OPOBJ3 },
     { RSPROT_OSRS242_CLIENT_OPOBJ4_V2,                           PKTOUT_NAME_OPOBJ4 },
     { RSPROT_OSRS242_CLIENT_OPOBJ5_V2,                           PKTOUT_NAME_OPOBJ5 },
+    { RSPROT_OSRS242_CLIENT_OPOBJ6,                              PKTOUT_NAME_OPOBJ6 },
     { RSPROT_OSRS242_CLIENT_OPOBJT,                              PKTOUT_NAME_OPOBJT },
     { RSPROT_OSRS242_CLIENT_OPOBJU,                              PKTOUT_NAME_OPOBJU },
     { RSPROT_OSRS242_CLIENT_OPPLAYER1,                           PKTOUT_NAME_OPPLAYER1 },
@@ -203,6 +207,12 @@ static const struct WireProtName g_osrs242_client_names[] = {
     { RSPROT_OSRS242_CLIENT_OPPLAYER8,                           PKTOUT_NAME_OPPLAYER8 },
     { RSPROT_OSRS242_CLIENT_OPPLAYERT,                           PKTOUT_NAME_OPPLAYERT },
     { RSPROT_OSRS242_CLIENT_OPPLAYERU,                           PKTOUT_NAME_OPPLAYERU },
+    { RSPROT_OSRS242_CLIENT_OPWORLDENTITY1,                      PKTOUT_NAME_OPWORLDENTITY1 },
+    { RSPROT_OSRS242_CLIENT_OPWORLDENTITY2,                      PKTOUT_NAME_OPWORLDENTITY2 },
+    { RSPROT_OSRS242_CLIENT_OPWORLDENTITY3,                      PKTOUT_NAME_OPWORLDENTITY3 },
+    { RSPROT_OSRS242_CLIENT_OPWORLDENTITY4,                      PKTOUT_NAME_OPWORLDENTITY4 },
+    { RSPROT_OSRS242_CLIENT_OPWORLDENTITY5,                      PKTOUT_NAME_OPWORLDENTITY5 },
+    { RSPROT_OSRS242_CLIENT_OPWORLDENTITY6,                      PKTOUT_NAME_OPWORLDENTITY6 },
     { RSPROT_OSRS242_CLIENT_EVENT_APPLET_FOCUS,                  PKTOUT_NAME_EVENT_APPLET_FOCUS },
     { RSPROT_OSRS242_CLIENT_EVENT_CAMERA_POSITION,               PKTOUT_NAME_EVENT_CAMERA_POSITION },
     { RSPROT_OSRS242_CLIENT_EVENT_MOUSE_MOVE,                    PKTOUT_NAME_EVENT_MOUSE_MOVE },
@@ -245,6 +255,7 @@ static const struct WireProtName g_osrs242_client_names[] = {
     { RSPROT_OSRS242_CLIENT_OPLOC3_V3,                           PKTOUT_NAME_OPLOC3 },
     { RSPROT_OSRS242_CLIENT_OPLOC4_V3,                           PKTOUT_NAME_OPLOC4 },
     { RSPROT_OSRS242_CLIENT_OPLOC5_V3,                           PKTOUT_NAME_OPLOC5 },
+    { RSPROT_OSRS242_CLIENT_OPLOC6_V2,                           PKTOUT_NAME_OPLOC6 },
     { RSPROT_OSRS242_CLIENT_OPLOCT_V2,                           PKTOUT_NAME_OPLOCT },
 };
 /* clang-format on */

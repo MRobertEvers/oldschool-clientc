@@ -25,8 +25,8 @@
 --     from the spellbook; three rows each).
 --   * Crandor's caves are walked out after the kill: the secret wall dragonsecretdoor
 --     2836,9600 (crandor.rs2), the Karamja volcano's climbing_rope2 2856,9569 up to the rim
---     (volcano.rs2), then the Musa Point customs officer's boat (customs_officer.rs2) and the
---     Port Sarim gangplank karamjashipplank_off 3031,3217,1 (gangplank.rs2).
+--     (volcano.rs2), then the Musa Point customs officer's boat (customs_officer.rs2 ->
+--     ~quick_sail: the fade crossing onto Port Sarim's quay 3029,3217,0, RSProx index 4378).
 local function dragon_helpers(t)
     local H = {}
     local function tile_text()
@@ -861,7 +861,9 @@ return {
         -- Karamja is an island: back to the mainland by the Musa Point boat. The rim -> the
         -- customs officer is open ground (reach.py 2856,3166 -> 2953,3147: REACH closed-doors 116,
         -- east of the members' gate at 2816,3182). customs_officer.rs2 [label,customs_search] ->
-        -- [label,customs_pay]: 30 coins, p_telejump(1_47_50_24_17) = the deck 3032,3217,1.
+        -- [label,customs_pay]: 30 coins, ~quick_sail_port_sarim (RSProx index 4378 [237..245]):
+        -- the fare line and "You board the ship and sail to Port Sarim." on the paying tick, the
+        -- teleport five ticks later onto Port Sarim's quay 3029,3217,0, no arrival mesbox.
         t.exec("goto-finishQuest.customs", t.player.goto_tile, 2953, 3147, 0)
         local _, coins_before_boat = t.inv.count("coins")
         t.exec("finishQuest.talkToCustoms", t.player.talk_to, "customs_officer", 1)
@@ -879,24 +881,23 @@ return {
             "choose:Ok.",
             "player:Ok.",
         })
-        t.expect("finishQuest.customs.paid", t.msg.expect("You pay 30 coins and board the ship."))
+        t.expect("finishQuest.customs.paid", t.msg.expect("You pay the boarding charge of 30 coins."))
+        t.expect("finishQuest.customs.boards", t.msg.expect("You board the ship and sail to Port Sarim."))
         local sail_r, sail_d = t.await({
-            level = function() return t.chat.kind() == "mesbox" end,
-            note = "finishQuest: the arrival mesbox after p_delay(2) + p_telejump",
-        }, 15)
+            level = function()
+                local tr, tt = t.world.tile()
+                return tr == "ok" and tt.x == 3029 and tt.z == 3217
+            end,
+            note = "finishQuest: the teleport onto Port Sarim's quay after the fade",
+        }, 12)
         t.check("finishQuest.customs.sailed", sail_r == "ok",
-            "await(chat.kind() == mesbox) -> " .. tostring(sail_r) .. " " .. tostring(sail_d))
-        t.exec("finishQuest.customs.arrive", t.chat.play, { "mesbox:The ship arrives at Port Sarim." })
-        local deck_r, deck = t.world.tile()
+            "await(on the quay) -> " .. tostring(sail_r) .. " " .. tostring(sail_d))
+        local quay_r, quay = t.world.tile()
         local _, coins_after_boat = t.inv.count("coins")
-        t.check("finishQuest.customs.onDeck", deck_r == "ok" and deck.x == 3032 and deck.z == 3217 and deck.level == 1
+        t.check("finishQuest.customs.onQuay", quay_r == "ok" and quay.x == 3029 and quay.z == 3217 and quay.level == 0
             and coins_before_boat ~= nil and coins_after_boat ~= nil and coins_before_boat - coins_after_boat == 30,
-            "tile " .. H.tile_text() .. " (want the deck 3032,3217,1), coins " .. tostring(coins_before_boat)
+            "tile " .. H.tile_text() .. " (want the quay 3029,3217,0), coins " .. tostring(coins_before_boat)
             .. " -> " .. tostring(coins_after_boat) .. " (want -30)")
-        -- Off the ship by its gangplank (gangplank.rs2 [oploc1,karamjashipplank_off] ->
-        -- ~gangplank_disembark: one level down, two tiles west onto the Port Sarim pier).
-        t.exec("finishQuest.disembarkSarim", t.player.climb, { loc = "karamjashipplank_off", op = 1, op_name = "Cross",
-            at = { 3031, 3217, 1 }, dest = { 3029, 3217, 0 } })
         -- Port Sarim pier -> Oziach's door is open ground (reach.py 3029,3217 -> 3070,3514:
         -- REACH closed-doors 344, margins 30 and 160).
         H.oziach_in("finishQuest")

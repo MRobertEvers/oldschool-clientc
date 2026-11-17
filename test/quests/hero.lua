@@ -21,9 +21,9 @@
 --     holds the ladder; the north door 3246,3386 leads to the other room),
 --     fai_varrock_ladder_deep 3244,3383 down (maplink src 3243,3383) and
 --     phoenixladder up (src 3243,9783 -> 3244,3382), the door again out;
---   * Karamja is an island: seaman_lorris's paid crossing to the deck at
---     Musa Point (sailors.rs2 karamja_sailor_pay, 30 coins), the gangplank
---     ashore, the Karamja members' gate (membergatel 2816,3182, gates.rs2
+--   * Karamja is an island: seaman_lorris's paid fade crossing onto the
+--     Musa Point quay (sailors.rs2 karamja_sailor_pay, 30 coins, RSProx
+--     index 4378), the Karamja members' gate (membergatel 2816,3182, gates.rs2
 --     walk-through), the restaurant's doorway (its poshdooropen stands open
 --     in the map), herokitchendoor, herokitchenpanel, poordoor 2782,3194 and
 --     pete_sidedoor; Varrock Teleport leaves the island from the secret room;
@@ -463,8 +463,10 @@ return {
         -- ---------------------------------------------------------------
         -- To Brimhaven: Karamja is an island. seaman_lorris's paid crossing
         -- (sailors.rs2 karamja_sailor_talk -> karamja_sailor_pay: 30 coins,
-        -- p_delay(2), p_telejump(1_46_49_12_7) = the ship's deck at Musa
-        -- Point, 2956,3143,1, then its own mesbox), the gangplank ashore.
+        -- ~quick_sail_musa_point, RSProx index 4378 [92..100]: the fare line
+        -- and "You board the ship and sail to Musa Point." on the paying tick,
+        -- the teleport five ticks later onto the quay 2956,3146,0, no arrival
+        -- mesbox).
         -- %dragonquest is complete, so the menu is the plain p_choice2.
         -- ---------------------------------------------------------------
         t.exec("goto-seaman", t.player.goto_tile, 3028, 3221, 0)
@@ -477,23 +479,22 @@ return {
             "choose:Yes please.",
             "player:Yes please.",
         })
-        t.expect("seaman.paidMessage", t.msg.expect("You pay 30 coins and board the ship"))
+        t.expect("seaman.paidMessage", t.msg.expect("You pay the boarding charge of 30 coins."))
+        t.expect("seaman.boardsMessage", t.msg.expect("You board the ship and sail to Musa Point."))
         local sail_r, sail_d = t.await({
             level = function()
-                return t.chat.kind() == "mesbox"
+                local tr, tt = t.world.tile()
+                return tr == "ok" and tt.x == 2956 and tt.z == 3146
             end,
-            note = "seaman: the arrival mesbox after p_delay(2) + telejump",
-        }, 15)
-        t.step("seaman.sailReopen", sail_r == "ok" and "PASS" or "FAIL",
-            "await(chat.kind() == mesbox) -> " .. tostring(sail_r) .. " " .. tostring(sail_d))
-        t.exec("seaman.arrive", t.chat.play, { "mesbox:The ship arrives at Karamja." })
-        local deck_r, deck = t.world.tile()
+            note = "seaman: the teleport onto the Musa Point quay after the fade",
+        }, 12)
+        t.step("seaman.sail", sail_r == "ok" and "PASS" or "FAIL",
+            "await(on the quay) -> " .. tostring(sail_r) .. " " .. tostring(sail_d))
+        local quay_r, quay = t.world.tile()
         local coins1_r, coins1 = t.inv.count("coins")
-        t.check("seaman.onDeckAtMusaPoint", deck_r == "ok" and deck.level == 1 and math.abs(deck.x - 2956) <= 2 and math.abs(deck.z - 3143) <= 2
+        t.check("seaman.onQuayAtMusaPoint", quay_r == "ok" and quay.level == 0 and quay.x == 2956 and quay.z == 3146
                 and coins0_r == "ok" and coins1_r == "ok" and coins0 - coins1 == 30,
-            "tile " .. tile_text(deck_r, deck) .. " (want the deck 2956,3143,1), coins " .. tostring(coins0) .. " -> " .. tostring(coins1) .. " (want -30)")
-        cross("musaPoint.disembark", "sarimshipplank_off", 2956, 3144,
-            function(tt) return tt.level == 0 and math.abs(tt.x - 2956) <= 3 and tt.z >= 3145 and tt.z <= 3150 end, "ashore on the Musa Point jetty, level 0")
+            "tile " .. tile_text(quay_r, quay) .. " (want the quay 2956,3146,0), coins " .. tostring(coins0) .. " -> " .. tostring(coins1) .. " (want -30)")
 
         -- Musa Point -> the Karamja members' gate: overland across the open
         -- jungle path (reach.py: 177 tiles with every door shut). The gate

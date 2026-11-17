@@ -29,6 +29,7 @@ enum
     EXT241_APPEARANCE = 0x2,
     EXT241_SPOTANIM = 0x4,
     EXT241_FACE = 0x20,
+    EXT241_MOVE_SPEED = 0x100,
     EXT241_SEQUENCE = 0x40,
     EXT241_NEXT_BYTE_1 = 0x80,
     EXT241_CHAT = 0x400,
@@ -56,6 +57,7 @@ player_info_osrs241_write_extended(
     int const has_chat = ext && ext->has_chat;
     int const has_spotanim = ext && ext->has_spotanim;
     int const has_temp_move_speed = ext && ext->has_temp_move_speed;
+    int const has_move_speed = ext && ext->has_move_speed;
     int const has_exact_move = ext && ext->has_exact_move;
     int const has_tint = ext && ext->has_tint;
     int const has_transparency = ext && ext->has_transparency;
@@ -68,6 +70,8 @@ player_info_osrs241_write_extended(
         flag |= EXT241_HEADBARS;
     if( has_face )
         flag |= EXT241_FACE;
+    if( has_move_speed )
+        flag |= EXT241_MOVE_SPEED;
     if( has_seq )
         flag |= EXT241_SEQUENCE;
     if( has_chat )
@@ -98,6 +102,9 @@ player_info_osrs241_write_extended(
     if( flag & EXT241_NEXT_BYTE_2 )
         rsprot_p1(buf, (int32_t)((flag >> 16) & 0xff));
 
+    /* decodeMoveSpeed: g1sAlt1 -- after SAY (never written), before FACE. */
+    if( has_move_speed )
+        rsprot_p1_add128(buf, ext->move_speed);
     /* decodeFacing: g1Alt3 header (239: g1Alt2), then Face's shared payload. */
     if( has_face )
     {

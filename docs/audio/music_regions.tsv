@@ -71,7 +71,7 @@ region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
 9545	37	73	2368	4672	Voodoo Cult	voodoo cult
 9547	37	75	2368	4800	Understanding	understanding
 9551	37	79	2368	5056	TzHaar!	tzhaar
-9552	37	80	2368	5120	Fire and Brimstone	fire and brimstone
+9552	37	80	2368	5120	In the Pits	in the pits
 9620	37	148	2368	9472	Ready for Battle	ready for battle
 9621	37	149	2368	9536	Underground Pass	upass
 9623	37	151	2368	9664	Cursed	cursed
@@ -79,7 +79,7 @@ region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
 9775	38	47	2432	3008	Zogre Dance	zogre dance
 9776	38	48	2432	3072	Melodrama	melodrama
 9778	38	50	2432	3200	Expecting	expecting
-9780	38	52	2432	3328	Neverland	neverland
+9780	38	52	2432	3328	Tree Spirits	tree spirits
 9781	38	53	2432	3392	Gnome Village	gnome village
 9782	38	54	2432	3456	Gnome King	gnome king
 9796	38	68	2432	4352	Chickened Out	chickened out
@@ -264,7 +264,7 @@ region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
 11678	45	158	2880	10112	Tale of Keldagrim	tale of keldagrim
 11823	46	47	2944	3008	Fanfare 2	fanfare2
 11824	46	48	2944	3072	Mudskipper Melody	mudskipper melody
-11825	46	49	2944	3136	Attention	attention
+11825	46	49	2944	3136	Sea Shanty	sea shanty
 11826	46	50	2944	3200	Courage	courage
 11826	46	50	2944	3200	Long Way Home	long way home
 11827	46	51	2944	3264	Nightfall	nightfall
@@ -314,13 +314,13 @@ region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
 12342	48	54	3072	3456	Forever	forever
 12343	48	55	3072	3520	Dangerous	dangerous
 12343	48	55	3072	3520	Lightness	lightness
-12344	48	56	3072	3584	Wildwood	wildwood
+12344	48	56	3072	3584	Enclave, The	enclave, the
 12345	48	57	3072	3648	Undercurrent	undercurrent
 12346	48	58	3072	3712	Wilderness	wilderness
 12349	48	61	3072	3904	Mage Arena	mage arena
 12369	48	81	3072	5184	No Way Out	no way out
 12433	48	145	3072	9280	Lament	lament
-12436	48	148	3072	9472	Vision	vision
+12436	48	148	3072	9472	Scape Cave	scape cave
 12437	48	149	3072	9536	Scape Ape	scape_ape
 12438	48	150	3072	9600	Down Below	down below
 12440	48	152	3072	9728	Tiptoe	tiptoe
@@ -336,7 +336,7 @@ region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
 12598	49	54	3136	3456	The Trade Parade	the trade parade
 12599	49	55	3136	3520	Doorways	doorways
 12599	49	55	3136	3520	Lightness	lightness
-12600	49	56	3136	3584	Moody	moody
+12600	49	56	3136	3584	Enclave, The	enclave, the
 12601	49	57	3136	3648	Dead Can Dance	dead can dance
 12602	49	58	3136	3712	Close Quarters	close quarters
 12604	49	60	3136	3840	Scape Wild	scape wild
@@ -431,7 +431,7 @@ region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
 14231	55	151	3520	9664	Dangerous Way	dangerous way
 14234	55	154	3520	9856	Barking Mad	barking mad
 14390	56	54	3584	3456	Deadlands	deadlands
-14391	56	55	3584	3520	Shipwrecked	shipwrecked
+14391	56	55	3584	3520	Morytania	morytania
 14638	57	46	3648	2944	In the Brine	in the brine
 14646	57	54	3648	3456	The Other Side	the other side
 14647	57	55	3648	3520	The Other Side	the other side
@@ -542,7 +542,7 @@ region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
 4763	18	155	1152	9920	Lower Depths	lower_depths
 4768	18	160	1152	10240	Rose	rose
 4911	19	47	1216	3008	Call of the Tlati	call_of_the_tlati
-4912	19	48	1216	3072	Call of the Tlati	call_of_the_tlati
+4912	19	48	1216	3072	Teklan	teklan
 4913	19	49	1216	3136	Call of the Tlati	call_of_the_tlati
 4916	19	52	1216	3328	Over the Mountains	over_the_mountains
 4918	19	54	1216	3456	Ascent	ascent
@@ -643,7 +643,7 @@ region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
 6553	25	153	1600	9792	Subterranea	subterranea
 6556	25	156	1600	9984	Beneath the Kingdom	beneath_the_kingdom
 6557	25	157	1600	10048	Beneath the Kingdom	beneath_the_kingdom
-6711	26	55	1664	3520	Beyond the Meadow	beyond_the_meadow
+6711	26	55	1664	3520	Forlorn Homestead, The	forlorn homestead, the
 6712	26	56	1664	3584	Beyond the Meadow	beyond_the_meadow
 6713	26	57	1664	3648	Kourend the Magnificent	kourend_the_magnificent
 6714	26	58	1664	3712	Arcane	arcane
@@ -663,7 +663,7 @@ region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
 6813	26	157	1664	10048	Beneath the Kingdom	beneath_the_kingdom
 6967	27	55	1728	3520	Forlorn Homestead, The	forlorn_homestead_the
 6968	27	56	1728	3584	Forlorn Homestead, The	forlorn_homestead_the
-6969	27	57	1728	3648	Kourend the Magnificent	kourend_the_magnificent
+6969	27	57	1728	3648	Down by the Docks	down by the docks
 6970	27	58	1728	3712	Down by the Docks	down_by_the_docks
 6972	27	60	1728	3840	Not a Moment of Relief	not_a_moment_of_relief
 6989	27	77	1728	4928	Looking Back	looking_back
@@ -759,7 +759,7 @@ region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
 9619	37	147	2368	9408	Devils May Care	devils_may_care
 9622	37	150	2368	9600	Underground Pass	underground_pass
 9624	37	152	2368	9728	Beneath the Stronghold	beneath_the_stronghold
-9625	37	153	2368	9792	Brimstail's Scales	brimstail_s_scales
+9625	37	153	2368	9792	Beneath the Stronghold	beneath_the_stronghold
 9626	37	154	2368	9856	Technology	technology
 9631	37	159	2368	10176	Major Miner	major_miner
 9632	37	160	2368	10240	Ogre the Top	ogre_the_top
@@ -787,7 +787,7 @@ region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
 10070	39	86	2496	5504	Slice of Silent Movie	slice_of_silent_movie
 10104	39	120	2496	7680	Remnants	remnants
 10105	39	121	2496	7744	Remnants	remnants
-10106	39	122	2496	7808	Remnants	remnants
+10106	39	122	2496	7808	Home	home
 10125	39	141	2496	9024	Monkey Trouble	monkey_trouble
 10126	39	142	2496	9088	Monkey Trouble	monkey_trouble
 10127	39	143	2496	9152	Monkey Trouble	monkey_trouble
@@ -1132,3 +1132,44 @@ region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
 # [367], Reggae at [1376]. The row names one of the area's tracks; the engine
 # picks among them.
 11822	46	46	2944	2944	Reggae	reggae
+
+5683	22	51	1408	3264	Spirit of the Forest	spirit of the forest
+5939	23	51	1472	3264	Whispering Wind	whispering wind
+5943	23	55	1472	3520	Militia, The	militia, the
+5975	23	87	1472	5568	Sign Here	sign here
+6191	24	47	1536	3008	Ready for the Hunt	ready for the hunt
+6291	24	147	1536	9408	Ready for the Hunt	ready for the hunt
+7222	28	54	1792	3456	Country Jig	country jig
+8755	34	51	2176	3264	Crystal Castle	crystal castle
+9023	35	63	2240	4032	Desolate Isle, The	the desolate isle
+10552	41	56	2624	3584	Saga	saga
+12581	49	37	3136	2368	Elder Wisdom	elder wisdom
+14388	56	52	3584	3328	Darkmeyer	darkmeyer
+# 2026-11-17, from the recordings (tools/rsprox/rsprox_music_regions.py over every
+# transcript in ~/.rsprox-index-cache: the song a square starts on entry, kept when
+# >= 2 sessions agree and >= 80% of the square's sessions do). Corrected:
+#   4912 Call of the Tlati -> Teklan (12 sessions, first idx1095[7964])
+#   6711 Beyond the Meadow -> Forlorn Homestead, The (5 sessions, first idx4517[4450])
+#   6969 Kourend the Magnificent -> Down by the Docks (2 sessions, first idx4415[1271])
+#   9552 Fire and Brimstone -> In the Pits (5 sessions, first idx1099[16650])
+#   9625 Brimstail's Scales -> Beneath the Stronghold (2 sessions, first idx4045[206])
+#   9780 Neverland -> Tree Spirits (2 sessions, first idx4463[389])
+#   10106 Remnants -> Home (2 sessions, first idx4246[17])
+#   11825 Attention -> Sea Shanty (2 sessions, first idx4378[98])
+#   12344 Wildwood -> Enclave, The (2 sessions, first idx4072[2010])
+#   12436 Vision -> Scape Cave (2 sessions, first idx4289[540])
+#   12600 Moody -> Enclave, The (6 sessions, first idx4072[1699])
+#   14391 Shipwrecked -> Morytania (3 sessions, first idx4462[3916])
+# Added:
+#   5683 Spirit of the Forest (3 sessions, first idx1103[3226])
+#   5939 Whispering Wind (9 sessions, first idx1095[24102])
+#   5943 Militia, The (2 sessions, first idx4426[2844])
+#   5975 Sign Here (3 sessions, first idx1095[0])
+#   6191 Ready for the Hunt (10 sessions, first idx1095[10349])
+#   6291 Ready for the Hunt (2 sessions, first idx1104[1632])
+#   7222 Country Jig (2 sessions, first idx4415[1349])
+#   8755 Crystal Castle (2 sessions, first idx1102[13589])
+#   9023 Desolate Isle, The (2 sessions, first idx3941[1418])
+#   10552 Saga (2 sessions, first idx3941[1379])
+#   12581 Elder Wisdom (2 sessions, first idx4127[734])
+#   14388 Darkmeyer (3 sessions, first idx1139[2464])

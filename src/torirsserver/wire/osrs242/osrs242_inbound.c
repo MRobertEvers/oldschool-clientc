@@ -3,6 +3,16 @@
 #include "net/rev/pktnames.h"
 #include "torirsserver/wire/core/wire_in.h"
 
+#include "packets/client_cheat.h"
+#include "packets/opnpc6.h"
+#include "packets/opworldentity1.h"
+#include "packets/opworldentity2.h"
+#include "packets/opworldentity3.h"
+#include "packets/opworldentity4.h"
+#include "packets/opworldentity5.h"
+#include "packets/opworldentity6.h"
+#include "packets/oploc6.h"
+#include "packets/oploc6_v2.h"
 #include "packets/opnpc1_v2.h"
 #include "packets/opnpc2_v2.h"
 #include "packets/opnpc3_v2.h"
@@ -143,8 +153,100 @@ osrs242_inbound_translate(
         return wire_in_done(&w, target, out_len);
     }
 
+    /* OPLOC6_V2: the official 242 client's loc examine, OPLOC6 with the loc id
+     * in three bytes (RSProx index 4558 [4366]). Same name, chosen by opcode. */
+    if( wire_opcode == RSPROT_OSRS242_CLIENT_OPLOC6_V2 )
+    {
+        MsgOpLoc6V2 m = {0};
+        DECODE(packet_oploc6_v2_osrs242_in, m);
+        rsprot_p4_1234(&w, m.id);
+        return wire_in_done(&w, PKTOUT_NAME_OPLOC6, out_len);
+    }
+
     switch( name )
     {
+    /* Examine (OPNPC6 / OPLOC6): the npc's type, the loc's id, passed on as a
+     * plain g4 for the world's examine reply (MESSAGE_GAME 28 / 29). */
+    /* A boat hull's ops (OPWORLDENTITY1..5): its world-entity index, passed
+     * on as a g4 for the world's vessel op; OPWORLDENTITY6 its examine, by
+     * type (RSProx index 4128, rev 238). */
+    case PKTOUT_NAME_OPWORLDENTITY1:
+    {
+        MsgOpWorldEntity1 m = {0};
+        DECODE(packet_opworldentity1_osrs242_in, m);
+        rsprot_p4_1234(&w, m.index);
+        break;
+    }
+    case PKTOUT_NAME_OPWORLDENTITY2:
+    {
+        MsgOpWorldEntity2 m = {0};
+        DECODE(packet_opworldentity2_osrs242_in, m);
+        rsprot_p4_1234(&w, m.index);
+        break;
+    }
+    case PKTOUT_NAME_OPWORLDENTITY3:
+    {
+        MsgOpWorldEntity3 m = {0};
+        DECODE(packet_opworldentity3_osrs242_in, m);
+        rsprot_p4_1234(&w, m.index);
+        break;
+    }
+    case PKTOUT_NAME_OPWORLDENTITY4:
+    {
+        MsgOpWorldEntity4 m = {0};
+        DECODE(packet_opworldentity4_osrs242_in, m);
+        rsprot_p4_1234(&w, m.index);
+        break;
+    }
+    case PKTOUT_NAME_OPWORLDENTITY5:
+    {
+        MsgOpWorldEntity5 m = {0};
+        DECODE(packet_opworldentity5_osrs242_in, m);
+        rsprot_p4_1234(&w, m.index);
+        break;
+    }
+    case PKTOUT_NAME_OPWORLDENTITY6:
+    {
+        MsgOpWorldEntity6 m = {0};
+        DECODE(packet_opworldentity6_osrs242_in, m);
+        rsprot_p4_1234(&w, m.id);
+        break;
+    }
+    case PKTOUT_NAME_OPNPC6:
+    {
+        MsgOpNpc6 m = {0};
+        DECODE(packet_opnpc6_osrs242_in, m);
+        rsprot_p4_1234(&w, m.id);
+        break;
+    }
+    case PKTOUT_NAME_OPLOC6:
+    {
+        MsgOpLoc6 m = {0};
+        DECODE(packet_oploc6_osrs242_in, m);
+        rsprot_p4_1234(&w, m.id);
+        break;
+    }
+    /* 240..242's cheat is the string and then the autocomplete byte, which
+     * Jagex's client always sends (RuneLite 1.13.6: "give coins 200" came as
+     * 16 bytes). The shared body reader takes the string alone, so before
+     * 2026-11-17 every RuneLite cheat was dropped "not translated". The
+     * world's reader wants the classic newline-terminated string. */
+    case PKTOUT_NAME_CLIENT_CHEAT:
+    {
+        MsgClientCheat m = {0};
+        size_t text_len;
+
+        DECODE(packet_client_cheat_osrs242_in, m);
+        assert(m.command);
+        text_len = strlen(m.command);
+        if( (int)text_len + 1 > out_cap )
+            return PKTOUT_NAME_NONE;
+        memcpy(out, m.command, text_len);
+        out[text_len] = '\n';
+        *out_len = (int)text_len + 1;
+        return name;
+    }
+
     case PKTOUT_NAME_OPNPC1:
     {
         MsgOpNpc1V2 m = {0};

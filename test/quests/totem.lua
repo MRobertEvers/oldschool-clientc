@@ -4,13 +4,13 @@
 --
 -- Travel (owner rule 2026-10-03, every closed space crossed by its own click; first goto included):
 --   * Lumbridge -> Brimhaven: seaman_lorris at Port Sarim (30 coins, sailors.rs2 karamja_sailor_pay ->
---     deck 2956,3143,1), the gangplank ashore, the Karamja members' gate membergatel 2816,3182 (reach.py:
+--     ~quick_sail onto the Musa Point quay 2956,3146,0, RSProx index 4378), the Karamja members' gate membergatel 2816,3182 (reach.py:
 --     Musa Point -> Brimhaven NEEDS-DOOR), then the Shrimp and Parrot (poshdooropen 2794,3180, the map's
 --     open leaf) to Kangai Mau at 2791,3182.
 --   * Brimhaven -> Ardougne: captain_barnaby_karamja (2773,3229) has an Ardougne op in the cache but NO
 --     script in the content (no [opnpc3,captain_barnaby_karamja]), so the way back is the Musa Point
---     customs_officer (customs_officer.rs2 customs_pay, 30 coins -> Port Sarim deck 3032,3217,1), the
---     gangplank, and the Taverley members' gate membergater 2933,3320 (the only walk to Ardougne),
+--     customs_officer (customs_officer.rs2 customs_pay, 30 coins -> Port Sarim's quay 3029,3217,0),
+--     and the Taverley members' gate membergater 2933,3320 (the only walk to Ardougne),
 --     then overland to the GPDT crates.
 --   * Cromperty's room is walled (castledoubledoorr 2678,3324): pass_door in, and out when the fall
 --     through the trapped stairs sends the player back to him (the sewer ladder_from_cellar 2632,9694
@@ -94,12 +94,27 @@ return {
             "choose:Yes please.",
             "player:Yes please.",
         })
-        t.expect("seaman.paidMessage", t.msg.expect("You pay 30 coins and board the ship"))
-        sail_wait("seaman")
-        t.exec("seaman.arrive", t.chat.play, { "mesbox:The ship arrives at Karamja." })
-        deck_check("seaman.onDeckAtMusaPoint", 2956, 3143, coins0)
-        t.exec("musaPoint.disembark", t.player.climb, { loc = "sarimshipplank_off", op_name = "Cross",
-            at = { 2956, 3144, 1 }, src = { 2956, 3143 }, dest = { 2956, 3146, 0 }, slack = 1 })
+        -- ~quick_sail_musa_point (RSProx index 4378 [92..100]): both lines on the paying tick, the
+        -- teleport five ticks later onto the Musa Point quay 2956,3146,0, no arrival mesbox, no deck.
+        t.expect("seaman.paidMessage", t.msg.expect("You pay the boarding charge of 30 coins."))
+        t.expect("seaman.boardsMessage", t.msg.expect("You board the ship and sail to Musa Point."))
+        do
+            local r, d = t.await({
+                level = function()
+                    local tr, tt = t.world.tile()
+                    return tr == "ok" and tt.x == 2956 and tt.z == 3146
+                end,
+                note = "seaman: the teleport onto the Musa Point quay after the fade",
+            }, 12)
+            t.step("seaman.sail", r == "ok" and "PASS" or "FAIL",
+                "await(on the quay) -> " .. tostring(r) .. " " .. tostring(d))
+            local qr, quay = t.world.tile()
+            local coins = coins_now()
+            t.check("seaman.onQuayAtMusaPoint", qr == "ok" and quay.level == 0 and quay.x == 2956 and quay.z == 3146
+                    and coins ~= nil and coins0 - coins == 30,
+                "tile " .. tile_text(qr, quay) .. " (want the quay 2956,3146,0), coins " .. tostring(coins0)
+                    .. " -> " .. tostring(coins) .. " (want -30)")
+        end
         t.exec("goto-karamjaGate", t.player.goto_tile, 2818, 3182, 0)
         t.exec("karamjaGate", t.player.cross_gate, { loc = "membergatel", at = { 2816, 3182, 0 },
             near = { 2817, 3182 }, far_ok = function(tile) return tile.x <= 2815 end,

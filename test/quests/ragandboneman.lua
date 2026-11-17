@@ -11,8 +11,9 @@
 --   * the rams are in the pen behind fai_varrock_gate_l 3254,3347 (doubledoors.loc:318; reach.py
 --     3253,3346 -> 3250,3349 NEEDS-DOOR via it; 3253,3346 -> the unicorns/bears/rats REACH);
 --   * Karamja is an island: seaman_lorris's paid crossing (sailors.rs2 karamja_sailor_pay, 30
---     coins) + the sarimshipplank_off gangplank out, the customs officer's boat (customs_officer.rs2
---     customs_pay, 30 coins) + karamjashipplank_off back. The monkey and the volcano are on the free
+--     coins) out onto the Musa Point quay 2956,3146,0, the customs officer's boat (customs_officer.rs2
+--     customs_pay, 30 coins) back onto Port Sarim's quay 3029,3217,0: ~quick_sail fade crossings
+--     (RSProx index 4378), no deck, no gangplank. The monkey and the volcano are on the free
 --     side of the Karamja members' gate (reach.py 2956,3146 -> 2878,3157 REACH 91);
 --   * the volcano pot hole (volcano.rs2 [oploc1,volcano_entrance], +6400) and its rope
 --     (climbing_rope2 -> 0_44_49_40_30 = 2856,3166) by climb.
@@ -137,7 +138,9 @@ return {
         local _, jugs_left = t.inv.count("jug_empty")
         t.check("dropEmptyJugs", jugs_left == 0, "jug_empty left " .. tostring(jugs_left) .. " (want 0: room for the bones)")
 
-        -- Karamja (an island): seaman_lorris's ship from Port Sarim, the gangplank ashore.
+        -- Karamja (an island): seaman_lorris's ship from Port Sarim (~quick_sail_musa_point, RSProx
+        -- index 4378 [92..100]): both lines on the paying tick, the teleport five ticks later onto
+        -- the Musa Point quay 2956,3146,0, no arrival mesbox.
         t.exec("goto-seaman", t.player.goto_tile, 3028, 3221, 0)
         local coins0_r, coins0 = t.inv.count("coins")
         t.exec("talkToSeaman", t.player.talk_to, "seaman_lorris", 1)
@@ -148,22 +151,23 @@ return {
             "choose:Yes please.",
             "player:Yes please.",
         })
-        t.expect("seaman.paidMessage", t.msg.expect("You pay 30 coins and board the ship"))
+        t.expect("seaman.paidMessage", t.msg.expect("You pay the boarding charge of 30 coins."))
+        t.expect("seaman.boardsMessage", t.msg.expect("You board the ship and sail to Musa Point."))
         local sail_r, sail_d = t.await({
-            level = function() return t.chat.kind() == "mesbox" end,
-            note = "seaman: the arrival mesbox after p_delay(2) + telejump",
-        }, 15)
-        t.check("seaman.sail", sail_r == "ok", "await(chat.kind() == mesbox) -> " .. tostring(sail_r) .. " " .. tostring(sail_d))
-        t.exec("seaman.arrive", t.chat.play, { "mesbox:The ship arrives at Karamja." })
-        local deck_r, deck = t.world.tile()
+            level = function()
+                local tr, tt = t.world.tile()
+                return tr == "ok" and tt.x == 2956 and tt.z == 3146
+            end,
+            note = "seaman: the teleport onto the Musa Point quay after the fade",
+        }, 12)
+        t.check("seaman.sail", sail_r == "ok", "await(on the quay) -> " .. tostring(sail_r) .. " " .. tostring(sail_d))
+        local quay_r, quay = t.world.tile()
         local coins1_r, coins1 = t.inv.count("coins")
-        t.check("seaman.onDeckAtMusaPoint", deck_r == "ok" and deck.level == 1
-                and math.abs(deck.x - 2956) <= 2 and math.abs(deck.z - 3143) <= 2
+        t.check("seaman.onQuayAtMusaPoint", quay_r == "ok" and quay.level == 0
+                and quay.x == 2956 and quay.z == 3146
                 and coins0_r == "ok" and coins1_r == "ok" and coins0 - coins1 == 30,
-            "tile " .. tile_text() .. " (want the deck 2956,3143,1), coins " .. tostring(coins0)
+            "tile " .. tile_text() .. " (want the quay 2956,3146,0), coins " .. tostring(coins0)
                 .. " -> " .. tostring(coins1) .. " (want -30)")
-        t.exec("musaPoint.disembark", t.player.climb, { loc = "sarimshipplank_off", op_name = "Cross",
-            at = { 2956, 3144, 1 }, src = { 2956, 3143 }, dest = { 2956, 3146, 0 }, slack = 1 })
 
         -- killMonkey near Musa Point
         t.exec("goto-killMonkey", t.player.goto_tile, 2878, 3157, 0)
@@ -184,7 +188,8 @@ return {
             at = { 2856, 9569, 0 }, src = { 2855, 9569 }, dest = { 2856, 3166, 0 } })
         t.expect("leaveKaramjaDungeon.rim", t.msg.expect("You appear on the volcano rim."))
 
-        -- Back to the mainland: the customs officer's boat (customs_officer.rs2 customs_pay, 30 coins)
+        -- Back to the mainland: the customs officer's boat (customs_officer.rs2 customs_pay, 30 coins,
+        -- ~quick_sail_port_sarim, RSProx index 4378 [237..245]) onto Port Sarim's quay 3029,3217,0.
         t.exec("goto-customs", t.player.goto_tile, 2953, 3147, 0)
         local coins2_r, coins2 = t.inv.count("coins")
         t.exec("talkToCustoms", t.player.talk_to, "customs_officer", 1)
@@ -202,21 +207,22 @@ return {
             "choose:Ok.",
             "player:Ok.",
         })
-        t.expect("customs.paid", t.msg.expect("You pay 30 coins and board the ship."))
+        t.expect("customs.paid", t.msg.expect("You pay the boarding charge of 30 coins."))
+        t.expect("customs.boards", t.msg.expect("You board the ship and sail to Port Sarim."))
         local back_r, back_d = t.await({
-            level = function() return t.chat.kind() == "mesbox" end,
-            note = "customs: the arrival mesbox after p_delay(2) + p_telejump",
-        }, 15)
-        t.check("customs.sailed", back_r == "ok", "await(chat.kind() == mesbox) -> " .. tostring(back_r) .. " " .. tostring(back_d))
-        t.exec("customs.arrive", t.chat.play, { "mesbox:The ship arrives at Port Sarim." })
+            level = function()
+                local tr, tt = t.world.tile()
+                return tr == "ok" and tt.x == 3029 and tt.z == 3217
+            end,
+            note = "customs: the teleport onto Port Sarim's quay after the fade",
+        }, 12)
+        t.check("customs.sailed", back_r == "ok", "await(on the quay) -> " .. tostring(back_r) .. " " .. tostring(back_d))
         local pier_r, pier = t.world.tile()
         local coins3_r, coins3 = t.inv.count("coins")
-        t.check("customs.onDeckAtSarim", pier_r == "ok" and pier.x == 3032 and pier.z == 3217 and pier.level == 1
+        t.check("customs.onQuayAtSarim", pier_r == "ok" and pier.x == 3029 and pier.z == 3217 and pier.level == 0
                 and coins2_r == "ok" and coins3_r == "ok" and coins2 - coins3 == 30,
-            "tile " .. tile_text() .. " (want the deck 3032,3217,1), coins " .. tostring(coins2)
+            "tile " .. tile_text() .. " (want the quay 3029,3217,0), coins " .. tostring(coins2)
                 .. " -> " .. tostring(coins3) .. " (want -30)")
-        t.exec("disembarkSarim", t.player.climb, { loc = "karamjashipplank_off", op = 1, op_name = "Cross",
-            at = { 3031, 3217, 1 }, dest = { 3029, 3217, 0 } })
 
         -- killGoblin, killFrog: open ground east and south of Lumbridge
         t.exec("goto-killGoblin", t.player.goto_tile, 3246, 3243, 0)

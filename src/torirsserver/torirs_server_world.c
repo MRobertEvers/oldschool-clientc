@@ -3408,6 +3408,27 @@ player_dodge(
     return 1;
 }
 
+
+/* MOVE_SPEED: the player's own (permanent) speed is the orb's -- run with
+ * energy left and a run animation -- not this tick's: temp_run and p_runblock
+ * change a step's traversal (TEMP_MOVE_SPEED), not it. Flags a change. */
+static void
+player_move_speed_sync(struct ToriRSServerPlayer* player)
+{
+    int perm;
+    int sent;
+
+    assert(player);
+    perm = (player->runanim != -1 && player->run_toggle && player->run_energy > 0) ? 2 : 1;
+    /* 0 is a fresh login: the client starts at walk (1). */
+    sent = player->move_speed_sent ? player->move_speed_sent : 1;
+    if( perm != sent )
+    {
+        player->move_speed_sent = perm;
+        player->masks |= TORIRSSERVER_PMASK_MOVE_SPEED;
+    }
+}
+
 void
 advance_player(struct ToriRSServer* srv)
 {
@@ -3436,6 +3457,7 @@ advance_player(struct ToriRSServer* srv)
         player->running = 0;
     else
         player->running = (player->run_toggle && player->run_energy > 0) || player->temp_run;
+    player_move_speed_sync(player);
     /* `p_runblock`: walk, and say why once, on the first route that would
      * have run. */
     if( player->running && srv->tick < player->run_block_until )
@@ -10261,12 +10283,12 @@ reset_character_apply_fixture(
     {
         const struct ToriRSServerVarpDef* def;
 
-        if( ToriRSServer_Varp(player, varp) == 0 )
+        if( ToriRSServer_Varp(player, varp) == ToriRSServer_WorldVarpDefault(varp) )
             continue;
         def = ToriRSServer_ContentVarp(varp);
         if( !def || !def->scope_perm )
             continue;
-        ToriRSServer_WorldSetVarpOn(srv, player, varp, 0);
+        ToriRSServer_WorldSetVarpOn(srv, player, varp, ToriRSServer_WorldVarpDefault(varp));
         perm_zeroed++;
     }
     for( int stat = 0; stat < TORIRSSERVER_STAT_COUNT; stat++ )
@@ -10409,6 +10431,47 @@ cheat_run_kit(
         }
     }
     return TORIRSSERVER_TRIGGER_RAN;
+}
+
+
+/*
+ * A hull's right-click op, 0-based (OPWORLDENTITY1..5 at 239+, or the
+ * `vesselop <view> <op>` cheat a revision without them still has). The
+ * archive-72 op strings are client-side labels; what an op DOES is content's
+ * to bind. The engine answers the one op the cache actually authors --
+ * "Board", slot 0 on "The Zenith" -- by boarding, and says so for the rest
+ * rather than silently eating a click.
+ */
+static void
+vessel_op(
+    struct ToriRSServer* srv,
+    int view,
+    int op)
+{
+    struct ToriRSServerVessel* vessel = ToriRSServer_VesselByView(srv, view);
+    int base_tile_x = 0;
+    int base_tile_z = 0;
+
+    if( !vessel )
+    {
+        say(srv, "That vessel is gone.");
+        return;
+    }
+    if( op == 0 && ToriRSServer_MapInstanceBase(vessel->instance, &base_tile_x, &base_tile_z) )
+    {
+        /* A rider stands at their OWN plane inside the boat's world, so
+         * boarding lands on the plane the walkable deck is authored at --
+         * the mirrored config deck plane (plane 1 on every real boat; the
+         * plane-0 shell's collision is solid). */
+        int deck_level = ToriRSServer_VesselDeckPlane(vessel);
+
+        ToriRSServer_WorldTeleport(srv, deck_level,
+                                   base_tile_x + ((vessel->size_x_tiles + 7) / 8) * 4,
+                                   base_tile_z + ((vessel->size_z_tiles + 7) / 8) * 4);
+        say(srv, "You board the vessel.");
+        return;
+    }
+    say(srv, "Nothing interesting happens.");
 }
 
 enum ToriRSServerTriggerResult
@@ -12728,38 +12791,13 @@ ToriRSServer_RunCheatLadder(
          */
         int view = 0;
         int op = 0;
-        struct ToriRSServerVessel* vessel;
-        int base_tile_x = 0;
-        int base_tile_z = 0;
 
         if( sscanf(text, "vesselop %d %d", &view, &op) != 2 )
         {
             say(srv, "Usage: vesselop <view> <op>");
             return TORIRSSERVER_TRIGGER_RAN;
         }
-        vessel = ToriRSServer_VesselByView(srv, view);
-        if( !vessel )
-        {
-            say(srv, "That vessel is gone.");
-            return TORIRSSERVER_TRIGGER_RAN;
-        }
-        if( op == 0 &&
-            ToriRSServer_MapInstanceBase(vessel->instance, &base_tile_x, &base_tile_z) )
-        {
-            /* A rider stands at their OWN plane inside the boat's world, so
-             * boarding lands on the plane the walkable deck is authored at —
-             * the mirrored config deck plane (plane 1 on every real boat;
-             * the plane-0 shell's collision is solid). */
-            int deck_level = ToriRSServer_VesselDeckPlane(vessel);
-
-            ToriRSServer_WorldTeleport(
-                srv, deck_level,
-                base_tile_x + ((vessel->size_x_tiles + 7) / 8) * 4,
-                base_tile_z + ((vessel->size_z_tiles + 7) / 8) * 4);
-            say(srv, "You board the vessel.");
-            return TORIRSSERVER_TRIGGER_RAN;
-        }
-        say(srv, "Nothing interesting happens.");
+        vessel_op(srv, view, op);
         return TORIRSSERVER_TRIGGER_RAN;
     }
 
@@ -13477,6 +13515,90 @@ handle_cheat_packet(
 {
     (void)name;
     handle_cheat(srv, payload, len);
+}
+
+/*
+ * Examine: OPNPC6 names an npc type, OPLOC6 a loc, and the text comes back
+ * as MESSAGE_GAME 28 npc_examine / 29 loc_examine, as Jagex's does (RSProx
+ * index 4563 [1374] `[opnpc6] id=mm_skeleton` -> `npc_examine "It looks just
+ * a bit... underfed."`; 4558 [4366] `[oploc6_v2]` -> loc_examine). The text
+ * is the record's (content's configs/examine.{npc,loc}). A record with none
+ * answers "It's a <name>." -- [divergence] ours, what this repo's client used
+ * to print locally, for the ~59,000 locs no import covers.
+ */
+static void
+handle_examine_packet(
+    struct ToriRSServer* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    struct RsprotBuf in;
+    char line[256];
+    const char* desc = NULL;
+    const char* thing = NULL;
+    int32_t id;
+
+    assert(name == PKTOUT_NAME_OPNPC6 || name == PKTOUT_NAME_OPLOC6);
+    rsprot_buf_wrap_read(&in, (void*)payload, (size_t)len);
+    id = rsprot_g4_1234(&in);
+    if( !rsprot_buf_ok(&in) || id < 0 )
+        return;
+    if( name == PKTOUT_NAME_OPNPC6 )
+    {
+        const struct ToriRSServerNpcInfo* info = ToriRSServer_NpcInfo(id);
+
+        desc = info->desc;
+        thing = info->name;
+    }
+    else
+    {
+        desc = ToriRSServer_LocDesc(id);
+        thing = ToriRSServer_LocName(id);
+    }
+    if( desc )
+        snprintf(line, sizeof(line), "%s", desc);
+    else
+        snprintf(line, sizeof(line), "It's a %s.", thing && thing[0] ? thing : "mystery");
+    if( srv->verbose )
+        fprintf(stderr, "torirsserver: <- %s %d -> \"%s\"\n",
+                name == PKTOUT_NAME_OPNPC6 ? "OPNPC6" : "OPLOC6", (int)id, line);
+    ToriRSServer_SendMessageTyped(srv->active_player, name == PKTOUT_NAME_OPNPC6 ? 28 : 29, line);
+}
+
+/*
+ * A boat hull's op (OPWORLDENTITY1..5: its world-entity index, which is this
+ * server's vessel view) or its examine (OPWORLDENTITY6: its type), as Jagex's
+ * client sends them (RSProx index 4128, rev 238: `opworldentity2 worldentity=
+ * (index=1503 ...)`; `opworldentity6 worldentity=13` -> MESSAGE_GAME 47
+ * "Pining for Plunder."). Replaces the `vesselop` cheat our client used to
+ * speak. Jagex's examine texts are server data no cache carries: answered
+ * "It's a boat." -- [divergence] ours, until the texts are recorded.
+ */
+static void
+handle_opworldentity_packet(
+    struct ToriRSServer* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    struct RsprotBuf in;
+    int32_t value;
+
+    assert(name >= PKTOUT_NAME_OPWORLDENTITY1 && name <= PKTOUT_NAME_OPWORLDENTITY6);
+    rsprot_buf_wrap_read(&in, (void*)payload, (size_t)len);
+    value = rsprot_g4_1234(&in);
+    if( !rsprot_buf_ok(&in) || value < 0 )
+        return;
+    if( srv->verbose )
+        fprintf(stderr, "torirsserver: <- OPWORLDENTITY%d %d\n",
+                name - PKTOUT_NAME_OPWORLDENTITY1 + 1, (int)value);
+    if( name == PKTOUT_NAME_OPWORLDENTITY6 )
+    {
+        ToriRSServer_SendMessageTyped(srv->active_player, 47, "It's a boat.");
+        return;
+    }
+    vessel_op(srv, (int)value, name - PKTOUT_NAME_OPWORLDENTITY1);
 }
 
 /* The client sends the packed (interface << 16) | child uid at full width
@@ -15401,6 +15523,14 @@ static const struct ToriRSServerPacketRoute k_packet_routes[] = {
     { PKTOUT_NAME_MAP_BUILD_COMPLETE, handle_map_build_complete },
     { PKTOUT_NAME_EVENT_APPLET_FOCUS, handle_idle_timer },
     { PKTOUT_NAME_CLIENT_CHEAT, handle_cheat_packet },
+    { PKTOUT_NAME_OPNPC6, handle_examine_packet },
+    { PKTOUT_NAME_OPWORLDENTITY1, handle_opworldentity_packet },
+    { PKTOUT_NAME_OPWORLDENTITY2, handle_opworldentity_packet },
+    { PKTOUT_NAME_OPWORLDENTITY3, handle_opworldentity_packet },
+    { PKTOUT_NAME_OPWORLDENTITY4, handle_opworldentity_packet },
+    { PKTOUT_NAME_OPWORLDENTITY5, handle_opworldentity_packet },
+    { PKTOUT_NAME_OPWORLDENTITY6, handle_opworldentity_packet },
+    { PKTOUT_NAME_OPLOC6, handle_examine_packet },
 
     { PKTOUT_NAME_FRIENDLIST_ADD, handle_social_list },
     { PKTOUT_NAME_FRIENDLIST_DEL, handle_social_list },
@@ -16065,6 +16195,59 @@ ToriRSServer_WorldSetTutorialHome(
  * harnesses give every session staff level 2, Tutorial Island's own test
  * among them.
  */
+
+int32_t
+ToriRSServer_WorldVarpDefault(int varp)
+{
+    /* A dense copy of the enum, rebuilt when the enum is not the one it was
+     * made from: the save asks this for every varp. */
+    /* Per thread: the host's pool serialises saves off the loop. */
+    static _Thread_local const struct ToriRSServerEnumDef* s_from;
+    static _Thread_local int s_from_count = -1;
+    static _Thread_local int32_t s_table[TORIRSSERVER_VARP_COUNT];
+    const struct ToriRSServerEnumDef* defaults = ToriRSServer_ContentEnum("varp_defaults");
+
+    assert(varp >= 0);
+    assert(varp < TORIRSSERVER_VARP_COUNT);
+    /* A content tree without the table (a lane of its own) starts every varp
+     * at 0, as the client does. */
+    if( !defaults )
+        return 0;
+    if( defaults != s_from || defaults->count != s_from_count )
+    {
+        memset(s_table, 0, sizeof(s_table));
+        for( int i = 0; i < defaults->count; i++ )
+        {
+            int const key = defaults->values[i].key;
+
+            assert(key >= 0);
+            assert(key < TORIRSSERVER_VARP_COUNT);
+            s_table[key] = defaults->values[i].value;
+        }
+        s_from = defaults;
+        s_from_count = defaults->count;
+    }
+    return s_table[varp];
+}
+
+void
+ToriRSServer_WorldVarpDefaults(struct ToriRSServerPlayer* player)
+{
+    const struct ToriRSServerEnumDef* defaults = ToriRSServer_ContentEnum("varp_defaults");
+
+    assert(player);
+    if( !defaults )
+        return;
+    for( int i = 0; i < defaults->count; i++ )
+    {
+        int const varp = defaults->values[i].key;
+
+        assert(varp >= 0);
+        assert(varp < TORIRSSERVER_VARP_COUNT);
+        ToriRSServer_VarpPut(player, varp, defaults->values[i].value);
+    }
+}
+
 void
 ToriRSServer_WorldPlaceNewCharacter(struct ToriRSServerPlayer* player)
 {
@@ -17536,6 +17719,8 @@ ToriRSServer_WorldLogin(struct ToriRSServerPlayer* player)
      * man stood blocked at 3222,3217 on scriptrun, and the two lanes' logs
      * parted on it). Restamped below, once the boat has placed them too. */
     player_set_occupancy(player, 0);
+    /* Before the save, which overwrites whatever it states. */
+    ToriRSServer_WorldVarpDefaults(player);
     if( player->session && player->session->save_prefetched )
     {
         /* Read by the host's pool, after any save of this account it was
@@ -17813,7 +17998,15 @@ ToriRSServer_WorldLoginFinish(struct ToriRSServerPlayer* player)
      * actor in the freshly rebuilt world view.
      */
     ToriRSServer_SendUpdatePid(player, player->pid);
+    /* One PLAYER_INFO carries the whole of the login, as Jagex's does
+     * (RSProx index 4378 [0]: move_speed and appearance in the login tick,
+     * none on the next): the move speed is settled here rather than by the
+     * tick, and what this send delivered is not sent again. No other client
+     * sees this player yet -- each is sent it on entering view. */
+    player_move_speed_sync(player);
+    player->masks |= TORIRSSERVER_PMASK_APPEARANCE;
     ToriRSServer_SendPlayerInfo(player);
+    player->masks &= ~(uint32_t)(TORIRSSERVER_PMASK_APPEARANCE | TORIRSSERVER_PMASK_MOVE_SPEED);
 
     /* Prime client-visible wall-clock state before mounting the gameframe.
      * magic_spellbook's onload compares date_minutes (varp 3078) with the Home
@@ -21168,6 +21361,17 @@ phase_client_out(struct ToriRSServerPlayer* player)
      * are tick events and are discarded by phase_cleanup. Pause the player at
      * this barrier so its scripts cannot create either until the new scene is
      * real. */
+    /*
+     * The tick's world updates are one PACKET_GROUP, in Jagex's order (RSProx
+     * index 4257 [8752], [11417] rev 239; 4378 [92], [97] rev 241): the root
+     * selected with the plane the player is now on, then the rebuild, then
+     * WORLDENTITY_INFO, PLAYER_INFO, NPC_INFO and the zone updates. The
+     * client holds its frame until the group is in, so a rebuild and the
+     * placement that depends on it apply together. (The login's own rebuild
+     * is outside: it carries the GPI init and precedes the first selection.)
+     */
+    ToriRSServer_PacketGroupBegin(player);
+    ToriRSServer_SendSetActiveWorld(player);
     if( player->rebuild_pending )
     {
         ToriRSServer_SendRebuild(player);
@@ -21204,7 +21408,6 @@ phase_client_out(struct ToriRSServerPlayer* player)
              * scripts belong behind the acknowledgement. NPC_INFO belongs
              * beside it so the replacement view starts from one coherent
              * entity snapshot, and TICK_END closes that packet group. */
-            ToriRSServer_SendSetActiveWorld(player);
             ToriRSServer_SendPlayerInfo(player);
             ToriRSServer_SendNpcInfo(player);
             /* The copy's zones go out with it, on the move's own tick: RSProx
@@ -21218,6 +21421,7 @@ phase_client_out(struct ToriRSServerPlayer* player)
              * late. Scripts stay held, so no tick event of the new scene is
              * made before it is real. */
             ToriRSServer_ZoneUpdatePlayer(player);
+            ToriRSServer_PacketGroupEnd(player);
             ToriRSServer_SendTickEnd(player);
             player->rebuild_prefix_tick = srv->tick;
             return;
@@ -21234,11 +21438,6 @@ phase_client_out(struct ToriRSServerPlayer* player)
          * force a mid-walk tile-centre snap. */
     }
 
-    /* Root-world info batches select their world and plane immediately before
-     * the entity streams. In particular this must follow REBUILD_REGION: the
-     * login client has no initialized replacement WorldView before that
-     * packet, while the active selection still has to precede PLAYER_INFO. */
-    ToriRSServer_SendSetActiveWorld(player);
     /*
      * Sailing (docs/SAILING_PLAN.md S2). After the root selection because the
      * update records address the ROOT view's entity list positionally, and
@@ -21256,6 +21455,7 @@ phase_client_out(struct ToriRSServerPlayer* player)
      * zone packet naming a tile is only meaningful once the client has been
      * placed by the stream above it. */
     ToriRSServer_ZoneUpdatePlayer(player);
+    ToriRSServer_PacketGroupEnd(player);
 
     /* After the containers would have changed but before they are flushed:
      * weight is a function of what is in them, and the orb should not lag a

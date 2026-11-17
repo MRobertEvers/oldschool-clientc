@@ -1773,6 +1773,9 @@ pkt_runclientscript_reset(struct RevPacket* out)
 struct RevPacketItem
 {
     struct RevPacket packet;
+    /** A member of a PACKET_GROUP whose bytes are not all in yet: not handed
+     *  out until the group is (ToriRS_Network_PopPacket). */
+    int held;
     struct RevPacketItem* next_nullable;
 };
 

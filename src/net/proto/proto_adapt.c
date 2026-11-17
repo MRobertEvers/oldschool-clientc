@@ -2898,7 +2898,8 @@ adapt_set_npc_update_origin(MsgSetNpcUpdateOrigin const* m, struct RevPacket* ou
  * four canonical fields are unpacked here rather than read off the wire:
  *
  *   - x/z come out of the packed coord;
- *   - `clear` has no sentinel at this revision -- a cleared flag is coord 0;
+ *   - `clear` is CoordGrid.INVALID, the packed -1 (RSProx prints Jagex's
+ *     clear as `coord=null`, index 4378 [92]); coord 0 is a tile;
  *   - `absolute` tells the executor to subtract the scene origin, which this
  *     layer does not know.
  *
@@ -2912,7 +2913,7 @@ adapt_set_map_flag_v2(MsgSetMapFlagV2 const* m, struct RevPacket* out)
 {
     out->_set_map_flag.x = (m->coord_grid_packed >> 14) & 0x3fff;
     out->_set_map_flag.z = m->coord_grid_packed & 0x3fff;
-    out->_set_map_flag.clear = m->coord_grid_packed == 0;
+    out->_set_map_flag.clear = m->coord_grid_packed == -1;
     out->_set_map_flag.absolute = 1;
     return 1;
 }

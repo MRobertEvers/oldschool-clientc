@@ -482,6 +482,14 @@ w242_set_map_flag(struct RsprotBuf* buf, int level, int x, int z)
     W242(rsprot_set_map_flag_v2_out, m);
 }
 
+static void
+w242_unset_map_flag(struct RsprotBuf* buf)
+{
+    MsgSetMapFlagV2 m = { 0 };
+    m.coord_grid_packed = -1;
+    W242(rsprot_set_map_flag_v2_out, m);
+}
+
 /* Two bytes; the private filter has its own packet (see w239_chat_filter). */
 static void
 w242_chat_filter(struct RsprotBuf* buf, int public_, int private_, int trade)
@@ -1160,6 +1168,7 @@ static const struct ToriRSServerWirePayload k_payload_osrs242 = {
     .if_setanim = w242_if_setanim,
     .if_setplayerhead = w242_if_setplayerhead,
     .set_map_flag = w242_set_map_flag,
+    .unset_map_flag = w242_unset_map_flag,
     .chat_filter = w242_chat_filter,
     .synth_sound = w242_synth_sound,
     .midi_song = w242_midi_song,
@@ -1257,6 +1266,7 @@ static const int k_transcribed_osrs242[] = {
     PKT_NAME_NPC_INFO,
     PKT_NAME_SET_NPC_UPDATE_ORIGIN,
     PKT_NAME_SET_ACTIVE_WORLD,
+    PKT_NAME_PACKET_GROUP_START,
     PKT_NAME_REBUILD_WORLDENTITY,
     PKT_NAME_WORLDENTITY_INFO,
     PKT_NAME_SERVER_TICK_END, PKT_NAME_VARP_RESET, PKT_NAME_VARP_SYNC,

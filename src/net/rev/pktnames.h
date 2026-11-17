@@ -549,6 +549,26 @@ enum GameProtoPktOutName
     /* Leaving the free camera (deob Statics.method6646). Appended likewise. */
     PKTOUT_NAME_EXIT_FREECAM,
 
+    /* Examine: an npc's or a loc's text is the SERVER's (RSProx index 4563
+     * [1374]: OPNPC6 -> MESSAGE_GAME type 28 npc_examine; OPLOC6_V2 -> 29
+     * loc_examine). An obj states its own in the cache. Appended so no
+     * existing name moves. */
+    PKTOUT_NAME_OPNPC6,
+    PKTOUT_NAME_OPLOC6,
+    PKTOUT_NAME_OPOBJ6,
+
+    /* A world entity's (a boat hull's) ops 1..5 by its index, and 6 its
+     * examine by type (RSProx index 4128 [~1130], rev 238: `opworldentity2
+     * worldentity=(index=1503 ...)` -> the hull's op; `opworldentity6
+     * worldentity=13` -> MESSAGE_GAME 47 worldentity_examine). Contiguous:
+     * OPWORLDENTITY1 + (op - 1). */
+    PKTOUT_NAME_OPWORLDENTITY1,
+    PKTOUT_NAME_OPWORLDENTITY2,
+    PKTOUT_NAME_OPWORLDENTITY3,
+    PKTOUT_NAME_OPWORLDENTITY4,
+    PKTOUT_NAME_OPWORLDENTITY5,
+    PKTOUT_NAME_OPWORLDENTITY6,
+
     PKTOUT_NAME_COUNT
 };
 

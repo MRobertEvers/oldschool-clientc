@@ -33,6 +33,7 @@ enum
     EXT242_SEQUENCE = 0x10,
     EXT242_APPEARANCE = 0x40,
     EXT242_TEMP_MOVE_SPEED = 0x100,
+    EXT242_MOVE_SPEED = 0x200,
     EXT242_CHAT = 0x800,
     EXT242_NEXT_BYTE_2 = 0x1000,
     EXT242_EXACT_MOVE = 0x2000,
@@ -57,6 +58,7 @@ player_info_osrs242_write_extended(
     int const has_chat = ext && ext->has_chat;
     int const has_spotanim = ext && ext->has_spotanim;
     int const has_temp_move_speed = ext && ext->has_temp_move_speed;
+    int const has_move_speed = ext && ext->has_move_speed;
     int const has_exact_move = ext && ext->has_exact_move;
     int const has_tint = ext && ext->has_tint;
     int const has_transparency = ext && ext->has_transparency;
@@ -77,6 +79,8 @@ player_info_osrs242_write_extended(
         flag |= EXT242_SPOTANIM;
     if( has_temp_move_speed )
         flag |= EXT242_TEMP_MOVE_SPEED;
+    if( has_move_speed )
+        flag |= EXT242_MOVE_SPEED;
     if( has_exact_move )
         flag |= EXT242_EXACT_MOVE;
     if( has_tint )
@@ -122,6 +126,11 @@ player_info_osrs242_write_extended(
         rsprot_p1_sub128(buf, ext->tint_lightness & 0xff);
         rsprot_p1_neg(buf, ext->tint_weight & 0xff);
     }
+    /* move speed: g1sAlt3 (after FREEZE and PLAYER_RESET, which this server
+     * does not write; before SEQUENCE). */
+    if( has_move_speed )
+        rsprot_p1_sub128(buf, ext->move_speed);
+
     /* sequence: g2 id, g1Alt3 delay. */
     if( has_seq )
     {

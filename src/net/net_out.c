@@ -1110,6 +1110,57 @@ net_out_opnpc(
     return out_slot2(rev, random_out, buf, cap, PKTOUT_NAME_OPNPC1 + (op_num - 1), npc_slot);
 }
 
+/* A world entity's (a boat hull's) op 1..5, by its index (OPWORLDENTITY1..5:
+ * RSProx index 4128, rev 238). */
+int
+net_out_opworldentity(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int op_num,
+    int index)
+{
+    struct ProtoOutArgs a = { 0 };
+
+    assert(op_num >= 1);
+    assert(op_num <= 5);
+    a.index = index;
+    return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_OPWORLDENTITY1 + (op_num - 1), &a);
+}
+
+/* Examine an npc (OPNPC6): its TYPE, not its slot. The server answers with
+ * MESSAGE_GAME 28. */
+int
+net_out_opnpc6(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int npc_type)
+{
+    struct ProtoOutArgs a = { 0 };
+
+    a.id = npc_type;
+    return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_OPNPC6, &a);
+}
+
+/* Examine a loc (OPLOC6; OPLOC6_V2's three-byte id at 242). The server
+ * answers with MESSAGE_GAME 29. */
+int
+net_out_oploc6(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int loc_id)
+{
+    struct ProtoOutArgs a = { 0 };
+
+    a.id = loc_id;
+    return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_OPLOC6, &a);
+}
+
 int
 net_out_opnpct(
     struct GameProtoRevTable const* rev,

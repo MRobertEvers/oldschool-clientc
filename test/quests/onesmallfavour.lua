@@ -10,9 +10,10 @@
 -- goto_tile departs from and lands on open ground only. Everything closed
 -- between is clicked, in and out, on every visit:
 --   * Karamja is an island: seaman_lorris's paid crossing (sailors.rs2
---     karamja_sailor_talk/_pay) and the Musa Point gangplank; back by the
---     Musa Point customs officer (customs_officer.rs2 customs_pay ->
---     3032,3217,1) and the Port Sarim gangplank. The members' gate
+--     karamja_sailor_talk/_pay -> the Musa Point quay 2956,3146,0); back by
+--     the Musa Point customs officer (customs_officer.rs2 customs_pay ->
+--     Port Sarim's quay 3029,3217,0); both ~quick_sail fade crossings
+--     (RSProx index 4378), no deck, no gangplank. The members' gate
 --     (membergatel 2816,3182, gates.rs2 walk-through) is the only way on
 --     foot between Musa Point and Brimhaven (reach.py: NEEDS-DOOR at
 --     margins 80 and 160) and is pressed on every crossing.
@@ -266,8 +267,9 @@ return {
 
         -- Port Sarim -> Musa Point: seaman_lorris (sailors.rs2
         -- karamja_sailor_talk; a fresh account gets the plain p_choice2),
-        -- 30 coins, p_delay(2), p_telejump onto the deck, its own mesbox;
-        -- then the gangplank ashore.
+        -- 30 coins, ~quick_sail_musa_point (RSProx index 4378 [92..100]):
+        -- both lines on the paying tick, the teleport five ticks later onto
+        -- the quay 2956,3146,0, no arrival mesbox.
         local function sail_to_musa(p)
             t.exec("goto-" .. p .. ".seaman", t.player.goto_tile, 3028, 3221, 0)
             local coins0 = coins_now()
@@ -279,26 +281,24 @@ return {
                 "choose:Yes please.",
                 "player:Yes please.",
             })
-            t.expect(p .. ".seaman.paid", t.msg.expect("You pay 30 coins and board the ship"))
+            t.expect(p .. ".seaman.paid", t.msg.expect("You pay the boarding charge of 30 coins."))
+            t.expect(p .. ".seaman.boards", t.msg.expect("You board the ship and sail to Musa Point."))
             local sail_r, sail_d = t.await({
                 level = function()
-                    return t.chat.kind() == "mesbox"
+                    local tr, tt = t.world.tile()
+                    return tr == "ok" and tt.x == 2956 and tt.z == 3146
                 end,
-                note = p .. ": the arrival mesbox after p_delay(2) + telejump",
-            }, 15)
+                note = p .. ": the teleport onto the Musa Point quay after the fade",
+            }, 12)
             t.step(p .. ".seaman.sailed", sail_r == "ok" and "PASS" or "FAIL",
-                "await(chat.kind() == mesbox) -> " .. tostring(sail_r) .. " " .. txt(sail_d))
-            t.exec(p .. ".seaman.arrive", t.chat.play, { "mesbox:The ship arrives at Karamja." })
-            local deck_r, deck = t.world.tile()
+                "await(on the quay) -> " .. tostring(sail_r) .. " " .. txt(sail_d))
+            local quay_r, quay = t.world.tile()
             local coins1 = coins_now()
-            t.check(p .. ".seaman.onDeck",
-                deck_r == "ok" and deck.level == 1 and math.abs(deck.x - 2956) <= 2 and math.abs(deck.z - 3143) <= 2
+            t.check(p .. ".seaman.onQuay",
+                quay_r == "ok" and quay.level == 0 and quay.x == 2956 and quay.z == 3146
                     and coins0 ~= nil and coins1 ~= nil and coins0 - coins1 == 30,
-                "tile " .. tile_text(deck_r, deck) .. " (want the deck 2956,3143,1), coins " .. tostring(coins0)
+                "tile " .. tile_text(quay_r, quay) .. " (want the quay 2956,3146,0), coins " .. tostring(coins0)
                     .. " -> " .. tostring(coins1) .. " (want -30)")
-            transit(p .. ".disembarkMusa", "sarimshipplank_off", 1, { 2956, 3144, 1 },
-                function(tt) return tt.level == 0 and math.abs(tt.x - 2956) <= 3 and tt.z >= 3145 and tt.z <= 3150 end,
-                "ashore on the Musa Point jetty, level 0, z 3145-3150")
         end
 
         -- Karamja's members' gate, membergatel 2816,3182 (a west-wall leaf:
@@ -372,7 +372,8 @@ return {
         end
 
         -- Musa Point -> Port Sarim: the customs officer's search and boarding
-        -- charge (customs_officer.rs2:14-115), then the gangplank ashore.
+        -- charge (customs_officer.rs2:14-115), ~quick_sail_port_sarim (RSProx
+        -- index 4378 [237..245]): the teleport onto the quay 3029,3217,0.
         local function sail_to_sarim(p)
             t.exec("goto-" .. p .. ".customs", t.player.goto_tile, 2953, 3147, 0)
             local coins0 = coins_now()
@@ -391,26 +392,24 @@ return {
                 "choose:Ok.",
                 "player:Ok.",
             })
-            t.expect(p .. ".customs.paid", t.msg.expect("pay 30 coins and board the ship"))
+            t.expect(p .. ".customs.paid", t.msg.expect("You pay the boarding charge of 30 coins."))
+            t.expect(p .. ".customs.boards", t.msg.expect("You board the ship and sail to Port Sarim."))
             local sail_r, sail_d = t.await({
                 level = function()
-                    return t.chat.kind() == "mesbox"
+                    local tr, tt = t.world.tile()
+                    return tr == "ok" and tt.x == 3029 and tt.z == 3217
                 end,
-                note = p .. ": the arrival mesbox after p_delay(2) + telejump",
-            }, 15)
+                note = p .. ": the teleport onto the Port Sarim quay after the fade",
+            }, 12)
             t.step(p .. ".customs.sailed", sail_r == "ok" and "PASS" or "FAIL",
-                "await(chat.kind() == mesbox) -> " .. tostring(sail_r) .. " " .. txt(sail_d))
-            t.exec(p .. ".customs.arrive", t.chat.play, { "mesbox:ship arrives at Port Sarim" })
-            local deck_r, deck = t.world.tile()
+                "await(on the quay) -> " .. tostring(sail_r) .. " " .. txt(sail_d))
+            local quay_r, quay = t.world.tile()
             local coins1 = coins_now()
-            t.check(p .. ".customs.onDeck",
-                deck_r == "ok" and deck.level == 1 and math.abs(deck.x - 3032) <= 2 and math.abs(deck.z - 3217) <= 2
+            t.check(p .. ".customs.onQuay",
+                quay_r == "ok" and quay.level == 0 and quay.x == 3029 and quay.z == 3217
                     and coins0 ~= nil and coins1 ~= nil and coins0 - coins1 == 30,
-                "tile " .. tile_text(deck_r, deck) .. " (want the deck 3032,3217,1), coins " .. tostring(coins0)
+                "tile " .. tile_text(quay_r, quay) .. " (want the quay 3029,3217,0), coins " .. tostring(coins0)
                     .. " -> " .. tostring(coins1) .. " (want -30)")
-            transit(p .. ".disembarkSarim", "karamjashipplank_off", 1, { 3031, 3217, 1 },
-                function(tt) return tt.level == 0 and tt.x <= 3030 and math.abs(tt.z - 3217) <= 2 end,
-                "on the Port Sarim pier, level 0, x <= 3030")
         end
 
         -- Brian's axe shop (poordoor 3031,3248, a west-wall leaf: the shop

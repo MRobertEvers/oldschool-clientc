@@ -23,8 +23,8 @@
 -- Travel (door rule, b69): every goto departs from and lands on an open tile
 -- of one on-foot region (reach.py), and everything closed is crossed by its
 -- own click:
---   * Karamja is an island: seaman_lorris's paid crossing at Port Sarim and
---     the gangplank ashore at Musa Point (junglepotion.lua's worked route).
+--   * Karamja is an island: seaman_lorris's paid crossing at Port Sarim,
+--     the fade onto the Musa Point quay 2956,3146,0 (RSProx index 4378).
 --   * The members' gate membergatel 2816,3182 (gates.rs2 walk-through)
 --     splits Musa Point / Luthas' plantation (east) from Brimhaven, Tai Bwo
 --     Wannai and the Holy Lake (west): cross_gate on every crossing.
@@ -252,7 +252,8 @@ return {
             t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
             -- To Karamja: seaman_lorris's paid crossing (sailors.rs2 karamja_sailor_pay: 30 coins,
-            -- p_telejump to the deck at Musa Point 2956,3143,1), the gangplank ashore, the members' gate
+            -- ~quick_sail_musa_point, RSProx index 4378 [92..100]: both lines on the paying tick, the
+            -- teleport five ticks later onto the Musa Point quay 2956,3146,0), the members' gate
             -- (reach.py Musa Point -> Tai Bwo Wannai: NEEDS-DOOR via membergatel 2816,3182 only), then
             -- open ground to the hut's ladder (reach.py 2815,3182 -> 2781,3089: REACH closed-doors 173).
             t.exec("goto-seaman", t.player.goto_tile, 3028, 3221, 0)
@@ -265,24 +266,25 @@ return {
                 "choose:Yes please.",
                 "player:Yes please.",
             })
-            t.expect("seaman.paidMessage", t.msg.expect("You pay 30 coins and board the ship"))
+            t.expect("seaman.paidMessage", t.msg.expect("You pay the boarding charge of 30 coins."))
+            t.expect("seaman.boardsMessage", t.msg.expect("You board the ship and sail to Musa Point."))
             local sail_r, sail_d = t.await({
-                level = function() return t.chat.kind() == "mesbox" end,
-                note = "seaman: the arrival mesbox after p_delay(2) + telejump",
-            }, 15)
+                level = function()
+                    local tr, tt = t.world.tile()
+                    return tr == "ok" and tt.x == 2956 and tt.z == 3146
+                end,
+                note = "seaman: the teleport onto the Musa Point quay after the fade",
+            }, 12)
             t.step("seaman.sail", sail_r == "ok" and "PASS" or "FAIL",
-                "await(chat.kind() == mesbox) -> " .. tostring(sail_r) .. " " .. tostring(sail_d))
-            t.exec("seaman.arrive", t.chat.play, { "mesbox:The ship arrives at Karamja." })
-            local deck_r, deck = t.world.tile()
+                "await(on the quay) -> " .. tostring(sail_r) .. " " .. tostring(sail_d))
+            local quay_r, quay = t.world.tile()
             local coins1_r, coins1 = t.inv.count("coins")
-            t.check("seaman.onDeckAtMusaPoint", deck_r == "ok" and deck.level == 1
-                    and math.abs(deck.x - 2956) <= 2 and math.abs(deck.z - 3143) <= 2
+            t.check("seaman.onQuayAtMusaPoint", quay_r == "ok" and quay.level == 0
+                    and quay.x == 2956 and quay.z == 3146
                     and coins0_r == "ok" and coins1_r == "ok" and coins0 - coins1 == 30,
-                "tile " .. tostring(deck_r == "ok" and deck.x) .. "," .. tostring(deck_r == "ok" and deck.z) .. ","
-                    .. tostring(deck_r == "ok" and deck.level) .. " (want the deck 2956,3143,1), coins "
+                "tile " .. tostring(quay_r == "ok" and quay.x) .. "," .. tostring(quay_r == "ok" and quay.z) .. ","
+                    .. tostring(quay_r == "ok" and quay.level) .. " (want the quay 2956,3146,0), coins "
                     .. tostring(coins0) .. " -> " .. tostring(coins1) .. " (want -30)")
-            t.exec("musaPoint.disembark", t.player.climb, { loc = "sarimshipplank_off", op_name = "Cross",
-                at = { 2956, 3144, 1 }, src = { 2956, 3143 }, dest = { 2956, 3146, 0 }, slack = 1 })
             cross_karamja_gate(t, "goToTimfrakuLadder.karamjaGate", true)
 
             -- getPestleAndMortar (leg 3's guide item): Jiminua's Jungle Store, on the way to Timfraku's

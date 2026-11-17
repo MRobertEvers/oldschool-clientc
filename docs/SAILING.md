@@ -483,9 +483,16 @@ with `tools/rsprox/rsprox_index.py get 4407`; the transcript has 47
   id, coord, sizex, sizez) tileinteractionmode=walk entityinteractionmode=all`
   [6759] and `reset_interaction_mode` [8316].
 
-This engine's client instead sends a hull click as the cheat line
-`::vesselop <view> <op>` (the coverage table in § 7): that path exists only
-for our client, and the official client never takes it.
+A hull's op is OPWORLDENTITY1..5 with the hull's world-entity index, and its
+examine OPWORLDENTITY6 with its type (RSProx index 4128, rev 238:
+`opworldentity2 worldentity=(index=1503, id=14 ...)` -> "You can only attack
+a boat with a weapon mounted on another boat!"; `opworldentity6
+worldentity=13` -> MESSAGE_GAME 47 "Pining for Plunder."). Since 2026-11-17
+our client sends those too (app_minimenu.c, UI_MINIMENU_PICK_WEV) and the
+server reads them at 239/241/242 (`vessel_op`, `handle_opworldentity_packet`);
+the `::vesselop <view> <op>` cheat it used before is only the fallback for a
+revision without the packets. Jagex's hull examine texts are server data no
+recording has given us yet; ours answers "It's a boat."
 
 At 242 the loc ops are `OPLOC1..5_V3` (the 242 menu handler; v3
 c9d2a0e5f), so a deck loc from RuneLite arrives as OPLOC*_V3 at the boat-map

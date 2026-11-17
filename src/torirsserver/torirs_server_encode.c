@@ -258,6 +258,63 @@ check_frame_length(
                 wire->name, opcode, ToriRSServer_WirePktName(pkt_name), len, framed);
 }
 
+
+/* The open group of each player slot: queued member packets, each
+ * [pkt_name i32][var i32][len i32][payload], and their total on-wire size.
+ * Per slot rather than on the player: the player record is zeroed at login,
+ * which would leak a buffer hanging off it; these are reused for the life of
+ * the process. */
+struct PacketGroup
+{
+    int open;
+    uint8_t* bytes;
+    int len;
+    int cap;
+    int wire_bytes;
+};
+static struct PacketGroup g_packet_groups[TORIRSSERVER_PLAYER_MAX];
+
+static struct PacketGroup*
+packet_group_of(const struct ToriRSServerPlayer* player)
+{
+    assert(player);
+    assert(player->pid >= 0);
+    assert(player->pid < TORIRSSERVER_PLAYER_MAX);
+    return &g_packet_groups[player->pid];
+}
+
+static void
+packet_group_queue(
+    struct PacketGroup* group,
+    int pkt_name,
+    const uint8_t* payload,
+    int len,
+    int var,
+    int wire_bytes)
+{
+    int const need = group->len + 12 + len;
+
+    if( need > group->cap )
+    {
+        int want = group->cap ? group->cap : 4096;
+        uint8_t* grown;
+
+        while( want < need )
+            want *= 2;
+        grown = realloc(group->bytes, (size_t)want);
+        assert(grown);
+        group->bytes = grown;
+        group->cap = want;
+    }
+    memcpy(group->bytes + group->len, &pkt_name, 4);
+    memcpy(group->bytes + group->len + 4, &var, 4);
+    memcpy(group->bytes + group->len + 8, &len, 4);
+    if( len > 0 )
+        memcpy(group->bytes + group->len + 12, payload, (size_t)len);
+    group->len = need;
+    group->wire_bytes += wire_bytes;
+}
+
 void
 ToriRSServer_Send(
     struct ToriRSServerPlayer* player,
@@ -340,6 +397,20 @@ ToriRSServer_Send(
         fflush(stderr);
         assert(len <= 0xffff);
         return;
+    }
+
+    /* A member of an open group waits for the group's header (End). */
+    {
+        struct PacketGroup* group = packet_group_of(player);
+
+        if( group->open )
+        {
+            int const header = (wire->opcode_smart2 && opcode >= 0x80) ? 2 : 1;
+            int const length_field = var == 1 ? 1 : (var == 2 ? 2 : 0);
+
+            packet_group_queue(group, pkt_name, payload, len, var, header + length_field + len);
+            return;
+        }
     }
 
     /*
@@ -3791,11 +3862,14 @@ ToriRSServer_SendUnsetMapFlag(struct ToriRSServerPlayer* player)
     struct RsprotBuf buf;
     open_packet(&buf, 8);
     {
-        /* No 255,255 clear sentinel at V2 -- the packet carries an absolute
-         * coord, and a cleared flag is coord 0. */
+        /* V2 (236+) carries an absolute coord; its clear is the packed -1
+         * (the payload's unset_map_flag), never coord 0. */
         const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->set_map_flag )
-            pl->set_map_flag(&buf, 0, 0, 0);
+        {
+            assert(pl->unset_map_flag);
+            pl->unset_map_flag(&buf);
+        }
         else
         {
             rsprot_p1(&buf, 255);
@@ -4036,6 +4110,54 @@ ToriRSServer_SendSetMapFlag(struct ToriRSServerPlayer* player, int local_x, int 
         }
     }
     flush(player, &buf, OP_SET_MAP_FLAG, 0);
+}
+
+
+void
+ToriRSServer_PacketGroupBegin(struct ToriRSServerPlayer* player)
+{
+    struct PacketGroup* group = packet_group_of(player);
+
+    assert(!group->open);
+    group->open = 1;
+    group->len = 0;
+    group->wire_bytes = 0;
+}
+
+void
+ToriRSServer_PacketGroupEnd(struct ToriRSServerPlayer* player)
+{
+    struct PacketGroup* group = packet_group_of(player);
+    struct ToriRSServer* srv = player->world;
+    const struct ToriRSServerWire* wire = (srv && srv->wire) ? srv->wire : ToriRSServer_WireDefault();
+    int at = 0;
+
+    assert(group->open);
+    group->open = 0;
+    if( group->len == 0 )
+        return;
+    if( group->wire_bytes <= 0xffff && ToriRSServer_WireOpcode(wire, PKT_NAME_PACKET_GROUP_START) >= 0 )
+    {
+        struct RsprotBuf buf;
+
+        open_packet(&buf, 2);
+        rsprot_p2_12(&buf, group->wire_bytes);
+        flush(player, &buf, PKT_NAME_PACKET_GROUP_START, 0);
+    }
+    while( at < group->len )
+    {
+        int pkt_name;
+        int var;
+        int len;
+
+        memcpy(&pkt_name, group->bytes + at, 4);
+        memcpy(&var, group->bytes + at + 4, 4);
+        memcpy(&len, group->bytes + at + 8, 4);
+        ToriRSServer_Send(player, pkt_name, group->bytes + at + 12, len, var);
+        at += 12 + len;
+    }
+    group->len = 0;
+    group->wire_bytes = 0;
 }
 
 void
@@ -5615,47 +5737,52 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                 ext.transparency_to = subject->transparency_to;
                 ext.transparency_use_start = subject->transparency_use_start;
             }
-            if( subject->running && subject->move_count > 1 &&
-                movement != RSPROT_GPI_TELEPORT )
             {
                 /*
-                 * The movement opcode states geometry, not traversal: a two-step
-                 * turn that ends one diagonal tile away is WALK geometry, and
-                 * TEMP_MOVE_SPEED=2 (class174.field2474) is what tells the
-                 * client the tiles were RUN -- it is also what makes RuneLite
-                 * method3189 invoke method2600 and locally retain the corner.
+                 * MOVE_SPEED is the player's own speed (the run orb), sent when
+                 * it changes and to a viewer the player enters while running;
+                 * TEMP_MOVE_SPEED is a step taken at ANOTHER speed. RSProx
+                 * index 4378 (rev 241): `move_speed=run` at login, then [run]
+                 * steps bare, a single tile while running `temp=walk` [3887],
+                 * a teleport `temp=teleport` (127) [97].
                  *
-                 * `move_count > 1`, not `> 0`. Both reference servers stamp RUN
-                 * only when a SECOND tile was actually taken this tick --
-                 * Zenyte's TemporaryMovementMask is `runDirection != -1 ? 2 :
-                 * 1`, Kronos sets movementModeUpdate 2 only when its second
-                 * `step()` succeeded. A running player who only had one tile
-                 * to take (a follower behind a walking npc is the everyday
-                 * case: it closes one tile a tick because that is all the
-                 * target opens up) is a WALK step on the wire.
-                 *
-                 * Sending 2 there is not cosmetic. The client moves a RUN step
-                 * at speed 8, so a one-tile step arriving every 30 cycles is
-                 * covered in 15 and the model stands still for the other 15 --
-                 * a hard stop-and-go, every tick, for the whole chase. That was
-                 * "the player stutters following a moving npc", and it was
-                 * invisible with run off (speed 4 covers 120 of the 128, so a
-                 * walker only lags, it never halts).
+                 * The opcode states geometry, not traversal: a two-step turn
+                 * that ends one diagonal tile away is WALK geometry and is
+                 * still a run (`move_count > 1`), and a one-tile step of a
+                 * running player (a follower behind a walking npc) is a WALK
+                 * traversal -- without the temp the client covers it at run
+                 * speed in 15 cycles and halts for 15, every tick.
                  */
-                ext.has_temp_move_speed = 1;
-                ext.temp_move_speed = 2;
-            }
-            else if( subject->tele_glide && movement == RSPROT_GPI_RUN )
-            {
-                /*
-                 * A short `p_teleport` the client should WALK (`tele_glide`):
-                 * two tiles of geometry on the RUN opcode, traversed at walk
-                 * speed. Jagex sends exactly that for a ToA barrier crossing
-                 * (RSProx 4288 t409: 3951 -> 3949 with temp_move_speed=walk),
-                 * and without it the client ran the raider through the gate.
-                 */
-                ext.has_temp_move_speed = 1;
-                ext.temp_move_speed = 1;
+                int const perm = subject->move_speed_sent ? subject->move_speed_sent : 1;
+
+                if( (subject->masks & TORIRSSERVER_PMASK_MOVE_SPEED) || (entering && perm != 1) )
+                {
+                    ext.has_move_speed = 1;
+                    ext.move_speed = perm;
+                }
+                if( subject->tele_glide && movement == RSPROT_GPI_RUN )
+                {
+                    /* A short `p_teleport` the client should WALK: two tiles of
+                     * geometry on the RUN opcode, traversed at walk speed
+                     * (RSProx 4288 t409: 3951 -> 3949 with temp=walk). */
+                    ext.has_temp_move_speed = 1;
+                    ext.temp_move_speed = 1;
+                }
+                else if( movement == RSPROT_GPI_TELEPORT )
+                {
+                    ext.has_temp_move_speed = 1;
+                    ext.temp_move_speed = 127;
+                }
+                else if( subject->move_count > 0 )
+                {
+                    int const step = subject->running && subject->move_count > 1 ? 2 : 1;
+
+                    if( step != perm )
+                    {
+                        ext.has_temp_move_speed = 1;
+                        ext.temp_move_speed = step;
+                    }
+                }
             }
             if( subject->masks & TORIRSSERVER_PMASK_TINT )
             {
@@ -5787,11 +5914,12 @@ player_world_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                 update->movement = RSPROT_GPI_RUN;
                 update->movement_value = run[dz + 2][dx + 2];
             }
-            else
+            else if( entering || dl || dx || dz )
             {
                 update->movement = RSPROT_GPI_TELEPORT;
                 update->movement_value = player_coord_v5(dl, dx, dz);
             }
+            /* else: placed on the tile this viewer already has -- no move. */
             player_extended_v5(srv, viewer, subject, update->movement, update->movement_value,
                                update->appearance_len, entering, &extensions[count]);
             update->ext = &extensions[count];
@@ -5914,7 +6042,12 @@ ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
             int glide = player->tele_glide && player->level == player->v5_last_level &&
                         dx >= -2 && dx <= 2 && dz >= -2 && dz <= 2 && (dx != 0 || dz != 0);
 
-            if( !glide && (player->place_dirty || player->level != player->v5_last_level) )
+            /* A placement onto the tile the client already has (the login's,
+             * a p_telejump to where the player stands) moves nothing: Jagex
+             * sends the player idle there (RSProx index 4378 [0]: `[idle]`
+             * with the login's appearance), not a TELEPORT to itself. */
+            if( !glide && (player->place_dirty || player->level != player->v5_last_level) &&
+                (dx != 0 || dz != 0 || player->level != player->v5_last_level) )
             {
                 movement = RSPROT_GPI_TELEPORT;
                 movement_value = coord;

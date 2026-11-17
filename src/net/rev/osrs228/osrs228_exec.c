@@ -138,18 +138,21 @@
 #include "packets/oploc3.h"
 #include "packets/oploc4.h"
 #include "packets/oploc5.h"
+#include "packets/oploc6.h"
 #include "packets/oploct.h"
 #include "packets/opnpc1.h"
 #include "packets/opnpc2.h"
 #include "packets/opnpc3.h"
 #include "packets/opnpc4.h"
 #include "packets/opnpc5.h"
+#include "packets/opnpc6.h"
 #include "packets/opnpct.h"
 #include "packets/opobj1.h"
 #include "packets/opobj2.h"
 #include "packets/opobj3.h"
 #include "packets/opobj4.h"
 #include "packets/opobj5.h"
+#include "packets/opobj6.h"
 #include "packets/opobjt.h"
 #include "packets/opplayer1.h"
 #include "packets/opplayer2.h"
@@ -3100,6 +3103,24 @@ out_opnpc5(struct ProtoOutArgs const* a, RsprotBuf* b)
     return 1;
 }
 
+/* OPNPC6, opcode 67 */
+static int
+out_opnpc6(struct ProtoOutArgs const* a, RsprotBuf* b)
+{
+    MsgOpNpc6 m;
+    RsprotExec x;
+
+    memset(&m, 0, sizeof(m));
+    w_opnpc6(&m, a);
+    rsprot_exec_encode(&x, b);
+    packet_opnpc6_osrs228_in(&x, &m);
+    if( b->err )
+        return 0; /* it does not fit the caller's buffer */
+    /* Arguments the layout cannot carry are the caller's bug. */
+    assert(rsprot_exec_ok(&x));
+    return 1;
+}
+
 /* OPNPCT, opcode 6 */
 static int
 out_opnpct(struct ProtoOutArgs const* a, RsprotBuf* b)
@@ -3208,6 +3229,24 @@ out_oploc5(struct ProtoOutArgs const* a, RsprotBuf* b)
     return 1;
 }
 
+/* OPLOC6, opcode 17 */
+static int
+out_oploc6(struct ProtoOutArgs const* a, RsprotBuf* b)
+{
+    MsgOpLoc6 m;
+    RsprotExec x;
+
+    memset(&m, 0, sizeof(m));
+    w_oploc6(&m, a);
+    rsprot_exec_encode(&x, b);
+    packet_oploc6_osrs228_in(&x, &m);
+    if( b->err )
+        return 0; /* it does not fit the caller's buffer */
+    /* Arguments the layout cannot carry are the caller's bug. */
+    assert(rsprot_exec_ok(&x));
+    return 1;
+}
+
 /* OPLOCT, opcode 88 */
 static int
 out_oploct(struct ProtoOutArgs const* a, RsprotBuf* b)
@@ -3309,6 +3348,24 @@ out_opobj5(struct ProtoOutArgs const* a, RsprotBuf* b)
     w_opobj5(&m, a);
     rsprot_exec_encode(&x, b);
     packet_opobj5_osrs228_in(&x, &m);
+    if( b->err )
+        return 0; /* it does not fit the caller's buffer */
+    /* Arguments the layout cannot carry are the caller's bug. */
+    assert(rsprot_exec_ok(&x));
+    return 1;
+}
+
+/* OPOBJ6, opcode 61 */
+static int
+out_opobj6(struct ProtoOutArgs const* a, RsprotBuf* b)
+{
+    MsgOpObj6 m;
+    RsprotExec x;
+
+    memset(&m, 0, sizeof(m));
+    w_opobj6(&m, a);
+    rsprot_exec_encode(&x, b);
+    packet_opobj6_osrs228_in(&x, &m);
     if( b->err )
         return 0; /* it does not fit the caller's buffer */
     /* Arguments the layout cannot carry are the caller's bug. */
@@ -4684,6 +4741,7 @@ static int16_t const k_out_wire1[PKTOUT_NAME_COUNT] = {
     [PKTOUT_NAME_IGNORELIST_ADD] = 15,
     [PKTOUT_NAME_IF_BUTTON6] = 16,
     [PKTOUT_NAME_CHAT_SETMODE] = 17,
+    [PKTOUT_NAME_OPLOC6] = 18,
     [PKTOUT_NAME_FRIENDCHAT_JOIN_LEAVE] = 19,
     [PKTOUT_NAME_RESUME_PAUSEBUTTON] = 20,
     [PKTOUT_NAME_MOVE_MINIMAPCLICK] = 21,
@@ -4723,11 +4781,13 @@ static int16_t const k_out_wire1[PKTOUT_NAME_COUNT] = {
     [PKTOUT_NAME_FRIENDLIST_ADD] = 59,
     [PKTOUT_NAME_INV_BUTTOND] = 60,
     [PKTOUT_NAME_IF_BUTTON3] = 61,
+    [PKTOUT_NAME_OPOBJ6] = 62,
     [PKTOUT_NAME_MOVE_GAMECLICK] = 63,
     [PKTOUT_NAME_FRIENDCHAT_SETRANK] = 64,
     [PKTOUT_NAME_OPPLAYER1] = 65,
     [PKTOUT_NAME_OPNPC5] = 66,
     [PKTOUT_NAME_OPNPC2] = 67,
+    [PKTOUT_NAME_OPNPC6] = 68,
     [PKTOUT_NAME_BUG_REPORT] = 69,
     [PKTOUT_NAME_SET_HEADING] = 70,
     [PKTOUT_NAME_SEND_SNAPSHOT] = 71,
@@ -4908,6 +4968,7 @@ static int (*const k_out[PKTOUT_NAME_COUNT])(struct ProtoOutArgs const* a, Rspro
     [PKTOUT_NAME_IGNORELIST_ADD] = out_ignorelist_add,
     [PKTOUT_NAME_IF_BUTTON6] = out_if_button6,
     [PKTOUT_NAME_CHAT_SETMODE] = out_set_chatfiltersettings,
+    [PKTOUT_NAME_OPLOC6] = out_oploc6,
     [PKTOUT_NAME_FRIENDCHAT_JOIN_LEAVE] = out_friendchat_join_leave,
     [PKTOUT_NAME_RESUME_PAUSEBUTTON] = out_resume_pausebutton,
     [PKTOUT_NAME_MOVE_MINIMAPCLICK] = out_move_minimapclick,
@@ -4945,11 +5006,13 @@ static int (*const k_out[PKTOUT_NAME_COUNT])(struct ProtoOutArgs const* a, Rspro
     [PKTOUT_NAME_FRIENDLIST_ADD] = out_friendlist_add,
     [PKTOUT_NAME_INV_BUTTOND] = out_if_buttond,
     [PKTOUT_NAME_IF_BUTTON3] = out_if_button3,
+    [PKTOUT_NAME_OPOBJ6] = out_opobj6,
     [PKTOUT_NAME_MOVE_GAMECLICK] = out_move_gameclick,
     [PKTOUT_NAME_FRIENDCHAT_SETRANK] = out_friendchat_setrank,
     [PKTOUT_NAME_OPPLAYER1] = out_opplayer1,
     [PKTOUT_NAME_OPNPC5] = out_opnpc5,
     [PKTOUT_NAME_OPNPC2] = out_opnpc2,
+    [PKTOUT_NAME_OPNPC6] = out_opnpc6,
     [PKTOUT_NAME_BUG_REPORT] = out_bug_report,
     [PKTOUT_NAME_SET_HEADING] = out_set_heading,
     [PKTOUT_NAME_SEND_SNAPSHOT] = out_send_snapshot,

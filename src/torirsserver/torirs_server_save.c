@@ -430,7 +430,10 @@ save_player_write(
     {
         const struct ToriRSServerVarpDef* def;
 
-        if( ToriRSServer_Varp(player, varp) == 0 )
+        /* At its default (`varp_defaults`, else 0) it needs no line: the load
+         * puts the default back first. A 0 on a varp whose default is -1 is a
+         * value, and is written. */
+        if( ToriRSServer_Varp(player, varp) == ToriRSServer_WorldVarpDefault(varp) )
             continue;
         def = ToriRSServer_ContentVarp(varp);
         if( !checkpoint && (!def || !def->scope_perm) )

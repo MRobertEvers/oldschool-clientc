@@ -5,8 +5,8 @@
 -- Travel (door rule, b69): every goto departs from and lands on an open tile and stays on one
 -- side of everything closed; everything closed is crossed by its own click.
 --   * Karamja is an island: seaman_lorris's paid crossing at Port Sarim (sailors.rs2
---     karamja_sailor_pay, 30 coins -> the deck at Musa Point), the gangplank ashore
---     (gangplank.rs2 [oploc1,sarimshipplank_off]), then the members' gate membergatel 2816,3182
+--     karamja_sailor_pay, 30 coins -> ~quick_sail onto the Musa Point quay 2956,3146,0, RSProx
+--     index 4378; no deck, no gangplank), then the members' gate membergatel 2816,3182
 --     (cross_gate). Mosol Rei and Trufitus are then REACH closed-doors on foot (reach.py).
 --   * The mound (Ah Za Rhoon), the palms and Rashiliyia's tomb lie EAST of the river south of Tai
 --     Bwo Wannai. The Shilo stepping stones (zqrockjump3 2925,2948 north / zqrockjump1 2925,2950 south)
@@ -247,7 +247,9 @@ return {
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
         -- ---------------------------------------------------------------
-        -- To Karamja: Port Sarim, the ship, the gangplank, the members' gate.
+        -- To Karamja: Port Sarim, the ship onto the quay (~quick_sail_musa_point, RSProx index
+        -- 4378 [92..100]: both lines on the paying tick, the teleport five ticks later, no
+        -- arrival mesbox), the members' gate.
         -- ---------------------------------------------------------------
         t.exec("goto-seaman", t.player.goto_tile, 3028, 3221, 0)
         local coins0_r, coins0 = t.inv.count("coins")
@@ -259,23 +261,24 @@ return {
             "choose:Yes please.",
             "player:Yes please.",
         })
-        t.expect("seaman.paidMessage", t.msg.expect("You pay 30 coins and board the ship"))
+        t.expect("seaman.paidMessage", t.msg.expect("You pay the boarding charge of 30 coins."))
+        t.expect("seaman.boardsMessage", t.msg.expect("You board the ship and sail to Musa Point."))
         local sail_r, sail_d = t.await({
-            level = function() return t.chat.kind() == "mesbox" end,
-            note = "seaman: the arrival mesbox after p_delay(2) + telejump",
-        }, 15)
+            level = function()
+                local tt = tile_now()
+                return tt ~= nil and tt.x == 2956 and tt.z == 3146
+            end,
+            note = "seaman: the teleport onto the Musa Point quay after the fade",
+        }, 12)
         t.step("seaman.sail", sail_r == "ok" and "PASS" or "FAIL",
-            "await(chat.kind() == mesbox) -> " .. tostring(sail_r) .. " " .. tostring(sail_d))
-        t.exec("seaman.arrive", t.chat.play, { "mesbox:The ship arrives at Karamja." })
-        local deck = tile_now()
+            "await(on the quay) -> " .. tostring(sail_r) .. " " .. tostring(sail_d))
+        local quay = tile_now()
         local coins1_r, coins1 = t.inv.count("coins")
-        t.check("seaman.onDeckAtMusaPoint", deck ~= nil and deck.level == 1
-                and math.abs(deck.x - 2956) <= 2 and math.abs(deck.z - 3143) <= 2
+        t.check("seaman.onQuayAtMusaPoint", quay ~= nil and quay.level == 0
+                and quay.x == 2956 and quay.z == 3146
                 and coins0_r == "ok" and coins1_r == "ok" and coins0 - coins1 == 30,
-            "tile " .. where() .. " (want the deck 2956,3143,1), coins " .. tostring(coins0)
+            "tile " .. where() .. " (want the quay 2956,3146,0), coins " .. tostring(coins0)
                 .. " -> " .. tostring(coins1) .. " (want -30)")
-        t.exec("musaPoint.disembark", t.player.climb, { loc = "sarimshipplank_off", op_name = "Cross",
-            at = { 2956, 3144, 1 }, src = { 2956, 3143 }, dest = { 2956, 3146, 0 }, slack = 1 })
         t.exec("goto-karamjaGate", t.player.goto_tile, 2818, 3182, 0)
         t.exec("karamjaGate", t.player.cross_gate, { loc = "membergatel", at = { 2816, 3182, 0 },
             near = { 2817, 3182 }, far_ok = function(tile) return tile.x <= 2815 end,

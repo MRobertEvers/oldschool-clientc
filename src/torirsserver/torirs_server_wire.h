@@ -205,6 +205,10 @@ struct ToriRSServerWirePayload
     void (*if_setanim)(struct RsprotBuf* buf, int uid, int anim_id);
     void (*if_setplayerhead)(struct RsprotBuf* buf, int uid);
     void (*set_map_flag)(struct RsprotBuf* buf, int level, int x, int z);
+    /* The flag cleared. At 236+ (SET_MAP_FLAG_V2, an absolute packed coord)
+     * Jagex clears with CoordGrid.INVALID, the packed -1: RSProx prints it
+     * `coord=null` (index 4378 [92]). Coord 0 is a tile, not a clear. */
+    void (*unset_map_flag)(struct RsprotBuf* buf);
     void (*chat_filter)(struct RsprotBuf* buf, int public_, int private_, int trade);
     void (*synth_sound)(struct RsprotBuf* buf, int id, int loops, int delay);
     void (*midi_song)(

@@ -26,7 +26,7 @@ the standard SMF duration algorithm, nothing cache-specific. The default tempo
 before the first Set Tempo event is 500000 us/quarter (120 BPM), the same
 default General MIDI assumes.
 
-Regenerate when `cache.osrs239` changes. Requires `audioprobe` to be built:
+Regenerate when `cache.osrs242` changes. Requires `audioprobe` to be built:
 
     make -C 3rd/rscache/tools audioprobe
 """
@@ -38,9 +38,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 AUDIOPROBE = ROOT / "3rd/rscache/tools/audioprobe/audioprobe"
-CACHE = ROOT / "cache.osrs239"
+# The configured revision's cache (meta.ini: rev 242 since 2026-11-07). At 239
+# the table stopped at 315 and every newer jingle (830, 831, 864, ... up to
+# 886) went out with length 0.
+CACHE = ROOT / "cache.osrs242"
 OUT = ROOT / "src/torirsserver/torirs_server_jingle_lengths.gen.h"
-JINGLE_COUNT = 315
+JINGLE_PACK = ROOT / "OSRS-Content/osrs-content/pack/11_musicjingles.pack"
+JINGLE_COUNT = 1 + max(int(line.split("=", 1)[0]) for line in JINGLE_PACK.read_text().splitlines()
+                       if line[:1].isdigit())
 
 
 def read_varint(data, pos):

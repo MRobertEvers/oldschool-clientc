@@ -273,7 +273,8 @@ return {
         end
 
         -- Port Sarim -> Musa Point (sailors.rs2 karamja_sailor_talk -> karamja_sailor_pay: 30 coins,
-        -- p_delay(2), p_telejump to the deck 2956,3143,1, its mesbox), then the gangplank ashore.
+        -- ~quick_sail_musa_point, RSProx index 4378 [92..100]: both lines on the paying tick, the
+        -- teleport five ticks later onto the quay 2956,3146,0, no arrival mesbox, no deck).
         -- Dragon Slayer and the Sailing intro are not started, so the menu is the plain p_choice2.
         local function sail_to_musa(pfx)
             t.exec("goto-" .. pfx .. ".seaman", t.player.goto_tile, 3028, 3221, 0)
@@ -286,24 +287,24 @@ return {
                 "choose:Yes please.",
                 "player:Yes please.",
             })
+            t.expect(pfx .. ".paid", t.msg.expect("You pay the boarding charge of 30 coins."))
+            t.expect(pfx .. ".boards", t.msg.expect("You board the ship and sail to Musa Point."))
             local sail_r, sail_d = t.await({
                 level = function()
-                    return t.chat.kind() == "mesbox"
+                    local tr, tt = t.world.tile()
+                    return tr == "ok" and tt.x == 2956 and tt.z == 3146
                 end,
-                note = pfx .. ": the arrival mesbox after p_delay(2) + telejump",
-            }, 15)
+                note = pfx .. ": the teleport onto the Musa Point quay after the fade",
+            }, 12)
             t.step(pfx .. ".sail", sail_r == "ok" and "PASS" or "FAIL",
-                "await(chat.kind() == mesbox) -> " .. tostring(sail_r) .. " " .. tostring(sail_d))
-            t.exec(pfx .. ".arrive", t.chat.play, { "mesbox:The ship arrives at Karamja." })
-            local deck_r, deck = t.world.tile()
+                "await(on the quay) -> " .. tostring(sail_r) .. " " .. tostring(sail_d))
+            local quay_r, quay = t.world.tile()
             local coins1_r, coins1 = t.inv.count("coins")
-            t.check(pfx .. ".onDeckAtMusaPoint", deck_r == "ok" and deck.level == 1
-                    and math.abs(deck.x - 2956) <= 2 and math.abs(deck.z - 3143) <= 2
+            t.check(pfx .. ".onQuayAtMusaPoint", quay_r == "ok" and quay.level == 0
+                    and quay.x == 2956 and quay.z == 3146
                     and coins0_r == "ok" and coins1_r == "ok" and coins0 ~= nil and coins1 ~= nil and coins0 - coins1 == 30,
-                "tile " .. tile_text(deck_r, deck) .. " (want the deck 2956,3143,1), coins " .. tostring(coins0)
+                "tile " .. tile_text(quay_r, quay) .. " (want the quay 2956,3146,0), coins " .. tostring(coins0)
                     .. " -> " .. tostring(coins1) .. " (want -30)")
-            t.exec(pfx .. ".disembark", t.player.climb, { loc = "sarimshipplank_off", op_name = "Cross",
-                at = { 2956, 3144, 1 }, src = { 2956, 3143 }, dest = { 2956, 3146, 0 }, slack = 1 })
         end
 
         -- The Gnome Stronghold gate (gnome_gate.rs2 [oploc1,gnome_areagate]): a press from either

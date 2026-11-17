@@ -510,6 +510,12 @@ w239_set_map_flag(struct RsprotBuf* buf, int level, int x, int z)
     rsprot_p4_1234(buf, ((level & 0x3) << 28) | ((x & 0x3fff) << 14) | (z & 0x3fff));
 }
 
+static void
+w239_unset_map_flag(struct RsprotBuf* buf)
+{
+    rsprot_p4_1234(buf, -1);
+}
+
 /*
  * ChatFilterSettingsEncoder: p1Alt1 public, p1Alt3 trade.
  *
@@ -1132,6 +1138,7 @@ static const struct ToriRSServerWirePayload k_payload_osrs239 = {
     .if_setanim = w239_if_setanim,
     .if_setplayerhead = w239_if_setplayerhead,
     .set_map_flag = w239_set_map_flag,
+    .unset_map_flag = w239_unset_map_flag,
     .chat_filter = w239_chat_filter,
     .synth_sound = w239_synth_sound,
     .midi_song = w239_midi_song,
@@ -1254,6 +1261,7 @@ static const int k_transcribed_osrs239[] = {
      */
     PKT_NAME_SET_NPC_UPDATE_ORIGIN,
     PKT_NAME_SET_ACTIVE_WORLD,
+    PKT_NAME_PACKET_GROUP_START,
 
     /* Sailing (docs/SAILING_PLAN.md S2). Deliberately absent from revision
      * 230's list: that prot table has no world-entity packet at all, so the

@@ -143,6 +143,10 @@ CANON_IN = {
     "RESET_ANIMS": "RESET_ANIMS",
     "UPDATE_REBOOT_TIMER_V2": "UPDATE_REBOOT_TIMER",
     "SERVER_TICK_END": "SERVER_TICK_END",
+    # Each tick's world updates arrive as one group (RSProx: every tick of
+    # every 239+ session opens with `packet_group_start length=N`); the
+    # client holds the frame until all N bytes are in.
+    "PACKET_GROUP_START": "PACKET_GROUP_START",
     # One boolean byte each (HideNpcOps/HideLocOps/HideObjOpsEncoder). The
     # checked-in 239 table carried these names before the generator did.
     "HIDENPCOPS": "HIDENPCOPS",
@@ -278,6 +282,20 @@ CANON_OUT = {
     "OPPLAYER5": "OPPLAYER5",
     "OPPLAYERT": "OPPLAYERT",
     "OPPLAYERU": "OPPLAYERU",
+    # Examine: the npc's and loc's text comes back from the server as
+    # MESSAGE_GAME 28 / 29 (RSProx index 4563 [1374]). OPLOC6_V2 (242) is
+    # OPLOC6 with a three-byte id.
+    "OPNPC6": "OPNPC6",
+    "OPLOC6": "OPLOC6",
+    "OPLOC6_V2": "OPLOC6",
+    "OPOBJ6": "OPOBJ6",
+    # A boat hull's ops (index) and its examine (type); RSProx index 4128.
+    "OPWORLDENTITY1": "OPWORLDENTITY1",
+    "OPWORLDENTITY2": "OPWORLDENTITY2",
+    "OPWORLDENTITY3": "OPWORLDENTITY3",
+    "OPWORLDENTITY4": "OPWORLDENTITY4",
+    "OPWORLDENTITY5": "OPWORLDENTITY5",
+    "OPWORLDENTITY6": "OPWORLDENTITY6",
     "MESSAGE_PUBLIC": "MESSAGE_PUBLIC",
     "MESSAGE_PRIVATE": "MESSAGE_PRIVATE",
     "CLIENT_CHEAT": "CLIENT_CHEAT",

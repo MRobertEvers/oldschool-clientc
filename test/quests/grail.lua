@@ -57,8 +57,8 @@
 --   * Falador west bank: its doorway holds only the map's inactive open
 --     leaves (fai_falador_bank_door_inactive_l/r, no op), so in and out are
 --     walks. (Not Draynor's bank: see goGetExcalibur below.)
---   * Karamja is an island: seaman_lorris's paid crossing to the deck at
---     Musa Point 2956,3143,1, sarimshipplank_off ashore, the members' gate
+--   * Karamja is an island: seaman_lorris's paid fade crossing onto the
+--     Musa Point quay 2956,3146,0 (RSProx index 4378), the members' gate
 --     (membergatel 2816,3182, gates.rs2 walk-through) every crossing. Off
 --     the island by the realm's whistle (it lands under the tower) and a
 --     Camelot Teleport.
@@ -216,11 +216,12 @@ return {
         end
 
         -- Karamja: seaman_lorris's paid crossing (sailors.rs2
-        -- karamja_sailor_talk -> karamja_sailor_pay: 30 coins, p_delay(2),
-        -- p_telejump(1_46_49_12_7) = the deck at Musa Point 2956,3143,1, then
-        -- its own mesbox), the gangplank ashore (gangplank.rs2
-        -- gangplank_disembark, a north plank: 2956,3146,0), overland to the
-        -- members' gate, through it, overland to the tower.
+        -- karamja_sailor_talk -> karamja_sailor_pay: 30 coins,
+        -- ~quick_sail_musa_point, RSProx index 4378 [92..100]: the fare line
+        -- and "You board the ship and sail to Musa Point." on the paying tick,
+        -- the teleport five ticks later onto the quay 2956,3146,0, no arrival
+        -- mesbox), overland to the members' gate, through it, overland to the
+        -- tower.
         local function to_brimhaven_tower(prefix)
             t.exec("goto-" .. prefix .. ".seaman", t.player.goto_tile, 3028, 3221, 0)
             local coins0_r, coins0 = t.inv.count("coins")
@@ -232,24 +233,24 @@ return {
                 "choose:Yes please.",
                 "player:Yes please.",
             })
+            t.expect(prefix .. ".paid", t.msg.expect("You pay the boarding charge of 30 coins."))
+            t.expect(prefix .. ".boards", t.msg.expect("You board the ship and sail to Musa Point."))
             local sail_r, sail_d = t.await({
                 level = function()
-                    return t.chat.kind() == "mesbox"
+                    local tr, tt = t.world.tile()
+                    return tr == "ok" and tt.x == 2956 and tt.z == 3146
                 end,
-                note = prefix .. ": the arrival mesbox after p_delay(2) + telejump",
-            }, 15)
+                note = prefix .. ": the teleport onto the Musa Point quay after the fade",
+            }, 12)
             t.step(prefix .. ".sail", sail_r == "ok" and "PASS" or "FAIL",
-                "await(chat.kind() == mesbox) -> " .. tostring(sail_r) .. " " .. tostring(sail_d))
-            t.exec(prefix .. ".arrive", t.chat.play, { "mesbox:The ship arrives at Karamja." })
-            local deck_r, deck = t.world.tile()
+                "await(on the quay) -> " .. tostring(sail_r) .. " " .. tostring(sail_d))
+            local quay_r, quay = t.world.tile()
             local coins1_r, coins1 = t.inv.count("coins")
-            t.check(prefix .. ".onDeckAtMusaPoint", deck_r == "ok" and deck.level == 1
-                    and math.abs(deck.x - 2956) <= 2 and math.abs(deck.z - 3143) <= 2
+            t.check(prefix .. ".onQuayAtMusaPoint", quay_r == "ok" and quay.level == 0
+                    and quay.x == 2956 and quay.z == 3146
                     and coins0_r == "ok" and coins1_r == "ok" and coins0 - coins1 == 30,
-                "tile " .. tile_text(deck_r, deck) .. " (want the deck 2956,3143,1), coins " .. tostring(coins0)
+                "tile " .. tile_text(quay_r, quay) .. " (want the quay 2956,3146,0), coins " .. tostring(coins0)
                     .. " -> " .. tostring(coins1) .. " (want -30)")
-            t.exec(prefix .. ".disembark", t.player.climb, { loc = "sarimshipplank_off", op_name = "Cross",
-                at = { 2956, 3144, 1 }, src = { 2956, 3143 }, dest = { 2956, 3146, 0 }, slack = 1 })
             t.exec("goto-" .. prefix .. ".memberGate", t.player.goto_tile, 2818, 3182, 0)
             t.exec(prefix .. ".memberGate", t.player.cross_gate, { loc = "membergatel", at = { 2816, 3182, 0 },
                 near = { 2817, 3182 }, far_ok = function(tile) return tile.x <= 2815 end,

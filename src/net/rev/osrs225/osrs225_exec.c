@@ -136,18 +136,21 @@
 #include "packets/oploc3.h"
 #include "packets/oploc4.h"
 #include "packets/oploc5.h"
+#include "packets/oploc6.h"
 #include "packets/oploct.h"
 #include "packets/opnpc1.h"
 #include "packets/opnpc2.h"
 #include "packets/opnpc3.h"
 #include "packets/opnpc4.h"
 #include "packets/opnpc5.h"
+#include "packets/opnpc6.h"
 #include "packets/opnpct.h"
 #include "packets/opobj1.h"
 #include "packets/opobj2.h"
 #include "packets/opobj3.h"
 #include "packets/opobj4.h"
 #include "packets/opobj5.h"
+#include "packets/opobj6.h"
 #include "packets/opobjt.h"
 #include "packets/opplayer1.h"
 #include "packets/opplayer2.h"
@@ -2956,6 +2959,24 @@ out_opnpc5(struct ProtoOutArgs const* a, RsprotBuf* b)
     return 1;
 }
 
+/* OPNPC6, opcode 17 */
+static int
+out_opnpc6(struct ProtoOutArgs const* a, RsprotBuf* b)
+{
+    MsgOpNpc6 m;
+    RsprotExec x;
+
+    memset(&m, 0, sizeof(m));
+    w_opnpc6(&m, a);
+    rsprot_exec_encode(&x, b);
+    packet_opnpc6_osrs225_in(&x, &m);
+    if( b->err )
+        return 0; /* it does not fit the caller's buffer */
+    /* Arguments the layout cannot carry are the caller's bug. */
+    assert(rsprot_exec_ok(&x));
+    return 1;
+}
+
 /* OPNPCT, opcode 33 */
 static int
 out_opnpct(struct ProtoOutArgs const* a, RsprotBuf* b)
@@ -3064,6 +3085,24 @@ out_oploc5(struct ProtoOutArgs const* a, RsprotBuf* b)
     return 1;
 }
 
+/* OPLOC6, opcode 99 */
+static int
+out_oploc6(struct ProtoOutArgs const* a, RsprotBuf* b)
+{
+    MsgOpLoc6 m;
+    RsprotExec x;
+
+    memset(&m, 0, sizeof(m));
+    w_oploc6(&m, a);
+    rsprot_exec_encode(&x, b);
+    packet_oploc6_osrs225_in(&x, &m);
+    if( b->err )
+        return 0; /* it does not fit the caller's buffer */
+    /* Arguments the layout cannot carry are the caller's bug. */
+    assert(rsprot_exec_ok(&x));
+    return 1;
+}
+
 /* OPLOCT, opcode 59 */
 static int
 out_oploct(struct ProtoOutArgs const* a, RsprotBuf* b)
@@ -3165,6 +3204,24 @@ out_opobj5(struct ProtoOutArgs const* a, RsprotBuf* b)
     w_opobj5(&m, a);
     rsprot_exec_encode(&x, b);
     packet_opobj5_osrs225_in(&x, &m);
+    if( b->err )
+        return 0; /* it does not fit the caller's buffer */
+    /* Arguments the layout cannot carry are the caller's bug. */
+    assert(rsprot_exec_ok(&x));
+    return 1;
+}
+
+/* OPOBJ6, opcode 19 */
+static int
+out_opobj6(struct ProtoOutArgs const* a, RsprotBuf* b)
+{
+    MsgOpObj6 m;
+    RsprotExec x;
+
+    memset(&m, 0, sizeof(m));
+    w_opobj6(&m, a);
+    rsprot_exec_encode(&x, b);
+    packet_opobj6_osrs225_in(&x, &m);
     if( b->err )
         return 0; /* it does not fit the caller's buffer */
     /* Arguments the layout cannot carry are the caller's bug. */
@@ -4509,7 +4566,9 @@ static int16_t const k_out_wire1[PKTOUT_NAME_COUNT] = {
     [PKTOUT_NAME_INV_BUTTOND] = 15,
     [PKTOUT_NAME_OPLOCU] = 16,
     [PKTOUT_NAME_OPOBJ3] = 17,
+    [PKTOUT_NAME_OPNPC6] = 18,
     [PKTOUT_NAME_IF_BUTTON] = 19,
+    [PKTOUT_NAME_OPOBJ6] = 20,
     [PKTOUT_NAME_OPNPC4] = 21,
     [PKTOUT_NAME_IF_BUTTON6] = 22,
     [PKTOUT_NAME_SEND_PING_REPLY] = 23,
@@ -4575,6 +4634,7 @@ static int16_t const k_out_wire1[PKTOUT_NAME_COUNT] = {
     [PKTOUT_NAME_CLICK_WORLD_MAP] = 95,
     [PKTOUT_NAME_MOVE_MINIMAPCLICK] = 97,
     [PKTOUT_NAME_AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL] = 99,
+    [PKTOUT_NAME_OPLOC6] = 100,
 };
 
 static int16_t const k_out_size[TOP] = {
@@ -4732,7 +4792,9 @@ static int (*const k_out[PKTOUT_NAME_COUNT])(struct ProtoOutArgs const* a, Rspro
     [PKTOUT_NAME_OPPLAYER7] = out_opplayer7,
     [PKTOUT_NAME_INV_BUTTOND] = out_if_buttond,
     [PKTOUT_NAME_OPOBJ3] = out_opobj3,
+    [PKTOUT_NAME_OPNPC6] = out_opnpc6,
     [PKTOUT_NAME_IF_BUTTON] = out_if_button,
+    [PKTOUT_NAME_OPOBJ6] = out_opobj6,
     [PKTOUT_NAME_OPNPC4] = out_opnpc4,
     [PKTOUT_NAME_IF_BUTTON6] = out_if_button6,
     [PKTOUT_NAME_SEND_PING_REPLY] = out_send_ping_reply,
@@ -4792,6 +4854,7 @@ static int (*const k_out[PKTOUT_NAME_COUNT])(struct ProtoOutArgs const* a, Rspro
     [PKTOUT_NAME_CLICK_WORLD_MAP] = out_clickworldmap,
     [PKTOUT_NAME_MOVE_MINIMAPCLICK] = out_move_minimapclick,
     [PKTOUT_NAME_AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL] = out_affinedclansettings_addbanned_fromchannel,
+    [PKTOUT_NAME_OPLOC6] = out_oploc6,
 };
 
 /* clang-format on */

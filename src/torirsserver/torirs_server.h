@@ -942,6 +942,13 @@ enum
      * writers only.
      */
     TORIRSSERVER_PMASK_HEADBAR_CLEAR = 0x4000,
+    /*
+     * MOVE_SPEED, the player's own (permanent) traversal changed: the run orb
+     * with energy left (2) or not (1). Jagex sends it on the change and the
+     * client keeps it; a step at that speed then carries no TEMP_MOVE_SPEED
+     * (RSProx index 4378: `move_speed=run` at login, [run] steps bare).
+     */
+    TORIRSSERVER_PMASK_MOVE_SPEED = 0x8000,
 };
 
 /** The masks the classic (rev-230) PLAYER_INFO writer can express. */
@@ -1643,6 +1650,9 @@ struct ToriRSServerNpcInfo
 {
     /** Never NULL from ToriRSServer_NpcInfo(); unknown ids report a placeholder. */
     const char* name;
+    /** Examine text (config opcode 3, content's configs/examine.npc baked into
+     *  the record), or NULL: Jagex answers OPNPC6 with it (MESSAGE_GAME 28). */
+    const char* desc;
     int combat_level;
     int size;
     /**
@@ -1884,6 +1894,14 @@ ToriRSServer_LocInfoParamOverlay(int loc_id, int param_id, int value);
  */
 const char*
 ToriRSServer_LocName(int loc_id);
+
+/**
+ * The loc's examine text (config opcode 3: content's configs/examine.loc,
+ * baked into the record), or NULL when it has none. Jagex answers OPLOC6 with
+ * it (MESSAGE_GAME 29). Borrowed, valid until `ToriRSServer_LocInfoFree`.
+ */
+const char*
+ToriRSServer_LocDesc(int loc_id);
 
 /**
  * The record's **unrotated** footprint. Writes 1x1 — the decoder's own default
@@ -4117,6 +4135,9 @@ struct ToriRSServerPlayer
      *  the client puts on a move request. Mirrored into varp 173 so the orb
      *  draws itself lit. */
     int run_toggle;
+    /** The permanent move speed the clients were last told (MOVE_SPEED,
+     *  1 walk / 2 run); 1, the client's default, until the first change. */
+    int move_speed_sent;
     /** 0..TORIRSSERVER_RUN_ENERGY_MAX. */
     int run_energy;
     /* No prayer state here. The cache's `prayer_<name>` varbits ARE the
@@ -6407,6 +6428,23 @@ ToriRSServer_WorldSetTutorialHome(
  */
 void
 ToriRSServer_WorldPlaceNewCharacter(struct ToriRSServerPlayer* player);
+
+/**
+ * The value a player's varp holds before anything writes it: content's enum
+ * `varp_defaults` (varp id -> value), else 0. Jagex starts ~250 varps at -1
+ * and sends them in the login (RSProx: `old=0, new=-1` in every session's
+ * login tick -- hpbar_hud_show_extra_bar, ownedmcannon, follower_npc, ...).
+ */
+int32_t
+ToriRSServer_WorldVarpDefault(int varp);
+
+/**
+ * Put every `varp_defaults` value into the player's table, raw (no packet:
+ * the login burst sends every transmitted non-zero varp). Called before the
+ * save is read, so a saved value -- including a saved 0 -- wins.
+ */
+void
+ToriRSServer_WorldVarpDefaults(struct ToriRSServerPlayer* player);
 
 /**
  * Take a pool slot and hand it its session.
@@ -10090,6 +10128,24 @@ ToriRSServer_SendSetMapFlag(
     int local_z);
 void
 ToriRSServer_SendTickEnd(struct ToriRSServerPlayer* player);
+
+/**
+ * PACKET_GROUP_START: the packets sent between Begin and End reach the client
+ * as one group, announced by their total on-wire size, as Jagex sends each
+ * tick's world updates (RSProx, every tick of every 239+ session:
+ * `packet_group_start length=N`, SET_ACTIVE_WORLD, the rebuild, PLAYER_INFO,
+ * NPC_INFO, the zone updates, `packet_group_end bytesconsumed=N`). The client
+ * holds its frame until all N bytes are in, so the group applies together.
+ *
+ * The members are queued as they are sent and written at End, after the
+ * header, so the cipher, the recording and every capture see the wire's
+ * order. A revision without the packet, or a group past 65,535 bytes (its u2
+ * length), goes out ungrouped. Groups do not nest.
+ */
+void
+ToriRSServer_PacketGroupBegin(struct ToriRSServerPlayer* player);
+void
+ToriRSServer_PacketGroupEnd(struct ToriRSServerPlayer* player);
 
 /*
  * Social. The five server->client packets of the friend / ignore / private-chat

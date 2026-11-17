@@ -8,6 +8,7 @@
 
 #include "app/app_internal.h"
 #include "platform/platform_web_telemetry.h"
+#include "net/proto/proto_out.h"
 
 /* Private to this unit, declared up front so definition order is free. */
 static bool
@@ -2511,6 +2512,40 @@ app_minimenu_run_option(
      * them in the npc and loc archives. A pristine cache therefore still shows
      * the fallback, and a content-baked one does not.
      */
+    /*
+     * An npc's and a loc's examine are the SERVER's, as Jagex's client has it
+     * (deob menu ops 1002 / 1013 build OPNPC6 / OPLOC6 and print the reply;
+     * RSProx index 4563 [1374]: MESSAGE_GAME 28 npc_examine, 4558 [4366]: 29
+     * loc_examine). Connected to a world whose revision has the packet, send
+     * it and print nothing here; offline, or a revision without it, the
+     * record's own text below. An obj states its own examine in the cache.
+     */
+    if( (opt.action == REVCONFIG_MINIMENU_OPLOC6 || opt.action == REVCONFIG_MINIMENU_OPNPC6) &&
+        app->world && app->net && app->net->state == TORIRS_NET_GAME &&
+        proto_out_has(app->net->rev,
+                      opt.action == REVCONFIG_MINIMENU_OPNPC6 ? PKTOUT_NAME_OPNPC6 : PKTOUT_NAME_OPLOC6) )
+    {
+        if( opt.action == REVCONFIG_MINIMENU_OPLOC6 )
+        {
+            struct World* loc_world =
+                opt.pick.view_id != 0 ? app_minimenu_view_world(app, opt.pick.view_id) : app->world;
+            struct WorldEntity_Scenery* scenery =
+                loc_world ? World_SceneryGetByElementId(loc_world, opt.pick.id) : NULL;
+
+            if( scenery )
+                APP_NET_SEND(app, net_out_oploc6(app->net->rev, app->net->random_out, _nsbuf,
+                                                 sizeof(_nsbuf), scenery->loc_id));
+        }
+        else
+        {
+            struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, opt.pick.id, NULL);
+
+            if( npc )
+                APP_NET_SEND(app, net_out_opnpc6(app->net->rev, app->net->random_out, _nsbuf,
+                                                 sizeof(_nsbuf), npc->npc_id));
+        }
+        return 0;
+    }
     if( opt.action == REVCONFIG_MINIMENU_OPLOC6 || opt.action == REVCONFIG_MINIMENU_OPNPC6 ||
         opt.action == REVCONFIG_MINIMENU_OPOBJ6 )
     {
@@ -3162,13 +3197,26 @@ app_minimenu_run_option(
          */
         if( app->net && Wevs_IsLive(&app->wevs, opt.pick.id) )
         {
-            char op_cmd[32];
+            /* OPWORLDENTITY1..5 with the hull's index, as Jagex's client sends
+             * a hull's op (RSProx index 4128, rev 238). A revision without
+             * them still speaks the cheat line. */
+            if( opt.pick.secondary_id >= 0 && opt.pick.secondary_id < 5 &&
+                proto_out_has(app->net->rev, PKTOUT_NAME_OPWORLDENTITY1 + opt.pick.secondary_id) )
+            {
+                APP_NET_SEND(app, net_out_opworldentity(app->net->rev, app->net->random_out, _nsbuf,
+                                                         sizeof(_nsbuf), opt.pick.secondary_id + 1,
+                                                         opt.pick.id));
+            }
+            else
+            {
+                char op_cmd[32];
 
-            snprintf(op_cmd, sizeof(op_cmd), "vesselop %d %d", opt.pick.id, opt.pick.secondary_id);
-            APP_NET_SEND(
-                app,
-                net_out_client_cheat(
-                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), op_cmd));
+                snprintf(op_cmd, sizeof(op_cmd), "vesselop %d %d", opt.pick.id, opt.pick.secondary_id);
+                APP_NET_SEND(
+                    app,
+                    net_out_client_cheat(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), op_cmd));
+            }
             app_cross_show(app, UI_CROSS_INTERACT, click_x, click_y, opt.text);
         }
         return 0;

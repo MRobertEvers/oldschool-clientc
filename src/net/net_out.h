@@ -397,6 +397,31 @@ net_out_opnpc(
     int cap,
     int op_num,
     int npc_slot);
+/* A boat hull's op 1..5 (OPWORLDENTITY1..5), by world-entity index. */
+int
+net_out_opworldentity(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int op_num,
+    int index);
+/* Examine: the revision's OPNPC6 / OPLOC6 (proto_out_has tells whether it
+ * has one). The text is the server's reply. */
+int
+net_out_opnpc6(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int npc_type);
+int
+net_out_oploc6(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int loc_id);
 int
 net_out_opnpct(
     struct GameProtoRevTable const* rev,

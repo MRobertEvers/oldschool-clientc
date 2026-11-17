@@ -143,6 +143,8 @@ free_packet_list(struct ToriRS_Network* net)
     }
     net->packets_head = NULL;
     net->packets_tail = NULL;
+    net->group_open = 0;
+    net->group_left = 0;
 }
 
 void
@@ -483,6 +485,9 @@ loginproto_drive(struct ToriRS_Network* net)
         net->resume_in_flight = 0;
         login_free(net);
         packetbuffer_init(&net->packet_buffer, net->random_in, net->rev);
+        /* A new game stream: no group is open on it. */
+        net->group_open = 0;
+        net->group_left = 0;
         net->state = TORIRS_NET_GAME;
     }
     else if( poll_result == LOGINPROTO_ERROR )
@@ -515,7 +520,9 @@ push_parsed_packet(
     struct RevPacket const* packet)
 {
     struct RevPacketItem* item = ToriMem_Alloc(ToriMem_Net(), sizeof(*item));
+    assert(item);
     item->packet = *packet;
+    item->held = net->group_open;
     item->next_nullable = NULL;
     if( net->packets_tail )
         net->packets_tail->next_nullable = item;
@@ -597,6 +604,17 @@ net_process_packets(struct ToriRS_Network* net)
 
             assert(net->rev->parse_wire);
             parsed = net->rev->parse_wire(net->rev, wire, pdata, psize, &packet);
+            if( parsed > 0 && packet.packet_type == PKT_NAME_PACKET_GROUP_START )
+            {
+                /* Groups do not nest; one that opens inside another is a
+                 * stream out of step. */
+                assert(!net->group_open);
+                if( packet._packet_group_start.length > 0 )
+                {
+                    net->group_open = 1;
+                    net->group_left = packet._packet_group_start.length;
+                }
+            }
             if( parsed > 0 )
             {
                 /* Owned payloads transfer to the queued copy; the stack one
@@ -630,7 +648,19 @@ gameproto_drain(
         consumed = packetbuffer_read(&net->packet_buffer, (uint8_t*)data, remaining);
         data += consumed;
         remaining -= consumed;
+        /* Counted before the packet is processed: the group's header opens
+         * the group in net_process_packets, so its own bytes are not. */
+        if( net->group_open )
+            net->group_left -= consumed;
         net_process_packets(net);
+        if( net->group_open && net->group_left <= 0 )
+        {
+            /* All of it is in: the members go out together. */
+            assert(net->group_left == 0);
+            net->group_open = 0;
+            for( struct RevPacketItem* it = net->packets_head; it; it = it->next_nullable )
+                it->held = 0;
+        }
     } while( consumed > 0 && remaining > 0 );
 
     return size - remaining;
@@ -712,7 +742,7 @@ ToriRS_Network_PopPacket(
 
     assert(net && out);
     item = net->packets_head;
-    if( !item )
+    if( !item || item->held )
         return 0;
 
     net->packets_head = item->next_nullable;

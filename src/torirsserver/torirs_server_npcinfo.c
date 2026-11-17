@@ -255,6 +255,11 @@ npc_load_record(
         g_npcs[id].name = ToriMem_Strdup(ToriMem_ServerContent(), npc->name);
         assert(g_npcs[id].name);
     }
+    if( npc->desc && npc->desc[0] )
+    {
+        g_npcs[id].desc = ToriMem_Strdup(ToriMem_ServerContent(), npc->desc);
+        assert(g_npcs[id].desc);
+    }
     g_npcs[id].combat_level = npc->combat_level;
     g_npcs[id].size = npc->size > 0 ? npc->size : 1;
     g_npcs[id].turnspeed = npc->rotation_speed;
@@ -362,6 +367,7 @@ ToriRSServer_NpcInfoFree(void)
         for( int i = 0; i < g_npc_count; i++ )
         {
             ToriMem_Free(ToriMem_ServerContent(), (void*)g_npcs[i].name);
+            ToriMem_Free(ToriMem_ServerContent(), (void*)g_npcs[i].desc);
             ToriMem_Free(ToriMem_ServerContent(), g_npcs[i].transforms);
             for( int op = 0; op < 5; op++ )
                 ToriMem_Free(ToriMem_ServerContent(), (void*)g_npcs[i].ops[op]);

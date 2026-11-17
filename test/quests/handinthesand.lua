@@ -17,7 +17,8 @@
 --   * Sandy's office (handsand_desk 2788,3174 is solid) is entered by its doorway: poshdooropen
 --     2790,3177, placed open by the map (m43_49), pass_door reads it standing open.
 --   * Port Sarim (Rarve's teleport, handsand_rarve.rs2:160) -> Brimhaven: seaman_lorris 3028,3221
---     (30 coins, deck 2956,3143,1, sarimshipplank_off), the Karamja members' gate membergatel 2816,3182.
+--     (30 coins, the fade crossing onto the Musa Point quay 2956,3146,0, RSProx index 4378), the
+--     Karamja members' gate membergatel 2816,3182.
 --   * Entrana: Yanille -> the Taverley gate southward (membergater 2933,3320, seaslug.lua) -> the
 --     Port Sarim shipmonk 3045,3236 (deck 2834,3331,1, ship_from_entrana_off), Mazion 2818,3342
 --     (REACH 25); back by shipmonk2 2832,3336 (deck 3048,3231,1, ship_to_entrana_off) and the gate
@@ -97,6 +98,26 @@ return {
             }, 15)
             t.step(name .. ".sail", r == "ok" and "PASS" or "FAIL",
                 "await(chat.kind() == mesbox) -> " .. tostring(r) .. " " .. tostring(d))
+        end
+        -- The Port Sarim -> Musa Point passenger ship (~quick_sail, RSProx index 4378 [92..100]):
+        -- both lines on the paying tick, the teleport five ticks later onto the quay at level 0,
+        -- no arrival mesbox.
+        local function quay_wait(name, x, z, coins_before)
+            local r, d = t.await({
+                level = function()
+                    local tr, tt = t.world.tile()
+                    return tr == "ok" and tt.x == x and tt.z == z
+                end,
+                note = name .. ": the teleport onto the quay after the fade",
+            }, 12)
+            t.step(name .. ".sail", r == "ok" and "PASS" or "FAIL",
+                "await(on the quay) -> " .. tostring(r) .. " " .. tostring(d))
+            local qr, quay = t.world.tile()
+            local coins = coins_now()
+            t.check(name .. ".onQuay", qr == "ok" and quay.level == 0 and quay.x == x and quay.z == z
+                    and coins_before - coins == 30,
+                "tile " .. tile_text(qr, quay) .. " (want the quay " .. x .. "," .. z .. ",0), coins "
+                    .. tostring(coins_before) .. " -> " .. tostring(coins) .. " (want -30)")
         end
         -- Ardougne -> Brimhaven: captain_barnaby (ardougne_east_thin.rs2, legends.lua).
         local function barnaby_to_brimhaven(name)
@@ -373,7 +394,8 @@ return {
         t.var.expect("varb1532_handsand_serum", 5)
 
         -- Sandy: out of Betty's doorway, seaman_lorris's boat to Musa Point (sailors.rs2
-        -- karamja_sailor_pay, deck 2956,3143,1), the gangplank, the Karamja members' gate, the office
+        -- karamja_sailor_pay -> ~quick_sail onto the quay 2956,3146,0), the Karamja members' gate,
+        -- the office
         t.exec("talkToSandyWithPotion.shopOut", t.player.walk_to, 3018, 3259, 20)
         t.exec("goto-talkToSandyWithPotion.seaman", t.player.goto_tile, 3028, 3221, 0)
         do
@@ -386,13 +408,10 @@ return {
                 "choose:Yes please.",
                 "player:Yes please.",
             })
-            t.expect("talkToSandyWithPotion.seaman.paid", t.msg.expect("You pay 30 coins and board the ship"))
-            sail_wait("talkToSandyWithPotion.seaman")
-            t.exec("talkToSandyWithPotion.seaman.arrive", t.chat.play, { "mesbox:The ship arrives at Karamja." })
-            deck_check("talkToSandyWithPotion.seaman.onDeck", 2956, 3143, c0)
+            t.expect("talkToSandyWithPotion.seaman.paid", t.msg.expect("You pay the boarding charge of 30 coins."))
+            t.expect("talkToSandyWithPotion.seaman.boards", t.msg.expect("You board the ship and sail to Musa Point."))
+            quay_wait("talkToSandyWithPotion.seaman", 2956, 3146, c0)
         end
-        t.exec("talkToSandyWithPotion.disembark", t.player.climb, { loc = "sarimshipplank_off", op_name = "Cross",
-            at = { 2956, 3144, 1 }, src = { 2956, 3143 }, dest = { 2956, 3146, 0 }, slack = 1 })
         t.exec("goto-talkToSandyWithPotion.karamjaGate", t.player.goto_tile, 2818, 3182, 0)
         t.exec("talkToSandyWithPotion.karamjaGate", t.player.cross_gate, { loc = "membergatel", at = { 2816, 3182, 0 },
             near = { 2817, 3182 }, far_ok = function(tile) return tile.x <= 2815 end,

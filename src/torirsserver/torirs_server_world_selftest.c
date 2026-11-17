@@ -46083,28 +46083,29 @@ ToriRSServer_WorldSelftest(void)
             }
 
             /*
-             * A running player who only had one tile to take this tick is a
-             * WALK on the rev-239 wire.
+             * MOVE_SPEED and TEMP_MOVE_SPEED as Jagex sends them (RSProx index
+             * 4378, rev 241): the player's own speed (the run orb) goes once,
+             * as MOVE_SPEED; a step AT that speed carries nothing, a step at
+             * another speed carries TEMP_MOVE_SPEED. So with the orb on, a
+             * two-tile run is bare and a one-tile step is `temp=walk` [3887];
+             * with it off, a two-tile `p_temprun` step is `temp=run`.
              *
-             * TEMP_MOVE_SPEED=2 is the traversal for a tick in which a SECOND
-             * tile was actually taken -- Zenyte's TemporaryMovementMask is
-             * `runDirection != -1 ? 2 : 1`, Kronos sets 2 only when its second
-             * `step()` succeeded. This writer used to stamp 2 on any move while
-             * `running`, and the everyday one-tile move is exactly the follower
-             * closing on a walking target: the client covered each of those in
-             * 15 cycles at run speed and stood still for the other 15, which is
-             * the stop-and-go every chase in the game had.
+             * The one-tile case is not cosmetic: the client moves a RUN step
+             * at speed 8, so a running follower's one-tile step covered in 15
+             * cycles left it standing for the other 15 -- every chase in the
+             * game stuttered.
              *
-             * Asserted on the flag word rather than the traversal byte itself
-             * because the flag is what decides whether the byte exists at all.
-             * 0x1000 is EXTINFO_TEMP_MOVE_SPEED, so it lives in the SECOND flag
-             * byte, which is only present when the first has NEXT_BYTE set.
+             * Asserted on the tail of the rev-239 packet: nothing else in this
+             * stanza flags extended info, so the block is either absent (the
+             * packet ends on the movement bits) or [0x08 NEXT_BYTE_1, 0x10
+             * (TEMP_MOVE_SPEED 0x1000 >> 8), speed].
              */
-            fprintf(stderr, "ToriRSServer selftest: a one-tile move by a running player is a WALK\n");
+            fprintf(stderr, "ToriRSServer selftest: MOVE_SPEED is the orb, TEMP_MOVE_SPEED the odd step\n");
             {
                 static struct ToriRSServerCapture speed_capture;
                 const struct ToriRSServerWire* saved_wire = srv->wire;
                 const struct ToriRSServerWire* wire239 = ToriRSServer_WireByName("osrs239");
+                int saved_move_speed_sent = player->move_speed_sent;
                 int saved_running = player->running;
                 int saved_move_count = player->move_count;
                 int saved_place_dirty = player->place_dirty;
@@ -46118,8 +46119,11 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(wire239 != NULL, "the one-tile-run stanza needs wire 239");
                 if( wire239 )
                 {
-                    static const int k_moves[2] = { 1, 2 };
-                    for( int i = 0; i < 2; i++ )
+                    /* perm (the orb's speed), tiles moved, the temp speed
+                     * expected (0: no extended block). */
+                    static const int k_cases[4][3] = {
+                        { 2, 2, 0 }, { 2, 1, 1 }, { 1, 2, 2 }, { 1, 1, 0 } };
+                    for( int i = 0; i < 4; i++ )
                     {
                         const struct ToriRSServerCapturedPacket* packet = NULL;
                         int opcode;
@@ -46128,15 +46132,16 @@ ToriRSServer_WorldSelftest(void)
 
                         srv->wire = wire239;
                         player->running = 1;
+                        player->move_speed_sent = k_cases[i][0];
                         player->place_dirty = 0;
                         player->masks = 0;
                         player->v5_playerinfo_sent = 1;
                         player->v5_last_level = player->level;
                         /* Pretend the tick moved the player k_moves[i] tiles
                          * east: the writer measures the delta against v5_last. */
-                        player->v5_last_x = player->x - k_moves[i];
+                        player->v5_last_x = player->x - k_cases[i][1];
                         player->v5_last_z = player->z;
-                        player->move_count = k_moves[i];
+                        player->move_count = k_cases[i][1];
 
                         ToriRSServer_CaptureBegin(srv, &speed_capture);
                         ToriRSServer_SendPlayerInfo(player);
@@ -46145,41 +46150,24 @@ ToriRSServer_WorldSelftest(void)
                         opcode = ToriRSServer_WireOpcode(wire239, PKT_NAME_PLAYER_INFO);
                         at = ToriRSServer_CaptureFind(&speed_capture, opcode, 0);
                         SELFTEST_CHECK(at >= 0, "rev-239 should emit PLAYER_INFO for a %d-tile move",
-                                       k_moves[i]);
+                                       k_cases[i][1]);
                         if( at >= 0 )
                             packet = &speed_capture.packets[at];
-                        /*
-                         * The extended block sits at the tail: nothing else in
-                         * this stanza's payload flags extended info, so the
-                         * flag word is either one byte (no NEXT_BYTE) or two,
-                         * and the traversal byte -- when present -- is the
-                         * final byte. Two-tile: [.., 0x08 (NEXT_BYTE_1), 0x10
-                         * (TEMP_MOVE_SPEED >> 8), 2]. One-tile: no extended
-                         * block at all, so the packet ends on the movement
-                         * bits.
-                         */
                         if( packet && packet->len >= 3 )
                         {
                             int lo = packet->data[packet->len - 3];
                             int hi = packet->data[packet->len - 2];
                             int val = packet->data[packet->len - 1];
-                            if( lo == 0x08 && hi == 0x10 && val == 2 )
-                                flag_hi = 1;
-                            else
-                                flag_hi = 0;
+                            flag_hi = (lo == 0x08 && hi == 0x10) ? val : 0;
                         }
-                        if( k_moves[i] == 2 )
-                            SELFTEST_CHECK(flag_hi == 1,
-                                           "a two-tile move by a running player carries "
-                                           "TEMP_MOVE_SPEED=2");
-                        else
-                            SELFTEST_CHECK(flag_hi == 0,
-                                           "a one-tile move by a running player carries NO "
-                                           "temp move speed (it is a WALK on the wire)");
+                        SELFTEST_CHECK(flag_hi == k_cases[i][2],
+                                       "orb speed %d, %d tile(s): TEMP_MOVE_SPEED %d (0 = none), got %d",
+                                       k_cases[i][0], k_cases[i][1], k_cases[i][2], flag_hi);
                     }
                 }
 
                 srv->wire = saved_wire;
+                player->move_speed_sent = saved_move_speed_sent;
                 player->running = saved_running;
                 player->move_count = saved_move_count;
                 player->place_dirty = saved_place_dirty;
