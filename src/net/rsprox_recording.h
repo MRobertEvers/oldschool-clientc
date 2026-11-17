@@ -104,6 +104,9 @@ struct RsproxRecordingInput
     /** The server packets before it: it goes after frames[frame - 1]. */
     int frame;
     int opcode;
+    /** Its payload: `length` bytes at data[offset]. */
+    uint32_t offset;
+    uint32_t length;
 };
 
 struct RsproxRecording
@@ -203,6 +206,30 @@ RsproxRecording_Mobile(struct RsproxRecording const* rec);
  *  when there is none. */
 struct GameProtoRevTable const*
 RsproxRecording_Rev(struct RsproxRecording const* rec);
+
+/**
+ * The window class the recorder's client was in when it sent inputs[input_end]
+ * (an indexed recording, `rev` the table it was indexed with): the last
+ * WINDOW_STATUS before it, else the first one after (the client was in that
+ * class from its boot), else 0 when the recording has none. WINDOW_STATUS's
+ * own values: 1 fixed, 2 resizable (CS2VM_WINDOW_MODE_FIXED / _RESIZABLE).
+ *
+ * A desktop recording's only statement of it. Not a phone's: our phone client
+ * sends its Display latch there, 0 -> 1, while it runs resizable.
+ */
+int
+RsproxRecording_WindowModeBefore(
+    struct RsproxRecording const* rec,
+    struct GameProtoRevTable const* rev,
+    int input_end);
+
+/** inputs[i]'s window class when it is a WINDOW_STATUS (1 fixed, 2 resizable),
+ *  else 0. */
+int
+RsproxRecording_InputWindowMode(
+    struct RsproxRecording const* rec,
+    struct GameProtoRevTable const* rev,
+    int i);
 
 /** RsproxRecording_Rev's name, or NULL. */
 char const*

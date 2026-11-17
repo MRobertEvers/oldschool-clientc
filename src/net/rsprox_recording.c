@@ -379,6 +379,8 @@ RsproxRecording_Index(
             in = &rec->inputs[rec->client_packet_count++];
             in->frame = rec->frame_count;
             in->opcode = opcode;
+            in->offset = (uint32_t)r.pos;
+            in->length = (uint32_t)size;
         }
         r.pos += (size_t)size;
     }
@@ -393,6 +395,56 @@ RsproxRecording_Mobile(struct RsproxRecording const* rec)
     assert(rec);
     return rec->client_type == RSPROX_RECORDING_CLIENT_ENHANCED_ANDROID ||
            rec->client_type == RSPROX_RECORDING_CLIENT_ENHANCED_IOS;
+}
+
+int
+RsproxRecording_InputWindowMode(
+    struct RsproxRecording const* rec,
+    struct GameProtoRevTable const* rev,
+    int i)
+{
+    struct RsproxRecordingInput const* in;
+    int mode;
+
+    assert(rec);
+    assert(rev);
+    assert(rev->packetout_code);
+    assert(i >= 0);
+    assert(i < rec->client_packet_count);
+    in = &rec->inputs[i];
+    if( in->opcode != rev->packetout_code(PKTOUT_NAME_WINDOW_STATUS) || in->length < 1 )
+        return 0;
+    /* Every layout of it opens with p1 window_mode (3rd/rsprot/packets/
+     * window_status.c, desktop and mobile alike). */
+    mode = rec->data[in->offset];
+    return mode == 1 || mode == 2 ? mode : 0;
+}
+
+int
+RsproxRecording_WindowModeBefore(
+    struct RsproxRecording const* rec,
+    struct GameProtoRevTable const* rev,
+    int input_end)
+{
+    assert(rec);
+    assert(rev);
+    assert(input_end >= 0);
+    assert(input_end <= rec->client_packet_count);
+    for( int i = input_end - 1; i >= 0; i-- )
+    {
+        int const mode = RsproxRecording_InputWindowMode(rec, rev, i);
+
+        if( mode )
+            return mode;
+    }
+    for( int i = input_end; i < rec->client_packet_count; i++ )
+    {
+        int const mode = RsproxRecording_InputWindowMode(rec, rev, i);
+
+        if( mode )
+            return mode;
+    }
+    return 0;
 }
 
 struct GameProtoRevTable const*

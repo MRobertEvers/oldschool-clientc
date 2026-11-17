@@ -108,6 +108,12 @@ enum ReplayNext
      *  and step.name. A REPLAY_CHAT control frame at this byte
      *  of the stream. */
     REPLAY_NEXT_CHAT,
+    /** The recorder's client's window class from here on (step.window_mode,
+     *  1 fixed or 2 resizable): a recorded WINDOW_STATUS, or the class in
+     *  effect where a rewind or a checkpoint restore put the cursor. A
+     *  REPLAY_WINDOW control frame (net/torirs_control.h) at this byte of the
+     *  stream. A desktop recording's only (RsproxRecording_WindowModeBefore). */
+    REPLAY_NEXT_WINDOW,
 };
 
 struct ReplayWorldDelivery;
@@ -116,6 +122,8 @@ struct ReplayStep
 {
     int frame;
     int dialog_name;
+    /** WINDOW: 1 fixed, 2 resizable. */
+    int window_mode;
     int coord;
     int cycle;
     int cycle_first;

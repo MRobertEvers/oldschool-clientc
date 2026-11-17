@@ -798,6 +798,15 @@ play(
 
             pend_control(self, TORIRS_CONTROL_REPLAY_DIALOG, payload, len);
         }
+        else if( what == REPLAY_NEXT_WINDOW )
+        {
+            /* The recorder's client's window class from here on
+             * (torirs_control.h, REPLAY_WINDOW). */
+            uint8_t payload[TORIRS_CONTROL_REPLAY_WINDOW_BYTES];
+            int const len = torirs_control_replay_window_encode(next.window_mode, payload);
+
+            pend_control(self, TORIRS_CONTROL_REPLAY_WINDOW, payload, len);
+        }
         else if( what == REPLAY_NEXT_RESTART )
         {
             restart_session(self, bus);

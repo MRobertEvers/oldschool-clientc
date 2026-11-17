@@ -8794,6 +8794,34 @@ main_rsprox_replay_open(void)
      * TORIRS_ON_MOBILE still outrank it. */
     cfg.clienttype = rsprox_replay_rec.client_type;
     cfg.on_mobile = RsproxRecording_Mobile(&rsprox_replay_rec) ? 1 : -1;
+    /* Framed with the client's own prot tables for that revision (the table
+     * App_Init picks by cfg.rev_name), so a table that cannot frame the
+     * recording is found here, before anything boots or plays. */
+    if( RsproxRecording_Index(&rsprox_replay_rec, RsproxRecording_Rev(&rsprox_replay_rec), err,
+                              sizeof(err)) != 0 )
+    {
+        TORIRS_ERR("replay: %s: %s\n", rsprox_replay_path, err);
+        return 0;
+    }
+    /* And in the window class the recorder's client was in. It is the
+     * client's own, so only the recorder's WINDOW_STATUS says it; without
+     * this the watcher's saved class lays the recorder's toplevel out (a
+     * fixed watcher, a resizable recording: the chatbox in pieces). The
+     * transport restates it where the recording changes it and where a seek
+     * lands (REPLAY_WINDOW). --windowmode outranks it. A phone's is not its
+     * class: it runs resizable (app_boot.c). */
+    if( !RsproxRecording_Mobile(&rsprox_replay_rec) && !cfg.window_mode )
+    {
+        int const mode = RsproxRecording_WindowModeBefore(
+            &rsprox_replay_rec, RsproxRecording_Rev(&rsprox_replay_rec), 0);
+
+        if( mode )
+        {
+            cfg.window_mode = mode;
+            TORIRS_REPORT("replay: the recorder's client was %s\n",
+                          mode == CS2VM_WINDOW_MODE_FIXED ? "fixed" : "resizable");
+        }
+    }
     cfg.connect_target = "replay";
     if( !cfg.connect_user || !cfg.connect_user[0] )
         cfg.connect_user = "replay";
@@ -10694,16 +10722,9 @@ main(
 
             if( rsprox_replay_path && app.net )
             {
-                /* Framed with the client's own prot tables for the revision
-                 * main_rsprox_replay_open chose, so a table that cannot frame
-                 * the recording is found here, before anything is played. */
-                char err[256];
-
-                if( RsproxRecording_Index(&rsprox_replay_rec, app.net->rev, err, sizeof(err)) != 0 )
-                {
-                    TORIRS_ERR("replay: %s: %s\n", rsprox_replay_path, err);
-                    exit(2);
-                }
+                /* Indexed with this revision's table by main_rsprox_replay_open
+                 * (cfg.rev_name is the recording's). */
+                assert(strcmp(app.net->rev->name, RsproxRecording_RevName(&rsprox_replay_rec)) == 0);
                 /* The index each RECONNECT continues under, which a world hop
                  * changes and the recording does not state. Found with the
                  * data-driven table for the recording; it shares the session's

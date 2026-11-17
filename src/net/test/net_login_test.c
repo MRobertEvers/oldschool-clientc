@@ -626,16 +626,20 @@ test_control_replay_frames(void)
     uint8_t world_payload[TORIRS_CONTROL_REPLAY_WORLD_BYTES];
     static uint8_t chat_payload[TORIRS_CONTROL_REPLAY_CHAT_BYTES_MAX];
     uint8_t dialog_payload[TORIRS_CONTROL_REPLAY_DIALOG_BYTES];
+    uint8_t window_payload[TORIRS_CONTROL_REPLAY_WINDOW_BYTES];
     uint8_t const chat_text[5] = { 'h', 'e', 'l', 'l', 'o' };
-    int const lens[4] = {
+    int const lens[5] = {
         torirs_control_replay_coord_encode((1 << 28) | (3222 << 14) | 3218, 870, 1, "Zezima", coord_payload),
         torirs_control_replay_world_encode(2983, 17, world_payload),
         torirs_control_replay_chat_encode(1, 2, 0x0102, "", chat_text, 5, chat_payload),
         torirs_control_replay_dialog_encode(PKTOUT_NAME_RESUME_P_COUNTDIALOG, dialog_payload),
+        torirs_control_replay_window_encode(1, window_payload),
     };
-    int const types[4] = { TORIRS_CONTROL_REPLAY_COORD, TORIRS_CONTROL_REPLAY_WORLD,
-                           TORIRS_CONTROL_REPLAY_CHAT, TORIRS_CONTROL_REPLAY_DIALOG };
-    uint8_t const* const payloads[4] = { coord_payload, world_payload, chat_payload, dialog_payload };
+    int const types[5] = { TORIRS_CONTROL_REPLAY_COORD, TORIRS_CONTROL_REPLAY_WORLD,
+                           TORIRS_CONTROL_REPLAY_CHAT, TORIRS_CONTROL_REPLAY_DIALOG,
+                           TORIRS_CONTROL_REPLAY_WINDOW };
+    uint8_t const* const payloads[5] = { coord_payload, world_payload, chat_payload, dialog_payload,
+                                         window_payload };
     struct Isaac* enc = isaac_new(seed, 4);
     struct Isaac* dec = isaac_new(seed, 4);
     struct PacketBuffer pb;
@@ -643,7 +647,7 @@ test_control_replay_frames(void)
     int fed = 0;
     int seen = 0;
 
-    for( int i = 0; i < 4; i++ )
+    for( int i = 0; i < 5; i++ )
     {
         assert(torirs_control_type_is_replay(types[i]));
         total += put_opcode(enc, rev, TORIRS_CONTROL_ESCAPE, wire + total);
@@ -699,6 +703,16 @@ test_control_replay_frames(void)
                 frame.length--;
                 assert(!torirs_control_replay_dialog_decode(&frame, &name));
             }
+            else if( seen == 4 )
+            {
+                int mode = 0;
+
+                assert(torirs_control_replay_window_decode(&frame, &mode));
+                assert(mode == 1);
+                /* Not a window class. */
+                torirs_control_put_u32(frame.payload, 3);
+                assert(!torirs_control_replay_window_decode(&frame, &mode));
+            }
             else
             {
                 struct TorirsControlReplayChat c;
@@ -715,7 +729,7 @@ test_control_replay_frames(void)
         seen++;
         packetbuffer_reset(&pb);
     }
-    assert(seen == 4);
+    assert(seen == 5);
     assert(isaac_next(enc) == isaac_next(dec));
     isaac_free(enc);
     isaac_free(dec);

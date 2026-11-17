@@ -67,6 +67,12 @@ struct ReplayScrub
     struct ReplayTimeline* tl;
     /** k_dialog_names' wire opcodes in this revision (-1: not in it). */
     int dialog_wire[REPLAY_DIALOG_PROTS];
+    /** The recording's WINDOW_STATUS is the replay's window class (a desktop
+     *  recording: RsproxRecording_WindowModeBefore), and the class to restate
+     *  before anything else is staged (0: none owed) -- a rewind or a
+     *  checkpoint restore skipped the inputs that set it. */
+    int window_from_recording;
+    int window_due;
 
     /* The cursor: the next frame and client packet not yet handed out. */
     int cursor;
@@ -725,7 +731,7 @@ world_step(
  * of them answered a chatbox prompt: it is then out->dialog_name, and nothing
  * after it is staged until it is on the bus.
  */
-static int
+static enum ReplayNext
 pass_inputs(
     struct ReplayScrub* scrub,
     struct ReplayStep* out)
@@ -735,18 +741,25 @@ pass_inputs(
     while( scrub->next_input < rec->client_packet_count &&
            rec->inputs[scrub->next_input].frame <= scrub->cursor )
     {
-        int const opcode = rec->inputs[scrub->next_input++].opcode;
+        int const at = scrub->next_input++;
+        int const opcode = rec->inputs[at].opcode;
 
         for( int i = 0; i < REPLAY_DIALOG_PROTS; i++ )
         {
             if( scrub->dialog_wire[i] == opcode )
             {
                 out->dialog_name = k_dialog_names[i];
-                return 1;
+                return REPLAY_NEXT_DIALOG;
             }
         }
+        if( scrub->window_from_recording )
+        {
+            out->window_mode = RsproxRecording_InputWindowMode(rec, scrub->rev, at);
+            if( out->window_mode )
+                return REPLAY_NEXT_WINDOW;
+        }
     }
-    return 0;
+    return REPLAY_NEXT_WAIT;
 }
 
 static int
@@ -779,6 +792,9 @@ ReplayScrub_New(
     scrub->tl = ReplayTimeline_Build(rec, rev);
     for( int i = 0; i < REPLAY_DIALOG_PROTS; i++ )
         scrub->dialog_wire[i] = rev->packetout_code(k_dialog_names[i]);
+    /* A phone's WINDOW_STATUS is its Display latch, not its class: it says
+     * fixed while the phone runs resizable (app_boot.c). */
+    scrub->window_from_recording = !RsproxRecording_Mobile(rec);
     scrub->mode = REPLAY_SEEK_MODE_FULLSIM;
     scrub->chase_cycles = REPLAY_TICK_CYCLES;
     scrub->client_scene_frame = -1;
@@ -987,6 +1003,8 @@ cursor_back(
         i++;
     scrub->cursor = f;
     scrub->next_input = i;
+    if( scrub->window_from_recording )
+        scrub->window_due = RsproxRecording_WindowModeBefore(rec, scrub->rev, i);
     scrub->last_tick = f > 0 ? rec->frames[f - 1].tick : 0;
     chase_sched_drop(scrub);
     scrub->clock_ms = clock_ms;
@@ -1228,6 +1246,10 @@ ReplayScrub_Rewind(struct ReplayScrub* scrub)
     assert(scrub);
     scrub->cursor = 0;
     scrub->next_input = 0;
+    /* The session starts again in the class the recorder booted in, not the
+     * one the playhead left. */
+    if( scrub->window_from_recording )
+        scrub->window_due = RsproxRecording_WindowModeBefore(scrub->rec, scrub->rev, 0);
     scrub->last_tick = 0;
     chase_sched_drop(scrub);
     scrub->clock_ms = 0;
@@ -1557,8 +1579,18 @@ ReplayScrub_Next(
                 return REPLAY_NEXT_WAIT;
             return REPLAY_NEXT_END;
         }
-        if( pass_inputs(scrub, out) )
-            return REPLAY_NEXT_DIALOG;
+        if( scrub->window_due )
+        {
+            out->window_mode = scrub->window_due;
+            scrub->window_due = 0;
+            return REPLAY_NEXT_WINDOW;
+        }
+        {
+            enum ReplayNext const input = pass_inputs(scrub, out);
+
+            if( input != REPLAY_NEXT_WAIT )
+                return input;
+        }
         f = &rec->frames[scrub->cursor];
         if( scrub->wait_map && f->tick > scrub->wait_tick )
         {

@@ -2262,6 +2262,36 @@ exec_control_replay_dialog(
 }
 
 /*
+ * REPLAY_WINDOW: the recorder's client was in this window class from here on.
+ *
+ * The class is the client's own: no server packet carries it, and a replay
+ * would otherwise run in the watcher's saved one (rs_prefs.c), which lays a
+ * resizable recorder's toplevel out as a fixed one or the other way round.
+ * Set the way SETWINDOWMODE sets it, the App draining the canvas and window
+ * change; the default too, which App_SyncNativeWindowMode restates from. Not
+ * a script's choice (default_window_mode_from_script stays), so the watcher's
+ * preferences file keeps theirs.
+ */
+static void
+exec_control_replay_window(
+    struct App* app,
+    struct TorirsControlFrame const* frame)
+{
+    int mode = 0;
+
+    assert(app);
+    if( !torirs_control_replay_window_decode(frame, &mode) )
+        exec_control_replay_malformed(frame);
+    TORIRS_LOG("exec: REPLAY_WINDOW: the recorded client is %s from here\n",
+               mode == CS2VM_WINDOW_MODE_FIXED ? "fixed" : "resizable");
+    app->host.default_window_mode = mode;
+    if( app->host.window_mode == mode )
+        return;
+    app->host.window_mode = mode;
+    app->host.window_mode_dirty = true;
+}
+
+/*
  * A control frame (net/torirs_control.h), in its place among the packets.
  *
  * The replay's types are written by the RSProx replay transport alone, into
@@ -2302,6 +2332,8 @@ exec_control(
             exec_control_replay_coord(ctx->app, frame);
         else if( frame->type == TORIRS_CONTROL_REPLAY_DIALOG )
             exec_control_replay_dialog(ctx->app, frame);
+        else if( frame->type == TORIRS_CONTROL_REPLAY_WINDOW )
+            exec_control_replay_window(ctx->app, frame);
         else
             exec_control_replay_chat(ctx->app, frame);
         return;

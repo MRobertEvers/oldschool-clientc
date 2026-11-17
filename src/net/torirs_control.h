@@ -143,6 +143,19 @@ enum TorirsControlType
      * which names the kind of prompt answered.
      */
     TORIRS_CONTROL_REPLAY_DIALOG = 5,
+
+    /**
+     * The recorder's client was in this window class from here on: a
+     * WINDOW_STATUS RSProx recorded among the server's packets, staged where
+     * it was sent, and restated where a seek moves the cursor (the class in
+     * effect there). The window class is the client's own -- no server packet
+     * carries it -- and the cache's scripts lay the server's toplevel out by
+     * it (getwindowmode), so a replay runs in the recorder's, not the
+     * watcher's saved one (rs_gameproto_exec.c exec_control_replay_window).
+     * A desktop recording's only; a phone's runs resizable (app_boot.c).
+     * Payload `u32 mode`: 1 fixed, 2 resizable (WINDOW_STATUS's values).
+     */
+    TORIRS_CONTROL_REPLAY_WINDOW = 6,
 };
 
 /** Room for a replay name, its NUL included (a name is at most 12 characters;
@@ -157,6 +170,7 @@ enum TorirsControlType
 #define TORIRS_CONTROL_REPLAY_COORD_BYTES_MAX (12 + TORIRS_CONTROL_REPLAY_NAME_MAX)
 #define TORIRS_CONTROL_REPLAY_WORLD_BYTES 8
 #define TORIRS_CONTROL_REPLAY_DIALOG_BYTES 4
+#define TORIRS_CONTROL_REPLAY_WINDOW_BYTES 4
 #define TORIRS_CONTROL_REPLAY_CHAT_BYTES_MAX                                                       \
     (20 + TORIRS_CONTROL_REPLAY_NAME_MAX + TORIRS_CONTROL_REPLAY_CHAT_DATA_MAX)
 
@@ -191,6 +205,8 @@ torirs_control_type_name(int type)
         return "REPLAY_CHAT";
     if( type == TORIRS_CONTROL_REPLAY_DIALOG )
         return "REPLAY_DIALOG";
+    if( type == TORIRS_CONTROL_REPLAY_WINDOW )
+        return "REPLAY_WINDOW";
     return "?";
 }
 
@@ -199,7 +215,8 @@ static inline int
 torirs_control_type_is_replay(int type)
 {
     return type == TORIRS_CONTROL_REPLAY_COORD || type == TORIRS_CONTROL_REPLAY_WORLD ||
-           type == TORIRS_CONTROL_REPLAY_CHAT || type == TORIRS_CONTROL_REPLAY_DIALOG;
+           type == TORIRS_CONTROL_REPLAY_CHAT || type == TORIRS_CONTROL_REPLAY_DIALOG ||
+           type == TORIRS_CONTROL_REPLAY_WINDOW;
 }
 
 static inline void
@@ -545,6 +562,35 @@ torirs_control_replay_dialog_decode(
         return 0;
     *pkt_out_name = (int)torirs_control_get_u32(frame->payload);
     return *pkt_out_name > 0;
+}
+
+/** REPLAY_WINDOW's payload, into `out` (TORIRS_CONTROL_REPLAY_WINDOW_BYTES):
+ *  the window class, 1 fixed or 2 resizable. Returns the length. */
+static inline int
+torirs_control_replay_window_encode(
+    int mode,
+    uint8_t* out)
+{
+    assert(mode == 1 || mode == 2);
+    assert(out);
+    torirs_control_put_u32(out, (uint32_t)mode);
+    return TORIRS_CONTROL_REPLAY_WINDOW_BYTES;
+}
+
+/** The window class into `*mode`; 0 when the payload is not one the transport
+ *  can have written. */
+static inline int
+torirs_control_replay_window_decode(
+    struct TorirsControlFrame const* frame,
+    int* mode)
+{
+    assert(frame);
+    assert(mode);
+    assert(frame->type == TORIRS_CONTROL_REPLAY_WINDOW);
+    if( frame->length != TORIRS_CONTROL_REPLAY_WINDOW_BYTES )
+        return 0;
+    *mode = (int)torirs_control_get_u32(frame->payload);
+    return *mode == 1 || *mode == 2;
 }
 
 #endif
