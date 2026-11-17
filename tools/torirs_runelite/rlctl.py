@@ -23,6 +23,10 @@ minutes chasing Captain Barnaby by coordinates).
                                      (Deobfuscator instr/revisions/242/instrumentation/JDrive.java)
     rlctl.py shot out.png            the client's framebuffer
     rlctl.py burst <dir> [n] [ms]    n screenshots ms apart, tiled into <dir>/burst.png
+    rlctl.py quest <test> [--keep] [--trace]
+                                     run a quest test (test/quests/<test>.lua) through
+                                     the gamepack: the C client's own quest driver,
+                                     hosted by rldrive, primitives answered by JQuest.java
     rlctl.py wire [<recording.bin>] [name]
                                      transcribe the newest (or given) recording of
                                      our server with EVERY RSProx filter on
@@ -99,7 +103,7 @@ def server_env():
     return env
 
 
-def make_account(name, at):
+def make_account(name, at, fixture_name="fresh_lumbridge.ini"):
     saves = os.path.join(DIR, "saves")
     os.makedirs(saves, exist_ok=True)
     env = server_env()
@@ -109,14 +113,14 @@ def make_account(name, at):
     # Recorded: every session is an RSProx .bin under saves/recordings/<name>/.
     subprocess.run([SERVER_BIN, "--account", "record", name, "on"], env=env, check=True,
                    capture_output=True)
-    fixture = os.path.join(ROOT, "test", "quests", "fixtures", "fresh_lumbridge.ini")
-    x, z, level = at
+    fixture = os.path.join(ROOT, "test", "quests", "fixtures", fixture_name)
     out = []
     for line in open(fixture):
         key = line.split("=", 1)[0].strip()
         if key == "name":
             line = "name = %s\n" % name
-        elif key in ("x", "z", "level"):
+        elif at and key in ("x", "z", "level"):
+            x, z, level = at
             line = "%s = %d\n" % (key, {"x": x, "z": z, "level": level}[key])
         out.append(line)
     with open(os.path.join(saves, name + ".ini"), "w") as handle:
@@ -126,8 +130,9 @@ def make_account(name, at):
 def cmd_up(args):
     os.makedirs(DIR, exist_ok=True)
     assert os.path.exists(SERVER_BIN), "no server binary at %s (RLCTL_SERVER=...)" % SERVER_BIN
-    at = tuple(int(v) for v in args.at.split(","))
-    make_account(args.account, at)
+    if args.at is not None:
+        at = tuple(int(v) for v in args.at.split(","))
+        make_account(args.account, at, getattr(args, "fixture", None) or "fresh_lumbridge.ini")
     if jctl_up():
         print("rlctl: RuneLite already up on JCtl %d -- `rlctl.py down` first to restart" % JCTL_PORT)
         return
@@ -137,8 +142,10 @@ def cmd_up(args):
                # The gamepack logs itself in (instrumentation CS2AutoLogin.java).
                JAVA_EXTRA_OPTS="-Dcs2.autologin=%s:%s" % (args.account, PASSWORD))
     log = open(os.path.join(DIR, "launch.out"), "w")
-    subprocess.Popen(["bash", os.path.join(ROOT, "run-runelite.sh"), MANIFEST], cwd=ROOT, env=env,
-                     stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+    launcher = subprocess.Popen(["bash", os.path.join(ROOT, "run-runelite.sh"), MANIFEST], cwd=ROOT, env=env,
+                                stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+    with open(os.path.join(DIR, "launcher.pid"), "w") as handle:
+        handle.write(str(launcher.pid))
     wait_for(jctl_up, 900, "JCtl (the gamepack may be rebuilding; see %s/launch.out)" % DIR)
     wait_for(lambda: jctl("gamestate").endswith("LOGGED_IN"), 120, "the auto-login")
     time.sleep(2)
@@ -148,6 +155,52 @@ def cmd_up(args):
     if args.coins:
         cmd_cheat(argparse.Namespace(text="give coins %d" % args.coins))
     print("rlctl: up -- %s logged in at %s; server log %s/run/server.log" % (args.account, args.at, DIR))
+
+
+RLDRIVE_SRC = os.path.join(ROOT, "tools", "torirs_runelite", "rldrive.c")
+RLDRIVE_BIN = os.path.join(ROOT, "build", "rldrive", "rldrive")
+
+
+def build_rldrive():
+    """The host that runs the quest driver against the gamepack (rldrive.c)."""
+    if os.path.exists(RLDRIVE_BIN) and os.path.getmtime(RLDRIVE_BIN) >= os.path.getmtime(RLDRIVE_SRC):
+        return
+    os.makedirs(os.path.dirname(RLDRIVE_BIN), exist_ok=True)
+    lua = os.path.join(ROOT, "3rd", "lua")
+    sources = [os.path.join(lua, f) for f in sorted(os.listdir(lua))
+               if f.endswith(".c") and f not in ("lua.c", "luac.c")]
+    subprocess.run(["cc", "-std=gnu11", "-O1", "-g", "-I" + lua, RLDRIVE_SRC] + sources +
+                   ["-lm", "-o", RLDRIVE_BIN], check=True)
+
+
+def cmd_quest(args):
+    """A quest test (test/quests/<id>.lua), driven through the gamepack: the
+    same Lua the C client runs, its primitives answered by JQuest.java."""
+    sys.path.insert(0, os.path.join(ROOT, "tools", "quest_gate"))
+    import run as quest_run  # write_wrapper_script: the same wrapper run.py makes
+    test = args.test if args.test.endswith(".lua") else os.path.join(ROOT, "test", "quests", args.test + ".lua")
+    test_id = os.path.splitext(os.path.basename(test))[0]
+    import re
+    m = re.search(r'fixture\s*=\s*"([^"]+)"', open(test).read())
+    fixture = m.group(1) if m else "fresh_lumbridge.ini"
+    if jctl_up() and not args.keep:
+        cmd_down(args)
+    if not jctl_up():
+        os.makedirs(DIR, exist_ok=True)
+        make_account(args.account, None, fixture)
+        cmd_up(argparse.Namespace(account=args.account, at=None, coins=0, fixture=fixture))
+    build_rldrive()
+    session = args.session or os.path.join(DIR, "quest", test_id)
+    if os.path.isdir(session):
+        shutil.rmtree(session)
+    os.makedirs(os.path.join(session, "script"))
+    script = os.path.join(session, "script", test_id + ".lua")
+    quest_run.write_wrapper_script(test, script)
+    cmd = [RLDRIVE_BIN, "--port", str(JCTL_PORT), "--script", script, "--session", session, "--root", ROOT]
+    if args.trace:
+        cmd.append("--trace")
+    print("rlctl: driving %s (fixture %s); ledger %s/ledger.tsv" % (test_id, fixture, session))
+    sys.exit(subprocess.run(cmd).returncode)
 
 
 def cmd_down(args):
@@ -163,6 +216,20 @@ def cmd_down(args):
                 os.kill(int(open(pid_file).read().strip()), 15)
             except (OSError, ValueError):
                 pass
+    # The launcher stops the server and jav_config by their pid files when its
+    # client exits. A new `up` before that cleanup ran had its fresh server
+    # killed by the old launcher (2026-11-17), so wait for the launcher itself.
+    pid_file = os.path.join(DIR, "launcher.pid")
+    if os.path.exists(pid_file):
+        try:
+            pid = int(open(pid_file).read().strip())
+            end = time.time() + 60
+            while time.time() < end:
+                os.kill(pid, 0)
+                time.sleep(0.5)
+        except (OSError, ValueError):
+            pass
+        os.remove(pid_file)
     print("rlctl: down")
 
 
@@ -306,6 +373,13 @@ def main():
     p.add_argument("n", nargs="?", type=int, default=24)
     p.add_argument("ms", nargs="?", type=int, default=300)
     p.set_defaults(fn=cmd_burst)
+    p = sub.add_parser("quest")
+    p.add_argument("test", help="test id (test/quests/<id>.lua) or a path")
+    p.add_argument("--account", default="wire59")
+    p.add_argument("--session", help="where the ledger and shots land")
+    p.add_argument("--keep", action="store_true", help="drive the client already up (no fresh login)")
+    p.add_argument("--trace", action="store_true", help="print every JCtl exchange")
+    p.set_defaults(fn=cmd_quest)
     p = sub.add_parser("wire")
     p.add_argument("recording", nargs="?")
     p.add_argument("name", nargs="?", default="ours")
