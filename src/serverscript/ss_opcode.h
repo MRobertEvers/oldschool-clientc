@@ -564,6 +564,8 @@
 #define SS_OP_NPC_HEADICON 11135
 #define SS_OP_NPC_BODYMODEL 11136
 #define SS_OP_MIDI_SONG_HERE 11137
+#define SS_OP_WORLD_EVENT 11138
+#define SS_OP_WORLD_EVENT_SET 11139
 #define SS_OP_NPC_SETOPS 11140
 #define SS_OP_MES_SPAM 11141
 #define SS_OP_MIDI_SONG_ENVELOPE 11142
@@ -645,6 +647,6 @@
 /** One past the highest opcode id; the size of any opcode-indexed table. */
 #define SS_OPCODE_MAX 11328
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 619
+#define SS_OPCODE_COUNT 621
 
 #endif

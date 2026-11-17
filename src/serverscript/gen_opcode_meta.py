@@ -1597,6 +1597,22 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # A square with no track sends nothing.
     "MIDI_SONG_HERE": (11137, 0, 0, 0, 0),
 
+    # world_event(string $name)(boolean)
+    #
+    # Whether the named world event is switched on (srv->world_events): holiday
+    # content ships in every pack and asks this before it does anything. Set
+    # from TORIRSSERVER_EVENTS at boot and by world_event_set. Needs no active
+    # entity.
+    "WORLD_EVENT": (11138, 0, 1, 1, 0),
+
+    # world_event_set(string $name, boolean $on)
+    #
+    # Switch a world event for the whole world, now. The static spawn roster is
+    # re-run on the spot, so `.spawn` rows under `==== NPC event=<name> ====`
+    # stand up or go on this tick. Who may switch it is content's question
+    # (the `::event` cheat asks staffmodlevel).
+    "WORLD_EVENT_SET": (11139, 1, 1, 0, 0),
+
     # spotanim_npc_slot(spotanim $spot, int $height, int $delay, int $slot)
     #
     # `spotanim_npc` into one of the rev-239 npc's numbered graphic slots: the

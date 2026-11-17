@@ -17110,6 +17110,114 @@ ToriRSServer_WorldShutdown(struct ToriRSServer* srv)
     g_static_realised_count = 0;
 }
 
+/*
+ * World events. A name in `srv->world_events` is on; nothing else is. The
+ * table is small and asked rarely (a roster sync, a script's `world_event`),
+ * so a linear strcmp is the whole of it.
+ */
+int
+ToriRSServer_WorldEventOn(
+    const struct ToriRSServer* srv,
+    const char* name)
+{
+    assert(srv);
+    assert(name);
+    for( int i = 0; i < srv->world_event_count; i++ )
+    {
+        if( strcmp(srv->world_events[i], name) == 0 )
+            return 1;
+    }
+    return 0;
+}
+
+int
+ToriRSServer_WorldEventSet(
+    struct ToriRSServer* srv,
+    const char* name,
+    int on)
+{
+    size_t length;
+
+    assert(srv);
+    assert(name);
+    length = strlen(name);
+    assert(length > 0);
+    assert(length < TORIRSSERVER_WORLD_EVENT_NAME);
+    if( (ToriRSServer_WorldEventOn(srv, name) != 0) == (on != 0) )
+        return 1;
+    if( on )
+    {
+        if( srv->world_event_count >= TORIRSSERVER_WORLD_EVENT_MAX )
+            return 0;
+        memcpy(srv->world_events[srv->world_event_count], name, length + 1);
+        srv->world_event_count++;
+    }
+    else
+    {
+        for( int i = 0; i < srv->world_event_count; i++ )
+        {
+            if( strcmp(srv->world_events[i], name) != 0 )
+                continue;
+            srv->world_event_count--;
+            memmove(srv->world_events[i], srv->world_events[srv->world_event_count],
+                    sizeof(srv->world_events[i]));
+            break;
+        }
+    }
+    fprintf(stderr, "torirsserver: world event %s %s\n", name, on ? "on" : "off");
+    /* The event's tagged spawns stand up or go now, not at the next rebuild. */
+    world_static_npcs_sync(srv);
+    return 1;
+}
+
+void
+ToriRSServer_WorldEventsFromEnv(struct ToriRSServer* srv)
+{
+    const char* env = getenv("TORIRSSERVER_EVENTS");
+
+    assert(srv);
+    srv->world_event_count = 0;
+    while( env && *env )
+    {
+        char name[TORIRSSERVER_WORLD_EVENT_NAME];
+        size_t length = strcspn(env, ", ");
+
+        if( length > 0 && length < sizeof(name) )
+        {
+            memcpy(name, env, length);
+            name[length] = '\0';
+            if( !ToriRSServer_WorldEventOn(srv, name) &&
+                srv->world_event_count < TORIRSSERVER_WORLD_EVENT_MAX )
+            {
+                memcpy(srv->world_events[srv->world_event_count], name, length + 1);
+                srv->world_event_count++;
+                fprintf(stderr, "torirsserver: world event %s on (TORIRSSERVER_EVENTS)\n", name);
+            }
+        }
+        else if( length > 0 )
+            fprintf(stderr, "torirsserver: TORIRSSERVER_EVENTS: `%.*s` is longer than %d\n",
+                    (int)length, env, TORIRSSERVER_WORLD_EVENT_NAME - 1);
+        env += length;
+        while( *env == ',' || *env == ' ' )
+            env++;
+    }
+}
+
+/* A spawn tagged with a world event that is off: neither stood up nor kept. */
+static int
+static_spawn_event_off(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerMapNpcSpawn* spawn)
+{
+    const char* name;
+
+    if( spawn->event < 0 )
+        return 0;
+    name = ToriRSServer_ContentEventName(spawn->event);
+    assert(name);
+    return !ToriRSServer_WorldEventOn(srv, name);
+}
+
 /* Chebyshev distance from a tile to the NEAREST of the sync's centres. */
 static int
 static_spawn_nearest_dist(
@@ -17217,7 +17325,8 @@ world_static_npcs_sync(struct ToriRSServer* srv)
 
         if( !npc->active || index < 0 || index >= count )
             continue;
-        if( static_spawn_nearest_dist(centre_x, centre_z, centre_count, spawns[index].x,
+        if( !static_spawn_event_off(srv, &spawns[index]) &&
+            static_spawn_nearest_dist(centre_x, centre_z, centre_count, spawns[index].x,
                                       spawns[index].z) <= TORIRSSERVER_STATIC_SPAWN_OUT )
             continue;
         /* The ordinary NPC_INFO remove path, the same one a despawn uses: the
@@ -17253,6 +17362,8 @@ world_static_npcs_sync(struct ToriRSServer* srv)
         }
         if( static_spawn_nearest_dist(centre_x, centre_z, centre_count, spawns[i].x,
                                       spawns[i].z) > TORIRSSERVER_STATIC_SPAWN_IN )
+            continue;
+        if( static_spawn_event_off(srv, &spawns[i]) )
             continue;
         slot = npc_spawn(srv, spawns[i].npc_id, spawns[i].x, spawns[i].z, spawns[i].level);
         if( slot < 0 )

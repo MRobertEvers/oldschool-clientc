@@ -1798,12 +1798,75 @@ enum SpawnSection
     SPAWN_OBJ,
 };
 
+/*
+ * World-event names a `.spawn` section may be tagged with. A row under
+ * `==== NPC event=halloween2026 ====` carries the name's index here and stands
+ * only while that event is on (torirs_server_world.c `world_static_npcs_sync`);
+ * the switch is the world's, at run time, so one pack holds every holiday.
+ */
+enum
+{
+    SPAWN_EVENT_MAX = 32,
+    SPAWN_EVENT_NAME = 32,
+};
+static char g_spawn_events[SPAWN_EVENT_MAX][SPAWN_EVENT_NAME];
+static int g_spawn_event_count;
+
+const char*
+ToriRSServer_ContentEventName(int index)
+{
+    if( index < 0 || index >= g_spawn_event_count )
+        return NULL;
+    return g_spawn_events[index];
+}
+
+/* The index of the section header's `event=<name>`, interned; -1 when the
+ * header names none. An over-long or extra name is a content error. */
+static int
+spawn_section_event(
+    const char* path,
+    int line_number,
+    const char* line)
+{
+    const char* at = strstr(line, "event=");
+    char name[SPAWN_EVENT_NAME];
+    size_t length = 0;
+
+    if( !at )
+        return -1;
+    at += 6;
+    while( at[length] && at[length] != ' ' && at[length] != '=' )
+        length++;
+    if( length == 0 || length >= sizeof(name) )
+    {
+        CONTENT_ERROR("%s:%d: `%s` -- an event name is 1..%d characters\n", path, line_number,
+                      line, (int)sizeof(name) - 1);
+        return -1;
+    }
+    memcpy(name, at, length);
+    name[length] = '\0';
+    for( int i = 0; i < g_spawn_event_count; i++ )
+    {
+        if( strcmp(g_spawn_events[i], name) == 0 )
+            return i;
+    }
+    if( g_spawn_event_count >= SPAWN_EVENT_MAX )
+    {
+        CONTENT_ERROR("%s:%d: more than %d world events tag .spawn sections\n", path,
+                      line_number, SPAWN_EVENT_MAX);
+        return -1;
+    }
+    memcpy(g_spawn_events[g_spawn_event_count], name, length + 1);
+    return g_spawn_event_count++;
+}
+
 static void
 load_spawn_config(const char* path)
 {
     FILE* file = fopen(path, "rb");
     char raw[512];
     enum SpawnSection section = SPAWN_NONE;
+    int section_event = -1;
     int line_number = 0;
 
     if( !file )
@@ -1826,8 +1889,12 @@ load_spawn_config(const char* path)
 
         if( strncmp(line, "====", 4) == 0 )
         {
+            section_event = -1;
             if( strstr(line, "NPC") )
+            {
                 section = SPAWN_NPC;
+                section_event = spawn_section_event(path, line_number, line);
+            }
             else if( strstr(line, "OBJ") )
                 section = SPAWN_OBJ;
             else
@@ -1837,6 +1904,9 @@ load_spawn_config(const char* path)
                               path, line_number, line);
                 section = SPAWN_NONE;
             }
+            if( section == SPAWN_OBJ && strstr(line, "event=") )
+                CONTENT_ERROR("%s:%d: `%s` -- only npc sections take an event\n", path,
+                              line_number, line);
             continue;
         }
         if( section == SPAWN_NONE )
@@ -1926,6 +1996,7 @@ load_spawn_config(const char* path)
             g_npc_spawns[g_npc_spawn_count].x = x;
             g_npc_spawns[g_npc_spawn_count].z = z;
             g_npc_spawns[g_npc_spawn_count].level = level;
+            g_npc_spawns[g_npc_spawn_count].event = section_event;
             g_npc_spawn_count++;
         }
         else

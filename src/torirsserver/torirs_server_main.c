@@ -671,6 +671,7 @@ main(
     srv.verbose = getenv("TORIRSSERVER_VERBOSE") != NULL;
     srv.familiar_singles_assist = ToriRSServer_FlagDefaultOn("TORIRSSERVER_FAMILIAR_SINGLES");
     srv.members_world = ToriRSServer_FlagDefaultOn("TORIRSSERVER_MEMBERS_WORLD");
+    ToriRSServer_WorldEventsFromEnv(&srv);
     srv.wire = wire;
     {
         /* `--dev` beats TORIRSSERVER_DEV beats the build's default. */

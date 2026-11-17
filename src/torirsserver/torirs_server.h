@@ -744,6 +744,10 @@ enum
      */
     TORIRSSERVER_TIMER_MAX = 32,
     TORIRSSERVER_WORLD_QUEUE_MAX = 16,
+    /* World events switched on at once (`srv->world_events`), and the longest
+     * name, terminator included. A holiday or two at a time, not a registry. */
+    TORIRSSERVER_WORLD_EVENT_MAX = 16,
+    TORIRSSERVER_WORLD_EVENT_NAME = 32,
     /*
      * Distinct components one parked script may be resumed by.
      *
@@ -2048,6 +2052,29 @@ struct SSVM_State;
  */
 int
 ToriRSServer_FlagDefaultOn(const char* name);
+
+/*
+ * World events (`srv->world_events`): holiday content switched on and off at
+ * run time, not by lane. `FromEnv` reads TORIRSSERVER_EVENTS ("halloween2026,
+ * xmas2026") into a freshly built server; every construction site calls it
+ * beside `members_world`. `Set` switches one name and re-runs the static spawn
+ * roster so `.spawn` rows tagged with it stand up or go on this tick; it
+ * returns 0 only when the table is full. A name longer than
+ * TORIRSSERVER_WORLD_EVENT_NAME - 1 is a caller bug.
+ */
+void
+ToriRSServer_WorldEventsFromEnv(struct ToriRSServer* srv);
+
+int
+ToriRSServer_WorldEventOn(
+    const struct ToriRSServer* srv,
+    const char* name);
+
+int
+ToriRSServer_WorldEventSet(
+    struct ToriRSServer* srv,
+    const char* name,
+    int on);
 
 int
 ToriRSServer_SplitInit(
@@ -5495,6 +5522,17 @@ struct ToriRSServer
      *  used to be a hardcoded constant for exactly that reason. Set
      *  `TORIRSSERVER_FREE_WORLD=1` to force it to 0 for free-world testing. */
     int members_world;
+
+    /**
+     * The world events switched on: holiday content that is part of every
+     * pack and appears only while its name is here (`world_event("name")`,
+     * `.spawn` sections headed `==== NPC event=name ====`). Read from
+     * `TORIRSSERVER_EVENTS` (comma-separated) at boot and switched live by
+     * `world_event_set`; a switch re-runs the static spawn roster, so the
+     * event's npcs come and go on that tick. Not a lane: one pack, one tree.
+     */
+    char world_events[TORIRSSERVER_WORLD_EVENT_MAX][TORIRSSERVER_WORLD_EVENT_NAME];
+    int world_event_count;
 
     /**
      * Minutes `::clockskip` has moved this world's wall clock forward; added

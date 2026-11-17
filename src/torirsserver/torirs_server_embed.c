@@ -190,6 +190,7 @@ ToriRSServer_EmbedStart(char const* rev_name)
 
     embed->srv.verbose = getenv("TORIRSSERVER_VERBOSE") != NULL;
     embed->srv.members_world = ToriRSServer_FlagDefaultOn("TORIRSSERVER_MEMBERS_WORLD");
+    ToriRSServer_WorldEventsFromEnv(&embed->srv);
     /*
      * Which bytes this world writes (and which login block it expects). The
      * caller's revision wins — the embed serves exactly one client, in this

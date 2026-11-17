@@ -14220,6 +14220,47 @@ script_command(
         return 1;
 
     /*
+     * `world_event(string $name)(boolean)` / `world_event_set(string $name,
+     * boolean $on)`: holiday content switched at run time (srv->world_events,
+     * TORIRSSERVER_EVENTS). A name the table cannot hold is the script's bug,
+     * not a quiet no.
+     */
+    case SS_OP_WORLD_EVENT:
+    {
+        const char* name;
+
+        if( !SSVM_PopStr(state, &name) )
+            return 1;
+        if( !name[0] || strlen(name) >= TORIRSSERVER_WORLD_EVENT_NAME )
+        {
+            SSVM_Abort(state, "world_event: `%s` is not an event name", name);
+            return 1;
+        }
+        SSVM_PushInt(state, ToriRSServer_WorldEventOn(srv, name));
+        return 1;
+    }
+
+    case SS_OP_WORLD_EVENT_SET:
+    {
+        const char* name;
+        int32_t on;
+
+        if( !SSVM_PopInt(state, &on) )
+            return 1;
+        if( !SSVM_PopStr(state, &name) )
+            return 1;
+        if( !name[0] || strlen(name) >= TORIRSSERVER_WORLD_EVENT_NAME )
+        {
+            SSVM_Abort(state, "world_event_set: `%s` is not an event name", name);
+            return 1;
+        }
+        if( !ToriRSServer_WorldEventSet(srv, name, on != 0) )
+            SSVM_Abort(state, "world_event_set: %d events are already on",
+                       TORIRSSERVER_WORLD_EVENT_MAX);
+        return 1;
+    }
+
+    /*
      * `staffmodlevel`: the active player's staffModLevel (0 player, 1 player
      * moderator, 2 Jagex moderator). An account with `admin = 1` logs in at 2
      * (torirs_server_auth.h); TORIRSSERVER_STAFF_LEVEL raises it for a harness.

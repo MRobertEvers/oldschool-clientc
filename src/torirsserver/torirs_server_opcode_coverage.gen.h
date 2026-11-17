@@ -10,7 +10,7 @@
  *
  * Coverage by layer:
  *     64  VM core
- *    430  host commands
+ *    432  host commands
  *      9  host commands (db)
  *     10  host commands (inv)
  *      8  host commands (loc)
@@ -19,7 +19,7 @@
  *      2  host commands (param)
  *      8  host commands (player)
  *     18  host commands (poh)
- *    571  total, of 619 declared opcodes
+ *    573  total, of 621 declared opcodes
  */
 
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_OPCODE_COVERAGE_GEN_H
@@ -27,8 +27,8 @@
 
 #include <stdint.h>
 
-#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 571
-#define TORIRSSERVER_OPCODE_DECLARED_COUNT 619
+#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 573
+#define TORIRSSERVER_OPCODE_DECLARED_COUNT 621
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -535,6 +535,8 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     11135, /* SS_OP_NPC_HEADICON (host commands) */
     11136, /* SS_OP_NPC_BODYMODEL (host commands) */
     11137, /* SS_OP_MIDI_SONG_HERE (host commands) */
+    11138, /* SS_OP_WORLD_EVENT (host commands) */
+    11139, /* SS_OP_WORLD_EVENT_SET (host commands) */
     11140, /* SS_OP_NPC_SETOPS (host commands) */
     11141, /* SS_OP_MES_SPAM (host commands) */
     11142, /* SS_OP_MIDI_SONG_ENVELOPE (host commands) */

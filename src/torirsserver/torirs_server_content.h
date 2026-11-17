@@ -916,7 +916,16 @@ struct ToriRSServerMapNpcSpawn
 {
     int npc_id;
     int x, z, level; /* absolute tile */
+    /* -1: always stands. Otherwise an index into ToriRSServer_ContentEventName:
+     * the row sat under `==== NPC event=<name> ====` and stands only while that
+     * world event is on (srv->world_events). */
+    int event;
 };
+
+/** The world-event names `.spawn` sections are tagged with, by index; NULL past
+ *  the end. Fixed once the content has loaded. */
+const char*
+ToriRSServer_ContentEventName(int index);
 
 struct ToriRSServerMapObjSpawn
 {

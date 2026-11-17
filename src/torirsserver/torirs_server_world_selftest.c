@@ -5753,6 +5753,7 @@ ToriRSServer_WorldSelftest(void)
      * cannot be attached to with a client. */
     srv->verbose = getenv("TORIRSSERVER_VERBOSE") != NULL;
     srv->members_world = ToriRSServer_FlagDefaultOn("TORIRSSERVER_MEMBERS_WORLD");
+    ToriRSServer_WorldEventsFromEnv(srv);
     /*
      * The revision under test, from the same selector the server uses.
      *
