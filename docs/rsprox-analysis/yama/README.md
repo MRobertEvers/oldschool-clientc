@@ -488,3 +488,52 @@ above. The Scripts tab's Play on the private packs, headless: solo ws5 15/15 (th
 duo wd5 failed (seat 1 stood in an unwarded meteor at 626, seat 2 killed Yama alone), which is what the
 meteor escape is for; after it duo wd6 24/24 on seat 1, 17/17 on seat 2 at its last status (the kill
 at 840, both alive) and solo ws6 15/15 (the kill at 1118, alive); every client exited 0 but wd5's 1.
+
+## 15. Index 4578 (2026-11-16): the recorder as the partner
+
+Rev 242.1, world 338, the owner joining Westons' domain by the Voice's Join: six fights,
+five kills ([519] [1035] [1803] [2423] [3145]) and a lost one (Westons down [3677], the
+recorder [3683..3690]). It is the first recording from the partner's seat, and the first
+with the last raider dying. Tools: `rsprox_actions.py`, the message/sound inventories and
+the fits below (scripts in the session scratchpad; each rule re-checked on 4498).
+
+Action inventory: every row is this content or the recorder's kit (Mark of Darkness,
+greater ghost and zombie thralls, Dark Demonbane, prayers, food, potions, the emberlight /
+purging staff swaps), except the trip out between fights (farming cape teleport, spirit
+tree, the POH pool and fairy ring, the bank chest, Chasm rope and shortcut), a pirate
+random event and the gravestone: generic content, not audited here.
+
+| item | recorded | was | now | evidence |
+|---|---|---|---|---|
+| glyph line | the stepper: "You absorb a Glyph of Fire/Shadow."; the partner: "You gain a Glyph of ..." | "gain" to both | by stepper (`~yama_glyph_step`) | 4578: absorb 15, every fire one (6/6) with the stepper's hurt splat that tick; gain 21, none; solo 798, 3268, 3322, 3329: absorb only. Ours d000: absorb 7, gain 5 |
+| ward end | synth `shadow_veil_end` (5062) with each "fades away" line | silent | sent with the line | 36/36 |
+| streak sear | every landed streak hit: `<col=ff0000>You've been seared to the ground!</col>`, `human_killerwatt_electricshock` (3170) in place of the defend seq, a bind (first step +3) | damage only | the line, the seq, `p_stun(3)` (`^yama_sear_ticks`) | 9/9 landed hits (4578 x3, 4498 x3, 798 x3), 0 of the shielded ones; next step +3, +4, +3, +3, +3 |
+| wave rush | synth 10238 to each raider each tick a wave's next front (delays 30a+15, 30a+30) is within 10 diagonals of their tile; one per wave | not sent | `~yama_wave_sound` | 554/576 ticks (4578), 1393/1506 (4498); the misses are portal ticks and front edges |
+| Yama's hit sound | `sound_area judge_hit` (4997) range 10 at his middle, once a tick he takes damage, none on a splash | `defend_sound,null` | `defend_sound,judge_hit`, `defend_sound_range,10` | 656 of 693 damaged ticks one sound; 0 on 107 zero-only ticks |
+| the Judge's hit / death sounds | synth `judge_hit` per landed hit (the kill included); synth `judge_death` on the death tick | null / none | `defend_sound,judge_hit`; `judge_death` in `~yama_judge_dead` | 64 hits; 12/12 deaths |
+| the Judge's death tick | empty `[headicon_customisation]`, `type=reset` face, ops 0, the seq | ops, seq | + `npc_headicon(0, -1, 0)`, `npc_facereset` | 12/12 |
+| root impact | synth 10273 at the landing, warded or not | none | with the impact spot | 9/9 |
+| the return from the Judge (D = his death seq) | Yama on his mark D+5, the fall + fade D+6, the teleport + spent glyph locs D+9, free and Yama moving D+10, glyphs lit + hud D+12, first attack D+15 | fall D+5, teleport D+8, glyphs + hud D+11, first attack D+21 | as recorded | 38 returns (4498 x26, 4578 x12): fall 38/38, teleport 37/38, hud 31/38 (+11 the rest), first attack 25/38 (+14 the rest). Ours d001: +5, +6, +9, +12, +15 in both phases |
+| the lost fight | the last raider's killing hit K: Yama stops, says "A stroke of bad luck. You could have done better." every tick K+1..K+6, the death seq K+3, the raider out K+7; no line when a raider dies with the other still fighting | Yama deleted on K, no line | `^yama_state_lost` (`~yama_fight_lost`, `~yama_lost_tick`) | 6/6 lines in 798, 3368, 4578; none for Westons [3677]. `test/bosses/yama_lost.lua`: K 38, lines 39..44, seq 41, out 45 |
+| death timing | the teleport out 4 ticks after `human_death` | 5 | `$yama_died` with the Colosseum's 4 (death.rs2) | 10/10 (4498 x5, 4578, 798, 3368, 3268, 787) |
+| respawn | one of 1438..1440 x 10079..10080 | 1440,10080 | `~yama_death_coord` random in that box | 8 deaths |
+| death in the domain = a Nex death | (not recorded: ours) | `~gwd_nex_on_death` translated the Nex chamber into the domain copy: a partner died to 2900,5203 with the Nex chest holding the items | guarded like the Colosseum (death.rs2) | duo d000, seat 2 |
+
+Still open after 4578:
+
+- Two hits on Yama in one tick send two `judge_hit` area sounds (the engine's area-mode
+  defend sound has no per-tick dedupe; recorded one, ~170 such ticks in 4578). An engine
+  change for every area-mode npc (ToA, the Colosseum): not made without their recordings.
+- `paralyze` (154) follows a sear on +1 or +2 in 4 of 6 rev-242 sears and never when the
+  raider stood still: it looks like a refused walk while bound, but walk clicks are not in
+  the default transcript. Not sent.
+- The Death apparition (`halloween_death` 5567: "I have come for you, <name>!",
+  "Beware mortals, <name> now travels with me.", "I claim <name> as my own!", seq
+  `human_scythe_slash`, `grim_reaper_appear`) appears at every recorded player death,
+  Yama's included (4498 x5, 4578 x3, 798, 3268, 3368, 787). It is generic death content;
+  our tree has none.
+- "You cannot cast that right now." (4578 [742] [3047] [3568]): a thrall cast while busy
+  in the fall; generic spellbook content, not checked.
+- Duo seed d002: both seats stood on 6425,103 inside Yama's 5x5 for ~50 ticks, a walk to
+  6431,105 accepted every tick and no step taken, until two flares exploded on them. Not
+  traced (players are not blocked by his `blockwalk=npc` in routing).
