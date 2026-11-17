@@ -672,7 +672,9 @@ local function judge_tick(t, S, k, J)
         if k >= S.next_hop then
             local s = next_stone(t, S, x, z, J)
             if s then
-                S.next_hop = k + 2
+                -- One stone a tick, as the recorders hop (233 of 283 back-to-back hops in
+                -- 4498, 4505, 4578 come the next tick).
+                S.next_hop = k + 1
                 count(S, "hop")
                 t.player.click_loc("yama_steppingstone", 1, { at = { s.x, s.z }, from_here = true })
             elseif z >= J.z - 4 then

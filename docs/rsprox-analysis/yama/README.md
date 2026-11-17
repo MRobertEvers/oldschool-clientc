@@ -513,7 +513,7 @@ random event and the gravestone: generic content, not audited here.
 | the Judge's hit / death sounds | synth `judge_hit` per landed hit (the kill included); synth `judge_death` on the death tick | null / none | `defend_sound,judge_hit`; `judge_death` in `~yama_judge_dead` | 64 hits; 12/12 deaths |
 | the Judge's death tick | empty `[headicon_customisation]`, `type=reset` face, ops 0, the seq | ops, seq | + `npc_headicon(0, -1, 0)`, `npc_facereset` | 12/12 |
 | root impact | synth 10273 at the landing, warded or not | none | with the impact spot | 9/9 |
-| the return from the Judge (D = his death seq) | Yama on his mark D+5, the fall + fade D+6, the teleport + spent glyph locs D+9, free and Yama moving D+10, glyphs lit + hud D+12, first attack D+15 | fall D+5, teleport D+8, glyphs + hud D+11, first attack D+21 | as recorded | 38 returns (4498 x26, 4578 x12): fall 38/38, teleport 37/38, hud 31/38 (+11 the rest), first attack 25/38 (+14 the rest). Ours d001: +5, +6, +9, +12, +15 in both phases |
+| the return from the Judge (D = his death seq) | Yama on his mark D+5, the fall + fade D+6, the teleport D+9, free and Yama moving D+10, glyphs lit + hud D+12, first attack D+15 | fall D+5, teleport D+8, glyphs + hud D+11, first attack D+21 | as recorded | 38 returns (4498 x26, 4578 x12): fall 38/38, teleport 37/38, hud 31/38 (+11 the rest), first attack 25/38 (+14 the rest). Ours d001: +5, +6, +9, +12, +15 in both phases |
 | the lost fight | the last raider's killing hit K: Yama stops, says "A stroke of bad luck. You could have done better." every tick K+1..K+6, the death seq K+3, the raider out K+7; no line when a raider dies with the other still fighting | Yama deleted on K, no line | `^yama_state_lost` (`~yama_fight_lost`, `~yama_lost_tick`) | 6/6 lines in 798, 3368, 4578; none for Westons [3677]. `test/bosses/yama_lost.lua`: K 38, lines 39..44, seq 41, out 45 |
 | death timing | the teleport out 4 ticks after `human_death` | 5 | `$yama_died` with the Colosseum's 4 (death.rs2) | 10/10 (4498 x5, 4578, 798, 3368, 3268, 787) |
 | respawn | one of 1438..1440 x 10079..10080 | 1440,10080 | `~yama_death_coord` random in that box | 8 deaths |
@@ -537,3 +537,55 @@ Still open after 4578:
 - Duo seed d002: both seats stood on 6425,103 inside Yama's 5x5 for ~50 ticks, a walk to
   6431,105 accepted every tick and no step taken, until two flares exploded on them. Not
   traced (players are not blocked by his `blockwalk=npc` in routing).
+
+## 16. Every real-game fight against ours: `tools/yama_parity.py` (2026-11-16)
+
+The real-game Yama sessions in the index are 4498 (16 fights, the owner creating), 4505 (9,
+joining wehst; not used before) and 4578 (6): 31 fights. The Grid Master sessions are left
+out (seasonal recorders). `yama_parity.py` splits both sides into fights (Yama's add to his
+removal), keys every sound, npc and player seq and spotanim, map anim, projectile, loc,
+npc add, overhead line and chat line, and flags what one side has and the other lacks, a
+rate outside 0.5..2 a fight, or a different modal offset from the last anchor (his attack,
+his add, the Judge's death). The recorder's kit and the engine's zone restates are listed
+apart.
+
+```
+python3 docs/rsprox-analysis/yama/tools/yama_parity.py \
+  --rec ~/.rsprox-index-cache/home-default/.rsprox/binary/archive/idx{4498,4505,4578}.txt \
+  --ours <scriptrun session dirs (ticklog.tsv + TORIRS_SCRIPTRUN_WIRELOG wire.log)>
+```
+
+The wirelog numbers ticks one lower than the tick log (a synth in both: 158 / 159); the tool
+adds the one.
+
+| item | recorded (31 fights) | was | now |
+|---|---|---|---|
+| stepping-stone hops | `jump` (2461) delay 5 with every hop; one hop a tick (233 of 283 back-to-back hops) | silent; a hop every 2 ticks (`p_delay(1)`; the solver paced 2 as well) | the synth; no hold; the solver one a tick. The bots' first hit on the Judge +12 (recorded +13), his casts a Judge 9.4 (8.8) |
+| the Judges' prayer | each Judge his own: the partner's hits on the recorder's Judge land (4578 [195..215]) | one instance var for both: seat 1's style switches zeroed every hit of seat 2's | an npc var (`^yama_judge_npcvar_prayer`, slot 64) |
+| the Judge's shake | each axis random 5..8 (111 shakes); `rumbling` loops 5 with it (67/67, never the meteor's) | 6 / 6 / 5, silent | random, the synth; the meteor's shake random too |
+| the meteor's blast | `sound_area fireblast_hit` range 15 size 15 at the target tile on the landing (44/44) | none | sent |
+| the streaks' roar | synth 10215 to a raider each tick a moving flame (delay-30 tile) is sent within 8 tiles of them (1564/1626 ticks); never in the 3-tick charge | every tick from the charge to 3 past the end | the distance rule |
+| special lines | rock 45/45, spike 40/40, root 38/38 "at you" to both raiders; only the meteor tells the other "at your ally" (24) | "at your ally" for all four | as recorded |
+| portal lines | "Enough." 17, "Begone" 15, "You bore me." 12 (44 portals) | also "I grow tired of you.", which is only ever the target switch's line (A-1, 16/16) | three lines |
+| the duration line | "Fight duration: <col=ff0000>m:ss</col>. Personal best: m:ss" or "... (new personal best)" (20 lines; no varp sent) | no best | `%varp9671_yama_personal_best` (perm, not sent) |
+| the raider's block seq on Yama's landings | none: regulars 0/490 zeros, 0/121 shielded, 20/241 damaging | `com_defendanim` on every scripted hit (34 a fight) | none (the rock's, spike's and root's delayed ones stay) |
+| the purging staff's block | `human_staff_block` (415), every one of the 190 recorded | `human_unarmedblock` (the generated default) | `defend_anim` in `bas/sceptres_wands.obj` (+ the `br_` copy) |
+| the raider's block sound in Ahrim's robetop | `sword_hit2_mail_1..5` delay 20, 518 of 518 zero splats | `human_block_1` | family 9 in `~combat_player_block_sound` |
+| thrall impact graphic | none in rev 242 (0 of 1,742 ghost swings, on Yama, flares and Judges) | `thrall_magic_impact` on the flares and Judges | removed |
+| the thrall cooldown line | "You can only cast resurrection spells every 10 seconds." (21/21) | "You need to wait before you can resurrect another thrall." | as recorded |
+| spent glyph locs at the landing | the D+9 `loc_add_change_v3` of glyphs, firewalls and the blocker are the zones restated as they come back into view | ours re-added the glyph locs there (from the first audit and §15) | removed: the glyphs are spent at the portal |
+
+Last comparison (`k001..k006`, 6 duo fights on the current pack): the YAMA section's flags are
+the paralyze synth (Open, §15), Yama's melee and the deaths (our bots keep out of reach and
+live), the "Personal best" form (every seed is a fresh account, so each kill is a new best),
+the glyph-step offsets and the wave mix by phase (when the bots step and how long the phases
+run), the Judge's projectile count (ours logs both Judges; the recorder sees one) and the
+emberlight's slash (the solver's style; the recorder lunges). Seeds: 12 h/k fights, 10 with
+both seats alive; the two losses are bots seared one or two ticks before a special lands
+(k003 [440], k005 [277]) and so short of a glyph: the sear doing what the recording shows. The
+bots are seared 0.9 a fight against the recorder's 0.3: the solver's streak dodging is the
+next thing to improve, not the fight.
+
+Still open: the per-tick dedupe of Yama's area hit sound and the generic Death apparition (§15);
+"You cannot cast that right now." while busy (32/32 casts in the fall: the engine drops a
+spellbook click while the player is held, with no line).
