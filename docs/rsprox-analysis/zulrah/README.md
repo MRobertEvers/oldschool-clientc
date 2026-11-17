@@ -73,7 +73,7 @@ wiki: "Quick-board ... does not lock players' camera").
 | D+6 exit scroll | `snakeboss_exit` shape 10 rot 0, a tile beside (52/52 adjacent) | `map_findsquare(coord, 1, 1)` |
 | D+7 at KC 50 | the fee mesbox (3324 [3877]) | `[queue,zulrah_fee_notice]` |
 | "received a drop" lines | the recorders' loot-notification setting | not built (tree-wide setting) |
-| synth 2401 `liquid` | the recorders' Bottomless Brew sips | kit |
+| D+6 synth 2401 `liquid` | 52/52 with the loot | `sound_synth(liquid, 1, 0)` (first written off as the recorders' potion sips; it is not) |
 
 Drop table: the wiki's 249 rows (every recorded drop is a row at its quantity).
 Fixed: uniques 1/256 per roll (was 1/128), pure essence (was rune essence),
@@ -117,6 +117,8 @@ destination table.
 - Fairy rings: world rings work only with the permission varbit (no Fairytale II in tree); world-ring departure unrecorded.
 - Master scroll book: quest gates other than Regicide; the Revenant cave scroll's landing; every book line except open/store.
 - The shared retrieval code: `%varp7672_retrieval_service` defaults to 0, which is Zul-Gwenwynig's index, and `~retrieval_has_items` tests `inv_size` (capacity). Zulrah counts the store's items itself (`~zulrah_storage_held`); the shared procs are untouched.
+
+- `multiway_indicator` (varbit 4605): recorded 1 at the rise (R+1, also the recorder's first step) and 0 on leaving, 53 boardings; ours is the engine's zone sync, which sends 1 on the move into the copy (O+3), 3+ ticks early.
 
 ## Test
 

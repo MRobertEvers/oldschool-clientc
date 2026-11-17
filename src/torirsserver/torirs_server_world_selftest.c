@@ -33559,9 +33559,12 @@ ToriRSServer_WorldSelftest(void)
          * only its own `%zulrah_*` temporaries.
          *
          * The checks that matter are the ones a transcription slip would
-         * break — 47 phases present, phase 1 versus the bridge phase, the Jad
-         * seed and position per rotation, rotation 4's 13 phases and 8-attack
-         * Jad — plus the 50-damage cap and its self-gate.
+         * break, against the RSProx-rebuilt table (docs/rsprox-analysis/
+         * zulrah/FIGHT.md): every phase of every rotation present, the
+         * opener's four barrages, rotation 4 as index 3259 recorded it, the
+         * rotation told apart by its second surfacing, each rotation ending
+         * on the opener's phase, every throw leaving from its heading's tile
+         * -- plus the 50-damage cap on the three boss records only.
          *
          * Asserted on the OK line rather than the absence of FAIL, for the
          * same reason as the two stanzas around it.
@@ -33625,9 +33628,12 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "snakeboss_minion_magic"),
             };
             int cloud_loc = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "snakeboss_poisoncloud");
-            /* Phase 1 is four cloud barrages at 3 ticks each and then a dive;
-             * 15 ticks covers the barrage with the dive still to come. */
-            const int OPENING_TICKS = 15;
+            /* Phase 1 is four cloud barrages, the first 11 ticks after the
+             * rise and 3 apart, each landing 3 and 4 ticks after its throw,
+             * then the dive at +24 (RSProx, docs/rsprox-analysis/zulrah/
+             * FIGHT.md); 22 ticks sees three barrages land with the dive
+             * still to come. */
+            const int OPENING_TICKS = 22;
             int spawn_x = -1;
             int spawn_z = -1;
             int opening_damage = 0;
@@ -33638,7 +33644,6 @@ ToriRSServer_WorldSelftest(void)
             int last_x = -1;
             int last_z = -1;
             int tail_stun_seen = 0;
-            int tail_shove_seen = 0;
             int stand_x = 0;
             int stand_z = 0;
 
@@ -33655,9 +33660,17 @@ ToriRSServer_WorldSelftest(void)
             player->hitpoints = 99;
 
             ToriRSServer_ScriptsRunDebugproc(srv, "zulrahrotation 1");
-            /* `~zulrah_enter` opens with a `~mesbox`, so the script is
-             * suspended on a continue before it has even teleported. */
-            selftest_click_through(srv, 8);
+            /* The row is the recorded one (zulrah.rs2): the box, the move
+             * into the copy a few ticks later, the arrival box -- and Zulrah
+             * rises on the tick after that box is continued. Clicking alone
+             * never gets there: tick and click until it is up, bounded. */
+            for( int tick = 0; tick < 40 && selftest_find_npc(srv, forms[0]) < 0; tick++ )
+            {
+                selftest_click_through(srv, 4);
+                selftest_tick(srv);
+                if( player->rebuild_scene_pending )
+                    selftest_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+            }
 
             SELFTEST_CHECK(player->x > 0 && player->level >= 0,
                            "::zulrahrotation should put the player in the shrine instance");
@@ -33773,23 +33786,13 @@ ToriRSServer_WorldSelftest(void)
                  * The tail, end to end.
                  *
                  * Rotation 1's phase 2 is the crimson tail, and a connecting
-                 * swing is supposed to root the player for five ticks and
-                 * shove them clear. Both were disclosed gaps until this pass —
-                 * `%action_delay` gated nothing the engine reads, and there was
-                 * no force-movement in the encounter at all — so a stunned
-                 * player walked away mid-swing and was never moved.
-                 *
-                 * The shove is detected off `exact_end_*`, which only
-                 * `p_exactmove` ever writes, rather than off the player having
-                 * changed tile. "They moved, so they were shoved" looks like
-                 * the obvious test and is wrong: auto-retaliation walks the
-                 * player toward whatever is hitting them, so that version
-                 * passed even with the knockback deleted.
+                 * swing roots the player ("dealt 20-30 damage and be stunned
+                 * for several seconds", the wiki). There is no shove: neither
+                 * the wiki nor any recording has one (the Near-Reality port's
+                 * force-move was removed with the rebuild).
                  */
                 if( player->stun_ticks > 0 )
                     tail_stun_seen = 1;
-                if( player->exact_end_x != 0 || player->exact_end_z != 0 )
-                    tail_shove_seen = 1;
                 if( getenv("ZDBG") && player->stun_ticks > 0 )
                     fprintf(stderr,
                             "  zt=%3d at=%d,%d stun=%d ex=%d,%d  E=%d W=%d N=%d S=%d\n",
@@ -33832,9 +33835,6 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(tail_stun_seen,
                            "a connecting tail swing should leave the player stunned — "
                            "`p_stun`, not a varp nothing enforces");
-            SELFTEST_CHECK(tail_shove_seen,
-                           "a connecting tail swing should force-move the player — no "
-                           "`p_exactmove` reached the wire for the whole phase");
 
             /* Leave nothing standing for the next section. */
             ToriRSServer_ScriptsRunDebugproc(srv, "zulrah");
