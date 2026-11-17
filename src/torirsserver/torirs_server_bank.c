@@ -242,33 +242,80 @@ bank_slot_of(
     return -1;
 }
 
-/* Contiguous tab prefix: tab 1 owns [0, size0), tab 2 owns [size0, size0+size1),
+/*
+ * Tab sizes live in the varbits the `bank_tabs` enum names (key = tab - 1), and
+ * nowhere else: those varbits sit in `scope=perm` varps, so the save is their
+ * storage. See the note on struct ToriRSServerBank for what a copy cost.
+ */
+
+/** Varbit holding tab `tab`'s size (1..9), or -1 when the enum lists none. */
+static int
+bank_tab_varbit(int tab)
+{
+    const struct ToriRSServerEnumDef* tabs = ToriRSServer_ContentEnum("bank_tabs");
+
+    assert(tab >= 1);
+    assert(tab <= TORIRSSERVER_BANK_TABS);
+    for( int i = 0; tabs && i < tabs->count; i++ )
+        if( tabs->values[i].key == tab - 1 )
+            return tabs->values[i].value;
+    return -1;
+}
+
+/** Objs in tab `tab` (1..9). */
+static int
+bank_tab_size(
+    struct ToriRSServer* srv,
+    int tab)
+{
+    int varbit = bank_tab_varbit(tab);
+
+    return varbit < 0 ? 0 : ToriRSServer_BankGetVarbit(srv, varbit);
+}
+
+/** Grow or shrink tab `tab` (1..9) by `delta`. The varp write transmits it. */
+static void
+bank_tab_resize(
+    struct ToriRSServer* srv,
+    int tab,
+    int delta)
+{
+    int varbit = bank_tab_varbit(tab);
+    int size;
+
+    if( varbit < 0 )
+        return;
+    size = ToriRSServer_BankGetVarbit(srv, varbit) + delta;
+    ToriRSServer_BankSetVarbit(srv, varbit, size < 0 ? 0 : size);
+}
+
+/* Contiguous tab prefix: tab 1 owns [0, size1), tab 2 owns [size1, size1+size2),
  * …, main (tab 0) owns everything past the sum. Matches bank_gettabrange CS2. */
 static int
-bank_tab_prefix(const struct ToriRSServerBank* bank)
+bank_tab_prefix(struct ToriRSServer* srv)
 {
     int sum = 0;
 
-    for( int i = 0; i < TORIRSSERVER_BANK_TABS; i++ )
-        sum += bank->tab_size[i];
+    for( int t = 1; t <= TORIRSSERVER_BANK_TABS; t++ )
+        sum += bank_tab_size(srv, t);
     return sum;
 }
 
 /** Tab holding `slot`: 1..9, or 0 for main. */
 static int
 bank_tab_for_slot(
-    const struct ToriRSServerBank* bank,
+    struct ToriRSServer* srv,
     int slot)
 {
     int end = 0;
 
     if( slot < 0 )
         return 0;
-    for( int t = 0; t < TORIRSSERVER_BANK_TABS; t++ )
+    for( int t = 1; t <= TORIRSSERVER_BANK_TABS; t++ )
     {
-        end += bank->tab_size[t];
+        end += bank_tab_size(srv, t);
         if( slot < end )
-            return t + 1;
+            return t;
     }
     return 0;
 }
@@ -276,15 +323,15 @@ bank_tab_for_slot(
 /** First slot of tab `tab` (1..9), or the main prefix when tab is 0 / past end. */
 static int
 bank_tab_start(
-    const struct ToriRSServerBank* bank,
+    struct ToriRSServer* srv,
     int tab)
 {
     int start = 0;
 
     if( tab <= 0 )
-        return bank_tab_prefix(bank);
+        return bank_tab_prefix(srv);
     for( int t = 1; t < tab && t <= TORIRSSERVER_BANK_TABS; t++ )
-        start += bank->tab_size[t - 1];
+        start += bank_tab_size(srv, t);
     return start;
 }
 
@@ -318,26 +365,9 @@ bank_shift_right(
     bank->dirty = 1;
 }
 
-static void
-bank_push_tab_settings(struct ToriRSServer* srv)
-{
-    struct ToriRSServerBank* bank = &srv->active_player->bank;
-    const struct ToriRSServerEnumDef* tabs = ToriRSServer_ContentEnum("bank_tabs");
-
-    /* Sizes only — currenttab is owned by content / CS2 switchtab. */
-    for( int i = 0; tabs && i < tabs->count; i++ )
-    {
-        int tab = tabs->values[i].key;
-
-        if( tab < 0 || tab >= TORIRSSERVER_BANK_TABS )
-            continue;
-        ToriRSServer_BankSetVarbit(srv, tabs->values[i].value, bank->tab_size[tab]);
-    }
-}
-
 /**
  * Move the stack at `from_slot` into `dest_tab` (0 = main, 1..9 = a tab).
- * Updates tab_size[] and re-pushes the tab varbits while the bank is open.
+ * Rewrites the two tabs' size varbits.
  */
 void
 ToriRSServer_BankMoveToTab(
@@ -357,25 +387,25 @@ ToriRSServer_BankMoveToTab(
     if( bank->slots[from_slot].obj_id < 0 )
         return;
 
-    old_tab = bank_tab_for_slot(bank, from_slot);
+    old_tab = bank_tab_for_slot(srv, from_slot);
     if( old_tab == dest_tab )
         return;
 
     item = bank->slots[from_slot];
     bank_shift_left(bank, from_slot);
     if( old_tab >= 1 )
-        bank->tab_size[old_tab - 1]--;
+        bank_tab_resize(srv, old_tab, -1);
 
     /* Insertion point after the removal. */
     if( dest_tab >= 1 )
     {
-        insert = bank_tab_start(bank, dest_tab) + bank->tab_size[dest_tab - 1];
+        insert = bank_tab_start(srv, dest_tab) + bank_tab_size(srv, dest_tab);
         if( from_slot < insert )
             insert--;
     }
     else
     {
-        insert = bank_tab_prefix(bank);
+        insert = bank_tab_prefix(srv);
         if( from_slot < insert )
             insert--;
         /* Append after the last occupied main slot. */
@@ -393,10 +423,7 @@ ToriRSServer_BankMoveToTab(
     bank->slots[insert] = item;
     bank->dirty = 1;
     if( dest_tab >= 1 )
-        bank->tab_size[dest_tab - 1]++;
-
-    if( bank->open )
-        bank_push_tab_settings(srv);
+        bank_tab_resize(srv, dest_tab, 1);
 }
 
 int
@@ -468,31 +495,17 @@ ToriRSServer_BankFlush(struct ToriRSServer* srv)
     bank_transmit(srv);
 }
 
-/** Push every setting the interface reads. Sent on open, because the client's
- *  copy of a varp is whatever the last session left there. */
+/** Push the settings an open resets. The player's own settings — tab sizes,
+ *  insert mode, quantity mode, the X amount, the current tab, the tab display —
+ *  are NOT pushed: they are `scope=perm` varbits the client already holds from
+ *  login, and pushing them from anything but those varps overwrites the save. */
 static void
 bank_push_settings(struct ToriRSServer* srv)
 {
     struct ToriRSServerBank* bank = &srv->active_player->bank;
     const struct ToriRSServerIds* ids = ToriRSServer_Ids();
-    /* Tab index -> the varbit holding that tab's size. A keyed table rather
-     * than `first + index`: see interface_bank/configs/bank.enum. */
-    const struct ToriRSServerEnumDef* tabs = ToriRSServer_ContentEnum("bank_tabs");
 
     ToriRSServer_BankSetVarbit(srv, ids->varbit_bank_withdrawnotes, bank->note_mode);
-    ToriRSServer_BankSetVarbit(srv, ids->varbit_bank_insertmode, bank->insert_mode);
-    ToriRSServer_BankSetVarbit(srv, ids->varbit_bank_quantity_type, bank->quantity_mode);
-    ToriRSServer_BankSetVarbit(srv, ids->varbit_bank_requestedquantity, bank->requested_quantity);
-    ToriRSServer_BankSetVarbit(srv, ids->varbit_bank_currenttab, bank->current_tab);
-    ToriRSServer_BankSetVarbit(srv, ids->varbit_bank_tab_display, bank->tab_display);
-    for( int i = 0; tabs && i < tabs->count; i++ )
-    {
-        int tab = tabs->values[i].key;
-
-        if( tab < 0 || tab >= TORIRSSERVER_BANK_TABS )
-            continue;
-        ToriRSServer_BankSetVarbit(srv, tabs->values[i].value, bank->tab_size[tab]);
-    }
 
     /*
      * Three panels the mock has no content for. The interface ships them
@@ -771,15 +784,11 @@ bank_slot_emptied(
 
     /* Emptying a tab slot closes the gap so the contiguous prefix stays true. */
     {
-        int tab = bank_tab_for_slot(bank, bank_slot);
+        int tab = bank_tab_for_slot(srv, bank_slot);
 
         bank_shift_left(bank, bank_slot);
         if( tab >= 1 )
-        {
-            bank->tab_size[tab - 1]--;
-            if( bank->open )
-                bank_push_tab_settings(srv);
-        }
+            bank_tab_resize(srv, tab, -1);
     }
 }
 
@@ -844,11 +853,10 @@ bank_add_ex(
     dest_tab = ToriRSServer_BankGetVarbit(srv, ids->varbit_bank_currenttab);
     if( dest_tab < 0 || dest_tab > TORIRSSERVER_BANK_TABS || dest_tab == 15 )
         dest_tab = 0;
-    bank->current_tab = dest_tab;
 
     if( dest_tab >= 1 && dest_tab <= TORIRSSERVER_BANK_TABS )
     {
-        int insert = bank_tab_start(bank, dest_tab) + bank->tab_size[dest_tab - 1];
+        int insert = bank_tab_start(srv, dest_tab) + bank_tab_size(srv, dest_tab);
 
         if( insert < 0 || insert >= bank->size || bank->slots[bank->size - 1].obj_id >= 0 )
         {
@@ -860,15 +868,13 @@ bank_add_ex(
         bank_write(bank, insert, obj_id, count);
         if( out_fresh_slot && count == 1 )
             *out_fresh_slot = insert;
-        bank->tab_size[dest_tab - 1]++;
-        if( bank->open )
-            bank_push_tab_settings(srv);
+        bank_tab_resize(srv, dest_tab, 1);
         return count;
     }
 
     /* Main: first free at or past the tab prefix. */
     {
-        int prefix = bank_tab_prefix(bank);
+        int prefix = bank_tab_prefix(srv);
 
         slot = -1;
         for( int i = prefix; i < bank->size; i++ )
@@ -1155,7 +1161,7 @@ void
 ToriRSServer_BankReorganize(struct ToriRSServer* srv)
 {
     struct ToriRSServerBank* bank = &srv->active_player->bank;
-    int prefix = bank_tab_prefix(bank);
+    int prefix = bank_tab_prefix(srv);
     int write = prefix;
 
     /* Tab prefix stays contiguous by construction (withdraw/move_to_tab shift).
@@ -1249,14 +1255,8 @@ ToriRSServer_BankInitPlayer(struct ToriRSServerPlayer* player)
     }
     bank->open = 0;
     bank->note_mode = 0;
-    bank->insert_mode = 0;
-    bank->quantity_mode = ids->bank_qty_1;
-    bank->requested_quantity = 0;
-    bank->current_tab = 0;
-    bank->tab_display = 0;
     bank->pending_kind = TORIRSSERVER_BANK_PENDING_NONE;
     bank->pending_slot = -1;
-    memset(bank->tab_size, 0, sizeof(bank->tab_size));
     bank->dirty = 0;
 
     /*

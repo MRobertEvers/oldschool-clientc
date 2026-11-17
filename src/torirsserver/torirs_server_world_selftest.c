@@ -43124,6 +43124,101 @@ ToriRSServer_WorldSelftest(void)
     bank_seeded_done:;
     }
 
+    fprintf(stderr, "ToriRSServer selftest: bank tabs survive a relog\n");
+    {
+        /*
+         * 2026-11-16: tab sizes lived in a C copy (`bank.tab_size`) that nothing
+         * saved and nothing reloaded out of the perm varps that hold them. After
+         * a relog the copy was zero, so the first tab move wrote nine zeroed
+         * sizes over the saved ones, and `::bank`'s open wrote them too: tabs
+         * did not survive a logout. The varbits are the only storage now.
+         *
+         * Coins, logs and swordfish are in selftest_seed_new_player's bank.
+         */
+        struct ToriRSServerBank* bank = &player->bank;
+        const char* path = ToriRSServer_SavePath("bank_tabs_selftest");
+        const struct ToriRSServerEnumDef* tabs = ToriRSServer_ContentEnum("bank_tabs");
+        static const int objs[] = { 995, 1511, 373 };
+        int tab1 = -1;
+        int tab2 = -1;
+
+        selftest_reset_world(srv, player, 402, 402);
+        if( !selftest_seed_new_player(srv) )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+            goto bank_tabs_relog_done;
+        }
+        for( int i = 0; tabs && i < tabs->count; i++ )
+        {
+            if( tabs->values[i].key == 0 )
+                tab1 = tabs->values[i].value;
+            if( tabs->values[i].key == 1 )
+                tab2 = tabs->values[i].value;
+        }
+        SELFTEST_CHECK(tab1 >= 0 && tab2 >= 0, "the bank_tabs enum should name tabs 1 and 2");
+        if( tab1 < 0 || tab2 < 0 )
+            goto bank_tabs_relog_done;
+        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, tab1) == 0, "a seeded bank starts with no tabs");
+
+        /* Coins and logs into tab 1. */
+        for( int k = 0; k < 2; k++ )
+        {
+            int slot = -1;
+
+            for( int i = 0; i < bank->size; i++ )
+                if( bank->slots[i].obj_id == objs[k] )
+                    slot = i;
+            SELFTEST_CHECK(slot >= 0, "the seeded bank should hold obj %d", objs[k]);
+            if( slot >= 0 )
+                ToriRSServer_BankMoveToTab(srv, slot, 1);
+        }
+        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, tab1) == 2,
+                       "two stacks moved into tab 1 make it size 2, got %d",
+                       ToriRSServer_VarbitGet(player, tab1));
+
+        /* Relog: save, then what login does — a fresh bank, empty varps, the load. */
+        remove(path);
+        SELFTEST_CHECK(ToriRSServer_SavePlayer(player, path), "the bank-tab save writes");
+        ToriRSServer_BankInitPlayer(player);
+        ToriRSServer_VarbitSet(srv, tab1, 0);
+        ToriRSServer_VarbitSet(srv, tab2, 0);
+        SELFTEST_CHECK(ToriRSServer_LoadPlayer(player, path), "and reads back");
+        remove(path);
+        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, tab1) == 2,
+                       "tab 1 should reload at size 2, got %d", ToriRSServer_VarbitGet(player, tab1));
+        SELFTEST_CHECK(bank->slots[0].obj_id == 995 && bank->slots[1].obj_id == 1511,
+                       "and its two stacks should reload at the front (got %d, %d)",
+                       bank->slots[0].obj_id, bank->slots[1].obj_id);
+
+        /* The first tab move of the session: this is the write that zeroed tab 1. */
+        {
+            int slot = -1;
+
+            for( int i = 0; i < bank->size; i++ )
+                if( bank->slots[i].obj_id == objs[2] )
+                    slot = i;
+            SELFTEST_CHECK(slot >= 2, "swordfish should be in the main section, at %d", slot);
+            if( slot >= 0 )
+                ToriRSServer_BankMoveToTab(srv, slot, 2);
+        }
+        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, tab1) == 2,
+                       "a move into tab 2 after a relog must leave tab 1 at 2, got %d",
+                       ToriRSServer_VarbitGet(player, tab1));
+        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, tab2) == 1,
+                       "and make tab 2 size 1, got %d", ToriRSServer_VarbitGet(player, tab2));
+        SELFTEST_CHECK(bank->slots[2].obj_id == 373,
+                       "tab 2 starts where tab 1 ends (slot 2 holds %d)", bank->slots[2].obj_id);
+
+        /* `::bank`'s open: this is the other write that zeroed every tab. */
+        ToriRSServer_BankOpen(srv);
+        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, tab1) == 2 &&
+                           ToriRSServer_VarbitGet(player, tab2) == 1,
+                       "opening the bank must not rewrite the tab sizes (got %d, %d)",
+                       ToriRSServer_VarbitGet(player, tab1), ToriRSServer_VarbitGet(player, tab2));
+        ToriRSServer_BankClose(srv);
+    bank_tabs_relog_done:;
+    }
+
     fprintf(stderr, "ToriRSServer selftest: open bank deposit/withdraw UPDATE_INV_FULL\n");
     {
         /*

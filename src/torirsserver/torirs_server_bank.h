@@ -52,8 +52,8 @@ enum
      *  allocation is a calloc; there is nothing for a ceiling to protect.
      *  See docs/torirs_server_containers.md §5. */
     TORIRSSERVER_BANK_SLOTS = 1220,
-    /** Ceiling on `tab_size`, which is a fixed array. The number of tabs is
-     *  however many the `bank_tabs` enum lists. */
+    /** Highest tab number (1..9). Each tab's size is a varbit the `bank_tabs`
+     *  enum names; a tab the enum does not list has size 0. */
     TORIRSSERVER_BANK_TABS = 9,
 
     /** What a pending "-X" prompt will do with the number when it arrives. This
@@ -66,10 +66,18 @@ enum
 /**
  * Per-player bank state.
  *
- * The settings are duplicated here rather than read back out of the varps they
- * live in, because a varbit read is a bit-range lookup and this code asks for
- * them on every click. The varps stay authoritative for the *client* — every
- * write goes through ToriRSServer_BankSetVarbit — and these are the server's copy.
+ * The bank's *settings* are not here. They are varbits inside `scope=perm`
+ * varps (interface_bank/configs/bank.varp), so the saved varps are their only
+ * storage and every read goes back to them (ToriRSServer_BankGetVarbit).
+ *
+ * This struct used to keep a copy of each — tab sizes, insert mode, quantity
+ * mode, the X amount, the current tab, the tab display — "because a varbit read
+ * is a bit-range lookup". Nothing saved the copies and nothing loaded them back
+ * out of the varps, so after a relog they were all zero while the varps held the
+ * player's real values. The first tab bookkeeping of the session (a withdraw from
+ * a tab, a deposit into one, a drag onto the strip) then wrote nine zeroed tab
+ * sizes over the saved ones, and `::bank` wrote all six settings over theirs:
+ * bank tabs did not survive a logout (2026-11-16). Do not bring a copy back.
  */
 struct ToriRSServerBank
 {
@@ -78,12 +86,10 @@ struct ToriRSServerBank
     int size;
 
     int open;
-    /** Withdraw as note rather than as item (varbit bank_withdrawnotes). */
+    /** Withdraw as note rather than as item (varbit bank_withdrawnotes). The one
+     *  copy left: every open resets it to 0 (as `~openbank` does), so there is
+     *  no saved value for it to fall behind. */
     int note_mode;
-    /** Insert rather than swap when a slot is dragged (bank_insertmode). */
-    int insert_mode;
-    /** One of the `^bank_qty_*` constants (varbit bank_quantity_type). */
-    int quantity_mode;
 
     /*
      * A "-X" row that is waiting on the player's number.
@@ -96,17 +102,6 @@ struct ToriRSServerBank
      */
     int pending_kind;
     int pending_slot;
-    /** The X in "Withdraw-X" (varbit bank_requestedquantity). */
-    int requested_quantity;
-    /** 0 = all items, 1..n = a tab (varbit bank_currenttab). */
-    int current_tab;
-    /** How the tab strip labels itself (bank_tab_display): 0 numbers, 3 hides
-     *  it when no tab holds anything. */
-    int tab_display;
-    /** Objs in each tab, which is what the client lays the tab strip out from
-     *  (the `bank_tabs` enum's varbits). Tab 0 is "everything not in a tab" and
-     *  is derived, not stored. */
-    int tab_size[TORIRSSERVER_BANK_TABS];
 
     /** Set by any mutation; drained by ToriRSServer_BankFlush in phase 10. A whole
      *  re-transmit rather than a delta: the bank changes in bursts (a deposit-
@@ -233,7 +228,7 @@ ToriRSServer_BankMoveSlot(
 
 /**
  * Move the stack at `from_slot` into bank tab `dest_tab` (0 = main / unassigned,
- * 1..9 = a named tab). Updates `tab_size[]` and re-pushes the tab varbits.
+ * 1..9 = a named tab). Rewrites the two tabs' size varbits (`bank_tabs` enum).
  */
 void
 ToriRSServer_BankMoveToTab(
