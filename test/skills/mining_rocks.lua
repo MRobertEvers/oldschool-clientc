@@ -58,5 +58,9 @@ return {
 
         gap, n = mine(t, "guild", "ironrock1", 3020, 9721, "iron_ore", "::tele 0_47_151_13_56")
         t.check("guild.respawn", gap == 4, "gap " .. tostring(gap) .. " over " .. tostring(n) .. " loc rows")
+
+        -- Lead (Sailing islands): unbound before; respawn 9 (index 3443, 50/50).
+        gap, n = mine(t, "lead", "leadrock1", 2615, 8598, "lead_ore", "::tele 0_40_134_55_21")
+        t.check("lead.respawn", gap == 9, "gap " .. tostring(gap) .. " over " .. tostring(n) .. " loc rows")
     end,
 }

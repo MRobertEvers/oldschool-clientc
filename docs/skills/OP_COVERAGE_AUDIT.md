@@ -35,7 +35,15 @@ A bound script can still decline; this finds what has no script at all.
 | Mining | Mining Guild resource area did not halve respawns | 3224 coal 24, runite 599; 3114 iron 4; amethyst unchanged 124 | same (`guild.respawn` 4) |
 | Thieving | Fortis (5) and Prifddinas (4) stalls and Keldagrim's bakery offered Steal-from and did nothing | 1099, 1102, 1101, 213 | `test/skills/thieving_stalls.lua` 11/11 |
 | Thieving | stall xp/respawn were 2004's: silver 54 (wiki 205), spice 81 (92), gem 16 (408); respawns 2-6x long | pinned wiki; fruit stall refill = wiki ticks - 1 (4448, 120/120) | `tools/check_stall_contract.py` 7/7 (was 4, 3 skipped) |
-| Thieving | "some silver" -> "a piece of silver"; the baker's stall's "You attempt to steal some bread..." line; Prifddinas stalls never empty (132 steals, 1102); only the fruit stall sends the second `pick` (4448 120/120 vs 0/193 elsewhere) | as cited | same |
+| Thieving | "some silver" -> "a piece of silver"; the baker's stall's "You attempt to steal some bread..." line; every steal, attempt and pickpocket line is spam (4,634 steals, 11,816 attempts); the second `pick` only at the fruit stall and TzHaar counter (4448 120/120, 1138 4,326/4,326, 0/193 elsewhere) | as cited | same |
+| Thieving | Prifddinas stalls deplete like Ardougne's (a first pass had them never emptying: that was a Leagues VI auto-steal relic, 134 steals from 6 clicks in 1102) | 1102 | `thieving_stalls.lua` 14/14 |
+| Thieving | Mor Ul Rek's gem counter (wiki table: cut 1 in 3, onyx 1/50,000; matches 13,000 recorded rolls); "You steal an uncut onyx! Wow!" a game message | 1138/1144/1145 | same |
+| Thieving | Master Farmer (16 types): the wiki's seed table, herb seeds scaling with Farming by the wiki's own model | 1099 | `test/thieving/master_farmer.lua` 2/2 |
+| Herblore | herb sack (Fill/Open/Close/Check/Empty, an open sack catching picked-up herbs) and seed box (Fill/Empty/Open/Close) | 21+22 sessions, ~2,000 clicks | `test/skills/herb_sack_seed_box.lua` 15/15 |
+| Herblore | anchovy paste (the pizza topping binding answered the pestle) and lava scale shards (3..6) | 467, 3262 | `test/skills/grinding.lua` 4/4 |
+| Herblore | divine potions (8 kinds x 4 doses): menu, line, 1 crystal and 0.5 xp a dose | 1104, 1105, 3257 | `test/skills/divine_potions.lua` 4/4 |
+| Mining | lead rocks (wiki curve 112/278, recorded respawn 9) | 3443 | `mining_rocks.lua` 15/15 |
+| Agility | Taverley dragon rocks up/down, Zul-Andra stepping stone, Anglers' Retreat outcrops, Waterbirth crevice, the Lost Tribe hole | 3233, 1139, 933, 2934, 3171, 4454 | `test/skills/agility_shortcuts_recorded.lua` 9/9 |
 | Thieving | 201 npc types offered Pickpocket and did nothing: Kourend men/women, Hosidius/Kourend guards, Varlamore citizens, tourists, knights, paladins, heroes, warriors, farmers | female citizens/tourists say "the woman's pocket" (1099, 168/168) | `test/thieving/kourend_pickpocket.lua` 3/3 |
 | Cooking | 9 ranges/ovens and the Tempoross lobby fire offered Cook and did nothing (no category) | 1095 [16733..16737] | `test/skills/cooking_ranges.lua` 4/4 |
 | Prayer | the five demonic ashes' Scatter did nothing | 1095, 1099, 819, 820: line, `farming_ingredient_sprinkle`, `farming_sprinkle`, xp, one tick | `test/skills/prayer_scatter_bury.lua` 12/12 |
@@ -47,8 +55,8 @@ A bound script can still decline; this finds what has no script at all.
 Recorded = clicked in a cached RSProx session (sessions / clicks).
 
 ### Mining (56 placed types still unbound)
-- Lovakite rocks (81 placed), Lead/Nickel/Rubium (Sailing ores, 97 placed; lead
-  recorded respawn 9), sunstone (22), salt and basalt rocks (Weiss, 42),
+- Lovakite rocks (81 placed), Nickel/Rubium (Sailing ores; no published
+  success curve), sunstone (22), salt and basalt rocks (Weiss, 42),
   volcanic sulphur (5), volcanic ash piles (Fossil Island, 16), daeyalt,
   Camdozaal barronite (recorded 3268), infernal shale (recorded 3267),
   calcified rocks (Varlamore, recorded 1102: respawn 11-14 varies),
@@ -59,12 +67,11 @@ Recorded = clicked in a cached RSProx session (sessions / clicks).
   success), not guessing.
 
 ### Thieving
-- TzHaar gem/ore counters (1138/1144/1145: 4,326 steals; a second `pick` on
-  every steal), Varlamore house heists (chests, jewellery cases, wardrobes:
+- TzHaar ore counter (no recording of its lines) and TzHaar-Hur-Rin's
+  30-minute trading ban, Varlamore house heists (chests, jewellery cases, wardrobes:
   recorded), Aldarin chest (606 clicks), Port Roberts stalls (10, Sailing),
   fish/veg/seed/wine/crossbow/magic/scimitar stalls.
-- Pickpocket kinds with their own loot: Master Farmer (16 types; recorded),
-  TzHaar-Hur (6), cave goblins (18), vyres (~25 named), elves (~20 named),
+- Pickpocket kinds with their own loot: TzHaar-Hur (6), cave goblins (18), vyres (~25 named), elves (~20 named),
   Wealthy citizen and its urchins (recorded 1099), pirate, bandit, priest,
   salvager.
 - The Fortis market's merchants and guards are not spawned at all (no
@@ -82,17 +89,16 @@ Recorded = clicked in a cached RSProx session (sessions / clicks).
   Elemental Workshop workbench (recorded 2/8).
 
 ### Inventory and use-on (recorded, unbound)
-- Seed box Fill/Check (22 sessions, 1,004 clicks), herb sack Fill/Check (21,
-  1,019), forager's pouch, dirty arrowtips Clean, Wyson nests (3 tables
-  fetched: `Bird_nest_(Wyson*)`), clue nests.
-- Divine potions (crushed crystal shard on super potions: 3+2+1 sessions),
-  anchovy paste, lava scale shards, moonlight grub paste, Hosidius saltpetre on
+- Seed box Check and an open box catching seeds (lines unrecorded); forager's
+  pouch, dirty arrowtips Clean, Wyson nests (3 tables fetched:
+  `Bird_nest_(Wyson*)`), clue nests.
+- Moonlight grub paste, Duke Sucellus mushrooms, Hosidius saltpetre on
   compost, farming capes' teleport.
 
 ### Agility shortcuts
 - Placed and unbound: Cross 90, Jump-to 46, Squeeze-through 41, Climb-over 13,
-  Jump 11, Walk-across 10, Jump-over 9, Crawl-through 6. Recorded: Lost Tribe
-  hole (7 sessions), Imcando door squeeze (4), Taverley dragon jump-up (3),
-  Zul-Andra stepping stones (3), Burgh de Rott fence (2), Anglers' Retreat (2),
-  Dagannoth crevice (2), the haunted mine's shortcuts. Each needs its
+  Jump 11, Walk-across 10, Jump-over 9, Crawl-through 6. Recorded and still
+  open: Imcando door squeeze (4), Burgh de Rott fence (2: its recording shows
+  no clear shape), the haunted mine's shortcuts, Mos Le'Harmless and the DT2
+  Scar stepping stones. Each needs its
   `exactmove`/walk copied from the recording (rsprox-content §12).
