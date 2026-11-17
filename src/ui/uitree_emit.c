@@ -1511,6 +1511,42 @@ emit_minimenu_popup(
         0,
         "Choose Option");
 
+    /*
+     * A popup taller than the viewport scrolls its rows under a title bar
+     * that stays put (UIMinimenu_ShowAt). The rows are clipped to the window
+     * between the separator and the bottom border, and a thumb inside the
+     * right border says how much more there is and where this is in it. A
+     * popup that fits draws exactly as it always did.
+     */
+    struct UITreeEmitClip rows_clip = *parent_clip;
+    int rows_top = 0;
+    int rows_bottom = 0;
+    int const scroll_max = UIMinimenu_ScrollMax(menu);
+    UIMinimenu_RowsWindow(menu, &rows_top, &rows_bottom);
+    if( scroll_max > 0 )
+    {
+        int const clip_top = rows_top + 1 > parent_clip->y ? rows_top + 1 : parent_clip->y;
+        int const parent_bottom = parent_clip->y + parent_clip->h;
+        int const clip_bottom = rows_bottom < parent_bottom ? rows_bottom : parent_bottom;
+        rows_clip.y = clip_top;
+        rows_clip.h = clip_bottom > clip_top ? clip_bottom - clip_top : 0;
+
+        {
+            int const track_top = rows_top + 2;
+            int const track_h = rows_bottom - rows_top - 4;
+            int thumb_h = track_h * menu->height / menu->content_height;
+            int thumb_y;
+            if( thumb_h < 8 )
+                thumb_h = 8;
+            if( thumb_h > track_h )
+                thumb_h = track_h;
+            thumb_y = track_top + (track_h - thumb_h) * menu->scroll_y / scroll_max;
+            if( track_h > 0 )
+                emit_minimenu_rect(
+                    out, c, idx, parent_clip, mx + mw - 5, thumb_y, 2, thumb_h, 0x000000);
+        }
+    }
+
     for( int i = 0; i < menu->option_count; i++ )
     {
         int const hovered = menu->hovered_option == i;
@@ -1519,11 +1555,13 @@ emit_minimenu_popup(
         int text_w;
         int text_h;
         UIMinimenu_RowTextBox(menu, i, &text_x, &text_y, &text_w, &text_h);
+        if( scroll_max > 0 && (text_y + text_h <= rows_top || text_y >= rows_bottom) )
+            continue;
         emit_minimenu_text(
             out,
             c,
             idx,
-            parent_clip,
+            &rows_clip,
             text_x,
             text_y,
             text_w,

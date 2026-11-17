@@ -173,6 +173,16 @@ App_PointerOwnedByUi(
      */
     if( app_chrome_wants_pointer(app, x, y) )
         return 1;
+    /* An open minimenu over the world: a finger dragged on it is scrolling
+     * its rows (interact_minimenu_scroll), which needs the LEFT button the
+     * touch layer gives a drag on a window -- MIDDLE would turn the camera. */
+    if( app->frame_view )
+    {
+        struct UIMinimenu const* menu = app->frame_view->minimenu;
+        if( menu->visible && x >= menu->x && x < menu->x + menu->width && y >= menu->y &&
+            y < menu->y + menu->height )
+            return 1;
+    }
     return !app_world_mouse_gate(app, x, y);
 }
 

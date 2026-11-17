@@ -74,6 +74,32 @@ struct UIInteraction
     int swallow_left_click;
 
     /**
+     * A popup taller than the screen scrolls (UIMinimenu_ScrollBy), and a
+     * finger needs two ways to do it, @see interact_minimenu_scroll:
+     *
+     *  - a swipe on the open popup: the touch layer's one-finger drag, a left
+     *    press with no release in the same frame, while a finger is down. It
+     *    moves the rows by its travel and presses nothing. `mm_swipe` is set
+     *    while it lasts, from `mm_swipe_press_y` / `mm_swipe_start_scroll`.
+     *  - the long press that opened the popup, still on the glass and sliding
+     *    over the rows: held against the top or bottom edge of the window, it
+     *    scrolls. Armed only once the finger has moved a row from where the
+     *    popup first saw it (`mm_anchor_y`), so a long press that happened to
+     *    land on the edge does not set the rows running under a still finger.
+     *    `mm_hold` says the finger that opened the popup is still that
+     *    finger: set on the popup's first frame if a finger is down, cleared
+     *    by any left press or click (the lift is one), so a finger that comes
+     *    down later to tap a row near the edge never scrolls it away.
+     */
+    int mm_swipe;
+    int mm_swipe_press_y;
+    int mm_swipe_start_scroll;
+    int mm_anchor_set;
+    int mm_anchor_y;
+    int mm_hold;
+    int mm_edge_armed;
+
+    /**
      * Swipe-to-scroll, the touch UI's way of moving a list: a finger that
      * lands inside a scrollable layer and is HELD (the touch layer sends a
      * press on its own only for a drag; a tap arrives press-and-release

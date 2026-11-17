@@ -862,6 +862,179 @@ test_interact_hover_uses_host(void)
     UITree_Free(tree);
 }
 
+
+/* A popup with more rows than the viewport holds: the reference let the rest
+ * run off the bottom of the screen, out of reach. Ours is cut to the viewport
+ * and its rows scroll under a title bar that stays put. */
+static void
+fill_tall_menu(struct UIMinimenu* menu, int rows)
+{
+    UIMinimenu_AddOption(menu, "Cancel", TEST_ACTION_CANCEL, -1, pick_none());
+    for( int i = 1; i < rows; i++ )
+        UIMinimenu_AddOption(menu, "Take Coins", TEST_ACTION_OP1, 0, pick_none());
+}
+
+static void
+test_minimenu_scroll_geometry(void)
+{
+    struct UIMinimenuLayout layout = UIMinimenu_LayoutFromLineBox(16);
+    struct UIMinimenu menu;
+    int rows_top;
+    int rows_bottom;
+
+    UIMinimenu_Reset(&menu);
+    fill_tall_menu(&menu, 50);
+    UIMinimenu_ShowAt(&menu, layout, 120, 300, 400, 765, 503);
+    TEST_ASSERT(menu.content_height == 50 * 15 + 21, "content height is every row");
+    TEST_ASSERT(menu.height == 503, "popup cut to the viewport");
+    TEST_ASSERT(menu.y == 0, "cut popup starts at the top");
+    TEST_ASSERT(menu.scroll_y == 0, "opens scrolled to the top rows");
+    TEST_ASSERT(UIMinimenu_ScrollMax(&menu) == menu.content_height - 503, "scroll range");
+
+    UIMinimenu_RowsWindow(&menu, &rows_top, &rows_bottom);
+    TEST_ASSERT(
+        UIMinimenu_HitOption(&menu, menu.x + 10, UIMinimenu_OptionY(&menu, 49) - 2) == 49,
+        "top row reachable at scroll 0");
+    TEST_ASSERT(UIMinimenu_OptionY(&menu, 0) > rows_bottom, "Cancel below the window");
+
+    TEST_ASSERT(UIMinimenu_ScrollBy(&menu, 100000), "scrolls");
+    TEST_ASSERT(menu.scroll_y == UIMinimenu_ScrollMax(&menu), "clamped at the bottom");
+    TEST_ASSERT(!UIMinimenu_ScrollBy(&menu, 1), "no further");
+    TEST_ASSERT(
+        UIMinimenu_HitOption(&menu, menu.x + 10, UIMinimenu_OptionY(&menu, 0) - 2) == 0,
+        "Cancel reachable once scrolled");
+    TEST_ASSERT(
+        UIMinimenu_OptionY(&menu, 0) + layout.hover_below == rows_bottom,
+        "bottom row's band ends at the bottom border");
+    /* A row scrolled under the title bar is not hit through it. */
+    TEST_ASSERT(UIMinimenu_HitOption(&menu, menu.x + 10, menu.y + 4) == -1, "title is chrome");
+
+    TEST_ASSERT(UIMinimenu_RevealOption(&menu, 49), "reveal scrolls back up");
+    TEST_ASSERT(
+        UIMinimenu_OptionY(&menu, 49) - layout.hover_above >= rows_top, "revealed row in window");
+    TEST_ASSERT(!UIMinimenu_RevealOption(&menu, 49), "already visible: no move");
+
+    /* A popup that fits is unchanged and does not scroll. */
+    UIMinimenu_Hide(&menu);
+    fill_tall_menu(&menu, 3);
+    UIMinimenu_ShowAt(&menu, layout, 120, 300, 200, 765, 503);
+    TEST_ASSERT(menu.height == menu.content_height, "fitting popup keeps its height");
+    TEST_ASSERT(UIMinimenu_ScrollMax(&menu) == 0, "fitting popup has no scroll");
+    TEST_ASSERT(!UIMinimenu_ScrollBy(&menu, 30), "fitting popup does not move");
+}
+
+static void
+scroll_frame_begin(struct LibToriRS_Input* input, uint64_t t, int touch)
+{
+    LibToriRS_Input_Begin(input, t);
+    input->touch_down = touch;
+}
+
+/* The wheel on the desktop; a swipe, a tap and the long press's edge on
+ * touch. */
+static void
+test_minimenu_scroll_input(void)
+{
+    struct UIMinimenuLayout layout = UIMinimenu_LayoutFromLineBoxStyled(16, UI_MINIMENU_STYLE_TOUCH);
+    struct UITree* tree = UITree_New(8);
+    struct UITreeHost host;
+    struct TestHostState host_state;
+    struct UIInteraction interact;
+    struct LibToriRS_Input input_storage;
+    struct LibToriRS_Input* input;
+    struct UIInteractOut out;
+    struct UIMinimenu* menu = &interact.minimenu;
+    int x;
+    int rows_top;
+    int rows_bottom;
+    uint64_t t = 1000;
+
+    UITree_TestHostInit(&host, &host_state);
+    UITree_TestResolve(tree);
+    UIInteraction_Init(&interact);
+    input = LibToriRS_Input_Init(&input_storage, 0);
+
+    /* Wheel: a notch down shows rows further down, and is taken from the
+     * input so nothing under the popup scrolls with it. */
+    fill_tall_menu(menu, 40);
+    UIMinimenu_ShowAt(menu, layout, 140, 300, 250, 765, 503);
+    x = menu->x + 20;
+    scroll_frame_begin(input, t += 20, 0);
+    LibToriRS_Input_PushMouseMove(input, x, 250);
+    input->curr.mouse_wheel_y = -1;
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+    TEST_ASSERT(menu->scroll_y == 3 * layout.row_stride, "wheel notch scrolls three rows");
+    TEST_ASSERT(input->curr.mouse_wheel_y == 0, "wheel consumed");
+    TEST_ASSERT(menu->visible, "wheel keeps the popup");
+
+    /* Swipe: a finger dragged up the popup moves the rows with it, 1:1 from
+     * where it landed, and presses nothing -- not on the drag, not on the
+     * release. */
+    UIMinimenu_Hide(menu);
+    UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+    fill_tall_menu(menu, 40);
+    UIMinimenu_ShowAt(menu, layout, 140, 300, 250, 765, 503);
+    scroll_frame_begin(input, t += 20, 1);
+    LibToriRS_Input_PushMouseMove(input, x, 400);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, x, 400);
+    LibToriRS_Input_PushMouseMove(input, x, 300);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+    TEST_ASSERT(out.minimenu_select < 0, "swipe press selects nothing");
+    TEST_ASSERT(menu->scroll_y == 100, "rows follow the finger");
+    scroll_frame_begin(input, t += 20, 1);
+    LibToriRS_Input_PushMouseMove(input, x, 250);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+    TEST_ASSERT(menu->scroll_y == 150, "and keep following it");
+    scroll_frame_begin(input, t += 20, 1);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, x, 250);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+    TEST_ASSERT(out.minimenu_select < 0, "swipe release selects nothing");
+    TEST_ASSERT(menu->visible, "popup stays open after a swipe");
+
+    /* A tap (press and release together) still picks the row under it. */
+    {
+        int const row_y = UIMinimenu_OptionY(menu, 20) - 2;
+        scroll_frame_begin(input, t += 20, 1);
+        LibToriRS_Input_PushMouseMove(input, x, row_y);
+        LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, x, row_y);
+        LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, x, row_y);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+        TEST_ASSERT(out.minimenu_select == 20, "tap picks the scrolled row");
+    }
+
+    /* The long press that opened the popup, sliding to the bottom edge,
+     * scrolls -- but not until it has moved a row from where it started. */
+    UIMinimenu_Hide(menu);
+    UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+    fill_tall_menu(menu, 40);
+    UIMinimenu_ShowAt(menu, layout, 140, 300, 495, 765, 503);
+    UIMinimenu_RowsWindow(menu, &rows_top, &rows_bottom);
+    scroll_frame_begin(input, t += 20, 1);
+    LibToriRS_Input_PushMouseMove(input, x, rows_bottom - 3);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+    scroll_frame_begin(input, t += 50, 1);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+    TEST_ASSERT(menu->scroll_y == 0, "a still finger on the edge does not scroll");
+    scroll_frame_begin(input, t += 50, 1);
+    LibToriRS_Input_PushMouseMove(input, x, 250);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+    scroll_frame_begin(input, t += 50, 1);
+    LibToriRS_Input_PushMouseMove(input, x, rows_bottom - 3);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+    TEST_ASSERT(menu->scroll_y > 0, "the slide to the edge scrolls");
+
+    UITree_Free(tree);
+}
+
 void
 test_minimenu(void)
 {
@@ -872,6 +1045,8 @@ test_minimenu(void)
     test_minimenu_width_holds_the_rows();
     test_minimenu_hide_keeps_font();
     test_minimenu_clamping();
+    test_minimenu_scroll_geometry();
+    test_minimenu_scroll_input();
     test_minimenu_sort();
     test_minimenu_hit_and_hover();
     test_minimenu_emit();

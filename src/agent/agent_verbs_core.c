@@ -2549,6 +2549,10 @@ agent_target_point(
         const struct UIMinimenu* menu = agent_minimenu(ctx);
         if( !menu || !menu->visible || target->index >= menu->option_count )
             return 0;
+        /* A popup taller than the screen scrolls: bring the row into its
+         * window, or the click lands on nothing. */
+        if( UIMinimenu_RevealOption(ctx->app->frame_view->minimenu, target->index) )
+            ctx->app->need_redraw = 1;
         *out_x = menu->x + menu->width / 2;
         *out_y = UIMinimenu_OptionY(menu, target->index);
         return 1;

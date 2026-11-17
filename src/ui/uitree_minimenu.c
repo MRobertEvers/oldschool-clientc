@@ -107,6 +107,7 @@ UIMinimenu_Hide(struct UIMinimenu* menu)
     menu->visible = false;
     menu->option_count = 0;
     menu->hovered_option = -1;
+    menu->scroll_y = 0;
 }
 
 bool
@@ -243,7 +244,63 @@ UIMinimenu_OptionY(struct UIMinimenu const* menu, int option_index)
         return menu->y;
 
     int const row = (menu->option_count - 1 - option_index) * menu->layout.row_stride;
-    return menu->y + row + menu->layout.option_base_y;
+    return menu->y + row + menu->layout.option_base_y - menu->scroll_y;
+}
+
+int
+UIMinimenu_ScrollMax(struct UIMinimenu const* menu)
+{
+    assert(menu);
+    return menu->content_height > menu->height ? menu->content_height - menu->height : 0;
+}
+
+bool
+UIMinimenu_ScrollBy(struct UIMinimenu* menu, int dy)
+{
+    int const max = UIMinimenu_ScrollMax(menu);
+    int next = menu->scroll_y + dy;
+
+    if( next > max )
+        next = max;
+    if( next < 0 )
+        next = 0;
+    if( next == menu->scroll_y )
+        return false;
+    menu->scroll_y = next;
+    return true;
+}
+
+void
+UIMinimenu_RowsWindow(struct UIMinimenu const* menu, int* out_top, int* out_bottom)
+{
+    assert(menu);
+    assert(out_top);
+    assert(out_bottom);
+    /* The top row's band starts at separator_y and the bottom row's ends two
+     * pixels above the popup's bottom edge (the border), in both styles. */
+    *out_top = menu->y + menu->layout.separator_y;
+    *out_bottom = menu->y + menu->height - 2;
+}
+
+bool
+UIMinimenu_RevealOption(struct UIMinimenu* menu, int option_index)
+{
+    int top;
+    int bottom;
+    int band_top;
+    int band_bottom;
+
+    assert(menu);
+    assert(option_index >= 0);
+    assert(option_index < menu->option_count);
+    UIMinimenu_RowsWindow(menu, &top, &bottom);
+    band_top = UIMinimenu_OptionY(menu, option_index) - menu->layout.hover_above;
+    band_bottom = UIMinimenu_OptionY(menu, option_index) + menu->layout.hover_below;
+    if( band_top < top )
+        return UIMinimenu_ScrollBy(menu, band_top - top);
+    if( band_bottom > bottom )
+        return UIMinimenu_ScrollBy(menu, band_bottom - bottom);
+    return false;
 }
 
 void
@@ -295,6 +352,12 @@ UIMinimenu_ShowAt(
         x = viewport_w - width;
     if( x < 0 )
         x = 0;
+    /* Taller than the viewport: the reference clamps the top to 0 and lets
+     * the rest run off the bottom, where no pointer can reach it. Cut the
+     * popup to the viewport instead and let the rows scroll. */
+    int const content_height = height;
+    if( viewport_h > 0 && height > viewport_h )
+        height = viewport_h;
     if( y + height > viewport_h )
         y = viewport_h - height;
     if( y < 0 )
@@ -306,6 +369,8 @@ UIMinimenu_ShowAt(
     menu->y = y;
     menu->width = width;
     menu->height = height;
+    menu->content_height = content_height;
+    menu->scroll_y = 0;
     menu->hovered_option = -1;
 }
 
@@ -316,13 +381,24 @@ UIMinimenu_HitOption(struct UIMinimenu const* menu, int click_x, int click_y)
     if( !menu->visible )
         return -1;
 
-    for( int i = 0; i < menu->option_count; i++ )
     {
-        int const option_y = UIMinimenu_OptionY(menu, i);
-        if( click_x > menu->x && click_x < menu->x + menu->width &&
-            click_y > option_y - menu->layout.hover_above &&
-            click_y < option_y + menu->layout.hover_below )
-            return i;
+        int rows_top;
+        int rows_bottom;
+        UIMinimenu_RowsWindow(menu, &rows_top, &rows_bottom);
+        /* A row scrolled under the title bar or past the bottom border is not
+         * there to press. A popup that fits is unchanged: its bands lie
+         * inside this window already. */
+        if( click_y >= rows_top && click_y < rows_bottom )
+        {
+            for( int i = 0; i < menu->option_count; i++ )
+            {
+                int const option_y = UIMinimenu_OptionY(menu, i);
+                if( click_x > menu->x && click_x < menu->x + menu->width &&
+                    click_y > option_y - menu->layout.hover_above &&
+                    click_y < option_y + menu->layout.hover_below )
+                    return i;
+            }
+        }
     }
 
     if( click_x < menu->x - 10 || click_x > menu->x + menu->width + 10 ||

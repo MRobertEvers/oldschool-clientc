@@ -1181,6 +1181,10 @@ DrivePointer_MenuRowFind(
         out_row->target_id = target_id;
         out_row->component_id = opt->pick.id;
         out_row->slot = opt->action_index;
+        /* The row is found to be pressed: bring it into a popup that is
+         * scrolled (taller than the screen), or its centre hits nothing. */
+        if( UIMinimenu_RevealOption(app->frame_view->minimenu, i) )
+            app->need_redraw = 1;
         out_row->centre_x = menu->x + menu->width / 2;
         out_row->centre_y = UIMinimenu_OptionY(menu, i);
         snprintf(out_row->text, sizeof(out_row->text), "%s", opt->text);

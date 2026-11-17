@@ -185,7 +185,16 @@ struct UIMinimenu
     int x;
     int y;
     int width;
+    /** The popup's height ON SCREEN: every row, or the viewport's height when
+     *  the rows do not fit in it (a stack of objs on one tile, 400 rows at
+     *  most). Then the title bar stays put and the rows scroll under it. */
     int height;
+    /** Every row's height plus the chrome: UIMinimenu_Height. Equal to
+     *  `height` unless the popup is taller than the viewport. */
+    int content_height;
+    /** How far the rows have scrolled up, 0 .. UIMinimenu_ScrollMax: 0 shows
+     *  the top (highest-priority) rows, the reference's clamped popup. */
+    int scroll_y;
     int hovered_option; /* -1 = none */
     /** Cache font id used for measuring and drawing rows (bold-12). */
     int font_id;
@@ -305,7 +314,8 @@ UIMinimenu_RowTextBox(
     int* out_h);
 
 /** Place at the click (centered horizontally, biased up), clamped inside the
- * viewport, and mark visible. */
+ * viewport, and mark visible. A popup taller than the viewport is cut to it,
+ * top at 0, rows scrolled to the top (UIMinimenu_ScrollBy moves them). */
 void
 UIMinimenu_ShowAt(
     struct UIMinimenu* menu,
@@ -316,7 +326,27 @@ UIMinimenu_ShowAt(
     int viewport_w,
     int viewport_h);
 
-/** >= 0 option row; -1 inside chrome / margin; -2 outside (close). */
+/** How far the rows can scroll: 0 when the popup fits on screen. */
+int
+UIMinimenu_ScrollMax(struct UIMinimenu const* menu);
+
+/** Scroll the rows by dy pixels (+ reveals the rows below), clamped. Returns
+ *  true when they moved. */
+bool
+UIMinimenu_ScrollBy(struct UIMinimenu* menu, int dy);
+
+/** Scroll the least distance that shows option i's whole band. Returns true
+ *  when the rows moved. For a driver about to press a row by its position. */
+bool
+UIMinimenu_RevealOption(struct UIMinimenu* menu, int option_index);
+
+/** The window the rows are seen through, canvas y: [*out_top, *out_bottom).
+ *  The bands of a popup that fits fill it exactly. */
+void
+UIMinimenu_RowsWindow(struct UIMinimenu const* menu, int* out_top, int* out_bottom);
+
+/** >= 0 option row; -1 inside chrome / margin; -2 outside (close). A row
+ *  scrolled out of the window is not hit. */
 int
 UIMinimenu_HitOption(struct UIMinimenu const* menu, int click_x, int click_y);
 

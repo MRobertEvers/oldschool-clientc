@@ -1592,6 +1592,147 @@ interact_hover(
     out->hover_com_id = interact->hover_com_id;
 }
 
+/** Rows a second the held finger scrolls at, against the window's edge. */
+#define UI_MINIMENU_EDGE_ROWS_PER_SEC 10
+/** Rows one wheel notch scrolls. */
+#define UI_MINIMENU_WHEEL_ROWS 3
+
+/*
+ * A popup taller than the screen (UIMinimenu_ShowAt cuts it to the viewport)
+ * scrolls its rows. Returns 1 when a touch swipe owns this frame -- nothing
+ * under the finger is hovered or pressed -- and 0 to let the popup's ordinary
+ * hover / select / close run on the rows where they now are.
+ *
+ *  wheel   a notch moves UI_MINIMENU_WHEEL_ROWS rows; a trackpad its own
+ *          pixels. Taken from the input so the chat under the popup does not
+ *          scroll with it. A wheel while a finger is down is a pinch, not a
+ *          scroll, and is left alone.
+ *  swipe   the touch layer's one-finger drag on the popup: a left press that
+ *          is not also a release (a tap arrives as both at once), while a
+ *          finger is down. The rows follow the finger 1:1 from where it
+ *          landed, and the release selects nothing.
+ *  edge    the long press that opened the popup, still down and sliding over
+ *          the rows, held within a row of the window's top or bottom.
+ *
+ * A popup that fits never moves (ScrollBy clamps to 0), but a swipe on it is
+ * still a swipe: a drag is never a press, here as everywhere on touch.
+ */
+static int
+interact_minimenu_scroll(
+    struct UIInteraction* interact,
+    struct LibToriRS_Input* input,
+    struct UIInteractOut* out)
+{
+    struct UIMinimenu* menu = &interact->minimenu;
+    int const mx = input->curr.mouse_x;
+    int const my = input->curr.mouse_y;
+    int const stride = menu->layout.row_stride > 0 ? menu->layout.row_stride : 1;
+    int const left_down = LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT);
+    int const left_click = LibToriRS_Input_IsClick(input, TORIRSM_LEFT);
+
+    if( !interact->mm_anchor_set )
+    {
+        interact->mm_anchor_set = 1;
+        interact->mm_anchor_y = my;
+        interact->mm_hold = input->touch_down ? 1 : 0;
+        interact->mm_edge_armed = 0;
+    }
+    if( left_down || left_click )
+        interact->mm_hold = 0;
+
+    if( interact->mm_swipe )
+    {
+        if( !LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) )
+        {
+            /* The finger lifted: the release is the swipe's, not a press. */
+            interact->mm_swipe = 0;
+            return 1;
+        }
+        if( UIMinimenu_ScrollBy(
+                menu,
+                interact->mm_swipe_start_scroll - (my - interact->mm_swipe_press_y) -
+                    menu->scroll_y) )
+            out->need_redraw = 1;
+        if( menu->hovered_option != -1 )
+        {
+            menu->hovered_option = -1;
+            out->need_redraw = 1;
+        }
+        return 1;
+    }
+
+    if( input->touch_down && left_down && !left_click )
+    {
+        int const px = input->press_origin_x[TORIRSM_LEFT];
+        int const py = input->press_origin_y[TORIRSM_LEFT];
+        if( px >= menu->x && px < menu->x + menu->width && py >= menu->y &&
+            py < menu->y + menu->height )
+        {
+            interact->mm_swipe = 1;
+            interact->mm_swipe_press_y = py;
+            interact->mm_swipe_start_scroll = menu->scroll_y;
+            if( UIMinimenu_ScrollBy(menu, -(my - py)) )
+                out->need_redraw = 1;
+            if( menu->hovered_option != -1 )
+            {
+                menu->hovered_option = -1;
+                out->need_redraw = 1;
+            }
+            return 1;
+        }
+    }
+
+    if( UIMinimenu_ScrollMax(menu) <= 0 )
+        return 0;
+
+    if( !input->touch_down &&
+        (input->curr.mouse_wheel_y != 0 || input->curr.scroll_dy != 0.0f) )
+    {
+        int dy;
+        if( input->curr.scroll_trackpad && input->curr.scroll_dy != 0.0f )
+            dy = -(int)input->curr.scroll_dy;
+        else
+            dy = -input->curr.mouse_wheel_y * UI_MINIMENU_WHEEL_ROWS * stride;
+        if( UIMinimenu_ScrollBy(menu, dy) )
+            out->need_redraw = 1;
+        input->curr.mouse_wheel_y = 0;
+        input->curr.scroll_dx = 0.0f;
+        input->curr.scroll_dy = 0.0f;
+        out->wheel_consumed = 1;
+    }
+
+    if( interact->mm_hold && !LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) &&
+        mx > menu->x && mx < menu->x + menu->width )
+    {
+        int rows_top;
+        int rows_bottom;
+        int dy = 0;
+
+        if( my - interact->mm_anchor_y >= stride || interact->mm_anchor_y - my >= stride )
+            interact->mm_edge_armed = 1;
+        UIMinimenu_RowsWindow(menu, &rows_top, &rows_bottom);
+        if( interact->mm_edge_armed )
+        {
+            uint64_t dt = input->curr.time > input->prev.time
+                              ? input->curr.time - input->prev.time
+                              : 0;
+            int step;
+            if( dt > 100 )
+                dt = 100;
+            step = (int)((uint64_t)stride * UI_MINIMENU_EDGE_ROWS_PER_SEC * dt / 1000);
+            if( step < 1 )
+                step = 1;
+            if( my >= rows_bottom - stride )
+                dy = step;
+            else if( my < rows_top + stride )
+                dy = -step;
+        }
+        if( dy != 0 && UIMinimenu_ScrollBy(menu, dy) )
+            out->need_redraw = 1;
+    }
+    return 0;
+}
+
 /*
  * Right-click minimenu gesture (reference choose-option): while the popup is
  * visible it owns the mouse completely — rows select on MOUSEDOWN (either
@@ -1610,6 +1751,10 @@ interact_minimenu(
 
     if( !menu->visible )
     {
+        interact->mm_swipe = 0;
+        interact->mm_anchor_set = 0;
+        interact->mm_hold = 0;
+        interact->mm_edge_armed = 0;
         /* A left press the popup never saw starts a fresh gesture: drop any
          * stale latch so a swallowed press whose release went missing (focus
          * loss, drag) cannot eat this click. */
@@ -1630,6 +1775,9 @@ interact_minimenu(
      * the menu in the app. App-level gestures also poll the raw input state,
      * so visibility alone cannot stop this press propagating to them. */
     out->minimenu_consumed_pointer = 1;
+
+    if( interact_minimenu_scroll(interact, input, out) )
+        return 1;
 
     if( UIMinimenu_UpdateHover(menu, input->curr.mouse_x, input->curr.mouse_y) )
         out->need_redraw = 1;
@@ -1654,6 +1802,10 @@ interact_minimenu(
             else if( hit == -2 )
             {
                 UIMinimenu_Hide(menu);
+                /* A right press reopens a new popup this same frame: its
+                 * scroll gestures start over. */
+                interact->mm_anchor_set = 0;
+                interact->mm_hold = 0;
                 out->minimenu_closed = 1;
                 out->need_redraw = 1;
                 if( right_down )

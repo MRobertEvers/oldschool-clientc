@@ -564,7 +564,7 @@ App_MinimenuRowCenter(
     char* out_text,
     size_t out_text_capacity)
 {
-    struct UIMinimenu const* menu;
+    struct UIMinimenu* menu;
     size_t prefix_len;
 
     assert(app);
@@ -579,6 +579,10 @@ App_MinimenuRowCenter(
     {
         if( strncmp(menu->options[i].text, prefix, prefix_len) != 0 )
             continue;
+        /* The caller presses the point: in a popup taller than the screen
+         * the row may be scrolled out of the window, where nothing hits it. */
+        if( UIMinimenu_RevealOption(menu, i) )
+            app->need_redraw = 1;
         *out_x = menu->x + menu->width / 2;
         *out_y = UIMinimenu_OptionY(menu, i);
         if( out_text && out_text_capacity > 0 )
