@@ -125,13 +125,20 @@ local function cairn_bridge(t, name, westbound)
     return false
 end
 
--- The brothers' houses (quest_tbwt.rs2:131-139 tbwt_bamboo_door, a selfstage door on each house's east wall).
-local HOUSE_TINSAY = { at = { 2792, 3054, 0 }, out = { 2793, 3054 }, inside = { 2791, 3055 }, away = { 2794, 3054 } }
-local HOUSE_TIADECHE = { at = { 2782, 3057, 0 }, out = { 2783, 3057 }, inside = { 2781, 3056 }, away = { 2783, 3059 } }
-local HOUSE_TAMAYU = { at = { 2802, 3058, 0 }, out = { 2803, 3058 }, inside = { 2801, 3058 }, away = { 2804, 3058 } }
+-- The brothers' houses: tbwt_bamboo_door is a walk-through door on each house's east wall (quest_tbwt.rs2
+-- ~tbwt_bamboo_door_cross, RSProx index 4573 [4953..4960]): one step from the outside tile onto the door's own
+-- tile, which is inside the hut, and back.
+local HOUSE_TINSAY = { at = { 2792, 3054, 0 }, out = { 2793, 3054 } }
+local HOUSE_TIADECHE = { at = { 2782, 3057, 0 }, out = { 2783, 3057 } }
+local HOUSE_TAMAYU = { at = { 2802, 3058, 0 }, out = { 2803, 3058 } }
 local function bamboo_door(t, name, house, entering)
-    t.exec(name, t.player.pass_door, { closed = "tbwt_bamboo_door", open = "tbwt_bamboo_door", at = house.at,
-        near = entering and house.out or house.at, far = entering and house.inside or house.away })
+    local to = entering and { house.at[1], house.at[2] } or house.out
+    t.exec("goto-" .. name, t.player.goto_tile, entering and house.out[1] or house.at[1],
+        entering and house.out[2] or house.at[2], 0)
+    t.exec(name, t.player.cross_gate, { loc = "tbwt_bamboo_door", at = house.at,
+        near = entering and house.out or { house.at[1], house.at[2] },
+        far_ok = function(tile) return tile.x == to[1] and tile.z == to[2] end,
+        far_desc = (entering and "inside on the door's tile " or "outside at ") .. to[1] .. "," .. to[2] })
 end
 
 -- The small-net karambwanji spot also lands raw shrimp (tbwt.rs2 attempt_fish_karambwanji :57-65); a full
@@ -237,6 +244,9 @@ return {
 
     legs = {
         { name = "timfraku_to_rum", run = function(t)
+            -- the wire audit against RSProx 4504/4572/4573 reads this (build/quest_gate/<run>/ticklog.tsv)
+            t.ticklog.start()
+            t.ticklog.mark("leg.timfraku_to_rum")
             -- LEG 1 BEGIN: goToTimfrakuLadder
             t.ticks(3) -- a setup cheat's effect is not client-side yet
             t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
@@ -303,7 +313,7 @@ return {
                 "player:Yes, I helped",
                 "npc:Then it must be true",
             })
-            -- tbwt_timfraku.rs2 closes the dialogue (if_close), mes() + p_delay(4), then reopens it
+            -- tbwt_timfraku.rs2 closes the dialogue (if_close), mes() + p_delay(3), then the next page (RSProx 4504 [553..557])
             t.ticks(6)
             t.exec("talkToTimfrakuStart-dialog2", t.chat.play, {
                 "npc:I cannot thank you",
@@ -313,7 +323,7 @@ return {
                 "npc:I now ask you",
                 "player:And what is that",
                 "npc:I ask you to deliver",
-                "choose:Yes",
+                "choose:Yes.",
                 "player:Ok, I'll do it.",
                 "npc:Thank you very much",
                 "player:If I succeed",
@@ -387,7 +397,7 @@ return {
             t.exec("goToLubufu-give-dialog", t.chat.play, {
                 "npc:Have you retrieved the Karambwanji yet?",
                 "player:Yes, I have some here.",
-                "mesbox:You hand Lubufu 20 raw Karambwanji.",
+                "objbox:You hand Lubufu 20 raw Karambwanji.", -- an objbox (RSProx 4572 [903])
                 "npc:Thank you! This should tide me over",
             })
             t.ticks(2)
@@ -494,6 +504,7 @@ return {
             t.check("leg.1.end", rum == 1, "Musa Point 2925,3143 level 0, varp320_tbwt_main=" .. tostring(lstage) .. ", karamja_rum x" .. tostring(rum) .. ", backpack also holds a plain and a loaded karambwan vessel, small net, coins")
         end },
         { name = "banana_to_burnt_bones", run = function(t)
+            t.ticklog.mark("leg.banana_to_burnt_bones")
             -- LEG 2 BEGIN: sliceBanana
             t.ticks(3)
             -- pick a banana in Luthas' plantation (the guide: "from one of the trees in the plantation"):
@@ -619,6 +630,7 @@ return {
             t.check("leg.2.end", burnt == 1, "tile " .. tostring(wx) .. "," .. tostring(wz) .. " level " .. tostring(wtile.level) .. ", varp320_tbwt_main=" .. tostring(l2stage) .. ", holds burnt jogre bones, seaweed, banana rum with slices, plain karambwan vessel, raw karambwan, knife, tinderbox, rune scimitar worn")
         end },
         { name = "paste_to_spear", run = function(t)
+            t.ticklog.mark("leg.paste_to_spear")
             -- LEG 3 BEGIN: makeKarambwanjiPaste
             t.ticks(3)
             -- the pack is nearly full (leg 2 leftovers): drop the bycatch shrimp (guide: not needed)
@@ -692,7 +704,7 @@ return {
             t.exec("talkToTamayu1-news", t.player.talk_to, "tbwt_tamayu", 1)
             t.exec("talkToTamayu1-news-dialog", t.chat.play, {
                 "player:Tamayu, first son of Timfraku",
-                "npc:I am.",
+                "npc:What do you want, stranger?",
                 "player:Tamayu, I bring good news",
                 "player:Your father requests",
                 "npc:Then know this",
@@ -713,7 +725,7 @@ return {
             })
             t.exec("talkToTamayu1.cutscene", t.cutscene.await, "talkToTamayu1", { expect = { { op = "reset" } } })
             t.exec("talkToTamayu1-assess", t.chat.play, {
-                "npc:I simply cannot match",
+                "npc:Shaikhan is at present far too agile",
                 "npc:I cannot do enough damage",
                 "npc:",
             })
@@ -731,7 +743,7 @@ return {
             t.exec("giveSpear", t.player.use_on, "tbwt_iron_spear_kp", t.player.by_symbol("npc", "tbwt_tamayu"))
             t.exec("giveSpear-dialog", t.chat.play, {
                 "player:Tamayu, try using this weapon",
-                "mesbox:You hand the spear",
+                "objbox:You hand the spear",
                 "npc:Thank you Bwana",
             })
             t.ticks(2)
@@ -742,6 +754,7 @@ return {
             t.check("leg.3.end", tam == 3, "tile " .. tostring(l3tile.x) .. "," .. tostring(l3tile.z) .. " level " .. tostring(l3tile.level) .. ", varp320_tbwt_main=" .. tostring(l3stage) .. ", varp6728_tbwt_tamayu=" .. tostring(tam) .. ", Tamayu holds the poisoned spear and the agility potion; pack: banana rum, marinated burnt bones, seaweed, knife, tinderbox, sharks")
         end },
         { name = "hunt_to_end", run = function(t)
+            t.ticklog.mark("leg.hunt_to_end")
             -- LEG 4 BEGIN: goOnHuntToKill
             t.ticks(3)
             t.exec("goOnHuntToKill", t.player.talk_to, "tbwt_tamayu", 1)
@@ -988,14 +1001,6 @@ return {
                 "objbox:Timfraku hands you a big stack of gold coins",
             })
             t.ticks(4)
-            -- the quest-complete queue also runs tbwt_timfraku_talk_to_sons (quest_tbwt.rs2:317): dismiss it before the scroll check
-            t.exec("talkToTimfrakuEnd-sons", t.chat.play, {
-                "npc:You should go and see my sons",
-                "options",
-                "choose:Ok, thanks.",
-                "player:Ok, thanks",
-            })
-            t.ticks(4)
             local _, coins_after = t.inv.count("coins")
             t.check("talkToTimfrakuEnd.coins", coins_after == coins_before + 2000, "coins " .. tostring(coins_before) .. " -> " .. tostring(coins_after) .. " (documented reward: 2000 coins)")
             -- expect_complete's own quest.journal row times out right after scroll.close() (gaps-combat: `quest.journal` can
@@ -1018,6 +1023,15 @@ return {
             end
             local cr2 = t.scroll.close()
             t.check("quest.scroll_close", cr2 == "ok", "scroll.close() -> " .. tostring(cr2))
+            -- Timfraku's next page comes once the scroll is shut, then his village menu (RSProx 4573 [4916], [4919])
+            t.ticks(2)
+            t.exec("talkToTimfrakuEnd-sons", t.chat.play, {
+                "npc:You should go and see my sons",
+                "options",
+                "choose:Ok, thanks.",
+                "player:Ok, thanks",
+            })
+            t.ticks(4)
             local qp_r, qp_now = t.var.varp("varp101_qp")
             t.check("quest.points", qp_r == "ok" and qp_now == qp_before + 2, "qp " .. tostring(qp_before) .. " -> " .. tostring(qp_now) .. " (documented reward: 2 Quest Points)")
 
@@ -1034,14 +1048,12 @@ return {
             t.exec("claimTinsay-dialog", t.chat.play, {
                 "npc:Braaar! Your meals are truly excellent",
                 "player:I'm glad to hear it.",
-                "npc:but there are some areas",
-                "player:Such as?",
-                "npc:Let me show you.",
+                "npc:... but as a cook, you clearly have much to learn!",
+                "player:Yes. It's how I, or rather Tamayu",
+                "npc:Indeed. I have determined precisely",
                 "objbox:Tinsay trains you in cooking technique.",
-                "mesbox:Tinsay teaches you how to cook Karambwan",
-                "player:Thanks.",
-                "npc:Oh, and before you go",
-                "player:Ok...",
+                "npc:Oh, and before you go... Jogre bones!",
+                "player:Okay...",
             })
             t.ticks(2)
             t.exec("claimTinsay.xp", t.skill.expect_gain, "cooking", 5000, s1)
@@ -1053,10 +1065,8 @@ return {
             t.exec("claimTiadeche-dialog", t.chat.play, {
                 "npc:Hello, Bwana! We three have finally returned",
                 "player:So I see.",
-                "npc:I wish to reward you",
-                "npc:I have refined my Karambwan fishing technique",
+                "npc:I wish to reward you for helping me. Thanks to you",
                 "objbox:Tiadeche trains you in fishing technique.",
-                "npc:Thanks to you, Lubufu's Karambwan monopoly is over",
                 "player:Thanks.",
             })
             t.ticks(2)
@@ -1072,9 +1082,9 @@ return {
                 "npc:And neither do we",
                 "npc:I have not much of worth to give",
                 "mesbox:Tamayu trains you in fighting technique.",
-                "player:Thanks.",
-                "npc:This is the one thing I can give",
                 "objbox:Tamayu hands you some kind of spear.",
+                "npc:This is the one thing I can give",
+                "player:Thanks.",
                 "npc:Take care, Bwana.",
             })
             t.ticks(2)
