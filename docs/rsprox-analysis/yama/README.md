@@ -571,7 +571,7 @@ adds the one.
 | the raider's block seq on Yama's landings | none: regulars 0/490 zeros, 0/121 shielded, 20/241 damaging | `com_defendanim` on every scripted hit (34 a fight) | none (the rock's, spike's and root's delayed ones stay) |
 | the purging staff's block | `human_staff_block` (415), every one of the 190 recorded | `human_unarmedblock` (the generated default) | `defend_anim` in `bas/sceptres_wands.obj` (+ the `br_` copy) |
 | the raider's block sound in Ahrim's robetop | `sword_hit2_mail_1..5` delay 20, 518 of 518 zero splats | `human_block_1` | family 9 in `~combat_player_block_sound` |
-| thrall impact graphic | none in rev 242 (0 of 1,742 ghost swings, on Yama, flares and Judges) | `thrall_magic_impact` on the flares and Judges | removed |
+| thrall impact graphic | none on the flares: of 1,742 ghost shots 1,719 were at Yama (who hides every impact, `spell_impact_hidden`), 23 at flares and none at a Judge; 20 landed on a living flare, none with `thrall_magic_impact`, while the same flares showed `dark_demonbane_hit_spotanim` 10 times in those ticks | sent on the flares | `param=thrall_impact_hidden,yes` on `yama_voidflare`; every other npc keeps the rev-241 impact (597 of 744). (First pushed as "rev 242 sends none anywhere", which these recordings cannot show: corrected.) |
 | the thrall cooldown line | "You can only cast resurrection spells every 10 seconds." (21/21) | "You need to wait before you can resurrect another thrall." | as recorded |
 | spent glyph locs at the landing | the D+9 `loc_add_change_v3` of glyphs, firewalls and the blocker are the zones restated as they come back into view | ours re-added the glyph locs there (from the first audit and §15) | removed: the glyphs are spent at the portal |
 
