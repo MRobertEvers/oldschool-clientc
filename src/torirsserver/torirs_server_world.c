@@ -5726,13 +5726,17 @@ npc_mode_player(
  * they stop existing. Nothing else releases it — a conversation does not end
  * the mode, walking away does.
  *
- * Scoped to the standing modes (`playerescape` .. `playerfaceclose`). The
- * `opplayer<n>`/`applayer<n>` errand modes clear themselves the tick they fire
- * and the pursuit that uses them is already leashed by
- * `torirs_server_combat.c:target_within_maxrange`; putting a second, subtly different
- * leash in front of them would be two rules for one thing.
+ * Every player-targeted mode, the `opplayer<n>`/`applayer<n>` errands
+ * included, as the reference does. They used to be exempt on the theory that
+ * the combat leash (`torirs_server_combat.c:target_within_maxrange`) already
+ * held them. It does not: that leash ends the FIGHT
+ * (`ToriRSServer_CombatStopNpc` clears `combat_target`) and leaves the mode a
+ * script set. Every dark wizard cast ends in `npc_setmode(applayer2)`, so once
+ * the combat leash let go the errand walked the wizard after the player with no
+ * leash, cast on arrival, re-armed itself, and followed him across the map
+ * (live session 2026-11-17 02:48 UTC).
  */
-static int
+int
 npc_mode_target_valid(
     const struct ToriRSServerNpc* npc,
     const struct ToriRSServerPlayer* player)
@@ -5743,8 +5747,9 @@ npc_mode_target_valid(
     int dz;
     int from_spawn;
 
-    assert(npc && player);
-    if( npc->mode < TORIRSSERVER_NPCMODE_PLAYERESCAPE || npc->mode > TORIRSSERVER_NPCMODE_PLAYERFACECLOSE )
+    assert(npc);
+    assert(player);
+    if( npc->mode < TORIRSSERVER_NPCMODE_PLAYERESCAPE || npc->mode > TORIRSSERVER_NPCMODE_APPLAYER5 )
         return 1;
     if( npc->level != player->level )
         return 0;
@@ -5763,6 +5768,26 @@ npc_mode_target_valid(
     if( dz < 0 )
         dz = -dz;
     from_spawn = dx > dz ? dx : dz;
+
+    if( npc->mode >= TORIRSSERVER_NPCMODE_OPPLAYER1 )
+    {
+        /* An owned npc's home is its owner, not its summon tile: the combat
+         * leash measures a familiar from the owner (`tile_within_maxrange`),
+         * and this spawn-anchored test would stop it fighting anywhere its
+         * owner had walked. Its fight is held by that leash instead. */
+        if( npc->owner_gen != 0 )
+            return 1;
+        /* `checkApTrigger`: the target's SW tile within `maxrange +
+         * attackrange` of the spawn -- an AP npc fires from range, so it may
+         * hold a target that far beyond the tiles it will walk to. */
+        if( npc->mode >= TORIRSSERVER_NPCMODE_APPLAYER1 )
+            return from_spawn <= maxrange + (def->attackrange > 0 ? def->attackrange : 0);
+        /* `checkOpTrigger`: `maxrange + 1`, less the corner tile -- the same
+         * square as the combat leash. */
+        if( from_spawn > maxrange + 1 )
+            return 0;
+        return !(dx == maxrange + 1 && dz == maxrange + 1);
+    }
 
     /* Escape has its own clause in the reference and it is not the general one:
      * an npc fleeing is *supposed* to end up far from its spawn, so the mode

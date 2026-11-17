@@ -44324,6 +44324,58 @@ ToriRSServer_WorldSelftest(void)
         selftest_park_player(srv, 3222, 3218);
     }
 
+    fprintf(stderr, "ToriRSServer selftest: op/ap modes are leashed\n");
+    {
+        /*
+         * A dark wizard's every cast ends in `npc_setmode(applayer2)`. The
+         * combat leash ends the fight but not that mode, so an AP/OP errand
+         * the mode machine did not leash walked the wizard after the player
+         * across the map (live session 2026-11-17 02:48 UTC). The reference
+         * (`Npc.targetWithinMaxRange`) leashes both: OP at `maxrange + 1` less
+         * the corner, AP at `maxrange + attackrange`.
+         */
+        static struct ToriRSServerNpcDef def;
+        static struct ToriRSServerNpc npc;
+        static struct ToriRSServerPlayer target;
+
+        memset(&def, 0, sizeof(def));
+        memset(&npc, 0, sizeof(npc));
+        memset(&target, 0, sizeof(target));
+        def.maxrange = 7;
+        def.attackrange = 5;
+        npc.def = &def;
+        npc.spawn_x = 3220;
+        npc.spawn_z = 3360;
+        npc.x = 3220;
+        npc.z = 3360;
+        target.z = 3360;
+
+        npc.mode = TORIRSSERVER_NPCMODE_APPLAYER1 + 1;
+        target.x = 3220 + 12;
+        SELFTEST_CHECK(npc_mode_target_valid(&npc, &target),
+                       "applayer holds a target maxrange + attackrange from spawn");
+        target.x = 3220 + 13;
+        SELFTEST_CHECK(!npc_mode_target_valid(&npc, &target),
+                       "applayer lets go one tile past maxrange + attackrange");
+
+        npc.mode = TORIRSSERVER_NPCMODE_OPPLAYER1 + 1;
+        target.x = 3220 + 8;
+        SELFTEST_CHECK(npc_mode_target_valid(&npc, &target),
+                       "opplayer holds a target maxrange + 1 from spawn");
+        target.x = 3220 + 9;
+        SELFTEST_CHECK(!npc_mode_target_valid(&npc, &target),
+                       "opplayer lets go past maxrange + 1");
+        target.x = 3220 + 8;
+        target.z = 3360 + 8;
+        SELFTEST_CHECK(!npc_mode_target_valid(&npc, &target),
+                       "opplayer lets go on the leash's corner tile");
+
+        npc.owner_gen = 1;
+        target.x = 3220 + 30;
+        SELFTEST_CHECK(npc_mode_target_valid(&npc, &target),
+                       "an owned npc's errand is not leashed to its summon tile");
+    }
+
     fprintf(stderr, "ToriRSServer selftest: npc modes\n");
     {
         /*

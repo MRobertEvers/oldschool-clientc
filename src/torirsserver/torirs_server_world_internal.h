@@ -101,6 +101,11 @@ npc_player_range(
     const struct ToriRSServerPlayer* player);
 
 int
+npc_mode_target_valid(
+    const struct ToriRSServerNpc* npc,
+    const struct ToriRSServerPlayer* player);
+
+int
 npc_run_mode(
     struct ToriRSServer* srv,
     struct ToriRSServerNpc* npc,
