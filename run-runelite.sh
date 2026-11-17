@@ -722,8 +722,7 @@ say ""
 # with nobody in it.
 #
 # --add-exports is not optional on macOS: without it the JVM dies in
-# OSXFullScreenAdapter with an IllegalAccessError nowhere near the game. -ea is
-# required for --developer-mode, which is a fatal dialog without it. JCTL is the
+# OSXFullScreenAdapter with an IllegalAccessError nowhere near the game. JCTL is the
 # control channel (see the header); JPROF's stage timers stay off unless asked.
 # Plugin Hub plugins (Quest Helper, ...) load as in a normal RuneLite. Safe
 # mode -- no hub plugins, no GPU -- came from the C-vs-Java perf study's
@@ -731,12 +730,41 @@ say ""
 # `-- --safe-mode`) still asks for it.
 SAFE_MODE=()
 [ "${TORIRS_RL_SAFE_MODE:-0}" = 1 ] && SAFE_MODE=(--safe-mode)
+
+# The JVM RuneLite itself runs on, with the arguments RuneLite itself passes.
+# RuneLite.app ships Temurin 17 and starts the client in-process with the
+# bootstrap's clientJvm17[Mac]Arguments; launched instead on our JDK 21 with a
+# hand-picked set, the macOS window chrome came up wrong on some launches -- no
+# title bar, the canvas under where it should be, every click offset by its
+# height. The gamepack is compiled for 17 (Deobfuscator instr/build.sh) so it
+# loads there. TORIRS_RL_JAVA names another java; without RuneLite.app (or for
+# the 239 lane, whose release has no pinned bootstrap) it is $JAVA_HOME's.
+RL_JAVA=${TORIRS_RL_JAVA:-}
+RL_JVM_ARGS=()
+BOOTSTRAP=tools/torirs_runelite/bootstrap-$RL_VERSION.json
+if [ -f "$BOOTSTRAP" ]; then
+    if [ -z "$RL_JAVA" ] && [ -x /Applications/RuneLite.app/Contents/Resources/jre/bin/java ]; then
+        RL_JAVA=/Applications/RuneLite.app/Contents/Resources/jre/bin/java
+    fi
+    key=clientJvm17Arguments
+    [ "$(uname -s)" = Darwin ] && key=clientJvm17MacArguments
+    while IFS= read -r arg; do RL_JVM_ARGS+=("$arg"); done < <(python3 -c '
+import json, sys
+for a in json.load(open(sys.argv[1])).get(sys.argv[2], []): print(a)' "$BOOTSTRAP" "$key")
+fi
+RL_JAVA=${RL_JAVA:-$JAVA_HOME/bin/java}
+# -ea only for --developer-mode, which is a fatal dialog without it; RuneLite
+# runs without assertions.
+ASSERTS=()
+case " ${RL_ARGS[*]-} " in *" --developer-mode "*) ASSERTS=(-ea) ;; esac
+say "run-runelite: java       $RL_JAVA"
 RC=0
 env \
     JCTL="${JCTL:-1}" JCTL_PORT="${JCTL_PORT:-43601}" \
     ${JPROF:+JPROF="$JPROF"} ${JPROF_CSV:+JPROF_CSV="$JPROF_CSV"} \
     ${JPROF_WINDOW:+JPROF_WINDOW="$JPROF_WINDOW"} \
-    "$JAVA_HOME/bin/java" -ea \
+    "$RL_JAVA" ${ASSERTS[@]+"${ASSERTS[@]}"} \
+    ${RL_JVM_ARGS[@]+"${RL_JVM_ARGS[@]}"} \
     ${JAVA_EXTRA_OPTS:-} \
     ${LIVE_PROPS[@]+"${LIVE_PROPS[@]}"} \
     --add-exports java.desktop/com.apple.eawt=ALL-UNNAMED \
