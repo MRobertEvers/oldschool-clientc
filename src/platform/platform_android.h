@@ -32,6 +32,26 @@
 
 #include <stdint.h>
 
+/*
+ * The version of the contract between this library and the APK's Java side:
+ * every `native` method ClientActivity declares, and every Java method this
+ * library calls back by name (openUrl, showPluginTab, bootFailed,
+ * showSoftKeyboard).
+ *
+ * The production app does not carry this library. It downloads the current
+ * one from the server (the "game pack", android/README.md) and loads it, so a
+ * library built today runs inside an APK installed weeks ago. That only works
+ * while both sides agree on the contract above, and nothing checks it for free:
+ * a missing native method is an UnsatisfiedLinkError at its first call, not at
+ * load. So the number is published beside the pack (latest.json "jni_abi"),
+ * the app refuses a pack whose number differs from its own
+ * (GamePack.JNI_ABI), and asks the person to install the new APK instead.
+ *
+ * BUMP IT, here and in GamePack.java, whenever that contract changes. Every
+ * other change to the client ships as a game pack with no new APK.
+ */
+#define TORIRS_ANDROID_JNI_ABI 1
+
 struct ANativeWindow;
 
 /* ---- UI thread -> platform ------------------------------------------------

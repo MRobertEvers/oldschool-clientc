@@ -50,6 +50,7 @@
 #include <assert.h>
 #include <pthread.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -1036,6 +1037,20 @@ PlatformWindow_PluginChromeShow(struct PlatformWindow* p, int style)
     assert(p);
     (void)style;
     PlatformAndroidJni_ShowPluginTab();
+}
+
+/* The agent's `shot` of the presented frame. The presenter writes straight
+ * into the ANativeWindow's buffer (or EGL's backbuffer) and keeps no copy to
+ * write out, so this window says it cannot, as platform_window.h allows. */
+bool
+PlatformWindow_RequestCapture(
+    struct PlatformWindow* p,
+    char const* path)
+{
+    assert(p);
+    assert(path);
+    fprintf(stderr, "platform: the Android window cannot capture its presented frame (%s)\n", path);
+    return false;
 }
 
 /* No password manager to hand the login form to. */

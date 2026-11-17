@@ -6312,6 +6312,67 @@ CS2VM2_Op_LongBinary(
     return CS2VM2_PushLong(vm, r);
 }
 
+#if !defined(__SIZEOF_INT128__)
+/* a * c / b (b nonzero) through an exact 128-bit product, for targets with no
+ * __int128 -- 32-bit ARM, the armeabi-v7a Android lane. Truncates toward zero,
+ * as the __int128 division does. 0 when the quotient leaves the long range. */
+static int
+cs2vm2_long_mul_div(
+    int64_t a,
+    int64_t c,
+    int64_t b,
+    int64_t* out)
+{
+    int negative = (a < 0) != (c < 0);
+    uint64_t ua = a < 0 ? 0 - (uint64_t)a : (uint64_t)a;
+    uint64_t uc = c < 0 ? 0 - (uint64_t)c : (uint64_t)c;
+    uint64_t ub = b < 0 ? 0 - (uint64_t)b : (uint64_t)b;
+    uint64_t p0, p1, p2, p3, mid, lo, hi;
+    uint64_t q_hi = 0, q_lo = 0, rem = 0;
+    if( b < 0 )
+        negative = !negative;
+
+    /* 64 x 64 -> 128, in 32-bit limbs. */
+    p0 = (ua & 0xffffffffu) * (uc & 0xffffffffu);
+    p1 = (ua & 0xffffffffu) * (uc >> 32);
+    p2 = (ua >> 32) * (uc & 0xffffffffu);
+    p3 = (ua >> 32) * (uc >> 32);
+    mid = (p0 >> 32) + (p1 & 0xffffffffu) + (p2 & 0xffffffffu);
+    lo = (p0 & 0xffffffffu) | (mid << 32);
+    hi = p3 + (p1 >> 32) + (p2 >> 32) + (mid >> 32);
+
+    /* 128 / 64, one quotient bit at a time. A remainder that carried out of
+     * 64 bits is at least 2^64 > ub, so it always takes the subtraction. */
+    for( int i = 127; i >= 0; i-- )
+    {
+        uint64_t carry = rem >> 63;
+        uint64_t bit = i >= 64 ? (hi >> (i - 64)) & 1u : (lo >> i) & 1u;
+        rem = (rem << 1) | bit;
+        if( carry || rem >= ub )
+        {
+            rem -= ub;
+            if( i >= 64 )
+                q_hi |= (uint64_t)1 << (i - 64);
+            else
+                q_lo |= (uint64_t)1 << i;
+        }
+    }
+    if( q_hi != 0 )
+        return 0;
+    if( negative )
+    {
+        if( q_lo > (uint64_t)INT64_MAX + 1u )
+            return 0;
+        *out = (int64_t)(0 - q_lo);
+        return 1;
+    }
+    if( q_lo > (uint64_t)INT64_MAX )
+        return 0;
+    *out = (int64_t)q_lo;
+    return 1;
+}
+#endif
+
 /* LONG_SCALE (4043): a * c / b, computed wide (the reference uses BigInteger),
  * failing when b is 0 or the quotient leaves the long range. */
 static int
@@ -6323,10 +6384,17 @@ CS2VM2_Op_LongScale(struct CS2VM2_Thread* vm)
         return CS2VM_EXECNO_ERROR;
     if( b == 0 )
         return cs2vm2_long_fail(vm, CS2_OP_LONG_SCALE, "divided by zero");
+#if defined(__SIZEOF_INT128__)
     __int128 q = (__int128)a * (__int128)c / (__int128)b;
     if( q < (__int128)INT64_MIN || q > (__int128)INT64_MAX )
         return cs2vm2_long_fail(vm, CS2_OP_LONG_SCALE, "overflowed");
     return CS2VM2_PushLong(vm, (int64_t)q);
+#else
+    int64_t q;
+    if( !cs2vm2_long_mul_div(a, c, b, &q) )
+        return cs2vm2_long_fail(vm, CS2_OP_LONG_SCALE, "overflowed");
+    return CS2VM2_PushLong(vm, q);
+#endif
 }
 
 /* (long, bit) in: 4047 setbit, 4048 clearbit, 4051 togglebit push a long;

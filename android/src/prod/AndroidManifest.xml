@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The prod app: sign in, fetch the current game pack, boot manifest_latest.
+     LauncherActivity.java says how; android/README.md says why. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Status and the way back to sign-in. Portrait or landscape: it is a
+             few lines of text and two buttons. -->
+        <activity
+            android:name=".LauncherActivity"
+            android:exported="true"
+            android:screenOrientation="fullSensor"
+            android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|smallestScreenSize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <!-- The two sign-ins, natively: the IaP's email and password, then the
+             torirs web login. adjustResize so the keyboard never covers the
+             button being pressed. -->
+        <activity
+            android:name=".SignInActivity"
+            android:exported="false"
+            android:screenOrientation="fullSensor"
+            android:windowSoftInputMode="adjustResize|stateVisible"
+            android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|smallestScreenSize" />
+        <!-- Restarts the app in a fresh process when a newer game pack arrives
+             while an older one is loaded: it lives in a process of its own so
+             it survives killing the main one. No window. -->
+        <activity
+            android:name=".RestartActivity"
+            android:exported="false"
+            android:process=":restart"
+            android:theme="@android:style/Theme.NoDisplay" />
+    </application>
+</manifest>

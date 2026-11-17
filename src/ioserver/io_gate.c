@@ -644,6 +644,222 @@ oauth_tokens(
     res->owns_body = 1;
 }
 
+/* ------------------------------------------------------------------ */
+/* Device sign-ins: a web login's refresh token, for an app that keeps  */
+/* no cookie jar (torirs_server_oauth.h, "A web login's DEVICE sign-in") */
+/* ------------------------------------------------------------------ */
+
+static char const* g_device_login_key;
+static int g_device_login_found;
+
+static void
+device_login_seen(char const* name)
+{
+    char key[64];
+
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    if( strcmp(key, g_device_login_key) == 0 )
+        g_device_login_found = 1;
+}
+
+/* 1 when web login `name` still exists, 0 when it was revoked, -1 when the
+ * account server did not answer. */
+static int
+device_login_exists(char const* name)
+{
+    char key[64];
+
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    if( !key[0] )
+        return 0;
+    g_device_login_key = key;
+    g_device_login_found = 0;
+    if( AccountClient_GateLoginEach(device_login_seen) < 0 )
+        return -1;
+    return g_device_login_found;
+}
+
+static void
+device_tokens(
+    struct HttpResponse* res,
+    struct ToriRSServerGateDeviceTokens const* tokens)
+{
+    char body[TORIRSSERVER_OAUTH_TOKEN_MAX + TORIRSSERVER_GATE_TICKET_MAX + 512];
+    char name[160];
+    size_t used = 0;
+    int len;
+
+    for( char const* scan = tokens->name; *scan && used + 2 < sizeof(name); scan++ )
+    {
+        if( *scan == '"' || *scan == '\\' )
+            name[used++] = '\\';
+        name[used++] = *scan;
+    }
+    name[used] = '\0';
+    len = snprintf(body, sizeof(body),
+                   "{\"cookie\":\"" TORIRSSERVER_GATE_COOKIE "\",\"ticket\":\"%s\","
+                   "\"ticket_expires_in\":%lld,\"refresh_token\":\"%s\",\"refresh_expires_in\":%lld,"
+                   "\"name\":\"%s\"}",
+                   tokens->ticket, tokens->ticket_expires_in, tokens->refresh_token,
+                   tokens->refresh_expires_in, name);
+    assert(len > 0 && (size_t)len < sizeof(body));
+    json_response(res, 200, body);
+}
+
+/*
+ * POST /device/token, before the ticket check (it is how a device gets one):
+ *
+ *   grant_type=password&name=&password=     the web login, as /login checks
+ *                                           it (and throttles it)
+ *   grant_type=refresh_token&refresh_token= the last refresh token, rotated
+ *
+ * -> {"cookie", "ticket", "ticket_expires_in", "refresh_token",
+ *     "refresh_expires_in", "name"}, or RFC 6749's error body. A refresh for a
+ * web login that has since been revoked ends that sign-in; one made while the
+ * account server is not answering goes ahead, so an outage never signs a
+ * device out.
+ */
+static void
+handle_device_token(
+    struct IoGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    static struct ToriRSServerGateDeviceTokens tokens;
+    char grant[48];
+    char const* description = NULL;
+    enum ToriRSServerOAuthError error;
+    long long now = (long long)time(NULL);
+
+    if( strcmp(req->method, "POST") != 0 )
+    {
+        res->status = 405;
+        return;
+    }
+    if( !form_field(req, "grant_type", grant, sizeof(grant)) )
+    {
+        oauth_error(res, TORIRSSERVER_OAUTH_INVALID_REQUEST, "grant_type is required");
+        return;
+    }
+    if( strcmp(grant, "password") == 0 )
+    {
+        char name[IO_GATE_FIELD_MAX];
+        char password[IO_GATE_FIELD_MAX];
+        char key[64];
+        struct IoGateThrottle* throttle;
+        enum ToriRSServerAuthResult auth;
+
+        if( !form_field(req, "name", name, sizeof(name)) ||
+            !form_field(req, "password", password, sizeof(password)) )
+        {
+            oauth_error(res, TORIRSSERVER_OAUTH_INVALID_REQUEST, "Enter your name and password.");
+            return;
+        }
+        ToriRSServer_SaveFileName(name, key, sizeof(key));
+        if( !key[0] )
+        {
+            memset(password, 0, sizeof(password));
+            oauth_error(res, TORIRSSERVER_OAUTH_INVALID_GRANT, "Wrong name or password.");
+            return;
+        }
+        throttle = throttle_slot(gate, key);
+        if( now - throttle->window_start >= IO_GATE_THROTTLE_SECONDS )
+        {
+            throttle->window_start = now;
+            throttle->failures = 0;
+        }
+        if( throttle->failures >= IO_GATE_THROTTLE_FAILURES )
+        {
+            memset(password, 0, sizeof(password));
+            json_response(res, 429, "{\"error\":\"slow_down\",\"error_description\":"
+                                    "\"Too many attempts. Try again in a few minutes.\"}");
+            return;
+        }
+        auth = AccountClient_GateLogin(name, password);
+        memset(password, 0, sizeof(password));
+        if( auth == TORIRSSERVER_AUTH_UNAVAILABLE )
+        {
+            json_response(res, 503, "{\"error\":\"temporarily_unavailable\",\"error_description\":"
+                                    "\"The account service is not answering. Try again in a moment.\"}");
+            return;
+        }
+        if( auth != TORIRSSERVER_AUTH_OK )
+        {
+            throttle->failures++;
+            fprintf(stderr, "io_server: gate: device sign-in refused for '%s' (%d in this window)\n",
+                    key, throttle->failures);
+            oauth_error(res, TORIRSSERVER_OAUTH_INVALID_GRANT, "Wrong name or password.");
+            return;
+        }
+        throttle->failures = 0;
+        error = ToriRSServer_GateDeviceSignIn(name, now, &tokens);
+        if( error != TORIRSSERVER_OAUTH_OK )
+        {
+            oauth_error(res, error, "The sign-in could not be recorded.");
+            return;
+        }
+        fprintf(stderr, "io_server: gate: '%s' signed in a device\n", key);
+        device_tokens(res, &tokens);
+        return;
+    }
+    if( strcmp(grant, "refresh_token") == 0 )
+    {
+        char refresh[TORIRSSERVER_OAUTH_TOKEN_MAX];
+        char name[64];
+        char fam[TORIRSSERVER_OAUTH_ID_HEX + 1];
+        int exists;
+
+        if( !form_field(req, "refresh_token", refresh, sizeof(refresh)) )
+        {
+            oauth_error(res, TORIRSSERVER_OAUTH_INVALID_REQUEST, "refresh_token is required");
+            return;
+        }
+        error = ToriRSServer_GateDeviceTake(refresh, now, name, fam, &description);
+        if( error != TORIRSSERVER_OAUTH_OK )
+        {
+            oauth_error(res, error, description);
+            return;
+        }
+        exists = device_login_exists(name);
+        if( exists == 0 )
+        {
+            ToriRSServer_GateDeviceRevokeFamily(fam, now);
+            oauth_error(res, TORIRSSERVER_OAUTH_INVALID_GRANT, "This web login no longer exists.");
+            return;
+        }
+        if( exists < 0 )
+            fprintf(stderr, "io_server: gate: account service silent; refreshing '%s' anyway\n", name);
+        error = ToriRSServer_GateDeviceContinue(name, fam, now, &tokens);
+        if( error != TORIRSSERVER_OAUTH_OK )
+        {
+            oauth_error(res, error, "The sign-in could not be recorded.");
+            return;
+        }
+        device_tokens(res, &tokens);
+        return;
+    }
+    oauth_error(res, TORIRSSERVER_OAUTH_UNSUPPORTED_GRANT_TYPE, NULL);
+}
+
+/* POST /device/revoke: sign out on a device. Answered the same whatever the
+ * token was (RFC 7009 2.2). */
+static void
+handle_device_revoke(
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    char refresh[TORIRSSERVER_OAUTH_TOKEN_MAX];
+
+    if( strcmp(req->method, "POST") != 0 )
+    {
+        res->status = 405;
+        return;
+    }
+    if( form_field(req, "refresh_token", refresh, sizeof(refresh)) )
+        ToriRSServer_GateDeviceRevoke(refresh, (long long)time(NULL));
+    json_response(res, 200, "{}");
+}
+
 /* One throttle for every place a player password is tried: the token
  * endpoint's password grant and the authorize page. Keyed apart from the
  * gate's own sign-ins, which are a different account. 1 when allowed. */
@@ -1658,6 +1874,19 @@ IoGate_Handle(
                  IO_GATE_STAFF_COOKIE "=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax");
         res->status = 303;
         snprintf(res->location, sizeof(res->location), "/login");
+        return 1;
+    }
+
+    /* A device's sign-in and its refreshes: how it gets a ticket, so before
+     * the ticket check. */
+    if( path_is(req->path, "/device/token") )
+    {
+        handle_device_token(gate, req, res);
+        return 1;
+    }
+    if( path_is(req->path, "/device/revoke") )
+    {
+        handle_device_revoke(req, res);
         return 1;
     }
 

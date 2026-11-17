@@ -369,6 +369,77 @@ check_invites(void)
 }
 
 /* The token endpoint's grants, without the HTTP. */
+/* A web login's device sign-in (the gate's /device/token): a ticket and a
+ * rotating 30-day refresh token, kept apart from player accounts' tokens.
+ * Runs after check_oauth, which leaves alice with a password. */
+static void
+check_gate_device(void)
+{
+    static struct ToriRSServerGateDeviceTokens first, second, third, fourth;
+    static struct ToriRSServerOAuthTokens player, scratch;
+    char name[64];
+    char fam[TORIRSSERVER_OAUTH_ID_HEX + 1];
+    char who[64];
+    const char* why = NULL;
+    long long now = 2000000000LL;
+    long long month = TORIRSSERVER_GATE_DEVICE_REFRESH_SECONDS;
+
+    ToriRSServer_OAuthKeyLoad();
+    ToriRSServer_GateKeyLoad();
+    check(ToriRSServer_GateDeviceSignIn("Dave", now, &first) == TORIRSSERVER_OAUTH_OK,
+          "gate device: a sign-in issues a ticket and a refresh token");
+    check(first.refresh_expires_in == 30LL * 24 * 60 * 60 && first.ticket_expires_in == 24LL * 60 * 60,
+          "gate device: the refresh token lasts 30 days, the ticket a day");
+    check(ToriRSServer_GateTicketCheck(first.ticket, strlen(first.ticket), now, who, sizeof(who)),
+          "gate device: the ticket is one the gate accepts");
+    check(!ToriRSServer_GateTicketCheck(first.ticket, strlen(first.ticket),
+                                        now + first.ticket_expires_in + 1, who, sizeof(who)),
+          "gate device: and it runs out");
+
+    check(ToriRSServer_GateDeviceTake(first.refresh_token, now + 1, name, fam, &why) ==
+                  TORIRSSERVER_OAUTH_OK &&
+              strcmp(name, "Dave") == 0 && strcmp(fam, first.fam) == 0,
+          "gate device: a refresh names its web login and its sign-in");
+    check(ToriRSServer_GateDeviceContinue(name, fam, now + 1, &second) == TORIRSSERVER_OAUTH_OK &&
+              strcmp(second.fam, first.fam) == 0 &&
+              strcmp(second.refresh_token, first.refresh_token) != 0,
+          "gate device: and buys the next pair of the same sign-in, rotated");
+    check(ToriRSServer_GateDeviceTake(first.refresh_token, now + 2, name, fam, &why) ==
+              TORIRSSERVER_OAUTH_INVALID_GRANT,
+          "gate device: the spent refresh token is refused");
+    check(ToriRSServer_GateDeviceTake(second.refresh_token, now + 3, name, fam, &why) ==
+              TORIRSSERVER_OAUTH_INVALID_GRANT,
+          "gate device: and its reuse ended the whole sign-in");
+
+    /* 30 days from each refresh, not from the sign-in: a device in use never
+     * signs in again. */
+    check(ToriRSServer_GateDeviceSignIn("Dave", now, &third) == TORIRSSERVER_OAUTH_OK &&
+              ToriRSServer_GateDeviceTake(third.refresh_token, now + month - 60, name, fam, &why) ==
+                  TORIRSSERVER_OAUTH_OK &&
+              ToriRSServer_GateDeviceContinue(name, fam, now + month - 60, &fourth) ==
+                  TORIRSSERVER_OAUTH_OK,
+          "gate device: a refresh a minute before the 30 days");
+    check(ToriRSServer_GateDeviceTake(fourth.refresh_token, now + month + month / 2, name, fam,
+                                      &why) == TORIRSSERVER_OAUTH_OK,
+          "gate device: starts another 30 days");
+
+    check(ToriRSServer_OAuthPasswordGrant("alice", "newpass12", NULL, now, &player, &why) ==
+              TORIRSSERVER_OAUTH_OK,
+          "gate device: (a player account's tokens)");
+    check(ToriRSServer_GateDeviceTake(player.refresh_token, now + 1, name, fam, &why) ==
+              TORIRSSERVER_OAUTH_INVALID_GRANT,
+          "gate device: a player's refresh token is not a device's");
+    check(ToriRSServer_GateDeviceSignIn("Dave", now, &third) == TORIRSSERVER_OAUTH_OK &&
+              ToriRSServer_OAuthRefreshGrant(third.refresh_token, NULL, now + 1, &scratch, &why) ==
+                  TORIRSSERVER_OAUTH_INVALID_GRANT,
+          "gate device: nor a device's a player's");
+
+    ToriRSServer_GateDeviceRevoke(third.refresh_token, now);
+    check(ToriRSServer_GateDeviceTake(third.refresh_token, now + 1, name, fam, &why) ==
+              TORIRSSERVER_OAUTH_INVALID_GRANT,
+          "gate device: a signed-out device's refresh token is refused");
+}
+
 static void
 check_oauth(void)
 {
@@ -1336,6 +1407,7 @@ main(void)
     check_invites();
     check_tickets();
     check_oauth();
+    check_gate_device();
     check_links();
     check_accounts();
     check_display_names();

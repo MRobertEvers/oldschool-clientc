@@ -520,6 +520,17 @@ place_process(char const* data_root)
     apply_env_file(data_root);
 }
 
+/** TORIRS_ANDROID_JNI_ABI, asked by the production app right after it loads a
+ *  downloaded game pack: the second half of the check latest.json's jni_abi
+ *  makes before the download. Static, so it needs no activity. */
+JNIEXPORT jint JNICALL
+Java_com_torirs_client_ClientActivity_nativeJniAbi(JNIEnv* env, jclass clazz)
+{
+    (void)env;
+    (void)clazz;
+    return TORIRS_ANDROID_JNI_ABI;
+}
+
 JNIEXPORT void JNICALL
 Java_com_torirs_client_ClientActivity_nativeStart(
     JNIEnv* env, jobject thiz, jobjectArray args, jstring data_root)

@@ -58,16 +58,14 @@
           own, and surviving the rotation is what stops the boot countdown
           restarting from the top every time the phone is turned.
         -->
+        <!-- The dev app's launcher; src/dev/AndroidManifest.xml gives it the
+             LAUNCHER intent filter. The prod app has it too, unlaunched: the
+             boot error path (ClientActivity.bootFailed) still lands on it. -->
         <activity
             android:name=".BootActivity"
-            android:exported="true"
+            android:exported="false"
             android:screenOrientation="fullSensor"
-            android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|smallestScreenSize">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|smallestScreenSize" />
 
         <!-- The gear button's screen: edit where a profile's server is. -->
         <activity

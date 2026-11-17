@@ -17,6 +17,8 @@ processes a browser needs (docs/WEB_SERVERS.md) with nothing else installed:
     content/osrs-content/    the slice of the content tree the server opens
     manifests/                  the boot manifest, rewritten for this layout
     revconfig/, script/         what the page fetches through /boot/
+    build-web/android/          with --android: the prod Android app's game
+                                pack (stage_android), served at /android/
     run.cmd, run.sh             start both in the foreground
     supervise.ps1               start both, restart whichever exits (Windows)
     install-windows-task.ps1    register supervise.ps1 as a startup task,
@@ -37,6 +39,9 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
+import hashlib
+import json
+import re
 import os
 import platform
 import shutil
@@ -722,6 +727,98 @@ esac
 """
 
 
+# ------------------------------------------------------------------ android
+# The prod Android app (android/, flavor `prod`) carries no native library: it
+# downloads this, the "game pack", built from the same commit as the world it
+# talks to. Served by io_server from build-web/, so at /android/ behind both
+# sign-ins. android/src/prod/java/com/torirs/client/GamePack.java reads it.
+ANDROID_ABIS = ("armeabi-v7a", "arm64-v8a")
+
+
+def android_jni_abi() -> int:
+    """TORIRS_ANDROID_JNI_ABI: the Java<->C contract the pack was built for."""
+    text = (SRC / "platform" / "platform_android.h").read_text(encoding="utf-8")
+    m = re.search(r"#define\s+TORIRS_ANDROID_JNI_ABI\s+(\d+)", text)
+    if not m:
+        die("platform_android.h defines no TORIRS_ANDROID_JNI_ABI")
+    return int(m.group(1))
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def stage_android(stage: Path, jobs: int, sha: str, content_sha: str, date: str,
+                  key: Path, apk: Path | None) -> None:
+    """build-web/android/: the client for every ABI, the files it fopens, and
+    latest.json naming them, signed with `key` (an EC P-256 private key that
+    never leaves the server; the app holds the public half)."""
+    if not key.is_file():
+        die(f"--android-key {key} does not exist")
+    out = stage / "build-web" / "android"
+    out.mkdir(parents=True, exist_ok=True)
+    libs = {}
+    for abi in ANDROID_ABIS:
+        # A private object dir and target per ABI: `make all` on this lane
+        # otherwise writes android/src/main/jniLibs, the dev app's copy.
+        target = REPO / "build" / "android-gamepack" / abi / "libtorirs.so"
+        make(["PLATFORM=android", f"ANDROID_ABI={abi}", "OPT=1",
+              f"PLATFORM_OBJ_BASE=build_pkg_android_{abi}", f"PLATFORM_TARGET={target}", "all"], jobs)
+        digest = sha256_file(target)
+        rel = f"{abi}/libtorirs-{digest[:16]}.so"
+        (out / abi).mkdir(exist_ok=True)
+        shutil.copy2(target, out / rel)
+        libs[abi] = {"path": rel, "sha256": digest, "size": target.stat().st_size}
+        log(f"android {abi}: {target.stat().st_size / 1e6:.1f} MB")
+
+    # What the client opens with fopen rather than asking io_server for: the
+    # manifest and the RevConfig INIs it names. Fixed timestamps, so the same
+    # files make the same zip and the phone fetches it only when they change.
+    data_files = [(stage / "manifests" / "manifest_latest.ini", "manifests/manifest_latest.ini"),
+                  (REPO / "plugin_prefs.mobile.ini", "plugin_prefs.mobile.ini")]
+    for f in sorted((stage / "revconfig" / WORLD).rglob("*")):
+        if f.is_file():
+            data_files.append((f, f.relative_to(stage).as_posix()))
+    tmp = out / "data.zip.part"
+    with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
+        for src, arc in data_files:
+            info = zipfile.ZipInfo(arc, date_time=(2020, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o644 << 16
+            zf.writestr(info, src.read_bytes())
+    data_sha = sha256_file(tmp)
+    data_rel = f"data-{data_sha[:16]}.zip"
+    tmp.rename(out / data_rel)
+
+    latest = {
+        "format": 1,
+        "jni_abi": android_jni_abi(),
+        "commit": sha,
+        "content": content_sha,
+        "built": date,
+        "world": WORLD,
+        "manifest": "manifests/manifest_latest.ini",
+        "data": {"path": data_rel, "sha256": data_sha, "size": (out / data_rel).stat().st_size},
+        "libs": libs,
+        "apk": "",
+    }
+    if apk:
+        if not apk.is_file():
+            die(f"--android-apk {apk} does not exist")
+        shutil.copy2(apk, out / "torirs.apk")
+        latest["apk"] = "torirs.apk"
+    body = (json.dumps(latest, indent=1, sort_keys=True) + "\n").encode("utf-8")
+    (out / "latest.json").write_bytes(body)
+    subprocess.run(["openssl", "dgst", "-sha256", "-sign", str(key),
+                    "-out", str(out / "latest.json.sig"), str(out / "latest.json")], check=True)
+    log(f"android game pack: jni {latest['jni_abi']}, {', '.join(ANDROID_ABIS)}, "
+        f"data {data_rel}{', apk' if apk else ''}; signed")
+
+
 def stage_scripts(stage: Path, game_port: int, web_port: int, ws_host: str,
                   sha: str, content_sha: str, date: str) -> None:
     fmt = dict(game_port=game_port, web_port=web_port, ws_host=ws_host,
@@ -773,6 +870,16 @@ def main() -> int:
     ap.add_argument("--auth", choices=("password", "oauth"), default="password",
                     help="how players sign in: the password form, or the account "
                          "server's Play Now flow (oauth; needs io_server --gate)")
+    ap.add_argument("--android", action="store_true",
+                    help="also build the prod Android app's game pack into "
+                         "build-web/android/ (needs the NDK: ANDROID_NDK_HOME, "
+                         "and --android-key)")
+    ap.add_argument("--android-key", type=Path,
+                    default=Path.home() / "torirs" / "android" / "gamepack-signing.key",
+                    help="EC P-256 private key that signs latest.json")
+    ap.add_argument("--android-apk", type=Path, default=None,
+                    help="the prod APK to serve as /android/torirs.apk, for phones "
+                         "whose app is too old for this game pack")
     ap.add_argument("--world", default="osrs239",
                     help="which world: its cache.<world>, manifests/manifest_<world>.ini and "
                          "revconfig/<world> (default osrs239; osrs242 is current)")
@@ -854,6 +961,8 @@ def main() -> int:
     copy_tree(REPO / "revconfig" / WORLD, stage / "revconfig" / WORLD)
     copy_tree(REPO / "script", stage / "script")
     stage_scripts(stage, args.game_port, args.web_port, args.ws_host, sha, content_sha, date)
+    if args.android:
+        stage_android(stage, args.jobs, sha, content_sha, date, args.android_key, args.android_apk)
     log(f"staged {stage}")
 
     # ---- zip

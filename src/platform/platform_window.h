@@ -858,7 +858,8 @@ PlatformWindow_Present(struct PlatformWindow* platform);
  * @return false, with the reason on stderr, when this window cannot capture
  * what it presents: an SDL window presenting through OpenGL (the frame is the
  * GL renderer's, read back by App_RequestScreenshot instead), or a window
- * with no client area. Android does not implement it.
+ * with no client area. Android always answers false: its presenter keeps no
+ * copy of the frame it wrote into the window.
  */
 bool
 PlatformWindow_RequestCapture(

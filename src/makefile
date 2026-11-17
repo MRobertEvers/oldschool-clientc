@@ -1448,7 +1448,10 @@ endif
 
 # torirsmaped and its ctl are POSIX only (arpa/inet.h, symlink, two-argument
 # mkdir); MinGW cannot build them, so the Windows lanes ship the client alone.
-ifneq ($(filter win32 win64,$(PLATFORM)),)
+# Android ships the client alone too: its `all` is the app's libtorirs.so, and
+# the editor daemon is no program a phone runs (nor does API 21 have
+# posix_spawn).
+ifneq ($(filter win32 win64 android,$(PLATFORM)),)
 all: $(OBJ_DIR) $(TARGET)
 else
 all: $(OBJ_DIR) $(TARGET) torirsmaped torirsmapedctl

@@ -43,6 +43,8 @@
  * and the OTL remembers which login minted it.
  */
 
+#include "torirs_server_auth.h"
+
 #include <stddef.h>
 
 #define TORIRSSERVER_OAUTH_ISSUER "torirs"
@@ -235,5 +237,74 @@ ToriRSServer_OAuthBase64Url(
     const unsigned char* bytes,
     size_t len,
     char* out);
+
+/*
+ * A web login's DEVICE sign-in: the gate's own refresh grant, for an app that
+ * has no browser to keep the gate's cookie (the prod Android app,
+ * android/README.md). io_server's POST /device/token:
+ *
+ *   grant_type=password      name + password, checked by the gate against the
+ *                            account server -> ToriRSServer_GateDeviceSignIn
+ *   grant_type=refresh_token Take (spends it; a spent one presented again ends
+ *                            the whole sign-in), the gate confirms the web
+ *                            login still exists, then Continue
+ *
+ * Each answer is a gate TICKET good for TORIRSSERVER_GATE_DEVICE_TICKET_SECONDS
+ * (the cookie the device sends) and a rotated REFRESH token good for 30 days
+ * from that moment, so a device in use never signs in again. Refresh tokens
+ * are JWTs with typ "gate_refresh", recorded under `<saves>/oauth/gate_refresh/`
+ * and never accepted where a player account's are (or the reverse).
+ */
+#define TORIRSSERVER_GATE_DEVICE_TICKET_SECONDS (24LL * 60 * 60)
+#define TORIRSSERVER_GATE_DEVICE_REFRESH_SECONDS (30LL * 24 * 60 * 60)
+
+struct ToriRSServerGateDeviceTokens
+{
+    char ticket[TORIRSSERVER_GATE_TICKET_MAX];
+    char refresh_token[TORIRSSERVER_OAUTH_TOKEN_MAX];
+    /** The web login, as typed at sign-in. */
+    char name[64];
+    char fam[TORIRSSERVER_OAUTH_ID_HEX + 1];
+    long long ticket_expires_in;
+    long long refresh_expires_in;
+};
+
+/** A new device sign-in for web login `name`, whose password the caller has
+ *  just checked. Needs ToriRSServer_GateKeyLoad and ToriRSServer_OAuthKeyLoad. */
+enum ToriRSServerOAuthError
+ToriRSServer_GateDeviceSignIn(
+    const char* name,
+    long long now,
+    struct ToriRSServerGateDeviceTokens* out);
+
+/** Spend a device refresh token: its web login and its sign-in (family), or
+ *  INVALID_GRANT. A token already spent ends its whole sign-in. */
+enum ToriRSServerOAuthError
+ToriRSServer_GateDeviceTake(
+    const char* refresh_token,
+    long long now,
+    char out_name[64],
+    char out_fam[TORIRSSERVER_OAUTH_ID_HEX + 1],
+    const char** out_description);
+
+/** The rest of a refresh: a ticket and the next refresh token of `fam`. */
+enum ToriRSServerOAuthError
+ToriRSServer_GateDeviceContinue(
+    const char* name,
+    const char* fam,
+    long long now,
+    struct ToriRSServerGateDeviceTokens* out);
+
+/** End sign-in `fam` (its web login is gone). */
+void
+ToriRSServer_GateDeviceRevokeFamily(
+    const char* fam,
+    long long now);
+
+/** Sign out on a device: the token's whole sign-in. Garbage is ignored. */
+void
+ToriRSServer_GateDeviceRevoke(
+    const char* refresh_token,
+    long long now);
 
 #endif

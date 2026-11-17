@@ -1882,6 +1882,23 @@ Editor_HostLocalRevealInFileManager(
 #include <sys/wait.h>
 extern char** environ;
 
+/* /bin/sh with `argv`, its pid in *pid; posix_spawn's answer. Bionic has no
+ * posix_spawn below API 28, and the Android lane targets 21 -- nor has a phone
+ * an editor or a file manager to hand a path to -- so there it never starts. */
+static int
+spawn_shell(
+    char* argv[],
+    pid_t* pid)
+{
+#if defined(__ANDROID__) && __ANDROID_API__ < 28
+    (void)argv;
+    (void)pid;
+    return -1;
+#else
+    return posix_spawn(pid, "/bin/sh", NULL, NULL, argv, environ);
+#endif
+}
+
 /** `name` is an executable in a PATH directory. */
 static int
 on_path(const char* name)
@@ -1989,7 +2006,7 @@ Editor_HostLocalOpenFolderInEditor(
     argv[1] = "-c";
     argv[2] = shell_line;
     argv[3] = NULL;
-    if( posix_spawn(&pid, "/bin/sh", NULL, NULL, argv, environ) != 0 )
+    if( spawn_shell(argv, &pid) != 0 )
         return EDITOR_HOST_IO_ERROR;
     while( waitpid(pid, &status, 0) < 0 )
     {
@@ -2070,7 +2087,7 @@ Editor_HostLocalRevealInFileManager(
     argv[1] = "-c";
     argv[2] = shell_line;
     argv[3] = NULL;
-    if( posix_spawn(&pid, "/bin/sh", NULL, NULL, argv, environ) != 0 )
+    if( spawn_shell(argv, &pid) != 0 )
         return EDITOR_HOST_IO_ERROR;
     while( waitpid(pid, &status, 0) < 0 )
     {

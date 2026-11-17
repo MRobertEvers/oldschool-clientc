@@ -13,6 +13,22 @@
  *
  * So Gradle's job is exactly the APK: take the .so the makefile produced, add
  * the Java shell around it, sign it and install it. See android/README.md.
+ *
+ * TWO APPS, one per environment (the `env` flavor dimension):
+ *
+ *   dev    com.torirs.client       "ToriRS Dev". The boot menu over whatever
+ *                                  manifests and caches were pushed with adb,
+ *                                  and the libtorirs.so make wrote into
+ *                                  src/main/jniLibs. What every local test runs.
+ *   prod   com.torirs.client.live  "ToriRS". Signs in to the IaP and the torirs
+ *                                  gate, downloads the current game pack (the
+ *                                  .so, signed by the server) and boots the
+ *                                  server's manifest_latest.ini through its own
+ *                                  TLS relay. Carries NO native library: a new
+ *                                  client is a deploy, not a reinstall.
+ *
+ * Different application ids, so both install side by side on one phone.
+ * tools/android_build.sh is the front door: `dev`, `prod`, and what each needs.
  */
 plugins {
     id 'com.android.application' version '8.7.0'
@@ -33,8 +49,8 @@ android {
          */
         minSdk 21
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.1"
 
         ndk {
             /*
@@ -61,13 +77,46 @@ android {
         }
     }
 
+    buildFeatures {
+        buildConfig true
+    }
+
+    flavorDimensions = ['env']
+    productFlavors {
+        dev {
+            dimension 'env'
+            resValue 'string', 'app_name', 'ToriRS Dev'
+        }
+        prod {
+            dimension 'env'
+            applicationIdSuffix '.live'
+            resValue 'string', 'app_name', 'ToriRS'
+            /* Where the production app goes. The game is behind two sign-ins:
+             * the IaP on the proxy (auth.mrobertevers.com, a 30-day refresh
+             * token) and the torirs gate behind it (its 30-day ticket). */
+            buildConfigField 'String', 'IAP_ORIGIN', '"https://auth.mrobertevers.com"'
+            buildConfigField 'String', 'SERVER_HOST', '"torirs.mrobertevers.com"'
+            /* What it boots: the server's manifest under a name that never
+             * changes (tools/deploy/build_osrs239_package.py writes it), and
+             * the game pack published beside the web client. */
+            buildConfigField 'String', 'MANIFEST', '"manifests/manifest_latest.ini"'
+            buildConfigField 'String', 'GAMEPACK_PATH', '"/android/latest.json"'
+        }
+    }
+
     /*
      * The makefile writes straight into this tree, so a native rebuild is
-     * immediately what the next assemble packages.
+     * immediately what the next assemble packages -- for the DEV app only.
+     * The prod app downloads its library (GamePack.java) and must not carry
+     * one: a bundled copy would be a second, older client that nothing ever
+     * updates.
      */
     sourceSets {
-        main {
+        dev {
             jniLibs.srcDirs = ['src/main/jniLibs']
+        }
+        main {
+            jniLibs.srcDirs = []
             /*
              * NO ASSETS.
              *

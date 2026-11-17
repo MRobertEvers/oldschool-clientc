@@ -9,9 +9,10 @@
 #include <assert.h>
 #include <stdlib.h>
 
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
 
-/* A browser tab has no editor to hand two paths to. */
+/* A browser tab has no editor to hand two paths to, and neither has a phone
+ * (whose libc has no posix_spawn below API 28 either). */
 enum EditorHost_Status
 Editor_DiffInEditor(
     const char* base,

@@ -14,6 +14,10 @@
  *   POST /account/link     a player's name + password -> linked to this login,
  *                          and a one-time login for it
  *   POST /account/play     a linked player's name -> a one-time login
+ *   POST /device/token     a device with no cookie jar (the prod Android app):
+ *                          name + password, or its last refresh token -> a
+ *                          ticket and a rotated 30-day refresh token
+ *   POST /device/revoke    sign that device out
  *   anything else          the game's own routes, with a good ticket; without
  *                          one a GET goes to /login and the rest are 401
  *

@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">ToriRS</string>
+    <!-- app_name is per flavor (build.gradle resValue): "ToriRS Dev" for the
+         dev app, "ToriRS" for prod, so the two are told apart on one phone. -->
 </resources>

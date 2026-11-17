@@ -82,10 +82,14 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     private static final int NETWORK_WIFI = 1;
     private static final int NETWORK_CELLULAR = 2;
 
-    static
-    {
-        System.loadLibrary("torirs");
-    }
+    /*
+     * No static System.loadLibrary: WHICH library this process runs is the
+     * flavor's to say (NativeLibrary.java, one per flavor). The dev app loads
+     * the one packaged in the APK; the prod app loads the game pack its
+     * launcher downloaded, and a ClientActivity restored straight into a fresh
+     * process has none yet and goes back through the launcher.
+     */
+    private boolean nativeReady;
 
     private SurfaceView surfaceView;
     private Button hideKeyboardButton;
@@ -159,6 +163,8 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     private native void nativeDeviceStatus(int batteryPercent, int batteryCharging, int networkKind);
     private native void nativeStop();
     private native void nativePluginChromeToggle();
+    /** TORIRS_ANDROID_JNI_ABI of the loaded library (platform_android.h). */
+    static native int nativeJniAbi();
 
     /* ---- lifecycle ------------------------------------------------------- */
 
@@ -166,6 +172,13 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     protected void onCreate(Bundle savedInstanceState)
     {
         super.onCreate(savedInstanceState);
+
+        if( !NativeLibrary.prepare(this) )
+        {
+            finish();
+            return;
+        }
+        nativeReady = true;
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
@@ -321,13 +334,15 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     protected void onResume()
     {
         super.onResume();
-        nativeSetForeground(1);
+        if( nativeReady )
+            nativeSetForeground(1);
     }
 
     @Override
     protected void onPause()
     {
-        nativeSetForeground(0);
+        if( nativeReady )
+            nativeSetForeground(0);
         super.onPause();
     }
 
@@ -860,7 +875,10 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
             @Override
             public void run()
             {
-                Intent intent = new Intent(ClientActivity.this, BootActivity.class);
+                /* The dev app's boot menu, or the prod app's launcher: each
+                 * shows the message and waits for a tap instead of booting
+                 * the same failure again. */
+                Intent intent = new Intent(ClientActivity.this, NativeLibrary.BOOT_SCREEN);
                 intent.putExtra(BootActivity.EXTRA_BOOT_ERROR, message);
                 startActivity(intent);
                 finish();

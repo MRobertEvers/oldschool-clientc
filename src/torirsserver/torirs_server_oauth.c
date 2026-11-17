@@ -436,10 +436,12 @@ record_take(
 /*
  * Delete every refresh record of family `fam`, or every one of account `sub`
  * -- a reuse, a revocation, a link -- and, while the directory is open, every
- * expired one. Either selector may be NULL.
+ * expired one. Either selector may be NULL. `kind` is the record directory:
+ * "refresh" (player accounts) or "gate_refresh" (web logins' devices).
  */
 static void
 revoke_where(
+    const char* kind,
     const char* fam,
     const char* sub,
     long long now)
@@ -448,7 +450,7 @@ revoke_where(
     DIR* handle;
     struct dirent* entry;
 
-    snprintf(dir, sizeof(dir), "%s/oauth/refresh", ToriRSServer_SaveDir());
+    snprintf(dir, sizeof(dir), "%s/oauth/%s", ToriRSServer_SaveDir(), kind);
     handle = opendir(dir);
     if( !handle )
         return;
@@ -460,7 +462,7 @@ revoke_where(
         if( entry->d_name[0] == '.' )
             continue;
         snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
-        if( record_read(path, "refresh", &record) <= 0 )
+        if( record_read(path, kind, &record) <= 0 )
             continue;
         if( (fam && strcmp(record.fam, fam) == 0) || (sub && strcmp(record.sub, sub) == 0) ||
             record.exp <= now )
@@ -474,7 +476,7 @@ revoke_family(
     const char* fam,
     long long now)
 {
-    revoke_where(fam, NULL, now);
+    revoke_where("refresh", fam, NULL, now);
 }
 
 /* 1 when the account `name` is linked to a web login, or its record cannot
@@ -932,7 +934,7 @@ ToriRSServer_OAuthRevokeAccount(
     assert(display_name);
     ToriRSServer_SaveFileName(display_name, sub, sizeof(sub));
     if( sub[0] )
-        revoke_where(NULL, sub, now);
+        revoke_where("refresh", NULL, sub, now);
 }
 
 int
@@ -962,4 +964,156 @@ ToriRSServer_OAuthRedeemOtl(
     if( managed > 0 )
         return strcmp(record.user, owner) == 0;
     return 1;
+}
+
+/* ------------------------------------------------------------------ */
+/* Web logins' device sign-ins (the gate's /device/token)              */
+/* ------------------------------------------------------------------ */
+
+/* A gate ticket for web login `name`, and a refresh token continuing family
+ * `fam` (or starting one), recorded under oauth/gate_refresh. */
+static enum ToriRSServerOAuthError
+issue_gate(
+    const char* sub,
+    const char* name,
+    const char* fam,
+    long long now,
+    struct ToriRSServerGateDeviceTokens* out)
+{
+    char claims[768];
+    char name_json[160];
+    char refresh_jti[TORIRSSERVER_OAUTH_ID_HEX + 1];
+    struct OAuthRecord record;
+    char path[1024];
+
+    memset(out, 0, sizeof(*out));
+    memset(&record, 0, sizeof(record));
+    json_escape(name, name_json, sizeof(name_json));
+    snprintf(record.sub, sizeof(record.sub), "%s", sub);
+    snprintf(record.name, sizeof(record.name), "%s", name);
+    snprintf(record.scope, sizeof(record.scope), "gate");
+    if( fam && fam[0] )
+        snprintf(record.fam, sizeof(record.fam), "%s", fam);
+    else
+        new_id(record.fam);
+    record.exp = now + TORIRSSERVER_GATE_DEVICE_REFRESH_SECONDS;
+
+    new_id(refresh_jti);
+    snprintf(claims, sizeof(claims),
+             "{\"iss\":\"%s\",\"aud\":\"%s\",\"sub\":\"%s\",\"name\":\"%s\",\"scope\":\"gate\","
+             "\"typ\":\"gate_refresh\",\"iat\":%lld,\"exp\":%lld,\"jti\":\"%s\",\"fam\":\"%s\"}",
+             TORIRSSERVER_OAUTH_ISSUER, TORIRSSERVER_OAUTH_AUDIENCE, sub, name_json, now, record.exp,
+             refresh_jti, record.fam);
+    jwt_sign(claims, out->refresh_token);
+    record_path("gate_refresh", refresh_jti, path, sizeof(path));
+    if( !record_write(path, "gate_refresh", &record) )
+        return TORIRSSERVER_OAUTH_SERVER_ERROR;
+
+    ToriRSServer_GateTicketMint(name, now + TORIRSSERVER_GATE_DEVICE_TICKET_SECONDS, out->ticket);
+    snprintf(out->name, sizeof(out->name), "%s", name);
+    snprintf(out->fam, sizeof(out->fam), "%s", record.fam);
+    out->ticket_expires_in = TORIRSSERVER_GATE_DEVICE_TICKET_SECONDS;
+    out->refresh_expires_in = TORIRSSERVER_GATE_DEVICE_REFRESH_SECONDS;
+    return TORIRSSERVER_OAUTH_OK;
+}
+
+enum ToriRSServerOAuthError
+ToriRSServer_GateDeviceSignIn(
+    const char* name,
+    long long now,
+    struct ToriRSServerGateDeviceTokens* out)
+{
+    char sub[64];
+
+    assert(name);
+    assert(out);
+    ToriRSServer_SaveFileName(name, sub, sizeof(sub));
+    assert(sub[0]);
+    return issue_gate(sub, name, NULL, now, out);
+}
+
+enum ToriRSServerOAuthError
+ToriRSServer_GateDeviceTake(
+    const char* refresh_token,
+    long long now,
+    char out_name[64],
+    char out_fam[TORIRSSERVER_OAUTH_ID_HEX + 1],
+    const char** out_description)
+{
+    struct ToriRSServerOAuthClaims claims;
+    struct OAuthRecord record;
+
+    assert(refresh_token);
+    assert(out_name);
+    assert(out_fam);
+    assert(out_description);
+    *out_description = NULL;
+    out_name[0] = '\0';
+    out_fam[0] = '\0';
+    if( !ToriRSServer_OAuthVerify(refresh_token, now, &claims) ||
+        strcmp(claims.typ, "gate_refresh") != 0 || !id_is_valid(claims.jti) ||
+        !id_is_valid(claims.fam) )
+    {
+        *out_description = "This sign-in has ended. Sign in again.";
+        return TORIRSSERVER_OAUTH_INVALID_GRANT;
+    }
+    if( !record_take("gate_refresh", claims.jti, &record) )
+    {
+        /* Signed, unexpired and already spent: a copy is being played. */
+        fprintf(stderr, "torirsserver: gate refresh token reuse for '%s'; ending that sign-in\n",
+                claims.sub);
+        revoke_where("gate_refresh", claims.fam, NULL, now);
+        *out_description = "This sign-in has ended. Sign in again.";
+        return TORIRSSERVER_OAUTH_INVALID_GRANT;
+    }
+    if( strcmp(record.sub, claims.sub) != 0 || strcmp(record.fam, claims.fam) != 0 )
+    {
+        revoke_where("gate_refresh", claims.fam, NULL, now);
+        *out_description = "This sign-in has ended. Sign in again.";
+        return TORIRSSERVER_OAUTH_INVALID_GRANT;
+    }
+    snprintf(out_name, 64, "%s", record.name[0] ? record.name : record.sub);
+    snprintf(out_fam, TORIRSSERVER_OAUTH_ID_HEX + 1, "%s", record.fam);
+    return TORIRSSERVER_OAUTH_OK;
+}
+
+enum ToriRSServerOAuthError
+ToriRSServer_GateDeviceContinue(
+    const char* name,
+    const char* fam,
+    long long now,
+    struct ToriRSServerGateDeviceTokens* out)
+{
+    char sub[64];
+
+    assert(name);
+    assert(fam);
+    assert(id_is_valid(fam));
+    assert(out);
+    ToriRSServer_SaveFileName(name, sub, sizeof(sub));
+    assert(sub[0]);
+    return issue_gate(sub, name, fam, now, out);
+}
+
+void
+ToriRSServer_GateDeviceRevokeFamily(
+    const char* fam,
+    long long now)
+{
+    assert(fam);
+    if( id_is_valid(fam) )
+        revoke_where("gate_refresh", fam, NULL, now);
+}
+
+void
+ToriRSServer_GateDeviceRevoke(
+    const char* refresh_token,
+    long long now)
+{
+    struct ToriRSServerOAuthClaims claims;
+
+    assert(refresh_token);
+    if( ToriRSServer_OAuthVerify(refresh_token, now, &claims) &&
+        strcmp(claims.typ, "gate_refresh") == 0 && id_is_valid(claims.fam) )
+        revoke_where("gate_refresh", claims.fam, NULL, now);
 }

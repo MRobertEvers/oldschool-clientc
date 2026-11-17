@@ -10,6 +10,23 @@ This file is how to build it and run it.
 
 ---
 
+## Two apps: dev and prod
+
+| | **dev**: the debug environment | **prod**: what you sideload |
+|---|---|---|
+| Build | `tools/android_build.sh dev [--install]` | `tools/android_build.sh prod [--install]` |
+| App | "ToriRS Dev", `com.torirs.client` | "ToriRS", `com.torirs.client.live` |
+| Native client | built here, packaged in the APK | **downloaded from the server**: the game pack |
+| Manifests and data | pushed with `tools/android_push_data.sh` | `manifest_latest.ini` and its revconfig, from the server |
+| Server | whatever the chosen profile names | `torirs.mrobertevers.com`, through the IaP |
+| Gradle task | `assembleDevDebug` / `installDevDebug` | `assembleProdRelease` |
+
+Both install side by side. The rest of this file up to [The production app](#the-production-app)
+is about **dev**; the prod app needs nothing built locally except its Java, and is
+updated by deploying the server, not by reinstalling.
+
+---
+
 ## What you need
 
 | | |
@@ -29,14 +46,11 @@ If your JDK 21 is elsewhere, edit `org.gradle.java.home` in
 
 ---
 
-## Build and run, in four steps
+## Build and run the dev app, in four steps
 
 ```sh
-# 1. the native client  (make owns this; Gradle does not build C)
-make -C src PLATFORM=android ANDROID_ABI=armeabi-v7a OPT=1 all
-
-# 2. the APK
-cd android && ./gradlew installDebug && cd ..
+# 1+2. the native client (make owns it; Gradle does not build C), then the APK
+tools/android_build.sh dev --install          # = make ... PLATFORM=android all + installDevDebug
 
 # 3. the data -- manifests, revconfig, plugins, and whichever caches you want
 tools/android_push_data.sh cache.osrs239
@@ -45,7 +59,7 @@ tools/android_push_data.sh cache.osrs239
 adb logcat -s torirs
 ```
 
-Then launch **ToriRS** on the device and pick a profile from the boot menu.
+Then launch **ToriRS Dev** on the device and pick a profile from the boot menu.
 
 ### Which ABI
 
@@ -69,7 +83,7 @@ Each ABI gets its own object directory, so building both never mixes objects.
 ```sh
 make -C src PLATFORM=android ANDROID_ABI=armeabi-v7a OPT=1 all
 make -C src PLATFORM=android ANDROID_ABI=arm64-v8a  OPT=1 all
-cd android && ./gradlew installDebug
+cd android && ./gradlew installDevDebug
 ```
 
 ### Debug build
@@ -376,3 +390,85 @@ because a stale duplicate still compiles.
 So `make` writes `android/src/main/jniLibs/<abi>/libtorirs.so` and Gradle
 packages whatever is there. **After a native change, re-run `make` before
 `./gradlew`** — Gradle cannot know the `.so` is stale.
+
+---
+
+## The production app
+
+`tools/android_build.sh prod` builds "ToriRS" (`com.torirs.client.live`), the app people
+sideload. It holds no native code. What it runs is the **game pack**: the client built
+from the same commit as the world, published by every deploy, and fetched by the app
+when it changes. A client change is a server deploy; nobody reinstalls anything.
+
+### What happens when it starts (`LauncherActivity`)
+
+1. **Two sign-ins, both kept for 30 days** (`Session.java`, `SignInActivity.java`).
+   - The IaP in front of `*.mrobertevers.com` (the mrobertevers-proxy repo): email and
+     password, `POST auth.mrobertevers.com/api/device/token`. It answers with a **30-day
+     refresh token** and a one-day session. The session is the `__Secure-iap` cookie. The
+     refresh token is traded for a new pair whenever the session gets close to running
+     out, and every trade starts the 30 days again. If the IaP requires the account to
+     verify its email, the screen does that too.
+   - The torirs gate behind it (`io_server --gate`): the web login's name and password,
+     `POST /device/token` (`io_gate.c`). It answers the same way: a **30-day refresh
+     token**, rotated on every use, and a one-day `torirs_gate` ticket. The tokens are
+     the player OAuth's records (`torirs_server_oauth.c`), typed `gate_refresh` and
+     kept under `<saves>/oauth/gate_refresh/`. A refresh token used twice ends the
+     sign-in, and so does a refresh for a web login that has since been revoked.
+
+   So a phone that plays at least once a month never asks to sign in again. Neither
+   password is stored. Sign out (on the launcher) revokes both sign-ins on their servers.
+2. **`/android/latest.json`**, signature checked (`GamePack.java`). It names a library
+   per ABI and a data zip (the manifest and its revconfig: what the client `fopen`s), each
+   with its SHA-256.
+3. **The library and the data**, downloaded only when their hash changed, into private
+   storage (`files/gamepack/`, read-only) and the data root.
+4. **Load, relay, boot.** `System.load` of the library; a loopback relay
+   (`IapTunnel.java`); `manifests/manifest_android.ini` written from `manifest_latest.ini`
+   with every endpoint pointed at the relay (`ProdManifest.java`); `ClientActivity`.
+
+A newer pack found while an older one is loaded restarts the process
+(`RestartActivity`), because a loaded `.so` stays loaded.
+
+### Why a relay
+
+The C client has no TLS and no cookie jar. The server is reachable only on `:443`
+through the proxy, behind two cookies. So the manifest points the game, JS5, io_server
+and the account requests at `127.0.0.1:<relay>`. The relay tells the connections apart
+by their first byte, the same rule `torirsserver` uses:
+
+- **HTTP** gets the real `Host` and both cookies.
+- **The game or JS5 byte stream** rides a WebSocket (`GET /ws`, upgraded with both
+  cookies). `torirsserver` behind the gate refuses raw TCP.
+
+Both go over TLS. Nothing under `src/` knows any of this.
+
+TLS carries ISRG Root X1 (`res/raw/isrg_root_x1.pem`): Android before 7.1.1 does not
+trust it, and Let's Encrypt no longer serves the old cross-signed chain. That includes
+the Android 5.1 phone this lane is built on.
+
+### What the server publishes
+
+`tools/deploy/build_osrs239_package.py --android` (the NUC's `~/torirs/build.sh` passes
+it) builds the client for `armeabi-v7a` and `arm64-v8a` into private object directories.
+It writes them, the data zip, and `latest.json` into `build-web/android/`, and signs
+`latest.json` with `~/torirs/android/gamepack-signing.key`, an EC P-256 key that exists
+only on the NUC. The app holds the public half (`res/raw/gamepack_signing_pub.pem`) and
+refuses anything it did not sign. That stops the proxy box in between from handing a
+phone code to run.
+
+The NDK on the NUC is `~/torirs/android/android-ndk-r27` (`ANDROID_NDK_HOME` in
+`build.sh`).
+
+### When the APK itself must change: `TORIRS_ANDROID_JNI_ABI`
+
+The game pack runs inside whatever APK the phone already has, so the two must agree on
+the JNI contract: every `native` method in `ClientActivity`, and every Java method the C
+side calls back (`openUrl`, `showPluginTab`, `bootFailed`, `showSoftKeyboard`). The
+contract has a number, `TORIRS_ANDROID_JNI_ABI` in `src/platform/platform_android.h`
+and `GamePack.JNI_ABI`. **Bump both together** whenever the contract changes.
+
+An app whose number differs from the pack's refuses the pack and offers "Get the new
+app", which opens `/android/torirs.apk`. Before the deploy that bumps it, run
+`tools/android_build.sh publish-apk` so the new APK is there to get. Every other client
+change ships as a game pack alone.

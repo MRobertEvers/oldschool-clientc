@@ -81,7 +81,7 @@ fi
 # exist fails with a permission error that suggests the wrong cause entirely.
 if ! adb_ shell "test -d /sdcard/Android/data/${PKG}" 2>/dev/null; then
     echo "error: /sdcard/Android/data/${PKG} does not exist." >&2
-    echo "       Install the app once first:  (cd android && ./gradlew installDebug)" >&2
+    echo "       Install the app once first:  (tools/android_build.sh dev --install)" >&2
     exit 1
 fi
 
