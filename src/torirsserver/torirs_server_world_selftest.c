@@ -22422,8 +22422,9 @@ ToriRSServer_WorldSelftest(void)
             held[7] = (uint8_t)ids->com_inventory_items;
             selftest_handle(player, PKTOUT_NAME_OPHELD1, held, 8);
 
-            /* p_delay(0) parks the script for the rest of this tick, which is
-             * why the effects land on the next one rather than immediately. */
+            /* The delete and the experience land on the click's own tick
+             * (RSProx 3443, 32/32); p_delay(0) then parks the script for the
+             * "You bury the bones." line on the next one. */
             SELFTEST_CHECK(player->active_script != NULL, "bury should park on its p_delay");
             selftest_tick(srv);
             SELFTEST_CHECK(player->inv[0].obj_id == -1,
@@ -47436,9 +47437,9 @@ ToriRSServer_WorldSelftest(void)
                     SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 3,
                                    "the declining [opheld1,bat_bones] should run, got %d",
                                    ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
-                    /* `bury_bones` delays before it deletes, on purpose (the bones
-                     * stay in the backpack until the animation has played), so the
-                     * bone is gone only after the delay drains. */
+                    /* `bury_bones` deletes on the click's tick and parks a tick for
+                     * "You bury the bones." (RSProx 3443, 32/32); the ticks below
+                     * drain that park before the next stanza. */
                     for( int t = 0; t < 12; t++ )
                         selftest_tick(srv);
                     SELFTEST_CHECK(selftest_count(player, bat) == 0,

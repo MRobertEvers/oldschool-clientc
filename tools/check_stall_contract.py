@@ -35,6 +35,11 @@ STALLS = {
     "stealing_tea_stall": "Tea stall",
     "stealing_silk_stall": "Silk stall",
     "stealing_fur_stall": "Fur stall",
+    # Unambiguous since the wiki names the Port Roberts rows apart
+    # ("Silver stall (Port Roberts)" at 80): 2026-11-17.
+    "stealing_silver_stall": "Silver stall",
+    "stealing_spice_stall": "Spice stall",
+    "stealing_gem_stall": "Gem stall",
 }
 
 
