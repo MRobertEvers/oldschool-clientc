@@ -494,6 +494,20 @@ Task_AppBoot_Run(
     if( !app->boot_config_ready )
         RS_Prefs_ApplyToHost(&app->prefs, &app->host);
     /*
+     * A phone has no fixed mode: the mobile toplevel lays itself out to the
+     * canvas, and the cache's mobile scripts drawn under getwindowmode = fixed
+     * put the chatbox's parchment, text and tabs at three different places.
+     *
+     * A saved fixed mode reaches a mobile identity from a file a desktop
+     * session wrote: a phone's replay watched in a desktop browser shares the
+     * site's preferences with the watcher's own fixed-mode play. The host
+     * takes resizable; the file keeps the watcher's choice (not a script's,
+     * so RS_Prefs_CaptureFromHost writes nothing back). A manifest or command
+     * line mode below still wins.
+     */
+    if( !app->boot_config_ready && CS2VM2_OnMobile() )
+        app->host.default_window_mode = CS2VM_WINDOW_MODE_RESIZABLE;
+    /*
      * And a phone's default frame cap, seeded only when nothing has chosen.
      *
      * AFTER the restore, so a player's saved choice wins: option 5 is zero
