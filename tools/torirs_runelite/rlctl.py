@@ -16,6 +16,11 @@ minutes chasing Captain Barnaby by coordinates).
                                      a `::` command (the account is admin)
     rlctl.py npc 'Captain Barnaby' Brimhaven
                                      right-click the nearest such NPC, pick the row
+    rlctl.py walkto <x> <z>          walk until there (or beside it, where the route ends)
+    rlctl.py jctl 'clickloc Gangplank Cross'   ...and every JDrive command: where, locs,
+                                     clickloc, objs, clickobj, inv, clickitem, useon,
+                                     walk, dialog, continue, choose, waitfor
+                                     (Deobfuscator instr/revisions/242/instrumentation/JDrive.java)
     rlctl.py shot out.png            the client's framebuffer
     rlctl.py burst <dir> [n] [ms]    n screenshots ms apart, tiled into <dir>/burst.png
     rlctl.py wire [<recording.bin>] [name]
@@ -181,6 +186,47 @@ def cmd_npc(args):
         sys.exit(1)
 
 
+def where():
+    """{x, z, plane, idle, dialog} from JCtl `where`."""
+    reply = jctl("where")
+    out = {}
+    for part in reply.split()[2:]:
+        if "=" in part:
+            key, value = part.split("=", 1)
+            out[key] = value
+    return out
+
+
+def cmd_walkto(args):
+    """Walk until on (x, z), or as close as the route allows and stopped there.
+    The server routes to the nearest reachable tile, as Jagex's does, so a
+    blocked target ends beside it; the minimap's precision is a tile or so,
+    so a far walk is finished by an on-screen click once within range."""
+    end = time.time() + args.timeout
+    while time.time() < end:
+        here = where()
+        if int(here["x"]) == args.x and int(here["z"]) == args.z:
+            print("rlctl: at %d,%d" % (args.x, args.z))
+            return
+        print(jctl("walk %d %d" % (args.x, args.z)))
+        still = 0
+        last = None
+        while time.time() < end and still < 3:
+            time.sleep(0.6)
+            here = where()
+            pos = (here["x"], here["z"])
+            still = still + 1 if pos == last else 0
+            last = pos
+            if int(here["x"]) == args.x and int(here["z"]) == args.z:
+                print("rlctl: at %d,%d" % (args.x, args.z))
+                return
+        if abs(int(here["x"]) - args.x) <= 1 and abs(int(here["z"]) - args.z) <= 1:
+            # Beside it and stopped: the tile itself is not reachable.
+            print("rlctl: beside %d,%d at %s,%s (the route ends there)" % (args.x, args.z, here["x"], here["z"]))
+            return
+    sys.exit("rlctl: walkto %d,%d timed out at %s" % (args.x, args.z, where()))
+
+
 def cmd_shot(args):
     print(jctl("shot " + os.path.abspath(args.path)))
 
@@ -247,6 +293,11 @@ def main():
     p.add_argument("name")
     p.add_argument("option", nargs="?", default="Talk-to")
     p.set_defaults(fn=cmd_npc)
+    p = sub.add_parser("walkto")
+    p.add_argument("x", type=int)
+    p.add_argument("z", type=int)
+    p.add_argument("--timeout", type=float, default=60.0)
+    p.set_defaults(fn=cmd_walkto)
     p = sub.add_parser("shot")
     p.add_argument("path")
     p.set_defaults(fn=cmd_shot)
