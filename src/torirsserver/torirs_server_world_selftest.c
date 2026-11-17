@@ -17496,11 +17496,11 @@ ToriRSServer_WorldSelftest(void)
                                 int clear_at = ToriRSServer_CaptureFind(
                                     &iface_capture, clear_opcode, 0);
 
-                                SELFTEST_CHECK(clear_at >= 0,
-                                               "equipment close emits IF_CLEARINV");
-                                SELFTEST_CHECK(clear_at >= 0 && at >= 0 && clear_at < at,
-                                               "IF_CLEARINV must precede the final "
-                                               "UPDATE_INV_STOPTRANSMIT");
+                                /* Jagex sends no IF_CLEARINV on a close, and its
+                                 * client crashes on one to a component with no
+                                 * item array (torirs_server_container.c). */
+                                SELFTEST_CHECK(clear_at < 0,
+                                               "equipment close sends no IF_CLEARINV");
                             }
                             SELFTEST_CHECK(worn->listener_count == 0,
                                            "equipment close removes its listener");
@@ -17544,9 +17544,8 @@ ToriRSServer_WorldSelftest(void)
                                                &iface_capture, stop_opcode, 0) < 0,
                                            "a surviving listener suppresses the global stop");
                             SELFTEST_CHECK(ToriRSServer_CaptureFind(
-                                               &iface_capture, clear_opcode, 0) >= 0,
-                                           "but the unbound component still receives "
-                                           "IF_CLEARINV");
+                                               &iface_capture, clear_opcode, 0) < 0,
+                                           "and the unbound component gets no IF_CLEARINV");
 
                             /* Revision 230's packet is component-specific, so
                              * the same two-listener close must still send its

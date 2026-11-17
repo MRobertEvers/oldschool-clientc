@@ -331,15 +331,10 @@ ToriRSServer_ContainerForget(
     row = find_row(player->containers, TORIRSSERVER_CONTAINER_MAX, inv_id);
     if( !row )
         return;
-    /* A private row may be painted by a different player. Retire every
-     * embedded item array before releasing the storage, so an owner logout or
-     * row replacement cannot leave a guest looking at a stale collection. Do
-     * not send the inventory-global STOPTRANSMIT packet here: that viewer may
-     * also be listening to their own row with the same inv id. */
-    for( int i = 0; i < row->listener_count; i++ )
-        if( row->listeners[i].player )
-            ToriRSServer_SendIfClearinv(row->listeners[i].player,
-                                     row->listeners[i].component);
+    /* No IF_CLEARINV to the row's other viewers: Jagex sends none (see
+     * unbind_row), and its client crashes on one to a component without an
+     * item array. Nor the inventory-global STOPTRANSMIT: that viewer may also
+     * be listening to their own row with the same inv id. */
     if( row->owns_items )
         ToriMem_Free(ToriMem_ServerPlayers(), row->items);
     row_release_listeners(row);
@@ -354,10 +349,7 @@ ToriRSServer_ContainerShutdownPlayer(struct ToriRSServerPlayer* player)
     {
         struct ToriRSServerContainer* row = &player->containers[i];
 
-        for( int l = 0; l < row->listener_count; l++ )
-            if( row->listeners[l].player )
-                ToriRSServer_SendIfClearinv(row->listeners[l].player,
-                                         row->listeners[l].component);
+        /* No IF_CLEARINV to its viewers (see ToriRSServer_ContainerForget). */
         if( row->owns_items )
             ToriMem_Free(ToriMem_ServerPlayers(), row->items);
         row_release_listeners(row);
@@ -915,7 +907,6 @@ unbind_row(
     int32_t component)
 {
     int dropped = 0;
-    int cleared = 0;
     int w = 0;
 
     if( !row->used )
@@ -924,18 +915,15 @@ unbind_row(
     {
         if( row->listeners[r].component == component && listener_matches(row, r, player) )
         {
-            /* IF_CLEARINV retires the item array embedded in this widget;
-             * UPDATE_INV_STOPTRANSMIT is separate, inventory-global state
-             * and is sent by inv_stoptransmit only when no other component
-             * (or, on a shared row, no other player) still listens. Clear
-             * before dropping the association so a component moved to another
-             * inventory cannot retain old rows underneath its immediate
-             * UPDATE_INV_FULL. */
-            if( !cleared )
-            {
-                ToriRSServer_SendIfClearinv(player, component);
-                cleared = 1;
-            }
+            /* No IF_CLEARINV here. Jagex sends none when an interface closes
+             * (two in every transcript in ~/.rsprox-index-cache, both a
+             * shop's own inventory component), and its client dereferences
+             * the component's item array unchecked: an IF_CLEARINV to a
+             * component without one is a NullPointerException in RuneLite
+             * (`field4525` is null, 2026-11-17). UPDATE_INV_STOPTRANSMIT, the
+             * inventory-global half, is still sent by inv_stoptransmit when no
+             * other component (or player) listens, and a component bound to
+             * another inventory gets that one's UPDATE_INV_FULL. */
             dropped++;
             continue;
         }
