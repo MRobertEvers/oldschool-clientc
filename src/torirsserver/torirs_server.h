@@ -2060,7 +2060,10 @@ ToriRSServer_FlagDefaultOn(const char* name);
 
 /*
  * World events (`srv->world_events`): holiday content switched on and off at
- * run time, not by lane. `FromEnv` reads TORIRSSERVER_EVENTS ("halloween2026,
+ * run time. Whether a holiday is in the build at all is its lane's business
+ * (`<content>/ported/<event>/lane.ini`, `default=on|off`; a retired event is a
+ * lane left out); this switch is whether an event that is in the build is
+ * running. `FromEnv` reads TORIRSSERVER_EVENTS ("halloween2026,
  * xmas2026") into a freshly built server; every construction site calls it
  * beside `members_world`. `Set` switches one name and re-runs the static spawn
  * roster so `.spawn` rows tagged with it stand up or go on this tick; it

@@ -8,9 +8,20 @@ event` and `2026 Halloween event` pages and are marked *wiki* below.
 Content: `OSRS-Content/osrs-content/server/scripts/seasonal/halloween2026/`.
 Test: `test/seasonal/halloween2026.lua` (scriptrun, 79/79 rows, 883 ticks).
 
-## The switch: a world event, not a lane
+## The switches: a lane, then a world event
 
-One pack holds the event; the world decides whether it runs.
+**RETIRED 2026-11-18**: the lane is `default=off`. The cache taken that day
+(OpenRS2 #2772) deleted the 32 trick-or-treater npc types and took the
+jack-o-lanterns and the onion crate out of Rimmington's map.
+
+Whether the event is in the build is its lane,
+`OSRS-Content/osrs-content/ported/halloween2026/lane.ini`: `default=on` puts
+its scripts, records and spawn rows in every build, `default=off` leaves all
+three out (`server/scripts/seasonal/README.md`). The base tree's three calls
+into it (`chemist.rs2`, `cooking.rs2` twice) answer "not mine" without it
+(`lane_seams/halloween2026_seams.rs2`).
+
+In a build that has the event, the world decides whether it runs:
 
 | what | how |
 |---|---|
@@ -18,7 +29,7 @@ One pack holds the event; the world decides whether it runs.
 | live | `::event halloween2026 on` / `off` (a cheat: staff-only on any password-checking world) |
 | script | `world_event("halloween2026")` (opcode 11138), `world_event_set(name, on)` (11139) |
 | npcs | `.spawn` rows under `==== NPC event=halloween2026 ====` stand only while it is on; a switch re-runs the static roster that tick |
-| map locs | the cache places the 8 jack-o-lanterns and the onion crate; `~hw26_loc_sync` deletes them while off and puts them back while on, as players come within 40 tiles (`[mapzone,0_46_50]` + a 4-tick softtimer) |
+| map locs | the cache of the recording placed the 8 jack-o-lanterns and the onion crate (#2772 does not); `~hw26_loc_sync` deletes them while off and puts them back while on, as players come within 40 tiles (`[mapzone,0_46_50]` + a 4-tick softtimer) |
 
 Henja and Angel (`hw18_boy`/`hw18_girl`) were in the generated square file all
 year; the event's `.spawn` suppresses those rows and stands them under the event

@@ -2200,10 +2200,31 @@ load_spawn_config_tracked(const char* path)
 int
 ToriRSServer_ContentLoadSpawns(const char* scripts_dir)
 {
+    return ToriRSServer_ContentLoadSpawnsWithLanes(scripts_dir, NULL, NULL, 0);
+}
+
+int
+ToriRSServer_ContentLoadSpawnsWithLanes(
+    const char* scripts_dir,
+    const char* content_dir,
+    const char* const* lanes,
+    int lane_count)
+{
     assert(scripts_dir);
+    assert(lane_count >= 0);
 
     snprintf(g_spawn_scripts_dir, sizeof(g_spawn_scripts_dir), "%s", scripts_dir);
     walk_configs(scripts_dir, ".spawn", load_spawn_config_tracked);
+    for( int l = 0; l < lane_count; l++ )
+    {
+        char path[1024];
+
+        assert(content_dir);
+        assert(lanes);
+        assert(lanes[l]);
+        snprintf(path, sizeof(path), "%s/ported/%s/configs", content_dir, lanes[l]);
+        walk_configs(path, ".spawn", load_spawn_config_tracked);
+    }
     return spawn_apply_suppressions();
 }
 
@@ -3283,8 +3304,22 @@ ToriRSServer_ContentLoad(
                 param_types, enums, idks, varps, shops);
     }
     /* After the configs: a spawn names an npc or an obj, and the name has to
-     * resolve against the packs the loader has already read. */
-    ToriRSServer_ContentLoadSpawns(path);
+     * resolve against the packs the loader has already read. The lanes are the
+     * server pack's own (its stamp): a lane's rows stand in a world whose pack
+     * holds that lane's records, and in no other. */
+    {
+        struct RSCache_ServerPackStamp stamp;
+        const char* lanes[RSCACHE_SERVERPACK_STAMP_LANES] = { 0 };
+
+        memset(&stamp, 0, sizeof(stamp));
+        if( !RSCache_ServerPackStampRead(pack->dir, &stamp) )
+            stamp.lane_count = 0; /* The boot check has already said so (ToriRSServer_ServPackFresh). */
+        assert(stamp.lane_count >= 0);
+        assert(stamp.lane_count <= RSCACHE_SERVERPACK_STAMP_LANES);
+        for( int l = 0; l < stamp.lane_count; l++ )
+            lanes[l] = stamp.lanes[l];
+        ToriRSServer_ContentLoadSpawnsWithLanes(path, dir, lanes, stamp.lane_count);
+    }
 
     snprintf(path, sizeof(path), "%s/maps/multiway.csv", dir);
     load_multiway(path);

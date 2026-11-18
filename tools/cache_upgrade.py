@@ -55,6 +55,15 @@ protects, measured on 239 -> 241 (2026-10-20):
                    the run is kept and listed in port/cache_upgrade_kept_<rev>.tsv.
 
 Every step logs into <tree>/port/cache_upgrade_<rev>.log.
+
+A newer cache of the SAME revision (Jagex ships one most weeks) is the same
+patch with the protocol and codec steps empty. Give it `--label`, which stands
+in for <rev> in every file name above, and `--old-label` for the old cache's
+scratch unpack:
+
+    tools/cache_upgrade.py ... --old-cache cache.osrs242.o2757 --old-rev osrs242 \
+        --old-label osrs242_2757 --new-cache cache.osrs242.o2772 --new-rev osrs242 \
+        --label 242_2772
 """
 from __future__ import annotations
 
@@ -302,7 +311,9 @@ def blocks(path: Path) -> tuple[list[str], dict[str, str]]:
     buf: list[str] = []
     if not path.exists():
         return order, out
-    for ln in path.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True):
+    # surrogateescape, never "replace": configs/all.npc carries cache-charset
+    # names (`Le-sabr\xe8`), and the blocks read here are written back.
+    for ln in path.read_text(encoding="utf-8", errors="surrogateescape").splitlines(keepends=True):
         m = BLOCK.match(ln)
         if m:
             if name is not None:
@@ -344,10 +355,10 @@ def step_authored_configs(old: Path, base: Path, x: Path, log: Log, conflicts: l
                 conflicts.append(f"configs/{f.name}\t[{n}]\tauthored; the new cache renamed or removed it")
         if carried or added:
             text = "".join(f"[{n}]\n{X[n]}" for n in xorder)
-            whole = (x / "configs" / f.name).read_text(encoding="utf-8")
+            whole = (x / "configs" / f.name).read_text(encoding="utf-8", errors="surrogateescape")
             first = re.search(r"^\[", whole, re.M)
             head = whole[:first.start()] if first else whole
-            (x / "configs" / f.name).write_text(head + text, encoding="utf-8")
+            (x / "configs" / f.name).write_text(head + text, encoding="utf-8", errors="surrogateescape")
             log(f"configs/{f.name}: {carried} authored blocks carried, {added} authored blocks added")
 
 
@@ -776,6 +787,11 @@ def main() -> int:
     ap.add_argument("--old-rev", required=True)
     ap.add_argument("--new-cache", required=True, type=Path)
     ap.add_argument("--new-rev", required=True)
+    ap.add_argument("--label",
+                    help="names this upgrade's port/ files and scratch unpacks (default: the new revision's "
+                         "number). A newer cache of the SAME revision needs one, or its files would replace "
+                         "the revision's own: 242 -> 242 of 2026-11-18 is `242_2772`, its OpenRS2 id.")
+    ap.add_argument("--old-label", help="names the old cache's scratch unpack (default: --old-rev)")
     ap.add_argument("--scratch", required=True, type=Path)
     ap.add_argument("--cachepack", required=True, type=Path)
     ap.add_argument("--shift", action="append", default=["varp=6400", "param=3000", "enum=7000"])
@@ -791,9 +807,12 @@ def main() -> int:
     scratch = args.scratch.resolve()
     scratch.mkdir(parents=True, exist_ok=True)
     cp = args.cachepack.resolve()
-    rev = args.new_rev.replace("osrs", "")
+    rev = args.label or args.new_rev.replace("osrs", "")
+    old_label = args.old_label or args.old_rev
+    new_label = f"osrs{args.label}" if args.label else args.new_rev
+    assert old_label != new_label, "the old and new cache need different labels (--label / --old-label)"
 
-    raw_old, raw_new, base = scratch / f"raw_{args.old_rev}", scratch / f"raw_{args.new_rev}", scratch / "base_old"
+    raw_old, raw_new, base = scratch / f"raw_{old_label}", scratch / f"raw_{new_label}", scratch / "base_old"
     raw_unpack(cp, args.old_cache, args.old_rev, raw_old, log)
     raw_unpack(cp, args.new_cache, args.new_rev, raw_new, log)
 

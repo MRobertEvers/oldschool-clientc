@@ -30,6 +30,14 @@
  * login asking about familiars), the base tree carries a seam — a default
  * definition in a weak source root that the lane replaces when it is present.
  * See struct SSC_SourceRoot in ssc.h.
+ *
+ * A seasonal event is a lane too (`ported/halloween2026`), and `default=` is
+ * its switch: cachepack reads the same line (a `default=on` lane's
+ * `ported/<lane>/configs` is in every pack unless `--no-lane` names it), and
+ * the server reads `.spawn` rows from that directory only for the lanes its
+ * server pack was built with (ToriRSServer_ContentLoadSpawnsWithLanes). So one
+ * line puts an event's scripts, records and cast in a world or takes all three
+ * out, and the base tree holds nothing of it but seams.
  */
 
 enum

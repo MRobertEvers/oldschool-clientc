@@ -8,6 +8,9 @@
 #include "cache_write.h"
 #include "tool_profile.h"
 
+#include <assert.h>
+#include <dirent.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -26,7 +29,8 @@ usage(void)
         "                   [--assets] [--binary] [--gamevals]\n"
         "  cachepack pack   --src DIR --out DIR --rev NAME --asset-only\n"
         "                   --assets=interfaces,scripts [--archive-list FILE]\n"
-        "  cachepack pack   --src DIR --server-only [--lane NAME]... [--server-out DIR] [--force]\n"
+        "  cachepack pack   --src DIR --server-only [--lane NAME]... [--no-lane NAME]...\n"
+        "                   [--server-out DIR] [--force]\n"
         "  cachepack pack   --src DIR --out DIR --incremental [--base DIR] [--rev NAME] [--types a,b]\n"
         "                   [--assets=<kinds> --archive-list FILE]\n"
         "  (either pack)    [--defaults=warn|error] [--defaults-report FILE]\n"
@@ -62,7 +66,9 @@ usage(void)
         "          run, so --types makes the config half of it partial. --server-only\n"
         "          writes just that server pack — no cache is opened, no --out needed —\n"
         "          --lane NAME walks ported/NAME/configs too (its records are\n"
-        "          defined there, below the authored overlays); --server-out puts\n"
+        "          defined there, below the authored overlays). A lane whose\n"
+        "          ported/NAME/lane.ini says default=on is in every pack without\n"
+        "          being named; --no-lane NAME leaves one out. --server-out puts\n"
         "          the server pack somewhere other than <src>/server/pack, one per\n"
         "          lane composition. The pack is stamped with its tree's fingerprint;\n"
         "          a --server-only run whose stamp matches does nothing (--force\n"
@@ -298,6 +304,132 @@ print_keys(
     return 0;
 }
 
+static int
+lane_name_order(
+    const void* a,
+    const void* b)
+{
+    return strcmp(*(const char* const*)a, *(const char* const*)b);
+}
+
+/* 1 when `<src>/ported/<name>/lane.ini` says `default=on` (or `1`, `yes`), the
+ * spelling sscompile reads (src/serverscript/ssc_lane.c). */
+static int
+lane_default_on(
+    const char* src_dir,
+    const char* name)
+{
+    char path[2048];
+    char line[1024];
+    FILE* file;
+    int on = 0;
+
+    assert(src_dir);
+    assert(name);
+    snprintf(path, sizeof(path), "%s/ported/%s/lane.ini", src_dir, name);
+    file = fopen(path, "rb");
+    if( !file )
+        return 0; /* A directory under ported/ with no descriptor is not a lane. */
+    while( fgets(line, sizeof(line), file) )
+    {
+        char* key = line;
+        char* value;
+        size_t length;
+
+        while( *key == ' ' || *key == '\t' )
+            key++;
+        if( strncmp(key, "default", 7) != 0 )
+            continue;
+        value = key + 7;
+        while( *value == ' ' || *value == '\t' )
+            value++;
+        if( *value != '=' )
+            continue;
+        value++;
+        while( *value == ' ' || *value == '\t' )
+            value++;
+        length = strcspn(value, " \t\r\n;");
+        on = (length == 2 && strncmp(value, "on", 2) == 0) || (length == 1 && value[0] == '1') ||
+             (length == 3 && strncmp(value, "yes", 3) == 0);
+    }
+    fclose(file);
+    return on;
+}
+
+/*
+ * The lanes a pack is built with: the ones named by --lane, and every lane
+ * whose own lane.ini says `default=on`, less the ones named by --no-lane.
+ *
+ * sscompile has always compiled a default-on lane's scripts without being
+ * asked; this is the same rule for its records (ported/<lane>/configs), so one
+ * line in lane.ini puts a lane in a world or takes it out -- scripts, records
+ * and spawn rows together. A seasonal event is such a lane. Default-on names
+ * are appended in name order, so the pack's stamp does not depend on readdir.
+ * Returns the new count, or -1 when there are more than CP_MAX_LANES.
+ */
+static int
+lanes_with_defaults(
+    const char* src_dir,
+    const char** lanes,
+    int lane_count,
+    const char* const* no_lanes,
+    int no_lane_count)
+{
+    char dir[2048];
+    DIR* handle;
+    struct dirent* entry;
+    const char* found[CP_MAX_LANES];
+    int found_count = 0;
+    int kept = 0;
+
+    assert(src_dir);
+    assert(lanes);
+    assert(lane_count >= 0);
+    assert(no_lane_count >= 0);
+    assert(no_lane_count == 0 || no_lanes);
+
+    snprintf(dir, sizeof(dir), "%s/ported", src_dir);
+    handle = opendir(dir);
+    while( handle && (entry = readdir(handle)) != NULL )
+    {
+        int named = 0;
+
+        if( entry->d_name[0] == '.' || !lane_default_on(src_dir, entry->d_name) )
+            continue;
+        for( int l = 0; l < lane_count; l++ )
+            named |= strcmp(lanes[l], entry->d_name) == 0;
+        if( named )
+            continue;
+        if( found_count == CP_MAX_LANES )
+        {
+            closedir(handle);
+            return -1;
+        }
+        found[found_count] = strdup(entry->d_name);
+        assert(found[found_count]);
+        found_count++;
+    }
+    if( handle )
+        closedir(handle);
+    qsort(found, (size_t)found_count, sizeof(*found), lane_name_order);
+    for( int f = 0; f < found_count; f++ )
+    {
+        if( lane_count == CP_MAX_LANES )
+            return -1;
+        lanes[lane_count++] = found[f];
+    }
+    for( int l = 0; l < lane_count; l++ )
+    {
+        int dropped = 0;
+
+        for( int n = 0; n < no_lane_count; n++ )
+            dropped |= strcmp(lanes[l], no_lanes[n]) == 0;
+        if( !dropped )
+            lanes[kept++] = lanes[l];
+    }
+    return kept;
+}
+
 int
 main(int argc, char** argv)
 {
@@ -356,6 +488,8 @@ main(int argc, char** argv)
     const char* binary_tables = NULL;
     const char* lanes[CP_MAX_LANES];
     int lane_count = 0;
+    const char* no_lanes[CP_MAX_LANES];
+    int no_lane_count = 0;
     const char* server_out = NULL;
     int force_server = 0;
     int defaults_error = 0;
@@ -404,6 +538,15 @@ main(int argc, char** argv)
                 return 1;
             }
             lanes[lane_count++] = argv[++i];
+        }
+        else if( strcmp(arg, "--no-lane") == 0 && i + 1 < argc )
+        {
+            if( no_lane_count == CP_MAX_LANES )
+            {
+                fprintf(stderr, "cachepack: at most %d --no-lane options\n", CP_MAX_LANES);
+                return 1;
+            }
+            no_lanes[no_lane_count++] = argv[++i];
         }
         else if( strcmp(arg, "--defaults-report") == 0 && i + 1 < argc )
             defaults_report = argv[++i];
@@ -499,6 +642,17 @@ main(int argc, char** argv)
     struct CP_Selection sel = { .all = true, .mask = 0 };
     if( types_csv && !parse_types(types_csv, &sel) )
         return 1;
+
+    if( strcmp(command, "pack") == 0 )
+    {
+        lane_count = lanes_with_defaults(src_dir, lanes, lane_count, no_lanes, no_lane_count);
+        if( lane_count < 0 )
+        {
+            fprintf(stderr, "cachepack: more than %d lanes (--lane plus every default=on lane.ini)\n",
+                    CP_MAX_LANES);
+            return 1;
+        }
+    }
 
     struct CP_Ctx ctx;
     memset(&ctx, 0, sizeof(ctx));

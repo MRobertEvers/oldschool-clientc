@@ -37,7 +37,7 @@ return {
                 not_started = 0, find_yarlo = 1, removing = 2, removed = 3, lectured = 4,
                 waxwood = 5, planks = 6, built = 10, paying = 11, complete = 13, crate_opened = 14,
             },
-            row = "miniquest_daddyshome",
+            row = "quest_daddyshome",
             display = "Daddy's Home",
             points = 0,
         })

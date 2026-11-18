@@ -3,6 +3,12 @@
 -- switch both ways: the cast is absent until `::event halloween2026 on`, and
 -- the cast and the map's onion crate go again with `off`.
 --
+-- The event is a lane (OSRS-Content/osrs-content/ported/halloween2026/lane.ini)
+-- and RETIRED since 2026-11-18: this test runs only against packs built with
+-- the lane (`default=on`) on a cache that still has the event's npcs, or once
+-- the lane mints them. Last run 78/78, 883 ticks, on the lane layout against
+-- OpenRS2 #2757 (2026-11-18).
+--
 --   TORIRSSERVER_DEV=1 TORIRSSERVER_STAFF_LEVEL=2 \
 --   TORIRSSERVER_SCRIPTS=<pack dir> TORIRSSERVER_PACK_DIR=<servpack> \
 --   src/build_hw26_opt/torirsserver --scriptrun test/seasonal/halloween2026.lua \

@@ -20,6 +20,9 @@ So, per id, with the raw unpacks of both caches as base and theirs:
 prefix (OSRS-Content README "Var names carry their kind and id"); a var name
 taken from 241 gets the prefix back. An id 241 no longer has keeps the tree's
 line (unpack drops the record; the name is then an orphan the compiler reports).
+The exception is an interface component the new cache deleted: its line is
+dropped, because the name usually lives on at another id of the same interface
+and a component name must mean one id.
 
 Run it on a CLONE of the tree, before `cachepack unpack --cache <new>`:
 
@@ -72,13 +75,15 @@ def name_files(tree: Path) -> list[Path]:
     return rels
 
 
-def merge_file(rel: Path, tree: Path, base: Path, theirs: Path, log: list) -> str | None:
+def merge_file(rel: Path, tree: Path, base: Path, theirs: Path, log: list, dropped: list) -> str | None:
     ours_path = tree / rel
     B = read_names(base / rel)
     T = read_names(theirs / rel)
     if not T:
         return None
     kind = VAR_KIND.get(rel.name)
+    theirs_names = set(T.values())
+    rebuilt = rel.parts[0] == "interfaces" and any(i not in T for i in B)
     lines = ours_path.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
     changed = False
     out = []
@@ -91,6 +96,16 @@ def merge_file(rel: Path, tree: Path, base: Path, theirs: Path, log: list) -> st
         ours = m.group(2)
         rest = m.group(3)
         if ident not in T:
+            # A component the old cache had and the new one does not: Jagex
+            # rebuilt the interface, and the names it kept now sit on other
+            # ids. 242 of 2026-11-18 cut `misc_both_manage` from 164 components
+            # to 101; the 63 stale lines repeated 28 of the new names, and the
+            # server refuses a component name that means two ids. A config id
+            # keeps its line (the docstring); a component line goes.
+            if rel.parts[0] == "interfaces" and ident in B:
+                dropped.append((str(rel), ident, ours))
+                changed = True
+                continue
             out.append(ln)
             continue
         theirs_name = T[ident]
@@ -104,7 +119,12 @@ def merge_file(rel: Path, tree: Path, base: Path, theirs: Path, log: list) -> st
         # Jagex dropped a name the old cache had, and the record is still there:
         # a filler is no name (242: varbit 5607, displayname_changedthissession,
         # became `varbit_5607` and tutorial.rs2 stopped compiling).
-        if base_name is not None and re.fullmatch(rf"[a-z]+_{ident}", theirs_name):
+        # Not so where the name moved to another id, or in an interface the
+        # new cache rebuilt (it lost components): there the id is a different
+        # component now, and the old name on it is wrong, or a duplicate
+        # (`misc_both_manage:miscb_if_wood_icon1` went from 39 to 7).
+        if base_name is not None and re.fullmatch(rf"[a-z]+_{ident}", theirs_name) \
+                and not rebuilt and base_name not in theirs_names:
             out.append(ln)
             continue
         new = f"{kind}{ident}_{theirs_name}" if kind else theirs_name
@@ -129,9 +149,10 @@ def main() -> int:
     args = ap.parse_args()
 
     log: list = []
+    dropped: list = []
     edits: dict[Path, str] = {}
     for rel in name_files(args.tree):
-        text = merge_file(rel, args.tree, args.base, args.theirs, log)
+        text = merge_file(rel, args.tree, args.base, args.theirs, log, dropped)
         if text is not None:
             edits[rel] = text
 
@@ -141,6 +162,8 @@ def main() -> int:
         c[0 if how == "upstream" else 1] += 1
     for f, (up, conf) in sorted(by_file.items(), key=lambda kv: -sum(kv[1]))[:40]:
         print(f"{f:48s} upstream={up:5d} conflict={conf:4d}")
+    for f in sorted({d[0] for d in dropped}):
+        print(f"{f:48s} {sum(1 for d in dropped if d[0] == f):5d} line(s) of deleted components dropped")
     print(f"{len(log)} names in {len(edits)} files"
           + ("" if args.write else " (dry run; --write to apply)"))
     if not args.write:

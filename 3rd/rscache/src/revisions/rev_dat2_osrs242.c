@@ -3,8 +3,9 @@
 #include "datatypes/dat2_config_sequence.h"
 
 /*
- * OSRS revision 242 (`cache.osrs242`, OpenRS2 #2757, 2026-11-06). Fetched by
- * tools/fetch_cache_osrs242.sh. The repo's default cache.
+ * OSRS revision 242 (`cache.osrs242`, OpenRS2 #2772, 2026-11-18; first taken
+ * as #2757, 2026-11-06). Fetched by tools/fetch_cache_osrs242.sh. The repo's
+ * default cache.
  */
 
 struct RSCache

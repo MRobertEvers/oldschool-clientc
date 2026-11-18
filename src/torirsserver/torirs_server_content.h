@@ -1064,6 +1064,22 @@ int
 ToriRSServer_ContentLoadSpawns(const char* scripts_dir);
 
 /**
+ * The same, with the spawn rows of the lanes this world is built with: every
+ * `.spawn` under `<content_dir>/ported/<lane>/configs`, merged after the
+ * scripts tree's and before the suppressions apply. A lane keeps its rows
+ * there, beside its records, so a build that leaves the lane out reads none of
+ * them (a seasonal event's cast, src/serverscript/ssc_lane.h). A lane with no
+ * such directory contributes nothing. `content_dir` and `lanes` may be NULL
+ * only when `lane_count` is 0.
+ */
+int
+ToriRSServer_ContentLoadSpawnsWithLanes(
+    const char* scripts_dir,
+    const char* content_dir,
+    const char* const* lanes,
+    int lane_count);
+
+/**
  * Is this tile in a multi-combat zone? — `maps/multiway.csv`, the reference's
  * `GameMap.isMulti`.
  *
