@@ -14,9 +14,9 @@
  * -- and mirrors the client's own 241 reader (src/net/rev/osrs241/
  * osrs241_entity_info.c, player_extended) block for block.
  *
- * Flags (RSProx 241): APPEARANCE 0x2, SPOTANIM 0x4, SAY 0x10, FACE 0x20,
+ * Flags (RSProx 241): APPEARANCE 0x2, SPOTANIM 0x4, PLAYER_RESET 0x8, SAY 0x10, FACE 0x20,
  * SEQUENCE 0x40, CHAT 0x400, EXACT_MOVE 0x800, TINTING 0x1000,
- * TEMP_MOVE_SPEED 0x4000, TRANSPARENCY 0x10000, HITMARKS 0x20000, HEADBARS
+ * TEMP_MOVE_SPEED 0x4000, NAME_EXTRAS 0x8000, TRANSPARENCY 0x10000, HITMARKS 0x20000, HEADBARS
  * 0x80000; continuation bits 0x80 (second byte) and 0x2000 (third byte).
  *
  * Block order (RSProx 241): SAY, MOVE_SPEED, FACE, NAME_EXTRAS, SPOTANIM,
@@ -28,6 +28,7 @@ enum
 {
     EXT241_APPEARANCE = 0x2,
     EXT241_SPOTANIM = 0x4,
+    EXT241_PLAYER_RESET = 0x8,
     EXT241_FACE = 0x20,
     EXT241_MOVE_SPEED = 0x100,
     EXT241_SEQUENCE = 0x40,
@@ -37,6 +38,7 @@ enum
     EXT241_TINTING = 0x1000,
     EXT241_NEXT_BYTE_2 = 0x2000,
     EXT241_TEMP_MOVE_SPEED = 0x4000,
+    EXT241_NAME_EXTRAS = 0x8000,
     EXT241_TRANSPARENCY = 0x10000,
     EXT241_HITMARKS = 0x20000,
     EXT241_HEADBARS = 0x80000,
@@ -61,6 +63,8 @@ player_info_osrs241_write_extended(
     int const has_exact_move = ext && ext->has_exact_move;
     int const has_tint = ext && ext->has_tint;
     int const has_transparency = ext && ext->has_transparency;
+    int const has_name_extras = ext && ext->has_name_extras;
+    int const has_player_reset = ext && ext->has_player_reset;
     uint32_t flag = 0;
 
     assert(buf);
@@ -88,6 +92,10 @@ player_info_osrs241_write_extended(
         flag |= EXT241_TRANSPARENCY;
     if( has_appearance )
         flag |= EXT241_APPEARANCE;
+    if( has_name_extras )
+        flag |= EXT241_NAME_EXTRAS;
+    if( has_player_reset )
+        flag |= EXT241_PLAYER_RESET;
     if( flag == 0 )
         return;
 
@@ -113,6 +121,17 @@ player_info_osrs241_write_extended(
 
         rsprot_p1_sub128(buf, header);
         rsprot_face_write_payload(buf, &ext->face);
+    }
+    /* decodeNameExtras: three jstrs -- before the name, after it, after the
+     * combat level. */
+    if( has_name_extras )
+    {
+        assert(ext->name_before);
+        assert(ext->name_after);
+        assert(ext->name_after_level);
+        rsprot_pjstr(buf, ext->name_before);
+        rsprot_pjstr(buf, ext->name_after);
+        rsprot_pjstr(buf, ext->name_after_level);
     }
     /* decodeSpotanims: g1Alt2 count; per entry g1Alt2 slot, g2Alt2 id,
      * g4 (height << 16 | delay), g1 loop. */
@@ -239,6 +258,9 @@ player_info_osrs241_write_extended(
         rsprot_p1_add128(buf, ext->transparency_to & 0xff);
         rsprot_p1_sub128(buf, ext->transparency_use_start ? 1 : 0);
     }
+    /* decodeReset: g1, after TRANSPARENCY (FREEZE, after it, is never written). */
+    if( has_player_reset )
+        rsprot_p1(buf, ext->player_reset);
 }
 
 void

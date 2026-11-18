@@ -247,8 +247,16 @@ rsprot_player_info_has_extended(
 {
     if( appearance && appearance_len > 0 )
         return 1;
+    /*
+     * Every block the writers can emit, or the one left out ships only when
+     * something else rides along. MOVE_SPEED was missing: it went out at login
+     * beside the appearance and never again, so a run-orb toggle on its own
+     * tick never reached the client, which kept covering 1-tile walk steps at
+     * run speed (half a tick moving, half standing).
+     */
     return ext && (ext->has_face || ext->has_hit || ext->has_headbar || ext->has_seq ||
                    ext->has_chat || ext->has_spotanim || ext->has_temp_move_speed ||
+                   ext->has_move_speed || ext->has_name_extras || ext->has_player_reset ||
                    ext->has_exact_move || ext->has_tint || ext->has_transparency);
 }
 

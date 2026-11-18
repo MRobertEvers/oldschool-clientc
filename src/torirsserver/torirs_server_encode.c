@@ -3170,17 +3170,19 @@ ToriRSServer_SendUpdatePid(
 void
 ToriRSServer_SendRunEnergy(
     struct ToriRSServerPlayer* player,
-    int percent)
+    int hundredths)
 {
     /* Two bytes at rev 230: energy in hundredths of a percent. */
+    assert(hundredths >= 0);
+    assert(hundredths <= TORIRSSERVER_RUN_ENERGY_MAX);
     struct RsprotBuf buf;
     open_packet(&buf, 8);
     {
         const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->update_runenergy )
-            pl->update_runenergy(&buf, percent * 100);
+            pl->update_runenergy(&buf, hundredths);
         else
-            rsprot_p2_12(&buf, percent * 100);
+            rsprot_p2_12(&buf, hundredths);
     }
     flush(player, &buf, OP_UPDATE_RUNENERGY, 0);
 }
@@ -5713,6 +5715,30 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                     &ext.face, viewer, subject->masks, TORIRSSERVER_PMASK_FACE_ENTITY,
                     TORIRSSERVER_PMASK_FACE_COORD, subject->face_entity, subject->face_x,
                     subject->face_z, 0);
+            /*
+             * The login's first update carries three blocks beyond the move
+             * speed and appearance: NAME_EXTRAS (all three empty),
+             * PLAYER_RESET value=0, and FACING with the way the player stands.
+             * Every Jagex login has them (RSProx index 4378 rev 241, 4590 and
+             * 4591 rev 242, [0]). Revision 239's writer has neither of the
+             * first two blocks.
+             */
+            if( entering && viewer == subject && srv_wire_revision(viewer) >= 241 )
+            {
+                ext.has_name_extras = 1;
+                ext.name_before = "";
+                ext.name_after = "";
+                ext.name_after_level = "";
+                ext.has_player_reset = 1;
+                ext.player_reset = 0;
+                if( !ext.has_face )
+                {
+                    rsprot_face_init(&ext.face);
+                    ext.face.kind = RSPROT_FACE_KIND_ANGLE;
+                    ext.face.angle = subject->orientation;
+                    ext.has_face = 1;
+                }
+            }
             /* A faced loc is its south-west tile and its footprint, not its
              * centre: RSProx 4428 [342] `coord=(3302, 3163, 3), sizex=3` for
              * the zip line at (3302,3163); 600 of 601 sized faces. face_x is

@@ -221,6 +221,46 @@ main(void)
               "angle 0 with instant (`[facing] angle=0, instant=true`)");
     }
 
+    /* The login's first update (RSProx index 4378 [0]): move speed, facing,
+     * name extras, player reset -- here with a transparency between, so the
+     * reset's place after it is read back too. */
+    fprintf(stderr, "osrs241-player-info: the login's name extras and reset\n");
+    {
+        struct RsprotPlayerExt ext;
+        struct RsprotInfoOp const* f;
+
+        memset(&ext, 0, sizeof(ext));
+        ext.has_move_speed = 1;
+        ext.move_speed = 2;
+        ext.has_face = 1;
+        rsprot_face_init(&ext.face);
+        ext.face.kind = RSPROT_FACE_KIND_ANGLE;
+        ext.face.angle = 0;
+        ext.has_name_extras = 1;
+        ext.name_before = "<col=ff0000>";
+        ext.name_after = "</col>";
+        ext.name_after_level = " (skill 9)";
+        ext.has_transparency = 1;
+        ext.transparency_start_cycle = 5;
+        ext.transparency_end_cycle = 9;
+        ext.transparency_to = 200;
+        ext.has_player_reset = 1;
+        ext.player_reset = 7;
+        n = roundtrip(&server, &ext, ops, 64);
+        f = find(ops, n, RSPROT_OP_NAME_EXTRAS);
+        CHECK(f && strcmp(f->name_extras.before_name, "<col=ff0000>") == 0 &&
+                  strcmp(f->name_extras.after_name, "</col>") == 0 &&
+                  strcmp(f->name_extras.after_combat_level, " (skill 9)") == 0,
+              "name extras (%s|%s|%s)", f ? f->name_extras.before_name : "-",
+              f ? f->name_extras.after_name : "-", f ? f->name_extras.after_combat_level : "-");
+        f = find(ops, n, RSPROT_OP_TRANSPARENCY);
+        CHECK(f && (uint8_t)f->transparency.to == 200, "transparency before the reset");
+        f = find(ops, n, RSPROT_OP_RESET);
+        CHECK(f && f->value == 7, "player reset (%d)", f ? (int)f->value : -1);
+        f = find(ops, n, RSPROT_OP_MOVE_SPEED);
+        CHECK(f && f->value == 2, "move speed beside them");
+    }
+
     if( g_failures )
     {
         fprintf(stderr, "osrs241-player-info: %d failure(s)\n", g_failures);

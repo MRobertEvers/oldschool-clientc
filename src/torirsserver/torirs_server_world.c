@@ -2982,9 +2982,13 @@ run_energy_tick(
         player->run_energy -= drain;
         if( player->run_energy <= 0 )
         {
+            /* The toggle goes dark; `running` is left alone. It is THIS tick's
+             * traversal, already taken, and the encoder reads it to decide the
+             * step's speed: clearing it here tagged the last two-tile run
+             * `temp=walk`, and the client walked it a tile behind. The next
+             * advance_player recomputes it from the dark toggle. */
             player->run_energy = 0;
             player->run_toggle = 0;
-            player->running = 0;
             ToriRSServer_WorldSetVarp(srv, ToriRSServer_WorldVarp("varp173_option_run"), 0);
         }
     }
@@ -3003,22 +3007,26 @@ run_energy_tick(
         player->temp_run = 0;
 }
 
-/* Put the orb's two numbers on the wire, but only when one of them moved: at
- * one packet a tick each they would be a third of everything the mock sends. */
+/* Put the orb's two numbers on the wire when one of them moved -- energy in
+ * the hundredths it is kept in, as Jagex sends it: every tick it changes
+ * (RSProx index 4591, rev 242: 970 sends, none a repeat, +19 a tick restoring
+ * at 9410, 9429, ...). This used to round to whole percents (a send per ~1%),
+ * a rev-230 mock's bandwidth saving; RuneLite's run-energy estimates read the
+ * hundredths. */
 static void
 run_energy_flush(struct ToriRSServer* srv)
 {
     struct ToriRSServerPlayer* player = srv->active_player;
-    int percent = player->run_energy * 100 / TORIRSSERVER_RUN_ENERGY_MAX;
+    int energy = player->run_energy;
     /* Kilograms, not grams. UPDATE_RUNWEIGHT's value is read back by CS2's
      * RUNWEIGHT_VISIBLE, and the gameframe prints that with "kg" after it —
      * sending grams put "31892 kg" beside a player carrying 32. */
     int weight = player_weight_grams(player) / 1000;
 
-    if( percent != player->run_energy_sent )
+    if( energy != player->run_energy_sent )
     {
-        player->run_energy_sent = percent;
-        ToriRSServer_SendRunEnergy(srv->active_player, percent);
+        player->run_energy_sent = energy;
+        ToriRSServer_SendRunEnergy(srv->active_player, energy);
     }
     if( weight != player->run_weight_sent )
     {
@@ -17996,7 +18004,7 @@ ToriRSServer_WorldLoginFinish(struct ToriRSServerPlayer* player)
      *    step 1b, before anything here can post a RuneLite event. */
     /* Both orb numbers, unconditionally: the per-tick flush only sends what
      * changed, and a session that starts full would otherwise never send one. */
-    player->run_energy_sent = player->run_energy * 100 / TORIRSSERVER_RUN_ENERGY_MAX;
+    player->run_energy_sent = player->run_energy;
     ToriRSServer_SendRunEnergy(player, player->run_energy_sent);
 
     /* The combat tab's varps are NOT sent here. They are ordinary varp writes
@@ -19086,6 +19094,13 @@ phase_player(struct ToriRSServerPlayer* player)
     /* Energy is spent on the steps that were actually taken, so a route that
      * ran out of tiles this tick regenerates instead of draining. */
     run_energy_tick(srv, player->running ? player->move_count : 0);
+    /* Energy that ran out this tick darkened the orb AFTER the step was
+     * taken: the speed changes in this update, not the next. Jagex sends the
+     * two-tile step with `move_speed=walk` and `temp_move_speed=run` on the
+     * tick the bar empties (RSProx index 651, rev 229: 4/4 at [87] [97] [150]
+     * [277], varp 173 1->0 and energy=0 the same tick); the encoder adds the
+     * temp itself, since the step (2) now differs from the speed sent (1). */
+    player_move_speed_sync(player);
     /* Before the swing: a prayer that ran out this tick must not protect the
      * hit that lands on it. */
     ToriRSServer_CombatPlayerTick(srv);

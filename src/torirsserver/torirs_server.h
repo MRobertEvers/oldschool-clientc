@@ -4265,8 +4265,9 @@ struct ToriRSServerPlayer
      *  and not which setting it belonged to. handle_window_status is what
      *  gives it a meaning, and consumes it. Session state, never saved. */
     int settings_dropdown_choice;
-    /** Percent / grams last put on the wire, so UPDATE_RUNENERGY and
-     *  UPDATE_RUNWEIGHT go out only when the orb would actually change. */
+    /** Energy (hundredths of a percent, 0..TORIRSSERVER_RUN_ENERGY_MAX) and
+     *  kilograms last put on the wire, so UPDATE_RUNENERGY and
+     *  UPDATE_RUNWEIGHT go out only when the value changed. */
     int run_energy_sent;
     int run_weight_sent;
 
@@ -9863,7 +9864,7 @@ ToriRSServer_SendUpdatePid(
 void
 ToriRSServer_SendRunEnergy(
     struct ToriRSServerPlayer* player,
-    int percent);
+    int hundredths);
 void
 ToriRSServer_SendRunWeight(
     struct ToriRSServerPlayer* player,

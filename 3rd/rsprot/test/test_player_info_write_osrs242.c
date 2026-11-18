@@ -157,6 +157,14 @@ main(void)
     ext.face.angle = 1536;
     ext.has_temp_move_speed = 1;
     ext.temp_move_speed = 2;
+    ext.has_move_speed = 1;
+    ext.move_speed = 1;
+    ext.has_name_extras = 1;
+    ext.name_before = "<col=ff0000>";
+    ext.name_after = "</col>";
+    ext.name_after_level = " (skill 9)";
+    ext.has_player_reset = 1;
+    ext.player_reset = 7;
 
     fprintf(stderr, "osrs242-player-info: every block the server writes, in one update\n");
     n = roundtrip(&server, &ext, appearance, (int)sizeof(appearance), ops, 64);
@@ -216,6 +224,27 @@ main(void)
     CHECK(op && op->face_angle.angle == 1536 && !op->face_angle.instant, "face angle");
     op = find_nth(ops, n, RSPROT_OP_TEMP_MOVE_SPEED, 0);
     CHECK(op && op->value == 2, "temporary move speed");
+    op = find_nth(ops, n, RSPROT_OP_MOVE_SPEED, 0);
+    CHECK(op && op->value == 1, "move speed");
+    op = find_nth(ops, n, RSPROT_OP_NAME_EXTRAS, 0);
+    CHECK(op && strcmp(op->name_extras.before_name, "<col=ff0000>") == 0 &&
+              strcmp(op->name_extras.after_name, "</col>") == 0 &&
+              strcmp(op->name_extras.after_combat_level, " (skill 9)") == 0,
+          "name extras (%s|%s|%s)", op ? op->name_extras.before_name : "-",
+          op ? op->name_extras.after_name : "-", op ? op->name_extras.after_combat_level : "-");
+    op = find_nth(ops, n, RSPROT_OP_RESET, 0);
+    CHECK(op && op->value == 7, "player reset (%d)", op ? (int)op->value : -1);
+
+    /* MOVE_SPEED alone: the run orb switched off on a tick nothing else
+     * changed. The extended bit must still go up, or the client keeps the old
+     * speed (live 2026-11-18: walk steps covered at run speed). */
+    fprintf(stderr, "osrs242-player-info: a move speed with no other block\n");
+    memset(&ext, 0, sizeof(ext));
+    ext.has_move_speed = 1;
+    ext.move_speed = 1;
+    n = roundtrip(&server, &ext, NULL, 0, ops, 64);
+    op = find_nth(ops, n, RSPROT_OP_MOVE_SPEED, 0);
+    CHECK(op && op->value == 1, "move speed on its own (%d)", op ? (int)op->value : -1);
 
     if( g_failures )
     {

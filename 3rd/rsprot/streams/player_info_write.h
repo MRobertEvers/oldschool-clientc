@@ -213,6 +213,18 @@ struct RsprotPlayerExt
      * while running is `temp=walk`, a teleport `temp=127`). */
     int has_move_speed;
     int move_speed;
+    /** NAME_EXTRAS: three NUL-terminated strings drawn around the name --
+     * before it, after it, after the combat level. Jagex sends the block,
+     * all three empty, in the login's first update (RSProx index 4378, 4590,
+     * 4591 [0]), beside the copy inside the appearance blob. */
+    int has_name_extras;
+    const char* name_before;
+    const char* name_after;
+    const char* name_after_level;
+    /** PLAYER_RESET: one byte. Jagex sends `value=0` in the login's first
+     * update (RSProx index 4378, 4590, 4591 [0]). */
+    int has_player_reset;
+    int player_reset;
     int has_exact_move;
     int exact_start_x;
     int exact_start_z;

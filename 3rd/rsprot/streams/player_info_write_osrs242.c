@@ -15,8 +15,9 @@
  * PlayerInfoClient): new flag bits, continuation bits, block order and nearly
  * every transform, and the appearance blob forwards.
  *
- * Flags: FACING 0x1, SPOTANIMS 0x8, SEQUENCE 0x10, APPEARANCE 0x40,
- * TEMP_MOVE_SPEED 0x100, CHAT 0x800, EXACT_MOVE 0x2000, TINTING 0x8000,
+ * Flags: FACING 0x1, PLAYER_RESET 0x2, SPOTANIMS 0x8, SEQUENCE 0x10, APPEARANCE 0x40,
+ * TEMP_MOVE_SPEED 0x100, CHAT 0x800, EXACT_MOVE 0x2000, NAME_EXTRAS 0x4000,
+ * TINTING 0x8000,
  * TRANSPARENCY 0x10000, HEADBARS 0x80000, HITMARKS 0x100000; continuation bits
  * 0x4 (second byte) and 0x1000 (third byte).
  *
@@ -28,6 +29,7 @@
 enum
 {
     EXT242_FACE = 0x1,
+    EXT242_PLAYER_RESET = 0x2,
     EXT242_NEXT_BYTE_1 = 0x4,
     EXT242_SPOTANIM = 0x8,
     EXT242_SEQUENCE = 0x10,
@@ -37,6 +39,7 @@ enum
     EXT242_CHAT = 0x800,
     EXT242_NEXT_BYTE_2 = 0x1000,
     EXT242_EXACT_MOVE = 0x2000,
+    EXT242_NAME_EXTRAS = 0x4000,
     EXT242_TINTING = 0x8000,
     EXT242_TRANSPARENCY = 0x10000,
     EXT242_HEADBARS = 0x80000,
@@ -62,6 +65,8 @@ player_info_osrs242_write_extended(
     int const has_exact_move = ext && ext->has_exact_move;
     int const has_tint = ext && ext->has_tint;
     int const has_transparency = ext && ext->has_transparency;
+    int const has_name_extras = ext && ext->has_name_extras;
+    int const has_player_reset = ext && ext->has_player_reset;
     uint32_t flag = 0;
 
     assert(buf);
@@ -89,6 +94,10 @@ player_info_osrs242_write_extended(
         flag |= EXT242_TRANSPARENCY;
     if( has_appearance )
         flag |= EXT242_APPEARANCE;
+    if( has_name_extras )
+        flag |= EXT242_NAME_EXTRAS;
+    if( has_player_reset )
+        flag |= EXT242_PLAYER_RESET;
     if( flag == 0 )
         return;
 
@@ -115,6 +124,17 @@ player_info_osrs242_write_extended(
         rsprot_p2_12_add128(buf, ext->exact_end_cycle);
         rsprot_p2_21_add128(buf, ext->exact_facing);
     }
+    /* name extras: three jstrs -- before the name, after it, after the
+     * combat level. */
+    if( has_name_extras )
+    {
+        assert(ext->name_before);
+        assert(ext->name_after);
+        assert(ext->name_after_level);
+        rsprot_pjstr(buf, ext->name_before);
+        rsprot_pjstr(buf, ext->name_after);
+        rsprot_pjstr(buf, ext->name_after_level);
+    }
     /* tinting: g2Alt1 start, g2Alt3 end, g1sAlt1 hue, g1sAlt1 saturation,
      * g1sAlt3 lightness, g1Alt2 weight. */
     if( has_tint )
@@ -126,8 +146,10 @@ player_info_osrs242_write_extended(
         rsprot_p1_sub128(buf, ext->tint_lightness & 0xff);
         rsprot_p1_neg(buf, ext->tint_weight & 0xff);
     }
-    /* move speed: g1sAlt3 (after FREEZE and PLAYER_RESET, which this server
-     * does not write; before SEQUENCE). */
+    /* player reset: g1Alt3 (after FREEZE, which this server does not write). */
+    if( has_player_reset )
+        rsprot_p1_sub128(buf, ext->player_reset);
+    /* move speed: g1sAlt3, before SEQUENCE. */
     if( has_move_speed )
         rsprot_p1_sub128(buf, ext->move_speed);
 
