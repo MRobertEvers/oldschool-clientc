@@ -4646,9 +4646,9 @@ return {
         -- `[queue,player_death]` prints its sentence about twenty ticks after
         -- the killing blow and that gap is exactly where a lost fight lives.
         --
-        -- (2) The engine's own single-way refusal has no packet and no log
-        -- line: `ToriRSServer_CombatSinglewayRefuses` prints one sentence
-        -- through content and `p_opnpc` takes its silent `return 1`, so
+        -- (2) The single-way refusal has no packet and no log line:
+        -- `[proc,player_in_combat_check]` prints one sentence and the Attack
+        -- label returns without swinging, so
         -- `t.player.attack` answered `ok` for the press and `timeout` for the
         -- wait -- which its own banner calls the ordinary opening of a fight.
         -- Shades of Mort'ton believed it was fighting for twenty rounds and

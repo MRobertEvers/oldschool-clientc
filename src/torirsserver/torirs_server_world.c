@@ -2126,75 +2126,6 @@ interaction_reach_position(
 }
 
 /*
- * Does this interaction START an attack?
- *
- * The verb comes off the npc's own cache record — the same five ops the client
- * built its right-click menu from — so a guard's Attack on op 1 and a goblin's
- * on op 2 are both found without a list to keep in step. A targeted cast counts
- * as well: the reference gates the *fight*, not the weapon, and a spell aimed
- * at a monster is an attack on it.
- */
-static int
-interaction_is_attack(const struct ToriRSServerInteraction* interaction)
-{
-    const struct ToriRSServerNpcInfo* info;
-    const char* verb;
-
-    if( interaction->kind != TORIRSSERVER_INTERACT_NPC || interaction->use_on )
-        return 0;
-    if( interaction->npc_slot < 0 || interaction->npc_slot >= TORIRSSERVER_NPC_MAX )
-        return 0;
-    if( interaction->spell )
-        return 1;
-    if( interaction->op < 1 || interaction->op > 5 )
-        return 0;
-    info = ToriRSServer_NpcInfo(interaction->target_id);
-    verb = info->ops[interaction->op - 1];
-    return verb && strcmp(verb, TORIRSSERVER_VERB_ATTACK) == 0;
-}
-
-/*
- * Single-way combat, asked WHERE THE ATTACK WOULD START rather than at the
- * click that asked for it.
- *
- * This used to be asked in `handle_opnpc`, on the packet, and the refusal
- * dropped the click on the floor: the player did not turn, did not move, and
- * the message arrived out of nowhere. That is not what the reference does. An
- * Attack click is an interaction like every other one — it latches, it faces,
- * it walks — and the refusal belongs at the rung where the fight would actually
- * begin, which is content's `[label,player_combat_start]`: reached from
- * `[apnpc2,_]` once a bow or a cast is within its own reach, and from
- * `[opnpc2,_]` on melee adjacency. So a player already under attack walks all
- * the way to the monster they clicked (or merely turns to it, with a weapon
- * that out-ranges melee) and is told there.
- *
- * Both rungs call this and only one of them can fire, because the interaction
- * is cleared here. The clear is also what stops the message repeating every
- * tick the player stands there.
- */
-static int
-interaction_attack_refused(struct ToriRSServer* srv)
-{
-    struct ToriRSServerPlayer* player = srv->active_player;
-
-    if( !interaction_is_attack(&player->interaction) )
-        return 0;
-    if( !ToriRSServer_CombatSinglewayRefuses(srv, player, player->interaction.npc_slot) )
-        return 0;
-    /*
-     * The caster still turns to them before letting go of them: every caller
-     * derived the latch from this interaction before trying it — `phase_player`
-     * at the top of the turn, and a packet handler's immediate try in
-     * `ToriRSServer_WorldProcessInteraction`, which also holds it against the
-     * next derivation's release. Refusing to attack somebody while facing the
-     * other way is the same "the click did nothing" this seam exists to remove.
-     */
-    route_abandoned(player);
-    ToriRSServer_WorldInteractionClear(srv);
-    return 1;
-}
-
-/*
  * LostCity Player.tryInteract — AP then OP against live target coords. No path
  * mutation except clear-on-success.
  *
@@ -2290,22 +2221,6 @@ interaction_try(
         }
         if( ap_ok )
         {
-            /*
-             * Single-way refuses a fight that would start from HERE. A bow, a
-             * crossbow or a targeted cast resolves at range, so this rung *is*
-             * their arrival and the message belongs on it.
-             *
-             * Melee never reaches it: `ToriRSServer_CombatAtRangeReady` answers 0
-             * for a reach of 1 or less, and a melee click carries no spell. So
-             * the walk to adjacency is untouched and the op rung below is the
-             * one that asks — which is the whole point, since "path the player,
-             * then tell them" is what a melee refusal looks like.
-             */
-            if( interaction_is_attack(interaction) &&
-                (interaction->spell ||
-                 ToriRSServer_CombatAtRangeReady(srv, interaction->npc_slot)) &&
-                interaction_attack_refused(srv) )
-                return 1;
             interaction->ap_tried = 1;
             /* Cleared before the script rather than after, because it is the
              * script that sets it — `PathingEntity` resets it at the top of
@@ -2394,12 +2309,6 @@ interaction_try(
          interaction->kind == TORIRSSERVER_INTERACT_OBJ) &&
         !allow_op_scenery )
         return 0;
-
-    /* Single-way, the melee half: the walk has arrived, so this is where the
-     * swing would have been — ahead of the claim proc and every trigger below,
-     * so a refused fight runs none of content's combat start. */
-    if( interaction_attack_refused(srv) )
-        return 1;
 
     {
         int op_num = interaction->op;
@@ -4738,10 +4647,6 @@ npc_spawn(
         /* Explicit for the same reason as `combat_target` beside it: the memset
          * above makes it 0, and 0 is npc slot zero. */
         npc->combat_target_npc = -1;
-        /* Explicit for the same reason: 0 is player pool slot zero, so a fresh
-         * npc would spawn already claimed by whoever logged in first. See the
-         * field. */
-        npc->combat_claim_pid = -1;
         npc->death_tick = -1;
         npc->respawn_tick = -1;
         /* Explicit, because the memset above makes it 0 and 0 is a *tick*:
@@ -5483,44 +5388,6 @@ npc_player_distance(
 }
 
 /*
- * Must this npc's mode-path swing (`opplayer2`) at `player` be given up,
- * single-way? The mode is already cleared by the caller, which is the
- * reference's npc_setmode(null).
- *
- * The same question torirs_server_combat.c's npc_single_way_swing_refused asks
- * of a clock-owned swing -- LostCity [proc,npc_check_notcombat]
- * (skill_combat/scripts/npc/npc_combat.rs2:343-352): outside multi, measured
- * at the SWINGING npc's tile, a live claim on the player by a different npc
- * refuses. The claim fields are read the way player_claimed_npc reads them:
- * expired by tick, and naming nothing once that npc died or its slot was
- * reused (generation).
- */
-static int
-npc_mode_swing_refused(
-    struct ToriRSServer* srv,
-    const struct ToriRSServerPlayer* player,
-    int slot)
-{
-    int claimed;
-    const struct ToriRSServerNpc* holder;
-
-    assert(srv);
-    assert(player);
-    if( ToriRSServer_CombatMultiway(&srv->npcs[slot]) )
-        return 0;
-    if( srv->tick >= player->combat_claim_tick )
-        return 0;
-    claimed = player->combat_claim_npc;
-    if( claimed < 0 || claimed >= TORIRSSERVER_NPC_MAX || claimed == slot )
-        return 0;
-    holder = &srv->npcs[claimed];
-    if( !holder->active || holder->death_tick >= 0 ||
-        holder->generation != player->combat_claim_npc_gen )
-        return 0;
-    return 1;
-}
-
-/*
  * Is the player in this npc's MELEE reach -- the footprints flush on a
  * cardinal side (never a corner, never overlapping) and no wall on the shared
  * edge? The reference's reachExclusiveRectangle, which is what LostCity asks
@@ -6067,12 +5934,21 @@ npc_run_mode(
          * swing of a retaliating npc left the player unclaimed and a second
          * monster free to engage him (seam22 passive_cheat_rows_regressed:
          * combat_trace read claim=-1/0 after the prison-door suit's first
-         * swing). */
+         * swing). The rule is content's now (ToriRSServer_CombatNpcSwingSingles). */
         if( op == 1 )
         {
-            if( npc_mode_swing_refused(srv, player, slot) )
+            enum ToriRSServerSinglesSwing singles =
+                ToriRSServer_CombatNpcSwingSingles(srv, player, slot);
+
+            if( singles == TORIRSSERVER_SINGLES_GIVE_UP )
                 return 1;
-            ToriRSServer_CombatClaim(srv, player, slot);
+            /* "Doesnt change mode! Keeps trying!": put back the mode cleared
+             * above, so it asks again next turn. */
+            if( singles == TORIRSSERVER_SINGLES_WAIT )
+            {
+                npc->mode = TORIRSSERVER_NPCMODE_OPPLAYER1 + op;
+                return 1;
+            }
         }
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_AI_OPPLAYER1 + op, npc->type, -1, slot);
         return 1;
@@ -7933,9 +7809,10 @@ handle_opnpc(
      * already in a fight who clicked a second monster neither turned nor moved,
      * and the message appeared with nothing to attach it to. The reference
      * refuses the *attack*, not the click: the interaction latches, the player
-     * faces the monster and walks to it, and `interaction_attack_refused` says
-     * the line at the rung where the fight would have started (melee
-     * adjacency, or the weapon's own reach for a bow or a cast).
+     * faces the monster and walks to it, and content's
+     * `[proc,player_in_combat_check]` says the line from the trigger where the
+     * fight would have started (`[apnpc2,_]` every tick of a melee walk and
+     * `[opnpc2,_]` on arrival; the weapon's own reach for a bow or a cast).
      *
      * The consequence is the reference's too, and it is the one players feel:
      * the click DOES abandon the fight already running, because
@@ -8632,9 +8509,10 @@ handle_opnpct(
     /*
      * Single-way applies to a spell as much as to a sword — a cast is an
      * attack, and the reference's gate is on the fight rather than on the
-     * weapon. It is asked where the Attack click's is, at the ap rung
-     * (`interaction_attack_refused`), so a refused cast turns the caster toward
-     * the target and answers at spell range instead of dropping the click.
+     * weapon. It is asked where the Attack click's is, by content's spell
+     * checks (`[proc,player_in_combat_check]` from player_magic.rs2), so a
+     * refused cast turns the caster toward the target and answers at spell
+     * range instead of dropping the click.
      *
      * Every npc-targeted spell, not only the combat book's: this tree has no
      * flag on a spell that says which are attacks, and the ones that are not
@@ -9227,16 +9105,15 @@ ToriRSServer_WorldNpcTypeIsPassive(
 
 /*
  * Break off every fight the npcs of a newly-passive type are currently in,
- * and drop both halves of the single-way claim behind it.
+ * and drop content's single-way stamps behind it (ToriRSServer_CombatSinglesRelease).
  *
- * Without this the cheat would only take effect on the NEXT fight: the claim
+ * Without this the cheat would only take effect on the NEXT fight: `%lastcombat`
  * is a timer that outlives the swing that stamped it
- * (TORIRSSERVER_SINGLEWAY_COMBAT_TICKS), and it is stamped on the player as
- * well as on the npc, which is the half that refuses the player his next
- * target ("I'm already under attack."). The player's own interaction goes too
- * -- `p_opnpc(2)` is what re-arms his swing every attackrate, so leaving it
- * armed would let him keep hitting her, and every hit re-stamps the claim the
- * line above just dropped.
+ * (TORIRSSERVER_SINGLEWAY_COMBAT_TICKS), and it is the half that refuses the
+ * player his next target ("I'm already under attack."). The player's own
+ * interaction goes too -- `p_opnpc(2)` is what re-arms his swing every
+ * attackrate, so leaving it armed would let him keep hitting her, and every
+ * hit re-stamps the `%npc_lastcombat` just dropped.
  *
  * Returns how many npcs were actually in a fight, so the cheat can say what it
  * did rather than claiming an effect it may not have had.
@@ -9258,20 +9135,13 @@ cheat_passive_break_off(
         if( npc->combat_target >= 0 )
             broken++;
         ToriRSServer_CombatStopNpc(srv, slot);
-        npc->combat_claim_pid = -1;
-        npc->combat_claim_tick = 0;
+        ToriRSServer_CombatSinglesRelease(srv, slot);
         for( int pid = 0; pid < TORIRSSERVER_PLAYER_MAX; pid++ )
         {
             struct ToriRSServerPlayer* player = &srv->players[pid];
 
             if( !player->active )
                 continue;
-            if( player->combat_claim_npc == slot &&
-                player->combat_claim_npc_gen == npc->generation )
-            {
-                player->combat_claim_npc = -1;
-                player->combat_claim_tick = 0;
-            }
             if( player->combat_target == slot )
                 ToriRSServer_CombatStopPlayerAt(player);
         }
@@ -10574,10 +10444,10 @@ ToriRSServer_RunCheatLadder(
                     leg, target);
             return TORIRSSERVER_TRIGGER_FAILED;
         }
-        if( srv->tick < player->combat_claim_tick )
+        if( ToriRSServer_CombatSinglesTicksLeft(srv, player) > 0 )
         {
-            say(srv, "checkpoint %d refused: the player is in combat (single-way claim for %d "
-                     "more tick(s))", leg, player->combat_claim_tick - srv->tick);
+            say(srv, "checkpoint %d refused: the player is in combat (%%lastcombat for %d "
+                     "more tick(s))", leg, ToriRSServer_CombatSinglesTicksLeft(srv, player));
             return TORIRSSERVER_TRIGGER_FAILED;
         }
         for( int slot = 0; slot < TORIRSSERVER_NPC_MAX; slot++ )
@@ -17072,9 +16942,6 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
     player->x = g_home_x;
     player->z = g_home_z;
     player->combat_target = -1;
-    /* Explicit for the same reason as `combat_target` beside it: 0 is npc slot
-     * zero, and a fresh login must not arrive holding a claim on it. */
-    player->combat_claim_npc = -1;
     player->level = 0;
     player->last_step_x = player->x - 1;
     player->last_step_z = player->z;

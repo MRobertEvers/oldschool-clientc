@@ -337,8 +337,8 @@ selftest_combat_reach_flag(
         int second;
         /* Auto-retaliate OFF for the stanza (option_nodef 1 = "no defend",
          * skill_combat.rs2's ^player_auto_retaliate_on is 0): the player's own
-         * retaliation re-arms p_opnpc(2), which stamps the same claim, and would
-         * hide a mode-path swing that stamped nothing. */
+         * retaliation re-arms p_opnpc(2), whose hit provokes the man again, and
+         * would hide a mode-path swing that stamped nothing. */
         int option_nodef = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp172_option_nodef");
         int saved_nodef = 0;
 
@@ -355,25 +355,16 @@ selftest_combat_reach_flag(
         {
             struct ToriRSServerNpc* npc = &srv->npcs[first];
 
-            player->combat_claim_npc = -1;
-            player->combat_claim_tick = 0;
+            selftest_singles_clear(player);
             npc->mode = TORIRSSERVER_NPCMODE_OPPLAYER1 + 1; /* opplayer2 */
             ToriRSServer_NpcSetModeTarget(npc, player);
             selftest_tick(srv);
-            SELFTEST_CHECK(player->combat_claim_npc == first &&
-                               player->combat_claim_tick > srv->tick,
-                           "combat_reach_flag: the mode-path swing claims the player "
-                           "(claim slot %d type %d at %d,%d until %d, want slot %d, tick %d; "
+            SELFTEST_CHECK(selftest_singles_in_combat_with(srv, player, first),
+                           "combat_reach_flag: the mode-path swing stamps the player "
+                           "(%%lastcombat %d ticks left, want slot %d, tick %d; "
                            "man at %d,%d mode %d)",
-                           player->combat_claim_npc,
-                           player->combat_claim_npc >= 0 ? srv->npcs[player->combat_claim_npc].type
-                                                         : -1,
-                           player->combat_claim_npc >= 0 ? srv->npcs[player->combat_claim_npc].x
-                                                         : -1,
-                           player->combat_claim_npc >= 0 ? srv->npcs[player->combat_claim_npc].z
-                                                         : -1,
-                           player->combat_claim_tick, first, (int)srv->tick, npc->x, npc->z,
-                           npc->mode);
+                           ToriRSServer_CombatSinglesTicksLeft(srv, player), first,
+                           (int)srv->tick, npc->x, npc->z, npc->mode);
 
             second = combat_reach_flag_spawn(srv, man, 3223, 3218);
             SELFTEST_CHECK(second >= 0, "combat_reach_flag: a second man spawns east");
@@ -385,10 +376,10 @@ selftest_combat_reach_flag(
                 other->mode = TORIRSSERVER_NPCMODE_OPPLAYER1 + 1; /* opplayer2 */
                 ToriRSServer_NpcSetModeTarget(other, player);
                 selftest_tick(srv);
-                SELFTEST_CHECK(player->combat_claim_npc == first,
-                               "combat_reach_flag: a second npc's mode swing gives a claimed "
-                               "player up, claim slot %d, want %d",
-                               player->combat_claim_npc, first);
+                SELFTEST_CHECK(selftest_singles_in_combat_with(srv, player, first),
+                               "combat_reach_flag: a second npc's mode swing gives a "
+                               "stamped player up, and the stamp still names slot %d",
+                               first);
                 ToriRSServer_CombatStopNpc(srv, second);
                 ToriRSServer_WorldNpcFree(srv, second);
             }
@@ -397,8 +388,7 @@ selftest_combat_reach_flag(
         }
         combat_reach_flag_unquiet(srv);
         ToriRSServer_VarpPut(player, option_nodef, saved_nodef);
-        player->combat_claim_npc = -1;
-        player->combat_claim_tick = 0;
+        selftest_singles_clear(player);
         selftest_tick(srv);
         combat_reach_flag_pass("mode_path_swing_claims_and_yields");
     }

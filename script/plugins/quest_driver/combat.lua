@@ -582,12 +582,11 @@ end
 --
 -- pointer.lua's CLICK_REFUSAL_LINES is the same idea for a click that never
 -- landed; this is its twin for a click that landed and was then refused AT THE
--- ATTACK RUNG.  Both sentences below are printed by the ENGINE's own
--- single-way arbitration (`ToriRSServer_CombatSinglewayRefuses`,
--- torirs_server_combat.c, which calls `[proc,combat_singles_self_busy]` and
--- `[proc,combat_singles_target_taken]` in skill_combat/combat.rs2:423-427),
--- and `p_opnpc` then takes its silent `return 1`.  The engine has no attack
--- clock of its own, so that silent return IS the fight not happening.
+-- ATTACK RUNG.  Both sentences below are content's single-way refusal,
+-- `[proc,player_in_combat_check]` in skill_combat/combat.rs2 (the reference's
+-- rule and vars, docs/rsprox-analysis/combat/singles.md), and the Attack label
+-- then returns without swinging.  The engine has no attack clock of its own,
+-- so that return IS the fight not happening.
 --
 -- What it cost, measured 2026-09-21 on Shades of Mort'ton
 -- (build/quest_gate/seamc_mortton_probe2, TORIRSSERVER_VERBOSE=1):
@@ -808,7 +807,7 @@ end
 -- THE SERVER REFUSED THE SWING.  The detail carries the engine's own sentence
 -- -- "I'm already under attack." or "Someone else is fighting that." -- out of
 -- the chat ring (QD.ATTACK_REFUSAL_LINES, above).  That is single-way combat:
--- the press landed, `p_opnpc` took its silent `return 1`, and the engine has
+-- the press landed, `[proc,player_in_combat_check]` refused it, and the engine has
 -- no attack clock of its own, so NO SWING WAS EVER MADE.  It is not a
 -- `timeout` and it is not an opening -- waiting longer cannot help while
 -- whatever holds the claim keeps swinging.  No stamp is written for a refused
@@ -1035,8 +1034,8 @@ function QD.player._attack(npc_symbol, op, ticks, opts, eater)
     -- file's hunt loop can act on.
     refusal = refusal or QD._combat_refusal_since(since)
     if refusal then
-        local why = " (single-way combat; the Attack row was pressed and p_opnpc took"
-            .. " its silent return, so no swing was ever made)"
+        local why = " (single-way combat; the Attack row was pressed and"
+            .. " [proc,player_in_combat_check] refused it, so no swing was ever made)"
         if string.find(refusal, "reach", 1, true) then
             why = " (no route to the copy pressed; the interaction was dropped, so no"
                 .. " swing was ever made -- stand where the copy can be reached)"

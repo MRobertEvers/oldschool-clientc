@@ -1286,6 +1286,82 @@ selftest_drop_player(struct ToriRSServerPlayer* player)
     player->active = 0;
 }
 
+/*
+ * Content's single-way stamps (skill_combat/combat.rs2): `%lastcombat` and
+ * `%aggressive_npc` on the player, written by `[proc,npc_set_attack_vars]` on
+ * every npc swing. "Is the player in a fight with this npc" is both: the stamp
+ * still inside its eight ticks, naming that npc.
+ */
+static int32_t
+selftest_singles_npc_uid(
+    const struct ToriRSServer* srv,
+    int slot)
+{
+    return (int32_t)(((uint32_t)srv->npcs[slot].generation << 16) | (uint32_t)(slot & 0xffff));
+}
+
+static int
+selftest_singles_in_combat_with(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int slot)
+{
+    int aggressive = ToriRSServer_WorldVarp("varp6431_aggressive_npc");
+
+    assert(aggressive >= 0);
+    return ToriRSServer_CombatSinglesTicksLeft(srv, player) > 0 &&
+           ToriRSServer_Varp(player, aggressive) == selftest_singles_npc_uid(srv, slot);
+}
+
+static void
+selftest_singles_clear(struct ToriRSServerPlayer* player)
+{
+    ToriRSServer_VarpPut(player, ToriRSServer_WorldVarp("varp9695_lastcombat"), 0);
+    ToriRSServer_VarpPut(player, ToriRSServer_WorldVarp("varp6431_aggressive_npc"), 0);
+}
+
+/* `[proc,npc_set_attack_vars]`'s two writes, by hand: `slot` just swung. */
+static void
+selftest_singles_stamp(
+    const struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    int slot)
+{
+    ToriRSServer_VarpPut(player, ToriRSServer_WorldVarp("varp9695_lastcombat"), srv->tick);
+    ToriRSServer_VarpPut(player, ToriRSServer_WorldVarp("varp6431_aggressive_npc"),
+                         selftest_singles_npc_uid(srv, slot));
+}
+
+/* Content's own predicate: would `[proc,player_in_combat_check]` refuse the
+ * active player an attack on `slot`? (It says why when it does.) */
+static int
+selftest_singles_refuses(
+    struct ToriRSServer* srv,
+    int slot)
+{
+    int32_t ok = 1;
+
+    SELFTEST_CHECK(ToriRSServer_ScriptsRunProcIntOnNpc(srv, "[proc,player_in_combat_check]", slot,
+                                                       NULL, 0, &ok),
+                   "[proc,player_in_combat_check] should run");
+    return !ok;
+}
+
+/* And from the npc's end: would `[proc,npc_check_notcombat]` let `slot` swing
+ * at the active player? */
+static int
+selftest_singles_npc_may_swing(
+    struct ToriRSServer* srv,
+    int slot)
+{
+    int32_t ok = 0;
+
+    SELFTEST_CHECK(ToriRSServer_ScriptsRunProcIntOnNpc(srv, "[proc,npc_check_notcombat]", slot,
+                                                       NULL, 0, &ok),
+                   "[proc,npc_check_notcombat] should run");
+    return ok;
+}
+
 static void
 selftest_park_player(
     struct ToriRSServer* srv,
@@ -1318,11 +1394,10 @@ selftest_park_player(
     player->dest_x = -1;
     player->dest_z = -1;
     player->combat_target = -1;
-    /* And the single-way claim, which outlives `combat_target` by design: a
-     * section that ended mid-fight would otherwise have the next one's first
+    /* And content's single-way stamp, which outlives `combat_target` by design:
+     * a section that ended mid-fight would otherwise have the next one's first
      * Attack click refused as "I'm already under attack". */
-    player->combat_claim_npc = -1;
-    player->combat_claim_tick = 0;
+    selftest_singles_clear(player);
     /*
      * Topped up THROUGH the sync, because `hitpoints` and
      * `stat_boosted[HITPOINTS]` are one number and a bare assignment to the
@@ -1340,8 +1415,8 @@ selftest_park_player(
     for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
     {
         srv->npcs[i].combat_target = -1;
-        srv->npcs[i].combat_claim_pid = -1;
-        srv->npcs[i].combat_claim_tick = 0;
+        srv->npcs[i].script_vars[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARN,
+                                                            "npc_lastcombat")] = 0;
     }
     /* A section that repositions the player is starting over, so anything the
      * last one left pending goes with it. Leaving it is how one section's
@@ -24029,29 +24104,29 @@ ToriRSServer_WorldSelftest(void)
                                ToriRSServer_CombatMultiway(b) == 0,
                            "neither fixture should be in a multi-combat zone");
 
-            /* The first fight. Several ticks, because the claim is stamped by
-             * content's own `p_opnpc(2)` at the end of the swing rather than by
-             * the click. */
+            /* The first fight. Ticked until the goblin has swung back, because
+             * that is what puts the PLAYER in combat: `%lastcombat` is stamped by
+             * the npc's swing (`[proc,npc_set_attack_vars]`), never by the
+             * player's own, as in the reference. */
             selftest_npc_payload(player, first, opnpc);
             selftest_handle(player, PKTOUT_NAME_OPNPC2, opnpc, sizeof(opnpc));
-            for( int i = 0; i < 4; i++ )
+            for( int i = 0; i < 12 && !selftest_singles_in_combat_with(srv, player, first); i++ )
                 selftest_tick(srv);
 
             SELFTEST_CHECK(player->combat_target == first,
                            "the first Attack click should start a fight, target %d",
                            player->combat_target);
-            SELFTEST_CHECK(player->combat_claim_npc == first &&
-                               player->combat_claim_tick > srv->tick,
-                           "and claim the goblin for %d ticks, claim=%d until %d (now %d)",
-                           TORIRSSERVER_SINGLEWAY_COMBAT_TICKS, player->combat_claim_npc,
-                           player->combat_claim_tick, srv->tick);
-            /* Both halves, because the rule is symmetric and a one-sided stamp
-             * is a rule that only holds against the player: without this the
-             * npc stays available to everybody else for the whole fight. */
-            SELFTEST_CHECK(a->combat_claim_pid == player->pid &&
-                               a->combat_claim_tick > srv->tick,
-                           "and the goblin should claim the player back, pid %d",
-                           a->combat_claim_pid);
+            SELFTEST_CHECK(selftest_singles_in_combat_with(srv, player, first),
+                           "and the goblin's swing back should stamp the player for %d "
+                           "ticks (%d left now)",
+                           TORIRSSERVER_SINGLEWAY_COMBAT_TICKS,
+                           ToriRSServer_CombatSinglesTicksLeft(srv, player));
+            /* Both halves: the player's hit stamps the goblin
+             * (`[proc,npc_retaliate]`), or it would stay available to everybody
+             * else for the whole fight. */
+            SELFTEST_CHECK(a->script_vars[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARN,
+                                                                     "npc_lastcombat")] > 0,
+                           "and the player's hit should stamp the goblin's %%npc_lastcombat");
 
             /* The second click. It walks — a refused Attack is still a click —
              * and the message lands when the player gets there. Melee, so the
@@ -24094,7 +24169,7 @@ ToriRSServer_WorldSelftest(void)
                                player->interaction.npc_slot != second,
                            "nor left the refused interaction armed, kind %d slot %d",
                            (int)player->interaction.kind, player->interaction.npc_slot);
-            SELFTEST_CHECK(ToriRSServer_CombatSinglewayRefuses(srv, player, second) == 1,
+            SELFTEST_CHECK(selftest_singles_refuses(srv, second),
                            "and the predicate agrees");
 
             /*
@@ -24114,9 +24189,9 @@ ToriRSServer_WorldSelftest(void)
              * the derivation at the top of `phase_player` never gets a look at
              * this interaction, so the refusal has to set the latch itself.
              *
-             * The claim is stamped by hand rather than fought for: parking
+             * The stamp is written by hand rather than fought for: parking
              * clears it (the harness does, deliberately), and what this half
-             * measures is the rung the refusal answers on, not how the claim got
+             * measures is the rung the refusal answers on, not how the stamp got
              * there.
              */
             {
@@ -24135,7 +24210,7 @@ ToriRSServer_WorldSelftest(void)
                     player->hitpoints = player->max_hitpoints;
                     worn_set(player, TORIRSSERVER_WEAR_WEAPON, bow, 1);
                     ToriRSServer_ScriptsRunProc(srv, "[proc,player_combat_stat]", NULL, 0);
-                    ToriRSServer_CombatClaim(srv, player, first);
+                    selftest_singles_stamp(srv, player, first);
 
                     refused = 0;
                     selftest_npc_payload(player, second, opnpc);
@@ -24175,7 +24250,7 @@ ToriRSServer_WorldSelftest(void)
                              weapon_before >= 0 ? 1 : 0);
                     ToriRSServer_ScriptsRunProc(srv, "[proc,player_combat_stat]", NULL, 0);
                     ToriRSServer_CombatStopPlayer(srv);
-                    ToriRSServer_CombatClaim(srv, player, first);
+                    selftest_singles_stamp(srv, player, first);
                 }
             }
 
@@ -24188,42 +24263,33 @@ ToriRSServer_WorldSelftest(void)
             b->z = 3648;
             SELFTEST_CHECK(ToriRSServer_CombatMultiway(b) == 1,
                            "a goblin standing in zone 0_50_57 fights multi-way");
-            SELFTEST_CHECK(ToriRSServer_CombatSinglewayRefuses(srv, player, second) == 0,
+            SELFTEST_CHECK(!selftest_singles_refuses(srv, second),
                            "so attacking it is not refused");
             b->x = b_x;
             b->z = b_z;
-            SELFTEST_CHECK(ToriRSServer_CombatSinglewayRefuses(srv, player, second) == 1,
+            SELFTEST_CHECK(selftest_singles_refuses(srv, second),
                            "and back in Lumbridge it is refused again");
 
-            /* A corpse frees both sides at once. Without this a player would
-             * wait out the claim after every kill before the next monster
-             * could be clicked, which is eight ticks of standing still. */
-            a->death_tick = srv->tick;
-            SELFTEST_CHECK(ToriRSServer_CombatSinglewayRefuses(srv, player, second) == 0,
-                           "a dying claimant releases the player at once");
-            a->death_tick = -1;
+            /* A corpse frees the player at once (RSProx index 4523, 4 of 4):
+             * the killing blow releases every stamp naming the dying npc. */
+            ToriRSServer_CombatSinglesRelease(srv, first);
+            SELFTEST_CHECK(!selftest_singles_refuses(srv, second),
+                           "a dying attacker releases the player at once");
 
-            /* The npc's end of the same rule: aggression does not start on a
-             * player who is already in a single-way fight. */
-            ToriRSServer_CombatClaim(srv, player, first);
-            a->combat_target = player->pid;
-            SELFTEST_CHECK(ToriRSServer_CombatSinglewayNpcMayEngage(srv, second, player) == 0,
-                           "a second goblin may not aggress a player already in a fight");
-            a->combat_target = -1;
-            a->combat_claim_pid = -1;
-            a->combat_claim_tick = 0;
-            player->combat_claim_npc = -1;
-            player->combat_claim_tick = 0;
-            SELFTEST_CHECK(ToriRSServer_CombatSinglewayNpcMayEngage(srv, second, player) == 1,
-                           "and may once the claim has lapsed");
-            SELFTEST_CHECK(ToriRSServer_CombatSinglewayRefuses(srv, player, second) == 0,
+            /* The npc's end of the same rule: a second goblin's swing gives up a
+             * player another npc is fighting. */
+            selftest_singles_stamp(srv, player, first);
+            SELFTEST_CHECK(!selftest_singles_npc_may_swing(srv, second),
+                           "a second goblin may not swing at a player already in a fight");
+            selftest_singles_clear(player);
+            SELFTEST_CHECK(selftest_singles_npc_may_swing(srv, second),
+                           "and may once the stamp has lapsed");
+            SELFTEST_CHECK(!selftest_singles_refuses(srv, second),
                            "as may the player, which is what stops the rule latching");
 
             a->huntmode = hunt_a;
             b->huntmode = hunt_b;
             b->combat_target = -1;
-            b->combat_claim_pid = -1;
-            b->combat_claim_tick = 0;
             if( option_nodef >= 0 )
                 ToriRSServer_VarpPut(player, option_nodef, nodef_before);
             player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = hp_level_before;

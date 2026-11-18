@@ -180,10 +180,11 @@ PRESSED is checked and a non-Attack row answers `refused` naming it.
 #### `refused`, meaning two: single-way combat refused the swing
 
 `refused` HAS A SECOND MEANING and it is the one to read first when a fight does nothing: THE SERVER
-REFUSED THE SWING, with the engine's own sentence in the detail ("I'm already under attack." /
-"Someone else is fighting that.", printed by `ToriRSServer_CombatSinglewayRefuses`). That is
-single-way combat: the press landed, `p_opnpc` took its silent return, and the engine has no attack
-clock of its own, so no swing was ever made.
+REFUSED THE SWING, with content's own sentence in the detail ("I'm already under attack." /
+"Someone else is fighting that.", printed by `[proc,player_in_combat_check]` in
+skill_combat/combat.rs2). That is single-way combat: the press landed, the Attack label returned
+without swinging, and the engine has no attack clock of its own, so no swing was ever made. The
+rule and its eight ticks are in docs/rsprox-analysis/combat/singles.md.
 
 It is not a `timeout` and not an opening -- waiting longer cannot help while whatever holds the
 claim keeps swinging, and no stamp is written, so an `await_dead_engaged` behind it answers
