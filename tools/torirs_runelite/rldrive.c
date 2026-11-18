@@ -54,6 +54,7 @@ static char const* g_root = ".";
 static char const* g_content = NULL;
 static char const* g_script = NULL;
 static char const* g_session = NULL;
+static char const* g_rev = "osrs242";
 static int g_port = 43651;
 static int g_trace;
 
@@ -738,6 +739,45 @@ lua_session(lua_State* L)
     return 1;
 }
 
+/* tab_by_name(name): the revision's [tabs] map
+ * (revconfig/<rev>/<rev>_dat2_cache.ini), as the C client reads it. */
+static int
+lua_tab_by_name(lua_State* L)
+{
+    char const* name = luaL_checkstring(L, 1);
+    char path[2048];
+    char line[256];
+    int in_tabs = 0;
+    FILE* f;
+
+    snprintf(path, sizeof(path), "%s/revconfig/%s/%s_dat2_cache.ini", g_root, g_rev, g_rev);
+    f = fopen(path, "r");
+    if( f )
+    {
+        while( fgets(line, sizeof(line), f) )
+        {
+            char key[64];
+            int value;
+            if( line[0] == '[' )
+            {
+                in_tabs = strncmp(line, "[tabs]", 6) == 0;
+                continue;
+            }
+            if( in_tabs && sscanf(line, "%63[a-z_]=%d", key, &value) == 2 && strcmp(key, name) == 0 )
+            {
+                fclose(f);
+                lua_pushstring(L, "ok");
+                lua_pushinteger(L, value);
+                return 2;
+            }
+        }
+        fclose(f);
+    }
+    lua_pushstring(L, "no_row");
+    lua_pushnil(L);
+    return 2;
+}
+
 /* status(): the run's own state -- this host keeps the ledger. Never
  * on_demand: a rldrive run is a scripted run, not a watched client. */
 static int
@@ -1362,6 +1402,8 @@ main(int argc, char** argv)
             g_root = argv[++i];
         else if( strcmp(argv[i], "--content") == 0 && i + 1 < argc )
             g_content = argv[++i];
+        else if( strcmp(argv[i], "--rev") == 0 && i + 1 < argc )
+            g_rev = argv[++i];
         else if( strcmp(argv[i], "--trace") == 0 )
             g_trace = 1;
         else
@@ -1410,7 +1452,7 @@ main(int argc, char** argv)
             { "await", lua_await }, { "pump", lua_pump }, { "symbol", lua_symbol },
             { "symbol_name", lua_symbol_name }, { "ledger", lua_ledger }, { "report", lua_report },
             { "finish", lua_finish }, { "quit", lua_quit }, { "session", lua_session },
-            { "shot", lua_shot }, { "component", lua_component }, { "status", drive_status }, { NULL, NULL }
+            { "shot", lua_shot }, { "component", lua_component }, { "status", drive_status }, { "tab_by_name", lua_tab_by_name }, { NULL, NULL }
         };
         luaL_setfuncs(g_L, OWN, 0);
     }
