@@ -12,7 +12,11 @@ Test: `test/seasonal/halloween2026.lua` (scriptrun, 79/79 rows, 883 ticks).
 
 **RETIRED 2026-11-18**: the lane is `default=off`. The cache taken that day
 (OpenRS2 #2772) deleted the 32 trick-or-treater npc types and took the
-jack-o-lanterns and the onion crate out of Rimmington's map.
+jack-o-lanterns and the onion crate out of Rimmington's map. The event still
+runs when its lane is on: the 32 npcs are the tree's own records now
+(27410..27441, `server/scripts/seasonal/configs/halloween2026_cast.npc`,
+identical to Jagex's field for field in a baked cache) and `~hw26_loc_sync`
+places the locs.
 
 Whether the event is in the build is its lane,
 `OSRS-Content/osrs-content/ported/halloween2026/lane.ini`: `default=on` puts
