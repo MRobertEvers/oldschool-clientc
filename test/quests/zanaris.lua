@@ -55,6 +55,8 @@ return {
             points = 3,
         })
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
+        -- The wire audit's tick log (rsprox-content: docs/rsprox-analysis/quests/lost_city.md).
+        t.ticklog.start()
 
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
@@ -88,8 +90,9 @@ return {
         t.exec("goto-talkToWarrior", t.player.goto_tile, 3149, 3206, 0)
         t.exec("talkToWarrior", t.player.talk_to, "warrioradventurerpg", 1)
         t.exec("talkToWarrior-dialog", t.chat.play, {
+            -- RSProx index 4591 [87..246]: the menu says "camped out here".
             "npc:Hello there traveller.",
-            "choose:What are you camped here for?",
+            "choose:What are you camped out here for?",
             "player:What are you camped here for?",
             "npc:We're looking for Zanaris",
             "choose:What makes you think it's out here?",
@@ -101,6 +104,7 @@ return {
             "choose:Looks like you don't know either.",
             "player:Well, it looks to me like YOU",
             "npc:Of course we know!",
+            "choose:Yes.", -- "Start the Lost City quest?" [229]
             "player:Leprechaun?",
             "npc:GAH! I didn't mean",
             "player:So a leprechaun knows",
@@ -110,6 +114,27 @@ return {
         })
         t.ticks(2)
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
+
+        -- The other three at stage 1, as recorded (RSProx index 4591 [274..298]).
+        t.exec("talkToMonk", t.player.talk_to, "monkadventurerpg", 1)
+        t.exec("talkToMonk-dialog", t.chat.play, {
+            "player:Have you found the tree with the leprechaun yet?",
+            "npc:No, we've looked for ages but haven't...",
+            "player:Thanks for the information!",
+            "npc:...You tricked me.",
+        })
+        t.exec("talkToArcher", t.player.talk_to, "archeradventurerpg", 1)
+        t.exec("talkToArcher-dialog", t.chat.play, {
+            "player:So I hear theres a leprechaun around here",
+            "npc:...W-what? How did you..?",
+            "npc:No. You're wrong. Now go away.",
+        })
+        t.exec("talkToWizard", t.player.talk_to, "wizardadventuterpg", 1)
+        t.exec("talkToWizard-dialog", t.chat.play, {
+            "player:Found that leprechaun yet?",
+            "npc:Hahaha go away amateur!",
+            "player:...right.",
+        })
 
         -- chopTree: the press can answer `timeout settle_after_click` (the
         -- tree speaks nothing); the outcome is Shamus appearing.
@@ -124,8 +149,11 @@ return {
             "npc:Zanaris is it now?",
             "player:...but... I thought",
             "npc:Aye that it is!",
-            "choose:I've been in that shed, I didn't see a city.",
-            "player:I've been in that shed.",
+            -- RSProx index 4591 [350..386], the recorded branch.
+            "choose:How does it fit in a shed then?",
+            "player:...How does it fit in a shed then?",
+            "npc:Ah yer stupid elephant!",
+            "player:So I just walk into the shed",
             "npc:Oh, was I fergetting to say?",
             "player:So where would I get a staff?",
             "npc:Dramenwood staffs are crafted",
@@ -142,22 +170,14 @@ return {
         -- An overland hop from the swamp to Port Sarim's jetty (reach.py,
         -- every door shut: 211 tiles at margin 80).
         t.exec("goto-goToEntrana", t.player.goto_tile, 3049, 3236, 0)
-        t.exec("goToEntrana", t.player.talk_to, "shipmonk1_c", 1)
-        t.exec("goToEntrana-dialog", t.chat.play, {
-            "npc:Do you seek passage to holy En",
-            "choose:Yes, okay, I'm ready to go.",
-            "player:Yes, okay, I'm ready to go.",
-            "npc:Very well. One moment please.",
-            "mesbox:The monk quickly searches you.",
-        })
-        -- The crossing ends on the ship's deck (monk_of_entrana.rs2:
-        -- p_telejump(1_44_52_18_3) = 2834,3331,1); the gangplank
-        -- ship_from_entrana_off (2834,3333,1; gangplank.rs2 ~gangplank_disembark)
-        -- is the way ashore, 2834,3335,0.
+        -- RSProx index 4591 [635..658]: Take-boat, the line and the boarding
+        -- on one tick, the ship_journey crossing, the deck 14 ticks later.
+        t.exec("goToEntrana", t.player.talk_to, "shipmonk1_c", 3)
         t.await({ level = function()
             local r, tt = t.world.tile()
             return r == "ok" and tt.level == 1 and tt.x < 2900
-        end, note = "goToEntrana: the sail to Entrana's deck" }, 12)
+        end, note = "goToEntrana: the sail to Entrana's deck" }, 24)
+        t.exec("goToEntrana-arrival", t.chat.play, { "mesbox:The ship arrives at Entrana." })
         local deck_r, deck = t.world.tile()
         t.check("goToEntrana-onDeck", deck_r == "ok" and deck.level == 1
                 and math.abs(deck.x - 2834) <= 2 and math.abs(deck.z - 3331) <= 2,
@@ -228,7 +248,8 @@ return {
 
         -- One dungeon passage, no door (reach.py from the ladder's landing
         -- 2822,9774: 83 tiles, every door shut).
-        t.exec("goto-attemptToCutDramen", t.player.goto_tile, 2862, 9733, 0)
+        -- Where the recorder stood, north of the tree (RSProx index 4591 [1049]).
+        t.exec("goto-attemptToCutDramen", t.player.goto_tile, 2861, 9736, 0)
         local dramen_result, dramen_detail = t.player.click_loc("dramentree", 1)
         t.note("click_loc dramentree -> " .. tostring(dramen_result) .. " " .. tostring(dramen_detail))
         t.exec("attemptToCutDramen", t.npc.await_present, "tree_spirit", 15, 10)
@@ -236,12 +257,20 @@ return {
         local spirit_ok, spirit_detail = t.exec("killDramenSpirit", t.npc.await_dead_engaged, 400, 12, { eat = { item = "shark", below = 35 } })
         local spirit_lo, spirit_mx = tostring(spirit_detail):match("lowest hp (%d+)/(%d+)")
         margin_row("killDramenSpirit-margin", "tree spirit (level 101), unarmed", tonumber(spirit_lo), tonumber(spirit_mx))
-        t.ticks(3)
-        t.exec("killDramenSpirit-dialog", t.chat.drain, { max_pages = 8 })
-        t.expect("quest.stage.spirit_defeated", t.quest.expect_stage("spirit_defeated"))
-
+        -- RSProx index 4591 [1117..1127]: the kill writes nothing the client
+        -- sees; the next op on the tree writes stage 3 with the mesbox, and
+        -- its continue starts the chop (the branch two ticks later).
+        t.ticks(6)
+        t.expect("quest.stage.spoken_shamus-after-kill", t.quest.expect_stage("spoken_shamus"))
         local cut_result, cut_detail = t.player.click_loc("dramentree", 1)
         t.note("click_loc dramentree -> " .. tostring(cut_result) .. " " .. tostring(cut_detail))
+        -- Stage 3 lives only while the mesbox is up: its continue starts the
+        -- chop and the branch writes stage 4 two ticks later ([1125..1127]).
+        t.ticks(3)
+        t.expect("quest.stage.spirit_defeated", t.quest.expect_stage("spirit_defeated"))
+        t.exec("killDramenSpirit-dialog", t.chat.play, {
+            "mesbox:With the Tree Spirit defeated you can now chop the tree.",
+        })
         t.exec("cutDramenBranch", t.inv.await, "dramen_branch", 1, 15)
         t.expect("quest.stage.tree_chopped", t.quest.expect_stage("tree_chopped"))
 
@@ -263,11 +292,11 @@ return {
         -- 3201,3169, every door shut: 121 tiles), then the shed door by its
         -- verb: outside it, wielding the staff, the door carries the player
         -- to Zanaris (leprechaun_tree.rs2:116 [oploc1,zanarisdoor]:
-        -- ~player_teleport_normal(0_38_69_20_56) = 2452,4472,0).
+        -- the fairy shape of RSProx index 4591 [1334..1339], landing 2452,4473,0).
         t.exec("goto-enterZanaris", t.player.goto_tile, 3201, 3169, 0)
         t.exec("enterZanaris", t.player.cross_gate, { loc = "zanarisdoor", at = { 3202, 3169, 0 },
             near = { 3201, 3169 }, far_ok = function(tile) return tile.x < 2600 and tile.z > 4000 and tile.z < 6400 end,
-            far_desc = "in Zanaris (2452,4472,0)" })
+            far_desc = "in Zanaris (2452,4473,0)" })
         t.ticks(3)
         t.quest.expect_complete()
         t.finish(0)
