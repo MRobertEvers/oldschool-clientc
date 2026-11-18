@@ -297,6 +297,7 @@ return {
         "::give bronze_axe 1",         -- leg 2: guide item "Any axe" (split logs)
         "::give rune_scimitar 1",      -- leg 2: guide "Melee gear" (yaks drop the hair)
         "::give lobster 4",            -- leg 2: guide "Food" for the yak fights (leg 6's food is bought from Keepa in leg 4)
+        "::give coins 5000",           -- legs 4-5: ten lobsters from Keepa (268 each at value), needle, thread and hammer in Neitiznot; the fixture carries nothing
         "::give nails_bronze 1",       -- leg 5: guide item "Bronze nail" (no shop on the route sells nails); needle, thread and hammer are bought in Neitiznot
         "::setlevel attack 40",        -- leg 2: melee levels for the yak field (hp 10 died to a yak, run 1)
         "::setlevel strength 40",

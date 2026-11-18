@@ -35,7 +35,10 @@ end
 return {
     id = "_legs",
     fixture = "fresh_lumbridge.ini",
-    setup = { "::cook" },
+    -- coins: the general store's bucket (2) and pot (1) on the gather leg; the
+    -- fixture is a fresh character and carries nothing (test/quests/fixtures/
+    -- fresh_lumbridge.ini), so a test gives what it spends.
+    setup = { "::cook", "::give coins 5" },
     bind = {
         varp = "varp29_cookquest",
         constants = { not_started = 0, started = 1, complete = 2 },

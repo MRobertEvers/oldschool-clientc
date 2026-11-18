@@ -113,7 +113,10 @@ end
 return {
     id = "cooks_assistant",
     fixture = "fresh_lumbridge.ini",
-    setup = { "::cook" },
+    -- coins: the general store's bucket (2) and pot (1) on the gather leg; the
+    -- fixture is a fresh character and carries nothing (test/quests/fixtures/
+    -- fresh_lumbridge.ini), so a test gives what it spends.
+    setup = { "::cook", "::give coins 5" },
 
     -- A relay file (docs/quest_authoring/relay.md "Checkpoints"): the harness
     -- binds this table with t.quest.bind before the first leg that runs --
