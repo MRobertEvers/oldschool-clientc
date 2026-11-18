@@ -136,11 +136,24 @@ def cmd_up(args):
     if jctl_up():
         print("rlctl: RuneLite already up on JCtl %d -- `rlctl.py down` first to restart" % JCTL_PORT)
         return
+    home = os.path.join(DIR, "home")
+    os.makedirs(home, exist_ok=True)
+    # The game cache run-runelite.sh seeds is the owner's ~/jagexcache; only
+    # RuneLite's settings, profiles and plugins are this client's own.
+    jagexcache = os.path.join(home, "jagexcache")
+    if not os.path.lexists(jagexcache):
+        os.symlink(os.path.expanduser("~/jagexcache"), jagexcache)
     env = server_env()
     env.update(GAME_PORT=str(GAME_PORT), JAV_PORT=str(JAV_PORT), JCTL_PORT=str(JCTL_PORT),
                RUNDIR=os.path.join(DIR, "run"), TORIRS_MOCK_BIN=SERVER_BIN, TORIRS_NO_PREPARE="1",
                # The gamepack logs itself in (instrumentation CS2AutoLogin.java).
-               JAVA_EXTRA_OPTS="-Dcs2.autologin=%s:%s" % (args.account, PASSWORD))
+               # Its own RuneLite home: RuneLite keeps everything under
+               # user.home/.runelite, and sharing the owner's meant his synced
+               # profile and external plugins in every test client, and a
+               # profiles.json he was writing read half-done -- a launch fell
+               # back to the default profile, custom chrome off, and came up
+               # with the canvas under the traffic lights (2026-11-18).
+               JAVA_EXTRA_OPTS="-Dcs2.autologin=%s:%s -Duser.home=%s" % (args.account, PASSWORD, home))
     log = open(os.path.join(DIR, "launch.out"), "w")
     launcher = subprocess.Popen(["bash", os.path.join(ROOT, "run-runelite.sh"), MANIFEST], cwd=ROOT, env=env,
                                 stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
