@@ -245,6 +245,22 @@ PlatformAndroid_Window(void)
     return w;
 }
 
+ANativeWindow*
+PlatformAndroid_AcquireWindow(void)
+{
+    ANativeWindow* w;
+
+    /* The reference is taken INSIDE the lock: the UI thread's surfaceDestroyed
+     * publishes NULL and then releases its own reference, and a pointer read
+     * here and acquired after the unlock could already be that freed window. */
+    pthread_mutex_lock(&g_lock);
+    w = g_window;
+    if( w )
+        ANativeWindow_acquire(w);
+    pthread_mutex_unlock(&g_lock);
+    return w;
+}
+
 void
 PlatformAndroid_WindowSize(int* out_width, int* out_height)
 {
@@ -1495,7 +1511,11 @@ PlatformWindow_Present(struct PlatformWindow* p)
         return;
     assert(p->pixels);
 
-    window = PlatformAndroid_Window();
+    /* Owned for the length of this present, not borrowed: the UI thread can
+     * take the Surface away (surfaceDestroyed) between any two lines below,
+     * and a borrowed pointer would then be locked and posted after its last
+     * reference went. Released after the post. */
+    window = PlatformAndroid_AcquireWindow();
     if( !window )
     {
         /*
@@ -1530,6 +1550,7 @@ PlatformWindow_Present(struct PlatformWindow* p)
         p->present_dmg_w = 0;
         p->present_dmg_h = 0;
         p->present_dmg_rect_count = 0;
+        ANativeWindow_release(window);
         return;
     }
 
@@ -1546,6 +1567,7 @@ PlatformWindow_Present(struct PlatformWindow* p)
     present_blit(p, (uint32_t*)buffer.bits, buffer.stride, buffer.width, buffer.height);
 
     ANativeWindow_unlockAndPost(window);
+    ANativeWindow_release(window);
 
     p->present_dmg_w = 0;
     p->present_dmg_h = 0;

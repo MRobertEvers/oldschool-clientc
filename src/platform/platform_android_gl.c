@@ -38,7 +38,12 @@ static EGLDisplay g_display = EGL_NO_DISPLAY;
 static EGLSurface g_surface = EGL_NO_SURFACE;
 static EGLContext g_context = EGL_NO_CONTEXT;
 static EGLConfig g_config;
-/** The ANativeWindow g_surface was made for, so a changed one is noticed. */
+/** The ANativeWindow g_surface was made for, so a changed one is noticed.
+ *  Holds its own reference (PlatformAndroid_AcquireWindow), released when the
+ *  surface is rebuilt or the context deleted: the UI thread drops ITS
+ *  reference on surfaceDestroyed without waiting for this thread, and an
+ *  EGL surface made from, or an identity test against, a window nobody holds
+ *  would be a use after free. */
 static ANativeWindow* g_surface_window;
 static char const* g_error = "";
 
@@ -82,10 +87,14 @@ static EGLint g_drawable_window_h;
 static int
 android_gl_sync_surface(void)
 {
-    ANativeWindow* window = PlatformAndroid_Window();
+    ANativeWindow* window = PlatformAndroid_AcquireWindow();
 
     if( window == g_surface_window && g_surface != EGL_NO_SURFACE )
+    {
+        if( window )
+            ANativeWindow_release(window);
         return 1;
+    }
 
     /* The surface is about to change: nothing cached about it survives. */
     g_is_current = 0;
@@ -99,6 +108,9 @@ android_gl_sync_surface(void)
         eglDestroySurface(g_display, g_surface);
         g_surface = EGL_NO_SURFACE;
     }
+    /* The window's reference moves into g_surface_window; the old one's goes. */
+    if( g_surface_window )
+        ANativeWindow_release(g_surface_window);
     g_surface_window = window;
     if( !window )
         return 0; /* the activity is stopped; not an error */
@@ -322,6 +334,8 @@ ToriPlatform_GLContext_Delete(ToriPlatform_GLContext context)
     g_surface = EGL_NO_SURFACE;
     g_context = EGL_NO_CONTEXT;
     g_display = EGL_NO_DISPLAY;
+    if( g_surface_window )
+        ANativeWindow_release(g_surface_window);
     g_surface_window = NULL;
     g_is_current = 0;
     g_drawable_valid = 0;
