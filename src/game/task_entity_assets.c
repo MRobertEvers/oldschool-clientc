@@ -105,8 +105,31 @@ fanout_seqs(
             Assets_Await(app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, ids[i], 0), pending);
 }
 
-/* The idk / obj config behind every slot, one sibling each (a kit and an
- * obj config never share an id space, so only same-kind duplicates skip). */
+/* The config behind one appearance value, through the assets table
+ * (ASSET_KIND_CONFIG): one read however many bodies and held items in flight
+ * name it (each fetch queued its own before). Nothing for an empty slot. */
+static void
+await_slot_config(
+    struct App* app,
+    int slot,
+    int* pending)
+{
+    enum AppearanceSlotKind const kind = Appearance_SlotKind(slot);
+
+    if( kind == APPEARANCE_SLOT_KIT )
+        Assets_Await(
+            app->assets,
+            AssetKey_Make(ASSET_KIND_CONFIG, Appearance_SlotKit(slot), ASSET_CONFIG_IDK),
+            pending);
+    else if( kind == APPEARANCE_SLOT_OBJ )
+        Assets_Await(
+            app->assets,
+            AssetKey_Make(ASSET_KIND_CONFIG, Appearance_SlotObj(slot), ASSET_CONFIG_OBJ),
+            pending);
+}
+
+/* The idk / obj config behind every slot. A value named twice is the same
+ * entry asked twice. */
 static void
 fanout_slot_configs(
     struct App* app,
@@ -114,29 +137,7 @@ fanout_slot_configs(
     int* pending)
 {
     for( int i = 0; i < 12; i++ )
-    {
-        int dup = 0;
-        struct ToriRS_Task* task;
-        for( int j = 0; j < i && !dup; j++ )
-            dup = slots[j] == slots[i];
-        if( dup )
-            continue;
-        switch( Appearance_SlotKind(slots[i]) )
-        {
-        case APPEARANCE_SLOT_KIT:
-            task = CreateTask_IdkLoad(app->provider, Appearance_SlotKit(slots[i]));
-            break;
-        case APPEARANCE_SLOT_OBJ:
-            task = CreateTask_ObjLoad(app->provider, Appearance_SlotObj(slots[i]));
-            break;
-        case APPEARANCE_SLOT_EMPTY:
-        default:
-            task = NULL;
-            break;
-        }
-        if( task )
-            ToriRS_TaskQueue_AddParallelPoolSubTask(app->frame_runner.queue, task, pending);
-    }
+        await_slot_config(app, slots[i], pending);
 }
 
 /* ------------------------------------------------------------------ npc */
@@ -347,6 +348,11 @@ Task_PlayerBodyLand_Run(
 static void
 Task_PlayerBodyLand_Free(struct ToriRS_Task* base)
 {
+    struct Task_PlayerBodyLand* self = (struct Task_PlayerBodyLand*)base;
+    /* Freed while it awaits (a queue torn down mid-fetch): the table must not
+     * count on a join that is gone. */
+    if( self->pending > 0 )
+        Assets_Unjoin(self->app->assets, &self->pending);
     ToriMem_Free(ToriMem_Session(), base);
 }
 
@@ -538,7 +544,6 @@ struct Task_PlayerHeldLand
     int seq_id;
     int gender;
     int held_vals[2]; /* replaceheld left/right, as canonical appearance slots */
-    int cfg_i;
     int model_ids[64];
     int model_count;
     int pending;
@@ -583,6 +588,7 @@ Task_PlayerHeldLand_Run(
     struct Task_PlayerHeldLand* self = (struct Task_PlayerHeldLand*)base;
     struct App* app = self->app;
 
+    (void)io;
     PT_BEGIN(&self->pt);
 
     /* The sequence through the table: the track binder wants the same one
@@ -608,12 +614,12 @@ Task_PlayerHeldLand_Run(
         }
     }
 
-    /* Obj configs first: only an obj-range value names an obj. */
-    for( self->cfg_i = 0; self->cfg_i < 2; self->cfg_i++ )
-        PT_TASK_AWAITSELF_IF(
-            Appearance_SlotKind(self->held_vals[self->cfg_i]) == APPEARANCE_SLOT_OBJ
-                ? CreateTask_ObjLoad(app->provider, Appearance_SlotObj(self->held_vals[self->cfg_i]))
-                : NULL);
+    /* Obj configs first: only an obj-range value names an obj. Through the
+     * table, sharing a read with any body fetch that names the same obj. */
+    for( int k = 0; k < 2; k++ )
+        if( Appearance_SlotKind(self->held_vals[k]) == APPEARANCE_SLOT_OBJ )
+            await_slot_config(app, self->held_vals[k], &self->pending);
+    PT_TASK_JOIN(pending);
 
     /* Then their wear models, gendered as the entry's key says (slot 3 =
      * right hand, slot 5 = left hand -- the appearance encoding the swap
@@ -649,8 +655,6 @@ Task_PlayerHeldLand_Free(struct ToriRS_Task* base)
         Assets_Abandoned(
             self->app->assets, AssetKey_Make(ASSET_KIND_PLAYER_HELD, self->seq_id, self->gender));
     }
-    if( self->pt.user )
-        task_free((struct ToriRS_Task*)self->pt.user);
     ToriMem_Free(ToriMem_Session(), base);
 }
 

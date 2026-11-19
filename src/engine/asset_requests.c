@@ -44,6 +44,10 @@
  *  REF_TABLE    loaded once while every map square waits on it (was
  *               reference_table_loading); a failure releases them all, and the
  *               next square to ask tries again.
+ *  CONFIG       an idk or obj config an appearance or a held item names: one
+ *               read however many player bodies wait on it (each body's fetch
+ *               queued its own); a record the cache does not hold is asked
+ *               again by the next fetch that names it.
  */
 static struct AssetPolicy const g_asset_policy[ASSET_KIND_COUNT] = {
     [ASSET_KIND_MODEL] = { "model", ASSET_FAIL_BACKOFF, 0, 500, 4000, ASSET_LATE_LAND, 0,
@@ -78,6 +82,8 @@ static struct AssetPolicy const g_asset_policy[ASSET_KIND_COUNT] = {
                             ASSET_NEWER_REPLACE, ASSET_LANDED_ONE },
     [ASSET_KIND_REF_TABLE] = { "ref_table", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_LATE_LAND, 0,
                                ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ALL },
+    [ASSET_KIND_CONFIG] = { "config", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_LATE_LAND, 0,
+                            ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ONE },
 };
 
 enum

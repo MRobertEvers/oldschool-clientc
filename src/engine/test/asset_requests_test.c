@@ -700,6 +700,64 @@ test_drop_waiters(void)
     Assets_Free(assets);
 }
 
+/* ---- configs, and binds that are not deduped ---------------------------- */
+
+/* A7: every player-body fetch queued its own idk and obj config loads, so a
+ * crowd in one appearance (or one player's blocks while the first fetch ran)
+ * read each config once per fetch. Through the table it is one read; the
+ * variant (kit or obj) is part of the key because the two share no id space. */
+static void
+test_configs_one_read(void)
+{
+    struct FakeLoader fake;
+    struct Assets* assets = table_with(ASSET_KIND_CONFIG, &fake);
+    int join_a = 0;
+    int join_b = 0;
+
+    for( int body = 0; body < 5; body++ )
+    {
+        Assets_Await(
+            assets, AssetKey_Make(ASSET_KIND_CONFIG, 1205, ASSET_CONFIG_OBJ), body ? &join_b : &join_a);
+        Assets_Await(
+            assets, AssetKey_Make(ASSET_KIND_CONFIG, 18, ASSET_CONFIG_IDK), body ? &join_b : &join_a);
+    }
+    TEST_ASSERT(fake.start_count == 2, "five body fetches, two config reads");
+    Assets_Await(assets, AssetKey_Make(ASSET_KIND_CONFIG, 18, ASSET_CONFIG_OBJ), &join_b);
+    TEST_ASSERT(fake.start_count == 3, "obj 18 is not kit 18");
+    Assets_Finished(assets, AssetKey_Make(ASSET_KIND_CONFIG, 1205, ASSET_CONFIG_OBJ), true);
+    Assets_Finished(assets, AssetKey_Make(ASSET_KIND_CONFIG, 18, ASSET_CONFIG_IDK), true);
+    TEST_ASSERT(join_a == 0, "the first fetch is released");
+    TEST_ASSERT(join_b == 1, "the others wait only on obj 18");
+    Assets_Finished(assets, AssetKey_Make(ASSET_KIND_CONFIG, 18, ASSET_CONFIG_OBJ), false);
+    TEST_ASSERT(join_b == 0, "and are released when it fails");
+    TEST_ASSERT(Assets_State(assets, AssetKey_Make(ASSET_KIND_CONFIG, 18, ASSET_CONFIG_OBJ)) ==
+                    ASSET_STATE_NONE,
+        "a missing config is forgotten, asked again by the next fetch");
+    Assets_Free(assets);
+}
+
+/* AsyncPendingSeqBinds kept duplicates on purpose: the same element bound
+ * twice (re-bound at a later cycle) is two binds, and both land. */
+static void
+test_same_waiter_twice_lands_twice(void)
+{
+    struct FakeLoader fake;
+    struct Assets* assets = table_with(ASSET_KIND_SEQUENCE, &fake);
+    struct Lands lands;
+    struct AssetWaiter w;
+
+    memset(&lands, 0, sizeof(lands));
+    w = waiter(&lands, 10);
+    Assets_Want(assets, AssetKey_Make(ASSET_KIND_SEQUENCE, 100, 0), &w);
+    Assets_Want(assets, AssetKey_Make(ASSET_KIND_SEQUENCE, 100, 0), &w);
+    TEST_ASSERT(fake.start_count == 1, "one load");
+    TEST_ASSERT(Assets_WaiterCount(assets, ASSET_KIND_SEQUENCE) == 2, "two binds held");
+    Assets_Finished(assets, AssetKey_Make(ASSET_KIND_SEQUENCE, 100, 0), true);
+    TEST_ASSERT(Assets_Land(assets, ASSET_KIND_ALL) == 2, "both land");
+    TEST_ASSERT(lands.tag[0] == 10 && lands.tag[1] == 10, "each as itself");
+    Assets_Free(assets);
+}
+
 /* ---- growth -------------------------------------------------------------- */
 
 static void
@@ -748,6 +806,8 @@ main(void)
     test_skybox_retried_and_replaced();
     test_land_one_or_all();
     test_drop_waiters();
+    test_configs_one_read();
+    test_same_waiter_twice_lands_twice();
     test_growth();
     if( g_failures )
     {

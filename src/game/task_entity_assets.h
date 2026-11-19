@@ -74,7 +74,10 @@ EntityAssets_RegisterLoaders(struct App* app);
 
 /**
  * Fetch the configs of the appearance `slots`, the models they name for
- * `gender`, and the stance sequences `seq_ids`. The arrays are copied.
+ * `gender`, and the stance sequences `seq_ids`. The arrays are copied. Every
+ * read goes through the assets table (CONFIG, MODEL, SEQUENCE), so two
+ * fetches for bodies that share parts -- or one appearance block after
+ * another while the first is still loading -- read each part once.
  */
 struct ToriRS_Task*
 CreateTask_PlayerBodyLand(

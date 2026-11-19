@@ -87,7 +87,8 @@ ref_table_start(
     struct Task_Dat2RefTableLoad* task;
 
     (void)assets;
-    assert(key.id >= 0 && key.id < RSCACHE_DAT2_TABLE_COUNT);
+    assert(key.id >= 0);
+    assert(key.id < RSCACHE_DAT2_TABLE_COUNT);
     if( dat2_buildcache_reference_table_has(bc, key.id) )
         return ASSET_START_HERE;
     assert(bc->base.asset_queue && "a reference table loads on the provider's asset queue");

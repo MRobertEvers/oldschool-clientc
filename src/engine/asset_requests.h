@@ -95,8 +95,19 @@ enum AssetKind
     ASSET_KIND_SKYBOX,
     /* A cache reference table: id = the table. A shared prerequisite. */
     ASSET_KIND_REF_TABLE,
+    /* A config record an appearance names: id = the record, variant = which
+     * config (enum AssetConfigType). */
+    ASSET_KIND_CONFIG,
 
     ASSET_KIND_COUNT
+};
+
+/* ASSET_KIND_CONFIG's variant: the config table the id is in. A kit and an
+ * obj share no id space, so the variant is part of the key. */
+enum AssetConfigType
+{
+    ASSET_CONFIG_IDK = 0,
+    ASSET_CONFIG_OBJ = 1,
 };
 
 #define ASSET_KIND_BIT(kind) (1u << (unsigned)(kind))
