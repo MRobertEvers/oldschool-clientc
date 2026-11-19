@@ -329,15 +329,14 @@ spool_load(struct ToriRSServerHiscoresLink* link)
 }
 
 struct ToriRSServerHiscoresLink*
-ToriRSServer_HiscoresLinkOpen(char const* world)
+ToriRSServer_HiscoresLinkOpen(void)
 {
     struct ToriRSServerHiscoresLink* link =
         ToriMem_Calloc(ToriMem_ServerNet(), 1, sizeof(struct ToriRSServerHiscoresLink));
     char const* server = getenv("TORIRS_HISCORES_SERVER");
     char const* colon = server ? strrchr(server, ':') : NULL;
+    char const* world = getenv("TORIRS_WORLD_NAME");
 
-    assert(world);
-    assert(world[0]);
     assert(link);
     link->fd = -1;
     link->retry_ms = LINK_RETRY_MIN_MS;
@@ -351,7 +350,7 @@ ToriRSServer_HiscoresLinkOpen(char const* world)
         snprintf(link->host, sizeof(link->host), "127.0.0.1");
         link->port = TORIRSSERVER_HISCORESLINK_PORT;
     }
-    snprintf(link->source, sizeof(link->source), "%s", world);
+    snprintf(link->source, sizeof(link->source), "%s", world && world[0] ? world : "world");
     snprintf(link->path, sizeof(link->path), "%s/hiscores_spool.tsv", ToriRSServer_SaveDir());
     ToriRSServer_SaveMkdirParent(link->path);
     {

@@ -47,13 +47,18 @@ struct ToriRSServerHiscoresLink;
  * The world's link: `<saves>/hiscores_spool.tsv` (`account_spool.tsv` before
  * the split, renamed on first open), sending to TORIRS_HISCORES_SERVER
  * (`host:port`, default 127.0.0.1 and the port above)
- * as the source `world` -- the world's own name, the one it takes leases
- * under (TORIRSSERVER_WORLD, else the host name). Aborts when the spool
+ * as the source TORIRS_WORLD_NAME (default "world"). Aborts when the spool
  * cannot be opened: a world that silently kept no history would look like
  * nobody played.
+ *
+ * The source is NOT the world's lease name (TORIRSSERVER_WORLD): the
+ * hiscores server drops a record it has seen by the source's last number,
+ * and a world resends its whole spool at every start, so a world whose
+ * source changed has every record it ever spooled applied again (2026-11-19:
+ * the live world's adventure log listed eight quests twice). Keep it.
  */
 struct ToriRSServerHiscoresLink*
-ToriRSServer_HiscoresLinkOpen(char const* world);
+ToriRSServer_HiscoresLinkOpen(void);
 
 /** Close the socket and the spool; unsent records stay in the spool. */
 void

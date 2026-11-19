@@ -725,8 +725,11 @@ none, out of the saves and history files before it. Its routes are
   so (503), never "no such player".
 - **`torirsserver --account admin`** tells it at once: staff are not ranked.
 
-A world's records go under its name -- `TORIRSSERVER_WORLD`, the name it
-takes leases under at the account server (default: the host name).
+`TORIRS_WORLD_NAME` names a world's records (default `world`). It is not
+the lease name (`TORIRSSERVER_WORLD`), and it must not change under a world
+with history: the hiscores server drops records it has seen by the source's
+last number, and a world resends its spool at every start, so a renamed
+source has every spooled record applied a second time.
 
 A session dropped before its scene loaded records nothing. The site's reads
 are prepared queries -- a page of the hiscores is a range of one index, a rank

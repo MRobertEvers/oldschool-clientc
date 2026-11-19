@@ -858,7 +858,7 @@ check_spool(void)
     remove(path);
     /* Nothing listens on port 1: the account server is down. */
     setenv("TORIRS_HISCORES_SERVER", "127.0.0.1:1", 1);
-    link = ToriRSServer_HiscoresLinkOpen("world");
+    link = ToriRSServer_HiscoresLinkOpen();
     check(ToriRSServer_HiscoresLinkPending(link) == 0, "spool: a new spool has nothing waiting");
     ToriRSServer_WorldSetDisplayName(&pat, "Pat");
     pat.stat_xp_tenths[3] = 11540;
@@ -875,7 +875,7 @@ check_spool(void)
     check(ms < 50.0, "spool: fifty send steps against a dead server return at once");
     check(ToriRSServer_HiscoresLinkPending(link) == 2, "spool: and the records still wait");
     ToriRSServer_HiscoresLinkClose(link);
-    link = ToriRSServer_HiscoresLinkOpen("world");
+    link = ToriRSServer_HiscoresLinkOpen();
     check(ToriRSServer_HiscoresLinkPending(link) == 2, "spool: a restart finds them still waiting");
     ToriRSServer_HiscoresLinkClose(link);
     unsetenv("TORIRS_HISCORES_SERVER");
@@ -926,7 +926,7 @@ check_spool_old_format(void)
     fclose(f);
 
     setenv("TORIRS_HISCORES_SERVER", "127.0.0.1:1", 1);
-    link = ToriRSServer_HiscoresLinkOpen("world");
+    link = ToriRSServer_HiscoresLinkOpen();
     ToriRSServer_WorldSetDisplayName(&pat, "Pat");
     ToriRSServer_HiscoresLogLogin(log, &pat, 100);
     ToriRSServer_HiscoresLinkWrite(link, log);
@@ -956,7 +956,7 @@ check_spool_old_format(void)
     snprintf(what, sizeof(what), "spool: both unreadable lines are moved (%d)", moved);
     check(moved == 2, what);
 
-    link = ToriRSServer_HiscoresLinkOpen("world");
+    link = ToriRSServer_HiscoresLinkOpen();
     ToriRSServer_HiscoresLinkClose(link);
     moved = 0;
     f = fopen(unreadable, "rb");
@@ -992,7 +992,7 @@ check_link_live(void)
     snprintf(path, sizeof(path), "%s/hiscores_spool.tsv", ToriRSServer_SaveDir());
     remove(path);
     setenv("TORIRS_HISCORES_SERVER", live, 1);
-    link = ToriRSServer_HiscoresLinkOpen("world");
+    link = ToriRSServer_HiscoresLinkOpen();
     ToriRSServer_WorldSetDisplayName(&lia, "Lia");
     lia.stat_xp_tenths[3] = 11540;
     lia.stat_xp_tenths[10] = 123450;

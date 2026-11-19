@@ -892,12 +892,10 @@ main(
          * and sent by the host, never waited for. */
         if( srv.check_passwords && !selftest && !botrun && !scriptrun )
         {
+            srv.hiscores_log = ToriRSServer_HiscoresLogCreate();
+            srv.hiscores_link = ToriRSServer_HiscoresLinkOpen();
             if( !account_server_boot(&srv, port) )
                 return 1;
-            /* Its records go under the name it takes leases under, which
-             * account_server_boot settled. */
-            srv.hiscores_log = ToriRSServer_HiscoresLogCreate();
-            srv.hiscores_link = ToriRSServer_HiscoresLinkOpen(srv.player_world);
         }
     }
     {
