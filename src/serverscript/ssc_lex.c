@@ -189,22 +189,19 @@ read_ident(struct SSC_Lexer* lexer, struct SSC_Token* token)
     /* A single colon joins two halves of one name (`multi2:com_1`). A colon
      * followed by anything else is punctuation — switch cases end with one.
      * The second half may start with a digit when it is still a name: the
-     * cache calls the fairy ring's arrows `fairyrings:1_clockwise`. A run of
-     * digits alone after a colon stays a number. */
+     * cache calls the fairy ring's arrows `fairyrings:1_clockwise`, and the
+     * quest rating's five buttons are plainly `quest_rating:1`..`quest_rating:5`.
+     * The first half is a name (this is the identifier path), so a run of
+     * digits after its colon is that name's second half too; a switch case's
+     * `case 3:4` reaches here only through the number path and keeps its
+     * colon. */
     if( lexer->pos + 1 < lexer->length && lexer->source[lexer->pos] == ':' )
     {
         size_t end = lexer->pos + 1;
-        int named = 0;
 
-        if( is_ident_start(lexer->source[end]) )
-            named = 1;
         while( end < lexer->length && is_ident_char(lexer->source[end]) )
-        {
-            if( !is_digit(lexer->source[end]) )
-                named = 1;
             end++;
-        }
-        if( named && end > lexer->pos + 1 )
+        if( end > lexer->pos + 1 )
             lexer->pos = end;
     }
 

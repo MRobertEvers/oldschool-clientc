@@ -2387,14 +2387,14 @@ test_recompile_transaction(void)
     fixture_close(&fixture);
 }
 
-/* A name's second half may begin with a digit when it is still a name
- * (`fairyrings:1_clockwise`, a cache component); a bare number after a colon
- * stays a number, as in a switch case. */
+/* A name's second half may begin with a digit (`fairyrings:1_clockwise`) or
+ * be one (`quest_rating:5`), both cache components; a number before a colon
+ * stays a number with its colon, as in a switch case. */
 static void
 test_lex_digit_led_component(void)
 {
     struct SSC_Lexer lexer;
-    const char* src = "fairyrings:1_clockwise case 3:4";
+    const char* src = "fairyrings:1_clockwise case 3:4 quest_rating:5";
     const struct SSC_Token* tok;
 
     printf("lex: digit-led component name\n");
@@ -2410,6 +2410,9 @@ test_lex_digit_led_component(void)
     CHECK(tok->kind == SSC_TOK_PUNCT && strcmp(tok->text, ":") == 0, "then the colon, alone");
     tok = SSC_LexNext(&lexer);
     CHECK(tok->kind == SSC_TOK_INT && tok->value == 4, "then 4");
+    tok = SSC_LexNext(&lexer);
+    CHECK(tok->kind == SSC_TOK_IDENT && strcmp(tok->text, "quest_rating:5") == 0,
+          "quest_rating:5 is one name (a component named by a number)");
 }
 
 int
