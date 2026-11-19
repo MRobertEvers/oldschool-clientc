@@ -103,6 +103,14 @@ core_new(void)
             .full = RS_EVENT_RING_OVERWRITE,
             .cycle = &core->world->cycle,
         });
+    ScriptrunZone_Init(&core->zone,
+        (struct RS_EventSink){
+            .ring = &core->events,
+            .entries = core->event_entries,
+            .capacity = SCRIPTRUN_EVENTS,
+            .full = RS_EVENT_RING_OVERWRITE,
+            .cycle = &core->world->cycle,
+        });
     core->toplevel = -1;
     return core;
 }
@@ -111,6 +119,7 @@ static void
 core_free(struct ScriptrunCore* core)
 {
     ScriptrunModel_Free(&core->model);
+    ScriptrunZone_Free(&core->zone);
     RS_EntitySync_Free(core->esync);
     free(core->esync);
     World_Free(core->world);

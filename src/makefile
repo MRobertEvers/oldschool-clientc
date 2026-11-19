@@ -1027,7 +1027,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	net/session_end.c \
 	game/rs_clientscript_queue.c \
 	game/rs_server_tick.c \
-	game/rs_event_ring.c \
+	game/rs_event_ring.c game/rs_effect_log.c \
 	game/rs_server_state.c \
 	game/settle_gate.c \
 	game/rs_pending.c \
@@ -2232,6 +2232,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-pending
 	$(MAKE) test-parallel-task
 	$(MAKE) test-scriptrun-shadow
+	$(MAKE) test-scriptrun-zone
 	$(MAKE) test-render-mode
 	$(MAKE) test-painter-cull-bake
 	$(MAKE) test-world-views
@@ -5898,9 +5899,20 @@ test-scriptrun-shadow: $(OBJ_DIR) $(OBJS)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG \
 		-o $(OBJ_DIR)/scriptrun_shadow_test \
 		scriptrun/test/scriptrun_shadow_test.c scriptrun/scriptrun_model.c \
-		scriptrun/scriptrun_shadow.c game/rs_server_state.c \
+		scriptrun/scriptrun_shadow.c scriptrun/scriptrun_zone.c game/rs_server_state.c \
 		$(filter-out $(OBJ_DIR)/main.o $(OBJ_DIR)/rs_server_state.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/scriptrun_shadow_test
+
+# The headless client's zone families (scriptrun/scriptrun_zone.h) and the
+# effect log both clients keep (game/rs_effect_log.h): the real client's rule
+# for each, at the records. Asserts on.
+.PHONY: test-scriptrun-zone
+test-scriptrun-zone: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG \
+		-o $(OBJ_DIR)/scriptrun_zone_test \
+		scriptrun/test/scriptrun_zone_test.c scriptrun/scriptrun_zone.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/scriptrun_zone_test
 
 # World entities (sailing, SAILING_PLAN C1): the WORLDENTITY_INFO delta
 # reader, the class458 interpolator (incl. the 2047->1 wraparound arc), the
@@ -6172,6 +6184,7 @@ SCRIPTRUN_SRCS = torirsserver/torirs_server_scriptrun.c scriptrun/scriptrun_core
 # the bot's own set, and its shadow's (scriptrun/scriptrun_shadow.h,
 # TORIRS_SCRIPTRUN_SHADOW), a second set fed the bare packets to compare against.
 SCRIPTRUN_SHADOW_SRCS = scriptrun/scriptrun_model.c scriptrun/scriptrun_shadow.c game/rs_server_state.c \
+	scriptrun/scriptrun_zone.c game/rs_effect_log.c \
 	varp/varp_manager.c game/rs_player_stats.c inv/inv_manager.c ui/uitree_if_store.c \
 	game/rs_chat.c game/rs_social.c game/rs_session_info.c net/session_end.c \
 	game/rs_server_tick.c game/rs_player_ops.c game/rs_hint_arrow.c \

@@ -29,10 +29,14 @@
  *     and each slot), interface texts, hides and IF_SETEVENTS ranges. A row is
  *     written when a key starts to differ or its differing pair changes, not
  *     on every tick it stays different.
+ *   - At each SERVER_TICK_END too, the zone families (scriptrun_zone.h):
+ *     the ground rows of each tile in arrival order, and the projectiles,
+ *     map graphics and loc animations still listed, each a key by content.
  *   - Per packet: the chat lines each side added, and the event stream: the
  *     events of the kinds the shared apply stamps (varp_changed, inv_changed,
- *     inv_packet, chat_message, server_tick, npc_seq) that each side stamped
- *     while applying that packet, in order. Every mismatch is a row.
+ *     inv_packet, chat_message, server_tick, npc_seq, and the zone's
+ *     obj_added and obj_removed) that each side stamped while applying that
+ *     packet, in order. Every mismatch is a row.
  *
  * ROW. tick, family, key, old (the core's model, presented), shared (the bare
  * model's), the packet
@@ -68,6 +72,18 @@ enum ScriptrunShadowFamily
     SCRIPTRUN_SHADOW_IF_HIDES,
     SCRIPTRUN_SHADOW_IF_EVENTS,
     SCRIPTRUN_SHADOW_EVENTS,
+    /* The zone families (scriptrun_zone.h), at each SERVER_TICK_END: the
+     * ground rows tile by tile in arrival order, and the projectiles, map
+     * graphics and loc animations still listed. */
+    SCRIPTRUN_SHADOW_GROUND,
+    SCRIPTRUN_SHADOW_PROJECTILES,
+    SCRIPTRUN_SHADOW_MAP_ANIMS,
+    SCRIPTRUN_SHADOW_LOC_ANIMS,
+    /* The root's changed locs: at every level, layer and tile a zone change
+     * has a record for, the loc that stands there now (the record's latest:
+     * World_LocChange, kept across a rebuild and reset by a full zone
+     * resend), against the core's loc table. */
+    SCRIPTRUN_SHADOW_LOCS,
     SCRIPTRUN_SHADOW_FAMILY_COUNT
 };
 
@@ -115,6 +131,22 @@ ScriptrunShadow_After(
     struct ScriptrunShadow* shadow,
     struct ScriptrunCore const* core,
     struct RevPacket const* packet);
+
+/**
+ * The shadow's zone families (scriptrun_zone.h): the owning core applies each
+ * packet's zone families to it (ScriptrunCore_ZoneFamilies) after its own
+ * apply and before ScriptrunShadow_After compares.
+ */
+struct ScriptrunZone*
+ScriptrunShadow_Zone(struct ScriptrunShadow* shadow);
+
+/** A new server tick (ScriptrunCore_BeginTick): the shadow's zone retires
+ *  what has run its life. */
+void
+ScriptrunShadow_BeginTick(
+    struct ScriptrunShadow* shadow,
+    int tick,
+    int now_cycle);
 
 /** Rows written for `family` so far. */
 int

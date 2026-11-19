@@ -670,6 +670,46 @@ loc_cache_level(
     return zone_level;
 }
 
+int
+ScriptrunCore_MapLocAt(
+    struct ScriptrunCore const* core,
+    int abs_x,
+    int abs_z,
+    int level,
+    int layer,
+    int* out_shape,
+    int* out_angle)
+{
+    assert(core);
+    assert(out_shape);
+    assert(out_angle);
+    for( int i = 0; i < core->loc_count; i++ )
+    {
+        struct ScriptrunLoc const* l = &core->locs[i];
+
+        if( l->view != 0 || l->map_loc_id < 0 || l->x != abs_x || l->z != abs_z || l->level != level ||
+            World_LocShapeToLayer(l->shape) != layer )
+            continue;
+        *out_shape = l->shape;
+        *out_angle = l->angle;
+        return l->map_loc_id;
+    }
+    *out_shape = -1;
+    *out_angle = 0;
+    return -1;
+}
+
+int
+ScriptrunCore_LocCacheLevel(
+    struct ScriptrunCore const* core,
+    int sx,
+    int sz,
+    int zone_level)
+{
+    assert(core);
+    return loc_cache_level(core, sx, sz, zone_level);
+}
+
 /* Stamp (add) or undo one row's collision through the rung it resolves to
  * now, as the client's ApplyLocChange does for the loc it removes or adds. */
 static void

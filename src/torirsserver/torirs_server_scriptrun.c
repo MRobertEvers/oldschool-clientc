@@ -1613,13 +1613,21 @@ d_objs(lua_State* L)
     int have = ScriptrunCore_LocalTile(c, &px, &pz, &plevel);
     int n = 0;
 
-    struct PoolOrder order[SCRIPTRUN_OBJS];
+    int const count = ScriptrunCore_ObjCount(c);
+    struct ScriptrunObjRow* rows =
+        ToriMem_Calloc(ToriMem_ServerPlayers(), (size_t)count + 1, sizeof(*rows));
+    struct PoolOrder* order =
+        ToriMem_Calloc(ToriMem_ServerPlayers(), (size_t)count + 1, sizeof(*order));
+    int const listed = ScriptrunCore_Objs(c, rows, count + 1);
     int kept = 0;
 
-    assert(c->obj_count <= SCRIPTRUN_OBJS);
-    for( int i = 0; i < c->obj_count; i++ )
+    assert(rows);
+    assert(order);
+    /* The rows in arrival order, as the real client's pool walks them; the
+     * index breaks a distance tie in that order. */
+    for( int i = 0; i < listed; i++ )
     {
-        struct ScriptrunObj const* o = &c->objs[i];
+        struct ScriptrunObjRow const* o = &rows[i];
         if( have && radius > 0 && cheb(px, pz, o->x, o->z) > radius )
             continue;
         order[kept].idx = i;
@@ -1631,7 +1639,7 @@ d_objs(lua_State* L)
     lua_newtable(L);
     for( int k = 0; k < kept; k++ )
     {
-        struct ScriptrunObj const* o = &c->objs[order[k].idx];
+        struct ScriptrunObjRow const* o = &rows[order[k].idx];
         lua_newtable(L);
         lua_pushinteger(L, o->obj_id);
         lua_setfield(L, -2, "obj_id");
@@ -1647,6 +1655,8 @@ d_objs(lua_State* L)
         lua_setfield(L, -2, "element_id");
         lua_rawseti(L, -2, ++n);
     }
+    ToriMem_Free(ToriMem_ServerPlayers(), order);
+    ToriMem_Free(ToriMem_ServerPlayers(), rows);
     return 2;
 }
 
@@ -2546,11 +2556,18 @@ d_world_op(lua_State* L)
     }
     if( strcmp(kind, "obj") == 0 )
     {
-        struct ScriptrunObj const* best = NULL;
+        int const count = ScriptrunCore_ObjCount(c);
+        struct ScriptrunObjRow* rows =
+            ToriMem_Calloc(ToriMem_ServerPlayers(), (size_t)count + 1, sizeof(*rows));
+        int const listed = ScriptrunCore_Objs(c, rows, count + 1);
+        struct ScriptrunObjRow pick;
+        struct ScriptrunObjRow const* best = NULL;
         int best_d = 1 << 30;
-        for( int i = 0; i < c->obj_count; i++ )
+
+        assert(rows);
+        for( int i = 0; i < listed; i++ )
         {
-            struct ScriptrunObj const* o = &c->objs[i];
+            struct ScriptrunObjRow const* o = &rows[i];
             int d;
             if( o->obj_id != type_id )
                 continue;
@@ -2563,8 +2580,12 @@ d_world_op(lua_State* L)
                 best = o;
             }
         }
+        if( best )
+            pick = *best;
+        ToriMem_Free(ToriMem_ServerPlayers(), rows);
         if( !best )
             return push_result(L, "not_found", "no such object on the ground in view");
+        best = &pick;
         if( push_beyond_draw(L, best->x, best->z, px, pz) )
             return 2;
         put2(payload, best->x);

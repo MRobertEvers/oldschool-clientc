@@ -84,6 +84,14 @@ ScriptrunCore_New(struct GameProtoRevTable const* rev)
             .full = RS_EVENT_RING_OVERWRITE,
             .cycle = &core->world->cycle,
         });
+    ScriptrunZone_Init(&core->zone,
+        (struct RS_EventSink){
+            .ring = &core->events,
+            .entries = core->event_entries,
+            .capacity = SCRIPTRUN_EVENTS,
+            .full = RS_EVENT_RING_OVERWRITE,
+            .cycle = &core->world->cycle,
+        });
     core->toplevel = -1;
     core->resume_pending = -1;
     core->next_element_id = 1;
@@ -107,6 +115,7 @@ ScriptrunCore_Free(struct ScriptrunCore* core)
     ScriptrunCore_FreeCollision(core);
     ToriMem_Free(ToriMem_ServerPlayers(), core->locs);
     ScriptrunModel_Free(&core->model);
+    ScriptrunZone_Free(&core->zone);
     RS_EntitySync_Free(core->esync);
     ToriMem_Free(ToriMem_ServerPlayers(), core->esync);
     World_Free(core->world);
@@ -167,6 +176,9 @@ ScriptrunCore_BeginTick(
     core->tick = server_tick;
     core->world->cycle = (uint64_t)server_tick * SCRIPTRUN_CYCLES_PER_TICK;
     now = (int)core->world->cycle;
+    ScriptrunZone_BeginTick(&core->zone, server_tick, now);
+    if( core->shadow )
+        ScriptrunShadow_BeginTick(core->shadow, server_tick, now);
 
     /* A projectile the client would no longer draw: past its end cycle. */
     kept = 0;
@@ -1461,36 +1473,6 @@ core_zone_sub(
         ScriptrunCore_LocChange(core, x, z, level, pkt->info >> 2, pkt->info & 3, -1, NULL);
         break;
     }
-    case PKT_NAME_OBJ_ADD:
-    {
-        struct PktObjAdd const* pkt = payload;
-        core_zone_tile(core, pkt->pos, &x, &z, &level);
-        if( core->obj_count < SCRIPTRUN_OBJS )
-        {
-            struct ScriptrunObj* o = &core->objs[core->obj_count++];
-            o->x = x;
-            o->z = z;
-            o->level = level;
-            o->obj_id = pkt->obj_id;
-            o->count = pkt->count;
-        }
-        break;
-    }
-    case PKT_NAME_OBJ_DEL:
-    {
-        struct PktObjDel const* pkt = payload;
-        core_zone_tile(core, pkt->pos, &x, &z, &level);
-        for( int i = 0; i < core->obj_count; i++ )
-        {
-            struct ScriptrunObj* o = &core->objs[i];
-            if( o->x == x && o->z == z && o->level == level && o->obj_id == pkt->obj_id )
-            {
-                core->objs[i] = core->objs[--core->obj_count];
-                break;
-            }
-        }
-        break;
-    }
     case PKT_NAME_LOC_ANIM:
     {
         struct PktLocAnim const* pkt = payload;
@@ -1592,6 +1574,359 @@ core_zone_sub(
     default:
         break;
     }
+}
+
+/* ------------------------------------------------------ the zone families */
+
+enum
+{
+    CORE_SCENE_SIZE = 104,
+};
+
+/* A ScriptrunZoneAt for a zone at scene tile (`base_x`, `base_z`) of `view`
+ * on walked plane `level`. */
+static void
+core_zone_at_for(
+    struct ScriptrunCore const* core,
+    int view,
+    int base_x,
+    int base_z,
+    int level,
+    struct ScriptrunZoneAt* at)
+{
+    memset(at, 0, sizeof(*at));
+    at->view = view;
+    at->base_x = base_x;
+    at->base_z = base_z;
+    at->level = level;
+    at->local_pid = core->esync->local_pid;
+    if( view > 0 )
+    {
+        struct ScriptrunView const* v = &core->views[view];
+
+        at->origin_x = v->base_x;
+        at->origin_z = v->base_z;
+        at->scene_size = v->size_x > v->size_z ? v->size_x : v->size_z;
+        return;
+    }
+    at->origin_x = core_base_x(core);
+    at->origin_z = core_base_z(core);
+    at->scene_size = CORE_SCENE_SIZE;
+    for( int dx = 0; dx < 8; dx++ )
+        for( int dz = 0; dz < 8; dz++ )
+            at->loc_climb[dx][dz] =
+                (uint8_t)(ScriptrunCore_LocCacheLevel(core, base_x + dx, base_z + dz, level) != level);
+}
+
+int
+ScriptrunCore_Objs(
+    struct ScriptrunCore const* core,
+    struct ScriptrunObjRow* out,
+    int cap)
+{
+    int deck_x[SCRIPTRUN_ZONE_VIEWS];
+    int deck_z[SCRIPTRUN_ZONE_VIEWS];
+
+    assert(core);
+    for( int v = 0; v < SCRIPTRUN_ZONE_VIEWS && v < SCRIPTRUN_VIEWS; v++ )
+    {
+        deck_x[v] = core->views[v].base_x;
+        deck_z[v] = core->views[v].base_z;
+    }
+    return ScriptrunZone_Objs(&core->zone, deck_x, deck_z, out, cap);
+}
+
+int
+ScriptrunCore_ObjCount(struct ScriptrunCore const* core)
+{
+    assert(core);
+    return ScriptrunZone_ObjCount(&core->zone);
+}
+
+void
+ScriptrunCore_ZoneAt(
+    struct ScriptrunCore const* core,
+    struct ScriptrunZoneAt* out)
+{
+    assert(core);
+    assert(out);
+    core_zone_at_for(
+        core, core->active_world, core->zone_base_x, core->zone_base_z, core->zone_level, out);
+}
+
+/* The local player's plane: a *_SPECIFIC form's (zone_player_level). */
+static int
+core_player_level(struct ScriptrunCore const* core)
+{
+    int x, z, level;
+
+    if( ScriptrunCore_LocalTile(core, &x, &z, &level) )
+        return level;
+    return 0;
+}
+
+/* exec_obj_specific: an absolute tile of the root, through the zone OBJ arms
+ * with its zone as the base. Outside the scene: refused. */
+static void
+core_zone_obj_specific(
+    struct ScriptrunCore const* core,
+    struct ScriptrunZone* zone,
+    int name,
+    struct PktObjSpecific const* pkt)
+{
+    union
+    {
+        struct PktObjAdd add;
+        struct PktObjDel del;
+        struct PktObjCount count;
+        struct PktObjReveal reveal;
+    } sub;
+    struct ScriptrunZoneAt at;
+    int const lx = pkt->x - core_base_x(core);
+    int const lz = pkt->z - core_base_z(core);
+    int const pos = ((lx & 7) << 4) | (lz & 7);
+    int sub_name;
+
+    if( lx < 0 || lz < 0 || lx >= CORE_SCENE_SIZE || lz >= CORE_SCENE_SIZE )
+        return;
+    memset(&sub, 0, sizeof(sub));
+    if( name == PKT_NAME_OBJ_ADD_SPECIFIC )
+    {
+        sub_name = PKT_NAME_OBJ_ADD;
+        sub.add.pos = pos;
+        sub.add.obj_id = pkt->obj_id;
+        sub.add.count = pkt->count;
+    }
+    else if( name == PKT_NAME_OBJ_DEL_SPECIFIC )
+    {
+        sub_name = PKT_NAME_OBJ_DEL;
+        sub.del.pos = pos;
+        sub.del.obj_id = pkt->obj_id;
+    }
+    else if( name == PKT_NAME_OBJ_ENABLED_OPS_SPECIFIC )
+    {
+        sub_name = PKT_NAME_OBJ_REVEAL;
+        sub.reveal.pos = pos;
+        sub.reveal.obj_id = pkt->obj_id;
+        sub.reveal.receiver = -1;
+        sub.reveal.has_enabled_ops = 1;
+        sub.reveal.enabled_ops = pkt->op_flags;
+    }
+    else
+    {
+        assert(name == PKT_NAME_OBJ_COUNT_SPECIFIC);
+        sub_name = PKT_NAME_OBJ_COUNT;
+        sub.count.pos = pos;
+        sub.count.obj_id = pkt->obj_id;
+        sub.count.old_count = pkt->old_count;
+        sub.count.new_count = pkt->count;
+    }
+    core_zone_at_for(core, 0, lx & ~7, lz & ~7, pkt->level, &at);
+    ScriptrunZone_Apply(zone, &at, core->tick, (int)core->world->cycle, sub_name, &sub);
+}
+
+/* A zone LOC_ADD_CHANGE / LOC_DEL's record, the root's only (a deck's loc
+ * changes are its own world's, which this client does not keep). */
+static void
+core_zone_loc(
+    struct ScriptrunCore const* core,
+    struct ScriptrunZone* zone,
+    struct ScriptrunZoneAt const* at,
+    int name,
+    void const* payload)
+{
+    int pos, info, loc_id;
+    int tx, tz, x, z, level, old_loc, old_shape, old_angle;
+
+    if( at->view != 0 )
+        return;
+    if( name == PKT_NAME_LOC_ADD_CHANGE )
+    {
+        struct PktLocAddChange const* pkt = payload;
+        pos = pkt->pos;
+        info = pkt->info;
+        loc_id = pkt->loc_id;
+    }
+    else
+    {
+        struct PktLocDel const* pkt = payload;
+        assert(name == PKT_NAME_LOC_DEL);
+        pos = pkt->pos;
+        info = pkt->info;
+        loc_id = -1;
+    }
+    tx = (pos >> 4) & 7;
+    tz = pos & 7;
+    x = at->base_x + tx;
+    z = at->base_z + tz;
+    level = at->level + at->loc_climb[tx][tz];
+    old_loc = ScriptrunCore_MapLocAt(core, at->origin_x + x, at->origin_z + z, level,
+        World_LocShapeToLayer(info >> 2), &old_shape, &old_angle);
+    ScriptrunZone_LocChange(zone, x, z, level, info >> 2, info & 3, loc_id, old_loc, old_shape,
+        old_angle, (int)core->world->cycle);
+}
+
+void
+ScriptrunCore_ZoneFamilies(
+    struct ScriptrunCore const* core,
+    struct ScriptrunZone* zone,
+    struct RevPacket const* packet)
+{
+    struct ScriptrunZoneAt at;
+    int const name = packet->packet_type;
+    int const tick = core->tick;
+    int const now = (int)core->world->cycle;
+
+    assert(core);
+    assert(zone);
+    assert(packet);
+    if( name == PKT_NAME_REBUILD_NORMAL || name == PKT_NAME_REBUILD_REGION )
+    {
+        /* The real client skips a REBUILD_NORMAL to the centre it already
+         * shows (App_WorldRebuild's checkSame); an instance never is. */
+        if( name == PKT_NAME_REBUILD_NORMAL && zone->have_base && zone->base_x == core_base_x(core) &&
+            zone->base_z == core_base_z(core) )
+            return;
+        ScriptrunZone_Rebuild(zone, core_base_x(core), core_base_z(core), CORE_SCENE_SIZE);
+        return;
+    }
+    if( name == PKT_NAME_WORLDENTITY_INFO || name == PKT_NAME_REBUILD_WORLDENTITY )
+    {
+        /* A deck that went takes its rows; a rebuilt deck is a new world. */
+        for( int v = 1; v < SCRIPTRUN_ZONE_VIEWS && v < SCRIPTRUN_VIEWS; v++ )
+            if( zone->decks[v] && (!core->views[v].live ||
+                                     (name == PKT_NAME_REBUILD_WORLDENTITY && v == core->active_world)) )
+                ScriptrunZone_DropView(zone, v);
+        return;
+    }
+    if( name == PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS )
+    {
+        ScriptrunCore_ZoneAt(core, &at);
+        if( at.view == 0 )
+            ScriptrunZone_LocZoneReset(zone, at.base_x, at.base_z, at.level, at.loc_climb);
+        ScriptrunZone_Apply(zone, &at, tick, now, name, NULL);
+        return;
+    }
+    if( name == PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED )
+    {
+        struct PktUpdateZoneEnclosed const* enc = &packet->_update_zone_enclosed;
+
+        ScriptrunCore_ZoneAt(core, &at);
+        for( int i = 0; i < enc->count; i++ )
+        {
+            int const sub = enc->entries[i].name;
+
+            if( sub == PKT_NAME_LOC_ADD_CHANGE || sub == PKT_NAME_LOC_DEL )
+                core_zone_loc(core, zone, &at, sub, &enc->entries[i]._loc_add_change);
+            else
+                ScriptrunZone_Apply(zone, &at, tick, now, sub, &enc->entries[i]._loc_add_change);
+        }
+        return;
+    }
+    if( name == PKT_NAME_LOC_ADD_CHANGE || name == PKT_NAME_LOC_DEL )
+    {
+        ScriptrunCore_ZoneAt(core, &at);
+        core_zone_loc(core, zone, &at, name,
+            name == PKT_NAME_LOC_DEL ? (void const*)&packet->_loc_del : (void const*)&packet->_loc_add_change);
+        return;
+    }
+    if( name == PKT_NAME_OBJ_ADD || name == PKT_NAME_OBJ_DEL || name == PKT_NAME_OBJ_COUNT ||
+        name == PKT_NAME_OBJ_REVEAL || name == PKT_NAME_MAP_ANIM || name == PKT_NAME_MAP_PROJANIM ||
+        name == PKT_NAME_SCRIPTEDPROJ_ADD || name == PKT_NAME_LOC_ANIM )
+    {
+        void const* payload = &packet->_obj_add;
+
+        if( name == PKT_NAME_OBJ_DEL )
+            payload = &packet->_obj_del;
+        else if( name == PKT_NAME_OBJ_COUNT )
+            payload = &packet->_obj_count;
+        else if( name == PKT_NAME_OBJ_REVEAL )
+            payload = &packet->_obj_reveal;
+        else if( name == PKT_NAME_MAP_ANIM )
+            payload = &packet->_map_anim;
+        else if( name == PKT_NAME_MAP_PROJANIM )
+            payload = &packet->_map_projanim;
+        else if( name == PKT_NAME_SCRIPTEDPROJ_ADD )
+            payload = &packet->_scriptedproj_add;
+        else if( name == PKT_NAME_LOC_ANIM )
+            payload = &packet->_loc_anim;
+        ScriptrunCore_ZoneAt(core, &at);
+        ScriptrunZone_Apply(zone, &at, tick, now, name, payload);
+        return;
+    }
+    if( name == PKT_NAME_MAP_ANIM_SPECIFIC || name == PKT_NAME_LOC_ANIM_SPECIFIC )
+    {
+        /* exec_map_anim_specific / exec_loc_anim_specific: a build-area tile
+         * of the cursor's view on the player's plane, through the MAP_ANIM /
+         * LOC_ANIM arm with its zone as the base. */
+        union
+        {
+            struct PktMapAnim map;
+            struct PktLocAnim loc;
+        } sub;
+        int x, z;
+
+        memset(&sub, 0, sizeof(sub));
+        if( name == PKT_NAME_MAP_ANIM_SPECIFIC )
+        {
+            struct PktMapAnimSpecific const* pkt = &packet->_map_anim_specific;
+
+            x = pkt->x;
+            z = pkt->z;
+            sub.map.pos = ((x & 7) << 4) | (z & 7);
+            sub.map.id = pkt->id;
+            sub.map.height = pkt->height;
+            sub.map.delay = pkt->delay;
+        }
+        else
+        {
+            struct PktLocAnimSpecific const* pkt = &packet->_loc_anim_specific;
+
+            x = pkt->x;
+            z = pkt->z;
+            sub.loc.pos = ((x & 7) << 4) | (z & 7);
+            sub.loc.info = pkt->info;
+            sub.loc.seq_id = pkt->seq_id;
+        }
+        core_zone_at_for(core, core->active_world, x & ~7, z & ~7, core_player_level(core), &at);
+        ScriptrunZone_Apply(zone, &at, tick, now,
+            name == PKT_NAME_MAP_ANIM_SPECIFIC ? PKT_NAME_MAP_ANIM : PKT_NAME_LOC_ANIM, &sub);
+        return;
+    }
+    if( name == PKT_NAME_PROJANIM_SPECIFIC )
+    {
+        /* exec_projanim_specific: both ends absolute, the root's scene; the
+         * source's zone is the base. */
+        struct PktProjAnimSpecific const* pkt = &packet->_projanim_specific;
+        struct PktMapProjAnim sub;
+        int const lx = pkt->x - core_base_x(core);
+        int const lz = pkt->z - core_base_z(core);
+
+        if( pkt->spotanim == 65535 || lx < 0 || lz < 0 || lx >= CORE_SCENE_SIZE ||
+            lz >= CORE_SCENE_SIZE )
+            return;
+        memset(&sub, 0, sizeof(sub));
+        sub.pos = ((lx & 7) << 4) | (lz & 7);
+        sub.target = pkt->target;
+        sub.source = pkt->source;
+        sub.spotanim = pkt->spotanim;
+        sub.src_height = pkt->src_height;
+        sub.dst_height = pkt->dst_height;
+        sub.start_delay = pkt->start_delay;
+        sub.end_delay = pkt->end_delay;
+        sub.peak = pkt->peak;
+        sub.arc = pkt->arc;
+        sub.dst_abs = 1;
+        sub.dst_abs_level = pkt->dst_level;
+        sub.dst_abs_x = pkt->dst_x;
+        sub.dst_abs_z = pkt->dst_z;
+        core_zone_at_for(core, 0, lx & ~7, lz & ~7, pkt->level, &at);
+        ScriptrunZone_Apply(zone, &at, tick, now, PKT_NAME_MAP_PROJANIM, &sub);
+        return;
+    }
+    if( name == PKT_NAME_OBJ_ADD_SPECIFIC || name == PKT_NAME_OBJ_DEL_SPECIFIC ||
+        name == PKT_NAME_OBJ_COUNT_SPECIFIC || name == PKT_NAME_OBJ_ENABLED_OPS_SPECIFIC )
+        core_zone_obj_specific(core, zone, name, &packet->_obj_specific);
 }
 
 /* ------------------------------------------------------- world entities */
@@ -2195,7 +2530,8 @@ core_packet(
         core->zone_base_x = packet._update_zone_full_follows.base_x;
         core->zone_base_z = packet._update_zone_full_follows.base_z;
         core->zone_level = core_zone_header_level(core, packet._update_zone_full_follows.level);
-        /* A full zone resend restates every obj in it: forget the old ones. */
+        /* A full zone resend restates every obj in it: the zone families
+         * forget the old ones (ScriptrunCore_ZoneFamilies, below). */
         x0 = core_cursor_base_x(core) + core->zone_base_x;
         z0 = core_cursor_base_z(core) + core->zone_base_z;
         level = core->zone_level;
@@ -2204,14 +2540,6 @@ core_packet(
          * what still differs from the map, so a change the server has since
          * reverted would otherwise stand here and not on the client. */
         ScriptrunCore_ZoneResetLocs(core, x0, z0, level);
-        for( int i = 0; i < core->obj_count; )
-        {
-            struct ScriptrunObj* o = &core->objs[i];
-            if( o->level == level && o->x >= x0 && o->x < x0 + 8 && o->z >= z0 && o->z < z0 + 8 )
-                core->objs[i] = core->objs[--core->obj_count];
-            else
-                i++;
-        }
         break;
     }
     case PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED:
@@ -2229,12 +2557,6 @@ core_packet(
         break;
     case PKT_NAME_LOC_DEL:
         core_zone_sub(core, pkt_name, &packet._loc_del);
-        break;
-    case PKT_NAME_OBJ_ADD:
-        core_zone_sub(core, pkt_name, &packet._obj_add);
-        break;
-    case PKT_NAME_OBJ_DEL:
-        core_zone_sub(core, pkt_name, &packet._obj_del);
         break;
     case PKT_NAME_MAP_ANIM:
         core_zone_sub(core, pkt_name, &packet._map_anim);
@@ -2388,8 +2710,14 @@ core_packet(
     default:
         break;
     }
+    /* The zone families, by the real client's rules, after the switch has
+     * moved the cursor and the scene (scriptrun_zone.h). */
+    ScriptrunCore_ZoneFamilies(core, &core->zone, &packet);
     if( core->shadow )
+    {
+        ScriptrunCore_ZoneFamilies(core, ScriptrunShadow_Zone(core->shadow), &packet);
         ScriptrunShadow_After(core->shadow, core, &packet);
+    }
     gameproto_free(&packet);
 }
 
