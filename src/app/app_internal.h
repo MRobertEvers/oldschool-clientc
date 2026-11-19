@@ -469,9 +469,6 @@ enum AppSpawnKind
     APP_SPAWN_OBJ,
     APP_SPAWN_SPOTANIM,
     APP_SPAWN_ENTITY_SPOTANIM,
-    /* An npc's body-customisation model (`model_id`): a plain fetch, mounted
-     * by app_world_sync_npc_bodies the frame it is resident. */
-    APP_SPAWN_ENTITY_MODEL,
     APP_SPAWN_LOC_CHANGE,
     APP_SPAWN_PLUGIN_OBJECT,
 };

@@ -777,26 +777,23 @@ app_world_build_npc_body(
             return NULL; /* NpcBodyLand dresses it */
         return app_world_build_npc_model(app, npc->npc_id, npctype);
     }
-    for( int i = 0; i < npc->body_model_count; i++ )
     {
-        if( npc->body_models[i] < 0 || CacheProvider_ModelHas(app->provider, npc->body_models[i]) )
-            continue;
-        if( npc->body_load_serial != npc->body_serial )
+        /* A customised body's models: wanted through the assets table every
+         * frame the body waits (one load each in flight, a failed one
+         * retried after a back-off), where a per-npc serial asked once per
+         * body and never again. */
+        int missing = 0;
+        for( int i = 0; i < npc->body_model_count; i++ )
         {
-            for( int k = 0; k < npc->body_model_count; k++ )
-            {
-                struct Task_AppSpawn* task;
-
-                if( npc->body_models[k] < 0 ||
-                    CacheProvider_ModelHas(app->provider, npc->body_models[k]) )
-                    continue;
-                task = app_spawn_task_new(app, APP_SPAWN_ENTITY_MODEL, 0, 0, 0);
-                task->model_id = npc->body_models[k];
-                ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
-            }
-            npc->body_load_serial = npc->body_serial;
+            if( npc->body_models[i] < 0 ||
+                CacheProvider_ModelHas(app->provider, npc->body_models[i]) )
+                continue;
+            (void)Assets_Want(
+                app->assets, AssetKey_Make(ASSET_KIND_MODEL, npc->body_models[i], 0), NULL);
+            missing = 1;
         }
-        return NULL;
+        if( missing )
+            return NULL;
     }
     {
         struct AppModelRecolorSpec recolors = {

@@ -96,8 +96,6 @@ struct WorldEntity_NPC
     int body_models[WORLD_NPC_BODY_MODELS_MAX];
     int body_serial;
     int body_mounted_serial;
-    /** The body_serial whose missing models were last asked for. */
-    int body_load_serial;
     /**
      * The newest SEQUENCE and SPOTANIM the server SENT this npc, and the world
      * cycle each arrived on -- stamped by World_NpcSetPrimaryAnimation and

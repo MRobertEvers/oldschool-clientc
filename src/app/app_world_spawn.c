@@ -1731,11 +1731,6 @@ Task_AppSpawn_Run(
         PT_TASK_JOIN(pending);
         RedrawRequest_Raise(&app->redraw_request);
     }
-    else if( self->kind == APP_SPAWN_ENTITY_MODEL )
-    {
-        PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
-        RedrawRequest_Raise(&app->redraw_request);
-    }
     else if( self->kind == APP_SPAWN_PROJECTILE_SPOT )
     {
         PT_TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
