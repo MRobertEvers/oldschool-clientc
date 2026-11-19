@@ -112,9 +112,18 @@ struct SailingCheckpoint
     } bob[WORLDVIEW_MAX];
 };
 
-static struct SailingCheckpoint* checkpoints[SAILING_CHECKPOINT_MAX];
-static int restore_slot = -1;
-static uint32_t restore_receipts[WORLDVIEW_MAX];
+struct SailingTestRun
+{
+    struct SailingCheckpoint* checkpoints[SAILING_CHECKPOINT_MAX];
+    int restore_slot;
+    uint32_t restore_receipts[WORLDVIEW_MAX];
+    /* A second real server player with no external transport. It reaches the
+     * primary renderer exclusively through ordinary PLAYER_INFO packets. */
+    int peer_pid;
+    uint32_t peer_generation;
+    int peer_query_varbit;
+};
+static struct SailingTestRun g_sailing_test = { .restore_slot = -1, .peer_pid = -1, .peer_query_varbit = -1 };
 
 static int fail(char* error, size_t cap, const char* message)
 {
@@ -122,11 +131,6 @@ static int fail(char* error, size_t cap, const char* message)
     return 0;
 }
 
-/* A second real server player with no external transport. It reaches the
- * primary renderer exclusively through ordinary PLAYER_INFO packets. */
-static int peer_pid = -1;
-static uint32_t peer_generation;
-static int peer_query_varbit = -1;
 
 /* The crew-shell role varbit, by NAME. It was written here as the literal
  * 19233, which is the id this cache happens to assign
@@ -147,9 +151,9 @@ static int peer_role_varbit(void)
 static struct ToriRSServerPlayer* sailing_peer(struct ToriRSServerEmbed* embed)
 {
     struct ToriRSServer* srv = embed ? ToriRSServer_EmbedWorld(embed) : NULL;
-    if( !srv || peer_pid < 0 || peer_pid >= TORIRSSERVER_PLAYER_MAX ) return NULL;
-    struct ToriRSServerPlayer* peer = &srv->players[peer_pid];
-    return peer->active && peer->world == srv && peer->login_generation == peer_generation ? peer : NULL;
+    if( !srv || g_sailing_test.peer_pid < 0 || g_sailing_test.peer_pid >= TORIRSSERVER_PLAYER_MAX ) return NULL;
+    struct ToriRSServerPlayer* peer = &srv->players[g_sailing_test.peer_pid];
+    return peer->active && peer->world == srv && peer->login_generation == g_sailing_test.peer_generation ? peer : NULL;
 }
 
 int ContentTestSailing_PeerCommand(struct ToriRSServerEmbed* embed, const char* command,
@@ -186,9 +190,9 @@ int ContentTestSailing_PeerCommand(struct ToriRSServerEmbed* embed, const char* 
             ToriRSServer_WorldPlayerReap(srv);
             return fail(error, cap, "no free social presence slot");
         }
-        peer_pid = peer->pid;
-        peer_generation = peer->login_generation;
-        peer_query_varbit = -1;
+        g_sailing_test.peer_pid = peer->pid;
+        g_sailing_test.peer_generation = peer->login_generation;
+        g_sailing_test.peer_query_varbit = -1;
         struct ToriRSServerPlayer* was = srv->active_player;
         ToriRSServer_WorldSetActive(srv, peer);
         struct ToriRSServerVessel* boat = ToriRSServer_VesselAtTile(srv, captain->x, captain->z);
@@ -203,8 +207,8 @@ int ContentTestSailing_PeerCommand(struct ToriRSServerEmbed* embed, const char* 
     {
         ToriRSServer_WorldRemovePlayer(srv, peer);
         ToriRSServer_WorldPlayerReap(srv);
-        peer_pid = -1;
-        peer_generation = 0;
+        g_sailing_test.peer_pid = -1;
+        g_sailing_test.peer_generation = 0;
         *changed = 1;
         return 1;
     }
@@ -233,9 +237,9 @@ int ContentTestSailing_PeerCommand(struct ToriRSServerEmbed* embed, const char* 
     }
     else if( sscanf(command, "varbit %127s", symbol) == 1 )
     {
-        peer_query_varbit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, symbol);
-        if( peer_query_varbit < 0 ) ok = fail(error, cap, "unknown peer varbit");
-        else if( sscanf(command, "varbit %*s %d", &x) == 1 ) ToriRSServer_VarbitSet(srv, peer_query_varbit, x);
+        g_sailing_test.peer_query_varbit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, symbol);
+        if( g_sailing_test.peer_query_varbit < 0 ) ok = fail(error, cap, "unknown peer varbit");
+        else if( sscanf(command, "varbit %*s %d", &x) == 1 ) ToriRSServer_VarbitSet(srv, g_sailing_test.peer_query_varbit, x);
         else { ToriRSServer_WorldSetActive(srv, was); return 1; }
     }
     else if( sscanf(command, "private %d", &x) == 1 && x >= 0 && x <= 2 )
@@ -512,7 +516,7 @@ void ContentTestSailing_PeerState(struct App* app, struct ToriRSServerEmbed* emb
         peer->obs_x, peer->obs_z, peer->obs_level, peer->navigating_vessel, peer->running,
         peer->mainmodal_group, peer->sidemodal_group,
         peer_role_varbit() >= 0 ? ToriRSServer_VarbitGet(peer, peer_role_varbit()) : -1,
-        peer_query_varbit, peer_query_varbit >= 0 ? ToriRSServer_VarbitGet(peer, peer_query_varbit) : -1,
+        g_sailing_test.peer_query_varbit, g_sailing_test.peer_query_varbit >= 0 ? ToriRSServer_VarbitGet(peer, g_sailing_test.peer_query_varbit) : -1,
         peer->active_script != NULL,
         peer->active_script ? (int)peer->active_script->execution : -1,
         actor ? "true" : "false", actor ? actor->element_id : -1,
@@ -596,20 +600,20 @@ int ContentTestSailing_Save(struct App* app, struct ToriRSServerEmbed* embed,
     int slot = -1;
     for( int i = 0; i < SAILING_CHECKPOINT_MAX; ++i )
     {
-        if( checkpoints[i] && strcmp(checkpoints[i]->name, name) == 0 )
+        if( g_sailing_test.checkpoints[i] && strcmp(g_sailing_test.checkpoints[i]->name, name) == 0 )
         {
             slot = i;
             break;
         }
-        if( !checkpoints[i] && slot < 0 ) slot = i;
+        if( !g_sailing_test.checkpoints[i] && slot < 0 ) slot = i;
     }
     if( slot < 0 ) return fail(error, cap, "all eight checkpoint slots are occupied");
-    if( !checkpoints[slot] )
+    if( !g_sailing_test.checkpoints[slot] )
     {
-        checkpoints[slot] = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*checkpoints[slot]));
-        assert(checkpoints[slot]);
+        g_sailing_test.checkpoints[slot] = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*g_sailing_test.checkpoints[slot]));
+        assert(g_sailing_test.checkpoints[slot]);
     }
-    struct SailingCheckpoint* saved = checkpoints[slot];
+    struct SailingCheckpoint* saved = g_sailing_test.checkpoints[slot];
     struct ToriRSServerPlayer* player = ToriRSServer_EmbedPlayer(embed, 0);
     struct ToriRSServer* srv = ToriRSServer_EmbedWorld(embed);
     snprintf(saved->name, sizeof(saved->name), "%s", name);
@@ -727,14 +731,14 @@ int ContentTestSailing_Restore(struct App* app, struct ToriRSServerEmbed* embed,
     assert(error);
     assert(cap > 0);
     error[0] = 0;
-    restore_slot = -1;
+    g_sailing_test.restore_slot = -1;
     if( !ready(app, embed, 0, error, cap) ) return 0;
     struct SailingCheckpoint* saved = NULL;
     int selected_slot = -1;
     for( int i = 0; i < SAILING_CHECKPOINT_MAX; ++i )
-        if( checkpoints[i] && strcmp(checkpoints[i]->name, name) == 0 )
+        if( g_sailing_test.checkpoints[i] && strcmp(g_sailing_test.checkpoints[i]->name, name) == 0 )
         {
-            saved = checkpoints[i];
+            saved = g_sailing_test.checkpoints[i];
             selected_slot = i;
         }
     if( !saved ) return fail(error, cap, "unknown checkpoint");
@@ -775,7 +779,7 @@ int ContentTestSailing_Restore(struct App* app, struct ToriRSServerEmbed* embed,
                 return fail(error,cap,"cargo container layout changed since checkpoint");
         }
     for( int view = 1; view < WORLDVIEW_MAX; ++view )
-        restore_receipts[view] = Wevs_IsLive(&app->wevs, view)
+        g_sailing_test.restore_receipts[view] = Wevs_IsLive(&app->wevs, view)
             ? Wevs_Get(&app->wevs, view)->teleport_serial : 0;
     for( int i = 0; i < TORIRSSERVER_VESSEL_MAX; ++i )
     {
@@ -851,15 +855,15 @@ int ContentTestSailing_Restore(struct App* app, struct ToriRSServerEmbed* embed,
             ToriRSServer_ContainerMarkAll(row);
     }
     ToriRSServer_WorldSetActive(srv, previous_active);
-    restore_slot = selected_slot;
+    g_sailing_test.restore_slot = selected_slot;
     return 1;
 }
 
 int ContentTestSailing_RestoreDelivered(struct App* app)
 {
     assert(app);
-    if( restore_slot < 0 ) return 1;
-    const struct SailingCheckpoint* saved = checkpoints[restore_slot];
+    if( g_sailing_test.restore_slot < 0 ) return 1;
+    const struct SailingCheckpoint* saved = g_sailing_test.checkpoints[g_sailing_test.restore_slot];
     assert(saved);
     if( !app->world || Wevs_AboardView(&app->wevs) != saved->aboard_view ) return 0;
     for( int i = 0; i < TORIRSSERVER_VESSEL_MAX; ++i )
@@ -870,7 +874,7 @@ int ContentTestSailing_RestoreDelivered(struct App* app)
             !saved->bob[view].live ) continue;
         if( !Wevs_IsLive(&app->wevs, view) ) return 0;
         const struct Wev* wev = Wevs_Get(&app->wevs, view);
-        if( wev->teleport_serial == restore_receipts[view] ||
+        if( wev->teleport_serial == g_sailing_test.restore_receipts[view] ||
             wev->config_id != boat->config_id ||
             wev->queue[0].x != boat->fine_x ||
             wev->queue[0].z != boat->fine_z ||
@@ -879,7 +883,7 @@ int ContentTestSailing_RestoreDelivered(struct App* app)
             static unsigned retries;
             if( getenv("TORIRS_SAILING_RESTORE_DEBUG") && (retries++ % 4096) == 0 )
                 fprintf(stderr, "sailing restore waiting: view%d receipt%u/%u config%d/%d target%d,%d,%d expected%d,%d,%d\n",
-                        view, wev->teleport_serial, restore_receipts[view],
+                        view, wev->teleport_serial, g_sailing_test.restore_receipts[view],
                         wev->config_id, boat->config_id,
                         wev->queue[0].x, wev->queue[0].z, wev->queue[0].angle,
                         boat->fine_x, boat->fine_z, boat->angle);
@@ -892,9 +896,9 @@ int ContentTestSailing_RestoreDelivered(struct App* app)
 void ContentTestSailing_SettleRestore(struct App* app)
 {
     assert(app);
-    if( restore_slot < 0 ) return;
+    if( g_sailing_test.restore_slot < 0 ) return;
     assert(ContentTestSailing_RestoreDelivered(app));
-    struct SailingCheckpoint* saved = checkpoints[restore_slot];
+    struct SailingCheckpoint* saved = g_sailing_test.checkpoints[g_sailing_test.restore_slot];
     assert(saved);
     assert(app->world);
     for( int n=0; n<saved->scenery_count; ++n )
@@ -963,7 +967,7 @@ void ContentTestSailing_SettleRestore(struct App* app)
     app->world_views.frame->camera_unlocked = saved->unlocked;
     app->slots.side_tab = saved->side_tab;
     RedrawRequest_Raise(&app->redraw_request);
-    restore_slot = -1;
+    g_sailing_test.restore_slot = -1;
 }
 
 void ContentTestSailing_State(struct App* app, struct ToriRSServerEmbed* embed,
@@ -978,7 +982,7 @@ void ContentTestSailing_State(struct App* app, struct ToriRSServerEmbed* embed,
     struct ToriRSServerVessel* vessel = player && srv
         ? ToriRSServer_VesselAtTile(srv, player->x, player->z) : NULL;
     int count = 0;
-    for( int i = 0; i < SAILING_CHECKPOINT_MAX; ++i ) count += checkpoints[i] != NULL;
+    for( int i = 0; i < SAILING_CHECKPOINT_MAX; ++i ) count += g_sailing_test.checkpoints[i] != NULL;
     if( !vessel )
     {
         snprintf(json, cap, "{\"ok\":true,\"aboard\":false,\"checkpoints\":%d}", count);
@@ -1017,13 +1021,13 @@ void ContentTestSailing_State(struct App* app, struct ToriRSServerEmbed* embed,
 
 void ContentTestSailing_Clear(void)
 {
-    restore_slot = -1;
+    g_sailing_test.restore_slot = -1;
     for( int i = 0; i < SAILING_CHECKPOINT_MAX; ++i )
     {
-        if( checkpoints[i] )
-            for( int j=0; j<SAILING_CHECKPOINT_INVS; ++j ) ToriMem_Free(ToriMem_Process(), checkpoints[i]->cargo[j].items);
-        ToriMem_Free(ToriMem_Process(), checkpoints[i]);
-        checkpoints[i] = NULL;
+        if( g_sailing_test.checkpoints[i] )
+            for( int j=0; j<SAILING_CHECKPOINT_INVS; ++j ) ToriMem_Free(ToriMem_Process(), g_sailing_test.checkpoints[i]->cargo[j].items);
+        ToriMem_Free(ToriMem_Process(), g_sailing_test.checkpoints[i]);
+        g_sailing_test.checkpoints[i] = NULL;
     }
 }
 #else

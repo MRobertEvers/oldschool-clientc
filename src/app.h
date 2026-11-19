@@ -150,7 +150,7 @@
 #include "world/entity_projectile.h"
 #include "sideapp/side_app_binding.h"
 #include "world/worldview.h"
-#include "app/app_wev_flat.h"
+#include "render/wev_flat.h"
 
 struct ToriPlatform_Renderer_Soft3D;
 struct ToriRS_Frame;
@@ -205,31 +205,6 @@ enum AppUiLogic
     APP_UI_LOGIC_CS1 = 1,
     APP_UI_LOGIC_CS2 = 2,
 };
-
-/* World objects across every plugin at once. Per-plugin budgeting is the
- * host's (TORIRS_PLUGIN_OBJECT_BUDGET); this is the ceiling on the table those
- * handles index into. */
-/**
- * Resolved highlight items one frame may carry.
- *
- * A *TYPE group resolves to every matching thing in the scene, so one
- * `highlight_loctype_on` can be a hundred items in a crowded map square --
- * every Agility obstacle on a rooftop course, say. 256 is well past what the
- * cache's own groups produce and still bounded; past it, resolution stops and
- * says so, because a highlight that silently covered the first 256 of
- * something would read as the feature half-working.
- */
-/*
- * The two All Settings BUTTON rows this client has to act on itself, named the
- * way the profile's `[setting:…]` sections name them.
- *
- * Both are in the Activities category and both reach the same apply hub, whose
- * switch has no case for either -- a button row has no varbit, and the panel's
- * only trace of it is the settings-changed varbit carrying the row's id. See
- * the drain in App_RunOnce.
- */
-#define APP_SETTING_CLEAR_TILE_MARKERS "clear_tile_markers"
-#define APP_SETTING_CLEAR_NPC_TAGS "clear_npc_tags"
 
 struct AppConfig
 {
@@ -405,84 +380,8 @@ struct AppConfig
     struct ReplayConfig replay;
 };
 
-/**
- * Which plugin overlay list is open. The values are the plugin host's
- * `draw_select_canvas` argument, restated here rather than included because
- * app.h is not allowed to reach into the host's implementation file -- the
- * static assert beside the engine table in torirs_plugin_bridge.u.c is what
- * keeps the two true.
- */
-enum AppPluginSurface
-{
-    APP_PLUGIN_SURFACE_WORLD = 0,
-    APP_PLUGIN_SURFACE_CANVAS = 1,
-    /** Selected semantic page's custom well; never enters a game draw list. */
-    APP_PLUGIN_SURFACE_PANEL = 2
-};
 
 /* enum AppState and enum AppScreen: @see game/rs_client_phase.h. */
-
-/**
- * The [layout:] group holding the title screen.
- *
- * One string, in C, naming a group -- the same kind of knowledge as a slot tag
- * or a role name. Every coordinate, sprite and string inside that group is
- * the INI's.
- */
-#define APP_TITLE_LAYOUT_GROUP "title"
-
-
-/**
- * Logic cycles in one server tick: 600ms of server against a 20ms client
- * cycle. The client has two clocks and this is the only ratio between them,
- * so anything converting a server-tick duration into cycles says it here
- * (UPDATE_REBOOT_TIMER's countdown, the clientscript fence below).
- */
-#define APP_SERVER_TICK_LOGIC_CYCLES 30
-
-/** 20ms logic cycles in one second — the client's own clock read as wall time. */
-#define APP_LOGIC_CYCLES_PER_SECOND 50
-
-/** Raw native states; game/rs_minimap_state.h defines their independent permissions. */
-enum AppMinimapState
-{
-    APP_MINIMAP_STATE_NORMAL = 0,
-    APP_MINIMAP_STATE_UNCLICKABLE = 1,
-    APP_MINIMAP_STATE_HIDDEN = 2,
-    APP_MINIMAP_STATE_COMPASS_HIDDEN = 3,
-    APP_MINIMAP_STATE_UNCLICKABLE_COMPASS_HIDDEN = 4,
-    APP_MINIMAP_STATE_DISABLED = 5,
-};
-
-/**
- * Logic cycles a held clientscript may wait for a fence that never comes.
- *
- * One whole server tick — long enough that a healthy connection never reaches
- * it, short enough that a tick truncated by a disconnect costs one tick of
- * delay rather than the script.
- */
-#define APP_CLIENTSCRIPT_FENCE_MAX_CYCLES APP_SERVER_TICK_LOGIC_CYCLES
-
-/**
- * The value the logout wait (App::session_end) is armed with when a logout is
- * requested: SESSION_END_LOGOUT_WAIT_CYCLES, the rev-239 client's 250, never
- * counted down (net/session_end.h). A fallback that ended it locally after
- * five seconds used to live here; it logged out a player the server had
- * refused (CONTENT_BUGS ENG-29). See app_logout_tick in app/app_net.c.
- */
-#define APP_LOGOUT_WAIT_CYCLES SESSION_END_LOGOUT_WAIT_CYCLES
-
-/**
- * Logic cycles a settings change waits before it is written to disk.
- *
- * A slider drag reports a new volume every 20ms cycle, so writing on each one
- * would be fifty file rewrites a second for one gesture. Half a second of quiet
- * collapses a drag into a single write and is still far shorter than the time
- * between changing a setting and quitting; App_Shutdown flushes the tail
- * either way.
- */
-#define APP_PREFS_SAVE_SETTLE_TICKS 25
-
 
 struct App
 {
@@ -632,8 +531,8 @@ struct App
      */
     struct Wevs wevs;
     /** How a flattened hull is drawn: the live deob path or a prebuilt
-     *  outline, chosen at init by TORIRS_WEV_FLAT (app/app_wev_flat.h). */
-    struct AppWevFlat wev_flat;
+     *  outline, chosen at init by TORIRS_WEV_FLAT (render/wev_flat.h). */
+    struct WevFlat wev_flat;
     /** The helm's revision ids and the native bearing-marker arrows
      * (game/rs_sailing_hud.h). Scene-owned elements are claimed across root
      * rebuilds; a chosen heading remains highlighted for 30 cycles. */
@@ -732,7 +631,7 @@ struct App
     /* Minimap widget: where the last emit walk drew the map, the angle it
      * blitted with, the destination flag tile (reference minimapFlagX/Z), the
      * baked map sprite it blits and the MINIMAP_TOGGLE state (see enum
-     * AppMinimapState). ui/minimap_view.h. */
+     * AppMinimapState, game/rs_minimap_state.h). ui/minimap_view.h. */
     struct MinimapView minimap;
     /* Per-frame minimap overlay dots, filled by the GET_MINIMAP_DOTS host
      * request during the emit walk and consumed by the same frame's draw. */
@@ -1493,13 +1392,6 @@ struct App
     struct TextInputGate text_input_gate;
 };
 
-/** Smallest client canvas. The reference's resizable mode will not go below the
- *  fixed frame either, and the reason is structural rather than cosmetic: every
- *  rev-230 gameframe child is authored as an inset off 765x503 (toplevel_resize
- *  computes `max(0, width - inset)` throughout), so a smaller canvas produces
- *  zero-sized viewports, not a smaller frame. */
-#define APP_CANVAS_MIN_W 765
-#define APP_CANVAS_MIN_H 503
 
 /**
  * Set the client canvas size — THE setter, and the only place the three copies
@@ -2043,8 +1935,6 @@ App_LogicCyclesNote(int cycles);
 uint64_t
 App_LogicCyclesRun(void);
 
-/** The most App_SetLogicCyclesPerFrame takes: ten server ticks a frame. */
-#define APP_LOGIC_CYCLES_PER_FRAME_MAX 300
 
 /** Run `cycles` logic cycles a frame while the frame lock is on, in place of
  *  TORIRS_LOGIC_CYCLES_PER_FRAME (0 puts the env's value back). For a replay

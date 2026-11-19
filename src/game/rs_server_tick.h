@@ -28,14 +28,24 @@
  * already built.
  *
  * This does not know which packets may change the UI, which packet is the
- * fence on a given revision, what a logic cycle is worth, or how long the
- * backstop allows. The caller classifies each packet, passes the cycle and the
- * bound, and does whatever the answer calls for: logging, flushing held
- * scripts, redrawing.
+ * fence on a given revision, or how long the backstop allows; the one ratio
+ * between the two clocks, APP_SERVER_TICK_LOGIC_CYCLES, sits beside it for
+ * every caller that converts. The caller classifies each packet, passes the
+ * cycle and the bound, and does whatever the answer calls for: logging,
+ * flushing held scripts, redrawing.
  */
 
 #include <stdbool.h>
 #include <stdint.h>
+
+/**
+ * Logic cycles in one server tick: 600ms of server against a 20ms client
+ * cycle. The client has two clocks and this is the only ratio between them,
+ * so anything converting a server-tick duration into cycles says it here
+ * (UPDATE_REBOOT_TIMER's countdown, the clientscript fence of
+ * game/rs_clientscript_queue.h).
+ */
+#define APP_SERVER_TICK_LOGIC_CYCLES 30
 
 struct RS_ServerTick
 {

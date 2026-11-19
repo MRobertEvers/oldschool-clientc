@@ -39,6 +39,15 @@
  * warning, 4 = authenticator, 7 = date of birth); leaving the numbering alone
  * is what lets those be added later without renumbering what works.
  */
+/**
+ * The [layout:] group holding the title screen.
+ *
+ * One string, in C, naming a group -- the same kind of knowledge as a slot tag
+ * or a role name. Every coordinate, sprite and string inside that group is
+ * the INI's.
+ */
+#define APP_TITLE_LAYOUT_GROUP "title"
+
 enum RS_TitleScreen
 {
     RS_TITLE_MAIN_MENU = 0,

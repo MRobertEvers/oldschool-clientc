@@ -56,13 +56,17 @@ static int content_test_tick_only(void)
 
 /* One warm process, one virtual clock. IO/picking/UI continue at frozen time.
  * A step never waits out the 600 ms server tick in wall-clock time. */
-static uint64_t test_now = 1000, last_real, started_us;
-static int remaining, active, finishing, running, publish_pending, restore_pending;
-static int observe_requested, observe_drawn, observe_x, observe_z, observe_bit;
-static char observe_widget[512], observe_npcs[512];
-static int click_phase = -1, click_x, click_y, click_button;
-static int hover_requested;
-static char command[2048], result[16384], capture_path[1024];
+struct ContentTestRun
+{
+    uint64_t test_now, last_real, started_us;
+    int remaining, active, finishing, running, publish_pending, restore_pending;
+    int observe_requested, observe_drawn, observe_x, observe_z, observe_bit;
+    char observe_widget[512], observe_npcs[512];
+    int click_phase, click_x, click_y, click_button;
+    int hover_requested;
+    char command[2048], result[16384], capture_path[1024];
+};
+static struct ContentTestRun g_content_test = { .test_now = 1000, .click_phase = -1 };
 
 static int reload_scripts(struct ToriRSServer* srv, const char* directory)
 {
@@ -120,10 +124,10 @@ static int reload_scripts(struct ToriRSServer* srv, const char* directory)
 int ContentTest_DrawRequested(struct App* app)
 {
     if( !ContentTest_Enabled() || !App_FrameSettled(app) || App_IsBooting(app, NULL) || !App_WorldSettled(app) ) return 0;
-    if( active && observe_requested && !remaining && !observe_drawn )
-    { observe_drawn = 1; return 1; }
+    if( g_content_test.active && g_content_test.observe_requested && !g_content_test.remaining && !g_content_test.observe_drawn )
+    { g_content_test.observe_drawn = 1; return 1; }
     {
-        int forced = (active && (capture_path[0] || click_phase >= 0 || hover_requested)) || running;
+        int forced = (g_content_test.active && (g_content_test.capture_path[0] || g_content_test.click_phase >= 0 || g_content_test.hover_requested)) || g_content_test.running;
         /* Quest mode (docs/QUEST_DRIVER_REMAINING.md B0): PluginDrive_
          * QuestScriptPath() runs entirely below the `if( !active )` mailbox
          * block above (ContentTest_Begin returns before it), so `active` and
@@ -169,10 +173,10 @@ int ContentTest_DrawRequested(struct App* app)
             fprintf(
                 stderr,
                 "pickset_trace: now=%llu forced=%d active=%d running=%d pickset_count=%d\n",
-                (unsigned long long)test_now,
+                (unsigned long long)g_content_test.test_now,
                 forced,
-                active,
-                running,
+                g_content_test.active,
+                g_content_test.running,
                 app->world_views.frame->world_pickset.count);
         return forced;
     }
@@ -230,8 +234,8 @@ static void state_json(struct App* app, struct ToriRSServerEmbed* embed, char* o
         "\"level\":%d,\"aboard_view\":%d,\"logic_cycle\":%llu,\"server_tick\":%d,\"camera_yaw\":%d,"
         "\"camera_pitch\":%d,\"camera_zoom\":%d,\"world_ready\":%d,\"renderer\":%d}",
         server ? "true" : "false",
-        running ? "false" : "true",
-        (unsigned long long)test_now,
+        g_content_test.running ? "false" : "true",
+        (unsigned long long)g_content_test.test_now,
         server ? server->x : -1,
         server ? server->z : -1,
         server ? server->level : -1,
@@ -435,7 +439,7 @@ static void widget_json(struct App* app, const char* name, int sub, char* out, s
 
 static void error(const char* message)
 {
-    snprintf(result, sizeof(result), "{\"ok\":false,\"error\":\"%s\"}", message);
+    snprintf(g_content_test.result, sizeof(g_content_test.result), "{\"ok\":false,\"error\":\"%s\"}", message);
 }
 
 static void capture(struct App* app, const char* filename)
@@ -456,11 +460,11 @@ static void capture(struct App* app, const char* filename)
         error("invalid screenshot filename");
         return;
     }
-    if( !App_RequestScreenshot(app, dir, name, capture_path, sizeof(capture_path)) )
+    if( !App_RequestScreenshot(app, dir, name, g_content_test.capture_path, sizeof(g_content_test.capture_path)) )
         error("renderer screenshot request refused");
     else
     {
-        remove(capture_path);
+        remove(g_content_test.capture_path);
         RedrawRequest_Raise(&app->redraw_request);
     }
 }
@@ -565,7 +569,7 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
     if( !ContentTest_Enabled() ) return real_now;
     assert(app);
     assert(bus);
-    struct ToriRSServerEmbed* embed = NetTransport_TestClock(transport, test_now);
+    struct ToriRSServerEmbed* embed = NetTransport_TestClock(transport, g_content_test.test_now);
     /* t.cheat needs the embedded struct ToriRSServer* to call a debugproc
      * in-process, with no packet; this is the one place a NetTransport is
      * already turned into one. Handed over every frame, quest mode or not,
@@ -593,95 +597,95 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
          * through the driver because nothing outside this file has any
          * business knowing that variable's name.
          */
-        if( !capture_path[0] && !App_AsyncPending(app) && PluginDrive_ClockWantsStep(app) )
-            test_now += quest_clock_step_ms();
-        NetTransport_TestClock(transport, test_now);
-        return test_now;
+        if( !g_content_test.capture_path[0] && !App_AsyncPending(app) && PluginDrive_ClockWantsStep(app) )
+            g_content_test.test_now += quest_clock_step_ms();
+        NetTransport_TestClock(transport, g_content_test.test_now);
+        return g_content_test.test_now;
     }
-    uint64_t elapsed = last_real ? real_now - last_real : 0;
-    last_real = real_now;
-    if( !active )
+    uint64_t elapsed = g_content_test.last_real ? real_now - g_content_test.last_real : 0;
+    g_content_test.last_real = real_now;
+    if( !g_content_test.active )
     {
         char request[4096];
         path(request, sizeof(request), "request");
         FILE* f = fopen(request, "r");
         if( f )
         {
-            if( !fgets(command, sizeof(command), f) ) command[0] = 0;
+            if( !fgets(g_content_test.command, sizeof(g_content_test.command), f) ) g_content_test.command[0] = 0;
             fclose(f);
             remove(request);
-            command[strcspn(command, "\r\n")] = 0;
-            active = 1;
-            finishing = remaining = publish_pending = 0;
-            observe_requested = observe_drawn = 0;
-            observe_npcs[0] = 0;
-            hover_requested=0;
-            capture_path[0] = 0;
-            started_us = PlatformWindow_TicksUs();
-            strcpy(result, "{\"ok\":true}");
+            g_content_test.command[strcspn(g_content_test.command, "\r\n")] = 0;
+            g_content_test.active = 1;
+            g_content_test.finishing = g_content_test.remaining = g_content_test.publish_pending = 0;
+            g_content_test.observe_requested = g_content_test.observe_drawn = 0;
+            g_content_test.observe_npcs[0] = 0;
+            g_content_test.hover_requested=0;
+            g_content_test.capture_path[0] = 0;
+            g_content_test.started_us = PlatformWindow_TicksUs();
+            strcpy(g_content_test.result, "{\"ok\":true}");
             int frames, op, x, z, sub;
             char name[512];
-            if( sscanf(command, "step %d", &frames) == 1 && frames >= 0 && frames <= 30000 )
+            if( sscanf(g_content_test.command, "step %d", &frames) == 1 && frames >= 0 && frames <= 30000 )
             {
-                running = 0;
-                remaining = frames;
+                g_content_test.running = 0;
+                g_content_test.remaining = frames;
             }
-            else if( sscanf(command, "observe %d %d %d %511s %511s %511s", &frames, &observe_x, &observe_z, name, observe_widget, observe_npcs) >= 5 )
+            else if( sscanf(g_content_test.command, "observe %d %d %d %511s %511s %511s", &frames, &g_content_test.observe_x, &g_content_test.observe_z, name, g_content_test.observe_widget, g_content_test.observe_npcs) >= 5 )
             {
-                observe_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, name);
-                if( frames < 0 || frames > 30000 || observe_bit < 0 ) error("invalid observation frames or varbit");
-                else { remaining = frames; running = 0; observe_requested = 1; }
+                g_content_test.observe_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, name);
+                if( frames < 0 || frames > 30000 || g_content_test.observe_bit < 0 ) error("invalid observation frames or varbit");
+                else { g_content_test.remaining = frames; g_content_test.running = 0; g_content_test.observe_requested = 1; }
             }
-            else if( sscanf(command,"wevlimit %d",&x)==1 )
+            else if( sscanf(g_content_test.command,"wevlimit %d",&x)==1 )
             {
                 app->host.world_entity_draw_limit=x<0 ? 0:x;
-                hover_requested=1; RedrawRequest_Raise(&app->redraw_request);
+                g_content_test.hover_requested=1; RedrawRequest_Raise(&app->redraw_request);
             }
-            else if( sscanf(command,"wevgroup %d %d",&x,&z)==2 )
+            else if( sscanf(g_content_test.command,"wevgroup %d %d",&x,&z)==2 )
             {
                 if( x<=0 || x>=WORLDVIEW_MAX || !Wevs_IsLive(&app->wevs,x) || z<0 || z>2 )
                     error("wevgroup requires a live view and group0..2");
                 else
                 {
                     Wevs_Get(&app->wevs,x)->priority_group=z;
-                    hover_requested=1; RedrawRequest_Raise(&app->redraw_request);
+                    g_content_test.hover_requested=1; RedrawRequest_Raise(&app->redraw_request);
                 }
             }
-            else if( !strcmp(command,"peer") || !strncmp(command,"peer ",5) )
+            else if( !strcmp(g_content_test.command,"peer") || !strncmp(g_content_test.command,"peer ",5) )
             {
                 char message[256]; int changed=0;
-                if( !ContentTestSailing_PeerCommand(embed,command+4,&changed,message,sizeof(message)) ) error(message);
-                else if( changed ) { publish_pending=1; RedrawRequest_Raise(&app->redraw_request); }
+                if( !ContentTestSailing_PeerCommand(embed,g_content_test.command+4,&changed,message,sizeof(message)) ) error(message);
+                else if( changed ) { g_content_test.publish_pending=1; RedrawRequest_Raise(&app->redraw_request); }
             }
-            else if( !strncmp(command, "proc ", 5) )
+            else if( !strncmp(g_content_test.command, "proc ", 5) )
             {
                 char message[256];
-                if( !ContentTestSailing_PrimaryProc(embed, command + 5, message, sizeof(message)) ) error(message);
-                else { publish_pending = 1; RedrawRequest_Raise(&app->redraw_request); }
+                if( !ContentTestSailing_PrimaryProc(embed, g_content_test.command + 5, message, sizeof(message)) ) error(message);
+                else { g_content_test.publish_pending = 1; RedrawRequest_Raise(&app->redraw_request); }
             }
-            else if( !strcmp(command, "pause") ) running = 0;
-            else if( !strcmp(command, "resume") ) running = 1;
-            else if( sscanf(command,"hover %d %d",&x,&z)==2 )
+            else if( !strcmp(g_content_test.command, "pause") ) g_content_test.running = 0;
+            else if( !strcmp(g_content_test.command, "resume") ) g_content_test.running = 1;
+            else if( sscanf(g_content_test.command,"hover %d %d",&x,&z)==2 )
             {
                 CmdBus_PushMouseMove(bus,x,z);
-                hover_requested=1;
+                g_content_test.hover_requested=1;
                 RedrawRequest_Raise(&app->redraw_request);
             }
-            else if( strncmp(command, "cheat ", 6) == 0 )
+            else if( strncmp(g_content_test.command, "cheat ", 6) == 0 )
             {
-                if( !App_SendCommand(app, command + 6) ) error("client is not online");
-                else publish_pending = 1;
+                if( !App_SendCommand(app, g_content_test.command + 6) ) error("client is not online");
+                else g_content_test.publish_pending = 1;
             }
-            else if( sscanf(command, "click %d %d %511s", &click_x, &click_y, name) >= 2 )
+            else if( sscanf(g_content_test.command, "click %d %d %511s", &g_content_test.click_x, &g_content_test.click_y, name) >= 2 )
             {
                 char button[16] = "left";
-                sscanf(command, "click %d %d %15s", &click_x, &click_y, button);
-                click_button = !strcmp(button, "right") ? 3 : !strcmp(button, "middle") ? 2 : 1;
-                click_phase = 0;
+                sscanf(g_content_test.command, "click %d %d %15s", &g_content_test.click_x, &g_content_test.click_y, button);
+                g_content_test.click_button = !strcmp(button, "right") ? 3 : !strcmp(button, "middle") ? 2 : 1;
+                g_content_test.click_phase = 0;
             }
-            else if( sscanf(command, "pointer %d %d", &x, &z) == 2 )
+            else if( sscanf(g_content_test.command, "pointer %d %d", &x, &z) == 2 )
                 CmdBus_PushMouseMove(bus, x, z);
-            else if( sscanf(command, "camera %d %d %d", &x, &z, &sub) == 3 )
+            else if( sscanf(g_content_test.command, "camera %d %d %d", &x, &z, &sub) == 3 )
             {
                 if( z < 128 || z > 383 || sub < -1000 || sub > 10000 )
                     error("camera pitch must be 128..383; zoom -1000..10000");
@@ -694,13 +698,13 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
                     RedrawRequest_Raise(&app->redraw_request);
                 }
             }
-            else if( sscanf(command, "loc %d %d %d %511s", &op, &x, &z, name) == 4 )
+            else if( sscanf(g_content_test.command, "loc %d %d %d %511s", &op, &x, &z, name) == 4 )
             {
                 int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, name);
                 if( id < 0 ) error("unknown loc");
-                else { App_SimulateLocOp(app, op, x, z, id); publish_pending = 1; }
+                else { App_SimulateLocOp(app, op, x, z, id); g_content_test.publish_pending = 1; }
             }
-            else if( sscanf(command, "button %511s %d %d", name, &sub, &op) == 3 )
+            else if( sscanf(g_content_test.command, "button %511s %d %d", name, &sub, &op) == 3 )
             {
                 int idx = widget(app, name, sub);
                 if( idx < 0 || app->host.trigger_op_count >= RS_CS2_HOST_TRIGGER_OP_MAX )
@@ -717,20 +721,20 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
                     app->host.trigger_op[slot].op_index = op;
                     app->frame_runner.frame_settle_pending = 1;
                     RedrawRequest_Raise(&app->redraw_request);
-                    publish_pending = 1;
+                    g_content_test.publish_pending = 1;
                 }
             }
-            else if( sscanf(command, "resume %511s", name) == 1 )
+            else if( sscanf(g_content_test.command, "resume %511s", name) == 1 )
             {
                 int idx = widget(app, name, -1);
                 if( idx < 0 ) error("resume widget missing");
-                else { app->host.resume_pausebutton_component_id = app->tree->components[idx].component_id; app->frame_runner.frame_settle_pending = 1; publish_pending = 1; }
+                else { app->host.resume_pausebutton_component_id = app->tree->components[idx].component_id; app->frame_runner.frame_settle_pending = 1; g_content_test.publish_pending = 1; }
             }
-            else if( !strcmp(command, "close") )
-            { app->host.close_modal_requested = true; app->frame_runner.frame_settle_pending = 1; publish_pending = 1; }
-            else if( !strncmp(command, "text ", 5) )
+            else if( !strcmp(g_content_test.command, "close") )
+            { app->host.close_modal_requested = true; app->frame_runner.frame_settle_pending = 1; g_content_test.publish_pending = 1; }
+            else if( !strncmp(g_content_test.command, "text ", 5) )
             {
-                const unsigned char* text=(const unsigned char*)command+5;
+                const unsigned char* text=(const unsigned char*)g_content_test.command+5;
                 size_t length=strlen((const char*)text);
                 int valid=length>0 && length<=63;
                 for( size_t i=0; i<length; ++i )
@@ -740,26 +744,26 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
                 {
                     for( size_t i=0; i<length; ++i )
                         CmdBus_PushKeyEvent(bus,-1,text[i],0);
-                    publish_pending=1;
+                    g_content_test.publish_pending=1;
                 }
             }
-            else if( !strncmp(command, "key ", 4) )
+            else if( !strncmp(g_content_test.command, "key ", 4) )
             {
                 int key=-1;
-                if( !strcmp(command+4,"enter") ) key=TORIRS_OSRSKEY_ENTER;
-                else if( !strcmp(command+4,"escape") ) key=TORIRS_OSRSKEY_ESCAPE;
-                else if( !strcmp(command+4,"backspace") ) key=TORIRS_OSRSKEY_BACKSPACE;
-                else if( !strcmp(command+4,"tab") ) key=TORIRS_OSRSKEY_TAB;
+                if( !strcmp(g_content_test.command+4,"enter") ) key=TORIRS_OSRSKEY_ENTER;
+                else if( !strcmp(g_content_test.command+4,"escape") ) key=TORIRS_OSRSKEY_ESCAPE;
+                else if( !strcmp(g_content_test.command+4,"backspace") ) key=TORIRS_OSRSKEY_BACKSPACE;
+                else if( !strcmp(g_content_test.command+4,"tab") ) key=TORIRS_OSRSKEY_TAB;
                 if( key<0 ) error("key requires enter, escape, backspace or tab");
                 else
                 {
                     CmdBus_PushOsrsKey(bus,key,1,1);
                     CmdBus_PushKeyEvent(bus,key,0,0);
                     CmdBus_PushOsrsKey(bus,key,0,0);
-                    publish_pending=1;
+                    g_content_test.publish_pending=1;
                 }
             }
-            else if( !strcmp(command, "logout") )
+            else if( !strcmp(g_content_test.command, "logout") )
             {
                 if( !app->net || app->net->state != TORIRS_NET_GAME ) error("not logged in");
                 else
@@ -767,60 +771,60 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
                     /* Use the production transport close: embedded and socket
                      * servers both save through their ordinary disconnect. */
                     ToriRS_Network_Logout(app->net);
-                    publish_pending = 1;
+                    g_content_test.publish_pending = 1;
                 }
             }
-            else if( (!strcmp(command, "reload") || !strncmp(command, "reload ", 7)) && embed )
+            else if( (!strcmp(g_content_test.command, "reload") || !strncmp(g_content_test.command, "reload ", 7)) && embed )
             {
                 struct ToriRSServer* srv = ToriRSServer_EmbedWorld(embed);
-                const char* scripts = command[6] == ' ' ? command + 7 : getenv("TORIRSSERVER_SCRIPTS");
+                const char* scripts = g_content_test.command[6] == ' ' ? g_content_test.command + 7 : getenv("TORIRSSERVER_SCRIPTS");
                 if( !scripts || !srv ) error("set TORIRSSERVER_SCRIPTS and log in first");
                 else
                 {
                     int ok = reload_scripts(srv, scripts);
-                    snprintf(result, sizeof(result), "{\"ok\":%s,\"checkpoints_cleared\":true}", ok ? "true" : "false");
+                    snprintf(g_content_test.result, sizeof(g_content_test.result), "{\"ok\":%s,\"checkpoints_cleared\":true}", ok ? "true" : "false");
                 }
             }
             /* Queue readback only after input/network/UI settlement in End. */
-            else if( !strncmp(command, "shot ", 5) ) { }
-            else if( strcmp(command, "wev") && strcmp(command, "state") && strncmp(command, "varbit ", 7) &&
-                     strcmp(command, "threats") && strncmp(command, "scenery ", 8) && strncmp(command, "npc ", 4) && strncmp(command, "widget ", 7) && strncmp(command, "save ", 5) &&
-                     strncmp(command, "restore ", 8) && strncmp(command, "collision", 9) &&
-                     strncmp(command, "varp ", 5) && strncmp(command, "inventory ", 10) &&
-                     strncmp(command, "activity ", 9) )
+            else if( !strncmp(g_content_test.command, "shot ", 5) ) { }
+            else if( strcmp(g_content_test.command, "wev") && strcmp(g_content_test.command, "state") && strncmp(g_content_test.command, "varbit ", 7) &&
+                     strcmp(g_content_test.command, "threats") && strncmp(g_content_test.command, "scenery ", 8) && strncmp(g_content_test.command, "npc ", 4) && strncmp(g_content_test.command, "widget ", 7) && strncmp(g_content_test.command, "save ", 5) &&
+                     strncmp(g_content_test.command, "restore ", 8) && strncmp(g_content_test.command, "collision", 9) &&
+                     strncmp(g_content_test.command, "varp ", 5) && strncmp(g_content_test.command, "inventory ", 10) &&
+                     strncmp(g_content_test.command, "activity ", 9) )
                 error("unknown command or invalid arguments");
         }
     }
     /* Input edges cross the same bus and picking pipeline as physical clicks.
      * Let one settled render publish hover hits before pressing. */
-    if( click_phase >= 0 && settled(app) )
+    if( g_content_test.click_phase >= 0 && settled(app) )
     {
-        if( click_phase == 0 ) CmdBus_PushMouseMove(bus, click_x, click_y);
-        else if( click_phase == 2 )
-            CmdBus_PushMouseButton(bus, TORIRS_CMD_INPUT_MOUSE_DOWN, click_button, click_x, click_y);
-        else if( click_phase == 3 )
+        if( g_content_test.click_phase == 0 ) CmdBus_PushMouseMove(bus, g_content_test.click_x, g_content_test.click_y);
+        else if( g_content_test.click_phase == 2 )
+            CmdBus_PushMouseButton(bus, TORIRS_CMD_INPUT_MOUSE_DOWN, g_content_test.click_button, g_content_test.click_x, g_content_test.click_y);
+        else if( g_content_test.click_phase == 3 )
         {
-            CmdBus_PushMouseButton(bus, TORIRS_CMD_INPUT_MOUSE_UP, click_button, click_x, click_y);
-            click_phase = -2;
-            publish_pending = 1;
+            CmdBus_PushMouseButton(bus, TORIRS_CMD_INPUT_MOUSE_UP, g_content_test.click_button, g_content_test.click_x, g_content_test.click_y);
+            g_content_test.click_phase = -2;
+            g_content_test.publish_pending = 1;
         }
-        click_phase++;
+        g_content_test.click_phase++;
         RedrawRequest_Raise(&app->redraw_request);
     }
-    if( remaining > 0 && !App_AsyncPending(app) )
+    if( g_content_test.remaining > 0 && !App_AsyncPending(app) )
     {
-        test_now += 20;
-        remaining--;
+        g_content_test.test_now += 20;
+        g_content_test.remaining--;
     }
-    else if( running && settled(app) ) test_now += elapsed > 100 ? 100 : elapsed;
-    NetTransport_TestClock(transport, test_now);
-    return test_now;
+    else if( g_content_test.running && settled(app) ) g_content_test.test_now += elapsed > 100 ? 100 : elapsed;
+    NetTransport_TestClock(transport, g_content_test.test_now);
+    return g_content_test.test_now;
 }
 
 void ContentTest_End(struct App* app, struct NetTransport* transport)
 {
     if( !ContentTest_Enabled() ) return;
-    if( !active )
+    if( !g_content_test.active )
     {
         /* Keep idle overhead small without adding a frame's latency to input.
          *
@@ -829,7 +833,7 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
          * is pure wall time -- sampled (macOS `sample`, druidspirit, skip on)
          * at a quarter of the main thread, more than the frames it no longer
          * draws. --render-every-frame keeps it, so that A/B is today's run. */
-        if( !running && settled(app) &&
+        if( !g_content_test.running && settled(app) &&
             !(PluginDrive_QuestScriptPath() && App_RenderSkipEnabled(app)) )
             PlatformWindow_SleepUntil(PlatformWindow_Ticks64() + 1);
         return;
@@ -838,27 +842,27 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
      * ticks. A paused clock cannot reach the next tick's fence by itself.
      * Seal only those already-sent bytes; do not publish player/NPC masks or
      * advance scripts, since that would change the animation start timing. */
-    if( !remaining && content_test_tick_only() && RS_ServerTick_IsOpen(&app->server_tick) )
+    if( !g_content_test.remaining && content_test_tick_only() && RS_ServerTick_IsOpen(&app->server_tick) )
     {
-        struct ToriRSServerEmbed* pending_embed = NetTransport_TestClock(transport, test_now);
+        struct ToriRSServerEmbed* pending_embed = NetTransport_TestClock(transport, g_content_test.test_now);
         struct ToriRSServerPlayer* pending_player = pending_embed ? ToriRSServer_EmbedPlayer(pending_embed, 0) : NULL;
         if( pending_player ) { ToriRSServer_SendTickEnd(pending_player); return; }
     }
-    if( remaining || click_phase >= 0 || App_AsyncPending(app) || !App_WorldSettled(app) )
-    { observe_drawn = 0; return; }
+    if( g_content_test.remaining || g_content_test.click_phase >= 0 || App_AsyncPending(app) || !App_WorldSettled(app) )
+    { g_content_test.observe_drawn = 0; return; }
     /* Two complete polls consume client output and apply its server response. */
-    int observation = observe_requested || !strcmp(command, "state") || !strcmp(command, "threats") ||
-        !strncmp(command, "varbit ", 7) || !strncmp(command, "scenery ", 8) ||
-        !strncmp(command, "npc ", 4) || !strncmp(command, "widget ", 7);
-    if( !observation && finishing++ < 2 ) return;
-    struct ToriRSServerEmbed* embed = NetTransport_TestClock(transport, test_now);
+    int observation = g_content_test.observe_requested || !strcmp(g_content_test.command, "state") || !strcmp(g_content_test.command, "threats") ||
+        !strncmp(g_content_test.command, "varbit ", 7) || !strncmp(g_content_test.command, "scenery ", 8) ||
+        !strncmp(g_content_test.command, "npc ", 4) || !strncmp(g_content_test.command, "widget ", 7);
+    if( !observation && g_content_test.finishing++ < 2 ) return;
+    struct ToriRSServerEmbed* embed = NetTransport_TestClock(transport, g_content_test.test_now);
     struct ToriRSServerPlayer* server = embed ? ToriRSServer_EmbedPlayer(embed, 0) : NULL;
-    if( content_test_tick_only() ) publish_pending = 0;
-    if( publish_pending && server )
+    if( content_test_tick_only() ) g_content_test.publish_pending = 0;
+    if( g_content_test.publish_pending && server )
     {
         ToriRSServer_WorldPublish(ToriRSServer_EmbedWorld(embed));
-        publish_pending = 0;
-        finishing = 0;
+        g_content_test.publish_pending = 0;
+        g_content_test.finishing = 0;
         return;
     }
     if( RS_CS2_TransmitsPending(&app->host) )
@@ -866,17 +870,17 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
         RS_CS2_PumpTransmits(&app->host, &app->frame_runner);
         app->frame_runner.frame_settle_pending = 1;
         RedrawRequest_Raise(&app->redraw_request);
-        finishing = 0;
+        g_content_test.finishing = 0;
         return;
     }
-    if( !App_FrameSettled(app) ) { observe_drawn = 0; return; }
-    if( observe_requested && !observe_drawn ) return;
-    if( !strncmp(command, "shot ", 5) && !capture_path[0] )
+    if( !App_FrameSettled(app) ) { g_content_test.observe_drawn = 0; return; }
+    if( g_content_test.observe_requested && !g_content_test.observe_drawn ) return;
+    if( !strncmp(g_content_test.command, "shot ", 5) && !g_content_test.capture_path[0] )
     {
-        capture(app, command + 5);
-        if( capture_path[0] ) { finishing = 0; return; }
+        capture(app, g_content_test.command + 5);
+        if( g_content_test.capture_path[0] ) { g_content_test.finishing = 0; return; }
     }
-    if( restore_pending )
+    if( g_content_test.restore_pending )
     {
         /* A root rebuild can publish before WORLDENTITY_INFO, and the next
          * publish is deferred until MAP_BUILD_COMPLETE. Drain that real
@@ -894,31 +898,31 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
                             server->login_scene_pending, server->rebuild_scene_pending,
                             server->rebuild_pending, ToriRSServer_EmbedPending(embed, 0));
             }
-            finishing = 0;
+            g_content_test.finishing = 0;
             RedrawRequest_Raise(&app->redraw_request);
             return;
         }
         ContentTestSailing_SettleRestore(app);
-        restore_pending = 0;
-        finishing = 0;
+        g_content_test.restore_pending = 0;
+        g_content_test.finishing = 0;
         return;
     }
     char name[512];
     int sub;
-    if( observe_requested )
+    if( g_content_test.observe_requested )
     {
         char state[8192], scenery[4096], widget_state[1024];
         state_json(app, embed, state, sizeof(state));
-        scenery_json(app, observe_x, observe_z, scenery, sizeof(scenery));
-        widget_json(app, observe_widget, -1, widget_state, sizeof(widget_state));
-        snprintf(result, sizeof(result), "{\"ok\":true,\"state\":%s,\"station\":{\"client\":%d,\"server\":%d},\"scenery\":%s,\"fade\":%s}",
-            state, VarPManager_GetVarbit(&app->varps, observe_bit),
-            server ? ToriRSServer_VarbitGet(server, observe_bit) : -1, scenery, widget_state);
+        scenery_json(app, g_content_test.observe_x, g_content_test.observe_z, scenery, sizeof(scenery));
+        widget_json(app, g_content_test.observe_widget, -1, widget_state, sizeof(widget_state));
+        snprintf(g_content_test.result, sizeof(g_content_test.result), "{\"ok\":true,\"state\":%s,\"station\":{\"client\":%d,\"server\":%d},\"scenery\":%s,\"fade\":%s}",
+            state, VarPManager_GetVarbit(&app->varps, g_content_test.observe_bit),
+            server ? ToriRSServer_VarbitGet(server, g_content_test.observe_bit) : -1, scenery, widget_state);
         /* Optional comma-separated NPC types share the same rendered frame
          * and mailbox response. No additional simulation or rendering occurs. */
         char actors[8192] = "{";
         int count = 0, failed = 0;
-        for( char* next = observe_npcs; *next; )
+        for( char* next = g_content_test.observe_npcs; *next; )
         {
             char* end = strchr(next, ',');
             if( end ) *end = 0;
@@ -933,44 +937,44 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
             next = end + 1;
         }
         strcat(actors, "}");
-        size_t used = strlen(result);
-        if( failed || used + strlen(actors) + 12 >= sizeof(result) )
+        size_t used = strlen(g_content_test.result);
+        if( failed || used + strlen(actors) + 12 >= sizeof(g_content_test.result) )
             error("invalid or oversized NPC observation");
         else
-            snprintf(result + used - 1, sizeof(result) - used + 1, ",\"npcs\":%s}", actors);
-        observe_requested = 0;
+            snprintf(g_content_test.result + used - 1, sizeof(g_content_test.result) - used + 1, ",\"npcs\":%s}", actors);
+        g_content_test.observe_requested = 0;
     }
-    else if( !strcmp(command,"wev") || !strncmp(command,"wevlimit ",9) || !strncmp(command,"wevgroup ",9) )
+    else if( !strcmp(g_content_test.command,"wev") || !strncmp(g_content_test.command,"wevlimit ",9) || !strncmp(g_content_test.command,"wevgroup ",9) )
     {
-        if( !strstr(result,"\"ok\":false") ) wev_json(app,result,sizeof(result));
+        if( !strstr(g_content_test.result,"\"ok\":false") ) wev_json(app,g_content_test.result,sizeof(g_content_test.result));
     }
-    else if( !strcmp(command,"peer") || !strncmp(command,"peer ",5) )
+    else if( !strcmp(g_content_test.command,"peer") || !strncmp(g_content_test.command,"peer ",5) )
     {
-        if( !strstr(result,"\"ok\":false") ) ContentTestSailing_PeerState(app,embed,result,sizeof(result));
+        if( !strstr(g_content_test.result,"\"ok\":false") ) ContentTestSailing_PeerState(app,embed,g_content_test.result,sizeof(g_content_test.result));
     }
-    else if( strcmp(command, "state") == 0 )
+    else if( strcmp(g_content_test.command, "state") == 0 )
     {
-        state_json(app, embed, result, sizeof(result));
+        state_json(app, embed, g_content_test.result, sizeof(g_content_test.result));
     }
-    else if( sscanf(command, "varbit %511s", name) == 1 )
+    else if( sscanf(g_content_test.command, "varbit %511s", name) == 1 )
     {
         int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, name);
-        snprintf(result, sizeof(result), "{\"ok\":%s,\"client\":%d,\"server\":%d}",
+        snprintf(g_content_test.result, sizeof(g_content_test.result), "{\"ok\":%s,\"client\":%d,\"server\":%d}",
             id >= 0 && server ? "true" : "false", id >= 0 ? VarPManager_GetVarbit(&app->varps, id) : -1,
             id >= 0 && server ? ToriRSServer_VarbitGet(server, id) : -1);
     }
-    else if( sscanf(command, "varp %d", &sub) == 1 )
+    else if( sscanf(g_content_test.command, "varp %d", &sub) == 1 )
     {
         if( sub < 0 || sub >= TORIRSSERVER_VARP_COUNT ) error("varp index outside server table");
-        else snprintf(result,sizeof(result),"{\"ok\":true,\"client\":%d,\"server\":%d}",
+        else snprintf(g_content_test.result,sizeof(g_content_test.result),"{\"ok\":true,\"client\":%d,\"server\":%d}",
             VarPManager_GetVarp(&app->varps,sub),server ? ToriRSServer_VarpsGet(&server->varps, sub) : -1);
     }
-    else if( sscanf(command,"activity %d",&sub)==1 && server )
+    else if( sscanf(g_content_test.command,"activity %d",&sub)==1 && server )
     {
         struct ToriRSServer* srv=ToriRSServer_EmbedWorld(embed);
         struct ToriRSServerVessel* boat=ToriRSServer_VesselAtTile(srv,server->x,server->z);
         int handle;
-        if( sscanf(command,"activity %*d %d",&handle)==1 )
+        if( sscanf(g_content_test.command,"activity %*d %d",&handle)==1 )
         {
             boat=ToriRSServer_VesselGet(srv,handle);
             if( boat && boat->owner_uid!=server->pid+1 ) boat=NULL;
@@ -991,13 +995,13 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
                 slow_token=srv->npcs[target].script_vars[62];
                 burn_token=srv->npcs[target].script_vars[63];
             }
-            snprintf(result,sizeof(result),
+            snprintf(g_content_test.result,sizeof(g_content_test.result),
                 "{\"ok\":true,\"vessel\":%d,\"slot\":%d,\"registers\":[%d,%d,%d,%d,%d,%d,%d],\"wind\":[%d,%d,%d,%d,%d,%d,%d,%d],\"sailing_xp_tenths\":%d,\"fishing_xp_tenths\":%d,\"ranged_xp_tenths\":%d,\"construction_xp_tenths\":%d,\"target_hp\":%d,\"target_frozen\":%d,\"target_slow_token\":%d,\"target_burn_token\":%d}",
                 boat->index,sub,reg[0],reg[1],reg[2],reg[3],reg[4],reg[5],reg[6],wind[0],wind[1],wind[2],wind[3],wind[4],wind[5],wind[6],wind[7],
                 server->stat_xp_tenths[23],server->stat_xp_tenths[10],server->stat_xp_tenths[4],server->stat_xp_tenths[22],hp,frozen,slow_token,burn_token);
         }
     }
-    else if( sscanf(command,"inventory %d",&sub)==1 )
+    else if( sscanf(g_content_test.command,"inventory %d",&sub)==1 )
     {
         if( sub<0 || sub>=32768 ) error("inventory requires a native base ID below32768");
         else
@@ -1008,12 +1012,12 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
             if( server )
                 for( int i=0; i<TORIRSSERVER_CONTAINER_MAX; ++i )
                     if( server->containers[i].used && server->containers[i].inv_id==sub ) cargo=&server->containers[i];
-            int offset=snprintf(result,sizeof(result),"{\"ok\":true,\"id\":%d,\"client_slots\":%d,\"other_slots\":%d,\"server_slots\":%d",
+            int offset=snprintf(g_content_test.result,sizeof(g_content_test.result),"{\"ok\":true,\"id\":%d,\"client_slots\":%d,\"other_slots\":%d,\"server_slots\":%d",
                 sub,local ? local->slot_count : 0,other ? other->slot_count : 0,cargo ? cargo->slots : 0);
             const char* labels[]={"client","other","server"};
             for( int which=0; which<3; ++which )
             {
-                offset+=snprintf(result+offset,sizeof(result)-offset,",\"%s\":[",labels[which]);
+                offset+=snprintf(g_content_test.result+offset,sizeof(g_content_test.result)-offset,",\"%s\":[",labels[which]);
                 const struct InvContainer* container=which==0 ? local : other;
                 int slots=which==2 ? (cargo ? cargo->slots : 0) : (container ? container->slot_count : 0);
                 int entries=0;
@@ -1022,48 +1026,48 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
                     int obj=which==2 ? cargo->items[slot].obj_id : container->slots[slot].obj_id;
                     int count=which==2 ? cargo->items[slot].count : container->slots[slot].obj_count;
                     if( obj<0 || count<=0 ) continue;
-                    offset+=snprintf(result+offset,sizeof(result)-offset,"%s[%d,%d,%d]",entries++ ? ",":"",slot,obj,count);
+                    offset+=snprintf(g_content_test.result+offset,sizeof(g_content_test.result)-offset,"%s[%d,%d,%d]",entries++ ? ",":"",slot,obj,count);
                 }
-                offset+=snprintf(result+offset,sizeof(result)-offset,"]");
+                offset+=snprintf(g_content_test.result+offset,sizeof(g_content_test.result)-offset,"]");
             }
-            snprintf(result+offset,sizeof(result)-offset,"}");
+            snprintf(g_content_test.result+offset,sizeof(g_content_test.result)-offset,"}");
         }
     }
-    else if( !strcmp(command, "threats") && server )
+    else if( !strcmp(g_content_test.command, "threats") && server )
     {
-        strcpy(result, "{\"ok\":true,\"npcs\":[");
+        strcpy(g_content_test.result, "{\"ok\":true,\"npcs\":[");
         struct ToriRSServer* srv = ToriRSServer_EmbedWorld(embed);
         int count = 0;
         for( int i = 0; i < TORIRSSERVER_NPC_MAX && count < 64; i++ )
         {
             struct ToriRSServerNpc* npc = &srv->npcs[i];
             if( !npc->active || npc->combat_target != server->pid ) continue;
-            size_t used = strlen(result);
-            snprintf(result + used, sizeof(result) - used, "%s{\"type\":%d,\"x\":%d,\"z\":%d}",
+            size_t used = strlen(g_content_test.result);
+            snprintf(g_content_test.result + used, sizeof(g_content_test.result) - used, "%s{\"type\":%d,\"x\":%d,\"z\":%d}",
                 count++ ? "," : "", npc->type, npc->x, npc->z);
         }
-        size_t used = strlen(result);
-        snprintf(result + used, sizeof(result) - used, "]}");
+        size_t used = strlen(g_content_test.result);
+        snprintf(g_content_test.result + used, sizeof(g_content_test.result) - used, "]}");
     }
-    else if( !strncmp(command, "scenery ", 8) )
+    else if( !strncmp(g_content_test.command, "scenery ", 8) )
     {
         int x, z;
-        if( sscanf(command, "scenery %d %d", &x, &z) != 2 || !app->world ) error("scenery requires world X Z");
+        if( sscanf(g_content_test.command, "scenery %d %d", &x, &z) != 2 || !app->world ) error("scenery requires world X Z");
         else
         {
-            scenery_json(app, x, z, result, sizeof(result));
+            scenery_json(app, x, z, g_content_test.result, sizeof(g_content_test.result));
         }
     }
-    else if( sscanf(command, "npc %511s", name) == 1 )
-        npc_json(app, embed, name, result, sizeof(result));
-    else if( sscanf(command, "widget %511s %d", name, &sub) == 2 )
+    else if( sscanf(g_content_test.command, "npc %511s", name) == 1 )
+        npc_json(app, embed, name, g_content_test.result, sizeof(g_content_test.result));
+    else if( sscanf(g_content_test.command, "widget %511s %d", name, &sub) == 2 )
     {
-        widget_json(app, name, sub, result, sizeof(result));
+        widget_json(app, name, sub, g_content_test.result, sizeof(g_content_test.result));
     }
-    else if( !strncmp(command, "collision", 9) && server )
+    else if( !strncmp(g_content_test.command, "collision", 9) && server )
     {
         int radius = 20;
-        sscanf(command, "collision %d", &radius);
+        sscanf(g_content_test.command, "collision %d", &radius);
         if( radius < 1 || radius > 24 ) error("collision radius must be 1..24");
         else
         {
@@ -1081,56 +1085,56 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
                     walking[n++] = ToriRSServer_SceneWalkBlocked(level,x,z) ? '0' : '1';
                 }
             water[n] = walking[n] = 0;
-            snprintf(result,sizeof(result),
+            snprintf(g_content_test.result,sizeof(g_content_test.result),
                      "{\"ok\":true,\"x\":%d,\"z\":%d,\"level\":%d,\"width\":%d,\"order\":\"north_to_south\",\"boat_open\":\"%s\",\"player_open\":\"%s\"}",
                      cx,cz,level,radius*2+1,water,walking);
         }
     }
-    else if( !strncmp(command, "save ", 5) || !strncmp(command, "restore ", 8) )
+    else if( !strncmp(g_content_test.command, "save ", 5) || !strncmp(g_content_test.command, "restore ", 8) )
     {
-        int restoring = !strncmp(command, "restore ", 8);
+        int restoring = !strncmp(g_content_test.command, "restore ", 8);
         char message[512];
         int ok = restoring
-            ? ContentTestSailing_Restore(app, embed, command + 8, message, sizeof(message))
-            : ContentTestSailing_Save(app, embed, command + 5, message, sizeof(message));
+            ? ContentTestSailing_Restore(app, embed, g_content_test.command + 8, message, sizeof(message))
+            : ContentTestSailing_Save(app, embed, g_content_test.command + 5, message, sizeof(message));
         if( !ok ) error(message);
         else
         {
-            strcpy(result, "{\"ok\":true,\"scope\":\"movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology\"}");
+            strcpy(g_content_test.result, "{\"ok\":true,\"scope\":\"movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology\"}");
             if( restoring )
             {
                 /* Execute the restore once. Subsequent frames only drain its
                  * normal network update and restore the visual checkpoint. */
-                command[0] = 0;
-                publish_pending = restore_pending = 1;
-                finishing = 0;
+                g_content_test.command[0] = 0;
+                g_content_test.publish_pending = g_content_test.restore_pending = 1;
+                g_content_test.finishing = 0;
                 return;
             }
         }
     }
-    if( capture_path[0] )
+    if( g_content_test.capture_path[0] )
     {
         struct stat info;
-        if( PluginScreenshots_IsWaiting(&app->plugin_screenshots, capture_path) )
+        if( PluginScreenshots_IsWaiting(&app->plugin_screenshots, g_content_test.capture_path) )
         {
             RedrawRequest_Raise(&app->redraw_request);
             return;
         }
-        if( stat(capture_path, &info) || info.st_size == 0 ) error("renderer capture did not produce a file");
-        else snprintf(result, sizeof(result), "{\"ok\":true,\"path\":\"%s\",\"width\":%d,\"height\":%d,\"renderer\":%d}",
-                      capture_path, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, RenderMode_World(&app->render_mode));
+        if( stat(g_content_test.capture_path, &info) || info.st_size == 0 ) error("renderer capture did not produce a file");
+        else snprintf(g_content_test.result, sizeof(g_content_test.result), "{\"ok\":true,\"path\":\"%s\",\"width\":%d,\"height\":%d,\"renderer\":%d}",
+                      g_content_test.capture_path, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, RenderMode_World(&app->render_mode));
     }
-    size_t len = strlen(result);
-    if( len && result[len - 1] == '}' )
-        snprintf(result + len - 1, sizeof(result) - len + 1, ",\"runtime_ms\":%.3f}",
-                 (PlatformWindow_TicksUs() - started_us) / 1000.0);
+    size_t len = strlen(g_content_test.result);
+    if( len && g_content_test.result[len - 1] == '}' )
+        snprintf(g_content_test.result + len - 1, sizeof(g_content_test.result) - len + 1, ",\"runtime_ms\":%.3f}",
+                 (PlatformWindow_TicksUs() - g_content_test.started_us) / 1000.0);
     char temp[4096], response[4096];
     path(temp, sizeof(temp), "response.tmp"); path(response, sizeof(response), "response");
     FILE* f = fopen(temp, "w");
     if( !f ) { perror(temp); abort(); }
-    fprintf(f, "%s\n", result);
+    fprintf(f, "%s\n", g_content_test.result);
     if( fclose(f) || rename(temp, response) ) { perror(response); abort(); }
-    active = 0;
+    g_content_test.active = 0;
 }
 #else
 int ContentTest_DrawRequested(struct App* app) { (void)app; return 0; }

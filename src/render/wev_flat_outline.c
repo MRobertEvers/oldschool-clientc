@@ -26,10 +26,23 @@
  * no trace instead of a hairline; a hull carried on a flattened deck is not
  * drawn.
  *
- * @see app_wev_flat.h
+ * @see wev_flat.h
  */
-#include "app/app_internal.h"
-#include "app/app_wev_flat.h"
+#include "render/wev_flat.h"
+
+#include "painters/painters.h"
+#include "render/torirs_frame.h"
+#include "world/wev.h"
+#include "world/world.h"
+#include "world/worldview.h"
+
+#include "mem/torirs_mem.h"
+#include "toridraw_scene.h"
+
+#include <assert.h>
+#include <limits.h>
+#include <stdint.h>
+#include <stdio.h>
 
 /** Grid cell edge in fine units: 1/8 of a tile. */
 #define OUTLINE_CELL_SHIFT 4
@@ -537,32 +550,39 @@ outline_signature(
 static void
 outline_drop(
     struct OutlineView* v,
-    struct App* app)
+    struct ToriDraw_Scene* scene)
 {
     assert(v);
-    assert(app);
     if( v->element_id >= 0 )
-        ToriDraw_SceneElementRemove(app->scene, v->element_id);
+    {
+        /* A built element means a scene to take it from; a slot never built
+         * needs none (App_Free runs this whether or not a scene was made). */
+        assert(scene);
+        ToriDraw_SceneElementRemove(scene, v->element_id);
+    }
     *v = (struct OutlineView){ .element_id = -1 };
 }
 
 static void
 outline_ensure(
     struct OutlineView* v,
-    struct App* app,
-    struct Wev const* wev)
+    struct ToriDraw_Scene* scene,
+    struct WorldviewRegistry* worldviews,
+    struct Wev const* wev,
+    bool debug)
 {
     struct Worldview* view;
     struct World* deck;
     int hsl;
 
     assert(v);
-    assert(app);
+    assert(scene);
+    assert(worldviews);
     assert(wev);
     assert(wev->config);
-    assert(WorldviewRegistry_IsLive(&app->worldviews, wev->id));
+    assert(WorldviewRegistry_IsLive(worldviews, wev->id));
 
-    view = WorldviewRegistry_Get(&app->worldviews, wev->id);
+    view = WorldviewRegistry_Get(worldviews, wev->id);
     deck = view->world;
     assert(deck);
     hsl = wev->config->flat_hsl;
@@ -570,23 +590,23 @@ outline_ensure(
     {
         if( v->geometry_serial == deck->geometry_serial )
             return;
-        uint64_t signature = outline_signature(app->scene, deck);
+        uint64_t signature = outline_signature(scene, deck);
         v->geometry_serial = deck->geometry_serial;
         if( signature == v->signature )
             return;
     }
 
-    outline_drop(v, app);
+    outline_drop(v, scene);
     v->built = true;
     v->world = deck;
     v->geometry_serial = deck->geometry_serial;
-    v->signature = outline_signature(app->scene, deck);
+    v->signature = outline_signature(scene, deck);
     v->hsl = hsl;
 
     int x = 0, y = 0, z = 0;
     struct OutlineStats stats = { 0 };
-    struct ToriDraw_Model* model = outline_build_model(app->scene, deck, hsl, &x, &y, &z, &stats);
-    if( app_wev_debug_enabled() )
+    struct ToriDraw_Model* model = outline_build_model(scene, deck, hsl, &x, &y, &z, &stats);
+    if( debug )
         fprintf(
             stderr,
             "wev: OUTLINE view %d serial %u: %d elements, %d faces -> %dx%d cells, %d filled, "
@@ -606,12 +626,12 @@ outline_ensure(
         return;
     /* Root-dynamic like the heading arrows: no view's rebuild may sweep it,
      * and the root's rebuild is told it is claimed (outline_claim_elements). */
-    v->element_id = ToriDraw_SceneElementAddPool(app->scene, TORIDRAW_SCENE_POOL_DYNAMIC);
+    v->element_id = ToriDraw_SceneElementAddPool(scene, TORIDRAW_SCENE_POOL_DYNAMIC);
     assert(v->element_id >= 0);
-    ToriDraw_SceneElementSetModel(app->scene, v->element_id, ToriDraw_ModelHandleOwned(model));
+    ToriDraw_SceneElementSetModel(scene, v->element_id, ToriDraw_ModelHandleOwned(model));
     /* Deck-local: the frame composes the hull's transform around it, the
      * 0.01 Y scale included. */
-    ToriDraw_SceneElementSetPosition(app->scene, v->element_id, x, y, z, 0);
+    ToriDraw_SceneElementSetPosition(scene, v->element_id, x, y, z, 0);
 }
 
 static void*
@@ -627,25 +647,26 @@ outline_create(void)
 static void
 outline_destroy(
     void* state,
-    struct App* app)
+    struct ToriDraw_Scene* scene)
 {
     struct Outline* outline = state;
     if( !outline )
         return;
-    assert(app);
     for( int i = 0; i < WORLDVIEW_MAX; ++i )
-        outline_drop(&outline->views[i], app);
+        outline_drop(&outline->views[i], scene);
     ToriMem_Free(ToriMem_Scene(), outline);
 }
 
 static void
 outline_bind_painter(
     void* state,
-    struct App* app,
+    struct ToriDraw_Scene* scene,
+    struct WorldviewRegistry* worldviews,
     struct Wev const* wev,
     struct Painter* parent_painter,
     int camera_sx,
-    int camera_sz)
+    int camera_sz,
+    bool debug)
 {
     struct Outline* outline = state;
     struct OutlineView* v;
@@ -653,13 +674,14 @@ outline_bind_painter(
     (void)camera_sx;
     (void)camera_sz;
     assert(outline);
-    assert(app);
+    assert(scene);
+    assert(worldviews);
     assert(wev);
     assert(parent_painter);
     assert(wev->id > 0 && wev->id < WORLDVIEW_MAX);
 
     v = &outline->views[wev->id];
-    outline_ensure(v, app, wev);
+    outline_ensure(v, scene, worldviews, wev, debug);
     if( v->element_id >= 0 )
         painter_set_world_entity_element(parent_painter, wev->id, v->element_id);
 }
@@ -667,12 +689,10 @@ outline_bind_painter(
 static void
 outline_bind_frame(
     void* state,
-    struct App* app,
     struct Wev const* wev,
     struct ToriRS_FrameViewXform* xf)
 {
     (void)state;
-    (void)app;
     (void)wev;
     assert(wev);
     assert(xf);
@@ -705,18 +725,17 @@ outline_claim_elements(
 static void
 outline_release_view(
     void* state,
-    struct App* app,
+    struct ToriDraw_Scene* scene,
     int view_id)
 {
     struct Outline* outline = state;
 
     assert(outline);
-    assert(app);
     assert(view_id > 0 && view_id < WORLDVIEW_MAX);
-    outline_drop(&outline->views[view_id], app);
+    outline_drop(&outline->views[view_id], scene);
 }
 
-struct AppWevFlatOps const g_app_wev_flat_outline = {
+struct WevFlatOps const g_wev_flat_outline = {
     .name = "outline",
     .create = outline_create,
     .destroy = outline_destroy,

@@ -6,6 +6,7 @@
 #include "app/app_record_thumbs.h"
 
 #include "app/app_internal.h"
+#include "app/app_mapeditor_state.h"
 #include "editor/editor_preview_camera.h"
 #include "editor/panels/edpanels.h"
 #include "graphics/pixel_format.h"
@@ -25,32 +26,8 @@
 /** Parts one record's thumbnail holds at most. */
 #define THUMB_PARTS_MAX 16
 
-enum ThumbState
-{
-    THUMB_FREE = 0,
-    /** Asked for; the update renders it. */
-    THUMB_WANTED,
-    THUMB_READY,
-    /** The record has no model (a real answer). */
-    THUMB_NONE,
-};
-
-struct Thumb
-{
-    enum ThumbState state;
-    uint32_t kind;
-    int id;
-    int px;
-    int scene_id;
-    /** The ask that last touched it: the least recent is evicted. */
-    uint32_t used;
-    /** The wait the assets were asked for (-1 config, -2 models), once. */
-    int asked_stage;
-    int asked_frames;
-};
-
-static struct Thumb g_thumbs[APP_RECORD_THUMBS];
-static uint32_t g_thumb_clock;
+/* The cache is the map editor's (app_mapeditor_state.h MapEditorThumbs
+ * record / record_clock, struct AppRecordThumb). */
 
 /** Raster `count` parts framed by their joint bounds into a `size` square. */
 static void
@@ -291,15 +268,16 @@ thumb_build(
 
 /* ---- the cache ------------------------------------------------------------------ */
 
-static struct Thumb*
+static struct AppRecordThumb*
 thumb_find(
+    struct App const* app,
     uint32_t kind,
     int id,
     int px)
 {
     for( int i = 0; i < APP_RECORD_THUMBS; i++ )
     {
-        struct Thumb* t = &g_thumbs[i];
+        struct AppRecordThumb* t = &app_mapeditor_state(app)->thumbs.record[i];
         if( t->state != THUMB_FREE && t->kind == kind && t->id == id && t->px == px )
             return t;
     }
@@ -308,14 +286,14 @@ thumb_find(
 
 /** A free entry, else the least recently asked one (its sprite is replaced
  *  when the new picture lands). */
-static struct Thumb*
-thumb_take(void)
+static struct AppRecordThumb*
+thumb_take(struct App const* app)
 {
-    struct Thumb* victim = NULL;
+    struct AppRecordThumb* victim = NULL;
 
     for( int i = 0; i < APP_RECORD_THUMBS; i++ )
     {
-        struct Thumb* t = &g_thumbs[i];
+        struct AppRecordThumb* t = &app_mapeditor_state(app)->thumbs.record[i];
         if( t->state == THUMB_FREE )
             return t;
         if( !victim || t->used < victim->used )
@@ -332,7 +310,7 @@ app_record_thumb(
     int id,
     int px)
 {
-    struct Thumb* t;
+    struct AppRecordThumb* t;
 
     assert(app);
     assert(id >= 0);
@@ -341,17 +319,17 @@ app_record_thumb(
         return 0;
     if( kind != CACHEPROVIDER_CATALOG_LOC && kind != CACHEPROVIDER_CATALOG_NPC && kind != CACHEPROVIDER_CATALOG_OBJ )
         return -1;
-    t = thumb_find(kind, id, px);
+    t = thumb_find(app, kind, id, px);
     if( !t )
     {
-        t = thumb_take();
+        t = thumb_take(app);
         memset(t, 0, sizeof(*t));
         t->state = THUMB_WANTED;
         t->kind = kind;
         t->id = id;
         t->px = px;
     }
-    t->used = ++g_thumb_clock;
+    t->used = ++app_mapeditor_state(app)->thumbs.record_clock;
     if( t->state == THUMB_READY )
         return t->scene_id;
     if( t->state == THUMB_NONE )
@@ -365,7 +343,7 @@ thumb_render(
     struct App* app,
     int index)
 {
-    struct Thumb* t = &g_thumbs[index];
+    struct AppRecordThumb* t = &app_mapeditor_state(app)->thumbs.record[index];
     struct ToriDraw_Model* models[THUMB_PARTS_MAX];
     struct ToriDraw_ModelHandle parts[THUMB_PARTS_MAX];
     int const size = t->px;
@@ -421,7 +399,7 @@ app_record_thumbs_update(struct App* app)
         return;
     for( int i = 0; i < APP_RECORD_THUMBS && rendered < APP_RECORD_THUMBS_PER_FRAME; i++ )
     {
-        struct Thumb* t = &g_thumbs[i];
+        struct AppRecordThumb* t = &app_mapeditor_state(app)->thumbs.record[i];
         struct ToriDraw_Model* models[THUMB_PARTS_MAX];
         int count;
         if( t->state != THUMB_WANTED )

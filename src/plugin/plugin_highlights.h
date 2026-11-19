@@ -30,7 +30,17 @@
 
 #include <stdbool.h>
 
-/** Items either list can hold. */
+/**
+ * Items either list can hold: the resolved highlight items one frame may
+ * carry.
+ *
+ * A *TYPE group resolves to every matching thing in the scene, so one
+ * `highlight_loctype_on` can be a hundred items in a crowded map square --
+ * every Agility obstacle on a rooftop course, say. 256 is well past what the
+ * cache's own groups produce and still bounded; past it, resolution stops and
+ * says so, because a highlight that silently covered the first 256 of
+ * something would read as the feature half-working.
+ */
 #define PLUGIN_HIGHLIGHTS_MAX 256
 
 struct PluginHighlights

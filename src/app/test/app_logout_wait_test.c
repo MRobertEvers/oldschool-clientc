@@ -97,7 +97,7 @@ test_the_click_does_not_end_the_session(void)
     SessionEnd_RequestLogout(&app->session_end);
     TEST_ASSERT(!app_logout_tick(app), "the tick that drained the request ended nothing");
     TEST_ASSERT(
-        app->session_end.logout_wait_cycles == APP_LOGOUT_WAIT_CYCLES,
+        app->session_end.logout_wait_cycles == SESSION_END_LOGOUT_WAIT_CYCLES,
         "the wait for the server's answer is armed, at the reference's 250 cycles");
     TEST_ASSERT(!app->session_end.logout_requested, "the request was drained, not left to re-arm");
     TEST_ASSERT(net->state == TORIRS_NET_GAME, "still in the game stream");
@@ -127,20 +127,20 @@ test_a_refused_logout_keeps_the_session(void)
 
     SessionEnd_RequestLogout(&app->session_end);
     app_logout_tick(app);
-    for( int cycle = 1; cycle <= 4 * APP_LOGOUT_WAIT_CYCLES && ended_on_cycle < 0; cycle++ )
+    for( int cycle = 1; cycle <= 4 * SESSION_END_LOGOUT_WAIT_CYCLES && ended_on_cycle < 0; cycle++ )
     {
         if( app_logout_tick(app) )
             ended_on_cycle = cycle;
         /* A second click half way through: the one a player makes once the
          * combat delay has run out. It goes to the server; it ends nothing
          * here either. */
-        if( cycle == 2 * APP_LOGOUT_WAIT_CYCLES )
+        if( cycle == 2 * SESSION_END_LOGOUT_WAIT_CYCLES )
             SessionEnd_RequestLogout(&app->session_end);
     }
 
     TEST_ASSERT(ended_on_cycle < 0, "nothing but the server ended the session");
     TEST_ASSERT(
-        app->session_end.logout_wait_cycles == APP_LOGOUT_WAIT_CYCLES,
+        app->session_end.logout_wait_cycles == SESSION_END_LOGOUT_WAIT_CYCLES,
         "the wait is still armed, so the server's answer is still read as a logout");
     TEST_ASSERT(net->state == TORIRS_NET_GAME, "still in the game stream");
     TEST_ASSERT(!disconnect_queued(net), "nothing closed the socket on the player's behalf");

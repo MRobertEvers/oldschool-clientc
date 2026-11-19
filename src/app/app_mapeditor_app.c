@@ -34,6 +34,7 @@
 
 #include "app/app_internal.h"
 #include "app/app_catalog_palette.h"
+#include "app/app_mapeditor_state.h"
 #include "app/app_record_thumbs.h"
 #include "perf/frame_stats.h"
 
@@ -92,6 +93,7 @@ app_map_editor_app_open(struct App* app)
     session = ToriMem_Alloc(ToriMem_Process(), sizeof(*session));
     assert(session);
     app->map_editor = MapEditorApp_New(session, &app->cfg.map_editor);
+    app->map_editor->state = app_mapeditor_state_new();
 }
 
 void
@@ -99,9 +101,63 @@ app_map_editor_app_close(struct App* app)
 {
     assert(app);
     assert(app->map_editor);
+    app_mapeditor_state_free(app->map_editor->state);
+    app->map_editor->state = NULL;
     ToriMem_Free(ToriMem_Process(), app->map_editor->session);
     MapEditorApp_Free(app->map_editor);
     app->map_editor = NULL;
+}
+
+struct MapEditorState*
+app_mapeditor_state_new(void)
+{
+    /* EDITOR: the editor units' working state; app_mapeditor_state_free
+     * releases it with the app. */
+    struct MapEditorState* st = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*st));
+
+    /* What the file statics started at, where that was not zero. */
+    st->edit.ghost.ghost_handle = WORLD_BUILDER_HANDLE_NONE;
+    st->edit.ghost.occupant_handle = WORLD_BUILDER_HANDLE_NONE;
+    st->edit.ghost.occupant_next = WORLD_BUILDER_HANDLE_NONE;
+    st->spawns.ghost_loads.npc_requested = -1;
+    st->spawns.ghost_loads.npc_resolved = -1;
+    st->spawns.ghost_loads.obj_requested = -1;
+    st->spawns.ghost_loads.model_requested = -1;
+    st->spawns.player_ghost.entity = -1;
+    st->spawns.player_ghost.look_serial = -1;
+    st->spawns.player_preview.entity = -1;
+    st->spawns.player_preview.element_id = -1;
+    st->spawns.player_preview.look_serial = -1;
+    st->thumbs.strip.last_loc = -1;
+    st->thumbs.strip.requested_loc = -1;
+    st->preview_well.last_kind = -1;
+    st->preview_well.last_id = -1;
+    st->preview_well.last_w = -1;
+    st->preview_well.last_h = -1;
+    st->preview_well.subject_kind = -1;
+    st->preview_well.subject_id = -1;
+    st->preview_well.requested_kind = -1;
+    st->preview_well.requested_id = -1;
+    st->preview_well.models_kind = -1;
+    st->preview_well.models_id = -1;
+    return st;
+}
+
+void
+app_mapeditor_state_free(struct MapEditorState* state)
+{
+    if( !state )
+        return;
+    ToriMem_Free(ToriMem_Editor(), state);
+}
+
+struct MapEditorState*
+app_mapeditor_state(struct App const* app)
+{
+    assert(app);
+    assert(app->map_editor);
+    assert(app->map_editor->state);
+    return app->map_editor->state;
 }
 
 /* ---- the queries --------------------------------------------------------- */

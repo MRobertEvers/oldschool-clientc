@@ -63,7 +63,7 @@ enum
     SCRIPTRUN_SETHIDES = 1024,
     SCRIPTRUN_SCRIPT_ARGS = 32,
     /* Client logic cycles per server tick: the unit World and the drive's
-     * tick() count in (src/app.h APP_SERVER_TICK_LOGIC_CYCLES). */
+     * tick() count in (game/rs_server_tick.h APP_SERVER_TICK_LOGIC_CYCLES). */
     SCRIPTRUN_CYCLES_PER_TICK = 30,
 };
 

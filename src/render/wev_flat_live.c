@@ -7,10 +7,17 @@
  * applies to a copy of every model it draws inside the view
  * (src/render/torirs_frame_flat.u.h).
  *
- * @see app_wev_flat.h
+ * @see wev_flat.h
  */
-#include "app/app_internal.h"
-#include "app/app_wev_flat.h"
+#include "render/wev_flat.h"
+
+#include "painters/painters.h"
+#include "render/torirs_frame.h"
+#include "world/wev.h"
+#include "world/world.h"
+#include "world/worldview.h"
+
+#include <assert.h>
 
 static void*
 live_create(void)
@@ -21,30 +28,34 @@ live_create(void)
 static void
 live_destroy(
     void* state,
-    struct App* app)
+    struct ToriDraw_Scene* scene)
 {
     (void)state;
-    (void)app;
+    (void)scene;
 }
 
 static void
 live_bind_painter(
     void* state,
-    struct App* app,
+    struct ToriDraw_Scene* scene,
+    struct WorldviewRegistry* worldviews,
     struct Wev const* wev,
     struct Painter* parent_painter,
     int camera_sx,
-    int camera_sz)
+    int camera_sz,
+    bool debug)
 {
     struct Worldview* view;
 
     (void)state;
-    assert(app);
+    (void)scene;
+    (void)debug;
+    assert(worldviews);
     assert(wev);
     assert(parent_painter);
-    assert(WorldviewRegistry_IsLive(&app->worldviews, wev->id));
+    assert(WorldviewRegistry_IsLive(worldviews, wev->id));
 
-    view = WorldviewRegistry_Get(&app->worldviews, wev->id);
+    view = WorldviewRegistry_Get(worldviews, wev->id);
     assert(view->world);
     assert(view->world->painter);
     painter_set_world_entity_view(
@@ -54,12 +65,10 @@ live_bind_painter(
 static void
 live_bind_frame(
     void* state,
-    struct App* app,
     struct Wev const* wev,
     struct ToriRS_FrameViewXform* xf)
 {
     (void)state;
-    (void)app;
     assert(wev);
     assert(wev->config);
     assert(xf);
@@ -86,15 +95,15 @@ live_claim_elements(
 static void
 live_release_view(
     void* state,
-    struct App* app,
+    struct ToriDraw_Scene* scene,
     int view_id)
 {
     (void)state;
-    (void)app;
+    (void)scene;
     (void)view_id;
 }
 
-struct AppWevFlatOps const g_app_wev_flat_live = {
+struct WevFlatOps const g_wev_flat_live = {
     .name = "live",
     .create = live_create,
     .destroy = live_destroy,

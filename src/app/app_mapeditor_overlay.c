@@ -521,7 +521,7 @@ app_overlay_build_editor_ghosts(struct App* app)
     /* The spawn preview: the active level's tile markers, and the selected
      * spawns picked out on any level. */
     {
-        struct MapEditorSpawnPreview const* preview = app_map_editor_spawn_preview();
+        struct MapEditorSpawnPreview const* preview = app_map_editor_spawn_preview(app);
         struct Editor_SpawnRow selected[64];
         int const markers = Editor_Spawns_PreviewMarkers(panel->ui);
         int const marker_level = Editor_PanelEditLevel(panel, app);
@@ -566,7 +566,7 @@ app_overlay_build_editor_ghosts(struct App* app)
         int level;
         int element_id;
         int selected;
-        if( app_map_editor_player_preview_view(&scene_x, &scene_z, &level, &element_id, &selected) )
+        if( app_map_editor_player_preview_view(app, &scene_x, &scene_z, &level, &element_id, &selected) )
         {
             if( selected )
                 app_overlay_outline_element_model(app, element_id, APP_OUTLINE_COLOR_EDITOR_SELECT);

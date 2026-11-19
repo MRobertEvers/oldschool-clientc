@@ -21,6 +21,7 @@
  * for the next one, which is exactly where it belongs.
  */
 
+#include "game/rs_server_tick.h"
 #include "net/rev/revpacket.h"
 
 #include <stdbool.h>
@@ -35,6 +36,15 @@
  * runs the script immediately, so the cap costs ordering and never a script.
  */
 #define RS_CLIENTSCRIPT_QUEUE_MAX 64
+
+/**
+ * Logic cycles a held clientscript may wait for a fence that never comes.
+ *
+ * One whole server tick — long enough that a healthy connection never reaches
+ * it, short enough that a tick truncated by a disconnect costs one tick of
+ * delay rather than the script.
+ */
+#define APP_CLIENTSCRIPT_FENCE_MAX_CYCLES APP_SERVER_TICK_LOGIC_CYCLES
 
 struct RS_ClientScriptQueue
 {

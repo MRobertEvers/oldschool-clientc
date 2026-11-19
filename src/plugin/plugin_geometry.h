@@ -37,7 +37,9 @@
 
 #include <stdbool.h>
 
-/** World objects across every plugin. */
+/** World objects across every plugin at once. Per-plugin budgeting is the
+ *  host's (TORIRS_PLUGIN_OBJECT_BUDGET); this is the ceiling on the table
+ *  those handles index into. */
 #define PLUGIN_GEOMETRY_OBJECTS_MAX 256
 /** Authored meshes across every plugin at once: TORIRS_PLUGIN_MAX plugins at
  *  TORIRS_PLUGIN_MESH_BUDGET each, which is what the host will hand out and so

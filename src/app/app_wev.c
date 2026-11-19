@@ -575,7 +575,7 @@ App_WevDespawn(
 
     /* Whatever the flatten strategy built from this deck goes with it, before
      * the slot can be handed to another hull. */
-    app->wev_flat.ops->release_view(app->wev_flat.state, app, id);
+    app->wev_flat.ops->release_view(app->wev_flat.state, app->scene, id);
     Wevs_Despawn(&app->wevs, id);
     /* The slot goes back to the pool and the next hull it is given is a
      * different world-entity: the modes SET_INTERACTION_MODE gave this one
@@ -893,7 +893,14 @@ app_wev_bind_view_cameras(
 
             if( wev->flattened )
                 app->wev_flat.ops->bind_painter(
-                    app->wev_flat.state, app, wev, parent_world->painter, sx, sz);
+                    app->wev_flat.state,
+                    app->scene,
+                    &app->worldviews,
+                    wev,
+                    parent_world->painter,
+                    sx,
+                    sz,
+                    app_wev_debug_enabled());
             else
                 painter_set_world_entity_view(
                     parent_world->painter, id, view->world->painter, sx, sz, 0);
@@ -973,52 +980,14 @@ app_wev_bind_frame_xforms(
                 box.angle);
             if( wev->flattened )
                 app->wev_flat.ops->bind_frame(
-                    app->wev_flat.state, app, wev, &frame->views[wev->id]);
+                    app->wev_flat.state, wev, &frame->views[wev->id]);
         }
     }
 }
 
 /* --- SAILING_PLAN C4: flatten (budget / priority / overlap) -------------- */
 
-/* The flatten strategy table (app_wev_flat.h): which one, and its state. */
-
-struct AppWevFlatOps const*
-AppWevFlat_OpsByName(char const* name)
-{
-    if( !name || !name[0] )
-        return &g_app_wev_flat_outline;
-    if( strcmp(name, g_app_wev_flat_live.name) == 0 )
-        return &g_app_wev_flat_live;
-    if( strcmp(name, g_app_wev_flat_outline.name) == 0 )
-        return &g_app_wev_flat_outline;
-    TORIRS_ERR("TORIRS_WEV_FLAT=%s: expected \"live\" or \"outline\"\n", name);
-    assert(!"unknown TORIRS_WEV_FLAT strategy");
-    abort();
-}
-
-void
-AppWevFlat_Init(
-    struct AppWevFlat* flat,
-    struct AppWevFlatOps const* ops)
-{
-    assert(flat);
-    assert(ops);
-    flat->ops = ops;
-    flat->state = ops->create();
-}
-
-void
-AppWevFlat_Free(
-    struct AppWevFlat* flat,
-    struct App* app)
-{
-    assert(flat);
-    if( !flat->ops )
-        return;
-    flat->ops->destroy(flat->state, app);
-    flat->ops = NULL;
-    flat->state = NULL;
-}
+/* The flatten strategy table and its state: render/wev_flat.h. */
 
 
 /* Native actor overlaps use the drawn root position and nearest-16 oriented

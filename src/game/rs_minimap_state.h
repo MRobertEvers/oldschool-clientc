@@ -1,6 +1,17 @@
 #ifndef RS_MINIMAP_STATE_H
 #define RS_MINIMAP_STATE_H
 
+/** Raw native states; RS_MinimapPermissions below gives their independent permissions. */
+enum AppMinimapState
+{
+    APP_MINIMAP_STATE_NORMAL = 0,
+    APP_MINIMAP_STATE_UNCLICKABLE = 1,
+    APP_MINIMAP_STATE_HIDDEN = 2,
+    APP_MINIMAP_STATE_COMPASS_HIDDEN = 3,
+    APP_MINIMAP_STATE_UNCLICKABLE_COMPASS_HIDDEN = 4,
+    APP_MINIMAP_STATE_DISABLED = 5,
+};
+
 enum RS_MinimapPermission
 {
     RS_MINIMAP_DRAW_MAP = 1,

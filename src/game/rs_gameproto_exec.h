@@ -48,15 +48,6 @@ RS_GameProto_FlushPendingZone(struct RS_GameProtoCtx const* ctx);
 struct PktZoneSubPacket;
 struct TorirsControlFrame;
 
-/** A replay control frame (net/torirs_control.h, TORIRS_CONTROL_REPLAY_*) is
- *  only ever written by the RSProx replay transport (ToriRS_Network_IsReplay):
- *  on any other connection this says so and aborts. Returns when it is
- *  expected. */
-void
-RS_GameProto_ReplayControlExpected(
-    struct App const* app,
-    struct TorirsControlFrame const* frame);
-
 /* A replay seek's world keyframe (replay/replay_world_apply.c), through the
  * arms the zone packets themselves run through. */
 

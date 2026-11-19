@@ -736,6 +736,7 @@ app_camera_grab_gate(
  *  1 when one is parked. */
 int
 app_map_editor_hover_env_tile(
+    struct App const* app,
     int* out_world_x,
     int* out_world_z);
 
@@ -1287,9 +1288,10 @@ EditorView_AppBoot(struct App* app);
  *  world (`--editor-panel <module>`, the module neither "world" nor
  *  "preview": Editor_UiModuleNeedsWorld): the boot's default world load and
  *  the load around the camera stand down (app_boot.c, EditorView_AppFrame).
- *  The mirror, the catalog link and the preview raster are untouched. */
+ *  The mirror, the catalog link and the preview raster are untouched.
+ *  0 without the map editor. */
 int
-EditorView_AppHoldsNoWorld(void);
+EditorView_AppHoldsNoWorld(struct App const* app);
 
 /** Per frame, in the editor block: the toolbar's activation (while the
  *  command panels are hidden -- once "Open panels" showed them, their
@@ -1568,6 +1570,7 @@ struct MapEditorSpawnPreview;
  *  in this world (its scene tile, level, element; selected in the view). */
 int
 app_map_editor_player_preview_view(
+    struct App const* app,
     int* out_scene_x,
     int* out_scene_z,
     int* out_level,
@@ -1581,7 +1584,7 @@ app_map_editor_player_preview_deselect(struct App* app);
 
 /** The spawn preview's table, for the overlay's markers and outlines. */
 struct MapEditorSpawnPreview*
-app_map_editor_spawn_preview(void);
+app_map_editor_spawn_preview(struct App const* app);
 
 int
 app_modelview_focused(struct App const* app);

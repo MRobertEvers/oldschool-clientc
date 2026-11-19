@@ -489,7 +489,7 @@ struct World
     /* Bumped whenever a scenery or terrain record is set, removed or reset:
      * the geometry this world draws changed. Any number of readers may hold a
      * copy and compare -- unlike scenery_changed it is never drained. A
-     * flattened hull's outline (app_wev_flat_outline.c) is rebuilt on it. */
+     * flattened hull's outline (render/wev_flat_outline.c) is rebuilt on it. */
     uint32_t geometry_serial;
     /* Declared here so the field block above reads with its writer. */
 

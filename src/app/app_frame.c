@@ -26,6 +26,18 @@
 #include <stdlib.h>
 
 /*
+ * The two All Settings BUTTON rows this client has to act on itself, named the
+ * way the profile's `[setting:…]` sections name them.
+ *
+ * Both are in the Activities category and both reach the same apply hub, whose
+ * switch has no case for either -- a button row has no varbit, and the panel's
+ * only trace of it is the settings-changed varbit carrying the row's id. See
+ * the drain below.
+ */
+#define APP_SETTING_CLEAR_TILE_MARKERS "clear_tile_markers"
+#define APP_SETTING_CLEAR_NPC_TAGS "clear_npc_tags"
+
+/*
  * TORIRS_LOGIC_CYCLES_PER_FRAME=k (headless only; raid seam21). A bounded
  * headless frame (TORIRS_MAX_FRAMES) pays k 20 ms logic cycles in a row instead
  * of one, and the embed transport's clock moves k x 20 ms per poll, so a 600 ms

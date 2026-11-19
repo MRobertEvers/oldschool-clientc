@@ -7,6 +7,7 @@
 #include "plugin/torirs_plugin_host.h"
 #include "net/net.h"
 #include "net/torirs_control.h"
+#include "app/app_replay_control.h"
 #include "task_exec_entity_info.h"
 #include "engine/world_builder/task_world_load.h"
 #include "replay/replay_world.h"
@@ -202,7 +203,7 @@ replay_world_task(
     struct ReplayWorldDelivery* d;
     int decoded;
 
-    RS_GameProto_ReplayControlExpected(app, frame);
+    App_ReplayControlExpected(app, frame);
     decoded = torirs_control_replay_world_decode(frame, &w);
     d = decoded ? ReplayWorld_Take(w.serial) : NULL;
     /* An assertion, written out: the shipping lane compiles assert() away,

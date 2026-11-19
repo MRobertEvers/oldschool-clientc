@@ -30,6 +30,7 @@
 #include "editor/map_editor_ghost.h"
 
 struct Editor;
+struct MapEditorState;
 
 struct MapEditorApp
 {
@@ -53,6 +54,11 @@ struct MapEditorApp
     struct Editor_Panel editor_panel;
     /** The editor camera's latches (app/app_mapeditor_camera.c). */
     struct MapEditorCamera camera;
+    /** The App layer's editor units' working state (app/app_mapeditor_state.h):
+     *  drags, height tools, files, wells, previews, thumbnails, the view and
+     *  the hotkeys. Owned by the App layer, which makes it beside this record
+     *  and frees it before; NULL only between the two. */
+    struct MapEditorState* state;
 };
 
 /** A zeroed record with the ghost reset, holding `session` and `config`,

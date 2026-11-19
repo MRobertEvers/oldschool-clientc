@@ -35,6 +35,7 @@
 #include "replay/replay_checkpoint_check.h"
 #include "replay/replay_checkpoint_play.h"
 #include "replay/replay_scrub.h"
+#include "replay/replay_viewer.h"
 #include "platform/platform_audio.h"
 #include "platform/platform_window.h"
 #if !defined(TORIRS_PLATFORM_WEB)
@@ -488,9 +489,54 @@ dump_roots(struct App* app)
 /* Headless sim frames must render like the real loop does: the world pickset
  * and hover tile refresh inside App_Render, so every RunOnce that reports a
  * redraw is followed by a render into a scratch canvas. */
-/* The SIM lane's canvas, kept across frames and released by main_shutdown. */
-static int* sim_pixels = NULL;
-static size_t sim_pixel_count = 0;
+/* The headless harness: the SIM lane's canvas, the TORIRS_SIM_* knobs, the
+ * TORIRS_MAX_FRAMES frame count and the TORIRS_BOOT_STATS report. */
+struct MainHarness
+{
+    /* The SIM lane's canvas, kept across frames and released by main_shutdown. */
+    int* sim_pixels;
+    size_t sim_pixel_count;
+    int sim_sound_id;
+    int sim_song_id;
+    int sim_jingle_id;
+    int sim_music_done;
+    int sim_sound_loops;
+    int sim_sound_every;
+    long sim_sound_next;
+    long max_frames;
+    long frame_count;
+    int sim_after_ready;
+    int sim_ready;
+    int sim_ready_failed;
+    uint64_t sim_ready_start_ms;
+    uint64_t sim_next_frame_ms;
+    int sim_openmain;
+    int sim_openmain_done;
+    int sim_openside;
+    int sim_openside_done;
+    int sim_openchat;
+    int sim_openchat_done;
+    int boot_stats;
+    uint64_t boot_start_ms;
+    int boot_reported;
+    int world_reported;
+    char const* sim_sethide;
+    int sim_sethide_done;
+    char const* sim_setvarp;
+    char const* sim_settab;
+    int sim_settab_done;
+};
+static struct MainHarness main_harness = {
+    .sim_pixels = NULL,
+    .sim_pixel_count = 0,
+    .sim_sound_id = -1,
+    .sim_song_id = -1,
+    .sim_jingle_id = -1,
+    .sim_sound_loops = 1,
+    .sim_openmain = -1,
+    .sim_openside = -1,
+    .sim_openchat = -1,
+};
 
 static void
 sim_render_frame(struct App* app)
@@ -499,14 +545,14 @@ sim_render_frame(struct App* app)
 
     /* Reallocated on growth: the canvas is no longer fixed for the life of the
      * process, and App_Render writes exactly want ints. */
-    if( !sim_pixels || sim_pixel_count < want )
+    if( !main_harness.sim_pixels || main_harness.sim_pixel_count < want )
     {
-        int* grown = ToriMem_Realloc(ToriMem_Process(), sim_pixels, want * sizeof(int));
+        int* grown = ToriMem_Realloc(ToriMem_Process(), main_harness.sim_pixels, want * sizeof(int));
         assert(grown);
-        sim_pixels = grown;
-        sim_pixel_count = want;
+        main_harness.sim_pixels = grown;
+        main_harness.sim_pixel_count = want;
     }
-    App_Render(app, sim_pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    App_Render(app, main_harness.sim_pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 }
 
 /*
@@ -730,10 +776,49 @@ main_damage_to_buffer(
  * render, for the world-build prefill budget of the lanes that stage builds
  * (GL3, WebGL2, GLES3, WebGL1, GLES2, D3D9: each one's SetFrameElapsed) and
  * GL3's TORIRS_REBUILD_TIMING line. */
+/* The frame's pacing and the bench knobs (--uncapped, --unlocked, --pacer,
+ * TORIRS_PACE_SPIN) with the frame-start timestamps. */
+struct MainPacing
+{
 #if defined(TORIRS_HAVE_GL3) || defined(TORIRS_HAVE_WEBGL2) || defined(TORIRS_HAVE_GLES3) || \
     defined(TORIRS_HAVE_WEBGL1) || defined(TORIRS_HAVE_GLES2) || defined(TORIRS_HAVE_D3D9)
-static uint64_t s_timing_frame_start_us;
+    uint64_t s_timing_frame_start_us;
 #endif
+    int uncapped;
+    /* --unlocked: the unlocked clock (App_SpeedUnlock), resolved with
+     * TORIRS_UNLOCKED and `[net:boot] clock=` where the transport is chosen. */
+    int unlocked_opt;
+    /* TORIRS_PACE_SPIN=1: burn the pacing wait instead of sleeping it. Profiling
+     * aid for isolating wake-up cost from render cost; see docs/PERF_HARNESS.md. */
+    int pace_spin;
+    /* How the frame is paced (--pacer / TORIRS_PACER, below). */
+    struct ToriRS_Pacer frame_pacer;
+    char const* pacer_name_opt;
+    /* Frame start of the previous loop iteration, for the `period` stage. */
+    uint64_t prev_frame_start_us;
+#if defined(TORIRS_PLATFORM_WEB)
+    /* Shortest raf-paced `period` seen -- a self-calibrating stand-in for "one
+     * vsync" on web, where Emscripten never tells C the display's actual
+     * refresh rate. See the TORIRS_PERF raf-miss check in frame_loop_step.
+     * Only raf-mode periods may feed it: a settimeout(0) boot iteration runs
+     * ~1ms after its predecessor, and one such sample as the baseline would
+     * flag every normal 8ms frame after boot as a miss. */
+    uint64_t raf_baseline_us;
+    /* The (mode, value) pair currently installed via
+     * emscripten_set_main_loop_timing; -1 until the first install. File scope
+     * so the period instrumentation above can tell raf frames from timer
+     * frames -- there is exactly one frame loop per process. */
+    int paced_mode;
+    int paced_value;
+#endif
+};
+static struct MainPacing main_pacing = {
+    .uncapped = 0,
+#if defined(TORIRS_PLATFORM_WEB)
+    .paced_mode = -1,
+    .paced_value = -1,
+#endif
+};
 
 static void
 interactive_render_present(
@@ -816,7 +901,7 @@ interactive_render_present(
                 FrameStats_Count(FRAME_STATS_CTR_PICK_FRAMES, 1);
             }
             ToriPlatformWin32_Renderer_D3D9_SetFrameElapsed(
-                d3d9, PlatformWindow_TicksUs() - s_timing_frame_start_us);
+                d3d9, PlatformWindow_TicksUs() - main_pacing.s_timing_frame_start_us);
             {
                 uint64_t const t_rf = FrameStats_Now();
                 TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
@@ -901,7 +986,7 @@ interactive_render_present(
             }
             /* The dual-core lane renders this same renderer: told once. */
             ToriPlatformAndroid_Renderer_GLES2_SetFrameElapsed(
-                gles2, PlatformWindow_TicksUs() - s_timing_frame_start_us);
+                gles2, PlatformWindow_TicksUs() - main_pacing.s_timing_frame_start_us);
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
             {
 #if defined(TORIRS_HAVE_GLES2_DUALCORE)
@@ -984,7 +1069,7 @@ interactive_render_present(
                 pick_armed = 1;
             }
             ToriPlatformWeb_Renderer_WebGL2_SetFrameElapsed(
-                webgl2, PlatformWindow_TicksUs() - s_timing_frame_start_us);
+                webgl2, PlatformWindow_TicksUs() - main_pacing.s_timing_frame_start_us);
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
             {
                 if( world_depth )
@@ -1058,7 +1143,7 @@ interactive_render_present(
                 pick_armed = 1;
             }
             ToriPlatformWeb_Renderer_WebGL1_SetFrameElapsed(
-                webgl1, PlatformWindow_TicksUs() - s_timing_frame_start_us);
+                webgl1, PlatformWindow_TicksUs() - main_pacing.s_timing_frame_start_us);
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
             {
                 if( world_depth )
@@ -1133,7 +1218,7 @@ interactive_render_present(
                 pick_armed = 1;
             }
             ToriPlatformAndroid_Renderer_GLES3_SetFrameElapsed(
-                gles3, PlatformWindow_TicksUs() - s_timing_frame_start_us);
+                gles3, PlatformWindow_TicksUs() - main_pacing.s_timing_frame_start_us);
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
             {
                 if( world_depth )
@@ -1185,7 +1270,7 @@ interactive_render_present(
         int const chrome_w = PlatformWindow_ChromeWidth(platform);
         int const chrome_h = PlatformWindow_ChromeHeight(platform);
         /* TORIRS_REBUILD_TIMING's host half (ToriPlatformSDL2_Renderer_GL3_TimingReport). */
-        uint64_t const gl3_before_us = PlatformWindow_TicksUs() - s_timing_frame_start_us;
+        uint64_t const gl3_before_us = PlatformWindow_TicksUs() - main_pacing.s_timing_frame_start_us;
         uint64_t gl3_build_us = 0u;
         uint64_t gl3_present_us;
 
@@ -1217,7 +1302,7 @@ interactive_render_present(
                 pick_armed = 1;
             }
             ToriPlatformSDL2_Renderer_GL3_SetFrameElapsed(
-                gl3, PlatformWindow_TicksUs() - s_timing_frame_start_us);
+                gl3, PlatformWindow_TicksUs() - main_pacing.s_timing_frame_start_us);
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
             {
                 ToriPlatformSDL2_Renderer_GL3_RenderFrame(gl3, &frame);
@@ -2142,25 +2227,15 @@ renderer_follow_request(void)
 }
 static struct PlatformAudio* audio;
 static struct ToriRS_AudioCommand audio_commands[TORIRS_AUDIO_QUEUE_MAX];
-static int sim_sound_id = -1;
-static int sim_song_id = -1;
-static int sim_jingle_id = -1;
-static int sim_music_done;
-static int sim_sound_loops = 1;
-static int sim_sound_every;
-static long sim_sound_next;
-static long max_frames;
-static long frame_count;
-static int sim_after_ready;
-static int sim_ready;
-static int sim_ready_failed;
-static uint64_t sim_ready_start_ms;
-static uint64_t sim_next_frame_ms;
 /* t.finish(code): set the frame max_frames checks stops the loop under.
  * quest_exit_pending distinguishes "never finished" from "finished with exit
  * code 0", since 0 is a legitimate verdict. */
-static int quest_exit_pending;
-static int quest_exit_code;
+struct MainQuestVerdict
+{
+    int quest_exit_pending;
+    int quest_exit_code;
+};
+static struct MainQuestVerdict main_quest;
 
 #if defined(TORIRS_PLATFORM_WEB)
 /*
@@ -2339,12 +2414,11 @@ eip_sample_warmup_frames(void)
 static struct NetTransport* sock;
 /*
  * --replay FILE (or TORIRS_RSPROX_REPLAY): an RSProx recording this client
- * plays as its server (platform/net_transport_replay.c). Opened at boot, so its
- * header can choose the revision before the network is made; moved into the
- * transport when that is. `rsprox_replay_uncapped` is `uncapped` as the flags
- * left it, which an unlocked replay overrides and a relocked one restores.
+ * plays as its server (platform/net_transport_replay.c), with its --replay-at
+ * seek list, --replay-digest stage machine and seek state
+ * (replay/replay_viewer.h).
  */
-static char const* rsprox_replay_path;
+static struct ReplayViewer rsprox_replay;
 
 /*
  * The map editor's VIEWER flags (docs/MAPED_DESIGN.html #windows,
@@ -2446,74 +2520,14 @@ main_parse_maped_url(
     *out_port = port;
     return 1;
 }
-static struct RsproxRecording rsprox_replay_rec;
-static int rsprox_replay_uncapped;
 /*
- * --replay-at T[,T2,...] (or TORIRS_REPLAY_AT): once the login completes, seek
- * to T and hold there; each later tick is sought, and held at, once the one
- * before it has landed. The rest of the list is `rsprox_replay_at`.
- */
-static char const* rsprox_replay_at;
-/*
- * --replay-digest (or TORIRS_REPLAY_DIGEST=1): once the last --replay-at seek
- * has landed and the client has settled, print one `replay: digest` line of
- * the authoritative state (replay/replay_digest.h), play 64 more ticks, print
- * another, and exit. What `make -C src replay-seek-check` compares between a
- * full simulation and a fast seek.
+ * --replay-digest (rsprox_replay.digest): what `make -C src replay-seek-check`
+ * compares between a full simulation and a fast seek.
  */
 #define RSPROX_REPLAY_DIGEST_AFTER 64
 #define RSPROX_REPLAY_DIGEST_SETTLE_FRAMES 3
-static struct
-{
-    int on;
-    /** 0 waiting for the seek, 1 settling at T, 2 playing to T + 64,
-     *  3 settling there, 4 done. */
-    int stage;
-    int seek_issued;
-    int tick;
-    int settle;
-    unsigned long long serial_at;
-} rsprox_replay_digest;
-/*
- * What a seek changes for as long as it runs, and puts back when it lands: the
- * replay as fast as the client can go (the transport reports itself unlocked,
- * k cycles a frame), nothing drawn (App_RenderSkipHold), nothing heard.
- */
+/* A seek's cycles a frame (rsprox_replay.seek). */
 #define RSPROX_REPLAY_SEEK_CYCLES_PER_FRAME 30
-static struct
-{
-    int active;
-    int cycles_per_frame;
-    int master_volume;
-    /** The audio device as it was: a seek runs with none, so nothing is
-     *  fetched or decoded for a sound nobody hears (RS_Audio_Tick). */
-    bool device_present;
-    /** A seek landed last frame: its breakdown is printed once the frame
-     *  that presents it has run. */
-    int present_pending;
-} rsprox_replay_seek;
-static int sim_openmain = -1;
-static int sim_openmain_done;
-static int sim_openside = -1;
-static int sim_openside_done;
-static int sim_openchat = -1;
-static int sim_openchat_done;
-static int boot_stats;
-static uint64_t boot_start_ms;
-static int boot_reported;
-static int world_reported;
-static char const* sim_sethide;
-static int sim_sethide_done;
-static char const* sim_setvarp;
-static char const* sim_settab;
-static int sim_settab_done;
-static int uncapped;
-/* --unlocked: the unlocked clock (App_SpeedUnlock), resolved with
- * TORIRS_UNLOCKED and `[net:boot] clock=` where the transport is chosen. */
-static int unlocked_opt;
-/* TORIRS_PACE_SPIN=1: burn the pacing wait instead of sleeping it. Profiling
- * aid for isolating wake-up cost from render cost; see docs/PERF_HARNESS.md. */
-static int pace_spin;
 
 /*
  * A replay's unlock, followed every frame. --unlocked or the page
@@ -2542,38 +2556,38 @@ main_rsprox_replay_relogin(void)
 }
 #endif
 
-/* --replay-digest's frames (rsprox_replay_digest above). */
+/* --replay-digest's frames (rsprox_replay.digest above). */
 static void
 main_rsprox_replay_digest_frame(int seeking)
 {
     struct NetTransportReplayStatus st;
 
-    if( !rsprox_replay_digest.on || rsprox_replay_digest.stage >= 4 || seeking || rsprox_replay_at ||
-        !rsprox_replay_digest.seek_issued )
+    if( !rsprox_replay.digest.on || rsprox_replay.digest.stage >= 4 || seeking || rsprox_replay.at ||
+        !rsprox_replay.digest.seek_issued )
         return;
     NetTransport_ReplayGetStatus(sock, &st);
     if( strcmp(st.phase, "playing") != 0 || !st.held )
         return;
-    if( rsprox_replay_digest.stage == 0 )
+    if( rsprox_replay.digest.stage == 0 )
     {
-        rsprox_replay_digest.stage = 1;
-        rsprox_replay_digest.tick = st.tick;
-        rsprox_replay_digest.settle = 0;
+        rsprox_replay.digest.stage = 1;
+        rsprox_replay.digest.tick = st.tick;
+        rsprox_replay.digest.settle = 0;
     }
-    if( rsprox_replay_digest.stage == 2 )
+    if( rsprox_replay.digest.stage == 2 )
     {
-        if( RS_ServerTick_Serial(&app.server_tick) - rsprox_replay_digest.serial_at < RSPROX_REPLAY_DIGEST_AFTER )
+        if( RS_ServerTick_Serial(&app.server_tick) - rsprox_replay.digest.serial_at < RSPROX_REPLAY_DIGEST_AFTER )
             return;
-        rsprox_replay_digest.stage = 3;
-        rsprox_replay_digest.settle = 0;
+        rsprox_replay.digest.stage = 3;
+        rsprox_replay.digest.settle = 0;
     }
     /* Settled: the tick's scripts have run and nothing is parked. */
     if( !App_FrameSettled(&app) || TaskRunner_HadWork(&app.packet_runner) )
     {
-        rsprox_replay_digest.settle = 0;
+        rsprox_replay.digest.settle = 0;
         return;
     }
-    if( ++rsprox_replay_digest.settle < RSPROX_REPLAY_DIGEST_SETTLE_FRAMES )
+    if( ++rsprox_replay.digest.settle < RSPROX_REPLAY_DIGEST_SETTLE_FRAMES )
         return;
     {
         struct ReplayDigest d;
@@ -2583,25 +2597,25 @@ main_rsprox_replay_digest_frame(int seeking)
         {
             char path[1024];
 
-            snprintf(path, sizeof(path), "%s.%d.txt", dump, rsprox_replay_digest.tick);
+            snprintf(path, sizeof(path), "%s.%d.txt", dump, rsprox_replay.digest.tick);
             ReplayDigest_TakeDumping(&app, &d, path);
         }
         else
             ReplayDigest_Take(&app, &d);
-        ReplayDigest_Print(&d, rsprox_replay_digest.tick);
+        ReplayDigest_Print(&d, rsprox_replay.digest.tick);
     }
-    if( rsprox_replay_digest.stage == 1 &&
-        rsprox_replay_digest.tick + RSPROX_REPLAY_DIGEST_AFTER <= st.tick_count )
+    if( rsprox_replay.digest.stage == 1 &&
+        rsprox_replay.digest.tick + RSPROX_REPLAY_DIGEST_AFTER <= st.tick_count )
     {
-        rsprox_replay_digest.stage = 2;
-        rsprox_replay_digest.serial_at = RS_ServerTick_Serial(&app.server_tick);
-        rsprox_replay_digest.tick += RSPROX_REPLAY_DIGEST_AFTER;
-        NetTransport_ReplayHoldAt(sock, rsprox_replay_digest.tick);
+        rsprox_replay.digest.stage = 2;
+        rsprox_replay.digest.serial_at = RS_ServerTick_Serial(&app.server_tick);
+        rsprox_replay.digest.tick += RSPROX_REPLAY_DIGEST_AFTER;
+        NetTransport_ReplayHoldAt(sock, rsprox_replay.digest.tick);
         return;
     }
     /* Both printed: the run is over. */
-    rsprox_replay_digest.stage = 4;
-    max_frames = frame_count;
+    rsprox_replay.digest.stage = 4;
+    main_harness.max_frames = main_harness.frame_count;
 }
 
 /* One line per landed seek: where its milliseconds went, phase by phase, on
@@ -2663,35 +2677,35 @@ main_rsprox_replay_seek_frame(void)
 {
     int const seeking = NetTransport_ReplaySeeking(sock);
 
-    if( seeking && !rsprox_replay_seek.active )
+    if( seeking && !rsprox_replay.seek.active )
     {
-        rsprox_replay_seek.active = 1;
-        rsprox_replay_seek.cycles_per_frame = App_LogicCyclesPerFrameSet();
-        rsprox_replay_seek.master_volume = app.audio.master_volume;
-        rsprox_replay_seek.device_present = app.audio.device_present;
+        rsprox_replay.seek.active = 1;
+        rsprox_replay.seek.cycles_per_frame = App_LogicCyclesPerFrameSet();
+        rsprox_replay.seek.master_volume = app.audio.master_volume;
+        rsprox_replay.seek.device_present = app.audio.device_present;
         RS_Audio_SetDevicePresent(&app.audio, false);
         App_SetLogicCyclesPerFrame(RSPROX_REPLAY_SEEK_CYCLES_PER_FRAME);
         App_RenderSkipHold(&app, 1);
     }
-    else if( !seeking && rsprox_replay_seek.present_pending )
+    else if( !seeking && rsprox_replay.seek.present_pending )
     {
-        rsprox_replay_seek.present_pending = 0;
+        rsprox_replay.seek.present_pending = 0;
         main_rsprox_replay_seek_report();
     }
-    if( !seeking && rsprox_replay_seek.active )
+    if( !seeking && rsprox_replay.seek.active )
     {
-        rsprox_replay_seek.active = 0;
-        rsprox_replay_seek.present_pending = 1;
-        App_SetLogicCyclesPerFrame(rsprox_replay_seek.cycles_per_frame);
+        rsprox_replay.seek.active = 0;
+        rsprox_replay.seek.present_pending = 1;
+        App_SetLogicCyclesPerFrame(rsprox_replay.seek.cycles_per_frame);
         App_RenderSkipHold(&app, 0);
-        RS_Audio_SetDevicePresent(&app.audio, rsprox_replay_seek.device_present);
-        RS_Audio_SetMasterVolume(&app.audio, rsprox_replay_seek.master_volume, &app.audio_out);
+        RS_Audio_SetDevicePresent(&app.audio, rsprox_replay.seek.device_present);
+        RS_Audio_SetMasterVolume(&app.audio, rsprox_replay.seek.master_volume, &app.audio_out);
     }
     /* Silent every frame of it: a setting the replay's own packets move
      * (RS_CS2Host_SyncAudioVarp) is kept for the end of the seek instead. */
-    if( rsprox_replay_seek.active && app.audio.master_volume != 0 )
+    if( rsprox_replay.seek.active && app.audio.master_volume != 0 )
     {
-        rsprox_replay_seek.master_volume = app.audio.master_volume;
+        rsprox_replay.seek.master_volume = app.audio.master_volume;
         RS_Audio_SetMasterVolume(&app.audio, 0, &app.audio_out);
     }
     /* Held, or seeking past a quiet stretch, the replay sends nothing for as
@@ -2705,7 +2719,7 @@ main_rsprox_replay_seek_frame(void)
 
     /* --replay-at: the next tick in the list, once the session plays and the
      * seek before it has landed. */
-    if( rsprox_replay_at && !seeking )
+    if( rsprox_replay.at && !seeking )
     {
         struct NetTransportReplayStatus st;
 
@@ -2713,19 +2727,19 @@ main_rsprox_replay_seek_frame(void)
         if( strcmp(st.phase, "playing") == 0 )
         {
             char* end = NULL;
-            long const tick = strtol(rsprox_replay_at, &end, 10);
+            long const tick = strtol(rsprox_replay.at, &end, 10);
 
-            if( end == rsprox_replay_at )
+            if( end == rsprox_replay.at )
             {
-                TORIRS_ERR("replay: --replay-at: '%s' is not a tick\n", rsprox_replay_at);
-                rsprox_replay_at = NULL;
+                TORIRS_ERR("replay: --replay-at: '%s' is not a tick\n", rsprox_replay.at);
+                rsprox_replay.at = NULL;
             }
             else
             {
-                rsprox_replay_at = *end == ',' ? end + 1 : NULL;
+                rsprox_replay.at = *end == ',' ? end + 1 : NULL;
                 NetTransport_ReplayHold(sock);
                 NetTransport_ReplaySeek(sock, (int)tick);
-                rsprox_replay_digest.seek_issued = 1;
+                rsprox_replay.digest.seek_issued = 1;
                 return;
             }
         }
@@ -2733,7 +2747,7 @@ main_rsprox_replay_seek_frame(void)
     main_rsprox_replay_digest_frame(seeking);
     /* TORIRS_REPLAY_CHECKPOINT_CHECK (replay/replay_checkpoint_check.h). */
     if( ReplayCheckpointCheck_Frame(&app, sock, seeking) )
-        max_frames = frame_count;
+        main_harness.max_frames = main_harness.frame_count;
 }
 
 static void
@@ -2760,7 +2774,7 @@ main_rsprox_replay_frame(void)
             App_SpeedUnlock();
         else
             App_SpeedRelock();
-        uncapped = unlocked ? 1 : rsprox_replay_uncapped;
+        main_pacing.uncapped = unlocked ? 1 : rsprox_replay.uncapped;
     }
     NetTransport_ReplayClock(sock, App_LogicCyclesRun());
 }
@@ -2773,8 +2787,6 @@ main_rsprox_replay_frame(void)
  * The flag wins over the environment: an env var is ambient and a flag is a
  * decision made for this run.
  */
-static struct ToriRS_Pacer frame_pacer;
-static char const* pacer_name_opt;
 
 /*
  * Milliseconds per drawn frame. 20 (50 fps) unless TORIRS_FRAME_MS says otherwise.
@@ -2848,7 +2860,7 @@ pacer_kind_selected(void)
      */
     return TORIRS_PACER_DEADLINE;
 #else
-    char const* name = pacer_name_opt;
+    char const* name = main_pacing.pacer_name_opt;
     int ok = 0;
     enum ToriRS_PacerKind kind;
 
@@ -2870,23 +2882,6 @@ pacer_kind_selected(void)
 #endif
 }
 
-/* Frame start of the previous loop iteration, for the `period` stage. */
-static uint64_t prev_frame_start_us;
-#if defined(TORIRS_PLATFORM_WEB)
-/* Shortest raf-paced `period` seen -- a self-calibrating stand-in for "one
- * vsync" on web, where Emscripten never tells C the display's actual
- * refresh rate. See the TORIRS_PERF raf-miss check in frame_loop_step.
- * Only raf-mode periods may feed it: a settimeout(0) boot iteration runs
- * ~1ms after its predecessor, and one such sample as the baseline would
- * flag every normal 8ms frame after boot as a miss. */
-static uint64_t raf_baseline_us;
-/* The (mode, value) pair currently installed via
- * emscripten_set_main_loop_timing; -1 until the first install. File scope
- * so the period instrumentation above can tell raf frames from timer
- * frames -- there is exactly one frame loop per process. */
-static int paced_mode = -1;
-static int paced_value = -1;
-#endif
 /* Retain gesture/key one-shots while App_RunOnce is holding the last committed
  * visual frame. They are cleared only after a stable tree reaches interaction. */
 static int input_frame_pending;
@@ -3174,7 +3169,7 @@ main_view_split_trace(void)
         trace,
         "frame=%ld tick=%d interact=%d runner=%d,%d,%d,%d,%d,%d,%d ptr=%d,%d watcher=%d,%d,%d,%d,%d,%d,%d "
         "ptr=%d,%d offscreen=%llu presented=%llu delivered=%llu dropped=%llu held=%llu menus=%d,%d\n",
-        frame_count,
+        main_harness.frame_count,
         app.world ? (int)(app.world->cycle / APP_SERVER_TICK_LOGIC_CYCLES) : 0,
         app.world_views.split.interact,
         runner->orbit.yaw,
@@ -3257,8 +3252,8 @@ main_view_split_sim(void)
         return;
     }
     if( attached_at < 0 )
-        attached_at = frame_count;
-    frame = frame_count - attached_at;
+        attached_at = main_harness.frame_count;
+    frame = main_harness.frame_count - attached_at;
     if( release_button )
     {
         CmdBus_PushMouseButton(&bus, TORIRS_CMD_INPUT_MOUSE_UP, (uint8_t)release_button, (int16_t)release_x,
@@ -3662,9 +3657,9 @@ main_shutdown(struct App* a)
     ToriRSChromeExec_SdlSurfaceShutdown();
 #endif
     ToriDraw_NormalsPoolDrain();
-    ToriMem_Free(ToriMem_Process(), sim_pixels);
-    sim_pixels = NULL;
-    sim_pixel_count = 0;
+    ToriMem_Free(ToriMem_Process(), main_harness.sim_pixels);
+    main_harness.sim_pixels = NULL;
+    main_harness.sim_pixel_count = 0;
     ToriMem_Shutdown();
 }
 
@@ -4091,13 +4086,13 @@ frame_loop_step(void)
          * keep: setImmediate (a posted message, so no 4 ms timer clamp) runs
          * the next frame as soon as this one returns, and the transport plays
          * the recording at whatever rate that is (main_rsprox_replay_frame). */
-        int fast = rsprox_replay_path && App_SpeedUnlocked();
+        int fast = rsprox_replay.path && App_SpeedUnlocked();
         int mode = fast                  ? EM_TIMING_SETIMMEDIATE
                    : (waiting || hidden) ? EM_TIMING_SETTIMEOUT
                                          : EM_TIMING_RAF;
         int value = fast ? 0 : waiting ? 0 : (hidden ? 50 : 1);
 
-        if( mode != paced_mode || value != paced_value )
+        if( mode != main_pacing.paced_mode || value != main_pacing.paced_value )
         {
             if( g_torirs_perf_enabled )
             {
@@ -4106,17 +4101,17 @@ frame_loop_step(void)
                     label,
                     sizeof label,
                     "torirs-pace %s(%d)->%s(%d) frame=%ld",
-                    paced_mode < 0                ? "init"
-                    : paced_mode == EM_TIMING_RAF ? "raf"
+                    main_pacing.paced_mode < 0                ? "init"
+                    : main_pacing.paced_mode == EM_TIMING_RAF ? "raf"
                                                   : "settimeout",
-                    paced_value,
+                    main_pacing.paced_value,
                     mode == EM_TIMING_RAF ? "raf" : "settimeout",
                     value,
-                    frame_count);
+                    main_harness.frame_count);
                 web_mark_frame_event(label);
             }
-            paced_mode = mode;
-            paced_value = value;
+            main_pacing.paced_mode = mode;
+            main_pacing.paced_value = value;
             emscripten_set_main_loop_timing(mode, value);
         }
     }
@@ -4164,21 +4159,21 @@ frame_loop_step(void)
      * address frames by this number, and an uncapped run -- the only one
      * whose logic ticks are wall-clock, so the only one that behaves like a
      * player's -- used to leave it at zero and never fire them. */
-    if( sim_after_ready )
+    if( main_harness.sim_after_ready )
     {
         uint64_t const simulation_now = PlatformWindow_Ticks64();
-        if( !sim_ready )
+        if( !main_harness.sim_ready )
         {
             if( RS_ClientPhase_Ready(&app.phase) && RS_ClientPhase_Screen(&app.phase) == APP_SCREEN_GAME &&
                 !App_AsyncPending(&app) &&
                 (!app.net || (app.net->state == TORIRS_NET_GAME && RS_RebuildRegion_CentreX(&app.rebuild_region) >= 0)) )
             {
-                sim_ready = 1;
-                frame_count = 0;
-                sim_next_frame_ms = simulation_now;
+                main_harness.sim_ready = 1;
+                main_harness.frame_count = 0;
+                main_harness.sim_next_frame_ms = simulation_now;
                 TORIRS_REPORT(
                     "SIM_READY elapsed_ms=%llu tree_generation=%u\n",
-                    (unsigned long long)(simulation_now - sim_ready_start_ms),
+                    (unsigned long long)(simulation_now - main_harness.sim_ready_start_ms),
                     app.tree ? app.tree->generation : 0);
                 if( g_torirs_perf_enabled )
                 {
@@ -4188,25 +4183,25 @@ frame_loop_step(void)
                         "SIM_PERF_BEGIN: native gameplay ready; startup samples excluded\n");
                 }
             }
-            else if( simulation_now - sim_ready_start_ms > 60000 )
+            else if( simulation_now - main_harness.sim_ready_start_ms > 60000 )
             {
                 TORIRS_ERR("SIM_READY failed: gameplay did not become ready within 60 seconds\n");
-                sim_ready_failed = 1;
+                main_harness.sim_ready_failed = 1;
                 return 0;
             }
         }
         /* Loading spins drain real IO; they are not scenario time. Advancing
          * this clock at most once per 20 ms also prevents a later async mount
          * from consuming the whole test before its server can answer. */
-        if( sim_ready && simulation_now >= sim_next_frame_ms )
+        if( main_harness.sim_ready && simulation_now >= main_harness.sim_next_frame_ms )
         {
-            frame_count++;
-            sim_next_frame_ms = simulation_now + 20;
+            main_harness.frame_count++;
+            main_harness.sim_next_frame_ms = simulation_now + 20;
         }
     }
     else
-        frame_count++;
-    if( max_frames > 0 && frame_count > max_frames )
+        main_harness.frame_count++;
+    if( main_harness.max_frames > 0 && main_harness.frame_count > main_harness.max_frames )
     {
         ToriDraw_EipSampleStop("frames");
         ToriDraw_FrameAbDump("frames");
@@ -4221,8 +4216,8 @@ frame_loop_step(void)
         int code = 0;
         if( PluginDrive_Finished(&code) )
         {
-            quest_exit_pending = 1;
-            quest_exit_code = code;
+            main_quest.quest_exit_pending = 1;
+            main_quest.quest_exit_code = code;
             ToriDraw_EipSampleStop("frames");
             ToriDraw_FrameAbDump("frames");
             return 0;
@@ -4243,7 +4238,7 @@ frame_loop_step(void)
      * Start, not Stop, carries the warmup: stopping is driven by the exits
      * above, which is where the run actually ends.
      */
-    if( frame_count == eip_sample_warmup_frames() )
+    if( main_harness.frame_count == eip_sample_warmup_frames() )
         ToriDraw_EipSampleStart();
 
     /* Unconditional, unlike frame_count above, which only moves when the
@@ -4269,7 +4264,7 @@ frame_loop_step(void)
     frame_start_us = PlatformWindow_TicksUs();
 #if defined(TORIRS_HAVE_GL3) || defined(TORIRS_HAVE_WEBGL2) || defined(TORIRS_HAVE_GLES3) || \
     defined(TORIRS_HAVE_WEBGL1) || defined(TORIRS_HAVE_GLES2) || defined(TORIRS_HAVE_D3D9)
-    s_timing_frame_start_us = frame_start_us;
+    main_pacing.s_timing_frame_start_us = frame_start_us;
 #endif
 #if defined(TORIRS_FRAME_TIMES)
     ToriRS_FrameTimes_Begin(frame_start_us);
@@ -4277,9 +4272,9 @@ frame_loop_step(void)
     /* Carry the wall gap since the previous frame start, then open the frame:
      * FRAME_BEGIN moves the carry into this frame's bucket. Work and pace each
      * miss part of the loop, so only this is the period the player sees. */
-    if( prev_frame_start_us != 0 && frame_start_us > prev_frame_start_us )
+    if( main_pacing.prev_frame_start_us != 0 && frame_start_us > main_pacing.prev_frame_start_us )
     {
-        uint64_t period_us = frame_start_us - prev_frame_start_us;
+        uint64_t period_us = frame_start_us - main_pacing.prev_frame_start_us;
         TORIRS_PERF_CARRY(TORIRS_PERF_STAGE_PERIOD, period_us * 1000u);
 #if defined(TORIRS_PLATFORM_WEB)
         /* raf_baseline_us tracks the shortest raf-paced period seen as a
@@ -4292,11 +4287,11 @@ frame_loop_step(void)
          * every honest frame would then appear to miss. A period spanning a
          * mode flip is judged by the mode just installed above -- close
          * enough for instrumentation, and the flip logs its own marker. */
-        if( g_torirs_perf_enabled && paced_mode == EM_TIMING_RAF )
+        if( g_torirs_perf_enabled && main_pacing.paced_mode == EM_TIMING_RAF )
         {
-            if( period_us >= 4000 && (raf_baseline_us == 0 || period_us < raf_baseline_us) )
-                raf_baseline_us = period_us;
-            else if( raf_baseline_us != 0 && period_us > raf_baseline_us + raf_baseline_us / 2 )
+            if( period_us >= 4000 && (main_pacing.raf_baseline_us == 0 || period_us < main_pacing.raf_baseline_us) )
+                main_pacing.raf_baseline_us = period_us;
+            else if( main_pacing.raf_baseline_us != 0 && period_us > main_pacing.raf_baseline_us + main_pacing.raf_baseline_us / 2 )
             {
                 char label[96];
                 snprintf(
@@ -4304,14 +4299,14 @@ frame_loop_step(void)
                     sizeof label,
                     "torirs-raf-miss period=%.1fms baseline=%.1fms frame=%ld",
                     (double)period_us / 1000.0,
-                    (double)raf_baseline_us / 1000.0,
-                    frame_count);
+                    (double)main_pacing.raf_baseline_us / 1000.0,
+                    main_harness.frame_count);
                 web_mark_frame_event(label);
             }
         }
 #endif
     }
-    prev_frame_start_us = frame_start_us;
+    main_pacing.prev_frame_start_us = frame_start_us;
     TORIRS_PERF_FRAME_BEGIN();
 
     /* TORIRS_BMP_SERIES=dir,start,step,count: write a numbered App_Render frame
@@ -4337,14 +4332,14 @@ frame_loop_step(void)
                     &series_count);
         }
         if( App_FrameSettled(&app) && series_start >= 0 && series_written < series_count &&
-            frame_count >= series_start &&
-            (frame_count - series_start) % (series_step > 0 ? series_step : 1) == 0 )
+            main_harness.frame_count >= series_start &&
+            (main_harness.frame_count - series_start) % (series_step > 0 ? series_step : 1) == 0 )
         {
             int* pixels = ToriMem_Calloc(ToriMem_Process(), (size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
             assert(pixels);
             char path[600];
             if( getenv("TORIRS_ANIM_DEBUG") )
-                TORIRS_LOG("bmp_series: frame_count=%ld\n", frame_count);
+                TORIRS_LOG("bmp_series: frame_count=%ld\n", main_harness.frame_count);
             extern int g_torirs_painter_force;
             /* TORIRS_PAINTER_ALT=1: write frame_N.bmp painted by world3d AND
              * frame_N_bucket.bmp painted by the bucket painter, from the SAME
@@ -4354,7 +4349,7 @@ frame_loop_step(void)
             int alt = getenv("TORIRS_PAINTER_ALT") != NULL;
             g_torirs_painter_force = alt ? 1 : 0;
             App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-            snprintf(path, sizeof(path), "%s/frame_%05ld.bmp", series_dir, frame_count);
+            snprintf(path, sizeof(path), "%s/frame_%05ld.bmp", series_dir, main_harness.frame_count);
             bmp_write_file(path, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
             if( alt )
             {
@@ -4362,7 +4357,7 @@ frame_loop_step(void)
                 g_torirs_painter_force = 2;
                 App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
                 snprintf(
-                    path_b, sizeof(path_b), "%s/frame_%05ld_bucket.bmp", series_dir, frame_count);
+                    path_b, sizeof(path_b), "%s/frame_%05ld_bucket.bmp", series_dir, main_harness.frame_count);
                 bmp_write_file(path_b, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
             }
             g_torirs_painter_force = 0;
@@ -4371,12 +4366,12 @@ frame_loop_step(void)
         }
     }
 
-    if( boot_stats && !boot_reported && RS_ClientPhase_Ready(&app.phase) )
+    if( main_harness.boot_stats && !main_harness.boot_reported && RS_ClientPhase_Ready(&app.phase) )
     {
-        boot_reported = 1;
+        main_harness.boot_reported = 1;
         TORIRS_ERR(
             "boot: %llums  frames=%d steps=%ld capped=%d\n",
-            (unsigned long long)(PlatformWindow_Ticks64() - boot_start_ms),
+            (unsigned long long)(PlatformWindow_Ticks64() - main_harness.boot_start_ms),
             BootPumpStats_BootFrames(&app.pump_stats),
             BootPumpStats_BootSteps(&app.pump_stats),
             BootPumpStats_BootFramesCapped(&app.pump_stats));
@@ -4385,54 +4380,54 @@ frame_loop_step(void)
     /* The whole startup, once the world is in: the title's report above ends
      * before login, and the marks after it (login, world load) are what a
      * networked boot is mostly made of. */
-    if( boot_stats && !world_reported && RS_ClientPhase_Ready(&app.phase) && WorldLoadState_Active(&app.world_load) )
+    if( main_harness.boot_stats && !main_harness.world_reported && RS_ClientPhase_Ready(&app.phase) && WorldLoadState_Active(&app.world_load) )
     {
-        world_reported = 1;
+        main_harness.world_reported = 1;
         TORIRS_ERR("boot: world ready\n");
         ToriRS_BootTelemetry_Report(stderr, &app.frame_runner, &app.packet_runner);
     }
-    if( boot_stats && frame_count == max_frames - 1 )
+    if( main_harness.boot_stats && main_harness.frame_count == main_harness.max_frames - 1 )
         TORIRS_ERR(
             "post-boot: busy_frames=%d busy_steps=%ld (frames that used the "
             "whole budget with work still queued)\n",
             BootPumpStats_BusyFrames(&app.pump_stats),
             BootPumpStats_BusySteps(&app.pump_stats));
 
-    if( sim_openmain > 0 && !sim_openmain_done && RS_ClientPhase_Ready(&app.phase) )
+    if( main_harness.sim_openmain > 0 && !main_harness.sim_openmain_done && RS_ClientPhase_Ready(&app.phase) )
     {
-        TORIRS_LOG("sim_openmain: opening main modal iface=%d\n", sim_openmain);
-        RS_UISlots_OpenMain(&app, sim_openmain);
-        sim_openmain_done = 1;
+        TORIRS_LOG("sim_openmain: opening main modal iface=%d\n", main_harness.sim_openmain);
+        RS_UISlots_OpenMain(&app, main_harness.sim_openmain);
+        main_harness.sim_openmain_done = 1;
     }
 
-    if( sim_openside > 0 && !sim_openside_done && RS_ClientPhase_Ready(&app.phase) )
+    if( main_harness.sim_openside > 0 && !main_harness.sim_openside_done && RS_ClientPhase_Ready(&app.phase) )
     {
-        TORIRS_LOG("sim_openside: opening side panel iface=%d\n", sim_openside);
-        RS_UISlots_OpenSide(&app, sim_openside);
-        sim_openside_done = 1;
+        TORIRS_LOG("sim_openside: opening side panel iface=%d\n", main_harness.sim_openside);
+        RS_UISlots_OpenSide(&app, main_harness.sim_openside);
+        main_harness.sim_openside_done = 1;
     }
 
-    if( sim_openchat > 0 && !sim_openchat_done && RS_ClientPhase_Ready(&app.phase) )
+    if( main_harness.sim_openchat > 0 && !main_harness.sim_openchat_done && RS_ClientPhase_Ready(&app.phase) )
     {
-        TORIRS_LOG("sim_openchat: opening chat dialog iface=%d\n", sim_openchat);
-        RS_UISlots_OpenChat(&app, sim_openchat);
-        sim_openchat_done = 1;
+        TORIRS_LOG("sim_openchat: opening chat dialog iface=%d\n", main_harness.sim_openchat);
+        RS_UISlots_OpenChat(&app, main_harness.sim_openchat);
+        main_harness.sim_openchat_done = 1;
     }
 
-    if( sim_settab && !sim_settab_done && RS_ClientPhase_Ready(&app.phase) )
+    if( main_harness.sim_settab && !main_harness.sim_settab_done && RS_ClientPhase_Ready(&app.phase) )
     {
         char* tab_sep = NULL;
-        int tabno = (int)strtol(sim_settab, &tab_sep, 0);
+        int tabno = (int)strtol(main_harness.sim_settab, &tab_sep, 0);
         int tab_iface = tab_sep && *tab_sep == ':' ? (int)strtol(tab_sep + 1, NULL, 0) : -1;
         TORIRS_LOG("sim_settab: tab=%d iface=%d\n", tabno, tab_iface);
         RS_UISlots_SetTab(&app, tabno, tab_iface);
         RS_UISlots_SetSideTab(&app, tabno);
-        sim_settab_done = 1;
+        main_harness.sim_settab_done = 1;
     }
 
-    if( sim_setvarp && RS_ClientPhase_Ready(&app.phase) )
+    if( main_harness.sim_setvarp && RS_ClientPhase_Ready(&app.phase) )
     {
-        char const* cur = sim_setvarp;
+        char const* cur = main_harness.sim_setvarp;
         while( *cur )
         {
             char* sep = NULL;
@@ -4449,10 +4444,10 @@ frame_loop_step(void)
      * chat dialogs ship both a narrow and a wide decoration layer and
      * the server picks one, so without this there is no way to see the
      * unhidden variant without a live session. */
-    if( sim_sethide && !sim_sethide_done && RS_ClientPhase_Ready(&app.phase) && app.tree &&
-        (sim_openchat <= 0 || sim_openchat_done) && (!sim_settab || sim_settab_done) )
+    if( main_harness.sim_sethide && !main_harness.sim_sethide_done && RS_ClientPhase_Ready(&app.phase) && app.tree &&
+        (main_harness.sim_openchat <= 0 || main_harness.sim_openchat_done) && (!main_harness.sim_settab || main_harness.sim_settab_done) )
     {
-        char const* cur = sim_sethide;
+        char const* cur = main_harness.sim_sethide;
         while( *cur )
         {
             char* sep = NULL;
@@ -4465,36 +4460,36 @@ frame_loop_step(void)
             cur = sep && *sep == ',' ? sep + 1 : "";
         }
         App_RefreshAfterTreeMutation(&app);
-        sim_sethide_done = 1;
+        main_harness.sim_sethide_done = 1;
     }
 
-    if( (sim_song_id >= 0 || sim_jingle_id >= 0) && RS_ClientPhase_Ready(&app.phase) &&
-        !sim_music_done )
+    if( (main_harness.sim_song_id >= 0 || main_harness.sim_jingle_id >= 0) && RS_ClientPhase_Ready(&app.phase) &&
+        !main_harness.sim_music_done )
     {
-        if( sim_song_id >= 0 )
+        if( main_harness.sim_song_id >= 0 )
         {
-            TORIRS_LOG("sim_music: playing track %d\n", sim_song_id);
-            App_PlaySong(&app, sim_song_id, true, 0, 0);
+            TORIRS_LOG("sim_music: playing track %d\n", main_harness.sim_song_id);
+            App_PlaySong(&app, main_harness.sim_song_id, true, 0, 0);
         }
-        if( sim_jingle_id >= 0 )
+        if( main_harness.sim_jingle_id >= 0 )
         {
-            TORIRS_LOG("sim_music: playing jingle %d\n", sim_jingle_id);
-            App_PlayJingle(&app, sim_jingle_id, 0);
+            TORIRS_LOG("sim_music: playing jingle %d\n", main_harness.sim_jingle_id);
+            App_PlayJingle(&app, main_harness.sim_jingle_id, 0);
         }
-        sim_music_done = 1;
+        main_harness.sim_music_done = 1;
     }
 
     /* TORIRS_SIM_SOUND=id[,loops[,every_ticks]]: queue a sound effect
      * once the client is up, and again every `every_ticks` ticks. The
      * only way to hear the audio path without a server, so it is the
      * check that "the sound plays" means a speaker and not a counter. */
-    if( sim_sound_id >= 0 && RS_ClientPhase_Ready(&app.phase) )
+    if( main_harness.sim_sound_id >= 0 && RS_ClientPhase_Ready(&app.phase) )
     {
-        if( sim_sound_next == 0 || (sim_sound_every > 0 && frame_count >= sim_sound_next) )
+        if( main_harness.sim_sound_next == 0 || (main_harness.sim_sound_every > 0 && main_harness.frame_count >= main_harness.sim_sound_next) )
         {
-            TORIRS_LOG("sim_sound: queueing effect %d loops=%d\n", sim_sound_id, sim_sound_loops);
-            App_PlaySound(&app, sim_sound_id, sim_sound_loops, 0);
-            sim_sound_next = sim_sound_every > 0 ? frame_count + sim_sound_every : -1;
+            TORIRS_LOG("sim_sound: queueing effect %d loops=%d\n", main_harness.sim_sound_id, main_harness.sim_sound_loops);
+            App_PlaySound(&app, main_harness.sim_sound_id, main_harness.sim_sound_loops, 0);
+            main_harness.sim_sound_next = main_harness.sim_sound_every > 0 ? main_harness.frame_count + main_harness.sim_sound_every : -1;
         }
     }
 
@@ -4527,7 +4522,7 @@ frame_loop_step(void)
             }
             /* Once per iteration, before any frame work: this is the sample
              * point the GameShell pacer's ten-iteration ring is built on. */
-            logic_now = ContentTest_Enabled() ? now : ToriRS_Pacer_BeginFrame(&frame_pacer, now);
+            logic_now = ContentTest_Enabled() ? now : ToriRS_Pacer_BeginFrame(&main_pacing.frame_pacer, now);
             CmdBus_PushFrame(&bus, now);
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PLATFORM_POLL)
             {
@@ -4579,7 +4574,7 @@ frame_loop_step(void)
                     /* The unlocked clock: the server's time is the cycles
                      * the client has run, so it is handed over before the
                      * poll that may tick it. */
-                    if( rsprox_replay_path )
+                    if( rsprox_replay.path )
                         main_rsprox_replay_frame();
                     else if( App_SpeedUnlocked() )
                         NetTransport_CycleClock(sock, App_LogicCyclesRun());
@@ -4606,14 +4601,14 @@ frame_loop_step(void)
                         TORIRS_REPORT("sim_plugin_config: invalid input\n");
                         cursor = NULL;
                     }
-                    else if( frame_count >= at && app.plugins )
+                    else if( main_harness.frame_count >= at && app.plugins )
                     {
                         int index = PluginHost_IndexOf(app.plugins, id);
                         int applied =
                             index >= 0 && PluginHost_ConfigSet(app.plugins, index, key, value);
                         TORIRS_REPORT(
                             "sim_plugin_config: frame=%ld id=%s key=%s applied=%d\n",
-                            frame_count,
+                            main_harness.frame_count,
                             id,
                             key,
                             applied);
@@ -4643,14 +4638,14 @@ frame_loop_step(void)
                         TORIRS_REPORT("sim_plugin_toggle: invalid input\n");
                         cursor = NULL;
                     }
-                    else if( frame_count >= at && app.plugins )
+                    else if( main_harness.frame_count >= at && app.plugins )
                     {
                         int index = PluginHost_IndexOf(app.plugins, id);
                         if( index >= 0 )
                             PluginHost_SetEnabled(app.plugins, index, enabled != 0);
                         TORIRS_REPORT(
                             "sim_plugin_toggle: frame=%ld id=%s enabled=%d applied=%d\n",
-                            frame_count,
+                            main_harness.frame_count,
                             id,
                             enabled,
                             index >= 0);
@@ -4703,9 +4698,9 @@ frame_loop_step(void)
                         }
                     }
                 }
-                if( drag_frame >= 0 && frame_count >= drag_frame )
+                if( drag_frame >= 0 && main_harness.frame_count >= drag_frame )
                 {
-                    long step = frame_count - drag_frame;
+                    long step = main_harness.frame_count - drag_frame;
                     long const steps = drag_steps;
                     if( step == 0 )
                         CmdBus_PushMouseMove(&bus, (int)drag_x0, (int)drag_y0);
@@ -4751,7 +4746,7 @@ frame_loop_step(void)
                             drag_y0 = drag_y1;
                             drag_x1 = swap_x;
                             drag_y1 = swap_y;
-                            drag_frame = frame_count + 2;
+                            drag_frame = main_harness.frame_count + 2;
                         }
                         else
                             drag_frame = -1;
@@ -4791,9 +4786,9 @@ frame_loop_step(void)
                         }
                     }
                 }
-                if( wheel_frame >= 0 && frame_count >= wheel_frame )
+                if( wheel_frame >= 0 && main_harness.frame_count >= wheel_frame )
                 {
-                    long step = frame_count - wheel_frame;
+                    long step = main_harness.frame_count - wheel_frame;
                     if( step == 0 )
                         CmdBus_PushMouseMove(&bus, (int)wheel_x, (int)wheel_y);
                     else if( step <= 2 + wheel_repeats && step > 2 )
@@ -4851,9 +4846,9 @@ frame_loop_step(void)
                         pinch_y = y;
                     }
                 }
-                if( pinch_frame >= 0 && frame_count >= pinch_frame )
+                if( pinch_frame >= 0 && main_harness.frame_count >= pinch_frame )
                 {
-                    long const step = frame_count - pinch_frame;
+                    long const step = main_harness.frame_count - pinch_frame;
                     if( step == 0 )
                         CmdBus_PushMouseMove(&bus, (int16_t)pinch_x, (int16_t)pinch_y);
                     else if( step >= 3 )
@@ -4861,7 +4856,7 @@ frame_loop_step(void)
                         CmdBus_PushPinch(&bus, pinch_scale, (int16_t)pinch_x, (int16_t)pinch_y, 0);
                         TORIRS_REPORT(
                             "sim_pinch: frame=%ld scale=%.3f at %ld,%ld\n",
-                            (long)frame_count,
+                            (long)main_harness.frame_count,
                             pinch_scale,
                             pinch_x,
                             pinch_y);
@@ -4891,7 +4886,7 @@ frame_loop_step(void)
                     double dx = 0.0;
                     double dy = 0.0;
                     long trackpad = 0;
-                    if( f > frame_count )
+                    if( f > main_harness.frame_count )
                         break;
                     if( end && *end == ',' )
                         dx = strtod(end + 1, &end);
@@ -4905,7 +4900,7 @@ frame_loop_step(void)
                         CmdBus_PushMouseWheel(&bus, (int16_t)(int)(dy / 48.0));
                     TORIRS_REPORT(
                         "sim_scroll: frame=%ld d=%.1f,%.1f trackpad=%ld\n",
-                        (long)frame_count,
+                        (long)main_harness.frame_count,
                         dx,
                         dy,
                         trackpad);
@@ -4946,7 +4941,7 @@ frame_loop_step(void)
                         hook_frame = -1;
                     }
                 }
-                if( hook_frame >= 0 && frame_count >= hook_frame && app.tree )
+                if( hook_frame >= 0 && main_harness.frame_count >= hook_frame && app.tree )
                 {
                     int32_t idx = UITree_FindByComponentId(app.tree, (int)hook_com);
 
@@ -5000,7 +4995,7 @@ frame_loop_step(void)
                             sim_oploc_frame = -1;
                     }
                 }
-                if( sim_oploc_frame >= 0 && frame_count >= sim_oploc_frame )
+                if( sim_oploc_frame >= 0 && main_harness.frame_count >= sim_oploc_frame )
                 {
                     /* TORIRS_REPORT and not TORIRS_LOG: @see the sim_varbit
                      * receipt below for why a drive lever's only receipt may
@@ -5047,7 +5042,7 @@ frame_loop_step(void)
                             sim_opnpc_frame = -1;
                     }
                 }
-                if( sim_opnpc_frame >= 0 && frame_count >= sim_opnpc_frame )
+                if( sim_opnpc_frame >= 0 && main_harness.frame_count >= sim_opnpc_frame )
                 {
                     int slot = App_SimulateNpcOp(&app, (int)sim_opnpc_op, (int)sim_opnpc_npc);
 
@@ -5072,7 +5067,7 @@ frame_loop_step(void)
                             char const* e = getenv("TORIRS_SIM_OPNPC_EVERY");
                             every = (e && *e) ? strtol(e, NULL, 0) : 0;
                         }
-                        sim_opnpc_frame = every > 0 ? frame_count + every : -1;
+                        sim_opnpc_frame = every > 0 ? main_harness.frame_count + every : -1;
                     }
                 }
             }
@@ -5181,7 +5176,7 @@ frame_loop_step(void)
                     {
                         char const* at = getenv("TORIRS_CS2_HARNESS_FRAME");
                         long harness_frame = at ? strtol(at, NULL, 0) : 400;
-                        if( frame_count >= harness_frame )
+                        if( main_harness.frame_count >= harness_frame )
                         {
                             char const* out = getenv("TORIRS_CS2_HARNESS_OUT");
                             harness_done = 1;
@@ -5196,7 +5191,7 @@ frame_loop_step(void)
                     }
                 }
 
-                if( rs_frame >= 0 && frame_count >= rs_frame )
+                if( rs_frame >= 0 && main_harness.frame_count >= rs_frame )
                 {
                     TORIRS_LOG("sim_runscript: script=%ld argc=%d\n", rs_script, rs_argc);
                     RS_CS2_RunScript(
@@ -5252,7 +5247,7 @@ frame_loop_step(void)
                         vb_frame = -1;
                     }
                 }
-                if( vb_frame >= 0 && frame_count >= vb_frame )
+                if( vb_frame >= 0 && main_harness.frame_count >= vb_frame )
                 {
                     VarPManager_SetVarbitOptimistic(&app.varps, (int)vb_id, (int)vb_value);
                     RS_CS2Host_NotifyVarChanged(&app.host, -1);
@@ -5318,7 +5313,7 @@ frame_loop_step(void)
                     if( !type_cursor )
                         type_frame = -1;
                 }
-                if( type_frame >= 0 && type_cursor && *type_cursor && frame_count >= type_frame )
+                if( type_frame >= 0 && type_cursor && *type_cursor && main_harness.frame_count >= type_frame )
                 {
                     char kind = *type_cursor++;
                     char* end = NULL;
@@ -5328,12 +5323,12 @@ frame_loop_step(void)
                         CmdBus_PushKeyEvent(&bus, -1, (int32_t)val, 0);
                     else
                         CmdBus_PushKeyEvent(&bus, (int32_t)val, 0, 0);
-                    TORIRS_REPORT("sim_type: %c%ld at frame %ld\n", kind, val, frame_count);
+                    TORIRS_REPORT("sim_type: %c%ld at frame %ld\n", kind, val, main_harness.frame_count);
 
                     if( end && *end == ',' )
                     {
                         type_cursor = end + 1;
-                        type_frame = frame_count + 1;
+                        type_frame = main_harness.frame_count + 1;
                     }
                     else if( end && *end == ';' )
                     {
@@ -5371,7 +5366,7 @@ frame_loop_step(void)
                         hk_entries = sim_hotkey_parse(env, &hk_count);
                 }
                 if( hk_count > 0 )
-                    sim_hotkey_step(&bus, hk_entries, hk_count, &hk_mods_held, frame_count);
+                    sim_hotkey_step(&bus, hk_entries, hk_count, &hk_mods_held, main_harness.frame_count);
             }
 
             /* TORIRS_SIM_GESTURE="<frame>,<kind>,<x>,<y>,<a>[,<b>][;...]": the
@@ -5411,7 +5406,7 @@ frame_loop_step(void)
                     }
                 }
                 if( sg_count > 0 )
-                    ToriRS_SimGestureStep(sg_entries, sg_count, &sg_state, &bus, frame_count);
+                    ToriRS_SimGestureStep(sg_entries, sg_count, &sg_state, &bus, main_harness.frame_count);
             }
 
             /* TORIRS_SIM_CMD="frame,text[;frame,text...]": send a `::` command at
@@ -5442,7 +5437,7 @@ frame_loop_step(void)
                         cmd_cursor = NULL;
                         break;
                     }
-                    if( frame_count < at )
+                    if( main_harness.frame_count < at )
                         break; /* not yet; re-checked next frame */
 
                     body = end + 1;
@@ -5456,7 +5451,7 @@ frame_loop_step(void)
                         App_SendCommand(&app, text);
                         /* REPORT, not LOG: a harness that set TORIRS_SIM_CMD wants
                          * to see its commands go out, in the optimized build too. */
-                        TORIRS_REPORT("sim_cmd: frame %ld sent ::%s\n", (long)frame_count, text);
+                        TORIRS_REPORT("sim_cmd: frame %ld sent ::%s\n", (long)main_harness.frame_count, text);
                     }
                     cmd_cursor = body[len] == ';' ? body + len + 1 : NULL;
                 }
@@ -5482,7 +5477,7 @@ frame_loop_step(void)
                                &safe_px[1], &safe_px[2], &safe_px[3]) != 5 )
                         safe_frame = -1;
                 }
-                if( safe_frame >= 0 && frame_count >= safe_frame )
+                if( safe_frame >= 0 && main_harness.frame_count >= safe_frame )
                 {
                     struct ToriRS_CmdSafeArea area = {
                         (int32_t)safe_px[0], (int32_t)safe_px[1], (int32_t)safe_px[2],
@@ -5526,7 +5521,7 @@ frame_loop_step(void)
                             song_frame = -1;
                     }
                 }
-                if( song_id >= 0 && song_frame >= 0 && frame_count >= song_frame &&
+                if( song_id >= 0 && song_frame >= 0 && main_harness.frame_count >= song_frame &&
                     RS_ClientPhase_Ready(&app.phase) )
                 {
                     TORIRS_REPORT("sim_song: play %ld\n", song_id);
@@ -5562,7 +5557,7 @@ frame_loop_step(void)
                     if( keyhold_frame < 1 )
                         keyhold_frame = 1;
                 }
-                if( !keyhold_done && frame_count >= keyhold_frame )
+                if( !keyhold_done && main_harness.frame_count >= keyhold_frame )
                 {
                     char const* spec = getenv("TORIRS_SIM_KEYHOLD");
                     keyhold_done = 1;
@@ -5618,7 +5613,7 @@ frame_loop_step(void)
                     if( !yaw_env || !at )
                         yaw_done = 1;
                 }
-                if( !yaw_done && frame_count >= yaw_frame )
+                if( !yaw_done && main_harness.frame_count >= yaw_frame )
                 {
                     yaw_done = 1;
                     app.world_views.frame->orbit.yaw = ToriDraw_NormalizeAngle(
@@ -5640,7 +5635,7 @@ frame_loop_step(void)
                      */
                     TORIRS_REPORT(
                         "sim_camera_yaw: frame %ld parked at %d\n",
-                        (long)frame_count,
+                        (long)main_harness.frame_count,
                         app.world_views.frame->orbit.yaw);
                 }
             }
@@ -5679,9 +5674,9 @@ frame_loop_step(void)
                         pend_frame = -1;
                     }
                 }
-                if( pend_frame >= 0 && frame_count >= pend_frame )
+                if( pend_frame >= 0 && main_harness.frame_count >= pend_frame )
                 {
-                    long step = frame_count - pend_frame;
+                    long step = main_harness.frame_count - pend_frame;
                     uint8_t btn = pend_right ? 3 : 1;
                     if( step == 0 )
                     {
@@ -5738,7 +5733,7 @@ frame_loop_step(void)
                             npc_frame = -1;
                     }
                 }
-                if( npc_frame >= 0 && frame_count >= npc_frame )
+                if( npc_frame >= 0 && main_harness.frame_count >= npc_frame )
                 {
                     if( npc_step < 0 )
                     {
@@ -5752,7 +5747,7 @@ frame_loop_step(void)
                             CmdBus_PushMouseMove(&bus, npc_x, npc_y);
                             TORIRS_REPORT(
                                 "sim_click_npc: frame=%ld type=%d slot=%d move %d,%d right=%ld\n",
-                                frame_count,
+                                main_harness.frame_count,
                                 found_type,
                                 slot,
                                 npc_x,
@@ -5821,7 +5816,7 @@ frame_loop_step(void)
                             row_frame = -1;
                     }
                 }
-                if( row_frame >= 0 && frame_count >= row_frame )
+                if( row_frame >= 0 && main_harness.frame_count >= row_frame )
                 {
                     if( row_step < 0 )
                     {
@@ -5833,7 +5828,7 @@ frame_loop_step(void)
                             CmdBus_PushMouseMove(&bus, row_x, row_y);
                             TORIRS_REPORT(
                                 "sim_menu_row: frame=%ld row '%s' move %d,%d\n",
-                                frame_count,
+                                main_harness.frame_count,
                                 text,
                                 row_x,
                                 row_y);
@@ -5887,7 +5882,7 @@ frame_loop_step(void)
                         move_frame = -1;
                     }
                 }
-                if( move_frame >= 0 && frame_count >= move_frame )
+                if( move_frame >= 0 && main_harness.frame_count >= move_frame )
                 {
                     CmdBus_PushMouseMove(&bus, (int)move_x, (int)move_y);
                     TORIRS_REPORT(
@@ -5929,7 +5924,7 @@ frame_loop_step(void)
                     if( rz_w <= 0 || rz_h <= 0 )
                         rz_frame = -1;
                 }
-                if( rz_frame >= 0 && frame_count >= rz_frame )
+                if( rz_frame >= 0 && main_harness.frame_count >= rz_frame )
                 {
                     TORIRS_LOG("sim_resize: frame=%ld %ldx%ld\n", rz_frame, rz_w, rz_h);
                     CmdBus_PushWindowResize(&bus, (int32_t)rz_w, (int32_t)rz_h);
@@ -5973,7 +5968,7 @@ frame_loop_step(void)
                     if( wz_w <= 0 || wz_h <= 0 )
                         wz_frame = -1;
                 }
-                if( wz_frame >= 0 && frame_count >= wz_frame )
+                if( wz_frame >= 0 && main_harness.frame_count >= wz_frame )
                 {
                     TORIRS_LOG("sim_window: frame=%ld %ldx%ld\n", wz_frame, wz_w, wz_h);
                     PlatformWindow_SetWindowSize(platform, (int)wz_w, (int)wz_h);
@@ -6010,7 +6005,7 @@ frame_loop_step(void)
             LibToriRS_Input_Begin(input, now);
         App_DrainCommands(&app, &bus, input);
         LibToriRS_Input_End(input);
-        main_hotkey_debug_edges(input, frame_count);
+        main_hotkey_debug_edges(input, main_harness.frame_count);
     }
 
     /* Reconcile the presentation surfaces with the canvas the drain just
@@ -6193,10 +6188,10 @@ frame_loop_step(void)
          * the one there was gated the screen at 15 fps while the pacer, its
          * trace and the FPS readout all reported 50. */
         int draw_period_ms;
-        ToriRS_Pacer_SetCapFps(&frame_pacer, App_FrameCapFps(&app));
-        draw_period_ms = ToriRS_Pacer_DrawPeriodMs(&frame_pacer);
-        if( app_redraw && !uncapped && !replay &&
-            (App_AsyncPending(&app) || draw_period_ms > frame_pacer.period_ms) )
+        ToriRS_Pacer_SetCapFps(&main_pacing.frame_pacer, App_FrameCapFps(&app));
+        draw_period_ms = ToriRS_Pacer_DrawPeriodMs(&main_pacing.frame_pacer);
+        if( app_redraw && !main_pacing.uncapped && !replay &&
+            (App_AsyncPending(&app) || draw_period_ms > main_pacing.frame_pacer.period_ms) )
         {
             uint64_t const draw_now = PlatformWindow_Ticks64();
             if( draw_now < next_draw_ms )
@@ -6302,7 +6297,7 @@ frame_loop_step(void)
                     debug_rendered,
                     debug_frames,
                     App_FrameCapFps(&app),
-                    ToriRS_Pacer_DrawPeriodMs(&frame_pacer),
+                    ToriRS_Pacer_DrawPeriodMs(&main_pacing.frame_pacer),
                     App_AsyncPending(&app) ? 1 : 0,
                     debug_work_frames ? (double)debug_work_us / debug_work_frames / 1000.0 : 0.0,
                     debug_work_frames);
@@ -6512,7 +6507,7 @@ frame_loop_step(void)
                 /* A replay's URL_OPEN is what a server once sent the session
                  * that was recorded. Playing it back must not act on the
                  * viewer's browser: every headless replay run opened a tab. */
-                if( rsprox_replay_path )
+                if( rsprox_replay.path )
                     TORIRS_LOG("replay: URL_OPEN dropped '%s'\n", url);
                 else
                     PlatformWindow_OpenUrl(platform, url);
@@ -6635,7 +6630,7 @@ frame_loop_step(void)
          * as many frames a second as the machine allows: mixing a muted
          * stream every one of them was 7% of a browser seek (CDP profile,
          * 2026-11-12). The stream is fed again from the frame the seek lands. */
-        if( !rsprox_replay_seek.active )
+        if( !rsprox_replay.seek.active )
             PlatformAudio_Update(audio);
         PlatformAudio_Feedback(audio, &audio_feedback);
         App_SetAudioFeedback(&app, &audio_feedback);
@@ -6730,7 +6725,7 @@ frame_loop_step(void)
      * clears and the ordinary wait resumes on the very next frame.
      */
     ContentTest_End(&app, sock);
-    if( !replay && !uncapped && !ContentTest_Enabled() && !App_AsyncPending(&app) )
+    if( !replay && !main_pacing.uncapped && !ContentTest_Enabled() && !App_AsyncPending(&app) )
     {
         uint64_t pace_begin_us = PlatformWindow_TicksUs();
         /*
@@ -6743,8 +6738,8 @@ frame_loop_step(void)
          */
         uint64_t wait_until_ms =
             App_FrameLocked()
-                ? ToriRS_Pacer_LockedDeadline(&frame_pacer, PlatformWindow_Ticks64())
-                : ToriRS_Pacer_WaitDeadline(&frame_pacer, frame_start_ms, PlatformWindow_Ticks64());
+                ? ToriRS_Pacer_LockedDeadline(&main_pacing.frame_pacer, PlatformWindow_Ticks64())
+                : ToriRS_Pacer_WaitDeadline(&main_pacing.frame_pacer, frame_start_ms, PlatformWindow_Ticks64());
 
         /* The slack before the deadline is the background queue's before it
          * is the sleep's: work nothing in the frame waits on, run until the
@@ -6761,7 +6756,7 @@ frame_loop_step(void)
             }
         }
 
-        if( pace_spin )
+        if( main_pacing.pace_spin )
         {
             /* TORIRS_PACE_SPIN=1 holds the core busy across the wait instead of
              * sleeping. Diagnostic only — it pins a core at 100% — but it is the
@@ -6776,7 +6771,7 @@ frame_loop_step(void)
         {
             uint64_t const pace_end_us = PlatformWindow_TicksUs();
             TORIRS_PERF_CARRY(TORIRS_PERF_STAGE_PACE, (pace_end_us - pace_begin_us) * 1000u);
-            ToriRS_Pacer_NoteFrame(&frame_pacer, pace_end_us, pace_end_us - pace_begin_us);
+            ToriRS_Pacer_NoteFrame(&main_pacing.frame_pacer, pace_end_us, pace_end_us - pace_begin_us);
         }
     }
 #else
@@ -6784,7 +6779,7 @@ frame_loop_step(void)
      * draw period after this frame's work: the background queue's, up to the
      * point the next frame is due (App_RunBackground). */
     {
-        uint64_t const period_us = (uint64_t)ToriRS_Pacer_DrawPeriodMs(&frame_pacer) * 1000u;
+        uint64_t const period_us = (uint64_t)ToriRS_Pacer_DrawPeriodMs(&main_pacing.frame_pacer) * 1000u;
         if( period_us > 0 )
             App_RunBackground(&app, frame_start_us + period_us);
     }
@@ -8248,27 +8243,27 @@ main_parse_argument_layer(
         }
         if( strcmp(argv[argi], "--uncapped") == 0 )
         {
-            uncapped = 1;
+            main_pacing.uncapped = 1;
             continue;
         }
         if( strcmp(argv[argi], "--unlocked") == 0 )
         {
-            unlocked_opt = 1;
+            main_pacing.unlocked_opt = 1;
             continue;
         }
         if( strcmp(argv[argi], "--replay") == 0 && argi + 1 < argc )
         {
-            rsprox_replay_path = argv[++argi];
+            rsprox_replay.path = argv[++argi];
             continue;
         }
         if( strcmp(argv[argi], "--replay-at") == 0 && argi + 1 < argc )
         {
-            rsprox_replay_at = argv[++argi];
+            rsprox_replay.at = argv[++argi];
             continue;
         }
         if( strcmp(argv[argi], "--replay-digest") == 0 )
         {
-            rsprox_replay_digest.on = 1;
+            rsprox_replay.digest.on = 1;
             continue;
         }
         if( strcmp(argv[argi], "--pacer") == 0 && argi + 1 < argc )
@@ -8280,14 +8275,14 @@ main_parse_argument_layer(
              * there is. TORIRS_PACER is checked again at init, because the
              * environment does not come through here. */
             int pacer_ok = 0;
-            pacer_name_opt = argv[++argi];
-            ToriRS_Pacer_KindFromName(pacer_name_opt, &pacer_ok);
+            main_pacing.pacer_name_opt = argv[++argi];
+            ToriRS_Pacer_KindFromName(main_pacing.pacer_name_opt, &pacer_ok);
             if( !pacer_ok )
             {
                 fprintf(
                     stderr,
                     "torirs: --pacer takes gameshell|deadline (got '%s')\n",
-                    pacer_name_opt);
+                    main_pacing.pacer_name_opt);
                 return 0;
             }
             continue;
@@ -8739,24 +8734,24 @@ main_rsprox_replay_open(void)
     char err[256];
     char const* rev_name;
 
-    if( RsproxRecording_OpenFile(&rsprox_replay_rec, rsprox_replay_path, err, sizeof(err)) != 0 )
+    if( RsproxRecording_OpenFile(&rsprox_replay.rec, rsprox_replay.path, err, sizeof(err)) != 0 )
     {
-        TORIRS_ERR("replay: %s: %s\n", rsprox_replay_path, err);
+        TORIRS_ERR("replay: %s: %s\n", rsprox_replay.path, err);
         return 0;
     }
-    rev_name = RsproxRecording_RevName(&rsprox_replay_rec);
+    rev_name = RsproxRecording_RevName(&rsprox_replay.rec);
     if( !rev_name )
     {
         TORIRS_ERR("replay: %s is a revision %d recording; this client has no executor for "
                    "it (src/net/rev/revisions.ini)\n",
-                   rsprox_replay_path, rsprox_replay_rec.revision);
+                   rsprox_replay.path, rsprox_replay.rec.revision);
         return 0;
     }
     /* Its packets name that revision's cache ids, so it reads that revision's
      * cache when the manifest says where one lives (torirs_host.js makes the
      * same swap for the browser's database and JS5 handshake). */
     if( cfg.replay.cache_dir_for_revision && cfg.cache_identity_set &&
-        cfg.cache_revision != rsprox_replay_rec.revision )
+        cfg.cache_revision != rsprox_replay.rec.revision )
     {
         static char replay_cache_dir[512];
         char const* hole = strstr(cfg.replay.cache_dir_for_revision, "{revision}");
@@ -8764,7 +8759,7 @@ main_rsprox_replay_open(void)
         assert(hole);
         snprintf(replay_cache_dir, sizeof(replay_cache_dir), "%.*s%d%s",
                  (int)(hole - cfg.replay.cache_dir_for_revision), cfg.replay.cache_dir_for_revision,
-                 rsprox_replay_rec.revision, hole + strlen("{revision}"));
+                 rsprox_replay.rec.revision, hole + strlen("{revision}"));
 #if !defined(TORIRS_PLATFORM_WEB)
         {
             char probe_path[600];
@@ -8776,8 +8771,8 @@ main_rsprox_replay_open(void)
             {
                 TORIRS_ERR("replay: %s is a revision %d recording and there is no cache at %s "
                            "(tools/fetch_cache_osrs.sh %d)\n",
-                           rsprox_replay_path, rsprox_replay_rec.revision, replay_cache_dir,
-                           rsprox_replay_rec.revision);
+                           rsprox_replay.path, rsprox_replay.rec.revision, replay_cache_dir,
+                           rsprox_replay.rec.revision);
                 return 0;
             }
             fclose(probe);
@@ -8786,7 +8781,7 @@ main_rsprox_replay_open(void)
         TORIRS_REPORT("replay: the recording is %s; it boots its own cache, %s\n", rev_name,
                       replay_cache_dir);
         cfg.cache_dir = replay_cache_dir;
-        cfg.cache_revision = rsprox_replay_rec.revision;
+        cfg.cache_revision = rsprox_replay.rec.revision;
     }
     else if( cfg.net.rev_name && cfg.net.rev_name[0] && strcmp(cfg.net.rev_name, rev_name) != 0 )
         TORIRS_REPORT("replay: the recording is %s; it replaces the boot's %s (the cache stays "
@@ -8801,15 +8796,15 @@ main_rsprox_replay_open(void)
      * it (CS2VM2_OnMobile); a desktop recording watched on a phone is the
      * same mismatch the other way round. TORIRS_CLIENTTYPE /
      * TORIRS_ON_MOBILE still outrank it. */
-    cfg.clienttype = rsprox_replay_rec.client_type;
-    cfg.on_mobile = RsproxRecording_Mobile(&rsprox_replay_rec) ? 1 : -1;
+    cfg.clienttype = rsprox_replay.rec.client_type;
+    cfg.on_mobile = RsproxRecording_Mobile(&rsprox_replay.rec) ? 1 : -1;
     /* Framed with the client's own prot tables for that revision (the table
      * App_Init picks by cfg.net.rev_name), so a table that cannot frame the
      * recording is found here, before anything boots or plays. */
-    if( RsproxRecording_Index(&rsprox_replay_rec, RsproxRecording_Rev(&rsprox_replay_rec), err,
+    if( RsproxRecording_Index(&rsprox_replay.rec, RsproxRecording_Rev(&rsprox_replay.rec), err,
                               sizeof(err)) != 0 )
     {
-        TORIRS_ERR("replay: %s: %s\n", rsprox_replay_path, err);
+        TORIRS_ERR("replay: %s: %s\n", rsprox_replay.path, err);
         return 0;
     }
     /* And in the window class the recorder's client was in. It is the
@@ -8819,10 +8814,10 @@ main_rsprox_replay_open(void)
      * transport restates it where the recording changes it and where a seek
      * lands (REPLAY_WINDOW). --windowmode outranks it. A phone's is not its
      * class: it runs resizable (app_boot.c). */
-    if( !RsproxRecording_Mobile(&rsprox_replay_rec) && !cfg.window_mode )
+    if( !RsproxRecording_Mobile(&rsprox_replay.rec) && !cfg.window_mode )
     {
         int const mode = RsproxRecording_WindowModeBefore(
-            &rsprox_replay_rec, RsproxRecording_Rev(&rsprox_replay_rec), 0);
+            &rsprox_replay.rec, RsproxRecording_Rev(&rsprox_replay.rec), 0);
 
         if( mode )
         {
@@ -8837,9 +8832,9 @@ main_rsprox_replay_open(void)
     if( !cfg.net.connect_pass || !cfg.net.connect_pass[0] )
         cfg.net.connect_pass = "replay";
     TORIRS_REPORT("replay: %s: revision %d.%d, world %d (%s), %s, player %d\n",
-                  rsprox_replay_path, rsprox_replay_rec.revision, rsprox_replay_rec.sub_revision,
-                  rsprox_replay_rec.world_id, rsprox_replay_rec.world_host,
-                  rsprox_replay_rec.client_name, rsprox_replay_rec.local_player_index);
+                  rsprox_replay.path, rsprox_replay.rec.revision, rsprox_replay.rec.sub_revision,
+                  rsprox_replay.rec.world_id, rsprox_replay.rec.world_host,
+                  rsprox_replay.rec.client_name, rsprox_replay.rec.local_player_index);
     return 1;
 }
 
@@ -8972,13 +8967,13 @@ main(
         return 1;
     if( !main_settle_editor_view(&boot_manifest) )
         return 1;
-    if( !rsprox_replay_path && getenv("TORIRS_RSPROX_REPLAY") && getenv("TORIRS_RSPROX_REPLAY")[0] )
-        rsprox_replay_path = getenv("TORIRS_RSPROX_REPLAY");
-    if( !rsprox_replay_at && getenv("TORIRS_REPLAY_AT") && getenv("TORIRS_REPLAY_AT")[0] )
-        rsprox_replay_at = getenv("TORIRS_REPLAY_AT");
+    if( !rsprox_replay.path && getenv("TORIRS_RSPROX_REPLAY") && getenv("TORIRS_RSPROX_REPLAY")[0] )
+        rsprox_replay.path = getenv("TORIRS_RSPROX_REPLAY");
+    if( !rsprox_replay.at && getenv("TORIRS_REPLAY_AT") && getenv("TORIRS_REPLAY_AT")[0] )
+        rsprox_replay.at = getenv("TORIRS_REPLAY_AT");
     if( getenv("TORIRS_REPLAY_DIGEST") && strcmp(getenv("TORIRS_REPLAY_DIGEST"), "1") == 0 )
-        rsprox_replay_digest.on = 1;
-    if( rsprox_replay_path && !main_rsprox_replay_open() )
+        rsprox_replay.digest.on = 1;
+    if( rsprox_replay.path && !main_rsprox_replay_open() )
         return 2;
     /* The headless preview (TORIRS_PREVIEW_BMP / TORIRS_PREVIEW_STATE) is the
      * offline viewer's launch option, read from the environment once, here:
@@ -10579,9 +10574,9 @@ main(
          * a server, and the check that "music plays" means a speaker rather
          * than a counter. */
         if( getenv("TORIRS_SIM_SONG") )
-            sim_song_id = atoi(getenv("TORIRS_SIM_SONG"));
+            main_harness.sim_song_id = atoi(getenv("TORIRS_SIM_SONG"));
         if( getenv("TORIRS_SIM_JINGLE") )
-            sim_jingle_id = atoi(getenv("TORIRS_SIM_JINGLE"));
+            main_harness.sim_jingle_id = atoi(getenv("TORIRS_SIM_JINGLE"));
 
         if( getenv("TORIRS_SIM_SOUND") )
         {
@@ -10592,9 +10587,9 @@ main(
                 getenv("TORIRS_SIM_SOUND"), "%d,%d,%d", &parsed_id, &parsed_loops, &parsed_every);
             if( fields >= 1 && parsed_id >= 0 )
             {
-                sim_sound_id = parsed_id;
-                sim_sound_loops = fields >= 2 && parsed_loops > 0 ? parsed_loops : 1;
-                sim_sound_every = fields >= 3 && parsed_every > 0 ? parsed_every : 0;
+                main_harness.sim_sound_id = parsed_id;
+                main_harness.sim_sound_loops = fields >= 2 && parsed_loops > 0 ? parsed_loops : 1;
+                main_harness.sim_sound_every = fields >= 3 && parsed_every > 0 ? parsed_every : 0;
             }
             else
             {
@@ -10655,13 +10650,13 @@ main(
 
         /* TORIRS_MAX_FRAMES=N: exit after N loop iterations (headless smoke
          * runs under SDL_VIDEODRIVER=dummy, where no quit event ever comes). */
-        max_frames = getenv("TORIRS_MAX_FRAMES") ? atol(getenv("TORIRS_MAX_FRAMES")) : 0;
-        sim_after_ready =
+        main_harness.max_frames = getenv("TORIRS_MAX_FRAMES") ? atol(getenv("TORIRS_MAX_FRAMES")) : 0;
+        main_harness.sim_after_ready =
             getenv("TORIRS_SIM_AFTER_READY") && atoi(getenv("TORIRS_SIM_AFTER_READY"));
-        sim_ready = sim_ready_failed = 0;
-        sim_ready_start_ms = PlatformWindow_Ticks64();
-        sim_next_frame_ms = 0;
-        frame_count = sim_after_ready ? -1 : 0;
+        main_harness.sim_ready = main_harness.sim_ready_failed = 0;
+        main_harness.sim_ready_start_ms = PlatformWindow_Ticks64();
+        main_harness.sim_next_frame_ms = 0;
+        main_harness.frame_count = main_harness.sim_after_ready ? -1 : 0;
         {
             /* The logic pacer needs this too: a bounded run ticks once per
              * frame rather than on the wall clock, so `clientclock` lands on
@@ -10669,20 +10664,20 @@ main(
             extern long g_torirs_max_frames;
             /* A readiness-based native scenario uses the ordinary logic clock.
              * Only its synthetic actions and exit fence use scenario ticks. */
-            g_torirs_max_frames = sim_after_ready ? 0 : max_frames;
+            g_torirs_max_frames = main_harness.sim_after_ready ? 0 : main_harness.max_frames;
         }
 
         /* TORIRS_PACE_SPIN=1: spin the 50 fps wait rather than sleeping it. */
-        pace_spin = getenv("TORIRS_PACE_SPIN") && atoi(getenv("TORIRS_PACE_SPIN")) != 0;
+        main_pacing.pace_spin = getenv("TORIRS_PACE_SPIN") && atoi(getenv("TORIRS_PACE_SPIN")) != 0;
 
         ToriRS_Pacer_Init(
-            &frame_pacer, pacer_kind_selected(), frame_period_ms(), pacer_mindel_ms());
+            &main_pacing.frame_pacer, pacer_kind_selected(), frame_period_ms(), pacer_mindel_ms());
         /* REPORT, not LOG: TORIRS_LOG compiles out under NDEBUG, which is
          * exactly the optimized build every measurement is taken on. An arm
          * that cannot say which pacer it ran is not a result. */
         TORIRS_REPORT(
             "pacer: %s (period %d ms, mindel %d ms)\n",
-            ToriRS_Pacer_KindName(frame_pacer.kind),
+            ToriRS_Pacer_KindName(main_pacing.frame_pacer.kind),
             frame_period_ms(),
             pacer_mindel_ms());
 
@@ -10739,18 +10734,18 @@ main(
                 cfg.net.server_scripts[0] && !getenv("TORIRSSERVER_SCRIPTS") )
                 setenv("TORIRSSERVER_SCRIPTS", cfg.net.server_scripts, 0);
 
-            if( rsprox_replay_path && app.net )
+            if( rsprox_replay.path && app.net )
             {
                 /* Indexed with this revision's table by main_rsprox_replay_open
                  * (cfg.net.rev_name is the recording's). */
-                assert(strcmp(app.net->rev->name, RsproxRecording_RevName(&rsprox_replay_rec)) == 0);
+                assert(strcmp(app.net->rev->name, RsproxRecording_RevName(&rsprox_replay.rec)) == 0);
                 /* The index each RECONNECT continues under, which a world hop
                  * changes and the recording does not state. Found with the
                  * data-driven table for the recording; it shares the session's
                  * player table, which the login resets before anything plays. */
-                rsprox_recording_resolve_reconnects(RsproxRecording_Rev(&rsprox_replay_rec),
-                                                    &rsprox_replay_rec);
-                sock = NetTransport_NewReplay(&rsprox_replay_rec, app.net->rev);
+                rsprox_recording_resolve_reconnects(RsproxRecording_Rev(&rsprox_replay.rec),
+                                                    &rsprox_replay.rec);
+                sock = NetTransport_NewReplay(&rsprox_replay.rec, app.net->rev);
                 /* Its control frames are expected (net/torirs_control.h). */
                 ToriRS_Network_MarkReplay(app.net);
             }
@@ -10784,10 +10779,10 @@ main(
 
                 if( env_unlocked && env_unlocked[0] )
                     unlocked = atoi(env_unlocked) != 0;
-                if( unlocked_opt )
+                if( main_pacing.unlocked_opt )
                     unlocked = 1;
-                rsprox_replay_uncapped = uncapped;
-                if( unlocked && rsprox_replay_path )
+                rsprox_replay.uncapped = main_pacing.uncapped;
+                if( unlocked && rsprox_replay.path )
                 {
                     /* A replay's clock is its own, so the unlock is its too,
                      * in a browser as well: set on the transport and followed
@@ -10815,7 +10810,7 @@ main(
                         exit(2);
                     }
                     App_SpeedUnlock();
-                    uncapped = 1;
+                    main_pacing.uncapped = 1;
                     TORIRS_REPORT("clock: unlocked (one logic cycle a frame, no frame cap; "
                                   "the embedded server ticks every 30 cycles)\n");
 #endif
@@ -10826,52 +10821,52 @@ main(
         /* TORIRS_SIM_OPENMAIN=<iface>: once the gameframe is up, mount an
          * interface into the main-modal slot exactly as an IF_OPENMAIN packet
          * would. Offline repro for server-driven modals (player design 3559). */
-        sim_openmain = getenv("TORIRS_SIM_OPENMAIN")
+        main_harness.sim_openmain = getenv("TORIRS_SIM_OPENMAIN")
                            ? (int)strtol(getenv("TORIRS_SIM_OPENMAIN"), NULL, 0)
                            : -1;
-        sim_openmain_done = 0;
+        main_harness.sim_openmain_done = 0;
 
         /* TORIRS_SIM_OPENSIDE=<iface>: the same for the side-panel slot. The
          * main-modal slot refuses a side interface ("no mount region"), so the
          * sidebar panels — settings_side 116 and friends — are only reachable
          * offline through here. */
-        sim_openside = getenv("TORIRS_SIM_OPENSIDE")
+        main_harness.sim_openside = getenv("TORIRS_SIM_OPENSIDE")
                            ? (int)strtol(getenv("TORIRS_SIM_OPENSIDE"), NULL, 0)
                            : -1;
-        sim_openside_done = 0;
+        main_harness.sim_openside_done = 0;
 
         /* TORIRS_SIM_OPENCHAT=<iface>: same, for the chatback dialog slot
          * (reference IF_OPENCHAT / chatComId). Offline repro for the
          * server-driven chat dialogs (option menus 2459.., npc/player chat). */
-        sim_openchat = getenv("TORIRS_SIM_OPENCHAT")
+        main_harness.sim_openchat = getenv("TORIRS_SIM_OPENCHAT")
                            ? (int)strtol(getenv("TORIRS_SIM_OPENCHAT"), NULL, 0)
                            : -1;
-        sim_openchat_done = 0;
+        main_harness.sim_openchat_done = 0;
 
         /* TORIRS_BOOT_STATS=1: how long the gameframe took to come up, and
          * whether the frame loop or the work itself is the limit. `capped` is
          * the number of boot frames that used their whole per-frame scheduler
          * budget — those are frames that had more work ready and were stopped. */
-        boot_stats = getenv("TORIRS_BOOT_STATS") ? 1 : 0;
-        boot_start_ms = PlatformWindow_Ticks64();
-        boot_reported = 0;
-        world_reported = 0;
+        main_harness.boot_stats = getenv("TORIRS_BOOT_STATS") ? 1 : 0;
+        main_harness.boot_start_ms = PlatformWindow_Ticks64();
+        main_harness.boot_reported = 0;
+        main_harness.world_reported = 0;
         ToriRS_BootTelemetry_Mark("frame_loop");
 
-        sim_sethide = getenv("TORIRS_SIM_SETHIDE");
-        sim_sethide_done = 0;
+        main_harness.sim_sethide = getenv("TORIRS_SIM_SETHIDE");
+        main_harness.sim_sethide_done = 0;
 
         /* TORIRS_SIM_SETVARP="id:value,...": drive the varps the IF1 "active"
          * scripts read (spec energy 300/301, attack style, ...) without a
          * server, so widgets whose whole behaviour is getIfActive can be seen
          * offline. Applied every frame — a re-bake would otherwise reset them. */
-        sim_setvarp = getenv("TORIRS_SIM_SETVARP");
+        main_harness.sim_setvarp = getenv("TORIRS_SIM_SETVARP");
 
         /* TORIRS_SIM_SETTAB="tabno:iface": replay IF_SETTAB offline, so the
          * sidebar panels the server assigns (combat tab 3796, stats, ...) can
          * be inspected without a session. */
-        sim_settab = getenv("TORIRS_SIM_SETTAB");
-        sim_settab_done = 0;
+        main_harness.sim_settab = getenv("TORIRS_SIM_SETTAB");
+        main_harness.sim_settab_done = 0;
 
 #if defined(__EMSCRIPTEN__)
         /* Hand the loop to requestAnimationFrame and never return: the browser
@@ -10910,5 +10905,5 @@ main(
     /* t.finish(code) wins over the ordinary sim_ready_failed verdict: a quest
      * script that called it decided the process's exit code itself, code 0
      * included. */
-    return quest_exit_pending ? quest_exit_code : (sim_ready_failed ? 1 : 0);
+    return main_quest.quest_exit_pending ? main_quest.quest_exit_code : (main_harness.sim_ready_failed ? 1 : 0);
 }

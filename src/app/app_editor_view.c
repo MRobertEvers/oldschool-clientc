@@ -10,6 +10,7 @@
  */
 
 #include "app/app_internal.h"
+#include "app/app_mapeditor_state.h"
 #include "editor/editor_host.h"
 #include "editor/editor_ui.h"
 #include "editor/editor_view.h"
@@ -32,40 +33,24 @@
 
 /*
  * One view per process: a viewer process IS one window (platform_sdl2.c holds
- * exactly one), so the view lives beside it as file-static state, the way
- * app_map_editor.c keeps its EDIT shadows. The core above takes everything as
- * arguments, which is what lets the three-view test run in one process.
+ * exactly one), so the view lives in the map editor's state beside it
+ * (app_mapeditor_state.h struct MapEditorViewState). The core above takes
+ * everything as arguments, which is what lets the three-view test run in one
+ * process.
  */
-static struct EditorView g_app_view;
-static int g_app_view_live;
 /** The editor boot's App, for the page's "spawn view" (any editor boot, view
- *  or main window). */
+ *  or main window): torirs_editor_view_spawn is called with no context. */
 static struct App* g_app;
-/** A pose waiting for its square to load before it can be applied. */
-static int g_pending_apply;
-static struct EditorViewCamera g_pending_camera;
-/** The App camera as the last apply left it: while it is still exactly
- *  that, the view's pose stands as adopted rather than being re-derived from
- *  the eye (which, on a slope, would come back a few units off and make two
- *  views following each other drift). */
-/** The embedded ToriRSMapEd's loopback door (server=embed): opened by the
- *  first pop-out, polled every frame, closed before the session. NULL until
- *  then, and always NULL in a process whose server is a daemon. */
-static struct ToriRSMapEdListener* g_embed_listener;
-static int g_applied_valid;
-static struct ToriDraw_Position g_applied_eye;
-static int g_applied_yaw;
-static int g_applied_pitch;
-/** A popped-out panel that draws no world (EditorView_AppHoldsNoWorld). */
-static int g_no_world;
-/** The Dock button closed this window: said once, then the main loop ends. */
-static int g_dock_exit_said;
 
 int
-EditorView_AppHoldsNoWorld(void)
+EditorView_AppHoldsNoWorld(struct App const* app)
 {
-    return g_no_world;
+    assert(app);
+    if( !app->map_editor )
+        return 0;
+    return app_mapeditor_state(app)->view.no_world;
 }
+
 
 static int64_t
 view_now_ms(void)
@@ -114,10 +99,10 @@ view_apply_to_app(
     /* The free camera: a view has no player to follow. */
     frame_view->camera_unlocked = 1;
     RedrawRequest_Raise(&app->redraw_request);
-    g_applied_valid = 1;
-    g_applied_eye = frame_view->world_camera_pos;
-    g_applied_yaw = frame_view->world_camera.yaw;
-    g_applied_pitch = frame_view->world_camera.pitch;
+    app_mapeditor_state(app)->view.applied_valid = 1;
+    app_mapeditor_state(app)->view.applied_eye = frame_view->world_camera_pos;
+    app_mapeditor_state(app)->view.applied_yaw = frame_view->world_camera.yaw;
+    app_mapeditor_state(app)->view.applied_pitch = frame_view->world_camera.pitch;
     return 1;
 }
 
@@ -158,18 +143,18 @@ view_apply_or_load(
     const struct EditorViewCamera* pose)
 {
     /* A panel-only window keeps no world to put the camera in. */
-    if( g_no_world )
+    if( app_mapeditor_state(app)->view.no_world )
     {
-        g_pending_apply = 0;
+        app_mapeditor_state(app)->view.pending_apply = 0;
         return;
     }
     if( view_apply_to_app(app, pose) )
     {
-        g_pending_apply = 0;
+        app_mapeditor_state(app)->view.pending_apply = 0;
         return;
     }
-    g_pending_camera = *pose;
-    g_pending_apply = 1;
+    app_mapeditor_state(app)->view.pending_camera = *pose;
+    app_mapeditor_state(app)->view.pending_apply = 1;
     if( !WorldLoadState_Inflight(&app->world_load) )
     {
         int chunks[2] = { pose->x / (64 * 128), pose->z / (64 * 128) };
@@ -186,14 +171,14 @@ EditorView_AppBoot(struct App* app)
 
     assert(app);
     assert(app->map_editor);
-    assert(!g_app_view_live);
+    assert(!app_mapeditor_state(app)->view.live);
 
     g_app = app;
     if( app->cfg.map_editor.panel != BOOTMANIFEST_EDITOR_PANEL_VIEW )
         return;
 
-    EditorView_Init(&g_app_view, app->map_editor->session);
-    g_app_view_live = 1;
+    EditorView_Init(&app_mapeditor_state(app)->view.view, app->map_editor->session);
+    app_mapeditor_state(app)->view.live = 1;
     /* Photographs of popped-out windows: a window inherits its leader's
      * environment, TORIRS_PRESENT_BMP included, so each takes its own file
      * under TORIRS_EDITOR_VIEW_BMP=<dir>[@<frame>] instead. */
@@ -239,7 +224,7 @@ EditorView_AppBoot(struct App* app)
         Editor_PanelSetVisible(&app->map_editor->editor_panel, &app->dev_overlay->ui, 1);
         if( !Editor_UiModuleNeedsWorld(module) )
         {
-            g_no_world = 1;
+            app_mapeditor_state(app)->view.no_world = 1;
             WorldLoadState_Attempt(&app->world_load);
             TORIRS_REPORT("editor view: a popped-out %s panel holds no world: skipping the world load around the "
                           "camera (the mirror, the catalog link and the preview raster stay)\n",
@@ -254,11 +239,11 @@ EditorView_AppBoot(struct App* app)
             TORIRS_REPORT("editor view: a popped-out %s panel of Client %u\n", module,
                 Editor_HostMapEdClientId(&app->map_editor->session->host));
         if( strcmp(module, "world") == 0 )
-            EditorView_ToolbarBuild(&g_app_view, &app->dev_overlay->ui);
+            EditorView_ToolbarBuild(&app_mapeditor_state(app)->view.view, &app->dev_overlay->ui);
     }
     else
-        EditorView_ToolbarBuild(&g_app_view, &app->dev_overlay->ui);
-    EditorView_AskSelf(&g_app_view);
+        EditorView_ToolbarBuild(&app_mapeditor_state(app)->view.view, &app->dev_overlay->ui);
+    EditorView_AskSelf(&app_mapeditor_state(app)->view.view);
     /* The Client's state as it stands (selection, tool, brush, palette,
      * the pinned level): a window that joins late starts where the others
      * are. */
@@ -269,18 +254,18 @@ EditorView_AppBoot(struct App* app)
          * it once as its cap. A popped-out panel's session follows the
          * level (and every shared tool) live, so its view adds no cap. */
         if( replayed > 0 && !EditorView_BootPanel() )
-            EditorView_ExpectSync(&g_app_view, replayed);
+            EditorView_ExpectSync(&app_mapeditor_state(app)->view.view, replayed);
     }
 
     boot_set = EditorView_BootCamera(&boot);
     if( boot_set )
     {
-        g_app_view.camera = boot;
-        g_app_view.camera_valid = 1;
-        g_pending_camera = boot;
+        app_mapeditor_state(app)->view.view.camera = boot;
+        app_mapeditor_state(app)->view.view.camera_valid = 1;
+        app_mapeditor_state(app)->view.pending_camera = boot;
         /* No world to apply it to in a panel-only window: the pose is kept
          * as the view's (it still says where the Client looks). */
-        g_pending_apply = !g_no_world;
+        app_mapeditor_state(app)->view.pending_apply = !app_mapeditor_state(app)->view.no_world;
     }
     if( app->world_views.frame )
         app->world_views.frame->camera_unlocked = 1;
@@ -297,9 +282,9 @@ EditorView_AppActivate(
     enum EditorViewAction action;
 
     assert(app);
-    if( !g_app_view_live || widget < 0 )
+    if( !app_mapeditor_state(app)->view.live || widget < 0 )
         return 0;
-    action = EditorView_ToolbarActivate(&g_app_view, &app->dev_overlay->ui, widget);
+    action = EditorView_ToolbarActivate(&app_mapeditor_state(app)->view.view, &app->dev_overlay->ui, widget);
     if( action == EDITOR_VIEW_ACTION_OPEN_PANELS )
     {
         /* Promotion: the same window becomes a full client of the Client
@@ -324,7 +309,6 @@ EditorView_AppActivate(
  *       (Editor_UiPanelPopOut), exactly as its title-bar button does.
  *
  * One shot each, main window only (a popped-out window ignores them). */
-static int g_drive_frame;
 
 static int
 view_drive_at(
@@ -342,10 +326,10 @@ view_drive(struct App* app)
     char const* popout = getenv("TORIRS_EDITOR_POPOUT");
     struct EditorUi* ui = app->map_editor->editor_panel.ui;
 
-    g_drive_frame++;
+    app_mapeditor_state(app)->view.drive_frame++;
     if( !ui || !app->map_editor->editor_panel.visible )
         return;
-    if( resize && resize[0] && g_drive_frame == view_drive_at(resize, 200) )
+    if( resize && resize[0] && app_mapeditor_state(app)->view.drive_frame == view_drive_at(resize, 200) )
     {
         char module[32] = { 0 };
         char edge = 0;
@@ -390,7 +374,7 @@ view_drive(struct App* app)
         else
             TORIRS_REPORT("editor: TORIRS_EDITOR_RESIZE '%s' names no panel edge\n", resize);
     }
-    if( popout && popout[0] && g_drive_frame == view_drive_at(popout, 300) )
+    if( popout && popout[0] && app_mapeditor_state(app)->view.drive_frame == view_drive_at(popout, 300) )
     {
         char list[128];
         snprintf(list, sizeof(list), "%.*s", (int)strcspn(popout, "@"), popout);
@@ -408,11 +392,11 @@ EditorView_AppFrame(struct App* app)
     /* The embedded server's loopback door: popped-out windows' requests and
      * their broadcasts, a few rounds a frame so a window's boot (one
      * synchronous request after another) is not one round trip per frame. */
-    if( g_embed_listener )
+    if( app_mapeditor_state(app)->view.embed_listener )
         for( int round = 0; round < 4; round++ )
-            if( ToriRSMapEd_ListenerPoll(g_embed_listener, 0) <= 0 )
+            if( ToriRSMapEd_ListenerPoll(app_mapeditor_state(app)->view.embed_listener, 0) <= 0 )
                 break;
-    if( !g_app_view_live )
+    if( !app_mapeditor_state(app)->view.live )
     {
         view_drive(app);
         return;
@@ -423,9 +407,9 @@ EditorView_AppFrame(struct App* app)
      * (EditorView_ExitRequested), on the web the tab closes itself, which a
      * tab the page opened (torirsSpawnEditorView) may. */
     if( app->map_editor->editor_panel.ui && app->map_editor->editor_panel.ui->dock_exit &&
-        !g_dock_exit_said )
+        !app_mapeditor_state(app)->view.dock_exit_said )
     {
-        g_dock_exit_said = 1;
+        app_mapeditor_state(app)->view.dock_exit_said = 1;
         TORIRS_REPORT("editor view: docked back into the main window; closing\n");
         EditorView_RequestExit();
 #if defined(__EMSCRIPTEN__)
@@ -436,7 +420,7 @@ EditorView_AppFrame(struct App* app)
     /* A popped-out World: the thin toolbar sits inside the World panel's
      * body, under its title bar (which names the Client's tool and level),
      * wherever the solo layout put the panel for this window's size. */
-    if( g_app_view.toolbar.built && app->map_editor->editor_panel.ui &&
+    if( app_mapeditor_state(app)->view.view.toolbar.built && app->map_editor->editor_panel.ui &&
         app->map_editor->editor_panel.ui->solo_panel >= 0 &&
         app->map_editor->editor_panel.ui->solo_panel ==
             app->map_editor->editor_panel.ui->world_panel )
@@ -445,10 +429,10 @@ EditorView_AppFrame(struct App* app)
             &app->dev_overlay->ui, app->map_editor->editor_panel.ui->world_panel);
         int const pad = ToriRSChrome_Px(&app->dev_overlay->ui, 8);
         struct ToriRSChromePanel const* bar =
-            &app->dev_overlay->ui.panels[g_app_view.toolbar.panel];
+            &app->dev_overlay->ui.panels[app_mapeditor_state(app)->view.view.toolbar.panel];
         if( body.w > 0 && (bar->x != body.x + pad || bar->y != body.y + pad) )
             ToriRSChrome_PanelMove(
-                &app->dev_overlay->ui, g_app_view.toolbar.panel, body.x + pad, body.y + pad);
+                &app->dev_overlay->ui, app_mapeditor_state(app)->view.view.toolbar.panel, body.x + pad, body.y + pad);
     }
 
     /* The frame's one activation is ours while the panels are hidden; once
@@ -457,37 +441,37 @@ EditorView_AppFrame(struct App* app)
         EditorView_AppActivate(app, ToriRSChrome_TakeActivated(&app->dev_overlay->ui));
 
     /* A pose waiting for its world, or one the view changed itself. */
-    if( g_pending_apply && !WorldLoadState_Inflight(&app->world_load) )
-        view_apply_or_load(app, &g_pending_camera);
-    if( EditorView_TakeCamera(&g_app_view, &pose) )
+    if( app_mapeditor_state(app)->view.pending_apply && !WorldLoadState_Inflight(&app->world_load) )
+        view_apply_or_load(app, &app_mapeditor_state(app)->view.pending_camera);
+    if( EditorView_TakeCamera(&app_mapeditor_state(app)->view.view, &pose) )
         view_apply_or_load(app, &pose);
 
     /* What the user did with the camera this frame, for the broadcast. An
      * untouched camera keeps the pose it was given. */
     {
-        int const untouched = g_applied_valid && app->world_views.frame
-                              && app->world_views.frame->world_camera_pos.x == g_applied_eye.x
-                              && app->world_views.frame->world_camera_pos.y == g_applied_eye.y
-                              && app->world_views.frame->world_camera_pos.z == g_applied_eye.z
-                              && app->world_views.frame->world_camera.yaw == g_applied_yaw
-                              && app->world_views.frame->world_camera.pitch == g_applied_pitch;
+        int const untouched = app_mapeditor_state(app)->view.applied_valid && app->world_views.frame
+                              && app->world_views.frame->world_camera_pos.x == app_mapeditor_state(app)->view.applied_eye.x
+                              && app->world_views.frame->world_camera_pos.y == app_mapeditor_state(app)->view.applied_eye.y
+                              && app->world_views.frame->world_camera_pos.z == app_mapeditor_state(app)->view.applied_eye.z
+                              && app->world_views.frame->world_camera.yaw == app_mapeditor_state(app)->view.applied_yaw
+                              && app->world_views.frame->world_camera.pitch == app_mapeditor_state(app)->view.applied_pitch;
         if( !untouched )
-            g_applied_valid = 0;
-        if( untouched || g_pending_apply || !app->world || !app->world_views.frame )
+            app_mapeditor_state(app)->view.applied_valid = 0;
+        if( untouched || app_mapeditor_state(app)->view.pending_apply || !app->world || !app->world_views.frame )
             goto publish;
     }
     {
-        struct EditorViewCamera previous = g_app_view.camera;
-        if( !g_app_view.camera_valid )
+        struct EditorViewCamera previous = app_mapeditor_state(app)->view.view.camera;
+        if( !app_mapeditor_state(app)->view.view.camera_valid )
         {
             memset(&previous, 0, sizeof(previous));
             previous.zoom = 1200;
         }
         if( view_read_from_app(app, &previous, &pose) )
-            EditorView_SetCamera(&g_app_view, &pose);
+            EditorView_SetCamera(&app_mapeditor_state(app)->view.view, &pose);
     }
 publish:
-    EditorView_Tick(&g_app_view, view_now_ms());
+    EditorView_Tick(&app_mapeditor_state(app)->view.view, view_now_ms());
 }
 
 int
@@ -500,11 +484,11 @@ EditorView_AppOnState(
     int consumed;
 
     assert(app);
-    if( !g_app_view_live )
+    if( !app_mapeditor_state(app)->view.live )
         return 0;
-    consumed = EditorView_OnState(&g_app_view, key, values, count);
-    if( (consumed || key == TORIRSMAPED_STATE_EDIT_LEVEL) && g_app_view.toolbar.built )
-        EditorView_ToolbarRefresh(&g_app_view, &app->dev_overlay->ui);
+    consumed = EditorView_OnState(&app_mapeditor_state(app)->view.view, key, values, count);
+    if( (consumed || key == TORIRSMAPED_STATE_EDIT_LEVEL) && app_mapeditor_state(app)->view.view.toolbar.built )
+        EditorView_ToolbarRefresh(&app_mapeditor_state(app)->view.view, &app->dev_overlay->ui);
     return consumed;
 }
 
@@ -513,9 +497,9 @@ EditorView_AppLevelMask(const struct App* app)
 {
     assert(app);
     (void)app; /* one view per process: the App only proves the caller is one */
-    if( !g_app_view_live )
+    if( !app_mapeditor_state(app)->view.live )
         return 0;
-    return EditorView_LevelMask(&g_app_view);
+    return EditorView_LevelMask(&app_mapeditor_state(app)->view.view);
 }
 
 #if defined(__EMSCRIPTEN__)
@@ -570,16 +554,16 @@ view_session_port(
 
     if( app->cfg.map_editor.server == BOOTMANIFEST_EDITOR_SERVER_TCP )
         return app->cfg.map_editor.server_port > 0 ? app->cfg.map_editor.server_port : TORIRSMAPED_DEFAULT_PORT;
-    if( g_embed_listener )
-        return ToriRSMapEd_ListenerPort(g_embed_listener);
+    if( app_mapeditor_state(app)->view.embed_listener )
+        return ToriRSMapEd_ListenerPort(app_mapeditor_state(app)->view.embed_listener);
     server = Editor_HostIsMapEd(&app->map_editor->session->host) ? Editor_HostMapEdEmbedServer(&app->map_editor->session->host) : NULL;
     if( !server )
     {
         snprintf(why, (size_t)why_size, "this session has no ToriRSMapEd server another window could join");
         return 0;
     }
-    g_embed_listener = ToriRSMapEd_ListenerOpen(server, 0, "editor: embedded maped");
-    if( !g_embed_listener )
+    app_mapeditor_state(app)->view.embed_listener = ToriRSMapEd_ListenerOpen(server, 0, "editor: embedded maped");
+    if( !app_mapeditor_state(app)->view.embed_listener )
     {
         snprintf(why, (size_t)why_size,
             "the embedded ToriRSMapEd could not open a loopback socket (see the log); "
@@ -587,8 +571,8 @@ view_session_port(
         return 0;
     }
     TORIRS_REPORT("editor: the embedded ToriRSMapEd now also listens on 127.0.0.1:%d for popped-out windows\n",
-        ToriRSMapEd_ListenerPort(g_embed_listener));
-    return ToriRSMapEd_ListenerPort(g_embed_listener);
+        ToriRSMapEd_ListenerPort(app_mapeditor_state(app)->view.embed_listener));
+    return ToriRSMapEd_ListenerPort(app_mapeditor_state(app)->view.embed_listener);
 }
 #endif
 
@@ -659,7 +643,6 @@ EditorView_AppSpawnModule(
         char body[512];
         int length;
         int port;
-        static int serial;
 
         /* A server with a SPAWN_VIEW binding starts a plain viewer on ITS
          * host, with its own binary and manifest -- the only way a remote
@@ -695,7 +678,7 @@ EditorView_AppSpawnModule(
         length = EditorView_SpawnBody(url, group, &pose, module, body, (int)sizeof(body));
         assert(length > 0);
         ToriRS_TaskQueue_Add(app->frame_runner.queue,
-            CreateTask_PluginLaunch("view", body, length, ++serial, view_spawn_delivered, NULL));
+            CreateTask_PluginLaunch("view", body, length, ++app_mapeditor_state(app)->view.spawn_serial, view_spawn_delivered, NULL));
         return 1;
     }
 #endif
@@ -768,8 +751,8 @@ EditorView_AppShutdown(struct App* app)
 {
     assert(app);
     (void)app; /* one listener per process, like the view */
-    ToriRSMapEd_ListenerClose(g_embed_listener);
-    g_embed_listener = NULL;
+    ToriRSMapEd_ListenerClose(app_mapeditor_state(app)->view.embed_listener);
+    app_mapeditor_state(app)->view.embed_listener = NULL;
 }
 
 #if defined(__EMSCRIPTEN__)
@@ -786,8 +769,8 @@ torirs_editor_view_spawn(void)
 
     if( !g_app || !g_app->map_editor )
         return 0;
-    if( g_app_view_live && g_app_view.camera_valid )
-        camera = g_app_view.camera;
+    if( app_mapeditor_state(g_app)->view.live && app_mapeditor_state(g_app)->view.view.camera_valid )
+        camera = app_mapeditor_state(g_app)->view.view.camera;
     else
     {
         struct EditorViewCamera previous;

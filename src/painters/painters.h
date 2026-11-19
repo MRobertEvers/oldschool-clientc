@@ -1079,7 +1079,7 @@ painter_set_world_entity_view(
  * Bind view `view_id` as ONE scene element rather than a painter: when the
  * drain reaches the view's pseudo-loc it emits BEGIN_WORLD, `element_id`,
  * END_WORLD, and walks none of the view's tiles. A flattened sailing hull
- * drawn as a prebuilt outline (app_wev_flat_outline.c) is bound this way.
+ * drawn as a prebuilt outline (render/wev_flat_outline.c) is bound this way.
  * Cleared with the other bindings by painter_clear_world_entity_views.
  */
 void

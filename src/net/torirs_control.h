@@ -137,7 +137,7 @@ enum TorirsControlType
      * _COUNTDIALOG_LONG, _NAMEDIALOG, _STRINGDIALOG), staged where it was
      * sent. The official client closes the prompt itself as it sends the
      * answer and no server packet says so; a replay drops client packets, so
-     * the executor runs that close here (rs_gameproto_exec.c
+     * the executor runs that close here (app/app_replay_control.c
      * exec_control_replay_dialog).
      * Payload `u32 prot`: the answer's GameProtoPktOutName (net/rev/pktnames.h),
      * which names the kind of prompt answered.
@@ -151,7 +151,7 @@ enum TorirsControlType
      * effect there). The window class is the client's own -- no server packet
      * carries it -- and the cache's scripts lay the server's toplevel out by
      * it (getwindowmode), so a replay runs in the recorder's, not the
-     * watcher's saved one (rs_gameproto_exec.c exec_control_replay_window).
+     * watcher's saved one (app/app_replay_control.c exec_control_replay_window).
      * A desktop recording's only; a phone's runs resizable (app_boot.c).
      * Payload `u32 mode`: 1 fixed, 2 resizable (WINDOW_STATUS's values).
      */

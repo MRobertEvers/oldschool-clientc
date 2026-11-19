@@ -178,7 +178,7 @@ struct ToriRS_Network
      * the one writer of the replay control frames (net/torirs_control.h,
      * TORIRS_CONTROL_REPLAY_*). Marked once, when that transport is made; a
      * replay frame on any other connection aborts
-     * (RS_GameProto_ReplayControlExpected).
+     * (App_ReplayControlExpected).
      */
     int replay;
     /**

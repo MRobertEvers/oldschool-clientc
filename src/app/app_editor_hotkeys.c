@@ -38,6 +38,7 @@
  */
 
 #include "app/app_internal.h"
+#include "app/app_mapeditor_state.h"
 #include "editor/builder/builder_panels.h"
 #include "editor/editor_hotkeys.h"
 #include "editor/panels/edpanel_common.h"
@@ -46,38 +47,8 @@
 #include "editor/task_editor_hotkeys_io.h"
 #include "editor/task_editor_recent_io.h"
 
-/* One editor window per process (as g_app_editor_layout): file-static,
- * never freed, so a load in flight at shutdown still lands somewhere. */
-static struct
-{
-    /** This frame's resolution; `valid` while it belongs to this frame. */
-    struct Editor_HotkeyFrame frame;
-    int valid;
-    /** The pointer when this frame resolved, for the "panel under the
-     *  pointer" actions (pop out, close). */
-    int mouse_x;
-    int mouse_y;
-    /** OSRS key codes of the keys that acted (input_claims' key index). */
-    unsigned char consumed_osrs[TORIRS_OSRSKEY_COUNT];
-    int consumed_any;
-
-    /* editor_hotkeys.ini: 0 not started, 1 reading, 2 loaded, 3 off. */
-    int io_state;
-    const char* path;
-    struct EditorHotkeysLoad load;
-    uint32_t saved_serial;
-    /** The table as the file left it: the shutdown flush writes only when a
-     *  binding changed since. */
-    uint32_t loaded_serial;
-
-    /* editor_recent.ini (the recent squares and the camera scheme), the
-     * same machine: 0 not started, 1 reading, 2 loaded, 3 off. */
-    int recent_state;
-    const char* recent_path;
-    struct EditorRecentLoad recent_load;
-    uint32_t recent_saved_serial;
-    uint32_t recent_loaded_serial;
-} g_app_hk;
+/* The hotkeys' frame resolution and their two files live in the map editor's
+ * state (app_mapeditor_state.h struct MapEditorHotkeysState). */
 
 static void
 app_hk_snapshot(
@@ -187,9 +158,9 @@ app_hk_consume_key(
     int const osrs = app_keycode_osrs(key);
     if( osrs >= 0 && osrs < TORIRS_OSRSKEY_COUNT )
     {
-        g_app_hk.consumed_osrs[osrs] = 1;
+        app_mapeditor_state(app)->hotkeys.consumed_osrs[osrs] = 1;
         ToriRS_InputClaimsClaimKey(&app->input_claims, osrs);
-        g_app_hk.consumed_any = 1;
+        app_mapeditor_state(app)->hotkeys.consumed_any = 1;
     }
 }
 
@@ -208,7 +179,7 @@ app_hk_hover(
 
     /* A photograph's parked hover (TORIRS_EDITOR_HOVER) is the pointer, as
      * it is for the panels' hover service. */
-    if( app_map_editor_hover_env_tile(out_x, out_z) )
+    if( app_map_editor_hover_env_tile(app, out_x, out_z) )
     {
         *out_level = Editor_PanelEditLevel(&app->map_editor->editor_panel, app);
         return 1;
@@ -570,7 +541,7 @@ app_hk_run(
     {
         /* The panel under the pointer, else the World: a pop-out pressed
          * over the 3D view or over nothing pops the view out. */
-        const char* module = Editor_UiPanelAt(ui, g_app_hk.mouse_x, g_app_hk.mouse_y);
+        const char* module = Editor_UiPanelAt(ui, app_mapeditor_state(app)->hotkeys.mouse_x, app_mapeditor_state(app)->hotkeys.mouse_y);
         (void)Editor_UiPanelPopOut(ui, module ? module : "world");
         break;
     }
@@ -599,7 +570,7 @@ app_hk_run(
     {
         /* A panel under the pointer is open by definition, so the View
          * toggle hides it; over no panel the key does nothing. */
-        const char* module = Editor_UiPanelAt(ui, g_app_hk.mouse_x, g_app_hk.mouse_y);
+        const char* module = Editor_UiPanelAt(ui, app_mapeditor_state(app)->hotkeys.mouse_x, app_mapeditor_state(app)->hotkeys.mouse_y);
         if( module )
             (void)Editor_UiTogglePanel(ui, module);
         break;
@@ -624,45 +595,45 @@ app_hk_io_tick(
     struct App* app,
     struct EditorUi* ui)
 {
-    if( g_app_hk.io_state == 3 )
+    if( app_mapeditor_state(app)->hotkeys.io_state == 3 )
         return;
-    if( g_app_hk.io_state == 0 )
+    if( app_mapeditor_state(app)->hotkeys.io_state == 0 )
     {
-        g_app_hk.path = Editor_HotkeysPath();
-        if( !g_app_hk.path || !app->frame_runner.queue )
+        app_mapeditor_state(app)->hotkeys.path = Editor_HotkeysPath();
+        if( !app_mapeditor_state(app)->hotkeys.path || !app->frame_runner.queue )
         {
-            g_app_hk.io_state = 3;
+            app_mapeditor_state(app)->hotkeys.io_state = 3;
             return;
         }
-        ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_EditorHotkeysLoad(&g_app_hk.load, g_app_hk.path));
-        g_app_hk.io_state = 1;
+        ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_EditorHotkeysLoad(&app_mapeditor_state(app)->hotkeys.load, app_mapeditor_state(app)->hotkeys.path));
+        app_mapeditor_state(app)->hotkeys.io_state = 1;
         return;
     }
-    if( g_app_hk.io_state == 1 )
+    if( app_mapeditor_state(app)->hotkeys.io_state == 1 )
     {
-        if( !g_app_hk.load.done )
+        if( !app_mapeditor_state(app)->hotkeys.load.done )
             return;
-        if( g_app_hk.load.found )
+        if( app_mapeditor_state(app)->hotkeys.load.found )
         {
-            memcpy(ui->hotkeys.bind, g_app_hk.load.hotkeys.bind, sizeof(ui->hotkeys.bind));
-            if( g_app_hk.load.hotkeys.stamp_next > ui->hotkeys.stamp_next )
-                ui->hotkeys.stamp_next = g_app_hk.load.hotkeys.stamp_next;
+            memcpy(ui->hotkeys.bind, app_mapeditor_state(app)->hotkeys.load.hotkeys.bind, sizeof(ui->hotkeys.bind));
+            if( app_mapeditor_state(app)->hotkeys.load.hotkeys.stamp_next > ui->hotkeys.stamp_next )
+                ui->hotkeys.stamp_next = app_mapeditor_state(app)->hotkeys.load.hotkeys.stamp_next;
             memset(ui->hotkeys.repeat_held, 0, sizeof(ui->hotkeys.repeat_held));
             ui->hotkeys.serial++;
-            Editor_UiLog(ui, "editor: hotkeys from %s (%d rebound, %d line(s) ignored)", g_app_hk.path,
-                g_app_hk.load.report.applied, g_app_hk.load.report.ignored);
-            for( int i = 0; i < g_app_hk.load.report.line_count; i++ )
-                Editor_UiLog(ui, "editor: %s: %s", g_app_hk.path, g_app_hk.load.report.lines[i]);
+            Editor_UiLog(ui, "editor: hotkeys from %s (%d rebound, %d line(s) ignored)", app_mapeditor_state(app)->hotkeys.path,
+                app_mapeditor_state(app)->hotkeys.load.report.applied, app_mapeditor_state(app)->hotkeys.load.report.ignored);
+            for( int i = 0; i < app_mapeditor_state(app)->hotkeys.load.report.line_count; i++ )
+                Editor_UiLog(ui, "editor: %s: %s", app_mapeditor_state(app)->hotkeys.path, app_mapeditor_state(app)->hotkeys.load.report.lines[i]);
         }
-        g_app_hk.saved_serial = ui->hotkeys.serial;
-        g_app_hk.loaded_serial = ui->hotkeys.serial;
-        g_app_hk.io_state = 2;
+        app_mapeditor_state(app)->hotkeys.saved_serial = ui->hotkeys.serial;
+        app_mapeditor_state(app)->hotkeys.loaded_serial = ui->hotkeys.serial;
+        app_mapeditor_state(app)->hotkeys.io_state = 2;
         return;
     }
-    if( ui->hotkeys.serial != g_app_hk.saved_serial )
+    if( ui->hotkeys.serial != app_mapeditor_state(app)->hotkeys.saved_serial )
     {
-        ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_EditorHotkeysSave(&ui->hotkeys, g_app_hk.path));
-        g_app_hk.saved_serial = ui->hotkeys.serial;
+        ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_EditorHotkeysSave(&ui->hotkeys, app_mapeditor_state(app)->hotkeys.path));
+        app_mapeditor_state(app)->hotkeys.saved_serial = ui->hotkeys.serial;
     }
 }
 
@@ -672,29 +643,29 @@ app_hk_recent_tick(
     struct App* app,
     struct EditorUi* ui)
 {
-    if( g_app_hk.recent_state == 3 )
+    if( app_mapeditor_state(app)->hotkeys.recent_state == 3 )
         return;
-    if( g_app_hk.recent_state == 0 )
+    if( app_mapeditor_state(app)->hotkeys.recent_state == 0 )
     {
-        g_app_hk.recent_path = Editor_RecentPath();
-        if( !g_app_hk.recent_path || !app->frame_runner.queue )
+        app_mapeditor_state(app)->hotkeys.recent_path = Editor_RecentPath();
+        if( !app_mapeditor_state(app)->hotkeys.recent_path || !app->frame_runner.queue )
         {
-            g_app_hk.recent_state = 3;
+            app_mapeditor_state(app)->hotkeys.recent_state = 3;
             return;
         }
-        ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_EditorRecentLoad(&g_app_hk.recent_load, g_app_hk.recent_path));
-        g_app_hk.recent_state = 1;
+        ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_EditorRecentLoad(&app_mapeditor_state(app)->hotkeys.recent_load, app_mapeditor_state(app)->hotkeys.recent_path));
+        app_mapeditor_state(app)->hotkeys.recent_state = 1;
         return;
     }
-    if( g_app_hk.recent_state == 1 )
+    if( app_mapeditor_state(app)->hotkeys.recent_state == 1 )
     {
-        if( !g_app_hk.recent_load.done )
+        if( !app_mapeditor_state(app)->hotkeys.recent_load.done )
             return;
-        if( g_app_hk.recent_load.found )
+        if( app_mapeditor_state(app)->hotkeys.recent_load.found )
         {
             /* Squares opened before the file landed (the boot's) stay in
              * front of the file's. */
-            struct Editor_Recent merged = g_app_hk.recent_load.recent;
+            struct Editor_Recent merged = app_mapeditor_state(app)->hotkeys.recent_load.recent;
             for( int i = ui->recent.count - 1; i >= 0; i-- )
             {
                 int mx;
@@ -706,17 +677,17 @@ app_hk_recent_tick(
             merged.serial = ui->recent.serial + 1;
             ui->recent = merged;
             Editor_UiLog(ui, "editor: %d recent square(s) and the %s camera scheme from %s", ui->recent.count,
-                Editor_CameraSchemeName(ui->recent.camera_scheme), g_app_hk.recent_path);
+                Editor_CameraSchemeName(ui->recent.camera_scheme), app_mapeditor_state(app)->hotkeys.recent_path);
         }
-        g_app_hk.recent_saved_serial = ui->recent.serial;
-        g_app_hk.recent_loaded_serial = ui->recent.serial;
-        g_app_hk.recent_state = 2;
+        app_mapeditor_state(app)->hotkeys.recent_saved_serial = ui->recent.serial;
+        app_mapeditor_state(app)->hotkeys.recent_loaded_serial = ui->recent.serial;
+        app_mapeditor_state(app)->hotkeys.recent_state = 2;
         return;
     }
-    if( ui->recent.serial != g_app_hk.recent_saved_serial )
+    if( ui->recent.serial != app_mapeditor_state(app)->hotkeys.recent_saved_serial )
     {
-        ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_EditorRecentSave(&ui->recent, g_app_hk.recent_path));
-        g_app_hk.recent_saved_serial = ui->recent.serial;
+        ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_EditorRecentSave(&ui->recent, app_mapeditor_state(app)->hotkeys.recent_path));
+        app_mapeditor_state(app)->hotkeys.recent_saved_serial = ui->recent.serial;
     }
 }
 
@@ -749,15 +720,15 @@ app_editor_hotkeys_flush(struct App* app)
     /* A save the tick queued last frame may still sit in the queue, which
      * is freed, not stepped: write by hand when anything changed since the
      * file was read. */
-    if( g_app_hk.io_state == 2 && ui->hotkeys.serial != g_app_hk.loaded_serial )
+    if( app_mapeditor_state(app)->hotkeys.io_state == 2 && ui->hotkeys.serial != app_mapeditor_state(app)->hotkeys.loaded_serial )
     {
-        app_hk_run_task_now(app, CreateTask_EditorHotkeysSave(&ui->hotkeys, g_app_hk.path));
-        g_app_hk.saved_serial = ui->hotkeys.serial;
+        app_hk_run_task_now(app, CreateTask_EditorHotkeysSave(&ui->hotkeys, app_mapeditor_state(app)->hotkeys.path));
+        app_mapeditor_state(app)->hotkeys.saved_serial = ui->hotkeys.serial;
     }
-    if( g_app_hk.recent_state == 2 && ui->recent.serial != g_app_hk.recent_loaded_serial )
+    if( app_mapeditor_state(app)->hotkeys.recent_state == 2 && ui->recent.serial != app_mapeditor_state(app)->hotkeys.recent_loaded_serial )
     {
-        app_hk_run_task_now(app, CreateTask_EditorRecentSave(&ui->recent, g_app_hk.recent_path));
-        g_app_hk.recent_saved_serial = ui->recent.serial;
+        app_hk_run_task_now(app, CreateTask_EditorRecentSave(&ui->recent, app_mapeditor_state(app)->hotkeys.recent_path));
+        app_mapeditor_state(app)->hotkeys.recent_saved_serial = ui->recent.serial;
     }
 }
 
@@ -775,9 +746,9 @@ app_editor_hotkeys_frame(
 
     assert(app);
     assert(input);
-    g_app_hk.valid = 0;
-    memset(g_app_hk.consumed_osrs, 0, sizeof(g_app_hk.consumed_osrs));
-    g_app_hk.consumed_any = 0;
+    app_mapeditor_state(app)->hotkeys.valid = 0;
+    memset(app_mapeditor_state(app)->hotkeys.consumed_osrs, 0, sizeof(app_mapeditor_state(app)->hotkeys.consumed_osrs));
+    app_mapeditor_state(app)->hotkeys.consumed_any = 0;
     if( !app->map_editor || !app->map_editor->editor_panel.built ||
         !app->map_editor->editor_panel.ui )
         return;
@@ -811,16 +782,16 @@ app_editor_hotkeys_frame(
     {
         int any = 0;
         (void)Editor_Hotkeys_Feed(ui, &snapshot);
-        memset(&g_app_hk.frame, 0, sizeof(g_app_hk.frame));
+        memset(&app_mapeditor_state(app)->hotkeys.frame, 0, sizeof(app_mapeditor_state(app)->hotkeys.frame));
         for( int k = TORIRSK_UNKNOWN + 1; k < TORIRSK_COUNT; k++ )
         {
             if( !snapshot.held[k] )
                 continue;
-            g_app_hk.frame.claimed[k] = 1;
+            app_mapeditor_state(app)->hotkeys.frame.claimed[k] = 1;
             app_hk_consume_key(app, k);
             any |= snapshot.down[k];
         }
-        g_app_hk.valid = 1;
+        app_mapeditor_state(app)->hotkeys.valid = 1;
         if( any )
         {
             ToriRS_InputClaimsTakeFrame(&app->input_claims);
@@ -838,17 +809,17 @@ app_editor_hotkeys_frame(
             TORIRSK_RETURN, TORIRSK_ESCAPE };
         int any = 0;
         (void)Editor_CmdPalette_Feed(ui, &snapshot);
-        memset(&g_app_hk.frame, 0, sizeof(g_app_hk.frame));
+        memset(&app_mapeditor_state(app)->hotkeys.frame, 0, sizeof(app_mapeditor_state(app)->hotkeys.frame));
         memset(ui->hotkeys.repeat_held, 0, sizeof(ui->hotkeys.repeat_held));
         for( size_t i = 0; i < sizeof(k_nav) / sizeof(k_nav[0]); i++ )
         {
             if( !snapshot.held[k_nav[i]] )
                 continue;
-            g_app_hk.frame.claimed[k_nav[i]] = 1;
+            app_mapeditor_state(app)->hotkeys.frame.claimed[k_nav[i]] = 1;
             app_hk_consume_key(app, k_nav[i]);
             any |= snapshot.down[k_nav[i]];
         }
-        g_app_hk.valid = 1;
+        app_mapeditor_state(app)->hotkeys.valid = 1;
         if( any )
         {
             ToriRS_InputClaimsTakeFrame(&app->input_claims);
@@ -866,18 +837,18 @@ app_editor_hotkeys_frame(
         && !app_modelview_focused(app) && ui->chrome->dropdown_open < 0 && !app->world_views.frame->minimenu->visible )
     {
         memset(ui->hotkeys.repeat_held, 0, sizeof(ui->hotkeys.repeat_held));
-        (void)Builder_GraphKeys(ui, &snapshot, &g_app_hk.frame);
-        g_app_hk.valid = 1;
-        g_app_hk.mouse_x = input->curr.mouse_x;
-        g_app_hk.mouse_y = input->curr.mouse_y;
+        (void)Builder_GraphKeys(ui, &snapshot, &app_mapeditor_state(app)->hotkeys.frame);
+        app_mapeditor_state(app)->hotkeys.valid = 1;
+        app_mapeditor_state(app)->hotkeys.mouse_x = input->curr.mouse_x;
+        app_mapeditor_state(app)->hotkeys.mouse_y = input->curr.mouse_y;
         for( int k = TORIRSK_UNKNOWN + 1; k < TORIRSK_COUNT; k++ )
-            if( g_app_hk.frame.consumed[k] )
+            if( app_mapeditor_state(app)->hotkeys.frame.consumed[k] )
                 app_hk_consume_key(app, k);
-        for( int i = 0; i < g_app_hk.frame.count; i++ )
+        for( int i = 0; i < app_mapeditor_state(app)->hotkeys.frame.count; i++ )
         {
             char text[32];
-            Editor_ChordDisplay(g_app_hk.frame.fired_chord[i], text, (int)sizeof(text));
-            Editor_UiLog(ui, "editor: %s (%s)", Editor_HotkeyInfo(g_app_hk.frame.fired[i])->name, text);
+            Editor_ChordDisplay(app_mapeditor_state(app)->hotkeys.frame.fired_chord[i], text, (int)sizeof(text));
+            Editor_UiLog(ui, "editor: %s (%s)", Editor_HotkeyInfo(app_mapeditor_state(app)->hotkeys.frame.fired[i])->name, text);
             ToriRS_InputClaimsTakeFrame(&app->input_claims);
             RedrawRequest_Raise(&app->redraw_request);
         }
@@ -909,21 +880,21 @@ app_editor_hotkeys_frame(
             snapshot.held[k] = 0;
         }
 
-    Editor_HotkeysResolve(&ui->hotkeys, &snapshot, &g_app_hk.frame);
-    g_app_hk.valid = 1;
-    g_app_hk.mouse_x = input->curr.mouse_x;
-    g_app_hk.mouse_y = input->curr.mouse_y;
+    Editor_HotkeysResolve(&ui->hotkeys, &snapshot, &app_mapeditor_state(app)->hotkeys.frame);
+    app_mapeditor_state(app)->hotkeys.valid = 1;
+    app_mapeditor_state(app)->hotkeys.mouse_x = input->curr.mouse_x;
+    app_mapeditor_state(app)->hotkeys.mouse_y = input->curr.mouse_y;
     for( int k = TORIRSK_UNKNOWN + 1; k < TORIRSK_COUNT; k++ )
-        if( g_app_hk.frame.consumed[k] )
+        if( app_mapeditor_state(app)->hotkeys.frame.consumed[k] )
             app_hk_consume_key(app, k);
     /* Space held (camera.pan): a left press over the world is the grab pan,
      * ahead of the editor's world click. */
     app_camera_grab_gate(app, input);
 
-    for( int i = 0; i < g_app_hk.frame.count; i++ )
+    for( int i = 0; i < app_mapeditor_state(app)->hotkeys.frame.count; i++ )
     {
-        enum Editor_HotkeyAction const action = g_app_hk.frame.fired[i];
-        struct Editor_Chord const chord = g_app_hk.frame.fired_chord[i];
+        enum Editor_HotkeyAction const action = app_mapeditor_state(app)->hotkeys.frame.fired[i];
+        struct Editor_Chord const chord = app_mapeditor_state(app)->hotkeys.frame.fired_chord[i];
 
         /* A repeat is not logged: twenty lines a second bury the console. */
         if( snapshot.down[chord.key] )
@@ -941,9 +912,9 @@ app_editor_hotkeys_frame(
         RedrawRequest_Raise(&app->redraw_request);
     }
     for( int a = 0; a < EDITOR_HK_COUNT; a++ )
-        if( g_app_hk.frame.active[a] )
+        if( app_mapeditor_state(app)->hotkeys.frame.active[a] )
             RedrawRequest_Raise(&app->redraw_request);
-    Editor_HotkeySnapHold(ui, g_app_hk.frame.active[EDITOR_HK_VIEW_SNAP_HOLD]);
+    Editor_HotkeySnapHold(ui, app_mapeditor_state(app)->hotkeys.frame.active[EDITOR_HK_VIEW_SNAP_HOLD]);
 }
 
 int
@@ -951,10 +922,12 @@ app_editor_hotkeys_claimed(
     struct App const* app,
     enum LibToriRS_KeyCode key)
 {
-    (void)app;
-    if( !g_app_hk.valid || (int)key <= TORIRSK_UNKNOWN || key >= TORIRSK_COUNT )
+    assert(app);
+    if( !app->map_editor )
         return 0;
-    return g_app_hk.frame.claimed[key];
+    if( !app_mapeditor_state(app)->hotkeys.valid || (int)key <= TORIRSK_UNKNOWN || key >= TORIRSK_COUNT )
+        return 0;
+    return app_mapeditor_state(app)->hotkeys.frame.claimed[key];
 }
 
 int
@@ -964,8 +937,10 @@ app_editor_hotkeys_active(
 {
     assert((int)action >= 0);
     assert(action < EDITOR_HK_COUNT);
-    (void)app;
-    return g_app_hk.valid && g_app_hk.frame.active[action];
+    assert(app);
+    if( !app->map_editor )
+        return 0;
+    return app_mapeditor_state(app)->hotkeys.valid && app_mapeditor_state(app)->hotkeys.frame.active[action];
 }
 
 int
@@ -979,10 +954,16 @@ app_editor_hotkeys_owns_camera(struct App const* app)
 void
 app_editor_hotkeys_mark_consumed(struct App* app)
 {
+    struct MapEditorHotkeysState const* hk;
+
     assert(app);
-    if( !g_app_hk.consumed_any )
+    /* Every boot's key path asks; only an editor boot has chords. */
+    if( !app->map_editor )
+        return;
+    hk = &app_mapeditor_state(app)->hotkeys;
+    if( !hk->consumed_any )
         return;
     for( int k = 0; k < TORIRS_OSRSKEY_COUNT; k++ )
-        if( g_app_hk.consumed_osrs[k] )
+        if( hk->consumed_osrs[k] )
             ToriRS_InputClaimsClaimKey(&app->input_claims, k);
 }

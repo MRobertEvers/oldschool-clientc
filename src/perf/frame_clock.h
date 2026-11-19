@@ -51,6 +51,12 @@
  *  the 50 Hz the loop runs at. */
 #define FRAME_CLOCK_IDLE_TIMER_FRAMES 4500
 
+/** 20ms logic cycles in one second — the client's own clock read as wall time. */
+#define APP_LOGIC_CYCLES_PER_SECOND 50
+
+/** The most App_SetLogicCyclesPerFrame takes: ten server ticks a frame. */
+#define APP_LOGIC_CYCLES_PER_FRAME_MAX 300
+
 struct FrameClockStep
 {
     /** The time the last frame was paid at; 0 before the first. */

@@ -792,6 +792,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	app/app_plugin_object.c \
 	app/app_plugin_panel.c \
 	app/app_render.c \
+	app/app_replay_control.c \
 	app/app_role_derive.c \
 	app/app_session_resume.c \
 	app/app_textures.c \
@@ -812,8 +813,6 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	app/app_varp_transforms.c \
 	app/app_viewport.c \
 	app/app_wev.c \
-	app/app_wev_flat_live.c \
-	app/app_wev_flat_outline.c \
 	app/app_world_apply.c \
 	app/app_world_click.c \
 	app/app_world_edit.c \
@@ -855,6 +854,9 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	render/world_views.c \
 	render/skybox_slot.c \
 	render/render_skip.c \
+	render/wev_flat.c \
+	render/wev_flat_live.c \
+	render/wev_flat_outline.c \
 	game/rs_worldmap_view.c \
 	game/rs_worldmap_surface.c \
 	ui/inv_drag.c \
@@ -5841,6 +5843,16 @@ test-wev: $(OBJ_DIR) $(OBJS)
 		world/test/wev_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/wev_test
+
+# How a flattened hull is drawn (render/wev_flat.h): the strategy lookup,
+# both strategies' frame transforms, and each bound against a real shared
+# scene and worldview registry with no App.
+.PHONY: test-wev-flat
+test-wev-flat: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/wev_flat_test \
+		render/test/wev_flat_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/wev_flat_test
 
 # World entities (sailing, SAILING_PLAN C2): REBUILD_WORLDENTITY_V4 (op 109)
 # — the raw-carry parse arm, the view-sized bit-grid decode (13x13 stride,

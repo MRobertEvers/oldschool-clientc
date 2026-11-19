@@ -4564,11 +4564,8 @@ app_plugin_if_click(void* user, int component_id, int op)
 }
 
 /* Which overlay list the draw verbs above append to. @see app_overlay_push.
- * The value is enum PluginDrawSurface and is carried verbatim, because the
- * lists are indexed by it on the other side. */
-_Static_assert(
-    APP_PLUGIN_SURFACE_PANEL == TORIRS_PLUGIN_ENGINE_DRAW_PANEL,
-    "App and plugin host panel draw surfaces drifted");
+ * The value is the host's TORIRS_PLUGIN_ENGINE_DRAW_* mode, carried verbatim
+ * (plugin/torirs_plugin_host.h). */
 /* The stage works in surfaces; the plugin's draw window is a plugin-facing
  * enum. One translation, here, so nothing that pushes has to know they are the
  * same three values in the same order -- which they need not stay. */
@@ -4577,8 +4574,8 @@ app_plugin_draw_surface(int canvas)
 {
     switch( canvas )
     {
-    case APP_PLUGIN_SURFACE_CANVAS: return OVERLAY_SURFACE_CANVAS;
-    case APP_PLUGIN_SURFACE_PANEL: return OVERLAY_SURFACE_PANEL;
+    case TORIRS_PLUGIN_ENGINE_DRAW_CANVAS: return OVERLAY_SURFACE_CANVAS;
+    case TORIRS_PLUGIN_ENGINE_DRAW_PANEL: return OVERLAY_SURFACE_PANEL;
     default: return OVERLAY_SURFACE_WORLD;
     }
 }

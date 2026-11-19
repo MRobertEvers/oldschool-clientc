@@ -27,6 +27,14 @@
 
 #include <stdbool.h>
 
+/** Smallest client canvas. The reference's resizable mode will not go below the
+ *  fixed frame either, and the reason is structural rather than cosmetic: every
+ *  rev-230 gameframe child is authored as an inset off 765x503 (toplevel_resize
+ *  computes `max(0, width - inset)` throughout), so a smaller canvas produces
+ *  zero-sized viewports, not a smaller frame. */
+#define APP_CANVAS_MIN_W 765
+#define APP_CANVAS_MIN_H 503
+
 struct UICanvasScale
 {
     /** The last unscaled game-area size the shell reported

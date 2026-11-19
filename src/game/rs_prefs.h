@@ -33,6 +33,17 @@
  * a capture sees them, so both halves of the panel land in the same place.
  */
 
+/**
+ * Logic cycles a settings change waits before it is written to disk.
+ *
+ * A slider drag reports a new volume every 20ms cycle, so writing on each one
+ * would be fifty file rewrites a second for one gesture. Half a second of quiet
+ * collapses a drag into a single write and is still far shorter than the time
+ * between changing a setting and quitting; App_Shutdown flushes the tail
+ * either way.
+ */
+#define APP_PREFS_SAVE_SETTLE_TICKS 25
+
 struct RS_Prefs
 {
     /** Complete value set, never sparse: an option the file did not mention
