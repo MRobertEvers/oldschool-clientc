@@ -2761,8 +2761,8 @@ test-redraw-request: $(OBJ_DIR)
 		render/test/redraw_request_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/redraw_request_test$(PLATFORM_EXE_SUFFIX)
 
-# The CAM_SKYBOX slot: a wanted model is asked for once per want, the old one
-# draws until the new one is built, and wanting none drops it at once.
+# The CAM_SKYBOX slot: the old model draws until the new one is built, and
+# wanting none drops it at once. Asking for the model is the assets table's.
 .PHONY: test-skybox-slot
 test-skybox-slot: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/skybox_slot_test$(PLATFORM_EXE_SUFFIX) \

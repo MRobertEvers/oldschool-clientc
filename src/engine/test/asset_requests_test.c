@@ -574,6 +574,37 @@ test_newest_replaces(void)
     Assets_Free(assets);
 }
 
+/* A6: a failed skybox load was never asked for again (a request flag held it
+ * until the next CAM_SKYBOX). Wanted every frame while not resident, it is
+ * retried after the back-off; a newer skybox replaces one still loading. */
+static void
+test_skybox_retried_and_replaced(void)
+{
+    struct FakeLoader fake;
+    struct Assets* assets = table_with(ASSET_KIND_SKYBOX, &fake);
+    struct AssetKey sky = AssetKey_Make(ASSET_KIND_SKYBOX, 51000, 0);
+    struct AssetKey other = AssetKey_Make(ASSET_KIND_SKYBOX, 51001, 0);
+
+    Assets_SetClock(assets, 0);
+    for( int frame = 0; frame < 10; frame++ )
+        Assets_Want(assets, sky, NULL);
+    TEST_ASSERT(fake.start_count == 1, "ten frames of wanting: one load");
+    Assets_Finished(assets, sky, false);
+    Assets_SetClock(assets, 499);
+    Assets_Want(assets, sky, NULL);
+    TEST_ASSERT(fake.start_count == 1, "not retried inside the back-off");
+    Assets_SetClock(assets, 500);
+    Assets_Want(assets, sky, NULL);
+    TEST_ASSERT(fake.start_count == 2, "a failed skybox is retried");
+    Assets_Want(assets, other, NULL);
+    TEST_ASSERT(fake.start_count == 2, "a newer skybox waits for the older loader");
+    Assets_Finished(assets, sky, true);
+    TEST_ASSERT(Assets_InFlight(assets, other) && fake.start_count == 3,
+        "and starts when it ends; the older one is not kept");
+    TEST_ASSERT(Assets_State(assets, sky) == ASSET_STATE_NONE, "the replaced one is gone");
+    Assets_Free(assets);
+}
+
 /* ---- landing one or all ------------------------------------------------- */
 
 static void
@@ -697,6 +728,7 @@ main(void)
     test_remembered_failure();
     test_late_policies();
     test_newest_replaces();
+    test_skybox_retried_and_replaced();
     test_land_one_or_all();
     test_drop_waiters();
     test_growth();

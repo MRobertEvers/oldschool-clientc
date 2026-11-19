@@ -167,14 +167,8 @@ app_skybox_handle(struct App* app)
                 app_sync_textures(app);
             }
         }
-        else if( SkyboxSlot_NeedsRequest(&app->skybox) )
-        {
-            struct ToriRS_Task* load = CreateTask_ModelLoad(app->provider, id);
-
-            SkyboxSlot_NoteRequested(&app->skybox);
-            if( load )
-                ToriRS_TaskQueue_Add(app->frame_runner.queue, load);
-        }
+        else
+            (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SKYBOX, id, 0), NULL);
     }
     drawn = SkyboxSlot_Model(&app->skybox);
     if( drawn )
