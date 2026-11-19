@@ -4,15 +4,19 @@
 /*
  * The headless client's shadow of the packet model.
  *
- * WHAT IT IS. A second set of the records the real client keeps (VarPManager,
- * RS_PlayerStats, InvManager, the interface text/hide/colour/event stores,
- * RS_Chat, RS_Social, the session records, one event ring), owned by one
- * struct ScriptrunCore and fed every packet the core decodes through
+ * WHAT IT IS. A second set of the packet model's records (scriptrun_model.h:
+ * VarPManager, RS_PlayerStats, InvManager, the interface text/hide/colour/event
+ * stores, RS_Chat, RS_Social, the session records, one event ring), owned by
+ * one struct ScriptrunCore and fed every packet the core decodes through
  * RS_ServerState_Apply (game/rs_server_state.h) -- the ONE copy of the rules
- * the real client applies. Beside it the core keeps running its own restated
- * rules (scriptrun_core.c core_packet), and the comparer reports where the two
- * disagree. Nothing the bot reads comes from here: the shadow only reads the
- * core, and the core never reads the shadow.
+ * -- and nothing else. The core holds the first set (`core->model`), fed the
+ * same packets and then presented: the bot's mount table drops a leaving
+ * group's arming and stores (RS_ServerState_SlotGroupLeaves), its entity
+ * stream adds public chat lines. The comparer reports where the core's set,
+ * after that presentation, differs from the bare model's: what the bot's
+ * presentation changed, and any packet one side saw and the other did not.
+ * Nothing the bot reads comes from here: the shadow only reads the core, and
+ * the core never reads the shadow.
  *
  * WHEN. With TORIRS_SCRIPTRUN_SHADOW unset the core holds no shadow and no
  * packet is fed to one. Set, it names the TSV file the rows go to (the first
@@ -30,16 +34,19 @@
  *     inv_packet, chat_message, server_tick, npc_seq) that each side stamped
  *     while applying that packet, in order. Every mismatch is a row.
  *
- * ROW. tick, family, key, old (the core's), shared (the model's), the packet
+ * ROW. tick, family, key, old (the core's model, presented), shared (the bare
+ * model's), the packet
  * kind that last touched the key, the bot's local pid; tab-separated, "-" for
  * a value a side does not hold.
  *
  * WHAT IT CANNOT SHADOW. The shared apply's entity setters (ANIM_SPECIFIC,
  * NPC_ANIM_SPECIFIC, the SPOTANIM_SPECIFICs, NPC_HEADICON_SPECIFIC) address
  * World entities, which only the core's own entity stream creates; the
- * shadow's World has none, so those packets are applied and change nothing.
+ * shadow's World has none, so those packets are applied and change nothing
+ * (the core does not feed them at all, scriptrun_core.c core_model_feeds).
  * They are counted (`entity_setters`) so the report can say how many there
- * were. UPDATE_UID192 writes process-global login state and is not fed.
+ * were. UPDATE_UID192 writes process-global login state and is fed to
+ * neither.
  */
 
 #include <stdint.h>

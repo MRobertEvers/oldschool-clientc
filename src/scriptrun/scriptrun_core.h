@@ -13,6 +13,17 @@
  * (world/world.c, game/rs_entity_sync.c) as the store, mutated through the same
  * World_* calls the client's apply makes.
  *
+ * WHAT IT SHARES. Every packet the core decodes goes first through the packet
+ * model (game/rs_server_state.h RS_ServerState_Apply), the one copy of the
+ * rules the real client applies too, into `model` (scriptrun_model.h): varps,
+ * stats, inventories, chat lines, the interface text/hide/colour/event stores
+ * and the event ring are written there and read from there. What follows the
+ * apply here is the bot's PRESENTATION, as the real client's src/app follows
+ * it: re-resolving multinpcs on a varp, the mount table and the stores a
+ * leaving group takes with it (RS_ServerState_SlotGroupLeaves), and the
+ * stand-ins for what the real client's scripts would read (the last client
+ * script call, the make-X and skill-multi values, the count prompt).
+ *
  * WHAT IT MIRRORS. The client applies the entity streams in an async task
  * bound to the whole App (game/task_exec_entity_info.c): it awaits npc configs,
  * models and stances between ops. That cannot run here, so the target/apply
@@ -30,7 +41,7 @@
 
 #include "game/rs_effect_rules.h"
 #include "game/rs_event_ring.h"
-#include "ui/uitree_if_events.h"
+#include "scriptrun/scriptrun_model.h"
 
 #include <stdint.h>
 
@@ -42,11 +53,6 @@ struct RSCache_Dat2Disk;
 
 enum
 {
-    SCRIPTRUN_VARPS = 8192,
-    SCRIPTRUN_STATS = 25,
-    SCRIPTRUN_INVS = 32,
-    SCRIPTRUN_INV_SLOTS = 512,
-    SCRIPTRUN_MESSAGES = 256,
     SCRIPTRUN_TEXT = 256,
     /* The effect lists' sizes, the live ring's too (game/rs_effect_rules.h
      * says why each is what it is); a full list is an assert. */
@@ -56,8 +62,6 @@ enum
     SCRIPTRUN_LOCS = 1024,
     SCRIPTRUN_OBJS = 512,
     SCRIPTRUN_MOUNTS = 64,
-    SCRIPTRUN_SETTEXTS = 256,
-    SCRIPTRUN_SETHIDES = 1024,
     SCRIPTRUN_SCRIPT_ARGS = 32,
     /* Client logic cycles per server tick: the unit World and the drive's
      * tick() count in (game/rs_server_tick.h APP_SERVER_TICK_LOGIC_CYCLES). */
@@ -93,22 +97,6 @@ enum
     /* The bot's ring: overwrites its oldest entry when full, uncounted
      * (RS_EVENT_RING_OVERWRITE); the reader clamps its cursor to it. */
     SCRIPTRUN_EVENTS = 1024,
-};
-
-struct ScriptrunInv
-{
-    int inv_id; /* -1: unused */
-    int size;
-    int obj[SCRIPTRUN_INV_SLOTS];   /* -1: empty */
-    int count[SCRIPTRUN_INV_SLOTS];
-};
-
-struct ScriptrunMessage
-{
-    int serial;
-    int type;
-    char name[64];
-    char text[SCRIPTRUN_TEXT];
 };
 
 struct ScriptrunProjectile
@@ -207,21 +195,6 @@ struct ScriptrunMount
     int type;
 };
 
-struct ScriptrunSetText
-{
-    int component;
-    char text[SCRIPTRUN_TEXT];
-};
-
-/* The last IF_SETHIDE the server sent for a component of an open group. The
- * client keeps that flag on the component instance, so a group's entries die
- * with it: a close, or a fresh open of the same group, forgets them. */
-struct ScriptrunSetHide
-{
-    int component;
-    int hidden;
-};
-
 struct ScriptrunScriptCall
 {
     int script_id;
@@ -268,15 +241,6 @@ struct ScriptrunCore
     int next_element_id;
     int tick;
 
-    int32_t varps[SCRIPTRUN_VARPS];
-    int stat_level[SCRIPTRUN_STATS];
-    int stat_xp[SCRIPTRUN_STATS];
-
-    struct ScriptrunInv invs[SCRIPTRUN_INVS];
-
-    struct ScriptrunMessage messages[SCRIPTRUN_MESSAGES]; /* ring */
-    int message_serial;
-
     struct ScriptrunProjectile projectiles[SCRIPTRUN_PROJECTILES];
     int projectile_count;
     struct ScriptrunMapAnim map_anims[SCRIPTRUN_MAP_ANIMS];
@@ -295,18 +259,13 @@ struct ScriptrunCore
     /* The component a resume was sent on and not yet answered (the client's
      * pause_pending): -1 none. Any interface mount or close answers it. */
     int resume_pending;
+    /* The group in each slot, as the bot's mounts stand: what an IF_OPENSUB
+     * or IF_CLOSESUB names as the group leaving (RS_ServerState_SlotGroupLeaves
+     * then drops its IF_SETEVENTS arming, and its texts, hides and colours
+     * when a different group takes the slot). IF_OPENTOP clears the table;
+     * IF_MOVESUB is not followed. */
     struct ScriptrunMount mounts[SCRIPTRUN_MOUNTS];
     int mount_count;
-    struct ScriptrunSetText settexts[SCRIPTRUN_SETTEXTS];
-    int settext_count;
-    struct ScriptrunSetHide sethides[SCRIPTRUN_SETHIDES];
-    int sethide_count;
-    /* IF_SETEVENTS, kept and dropped exactly as the client keeps them (the
-     * client's own table, ui/uitree_if_events.c): set per range, the group in
-     * a slot dropped when the slot is closed or reopened (a same-group remount
-     * included), everything cleared on IF_OPENTOP. A press the client would
-     * not send for want of an armed bit is refused here too. */
-    struct UIIfEventTable if_events;
     /* The last RUNCLIENTSCRIPT of `menu_script` (chatbox_multi_init, 58: the
      * chatmenu's title and rows), kept whatever runs after it -- a stat-boost
      * timer (4517, 4518) sent on the menu's tick used to replace it and empty
@@ -330,7 +289,6 @@ struct ScriptrunCore
     int count_script;
     int count_prompt;
 
-    int run_energy;
     int logged_out;
 
     /* Collision, built from the map files on each REBUILD_NORMAL
@@ -342,9 +300,15 @@ struct ScriptrunCore
     int collision_squares;
     int collision_locs;
 
-    /* The drive events, SCRIPTRUN_EVENTS of them (RS_EVENT_RING_OVERWRITE). */
+    /* The drive events, SCRIPTRUN_EVENTS of them (RS_EVENT_RING_OVERWRITE):
+     * what the packet model stamps (its sink is this ring) and what the bot's
+     * presentation raises (ScriptrunCore_Event). */
     struct RS_Event event_entries[SCRIPTRUN_EVENTS];
     struct RS_EventRing events;
+
+    /* The packet model's records (scriptrun_model.h), bound to this core's
+     * World, entity sync and event ring. */
+    struct ScriptrunModel model;
 
     /* The local player's own action seqs as its screen saw them start
      * (the drive's players() `me` row: seq_history, raid seam48). */
@@ -368,9 +332,10 @@ struct ScriptrunCore
     int packets;
     int unhandled;
 
-    /* The packet model's shadow (scriptrun_shadow.h): the shared apply fed
-     * beside these rules and compared with them. NULL unless
-     * TORIRS_SCRIPTRUN_SHADOW names a file; nothing above reads it. */
+    /* The packet model's shadow (scriptrun_shadow.h): a second model fed the
+     * same packets and nothing else, compared with `model` after the bot's
+     * presentation. NULL unless TORIRS_SCRIPTRUN_SHADOW names a file; nothing
+     * above reads it. */
     struct ScriptrunShadow* shadow;
 };
 
@@ -591,15 +556,26 @@ ScriptrunCore_NpcResolve(
     struct ScriptrunCore const* core,
     int npc_id);
 
-/** A varbit out of the varps this bot was sent. 0 when undefined. */
+/** A varbit out of the varps this bot was sent (the model's VarPManager).
+ *  0 when undefined or when its base varp is one the client cannot address
+ *  (ScriptrunCore_VarpAddressable). */
 int
 ScriptrunCore_Varbit(
     struct ScriptrunCore const* core,
     int varbit_id,
     int* value);
 
-/** The inventory record for `inv_id`, or NULL when never sent. */
-struct ScriptrunInv const*
+/** 1 when `varp_id` is a varp the client's array holds: below the count the
+ *  server transmits to (ToriRSServer_VarpClientCount, the cache's varps), or
+ *  one the model has been sent. The real client's drive answers not_found
+ *  past its VarPManager's count (DriveState_Varp). */
+int
+ScriptrunCore_VarpAddressable(
+    struct ScriptrunCore const* core,
+    int varp_id);
+
+/** The container the model holds for `inv_id`, or NULL when never sent. */
+struct InvContainer const*
 ScriptrunCore_Inv(
     struct ScriptrunCore const* core,
     int inv_id);
@@ -616,14 +592,17 @@ ScriptrunCore_InterfaceOpen(
     struct ScriptrunCore const* core,
     int interface_id);
 
-/** The text last set on `component`, or NULL. */
+/** The text the server set on `component` (the model's store: dropped when
+ *  its group leaves its slot for another group), or NULL. */
 char const*
 ScriptrunCore_Text(
     struct ScriptrunCore const* core,
     int component);
 
-/** 1 when the server's last IF_SETHIDE for `component` (since its group was
- *  opened) hid it, 0 when it showed it, -1 when it sent none. The cache's own
+/** 1 when the server's last IF_SETHIDE for `component` hid it, 0 when it
+ *  showed it, -1 when it sent none since the group was last unloaded (closed,
+ *  or replaced in its slot by another group; a group reopened in its own slot
+ *  keeps them, RS_ServerState_SlotGroupLeaves). The cache's own
  *  `hidden` flag and a hidden parent layer are not modelled: -1 is "no
  *  packet said", not "shown". */
 int

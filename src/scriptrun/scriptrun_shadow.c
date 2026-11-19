@@ -1,33 +1,18 @@
 /*
  * The headless client's shadow of the packet model (scriptrun_shadow.h): the
- * shared apply fed beside the core's restated rules, and the comparer.
+ * bare packet model fed beside the core's presented one, and the comparer.
  */
 
 #include "scriptrun/scriptrun_shadow.h"
 
-#include "game/rs_chat.h"
 #include "game/rs_entity_sync.h"
 #include "game/rs_event_ring.h"
-#include "game/rs_hint_arrow.h"
-#include "game/rs_interaction_mode.h"
-#include "game/rs_npc_update_origin.h"
-#include "game/rs_player_ops.h"
-#include "game/rs_player_stats.h"
 #include "game/rs_server_state.h"
-#include "game/rs_server_tick.h"
-#include "game/rs_session_info.h"
-#include "game/rs_social.h"
-#include "game/rs_ui_slots.h"
-#include "inv/inv_manager.h"
 #include "mem/torirs_mem.h"
 #include "net/rev/revpacket.h"
-#include "net/session_end.h"
 #include "scriptrun/scriptrun_core.h"
-#include "ui/uitree_if_events.h"
-#include "ui/uitree_if_store.h"
-#include "varp/varp_manager.h"
+#include "scriptrun/scriptrun_model.h"
 #include "world/world.h"
-#include "world/worldview.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -70,30 +55,12 @@ struct ShadowMap
 
 struct ScriptrunShadow
 {
-    /* ---- the records the shared apply writes ---- */
-    struct VarPManager varps;
-    struct RS_PlayerStats stats;
-    struct InvManager invs;
-    struct UIIfTextStore if_texts;
-    struct UIIfIntStore if_hides;
-    struct UIIfIntStore if_colours;
-    struct UIIfEventTable if_events;
-    struct RS_Chat chat;
-    struct RS_Social social;
-    struct RS_SessionInfo session_info;
-    struct SessionEnd session_end;
-    struct RS_ServerTick server_tick;
-    struct RS_PlayerOps player_ops;
-    struct RS_HintArrow hint_arrow;
-    struct RS_NpcUpdateOrigin npc_update_origin;
-    struct RS_InteractionMode interaction_mode;
-    struct WorldviewRegistry worldviews;
+    /* ---- the records the shared apply writes, and nothing else ---- */
     struct World* world;
     struct RS_EntitySync esync;
-    int chat_filter_mode[RS_UI_CHAT_FILTER_COUNT];
     struct RS_Event entries[SHADOW_EVENTS];
     struct RS_EventRing ring;
-    struct RS_ServerState state;
+    struct ScriptrunModel model;
 
     /* ---- the comparer ---- */
     FILE* out;
@@ -495,18 +462,6 @@ shadow_packet_diff(
 
 /* ------------------------------------------------------------- the shadow */
 
-/* InvManager's change callback, bound as the real client binds it
- * (app/app_ui_host.c app_inv_ui_host_change stamps inv_changed per change). */
-static void
-shadow_inv_changed(
-    void* user,
-    int container_id)
-{
-    struct ScriptrunShadow* sh = (struct ScriptrunShadow*)user;
-
-    RS_EventSink_Stamp(&sh->state.events, RS_EVENT_INV_CHANGED, container_id, 0, 0, 0);
-}
-
 static int s_shadow_opened;
 
 struct ScriptrunShadow*
@@ -535,18 +490,9 @@ ScriptrunShadow_New(
     s_shadow_opened = 1;
     sh->pkt_name = pkt_name;
 
-    VarPManager_Init(&sh->varps);
-    RS_PlayerStats_Init(&sh->stats);
-    InvManager_Init(&sh->invs);
-    RS_Chat_Init(&sh->chat, "");
-    RS_Social_Init(&sh->social);
-    RS_SessionInfo_Reset(&sh->session_info);
-    RS_InteractionMode_Reset(&sh->interaction_mode);
-    WorldviewRegistry_Init(&sh->worldviews);
     sh->world = World_New();
     assert(sh->world);
     RS_EntitySync_Init(&sh->esync);
-
     sink = (struct RS_EventSink){
         .ring = &sh->ring,
         .entries = sh->entries,
@@ -554,34 +500,8 @@ ScriptrunShadow_New(
         .full = RS_EVENT_RING_OVERWRITE,
         .cycle = cycle,
     };
-    RS_Chat_SetEventSink(&sh->chat, sink);
-    sh->state = (struct RS_ServerState){
-        .varps = &sh->varps,
-        .stats = &sh->stats,
-        .invs = &sh->invs,
-        .if_texts = &sh->if_texts,
-        .if_hides = &sh->if_hides,
-        .if_colours = &sh->if_colours,
-        .if_events = &sh->if_events,
-        .chat = &sh->chat,
-        .chat_clock = cycle,
-        .social = &sh->social,
-        .chat_filter_mode = sh->chat_filter_mode,
-        .session_info = &sh->session_info,
-        .session_end = &sh->session_end,
-        .server_tick = &sh->server_tick,
-        .player_ops = &sh->player_ops,
-        .hint_arrow = &sh->hint_arrow,
-        .npc_update_origin = &sh->npc_update_origin,
-        .interaction_mode = &sh->interaction_mode,
-        .rev_number = rev_number,
-        .worldviews = &sh->worldviews,
-        .world = sh->world,
-        .esync = &sh->esync,
-        .provider = NULL,
-        .events = sink,
-    };
-    InvManager_SetChangeCallback(&sh->invs, shadow_inv_changed, sh);
+    /* Its own World: the entity setters it is fed apply to nothing. */
+    ScriptrunModel_Init(&sh->model, rev_number, cycle, sh->world, &sh->esync, sink);
     return sh;
 }
 
@@ -609,15 +529,9 @@ ScriptrunShadow_Free(struct ScriptrunShadow* sh)
     fclose(sh->out);
     map_free(&sh->touches);
     map_free(&sh->diffs);
+    ScriptrunModel_Free(&sh->model);
     RS_EntitySync_Free(&sh->esync);
     World_Free(sh->world);
-    UIIfTextStore_Free(&sh->if_texts);
-    UIIfIntStore_Free(&sh->if_hides);
-    UIIfIntStore_Free(&sh->if_colours);
-    UIIfEventTable_Free(&sh->if_events);
-    RS_Chat_Free(&sh->chat);
-    InvManager_Free(&sh->invs);
-    VarPManager_Free(&sh->varps);
     ToriMem_Free(ToriMem_ServerPlayers(), sh);
 }
 
@@ -658,8 +572,8 @@ ScriptrunShadow_Before(
     sh->packet_serial++;
     sh->core_event_mark = core->events.newest_serial;
     sh->shadow_event_mark = sh->ring.newest_serial;
-    sh->core_message_mark = core->message_serial;
-    sh->shadow_message_mark = sh->chat.next_message_serial;
+    sh->core_message_mark = core->model.chat.next_message_serial;
+    sh->shadow_message_mark = sh->model.chat.next_message_serial;
     /* The shadow's own player index follows the core's, for the rows and for
      * ANIM_SPECIFIC's local pid. */
     sh->esync.local_pid = core->esync->local_pid;
@@ -673,7 +587,7 @@ ScriptrunShadow_Before(
         kind == PKT_NAME_NPC_SPOTANIM_SPECIFIC || kind == PKT_NAME_PLAYER_SPOTANIM_SPECIFIC ||
         kind == PKT_NAME_NPC_HEADICON_SPECIFIC )
         sh->entity_setters++;
-    applied = RS_ServerState_Apply(&sh->state, packet);
+    applied = RS_ServerState_Apply(&sh->model.state, packet);
     if( applied == RS_SERVER_STATE_APPLIED )
         sh->applied++;
     else if( applied == RS_SERVER_STATE_UNCHANGED )
@@ -917,7 +831,7 @@ struct MessageEmit
     struct ScriptrunShadow* sh;
     struct ScriptrunCore const* core;
     int pkt;
-    struct ScriptrunMessage const* const* old_lines;
+    struct RS_ChatMessage const* const* old_lines;
     struct RS_ChatMessage const* const* new_lines;
 };
 
@@ -928,14 +842,14 @@ message_emit(
     int j)
 {
     struct MessageEmit const* e = (struct MessageEmit const*)ctx;
-    struct ScriptrunMessage const* o = i >= 0 ? e->old_lines[i] : NULL;
+    struct RS_ChatMessage const* o = i >= 0 ? e->old_lines[i] : NULL;
     struct RS_ChatMessage const* s = j >= 0 ? e->new_lines[j] : NULL;
     char ob[SHADOW_VALUE_LEN];
     char sb[SHADOW_VALUE_LEN];
     char key[SHADOW_KEY_LEN];
 
     if( o )
-        snprintf(ob, sizeof(ob), "%d|%s|%s", o->type, o->name, o->text);
+        snprintf(ob, sizeof(ob), "%d|%s|%s", o->type, o->sender, o->text);
     else
         snprintf(ob, sizeof(ob), "-");
     if( s )
@@ -947,15 +861,42 @@ message_emit(
 }
 
 static uint64_t
-message_hash(
-    int type,
-    char const* name,
-    char const* text)
+message_hash(struct RS_ChatMessage const* m)
 {
     char t[16];
 
-    snprintf(t, sizeof(t), "%d", type);
-    return fnv(fnv(fnv(0xcbf29ce484222325ull, t), name), text);
+    snprintf(t, sizeof(t), "%d", m->type);
+    return fnv(fnv(fnv(0xcbf29ce484222325ull, t), m->sender), m->text);
+}
+
+/* The lines `chat` added after serial `mark`, oldest first (messages[0] is
+ * the newest). */
+static int
+shadow_collect_lines(
+    struct ScriptrunShadow* sh,
+    struct RS_Chat const* chat,
+    int mark,
+    struct RS_ChatMessage const** out,
+    uint64_t* hash,
+    int* key)
+{
+    int n = 0;
+
+    for( int i = chat->message_count - 1; i >= 0; i-- )
+    {
+        struct RS_ChatMessage const* m = &chat->messages[i];
+        if( m->serial <= mark )
+            continue;
+        if( n == SHADOW_PER_PACKET )
+        {
+            sh->overflow++;
+            continue;
+        }
+        hash[n] = message_hash(m);
+        key[n] = m->type;
+        out[n++] = m;
+    }
+    return n;
 }
 
 static void
@@ -964,7 +905,7 @@ shadow_compare_messages(
     struct ScriptrunCore const* core,
     int pkt)
 {
-    struct ScriptrunMessage const* old_lines[SHADOW_PER_PACKET];
+    struct RS_ChatMessage const* old_lines[SHADOW_PER_PACKET];
     struct RS_ChatMessage const* new_lines[SHADOW_PER_PACKET];
     uint64_t old_hash[SHADOW_PER_PACKET];
     uint64_t new_hash[SHADOW_PER_PACKET];
@@ -972,37 +913,12 @@ shadow_compare_messages(
     int new_key[SHADOW_PER_PACKET];
     struct ShadowAlign steps[2 * SHADOW_PER_PACKET];
     struct MessageEmit e;
-    int n_old = 0;
-    int n_new = 0;
+    int const n_old = shadow_collect_lines(
+        sh, &core->model.chat, sh->core_message_mark, old_lines, old_hash, old_key);
+    int const n_new = shadow_collect_lines(
+        sh, &sh->model.chat, sh->shadow_message_mark, new_lines, new_hash, new_key);
     int n;
 
-    for( int serial = sh->core_message_mark + 1; serial <= core->message_serial; serial++ )
-    {
-        struct ScriptrunMessage const* m = &core->messages[serial % SCRIPTRUN_MESSAGES];
-        if( n_old == SHADOW_PER_PACKET || m->serial != serial )
-        {
-            sh->overflow++;
-            continue;
-        }
-        old_hash[n_old] = message_hash(m->type, m->name, m->text);
-        old_key[n_old] = m->type;
-        old_lines[n_old++] = m;
-    }
-    /* messages[0] is the newest: walk back to oldest-first. */
-    for( int i = sh->chat.message_count - 1; i >= 0; i-- )
-    {
-        struct RS_ChatMessage const* m = &sh->chat.messages[i];
-        if( m->serial <= sh->shadow_message_mark )
-            continue;
-        if( n_new == SHADOW_PER_PACKET )
-        {
-            sh->overflow++;
-            continue;
-        }
-        new_hash[n_new] = message_hash(m->type, m->sender, m->text);
-        new_key[n_new] = m->type;
-        new_lines[n_new++] = m;
-    }
     if( n_old == 0 && n_new == 0 )
         return;
     e = (struct MessageEmit){ sh, core, pkt, old_lines, new_lines };
@@ -1040,49 +956,66 @@ shadow_int_diff(
     shadow_state_diff(sh, core, family, key, o, s, touched);
 }
 
+/* A long varp's value, and whether the model holds one. */
+static int
+long_varp(
+    struct VarPManager const* varps,
+    int id,
+    long long* out)
+{
+    if( id >= varps->var_long_count || !varps->var_long_set[id] )
+        return 0;
+    *out = (long long)varps->var_long[id];
+    return 1;
+}
+
 static void
 shadow_compare_varps(
     struct ScriptrunShadow* sh,
     struct ScriptrunCore const* core)
 {
+    struct VarPManager const* o = &core->model.varps;
+    struct VarPManager const* n = &sh->model.varps;
     uint64_t const all = shadow_touched(sh, TOUCH_ALL_VARPS, 0);
-    int const n =
-        sh->varps.varp_count > SCRIPTRUN_VARPS ? sh->varps.varp_count : SCRIPTRUN_VARPS;
+    int const count = o->varp_count > n->varp_count ? o->varp_count : n->varp_count;
+    int const long_count =
+        o->var_long_count > n->var_long_count ? o->var_long_count : n->var_long_count;
     char key[SHADOW_KEY_LEN];
 
-    for( int id = 0; id < n; id++ )
+    for( int id = 0; id < count; id++ )
     {
-        int const have_old = id < SCRIPTRUN_VARPS;
-        int const old_value = have_old ? core->varps[id] : 0;
-        int const shared_value = VarPManager_GetVarp(&sh->varps, id);
+        int const old_value = VarPManager_GetVarp(o, id);
+        int const shared_value = VarPManager_GetVarp(n, id);
 
-        if( have_old ? old_value == shared_value : shared_value == 0 )
+        if( old_value == shared_value )
             continue;
         snprintf(key, sizeof(key), "varp:%d", id);
         shadow_int_diff(sh,
             core,
             SCRIPTRUN_SHADOW_VARPS,
             key,
-            have_old,
+            1,
             old_value,
             1,
             shared_value,
             latest(shadow_touched(sh, TOUCH_VARP, id), all));
     }
-    /* The long arm (VARP_LONG): the core keeps none. */
-    for( int id = 0; id < sh->varps.var_long_count; id++ )
+    for( int id = 0; id < long_count; id++ )
     {
-        if( !sh->varps.var_long_set[id] )
-            continue;
+        long long ov = 0;
+        long long nv = 0;
+        int const have_old = long_varp(o, id, &ov);
+        int const have_shared = long_varp(n, id, &nv);
+
         snprintf(key, sizeof(key), "varp_long:%d", id);
         shadow_int_diff(sh,
             core,
             SCRIPTRUN_SHADOW_VARPS,
             key,
-            0,
-            0,
-            1,
-            (long long)sh->varps.var_long[id],
+            have_old,
+            ov,
+            have_shared,
+            nv,
             latest(shadow_touched(sh, TOUCH_VARP, id), all));
     }
 }
@@ -1092,9 +1025,11 @@ shadow_compare_stats(
     struct ScriptrunShadow* sh,
     struct ScriptrunCore const* core)
 {
+    struct RS_PlayerStats const* o = &core->model.stats;
+    struct RS_PlayerStats const* n = &sh->model.stats;
     char key[SHADOW_KEY_LEN];
 
-    for( int i = 0; i < SCRIPTRUN_STATS && i < RS_PLAYER_STATS_SKILL_COUNT; i++ )
+    for( int i = 0; i < RS_PLAYER_STATS_SKILL_COUNT; i++ )
     {
         uint64_t const touched = shadow_touched(sh, TOUCH_STAT, i);
 
@@ -1104,22 +1039,21 @@ shadow_compare_stats(
             SCRIPTRUN_SHADOW_STATS,
             key,
             1,
-            core->stat_level[i],
+            o->current_level[i],
             1,
-            sh->stats.current_level[i],
+            n->current_level[i],
             touched);
         snprintf(key, sizeof(key), "stat:%d:xp", i);
-        shadow_int_diff(
-            sh, core, SCRIPTRUN_SHADOW_STATS, key, 1, core->stat_xp[i], 1, sh->stats.xp[i], touched);
+        shadow_int_diff(sh, core, SCRIPTRUN_SHADOW_STATS, key, 1, o->xp[i], 1, n->xp[i], touched);
     }
     shadow_int_diff(sh,
         core,
         SCRIPTRUN_SHADOW_STATS,
         "run_energy_raw",
         1,
-        core->run_energy,
+        o->run_energy_raw,
         1,
-        sh->stats.run_energy_raw,
+        n->run_energy_raw,
         shadow_touched(sh, TOUCH_RUN, 0));
 }
 
@@ -1142,32 +1076,30 @@ shadow_compare_inv(
     struct ScriptrunCore const* core,
     int inv_id)
 {
-    struct ScriptrunInv const* old_inv = NULL;
-    struct InvContainer const* new_inv = InvManager_FindContainer(&sh->invs, inv_id);
+    struct InvContainer const* old_inv = InvManager_FindContainer(&core->model.invs, inv_id);
+    struct InvContainer const* new_inv = InvManager_FindContainer(&sh->model.invs, inv_id);
     uint64_t const touched = shadow_touched(sh, TOUCH_INV, inv_id);
     char key[SHADOW_KEY_LEN];
-    int slots;
+    int slots = 0;
 
-    for( int i = 0; i < SCRIPTRUN_INVS; i++ )
-        if( core->invs[i].inv_id == inv_id )
-            old_inv = &core->invs[i];
     snprintf(key, sizeof(key), "inv:%d:size", inv_id);
     shadow_int_diff(sh,
         core,
         SCRIPTRUN_SHADOW_INVS,
         key,
         old_inv != NULL,
-        old_inv ? old_inv->size : 0,
+        old_inv ? old_inv->slot_count : 0,
         new_inv != NULL,
         new_inv ? new_inv->slot_count : 0,
         touched);
-    slots = old_inv ? SCRIPTRUN_INV_SLOTS : 0;
+    if( old_inv && old_inv->slot_count > slots )
+        slots = old_inv->slot_count;
     if( new_inv && new_inv->slot_count > slots )
         slots = new_inv->slot_count;
     for( int s = 0; s < slots; s++ )
     {
-        int const old_obj = old_inv && s < SCRIPTRUN_INV_SLOTS ? old_inv->obj[s] : -1;
-        int const old_count = old_inv && s < SCRIPTRUN_INV_SLOTS ? old_inv->count[s] : 0;
+        int const old_obj = old_inv && s < old_inv->slot_count ? old_inv->slots[s].obj_id : -1;
+        int const old_count = old_inv && s < old_inv->slot_count ? old_inv->slots[s].obj_count : 0;
         int const new_obj = new_inv && s < new_inv->slot_count ? new_inv->slots[s].obj_id : -1;
         int const new_count = new_inv && s < new_inv->slot_count ? new_inv->slots[s].obj_count : 0;
         char ob[32];
@@ -1189,19 +1121,14 @@ shadow_compare_invs(
     struct ScriptrunShadow* sh,
     struct ScriptrunCore const* core)
 {
-    for( int i = 0; i < SCRIPTRUN_INVS; i++ )
-        if( core->invs[i].inv_id >= 0 )
-            shadow_compare_inv(sh, core, core->invs[i].inv_id);
-    for( int i = 0; i < sh->invs.container_count; i++ )
-    {
-        int const id = sh->invs.containers[i].inv_id;
-        int in_core = 0;
+    struct InvManager const* o = &core->model.invs;
+    struct InvManager const* n = &sh->model.invs;
 
-        for( int c = 0; c < SCRIPTRUN_INVS; c++ )
-            in_core |= core->invs[c].inv_id == id;
-        if( !in_core )
-            shadow_compare_inv(sh, core, id);
-    }
+    for( int i = 0; i < o->container_count; i++ )
+        shadow_compare_inv(sh, core, o->containers[i].inv_id);
+    for( int i = 0; i < n->container_count; i++ )
+        if( !InvManager_FindContainer(o, n->containers[i].inv_id) )
+            shadow_compare_inv(sh, core, n->containers[i].inv_id);
 }
 
 static uint64_t
@@ -1228,41 +1155,35 @@ shadow_compare_texts(
     struct ScriptrunShadow* sh,
     struct ScriptrunCore const* core)
 {
+    struct UIIfTextStore const* o = &core->model.if_texts;
+    struct UIIfTextStore const* n = &sh->model.if_texts;
     char key[SHADOW_KEY_LEN];
 
-    for( int i = 0; i < core->settext_count; i++ )
+    for( int i = 0; i < o->count; i++ )
     {
-        int const com = core->settexts[i].component;
-        char const* shared = UIIfTextStore_Get(&sh->if_texts, com);
+        int const com = o->entries[i].com_id;
+        char const* shared = UIIfTextStore_Get(n, com);
 
-        if( shared && strcmp(shared, core->settexts[i].text) == 0 )
+        if( shared && strcmp(shared, o->entries[i].text) == 0 )
             continue;
         com_key(key, sizeof(key), com);
         shadow_state_diff(sh,
             core,
             SCRIPTRUN_SHADOW_IF_TEXTS,
             key,
-            core->settexts[i].text,
+            o->entries[i].text,
             shared ? shared : "-",
             com_touched(sh, com));
     }
-    for( int i = 0; i < sh->if_texts.count; i++ )
+    for( int i = 0; i < n->count; i++ )
     {
-        int const com = sh->if_texts.entries[i].com_id;
-        int in_core = 0;
+        int const com = n->entries[i].com_id;
 
-        for( int c = 0; c < core->settext_count && !in_core; c++ )
-            in_core = core->settexts[c].component == com;
-        if( in_core )
+        if( UIIfTextStore_Get(o, com) )
             continue;
         com_key(key, sizeof(key), com);
-        shadow_state_diff(sh,
-            core,
-            SCRIPTRUN_SHADOW_IF_TEXTS,
-            key,
-            "-",
-            sh->if_texts.entries[i].text,
-            com_touched(sh, com));
+        shadow_state_diff(
+            sh, core, SCRIPTRUN_SHADOW_IF_TEXTS, key, "-", n->entries[i].text, com_touched(sh, com));
     }
 }
 
@@ -1271,12 +1192,14 @@ shadow_compare_hides(
     struct ScriptrunShadow* sh,
     struct ScriptrunCore const* core)
 {
+    struct UIIfIntStore const* o = &core->model.if_hides;
+    struct UIIfIntStore const* n = &sh->model.if_hides;
     char key[SHADOW_KEY_LEN];
 
-    for( int i = 0; i < core->sethide_count; i++ )
+    for( int i = 0; i < o->count; i++ )
     {
-        int const com = core->sethides[i].component;
-        int const shared = UIIfIntStore_Get(&sh->if_hides, com, -1);
+        int const com = o->entries[i].com_id;
+        int const shared = UIIfIntStore_Get(n, com, -1);
 
         com_key(key, sizeof(key), com);
         shadow_int_diff(sh,
@@ -1284,19 +1207,16 @@ shadow_compare_hides(
             SCRIPTRUN_SHADOW_IF_HIDES,
             key,
             1,
-            core->sethides[i].hidden,
+            o->entries[i].value,
             shared >= 0,
             shared,
             com_touched(sh, com));
     }
-    for( int i = 0; i < sh->if_hides.count; i++ )
+    for( int i = 0; i < n->count; i++ )
     {
-        int const com = sh->if_hides.entries[i].com_id;
-        int in_core = 0;
+        int const com = n->entries[i].com_id;
 
-        for( int c = 0; c < core->sethide_count && !in_core; c++ )
-            in_core = core->sethides[c].component == com;
-        if( in_core )
+        if( UIIfIntStore_Get(o, com, -1) >= 0 )
             continue;
         com_key(key, sizeof(key), com);
         shadow_int_diff(sh,
@@ -1306,7 +1226,7 @@ shadow_compare_hides(
             0,
             0,
             1,
-            sh->if_hides.entries[i].value,
+            n->entries[i].value,
             com_touched(sh, com));
     }
 }
@@ -1358,20 +1278,23 @@ shadow_compare_if_events(
     struct ScriptrunShadow* sh,
     struct ScriptrunCore const* core)
 {
-    for( int i = 0; i < core->if_events.count; i++ )
-    {
-        struct UIIfEventRange const* o = &core->if_events.ranges[i];
-        struct UIIfEventRange const* s = range_find(&sh->if_events, o);
+    struct UIIfEventTable const* o = &core->model.if_events;
+    struct UIIfEventTable const* n = &sh->model.if_events;
 
-        if( s && s->events == o->events )
+    for( int i = 0; i < o->count; i++ )
+    {
+        struct UIIfEventRange const* r = &o->ranges[i];
+        struct UIIfEventRange const* s = range_find(n, r);
+
+        if( s && s->events == r->events )
             continue;
-        shadow_range_diff(sh, core, o, o, s);
+        shadow_range_diff(sh, core, r, r, s);
     }
-    for( int i = 0; i < sh->if_events.count; i++ )
+    for( int i = 0; i < n->count; i++ )
     {
-        struct UIIfEventRange const* s = &sh->if_events.ranges[i];
+        struct UIIfEventRange const* s = &n->ranges[i];
 
-        if( !range_find(&core->if_events, s) )
+        if( !range_find(o, s) )
             shadow_range_diff(sh, core, s, NULL, s);
     }
 }

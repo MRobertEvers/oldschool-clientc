@@ -72,8 +72,18 @@ ScriptrunCore_New(struct GameProtoRevTable const* rev)
     assert(core->player_ops);
     core->info_bytes = ToriMem_Alloc(ToriMem_ServerPlayers(), CORE_ENTITY_BYTES_MAX);
     assert(core->info_bytes);
-    for( int i = 0; i < SCRIPTRUN_INVS; i++ )
-        core->invs[i].inv_id = -1;
+    ScriptrunModel_Init(&core->model,
+        rev->number,
+        &core->world->cycle,
+        core->world,
+        core->esync,
+        (struct RS_EventSink){
+            .ring = &core->events,
+            .entries = core->event_entries,
+            .capacity = SCRIPTRUN_EVENTS,
+            .full = RS_EVENT_RING_OVERWRITE,
+            .cycle = &core->world->cycle,
+        });
     core->toplevel = -1;
     core->resume_pending = -1;
     core->next_element_id = 1;
@@ -83,7 +93,6 @@ ScriptrunCore_New(struct GameProtoRevTable const* rev)
             ToriMem_Calloc(ToriMem_ServerPlayers(), 1, rev->player_info_state_size());
         assert(core->player_decoder_state);
     }
-    core->run_energy = 10000;
     core->shadow = ScriptrunShadow_New(
         getenv("TORIRS_SCRIPTRUN_SHADOW"), rev->number, &core->world->cycle, core_pkt_name);
     return core;
@@ -97,7 +106,7 @@ ScriptrunCore_Free(struct ScriptrunCore* core)
     ScriptrunShadow_Free(core->shadow);
     ScriptrunCore_FreeCollision(core);
     ToriMem_Free(ToriMem_ServerPlayers(), core->locs);
-    UIIfEventTable_Free(&core->if_events);
+    ScriptrunModel_Free(&core->model);
     RS_EntitySync_Free(core->esync);
     ToriMem_Free(ToriMem_ServerPlayers(), core->esync);
     World_Free(core->world);
@@ -497,27 +506,6 @@ player_ensure_now(struct PlayerApply* self)
     }
 }
 
-/* A group's instance was replaced or closed: its IF_SETHIDE flags go with it
- * (the client reloads the cache's components on every open). */
-static void
-core_forget_hides(
-    struct ScriptrunCore* core,
-    int group)
-{
-    int kept = 0;
-    for( int i = 0; i < core->sethide_count; i++ )
-        if( ((core->sethides[i].component >> 16) & 0xffff) != group )
-            core->sethides[kept++] = core->sethides[i];
-    core->sethide_count = kept;
-}
-
-static void
-core_message(
-    struct ScriptrunCore* core,
-    int type,
-    char const* name,
-    char const* text);
-
 /* game/task_exec_entity_info.c player_apply_op, applied at once (no awaits). */
 static void
 player_apply_op(
@@ -684,9 +672,12 @@ player_apply_op(
             /* the client's arm: a chatbox row (public, the speaker's name)
              * and the overhead line */
             struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
-            core_message(core, RS_CHAT_TYPE_PUBLIC, player && player->name[0] ? player->name : "Player",
-                         op->say.text);
-            ScriptrunCore_Event(core, SCRIPTRUN_EV_CHAT_MESSAGE, RS_CHAT_TYPE_PUBLIC, core->message_serial, 0, 0);
+            RS_Chat_AddMessage(&core->model.chat,
+                RS_CHAT_TYPE_PUBLIC,
+                player && player->name[0] ? player->name : "Player",
+                player && player->name[0] ? player->name : NULL,
+                op->say.text,
+                core->world->cycle);
             World_PlayerSetChat(world, idx, op->say.text, 0, 0);
         }
         break;
@@ -694,7 +685,9 @@ player_apply_op(
         /* Public chat (the player-info chat block, the sender's own included:
          * the server echoes a line only this way). The client's arm in
          * game/task_exec_entity_info.c, minus the UI: unpack, a chatbox row of
-         * type RS_CHAT_TYPE_PUBLIC under the speaker's name, the overhead. */
+         * type RS_CHAT_TYPE_PUBLIC under the speaker's crowned name (the bare
+         * name is the sender friend and ignore key on), the overhead. The
+         * store stamps chat_message (RS_Chat_AddMessage). */
         if( op->chat.data && op->chat.length > 0 )
         {
             char* text;
@@ -703,9 +696,16 @@ player_apply_op(
             if( text )
             {
                 struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
-                core_message(core, RS_CHAT_TYPE_PUBLIC, player && player->name[0] ? player->name : "Player", text);
-                ScriptrunCore_Event(core, SCRIPTRUN_EV_CHAT_MESSAGE, RS_CHAT_TYPE_PUBLIC, core->message_serial, 0,
-                                    0);
+                char crowned[RS_CHAT_SENDER_LEN];
+
+                RS_Chat_CrownedName(op->chat.type, player && player->name[0] ? player->name : "Player",
+                                    crowned, sizeof(crowned));
+                RS_Chat_AddMessage(&core->model.chat,
+                    RS_CHAT_TYPE_PUBLIC,
+                    crowned,
+                    player && player->name[0] ? player->name : NULL,
+                    text,
+                    core->world->cycle);
                 World_PlayerSetChat(world, idx, text, op->chat.colour_effect >> 8, op->chat.colour_effect & 0xff);
                 ToriMem_Free(ToriMem_Net(), text); /* chat_unpack's */
             }
@@ -929,8 +929,8 @@ ScriptrunCore_NpcResolve(
             if( !ScriptrunCore_Varbit(core, row->transform_varbit, &index) )
                 index = 0;
         }
-        else if( row->transform_varp >= 0 && row->transform_varp < SCRIPTRUN_VARPS )
-            index = core->varps[row->transform_varp];
+        else if( row->transform_varp >= 0 )
+            index = VarPManager_GetVarp(&core->model.varps, row->transform_varp);
         if( index >= 0 && index < row->transform_count - 1 )
             resolved = row->transforms[index];
         else
@@ -1594,50 +1594,6 @@ core_zone_sub(
     }
 }
 
-/* -------------------------------------------------------------- the rest */
-
-static struct ScriptrunInv*
-core_inv(
-    struct ScriptrunCore* core,
-    int inv_id)
-{
-    struct ScriptrunInv* free_slot = NULL;
-
-    for( int i = 0; i < SCRIPTRUN_INVS; i++ )
-    {
-        if( core->invs[i].inv_id == inv_id )
-            return &core->invs[i];
-        if( core->invs[i].inv_id < 0 && !free_slot )
-            free_slot = &core->invs[i];
-    }
-    assert(free_slot);
-    free_slot->inv_id = inv_id;
-    free_slot->size = 0;
-    for( int s = 0; s < SCRIPTRUN_INV_SLOTS; s++ )
-    {
-        free_slot->obj[s] = -1;
-        free_slot->count[s] = 0;
-    }
-    return free_slot;
-}
-
-static void
-core_message(
-    struct ScriptrunCore* core,
-    int type,
-    char const* name,
-    char const* text)
-{
-    struct ScriptrunMessage* m;
-
-    core->message_serial++;
-    m = &core->messages[core->message_serial % SCRIPTRUN_MESSAGES];
-    m->serial = core->message_serial;
-    m->type = type;
-    snprintf(m->name, sizeof(m->name), "%s", name ? name : "");
-    snprintf(m->text, sizeof(m->text), "%s", text ? text : "");
-}
-
 /* ------------------------------------------------------- world entities */
 
 /* The live slot the server knows as `wire_id` (-1 is the root, slot 0), or
@@ -2143,6 +2099,25 @@ ScriptrunCore_Control(
     }
 }
 
+/* The packets the bot takes from the packet model: every one it applies,
+ * except two kinds whose write is not this bot's to make.
+ *   - UPDATE_UID192 writes the process's login state (net/login/login_osrs.c),
+ *     which is the server's here, shared by every bot.
+ *   - The per-player entity setters (ANIM_SPECIFIC, NPC_ANIM_SPECIFIC, the
+ *     two SPOTANIM_SPECIFICs, NPC_HEADICON_SPECIFIC) would apply to this
+ *     core's World, which the bot's own entity stream fills; the headicon's
+ *     first write reads the npc type through a CacheProvider, which the bot
+ *     has none of (it reads npc records from the server). The bot has never
+ *     applied them; their adoption is the entity families' step. */
+static int
+core_model_feeds(int pkt_name)
+{
+    return pkt_name != PKT_NAME_UPDATE_UID192 && pkt_name != PKT_NAME_ANIM_SPECIFIC &&
+           pkt_name != PKT_NAME_NPC_ANIM_SPECIFIC && pkt_name != PKT_NAME_NPC_SPOTANIM_SPECIFIC &&
+           pkt_name != PKT_NAME_PLAYER_SPOTANIM_SPECIFIC &&
+           pkt_name != PKT_NAME_NPC_HEADICON_SPECIFIC;
+}
+
 static void
 core_packet(
     struct ScriptrunCore* core,
@@ -2182,6 +2157,10 @@ core_packet(
     core_wirelog(core, pkt_name, &packet);
     if( core->shadow )
         ScriptrunShadow_Before(core->shadow, core, &packet);
+    /* The model first, as the real client applies it (RS_GameProto_Exec):
+     * what follows is this bot's presentation of what it wrote. */
+    if( core_model_feeds(pkt_name) )
+        (void)RS_ServerState_Apply(&core->model.state, &packet);
 
     switch( pkt_name )
     {
@@ -2203,9 +2182,6 @@ core_packet(
         core->npc_origin_x = packet._set_npc_update_origin.x;
         core->npc_origin_z = packet._set_npc_update_origin.z;
         core->npc_origin_valid = 1;
-        break;
-    case PKT_NAME_UPDATE_PID:
-        core->esync->local_pid = packet._update_pid.local_player_index;
         break;
     case PKT_NAME_UPDATE_ZONE_PARTIAL_FOLLOWS:
         core->zone_base_x = packet._update_zone_partial_follows.base_x;
@@ -2294,22 +2270,13 @@ core_packet(
         core_zone_sub(core, pkt_name, &packet._map_projanim);
         break;
     case PKT_NAME_VARP_SMALL:
-        if( packet._varp_small.variable >= 0 && packet._varp_small.variable < SCRIPTRUN_VARPS )
-        {
-            core->varps[packet._varp_small.variable] = packet._varp_small.value;
-            ScriptrunCore_Event(core, SCRIPTRUN_EV_VARP_CHANGED, packet._varp_small.variable,
-                                packet._varp_small.value, 0, 0);
-            core_npcs_reresolve(core);
-        }
-        break;
     case PKT_NAME_VARP_LARGE:
-        if( packet._varp_large.variable >= 0 && packet._varp_large.variable < SCRIPTRUN_VARPS )
-        {
-            core->varps[packet._varp_large.variable] = packet._varp_large.value;
-            ScriptrunCore_Event(core, SCRIPTRUN_EV_VARP_CHANGED, packet._varp_large.variable,
-                                packet._varp_large.value, 0, 0);
-            core_npcs_reresolve(core);
-        }
+    case PKT_NAME_VARP_SYNC:
+    case PKT_NAME_VARP_RESET:
+        /* The model wrote the varps and stamped varp_changed; a multinpc
+         * whose rung reads one shows its new rung (the client's varp change
+         * callback, app/app_varp_transforms.c). */
+        core_npcs_reresolve(core);
         break;
     case PKT_NAME_SET_ACTIVE_WORLD:
         core_set_active_world(core, &packet._set_active_world);
@@ -2321,78 +2288,19 @@ core_packet(
         core_rebuild_worldentity(core, &packet._rebuild_wev);
         break;
     case PKT_NAME_SERVER_TICK_END:
-        /* SET_ACTIVE_WORLD lasts until the fence (rs_gameproto_exec.c). */
+        /* SET_ACTIVE_WORLD lasts until the fence (rs_gameproto_exec.c); the
+         * model stamped server_tick. */
         core->active_world = 0;
         core->active_world_level = 0;
-        /* DRIVE_STAMP server_tick: a=world cycle. Every packet of the tick is
-         * applied by now. */
-        ScriptrunCore_Event(core, SCRIPTRUN_EV_SERVER_TICK, (int)core->world->cycle, 0, 0, 0);
-        break;
-    case PKT_NAME_VARP_RESET:
-        memset(core->varps, 0, sizeof(core->varps));
-        core_npcs_reresolve(core);
-        break;
-    case PKT_NAME_UPDATE_STAT:
-        if( packet._update_stat.stat >= 0 && packet._update_stat.stat < SCRIPTRUN_STATS )
-        {
-            core->stat_level[packet._update_stat.stat] = packet._update_stat.level;
-            core->stat_xp[packet._update_stat.stat] = packet._update_stat.xp;
-        }
-        break;
-    case PKT_NAME_UPDATE_RUNENERGY:
-        core->run_energy = packet._update_run_energy.run_energy_raw;
-        break;
-    case PKT_NAME_UPDATE_INV_FULL:
-    {
-        struct PktUpdateInvFull const* pkt = &packet._update_inv_full;
-        struct ScriptrunInv* inv = core_inv(core, pkt->inv_id);
-        for( int s = 0; s < SCRIPTRUN_INV_SLOTS; s++ )
-        {
-            inv->obj[s] = -1;
-            inv->count[s] = 0;
-        }
-        inv->size = pkt->size < SCRIPTRUN_INV_SLOTS ? pkt->size : SCRIPTRUN_INV_SLOTS;
-        for( int s = 0; s < inv->size; s++ )
-        {
-            /* Parsed ids are 0-based, -1 empty (osrs239_parse: g2 - 1), as
-             * the client's InvManager stores them. */
-            inv->obj[s] = pkt->obj_ids[s];
-            inv->count[s] = inv->obj[s] >= 0 ? pkt->obj_counts[s] : 0;
-        }
-        ScriptrunCore_Event(core, SCRIPTRUN_EV_INV_CHANGED, pkt->inv_id, 0, 0, 0);
-        break;
-    }
-    case PKT_NAME_UPDATE_INV_PARTIAL:
-    {
-        struct PktUpdateInvPartial const* pkt = &packet._update_inv_partial;
-        struct ScriptrunInv* inv = core_inv(core, pkt->inv_id);
-        for( int i = 0; i < pkt->count; i++ )
-        {
-            int s = pkt->entries[i].slot;
-            if( s < 0 || s >= SCRIPTRUN_INV_SLOTS )
-                continue;
-            inv->obj[s] = pkt->entries[i].obj_id;
-            inv->count[s] = inv->obj[s] >= 0 ? pkt->entries[i].count : 0;
-            if( s + 1 > inv->size )
-                inv->size = s + 1;
-        }
-        ScriptrunCore_Event(core, SCRIPTRUN_EV_INV_CHANGED, pkt->inv_id, 0, 0, 0);
-        break;
-    }
-    case PKT_NAME_MESSAGE_GAME:
-        core_message(core, packet._message_game.type, packet._message_game.name,
-                     packet._message_game.text);
-        /* a = type, b = serial: the client's DRIVE_STAMP (rs_chat.c
-         * RS_Chat_AddMessage), which QD.player._line_by_serial reads. */
-        ScriptrunCore_Event(core, SCRIPTRUN_EV_CHAT_MESSAGE, packet._message_game.type,
-                            core->message_serial, 0, 0);
         break;
     case PKT_NAME_IF_OPENTOP:
+        /* The mounts go with the old top. The arming and the stores stay, as
+         * the real client keeps them (rs_gameproto_exec.c IF_OPENTOP: the
+         * reference's open-top never touches the flags table, RSProx index
+         * 4378). */
         core->resume_pending = -1;
         core->toplevel = packet._if_opentop.interface_id;
-        core->sethide_count = 0;
         core->mount_count = 0;
-        UIIfEventTable_Clear(&core->if_events);
         break;
     case PKT_NAME_IF_OPENSUB:
     {
@@ -2403,12 +2311,13 @@ core_packet(
             if( core->mounts[i].target_uid == target )
                 break;
         /* The group leaving the slot loses its armed events, even when the
-         * same group goes straight back in (UIIfEventTable_DropGroup). */
-        if( i < core->mount_count )
-            UIIfEventTable_DropGroup(&core->if_events, core->mounts[i].interface_id);
+         * same group goes straight back in, and its texts, hides and colours
+         * when another group takes the slot (the real client's app_close_slot). */
+        if( i < core->mount_count && core->mounts[i].interface_id > 0 )
+            (void)RS_ServerState_SlotGroupLeaves(
+                &core->model.state, core->mounts[i].interface_id, packet._if_opensub.interface_id);
         if( i == core->mount_count && core->mount_count < SCRIPTRUN_MOUNTS )
             core->mount_count++;
-        core_forget_hides(core, packet._if_opensub.interface_id);
         if( i < core->mount_count )
         {
             core->mounts[i].target_uid = target;
@@ -2431,51 +2340,14 @@ core_packet(
             {
                 ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_CLOSED, packet._if_closesub.target_uid,
                                     core->mounts[i].interface_id, 0, 0);
-                core_forget_hides(core, core->mounts[i].interface_id);
-                UIIfEventTable_DropGroup(&core->if_events, core->mounts[i].interface_id);
+                if( core->mounts[i].interface_id > 0 )
+                    (void)RS_ServerState_SlotGroupLeaves(
+                        &core->model.state, core->mounts[i].interface_id, 0);
                 core->mounts[i] = core->mounts[--core->mount_count];
                 break;
             }
         }
         break;
-    case PKT_NAME_IF_SETEVENTS:
-        UIIfEventTable_Set(&core->if_events, packet._if_setevents.component_id,
-                           packet._if_setevents.from, packet._if_setevents.to,
-                           packet._if_setevents.events);
-        break;
-    case PKT_NAME_IF_SETTEXT:
-    {
-        int comp = packet._if_settext.component_id;
-        int i;
-        for( i = 0; i < core->settext_count; i++ )
-            if( core->settexts[i].component == comp )
-                break;
-        if( i == core->settext_count && core->settext_count < SCRIPTRUN_SETTEXTS )
-            core->settext_count++;
-        if( i < core->settext_count )
-        {
-            core->settexts[i].component = comp;
-            snprintf(core->settexts[i].text, sizeof(core->settexts[i].text), "%s",
-                     packet._if_settext.text ? packet._if_settext.text : "");
-        }
-        break;
-    }
-    case PKT_NAME_IF_SETHIDE:
-    {
-        int comp = packet._if_sethide.component_id;
-        int i;
-        for( i = 0; i < core->sethide_count; i++ )
-            if( core->sethides[i].component == comp )
-                break;
-        if( i == core->sethide_count )
-        {
-            assert(core->sethide_count < SCRIPTRUN_SETHIDES);
-            core->sethide_count++;
-        }
-        core->sethides[i].component = comp;
-        core->sethides[i].hidden = packet._if_sethide.hide ? 1 : 0;
-        break;
-    }
     case PKT_NAME_RUNCLIENTSCRIPT:
         if( packet._runclientscript )
         {
@@ -2532,7 +2404,18 @@ ScriptrunCore_IfEvents(
 {
     assert(core);
     assert(out_events);
-    return UIIfEventTable_Lookup(&core->if_events, com_id, sub_id, out_events);
+    return UIIfEventTable_Lookup(&core->model.if_events, com_id, sub_id, out_events);
+}
+
+int
+ScriptrunCore_VarpAddressable(
+    struct ScriptrunCore const* core,
+    int varp_id)
+{
+    assert(core);
+    if( varp_id < 0 )
+        return 0;
+    return varp_id < ToriRSServer_VarpClientCount() || varp_id < core->model.varps.varp_count;
 }
 
 int
@@ -2549,24 +2432,21 @@ ScriptrunCore_Varbit(
     assert(value);
     if( !ToriRSServer_VarbitRange(varbit_id, &basevar, &startbit, &endbit) )
         return 0;
-    if( basevar < 0 || basevar >= SCRIPTRUN_VARPS )
+    if( !ScriptrunCore_VarpAddressable(core, basevar) )
         return 0;
     width = endbit - startbit + 1;
     mask = width >= 32 ? 0xffffffffu : ((1u << width) - 1u);
-    *value = (int)(((uint32_t)core->varps[basevar] >> startbit) & mask);
+    *value = (int)(((uint32_t)VarPManager_GetVarp(&core->model.varps, basevar) >> startbit) & mask);
     return 1;
 }
 
-struct ScriptrunInv const*
+struct InvContainer const*
 ScriptrunCore_Inv(
     struct ScriptrunCore const* core,
     int inv_id)
 {
     assert(core);
-    for( int i = 0; i < SCRIPTRUN_INVS; i++ )
-        if( core->invs[i].inv_id == inv_id )
-            return &core->invs[i];
-    return NULL;
+    return InvManager_FindContainer(&core->model.invs, inv_id);
 }
 
 int
@@ -2601,10 +2481,7 @@ ScriptrunCore_Text(
     int component)
 {
     assert(core);
-    for( int i = 0; i < core->settext_count; i++ )
-        if( core->settexts[i].component == component )
-            return core->settexts[i].text;
-    return NULL;
+    return UIIfTextStore_Get(&core->model.if_texts, component);
 }
 
 int
@@ -2613,8 +2490,5 @@ ScriptrunCore_SetHide(
     int component)
 {
     assert(core);
-    for( int i = 0; i < core->sethide_count; i++ )
-        if( core->sethides[i].component == component )
-            return core->sethides[i].hidden;
-    return -1;
+    return UIIfIntStore_Get(&core->model.if_hides, component, -1);
 }
