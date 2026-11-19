@@ -430,6 +430,42 @@ PlatformX_HttpPostForm(
                          out_status, HTTP_CONNECT_TIMEOUT_SEC, HTTP_READ_TIMEOUT_SEC);
 }
 
+char*
+PlatformX_HttpRequest(
+    const char* host,
+    int port,
+    const char* method,
+    const char* route,
+    const char* extra_headers,
+    const char* content_type,
+    const char* body,
+    int body_size,
+    int* out_size,
+    int* out_status)
+{
+    size_t cap;
+    char* request;
+    char* result;
+
+    assert(host);
+    assert(method);
+    assert(route);
+    assert(body || body_size == 0);
+    cap = 512 + strlen(route) + (extra_headers ? strlen(extra_headers) : 0);
+    request = ToriMem_Alloc(ToriMem_Net(), cap);
+    assert(request);
+    snprintf(request, cap,
+             "%s %s HTTP/1.0\r\nHost: %s:%d\r\nUser-Agent: torirs\r\nAccept: */*\r\n"
+             "%s%s%sContent-Length: %d\r\n%sConnection: close\r\n\r\n",
+             method, route, host, port, content_type ? "Content-Type: " : "",
+             content_type ? content_type : "", content_type ? "\r\n" : "", body_size,
+             extra_headers ? extra_headers : "");
+    result = http_exchange(host, port, request, body, body_size, /* any_status */ 1, out_size,
+                           out_status, HTTP_CONNECT_TIMEOUT_SEC, HTTP_READ_TIMEOUT_SEC);
+    ToriMem_Free(ToriMem_Net(), request);
+    return result;
+}
+
 /* The general timeouts: short, because a config or plugin read that hangs
  * hangs the thing that asked for it. The cache client passes its own. */
 char*

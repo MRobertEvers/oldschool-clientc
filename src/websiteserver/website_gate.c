@@ -1,0 +1,2267 @@
+/*
+ * The sign-in gate. See website_gate.h.
+ */
+#include "website_gate.h"
+#include "website_links.h"
+#include "website_site.h"
+
+#include "mem/torirs_mem.h"
+#include "accountserver/account_client.h"
+#include "hiscoresserver/hiscores_client.h"
+#include "website_users_db.h"
+#include "torirsserver/torirs_server_auth.h"
+#include "torirsserver/torirs_server_oauth.h"
+#include "torirsserver/torirs_server_savefile.h"
+
+#include <assert.h>
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <time.h>
+
+/* Five wrong passwords for one name in ten minutes, and that name waits out
+ * the rest of the ten. PBKDF2 already makes each guess cost the server ~20 ms;
+ * this makes a dictionary cost the attacker days. */
+#define WEBSITE_GATE_THROTTLE_FAILURES 5
+#define WEBSITE_GATE_THROTTLE_SECONDS (10 * 60)
+
+#define WEBSITE_GATE_PAGE_MAX 8192
+#define WEBSITE_GATE_FIELD_MAX 128
+
+/* ------------------------------------------------------------------ */
+/* Pages                                                               */
+/* ------------------------------------------------------------------ */
+
+static char const k_page[] =
+    "<!doctype html>\n"
+    "<html lang=\"en\">\n"
+    "<head>\n"
+    "<meta charset=\"utf-8\">\n"
+    "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+    "<title>ToriRS</title>\n"
+    "<style>\n"
+    /* The account site's look (website_site.c), in miniature: a parchment card on
+     * the dark field, gold title, the red button. */
+    ":root { color-scheme: dark; }\n"
+    "body { margin: 0; min-height: 100vh; display: grid; place-items: center;\n"
+    "       font: 16px/1.45 Georgia, 'Times New Roman', serif; color: #2b1d0e;\n"
+    "       background: #14100c radial-gradient(ellipse at top, #3a2a1a 0%%, #14100c 65%%) fixed; }\n"
+    "main { width: min(340px, calc(100vw - 32px)); }\n"
+    "h1 { font-size: 3rem; margin: 0 0 1rem; text-align: center; color: #f0c060;\n"
+    "     letter-spacing: 2px; text-shadow: 3px 3px 0 #000, 0 0 24px rgba(240,192,96,.35); }\n"
+    ".card { background: linear-gradient(#e9dfc4, #ddd0ae); border: 3px double #7a5a2e;\n"
+    "        border-radius: 4px; padding: 20px; box-shadow: 0 4px 16px rgba(0,0,0,.6); }\n"
+    "label { display: block; margin: 0 0 .75rem; font-size: .9rem; }\n"
+    "input { display: block; box-sizing: border-box; width: 100%%; margin-top: .25rem;\n"
+    "        padding: .5rem; font: inherit; border: 1px solid #7a5a2e; border-radius: 3px;\n"
+    "        background: #fbf6e8; color: #2b1d0e; }\n"
+    "input[readonly] { opacity: .7; }\n"
+    "button { width: 100%%; padding: .6rem; font: inherit; font-weight: bold; color: #fff;\n"
+    "         background: linear-gradient(#b8382a, #7a1c12); border: 1px solid #f0c060;\n"
+    "         border-radius: 3px; cursor: pointer; text-shadow: 1px 1px 0 #000; }\n"
+    ".error { color: #8e2318; margin: 0 0 1rem; }\n"
+    ".note { color: #6b5537; font-size: .85rem; margin: 1rem 0 0; }\n"
+    ".note a { color: #7a2a12; }\n"
+    "</style>\n"
+    "</head>\n"
+    "<body>\n"
+    "<main>\n"
+    "<h1>ToriRS</h1>\n"
+    "<div class=\"card\">\n"
+    "%s"
+    "</div>\n"
+    "</main>\n"
+    "</body>\n"
+    "</html>\n";
+
+static char const k_rules[] =
+    "<p class=\"note\">Passwords are 8 to 20 characters with at least one letter and one "
+    "number, no spaces, and not containing your name. This login only opens the page; "
+    "in the game you make or sign in to a separate player account.</p>\n";
+
+/* `text` for an attribute or element body. Output is truncated, never
+ * overrun; every caller's input is a bounded form field. */
+static void
+html_escape(
+    char const* text,
+    char* out,
+    size_t cap)
+{
+    size_t used = 0;
+
+    for( ; *text && used + 7 < cap; text++ )
+    {
+        char const* entity = NULL;
+
+        switch( *text )
+        {
+        case '&':
+            entity = "&amp;";
+            break;
+        case '<':
+            entity = "&lt;";
+            break;
+        case '>':
+            entity = "&gt;";
+            break;
+        case '"':
+            entity = "&quot;";
+            break;
+        case '\'':
+            entity = "&#39;";
+            break;
+        default:
+            break;
+        }
+        if( entity )
+        {
+            memcpy(out + used, entity, strlen(entity));
+            used += strlen(entity);
+        }
+        else
+            out[used++] = *text;
+    }
+    out[used] = '\0';
+}
+
+static void
+gate_page(
+    struct HttpResponse* res,
+    int status,
+    char const* body)
+{
+    char* page = ToriMem_Alloc(ToriMem_Net(), WEBSITE_GATE_PAGE_MAX);
+    int len;
+
+    assert(page);
+    len = snprintf(page, WEBSITE_GATE_PAGE_MAX, k_page, body);
+    assert(len > 0 && len < WEBSITE_GATE_PAGE_MAX);
+    res->status = status;
+    snprintf(res->content_type, sizeof(res->content_type), "text/html; charset=utf-8");
+    res->body = page;
+    res->body_len = len;
+    res->owns_body = 1;
+}
+
+/* Where a sign-in may go on to instead of the landing page: only a device
+ * approval page (/device?code=BCDF-GHJK), so the form cannot be made an open
+ * redirect. 1 when `next` is one. */
+static int
+login_next_ok(char const* next)
+{
+    static char const prefix[] = "/device?code=";
+
+    if( !next || strncmp(next, prefix, sizeof(prefix) - 1) != 0 )
+        return 0;
+    for( char const* c = next + sizeof(prefix) - 1; *c; c++ )
+        if( !(isupper((unsigned char)*c) || isdigit((unsigned char)*c) || *c == '-') )
+            return 0;
+    return strlen(next) < sizeof(prefix) + 16;
+}
+
+static void
+login_page_next(
+    struct HttpResponse* res,
+    int status,
+    char const* error,
+    char const* name,
+    char const* next)
+{
+    char body[WEBSITE_GATE_PAGE_MAX / 2];
+    char error_html[256] = "";
+    char name_html[WEBSITE_GATE_FIELD_MAX * 6];
+    char next_html[96] = "";
+
+    if( error )
+        snprintf(error_html, sizeof(error_html), "<p class=\"error\">%s</p>\n", error);
+    html_escape(name ? name : "", name_html, sizeof(name_html));
+    /* login_next_ok's characters need no escaping. */
+    if( login_next_ok(next) )
+        snprintf(next_html, sizeof(next_html), "<input type=\"hidden\" name=\"next\" value=\"%s\">\n",
+                 next);
+    snprintf(body, sizeof(body),
+             "%s"
+             "<form method=\"post\" action=\"/login\">\n"
+             "%s"
+             "<label>Name<input name=\"name\" autocomplete=\"username\" maxlength=\"12\" "
+             "required autofocus value=\"%s\"></label>\n"
+             "<label>Password<input name=\"password\" type=\"password\" "
+             "autocomplete=\"current-password\" maxlength=\"20\" required></label>\n"
+             "<button>Sign in</button>\n"
+             "</form>\n"
+             "<p class=\"note\">This page needs an invite link. Your player account "
+             "is separate: you sign in to it in the game.</p>\n",
+             error_html, next_html, name_html);
+    gate_page(res, status, body);
+}
+
+
+static void
+invite_page(
+    struct HttpResponse* res,
+    int status,
+    char const* code,
+    char const* error,
+    char const* fixed_name,
+    char const* name)
+{
+    char body[WEBSITE_GATE_PAGE_MAX / 2];
+    char error_html[256] = "";
+    char name_html[WEBSITE_GATE_FIELD_MAX * 6];
+
+    if( error )
+        snprintf(error_html, sizeof(error_html), "<p class=\"error\">%s</p>\n", error);
+    html_escape(fixed_name[0] ? fixed_name : name, name_html, sizeof(name_html));
+    snprintf(body, sizeof(body),
+             "<p>Create your login.</p>\n"
+             "%s"
+             "<form method=\"post\" action=\"/invite/%s\">\n"
+             "<label>Name<input name=\"name\" autocomplete=\"username\" maxlength=\"12\" "
+             "required %s value=\"%s\"></label>\n"
+             "<label>Password<input name=\"password\" type=\"password\" "
+             "autocomplete=\"new-password\" minlength=\"8\" maxlength=\"20\" required></label>\n"
+             "<label>Password again<input name=\"confirm\" type=\"password\" "
+             "autocomplete=\"new-password\" minlength=\"8\" maxlength=\"20\" required></label>\n"
+             "<button>Create login</button>\n"
+             "</form>\n"
+             "%s",
+             error_html, code, fixed_name[0] ? "readonly" : "autofocus", name_html, k_rules);
+    gate_page(res, status, body);
+}
+
+static void
+spent_invite_page(struct HttpResponse* res)
+{
+    gate_page(res, 404,
+              "<p>This invite has already been used, or the link is not complete.</p>\n"
+              "<p class=\"note\"><a href=\"/login\">Sign in</a></p>\n");
+}
+
+/* ------------------------------------------------------------------ */
+/* Requests                                                            */
+/* ------------------------------------------------------------------ */
+
+/* Does the path, up to its query, equal `want`? */
+static int
+path_is(
+    char const* path,
+    char const* want)
+{
+    size_t len = strlen(want);
+
+    return strncmp(path, want, len) == 0 && (path[len] == '\0' || path[len] == '?');
+}
+
+static int
+hex_value(char c)
+{
+    if( c >= '0' && c <= '9' )
+        return c - '0';
+    if( c >= 'a' && c <= 'f' )
+        return c - 'a' + 10;
+    if( c >= 'A' && c <= 'F' )
+        return c - 'A' + 10;
+    return -1;
+}
+
+/*
+ * One field of application/x-www-form-urlencoded text (a POST body or a query
+ * string), decoded. 0 when it is absent, too long for `out`, or decodes to a
+ * control byte -- none of which a form here can legitimately send.
+ */
+static int
+urlencoded_field(
+    char const* body,
+    int len,
+    char const* key,
+    char* out,
+    size_t cap)
+{
+    size_t key_len = strlen(key);
+    int at = 0;
+
+    if( !body )
+        return 0;
+    while( at < len )
+    {
+        int end = at;
+
+        while( end < len && body[end] != '&' )
+            end++;
+        if( (size_t)(end - at) > key_len && memcmp(body + at, key, key_len) == 0 &&
+            body[at + (int)key_len] == '=' )
+        {
+            size_t used = 0;
+
+            for( int i = at + (int)key_len + 1; i < end; i++ )
+            {
+                int ch = (unsigned char)body[i];
+
+                if( ch == '+' )
+                    ch = ' ';
+                else if( ch == '%' )
+                {
+                    int hi = i + 2 < end ? hex_value(body[i + 1]) : -1;
+                    int lo = i + 2 < end ? hex_value(body[i + 2]) : -1;
+
+                    if( hi < 0 || lo < 0 )
+                        return 0;
+                    ch = hi << 4 | lo;
+                    i += 2;
+                }
+                if( ch < ' ' || used + 1 >= cap )
+                    return 0;
+                out[used++] = (char)ch;
+            }
+            out[used] = '\0';
+            return 1;
+        }
+        at = end + 1;
+    }
+    return 0;
+}
+
+static int
+form_field(
+    struct HttpRequest const* req,
+    char const* key,
+    char* out,
+    size_t cap)
+{
+    return urlencoded_field((char const*)req->body, req->body_len, key, out, cap);
+}
+
+int
+WebsiteGate_FormField(
+    struct HttpRequest const* req,
+    char const* key,
+    char* out,
+    size_t cap)
+{
+    assert(req);
+    assert(key);
+    assert(out);
+    return form_field(req, key, out, cap);
+}
+
+int
+WebsiteGate_PathIs(
+    char const* path,
+    char const* want)
+{
+    assert(path);
+    assert(want);
+    return path_is(path, want);
+}
+
+static int
+query_field(
+    struct HttpRequest const* req,
+    char const* key,
+    char* out,
+    size_t cap)
+{
+    char const* query = strchr(req->path, '?');
+
+    if( !query )
+        return 0;
+    query++;
+    return urlencoded_field(query, (int)strcspn(query, "#"), key, out, cap);
+}
+
+int
+WebsiteGate_QueryField(
+    struct HttpRequest const* req,
+    char const* key,
+    char* out,
+    size_t cap)
+{
+    assert(req);
+    assert(key);
+    assert(out);
+    return query_field(req, key, out, cap);
+}
+
+static int
+signed_in(
+    struct HttpRequest const* req,
+    char* out_name,
+    size_t cap)
+{
+    int len = 0;
+    char const* cookie = HttpRequest_Header(req, "Cookie", &len);
+
+    return cookie && ToriRSServer_GateCookieTicket(cookie, (size_t)len, (long long)time(NULL),
+                                                   out_name, cap);
+}
+
+/* Sign `display_name` in: the ticket as a cookie, and a 303 to the account
+ * site's home, whose Play Now is the game. */
+static void
+issue_ticket(
+    struct WebsiteGate* gate,
+    struct HttpResponse* res,
+    char const* display_name)
+{
+    char ticket[TORIRSSERVER_GATE_TICKET_MAX];
+
+    /* Always Secure: the gate is only ever served behind TLS (the proxy
+     * terminates it), so the cookie must never travel in the clear. A test
+     * over plain http sends it by hand. */
+    ToriRSServer_GateTicketMint(display_name,
+                                (long long)time(NULL) + TORIRSSERVER_GATE_TICKET_SECONDS, ticket);
+    snprintf(res->set_cookie, sizeof(res->set_cookie),
+             TORIRSSERVER_GATE_COOKIE "=%s; Path=/; Max-Age=%lld; HttpOnly; Secure; SameSite=Lax",
+             ticket, TORIRSSERVER_GATE_TICKET_SECONDS);
+    (void)gate;
+    res->status = 303;
+    snprintf(res->location, sizeof(res->location), "/");
+}
+
+/* The throttle slot for a name: its own, else the oldest to reuse. */
+static struct WebsiteGateThrottle*
+throttle_slot(
+    struct WebsiteGate* gate,
+    char const* name)
+{
+    struct WebsiteGateThrottle* oldest = &gate->throttle[0];
+
+    for( int i = 0; i < WEBSITE_GATE_THROTTLE_SLOTS; i++ )
+    {
+        struct WebsiteGateThrottle* slot = &gate->throttle[i];
+
+        if( strcmp(slot->name, name) == 0 )
+            return slot;
+        if( slot->window_start < oldest->window_start )
+            oldest = slot;
+    }
+    snprintf(oldest->name, sizeof(oldest->name), "%s", name);
+    oldest->window_start = 0;
+    oldest->failures = 0;
+    return oldest;
+}
+
+static void
+handle_login(
+    struct WebsiteGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    char name[WEBSITE_GATE_FIELD_MAX];
+    char password[WEBSITE_GATE_FIELD_MAX];
+    enum ToriRSServerAuthResult auth;
+    char key[64];
+    struct WebsiteGateThrottle* throttle;
+    long long now = (long long)time(NULL);
+    char next[64] = "";
+
+    form_field(req, "next", next, sizeof(next));
+    if( !login_next_ok(next) )
+        next[0] = '\0';
+    if( !form_field(req, "name", name, sizeof(name)) ||
+        !form_field(req, "password", password, sizeof(password)) )
+    {
+        login_page_next(res, 400, "Enter your name and password.", NULL, next);
+        return;
+    }
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    if( !key[0] )
+    {
+        login_page_next(res, 401, "Wrong name or password.", name, next);
+        return;
+    }
+    throttle = throttle_slot(gate, key);
+    if( now - throttle->window_start >= WEBSITE_GATE_THROTTLE_SECONDS )
+    {
+        throttle->window_start = now;
+        throttle->failures = 0;
+    }
+    if( throttle->failures >= WEBSITE_GATE_THROTTLE_FAILURES )
+    {
+        login_page_next(res, 429, "Too many attempts. Try again in a few minutes.", name, next);
+        return;
+    }
+    auth = WebsiteUsersDb_GateLogin(name, password);
+    if( auth == TORIRSSERVER_AUTH_UNAVAILABLE )
+    {
+        /* Nothing was decided, so nothing counts against the name. */
+        memset(password, 0, sizeof(password));
+        login_page_next(res, 503, "The account service is not answering. Try again in a moment.",
+                        name, next);
+        return;
+    }
+    if( auth != TORIRSSERVER_AUTH_OK )
+    {
+        memset(password, 0, sizeof(password));
+        throttle->failures++;
+        fprintf(stderr, "website_server: gate: sign-in refused for '%s' (%d in this window)\n", key,
+                throttle->failures);
+        login_page_next(res, 401, "Wrong name or password.", name, next);
+        return;
+    }
+    memset(password, 0, sizeof(password));
+    throttle->failures = 0;
+    fprintf(stderr, "website_server: gate: '%s' signed in\n", key);
+    issue_ticket(gate, res, name);
+    if( next[0] )
+        snprintf(res->location, sizeof(res->location), "%s", next);
+}
+
+static void
+handle_invite(
+    struct WebsiteGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    char code[TORIRSSERVER_INVITE_CODE_BYTES * 2 + 1];
+    int found;
+    char fixed_name[WEBSITE_GATE_FIELD_MAX];
+    char name[WEBSITE_GATE_FIELD_MAX] = "";
+    char password[WEBSITE_GATE_FIELD_MAX];
+    char confirm[WEBSITE_GATE_FIELD_MAX];
+    char const* tail = req->path + strlen("/invite/");
+    size_t code_len = strcspn(tail, "?#");
+    char const* problem = NULL;
+    enum ToriRSServerInviteResult result;
+
+    if( code_len >= sizeof(code) )
+    {
+        spent_invite_page(res);
+        return;
+    }
+    memcpy(code, tail, code_len);
+    code[code_len] = '\0';
+    found = WebsiteUsersDb_InviteLookup(code, fixed_name, sizeof(fixed_name));
+    if( found < 0 )
+    {
+        res->status = 503;
+        snprintf(res->content_type, sizeof(res->content_type), "text/plain; charset=utf-8");
+        res->body = (void*)"The account service is not answering. Try again in a moment.\n";
+        res->body_len = (int)strlen((char const*)res->body);
+        return;
+    }
+    if( !found )
+    {
+        spent_invite_page(res);
+        return;
+    }
+    if( strcmp(req->method, "POST") != 0 )
+    {
+        invite_page(res, 200, code, NULL, fixed_name, "");
+        return;
+    }
+
+    if( !form_field(req, "name", name, sizeof(name)) ||
+        !form_field(req, "password", password, sizeof(password)) ||
+        !form_field(req, "confirm", confirm, sizeof(confirm)) )
+    {
+        invite_page(res, 400, code, "Fill in every field.", fixed_name, name);
+        return;
+    }
+    if( strcmp(password, confirm) != 0 )
+    {
+        invite_page(res, 400, code, "The two passwords are different.", fixed_name, name);
+        return;
+    }
+    result = WebsiteUsersDb_InviteRedeem(code, name, password, &problem);
+    memset(password, 0, sizeof(password));
+    memset(confirm, 0, sizeof(confirm));
+    switch( result )
+    {
+    case TORIRSSERVER_INVITE_OK:
+        fprintf(stderr, "website_server: gate: invite %.8s... made the web login '%s'\n", code, name);
+        issue_ticket(gate, res, name);
+        return;
+    case TORIRSSERVER_INVITE_UNKNOWN:
+        spent_invite_page(res);
+        return;
+    case TORIRSSERVER_INVITE_WRONG_NAME:
+        invite_page(res, 400, code, "This invite is for another name.", fixed_name, name);
+        return;
+    case TORIRSSERVER_INVITE_NAME_TAKEN:
+        invite_page(res, 400, code, "That name is taken.", fixed_name, name);
+        return;
+    case TORIRSSERVER_INVITE_BAD_NAME:
+    case TORIRSSERVER_INVITE_WEAK:
+        invite_page(res, 400, code, problem, fixed_name, name);
+        return;
+    case TORIRSSERVER_INVITE_WRITE_FAILED:
+        invite_page(res, 500, code, "The login could not be saved. Try again.", fixed_name,
+                    name);
+        return;
+    case TORIRSSERVER_INVITE_UNAVAILABLE:
+        invite_page(res, 503, code, "The account service is not answering. Try again in a moment.",
+                    fixed_name, name);
+        return;
+    }
+    assert(!"unhandled invite result");
+}
+
+/* ------------------------------------------------------------------ */
+/* OAuth (torirs_server_oauth.h): only ever reached with a gate ticket  */
+/* ------------------------------------------------------------------ */
+
+static void
+json_response(
+    struct HttpResponse* res,
+    int status,
+    char const* body)
+{
+    size_t len = strlen(body);
+    char* copy = ToriMem_Alloc(ToriMem_Net(), len + 1);
+
+    assert(copy);
+    memcpy(copy, body, len + 1);
+    res->status = status;
+    snprintf(res->content_type, sizeof(res->content_type), "application/json");
+    res->body = copy;
+    res->body_len = (int)len;
+    res->owns_body = 1;
+}
+
+/* RFC 6749 5.2's error body. invalid_client is a 401, the rest 400. */
+static void
+oauth_error(
+    struct HttpResponse* res,
+    enum ToriRSServerOAuthError error,
+    char const* description)
+{
+    char body[512];
+    char escaped[256];
+    size_t used = 0;
+
+    for( char const* scan = description ? description : ""; *scan && used + 2 < sizeof(escaped);
+         scan++ )
+    {
+        if( *scan == '"' || *scan == '\\' )
+            escaped[used++] = '\\';
+        escaped[used++] = *scan;
+    }
+    escaped[used] = '\0';
+    snprintf(body, sizeof(body), "{\"error\":\"%s\"%s%s%s}", ToriRSServer_OAuthErrorName(error),
+             used ? ",\"error_description\":\"" : "", escaped, used ? "\"" : "");
+    json_response(res, error == TORIRSSERVER_OAUTH_INVALID_CLIENT ? 401 : 400, body);
+}
+
+static void
+oauth_tokens(
+    struct HttpResponse* res,
+    struct ToriRSServerOAuthTokens const* tokens)
+{
+    char* body = ToriMem_Alloc(ToriMem_Net(), 3 * TORIRSSERVER_OAUTH_TOKEN_MAX);
+    char name[160];
+    size_t used = 0;
+    int len;
+
+    assert(body);
+    for( char const* scan = tokens->name; *scan && used + 2 < sizeof(name); scan++ )
+    {
+        if( *scan == '"' || *scan == '\\' )
+            name[used++] = '\\';
+        name[used++] = *scan;
+    }
+    name[used] = '\0';
+    len = snprintf(body, 3 * TORIRSSERVER_OAUTH_TOKEN_MAX,
+                   "{\"access_token\":\"%s\",\"token_type\":\"Bearer\",\"expires_in\":%d,"
+                   "\"refresh_token\":\"%s\",\"scope\":\"%s\",\"name\":\"%s\"}",
+                   tokens->access_token, tokens->expires_in, tokens->refresh_token, tokens->scope,
+                   name);
+    assert(len > 0 && len < 3 * TORIRSSERVER_OAUTH_TOKEN_MAX);
+    res->status = 200;
+    snprintf(res->content_type, sizeof(res->content_type), "application/json");
+    res->body = body;
+    res->body_len = len;
+    res->owns_body = 1;
+}
+
+/* ------------------------------------------------------------------ */
+/* Device sign-ins: a web login's refresh token, for an app that keeps  */
+/* no cookie jar (torirs_server_oauth.h, "A web login's DEVICE sign-in") */
+/* ------------------------------------------------------------------ */
+
+static char const* g_device_login_key;
+static int g_device_login_found;
+
+static void
+device_login_seen(
+    char const* name,
+    void* ctx)
+{
+    (void)ctx;
+    char key[64];
+
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    if( strcmp(key, g_device_login_key) == 0 )
+        g_device_login_found = 1;
+}
+
+/* 1 when web login `name` still exists, 0 when it was revoked, -1 when the
+ * account server did not answer. */
+static int
+device_login_exists(char const* name)
+{
+    char key[64];
+
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    if( !key[0] )
+        return 0;
+    g_device_login_key = key;
+    g_device_login_found = 0;
+    WebsiteUsersDb_GateLoginEach(device_login_seen, NULL);
+    return g_device_login_found;
+}
+
+static void
+device_tokens(
+    struct HttpResponse* res,
+    struct ToriRSServerGateDeviceTokens const* tokens)
+{
+    char body[TORIRSSERVER_OAUTH_TOKEN_MAX + TORIRSSERVER_GATE_TICKET_MAX + 512];
+    char name[160];
+    size_t used = 0;
+    int len;
+
+    for( char const* scan = tokens->name; *scan && used + 2 < sizeof(name); scan++ )
+    {
+        if( *scan == '"' || *scan == '\\' )
+            name[used++] = '\\';
+        name[used++] = *scan;
+    }
+    name[used] = '\0';
+    len = snprintf(body, sizeof(body),
+                   "{\"cookie\":\"" TORIRSSERVER_GATE_COOKIE "\",\"ticket\":\"%s\","
+                   "\"ticket_expires_in\":%lld,\"refresh_token\":\"%s\",\"refresh_expires_in\":%lld,"
+                   "\"name\":\"%s\"}",
+                   tokens->ticket, tokens->ticket_expires_in, tokens->refresh_token,
+                   tokens->refresh_expires_in, name);
+    assert(len > 0 && (size_t)len < sizeof(body));
+    json_response(res, 200, body);
+}
+
+/* ------------------------------------------------------------------ */
+/* The device-code grant (website_gate.h)                                   */
+/* ------------------------------------------------------------------ */
+
+/* No vowels and no 0/1/O/I lookalikes: a code is read off one screen and
+ * typed into nothing, but it is compared by eye with what the client shows. */
+static char const k_user_code_letters[] = "BCDFGHJKLMNPQRSTVWXZ";
+
+static struct WebsiteGateDeviceCode*
+device_code_by_user(
+    struct WebsiteGate* gate,
+    char const* user_code,
+    long long now)
+{
+    for( int i = 0; i < WEBSITE_GATE_DEVICE_CODES; i++ )
+    {
+        struct WebsiteGateDeviceCode* d = &gate->device_codes[i];
+
+        if( d->state != WEBSITE_GATE_DEVICE_FREE && now < d->expires &&
+            strcmp(d->user_code, user_code) == 0 )
+            return d;
+    }
+    return NULL;
+}
+
+static struct WebsiteGateDeviceCode*
+device_code_by_device(
+    struct WebsiteGate* gate,
+    char const* device_code)
+{
+    for( int i = 0; i < WEBSITE_GATE_DEVICE_CODES; i++ )
+    {
+        struct WebsiteGateDeviceCode* d = &gate->device_codes[i];
+
+        if( d->state != WEBSITE_GATE_DEVICE_FREE && strcmp(d->device_code, device_code) == 0 )
+            return d;
+    }
+    return NULL;
+}
+
+/* POST /device/authorize, before the ticket check: a new pair of codes.
+ * `device` (optional) names the client on the approval page. */
+static void
+handle_device_authorize(
+    struct WebsiteGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    struct WebsiteGateDeviceCode* slot = NULL;
+    long long now = (long long)time(NULL);
+    char device[48] = "";
+    uint8_t bytes[32];
+    char body[512];
+
+    if( strcmp(req->method, "POST") != 0 )
+    {
+        res->status = 405;
+        return;
+    }
+    form_field(req, "device", device, sizeof(device));
+    for( char* c = device; *c; c++ )
+        if( !(isalnum((unsigned char)*c) || *c == ' ' || *c == '-' || *c == '.' || *c == '_') )
+            *c = '_';
+    for( int i = 0; i < WEBSITE_GATE_DEVICE_CODES && !slot; i++ )
+        if( gate->device_codes[i].state == WEBSITE_GATE_DEVICE_FREE || now >= gate->device_codes[i].expires )
+            slot = &gate->device_codes[i];
+    if( !slot )
+    {
+        json_response(res, 503, "{\"error\":\"temporarily_unavailable\",\"error_description\":"
+                                "\"Too many sign-ins are waiting. Try again in a few minutes.\"}");
+        return;
+    }
+    memset(slot, 0, sizeof(*slot));
+    ToriRSServer_AuthRandom(bytes, sizeof(bytes));
+    ToriRSServer_AuthHex(bytes, sizeof(bytes), slot->device_code);
+    do
+    {
+        ToriRSServer_AuthRandom(bytes, 8);
+        for( int k = 0, at = 0; k < 8; k++ )
+        {
+            if( k == 4 )
+                slot->user_code[at++] = '-';
+            slot->user_code[at++] = k_user_code_letters[bytes[k] % (sizeof(k_user_code_letters) - 1)];
+        }
+        slot->user_code[9] = '\0';
+    } while( device_code_by_user(gate, slot->user_code, now) );
+    memset(bytes, 0, sizeof(bytes));
+    snprintf(slot->device, sizeof(slot->device), "%s", device[0] ? device : "A device");
+    slot->expires = now + WEBSITE_GATE_DEVICE_CODE_SECONDS;
+    slot->state = WEBSITE_GATE_DEVICE_PENDING;
+    /* A path, not a URL: behind the proxy the gate is https://<host>, on the
+     * LAN http://<address>:8088, and the client knows which it dialled. */
+    snprintf(body, sizeof(body),
+             "{\"device_code\":\"%s\",\"user_code\":\"%s\",\"verification_path\":\"/device\","
+             "\"verification_path_complete\":\"/device?code=%s\",\"expires_in\":%d,\"interval\":%d}",
+             slot->device_code, slot->user_code, slot->user_code, WEBSITE_GATE_DEVICE_CODE_SECONDS,
+             WEBSITE_GATE_DEVICE_POLL_SECONDS);
+    fprintf(stderr, "website_server: gate: device code %s for \"%s\"\n", slot->user_code, slot->device);
+    json_response(res, 200, body);
+}
+
+/* The approval page, behind the ticket check. */
+static void
+device_page(
+    struct HttpResponse* res,
+    int status,
+    char const* who,
+    struct WebsiteGateDeviceCode const* d,
+    char const* message)
+{
+    char body[WEBSITE_GATE_PAGE_MAX / 2];
+    char who_html[64 * 6];
+    char device_html[48 * 6];
+
+    html_escape(who, who_html, sizeof(who_html));
+    if( !d )
+    {
+        snprintf(body, sizeof(body), "<p>%s</p>\n",
+                 message ? message : "This code has expired or has already been used. "
+                                     "Start the sign-in again from the app.");
+        gate_page(res, status, body);
+        return;
+    }
+    html_escape(d->device, device_html, sizeof(device_html));
+    snprintf(body, sizeof(body),
+             "<p><b>%s</b> is asking to sign in as <b>%s</b>.</p>\n"
+             "<p>Check that the app shows this code:</p>\n"
+             "<p class=\"code\" style=\"font-size:1.6em;letter-spacing:.15em\">%s</p>\n"
+             "<form method=\"post\" action=\"/device/approve\">\n"
+             "<input type=\"hidden\" name=\"code\" value=\"%s\">\n"
+             "<button name=\"decision\" value=\"approve\">Approve</button>\n"
+             "<button name=\"decision\" value=\"deny\">Deny</button>\n"
+             "</form>\n"
+             "<p class=\"note\">Approve only a sign-in you started. The app gets a ticket "
+             "for this web login, good for 30 days of use.</p>\n",
+             device_html, who_html, d->user_code, d->user_code);
+    gate_page(res, status, body);
+}
+
+/* GET /device?code=, behind the ticket check (a signed-out browser was sent
+ * through /login?next= first). */
+static void
+handle_device_page(
+    struct WebsiteGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res,
+    char const* who)
+{
+    char code[16] = "";
+
+    WebsiteGate_QueryField(req, "code", code, sizeof(code));
+    for( char* c = code; *c; c++ )
+        *c = (char)toupper((unsigned char)*c);
+    device_page(res, 200, who, device_code_by_user(gate, code, (long long)time(NULL)), NULL);
+}
+
+/* POST /device/approve: code, decision=approve|deny. Behind the ticket check,
+ * and the cookie is SameSite=Lax, so another site cannot post it. */
+static void
+handle_device_approve(
+    struct WebsiteGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res,
+    char const* who)
+{
+    char code[16] = "";
+    char decision[16] = "";
+    struct WebsiteGateDeviceCode* d;
+
+    form_field(req, "code", code, sizeof(code));
+    form_field(req, "decision", decision, sizeof(decision));
+    d = device_code_by_user(gate, code, (long long)time(NULL));
+    if( !d || d->state != WEBSITE_GATE_DEVICE_PENDING )
+    {
+        device_page(res, 400, who, NULL, NULL);
+        return;
+    }
+    if( strcmp(decision, "approve") == 0 )
+    {
+        d->state = WEBSITE_GATE_DEVICE_APPROVED;
+        snprintf(d->name, sizeof(d->name), "%s", who);
+        fprintf(stderr, "website_server: gate: '%s' approved device code %s (\"%s\")\n", who, d->user_code,
+                d->device);
+        device_page(res, 200, who, NULL, "Signed in. You can close this tab and go back to the app.");
+    }
+    else
+    {
+        d->state = WEBSITE_GATE_DEVICE_DENIED;
+        device_page(res, 200, who, NULL, "Denied. The app was not signed in.");
+    }
+}
+
+/* The device-code grant of POST /device/token. RFC 8628 3.5's answers while
+ * it waits; the password grant's tokens once approved. */
+static void
+device_code_grant(
+    struct WebsiteGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res,
+    struct ToriRSServerGateDeviceTokens* tokens)
+{
+    char device_code[80];
+    struct WebsiteGateDeviceCode* d;
+    long long now = (long long)time(NULL);
+    enum ToriRSServerOAuthError error;
+
+    if( !form_field(req, "device_code", device_code, sizeof(device_code)) ||
+        !(d = device_code_by_device(gate, device_code)) )
+    {
+        json_response(res, 400, "{\"error\":\"invalid_grant\"}");
+        return;
+    }
+    if( now >= d->expires )
+    {
+        d->state = WEBSITE_GATE_DEVICE_FREE;
+        json_response(res, 400, "{\"error\":\"expired_token\"}");
+        return;
+    }
+    if( d->state == WEBSITE_GATE_DEVICE_DENIED )
+    {
+        d->state = WEBSITE_GATE_DEVICE_FREE;
+        json_response(res, 400, "{\"error\":\"access_denied\"}");
+        return;
+    }
+    if( d->state == WEBSITE_GATE_DEVICE_PENDING )
+    {
+        int early = d->last_poll && now - d->last_poll < WEBSITE_GATE_DEVICE_POLL_SECONDS - 1;
+
+        d->last_poll = now;
+        json_response(res, 400, early ? "{\"error\":\"slow_down\"}" : "{\"error\":\"authorization_pending\"}");
+        return;
+    }
+    error = ToriRSServer_GateDeviceSignIn(d->name, now, tokens);
+    d->state = WEBSITE_GATE_DEVICE_FREE;
+    if( error != TORIRSSERVER_OAUTH_OK )
+    {
+        oauth_error(res, error, "The sign-in could not be recorded.");
+        return;
+    }
+    fprintf(stderr, "website_server: gate: '%s' signed in a device by code\n", d->name);
+    device_tokens(res, tokens);
+}
+
+/*
+ * POST /device/token, before the ticket check (it is how a device gets one):
+ *
+ *   grant_type=password&name=&password=     the web login, as /login checks
+ *                                           it (and throttles it)
+ *   grant_type=refresh_token&refresh_token= the last refresh token, rotated
+ *
+ * -> {"cookie", "ticket", "ticket_expires_in", "refresh_token",
+ *     "refresh_expires_in", "name"}, or RFC 6749's error body. A refresh for a
+ * web login that has since been revoked ends that sign-in; one made while the
+ * account server is not answering goes ahead, so an outage never signs a
+ * device out.
+ */
+static void
+handle_device_token(
+    struct WebsiteGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    static struct ToriRSServerGateDeviceTokens tokens;
+    char grant[48];
+    char const* description = NULL;
+    enum ToriRSServerOAuthError error;
+    long long now = (long long)time(NULL);
+
+    if( strcmp(req->method, "POST") != 0 )
+    {
+        res->status = 405;
+        return;
+    }
+    if( !form_field(req, "grant_type", grant, sizeof(grant)) )
+    {
+        oauth_error(res, TORIRSSERVER_OAUTH_INVALID_REQUEST, "grant_type is required");
+        return;
+    }
+    if( strcmp(grant, "password") == 0 )
+    {
+        char name[WEBSITE_GATE_FIELD_MAX];
+        char password[WEBSITE_GATE_FIELD_MAX];
+        char key[64];
+        struct WebsiteGateThrottle* throttle;
+        enum ToriRSServerAuthResult auth;
+
+        if( !form_field(req, "name", name, sizeof(name)) ||
+            !form_field(req, "password", password, sizeof(password)) )
+        {
+            oauth_error(res, TORIRSSERVER_OAUTH_INVALID_REQUEST, "Enter your name and password.");
+            return;
+        }
+        ToriRSServer_SaveFileName(name, key, sizeof(key));
+        if( !key[0] )
+        {
+            memset(password, 0, sizeof(password));
+            oauth_error(res, TORIRSSERVER_OAUTH_INVALID_GRANT, "Wrong name or password.");
+            return;
+        }
+        throttle = throttle_slot(gate, key);
+        if( now - throttle->window_start >= WEBSITE_GATE_THROTTLE_SECONDS )
+        {
+            throttle->window_start = now;
+            throttle->failures = 0;
+        }
+        if( throttle->failures >= WEBSITE_GATE_THROTTLE_FAILURES )
+        {
+            memset(password, 0, sizeof(password));
+            json_response(res, 429, "{\"error\":\"slow_down\",\"error_description\":"
+                                    "\"Too many attempts. Try again in a few minutes.\"}");
+            return;
+        }
+        auth = WebsiteUsersDb_GateLogin(name, password);
+        memset(password, 0, sizeof(password));
+        if( auth == TORIRSSERVER_AUTH_UNAVAILABLE )
+        {
+            json_response(res, 503, "{\"error\":\"temporarily_unavailable\",\"error_description\":"
+                                    "\"The account service is not answering. Try again in a moment.\"}");
+            return;
+        }
+        if( auth != TORIRSSERVER_AUTH_OK )
+        {
+            throttle->failures++;
+            fprintf(stderr, "website_server: gate: device sign-in refused for '%s' (%d in this window)\n",
+                    key, throttle->failures);
+            oauth_error(res, TORIRSSERVER_OAUTH_INVALID_GRANT, "Wrong name or password.");
+            return;
+        }
+        throttle->failures = 0;
+        error = ToriRSServer_GateDeviceSignIn(name, now, &tokens);
+        if( error != TORIRSSERVER_OAUTH_OK )
+        {
+            oauth_error(res, error, "The sign-in could not be recorded.");
+            return;
+        }
+        fprintf(stderr, "website_server: gate: '%s' signed in a device\n", key);
+        device_tokens(res, &tokens);
+        return;
+    }
+    if( strcmp(grant, "refresh_token") == 0 )
+    {
+        char refresh[TORIRSSERVER_OAUTH_TOKEN_MAX];
+        char name[64];
+        char fam[TORIRSSERVER_OAUTH_ID_HEX + 1];
+        int exists;
+
+        if( !form_field(req, "refresh_token", refresh, sizeof(refresh)) )
+        {
+            oauth_error(res, TORIRSSERVER_OAUTH_INVALID_REQUEST, "refresh_token is required");
+            return;
+        }
+        error = ToriRSServer_GateDeviceTake(refresh, now, name, fam, &description);
+        if( error != TORIRSSERVER_OAUTH_OK )
+        {
+            oauth_error(res, error, description);
+            return;
+        }
+        exists = device_login_exists(name);
+        if( exists == 0 )
+        {
+            ToriRSServer_GateDeviceRevokeFamily(fam, now);
+            oauth_error(res, TORIRSSERVER_OAUTH_INVALID_GRANT, "This web login no longer exists.");
+            return;
+        }
+        if( exists < 0 )
+            fprintf(stderr, "website_server: gate: account service silent; refreshing '%s' anyway\n", name);
+        error = ToriRSServer_GateDeviceContinue(name, fam, now, &tokens);
+        if( error != TORIRSSERVER_OAUTH_OK )
+        {
+            oauth_error(res, error, "The sign-in could not be recorded.");
+            return;
+        }
+        device_tokens(res, &tokens);
+        return;
+    }
+    if( strcmp(grant, "urn:ietf:params:oauth:grant-type:device_code") == 0 )
+    {
+        device_code_grant(gate, req, res, &tokens);
+        return;
+    }
+    oauth_error(res, TORIRSSERVER_OAUTH_UNSUPPORTED_GRANT_TYPE, NULL);
+}
+
+/* POST /device/revoke: sign out on a device. Answered the same whatever the
+ * token was (RFC 7009 2.2). */
+static void
+handle_device_revoke(
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    char refresh[TORIRSSERVER_OAUTH_TOKEN_MAX];
+
+    if( strcmp(req->method, "POST") != 0 )
+    {
+        res->status = 405;
+        return;
+    }
+    if( form_field(req, "refresh_token", refresh, sizeof(refresh)) )
+        ToriRSServer_GateDeviceRevoke(refresh, (long long)time(NULL));
+    json_response(res, 200, "{}");
+}
+
+/* One throttle for every place a player password is tried: the token
+ * endpoint's password grant and the authorize page. Keyed apart from the
+ * gate's own sign-ins, which are a different account. 1 when allowed. */
+static int
+player_throttle_allows(
+    struct WebsiteGate* gate,
+    char const* username,
+    struct WebsiteGateThrottle** out)
+{
+    char key[80];
+    char file[64];
+    long long now = (long long)time(NULL);
+    struct WebsiteGateThrottle* throttle;
+
+    ToriRSServer_SaveFileName(username, file, sizeof(file));
+    snprintf(key, sizeof(key), "player:%s", file);
+    throttle = throttle_slot(gate, key);
+    if( now - throttle->window_start >= WEBSITE_GATE_THROTTLE_SECONDS )
+    {
+        throttle->window_start = now;
+        throttle->failures = 0;
+    }
+    *out = throttle;
+    return throttle->failures < WEBSITE_GATE_THROTTLE_FAILURES;
+}
+
+/* POST /oauth/token (RFC 6749 3.2): one public client, three grants. */
+static void
+handle_token(
+    struct WebsiteGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    static struct ToriRSServerOAuthTokens tokens;
+    char grant[48];
+    char client[64];
+    char scope[64] = "";
+    char const* description = NULL;
+    enum ToriRSServerOAuthError error;
+    long long now = (long long)time(NULL);
+
+    if( strcmp(req->method, "POST") != 0 )
+    {
+        res->status = 405;
+        return;
+    }
+    if( !form_field(req, "grant_type", grant, sizeof(grant)) )
+    {
+        oauth_error(res, TORIRSSERVER_OAUTH_INVALID_REQUEST, "grant_type is required");
+        return;
+    }
+    if( !form_field(req, "client_id", client, sizeof(client)) ||
+        strcmp(client, TORIRSSERVER_OAUTH_CLIENT_ID) != 0 )
+    {
+        oauth_error(res, TORIRSSERVER_OAUTH_INVALID_CLIENT, "unknown client_id");
+        return;
+    }
+    form_field(req, "scope", scope, sizeof(scope));
+
+    if( strcmp(grant, "password") == 0 )
+    {
+        char username[WEBSITE_GATE_FIELD_MAX];
+        char password[WEBSITE_GATE_FIELD_MAX];
+        struct WebsiteGateThrottle* throttle;
+
+        if( !form_field(req, "username", username, sizeof(username)) ||
+            !form_field(req, "password", password, sizeof(password)) )
+        {
+            oauth_error(res, TORIRSSERVER_OAUTH_INVALID_REQUEST,
+                        "username and password are required");
+            return;
+        }
+        if( !player_throttle_allows(gate, username, &throttle) )
+        {
+            memset(password, 0, sizeof(password));
+            oauth_error(res, TORIRSSERVER_OAUTH_INVALID_GRANT,
+                        "Too many attempts. Try again in a few minutes.");
+            return;
+        }
+        error = ToriRSServer_OAuthPasswordGrant(username, password, scope, now, &tokens,
+                                                &description);
+        memset(password, 0, sizeof(password));
+        if( error == TORIRSSERVER_OAUTH_INVALID_GRANT )
+            throttle->failures++;
+    }
+    else if( strcmp(grant, "refresh_token") == 0 )
+    {
+        char refresh[TORIRSSERVER_OAUTH_TOKEN_MAX];
+
+        if( !form_field(req, "refresh_token", refresh, sizeof(refresh)) )
+        {
+            oauth_error(res, TORIRSSERVER_OAUTH_INVALID_REQUEST, "refresh_token is required");
+            return;
+        }
+        error = ToriRSServer_OAuthRefreshGrant(refresh, scope, now, &tokens, &description);
+    }
+    else if( strcmp(grant, "authorization_code") == 0 )
+    {
+        char code[64];
+        char redirect[256];
+        char verifier[160];
+
+        if( !form_field(req, "code", code, sizeof(code)) ||
+            !form_field(req, "redirect_uri", redirect, sizeof(redirect)) ||
+            !form_field(req, "code_verifier", verifier, sizeof(verifier)) )
+        {
+            oauth_error(res, TORIRSSERVER_OAUTH_INVALID_REQUEST,
+                        "code, redirect_uri and code_verifier are required");
+            return;
+        }
+        error = ToriRSServer_OAuthCodeGrant(code, redirect, verifier, now, &tokens, &description);
+    }
+    else
+    {
+        oauth_error(res, TORIRSSERVER_OAUTH_UNSUPPORTED_GRANT_TYPE, NULL);
+        return;
+    }
+
+    if( error != TORIRSSERVER_OAUTH_OK )
+    {
+        oauth_error(res, error, description);
+        return;
+    }
+    fprintf(stderr, "website_server: oauth: %s grant for '%s'\n", grant, tokens.name);
+    oauth_tokens(res, &tokens);
+    memset(&tokens, 0, sizeof(tokens));
+}
+
+/* POST /oauth/revoke (RFC 7009): 200 whatever the token was. */
+static void
+handle_revoke(
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    char token[TORIRSSERVER_OAUTH_TOKEN_MAX];
+
+    if( strcmp(req->method, "POST") != 0 )
+    {
+        res->status = 405;
+        return;
+    }
+    if( !form_field(req, "token", token, sizeof(token)) )
+    {
+        oauth_error(res, TORIRSSERVER_OAUTH_INVALID_REQUEST, "token is required");
+        return;
+    }
+    ToriRSServer_OAuthRevoke(token, (long long)time(NULL));
+    json_response(res, 200, "{}");
+}
+
+/* POST /game/play: the deob's play call. The access token comes as RFC 6750
+ * allows, in the Authorization header or a form-encoded access_token. */
+static void
+handle_play(
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    char token[TORIRSSERVER_OAUTH_TOKEN_MAX] = "";
+    char otl[TORIRSSERVER_OAUTH_ID_HEX + 1];
+    char name[64];
+    char body[256];
+    int header_len = 0;
+    char const* header = HttpRequest_Header(req, "Authorization", &header_len);
+    enum ToriRSServerOAuthError error;
+
+    if( strcmp(req->method, "POST") != 0 )
+    {
+        res->status = 405;
+        return;
+    }
+    if( header && header_len > 7 && strncmp(header, "Bearer ", 7) == 0 &&
+        header_len - 7 < (int)sizeof(token) )
+    {
+        memcpy(token, header + 7, (size_t)(header_len - 7));
+        token[header_len - 7] = '\0';
+    }
+    else
+        form_field(req, "access_token", token, sizeof(token));
+    error = ToriRSServer_OAuthPlay(token, (long long)time(NULL), otl, name, sizeof(name));
+    if( error != TORIRSSERVER_OAUTH_OK )
+    {
+        snprintf(res->www_authenticate, sizeof(res->www_authenticate),
+                 "Bearer error=\"%s\"", ToriRSServer_OAuthErrorName(error));
+        json_response(res, 401, "{\"error\":\"invalid_token\"}");
+        return;
+    }
+    fprintf(stderr, "website_server: oauth: one-time login for '%s'\n", name);
+    snprintf(body, sizeof(body), "{\"token\":\"%s\",\"expires_in\":%d}", otl,
+             TORIRSSERVER_OAUTH_OTL_SECONDS);
+    json_response(res, 200, body);
+}
+
+/* GET /.well-known/oauth-authorization-server (RFC 8414). Absolute https
+ * URLs on the Host the request came to: the gate is only served behind TLS. */
+static void
+handle_metadata(
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    char host[128] = "localhost";
+    char body[1400];
+    int host_len = 0;
+    char const* header = HttpRequest_Header(req, "Host", &host_len);
+
+    if( header && host_len > 0 && host_len < (int)sizeof(host) )
+    {
+        memcpy(host, header, (size_t)host_len);
+        host[host_len] = '\0';
+        for( char* scan = host; *scan; scan++ )
+            if( *scan == '"' || *scan == '\\' || (unsigned char)*scan < ' ' )
+                *scan = '_';
+    }
+    snprintf(body, sizeof(body),
+             "{\"issuer\":\"https://%s\","
+             "\"authorization_endpoint\":\"https://%s/oauth/authorize\","
+             "\"token_endpoint\":\"https://%s/oauth/token\","
+             "\"revocation_endpoint\":\"https://%s/oauth/revoke\","
+             "\"response_types_supported\":[\"code\"],"
+             "\"grant_types_supported\":[\"authorization_code\",\"password\",\"refresh_token\"],"
+             "\"code_challenge_methods_supported\":[\"S256\"],"
+             "\"token_endpoint_auth_methods_supported\":[\"none\"],"
+             "\"revocation_endpoint_auth_methods_supported\":[\"none\"],"
+             "\"scopes_supported\":[\"" TORIRSSERVER_OAUTH_SCOPE "\"]}",
+             host, host, host, host);
+    json_response(res, 200, body);
+}
+
+/* The authorize page: a player-account login, carrying the request's
+ * parameters through as hidden fields. Every value is escaped; none of them
+ * has been trusted yet except as text. */
+static void
+authorize_page(
+    struct HttpResponse* res,
+    int status,
+    char const* error,
+    char const* redirect,
+    char const* state,
+    char const* challenge,
+    char const* scope,
+    char const* username)
+{
+    char body[WEBSITE_GATE_PAGE_MAX / 2];
+    char error_html[256] = "";
+    char redirect_html[256 * 6];
+    char state_html[128 * 6];
+    char challenge_html[64 * 6];
+    char scope_html[64 * 6];
+    char name_html[WEBSITE_GATE_FIELD_MAX * 6];
+
+    if( error )
+        snprintf(error_html, sizeof(error_html), "<p class=\"error\">%s</p>\n", error);
+    html_escape(redirect, redirect_html, sizeof(redirect_html));
+    html_escape(state, state_html, sizeof(state_html));
+    html_escape(challenge, challenge_html, sizeof(challenge_html));
+    html_escape(scope, scope_html, sizeof(scope_html));
+    html_escape(username, name_html, sizeof(name_html));
+    snprintf(body, sizeof(body),
+             "<p>Sign in to your player account.</p>\n"
+             "%s"
+             "<form method=\"post\" action=\"/oauth/authorize\">\n"
+             "<input type=\"hidden\" name=\"response_type\" value=\"code\">\n"
+             "<input type=\"hidden\" name=\"client_id\" value=\"" TORIRSSERVER_OAUTH_CLIENT_ID "\">\n"
+             "<input type=\"hidden\" name=\"redirect_uri\" value=\"%s\">\n"
+             "<input type=\"hidden\" name=\"state\" value=\"%s\">\n"
+             "<input type=\"hidden\" name=\"code_challenge\" value=\"%s\">\n"
+             "<input type=\"hidden\" name=\"code_challenge_method\" value=\"S256\">\n"
+             "<input type=\"hidden\" name=\"scope\" value=\"%s\">\n"
+             "<label>Username<input name=\"username\" autocomplete=\"username\" required "
+             "autofocus value=\"%s\"></label>\n"
+             "<label>Password<input name=\"password\" type=\"password\" "
+             "autocomplete=\"current-password\" maxlength=\"20\" required></label>\n"
+             "<button>Sign in</button>\n"
+             "</form>\n",
+             error_html, redirect_html, state_html, challenge_html, scope_html, name_html);
+    gate_page(res, status, body);
+}
+
+/* `text` percent-encoded for a URL query value. */
+static void
+url_encode(
+    char const* text,
+    char* out,
+    size_t cap)
+{
+    static char const digits[] = "0123456789ABCDEF";
+    size_t used = 0;
+
+    for( ; *text && used + 4 < cap; text++ )
+    {
+        unsigned char ch = (unsigned char)*text;
+
+        if( isalnum(ch) || ch == '-' || ch == '.' || ch == '_' || ch == '~' )
+            out[used++] = (char)ch;
+        else
+        {
+            out[used++] = '%';
+            out[used++] = digits[ch >> 4];
+            out[used++] = digits[ch & 15];
+        }
+    }
+    out[used] = '\0';
+}
+
+/*
+ * GET|POST /oauth/authorize (RFC 6749 4.1, RFC 7636): the authorization code
+ * flow with PKCE, S256 only. Nothing is redirected anywhere until the
+ * redirect_uri has been checked, so a bad request is a page, never a bounce
+ * to wherever it asked.
+ */
+static void
+handle_authorize(
+    struct WebsiteGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    int is_post = strcmp(req->method, "POST") == 0;
+    char response_type[16] = "";
+    char client[64] = "";
+    char redirect[256] = "";
+    char state[128] = "";
+    char challenge[64] = "";
+    char method[16] = "";
+    char scope[64] = "";
+    char username[WEBSITE_GATE_FIELD_MAX] = "";
+    char password[WEBSITE_GATE_FIELD_MAX] = "";
+    char code[TORIRSSERVER_OAUTH_ID_HEX + 1];
+    char state_query[128 * 3 + 1];
+    char const* description = NULL;
+    struct WebsiteGateThrottle* throttle;
+    enum ToriRSServerOAuthError error;
+    int (*field)(struct HttpRequest const*, char const*, char*, size_t) =
+        is_post ? form_field : query_field;
+
+    if( !is_post && strcmp(req->method, "GET") != 0 && strcmp(req->method, "HEAD") != 0 )
+    {
+        res->status = 405;
+        return;
+    }
+    field(req, "response_type", response_type, sizeof(response_type));
+    field(req, "client_id", client, sizeof(client));
+    field(req, "redirect_uri", redirect, sizeof(redirect));
+    field(req, "state", state, sizeof(state));
+    field(req, "code_challenge", challenge, sizeof(challenge));
+    field(req, "code_challenge_method", method, sizeof(method));
+    field(req, "scope", scope, sizeof(scope));
+    if( strcmp(client, TORIRSSERVER_OAUTH_CLIENT_ID) != 0 ||
+        !ToriRSServer_OAuthRedirectAllowed(redirect) )
+    {
+        gate_page(res, 400, "<p class=\"error\">This sign-in link is not valid: unknown "
+                            "client or redirect.</p>\n");
+        return;
+    }
+    if( strcmp(response_type, "code") != 0 || strcmp(method, "S256") != 0 ||
+        strlen(challenge) != 43 )
+    {
+        gate_page(res, 400, "<p class=\"error\">This sign-in link is not valid: it needs "
+                            "response_type=code and an S256 code_challenge.</p>\n");
+        return;
+    }
+    if( !is_post )
+    {
+        authorize_page(res, 200, NULL, redirect, state, challenge, scope, "");
+        return;
+    }
+
+    if( !form_field(req, "username", username, sizeof(username)) ||
+        !form_field(req, "password", password, sizeof(password)) )
+    {
+        authorize_page(res, 400, "Enter your username and password.", redirect, state, challenge,
+                       scope, username);
+        return;
+    }
+    if( !player_throttle_allows(gate, username, &throttle) )
+    {
+        memset(password, 0, sizeof(password));
+        authorize_page(res, 429, "Too many attempts. Try again in a few minutes.", redirect,
+                       state, challenge, scope, username);
+        return;
+    }
+    error = ToriRSServer_OAuthAuthorize(username, password, redirect, challenge, scope,
+                                        (long long)time(NULL), code, &description);
+    memset(password, 0, sizeof(password));
+    if( error == TORIRSSERVER_OAUTH_INVALID_GRANT )
+        throttle->failures++;
+    if( error != TORIRSSERVER_OAUTH_OK )
+    {
+        authorize_page(res, 400, description ? description : "Sign-in failed.", redirect, state,
+                       challenge, scope, username);
+        return;
+    }
+    url_encode(state, state_query, sizeof(state_query));
+    res->status = 303;
+    snprintf(res->location, sizeof(res->location), "%s%scode=%s%s%s", redirect,
+             strchr(redirect, '?') ? "&" : "?", code, state[0] ? "&state=" : "", state_query);
+}
+
+/* ------------------------------------------------------------------ */
+/* Player accounts linked to the web login (torirs_server_auth.h)      */
+/* ------------------------------------------------------------------ */
+
+/* `text` as a JSON string body onto `out` (quotes not included). Names reach
+ * here already free of control characters but for the '\n' list separator. */
+static void
+json_append(
+    char* out,
+    size_t cap,
+    char const* text)
+{
+    size_t used = strlen(out);
+
+    for( ; *text && used + 3 < cap; text++ )
+    {
+        if( *text == '"' || *text == '\\' )
+            out[used++] = '\\';
+        if( *text == '\n' )
+        {
+            out[used++] = '\\';
+            out[used++] = 'n';
+            continue;
+        }
+        out[used++] = *text;
+    }
+    out[used] = '\0';
+}
+
+/* A player name from a form: what OAuth's check_account accepts. */
+static int
+player_name_ok(char const* name)
+{
+    if( !name[0] || strlen(name) >= WEBSITE_LINKS_NAME_MAX )
+        return 0;
+    for( char const* scan = name; *scan; scan++ )
+        if( (unsigned char)*scan < ' ' )
+            return 0;
+    return 1;
+}
+
+/* A one-time login for the linked `display_name`, as the play call answers. */
+static void
+account_play_answer(
+    struct WebsiteGate* gate,
+    struct HttpResponse* res,
+    char const* who,
+    char const* display_name)
+{
+    char token[TORIRSSERVER_LINK_TOKEN_HEX + 1];
+    char otl[TORIRSSERVER_OAUTH_ID_HEX + 1];
+    char name[64];
+    char body[256];
+    enum ToriRSServerOAuthError error = TORIRSSERVER_OAUTH_INVALID_GRANT;
+
+    if( WebsiteLinks_Token(gate->links, who, display_name, token) )
+        error = ToriRSServer_OAuthUserPlay(who, display_name, token, (long long)time(NULL), otl,
+                                           name, sizeof(name));
+    memset(token, 0, sizeof(token));
+    if( error != TORIRSSERVER_OAUTH_OK )
+    {
+        oauth_error(res, error, "That account is not linked to this login.");
+        return;
+    }
+    fprintf(stderr, "website_server: gate: '%s' plays linked account '%s'\n", who, name);
+    snprintf(body, sizeof(body), "{\"token\":\"%s\",\"expires_in\":%d,\"name\":\"", otl,
+             TORIRSSERVER_OAUTH_OTL_SECONDS);
+    json_append(body, sizeof(body) - 3, name);
+    strcat(body, "\"}");
+    json_response(res, 200, body);
+}
+
+/* POST /account/players: {"user": <web login>, "players": "A\nB"}, newline
+ * separated because a name cannot hold one and the client reads flat JSON. */
+static void
+handle_account_players(
+    struct WebsiteGate* gate,
+    struct HttpResponse* res,
+    char const* who)
+{
+    char names[WEBSITE_LINKS_LIST_MAX][WEBSITE_LINKS_NAME_MAX];
+    char body[2048];
+    int count = WebsiteLinks_List(gate->links, who, names, WEBSITE_LINKS_LIST_MAX);
+
+    snprintf(body, sizeof(body), "{\"user\":\"");
+    json_append(body, sizeof(body) - 32, who);
+    strcat(body, "\",\"players\":\"");
+    for( int i = 0; i < count; i++ )
+    {
+        if( i )
+            json_append(body, sizeof(body) - 3, "\n");
+        json_append(body, sizeof(body) - 3, names[i]);
+    }
+    strcat(body, "\"}");
+    json_response(res, 200, body);
+}
+
+/* POST /account/link: the player's own name and password prove it is theirs
+ * to give; the record takes this login as its one owner and the token's hash,
+ * the links database the token, every refresh token the account had is
+ * revoked, and the answer is a one-time login so linking also plays. */
+enum WebsiteGateLinkResult
+WebsiteGate_LinkPlayer(
+    struct WebsiteGate* gate,
+    char const* who,
+    char const* username,
+    char* password,
+    size_t password_cap,
+    char const** out_message)
+{
+    char token[TORIRSSERVER_LINK_TOKEN_HEX + 1];
+    struct WebsiteGateThrottle* throttle;
+    enum ToriRSServerLinkResult result;
+    long long now = (long long)time(NULL);
+
+    assert(gate);
+    assert(who);
+    assert(username);
+    assert(password);
+    assert(out_message);
+    *out_message = NULL;
+    if( !player_name_ok(username) || !password[0] )
+    {
+        memset(password, 0, password_cap);
+        *out_message = "Enter the player account's name and password.";
+        return WEBSITE_GATE_LINK_REFUSED;
+    }
+    if( !player_throttle_allows(gate, username, &throttle) )
+    {
+        memset(password, 0, password_cap);
+        *out_message = "Too many attempts. Try again in a few minutes.";
+        return WEBSITE_GATE_LINK_REFUSED;
+    }
+    result = AccountClient_Link(username, password, who, token);
+    memset(password, 0, password_cap);
+    if( result == TORIRSSERVER_LINK_NO_ACCOUNT )
+    {
+        *out_message = "There is no player account by that name. Log in to the game to make it "
+                       "first, then link it.";
+        return WEBSITE_GATE_LINK_REFUSED;
+    }
+    if( result == TORIRSSERVER_LINK_REFUSED )
+    {
+        throttle->failures++;
+        *out_message = "Invalid username or password.";
+        return WEBSITE_GATE_LINK_REFUSED;
+    }
+    if( result == TORIRSSERVER_LINK_OTHER_USER )
+    {
+        fprintf(stderr, "website_server: gate: '%s' tried to link '%s', which another login owns\n",
+                who, username);
+        *out_message = "That account is already linked to another login.";
+        return WEBSITE_GATE_LINK_REFUSED;
+    }
+    if( result != TORIRSSERVER_LINK_OK )
+    {
+        *out_message = "The link could not be saved.";
+        return WEBSITE_GATE_LINK_FAILED;
+    }
+    WebsiteLinks_Put(gate->links, who, username, token, now);
+    memset(token, 0, sizeof(token));
+    ToriRSServer_OAuthRevokeAccount(username, now);
+    fprintf(stderr, "website_server: gate: '%s' linked player account '%s'\n", who, username);
+    return WEBSITE_GATE_LINK_LINKED;
+}
+
+int
+WebsiteGate_UnlinkPlayer(
+    struct WebsiteGate* gate,
+    char const* who,
+    char const* player)
+{
+    char owner[64];
+
+    assert(gate);
+    assert(who);
+    assert(player);
+    if( !player_name_ok(player) ||
+        AccountClient_ManagedBy(player, owner, sizeof(owner)) != 1 || strcmp(owner, who) != 0 )
+        return 0;
+    if( !AccountClient_Unlink(player) )
+        return 0;
+    WebsiteLinks_Drop(gate->links, who, player);
+    fprintf(stderr, "website_server: gate: '%s' unlinked player account '%s'\n", who, player);
+    return 1;
+}
+
+/* Make the player account `username` and link it to `owner` in one step:
+ * the record (admin when `admin`), the link token, and the links row. Nobody
+ * types a password: a linked account never signs in with one, so the record
+ * gets a random one that is never shown (an unlinked account is given a
+ * known one with `torirsctl password`). */
+enum WebsiteGateLinkResult
+WebsiteGate_CreatePlayer(
+    struct WebsiteGate* gate,
+    char const* owner,
+    char const* username,
+    int admin,
+    char const** out_message)
+{
+    char names[WEBSITE_LINKS_LIST_MAX][WEBSITE_LINKS_NAME_MAX];
+    char token[TORIRSSERVER_LINK_TOKEN_HEX + 1];
+    char password[TORIRSSERVER_AUTH_PASSWORD_MAX + 1];
+    int tries = 0;
+    char const* problem = NULL;
+    char* save = NULL;
+    char world[ACCOUNT_WORLD_MAX];
+    int saved;
+    enum ToriRSServerCreateResult created;
+    enum ToriRSServerLinkResult linked;
+
+    assert(gate);
+    assert(owner);
+    assert(username);
+    assert(password);
+    assert(out_message);
+    *out_message = NULL;
+    if( !player_name_ok(username) )
+    {
+        *out_message = "Enter a name for the new account.";
+        return WEBSITE_GATE_LINK_REFUSED;
+    }
+    /* A bad name is the visitor's to fix: say so before making a password. */
+    *out_message = ToriRSServer_AuthNameProblem(username);
+    if( *out_message )
+        return WEBSITE_GATE_LINK_REFUSED;
+    if( WebsiteLinks_List(gate->links, owner, names, WEBSITE_LINKS_LIST_MAX) >=
+        WEBSITE_LINKS_LIST_MAX )
+    {
+        *out_message = "That login holds as many player accounts as it can. Unlink one first.";
+        return WEBSITE_GATE_LINK_REFUSED;
+    }
+    /* A character saved before passwords existed has no record, and a first
+     * login would claim it; a form that makes NEW accounts must not. */
+    saved = AccountClient_SaveGet(username, &save, world, sizeof(world));
+    ToriMem_Free(ToriMem_Net(), save);
+    if( saved < 0 )
+    {
+        *out_message = "The player account service is not answering. Try again shortly.";
+        return WEBSITE_GATE_LINK_FAILED;
+    }
+    if( saved > 0 || world[0] )
+    {
+        *out_message = "A character by that name already exists. Choose another name.";
+        return WEBSITE_GATE_LINK_REFUSED;
+    }
+    /* 20 random hex digits under the password rules: almost always the first
+     * draw (all digits, or the name inside it, are the rare redraws). */
+    for( ;; )
+    {
+        uint8_t bytes[TORIRSSERVER_AUTH_PASSWORD_MAX / 2];
+
+        assert(tries++ < 64);
+        ToriRSServer_AuthRandom(bytes, sizeof(bytes));
+        ToriRSServer_AuthHex(bytes, sizeof(bytes), password);
+        memset(bytes, 0, sizeof(bytes));
+        if( !ToriRSServer_AuthPasswordProblem(username, password) )
+            break;
+    }
+    created = AccountClient_Create(username, password, admin, &problem);
+    if( created != TORIRSSERVER_CREATE_OK )
+    {
+        memset(password, 0, sizeof(password));
+        if( created == TORIRSSERVER_CREATE_EXISTS )
+            *out_message = "There is already a player account by that name.";
+        else if( problem )
+            *out_message = problem;
+        else
+            *out_message = "The account could not be saved.";
+        return created == TORIRSSERVER_CREATE_WRITE_FAILED ? WEBSITE_GATE_LINK_FAILED
+                                                            : WEBSITE_GATE_LINK_REFUSED;
+    }
+    linked = AccountClient_Link(username, password, owner, token);
+    memset(password, 0, sizeof(password));
+    if( linked != TORIRSSERVER_LINK_OK )
+    {
+        fprintf(stderr, "website_server: gate: '%s' was created for '%s' but not linked (%d)\n",
+                username, owner, (int)linked);
+        *out_message = "The account was made, but the link could not be saved.";
+        return WEBSITE_GATE_LINK_FAILED;
+    }
+    WebsiteLinks_Put(gate->links, owner, username, token, (long long)time(NULL));
+    memset(token, 0, sizeof(token));
+    /* Staff are not ranked: off the hiscores from the start, not at the first
+     * login. A silent account server only delays it to that login. */
+    if( admin && HiscoresClient_SetRanked(username, 0) < 0 )
+        fprintf(stderr, "website_server: gate: the account server did not answer; the hiscores drop "
+                        "'%s' at its first login\n",
+                username);
+    fprintf(stderr, "website_server: gate: player account '%s'%s created for '%s'\n", username,
+            admin ? " (admin)" : "", owner);
+    return WEBSITE_GATE_LINK_LINKED;
+}
+
+enum WebsiteGateLinkResult
+WebsiteGate_AssignPlayer(
+    struct WebsiteGate* gate,
+    char const* login,
+    char const* player_key,
+    char const** out_message)
+{
+    char names[WEBSITE_LINKS_LIST_MAX][WEBSITE_LINKS_NAME_MAX];
+    char display[WEBSITE_LINKS_NAME_MAX];
+    char token[TORIRSSERVER_LINK_TOKEN_HEX + 1];
+    char owner[64];
+    enum ToriRSServerLinkResult result;
+    long long now = (long long)time(NULL);
+
+    assert(gate);
+    assert(login);
+    assert(player_key);
+    assert(out_message);
+    *out_message = NULL;
+    if( !player_name_ok(player_key) )
+    {
+        *out_message = "Choose a player account.";
+        return WEBSITE_GATE_LINK_REFUSED;
+    }
+    if( AccountClient_ManagedBy(player_key, owner, sizeof(owner)) == 1 &&
+        strcmp(owner, login) == 0 )
+    {
+        *out_message = "That account is already linked to that login.";
+        return WEBSITE_GATE_LINK_REFUSED;
+    }
+    if( WebsiteLinks_List(gate->links, login, names, WEBSITE_LINKS_LIST_MAX) >=
+        WEBSITE_LINKS_LIST_MAX )
+    {
+        *out_message = "That login holds as many player accounts as it can. Unlink one first.";
+        return WEBSITE_GATE_LINK_REFUSED;
+    }
+    if( !WebsiteLinks_Display(gate->links, player_key, display, sizeof(display)) )
+        snprintf(display, sizeof(display), "%s", player_key);
+    result = AccountClient_Assign(player_key, login, token);
+    if( result == TORIRSSERVER_LINK_NO_ACCOUNT )
+    {
+        *out_message = "There is no player account by that name.";
+        return WEBSITE_GATE_LINK_REFUSED;
+    }
+    if( result != TORIRSSERVER_LINK_OK )
+    {
+        *out_message = "The link could not be saved.";
+        return WEBSITE_GATE_LINK_FAILED;
+    }
+    /* The links row is keyed by player: this replaces the old owner's. */
+    WebsiteLinks_Put(gate->links, login, display, token, now);
+    memset(token, 0, sizeof(token));
+    ToriRSServer_OAuthRevokeAccount(display, now);
+    return WEBSITE_GATE_LINK_LINKED;
+}
+
+/* "<name>=<value>" from a Cookie header: the first pair named `name` whose
+ * value is a good ticket. */
+static int
+cookie_ticket(
+    struct HttpRequest const* req,
+    char const* name,
+    char* out_name,
+    size_t cap)
+{
+    int len = 0;
+    char const* cookie = HttpRequest_Header(req, "Cookie", &len);
+    size_t want = strlen(name);
+    size_t at = 0;
+    long long now = (long long)time(NULL);
+
+    if( !cookie )
+        return 0;
+    while( at < (size_t)len )
+    {
+        size_t end;
+
+        while( at < (size_t)len && (cookie[at] == ' ' || cookie[at] == ';') )
+            at++;
+        end = at;
+        while( end < (size_t)len && cookie[end] != ';' )
+            end++;
+        if( end - at > want + 1 && memcmp(cookie + at, name, want) == 0 &&
+            cookie[at + want] == '=' &&
+            ToriRSServer_GateTicketCheck(cookie + at + want + 1, end - at - want - 1, now,
+                                         out_name, cap) )
+            return 1;
+        at = end;
+    }
+    return 0;
+}
+
+int
+WebsiteGate_StaffBehind(
+    struct HttpRequest const* req,
+    char* out_staff,
+    size_t cap)
+{
+    assert(req);
+    assert(out_staff);
+    out_staff[0] = '\0';
+    return cookie_ticket(req, WEBSITE_GATE_STAFF_COOKIE, out_staff, cap);
+}
+
+/* `cookie_name`=<ticket for `name`, good for `seconds`> into `out`. */
+static void
+ticket_cookie(
+    char* out,
+    size_t cap,
+    char const* cookie_name,
+    char const* name,
+    long long seconds)
+{
+    char ticket[TORIRSSERVER_GATE_TICKET_MAX];
+
+    ToriRSServer_GateTicketMint(name, (long long)time(NULL) + seconds, ticket);
+    snprintf(out, cap, "%s=%s; Path=/; Max-Age=%lld; HttpOnly; Secure; SameSite=Lax", cookie_name,
+             ticket, seconds);
+    memset(ticket, 0, sizeof(ticket));
+}
+
+void
+WebsiteGate_SignInAs(
+    struct HttpResponse* res,
+    char const* staff,
+    char const* login)
+{
+    assert(res);
+    assert(staff);
+    assert(login);
+    ticket_cookie(res->set_cookie, sizeof(res->set_cookie), TORIRSSERVER_GATE_COOKIE, login,
+                  WEBSITE_GATE_SIGN_IN_AS_SECONDS);
+    ticket_cookie(res->set_cookie2, sizeof(res->set_cookie2), WEBSITE_GATE_STAFF_COOKIE, staff,
+                  WEBSITE_GATE_SIGN_IN_AS_SECONDS);
+    fprintf(stderr, "website_server: gate: staff '%s' signed in as '%s'\n", staff, login);
+    res->status = 303;
+    snprintf(res->location, sizeof(res->location), "/account");
+}
+
+void
+WebsiteGate_SignInBack(
+    struct HttpResponse* res,
+    char const* staff,
+    char const* login)
+{
+    assert(res);
+    assert(staff);
+    assert(login);
+    ticket_cookie(res->set_cookie, sizeof(res->set_cookie), TORIRSSERVER_GATE_COOKIE, staff,
+                  TORIRSSERVER_GATE_TICKET_SECONDS);
+    snprintf(res->set_cookie2, sizeof(res->set_cookie2),
+             WEBSITE_GATE_STAFF_COOKIE "=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax");
+    fprintf(stderr, "website_server: gate: staff '%s' back from '%s'\n", staff, login);
+    res->status = 303;
+    snprintf(res->location, sizeof(res->location), "/admin/users");
+}
+
+static void
+handle_account_link(
+    struct WebsiteGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res,
+    char const* who)
+{
+    char username[WEBSITE_GATE_FIELD_MAX] = "";
+    char password[WEBSITE_GATE_FIELD_MAX] = "";
+    char const* message = NULL;
+    enum WebsiteGateLinkResult result;
+
+    if( !form_field(req, "username", username, sizeof(username)) ||
+        !form_field(req, "password", password, sizeof(password)) )
+    {
+        memset(password, 0, sizeof(password));
+        oauth_error(res, TORIRSSERVER_OAUTH_INVALID_REQUEST, "username and password are required");
+        return;
+    }
+    result = WebsiteGate_LinkPlayer(gate, who, username, password, sizeof(password), &message);
+    if( result != WEBSITE_GATE_LINK_LINKED )
+    {
+        oauth_error(res,
+                    result == WEBSITE_GATE_LINK_FAILED ? TORIRSSERVER_OAUTH_SERVER_ERROR
+                                                  : TORIRSSERVER_OAUTH_INVALID_GRANT,
+                    message);
+        return;
+    }
+    account_play_answer(gate, res, who, username);
+}
+
+/* POST /account/play: a linked account's one-time login, on this session. */
+static void
+handle_account_play(
+    struct WebsiteGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res,
+    char const* who)
+{
+    char player[WEBSITE_GATE_FIELD_MAX];
+
+    if( !form_field(req, "player", player, sizeof(player)) || !player_name_ok(player) )
+    {
+        oauth_error(res, TORIRSSERVER_OAUTH_INVALID_REQUEST, "player is required");
+        return;
+    }
+    account_play_answer(gate, res, who, player);
+}
+
+/* 1 when `req` was an /account route and `res` is its answer. POST only: each
+ * either changes the account or mints a login. */
+static int
+handle_account(
+    struct WebsiteGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res,
+    char const* who)
+{
+    int is_post = strcmp(req->method, "POST") == 0;
+
+    if( path_is(req->path, "/account/players") )
+    {
+        if( is_post )
+            handle_account_players(gate, res, who);
+        else
+            res->status = 405;
+    }
+    else if( path_is(req->path, "/account/link") )
+    {
+        if( is_post )
+            handle_account_link(gate, req, res, who);
+        else
+            res->status = 405;
+    }
+    else if( path_is(req->path, "/account/play") )
+    {
+        if( is_post )
+            handle_account_play(gate, req, res, who);
+        else
+            res->status = 405;
+    }
+    else
+        return 0;
+    return 1;
+}
+
+/* 1 when `req` was an OAuth route and `res` is its answer. */
+static int
+handle_oauth(
+    struct WebsiteGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    if( path_is(req->path, "/oauth/token") )
+        handle_token(gate, req, res);
+    else if( path_is(req->path, "/oauth/authorize") )
+        handle_authorize(gate, req, res);
+    else if( path_is(req->path, "/oauth/revoke") )
+        handle_revoke(req, res);
+    else if( path_is(req->path, "/game/play") )
+        handle_play(req, res);
+    else if( path_is(req->path, "/.well-known/oauth-authorization-server") )
+        handle_metadata(req, res);
+    else
+        return 0;
+    return 1;
+}
+
+void
+WebsiteGate_Init(
+    struct WebsiteGate* gate,
+    char const* landing)
+{
+    assert(gate);
+    assert(landing);
+    memset(gate, 0, sizeof(*gate));
+    snprintf(gate->landing, sizeof(gate->landing), "%s", landing);
+    ToriRSServer_GateKeyLoad();
+    ToriRSServer_OAuthKeyLoad();
+    {
+        char path[1024];
+
+        snprintf(path, sizeof(path), "%s/gate/links.sqlite", ToriRSServer_SaveDir());
+        gate->links = WebsiteLinks_Open(path);
+    }
+}
+
+void
+WebsiteGate_Close(struct WebsiteGate* gate)
+{
+    assert(gate);
+    WebsiteLinks_Close(gate->links);
+    gate->links = NULL;
+}
+
+int
+WebsiteGate_Handle(
+    struct WebsiteGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    char who[64];
+    int is_get;
+    int is_post;
+
+    assert(gate);
+    assert(req);
+    assert(res);
+    is_get = strcmp(req->method, "GET") == 0 || strcmp(req->method, "HEAD") == 0;
+    is_post = strcmp(req->method, "POST") == 0;
+
+    if( path_is(req->path, "/login") )
+    {
+        if( is_post )
+            handle_login(gate, req, res);
+        else if( is_get )
+        {
+            char next[64] = "";
+
+            WebsiteGate_QueryField(req, "next", next, sizeof(next));
+            if( !login_next_ok(next) )
+                next[0] = '\0';
+            if( signed_in(req, who, sizeof(who)) )
+            {
+                res->status = 303;
+                snprintf(res->location, sizeof(res->location), "%s", next[0] ? next : "/");
+            }
+            else
+                login_page_next(res, 200, NULL, NULL, next);
+        }
+        else
+            res->status = 405;
+        return 1;
+    }
+    if( strncmp(req->path, "/invite/", 8) == 0 )
+    {
+        if( is_get || is_post )
+            handle_invite(gate, req, res);
+        else
+            res->status = 405;
+        return 1;
+    }
+    if( path_is(req->path, "/logout") )
+    {
+        snprintf(res->set_cookie, sizeof(res->set_cookie),
+                 TORIRSSERVER_GATE_COOKIE "=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax");
+        snprintf(res->set_cookie2, sizeof(res->set_cookie2),
+                 WEBSITE_GATE_STAFF_COOKIE "=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax");
+        res->status = 303;
+        snprintf(res->location, sizeof(res->location), "/login");
+        return 1;
+    }
+
+    /* A device's sign-in and its refreshes: how it gets a ticket, so before
+     * the ticket check. */
+    if( path_is(req->path, "/device/token") )
+    {
+        handle_device_token(gate, req, res);
+        return 1;
+    }
+    if( path_is(req->path, "/device/revoke") )
+    {
+        handle_device_revoke(req, res);
+        return 1;
+    }
+    if( path_is(req->path, "/device/authorize") )
+    {
+        handle_device_authorize(gate, req, res);
+        return 1;
+    }
+    /* The approval page, signed out: through the sign-in form and back. */
+    if( is_get && path_is(req->path, "/device") && !signed_in(req, who, sizeof(who)) )
+    {
+        char code[16] = "";
+
+        WebsiteGate_QueryField(req, "code", code, sizeof(code));
+        for( char* c = code; *c; c++ )
+            *c = isalnum((unsigned char)*c) || *c == '-' ? (char)toupper((unsigned char)*c) : 'X';
+        res->status = 303;
+        snprintf(res->location, sizeof(res->location), "/login?next=%%2Fdevice%%3Fcode%%3D%s", code);
+        return 1;
+    }
+
+    /* The home-screen icon and the manifest that lists the others, to anyone.
+     * "Add to Home Screen" fetches them without the gate's cookie, so behind
+     * the gate a phone got the sign-in page and drew a letter instead of the
+     * icon. Static files from the page's root, nothing else. */
+    if( is_get && (path_is(req->path, "/apple-touch-icon.png") ||
+                   path_is(req->path, "/site.webmanifest") ||
+                   path_is(req->path, "/icon-192.png") ||
+                   path_is(req->path, "/icon-512.png") ||
+                   path_is(req->path, "/icon-maskable-512.png")) )
+        return 0;
+
+    if( !signed_in(req, who, sizeof(who)) )
+    {
+        if( is_get )
+        {
+            res->status = 303;
+            snprintf(res->location, sizeof(res->location), "/login");
+        }
+        else
+            res->status = 401;
+        return 1;
+    }
+    if( path_is(req->path, "/device") )
+    {
+        if( is_get )
+            handle_device_page(gate, req, res, who);
+        else
+            res->status = 405;
+        return 1;
+    }
+    if( path_is(req->path, "/device/approve") )
+    {
+        if( is_post )
+            handle_device_approve(gate, req, res, who);
+        else
+            res->status = 405;
+        return 1;
+    }
+    /* Player-account OAuth, after the gate: a token is only ever minted for a
+     * browser (or client) that already holds the gate's ticket. */
+    if( handle_oauth(gate, req, res) )
+        return 1;
+    /* The web login's own player accounts: `who` is the ticket's login, so a
+     * session only ever reaches the accounts linked to it. */
+    if( handle_account(gate, req, res, who) )
+        return 1;
+    /* The account site: the bare "/" and its pages. The game is the landing
+     * URL ("/?args=..."), which is not the bare path and falls through to the
+     * static files. */
+    if( WebsiteSite_Handle(gate, who, req, res) )
+        return 1;
+    return 0;
+}

@@ -16,7 +16,7 @@
  *
  * Here:
  *
- *   io_server (`--gate`, src/ioserver/io_gate.c), behind the gate's cookie:
+ *   io_server (`--gate`, src/websiteserver/website_gate.c), behind the gate's cookie:
  *     POST /oauth/token      grant_type = authorization_code (PKCE S256),
  *                            password, refresh_token          RFC 6749 / 7636
  *     GET|POST /oauth/authorize   a player-account login page, then a
@@ -98,11 +98,11 @@ struct ToriRSServerOAuthTokens
 /**
  * Where the grants ask about player accounts. Unset, the record functions in
  * torirs_server_auth.h, reading the files here -- the embedded world and the
- * tests, which have no player account server. io_server and a world that
- * checks passwords point it at the player account server's client
- * (playerserver/player_client.h), the records' one owner. A table of three
+ * tests, which have no account server. io_server and a world that
+ * checks passwords point it at the account server's client
+ * (accountserver/account_client.h), the records' one owner. A table of three
  * calls rather than a link to the client, because this file is also built
- * into the client and the browser, which have no player account server to
+ * into the client and the browser, which have no account server to
  * ask.
  */
 struct ToriRSServerOAuthAccounts

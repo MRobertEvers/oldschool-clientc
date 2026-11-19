@@ -1,6 +1,8 @@
-# The servers a browser run needs
+# The servers
 
-> Build them together: `make -C src servers`. Both web targets (`web`,
+> Build them together: `make -C src servers` (the IO server, the website,
+> `js5_server`, the account and hiscores servers, and `torirsd`, which starts
+> them; `torirsserver` is its own target). Both web targets (`web`,
 > `web-debug`) depend on it, so a build that produces the module also produces
 > the processes that feed it.
 
@@ -46,6 +48,146 @@ held no cache and every read was a `POST /io` to io_server, was removed (see
 the note in `src/platform/platform.mk`). io_server still answers `POST /io`
 and `make -C src test-io-wire` still checks the codec, but no client build
 sends to it.
+
+---
+
+## The five servers
+
+| server | binary | what it owns | where |
+| --- | --- | --- | --- |
+| game | `torirsserver` | the world | the game port (43594) |
+| account | `account_server` | player accounts -- credentials, flags, saves, display names -- and the lock that says which world has each character (the login server) | `/svc/account`, 127.0.0.1:8091 |
+| hiscores | `hiscores_server` | the characters' records: hiscores, experience history, sessions, the adventure log | `/svc/hiscores`, 127.0.0.1:8093 |
+| website | `website_server` | the public front door: the sign-in gate and the **user** accounts behind it (web logins, invites, links), OAuth, the account site, staff pages, the player editor | public :8088; `/svc/users` |
+| IO | `io_server` | the raw client page and its assets, manifests, the web client's IO, the black box, plugins, the map editor's pipe, and JS5 (`--js5-port`) | behind the website, 127.0.0.1:8089; alone :8088 |
+
+**Each is a handler, so any can run inside another's process** -- a world
+hosts the account server when `TORIRS_ACCOUNT_SERVER` names none;
+`website_server --host io|hiscores|account` hosts those -- or on its own, over
+HTTP. Between processes every request is **signed**: an HMAC-SHA256 of the
+method, the path, the time and the body's SHA-256, under the key all five
+hold (`TORIRS_SERVICE_KEY`, else `<saves>/service.key`, made on first use),
+sent as `X-Torirs-Service` and checked within two minutes
+(`src/service/service_auth.h`). An unsigned request to a `/svc/` route is a
+401, so the internal servers are as closed on `--bind-all` as on 127.0.0.1;
+servers on other machines are given the same key. A call within one process
+is direct and needs none (`src/service/service_link.h`,
+`src/service/service_host.h`).
+
+Clients find the others with `TORIRS_ACCOUNT_SERVER`, `TORIRS_HISCORES_SERVER`,
+`TORIRS_WEBSITE_SERVER` and `TORIRS_IO_SERVER` (`host:port`), defaulting to
+127.0.0.1 and the ports above.
+
+### How they talk
+
+```
+  browser ──HTTP──▶ website ──signed──▶ io          the page, its assets, the cache
+     │                 ├────signed──▶ account       sign-in links, OAuth, the player editor
+     │                 └────signed──▶ hiscores      the hiscores and player pages
+     │
+     └──WebSocket──▶ game ──signed──▶ account       each login takes the character and
+                       │                            its save; each logout hands it back
+                       └──signed, never waited on──▶ hiscores   stats, sessions, the log
+
+  torirsserver --account …  (an operator's command, not the running world)
+                       ──signed──▶ account, website (web logins, invites), hiscores (staff unranked)
+```
+
+- **A browser only ever reaches the website and the game.** The website
+  answers the gate, the account site and OAuth itself and forwards the rest
+  (the client page, its files, `/boot`, the cache, the black box) to the IO
+  server, passing `If-None-Match` and keeping the answer's type, `ETag` and
+  `Location` (`ServiceLink_Forward`). The IO server behind it
+  (`--behind-website`) answers signed requests only.
+- **A user account is not a player account.** A web login is the website's
+  (`<saves>/website.sqlite`): it opens the site and holds the player accounts
+  linked to it. A player account is the account server's (`<saves>/accounts/`):
+  it is what you play as.
+- **A character's save belongs to one world at a time.** A login takes it from
+  the account server, which notes which world has it, under which boot and
+  token (`account_leases.journal`). The world holds it in
+  `<saves>/worlds/<world>/` and saves there while the player plays; the
+  logout hands it back, and only then is the account server's copy written. A
+  world that stops hands back every save it holds; one that crashed recovers
+  them at its next start. `--account release <name>` frees a character from a
+  world that is never coming back.
+- **The hiscores are told, never asked.** The game spools what happened
+  (`hiscores_spool.tsv`) and sends it in order; a hiscores server that is down
+  loses nothing, and the game never waits for it.
+
+### Starting them: one call, `torirsd`
+
+```sh
+torirsd torirsd.ini            # start every server; run until stopped
+torirsd --check torirsd.ini    # print what would run, in order
+```
+
+`torirsd` (`src/daemon/torirsd.c`) starts a deployment's servers from one
+file, and they come up and go down together:
+
+- **Up in order.** Each `[server.<name>]`, in the file's order, must answer on
+  its `ready` port before the next starts: account and hiscores, then IO, then
+  the website, then the game, so nothing starts asking a server that is not
+  there yet. If any port already answers before anything starts (another
+  torirsd, or a server left from a crashed set), nothing starts.
+- **Down in reverse.** SIGTERM or SIGINT stops the game first, so its logouts
+  hand the saves back while the account server can still take them, and the
+  account server last. A server that does not stop within `stop_timeout_ms`
+  is killed.
+- **Down together.** When any server exits on its own, the rest are stopped
+  the same way and torirsd exits 1, so systemd's `Restart=always` (or
+  `supervise.ps1`) restarts the whole set, never one server under the others.
+
+Each server's output goes to `<logs>/<name>.log`. Each runs in its own process
+group, so a Ctrl-C reaches torirsd alone; under systemd the unit says
+`KillMode=mixed` for the same reason.
+
+```ini
+[torirsd]
+logs = logs
+start_timeout_ms = 180000        ; per server -- the game loads its content
+stop_timeout_ms = 90000          ; per server -- the game saves everyone
+
+[env]                            ; set for every server
+TORIRSSERVER_SAVES = saves
+TORIRS_ACCOUNT_SERVER = 127.0.0.1:8091
+TORIRS_HISCORES_SERVER = 127.0.0.1:8093
+TORIRS_IO_SERVER = 127.0.0.1:8089
+TORIRS_WEBSITE_SERVER = 127.0.0.1:8088
+
+[server.account]
+run = bin/account_server
+args = --port 8091               ; split at spaces; "double quotes" keep one
+ready = 8091                     ; up once 127.0.0.1:<port> answers
+
+[server.hiscores]
+run = bin/hiscores_server
+args = --port 8093
+ready = 8093
+
+[server.io]
+run = bin/io_server
+args = --behind-website --port 8089 --manifest manifests/manifest_osrs242.ini --root build-web --boot-root .
+ready = 8089
+
+[server.website]
+run = bin/website_server
+args = --port 8088 --gate "/?args=--manifest,manifests/manifest_latest.ini&ws=ws" --io 127.0.0.1:8089
+ready = 8088
+
+[server.game]
+run = bin/torirsserver
+args = 43594 --rev osrs242 --gate
+ready = 43594
+env = TORIRSSERVER_WORLD=world-1 ; this server only; repeatable
+```
+
+An unknown key is an error, not a skipped line. The package writes its own
+`torirsd.ini` (`build_osrs239_package.py`), and its `run.sh`, `run.cmd`,
+`supervise.ps1` and the NUC's systemd unit each run just `bin/torirsd
+torirsd.ini`. Fewer processes are a shorter file: `website_server --host
+io --host hiscores --host account` and a game with no `TORIRS_ACCOUNT_SERVER`
+are two servers.
 
 ---
 
@@ -236,10 +378,10 @@ python tools/deploy/build_osrs239_package.py --skip-build   # restage what is bu
 ```
 
 `tools/deploy/build_osrs239_package.py` builds the script pack (if stale), the
-web client and both servers, then stages `bin/`, `build-web/`,
+web client and the five servers with `torirsd`, then stages `bin/`, `build-web/`,
 `cache.osrs239/`, the slice of `OSRS-Content/osrs-content` torirsserver
 opens (not the 11 GB selftest corpus, and only the `.jm2` maps), the manifest
-rewritten for that layout, `revconfig/`, `script/` and start scripts, and zips
+rewritten for that layout, `revconfig/`, `script/`, `torirsd.ini` and start scripts, and zips
 it. The servers are native binaries, so run it on the OS that will host the
 package. The zip's README covers running it; `install-windows-task.ps1`
 registers a startup task and the firewall rules on Windows.
@@ -260,15 +402,21 @@ and revconfig); the default is still `osrs239`.
 
 ## The sign-in gate
 
-A world on the internet runs both servers with `--gate`, and then **nothing on
-either answers without the gate's cookie**:
+A world on the internet runs the game and the website with `--gate`, and then
+**nothing answers without the gate's cookie**:
 
 ```sh
-TORIRSSERVER_SAVES=saves torirsserver 43594 --rev osrs241 --gate
-TORIRSSERVER_SAVES=saves io_server --manifest manifests/manifest_osrs242.ini \
-    --root build-web --boot-root . --port 8088 \
-    --gate '/?args=--manifest,manifests/manifest_latest.ini&ws=ws'
+TORIRSSERVER_SAVES=saves torirsserver 43594 --rev osrs242 --gate
+TORIRSSERVER_SAVES=saves website_server --port 8088 \
+    --gate '/?args=--manifest,manifests/manifest_latest.ini&ws=ws' \
+    --host io --manifest manifests/manifest_osrs242.ini --root build-web --boot-root .
 ```
+
+`--host io` runs the IO server inside the website. Alone, it is
+`io_server --behind-website --port 8089 --manifest ...` and the website is
+started with `--io 127.0.0.1:8089`: it then forwards every signed-in request
+it does not answer itself, signed, and the IO server answers nothing that is
+not.
 
 Land on `manifest_latest.ini`, never on a revision's manifest: the package
 writes it as a copy of `manifest_<world>.ini`, so the landing, a bookmark and a
@@ -278,12 +426,12 @@ manifest's name, so the new revision still gets its own cache.
 
 | server | without a good cookie |
 | --- | --- |
-| io_server, any route | GET: `303 /login`; anything else: `401` |
+| website_server, any route | GET: `303 /login`; anything else: `401` |
 | torirsserver, WebSocket upgrade (game and JS5) | `403 Forbidden`, closed |
 | torirsserver, raw TCP | closed at the first byte (no cookie can ride on it) |
 
-io_server serves the gate's own pages, plain HTML with nothing else loaded:
-`/login`, `/invite/<code>` and `/logout` (`src/ioserver/io_gate.c`). Signing
+The website serves the gate's own pages, plain HTML with nothing else loaded:
+`/login`, `/invite/<code>` and `/logout` (`src/websiteserver/website_gate.c`). Signing
 in sets `torirs_gate=<name>.<expiry>.<hmac>` (30 days, `HttpOnly`,
 `SameSite=Lax`, `Secure` when `X-Forwarded-Proto: https`) and lands on the
 URL given to `--gate`. torirsserver reads the same cookie off the upgrade
@@ -291,8 +439,8 @@ request; the two processes share only the key, `<saves>/gate/gate.key`, which
 whichever starts first writes.
 
 **Two accounts, unrelated.** The gate's login is a *web login*, kept by the
-account server (below) with the invites, and made only from an invite or by
-the operator:
+website (`<saves>/website.sqlite`, `src/websiteserver/website_users_db.h`)
+with the invites, and made only from an invite or by the operator:
 
 ```sh
 TORIRSSERVER_SAVES=saves TORIRSSERVER_GATE_URL=https://torirs.example.com \
@@ -335,9 +483,9 @@ A development server lets everyone cheat, since a name proves nothing there.
 
 ### Player accounts over OAuth: Play Now
 
-Behind the gate, io_server is also the account server for PLAYER accounts
-(`src/torirsserver/torirs_server_oauth.h`), and every endpoint needs the gate
-cookie like everything else:
+Behind the gate, the website also serves OAuth for PLAYER accounts
+(`src/torirsserver/torirs_server_oauth.h`, asking the account server), and
+every endpoint needs the gate cookie like everything else:
 
 | route | what it does |
 | --- | --- |
@@ -418,7 +566,7 @@ refuses its password there.
 
 An app that is not a browser on the gate's page -- the Android app, the
 RuneLite client -- gets its ticket from io_server itself, before the ticket
-check (`src/ioserver/io_gate.c`):
+check (`src/websiteserver/website_gate.c`):
 
 | route | what it does |
 | --- | --- |
@@ -445,12 +593,12 @@ and through the proxy (`osrs242-runelite-public`) it first gets an IaP device
 session the same way from auth.mrobertevers.com
 (mrobertevers-proxy README, "Device codes").
 
-`make -C src test-io-gate-device` runs the whole exchange through
-`IoGate_Handle`.
+`make -C src test-website-gate-device` runs the whole exchange through
+`WebsiteGate_Handle`.
 
 ### The account site
 
-Signed in, the gate lands on its own small website (`src/ioserver/io_site.c`)
+Signed in, the gate lands on its own small website (`src/websiteserver/website_site.c`)
 rather than straight in the game. It is server-rendered HTML with the styling
 inline, and it loads nothing else: no script, no image, no font. The game is
 still the landing URL given to `--gate` (`/?args=...`), which every page's
@@ -469,7 +617,7 @@ still the landing URL given to `--gate` (`/?args=...`), which every page's
 | `/admin/replay?f=<account>/<file>` | staff only: the game page in replay mode (`/?replay=...` on `manifests/manifest_replay.ini`, JS5 over the game socket), with play/pause, Fast, and a tick scrubber over its `ToriRS_Replay` controls |
 
 **Creating** (`POST /account/create`, `/admin/users/create`;
-`IoGate_CreatePlayer`) writes the same record `torirsserver --account create`
+`WebsiteGate_CreatePlayer`) writes the same record `torirsserver --account create`
 does, under the same name and password rules, then links it to the login at
 once (record `managed_by` + `link_hash`, the token in `links.sqlite`). It
 refuses a name that has a record, a name with a character save but no record
@@ -482,21 +630,21 @@ anyone else is a 403); an admin account is taken off the hiscores at creation.
 
 Staff pages sit under one **Admin** tab with their own row: Users, Players,
 Recordings. **Players** (`POST /admin/players/link`, `/admin/players/unlink`;
-`IoGate_AssignPlayer`, `ToriRSServer_AuthAssign`) links an existing account
+`WebsiteGate_AssignPlayer`, `ToriRSServer_AuthAssign`) links an existing account
 the way `/account/link` does -- new token, `managed_by`, links row, refresh
 tokens revoked -- but without its password, and from whatever login holds it
 now: the old owner's token is dead and its links row is replaced (the table is
 keyed by player). The Play Now card keeps the spelling the account was last
 linked under.
 
-**The player editor** (`/admin/players/<name>`, `src/ioserver/io_site_editor.c`;
+**The player editor** (`/admin/players/<name>`, `src/websiteserver/website_site_editor.c`;
 the page script `src/ioserver/site/player_editor.{js,css}`) shows one player
 account as the game does -- the skills tab, the 28-slot backpack, the worn
 items on the equipment layout, the bank, every other `[container.<inv>]`, the
 varps by name -- and edits it field by field (`POST .../set`, one `k`/`v` per
 edit). Where the account is, and how an edit lands, depends on whether the
 player is logged in, which io_server asks the game's control link
-(`src/ioserver/io_ctl.c`, docs/MAPED_IMPLEMENTATION.md section 4; port
+(`src/websiteserver/website_ctl.c`, docs/MAPED_IMPLEMENTATION.md section 4; port
 `TORIRS_GAME_PORT`, default 43594):
 
 - **Offline**: the save `<saves>/<name>.ini` is the account. It is edited with
@@ -546,43 +694,39 @@ read at each login. Staff is a web login with a linked player account that has
 rsprox-index read, and the native client plays one with
 `--manifest manifests/manifest_osrs242_replay.ini --replay <file>`.
 
-### The account server
+### The hiscores server
 
 ```sh
-TORIRSSERVER_SAVES=saves ./src/build_opt/account_server [--port 8091]   # make -C src account-server
+TORIRSSERVER_SAVES=saves ./src/build_opt/hiscores_server [--port 8093]   # make -C src hiscores-server
 ```
 
-One process owns `<saves>/accounts.sqlite` (`src/accountserver/`): web
-logins, invites, the hiscores, experience history, sessions and the adventure
-log. It listens on 127.0.0.1 only -- it checks passwords and takes records on
-no credential of its own -- and answers lines of tab-separated fields, so curl
-reads it (`account_server.h` lists the routes). Everything else is its client:
+One process owns `<saves>/hiscores.sqlite` (`src/hiscoresserver/`): the
+hiscores, experience history, sessions and the adventure log. Its first open
+copies its rows out of `<saves>/accounts.sqlite`, the database it was split
+from (the web logins in it went to the website's `website.sqlite`), or with
+none, out of the saves and history files before it. Its routes are
+`/svc/hiscores`, signed:
 
 - **The game server sends and never waits.** A world that checks passwords
   queues a record when a login finishes, once a minute per player when the
   stats moved (compared, not hooked, so every writer of experience is seen), at
   the logout save, and for each `adventure_log` line content writes (a
   completed quest, from `~quest_complete_rewards_at`). The socket host appends
-  them to `<saves>/account_spool.tsv` once a tick (buffered, never synced) and
-  sends them from its select loop on a non-blocking socket
-  (`torirs_server_accountlink.h`). The account server applies each record once
-  by its sequence number and acknowledges it; the spool keeps whatever is not
-  acknowledged, across restarts of either side, so an account server that is
-  down costs the world nothing and loses nothing. The game server links no
+  them to `<saves>/hiscores_spool.tsv` once a tick (buffered, never synced) and
+  sends them, signed, from its select loop on a non-blocking socket
+  (`torirs_server_hiscoreslink.h`). The hiscores server applies each record
+  once by its sequence number and acknowledges it; the spool keeps whatever is
+  not acknowledged, across restarts of either side, so a hiscores server that
+  is down costs the world nothing and loses nothing. The game server links no
   sqlite.
-- **io_server asks** (`account_client.h`): the gate's sign-in and invites, and
-  one request per site page -- a player page is a single view with the ranks,
-  the gains, the chart, the sessions and the log. When the account server does
-  not answer, the gate and the site say so (503), never "wrong password".
-- **`torirsserver --account`** asks it for web logins, invites and the admin
-  flag's effect on the hiscores; player accounts are the player account
-  server's (below).
+- **The website asks** (`hiscores_client.h`): one request per site page -- a
+  player page is a single view with the ranks, the gains, the chart, the
+  sessions and the log. When the hiscores server does not answer, the site says
+  so (503), never "no such player".
+- **`torirsserver --account admin`** tells it at once: staff are not ranked.
 
-`TORIRS_ACCOUNT_SERVER=host:port` points the game server and io_server
-elsewhere (default 127.0.0.1:8091); `TORIRS_WORLD_NAME` names a world's
-records (default `world`). The database's first open imports the files it
-replaced; schema 1 (when the game server opened it itself) is upgraded in
-place.
+A world's records go under its name -- `TORIRSSERVER_WORLD`, the name it
+takes leases under at the account server (default: the host name).
 
 A session dropped before its scene loaded records nothing. The site's reads
 are prepared queries -- a page of the hiscores is a range of one index, a rank
@@ -596,21 +740,20 @@ stat's row for each day it changed, so a gain over a day, a week or a month is
 one lookup per skill. Session history is private to the login its account is
 linked to.
 
-### The player account server
+### The account server (the login server)
 
 ```sh
-TORIRSSERVER_SAVES=saves ./src/build_opt/player_server [--port 8092]   # make -C src player-server
+TORIRSSERVER_SAVES=saves ./src/build_opt/account_server [--port 8091]   # make -C src account-server
 ```
 
-A different server from the one above, on purpose. A **user account** is a web
-login (the account server's): a bucket that player accounts are linked into. A
-**player account** is a character: its credential (`<saves>/accounts/<name>.ini`
--- password, admin and record flags, the web login it is linked to), its save
-(`<saves>/<name>.ini`) and its display name (`<saves>/names/`). The player
-account server (`src/playerserver/player_server.h`) is the one owner of all
-three: every world's login and logout, io_server's gate, site and player
-editor, the OAuth grants and `torirsserver --account` ask it
-(`player_client.h`). The two servers never talk to each other.
+A **user account** is a web login, the website's: a bucket that player
+accounts are linked into, nothing a world logs in with. A **player account**
+is a character: its credential (`<saves>/accounts/<name>.ini` -- password,
+admin and record flags, the web login it is linked to), its save
+(`<saves>/<name>.ini`) and its display name (`<saves>/names/`). The account
+server (`src/accountserver/account_server.h`) is the one owner of all three:
+every world's login and logout, the website's gate, site and player editor,
+the OAuth grants and `torirsserver --account` ask it (`account_client.h`).
 
 **Who has the save.** A world's login takes the character and is handed the
 server's copy of its save -- or is refused with Jagex's response 5 ("Your
@@ -633,21 +776,21 @@ lapse:
 - **A return the server does not answer** stays on the world's disk and is
   offered again every 15 s; the character stays the world's meanwhile.
 
-Leases survive a restart of the server (`<saves>/player_leases.journal`),
-and the saves directory is locked while one runs (`<saves>/player_server.lock`).
+Leases survive a restart of the server (`<saves>/account_leases.journal`),
+and the saves directory is locked while one runs (`<saves>/account_server.lock`).
 An unanswered check refuses the login with response 8 ("Login server offline").
 
 Where it runs:
 
 - **One world:** nothing to start. A world that checks passwords and names no
-  server hosts one itself, on a thread, serving 127.0.0.1:8092 for io_server
-  and `--account` beside it.
-- **Several worlds on one saves directory:** run `player_server`, and start
-  every world with `TORIRS_PLAYER_SERVER=127.0.0.1:8092` and its own
+  server hosts one itself, serving `/svc/account` on 127.0.0.1:8091 from a
+  thread for the website and `--account` beside it.
+- **Several worlds on one saves directory:** run `account_server`, and start
+  every world with `TORIRS_ACCOUNT_SERVER=127.0.0.1:8091` and its own
   `TORIRSSERVER_WORLD` (the default is `<host>:<port>`). A world that names no
   server finds the directory locked and refuses to start rather than keep a
   table of its own.
 
-`TORIRS_PLAYER_SERVER=host:port` points io_server and `--account` too. A
+`TORIRS_ACCOUNT_SERVER=host:port` points the website and `--account` too. A
 development world (`--dev`) takes no leases, checks no passwords, and keeps
 its saves in `<saves>/` as before.

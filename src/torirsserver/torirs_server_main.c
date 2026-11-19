@@ -42,9 +42,9 @@
  *                       an invite (`--account invite`). torirs_server_auth.h.
  *   TORIRSSERVER_NAME=x  the name the control link's CTL_FACT_HELLO reports
  *   TORIRSSERVER_WORLD=x the name this world takes characters' leases under at
- *                       the player account server (default "<host>:<port>");
- *                       unique per world. playerserver/player_server.h.
- *   TORIRS_PLAYER_SERVER=host:port  the player account server a world shares
+ *                       the account server (default "<host>:<port>");
+ *                       unique per world. accountserver/account_server.h.
+ *   TORIRS_ACCOUNT_SERVER=host:port  the account server a world shares
  *                       with other worlds; unset, a world that checks
  *                       passwords hosts one itself, on 127.0.0.1:8092.
  *
@@ -59,10 +59,13 @@
 #include "torirs_server.h"
 
 #include "accountserver/account_client.h"
-#include "playerserver/player_client.h"
-#include "playerserver/player_server.h"
-#include "torirs_server_accountlink.h"
-#include "torirs_server_accountlog.h"
+#include "accountserver/account_server.h"
+#include "hiscoresserver/hiscores_client.h"
+#include "service/service_auth.h"
+#include "service/service_host.h"
+#include "websiteserver/website_client.h"
+#include "torirs_server_hiscoreslink.h"
+#include "torirs_server_hiscoreslog.h"
 #include "torirs_server_auth.h"
 #include "torirs_server_boot.h"
 #include "torirs_server_container.h"
@@ -75,7 +78,7 @@
 
 #include <signal.h>
 
-/* mingw-w64 has no POSIX socket headers at all (see src/ioserver/http_server.c
+/* mingw-w64 has no POSIX socket headers at all (see src/service/http_server.c
  * and src/torirsserver/torirs_server_ws.c for the same split); Winsock2 replaces
  * sockets and select()'s error reporting. */
 #ifdef _WIN32
@@ -138,11 +141,12 @@ on_stop_signal(int sig)
 
 /*
  * `torirsserver --account ...`: the operator's side of the sign-in gate
- * (torirs_server_auth.h). Player accounts are files in `<saves>/accounts/`;
- * web logins, invites and the hiscores' admin flag are the account server's
- * (accountserver/account_server.h), asked over localhost, so those commands
- * need it running. It runs beside a live world without loading one; the world
- * reads a record at each login, so a change applies at the next one.
+ * (torirs_server_auth.h). Player accounts are the account server's
+ * (accountserver/account_server.h); web logins and invites the website's
+ * (websiteserver/website_users.h); whether a player is ranked the hiscores
+ * server's (hiscoresserver/hiscores_server.h). Each is asked over signed
+ * HTTP, so these commands need that server running. A world reads a record
+ * at each login, so a change applies at the next one.
  * torirsctl (the deploy package's) is the friendly face of these.
  *
  * A password is never an argument (it would sit in `ps` and the shell's
@@ -207,17 +211,17 @@ account_create_problem(
     if( result == TORIRSSERVER_CREATE_WRITE_FAILED )
         return "the record could not be written";
     if( result == TORIRSSERVER_CREATE_UNAVAILABLE )
-        return "the account service did not answer (TORIRS_PLAYER_SERVER for a player account, "
-               "TORIRS_ACCOUNT_SERVER for a web login)";
+        return "the server did not answer (TORIRS_ACCOUNT_SERVER for a player account, "
+               "TORIRS_WEBSITE_SERVER for a web login)";
     return problem ? problem : "refused";
 }
 
 static void
 account_list_player(
-    const struct PlayerAccountInfo* account,
+    const struct AccountPlayerInfo* account,
     void* ctx)
 {
-    char where[PLAYER_WORLD_MAX + 16] = "";
+    char where[ACCOUNT_WORLD_MAX + 16] = "";
 
     (void)ctx;
     if( account->world[0] )
@@ -228,13 +232,13 @@ account_list_player(
            account->linked > 0 ? account->owner : "", where);
 }
 
-/* What `--account` says when the player account server is not there: the
+/* What `--account` says when the account server is not there: the
  * records are its alone, so nothing is changed behind its back. */
 static void
 account_player_server_silent(void)
 {
-    fprintf(stderr, "torirsserver: the player account server did not answer: start the world "
-                    "(it hosts one) or player_server, or name it with TORIRS_PLAYER_SERVER\n");
+    fprintf(stderr, "torirsserver: the account server did not answer: start the world "
+                    "(it hosts one) or account_server, or name it with TORIRS_ACCOUNT_SERVER\n");
 }
 
 static void
@@ -243,10 +247,10 @@ account_list_login(const char* key)
     printf("  %s\n", key);
 }
 
-/* 1 while this process serves the player account server itself. */
-static int g_hosting_player_server;
+/* 1 while this process serves the account server itself. */
+static int g_hosting_account_server;
 
-/* ToriRSServerDisplayNames' owner, answered by the player account server: an
+/* ToriRSServerDisplayNames' owner, answered by the account server: an
  * unanswered ask counts as held -- by nobody nameable -- so no name is handed
  * out that the registry has not agreed to. */
 static int
@@ -255,7 +259,7 @@ display_name_owner_remote(
     char* owner,
     size_t cap)
 {
-    int held = PlayerClient_NameOwner(name, owner, cap);
+    int held = AccountClient_NameOwner(name, owner, cap);
 
     if( held < 0 )
     {
@@ -291,35 +295,37 @@ world_dir_name(
 }
 
 /*
- * A world that checks passwords takes every character's lease from the
- * player account server (playerserver/player_server.h): the one named by
- * TORIRS_PLAYER_SERVER, or -- the deployment with one world -- its own, served
- * from a thread here for io_server and `--account` beside it. 0 when it
- * cannot have one: a second world that names none finds the first's port
- * taken, and must not lock characters in a table of its own.
+ * A world that checks passwords takes every character and its save from the
+ * account server (accountserver/account_server.h): the one named by
+ * TORIRS_ACCOUNT_SERVER, or -- when it names none -- one hosted in this
+ * process, whose /svc/account is served from a thread here (port
+ * ACCOUNT_SERVER_PORT) for the website and `--account` beside it. 0 when it
+ * cannot have one: a second world that names none finds the saves directory
+ * locked, and must not lock characters in a table of its own.
  */
 static int
-player_server_boot(
+account_server_boot(
     struct ToriRSServer* srv,
     int port)
 {
     static const struct ToriRSServerOAuthAccounts accounts = {
-        PlayerClient_Auth,
-        PlayerClient_ManagedBy,
-        PlayerClient_LinkVerify,
+        AccountClient_Auth,
+        AccountClient_ManagedBy,
+        AccountClient_LinkVerify,
     };
     static const struct ToriRSServerDisplayNames names = {
         display_name_owner_remote,
-        PlayerClient_NameClaim,
-        PlayerClient_NameRelease,
+        AccountClient_NameClaim,
+        AccountClient_NameRelease,
     };
     static char held_dir[1024];
     const char* world = getenv("TORIRSSERVER_WORLD");
-    char dir_name[PLAYER_WORLD_MAX];
+    char dir_name[ACCOUNT_WORLD_MAX];
     char probe[1100];
-    uint8_t boot[PLAYER_BOOT_HEX / 2];
+    uint8_t boot[ACCOUNT_BOOT_HEX / 2];
 
     assert(srv);
+    ServiceAuth_Load();
     if( world && world[0] )
         snprintf(srv->player_world, sizeof(srv->player_world), "%s", world);
     else
@@ -331,49 +337,49 @@ player_server_boot(
         host[sizeof(host) - 1] = '\0';
         snprintf(srv->player_world, sizeof(srv->player_world), "%s:%d", host, port);
     }
-    if( PlayerClient_RemoteNamed() )
+    if( AccountClient_RemoteNamed() )
         fprintf(stderr, "torirsserver: player accounts and leases from %s, as world %s\n",
-                getenv("TORIRS_PLAYER_SERVER"), srv->player_world);
+                getenv("TORIRS_ACCOUNT_SERVER"), srv->player_world);
     else
     {
         /* The saves directory's lock first: a second world on these saves
          * must be refused before it touches the lease journal. */
-        if( !PlayerServer_Open() )
+        if( !AccountServer_Open() )
         {
-            fprintf(stderr, "torirsserver: a player account server already has this saves "
+            fprintf(stderr, "torirsserver: an account server already has this saves "
                             "directory. Worlds that share one share that server: set "
-                            "TORIRS_PLAYER_SERVER=127.0.0.1:%d and a distinct TORIRSSERVER_WORLD "
+                            "TORIRS_ACCOUNT_SERVER=127.0.0.1:%d and a distinct TORIRSSERVER_WORLD "
                             "on each\n",
-                    PLAYER_SERVER_PORT);
+                    ACCOUNT_SERVER_PORT);
             return 0;
         }
-        if( !PlayerServer_StartInProcess(PLAYER_SERVER_PORT) )
+        ServiceHost_Add("/svc/account", AccountServer_Handle, NULL);
+        if( !ServiceHost_StartThread(1, ACCOUNT_SERVER_PORT) )
         {
             fprintf(stderr,
-                    "torirsserver: 127.0.0.1:%d already has a player account server (another "
-                    "world's, or player_server). Worlds that share a saves directory share one: "
-                    "set TORIRS_PLAYER_SERVER=127.0.0.1:%d and a distinct TORIRSSERVER_WORLD on "
-                    "each\n",
-                    PLAYER_SERVER_PORT, PLAYER_SERVER_PORT);
-            PlayerServer_Close();
+                    "torirsserver: 127.0.0.1:%d is taken (another account server?). Worlds that "
+                    "share a saves directory share one: set TORIRS_ACCOUNT_SERVER=127.0.0.1:%d "
+                    "and a distinct TORIRSSERVER_WORLD on each\n",
+                    ACCOUNT_SERVER_PORT, ACCOUNT_SERVER_PORT);
+            AccountServer_Close();
             return 0;
         }
-        PlayerClient_SetLocal(PlayerServer_Handle);
-        g_hosting_player_server = 1;
-        fprintf(stderr, "torirsserver: hosting the player account server on 127.0.0.1:%d, as "
-                        "world %s\n",
-                PLAYER_SERVER_PORT, srv->player_world);
+        AccountClient_SetLocal(AccountServer_Handle);
+        g_hosting_account_server = 1;
+        fprintf(stderr, "torirsserver: hosting the account server (/svc/account on 127.0.0.1:%d), "
+                        "as world %s\n",
+                ACCOUNT_SERVER_PORT, srv->player_world);
     }
     ToriRSServer_OAuthUseAccounts(&accounts);
     ToriRSServer_DisplayNamesUse(&names);
-    srv->login_is_staff = PlayerClient_LoginIsStaff;
+    srv->login_is_staff = AccountClient_LoginIsStaff;
     ToriRSServer_AuthRandom(boot, sizeof(boot));
     ToriRSServer_AuthHex(boot, sizeof(boot), srv->player_boot);
     /*
      * The saves of the characters this world has: written here while they
      * play, handed back at their logouts, and found here again after a crash
      * (the host's start returns them). Never `<saves>/<name>.ini`, which is
-     * the player account server's copy.
+     * the account server's copy.
      */
     world_dir_name(srv->player_world, dir_name, sizeof(dir_name));
     snprintf(held_dir, sizeof(held_dir), "%s/worlds/%s", ToriRSServer_SaveDir(), dir_name);
@@ -386,14 +392,14 @@ player_server_boot(
 }
 
 static void
-player_server_shutdown(void)
+account_server_shutdown(void)
 {
-    if( !g_hosting_player_server )
+    if( !g_hosting_account_server )
         return;
-    PlayerServer_StopInProcess();
-    PlayerClient_SetLocal(NULL);
-    PlayerServer_Close();
-    g_hosting_player_server = 0;
+    ServiceHost_StopThread();
+    AccountClient_SetLocal(NULL);
+    AccountServer_Close();
+    g_hosting_account_server = 0;
 }
 
 static int
@@ -402,6 +408,9 @@ account_command(
     char** argv)
 {
     char password[128];
+
+    /* Every server it asks takes only signed requests. */
+    ServiceAuth_Load();
 
     if( (argc == 4 || argc == 5) && strcmp(argv[2], "create") == 0 &&
         (argc == 4 || strcmp(argv[4], "admin") == 0) )
@@ -414,7 +423,7 @@ account_command(
             fprintf(stderr, "torirsserver: give the password as one line on stdin\n");
             return 1;
         }
-        result = PlayerClient_Create(argv[3], password, argc == 5, &problem);
+        result = AccountClient_Create(argv[3], password, argc == 5, &problem);
         memset(password, 0, sizeof(password));
         if( result != TORIRSSERVER_CREATE_OK )
         {
@@ -424,8 +433,8 @@ account_command(
         }
         /* A character saved before its account was made may already be on
          * the hiscores: staff come off them now. */
-        if( argc == 5 && AccountClient_SetRanked(argv[3], 0) < 0 )
-            fprintf(stderr, "torirsserver: the account server did not answer; the hiscores "
+        if( argc == 5 && HiscoresClient_SetRanked(argv[3], 0) < 0 )
+            fprintf(stderr, "torirsserver: the hiscores server did not answer; the hiscores "
                             "drop '%s' at its next login\n", argv[3]);
         fprintf(stderr, "torirsserver: player account '%s' created%s\n", argv[3],
                 argc == 5 ? " as an admin (staff)" : "");
@@ -441,7 +450,7 @@ account_command(
             fprintf(stderr, "torirsserver: give the password as one line on stdin\n");
             return 1;
         }
-        written = PlayerClient_SetPassword(argv[3], password, &problem);
+        written = AccountClient_SetPassword(argv[3], password, &problem);
         memset(password, 0, sizeof(password));
         if( !written )
         {
@@ -461,7 +470,7 @@ account_command(
             fprintf(stderr, "torirsserver: give the password as one line on stdin\n");
             return 1;
         }
-        result = AccountClient_GateLoginCreate(argv[3], password, &problem);
+        result = WebsiteClient_GateLoginCreate(argv[3], password, &problem);
         memset(password, 0, sizeof(password));
         if( result != TORIRSSERVER_CREATE_OK )
         {
@@ -474,28 +483,28 @@ account_command(
     }
     if( argc == 3 && strcmp(argv[2], "list") == 0 )
     {
-        printf("player accounts (the player account server):\n");
-        if( PlayerClient_Each("", account_list_player, NULL) < 0 )
+        printf("player accounts (the account server):\n");
+        if( AccountClient_Each("", account_list_player, NULL) < 0 )
         {
             account_player_server_silent();
             return 1;
         }
-        printf("web logins (the account server):\n");
-        if( AccountClient_GateLoginEach(account_list_login) < 0 )
+        printf("web logins (the website server):\n");
+        if( WebsiteClient_GateLoginEach(account_list_login) < 0 )
         {
-            fprintf(stderr, "torirsserver: the account server did not answer\n");
+            fprintf(stderr, "torirsserver: the website server did not answer (TORIRS_WEBSITE_SERVER)\n");
             return 1;
         }
         return 0;
     }
     if( argc == 4 && strcmp(argv[2], "revoke") == 0 )
     {
-        int revoked = AccountClient_GateLoginRevoke(argv[3]);
+        int revoked = WebsiteClient_GateLoginRevoke(argv[3]);
 
         if( revoked <= 0 )
         {
             fprintf(stderr, "torirsserver: %s '%s'\n",
-                    revoked < 0 ? "the account server did not answer; not revoked:"
+                    revoked < 0 ? "the website server did not answer; not revoked:"
                                 : "there is no web login",
                     argv[3]);
             return 1;
@@ -514,9 +523,9 @@ account_command(
             fprintf(stderr, "torirsserver: '%s': %s\n", name, ToriRSServer_AuthNameProblem(name));
             return 1;
         }
-        if( AccountClient_InviteCreate(name, code) < 0 )
+        if( WebsiteClient_InviteCreate(name, code) < 0 )
         {
-            fprintf(stderr, "torirsserver: the account server did not answer; no invite\n");
+            fprintf(stderr, "torirsserver: the website server did not answer; no invite\n");
             return 1;
         }
         printf("%s/invite/%s\n", base ? base : "", code);
@@ -529,16 +538,16 @@ account_command(
     {
         int admin = strcmp(argv[4], "on") == 0;
 
-        if( !PlayerClient_SetAdmin(argv[3], admin) )
+        if( !AccountClient_SetAdmin(argv[3], admin) )
         {
-            fprintf(stderr, "torirsserver: '%s': no usable player account record, or the player "
+            fprintf(stderr, "torirsserver: '%s': no usable player account record, or the "
                             "account server did not answer\n",
                     argv[3]);
             return 1;
         }
         /* The hiscores now, not at the next login: staff are not ranked. */
-        if( AccountClient_SetRanked(argv[3], !admin) < 0 )
-            fprintf(stderr, "torirsserver: the account server did not answer; the hiscores "
+        if( HiscoresClient_SetRanked(argv[3], !admin) < 0 )
+            fprintf(stderr, "torirsserver: the hiscores server did not answer; the hiscores "
                             "take it at '%s''s next login\n", argv[3]);
         fprintf(stderr, "torirsserver: '%s' admin %s\n", argv[3], admin ? "on" : "off");
         return 0;
@@ -551,9 +560,9 @@ account_command(
     {
         int record = strcmp(argv[4], "on") == 0;
 
-        if( !PlayerClient_SetRecorded(argv[3], record) )
+        if( !AccountClient_SetRecorded(argv[3], record) )
         {
-            fprintf(stderr, "torirsserver: '%s': no usable player account record, or the player "
+            fprintf(stderr, "torirsserver: '%s': no usable player account record, or the "
                             "account server did not answer\n",
                     argv[3]);
             return 1;
@@ -564,8 +573,8 @@ account_command(
     }
     if( argc == 4 && strcmp(argv[2], "release") == 0 )
     {
-        char world[PLAYER_WORLD_MAX];
-        int revoked = PlayerClient_Revoke(argv[3], world, sizeof(world));
+        char world[ACCOUNT_WORLD_MAX];
+        int revoked = AccountClient_Revoke(argv[3], world, sizeof(world));
 
         if( revoked < 0 )
         {
@@ -585,7 +594,7 @@ account_command(
     if( argc == 4 && strcmp(argv[2], "unlink") == 0 )
     {
         char owner[64];
-        int managed = PlayerClient_ManagedBy(argv[3], owner, sizeof(owner));
+        int managed = AccountClient_ManagedBy(argv[3], owner, sizeof(owner));
 
         if( managed != 1 )
         {
@@ -597,7 +606,7 @@ account_command(
                 fprintf(stderr, "torirsserver: '%s' is not linked to a web login\n", argv[3]);
             return 1;
         }
-        if( !PlayerClient_Unlink(argv[3]) )
+        if( !AccountClient_Unlink(argv[3]) )
             return 1;
         fprintf(stderr, "torirsserver: '%s' unlinked from '%s'; its password signs it in again\n",
                 argv[3], owner);
@@ -718,6 +727,10 @@ main(
      * routine and is not a request to stop.
      */
     signal(SIGTERM, on_stop_signal);
+#ifdef SIGBREAK
+    /* Windows: torirsd's stop (CTRL_BREAK to the server's process group). */
+    signal(SIGBREAK, on_stop_signal);
+#endif
     signal(SIGINT, on_stop_signal);
 
 #ifdef _WIN32
@@ -874,15 +887,17 @@ main(
             fprintf(stderr, "torirsserver: %s\n",
                     dev ? "development mode: logins do not check passwords"
                         : "logins check passwords (accounts in <saves>/accounts/)");
-        /* A world whose accounts mean something reports to the account
-         * server (torirs_server_accountlink.h): queued by the world, spooled
+        /* A world whose accounts mean something reports to the hiscores
+         * server (torirs_server_hiscoreslink.h): queued by the world, spooled
          * and sent by the host, never waited for. */
         if( srv.check_passwords && !selftest && !botrun && !scriptrun )
         {
-            srv.account_log = ToriRSServer_AccountLogCreate();
-            srv.account_link = ToriRSServer_AccountLinkOpen();
-            if( !player_server_boot(&srv, port) )
+            if( !account_server_boot(&srv, port) )
                 return 1;
+            /* Its records go under the name it takes leases under, which
+             * account_server_boot settled. */
+            srv.hiscores_log = ToriRSServer_HiscoresLogCreate();
+            srv.hiscores_link = ToriRSServer_HiscoresLinkOpen(srv.player_world);
         }
     }
     {
@@ -963,12 +978,12 @@ main(
 
     status = ToriRSServer_HostRun(&srv, &config, listener);
     /* After the host: its last logouts released their leases through it. */
-    player_server_shutdown();
+    account_server_shutdown();
 
-    ToriRSServer_AccountLinkClose(srv.account_link);
-    srv.account_link = NULL;
-    ToriRSServer_AccountLogFree(srv.account_log);
-    srv.account_log = NULL;
+    ToriRSServer_HiscoresLinkClose(srv.hiscores_link);
+    srv.hiscores_link = NULL;
+    ToriRSServer_HiscoresLogFree(srv.hiscores_log);
+    srv.hiscores_log = NULL;
     ToriRSServer_BankShutdown(&srv);
     ToriRSServer_ContainerShutdown(&srv);
     ToriRSServer_ScriptsFree(&srv);

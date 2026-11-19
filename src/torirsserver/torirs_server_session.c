@@ -585,8 +585,8 @@ login_refused(
 
         fprintf(stderr, "torirsserver: login refused for '%s': %s\n", user,
                 auth == TORIRSSERVER_AUTH_ONLINE
-                    ? "another world holds the character (the player account server's lease)"
-                    : "the player account server did not answer");
+                    ? "another world holds the character (the account server's lease)"
+                    : "the account server did not answer");
         ToriRSServer_SessionSend(session, &refused, 1);
         session->state = TORIRSSERVER_SESSION_DEAD;
         return 1;
@@ -938,8 +938,8 @@ step_login(
      *
      * A host that checks off the loop (`auth_async`, the standalone host) gets
      * EVERY login of a password-checking world, a reconnect and a one-time
-     * login token too: its pool asks the player account server for the check
-     * and for the character's lease (playerserver/player_server.h), and a
+     * login token too: its pool asks the account server for the check
+     * and for the character's lease (accountserver/account_server.h), and a
      * reconnect needs the lease as much as a login does -- after a logout the
      * lease is gone, and another world may have the character by now.
      */

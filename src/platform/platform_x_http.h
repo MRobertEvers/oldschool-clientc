@@ -101,4 +101,22 @@ PlatformX_HttpPostForm(
     int body_size,
     int* out_size,
     int* out_status);
+/*
+ * Any request, with `extra_headers` (whole lines, each ending "\r\n", or
+ * NULL) and `content_type` (NULL for none), answering the body whatever the
+ * status -- a service's refusal says why. NET-allocated; NULL with status 0
+ * when nothing answered. `body` NULL with `body_size` 0 for none.
+ */
+char*
+PlatformX_HttpRequest(
+    const char* host,
+    int port,
+    const char* method,
+    const char* route,
+    const char* extra_headers,
+    const char* content_type,
+    const char* body,
+    int body_size,
+    int* out_size,
+    int* out_status);
 #endif

@@ -52,7 +52,7 @@ ToriRSServer_SaveFileName(
  * written.
  *
  * `<save dir>/<name>.ini`, the save itself -- except in a world that leases
- * its characters from the player account server, which keeps the save of
+ * its characters from the account server, which keeps the save of
  * every character it holds in a directory of its own
  * (ToriRSServer_SaveSetCharacterDir) and hands it back at logout.
  */
@@ -61,7 +61,7 @@ ToriRSServer_SavePath(const char* display_name);
 
 /**
  * `<save dir>/<name>.ini` whatever this process's character directory: the
- * player account server's copy, the one a login is handed. Static storage;
+ * account server's copy, the one a login is handed. Static storage;
  * "" for an unusable name.
  */
 const char*
@@ -69,7 +69,7 @@ ToriRSServer_SaveCanonicalPath(const char* display_name);
 
 /**
  * From now on ToriRSServer_SavePath answers `<dir>/<name>.ini`: a world's
- * held saves (playerserver/player_server.h). NULL goes back to the save
+ * held saves (accountserver/account_server.h). NULL goes back to the save
  * directory. Once, at boot, before any path is asked for.
  */
 void
@@ -136,7 +136,7 @@ ToriRSServer_DisplayNameOwner(
 /**
  * Reserve the display name `name` for the account saved as `account`. 1 when
  * it is the account's now (or already was); 0 when another account holds it
- * (or, asked of the player account server, nothing answered). The
+ * (or, asked of the account server, nothing answered). The
  * reservation is an exclusive create, so of two worlds asking at once one
  * wins.
  */
@@ -155,7 +155,7 @@ ToriRSServer_DisplayNameRelease(
  * Where the three calls above are answered. Unset, by the files here
  * (`<save dir>/names/`, the ...File functions) -- a development world, the
  * embedded world, the tests. A world that leases its characters points them
- * at the player account server (playerserver/player_client.h), which owns the
+ * at the account server (accountserver/account_client.h), which owns the
  * registry, so two worlds cannot hand one name to two accounts. That is a
  * wait on the tick, paid when a player names their character: a direct call
  * when the world hosts the server, a loopback request when it does not.
@@ -170,7 +170,7 @@ struct ToriRSServerDisplayNames
 void
 ToriRSServer_DisplayNamesUse(const struct ToriRSServerDisplayNames* names);
 
-/** The registry's own files: what the player account server answers with. */
+/** The registry's own files: what the account server answers with. */
 int
 ToriRSServer_DisplayNameOwnerFile(
     const char* name,

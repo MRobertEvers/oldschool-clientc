@@ -410,7 +410,7 @@
       async authPost(endpoint, bytes) {
         const routes = {
           token: 'oauth/token', play: 'game/play', revoke: 'oauth/revoke',
-          /* The gate session's own player accounts (io_gate.h /account). */
+          /* The gate session's own player accounts (website_gate.h /account). */
           user: 'account/players', link: 'account/link', userplay: 'account/play',
         };
         const route = routes[endpoint];

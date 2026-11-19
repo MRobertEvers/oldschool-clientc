@@ -4,10 +4,10 @@
 /*
  * Passwords: an account record per login name, checked at GAMELOGIN.
  *
- * The record functions below are the player account server's
- * (playerserver/player_server.h), the records' one owner: a world that checks
+ * The record functions below are the account server's
+ * (accountserver/account_server.h), the records' one owner: a world that checks
  * passwords, io_server and `--account` ask it through
- * playerserver/player_client.h, whose calls mirror these. Only a process with
+ * accountserver/account_client.h, whose calls mirror these. Only a process with
  * no such server -- a development world, the embedded world, the tests --
  * calls them directly.
  *
@@ -71,7 +71,7 @@
  * The account must already exist -- a link never creates one; a name is made
  * by logging in to the game --
  * and the link mints a random LINK TOKEN: the web login's links database
- * (`<saves>/gate/links.sqlite`, io_gate_links.c) keeps the token, and the
+ * (`<saves>/gate/links.sqlite`, website_links.c) keeps the token, and the
  * record gains `managed_by = <web login>` and `link_hash = SHA-256(token)`.
  * From then on the account signs in only through that login: io_server's
  * `/account/play` presents the stored token for the ticket's login, and a
@@ -138,12 +138,12 @@ enum ToriRSServerAuthResult
      *  (`managed_by`) and signs in only through that login's session. */
     TORIRSSERVER_AUTH_MANAGED,
     /** A check could not be asked: the account server (a web login,
-     *  account_client.h) or the player account server (a player account,
-     *  playerserver/player_client.h) did not answer. Nothing was decided; a
+     *  account_client.h) or the account server (a player account,
+     *  accountserver/account_client.h) did not answer. Nothing was decided; a
      *  game login is refused with "login server offline". */
     TORIRSSERVER_AUTH_UNAVAILABLE,
     /** The password matched (or none was asked), but another world holds the
-     *  character (playerserver/player_lease.h): "your account is already
+     *  character (accountserver/account_lease.h): "your account is already
      *  logged in". */
     TORIRSSERVER_AUTH_ONLINE,
 };
@@ -217,7 +217,7 @@ enum ToriRSServerLinkResult
     /** The account is linked to a different web login: one owner only. */
     TORIRSSERVER_LINK_OTHER_USER,
     TORIRSSERVER_LINK_WRITE_FAILED,
-    /** The player account server did not answer; nothing was written. */
+    /** The account server did not answer; nothing was written. */
     TORIRSSERVER_LINK_UNAVAILABLE,
 };
 
@@ -260,7 +260,7 @@ ToriRSServer_AuthLinkVerify(
 
 /** 1 when the web login `login` is staff: a player account linked to it
  *  (`managed_by`) says `admin = 1` -- the account site's definition
- *  (io_site.c site_is_staff), read from the records alone, so the game server
+ *  (website_site.c site_is_staff), read from the records alone, so the game server
  *  can ask it of a gate ticket's login (the control link's HELLO). */
 int
 ToriRSServer_AuthLoginIsStaff(const char* login);

@@ -5072,15 +5072,15 @@ struct ToriRSServerPlayer
     int account_record;
 
     /**
-     * The account site's view of this player (torirs_server_accountlog.h),
-     * kept only when the world has an `account_log`: the stats and quest
+     * The account site's view of this player (torirs_server_hiscoreslog.h),
+     * kept only when the world has an `hiscores_log`: the stats and quest
      * points as last queued, which the periodic flush compares against, and
      * the session's start and the experience it started with.
      */
-    int account_log_xp_tenths[TORIRSSERVER_STAT_COUNT];
-    int account_log_quest_points;
-    long long account_log_session_start;
-    int account_log_session_xp_tenths[TORIRSSERVER_STAT_COUNT];
+    int hiscores_log_xp_tenths[TORIRSSERVER_STAT_COUNT];
+    int hiscores_log_quest_points;
+    long long hiscores_log_session_start;
+    int hiscores_log_session_xp_tenths[TORIRSSERVER_STAT_COUNT];
 
     /*
      * `display_name` packed base 37 — the key everything social is filed under.
@@ -5729,8 +5729,8 @@ struct ToriRSServer
     int check_passwords;
 
     /**
-     * The name this world gives the player account server
-     * (playerserver/player_server.h) when it asks for a character's lease:
+     * The name this world gives the account server
+     * (accountserver/account_server.h) when it asks for a character's lease:
      * TORIRSSERVER_WORLD, or "<host>:<port>". Set by torirs_server_main.c for
      * a world that checks passwords -- whose every login then takes the
      * character and its save from that server, keeps the save in the world's
@@ -5738,13 +5738,13 @@ struct ToriRSServer
      * logout -- and "" everywhere else.
      */
     char player_world[64];
-    /** This run of the world: random at its start (PLAYER_BOOT_HEX), so a
+    /** This run of the world: random at its start (ACCOUNT_BOOT_HEX), so a
      *  hello that arrives late lets go of only what an earlier run held. */
     char player_boot[17];
     /**
      * Whether a web login is staff (a linked player account with admin = 1),
      * for the control link's HELLO behind the gate: the player account
-     * server's answer (PlayerClient_LoginIsStaff), set by torirs_server_main.c
+     * server's answer (AccountClient_LoginIsStaff), set by torirs_server_main.c
      * with `player_world`. A function here rather than a call, because the
      * control link is also built into the client, which has no player account
      * server; only a gated world asks, and a gated world always has one.
@@ -5752,18 +5752,18 @@ struct ToriRSServer
     int (*login_is_staff)(const char* login);
 
     /**
-     * The account server's queue (torirs_server_accountlog.h): logins,
+     * The account server's queue (torirs_server_hiscoreslog.h): logins,
      * stats, logouts and adventure log lines, emptied into the spool by the
      * socket host after every tick. NULL records nothing;
      * torirs_server_main.c makes one only for a world that checks passwords.
      */
-    struct ToriRSServerAccountLog* account_log;
+    struct ToriRSServerHiscoresLog* hiscores_log;
     /**
-     * Where the socket host sends `account_log` (torirs_server_accountlink.h):
+     * Where the socket host sends `hiscores_log` (torirs_server_hiscoreslink.h):
      * the spool and the account server's socket. Standalone only; set with
-     * `account_log` by torirs_server_main.c, and never touched by the world.
+     * `hiscores_log` by torirs_server_main.c, and never touched by the world.
      */
-    struct ToriRSServerAccountLink* account_link;
+    struct ToriRSServerHiscoresLink* hiscores_link;
 
     /**
      * Behind io_server's sign-in gate (`--gate`, TORIRSSERVER_GATE=1;

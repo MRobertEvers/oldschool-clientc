@@ -6,7 +6,7 @@
  * table, the level/xp table, the account and loadout name rules, and the
  * line-preserving save codec. Out of torirs_maped_accounts.h so that a
  * process with no editor daemon can edit a save the same way: the account
- * site's staff player editor (src/ioserver/io_site.c) links
+ * site's staff player editor (src/websiteserver/website_site.c) links
  * torirs_maped_acctsave.c on its own. The daemon still compiles it into
  * torirs_maped.c, right before torirs_maped_accounts.c.
  */

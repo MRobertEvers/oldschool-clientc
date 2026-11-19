@@ -1002,7 +1002,7 @@ ctl_handle_hello(
     /* Behind the gate a ticket alone is any signed-in player, and this link
      * runs cheats on anyone and reloads the world: staff only, as the account
      * site decides staff (a linked player account with admin = 1), asked of
-     * the player account server (`login_is_staff`, set with the gate). That
+     * the account server (`login_is_staff`, set with the gate). That
      * is a wait on the loop -- a direct call when this world hosts the
      * server, a loopback request when it does not -- paid once per control
      * link a gated tool opens, never per tick. */

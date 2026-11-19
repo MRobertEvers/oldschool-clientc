@@ -61,7 +61,7 @@ enum ToriRSServerSessionState
     TORIRSSERVER_SESSION_JS5,
     /**
      * A login is decoded and is being checked off the loop (`auth_async`): the
-     * host's blocking-call pool asks the player account server for the
+     * host's blocking-call pool asks the account server for the
      * password check and the character's lease (`auth_kind` says which).
      * Nothing is decoded until the host answers with
      * ToriRSServer_SessionAuthDone.
