@@ -9,6 +9,27 @@
 #include "app/app_internal.h"
 #include "game/rs_server_state.h"
 
+/* ASSET_KIND_MUSIC's landing. The loader installs a song itself (or reports
+ * its own failure); what lands here is the table's answer when no loader could
+ * be made at all, which the player is told so the request does not wait
+ * forever. A replaced request lands DROPPED: the newer one is the player's. */
+static void
+app_music_load_landed(
+    void* ctx,
+    struct AssetKey key,
+    struct AssetWaiterHandle handle,
+    enum AssetOutcome outcome,
+    uint32_t late_ms)
+{
+    struct App* app = ctx;
+
+    (void)handle;
+    (void)late_ms;
+    if( outcome == ASSET_OUTCOME_FAILED )
+        ToriRS_Music_LoadFailed(&app->audio.music, key.id);
+}
+
+
 /*
  * The 20 ms client tick.
  *
@@ -323,25 +344,34 @@ app_logic_tick(struct App* app)
             &app->audio_feedback,
             &app->audio_out);
 
-        /* A music request the player has accepted but no loader has picked up
-         * yet becomes a task here, once. The player refuses to hand out the
-         * same request twice, so this cannot pile up. */
-        /* Not while there is no device (a replay seek takes it away): the
-         * request waits, and the track in force when the device returns is
-         * the one fetched and decoded. */
-        if( app->provider && !app->audio.music_loading && app->audio.device_present )
+        /* A music request the player holds is wanted through the assets
+         * table (ASSET_KIND_MUSIC, variant = the source), which holds the one
+         * loader of the kind: a newer song replaces an older one still
+         * loading -- that loader runs to its end (it cannot be stopped mid-
+         * read), the player refuses its install, and the newer one starts
+         * after it, so two loaders never grow the shared soundbank at once.
+         * (The guard this replaces, `music_loading`, was never written, and
+         * the player's own flag was cleared by a new request under a running
+         * load, so a second loader started beside it.) Not while there is no
+         * device (a replay seek takes it away): the request waits, and the
+         * track in force when the device returns is the one fetched. */
+        if( app->provider && app->audio.device_present )
         {
             int song_id = -1;
             enum ToriRS_MusicSource source = TORIRS_MUSIC_SOURCE_TRACK;
             if( ToriRS_Music_TakeLoadRequest(&app->audio.music, &song_id, &source) )
             {
-                struct ToriRS_Task* task =
-                    CreateTask_MusicLoad(app->provider, &app->audio.music, song_id, (int)source);
-                if( task )
-                    ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
-                else
-                    ToriRS_Music_LoadFailed(&app->audio.music, song_id);
+                struct AssetKey const key = AssetKey_Make(ASSET_KIND_MUSIC, song_id, (int)source);
+                if( Assets_State(app->assets, key) == ASSET_STATE_NONE )
+                {
+                    struct AssetWaiter waiter;
+                    memset(&waiter, 0, sizeof(waiter));
+                    waiter.land = app_music_load_landed;
+                    waiter.ctx = app;
+                    (void)Assets_Want(app->assets, key, &waiter);
+                }
             }
+            Assets_Land(app->assets, ASSET_KIND_BIT(ASSET_KIND_MUSIC));
         }
     }
 

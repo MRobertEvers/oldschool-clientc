@@ -1393,6 +1393,108 @@ test_music_stop_without_fade(void)
     ToriRS_Music_Free(&player);
 }
 
+/* A small playable song for the state tests, owned by whoever installs it. */
+static struct RSCache_MusicSong*
+make_test_song(void)
+{
+    uint8_t smf[256];
+    int smf_size = build_test_smf(smf);
+    struct RSCache_MusicSong* song = calloc(1, sizeof(*song));
+
+    assert(song);
+    song->midi = malloc((size_t)smf_size);
+    assert(song->midi);
+    memcpy(song->midi, smf, (size_t)smf_size);
+    song->midi_size = smf_size;
+    song->track_count = 1;
+    song->division = 96;
+    return song;
+}
+
+/*
+ * A1: a song that finishes loading after a newer request is not installed.
+ *
+ * The loader of the older song cannot be stopped mid-read, so it runs to its
+ * end; the player used to install whatever it was handed, playing the older
+ * song over the newer request -- and if the newer one then failed, the older
+ * kept playing. A failure of the older one must not end the newer's load
+ * either.
+ */
+static void
+test_music_stale_install_refused(void)
+{
+    struct ToriRS_MusicPlayer player;
+    struct ToriRS_AudioQueue queue;
+    int song_id = -1;
+    enum ToriRS_MusicSource source = TORIRS_MUSIC_SOURCE_TRACK;
+
+    ToriRS_Music_Init(&player);
+    memset(&queue, 0, sizeof(queue));
+    ToriRS_Music_Request(&player, 10, TORIRS_MUSIC_SOURCE_TRACK, true, 0, 0);
+    CHECK(ToriRS_Music_TakeLoadRequest(&player, &song_id, &source));
+    CHECK_EQ(song_id, 10);
+    /* A newer song while 10 loads. */
+    ToriRS_Music_Request(&player, 11, TORIRS_MUSIC_SOURCE_TRACK, true, 0, 0);
+    ToriRS_Music_Installed(&player, 10, TORIRS_MUSIC_SOURCE_TRACK, make_test_song(), NULL, 0, NULL);
+    CHECK_EQ(player.current_song, -1);
+    CHECK(player.song == NULL);
+    CHECK(player.has_request);
+    CHECK_EQ(player.request_song, 11);
+    CHECK_EQ(player.state, TORIRS_MUSIC_LOADING);
+
+    /* The older one failing instead leaves the newer one loading. */
+    ToriRS_Music_LoadFailed(&player, 10);
+    CHECK(player.has_request);
+    CHECK_EQ(player.state, TORIRS_MUSIC_LOADING);
+
+    /* The newer one installs. */
+    ToriRS_Music_Installed(&player, 11, TORIRS_MUSIC_SOURCE_TRACK, make_test_song(), NULL, 0, NULL);
+    CHECK_EQ(player.current_song, 11);
+    CHECK_EQ(player.state, TORIRS_MUSIC_PLAYING);
+    CHECK(!player.has_request);
+
+    /* The same id from the other source is not the request either. */
+    ToriRS_Music_Request(&player, 12, TORIRS_MUSIC_SOURCE_JINGLE, false, 0, 0);
+    ToriRS_Music_Tick(&player, NULL, &queue);
+    ToriRS_Music_Installed(&player, 12, TORIRS_MUSIC_SOURCE_TRACK, make_test_song(), NULL, 0, NULL);
+    CHECK(player.current_song != 12);
+    ToriRS_Music_Free(&player);
+}
+
+/*
+ * A1: an install from the load task has no command queue. Closing a stream
+ * that was open there dropped its ASSET_UNLOAD, so the old generator stayed
+ * resident while the next open loaded the asset again. The next tick now
+ * queues the unload first.
+ */
+static void
+test_music_install_without_queue_unloads(void)
+{
+    struct ToriRS_MusicPlayer player;
+    struct ToriRS_AudioQueue queue;
+
+    ToriRS_Music_Init(&player);
+    memset(&queue, 0, sizeof(queue));
+    ToriRS_Music_Request(&player, 20, TORIRS_MUSIC_SOURCE_TRACK, true, 0, 0);
+    ToriRS_Music_Installed(&player, 20, TORIRS_MUSIC_SOURCE_TRACK, make_test_song(), NULL, 0, &queue);
+    ToriRS_Music_Tick(&player, NULL, &queue);
+    CHECK(player.stream_open);
+
+    /* Installed straight from a loader (no tick in between to retire 20). */
+    memset(&queue, 0, sizeof(queue));
+    ToriRS_Music_Request(&player, 21, TORIRS_MUSIC_SOURCE_TRACK, true, 0, 0);
+    ToriRS_Music_Installed(&player, 21, TORIRS_MUSIC_SOURCE_TRACK, make_test_song(), NULL, 0, NULL);
+    CHECK(!player.stream_open);
+    CHECK(player.unload_pending);
+    ToriRS_Music_Tick(&player, NULL, &queue);
+    CHECK(queue.count >= 2);
+    CHECK_EQ(queue.commands[0].kind, TORIRS_AUDIO_CMD_ASSET_UNLOAD);
+    CHECK_EQ(queue.commands[1].kind, TORIRS_AUDIO_CMD_ASSET_LOAD);
+    CHECK(!player.unload_pending);
+    CHECK(player.stream_open);
+    ToriRS_Music_Free(&player);
+}
+
 static void
 test_music_swap_state(void)
 {
@@ -1493,6 +1595,8 @@ main(
     test_music_swap_state();
     test_music_jingle_retires_outgoing_before_load();
     test_music_stop_without_fade();
+    test_music_stale_install_refused();
+    test_music_install_without_queue_unloads();
 
     GROUP("render a real song");
     snprintf(path, sizeof(path), "%s/cache.osrs239", cache_root);

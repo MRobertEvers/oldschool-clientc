@@ -248,8 +248,6 @@ struct RS_Audio
     int next_voice_id;
 
     struct ToriRS_MusicPlayer music;
-    /** Set while a music load task is outstanding. */
-    bool music_loading;
 
     /**
      * The region's background bed (AMBIENTSOUND_START): an *unpositioned* set of
