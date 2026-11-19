@@ -169,10 +169,10 @@ apply_varp_value(
     int variable,
     int value)
 {
-    if( variable < 0 )
-        return false;
-    if( variable >= mgr->varp_count && !ensure_untyped_var_capacity(mgr, variable) )
-        return false;
+    /* A varp id is the wire's u16: a negative one is the caller's bug, and a
+     * silent refusal here used to make it a varp that never changed. */
+    assert(variable >= 0);
+    (void)ensure_untyped_var_capacity(mgr, variable);
 
     varp_mark_int(mgr, variable);
     mgr->var_serv[variable] = value;
@@ -589,8 +589,8 @@ VarPManager_ApplyLong(
     int64_t value)
 {
     assert(mgr);
-    if( variable < 0 )
-        return false;
+    /* The wire's u16, as apply_varp_value's. */
+    assert(variable >= 0);
     ensure_long_capacity(mgr, variable);
     mgr->var_long_set[variable] = 1;
     mgr->var_long_serv[variable] = value;

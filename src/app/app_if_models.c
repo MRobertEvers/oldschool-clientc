@@ -1,6 +1,8 @@
 /*
- * Interface models: chatheads, player-model compositions, and the tasks that
- * load them.
+ * Interface models: the chathead and model stores and their bind, and the
+ * player-model compositions and the tasks that load them. The tasks that load
+ * a chathead, an IF_SETMODEL or an IF_SETOBJECT are the interface-assets
+ * family's (Task_IfModel, app/app_tasks_if_assets.c).
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in
@@ -10,28 +12,11 @@
 #include "app/app_internal.h"
 #include "mem/torirs_mem.h"
 
-/* Interface chathead: load the npctype/appearance + head models, composite the
- * head into the scene (UITreeSceneBridge_Ensure*Head), and bind it onto the
- * MODEL widget the dialogue set (reference IfType.getModel type 2/3, resolved
- * lazily — here via the async provider). What a head shows is
+/* Interface chathead: the store remembers what the server told a MODEL
+ * widget to show (reference IfType model1Type/model1Id), a parallel task loads
+ * and composites it (Task_IfModel), and app_if_head_poll binds the composite
+ * onto the widget whenever the tree moves. What a head shows is
  * enum UIIfHeadKind (ui/uitree_if_models.h). */
-
-#define APP_IFHEAD_MAX_HEADS 24
-
-struct Task_AppIfHead
-{
-    struct ToriRS_Task task;
-    struct pt pt;
-    struct App* app;
-    enum UIIfHeadKind kind;
-    int component_id;
-    int npc_id;
-    int resolved_npc_id;
-    int model_i;
-    int slot_i;
-    int head_ids[APP_IFHEAD_MAX_HEADS]; /* player: idk + worn-obj head model ids to load */
-    int head_count;
-};
 
 /* ---- Revision-239 per-widget player compositions ----------------------- */
 
@@ -43,11 +28,9 @@ enum AppIfPlayerModelOp
     APP_IFPLAYER_OBJ,
 };
 
-enum
-{
-    APP_IFPLAYER_MAX_MODELS = 64,
-};
-
+/* A player-model op whose config is not resident yet: it waits for it on
+ * the packet queue (the composition needs it, and the next op on the widget
+ * starts from this one's), then composes. Nothing else of the op waits there. */
 struct Task_AppIfPlayerModel
 {
     struct ToriRS_Task task;
@@ -57,32 +40,10 @@ struct Task_AppIfPlayerModel
     int component_id;
     int arg0;
     int arg1;
-    int cfg_i;
-    int model_i;
-    int model_count;
-    int model_ids[APP_IFPLAYER_MAX_MODELS];
-    /* The composition this op produces, committed to the widget's record
-     * only once it has been built whole. */
-    int slots[12];
-    int identkit[12];
-    int colors[5];
-    int gender;
 };
 
 /* Private to this unit, declared up front so definition order is free. */
 static int
-Task_AppIfHead_Run(
-    struct ToriRS_Task* base,
-    struct ToriRS_IOBatch* io);
-static void
-Task_AppIfHead_Free(struct ToriRS_Task* base);
-static void
-app_if_head_enqueue(
-    struct App* app,
-    enum UIIfHeadKind kind,
-    int component_id,
-    int npc_id);
-static void
 app_if_head_store(
     struct App* app,
     enum UIIfHeadKind kind,
@@ -109,155 +70,19 @@ Task_AppIfPlayerModel_Run(
 static void
 Task_AppIfPlayerModel_Free(struct ToriRS_Task* base);
 static void
-app_if_player_model_enqueue(
+app_if_player_model_compose(
     struct App* app,
     enum AppIfPlayerModelOp op,
     int component_id,
     int arg0,
     int arg1);
-
-static int
-Task_AppIfHead_Run(
-    struct ToriRS_Task* base,
-    struct ToriRS_IOBatch* io)
-{
-    struct Task_AppIfHead* self = (struct Task_AppIfHead*)base;
-    struct App* app = self->app;
-    int scene_id = -1;
-
-    PT_BEGIN(&self->pt);
-
-    if( self->kind == UI_IFHEAD_NPC )
-    {
-        /* IF_SETNPCHEAD carries the NPC type the server is talking through.
-         * For a multiNpc that is the model-less shell, just like NPC_INFO.
-         * Resolve it under this client's vars before asking for chathead
-         * models. The resolver also makes every selected config
-         * resident, so a cold child cannot be mistaken for a terminal shell. */
-        PT_TASK_AWAITSELF_IF(CreateTask_NpcMultiResolve(app, self->npc_id, &self->resolved_npc_id));
-        if( self->resolved_npc_id < 0 )
-            PT_EXIT(&self->pt); /* positional -1: intentionally hidden */
-        /* Load each head model (re-derived from persistent model_i; -1 slots
-         * are skipped — reference NpcType.getHead ignores them). */
-        for( self->model_i = 0;; self->model_i++ )
-        {
-            struct ToriRS_Npctype* npc =
-                CacheProvider_NpctypeGet(app->provider, self->resolved_npc_id);
-            if( !npc || self->model_i >= npc->heads_count )
-                break;
-            if( npc->heads[self->model_i] < 0 )
-                continue;
-            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, npc->heads[self->model_i]));
-        }
-        scene_id = UITreeSceneBridge_EnsureNpcHead(&app->bridge, self->resolved_npc_id);
-    }
-    else if( self->kind == UI_IFHEAD_OBJ )
-    {
-        /* IF_SETOBJECT: objtype + its inventory model, then the lit interface
-         * model (npc_id carries the obj id). */
-        PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->npc_id));
-        {
-            struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, self->npc_id);
-            if( obj && obj->inventory_model_id > 0 )
-                PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, obj->inventory_model_id));
-        }
-        scene_id = UITreeSceneBridge_EnsureObjModel(&app->bridge, self->npc_id);
-    }
-    else if( self->kind == UI_IFHEAD_MODEL )
-    {
-        PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->npc_id));
-        scene_id = UITreeSceneBridge_EnsureModel(&app->bridge, self->npc_id);
-    }
-    else
-    {
-        /* Load the local player's real-appearance idk configs + head models,
-         * then composite (reference ClientPlayer.getHeadModel). The idk configs
-         * are usually already resident from the world body build; await the
-         * appearance load first as a baseline. */
-        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
-        /* Ensure worn-equipment obj configs are resident so their head-model
-         * ids (manhead/womanhead) can be gathered below — the body build loads
-         * the wear models but never the head models (reference getHeadModel
-         * pulls ObjType.getHeadModelNoCheck for slots >= 512). */
-        for( self->slot_i = 0; self->slot_i < 12; self->slot_i++ )
-        {
-            struct WorldEntity_Player* lp = app_local_player(app);
-            int slot = lp ? lp->appearance.slots[self->slot_i] : 0;
-            if( Appearance_SlotKind(slot) == APPEARANCE_SLOT_OBJ )
-                PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, Appearance_SlotObj(slot)));
-        }
-        {
-            struct WorldEntity_Player* lp = app_local_player(app);
-            self->head_count = lp ? PlayerHeadModel_CollectHeadModelIds(
-                                        app->provider,
-                                        lp->appearance.slots,
-                                        lp->gender,
-                                        self->head_ids,
-                                        APP_IFHEAD_MAX_HEADS)
-                                  : 0;
-        }
-        for( self->model_i = 0; self->model_i < self->head_count; self->model_i++ )
-            PT_TASK_AWAITSELF_IF(
-                CreateTask_ModelLoad(app->provider, self->head_ids[self->model_i]));
-        {
-            struct WorldEntity_Player* lp = app_local_player(app);
-            if( lp )
-                scene_id = UITreeSceneBridge_EnsurePlayerHead(
-                    &app->bridge, lp->appearance.slots, lp->appearance.colors, lp->gender);
-        }
-    }
-
-    /* Compose only — app_if_head_poll binds the scene model onto the MODEL node
-     * once it is mounted (the head packet usually precedes the interface). Force
-     * a redraw so the poll runs now that the head is composited, and let the
-     * poll attempt the head again whatever it last found. */
-    UIIfModels_ForgetMiss(&app->if_models, self->component_id);
-    if( scene_id >= 0 )
-        RedrawRequest_Raise(&app->redraw_request);
-    else if( torirs_env_net_debug() )
-        TORIRS_LOG(
-            "if-head: component=0x%x kind=%d could not composite head (npc=%d)\n",
-            (unsigned)self->component_id,
-            (int)self->kind,
-            self->npc_id);
-
-    PT_END(&self->pt);
-}
-
 static void
-Task_AppIfHead_Free(struct ToriRS_Task* base)
-{
-    ToriMem_Free(ToriMem_Process(), base);
-}
-
-static struct ToriRS_TaskVTable Task_AppIfHead_VTable = {
-    .run = Task_AppIfHead_Run,
-    .free = Task_AppIfHead_Free,
-};
-
-static void
-app_if_head_enqueue(
+app_if_player_model_op(
     struct App* app,
-    enum UIIfHeadKind kind,
+    enum AppIfPlayerModelOp op,
     int component_id,
-    int npc_id)
-{
-    struct Task_AppIfHead* task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
-    assert(task);
-    task->task.vtable = &Task_AppIfHead_VTable;
-    strncpy(task->task.name, "AppIfHead", sizeof(task->task.name) - 1);
-    task->app = app;
-    task->kind = kind;
-    task->component_id = component_id;
-    task->npc_id = npc_id;
-    PT_INIT(&task->pt);
-    /* The asset runner, as a stream: the request is already stored and
-     * app_if_head_poll binds the scene model on whichever frame it is
-     * composited, so nothing orders this against the packets, and holding
-     * the frame for a chathead's round trip is exactly the pause the store
-     * exists to avoid. */
-    ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
-}
+    int arg0,
+    int arg1);
 
 static uint32_t
 app_if_close_serial_now(struct App const* app)
@@ -302,6 +127,7 @@ app_if_forget_closed(struct App* app)
             i++;
             continue;
         }
+        App_IfModelCancel(app, models->heads[i].com_id);
         UIIfModels_RemoveHeadAt(models, i);
     }
     /* Player compositions own their scene slot by index: free the slot, keep it. */
@@ -317,8 +143,14 @@ app_if_forget_closed(struct App* app)
  * model1Type/model1Id): re-applied by app_if_head_poll whenever the interface
  * (re)mounts, so it survives a head packet that lands before its chat interface
  * exists -- until the interface is closed (app_if_forget_closed). Resets
- * applied_gen so the next poll rebinds. */
-static void
+ * applied_gen so the next poll rebinds.
+ *
+ * Then its task: a head that changed, whose last task has not landed, or
+ * whose last task found nothing to show, gets a new one (the older is
+ * cancelled -- the newest set wins). The same head set again once it has
+ * landed a composite keeps it and is only bound again: a script setting a
+ * widget's model on every timer tick asks for nothing. */
+static int
 app_if_head_store(
     struct App* app,
     enum UIIfHeadKind kind,
@@ -326,9 +158,44 @@ app_if_head_store(
     int npc_id,
     int zoom)
 {
+    struct UIIfHead* head;
+    int i;
+
     app_if_forget_closed(app);
-    (void)UIIfModels_SetHead(&app->if_models, com_id, kind, npc_id, zoom, app_if_close_serial_now(app));
+    /* The latest set wins over a script's visual task too: a loc or obj model
+     * (or a pack's models) still loading for this widget would bind over this
+     * head when it lands (app_tasks_scripts.c). A script's own set reaches
+     * here after the host has cancelled them; this is the server's set. */
+    if( app->tree )
+        app_cs2_widget_visual_cancel(app, com_id);
+    i = UIIfModels_HeadIndex(&app->if_models, com_id);
+    head = i >= 0 ? &app->if_models.heads[i] : NULL;
     RedrawRequest_Raise(&app->redraw_request);
+    if( head && head->landed && head->scene_id >= 0 && head->kind == (int)kind &&
+        head->npc_id == npc_id && head->zoom == zoom )
+    {
+        head->close_serial = app_if_close_serial_now(app);
+        head->applied_gen = 0;
+        return 0;
+    }
+    App_IfModelCancel(app, com_id);
+    (void)UIIfModels_SetHead(&app->if_models, com_id, kind, npc_id, zoom, app_if_close_serial_now(app));
+    App_IfModelWant(app, com_id);
+    return 1;
+}
+
+int
+app_if_head_current(
+    struct App* app,
+    int com_id,
+    enum UIIfHeadKind kind,
+    int npc_id,
+    int zoom,
+    uint32_t close_serial)
+{
+    assert(app);
+    app_if_forget_closed(app);
+    return UIIfModels_HeadFor(&app->if_models, com_id, kind, npc_id, zoom, close_serial);
 }
 
 static struct UIIfPlayerModel*
@@ -390,6 +257,94 @@ app_if_player_model_find_kit(
     return -1;
 }
 
+/*
+ * IF_SETPLAYERMODEL_*: the composition in wire order, the build later.
+ *
+ * What a later packet reads is the COMPOSITION: the next op on the widget
+ * starts from whatever this one committed. So the op is applied to the
+ * widget's record here, by the packet, in wire order. Loading the wear
+ * models and building only changes what is drawn; that is a parallel task
+ * (App_IfPlayerModelBuildAdd, app/app_tasks_mounts.c) numbered with the
+ * composition, so a build of an older composition never replaces a newer
+ * one, and the widget keeps its last built model until the new one is
+ * built. Before, the whole op -- its config, every wear model -- held the
+ * packet queue, and a composition whose parts did not all load was not
+ * committed at all.
+ */
+static void
+app_if_player_model_compose(
+    struct App* app,
+    enum AppIfPlayerModelOp op,
+    int component_id,
+    int arg0,
+    int arg1)
+{
+    struct UIIfPlayerModel* model = app_if_player_model_get(app, component_id);
+    struct WorldEntity_Player* lp = app_local_player(app);
+
+    /* No local player to clone the widget's composition from: the reference
+     * has none to show either. */
+    if( !model || !lp )
+        return;
+
+    if( op == APP_IFPLAYER_SELF )
+    {
+        memcpy(model->identkit, lp->appearance.identkit, sizeof(model->identkit));
+        memcpy(model->colors, lp->appearance.colors, sizeof(model->colors));
+        model->gender = lp->gender;
+        memcpy(
+            model->slots, arg0 ? lp->appearance.slots : lp->appearance.identkit, sizeof(model->slots));
+    }
+    else if( op == APP_IFPLAYER_BASECOLOUR )
+    {
+        if( arg0 >= 0 && arg0 < 5 )
+            model->colors[arg0] = arg1;
+    }
+    else if( op == APP_IFPLAYER_BODYTYPE )
+    {
+        int body_type = arg0;
+        if( model->gender != body_type )
+        {
+            model->gender = body_type;
+            for( int part = 0; part < PLAYER_APPEARANCE_PARTS; part++ )
+            {
+                int slot = PlayerModel_DesignPartWearpos(part);
+                /* PlayerComposition only remaps a design-kit value. Worn
+                 * objs remain exactly where they are. Returning to the
+                 * local player's type restores the cloned underneath kit;
+                 * switching away takes the first selectable target kit. */
+                if( Appearance_SlotKind(model->slots[slot]) != APPEARANCE_SLOT_KIT )
+                    continue;
+                if( body_type == lp->gender )
+                {
+                    model->slots[slot] = model->identkit[slot];
+                }
+                else
+                {
+                    int id = app_if_player_model_find_kit(app, part, body_type);
+                    if( id >= 0 )
+                        model->slots[slot] = Appearance_PackKit(id);
+                }
+            }
+        }
+    }
+    else
+    {
+        struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, arg0);
+        if( obj && obj->wearpos >= 0 && obj->wearpos < 12 )
+        {
+            model->slots[obj->wearpos] = Appearance_PackObj(arg0);
+            if( obj->wearpos2 >= 0 && obj->wearpos2 < 12 )
+                model->slots[obj->wearpos2] = 0;
+            if( obj->wearpos3 >= 0 && obj->wearpos3 < 12 )
+                model->slots[obj->wearpos3] = 0;
+        }
+    }
+
+    model->composition = ++app->if_models.composition_serial;
+    App_IfPlayerModelBuildAdd(app, model);
+}
+
 static int
 Task_AppIfPlayerModel_Run(
     struct ToriRS_Task* base,
@@ -401,119 +356,13 @@ Task_AppIfPlayerModel_Run(
     PT_BEGIN(&self->pt);
 
     /* BODYTYPE scans the complete idk table; OBJ needs its wearpos triplet.
-     * The task sits on the serial packet executor, preserving wire order while
-     * either config load yields. */
+     * Both are REQUIRED: the composition is what the next op starts from, so
+     * this waits on the packet queue, in wire order. */
     if( self->op == APP_IFPLAYER_BODYTYPE )
         PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
-    else if( self->op == APP_IFPLAYER_OBJ )
+    else
         PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->arg0));
-
-    {
-        struct UIIfPlayerModel* model = app_if_player_model_get(app, self->component_id);
-        struct WorldEntity_Player* lp = app_local_player(app);
-        if( !model || !lp )
-            PT_EXIT(&self->pt);
-
-        /* Work on a copy. The executor is strict FIFO, so the next op on this
-         * widget starts from whatever this one commits -- and it commits only
-         * a composition that built. */
-        memcpy(self->slots, model->slots, sizeof(self->slots));
-        memcpy(self->identkit, model->identkit, sizeof(self->identkit));
-        memcpy(self->colors, model->colors, sizeof(self->colors));
-        self->gender = model->gender;
-
-        if( self->op == APP_IFPLAYER_SELF )
-        {
-            memcpy(self->identkit, lp->appearance.identkit, sizeof(self->identkit));
-            memcpy(self->colors, lp->appearance.colors, sizeof(self->colors));
-            self->gender = lp->gender;
-            memcpy(
-                self->slots,
-                self->arg0 ? lp->appearance.slots : lp->appearance.identkit,
-                sizeof(self->slots));
-        }
-        else if( self->op == APP_IFPLAYER_BASECOLOUR )
-        {
-            if( self->arg0 >= 0 && self->arg0 < 5 )
-                self->colors[self->arg0] = self->arg1;
-        }
-        else if( self->op == APP_IFPLAYER_BODYTYPE )
-        {
-            int body_type = self->arg0;
-            if( self->gender != body_type )
-            {
-                self->gender = body_type;
-                for( int part = 0; part < PLAYER_APPEARANCE_PARTS; part++ )
-                {
-                    int slot = PlayerModel_DesignPartWearpos(part);
-                    /* PlayerComposition only remaps a design-kit value. Worn
-                     * objs remain exactly where they are. Returning to the
-                     * local player's type restores the cloned underneath kit;
-                     * switching away takes the first selectable target kit. */
-                    if( Appearance_SlotKind(self->slots[slot]) != APPEARANCE_SLOT_KIT )
-                        continue;
-                    if( body_type == lp->gender )
-                    {
-                        self->slots[slot] = self->identkit[slot];
-                    }
-                    else
-                    {
-                        int id = app_if_player_model_find_kit(app, part, body_type);
-                        if( id >= 0 )
-                            self->slots[slot] = Appearance_PackKit(id);
-                    }
-                }
-            }
-        }
-        else
-        {
-            struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, self->arg0);
-            if( obj && obj->wearpos >= 0 && obj->wearpos < 12 )
-            {
-                self->slots[obj->wearpos] = Appearance_PackObj(self->arg0);
-                if( obj->wearpos2 >= 0 && obj->wearpos2 < 12 )
-                    self->slots[obj->wearpos2] = 0;
-                if( obj->wearpos3 >= 0 && obj->wearpos3 < 12 )
-                    self->slots[obj->wearpos3] = 0;
-            }
-        }
-    }
-
-    /* Resolve all configs referenced by the snapshot before collecting model
-     * ids. PlayerAppearanceLoad supplies the full idk table; worn objects are
-     * loaded individually, then every gendered wear model is awaited. */
-    PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
-    for( self->cfg_i = 0; self->cfg_i < 12; self->cfg_i++ )
-    {
-        if( Appearance_SlotKind(self->slots[self->cfg_i]) == APPEARANCE_SLOT_OBJ )
-            PT_TASK_AWAITSELF_IF(
-                CreateTask_ObjLoad(app->provider, Appearance_SlotObj(self->slots[self->cfg_i])));
-    }
-    self->model_count = PlayerModel_CollectAppearanceModelIds(
-        app->provider, self->slots, self->gender, self->model_ids, APP_IFPLAYER_MAX_MODELS);
-    for( self->model_i = 0; self->model_i < self->model_count; self->model_i++ )
-        PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_ids[self->model_i]));
-
-    {
-        struct UIIfPlayerModel* model = app_if_player_model_find(app, self->component_id);
-        /* Its interface was closed while the parts loaded: the close unloaded
-         * the widget, so there is nothing to commit to. */
-        if( !model )
-            PT_EXIT(&self->pt);
-        /* A composition whose parts did not all load does not build, and is
-         * not committed: the widget keeps its last whole one. */
-        if( UITreeSceneBridge_BuildInterfacePlayerModel(
-                &app->bridge, model->scene_id, self->slots, self->colors, self->gender) >= 0 )
-        {
-            memcpy(model->slots, self->slots, sizeof(model->slots));
-            memcpy(model->identkit, self->identkit, sizeof(model->identkit));
-            memcpy(model->colors, self->colors, sizeof(model->colors));
-            model->gender = self->gender;
-            model->built = 1;
-            model->applied_gen = 0;
-            RedrawRequest_Raise(&app->redraw_request);
-        }
-    }
+    app_if_player_model_compose(app, self->op, self->component_id, self->arg0, self->arg1);
 
     PT_END(&self->pt);
 }
@@ -529,15 +378,26 @@ static struct ToriRS_TaskVTable Task_AppIfPlayerModel_VTable = {
     .free = Task_AppIfPlayerModel_Free,
 };
 
+/* Compose now when the op's config is here (SELF and BASECOLOUR need none);
+ * otherwise wait for it on the packet queue first. */
 static void
-app_if_player_model_enqueue(
+app_if_player_model_op(
     struct App* app,
     enum AppIfPlayerModelOp op,
     int component_id,
     int arg0,
     int arg1)
 {
-    struct Task_AppIfPlayerModel* task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
+    struct Task_AppIfPlayerModel* task;
+
+    if( op == APP_IFPLAYER_SELF || op == APP_IFPLAYER_BASECOLOUR ||
+        (op == APP_IFPLAYER_OBJ && (CacheProvider_ObjtypeHas(app->provider, arg0) ||
+                                    CacheProvider_ObjtypeAbsent(app->provider, arg0))) )
+    {
+        app_if_player_model_compose(app, op, component_id, arg0, arg1);
+        return;
+    }
+    task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_AppIfPlayerModel_VTable;
     strncpy(task->task.name, "AppIfPlayerModel", sizeof(task->task.name) - 1);
@@ -585,8 +445,9 @@ app_cs2_widget_model_direct(
     struct App* app = (struct App*)user;
 
     assert(app);
-    /* The head entry goes; a player-model slot is freed as a close frees it,
-     * and keeps its scene id. */
+    /* The head entry goes, and its task with it; a player-model slot is freed
+     * as a close frees it, and keeps its scene id. */
+    App_IfModelCancel(app, component_id);
     UIIfModels_Forget(&app->if_models, component_id);
 }
 
@@ -599,8 +460,7 @@ App_SetInterfaceNpcHead(
     assert(app);
     if( npc_id < 0 )
         return;
-    app_if_head_store(app, UI_IFHEAD_NPC, component_id, npc_id, 0);
-    app_if_head_enqueue(app, UI_IFHEAD_NPC, component_id, npc_id);
+    (void)app_if_head_store(app, UI_IFHEAD_NPC, component_id, npc_id, 0);
 }
 
 void
@@ -623,8 +483,7 @@ App_SetInterfacePlayerHead(
         App_SetInterfaceNpcHead(app, component_id, lp->transmog_npc_id);
         return;
     }
-    app_if_head_store(app, UI_IFHEAD_PLAYER, component_id, -1, 0);
-    app_if_head_enqueue(app, UI_IFHEAD_PLAYER, component_id, -1);
+    (void)app_if_head_store(app, UI_IFHEAD_PLAYER, component_id, -1, 0);
 }
 
 void
@@ -634,7 +493,7 @@ App_SetInterfacePlayerModelSelf(
     int copy_objs)
 {
     assert(app);
-    app_if_player_model_enqueue(app, APP_IFPLAYER_SELF, component_id, copy_objs != 0, 0);
+    app_if_player_model_op(app, APP_IFPLAYER_SELF, component_id, copy_objs != 0, 0);
 }
 
 void
@@ -645,7 +504,7 @@ App_SetInterfacePlayerModelBaseColour(
     int colour)
 {
     assert(app);
-    app_if_player_model_enqueue(app, APP_IFPLAYER_BASECOLOUR, component_id, index, colour);
+    app_if_player_model_op(app, APP_IFPLAYER_BASECOLOUR, component_id, index, colour);
 }
 
 void
@@ -655,7 +514,7 @@ App_SetInterfacePlayerModelBodyType(
     int body_type)
 {
     assert(app);
-    app_if_player_model_enqueue(app, APP_IFPLAYER_BODYTYPE, component_id, body_type, 0);
+    app_if_player_model_op(app, APP_IFPLAYER_BODYTYPE, component_id, body_type, 0);
 }
 
 void
@@ -667,7 +526,7 @@ App_SetInterfacePlayerModelObj(
     assert(app);
     if( obj_id < 0 )
         return;
-    app_if_player_model_enqueue(app, APP_IFPLAYER_OBJ, component_id, obj_id, 0);
+    app_if_player_model_op(app, APP_IFPLAYER_OBJ, component_id, obj_id, 0);
 }
 
 void
@@ -679,8 +538,7 @@ App_SetInterfaceModel(
     assert(app);
     if( model_id < 0 )
         return;
-    app_if_head_store(app, UI_IFHEAD_MODEL, component_id, model_id, 0);
-    app_if_head_enqueue(app, UI_IFHEAD_MODEL, component_id, model_id);
+    (void)app_if_head_store(app, UI_IFHEAD_MODEL, component_id, model_id, 0);
 }
 
 void
@@ -694,8 +552,7 @@ App_SetInterfaceObjModel(
     if( obj_id < 0 ) /* IF_SETOBJECT's none is -1; obj 0 is an item */
         return;
     /* The wire zoom, for the poll's angle apply. */
-    app_if_head_store(app, UI_IFHEAD_OBJ, component_id, obj_id, zoom);
-    app_if_head_enqueue(app, UI_IFHEAD_OBJ, component_id, obj_id);
+    (void)app_if_head_store(app, UI_IFHEAD_OBJ, component_id, obj_id, zoom);
 }
 
 /* IF_SETOBJECT has two branches in the rev-239 client (deob client.java
@@ -722,7 +579,7 @@ app_if_obj_node(
 }
 
 /* The obj an IF3 widget draws for `count` (ObjType.getCountObj). */
-static int
+int
 app_if_obj_count_variant(
     struct App* app,
     int obj_id,
@@ -796,12 +653,15 @@ app_if_obj_pose(
             (obj->zoom2d > 0 ? obj->zoom2d : 2000) * 100 / head->zoom);
 }
 
-/* Bind any composited heads onto their MODEL nodes. Runs each redraw: an entry
- * applies once its scene model is ready (the load task has composited it) AND
- * its component is mounted, then only re-applies when the tree generation
- * changes (remount/rebuild) — mirroring the reference resolving getModel every
- * draw. Cheap: Ensure* is a cache hit after the first composite, and applied
- * entries at the current generation are skipped. */
+/* Bind the heads whose tasks have landed onto their MODEL nodes. Runs each
+ * redraw: an entry applies once its task has composited it AND its component
+ * is mounted, then only re-applies when the tree generation changes
+ * (remount/rebuild) -- mirroring the reference resolving getModel every draw.
+ * Nothing here loads or composites anything new: a head is attempted once, by
+ * its task (Task_IfModel, app/app_tasks_if_assets.c). What the bind raises is
+ * a want, when the tree has moved and the head needs one: a head left with no
+ * task (a logout cancelled it, a checkpoint restored it), or an npc head whose
+ * varps now choose another npc. */
 void
 app_if_head_poll(struct App* app)
 {
@@ -817,44 +677,33 @@ app_if_head_poll(struct App* app)
 
         if( head->applied_gen == app->tree->generation )
             continue;
-        /* Missed last time and nothing it could wait for has changed: no
-         * asset load ended, the tree is as it was, and its own load task has
-         * not ended (that clears the miss). */
-        if( head->missed && head->miss_serial == Assets_Serial(app->assets) &&
-            head->miss_gen == app->tree->generation )
-            continue;
         /* UI mutations can advance the tree generation every tick.  The
          * binding still re-applies as required, but its diagnostic should say
          * when this stored request first became visible to the tree, not flood
          * the trace once per unrelated UI mutation. */
         first_apply = head->applied_gen == 0;
 
-        if( head->kind == UI_IFHEAD_PLAYER )
+        if( !head->landed && !App_IfModelPending(app, head->com_id) )
+            App_IfModelWant(app, head->com_id);
+        /* Keep the stored id as the shell, matching IfType.model1Id, but
+         * resolve it every time the binding is made: the selected child owns
+         * the actual heads and recolours. Another child is another head to
+         * load. */
+        else if(
+            head->landed && head->kind == UI_IFHEAD_NPC &&
+            App_NpctypeResolveMultiId(app, head->npc_id) != head->landed_npc_id )
         {
-            struct WorldEntity_Player* lp = app_local_player(app);
-            scene_id =
-                lp ? UITreeSceneBridge_EnsurePlayerHead(
-                         &app->bridge, lp->appearance.slots, lp->appearance.colors, lp->gender)
-                   : -1;
+            if( !App_IfModelPending(app, head->com_id) )
+                App_IfModelWant(app, head->com_id);
+            head->applied_gen = app->tree->generation;
+            continue;
         }
-        else if( head->kind == UI_IFHEAD_OBJ )
-        {
+
+        scene_id = head->landed ? head->scene_id : -1;
+        /* IF_SETOBJECT: the obj the widget draws, the count variant on an IF3
+         * component; the task composited both. */
+        if( scene_id >= 0 && head->kind == UI_IFHEAD_OBJ )
             scene_id = UITreeSceneBridge_EnsureObjModel(&app->bridge, app_if_obj_shown(app, head));
-        }
-        else if( head->kind == UI_IFHEAD_MODEL )
-        {
-            scene_id = UITreeSceneBridge_EnsureModel(&app->bridge, head->npc_id);
-        }
-        else
-        {
-            /* Keep the stored id as the shell, matching IfType.model1Id, but
-             * resolve it every time the binding is retried. The selected child
-             * owns the actual heads/recolours and is the bridge cache key. */
-            int resolved_npc_id = App_NpctypeResolveMultiId(app, head->npc_id);
-            scene_id = resolved_npc_id < 0
-                           ? -1
-                           : UITreeSceneBridge_EnsureNpcHead(&app->bridge, resolved_npc_id);
-        }
         if( scene_id < 0 )
         {
             /* IF_SETMODEL replaced the widget's model the moment it landed
@@ -865,12 +714,10 @@ app_if_head_poll(struct App* app)
              * not the model it had before. -1 is the tree's "no model". */
             if( head->kind == UI_IFHEAD_MODEL )
                 (void)UITree_ApplyModel(app->tree, head->com_id, -1);
-            /* Assets not composited yet: retried once something changes, not
-             * every frame. Stamped after the apply, which may move the
+            /* Nothing to bind until its task lands (which binds it again) or
+             * the tree moves. Stamped after the apply, which may move the
              * generation itself. */
-            head->missed = 1;
-            head->miss_serial = Assets_Serial(app->assets);
-            head->miss_gen = app->tree->generation;
+            head->applied_gen = app->tree->generation;
             continue;
         }
 
@@ -1070,6 +917,10 @@ App_SetInterfaceModelAnim(
      * (re)mount (reference modelAnim lives on the same IfType as the head), and
      * apply immediately for the already-mounted / plain-model-widget case. */
     app_if_forget_closed(app);
+    /* The sequence is only drawn: its load starts now, and the widget shows
+     * its rest pose until it is here (uitree_anim.h). */
+    if( anim_id >= 0 )
+        (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, anim_id, 0), NULL);
     if( UIIfModels_SetHeadAnim(&app->if_models, component_id, anim_id) )
         RedrawRequest_Raise(&app->redraw_request);
     if( UIIfModels_SetPlayerModelAnim(&app->if_models, component_id, anim_id) )

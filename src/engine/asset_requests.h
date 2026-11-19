@@ -97,8 +97,9 @@ enum AssetKind
     ASSET_KIND_PLAYER_TRANSMOG,
     /* An obj's model as a composite: id = obj, variant = count. */
     ASSET_KIND_OBJ_MODEL,
-    /* The inventory icon pass: one entry, id 0. Loaded = no slot lacks an
-     * icon; a pass that resolved nothing is a failed attempt. */
+    /* No entries and no loader: its row is the back-off an icon whose model
+     * chain did not come waits out before asking again (an inventory slot's
+     * Task_InvIcon, a widget icon's park row). */
     ASSET_KIND_INV_ICONS,
     /* An interface group's component pack. */
     ASSET_KIND_IF_GROUP,
@@ -123,9 +124,26 @@ enum AssetConfigType
 {
     ASSET_CONFIG_IDK = 0,
     ASSET_CONFIG_OBJ = 1,
-    /* A loc type (app/app_tasks_locs.c: a loc change resolves its multiloc
-     * chain one record at a time). */
-    ASSET_CONFIG_LOC = 2,
+
+    /* What a client script reads the value of and waits for
+     * (game/task_cs2_run.c, the yield table; the loaders are
+     * app/app_tasks_scripts.c's). A range of their own, from 16. */
+    ASSET_CONFIG_SCRIPTS_FIRST = 16,
+    ASSET_CONFIG_SCRIPT = ASSET_CONFIG_SCRIPTS_FIRST, /* a client script */
+    ASSET_CONFIG_ENUM,
+    ASSET_CONFIG_STRUCT,
+    ASSET_CONFIG_PARAM,
+    ASSET_CONFIG_INVTYPE,
+    ASSET_CONFIG_NPC,
+    ASSET_CONFIG_LOC, /* also a loc change's multiloc chain (app/app_tasks_locs.c) */
+    ASSET_CONFIG_DBROW,
+    ASSET_CONFIG_DBTABLE,
+    ASSET_CONFIG_DBINDEX, /* a table's index (cache table 21) */
+    ASSET_CONFIG_FONT,
+    ASSET_CONFIG_MAPELEMENT,
+    ASSET_CONFIG_WORLDMAP, /* the whole world map: id 0 */
+    ASSET_CONFIG_OBJ_ALL,  /* every objtype, for a name search: id 0 */
+    ASSET_CONFIG_SCRIPTS_END,
 };
 
 #define ASSET_KIND_BIT(kind) (1u << (unsigned)(kind))

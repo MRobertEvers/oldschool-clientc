@@ -3936,9 +3936,9 @@ app_plugin_obj_image(
      * they were written for exactly this reason: a goblin's coins and bones
      * are not in your backpack, so nobody had loaded their models.
      *
-     * The inventory does not rely on the bridge either -- Task_InvIconReconcile
-     * runs CreateTask_ObjModelLoad over its pending slots before it rasterises
-     * anything. This is that step, for the plugin lane.
+     * The inventory does not rely on the bridge either -- a slot's Task_InvIcon
+     * awaits its obj's whole model chain (ASSET_KIND_OBJ_MODEL) before it
+     * rasterises anything. This is that step, for the plugin lane.
      *
      * The request is made from a plugin's COMPOSE, which runs at the plugin's
      * own cadence rather than per frame, and CreateTask_ObjModelLoad answers

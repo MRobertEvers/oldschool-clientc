@@ -4,6 +4,7 @@
 #include "app/app_checkpoint.h"
 
 #include "app.h"
+#include "app/app_tasks.h"
 #include "audio/torirs_music.h"
 #include "mem/torirs_mem.h"
 #include "replay/replay_checkpoint_util.h"
@@ -611,4 +612,7 @@ App_CheckpointAfterRestore(struct App* app)
     app->cs1_host.eval_dirty = true;
     UITreeRefresh_Raise(&app->tree_refresh);
     RedrawRequest_Raise(&app->redraw_request);
+    /* The inventories came back without a change callback: their icons are
+     * wanted again. */
+    App_IfAssetsAfterRestore(app);
 }

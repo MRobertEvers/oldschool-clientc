@@ -169,7 +169,7 @@ test_an_empty_queue(void)
 
     printf("TEST: an empty clientscript queue\n");
 
-    RS_ClientScriptQueue_Reset(&queue);
+    RS_ClientScriptQueue_Init(&queue);
     CHECK(RS_ClientScriptQueue_Count(&queue) == 0, "a fresh queue holds something");
     CHECK(!RS_ClientScriptQueue_Pop(&queue, &out), "an empty queue handed over a payload");
     /* Nothing is waiting, so nothing is overdue -- however long the client has
@@ -193,10 +193,9 @@ test_payloads_come_out_in_the_order_they_went_in(void)
      * fill -- and a queue that reverses or shuffles them paints the fill into
      * a panel that is not there yet.
      */
-    RS_ClientScriptQueue_Reset(&queue);
+    RS_ClientScriptQueue_Init(&queue);
     for( i = 1; i <= 5; i++ )
-        CHECK(RS_ClientScriptQueue_Hold(&queue, &(struct PktRunClientScript){ .script_id = i }, 7),
-            "payload %d was refused", i);
+        RS_ClientScriptQueue_Hold(&queue, &(struct PktRunClientScript){ .script_id = i }, 7);
     CHECK(RS_ClientScriptQueue_Count(&queue) == 5, "the queue holds %d, not 5",
         RS_ClientScriptQueue_Count(&queue));
 
@@ -209,35 +208,65 @@ test_payloads_come_out_in_the_order_they_went_in(void)
 }
 
 static void
-test_a_full_queue_refuses_rather_than_dropping(void)
+test_a_full_queue_grows_and_keeps_order(void)
 {
     struct RS_ClientScriptQueue queue;
+    struct PktRunClientScript out;
+    int const total = RS_CLIENTSCRIPT_QUEUE_INITIAL * 4 + 3;
     int i;
 
-    printf("TEST: a full queue refuses, so the caller can run it now\n");
+    printf("TEST: a full queue grows and keeps wire order (U8)\n");
 
     /*
-     * Past the cap the caller runs the script immediately. Degrading to the
-     * old ordering is a cosmetic bug; losing a script is not, and a queue that
-     * silently dropped one would be indistinguishable from a server that never
-     * sent it.
+     * The hold used to REFUSE past 64, and the caller then ran the script on
+     * the parallel queue at once: ahead of the tick's packets it should have
+     * waited behind, and ahead of the 64 scripts held before it. Order
+     * matters more than the cap, so the hold grows instead -- across a wrap,
+     * which is where a grow that copies the slots rather than the ring would
+     * reorder them.
      */
-    RS_ClientScriptQueue_Reset(&queue);
-    for( i = 0; i < RS_CLIENTSCRIPT_QUEUE_MAX; i++ )
-        CHECK(RS_ClientScriptQueue_Hold(&queue, &(struct PktRunClientScript){ .script_id = i }, 1),
-            "payload %d was refused below the cap", i);
-    CHECK(!RS_ClientScriptQueue_Hold(&queue, &(struct PktRunClientScript){ .script_id = 999 }, 1),
-        "the queue accepted one past its cap");
-    CHECK(RS_ClientScriptQueue_Count(&queue) == RS_CLIENTSCRIPT_QUEUE_MAX,
-        "the refused payload changed the count");
-
-    /* And the refusal did not overwrite anything: the oldest is still the
-     * oldest. */
+    RS_ClientScriptQueue_Init(&queue);
+    for( i = 0; i < RS_CLIENTSCRIPT_QUEUE_INITIAL / 2; i++ )
     {
-        struct PktRunClientScript out;
-        CHECK(RS_ClientScriptQueue_Pop(&queue, &out), "the full queue would not hand one back");
-        CHECK(out.script_id == 0, "the refused payload overwrote the oldest");
+        RS_ClientScriptQueue_Hold(&queue, &(struct PktRunClientScript){ .script_id = -1 }, 1);
+        RS_ClientScriptQueue_Pop(&queue, &out);
     }
+    for( i = 0; i < total; i++ )
+        RS_ClientScriptQueue_Hold(&queue, &(struct PktRunClientScript){ .script_id = i }, 1);
+    CHECK(RS_ClientScriptQueue_Count(&queue) == total, "the hold holds %d, not %d",
+        RS_ClientScriptQueue_Count(&queue), total);
+    CHECK(RS_ClientScriptQueue_Capacity(&queue) >= total, "the hold did not grow");
+    for( i = 0; i < total; i++ )
+    {
+        CHECK(RS_ClientScriptQueue_Pop(&queue, &out), "payload %d did not come back", i);
+        CHECK(out.script_id == i, "payload %d came out as %d", i, out.script_id);
+    }
+    CHECK(!RS_ClientScriptQueue_Pop(&queue, &out), "the grown hold handed back an extra payload");
+    RS_ClientScriptQueue_Free(&queue);
+}
+
+static void
+test_a_reset_forgets_what_was_held(void)
+{
+    struct RS_ClientScriptQueue queue;
+    struct PktRunClientScript out;
+
+    printf("TEST: a reset (a logout) forgets every held payload\n");
+
+    /* The scripts a session sent before it logged out must not run against
+     * the title screen or the next session's interfaces. */
+    RS_ClientScriptQueue_Init(&queue);
+    RS_ClientScriptQueue_Hold(&queue, &(struct PktRunClientScript){ .script_id = 5 }, 3);
+    RS_ClientScriptQueue_Hold(&queue, &(struct PktRunClientScript){ .script_id = 6 }, 3);
+    RS_ClientScriptQueue_Reset(&queue);
+    CHECK(RS_ClientScriptQueue_Count(&queue) == 0, "a reset kept %d payloads",
+        RS_ClientScriptQueue_Count(&queue));
+    CHECK(!RS_ClientScriptQueue_Pop(&queue, &out), "a reset queue handed over a payload");
+    CHECK(!RS_ClientScriptQueue_FenceOverdue(&queue, 1000, 30), "a reset queue is overdue");
+    RS_ClientScriptQueue_Hold(&queue, &(struct PktRunClientScript){ .script_id = 7 }, 4);
+    CHECK(RS_ClientScriptQueue_Pop(&queue, &out) && out.script_id == 7,
+        "the reset queue does not hold again");
+    RS_ClientScriptQueue_Free(&queue);
 }
 
 static void
@@ -261,7 +290,7 @@ test_a_flush_that_pushes(void)
      *
      * Three held, and the first dispatch pushes two.
      */
-    RS_ClientScriptQueue_Reset(&queue);
+    RS_ClientScriptQueue_Init(&queue);
     for( i = 1; i <= 3; i++ )
         RS_ClientScriptQueue_Hold(&queue, &(struct PktRunClientScript){ .script_id = i }, 4);
 
@@ -303,8 +332,8 @@ test_the_ring_wraps_without_losing_order(void)
      * queue that works perfectly for the first sixty-four scripts of a
      * session.
      */
-    RS_ClientScriptQueue_Reset(&queue);
-    for( i = 0; i < RS_CLIENTSCRIPT_QUEUE_MAX * 3 + 5; i++ )
+    RS_ClientScriptQueue_Init(&queue);
+    for( i = 0; i < RS_CLIENTSCRIPT_QUEUE_INITIAL * 3 + 5; i++ )
     {
         RS_ClientScriptQueue_Hold(&queue, &(struct PktRunClientScript){ .script_id = i }, 1);
         CHECK(RS_ClientScriptQueue_Pop(&queue, &out), "payload %d did not come back", i);
@@ -329,7 +358,7 @@ test_the_backstop_measures_the_oldest(void)
 
     printf("TEST: the fence backstop is measured from the oldest held payload\n");
 
-    RS_ClientScriptQueue_Reset(&queue);
+    RS_ClientScriptQueue_Init(&queue);
     RS_ClientScriptQueue_Hold(&queue, &(struct PktRunClientScript){ .script_id = 1 }, 100);
 
     /* One cycle inside the bound is still waiting. */
@@ -367,7 +396,8 @@ main(void)
 
     test_an_empty_queue();
     test_payloads_come_out_in_the_order_they_went_in();
-    test_a_full_queue_refuses_rather_than_dropping();
+    test_a_full_queue_grows_and_keeps_order();
+    test_a_reset_forgets_what_was_held();
     test_a_flush_that_pushes();
     test_the_ring_wraps_without_losing_order();
     test_the_backstop_measures_the_oldest();

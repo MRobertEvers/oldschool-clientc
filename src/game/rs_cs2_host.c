@@ -98,16 +98,30 @@ rs_cs2_tree(struct RS_CS2Host* host)
     return host->tree;
 }
 
+/* A newer set on this widget's model: the latest set wins, so whatever the
+ * app still holds or is still loading for it is dropped -- a stored request
+ * (RS_CS2Host.widget_model_direct) and a visual task still waiting
+ * (RS_CS2Host.widget_visual_cancel). */
+static void
+rs_cs2_model_superseded(
+    struct RS_CS2Host* host,
+    int component_id)
+{
+    if( host->widget_model_direct )
+        host->widget_model_direct(host->world_user, component_id);
+    if( host->widget_visual_cancel )
+        host->widget_visual_cancel(host->world_user, component_id);
+}
+
 /* Bind a resident model onto a widget, superseding any lazy request the app
- * still holds for it (RS_CS2Host.widget_model_direct): the latest set wins. */
+ * still holds for it: the latest set wins. */
 static bool
 rs_cs2_apply_model(
     struct RS_CS2Host* host,
     int component_id,
     int scene_model)
 {
-    if( host->widget_model_direct )
-        host->widget_model_direct(host->world_user, component_id);
+    rs_cs2_model_superseded(host, component_id);
     return UITree_ApplyModel(rs_cs2_tree(host), component_id, scene_model);
 }
 
@@ -5177,11 +5191,12 @@ exec_set_feedback_sprite(
     return CS2VM_EXECNO_OK;
 }
 
-static int
-exec_set_object(
+/* cc_setobject's second half, once the obj's model is here (or will never
+ * be): on a MODEL widget the obj's 3D interface model and its 2D pose, else
+ * (or with no model) the obj's icon. */
+static void
+rs_cs2_set_object_resident(
     struct RS_CS2Host* host,
-    struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest const* exact_request,
     int component_id,
     int obj_id,
     int count,
@@ -5191,65 +5206,6 @@ exec_set_object(
     struct CacheProvider* provider = rs_cs2_provider(host);
     int scene_id = -1;
     int atlas_index = 0;
-    (void)thread;
-    if( getenv("TORIRS_OBJICON_DEBUG") )
-        TORIRS_LOG("OBJICON: enter com=0x%08x obj=%d count=%d bridge=%d prov=%d needs=%d\n",
-            (unsigned)component_id,
-            obj_id,
-            count,
-            host->bridge ? 1 : 0,
-            provider ? 1 : 0,
-            provider ? ObjModelLoad_NeedsWork(provider, obj_id, count) : -1);
-
-    if( obj_id < 0 )
-    {
-#if UITREE_CLICK_DEBUG
-        TORIRS_LOG("uitree_click: SETOBJECT component_id=%d obj_id=%d count=%d (clear)\n",
-            component_id,
-            obj_id,
-            count);
-#endif
-        (void)UITree_ApplyObject(tree, component_id, UITREE_NO_OBJ, 0, -1, 0, 0);
-        return CS2VM_EXECNO_OK;
-    }
-
-    /* The icon needs the objtype, its count variant, the inventory model and
-     * that model's textures. Task_ObjModelLoad fetches all of them, so ask it
-     * once whether anything is missing rather than yielding per piece. */
-    if( !provider || ObjModelLoad_NeedsWork(provider, obj_id, count) )
-    {
-        /*
-         * An ICON cell does not wait. Store the obj on the node now — the
-         * row's ops, tooltip and stack number all read it, and only the
-         * picture is missing — and let the app bake and bind the icon off the
-         * script's back (see RS_CS2Host.widget_obj_icon_lazy).
-         *
-         * A MODEL widget keeps its yield: there is no 2D bake to land there,
-         * the cell draws the obj in 3D, and the angle/offset composition below
-         * is the only place that knows how. Same line loc models hold.
-         */
-        int32_t const pending_idx =
-            tree ? UITree_FindByComponentId(tree, component_id) : -1;
-        bool const draws_model =
-            pending_idx >= 0 && tree->components[pending_idx].type == UIELEM_RS_MODEL;
-
-        if( provider && !draws_model && host->widget_obj_icon_lazy )
-        {
-            (void)UITree_ApplyObject(tree, component_id, obj_id, count, -1, 0, num_mode);
-            host->widget_obj_icon_lazy(host->world_user, component_id, obj_id, count);
-            return CS2VM_EXECNO_OK;
-        }
-        if( provider &&
-            !rs_cs2_await_spent(thread, exact_request->kind, obj_id, count) )
-            return rs_cs2_yield_load(host, thread, exact_request, obj_id, count);
-        if( !provider )
-        {
-            (void)UITree_ApplyObject(tree, component_id, obj_id, count, -1, 0, num_mode);
-            return CS2VM_EXECNO_OK;
-        }
-        /* Still incomplete after the load — a texture that failed, say. Build
-         * the icon from what did arrive; the raster skips missing faces. */
-    }
 
     /*
      * A type-6 (MODEL) widget draws the obj in 3D, not as its 2D icon.
@@ -5330,7 +5286,7 @@ exec_set_object(
                     (void)UITree_ApplyModelOffset(
                         tree, component_id, objtype->offset_x2d, objtype->offset_y2d);
                 }
-                return CS2VM_EXECNO_OK;
+                return;
             }
             /* No model for this obj — fall through to the icon, which is at
              * least something the player can identify. */
@@ -5360,6 +5316,106 @@ exec_set_object(
             dbg >= 0 ? (int)tree->components[dbg].type : -1);
     }
     (void)UITree_ApplyObject(tree, component_id, obj_id, count, scene_id, atlas_index, num_mode);
+}
+
+void
+RS_CS2Host_SetObjectResident(
+    struct RS_CS2Host* host,
+    int component_id,
+    int obj_id,
+    int count,
+    int num_mode)
+{
+    assert(host);
+    rs_cs2_set_object_resident(host, component_id, obj_id, count, num_mode);
+}
+
+
+static int
+exec_set_object(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest const* exact_request,
+    int component_id,
+    int obj_id,
+    int count,
+    int num_mode)
+{
+    struct UITree* tree = rs_cs2_tree(host);
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    (void)thread;
+    if( getenv("TORIRS_OBJICON_DEBUG") )
+        TORIRS_LOG("OBJICON: enter com=0x%08x obj=%d count=%d bridge=%d prov=%d needs=%d\n",
+            (unsigned)component_id,
+            obj_id,
+            count,
+            host->bridge ? 1 : 0,
+            provider ? 1 : 0,
+            provider ? ObjModelLoad_NeedsWork(provider, obj_id, count) : -1);
+
+    if( obj_id < 0 )
+    {
+#if UITREE_CLICK_DEBUG
+        TORIRS_LOG("uitree_click: SETOBJECT component_id=%d obj_id=%d count=%d (clear)\n",
+            component_id,
+            obj_id,
+            count);
+#endif
+        (void)UITree_ApplyObject(tree, component_id, UITREE_NO_OBJ, 0, -1, 0, 0);
+        return CS2VM_EXECNO_OK;
+    }
+
+    /* The icon needs the objtype, its count variant, the inventory model and
+     * that model's textures. Task_ObjModelLoad fetches all of them, so ask it
+     * once whether anything is missing rather than yielding per piece. */
+    if( !provider || ObjModelLoad_NeedsWork(provider, obj_id, count) )
+    {
+        /*
+         * An ICON cell does not wait. Store the obj on the node now — the
+         * row's ops, tooltip and stack number all read it, and only the
+         * picture is missing — and let the app bake and bind the icon off the
+         * script's back (see RS_CS2Host.widget_obj_icon_lazy).
+         *
+         * A MODEL widget draws the obj in 3D, and the angle/offset composition
+         * in rs_cs2_set_object_resident is the only place that knows how: its
+         * task calls that once the model is here (widget_obj_model_lazy, just
+         * below). A host with neither hook yields as before.
+         */
+        int32_t const pending_idx =
+            tree ? UITree_FindByComponentId(tree, component_id) : -1;
+        bool const draws_model =
+            pending_idx >= 0 && tree->components[pending_idx].type == UIELEM_RS_MODEL;
+
+        if( provider && !draws_model && host->widget_obj_icon_lazy )
+        {
+            (void)UITree_ApplyObject(tree, component_id, obj_id, count, -1, 0, num_mode);
+            host->widget_obj_icon_lazy(host->world_user, component_id, obj_id, count);
+            return CS2VM_EXECNO_OK;
+        }
+        /* A MODEL widget is visual too (task_cs2_run.c, the yield table): the
+         * obj is on the node now, its model draws nothing until it is here,
+         * and the app finishes the composition below when it is
+         * (RS_CS2Host_SetObjectResident). */
+        if( provider && draws_model && host->widget_obj_model_lazy )
+        {
+            (void)UITree_ApplyObject(tree, component_id, obj_id, count, -1, 0, num_mode);
+            (void)rs_cs2_apply_model(host, component_id, -1);
+            host->widget_obj_model_lazy(host->world_user, component_id, obj_id, count, num_mode);
+            return CS2VM_EXECNO_OK;
+        }
+        if( provider &&
+            !rs_cs2_await_spent(thread, exact_request->kind, obj_id, count) )
+            return rs_cs2_yield_load(host, thread, exact_request, obj_id, count);
+        if( !provider )
+        {
+            (void)UITree_ApplyObject(tree, component_id, obj_id, count, -1, 0, num_mode);
+            return CS2VM_EXECNO_OK;
+        }
+        /* Still incomplete after the load — a texture that failed, say. Build
+         * the icon from what did arrive; the raster skips missing faces. */
+    }
+
+    rs_cs2_set_object_resident(host, component_id, obj_id, count, num_mode);
     return CS2VM_EXECNO_OK;
 }
 
@@ -6244,6 +6300,8 @@ exec_widget_set_model(
          * the script continues -- see RS_CS2Host.widget_model_lazy. */
         if( host->widget_model_lazy )
         {
+            if( host->widget_visual_cancel )
+                host->widget_visual_cancel(host->world_user, component_id);
             host->widget_model_lazy(host->world_user, component_id, model_id);
             return CS2VM_EXECNO_OK;
         }
@@ -6284,6 +6342,8 @@ exec_widget_set_model_kind(
          * the script continues -- see RS_CS2Host.widget_model_lazy. */
         if( host->widget_model_lazy )
         {
+            if( host->widget_visual_cancel )
+                host->widget_visual_cancel(host->world_user, component_id);
             host->widget_model_lazy(host->world_user, component_id, model_id);
             return CS2VM_EXECNO_OK;
         }
@@ -6303,6 +6363,16 @@ exec_widget_set_model_kind(
     {
         if( !rs_cs2_loc_model_ready(host, model_id) )
         {
+            /* Visual (task_cs2_run.c, the yield table): the widget's model is
+             * now the loc's, which draws nothing until its config and models
+             * are here -- the reference's IfType.getModel answers null and
+             * the draw skips it -- and the app binds it when they are. */
+            if( host->widget_loc_model_lazy )
+            {
+                (void)rs_cs2_apply_model(host, component_id, -1);
+                host->widget_loc_model_lazy(host->world_user, component_id, model_id);
+                return CS2VM_EXECNO_OK;
+            }
             if( !rs_cs2_await_spent(vm, exact_request->kind, model_id, -1) )
                 return rs_cs2_yield_load(host, vm, exact_request, model_id, -1);
             return CS2VM_EXECNO_OK;
@@ -6323,6 +6393,8 @@ exec_widget_set_model_kind(
         {
             if( host->widget_npc_head_lazy )
             {
+                if( host->widget_visual_cancel )
+                    host->widget_visual_cancel(host->world_user, component_id);
                 host->widget_npc_head_lazy(host->world_user, component_id, model_id);
                 return CS2VM_EXECNO_OK;
             }
@@ -13113,7 +13185,8 @@ rs_cs2_host_exec_dispatch(
     F(script_callback) F(script_callback_user) F(script_callback_running) F(loc_at_coord)          \
     F(coord_in_scene) F(player_slot_by_name) F(worldentity_config_name) F(npc_by_uid)               \
     F(widget_model_lazy) F(widget_npc_head_lazy) F(widget_model_direct) F(widget_obj_icon_lazy)    \
-    F(player_route) F(objs_on_coord) F(world_user) F(varcs) F(loot) F(worldmap) F(viewport_w)      \
+    F(widget_loc_model_lazy) F(widget_obj_model_lazy) F(pack_models_lazy) F(widget_visual_cancel)  \
+    F(assets) F(player_route) F(objs_on_coord) F(world_user) F(varcs) F(loot) F(worldmap) F(viewport_w)      \
     F(viewport_h) F(battery_percent) F(battery_charging) F(network_kind) F(renderer_active)        \
     F(renderer_available) F(renderer_refused) F(renderer_launch_flagged) F(renderer_picked)        \
     F(safe_area_px) F(safe_area_window_w) F(safe_area_window_h) F(mouse_x) F(mouse_y)              \

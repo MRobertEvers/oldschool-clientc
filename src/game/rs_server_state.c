@@ -131,6 +131,19 @@ state_varp_synced(
 
 /* ---- inventories ---------------------------------------------------------- */
 
+/* Wire data: an inventory is named by its inv id, or for an old-format
+ * component by the component's uid, and neither is negative. A packet that
+ * names neither is refused here with a line, the one wire refusal the two
+ * inventory writes share. */
+static int
+state_inv_container_named(int container)
+{
+    if( container >= 0 )
+        return 1;
+    TORIRS_LOG("exec: inventory packet for container %d refused\n", container);
+    return 0;
+}
+
 static enum RS_ServerStateApply
 state_update_inv_full(
     struct RS_ServerState const* state,
@@ -139,8 +152,14 @@ state_update_inv_full(
     int const container = RS_ServerState_InvContainerId(p->inv_id, p->component_id);
 
     assert(state->invs);
-    if( InvManager_EnsureContainer(state->invs, container, p->size, "server-inv") < 0 )
+    if( !state_inv_container_named(container) )
         return RS_SERVER_STATE_UNCHANGED;
+    {
+        int const source = InvManager_EnsureContainer(state->invs, container, p->size, "server-inv");
+        /* Full is the table being too small for a session, not a packet to drop. */
+        assert(source >= 0);
+        (void)source;
+    }
     InvManager_ApplyFull(state->invs, container, p->obj_ids, p->obj_counts, p->size);
     /* DRIVE_STAMP: inv_packet -- a=container_id. After the write, whose
      * change callback has already stamped inv_changed. */
@@ -166,8 +185,14 @@ state_update_inv_partial(
     int const container = RS_ServerState_InvContainerId(p->inv_id, p->component_id);
 
     assert(state->invs);
-    if( InvManager_EnsureContainer(state->invs, container, 0, "server-inv") < 0 )
+    if( !state_inv_container_named(container) )
         return RS_SERVER_STATE_UNCHANGED;
+    {
+        int const source = InvManager_EnsureContainer(state->invs, container, 0, "server-inv");
+        /* Full is the table being too small for a session, not a packet to drop. */
+        assert(source >= 0);
+        (void)source;
+    }
     /* DRIVE_STAMP: inv_packet -- a=container_id. Before the slots, so it
      * precedes their inv_changed stamps, as it always has. */
     state_stamp(state, RS_EVENT_INV_PACKET, container, 0, 0, 0);
@@ -213,6 +238,29 @@ state_chat_add(
     RS_Chat_AddMessage(state->chat, type, name, sender, text, *state->chat_clock);
 }
 
+/* The reference's tutorial gate on friend-channel and private lines
+ * (RS_Chat_InTutorialArea): computed from the local player's tile, scene-local
+ * plus the root's base as the deob's (fine >> 7) + field3266's base. No local
+ * player yet is outside (method6894 clears the flag and returns). */
+static int
+state_local_player_in_tutorial_area(struct RS_ServerState const* state)
+{
+    struct WorldEntity_Player const* self;
+    int world_idx;
+
+    assert(state->world);
+    assert(state->esync);
+    if( state->esync->local_pid < 0 ||
+        !RS_EntitySync_FindPlayer(state->esync, state->esync->local_pid, &world_idx, NULL) )
+        return 0;
+    self = World_EntityPoolGet(&state->world->entities.player, world_idx);
+    if( !self )
+        return 0;
+    return RS_Chat_InTutorialArea(
+        state->world->_base_tile_x + self->grid_position.x,
+        state->world->_base_tile_z + self->grid_position.z);
+}
+
 /* MESSAGE_FRIENDCHANNEL: deob client.java class259.field3189. Shares the message
  * id ring with the other chat prots, and the crown decides whether the sender's
  * ignore applies. The channel's name is what the store keeps in `sender`, as a
@@ -233,6 +281,11 @@ state_message_friendchannel(
         return RS_SERVER_STATE_UNCHANGED;
     RS_Chat_CrownImage(message->crown, &ignorable);
     if( ignorable && RS_Social_IsIgnored(state->social, message->sender) )
+        return RS_SERVER_STATE_UNCHANGED;
+    /* The gate this used to lack (deob client.java class243.field2995,
+     * `!seen && field765 == 0`): on Tutorial Island no friend-channel line is
+     * shown, nor remembered as seen. */
+    if( state_local_player_in_tutorial_area(state) )
         return RS_SERVER_STATE_UNCHANGED;
     RS_Social_MessageRemember(state->social, key);
 
@@ -338,7 +391,15 @@ state_interaction_mode(
         (world_id == 0 && state->rev_number >= 237) ? WORLDVIEW_WIRE_ROOT : world_id);
     if( slot == WORLDVIEW_SLOT_NONE )
     {
-        TORIRS_LOG("exec: interaction mode for world %d refused\n", world_id);
+        /* A view the client has not created yet: kept by the server's id and
+         * taken by the view when it is (deob class61.method1382 / method1412
+         * key their maps by world id, whether that world exists or not). */
+        if( reset )
+            RS_InteractionMode_ForgetHeld(state->interaction_mode, world_id);
+        else if( RS_InteractionMode_Hold(
+                     state->interaction_mode, world_id, p->tile_mode, p->entity_mode) )
+            TORIRS_LOG("exec: interaction modes held for %d views; the oldest is forgotten\n",
+                RS_INTERACTION_MODE_HELD_MAX);
         return;
     }
     if( reset )
@@ -630,8 +691,13 @@ RS_ServerState_Apply(
     {
         char name[16];
 
-        /* Dedupe by message id (reference messageIds ring). */
+        /* deob client.java class243.field2953: the line is shown, and its id
+         * remembered, only while the local player is off Tutorial Island
+         * (field765 == 0). Then dedupe by message id (reference messageIds
+         * ring). */
         assert(state->social);
+        if( state_local_player_in_tutorial_area(state) )
+            return RS_SERVER_STATE_UNCHANGED;
         if( RS_Social_MessageSeenOrRemember(state->social, packet->_message_private.message_id) )
             return RS_SERVER_STATE_UNCHANGED;
         base37tostr((uint64_t)packet->_message_private.from, name, sizeof(name));

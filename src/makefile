@@ -2354,7 +2354,7 @@ test-editor-ghost: $(OBJ_DIR)
 test-clientscript-queue: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_clientscript_queue_test$(PLATFORM_EXE_SUFFIX) \
 		game/test/rs_clientscript_queue_test.c game/rs_clientscript_queue.c \
-		perf/frame_time_ring.c $(LDFLAGS)
+		perf/frame_time_ring.c $(TORIMEM_SRCS) $(LDFLAGS)
 	./$(OBJ_DIR)/rs_clientscript_queue_test$(PLATFORM_EXE_SUFFIX)
 
 # Whether the server tick being applied is complete. A tick that never closes
@@ -3007,6 +3007,18 @@ test-tasks-ground: $(OBJ_DIR) $(OBJS)
 		app/test/app_tasks_ground_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/app_tasks_ground_test
+
+# The interface-assets family's parallel tasks (app/app_tasks_if_assets.c) on a
+# stack App with fake loaders: IF_SETOBJECT wants its count variant's chain
+# (U1), an npc head its textures and a head task applies only to its own head
+# (U2), and inventory icons are wanted when a slot changes, deduped, cancelled
+# when the slot empties, and asked again after the back-off. Asserts on.
+.PHONY: test-if-assets-tasks
+test-if-assets-tasks: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(SRC_DIR)/world -o $(OBJ_DIR)/if_assets_tasks_test$(PLATFORM_EXE_SUFFIX) \
+		app/test/if_assets_tasks_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/if_assets_tasks_test$(PLATFORM_EXE_SUFFIX)
 
 # Who has taken a part of this frame's input: keys by OSRS code, the frame as
 # a whole and the pointer by chrome, each dropped on its own lifetime.
@@ -5852,6 +5864,16 @@ test-net-exec: $(OBJ_DIR) $(OBJS)
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/net_exec_test
 
+# The one table of packet kinds (net/rev/revpacket.c): every name has a row,
+# the latch and flush sets the packet pump reads are derived from it, and every
+# packet the executor handles is in it (tools/packet_kinds_check.py).
+.PHONY: test-packet-kinds
+test-packet-kinds: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/packet_kinds_test \
+		net/rev/test/packet_kinds_test.c net/rev/revpacket.c $(TORIMEM_SRCS) $(LDFLAGS)
+	./$(OBJ_DIR)/packet_kinds_test
+	python3 -I ../tools/packet_kinds_check.py --root .
+
 # The packet model (game/rs_server_state.h) with no App and no UI tree: a
 # packet in, the records and the stamped events out, per family it applies.
 # Asserts on: the model and the test compile without NDEBUG, so the model's
@@ -5969,6 +5991,16 @@ test-loc-tasks: $(OBJ_DIR) $(OBJS)
 		-o $(OBJ_DIR)/app_loc_tasks_test app/test/app_loc_tasks_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/app_loc_tasks_test
+
+# The scripts family's parallel tasks (app/app_tasks_scripts.c): a visual
+# script operation is one listed task that a newer set cancels and a closed
+# interface drops; and TRIGGER_ONDIALOGABORT's listeners keep wire order (U9).
+.PHONY: test-tasks-scripts
+test-tasks-scripts: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/app_tasks_scripts_test \
+		app/test/app_tasks_scripts_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/app_tasks_scripts_test
 
 # The mouseover ENTRY's four halves all come from one row (`_7100` / the FIND
 # ops, `_7101`, `_7110`, `_7109`). The subject half used to come from the pick

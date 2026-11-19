@@ -622,9 +622,11 @@ test_multinpc_interface_head_loads_selected_child(void)
         VarPManager_SetVarpTypes(&app.varps, &varp_type, 1),
         "chathead fixture varps initialized");
     app.provider = &provider;
-    /* The asset runner: app_if_head_enqueue streams the head load there. */
+    /* The parallel queue: the head's task (Task_IfModel) runs there, listed
+     * in the pending index. */
     app.frame_runner.queue = ToriRS_TaskQueue_New();
     App_AssetsInit(&app);
+    App_PendingInit(&app);
     io = ToriRS_IOBatch_New();
     app.scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
     TEST_ASSERT(app.scene != NULL, "chathead fixture scene initialized");
@@ -662,6 +664,7 @@ test_multinpc_interface_head_loads_selected_child(void)
     ToriDraw_SceneFree(app.scene);
     ToriRS_IOBatch_Free(io);
     ToriRS_TaskQueue_Free(app.frame_runner.queue);
+    App_PendingFree(&app);
     VarPManager_Free(&app.varps);
     CacheProvider_FreeEngineCaches(&provider);
 }

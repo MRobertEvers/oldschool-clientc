@@ -26,9 +26,16 @@
 #define INV_MANAGER_MAX_SLOTS 4096
 
 #define INV_MANAGER_SOURCE_INVALID (-1)
-#define INV_MANAGER_SOURCE_MAX 16
+/** How many inventories one session can be told about. Every inventory the
+ *  server transmits takes a source and a container and keeps them for the
+ *  session, so a full table is an assert in the packet model, not a silent
+ *  refusal; these are sized past what a session reaches (backpack, worn, bank,
+ *  shops, trade, the exchange, storage...). The source cap stays below 93, the
+ *  first server container id, so a source index never reads as one
+ *  (inv_resolve_container_id). */
+#define INV_MANAGER_SOURCE_MAX 64
 #define INV_MANAGER_SOURCE_NAME_MAX 64
-#define INV_MANAGER_STORE_MAX 32
+#define INV_MANAGER_STORE_MAX 96
 
 #define INV_MANAGER_SOURCE_NAME_BACKPACK "inventory"
 #define INV_MANAGER_SOURCE_NAME_WORN "worn"
@@ -91,17 +98,15 @@ struct InvManager
 };
 
 /**
- * Does any slot hold an item whose icon has not been baked yet?
+ * Does this slot hold an item whose icon has not been baked yet?
  *
  * `obj_id >= 0` with `scene_id == INV_MANAGER_NO_SCENE_ID` is an item the
- * container knows about and the scene cannot draw. The client polls for this
- * rather than being told, because an icon is baked asynchronously and the
- * container is filled by a packet -- neither side knows when the other is
- * finished, and an inventory that is silently one icon short looks like a
- * cache problem rather than a reconcile that has not run.
+ * container knows about and the scene cannot draw. The client asks this of
+ * the slots of a container that changed (the change callback), and bakes an
+ * icon for each slot that answers yes; an empty slot never wants one.
  */
-int
-InvManager_HasUnbakedIcon(struct InvManager const* mgr);
+bool
+InvManager_SlotWantsIcon(struct InvSlot const* slot);
 
 void
 InvManager_Init(struct InvManager* mgr);

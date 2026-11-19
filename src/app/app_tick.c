@@ -107,14 +107,6 @@ app_logic_tick(struct App* app)
             return redraw;
     }
 
-    /* Rasterize inventory item icons that the server's inv packets left
-     * unresolved (queued on the same serial pipeline, so it runs after the
-     * packets that dirtied the slots). */
-    /* Not while a replay seek holds the screen: the icons are polled for, so
-     * the frame that releases the hold bakes what is still unbaked then. */
-    if( !RenderSkip_Held(&app->render_skip) )
-        app_inv_icon_reconcile_tick(app);
-
     /* And open this tick's release of the widget icons a clientscript asked
      * for: the settle it ran in drains the same queue, so a tick is the
      * frame boundary between the script and its loads. */

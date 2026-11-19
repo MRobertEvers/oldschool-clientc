@@ -204,14 +204,26 @@ test_apply_full_partial(void)
 /*
  * Which slots still need an icon baked.
  *
- * A container is filled by a packet and an icon is baked asynchronously, so
- * neither side knows when the other has finished -- the client polls. An
- * inventory silently one icon short looks like a cache problem rather than a
- * reconcile that has not run, which is why the predicate matters more than its
- * three lines suggest.
+ * A container is filled by a packet and an icon is baked asynchronously. The
+ * client asks this of every slot of a container that changed and bakes one
+ * for each that says yes (App_InvIconsWant). An inventory silently one icon
+ * short looks like a cache problem rather than a want that was never raised,
+ * which is why the predicate matters more than its line suggests.
  */
+static int
+container_wants_icon(
+    struct InvManager* mgr,
+    int container_id)
+{
+    struct InvContainer const* c = InvManager_FindContainer(mgr, container_id);
+    for( int s = 0; c && s < c->slot_count; s++ )
+        if( InvManager_SlotWantsIcon(&c->slots[s]) )
+            return 1;
+    return 0;
+}
+
 static void
-test_has_unbaked_icon(void)
+test_slot_wants_icon(void)
 {
     printf("TEST: unbaked icons\n");
 
@@ -221,41 +233,53 @@ test_has_unbaked_icon(void)
     struct InvContainer* container;
 
     InvManager_Init(&mgr);
-    TEST_ASSERT(!InvManager_HasUnbakedIcon(&mgr), "an empty manager wants no icons");
-
     InvManager_EnsureContainer(&mgr, INV_MANAGER_CONTAINER_BACKPACK, 28, "Backpack");
-    TEST_ASSERT(!InvManager_HasUnbakedIcon(&mgr), "an empty container wants no icons");
+    TEST_ASSERT(
+        !container_wants_icon(&mgr, INV_MANAGER_CONTAINER_BACKPACK), "an empty container wants no icons");
 
     /* An item arrives with no scene id: that is the whole point. */
     item.obj_id = 4151;
     item.obj_count = 1;
     item.scene_id = INV_MANAGER_NO_SCENE_ID;
+    TEST_ASSERT(InvManager_SlotWantsIcon(&item), "a fresh item does not want an icon");
     InvManager_SetSlot(&mgr, INV_MANAGER_CONTAINER_BACKPACK, 0, &item);
-    TEST_ASSERT(InvManager_HasUnbakedIcon(&mgr), "a fresh item does not want an icon");
+    TEST_ASSERT(
+        container_wants_icon(&mgr, INV_MANAGER_CONTAINER_BACKPACK), "the slot it was set in does not");
 
     /* Baked. */
     container = InvManager_GetContainer(&mgr, INV_MANAGER_CONTAINER_BACKPACK);
     TEST_ASSERT(container != NULL, "the backpack exists");
     container->slots[0].scene_id = 77;
-    TEST_ASSERT(!InvManager_HasUnbakedIcon(&mgr), "a baked item still wants an icon");
+    TEST_ASSERT(!InvManager_SlotWantsIcon(&container->slots[0]), "a baked item still wants an icon");
+    /* The FAILED sentinel (every part resident, still no icon) is baked too. */
+    container->slots[0].scene_id = -2;
+    TEST_ASSERT(!InvManager_SlotWantsIcon(&container->slots[0]), "a failed bake asks again");
 
-    /* An EMPTY slot has no icon to bake, and must not keep the reconcile
-     * running forever -- the empty sentinel with no scene id is every unused
-     * slot in every container, so reading it as "wants an icon" never
-     * terminates. */
+    /* An EMPTY slot has no icon to bake, and must not raise a want forever --
+     * the empty sentinel with no scene id is every unused slot in every
+     * container, so reading it as "wants an icon" never terminates. */
     empty.obj_id = INV_MANAGER_EMPTY_OBJ_ID;
     empty.obj_count = 0;
     empty.scene_id = INV_MANAGER_NO_SCENE_ID;
+    TEST_ASSERT(!InvManager_SlotWantsIcon(&empty), "an empty slot asked for an icon");
     InvManager_SetSlot(&mgr, INV_MANAGER_CONTAINER_BACKPACK, 1, &empty);
-    TEST_ASSERT(!InvManager_HasUnbakedIcon(&mgr), "an empty slot asked for an icon");
+    TEST_ASSERT(
+        !container_wants_icon(&mgr, INV_MANAGER_CONTAINER_BACKPACK), "an empty slot asked for an icon");
 
-    /* One unbaked item anywhere is enough, including in a second container. */
-    InvManager_EnsureContainer(&mgr, INV_MANAGER_CONTAINER_BANK, 8, "Bank");
+    /* A server write resets the scene id, so a replaced item wants one. */
     item.obj_id = 995;
     item.obj_count = 100;
     item.scene_id = INV_MANAGER_NO_SCENE_ID;
-    InvManager_SetSlot(&mgr, INV_MANAGER_CONTAINER_BANK, 3, &item);
-    TEST_ASSERT(InvManager_HasUnbakedIcon(&mgr), "an item in a second container was missed");
+    InvManager_EnsureContainer(&mgr, INV_MANAGER_CONTAINER_BANK, 8, "Bank");
+    {
+        int ids[1] = { 995 };
+        int counts[1] = { 100 };
+        InvManager_ApplyFull(&mgr, INV_MANAGER_CONTAINER_BANK, ids, counts, 1);
+    }
+    TEST_ASSERT(
+        container_wants_icon(&mgr, INV_MANAGER_CONTAINER_BANK), "an item in a second container was missed");
+    TEST_ASSERT(
+        !container_wants_icon(&mgr, INV_MANAGER_CONTAINER_BACKPACK), "and the first is still baked");
 
     InvManager_Free(&mgr);
 }
@@ -482,7 +506,7 @@ test_obj_id_zero_is_an_item(void)
         InvManager_GetObj(&mgr, INV_MANAGER_CONTAINER_BACKPACK, 1) == INV_MANAGER_EMPTY_OBJ_ID,
         "slot1 empty");
     TEST_ASSERT(InvManager_Total(&mgr, INV_MANAGER_CONTAINER_BACKPACK, 0) == 1, "obj 0 counted");
-    TEST_ASSERT(InvManager_HasUnbakedIcon(&mgr), "obj 0 wants an icon");
+    TEST_ASSERT(container_wants_icon(&mgr, INV_MANAGER_CONTAINER_BACKPACK), "obj 0 wants an icon");
 
     int slots[1] = { 5 };
     int pids[1] = { 0 };
@@ -516,7 +540,7 @@ main(void)
     test_apply_full_partial();
     test_total_and_size();
     test_obj_id_zero_is_an_item();
-    test_has_unbaked_icon();
+    test_slot_wants_icon();
     test_change_callback();
     test_selection();
     test_swap_slots();

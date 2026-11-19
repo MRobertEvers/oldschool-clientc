@@ -561,10 +561,6 @@ App_AssetResident(
     struct App* app,
     struct AssetKey key);
 
-/** The inventory icon pass's loader (ASSET_KIND_INV_ICONS). */
-void
-app_inv_icon_assets_register(struct App* app);
-
 /** Every asset an attached graphic needs (its type, model, sequence) is in. */
 int
 app_entity_spotanim_resident(
@@ -1411,6 +1407,26 @@ App_DesignPredictIfButton(
 /* ---- app_if_models.c ---- */
 void
 app_if_head_poll(struct App* app);
+
+/** The head entry a head task was made for, if `com_id` still holds it
+ *  unlanded (UIIfModels_HeadFor), after forgetting what a close unloaded;
+ *  -1 otherwise. */
+int
+app_if_head_current(
+    struct App* app,
+    int com_id,
+    enum UIIfHeadKind kind,
+    int npc_id,
+    int zoom,
+    uint32_t close_serial);
+
+/** The obj an IF3 widget draws for `count` (ObjType.getCountObj): its count
+ *  variant, else `obj_id`. Reads the resident objtype. */
+int
+app_if_obj_count_variant(
+    struct App* app,
+    int obj_id,
+    int count);
 
 void
 app_if_player_model_poll(struct App* app);
@@ -2499,9 +2515,6 @@ void
 app_inv_ui_host_change(
     void* userdata,
     int container_id);
-
-void
-app_inv_icon_reconcile_tick(struct App* app);
 
 void
 app_request_cs1_eval(struct App* app);

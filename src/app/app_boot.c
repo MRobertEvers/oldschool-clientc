@@ -26,6 +26,10 @@ struct Task_OpenSubRefresh
     int target_uid;
     int interface_id;
     int type;
+    /* IF_MOVESUB: the slot the group is moved OUT of (-1: an open or a
+     * close). The group's nodes are relinked under target_uid, not closed
+     * and re-baked (class415.method9481). */
+    int move_from_uid;
 };
 
 /* Private to this unit, declared up front so definition order is free. */
@@ -1195,6 +1199,104 @@ app_title_swap_if_pending(struct App* app)
     App_OpenTitleScreen(app);
 }
 
+/* The mount task for an open, given the server's stored values to apply to
+ * the group before its load scripts run (U3). */
+static struct ToriRS_Task*
+app_open_sub_task(
+    struct App* app,
+    struct Task_OpenSubRefresh const* self)
+{
+    struct ToriRS_Task* task = CreateTask_InterfaceOpenSub(
+        app->provider,
+        app->tree,
+        &app->host,
+        &app->invs,
+        &app->bridge,
+        self->target_uid,
+        self->interface_id,
+        self->type,
+        &app->open_stats);
+    assert(task);
+    InterfaceOpen_SetStores(task, &app->if_texts, &app->if_hides, &app->if_colours);
+    return task;
+}
+
+/* Does the tree record `group` mounted at `target_uid`? */
+static int
+app_slot_holds(
+    struct App const* app,
+    int target_uid,
+    int group)
+{
+    int rec = UITree_InterfaceParentFind(app->tree, target_uid);
+    return rec >= 0 && app->tree->interface_parents[rec].group_id == group;
+}
+
+/*
+ * Close what the tree has mounted at `target_uid`: unload its group and drop
+ * the record.
+ *
+ * This is the reference client's rule, and it has no per-slot cases in it:
+ * `method9520` closes a sub-interface by unloading the whole widget group
+ * (class304.method7206 nulls every Widget and clears the loaded flag), and
+ * the single exemption lives on the OPEN side -- a group being moved to
+ * another slot is not unloaded.
+ */
+static void
+app_slot_reclaim(
+    struct App* app,
+    int target_uid)
+{
+    int rec = UITree_InterfaceParentFind(app->tree, target_uid);
+    if( rec >= 0 )
+    {
+        int old_group = app->tree->interface_parents[rec].group_id;
+        struct UITreeNodeSet const* gset = UITree_GroupNodes(app->tree, old_group);
+        UITreeIfaceStats_NoteClose(old_group);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_GROUP_SCAN_NODES, gset ? (int64_t)gset->count : 0);
+        /* DRIVE_STAMP: sub_closed -- a=target_uid b=old_group.
+         * Stamp while old_group is still in scope; App_CloseSubInterface
+         * itself has no interface_id or type to carry. */
+        App_DriveEvent(app, DRIVE_EVENT_SUB_CLOSED, target_uid, old_group, 0, 0);
+        UITree_ReclaimInterfaceGroup(app->tree, old_group);
+        RS_CS2Host_ClearHooksForInterfaceGroup(&app->host, old_group);
+        App_MountsGroupClosed(app, old_group);
+    }
+    UITree_InterfaceParentClear(app->tree, target_uid);
+}
+
+/* The moved group is still where the move found it, and the destination
+ * exists. */
+static int
+app_move_sub_relinkable(
+    struct App const* app,
+    struct Task_OpenSubRefresh const* self)
+{
+    return app_slot_holds(app, self->move_from_uid, self->interface_id) &&
+           UITree_FindByComponentId(app->tree, self->target_uid) >= 0;
+}
+
+/*
+ * IF_MOVESUB (class415.method9481): close what the destination holds
+ * (unloading it unless it is the moved group), unlink the source's record and
+ * put it at the destination, and lay the destination out. The moved group is
+ * NOT unloaded: its nodes, what its scripts built and the subs open inside it
+ * stay, and its load scripts do not run again. Then the sub-change hooks, as
+ * for any mount change (method9490).
+ */
+static void
+app_move_sub_relink(
+    struct App* app,
+    struct Task_OpenSubRefresh const* self)
+{
+    if( !app_slot_holds(app, self->target_uid, self->interface_id) )
+        app_slot_reclaim(app, self->target_uid);
+    UITree_InterfaceParentClear(app->tree, self->move_from_uid);
+    App_DriveEvent(app, DRIVE_EVENT_SUB_CLOSED, self->move_from_uid, self->interface_id, 0, 0);
+    InterfaceOpen_MountGroupUnder(app->tree, self->target_uid, self->interface_id, self->type);
+    UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+}
+
 static int
 Task_OpenSubRefresh_Run(
     struct ToriRS_Task* base,
@@ -1224,18 +1326,33 @@ Task_OpenSubRefresh_Run(
             self->interface_id);
         PT_EXIT(&self->pt);
     }
-    if( self->interface_id > 0 )
+    /* IF_MOVESUB: relink the group where it is still mounted at the source;
+     * otherwise (it was closed or moved meanwhile) the move is an open. */
+    if( self->move_from_uid >= 0 && !app_move_sub_relinkable(app, self) )
+        self->move_from_uid = -1;
+    if( self->move_from_uid >= 0 )
     {
-        PT_TASK_AWAITSELF_IF(CreateTask_InterfaceOpenSub(
-            app->provider,
-            app->tree,
-            &app->host,
-            &app->invs,
-            &app->bridge,
-            self->target_uid,
-            self->interface_id,
-            self->type,
-            &app->open_stats));
+        app_move_sub_relink(app, self);
+        PT_TASK_AWAITSELF_IF(CreateTask_CS2SubChangeDispatch(&app->host));
+    }
+    else if( self->interface_id > 0 )
+    {
+        PT_TASK_AWAITSELF(app_open_sub_task(app, self));
+        /* U6: the pack is not in the cache, so nothing was mounted. The
+         * slot's outgoing group closes all the same -- the reference closes
+         * it before it opens (class415.method9520 from the IF_OPENSUB arm) --
+         * and there is no mount to report. */
+        if( !app_slot_holds(app, self->target_uid, self->interface_id) )
+        {
+            TORIRS_ERR(
+                "if-opensub: iface=%d not mounted at 0x%08x; the slot is closed\n",
+                self->interface_id,
+                (unsigned)self->target_uid);
+            app_slot_reclaim(app, self->target_uid);
+            self->interface_id = -1;
+        }
+        else
+            App_MountVisualsAdd(app, self->interface_id);
     }
     else
     {
@@ -1264,24 +1381,9 @@ Task_OpenSubRefresh_Run(
             struct timespec close_t0;
             struct timespec close_t1;
             uint64_t close_ns;
-            int rec = UITree_InterfaceParentFind(app->tree, self->target_uid);
             clock_gettime(CLOCK_MONOTONIC, &close_t0);
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_CLOSE, 1);
-            if( rec >= 0 )
-            {
-                int old_group = app->tree->interface_parents[rec].group_id;
-                struct UITreeNodeSet const* gset = UITree_GroupNodes(app->tree, old_group);
-                UITreeIfaceStats_NoteClose(old_group);
-                TORIRS_PERF_COUNT(
-                    TORIRS_PERF_CTR_IFACE_GROUP_SCAN_NODES, gset ? (int64_t)gset->count : 0);
-                /* DRIVE_STAMP: sub_closed -- a=target_uid b=old_group.
-                 * Stamp while old_group is still in scope; App_CloseSubInterface
-                 * itself has no interface_id or type to carry. */
-                App_DriveEvent(app, DRIVE_EVENT_SUB_CLOSED, self->target_uid, old_group, 0, 0);
-                UITree_ReclaimInterfaceGroup(app->tree, old_group);
-                RS_CS2Host_ClearHooksForInterfaceGroup(&app->host, old_group);
-            }
-            UITree_InterfaceParentClear(app->tree, self->target_uid);
+            app_slot_reclaim(app, self->target_uid);
             clock_gettime(CLOCK_MONOTONIC, &close_t1);
             close_ns = (uint64_t)(close_t1.tv_sec - close_t0.tv_sec) * 1000000000ull +
                        (uint64_t)(close_t1.tv_nsec - close_t0.tv_nsec);
@@ -1352,10 +1454,17 @@ app_queued_slot_group(
         if( task->vtable != &Task_OpenSubRefresh_VTable )
             continue;
         mount = (struct Task_OpenSubRefresh const*)task;
-        if( mount->target_uid != target_uid )
-            continue;
-        group = mount->interface_id > 0 ? mount->interface_id : 0;
-        queued = 1;
+        if( mount->target_uid == target_uid )
+        {
+            group = mount->interface_id > 0 ? mount->interface_id : 0;
+            queued = 1;
+        }
+        else if( mount->move_from_uid == target_uid )
+        {
+            /* A queued move empties its source. */
+            group = 0;
+            queued = 1;
+        }
     }
     if( queued || !app->tree )
         return group;
@@ -1402,11 +1511,12 @@ app_close_slot(
 }
 
 static void
-app_enqueue_open_sub(
+app_enqueue_mount(
     struct App* app,
     int target_uid,
     int interface_id,
-    int type)
+    int type,
+    int move_from_uid)
 {
     struct Task_OpenSubRefresh* task;
 
@@ -1432,8 +1542,46 @@ app_enqueue_open_sub(
     task->target_uid = target_uid;
     task->interface_id = interface_id;
     task->type = type;
+    task->move_from_uid = move_from_uid;
     PT_INIT(&task->pt);
     TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &task->task);
+}
+
+static void
+app_enqueue_open_sub(
+    struct App* app,
+    int target_uid,
+    int interface_id,
+    int type)
+{
+    app_enqueue_mount(app, target_uid, interface_id, type, -1);
+}
+
+int
+App_SlotMountQueued(
+    struct App const* app,
+    int target_uid,
+    int interface_id,
+    int type)
+{
+    struct ToriRS_Task const* task;
+    int found = 0;
+
+    assert(app);
+    assert(app->packet_runner.queue);
+    for( task = app->packet_runner.queue->head; task; task = task->next )
+    {
+        struct Task_OpenSubRefresh const* mount;
+
+        if( task->vtable != &Task_OpenSubRefresh_VTable )
+            continue;
+        mount = (struct Task_OpenSubRefresh const*)task;
+        if( mount->target_uid == target_uid )
+            found = mount->interface_id == interface_id && mount->type == type;
+        else if( mount->move_from_uid == target_uid )
+            found = 0;
+    }
+    return found;
 }
 
 static void
@@ -1578,8 +1726,10 @@ App_MoveSubInterface(
     int type;
 
     assert(app);
-    if( !app->tree || source_uid < 0 || dest_uid < 0 )
-        return;
+    assert(app->tree);
+    /* The executor refuses a negative uid off the wire (IF_MOVESUB). */
+    assert(source_uid >= 0);
+    assert(dest_uid >= 0);
     idx = UITree_InterfaceParentFind(app->tree, source_uid);
     if( idx < 0 )
     {
@@ -1612,9 +1762,14 @@ App_MoveSubInterface(
             (unsigned)source_uid,
             (unsigned)dest_uid);
     /* The reference (class415.method9481) closes only what the move lands
-     * on; the moved group is relinked, not closed, and keeps its arming. */
+     * on; the moved group is relinked, not closed, and keeps its arming, its
+     * nodes and everything its scripts built (U7: this used to close the
+     * source, which unloaded the group, and re-bake it from the pack at the
+     * destination). */
     app_close_slot(app, dest_uid, group_id);
-    app_close_sub(app, source_uid);
-    app_open_sub(app, dest_uid, group_id, type);
+    App_DriveEvent(app, DRIVE_EVENT_SUB_OPENED, dest_uid, group_id, type, 0);
+    if( type == 0 )
+        RS_UISlots_SetModalHost(&app->slots, dest_uid);
+    app_enqueue_mount(app, dest_uid, group_id, type, source_uid);
 }
 

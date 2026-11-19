@@ -59,15 +59,26 @@ test_head_set_and_update(void)
     TEST_ASSERT(m.heads[0].zoom == 250 && m.heads[0].close_serial == 4, "with its zoom and serial");
     TEST_ASSERT(m.heads[0].applied_gen == 0, "and is pending again");
 
-    /* A6: a head that could not composite is remembered as missed; a new set
-     * or its load task's end makes it worth attempting again. */
-    m.heads[0].missed = 1;
-    UIIfModels_ForgetMiss(&m, 100);
-    TEST_ASSERT(m.heads[0].missed == 0, "the load task's end forgets the miss");
-    UIIfModels_ForgetMiss(&m, 999);
-    m.heads[0].missed = 1;
-    (void)UIIfModels_SetHead(&m, 100, UI_IFHEAD_OBJ, 4152, 250, 4);
-    TEST_ASSERT(m.heads[0].missed == 0, "a new set forgets the miss");
+    /* A6 / U2: a head is attempted once, by its task. The task finds the
+     * entry it was made for only while that entry is still the component's
+     * and has not landed; its landing is what the bind reads. */
+    TEST_ASSERT(!m.heads[0].landed && m.heads[0].scene_id == -1, "a new set has not landed");
+    TEST_ASSERT(UIIfModels_HeadFor(&m, 100, UI_IFHEAD_OBJ, 4151, 250, 4) == 0, "its task finds it");
+    TEST_ASSERT(UIIfModels_HeadFor(&m, 100, UI_IFHEAD_OBJ, 4151, 250, 3) == -1,
+                "a task made before the serial moved does not");
+    TEST_ASSERT(UIIfModels_HeadFor(&m, 100, UI_IFHEAD_OBJ, 4151, 1, 4) == -1, "nor one for another zoom");
+    TEST_ASSERT(UIIfModels_HeadFor(&m, 100, UI_IFHEAD_MODEL, 4151, 250, 4) == -1, "nor another kind");
+    TEST_ASSERT(UIIfModels_HeadFor(&m, 999, UI_IFHEAD_OBJ, 4151, 250, 4) == -1, "nor another component");
+    m.heads[0].applied_gen = 9;
+    UIIfModels_HeadLanded(&m, 0, 0x7000, -1);
+    TEST_ASSERT(m.heads[0].landed && m.heads[0].scene_id == 0x7000, "the task lands its composite");
+    TEST_ASSERT(m.heads[0].applied_gen == 0, "which is bound again");
+    TEST_ASSERT(UIIfModels_HeadFor(&m, 100, UI_IFHEAD_OBJ, 4151, 250, 4) == -1,
+                "a landed head is not landed twice");
+    i = UIIfModels_SetHead(&m, 100, UI_IFHEAD_OBJ, 4152, 250, 4);
+    TEST_ASSERT(!m.heads[i].landed && m.heads[i].scene_id == -1, "a new set forgets the landing");
+    TEST_ASSERT(UIIfModels_HeadFor(&m, 100, UI_IFHEAD_OBJ, 4151, 250, 4) == -1,
+                "and the older head's task finds nothing to apply");
 
     UIIfModels_Free(&m);
     TEST_ASSERT(m.heads == NULL && m.head_count == 0 && m.head_cap == 0, "free empties the store");

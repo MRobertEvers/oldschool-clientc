@@ -15,14 +15,26 @@
  * boot value, and the value every session end returns to (class61.method1386),
  * is defaults 1/1 and no view set.
  *
- * This does not know the wire's world ids, which slot a world id maps to, or
- * which modes the wire may legally send. The caller maps the id to a slot,
- * refuses what it cannot accept, and passes slots and modes already checked.
+ * This does not know which slot a world id maps to, or which modes the wire
+ * may legally send. The caller maps the id to a slot, refuses what it cannot
+ * accept, and passes slots and modes already checked; a world id is kept as
+ * it is only for a view the caller does not have yet (RS_InteractionMode_Hold).
  */
 
 #include "world/worldview.h"
 
 #include <stdint.h>
+
+/** How many pairs can wait for a view the client does not have yet. */
+#define RS_INTERACTION_MODE_HELD_MAX WORLDVIEW_MAX
+
+/** A pair the server set for a view before the client created it. */
+struct RS_InteractionModeHeld
+{
+    int wire_id;
+    int8_t tile;
+    int8_t entity;
+};
 
 struct RS_InteractionMode
 {
@@ -31,9 +43,13 @@ struct RS_InteractionMode
     /** Per view slot; -1 means "use the default". */
     int8_t tile[WORLDVIEW_MAX];
     int8_t entity[WORLDVIEW_MAX];
+    /** Pairs kept by the server's world id for views not created yet, oldest
+     *  first (RS_InteractionMode_Hold). */
+    struct RS_InteractionModeHeld held[RS_INTERACTION_MODE_HELD_MAX];
+    int held_count;
 };
 
-/** Defaults 1/1, no view set. */
+/** Defaults 1/1, no view set, nothing held. */
 void
 RS_InteractionMode_Reset(struct RS_InteractionMode* modes);
 
@@ -57,6 +73,37 @@ RS_InteractionMode_SetView(
 void
 RS_InteractionMode_ResetView(
     struct RS_InteractionMode* modes,
+    int view);
+
+/**
+ * A pair for a view the client does not have yet, kept by the server's world
+ * id until a view is created for it (RS_InteractionMode_TakeHeld). The
+ * reference keys its two maps by world id whether that world exists or not
+ * (deob class61.method1382), so a mode the server sets just before it spawns
+ * the hull applies to the hull. A newer pair for the same id replaces the
+ * older. The table is a ring: when it is full the OLDEST held pair -- the one
+ * for the id longest without a view -- makes room, and this returns 1.
+ */
+int
+RS_InteractionMode_Hold(
+    struct RS_InteractionMode* modes,
+    int wire_id,
+    int tile_mode,
+    int entity_mode);
+
+/** RESET_INTERACTION_MODE for a view not created yet: nothing is held for it
+ *  any more (class61.method1412 removes the id from both maps). */
+void
+RS_InteractionMode_ForgetHeld(
+    struct RS_InteractionMode* modes,
+    int wire_id);
+
+/** A view `view` now exists for `wire_id`: it takes the pair held for that id,
+ *  if one is, as its own. Returns 1 when it did. */
+int
+RS_InteractionMode_TakeHeld(
+    struct RS_InteractionMode* modes,
+    int wire_id,
     int view);
 
 /** The tile / entity mode view `view` answers with. */

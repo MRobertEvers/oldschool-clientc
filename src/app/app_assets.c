@@ -16,7 +16,7 @@
  * wrapped in AssetLoadTask (engine/asset_load_task.h), which reports the end
  * to the table; a
  * spot-animation is the spawn task that follows its chain, wrapped the same. A COMPOSITE
- * (an npc body, a held item, a transmog, the inventory icon pass, a
+ * (an npc body, a held item, a transmog, a
  * spot-animation, a reference table) is the task that already followed its
  * chain, registered by the unit that owns it through App_AssetsSetLoader.
  */
@@ -55,8 +55,8 @@ App_AssetResident(
         return app_entity_spotanim_resident(app, key.id) != 0;
     if( key.kind == ASSET_KIND_CONFIG && key.variant == ASSET_CONFIG_IDK )
         return CacheProvider_IdkHas(app->provider, key.id);
-    if( key.kind == ASSET_KIND_CONFIG && key.variant == ASSET_CONFIG_LOC )
-        return CacheProvider_LocationHas(app->provider, key.id);
+    if( key.kind == ASSET_KIND_CONFIG && key.variant >= ASSET_CONFIG_SCRIPTS_FIRST )
+        return app_script_config_resident(app, key);
     if( key.kind == ASSET_KIND_CONFIG )
     {
         assert(key.variant == ASSET_CONFIG_OBJ);
@@ -125,8 +125,8 @@ asset_start_leaf(
         child = CreateTask_SoundLoad(app->provider, key.id);
     else if( key.kind == ASSET_KIND_CONFIG && key.variant == ASSET_CONFIG_IDK )
         child = CreateTask_IdkLoad(app->provider, key.id);
-    else if( key.kind == ASSET_KIND_CONFIG && key.variant == ASSET_CONFIG_LOC )
-        child = CreateTask_LocLoad(app->provider, key.id);
+    else if( key.kind == ASSET_KIND_CONFIG && key.variant >= ASSET_CONFIG_SCRIPTS_FIRST )
+        child = app_script_config_load(app, key);
     else if( key.kind == ASSET_KIND_CONFIG )
         child = CreateTask_ObjLoad(app->provider, key.id);
     else if( key.kind == ASSET_KIND_MUSIC )
@@ -190,7 +190,6 @@ App_AssetsInit(struct App* app)
         App_AssetsSetLoader(app, leaves[i], asset_start_leaf, asset_resident_leaf);
     /* The composites: each unit registers the task that follows its chain. */
     EntityAssets_RegisterLoaders(app);
-    app_inv_icon_assets_register(app);
     /* The dat2 cache's shared prerequisite, its reference tables -- when the
      * provider is the dat2 cache the mounts opened (not a test's stand-in). */
     if( app->cache_mounts.dat2_bc &&

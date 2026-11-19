@@ -60,14 +60,15 @@ struct UIIfHead
     uint32_t applied_gen; /* tree generation this was last applied at; 0 = pending */
     uint32_t close_serial; /* tree->group_close_serial when set: a later close of
                             * the group unloads it (UITree_GroupCloseSerial) */
-    /* The last attempt could not composite the head. It is not attempted
-     * again until something it could be waiting for has changed: an asset
-     * load ended (`miss_serial`, the assets table's serial), the tree
-     * changed (`miss_gen`), or its own load task ended (UIIfModels_
-     * ForgetMiss). An unresolved head was re-attempted every frame forever. */
-    uint8_t missed;
-    uint32_t miss_serial;
-    uint32_t miss_gen;
+    /* What the head's parallel task landed (Task_IfModel, app/
+     * app_tasks_if_assets.c): until `landed` its task is still loading, and
+     * nothing is attempted for it -- an unresolved head was re-attempted
+     * every frame forever. Once landed, `scene_id` is the composite to bind
+     * (-1: the assets did not come, nothing to show) and `landed_npc_id` the
+     * npc an npc head was resolved to (a multinpc's child, -1 hidden). */
+    uint8_t landed;
+    int scene_id;
+    int landed_npc_id;
 };
 
 /* Revision-239 server-driven player-composition widgets. Each component owns
@@ -88,6 +89,10 @@ struct UIIfPlayerModel
     int built;            /* scene_id holds this composition, built whole */
     uint32_t applied_gen; /* tree generation scene_id was bound into */
     uint32_t close_serial; /* as UIIfHead's; com_id -1 = a free slot */
+    /* The composition the packets last committed (UIIfModels.
+     * composition_serial when it was committed). A build of an older one
+     * is stale and is not put into scene_id. */
+    uint32_t composition;
 };
 
 /* Live local-player model widgets (clientCode 328 -- the equipment-stats
@@ -112,6 +117,9 @@ struct UIIfModels
     struct UIIfPlayerModel* player_models;
     int player_model_count;
     int player_model_cap;
+    /* Counts every composition a player-model packet commits, for every
+     * component, so a composition number is never reused. */
+    uint32_t composition_serial;
     struct UIIfLocalPlayerModel local_player;
 };
 
@@ -127,7 +135,8 @@ UIIfModels_HeadIndex(
 
 /**
  * Set `com_id`'s head, adding an entry (with no animation) when it has none.
- * Pending again: applied_gen goes to 0. Answers the entry's index.
+ * Pending again: applied_gen goes to 0 and nothing has landed. Answers the
+ * entry's index.
  */
 int
 UIIfModels_SetHead(
@@ -144,12 +153,29 @@ UIIfModels_RemoveHeadAt(
     struct UIIfModels* models,
     int index);
 
-/** `com_id`'s head may be attempted again (its load task ended). No-op when
- *  the component has no head. */
+/**
+ * The entry a head's task was made for, if it is still the one `com_id`
+ * holds: the same kind, source id, zoom and close serial, and not landed.
+ * -1 when the component's head was replaced, removed or has landed since --
+ * the task then has nothing to apply.
+ */
+int
+UIIfModels_HeadFor(
+    struct UIIfModels const* models,
+    int com_id,
+    enum UIIfHeadKind kind,
+    int npc_id,
+    int zoom,
+    uint32_t close_serial);
+
+/** Entry `index`'s task landed `scene_id` (-1: nothing to show), resolved to
+ *  `landed_npc_id`; it is bound again on the next pass (applied_gen 0). */
 void
-UIIfModels_ForgetMiss(
+UIIfModels_HeadLanded(
     struct UIIfModels* models,
-    int com_id);
+    int index,
+    int scene_id,
+    int landed_npc_id);
 
 /**
  * Give `com_id`'s head animation `anim_id` and make it pending again. False,

@@ -187,8 +187,6 @@ ReplayCheckpoint_CanTake(
         reason = "a clientscript callback is running";
     else if( app->cs1_host.has_pending || app->cs1_host.has_awaited || RS_CS1Host_EvalInflight(&app->cs1_host) )
         reason = "a CS1 evaluation is in flight";
-    else if( Assets_InFlight(app->assets, AssetKey_Make(ASSET_KIND_INV_ICONS, 0, 0)) )
-        reason = "an inventory icon pass is in flight";
     else if( app->host.triggeroplocal_count > 0 || app->host.close_modal_requested ||
              app->host.resume_pausebutton_component_id != -1 || app->host.social_send_count > 0 )
         reason = "a clientscript's request to the App is not drained";
