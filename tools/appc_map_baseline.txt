@@ -383,4 +383,6 @@ src/replay/replay_world_apply.c
 # test became one MapEditorConfig_IsEditorBoot call.
 # Raised to 1421 by the assets table step: App_AssetsInit after the provider
 # is opened, App_AssetsFree (and its comment) before the queues.
-app.c-lines: 1423
+# Raised to 1424 by the spot-animation step: the attached-graphic table grows
+# now, so App_Shutdown frees it (EntitySpotanims_Free).
+app.c-lines: 1424

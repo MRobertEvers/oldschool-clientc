@@ -650,6 +650,12 @@ App_AssetResident(
     struct App* app,
     struct AssetKey key);
 
+/** Every asset an attached graphic needs (its type, model, sequence) is in. */
+int
+app_entity_spotanim_resident(
+    struct App* app,
+    int spotanim_id);
+
 /** Per frame, before the polls: the table's clock, and back-offs that are
  *  over restarted. */
 void

@@ -1,14 +1,38 @@
 #include "engine/entity_spotanim.h"
 
+#include "mem/torirs_mem.h"
+
 #include <assert.h>
 #include <stddef.h>
+
+static void
+spotanims_mark_free(
+    struct EntitySpotanims* table,
+    int from)
+{
+    for( int i = from; i < table->capacity; i++ )
+        table->entries[i] = (struct EntitySpotanim){ .body_element_id = -1, .owner_entity_id = 0 };
+}
 
 void
 EntitySpotanims_Init(struct EntitySpotanims* table)
 {
     assert(table);
-    for( int i = 0; i < ENTITY_SPOTANIMS_MAX; i++ )
-        table->entries[i].body_element_id = -1;
+    table->capacity = ENTITY_SPOTANIMS_INITIAL;
+    table->entries =
+        ToriMem_Calloc(ToriMem_Session(), (size_t)table->capacity, sizeof(*table->entries));
+    assert(table->entries);
+    spotanims_mark_free(table, 0);
+}
+
+void
+EntitySpotanims_Free(struct EntitySpotanims* table)
+{
+    if( !table )
+        return;
+    ToriMem_Free(ToriMem_Session(), table->entries);
+    table->entries = NULL;
+    table->capacity = 0;
 }
 
 struct EntitySpotanim*
@@ -21,7 +45,7 @@ EntitySpotanims_Find(
     assert(table);
     assert(out_recycled);
     *out_recycled = NULL;
-    for( int i = 0; i < ENTITY_SPOTANIMS_MAX; i++ )
+    for( int i = 0; i < table->capacity; i++ )
     {
         struct EntitySpotanim* entry = &table->entries[i];
         if( entry->body_element_id != body_element_id )
@@ -47,11 +71,19 @@ EntitySpotanims_Claim(
 
     assert(table);
     assert(body_element_id >= 0);
-    for( int i = 0; i < ENTITY_SPOTANIMS_MAX && !entry; i++ )
+    for( int i = 0; i < table->capacity && !entry; i++ )
         if( table->entries[i].body_element_id == -1 )
             entry = &table->entries[i];
     if( !entry )
-        return NULL;
+    {
+        int const old = table->capacity;
+        table->capacity = old ? old * 2 : ENTITY_SPOTANIMS_INITIAL;
+        table->entries = ToriMem_Realloc(
+            ToriMem_Session(), table->entries, (size_t)table->capacity * sizeof(*table->entries));
+        assert(table->entries);
+        spotanims_mark_free(table, old);
+        entry = &table->entries[old];
+    }
     *entry = (struct EntitySpotanim){
         .body_element_id = body_element_id,
         .owner_entity_id = owner_entity_id,

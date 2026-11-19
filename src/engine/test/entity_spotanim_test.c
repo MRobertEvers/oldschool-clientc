@@ -12,6 +12,7 @@
  */
 
 #include "engine/entity_spotanim.h"
+#include "mem/torirs_mem.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -37,6 +38,7 @@ static struct EntitySpotanims g_table;
 static void
 fresh(void)
 {
+    EntitySpotanims_Free(&g_table);
     memset(&g_table, 0, sizeof(g_table));
     EntitySpotanims_Init(&g_table);
 }
@@ -48,7 +50,7 @@ test_init_frees_every_entry(void)
 
     fresh();
     recycled = &g_table.entries[5];
-    for( int i = 0; i < ENTITY_SPOTANIMS_MAX; i++ )
+    for( int i = 0; i < g_table.capacity; i++ )
         TEST_ASSERT(g_table.entries[i].body_element_id == -1, "init marks every entry free");
     TEST_ASSERT(EntitySpotanims_Find(&g_table, 0, 0, &recycled) == NULL, "element 0 is not free");
     TEST_ASSERT(recycled == NULL, "a miss sets no recycled entry");
@@ -71,7 +73,6 @@ test_claim_and_find(void)
     {
         TEST_ASSERT(a->slots[i].spotanim_id == -1, "every slot empty");
         TEST_ASSERT(a->slots[i].applied_frame == -1, "no frame baked");
-        TEST_ASSERT(a->slots[i].load_enqueued == 0, "nothing loading");
         TEST_ASSERT(a->slots[i].spot == NULL, "no spot model");
     }
     b = EntitySpotanims_Claim(&g_table, 5, 200);
@@ -92,32 +93,41 @@ test_claim_and_find(void)
     TEST_ASSERT(EntitySpotanims_Claim(&g_table, 9, 400) == a, "the first free entry is reused");
 }
 
+/* A3: the 65th entity wearing a graphic used to get no entry, and its
+ * graphic never drew. The table grows instead. */
 static void
-test_claim_fails_when_full(void)
+test_claim_grows_when_full(void)
 {
+    struct EntitySpotanim* recycled;
+    int all_found = 1;
+
     fresh();
-    for( int i = 0; i < ENTITY_SPOTANIMS_MAX; i++ )
+    for( int i = 0; i < ENTITY_SPOTANIMS_INITIAL; i++ )
         TEST_ASSERT(EntitySpotanims_Claim(&g_table, i, i + 1) != NULL, "claim while room");
-    TEST_ASSERT(EntitySpotanims_Claim(&g_table, 1000, 1) == NULL, "a full table claims nothing");
+    TEST_ASSERT(EntitySpotanims_Claim(&g_table, 1000, 1) != NULL, "a full table grows");
+    TEST_ASSERT(g_table.capacity == 2 * ENTITY_SPOTANIMS_INITIAL, "to twice its size");
+    for( int i = 0; i < ENTITY_SPOTANIMS_INITIAL; i++ )
+        if( EntitySpotanims_Find(&g_table, i, i + 1, &recycled) == NULL )
+            all_found = 0;
+    TEST_ASSERT(all_found, "every earlier entry survives the growth");
+    TEST_ASSERT(EntitySpotanims_Find(&g_table, 1000, 1, &recycled) != NULL, "and the new one");
+    for( int i = 0; i < 300; i++ )
+        TEST_ASSERT(EntitySpotanims_Claim(&g_table, 2000 + i, 1) != NULL, "a crowd of 300 more");
     EntitySpotanim_Clear(&g_table.entries[17]);
-    TEST_ASSERT(EntitySpotanims_Claim(&g_table, 1000, 1) == &g_table.entries[17], "room again");
+    TEST_ASSERT(EntitySpotanims_Claim(&g_table, 5000, 1) == &g_table.entries[17],
+        "a freed entry is reused before the table grows again");
 }
 
 static void
 test_slot_want(void)
 {
-    struct EntitySpotanimSlot slot = { .spotanim_id = 12,
-                                       .load_enqueued = 1,
-                                       .applied_frame = 3,
-                                       .spot = MODEL(0) };
+    struct EntitySpotanimSlot slot = { .spotanim_id = 12, .applied_frame = 3, .spot = MODEL(0) };
 
     TEST_ASSERT(EntitySpotanim_SlotWant(&slot, 12) == NULL, "same graphic hands nothing back");
     TEST_ASSERT(slot.spot == MODEL(0) && slot.applied_frame == 3, "same graphic keeps its model");
-    TEST_ASSERT(slot.load_enqueued == 1, "same graphic keeps its load");
     TEST_ASSERT(EntitySpotanim_SlotWant(&slot, 13) == MODEL(0), "new graphic hands the model back");
     TEST_ASSERT(slot.spotanim_id == 13, "new graphic is taken");
     TEST_ASSERT(slot.spot == NULL && slot.applied_frame == -1, "new graphic has no model or frame");
-    TEST_ASSERT(slot.load_enqueued == 0, "new graphic has no load yet");
     TEST_ASSERT(EntitySpotanim_SlotWant(&slot, -1) == NULL, "ending with no model hands nothing");
     TEST_ASSERT(slot.spotanim_id == -1, "ended slot is empty");
 }
@@ -164,11 +174,13 @@ test_merge_rule(void)
 int
 main(void)
 {
+    ToriMem_Init();
     test_init_frees_every_entry();
     test_claim_and_find();
-    test_claim_fails_when_full();
+    test_claim_grows_when_full();
     test_slot_want();
     test_merge_rule();
+    EntitySpotanims_Free(&g_table);
     if( g_failures )
     {
         printf("entity_spotanim_test: %d failure(s)\n", g_failures);

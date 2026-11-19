@@ -18,8 +18,10 @@
  *  SEQUENCE     a failed decode registers an empty sentinel, so the cache
  *               itself remembers; the bind catches its frames up from the
  *               cycle the sequence started on, which is what "shortened" is.
- *  SPOTANIM     asked once per graphic (was load_enqueued); the next graphic
- *               asks again.
+ *  SPOTANIM     one load per graphic however many entities wear it (was a
+ *               flag per slot, and a prefetch per packet that never asked
+ *               whether one was in flight); a load that ends without it is
+ *               retried after a back-off while something still wears it.
  *  NPC_BODY     one load dresses every npc of the type (was RS_NpcBodyLands);
  *               the next spawn of a cold type asks again.
  *  PLAYER_HELD  as NPC_BODY: the per-frame body reconcile dresses everyone.
@@ -52,7 +54,7 @@ static struct AssetPolicy const g_asset_policy[ASSET_KIND_COUNT] = {
                             ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ONE },
     [ASSET_KIND_SEQUENCE] = { "sequence", ASSET_FAIL_REMEMBER, 0, 0, 0, ASSET_LATE_LAND_SHORTENED,
                               0, ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ONE },
-    [ASSET_KIND_SPOTANIM] = { "spotanim", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_LATE_LAND, 0,
+    [ASSET_KIND_SPOTANIM] = { "spotanim", ASSET_FAIL_BACKOFF, 0, 500, 4000, ASSET_LATE_LAND, 0,
                               ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ONE },
     [ASSET_KIND_NPC_BODY] = { "npc_body", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_LATE_LAND, 0,
                               ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ALL },

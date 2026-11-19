@@ -1406,6 +1406,7 @@ App_Shutdown(struct App* app)
     RS_Preload_Free(&app->preload);
     RS_LoginReplies_Free(&app->login_replies);
     UIIfModels_Free(&app->if_models);
+    EntitySpotanims_Free(&app->entity_spotanims);
     app_placeholder_park_free(app);
     /* All three of these were leaked. Only the hide array was freed, and its
      * two siblings -- plus every string the text store strdup'd -- were not.

@@ -1595,16 +1595,15 @@ app_spawn_fan_spotanim_assets(struct Task_AppSpawn* self)
     self->model_id = (spot && spot->model > 0) ? spot->model : -1;
     self->seq_id = spot ? spot->seq : -1;
 
+    /* Through the assets table: the graphic's model and sequence are one
+     * load each however many spawns, projectiles and attached graphics ask
+     * for them at once. */
     if( self->model_id > 0 )
-        ToriRS_TaskQueue_AddParallelPoolSubTask(
-            app->frame_runner.queue,
-            CreateTask_ModelLoad(app->provider, self->model_id),
-            &self->pending);
+        Assets_Await(
+            app->assets, AssetKey_Make(ASSET_KIND_MODEL, self->model_id, 0), &self->pending);
     if( self->seq_id >= 0 )
-        ToriRS_TaskQueue_AddParallelPoolSubTask(
-            app->frame_runner.queue,
-            CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id),
-            &self->pending);
+        Assets_Await(
+            app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, self->seq_id, 0), &self->pending);
 }
 
 /*
@@ -2170,6 +2169,11 @@ app_spawn_loc_lane_release(struct Task_AppSpawn* self)
 static void
 Task_AppSpawn_Free(struct ToriRS_Task* base)
 {
+    struct Task_AppSpawn* self = (struct Task_AppSpawn*)base;
+    /* Freed while its parts load: the table must stop counting them on this
+     * task. At shutdown the table is already gone. */
+    if( self->pending > 0 && self->app && self->app->assets )
+        Assets_Unjoin(self->app->assets, &self->pending);
     app_spawn_loc_lane_release((struct Task_AppSpawn*)base);
     ToriMem_Free(ToriMem_Process(), base);
 }

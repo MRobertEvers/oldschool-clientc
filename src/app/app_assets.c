@@ -13,7 +13,8 @@
  *
  * A LEAF load (a model, a texture, a sprite, a sequence, a component pack, a
  * sound, a song, the skybox, an obj model) is the provider's CreateTask_*
- * wrapped in Task_AssetLoad, which reports the end to the table. A COMPOSITE
+ * wrapped in Task_AssetLoad, which reports the end to the table; a
+ * spot-animation is the spawn task that follows its chain, wrapped the same. A COMPOSITE
  * (an npc body, a held item, a transmog, the inventory icon pass, a
  * spot-animation, a reference table) is the task that already followed its
  * chain, registered by the unit that owns it through App_AssetsSetLoader.
@@ -107,6 +108,8 @@ App_AssetResident(
         return CacheProvider_SoundHas(app->provider, key.id);
     if( key.kind == ASSET_KIND_OBJ_MODEL )
         return !ObjModelLoad_NeedsWork(app->provider, key.id, key.variant);
+    if( key.kind == ASSET_KIND_SPOTANIM )
+        return app_entity_spotanim_resident(app, key.id) != 0;
     /* A song is "here" only while the player holds it; the loader installs
      * it, so the end of the load is the whole answer. */
     if( key.kind == ASSET_KIND_MUSIC )
@@ -157,6 +160,15 @@ asset_start_leaf(
         child = CreateTask_MusicLoad(app->provider, &app->audio.music, key.id, key.variant);
     else if( key.kind == ASSET_KIND_OBJ_MODEL )
         child = CreateTask_ObjModelLoad(app->provider, &task->obj_id, &task->count, 1);
+    else if( key.kind == ASSET_KIND_SPOTANIM )
+    {
+        /* The type, then its model and sequence together (each of those
+         * through the table in turn). */
+        struct Task_AppSpawn* spawn = app_spawn_task_new(app, APP_SPAWN_ENTITY_SPOTANIM, 0, 0, 0);
+        spawn->spotanim_id = key.id;
+        spawn->entity_element_id = -1;
+        child = &spawn->task;
+    }
     else
         assert(0 && "not a leaf kind");
 
@@ -207,7 +219,7 @@ App_AssetsInit(struct App* app)
     static enum AssetKind const leaves[] = {
         ASSET_KIND_MODEL,    ASSET_KIND_TEXTURE, ASSET_KIND_SPRITE, ASSET_KIND_SEQUENCE,
         ASSET_KIND_IF_GROUP, ASSET_KIND_SOUND,   ASSET_KIND_MUSIC,  ASSET_KIND_SKYBOX,
-        ASSET_KIND_OBJ_MODEL,
+        ASSET_KIND_OBJ_MODEL, ASSET_KIND_SPOTANIM,
     };
 
     assert(app);

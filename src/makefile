@@ -2770,12 +2770,12 @@ test-skybox-slot: $(OBJ_DIR)
 	./$(OBJ_DIR)/skybox_slot_test$(PLATFORM_EXE_SUFFIX)
 
 # The attached-graphic table: free entries are -1, a recycled element id is
-# not a match, a full table claims nothing, and a merge is rebuilt only when
+# not a match, a full table grows, and a merge is rebuilt only when
 # its slots or a drawn slot's frame changed.
 .PHONY: test-entity-spotanim
 test-entity-spotanim: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/entity_spotanim_test$(PLATFORM_EXE_SUFFIX) \
-		engine/test/entity_spotanim_test.c engine/entity_spotanim.c $(LDFLAGS)
+		$(TORIMEM_SRCS) engine/test/entity_spotanim_test.c engine/entity_spotanim.c $(LDFLAGS)
 	./$(OBJ_DIR)/entity_spotanim_test$(PLATFORM_EXE_SUFFIX)
 
 # The sailing helm's ids and the selected heading: shown for 30 client cycles
