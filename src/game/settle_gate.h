@@ -91,6 +91,54 @@ SettleGate_FrameUnsettledReason(struct SettleGateInput const* in);
 char const*
 SettleGate_ReasonName(enum SettleGateReason reason);
 
+/**
+ * Is this reason the PACKET SIDE's (the frame contract, app.h): the only
+ * side that may withhold a frame. Every reason the gate has is: the two
+ * script latches (a render-blocking task), the packet queue's latch, the
+ * open server tick, and held scripts or undrained host requests (the
+ * scripts' own requests). An ordinary task on the parallel queue, or a job
+ * on the background queue, is not an input here at all.
+ */
+bool
+SettleGate_ReasonPacketSide(enum SettleGateReason reason);
+
+/*
+ * Every reason App_RunOnce returns no commit, named, so that each is
+ * classed and none is a silent exit. The gate's own refusal is one of them
+ * (its reason above says which).
+ */
+enum SettleGateWithhold
+{
+    /** The boot (on the main queue) is baking the tree, and the last frame
+     *  is kept over it (App_BootHoldsLastFrame). */
+    SETTLE_GATE_WITHHOLD_BOOT = 0,
+    /** A logout's bake keeps the last frame (the main queue's boot). */
+    SETTLE_GATE_WITHHOLD_LOGOUT_HOLD,
+    /** The frame runner's script latch, at the top of the frame: last
+     *  frame's script settle did not finish. */
+    SETTLE_GATE_WITHHOLD_SCRIPTS_LATCHED,
+    /** A script settle this frame did not finish: a read is on the wire. */
+    SETTLE_GATE_WITHHOLD_SCRIPTS_PENDING,
+    /** A script settle this frame did not finish: a script waits on state
+     *  another queue owns. */
+    SETTLE_GATE_WITHHOLD_SCRIPTS_BLOCKED,
+    /** SettleGate_FrameSettled refused (before or after interaction). */
+    SETTLE_GATE_WITHHOLD_GATE,
+    /** A replay seek holds the screen (RenderSkip_Held). NOT the packet
+     *  side's: a driver's mode, which holds no queue. Left out of the strict
+     *  abort by name. */
+    SETTLE_GATE_WITHHOLD_REPLAY_SEEK,
+    SETTLE_GATE_WITHHOLD_COUNT,
+};
+
+/** Is this withhold the packet side's? Every one but the replay seek. */
+bool
+SettleGate_WithholdPacketSide(enum SettleGateWithhold why);
+
+/** "withheld:<why>", the text a breach or the trace prints. */
+char const*
+SettleGate_WithholdName(enum SettleGateWithhold why);
+
 /** Is a packet/interface transaction still being applied? */
 bool
 SettleGate_PacketTransactionOpen(struct SettleGateInput const* in);

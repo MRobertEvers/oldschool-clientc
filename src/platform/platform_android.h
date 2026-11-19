@@ -78,11 +78,20 @@ PlatformAndroid_SetWindow(struct ANativeWindow* window, int width, int height);
 int
 PlatformAndroid_AwaitWindow(void);
 
-/** The current surface, or NULL while the activity is stopped. Borrowed: valid
- *  only until the next SetWindow, which is why the caller must be the frame
- *  thread and must not keep it across a present. */
+/** The current surface, or NULL while the activity is stopped. Borrowed and
+ *  good for an identity test or a NULL test only: the next SetWindow can come
+ *  from the UI thread at any moment, so nothing may be done WITH the pointer.
+ *  @see PlatformAndroid_AcquireWindow. */
 struct ANativeWindow*
 PlatformAndroid_Window(void);
+
+/** The current surface with a reference the caller owns, or NULL while the
+ *  activity is stopped. For any use of the window itself (a lock and post, an
+ *  EGL surface made from it): the UI thread may replace or drop the surface at
+ *  any moment, and only a reference taken under the lock keeps the window
+ *  alive across that. The caller releases it (ANativeWindow_release). */
+struct ANativeWindow*
+PlatformAndroid_AcquireWindow(void);
 
 /** The surface's size in real device pixels. Zero when there is no surface. */
 void

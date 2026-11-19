@@ -14,9 +14,14 @@
  * frame, and a frame that settled a CS2 transaction is not a busy frame.
  *
  * The pending flag describes the last pass only: it is cleared when a pass
- * begins and raised when the pass ends with the runner not idle. The frame
- * loop reads it to skip its pacing sleep, because sleeping through queued
- * work paces the download instead of the screen.
+ * begins and raised when the pass ends with the runner not idle. Beside it,
+ * the pass says whether what it left can move WITHOUT waiting for anything
+ * (runnable: the boot asked for its next frame) and whether it moved anything
+ * at all. The frame loop reads them to decide its pacing wait: work that can
+ * run is not slept through, because sleeping through queued work paces the
+ * download instead of the screen; work that only waits -- on a read the
+ * platform has not answered, or on another queue -- is waited for without
+ * spinning (ToriRS_Pacer_LoopWait, pacer.h).
  *
  * This does not know what a step is, what the budget is, or whether a bake
  * is running. The caller passes the step count, the budget and what kind of
@@ -34,6 +39,11 @@ struct BootPumpStats
     long busy_steps;
     /** The last pass ended with the runner not idle. */
     int async_pending;
+    /** ...and some of what it left can run at once, without a read landing
+     *  or another queue moving (the boot asked for its next frame). */
+    int async_runnable;
+    /** The last pass ran at least one task on some queue. */
+    int async_moved;
 };
 
 /** No frames, no steps, nothing pending. */
@@ -66,13 +76,30 @@ BootPumpStats_NoteFrame(
     int steps,
     int budget);
 
-/** The pass ended with the runner not idle. */
+/** The pass ended with the runner not idle: what it left waits (on a read,
+ *  a join, or another queue). */
 void
 BootPumpStats_SetPending(struct BootPumpStats* stats);
+
+/** The pass ended with work that can run at once (implies pending). */
+void
+BootPumpStats_SetRunnable(struct BootPumpStats* stats);
+
+/** The pass ran at least one task. */
+void
+BootPumpStats_SetMoved(struct BootPumpStats* stats);
 
 /** The last pass left work queued. */
 int
 BootPumpStats_Pending(struct BootPumpStats const* stats);
+
+/** The last pass left work that can run at once. */
+int
+BootPumpStats_Runnable(struct BootPumpStats const* stats);
+
+/** The last pass ran at least one task. */
+int
+BootPumpStats_Moved(struct BootPumpStats const* stats);
 
 int
 BootPumpStats_BootFrames(struct BootPumpStats const* stats);

@@ -25,6 +25,8 @@ BootPumpStats_PassBegin(struct BootPumpStats* stats)
 {
     assert(stats);
     stats->async_pending = 0;
+    stats->async_runnable = 0;
+    stats->async_moved = 0;
 }
 
 void
@@ -61,11 +63,40 @@ BootPumpStats_SetPending(struct BootPumpStats* stats)
     stats->async_pending = 1;
 }
 
+void
+BootPumpStats_SetRunnable(struct BootPumpStats* stats)
+{
+    assert(stats);
+    stats->async_pending = 1;
+    stats->async_runnable = 1;
+}
+
+void
+BootPumpStats_SetMoved(struct BootPumpStats* stats)
+{
+    assert(stats);
+    stats->async_moved = 1;
+}
+
 int
 BootPumpStats_Pending(struct BootPumpStats const* stats)
 {
     assert(stats);
     return stats->async_pending;
+}
+
+int
+BootPumpStats_Runnable(struct BootPumpStats const* stats)
+{
+    assert(stats);
+    return stats->async_runnable;
+}
+
+int
+BootPumpStats_Moved(struct BootPumpStats const* stats)
+{
+    assert(stats);
+    return stats->async_moved;
 }
 
 int

@@ -111,8 +111,29 @@ test_pending(void)
     BootPumpStats_PassBegin(&stats);
     BootPumpStats_SetPending(&stats);
     CHECK(BootPumpStats_Pending(&stats), "left work");
+    CHECK(!BootPumpStats_Runnable(&stats), "work that waits is not runnable");
     BootPumpStats_PassBegin(&stats);
     CHECK(!BootPumpStats_Pending(&stats), "a new pass starts clear");
+}
+
+static void
+test_runnable_and_moved(void)
+{
+    struct BootPumpStats stats;
+
+    printf("TEST: runnable implies pending, and both clear with moved at a new pass\n");
+
+    BootPumpStats_Reset(&stats);
+    BootPumpStats_PassBegin(&stats);
+    BootPumpStats_SetRunnable(&stats);
+    BootPumpStats_SetMoved(&stats);
+    CHECK(BootPumpStats_Pending(&stats), "runnable work is pending work");
+    CHECK(BootPumpStats_Runnable(&stats), "runnable");
+    CHECK(BootPumpStats_Moved(&stats), "moved");
+    BootPumpStats_PassBegin(&stats);
+    CHECK(!BootPumpStats_Pending(&stats), "pending clears");
+    CHECK(!BootPumpStats_Runnable(&stats), "runnable clears");
+    CHECK(!BootPumpStats_Moved(&stats), "moved clears");
 }
 
 int
@@ -122,6 +143,7 @@ main(void)
     test_boot_frames();
     test_busy_frames();
     test_pending();
+    test_runnable_and_moved();
     if( g_failures )
     {
         printf("boot_pump_stats: %d failure(s)\n", g_failures);

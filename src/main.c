@@ -811,6 +811,17 @@ struct MainPacing
      * frames -- there is exactly one frame loop per process. */
     int paced_mode;
     int paced_value;
+    /* The mode that scheduled THIS callback: the one installed during the
+     * previous frame (paced_mode is already the next one's by the time the
+     * period is measured), and whether the previous callback was a raf one
+     * too. A period is a vsync measure only when both of its ends were raf
+     * callbacks: the first raf callback after a timer-paced frame comes at
+     * the first vsync after an arbitrary start. */
+    int prev_paced_mode;
+    int prev_raf_callback;
+    /* The display's period, from raf-paced periods (pacer.h): what bounds the
+     * background queue's slack at the end of the frame. */
+    struct ToriRS_DisplayPeriod display_period;
 #endif
 };
 static struct MainPacing main_pacing = {
@@ -818,6 +829,7 @@ static struct MainPacing main_pacing = {
 #if defined(TORIRS_PLATFORM_WEB)
     .paced_mode = -1,
     .paced_value = -1,
+    .prev_paced_mode = -1,
 #endif
 };
 
@@ -4001,6 +4013,157 @@ main_hotkey_debug_edges(
     TORIRS_REPORT("hotkey_edges: frame %ld%s\n", frame, line);
 }
 
+/*
+ * TORIRS_QUEUE_CONTRACT_TRACE: the native loop's half of the frame contract,
+ * summed over MAIN_LOOP_TRACE_FRAMES iterations and printed as one line with
+ * the App's half (App_QueueContractTraceLine): how each iteration waited
+ * (ToriRS_Pacer_LoopWait), the naps and the pumps between them, and the slack
+ * the background queue was given. Also printed when the loop ends.
+ */
+#define MAIN_LOOP_TRACE_FRAMES 250
+
+static struct
+{
+    int frames;
+    int committed;
+    int waits[3];
+    int naps;
+    int nap_pumps_moved;
+    int slack_calls;
+    uint64_t slack_us;
+    /* When the first summarised frame ran, for the line's elapsed time. */
+    uint64_t start_us;
+} main_loop_trace;
+
+static void
+main_loop_trace_flush(int at_end)
+{
+    char app_line[512];
+
+    if( !TaskRunner_ContractTrace() || main_loop_trace.frames == 0 )
+        return;
+    if( !at_end && main_loop_trace.frames < MAIN_LOOP_TRACE_FRAMES )
+        return;
+    (void)App_QueueContractTraceLine(&app, app_line, (int)sizeof(app_line));
+    if( main_loop_trace.start_us == 0 )
+        main_loop_trace.start_us = PlatformWindow_TicksUs();
+    fprintf(
+        stderr,
+        "queue_contract: loop t=%.2fs frames=%d committed=%d wait none=%d sleep=%d nap=%d naps=%d (moved %d) "
+        "slack=%d (%.1f ms); %s\n",
+        (double)(PlatformWindow_TicksUs() - main_loop_trace.start_us) / 1e6,
+        main_loop_trace.frames,
+        main_loop_trace.committed,
+        main_loop_trace.waits[TORIRS_LOOP_WAIT_NONE],
+        main_loop_trace.waits[TORIRS_LOOP_WAIT_SLEEP],
+        main_loop_trace.waits[TORIRS_LOOP_WAIT_NAP],
+        main_loop_trace.naps,
+        main_loop_trace.nap_pumps_moved,
+        main_loop_trace.slack_calls,
+        (double)main_loop_trace.slack_us / 1000.0,
+        app_line);
+    {
+        uint64_t const start_us = main_loop_trace.start_us;
+        memset(&main_loop_trace, 0, sizeof(main_loop_trace));
+        main_loop_trace.start_us = start_us;
+    }
+}
+
+#if !defined(__EMSCRIPTEN__)
+/* The background queue's slack: App_RunBackground up to `until_ms`. Costs
+ * nothing when the queue is empty. */
+static void
+main_give_background_slack(uint64_t until_ms)
+{
+    uint64_t const now_ms = PlatformWindow_Ticks64();
+    uint64_t t0;
+
+    if( until_ms <= now_ms || !app.background_runner.queue->head )
+        return;
+    t0 = PlatformWindow_TicksUs();
+    App_RunBackground(&app, t0 + (until_ms - now_ms) * 1000u);
+    main_loop_trace.slack_calls++;
+    main_loop_trace.slack_us += PlatformWindow_TicksUs() - t0;
+}
+
+/*
+ * A NAP wait (ToriRS_Pacer_LoopWait): the frame's work is queued and only
+ * waits -- on a read the platform has not answered, a join on one, or
+ * another queue. Sleep it out TORIRS_LOOP_NAP_MS at a time, and between naps
+ * pump the queues the way the browser does when a batch lands
+ * (torirs_web_io_pump): App_PumpAsync takes up whatever answers arrived, and
+ * the background queue is given what is left of the slack, since an answer
+ * may be its. Back to the frames as soon as a pump runs anything, or nothing
+ * is left queued: the next frame publishes what it did. Never a spin -- every
+ * turn of this loop sleeps -- and never a frame late on an answer by more
+ * than a nap.
+ */
+static void
+main_wait_napping(uint64_t wait_until_ms)
+{
+    int const main_waited = App_MainQueueWaitsOnRead(&app);
+
+    for( ;; )
+    {
+        uint64_t const now_ms = PlatformWindow_Ticks64();
+        uint64_t nap_until;
+
+        if( now_ms >= wait_until_ms )
+            return;
+        nap_until = now_ms + TORIRS_LOOP_NAP_MS;
+        if( nap_until > wait_until_ms )
+            nap_until = wait_until_ms;
+        PlatformWindow_SleepUntil(nap_until);
+        main_loop_trace.naps++;
+        (void)App_PumpAsync(&app, 0);
+        main_give_background_slack(wait_until_ms);
+        if( App_AsyncMoved(&app) )
+        {
+            main_loop_trace.nap_pumps_moved++;
+            return;
+        }
+        /* A packet's read landed: the next frame's packet pump resumes it. */
+        if( main_waited && !App_MainQueueWaitsOnRead(&app) )
+        {
+            main_loop_trace.nap_pumps_moved++;
+            return;
+        }
+        if( App_AsyncRunnable(&app) || (!App_AsyncPending(&app) && !main_waited) )
+            return;
+    }
+}
+#endif
+
+/*
+ * TORIRS_BOOT_STATS: the loading screen as it is shown, one line each time
+ * the bar's position or caption changes on a boot frame -- the check that the
+ * boot, now on the main queue, still shows its progress frame by frame.
+ */
+static void
+main_boot_bar_report(int committed)
+{
+    static int last_percent = -2;
+    static char last_caption[96];
+    int font = -1;
+    int percent;
+    char const* caption;
+
+    if( !main_harness.boot_stats || !RS_ClientPhase_Booting(&app.phase) )
+        return;
+    percent = App_BootBarPercent(&app);
+    caption = App_BootBarCaption(&app, &font);
+    if( percent == last_percent && strcmp(caption ? caption : "", last_caption) == 0 )
+        return;
+    last_percent = percent;
+    snprintf(last_caption, sizeof(last_caption), "%s", caption ? caption : "");
+    TORIRS_ERR(
+        "boot bar: frame %d committed=%d percent=%d caption='%s'\n",
+        BootPumpStats_BootFrames(&app.pump_stats),
+        committed,
+        percent,
+        last_caption);
+}
+
 /** One iteration of the frame loop. Returns 0 when the client should stop. */
 static int
 frame_loop_step(void)
@@ -4142,6 +4305,9 @@ frame_loop_step(void)
     /* A replay seek's held frame on a renderer that is handed its scene
      * events without a draw (renderer_learn_held_frame). */
     int held_learns = 0;
+#if !defined(__EMSCRIPTEN__)
+    enum ToriRS_LoopWait loop_wait;
+#endif
     int app_committed = 0;
     uint64_t frame_start_us;
     /* When the screen is next allowed to be redrawn.
@@ -4305,8 +4471,14 @@ frame_loop_step(void)
                 web_mark_frame_event(label);
             }
         }
+        if( main_pacing.prev_paced_mode == EM_TIMING_RAF && main_pacing.prev_raf_callback )
+            ToriRS_DisplayPeriod_Note(&main_pacing.display_period, period_us);
 #endif
     }
+#if defined(TORIRS_PLATFORM_WEB)
+    main_pacing.prev_raf_callback = main_pacing.prev_paced_mode == EM_TIMING_RAF;
+    main_pacing.prev_paced_mode = main_pacing.paced_mode;
+#endif
     main_pacing.prev_frame_start_us = frame_start_us;
     TORIRS_PERF_FRAME_BEGIN();
 
@@ -6131,6 +6303,12 @@ frame_loop_step(void)
     {
         app_redraw = App_RunOnce(&app, logic_now, input);
         app_committed = app_redraw;
+        main_boot_bar_report(app_committed);
+        if( main_loop_trace.start_us == 0 )
+            main_loop_trace.start_us = PlatformWindow_TicksUs();
+        main_loop_trace.frames++;
+        if( app_committed )
+            main_loop_trace.committed++;
         /* Acceptance sessions rasterize explicit checkpoints; logic still runs at 50 Hz. */
         static int checkpoints = -1;
         if( checkpoints < 0 )
@@ -6715,18 +6893,64 @@ frame_loop_step(void)
     /*
      * The cap paces the screen, not the pipeline.
      *
-     * App_RunOnce drains a bounded number of async steps per frame (32 once
-     * past boot), so sleeping out the rest of the frame while work is still
-     * queued caps the pipeline at budget-times-framerate -- which on a cold
-     * boot is the client's whole world download, and is why an uncapped run
-     * reached the world visibly sooner than a capped one on the same machine.
+     * App_RunOnce pumps the parallel queue to a standstill every frame (no
+     * bound: APP_ASYNC_STEP_LIMIT is a runaway backstop that aborts), and it
+     * ends with work left only when that work waits -- on a read the
+     * platform has not answered, or on a join. Sleeping out the rest of the
+     * frame then would make the frame cap decide when those answers are
+     * taken up, which on a cold boot is the client's whole world download:
+     * the reason an uncapped run once reached the world visibly sooner than
+     * a capped one on the same machine. Nor does it go straight on: work
+     * that only waits cannot be moved by another frame, and a loop that
+     * went round again for it spun the parallel queue against reads still
+     * on the wire. So the wait is decided by what is queued
+     * (ToriRS_Pacer_LoopWait, pacer.h): nothing -- the ordinary sleep; work
+     * that can run now (the boot asked for its next frame) -- no wait; work
+     * that only waits -- the wait slept in naps with a pump between them
+     * (main_wait_napping), ended the moment a pump moves anything.
      *
-     * There is no busy-wait here: the loop goes straight back into
-     * App_RunOnce, which does real work. When the queue drains, async_pending
-     * clears and the ordinary wait resumes on the very next frame.
+     * The background queue's slack below is taken whenever the loop waits.
+     * A frame that does not wait gives it the floor slice alone
+     * (app_run_background_floor), which every App_RunOnce pays.
      */
     ContentTest_End(&app, sock);
-    if( !replay && !main_pacing.uncapped && !ContentTest_Enabled() && !App_AsyncPending(&app) )
+    {
+        struct ToriRS_LoopWaitInput const wait_in = {
+            .uncapped = main_pacing.uncapped,
+            .replay = replay ? 1 : 0,
+            .content_test = ContentTest_Enabled() ? 1 : 0,
+            .async_pending = App_AsyncPending(&app),
+            .async_runnable = App_AsyncRunnable(&app),
+            .main_waits_on_read = App_MainQueueWaitsOnRead(&app),
+        };
+        loop_wait = ToriRS_Pacer_LoopWait(&wait_in);
+    }
+    /* TORIRS_LOOP_NAP=0: the A/B for the nap -- work that only waits goes
+     * straight into the next frame, as the loop did before it napped. */
+    {
+        static int nap = -1;
+        if( nap < 0 )
+        {
+            char const* env = getenv("TORIRS_LOOP_NAP");
+            nap = env && env[0] == '0' ? 0 : 1;
+        }
+        if( loop_wait == TORIRS_LOOP_WAIT_NAP && !nap )
+            loop_wait = TORIRS_LOOP_WAIT_NONE;
+    }
+    main_loop_trace.waits[loop_wait]++;
+    if( TaskRunner_ContractTrace() >= 3 )
+        fprintf(
+            stderr,
+            "queue_contract: trace loop frame t=%.3fs committed=%d wait=%s pending=%d runnable=%d main_read=%d "
+            "main_head=%s\n",
+            (double)(PlatformWindow_TicksUs() - main_loop_trace.start_us) / 1e6,
+            app_committed,
+            ToriRS_Pacer_LoopWaitName(loop_wait),
+            App_AsyncPending(&app),
+            App_AsyncRunnable(&app),
+            App_MainQueueWaitsOnRead(&app),
+            app.packet_runner.queue->head ? app.packet_runner.queue->head->name : "-");
+    if( loop_wait != TORIRS_LOOP_WAIT_NONE )
     {
         uint64_t pace_begin_us = PlatformWindow_TicksUs();
         /*
@@ -6747,15 +6971,8 @@ frame_loop_step(void)
          * frame would have woken anyway (App_RunBackground; nothing queued
          * costs nothing). The pace timer restarts after it, so the PACE stage
          * stays the wait and not the work. */
-        {
-            uint64_t const slack_now_ms = PlatformWindow_Ticks64();
-            if( wait_until_ms > slack_now_ms )
-            {
-                App_RunBackground(
-                    &app, PlatformWindow_TicksUs() + (wait_until_ms - slack_now_ms) * 1000u);
-                pace_begin_us = PlatformWindow_TicksUs();
-            }
-        }
+        main_give_background_slack(wait_until_ms);
+        pace_begin_us = PlatformWindow_TicksUs();
 
         if( main_pacing.pace_spin )
         {
@@ -6766,6 +6983,8 @@ frame_loop_step(void)
             while( PlatformWindow_Ticks64() < wait_until_ms )
                 ;
         }
+        else if( loop_wait == TORIRS_LOOP_WAIT_NAP )
+            main_wait_napping(wait_until_ms);
         else
             PlatformWindow_SleepUntil(wait_until_ms);
 
@@ -6776,16 +6995,28 @@ frame_loop_step(void)
         }
     }
 #else
-    /* The browser has no wait to fill, so its slack is what is left of the
-     * draw period after this frame's work: the background queue's, up to the
-     * point the next frame is due (App_RunBackground). */
+    /* The browser has no wait to fill, so its slack is what is left after
+     * this frame's work before the next frame is due: the background queue's
+     * (App_RunBackground). Due is the draw period from the frame's start and,
+     * on requestAnimationFrame, no later than the display's next vsync less
+     * the compositor's share (ToriRS_Pacer_SlackEndUs) -- a 20 ms period on a
+     * 60 Hz display ran every callback 3 ms past its vsync while a background
+     * job had work, which costs the next frame, and the background queue
+     * never withholds one. A frame that has overrun has no slack and gives
+     * none: the floor in App_RunOnce has already stepped every background
+     * task once, whatever the clock said. */
     {
         uint64_t const period_us = (uint64_t)ToriRS_Pacer_DrawPeriodMs(&main_pacing.frame_pacer) * 1000u;
-        if( period_us > 0 )
-            App_RunBackground(&app, frame_start_us + period_us);
+        uint64_t const display_us =
+            main_pacing.paced_mode == EM_TIMING_RAF ? main_pacing.display_period.estimate_us : 0;
+        uint64_t const slack_end_us =
+            period_us > 0 ? ToriRS_Pacer_SlackEndUs(frame_start_us, period_us, display_us, PlatformWindow_TicksUs()) : 0;
+        if( slack_end_us )
+            App_RunBackground(&app, slack_end_us);
     }
 #endif
     frame_loop_scan_meter_check();
+    main_loop_trace_flush(0);
     return 1;
 }
 
@@ -6793,6 +7024,7 @@ frame_loop_step(void)
 static void
 frame_loop_teardown(void)
 {
+    main_loop_trace_flush(1);
     /* The agent control server goes first: its connections are told nothing
      * more, and its port file stops naming a port nobody listens on. */
     AgentServer_Stop(agent_server, &bus);
@@ -7617,6 +7849,14 @@ static int web_pump_armed;
  * settimeout(0) pacing degrades to once nested, is exactly the latency this
  * exists to remove: a task chain that asks for one group at a time paid it
  * per link.
+ *
+ * What it steps is App_PumpAsync's between-frames pump, and that is the
+ * frame contract's (app.h): the parallel queue drained to a standstill, the
+ * script settle when one is pending, and while the client boots the main
+ * queue, which holds the boot -- unless the boot asked for a frame that has
+ * not been shown yet, which it then waits for. Never the packet pump (no
+ * packet is popped here), never the background queue, never a frame
+ * published: those are frame_loop_step's.
  *
  * Returns 1 when it stepped anything, 0 when it was not armed.
  */

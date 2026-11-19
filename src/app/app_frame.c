@@ -111,6 +111,96 @@ App_AsyncPending(const struct App* app)
     return BootPumpStats_Pending(&app->pump_stats);
 }
 
+/* ...and could some of it run at once, without a read landing or another
+ * queue moving? The loop sleeps through work that only waits, never through
+ * this (ToriRS_Pacer_LoopWait). */
+int
+App_AsyncRunnable(const struct App* app)
+{
+    assert(app);
+    return BootPumpStats_Runnable(&app->pump_stats);
+}
+
+/* Did the last pump run any task at all? */
+int
+App_AsyncMoved(const struct App* app)
+{
+    assert(app);
+    return BootPumpStats_Moved(&app->pump_stats);
+}
+
+/* Is the main queue's head parked on a read the platform has not answered?
+ * Only the packet pump steps it once the client is in, so nothing between
+ * frames moves it -- but its answer lands on whichever queue next pumps the
+ * platform, and the loop's nap ends when it has (main.c). */
+int
+App_MainQueueWaitsOnRead(const struct App* app)
+{
+    struct ToriRS_Task const* head;
+
+    assert(app);
+    head = app->packet_runner.queue->head;
+    return head && head->io.pending;
+}
+
+/*
+ * TORIRS_QUEUE_CONTRACT_TRACE: what the frame side of the contract did since
+ * the last report, for the loop's summary line (App_QueueContractTraceLine).
+ * Process-wide like the trace itself; a client has one App.
+ */
+static struct
+{
+    int withheld[SETTLE_GATE_WITHHOLD_COUNT];
+    int pumps;
+    int pumps_between;
+    int pumps_waiting;
+    int pumps_blocked;
+    int floor_pumps;
+} g_contract_tally;
+
+void
+app_contract_note_background_floor(void)
+{
+    g_contract_tally.floor_pumps++;
+}
+
+int
+App_QueueContractTraceLine(
+    struct App const* app,
+    char* out,
+    int out_size)
+{
+    int len = 0;
+
+    assert(app);
+    assert(out);
+    assert(out_size > 0);
+    len += snprintf(out + len, (size_t)(out_size - len), "withheld");
+    for( int i = 0; i < SETTLE_GATE_WITHHOLD_COUNT && len < out_size; i++ )
+        if( g_contract_tally.withheld[i] )
+            len += snprintf(
+                out + len,
+                (size_t)(out_size - len),
+                " %s=%d",
+                SettleGate_WithholdName((enum SettleGateWithhold)i),
+                g_contract_tally.withheld[i]);
+    if( len < out_size )
+        len += snprintf(
+            out + len,
+            (size_t)(out_size - len),
+            "; parallel pumps=%d (between frames %d) ended waiting=%d blocked=%d; background floor pumps=%d "
+            "longest step %.2f ms (%s)",
+            g_contract_tally.pumps,
+            g_contract_tally.pumps_between,
+            g_contract_tally.pumps_waiting,
+            g_contract_tally.pumps_blocked,
+            g_contract_tally.floor_pumps,
+            (double)app->background_runner.longest_step_us / 1000.0,
+            app->background_runner.longest_step_name[0] ? app->background_runner.longest_step_name : "-");
+    memset(&g_contract_tally, 0, sizeof(g_contract_tally));
+    return len;
+}
+
 void
 App_NoteFrameTime(
     struct App* app,
@@ -546,7 +636,151 @@ app_frame_latch_note(
 }
 
 /*
- * One pump of the asset runner: every task that can make progress, stepped.
+ * The runaway backstop on one pump: reaching it is a task that will not
+ * converge, never a frame that had a lot to do. abort() rather than assert():
+ * OPT=1 compiles -DNDEBUG, and this has to fail the same way in the build
+ * people actually run.
+ */
+static void
+app_pump_backstop(
+    char const* queue,
+    int steps,
+    int booting)
+{
+    TORIRS_ERR(
+        "app: the %s queue ran %d passes in one pump without coming to a standstill "
+        "(limit %d, booting=%d). A task is not converging.\n",
+        queue,
+        steps,
+        (int)APP_ASYNC_STEP_LIMIT,
+        booting);
+    fflush(stderr);
+    abort();
+}
+
+/*
+ * One pump of the parallel queue to a standstill (TaskRunner_PumpToStandstill):
+ * every task that can run gets a turn, and passes go on until every task is
+ * done, waiting on a read, or joined on tasks that are. Nothing else ends it.
+ * `*progressed` says whether any pass ran anything.
+ */
+static enum TaskRunnerStat
+app_pump_parallel(
+    struct App* app,
+    int booting,
+    int* steps_out,
+    int* progressed)
+{
+    enum TaskRunnerStat stat;
+    int steps = 0;
+    char const* site = App_QueueSiteEnter("the parallel pump");
+
+    stat = TaskRunner_PumpToStandstill(&app->frame_runner, APP_ASYNC_STEP_LIMIT, &steps);
+    App_QueueSiteLeave(site);
+    if( stat == TASK_RUNNER_PROGRESSED )
+        app_pump_backstop("parallel", steps, booting);
+    g_contract_tally.pumps++;
+    if( stat == TASK_RUNNER_WAITING )
+        g_contract_tally.pumps_waiting++;
+    else if( stat == TASK_RUNNER_BLOCKED )
+        g_contract_tally.pumps_blocked++;
+    if( booting )
+        BootPumpStats_NoteBootSteps(&app->pump_stats, steps);
+    *progressed = app->frame_runner.progressed;
+    *steps_out += steps;
+    return stat;
+}
+
+/*
+ * The MAIN queue while the client boots. The boot (app_open_tree) runs
+ * there: before login there are no packets, and the main queue is the one
+ * queue on which a task may ask for a frame. It is pumped until a task asks
+ * for one (RENDER), its head waits on a read, or it is empty -- and when its
+ * head is joined on the parallel queue's loads (BLOCKED), that queue is
+ * drained and the main queue stepped again for as long as the drain moved
+ * anything. Once the boot has ended, what is left on the main queue is the
+ * packet pump's (app_pump_net_packets), so this stops.
+ */
+static enum TaskRunnerStat
+app_pump_boot_main(
+    struct App* app,
+    int* steps,
+    int* moved_out)
+{
+    enum TaskRunnerStat stat = TASK_RUNNER_IDLE;
+    int passes = 0;
+
+    while( RS_ClientPhase_Booting(&app->phase) && app->packet_runner.queue->head )
+    {
+        int moved = 0;
+
+        if( ++passes > APP_ASYNC_STEP_LIMIT )
+            app_pump_backstop("main", passes, 1);
+        BootPumpStats_NoteBootSteps(&app->pump_stats, 1);
+        stat = TaskRunner_Step(&app->packet_runner);
+        if( app->packet_runner.progressed || stat == TASK_RUNNER_RENDER )
+            *moved_out = 1;
+        if( stat == TASK_RUNNER_PROGRESSED )
+            continue;
+        if( stat != TASK_RUNNER_BLOCKED )
+            break;
+        (void)app_pump_parallel(app, 1, steps, &moved);
+        *moved_out |= moved;
+        if( !moved )
+            break;
+    }
+    if( !app->packet_runner.queue->head )
+        app->packet_runner.frame_settle_pending = 0;
+    return stat;
+}
+
+/* App_RunOnce is on the stack (a counter, not a flag: the hover frames are
+ * sequential App_RunOnce calls, never nested ones, but a count cannot be
+ * left wrong by either). */
+static int g_app_run_once_depth;
+
+/*
+ * The between-frames pump (App_PumpAsync with from_frame 0, the browser's
+ * torirs_web_io_pump) runs on an event-loop turn of its own: never inside a
+ * frame, a pass of any queue, a script settle, or another pump. In a browser
+ * that is structural -- one thread, the hook is a posted MessageChannel
+ * macrotask, and the module has no ASYNCIFY to nest an event loop inside a
+ * C call -- so this is a check, not a guard: a host that ever calls the hook
+ * from anywhere else finds out here rather than as a queue stepped from
+ * inside its own pass.
+ */
+static void
+app_between_frames_entry_check(struct App const* app)
+{
+    char const* site = App_QueueSiteNow();
+    char const* where;
+    char line[192];
+
+    assert(app);
+    where = g_app_run_once_depth              ? "a frame (App_RunOnce)"
+            : site                            ? site
+            : app->packet_runner.stepping     ? "a pass of the main queue"
+            : app->frame_runner.stepping      ? "a pass of the parallel queue"
+            : app->background_runner.stepping ? "a pass of the background queue"
+            : app->frame_runner.in_pump       ? "a pump of the parallel queue"
+            : app->background_runner.in_pump  ? "a pump of the background queue"
+                                              : NULL;
+    if( !where )
+        return;
+    snprintf(line, sizeof(line), "the between-frames pump was entered from inside %s", where);
+    TaskRunner_ContractBreach(line);
+    assert(!g_app_run_once_depth);
+    assert(!site);
+    assert(!app->packet_runner.stepping);
+    assert(!app->frame_runner.stepping);
+    assert(!app->background_runner.stepping);
+    assert(!app->frame_runner.in_pump);
+    assert(!app->background_runner.in_pump);
+}
+
+/*
+ * One pump: the main queue while booting, a client script's settle when one
+ * is pending, then the parallel queue to a standstill.
  *
  * Extracted from App_RunOnce so it has two callers. The frame calls it once,
  * as it always has. The browser platform calls it again between frames, from
@@ -555,10 +789,25 @@ app_frame_latch_note(
  * for the next animation frame, or the next 4 ms setTimeout, to be resumed.
  * On a cold boot the difference is the whole of a serial chain's latency:
  * a CS2 script resolving its sprites one per yield paid a frame per sprite.
+ * That extra pump is the frame contract's, not an exception to it: the
+ * parallel queue is drained "whenever possible", and a landed batch is such a
+ * moment (app.h).
  *
- * `from_frame` says which caller this is. Both step exactly the same way and
- * update the same flags; only the per-frame accounting (boot frames, busy
- * frames) belongs to the frame, because a pump is not a frame.
+ * `from_frame` says which caller this is. Both step the same way and update
+ * the same flags; only the per-frame accounting (boot frames, busy frames)
+ * belongs to the frame, because a pump is not a frame -- and so does the
+ * main queue's render request. A boot task that asked for a frame
+ * (TASK_RUNNER_RENDER: "show a frame before I am resumed") is not resumed
+ * until a frame has run since it asked: the main queue owes that frame
+ * (TaskRunner_RenderOwed) until App_RunOnce has run one to its end, which is
+ * where it says so (TaskRunner_RenderShown) -- the platform draws what
+ * App_RunOnce leaves. A request made by the frame's own pump is paid by that
+ * frame; one made between frames (the browser's torirs_web_io_pump, the
+ * native loop's naps) is paid by the NEXT frame, whose pump therefore does
+ * not resume the boot either, or the stage it asked to show would be stepped
+ * past before it was drawn. The parallel queue is drained either way, so the
+ * boot's loads keep landing; only the boot's own next step waits for the
+ * frame it asked for.
  *
  * Safe to run outside a frame for the same reason a task may yield at any
  * pass: nothing a task does assumes it is inside App_RunOnce. The CS2 settle
@@ -566,6 +815,19 @@ app_frame_latch_note(
  * what the frame would do at the same point; publication of the tree stays
  * with the frame, which sees the frame runner's had_work latch cleared and
  * refreshes.
+ *
+ * THE PARALLEL QUEUE HAS NO LIMIT HERE. The bound this replaced came in with
+ * 8f3028ede (2026-07-22) under the note "once READY a small budget keeps
+ * frame pacing", and had the relationship backwards: what it did was cap the
+ * async pipeline at budget-times-framerate -- 32 x 50 = 1600 steps a second
+ * once past boot -- while this client streams its entire world through that
+ * pipeline, 516 containers on a cold rev-289 boot. Nor does a task's request
+ * end it (only the main queue's tasks may ask for a frame), nor a clock (the
+ * post-commit pace is the packet pump's, app_net.c), nor a settle that
+ * finished its scripts with ordinary tasks still able to move. The step
+ * limit is a runaway backstop that aborts; main() does not sleep while work
+ * is queued (App_AsyncPending), so a pump that ends with reads out is
+ * resumed at once.
  */
 enum TaskRunnerStat
 App_PumpAsync(
@@ -575,114 +837,87 @@ App_PumpAsync(
     enum TaskRunnerStat result = TASK_RUNNER_IDLE;
 
     assert(app);
+    if( !from_frame )
+        app_between_frames_entry_check(app);
     app->frame_runner.telemetry.in_pump = !from_frame;
-    /* Pump ordinary async work with a frame budget.  A CS2 transaction is the
-     * exception: cooperative yields are drained to completion, and a genuine
-     * external wait retains the last settled frame until it can resume. */
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_ASYNC)
     {
         int booting = RS_ClientPhase_Booting(&app->phase);
-        /*
-         * Drain it. The bound this replaces came in with 8f3028ede (2026-07-22)
-         * under the note "once READY a small budget keeps frame pacing", and
-         * that had the relationship backwards: frame pacing was never what
-         * needed protecting. What the bound actually did was cap the async
-         * pipeline at budget-times-framerate -- 32 x 50 = 1600 steps a second
-         * once past boot -- and this client streams its entire world through
-         * that pipeline, 516 containers on a cold rev-289 boot. The frame cap
-         * was deciding how fast the game could load.
-         *
-         * A step is cooperative and returns; the loop below still exits the
-         * moment the runner goes idle. The guard is a runaway backstop, not a
-         * pacing device, which is why it is large enough that no real frame
-         * reaches it -- and main() no longer sleeps while work is queued, so a
-         * frame that does hit it resumes immediately instead of waiting out
-         * the cap.
-         */
-        int budget = APP_ASYNC_STEP_LIMIT;
         enum TaskRunnerStat stat = TASK_RUNNER_IDLE;
+        enum TaskRunnerStat settle = TASK_RUNNER_IDLE;
         int steps = 0;
+        int moved = 0;
+        int settling_cs2;
 
         /* Cleared here and set below, so it describes THIS frame. The caller
          * uses it to decide whether to sleep: work still queued means the
          * frame cap would be pacing the pipeline rather than the screen. */
         BootPumpStats_PassBegin(&app->pump_stats);
-        int settling_cs2 = !booting && (TaskRunner_HadWork(&app->frame_runner) || app->frame_runner.frame_settle_pending);
+        if( !from_frame )
+            g_contract_tally.pumps_between++;
+        app->frame_runner.compute_check_off = booting;
+        if( booting && TaskRunner_RenderOwed(&app->packet_runner) )
+        {
+            /* The frame the boot asked for has not run yet: the boot waits
+             * for it; its loads are drained below. It can run as soon as
+             * that frame has (the next one, for a request made between
+             * frames), so the loop must not sleep through it. */
+            BootPumpStats_SetRunnable(&app->pump_stats);
+        }
+        else if( booting )
+        {
+            int main_moved = 0;
+            enum TaskRunnerStat main_stat = app_pump_boot_main(app, &steps, &main_moved);
+            /* The boot asking for a frame is the one result that can run on
+             * at once: the next frame is its. A boot that waits on a read, or
+             * is joined on the parallel queue's loads, only waits. */
+            if( main_stat == TASK_RUNNER_RENDER )
+                BootPumpStats_SetRunnable(&app->pump_stats);
+            else if( main_stat != TASK_RUNNER_IDLE )
+                BootPumpStats_SetPending(&app->pump_stats);
+            if( main_moved )
+                BootPumpStats_SetMoved(&app->pump_stats);
+        }
+        settling_cs2 = !booting && (TaskRunner_HadWork(&app->frame_runner) || app->frame_runner.frame_settle_pending);
 
         if( settling_cs2 )
         {
-            stat = app_settle_cs2_frame(app);
+            settle = app_settle_cs2_frame(app);
+            if( app->frame_runner.progressed )
+                BootPumpStats_SetMoved(&app->pump_stats);
         }
-        else
-        {
-            /*
-             * Step while passes make progress. Every other answer a pass can
-             * give ends the frame's pumping: IDLE (nothing left), RENDER (a
-             * task asked for this frame to be seen -- spending the budget
-             * here is exactly what the request exists to interrupt), WAITING
-             * (the answers are not here yet; the frame has to end for them
-             * to arrive) and BLOCKED (the other queue has to run). Stepping
-             * past any of them is a busy-wait into the tripwire below.
-             */
-            for( int i = 0; i < budget; i++ )
-            {
-                steps++;
-                if( booting )
-                    BootPumpStats_NoteBootSteps(&app->pump_stats, 1);
-                /* Paced after a background rebuild's commit, like the packets
-                 * and scripts behind it (App_PacedDeadline; 0 otherwise): the
-                 * loads a new scene asks for -- its music track's samples are
-                 * 2-3 ms apiece -- otherwise all land in one frame. SPENT
-                 * ends the pumping as WAITING does, and async_pending below
-                 * brings the next frame straight back. Never during boot. */
-                stat = TaskRunner_StepUntil(&app->frame_runner, booting ? 0 : App_PacedDeadline(app));
-                if( stat == TASK_RUNNER_SPENT )
-                    App_PaceNoteStop(app);
-                if( stat != TASK_RUNNER_PROGRESSED )
-                    break;
-            }
-            /*
-             * Reaching the limit is not a cap doing its job -- it is a task
-             * that will not converge, a runner that never returns IDLE.
-             *
-             * abort() rather than assert(): OPT=1 compiles -DNDEBUG, and this
-             * has to fail the same way in the build people actually run. A
-             * client that silently capped here would present as "slow to
-             * load" with nothing anywhere saying why, which is the failure
-             * this whole change exists to remove.
-             */
-            if( steps >= budget )
-            {
-                TORIRS_ERR(
-                    "app: the async pipeline ran %d steps in one frame without "
-                    "going idle (limit %d, booting=%d). A task is not "
-                    "converging.\n",
-                    steps,
-                    budget,
-                    booting);
-                fflush(stderr);
-                abort();
-            }
-        }
-        /* A pump is not a frame; a boot frame counts, capped or not; a
-         * post-boot frame that used its whole budget with work still queued
-         * is the frame queue being drip-fed rather than run. */
-        BootPumpStats_NoteFrame(&app->pump_stats, from_frame, booting, settling_cs2, steps, budget);
+        /* The settle stops when the scripts are done; the ordinary tasks are
+         * drained here, settle or not. */
+        stat = app_pump_parallel(app, booting, &steps, &moved);
+        if( moved )
+            BootPumpStats_SetMoved(&app->pump_stats);
+        /* A pump is not a frame; a boot frame counts. */
+        BootPumpStats_NoteFrame(&app->pump_stats, from_frame, booting, settling_cs2, steps, APP_ASYNC_STEP_LIMIT);
 
-        /* Anything left to do -- a budget that ran out, or a runner that is
-         * simply not idle -- means the next frame should start immediately
-         * instead of waiting out the cap. */
+        /* Anything left means the loop must not pace it with the frame cap
+         * (main.c, ToriRS_Pacer_LoopWait). The parallel pump ends only with
+         * every task done or waiting (WAITING: a read on the wire; BLOCKED:
+         * joined), and a settle that did not finish ended the same way, so
+         * what they leave only waits: the loop waits for it in naps, never
+         * spinning on it. */
         if( stat != TASK_RUNNER_IDLE )
             BootPumpStats_SetPending(&app->pump_stats);
-        if( settling_cs2 && stat != TASK_RUNNER_IDLE )
+        if( settling_cs2 && settle != TASK_RUNNER_IDLE )
+        {
+            if( settle == TASK_RUNNER_WAITING || settle == TASK_RUNNER_BLOCKED )
+                BootPumpStats_SetPending(&app->pump_stats);
+            else
+                BootPumpStats_SetRunnable(&app->pump_stats);
+        }
+        if( settling_cs2 && settle != TASK_RUNNER_IDLE )
             TaskRunner_SetHadWork(&app->frame_runner, 1);
         /* Tree-affecting async work (CS2 hooks/transmits) finished: refresh. */
-        if( settling_cs2 && stat == TASK_RUNNER_IDLE )
+        if( settling_cs2 && settle == TASK_RUNNER_IDLE )
         {
             TaskRunner_SetHadWork(&app->frame_runner, 0);
             UITreeRefresh_Raise(&app->tree_refresh);
         }
-        result = stat;
+        result = settling_cs2 ? settle : stat;
     }
     app->frame_runner.telemetry.in_pump = 0;
     return result;
@@ -844,6 +1079,74 @@ app_world_pick_answers(struct App const* app, int x, int y)
     return set->mouse_valid && set->mouse_x == x && set->mouse_y == y;
 }
 
+/*
+ * App_RunOnce returns no commit, and says why: the frame contract's first
+ * run-time check (app.h). Every reason is named and classed
+ * (SettleGate_WithholdPacketSide); a reason that is not the packet side's is
+ * a breach -- one `queue_contract:` line, a debug-build assert, an abort
+ * under TORIRS_QUEUE_CONTRACT_STRICT -- except the replay seek's hold, which
+ * is a driver's mode and is left out by name. A packet-side reason must also
+ * be backed by what it names: a script withhold by a render-blocking task
+ * (or a pending settle) on the parallel queue, the packet latch by a task on
+ * the main queue. A latch left standing with nothing behind it is an
+ * ordinary task holding the frame, which is the breach the rule exists for.
+ * Returns 0, the value every caller returns.
+ */
+static int
+app_frame_withheld(
+    struct App* app,
+    enum SettleGateWithhold why)
+{
+    char line[192];
+
+    assert(app);
+    g_contract_tally.withheld[why]++;
+    if( TaskRunner_ContractTrace() >= 2 )
+        fprintf(stderr, "queue_contract: trace frame %s\n", SettleGate_WithholdName(why));
+    if( why == SETTLE_GATE_WITHHOLD_REPLAY_SEEK )
+        return 0;
+    if( !SettleGate_WithholdPacketSide(why) )
+    {
+        snprintf(line, sizeof(line), "frame %s is not the packet side's", SettleGate_WithholdName(why));
+        TaskRunner_ContractBreach(line);
+        assert(SettleGate_WithholdPacketSide(why));
+        return 0;
+    }
+    if( why == SETTLE_GATE_WITHHOLD_SCRIPTS_LATCHED || why == SETTLE_GATE_WITHHOLD_SCRIPTS_PENDING ||
+        why == SETTLE_GATE_WITHHOLD_SCRIPTS_BLOCKED )
+    {
+        int const backed = TaskRunner_RenderBlockingRemains(&app->frame_runner) || app->frame_runner.frame_settle_pending;
+        if( !backed )
+        {
+            snprintf(
+                line,
+                sizeof(line),
+                "frame %s with no client script on the parallel queue: an ordinary task held it",
+                SettleGate_WithholdName(why));
+            TaskRunner_ContractBreach(line);
+            assert(backed);
+        }
+    }
+    if( why == SETTLE_GATE_WITHHOLD_GATE )
+    {
+        struct SettleGateInput in;
+        enum SettleGateReason reason;
+
+        app_settle_gate_input(app, &in);
+        if( SettleGate_FrameSettled(&in) )
+            return 0;
+        reason = SettleGate_FrameUnsettledReason(&in);
+        if( reason == SETTLE_GATE_REASON_PACKET_RUNNER_HAD_WORK && !app->packet_runner.queue->head &&
+            !RS_ClientPhase_Booting(&app->phase) )
+        {
+            snprintf(line, sizeof(line), "frame %s with the main queue empty", SettleGate_ReasonName(reason));
+            TaskRunner_ContractBreach(line);
+            assert(app->packet_runner.queue->head);
+        }
+    }
+    return 0;
+}
+
 static int
 app_run_once_body(
     struct App* app,
@@ -872,29 +1175,41 @@ App_RunOnce(
     RebuildFrameStats_ClearMarks(&app->rebuild_frames);
     FrameClockSerial_NoteRunOnce(&app->frame_clock.serial);
     app_rebuild_mark(app, "start");
+    g_app_run_once_depth++;
     result = app_run_once_body(app, now_ms, input);
+    app_world_job_contract_frame(app, result);
     app_rebuild_mark(app, "body_rest");
     /* Outside the body, so that none of its early returns (a latched frame,
      * a boot) can starve the background queue: every platform loop gives it
      * this floor, whatever else it does with its slack (App_RunBackground). */
     app_run_background_floor(app);
+    /* The frame a main-queue task asked for (RENDER) has run: what it
+     * leaves is what the platform draws, and the task may be resumed. Held
+     * or not (a boot that keeps its last frame, App_BootHoldsLastFrame):
+     * the request is "a frame before I am resumed", not "a committed one",
+     * and a boot behind a held frame would otherwise never be resumed. */
+    TaskRunner_RenderShown(&app->packet_runner);
+    g_app_run_once_depth--;
     app_rebuild_mark(app, "bg_floor");
     FrameStats_Span(FRAME_STATS_FRAME, t0);
     return result;
 }
 
 /*
- * THE QUEUES A FRAME RUNS. The packet queue (app->packet_runner: one task
- * per packet, in order) and client scripts HOLD the frame: nothing is
- * published until they are settled. The parallel queue (app->frame_runner)
- * does NOT, except for a task added render-blocking: an ordinary task on it
- * (a loader, a parallel task, app/app_parallel_task.h) is carried across
- * frames and a frame published over it is a correct frame. The parallel
- * queue is stepped near the top of every frame until nothing more can
- * progress (App_PumpAsync), inside a client script's settle
- * (app_settle_cs2_frame), and from the packet pump while the packet queue is
- * blocked on it (app_pump_net_packets). The background queue gets one slice
- * after the body (app_run_background_floor).
+ * THE QUEUES A FRAME RUNS (the frame contract is app.h's, beside the
+ * runners). The packet queue (app->packet_runner, the main queue: one task
+ * per packet, in order, and the boot) and client scripts HOLD the frame:
+ * nothing is published until they are settled. The parallel queue
+ * (app->frame_runner) does NOT, except for a task added render-blocking: an
+ * ordinary task on it (a loader, a parallel task, app/app_parallel_task.h)
+ * is carried across frames and a frame published over it is a correct
+ * frame. The parallel queue is pumped near the top of every frame until
+ * every task is done or waiting (App_PumpAsync), inside a client script's
+ * settle (app_settle_cs2_frame), and from the packet pump while the packet
+ * queue is blocked on it (app_pump_net_packets). The background queue gets
+ * one pump after the body (app_run_background_floor). Every `return 0`
+ * below names its reason (app_frame_withheld), and a reason that is not
+ * the packet side's is a breach.
  */
 static int
 app_run_once_body(
@@ -1061,7 +1376,7 @@ app_run_once_body(
          * raised for the frame that finds the tree finished. @see
          * App_BootHoldsLastFrame. */
         if( App_BootHoldsLastFrame(app) )
-            return 0;
+            return app_frame_withheld(app, SETTLE_GATE_WITHHOLD_BOOT);
         RedrawRequest_Clear(&app->redraw_request);
         return 1;
     }
@@ -1072,7 +1387,7 @@ app_run_once_body(
     if( TaskRunner_HadWork(&app->frame_runner) )
     {
         app_frame_latch_note(app, "frame_runner_had_work");
-        return 0;
+        return app_frame_withheld(app, SETTLE_GATE_WITHHOLD_SCRIPTS_LATCHED);
     }
 
     app_rebuild_mark(app, "pre");
@@ -1207,8 +1522,12 @@ app_run_once_body(
             {
                 TORIRS_PERF_SCOPE_CS2()
                 {
+                    /* A logic tick is the packet pump's turn (app_tick.c): it
+                     * never steps the background queue. */
+                    char const* site = App_QueueSiteEnter("a logic tick");
                     if( app_logic_tick(app) )
                         RedrawRequest_Raise(&app->redraw_request);
+                    App_QueueSiteLeave(site);
                 }
                 app_rebuild_mark(app, "tick");
 
@@ -1287,7 +1606,7 @@ app_run_once_body(
          * still held survives a BOOTING frame by design) and replay it on the
          * login form that is about to appear. */
         ToriRS_InputClaimsTakeFrame(&app->input_claims);
-        return 0;
+        return app_frame_withheld(app, SETTLE_GATE_WITHHOLD_LOGOUT_HOLD);
     }
 
     /* Resume a parked packet pipeline at frame rate, not tick rate. A packet
@@ -1308,8 +1627,10 @@ app_run_once_body(
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TICK_PACKETS)
         {
+            char const* site = App_QueueSiteEnter("the packet pump");
             if( app_pump_net_packets(app) )
                 RedrawRequest_Raise(&app->redraw_request);
+            App_QueueSiteLeave(site);
         }
     }
     app_rebuild_mark(app, "pump");
@@ -1330,7 +1651,8 @@ app_run_once_body(
         {
             TaskRunner_SetHadWork(&app->frame_runner, 1);
             app_frame_latch_note(app, stat == TASK_RUNNER_BLOCKED ? "cs2_blocked" : "cs2_pending");
-            return 0;
+            return app_frame_withheld(
+                app, stat == TASK_RUNNER_BLOCKED ? SETTLE_GATE_WITHHOLD_SCRIPTS_BLOCKED : SETTLE_GATE_WITHHOLD_SCRIPTS_PENDING);
         }
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LAYOUT)
         {
@@ -1347,7 +1669,7 @@ app_run_once_body(
     if( !SettleGate_FrameSettled(&settle) )
     {
         app_frame_latch_note(app, SettleGate_ReasonName(SettleGate_FrameUnsettledReason(&settle)));
-        return 0;
+        return app_frame_withheld(app, SETTLE_GATE_WITHHOLD_GATE);
     }
     /* Reconcile the gameframe only after the pre-interaction CS2 transaction
      * is complete. Applying it at the head of App_RunOnce made every later
@@ -2460,7 +2782,8 @@ app_run_once_body(
             if( stat != TASK_RUNNER_IDLE )
             {
                 TaskRunner_SetHadWork(&app->frame_runner, 1);
-                return 0;
+                return app_frame_withheld(
+                    app, stat == TASK_RUNNER_BLOCKED ? SETTLE_GATE_WITHHOLD_SCRIPTS_BLOCKED : SETTLE_GATE_WITHHOLD_SCRIPTS_PENDING);
             }
             /* Press-time track onclick → cc_dragpickup stages pending during
              * the drain above. Consume it in the same frame so the thumb jumps
@@ -2523,7 +2846,8 @@ app_run_once_body(
             if( stat != TASK_RUNNER_IDLE )
             {
                 TaskRunner_SetHadWork(&app->frame_runner, 1);
-                return 0;
+                return app_frame_withheld(
+                    app, stat == TASK_RUNNER_BLOCKED ? SETTLE_GATE_WITHHOLD_SCRIPTS_BLOCKED : SETTLE_GATE_WITHHOLD_SCRIPTS_PENDING);
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LAYOUT)
             {
@@ -2535,7 +2859,7 @@ app_run_once_body(
     /* Never publish a tree while a fenced server clientscript has not run.
      * This second gate covers a script request raised during interaction. */
     if( !App_FrameSettled(app) )
-        return 0;
+        return app_frame_withheld(app, SETTLE_GATE_WITHHOLD_GATE);
 
     if( RedrawRequest_Pending(&app->redraw_request) )
     {
@@ -2639,7 +2963,7 @@ app_run_once_body(
         if( RenderSkip_Held(&app->render_skip) )
         {
             app->world_views.frame = App_RunnerView(app);
-            return 0;
+            return app_frame_withheld(app, SETTLE_GATE_WITHHOLD_REPLAY_SEEK);
         }
 #if defined(TORIRS_UI_EMIT_PMU)
         ui_emit_pmu_begin();
