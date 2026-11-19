@@ -872,7 +872,6 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	ui/dev_overlay.c \
 	ui/uitree_keyboard_owner.c \
 	ui/uitree_popup_place.c \
-	engine/async_pending.c \
 	engine/asset_requests.c \
 	engine/entity_spotanim.c \
 	engine/toridraw_element_anim.c \
@@ -2190,8 +2189,8 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-uitree-if-events
 	$(MAKE) test-worldmap-drag
 	$(MAKE) test-uitree-keyboard-owner
-	$(MAKE) test-async-pending
 	$(MAKE) test-asset-requests
+	$(MAKE) test-scene-element-serial
 	$(MAKE) test-entity-spotanim
 	$(MAKE) test-ground-items-dirty
 	$(MAKE) test-uitree-popup-place
@@ -3064,16 +3063,6 @@ test-asset-requests: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/asset_requests_test$(PLATFORM_EXE_SUFFIX) \
 		$(TORIMEM_SRCS) engine/test/asset_requests_test.c engine/asset_requests.c $(LDFLAGS)
 	./$(OBJ_DIR)/asset_requests_test$(PLATFORM_EXE_SUFFIX)
-
-# The two "asked for it, waiting for it" lists. Both fail in ways nothing else
-# in the frame notices: a duplicate queues a second decoder, an overflow makes
-# a model render untextured forever, a stale entry binds somebody else's
-# animation onto whoever inherited a recycled scene element id.
-.PHONY: test-async-pending
-test-async-pending: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/async_pending_test$(PLATFORM_EXE_SUFFIX) \
-		engine/test/async_pending_test.c engine/async_pending.c $(LDFLAGS)
-	./$(OBJ_DIR)/async_pending_test$(PLATFORM_EXE_SUFFIX)
 
 # Who has the keyboard. Every hotkey asks this, and the failure is always a
 # text input the rule does not know about leaving the hotkeys live underneath
@@ -5169,6 +5158,17 @@ test-soft3d-interface-filter: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		render/torirs_polygon.c render/torirs_arc.c perf/torirs_perf.c \
 		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
 	$(FRAME_ENTITY_OVERLAY_TEST_ENV) ./$(OBJ_DIR)/soft3d_interface_filter_test
+
+# A scene element's allocation serial: a recycled element id gets a new one,
+# and a freed id reads 0, so a key held across a wait (a parked sequence bind)
+# can tell the element it was made for from whoever inherited its id.
+.PHONY: test-scene-element-serial
+test-scene-element-serial: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/toridraw_model_sprite.o $(ASAN_DYLD_SHIM)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/scene_element_serial_test $(TORIMEM_SRCS) \
+		render/test/scene_element_serial_test.c \
+		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
+	./$(OBJ_DIR)/scene_element_serial_test
 
 .PHONY: test-frame-flat
 test-frame-flat: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \

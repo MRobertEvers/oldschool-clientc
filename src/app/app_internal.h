@@ -99,7 +99,6 @@ app_from_side_app_host(struct SideAppHost* host)
 #include "engine/png_decode.h"
 #include "engine/task_obj_model_load.h"
 #include "engine/toridraw_model_from_torirs.h"
-#include "engine/async_pending.h"
 #include "engine/toridraw_element_anim.h"
 #include "engine/world_seq_source_toridraw.h"
 #include "engine/torirs_chrome_skin_baked.h"

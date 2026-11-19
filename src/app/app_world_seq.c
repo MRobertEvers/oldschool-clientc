@@ -236,6 +236,46 @@ app_world_load_seq(
     (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, seq_id, 0), NULL);
 }
 
+/*
+ * A deferred bind's landing (ASSET_KIND_SEQUENCE, from the per-frame bind
+ * point). The handle is the element AND its allocation serial: scene element
+ * ids are recycled, and a bind keyed on the id alone landed on whoever
+ * inherited it -- the wrong creature suddenly playing somebody else's
+ * animation. The serial names the one element the bind was made for, so a
+ * despawn, a rebuild's pool clear or a loc change that freed it while the
+ * sequence loaded all read as "gone", and the bind is dropped.
+ *
+ * The clock runs from arrival: v[2] is the world cycle the sequence was
+ * applied on, and the bind catches the element's frames up from there.
+ */
+static void
+app_seq_bind_landed(
+    void* ctx,
+    struct AssetKey key,
+    struct AssetWaiterHandle handle,
+    enum AssetOutcome outcome,
+    uint32_t late_ms)
+{
+    struct App* app = ctx;
+    int const element_id = handle.v[0];
+    uint32_t const serial = (uint32_t)handle.v[1];
+    int const start_cycle = handle.v[2];
+
+    (void)late_ms;
+    if( outcome != ASSET_OUTCOME_LANDED )
+        return;
+    if( ToriDraw_SceneElementSerial(app->scene, element_id) != serial )
+        return; /* the element went (or its id was reused) while it loaded */
+    if( app_world_try_bind_seq(app, element_id, key.id, start_cycle) )
+    {
+        RedrawRequest_Raise(&app->redraw_request);
+        return;
+    }
+    /* Gone from the scene's registry between the load's end and here: ask
+     * again. */
+    app_world_apply_seq_at(app, element_id, key.id, start_cycle);
+}
+
 /* app_world_apply_seq for a sequence that started on world cycle
  * `start_cycle`: the bind catches its frames up from there. */
 void
@@ -245,53 +285,51 @@ app_world_apply_seq_at(
     int seq_id,
     int start_cycle)
 {
+    struct AssetWaiter waiter;
+
     if( seq_id < 0 )
         return;
-    app_world_load_seq(app, seq_id);
-
     if( app_world_try_bind_seq(app, element_id, seq_id, start_cycle) )
         return;
-    bool const queued =
-        AsyncPendingSeqBinds_Add(&app->seq_bind_pending, element_id, seq_id, start_cycle);
-    assert(queued && "seq bind list full: the element would never animate");
-    (void)queued;
+    memset(&waiter, 0, sizeof(waiter));
+    waiter.land = app_seq_bind_landed;
+    waiter.ctx = app;
+    waiter.handle.v[0] = element_id;
+    waiter.handle.v[1] = (int32_t)ToriDraw_SceneElementSerial(app->scene, element_id);
+    waiter.handle.v[2] = start_cycle;
+    if( Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, seq_id, 0), &waiter) ==
+        ASSET_STATE_HERE )
+        (void)app_world_try_bind_seq(app, element_id, seq_id, start_cycle);
+}
+
+static bool
+app_seq_bind_is_element(
+    struct AssetWaiterHandle handle,
+    struct AssetKey key,
+    void* arg)
+{
+    (void)key;
+    return handle.v[0] == *(int const*)arg;
 }
 
 /*
- * Forget deferred binds for an element that is going away.
- *
- * Necessary because the poll below can only ask whether the element is LIVE,
- * and scene element ids are recycled: an entry left behind by a despawned
- * entity is indistinguishable from a valid one once the id is handed out
- * again, and its sequence then binds onto whoever inherited it -- the wrong
- * creature suddenly playing somebody else's animation. Dropping at the moment
- * of death removes the ambiguity instead of trying to detect it later. Same
- * class of bug as EntitySpotanim::owner_entity_id; see that note.
+ * Forget deferred binds for an element that is going away. The landing's
+ * serial test already refuses them; dropping them here frees them at the
+ * moment of death instead of at the load's end.
  */
 void
 app_seq_bind_pending_drop(
     struct App* app,
     int element_id)
 {
-    AsyncPendingSeqBinds_DropElement(&app->seq_bind_pending, element_id);
+    (void)Assets_DropWaiters(
+        app->assets, app_seq_bind_landed, app, app_seq_bind_is_element, &element_id);
 }
 
-/* Per-frame: bind deferred element/sequence pairs whose loads landed. */
+/* Per-frame: bind deferred element/sequence pairs whose loads landed -- the
+ * SEQUENCE kind's landing point, where the poll that did this stood. */
 void
 app_world_bind_pending_seqs(struct App* app)
 {
-    int kept = 0;
-    for( int i = 0; i < app->seq_bind_pending.count; i++ )
-    {
-        struct AsyncPendingSeqBind* pend = &app->seq_bind_pending.items[i];
-        if( !ToriDraw_SceneElementIsLive(app->scene, pend->element_id) )
-            continue; /* element despawned while loading */
-        if( app_world_try_bind_seq(app, pend->element_id, pend->seq_id, pend->start_cycle) )
-        {
-            RedrawRequest_Raise(&app->redraw_request);
-            continue;
-        }
-        app->seq_bind_pending.items[kept++] = *pend;
-    }
-    AsyncPendingSeqBinds_Keep(&app->seq_bind_pending, kept);
+    (void)Assets_Land(app->assets, ASSET_KIND_BIT(ASSET_KIND_SEQUENCE));
 }

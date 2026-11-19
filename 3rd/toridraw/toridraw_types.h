@@ -856,6 +856,10 @@ struct ToriDraw_SkeletalAnim;
 struct ToriDraw_SceneElement
 {
     int scene_id;
+    /** Which allocation of this id the element is: scene_id is recycled,
+     *  this never repeats within a scene (ToriDraw_SceneElementSerial). Zero
+     *  on a free slot. */
+    uint32_t serial;
     /** Clear group (TORIDRAW_SCENE_POOL_*): STATIC elements are freed
      *  wholesale by ToriDraw_SceneClearPool on a map rebuild; DYNAMIC
      *  elements (entities) keep their ids across it. */
@@ -1245,6 +1249,8 @@ struct ToriDraw_Scene
     int anim_list_count;
     int anim_list_cap;
     bool anim_list_dirty;
+    /** The last element serial handed out (ToriDraw_SceneElementSerial). */
+    uint32_t element_serial;
 
     /* TORIDRAW_SCENE_SCRATCH_RSZBUF: one allocation, the rev-241 projection's
      * output and the rev-241 face walk's ordering scratch. NULL until an

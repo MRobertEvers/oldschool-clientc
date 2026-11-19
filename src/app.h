@@ -2,7 +2,6 @@
 #define SRC_APP_H
 
 #include "asyncio.h"
-#include "engine/async_pending.h"
 #include "engine/cache_mounts.h"
 #include "engine/cache_provider.h"
 #include "engine/entity_spotanim.h"
@@ -1136,8 +1135,6 @@ struct App
     /** Every asset wanted and not here, with at most one load in flight for
      *  it (engine/asset_requests.h); the loaders are app/app_assets.c. */
     struct Assets* assets;
-    /** Element/seq bindings deferred until the sequence load lands. */
-    struct AsyncPendingSeqBinds seq_bind_pending;
     /** Entity-sync bookkeeping (server slots -> world entities). */
     struct RS_EntitySync esync;
     /** Entity attached-graphic (SPOTANIM mask) combine state, keyed by the

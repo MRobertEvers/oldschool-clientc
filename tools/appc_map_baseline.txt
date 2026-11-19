@@ -239,7 +239,9 @@
 # (struct SeqLoadTracker) left for the table's ASSET_KIND_SEQUENCE.
 # Lowered to 145 by the textures step: tex_pending (struct
 # AsyncPendingTextures) left for the table's ASSET_KIND_TEXTURE.
-struct-App-fields: 145
+# Lowered to 144 by the sequence binds step: seq_bind_pending (struct
+# AsyncPendingSeqBinds) left for the table's SEQUENCE waiters.
+struct-App-fields: 144
 
 src/main.c
 src/executor_config.c
