@@ -1,6 +1,7 @@
 /*
- * Developer hotkeys: the CTRL modifier rule, the UI and world bindings, and
- * the spawn/test shortcuts.
+ * Hotkeys: the game's configured UI hotkeys, the CTRL modifier rule and the
+ * key predicate the side-apps are delivered under, and the bridge for the
+ * developer hotkeys not moved onto the registry yet.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in
@@ -12,16 +13,55 @@
 /* Private to this unit, declared up front so definition order is free. */
 static int
 app_debug_modifier_held(struct LibToriRS_Input* input);
-static struct AppDebugHotkeyBinding const*
+static struct SideAppBinding const*
 app_debug_binding_down(
     struct App const* app,
     struct LibToriRS_Input* input,
     enum AppDebugHotkey target);
-static struct AppDebugHotkeyBinding const*
-app_debug_world_key(
+static int
+app_debug_world_key_fires(
     struct App const* app,
     struct LibToriRS_Input* input,
-    enum AppDebugHotkey target);
+    enum LibToriRS_KeyCode key);
+static int
+app_side_app_key_fires(
+    void* ctx,
+    struct SideAppBinding const* binding,
+    enum SideAppGate gate,
+    enum SideAppKeyMode mode);
+
+/*
+ * The bridge: the names of the hotkeys whose tools are not side-apps yet, one
+ * per enum AppDebugHotkey value, registered as one side-app's polled actions
+ * so a manifest binding to one resolves. app_debug_key_down reads the
+ * bindings resolved to it. An entry leaves when its tool registers the name
+ * itself.
+ */
+#define APP_DEBUG_HOTKEYS_BRIDGE "app_debug_hotkeys"
+#define APP_DEBUG_HOTKEY_POLLED(n) { (n), SIDE_APP_PHASE_POLLED, SIDE_APP_GATE_CTRL, SIDE_APP_KEY_PRESS, 0 }
+static struct SideAppAction const k_app_debug_hotkey_actions[APP_DEBUG_HOTKEY_COUNT] = {
+    [APP_DEBUG_HOTKEY_LOC_EDITOR] = APP_DEBUG_HOTKEY_POLLED("loc_editor_toggle"),
+    [APP_DEBUG_HOTKEY_MAP_EDITOR] = APP_DEBUG_HOTKEY_POLLED("map_editor_toggle"),
+};
+#undef APP_DEBUG_HOTKEY_POLLED
+
+static struct SideAppHooks const k_app_debug_hotkeys_hooks = { 0 };
+
+void
+app_debug_hotkeys_register(struct App* app)
+{
+    assert(app);
+    assert(app->side_apps);
+    for( int i = 0; i < APP_DEBUG_HOTKEY_COUNT; i++ )
+        assert(k_app_debug_hotkey_actions[i].name);
+    SideApps_Register(
+        app->side_apps,
+        APP_DEBUG_HOTKEYS_BRIDGE,
+        NULL,
+        &k_app_debug_hotkeys_hooks,
+        k_app_debug_hotkey_actions,
+        APP_DEBUG_HOTKEY_COUNT);
+}
 
 /*
  * A chord the map editor's table claims this frame (bound in a live context:
@@ -49,19 +89,26 @@ app_debug_modifier_held(struct LibToriRS_Input* input)
     return LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL);
 }
 
-static struct AppDebugHotkeyBinding const*
+static struct SideAppBinding const*
 app_debug_binding_down(
     struct App const* app,
     struct LibToriRS_Input* input,
     enum AppDebugHotkey target)
 {
+    struct SideApps const* apps = app->side_apps;
+    int bridge;
+
     if( !app_debug_modifier_held(input) )
         return NULL;
-    for( int i = 0; i < app->cfg.debug_hotkey_count; i++ )
-        if( app->cfg.debug_hotkeys[i].target == target &&
-            LibToriRS_Input_IsKeyDown(input, app->cfg.debug_hotkeys[i].key) &&
-            !app_editor_hotkeys_claimed(app, app->cfg.debug_hotkeys[i].key) )
-            return &app->cfg.debug_hotkeys[i];
+    bridge = SideApps_IndexOf(apps, APP_DEBUG_HOTKEYS_BRIDGE);
+    for( int i = 0; i < SideApps_BindingCount(apps); i++ )
+    {
+        struct SideAppBinding const* binding = SideApps_BindingAt(apps, i);
+        if( SideApps_BindingAnswers(apps, i, bridge, target) &&
+            LibToriRS_Input_IsKeyDown(input, binding->key) &&
+            !app_editor_hotkeys_claimed(app, binding->key) )
+            return binding;
+    }
     return NULL;
 }
 
@@ -72,22 +119,6 @@ app_debug_key_down(
     enum AppDebugHotkey target)
 {
     return app_debug_binding_down(app, input, target) != NULL;
-}
-
-int
-app_debug_key_held(
-    struct App const* app,
-    struct LibToriRS_Input* input,
-    enum AppDebugHotkey target)
-{
-    if( !app_debug_modifier_held(input) )
-        return 0;
-    for( int i = 0; i < app->cfg.debug_hotkey_count; i++ )
-        if( app->cfg.debug_hotkeys[i].target == target &&
-            LibToriRS_Input_IsKeyHeld(input, app->cfg.debug_hotkeys[i].key) &&
-            !app_editor_hotkeys_claimed(app, app->cfg.debug_hotkeys[i].key) )
-            return 1;
-    return 0;
 }
 
 /*
@@ -102,7 +133,7 @@ app_debug_key_held(
  * covers the F-keys.
  *
  * Returns nothing, but claims each key it acted on in app->input_claims so a
- * bound key does not also fire a debug world hotkey on the same press.
+ * bound key does not also fire a side-app's world key on the same press.
  */
 void
 app_ui_hotkeys(
@@ -242,86 +273,112 @@ app_keycode_osrs(int key)
 
 /* A configured debug key is available only if no revconfig hotkey binding
  * already acted on the corresponding OSRS key this frame. */
-static struct AppDebugHotkeyBinding const*
-app_debug_world_key(
+static int
+app_debug_world_key_fires(
     struct App const* app,
     struct LibToriRS_Input* input,
-    enum AppDebugHotkey target)
+    enum LibToriRS_KeyCode key)
 {
-    for( int i = 0; i < app->cfg.debug_hotkey_count; i++ )
-    {
-        enum LibToriRS_KeyCode key = app->cfg.debug_hotkeys[i].key;
-        int osrs_key;
+    int osrs_key;
 
-        if( app->cfg.debug_hotkeys[i].target != target || !LibToriRS_Input_IsKeyDown(input, key)
-            || app_editor_hotkeys_claimed(app, key) )
-            continue;
-        osrs_key = app_keycode_osrs(key);
-        if( osrs_key < 0 || osrs_key >= TORIRS_OSRSKEY_COUNT
-            || !ToriRS_InputClaimsKeyClaimed(&app->input_claims, osrs_key) )
-            return &app->cfg.debug_hotkeys[i];
-    }
-    return NULL;
+    if( !LibToriRS_Input_IsKeyDown(input, key) || app_editor_hotkeys_claimed(app, key) )
+        return 0;
+    osrs_key = app_keycode_osrs(key);
+    return osrs_key < 0 || osrs_key >= TORIRS_OSRSKEY_COUNT
+           || !ToriRS_InputClaimsKeyClaimed(&app->input_claims, osrs_key);
 }
 
-/* Manifest-configured spawn/test shortcuts act on the tile under the mouse, so
- * they no-op when nothing is hovered. */
+/*
+ * The side-apps' key predicate: the same rules the bridge readers above apply,
+ * named by gate. CTRL: the modifier held, the key down (PRESS), held (HELD)
+ * or either (PRESS_OR_HELD), not a key the map editor claimed. WORLD (app_debug_world_key_fires): no
+ * modifier, the key down, not a key the map editor or a revconfig hotkey
+ * claimed this frame.
+ */
+struct AppSideAppKeyCtx
+{
+    struct App const* app;
+    struct LibToriRS_Input* input;
+};
+
+static int
+app_side_app_key_fires(
+    void* ctx,
+    struct SideAppBinding const* binding,
+    enum SideAppGate gate,
+    enum SideAppKeyMode mode)
+{
+    struct AppSideAppKeyCtx const* keys = ctx;
+
+    assert(keys);
+    assert(binding);
+    if( gate == SIDE_APP_GATE_WORLD )
+    {
+        /* No world key fires while held: the world gate reads presses. */
+        assert(mode == SIDE_APP_KEY_PRESS);
+        return app_debug_world_key_fires(keys->app, keys->input, binding->key);
+    }
+    assert(gate == SIDE_APP_GATE_CTRL);
+    if( !app_debug_modifier_held(keys->input) )
+        return 0;
+    if( mode == SIDE_APP_KEY_HELD )
+        return LibToriRS_Input_IsKeyHeld(keys->input, binding->key)
+               && !app_editor_hotkeys_claimed(keys->app, binding->key);
+    if( mode == SIDE_APP_KEY_PRESS_OR_HELD )
+        return (LibToriRS_Input_IsKeyDown(keys->input, binding->key)
+                || LibToriRS_Input_IsKeyHeld(keys->input, binding->key))
+               && !app_editor_hotkeys_claimed(keys->app, binding->key);
+    return LibToriRS_Input_IsKeyDown(keys->input, binding->key)
+           && !app_editor_hotkeys_claimed(keys->app, binding->key);
+}
+
+void
+app_side_app_deliver_keys(
+    struct App* app,
+    struct LibToriRS_Input* input,
+    enum SideAppPhase phase)
+{
+    struct AppSideAppKeyCtx keys = { app, input };
+
+    assert(app);
+    assert(input);
+    SideApps_DeliverKeys(app->side_apps, phase, app_side_app_host(app), app_side_app_key_fires, &keys);
+}
+
+void
+app_side_app_probe_keys(
+    struct App* app,
+    struct LibToriRS_Input* input,
+    enum SideAppPhase phase)
+{
+    struct AppSideAppKeyCtx keys = { app, input };
+
+    assert(app);
+    assert(input);
+    SideApps_ProbeKeys(app->side_apps, phase, app_side_app_host(app), app_side_app_key_fires, &keys);
+}
+
+/* The side-apps' world keys act on the tile under the mouse, so they no-op
+ * when nothing is hovered. */
 void
 app_world_hotkeys(
     struct App* app,
     struct LibToriRS_Input* input,
     struct UIInteractOut const* out)
 {
-    struct AppDebugHotkeyBinding const* binding;
-    /* Spawn hotkeys gate on the hovered world tile, not on onKey targets —
+    /* World keys gate on the hovered world tile, not on onKey targets --
      * under the real gameframe there is always some visible onKey component
      * and gating on it made every press suppress itself. */
     (void)out;
     if( !WorldLoadState_Active(&app->world_load) || !app_world_viewport_component_live(app) )
         return;
-    /* Suppressed while any text input has focus, so spawn-digit keys type
+    /* Suppressed while any text input has focus, so digit keys type
      * instead. */
     if( app_text_input_focused(app) )
         return;
     if( app->world_views.frame->world_hover_tile_x < 0 || app->world_views.frame->world_hover_tile_z < 0 )
         return;
 
-    if( app_debug_world_key(app, input, APP_DEBUG_HOTKEY_SPAWN_PLAYER) )
-        app_world_spawn_player(
-            app,
-            app->world_views.frame->world_hover_tile_x,
-            app->world_views.frame->world_hover_tile_z,
-            app->world_views.frame->world_hover_tile_level);
-    if( (binding = app_debug_world_key(app, input, APP_DEBUG_HOTKEY_SPAWN_NPC)) )
-        app_world_spawn_npc(
-            app,
-            app->world_views.frame->world_hover_tile_x,
-            app->world_views.frame->world_hover_tile_z,
-            app->world_views.frame->world_hover_tile_level,
-            binding->args);
-    if( app_debug_world_key(app, input, APP_DEBUG_HOTKEY_DAMAGE_TEST) )
-        app_world_damage_test(app);
-    if( (binding = app_debug_world_key(app, input, APP_DEBUG_HOTKEY_ENTITY_SPOTANIM)) )
-        app_world_entity_spotanim_test(app, binding->args);
-    if( (binding = app_debug_world_key(app, input, APP_DEBUG_HOTKEY_SPAWN_SPOTANIM)) )
-        app_world_spawn_spotanim(
-            app,
-            app->world_views.frame->world_hover_tile_x,
-            app->world_views.frame->world_hover_tile_z,
-            app->world_views.frame->world_hover_tile_level,
-            binding->args);
-    if( (binding = app_debug_world_key(app, input, APP_DEBUG_HOTKEY_SPAWN_OBJ)) )
-        app_world_spawn_obj(
-            app,
-            app->world_views.frame->world_hover_tile_x,
-            app->world_views.frame->world_hover_tile_z,
-            app->world_views.frame->world_hover_tile_level,
-            binding->args);
-    if( (binding = app_debug_world_key(app, input, APP_DEBUG_HOTKEY_SPAWN_PROJECTILE)) )
-        app_world_spawn_projectile(
-            app,
-            app->world_views.frame->world_hover_tile_x,
-            app->world_views.frame->world_hover_tile_z,
-            app->world_views.frame->world_hover_tile_level,
-            binding->args);
+    /* The side-apps' world keys, under the gates above. */
+    app_side_app_deliver_keys(app, input, SIDE_APP_PHASE_WORLD_HOTKEYS);
 }

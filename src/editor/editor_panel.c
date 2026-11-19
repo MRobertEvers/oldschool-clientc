@@ -466,16 +466,16 @@ panel_set_content_paths(
 {
     /* The builders' Check is the editor server's CHECK job (builder_ssc.h),
      * so they take no compile paths here. */
-    if( app->cfg.editor_repo_root && app->cfg.editor_repo_root[0] )
+    if( app->cfg.map_editor.repo_root && app->cfg.map_editor.repo_root[0] )
     {
         char ssc[1024];
         char work[1024];
-        snprintf(ssc, sizeof(ssc), "%s/src/build_opt/sscompile", app->cfg.editor_repo_root);
+        snprintf(ssc, sizeof(ssc), "%s/src/build_opt/sscompile", app->cfg.map_editor.repo_root);
         /* The Triggers panel's paths (its Check is the CHECK job too). */
-        snprintf(work, sizeof(work), "%s/src/build_opt/tmp/triggers_check", app->cfg.editor_repo_root);
+        snprintf(work, sizeof(work), "%s/src/build_opt/tmp/triggers_check", app->cfg.map_editor.repo_root);
         (void)Editor_Triggers_SetPaths(panel->ui, content_root, ssc, work);
         /* The quest board reads test/quests and build/quest_gate beside it. */
-        Editor_Quest_SetPaths(panel->ui, content_root, app->cfg.editor_repo_root);
+        Editor_Quest_SetPaths(panel->ui, content_root, app->cfg.map_editor.repo_root);
     }
     else
         (void)Editor_Triggers_SetPaths(panel->ui, content_root, NULL, NULL);
@@ -518,8 +518,8 @@ Editor_PanelInit(
     Editor_UiRegisterToolsPanels(panel->ui);
     /* The manifest's tree until the server says which lane it serves
      * (Editor_PanelTick): right for main, and the BASE of any other lane. */
-    if( app->cfg.editor_content_dir && app->cfg.editor_content_dir[0] )
-        panel_set_content_paths(panel, app, app->cfg.editor_content_dir);
+    if( app->cfg.map_editor.content_dir && app->cfg.map_editor.content_dir[0] )
+        panel_set_content_paths(panel, app, app->cfg.map_editor.content_dir);
     panel->built = 1;
 }
 

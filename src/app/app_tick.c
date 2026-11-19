@@ -135,7 +135,7 @@ app_logic_tick(struct App* app)
             int fire = 0;
 
             if( !cheat || !cheat[0] )
-                cheat = app->cfg.net_cheat;
+                cheat = app->cfg.net.cheat;
 
             if( cheat_every < 0 )
             {
@@ -221,7 +221,7 @@ app_logic_tick(struct App* app)
                     int parts = 0;
                     char const* p = torirs_env_net_cheat();
                     if( !p || !p[0] )
-                        p = app->cfg.net_cheat;
+                        p = app->cfg.net.cheat;
                     while( p && p[0] )
                     {
                         char const* sep = strchr(p, ';');

@@ -2,7 +2,7 @@
 #define SRC_PERF_FRAME_CLOCK_H
 
 /*
- * Four things the frame loop counts off the wall clock or off its own
+ * Five things the frame loop counts off the wall clock or off its own
  * frames, each its own struct because each is its own decision:
  *
  * The step: how many fixed logic cycles a frame runs. The frame's elapsed
@@ -31,12 +31,19 @@
  * passes FRAME_CLOCK_IDLE_TIMER_FRAMES, and not again until input has reset
  * it.
  *
+ * The frame times: the last few frames' work, in microseconds, and their
+ * mean (perf/frame_time_ring.h). Written every frame whether or not anything
+ * shows it: the newest is the last frame's work, and the mean is what the
+ * frame-time panel reads, already settled the frame it is shown.
+ *
  * Nothing here reads a clock or input, runs a cycle or sends a packet. The
  * caller passes the time in milliseconds, the cycle length and the catch-up
  * bound, says whether the frame had input, runs the cycles it is paid and
  * notes each one it ran, says when a frame starts, and sends the idle timer
  * when told to.
  */
+
+#include "perf/frame_time_ring.h"
 
 #include <stdint.h>
 
@@ -93,6 +100,7 @@ struct FrameClock
     struct FrameClockSerial serial;
     struct FrameClockFps fps;
     struct FrameClockIdle idle;
+    struct FrameTimeRing frame_times;
 };
 
 /** Nothing paid, nothing counted, no input missed. */

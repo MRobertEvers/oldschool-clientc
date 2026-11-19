@@ -3,9 +3,8 @@
 
 /*
  * The editors' working state inside the client: the loc editor's panel
- * handles and its selection, the hover-footprint outline's mode, the Place
- * tool's hover ghost, the camera on the model-view well, and the map editor's
- * command panel.
+ * handles and its selection, the Place tool's hover ghost, the camera on the
+ * model-view well, and the map editor's command panel.
  *
  * It does not own a chrome instance. Every panel named here is built in the
  * developer overlay's (ui/dev_overlay.h), which the App unit hands to each
@@ -18,13 +17,9 @@
  * EditorShell_Free releases it. The map editor panel's own registry is not
  * released here; the App unit frees it when it shuts the editor session down.
  *
- * This decides the footprint outline's state: what an env-chosen mode starts
- * it at, and what the toggle turns it to.
- *
  * Nothing here reads a world, input or the environment, builds chrome, or
- * prints. The caller parses the env var, routes the keys, places the ghost and
- * the selection's moves in the scene, and does the panel work through the
- * fields below.
+ * prints. The caller routes the keys, places the ghost and the selection's
+ * moves in the scene, and does the panel work through the fields below.
  */
 
 #include "editor/editor_panel.h"
@@ -63,10 +58,6 @@ struct EditorShell
      *  explicit Reselect/Deselect: opening or closing the panel never changes
      *  it. @see editor/loc_editor_selection.h */
     struct LocEditorSelection locedit_selection;
-    /** Footprint outline: the live mode -- 0 off, 1 the hovered loc, >1 every
-     *  instance of that loc id -- and the non-zero mode the toggle restores. */
-    int hover_footprint;
-    int hover_footprint_mode;
     /**
      * The Place-loc tool's hover ghost: a REAL loc placed at the hovered tile
      * through the same seam a commit uses, then made translucent. It EVICTS
@@ -92,19 +83,5 @@ EditorShell_Create(void);
 /** Release a shell from EditorShell_Create. NULL is accepted. */
 void
 EditorShell_Free(struct EditorShell* shell);
-
-/**
- * Start the footprint outline at an env-chosen mode: a positive mode is on at
- * that mode; 0 or a negative mode is off, and the toggle then restores mode 1.
- */
-void
-EditorShell_FootprintSeed(
-    struct EditorShell* shell,
-    int mode);
-
-/** Turn the footprint outline off, or back on at the mode it restores, and
- *  return the new live mode. */
-int
-EditorShell_FootprintToggle(struct EditorShell* shell);
 
 #endif

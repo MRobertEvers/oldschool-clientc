@@ -6,6 +6,7 @@
 
 #include "app.h"
 #include "executor_config.h"
+#include "sideapp/side_app_binding.h"
 #include "features/features.h"
 
 #include "3rd/ini/ini.h"
@@ -23,8 +24,17 @@
 #endif
 
 _Static_assert(
-    BOOTMANIFEST_DEBUG_HOTKEY_MAX <= APP_DEBUG_HOTKEY_MAX,
+    BOOTMANIFEST_DEBUG_HOTKEY_MAX <= SIDE_APP_BINDING_MAX,
     "AppConfig must hold every manifest debug-hotkey binding");
+_Static_assert(
+    BOOTMANIFEST_DEBUG_ACTION_MAX <= SIDE_APP_DECLARED_MAX,
+    "AppConfig must hold every manifest debug action");
+_Static_assert(
+    BOOTMANIFEST_DEBUG_NAME_CAP == SIDE_APP_NAME_CAP,
+    "an action name fits the binding it is copied into");
+_Static_assert(
+    BOOTMANIFEST_DEBUG_ARGS_CAP == SIDE_APP_ARGS_CAP,
+    "an action's args fit the binding they are copied into");
 
 /*
  * Is this path already anchored, or is it relative to the manifest?
@@ -1062,15 +1072,6 @@ bm_set_kv(
 
     case BM_SECTION_ACTION:
     {
-        static char const* const target_names[APP_DEBUG_HOTKEY_COUNT] = {
-            "camera_forward",   "camera_back",    "camera_left",     "camera_right",
-            "camera_up",        "camera_down",    "camera_unlock",   "world_reload",
-            "paint_toggle",     "paint_more",     "paint_less",      "paint_more_100",
-            "paint_less_100",   "spawn_player",   "spawn_npc",       "spawn_obj",
-            "spawn_projectile", "spawn_spotanim", "entity_spotanim", "damage_test",
-            "debug_overlay",    "loc_editor_toggle", "hover_footprint",
-            "map_editor_toggle", "plugin_panel_toggle"
-        };
         char const* name = section_name + 7;
         struct BootManifestDebugAction* action = NULL;
 
@@ -1097,18 +1098,22 @@ bm_set_kv(
             }
             action = &bm->debug_actions[bm->debug_action_count++];
             snprintf(action->name, sizeof(action->name), "%s", name);
-            action->target = -1;
+            action->target[0] = '\0';
         }
         if( strcmp(key, "t") == 0 )
         {
-            for( int i = 0; i < APP_DEBUG_HOTKEY_COUNT; i++ )
-                if( strcmp(value, target_names[i]) == 0 )
-                {
-                    action->target = i;
-                    return;
-                }
-            TORIRS_ERR("bootmanifest: [action:%s] has unknown target '%s'\n", name, value);
-            bm->debug_hotkey_error = 1;
+            /* Which names are targets is the side-apps' to say, and they
+             * register after the load: the boot refuses a name none of them
+             * answers (App_ToolsBindingsResolved), with this same message.
+             * An empty or overlong name can be no side-app's, so it is still
+             * refused here. */
+            if( !value[0] || strlen(value) >= sizeof(action->target) )
+            {
+                TORIRS_ERR("bootmanifest: [action:%s] has unknown target '%s'\n", name, value);
+                bm->debug_hotkey_error = 1;
+                return;
+            }
+            snprintf(action->target, sizeof(action->target), "%s", value);
             return;
         }
         if( strcmp(key, "a") == 0 )
@@ -1522,7 +1527,7 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
     }
 
     for( int i = 0; i < bm->debug_action_count; i++ )
-        if( bm->debug_actions[i].target < 0 )
+        if( !bm->debug_actions[i].target[0] )
         {
             TORIRS_ERR("bootmanifest: [action:%s] is missing required t=\n",
                     bm->debug_actions[i].name);
@@ -1634,7 +1639,7 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
     if( bm->cache_dir[0] )
         cfg->cache_dir = bm->cache_dir;
     if( bm->cache_dir_for_revision[0] )
-        cfg->cache_dir_for_revision = bm->cache_dir_for_revision;
+        cfg->replay.cache_dir_for_revision = bm->cache_dir_for_revision;
     if( bm->io_host[0] )
         snprintf(cfg->io_host, sizeof(cfg->io_host), "%s", bm->io_host);
     if( bm->io_port > 0 )
@@ -1646,21 +1651,21 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
     if( bm->ws_port > 0 )
         cfg->web_port = bm->ws_port;
     if( bm->editor_content_dir[0] )
-        cfg->editor_content_dir = bm->editor_content_dir;
+        cfg->map_editor.content_dir = bm->editor_content_dir;
     if( bm->editor_lane[0] )
-        cfg->editor_lane = bm->editor_lane;
+        cfg->map_editor.lane = bm->editor_lane;
     if( bm->editor_repo_root[0] )
-        cfg->editor_repo_root = bm->editor_repo_root;
-    cfg->editor_panel = (int)bm->editor_panel;
+        cfg->map_editor.repo_root = bm->editor_repo_root;
+    cfg->map_editor.panel = (int)bm->editor_panel;
     /* BOOTMANIFEST_WORLD_LAYOUT_* has the values of WORLD_BUILDER_LAYOUT_*. */
     cfg->world_layout = (int)bm->world_layout;
-    cfg->editor_server = (int)bm->editor_server;
+    cfg->map_editor.server = (int)bm->editor_server;
     if( bm->editor_server_host[0] )
-        cfg->editor_server_host = bm->editor_server_host;
+        cfg->map_editor.server_host = bm->editor_server_host;
     if( bm->editor_server_port > 0 )
-        cfg->editor_server_port = bm->editor_server_port;
+        cfg->map_editor.server_port = bm->editor_server_port;
     if( bm->editor_client_id > 0 )
-        cfg->editor_client_id = bm->editor_client_id;
+        cfg->map_editor.client_id = bm->editor_client_id;
 
     if( bm->cache_quirks_set && bm->cache_game != 0 && bm->cache_epoch != 0 &&
         bm->cache_revision >= 0 )
@@ -1673,31 +1678,31 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
     }
 
     if( bm->rev_name[0] )
-        cfg->rev_name = bm->rev_name;
+        cfg->net.rev_name = bm->rev_name;
     if( bm->host[0] )
-        cfg->connect_target = bm->host;
-    cfg->connect_oauth = bm->auth_oauth;
+        cfg->net.connect_target = bm->host;
+    cfg->net.connect_oauth = bm->auth_oauth;
     if( bm->port > 0 )
-        cfg->connect_port = bm->port;
+        cfg->net.connect_port = bm->port;
     if( bm->client_version > 0 )
-        cfg->client_version = bm->client_version;
+        cfg->net.client_version = bm->client_version;
     if( bm->rsa_exp[0] )
-        cfg->rsa_exp = bm->rsa_exp;
+        cfg->net.rsa_exp = bm->rsa_exp;
     if( bm->rsa_mod[0] )
-        cfg->rsa_mod = bm->rsa_mod;
+        cfg->net.rsa_mod = bm->rsa_mod;
     if( bm->jag_crc_set )
     {
-        memcpy(cfg->jag_crc, bm->jag_crc, sizeof(cfg->jag_crc));
-        cfg->jag_crc_set = 1;
+        memcpy(cfg->net.jag_crc, bm->jag_crc, sizeof(cfg->net.jag_crc));
+        cfg->net.jag_crc_set = 1;
     }
     if( bm->user[0] )
-        cfg->connect_user = bm->user;
+        cfg->net.connect_user = bm->user;
     if( bm->pass[0] )
-        cfg->connect_pass = bm->pass;
+        cfg->net.connect_pass = bm->pass;
     if( bm->server_scripts[0] )
-        cfg->net_server_scripts = bm->server_scripts;
+        cfg->net.server_scripts = bm->server_scripts;
     if( bm->cheat[0] )
-        cfg->net_cheat = bm->cheat;
+        cfg->net.cheat = bm->cheat;
 
     if( bm->features_era[0] )
         cfg->features_era = bm->features_era;
@@ -1780,7 +1785,7 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
     if( bm->revconfig_inline[0] )
         cfg->revconfig_inline_ini = bm->revconfig_inline;
     if( bm->interface_id > 0 )
-        cfg->interface_id = bm->interface_id;
+        cfg->viewer.interface_id = bm->interface_id;
     if( bm->window_mode )
         cfg->window_mode = bm->window_mode;
     if( bm->chrome_scale )
@@ -1806,13 +1811,13 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
     }
     if( bm->gameframe_count > 0 )
     {
-        cfg->gameframe_mounts = bm->gameframe;
-        cfg->gameframe_mount_count = bm->gameframe_count;
+        cfg->viewer.gameframe_mounts = bm->gameframe;
+        cfg->viewer.gameframe_mount_count = bm->gameframe_count;
     }
     if( bm->varc_count > 0 )
     {
-        cfg->varc_seeds = bm->varc;
-        cfg->varc_seed_count = bm->varc_count;
+        cfg->viewer.varc_seeds = bm->varc;
+        cfg->viewer.varc_seed_count = bm->varc_count;
     }
     if( bm->spawn_x >= 0 && bm->spawn_z >= 0 )
     {
@@ -1821,19 +1826,33 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
     }
     if( bm->debug_hotkey_count > 0 )
     {
-        cfg->debug_hotkey_count = 0;
+        struct SideAppBindingTable* table = &cfg->side_app_bindings;
+        table->binding_count = 0;
         for( int i = 0; i < bm->debug_hotkey_count; i++ )
             for( int j = 0; j < bm->debug_action_count; j++ )
                 if( strcmp(bm->debug_hotkeys[i].action, bm->debug_actions[j].name) == 0 )
                 {
-                    struct AppDebugHotkeyBinding* binding =
-                        &cfg->debug_hotkeys[cfg->debug_hotkey_count++];
+                    struct SideAppBinding* binding = &table->bindings[table->binding_count++];
                     binding->key = (enum LibToriRS_KeyCode)bm->debug_hotkeys[i].key;
-                    binding->target = (enum AppDebugHotkey)bm->debug_actions[j].target;
+                    snprintf(binding->action, sizeof(binding->action), "%s",
+                             bm->debug_actions[j].target);
                     snprintf(binding->args, sizeof(binding->args), "%s",
                              bm->debug_actions[j].args);
                     break;
                 }
+    }
+    /* Every declared target, bound or not: the boot refuses one no side-app
+     * answers, as the load refused it when the loader held the names. */
+    if( bm->debug_action_count > 0 )
+    {
+        struct SideAppBindingTable* table = &cfg->side_app_bindings;
+        table->declared_count = 0;
+        for( int j = 0; j < bm->debug_action_count; j++ )
+        {
+            struct SideAppDeclaredAction* decl = &table->declared[table->declared_count++];
+            snprintf(decl->source, sizeof(decl->source), "%s", bm->debug_actions[j].name);
+            snprintf(decl->action, sizeof(decl->action), "%s", bm->debug_actions[j].target);
+        }
     }
 }
 
@@ -1875,12 +1894,12 @@ BootManifest_ApplyWebEndpoint(
     assert(cfg);
 
     if( env_host && env_host[0] )
-        cfg->connect_target = env_host;
+        cfg->net.connect_target = env_host;
     else if( bm->ws_host[0] )
-        cfg->connect_target = bm->ws_host;
+        cfg->net.connect_target = bm->ws_host;
 
     if( env_port && env_port[0] )
-        cfg->connect_port = atoi(env_port);
+        cfg->net.connect_port = atoi(env_port);
     else if( bm->ws_port > 0 )
-        cfg->connect_port = bm->ws_port;
+        cfg->net.connect_port = bm->ws_port;
 }

@@ -3201,6 +3201,96 @@ app_plugin_surface_route_input(struct App* app)
 }
 
 /*
+ * The window's toggle key, registered with the side-app registry (the one list
+ * is app_tools.c) and delivered at the plugin window's point of its tick
+ * (below). The window is a player's, not a debug tool; only its key is a
+ * bound action, answered here so the latch stays with the window it flips.
+ *
+ * `plugin_panel_toggle`, CTRL held, not a key the map editor claimed this
+ * frame, and down OR held: the key hook notes a binding fired, and keys_done,
+ * which follows every delivery, latches -- the window flips on the frame the
+ * key is down and was not, and never while a text input has focus.
+ */
+static void
+app_plugin_window_toggle_key(
+    void* self,
+    struct SideAppHost* host,
+    int action,
+    char const* args);
+static void
+app_plugin_window_toggle_done(
+    void* self,
+    struct SideAppHost* host,
+    enum SideAppPhase phase);
+
+static struct SideAppAction const k_app_plugin_window_actions[] = {
+    { "plugin_panel_toggle", SIDE_APP_PHASE_PLUGIN_WINDOW, SIDE_APP_GATE_CTRL, SIDE_APP_KEY_PRESS_OR_HELD, 0 },
+};
+
+static struct SideAppHooks const k_app_plugin_window_hooks = {
+    .key = app_plugin_window_toggle_key,
+    .keys_done = app_plugin_window_toggle_done,
+};
+
+void
+app_plugin_window_register(struct App* app)
+{
+    assert(app);
+    assert(app->side_apps);
+    SideApps_Register(
+        app->side_apps,
+        "plugin_window",
+        NULL,
+        &k_app_plugin_window_hooks,
+        k_app_plugin_window_actions,
+        (int)(sizeof(k_app_plugin_window_actions) / sizeof(k_app_plugin_window_actions[0])));
+}
+
+static void
+app_plugin_window_toggle_key(
+    void* self,
+    struct SideAppHost* host,
+    int action,
+    char const* args)
+{
+    struct App* app = app_from_side_app_host(host);
+
+    (void)self;
+    (void)action;
+    (void)args;
+    assert(action == 0);
+    assert(args);
+    app->plugin_win->toggle_key_down = 1;
+}
+
+static void
+app_plugin_window_toggle_done(
+    void* self,
+    struct SideAppHost* host,
+    enum SideAppPhase phase)
+{
+    struct App* app = app_from_side_app_host(host);
+    struct PluginPanel* win = app->plugin_win;
+    int down;
+
+    (void)self;
+    (void)phase;
+    assert(phase == SIDE_APP_PHASE_PLUGIN_WINDOW);
+    down = !app_text_input_focused(app) && win->toggle_key_down;
+    win->toggle_key_down = 0;
+    if( down && !win->toggle_was_down )
+    {
+        /* The same path the button takes. Two entry points that opened
+         * the window two different ways is how one of them ends up doing
+         * only half of it. */
+        if( getenv("TORIRS_CHROME_DEBUG") )
+            fprintf(stderr, "chrome: hotkey toggle tick=%d\n", g_plugin_panel_ticks);
+        app_plugin_window_set_open(app, !win->visible);
+    }
+    win->toggle_was_down = down;
+}
+
+/*
  * Per-frame: the toggle, the lazy build, input, and one activation.
  *
  * Runs beside the other chrome ticks at the top of App_RunOnce, before the
@@ -3429,23 +3519,7 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
      * input frame, edge included. An edge-triggered toggle then fires once per
      * re-run, and the window flaps open/shut for as long as the turbulence
      * lasts. */
-    {
-        static int toggle_was_down = 0;
-        int const down =
-            !app_text_input_focused(app) &&
-            (app_debug_key_down(app, input, APP_DEBUG_HOTKEY_PLUGIN_PANEL) ||
-             app_debug_key_held(app, input, APP_DEBUG_HOTKEY_PLUGIN_PANEL));
-        if( down && !toggle_was_down )
-        {
-            /* The same path the button takes. Two entry points that opened
-             * the window two different ways is how one of them ends up doing
-             * only half of it. */
-            if( getenv("TORIRS_CHROME_DEBUG") )
-                fprintf(stderr, "chrome: hotkey toggle tick=%d\n", g_plugin_panel_ticks);
-            app_plugin_window_set_open(app, !app->plugin_win->visible);
-        }
-        toggle_was_down = down;
-    }
+    app_side_app_deliver_keys(app, input, SIDE_APP_PHASE_PLUGIN_WINDOW);
 
     if( !app->plugin_win->visible )
     {

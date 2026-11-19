@@ -107,7 +107,7 @@ App_NoteFrameTime(
     assert(app);
 
     PerfAudit_EndFrame(frame_us);
-    FrameTimeRing_Add(&app->dev_overlay->frame_times, frame_us);
+    FrameTimeRing_Add(&app->frame_clock.frame_times, frame_us);
     app_rebuild_frames_note(app, frame_us);
 }
 
@@ -125,7 +125,7 @@ App_LastFrameUs(struct App const* app)
 {
     assert(app);
 
-    return FrameTimeRing_NewestUs(&app->dev_overlay->frame_times);
+    return FrameTimeRing_NewestUs(&app->frame_clock.frame_times);
 }
 
 int

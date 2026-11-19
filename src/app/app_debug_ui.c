@@ -32,23 +32,12 @@ app_settings_picker_commit(
 
 /* ---- Developer overlay ------------------------------------------------- *
  *
- * One minimenu-styled ToriRSChrome panel (src/ui/README_DEBUG_OVERLAY.md) holding
- * the frame time, averaged over the last APP_DEBUG_FRAME_SAMPLES frames. The
- * App feeds the model; the node that draws it is declared by the manifest
- * (`type=debug_overlay`, docs/debug_overlay.md §2) and answered through
- * UITREE_HOST_GET_DEBUG_OVERLAY.
- *
- * A hidden panel builds no primitives, so the overlay costs one host call and
- * nothing else until the toggle key turns it on. The samples keep accumulating
- * either way — the average is a property of the client, not of whether anyone
- * is looking at it, and a readout that starts at "--" for ten frames after
- * every toggle would be useless for exactly the stutter it is there to catch.
+ * The developer chrome instance (ui/dev_overlay.h) every developer panel is
+ * built in: the frame-time panel (a side-app, app_tool_frame_time.c), the loc
+ * editor, the map editor and the settings pickers. The node that draws it is
+ * declared by the manifest (`type=debug_overlay`, docs/debug_overlay.md §2)
+ * and answered through UITREE_HOST_GET_DEBUG_OVERLAY.
  */
-
-/* Sizes the panel. The title is the widest string the panel will ever hold, so
- * content sizing (fixed_w 0) settles on one width and the panel never resizes
- * as the digits change under it. */
-static char const k_app_debug_overlay_title[] = "Frame time (10-frame avg)";
 
 /*
  * Can this build draw the editor's theme?
@@ -92,8 +81,7 @@ app_chrome_theme_editor_choose(struct App* app)
     int want_editor;
 
     assert(app);
-    want_editor = (app->cfg.editor_content_dir && app->cfg.editor_content_dir[0]) ||
-                  app->cfg.editor_server == BOOTMANIFEST_EDITOR_SERVER_TCP;
+    want_editor = MapEditorConfig_IsEditorBoot(&app->cfg.map_editor);
     if( pick && pick[0] )
     {
         if( strcmp(pick, "editor") == 0 )
@@ -212,13 +200,12 @@ app_debug_overlay_init(struct App* app)
     /* No executor has been reported yet, and BUFFER is a real answer. */
     app->plugin_win->exec_logged_kind = -1;
 
-    app->dev_overlay->visible = 0;
-    FrameTimeRing_Reset(&app->dev_overlay->frame_times);
-    app->dev_overlay->panel = ToriRSChrome_PanelAdd(
-        &app->dev_overlay->ui, TORIRS_CHROME_PANEL_MENU, 8, 8, 0, k_app_debug_overlay_title);
-    app->dev_overlay->frame_row =
-        ToriRSChrome_MenuItem(&app->dev_overlay->ui, app->dev_overlay->panel, "--");
-    ToriRSChrome_PanelSetVisible(&app->dev_overlay->ui, app->dev_overlay->panel, 0);
+    /* The frame times the frame-time panel averages, emptied where the panel
+     * is made (they are the frame clock's: perf/frame_clock.h). */
+    FrameTimeRing_Reset(&app->frame_clock.frame_times);
+    /* The side-apps' panels first in the chrome, ahead of the loc editor's:
+     * the frame-time panel's (app_tools.c). */
+    SideApps_BuildChrome(app->side_apps, app_side_app_host(app));
 
     app->editor_shell->locedit.panel = ToriRSChrome_PanelAdd(
         &app->dev_overlay->ui, TORIRS_CHROME_PANEL_MENU, 8, 40, 0, "Loc Editor");
@@ -261,28 +248,21 @@ app_debug_overlay_init(struct App* app)
      * the frame-time panel's Build/Prims/emit plumbing for free. */
     UISettingsPickers_Init(&app->dev_overlay->settings_pickers, &app->dev_overlay->ui);
     LocEditorSelection_Reset(&app->editor_shell->locedit_selection);
-
-    /* Footprint outline: the env var picks the mode AND the starting state, so
-     * an existing `TORIRS_HOVER_FOOTPRINT=1` run is unchanged and the hotkey
-     * merely gains the ability to turn it off. Unset means off but armed at
-     * mode 1, which is what the hotkey turns on. A negative or unparsable value
-     * is off with nothing to restore. */
-    {
-        char const* env = getenv("TORIRS_HOVER_FOOTPRINT");
-        int mode = (env && env[0]) ? (int)strtol(env, NULL, 0) : 0;
-        EditorShell_FootprintSeed(app->editor_shell, mode);
-    }
 }
 
 /*
  * Release the developer overlay and the editor shell App_Init made, the two
  * records app_debug_overlay_init builds its panels in. Last in App_Shutdown:
  * the map editor's teardown above it still reads the shell's panel.
+ *
+ * The side-apps go first (app_tools.c): a tool's state may hold a panel of the
+ * overlay, never the other way round.
  */
 void
 app_debug_overlay_free(struct App* app)
 {
     assert(app);
+    app_tools_free(app);
     EditorShell_Free(app->editor_shell);
     app->editor_shell = NULL;
     DevOverlay_Free(app->dev_overlay);
@@ -290,9 +270,10 @@ app_debug_overlay_free(struct App* app)
 }
 
 /*
- * Toggle the overlay, refresh its readout, rebuild its display list.
+ * The dev chrome's tick: its side-apps' keys and frame hooks (the frame-time
+ * panel's toggle and readout), then its display list rebuilt.
  *
- * Runs before the BOOTING early-out in App_RunOnce so the key still latches
+ * Runs before the BOOTING early-out in App_RunOnce so a key still latches
  * during a boot, and before the emit rebuild so a changed readout reaches the
  * same frame's display list rather than the next one's.
  */
@@ -306,27 +287,9 @@ app_debug_overlay_tick(
 
     /* Suppressed while a text line has focus, like the camera keys: typing a
      * message must not flip debug chrome. */
-    if( !app_text_input_focused(app) &&
-        app_debug_key_down(app, input, APP_DEBUG_HOTKEY_DEBUG_OVERLAY) )
-    {
-        app->dev_overlay->visible = !app->dev_overlay->visible;
-        ToriRSChrome_PanelSetVisible(
-            &app->dev_overlay->ui, app->dev_overlay->panel, app->dev_overlay->visible);
-    }
-
-    if( app->dev_overlay->visible )
-    {
-        uint32_t const mean_us = FrameTimeRing_MeanUs(&app->dev_overlay->frame_times);
-        char text[TORIRS_CHROME_INPUT_MAX];
-
-        /* `mean_us` is 0 both for "no samples yet" and for a run of sub-10us
-         * frames, and the readout says "--" for either: there is nothing
-         * useful to print. */
-        DevOverlay_FrameTimeText(mean_us, text, sizeof(text));
-        /* Compare-then-set: an unchanged readout dirties nothing, so a steady
-         * client rebuilds no display list and requests no redraw. */
-        ToriRSChrome_SetText(&app->dev_overlay->ui, app->dev_overlay->frame_row, text);
-    }
+    if( !app_text_input_focused(app) )
+        app_side_app_deliver_keys(app, input, SIDE_APP_PHASE_EARLY_CHROME);
+    SideApps_Frame(app->side_apps, SIDE_APP_PHASE_EARLY_CHROME, app_side_app_host(app));
 
     /* The canvas the readout is drawn onto, so an open dropdown list folds up
      * into it rather than off the bottom edge. Compare-then-set inside, and

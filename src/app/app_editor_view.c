@@ -195,7 +195,7 @@ EditorView_AppBoot(struct App* app)
     assert(!g_app_view_live);
 
     g_app = app;
-    if( app->cfg.editor_panel != BOOTMANIFEST_EDITOR_PANEL_VIEW )
+    if( app->cfg.map_editor.panel != BOOTMANIFEST_EDITOR_PANEL_VIEW )
         return;
 
     EditorView_Init(&g_app_view, app->editor);
@@ -574,8 +574,8 @@ view_session_port(
 {
     struct ToriRSMapEd* server;
 
-    if( app->cfg.editor_server == BOOTMANIFEST_EDITOR_SERVER_TCP )
-        return app->cfg.editor_server_port > 0 ? app->cfg.editor_server_port : TORIRSMAPED_DEFAULT_PORT;
+    if( app->cfg.map_editor.server == BOOTMANIFEST_EDITOR_SERVER_TCP )
+        return app->cfg.map_editor.server_port > 0 ? app->cfg.map_editor.server_port : TORIRSMAPED_DEFAULT_PORT;
     if( g_embed_listener )
         return ToriRSMapEd_ListenerPort(g_embed_listener);
     server = Editor_HostIsMapEd(&app->editor->host) ? Editor_HostMapEdEmbedServer(&app->editor->host) : NULL;
@@ -635,7 +635,7 @@ EditorView_AppSpawnModule(
         int32_t values[TORIRSMAPED_CAMERA_VALUES];
         char text[96];
         char maped[192];
-        if( app->cfg.editor_server != BOOTMANIFEST_EDITOR_SERVER_TCP )
+        if( app->cfg.map_editor.server != BOOTMANIFEST_EDITOR_SERVER_TCP )
         {
             snprintf(why, (size_t)why_size,
                 "a browser tab cannot reach the ToriRSMapEd embedded in this page; "
@@ -647,10 +647,10 @@ EditorView_AppSpawnModule(
         snprintf(maped,
             sizeof(maped),
             "ws://%s:%d",
-            app->cfg.editor_server_host && app->cfg.editor_server_host[0]
-                ? app->cfg.editor_server_host
+            app->cfg.map_editor.server_host && app->cfg.map_editor.server_host[0]
+                ? app->cfg.map_editor.server_host
                 : "localhost",
-            app->cfg.editor_server_port > 0 ? app->cfg.editor_server_port
+            app->cfg.map_editor.server_port > 0 ? app->cfg.map_editor.server_port
                                             : TORIRSMAPED_DEFAULT_PORT);
         if( !editor_view_web_spawn(text, group, maped, is_viewer ? "" : module) )
         {
@@ -693,9 +693,9 @@ EditorView_AppSpawnModule(
         snprintf(url,
             sizeof(url),
             "tcp://%s:%d",
-            app->cfg.editor_server == BOOTMANIFEST_EDITOR_SERVER_TCP && app->cfg.editor_server_host
-                    && app->cfg.editor_server_host[0]
-                ? app->cfg.editor_server_host
+            app->cfg.map_editor.server == BOOTMANIFEST_EDITOR_SERVER_TCP && app->cfg.map_editor.server_host
+                    && app->cfg.map_editor.server_host[0]
+                ? app->cfg.map_editor.server_host
                 : "127.0.0.1",
             port);
         length = EditorView_SpawnBody(url, group, &pose, module, body, (int)sizeof(body));

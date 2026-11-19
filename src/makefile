@@ -795,6 +795,14 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	app/app_textures.c \
 	app/app_tick.c \
 	app/app_title.c \
+	app/app_tool_damage_test.c \
+	app/app_tool_free_camera.c \
+	app/app_tool_paint_stepper.c \
+	app/app_tool_projectile.c \
+	app/app_tool_spawn.c \
+	app/app_tool_spotanim.c \
+	app/app_tool_world_reload.c \
+	app/app_tools.c \
 	app/app_ui_host.c \
 	app/app_varp_transforms.c \
 	app/app_viewport.c \
@@ -1025,6 +1033,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	editor/editor_preview_camera.c \
 	editor/map_editor_ghost.c \
 	editor/editor_shell.c \
+	editor/hover_footprint.c \
 	render/world_camera_orbit.c \
 	net/rev/revpacket.c \
 	net/rev/packets/pkt_player_appearance.c \
@@ -1052,6 +1061,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	world/wev_aboard_trace.c \
 	world/loc_lane.c \
 	world/proj_spawn_latch.c \
+	sideapp/side_app.c \
 	world/wev.c world/wev_deck.c engine/dat2/task_dat2_wevconfig_load.c engine/dat2/task_dat2_grouptype_load.c engine/dat2/task_dat2_varclantype_load.c \
 	engine/world_builder/task_world_load.c \
 	editor/editor.c editor/editor_doc.c editor/editor_jm2.c editor/editor_spawn.c \
@@ -2154,6 +2164,7 @@ test-cs2-opcode-groups: $(OBJ_DIR)
 .PHONY: test-app-extracted
 test-app-extracted: check-app-boundary
 	$(MAKE) test-wedge-camera-path
+	$(MAKE) test-side-app
 	$(MAKE) test-damage-region
 	$(MAKE) test-uitree-input-signature
 	$(MAKE) test-plugin-mesh
@@ -2197,6 +2208,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-chrome-compositor
 	$(MAKE) test-dev-overlay
 	$(MAKE) test-editor-shell
+	$(MAKE) test-hover-footprint
 	$(MAKE) test-wev-aboard-trace
 	$(MAKE) test-loc-lane
 	$(MAKE) test-proj-spawn-latch
@@ -2637,17 +2649,24 @@ test-feature-facts: $(OBJ_DIR)
 .PHONY: test-dev-overlay
 test-dev-overlay: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/dev_overlay_test$(PLATFORM_EXE_SUFFIX) \
-		ui/test/dev_overlay_test.c ui/dev_overlay.c perf/frame_time_ring.c $(TORIMEM_SRCS) $(LDFLAGS)
+		ui/test/dev_overlay_test.c ui/dev_overlay.c $(TORIMEM_SRCS) $(LDFLAGS)
 	./$(OBJ_DIR)/dev_overlay_test$(PLATFORM_EXE_SUFFIX)
 
 # The editor shell: a created shell is zeroed with the ghost and the preview
-# camera reset, and the footprint outline's seed and toggle.
+# camera reset.
 .PHONY: test-editor-shell
 test-editor-shell: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/editor_shell_test$(PLATFORM_EXE_SUFFIX) \
 		editor/test/editor_shell_test.c editor/editor_shell.c editor/map_editor_ghost.c \
 		editor/editor_preview_camera.c $(TORIMEM_SRCS) $(LDFLAGS)
 	./$(OBJ_DIR)/editor_shell_test$(PLATFORM_EXE_SUFFIX)
+
+# The hover-footprint outline's state: the env mode's seed and the toggle.
+.PHONY: test-hover-footprint
+test-hover-footprint: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/hover_footprint_test$(PLATFORM_EXE_SUFFIX) \
+		editor/test/hover_footprint_test.c editor/hover_footprint.c $(LDFLAGS)
+	./$(OBJ_DIR)/hover_footprint_test$(PLATFORM_EXE_SUFFIX)
 
 # The aboard-view trace latch: a zeroed latch has traced the root view, and a
 # view is a change once.
@@ -2673,6 +2692,17 @@ test-proj-spawn-latch: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/proj_spawn_latch_test$(PLATFORM_EXE_SUFFIX) \
 		world/test/proj_spawn_latch_test.c world/proj_spawn_latch.c $(LDFLAGS)
 	./$(OBJ_DIR)/proj_spawn_latch_test$(PLATFORM_EXE_SUFFIX)
+
+# The side-app registry: registration order is delivery order, a binding or
+# a declaration naming an action nobody registered is reported, two bindings
+# to one action each fire it (once per frame when both are down), a phase
+# delivers only its own actions, and the free hooks run in reverse. Fake
+# tools and a fake key predicate; no App.
+.PHONY: test-side-app
+test-side-app: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/side_app_test$(PLATFORM_EXE_SUFFIX) \
+		$(TORIMEM_SRCS) sideapp/test/side_app_test.c sideapp/side_app.c $(LDFLAGS)
+	./$(OBJ_DIR)/side_app_test$(PLATFORM_EXE_SUFFIX)
 
 # The scripted camera's state and arithmetic: what each CAM_* packet sets and
 # cancels, the 28 easing curves, the rate walk and its yaw seam, the timed
@@ -2815,7 +2845,7 @@ test-render-skip: $(OBJ_DIR)
 .PHONY: test-frame-clock
 test-frame-clock: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/frame_clock_test$(PLATFORM_EXE_SUFFIX) \
-		perf/test/frame_clock_test.c perf/frame_clock.c $(LDFLAGS)
+		perf/test/frame_clock_test.c perf/frame_clock.c perf/frame_time_ring.c $(LDFLAGS)
 	./$(OBJ_DIR)/frame_clock_test$(PLATFORM_EXE_SUFFIX)
 
 # The task pump's boot and busy-frame counts, and the pending flag the frame

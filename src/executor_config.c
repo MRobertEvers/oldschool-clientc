@@ -50,10 +50,10 @@ ToriRS_ExecutorConfig_ResolveJs5(
         return executor_config_error(
             error, error_cap, "JS5 incremental cache loading requires a dat2 cache");
 
-    if( config->js5_host[0] == '\0' && app_config->connect_target &&
-        app_config->connect_target[0] )
+    if( config->js5_host[0] == '\0' && app_config->net.connect_target &&
+        app_config->net.connect_target[0] )
     {
-        char const* target = app_config->connect_target;
+        char const* target = app_config->net.connect_target;
         char const* colon = strrchr(target, ':');
         size_t host_len = colon ? (size_t)(colon - target) : strlen(target);
 
@@ -80,7 +80,7 @@ ToriRS_ExecutorConfig_ResolveJs5(
 
     if( config->js5_port == 0 )
         config->js5_port =
-            app_config->connect_port > 0 ? app_config->connect_port : TORIRS_JS5_DEFAULT_PORT;
+            app_config->net.connect_port > 0 ? app_config->net.connect_port : TORIRS_JS5_DEFAULT_PORT;
     if( config->js5_port <= 0 || config->js5_port > TORIRS_PORT_MAX )
         return executor_config_error(error, error_cap, "JS5 primary port must be in 1..65535");
 

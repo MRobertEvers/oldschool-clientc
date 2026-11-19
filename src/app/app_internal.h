@@ -52,6 +52,43 @@
 #include "graphics/convex_hull.h"
 #include "torirsmaped/torirs_maped.h"
 
+#include "sideapp/side_app.h"
+
+/*
+ * The side-app host: the registry forwards an opaque SideAppHost to every
+ * hook, and it is the App. These two are the only conversions.
+ */
+static inline struct SideAppHost*
+app_side_app_host(struct App* app)
+{
+    assert(app);
+    return (struct SideAppHost*)app;
+}
+
+static inline struct App*
+app_from_side_app_host(struct SideAppHost* host)
+{
+    assert(host);
+    return (struct App*)host;
+}
+
+/*
+ * The bridge for the developer hotkeys not moved onto a side-app yet.
+ *
+ * Their callers still poll app_debug_key_down with one of these. Each value is
+ * an action name in app_hotkeys.c's table, registered as the polled actions of
+ * one bridge side-app so a binding to it resolves. Entries leave as their
+ * tools become side-apps; the last one deletes this. The manifest names a
+ * target by the string beside it.
+ */
+enum AppDebugHotkey
+{
+    APP_DEBUG_HOTKEY_LOC_EDITOR,      /* loc_editor_toggle */
+    /** Show/hide the map editor panel. Only does anything in an editor boot. */
+    APP_DEBUG_HOTKEY_MAP_EDITOR,      /* map_editor_toggle */
+    APP_DEBUG_HOTKEY_COUNT
+};
+
 /* Highlight colours. The model silhouette is the brighter of the two because it
  * is the "this is the thing" mark; the ground footprint under it is supporting
  * information and reads as such. */
@@ -621,11 +658,25 @@ app_world_clamp_pitch(
     struct App const* app,
     int pitch);
 
+/** The world camera keys, once per view they steer: the side-apps' keys of
+ *  the camera-flight and camera-keys phases are delivered inside. */
 void
 app_world_camera_keys(
     struct App* app,
     struct LibToriRS_Input* input,
     struct UIInteractOut const* out);
+
+/** Move the frame's camera eye along the ground: forward along its yaw
+ *  (negative is back), and sideways (positive is RIGHT). */
+void
+app_camera_move_forward(
+    struct App* app,
+    int amount);
+
+void
+app_camera_move_left(
+    struct App* app,
+    int amount);
 
 int
 app_world_camera_zooms(struct App const* app);
@@ -792,6 +843,32 @@ app_chrome_merged_prims(
  *  since the last time. A no-op while the page is in the canvas. */
 void
 app_chrome_plugin_surface_present(struct App* app);
+
+/** Does chrome drawn in this canvas own the pointer at (x, y)? */
+int
+app_chrome_wants_pointer(
+    struct App const* app,
+    int x,
+    int y);
+
+/** Feed one frame's pointer and keyboard to one chrome instance. */
+void
+app_chrome_route_input(
+    struct App* app,
+    struct ToriRSChrome* ui,
+    struct LibToriRS_Input* input);
+
+/** The keyboard half of app_chrome_route_input. */
+void
+app_chrome_route_keys(
+    struct App* app,
+    struct ToriRSChrome* ui,
+    struct LibToriRS_Input* input);
+
+/** Is the chrome's focus on something that types (a text field, a code
+ *  view)? */
+int
+app_chrome_focus_types(struct ToriRSChrome const* ui);
 
 
 /* ---- app_client_trigger.c ---- */
@@ -1063,6 +1140,8 @@ app_debug_overlay_init(struct App* app);
 void
 app_debug_overlay_free(struct App* app);
 
+/** The dev chrome's tick: the side-apps' keys and frame hooks of the early
+ *  chrome point, then the chrome's display list. */
 void
 app_debug_overlay_tick(
     struct App* app,
@@ -1319,6 +1398,11 @@ void
 app_editor_hotkeys_flush(struct App* app);
 
 /* ---- app_hotkeys.c ---- */
+/** Register the bridge side-app that answers the AppDebugHotkey names.
+ *  Called from app_tools.c only. */
+void
+app_debug_hotkeys_register(struct App* app);
+
 /** The OSRS key code (input_claims' key index) of a LibToriRS key, -1. */
 int
 app_keycode_osrs(int key);
@@ -1329,22 +1413,34 @@ app_debug_key_down(
     struct LibToriRS_Input* input,
     enum AppDebugHotkey target);
 
-int
-app_debug_key_held(
-    struct App const* app,
-    struct LibToriRS_Input* input,
-    enum AppDebugHotkey target);
-
 void
 app_ui_hotkeys(
     struct App* app,
     struct LibToriRS_Input* input);
 
+/** The world-hotkeys point: its gates, then the side-apps' world keys. */
 void
 app_world_hotkeys(
     struct App* app,
     struct LibToriRS_Input* input,
     struct UIInteractOut const* out);
+
+/** Deliver the side-apps' key actions of `phase` from `input`, under the
+ *  App's key predicate (the CTRL and WORLD gates above). The caller has
+ *  passed the phase's own gates. */
+void
+app_side_app_deliver_keys(
+    struct App* app,
+    struct LibToriRS_Input* input,
+    enum SideAppPhase phase);
+
+/** Probe the side-apps' keys of `phase` from `input` where the phase is
+ *  read, before its gates (SideApps_ProbeKeys). */
+void
+app_side_app_probe_keys(
+    struct App* app,
+    struct LibToriRS_Input* input,
+    enum SideAppPhase phase);
 
 
 /* ---- app_if_events.c ---- */
@@ -1409,24 +1505,6 @@ app_loc_editor_select_terrain(
     int scene_x,
     int scene_z,
     int cache_level);
-
-int
-app_chrome_wants_pointer(
-    struct App const* app,
-    int x,
-    int y);
-
-void
-app_chrome_route_input(
-    struct App* app,
-    struct ToriRSChrome* ui,
-    struct LibToriRS_Input* input);
-
-void
-app_chrome_route_keys(
-    struct App* app,
-    struct ToriRSChrome* ui,
-    struct LibToriRS_Input* input);
 
 void
 app_loc_editor_tick(
@@ -1919,8 +1997,21 @@ app_overlay_outline_element_mesh_trans(
     uint32_t color,
     int fill_trans);
 
+/** The mark the hover footprint and the editor selection both draw: the
+ *  silhouette with the standard wash under it. */
+int
+app_overlay_outline_element_model(
+    struct App* app,
+    int element_id,
+    uint32_t color);
+
+/** The ground footprint of a placed loc: the screen-space hull of its tiles'
+ *  corners, at its SW corner's ground height, in the footprint red. Drawn by
+ *  the hover footprint and the map editor's ghost and selection marks. */
 void
-app_overlay_build_hover_footprint(struct App* app);
+app_overlay_outline_scenery(
+    struct App* app,
+    struct WorldEntity_Scenery const* scenery);
 
 /** A client cycle, which is what the click feedback's clocks count in. */
 #define APP_FEEDBACK_CYCLE_MS 20
@@ -2174,6 +2265,11 @@ app_plugin_panel_overlay_visible(
 void
 app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input);
 
+/** Register the plugin window's toggle key with the side-app registry.
+ *  Called from app_tools.c only. */
+void
+app_plugin_window_register(struct App* app);
+
 /** Is the plugin page bound to a SURFACE (ToriRSChromeExec::surface_size)
  *  rather than the canvas? Then nothing of it is drawn or hit in the canvas. */
 int
@@ -2341,6 +2437,65 @@ app_title_submit(struct App* app);
 
 int
 app_title_tick(struct App* app);
+
+
+/* ---- app_tool_damage_test.c ---- */
+/** Register the damage test. Called from app_tools.c only. */
+void
+app_tool_damage_test_register(struct App* app);
+
+/* ---- app_tool_frame_time.c ---- */
+/** Register the frame-time panel. Called from app_tools.c only. */
+void
+app_tool_frame_time_register(struct App* app);
+
+/* ---- app_tool_free_camera.c ---- */
+/** Register the free camera's keys (flight and unlock). Called from
+ *  app_tools.c only. */
+void
+app_tool_free_camera_register(struct App* app);
+
+/* ---- app_tool_hover_footprint.c ---- */
+/** Register the hover footprint outline. Called from app_tools.c only. */
+void
+app_tool_hover_footprint_register(struct App* app);
+
+/* ---- app_tool_paint_stepper.c ---- */
+/** Register the painter-command stepper. Called from app_tools.c only. */
+void
+app_tool_paint_stepper_register(struct App* app);
+
+/* ---- app_tool_projectile.c ---- */
+/** Register the projectile source-tile tool. Called from app_tools.c only. */
+void
+app_tool_projectile_register(struct App* app);
+
+/* ---- app_tool_spawn.c ---- */
+/** Register the spawn tool (player, npc, ground obj). Called from
+ *  app_tools.c only. */
+void
+app_tool_spawn_register(struct App* app);
+
+/* ---- app_tool_spotanim.c ---- */
+/** Register the spotanim tool (free-standing and on every entity). Called
+ *  from app_tools.c only. */
+void
+app_tool_spotanim_register(struct App* app);
+
+/* ---- app_tool_world_reload.c ---- */
+/** Register the world reload. Called from app_tools.c only. */
+void
+app_tool_world_reload_register(struct App* app);
+
+/* ---- app_tools.c ---- */
+/** Make the side-app registry from the launch bindings and register every
+ *  tool, in the one list there is. App_Init, once. */
+void
+app_tools_register(struct App* app);
+
+/** Free every tool, the last registered first, then the registry. */
+void
+app_tools_free(struct App* app);
 
 
 /* ---- app_ui_host.c ---- */
@@ -2621,13 +2776,16 @@ app_world_pick_finish(
 
 
 /* ---- app_world_edit.c ---- */
+/** Queue an EFFECT spawn (a spotanim, a projectile) on the asset runner,
+ *  stamped with the scene it was aimed at. */
 void
-app_world_spawn_player(
+app_spawn_effect_queue(
     struct App* app,
-    int tile_x,
-    int tile_z,
-    int level);
+    struct Task_AppSpawn* task);
 
+/** Queue an npc spawn on the packet runner; `args`' `id=` names it, and
+ *  TORIRS_SPAWN_NPC overrides it (3106 when neither does). The spawn tool's
+ *  key and the map editor's placement. */
 void
 app_world_spawn_npc(
     struct App* app,
@@ -2636,6 +2794,9 @@ app_world_spawn_npc(
     int level,
     char const* args);
 
+/** Queue a ground item on the packet runner; `args`' `id=` names it, and
+ *  TORIRS_SPAWN_OBJ overrides it (1265 when neither does). The spawn tool's
+ *  key and the map editor's placement. */
 void
 app_world_spawn_obj(
     struct App* app,
@@ -2660,29 +2821,6 @@ app_loc_change_apply_cb(
 void
 app_world_loc_changes_replace(struct App* app);
 
-void
-app_world_spawn_spotanim(
-    struct App* app,
-    int tile_x,
-    int tile_z,
-    int level,
-    char const* args);
-
-void
-app_world_spawn_projectile(
-    struct App* app,
-    int tile_x,
-    int tile_z,
-    int level,
-    char const* args);
-
-void
-app_world_damage_test(struct App* app);
-
-void
-app_world_entity_spotanim_test(
-    struct App* app,
-    char const* args);
 
 
 /* ---- app_world_frame.c ---- */

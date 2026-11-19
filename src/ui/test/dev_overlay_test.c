@@ -1,7 +1,7 @@
 /*
  * The developer overlay's record (ui/dev_overlay.h).
  *
- * A created overlay is zeroed: no panel, hidden, an empty frame-time ring.
+ * A created overlay is zeroed: no chrome initialised.
  * The frame-time row reads milliseconds to two decimals, truncated, and "--"
  * for a mean of 0; a short buffer is still terminated.
  *
@@ -33,11 +33,6 @@ test_create_is_zeroed(void)
     struct DevOverlay* overlay = DevOverlay_Create();
 
     TEST_ASSERT(overlay != NULL, "create hands back a record");
-    TEST_ASSERT(overlay->panel == 0, "no panel built");
-    TEST_ASSERT(overlay->frame_row == 0, "no row built");
-    TEST_ASSERT(overlay->visible == 0, "hidden");
-    TEST_ASSERT(overlay->frame_times.count == 0, "the ring is empty");
-    TEST_ASSERT(FrameTimeRing_MeanUs(&overlay->frame_times) == 0, "an empty ring has no mean");
     TEST_ASSERT(overlay->ui.panel_count == 0, "the chrome is not initialised here");
     DevOverlay_Free(overlay);
     DevOverlay_Free(NULL);

@@ -10,10 +10,7 @@ DevOverlay_Create(void)
 {
     /* UI: the developer chrome and its panels' state; DevOverlay_Free
      * releases it. */
-    struct DevOverlay* overlay = ToriMem_Calloc(ToriMem_Ui(), 1, sizeof(*overlay));
-
-    FrameTimeRing_Reset(&overlay->frame_times);
-    return overlay;
+    return ToriMem_Calloc(ToriMem_Ui(), 1, sizeof(struct DevOverlay));
 }
 
 void

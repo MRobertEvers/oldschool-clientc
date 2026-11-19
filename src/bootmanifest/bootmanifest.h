@@ -256,7 +256,10 @@ struct BootManifestVarcSeed
 struct BootManifestDebugAction
 {
     char name[BOOTMANIFEST_DEBUG_NAME_CAP];
-    int target; /* enum AppDebugHotkey, -1 until t= is parsed */
+    /* The action's name (`t=`), "" until t= is parsed. Which names exist is
+     * the side-apps' to say (sideapp/side_app.h): the boot checks it once
+     * they have registered. */
+    char target[BOOTMANIFEST_DEBUG_NAME_CAP];
     char args[BOOTMANIFEST_DEBUG_ARGS_CAP];
 };
 

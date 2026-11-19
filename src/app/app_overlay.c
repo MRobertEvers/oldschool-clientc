@@ -40,15 +40,6 @@ app_overlay_chat_colour(
     struct App* app,
     int chat_colour,
     int timer);
-static int
-app_overlay_outline_element_model(
-    struct App* app,
-    int element_id,
-    uint32_t color);
-static void
-app_overlay_outline_scenery(
-    struct App* app,
-    struct WorldEntity_Scenery const* scenery);
 
 /*
  * The entity overlay STAGE -- everything drawn over the world that is not part
@@ -656,21 +647,6 @@ app_overlay_push_segment(
     app_overlay_push(app, &seg);
 }
 
-/*
- * TORIRS_HOVER_FOOTPRINT=1: outline the hovered loc's footprint tiles in red.
- *
- * The painter orders scenery by its FOOTPRINT (size_x x size_z from the loc
- * config, orientation-swapped), while the model draws wherever its vertices
- * land — and nothing on screen says which tiles the painter believed the loc
- * covered. When a model overhangs its footprint, terrain on the overhung
- * tiles legitimately draws later and paints over it, which reads as "the
- * painter is broken" while every ordering rule is being honoured. This makes
- * the footprint visible so model-vs-footprint mismatches are a hover, not an
- * afternoon (the multiloc trap of loc-placement-debug fame).
- *
- * Each footprint tile is outlined at terrain height through the same
- * projector the health bars use, so the outline hugs the contour.
- */
 /**
  * Emit a convex polygon as a closed outline.
  *
@@ -1107,7 +1083,7 @@ app_overlay_outline_element_mesh_trans(
 
 /* The mark the hover footprint and the editor selection both draw: the
  * silhouette with the standard wash under it. */
-static int
+int
 app_overlay_outline_element_model(
     struct App* app,
     int element_id,
@@ -1116,7 +1092,7 @@ app_overlay_outline_element_model(
     return app_overlay_outline_element_model_trans(app, element_id, color, APP_OUTLINE_FILL_TRANS);
 }
 
-static void
+void
 app_overlay_outline_scenery(
     struct App* app,
     struct WorldEntity_Scenery const* scenery)
@@ -1211,77 +1187,6 @@ app_overlay_outline_scenery(
                 hull_size);
         app_overlay_push_polygon(
             app, hull_x, hull_y, hull_size, APP_OUTLINE_COLOR_FOOTPRINT, APP_OVERLAY_SEGMENT_WIDTH);
-    }
-}
-
-void
-app_overlay_build_hover_footprint(struct App* app)
-{
-    /* 0 = off; 1 = the hovered loc; >1 = every instance of that LOC ID.
-     * The id form exists for headless runs: TORIRS_SIM_HOVER parks the mouse
-     * before the frame loop, so an exit screenshot has no hover to read.
-     *
-     * The live mode is App state rather than a static resolved once, because
-     * the hover_footprint hotkey turns it on and off during a session. The env
-     * var still chooses WHICH mode, and app_hover_footprint_toggle restores it
-     * — see EditorShell::hover_footprint_mode. */
-    int mode = app->editor_shell->hover_footprint;
-
-    if( !mode || !app->world )
-        return;
-
-    if( mode == 1 )
-    {
-        /*
-         * The pickset is this frame's under-mouse set, nearest hits first (the
-         * same order the minimenu consumes), so the first loc or npc in it is
-         * the one the cursor is actually on.
-         *
-         * Npcs are outlined as well as locs because an editor is placing both
-         * against each other, and "what am I about to act on" is the same
-         * question for either. The model outline is the same call for both —
-         * they are both scene elements — which is why this does not need to
-         * know what kind of entity it found beyond where to read the id.
-         */
-        struct World_Picked const* hit = NULL;
-        for( int i = 0; i < app->world_views.frame->world_pickset.count && !hit; i++ )
-        {
-            enum World_PickType const type = app->world_views.frame->world_pickset.items[i].type;
-            if( type == WORLD_PICK_SCENERY || type == WORLD_PICK_NPC )
-                hit = &app->world_views.frame->world_pickset.items[i];
-        }
-        if( !hit )
-            return;
-
-        /* Model silhouette first. It is the outline that reads as "this thing
-         * is selected"; the ground footprint below says which TILES it owns,
-         * which is what an editor needs when placing something beside it. */
-        app_overlay_outline_element_model(app, hit->element_id, APP_OUTLINE_COLOR_HOVER);
-
-        if( hit->type == WORLD_PICK_SCENERY )
-        {
-            struct WorldEntity_Scenery* scenery =
-                World_SceneryGetByElementId(app->world, hit->element_id);
-            if( scenery )
-                app_overlay_outline_scenery(app, scenery);
-        }
-        return;
-    }
-
-    struct World_EntityPool* pool = &app->world->entities.scenery;
-    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
-         i = World_EntityPoolNext(pool, i) )
-    {
-        struct WorldEntity_Scenery* scenery = World_EntityPoolGet(pool, i);
-        if( scenery && scenery->loc_id == mode )
-        {
-            /* Both marks, the same pair the hover path draws. The two modes
-             * showing different things would make the by-id form useless for
-             * checking the hover form — which is what it is for, since a
-             * headless run has no cursor to hover with. */
-            app_overlay_outline_element_model(app, scenery->element_id, APP_OUTLINE_COLOR_HOVER);
-            app_overlay_outline_scenery(app, scenery);
-        }
     }
 }
 

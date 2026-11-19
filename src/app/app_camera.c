@@ -18,14 +18,6 @@
 
 /* Private to this unit, declared up front so definition order is free. */
 static void
-app_camera_move_forward(
-    struct App* app,
-    int amount);
-static void
-app_camera_move_left(
-    struct App* app,
-    int amount);
-static void
 app_debug_log_camera(
     struct App* app,
     char const* what,
@@ -67,7 +59,7 @@ app_world_clamp_pitch(
     return WorldCameraLimits_ClampPitch(&limits, pitch);
 }
 
-static void
+void
 app_camera_move_forward(
     struct App* app,
     int amount)
@@ -78,7 +70,7 @@ app_camera_move_forward(
     app->world_views.frame->world_camera_pos.z += (direction_z * amount) >> 16;
 }
 
-static void
+void
 app_camera_move_left(
     struct App* app,
     int amount)
@@ -563,27 +555,9 @@ app_world_camera_keys(
     const int move = APP_CAMERA_MOVEMENT_SPEED;
     const int rotate = APP_CAMERA_ROTATION_SPEED;
 
-    /* TORIRS_KEY_DEBUG: why a world/debug key did nothing. Every gate below
-     * silently swallows the whole key set, and "the hotkey is broken" and
-     * "the hotkey never ran" look identical from outside. Keyed off the raw
-     * key state rather than key_event_count — that counter only fills when a
-     * component carries an onKey hook, so it is 0 for exactly the debug keys
-     * this is meant to explain. */
-    if( torirs_env_key_debug() &&
-        (app_debug_key_down(app, input, APP_DEBUG_HOTKEY_PAINT_TOGGLE) ||
-         app_debug_key_down(app, input, APP_DEBUG_HOTKEY_PAINT_MORE) ||
-         app_debug_key_down(app, input, APP_DEBUG_HOTKEY_PAINT_LESS) ||
-         app_debug_key_down(app, input, APP_DEBUG_HOTKEY_PAINT_MORE_100) ||
-         app_debug_key_down(app, input, APP_DEBUG_HOTKEY_PAINT_LESS_100)) )
-        TORIRS_LOG(
-            "camera_keys: paint-cap key seen; world_active=%d view_valid=%d "
-            "chat=%d/%d/%d iface_input=%d\n",
-            WorldLoadState_Active(&app->world_load),
-            app->world_views.emit_valid,
-            UIChatLine_InputActive(&app->chat_line),
-            app->chat.social_input_open,
-            app->chat.dialog_input_open,
-            app_iface_text_input_focused(app));
+    /* The side-apps of the camera keys see their keys before the gates below
+     * (a debug key that does nothing can say why). */
+    app_side_app_probe_keys(app, input, SIDE_APP_PHASE_CAMERA_KEYS);
 
     /* No key_target gating: the reference broadcasts every key to onKey
      * scripts AND moves the camera in the same frame; there is no focused
@@ -616,22 +590,10 @@ app_world_camera_keys(
         return;
     (void)out;
 
-    /* The debug flight reads raw keys, so it keeps the chrome-focus gate. */
+    /* The side-apps' camera flight reads raw keys, so it keeps the
+     * chrome-focus gate. */
     if( !app_text_input_focused(app) )
-    {
-        if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_FORWARD) )
-            app_camera_move_forward(app, move);
-        if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_BACK) )
-            app_camera_move_forward(app, -move);
-        if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_LEFT) )
-            app_camera_move_left(app, -move);
-        if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_RIGHT) )
-            app_camera_move_left(app, move);
-        if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_UP) )
-            app->world_views.frame->world_camera_pos.y -= move;
-        if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_DOWN) )
-            app->world_views.frame->world_camera_pos.y += move;
-    }
+        app_side_app_deliver_keys(app, input, SIDE_APP_PHASE_CAMERA_FLIGHT);
     /* The map editor's own flight (bare W/A/S/D/Q/E, held; Fly faster on top)
      * -- rebindable actions of its hotkey table, resolved and gated by
      * app_editor_hotkeys.c, moving the same camera the debug flight does. */
@@ -720,85 +682,9 @@ app_world_camera_keys(
                 ToriDraw_AddAngle(app->world_views.frame->world_camera.pitch, -rotate);
     }
 
-    /* Unlock / relock the camera. Unlocked, the follow update stands down
-     * (app_world_camera_follow) and the configured movement bindings fly the
-     * eye while arrows rotate it — the debug flight that only worked offline,
-     * available online.
-     * Relocking snaps back through the follow's own teleport path. */
-    if( app_debug_key_down(app, input, APP_DEBUG_HOTKEY_CAMERA_UNLOCK) )
-    {
-        app->world_views.frame->camera_unlocked = !app->world_views.frame->camera_unlocked;
-        TORIRS_LOG("camera: %s\n", app->world_views.frame->camera_unlocked ? "UNLOCKED" : "locked");
-        RedrawRequest_Raise(&app->redraw_request);
-    }
-
-    /* Reload the world through the task system (assets cached -> fast;
-     * rebuild clears world scene elements incl. spawned entities). */
-    if( app_debug_key_down(app, input, APP_DEBUG_HOTKEY_WORLD_RELOAD) &&
-        App_WorldNodeIndex(app) >= 0 )
-        app_world_load_begin(app, NULL, 0);
-
-    /* Painter-command stepping, the v0 client's debug (docs/ORANGE_WEDGE.md):
-     * I toggles the cap (unlimited <-> 0), J/K step it +-1, L/, +-100.  The
-     * raster then draws exactly the first N painter commands, which is how a
-     * draw-order artefact is walked to the command that paints it.
-     *
-     * The steppers repeat while HELD, like the W/A/S/D camera keys and unlike
-     * the one-shot debug keys above: a scene is ~1700 commands, so finding the
-     * one that paints a pixel by tapping J is not a thing anyone will do. Only
-     * the toggle is edge-triggered — held, it would flip every frame. */
-    {
-        int limit = ToriRS_Frame_PaintLimitGet();
-        int next = limit;
-        int stepping = 0;
-        int toggled = 0;
-        /* One log line per gesture, not per frame: while a stepper is held the
-         * value changes every frame, and a hundred lines a second buries the
-         * number you are trying to read. Printed when the keys settle.
-         * Seeded with the starting cap so an untouched client says nothing. */
-        static int logged = INT_MIN;
-        if( logged == INT_MIN )
-            logged = limit;
-
-        if( app_debug_key_down(app, input, APP_DEBUG_HOTKEY_PAINT_TOGGLE) )
-        {
-            next = limit < 0 ? 0 : -1;
-            toggled = 1;
-        }
-        if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_PAINT_MORE) )
-        {
-            next = (next < 0 ? 0 : next) + 1;
-            stepping = 1;
-        }
-        if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_PAINT_LESS) )
-        {
-            next = (next < 0 ? 0 : next) - 1;
-            stepping = 1;
-        }
-        if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_PAINT_MORE_100) )
-        {
-            next = (next < 0 ? 0 : next) + 100;
-            stepping = 1;
-        }
-        if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_PAINT_LESS_100) )
-        {
-            next = (next < 0 ? 0 : next) - 100;
-            stepping = 1;
-        }
-
-        if( next != limit )
-        {
-            if( next < -1 )
-                next = -1;
-            ToriRS_Frame_PaintLimitSet(next);
-            RedrawRequest_Raise(&app->redraw_request);
-        }
-        if( (toggled || !stepping) && ToriRS_Frame_PaintLimitGet() != logged )
-        {
-            logged = ToriRS_Frame_PaintLimitGet();
-            TORIRS_LOG("paintlimit: %d\n", logged);
-        }
-    }
+    /* The side-apps' camera keys, after the arrows have turned the camera
+     * (an unlock this frame turns it from the next). */
+    app_side_app_deliver_keys(app, input, SIDE_APP_PHASE_CAMERA_KEYS);
 }
 
 /*

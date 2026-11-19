@@ -201,12 +201,12 @@ test_dat1_chat_open_close_stamps_the_ring(
     cfg.cache_identity_set = 1;
     cfg.config_dir = "../config";
     cfg.script_dir = "../script";
-    cfg.interface_id = 84;
+    cfg.viewer.interface_id = 84;
     cfg.revconfig_ui_ini = ui_ini;
     cfg.revconfig_cache_ini = cache_ini;
 
     App_Init(&app, &cfg);
-    App_OpenRootInterface(&app, cfg.interface_id);
+    App_OpenRootInterface(&app, cfg.viewer.interface_id);
     App_BootWait(&app);
 
     /* The boot itself mounts slots (task_slot_mount runs under the initial

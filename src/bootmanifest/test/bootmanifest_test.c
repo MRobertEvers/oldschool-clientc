@@ -114,9 +114,9 @@ test_load_fields(void)
 
     CHECK(bm.debug_action_count == 8);
     CHECK(strcmp(bm.debug_actions[0].name, "unlock_camera") == 0);
-    CHECK(bm.debug_actions[0].target == APP_DEBUG_HOTKEY_CAMERA_UNLOCK);
+    CHECK(strcmp(bm.debug_actions[0].target, "camera_unlock") == 0);
     CHECK(strcmp(bm.debug_actions[2].name, "increase_paint") == 0);
-    CHECK(bm.debug_actions[2].target == APP_DEBUG_HOTKEY_PAINT_MORE);
+    CHECK(strcmp(bm.debug_actions[2].target, "paint_more") == 0);
     CHECK(strcmp(bm.debug_actions[2].args, "step=1") == 0);
     CHECK(strcmp(bm.debug_actions[3].args, "id=7343") == 0);
     CHECK(strcmp(bm.debug_actions[4].args, "id=1265") == 0);
@@ -183,38 +183,41 @@ test_apply_to_config(void)
     CHECK(cfg.cache_identity_set == 1);
     CHECK(cfg.cache_revision == 233);
     CHECK(cfg.cache_dir && strcmp(cfg.cache_dir, "bootmanifest/test/some/cache") == 0);
-    CHECK(cfg.rev_name && strcmp(cfg.rev_name, "osrs242") == 0);
-    CHECK(cfg.connect_target && strcmp(cfg.connect_target, "example.com") == 0);
-    CHECK(cfg.connect_port == 1234);
-    CHECK(cfg.client_version == 233);
-    CHECK(cfg.net_server_scripts &&
-          strcmp(cfg.net_server_scripts, "bootmanifest/test/compiled/scripts") == 0);
-    CHECK(cfg.rsa_exp && strcmp(cfg.rsa_exp, "deadbeef") == 0);
-    CHECK(cfg.jag_crc_set == 1);
+    CHECK(cfg.net.rev_name && strcmp(cfg.net.rev_name, "osrs242") == 0);
+    CHECK(cfg.net.connect_target && strcmp(cfg.net.connect_target, "example.com") == 0);
+    CHECK(cfg.net.connect_port == 1234);
+    CHECK(cfg.net.client_version == 233);
+    CHECK(cfg.net.server_scripts &&
+          strcmp(cfg.net.server_scripts, "bootmanifest/test/compiled/scripts") == 0);
+    CHECK(cfg.net.rsa_exp && strcmp(cfg.net.rsa_exp, "deadbeef") == 0);
+    CHECK(cfg.net.jag_crc_set == 1);
     CHECK(cfg.ui_logic == APP_UI_LOGIC_CS2);
-    CHECK(cfg.interface_id == 161);
+    CHECK(cfg.viewer.interface_id == 161);
     CHECK(cfg.spawn_x == 12);
     CHECK(cfg.spawn_z == 34);
-    CHECK(cfg.debug_hotkey_count == 8);
-    CHECK(cfg.debug_hotkeys[0].key == TORIRSK_U);
-    CHECK(cfg.debug_hotkeys[0].target == APP_DEBUG_HOTKEY_CAMERA_UNLOCK);
-    CHECK(cfg.debug_hotkeys[1].key == TORIRSK_I);
-    CHECK(cfg.debug_hotkeys[1].target == APP_DEBUG_HOTKEY_PAINT_TOGGLE);
-    CHECK(cfg.debug_hotkeys[2].key == TORIRSK_COMMA);
-    CHECK(cfg.debug_hotkeys[2].target == APP_DEBUG_HOTKEY_PAINT_MORE);
-    CHECK(strcmp(cfg.debug_hotkeys[2].args, "step=1") == 0);
-    CHECK(cfg.debug_hotkeys[3].key == TORIRSK_8);
-    CHECK(cfg.debug_hotkeys[3].target == APP_DEBUG_HOTKEY_SPAWN_NPC);
-    CHECK(cfg.debug_hotkeys[3].target == APP_DEBUG_HOTKEY_SPAWN_NPC);
-    CHECK(strcmp(cfg.debug_hotkeys[3].args, "id=7343") == 0);
-    CHECK(cfg.debug_hotkeys[4].target == APP_DEBUG_HOTKEY_SPAWN_OBJ);
-    CHECK(strcmp(cfg.debug_hotkeys[4].args, "id=1265") == 0);
-    CHECK(cfg.debug_hotkeys[5].target == APP_DEBUG_HOTKEY_SPAWN_SPOTANIM);
-    CHECK(strcmp(cfg.debug_hotkeys[5].args, "id=74,height=92,delay=0") == 0);
-    CHECK(cfg.debug_hotkeys[6].target == APP_DEBUG_HOTKEY_SPAWN_PROJECTILE);
-    CHECK(strcmp(cfg.debug_hotkeys[6].args, "model=3081,seq=659") == 0);
-    CHECK(cfg.debug_hotkeys[7].key == TORIRSK_P);
-    CHECK(cfg.debug_hotkeys[7].target == APP_DEBUG_HOTKEY_DEBUG_OVERLAY);
+    CHECK(cfg.side_app_bindings.binding_count == 8);
+    CHECK(cfg.side_app_bindings.bindings[0].key == TORIRSK_U);
+    CHECK(strcmp(cfg.side_app_bindings.bindings[0].action, "camera_unlock") == 0);
+    CHECK(cfg.side_app_bindings.bindings[1].key == TORIRSK_I);
+    CHECK(strcmp(cfg.side_app_bindings.bindings[1].action, "paint_toggle") == 0);
+    CHECK(cfg.side_app_bindings.bindings[2].key == TORIRSK_COMMA);
+    CHECK(strcmp(cfg.side_app_bindings.bindings[2].action, "paint_more") == 0);
+    CHECK(strcmp(cfg.side_app_bindings.bindings[2].args, "step=1") == 0);
+    CHECK(cfg.side_app_bindings.bindings[3].key == TORIRSK_8);
+    CHECK(strcmp(cfg.side_app_bindings.bindings[3].action, "spawn_npc") == 0);
+    CHECK(strcmp(cfg.side_app_bindings.bindings[3].action, "spawn_npc") == 0);
+    CHECK(strcmp(cfg.side_app_bindings.bindings[3].args, "id=7343") == 0);
+    CHECK(strcmp(cfg.side_app_bindings.bindings[4].action, "spawn_obj") == 0);
+    CHECK(strcmp(cfg.side_app_bindings.bindings[4].args, "id=1265") == 0);
+    CHECK(strcmp(cfg.side_app_bindings.bindings[5].action, "spawn_spotanim") == 0);
+    CHECK(strcmp(cfg.side_app_bindings.bindings[5].args, "id=74,height=92,delay=0") == 0);
+    CHECK(strcmp(cfg.side_app_bindings.bindings[6].action, "spawn_projectile") == 0);
+    CHECK(strcmp(cfg.side_app_bindings.bindings[6].args, "model=3081,seq=659") == 0);
+    CHECK(cfg.side_app_bindings.bindings[7].key == TORIRSK_P);
+    CHECK(strcmp(cfg.side_app_bindings.bindings[7].action, "debug_overlay") == 0);
+    CHECK(cfg.side_app_bindings.declared_count == 8);
+    CHECK(strcmp(cfg.side_app_bindings.declared[0].source, "unlock_camera") == 0);
+    CHECK(strcmp(cfg.side_app_bindings.declared[0].action, "camera_unlock") == 0);
 
     CHECK(cfg.light_actor_ambient_set == 1);
     CHECK(cfg.light_actor_ambient == 64);
@@ -266,24 +269,25 @@ test_partial_apply_preserves_unset(void)
 
     struct AppConfig cfg = { 0 };
     cfg.cache_dir = "cli_cache_dir";
-    cfg.connect_user = "cli_user";
-    cfg.debug_hotkey_count = 1;
-    cfg.debug_hotkeys[0].key = TORIRSK_Q;
-    cfg.debug_hotkeys[0].target = APP_DEBUG_HOTKEY_CAMERA_FORWARD;
+    cfg.net.connect_user = "cli_user";
+    cfg.side_app_bindings.binding_count = 1;
+    cfg.side_app_bindings.bindings[0].key = TORIRSK_Q;
+    snprintf(cfg.side_app_bindings.bindings[0].action,
+             sizeof(cfg.side_app_bindings.bindings[0].action), "camera_forward");
     BootManifest_ApplyToConfig(&bm, &cfg);
 
     /* Untouched: manifest set neither. */
     CHECK(cfg.cache_dir && strcmp(cfg.cache_dir, "cli_cache_dir") == 0);
-    CHECK(cfg.connect_user && strcmp(cfg.connect_user, "cli_user") == 0);
-    CHECK(cfg.connect_port == 0);
+    CHECK(cfg.net.connect_user && strcmp(cfg.net.connect_user, "cli_user") == 0);
+    CHECK(cfg.net.connect_port == 0);
     CHECK(cfg.features_ground_click_nearest_set == 0);
     CHECK(cfg.features_painter_draw_distance_set == 0);
     CHECK(cfg.features_world_rebuild_model_set == 0);
-    CHECK(cfg.debug_hotkey_count == 1);
-    CHECK(cfg.debug_hotkeys[0].key == TORIRSK_Q);
-    CHECK(cfg.debug_hotkeys[0].target == APP_DEBUG_HOTKEY_CAMERA_FORWARD);
+    CHECK(cfg.side_app_bindings.binding_count == 1);
+    CHECK(cfg.side_app_bindings.bindings[0].key == TORIRSK_Q);
+    CHECK(strcmp(cfg.side_app_bindings.bindings[0].action, "camera_forward") == 0);
     /* Set: host became the connect target. */
-    CHECK(cfg.connect_target && strcmp(cfg.connect_target, "manifesthost") == 0);
+    CHECK(cfg.net.connect_target && strcmp(cfg.net.connect_target, "manifesthost") == 0);
 
     struct ToriRS_ExecutorConfig executor;
     ToriRS_ExecutorConfig_Init(&executor);
@@ -315,7 +319,7 @@ test_executor_js5_resolution(void)
     app_cfg.cache_kind = APP_CACHE_DAT2;
     app_cfg.cache_identity_set = 1;
     app_cfg.cache_revision = 239;
-    app_cfg.connect_target = "oldschool.example.com";
+    app_cfg.net.connect_target = "oldschool.example.com";
 
     /* --js5 by itself inherits the effective game endpoint and cache revision. */
     ToriRS_ExecutorConfig_Init(&executor);
@@ -330,12 +334,12 @@ test_executor_js5_resolution(void)
      * both halves rather than handing the colon to DNS as part of the host. */
     ToriRS_ExecutorConfig_Init(&executor);
     executor.js5_enabled = 1;
-    app_cfg.connect_target = "oldschool.example.com:44000";
+    app_cfg.net.connect_target = "oldschool.example.com:44000";
     CHECK(ToriRS_ExecutorConfig_ResolveJs5(&executor, &app_cfg, error, sizeof(error)) == 0);
     CHECK(strcmp(executor.js5_host, "oldschool.example.com") == 0);
     CHECK(executor.js5_port == 44000);
     CHECK(executor.js5_fallback_port == 0);
-    app_cfg.connect_target = "oldschool.example.com";
+    app_cfg.net.connect_target = "oldschool.example.com";
 
     /* A custom primary gets no implicit fallback. */
     ToriRS_ExecutorConfig_Init(&executor);
@@ -372,7 +376,7 @@ test_executor_js5_resolution(void)
     char overlong_host[TORIRS_EXECUTOR_JS5_HOST_MAX + 1];
     memset(overlong_host, 'x', sizeof(overlong_host) - 1);
     overlong_host[sizeof(overlong_host) - 1] = '\0';
-    app_cfg.connect_target = overlong_host;
+    app_cfg.net.connect_target = overlong_host;
     ToriRS_ExecutorConfig_Init(&executor);
     executor.js5_enabled = 1;
     CHECK(ToriRS_ExecutorConfig_ResolveJs5(&executor, &app_cfg, error, sizeof(error)) != 0);
@@ -397,20 +401,20 @@ test_web_endpoint(void)
 
     struct AppConfig cfg = { 0 };
     BootManifest_ApplyToConfig(&bm, &cfg);
-    CHECK(cfg.connect_target && strcmp(cfg.connect_target, "example.com") == 0);
-    CHECK(cfg.connect_port == 1234);
+    CHECK(cfg.net.connect_target && strcmp(cfg.net.connect_target, "example.com") == 0);
+    CHECK(cfg.net.connect_port == 1234);
 
     BootManifest_ApplyWebEndpoint(&bm, &cfg);
-    CHECK(cfg.connect_target && strcmp(cfg.connect_target, "ws.example.com") == 0);
-    CHECK(cfg.connect_port == 8080);
-    CHECK(cfg.client_version == 233); /* untouched */
+    CHECK(cfg.net.connect_target && strcmp(cfg.net.connect_target, "ws.example.com") == 0);
+    CHECK(cfg.net.connect_port == 8080);
+    CHECK(cfg.net.client_version == 233); /* untouched */
 
     /* Env overrides the manifest. */
     setenv("TORIRS_WS_HOST", "env.example.com", 1);
     setenv("TORIRS_WS_PORT", "9001", 1);
     BootManifest_ApplyWebEndpoint(&bm, &cfg);
-    CHECK(cfg.connect_target && strcmp(cfg.connect_target, "env.example.com") == 0);
-    CHECK(cfg.connect_port == 9001);
+    CHECK(cfg.net.connect_target && strcmp(cfg.net.connect_target, "env.example.com") == 0);
+    CHECK(cfg.net.connect_port == 9001);
     unsetenv("TORIRS_WS_HOST");
     unsetenv("TORIRS_WS_PORT");
 
@@ -419,11 +423,11 @@ test_web_endpoint(void)
     struct BootManifest bare;
     memset(&bare, 0, sizeof(bare));
     struct AppConfig tcp_only = { 0 };
-    tcp_only.connect_target = "tcp.example.com";
-    tcp_only.connect_port = 43594;
+    tcp_only.net.connect_target = "tcp.example.com";
+    tcp_only.net.connect_port = 43594;
     BootManifest_ApplyWebEndpoint(&bare, &tcp_only);
-    CHECK(tcp_only.connect_target && strcmp(tcp_only.connect_target, "tcp.example.com") == 0);
-    CHECK(tcp_only.connect_port == 43594);
+    CHECK(tcp_only.net.connect_target && strcmp(tcp_only.net.connect_target, "tcp.example.com") == 0);
+    CHECK(tcp_only.net.connect_port == 43594);
 }
 
 static void
@@ -469,15 +473,15 @@ test_migrated_spawn_actions(void)
          * pinning the total made this test fail for every manifest that grew
          * a binding -- which says nothing about the migration it is testing. */
         int spawn = -1;
-        for( int h = 0; h < cfg.debug_hotkey_count; h++ )
-            if( cfg.debug_hotkeys[h].target == APP_DEBUG_HOTKEY_SPAWN_NPC )
+        for( int h = 0; h < cfg.side_app_bindings.binding_count; h++ )
+            if( strcmp(cfg.side_app_bindings.bindings[h].action, "spawn_npc") == 0 )
             {
                 spawn = h;
                 break;
             }
         CHECK(spawn >= 0);
-        CHECK(cfg.debug_hotkeys[spawn].key == TORIRSK_8);
-        CHECK(strncmp(cfg.debug_hotkeys[spawn].args, "id=", 3) == 0);
+        CHECK(cfg.side_app_bindings.bindings[spawn].key == TORIRSK_8);
+        CHECK(strncmp(cfg.side_app_bindings.bindings[spawn].args, "id=", 3) == 0);
     }
 }
 
@@ -642,6 +646,38 @@ test_hotkey_key_names(void)
     CHECK(BootManifest_LoadFile(&bm, "bootmanifest/test/fixture_hotkey_unknown.ini") != 0);
 }
 
+/*
+ * [action:] t= is a NAME the side-apps answer, and they register after the
+ * load: an unknown one loads and reaches the config's declared list (bound or
+ * not), where the boot refuses it (App_ToolsBindingsResolved). An empty one
+ * fails the load, as before.
+ */
+static void
+test_action_target_names(void)
+{
+    struct BootManifest bm;
+    struct AppConfig cfg = { 0 };
+    struct SideAppBindingTable const* table = &cfg.side_app_bindings;
+
+    CHECK(BootManifest_LoadFile(&bm, "bootmanifest/test/fixture_action_unknown_target.ini") == 0);
+    CHECK(bm.debug_action_count == 3);
+    CHECK(strcmp(bm.debug_actions[0].target, "no_such_target") == 0);
+    BootManifest_ApplyToConfig(&bm, &cfg);
+    CHECK(table->binding_count == 2);
+    CHECK(table->bindings[0].key == TORIRSK_F1);
+    CHECK(strcmp(table->bindings[0].action, "no_such_target") == 0);
+    CHECK(strcmp(table->bindings[0].args, "x=1") == 0);
+    CHECK(strcmp(table->bindings[1].action, "debug_overlay") == 0);
+    CHECK(table->declared_count == 3);
+    CHECK(strcmp(table->declared[0].source, "bound_bad") == 0);
+    CHECK(strcmp(table->declared[0].action, "no_such_target") == 0);
+    CHECK(strcmp(table->declared[1].source, "unbound_bad") == 0);
+    CHECK(strcmp(table->declared[1].action, "also_no_such_target") == 0);
+    CHECK(strcmp(table->declared[2].action, "debug_overlay") == 0);
+
+    CHECK(BootManifest_LoadFile(&bm, "bootmanifest/test/fixture_action_empty_target.ini") != 0);
+}
+
 /* [ui:boot] chrome_scale=: a decimal pin in quarter units, `dynamic` as -1
  * (workbench 6.0b). */
 static void
@@ -672,6 +708,7 @@ main(void)
     test_cache_dir_default();
     test_backslash_manifest_path();
     test_hotkey_key_names();
+    test_action_target_names();
     test_chrome_scale();
 
     if( g_fail )

@@ -298,13 +298,13 @@ App_Init(
          * which is the whole reason to run this way against LostCity. The IO
          * owns the client, the same way it owns the JS5 one. */
         char const* host =
-            cfg->connect_target && cfg->connect_target[0] ? cfg->connect_target : "localhost";
+            cfg->net.connect_target && cfg->net.connect_target[0] ? cfg->net.connect_target : "localhost";
         /* `dir=` under an ondemand source is where the stream is written
          * down, not where it is read from -- the same shape dat2 has had all
          * along with its sparse cache. Absent means stream everything, every
          * boot, which is what this world did before. */
         int enabled = PlatformXIO_Dat1OnDemandEnable(
-            app->frame_runner.px, host, cfg->connect_port, cfg->web_port, cfg->cache_dir);
+            app->frame_runner.px, host, cfg->net.connect_port, cfg->web_port, cfg->cache_dir);
         if( enabled != 0 )
         {
             /* Once more before giving up: the first attempt rides a cold
@@ -315,7 +315,7 @@ App_Init(
             struct timespec pause = { 1, 0 };
             nanosleep(&pause, NULL);
             enabled = PlatformXIO_Dat1OnDemandEnable(
-                app->frame_runner.px, host, cfg->connect_port, cfg->web_port, cfg->cache_dir);
+                app->frame_runner.px, host, cfg->net.connect_port, cfg->web_port, cfg->cache_dir);
         }
         if( enabled != 0 )
         {
@@ -340,7 +340,7 @@ App_Init(
                 "(game port %d, web port %d); this profile streams its cache from "
                 "there and cannot boot without it.",
                 host,
-                cfg->connect_port > 0 ? cfg->connect_port : 43594,
+                cfg->net.connect_port > 0 ? cfg->net.connect_port : 43594,
                 cfg->web_port > 0 ? cfg->web_port : 80);
             if( used < 0 || used >= (int)sizeof(message) )
                 used = (int)sizeof(message) - 1;
@@ -590,7 +590,7 @@ App_Init(
         }
     }
     RS_RebuildRegion_ForgetCentre(&app->rebuild_region);
-    ProjSpawnLatch_Reset(&app->proj_latch);
+    app_tools_register(app);
     /* Element id 0 is valid, so free entity-spotanim slots must be -1. */
     EntitySpotanims_Init(&app->entity_spotanims);
 
@@ -1049,46 +1049,45 @@ App_Init(
      * enables the editor even without a content_dir of its own, since the
      * daemon owns the tree in that deployment.
      */
-    if( (cfg->editor_content_dir && cfg->editor_content_dir[0]) ||
-        cfg->editor_server == BOOTMANIFEST_EDITOR_SERVER_TCP )
+    if( MapEditorConfig_IsEditorBoot(&cfg->map_editor) )
     {
         struct EditorHost editor_host = { NULL, NULL };
         char editor_label[600];
         int editor_ok;
 
-        if( cfg->editor_server == BOOTMANIFEST_EDITOR_SERVER_TCP )
+        if( cfg->map_editor.server == BOOTMANIFEST_EDITOR_SERVER_TCP )
         {
-            char const* maped_host = cfg->editor_server_host && cfg->editor_server_host[0]
-                                         ? cfg->editor_server_host
+            char const* maped_host = cfg->map_editor.server_host && cfg->map_editor.server_host[0]
+                                         ? cfg->map_editor.server_host
                                          : "localhost";
             snprintf(
                 editor_label,
                 sizeof(editor_label),
                 "maped://%s:%d",
                 maped_host,
-                cfg->editor_server_port > 0 ? cfg->editor_server_port : TORIRSMAPED_DEFAULT_PORT);
+                cfg->map_editor.server_port > 0 ? cfg->map_editor.server_port : TORIRSMAPED_DEFAULT_PORT);
             /* A client with a world is a VIEWER; `client=` joins a Client
              * another connection already started, so several processes can
              * share one selection. */
             editor_ok = Editor_HostOpenMapEdTcp(
                 &editor_host,
                 maped_host,
-                cfg->editor_server_port,
+                cfg->map_editor.server_port,
                 TORIRSMAPED_ROLE_VIEWER,
-                (uint32_t)cfg->editor_client_id);
+                (uint32_t)cfg->map_editor.client_id);
         }
         else
         {
             snprintf(editor_label, sizeof(editor_label), "%s (embedded ToriRSMapEd%s%s)",
-                cfg->editor_content_dir, cfg->editor_lane ? ", lane " : "",
-                cfg->editor_lane ? cfg->editor_lane : "");
+                cfg->map_editor.content_dir, cfg->map_editor.lane ? ", lane " : "",
+                cfg->map_editor.lane ? cfg->map_editor.lane : "");
             /* [editor:boot] lane= (torirsmaped/torirs_maped_lanes.h): the
              * edits go to the lane's mirror of the tree, never the tree. The
              * embedded server starts its builds, the lane's servers and the
              * play client through this platform's spawner. */
             ToriRSMapEd_SetSpawner(LaunchSessions_SystemSpawner());
             editor_ok = Editor_HostOpenMapEdEmbedLane(
-                &editor_host, cfg->editor_content_dir, cfg->editor_repo_root, cfg->editor_lane);
+                &editor_host, cfg->map_editor.content_dir, cfg->map_editor.repo_root, cfg->map_editor.lane);
         }
 
         /* An unreachable daemon is a deployment state, not a build defect:
@@ -1130,7 +1129,7 @@ App_Init(
         Editor_PanelSetVisible(
             &app->editor_shell->editor_panel,
             &app->dev_overlay->ui,
-            cfg->editor_panel == BOOTMANIFEST_EDITOR_PANEL_INPROCESS);
+            cfg->map_editor.panel == BOOTMANIFEST_EDITOR_PANEL_INPROCESS);
         /* A viewer boot builds its view here (app/app_editor_view.c). */
         EditorView_AppBoot(app);
 
@@ -1145,7 +1144,7 @@ App_Init(
          * edits, just without its chrome, which is why nothing below this is
          * conditional on the tab appearing.
          */
-        if( cfg->editor_panel == BOOTMANIFEST_EDITOR_PANEL_TAB )
+        if( cfg->map_editor.panel == BOOTMANIFEST_EDITOR_PANEL_TAB )
         {
 #if defined(TORIRS_PLATFORM_WEB)
             web_editor_open_panel_tab();
@@ -1161,22 +1160,22 @@ App_Init(
 
     /* Phase 6: networking (opt-in). The default RSA key is the rs245_2lc Lost
      * City pair (v0 tori_rs_init); TORIRS_RSA_EXP/MOD override it. */
-    if( cfg->connect_target && cfg->connect_target[0] )
+    if( cfg->net.connect_target && cfg->net.connect_target[0] )
     {
         /* RSA key precedence: env > manifest (cfg) > built-in default pair. */
         char const* rsa_e = getenv("TORIRS_RSA_EXP");
         char const* rsa_n = getenv("TORIRS_RSA_MOD");
         if( !rsa_e )
-            rsa_e = cfg->rsa_exp;
+            rsa_e = cfg->net.rsa_exp;
         if( !rsa_n )
-            rsa_n = cfg->rsa_mod;
+            rsa_n = cfg->net.rsa_mod;
         if( !rsa_e )
             rsa_e = "81f390b2cf8ca7039ee507975951d5a0b15a87bf8b3f99c966834118c50fd94d";
         if( !rsa_n )
             rsa_n = "88c38748a58228f7261cdc340b5691d7d0975dee0ecdb717609e6bf971eb3fe723ef9d130e468"
                     "6813739768ad9472eb46d8bfcc042c1a5fcb05e931f632eea5d";
 
-        char const* rev_name = cfg->rev_name;
+        char const* rev_name = cfg->net.rev_name;
         if( !rev_name || !rev_name[0] )
             rev_name = getenv("TORIRS_REV");
         struct GameProtoRevTable const* rev =
@@ -1189,8 +1188,8 @@ App_Init(
 
         /* Manifest login params override the table defaults, but env still wins
          * (the lazy TORIRS_JAG_CRC parse in the rev getter already ran). */
-        if( cfg->jag_crc_set && !getenv("TORIRS_JAG_CRC") )
-            GameProtoRev_SetJagChecksums(rev, cfg->jag_crc);
+        if( cfg->net.jag_crc_set && !getenv("TORIRS_JAG_CRC") )
+            GameProtoRev_SetJagChecksums(rev, cfg->net.jag_crc);
 #if !defined(TORIRS_PLATFORM_WEB)
         /* An on-demand boot can do better than any stated value: the cache and
          * the checksums come from the same server, in the same second, so they
@@ -1198,7 +1197,7 @@ App_Init(
          * override and still wins -- that is the seam for pointing a client at
          * one server while claiming another's cache. */
         if( CacheMounts_ArmJagCrcFromOnDemand(
-                &app->cache_mounts, cfg->jag_crc_set || getenv("TORIRS_JAG_CRC") != NULL) )
+                &app->cache_mounts, cfg->net.jag_crc_set || getenv("TORIRS_JAG_CRC") != NULL) )
         {
             int32_t crc[9];
             /* The dial path refreshes these before every login attempt --
@@ -1212,8 +1211,8 @@ App_Init(
                     "refused as out of date\n");
         }
 #endif
-        if( cfg->client_version > 0 )
-            GameProtoRev_SetClientVersion(rev, cfg->client_version);
+        if( cfg->net.client_version > 0 )
+            GameProtoRev_SetClientVersion(rev, cfg->net.client_version);
 
         app->net = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(struct ToriRS_Network));
         assert(app->net);
@@ -1243,8 +1242,8 @@ App_Init(
          * mean an interactive login form, which is the point.
          */
         RS_TitleSession_SetCredentials(
-            &app->title_session, cfg->connect_user, cfg->connect_pass);
-        if( cfg->connect_resume && cfg->connect_resume[0] )
+            &app->title_session, cfg->net.connect_user, cfg->net.connect_pass);
+        if( cfg->net.connect_resume && cfg->net.connect_resume[0] )
         {
             int32_t seed[4];
             int local_index = -1;
@@ -1254,14 +1253,14 @@ App_Init(
              * that went on to hold a "reconnecting" bar over what is really a
              * passwordless GAMELOGIN would sit there until the player gave up
              * on it. */
-            if( !app_session_resume_parse(cfg->connect_resume, seed, &local_index) )
+            if( !app_session_resume_parse(cfg->net.connect_resume, seed, &local_index) )
                 TORIRS_ERR("net: --resume '%s' is not a resume token; logging in afresh\n",
-                           cfg->connect_resume);
+                           cfg->net.connect_resume);
             else if( ToriRS_Network_ArmResume(app->net, seed, local_index) )
                 RS_TitleSession_ArmResume(&app->title_session);
         }
-        RS_TitleSession_SetConnectTarget(&app->title_session, cfg->connect_target);
-        RS_TitleAccounts_Init(&app->accounts, cfg->connect_oauth, RS_Accounts_Path());
+        RS_TitleSession_SetConnectTarget(&app->title_session, cfg->net.connect_target);
+        RS_TitleAccounts_Init(&app->accounts, cfg->net.connect_oauth, RS_Accounts_Path());
     }
 }
 

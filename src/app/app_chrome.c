@@ -1,6 +1,9 @@
 /*
- * The developer chrome instance: fonts, scale, check style, and the in-canvas
- * fallback for retained panel primitives.
+ * The developer chrome instance: fonts, scale, check style, the in-canvas
+ * fallback for retained panel primitives, and the input routing every panel
+ * of both chrome instances (the developer chrome and the plugin window)
+ * shares: who owns the pointer, the pointer and keyboard fed to an instance,
+ * and a focused field's clipboard chords.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in
@@ -9,6 +12,7 @@
 
 #include "app/app_internal.h"
 
+#include "platform/platform_clipboard.h"
 #include "ui/chrome_compositor.h"
 #include "ui/torirs_chrome_bake.h"
 
@@ -23,6 +27,8 @@ app_panel_overlay_to_chrome(
     struct ToriRSChromePrim* out);
 static void
 app_chrome_fonts_resolve(struct App* app);
+static int
+app_dbgui_key_edit_from_osrs(int osrs_key);
 
 /** Convert one retained panel primitive for the in-canvas fallback. The
  * translation is ToriRSChromePanelDraw_ToChromePrim's; this is the spelling
@@ -361,4 +367,317 @@ App_ChromeCheckStyle(struct App const* app)
 {
     assert(app);
     return ToriRSChrome_CheckStyle(&app->dev_overlay->ui);
+}
+
+/**
+ * OSRS key code -> the overlay's editing key, or TORIRS_CHROME_KEY_NONE.
+ *
+ * The overlay deliberately owns no keymap (see uitree_debug_overlay.h), so the
+ * translation lives here, where the client's own key codes already are.
+ * Printable characters do not come through this at all — they arrive as
+ * `key_pressed` and go straight to ToriRSChrome_KeyChar.
+ */
+
+static int
+app_dbgui_key_edit_from_osrs(int osrs_key)
+{
+    switch( osrs_key )
+    {
+    case TORIRS_OSRSKEY_BACKSPACE:
+        return TORIRS_CHROME_KEY_BACKSPACE;
+    case TORIRS_OSRSKEY_DELETE:
+        return TORIRS_CHROME_KEY_DELETE;
+    case TORIRS_OSRSKEY_ENTER:
+        return TORIRS_CHROME_KEY_ENTER;
+    case TORIRS_OSRSKEY_ESCAPE:
+        return TORIRS_CHROME_KEY_ESCAPE;
+    /* Arrows and home/end have no named constants; the keymap table spells
+     * them (src/input/torirs_keymap.c: 96 left, 97 right, 98 up, 99 down,
+     * 102 home, 103 end). */
+    case 96:
+        return TORIRS_CHROME_KEY_LEFT;
+    case 97:
+        return TORIRS_CHROME_KEY_RIGHT;
+    /* Up and down a LINE, for a multiline field. The model ignores them on
+     * every other kind, so routing them costs nothing where there is none. */
+    case 98:
+        return TORIRS_CHROME_KEY_UP;
+    case 99:
+        return TORIRS_CHROME_KEY_DOWN;
+    case 102:
+        return TORIRS_CHROME_KEY_HOME;
+    case 103:
+        return TORIRS_CHROME_KEY_END;
+    default:
+        return TORIRS_CHROME_KEY_NONE;
+    }
+}
+
+/**
+ * Does chrome DRAWN IN THIS CANVAS own the pointer at (x, y)?
+ *
+ * The game's interaction pass, the world hittest and the camera all run long
+ * after the chrome handled this frame's input, and by then they cannot read
+ * "the chrome took it" off the frame claim (`input_claims`) -- the shell takes
+ * it on every frame as its own replay fence. They ask this instead, and a press, a
+ * wheel or a right click over a panel stops there.
+ *
+ * The plugin window counts only under the BUFFER executor. Every other
+ * presentation draws it somewhere else -- its own SDL window, a DOM, the
+ * interface tree -- while the in-canvas model keeps the geometry it was laid
+ * out with. That geometry is a ghost: hit-testable at a floating position
+ * nothing draws, so honouring it would punch an invisible hole in the game.
+ */
+int
+app_chrome_wants_pointer(
+    struct App const* app,
+    int x,
+    int y)
+{
+    assert(app);
+    if( ToriRSChrome_WantsPointer(&app->dev_overlay->ui, x, y) )
+        return 1;
+    if( app->plugin_win->visible && app->plugin_win->exec_kind == TORIRS_CHROME_EXEC_BUFFER &&
+        !app_plugin_page_on_surface(app) &&
+        ToriRSChrome_WantsPointer(&app->plugin_win->ui, x, y) )
+        return 1;
+    return 0;
+}
+
+/**
+ * Feed one frame's pointer and keyboard to one chrome instance.
+ *
+ * Instance-taking rather than reaching for app->dev_overlay->ui, because the plugin
+ * window is a chrome of its own: routing input is the half of "a second chrome
+ * is a second of all of this" that genuinely would have been duplicated, and
+ * this is the one copy both instances share.
+ *
+ * Chrome first, then the game (README_DEBUG_OVERLAY.md §6): a click or drag
+ * that lands on a panel must not also reach the world's click-to-walk
+ * underneath it, which is what the frame claim (`input_claims`) says.
+ */
+void
+app_chrome_route_input(
+    struct App* app,
+    struct ToriRSChrome* ui,
+    struct LibToriRS_Input* input)
+{
+    assert(app);
+    assert(ui);
+    assert(input);
+
+    /* The modifiers down, for the presses below: Shift+Alt (Option) on a
+     * press anywhere on a window picks the window up (ToriRSChrome::mods),
+     * the way to move one whose title bar is off the surface. */
+    ToriRSChrome_SetModifiers(
+        ui,
+        (LibToriRS_Input_IsKeyHeld(input, TORIRSK_SHIFT) ? TORIRS_CHROME_MOD_SHIFT : 0u)
+            | (LibToriRS_Input_IsKeyHeld(input, TORIRSK_ALT) ? TORIRS_CHROME_MOD_ALT : 0u)
+            | (LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL) ? TORIRS_CHROME_MOD_CTRL : 0u));
+    if( ToriRSChrome_MouseMove(ui, input->curr.mouse_x, input->curr.mouse_y) )
+        ToriRS_InputClaimsTakeFrame(&app->input_claims);
+    /*
+     * The press lands where the button actually went DOWN, not where the
+     * pointer finished the frame.
+     *
+     * curr.mouse_x is the last position any event in this frame's batch
+     * carried, and a press is one event in that batch. A finger crossing the
+     * drag slop pushes move(landed), down(landed), move(now) in a single batch
+     * (input/torirs_touch.c), so reading curr here grabbed a scrollbar a slop's
+     * width from where the finger was put -- which pages the list instead of
+     * taking the grip when the grip's edge is inside that gap. press_origin is
+     * the position the down carried, and for a mouse it is the same number.
+     */
+    if( input->curr.mouse_button_down[TORIRSM_LEFT] &&
+        ToriRSChrome_MouseDown(
+            ui, input->press_origin_x[TORIRSM_LEFT], input->press_origin_y[TORIRSM_LEFT]) )
+        ToriRS_InputClaimsTakeFrame(&app->input_claims);
+    if( input->curr.mouse_button_up[TORIRSM_LEFT] &&
+        ToriRSChrome_MouseUp(ui, input->curr.mouse_x, input->curr.mouse_y) )
+        ToriRS_InputClaimsTakeFrame(&app->input_claims);
+
+    /*
+     * The SECONDARY button, on the DOWN edge and with no release half.
+     *
+     * The rest of this library only ever sees the left button, so a right
+     * button has no `press` to be matched a release against; requiring one
+     * would make the channel dead. The down edge is also where every other
+     * secondary click in the client fires -- the world's minimenu opens on
+     * mouse-down -- so a well and the game agree about when a right click
+     * happened.
+     *
+     * Nothing but a CUSTOM well answers it, and the world's own minimenu is
+     * already suppressed over this window by app_chrome_wants_pointer, so a
+     * click a well declines is swallowed rather than opening a game menu
+     * through the panel.
+     */
+    if( input->curr.mouse_button_down[TORIRSM_RIGHT] &&
+        ToriRSChrome_SecondaryClick(
+            ui, input->press_origin_x[TORIRSM_RIGHT], input->press_origin_y[TORIRSM_RIGHT]) )
+        ToriRS_InputClaimsTakeFrame(&app->input_claims);
+
+    /* The wheel, so an open dropdown or a scrolling panel moves, plus the
+     * trackpad's exact scroll and pinch, which only a GRAPH well (the map
+     * editor's world map) takes -- everywhere else the integer wheel goes
+     * exactly where it always went. Consumed when the chrome takes any of it,
+     * or the camera would zoom behind it at the same time. An unclaimed pinch
+     * is dropped: the desktop game has no pinch of its own. */
+    {
+        struct ToriRSChromeWheelFrame frame;
+        memset(&frame, 0, sizeof(frame));
+        frame.x = input->curr.mouse_x;
+        frame.y = input->curr.mouse_y;
+        frame.wheel = input->curr.mouse_wheel_y;
+        frame.scroll_dx = input->curr.scroll_dx;
+        frame.scroll_dy = input->curr.scroll_dy;
+        frame.px_per_notch = input->curr.scroll_px_per_notch;
+        frame.trackpad = input->curr.scroll_trackpad;
+        frame.flipped = input->curr.scroll_flipped;
+        frame.ctrl = input->key_held[TORIRSK_CTRL];
+        frame.pinch_scale = input->curr.pinch_scale;
+        frame.pinch_x = input->curr.pinch_x;
+        frame.pinch_y = input->curr.pinch_y;
+        frame.pinch_from_wheel = input->curr.pinch_from_wheel;
+        if( ToriRSChrome_WheelFrame(ui, &frame) )
+            ToriRS_InputClaimsTakeFrame(&app->input_claims);
+    }
+
+    app_chrome_route_keys(app, ui, input);
+}
+
+/**
+ * Is the chrome's focus on something that TYPES -- a text field, or a code
+ * view? Then a Ctrl+letter is a chord aimed at it and never a character, and
+ * the keys of the frame are its and not a panel's shortcuts.
+ */
+int
+app_chrome_focus_types(struct ToriRSChrome const* ui)
+{
+    assert(ui);
+    if( ToriRSChrome_InputFocused(ui) >= 0 )
+        return 1;
+    return ui->focus >= 0 && ui->widgets[ui->focus].kind == TORIRS_CHROME_W_CODE;
+}
+
+/**
+ * The clipboard chords of a focused chrome text field (2026-11-09: a field
+ * had no way in or out but the keyboard, and was cleared one Backspace a
+ * character):
+ *
+ *   Ctrl+A   select the whole content (a double-click in a one-line field
+ *            does the same, inside the chrome);
+ *   Ctrl+C   the whole content to the OS clipboard, selected or not -- the
+ *            only selection there is is "all of it";
+ *   Ctrl+X   with the content selected, to the clipboard and out of the field;
+ *   Ctrl+V   the OS clipboard's text in at the caret, over the content when
+ *            it is selected (the chrome cuts it at the field's capacity and
+ *            turns line breaks into spaces: ToriRSChrome_InputInsertText).
+ *
+ * Here and not in the chrome because the chrome reaches nothing outside the C
+ * library: the clipboard is the platform's. Ctrl is Command on a Mac, the way
+ * the platform reports it for every other chord. With Alt held as well it is
+ * not a chord -- AltGr is Ctrl+Alt, and it types.
+ *
+ * @return 1 when a chord ran (the frame's input is the chrome's).
+ */
+static int
+app_chrome_clipboard_chords(
+    struct ToriRSChrome* ui,
+    struct LibToriRS_Input* input)
+{
+    int const field = ToriRSChrome_InputFocused(ui);
+
+    if( field < 0 )
+        return 0;
+    if( !LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL) || LibToriRS_Input_IsKeyHeld(input, TORIRSK_ALT) )
+        return 0;
+
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_A) )
+    {
+        (void)ToriRSChrome_InputSelectAll(ui);
+        return 1;
+    }
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_C) )
+    {
+        /* 0 back is a machine with no clipboard to take it; the field is
+         * unchanged either way, so there is nothing to undo or to say. */
+        (void)PlatformClipboard_SetText(ToriRSChrome_Text(ui, field));
+        return 1;
+    }
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_X) )
+    {
+        /* Cut what is selected: with nothing selected there is nothing to
+         * cut, and the field keeps its content. Only once the clipboard has
+         * it -- a cut that loses the text is worse than one that does not
+         * cut. */
+        if( ToriRSChrome_InputAllSelected(ui) && PlatformClipboard_SetText(ToriRSChrome_Text(ui, field)) )
+            (void)ToriRSChrome_KeyEdit(ui, TORIRS_CHROME_KEY_DELETE);
+        return 1;
+    }
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_V) )
+    {
+        /* Room for a field's worth of text with its line ends and a lead of
+         * things the field will not take; the chrome cuts what does not fit. */
+        char text[TORIRS_CHROME_INPUT_MAX * 4];
+
+        if( PlatformClipboard_GetText(text, sizeof(text)) > 0 )
+            (void)ToriRSChrome_InputInsertText(ui, text);
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * The keyboard half of the routing above, on its own because a browser-backed
+ * presentation needs exactly this half: pointer intents arrive through the
+ * browser bridge, but its text fields are the model's, so typing still has
+ * to reach the model. Routing the MOUSE too would hand clicks to the in-canvas
+ * window's ghost -- laid out and hit-testable at its floating position even
+ * though nothing draws it there.
+ *
+ * `key_typed` carries the OSRS key code and `key_pressed` the typed character
+ * (see torirs_input.h), so editing keys and printable bytes come off different
+ * fields of the same event.
+ *
+ * Safe to run for any visible panel: with nothing focused the chrome consumes
+ * neither, so a panel that is merely on screen -- the developer readout, say
+ * -- never swallows a keystroke meant for the game.
+ */
+void
+app_chrome_route_keys(
+    struct App* app,
+    struct ToriRSChrome* ui,
+    struct LibToriRS_Input* input)
+{
+    int chord;
+
+    assert(app);
+    assert(ui);
+    assert(input);
+
+    if( app_chrome_clipboard_chords(ui, input) )
+        ToriRS_InputClaimsTakeFrame(&app->input_claims);
+    /* Ctrl (without Alt) held over something that types: the letters of this
+     * frame are chords, not characters. Windows never sends the character of
+     * a Ctrl+letter; other platforms may, and Ctrl+V must not paste and then
+     * type a "v" after it. */
+    chord = LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL) && !LibToriRS_Input_IsKeyHeld(input, TORIRSK_ALT)
+            && app_chrome_focus_types(ui);
+
+    for( int i = 0; i < input->key_event_count; i++ )
+    {
+        struct LibToriRS_KeyEvent const* ev = &input->key_events[i];
+        int consumed = 0;
+
+        if( ev->key_pressed >= 32 && ev->key_pressed < 127 )
+            consumed = chord ? 1 : ToriRSChrome_KeyChar(ui, ev->key_pressed);
+        else
+        {
+            int const edit = app_dbgui_key_edit_from_osrs(ev->key_typed);
+            if( edit != TORIRS_CHROME_KEY_NONE )
+                consumed = ToriRSChrome_KeyEdit(ui, edit);
+        }
+        if( consumed )
+            ToriRS_InputClaimsTakeFrame(&app->input_claims);
+    }
 }

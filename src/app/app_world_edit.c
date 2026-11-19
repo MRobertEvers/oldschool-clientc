@@ -1,6 +1,6 @@
 /*
- * Editing the world at runtime: spawns, loc changes and merges, projectiles,
- * and the test hitsplats.
+ * Editing the world at runtime, the game's seams: the npc and ground-item
+ * spawn queues, loc changes and merges, spotanims and projectiles.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in
@@ -8,14 +8,6 @@
  */
 
 #include "app/app_internal.h"
-
-/* Private to this unit, declared up front so definition order is free. */
-static int
-app_world_npc_target_at_tile(
-    struct App* app,
-    int tile_x,
-    int tile_z,
-    int level);
 
 /*
  * Queue a spawn that is an EFFECT -- a spotanim, a projectile -- on the asset
@@ -40,7 +32,7 @@ app_world_npc_target_at_tile(
  * aimed at (Task_AppSpawn.world_load_seq) so a rebuild landing first makes
  * it a no-op instead of a graphic in the wrong scene.
  */
-static void
+void
 app_spawn_effect_queue(
     struct App* app,
     struct Task_AppSpawn* task)
@@ -92,17 +84,6 @@ app_spawn_loc_lane_queue(
     task->loc_ticket = LocLane_Take(&app->loc_lane);
     task->loc_tick = RS_ServerTick_Serial(&app->server_tick);
     ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
-}
-
-void
-app_world_spawn_player(
-    struct App* app,
-    int tile_x,
-    int tile_z,
-    int level)
-{
-    struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_PLAYER, tile_x, tile_z, level);
-    TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &task->task);
 }
 
 void
@@ -379,161 +360,4 @@ App_WorldLocMerge(
         player->loc_merge_shape = shape;
         player->loc_merge_angle = angle;
     }
-}
-
-/* Hotkey 5: spawn a free-standing spotanim on the hovered tile.
- * TORIRS_SPAWN_SPOTANIM / _HEIGHT / _DELAY override the defaults. */
-void
-app_world_spawn_spotanim(
-    struct App* app,
-    int tile_x,
-    int tile_z,
-    int level,
-    char const* args)
-{
-    int spotanim_id = ToriRS_EnvNamedArgOrEnv(
-        args, "id", "TORIRS_SPAWN_SPOTANIM", 74 /* a small, visible default effect */);
-    int height = ToriRS_EnvNamedArgOrEnv(args, "height", "TORIRS_SPAWN_SPOTANIM_HEIGHT", 92);
-    int delay = ToriRS_EnvNamedArgOrEnv(args, "delay", "TORIRS_SPAWN_SPOTANIM_DELAY", 0);
-    App_WorldSpotanimSpawn(app, tile_x, tile_z, level, spotanim_id, height, delay);
-}
-
-/* Wire target-entity id (npc slot + 1) for a *synced* npc standing on a tile,
- * WORLD_PROJECTILE_TARGET_NONE when there is none. Only server-synced npcs can
- * be named: the wire encoding is the server's slot space, and offline spawns
- * deliberately sit outside it with server_slot -1. */
-static int
-app_world_npc_target_at_tile(
-    struct App* app,
-    int tile_x,
-    int tile_z,
-    int level)
-{
-    struct World_EntityPool* pool;
-
-    if( !app->world )
-        return WORLD_PROJECTILE_TARGET_NONE;
-
-    pool = &app->world->entities.npc;
-    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
-         i = World_EntityPoolNext(pool, i) )
-    {
-        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
-        if( !npc || npc->server_slot < 0 )
-            continue;
-        if( npc->grid_position.x == tile_x && npc->grid_position.z == tile_z &&
-            npc->grid_position.level == level )
-            return npc->server_slot + 1;
-    }
-    return WORLD_PROJECTILE_TARGET_NONE;
-}
-
-/* Hotkey 0, two-press latch: first press marks the hovered tile as source,
- * second launches source -> hovered (same-tile press clears the latch). Firing
- * onto a synced npc targets *that entity*, so the arc follows it as it walks —
- * the tracking the MAP_PROJANIM target id drives against a live server. */
-void
-app_world_spawn_projectile(
-    struct App* app,
-    int tile_x,
-    int tile_z,
-    int level,
-    char const* args)
-{
-    struct Task_AppSpawn* task;
-    int src_x = -1;
-    int src_z = -1;
-    int src_level = 0;
-    enum ProjSpawnLatchAction const action =
-        ProjSpawnLatch_Press(&app->proj_latch, tile_x, tile_z, level, &src_x, &src_z, &src_level);
-
-    if( action == PROJ_SPAWN_LATCH_MARKED )
-    {
-        TORIRS_LOG("spawn_projectile: source latched at %d,%d\n", tile_x, tile_z);
-        return;
-    }
-    if( action == PROJ_SPAWN_LATCH_CLEARED )
-    {
-        TORIRS_LOG("spawn_projectile: latch cleared\n");
-        return;
-    }
-
-    task = app_spawn_task_new(app, APP_SPAWN_PROJECTILE, tile_x, tile_z, level);
-    task->model_id = ToriRS_EnvNamedArgOrEnv(
-        args, "model", "TORIRS_SPAWN_PROJ_MODEL", 3081 /* v1 spawn-test spotanim model */);
-    task->seq_id = ToriRS_EnvNamedArgOrEnv(
-        args,
-        "seq",
-        "TORIRS_SPAWN_PROJ_SEQ",
-        659 /* v1 spawn-test spotanim sequence (RUNESCAPE_PROJECTILE_SEQ_ID) */);
-    task->src_tile_x = src_x;
-    task->src_tile_z = src_z;
-    task->src_level = src_level;
-    task->proj_target = app_world_npc_target_at_tile(app, tile_x, tile_z, level);
-    app_spawn_effect_queue(app, task);
-}
-
-/* Hotkey 6: hit every live player/npc for a test hitsplat + half health and
- * give each an overhead chat line, so the whole overlay pass (health bars,
- * hitmarks and overhead chat) can be exercised offline. Goes through the same
- * World_*AddHitmark / World_*SetChat the NPC_INFO/PLAYER_INFO ops use. */
-void
-app_world_damage_test(struct App* app)
-{
-    struct World_EntityPool* pool;
-    int damage = 1 + (FrameClockSerial_LogicCycle(&app->frame_clock.serial) % 30);
-    /* Rev 239 does not use the legacy type-0/type-1 convention: its canonical
-     * red damage splat is type 28 (sprite 1359). Keep type 0 only as the
-     * supported fallback for older cache families with no rev-239 record. */
-    int hitsplat_type =
-        app->hitsplats.count > RS_HITSPLAT_OSRS239_DAMAGE ? RS_HITSPLAT_OSRS239_DAMAGE : 0;
-
-    if( !app->world )
-        return;
-    pool = &app->world->entities.player;
-    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
-         i = World_EntityPoolNext(pool, i) )
-    {
-        World_PlayerAddHitmark(app->world, i, hitsplat_type, damage, 5, 10);
-        World_PlayerSetChat(app->world, i, "Hello there!", 0, 0);
-        /* Exercise the overhead headicon pass too: icons 0 + 2 stacked. */
-        {
-            struct WorldEntity_Player* tpl = World_EntityPoolGet(pool, i);
-            if( tpl )
-                tpl->headicon = 0x5;
-        }
-    }
-    pool = &app->world->entities.npc;
-    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
-         i = World_EntityPoolNext(pool, i) )
-    {
-        World_NpcAddHitmark(app->world, i, hitsplat_type, damage, 5, 10);
-        World_NpcSetChat(app->world, i, "Grrr!", 0, 0);
-    }
-}
-
-/* Hotkey 4: apply an attached graphic (SPOTANIM mask) to every spawned entity —
- * the reference impact effect a projectile lands on its target. Exercises the
- * entity-spotanim companion-element path headlessly. TORIRS_SPAWN_SPOTANIM /
- * _HEIGHT / _DELAY reuse the free-standing overrides. */
-void
-app_world_entity_spotanim_test(
-    struct App* app,
-    char const* args)
-{
-    struct World_EntityPool* pool;
-    int spotanim_id = ToriRS_EnvNamedArgOrEnv(args, "id", "TORIRS_SPAWN_SPOTANIM", 74);
-    int height = ToriRS_EnvNamedArgOrEnv(args, "height", "TORIRS_SPAWN_SPOTANIM_HEIGHT", 92);
-    int delay = ToriRS_EnvNamedArgOrEnv(args, "delay", "TORIRS_SPAWN_SPOTANIM_DELAY", 0);
-
-    if( !app->world )
-        return;
-    pool = &app->world->entities.player;
-    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
-         i = World_EntityPoolNext(pool, i) )
-        World_PlayerSetSpotanim(app->world, i, 0, spotanim_id, height, delay, false);
-    pool = &app->world->entities.npc;
-    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
-         i = World_EntityPoolNext(pool, i) )
-        World_NpcSetSpotanim(app->world, i, 0, spotanim_id, height, delay, false);
 }

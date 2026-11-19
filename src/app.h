@@ -66,6 +66,10 @@
 #include "render/tile_mark_stage.h"
 #include "render/world_views.h"
 #include "replay/replay_chase.h"
+#include "replay/replay_config.h"
+#include "net/net_client_config.h"
+#include "editor/map_editor_config.h"
+#include "game/offline_viewer_config.h"
 #include "game/rs_worldmap_view.h"
 #include "game/rs_preload.h"
 #include "game/rs_title.h"
@@ -144,7 +148,7 @@
 #include "world/loc_lane.h"
 #include "world/entity_objstack.h"
 #include "world/entity_projectile.h"
-#include "world/proj_spawn_latch.h"
+#include "sideapp/side_app_binding.h"
 #include "world/worldview.h"
 #include "app/app_wev_flat.h"
 
@@ -202,42 +206,6 @@ enum AppUiLogic
     APP_UI_LOGIC_CS2 = 2,
 };
 
-/* Hardcoded targets named by manifest `[action:<name>]` declarations. The
- * manifest's `[debug:hotkeys]` section binds keys to those named actions;
- * nothing is bound in a zero-initialized config. Arrow-key orbit controls are
- * game input rather than developer shortcuts and are intentionally absent. */
-enum AppDebugHotkey
-{
-    APP_DEBUG_HOTKEY_CAMERA_FORWARD,
-    APP_DEBUG_HOTKEY_CAMERA_BACK,
-    APP_DEBUG_HOTKEY_CAMERA_LEFT,
-    APP_DEBUG_HOTKEY_CAMERA_RIGHT,
-    APP_DEBUG_HOTKEY_CAMERA_UP,
-    APP_DEBUG_HOTKEY_CAMERA_DOWN,
-    APP_DEBUG_HOTKEY_CAMERA_UNLOCK,
-    APP_DEBUG_HOTKEY_WORLD_RELOAD,
-    APP_DEBUG_HOTKEY_PAINT_TOGGLE,
-    APP_DEBUG_HOTKEY_PAINT_MORE,
-    APP_DEBUG_HOTKEY_PAINT_LESS,
-    APP_DEBUG_HOTKEY_PAINT_MORE_100,
-    APP_DEBUG_HOTKEY_PAINT_LESS_100,
-    APP_DEBUG_HOTKEY_SPAWN_PLAYER,
-    APP_DEBUG_HOTKEY_SPAWN_NPC,
-    APP_DEBUG_HOTKEY_SPAWN_OBJ,
-    APP_DEBUG_HOTKEY_SPAWN_PROJECTILE,
-    APP_DEBUG_HOTKEY_SPAWN_SPOTANIM,
-    APP_DEBUG_HOTKEY_ENTITY_SPOTANIM,
-    APP_DEBUG_HOTKEY_DAMAGE_TEST,
-    APP_DEBUG_HOTKEY_DEBUG_OVERLAY,
-    APP_DEBUG_HOTKEY_LOC_EDITOR,
-    APP_DEBUG_HOTKEY_HOVER_FOOTPRINT,
-    /** Show/hide the map editor panel. Only does anything in an editor boot. */
-    APP_DEBUG_HOTKEY_MAP_EDITOR,
-    /** Show/hide the plugin settings panel. */
-    APP_DEBUG_HOTKEY_PLUGIN_PANEL,
-    APP_DEBUG_HOTKEY_COUNT
-};
-
 /* World objects across every plugin at once. Per-plugin budgeting is the
  * host's (TORIRS_PLUGIN_OBJECT_BUDGET); this is the ceiling on the table those
  * handles index into. */
@@ -263,22 +231,9 @@ enum AppDebugHotkey
 #define APP_SETTING_CLEAR_TILE_MARKERS "clear_tile_markers"
 #define APP_SETTING_CLEAR_NPC_TAGS "clear_npc_tags"
 
-#define APP_DEBUG_HOTKEY_MAX 64
-#define APP_DEBUG_HOTKEY_ARGS_CAP 512
-
-struct AppDebugHotkeyBinding
-{
-    enum LibToriRS_KeyCode key;
-    enum AppDebugHotkey target;
-    char args[APP_DEBUG_HOTKEY_ARGS_CAP];
-};
-
 struct AppConfig
 {
     char const* cache_dir;
-    /* Another revision's cache, `{revision}` standing for the number
-     * ([cache:boot] dir_for_revision); NULL when the manifest names none. */
-    char const* cache_dir_for_revision;
     char const* config_dir;
     char const* script_dir;
     /* [io:boot] -- the server asked for any stored file this disk lacks: the
@@ -287,43 +242,6 @@ struct AppConfig
      * charge. */
     char io_host[256];
     int io_port;
-    /** [editor:boot] content_dir — the content root whose `maps/` the world map
-     *  editor edits. NULL = no editor this boot, which is every normal client
-     *  run. Borrowed from the BootManifest, which outlives the App. */
-    char const* editor_content_dir;
-    /** [editor:boot] lane — the editor lane over `editor_content_dir`
-     *  (torirsmaped/torirs_maped_lanes.h); NULL or "main" edits the tree itself. */
-    char const* editor_lane;
-    /** [editor:boot] repo_root — where a bake would run. NULL disables baking. */
-    char const* editor_repo_root;
-    /**
-     * enum BootManifestEditorServer: which ToriRSMapEd deployment the editor
-     * session talks to. 0 (embed) hosts the server in-process over
-     * `editor_content_dir`; tcp dials the torirsmaped daemon below, and then
-     * enables the editor even with no content_dir of its own.
-     */
-    int editor_server;
-    /** torirsmaped daemon address; NULL/0 = localhost, its default port. */
-    char const* editor_server_host;
-    int editor_server_port;
-    /**
-     * [editor:boot] client — the ToriRSMapEd Client (session group) to join,
-     * or 0 to be granted a fresh one.
-     *
-     * A Client is a group of connections sharing selection and tool state, so
-     * this is how a second PROCESS joins a session already running: read the
-     * id the first one printed at boot and state it here. server=tcp only —
-     * an embedded server has no other process to share with.
-     */
-    int editor_client_id;
-    /**
-     * enum BootManifestEditorPanel: where the command panel is drawn.
-     *
-     * 0 (inprocess) is the default a zeroed config gets, which is the binding
-     * that needs nothing outside this process -- so a caller that never sets
-     * this gets the panel it already had.
-     */
-    int editor_panel;
     /**
      * enum WorldBuilderLayout (engine/world_builder/world_builder.h): which
      * world builder fills the scene -- `[world:boot] layout=` or
@@ -331,7 +249,6 @@ struct AppConfig
      * the map-editor manifests state edit.
      */
     int world_layout;
-    int interface_id;
     enum AppCacheKind cache_kind;
     /** Cache identity from [cache:boot]. All four stated; used by
      *  RSCache_ProfileForIdentity. cache_identity_set is 0 until ApplyToConfig. */
@@ -370,10 +287,11 @@ struct AppConfig
      *  cache yields terrain (which is not encrypted) with **zero locs**. */
     int spawn_x;
     int spawn_z;
-    /** Resolved `[debug:hotkeys]` key -> `[action:<name>]` bindings. Empty by
-     *  default. `args` retains the action's optional `a=` payload. */
-    struct AppDebugHotkeyBinding debug_hotkeys[APP_DEBUG_HOTKEY_MAX];
-    int debug_hotkey_count;
+    /** Resolved `[debug:hotkeys]` key -> `[action:<name>]` bindings, by action
+     *  name, and every declared action. Empty by default. Each binding's `args`
+     *  retains the action's optional `a=` payload. The side-app registry copies
+     *  it (sideapp/side_app.h). */
+    struct SideAppBindingTable side_app_bindings;
     /** RevConfig layout INI — the tree's shape. Every root tree comes from the
      * RevConfig builder; a cache gameframe is one *element* of that layout
      * (`type=rs_iface`), not a competing root. NULL/"" = none, in which case the
@@ -384,60 +302,6 @@ struct AppConfig
     /** File carrying inline `[revconfig:…]` sections — in practice the boot
      * manifest itself. Loaded after the two above, so it extends them. */
     char const* revconfig_inline_ini;
-    /** `[ui:gameframe]` — sub-interfaces to mount into the root's component
-     *  slots once the tree is built, in order.
-     *
-     *  A gameframe root is a set of empty holders: the panels that fill it arrive
-     *  as an IF_OPENSUB burst at login, so an offline client shows chrome with
-     *  nothing in it. This is that burst, stated in the manifest. Points into the
-     *  BootManifest, which must outlive the App. NULL/0 = none. */
-    struct BootManifestGameframeMount const* gameframe_mounts;
-    int gameframe_mount_count;
-    /** `[ui:varc]` — client vars to seed before the root's scripts run.
-     *
-     *  The IF_OPENSUB burst arrives alongside var writes; the gameframe's own
-     *  scripts branch on them (which sidebar tab is selected, which chat filters
-     *  are lit), so mounting without them shows every panel hidden. Points into
-     *  the BootManifest. NULL/0 = none. */
-    struct BootManifestVarcSeed const* varc_seeds;
-    int varc_seed_count;
-    /** --connect target "host[:port]". NULL/"" = offline (no networking). */
-    char const* connect_target;
-    /** `[net:boot] auth=oauth`: sign in through the account server (saved
-     *  accounts, Play Now, one-time login tokens). 0 = the password form. */
-    int connect_oauth;
-    char const* connect_user;
-    char const* connect_pass;
-    /** --resume "s0,s1,s2,s3,index": a previous session's resume token
-     *  (app_session_resume_token), from a reloaded browser tab. The first
-     *  login then asks for that session back with GAMERECONNECT rather than
-     *  logging in afresh. NULL = none. */
-    char const* connect_resume;
-    /** `[net:boot] scripts` — compiled script pack for the embedded mock
-     * server. TORIRSSERVER_SCRIPTS still overrides it. NULL/"" = server default. */
-    char const* net_server_scripts;
-    /** `[net:boot] cheat` — "::" commands (';'-separated, no leading "::") to
-     * send once right after login, e.g. "zuk" to enter the Inferno instance.
-     * The manifest spelling of the TORIRS_NET_CHEAT harness hook; the env var
-     * still overrides. NULL/"" = none. */
-    char const* net_cheat;
-    /** Protocol revision name ("lc254", "lc245_2"). NULL = lc254, the
-     * authoritative LostCity_Server build. Mock/loopback tests pass
-     * lc245_2 explicitly. */
-    char const* rev_name;
-    /** Game-socket port. 0 = 43594 (legacy default). Set from the manifest
-     * `[net:boot] port` or --port; --connect "host:port" also fills it. */
-    int connect_port;
-    /** Login-block RSA key pair (hex). NULL = built-in lc245_2/254 default.
-     * Env TORIRS_RSA_EXP/MOD > these > built-in. */
-    char const* rsa_exp;
-    char const* rsa_mod;
-    /** Login-block jag-archive CRCs. Only consulted when jag_crc_set and the
-     * env TORIRS_JAG_CRC is absent (env wins). */
-    int32_t jag_crc[9];
-    int jag_crc_set;
-    /** Protocol client version sent in the login block. 0 = rev-table default. */
-    int client_version;
     /** enum AppUiLogic. 0 (DEFAULT) = derive from cache_kind. */
     int ui_logic;
     /** Client-behaviour era name from `[features:boot] era` — "lostcity",
@@ -528,6 +392,17 @@ struct AppConfig
      * --window overrides, and TORIRS_ROOT_SIZE overrides both. */
     int window_w;
     int window_h;
+    /* ---- One member per app: the launch options only that app reads. Each
+     * type is plain data in its app's folder and names no App. ---- */
+    /** The game client's network options (`[net:boot]`, --connect ...). */
+    struct NetClientConfig net;
+    /** The map editor's options (`[editor:boot]`, --maped ...). */
+    struct MapEditorConfig map_editor;
+    /** The offline interface viewer's options (the boot interface, the
+     *  `[ui:gameframe]` / `[ui:varc]` stand-ins, the headless preview). */
+    struct OfflineViewerConfig viewer;
+    /** The replay viewer's options (`[cache:boot] dir_for_revision`). */
+    struct ReplayConfig replay;
 };
 
 /**
@@ -968,10 +843,10 @@ struct App
      * See app_spawn_loc_lane_queue (app_world_edit.c) and world/loc_lane.h.
      */
     struct LocLane loc_lane;
-    /** The developer projectile hotkey's source tile, marked by its first
-     *  press and spent by its second (world/proj_spawn_latch.h,
-     *  app_world_spawn_projectile). */
-    struct ProjSpawnLatch proj_latch;
+    /** The side-apps: the debug tools, their key bindings and their state
+     *  (sideapp/side_app.h). Registered by App_Init through app/app_tools.c,
+     *  the one place that lists them; freed with the dev overlay. */
+    struct SideApps* side_apps;
 
     /* RevConfig tree builder: alive for the process, not just the build task —
      * it owns the sprite/font name registries bake resolved through. Unused
@@ -1140,9 +1015,10 @@ struct App
      * script 4726 rebuilds it every client cycle). */
     struct UIHoverText hover_text;
     /* Developer overlay (src/ui/README_DEBUG_OVERLAY.md): the developer
-     * chrome instance with its frame-time panel and ring and the All Settings
-     * pickers. The loc and map editors' panels are built in its chrome too.
-     * Owned: made in App_Init, freed in App_Shutdown. See ui/dev_overlay.h. */
+     * chrome instance and the All Settings pickers. The frame-time panel's,
+     * the loc editor's and the map editor's panels are built in its chrome
+     * too. Owned: made in App_Init, freed in App_Shutdown. See
+     * ui/dev_overlay.h. */
     struct DevOverlay* dev_overlay;
     /**
      * Scripting/plugin host (src/plugin/). Always built in App_New: the nxt-*
@@ -1267,8 +1143,9 @@ struct App
      * SEND_PING_REPLY reports) and frames drawn since boot on every renderer
      * (App_NoteFrameDrawn) -- drawn, not iterated: the loop runs at the
      * pacer's rate whether or not a frame is drawn, so counting iterations
-     * measures the pacer, not the screen; and the idle timer. See
-     * perf/frame_clock.h. */
+     * measures the pacer, not the screen; the idle timer; and the last few
+     * frames' work (App_NoteFrameTime), which the frame-time panel averages
+     * and App_LastFrameUs reads. See perf/frame_clock.h. */
     struct FrameClock frame_clock;
     /**
      * Render skip: the frame loop still runs input, net, the logic tick and
@@ -2060,6 +1937,18 @@ void
 App_Init(
     struct App* app,
     struct AppConfig const* cfg);
+
+/**
+ * Does a side-app answer every action the launch configuration names?
+ *
+ * Prints `bootmanifest: [action:<source>] has unknown target '<name>'` for
+ * each declared action no side-app registered (and a line for a binding no
+ * declaration names), and answers 0; the host then refuses to boot, as the
+ * manifest load refused it before the names moved to the side-apps. After
+ * App_Init, which registers them.
+ */
+int
+App_ToolsBindingsResolved(struct App const* app);
 
 /**
  * Make the one world view App_Init starts with (WorldViews_Init), its menu
@@ -3546,7 +3435,8 @@ App_RenderSkipHullsInScene(struct App* app);
 /**
  * The most recent frame time reported to App_NoteFrameTime, in microseconds.
  *
- * The newest sample, not the overlay's mean: a caller that wants a window
+ * The newest sample, not the frame-time panel's mean (both from
+ * App::frame_clock's frame times): a caller that wants a window
  * keeps its own, and one that wants the last frame cannot recover it from a
  * mean. 0 before the host has reported anything.
  *

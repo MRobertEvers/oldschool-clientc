@@ -1,6 +1,6 @@
 /*
- * The frame loop's four counters: the fixed-step accumulator, the serials,
- * the fps window and the idle timer.
+ * The frame loop's five counters: the fixed-step accumulator, the serials,
+ * the fps window, the idle timer and the frame times.
  *
  * The accumulator is wrong in ways nothing reports: a short frame counted as
  * a whole cycle runs the world faster than real time, a stall paid in full
@@ -9,7 +9,8 @@
  * and only once. The serials only count up, each at its own writer. The fps
  * window must close on the first frame a second after it opened, the drawn
  * count must count every frame, and the idle timer must say once per stretch
- * of no input.
+ * of no input. A reset clock holds no frame times, and the ones written read
+ * back as the newest and the mean.
  *
  * Run: make -C src test-frame-clock
  */
@@ -17,6 +18,7 @@
 #include "perf/frame_clock.h"
 
 #include <stdio.h>
+#include <string.h>
 
 static int g_failures = 0;
 
@@ -204,6 +206,22 @@ test_idle_timer_says_once(void)
     TEST_ASSERT(said == 1, "due again after input");
 }
 
+static void
+test_frame_times(void)
+{
+    struct FrameClock clock;
+
+    memset(&clock, 0xA5, sizeof(clock));
+    FrameClock_Reset(&clock);
+    TEST_ASSERT(clock.frame_times.count == 0, "a reset clock holds no frame times");
+    TEST_ASSERT(FrameTimeRing_NewestUs(&clock.frame_times) == 0, "no newest frame");
+    TEST_ASSERT(FrameTimeRing_MeanUs(&clock.frame_times) == 0, "no mean");
+    FrameTimeRing_Add(&clock.frame_times, 4000);
+    FrameTimeRing_Add(&clock.frame_times, 6000);
+    TEST_ASSERT(FrameTimeRing_NewestUs(&clock.frame_times) == 6000, "the newest is the last frame");
+    TEST_ASSERT(FrameTimeRing_MeanUs(&clock.frame_times) == 5000, "the mean of the two");
+}
+
 int
 main(void)
 {
@@ -217,6 +235,7 @@ main(void)
     test_serials();
     test_fps_window();
     test_idle_timer_says_once();
+    test_frame_times();
     if( g_failures )
     {
         printf("frame_clock_test: %d failure(s)\n", g_failures);

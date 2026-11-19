@@ -144,6 +144,14 @@ struct PluginPanel
     /** The window's panel handle in `ui`, or -1 before it is built. */
     int panel;
     int visible;
+    /**
+     * The toggle key's latch: the key's down-or-held state as the last
+     * delivery of the window's tick saw it (`toggle_was_down`), and whether
+     * a binding of it fired in the delivery under way (`toggle_key_down`).
+     * The window flips when the key is down and was not.
+     */
+    int toggle_was_down;
+    int toggle_key_down;
 
     /**
      * Split-out choice strings for every dropdown in the plugin window, and

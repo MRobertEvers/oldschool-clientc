@@ -939,9 +939,10 @@ app_build_entity_overlays(
         }
     }
 
-    /* Debug: hovered loc's painter footprint, in red (see the builder). Last
-     * so the outline layers above bars/splats/chat. */
-    app_overlay_build_hover_footprint(app);
+    /* The side-apps' world marks: the debug hover footprint, the hovered
+     * loc's painter footprint in red (app_tool_hover_footprint.c). Last so the
+     * outline layers above bars/splats/chat. */
+    SideApps_DrawWorldOverlay(app->side_apps, app_side_app_host(app));
     /* The map editor's own latch, in green -- separate from the hover mark
      * above so a select-tool session and TORIRS_HOVER_FOOTPRINT can be on at
      * once without one drawing over the other's meaning. */

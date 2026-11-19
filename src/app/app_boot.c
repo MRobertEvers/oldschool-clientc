@@ -657,12 +657,12 @@ Task_AppBoot_Run(
     /* `[ui:varc]` — the var writes that accompany the login IF_OPENSUB burst.
      * Before the tree opens, because the root's onLoad scripts branch on them.
      * Skipped when networked, for the same reason [ui:gameframe] is. */
-    if( app->cfg.varc_seed_count > 0 && !App_NetEnabled(app) )
+    if( app->cfg.viewer.varc_seed_count > 0 && !App_NetEnabled(app) )
     {
-        for( int i = 0; i < app->cfg.varc_seed_count; i++ )
+        for( int i = 0; i < app->cfg.viewer.varc_seed_count; i++ )
             VarCManager_SetInt(
-                &app->varcs, app->cfg.varc_seeds[i].id, app->cfg.varc_seeds[i].value);
-        TORIRS_LOG("varc: seeded %d client vars from the manifest\n", app->cfg.varc_seed_count);
+                &app->varcs, app->cfg.viewer.varc_seeds[i].id, app->cfg.viewer.varc_seeds[i].value);
+        TORIRS_LOG("varc: seeded %d client vars from the manifest\n", app->cfg.viewer.varc_seed_count);
     }
 
     /* A CS2Dom native preview seeds the actual client stores after cache types
@@ -672,12 +672,12 @@ Task_AppBoot_Run(
      * syntax. Re-apply on a root remount so every preview build sees the same
      * declared host state. Ordinary client runs cannot enable this by setting a
      * state path alone: the headless preview output must also be requested. */
-    if( getenv("TORIRS_PREVIEW_BMP") && getenv("TORIRS_PREVIEW_STATE") )
+    if( app->cfg.viewer.preview_bmp && app->cfg.viewer.preview_state )
     {
         char state_error[192];
         int applied = 0;
         (void)ToriRSPreviewState_ApplyFileOutcome(
-            getenv("TORIRS_PREVIEW_STATE"),
+            app->cfg.viewer.preview_state,
             &app->varps,
             &app->varcs,
             &app->stats,
@@ -825,11 +825,11 @@ Task_AppBoot_Run(
      * Skipped when networked: the server sends the real sequence, and mounting
      * on top of it would fight whatever it opens.
      */
-    if( app->cfg.gameframe_mount_count > 0 && !App_NetEnabled(app) )
+    if( app->cfg.viewer.gameframe_mount_count > 0 && !App_NetEnabled(app) )
     {
-        for( int i = 0; i < app->cfg.gameframe_mount_count; i++ )
+        for( int i = 0; i < app->cfg.viewer.gameframe_mount_count; i++ )
         {
-            struct BootManifestGameframeMount const* mount = &app->cfg.gameframe_mounts[i];
+            struct BootManifestGameframeMount const* mount = &app->cfg.viewer.gameframe_mounts[i];
             int parent = mount->parent_interface_id > 0 ? mount->parent_interface_id
                                                         : RS_BootState_InterfaceId(&app->boot);
             App_OpenSubInterface(
@@ -837,7 +837,7 @@ Task_AppBoot_Run(
         }
         TORIRS_LOG(
             "gameframe: queued %d sub-interface mounts under iface %d\n",
-            app->cfg.gameframe_mount_count,
+            app->cfg.viewer.gameframe_mount_count,
             RS_BootState_InterfaceId(&app->boot));
     }
 

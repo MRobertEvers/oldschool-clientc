@@ -1452,7 +1452,7 @@ static struct AppConfig cfg = {
     .cache_dir = NULL, /* resolved from cache_kind below */
     .config_dir = CONFIG_DIR,
     .script_dir = SCRIPT_DIR,
-    .interface_id = INTERFACE_ID_UNSET,
+    .viewer = { .interface_id = INTERFACE_ID_UNSET },
     .cache_kind = APP_CACHE_DAT1,
     /* -1 = no manifest spawn; app_world_load_begin falls back to the client default. */
     .spawn_x = -1,
@@ -2354,13 +2354,33 @@ static char const* rsprox_replay_path;
  * joins, `--maped-group <id>` the Client, `--camera <pose>` where it looks.
  * The launch service's `view` verb starts exactly this command line.
  */
-static char const* editor_view_camera_text;
-static int editor_view_flag;
-/** `--maped`'s host, out of the URL; cfg.editor_server_host points here. */
-static char editor_maped_host[128];
+/*
+ * The map editor's launch facts that only this file reads: what the viewer
+ * flags said, the --maped host the configuration points into, and the saved
+ * window box. The editor's configuration proper is cfg.map_editor
+ * (editor/map_editor_config.h).
+ */
+struct MainEditorLaunch
+{
+    /** --camera's pose text; NULL = not given. */
+    char const* view_camera_text;
+    /** --editor-view or --editor-panel was given. */
+    int view_flag;
+    /** `--maped`'s host, out of the URL; cfg.map_editor.server_host points here. */
+    char maped_host[128];
+    /** --window on the command line: the editor's saved window box must not
+     *  override it. Set while the arguments are read. */
+    int window_from_cli;
+    /** The map editor's saved window position (main_editor_layout_window),
+     *  applied once the OS window exists. */
+    int window_placed;
+    int window_x;
+    int window_y;
+};
+static struct MainEditorLaunch editor_launch;
 
 /** `tcp://host:port`, `ws://host[:port][/path]` or `wss://...` into
- *  editor_maped_host and *out_port. On the web the URL itself is the socket's
+ *  editor_launch.maped_host and *out_port. On the web the URL itself is the socket's
  *  (torirs_host.js hands emscripten a ws(s) URL); here only host and port are
  *  kept, for the label and a native dial. 0 on a malformed URL. */
 static int
@@ -2397,19 +2417,19 @@ main_parse_maped_url(
         if( !close )
             return 0;
         host_length = (size_t)(close - rest - 1);
-        if( host_length == 0 || host_length >= sizeof(editor_maped_host) )
+        if( host_length == 0 || host_length >= sizeof(editor_launch.maped_host) )
             return 0;
-        memcpy(editor_maped_host, rest + 1, host_length);
-        editor_maped_host[host_length] = '\0';
+        memcpy(editor_launch.maped_host, rest + 1, host_length);
+        editor_launch.maped_host[host_length] = '\0';
         rest = close + 1;
     }
     else
     {
         host_length = strcspn(rest, ":/");
-        if( host_length == 0 || host_length >= sizeof(editor_maped_host) )
+        if( host_length == 0 || host_length >= sizeof(editor_launch.maped_host) )
             return 0;
-        memcpy(editor_maped_host, rest, host_length);
-        editor_maped_host[host_length] = '\0';
+        memcpy(editor_launch.maped_host, rest, host_length);
+        editor_launch.maped_host[host_length] = '\0';
         rest += host_length;
     }
 
@@ -2871,15 +2891,6 @@ static int paced_value = -1;
 /* Retain gesture/key one-shots while App_RunOnce is holding the last committed
  * visual frame. They are cleared only after a stable tree reaches interaction. */
 static int input_frame_pending;
-
-/* --window on the command line: the editor's saved window box must not
- * override it. Set while the arguments are read. */
-static int window_from_cli;
-/* The map editor's saved window position (main_editor_layout_window), applied
- * once the OS window exists. */
-static int editor_window_placed;
-static int editor_window_x;
-static int editor_window_y;
 
 /* The agent control server (agent/agent_server.h, docs/AGENT_API.md): what
  * --agent-port and --agent-port-file said (NULL: the TORIRS_AGENT_PORT and
@@ -6916,7 +6927,7 @@ frame_loop_teardown(void)
             App_TraceWorldEntities(&app);
         }
         if( getenv("TORIRS_DUMP_TREE_EXIT") && app.tree )
-            dump_tree(&app, cfg.interface_id);
+            dump_tree(&app, cfg.viewer.interface_id);
         if( getenv("TORIRS_DUMP_ROOTS") && app.tree )
             dump_roots(&app);
         if( getenv("TORIRS_DUMP_HOOKS_EXIT") && app.tree )
@@ -8073,7 +8084,7 @@ main_parse_argument_layer(
         }
         if( strcmp(argv[argi], "--port") == 0 && argi + 1 < argc )
         {
-            cfg.connect_port = atoi(argv[++argi]);
+            cfg.net.connect_port = atoi(argv[++argi]);
             continue;
         }
         if( strcmp(argv[argi], "--js5") == 0 )
@@ -8150,35 +8161,35 @@ main_parse_argument_layer(
         }
         if( strcmp(argv[argi], "--connect") == 0 && argi + 1 < argc )
         {
-            cfg.connect_target = argv[++argi];
+            cfg.net.connect_target = argv[++argi];
             saw_connect = 1;
             continue;
         }
         if( strcmp(argv[argi], "--user") == 0 && argi + 1 < argc )
         {
-            cfg.connect_user = argv[++argi];
+            cfg.net.connect_user = argv[++argi];
             continue;
         }
         if( strcmp(argv[argi], "--pass") == 0 && argi + 1 < argc )
         {
-            cfg.connect_pass = argv[++argi];
+            cfg.net.connect_pass = argv[++argi];
             continue;
         }
         if( strcmp(argv[argi], "--resume") == 0 && argi + 1 < argc )
         {
-            cfg.connect_resume = argv[++argi];
+            cfg.net.connect_resume = argv[++argi];
             continue;
         }
         if( strcmp(argv[argi], "--rev") == 0 && argi + 1 < argc )
         {
-            cfg.rev_name = argv[++argi];
+            cfg.net.rev_name = argv[++argi];
             continue;
         }
         /* The map editor's viewer boot (editor/editor_view.h). */
         if( strcmp(argv[argi], "--editor-view") == 0 )
         {
-            editor_view_flag = 1;
-            cfg.editor_panel = BOOTMANIFEST_EDITOR_PANEL_VIEW;
+            editor_launch.view_flag = 1;
+            cfg.map_editor.panel = BOOTMANIFEST_EDITOR_PANEL_VIEW;
             continue;
         }
         /* A popped-out editor panel: a viewer that shows ONE panel module
@@ -8193,8 +8204,8 @@ main_parse_argument_layer(
                 TORIRS_ERR("torirs: --editor-panel takes an editor panel module name, got '%s'\n", module);
                 return 0;
             }
-            editor_view_flag = 1;
-            cfg.editor_panel = BOOTMANIFEST_EDITOR_PANEL_VIEW;
+            editor_launch.view_flag = 1;
+            cfg.map_editor.panel = BOOTMANIFEST_EDITOR_PANEL_VIEW;
             EditorView_SetBootPanel(module);
             continue;
         }
@@ -8207,9 +8218,9 @@ main_parse_argument_layer(
                     argv[argi]);
                 return 0;
             }
-            cfg.editor_server = BOOTMANIFEST_EDITOR_SERVER_TCP;
-            cfg.editor_server_host = editor_maped_host;
-            cfg.editor_server_port = port;
+            cfg.map_editor.server = BOOTMANIFEST_EDITOR_SERVER_TCP;
+            cfg.map_editor.server_host = editor_launch.maped_host;
+            cfg.map_editor.server_port = port;
             continue;
         }
         if( strcmp(argv[argi], "--maped-group") == 0 && argi + 1 < argc )
@@ -8222,12 +8233,12 @@ main_parse_argument_layer(
                     argv[argi]);
                 return 0;
             }
-            cfg.editor_client_id = (int)group;
+            cfg.map_editor.client_id = (int)group;
             continue;
         }
         if( strcmp(argv[argi], "--camera") == 0 && argi + 1 < argc )
         {
-            editor_view_camera_text = argv[++argi];
+            editor_launch.view_camera_text = argv[++argi];
             continue;
         }
         if( strcmp(argv[argi], "--world-layout") == 0 && argi + 1 < argc )
@@ -8309,7 +8320,7 @@ main_parse_argument_layer(
             }
             cfg.window_w = (int)w;
             cfg.window_h = (int)h;
-            window_from_cli = 1;
+            editor_launch.window_from_cli = 1;
             continue;
         }
         /* The agent control server's port (0 picks a free one) and the file
@@ -8606,8 +8617,8 @@ main_parse_argument_layer(
              * indistinguishable from a typo. Only non-numeric input and
              * negative ids are invalid. */
             char* id_end = NULL;
-            cfg.interface_id = (int)strtol(argv[argi], &id_end, 10);
-            if( id_end == argv[argi] || *id_end != '\0' || cfg.interface_id < 0 )
+            cfg.viewer.interface_id = (int)strtol(argv[argi], &id_end, 10);
+            if( id_end == argv[argi] || *id_end != '\0' || cfg.viewer.interface_id < 0 )
             {
                 TORIRS_ERR("invalid interface id: %s\n", argv[argi]);
                 return 0;
@@ -8629,7 +8640,7 @@ main_parse_argument_layer(
      * manifest-provided --connect, while a real --connect overrides manifest
      * offline. Within one layer, connect wins just as it did before. */
     if( saw_offline && !saw_connect )
-        cfg.connect_target = NULL;
+        cfg.net.connect_target = NULL;
     /* Offline also suppresses an inherited JS5 producer. An explicit --js5 in
      * this same layer opts back into cache networking without reconnecting the
      * game transport. Later layers can override either result. */
@@ -8669,7 +8680,7 @@ main_argument_takes_value(char const* argument)
 static int
 main_settle_editor_view(struct BootManifest const* boot_manifest)
 {
-    char const* camera_text = editor_view_camera_text;
+    char const* camera_text = editor_launch.view_camera_text;
 
     if( !camera_text && boot_manifest->editor_camera[0] )
         camera_text = boot_manifest->editor_camera;
@@ -8692,16 +8703,16 @@ main_settle_editor_view(struct BootManifest const* boot_manifest)
         cfg.spawn_z = camera.z / (64 * 128);
     }
 
-    if( cfg.editor_client_id > 0 && cfg.editor_server != BOOTMANIFEST_EDITOR_SERVER_TCP )
+    if( cfg.map_editor.client_id > 0 && cfg.map_editor.server != BOOTMANIFEST_EDITOR_SERVER_TCP )
     {
         TORIRS_ERR("torirs: --maped-group joins a Client on a torirsmaped daemon; name it "
             "with --maped tcp://host:port\n");
         return 0;
     }
-    if( cfg.editor_panel != BOOTMANIFEST_EDITOR_PANEL_VIEW )
+    if( cfg.map_editor.panel != BOOTMANIFEST_EDITOR_PANEL_VIEW )
         return 1;
 
-    if( cfg.editor_server != BOOTMANIFEST_EDITOR_SERVER_TCP )
+    if( cfg.map_editor.server != BOOTMANIFEST_EDITOR_SERVER_TCP )
     {
         TORIRS_ERR("torirs: --editor-view joins another window's editor session: name its "
             "ToriRSMapEd with --maped tcp://host:port (an embedded server has no other "
@@ -8710,11 +8721,11 @@ main_settle_editor_view(struct BootManifest const* boot_manifest)
     }
     /* A view opens NO game connection: it is a window onto the editor's
      * document, and a game server dialled beside it would be a second world. */
-    if( cfg.connect_target && cfg.connect_target[0] )
+    if( cfg.net.connect_target && cfg.net.connect_target[0] )
     {
         TORIRS_LOG("torirs: an editor view opens no game connection; ignoring %s%s\n",
-            editor_view_flag ? "--connect/[net:boot] " : "", cfg.connect_target);
-        cfg.connect_target = NULL;
+            editor_launch.view_flag ? "--connect/[net:boot] " : "", cfg.net.connect_target);
+        cfg.net.connect_target = NULL;
     }
     return 1;
 }
@@ -8750,15 +8761,15 @@ main_rsprox_replay_open(void)
     /* Its packets name that revision's cache ids, so it reads that revision's
      * cache when the manifest says where one lives (torirs_host.js makes the
      * same swap for the browser's database and JS5 handshake). */
-    if( cfg.cache_dir_for_revision && cfg.cache_identity_set &&
+    if( cfg.replay.cache_dir_for_revision && cfg.cache_identity_set &&
         cfg.cache_revision != rsprox_replay_rec.revision )
     {
         static char replay_cache_dir[512];
-        char const* hole = strstr(cfg.cache_dir_for_revision, "{revision}");
+        char const* hole = strstr(cfg.replay.cache_dir_for_revision, "{revision}");
 
         assert(hole);
         snprintf(replay_cache_dir, sizeof(replay_cache_dir), "%.*s%d%s",
-                 (int)(hole - cfg.cache_dir_for_revision), cfg.cache_dir_for_revision,
+                 (int)(hole - cfg.replay.cache_dir_for_revision), cfg.replay.cache_dir_for_revision,
                  rsprox_replay_rec.revision, hole + strlen("{revision}"));
 #if !defined(TORIRS_PLATFORM_WEB)
         {
@@ -8783,11 +8794,11 @@ main_rsprox_replay_open(void)
         cfg.cache_dir = replay_cache_dir;
         cfg.cache_revision = rsprox_replay_rec.revision;
     }
-    else if( cfg.rev_name && cfg.rev_name[0] && strcmp(cfg.rev_name, rev_name) != 0 )
+    else if( cfg.net.rev_name && cfg.net.rev_name[0] && strcmp(cfg.net.rev_name, rev_name) != 0 )
         TORIRS_REPORT("replay: the recording is %s; it replaces the boot's %s (the cache stays "
                       "the manifest's)\n",
-                      rev_name, cfg.rev_name);
-    cfg.rev_name = rev_name;
+                      rev_name, cfg.net.rev_name);
+    cfg.net.rev_name = rev_name;
     /* A replay plays in the mode it was recorded in, whatever device watches
      * it: the packets were written for the recorder's client, so the cache's
      * scripts are told they are that client. A phone's server opens the
@@ -8799,7 +8810,7 @@ main_rsprox_replay_open(void)
     cfg.clienttype = rsprox_replay_rec.client_type;
     cfg.on_mobile = RsproxRecording_Mobile(&rsprox_replay_rec) ? 1 : -1;
     /* Framed with the client's own prot tables for that revision (the table
-     * App_Init picks by cfg.rev_name), so a table that cannot frame the
+     * App_Init picks by cfg.net.rev_name), so a table that cannot frame the
      * recording is found here, before anything boots or plays. */
     if( RsproxRecording_Index(&rsprox_replay_rec, RsproxRecording_Rev(&rsprox_replay_rec), err,
                               sizeof(err)) != 0 )
@@ -8826,11 +8837,11 @@ main_rsprox_replay_open(void)
                           mode == CS2VM_WINDOW_MODE_FIXED ? "fixed" : "resizable");
         }
     }
-    cfg.connect_target = "replay";
-    if( !cfg.connect_user || !cfg.connect_user[0] )
-        cfg.connect_user = "replay";
-    if( !cfg.connect_pass || !cfg.connect_pass[0] )
-        cfg.connect_pass = "replay";
+    cfg.net.connect_target = "replay";
+    if( !cfg.net.connect_user || !cfg.net.connect_user[0] )
+        cfg.net.connect_user = "replay";
+    if( !cfg.net.connect_pass || !cfg.net.connect_pass[0] )
+        cfg.net.connect_pass = "replay";
     TORIRS_REPORT("replay: %s: revision %d.%d, world %d (%s), %s, player %d\n",
                   rsprox_replay_path, rsprox_replay_rec.revision, rsprox_replay_rec.sub_revision,
                   rsprox_replay_rec.world_id, rsprox_replay_rec.world_host,
@@ -8920,10 +8931,10 @@ main(
 #endif
     /* Pre-scan for --manifest so its values seed cfg before the flag loop;
      * explicit CLI flags below then override (precedence CLI > manifest). */
-    window_from_cli = 0;
-    editor_window_placed = 0;
-    editor_window_x = 0;
-    editor_window_y = 0;
+    editor_launch.window_from_cli = 0;
+    editor_launch.window_placed = 0;
+    editor_launch.window_x = 0;
+    editor_launch.window_y = 0;
     for( argi = 1; argi < argc; argi++ )
     {
         if( strcmp(argv[argi], "--manifest") == 0 && argi + 1 < argc )
@@ -8975,6 +8986,11 @@ main(
         rsprox_replay_digest.on = 1;
     if( rsprox_replay_path && !main_rsprox_replay_open() )
         return 2;
+    /* The headless preview (TORIRS_PREVIEW_BMP / TORIRS_PREVIEW_STATE) is the
+     * offline viewer's launch option, read from the environment once, here:
+     * every later test in this file and in the boot task asks cfg.viewer. */
+    cfg.viewer.preview_bmp = getenv("TORIRS_PREVIEW_BMP");
+    cfg.viewer.preview_state = getenv("TORIRS_PREVIEW_STATE");
 
     int const write_bmp = arg_state.write_bmp;
     int const use_opengl3 = arg_state.use_opengl3;
@@ -8998,7 +9014,7 @@ main(
      * through the named-profile registry. Bare --dat1/--dat2 is not enough. */
     if( !cfg.cache_identity_set )
     {
-        char const* rev = cfg.rev_name;
+        char const* rev = cfg.net.rev_name;
         if( !rev || !rev[0] )
             rev = getenv("TORIRS_REV");
         struct RSCache named;
@@ -9093,7 +9109,7 @@ main(
      * gameframe to open and says so; a dat2 boot does not come through here at
      * all, because its manifest states `interface_id` in `[ui:boot]`.
      */
-    if( cfg.interface_id == INTERFACE_ID_UNSET )
+    if( cfg.viewer.interface_id == INTERFACE_ID_UNSET )
     {
         struct RevConfigRefs boot_refs;
         int declared;
@@ -9103,7 +9119,7 @@ main(
         declared = RevConfigRefs_Get(&boot_refs, "iface", "boot");
         RevConfigRefs_Free(&boot_refs);
         if( declared > 0 )
-            cfg.interface_id = declared;
+            cfg.viewer.interface_id = declared;
     }
 
     {
@@ -9125,7 +9141,7 @@ main(
                 "torirs: %s cache=%s iface=%d\n",
                 cfg.cache_kind == APP_CACHE_DAT1 ? "dat1" : "dat2",
                 cache_label,
-                cfg.interface_id);
+                cfg.viewer.interface_id);
     }
 
     /* TORIRS_ROOT_SIZE=WxH: host the interface at the gameframe slot the client
@@ -9139,7 +9155,7 @@ main(
         char* root_size_sep = NULL;
         long root_w = strtol(getenv("TORIRS_ROOT_SIZE"), &root_size_sep, 10);
         long root_h = root_size_sep && *root_size_sep ? strtol(root_size_sep + 1, NULL, 10) : 0;
-        if( getenv("TORIRS_PREVIEW_BMP") &&
+        if( cfg.viewer.preview_bmp &&
             (root_w <= 0 || root_h <= 0 || root_w > 4096 || root_h > 4096) )
         {
             TORIRS_LOG("native preview size must be 1..4096 on each axis\n");
@@ -9151,7 +9167,7 @@ main(
          * the requested dimensions and restore them after App_Init publishes
          * the normal canvas through App_SetCanvasSize. This opt-in path is the
          * only place where a sub-minimum canvas is legal. */
-        if( getenv("TORIRS_PREVIEW_BMP") )
+        if( cfg.viewer.preview_bmp )
         {
             preview_width = (int)root_w;
             preview_height = (int)root_h;
@@ -9176,9 +9192,9 @@ main(
         /* The map editor's window comes back where it was: its layout file
          * (editor_layout.ini) keeps the box the last run ended with, over the
          * manifest's `window=`; an explicit --window still wins. */
-        if( cfg.editor_content_dir && !window_from_cli
-            && main_editor_layout_window(&cfg.window_w, &cfg.window_h, &editor_window_x, &editor_window_y) )
-            editor_window_placed = 1;
+        if( MapEditorConfig_StatesContentDir(&cfg.map_editor) && !editor_launch.window_from_cli
+            && main_editor_layout_window(&cfg.window_w, &cfg.window_h, &editor_launch.window_x, &editor_launch.window_y) )
+            editor_launch.window_placed = 1;
 #endif
         UITree_LayoutSetRootSize(cfg.window_w, cfg.window_h);
     }
@@ -9189,6 +9205,11 @@ main(
 #endif
     ToriRS_BootTelemetry_Mark("app_init");
     App_Init(&app, &cfg);
+    /* The manifest's `t=` names are the side-apps' to answer, and they have
+     * registered only now: a name none of them answers fails the boot here,
+     * as it failed the manifest load when the loader held the names. */
+    if( !App_ToolsBindingsResolved(&app) )
+        return 1;
 #if !defined(TORIRS_PLATFORM_WEB)
     /* A live reload's CACHE_INVALIDATE reaches the IO below the provider: the
      * decompressed-archive LRU and the JS5 client's reference table
@@ -9208,7 +9229,7 @@ main(
                                                app.frame_runner.px);
 #endif
     ToriRS_BootTelemetry_Mark("app_init:done");
-    if( getenv("TORIRS_PREVIEW_BMP") )
+    if( cfg.viewer.preview_bmp )
     {
         /* Default to the fixed-mode main/modal slot used by cs2dom. App_Init
          * has no interface nodes yet, so restoring the root and host viewport
@@ -9312,21 +9333,21 @@ main(
     {
         App_OpenRootInterface(
             &app,
-            App_NetEnabled(&app) || cfg.interface_id == INTERFACE_ID_UNSET ? -1 : cfg.interface_id);
+            App_NetEnabled(&app) || cfg.viewer.interface_id == INTERFACE_ID_UNSET ? -1 : cfg.viewer.interface_id);
     }
 
     /* Boot is fully async (App_RunOnce pumps it; App_Render shows a loading
      * bar). The headless harness/debug paths below inspect the freshly built
      * tree synchronously, so pump the boot to completion for them; the plain
      * interactive run skips this and renders the loading state instead. */
-    if( write_bmp || getenv("TORIRS_PREVIEW_BMP") || getenv("TORIRS_WORLD_NODE_DEBUG") ||
+    if( write_bmp || cfg.viewer.preview_bmp || getenv("TORIRS_WORLD_NODE_DEBUG") ||
         getenv("TORIRS_SIM_CLICK") || getenv("TORIRS_SIM_KEYS") || getenv("TORIRS_SIM_WORLD_KEY") ||
         getenv("TORIRS_SIM_MOUSE_CLICK") || getenv("TORIRS_DUMP_EMIT") ||
         getenv("TORIRS_DUMP_TREE") || getenv("TORIRS_WORLD_BMP") || getenv("TORIRS_DUMP_ROLES") ||
         getenv("TORIRS_DUMP_CLIENTCODES") || getenv("TORIRS_CMD_REPLAY") )
         App_BootWait(&app);
 
-    if( getenv("TORIRS_PREVIEW_BMP") && ToriRSPreviewState_OutcomeFailed(&app.boot.preview) )
+    if( cfg.viewer.preview_bmp && ToriRSPreviewState_OutcomeFailed(&app.boot.preview) )
     {
         main_shutdown(&app);
         return 1;
@@ -9800,7 +9821,7 @@ main(
     }
 
     if( getenv("TORIRS_DUMP_TREE") && app.tree )
-        dump_tree(&app, cfg.interface_id);
+        dump_tree(&app, cfg.viewer.interface_id);
 
     /*
      * TORIRS_DUMP_ROLES=1: what every declared semantic role resolves to.
@@ -9939,9 +9960,9 @@ main(
      * the production App/UITree/Soft3D pipeline and exit before creating a
      * platform window. Unlike TORIRS_WORLD_BMP this accepts an output path and,
      * with the size restoration above, can represent a real 512x334 host slot. */
-    if( getenv("TORIRS_PREVIEW_BMP") )
+    if( cfg.viewer.preview_bmp )
     {
-        char const* path = getenv("TORIRS_PREVIEW_BMP");
+        char const* path = cfg.viewer.preview_bmp;
         int* pixels;
         FILE* probe;
         if( !path[0] )
@@ -9960,7 +9981,7 @@ main(
                                      app.tree,
                                      &app.emit,
                                      tree_path,
-                                     cfg.interface_id,
+                                     cfg.viewer.interface_id,
                                      UITREE_LAYOUT_ROOT_W,
                                      UITREE_LAYOUT_ROOT_H) != 0 )
             {
@@ -9997,7 +10018,7 @@ main(
         if( cfg.revconfig_ui_ini )
             snprintf(path, sizeof(path), "build/revconfig.bmp");
         else
-            snprintf(path, sizeof(path), "build/interface_%d.bmp", cfg.interface_id);
+            snprintf(path, sizeof(path), "build/interface_%d.bmp", cfg.viewer.interface_id);
         if( App_WriteBmp(&app, path, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) == 0 )
             TORIRS_LOG("wrote %s (%d cmds)\n", path, app.emit.count);
         else
@@ -10345,8 +10366,8 @@ main(
         }
         /* The editor's saved window position (main_editor_layout_window):
          * once the window exists, before anything is drawn in it. */
-        if( editor_window_placed )
-            PlatformWindow_SetWindowPosition(platform, editor_window_x, editor_window_y);
+        if( editor_launch.window_placed )
+            PlatformWindow_SetWindowPosition(platform, editor_launch.window_x, editor_launch.window_y);
         if( !PlatformWindow_SetPresent(platform, renderer_present(renderer_launch)) ||
             !renderer_start(renderer_launch) )
         {
@@ -10720,14 +10741,14 @@ main(
              * the pristine cache. */
             if( transport_kind == NET_TRANSPORT_EMBED && !getenv("TORIRSSERVER_CACHE") )
                 setenv("TORIRSSERVER_CACHE", cfg.cache_dir, 0);
-            if( transport_kind == NET_TRANSPORT_EMBED && cfg.net_server_scripts &&
-                cfg.net_server_scripts[0] && !getenv("TORIRSSERVER_SCRIPTS") )
-                setenv("TORIRSSERVER_SCRIPTS", cfg.net_server_scripts, 0);
+            if( transport_kind == NET_TRANSPORT_EMBED && cfg.net.server_scripts &&
+                cfg.net.server_scripts[0] && !getenv("TORIRSSERVER_SCRIPTS") )
+                setenv("TORIRSSERVER_SCRIPTS", cfg.net.server_scripts, 0);
 
             if( rsprox_replay_path && app.net )
             {
                 /* Indexed with this revision's table by main_rsprox_replay_open
-                 * (cfg.rev_name is the recording's). */
+                 * (cfg.net.rev_name is the recording's). */
                 assert(strcmp(app.net->rev->name, RsproxRecording_RevName(&rsprox_replay_rec)) == 0);
                 /* The index each RECONNECT continues under, which a world hop
                  * changes and the recording does not state. Found with the
@@ -10742,7 +10763,7 @@ main(
             else
                 sock = app.net ? NetTransport_New(
                                      transport_kind,
-                                     cfg.connect_port > 0 ? cfg.connect_port : 43594,
+                                     cfg.net.connect_port > 0 ? cfg.net.connect_port : 43594,
                                      app.net->rev->name)
                                : NULL;
 

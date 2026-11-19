@@ -22,23 +22,3 @@ EditorShell_Free(struct EditorShell* shell)
         return;
     ToriMem_Free(ToriMem_Editor(), shell);
 }
-
-void
-EditorShell_FootprintSeed(
-    struct EditorShell* shell,
-    int mode)
-{
-    assert(shell);
-    if( mode < 0 )
-        mode = 0;
-    shell->hover_footprint = mode;
-    shell->hover_footprint_mode = mode > 0 ? mode : 1;
-}
-
-int
-EditorShell_FootprintToggle(struct EditorShell* shell)
-{
-    assert(shell);
-    shell->hover_footprint = shell->hover_footprint ? 0 : shell->hover_footprint_mode;
-    return shell->hover_footprint;
-}

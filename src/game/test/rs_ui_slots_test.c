@@ -67,14 +67,14 @@ main(
     cfg.cache_identity_set = 1;
     cfg.config_dir = "../config";
     cfg.script_dir = "../script";
-    cfg.interface_id = 84;
+    cfg.viewer.interface_id = 84;
     cfg.revconfig_ui_ini =
         argc > 2 ? argv[2] : "../revconfig/rs245_2lc/rs245_2lc_dat1_ui.ini";
     cfg.revconfig_cache_ini =
         argc > 3 ? argv[3] : "../revconfig/rs245_2lc/rs245_2lc_dat1_cache.ini";
 
     App_Init(&app, &cfg);
-    App_OpenRootInterface(&app, cfg.interface_id);
+    App_OpenRootInterface(&app, cfg.viewer.interface_id);
     App_BootWait(&app);
 
     /* Seeding from the INI: boot tab is 3 (selected=), tab slots carry their
