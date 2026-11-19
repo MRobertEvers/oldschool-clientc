@@ -142,6 +142,12 @@ HttpServer_RunOn(
 void
 HttpServer_RequestStop(void);
 
+/** 1 once HttpServer_Run's socket is bound and serving, until it returns: how
+ *  a caller that runs it on a thread of its own (player_server.h's in-process
+ *  mode) learns the port was had. */
+int
+HttpServer_Running(void);
+
 /** Best-effort content type for a file name, by extension. */
 char const*
 HttpServer_ContentTypeForPath(char const* path);

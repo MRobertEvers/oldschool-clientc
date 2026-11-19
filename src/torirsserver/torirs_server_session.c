@@ -575,6 +575,22 @@ login_refused(
         session->state = TORIRSSERVER_SESSION_DEAD;
         return 1;
     }
+    if( auth == TORIRSSERVER_AUTH_ONLINE || auth == TORIRSSERVER_AUTH_UNAVAILABLE )
+    {
+        /* Jagex's own two: 5 "Your account is already logged in. Try again in
+         * 60 secs...", 8 "Unable to connect. Login server offline."
+         * (LostCity_OS1 jagex3/jstring/Text.java LOGIN5_*, LOGIN8_*). */
+        uint8_t refused = auth == TORIRSSERVER_AUTH_ONLINE ? OSRS_LOGINRES_ALREADY_ONLINE
+                                                           : OSRS_LOGINRES_LOGIN_SERVER_OFFLINE;
+
+        fprintf(stderr, "torirsserver: login refused for '%s': %s\n", user,
+                auth == TORIRSSERVER_AUTH_ONLINE
+                    ? "another world holds the character (the player account server's lease)"
+                    : "the player account server did not answer");
+        ToriRSServer_SessionSend(session, &refused, 1);
+        session->state = TORIRSSERVER_SESSION_DEAD;
+        return 1;
+    }
     if( auth == TORIRSSERVER_AUTH_CLAIMED )
         fprintf(stderr, "torirsserver: '%s' had no password; the one it logged in with is now its password\n",
                 user);
@@ -592,7 +608,8 @@ login_finish(
     const int32_t seed[4],
     uint64_t claimed,
     int payload_len,
-    int admin)
+    int admin,
+    int record)
 {
     int32_t seed_in[4];
     uint8_t ok = 2;
@@ -614,6 +631,7 @@ login_finish(
      * may cheat everywhere, and the rev-239 client sends a `::command` as a
      * cheat only when this level says staff. */
     session->account_admin = admin;
+    session->account_record = record;
     session->staff_level = login_staff_level();
     if( session->account_admin && session->staff_level < 2 )
         session->staff_level = 2;
@@ -917,22 +935,30 @@ step_login(
      * later would let a wrong password kick the real player off. A reconnect
      * carries no password and needs none -- the host gives the character back
      * only to the session key it was playing on, which a password login made.
+     *
+     * A host that checks off the loop (`auth_async`, the standalone host) gets
+     * EVERY login of a password-checking world, a reconnect and a one-time
+     * login token too: its pool asks the player account server for the check
+     * and for the character's lease (playerserver/player_server.h), and a
+     * reconnect needs the lease as much as a login does -- after a logout the
+     * lease is gone, and another world may have the character by now.
      */
+    if( srv->check_passwords && session->auth_async )
+    {
+        snprintf(session->auth_user, sizeof(session->auth_user), "%s", user);
+        snprintf(session->auth_pass, sizeof(session->auth_pass), "%s", pass);
+        memset(pass, 0, sizeof(pass));
+        session->auth_kind = session->reconnect ? TORIRSSERVER_SESSION_AUTH_RECONNECT
+                             : auth_type == OSRS_LOGIN_AUTH_TOKEN ? TORIRSSERVER_SESSION_AUTH_TOKEN
+                                                                  : TORIRSSERVER_SESSION_AUTH_PASSWORD;
+        memcpy(session->auth_seed, seed, sizeof(session->auth_seed));
+        session->auth_claimed = claimed;
+        session->auth_payload_len = payload_len;
+        session->state = TORIRSSERVER_SESSION_AUTH;
+        return 1;
+    }
     if( !session->reconnect && srv->check_passwords )
     {
-        if( session->auth_async && auth_type == OSRS_LOGIN_AUTH_PASSWORD )
-        {
-            /* Off the loop: the host hands user and password to its pool and
-             * answers with ToriRSServer_SessionAuthDone. */
-            snprintf(session->auth_user, sizeof(session->auth_user), "%s", user);
-            snprintf(session->auth_pass, sizeof(session->auth_pass), "%s", pass);
-            memset(pass, 0, sizeof(pass));
-            memcpy(session->auth_seed, seed, sizeof(session->auth_seed));
-            session->auth_claimed = claimed;
-            session->auth_payload_len = payload_len;
-            session->state = TORIRSSERVER_SESSION_AUTH;
-            return 1;
-        }
         {
             /* A token is the deob's one-time login (class660.field7035): minted by
              * the play endpoint for exactly one account, spent here. It is never
@@ -951,7 +977,7 @@ step_login(
     }
     memset(pass, 0, sizeof(pass));
     return login_finish(session, srv, user, seed, claimed, payload_len,
-                        ToriRSServer_AuthIsAdmin(user));
+                        ToriRSServer_AuthIsAdmin(user), ToriRSServer_AuthIsRecorded(user));
 }
 
 int
@@ -1286,7 +1312,8 @@ ToriRSServer_SessionAuthDone(
     struct ToriRSServerSession* session,
     struct ToriRSServer* srv,
     int auth,
-    int admin)
+    int admin,
+    int record)
 {
     char user[64];
 
@@ -1296,8 +1323,10 @@ ToriRSServer_SessionAuthDone(
     memset(session->auth_pass, 0, sizeof(session->auth_pass));
     snprintf(user, sizeof(user), "%s", session->auth_user);
     session->state = TORIRSSERVER_SESSION_LOGIN;
-    if( login_refused(session, user, auth, OSRS_LOGIN_AUTH_PASSWORD) )
+    if( login_refused(session, user, auth,
+                      session->auth_kind == TORIRSSERVER_SESSION_AUTH_TOKEN ? OSRS_LOGIN_AUTH_TOKEN
+                                                                            : OSRS_LOGIN_AUTH_PASSWORD) )
         return;
     login_finish(session, srv, user, session->auth_seed, session->auth_claimed,
-                 session->auth_payload_len, admin);
+                 session->auth_payload_len, admin, record);
 }

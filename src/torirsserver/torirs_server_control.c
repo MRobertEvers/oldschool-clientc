@@ -1001,11 +1001,19 @@ ctl_handle_hello(
                                                    who, sizeof(who));
     /* Behind the gate a ticket alone is any signed-in player, and this link
      * runs cheats on anyone and reloads the world: staff only, as the account
-     * site decides staff (a linked player account with admin = 1). */
-    if( c->hello_ok && c->gated && !ToriRSServer_AuthLoginIsStaff(who) )
+     * site decides staff (a linked player account with admin = 1), asked of
+     * the player account server (`login_is_staff`, set with the gate). That
+     * is a wait on the loop -- a direct call when this world hosts the
+     * server, a loopback request when it does not -- paid once per control
+     * link a gated tool opens, never per tick. */
+    if( c->hello_ok && c->gated )
     {
-        fprintf(stderr, "torirsserver: control link hello: '%s' is not staff\n", who);
-        c->hello_ok = 0;
+        assert(srv->login_is_staff);
+        if( !srv->login_is_staff(who) )
+        {
+            fprintf(stderr, "torirsserver: control link hello: '%s' is not staff\n", who);
+            c->hello_ok = 0;
+        }
     }
     frame = ctl_frame_begin(c, TORIRSSERVER_CTL_FACT_HELLO);
     ctl_frame_u32(&frame, TORIRSSERVER_CTL_VERSION);

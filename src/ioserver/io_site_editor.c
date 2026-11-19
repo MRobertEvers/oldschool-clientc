@@ -8,11 +8,15 @@
  * Where the truth is, and how an edit lands, depends on whether the player is
  * logged in, which the game's control link answers (io_ctl.h):
  *
- *   offline  the save (`<saves>/<key>.ini`) is the account. It is read and
- *            edited with the map editor's line-preserving codec
+ *   offline  the player account server's copy of the save is the account
+ *            (playerserver/player_client.h, PlayerClient_SaveGet / SavePut).
+ *            It is edited with the map editor's line-preserving codec
  *            (torirsmaped/torirs_maped_acctsave.h): one line changes, every
  *            other line -- keys this build does not know included -- comes
- *            back byte for byte, written atomically.
+ *            back byte for byte. The server refuses the write while any world
+ *            has the character (a world on another machine, which this site's
+ *            control link does not see, included): that world's copy is the
+ *            newer, and its logout would replace the edit.
  *   online   the save is stale until the next logout, and that logout
  *            overwrites it. The page shows a SNAPSHOT the game writes on
  *            request (CTL_SNAPSHOT, `<saves>/snapshots/<key>.ini`), and an
@@ -20,8 +24,9 @@
  *            cheat can do: a level, a varp by name, an item into the backpack
  *            (and wielded for an equipment slot), the backpack cleared.
  *            Anything else asks for the player to be logged out first
- *            (Log out: CTL_LOGOUT, then wait for the game to write the
- *            save, so the edit cannot be overwritten by it).
+ *            (Log out: CTL_LOGOUT, then wait for the world to hand the save
+ *            back to the player account server, so the edit cannot be
+ *            overwritten by it).
  *
  * The page is a shell: the account as JSON, and the editor itself
  * (`/admin-art/player_editor.js` + `.css`, src/ioserver/site/) beside the
@@ -43,6 +48,7 @@
  */
 
 #include "io_ctl.h"
+#include "playerserver/player_client.h"
 #include "torirsmaped/torirs_maped_acctsave.h"
 
 #ifdef _WIN32
@@ -147,9 +153,9 @@ pe_state_json(
     buf_printf(b, ",\"save\":%s,\"snapshot\":%s,\"ctl\":\"%s\"", have_save ? "true" : "false",
                snapshot ? "true" : "false",
                ctl == IO_CTL_OK ? "ok" : ctl == IO_CTL_DOWN ? "down" : "refused");
-    buf_printf(b, ",\"admin\":%s", ToriRSServer_AuthIsAdmin(key) ? "true" : "false");
+    buf_printf(b, ",\"admin\":%s", PlayerClient_IsAdmin(key) ? "true" : "false");
     buf_puts(b, ",\"linked\":");
-    if( ToriRSServer_AuthManagedBy(key, owner, sizeof(owner)) == 1 )
+    if( PlayerClient_ManagedBy(key, owner, sizeof(owner)) == 1 )
         buf_json(b, owner);
     else
         buf_puts(b, "null");
@@ -234,6 +240,55 @@ pe_state_json(
     (void)gate;
 }
 
+/* The player account server's copy of `key`'s save into `save`: 1 read, 0
+ * none (or nothing answered: the page then shows no save to edit). */
+static int
+pe_load_server(
+    struct ToriRSMapEdAcctSave* save,
+    char const* key)
+{
+    char world[PLAYER_WORLD_MAX];
+    char* text = NULL;
+
+    if( PlayerClient_SaveGet(key, &text, world, sizeof(world)) != 1 )
+        return 0;
+    ToriRSMapEd_AcctSaveParse(save, text, strlen(text));
+    ToriMem_Free(ToriMem_Net(), text);
+    return 1;
+}
+
+/* `save` as the player account server's copy: NULL when written, else why
+ * not, as a sentence for the page. */
+static char const*
+pe_store_server(
+    struct ToriRSMapEdAcctSave const* save,
+    char const* key,
+    char* why,
+    size_t why_cap)
+{
+    char world[PLAYER_WORLD_MAX];
+    size_t len = ToriRSMapEd_AcctSaveEmit(save, NULL, 0);
+    char* text = ToriMem_Alloc(ToriMem_Net(), len + 1);
+    int written;
+
+    assert(text);
+    ToriRSMapEd_AcctSaveEmit(save, text, len + 1);
+    written = text[0] ? PlayerClient_SavePut(key, text, world, sizeof(world)) : 0;
+    ToriMem_Free(ToriMem_Net(), text);
+    if( written == 1 )
+        return NULL;
+    if( written < 0 )
+        snprintf(why, why_cap, "The player account service is not answering; nothing was saved.");
+    else if( world[0] )
+        snprintf(why, why_cap,
+                 "%s is logged in on world %s, whose copy of the save is the newer: log them "
+                 "out there first.",
+                 key, world);
+    else
+        snprintf(why, why_cap, "The save could not be written.");
+    return why;
+}
+
 /* Who is online, the row for `key`, and the account as it is now: the
  * game's snapshot when online, else the save. 1 when there is an account to
  * show. */
@@ -262,7 +317,7 @@ pe_read(
     }
     if( *snapshot )
         return 1;
-    return ToriRSMapEd_AcctSaveLoad(save, ToriRSServer_SavePath(key));
+    return pe_load_server(save, key);
 }
 
 static void
@@ -624,22 +679,22 @@ pe_handle_set(
     else
     {
         struct ToriRSMapEdAcctSave save;
-        char path[1100];
+        char why[256];
 
-        snprintf(path, sizeof(path), "%s", ToriRSServer_SavePath(key));
         ToriRSMapEd_AcctSaveInit(&save);
-        if( !path[0] || !ToriRSMapEd_AcctSaveLoad(&save, path) )
+        if( !pe_load_server(&save, key) )
             snprintf(message, sizeof(message),
                      "%s has no save yet: it has never logged in, so there is nothing to edit.",
                      key);
         else
         {
             char const* refused = pe_apply_offline(&save, k, v, what, sizeof(what));
+            char const* unsaved = refused ? NULL : pe_store_server(&save, key, why, sizeof(why));
 
             if( refused )
                 snprintf(message, sizeof(message), "%s", refused);
-            else if( !ToriRSMapEd_AcctSaveWrite(&save, path) )
-                snprintf(message, sizeof(message), "The save could not be written.");
+            else if( unsaved )
+                snprintf(message, sizeof(message), "%s", unsaved);
             else
             {
                 ok = 1;
@@ -653,18 +708,18 @@ pe_handle_set(
     pe_reply(gate, who, key, res, ok, message);
 }
 
-static long long
-pe_mtime(char const* path)
+/* 1 once no world has `key` -- its save is back with the player account
+ * server, where an edit lands and nothing overwrites it. */
+static int
+pe_save_returned(char const* key)
 {
-    struct stat st;
+    struct PlayerAccountInfo account;
 
-    if( stat(path, &st) != 0 )
-        return 0;
-    return (long long)st.st_mtime;
+    return PlayerClient_Account(key, &account) >= 0 && !account.world[0];
 }
 
-/* Log the player out and wait until the game has written their save, so an
- * edit after it lands on the real file and nothing overwrites it. */
+/* Log the player out and wait until the world has handed their save back,
+ * so an edit after it lands on the real copy and nothing overwrites it. */
 static void
 pe_handle_logout(
     struct IoGate* gate,
@@ -675,14 +730,10 @@ pe_handle_logout(
     struct IoCtlPlayers* players = ToriMem_Alloc(ToriMem_Net(), sizeof(*players));
     struct IoCtlPlayer const* live = NULL;
     struct IoCtlReply reply;
-    char path[1100];
     char message[256];
-    long long before;
     int ok = 0;
 
     assert(players);
-    snprintf(path, sizeof(path), "%s", ToriRSServer_SavePath(key));
-    before = pe_mtime(path);
     if( IoCtl_Players(who, players) == IO_CTL_OK )
         live = IoCtl_Find(players, key);
     if( !live )
@@ -692,14 +743,13 @@ pe_handle_logout(
     else
     {
         snprintf(message, sizeof(message),
-                 "Logged out, but the game had not written the save after %d seconds: refresh "
-                 "before editing.",
+                 "Logged out, but the world had not handed the save back after %d seconds: "
+                 "refresh before editing.",
                  PE_LOGOUT_WAIT_MS / 1000);
         fprintf(stderr, "io_server: '%s' logged out '%s'\n", who, key);
-        /* The save is written by the game's teardown after the player leaves
-         * the list, on a pool thread: both, or an edit could be overwritten. A
-         * save written within the same second as `before` reads as unchanged,
-         * so the wait also ends once the player is gone and a second passed. */
+        /* The world hands the save back from its teardown, after the player
+         * leaves the list, on a pool thread: the player gone AND the player
+         * account server's note cleared, or an edit could be overwritten. */
         for( int waited = 0; waited < PE_LOGOUT_WAIT_MS; waited += 200 )
         {
             int gone;
@@ -710,7 +760,7 @@ pe_handle_logout(
              * game answers by ending the session. */
             if( !gone && waited == 3000 && live )
                 IoCtl_Logout(who, live->account, &reply);
-            if( gone && (pe_mtime(path) != before || waited >= 1400) )
+            if( gone && pe_save_returned(key) )
             {
                 ok = 1;
                 snprintf(message, sizeof(message), "%s is logged out; the save is theirs to edit.",

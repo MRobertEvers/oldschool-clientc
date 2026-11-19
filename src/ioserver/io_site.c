@@ -7,6 +7,7 @@
 #include "io_gate_links.h"
 #include "mem/torirs_mem.h"
 #include "accountserver/account_client.h"
+#include "playerserver/player_client.h"
 #include "torirsserver/torirs_server_auth.h"
 #include "torirsserver/torirs_server_savefile.h"
 
@@ -375,7 +376,7 @@ site_is_staff(
 
     for( int i = 0; i < linked; i++ )
     {
-        if( ToriRSServer_AuthIsAdmin(names[i]) )
+        if( PlayerClient_IsAdmin(names[i]) )
             return 1;
     }
     return 0;
@@ -1581,6 +1582,30 @@ struct SiteRecordedAccount
     int record;
 };
 
+#define SITE_RECORDED_ACCOUNTS_MAX 1024
+
+struct SiteRecordedAccounts
+{
+    struct SiteRecordedAccount* rows;
+    int count;
+};
+
+/* PlayerClient_Each's `each`: one row per player account. */
+static void
+recorded_account_add(
+    struct PlayerAccountInfo const* account,
+    void* ctx)
+{
+    struct SiteRecordedAccounts* list = ctx;
+    struct SiteRecordedAccount* a;
+
+    if( list->count >= SITE_RECORDED_ACCOUNTS_MAX )
+        return;
+    a = &list->rows[list->count++];
+    snprintf(a->key, sizeof(a->key), "%s", account->key);
+    a->record = account->record;
+}
+
 static int
 recorded_account_cmp(
     void const* a,
@@ -1606,12 +1631,10 @@ page_recordings(
     char account[SITE_NAME_MAX] = "";
     char done[16] = "";
     char player[SITE_NAME_MAX] = "";
-    char accounts_dir[1024];
+    struct SiteRecordedAccounts recorded;
     struct SiteRecordedAccount* accounts =
-        ToriMem_Alloc(ToriMem_Net(), 1024 * sizeof(*accounts));
+        ToriMem_Alloc(ToriMem_Net(), SITE_RECORDED_ACCOUNTS_MAX * sizeof(*accounts));
     int account_count = 0;
-    DIR* dir;
-    struct dirent* entry;
     long long total = 0;
     long long now = (long long)time(NULL);
     int count;
@@ -1624,24 +1647,11 @@ page_recordings(
     IoGate_QueryField(req, "player", player, sizeof(player));
     count = recordings_list(account, &list);
 
-    snprintf(accounts_dir, sizeof(accounts_dir), "%s/accounts", ToriRSServer_SaveDir());
-    dir = opendir(accounts_dir);
-    if( dir )
-    {
-        while( (entry = readdir(dir)) != NULL && account_count < 1024 )
-        {
-            size_t len = strlen(entry->d_name);
-            struct SiteRecordedAccount* a;
-
-            if( len <= 4 || len - 4 >= SITE_NAME_MAX ||
-                strcmp(entry->d_name + len - 4, ".ini") != 0 )
-                continue;
-            a = &accounts[account_count++];
-            snprintf(a->key, sizeof(a->key), "%.*s", (int)(len - 4), entry->d_name);
-            a->record = ToriRSServer_AuthIsRecorded(a->key);
-        }
-        closedir(dir);
-    }
+    /* The player account server's list; a silent one lists none. */
+    recorded.rows = accounts;
+    recorded.count = 0;
+    PlayerClient_Each("", recorded_account_add, &recorded);
+    account_count = recorded.count;
     qsort(accounts, (size_t)account_count, sizeof(*accounts), recorded_account_cmp);
 
     page_begin(&b, gate, who, "Recordings", "/admin/recordings");
@@ -1964,7 +1974,7 @@ page_users(
             if( n > 0 )
                 buf_puts(&b, ", ");
             player_link_to(&b, player_key, names[n]);
-            if( ToriRSServer_AuthIsAdmin(names[n]) )
+            if( PlayerClient_IsAdmin(names[n]) )
                 buf_puts(&b, "&nbsp;<span class=\"note\">(admin)</span>");
         }
         buf_puts(&b, "</td><td>");
@@ -2036,6 +2046,30 @@ struct SitePlayerAccount
     int admin;
 };
 
+struct SitePlayerAccountList
+{
+    struct SitePlayerAccount* rows;
+    int count;
+};
+
+/* PlayerClient_Each's `each`. */
+static void
+player_account_add(
+    struct PlayerAccountInfo const* account,
+    void* ctx)
+{
+    struct SitePlayerAccountList* list = ctx;
+    struct SitePlayerAccount* a;
+
+    if( list->count >= SITE_PLAYER_ACCOUNTS_MAX || !recording_account_ok(account->key) )
+        return;
+    a = &list->rows[list->count++];
+    snprintf(a->key, sizeof(a->key), "%s", account->key);
+    a->linked = account->linked;
+    snprintf(a->owner, sizeof(a->owner), "%s", account->linked == 1 ? account->owner : "");
+    a->admin = account->admin;
+}
+
 static int
 player_account_cmp(
     void const* a,
@@ -2052,39 +2086,19 @@ player_accounts_list(
     char const* filter,
     struct SitePlayerAccount** out)
 {
-    char dir_path[1024];
-    DIR* dir;
-    struct dirent* entry;
     struct SitePlayerAccount* list =
         ToriMem_Alloc(ToriMem_Net(), SITE_PLAYER_ACCOUNTS_MAX * sizeof(*list));
-    int count = 0;
+    struct SitePlayerAccountList collect;
 
+    assert(filter);
     assert(list);
     *out = list;
-    snprintf(dir_path, sizeof(dir_path), "%s/accounts", ToriRSServer_SaveDir());
-    dir = opendir(dir_path);
-    if( !dir )
-        return 0;
-    while( (entry = readdir(dir)) != NULL && count < SITE_PLAYER_ACCOUNTS_MAX )
-    {
-        size_t len = strlen(entry->d_name);
-        struct SitePlayerAccount* a;
-
-        if( len <= 4 || len - 4 >= SITE_NAME_MAX || strcmp(entry->d_name + len - 4, ".ini") != 0 )
-            continue;
-        a = &list[count];
-        snprintf(a->key, sizeof(a->key), "%.*s", (int)(len - 4), entry->d_name);
-        if( !recording_account_ok(a->key) || (filter[0] && !strstr(a->key, filter)) )
-            continue;
-        a->linked = ToriRSServer_AuthManagedBy(a->key, a->owner, sizeof(a->owner));
-        if( a->linked != 1 )
-            a->owner[0] = '\0';
-        a->admin = ToriRSServer_AuthIsAdmin(a->key);
-        count++;
-    }
-    closedir(dir);
-    qsort(list, (size_t)count, sizeof(*list), player_account_cmp);
-    return count;
+    collect.rows = list;
+    collect.count = 0;
+    /* The player account server filters by key; a silent one lists none. */
+    PlayerClient_Each(filter, player_account_add, &collect);
+    qsort(list, (size_t)collect.count, sizeof(*list), player_account_cmp);
+    return collect.count;
 }
 
 /* `/admin/players?done=..&player=..&login=..[&q=..]` */
@@ -2311,7 +2325,7 @@ handle_players_unlink(
 
     IoGate_FormField(req, "player", player, sizeof(player));
     IoGate_FormField(req, "q", q, sizeof(q));
-    if( !player[0] || ToriRSServer_AuthManagedBy(player, owner, sizeof(owner)) != 1 ||
+    if( !player[0] || PlayerClient_ManagedBy(player, owner, sizeof(owner)) != 1 ||
         !IoGate_UnlinkPlayer(gate, owner, player) )
     {
         page_players(gate, who, req, res, 400, "That account is not linked to a login.");
@@ -2601,7 +2615,7 @@ IoSite_Handle(
             IoGate_FormField(req, "player", player, sizeof(player));
             IoGate_FormField(req, "state", state, sizeof(state));
             on = strcmp(state, "on") == 0;
-            if( !player[0] || !ToriRSServer_AuthSetRecorded(player, on) )
+            if( !player[0] || !PlayerClient_SetRecorded(player, on) )
             {
                 redirect(res, "/admin/recordings");
                 return 1;

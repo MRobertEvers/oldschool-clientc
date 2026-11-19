@@ -4,6 +4,7 @@
 #include "io_gate_links.h"
 
 #include "mem/torirs_mem.h"
+#include "playerserver/player_client.h"
 #include "torirsserver/torirs_server_savefile.h"
 
 #include <sqlite3.h>
@@ -236,8 +237,9 @@ IoGateLinks_List(
         if( !display || !token || !player )
             continue;
         /* The record decides: an unlinked or re-linked account's row is a
-         * button that would only fail. */
-        if( !ToriRSServer_AuthLinkVerify(display, user, token) )
+         * button that would only fail. A player account server that did not
+         * answer decides nothing: the row is kept, and listed. */
+        if( PlayerClient_LinkCheck(display, user, token) == 0 )
         {
             if( stale_count < IO_GATE_LINKS_STALE_MAX )
                 snprintf(stale[stale_count++], sizeof(stale[0]), "%s", player);

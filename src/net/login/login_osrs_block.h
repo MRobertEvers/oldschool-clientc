@@ -155,7 +155,11 @@ enum
     OSRS_LOGINRES_SUCCESSFUL = 0,
     OSRS_LOGINRES_OK = 2,
     OSRS_LOGINRES_INVALID_USER_OR_PASS = 3,
+    /** "Your account is already logged in." */
+    OSRS_LOGINRES_ALREADY_ONLINE = 5,
     OSRS_LOGINRES_CLIENT_OUT_OF_DATE = 6,
+    /** "Unable to connect. Login server offline." */
+    OSRS_LOGINRES_LOGIN_SERVER_OFFLINE = 8,
     OSRS_LOGINRES_BAD_SESSION_ID = 10,
     /* Var-short framed, and the payload is the player-info init block — the
      * one thing a re-established session cannot rebuild for itself, because

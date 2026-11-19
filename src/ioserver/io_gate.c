@@ -7,6 +7,7 @@
 
 #include "mem/torirs_mem.h"
 #include "accountserver/account_client.h"
+#include "playerserver/player_client.h"
 #include "torirsserver/torirs_server_auth.h"
 #include "torirsserver/torirs_server_oauth.h"
 #include "torirsserver/torirs_server_savefile.h"
@@ -1667,7 +1668,7 @@ IoGate_LinkPlayer(
         *out_message = "Too many attempts. Try again in a few minutes.";
         return IO_GATE_LINK_REFUSED;
     }
-    result = ToriRSServer_AuthLink(username, password, who, token);
+    result = PlayerClient_Link(username, password, who, token);
     memset(password, 0, password_cap);
     if( result == TORIRSSERVER_LINK_NO_ACCOUNT )
     {
@@ -1712,9 +1713,9 @@ IoGate_UnlinkPlayer(
     assert(who);
     assert(player);
     if( !player_name_ok(player) ||
-        ToriRSServer_AuthManagedBy(player, owner, sizeof(owner)) != 1 || strcmp(owner, who) != 0 )
+        PlayerClient_ManagedBy(player, owner, sizeof(owner)) != 1 || strcmp(owner, who) != 0 )
         return 0;
-    if( !ToriRSServer_AuthUnlink(player) )
+    if( !PlayerClient_Unlink(player) )
         return 0;
     IoGateLinks_Drop(gate->links, who, player);
     fprintf(stderr, "io_server: gate: '%s' unlinked player account '%s'\n", who, player);
@@ -1739,8 +1740,9 @@ IoGate_CreatePlayer(
     char password[TORIRSSERVER_AUTH_PASSWORD_MAX + 1];
     int tries = 0;
     char const* problem = NULL;
-    char const* save;
-    struct stat st;
+    char* save = NULL;
+    char world[PLAYER_WORLD_MAX];
+    int saved;
     enum ToriRSServerCreateResult created;
     enum ToriRSServerLinkResult linked;
 
@@ -1767,8 +1769,14 @@ IoGate_CreatePlayer(
     }
     /* A character saved before passwords existed has no record, and a first
      * login would claim it; a form that makes NEW accounts must not. */
-    save = ToriRSServer_SavePath(username);
-    if( save[0] && stat(save, &st) == 0 )
+    saved = PlayerClient_SaveGet(username, &save, world, sizeof(world));
+    ToriMem_Free(ToriMem_Net(), save);
+    if( saved < 0 )
+    {
+        *out_message = "The player account service is not answering. Try again shortly.";
+        return IO_GATE_LINK_FAILED;
+    }
+    if( saved > 0 || world[0] )
     {
         *out_message = "A character by that name already exists. Choose another name.";
         return IO_GATE_LINK_REFUSED;
@@ -1786,7 +1794,7 @@ IoGate_CreatePlayer(
         if( !ToriRSServer_AuthPasswordProblem(username, password) )
             break;
     }
-    created = ToriRSServer_AuthCreate(username, password, admin, &problem);
+    created = PlayerClient_Create(username, password, admin, &problem);
     if( created != TORIRSSERVER_CREATE_OK )
     {
         memset(password, 0, sizeof(password));
@@ -1799,7 +1807,7 @@ IoGate_CreatePlayer(
         return created == TORIRSSERVER_CREATE_WRITE_FAILED ? IO_GATE_LINK_FAILED
                                                             : IO_GATE_LINK_REFUSED;
     }
-    linked = ToriRSServer_AuthLink(username, password, owner, token);
+    linked = PlayerClient_Link(username, password, owner, token);
     memset(password, 0, sizeof(password));
     if( linked != TORIRSSERVER_LINK_OK )
     {
@@ -1845,7 +1853,7 @@ IoGate_AssignPlayer(
         *out_message = "Choose a player account.";
         return IO_GATE_LINK_REFUSED;
     }
-    if( ToriRSServer_AuthManagedBy(player_key, owner, sizeof(owner)) == 1 &&
+    if( PlayerClient_ManagedBy(player_key, owner, sizeof(owner)) == 1 &&
         strcmp(owner, login) == 0 )
     {
         *out_message = "That account is already linked to that login.";
@@ -1859,7 +1867,7 @@ IoGate_AssignPlayer(
     }
     if( !IoGateLinks_Display(gate->links, player_key, display, sizeof(display)) )
         snprintf(display, sizeof(display), "%s", player_key);
-    result = ToriRSServer_AuthAssign(player_key, login, token);
+    result = PlayerClient_Assign(player_key, login, token);
     if( result == TORIRSSERVER_LINK_NO_ACCOUNT )
     {
         *out_message = "There is no player account by that name.";

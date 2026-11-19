@@ -479,14 +479,32 @@ revoke_family(
     revoke_where("refresh", fam, NULL, now);
 }
 
+static const struct ToriRSServerOAuthAccounts g_local_accounts = {
+    ToriRSServer_AuthLogin,
+    ToriRSServer_AuthManagedBy,
+    ToriRSServer_AuthLinkVerify,
+};
+static const struct ToriRSServerOAuthAccounts* g_accounts = &g_local_accounts;
+
+void
+ToriRSServer_OAuthUseAccounts(const struct ToriRSServerOAuthAccounts* accounts)
+{
+    assert(accounts);
+    assert(accounts->login);
+    assert(accounts->managed_by);
+    assert(accounts->link_verify);
+    g_accounts = accounts;
+}
+
 /* 1 when the account `name` is linked to a web login, or its record cannot
- * be read: either way no player-held token may sign it in. */
+ * be read (or nobody answered): either way no player-held token may sign it
+ * in. */
 static int
 account_is_managed(const char* name)
 {
     char owner[64];
 
-    return ToriRSServer_AuthManagedBy(name, owner, sizeof(owner)) != 0;
+    return g_accounts->managed_by(name, owner, sizeof(owner)) != 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -588,7 +606,12 @@ check_account(
             *out_description = "Invalid username or password.";
             return TORIRSSERVER_OAUTH_INVALID_GRANT;
         }
-    auth = ToriRSServer_AuthLogin(username, password);
+    auth = g_accounts->login(username, password);
+    if( auth == TORIRSSERVER_AUTH_UNAVAILABLE )
+    {
+        *out_description = "The player account service is not answering. Try again shortly.";
+        return TORIRSSERVER_OAUTH_SERVER_ERROR;
+    }
     if( auth == TORIRSSERVER_AUTH_WEAK )
     {
         *out_description = ToriRSServer_AuthPasswordProblem(username, password);
@@ -908,8 +931,8 @@ ToriRSServer_OAuthUserPlay(
         return TORIRSSERVER_OAUTH_INVALID_REQUEST;
     /* The owner AND the live link's token: a row left behind by an unlink, or
      * by a re-link that minted a newer token, buys nothing. */
-    if( ToriRSServer_AuthManagedBy(display_name, owner, sizeof(owner)) != 1 ||
-        strcmp(owner, user) != 0 || !ToriRSServer_AuthLinkVerify(display_name, user, link_token) )
+    if( g_accounts->managed_by(display_name, owner, sizeof(owner)) != 1 ||
+        strcmp(owner, user) != 0 || !g_accounts->link_verify(display_name, user, link_token) )
         return TORIRSSERVER_OAUTH_INVALID_GRANT;
     memset(&record, 0, sizeof(record));
     snprintf(record.sub, sizeof(record.sub), "%s", sub);
@@ -958,7 +981,7 @@ ToriRSServer_OAuthRedeemOtl(
     /* A linked account takes only a token its owner's session minted: one the
      * player's own access token bought in the minute before the link is
      * refused, and so is one from a login it has since been moved away from. */
-    managed = ToriRSServer_AuthManagedBy(display_name, owner, sizeof(owner));
+    managed = g_accounts->managed_by(display_name, owner, sizeof(owner));
     if( managed < 0 )
         return 0;
     if( managed > 0 )

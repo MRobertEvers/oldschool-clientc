@@ -575,8 +575,8 @@ reads it (`account_server.h` lists the routes). Everything else is its client:
   the gains, the chart, the sessions and the log. When the account server does
   not answer, the gate and the site say so (503), never "wrong password".
 - **`torirsserver --account`** asks it for web logins, invites and the admin
-  flag's effect on the hiscores; player accounts stay files the game server
-  reads.
+  flag's effect on the hiscores; player accounts are the player account
+  server's (below).
 
 `TORIRS_ACCOUNT_SERVER=host:port` points the game server and io_server
 elsewhere (default 127.0.0.1:8091); `TORIRS_WORLD_NAME` names a world's
@@ -595,3 +595,59 @@ create ... admin` apply it at once. Experience over time is kept per day: a
 stat's row for each day it changed, so a gain over a day, a week or a month is
 one lookup per skill. Session history is private to the login its account is
 linked to.
+
+### The player account server
+
+```sh
+TORIRSSERVER_SAVES=saves ./src/build_opt/player_server [--port 8092]   # make -C src player-server
+```
+
+A different server from the one above, on purpose. A **user account** is a web
+login (the account server's): a bucket that player accounts are linked into. A
+**player account** is a character: its credential (`<saves>/accounts/<name>.ini`
+-- password, admin and record flags, the web login it is linked to), its save
+(`<saves>/<name>.ini`) and its display name (`<saves>/names/`). The player
+account server (`src/playerserver/player_server.h`) is the one owner of all
+three: every world's login and logout, io_server's gate, site and player
+editor, the OAuth grants and `torirsserver --account` ask it
+(`player_client.h`). The two servers never talk to each other.
+
+**Who has the save.** A world's login takes the character and is handed the
+server's copy of its save -- or is refused with Jagex's response 5 ("Your
+account is already logged in") when another world has it. While the
+character plays, its save is the world's: kept in the world's own directory,
+`<saves>/worlds/<world>/<name>.ini` beside a `<name>.lease` file, and written
+there at every save. The server is not touched again until the logout, when
+the world hands the save back under the lease's token; the server writes it
+and clears its note of which world had the character. The note does not
+lapse:
+
+- **A world that crashes** still has the saves on its disk. Its characters
+  cannot log in anywhere else (the copy on the server is older) until it
+  starts again, finds them, and hands them back; its start (`/hello`) names
+  them, and lets go of anything else it held.
+- **A world that is not coming back:** `torirsserver --account release <name>`
+  takes the character back. It logs in from the server's copy, and if that
+  world ever returns, its own copy is refused (set aside under
+  `<saves>/worlds/<world>/refused/`), never written over the newer one.
+- **A return the server does not answer** stays on the world's disk and is
+  offered again every 15 s; the character stays the world's meanwhile.
+
+Leases survive a restart of the server (`<saves>/player_leases.journal`),
+and the saves directory is locked while one runs (`<saves>/player_server.lock`).
+An unanswered check refuses the login with response 8 ("Login server offline").
+
+Where it runs:
+
+- **One world:** nothing to start. A world that checks passwords and names no
+  server hosts one itself, on a thread, serving 127.0.0.1:8092 for io_server
+  and `--account` beside it.
+- **Several worlds on one saves directory:** run `player_server`, and start
+  every world with `TORIRS_PLAYER_SERVER=127.0.0.1:8092` and its own
+  `TORIRSSERVER_WORLD` (the default is `<host>:<port>`). A world that names no
+  server finds the directory locked and refuses to start rather than keep a
+  table of its own.
+
+`TORIRS_PLAYER_SERVER=host:port` points io_server and `--account` too. A
+development world (`--dev`) takes no leases, checks no passwords, and keeps
+its saves in `<saves>/` as before.

@@ -4,6 +4,13 @@
 /*
  * Passwords: an account record per login name, checked at GAMELOGIN.
  *
+ * The record functions below are the player account server's
+ * (playerserver/player_server.h), the records' one owner: a world that checks
+ * passwords, io_server and `--account` ask it through
+ * playerserver/player_client.h, whose calls mirror these. Only a process with
+ * no such server -- a development world, the embedded world, the tests --
+ * calls them directly.
+ *
  * Until this existed the server read the password off the wire and dropped
  * it, so anyone who typed a name got that character. That is the right
  * behaviour for a development server -- a harness logs in with whatever it
@@ -130,9 +137,15 @@ enum ToriRSServerAuthResult
     /** The password matched, but the account is linked to a web login
      *  (`managed_by`) and signs in only through that login's session. */
     TORIRSSERVER_AUTH_MANAGED,
-    /** A web login's check could not be asked: the account server
-     *  (account_client.h) did not answer. Nothing was decided. */
+    /** A check could not be asked: the account server (a web login,
+     *  account_client.h) or the player account server (a player account,
+     *  playerserver/player_client.h) did not answer. Nothing was decided; a
+     *  game login is refused with "login server offline". */
     TORIRSSERVER_AUTH_UNAVAILABLE,
+    /** The password matched (or none was asked), but another world holds the
+     *  character (playerserver/player_lease.h): "your account is already
+     *  logged in". */
+    TORIRSSERVER_AUTH_ONLINE,
 };
 
 /**
@@ -204,6 +217,8 @@ enum ToriRSServerLinkResult
     /** The account is linked to a different web login: one owner only. */
     TORIRSSERVER_LINK_OTHER_USER,
     TORIRSSERVER_LINK_WRITE_FAILED,
+    /** The player account server did not answer; nothing was written. */
+    TORIRSSERVER_LINK_UNAVAILABLE,
 };
 
 /**

@@ -1650,7 +1650,8 @@ servers:
 	$(MAKE) io-server
 	$(MAKE) js5-server
 	$(MAKE) account-server
-	@echo "servers: src/build/io_server, src/$(OBJ_DIR)/js5_server and src/$(OBJ_DIR)/account_server"
+	$(MAKE) player-server
+	@echo "servers: src/build/io_server, src/$(OBJ_DIR)/js5_server, src/$(OBJ_DIR)/account_server and src/$(OBJ_DIR)/player_server"
 
 # The account server (accountserver/account_server.h): the one process that
 # opens <saves>/accounts.sqlite -- web logins, invites, hiscores, history, the
@@ -1667,6 +1668,39 @@ account-server: $(OBJ_DIR)/account_server
 $(OBJ_DIR)/account_server: $(ACCOUNT_SERVER_SRCS) $(ACCOUNT_SQLITE_OBJ) | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $@ $(ACCOUNT_SERVER_SRCS) $(ACCOUNT_SQLITE_OBJ) -lm $(IO_SERVER_SOCKET_LIBS)
 	@echo "built $@"
+
+# The player account server (playerserver/player_server.h): the records'
+# owner and the lock on each character. A world that checks passwords hosts
+# it unless TORIRS_PLAYER_SERVER names one, so the world's
+# link (TORIRSSERVER_ACCOUNT_SRCS) carries the server half too; io_server takes
+# only the client. Defined above every rule that lists them.
+PLAYER_CLIENT_SRCS = playerserver/player_client.c playerserver/player_proto.c
+PLAYER_SERVER_CORE_SRCS = $(PLAYER_CLIENT_SRCS) playerserver/player_server.c \
+	playerserver/player_lease.c
+
+# The player account server as its own process (playerserver/player_server.h),
+# for worlds sharing one saves directory: each names it with
+# TORIRS_PLAYER_SERVER. A single world hosts one itself and needs none of this.
+PLAYER_SERVER_SRCS = $(TORIMEM_SRCS) playerserver/player_server_main.c \
+	$(PLAYER_SERVER_CORE_SRCS) ioserver/http_server.c torirsserver/torirs_server_auth.c \
+	torirsserver/torirs_server_savefile.c platform/platform_x_http.c platform/sockstream.c \
+	platform/platform_mdns.c net/sha256.c $(INI_SRC)
+player-server: $(OBJ_DIR)/player_server
+$(OBJ_DIR)/player_server: $(PLAYER_SERVER_SRCS) | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $@ $(PLAYER_SERVER_SRCS) -lm $(IO_SERVER_SOCKET_LIBS)
+	@echo "built $@"
+
+# The lease table and the routes (playerserver/player_lease.h,
+# player_server.h): two worlds, one character; a save handed back under the
+# live lease only; a hello that frees only an earlier run's holds; a
+# restart's journal; the editor's save routes, display names and the
+# records' routes through the client, in process.
+test-player-server: $(OBJ_DIR)/PlayerServerTest
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/PlayerServerTest
+$(OBJ_DIR)/PlayerServerTest: playerserver/test/player_server_test.c \
+		$(filter-out playerserver/player_server_main.c,$(PLAYER_SERVER_SRCS)) | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $@ playerserver/test/player_server_test.c \
+		$(filter-out playerserver/player_server_main.c,$(PLAYER_SERVER_SRCS)) -lm $(IO_SERVER_SOCKET_LIBS)
 
 web: servers
 	$(MAKE) PLATFORM=web OPT=1 MEMTRACE=$(MEMTRACE) all
@@ -1777,7 +1811,7 @@ IO_SERVER_SRCS = $(TORIMEM_SRCS) ioserver/io_server_main.c ioserver/http_server.
 	ui/torirs_chrome_exec_kind.c $(INI_SRC) \
 	ioserver/io_gate.c ioserver/io_gate_links.c ioserver/io_site.c ioserver/io_ctl.c \
 	torirsmaped/torirs_maped_acctsave.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c \
-	accountserver/account_client.c accountserver/account_proto.c \
+	accountserver/account_client.c accountserver/account_proto.c $(PLAYER_CLIENT_SRCS) \
 	torirsserver/torirs_server_savefile.c net/sha256.c net/flat_json.c
 # The gate's links are indexed by sqlite: the vendored 3rd/sqlite. The account
 # database is the account server's; io_server asks it (account_client.c).
@@ -6045,7 +6079,8 @@ TORIRSSERVER_SRCS = torirsserver/torirs_server_main.c torirsserver/torirs_server
 # alone opens the database.
 TORIRSSERVER_ACCOUNT_SRCS = torirsserver/torirs_server_accountlink.c \
 	accountserver/account_proto.c accountserver/account_client.c \
-	platform/platform_x_http.c platform/sockstream.c platform/platform_mdns.c
+	platform/platform_x_http.c platform/sockstream.c platform/platform_mdns.c \
+	$(PLAYER_SERVER_CORE_SRCS) ioserver/http_server.c
 # --scriptrun (torirsserver/torirs_server_scriptrun.c): the in-process script
 # runner, standalone server only -- never TORIRSSERVER_CORE_SRCS, which the
 # embedded client also compiles and which would then carry a second copy of the
@@ -6136,7 +6171,7 @@ TORIRSSERVER_HDRS := $(wildcard torirsserver/*.h scriptrun/*.h serverscript/*.h 
 		net/*.h net/login/*.h net/proto/*.h net/rev/*.h torirsserver/wire/*/*.h net/rev/packets/*.h \
 		world/*.h engine/*.h engine/world_builder/*.h features/*.h game/rs_entity_sync.h \
 		platform/net_transport_ws*.h js5/server/*.h plugin/torirs_plugin_drive_parts.h \
-		plugin/torirs_drive_plan_lua.h)
+		plugin/torirs_drive_plan_lua.h playerserver/*.h ioserver/http_server.h)
 # THE TARGET IS THE FILE THE LINKER WRITES, AND EACH SOURCE IS ITS OWN OBJECT
 # (2026-11-10). Until then this was one command, `$(CC) $(CFLAGS) -o
 # $(OBJ_DIR)/torirsserver <160 sources>`, under a target of that name. Two

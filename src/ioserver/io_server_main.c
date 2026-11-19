@@ -65,6 +65,8 @@
 #include "io_gate.h"
 #include "accountserver/account_server.h"
 #include "accountserver/account_client.h"
+#include "playerserver/player_client.h"
+#include "torirsserver/torirs_server_oauth.h"
 #include "torirsserver/torirs_server_savefile.h"
 
 #include "bootmanifest/bootmanifest.h"
@@ -2171,6 +2173,20 @@ main(
     fflush(stdout);
 
     AccountClient_SetExchange(io_server_account_exchange);
+    /* Player accounts are the player account server's (a world hosts one, or
+     * player_server; TORIRS_PLAYER_SERVER names it): the gate, the site and
+     * the OAuth grants all ask it, through the loop as the account server is
+     * asked. */
+    PlayerClient_SetExchange(io_server_account_exchange);
+    {
+        static const struct ToriRSServerOAuthAccounts accounts = {
+            PlayerClient_Auth,
+            PlayerClient_ManagedBy,
+            PlayerClient_LinkVerify,
+        };
+
+        ToriRSServer_OAuthUseAccounts(&accounts);
+    }
     if( HttpServer_Run(port, io_server_handler, &server) != 0 )
         return 1;
 

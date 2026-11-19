@@ -10,9 +10,11 @@
  *   loop thread    the wait, every coroutine resume, the tick. It never makes
  *                  a call that can block: sockets are non-blocking, and
  *                  everything else goes to the pool.
- *   pool threads   a password check (account file + PBKDF2), a login's save
- *                  read, a logout's save write. One job at a time per
- *                  account, in order (torirs_server_pool.h).
+ *   pool threads   a login's check, lease and save from the player account
+ *                  server (playerserver/player_client.h), a login's save read,
+ *                  a logout's save write and the save's return behind it.
+ *                  One job at a time per account, in order
+ *                  (torirs_server_pool.h).
  *
  * Each connection is a coroutine (host_conn_step): it sniffs the stream, runs
  * the handshake, sends its login's password check and save read to the pool
@@ -25,12 +27,14 @@
 #include "torirs_server_recording.h"
 
 #include "mem/torirs_mem.h"
+#include "playerserver/player_client.h"
 #include "torirs_server.h"
 #include "torirs_server_accountlink.h"
 #include "torirs_server_auth.h"
 #include "torirs_server_boot.h"
 #include "torirs_server_claim.h"
 #include "torirs_server_core.h"
+#include "torirs_server_oauth.h"
 #include "torirs_server_poll.h"
 #include "torirs_server_pool.h"
 #include "torirs_server_save.h"
@@ -59,11 +63,13 @@
 #include <unistd.h>
 #endif
 
+#include <dirent.h>
 #include <errno.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define TORIRSSERVER_TICK_MS 600
 
@@ -93,14 +99,21 @@ enum ToriRSServerHostConnState
     TORIRSSERVER_HOST_CONN_CLOSING,
 };
 
-/* A password check, run on a pool thread. Copies in, verdict out. */
+/* A login's check, run on a pool thread: the password (or the one-time
+ * token) and the character's lease, from the player account server. Copies
+ * in, verdict out. */
 struct ToriRSServerHostAuthJob
 {
     struct ToriRSServerPoolJob job;
     char user[64];
     char pass[64];
-    int result;
-    int admin;
+    /** enum ToriRSServerSessionAuthKind */
+    int kind;
+    /** The world's name and this run of it (ToriRSServer.player_world,
+     *  player_boot): constant while it runs. */
+    const char* world;
+    const char* boot;
+    struct PlayerLogin login;
 };
 
 /* A login's save file, read on a pool thread into a plain malloc block (the
@@ -149,6 +162,15 @@ struct ToriRSServerHostConn
      */
     int claim_held;
     int claim;
+    /**
+     * The character this connection asked the player account server for, as
+     * saves are keyed, and where that stands: `lease_pending` while the check
+     * is with the pool, `lease_held` once it was granted. Each counts once in
+     * the host's ToriRSServerHostLease for the key.
+     */
+    char lease_key[PLAYER_KEY_MAX];
+    int lease_pending;
+    int lease_held;
     struct ToriRSServerHostAuthJob auth;
     struct ToriRSServerHostReadJob read;
     struct ToriRSServerConn conn;
@@ -186,6 +208,44 @@ struct ToriRSServerHostJob
  * A collision only costs a login a second read. */
 #define TORIRSSERVER_HOST_SAVE_SLOTS 4096
 
+/*
+ * A character this world holds the player account server's lease on
+ * (playerserver/player_server.h), and so whose save is this world's: kept in
+ * the world's own directory (ToriRSServer_SaveSetCharacterDir) beside a
+ * `<key>.lease` file naming the token, written at every save, and sent back
+ * only when the character leaves.
+ *
+ * Kept per character rather than per connection, because one world can have
+ * two connections for one character for a moment -- a reloaded tab beside the
+ * socket it replaces, a reconnect the claim may still refuse -- and the
+ * server's lease is the world's, under the newest grant's token. So the save
+ * goes back only when no connection holds the character and none is asking
+ * for it, and then from the last logout's own save job, the text just
+ * composed.
+ */
+struct ToriRSServerHostLease
+{
+    char key[PLAYER_KEY_MAX];
+    /** The live lease's token: the newest grant. "" until one comes back. */
+    char token[PLAYER_LEASE_TOKEN_HEX + 1];
+    /** Connections whose check granted it. */
+    int refs;
+    /** Connections whose check is with the pool. */
+    int pending;
+    /** Nobody here plays it, but its save has not been taken back yet (the
+     *  server did not answer, or this world restarted holding it): the
+     *  return is retried every PLAYER_RETURN_RETRY_MS. */
+    int kept;
+    /** A return job is with the pool. */
+    int returning;
+};
+
+/* How often a save the player account server did not take is offered again. */
+#define PLAYER_RETURN_RETRY_MS 15000L
+/* A crash can leave a held save for every player the world had, beside the
+ * connections' own. */
+#define TORIRSSERVER_HOST_LEASE_CAP (2 * TORIRSSERVER_HOST_CONN_CAP)
+
 struct ToriRSServerHost
 {
     struct ToriRSServer* srv;
@@ -221,6 +281,24 @@ struct ToriRSServerHost
 
     /* Recently ended sessions, for a GAMERECONNECT to reclaim. */
     struct ToriRSServerClaims claims;
+
+    /* The characters this world holds leases on; empty in development mode,
+     * which takes none. At most one per connection. */
+    struct ToriRSServerHostLease leases[TORIRSSERVER_HOST_LEASE_CAP];
+    int lease_count;
+    /* When the kept saves are offered again; whether the boot's hello was
+     * taken (until it is, it is asked again with them). */
+    long next_return;
+    int hello_done;
+    int hello_in_flight;
+    /*
+     * Armed by host_conn_release around ToriRSServer_WorldRemovePlayer when
+     * that logout is the character's last: the save the removal composes
+     * carries the lease's release (host_save_sink), so the release is the
+     * same pool job as the write and runs only once the write succeeded.
+     */
+    char release_key[PLAYER_KEY_MAX];
+    char release_token[PLAYER_LEASE_TOKEN_HEX + 1];
 };
 
 static void
@@ -301,16 +379,168 @@ host_account_key(const char* name)
 /* Pool jobs                                                           */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/* Held saves                                                          */
+/* ------------------------------------------------------------------ */
+/*
+ * A character this world has: its save at ToriRSServer_SavePath (the world's
+ * own directory, ToriRSServer_SaveSetCharacterDir) and the lease's token at
+ * `<key>.lease` beside it. Together they are what the world owes the player
+ * account server; a restart finds them there and returns them. Pool threads
+ * only: these are file operations.
+ */
+
+static void
+held_lease_path(
+    const char* key,
+    char* out,
+    size_t cap)
+{
+    const char* dir = ToriRSServer_SaveCharacterDir();
+
+    assert(dir);
+    snprintf(out, cap, "%s/%s.lease", dir, key);
+}
+
+static int
+held_file_exists(const char* path)
+{
+    FILE* file = fopen(path, "rb");
+
+    if( !file )
+        return 0;
+    fclose(file);
+    return 1;
+}
+
+/* The character's held save as text (NET-allocated), or NULL when there is
+ * none. */
+static char*
+held_save_read(const char* key)
+{
+    FILE* file = fopen(ToriRSServer_SavePath(key), "rb");
+    long len = 0;
+    char* text;
+
+    if( !file )
+        return NULL;
+    if( fseek(file, 0, SEEK_END) == 0 )
+        len = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    if( len <= 0 )
+    {
+        fclose(file);
+        return NULL;
+    }
+    text = ToriMem_Alloc(ToriMem_Net(), (size_t)len + 1);
+    assert(text);
+    if( fread(text, 1, (size_t)len, file) != (size_t)len )
+    {
+        /* Returned short, the server would take half a character. */
+        fprintf(stderr, "torirsserver: cannot read the held save %s\n", ToriRSServer_SavePath(key));
+        abort();
+    }
+    fclose(file);
+    text[len] = '\0';
+    return text;
+}
+
+/* A granted login's files: the token, and -- unless this world had the
+ * character already and still has its own, newer save -- the server's copy
+ * (none at all for a character never saved). 0 when they could not be
+ * written: the login must not go on to read a save that is not there. */
+static int
+held_take(
+    const char* user,
+    const struct PlayerLogin* login)
+{
+    char key[PLAYER_KEY_MAX];
+    char path[1200];
+    char line[PLAYER_LEASE_TOKEN_HEX + 2];
+    const char* save_path;
+
+    ToriRSServer_SaveFileName(user, key, sizeof(key));
+    assert(key[0]);
+    held_lease_path(key, path, sizeof(path));
+    snprintf(line, sizeof(line), "%s\n", login->lease);
+    if( !ToriRSServer_SaveWriteText(path, line) )
+        return 0;
+    save_path = ToriRSServer_SavePath(key);
+    if( login->had && held_file_exists(save_path) )
+        return 1;
+    if( login->save_len > 0 )
+        return ToriRSServer_SaveWriteText(save_path, login->save);
+    /* A new character: no save, here or anywhere. */
+    remove(save_path);
+    return 1;
+}
+
+/* After a return: taken (1) -- the files go; refused (0) -- the save is set
+ * aside where an operator can find it, since the server will never take it;
+ * no answer (-1) -- both stay, to be offered again. */
+static void
+held_settle(
+    const char* key,
+    int result,
+    int had_save)
+{
+    char lease_path[1200];
+
+    if( result < 0 )
+        return;
+    held_lease_path(key, lease_path, sizeof(lease_path));
+    if( result == 0 && had_save )
+    {
+        char aside[1300];
+
+        snprintf(aside, sizeof(aside), "%s/refused/%s-%lld.ini", ToriRSServer_SaveCharacterDir(),
+                 key, (long long)time(NULL));
+        ToriRSServer_SaveMkdirParent(aside);
+        if( ToriRSServer_SaveReplace(ToriRSServer_SavePath(key), aside) == 0 )
+            fprintf(stderr, "torirsserver: '%s''s save from this world is set aside at %s\n", key,
+                    aside);
+    }
+    else
+        remove(ToriRSServer_SavePath(key));
+    remove(lease_path);
+}
+
+/* ------------------------------------------------------------------ */
+/* Pool jobs                                                           */
+/* ------------------------------------------------------------------ */
+
 static void
 host_auth_run(struct ToriRSServerPoolJob* job)
 {
     struct ToriRSServerHostAuthJob* auth = (struct ToriRSServerHostAuthJob*)job;
+    int granted;
 
-    auth->result = (int)ToriRSServer_AuthLogin(auth->user, auth->pass);
+    memset(&auth->login, 0, sizeof(auth->login));
+    if( auth->kind == TORIRSSERVER_SESSION_AUTH_TOKEN )
+    {
+        /* The token first: it names the one account it was minted for, and
+         * only then is that account's lease asked for. */
+        if( ToriRSServer_OAuthRedeemOtl(auth->pass, auth->user, (long long)time(NULL)) )
+            PlayerClient_Login(auth->world, auth->boot, auth->user, NULL, &auth->login);
+        else
+            auth->login.result = TORIRSSERVER_AUTH_REFUSED;
+    }
+    else
+        PlayerClient_Login(auth->world, auth->boot, auth->user,
+                           auth->kind == TORIRSSERVER_SESSION_AUTH_PASSWORD ? auth->pass : NULL,
+                           &auth->login);
     memset(auth->pass, 0, sizeof(auth->pass));
-    auth->admin =
-        (auth->result == TORIRSSERVER_AUTH_OK || auth->result == TORIRSSERVER_AUTH_CLAIMED) &&
-        ToriRSServer_AuthIsAdmin(auth->user);
+    granted = auth->login.result == TORIRSSERVER_AUTH_OK ||
+              auth->login.result == TORIRSSERVER_AUTH_CLAIMED;
+    if( granted && !held_take(auth->user, &auth->login) )
+    {
+        fprintf(stderr, "torirsserver: cannot keep '%s''s save here; the login is refused\n",
+                auth->user);
+        PlayerClient_Release(auth->world, auth->user, auth->login.lease);
+        auth->login.result = TORIRSSERVER_AUTH_UNAVAILABLE;
+        auth->login.lease[0] = '\0';
+    }
+    PlayerClient_LoginFree(&auth->login);
 }
 
 static void
@@ -344,7 +574,9 @@ host_read_run(struct ToriRSServerPoolJob* job)
     fclose(file);
 }
 
-/* A logout's save, written on a pool thread. */
+/* A save, written to the world's held copy on a pool thread -- and, when it
+ * is the character's last logout on this world, handed back to the player
+ * account server behind it: the text just composed, under the lease. */
 struct ToriRSServerHostSaveJob
 {
     struct ToriRSServerCoreJob core; /* first */
@@ -352,7 +584,21 @@ struct ToriRSServerHostSaveJob
     char path[1024];
     char* text;
     int ok;
+    /** "" for a save that returns nothing. */
+    char release_key[PLAYER_KEY_MAX];
+    char release_token[PLAYER_LEASE_TOKEN_HEX + 1];
+    const char* world;
+    /** PlayerClient_Logout's answer: 1 taken, 0 refused, -1 no answer. */
+    int returned;
+    char holder[PLAYER_WORLD_MAX];
 };
+
+static void host_return_finished(
+    struct ToriRSServerHost* host,
+    const char* key,
+    const char* token,
+    int result,
+    const char* holder);
 
 static void
 host_save_run(struct ToriRSServerPoolJob* job)
@@ -360,6 +606,13 @@ host_save_run(struct ToriRSServerPoolJob* job)
     struct ToriRSServerHostSaveJob* save = (struct ToriRSServerHostSaveJob*)job;
 
     save->ok = ToriRSServer_SaveWriteText(save->path, save->text);
+    if( !save->release_key[0] )
+        return;
+    /* From the text, not the file: a held copy that could not be written
+     * does not cost the logout its save. */
+    save->returned = PlayerClient_Logout(save->world, save->release_key, save->release_token,
+                                         save->text, save->holder, sizeof(save->holder));
+    held_settle(save->release_key, save->returned, 1);
 }
 
 static void
@@ -372,6 +625,9 @@ host_save_done(
     (void)core;
     if( !save->ok )
         fprintf(stderr, "torirsserver: SAVE FAILED for %s\n", save->path);
+    if( save->release_key[0] )
+        host_return_finished(save->host, save->release_key, save->release_token, save->returned,
+                             save->holder);
     save->host->saves_in_flight--;
     ToriMem_Free(ToriMem_ServerPlayers(), save->text);
     ToriMem_Free(ToriMem_ServerNet(), save);
@@ -402,12 +658,259 @@ host_save_sink(
     save->host = host;
     save->text = text;
     snprintf(save->path, sizeof(save->path), "%s", path);
+    if( host->release_key[0] )
+    {
+        char file[PLAYER_KEY_MAX];
+
+        ToriRSServer_SaveFileName(account, file, sizeof(file));
+        if( strcmp(file, host->release_key) == 0 )
+        {
+            snprintf(save->release_key, sizeof(save->release_key), "%s", host->release_key);
+            snprintf(save->release_token, sizeof(save->release_token), "%s", host->release_token);
+            save->world = host->srv->player_world;
+            host->release_key[0] = '\0';
+        }
+    }
     save->core.job.fn = host_save_run;
     save->core.job.key = key;
     host->save_seq++;
     host->save_stamp[key % TORIRSSERVER_HOST_SAVE_SLOTS] = host->save_seq;
     host->saves_in_flight++;
     ToriRSServer_CoreSubmitDetached(&host->core, &save->core, host_save_done);
+}
+
+/* ------------------------------------------------------------------ */
+/* Leases                                                              */
+/* ------------------------------------------------------------------ */
+
+/* A return with no save just composed: the character never got as far as
+ * the world, the world composed no save at its removal, or an earlier return
+ * went unanswered. Whatever held save there is goes; none, only the lease. */
+struct ToriRSServerHostReturnJob
+{
+    struct ToriRSServerCoreJob core; /* first */
+    struct ToriRSServerHost* host;
+    const char* world;
+    char key[PLAYER_KEY_MAX];
+    char token[PLAYER_LEASE_TOKEN_HEX + 1];
+    int result;
+    char holder[PLAYER_WORLD_MAX];
+};
+
+static void
+host_return_run(struct ToriRSServerPoolJob* job)
+{
+    struct ToriRSServerHostReturnJob* ret = (struct ToriRSServerHostReturnJob*)job;
+    char* text = held_save_read(ret->key);
+
+    if( text )
+        ret->result = PlayerClient_Logout(ret->world, ret->key, ret->token, text, ret->holder,
+                                          sizeof(ret->holder));
+    else
+        ret->result = PlayerClient_Release(ret->world, ret->key, ret->token);
+    held_settle(ret->key, ret->result, text != NULL);
+    ToriMem_Free(ToriMem_Net(), text);
+}
+
+static void
+host_return_done(
+    struct ToriRSServerCore* core,
+    struct ToriRSServerPoolJob* job)
+{
+    struct ToriRSServerHostReturnJob* ret = (struct ToriRSServerHostReturnJob*)job;
+
+    (void)core;
+    host_return_finished(ret->host, ret->key, ret->token, ret->result, ret->holder);
+    ToriMem_Free(ToriMem_ServerNet(), ret);
+}
+
+/* Queued behind any save of the account already with the pool. */
+static void
+host_return_submit(
+    struct ToriRSServerHost* host,
+    const char* key,
+    const char* token)
+{
+    struct ToriRSServerHostReturnJob* ret = ToriMem_Calloc(ToriMem_ServerNet(), 1, sizeof(*ret));
+
+    assert(ret);
+    ret->host = host;
+    ret->world = host->srv->player_world;
+    snprintf(ret->key, sizeof(ret->key), "%s", key);
+    snprintf(ret->token, sizeof(ret->token), "%s", token);
+    ret->core.job.fn = host_return_run;
+    ret->core.job.key = ToriRSServer_PoolKey(key);
+    ToriRSServer_CoreSubmitDetached(&host->core, &ret->core, host_return_done);
+}
+
+static struct ToriRSServerHostLease*
+host_lease_find(
+    struct ToriRSServerHost* host,
+    const char* key)
+{
+    for( int i = 0; i < host->lease_count; i++ )
+        if( strcmp(host->leases[i].key, key) == 0 )
+            return &host->leases[i];
+    return NULL;
+}
+
+/* `key`'s entry, made when there is none; NULL only when the table is full,
+ * which only a restart holding more saves than the table can reach. */
+static struct ToriRSServerHostLease*
+host_lease_get(
+    struct ToriRSServerHost* host,
+    const char* key)
+{
+    struct ToriRSServerHostLease* lease = host_lease_find(host, key);
+
+    if( lease )
+        return lease;
+    if( host->lease_count == TORIRSSERVER_HOST_LEASE_CAP )
+        return NULL;
+    lease = &host->leases[host->lease_count++];
+    memset(lease, 0, sizeof(*lease));
+    snprintf(lease->key, sizeof(lease->key), "%s", key);
+    return lease;
+}
+
+static void
+host_lease_remove(
+    struct ToriRSServerHost* host,
+    struct ToriRSServerHostLease* lease)
+{
+    *lease = host->leases[--host->lease_count];
+}
+
+/* Nobody holds or asks for it, and nothing is owed: forget it. */
+static void
+host_lease_settle(
+    struct ToriRSServerHost* host,
+    struct ToriRSServerHostLease* lease)
+{
+    if( lease->refs > 0 || lease->pending > 0 || lease->kept || lease->returning )
+        return;
+    host_lease_remove(host, lease);
+}
+
+/* A return is back (`result` as PlayerClient_Logout's). */
+static void
+host_return_finished(
+    struct ToriRSServerHost* host,
+    const char* key,
+    const char* token,
+    int result,
+    const char* holder)
+{
+    struct ToriRSServerHostLease* lease = host_lease_find(host, key);
+
+    if( result == 0 )
+        fprintf(stderr, "torirsserver: the player account server refused '%s''s save from this "
+                        "world: %s has the character\n",
+                key, holder[0] ? holder : "an operator took it back, and nobody");
+    if( result < 0 )
+        fprintf(stderr, "torirsserver: the player account server did not take '%s''s save; it "
+                        "stays here and is offered again every %ld s\n",
+                key, PLAYER_RETURN_RETRY_MS / 1000);
+    if( !lease && result < 0 )
+    {
+        lease = host_lease_get(host, key);
+        if( !lease )
+        {
+            fprintf(stderr, "torirsserver: '%s' is returned at the next start\n", key);
+            return;
+        }
+        snprintf(lease->token, sizeof(lease->token), "%s", token);
+        lease->kept = 1;
+    }
+    if( !lease )
+        return;
+    lease->returning = 0;
+    /* Logged in again meanwhile: the newer grant is that session's. */
+    if( lease->refs > 0 || lease->pending > 0 )
+        return;
+    if( result >= 0 )
+    {
+        lease->kept = 0;
+        host_lease_settle(host, lease);
+    }
+}
+
+/* `c`'s check goes to the pool: its character is being asked for. */
+static void
+host_lease_pend(
+    struct ToriRSServerHost* host,
+    struct ToriRSServerHostConn* c)
+{
+    struct ToriRSServerHostLease* lease;
+
+    assert(!c->lease_pending);
+    assert(!c->lease_held);
+    ToriRSServer_SaveFileName(c->auth.user, c->lease_key, sizeof(c->lease_key));
+    /* An unusable name is refused by the server; nothing to count. */
+    if( !c->lease_key[0] )
+        return;
+    lease = host_lease_get(host, c->lease_key);
+    /* One per connection, and the table holds twice the connections. */
+    assert(lease);
+    lease->pending++;
+    c->lease_pending = 1;
+}
+
+/* `c`'s check is back (whether or not `c` is still connected). */
+static void
+host_lease_answer(
+    struct ToriRSServerHost* host,
+    struct ToriRSServerHostConn* c)
+{
+    struct ToriRSServerHostLease* lease;
+    int granted = c->auth.login.result == TORIRSSERVER_AUTH_OK ||
+                  c->auth.login.result == TORIRSSERVER_AUTH_CLAIMED;
+
+    if( !c->lease_pending )
+        return;
+    lease = host_lease_find(host, c->lease_key);
+    assert(lease);
+    lease->pending--;
+    c->lease_pending = 0;
+    if( granted )
+    {
+        /* The newest grant is the lease, and its save is the held one. */
+        snprintf(lease->token, sizeof(lease->token), "%s", c->auth.login.lease);
+        lease->refs++;
+        lease->kept = 0;
+        c->lease_held = 1;
+    }
+    else
+        host_lease_settle(host, lease);
+}
+
+/* `c` lets go of its character. 1 when that was the last hold, with the
+ * lease's token in `out_token`: the caller returns the save (and the entry
+ * says a return is out); 0 when another connection still holds or asks for
+ * it. */
+static int
+host_lease_drop(
+    struct ToriRSServerHost* host,
+    struct ToriRSServerHostConn* c,
+    char out_token[PLAYER_LEASE_TOKEN_HEX + 1])
+{
+    struct ToriRSServerHostLease* lease;
+
+    out_token[0] = '\0';
+    if( !c->lease_held )
+        return 0;
+    c->lease_held = 0;
+    lease = host_lease_find(host, c->lease_key);
+    assert(lease);
+    assert(lease->refs > 0);
+    lease->refs--;
+    if( lease->refs > 0 || lease->pending > 0 )
+        return 0;
+    assert(lease->token[0]);
+    snprintf(out_token, PLAYER_LEASE_TOKEN_HEX + 1, "%s", lease->token);
+    lease->kept = 1;
+    lease->returning = 1;
+    return 1;
 }
 
 /* ------------------------------------------------------------------ */
@@ -469,7 +972,13 @@ static void
 host_conn_free(struct ToriRSServerCo* co)
 {
     struct ToriRSServerHostConn* c = (struct ToriRSServerHostConn*)co;
+    char token[PLAYER_LEASE_TOKEN_HEX + 1];
 
+    /* A check that came back after its connection went: a lease it was
+     * granted is nobody's, and goes straight back. */
+    host_lease_answer(c->host, c);
+    if( host_lease_drop(c->host, c, token) )
+        host_return_submit(c->host, c->lease_key, token);
     /* A job that finished after its connection went: whatever it produced is
      * not anyone's now. */
     free(c->read.bytes);
@@ -484,8 +993,21 @@ host_conn_release(
     int index)
 {
     struct ToriRSServerHostConn* c = host->conns[index];
+    char token[PLAYER_LEASE_TOKEN_HEX + 1];
+    int last_hold;
+    int armed;
 
     assert(c);
+    /* The character's last hold on this world: its save goes back from the
+     * save job the removal below composes (host_save_sink), or on its own
+     * when there is no player to save. */
+    last_hold = host_lease_drop(host, c, token);
+    armed = last_hold && c->session.player;
+    if( armed )
+    {
+        snprintf(host->release_key, sizeof(host->release_key), "%s", c->lease_key);
+        snprintf(host->release_token, sizeof(host->release_token), "%s", token);
+    }
     /*
      * The world lets go of the player while the session is still addressable,
      * because that is what makes the packets a logout generates reach everyone
@@ -503,6 +1025,12 @@ host_conn_release(
         ToriRSServer_WorldRemovePlayer(host->srv, c->session.player);
         c->session.player = NULL;
     }
+    /* Not taken by a save: the return goes on its own, still behind any
+     * save of the account already with the pool. */
+    if( last_hold && (!armed || host->release_key[0]) )
+        host_return_submit(host, c->lease_key, token);
+    host->release_key[0] = '\0';
+    host->release_token[0] = '\0';
     ToriRSServer_SessionFree(&c->session);
     ToriRSServer_ConnFree(&c->conn);
     if( c->fd >= 0 )
@@ -572,16 +1100,26 @@ host_conn_step(
 
         if( c->session.state == TORIRSSERVER_SESSION_AUTH )
         {
-            /* The password check, off the loop. Not read meanwhile: the
+            /* The check and the lease, off the loop. Not read meanwhile: the
              * session decodes nothing until it has the answer. */
+            assert(host->srv->player_world[0]);
             host_watch(c, 0, 0);
             snprintf(c->auth.user, sizeof(c->auth.user), "%s", c->session.auth_user);
             memcpy(c->auth.pass, c->session.auth_pass, sizeof(c->auth.pass));
             memset(c->session.auth_pass, 0, sizeof(c->session.auth_pass));
+            c->auth.kind = c->session.auth_kind;
+            c->auth.world = host->srv->player_world;
+            c->auth.boot = host->srv->player_boot;
             c->auth.job.fn = host_auth_run;
             c->auth.job.key = host_account_key(c->auth.user);
+            host_lease_pend(host, c);
             TORIRSSERVER_CO_AWAIT_JOB(core, co, &c->auth.job);
-            ToriRSServer_SessionAuthDone(&c->session, host->srv, c->auth.result, c->auth.admin);
+            host_lease_answer(host, c);
+            if( c->auth.login.result == TORIRSSERVER_AUTH_ONLINE )
+                fprintf(stderr, "torirsserver: '%s' is logged in on world %s\n", c->auth.user,
+                        c->auth.login.holder);
+            ToriRSServer_SessionAuthDone(&c->session, host->srv, c->auth.login.result,
+                                         c->auth.login.admin, c->auth.login.record);
             host_watch(c, 1, 0);
             continue;
         }
@@ -730,6 +1268,165 @@ host_accept_step(
 }
 
 /* ------------------------------------------------------------------ */
+/* Saves owed, and the hello                                           */
+/* ------------------------------------------------------------------ */
+
+/* This run's hello, when the one at boot went unanswered: it names every
+ * character this world has an entry for, and the server lets go of only what
+ * an earlier run held (the boot id), so logins since cannot be dropped. */
+struct ToriRSServerHostHelloJob
+{
+    struct ToriRSServerCoreJob core; /* first */
+    struct ToriRSServerHost* host;
+    int count;
+    char (*keys)[PLAYER_KEY_MAX];
+    int result;
+};
+
+static void
+host_hello_run(struct ToriRSServerPoolJob* job)
+{
+    struct ToriRSServerHostHelloJob* hello = (struct ToriRSServerHostHelloJob*)job;
+
+    hello->result = PlayerClient_Hello(hello->host->srv->player_world,
+                                       hello->host->srv->player_boot, hello->keys, hello->count);
+}
+
+static void
+host_hello_done(
+    struct ToriRSServerCore* core,
+    struct ToriRSServerPoolJob* job)
+{
+    struct ToriRSServerHostHelloJob* hello = (struct ToriRSServerHostHelloJob*)job;
+
+    (void)core;
+    hello->host->hello_in_flight = 0;
+    if( hello->result >= 0 )
+    {
+        hello->host->hello_done = 1;
+        fprintf(stderr, "torirsserver: the player account server took this world's start; %d "
+                        "character(s) an earlier run held are free\n",
+                hello->result);
+    }
+    ToriMem_Free(ToriMem_ServerNet(), hello->keys);
+    ToriMem_Free(ToriMem_ServerNet(), hello);
+}
+
+static struct ToriRSServerHostHelloJob*
+host_hello_compose(struct ToriRSServerHost* host)
+{
+    struct ToriRSServerHostHelloJob* hello = ToriMem_Calloc(ToriMem_ServerNet(), 1, sizeof(*hello));
+
+    assert(hello);
+    hello->host = host;
+    hello->keys = ToriMem_Calloc(ToriMem_ServerNet(), (size_t)host->lease_count + 1,
+                                 sizeof(*hello->keys));
+    assert(hello->keys);
+    for( int i = 0; i < host->lease_count; i++ )
+        snprintf(hello->keys[hello->count++], PLAYER_KEY_MAX, "%s", host->leases[i].key);
+    return hello;
+}
+
+/* Every PLAYER_RETURN_RETRY_MS: the saves the server has not taken yet,
+ * offered again, and the hello until it is taken. */
+static void
+host_return_retry(struct ToriRSServerHost* host)
+{
+    if( !host->hello_done && !host->hello_in_flight )
+    {
+        struct ToriRSServerHostHelloJob* hello = host_hello_compose(host);
+
+        hello->core.job.fn = host_hello_run;
+        hello->core.job.key = ToriRSServer_PoolKey("player-server-hello");
+        host->hello_in_flight = 1;
+        ToriRSServer_CoreSubmitDetached(&host->core, &hello->core, host_hello_done);
+    }
+    for( int i = 0; i < host->lease_count; i++ )
+    {
+        struct ToriRSServerHostLease* lease = &host->leases[i];
+
+        if( !lease->kept || lease->returning || lease->refs > 0 || lease->pending > 0 )
+            continue;
+        lease->returning = 1;
+        host_return_submit(host, lease->key, lease->token);
+    }
+}
+
+/*
+ * The saves a previous run left in this world's directory: a `<key>.lease`
+ * for every character it had when it stopped -- all of them, after a crash.
+ * Each is owed to the player account server; the hello names them so their
+ * leases stay this world's until the return. Before the loop, so blocking
+ * here costs nobody.
+ */
+static void
+host_held_recover(struct ToriRSServerHost* host)
+{
+    const char* dir = ToriRSServer_SaveCharacterDir();
+    struct ToriRSServerHostHelloJob* hello;
+    DIR* handle;
+    struct dirent* entry;
+    int found = 0;
+
+    assert(dir);
+    handle = opendir(dir);
+    /* No directory: this world has never held a character. */
+    if( handle )
+    {
+        while( (entry = readdir(handle)) != NULL )
+        {
+            size_t len = strlen(entry->d_name);
+            char key[PLAYER_KEY_MAX];
+            char path[1200];
+            char token[PLAYER_LEASE_TOKEN_HEX + 2] = "";
+            struct ToriRSServerHostLease* lease;
+            FILE* file;
+
+            if( len <= 6 || len - 6 >= sizeof(key) ||
+                strcmp(entry->d_name + len - 6, ".lease") != 0 )
+                continue;
+            snprintf(key, sizeof(key), "%.*s", (int)(len - 6), entry->d_name);
+            held_lease_path(key, path, sizeof(path));
+            file = fopen(path, "rb");
+            if( !file )
+                continue;
+            if( !fgets(token, sizeof(token), file) )
+                token[0] = '\0';
+            fclose(file);
+            token[strcspn(token, "\r\n")] = '\0';
+            if( strlen(token) != PLAYER_LEASE_TOKEN_HEX )
+            {
+                fprintf(stderr, "torirsserver: %s is not a lease; skipped\n", path);
+                continue;
+            }
+            lease = host_lease_get(host, key);
+            if( !lease )
+            {
+                fprintf(stderr, "torirsserver: more held saves than this run can track; the "
+                                "rest are returned at the next start\n");
+                break;
+            }
+            snprintf(lease->token, sizeof(lease->token), "%s", token);
+            lease->kept = 1;
+            found++;
+        }
+        closedir(handle);
+    }
+    if( found )
+        fprintf(stderr, "torirsserver: %d character save(s) from an earlier run to hand back\n",
+                found);
+    hello = host_hello_compose(host);
+    hello->result = PlayerClient_Hello(host->srv->player_world, host->srv->player_boot,
+                                       hello->keys, hello->count);
+    host->hello_done = hello->result >= 0;
+    if( !host->hello_done )
+        fprintf(stderr, "torirsserver: the player account server did not answer this world's "
+                        "start; logins are refused (\"login server offline\") until it does\n");
+    ToriMem_Free(ToriMem_ServerNet(), hello->keys);
+    ToriMem_Free(ToriMem_ServerNet(), hello);
+}
+
+/* ------------------------------------------------------------------ */
 /* Tick-boundary stages                                                */
 /* ------------------------------------------------------------------ */
 
@@ -825,6 +1522,7 @@ host_stage_login(
     ToriRSServer_WorldSetDisplayName(player, c->session.display_name);
     player->staff_level = c->session.staff_level;
     player->account_admin = c->session.account_admin;
+    player->account_record = c->session.account_record;
     /* Before the login sends anything: RECONNECT_OK and the login's REBUILD
      * are the first records of a recorded session. */
     ToriRSServer_RecordingLogin(player, c->session.reconnect);
@@ -1022,6 +1720,8 @@ ToriRSServer_HostRun(
     ToriRSServer_CoInit(&host->accept_co, host_accept_step);
     ToriRSServer_PollAdd(host->core.poll, listener, &host->accept_co);
     ToriRSServer_SaveSetSink(host_save_sink, host);
+    if( srv->player_world[0] )
+        host_held_recover(host);
     fprintf(
         stderr,
         "torirsserver: core loop up — %d players, %d connections, %d pool thread(s)\n",
@@ -1091,6 +1791,14 @@ ToriRSServer_HostRun(
          * pass: what its socket takes now, and no more. */
         if( host->srv->account_link )
             ToriRSServer_AccountLinkPump(host->srv->account_link, now_ms());
+
+        /* Saves the player account server has not taken yet, offered
+         * again on the pool. */
+        if( host->srv->player_world[0] && now_ms() >= host->next_return )
+        {
+            host->next_return = now_ms() + PLAYER_RETURN_RETRY_MS;
+            host_return_retry(host);
+        }
 
         /* The standalone server's FRAME reset: one loop iteration is its
          * frame. (The tick inside it is a checked scope of its own.) */

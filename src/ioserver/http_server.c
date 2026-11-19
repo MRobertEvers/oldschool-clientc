@@ -1017,6 +1017,12 @@ exchange_step(
     }
 }
 
+int
+HttpServer_Running(void)
+{
+    return __atomic_load_n(&g_http.running, __ATOMIC_ACQUIRE);
+}
+
 char*
 HttpServer_Exchange(
     char const* host,

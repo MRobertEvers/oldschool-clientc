@@ -5066,6 +5066,11 @@ struct ToriRSServerPlayer
      */
     int account_admin;
 
+    /** 1 for an account with `record = 1`: its sessions are recorded
+     *  (ToriRSServer_RecordingLogin). From the login's check
+     *  (`ToriRSServerSession.account_record`). */
+    int account_record;
+
     /**
      * The account site's view of this player (torirs_server_accountlog.h),
      * kept only when the world has an `account_log`: the stats and quest
@@ -5722,6 +5727,29 @@ struct ToriRSServer
      * (`--dev`, TORIRSSERVER_DEV, the dev_/alt_/bank_torirsserver builds).
      */
     int check_passwords;
+
+    /**
+     * The name this world gives the player account server
+     * (playerserver/player_server.h) when it asks for a character's lease:
+     * TORIRSSERVER_WORLD, or "<host>:<port>". Set by torirs_server_main.c for
+     * a world that checks passwords -- whose every login then takes the
+     * character and its save from that server, keeps the save in the world's
+     * own directory while the character plays, and hands it back at the
+     * logout -- and "" everywhere else.
+     */
+    char player_world[64];
+    /** This run of the world: random at its start (PLAYER_BOOT_HEX), so a
+     *  hello that arrives late lets go of only what an earlier run held. */
+    char player_boot[17];
+    /**
+     * Whether a web login is staff (a linked player account with admin = 1),
+     * for the control link's HELLO behind the gate: the player account
+     * server's answer (PlayerClient_LoginIsStaff), set by torirs_server_main.c
+     * with `player_world`. A function here rather than a call, because the
+     * control link is also built into the client, which has no player account
+     * server; only a gated world asks, and a gated world always has one.
+     */
+    int (*login_is_staff)(const char* login);
 
     /**
      * The account server's queue (torirs_server_accountlog.h): logins,

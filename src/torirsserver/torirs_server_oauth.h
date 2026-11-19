@@ -95,6 +95,26 @@ struct ToriRSServerOAuthTokens
     int expires_in;
 };
 
+/**
+ * Where the grants ask about player accounts. Unset, the record functions in
+ * torirs_server_auth.h, reading the files here -- the embedded world and the
+ * tests, which have no player account server. io_server and a world that
+ * checks passwords point it at the player account server's client
+ * (playerserver/player_client.h), the records' one owner. A table of three
+ * calls rather than a link to the client, because this file is also built
+ * into the client and the browser, which have no player account server to
+ * ask.
+ */
+struct ToriRSServerOAuthAccounts
+{
+    enum ToriRSServerAuthResult (*login)(const char* display_name, const char* password);
+    int (*managed_by)(const char* display_name, char* out_user, size_t cap);
+    int (*link_verify)(const char* display_name, const char* user, const char* link_token);
+};
+
+void
+ToriRSServer_OAuthUseAccounts(const struct ToriRSServerOAuthAccounts* accounts);
+
 /** Load (or create) `<saves>/oauth/signing.key`. Aborts when it cannot. */
 void
 ToriRSServer_OAuthKeyLoad(void);

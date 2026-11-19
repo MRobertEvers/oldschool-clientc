@@ -593,7 +593,7 @@ ToriRSServer_AuthLogin(
         char owner[64];
 
         ToriRSServer_SaveFileName(display_name, key, sizeof(key));
-        if( ToriRSServer_DisplayNameOwner(display_name, owner, sizeof(owner)) &&
+        if( ToriRSServer_DisplayNameOwnerFile(display_name, owner, sizeof(owner)) &&
             strcmp(owner, key) != 0 )
             return TORIRSSERVER_AUTH_REFUSED;
     }
