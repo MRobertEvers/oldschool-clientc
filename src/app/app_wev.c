@@ -521,6 +521,9 @@ App_WevSpawn(
         size_x_tiles,
         size_z_tiles,
         WorldviewRegistry_Active(&app->worldviews));
+    /* SET_INTERACTION_MODE may have named this hull before it existed: its
+     * modes were kept by the wire id (game/rs_interaction_mode.h). */
+    (void)RS_InteractionMode_TakeHeld(&app->interaction_mode, wire_id, id);
 
     {
         struct Wev* wev = Wevs_Spawn(

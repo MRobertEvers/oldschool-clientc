@@ -263,6 +263,18 @@ RS_Chat_CrownImage(
     int crown,
     int* out_ignorable);
 
+/**
+ * Is a local player standing on world tile (x, z) in the tutorial area, where
+ * the reference shows no friend-channel or private line (deob Statics.method6894
+ * sets client.field765 from the local player's tile every frame; client.java
+ * class243.field2995 and field2953 add a line only while it is 0)? Tutorial
+ * Island and its cave, less the strip of the mainland the island's box reaches.
+ */
+int
+RS_Chat_InTutorialArea(
+    int world_x,
+    int world_z);
+
 /** `<img=N>name` for a crowned speaker, plain `name` otherwise, into `out`. */
 void
 RS_Chat_CrownedName(

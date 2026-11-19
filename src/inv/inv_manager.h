@@ -26,9 +26,16 @@
 #define INV_MANAGER_MAX_SLOTS 4096
 
 #define INV_MANAGER_SOURCE_INVALID (-1)
-#define INV_MANAGER_SOURCE_MAX 16
+/** How many inventories one session can be told about. Every inventory the
+ *  server transmits takes a source and a container and keeps them for the
+ *  session, so a full table is an assert in the packet model, not a silent
+ *  refusal; these are sized past what a session reaches (backpack, worn, bank,
+ *  shops, trade, the exchange, storage...). The source cap stays below 93, the
+ *  first server container id, so a source index never reads as one
+ *  (inv_resolve_container_id). */
+#define INV_MANAGER_SOURCE_MAX 64
 #define INV_MANAGER_SOURCE_NAME_MAX 64
-#define INV_MANAGER_STORE_MAX 32
+#define INV_MANAGER_STORE_MAX 96
 
 #define INV_MANAGER_SOURCE_NAME_BACKPACK "inventory"
 #define INV_MANAGER_SOURCE_NAME_WORN "worn"

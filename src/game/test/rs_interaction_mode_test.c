@@ -103,6 +103,43 @@ test_reset_view_follows_the_defaults_again(void)
         RS_InteractionMode_Tile(&modes, 2));
 }
 
+static void
+test_a_pair_for_a_view_not_created_yet_is_held(void)
+{
+    struct RS_InteractionMode modes;
+
+    printf("TEST: a pair for a view not created yet is kept by its wire id\n");
+
+    RS_InteractionMode_Reset(&modes);
+    CHECK(RS_InteractionMode_Hold(&modes, 2009, 2, 3) == 0, "room to hold");
+    CHECK(RS_InteractionMode_Hold(&modes, 2009, 0, 1) == 0, "a newer pair replaces");
+    CHECK(modes.held_count == 1, "one pair per id, %d held", modes.held_count);
+    CHECK(RS_InteractionMode_TakeHeld(&modes, 2010, 3) == 0, "another id takes nothing");
+    CHECK(RS_InteractionMode_Tile(&modes, 3) == 1, "and follows the defaults");
+    CHECK(RS_InteractionMode_TakeHeld(&modes, 2009, 3) == 1, "the view made for it takes it");
+    CHECK(RS_InteractionMode_Tile(&modes, 3) == 0, "the newer tile mode %d",
+        RS_InteractionMode_Tile(&modes, 3));
+    CHECK(RS_InteractionMode_Entity(&modes, 3) == 1, "the newer entity mode %d",
+        RS_InteractionMode_Entity(&modes, 3));
+    CHECK(modes.held_count == 0, "nothing left held");
+
+    RS_InteractionMode_Hold(&modes, 7, 2, 2);
+    RS_InteractionMode_ForgetHeld(&modes, 7);
+    CHECK(RS_InteractionMode_TakeHeld(&modes, 7, 4) == 0, "a forgotten pair is not taken");
+
+    /* Full, the oldest makes room; the newest are kept. */
+    for( int id = 0; id < RS_INTERACTION_MODE_HELD_MAX; id++ )
+        CHECK(RS_InteractionMode_Hold(&modes, 1000 + id, 2, 0) == 0, "id %d fits", id);
+    CHECK(RS_InteractionMode_Hold(&modes, 5000, 0, 3) == 1, "the next one evicts");
+    CHECK(RS_InteractionMode_TakeHeld(&modes, 1000, 5) == 0, "the oldest went");
+    CHECK(RS_InteractionMode_TakeHeld(&modes, 1001, 5) == 1, "the second oldest stayed");
+    CHECK(RS_InteractionMode_TakeHeld(&modes, 5000, 6) == 1, "the newest stayed");
+
+    RS_InteractionMode_Hold(&modes, 9, 2, 2);
+    RS_InteractionMode_Reset(&modes);
+    CHECK(modes.held_count == 0, "a session end forgets every held pair");
+}
+
 int
 main(void)
 {
@@ -110,6 +147,7 @@ main(void)
     test_a_view_pair_wins_over_the_defaults();
     test_a_mode_of_zero_is_a_mode();
     test_reset_view_follows_the_defaults_again();
+    test_a_pair_for_a_view_not_created_yet_is_held();
 
     if( g_failures )
     {

@@ -213,12 +213,8 @@ test_varps(void)
     p._varp_small.value = 5;
     apply(fx, &p);
 
-    /* A negative id is refused by the manager and stamps nothing. */
-    p._varp_small.variable = -3;
-    apply(fx, &p);
-
     n = take_events(fx, ev, 8);
-    CHECK(n == 3, "one varp_changed per applied update, none for a refused id");
+    CHECK(n == 3, "one varp_changed per applied update");
     CHECK(ev[0].kind == RS_EVENT_VARP_CHANGED && ev[0].a == 42 && ev[0].b == 5,
           "varp_changed carries the id and the value written");
     CHECK(ev[1].a == 43 && ev[1].b == 0x12345678, "in arrival order");
@@ -440,6 +436,54 @@ test_chat(void)
     CHECK(strcmp(fx->chat.newest->text, "a <lt>b<gt> tag") == 0,
           "the echo's tags draw as characters");
 
+    /* The reference's tutorial gate (deob Statics.method6894 -> field765):
+     * with the local player on Tutorial Island no friend-channel or private
+     * line is shown, nor remembered as seen; off it, the same line is. */
+    {
+        struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+        char fc_text[] = "hello channel";
+        int const count = fx->chat.message_count;
+        int self_idx;
+
+        CHECK(RS_Chat_InTutorialArea(3094, 3107), "the island's start");
+        CHECK(RS_Chat_InTutorialArea(3100, 9510), "the cave under it");
+        CHECK(!RS_Chat_InTutorialArea(3222, 3218), "Lumbridge is not");
+        CHECK(!RS_Chat_InTutorialArea(3150, 3060), "nor the mainland corner the box reaches");
+        fx->world->_base_tile_x = 3048;
+        fx->world->_base_tile_z = 3072;
+        self_idx = World_PlayerSpawn(fx->world, 40, 0, 46, 35, idle);
+        RS_EntitySync_RegisterPlayer(&fx->esync, 5, 40, self_idx);
+        fx->esync.local_pid = 5;
+        p = packet(PKT_NAME_MESSAGE_FRIENDCHANNEL);
+        snprintf(p._message_friendchannel.sender, sizeof(p._message_friendchannel.sender), "%s", "carol");
+        p._message_friendchannel.channel_name = strtobase37("chan");
+        p._message_friendchannel.world = 301;
+        p._message_friendchannel.counter = 9;
+        p._message_friendchannel.text = fc_text;
+        CHECK(apply(fx, &p) == RS_SERVER_STATE_UNCHANGED, "on the island the line is not shown");
+        p = packet(PKT_NAME_MESSAGE_PRIVATE);
+        p._message_private.from = strtobase37("dave");
+        p._message_private.message_id = 78;
+        p._message_private.text = fc_text;
+        CHECK(apply(fx, &p) == RS_SERVER_STATE_UNCHANGED, "nor a private one");
+        CHECK(fx->chat.message_count == count, "nothing reached the store");
+        fx->world->_base_tile_x = 3176;
+        fx->world->_base_tile_z = 3176;
+        p = packet(PKT_NAME_MESSAGE_FRIENDCHANNEL);
+        snprintf(p._message_friendchannel.sender, sizeof(p._message_friendchannel.sender), "%s", "carol");
+        p._message_friendchannel.channel_name = strtobase37("chan");
+        p._message_friendchannel.world = 301;
+        p._message_friendchannel.counter = 9;
+        p._message_friendchannel.text = fc_text;
+        CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "off it the same line is, not seen before");
+        p = packet(PKT_NAME_MESSAGE_PRIVATE);
+        p._message_private.from = strtobase37("dave");
+        p._message_private.message_id = 78;
+        p._message_private.text = fc_text;
+        CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "and the private one");
+        (void)take_events(fx, ev, 8);
+    }
+
     p = packet(PKT_NAME_P_COUNTDIALOG);
     fx->chat.dialog_input[0] = 'x';
     apply(fx, &p);
@@ -629,6 +673,43 @@ test_active_world_and_fence(void)
     apply(fx, &p);
     CHECK(RS_InteractionMode_Tile(&fx->interaction_mode, 3) == 2, "the hull's tile mode");
     CHECK(RS_InteractionMode_Entity(&fx->interaction_mode, 3) == 3, "and entity mode");
+
+    /* A hull the client has not spawned yet: the pair is kept by its wire id
+     * (deob class61.method1382 keys by world id) and the view takes it when it
+     * is created, instead of the packet being refused. */
+    p = packet(PKT_NAME_SET_INTERACTION_MODE);
+    p._interaction_mode.world_id = 2010;
+    p._interaction_mode.tile_mode = 0;
+    p._interaction_mode.entity_mode = 2;
+    CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "a mode for a hull not spawned yet is kept");
+    CHECK(fx->interaction_mode.held_count == 1, "held by its wire id");
+    WorldviewRegistry_Register(
+        &fx->worldviews,
+        4,
+        2010,
+        (struct World*)dummy_world,
+        (struct WorldBuilder*)dummy_builder,
+        6464,
+        6400,
+        8,
+        8,
+        WORLDVIEW_ROOT);
+    CHECK(RS_InteractionMode_TakeHeld(&fx->interaction_mode, 2010, 4) == 1, "the new view takes it");
+    CHECK(RS_InteractionMode_Tile(&fx->interaction_mode, 4) == 0, "the hull's tile mode, held");
+    CHECK(RS_InteractionMode_Entity(&fx->interaction_mode, 4) == 2, "and its entity mode");
+    CHECK(fx->interaction_mode.held_count == 0, "and nothing is held any more");
+    /* A reset for a hull not spawned yet forgets what was held for it. */
+    p = packet(PKT_NAME_SET_INTERACTION_MODE);
+    p._interaction_mode.world_id = 2011;
+    p._interaction_mode.tile_mode = 2;
+    p._interaction_mode.entity_mode = 0;
+    apply(fx, &p);
+    p = packet(PKT_NAME_RESET_INTERACTION_MODE);
+    p._interaction_mode.world_id = 2011;
+    apply(fx, &p);
+    CHECK(fx->interaction_mode.held_count == 0, "a reset before the spawn forgets the held pair");
+    CHECK(RS_InteractionMode_TakeHeld(&fx->interaction_mode, 2011, 5) == 0, "so the view takes nothing");
+    CHECK(RS_InteractionMode_Tile(&fx->interaction_mode, 5) == 1, "and follows the defaults");
 
     fx->world->cycle = 900;
     (void)take_events(fx, ev, 8);

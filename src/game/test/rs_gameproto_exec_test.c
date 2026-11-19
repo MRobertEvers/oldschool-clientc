@@ -19,6 +19,7 @@
 #include "inv/inv_manager.h"
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/revpacket.h"
+#include "render/cam_script.h"
 #include "ui/uitree.h"
 #include "varp/varp_manager.h"
 #include "world/world.h"
@@ -742,6 +743,9 @@ main(void)
         static char dummy_builder[1];
 
         assert(app);
+        /* A real App's world lives from App_Init to shutdown, and the fence
+         * reads its cycle (the plugin tick). */
+        app->world = World_New();
         WorldviewRegistry_Init(&app->worldviews);
         WorldviewRegistry_RegisterRoot(
             &app->worldviews,
@@ -802,6 +806,7 @@ main(void)
 
         ctx.app = NULL;
         ctx.state = &bare_state;
+        World_Free(app->world);
         free(app);
         printf("ok - SET_ACTIVE_WORLD arms the cursor and the fence resets it\n");
     }
@@ -839,10 +844,85 @@ main(void)
             assert(app->minimap.flag_tile_x == -1);
             assert(app->minimap.flag_tile_z == -1);
         }
+        /* SetMapFlagV2's absolute coord goes through the root world's base,
+         * the origin the camera packets and the flag's reader use, not the
+         * rebuild record's (which could disagree with the built scene). */
+        {
+            struct RevPacket p;
+            memset(&p, 0, sizeof(p));
+            app->world = World_New();
+            app->world->_base_tile_x = 3200;
+            app->world->_base_tile_z = 3184;
+            app->rebuild_region.zone_x = 1;
+            app->rebuild_region.zone_z = 1;
+            p.packet_type = PKT_NAME_UNSET_MAP_FLAG;
+            p._set_map_flag.x = 3222;
+            p._set_map_flag.z = 3218;
+            p._set_map_flag.absolute = 1;
+            RS_GameProto_Exec(&ctx, &p);
+            TEST_EXEC_ASSERT(app->minimap.flag_tile_x == 22, "absolute x against the world's base");
+            TEST_EXEC_ASSERT(app->minimap.flag_tile_z == 34, "absolute z against the world's base");
+            World_Free(app->world);
+            app->world = NULL;
+        }
         ctx.app = NULL;
         ctx.state = &bare_state;
         free(app);
         printf("ok - SET_MAP_FLAG stores scene-local tiles\n");
+    }
+
+    /* UPDATE_INV_STOP_TRANSMIT: the reference unlinks the inventory and rings
+     * its id on the same changed-inventory ring UPDATE_INV_FULL feeds (deob
+     * client.java class243.field2979), so the transmit hooks redraw the
+     * emptied slots. This client emptied the slots and told no hook. */
+    {
+        struct App* app = calloc(1, sizeof(*app));
+        struct RevPacket p;
+        unsigned serial;
+
+        assert(app);
+        ctx.app = app;
+        App_ServerStateBind(app, &app_state);
+        ctx.state = &app_state;
+        serial = app->host.inv_change_serial;
+        memset(&p, 0, sizeof(p));
+        p.packet_type = PKT_NAME_UPDATE_INV_STOP_TRANSMIT;
+        p._update_inv_stop_transmit.inv_id = 516;
+        p._update_inv_stop_transmit.component_id = (300 << 16) | 16;
+        RS_GameProto_Exec(&ctx, &p);
+        TEST_EXEC_ASSERT(app->host.inv_change_serial == serial + 1, "the inventory transmit is told");
+        TEST_EXEC_ASSERT(app->host.inv_transmit_dirty, "and its hooks are due");
+        TEST_EXEC_ASSERT(app->host.inv_changed_count == 1 && app->host.inv_changed_ids[0] == 516,
+            "naming the inventory");
+
+        /* CAM_TARGET: the follow camera's focus, until a logout puts the
+         * local player back (deob client.java:1734). */
+        memset(&p, 0, sizeof(p));
+        p.packet_type = PKT_NAME_CAM_TARGET;
+        p._cam_target.type = CAM_SCRIPT_TARGET_NPC;
+        p._cam_target.index = 1234;
+        RS_GameProto_Exec(&ctx, &p);
+        {
+            int type = -1;
+            int index = -1;
+
+            TEST_EXEC_ASSERT(CamScript_Target(&app->cam_script, &type, &index) == 1, "a target is set");
+            TEST_EXEC_ASSERT(type == CAM_SCRIPT_TARGET_NPC && index == 1234, "the npc it names");
+            p._cam_target.index = -1;
+            RS_GameProto_Exec(&ctx, &p);
+            TEST_EXEC_ASSERT(CamScript_Target(&app->cam_script, &type, &index) == 0,
+                "an index of none is the local player again");
+            p._cam_target.type = CAM_SCRIPT_TARGET_PLAYER;
+            p._cam_target.index = 77;
+            RS_GameProto_Exec(&ctx, &p);
+            CamScript_Logout(&app->cam_script);
+            TEST_EXEC_ASSERT(CamScript_Target(&app->cam_script, &type, &index) == 0,
+                "a logout forgets it");
+        }
+        ctx.app = NULL;
+        ctx.state = &bare_state;
+        free(app);
+        printf("ok - UPDATE_INV_STOP_TRANSMIT tells the transmit; CAM_TARGET sets the focus\n");
     }
 
     /*

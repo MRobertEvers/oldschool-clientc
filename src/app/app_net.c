@@ -764,15 +764,14 @@ app_pump_net_packets(struct App* app)
              * retain only packets that participate in an atomic UI/CS2
              * transaction. World feedback is valid between those ticks.
              * SERVER_TICK_END clears this after its exec task has run. */
-            if( RS_ServerTick_FenceSeen(&app->server_tick) && gameproto_packet_may_mutate_ui(packet.packet_type) &&
-                packet.packet_type != PKT_NAME_SERVER_TICK_END )
+            /* LATCH and the plain-varp flag are the packet's row in the one
+             * table of packet kinds (net/rev/revpacket.c); SERVER_TICK_END's
+             * row latches nothing. */
+            if( RS_ServerTick_FenceSeen(&app->server_tick) && gameproto_packet_latches(packet.packet_type) )
             {
-                int const plain_varp = packet.packet_type == PKT_NAME_VARP_SMALL ||
-                                       packet.packet_type == PKT_NAME_VARP_LARGE;
-
                 if( RS_ServerTick_NotePacket(
                         &app->server_tick,
-                        plain_varp,
+                        gameproto_packet_latches_varp_only(packet.packet_type),
                         FrameClockSerial_LogicCycle(&app->frame_clock.serial)) &&
                     getenv("TORIRS_FRAME_LATCH") )
                     TORIRS_LOG(
@@ -847,10 +846,11 @@ app_pump_net_packets(struct App* app)
              * a script that writes the same component keeps its wire order.
              * Held past them, Jagex's `quest_journal_reset` ran after the
              * journal rows it precedes and blanked every subquest page of
-             * Recipe for Disaster (RSProx index 4400 [2130]).
+             * Recipe for Disaster (RSProx index 4400 [2130]). And ahead of a
+             * packet that runs component hooks (TRIGGER_ONDIALOGABORT). Which
+             * packets those are is the FLUSH column of the packet kinds.
              */
-            if( (gameproto_packet_changes_interface_mounts(packet.packet_type) ||
-                 gameproto_packet_writes_interface_component(packet.packet_type)) &&
+            if( gameproto_packet_flushes_held_scripts(packet.packet_type) &&
                 RS_ClientScriptQueue_Count(&app->pending_clientscripts) > 0 )
                 App_FlushPendingClientScripts(app, &app->packet_runner);
             TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, CreateTask_GameProtoExec(app, &packet));
