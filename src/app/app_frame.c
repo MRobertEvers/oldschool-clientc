@@ -1356,6 +1356,10 @@ app_run_once_body(
     {
         uint64_t const t_pump = FrameStats_Now();
         App_PumpAsync(app, 1);
+        /* A local load whose gather has ended on the background queue is
+         * built and finished here, where the parallel pump used to finish
+         * it when it ran there. */
+        app_world_local_load_poll(app);
         FrameStats_Span(FRAME_STATS_PUMP, t_pump);
     }
     /* Sprites bound before they were resident: filled as they land, asked for

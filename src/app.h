@@ -175,6 +175,9 @@ struct MapEditorApp;
 /** The ground family's tick state (the widget icons' release); owned by
  *  app/app_tasks_ground.c. */
 struct AppTasksGround;
+/** A local world load's job on the background queue; owned by
+ *  app/app_world_load.c. */
+struct AppWorldLocalLoad;
 
 /*
  * Application shell: owns every subsystem and the update loop body, with no
@@ -1425,6 +1428,14 @@ struct App
      * @see App_WorldJobPending.
      */
     struct WorldRebuildJob world_job;
+    /**
+     * A LOCAL world load (offline, the map editor's opens and edits, the
+     * reload hotkey): its gather a job on background_runner -- CPU-heavy
+     * work, by the frame contract -- and its build and finish the frame's,
+     * at the parallel pump's place near the top of App_RunOnce
+     * (app_world_load.c). NULL until the first local load.
+     */
+    struct AppWorldLocalLoad* world_local;
     /**
      * TORIRS_REBUILD_TIMING: the main-thread work of every frame from the one
      * a REBUILD started in to the one it finished in, either mode -- the

@@ -239,6 +239,7 @@ app_background_runner_free(struct App* app)
 {
     assert(app);
     App_WorldJobCancel(app, "shutdown");
+    app_world_local_load_free(app);
     ToriRS_TaskQueue_Free(app->background_runner.queue);
     ToriRS_IOBatch_Free(app->background_runner.io);
     app->background_runner.queue = NULL;

@@ -9,6 +9,7 @@
 #include "mem/torirs_mem.h"
 #include "mem/torimem_toridraw.h"
 #include "app/app_internal.h"
+#include "engine/world_builder/world_rebuild_job.h"
 #include "boot_telemetry.h"
 #include "platform/platform_web_telemetry.h"
 
@@ -32,8 +33,6 @@ static void
 app_rebuild_world_map(
     struct App* app,
     int level);
-static void
-app_world_load_finish_cb(void* userdata);
 
 /* Bind app-owned overlay models to their revision-configured nodes. No node
  * means that overlay does not exist for the revision; there is intentionally
@@ -240,17 +239,133 @@ app_world_map_poll(struct App* app)
 }
 
 /* Task_WorldLoad on_done trampoline: adapts the void* hook to App_WorldLoadFinish. */
-static void
-app_world_load_finish_cb(void* userdata)
+/*
+ * A LOCAL LOAD ON THE BACKGROUND QUEUE.
+ *
+ * The load was one Task_WorldLoad on the parallel queue, and its last step
+ * -- the build, every scene element of the squares, then the finish -- ran
+ * 10 to 11 ms in one resume (the editor's reload, measured by the frame
+ * contract's compute check). CPU work belongs on the background queue, so
+ * the load is split the way the background rebuild splits it
+ * (app_world_job.c): the GATHER runs there as a job, fanned out there and
+ * given the floor and the slack, and the BUILD and FINISH are the frame's,
+ * at the point the parallel pump used to finish the load (just after
+ * App_PumpAsync). A load begun while another is still gathering replaces
+ * it: the earlier gather is cancelled, its loaders run on into the cache.
+ * The rebuild of the root view is listed in the pending index from the
+ * begin to the finish (App_ViewRebuildBegin), so a parallel task waits for
+ * it by name.
+ */
+struct AppWorldLocalLoad
 {
-    App_WorldLoadFinish((struct App*)userdata);
+    struct ToriRS_TaskJob job;
+    /* The gather, while it has not ended (the job counts it). */
+    struct ToriRS_Task* gather;
+    int pending;
+    int chunk_count;
+    int chunks[WORLD_REBUILD_JOB_MAX_CHUNKS * 2];
+    struct RS_ParallelTask rebuild;
+};
+
+static struct AppWorldLocalLoad*
+app_world_local_load(struct App* app)
+{
+    assert(app);
+    if( !app->world_local )
+    {
+        app->world_local = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*app->world_local));
+        assert(app->world_local);
+    }
+    return app->world_local;
 }
 
-/* Queue Task_WorldLoad for a chunk list; never blocks. App_WorldLoadFinish runs
- * as the task's on_done the moment the load lands (no polling). Reused by the
- * reload hotkey and the first-load trigger; assets already cached make a reload
- * near-instant. chunks == NULL -> the configured/default map. The REBUILD_NORMAL
- * packet task queues its own load (it awaits it) rather than calling here. */
+/* Stop a gather still out (its loaders outlive it and end into the cache). */
+static void
+app_world_local_load_cancel(struct App* app)
+{
+    struct AppWorldLocalLoad* ll = app->world_local;
+
+    assert(ll);
+    if( !ll->pending )
+        return;
+    if( !ToriRS_TaskJob_Done(&ll->job) )
+        TaskWorldLoad_Cancel(app->background_runner.queue, ll->gather);
+    assert(ToriRS_TaskJob_Done(&ll->job));
+    ll->gather = NULL;
+    ll->pending = 0;
+    App_ViewRebuildEnd(app, &ll->rebuild);
+}
+
+static void
+app_world_local_load_start(
+    struct App* app,
+    int const* chunks_xz,
+    int chunk_count)
+{
+    struct AppWorldLocalLoad* ll = app_world_local_load(app);
+
+    assert(chunks_xz);
+    assert(chunk_count > 0);
+    assert(chunk_count <= WORLD_REBUILD_JOB_MAX_CHUNKS);
+    if( ll->pending )
+    {
+        TORIRS_LOG("world load: a local load still gathering is replaced by a newer one\n");
+        app_world_local_load_cancel(app);
+    }
+    memcpy(ll->chunks, chunks_xz, sizeof(int) * 2 * (size_t)chunk_count);
+    ll->chunk_count = chunk_count;
+    ll->gather = CreateTask_WorldGather(
+        app->provider,
+        app->world_builder,
+        app->background_runner.queue,
+        ll->chunks,
+        ll->chunk_count,
+        -1,
+        -1,
+        104,
+        NULL,
+        NULL);
+    ll->pending = 1;
+    App_ViewRebuildBegin(app, &ll->rebuild, WORLDVIEW_ROOT);
+    /* No deadline of its own: nothing waits on a local load but the frame
+     * that shows it, and the background queue gets its floor every frame. */
+    ToriRS_TaskJob_Start(&ll->job, &app->background_runner, ll->gather, 0);
+}
+
+void
+app_world_local_load_poll(struct App* app)
+{
+    struct AppWorldLocalLoad* ll;
+
+    assert(app);
+    ll = app->world_local;
+    if( !ll || !ll->pending || !ToriRS_TaskJob_Done(&ll->job) )
+        return;
+    ll->gather = NULL;
+    ll->pending = 0;
+    /* The build and the finish, in the order Task_WorldLoad ran them. */
+    WorldLoad_Build(app->world_builder, ll->chunks, ll->chunk_count, -1, -1, 104, NULL);
+    App_WorldLoadFinish(app);
+    App_ViewRebuildEnd(app, &ll->rebuild);
+}
+
+void
+app_world_local_load_free(struct App* app)
+{
+    assert(app);
+    if( !app->world_local )
+        return;
+    app_world_local_load_cancel(app);
+    ToriMem_Free(ToriMem_Process(), app->world_local);
+    app->world_local = NULL;
+}
+
+/* Start a local load for a chunk list; never blocks. Its gather runs on the
+ * background queue, and App_WorldLoadFinish runs in the frame that finds it
+ * ended (app_world_local_load_poll). Reused by the reload hotkey and the
+ * first-load trigger; assets already cached make a reload near-instant.
+ * chunks == NULL -> the configured/default map. The REBUILD_NORMAL packet
+ * task queues its own load (it awaits it) rather than calling here. */
 void
 app_world_load_begin(
     struct App* app,
@@ -258,7 +373,6 @@ app_world_load_begin(
     int chunk_pair_count)
 {
     int chunks[APP_WORLD_MAP_SQUARE_MAX * 2] = { 50, 50 };
-    struct ToriRS_Task* task;
 
     /* This load replaces the scene a background rebuild was gathering for;
      * that rebuild is moot (and its commit would build over this one). */
@@ -384,19 +498,7 @@ app_world_load_begin(
      * (app_mapeditor_app.c). */
     SideApps_WorldLoad(app->side_apps, SIDE_APP_WORLD_LOAD_SQUARES, app_side_app_host(app), chunks_xz, chunk_pair_count);
 
-    task = CreateTask_WorldLoad(
-        app->provider,
-        app->world_builder,
-        app->frame_runner.queue,
-        chunks_xz,
-        chunk_pair_count,
-        -1,
-        -1,
-        104,
-        NULL,
-        app_world_load_finish_cb,
-        app);
-    ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
+    app_world_local_load_start(app, chunks_xz, chunk_pair_count);
     RedrawRequest_Raise(&app->redraw_request);
 }
 

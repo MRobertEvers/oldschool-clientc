@@ -213,6 +213,12 @@ App_BootWait(struct App* app)
         BootPumpStats_NoteBootSteps(&app->pump_stats, 2);
         parallel_stat = TaskRunner_Step(&app->frame_runner);
         main_stat = TaskRunner_Step(&app->packet_runner);
+        /* A local world load gathers on the background queue and is built
+         * where the frame would build it (app_world_local_load_poll); with
+         * no frame loop here, this drain gives the queue its time. */
+        if( app->background_runner.queue->head )
+            (void)TaskRunner_RunUntil(&app->background_runner, 0);
+        app_world_local_load_poll(app);
         app_title_swap_if_pending(app);
         if( RS_ClientPhase_Ready(&app->phase) )
             app_async_polls(app);

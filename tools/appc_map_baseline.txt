@@ -249,7 +249,12 @@
 # Kept at 144 by the parallel task step: parked becomes pending (struct
 # RS_Pending, game/rs_pending.h), the index of live parallel tasks on
 # frame_runner, which holds no data of its own.
-struct-App-fields: 144
+# Raised to 145 by the local load step: world_local (struct
+# AppWorldLocalLoad, app/app_world_load.c, one pointer), the offline and
+# editor load's gather job on background_runner; it was a task on
+# frame_runner that held nothing on App, and the job has to be found again
+# by the frame that builds it.
+struct-App-fields: 145
 
 src/main.c
 src/executor_config.c

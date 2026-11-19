@@ -897,6 +897,14 @@ void
 app_background_runner_init(struct App* app);
 void
 app_background_runner_free(struct App* app);
+
+/* A local world load's job (app_world_load.c): the frame's poll, which
+ * builds and finishes a load whose gather has ended on the background queue,
+ * and its teardown (from app_background_runner_free, before the queue). */
+void
+app_world_local_load_poll(struct App* app);
+void
+app_world_local_load_free(struct App* app);
 /* What is stepping a queue now (app_world_job.c): the script settle, the
  * logic ticks and the parallel pump name themselves for their span, and a
  * background pass entered inside one is a contract breach. Enter returns the
