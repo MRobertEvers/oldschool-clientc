@@ -1,4 +1,7 @@
--- Nature Spirit, driven end to end from the Quest Helper ladder (naturespirit/NatureSpirit.java).
+-- Nature Spirit, driven end to end in the order RSProx index 4592 (the start) and 4602 (the rest)
+-- recorded it (docs/rsprox-analysis/quests/nature_spirit.md): Filliman first without the amulet,
+-- the gate's warning, the stones with Filliman standing by, the fight unarmed with the sickle in
+-- the pack, the scroll before the farewell.
 -- Route facts: quest_druidspirit/scripts/{quest_druidspirit,filliman,druidspirit_drezel,ghast,swamp_decay}.rs2.
 -- Brought along (guide getItemRequirements): amulet of ghostspeak and a silver sickle. The
 -- rest -- pies, mirror, journal, bloom scroll, mushroom, pouch, blessed sickle -- is obtained in play.
@@ -58,9 +61,9 @@ return {
             display = "Nature Spirit",
             points = 2,
         })
+        t.ticklog.start()
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
-        t.exec("amulet.equip", t.player.equip, "amulet_of_ghostspeak")
 
         -- The crossings, each one row graded on the tiles (see WALLS above).
         local function holy_barrier(step)
@@ -71,11 +74,24 @@ return {
         end
         -- Mort Myre's north gate: in from 3444,3459 (lands 3444,3457), out from 3444,3457 (lands on the gate
         -- tile 3444,3458: [label,open_mortmyre_gate] p_teleport($door)).
+        -- Going in, the gate opens the Mort Myre warning (cws_warning_20) with its count up, and
+        -- "Enter the swamp." walks the player through (4602 [476..482]); coming out is the gate
+        -- alone ([1071..1076]).
+        local warnings = 0
         local function swamp_in(step)
             t.exec("goto-" .. step, t.player.goto_tile, 3444, 3460, 0)
-            t.exec(step, t.player.cross_gate, { loc = "mortmyre_metalgateclosed_l", at = { 3444, 3458, 0 },
-                near = { 3444, 3459 }, far_ok = function(tile) return tile.z <= 3457 end,
-                far_desc = "inside Mort Myre, z <= 3457" })
+            t.exec(step, t.player.click_loc, "mortmyre_metalgateclosed_l", 1, { at = { 3444, 3458, 0 } })
+            t.check(step .. ".warning", t.ui.await_open("cws_warning_20", 12) == "ok", "cws_warning_20 open")
+            warnings = warnings + 1
+            t.exec(step .. ".count", t.var.await, "varb3870_cws_warning_20", warnings, 5)
+            local wr, yes = t.ui.widget("cws_warning_20:warn1")
+            t.check(step .. ".enterWidget", wr == "ok", "cws_warning_20:warn1 -> " .. tostring(wr))
+            t.exec(step .. ".enter", t.ui.invoke, yes, 1)
+            local inside = t.await({ level = function()
+                local r, tile = t.world.tile()
+                return r == "ok" and tile.z <= 3457 and tile.z > 3400
+            end, note = step .. ": through the gate" }, 10)
+            t.check(step .. ".crossed", inside == "ok", "inside Mort Myre, z <= 3457 -> " .. tostring(inside))
         end
         local function swamp_out(step)
             t.exec("goto-" .. step, t.player.goto_tile, 3444, 3456, 0)
@@ -94,6 +110,10 @@ return {
                 and have_result == "ok" and (have or 0) > 0 then
                 -- graded on the lobster leaving the pack (an eat's press can answer timeout settle_after_click)
                 local eat_result, eat_detail = t.player.inv_op("lobster", 1)
+                if eat_result ~= "ok" then
+                    t.ticks(2)
+                    eat_result, eat_detail = t.player.inv_op("lobster", 1)
+                end
                 t.await({
                     level = function()
                         local r, n = t.inv.count("lobster")
@@ -148,47 +168,58 @@ return {
         t.exec("goDownToDrezel.gate2", t.player.cross_gate, { loc = "pip_underground_door2", at = { 3431, 9897, 0 },
             near = { 3430, 9897 }, far_ok = function(tile) return tile.z > 6400 and tile.x >= 3432 end,
             far_desc = "Drezel's side of the second gate, x >= 3432", ticks = 60 })
-        -- Priest in Peril's farewell advice (LostCity drezel.rs2:138-147): 60 -> 61, the barrier opens
+        -- Priest in Peril's talk after its scroll (RSProx 4459 [2047..2085]): 60 -> 61, the barrier opens
         t.exec("talkToDrezel-advice", t.player.talk_to, "priestperiltrappedmonk2", 1)
         t.exec("talkToDrezel-advice-dialog", t.chat.play, {
             "player:So can I pass through that barrier now?",
-            "npc:Ah, ",
-            "npc:Morytania is an evil land",
-            "npc:You should take some basic precautions",
-            "npc:In many ways Werewolves",
-            "npc:and it is a holy relic",
-            "npc:wolf form is incredibly powerful",
-            "player:Okay, I will keep it equipped",
+            "npc:Into Morytania? Yes, you can.",
+            "npc:I must warn you though",
+            "npc:Worst of all are the vampyres",
+            "player:I'll be careful.",
+            "npc:The first settlement",
+            "npc:You should keep that dagger",
+            "player:I see. Thanks.",
+            "npc:One last thing.",
+            "player:The Myreque?",
+            "npc:Yes. They're a band of freedom fighters.",
+            "npc:Veliaf, the leader",
+            "player:I'll keep an eye out for them.",
+            "npc:Right, I think that's everything.",
+            "mesbox:Drezel blesses you",
+            "npc:Good luck out there. Stay safe.",
+            "choose:And you. See you later.",
+            "player:And you. See you later.",
         })
+        t.chat.close()
         t.exec("talkToDrezel-advice-var", t.var.await_server, "varp302_priestperil", 61, 8)
+        -- The start (4592 [379..452]): the offer, the confirm, the pies with the stage, the menu.
+        t.ticklog.mark("leg.start")
         t.exec("talkToDrezel", t.player.talk_to, "priestperiltrappedmonk2", 1)
         t.exec("talkToDrezel-dialog", t.chat.play, {
-            "npc:Greetings again adventurer",
-            "choose:Is there anything else interesting to do around here?",
-            "player:Is there anything else interesting",
-            "npc:not a great deal",
+            "player:Hello again, Drezel. Is there anything that I can help you out with around here?",
+            "npc:Well... there is something you could do for me",
             "choose:Well, what is it, I may be able to help?",
-            "player:Well, what is it",
+            "player:Well, what is it, I may be able to help?",
             "npc:There's a man called Filliman",
-            "choose:Who is this Filliman?",
-            "player:Who is this Filliman?",
-            "npc:Filliman Tarlock is his full name",
-            "npc:Most people that come this way",
-            "choose:Yes, I'll go and look for him.",
+            "npc:I must warn you, it could be dangerous.",
+            "choose:Yes.",
             "player:Yes, I'll go and look for him.",
-            "npc:That's great, but it is very dangerous",
-            "choose:Yes, I'm sure.",
-            "player:Yes, I'm sure.",
             "npc:That's great! Many thanks!",
-            "npc:Just run from them",
+            "npc:Now, please be aware of the ghasts",
         })
+        t.exec("talkToDrezel-box", t.chat.expect_text, "Drezel hands you some food.")
         t.exec("talkToDrezel-pies", t.inv.await_all, { meat_pie = 3, apple_pie = 3 }, 8)
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
-        t.exec("talkToDrezel-box", t.chat.expect_text, "The cleric hands you some food")
         t.exec("talkToDrezel-dialog2", t.chat.play, {
             "*",
             "npc:Please take this food to Filliman",
-            "player:I'll do my very best",
+            "player:Don't worry, if he's there and he's still alive, I'll find him.",
+            "choose:Who exactly is this Filliman?",
+            "player:Who exactly is this Filliman?",
+            "npc:Filliman Tarlock is his full name",
+            "npc:Most people that come this way",
+            "choose:I'd better get going.",
+            "player:I'd better get going.",
         })
         t.chat.close()
 
@@ -200,21 +231,39 @@ return {
         t.exec("enterSwamp-msg", t.msg.expect, "gloomy atmosphere of Mort Myre", 8)
         t.expect("quest.stage.entered_swamp", t.quest.expect_stage("entered_swamp"))
 
-        -- tryToEnterGrotto / talkToFilliman: with the amulet worn Filliman answers, 10 -> 20
+        -- tryToEnterGrotto: the door calls Filliman's spirit, who cannot be understood, 10 -> 15
+        -- (4602 [622..647]); then with the amulet worn he answers, 15 -> 20 ([659..739]).
+        t.ticklog.mark("leg.filliman")
         island_in("tryToEnterGrotto.bridge")
-        t.exec("walk-tryToEnterGrotto", t.player.walk_to, 3440, 3334)
+        t.exec("walk-tryToEnterGrotto", t.player.walk_to, 3439, 3337)
         t.exec("tryToEnterGrotto", t.player.click_loc, "grotto_door_druidicspirit", 1)
-        t.exec("talkToFilliman", t.chat.play, {
+        t.exec("tryToEnterGrotto-dialog", t.chat.play, {
+            "mesbox:A shifting apparition appears in front of you.",
+            "npc:Cannot wake up... Where am I?",
+            "player:Huh? What's this?",
+            "npc:What did I write down now? Put it in the knot hole.",
+            "npc:Ahhrs Oooohh arhhhhAHhhh.",
+            "player:Huh! Now you're just not making any sense at all!",
+        })
+        t.chat.close()
+        t.expect("quest.stage.failed_talk", t.quest.expect_stage("failed_talk"))
+        t.exec("amulet.equip", t.player.equip, "amulet_of_ghostspeak")
+        t.exec("talkToFilliman", t.player.talk_to, "filliman_tarlock_spirit", 1)
+        t.exec("talkToFilliman-dialog", t.chat.play, {
             "mesbox:A shifting apparition appears in front of you.",
             "player:Hello?",
             "npc:Oh, I understand you!",
-            "choose:How long have you been a ghost?",
-            "player:How long have you been a ghost?",
-            "npc:What?! Don't be preposterous",
-            "player:But it's true",
-            "npc:Don't be silly, I can see you",
+            "choose:I'm wearing an amulet of ghost speak!",
+            "player:I'm wearing an amulet of ghost speak!",
+            "npc:Why you poor fellow",
+            "player:Err.. Not exactly...",
+            "npc:You have come to haunt my dreams",
+            "player:Ermm, you don't understand",
+            "npc:Yes!",
+            "player:Well, please don't be upset or anything",
+            "npc:Don't be silly now!",
             "choose:Ok, thanks.",
-            "player:Ok, thanks.",
+            "player:Ok thanks.",
         })
         t.chat.close()
         t.expect("quest.stage.spoken_filliman", t.quest.expect_stage("spoken_filliman"))
@@ -371,22 +420,22 @@ return {
         t.chat.close()
         t.expect("quest.stage.spoken_filliman2", t.quest.expect_stage("spoken_filliman2"))
 
-        -- useMushroom / useSpellCard: the two stones outside the grotto
-        t.exec("walk-useMushroom", t.player.walk_to, 3440, 3334)
+        -- useMushroom / useSpellCard: the two stones outside the grotto, Filliman called by the door
+        -- first (his spirit lives 100 ticks from it), as the recording had him (4602 [1652..1682]).
+        t.ticklog.mark("leg.stones")
+        t.exec("tellFillimanToCast-door", t.player.click_loc, "grotto_door_druidicspirit", 1)
+        t.chat.close()
+        t.exec("walk-useMushroom", t.player.walk_to, 3440, 3336)
         t.exec("useMushroom", t.player.use_on, "mortmyremushroom", t.player.by_symbol("loc", "stonedisc_ds_nature"))
         t.exec("useMushroom-msg", t.msg.expect, "The stone seems to absorb the fungus.")
         t.exec("useMushroom-bit", t.var.await_server, "varp6875_druidspirit_bits", 1, 10)
-        t.exec("useSpellCard", t.player.use_on, "used_bloom_spell", t.player.by_symbol("loc", "stonedisc_ds_spirit"))
-        t.exec("useSpellCard-msg", t.msg.expect, "The stone seems to absorb the used spell scroll.")
+        t.exec("useSpellCard", t.player.use_on, "bloom_spell", t.player.by_symbol("loc", "stonedisc_ds_spirit"))
+        t.exec("useSpellCard-msg", t.msg.expect, "The stone seems to absorb the spell scroll.")
+        t.exec("useSpellCard-dialog", t.chat.play, { "npc:Aha, yes, that seems right well done!" })
+        t.chat.close()
         t.exec("useSpellCard-bit", t.var.await_server, "varp6875_druidspirit_bits", 3, 10)
 
         -- tellFillimanToCast / standOnOrange: the ritual, 55 -> 60
-        -- Filliman's spirit lives 100 ticks from the grotto door that summoned him (npc_add(...,
-        -- filliman_tarlock_spirit, 100), quest_druidspirit.rs2:114, LostCity "100t osrs"); the door is
-        -- the summon, so open it again before the ritual rather than count on the mirror-leg copy
-        -- (seam32: takeMirror went 26 -> 1 tick and that copy expired at tick ~190, one row short).
-        t.exec("tellFillimanToCast-door", t.player.click_loc, "grotto_door_druidicspirit", 1)
-        t.chat.close()
         t.exec("walk-standOnOrange", t.player.walk_to, 3440, 3335)
         t.ticks(2)
         local tile_result, tile = t.world.tile()
@@ -471,7 +520,7 @@ return {
 
         -- the empty pouch before the sickle has bloomed anything (quest_druidspirit.rs2:333), asked
         -- inside the grotto: out in the swamp a ghast's swing closes the mesbox a tick later
-        t.exec("fillPouches-early", t.player.inv_op, "druid_pouch_empty", 1)
+        t.exec("fillPouches-early", t.player.inv_op, "druid_pouch_empty", 4)
         t.exec("fillPouches-early-text", t.chat.play, { "objbox:You've not been told how to use this item yet." })
         t.chat.close()
 
@@ -486,7 +535,7 @@ return {
         local total = 0
         while total < 3 and casts < 10 do
             casts = casts + 1
-            t.player.inv_op("silver_sickle_blessed", 3)
+            t.player.inv_op("silver_sickle_blessed", 1)
             t.ticks(2)
             local names = { "log_druidicspirit2", "branch_druidicspirit2", "peartree_druidicspirit2" }
             for i = 1, 3 do
@@ -503,25 +552,24 @@ return {
         end
         t.check("fillPouches-harvest", total >= 3, "harvested " .. tostring(total) .. " after " .. casts .. " cast(s)")
         t.expect("quest.stage.picked_sickle", t.quest.expect_stage("picked_sickle"))
-        t.exec("fillPouches", t.player.inv_op, "druid_pouch_empty", 1)
-        t.exec("fillPouches-msg", t.msg.expect, "natures harvests to your druid pouch")
+        t.exec("fillPouches", t.player.inv_op, "druid_pouch_empty", 4)
+        t.exec("fillPouches-msg", t.msg.expect, "harvested items to your druid pouch.")
         t.exec("fillPouches-inv", t.inv.await, "druid_pouch", 1, 8)
         t.expect("quest.stage.added_pouch", t.quest.expect_stage("added_pouch"))
 
         -- killGhasts: three real kills, 90 -> 105
-        t.exec("killGhasts-equip", t.player.equip, "silver_sickle_blessed")
+        t.ticklog.mark("leg.ghasts")
         t.exec("goto-killGhasts", t.player.goto_tile, 3414, 3360, 0)
         t.ticks(2)
         local stages = { "killed_ghast1", "killed_ghast2", "killed_ghast3" }
         for k = 1, 3 do
             local _, pouch = t.inv.count("druid_pouch")
             if (pouch or 0) == 0 then
-                t.exec("killGhasts-unequip" .. k, t.player.inv_op, "silver_sickle_blessed", 1)
                 local refill = 0
                 local got = 0
                 while got < 3 and refill < 10 do
                     refill = refill + 1
-                    t.player.inv_op("silver_sickle_blessed", 3)
+                    t.player.inv_op("silver_sickle_blessed", 1)
                     t.ticks(2)
                     local names = { "log_druidicspirit2", "branch_druidicspirit2", "peartree_druidicspirit2" }
                     for i = 1, 3 do
@@ -536,8 +584,13 @@ return {
                     end
                     t.ticks(1)
                 end
-                t.exec("killGhasts-refill" .. k, t.player.inv_op, "druid_pouch_empty", 1)
-                t.exec("killGhasts-reequip" .. k, t.player.equip, "silver_sickle_blessed")
+                t.exec("killGhasts-refill" .. k, t.player.inv_op, "druid_pouch_empty", 4)
+            end
+            -- 4602 [2075]: the recorder used the pouch on a ghast; a ghast swinging first reveals
+            -- itself as well (LostCity), so either path lands on a visible one.
+            local inv_r = t.npc.await_present("ghast_invis", 6, 30)
+            if inv_r == "ok" then
+                t.player.use_on("druid_pouch", t.player.by_symbol("npc", "ghast_invis"))
             end
             t.exec("killGhasts-visible" .. k, t.npc.await_present, "ghast_vis", 12, 90)
             -- Single-way combat: a second revealed ghast swinging at the player renews the player's
@@ -588,6 +641,7 @@ return {
         -- enterGrottoAgain / talkToNatureSpiritToFinish: back over the bridge, into the grotto. The xp
         -- snapshot is taken on the island, after the walk through the swamp (a ghast met on the way
         -- would add combat xp of its own).
+        t.ticklog.mark("leg.finish")
         island_in("enterGrottoAgain.bridge")
         t.exec("walk-enterGrottoAgain", t.player.walk_to, 3440, 3334)
         local snap_result, snapshot = t.skill.snapshot()
@@ -602,13 +656,19 @@ return {
             "end",
         })
         t.var.await_server("varp307_druidspirit", 110, 40)
-        t.await({ level = function() return t.chat.kind() == "npc" end, note = "farewell chat" }, 60)
+        t.check("finish.scroll", t.ui.await_open("questscroll", 12) == "ok", "questscroll open")
+        t.ticks(1)
+        -- expect_complete reads the scroll's title and shuts it: the farewell follows the close.
+        t.quest.expect_complete()
+        t.await({ level = function() return t.chat.kind() == "npc" end, note = "farewell chat" }, 20)
         t.exec("talkToNatureSpiritToFinish-farewell", t.chat.play, {
             "npc:Welcome to my Altar to Nature! Farewell my friend, and keep those Ghasts at bay!",
-            "end",
         })
+        -- 4602 [2459..2462]: the level-ups come after the farewell's close.
+        t.check("finish.levelupAfterFarewell", t.await({ level = function() return t.chat.kind() == "levelup" end,
+            note = "a level-up box after the farewell" }, 6) == "ok", "levelup box after the farewell")
+        t.chat.close()
         t.ticks(3)
-        t.quest.expect_complete()
         local cr = t.skill.expect_gain("crafting", 3000, snapshot)
         t.check("reward.crafting", cr == "ok", "crafting +3000 xp -> " .. tostring(cr))
         local dr = t.skill.expect_gain("defence", 2000, snapshot)
