@@ -458,10 +458,11 @@ struct App
      *      pumped until a task asks for a frame (RENDER), its head waits, or
      *      it is empty. It alone may ask for a frame -- which is why the boot
      *      and its preload run here (app_open_tree): before login there are
-     *      no packets. A frame it asked for is owed until the next frame
-     *      begins (TaskRunner_RenderOwed), so a pump that is not a frame (the
-     *      browser's between-frames pump) does not resume the task that
-     *      asked. Its tasks may wait on any state.
+     *      no packets. A frame it asked for is owed until App_RunOnce has
+     *      run one to its end (TaskRunner_RenderOwed), so no pump -- between
+     *      frames (the browser's, the native loop's naps) or at the top of
+     *      the frame that pays it -- resumes the task that asked before that
+     *      frame is drawn. Its tasks may wait on any state.
      *   3. THE PARALLEL QUEUE (frame_runner) is IO-heavy work and is
      *      DRAINED: each pump steps every task that can run at least once,
      *      then keeps stepping until every task is done, waiting on a read,

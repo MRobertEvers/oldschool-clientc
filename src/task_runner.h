@@ -82,8 +82,8 @@ struct TaskRunner
     /** A task on this (the main) queue asked for a frame (TASK_RUNNER_RENDER)
      *  and the owner has not yet said a frame was shown since
      *  (TaskRunner_RenderShown). The request means "show a frame before I am
-     *  resumed", so a pump that is not a frame -- the browser's between-frames
-     *  pump -- must not step this queue while it is set (App_PumpAsync). */
+     *  resumed", so no pump -- between frames, or at the top of the frame
+     *  that is to show it -- steps this queue while it is set (App_PumpAsync). */
     int render_owed;
     struct TaskRunnerTelemetry telemetry;
     /* TORIRS_TASK_SLOW_MS: name every task whose single run took at least
@@ -380,8 +380,9 @@ TaskRunner_RenderOwed(struct TaskRunner const* runner)
 }
 
 /* The owner's word that a frame has been shown since the last render request:
- * the queue may be stepped again. The frame calls it at its top
- * (App_PumpAsync), which is after the previous frame reached the screen. */
+ * the queue may be stepped again. The frame calls it at its end (App_RunOnce),
+ * so a request made between frames is paid by the next frame, not by the
+ * pump at that frame's top. */
 static inline void
 TaskRunner_RenderShown(struct TaskRunner* runner)
 {
