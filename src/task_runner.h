@@ -79,6 +79,12 @@ struct TaskRunner
     /* What the task asked to be drawn, valid only while the last Step
      * returned TASK_RUNNER_RENDER. */
     struct ToriRS_RenderRequest render;
+    /** A task on this (the main) queue asked for a frame (TASK_RUNNER_RENDER)
+     *  and the owner has not yet said a frame was shown since
+     *  (TaskRunner_RenderShown). The request means "show a frame before I am
+     *  resumed", so a pump that is not a frame -- the browser's between-frames
+     *  pump -- must not step this queue while it is set (App_PumpAsync). */
+    int render_owed;
     struct TaskRunnerTelemetry telemetry;
     /* TORIRS_TASK_SLOW_MS: name every task whose single run took at least
      * this long (0: off). Needs the queue's clock (TaskRunner_SetClock). */
@@ -362,6 +368,25 @@ TaskRunner_AddRenderBlockingSerialTask(
     task->render_blocking = 1;
     ToriRS_TaskQueue_Add(runner->queue, task);
     runner->frame_settle_pending = 1;
+}
+
+/* Has a task on this queue asked for a frame that has not been shown yet?
+ * (`render_owed`: set when a pass returns TASK_RUNNER_RENDER.) */
+static inline int
+TaskRunner_RenderOwed(struct TaskRunner const* runner)
+{
+    assert(runner);
+    return runner->render_owed;
+}
+
+/* The owner's word that a frame has been shown since the last render request:
+ * the queue may be stepped again. The frame calls it at its top
+ * (App_PumpAsync), which is after the previous frame reached the screen. */
+static inline void
+TaskRunner_RenderShown(struct TaskRunner* runner)
+{
+    assert(runner);
+    runner->render_owed = 0;
 }
 
 /* Latch, or clear, the owner's "last pump left work parked" (`had_work`). */
@@ -648,7 +673,10 @@ TaskRunner_Step(struct TaskRunner* runner)
 
     runner->progressed = ran;
     if( render )
+    {
+        runner->render_owed = 1;
         return TASK_RUNNER_RENDER;
+    }
     if( runner->queue->head == NULL )
         return TASK_RUNNER_IDLE;
     if( spent )

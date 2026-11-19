@@ -811,6 +811,17 @@ struct MainPacing
      * frames -- there is exactly one frame loop per process. */
     int paced_mode;
     int paced_value;
+    /* The mode that scheduled THIS callback: the one installed during the
+     * previous frame (paced_mode is already the next one's by the time the
+     * period is measured), and whether the previous callback was a raf one
+     * too. A period is a vsync measure only when both of its ends were raf
+     * callbacks: the first raf callback after a timer-paced frame comes at
+     * the first vsync after an arbitrary start. */
+    int prev_paced_mode;
+    int prev_raf_callback;
+    /* The display's period, from raf-paced periods (pacer.h): what bounds the
+     * background queue's slack at the end of the frame. */
+    struct ToriRS_DisplayPeriod display_period;
 #endif
 };
 static struct MainPacing main_pacing = {
@@ -818,6 +829,7 @@ static struct MainPacing main_pacing = {
 #if defined(TORIRS_PLATFORM_WEB)
     .paced_mode = -1,
     .paced_value = -1,
+    .prev_paced_mode = -1,
 #endif
 };
 
@@ -4305,8 +4317,14 @@ frame_loop_step(void)
                 web_mark_frame_event(label);
             }
         }
+        if( main_pacing.prev_paced_mode == EM_TIMING_RAF && main_pacing.prev_raf_callback )
+            ToriRS_DisplayPeriod_Note(&main_pacing.display_period, period_us);
 #endif
     }
+#if defined(TORIRS_PLATFORM_WEB)
+    main_pacing.prev_raf_callback = main_pacing.prev_paced_mode == EM_TIMING_RAF;
+    main_pacing.prev_paced_mode = main_pacing.paced_mode;
+#endif
     main_pacing.prev_frame_start_us = frame_start_us;
     TORIRS_PERF_FRAME_BEGIN();
 
@@ -6783,13 +6801,24 @@ frame_loop_step(void)
         }
     }
 #else
-    /* The browser has no wait to fill, so its slack is what is left of the
-     * draw period after this frame's work: the background queue's, up to the
-     * point the next frame is due (App_RunBackground). */
+    /* The browser has no wait to fill, so its slack is what is left after
+     * this frame's work before the next frame is due: the background queue's
+     * (App_RunBackground). Due is the draw period from the frame's start and,
+     * on requestAnimationFrame, no later than the display's next vsync less
+     * the compositor's share (ToriRS_Pacer_SlackEndUs) -- a 20 ms period on a
+     * 60 Hz display ran every callback 3 ms past its vsync while a background
+     * job had work, which costs the next frame, and the background queue
+     * never withholds one. A frame that has overrun has no slack and gives
+     * none: the floor in App_RunOnce has already stepped every background
+     * task once, whatever the clock said. */
     {
         uint64_t const period_us = (uint64_t)ToriRS_Pacer_DrawPeriodMs(&main_pacing.frame_pacer) * 1000u;
-        if( period_us > 0 )
-            App_RunBackground(&app, frame_start_us + period_us);
+        uint64_t const display_us =
+            main_pacing.paced_mode == EM_TIMING_RAF ? main_pacing.display_period.estimate_us : 0;
+        uint64_t const slack_end_us =
+            period_us > 0 ? ToriRS_Pacer_SlackEndUs(frame_start_us, period_us, display_us, PlatformWindow_TicksUs()) : 0;
+        if( slack_end_us )
+            App_RunBackground(&app, slack_end_us);
     }
 #endif
     frame_loop_scan_meter_check();
@@ -7624,6 +7653,14 @@ static int web_pump_armed;
  * settimeout(0) pacing degrades to once nested, is exactly the latency this
  * exists to remove: a task chain that asks for one group at a time paid it
  * per link.
+ *
+ * What it steps is App_PumpAsync's between-frames pump, and that is the
+ * frame contract's (app.h): the parallel queue drained to a standstill, the
+ * script settle when one is pending, and while the client boots the main
+ * queue, which holds the boot -- unless the boot asked for a frame that has
+ * not been shown yet, which it then waits for. Never the packet pump (no
+ * packet is popped here), never the background queue, never a frame
+ * published: those are frame_loop_step's.
  *
  * Returns 1 when it stepped anything, 0 when it was not armed.
  */

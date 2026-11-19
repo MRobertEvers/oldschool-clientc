@@ -6,9 +6,10 @@
  *
  *   1. RESULTS BY QUEUE. A task that asks for a frame (RENDER) on the main
  *      queue ends that queue's pass with its request carried and the task
- *      behind it not run; on the parallel or the background queue the same
- *      request trips the runner's assert. SPENT anywhere but the background
- *      queue trips it too.
+ *      behind it not run, and the frame stays owed until the owner says one
+ *      was shown; on the parallel or the background queue the same request
+ *      trips the runner's assert. SPENT anywhere but the background queue
+ *      trips it too.
  *   2. THE PARALLEL PUMP DRAINS. One pump (TaskRunner_PumpToStandstill)
  *      never returns while a task that is neither done, waiting on a read,
  *      nor joined remains -- however many plain yields that takes -- and
@@ -339,6 +340,35 @@ test_render_ends_the_main_queues_pass(void)
     runner_free(&runner);
 }
 
+/* The request is owed until the owner says a frame was shown: what keeps the
+ * browser's between-frames pump (App_PumpAsync, from_frame 0) from resuming
+ * a boot that asked to be seen first. */
+static void
+test_render_is_owed_until_a_frame_is_shown(void)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px = { 0 };
+    int ended = 0;
+
+    printf("TEST: a frame asked for is owed until the owner says one was shown\n");
+    runner_init(&runner, &px, NULL, TASK_RUNNER_ROLE_MAIN);
+    ToriRS_TaskQueue_Add(runner.queue, new_asker());
+    ToriRS_TaskQueue_Add(runner.queue, new_yielder(1, &ended));
+    CHECK(!TaskRunner_RenderOwed(&runner));
+    CHECK(TaskRunner_Step(&runner) == TASK_RUNNER_RENDER);
+    CHECK(TaskRunner_RenderOwed(&runner));
+    /* Passes that ask for nothing do not pay it; only the frame does. */
+    CHECK(TaskRunner_Step(&runner) == TASK_RUNNER_PROGRESSED);
+    CHECK(TaskRunner_RenderOwed(&runner));
+    TaskRunner_RenderShown(&runner);
+    CHECK(!TaskRunner_RenderOwed(&runner));
+    while( TaskRunner_Step(&runner) != TASK_RUNNER_IDLE )
+        ;
+    CHECK(ended == 1);
+    CHECK(!TaskRunner_RenderOwed(&runner));
+    runner_free(&runner);
+}
+
 static void
 render_on_parallel(void)
 {
@@ -536,6 +566,7 @@ int
 main(void)
 {
     test_render_ends_the_main_queues_pass();
+    test_render_is_owed_until_a_frame_is_shown();
     test_render_and_spent_elsewhere_trip_the_assert();
     test_one_pump_drains_the_parallel_queue();
     test_a_pump_ended_early_is_caught();

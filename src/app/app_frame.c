@@ -635,6 +635,50 @@ app_pump_boot_main(
     return stat;
 }
 
+/* App_RunOnce is on the stack (a counter, not a flag: the hover frames are
+ * sequential App_RunOnce calls, never nested ones, but a count cannot be
+ * left wrong by either). */
+static int g_app_run_once_depth;
+
+/*
+ * The between-frames pump (App_PumpAsync with from_frame 0, the browser's
+ * torirs_web_io_pump) runs on an event-loop turn of its own: never inside a
+ * frame, a pass of any queue, a script settle, or another pump. In a browser
+ * that is structural -- one thread, the hook is a posted MessageChannel
+ * macrotask, and the module has no ASYNCIFY to nest an event loop inside a
+ * C call -- so this is a check, not a guard: a host that ever calls the hook
+ * from anywhere else finds out here rather than as a queue stepped from
+ * inside its own pass.
+ */
+static void
+app_between_frames_entry_check(struct App const* app)
+{
+    char const* site = App_QueueSiteNow();
+    char const* where;
+    char line[192];
+
+    assert(app);
+    where = g_app_run_once_depth              ? "a frame (App_RunOnce)"
+            : site                            ? site
+            : app->packet_runner.stepping     ? "a pass of the main queue"
+            : app->frame_runner.stepping      ? "a pass of the parallel queue"
+            : app->background_runner.stepping ? "a pass of the background queue"
+            : app->frame_runner.in_pump       ? "a pump of the parallel queue"
+            : app->background_runner.in_pump  ? "a pump of the background queue"
+                                              : NULL;
+    if( !where )
+        return;
+    snprintf(line, sizeof(line), "the between-frames pump was entered from inside %s", where);
+    TaskRunner_ContractBreach(line);
+    assert(!g_app_run_once_depth);
+    assert(!site);
+    assert(!app->packet_runner.stepping);
+    assert(!app->frame_runner.stepping);
+    assert(!app->background_runner.stepping);
+    assert(!app->frame_runner.in_pump);
+    assert(!app->background_runner.in_pump);
+}
+
 /*
  * One pump: the main queue while booting, a client script's settle when one
  * is pending, then the parallel queue to a standstill.
@@ -650,9 +694,16 @@ app_pump_boot_main(
  * parallel queue is drained "whenever possible", and a landed batch is such a
  * moment (app.h).
  *
- * `from_frame` says which caller this is. Both step exactly the same way and
- * update the same flags; only the per-frame accounting (boot frames, busy
- * frames) belongs to the frame, because a pump is not a frame.
+ * `from_frame` says which caller this is. Both step the same way and update
+ * the same flags; only the per-frame accounting (boot frames, busy frames)
+ * belongs to the frame, because a pump is not a frame -- and so does the
+ * main queue's render request. A boot task that asked for a frame
+ * (TASK_RUNNER_RENDER: "show a frame before I am resumed") is not resumed
+ * by the between-frames pump: the main queue owes that frame
+ * (TaskRunner_RenderOwed) until the next frame begins, which is where the
+ * frame says the last one was shown (TaskRunner_RenderShown). The parallel
+ * queue is drained either way, so the boot's loads keep landing between
+ * frames; only the boot's own next step waits for the frame it asked for.
  *
  * Safe to run outside a frame for the same reason a task may yield at any
  * pass: nothing a task does assumes it is inside App_RunOnce. The CS2 settle
@@ -682,6 +733,10 @@ App_PumpAsync(
     enum TaskRunnerStat result = TASK_RUNNER_IDLE;
 
     assert(app);
+    if( from_frame )
+        TaskRunner_RenderShown(&app->packet_runner);
+    else
+        app_between_frames_entry_check(app);
     app->frame_runner.telemetry.in_pump = !from_frame;
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_ASYNC)
     {
@@ -697,7 +752,14 @@ App_PumpAsync(
          * frame cap would be pacing the pipeline rather than the screen. */
         BootPumpStats_PassBegin(&app->pump_stats);
         app->frame_runner.compute_check_off = booting;
-        if( booting )
+        if( booting && TaskRunner_RenderOwed(&app->packet_runner) )
+        {
+            /* Between frames, with the frame the boot asked for not yet
+             * shown: the boot waits for it; its loads are drained below. */
+            assert(!from_frame);
+            BootPumpStats_SetPending(&app->pump_stats);
+        }
+        else if( booting )
         {
             enum TaskRunnerStat main_stat = app_pump_boot_main(app, &steps);
             if( main_stat != TASK_RUNNER_IDLE )
@@ -982,12 +1044,14 @@ App_RunOnce(
     RebuildFrameStats_ClearMarks(&app->rebuild_frames);
     FrameClockSerial_NoteRunOnce(&app->frame_clock.serial);
     app_rebuild_mark(app, "start");
+    g_app_run_once_depth++;
     result = app_run_once_body(app, now_ms, input);
     app_rebuild_mark(app, "body_rest");
     /* Outside the body, so that none of its early returns (a latched frame,
      * a boot) can starve the background queue: every platform loop gives it
      * this floor, whatever else it does with its slack (App_RunBackground). */
     app_run_background_floor(app);
+    g_app_run_once_depth--;
     app_rebuild_mark(app, "bg_floor");
     FrameStats_Span(FRAME_STATS_FRAME, t0);
     return result;

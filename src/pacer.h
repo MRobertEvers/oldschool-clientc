@@ -204,4 +204,48 @@ void ToriRS_Pacer_SetCapFps(struct ToriRS_Pacer* pacer, int fps);
  */
 void ToriRS_Pacer_NoteFrame(struct ToriRS_Pacer* pacer, uint64_t now_us, uint64_t wait_us);
 
+/*
+ * THE DISPLAY'S PERIOD, where the platform paces the loop to it and does not
+ * say what it is: the browser's requestAnimationFrame. The period between two
+ * callbacks is one vsync (16.7 ms at 60 Hz, 8.3 ms at 120 Hz) or a whole
+ * number of them when a frame overran, so the shortest period of a window of
+ * frames is the display's own. A window rather than all time, so one flukey
+ * pair of callbacks does not shrink the estimate for the rest of the session
+ * and a display that changes rate (a laptop dropping to 60 Hz on battery) is
+ * followed within a window. 0 until the first window has closed.
+ */
+enum
+{
+    TORIRS_DISPLAY_PERIOD_WINDOW = 32,
+    /* Shorter than any display this client meets (240 Hz is 4.2 ms): a period
+     * under it is two callbacks the browser ran back to back, not a vsync. */
+    TORIRS_DISPLAY_PERIOD_MIN_US = 4000,
+};
+
+struct ToriRS_DisplayPeriod
+{
+    uint64_t estimate_us;
+    uint64_t window_min_us;
+    int window_count;
+};
+
+/* One period between two display-paced frame starts. */
+void ToriRS_DisplayPeriod_Note(struct ToriRS_DisplayPeriod* display, uint64_t period_us);
+
+/*
+ * Where a loop the platform paces (the browser's) may give the background
+ * queue its slack until, or 0 when there is no slack left this frame.
+ *
+ * The slack is what is left before the next frame is due: the draw period
+ * from the frame's start, and, when the loop is paced to a display whose
+ * period is known (`display_period_us` > 0), no later than that period's
+ * start less a quarter of it -- the browser composites after the callback
+ * returns, and a callback still running at the next vsync costs the next
+ * frame (at 60 Hz a 20 ms draw period runs 3 ms past it, every frame). A frame
+ * that has overrun has none: 0, and the background queue has had its floor in
+ * App_RunOnce, which steps every task once whatever the clock says.
+ */
+uint64_t ToriRS_Pacer_SlackEndUs(
+    uint64_t frame_start_us, uint64_t draw_period_us, uint64_t display_period_us, uint64_t now_us);
+
 #endif /* PACER_H */

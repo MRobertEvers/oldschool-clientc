@@ -1018,6 +1018,9 @@ char const*
 App_QueueSiteEnter(char const* site);
 void
 App_QueueSiteLeave(char const* previous);
+/* The site stepping a queue now, or NULL outside every one. */
+char const*
+App_QueueSiteNow(void);
 /* App_RunOnce's floor slice: App_RunBackground for a couple of ms, so every
  * platform loop moves the queue with no change of its own. */
 void
