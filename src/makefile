@@ -774,7 +774,6 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	app/app_hotkeys.c \
 	app/app_if_events.c \
 	app/app_if_models.c \
-	app/app_loc_editor.c \
 	app/app_lookup.c \
 	app/app_map_editor.c \
 	app/app_minimap.c \
@@ -796,7 +795,10 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	app/app_tick.c \
 	app/app_title.c \
 	app/app_tool_damage_test.c \
+	app/app_tool_frame_time.c \
 	app/app_tool_free_camera.c \
+	app/app_tool_hover_footprint.c \
+	app/app_tool_loc_editor.c \
 	app/app_tool_paint_stepper.c \
 	app/app_tool_projectile.c \
 	app/app_tool_spawn.c \
@@ -2644,21 +2646,21 @@ test-feature-facts: $(OBJ_DIR)
 		features/test/feature_facts_test.c features/feature_facts.c features/features.c $(LDFLAGS)
 	./$(OBJ_DIR)/feature_facts_test$(PLATFORM_EXE_SUFFIX)
 
-# The developer overlay: a created overlay is zeroed with an empty frame-time
-# ring, and the frame-time row reads milliseconds to two decimals or "--".
+# The developer overlay: a created overlay is zeroed with the model-view
+# camera reset, and the frame-time row reads milliseconds to two decimals or
+# "--".
 .PHONY: test-dev-overlay
 test-dev-overlay: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/dev_overlay_test$(PLATFORM_EXE_SUFFIX) \
-		ui/test/dev_overlay_test.c ui/dev_overlay.c $(TORIMEM_SRCS) $(LDFLAGS)
+		ui/test/dev_overlay_test.c ui/dev_overlay.c editor/editor_preview_camera.c $(TORIMEM_SRCS) $(LDFLAGS)
 	./$(OBJ_DIR)/dev_overlay_test$(PLATFORM_EXE_SUFFIX)
 
-# The editor shell: a created shell is zeroed with the ghost and the preview
-# camera reset.
+# The editor shell: a created shell is zeroed with the ghost reset.
 .PHONY: test-editor-shell
 test-editor-shell: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/editor_shell_test$(PLATFORM_EXE_SUFFIX) \
 		editor/test/editor_shell_test.c editor/editor_shell.c editor/map_editor_ghost.c \
-		editor/editor_preview_camera.c $(TORIMEM_SRCS) $(LDFLAGS)
+		$(TORIMEM_SRCS) $(LDFLAGS)
 	./$(OBJ_DIR)/editor_shell_test$(PLATFORM_EXE_SUFFIX)
 
 # The hover-footprint outline's state: the env mode's seed and the toggle.

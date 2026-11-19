@@ -3,7 +3,9 @@
  * fallback for retained panel primitives, and the input routing every panel
  * of both chrome instances (the developer chrome and the plugin window)
  * shares: who owns the pointer, the pointer and keyboard fed to an instance,
- * and a focused field's clipboard chords.
+ * and a focused field's clipboard chords; and the dev panels' tick, which
+ * routes this frame's input into the developer chrome around the side-apps'
+ * panel points.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in
@@ -679,5 +681,169 @@ app_chrome_route_keys(
         }
         if( consumed )
             ToriRS_InputClaimsTakeFrame(&app->input_claims);
+    }
+}
+
+/*
+ * The dev panels' tick: the panel toggles, the pick filter, this frame's input
+ * routed into the developer chrome, the keyboard holders' shared work, and the
+ * chrome built.
+ *
+ * Runs in the early chrome phase after the plugin window's tick (app_frame.c),
+ * before the BOOTING early-out, and before anything downstream reads the frame
+ * claim for click-to-walk. The side-apps' parts run at its points
+ * (SIDE_APP_PHASE_DEV_PANELS_*, and the keys of SIDE_APP_PHASE_DEV_PANELS) in
+ * registration order (app_tools.c).
+ */
+void
+app_dev_panels_tick(
+    struct App* app,
+    struct LibToriRS_Input* input)
+{
+    assert(app);
+    assert(input);
+
+    SideApps_Frame(app->side_apps, SIDE_APP_PHASE_DEV_PANELS_BEGIN, app_side_app_host(app), input);
+
+    /* The side-apps' panel toggles (the loc editor's, then the hover
+     * footprint's), suppressed while a chat line has focus: typing a message
+     * must not flip debug chrome. */
+    if( !app_text_input_focused(app) )
+        app_side_app_deliver_keys(app, input, SIDE_APP_PHASE_DEV_PANELS);
+
+    /* Map editor panel. Gated on the session existing, so binding this key in a
+     * manifest with no [editor:boot] is inert rather than a panel with nothing
+     * behind it. */
+    if( app->editor && !app_text_input_focused(app) &&
+        app_debug_key_down(app, input, APP_DEBUG_HOTKEY_MAP_EDITOR) )
+    {
+        Editor_PanelSetVisible(
+            &app->editor_shell->editor_panel,
+            &app->dev_overlay->ui,
+            !app->editor_shell->editor_panel.visible);
+        RedrawRequest_Raise(&app->redraw_request);
+    }
+
+    /* The side-apps that inspect locs (the loc editor, the hover footprint)
+     * see locs the pick classifier drops by default -- walls, fences, gravel,
+     * ground decor: everything with no ops on it, which is most of what a
+     * placement or footprint question is actually about. Told here, once, from
+     * the toggles that own the state, so no tool has to reach into the pick
+     * path itself. */
+    /* The MAP editor makes every loc pickable too: its Select/Delete minimenu
+     * rows are built per PICKED element, so a wall or roof with no ops of its
+     * own -- invisible to the pick without this flag -- could never grow a
+     * "Select Wall" row however the menu was gated. This one line is the
+     * difference between "the menu ignores half the tile" and not. */
+    WorldEntity_SceneryDebugSetTools(
+        SideApps_AnyInspectsScenery(app->side_apps) ||
+        (app->editor && app->editor_shell->editor_panel.visible));
+
+    SideApps_Frame(app->side_apps, SIDE_APP_PHASE_DEV_PANELS_HOVER, app_side_app_host(app), input);
+
+    /*
+     * Overlay input, for ANY visible chrome panel.
+     *
+     * Asked of the chrome rather than listed here, because the list was the
+     * bug: this was gated on the loc editor, then on the loc editor OR the map
+     * editor, and every panel added after that -- the plugin settings panel
+     * among them -- silently got no clicks. A panel whose checkboxes cannot be
+     * ticked reads as broken, not as unrouted, so the gate is now "is anything
+     * of this instance on screen" and a new panel needs no gate edit at all.
+     */
+    if( ToriRSChrome_HasVisiblePanel(&app->dev_overlay->ui) )
+        app_chrome_route_input(app, &app->dev_overlay->ui, input);
+
+    if( SideApps_AnyHoldsKeyboard(app->side_apps) || app->editor_shell->editor_panel.visible )
+    {
+        /* A chat line stealing W/A/S/D/R/Space/Backspace would make an editor
+         * panel unusable, so force it (and the modal chat variants) closed for
+         * as long as one is open rather than merely suppressing the toggle key
+         * like the developer overlay does. The later chat-focus code (Enter /
+         * click-in-chat-region) is itself gated on the same holders so it
+         * cannot steal focus back mid-session.
+         *
+         * Deliberately NOT part of the generic routing above: this is an
+         * editor's claim on the whole keyboard, and a panel a player may leave
+         * open beside the game -- the plugin window -- must not disable chat
+         * for as long as it is up. */
+        UIChatLine_SetInputActive(&app->chat_line, 0);
+        app->chat.social_input_open = 0;
+        app->chat.dialog_input_open = 0;
+
+        /*
+         * A focused model view owns the movement keys: WASD orbits, E/F zooms,
+         * arrows orbit too. Every accepted key re-renders with the camera
+         * held, consumes the frame, and never reaches the world camera --
+         * which also checks this focus itself, for the keys that arrive on
+         * frames this block does not see.
+         *
+         * HELD, not the down edge. The world camera flies for as long as W is
+         * down and the preview has to answer the same gesture the same way: on
+         * the edge alone, holding a key nudged the model once and then sat
+         * there, which is indistinguishable from a control that does not work.
+         * The steps are per FRAME because of it -- a fifth of the old edge
+         * step, so a press-and-release is still a small turn and a hold is a
+         * smooth orbit rather than a spin.
+         */
+        if( app_modelview_focused(app) )
+        {
+            struct EditorPreviewCamera* camera = &app->dev_overlay->preview_camera;
+            int took = 0;
+            int const yaw_step = 12;
+            int const pitch_step = 6;
+
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_A) ||
+                LibToriRS_Input_IsKeyHeld(input, TORIRSK_LEFT) )
+            {
+                EditorPreviewCamera_Orbit(camera, 0, -yaw_step);
+                took = 1;
+            }
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_D) ||
+                LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT) )
+            {
+                EditorPreviewCamera_Orbit(camera, 0, yaw_step);
+                took = 1;
+            }
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_W) ||
+                LibToriRS_Input_IsKeyHeld(input, TORIRSK_UP) )
+            {
+                EditorPreviewCamera_Orbit(camera, -pitch_step, 0);
+                took = 1;
+            }
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_S) ||
+                LibToriRS_Input_IsKeyHeld(input, TORIRSK_DOWN) )
+            {
+                EditorPreviewCamera_Orbit(camera, pitch_step, 0);
+                took = 1;
+            }
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_E) )
+            {
+                EditorPreviewCamera_Zoom(camera, -1);
+                took = 1;
+            }
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_F) )
+            {
+                EditorPreviewCamera_Zoom(camera, 1);
+                took = 1;
+            }
+            if( took )
+            {
+                /* Orbit and Zoom have already said this is the same model. */
+                ToriRS_InputClaimsTakeFrame(&app->input_claims);
+                RedrawRequest_Raise(&app->redraw_request);
+            }
+        }
+    }
+
+    /* The side-apps' own keys and rows (the loc editor's shortcuts), after the
+     * routing above. The map editor's keys are its hotkey table's
+     * (app_editor_hotkeys.c). */
+    SideApps_Frame(app->side_apps, SIDE_APP_PHASE_DEV_PANELS_INPUT, app_side_app_host(app), input);
+
+    if( ToriRSChrome_Build(&app->dev_overlay->ui) )
+    {
+        RedrawRequest_Raise(&app->redraw_request);
+        ToriRSChrome_DamageClear(&app->dev_overlay->ui);
     }
 }

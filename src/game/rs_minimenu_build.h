@@ -194,19 +194,23 @@ struct RS_MinimenuBuildCtx
     int ground_fallback_z;
     int ground_fallback_level;
 
-    /* The loc editor dev tool (src/app.c, `app->locedit_visible`) wants a
+    /* The loc editor dev tool (a side-app, app/app_tool_loc_editor.c, which
+     * sets this through its menu_flags hook while its panel is open) wants a
      * disambiguated target rather than "first loc found on this tile" --
      * while it is open, every loc that already earns an Examine row also
-     * earns a Select row (RS_MINIMENU_ACTION_LOCEDIT_SELECT, rs_minimenu_world.c),
-     * intercepted client-side in app_minimenu_run_option before it can reach
-     * the real OPLOC dispatch. False in every build path that predates the
-     * tool, so this changes nothing when it is closed. */
+     * earns a Select row (RS_MINIMENU_ACTION_LOCEDIT_SELECT, and
+     * RS_MINIMENU_ACTION_LOCEDIT_SELECT_TERRAIN for the ground,
+     * rs_minimenu_world.c), which the side-app takes client-side (its
+     * menu_action hook, offered from app_minimenu_run_option) before it can
+     * reach the real OPLOC dispatch. False unless the tool set it, so this
+     * changes nothing when it is closed. */
     bool locedit_active;
 
     /* The map editor's SELECT tool (src/editor/editor_panel.h,
      * `app->editor_shell->editor_panel`) wants the same disambiguated-target rows
      * locedit_active earns above, but latches into the editor panel's own
-     * sel_kind/sel_scene_x/z/sel_element_id rather than locedit_loc_id --
+     * sel_kind/sel_scene_x/z/sel_element_id rather than the loc editor's
+     * selection --
      * the two tools can be open together, on different subjects. Labeled by
      * loc SHAPE category ("Select Wall", "Select Ground Decor", ...) rather
      * than by name, since the map editor's tile tools care which layer they

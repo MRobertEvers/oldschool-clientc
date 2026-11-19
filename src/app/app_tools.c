@@ -26,6 +26,16 @@ app_tools_register(struct App* app)
      * names, answered by polling (app_hotkeys.c). */
     app_debug_hotkeys_register(app);
 
+    /* The developer chrome's side-apps, in the order their panels are made in
+     * it (SideApps_BuildChrome) and their keys are delivered: the frame-time
+     * panel at the early chrome point; then at the dev panels' point the loc
+     * editor's toggle before the hover footprint's. The plugin window answers
+     * its toggle key only, at its own tick. */
+    app_tool_frame_time_register(app);
+    app_tool_loc_editor_register(app);
+    app_tool_hover_footprint_register(app);
+    app_plugin_window_register(app);
+
     /* The world-hotkeys point, in the rank its actions carry:
      *   1 spawn_player, 2 spawn_npc (spawn); 3 damage_test;
      *   4 entity_spotanim, 5 spawn_spotanim (spotanim); 6 spawn_obj (spawn);

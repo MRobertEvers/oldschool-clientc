@@ -1,7 +1,8 @@
 /*
  * The developer overlay's record (ui/dev_overlay.h).
  *
- * A created overlay is zeroed: no chrome initialised.
+ * A created overlay is zeroed: no chrome initialised, the model-view camera
+ * reset.
  * The frame-time row reads milliseconds to two decimals, truncated, and "--"
  * for a mean of 0; a short buffer is still terminated.
  *
@@ -34,6 +35,9 @@ test_create_is_zeroed(void)
 
     TEST_ASSERT(overlay != NULL, "create hands back a record");
     TEST_ASSERT(overlay->ui.panel_count == 0, "the chrome is not initialised here");
+    TEST_ASSERT(overlay->preview_camera.pitch == EDITOR_PREVIEW_DEFAULT_PITCH, "camera pitch reset");
+    TEST_ASSERT(overlay->preview_camera.yaw == EDITOR_PREVIEW_DEFAULT_YAW, "camera yaw reset");
+    TEST_ASSERT(overlay->preview_camera.fit_pending, "a fit is pending");
     DevOverlay_Free(overlay);
     DevOverlay_Free(NULL);
 }

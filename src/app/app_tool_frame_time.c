@@ -52,7 +52,8 @@ static void
 app_tool_frame_time_frame(
     void* self,
     struct SideAppHost* host,
-    enum SideAppPhase phase);
+    enum SideAppPhase phase,
+    struct LibToriRS_Input* input);
 static void
 app_tool_frame_time_build_chrome(
     void* self,
@@ -141,11 +142,13 @@ static void
 app_tool_frame_time_frame(
     void* self,
     struct SideAppHost* host,
-    enum SideAppPhase phase)
+    enum SideAppPhase phase,
+    struct LibToriRS_Input* input)
 {
     struct AppToolFrameTime* tool = self;
     struct App* app = app_from_side_app_host(host);
 
+    (void)input;
     assert(tool);
     if( phase != SIDE_APP_PHASE_EARLY_CHROME )
         return;

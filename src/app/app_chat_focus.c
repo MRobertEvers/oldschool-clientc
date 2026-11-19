@@ -259,9 +259,10 @@ app_chat_focus_tick(
         }
         return 0;
     }
-    /* The loc editor took W/A/S/D/R/Space/Backspace for the frame and has
+    /* A side-app holding the keyboard (the loc editor, open) took
+     * W/A/S/D/R/Space/Backspace for the frame and the dev panels' tick has
      * already forced the focus flags off; do not hand them back under it. */
-    if( app->editor_shell->locedit.visible )
+    if( SideApps_AnyHoldsKeyboard(app->side_apps) )
         return 0;
     /* An IF3 text-entry field has the caret. Enter belongs to that field (it
      * submits), and without this the chat line would claim the same press and

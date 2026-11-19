@@ -49,13 +49,26 @@ enum SideAppPhase
     /** The world hotkeys, last in the frame's input: a hovered tile, no text
      *  input focused. */
     SIDE_APP_PHASE_WORLD_HOTKEYS,
-    /** The loc editor's tick, before the BOOTING early-out: after its own
-     *  toggle and before the map editor's, no text input focused. */
-    SIDE_APP_PHASE_LOC_EDITOR,
+    /** The dev panels' tick, before the BOOTING early-out, after the plugin
+     *  window's: the panel toggles, before the map editor's, no text input
+     *  focused. */
+    SIDE_APP_PHASE_DEV_PANELS,
     /** The plugin window's tick, before the BOOTING early-out: once a plugin
      *  host exists, after its headless drives and before the window is laid
      *  out. Delivered whatever has the keyboard; the side-app asks. */
     SIDE_APP_PHASE_PLUGIN_WINDOW,
+    /** Frame-hook points of the dev panels' tick (no key actions). BEGIN:
+     *  the tick opens, before any of its keys are read -- the chrome's popups
+     *  and focused fields are as this frame's keys found them. */
+    SIDE_APP_PHASE_DEV_PANELS_BEGIN,
+    /** After the panel toggles (SIDE_APP_PHASE_DEV_PANELS and the map
+     *  editor's) and the pick filter, before the chrome routes this frame's
+     *  pointer: which panels are shown is settled, none has moved yet. */
+    SIDE_APP_PHASE_DEV_PANELS_HOVER,
+    /** After the chrome routed this frame's input, and after the keyboard
+     *  holders' shared work (chat forced closed, the model-view keys); before
+     *  the chrome is built. */
+    SIDE_APP_PHASE_DEV_PANELS_INPUT,
     /** Never delivered: the owner polls its own bindings. Only the App
      *  layer's bridge for the tools not moved onto the registry yet. */
     SIDE_APP_PHASE_POLLED,
@@ -126,12 +139,13 @@ struct SideAppHooks
         enum SideAppPhase phase,
         int any_down);
     /** A frame-loop point the host runs (SideApps_Frame) came round. Called
-     *  at every such point, told which; a side-app does its work at the
-     *  points it names and returns at the others. */
+     *  at every such point, told which, with the frame's input; a side-app
+     *  does its work at the points it names and returns at the others. */
     void (*frame)(
         void* self,
         struct SideAppHost* host,
-        enum SideAppPhase phase);
+        enum SideAppPhase phase,
+        struct LibToriRS_Input* input);
     /** Make the side-app's panels in the host's shared dev chrome, once,
      *  where the host makes that chrome's panels (SideApps_BuildChrome): a
      *  chrome numbers its panels in the order they are made. */
@@ -146,6 +160,23 @@ struct SideAppHooks
     /** Does the side-app need the pick to see every loc this frame -- walls,
      *  fences and decor with no ops, which the pick drops by default? */
     int (*inspects_scenery)(void const* self);
+    /** Does the side-app hold the keyboard this frame? While one does, the
+     *  chat line neither captures keys nor takes focus, and is kept closed. */
+    int (*holds_keyboard)(void const* self);
+    /** Set the side-app's flags in a right-click menu's build context (an
+     *  opaque pointer the host owns), before the menu is built
+     *  (SideApps_MenuFlags). */
+    void (*menu_flags)(
+        void const* self,
+        void* build_ctx);
+    /** Offered a chosen menu row's `action` (`option` is the host's row,
+     *  opaque here). Returns non-zero when the action is the side-app's --
+     *  whether or not it acted -- which stops the offer (SideApps_MenuAction). */
+    int (*menu_action)(
+        void* self,
+        struct SideAppHost* host,
+        int action,
+        void const* option);
 };
 
 /** Does this binding's key fire, under this gate and mode, this frame? */
@@ -222,13 +253,15 @@ SideApps_ProbeKeys(
 
 /**
  * Run the frame hooks at frame-loop point `phase`: each side-app with a frame
- * hook, in registration order, is told the point came round.
+ * hook, in registration order, is told the point came round, with the
+ * frame's `input`.
  */
 void
 SideApps_Frame(
     struct SideApps* apps,
     enum SideAppPhase phase,
-    struct SideAppHost* host);
+    struct SideAppHost* host,
+    struct LibToriRS_Input* input);
 
 /**
  * Make the side-apps' panels in the host's shared dev chrome: each side-app
@@ -251,6 +284,28 @@ SideApps_DrawWorldOverlay(
  *  inspects_scenery hook says yes)? */
 int
 SideApps_AnyInspectsScenery(struct SideApps const* apps);
+
+/** Does any side-app hold the keyboard this frame (its holds_keyboard hook
+ *  says yes)? */
+int
+SideApps_AnyHoldsKeyboard(struct SideApps const* apps);
+
+/** Let each side-app with a menu_flags hook, in registration order, set its
+ *  flags in `build_ctx` before the host builds a right-click menu from it. */
+void
+SideApps_MenuFlags(
+    struct SideApps const* apps,
+    void* build_ctx);
+
+/** Offer a chosen menu row's `action` to each side-app with a menu_action
+ *  hook, in registration order, until one says it is its own. Returns
+ *  whether one did. */
+int
+SideApps_MenuAction(
+    struct SideApps* apps,
+    struct SideAppHost* host,
+    int action,
+    void const* option);
 
 int
 SideApps_BindingCount(struct SideApps const* apps);

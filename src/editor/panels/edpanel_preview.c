@@ -19,7 +19,7 @@
  *              it at the well's own size (app_map_editor_preview_update), so a
  *              bigger panel is a bigger model. A click focuses it; while it
  *              has the focus WASD / arrows orbit and E / F zoom
- *              (app_loc_editor.c), and the editor's hotkeys stand aside
+ *              (app_chrome.c), and the editor's hotkeys stand aside
  *              (app_editor_hotkeys.c: a focused model view gates them).
  *              A middle-drag that begins on the well orbits it, focus or
  *              not, and keeps it until the release (app_map_editor.c,

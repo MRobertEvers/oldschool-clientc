@@ -6,15 +6,17 @@
  * is built in, and the two All Settings pickers that are panels in it.
  *
  * The chrome instance belongs to this record. The frame-time panel (a
- * side-app, app/app_tool_frame_time.c), the loc editor's panel and the map
- * editor's panels (editor/editor_shell.h) are built in it too, but each holds
+ * side-app, app/app_tool_frame_time.c), the loc editor's panel (a side-app,
+ * app/app_tool_loc_editor.c) and the map editor's panels
+ * (editor/editor_shell.h) are built in it too, but each holds
  * only the widget ids it was handed back: the App unit passes `&overlay->ui`
  * to every call that adds, reads or shows a panel, and the plugin window's
  * instance is copied from it once at init.
  *
  * It lives on the heap, in the UI group, and exists for as long as the App
  * does: DevOverlay_Create hands back a zeroed record with no chrome
- * initialised, and DevOverlay_Free releases it.
+ * initialised and the model-view camera reset, and DevOverlay_Free releases
+ * it.
  *
  * This decides what the frame-time row reads for a mean: milliseconds to two
  * decimals, or "--" when the mean is 0.
@@ -23,6 +25,7 @@
  * clock, or prints. The caller does the chrome work through the fields below.
  */
 
+#include "editor/editor_preview_camera.h"
 #include "ui/settings_pickers.h"
 #include "ui/uitree_debug_overlay.h"
 
@@ -46,9 +49,18 @@ struct DevOverlay
      * varp. See ui/settings_pickers.h.
      */
     struct UISettingsPickers settings_pickers;
+    /**
+     * The camera on the model-view well, ONE instance shared by the panels
+     * of this chrome that show one: the map editor Catalog's preview and the
+     * loc editor's. It lives here, with the chrome both are built in, because
+     * it exists in every boot the loc editor can open in, editor or not. See
+     * editor/editor_preview_camera.h.
+     */
+    struct EditorPreviewCamera preview_camera;
 };
 
-/** A zeroed overlay, allocated in the UI group. Never NULL. */
+/** A zeroed overlay with the model-view camera reset, allocated in the UI
+ *  group. Never NULL. */
 struct DevOverlay*
 DevOverlay_Create(void);
 

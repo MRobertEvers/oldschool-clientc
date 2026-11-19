@@ -235,16 +235,18 @@ void
 SideApps_Frame(
     struct SideApps* apps,
     enum SideAppPhase phase,
-    struct SideAppHost* host)
+    struct SideAppHost* host,
+    struct LibToriRS_Input* input)
 {
     assert(apps);
     assert(phase >= 0);
     assert(phase < SIDE_APP_PHASE_POLLED);
     assert(host);
+    assert(input);
 
     for( int s = 0; s < apps->count; s++ )
         if( apps->entries[s].hooks->frame )
-            apps->entries[s].hooks->frame(apps->entries[s].self, host, phase);
+            apps->entries[s].hooks->frame(apps->entries[s].self, host, phase, input);
 }
 
 void
@@ -281,6 +283,49 @@ SideApps_AnyInspectsScenery(struct SideApps const* apps)
     for( int s = 0; s < apps->count; s++ )
         if( apps->entries[s].hooks->inspects_scenery &&
             apps->entries[s].hooks->inspects_scenery(apps->entries[s].self) )
+            return 1;
+    return 0;
+}
+
+int
+SideApps_AnyHoldsKeyboard(struct SideApps const* apps)
+{
+    assert(apps);
+
+    for( int s = 0; s < apps->count; s++ )
+        if( apps->entries[s].hooks->holds_keyboard &&
+            apps->entries[s].hooks->holds_keyboard(apps->entries[s].self) )
+            return 1;
+    return 0;
+}
+
+void
+SideApps_MenuFlags(
+    struct SideApps const* apps,
+    void* build_ctx)
+{
+    assert(apps);
+    assert(build_ctx);
+
+    for( int s = 0; s < apps->count; s++ )
+        if( apps->entries[s].hooks->menu_flags )
+            apps->entries[s].hooks->menu_flags(apps->entries[s].self, build_ctx);
+}
+
+int
+SideApps_MenuAction(
+    struct SideApps* apps,
+    struct SideAppHost* host,
+    int action,
+    void const* option)
+{
+    assert(apps);
+    assert(host);
+    assert(option);
+
+    for( int s = 0; s < apps->count; s++ )
+        if( apps->entries[s].hooks->menu_action &&
+            apps->entries[s].hooks->menu_action(apps->entries[s].self, host, action, option) )
             return 1;
     return 0;
 }

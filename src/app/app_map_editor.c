@@ -163,7 +163,8 @@ app_preview_raster(
  * Whether the map editor's SELECT tool is the thing the minimenu should be
  * offering "Select wall/object/decor/terrain" rows for -- panel closed or a
  * paint tool active both mean no such row belongs on the menu, same as
- * `app->editor_shell->locedit.visible` gates the loc editor's own Select row.
+ * the open loc editor's menu flag gates its own Select row
+ * (app_tool_loc_editor.c).
  */
 bool
 app_mapedit_select_active(struct App const* app)
@@ -630,7 +631,7 @@ ui_service_preview_invalidate(void* user_data)
 {
     struct App* app = user_data;
     assert(app);
-    EditorPreviewCamera_Invalidate(&app->editor_shell->preview_camera, false);
+    EditorPreviewCamera_Invalidate(&app->dev_overlay->preview_camera, false);
 }
 
 static void
@@ -641,7 +642,7 @@ ui_service_preview_orbit(
 {
     struct App* app = user_data;
     assert(app);
-    EditorPreviewCamera_Orbit(&app->editor_shell->preview_camera, pitch_step, yaw_step);
+    EditorPreviewCamera_Orbit(&app->dev_overlay->preview_camera, pitch_step, yaw_step);
     RedrawRequest_Raise(&app->redraw_request);
 }
 
@@ -652,7 +653,7 @@ ui_service_preview_zoom(
 {
     struct App* app = user_data;
     assert(app);
-    EditorPreviewCamera_ZoomBy(&app->editor_shell->preview_camera, ratio_q16);
+    EditorPreviewCamera_ZoomBy(&app->dev_overlay->preview_camera, ratio_q16);
     RedrawRequest_Raise(&app->redraw_request);
 }
 
@@ -3503,7 +3504,7 @@ app_map_editor_gestures(
         /* A trackpad scroll, a ctrl+wheel, a browser pinch: the same motion
          * ALSO reached this frame as the wheel / TORIRS_CMD_INPUT_SCROLL /
          * TORIRS_CMD_INPUT_PINCH, which the chrome (ToriRSChrome_WheelFrame,
-         * in app_loc_editor_tick, before this) and the camera's wheel
+         * in app_dev_panels_tick, before this) and the camera's wheel
          * already took. Taking the frame too would scroll a list twice and
          * pan the World while the wheel zooms it, so these stay the legacy
          * route's; the touchscreen's frames (and a touchpad's twist) are not
@@ -6245,14 +6246,14 @@ app_preview_raster(
      * middling size, so the well shows something framed rather than a dot or
      * a wall while it waits. */
     (void)EditorPreviewCamera_TakeFit(
-        &app->editor_shell->preview_camera,
+        &app->dev_overlay->preview_camera,
         bounds ? bounds->radius : 64,
         bounds ? bounds->min_y : 0,
         bounds ? bounds->max_y : 128);
     middle_y = bounds ? (bounds->min_y + bounds->max_y) / 2 : 0;
     /* After the fit: a new model's first render is at the zoom it chose. */
     zoom =
-        app->editor_shell->preview_camera.zoom > 0 ? app->editor_shell->preview_camera.zoom : 2000;
+        app->dev_overlay->preview_camera.zoom > 0 ? app->dev_overlay->preview_camera.zoom : 2000;
 
     /* Only the part the well shows is rastered: the sprite's middle. */
     if( width > sprite_w )
@@ -6271,15 +6272,15 @@ app_preview_raster(
     view_port.stride = sprite_w;
 
     memset(&camera, 0, sizeof(camera));
-    camera.pitch = app->editor_shell->preview_camera.pitch;
+    camera.pitch = app->dev_overlay->preview_camera.pitch;
     camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
     camera.projection_scale = EditorPreviewCamera_ProjectionScale(width, height);
     camera.near_plane_z = 1;
 
     memset(&position, 0, sizeof(position));
-    position.yaw = app->editor_shell->preview_camera.yaw;
-    position.y = ((ToriDraw_Sin(app->editor_shell->preview_camera.pitch) * zoom) >> 16) - middle_y;
-    position.z = (ToriDraw_Cos(app->editor_shell->preview_camera.pitch) * zoom) >> 16;
+    position.yaw = app->dev_overlay->preview_camera.yaw;
+    position.y = ((ToriDraw_Sin(app->dev_overlay->preview_camera.pitch) * zoom) >> 16) - middle_y;
+    position.z = (ToriDraw_Cos(app->dev_overlay->preview_camera.pitch) * zoom) >> 16;
 
     pixels = TORIDRAW_CALLOC(pixel_count, sizeof(toripixel_t));
     assert(pixels);
@@ -6793,7 +6794,7 @@ app_map_editor_preview_update(struct App* app)
     {
         subject_kind = cat_kind;
         subject_id = preview_id;
-        EditorPreviewCamera_Invalidate(&app->editor_shell->preview_camera, false);
+        EditorPreviewCamera_Invalidate(&app->dev_overlay->preview_camera, false);
         /* The well empties with the subject: until 2026-11-09 it kept the
          * previous record's picture until the new one's model had loaded,
          * which for a record this client's cache lacks is never ("npc
@@ -6804,7 +6805,7 @@ app_map_editor_preview_update(struct App* app)
      * also what resets the framing for a NEW one, so the two cannot disagree
      * about whether this is the same model. A resized well is the same model
      * at the new size, framed the same (the projection follows the well). */
-    if( EditorPreviewCamera_TakeRender(&app->editor_shell->preview_camera) || well_w != last_w ||
+    if( EditorPreviewCamera_TakeRender(&app->dev_overlay->preview_camera) || well_w != last_w ||
         well_h != last_h )
     {
         last_kind = -1;

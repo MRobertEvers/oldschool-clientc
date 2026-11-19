@@ -7,11 +7,10 @@
 struct EditorShell*
 EditorShell_Create(void)
 {
-    /* EDITOR: the editors' working state; EditorShell_Free releases it. */
+    /* EDITOR: the map editor's working state; EditorShell_Free releases it. */
     struct EditorShell* shell = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*shell));
 
     MapEditorGhost_Reset(&shell->map_ghost);
-    EditorPreviewCamera_Reset(&shell->preview_camera);
     return shell;
 }
 

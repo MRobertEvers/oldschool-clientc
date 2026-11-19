@@ -203,51 +203,14 @@ app_debug_overlay_init(struct App* app)
     /* The frame times the frame-time panel averages, emptied where the panel
      * is made (they are the frame clock's: perf/frame_clock.h). */
     FrameTimeRing_Reset(&app->frame_clock.frame_times);
-    /* The side-apps' panels first in the chrome, ahead of the loc editor's:
-     * the frame-time panel's (app_tools.c). */
+    /* The side-apps' panels first in the chrome, in registration order
+     * (app_tools.c): the frame-time panel's, then the loc editor's. */
     SideApps_BuildChrome(app->side_apps, app_side_app_host(app));
-
-    app->editor_shell->locedit.panel = ToriRSChrome_PanelAdd(
-        &app->dev_overlay->ui, TORIRS_CHROME_PANEL_MENU, 8, 40, 0, "Loc Editor");
-    app->editor_shell->locedit.row_target = ToriRSChrome_MenuItem(
-        &app->dev_overlay->ui, app->editor_shell->locedit.panel, "nothing selected");
-    app->editor_shell->locedit.row_pos =
-        ToriRSChrome_MenuItem(&app->dev_overlay->ui, app->editor_shell->locedit.panel, "");
-    app->editor_shell->locedit.row_size =
-        ToriRSChrome_MenuItem(&app->dev_overlay->ui, app->editor_shell->locedit.panel, "");
-    app->editor_shell->locedit.row_extra =
-        ToriRSChrome_MenuItem(&app->dev_overlay->ui, app->editor_shell->locedit.panel, "");
-    ToriRSChrome_Separator(&app->dev_overlay->ui, app->editor_shell->locedit.panel);
-    /* Rows double as the key reference: chat input is forced off while this
-     * panel is open (below), so these letters are always free to use without
-     * a message box eating them. Still clickable too -- the key is the fast
-     * path, the click is the discoverable one. */
-    app->editor_shell->locedit.item_xplus = ToriRSChrome_MenuItem(
-        &app->dev_overlay->ui, app->editor_shell->locedit.panel, "Move X+1  [D]");
-    app->editor_shell->locedit.item_xminus = ToriRSChrome_MenuItem(
-        &app->dev_overlay->ui, app->editor_shell->locedit.panel, "Move X-1  [A]");
-    app->editor_shell->locedit.item_zplus = ToriRSChrome_MenuItem(
-        &app->dev_overlay->ui, app->editor_shell->locedit.panel, "Move Z+1  [W]");
-    app->editor_shell->locedit.item_zminus = ToriRSChrome_MenuItem(
-        &app->dev_overlay->ui, app->editor_shell->locedit.panel, "Move Z-1  [S]");
-    app->editor_shell->locedit.item_rotate = ToriRSChrome_MenuItem(
-        &app->dev_overlay->ui, app->editor_shell->locedit.panel, "Rotate  [R]");
-    app->editor_shell->locedit.item_reselect = ToriRSChrome_MenuItem(
-        &app->dev_overlay->ui,
-        app->editor_shell->locedit.panel,
-        "Reselect (under cursor)  [Space]");
-    app->editor_shell->locedit.item_deselect = ToriRSChrome_MenuItem(
-        &app->dev_overlay->ui, app->editor_shell->locedit.panel, "Deselect  [Backspace]");
-    app->editor_shell->locedit.item_close = ToriRSChrome_MenuItem(
-        &app->dev_overlay->ui, app->editor_shell->locedit.panel, "Close  [9 / Esc]");
-    ToriRSChrome_PanelSetVisible(&app->dev_overlay->ui, app->editor_shell->locedit.panel, 0);
-    app->editor_shell->locedit.visible = 0;
 
     /* The two All Settings pickers, in this same instance for the same reason
      * the loc editor's panel is: they are in-canvas, short-lived, and share
      * the frame-time panel's Build/Prims/emit plumbing for free. */
     UISettingsPickers_Init(&app->dev_overlay->settings_pickers, &app->dev_overlay->ui);
-    LocEditorSelection_Reset(&app->editor_shell->locedit_selection);
 }
 
 /*
@@ -289,7 +252,7 @@ app_debug_overlay_tick(
      * message must not flip debug chrome. */
     if( !app_text_input_focused(app) )
         app_side_app_deliver_keys(app, input, SIDE_APP_PHASE_EARLY_CHROME);
-    SideApps_Frame(app->side_apps, SIDE_APP_PHASE_EARLY_CHROME, app_side_app_host(app));
+    SideApps_Frame(app->side_apps, SIDE_APP_PHASE_EARLY_CHROME, app_side_app_host(app), input);
 
     /* The canvas the readout is drawn onto, so an open dropdown list folds up
      * into it rather than off the bottom edge. Compare-then-set inside, and

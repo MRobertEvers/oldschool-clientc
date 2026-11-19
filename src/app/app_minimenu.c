@@ -551,13 +551,14 @@ app_hover_text_update(
                 .wevs = &app->wevs,
                 .view_world_fn = app_minimenu_view_world,
                 .view_world_user = app,
-                .locedit_active = app->editor_shell->locedit.visible != 0,
                 .mapedit_select_active = app_mapedit_select_active(app),
                 .plugin_io_down = app_plugin_io_down(app) != 0,
             };
             UIMinimenu_Reset(&scratch);
             scratch.font_id = app->hover_text.font_id;
             app_sailing_menu_context(app, &mctx, mouse_x, mouse_y);
+            /* The side-apps' menu flags (the loc editor's locedit_active). */
+            SideApps_MenuFlags(app->side_apps, &mctx);
             RS_Minimenu_Build(&mctx, mouse_x, mouse_y, &scratch);
             app_minimenu_apply_modes(app, &scratch, 0);
             app_minimenu_stamp_node_identities(app, &scratch);
@@ -1098,7 +1099,6 @@ app_minimenu_open(
         .wevs = &app->wevs,
         .view_world_fn = app_minimenu_view_world,
         .view_world_user = app,
-        .locedit_active = app->editor_shell->locedit.visible != 0,
         .mapedit_select_active = app_mapedit_select_active(app),
         .plugin_io_down = app_plugin_io_down(app) != 0,
     };
@@ -1109,6 +1109,8 @@ app_minimenu_open(
 
     app_minimenu_ctx_ground_fallback(app, &mctx, click_x, click_y);
     app_sailing_menu_context(app, &mctx, click_x, click_y);
+    /* The side-apps' menu flags (the loc editor's locedit_active). */
+    SideApps_MenuFlags(app->side_apps, &mctx);
     RS_Minimenu_Build(&mctx, click_x, click_y, menu);
     /* Before the plugins, so their re-sort covers these rows too -- the client
      * ops are the cache's, and a plugin adding a row after them must not leave
@@ -1617,7 +1619,6 @@ app_run_default_ui_row(
         .world = app->world,
         .world_pickset = NULL,
         .click_in_world = false,
-        .locedit_active = app->editor_shell->locedit.visible != 0,
         .mapedit_select_active = app_mapedit_select_active(app),
         .plugin_io_down = app_plugin_io_down(app) != 0,
     };
@@ -1627,6 +1628,8 @@ app_run_default_ui_row(
     mctx.selection = app_minimenu_selection(app);
     UIMinimenu_Reset(&scratch);
     scratch.font_id = app->world_views.frame->minimenu->font_id;
+    /* The side-apps' menu flags (the loc editor's locedit_active). */
+    SideApps_MenuFlags(app->side_apps, &mctx);
     RS_Minimenu_Build(&mctx, click_x, click_y, &scratch);
     app_minimenu_apply_modes(app, &scratch, 0);
     app_minimenu_stamp_node_identities(app, &scratch);
@@ -2662,33 +2665,17 @@ app_minimenu_run_option(
         return 0;
     }
 
-    /* Loc editor "Select" row (rs_minimenu_world.c add_scenery_rows, gated on
-     * locedit_active): entirely client-side, same shape as the Examine
-     * intercept above -- must also run before the pick.kind switch, or a
-     * scenery-kind pick with this action would fall into the
-     * UI_MINIMENU_PICK_SCENERY case and mis-send an OPLOC. The `locedit_visible`
-     * re-check guards a row clicked in the one frame the tool closed on. */
-    if( opt.action == RS_MINIMENU_ACTION_LOCEDIT_SELECT )
-    {
-        if( app->editor_shell->locedit.visible )
-            app_loc_editor_select_element(app, opt.pick.id);
+    /* The side-apps' own rows (the loc editor's "Select" pair,
+     * rs_minimenu_world.c, gated on the flags SideApps_MenuFlags set):
+     * entirely client-side, same shape as the Examine intercept above -- must
+     * also run before the pick.kind switch, or a scenery-kind pick with such
+     * an action would fall into the UI_MINIMENU_PICK_SCENERY case and
+     * mis-send an OPLOC. */
+    if( SideApps_MenuAction(app->side_apps, app_side_app_host(app), opt.action, &opt) )
         return 0; /* handled locally; no CS2 task was dispatched */
-    }
 
-    /* Its ground twin. The pick already carries the exact tile the terrain hit
-     * named — secondary/tertiary are scene x/z and quaternary the mesh level —
-     * so nothing is re-derived here and the panel cannot describe a different
-     * tile than the row that was clicked. */
-    if( opt.action == RS_MINIMENU_ACTION_LOCEDIT_SELECT_TERRAIN )
-    {
-        if( app->editor_shell->locedit.visible )
-            app_loc_editor_select_terrain(
-                app, opt.pick.secondary_id, opt.pick.tertiary_id, opt.pick.quaternary_id);
-        return 0; /* handled locally; no CS2 task was dispatched */
-    }
-
-    /* Map editor SELECT tool's pair of the two rows above -- same shape, a
-     * different panel's latch. The `app_mapedit_select_active` re-check
+    /* Map editor SELECT tool's pair of the loc editor's two rows -- same
+     * shape, a different panel's latch. The `app_mapedit_select_active` re-check
      * guards a row clicked in the one frame the tool closed or switched off
      * SELECT. */
     if( opt.action == RS_MINIMENU_ACTION_MAPEDIT_SELECT )

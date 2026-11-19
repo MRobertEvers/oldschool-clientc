@@ -25,9 +25,9 @@
  * rather than silently downgrading to "the hovered loc". The seed and the
  * toggle are editor/hover_footprint.h's.
  *
- * The key is delivered at the loc editor's point of the frame (its tick,
+ * The key is delivered at the dev panels' point of the frame (their tick,
  * before the BOOTING early-out: after the loc editor's toggle and before the
- * map editor's), with the loc editor's chat suppression: not while a text
+ * map editor's), with the dev panels' chat suppression: not while a text
  * input has focus, and not a key the map editor claimed this frame. While it
  * is on it asks the pick to see every loc (inspects_scenery), and it draws in
  * the world overlay pass after the bars, splats and chat and before the map
@@ -70,7 +70,7 @@ enum
 };
 
 static struct SideAppAction const k_app_tool_hover_footprint_actions[] = {
-    [APP_TOOL_HOVER_FOOTPRINT_TOGGLE] = { "hover_footprint", SIDE_APP_PHASE_LOC_EDITOR, SIDE_APP_GATE_CTRL,
+    [APP_TOOL_HOVER_FOOTPRINT_TOGGLE] = { "hover_footprint", SIDE_APP_PHASE_DEV_PANELS, SIDE_APP_GATE_CTRL,
                                           SIDE_APP_KEY_PRESS, 0 },
 };
 

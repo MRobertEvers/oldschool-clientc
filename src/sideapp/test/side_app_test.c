@@ -9,7 +9,10 @@
  * follows every delivery of a side-app's phase; keys_probe reports a key
  * going down without firing it; the frame, build_chrome and world_overlay
  * hooks run in registration order for every side-app that has one, the frame
- * hook told its point; inspects_scenery is yes when any side-app says yes; an
+ * hook told its point; inspects_scenery and holds_keyboard are yes when any
+ * side-app says yes; the menu flags are set by every side-app with the hook,
+ * and a chosen menu action is offered in registration order until one takes
+ * it; an
  * action's mode reaches the predicate as declared, press-or-held included;
  * the free hooks run last-registered first.
  *
@@ -453,16 +456,20 @@ struct FakeScenery
     int inspects;
 };
 
+static struct LibToriRS_Input g_frame_input;
+
 static void
 fake_frame(
     void* self,
     struct SideAppHost* host,
-    enum SideAppPhase phase)
+    enum SideAppPhase phase,
+    struct LibToriRS_Input* input)
 {
     struct FakeScenery* tool = self;
     char line[128];
 
     TEST_ASSERT(host == g_host, "the frame hook gets the host");
+    TEST_ASSERT(input == &g_frame_input, "and the frame's input");
     snprintf(line, sizeof(line), "%s:frame%d;", tool->name, (int)phase);
     strncat(g_log, line, sizeof(g_log) - strlen(g_log) - 1);
 }
@@ -508,7 +515,7 @@ test_frame_chrome_overlay_scenery(void)
         { "panel_toggle", SIDE_APP_PHASE_EARLY_CHROME, SIDE_APP_GATE_CTRL, SIDE_APP_KEY_PRESS, 0 },
     };
     static struct SideAppAction const marker_actions[] = {
-        { "marker_toggle", SIDE_APP_PHASE_LOC_EDITOR, SIDE_APP_GATE_CTRL, SIDE_APP_KEY_PRESS, 0 },
+        { "marker_toggle", SIDE_APP_PHASE_DEV_PANELS, SIDE_APP_GATE_CTRL, SIDE_APP_KEY_PRESS, 0 },
     };
     static struct SideAppAction const quiet_actions[] = {
         { "quiet", SIDE_APP_PHASE_WORLD_HOTKEYS, SIDE_APP_GATE_WORLD, SIDE_APP_KEY_PRESS, 0 },
@@ -546,8 +553,8 @@ test_frame_chrome_overlay_scenery(void)
     /* The frame hook runs at any point it is asked at, for every side-app
      * that has one, told which point. */
     g_log[0] = '\0';
-    SideApps_Frame(apps, SIDE_APP_PHASE_EARLY_CHROME, g_host);
-    SideApps_Frame(apps, SIDE_APP_PHASE_WORLD_HOTKEYS, g_host);
+    SideApps_Frame(apps, SIDE_APP_PHASE_EARLY_CHROME, g_host, &g_frame_input);
+    SideApps_Frame(apps, SIDE_APP_PHASE_WORLD_HOTKEYS, g_host, &g_frame_input);
     TEST_ASSERT(
         strcmp(g_log, "panel:frame0;marker:frame0;panel:frame3;marker:frame3;") == 0,
         "frame hooks in registration order, told the point");
@@ -556,16 +563,135 @@ test_frame_chrome_overlay_scenery(void)
     SideApps_DrawWorldOverlay(apps, g_host);
     TEST_ASSERT(strcmp(g_log, "marker:draw;") == 0, "only the side-app with an overlay draws");
 
-    /* The loc editor's point delivers its own action only. */
+    /* The dev panels' point delivers its own action only. */
     g_log[0] = '\0';
-    SideApps_DeliverKeys(apps, SIDE_APP_PHASE_LOC_EDITOR, g_host, fake_fires, &keys);
-    TEST_ASSERT(strcmp(g_log, "marker:0:;") == 0, "the loc editor point delivers its action");
+    SideApps_DeliverKeys(apps, SIDE_APP_PHASE_DEV_PANELS, g_host, fake_fires, &keys);
+    TEST_ASSERT(strcmp(g_log, "marker:0:;") == 0, "the dev panels point delivers its action");
 
     TEST_ASSERT(!SideApps_AnyInspectsScenery(apps), "nobody inspects: no");
     marker.inspects = 1;
     TEST_ASSERT(SideApps_AnyInspectsScenery(apps), "one inspects: yes");
     marker.inspects = 0;
     TEST_ASSERT(!SideApps_AnyInspectsScenery(apps), "and no again");
+    SideApps_Free(apps);
+}
+
+/* The keyboard question is an OR like the scenery one; every side-app with a
+ * menu_flags hook sets its flags in the one build context; a chosen menu
+ * action is offered in registration order and stops at the first side-app
+ * that says it is its own. */
+struct FakeMenuCtx
+{
+    int editor_flag;
+    int other_flag;
+};
+
+struct FakeMenuTool
+{
+    char const* name;
+    int holds;
+    int flag;
+    /** The menu action this tool takes, -1 for none. */
+    int owns_action;
+};
+
+static int
+fake_holds_keyboard(void const* self)
+{
+    struct FakeMenuTool const* tool = self;
+    return tool->holds;
+}
+
+static void
+fake_menu_flags_editor(
+    void const* self,
+    void* build_ctx)
+{
+    struct FakeMenuTool const* tool = self;
+    struct FakeMenuCtx* ctx = build_ctx;
+    ctx->editor_flag = tool->flag;
+}
+
+static void
+fake_menu_flags_other(
+    void const* self,
+    void* build_ctx)
+{
+    struct FakeMenuTool const* tool = self;
+    struct FakeMenuCtx* ctx = build_ctx;
+    ctx->other_flag = tool->flag;
+}
+
+static int
+fake_menu_action(
+    void* self,
+    struct SideAppHost* host,
+    int action,
+    void const* option)
+{
+    struct FakeMenuTool* tool = self;
+    char line[128];
+
+    TEST_ASSERT(host == g_host, "the menu action hook gets the host");
+    TEST_ASSERT(*(int const*)option == 77, "and the host's row");
+    snprintf(line, sizeof(line), "%s:menu%d;", tool->name, action);
+    strncat(g_log, line, sizeof(g_log) - strlen(g_log) - 1);
+    return action == tool->owns_action;
+}
+
+static void
+test_keyboard_and_menu(void)
+{
+    static struct SideAppBindingTable table;
+    static struct SideAppHooks const editor_hooks = {
+        .holds_keyboard = fake_holds_keyboard,
+        .menu_flags = fake_menu_flags_editor,
+        .menu_action = fake_menu_action,
+    };
+    static struct SideAppHooks const other_hooks = {
+        .menu_flags = fake_menu_flags_other,
+        .menu_action = fake_menu_action,
+    };
+    static struct SideAppHooks const bare_hooks = { 0 };
+    static struct SideAppAction const bare_actions[] = {
+        { "bare_polled", SIDE_APP_PHASE_POLLED, SIDE_APP_GATE_CTRL, SIDE_APP_KEY_PRESS, 0 },
+    };
+    static struct SideAppAction const editor_actions[] = {
+        { "editor_polled", SIDE_APP_PHASE_POLLED, SIDE_APP_GATE_CTRL, SIDE_APP_KEY_PRESS, 0 },
+    };
+    static struct SideAppAction const other_actions[] = {
+        { "other_polled", SIDE_APP_PHASE_POLLED, SIDE_APP_GATE_CTRL, SIDE_APP_KEY_PRESS, 0 },
+    };
+    struct FakeMenuTool editor = { "editor", 0, 1, 5 };
+    struct FakeMenuTool other = { "other", 0, 2, 6 };
+    struct FakeMenuTool bare = { "bare", 1, 0, -1 };
+    struct FakeMenuCtx ctx = { 0, 0 };
+    int const row = 77;
+
+    memset(&table, 0, sizeof(table));
+    struct SideApps* apps = SideApps_New(&table);
+    SideApps_Register(apps, "bare", &bare, &bare_hooks, bare_actions, 1);
+    SideApps_Register(apps, "editor", &editor, &editor_hooks, editor_actions, 1);
+    SideApps_Register(apps, "other", &other, &other_hooks, other_actions, 1);
+
+    TEST_ASSERT(!SideApps_AnyHoldsKeyboard(apps), "nobody holds the keyboard (no hook is no)");
+    editor.holds = 1;
+    TEST_ASSERT(SideApps_AnyHoldsKeyboard(apps), "one holds it: yes");
+    editor.holds = 0;
+
+    SideApps_MenuFlags(apps, &ctx);
+    TEST_ASSERT(ctx.editor_flag == 1, "the first side-app set its flag");
+    TEST_ASSERT(ctx.other_flag == 2, "and so did the second");
+
+    g_log[0] = '\0';
+    TEST_ASSERT(SideApps_MenuAction(apps, g_host, 5, &row), "the editor's action is taken");
+    TEST_ASSERT(strcmp(g_log, "editor:menu5;") == 0, "and the offer stops there");
+    g_log[0] = '\0';
+    TEST_ASSERT(SideApps_MenuAction(apps, g_host, 6, &row), "the other's action is taken");
+    TEST_ASSERT(strcmp(g_log, "editor:menu6;other:menu6;") == 0, "offered in registration order");
+    g_log[0] = '\0';
+    TEST_ASSERT(!SideApps_MenuAction(apps, g_host, 9, &row), "an action nobody owns is not taken");
+    TEST_ASSERT(strcmp(g_log, "editor:menu9;other:menu9;") == 0, "after everyone was asked");
     SideApps_Free(apps);
 }
 
@@ -620,6 +746,7 @@ main(void)
     test_done_and_probe();
     test_frame_chrome_overlay_scenery();
     test_press_or_held_mode();
+    test_keyboard_and_menu();
     if( g_failures )
     {
         printf("side_app: %d check(s) failed\n", g_failures);

@@ -776,7 +776,6 @@ app_world_left_click(
          * on an NPC with a spell armed built the plain ops and defaulted to
          * Attack (walk-to-melee "run up"), while the right-click menu cast. */
         .selection = app_minimenu_selection(app),
-        .locedit_active = app->editor_shell->locedit.visible != 0,
         .mapedit_select_active = app_mapedit_select_active(app),
         .plugin_io_down = app_plugin_io_down(app) != 0,
         .wevs = &app->wevs,
@@ -790,6 +789,8 @@ app_world_left_click(
     scratch.font_id = app->world_views.frame->minimenu->font_id;
     app_minimenu_ctx_ground_fallback(app, &mctx, x, y);
     app_sailing_menu_context(app, &mctx, x, y);
+    /* The side-apps' menu flags (the loc editor's locedit_active). */
+    SideApps_MenuFlags(app->side_apps, &mctx);
     RS_Minimenu_Build(&mctx, x, y, &scratch);
     app_minimenu_apply_modes(app, &scratch, 0);
     app_minimenu_stamp_node_identities(app, &scratch);
@@ -983,9 +984,10 @@ app_run_once_body(
      * open drains the shared activation latch, so order decides who sees a
      * click first. This one only takes activations it owns. */
     app_plugin_panel_tick(app, input);
-    /* Loc editor next, same reasoning -- and it has to run before anything
-     * downstream reads the frame claim for click-to-walk. */
-    app_loc_editor_tick(app, input);
+    /* The dev panels next (the loc editor's among them), same reasoning --
+     * and they have to run before anything downstream reads the frame claim
+     * for click-to-walk. */
+    app_dev_panels_tick(app, input);
     /* Who owns this frame's pointer, latched after the chrome ticks that may
      * have moved, opened or closed a panel and before anything else acts on
      * it -- so every consumer below answers the question the same way. */
@@ -1018,7 +1020,7 @@ app_run_once_body(
         app_map_editor_drain(app);
         /*
          * The chrome built once more, AFTER the editor's tick. The build in
-         * app_loc_editor_tick ran before it, on this frame's pointer, so
+         * app_dev_panels_tick ran before it, on this frame's pointer, so
          * everything the editor's tick then did to the chrome -- a well sized
          * to the panel it sits in, a label, a group's window shown -- would
          * otherwise be drawn a frame late, and geometry a frame late is
@@ -1616,8 +1618,7 @@ app_run_once_body(
              * row matches the right-click menu (reference doAction runs the
              * same chooseDefaultMenuEntry over the useMode/targetMode menu). */
             .selection = app_minimenu_selection(app),
-            .locedit_active = app->editor_shell->locedit.visible != 0,
-            .mapedit_select_active = app_mapedit_select_active(app),
+                .mapedit_select_active = app_mapedit_select_active(app),
             .plugin_io_down = app_plugin_io_down(app) != 0,
             .wevs = &app->wevs,
             .view_world_fn = app_minimenu_view_world,
@@ -1629,6 +1630,8 @@ app_run_once_body(
         UIMinimenu_Reset(&scratch);
         scratch.font_id = app->world_views.frame->minimenu->font_id;
         app_sailing_menu_context(app, &mctx, out.clicked_x, out.clicked_y);
+        /* The side-apps' menu flags (the loc editor's locedit_active). */
+        SideApps_MenuFlags(app->side_apps, &mctx);
         RS_Minimenu_Build(&mctx, out.clicked_x, out.clicked_y, &scratch);
         app_minimenu_apply_modes(app, &scratch, 0);
         app_minimenu_stamp_node_identities(app, &scratch);
@@ -2147,7 +2150,7 @@ app_run_once_body(
     }
 
     if( !title_captures_keys && app_chat_node_index(app) >= 0 &&
-        !app->editor_shell->locedit.visible )
+        !SideApps_AnyHoldsKeyboard(app->side_apps) )
     {
         int chat_captures =
             UIChatLine_InputActive(&app->chat_line) || app->chat.social_input_open ||

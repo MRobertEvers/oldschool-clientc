@@ -83,7 +83,6 @@ app_from_side_app_host(struct SideAppHost* host)
  */
 enum AppDebugHotkey
 {
-    APP_DEBUG_HOTKEY_LOC_EDITOR,      /* loc_editor_toggle */
     /** Show/hide the map editor panel. Only does anything in an editor boot. */
     APP_DEBUG_HOTKEY_MAP_EDITOR,      /* map_editor_toggle */
     APP_DEBUG_HOTKEY_COUNT
@@ -870,6 +869,15 @@ app_chrome_route_keys(
 int
 app_chrome_focus_types(struct ToriRSChrome const* ui);
 
+/** The dev panels' tick: the panel toggles, the pick filter, this frame's
+ *  input routed into the developer chrome around the side-apps' dev-panel
+ *  points, and the chrome built. Early chrome phase, after the plugin
+ *  window's tick. */
+void
+app_dev_panels_tick(
+    struct App* app,
+    struct LibToriRS_Input* input);
+
 
 /* ---- app_client_trigger.c ---- */
 void
@@ -1491,25 +1499,6 @@ app_if_player_model_poll(struct App* app);
 
 void
 app_player_model_poll(struct App* app);
-
-
-/* ---- app_loc_editor.c ---- */
-void
-app_loc_editor_select_element(
-    struct App* app,
-    int element_id);
-
-void
-app_loc_editor_select_terrain(
-    struct App* app,
-    int scene_x,
-    int scene_z,
-    int cache_level);
-
-void
-app_loc_editor_tick(
-    struct App* app,
-    struct LibToriRS_Input* input);
 
 
 /* ---- app_lookup.c ---- */
@@ -2459,6 +2448,11 @@ app_tool_free_camera_register(struct App* app);
 /** Register the hover footprint outline. Called from app_tools.c only. */
 void
 app_tool_hover_footprint_register(struct App* app);
+
+/* ---- app_tool_loc_editor.c ---- */
+/** Register the loc editor. Called from app_tools.c only. */
+void
+app_tool_loc_editor_register(struct App* app);
 
 /* ---- app_tool_paint_stepper.c ---- */
 /** Register the painter-command stepper. Called from app_tools.c only. */

@@ -40,7 +40,6 @@ app_side_app_key_fires(
 #define APP_DEBUG_HOTKEYS_BRIDGE "app_debug_hotkeys"
 #define APP_DEBUG_HOTKEY_POLLED(n) { (n), SIDE_APP_PHASE_POLLED, SIDE_APP_GATE_CTRL, SIDE_APP_KEY_PRESS, 0 }
 static struct SideAppAction const k_app_debug_hotkey_actions[APP_DEBUG_HOTKEY_COUNT] = {
-    [APP_DEBUG_HOTKEY_LOC_EDITOR] = APP_DEBUG_HOTKEY_POLLED("loc_editor_toggle"),
     [APP_DEBUG_HOTKEY_MAP_EDITOR] = APP_DEBUG_HOTKEY_POLLED("map_editor_toggle"),
 };
 #undef APP_DEBUG_HOTKEY_POLLED
