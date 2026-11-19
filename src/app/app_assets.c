@@ -63,6 +63,10 @@ Task_AssetLoad_Run(
     PT_TASK_AWAITSELF(asset_load_take_child(self));
     self->ended = 1;
     Assets_Finished(app->assets, self->key, App_AssetResident(app, self->key));
+    /* A ground stack's model lands at the load's end, where its placeholder
+     * task landed it before the table. */
+    if( self->key.kind == ASSET_KIND_OBJ_MODEL )
+        Assets_Land(app->assets, ASSET_KIND_BIT(ASSET_KIND_OBJ_MODEL));
     PT_END(&self->pt);
 }
 
@@ -247,4 +251,7 @@ app_assets_frame(struct App* app)
     assert(app->assets);
     Assets_SetClock(app->assets, (uint64_t)app->host.client.now_ms);
     Assets_Pump(app->assets);
+    /* Kinds that land at their load's end: anything that arrived without a
+     * load ending (a loader with nothing to load) lands here. */
+    Assets_Land(app->assets, ASSET_KIND_BIT(ASSET_KIND_OBJ_MODEL) | ASSET_KIND_BIT(ASSET_KIND_NPC_BODY));
 }

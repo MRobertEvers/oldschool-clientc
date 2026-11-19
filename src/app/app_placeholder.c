@@ -64,14 +64,14 @@
 #include "engine/task_obj_model_load.h"
 #include "inv/widget_icon_park.h"
 
-/* How many times a ground-stack placeholder may go back for a model that the
- * loader says is still not there. A model the cache cannot serve at all would
- * otherwise be asked for forever, one round trip a time; after this the entity
+/* How many times a ground stack goes back for a model the loader says is
+ * still not there is the assets table's OBJ_MODEL policy (give up after 4,
+ * engine/asset_requests.c): a model the cache cannot serve at all would
+ * otherwise be asked for forever, one round trip a time; after that the entity
  * simply has no model, which is what the reference draws for it too. (A widget
  * icon is not capped: see app_placeholder_land_widget_icon.) */
 enum
 {
-    APP_PLACEHOLDER_ATTEMPT_MAX = 4,
     /*
      * Widget icons released per logic tick.
      *
@@ -94,25 +94,14 @@ struct Task_AppPlaceholder
     struct pt pt;
     struct App* app;
     enum AppPlaceholderKind kind;
-    /* The scene the entity was created in: the view and its generation as
-     * of creation. Both are re-checked at land -- see the unit comment. */
-    int view;
-    unsigned world_load_seq;
-    /* APP_PLACEHOLDER_OBJ_STACK: the stack's tile, obj and the count its
-     * model was asked for. The count travels with the id because a
-     * stackable's model is the count variant's (ObjModelLoad_RenderObjId). */
-    int scene_x;
-    int scene_z;
-    int level;
+    /* The obj and the count its model was asked for. */
     int obj_id;
     int count;
     /* APP_PLACEHOLDER_WIDGET_ICON: the GRAPHIC cell the icon belongs to. The
      * cell itself carries which obj it currently wants, so the land re-reads
      * it rather than trusting the id this task set out with. */
     int component_id;
-    /* APP_PLACEHOLDER_OBJ_STACK: loads so far. WIDGET_ICON: the pause it was
-     * released after (0 for the script's own request). */
-    int attempt;
+    /* The pause it was released after (0 for the script's own request). */
     uint32_t wait_ms;
 };
 
@@ -178,14 +167,6 @@ app_deferred_land_world(
     return wv->world;
 }
 
-static struct World*
-app_placeholder_world(struct Task_AppPlaceholder const* self)
-{
-    assert(self);
-    return app_deferred_land_world(
-        self->app, self->view, self->world_load_seq, "placeholder", (int)self->kind);
-}
-
 void
 app_placeholder_obj_stacks_sweep(
     struct App* app,
@@ -218,22 +199,80 @@ app_placeholder_queue(
     struct App* app,
     struct Task_AppPlaceholder* task)
 {
-    struct World const* world = NULL;
-
     assert(app);
     assert(task);
     task->task.vtable = &Task_AppPlaceholder_VTable;
     strncpy(task->task.name, "AppPlaceholder", sizeof(task->task.name) - 1);
     task->app = app;
-    task->view = WorldviewRegistry_Active(&app->worldviews);
-    if( WorldviewRegistry_IsLive(&app->worldviews, task->view) )
-        world = WorldviewRegistry_Get(&app->worldviews, task->view)->world;
-    task->world_load_seq = world ? world->load_seq : 0;
     PT_INIT(&task->pt);
     /* A stream on the asset runner: nothing behind it in the packet stream
      * addresses the asset, and a frame published over it is a correct frame
      * (the entity is already there, drawing nothing). */
     ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
+}
+
+/*
+ * The ground stack's land, from the obj model load's end: the model for the
+ * count the stack has NOW.
+ *
+ * The handle is where the stack was asked for -- its tile, and the view and
+ * scene generation it was created in -- never a pointer: the stack may be gone
+ * (picked up, or its tile cleared), may already have a model (a second want
+ * for the same stack landed first), the scene may have been rebuilt, or the
+ * count may have crossed a variant threshold while this loaded -- in which
+ * case the model for the count it has is wanted, re-capturing the view. The
+ * table went back for a model the loader said was still missing up to the
+ * OBJ_MODEL policy's four times before landing FAILED.
+ */
+static void
+app_placeholder_obj_stack_landed(
+    void* ctx,
+    struct AssetKey key,
+    struct AssetWaiterHandle handle,
+    enum AssetOutcome outcome,
+    uint32_t late_ms)
+{
+    struct App* app = ctx;
+    int const scene_x = handle.v[0];
+    int const scene_z = handle.v[1];
+    int const level = handle.v[2] & 0xf;
+    int const view = handle.v[2] >> 4;
+    unsigned const world_load_seq = (unsigned)handle.v[3];
+    int const obj_id = key.id;
+    struct World* world;
+    struct WorldEntity_ObjStack* stack;
+    int count;
+    int idx;
+
+    (void)late_ms;
+    world = app_deferred_land_world(
+        app, view, world_load_seq, "placeholder", (int)APP_PLACEHOLDER_OBJ_STACK);
+    if( !world )
+        return;
+    idx = World_ObjStackFind(world, scene_x, scene_z, level, obj_id);
+    if( idx < 0 )
+        return;
+    stack = World_EntityPoolGet(&world->entities.obj_stack, idx);
+    assert(stack);
+    if( stack->element_id >= 0 )
+        return;
+    if( outcome == ASSET_OUTCOME_LANDED && app_obj_stack_land(app, world, idx) )
+        return;
+    count = stack->count > 0 ? stack->count : 1;
+    if( outcome != ASSET_OUTCOME_LANDED || count == key.variant )
+    {
+        TORIRS_LOG(
+            "placeholder: obj %d x%d at %d,%d,%d has no model after %d loads\n",
+            obj_id,
+            stack->count,
+            scene_x,
+            scene_z,
+            level,
+            outcome != ASSET_OUTCOME_LANDED ? Assets_Policy(ASSET_KIND_OBJ_MODEL)->fail_attempts
+                                            : 1);
+        return;
+    }
+    app_placeholder_obj_stack(app, scene_x, scene_z, level, obj_id, count);
 }
 
 void
@@ -245,72 +284,37 @@ app_placeholder_obj_stack(
     int obj_id,
     int count)
 {
-    struct Task_AppPlaceholder* task;
+    struct AssetWaiter waiter;
+    struct World const* world = NULL;
+    int view;
 
     assert(app);
     assert(obj_id >= 0);
-    task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
-    assert(task);
-    task->kind = APP_PLACEHOLDER_OBJ_STACK;
-    task->scene_x = scene_x;
-    task->scene_z = scene_z;
-    task->level = level;
-    task->obj_id = obj_id;
-    task->count = count > 0 ? count : 1;
-    app_placeholder_queue(app, task);
-}
-
-/*
- * The ground stack's land: the model for the count the stack has NOW.
- *
- * The stack may be gone (picked up, or its tile cleared), may already have a
- * model (a second placeholder for the same stack landed first), or may have
- * changed count across a variant threshold while this one loaded -- in which
- * case the loader is asked again for the count it has, up to the attempt cap.
- */
-static void
-app_placeholder_land_obj_stack(struct Task_AppPlaceholder* self)
-{
-    struct App* app = self->app;
-    struct World* world = app_placeholder_world(self);
-    struct WorldEntity_ObjStack* stack;
-    int idx;
-
-    if( !world )
-        return;
-    idx = World_ObjStackFind(world, self->scene_x, self->scene_z, self->level, self->obj_id);
-    if( idx < 0 )
-        return;
-    stack = World_EntityPoolGet(&world->entities.obj_stack, idx);
-    assert(stack);
-    if( stack->element_id >= 0 )
-        return;
-    if( app_obj_stack_land(app, world, idx) )
-        return;
-    if( self->attempt + 1 >= APP_PLACEHOLDER_ATTEMPT_MAX )
-    {
-        TORIRS_LOG(
-            "placeholder: obj %d x%d at %d,%d,%d has no model after %d loads\n",
-            self->obj_id,
-            stack->count,
-            self->scene_x,
-            self->scene_z,
-            self->level,
-            self->attempt + 1);
-        return;
-    }
-    {
-        struct Task_AppPlaceholder* again = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*again));
-        assert(again);
-        again->kind = self->kind;
-        again->scene_x = self->scene_x;
-        again->scene_z = self->scene_z;
-        again->level = self->level;
-        again->obj_id = self->obj_id;
-        again->count = stack->count > 0 ? stack->count : 1;
-        again->attempt = self->attempt + 1;
-        app_placeholder_queue(app, again);
-    }
+    assert(level >= 0 && level < 16);
+    view = WorldviewRegistry_Active(&app->worldviews);
+    assert(view >= 0);
+    if( WorldviewRegistry_IsLive(&app->worldviews, view) )
+        world = WorldviewRegistry_Get(&app->worldviews, view)->world;
+    memset(&waiter, 0, sizeof(waiter));
+    waiter.land = app_placeholder_obj_stack_landed;
+    waiter.ctx = app;
+    waiter.handle.v[0] = scene_x;
+    waiter.handle.v[1] = scene_z;
+    waiter.handle.v[2] = level | (view << 4);
+    waiter.handle.v[3] = (int32_t)(world ? world->load_seq : 0);
+    /* The count travels with the id because a stackable's model is the count
+     * variant's (ObjModelLoad_RenderObjId). A model already resident lands at
+     * once, as a task that found nothing to load always did. */
+    if( Assets_Want(
+            app->assets,
+            AssetKey_Make(ASSET_KIND_OBJ_MODEL, obj_id, count > 0 ? count : 1),
+            &waiter) == ASSET_STATE_HERE )
+        app_placeholder_obj_stack_landed(
+            app,
+            AssetKey_Make(ASSET_KIND_OBJ_MODEL, obj_id, count > 0 ? count : 1),
+            waiter.handle,
+            ASSET_OUTCOME_LANDED,
+            0);
 }
 
 /* The cell's row in the park, made if it has none; `*found` says which. */
@@ -518,13 +522,7 @@ Task_AppPlaceholder_Run(
      * landed archive -- freed by the wrong deallocator on the way out
      * (ASan double-free on model 7760, 2026-09-18).
      */
-    if( self->kind == APP_PLACEHOLDER_OBJ_STACK )
-    {
-        PT_TASK_AWAITSELF_IF(
-            CreateTask_ObjModelLoad(app->provider, &self->obj_id, &self->count, 1));
-        app_placeholder_land_obj_stack(self);
-    }
-    else if( self->kind == APP_PLACEHOLDER_WIDGET_ICON )
+    if( self->kind == APP_PLACEHOLDER_WIDGET_ICON )
     {
         PT_TASK_AWAITSELF_IF(
             CreateTask_ObjModelLoad(app->provider, &self->obj_id, &self->count, 1));
