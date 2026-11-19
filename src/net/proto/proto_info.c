@@ -44,6 +44,22 @@ proto_info_init(
     rsprot_player_info_init(&g_pi, data, len);
 }
 
+int
+proto_info_local_coord(int* abs_x, int* abs_z, int* level)
+{
+    int idx = g_pi.local_index;
+
+    assert(abs_x);
+    assert(abs_z);
+    assert(level);
+    if( !g_pi.seeded || idx <= 0 || idx >= RSPROT_INFO_PLAYER_SLOTS )
+        return 0;
+    *abs_x = (g_pi.coord[idx] >> 14) & 0x3fff;
+    *abs_z = g_pi.coord[idx] & 0x3fff;
+    *level = (g_pi.coord[idx] >> 28) & 0x3;
+    return 1;
+}
+
 size_t
 proto_info_state_size(void)
 {
