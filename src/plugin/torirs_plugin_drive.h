@@ -166,27 +166,23 @@ struct App_DriveProjectile
     int32_t spotanim, target, start_delay, end_delay;
     int32_t cycle; /**< world cycle at the apply */
 };
-/* A loc change as its packet applied it (LOC_ADD_CHANGE; LOC_DEL is loc_id
- * -1), held until the world's scenery shows it. The world applies a change
- * through a task that first awaits the new loc's models (App_WorldLocChangeOps,
- * the reference's changeLocAvailable gate), so a first-seen loc type reached
- * api_drive.locs a tick late -- where scriptrun, which keeps the packet,
- * listed it in the packet's tick (2026-10-09: Maiden's first blood trail, one
- * tick apart, and the freezer's plan parted). The drive's loc rows answer
- * these tiles from the packet. Absolute tiles; `layer` is
- * World_LocShapeToLayer(shape); `base_x/z` the scene base it was applied in. */
-#define APP_DRIVE_LOC_CHANGE_CAP 256
+/* A loc change the scene has not caught up with (LOC_ADD_CHANGE; LOC_DEL is
+ * loc_id -1): the change is a parallel task that first awaits the new loc's
+ * models (app/app_tasks_locs.c, the reference's changeLocAvailable gate), so
+ * a first-seen loc type would reach api_drive.locs a tick late -- where
+ * scriptrun, which keeps the packet, lists it in the packet's tick
+ * (2026-10-09: Maiden's first blood trail, one tick apart, and the freezer's
+ * plan parted). The drive's loc rows answer these tiles from the pending
+ * change itself (App_DriveLocChangesPending). Absolute tiles; `layer` is
+ * World_LocShapeToLayer(shape); `base_x/z` the scene base it applies in. */
 struct App_DriveLocChange
 {
     int32_t x, z, level, layer;
     int32_t loc_id, shape, angle;
     int32_t base_x, base_z;
-    /* The loc lane ticket of the change this record notes (LocLane_Newest
-     * as the change was queued). The record is held at least until the lane
-     * has released it (LocLane_Pending on App.loc_lane), so an add and the
-     * delete behind it on one tile and layer cannot retire on the scene's
-     * empty layer while the add has yet to land. */
-    uint32_t lane_ticket;
+    /* 1 for a change a rebuild carried into this scene while it was still
+     * pending (it was read in the scene before). */
+    int32_t carried;
 };
 /* A map graphic as its MAP_ANIM packet said it, stamped with the world cycle
  * the packet was applied on. The world's graphic entity waits on its
@@ -228,11 +224,6 @@ struct App_DriveRing
     int map_anim_count;
     struct App_DriveLocAnim loc_anims[APP_DRIVE_LOC_ANIM_CAP];
     int loc_anim_count;
-    struct App_DriveLocChange loc_changes[APP_DRIVE_LOC_CHANGE_CAP];
-    int loc_change_count;
-    /* Bumped whenever loc_changes is written or retired: the key the route
-     * and plan collision view (torirs_plugin_drive_ui.c) is cached on. */
-    uint32_t loc_change_serial;
     /* A server tick is HALF-APPLIED: the exec runner has started on a packet
      * of a tick whose fence (SERVER_TICK_END, or PLAYER_INFO on a revision
      * with none) has not run yet. Packets apply over several frames and the
@@ -312,14 +303,11 @@ void App_DriveMapAnimNote(struct App* app, int x, int z, int level, int spotanim
 int App_DriveMapAnimElapsed(struct App_DriveMapAnim const* a);
 /* Record a LOC_ANIM as applied (rs_gameproto_exec.c), scene tiles. */
 void App_DriveLocAnimNote(struct App* app, int scene_x, int scene_z, int level, int shape, int seq);
-/* Record a LOC_ADD_CHANGE (or a LOC_DEL, loc_id -1) as applied
- * (rs_gameproto_exec.c), scene tiles at the loc's cache level: it replaces any
- * pending change for the same tile and layer, as the packet does. */
-void App_DriveLocChangeNote(
-    struct App* app, int scene_x, int scene_z, int level, int loc_id, int shape, int angle);
-/* Drop the held loc changes the scenery now shows, and those from another
- * scene base. The drive's loc reads call it; so does a full ring. */
-void App_DriveLocChangesRetire(struct App* app);
+/* The root's loc changes still pending (app/app_tasks_locs.c: a parallel
+ * task per tile and layer, waiting on the new loc's models), as rows, in
+ * arrival order. Writes up to `cap` (asserted to hold them); returns how
+ * many. */
+int App_DriveLocChangesPending(struct App* app, struct App_DriveLocChange* out, int cap);
 
 enum DriveResult App_DriveEventsRead(
     struct App* app,

@@ -90,6 +90,7 @@ app_client_trigger_npc(
 static void
 app_client_trigger_loc_fire(
     struct App* app,
+    struct World* world,
     struct WorldEntity_Scenery* loc,
     int trigger,
     int category,
@@ -252,25 +253,28 @@ app_client_trigger_npc(
 void
 app_client_trigger_loc(
     struct App* app,
+    struct World* world,
     struct WorldEntity_Scenery* loc,
     int trigger)
 {
     struct ToriRS_Location* type;
 
     assert(app);
+    assert(world);
     assert(loc);
 
-    if( !app->world )
-        return;
     type = CacheProvider_LocationGet(app->provider, loc->loc_id);
-    app_client_trigger_loc_fire(app, loc, trigger, type ? type->category : 0,
+    app_client_trigger_loc_fire(app, world, loc, trigger, type ? type->category : 0,
         app_client_trigger_script(app, trigger, loc->loc_id, type ? type->category : 0));
 }
 
-/* The trigger for `loc` once its script is known (-1: none). */
+/* The trigger for `loc`, a loc of `world`, once its script is known (-1:
+ * none). Its coord is in that world's own tiles: a deck's loc is named where
+ * the deck's scene has it, not against the root's base. */
 static void
 app_client_trigger_loc_fire(
     struct App* app,
+    struct World* world,
     struct WorldEntity_Scenery* loc,
     int trigger,
     int category,
@@ -279,8 +283,8 @@ app_client_trigger_loc_fire(
     struct RS_ClientOpContext ctx;
 
     assert(app);
+    assert(world);
     assert(loc);
-    assert(app->world);
     app_client_trigger_debug("loc", trigger, loc->loc_id, category, script_id);
     if( script_id < 0 )
         return;
@@ -291,8 +295,8 @@ app_client_trigger_loc_fire(
     ctx.type = loc->loc_id;
     ctx.coord = RS_CLIENTOP_COORD(
         loc->grid_position.level,
-        app->world->_base_tile_x + loc->grid_position.x,
-        app->world->_base_tile_z + loc->grid_position.z);
+        world->_base_tile_x + loc->grid_position.x,
+        world->_base_tile_z + loc->grid_position.z);
     ctx.layer = World_LocShapeToLayer(loc->shape);
     snprintf(ctx.name, sizeof(ctx.name), "%s", loc->info->name);
     app_client_trigger_debug_coord("loc", trigger, loc->loc_id, ctx.coord);
@@ -336,15 +340,18 @@ App_ClientTriggerNpcAdd(
  * every loc in the scene still gets exactly one.
  */
 void
-app_client_triggers_world_loaded(struct App* app)
+app_client_triggers_world_loaded(
+    struct App* app,
+    struct World* world)
 {
     struct World_EntityPool* pool;
 
     assert(app);
+    assert(world);
 
-    if( !app->world || !app->provider )
+    if( !app->provider )
         return;
-    pool = &app->world->entities.scenery;
+    pool = &world->entities.scenery;
     {
         /*
          * The script a loc's trigger runs is a function of its type alone, and
@@ -381,7 +388,7 @@ app_client_triggers_world_loaded(struct App* app)
             if( probes >= MEMO_CAP )
             {
                 /* Full (no region has this many types): unmemoised. */
-                app_client_trigger_loc(app, loc, RS_TRIGGER_LOC_ADD);
+                app_client_trigger_loc(app, world, loc, RS_TRIGGER_LOC_ADD);
                 continue;
             }
             if( memo[slot].loc_id_plus1 == 0 )
@@ -393,7 +400,7 @@ app_client_triggers_world_loaded(struct App* app)
                     app, RS_TRIGGER_LOC_ADD, loc->loc_id, memo[slot].category);
             }
             app_client_trigger_loc_fire(
-                app, loc, RS_TRIGGER_LOC_ADD, memo[slot].category, memo[slot].script_id);
+                app, world, loc, RS_TRIGGER_LOC_ADD, memo[slot].category, memo[slot].script_id);
         }
     }
 }
@@ -422,7 +429,7 @@ app_client_triggers_refire(struct App* app)
     /* The pile subjects survive a UI remount just like NPCs and scenery.
      * Rebuild their native CS2 labels at the ordinary ground-items tick. */
     RS_GroundItemsDirty_MarkAll(&app->ground_items_dirty);
-    app_client_triggers_world_loaded(app);
+    app_client_triggers_world_loaded(app, app->world);
 
     pool = &app->world->entities.npc;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;

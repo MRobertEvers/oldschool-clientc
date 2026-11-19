@@ -470,7 +470,6 @@ enum AppSpawnKind
     APP_SPAWN_OBJ,
     APP_SPAWN_SPOTANIM,
     APP_SPAWN_ENTITY_SPOTANIM,
-    APP_SPAWN_LOC_CHANGE,
     APP_SPAWN_PLUGIN_OBJECT,
 };
 
@@ -499,12 +498,6 @@ struct Task_AppSpawn
      */
     unsigned world_load_seq;
     int enqueue_cycle;
-    /* The loc lane's ticket (LocLane_Take at enqueue), 0 for every
-     * other kind; released exactly once, on apply or on free. */
-    unsigned loc_ticket;
-    int loc_ticket_released;
-    /* APP_SPAWN_LOC_CHANGE: RS_ServerTick_Serial(&App.server_tick) at enqueue. */
-    unsigned loc_tick;
     enum AppSpawnKind kind;
     int tile_x;
     int tile_z;
@@ -524,13 +517,6 @@ struct Task_AppSpawn
      * attached graphic belongs to (stable, scene-unique key to re-find the live
      * entity when the async load lands). */
     int entity_element_id;
-    /* APP_SPAWN_LOC_CHANGE: the placement's own right-click menu, carried
-     * across the async model wait because the scenery entity it lands on does
-     * not exist until then. `loc_op_flags` is the 5-bit shown mask and
-     * `loc_ops[i]` the replacement label for slot i ("" = keep the loctype's).
-     * See App_WorldLocChangeOps. */
-    int loc_op_flags;
-    char loc_ops[5][32];
     /* MAP_PROJANIM (spotanim-based projectile) trajectory params. Source and
      * destination tiles reuse src_tile_x/z and tile_x/z; src_level and level
      * carry the source and destination levels. */
@@ -550,44 +536,7 @@ struct Task_AppSpawn
     int curve_scripts[8];
     int curve_script_count;
     int curve_script_cursor;
-    /* APP_SPAWN_LOC_CHANGE (zone LOC_ADD_CHANGE / LOC_DEL): the replacement loc
-     * (-1 = pure delete), its map shape/angle, and the nested model-list cursor
-     * (loc models are [shape_entry][model]; both indices must survive awaits). */
-    int loc_id;
-    int loc_shape;
-    int loc_angle;
-    int loc_model_j;
-    int loc_resolved_id;
-    int loc_resolve_depth;
-    int loc_base_seq;
-    /*
-     * APP_SPAWN_LOC_CHANGE: the sequence this PENDING change carries onto the
-     * loc it places -- the deob's class69.field666 -- in place of the loctype's
-     * own `anim=`. Written by App_WorldSceneryAnim when a LOC_ANIM for this
-     * tile and layer is read while the change is still pending (rev 239 only).
-     *
-     * Two slots because the deob's one is written under a condition this
-     * client cannot judge until the loc config has loaded: a LOC_ANIM that
-     * found nothing standing on the layer always writes it, one that found a
-     * loc writes it only when the NEW loctype has `deferanimchange`. So
-     * `loc_carry_unfound_*` is the last LOC_ANIM of the first kind and
-     * `loc_carry_any_*` the last of either; the apply reads the one the
-     * loctype's flag selects (`loc_defers_anim`, its base record's).
-     */
-    int loc_carry_unfound_seq;
-    int loc_carry_unfound_set;
-    int loc_carry_any_seq;
-    int loc_carry_any_set;
-    int loc_defers_anim;
-    /*
-     * A LOC_ANIM read a server tick or more after this change: the rev-239
-     * client had built the loc by then and animated it outright, whatever its
-     * loctype, so the newest such sequence wins over both carry slots
-     * (app_spawn_loc_take).
-     */
-    int loc_take_seq;
-    int loc_take_set;
-    /** APP_SPAWN_LOC_CHANGE: the loc's models and sequence, fanned out and not yet ended. */
+    /** A spotanim's model and sequence, fanned out and not yet ended. */
     int pending;
     /* APP_SPAWN_PLUGIN_OBJECT: the plugin object handle whose assets this task
      * is waiting on. Not a pointer -- the record can be destroyed while the
@@ -946,11 +895,14 @@ app_dev_panels_tick(
 void
 app_client_trigger_loc(
     struct App* app,
+    struct World* world,
     struct WorldEntity_Scenery* loc,
     int trigger);
 
 void
-app_client_triggers_world_loaded(struct App* app);
+app_client_triggers_world_loaded(
+    struct App* app,
+    struct World* world);
 
 void
 app_client_triggers_refire(struct App* app);
@@ -2919,21 +2871,6 @@ app_world_spawn_obj(
     int level,
     char const* args);
 
-void
-app_loc_change_apply_cb(
-    void* user,
-    int level,
-    int x,
-    int z,
-    int loc_id,
-    int shape,
-    int angle);
-
-/* After a server-driven rebuild: put every loc a zone packet changed back on
- * the rebuilt root scene, with the menu it was placed with (deob
- * client.method2278; see World_LocChangesTakeStanding). */
-void
-app_world_loc_changes_replace(struct App* app);
 
 
 
@@ -3101,53 +3038,6 @@ app_world_bind_pending_seqs(struct App* app);
 
 
 /* ---- app_world_spawn.c ---- */
-/* Queue a LOC_CHANGE on the loc lane (App.loc_lane, world/loc_lane.h). */
-void
-app_spawn_loc_lane_queue(
-    struct App* app,
-    struct Task_AppSpawn* task);
-
-/* The newest LOC_CHANGE on the loc lane for this view, tile, level and layer
- * that has not been applied to the scene yet -- the deob's pending spawn for
- * the tile (Statics.method5652) -- or NULL. `landed_only` keeps to changes
- * queued in an earlier server tick than the current one: the ones the deob has
- * already built, so its scene holds the newest of them where this client's
- * still holds the loc before it. */
-struct Task_AppSpawn*
-app_spawn_loc_lane_pending(
-    struct App* app,
-    int view,
-    int scene_x,
-    int scene_z,
-    int level,
-    int layer,
-    int landed_only);
-
-/* A LOC_ANIM read while `pending` waits: hand it the sequence the way the deob
- * stores it on a pending spawn. `stood` is whether a loc stood on the layer
- * and took the sequence itself (app_world_scenery_anim_apply). */
-void
-app_spawn_loc_carry(
-    struct Task_AppSpawn* pending,
-    int seq_id,
-    int stood);
-
-/* A LOC_ANIM aimed at the loc `landed` places, which the deob has already
- * built (app_spawn_loc_lane_pending, landed_only): it starts on the sequence
- * whatever its loctype says. */
-void
-app_spawn_loc_take(
-    struct Task_AppSpawn* landed,
-    int seq_id);
-
-/* The sequence a LOC_CHANGE places its loc on instead of the loctype's
- * `anim=`: a taken one, else the carry the loctype's deferanimchange selects;
- * 0 when it has none. */
-int
-app_spawn_loc_carried(
-    struct Task_AppSpawn const* task,
-    int* out_seq_id);
-
 struct Task_AppSpawn*
 app_spawn_task_new(
     struct App* app,

@@ -257,21 +257,6 @@ app_logic_tick(struct App* app)
         }
     }
 
-    /* Zone sub-packets queued during an async world load drain here once the
-     * load completes — without this a queue with no follow-up zone traffic
-     * would sit forever (the lazy flush only runs ahead of a live packet). */
-    if( RS_ZoneInbox_HeldCount(&app->zone_inbox) > 0 && app->world && app->world->load_complete )
-    {
-        struct RS_ServerState flush_ctx_state;
-        struct RS_GameProtoCtx flush_ctx = {
-            .state = &flush_ctx_state,
-            .tree = app->tree,
-            .app = app,
-        };
-        App_ServerStateBind(app, &flush_ctx_state);
-        RS_GameProto_FlushPendingZone(&flush_ctx);
-    }
-
     /* Sound queue on the client tick: the server's play delays are in ticks and
      * the reference runs its queue from the same clock (soundsDoQueue). */
     /*

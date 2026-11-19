@@ -1486,6 +1486,85 @@ scenery_load_animation(
     }
 }
 
+/* The sequence placed scenery entry `sc` plays: its loc resolved through the
+ * transform chain as the build resolved it, the child's `anim=` or the base's
+ * (world_builder_resolve_loc_for_place); -1 for none. */
+static int
+scenery_entry_seq(
+    struct WorldBuilder* builder,
+    struct WorldEntity_Scenery const* sc)
+{
+    struct ToriRS_Location storage;
+    struct ToriRS_Location* base = CacheProvider_LocationGet(builder->cache, sc->loc_id);
+    struct ToriRS_Location* cfg;
+
+    if( !base )
+        return -1;
+    cfg = world_builder_resolve_loc_for_place(builder, base, &storage);
+    return cfg ? cfg->seq_id : -1;
+}
+
+int
+WorldBuilder_LocSequencesMissing(
+    struct WorldBuilder* builder,
+    int* out,
+    int cap)
+{
+    struct World_EntityPool* pool;
+    int count = 0;
+
+    assert(builder);
+    assert(out);
+    (void)cap; /* read only by the assert below */
+    pool = &builder->world->entities.scenery;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Scenery const* sc = World_EntityPoolGet(pool, i);
+        int seq;
+        int seen = 0;
+
+        if( !sc || sc->element_id < 0 )
+            continue;
+        seq = scenery_entry_seq(builder, sc);
+        if( seq < 0 || ToriDraw_SceneAnimationGet(builder->scene, seq) )
+            continue;
+        for( int k = 0; k < count && !seen; k++ )
+            seen = out[k] == seq;
+        if( seen )
+            continue;
+        assert(count < cap);
+        out[count++] = seq;
+    }
+    return count;
+}
+
+int
+WorldBuilder_BindLocSequence(
+    struct WorldBuilder* builder,
+    int seq_id)
+{
+    struct World_EntityPool* pool;
+    int bound = 0;
+
+    assert(builder);
+    assert(seq_id >= 0);
+    pool = &builder->world->entities.scenery;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Scenery const* sc = World_EntityPoolGet(pool, i);
+        struct ToriDraw_SceneElement* element;
+
+        if( !sc || sc->element_id < 0 || scenery_entry_seq(builder, sc) != seq_id )
+            continue;
+        element = ToriDraw_SceneElementGet(builder->scene, sc->element_id);
+        if( !element || element->animation )
+            continue;
+        scenery_load_animation(builder, sc->element_id, seq_id);
+        bound++;
+    }
+    return bound;
+}
+
 static void
 scenery_add_wall_single(
     struct WorldBuilder* builder,

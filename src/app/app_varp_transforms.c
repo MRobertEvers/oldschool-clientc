@@ -765,8 +765,10 @@ app_varp_refresh_view_loc_transforms(
             index->state = 0;
         }
         WorldviewRegistry_SetActive(&app->worldviews, view);
+        /* A change already pending for a tile is newer than the placement
+         * this walk found there, and is kept. */
         for( int i = 0; i < n; ++i )
-            App_WorldLocChangeOps(
+            app_world_loc_refresh_ops(
                 app,
                 pending[i].x,
                 pending[i].z,

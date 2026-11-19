@@ -531,6 +531,29 @@ world_builder_prerotate_placement(
     int* offset_x,
     int* offset_z);
 
+/**
+ * The sequences the built scene's locs play that the scene does not hold yet,
+ * each once: a rebuild waits for its map squares and loc models, not for
+ * these (they are only drawn), so the locs that play them are built still and
+ * animate once their sequence is here (WorldBuilder_BindLocSequence).
+ * Writes up to `cap` (asserted to hold them); returns how many.
+ */
+int
+WorldBuilder_LocSequencesMissing(
+    struct WorldBuilder* builder,
+    int* out,
+    int cap);
+
+/**
+ * Sequence `seq_id` is here: bind it to every placed loc of the builder's
+ * world that plays it and has none bound, as the build would have. Returns
+ * how many it bound.
+ */
+int
+WorldBuilder_BindLocSequence(
+    struct WorldBuilder* builder,
+    int seq_id);
+
 /** Apply a zone LOC change at runtime (Client-TS locChangeUnchecked): remove the
  * existing loc in the shape's layer on the tile (scene element + collision) and,
  * when loc_id >= 0, spawn the replacement (scene + collision, re-registered with

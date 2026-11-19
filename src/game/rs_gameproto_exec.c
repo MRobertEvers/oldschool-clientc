@@ -151,6 +151,19 @@ zone_player_level(struct App* app)
     return 0;
 }
 
+/* A zone header arrived: the base and plane later sub-packets read. */
+static void
+zone_set_base(
+    struct App* app,
+    int base_x,
+    int base_z,
+    int level)
+{
+    app->zone_base.base_x = base_x;
+    app->zone_base.base_z = base_z;
+    app->zone_base.level = level;
+}
+
 static int
 zone_header_level(struct App* app, int header_level)
 {
@@ -251,6 +264,10 @@ zone_sub_packet_copy(
     dst->name = name;
     switch( name )
     {
+    case PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS:
+        /* The reset is the header itself: its zone and plane are the hold's
+         * base and level. */
+        return 1;
     case PKT_NAME_OBJ_ADD:
         dst->_obj_add = *(struct PktObjAdd const*)payload;
         return 1;
@@ -308,84 +325,69 @@ exec_zone_sub_packet_at(
     void const* payload,
     struct ZoneAt const* at);
 
+/* Is view `view` built, with nothing held for it ahead of a new packet? */
+static int
+zone_view_ready(
+    struct App* app,
+    int view)
+{
+    struct World const* world;
+
+    if( !WorldviewRegistry_IsLive(&app->worldviews, view) )
+        return 0;
+    world = WorldviewRegistry_Get(&app->worldviews, view)->world;
+    return world && world->load_complete && !App_ZonePacketsHeld(app, view);
+}
+
 /*
- * A zone sub-packet arriving while the world is still async-loading cannot be
- * dropped: the reference's scene build is synchronous inside its packet loop,
- * so there every zone update processes after the rebuild it follows. Queue it
- * with the zone base and header plane as of NOW, then replay once the load
- * completes.
+ * A zone sub-packet for a view whose scene is not built cannot be dropped:
+ * the reference's scene build is synchronous inside its packet loop, so
+ * there every zone update processes after the rebuild it follows (a boat's
+ * zones behind its REBUILD_WORLDENTITY, the Inferno's flank walls two ticks
+ * after REBUILD_REGION, docs/ORANGE_WEDGE.md §17). It is held for THAT view,
+ * with the zone base, plane and view as of NOW -- a later header moves the
+ * base, the tick fence resets the cursor -- and applies once the view is
+ * built, in arrival order (App_ZonePacketHold, app/app_tasks_locs.c). A
+ * packet for a built view with packets still held for it is held behind
+ * them, so arrival order holds within the view.
  */
 static void
-zone_pending_push_at(
-    struct App* app,
+zone_exec_or_hold(
+    struct RS_GameProtoCtx const* ctx,
     enum GameProtoPktName name,
     void const* payload,
     struct ZoneAt const* at)
 {
+    struct App* app = ctx->app;
     struct PktZoneSubPacket pkt;
 
     assert(at);
-    if( RS_ZoneInbox_IsFull(&app->zone_inbox) )
+    if( zone_view_ready(app, at->view) )
     {
-        TORIRS_LOG("gameproto_exec: pending-zone queue full, dropping pkt %d\n", (int)name);
+        exec_zone_sub_packet_at(ctx, name, payload, at);
         return;
     }
     memset(&pkt, 0, sizeof(pkt));
     if( !zone_sub_packet_copy(&pkt, name, payload) )
         return;
-    RS_ZoneInbox_Hold(&app->zone_inbox, &pkt, at->base_x, at->base_z, at->level, at->view);
-}
-
-static void
-zone_pending_push(
-    struct App* app,
-    enum GameProtoPktName name,
-    void const* payload)
-{
-    struct ZoneAt at = {
-        RS_ZoneInbox_BaseX(&app->zone_inbox),
-        RS_ZoneInbox_BaseZ(&app->zone_inbox),
-        RS_ZoneInbox_Level(&app->zone_inbox),
-        WorldviewRegistry_Active(&app->worldviews),
-    };
-
-    zone_pending_push_at(app, name, payload, &at);
-}
-
-/* RS_ZoneInbox_Drain's step: one held packet, where it was as of arrival. */
-static void
-zone_pending_apply(
-    void* user,
-    struct RS_ZoneInboxEntry const* entry)
-{
-    struct RS_GameProtoCtx const* ctx = user;
-    struct App* app = ctx->app;
-    struct ZoneAt at = { entry->base_x, entry->base_z, entry->level, entry->view };
-
-    /* The entry captured its view when it queued; the view can be
-     * despawned before load_complete lets the replay run. A dead view's
-     * zone event has nowhere to land — drop it, don't resolve a released
-     * registry slot. */
-    if( entry->view != WORLDVIEW_ROOT &&
-        !WorldviewRegistry_IsLive(&app->worldviews, entry->view) )
-        return;
-    exec_zone_sub_packet_at(ctx, entry->pkt.name, &entry->pkt._loc_add_change, &at);
+    App_ZonePacketHold(app, &pkt, at->base_x, at->base_z, at->level, at->view);
 }
 
 void
-RS_GameProto_FlushPendingZone(struct RS_GameProtoCtx const* ctx)
+RS_GameProto_ApplyHeldZoneOp(
+    struct RS_GameProtoCtx const* ctx,
+    struct PktZoneSubPacket const* pkt,
+    int base_x,
+    int base_z,
+    int level,
+    int view)
 {
-    struct App* app = ctx->app;
-    struct World* world;
+    struct ZoneAt at = { base_x, base_z, level, view };
 
-    /* `app->world` doubles as "the view registry has its root": a harness App
-     * with no world never registered one, so resolving would assert. */
-    if( !app || !app->world )
-        return;
-    world = App_ActiveWorldview(app)->world;
-    if( !world->load_complete )
-        return;
-    RS_ZoneInbox_Drain(&app->zone_inbox, zone_pending_apply, (void*)ctx);
+    assert(ctx);
+    assert(ctx->app);
+    assert(pkt);
+    exec_zone_sub_packet_at(ctx, pkt->name, &pkt->_loc_add_change, &at);
 }
 
 /* One loc-change record's key: the reference's locChanges identity
@@ -448,10 +450,13 @@ zone_loc_change_in_zone(
  * change that remembers what stood there just before it. So the map's own loc
  * is the OLDEST record's old_* for the key, and the restore is taken from it.
  *
- * The restore goes through App_WorldLocChange, so it rides the loc lane in
- * order: after any change already queued, before the LOC_* state that follows
- * this header. Its apply pushes one more record (old = what it replaced, new =
- * the map's loc). So that record is never read as "the map's loc" by the next
+ * A change still PENDING in the zone (its models loading) never reached the
+ * scene or the records: it is cancelled here, so it cannot land after the
+ * reset and the state behind it (App_LocChangesCancelZone). The restore goes
+ * through App_WorldLocChange, a change like any other: it waits for the map
+ * loc's models, and a LOC_* the state behind this header sends for the same
+ * tile and layer replaces it. Its apply pushes one more record (old = what it
+ * replaced, new = the map's loc). So that record is never read as "the map's loc" by the next
  * reset, the key keeps ONE record ahead of it, rewritten to old = new = the
  * map's loc; the rest of the key's records are dropped.
  *
@@ -459,7 +464,9 @@ zone_loc_change_in_zone(
  * IS the map's: the records are dropped and nothing is queued.
  */
 static void
-zone_full_reset_locs(struct App* app)
+zone_full_reset_locs(
+    struct App* app,
+    struct ZoneAt const* at)
 {
     struct World* world;
     unsigned char drop[WORLD_LOC_CHANGE_MAX];
@@ -468,7 +475,13 @@ zone_full_reset_locs(struct App* app)
 
     assert(app);
     assert(app->world);
+    assert(at);
+    /* The view the header addressed is the cursor (exec_zone_sub_packet_at,
+     * RS_GameProto_ReplayClearScene). */
+    assert(WorldviewRegistry_Active(&app->worldviews) == at->view);
     world = App_ActiveWorldview(app)->world;
+    if( world->load_complete )
+        (void)App_LocChangesCancelZone(app, at->view, at->base_x, at->base_z, at->level);
     count = world->loc_change_count;
     memset(drop, 0, sizeof(drop));
     for( int i = 0; i < count; i++ )
@@ -477,12 +490,7 @@ zone_full_reset_locs(struct App* app)
         struct World_LocChange const* latest = rec;
         int first = 1;
 
-        if( !zone_loc_change_in_zone(
-                world,
-                rec,
-                RS_ZoneInbox_BaseX(&app->zone_inbox),
-                RS_ZoneInbox_BaseZ(&app->zone_inbox),
-                RS_ZoneInbox_Level(&app->zone_inbox)) )
+        if( !zone_loc_change_in_zone(world, rec, at->base_x, at->base_z, at->level) )
             continue;
         for( int j = 0; j < i; j++ )
         {
@@ -510,14 +518,11 @@ zone_full_reset_locs(struct App* app)
             !(rec->old_type == latest->new_type && rec->old_angle == latest->new_angle &&
               shape == latest->new_shape) )
         {
-            App_WorldLocChange(app, rec->x, rec->z, rec->level, rec->old_type, shape, rec->old_angle);
-            /* The driver reads the restore from here, as it reads a LOC_DEL
-             * or LOC_ADD_CHANGE from its packet (App_DriveLocChangeNote):
-             * the lane lands it behind the map loc's models, and scriptrun
+            /* The driver reads the restore from the pending change, as it
+             * reads a LOC_DEL or LOC_ADD_CHANGE (App_DriveLocChangesPending):
+             * it lands behind the map loc's models, and scriptrun
              * (ScriptrunCore_ZoneResetLocs) reverts on this packet's tick. */
-            if( world == app->world )
-                App_DriveLocChangeNote(
-                    app, rec->x, rec->z, rec->level, rec->old_type, shape, rec->old_angle);
+            App_WorldLocChange(app, rec->x, rec->z, rec->level, rec->old_type, shape, rec->old_angle);
         }
         rec->old_shape = shape;
         rec->new_type = rec->old_type;
@@ -537,6 +542,20 @@ zone_full_reset_locs(struct App* app)
     world->loc_change_count = write;
 }
 
+/* The zone base and plane the latest header named, in the view the cursor
+ * addresses: where a live zone sub-packet applies. */
+static struct ZoneAt
+zone_at_now(struct App* app)
+{
+    struct ZoneAt at;
+
+    at.base_x = app->zone_base.base_x;
+    at.base_z = app->zone_base.base_z;
+    at.level = app->zone_base.level;
+    at.view = WorldviewRegistry_Active(&app->worldviews);
+    return at;
+}
+
 static void
 exec_zone_sub_packet(
     struct RS_GameProtoCtx const* ctx,
@@ -546,24 +565,12 @@ exec_zone_sub_packet(
     struct App* app = ctx->app;
     struct ZoneAt at;
 
-    /* Same root-registered sentinel as RS_GameProto_FlushPendingZone. */
+    /* `app->world` doubles as "the view registry has its root": a harness App
+     * with no world never registered one. */
     if( !app || !app->world )
         return;
-    if( !App_ActiveWorldview(app)->world->load_complete )
-    {
-        zone_pending_push(app, name, payload);
-        return;
-    }
-    /* Keep arrival order: anything still queued from the load window applies
-     * before this live packet. */
-    if( RS_ZoneInbox_HeldCount(&app->zone_inbox) > 0 )
-        RS_GameProto_FlushPendingZone(ctx);
-
-    at.base_x = RS_ZoneInbox_BaseX(&app->zone_inbox);
-    at.base_z = RS_ZoneInbox_BaseZ(&app->zone_inbox);
-    at.level = RS_ZoneInbox_Level(&app->zone_inbox);
-    at.view = WorldviewRegistry_Active(&app->worldviews);
-    exec_zone_sub_packet_at(ctx, name, payload, &at);
+    at = zone_at_now(app);
+    zone_exec_or_hold(ctx, name, payload, &at);
 }
 
 void
@@ -582,18 +589,25 @@ RS_GameProto_ReplayZoneOp(
     app = ctx->app;
     assert(app);
     assert(app->world);
+    (void)app; /* read only by the asserts */
     at.base_x = base_x;
     at.base_z = base_z;
     at.level = level;
     at.view = WORLDVIEW_ROOT;
-    if( !App_ActiveWorldview(app)->world->load_complete )
-    {
-        zone_pending_push_at(app, pkt->name, &pkt->_loc_add_change, &at);
-        return;
-    }
-    if( RS_ZoneInbox_HeldCount(&app->zone_inbox) > 0 )
-        RS_GameProto_FlushPendingZone(ctx);
-    exec_zone_sub_packet_at(ctx, pkt->name, &pkt->_loc_add_change, &at);
+    zone_exec_or_hold(ctx, pkt->name, &pkt->_loc_add_change, &at);
+}
+
+/* UPDATE_ZONE_FULL_FOLLOWS's reset of one zone: its loc changes back to the
+ * map's (pending ones cancelled) and its ground items gone. */
+static void
+zone_full_reset(
+    struct App* app,
+    struct ZoneAt const* at)
+{
+    zone_full_reset_locs(app, at);
+    for( int dz = 0; dz < 8; dz++ )
+        for( int dx = 0; dx < 8; dx++ )
+            App_WorldObjStackClearTile(app, at->base_x + dx, at->base_z + dz, at->level);
 }
 
 void
@@ -609,17 +623,13 @@ RS_GameProto_ReplayClearScene(struct App* app)
     unsigned char marked[ZONES][ZONES];
     struct World* world;
     struct World_EntityPool const* pool;
-    int saved_x;
-    int saved_z;
-    int saved_level;
 
     assert(app);
-    saved_x = RS_ZoneInbox_BaseX(&app->zone_inbox);
-    saved_z = RS_ZoneInbox_BaseZ(&app->zone_inbox);
-    saved_level = RS_ZoneInbox_Level(&app->zone_inbox);
     assert(app->world);
     assert(WorldviewRegistry_Active(&app->worldviews) == WORLDVIEW_ROOT);
     world = app->world;
+    /* A change still loading would land on the scene the reset leaves. */
+    App_LocChangesCancelAll(app);
     memset(marked, 0, sizeof(marked));
     for( int i = 0; i < world->loc_change_count; i++ )
     {
@@ -648,15 +658,12 @@ RS_GameProto_ReplayClearScene(struct App* app)
             for( int level = 0; level < 4; level++ )
             {
                 /* UPDATE_ZONE_FULL_FOLLOWS's arm, for this zone and plane. */
-                RS_ZoneInbox_SetBase(&app->zone_inbox, zx * 8, zz * 8, level);
-                zone_full_reset_locs(app);
-                for( int dz = 0; dz < 8; dz++ )
-                    for( int dx = 0; dx < 8; dx++ )
-                        App_WorldObjStackClearTile(app, zx * 8 + dx, zz * 8 + dz, level);
+                struct ZoneAt at = { zx * 8, zz * 8, level, WORLDVIEW_ROOT };
+
+                zone_full_reset(app, &at);
             }
         }
     }
-    RS_ZoneInbox_SetBase(&app->zone_inbox, saved_x, saved_z, saved_level);
 }
 
 /*
@@ -690,14 +697,7 @@ exec_map_anim_specific(
     at.base_z = pkt->z & ~7;
     at.level = zone_player_level(app);
     at.view = WorldviewRegistry_Active(&app->worldviews);
-    if( !App_ActiveWorldview(app)->world->load_complete )
-    {
-        zone_pending_push_at(app, PKT_NAME_MAP_ANIM, &sub, &at);
-        return;
-    }
-    if( RS_ZoneInbox_HeldCount(&app->zone_inbox) > 0 )
-        RS_GameProto_FlushPendingZone(ctx);
-    exec_zone_sub_packet_at(ctx, PKT_NAME_MAP_ANIM, &sub, &at);
+    zone_exec_or_hold(ctx, PKT_NAME_MAP_ANIM, &sub, &at);
 }
 
 /*
@@ -725,14 +725,7 @@ exec_loc_anim_specific(
     at.base_z = pkt->z & ~7;
     at.level = zone_player_level(app);
     at.view = WorldviewRegistry_Active(&app->worldviews);
-    if( !App_ActiveWorldview(app)->world->load_complete )
-    {
-        zone_pending_push_at(app, PKT_NAME_LOC_ANIM, &sub, &at);
-        return;
-    }
-    if( RS_ZoneInbox_HeldCount(&app->zone_inbox) > 0 )
-        RS_GameProto_FlushPendingZone(ctx);
-    exec_zone_sub_packet_at(ctx, PKT_NAME_LOC_ANIM, &sub, &at);
+    zone_exec_or_hold(ctx, PKT_NAME_LOC_ANIM, &sub, &at);
 }
 
 /*
@@ -783,14 +776,7 @@ exec_projanim_specific(
     at.base_z = local_z & ~7;
     at.level = pkt->level;
     at.view = WORLDVIEW_ROOT;
-    if( !app->world->load_complete )
-    {
-        zone_pending_push_at(app, PKT_NAME_MAP_PROJANIM, &sub, &at);
-        return;
-    }
-    if( RS_ZoneInbox_HeldCount(&app->zone_inbox) > 0 )
-        RS_GameProto_FlushPendingZone(ctx);
-    exec_zone_sub_packet_at(ctx, PKT_NAME_MAP_PROJANIM, &sub, &at);
+    zone_exec_or_hold(ctx, PKT_NAME_MAP_PROJANIM, &sub, &at);
 }
 
 /*
@@ -850,14 +836,7 @@ exec_obj_customise_specific(
     at.base_z = local_z & ~7;
     at.level = pkt->level;
     at.view = WORLDVIEW_ROOT;
-    if( !app->world->load_complete )
-    {
-        zone_pending_push_at(app, sub_name, &sub, &at);
-        return;
-    }
-    if( RS_ZoneInbox_HeldCount(&app->zone_inbox) > 0 )
-        RS_GameProto_FlushPendingZone(ctx);
-    exec_zone_sub_packet_at(ctx, sub_name, &sub, &at);
+    zone_exec_or_hold(ctx, sub_name, &sub, &at);
 }
 
 /*
@@ -941,14 +920,7 @@ exec_obj_specific(
     at.base_z = local_z & ~7;
     at.level = pkt->level;
     at.view = WORLDVIEW_ROOT;
-    if( !app->world->load_complete )
-    {
-        zone_pending_push_at(app, sub_name, &sub, &at);
-        return;
-    }
-    if( RS_ZoneInbox_HeldCount(&app->zone_inbox) > 0 )
-        RS_GameProto_FlushPendingZone(ctx);
-    exec_zone_sub_packet_at(ctx, sub_name, &sub, &at);
+    zone_exec_or_hold(ctx, sub_name, &sub, &at);
 }
 
 /*
@@ -998,6 +970,9 @@ exec_zone_sub_packet_at(
 
     switch( name )
     {
+    case PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS:
+        zone_full_reset(app, at);
+        break;
     case PKT_NAME_OBJ_ADD:
     {
         /* DRIVE_STAMP: obj_added -- a=obj_id b=count c=tile_x d=tile_z.
@@ -1060,13 +1035,10 @@ exec_zone_sub_packet_at(
         /* Remove the loc in this shape's layer (scene + collision). shape =
          * info >> 2 keys the layer so a door (WALL) removal only hits the WALL
          * loc, not a centrepiece/floor-decor sharing the tile. loc_id = -1 = no
-         * replacement. Routed through the async loc-change task so it stays
-         * ordered with in-flight LOC_ADD_CHANGE loads on the same tile. */
+         * replacement. A loc change like an add (app/app_tasks_locs.c): it
+         * replaces an add still loading for the tile and layer, and loads
+         * nothing itself. */
         App_WorldLocChange(app, tile_x, tile_z, level, -1, pkt->info >> 2, pkt->info & 0x3);
-        /* The driver reads the change from the packet, not from the scene
-         * the async task updates (App_DriveLocChangeNote). */
-        if( App_ActiveWorldview(app)->world == app->world )
-            App_DriveLocChangeNote(app, tile_x, tile_z, level, -1, pkt->info >> 2, pkt->info & 0x3);
         break;
     }
     case PKT_NAME_LOC_ADD_CHANGE:
@@ -1083,10 +1055,6 @@ exec_zone_sub_packet_at(
         App_WorldLocChangeOps(
             app, tile_x, tile_z, level, pkt->loc_id, pkt->info >> 2, pkt->info & 0x3,
             pkt->op_flags, pkt->ops);
-        /* The driver's loc rows are the root world's (DriveUi_Locs). */
-        if( App_ActiveWorldview(app)->world == app->world )
-            App_DriveLocChangeNote(
-                app, tile_x, tile_z, level, pkt->loc_id, pkt->info >> 2, pkt->info & 0x3);
         if( torirs_env_net_debug() )
             TORIRS_LOG("gameproto_exec: LOC_ADD_CHANGE loc=%d shape=%d angle=%d at %d,%d,l%d\n",
                 pkt->loc_id,
@@ -2358,8 +2326,8 @@ RS_GameProto_Exec(
         {
             /* Wire base is classic-scene local; with a (zone-6)*8 scene base
              * that is our-scene too. */
-            RS_ZoneInbox_SetBase(
-                &ctx->app->zone_inbox,
+            zone_set_base(
+                ctx->app,
                 packet->_update_zone_partial_follows.base_x,
                 packet->_update_zone_partial_follows.base_z,
                 zone_header_level(ctx->app, packet->_update_zone_partial_follows.level));
@@ -2369,26 +2337,19 @@ RS_GameProto_Exec(
         if( ctx->app )
         {
             struct App* app = ctx->app;
-            RS_ZoneInbox_SetBase(
-                &app->zone_inbox,
+            zone_set_base(
+                app,
                 packet->_update_zone_full_follows.base_x,
                 packet->_update_zone_full_follows.base_z,
                 zone_header_level(app, packet->_update_zone_full_follows.level));
-            /* Full update: the zone's client-side locs and obj stacks reset. */
+            /* Full update: the zone's client-side locs and obj stacks reset --
+             * in arrival order with the packets around it: held behind any
+             * packet still held for the view, or for its scene to be built. */
             if( app->world )
             {
-                /* Arrival order: whatever the load window queued lands first. */
-                if( App_ActiveWorldview(app)->world->load_complete &&
-                    RS_ZoneInbox_HeldCount(&app->zone_inbox) > 0 )
-                    RS_GameProto_FlushPendingZone(ctx);
-                zone_full_reset_locs(app);
-                for( int dz = 0; dz < 8; dz++ )
-                    for( int dx = 0; dx < 8; dx++ )
-                        App_WorldObjStackClearTile(
-                            app,
-                            RS_ZoneInbox_BaseX(&app->zone_inbox) + dx,
-                            RS_ZoneInbox_BaseZ(&app->zone_inbox) + dz,
-                            RS_ZoneInbox_Level(&app->zone_inbox));
+                struct ZoneAt at = zone_at_now(app);
+
+                zone_exec_or_hold(ctx, PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS, NULL, &at);
             }
         }
         break;
@@ -2398,8 +2359,8 @@ RS_GameProto_Exec(
             struct PktUpdateZoneEnclosed const* enc = &packet->_update_zone_enclosed;
             /* Wire base is classic-scene local; with a (zone-6)*8 scene base
              * that is our-scene too. */
-            RS_ZoneInbox_SetBase(
-                &ctx->app->zone_inbox,
+            zone_set_base(
+                ctx->app,
                 enc->base_x,
                 enc->base_z,
                 zone_header_level(ctx->app, enc->level));

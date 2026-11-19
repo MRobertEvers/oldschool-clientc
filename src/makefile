@@ -1032,7 +1032,6 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	game/rs_event_ring.c \
 	game/rs_server_state.c \
 	game/settle_gate.c \
-	game/rs_zone_inbox.c \
 	game/rs_pending.c \
 	game/rs_rebuild_region.c \
 	game/rs_npc_update_origin.c \
@@ -1077,7 +1076,6 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
 	world/worldview.c \
 	world/wev_aboard_trace.c \
-	world/loc_lane.c \
 	world/proj_spawn_latch.c \
 	sideapp/side_app.c \
 	world/wev.c world/wev_deck.c engine/dat2/task_dat2_wevconfig_load.c engine/dat2/task_dat2_grouptype_load.c engine/dat2/task_dat2_varclantype_load.c \
@@ -2228,7 +2226,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-map-editor-app
 	$(MAKE) test-hover-footprint
 	$(MAKE) test-wev-aboard-trace
-	$(MAKE) test-loc-lane
+	$(MAKE) test-loc-tasks
 	$(MAKE) test-proj-spawn-latch
 	$(MAKE) test-cam-script
 	$(MAKE) test-rs-event-ring
@@ -2254,7 +2252,6 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-clientscript-queue
 	$(MAKE) test-rs-server-tick
 	$(MAKE) test-settle-gate
-	$(MAKE) test-rs-zone-inbox
 	$(MAKE) test-rs-rebuild-region
 	$(MAKE) test-rs-npc-update-origin
 	$(MAKE) test-rs-sailing-hud
@@ -2407,15 +2404,6 @@ test-rs-interaction-mode: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_interaction_mode_test$(PLATFORM_EXE_SUFFIX) \
 		game/test/rs_interaction_mode_test.c game/rs_interaction_mode.c $(LDFLAGS)
 	./$(OBJ_DIR)/rs_interaction_mode_test$(PLATFORM_EXE_SUFFIX)
-
-# The zone base and the zone sub-packets held while a scene loads. A held
-# packet applied at the live base lands in the wrong zone or plane, and one
-# applied out of order leaves a loc the server changed back.
-.PHONY: test-rs-zone-inbox
-test-rs-zone-inbox: $(OBJ_DIR)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_zone_inbox_test$(PLATFORM_EXE_SUFFIX) \
-		game/test/rs_zone_inbox_test.c game/rs_zone_inbox.c $(LDFLAGS)
-	./$(OBJ_DIR)/rs_zone_inbox_test$(PLATFORM_EXE_SUFFIX)
 
 # The pending index (game/rs_pending.h) over bare task headers: find the
 # newest pending task by kind and key, a key's generation, cancel by key and
@@ -2718,14 +2706,6 @@ test-wev-aboard-trace: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/wev_aboard_trace_test$(PLATFORM_EXE_SUFFIX) \
 		world/test/wev_aboard_trace_test.c world/wev_aboard_trace.c $(LDFLAGS)
 	./$(OBJ_DIR)/wev_aboard_trace_test$(PLATFORM_EXE_SUFFIX)
-
-# The loc lane's tickets: taken in order, each change's turn is the one after
-# the last released, and a ticket's release is asked across the counter wrap.
-.PHONY: test-loc-lane
-test-loc-lane: $(OBJ_DIR)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/loc_lane_test$(PLATFORM_EXE_SUFFIX) \
-		world/test/loc_lane_test.c world/loc_lane.c $(LDFLAGS)
-	./$(OBJ_DIR)/loc_lane_test$(PLATFORM_EXE_SUFFIX)
 
 # The developer projectile hotkey: the first press marks the source, a press
 # elsewhere launches from it and clears it, a press on the source clears it.
@@ -5967,6 +5947,21 @@ test-logout-wait: $(OBJ_DIR) $(OBJS)
 		app/test/app_logout_wait_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/app_logout_wait_test
+
+# The locs family's parallel tasks (app/app_tasks_locs.c) on a real root
+# world, builder and parallel runner with a fake loader: one pending change
+# per tile and layer (the newest replaces it, a delete waits for nothing,
+# another tile's slow change holds nothing), a LOC_ANIM as a field on the
+# pending change, a merge timed in its own view, a zone reset cancelling what
+# is pending in its zone, zone packets held for an unbuilt view applied in
+# arrival order once THAT view is built, a rebuild carrying a pending change
+# over, and a logout cancelling it all. Asserts live in the test.
+.PHONY: test-loc-tasks
+test-loc-tasks: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test \
+		-o $(OBJ_DIR)/app_loc_tasks_test app/test/app_loc_tasks_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/app_loc_tasks_test
 
 # The mouseover ENTRY's four halves all come from one row (`_7100` / the FIND
 # ops, `_7101`, `_7110`, `_7109`). The subject half used to come from the pick

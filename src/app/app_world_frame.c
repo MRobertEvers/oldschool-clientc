@@ -194,7 +194,6 @@ app_world_frame(
     /* Only the root world is cycled; a deck advances nothing of its own but
      * still needs its painter's dynamic half rebuilt every tick. */
     app_wev_cycle_views(app);
-    World_LocChangesTick(world, cycles, app_loc_change_apply_cb, app);
     App_WorldDrainEntityRemoved(app);
 
     app_world_sync_positions(app);

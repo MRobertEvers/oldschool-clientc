@@ -461,23 +461,21 @@ Task_WorldLoad_Run(
     }
 
     /*
-     * 4. Every loc model the region needs, and every animated loc's sequence,
-     * ALL AT ONCE.
+     * 4. Every loc model the region needs, ALL AT ONCE.
      *
      * This is the big one: a region names hundreds of models, and awaiting
      * them one at a time cost a network round trip each, in a line, on a cache
-     * being streamed. The sequences are registered in the scene animation
-     * registry so scenery_load_animation can bind them during the rebuild;
-     * CreateTask_SequenceLoad answers NULL for one already registered. They
-     * used to be awaited one after another AFTER the models, each several
-     * reads deep -- a chain of round trips behind the biggest stage.
+     * being streamed.
+     *
+     * The animated locs' sequences are NOT waited for: a sequence's frames
+     * are only drawn, and every packet behind a REBUILD waits for the build.
+     * scenery_load_animation binds those already registered; the rest are
+     * wanted after the build and bound when they arrive
+     * (WorldBuilder_LocSequencesMissing / _BindLocSequence, and the client's
+     * finish, App_WorldViewLoadFinish). `seqs` is still collected, for the
+     * count below.
      */
     world_load_fanout(self, &self->models, CacheProvider_ModelHas, CreateTask_ModelLoad);
-    for( self->i = 0; self->i < self->seqs.count; self->i++ )
-        ToriRS_TaskQueue_AddParallelPoolSubTask(
-            self->queue,
-            CreateTask_SequenceLoad(p, self->builder->scene, self->seqs.items[self->i]),
-            &self->pending);
     PT_TASK_JOIN(pending);
     /* The face-texture walk below reads every face of every model just
      * landed. */

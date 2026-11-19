@@ -71,12 +71,6 @@ app_world_spawn_scripted_proj_now(
     struct WorldEntity_ScriptedProjSpec const* sp,
     int late);
 static void
-app_loc_change_apply_ops(
-    struct App* app,
-    struct World* world,
-    struct WorldBuilder* builder,
-    const struct Task_AppSpawn* self);
-static void
 app_spawn_fan_spotanim_assets(struct Task_AppSpawn* self);
 static int
 Task_AppSpawn_Run(
@@ -84,8 +78,6 @@ Task_AppSpawn_Run(
     struct ToriRS_IOBatch* io);
 static void
 Task_AppSpawn_Free(struct ToriRS_Task* base);
-static void
-app_spawn_loc_lane_release(struct Task_AppSpawn* self);
 
 static struct ToriRS_TaskVTable Task_AppSpawn_VTable = {
     .run = Task_AppSpawn_Run,
@@ -1497,82 +1489,11 @@ app_world_spawn_spotanim_now(
 }
 
 /*
- * Find the scenery entity a LOC_ADD_CHANGE_V2 just spawned and dress it with
- * the placement menu the change carried.
- *
- * Which labels survive is WorldEntity_SceneryApplyPlacementOps'. This is the
- * part that needs a scene: which placement the change is talking about, and
- * the interning that keeps one label block per distinct menu.
- */
-static void
-app_loc_change_apply_ops(
-    struct App* app,
-    struct World* world,
-    struct WorldBuilder* builder,
-    const struct Task_AppSpawn* self)
-{
-    int idx;
-    struct WorldEntity_Scenery* sc;
-
-    assert(app);
-    (void)app; /* asserted only; unused under NDEBUG */
-    assert(world);
-    assert(builder);
-    assert(self);
-    if( self->loc_id < 0 )
-        return; /* a pure delete has no placement to describe */
-    idx = World_SceneryFindAt(world, self->tile_x, self->tile_z, self->level, self->loc_shape);
-    if( idx < 0 )
-    {
-        /*
-         * Either the spawn was refused (unknown loc, off-scene) -- nothing to
-         * dress -- or the loc is a multiloc whose varbit picks -1 right now,
-         * and ApplyLocChange kept the placement as a hidden record. The
-         * menu belongs to that placement, not to whichever child draws it
-         * (the reference's scene loc holds the mask and labels across every
-         * re-resolve, deob class108 / DynamicObject), so it rides the record
-         * and comes back with the re-placement. A refused spawn has no
-         * record, and the stamp finds none.
-         */
-        (void)WorldBuilder_HiddenLocSetOps(
-            builder,
-            self->tile_x,
-            self->tile_z,
-            self->level,
-            self->loc_shape,
-            self->loc_op_flags,
-            self->loc_ops);
-        return;
-    }
-    sc = World_EntityPoolGet(&world->entities.scenery, idx);
-    if( !sc )
-        return;
-
-    /* The label block is shared, so the override is not written in place: the
-     * edited copy is interned and the placement repointed. */
-    {
-        struct WorldEntity_SceneryInfo probe = *sc->info;
-        char const* replacements[5];
-        bool has_action = false;
-
-        for( int i = 0; i < 5; i++ )
-            replacements[i] = self->loc_ops[i];
-
-        sc->placement_op_mask = (uint8_t)self->loc_op_flags;
-        sc->placement_op_overrides = WorldEntity_SceneryApplyPlacementOps(
-            &probe, (unsigned)self->loc_op_flags, replacements, &has_action);
-        sc->info = World_SceneryInfoIntern(world, &probe);
-        if( has_action )
-            sc->interactive = 1;
-    }
-}
-
-/*
  * A spotanim's model and its sequence, fanned out TOGETHER.
  *
  * Both ids come off the one spotanimtype and neither read feeds the other, so
  * awaiting them one after another was a round trip apiece on a streamed cache
- * — the same shape the loc-change branch below already fixed for a door. The
+ * — the same shape a loc change's task takes for a door (app/app_tasks_locs.c). The
  * first attack after a login is where it showed worst: every combat graphic the
  * browser's cache had never seen paid model-then-sequence in series, and
  * because the spawn runs on the EXEC runner, the packet pipeline behind it —
@@ -1818,221 +1739,6 @@ Task_AppSpawn_Run(
             PT_TASK_AWAITSELF_IF(CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
         app_plugin_object_materialize_now(app, self->plugin_object);
     }
-    else if( self->kind == APP_SPAWN_LOC_CHANGE )
-    {
-        /* Reference locChangeDoQueue (Client.ts:7701): a zone loc change only
-         * applies once changeLocAvailable — the loc config and every model it
-         * references are resident (an open-door variant is usually absent from
-         * the static map build's preload). LOC_DEL (loc_id < 0) has nothing to
-         * load but still runs through this task so same-tile changes apply in
-         * packet order on the serial exec FIFO. */
-        if( self->loc_id >= 0 )
-        {
-            self->loc_resolved_id = self->loc_id;
-            self->loc_base_seq = -1;
-            for( self->loc_resolve_depth = 0;
-                 self->loc_resolved_id >= 0 && self->loc_resolve_depth < 16;
-                 ++self->loc_resolve_depth )
-            {
-                PT_TASK_AWAITSELF_IF(CreateTask_LocLoad(app->provider, self->loc_resolved_id));
-                struct ToriRS_Location* cfg =
-                    CacheProvider_LocationGet(app->provider, self->loc_resolved_id);
-                if( !cfg )
-                {
-                    self->loc_resolved_id = -1;
-                    break;
-                }
-                if( self->loc_resolve_depth == 0 )
-                {
-                    self->loc_base_seq = cfg->seq_id;
-                    /* The record the change NAMES, not its transform child:
-                     * the deob reads class393.field4940 off the pending
-                     * spawn's own id (method6184(class69.field663)). */
-                    self->loc_defers_anim = cfg->defer_anim_change;
-                }
-                if( cfg->transform_count <= 0 || !cfg->transforms )
-                    break;
-                int next = VarPManager_ResolveTransform(
-                    &app->varps,
-                    cfg->transforms,
-                    cfg->transform_count,
-                    cfg->transform_varbit,
-                    cfg->transform_varp);
-                if( next == self->loc_resolved_id )
-                    break;
-                self->loc_resolved_id = next;
-            }
-            /*
-             * Every model the resolved child names, and its sequence, TOGETHER: they
-             * are independent reads with one consumer (the placement below),
-             * and awaiting them one after another was a round trip each on a
-             * streamed cache -- an open-door variant is commonly absent from
-             * the map build's preload, so a door was that chain every time.
-             * Queued as siblings on the frame queue and joined.
-             */
-            {
-                struct ToriRS_Location* cfg =
-                    self->loc_resolved_id >= 0
-                        ? CacheProvider_LocationGet(app->provider, self->loc_resolved_id)
-                        : NULL;
-                int entries = 0;
-                if( cfg && cfg->models && cfg->lengths )
-                    entries = cfg->shapes ? cfg->shapes_and_model_count : 1;
-                for( int i = 0; i < entries; i++ )
-                    for( int j = 0; j < cfg->lengths[i]; j++ )
-                        if( cfg->models[i][j] >= 0 )
-                            ToriRS_TaskQueue_AddParallelPoolSubTask(
-                                app->frame_runner.queue,
-                                CreateTask_ModelLoad(app->provider, cfg->models[i][j]),
-                                &self->pending);
-                self->seq_id = cfg && cfg->seq_id >= 0 ? cfg->seq_id : self->loc_base_seq;
-                if( self->seq_id >= 0 )
-                    ToriRS_TaskQueue_AddParallelPoolSubTask(
-                        app->frame_runner.queue,
-                        CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id),
-                        &self->pending);
-            }
-            PT_TASK_JOIN(pending);
-        }
-        /* Loaded; now its turn. The wait is on the lane's counter, which
-         * only the task before this one advances -- state this queue does
-         * not own in the runner's sense, so it is a blocked yield, retested
-         * once per pass and never spun. */
-        TASK_AWAIT_STATE(&self->task, &self->pt, LocLane_IsTurn(&app->loc_lane, self->loc_ticket));
-        /* The scene captured at enqueue: the view can die and the world can be
-         * rebuilt while the change loaded, and both drop it (see
-         * app_spawn_effect_world). */
-        struct World* world = app_spawn_effect_world(self);
-        struct Worldview* wv = world ? WorldviewRegistry_Get(&app->worldviews, self->view) : NULL;
-        if( wv && wv->builder && world && world->load_complete )
-        {
-            int old_type = -1;
-            int old_angle = 0;
-            int old_shape = -1;
-            int old_idx = World_SceneryFindAt(
-                world, self->tile_x, self->tile_z, self->level, self->loc_shape);
-            if( old_idx >= 0 )
-            {
-                struct WorldEntity_Scenery* old =
-                    World_EntityPoolGet(&world->entities.scenery, old_idx);
-                if( old )
-                {
-                    old_type = old->loc_id;
-                    old_angle = old->angle;
-                    old_shape = old->shape;
-                }
-            }
-            World_LocChangePushOps(
-                world,
-                self->level,
-                World_LocShapeToLayer(self->loc_shape),
-                self->tile_x,
-                self->tile_z,
-                old_type,
-                old_angle,
-                old_shape,
-                self->loc_id,
-                self->loc_angle,
-                self->loc_shape,
-                world->cycle,
-                -1,
-                self->loc_op_flags,
-                self->loc_ops);
-            WorldBuilder_ApplyLocChange(
-                wv->builder,
-                self->tile_x,
-                self->tile_z,
-                self->level,
-                self->loc_id,
-                self->loc_shape,
-                self->loc_angle);
-            /*
-             * The placement's own menu, over the loctype's.
-             *
-             * After the spawn and not before it: the scenery entity is created
-             * by ApplyLocChange with the loctype's actions copied in, so this
-             * is the only point where both the entity and the override exist.
-             * The reference does the same thing in the same order — its scene
-             * loc carries the mask and the labels, and the menu builder reads
-             * the loctype first and lets the placement win (deob class108).
-             */
-            app_loc_change_apply_ops(app, world, wv->builder, self);
-            /*
-             * A LOC_ANIM this pending change carried (App_WorldSceneryAnim):
-             * the placed loc starts on it instead of on its `anim=`, the way
-             * the deob's pending pass builds the loc with class69.field666
-             * (Statics.method6346 -> method13799 -> method8559, whose seq
-             * argument wins over the loctype's own when it is >= 0). Which
-             * of the two slots counts is the new loctype's deferanimchange.
-             */
-            {
-                int carried = -1;
-
-                if( self->loc_id >= 0 && app_spawn_loc_carried(self, &carried) )
-                    (void)app_world_scenery_anim_apply(
-                        app,
-                        world,
-                        self->tile_x,
-                        self->tile_z,
-                        self->level,
-                        self->loc_shape,
-                        carried);
-                /* The lane's latency against the deob's. The asset runner
-                 * applies after the packet queue has executed the tick's fence,
-                 * so 1 fence is a change applied in the cycle that read it; 2
-                 * or more stood unbuilt here through a whole server tick in
-                 * which the official client showed it. */
-                if( torirs_env_loc_lane_trace() )
-                {
-                    unsigned const fences = RS_ServerTick_Serial(&app->server_tick) - self->loc_tick;
-
-                    TORIRS_REPORT(
-                        "loc_lane: apply ticket=%u loc=%d shape=%d at %d,%d,l%d "
-                        "fences=%u cycles=%d seq=%d%s%s\n",
-                        self->loc_ticket,
-                        self->loc_id,
-                        self->loc_shape,
-                        self->tile_x,
-                        self->tile_z,
-                        self->level,
-                        fences,
-                        world->cycle - self->enqueue_cycle,
-                        carried,
-                        self->loc_take_set ? " (taken)" : "",
-                        fences >= 2 ? " LATE" : "");
-                }
-            }
-            /*
-             * The cache's own "a loc was placed" script, for a loc that arrived
-             * AFTER the scene was built.
-             *
-             * The world-loaded sweep covers the map's own locs; this covers a
-             * zone packet's, and the difference is not academic -- a Dwarf
-             * multicannon is placed by the server four ticks after you click,
-             * and clientscript 6672 is bound to `dwarf_multicannon1` by exactly
-             * this trigger. Without it the cannon hud (All Settings row 247)
-             * can never appear, because the cannon is never a loc the sweep
-             * saw. See game/rs_client_trigger.h.
-             *
-             * After the ops, for the same reason they are applied after the
-             * spawn: this is the first point at which the entity exists and is
-             * finished, and the script reads its type and its coord.
-             */
-            if( self->loc_id >= 0 )
-            {
-                int const placed_idx = World_SceneryFindAt(
-                    world, self->tile_x, self->tile_z, self->level, self->loc_shape);
-                struct WorldEntity_Scenery* placed =
-                    placed_idx >= 0 ? World_EntityPoolGet(&world->entities.scenery, placed_idx)
-                                    : NULL;
-                if( placed )
-                    app_client_trigger_loc(app, placed, RS_TRIGGER_LOC_ADD);
-            }
-            app_sync_textures(app);
-            RedrawRequest_Raise(&app->redraw_request);
-        }
-        app_spawn_loc_lane_release(self);
-    }
     else
     {
         PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
@@ -2053,114 +1759,6 @@ Task_AppSpawn_Run(
     PT_END(&self->pt);
 }
 
-struct Task_AppSpawn*
-app_spawn_loc_lane_pending(
-    struct App* app,
-    int view,
-    int scene_x,
-    int scene_z,
-    int level,
-    int layer,
-    int landed_only)
-{
-    struct Task_AppSpawn* newest = NULL;
-
-    assert(app);
-    assert(app->frame_runner.queue);
-    /*
-     * The lane's changes live on the frame queue until they end, parked on
-     * their loads or on their turn, and a change that has not released its
-     * ticket has not touched the scene: the apply and the release run with no
-     * yield between them. Several may be pending for one tile when a model is
-     * slow; the deob keeps ONE pending spawn per tile and layer and overwrites
-     * it (Statics.method5669), so the newest stands for it -- it is the one
-     * whose loc ends up standing there.
-     */
-    for( struct ToriRS_Task* t = app->frame_runner.queue->head; t; t = t->next )
-    {
-        struct Task_AppSpawn* task;
-
-        if( t->vtable != &Task_AppSpawn_VTable )
-            continue;
-        task = (struct Task_AppSpawn*)t;
-        if( task->kind != APP_SPAWN_LOC_CHANGE || task->loc_ticket_released )
-            continue;
-        if( task->view != view || task->tile_x != scene_x || task->tile_z != scene_z ||
-            task->level != level || World_LocShapeToLayer(task->loc_shape) != layer )
-            continue;
-        if( landed_only && task->loc_tick == RS_ServerTick_Serial(&app->server_tick) )
-            continue;
-        if( !newest || (int)(task->loc_ticket - newest->loc_ticket) > 0 )
-            newest = task;
-    }
-    return newest;
-}
-
-void
-app_spawn_loc_carry(
-    struct Task_AppSpawn* pending,
-    int seq_id,
-    int stood)
-{
-    assert(pending);
-    assert(pending->kind == APP_SPAWN_LOC_CHANGE);
-    /* Deob, the LOC_ANIM decode: a pending spawn whose loctype defers takes
-     * every sequence (class69.field666 = seq after method1508); one that does
-     * not takes it only when method1508 found nothing to attach it to. */
-    pending->loc_carry_any_seq = seq_id;
-    pending->loc_carry_any_set = 1;
-    if( !stood )
-    {
-        pending->loc_carry_unfound_seq = seq_id;
-        pending->loc_carry_unfound_set = 1;
-    }
-}
-
-void
-app_spawn_loc_take(
-    struct Task_AppSpawn* landed,
-    int seq_id)
-{
-    assert(landed);
-    assert(landed->kind == APP_SPAWN_LOC_CHANGE);
-    assert(landed->loc_id >= 0);
-    landed->loc_take_seq = seq_id;
-    landed->loc_take_set = 1;
-}
-
-int
-app_spawn_loc_carried(
-    struct Task_AppSpawn const* task,
-    int* out_seq_id)
-{
-    assert(task);
-    assert(out_seq_id);
-    if( task->loc_take_set )
-    {
-        *out_seq_id = task->loc_take_seq;
-        return 1;
-    }
-    if( task->loc_defers_anim ? !task->loc_carry_any_set : !task->loc_carry_unfound_set )
-        return 0;
-    *out_seq_id = task->loc_defers_anim ? task->loc_carry_any_seq : task->loc_carry_unfound_seq;
-    return 1;
-}
-
-/*
- * Give the loc lane its next turn. Exactly once per lane task, whether it
- * applied, was dropped for a dead scene, or was freed unrun with its queue:
- * a ticket that never released would hold every loc change after it forever.
- */
-static void
-app_spawn_loc_lane_release(struct Task_AppSpawn* self)
-{
-    assert(self);
-    if( self->loc_ticket == 0 || self->loc_ticket_released )
-        return;
-    self->loc_ticket_released = 1;
-    LocLane_Release(&self->app->loc_lane);
-}
-
 static void
 Task_AppSpawn_Free(struct ToriRS_Task* base)
 {
@@ -2169,7 +1767,6 @@ Task_AppSpawn_Free(struct ToriRS_Task* base)
      * task. At shutdown the table is closed and ignores it. */
     if( self->pending > 0 )
         Assets_Unjoin(self->app->assets, &self->pending);
-    app_spawn_loc_lane_release((struct Task_AppSpawn*)base);
     ToriMem_Free(ToriMem_Process(), base);
 }
 

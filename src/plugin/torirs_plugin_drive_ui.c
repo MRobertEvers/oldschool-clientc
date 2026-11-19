@@ -799,8 +799,7 @@ DriveUi_Npcs(struct App* app, int radius, struct DriveNpcRow* out, int cap, int*
  *
  * The client's scenery entity keeps the id the map or the packet named and
  * resolves the transform table on the way to the model
- * (app_varp_refresh_loc_transforms, app_world_spawn.c's APP_SPAWN_LOC_CHANGE
- * arm), so this is the only place a reader can ask "what IS that thing".
+ * (app_varp_refresh_loc_transforms, app_tasks_locs.c's loc change task), so this is the only place a reader can ask "what IS that thing".
  * Answers `loc_id` for the overwhelming majority of defs, which carry no
  * transform table at all; -1 is the table's own "hidden" and is passed
  * through rather than folded into `loc_id`, because a hidden loc and a plain
@@ -950,19 +949,30 @@ drive_ui_locs_attach_ambient(struct App* app, struct DriveLocRow* rows, int coun
     ToriMem_Free(ToriMem_Plugins(), head);
 }
 
-/* The pending loc change (App_DriveLocChangeNote) for this scenery's tile and
- * layer, or NULL. */
+/* The root's loc changes still pending (App_DriveLocChangesPending), read
+ * afresh: the rows a loc read overlays on the scenery. Valid until the next
+ * call. */
+static struct App_DriveLocChange g_drive_ui_pending[WORLD_LOC_CHANGE_MAX];
+
+static int
+drive_ui_pending_locs(struct App* app)
+{
+    return App_DriveLocChangesPending(app, g_drive_ui_pending, WORLD_LOC_CHANGE_MAX);
+}
+
+/* The pending loc change for this scenery's tile and layer, or NULL. */
 static struct App_DriveLocChange const*
 drive_ui_loc_pending(
-    struct App_DriveRing const* ring,
+    struct App_DriveLocChange const* rows,
+    int count,
     int x,
     int z,
     int level,
     int layer)
 {
-    for( int k = 0; k < ring->loc_change_count; k++ )
+    for( int k = 0; k < count; k++ )
     {
-        struct App_DriveLocChange const* c = &ring->loc_changes[k];
+        struct App_DriveLocChange const* c = &rows[k];
         if( c->x == x && c->z == z && c->level == level && c->layer == layer )
             return c;
     }
@@ -980,19 +990,19 @@ drive_ui_loc_pending(
  * stamps it on the packet's tick (ScriptrunCore_LocChange). A door opened or
  * a pillar dropped this tick then routed the live solver through the old
  * state a tick longer than the scriptrun one. The copies keep the world's own
- * maps untouched, so the lane's landing still makes the only add/del pair the
- * world sees and nothing can apply twice; a change leaves the copies with its
- * ring entry (App_DriveLocChangesRetire), when the world shows it itself.
+ * maps untouched, so the change's own apply still makes the only add/del pair
+ * the world sees and nothing can apply twice; a change leaves the copies when
+ * it applies, which is when the world shows it itself.
  *
- * Cached on what can change it: the scene, the lane's landings, the ring.
+ * Cached on what can change it: the scene, and the pending changes
+ * (App.loc_task_serial).
  */
 static struct
 {
     struct CollisionMap* maps[COLLISION_LEVELS];
     struct World const* world;
     unsigned load_seq;
-    unsigned lane_applied;
-    uint32_t ring_serial;
+    uint32_t loc_task_serial;
     int base_x, base_z;
     int valid;
 } g_drive_ui_collision;
@@ -1005,24 +1015,21 @@ static struct CollisionMap* const*
 drive_ui_collision_maps(struct App* app)
 {
     struct World* world;
-    struct App_DriveRing* ring;
     int base_x, base_z;
-    int level, k;
+    int level, k, pending;
 
     assert(app);
     world = app->world;
     assert(world);
-    App_DriveLocChangesRetire(app);
-    ring = &app->drive_events;
-    if( ring->loc_change_count == 0 )
+    pending = drive_ui_pending_locs(app);
+    if( pending == 0 )
         return world->collision_maps;
 
     base_x = world->_base_tile_x;
     base_z = world->_base_tile_z;
     if( g_drive_ui_collision.valid && g_drive_ui_collision.world == world &&
         g_drive_ui_collision.load_seq == world->load_seq &&
-        g_drive_ui_collision.lane_applied == LocLane_Applied(&app->loc_lane) &&
-        g_drive_ui_collision.ring_serial == ring->loc_change_serial &&
+        g_drive_ui_collision.loc_task_serial == app->loc_task_serial &&
         g_drive_ui_collision.base_x == base_x && g_drive_ui_collision.base_z == base_z )
         return g_drive_ui_collision.maps;
 
@@ -1055,13 +1062,13 @@ drive_ui_collision_maps(struct App* app)
         memcpy(dst->flags, src->flags, (size_t)src->size_x * (size_t)src->size_z * sizeof(*dst->flags));
         dst->route_window = src->route_window;
     }
-    for( k = 0; k < ring->loc_change_count; k++ )
+    for( k = 0; k < pending; k++ )
     {
-        struct App_DriveLocChange const* c = &ring->loc_changes[k];
+        struct App_DriveLocChange const* c = &g_drive_ui_pending[k];
         int sx = c->x - base_x;
         int sz = c->z - base_z;
 
-        /* App_DriveLocChangesRetire dropped every other base's. */
+        /* Only the live scene's changes are rows. */
         assert(c->base_x == base_x);
         assert(c->base_z == base_z);
         if( sx < 0 || sz < 0 || sx >= world->_scene_size || sz >= world->_scene_size )
@@ -1071,9 +1078,9 @@ drive_ui_collision_maps(struct App* app)
             c->loc_id != g_drive_ui_collision_missing_loc )
         {
             /* Not a state to read quietly: the change's tile reads as the old
-             * loc removed and nothing stamped. The lane loads this config
-             * before it lands the change, so it is a read between the packet
-             * and the lane's first step. */
+             * loc removed and nothing stamped. The change loads this config
+             * before it applies, so it is a read between the packet and the
+             * task's first step. */
             g_drive_ui_collision_missing_loc = c->loc_id;
             fprintf(stderr,
                 "drive: route/plan collision: loc %d (pending at %d,%d,l%d) has no resident "
@@ -1083,8 +1090,7 @@ drive_ui_collision_maps(struct App* app)
     }
     g_drive_ui_collision.world = world;
     g_drive_ui_collision.load_seq = world->load_seq;
-    g_drive_ui_collision.lane_applied = LocLane_Applied(&app->loc_lane);
-    g_drive_ui_collision.ring_serial = ring->loc_change_serial;
+    g_drive_ui_collision.loc_task_serial = app->loc_task_serial;
     g_drive_ui_collision.base_x = base_x;
     g_drive_ui_collision.base_z = base_z;
     g_drive_ui_collision.valid = 1;
@@ -1109,7 +1115,7 @@ drive_ui_collision_maps(struct App* app)
  * What a row says that the pool does not store -- the multiloc child the
  * varbits pick, the seq an element is playing, its area sound -- is read when
  * the row is asked for, so it is as current as the frame. A loc change still
- * waiting on its models (App_DriveLocChangeNote) overlays the index exactly as
+ * waiting on its models (App_DriveLocChangesPending) overlays the index exactly as
  * it overlaid the old pool walk: the tile and layer it covers answer from the
  * packet.
  *
@@ -1119,13 +1125,13 @@ drive_ui_collision_maps(struct App* app)
  * structure. The pool appends a slot to its walk when it ACTIVATES it and a
  * re-registration keeps its place, so the index stamps a serial at activation
  * and keeps it across a re-place; pending changes rank after every pool row,
- * in ring order, as they were inserted after the walk before. */
+ * in arrival order, as they were inserted after the walk before. */
 
 enum
 {
     DRIVE_LOC_NIL = -1,
     /* A loc row's identity order for a pending change: after every pool row. */
-    DRIVE_LOC_RING_ORDER_BASE = 0x7fffffff
+    DRIVE_LOC_PENDING_ORDER_BASE = 0x7fffffff
 };
 
 struct DriveLocSlot
@@ -1565,7 +1571,9 @@ drive_loc_query_keeps(struct DriveLocQuery const* q, int have_player, int px, in
 struct DriveLocRead
 {
     struct App* app;
-    struct App_DriveRing const* ring;
+    /* The pending loc changes (drive_ui_pending_locs). */
+    struct App_DriveLocChange const* pending;
+    int pending_count;
     struct DriveLocQuery const* q;
     int have_player, px, pz, base_x, base_z;
     int count;
@@ -1591,7 +1599,7 @@ drive_loc_read_slot(struct DriveLocRead* r, int idx)
                               r->q->radius) )
         return;
     /* A change still waiting on its models replaces this loc. */
-    if( drive_ui_loc_pending(r->ring, row.tile_x, row.tile_z, row.level,
+    if( drive_ui_loc_pending(r->pending, r->pending_count, row.tile_x, row.tile_z, row.level,
             World_LocShapeToLayer(sc->shape)) )
         return;
     row.resolved_loc_id = drive_ui_loc_resolved(r->app, sc->loc_id);
@@ -1646,16 +1654,16 @@ drive_loc_query(struct App* app, struct DriveLocQuery const* q, struct DriveLocR
     r.base_z = app->world->_base_tile_z;
     /* FROM THE PACKETS where the scene lags them: a loc change waits on its
      * models before the scenery shows it, so the tiles it touches answer
-     * from the change itself (App_DriveLocChangeNote), as scriptrun's
+     * from the change itself (App_DriveLocChangesPending), as scriptrun's
      * packet-built loc list does, until the scenery catches up. */
-    App_DriveLocChangesRetire(app);
-    r.ring = &app->drive_events;
+    r.pending_count = drive_ui_pending_locs(app);
+    r.pending = g_drive_ui_pending;
     if( drive_ui_debug() )
         fprintf(stderr,
             "drive_locs: index live=%d ids=%d either=%d radius=%d level=%d at_tile=%d "
             "have_player=%d at %d,%d pending=%d\n",
             g_drive_loc_index.live, q->n_ids, q->either, q->radius, q->level, q->at_tile,
-            r.have_player, r.px, r.pz, r.ring->loc_change_count);
+            r.have_player, r.px, r.pz, r.pending_count);
 
     if( q->n_ids > 0 )
     {
@@ -1698,9 +1706,9 @@ drive_loc_query(struct App* app, struct DriveLocQuery const* q, struct DriveLocR
                 drive_loc_read_slot(&r, i);
     }
 
-    for( i = 0; i < r.ring->loc_change_count; i++ )
+    for( i = 0; i < r.pending_count; i++ )
     {
-        struct App_DriveLocChange const* c = &r.ring->loc_changes[i];
+        struct App_DriveLocChange const* c = &r.pending[i];
         struct DriveLocRow row;
 
         if( c->loc_id < 0 )
@@ -1720,7 +1728,7 @@ drive_loc_query(struct App* app, struct DriveLocQuery const* q, struct DriveLocR
             continue;
         drive_loc_gather(&r.count, &row,
             r.have_player ? drive_ui_distance2(row.tile_x, row.tile_z, r.px, r.pz) : 0,
-            (long long)DRIVE_LOC_RING_ORDER_BASE + 1 + i);
+            (long long)DRIVE_LOC_PENDING_ORDER_BASE + 1 + i);
     }
 
     if( r.count > 1 )
@@ -1778,9 +1786,9 @@ DriveUi_LocCopies(
 static int
 drive_loc_element_row(struct App* app, int element_id, struct DriveLocRow* out)
 {
-    struct App_DriveRing const* ring;
     struct WorldEntity_Scenery const* sc;
     int idx;
+    int pending;
 
     assert(app);
     assert(out);
@@ -1794,8 +1802,7 @@ drive_loc_element_row(struct App* app, int element_id, struct DriveLocRow* out)
     assert(sc);
     if( sc->element_id != element_id )
         return 0;
-    App_DriveLocChangesRetire(app);
-    ring = &app->drive_events;
+    pending = drive_ui_pending_locs(app);
     memset(out, 0, sizeof(*out));
     out->loc_id = sc->loc_id;
     out->tile_x = app->world->_base_tile_x + sc->grid_position.x;
@@ -1803,7 +1810,7 @@ drive_loc_element_row(struct App* app, int element_id, struct DriveLocRow* out)
     out->level = sc->grid_position.level;
     out->element_id = sc->element_id;
     out->shape = sc->shape;
-    if( drive_ui_loc_pending(ring, out->tile_x, out->tile_z, out->level,
+    if( drive_ui_loc_pending(g_drive_ui_pending, pending, out->tile_x, out->tile_z, out->level,
             World_LocShapeToLayer(sc->shape)) )
         return 0;
     out->resolved_loc_id = drive_ui_loc_resolved(app, sc->loc_id);

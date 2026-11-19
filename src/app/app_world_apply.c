@@ -57,22 +57,23 @@ app_world_reconcile_player_transmog(
  * (torirs_server_zone.c, zone_loc_anim_check); content places the loc a tick
  * before it animates it.
  *
- * "Stands there NOW" maps onto this client's loc lane directly. A change waits
- * on the lane for its config and models, as the deob's waits in its pending
- * list, and it applies to the scene only when its turn comes; until then the
- * scene holds exactly what the deob's holds -- the old loc. So the sequence is
- * applied to the scene synchronously, here, and the lane's pending change for
- * the tile (app_spawn_loc_lane_pending) is the deob's pending spawn: it is
- * handed the sequence under the deob's two conditions, and the loc it places
- * starts on it (the LOC_CHANGE apply, app_world_spawn.c). The deferanimchange
- * half is judged there, once the new loctype has loaded.
+ * "Stands there NOW" maps onto this client's pending loc changes directly. A
+ * change waits as a parallel task for its config and models, as the deob's
+ * waits in its pending list, and it applies to the scene only once they are
+ * here; until then the scene holds exactly what the deob's holds -- the old
+ * loc. So the sequence is applied to the scene synchronously, here, and the
+ * change pending for the tile (app_loc_change_pending, found through the
+ * pending index) is the deob's pending spawn: it is handed the sequence under
+ * the deob's two conditions, and the loc it places starts on it
+ * (app/app_tasks_locs.c). The deferanimchange half is judged there, once the
+ * new loctype has loaded.
  *
- * Where the two differ is a lane that holds a change past the tick that read it,
+ * Where the two differ is a change still pending past the tick that read it,
  * which the deob does only for its own model loads: by the next tick the
  * official client shows the new loc and animates it. So a change from an
- * earlier server tick (RS_ServerTick_Serial of App.server_tick) counts as built, and takes the
- * sequence itself (app_spawn_loc_take); TORIRS_LOC_LANE_TRACE=1 logs every
- * anim's target and every change's wait.
+ * earlier server tick (RS_ServerTick_Serial of App.server_tick) counts as
+ * built, and takes the sequence itself (app_loc_change_take);
+ * TORIRS_LOC_LANE_TRACE=1 logs every anim's target and every change's wait.
  *
  * Revision 239 only. The dat1 lanes reproduce the 2004-era client, whose loc
  * changes carry no sequence: there a LOC_ANIM only ever reaches the standing
@@ -88,51 +89,52 @@ App_WorldSceneryAnim(
     int seq_id)
 {
     struct World* world = NULL;
-    struct Task_AppSpawn* pending = NULL;
-    struct Task_AppSpawn* landed = NULL;
+    struct Task_LocChange* pending = NULL;
+    struct Task_LocChange* landed = NULL;
+    int const view = WorldviewRegistry_Active(&app->worldviews);
     int const layer = World_LocShapeToLayer(loc_shape);
     int stood = 0;
 
     assert(app);
     /* The view the packet addresses (SET_ACTIVE_WORLD), as every zone op uses.
      * A scene still building holds nothing a sequence could attach to. */
-    if( WorldviewRegistry_IsLive(&app->worldviews, WorldviewRegistry_Active(&app->worldviews)) )
+    if( WorldviewRegistry_IsLive(&app->worldviews, view) )
     {
-        struct Worldview* wv = WorldviewRegistry_Get(&app->worldviews, WorldviewRegistry_Active(&app->worldviews));
+        struct Worldview* wv = WorldviewRegistry_Get(&app->worldviews, view);
         if( wv->world && wv->world->load_complete )
             world = wv->world;
     }
+    /* One change is pending per tile and layer (the newest replaced the rest),
+     * so it is both the deob's pending spawn and, read in an earlier tick,
+     * the one it has built. */
     if( app->cfg.cache_kind != APP_CACHE_DAT1 )
-    {
-        pending = app_spawn_loc_lane_pending(
-            app, WorldviewRegistry_Active(&app->worldviews), scene_x, scene_z, level, layer, 0);
-        landed = app_spawn_loc_lane_pending(
-            app, WorldviewRegistry_Active(&app->worldviews), scene_x, scene_z, level, layer, 1);
-    }
+        pending = app_loc_change_pending(app, view, scene_x, scene_z, level, layer);
+    if( pending && pending->tick != RS_ServerTick_Serial(&app->server_tick) )
+        landed = pending;
     /*
-     * A change read in an earlier server tick that this client's lane still
-     * holds (its models are loading, or a change ahead of it is) stands in
-     * the deob's scene already: its pending pass builds a spawn in the client
-     * cycle that read it. That loc is what this sequence animates, so the
-     * change takes it outright -- and the stale loc this scene still shows
-     * gets nothing, because in the official client it is gone, and a sequence
-     * meant for the new model posed on the old one is a glitch of its own.
-     * A landed LOC_DEL left the layer empty.
+     * A change read in an earlier server tick that this client still holds
+     * (its models are loading) stands in the deob's scene already: its
+     * pending pass builds a spawn in the client cycle that read it. That loc
+     * is what this sequence animates, so the change takes it outright -- and
+     * the stale loc this scene still shows gets nothing, because in the
+     * official client it is gone, and a sequence meant for the new model
+     * posed on the old one is a glitch of its own. A landed LOC_DEL left the
+     * layer empty.
      */
     if( landed )
     {
-        stood = landed->loc_id >= 0;
+        stood = landed->change.loc_id >= 0;
         if( stood )
-            app_spawn_loc_take(landed, seq_id);
+            app_loc_change_take(landed, seq_id);
     }
     else if( world )
         stood = app_world_scenery_anim_apply(
             app, world, scene_x, scene_z, level, loc_shape, seq_id);
     if( pending && pending != landed )
-        app_spawn_loc_carry(pending, seq_id, stood);
+        app_loc_change_carry(pending, seq_id, stood);
     if( torirs_env_loc_lane_trace() )
         TORIRS_REPORT(
-            "loc_lane: anim seq=%d shape=%d at %d,%d,l%d tick=%u -> %s%s\n",
+            "loc_change: anim seq=%d shape=%d at %d,%d,l%d tick=%u -> %s%s\n",
             seq_id,
             loc_shape,
             scene_x,

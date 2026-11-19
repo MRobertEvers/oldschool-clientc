@@ -55,6 +55,8 @@ App_AssetResident(
         return app_entity_spotanim_resident(app, key.id) != 0;
     if( key.kind == ASSET_KIND_CONFIG && key.variant == ASSET_CONFIG_IDK )
         return CacheProvider_IdkHas(app->provider, key.id);
+    if( key.kind == ASSET_KIND_CONFIG && key.variant == ASSET_CONFIG_LOC )
+        return CacheProvider_LocationHas(app->provider, key.id);
     if( key.kind == ASSET_KIND_CONFIG )
     {
         assert(key.variant == ASSET_CONFIG_OBJ);
@@ -123,6 +125,8 @@ asset_start_leaf(
         child = CreateTask_SoundLoad(app->provider, key.id);
     else if( key.kind == ASSET_KIND_CONFIG && key.variant == ASSET_CONFIG_IDK )
         child = CreateTask_IdkLoad(app->provider, key.id);
+    else if( key.kind == ASSET_KIND_CONFIG && key.variant == ASSET_CONFIG_LOC )
+        child = CreateTask_LocLoad(app->provider, key.id);
     else if( key.kind == ASSET_KIND_CONFIG )
         child = CreateTask_ObjLoad(app->provider, key.id);
     else if( key.kind == ASSET_KIND_MUSIC )

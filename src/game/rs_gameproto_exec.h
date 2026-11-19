@@ -37,21 +37,27 @@ RS_GameProto_Exec(
     struct RS_GameProtoCtx const* ctx,
     struct RevPacket* packet);
 
-/* Replay zone sub-packets that arrived while the world was async-loading
- * (App::zone_inbox), in arrival order. No-op until load_complete. Called
- * lazily before any live zone sub-packet, and from the app tick so a queue
- * with no follow-up traffic still drains. */
-void
-RS_GameProto_FlushPendingZone(struct RS_GameProtoCtx const* ctx);
-
 struct PktZoneSubPacket;
 struct TorirsControlFrame;
+
+/** A zone sub-packet held for a view that was not built yet
+ *  (App_ZonePacketHold), now that it is and its turn has come: applied at the
+ *  zone base, plane and view as of its arrival. A FULL_FOLLOWS reset is one
+ *  of them (name UPDATE_ZONE_FULL_FOLLOWS, no payload). */
+void
+RS_GameProto_ApplyHeldZoneOp(
+    struct RS_GameProtoCtx const* ctx,
+    struct PktZoneSubPacket const* pkt,
+    int base_x,
+    int base_z,
+    int level,
+    int view);
 
 /* A replay seek's world keyframe (replay/replay_world_apply.c), through the
  * arms the zone packets themselves run through. */
 
 /** One zone op, at the zone base (scene-local) and plane it was decoded for,
- *  in the root view; queued like a live one while the scene is loading. */
+ *  in the root view; held like a live one while the scene is loading. */
 void
 RS_GameProto_ReplayZoneOp(
     struct RS_GameProtoCtx const* ctx,
