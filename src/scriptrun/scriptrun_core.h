@@ -439,6 +439,21 @@ ScriptrunCore_LocChange(
     int loc_id,
     struct PktLocAddChange const* menu);
 
+/** ScriptrunCore_LocChange at a CACHE level (no bridge climb), with the
+ *  placement's own menu (`op_flags`, `ops`): a standing change re-placed after
+ *  a rebuild. */
+void
+ScriptrunCore_LocPlace(
+    struct ScriptrunCore* core,
+    int abs_x,
+    int abs_z,
+    int level,
+    int shape,
+    int angle,
+    int loc_id,
+    int op_flags,
+    const char ops[5][32]);
+
 /**
  * UPDATE_ZONE_FULL_FOLLOWS for the zone whose south-west tile is (abs_x0,
  * abs_z0) on the walked level `zone_level`: every loc a zone change put in it

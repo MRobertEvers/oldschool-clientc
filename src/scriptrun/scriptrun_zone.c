@@ -427,14 +427,15 @@ ScriptrunZone_LocChange(
     int old_loc,
     int old_shape,
     int old_angle,
-    int now_cycle)
+    int now_cycle,
+    int op_flags,
+    const char ops[5][32])
 {
-    static const char none[5][32] = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
-
     assert(zone);
+    assert(ops);
     zone->loc_changes_seen++;
     World_LocChangePushOps(zone->world, level, World_LocShapeToLayer(shape), x, z, old_loc,
-        old_angle, old_shape, loc_id, angle, shape, now_cycle, -1, 0x1f, none);
+        old_angle, old_shape, loc_id, angle, shape, now_cycle, -1, op_flags, ops);
 }
 
 void

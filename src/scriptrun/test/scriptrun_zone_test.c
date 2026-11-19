@@ -310,8 +310,10 @@ test_loc_records(void)
     memset(climb, 0, sizeof(climb));
     /* A change keeps the map's loc as its old one, and a later change to the
      * key only moves its new one. */
-    ScriptrunZone_LocChange(zone, 10, 20, 0, 0, 1, 1530, 1529, 0, 1, 30);
-    ScriptrunZone_LocChange(zone, 10, 20, 0, 0, 2, 1531, 1530, 0, 1, 60);
+    static const char none[5][32] = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
+
+    ScriptrunZone_LocChange(zone, 10, 20, 0, 0, 1, 1530, 1529, 0, 1, 30, 0x1f, none);
+    ScriptrunZone_LocChange(zone, 10, 20, 0, 0, 2, 1531, 1530, 0, 1, 60, 0x1f, none);
     CHECK(zone->world->loc_change_count == 1, "one record per key");
     rec = &zone->world->loc_changes[0];
     CHECK(rec->old_type == 1529 && rec->new_type == 1531 && rec->new_angle == 2, "old kept, new moved");

@@ -184,7 +184,8 @@ ScriptrunZone_Apply(
  * (`x`, `z`) at cache level `level`: its record, as loc_place pushes it
  * (World_LocChangePushOps, one record per level, layer and tile, keeping the
  * loc that stood before the key's first change). `old_*` is the map's loc in
- * that layer (-1: none).
+ * that layer (-1: none); `op_flags` and `ops` the placement's own menu
+ * (LOC_ADD_CHANGE_V2; 0x1f and no labels for any other).
  */
 void
 ScriptrunZone_LocChange(
@@ -198,7 +199,9 @@ ScriptrunZone_LocChange(
     int old_loc,
     int old_shape,
     int old_angle,
-    int now_cycle);
+    int now_cycle,
+    int op_flags,
+    const char ops[5][32]);
 
 /**
  * UPDATE_ZONE_FULL_FOLLOWS for the root zone at scene tile (`x0`, `z0`) on

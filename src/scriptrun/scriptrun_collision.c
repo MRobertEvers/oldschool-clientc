@@ -795,17 +795,38 @@ ScriptrunCore_LocChange(
     int loc_id,
     struct PktLocAddChange const* menu)
 {
+    static const char none[5][32] = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
+
+    assert(core);
+    ScriptrunCore_LocPlace(core, abs_x, abs_z,
+        loc_cache_level(core, abs_x - core->world->_base_tile_x, abs_z - core->world->_base_tile_z,
+            zone_level),
+        shape, angle, loc_id, menu ? menu->op_flags & 0x1f : 0x1f, menu ? menu->ops : none);
+}
+
+void
+ScriptrunCore_LocPlace(
+    struct ScriptrunCore* core,
+    int abs_x,
+    int abs_z,
+    int level,
+    int shape,
+    int angle,
+    int loc_id,
+    int op_flags,
+    const char ops[5][32])
+{
     struct WorldBuilder* builder = core->builder;
-    int sx, sz, level;
+    int sx, sz;
     int layer = World_LocShapeToLayer(shape);
     struct ToriRS_Location storage;
     struct ToriRS_Location* config;
     int stamps;
 
     assert(core);
+    assert(ops);
     sx = abs_x - core->world->_base_tile_x;
     sz = abs_z - core->world->_base_tile_z;
-    level = loc_cache_level(core, sx, sz, zone_level);
     /* Only a root-scene tile has a cell in the root collision map: a deck's
      * change (under a SET_ACTIVE_WORLD cursor) is a staging tile far outside
      * it, and the deck world's own collision is not modelled here. */
@@ -838,12 +859,11 @@ ScriptrunCore_LocChange(
     if( loc_id < 0 )
         return;
     loc_append(core, abs_x, abs_z, level, shape, angle, loc_id, 0);
-    if( menu )
     {
         struct ScriptrunLoc* row = &core->locs[core->loc_count - 1];
-        row->op_flags = menu->op_flags & 0x1f;
+        row->op_flags = op_flags & 0x1f;
         for( int i = 0; i < 5; i++ )
-            snprintf(row->ops[i], sizeof(row->ops[i]), "%s", menu->ops[i]);
+            snprintf(row->ops[i], sizeof(row->ops[i]), "%s", ops[i]);
     }
     if( stamps && (config = placed_config(core, loc_id, &storage)) != NULL )
     {

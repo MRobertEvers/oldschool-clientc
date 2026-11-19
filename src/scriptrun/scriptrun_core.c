@@ -1636,7 +1636,10 @@ core_zone_loc(
     int name,
     void const* payload)
 {
+    static const char none[5][32] = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
+    char const (*ops)[32] = none;
     int pos, info, loc_id;
+    int op_flags = 0x1f;
     int tx, tz, x, z, level, old_loc, old_shape, old_angle;
 
     if( at->view != 0 )
@@ -1647,6 +1650,8 @@ core_zone_loc(
         pos = pkt->pos;
         info = pkt->info;
         loc_id = pkt->loc_id;
+        op_flags = pkt->op_flags & 0x1f;
+        ops = pkt->ops;
     }
     else
     {
@@ -1664,7 +1669,37 @@ core_zone_loc(
     old_loc = ScriptrunCore_MapLocAt(core, at->origin_x + x, at->origin_z + z, level,
         World_LocShapeToLayer(info >> 2), &old_shape, &old_angle);
     ScriptrunZone_LocChange(zone, x, z, level, info >> 2, info & 3, loc_id, old_loc, old_shape,
-        old_angle, (int)core->world->cycle);
+        old_angle, (int)core->world->cycle, op_flags, ops);
+}
+
+/*
+ * A rebuild of the root put the map's locs back: every change that stood
+ * before it and is still on the scene is placed again, collision with it, and
+ * recorded afresh with the new scene's map loc as its old one -- the real
+ * client's App_WorldViewLoadFinish (World_LocChangesTakeStanding, deob
+ * client.method2278). The server does not resend a zone that stayed in view.
+ */
+static void
+core_replace_standing(struct ScriptrunCore* core)
+{
+    static struct World_LocChange standing[WORLD_LOC_CHANGE_MAX];
+    int const count =
+        World_LocChangesTakeStanding(core->zone.world, standing, WORLD_LOC_CHANGE_MAX);
+    int const base_x = core_base_x(core);
+    int const base_z = core_base_z(core);
+
+    for( int i = 0; i < count; i++ )
+    {
+        struct World_LocChange const* c = &standing[i];
+        int old_shape, old_angle;
+        int const old_loc = ScriptrunCore_MapLocAt(
+            core, base_x + c->x, base_z + c->z, c->level, c->layer, &old_shape, &old_angle);
+
+        ScriptrunCore_LocPlace(core, base_x + c->x, base_z + c->z, c->level, c->new_shape,
+            c->new_angle, c->new_type, c->op_flags, c->ops);
+        ScriptrunZone_LocChange(&core->zone, c->x, c->z, c->level, c->new_shape, c->new_angle,
+            c->new_type, old_loc, old_shape, old_angle, (int)core->world->cycle, c->op_flags, c->ops);
+    }
 }
 
 void
@@ -2364,6 +2399,7 @@ core_packet(
 {
     struct RevPacket packet;
     int parsed;
+    int rebuilt;
 
     core_wirelog_every(core, pkt_name, len);
     /* PLAYER_INFO / NPC_INFO: the client decodes the raw stream itself. */
@@ -2397,10 +2433,21 @@ core_packet(
      * what follows is this bot's presentation of what it wrote. */
     if( core_model_feeds(pkt_name) )
         (void)RS_ServerState_Apply(&core->model.state, &packet);
+    rebuilt = pkt_name == PKT_NAME_REBUILD_NORMAL || pkt_name == PKT_NAME_REBUILD_REGION;
 
     switch( pkt_name )
     {
     case PKT_NAME_REBUILD_NORMAL:
+        /* The real client skips a REBUILD_NORMAL to the centre it already
+         * shows (App_WorldRebuild's checkSame): its scene, its loc changes and
+         * its collision stand. ScriptrunCore_ZoneFamilies makes the same
+         * test. */
+        if( core->have_scene && packet._map_rebuild.zonex == core->rebuild_zone_x &&
+            packet._map_rebuild.zonez == core->rebuild_zone_z )
+        {
+            rebuilt = 0;
+            break;
+        }
         core_rebuild(core, packet._map_rebuild.zonex, packet._map_rebuild.zonez);
         core->instance_active = 0;
         ScriptrunCore_BuildCollision(core);
@@ -2582,8 +2629,11 @@ core_packet(
         break;
     }
     /* The zone families, by the real client's rules, after the switch has
-     * moved the cursor and the scene (scriptrun_zone.h). */
+     * moved the cursor and the scene (scriptrun_zone.h); then a rebuilt
+     * root's standing loc changes, on the new scene. */
     ScriptrunCore_ZoneFamilies(core, &core->zone, &packet);
+    if( rebuilt )
+        core_replace_standing(core);
     if( core->shadow )
     {
         ScriptrunCore_ZoneFamilies(core, ScriptrunShadow_Zone(core->shadow), &packet);
