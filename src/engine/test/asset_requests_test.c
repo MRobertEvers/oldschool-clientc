@@ -329,8 +329,10 @@ test_backoff_forever(void)
 
     /* One pass in flight at a time. */
     Assets_SetClock(assets, now);
+    TEST_ASSERT(Assets_Due(assets, key), "a fresh table is due at once");
     Assets_Want(assets, key, NULL);
     TEST_ASSERT(Assets_InFlight(assets, key), "a pass is in flight");
+    TEST_ASSERT(!Assets_Due(assets, key), "and no other pass is due");
     Assets_Want(assets, key, NULL);
     TEST_ASSERT(fake.start_count == 1, "and no other starts");
 
@@ -338,8 +340,11 @@ test_backoff_forever(void)
     Assets_Finished(assets, key, false);
     TEST_ASSERT(Assets_State(assets, key) == ASSET_STATE_WANTED, "backed off, still wanted");
     Assets_SetClock(assets, now + 499);
+    TEST_ASSERT(!Assets_Due(assets, key), "not due before the wait is up");
     Assets_Want(assets, key, NULL);
     TEST_ASSERT(fake.start_count == 1, "not before the wait is up");
+    Assets_SetClock(assets, now + 500);
+    TEST_ASSERT(Assets_Due(assets, key), "due when it is");
     Assets_SetClock(assets, now + 500);
     Assets_Want(assets, key, NULL);
     TEST_ASSERT(fake.start_count == 2, "due when it is");

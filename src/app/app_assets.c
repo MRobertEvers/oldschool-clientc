@@ -229,6 +229,7 @@ App_AssetsInit(struct App* app)
         App_AssetsSetLoader(app, leaves[i], asset_start_leaf, asset_resident_leaf);
     /* The composites: each unit registers the task that follows its chain. */
     EntityAssets_RegisterLoaders(app);
+    app_inv_icon_assets_register(app);
 }
 
 void

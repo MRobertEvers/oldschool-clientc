@@ -99,7 +99,6 @@
 #include "input/torirs_frame_modifiers.h"
 #include "input/torirs_input_claims.h"
 #include "input/torirs_world_tap.h"
-#include "inv/inv_icon_retry.h"
 #include "inv/inv_manager.h"
 #include "platform/platform_io.h"
 #include "render/torirs_damage_region.h"
@@ -752,10 +751,6 @@ struct App
     /* Phase 4: game state. */
     struct UITree* tree;
     struct InvManager invs;
-    /* One inv obj-icon reconcile task in flight at a time (per-tick scan
-     * re-enqueues while any item slot still lacks a rasterized icon), and the
-     * wait a pass that resolved nothing set. @see inv/inv_icon_retry.h */
-    struct InvIconRetry inv_icon_retry;
     struct VarPManager varps;
     /* Hitsplat types: type -> sprite id, from config group 32. See
      * src/game/rs_hitsplat.h for why a named sprite archive is not enough. */

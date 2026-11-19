@@ -26,8 +26,10 @@
  * inventory model) is stamped with a distinct sentinel so the per-tick scan
  * stops re-enqueueing it; the server replacing the item resets scene_id to
  * NO_SCENE_ID and re-arms the reconcile. A slot whose parts did NOT arrive is
- * never stamped: it waits for a later pass, paced by app->inv_icon_retry
- * (inv/inv_icon_retry.h). */
+ * never stamped: it waits for a later pass. The pass is the assets table's
+ * one INV_ICONS entry: one pass in flight, and a pass that resolved nothing
+ * a failed attempt, which backs the next off by a wait doubling from 500 ms
+ * to 4 s and never gives up (engine/asset_requests.c). */
 #define APP_INV_ICON_BATCH_MAX 64
 #define APP_INV_ICON_SCENE_FAILED (-2)
 
@@ -43,7 +45,16 @@ struct Task_InvIconReconcile
     /* Slots this pass gave an icon or the FAILED stamp: 0 means every ask
      * came back without its parts, and the next pass waits. */
     int resolved;
+    /* The pass's end has been reported to the table. */
+    int ended;
 };
+
+/* The table's one inventory icon pass. */
+static struct AssetKey
+app_inv_icon_key(void)
+{
+    return AssetKey_Make(ASSET_KIND_INV_ICONS, 0, 0);
+}
 
 /* Wrapper protothread that owns one CS1 evaluation pass: awaits the eval
  * task (which may itself yield for pack loads), then clears the in-flight
@@ -455,8 +466,8 @@ app_inv_ui_host_change(
     App_DriveEvent(app, DRIVE_EVENT_INV_CHANGED, container_id, 0, 0, 0);
 
     /* A new item is not held behind the pause of one whose parts did not
-     * arrive: the next tick runs a reconcile pass. */
-    InvIconRetry_Lift(&app->inv_icon_retry);
+     * arrive: the next tick runs a reconcile pass. The wait is kept. */
+    Assets_Lift(app->assets, app_inv_icon_key());
 
     UITree_HostInputsChanged(&app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_INVENTORY));
     RedrawRequest_Raise(&app->redraw_request);
@@ -559,14 +570,18 @@ Task_InvIconReconcile_Run(
         }
     }
 
-    InvIconRetry_NotePass(&app->inv_icon_retry, self->resolved, (uint64_t)app->host.client.now_ms);
+    /* Resolving anything ends the entry (the next pass runs at once, its
+     * wait forgotten); resolving nothing is a failed attempt, backed off from
+     * the clock as it is now. */
+    Assets_SetClock(app->assets, (uint64_t)app->host.client.now_ms);
+    self->ended = 1;
+    Assets_Finished(app->assets, app_inv_icon_key(), self->resolved > 0);
 
     if( self->published_change )
         UITree_HostInputsChanged(
             &app->ui_host,
             UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_INVENTORY) |
                 UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_ASSETS));
-    InvIconRetry_End(&app->inv_icon_retry);
     RedrawRequest_Raise(&app->redraw_request);
     PT_END(&self->pt);
 }
@@ -574,6 +589,9 @@ Task_InvIconReconcile_Run(
 static void
 Task_InvIconReconcile_Free(struct ToriRS_Task* base)
 {
+    struct Task_InvIconReconcile* self = (struct Task_InvIconReconcile*)base;
+    if( !self->ended && self->app->assets )
+        Assets_Abandoned(self->app->assets, app_inv_icon_key());
     ToriMem_Free(ToriMem_Process(), base);
 }
 
@@ -593,20 +611,42 @@ static struct ToriRS_TaskVTable Task_InvIconReconcile_VTable = {
 void
 app_inv_icon_reconcile_tick(struct App* app)
 {
+    /* Due first: the slot scan is the costly half, and it is not paid while a
+     * pass runs or waits out its back-off. */
+    Assets_SetClock(app->assets, (uint64_t)app->host.client.now_ms);
+    if( !Assets_Due(app->assets, app_inv_icon_key()) || !InvManager_HasUnbakedIcon(&app->invs) )
+        return;
+    (void)Assets_Want(app->assets, app_inv_icon_key(), NULL);
+}
+
+/* INV_ICONS's loader: one reconcile pass on the parallel queue. */
+static enum AssetStart
+app_inv_icon_start(
+    void* data,
+    struct Assets* assets,
+    struct AssetKey key)
+{
+    struct App* app = data;
     struct Task_InvIconReconcile* task;
 
-    if( !InvIconRetry_Due(&app->inv_icon_retry, (uint64_t)app->host.client.now_ms) ||
-        !InvManager_HasUnbakedIcon(&app->invs) )
-        return;
-
+    (void)assets;
+    (void)key;
     task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_InvIconReconcile_VTable;
     strncpy(task->task.name, "InvIconReconcile", sizeof(task->task.name) - 1);
     task->app = app;
     PT_INIT(&task->pt);
-    InvIconRetry_Begin(&app->inv_icon_retry);
     ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
+    return ASSET_START_LOADING;
+}
+
+void
+app_inv_icon_assets_register(struct App* app)
+{
+    /* No residency test: the tick asks whether a pass is due before it
+     * scans for a slot that needs one. */
+    App_AssetsSetLoader(app, ASSET_KIND_INV_ICONS, app_inv_icon_start, NULL);
 }
 
 static int

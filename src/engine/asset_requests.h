@@ -390,6 +390,15 @@ Assets_InFlight(
     struct Assets const* assets,
     struct AssetKey key);
 
+/** Would a want start a load now? True with no entry, or for a wanted entry
+ *  whose back-off is over and whose kind is free to load; false while it is
+ *  loading, waiting out a back-off, or remembered failed. For an owner whose
+ *  residency test is costly, to ask before it pays for it. */
+bool
+Assets_Due(
+    struct Assets const* assets,
+    struct AssetKey key);
+
 /** Failed attempts since the entry was made, or since its last success. */
 int
 Assets_Attempts(

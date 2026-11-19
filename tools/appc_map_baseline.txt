@@ -241,7 +241,9 @@
 # AsyncPendingTextures) left for the table's ASSET_KIND_TEXTURE.
 # Lowered to 144 by the sequence binds step: seq_bind_pending (struct
 # AsyncPendingSeqBinds) left for the table's SEQUENCE waiters.
-struct-App-fields: 144
+# Lowered to 143 by the inventory icon step: inv_icon_retry (struct
+# InvIconRetry) left for the table's ASSET_KIND_INV_ICONS.
+struct-App-fields: 143
 
 src/main.c
 src/executor_config.c

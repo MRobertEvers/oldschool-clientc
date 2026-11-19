@@ -1010,7 +1010,6 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	varp/varp_manager.c \
 	varc/varc_manager.c \
 	inv/inv_manager.c \
-	inv/inv_icon_retry.c \
 	inv/widget_icon_park.c \
 	cmd/cmdring.c cmd/cmdbus.c \
 	net/isaac.c net/rsa.c net/ringbuf.c net/jbase37.c net/wordpack.c net/chat_huffman.c \
@@ -2198,7 +2197,6 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-inv-drag
 	$(MAKE) test-target-select
 	$(MAKE) test-if-models
-	$(MAKE) test-inv-icon-retry
 	$(MAKE) test-widget-icon-park
 	$(MAKE) test-input-claims
 	$(MAKE) test-world-tap
@@ -2977,16 +2975,6 @@ test-if-models: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/uitree_if_models_test$(PLATFORM_EXE_SUFFIX) $(TORIMEM_SRCS) \
 		ui/test/uitree_if_models_test.c ui/uitree_if_models.c $(LDFLAGS)
 	./$(OBJ_DIR)/uitree_if_models_test$(PLATFORM_EXE_SUFFIX)
-
-# When the next inventory icon pass may run: one in flight, a pass that
-# resolved nothing holding the next off by a wait that doubles to its ceiling,
-# a pass that resolved something clearing it, and a changed inventory lifting
-# the hold.
-.PHONY: test-inv-icon-retry
-test-inv-icon-retry: $(OBJ_DIR)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/inv_icon_retry_test$(PLATFORM_EXE_SUFFIX) \
-		inv/test/inv_icon_retry_test.c inv/inv_icon_retry.c $(LDFLAGS)
-	./$(OBJ_DIR)/inv_icon_retry_test$(PLATFORM_EXE_SUFFIX)
 
 # The widget obj-icon requests a clientscript parks for a logic tick: one per
 # cell, newest wins, and a release that takes the due ones from the head up to

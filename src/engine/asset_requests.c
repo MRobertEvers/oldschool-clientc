@@ -1104,6 +1104,26 @@ Assets_InFlight(
     return Assets_State(assets, key) == ASSET_STATE_LOADING;
 }
 
+bool
+Assets_Due(
+    struct Assets const* assets,
+    struct AssetKey key)
+{
+    struct AssetEntry const* e;
+    int idx;
+
+    assert(assets);
+    check_key(key);
+    idx = entry_find(assets, key);
+    if( idx < 0 )
+        return true;
+    e = &assets->entries[idx];
+    if( e->state != ASSET_STATE_WANTED || e->superseded || e->retry_at > assets->now_ms )
+        return false;
+    return Assets_Policy((enum AssetKind)key.kind)->newer != ASSET_NEWER_REPLACE ||
+           assets->kind_loading[key.kind] == 0;
+}
+
 int
 Assets_Attempts(
     struct Assets const* assets,

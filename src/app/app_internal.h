@@ -647,6 +647,10 @@ App_AssetResident(
     struct App* app,
     struct AssetKey key);
 
+/** The inventory icon pass's loader (ASSET_KIND_INV_ICONS). */
+void
+app_inv_icon_assets_register(struct App* app);
+
 /** Every asset an attached graphic needs (its type, model, sequence) is in. */
 int
 app_entity_spotanim_resident(

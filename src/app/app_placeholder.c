@@ -495,7 +495,8 @@ app_placeholder_land_widget_icon(struct Task_AppPlaceholder* self)
             return;
         row->obj_id = self->obj_id;
         row->count = self->count;
-        row->wait_ms = InvIconRetry_NextWait(self->wait_ms);
+        row->wait_ms =
+            Assets_BackoffNext(Assets_Policy(ASSET_KIND_INV_ICONS), self->wait_ms);
         row->due_ms = (uint64_t)app->host.client.now_ms + row->wait_ms;
     }
 }

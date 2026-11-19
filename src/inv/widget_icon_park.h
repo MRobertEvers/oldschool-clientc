@@ -27,7 +27,8 @@ struct WidgetIconRequest
     int count;
     /* A request the script made is due at once (0). One put back by a land
      * that found its parts still missing is due after `wait_ms`, which the
-     * next miss doubles (InvIconRetry_NextWait, inv/inv_icon_retry.h). */
+     * next miss doubles (Assets_BackoffNext under the INV_ICONS policy,
+     * engine/asset_requests.c). */
     uint64_t due_ms;
     uint32_t wait_ms;
 };
