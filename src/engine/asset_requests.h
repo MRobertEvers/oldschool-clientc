@@ -123,6 +123,26 @@ enum AssetConfigType
 {
     ASSET_CONFIG_IDK = 0,
     ASSET_CONFIG_OBJ = 1,
+
+    /* What a client script reads the value of and waits for
+     * (game/task_cs2_run.c, the yield table; the loaders are
+     * app/app_tasks_scripts.c's). A range of their own, from 16. */
+    ASSET_CONFIG_SCRIPTS_FIRST = 16,
+    ASSET_CONFIG_SCRIPT = ASSET_CONFIG_SCRIPTS_FIRST, /* a client script */
+    ASSET_CONFIG_ENUM,
+    ASSET_CONFIG_STRUCT,
+    ASSET_CONFIG_PARAM,
+    ASSET_CONFIG_INVTYPE,
+    ASSET_CONFIG_NPC,
+    ASSET_CONFIG_LOC,
+    ASSET_CONFIG_DBROW,
+    ASSET_CONFIG_DBTABLE,
+    ASSET_CONFIG_DBINDEX, /* a table's index (cache table 21) */
+    ASSET_CONFIG_FONT,
+    ASSET_CONFIG_MAPELEMENT,
+    ASSET_CONFIG_WORLDMAP, /* the whole world map: id 0 */
+    ASSET_CONFIG_OBJ_ALL,  /* every objtype, for a name search: id 0 */
+    ASSET_CONFIG_SCRIPTS_END,
 };
 
 #define ASSET_KIND_BIT(kind) (1u << (unsigned)(kind))

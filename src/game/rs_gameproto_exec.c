@@ -171,6 +171,13 @@ exec_trigger_on_dialog_abort(struct RS_GameProtoCtx const* ctx)
     if( !ctx->app || !ctx->tree )
         return;
     app = ctx->app;
+    /* The reference runs the listeners inline, at this packet (class415
+     * method9509 -> Statics.method6590, runScript at once): after every
+     * RUNCLIENTSCRIPT the tick sent before it, before every packet after it.
+     * So the held scripts go first and the listeners follow them on THIS
+     * pipeline, where the next packet waits for both; on the parallel queue
+     * they ran whenever it was next stepped, behind later packets (U9). */
+    App_FlushPendingClientScripts(app, &app->packet_runner);
     UITREE_SCAN_METER(ctx->tree);
     for( uint32_t i = 0; i < ctx->tree->component_count; i++ )
     {
@@ -183,7 +190,7 @@ exec_trigger_on_dialog_abort(struct RS_GameProtoCtx const* ctx)
             continue;
         if( UITree_ComponentOrAncestorHidden(ctx->tree, node->component_id) )
             continue;
-        RS_CS2_DispatchHook(&app->host, &app->frame_runner, node->component_id, &hook);
+        RS_CS2_DispatchHook(&app->host, &app->packet_runner, node->component_id, &hook);
     }
     RedrawRequest_Raise(&app->redraw_request);
 }

@@ -285,6 +285,7 @@ src/world/test/wev_rebuild_test.c
 src/app/test/app_drive_event_ring_test.c
 src/app/test/app_logout_wait_test.c
 src/app/test/app_mouseover_entry_test.c
+src/app/test/app_tasks_scripts_test.c
 src/engine/uitree_builder/task_slot_mount.c
 src/game/task_entity_assets.c
 src/plugin/torirs_plugin_drive.c
@@ -400,4 +401,6 @@ src/replay/replay_world_apply.c
 # App_AssetsInit, App_ParkedFree before the teardown that frees the table.
 # Kept at 1426 by the parallel task step: App_PendingInit in its place, and
 # App_PendingFree moves after the frame queue is freed (its tasks unlist).
-app.c-lines: 1426
+# Raised to 1428 by the scripts step: the CS2 host takes the scripts family's
+# hooks in one call, and the client-script hold, which grows now, is freed.
+app.c-lines: 1428
