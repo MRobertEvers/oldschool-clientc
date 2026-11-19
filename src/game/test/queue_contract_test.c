@@ -10,6 +10,12 @@
  *      was shown; on the parallel or the background queue the same request
  *      trips the runner's assert. SPENT anywhere but the background queue
  *      trips it too.
+ *   1b. ONLY THE BACKGROUND QUEUE IS SLICED. A task that asks whether the
+ *      slice is over is told no on the main queue, even inside a paced pass
+ *      whose deadline is long gone (a blocking REBUILD's inline gather), and
+ *      runs on; the paced pass itself stops between tasks and says PACED,
+ *      never SPENT. Only the background queue's task stops. A deadline
+ *      handed to the parallel queue trips the check.
  *   2. THE PARALLEL PUMP DRAINS. One pump (TaskRunner_PumpToStandstill)
  *      never returns while a task that is neither done, waiting on a read,
  *      nor joined remains -- however many plain yields that takes -- and
@@ -257,6 +263,49 @@ Slicer_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
 
 static struct ToriRS_TaskVTable k_slicer_vtable = { .run = Slicer_Run, .free = task_free_libc };
 
+/* `units` units of 1 ms, asking after each whether the slice is over, then
+ * ends: what a gather does between its stages. */
+struct Units
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct FakeClock* clock;
+    int units;
+    int done;
+    int* ended;
+};
+
+static int
+Units_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
+{
+    struct Units* self = (struct Units*)base;
+    PT_BEGIN(&self->pt);
+    while( self->done < self->units )
+    {
+        self->clock->now_us += 1000;
+        self->done++;
+        PT_TASK_YIELD_IF_SPENT();
+    }
+    (*self->ended)++;
+    PT_END(&self->pt);
+}
+
+static struct ToriRS_TaskVTable k_units_vtable = { .run = Units_Run, .free = task_free_libc };
+
+static struct Units*
+new_units(struct FakeClock* clock, int units, int* ended)
+{
+    struct Units* t = calloc(1, sizeof(*t));
+    assert(t);
+    t->task.vtable = &k_units_vtable;
+    strcpy(t->task.name, "units");
+    t->clock = clock;
+    t->units = units;
+    t->ended = ended;
+    PT_INIT(&t->pt);
+    return t;
+}
+
 static struct ToriRS_Task*
 new_slicer(struct FakeClock* clock)
 {
@@ -401,20 +450,133 @@ spent_on_parallel(void)
     struct FakeClock clock = { 0 };
 
     /* A parallel queue given a deadline is itself the breach the contract
-     * forbids; this is what a task that checks it would then return. */
+     * forbids (TaskRunner_StepUntil), before any task could ask it. */
     runner_init(&runner, &px, &clock, TASK_RUNNER_ROLE_PARALLEL);
     ToriRS_TaskQueue_Add(runner.queue, new_slicer(&clock));
     (void)TaskRunner_StepUntil(&runner, clock.now_us + 1);
-    (void)TaskRunner_StepUntil(&runner, clock.now_us + 1);
+}
+
+/* A task that stops itself for a slice on the main queue, by hand (what the
+ * macro can no longer do there): the result check still catches it. */
+struct HandSpent
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+};
+
+static int
+HandSpent_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
+{
+    struct HandSpent* self = (struct HandSpent*)base;
+    (void)io;
+    PT_BEGIN(&self->pt);
+    self->task.spent = 1;
+    PT_YIELD(&self->pt);
+    PT_END(&self->pt);
+}
+
+static struct ToriRS_TaskVTable k_hand_spent_vtable = { .run = HandSpent_Run, .free = task_free_libc };
+
+static void
+spent_on_main(void)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px = { 0 };
+    struct HandSpent* t = calloc(1, sizeof(*t));
+
+    assert(t);
+    t->task.vtable = &k_hand_spent_vtable;
+    strcpy(t->task.name, "hand_spent");
+    PT_INIT(&t->pt);
+    runner_init(&runner, &px, NULL, TASK_RUNNER_ROLE_MAIN);
+    ToriRS_TaskQueue_Add(runner.queue, &t->task);
+    (void)TaskRunner_Step(&runner);
 }
 
 static void
 test_render_and_spent_elsewhere_trip_the_assert(void)
 {
-    printf("TEST: RENDER on the parallel or background queue, SPENT on the parallel queue, assert\n");
+    printf("TEST: RENDER on the parallel or background queue, SPENT on the main queue, a deadline on the "
+           "parallel queue, assert\n");
     CHECK(dies_by_abort(render_on_parallel));
     CHECK(dies_by_abort(render_on_background));
     CHECK(dies_by_abort(spent_on_parallel));
+    CHECK(dies_by_abort(spent_on_main));
+}
+
+/* --- 1b. only the background queue is sliced ------------------------------------ */
+
+static void
+test_only_the_background_queue_is_sliced(void)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px = { 0 };
+    struct FakeClock clock = { 0 };
+    struct ToriRS_Slice slice = { 0 };
+    struct Units* units;
+    int ended = 0;
+    int steps = 0;
+
+    printf("TEST: a slice check answers \"not over\" on every queue but the background queue\n");
+
+    /* The check itself: a deadline long past, asked off a sliced queue. */
+    slice.now_us = fake_now;
+    slice.now_ud = &clock;
+    clock.now_us = 10000;
+    slice.deadline_us = 1;
+    CHECK(ToriRS_SliceSpent(&slice) == 0);
+    slice.sliced = 1;
+    CHECK(ToriRS_SliceSpent(&slice) == 1);
+
+    /* The main queue in a paced pass whose deadline is already gone: the
+     * head (a gather asking between its stages) runs all six units and
+     * ends in one step; it never returns SPENT. */
+    clock.now_us = 0;
+    runner_init(&runner, &px, &clock, TASK_RUNNER_ROLE_MAIN);
+    units = new_units(&clock, 6, &ended);
+    ToriRS_TaskQueue_Add(runner.queue, &units->task);
+    CHECK(TaskRunner_StepUntil(&runner, clock.now_us + 1) == TASK_RUNNER_IDLE);
+    CHECK(ended == 1);
+    CHECK(clock.now_us == 6000);
+    /* The pace still stops the pass BETWEEN tasks, and calls it PACED: two
+     * tasks of three units, an expired deadline, one runs. */
+    ended = 0;
+    ToriRS_TaskQueue_Add(runner.queue, &new_units(&clock, 3, &ended)->task);
+    ToriRS_TaskQueue_Add(runner.queue, &new_units(&clock, 3, &ended)->task);
+    runner.queue->head->render_blocking = 1;
+    runner.queue->head->next->render_blocking = 1;
+    CHECK(TaskRunner_SettleFrameUntil(&runner, clock.now_us + 1) == TASK_RUNNER_PACED);
+    CHECK(ended == 1);
+    CHECK(TaskRunner_SettleFrameUntil(&runner, 0) == TASK_RUNNER_IDLE);
+    CHECK(ended == 2);
+    runner_free(&runner);
+
+    /* The parallel queue: drained, no deadline, and the same task runs to
+     * its end in one pump. */
+    clock.now_us = 0;
+    ended = 0;
+    runner_init(&runner, &px, &clock, TASK_RUNNER_ROLE_PARALLEL);
+    ToriRS_TaskQueue_Add(runner.queue, &new_units(&clock, 6, &ended)->task);
+    CHECK(TaskRunner_PumpToStandstill(&runner, 100, &steps) == TASK_RUNNER_IDLE);
+    CHECK(ended == 1);
+    CHECK(steps == 1);
+    runner_free(&runner);
+
+    /* The background queue: the same task, a 2.5 ms slice. Its turn's first
+     * ask is the grace; it stops at the third unit, SPENT, and is resumed by
+     * the next slice, not before. */
+    clock.now_us = 0;
+    ended = 0;
+    runner_init(&runner, &px, &clock, TASK_RUNNER_ROLE_BACKGROUND);
+    units = new_units(&clock, 6, &ended);
+    ToriRS_TaskQueue_Add(runner.queue, &units->task);
+    CHECK(TaskRunner_RunUntil(&runner, clock.now_us + 2500) == TASK_RUNNER_SPENT);
+    CHECK(ended == 0);
+    CHECK(units->done == 3);
+    while( runner.queue->head )
+        (void)TaskRunner_RunUntil(&runner, clock.now_us + 2500);
+    CHECK(ended == 1);
+    runner_free(&runner);
 }
 
 /* --- 2. the parallel pump drains ------------------------------------------------ */
@@ -568,6 +730,7 @@ main(void)
     test_render_ends_the_main_queues_pass();
     test_render_is_owed_until_a_frame_is_shown();
     test_render_and_spent_elsewhere_trip_the_assert();
+    test_only_the_background_queue_is_sliced();
     test_one_pump_drains_the_parallel_queue();
     test_a_pump_ended_early_is_caught();
     test_a_task_without_its_turn_is_caught();

@@ -503,7 +503,12 @@ struct App
      *      order to continue it awaits on the main queue.
      *   6. RESULTS BY QUEUE: RENDER is legal on the main queue only; SPENT on
      *      the background queue only; BLOCKED on the parallel and background
-     *      queues only as a join (asyncio.h has the table).
+     *      queues only as a join (asyncio.h has the table). Only the
+     *      background queue is time-sliced: on any other queue a task that
+     *      asks whether the slice is over is told no (ToriRS_Slice::sliced,
+     *      set in one place, TaskRunner_StepUntil), so no task there can
+     *      stop for a slice, and the main queue's paced pass stops between
+     *      tasks and says so as PACED, never SPENT.
      *   7. BETWEEN FRAMES a native loop waits by what is queued
      *      (ToriRS_Pacer_LoopWait, pacer.h): it never sleeps through work
      *      that can run now, and never goes straight round again for work
@@ -513,7 +518,9 @@ struct App
      *
      * Exceptions, named where they live: the paced catch-up after a
      * background rebuild's commit gives the MAIN queue a deadline
-     * (App_PacedDeadline, app_net.c) -- packet side, so it may; the replay
+     * (App_PacedDeadline, app_net.c) -- packet side, so it may, and it paces
+     * the pump between tasks, never a task (a blocking REBUILD's inline
+     * gather inside that window runs on); the replay
      * seek holds the screen (RenderSkip_Held) -- a driver's mode, not a
      * queue's, left out of the strict abort.
      */

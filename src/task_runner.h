@@ -154,8 +154,16 @@ enum TaskRunnerStat
     TASK_RUNNER_RENDER,
     /** The pass's slice ran out with ready work still queued (only a pass
      *  given a deadline, TaskRunner_StepUntil). Not progress: stepping again
-     *  inside the same slice is exactly what the deadline forbids. */
+     *  inside the same slice is exactly what the deadline forbids. The
+     *  BACKGROUND queue's alone (and a role-less test runner's): it is the
+     *  only queue that is time-sliced. */
     TASK_RUNNER_SPENT,
+    /** The MAIN queue's paced pass reached its deadline and stopped BETWEEN
+     *  tasks, ready work still queued (the paced catch-up after a background
+     *  rebuild's commit, App_PacedDeadline). Not a slice: no task stopped
+     *  for it, and none could (ToriRS_Slice::sliced). The owner treats it
+     *  as it treats a parked head: not settled, resume on a later turn. */
+    TASK_RUNNER_PACED,
 };
 
 /* ---- the frame contract's run-time checks (TORIRS_QUEUE_CONTRACT_*) ----
@@ -537,7 +545,11 @@ TaskRunner_Step(struct TaskRunner* runner)
             had_turn = task->turn == runner->pump;
             if( timed && !runner->parallel )
             {
-                if( runs > 0 && ToriRS_SliceSpent(&runner->io->slice) )
+                /* The clock, read here between tasks: on the main queue this
+                 * deadline paces the pump and is never a slice a task sees
+                 * (ToriRS_Slice::sliced), so it is not asked through the
+                 * task-facing check. */
+                if( runs > 0 && TaskRunner_Now(runner) >= runner->io->slice.deadline_us )
                 {
                     spent = 1;
                     break;
@@ -681,7 +693,12 @@ TaskRunner_Step(struct TaskRunner* runner)
     if( runner->queue->head == NULL )
         return TASK_RUNNER_IDLE;
     if( spent )
-        return TASK_RUNNER_SPENT;
+    {
+        /* SPENT is the background queue's alone; the main queue's deadline
+         * is a pace. The parallel queue is never given one (StepUntil). */
+        assert(runner->role != TASK_RUNNER_ROLE_PARALLEL);
+        return runner->role == TASK_RUNNER_ROLE_MAIN ? TASK_RUNNER_PACED : TASK_RUNNER_SPENT;
+    }
     if( ran )
         return TASK_RUNNER_PROGRESSED;
     if( waiting )
@@ -707,6 +724,8 @@ TaskRunner_StatName(enum TaskRunnerStat stat)
         return "blocked";
     if( stat == TASK_RUNNER_RENDER )
         return "render";
+    if( stat == TASK_RUNNER_PACED )
+        return "paced";
     return "spent";
 }
 
@@ -834,16 +853,28 @@ TaskRunner_StepUntil(
     assert(runner);
     assert(runner->io);
     assert(deadline_us == 0 || runner->io->slice.now_us);
+    /* The parallel queue is drained, never given a deadline (app.h). */
+    if( deadline_us != 0 && runner->role == TASK_RUNNER_ROLE_PARALLEL )
+    {
+        TaskRunner_ContractBreach("the parallel queue was given a deadline (it is drained, never sliced)");
+        assert(runner->role != TASK_RUNNER_ROLE_PARALLEL);
+    }
     lone = deadline_us != 0 && !runner->in_pump;
     if( lone )
         TaskRunner_PumpBegin(runner);
     runner->io->slice.deadline_us = deadline_us;
     runner->io->slice.spent = 0;
     runner->io->slice.grace = 0;
+    /* THE ONE PLACE a slice is made a slice a task may stop for: only on
+     * the background queue (and a role-less test runner). Anywhere else
+     * ToriRS_SliceSpent answers "not over" whatever the deadline. */
+    runner->io->slice.sliced =
+        runner->role == TASK_RUNNER_ROLE_BACKGROUND || runner->role == TASK_RUNNER_ROLE_NONE;
     stat = TaskRunner_Step(runner);
     runner->io->slice.deadline_us = 0;
     runner->io->slice.spent = 0;
     runner->io->slice.grace = 0;
+    runner->io->slice.sliced = 0;
     if( lone )
         runner->in_pump = 0;
     return stat;
@@ -857,6 +888,9 @@ TaskRunner_StepUntil(
  * time there is time -- and it keeps its guarantee even when that overruns
  * the frame: the owner's rule is that the background queue always makes some
  * progress, deadline or not.
+ *
+ * The background queue's pump (a role-less test runner's too); never the main
+ * or the parallel queue's.
  *
  * Stops on IDLE, SPENT, WAITING (the answers come between turns) and BLOCKED
  * (the other queue has to move); keeps going on PROGRESSED while time
@@ -873,6 +907,7 @@ TaskRunner_RunUntil(
     enum TaskRunnerStat stat;
 
     assert(runner);
+    assert(runner->role == TASK_RUNNER_ROLE_BACKGROUND || runner->role == TASK_RUNNER_ROLE_NONE);
     TaskRunner_PumpBegin(runner);
     for( ;; )
     {
@@ -1001,10 +1036,13 @@ TaskRunner_SettleFrame(struct TaskRunner* runner)
 /*
  * TaskRunner_SettleFrame with a deadline on the queue's clock (0: none, an
  * ordinary settle). When the deadline passes with ready work still queued it
- * returns TASK_RUNNER_SPENT, which every caller of a settle already treats as
+ * returns TASK_RUNNER_PACED on the main queue (TASK_RUNNER_SPENT on a
+ * role-less test runner), which every caller of a settle already treats as
  * "not settled, resume on a later turn" -- the answer a parked read gives.
- * The clock is read between tasks, never inside one, and a pass always runs
- * at least one task, so a settle given an expired deadline still moves.
+ * The clock is read between tasks, never inside one -- a task on the main
+ * queue that asks whether the slice is over is told no (ToriRS_Slice::
+ * sliced) -- and a pass always runs at least one task, so a settle given an
+ * expired deadline still moves.
  *
  * Used on the MAIN queue only: the packet pump's paced catch-up after a
  * background rebuild's commit (app_net.c, App_PacedDeadline). The parallel
@@ -1036,7 +1074,7 @@ TaskRunner_SettleFrameUntil(
             break;
         if( TaskRunner_Now(runner) >= deadline_us )
         {
-            stat = TASK_RUNNER_SPENT;
+            stat = runner->role == TASK_RUNNER_ROLE_MAIN ? TASK_RUNNER_PACED : TASK_RUNNER_SPENT;
             break;
         }
     }

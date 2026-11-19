@@ -408,15 +408,33 @@ struct ToriRS_Slice
      * "stepped" every pump and never move once the slice was short.
      */
     int grace;
+    /**
+     * This pass's queue is the one that is time-sliced: the background
+     * queue (or a runner with no role, a test's). Set by the runner for the
+     * pass it gives a deadline (TaskRunner_StepUntil), and by nothing else.
+     *
+     * Only the background queue is given a slice (the frame contract, app.h).
+     * The main queue's passes can carry a deadline too -- the paced catch-up
+     * after a background rebuild's commit -- but that deadline paces the
+     * PUMP, between tasks; it is not a slice a task may stop for. So on any
+     * queue but the background queue the answer a task gets to "is the slice
+     * over?" is always no: a blocking REBUILD's inline gather, which asks,
+     * runs on through the paced window instead of stopping the main queue
+     * with a SPENT it may not return.
+     */
+    int sliced;
 };
 
 /** Is the slice over? Always no for a pass with no limit, without reading
- *  the clock, and no for the first ask of a task's guaranteed turn. */
+ *  the clock; always no on a queue that is not time-sliced (`sliced`); and
+ *  no for the first ask of a task's guaranteed turn. */
 static inline int
 ToriRS_SliceSpent(struct ToriRS_Slice* slice)
 {
     assert(slice != NULL);
     if( slice->deadline_us == 0 )
+        return 0;
+    if( !slice->sliced )
         return 0;
     if( slice->grace )
     {
