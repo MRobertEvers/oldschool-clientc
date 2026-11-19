@@ -162,6 +162,12 @@ app_if_head_store(
     int i;
 
     app_if_forget_closed(app);
+    /* The latest set wins over a script's visual task too: a loc or obj model
+     * (or a pack's models) still loading for this widget would bind over this
+     * head when it lands (app_tasks_scripts.c). A script's own set reaches
+     * here after the host has cancelled them; this is the server's set. */
+    if( app->tree )
+        app_cs2_widget_visual_cancel(app, com_id);
     i = UIIfModels_HeadIndex(&app->if_models, com_id);
     head = i >= 0 ? &app->if_models.heads[i] : NULL;
     RedrawRequest_Raise(&app->redraw_request);

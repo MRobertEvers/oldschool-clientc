@@ -8,6 +8,9 @@
  *     loaded makes it exit without touching the widget.
  *   - A pack a script baked hands its models to one task, which ends once
  *     they are here.
+ *   - A server's IF_SETMODEL on the widget (the if_assets family's head
+ *     store) cancels a script's loc model still loading for it: the latest
+ *     set wins across the two families.
  *   - U9: TRIGGER_ONDIALOGABORT's listeners run on the PACKET queue, behind
  *     the RUNCLIENTSCRIPTs the tick held before it, not on the parallel queue
  *     where later packets overtook them.
@@ -142,6 +145,7 @@ fixture_free(struct Fixture* fx)
     App_PendingFree(app);
     App_AssetsFree(app);
     RS_ClientScriptQueue_Free(&app->pending_clientscripts);
+    UIIfModels_Free(&app->if_models);
     UITree_Free(app->tree);
     dat2_buildcache_free(fx->bc);
     free(app);
@@ -199,6 +203,27 @@ test_a_newer_set_cancels_a_loc_model(void)
         "the cancelled loc model is still pending");
     step_parallel(&fx);
     CHECK(queued(fx.app->frame_runner.queue) == 0, "the cancelled task did not exit");
+    fixture_free(&fx);
+}
+
+/* The server's set reaches the widget through the head store, not the CS2
+ * host, so the host's cancel never runs for it: the store cancels. */
+static void
+test_a_server_set_cancels_a_loc_model(void)
+{
+    struct Fixture fx;
+
+    printf("TEST: a server IF_SETMODEL cancels a script's loc model on the widget\n");
+    fixture_init(&fx);
+
+    app_cs2_widget_loc_model_lazy(fx.app, WIDGET, 77);
+    CHECK(App_ScriptVisualPending(fx.app, APP_SCRIPT_TASK_LOC_MODEL, WIDGET),
+        "the loc model is not pending");
+    App_SetInterfaceModel(fx.app, WIDGET, 55);
+    CHECK(!App_ScriptVisualPending(fx.app, APP_SCRIPT_TASK_LOC_MODEL, WIDGET),
+        "the script's loc model is still pending after the server's IF_SETMODEL; it would bind "
+        "over the newer model when it lands");
+    CHECK(App_IfModelPending(fx.app, WIDGET), "the server's model has no task");
     fixture_free(&fx);
 }
 
@@ -319,6 +344,7 @@ int
 main(void)
 {
     test_a_newer_set_cancels_a_loc_model();
+    test_a_server_set_cancels_a_loc_model();
     test_a_second_loc_set_replaces_the_first();
     test_a_closed_group_drops_the_loc_model();
     test_a_pack_hands_its_models_to_one_task();

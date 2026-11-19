@@ -43,9 +43,17 @@
 
 #define MOUNT_WAITS                                                                                \
     "the component pack, the bake, the onLoad scripts and transmit hooks (the mount task, on the " \
-    "packet queue); the pack's models and kit models (parallel)"
+    "packet queue); the pack's models, kit models and seed inventory models (Task_MountVisuals, "  \
+    "parallel)"
+/* The old-format slot mounts (task_slot_mount.c) still load their pack's
+ * models before the bake, on the packet queue: only the sub mounts split them
+ * out (Task_MountVisuals). */
+#define SLOT_MOUNT_WAITS                                                                           \
+    "the component pack, its models and the bake (the old-format slot mount, on the packet queue)"
+#define PLAYERMODEL_BUILD "the wear models and the build (parallel, newest composition wins)"
 #define PLAYERMODEL_WAITS                                                                          \
-    "the idk and obj configs and the wear models (today a task on the packet queue; visual)"
+    "the config it composes from when it is not resident (OBJ: the obj config, BODYTYPE: the idk " \
+    "table; on the packet queue); " PLAYERMODEL_BUILD
 #define VARP_WAITS                                                                                 \
     "a varp-retyped npc's configs, models and stances (today an NpcTransform task on the packet "  \
     "queue); a varp-transformed loc's re-place (parallel)"
@@ -56,23 +64,23 @@ static struct GameProtoPacketKind const k_packet_kinds[PKT_NAME_COUNT] = {
     KIND(PKT_NAME_NONE, L_NO, F_NO, W_NO, NULL),
 
     /* ---- interface mounts ---- */
-    KIND(PKT_NAME_IF_OPENCHAT, L_UI, F_MOUNT, W_BOTH, MOUNT_WAITS),
-    KIND(PKT_NAME_IF_OPENMAIN_SIDE, L_UI, F_MOUNT, W_BOTH, MOUNT_WAITS),
+    KIND(PKT_NAME_IF_OPENCHAT, L_UI, F_MOUNT, W_REQ, SLOT_MOUNT_WAITS),
+    KIND(PKT_NAME_IF_OPENMAIN_SIDE, L_UI, F_MOUNT, W_REQ, SLOT_MOUNT_WAITS),
     KIND(PKT_NAME_IF_CLOSE, L_UI, F_MOUNT, W_REQ, "the close task of each slot it empties"),
-    KIND(PKT_NAME_IF_SETTAB, L_UI, F_MOUNT, W_BOTH, MOUNT_WAITS),
-    KIND(PKT_NAME_IF_OPENMAIN, L_UI, F_MOUNT, W_BOTH, MOUNT_WAITS),
-    KIND(PKT_NAME_IF_OPENSIDE, L_UI, F_MOUNT, W_BOTH, MOUNT_WAITS),
-    KIND(PKT_NAME_IF_OPENOVERLAY, L_UI, F_MOUNT, W_BOTH, MOUNT_WAITS),
-    KIND(PKT_NAME_IF_OPENTOP, L_UI, F_MOUNT, W_BOTH,
-        "the root's boot (the pump stops while it runs); its models (parallel)"),
+    KIND(PKT_NAME_IF_SETTAB, L_UI, F_MOUNT, W_REQ, SLOT_MOUNT_WAITS),
+    KIND(PKT_NAME_IF_OPENMAIN, L_UI, F_MOUNT, W_REQ, SLOT_MOUNT_WAITS),
+    KIND(PKT_NAME_IF_OPENSIDE, L_UI, F_MOUNT, W_REQ, SLOT_MOUNT_WAITS),
+    KIND(PKT_NAME_IF_OPENOVERLAY, L_UI, F_MOUNT, W_REQ, SLOT_MOUNT_WAITS),
+    KIND(PKT_NAME_IF_OPENTOP, L_UI, F_MOUNT, W_REQ,
+        "the root's boot, its models included (the pump stops while it runs)"),
     KIND(PKT_NAME_IF_OPENSUB, L_UI, F_MOUNT, W_BOTH, MOUNT_WAITS),
     KIND(PKT_NAME_IF_CLOSESUB, L_UI, F_MOUNT, W_REQ, "the slot's close task and its onSubChange hooks"),
     KIND(PKT_NAME_IF_MOVESUB, L_UI, F_MOUNT, W_BOTH, MOUNT_WAITS),
     KIND(PKT_NAME_IF_RESYNC_V2, L_UI, F_MOUNT, W_BOTH, MOUNT_WAITS),
-    KIND(PKT_NAME_TUT_OPEN, L_UI, F_MOUNT, W_BOTH, MOUNT_WAITS),
+    KIND(PKT_NAME_TUT_OPEN, L_UI, F_MOUNT, W_REQ, SLOT_MOUNT_WAITS),
     /* It OPENS the welcome screen (exec_open_welcome_screen), the only thing
      * that ever does: a mount, so it latches and flushes as one. */
-    KIND(PKT_NAME_LAST_LOGIN_INFO, L_UI, F_MOUNT, W_BOTH, MOUNT_WAITS),
+    KIND(PKT_NAME_LAST_LOGIN_INFO, L_UI, F_MOUNT, W_REQ, SLOT_MOUNT_WAITS),
 
     /* ---- one component's property ---- */
     KIND(PKT_NAME_IF_SETTEXT, L_UI, F_COMP, W_NO, NULL),
@@ -88,15 +96,20 @@ static struct GameProtoPacketKind const k_packet_kinds[PKT_NAME_COUNT] = {
      * the same component keeps its wire order. */
     KIND(PKT_NAME_IF_CLEARINV, L_UI, F_COMP, W_NO, NULL),
     KIND(PKT_NAME_IF_SETMODEL, L_UI, F_COMP, W_PAR, "the model and its textures"),
-    KIND(PKT_NAME_IF_SETOBJECT, L_UI, F_COMP, W_PAR, "the obj config and its model"),
+    KIND(PKT_NAME_IF_SETOBJECT, L_UI, F_COMP, W_PAR, "the obj's model, its count variant's, and their textures"),
     KIND(PKT_NAME_IF_SETANIM, L_UI, F_COMP, W_PAR, "the sequence and its frames"),
-    KIND(PKT_NAME_IF_SETNPCHEAD, L_UI, F_COMP, W_PAR, "the npc config and its chathead models"),
-    KIND(PKT_NAME_IF_SETNPCHEAD_ACTIVE, L_UI, F_COMP, W_PAR, "the npc config and its chathead models"),
-    KIND(PKT_NAME_IF_SETPLAYERHEAD, L_UI, F_COMP, W_PAR, "the idk and obj configs and the head models"),
-    KIND(PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR, L_UI, F_COMP, W_REQ, PLAYERMODEL_WAITS),
-    KIND(PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE, L_UI, F_COMP, W_REQ, PLAYERMODEL_WAITS),
-    KIND(PKT_NAME_IF_SETPLAYERMODEL_OBJ, L_UI, F_COMP, W_REQ, PLAYERMODEL_WAITS),
-    KIND(PKT_NAME_IF_SETPLAYERMODEL_SELF, L_UI, F_COMP, W_REQ, PLAYERMODEL_WAITS),
+    KIND(PKT_NAME_IF_SETNPCHEAD, L_UI, F_COMP, W_PAR,
+        "the npc config, its chathead models and their textures"),
+    KIND(PKT_NAME_IF_SETNPCHEAD_ACTIVE, L_UI, F_COMP, W_PAR,
+        "the npc config, its chathead models and their textures"),
+    KIND(PKT_NAME_IF_SETPLAYERHEAD, L_UI, F_COMP, W_PAR,
+        "the idk and obj configs, the head models and their textures"),
+    /* The composition is committed at the packet, in wire order; only a cold
+     * config holds the packet queue (app_if_player_model_op). */
+    KIND(PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR, L_UI, F_COMP, W_PAR, PLAYERMODEL_BUILD),
+    KIND(PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE, L_UI, F_COMP, W_BOTH, PLAYERMODEL_WAITS),
+    KIND(PKT_NAME_IF_SETPLAYERMODEL_OBJ, L_UI, F_COMP, W_BOTH, PLAYERMODEL_WAITS),
+    KIND(PKT_NAME_IF_SETPLAYERMODEL_SELF, L_UI, F_COMP, W_PAR, PLAYERMODEL_BUILD),
 
     /* ---- component hooks ---- */
     /* Runs the root's onDialogAbort hooks (exec_trigger_on_dialog_abort). A
@@ -309,6 +322,8 @@ static struct GameProtoPacketKind const k_packet_kinds[PKT_NAME_COUNT] = {
 #undef W_PAR
 #undef W_BOTH
 #undef MOUNT_WAITS
+#undef SLOT_MOUNT_WAITS
+#undef PLAYERMODEL_BUILD
 #undef PLAYERMODEL_WAITS
 #undef VARP_WAITS
 #undef SCRIPT_READS
