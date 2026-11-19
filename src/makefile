@@ -5376,6 +5376,13 @@ test-task-budget: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/task_budget_test $(TORIMEM_SRCS) game/test/task_budget_test.c perf/torirs_perf.c -lm
 	./$(OBJ_DIR)/task_budget_test
 
+# The frame contract's queue half (app.h): results by queue, the parallel pump
+# drains, every task gets its turn, who steps the background queue. Asserts
+# live (the death checks fork and expect SIGABRT).
+test-queue-contract: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/queue_contract_test $(TORIMEM_SRCS) game/test/queue_contract_test.c perf/torirs_perf.c -lm
+	./$(OBJ_DIR)/queue_contract_test
+
 # CS2 visual transactions: ready work drains past the old per-frame caps, while
 # genuine external waits retain the last complete display list until settlement.
 test-cs2-frame-settle: $(OBJ_DIR)

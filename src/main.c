@@ -6715,15 +6715,22 @@ frame_loop_step(void)
     /*
      * The cap paces the screen, not the pipeline.
      *
-     * App_RunOnce drains a bounded number of async steps per frame (32 once
-     * past boot), so sleeping out the rest of the frame while work is still
-     * queued caps the pipeline at budget-times-framerate -- which on a cold
-     * boot is the client's whole world download, and is why an uncapped run
-     * reached the world visibly sooner than a capped one on the same machine.
+     * App_RunOnce pumps the parallel queue to a standstill every frame (no
+     * bound: APP_ASYNC_STEP_LIMIT is a runaway backstop that aborts), and it
+     * ends with work left only when that work waits -- on a read the
+     * platform has not answered, or on a join. Sleeping out the rest of the
+     * frame then would make the frame cap decide when those answers are
+     * taken up, which on a cold boot is the client's whole world download:
+     * the reason an uncapped run once reached the world visibly sooner than
+     * a capped one on the same machine. So the loop does not sleep while
+     * App_AsyncPending says work is queued.
      *
      * There is no busy-wait here: the loop goes straight back into
      * App_RunOnce, which does real work. When the queue drains, async_pending
-     * clears and the ordinary wait resumes on the very next frame.
+     * clears and the ordinary wait resumes on the very next frame. The
+     * background queue's slack below is only taken when the loop does wait:
+     * a frame that skips the sleep gives it the floor slice alone
+     * (app_run_background_floor), which every App_RunOnce pays.
      */
     ContentTest_End(&app, sock);
     if( !replay && !main_pacing.uncapped && !ContentTest_Enabled() && !App_AsyncPending(&app) )

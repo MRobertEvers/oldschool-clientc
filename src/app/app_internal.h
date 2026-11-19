@@ -454,9 +454,10 @@ struct Task_AppBoot
     struct ToriRS_Task task;
     struct pt pt;
     struct App* app;
-    /** The profile's preload task, queued as a joined sibling ahead of this
-     *  one; the boot does not begin until it has ended. */
-    int preload_pending;
+    /** The profile's preload task, run as this task's first inline child
+     *  (on the main queue, where its frame requests are legal); NULL once
+     *  taken, or for a profile that names none. */
+    struct ToriRS_Task* preload;
 };
 
 
@@ -1009,6 +1010,14 @@ void
 app_background_runner_init(struct App* app);
 void
 app_background_runner_free(struct App* app);
+/* What is stepping a queue now (app_world_job.c): the script settle, the
+ * logic ticks and the parallel pump name themselves for their span, and a
+ * background pass entered inside one is a contract breach. Enter returns the
+ * previous site; Leave restores it. */
+char const*
+App_QueueSiteEnter(char const* site);
+void
+App_QueueSiteLeave(char const* previous);
 /* App_RunOnce's floor slice: App_RunBackground for a couple of ms, so every
  * platform loop moves the queue with no change of its own. */
 void

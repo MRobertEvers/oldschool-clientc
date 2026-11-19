@@ -195,23 +195,24 @@ void
 App_BootWait(struct App* app)
 {
     /* Headless harnesses/tests only: step both pipelines until the boot task
-     * AND every load it queued (world, anims, textures) settle. IO still runs
-     * exclusively inside the platform pump; the interactive loop never calls
-     * this — it renders the loading state instead. */
+     * (on the main queue) AND every load it queued on the parallel queue
+     * (world, anims, textures) settle. IO still runs exclusively inside the
+     * platform pump; the interactive loop never calls this — it renders the
+     * loading state instead, and a render request here is a plain yield. */
     long guard = 1000000;
 
     assert(app);
     while( guard-- > 0 )
     {
+        enum TaskRunnerStat parallel_stat;
         enum TaskRunnerStat main_stat;
-        enum TaskRunnerStat exec_stat;
         BootPumpStats_NoteBootSteps(&app->pump_stats, 2);
-        main_stat = TaskRunner_Step(&app->frame_runner);
-        exec_stat = TaskRunner_Step(&app->packet_runner);
+        parallel_stat = TaskRunner_Step(&app->frame_runner);
+        main_stat = TaskRunner_Step(&app->packet_runner);
         app_title_swap_if_pending(app);
         if( RS_ClientPhase_Ready(&app->phase) )
             app_async_polls(app);
-        if( main_stat == TASK_RUNNER_IDLE && exec_stat == TASK_RUNNER_IDLE &&
+        if( parallel_stat == TASK_RUNNER_IDLE && main_stat == TASK_RUNNER_IDLE &&
             RS_ClientPhase_Ready(&app->phase) && !UITreeRefresh_Pending(&app->tree_refresh) &&
             !WorldLoadState_Inflight(&app->world_load) )
             break;
@@ -276,9 +277,9 @@ App_BootBarCaption(
      * knows which stage it is at says so, and this obeys. A task which never
      * asks gets the standing sentence rather than silence.
      */
-    if( app->frame_runner.render.intent == TORIRS_RENDER_BOOT_BAR && app->frame_runner.render.caption &&
-        app->frame_runner.render.caption[0] )
-        caption = app->frame_runner.render.caption;
+    if( app->packet_runner.render.intent == TORIRS_RENDER_BOOT_BAR && app->packet_runner.render.caption &&
+        app->packet_runner.render.caption[0] )
+        caption = app->packet_runner.render.caption;
     else
         caption = RS_LoginReplies_String(
             &app->login_replies, RS_ClientPhase_Screen(&app->phase) == APP_SCREEN_GAME ? "entering_world" : "loading");
@@ -335,6 +336,19 @@ app_boot_bar_caption(
         font, &vp, center_x, baseline_y, text, 0xFFFFFF, true, false, pixels);
 }
 
+/* The preload, handed to the await once (TASK_AWAITEX evaluates it only
+ * while no child is held). */
+static struct ToriRS_Task*
+app_boot_take_preload(struct Task_AppBoot* self)
+{
+    struct ToriRS_Task* preload;
+
+    assert(self);
+    preload = self->preload;
+    self->preload = NULL;
+    return preload;
+}
+
 static int
 Task_AppBoot_Run(
     struct ToriRS_Task* base,
@@ -345,12 +359,10 @@ Task_AppBoot_Run(
 
     PT_BEGIN(&self->pt);
 
-    /* The profile's loading screen runs to its end first; see app_open_tree. */
-    while( self->preload_pending > 0 )
-    {
-        self->task.blocked = 1;
-        PT_YIELD(&self->pt);
-    }
+    /* The profile's loading screen runs to its end first; see app_open_tree.
+     * Inline, so its requests for a frame are this task's, on the main queue;
+     * the reads it fans out still overlap on the parallel queue. */
+    PT_TASK_AWAITSELF_IF(app_boot_take_preload(self));
 
     /* This stage's place in the profile's own list, where it declares
      * one. The modern lane's boot is numbered by the deob and continues
@@ -906,6 +918,14 @@ Task_AppBoot_Run(
 static void
 Task_AppBoot_Free(struct ToriRS_Task* base)
 {
+    struct Task_AppBoot* self = (struct Task_AppBoot*)base;
+
+    /* A boot freed before it finished (a queue freed at shutdown): the
+     * preload it never started, and the child it was awaiting. */
+    if( self->preload )
+        task_free(self->preload);
+    if( self->pt.user )
+        task_free((struct ToriRS_Task*)self->pt.user);
     ToriMem_Free(ToriMem_Process(), base);
 }
 
@@ -1018,12 +1038,16 @@ app_open_tree(
     app->host.top_interface_id = interface_id;
 
     /*
-     * The profile's own preload list first, as a SIBLING rather than a child.
+     * The profile's own preload list first, as the boot's first CHILD.
      *
-     * The queue runs its head to completion before anything behind it, so
-     * ordering is free -- and being the head is what lets its render
-     * requests reach the runner directly, which is the whole point of a task
-     * that exists to show the bar moving.
+     * The boot runs on the MAIN queue (app->packet_runner): before login
+     * there are no packets, so the boot is the main thread's job, and the
+     * main queue is the one queue on which a task may ask for a frame -- the
+     * whole point of a preload is to show the bar moving, and the boot's own
+     * stages ask too (frame contract, app.h). The preload runs inline in the
+     * boot, so its requests are the boot's; what it fans out (index opens,
+     * prefetch waves) still goes on the parallel queue, where the reads
+     * overlap as they always have.
      *
      * NULL on a profile that names no cache indices, which is every dat1
      * lane: their list is jag archives, loaded by other machinery.
@@ -1053,19 +1077,25 @@ app_open_tree(
                 CacheMounts_TakeDat1Prefetch(&app->cache_mounts));
         }
         /*
-         * Joined, not merely queued ahead: the boot waits for the loading
+         * Awaited, not merely queued ahead: the boot waits for the loading
          * screen to end before it starts its own work (Task_AppBoot_Run), as
          * the deob's does. It used to run on regardless, which was harmless
          * while a preload was eight index reads that finished within the
          * frame -- and a use-after-free once a `groups=all` fill took
          * seconds: a second boot pass created a second preload task, both
          * found the same index absent, and the second one's decode replaced
-         * (freed) the table the first one's fill was still walking.
+         * (freed) the table the first one's fill was still walking. On the
+         * main queue that cannot happen at all: a second boot is queued
+         * behind the first, and the FIFO does not start it, or its preload,
+         * until the first has ended.
          */
-        ToriRS_TaskQueue_AddParallelPoolSubTask(app->frame_runner.queue, preload, &task->preload_pending);
+        task->preload = preload;
     }
 
-    ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
+    /* Render-blocking, as every task on the main queue is: the packet pump
+     * reads that flag to know its transaction is still open. While the
+     * client boots App_PumpAsync pumps this queue (app_pump_boot_main). */
+    TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &task->task);
 }
 
 static void
@@ -1205,17 +1235,18 @@ Task_OpenSubRefresh_Run(
     struct App* app = self->app;
 
     PT_BEGIN(&self->pt);
-    /* IF_OPENTOP remounts on the asset runner; IF_OPENSUB rides the exec
-     * pipeline. Wait out APP_STATE_BOOTING so the new root's slots exist
-     * before mount_pack_under_target asserts.
+    /* IF_OPENTOP's boot and this mount both ride the main queue, the boot
+     * ahead (App_RootMountsReturn queues these behind it), so the FIFO has
+     * normally finished the boot by now. Wait out APP_STATE_BOOTING all the
+     * same, so the new root's slots exist before mount_pack_under_target
+     * asserts, whoever queued this.
      *
      * TASK_AWAIT_STATE, not a bare PT_YIELD loop, and the difference is a
-     * deadlock. Only Task_AppBoot on app->frame_runner clears APP_STATE_BOOTING, and
-     * app->frame_runner is stepped by the frame loop — which cannot get its turn back
-     * while this queue is still settling. A plain yield here therefore spins
-     * app_logic_tick's exec drain forever at 100% CPU: measured on every
-     * Display-panel layout switch, which sends IF_OPENTOP and its IF_OPENSUB
-     * mounts in one burst. */
+     * deadlock: a plain yield here spins app_logic_tick's exec drain at 100%
+     * CPU while whatever is booting waits for the frame loop's turn --
+     * measured on every Display-panel layout switch, back when the boot ran
+     * on the parallel queue. A wait on state is legal here: this is the main
+     * queue (frame contract, app.h). */
     TASK_AWAIT_STATE(base, &self->pt, !RS_ClientPhase_Booting(&app->phase));
     if( self->interface_id > 0 && UITree_FindByComponentId(app->tree, self->target_uid) < 0 )
     {

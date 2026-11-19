@@ -40,6 +40,23 @@
 #define TORIRS_ASYNCIO_STAT_ERROR -1
 #define TORIRS_ASYNCIO_STAT_YIELD 0
 #define TORIRS_ASYNCIO_STAT_DONE 1
+/*
+ * Which queue may return which result is the frame contract's (app.h, beside
+ * the three runners; task_runner.h enforces it by the runner's role):
+ *
+ *   YIELD, DONE   any queue.
+ *   BLOCKED       any queue. On the main (packet) queue it is a wait on state
+ *                 another queue owns. On the parallel and background queues
+ *                 the only legitimate kind is a JOIN -- on siblings, on an
+ *                 asset load (Assets_Await), or on an earlier task for the
+ *                 same key (PT_PARALLEL_AWAIT_TURN) -- each of which ends
+ *                 when tasks that wait on reads end. TORIRS_QUEUE_CONTRACT_
+ *                 TRACE names every such task a pump leaves blocked.
+ *   RENDER        the MAIN queue only: it is pumped until a task asks for a
+ *                 frame, its head waits, or it is empty. Anywhere else the
+ *                 runner reports a contract violation naming the task.
+ *   SPENT         the BACKGROUND queue only (it is the one given a slice).
+ */
 /* The task parked on client state rather than on a read (see
  * TASK_AWAIT_STATE). Nothing this queue can do will unblock it, so the caller
  * must hand control back to the frame loop instead of stepping again. */
@@ -48,11 +65,13 @@
  * should be on it. Distinct from YIELD because a yield is not a frame
  * boundary -- the runner settles as many of those as it likes -- and distinct
  * from BLOCKED because this task is not waiting on anything. It is the only
- * way a long load can show its own progress. */
+ * way a long load can show its own progress, and it is the MAIN queue's
+ * alone: the boot (app_boot.c) runs there for exactly this reason. */
 #define TORIRS_ASYNCIO_STAT_RENDER 3
 /* The task stopped because its queue's slice is over (TASK_YIELD_IF_SPENT).
  * Not waiting on anything: it is ready the moment the queue is given time
- * again, which must not be within this slice. */
+ * again, which must not be within this slice. The BACKGROUND queue's alone:
+ * no other queue's passes carry a slice. */
 #define TORIRS_ASYNCIO_STAT_SPENT 4
 #define TORIRS_IO_CACHE_DAT2 0
 #define TORIRS_IO_CACHE_DAT1 1
@@ -350,6 +369,13 @@ struct ToriRS_Task
      * this task, each resumed on the previous one landing. */
     int read_chain;
 
+    /* The pump (TaskRunner::pump) in which this task last had a turn. The
+     * runner stamps it before each run, so "every task gets a turn each
+     * pump" can be kept -- a timed walk passes over only the tasks that
+     * already had one -- and checked when the pump returns
+     * (TaskRunner_PumpEnd). 0: never run. */
+    uint32_t turn;
+
     struct ToriRS_Task* next;
     struct ToriRS_Task* prev;
 };
@@ -373,16 +399,30 @@ struct ToriRS_Slice
     uint64_t deadline_us;
     /** The deadline has been seen to pass; sticky for the rest of the pass. */
     int spent;
+    /**
+     * The task now running is having its guaranteed turn of this pump (the
+     * pump guarantee: every task gets a turn whatever the clock says), so
+     * the first time it asks, the answer is "not over" and it does one unit
+     * of work. Set by the runner around that one run; the first ask clears
+     * it. Without it a task whose loop asks before its first unit would be
+     * "stepped" every pump and never move once the slice was short.
+     */
+    int grace;
 };
 
 /** Is the slice over? Always no for a pass with no limit, without reading
- *  the clock. */
+ *  the clock, and no for the first ask of a task's guaranteed turn. */
 static inline int
 ToriRS_SliceSpent(struct ToriRS_Slice* slice)
 {
     assert(slice != NULL);
     if( slice->deadline_us == 0 )
         return 0;
+    if( slice->grace )
+    {
+        slice->grace = 0;
+        return 0;
+    }
     if( !slice->spent )
     {
         assert(slice->now_us);

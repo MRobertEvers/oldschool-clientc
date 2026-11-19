@@ -689,23 +689,37 @@ app_cs2_enqueue_followups(struct App* app)
  * never frame boundaries: TaskRunner_SettleFrame crosses as many as needed.
  * A real outstanding platform read is the only reason this can return
  * PENDING, in which case App_RunOnce retains the previous emit list/frame and
- * resumes settlement on a later host turn. */
+ * resumes settlement on a later host turn.
+ *
+ * The scripts are render-blocking tasks on the parallel queue, and this is
+ * the packet side of the frame contract (app.h): it withholds the frame
+ * until they settle. It steps the whole parallel queue while it does (a
+ * script waits on loads that run there), and stops as soon as no script
+ * remains; App_PumpAsync drains the ordinary tasks after it. It never steps
+ * the background queue (App_QueueSiteEnter), and it has no deadline: the
+ * post-commit catch-up is paced at the packet pump (App_PacedDeadline in
+ * app_net.c), the scripts behind each packet settle whole. */
+static enum TaskRunnerStat
+app_settle_cs2_frame_body(struct App* app);
+
 enum TaskRunnerStat
 app_settle_cs2_frame(struct App* app)
 {
+    enum TaskRunnerStat stat;
+    char const* site = App_QueueSiteEnter("the script settle");
+
+    stat = app_settle_cs2_frame_body(app);
+    App_QueueSiteLeave(site);
+    return stat;
+}
+
+static enum TaskRunnerStat
+app_settle_cs2_frame_body(struct App* app)
+{
     for( ;; )
     {
-        /* Paced after a background rebuild's commit (App_PacedDeadline; 0
-         * otherwise): out of time between two tasks is TASK_RUNNER_SPENT,
-         * and the caller keeps the previous frame and resumes, as it does
-         * for a read that has not landed. */
-        enum TaskRunnerStat stat = TaskRunner_SettleFrameUntil(&app->frame_runner, App_PacedDeadline(app));
+        enum TaskRunnerStat stat = TaskRunner_SettleFrame(&app->frame_runner);
 
-        if( stat == TASK_RUNNER_SPENT )
-        {
-            RebuildPace_NoteSettleStop(&app->pace);
-            App_PaceNoteStop(app);
-        }
         if( stat != TASK_RUNNER_IDLE )
             return stat;
         /* Resize listeners and transmit painters must observe the geometry

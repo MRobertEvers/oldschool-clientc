@@ -436,12 +436,73 @@ struct App
      *   frame_runner       it runs now, as far as it will go, every frame
      *   background_runner  it gets the time a frame has left, for as many
      *                      frames as it takes
+     *
+     * THE FRAME CONTRACT -- the one statement of it; task_runner.h enforces
+     * the queue half by each runner's role, App_RunOnce the frame half, and
+     * every platform loop is held to it (pm/PLATFORM_CONFORMANCE.md). Owner,
+     * 2026-11-19: "the parallel queue is drained whenever possible, while the
+     * background queue is timesliced. It's the distinction between IO heavy
+     * tasks and CPU heavy tasks." "Neither blocks a frame. Only the
+     * packet/command queue."
+     *
+     *   1. WHO WITHHOLDS A FRAME: the packet side, and nothing else. An
+     *      unfinished task on the main queue (a packet, a mount, the boot,
+     *      the tick latch, a blocking rebuild inside its packet task) or a
+     *      render-blocking task (a client script, settled whole before the
+     *      frame is shown). An ordinary task on the parallel queue, or a job
+     *      on the background queue, never withholds a frame however long it
+     *      waits. Every reason App_RunOnce returns no commit is named and
+     *      classed (SettleGate_WithholdPacketSide); one that is not packet
+     *      side is a breach (TORIRS_QUEUE_CONTRACT_*).
+     *   2. THE MAIN QUEUE (packet_runner) is the main thread: strict FIFO,
+     *      pumped until a task asks for a frame (RENDER), its head waits, or
+     *      it is empty. It alone may ask for a frame -- which is why the boot
+     *      and its preload run here (app_open_tree): before login there are
+     *      no packets. Its tasks may wait on any state.
+     *   3. THE PARALLEL QUEUE (frame_runner) is IO-heavy work and is
+     *      DRAINED: each pump steps every task that can run at least once,
+     *      then keeps stepping until every task is done, waiting on a read,
+     *      or joined on tasks that are (an asset load, siblings, its turn
+     *      behind an earlier task for the same key). Nothing else ends a
+     *      pump: no clock, no step count a frame reaches, no task's request.
+     *      It is pumped every App_RunOnce (App_PumpAsync), between frames on
+     *      the web when a batch of reads lands (torirs_web_io_pump), inside a
+     *      client script's settle, and from the packet pump while the main
+     *      queue's head is joined on it. Its processor time lands in the
+     *      current frame, so a parallel task waits, then does a little; a
+     *      step that computes is named (TaskRunner::compute_step_us).
+     *   4. THE BACKGROUND QUEUE (background_runner) is CPU-heavy work and is
+     *      GIVEN TIME: a floor slice every App_RunOnce
+     *      (app_run_background_floor) plus whatever slack the platform loop
+     *      has (App_RunBackground). Each pump steps every task that can run
+     *      ONCE whatever the clock says -- the queue always makes progress,
+     *      even on a frame that missed its deadline -- then keeps stepping
+     *      until every task is done or the slice is up; a long task checks
+     *      the clock itself (PT_TASK_YIELD_IF_SPENT). Neither the script
+     *      settle nor the packet pump steps it; a job with a deadline is
+     *      finished by its owner (App_WorldJobPoll), the one exception, and
+     *      an explicit one.
+     *   5. A PACKET HANDLER puts work that waits on an asset it does not need
+     *      in order to continue on the parallel queue, as an ordinary task
+     *      (app/app_parallel_task.h), and work too long for a frame on the
+     *      background queue (the REBUILD's world job). What it needs in
+     *      order to continue it awaits on the main queue.
+     *   6. RESULTS BY QUEUE: RENDER is legal on the main queue only; SPENT on
+     *      the background queue only; BLOCKED on the parallel and background
+     *      queues only as a join (asyncio.h has the table).
+     *
+     * Exceptions, named where they live: the paced catch-up after a
+     * background rebuild's commit gives the MAIN queue a deadline
+     * (App_PacedDeadline, app_net.c) -- packet side, so it may; the replay
+     * seek holds the screen (RenderSkip_Held) -- a driver's mode, not a
+     * queue's, left out of the strict abort.
      */
     /**
-     * The frame queue: parallel, pumped to a standstill every App_RunOnce with
-     * no time limit (App_PumpAsync), and settled whole when a client script is
-     * on it (app_settle_cs2_frame) -- a frame is withheld until its
-     * render-blocking tasks are done. Asset loads, client scripts, sign-in,
+     * The frame queue (the parallel queue): parallel, pumped to a standstill
+     * every App_RunOnce with no time limit (App_PumpAsync), and settled whole
+     * when a client script is on it (app_settle_cs2_frame) -- a frame is
+     * withheld until its render-blocking tasks are done, never for an
+     * ordinary task. Asset loads, parallel tasks, client scripts, sign-in,
      * file saves. Owns queue + io + px.
      *
      * Its had_work latch (TaskRunner_HadWork): tree-affecting async work (CS2
@@ -449,12 +510,13 @@ struct App
      * gets a refresh pass.
      */
     struct TaskRunner frame_runner;
-    /** The packet queue: per-packet exec tasks and interface slot
-     * mounts. Own queue + io slots, SHARED px with `frame_runner`. Head-only
-     * execution makes it a strict FIFO — packet application order is
-     * preserved across IO yields, and a mount enqueued by a packet runs
-     * before the next packet is even popped (the pump only pops a new packet
-     * when this queue is idle).
+    /** The packet queue (the main queue): per-packet exec tasks, interface
+     * slot mounts, and the boot. Own queue + io slots, SHARED px with
+     * `frame_runner`. Head-only execution makes it a strict FIFO — packet
+     * application order is preserved across IO yields, and a mount enqueued
+     * by a packet runs before the next packet is even popped (the pump only
+     * pops a new packet when this queue is idle). While the client boots
+     * App_PumpAsync pumps it; otherwise the packet pump does.
      *
      * Its had_work latch (TaskRunner_HadWork): the serial packet/interface
      * transaction yielded on real external IO. Its partially-applied tree is
@@ -2800,9 +2862,13 @@ App_WorldSettled(struct App const* app);
 
 /**
  * Give the background queue time until `deadline_us` (PlatformWindow_TicksUs
- * clock). Called by App_RunOnce with a floor slice, and by a platform loop
- * with the slack before its frame deadline instead of sleeping it. Costs
- * nothing when the queue is empty.
+ * clock): one pump of it (TaskRunner_RunUntil), in which every task that can
+ * run is stepped once even if the deadline has already passed, then more
+ * while time remains. Called by App_RunOnce with a floor slice, and by a
+ * platform loop with the slack before its frame deadline instead of sleeping
+ * it. Never from inside the script settle, a logic tick or a task of another
+ * queue (the frame contract, beside the runners above). Costs nothing when
+ * the queue is empty.
  */
 void
 App_RunBackground(
@@ -3228,10 +3294,12 @@ int
 App_AsyncPending(const struct App* app);
 
 /**
- * Step the asset runner until nothing more can happen without the host's
- * turn. The frame's own async stage, and also what the browser platform runs
- * between frames when reads land (see App_PumpAsync in app_frame.c).
- * `from_frame` is 1 from App_RunOnce and 0 from a platform pump.
+ * One pump: the main queue while the client boots, a pending client
+ * script's settle, then the parallel queue to a standstill -- every task
+ * done, waiting on a read, or joined on tasks that are. The frame's own
+ * async stage, and also what the browser platform runs between frames when
+ * reads land (see App_PumpAsync in app_frame.c). `from_frame` is 1 from
+ * App_RunOnce and 0 from a platform pump.
  */
 enum TaskRunnerStat
 App_PumpAsync(
