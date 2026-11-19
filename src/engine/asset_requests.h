@@ -336,6 +336,15 @@ Assets_Abandoned(
     struct Assets* assets,
     struct AssetKey key);
 
+/** For a kind that remembers failures: `key` turned out not to be usable
+ *  after its load landed (a texture whose pixels would not convert). It is
+ *  failed from now on; a waiter still registered lands FAILED. Not for a key
+ *  whose loader is running. */
+void
+Assets_Fail(
+    struct Assets* assets,
+    struct AssetKey key);
+
 /** Restart every loader whose back-off is over and that still has a waiter. */
 void
 Assets_Pump(struct Assets* assets);

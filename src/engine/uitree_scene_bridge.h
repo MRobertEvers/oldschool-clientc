@@ -121,9 +121,6 @@ struct UITreeSceneBridge
      * set by IF_SETOBJECT — e.g. the combat-tab weapon model). */
     struct HMap* obj_model_map;
 
-    /** Texture ids whose load already failed; never re-requested. */
-    unsigned char texture_failed[2048];
-
     /** Effective lighting behaviour after era + `[render:light]` merge.
      *  Copied from App at init so the bridge can light NPC/player heads
      *  without an App* in hand. */

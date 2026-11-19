@@ -3,43 +3,6 @@
 #include <assert.h>
 
 bool
-AsyncPendingTextures_Has(
-    struct AsyncPendingTextures const* pending,
-    int texture_id)
-{
-    assert(pending);
-    for( int i = 0; i < pending->count; i++ )
-        if( pending->ids[i] == texture_id )
-            return true;
-    return false;
-}
-
-bool
-AsyncPendingTextures_Add(
-    struct AsyncPendingTextures* pending,
-    int texture_id)
-{
-    assert(pending);
-    if( AsyncPendingTextures_Has(pending, texture_id) )
-        return false;
-    if( pending->count >= ASYNC_PENDING_TEXTURE_MAX )
-        return false;
-    pending->ids[pending->count++] = texture_id;
-    return true;
-}
-
-void
-AsyncPendingTextures_Keep(
-    struct AsyncPendingTextures* pending,
-    int kept)
-{
-    assert(pending);
-    assert(kept >= 0);
-    assert(kept <= pending->count);
-    pending->count = kept;
-}
-
-bool
 AsyncPendingSeqBinds_Add(
     struct AsyncPendingSeqBinds* pending,
     int element_id,

@@ -191,6 +191,7 @@ key_hash(struct AssetKey key)
 static void
 check_key(struct AssetKey key)
 {
+    (void)key;
     assert(key.kind >= 0);
     assert(key.kind < ASSET_KIND_COUNT);
 }
@@ -660,6 +661,27 @@ Assets_Abandoned(
     }
     e->state = ASSET_STATE_WANTED;
     e->retry_at = 0;
+}
+
+void
+Assets_Fail(
+    struct Assets* assets,
+    struct AssetKey key)
+{
+    int idx;
+
+    assert(assets);
+    check_key(key);
+    assert(Assets_Policy((enum AssetKind)key.kind)->fail == ASSET_FAIL_REMEMBER);
+    idx = entry_find(assets, key);
+    if( idx < 0 )
+        idx = entry_insert(assets, key);
+    assert(assets->entries[idx].state != ASSET_STATE_LOADING);
+    if( assets->entries[idx].state == ASSET_STATE_FAILED )
+        return;
+    entry_arrive_all(assets, idx, ASSET_OUTCOME_FAILED);
+    assets->entries[idx].attempts++;
+    assets->entries[idx].state = ASSET_STATE_FAILED;
 }
 
 /* ---- the table ----------------------------------------------------------- */

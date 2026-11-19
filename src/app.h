@@ -1136,8 +1136,6 @@ struct App
     /** Every asset wanted and not here, with at most one load in flight for
      *  it (engine/asset_requests.h); the loaders are app/app_assets.c. */
     struct Assets* assets;
-    /** Texture ids requested but not yet published into the scene. */
-    struct AsyncPendingTextures tex_pending;
     /** Element/seq bindings deferred until the sequence load lands. */
     struct AsyncPendingSeqBinds seq_bind_pending;
     /** Entity-sync bookkeeping (server slots -> world entities). */

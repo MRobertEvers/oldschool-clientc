@@ -1,4 +1,5 @@
 #include "app.h"
+#include "engine/asset_requests.h"
 #include "agent/agent_server.h"
 #include "boot_telemetry.h"
 #include "bootmanifest/bootmanifest.h"
@@ -10158,7 +10159,8 @@ main(
             TORIRS_LOG("\n");
             TORIRS_ERR("TEX_AUDIT: failed:");
             for( int i = 0; i < 2048; i++ )
-                if( app.bridge.texture_failed[i] )
+                if( Assets_State(app.assets, AssetKey_Make(ASSET_KIND_TEXTURE, i, 0)) ==
+                    ASSET_STATE_FAILED )
                     TORIRS_LOG(" %d", i);
             TORIRS_LOG("\n");
         }

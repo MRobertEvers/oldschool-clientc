@@ -9,12 +9,6 @@
  *
  * What is asserted:
  *
- *   - the texture list refuses duplicates, and says which of the two reasons
- *     it refused for. `Add` returning false has to mean "not added", whether
- *     that was a duplicate or a full list, because the caller's only job with
- *     that answer is to say so.
- *   - it fills to its ceiling exactly and refuses past it -- not one short,
- *     not one over.
  *   - the seq-bind list does NOT reject duplicates, and that is deliberate:
  *     the same element can be re-bound to a different sequence, or to the same
  *     one at a later cycle, and both entries mean something.
@@ -45,51 +39,6 @@ static int g_failures;
             g_failures++;                                                                          \
         }                                                                                          \
     } while( 0 )
-
-static void
-test_textures_refuse_duplicates_and_overflow(void)
-{
-    struct AsyncPendingTextures pending;
-
-    memset(&pending, 0, sizeof(pending));
-
-    CHECK(!AsyncPendingTextures_Has(&pending, 7), "an empty list held 7");
-    CHECK(AsyncPendingTextures_Add(&pending, 7), "the first add was refused");
-    CHECK(AsyncPendingTextures_Has(&pending, 7), "7 was added but is not held");
-    CHECK(pending.count == 1, "count is %d after one add", pending.count);
-
-    /* The rebuild case: the same id asked for again while the first request is
-     * still in flight. */
-    CHECK(!AsyncPendingTextures_Add(&pending, 7), "a duplicate was accepted");
-    CHECK(pending.count == 1, "a duplicate grew the list to %d", pending.count);
-
-    /* Id 0 is a real texture id, and so is a negative one as far as this list
-     * is concerned -- it stores what it is given and lets the caller judge. */
-    CHECK(AsyncPendingTextures_Add(&pending, 0), "id 0 was refused");
-    CHECK(AsyncPendingTextures_Has(&pending, 0), "id 0 was added but is not held");
-    CHECK(!AsyncPendingTextures_Has(&pending, 1), "an unadded neighbour is held");
-
-    /* Fill to the ceiling exactly, then one past it. */
-    memset(&pending, 0, sizeof(pending));
-    for( int i = 0; i < ASYNC_PENDING_TEXTURE_MAX; i++ )
-        CHECK(AsyncPendingTextures_Add(&pending, i), "add %d of the ceiling was refused", i);
-    CHECK(pending.count == ASYNC_PENDING_TEXTURE_MAX, "count is %d at the ceiling", pending.count);
-    CHECK(
-        !AsyncPendingTextures_Add(&pending, ASYNC_PENDING_TEXTURE_MAX),
-        "one past the ceiling was accepted");
-    CHECK(
-        pending.count == ASYNC_PENDING_TEXTURE_MAX,
-        "a refused add changed the count to %d",
-        pending.count);
-
-    /* Compaction: the callers walk and keep a prefix. */
-    AsyncPendingTextures_Keep(&pending, 3);
-    CHECK(pending.count == 3, "keep(3) left %d", pending.count);
-    CHECK(AsyncPendingTextures_Has(&pending, 2), "keep(3) lost the third entry");
-    CHECK(!AsyncPendingTextures_Has(&pending, 3), "keep(3) kept a fourth entry");
-    AsyncPendingTextures_Keep(&pending, 0);
-    CHECK(pending.count == 0, "keep(0) left %d", pending.count);
-}
 
 static void
 test_seq_binds_keep_duplicates_but_drop_dead_elements(void)
@@ -150,7 +99,6 @@ test_seq_binds_keep_duplicates_but_drop_dead_elements(void)
 int
 main(void)
 {
-    test_textures_refuse_duplicates_and_overflow();
     test_seq_binds_keep_duplicates_but_drop_dead_elements();
 
     if( g_failures )

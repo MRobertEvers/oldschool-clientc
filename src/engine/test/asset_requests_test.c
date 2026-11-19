@@ -439,14 +439,21 @@ test_remembered_failure(void)
     TEST_ASSERT(fake.start_count == 1, "and nothing is asked again");
     TEST_ASSERT(Assets_WaiterCount(assets, ASSET_KIND_COUNT) == 0, "nothing registered");
 
+    /* Landed but unusable (the pixels would not convert): failed from then. */
+    Assets_Fail(assets, AssetKey_Make(ASSET_KIND_TEXTURE, 77, 0));
+    TEST_ASSERT(Assets_Want(assets, AssetKey_Make(ASSET_KIND_TEXTURE, 77, 0), NULL) ==
+                    ASSET_STATE_FAILED,
+        "a texture failed after landing is remembered");
+    TEST_ASSERT(fake.start_count == 1, "and never loaded");
+
     /* More textures than the old pending list held: every one tracked, none
      * loaded twice (AsyncPendingTextures queued past 512 untracked). */
     for( int i = 0; i < 1500; i++ )
-        Assets_Want(assets, AssetKey_Make(ASSET_KIND_TEXTURE, i, 0), NULL);
+        Assets_Want(assets, AssetKey_Make(ASSET_KIND_TEXTURE, 10000 + i, 0), NULL);
     for( int i = 0; i < 1500; i++ )
-        Assets_Want(assets, AssetKey_Make(ASSET_KIND_TEXTURE, i, 0), NULL);
+        Assets_Want(assets, AssetKey_Make(ASSET_KIND_TEXTURE, 10000 + i, 0), NULL);
     TEST_ASSERT(fake.start_count == 1 + 1500, "1500 textures, 1500 loads");
-    TEST_ASSERT(Assets_Count(assets, ASSET_KIND_TEXTURE) == 1501, "all tracked");
+    TEST_ASSERT(Assets_Count(assets, ASSET_KIND_TEXTURE) == 1502, "all tracked");
     Assets_Free(assets);
 }
 

@@ -2234,7 +2234,7 @@ UITreeSceneBridge_CollectMissingTextures(
             int texture_id = (int)model->face_textures[f];
             if( texture_id < 0 || texture_id >= 2048 )
                 continue;
-            if( seen[texture_id] || bridge->texture_failed[texture_id] )
+            if( seen[texture_id] )
                 continue;
             seen[texture_id] = 1;
             if( tex_state->texture_map.textures[texture_id] )
@@ -2306,7 +2306,6 @@ UITreeSceneBridge_PublishTextures(
         rs = CacheProvider_TextureGet(bridge->provider, texture_id);
         if( !rs )
         {
-            bridge->texture_failed[texture_id] = 1;
             if( app_tex_trace_enabled() )
                 TORIRS_ERR("tex_trace: publish id=%d -> FAILED (no provider entry)\n", texture_id);
             continue;
@@ -2315,7 +2314,6 @@ UITreeSceneBridge_PublishTextures(
         texture = bridge_texture_from_torirs(rs);
         if( !texture )
         {
-            bridge->texture_failed[texture_id] = 1;
             if( app_tex_trace_enabled() )
                 TORIRS_ERR("tex_trace: publish id=%d -> FAILED (convert: texels=%p %dx%d)\n",
                     texture_id,

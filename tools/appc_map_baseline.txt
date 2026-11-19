@@ -237,7 +237,9 @@
 # left for the table's ASSET_KIND_NPC_BODY.
 # Lowered to 146 by the sequence trackers step: entity_seq_loads and seq_loads
 # (struct SeqLoadTracker) left for the table's ASSET_KIND_SEQUENCE.
-struct-App-fields: 146
+# Lowered to 145 by the textures step: tex_pending (struct
+# AsyncPendingTextures) left for the table's ASSET_KIND_TEXTURE.
+struct-App-fields: 145
 
 src/main.c
 src/executor_config.c

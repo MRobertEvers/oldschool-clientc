@@ -14,9 +14,9 @@
  * until they land). The ids come from model construction itself
  * (ToriDraw_ModelTextureWantsTake) — whatever built a model reported the
  * textures it needs — so this costs nothing per tick when no geometry was
- * built. Queue the loads and remember the ids; app_sync_textures_poll
- * publishes them into the scene as the loads land. Ids that fail stay marked
- * in the bridge and are never re-requested. */
+ * built. Each is wanted through the assets table (ASSET_KIND_TEXTURE), and
+ * app_sync_textures_poll publishes them into the scene as the loads land. An
+ * id that fails is remembered by the table and never asked for again. */
 /* #region agent log — TORIRS_TEX_TRACE=1 narrates the whole want -> request ->
  * provider -> publish handoff, one line per id per decision. The gap between a
  * texture the loader created and a texture the raster can see has no other
@@ -39,6 +39,47 @@ app_tex_trace_frame(void)
 }
 /* #endregion */
 
+/* ASSET_KIND_TEXTURE's landing, from app_sync_textures_poll: publish the one
+ * texture into the scene. A load that ended without it landed FAILED, and the
+ * table remembers that (it was texture_failed[2048], which forgot every id
+ * past 2047). */
+static void
+app_texture_landed(
+    void* ctx,
+    struct AssetKey key,
+    struct AssetWaiterHandle handle,
+    enum AssetOutcome outcome,
+    uint32_t late_ms)
+{
+    struct App* app = ctx;
+    int id = key.id;
+
+    (void)handle;
+    (void)late_ms;
+    if( outcome != ASSET_OUTCOME_LANDED )
+    {
+        if( app_tex_trace_enabled() )
+            TORIRS_ERR("tex_trace: land id=%d -> MARKED FAILED (load ended without it)\n", id);
+        return;
+    }
+    if( UITreeSceneBridge_TextureResident(&app->bridge, id) )
+    {
+        if( app_tex_trace_enabled() )
+            TORIRS_LOG("tex_trace: land id=%d -> dropped (resident)\n", id);
+        return;
+    }
+    if( UITreeSceneBridge_PublishTextures(&app->bridge, &id, 1) )
+    {
+        if( app_tex_trace_enabled() )
+            TORIRS_LOG("tex_trace: land id=%d -> published\n", id);
+        RedrawRequest_Raise(&app->redraw_request);
+        return;
+    }
+    /* In the provider but not publishable (no texels, or past the scene's
+     * texture map): asking again would get the same answer. */
+    Assets_Fail(app->assets, key);
+}
+
 void
 app_sync_textures(struct App* app)
 {
@@ -46,6 +87,7 @@ app_sync_textures(struct App* app)
     int ready[256];
     int ready_count = 0;
     int id_count;
+    struct AssetWaiter waiter;
 
     id_count = ToriDraw_ModelTextureWantsTake(ids, 256);
     if( id_count == 0 )
@@ -57,13 +99,17 @@ app_sync_textures(struct App* app)
             TORIRS_LOG(" %d", ids[i]);
         TORIRS_LOG("\n");
     }
+    memset(&waiter, 0, sizeof(waiter));
+    waiter.land = app_texture_landed;
+    waiter.ctx = app;
 
     for( int i = 0; i < id_count; i++ )
     {
         int const id = ids[i];
-        int already_pending = 0;
+        struct AssetKey const key = AssetKey_Make(ASSET_KIND_TEXTURE, id, 0);
+        enum AssetState const state = Assets_State(app->assets, key);
 
-        if( id >= 0 && id < 2048 && app->bridge.texture_failed[id] )
+        if( state == ASSET_STATE_FAILED )
         {
             if( app_tex_trace_enabled() )
                 TORIRS_ERR("tex_trace: want id=%d -> skip (already failed)\n", id);
@@ -77,11 +123,9 @@ app_sync_textures(struct App* app)
         }
 
         /* A model may be rebuilt while its first texture request is still in
-         * flight. Do the pending-set test before creating the task; the old
-         * order queued another decoder for every rebuild and only deduplicated
-         * the publish list afterwards. */
-        already_pending = AsyncPendingTextures_Has(&app->tex_pending, id);
-        if( already_pending )
+         * flight: the table holds the one load and the one landing, so a
+         * rebuild asks nothing more. */
+        if( state != ASSET_STATE_NONE )
         {
             if( app_tex_trace_enabled() )
                 TORIRS_LOG("tex_trace: want id=%d -> skip (already pending)\n", id);
@@ -94,7 +138,7 @@ app_sync_textures(struct App* app)
          * raster skips every textured face whose texture is not in the scene map
          * yet. The QBD arena load spent that frame skipping ~1000 faces with both
          * of its textures sitting decoded in the provider. Loads that really are
-         * in flight still go through the pending list below. */
+         * in flight land through the table below. */
         if( CacheProvider_TextureHas(app->provider, id) && app->bridge.scene )
         {
             if( app_tex_trace_enabled() )
@@ -103,18 +147,9 @@ app_sync_textures(struct App* app)
             continue;
         }
 
-        {
-            struct ToriRS_Task* task = CreateTask_TextureLoad(app->provider, id);
-            if( task )
-                ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
-            if( app_tex_trace_enabled() )
-                TORIRS_ERR(
-                    "tex_trace: want id=%d -> load task %s\n",
-                    id,
-                    task ? "queued" : "REFUSED (provider returned no task)");
-        }
-        if( !AsyncPendingTextures_Add(&app->tex_pending, id) && app_tex_trace_enabled() )
-            TORIRS_LOG("tex_trace: want id=%d -> DROPPED (pending list full)\n", id);
+        if( app_tex_trace_enabled() )
+            TORIRS_ERR("tex_trace: want id=%d -> wanted\n", id);
+        (void)Assets_Want(app->assets, key, &waiter);
     }
 
     if( ready_count > 0 )
@@ -123,76 +158,27 @@ app_sync_textures(struct App* app)
         if( app_tex_trace_enabled() )
             TORIRS_LOG(
                 "tex_trace: immediate publish %d ready -> %d published\n", ready_count, published);
+        /* One the provider holds but the scene cannot take is not asked for
+         * again. */
+        for( int i = 0; i < ready_count; i++ )
+            if( !UITreeSceneBridge_TextureResident(&app->bridge, ready[i]) )
+                Assets_Fail(app->assets, AssetKey_Make(ASSET_KIND_TEXTURE, ready[i], 0));
         if( published )
             RedrawRequest_Raise(&app->redraw_request);
     }
 }
 
-/* Per-frame: publish any pending textures that finished loading; keep only
- * the ones still in flight (present in neither the provider nor the bridge's
- * failed set). */
+/* Per-frame: land the textures whose loads ended (publishing them, or
+ * remembering that they failed). A load still running is simply not landed
+ * yet -- the table knows it is in flight, so nothing has to guess from an idle
+ * queue that an absent texture has failed. */
 void
 app_sync_textures_poll(struct App* app)
 {
-    int ready[512];
-    int ready_count = 0;
-    int kept = 0;
-    int const queue_idle = !app->frame_runner.queue || !app->frame_runner.queue->head;
-
-    if( app->tex_pending.count == 0 )
-        return;
-
-    for( int i = 0; i < app->tex_pending.count; i++ )
-    {
-        int id = app->tex_pending.ids[i];
-
-        if( id < 0 || id >= 2048 || app->bridge.texture_failed[id] )
-        {
-            if( app_tex_trace_enabled() )
-                TORIRS_ERR("tex_trace: poll id=%d -> dropped (failed/out of range)\n", id);
-            continue;
-        }
-        if( UITreeSceneBridge_TextureResident(&app->bridge, id) )
-        {
-            if( app_tex_trace_enabled() )
-                TORIRS_LOG("tex_trace: poll id=%d -> dropped (resident)\n", id);
-            continue;
-        }
-        if( CacheProvider_TextureHas(app->provider, id) )
-        {
-            ready[ready_count++] = id;
-            continue;
-        }
-
-        /* A missing provider entry does not mean a failed texture while its
-         * async load is still queued. Publishing it here used to mark it
-         * failed on the very next frame, before a busy task runner reached the
-         * request; every affected model face was then skipped forever. Once
-         * the queue drains, absence is a real terminal load failure. */
-        if( queue_idle )
-        {
-            app->bridge.texture_failed[id] = 1;
-            if( app_tex_trace_enabled() )
-                TORIRS_ERR(
-                    "tex_trace: poll id=%d -> MARKED FAILED (queue idle, not in provider)\n", id);
-        }
-        else
-        {
-            app->tex_pending.ids[kept++] = id;
-        }
-    }
-    AsyncPendingTextures_Keep(&app->tex_pending, kept);
-
-    if( ready_count > 0 )
-    {
-        int published = UITreeSceneBridge_PublishTextures(&app->bridge, ready, ready_count);
-        if( app_tex_trace_enabled() )
-            TORIRS_LOG(
-                "tex_trace: publish %d ready -> %d published (%d still pending)\n",
-                ready_count,
-                published,
-                app->tex_pending.count);
-        if( published )
-            RedrawRequest_Raise(&app->redraw_request);
-    }
+    int landed = Assets_Land(app->assets, ASSET_KIND_BIT(ASSET_KIND_TEXTURE));
+    if( landed > 0 && app_tex_trace_enabled() )
+        TORIRS_LOG(
+            "tex_trace: landed %d (%d still pending)\n",
+            landed,
+            Assets_Count(app->assets, ASSET_KIND_TEXTURE));
 }

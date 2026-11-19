@@ -29,40 +29,6 @@
 
 #include <stdbool.h>
 
-/** Texture ids awaited. 512 is well past what one scene build requests. */
-#define ASYNC_PENDING_TEXTURE_MAX 512
-
-struct AsyncPendingTextures
-{
-    int ids[ASYNC_PENDING_TEXTURE_MAX];
-    int count;
-};
-
-/** Is this id already awaited? */
-bool
-AsyncPendingTextures_Has(
-    struct AsyncPendingTextures const* pending,
-    int texture_id);
-
-/**
- * Await `texture_id`, unless it is already awaited or the list is full.
- *
- * Returns false when it was NOT added, and the caller must say so: a dropped
- * texture request is a model that renders untextured forever, with nothing
- * else in the frame to notice it.
- */
-bool
-AsyncPendingTextures_Add(
-    struct AsyncPendingTextures* pending,
-    int texture_id);
-
-/** Keep only the first `kept` entries, which the caller has compacted into
- *  place while walking the list. */
-void
-AsyncPendingTextures_Keep(
-    struct AsyncPendingTextures* pending,
-    int kept);
-
 /** One deferred element<->sequence binding (animation still loading). */
 struct AsyncPendingSeqBind
 {
