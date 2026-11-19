@@ -60,21 +60,49 @@ UIIfModels_SetHead(
     models->heads[i].zoom = zoom;
     models->heads[i].applied_gen = 0;
     models->heads[i].close_serial = close_serial;
-    models->heads[i].missed = 0;
+    models->heads[i].landed = 0;
+    models->heads[i].scene_id = -1;
+    models->heads[i].landed_npc_id = -1;
+    return i;
+}
+
+int
+UIIfModels_HeadFor(
+    struct UIIfModels const* models,
+    int com_id,
+    enum UIIfHeadKind kind,
+    int npc_id,
+    int zoom,
+    uint32_t close_serial)
+{
+    int i;
+    struct UIIfHead const* head;
+
+    assert(models);
+    i = UIIfModels_HeadIndex(models, com_id);
+    if( i < 0 )
+        return -1;
+    head = &models->heads[i];
+    if( head->kind != (int)kind || head->npc_id != npc_id || head->zoom != zoom ||
+        head->close_serial != close_serial || head->landed )
+        return -1;
     return i;
 }
 
 void
-UIIfModels_ForgetMiss(
+UIIfModels_HeadLanded(
     struct UIIfModels* models,
-    int com_id)
+    int index,
+    int scene_id,
+    int landed_npc_id)
 {
-    int i;
-
     assert(models);
-    i = UIIfModels_HeadIndex(models, com_id);
-    if( i >= 0 )
-        models->heads[i].missed = 0;
+    assert(index >= 0);
+    assert(index < models->head_count);
+    models->heads[index].landed = 1;
+    models->heads[index].scene_id = scene_id;
+    models->heads[index].landed_npc_id = landed_npc_id;
+    models->heads[index].applied_gen = 0;
 }
 
 void

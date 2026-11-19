@@ -16,7 +16,7 @@
  * wrapped in AssetLoadTask (engine/asset_load_task.h), which reports the end
  * to the table; a
  * spot-animation is the spawn task that follows its chain, wrapped the same. A COMPOSITE
- * (an npc body, a held item, a transmog, the inventory icon pass, a
+ * (an npc body, a held item, a transmog, a
  * spot-animation, a reference table) is the task that already followed its
  * chain, registered by the unit that owns it through App_AssetsSetLoader.
  */
@@ -191,7 +191,6 @@ App_AssetsInit(struct App* app)
         App_AssetsSetLoader(app, leaves[i], asset_start_leaf, asset_resident_leaf);
     /* The composites: each unit registers the task that follows its chain. */
     EntityAssets_RegisterLoaders(app);
-    app_inv_icon_assets_register(app);
     /* The dat2 cache's shared prerequisite, its reference tables -- when the
      * provider is the dat2 cache the mounts opened (not a test's stand-in). */
     if( app->cache_mounts.dat2_bc &&

@@ -97,8 +97,9 @@ enum AssetKind
     ASSET_KIND_PLAYER_TRANSMOG,
     /* An obj's model as a composite: id = obj, variant = count. */
     ASSET_KIND_OBJ_MODEL,
-    /* The inventory icon pass: one entry, id 0. Loaded = no slot lacks an
-     * icon; a pass that resolved nothing is a failed attempt. */
+    /* No entries and no loader: its row is the back-off an icon whose model
+     * chain did not come waits out before asking again (an inventory slot's
+     * Task_InvIcon, a widget icon's park row). */
     ASSET_KIND_INV_ICONS,
     /* An interface group's component pack. */
     ASSET_KIND_IF_GROUP,

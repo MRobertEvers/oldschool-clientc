@@ -27,6 +27,47 @@
 
 /* ---- app_tasks_if_assets.c: interface models, chatheads, inventory icons - */
 
+/** Make the task that loads and composites `com_id`'s head (IF_SETMODEL,
+ *  IF_SETOBJECT, IF_SETNPCHEAD(_ACTIVE), IF_SETPLAYERHEAD), from the head
+ *  entry the store holds for it now; an older one is cancelled. The entry is
+ *  pending again until the task lands. */
+void
+App_IfModelWant(
+    struct App* app,
+    int com_id);
+
+/** Cancel `com_id`'s head task, if one is pending (its entry is about to be
+ *  replaced or forgotten). */
+void
+App_IfModelCancel(
+    struct App* app,
+    int com_id);
+
+/** Is a head task pending for `com_id`'s entry? */
+bool
+App_IfModelPending(
+    struct App const* app,
+    int com_id);
+
+/** Container `container_id` changed: every slot holding an item that has no
+ *  icon gets a task to bake it (unless one for that item is pending), and a
+ *  pending one whose slot no longer wants it is cancelled. The want raised
+ *  when a slot changes -- nothing scans the inventories when a pass is due. */
+void
+App_InvIconsWant(
+    struct App* app,
+    int container_id);
+
+/** Inventory icon tasks pending (they are on the parallel queue, so a
+ *  checkpoint waits for them as for any task there). */
+int
+App_InvIconsPending(struct App const* app);
+
+/** A checkpoint put the inventories back without telling anyone: want every
+ *  container's icons again. */
+void
+App_IfAssetsAfterRestore(struct App* app);
+
 /* ---- app_tasks_mounts.c: the visual parts of interface mounts, player
  *      models -------------------------------------------------------------- */
 

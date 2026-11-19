@@ -29,8 +29,9 @@
  *  OBJ_MODEL    a ground stack goes back four times for a model the loader
  *               says is still missing, then draws nothing, as the reference
  *               does (was APP_PLACEHOLDER_ATTEMPT_MAX).
- *  INV_ICONS    one pass in flight; a pass that resolved nothing waits 500 ms
- *               doubling to 4 s, and never gives up (was InvIconRetry).
+ *  INV_ICONS    an icon whose chain did not come waits 500 ms doubling to
+ *               4 s and asks again, never giving up (was InvIconRetry; the
+ *               kind has no entries, only this row).
  *  IF_GROUP     a missing pack is reported by the open; asked again next open.
  *  SOUND        asked once while in flight (was load_requested, and the
  *               ambient bed asked every tick); a sound more than ten client
