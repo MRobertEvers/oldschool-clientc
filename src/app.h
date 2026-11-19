@@ -160,6 +160,7 @@ struct PktRunClientScript;
 
 struct World;
 struct Assets;
+struct Park;
 struct WorldBuilder;
 struct PaintersBuffer;
 struct RSCache_Dat1Disk;
@@ -470,6 +471,10 @@ struct App
      * a transaction on it, so its had_work latch is never set.
      */
     struct TaskRunner background_runner;
+    /** Parked work: what a packet, script or varp could not finish because
+     *  something purely visual was not here yet, one entry per target, landed
+     *  at the frame's landing point (game/rs_parked.h; app/app_parked.c). */
+    struct Park* parked;
 
     /* Phase 2: asset pipeline. The disk (or the on-demand stream) and the
      * build cache that backs `provider`; everything downstream sees only the
@@ -1214,7 +1219,7 @@ struct App
      * The reference has the same arrival order and no such artifact, because it
      * decodes a whole tick's packets in one cycle and only then draws.
      * SERVER_TICK_END is that fence on the wire, so the scripts are drained
-     * there; `app_flush_pending_clientscripts` is also called when the pipeline
+     * there; `App_FlushPendingClientScripts` is also called when the pipeline
      * runs dry, which is what carries revisions that send no fence (lc254).
      *
      * The payload is a flat POD, so entries are held by value. Overflow runs

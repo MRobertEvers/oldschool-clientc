@@ -243,7 +243,10 @@
 # AsyncPendingSeqBinds) left for the table's SEQUENCE waiters.
 # Lowered to 143 by the inventory icon step: inv_icon_retry (struct
 # InvIconRetry) left for the table's ASSET_KIND_INV_ICONS.
-struct-App-fields: 143
+# Raised to 144 by the parked lookup step: parked (struct Park,
+# game/rs_parked.h), the one lookup every family of parked work shares;
+# the per-family pending records it replaces leave in the family steps.
+struct-App-fields: 144
 
 src/main.c
 src/executor_config.c
@@ -384,7 +387,12 @@ src/replay/replay_world_apply.c
 # Lowered to 1420 by the per-app config step: App_Init's two-line editor-boot
 # test became one MapEditorConfig_IsEditorBoot call.
 # Raised to 1421 by the assets table step: App_AssetsInit after the provider
-# is opened, App_AssetsFree (and its comment) before the queues.
-# Raised to 1424 by the spot-animation step: the attached-graphic table grows
-# now, so App_Shutdown frees it (EntitySpotanims_Free).
-app.c-lines: 1424
+# is opened, App_AssetsFree after the queues.
+# Raised to 1424 by the spot-animation step and the table's close: the
+# attached-graphic table grows now, so App_Shutdown frees it
+# (EntitySpotanims_Free), and App_Shutdown closes the assets table before the
+# queues (Assets_Close and its two-line comment) in place of App_AssetsFree's
+# one-line comment.
+# Raised to 1426 by the parked lookup step: App_ParkedInit after
+# App_AssetsInit, App_ParkedFree before the teardown that frees the table.
+app.c-lines: 1426

@@ -423,6 +423,7 @@ App_Init(
      * parallel frame queue is that place -- see CacheProvider::asset_queue. */
     CacheProvider_SetAssetQueue(app->provider, app->frame_runner.queue);
     App_AssetsInit(app);
+    App_ParkedInit(app);
     app_provider_set_cache_profile(app, cfg);
     if( !TorirsModelInstCache_Init(&app->model_inst_cache) )
         assert(0 && "model_inst_cache init");
@@ -1354,6 +1355,7 @@ App_Shutdown(struct App* app)
     /* Loaded at boot (Task_Dat2HitsplatLoad) and never freed until the exit
      * walk named its tables. */
     RS_Hitsplats_Free(&app->hitsplats);
+    App_ParkedFree(app);
     RS_EntitySync_Free(&app->esync);
     /* While the scene is alive: an outline strategy holds scene elements. */
     WevFlat_Free(&app->wev_flat, app->scene);
