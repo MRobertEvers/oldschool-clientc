@@ -46,11 +46,6 @@ proto_info_init(
     uint8_t const* data,
     int len);
 
-/** The local player's absolute tile from the GPI seed.  Returns 1 when the
- *  table is seeded and the local index is valid, 0 otherwise. */
-int
-proto_info_local_coord(int* abs_x, int* abs_z, int* level);
-
 size_t
 proto_info_state_size(void);
 void

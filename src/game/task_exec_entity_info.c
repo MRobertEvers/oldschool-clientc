@@ -12,7 +12,6 @@
 #include "game/rs_entity_sync.h"
 #include "game/task_entity_assets.h"
 #include "net/net.h"
-#include "net/proto/proto_info.h"
 #include "streams/rsprot_info.h"
 #include "net/rev/packets/pkt_player_appearance.h"
 #include "toridraw_animation.h"
@@ -336,16 +335,6 @@ player_local_tile(
             *out_x = player->pathing.route_x[0];
             *out_z = player->pathing.route_z[0];
             *out_level = player->grid_position.level;
-        }
-    }
-    else
-    {
-        int abs_x, abs_z, level;
-        if( proto_info_local_coord(&abs_x, &abs_z, &level) )
-        {
-            *out_x = abs_x - RS_RebuildRegion_SceneBaseX(&self->app->rebuild_region);
-            *out_z = abs_z - RS_RebuildRegion_SceneBaseZ(&self->app->rebuild_region);
-            *out_level = level;
         }
     }
 }

@@ -263,7 +263,7 @@ high_res(Reader *r, RsprotBuf *b, int idx)
 
     if (opcode == 0) {
         if (extended) {
-            rsprot_info_player_target(r->out, pi, idx);
+            moved(r, idx, RSPROT_PLAYER_MOVE_ADD);
             return;
         }
         /* Opcode 0 with nothing to say drops the slot to low resolution --
