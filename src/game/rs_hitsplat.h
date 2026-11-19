@@ -59,10 +59,12 @@ struct VarPManager;
  *     alternative is a splat drawn for a hit the cache said to hide.
  *   - **Resolution belongs at DRAW time, not on receipt.** That is where the
  *     reference does it, and it is why toggling the setting re-skins splats that
- *     are already on screen instead of only the next one. `duration` and
- *     `slot_policy` are the exception: those are read off the type the WIRE
- *     named, at the moment it arrives, exactly as the reference reads `+0xc`
- *     before it swaps.
+ *     are already on screen instead of only the next one. The splat's
+ *     `duration` and `slot_policy` are read when it ARRIVES, off the type the
+ *     selector resolves to then: the rev-239 deob's add (class105, the
+ *     hitsplat add) fetches the wire's record, swaps it for `method9599()`'s
+ *     when it is a selector, and only then reads opcode 12's field5318 (FAULTS
+ *     E8; this said the wire's type, after another reference).
  */
 
 enum

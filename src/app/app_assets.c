@@ -213,7 +213,7 @@ app_assets_frame(struct App* app)
     assert(app->assets);
     Assets_SetClock(app->assets, (uint64_t)app->host.client.now_ms);
     Assets_Pump(app->assets);
-    /* Kinds that land at their load's end: anything that arrived without a
-     * load ending (a loader with nothing to load) lands here. */
-    Assets_Land(app->assets, ASSET_KIND_BIT(ASSET_KIND_OBJ_MODEL) | ASSET_KIND_BIT(ASSET_KIND_NPC_BODY));
+    /* No kind is landed here any more: the ground stacks' OBJ_MODEL and the
+     * npc bodies' NPC_BODY waiters are parallel tasks that await
+     * (app/app_tasks_ground.c, app/app_tasks_entities.c). */
 }

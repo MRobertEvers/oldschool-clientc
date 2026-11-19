@@ -16,26 +16,44 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* The five stance sequences an npc type names, in the order NpcMultiLoad
- * used to fetch them. */
+/* The five stance sequences an npc drawn as `npctype` plays, in the order
+ * NpcMultiLoad fetched them: the SHELL's (ToriRS_NpctypeEntityFacts -- the
+ * wire's record supplies the stance set, the rung the body), so the body
+ * fetched is the one the spawn, the retype and NpcMultiLoad play (FAULTS E4:
+ * this read the drawn type's set). `shell` NULL: no separate shell. */
 static void
 npc_stance_seqs(
     struct ToriRS_Npctype const* npctype,
+    struct ToriRS_Npctype const* shell,
     int out[5])
 {
+    struct ToriRS_NpcEntityFacts facts;
+
     assert(npctype);
     assert(out);
-    out[0] = npctype->readyanim;
-    out[1] = npctype->walkanim;
-    out[2] = npctype->walkanim_b;
-    out[3] = npctype->walkanim_r;
-    out[4] = npctype->walkanim_l;
+    ToriRS_NpctypeEntityFacts(npctype, shell, &facts);
+    out[0] = facts.readyanim;
+    out[1] = facts.walkanim;
+    out[2] = facts.walkanim_b;
+    out[3] = facts.walkanim_r;
+    out[4] = facts.walkanim_l;
+}
+
+/* The shell record behind `base_npc_id`, or NULL (none, or not resident:
+ * ToriRS_NpctypeEntityFacts then reads the drawn type alone). */
+static struct ToriRS_Npctype const*
+npc_shell(
+    struct App* app,
+    int base_npc_id)
+{
+    return base_npc_id >= 0 ? CacheProvider_NpctypeGet(app->provider, base_npc_id) : NULL;
 }
 
 int
 EntityAssets_NpcBodyResident(
     struct App* app,
-    int npc_id)
+    int npc_id,
+    int base_npc_id)
 {
     struct ToriRS_Npctype* npctype;
     int seqs[5];
@@ -49,7 +67,7 @@ EntityAssets_NpcBodyResident(
     for( int i = 0; i < npctype->models_count; i++ )
         if( npctype->models[i] >= 0 && !CacheProvider_ModelHas(app->provider, npctype->models[i]) )
             return 0;
-    npc_stance_seqs(npctype, seqs);
+    npc_stance_seqs(npctype, npc_shell(app, base_npc_id), seqs);
     for( int i = 0; i < 5; i++ )
         if( seqs[i] >= 0 && !ToriDraw_SceneAnimationHas(app->scene, seqs[i]) )
             return 0;
@@ -171,59 +189,20 @@ Task_NpcBodyLand_Run(
         {
             int seqs[5];
             fanout_models(app, npctype->models, npctype->models_count, &self->pending);
-            npc_stance_seqs(npctype, seqs);
+            npc_stance_seqs(npctype, npc_shell(app, self->base_npc_id), seqs);
             fanout_seqs(app, seqs, 5, &self->pending);
         }
     }
     PT_TASK_JOIN(pending);
 
-    /* Ended BEFORE the walk: an npc of this type spawned from here on finds
-     * the body resident and wants nothing; one spawned during the load found
-     * the entry loading and its want collapsed into the walk below, which is
-     * what dresses it. The walk lands here, at the load's end, as it always
-     * has. */
+    /* The end wakes every npc's body task (app/app_tasks_entities.c,
+     * Task_NpcBody) that awaits this (type, base): each re-resolves its own
+     * npc and mounts the body. */
     self->ended = 1;
     Assets_Finished(
         app->assets, AssetKey_Make(ASSET_KIND_NPC_BODY, self->npc_id, self->base_npc_id), true);
-    Assets_Land(app->assets, ASSET_KIND_BIT(ASSET_KIND_NPC_BODY));
 
     PT_END(&self->pt);
-}
-
-/* The NPC_BODY landing (ASSET_LANDED_ALL: one call per load): re-apply the
- * type to every live npc that is still (base, type). */
-static void
-npc_body_land_walk(
-    void* ctx,
-    struct AssetKey key,
-    struct AssetWaiterHandle handle,
-    enum AssetOutcome outcome,
-    uint32_t late_ms)
-{
-    struct App* app = ctx;
-    int const npc_id = key.id;
-    int const base_npc_id = key.variant;
-
-    (void)handle;
-    (void)late_ms;
-    if( outcome != ASSET_OUTCOME_LANDED || !app->world )
-        return;
-    {
-        struct World_EntityPool* pool = &app->world->entities.npc;
-        for( int idx = 0; idx < pool->count; idx++ )
-        {
-            struct WorldEntity_NPC* npc;
-            if( !World_EntityPoolIsActive(pool, idx) )
-                continue;
-            npc = World_EntityPoolGet(pool, idx);
-            /* Retyped while the body was on the wire: that op wanted its
-             * own load. */
-            if( !npc || npc->base_npc_id != base_npc_id || npc->npc_id != npc_id )
-                continue;
-            App_WorldNpcBodyLanded(app, idx, npc->element_id, npc_id, base_npc_id);
-            RedrawRequest_Raise(&app->redraw_request);
-        }
-    }
 }
 
 static void
@@ -275,26 +254,8 @@ npc_body_resident(
     void* data,
     struct AssetKey key)
 {
-    return EntityAssets_NpcBodyResident((struct App*)data, key.id) != 0;
+    return EntityAssets_NpcBodyResident((struct App*)data, key.id, key.variant) != 0;
 }
-
-void
-EntityAssets_WantNpcBody(
-    struct App* app,
-    int base_npc_id,
-    int npc_id)
-{
-    struct AssetWaiter walk;
-
-    assert(app);
-    assert(npc_id >= 0);
-    memset(&walk, 0, sizeof(walk));
-    walk.land = npc_body_land_walk;
-    walk.ctx = app;
-    (void)Assets_Want(
-        app->assets, AssetKey_Make(ASSET_KIND_NPC_BODY, npc_id, base_npc_id), &walk);
-}
-
 
 /* --------------------------------------------------------------- player */
 
@@ -429,7 +390,8 @@ Task_PlayerTransmogLand_Run(
         {
             int seqs[5];
             fanout_models(app, npctype->models, npctype->models_count, &self->pending);
-            npc_stance_seqs(npctype, seqs);
+            /* The transmog's own record is the shell whose stances play. */
+            npc_stance_seqs(npctype, npc_shell(app, self->npc_id), seqs);
             fanout_seqs(app, seqs, 5, &self->pending);
         }
     }
@@ -521,7 +483,7 @@ player_transmog_resident(
             break;
         npc_id = resolved;
     }
-    return EntityAssets_NpcBodyResident(app, npc_id) != 0;
+    return EntityAssets_NpcBodyResident(app, npc_id, key.id) != 0;
 }
 
 void

@@ -4287,7 +4287,7 @@ app_map_editor_spawn_ghost_land(struct App* app)
         npctype = CacheProvider_NpctypeGet(app->provider, spec->id);
         if( !npctype || !app_world_npc_models_resident(app, npctype) )
             return 0;
-        idx = app_world_spawn_npc_now(app, spec->id, -1, spec->scene_x, spec->scene_z, spec->level);
+        idx = app_world_spawn_npc_announced(app, spec->id, -1, spec->scene_x, spec->scene_z, spec->level);
         npc = idx >= 0 ? World_EntityPoolGet(&app->world->entities.npc, idx) : NULL;
         if( !npc )
             return 0;
@@ -4537,7 +4537,7 @@ app_spawn_preview_land_npc(
             return 0;
         }
     }
-    idx = app_world_spawn_npc_now(app, body, body == item->id ? -1 : item->id, scene_x, scene_z, item->want.row.level);
+    idx = app_world_spawn_npc_announced(app, body, body == item->id ? -1 : item->id, scene_x, scene_z, item->want.row.level);
     npc = idx >= 0 ? World_EntityPoolGet(&app->world->entities.npc, idx) : NULL;
     if( !npc )
         return 0;

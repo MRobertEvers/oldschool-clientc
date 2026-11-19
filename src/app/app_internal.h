@@ -2943,9 +2943,6 @@ app_seq_bind_pending_drop(
     struct App* app,
     int element_id);
 
-void
-app_world_bind_pending_seqs(struct App* app);
-
 
 /* ---- app_world_spawn.c ---- */
 struct Task_AppSpawn*
@@ -3006,6 +3003,15 @@ app_world_spawn_player_now(
     int tile_z,
     int level);
 
+/* PLAYER_INFO's add: the player exists at once, drawing nothing until its
+ * appearance's body is resident. */
+int
+app_world_spawn_synced_player_now(
+    struct App* app,
+    int tile_x,
+    int tile_z,
+    int level);
+
 void
 app_npc_entity_facts(
     struct App* app,
@@ -3015,6 +3021,17 @@ app_npc_entity_facts(
 
 int
 app_world_spawn_npc_now(
+    struct App* app,
+    int npc_id,
+    int base_npc_id,
+    int tile_x,
+    int tile_z,
+    int level);
+
+/* app_world_spawn_npc_now, then App_WorldNpcSpawnAnnounce: an npc no server
+ * names (the editor's previews, the hotkey). */
+int
+app_world_spawn_npc_announced(
     struct App* app,
     int npc_id,
     int base_npc_id,

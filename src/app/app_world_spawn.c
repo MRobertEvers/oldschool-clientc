@@ -23,6 +23,14 @@ static bool
 app_model_zbuffer_kernels_enabled(void);
 static int
 app_warn_once_npc(int npc_id);
+static int
+app_world_spawn_npc_unknown(
+    struct App* app,
+    int npc_id,
+    int base_npc_id,
+    int tile_x,
+    int tile_z,
+    int level);
 static void
 app_spawn_fan_spotanim_assets(struct Task_AppSpawn* self);
 static int
@@ -453,19 +461,18 @@ app_world_build_spotanim_model(
     return model;
 }
 
-/* Hotkey 9 body: default player model on the hovered tile. SYNCHRONOUS —
- * the appearance kit + ready seq must be resident (Task_AppSpawn awaits).
- * Returns the world player-pool index, or -1. */
-int
-app_world_spawn_player_now(
+/* A player on a tile, drawn as `model` (owned from here). The ready seq is
+ * bound when it is resident (app_world_apply_seq: at once, or by a parallel
+ * task). Returns the world player-pool index, or -1 when the scene has no
+ * element left for it. */
+static int
+app_world_spawn_player_drawn_as(
     struct App* app,
+    struct ToriDraw_Model* model,
     int tile_x,
     int tile_z,
     int level)
 {
-    int scene_model_id;
-    struct ToriDraw_ModelHandle reg;
-    struct ToriDraw_Model* copy;
     int world_x = tile_x * 128 + 64;
     int world_z = tile_z * 128 + 64;
     int world_y;
@@ -473,24 +480,11 @@ app_world_spawn_player_now(
 
     int idx;
 
-    scene_model_id = UITreeSceneBridge_EnsurePlayerModel(&app->bridge);
-    if( scene_model_id <= 0 )
-    {
-        TORIRS_LOG("spawn_player: player model unavailable\n");
-        return -1;
-    }
-    reg = ToriDraw_SceneModelGet(app->scene, scene_model_id);
-    if( !ToriDraw_ModelKindIsFull(reg.kind) || !reg.u.model.model )
-        return -1;
-    copy = ToriDraw_ModelCopy(reg.u.model.model);
-    if( !copy )
-        return -1;
-    ToriDraw_ModelSetBoundsCylinder(copy);
-    ToriDraw_ModelCaptureOriginalVertices(copy);
-
+    assert(app);
+    assert(model);
     world_y = app_world_height(app, world_x, world_z, level);
     element_id = app_world_scene_element_create(
-        app, TORIDRAW_ELEMENT_KIND_PLAYER, copy, world_x, world_y, world_z);
+        app, TORIDRAW_ELEMENT_KIND_PLAYER, model, world_x, world_y, world_z);
     if( element_id < 0 )
         return -1;
     app_world_apply_seq(app, element_id, APP_PLAYER_SEQ_READY);
@@ -530,6 +524,57 @@ app_world_spawn_player_now(
     app_sync_textures(app);
     RedrawRequest_Raise(&app->redraw_request);
     return idx;
+}
+
+/* Hotkey 9 body: default player model on the hovered tile. SYNCHRONOUS —
+ * the appearance kit must be resident (Task_AppSpawn awaits).
+ * Returns the world player-pool index, or -1. */
+int
+app_world_spawn_player_now(
+    struct App* app,
+    int tile_x,
+    int tile_z,
+    int level)
+{
+    int scene_model_id;
+    struct ToriDraw_ModelHandle reg;
+    struct ToriDraw_Model* copy;
+
+    scene_model_id = UITreeSceneBridge_EnsurePlayerModel(&app->bridge);
+    if( scene_model_id <= 0 )
+    {
+        TORIRS_LOG("spawn_player: player model unavailable\n");
+        return -1;
+    }
+    reg = ToriDraw_SceneModelGet(app->scene, scene_model_id);
+    if( !ToriDraw_ModelKindIsFull(reg.kind) || !reg.u.model.model )
+        return -1;
+    copy = ToriDraw_ModelCopy(reg.u.model.model);
+    assert(copy);
+    ToriDraw_ModelSetBoundsCylinder(copy);
+    ToriDraw_ModelCaptureOriginalVertices(copy);
+    return app_world_spawn_player_drawn_as(app, copy, tile_x, tile_z, level);
+}
+
+/*
+ * A player PLAYER_INFO adds: it exists at once and draws nothing until its
+ * appearance's body is resident (app_world_reconcile_player_body mounts it
+ * then). Not the default kit: the reference draws no body for a player with
+ * no appearance, and waiting for that kit on the packet queue held every
+ * packet behind the add (the fetch was purely visual).
+ */
+int
+app_world_spawn_synced_player_now(
+    struct App* app,
+    int tile_x,
+    int tile_z,
+    int level)
+{
+    struct ToriDraw_Model* empty = ToriDraw_ModelNew(0, 0, 0);
+
+    assert(empty);
+    ToriDraw_ModelSetBoundsCylinder(empty);
+    return app_world_spawn_player_drawn_as(app, empty, tile_x, tile_z, level);
 }
 
 static int
@@ -609,10 +654,16 @@ app_world_spawn_npc_now(
         /* Once per id. The server re-sends the same missing npc every time the
          * player walks back into its zone, and on Windows an unbuffered stderr
          * write costs milliseconds -- see the spawn narration below. Which ids
-         * are unavailable is the whole diagnostic; the repeat count is not. */
+         * are unavailable is the whole diagnostic; the repeat count is not.
+         *
+         * The npc still EXISTS, drawing nothing (FAULTS E11): refusing it
+         * left its slot in the tracked list resolving to no entity, so every
+         * later op the server sent for it was dropped for the rest of the
+         * session. The reference decodes an absent record as the type's
+         * defaults (one tile, no model, no stances). */
         if( !app_warn_once_npc(npc_id) )
             TORIRS_LOG("spawn_npc: npc %d unavailable\n", npc_id);
-        return -1;
+        return app_world_spawn_npc_unknown(app, npc_id, base_npc_id, tile_x, tile_z, level);
     }
 
     bd_t = bd_us ? PlatformWindow_TicksUs() : 0;
@@ -728,8 +779,11 @@ app_world_spawn_npc_now(
     }
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(&app->world->entities.npc, idx);
-        if( npc )
-            npc->server_slot = -1;
+        assert(npc);
+        npc->server_slot = -1;
+        /* The shell, before anything snapshots the npc (FAULTS E2). */
+        if( base_npc_id >= 0 )
+            npc->base_npc_id = base_npc_id;
     }
     if( bd_us )
         bd_world = PlatformWindow_TicksUs() - bd_t;
@@ -798,26 +852,101 @@ app_world_spawn_npc_now(
                 (unsigned long long)bd_tex);
     }
     RedrawRequest_Raise(&app->redraw_request);
-    if( idx != WORLD_ENTITY_NIL )
+    return idx;
+}
+
+/* An npc whose config the cache does not have: it exists, one tile, no
+ * stances, no model -- what the reference decodes an absent record as. */
+static int
+app_world_spawn_npc_unknown(
+    struct App* app,
+    int npc_id,
+    int base_npc_id,
+    int tile_x,
+    int tile_z,
+    int level)
+{
+    struct ToriDraw_Model* empty = ToriDraw_ModelNew(0, 0, 0);
+    struct WorldEntityFacet_IdleAnimations idle;
+    int world_x = tile_x * 128 + 64;
+    int world_z = tile_z * 128 + 64;
+    int element_id;
+    int idx;
+
+    assert(empty);
+    ToriDraw_ModelSetBoundsCylinder(empty);
+    element_id = app_world_scene_element_create(
+        app,
+        TORIDRAW_ELEMENT_KIND_NPC,
+        empty,
+        world_x,
+        app_world_height(app, world_x, world_z, level),
+        world_z);
+    if( element_id < 0 )
+        return -1;
+    memset(&idle, 0xff, sizeof(idle));
+    idle.idle_anim_restart = 0;
+    idx = World_NpcSpawn(app->world, element_id, npc_id, level, tile_x, tile_z, 1, idle);
     {
-        struct WorldEntity_NPC* spawned = World_EntityPoolGet(&app->world->entities.npc, idx);
-        if( spawned )
-        {
-            /* DRIVE_STAMP: npc_spawn -- a=npc slot b=npc_id. Unconditional --
-             * the ring is present in every build, unlike the plugin-host
-             * snapshot below, which stays gated on app->plugins. */
-            App_DriveEvent(app, DRIVE_EVENT_NPC_SPAWN, idx, spawned->npc_id, 0, 0);
-        }
-        /* After the entity is in the pool and carries its name and facts, so
-         * a handler's snapshot is the finished npc rather than a half-built
-         * one. */
-        if( app->plugins && spawned )
-        {
-            struct ToriRS_NpcSnapshot snap;
-            app_plugin_fill_npc(app, spawned, &snap);
-            PluginHost_NpcSpawn(app->plugins, &snap);
-        }
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(&app->world->entities.npc, idx);
+        assert(npc);
+        npc->server_slot = -1;
+        if( base_npc_id >= 0 )
+            npc->base_npc_id = base_npc_id;
     }
+    RedrawRequest_Raise(&app->redraw_request);
+    return idx;
+}
+
+/* The npc at `idx` is finished -- in the pool with its name, facts, shell and
+ * (for a synced npc) server slot: tell the drive ring and the plugins. */
+void
+App_WorldNpcSpawnAnnounce(
+    struct App* app,
+    int idx)
+{
+    struct WorldEntity_NPC* spawned;
+
+    assert(app);
+    assert(app->world);
+    spawned = World_EntityPoolGet(&app->world->entities.npc, idx);
+    assert(spawned);
+    /* DRIVE_STAMP: npc_spawn -- a=npc slot b=npc_id c,d=scene tile. The server slot, as the
+     * comment always said (it stamped the pool index, FAULTS E10); -1 for an
+     * npc no server named (the editor's previews, the hotkey). Unconditional
+     * -- the ring is present in every build, unlike the plugin-host snapshot
+     * below, which stays gated on app->plugins. */
+    /* c/d: the scene tile it was added on, once its add record placed it. */
+    App_DriveEvent(
+        app,
+        DRIVE_EVENT_NPC_SPAWN,
+        spawned->server_slot,
+        spawned->npc_id,
+        spawned->pathing.route_x[0],
+        spawned->pathing.route_z[0]);
+    if( app->plugins )
+    {
+        struct ToriRS_NpcSnapshot snap;
+        app_plugin_fill_npc(app, spawned, &snap);
+        PluginHost_NpcSpawn(app->plugins, &snap);
+    }
+}
+
+/* The editor's and the hotkey's spawn: the entity, announced at once (no
+ * server slot to wait for). */
+int
+app_world_spawn_npc_announced(
+    struct App* app,
+    int npc_id,
+    int base_npc_id,
+    int tile_x,
+    int tile_z,
+    int level)
+{
+    int idx = app_world_spawn_npc_now(app, npc_id, base_npc_id, tile_x, tile_z, level);
+
+    if( idx >= 0 )
+        App_WorldNpcSpawnAnnounce(app, idx);
     return idx;
 }
 
@@ -886,7 +1015,7 @@ Task_AppSpawn_Run(
         PT_TASK_AWAITSELF_IF(CreateTask_NpcMultiLoad(app, self->npc_id, &self->model_id));
         {
             int effective = self->model_id >= 0 ? self->model_id : self->npc_id;
-            int idx = app_world_spawn_npc_now(
+            int idx = app_world_spawn_npc_announced(
                 app, effective, self->npc_id, self->tile_x, self->tile_z, self->level);
             struct WorldEntity_NPC* npc =
                 idx >= 0 ? World_EntityPoolGet(&app->world->entities.npc, idx) : NULL;

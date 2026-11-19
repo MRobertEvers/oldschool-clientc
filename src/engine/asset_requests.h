@@ -41,9 +41,9 @@
  * landing function called from Assets_Land (struct AssetWaiter, AssetLandFn,
  * struct AssetWaiterHandle, Assets_Land, Assets_DropWaiters,
  * Assets_WaiterCount, and the late and landed policies, which exist only for
- * waiters). The callers still using it (textures, the music install, the
- * ground-stack model, deferred sequence binds) become parallel tasks that
- * await, family by family; nothing new may register a waiter.
+ * waiters). The callers still using it (textures, the music install) become
+ * parallel tasks that await, as the ground-stack model, the npc body and the
+ * deferred sequence bind have; nothing new may register a waiter.
  *
  * Either way a loader is started only if none is in flight for the entry. The
  * client supplies one loader per kind (Assets_SetLoader): `start` puts a load

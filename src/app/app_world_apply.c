@@ -264,10 +264,13 @@ app_world_npc_mount_body(
     }
     else if( !app_world_npc_models_resident(app, npctype) )
     {
-        /* The body is on the wire (NpcBodyLand re-applies this type when it
-         * lands): keep whatever model the element has rather than mount
-         * nothing, and say nothing -- it is not a failure. */
-        model = NULL;
+        /* The body is on the wire: the npc draws nothing until its body task
+         * (App_EntityNpcBodyWant) mounts it -- the one rule for "no body
+         * yet", the spawn's too. Keeping the old type's model drew the npc
+         * as what it no longer is (FAULTS E7). Not a failure: say nothing. */
+        model = ToriDraw_ModelNew(0, 0, 0);
+        assert(model);
+        ToriDraw_ModelSetBoundsCylinder(model);
     }
     else
     {
@@ -315,6 +318,26 @@ app_world_npc_mount_body(
 
     mounted = model != NULL;
     return mounted;
+}
+
+/* Mount an empty body on the npc's element: it draws nothing. */
+static void
+app_world_npc_mount_empty(
+    struct App* app,
+    int element_id)
+{
+    struct ToriDraw_Model* model;
+    struct ToriDraw_ModelHandle hnd;
+
+    if( element_id < 0 || !ToriDraw_SceneElementIsLive(app->scene, element_id) )
+        return;
+    model = ToriDraw_ModelNew(0, 0, 0);
+    assert(model);
+    ToriDraw_ModelSetBoundsCylinder(model);
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = model;
+    ToriDraw_SceneElementSetModel(app->scene, element_id, hnd);
 }
 
 /* A type's whole stance set, as a spawn or a retype gives it the npc (see
@@ -384,9 +407,15 @@ App_WorldApplyNpcType(
     int model_mounted;
 
     assert(app);
-    npctype = CacheProvider_NpctypeGet(app->provider, npc_type);
+    npctype = npc_type >= 0 ? CacheProvider_NpctypeGet(app->provider, npc_type) : NULL;
     if( !npctype )
+    {
+        /* A type to none (CHANGE_TYPE -1) or one the cache does not have:
+         * the npc stays, drawing nothing (FAULTS E7: it kept the old model). */
+        app_world_npc_mount_empty(app, element_id);
+        RedrawRequest_Raise(&app->redraw_request);
         return;
+    }
     /* Same rule as the spawn path: the rung draws the body and names the
      * ops, the shell supplies the size, turn speed and stance set.
      * See app_npc_entity_facts. */
@@ -398,7 +427,11 @@ App_WorldApplyNpcType(
     model_mounted = app_world_npc_mount_body(app, element_id, npc_type, npctype);
 
     {
-        struct WorldEntityFacet_IdleAnimations const idle = app_npc_type_idle(&facts, npctype);
+        struct WorldEntity_NPC const* before = World_EntityPoolGet(&app->world->entities.npc, world_idx);
+        struct WorldEntityFacet_IdleAnimations const idle =
+            before && (before->overrides & WORLD_NPC_OVERRIDE_STANCES)
+                ? before->idle_animations
+                : app_npc_type_idle(&facts, npctype);
         World_NpcSetType(app->world, world_idx, npc_type, facts.size, &idle);
     }
     {
@@ -431,13 +464,16 @@ App_WorldApplyNpcType(
             app_world_apply_seq(app, element_id, facts.readyanim);
         if( npc )
         {
-            npc->combat_level = npctype->combat_level;
+            /* What the server set on the npc stays (WORLD_NPC_OVERRIDE_*). */
+            if( !(npc->overrides & WORLD_NPC_OVERRIDE_LEVEL) )
+                npc->combat_level = npctype->combat_level;
             npc->alwaysontop = npctype->alwaysontop;
             npc->minimap_visible = npctype->minimap_visible;
             npc->interactable = npctype->interactable;
             npc->facing.turn_speed = facts.turn_speed;
             npc->facing.no_rotation_flag = npctype->no_rotation_flag;
-            snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
+            if( !(npc->overrides & WORLD_NPC_OVERRIDE_NAME) )
+                snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
             for( int i = 0; i < 5; i++ )
                 snprintf(
                     npc->actions[i].name, sizeof(npc->actions[i].name), "%s", npctype->actions[i]);
@@ -446,6 +482,10 @@ App_WorldApplyNpcType(
              * type's body just mounted. */
             if( npc->body_model_count > 0 )
                 npc->body_serial++;
+            /* The type's body, when it is not resident yet: an npc the
+             * server named waits for it on the parallel queue. */
+            if( npc->server_slot >= 0 )
+                App_EntityNpcBodyWant(app, world_idx);
             /* The drawn type changed; base_npc_id -- the multinpc shell --
              * did not. A plugin keyed on the shell, which is how anything
              * tagging an npc has to be keyed, keeps its tag across this. */
@@ -504,6 +544,11 @@ App_WorldNpcBodyLanded(
     if( !app_world_npc_mount_body(app, element_id, npc_type, npctype) )
         return;
     npc = World_EntityPoolGet(&app->world->entities.npc, world_idx);
+    /* The server's body customisation goes back over the type's body just
+     * mounted, as the retype does (FAULTS E3: a body landing after a
+     * BODY_CUSTOM replaced it with the type's). */
+    if( npc && npc->body_model_count > 0 )
+        npc->body_serial++;
     primary_live = npc && npc->animation.primary.anim_id != (uint16_t)-1 &&
                    npc->animation.primary.anim_id != 0;
     if( !primary_live && npc && element_id >= 0 && ToriDraw_SceneElementIsLive(app->scene, element_id) )

@@ -577,6 +577,15 @@ struct World
      *  reference draws `addPlayers(true)` (self) ahead of every other entity,
      *  and self is never dedup-skipped. -1 = offline / not yet bound. */
     int local_pid;
+    /** The last spawn serial World_PlayerSpawn / World_NpcSpawn handed out:
+     *  every entity gets the next one, so (server slot, spawn serial) names
+     *  ONE entity for its whole life, where the pool index and the slot are
+     *  both reused (the key a parallel task holds, game/rs_pending.h). */
+    uint32_t entity_spawn_serial;
+    /** How many npcs have `retype_wanted` set: a varp their multinpc chain
+     *  depends on changed, and the rung they draw is to be resolved again
+     *  (App_EntityNpcRetypeFlush). 0: none, nothing walks. */
+    int npc_retype_wanted;
 
     /** Loc "mapfunction" minimap icons gathered at scene build (reference
      * activeMapFunctionX/Z/Count, Client.ts minimapBuildBuffer): scene tile

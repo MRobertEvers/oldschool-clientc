@@ -92,7 +92,7 @@ char const* DriveResultName(enum DriveResult result);
  *   DRIVE_EVENT_MAP_FLAG        a=-1 when cleared, else a=tile_x b=tile_z
  *   DRIVE_EVENT_CHAT_MESSAGE    a=type    b=message serial (RS_ChatMessage)
  *   DRIVE_EVENT_SERVER_TICK     a=world cycle
- *   DRIVE_EVENT_NPC_SPAWN       a=npc slot  b=npc_id
+ *   DRIVE_EVENT_NPC_SPAWN       a=npc slot  b=npc_id  c,d=scene tile
  *   DRIVE_EVENT_NPC_DESPAWN     a=npc slot  b=npc_id
  *   DRIVE_EVENT_NPC_RETYPE      a=npc slot  b=npc_id  c=base_npc_id
  *   DRIVE_EVENT_INV_PACKET      a=container_id                     (dat1)

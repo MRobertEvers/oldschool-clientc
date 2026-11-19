@@ -865,7 +865,7 @@ App_WorldSpawnSyncedPlayer(
     int scene_z,
     int level)
 {
-    return app_world_spawn_player_now(app, scene_x, scene_z, level);
+    return app_world_spawn_synced_player_now(app, scene_x, scene_z, level);
 }
 
 int

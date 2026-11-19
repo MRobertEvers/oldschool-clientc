@@ -2409,9 +2409,10 @@ App_SetInterfaceModelAnim(
 void
 App_BootWait(struct App* app);
 
-/* Entity-sync spawn/apply helpers (assets must already be cached — the
- * PLAYER_INFO / NPC_INFO exec tasks await the loads first). Coordinates are
- * scene-local tiles. Return the World pool index, or -1. */
+/* Entity-sync spawn/apply helpers. The npc's config must be resident (the
+ * NPC_INFO task awaits it: it is required); bodies are not awaited -- the
+ * entity exists at once and draws nothing until its body is resident.
+ * Coordinates are scene-local tiles. Return the World pool index, or -1. */
 int
 App_WorldSpawnSyncedPlayer(
     struct App* app,
@@ -2514,6 +2515,28 @@ App_WorldNpcTypeIdle(
     int npc_type,
     int base_npc_type,
     struct WorldEntityFacet_IdleAnimations* out);
+
+/** The npc at `world_idx` (registered, so it has a server slot) draws its
+ *  type's body once that is resident: nothing to do when it is, else a
+ *  parallel task waits for it, replacing any earlier one for the npc
+ *  (app/app_tasks_entities.c). */
+void
+App_EntityNpcBodyWant(
+    struct App* app,
+    int world_idx);
+
+/** The npc in `server_slot` left: cancel every parallel task for it. */
+void
+App_EntityNpcGone(
+    struct App* app,
+    int server_slot);
+
+/** A synced npc is finished (registered, slot and shell set): stamp its
+ *  npc_spawn and tell the plugins. */
+void
+App_WorldNpcSpawnAnnounce(
+    struct App* app,
+    int idx);
 
 /* The body NpcBodyLand waited for is resident: mount it and the type's ready
  * pose, and nothing else (the type's fields were applied with the op). */
