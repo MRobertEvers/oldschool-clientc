@@ -5877,6 +5877,16 @@ test-net-exec: $(OBJ_DIR) $(OBJS)
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/net_exec_test
 
+# The one table of packet kinds (net/rev/revpacket.c): every name has a row,
+# the latch and flush sets the packet pump reads are derived from it, and every
+# packet the executor handles is in it (tools/packet_kinds_check.py).
+.PHONY: test-packet-kinds
+test-packet-kinds: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/packet_kinds_test \
+		net/rev/test/packet_kinds_test.c net/rev/revpacket.c $(TORIMEM_SRCS) $(LDFLAGS)
+	./$(OBJ_DIR)/packet_kinds_test
+	python3 -I ../tools/packet_kinds_check.py --root .
+
 # The packet model (game/rs_server_state.h) with no App and no UI tree: a
 # packet in, the records and the stamped events out, per family it applies.
 # Asserts on: the model and the test compile without NDEBUG, so the model's

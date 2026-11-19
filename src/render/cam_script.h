@@ -186,7 +186,19 @@ struct CamScript
     /** CAM_UNLOCK: nonzero widens the pitch limits to the deob's unlocked
      *  range (client.java field758). */
     int unlock;
+    /* CAM_TARGET: what the follow camera follows instead of the local player.
+     * 0 is the local player (the login value, deob client.java:1734); else the
+     * wire's type (CAM_SCRIPT_TARGET_*) and that entity's index. */
+    int target_set;
+    int target_type;
+    int target_index;
 };
+
+/** CAM_TARGET's wire types (deob class284). */
+#define CAM_SCRIPT_TARGET_PLAYER 0
+#define CAM_SCRIPT_TARGET_NPC 1
+#define CAM_SCRIPT_TARGET_WORLDENTITY 2
+#define CAM_SCRIPT_TARGET_COORD 3
 
 /* --- the arithmetic ------------------------------------------------------ */
 
@@ -409,8 +421,25 @@ CamScript_OculusSync(
     struct CamScript* cam,
     int value);
 
-/** What a logout clears: the mode and the free camera's sync, recentre and
- *  focus height. */
+/** CAM_TARGET (deob client.java class243.field2935 / field3045): the follow
+ *  camera follows entity `index` of `type`. An index of -1 is "none", the
+ *  local player again. Returns 1 when the target changed. */
+int
+CamScript_SetTarget(
+    struct CamScript* cam,
+    int type,
+    int index);
+
+/** 1 and the type and index when a CAM_TARGET names something other than the
+ *  local player. */
+int
+CamScript_Target(
+    struct CamScript const* cam,
+    int* out_type,
+    int* out_index);
+
+/** What a logout clears: the mode, the free camera's sync, recentre and focus
+ *  height, and the CAM_TARGET (the login puts the local player back). */
 void
 CamScript_Logout(struct CamScript* cam);
 

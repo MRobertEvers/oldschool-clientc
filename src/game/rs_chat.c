@@ -174,6 +174,24 @@ static struct
 };
 
 int
+RS_Chat_InTutorialArea(
+    int world_x,
+    int world_z)
+{
+    int inside = 0;
+
+    /* deob Statics.method6894, in its order: the island, the cave under it,
+     * and then the mainland corner the island's box overlaps is taken out. */
+    if( world_x >= 3053 && world_x <= 3156 && world_z >= 3056 && world_z <= 3136 )
+        inside = 1;
+    if( world_x >= 3072 && world_x <= 3118 && world_z >= 9492 && world_z <= 9535 )
+        inside = 1;
+    if( inside && world_x >= 3139 && world_x <= 3199 && world_z >= 3008 && world_z <= 3062 )
+        inside = 0;
+    return inside;
+}
+
+int
 RS_Chat_CrownImage(
     int crown,
     int* out_ignorable)

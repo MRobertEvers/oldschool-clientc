@@ -1235,11 +1235,11 @@ struct App
      * back (rs_cs2_yield_if_group_missing) and the interface the server closed
      * stayed in the tree -- `t.ui.await_close` timed out on Scrambled!'s last
      * jigsaw piece (b72). So `app_pump_net_packets` releases the held scripts
-     * onto the packet pipeline AHEAD of any packet
-     * `gameproto_packet_changes_interface_mounts` names: they run before the
-     * mount change, against every packet of the tick before them. A
-     * component property write (`gameproto_packet_writes_interface_component`:
-     * IF_SETTEXT, IF_SETHIDE, ...) releases them too, so a script and a packet
+     * onto the packet pipeline AHEAD of any packet whose row in the packet
+     * kinds flushes (`gameproto_packet_flushes_held_scripts`, net/rev/
+     * revpacket.c): a mount change runs after them, against every packet of
+     * the tick before them. A component property write (IF_SETTEXT,
+     * IF_SETHIDE, ...) releases them too, so a script and a packet
      * writing the same component keep wire order (Jagex's journal reset before
      * its rows, RSProx index 4400 [2130]). Inventory and varp writes do not
      * release them -- that is the price checker case above, which the hold

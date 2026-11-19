@@ -95,6 +95,7 @@ exec_cam_script_record(
     int rate2)
 {
     assert(app);
+    assert(app->world);
     CamScript_Record(
         &app->cam_script,
         kind,
@@ -103,7 +104,7 @@ exec_cam_script_record(
         height,
         rate,
         rate2,
-        app->world ? app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES : 0);
+        app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES);
 }
 
 static void
@@ -1685,6 +1686,10 @@ exec_message_clanchannel(
             ? (message->clan_type < RS_CLAN_AFFINED_SLOTS ? clan->affined_channel[message->clan_type]
                                                           : NULL)
             : clan->listened_channel;
+    /* A real "not ready" case, dropped on purpose: a line for a clan channel
+     * this client has not been sent (or has left) has nowhere to go. The
+     * reference drops it the same way (deob client.java, class243.field3061:
+     * `var74 == null` marks it seen-and-skipped). */
     if( !channel )
         return;
 
@@ -1706,14 +1711,22 @@ exec_message_clanchannel(
     {
         /* The reference stores the clan's name where a player line keeps its
          * channel prefix; this store keeps that in `sender`. */
-        exec_chat_add(ctx, message->clan_type >= 0 ? RS_CHAT_TYPE_CLAN_MESSAGE : RS_CHAT_TYPE_CLAN_GUEST_MESSAGE, "", channel->name, text);
+        int const type = message->clan_type >= 0 ? RS_CHAT_TYPE_CLAN_MESSAGE : RS_CHAT_TYPE_CLAN_GUEST_MESSAGE;
+
+        exec_chat_add(ctx, type, "", channel->name, text);
+        App_NotifyChatMessage(app, type, channel->name, text);
         return;
     }
     char escaped[RS_CHAT_TEXT_LEN];
     char name[RS_CHAT_SENDER_LEN];
     RS_ServerState_EscapeTags(text, escaped, sizeof(escaped));
     RS_Chat_CrownedName(message->crown, message->sender, name, sizeof(name));
-    exec_chat_add(ctx, message->clan_type >= 0 ? RS_CHAT_TYPE_CLAN_CHAT : RS_CHAT_TYPE_CLAN_GUEST_CHAT, name, channel->name, escaped);
+    {
+        int const type = message->clan_type >= 0 ? RS_CHAT_TYPE_CLAN_CHAT : RS_CHAT_TYPE_CLAN_GUEST_CHAT;
+
+        exec_chat_add(ctx, type, name, channel->name, escaped);
+        App_NotifyChatMessage(app, type, message->sender, text);
+    }
 }
 
 /* deob class630.method13772: clientscript 85 hears a group arrive or leave. */
@@ -1915,7 +1928,19 @@ RS_GameProto_Exec(
                 &ctx->app->host, p->inv_id > 0 ? container & 0x7fff : container);
         }
         break;
+    /* deob client.java (class243.field2979): the inventory is unlinked and its
+     * id goes onto the same changed-inventory ring UPDATE_INV_FULL feeds
+     * (field733.method9432), so the inventory's transmit hooks run and redraw
+     * the emptied slots. */
     case PKT_NAME_UPDATE_INV_STOP_TRANSMIT:
+        if( modelled == RS_SERVER_STATE_APPLIED && ctx->app )
+        {
+            struct PktUpdateInvStopTransmit const* p = &packet->_update_inv_stop_transmit;
+            int const container = RS_ServerState_InvContainerId(p->inv_id, p->component_id);
+
+            RS_CS2Host_NotifyInvChanged(
+                &ctx->app->host, p->inv_id > 0 ? container & 0x7fff : container);
+        }
         break;
 
     /* ---- interface component mutations ---- */
@@ -2050,9 +2075,12 @@ RS_GameProto_Exec(
             UITree_FindByComponentId(ctx->tree, packet->_if_clearinv.component_id));
         break;
     case PKT_NAME_IF_SETNPCHEAD_ACTIVE:
-        if( ctx->app && ctx->app->world )
+        if( ctx->app )
         {
             int world_idx;
+
+            /* app->world lives from App_Init to shutdown (app.c). */
+            assert(ctx->app->world);
             if( RS_EntitySync_FindNpc(
                     &ctx->app->esync,
                     packet->_if_setnpchead_active.index,
@@ -2181,6 +2209,16 @@ RS_GameProto_Exec(
             App_CloseSubInterface(ctx->app, packet->_if_closesub.target_uid);
         break;
     case PKT_NAME_IF_MOVESUB:
+        /* Wire data: a component uid is (group << 16) | child, never negative.
+         * One that is names no slot either side of the move, so the packet is
+         * refused here, in one place, with a line. */
+        if( packet->_if_movesub.source_uid < 0 || packet->_if_movesub.dest_uid < 0 )
+        {
+            TORIRS_ERR("gameproto_exec: IF_MOVESUB 0x%08x -> 0x%08x names no component, refused\n",
+                (unsigned)packet->_if_movesub.source_uid,
+                (unsigned)packet->_if_movesub.dest_uid);
+            break;
+        }
         if( ctx->app )
             App_MoveSubInterface(
                 ctx->app, packet->_if_movesub.source_uid, packet->_if_movesub.dest_uid);
@@ -2362,8 +2400,14 @@ RS_GameProto_Exec(
     case PKT_NAME_PLAYER_INFO:
     case PKT_NAME_NPC_INFO:
     case PKT_NAME_NPC_INFO_LARGE:
-        /* Normally consumed by Task_GameProtoExec's awaited entity-info
-         * tasks; reaching here means no world is active (packet dropped). */
+        /* Consumed by Task_GameProtoExec's awaited entity-info tasks once a
+         * scene is loaded (WorldLoadState_Active). Reaching here is the one
+         * real "not ready" case: no REBUILD has built a scene this session
+         * yet, and every coordinate in the stream is relative to the scene
+         * base the rebuild sets, so there is nothing to place against. The
+         * server sends REBUILD before the first info packet of a session, so
+         * this is a stray packet, and it is dropped on purpose. Without an App
+         * (the unit harness) there is no world to apply it to either. */
         if( torirs_env_net_debug() )
             TORIRS_LOG("gameproto_exec: entity info packet %d dropped (no active world)\n",
                 packet->packet_type);
@@ -2506,13 +2550,15 @@ RS_GameProto_Exec(
         if( ctx->app )
         {
             struct App* app = ctx->app;
+            /* app->world lives from App_Init to shutdown (app.c). */
+            assert(app->world);
             /* Classic wire coords are scene-local tiles; the V2 packet's are
              * absolute world tiles (packet->absolute), converted here against
              * the scene the shot plays in. These only record where the camera
              * is headed; App_CinemaCamera walks it there. */
             int cam_lx = packet->_cam_moveto.local_x;
             int cam_lz = packet->_cam_moveto.local_z;
-            if( packet->_cam_moveto.absolute && app->world )
+            if( packet->_cam_moveto.absolute )
             {
                 cam_lx -= app->world->_base_tile_x;
                 cam_lz -= app->world->_base_tile_z;
@@ -2530,8 +2576,8 @@ RS_GameProto_Exec(
             exec_cam_script_record(
                 app,
                 CAM_SCRIPT_OP_MOVETO,
-                cam_lx + (app->world ? app->world->_base_tile_x : 0),
-                cam_lz + (app->world ? app->world->_base_tile_z : 0),
+                cam_lx + app->world->_base_tile_x,
+                cam_lz + app->world->_base_tile_z,
                 packet->_cam_moveto.height,
                 packet->_cam_moveto.rate,
                 packet->_cam_moveto.rate2);
@@ -2542,10 +2588,11 @@ RS_GameProto_Exec(
         if( ctx->app )
         {
             struct App* app = ctx->app;
+            assert(app->world);
             /* Same absolute-vs-scene-local split as CAM_MOVETO above. */
             int cam_lx = packet->_cam_lookat.local_x;
             int cam_lz = packet->_cam_lookat.local_z;
-            if( packet->_cam_lookat.absolute && app->world )
+            if( packet->_cam_lookat.absolute )
             {
                 cam_lx -= app->world->_base_tile_x;
                 cam_lz -= app->world->_base_tile_z;
@@ -2565,8 +2612,8 @@ RS_GameProto_Exec(
             exec_cam_script_record(
                 app,
                 CAM_SCRIPT_OP_LOOKAT,
-                cam_lx + (app->world ? app->world->_base_tile_x : 0),
-                cam_lz + (app->world ? app->world->_base_tile_z : 0),
+                cam_lx + app->world->_base_tile_x,
+                cam_lz + app->world->_base_tile_z,
                 packet->_cam_lookat.height,
                 packet->_cam_lookat.rate,
                 packet->_cam_lookat.rate2);
@@ -2574,9 +2621,12 @@ RS_GameProto_Exec(
         }
         break;
     case PKT_NAME_CAM_MOVETO_CYCLES:
-        if( ctx->app && ctx->app->world )
+        if( ctx->app )
         {
             struct App* app = ctx->app;
+
+            /* app->world lives from App_Init to shutdown (app.c). */
+            assert(app->world);
             /* World tiles from v2 on; v0/v1 (222-236) send build-area tiles. */
             int cam_lx = packet->_cam_moveto_cycles.x -
                          (packet->_cam_moveto_cycles.absolute ? app->world->_base_tile_x : 0);
@@ -2605,8 +2655,10 @@ RS_GameProto_Exec(
     /* deob client.java class259.field3190: signed deltas from where the camera
      * is. Recorded as yaw, pitch, cycles in height, rate, rate2. */
     case PKT_NAME_CAM_ROTATEBY:
-        if( ctx->app && ctx->app->world )
+        if( ctx->app )
         {
+            /* app->world lives from App_Init to shutdown (app.c). */
+            assert(ctx->app->world);
             App_CinemaCameraRotateBy(
                 ctx->app,
                 packet->_cam_rotate.yaw,
@@ -2626,8 +2678,10 @@ RS_GameProto_Exec(
         break;
     /* deob client.java class259.field3187. */
     case PKT_NAME_CAM_ROTATETO:
-        if( ctx->app && ctx->app->world )
+        if( ctx->app )
         {
+            /* app->world lives from App_Init to shutdown (app.c). */
+            assert(ctx->app->world);
             App_CinemaCameraRotateTo(
                 ctx->app,
                 packet->_cam_rotate.yaw,
@@ -2646,9 +2700,12 @@ RS_GameProto_Exec(
         }
         break;
     case PKT_NAME_CAM_LOOKAT_CYCLES:
-        if( ctx->app && ctx->app->world )
+        if( ctx->app )
         {
             struct App* app = ctx->app;
+
+            /* app->world lives from App_Init to shutdown (app.c). */
+            assert(app->world);
             struct PktCamLookAtCycles const* l = &packet->_cam_lookat_cycles;
 
             CamScript_LookCycles(
@@ -2666,9 +2723,12 @@ RS_GameProto_Exec(
         }
         break;
     case PKT_NAME_CAM_MOVETO_ARC:
-        if( ctx->app && ctx->app->world )
+        if( ctx->app )
         {
             struct App* app = ctx->app;
+
+            /* app->world lives from App_Init to shutdown (app.c). */
+            assert(app->world);
             struct PktCamMoveToArc const* a = &packet->_cam_moveto_arc;
             int base_x = a->absolute ? app->world->_base_tile_x : 0;
             int base_z = a->absolute ? app->world->_base_tile_z : 0;
@@ -2696,9 +2756,12 @@ RS_GameProto_Exec(
         }
         break;
     case PKT_NAME_CAM_ROTATETO_COORDINATE:
-        if( ctx->app && ctx->app->world )
+        if( ctx->app )
         {
             struct App* app = ctx->app;
+
+            /* app->world lives from App_Init to shutdown (app.c). */
+            assert(app->world);
             int cam_lx = packet->_cam_rotateto_coordinate.x -
                          (packet->_cam_rotateto_coordinate.absolute ? app->world->_base_tile_x : 0);
             int cam_lz = packet->_cam_rotateto_coordinate.z -
@@ -2781,6 +2844,16 @@ RS_GameProto_Exec(
         }
         break;
 
+    /* deob client.java class243.field2935 (V3) / field3045 (V4): field2521 is
+     * the type, field774 the index, and the camera's focus is that entity
+     * (client.method1700, Statics.method8560) until a login puts the local
+     * player back. app_world_camera_follow reads it. */
+    case PKT_NAME_CAM_TARGET:
+        if( ctx->app &&
+            CamScript_SetTarget(&ctx->app->cam_script, packet->_cam_target.type, packet->_cam_target.index) )
+            RedrawRequest_Raise(&ctx->app->redraw_request);
+        break;
+
     /* ---- social ---- */
     /* The friends panel's rows are cc_created from the store by the client's
      * own script 125, so nothing repaints them but the friend-transmit
@@ -2814,10 +2887,32 @@ RS_GameProto_Exec(
                     packet->_message_private.text);
         }
         break;
+    /* Plugins hear every chat line the store takes, as they hear MESSAGE_GAME
+     * and MESSAGE_PRIVATE: RuneLite's ChatMessage fires for every line the
+     * client adds, whichever channel. */
     case PKT_NAME_MESSAGE_PRIVATE_ECHO:
+        if( modelled == RS_SERVER_STATE_APPLIED )
+        {
+            exec_chat_presented(ctx);
+            if( ctx->app )
+                App_NotifyChatMessage(
+                    ctx->app,
+                    RS_CHAT_TYPE_PRIVATE_TO,
+                    packet->_message_private_echo.recipient,
+                    packet->_message_private_echo.text ? packet->_message_private_echo.text : "");
+        }
+        break;
     case PKT_NAME_MESSAGE_FRIENDCHANNEL:
         if( modelled == RS_SERVER_STATE_APPLIED )
+        {
             exec_chat_presented(ctx);
+            if( ctx->app )
+                App_NotifyChatMessage(
+                    ctx->app,
+                    RS_CHAT_TYPE_FRIENDS_CHAT,
+                    packet->_message_friendchannel.sender,
+                    packet->_message_friendchannel.text ? packet->_message_friendchannel.text : "");
+        }
         break;
 
     /* ---- misc state ---- */
@@ -3167,13 +3262,17 @@ RS_GameProto_Exec(
             else if( packet->_set_map_flag.absolute )
             {
                 /* SetMapFlagV2 carries an absolute coord; the minimap draws in
-                 * scene-local tiles. Same origin the projectile decode uses. */
-                ctx->app->minimap.flag_tile_x =
-                    packet->_set_map_flag.x -
-                    RS_RebuildRegion_SceneBaseX(&ctx->app->rebuild_region);
-                ctx->app->minimap.flag_tile_z =
-                    packet->_set_map_flag.z -
-                    RS_RebuildRegion_SceneBaseZ(&ctx->app->rebuild_region);
+                 * scene-local tiles. Converted against the root world's base:
+                 * the origin the camera packets use and the one the flag is
+                 * read back against (app_tick.c, the CS2 destination coord).
+                 * The deob converts against the view whose rectangle holds the
+                 * coord (client.java class243.field3077: field748.method1423,
+                 * class100.method3310); for every coord in the root scene that
+                 * is the root's base. A flag on a deck's staging rectangle has
+                 * no minimap of its own here and lands off this scene. */
+                assert(ctx->app->world);
+                ctx->app->minimap.flag_tile_x = packet->_set_map_flag.x - ctx->app->world->_base_tile_x;
+                ctx->app->minimap.flag_tile_z = packet->_set_map_flag.z - ctx->app->world->_base_tile_z;
             }
             else
             {
@@ -3225,8 +3324,8 @@ RS_GameProto_Exec(
              * agrees with what the server believes. Anything sampled mid-tick
              * is reading a half-applied world. */
             ctx->app->drive_events.batch_open = 0;
-            PluginHost_ServerTick(
-                ctx->app->plugins, ctx->app->world ? ctx->app->world->cycle : 0);
+            assert(ctx->app->world);
+            PluginHost_ServerTick(ctx->app->plugins, ctx->app->world->cycle);
         }
         break;
 

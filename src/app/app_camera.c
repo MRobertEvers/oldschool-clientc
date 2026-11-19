@@ -970,6 +970,60 @@ app_world_camera_limits(struct App const* app)
     return limits;
 }
 
+/*
+ * CAM_TARGET: the entity the follow camera follows instead of the local player
+ * (deob client.java method1700: type 0 a player by index, 1 an npc by index).
+ * Writes its fine position and level and returns 1 when the camera has a
+ * target other than the local player and it is in the scene; 0 leaves the
+ * local player's. A world-entity or coordinate target (types 2 and 3) is not
+ * followed yet: the camera stays on the local player for those.
+ */
+static int
+app_world_camera_target_focus(
+    struct App* app,
+    int* inout_x,
+    int* inout_z,
+    int* inout_level)
+{
+    int type;
+    int index;
+    int world_idx;
+
+    assert(app);
+    if( !CamScript_Target(&app->cam_script, &type, &index) )
+        return 0;
+    if( type == CAM_SCRIPT_TARGET_PLAYER )
+    {
+        struct WorldEntity_Player* target;
+
+        if( index == app->esync.local_pid ||
+            !RS_EntitySync_FindPlayer(&app->esync, index, &world_idx, NULL) )
+            return 0;
+        target = World_EntityPoolGet(&app->world->entities.player, world_idx);
+        if( !target )
+            return 0;
+        *inout_x = (int)target->draw_position.x;
+        *inout_z = (int)target->draw_position.z;
+        *inout_level = target->grid_position.level;
+        return 1;
+    }
+    if( type == CAM_SCRIPT_TARGET_NPC )
+    {
+        struct WorldEntity_NPC* target;
+
+        if( !RS_EntitySync_FindNpc(&app->esync, index, &world_idx, NULL) )
+            return 0;
+        target = World_EntityPoolGet(&app->world->entities.npc, world_idx);
+        if( !target )
+            return 0;
+        *inout_x = (int)target->draw_position.x;
+        *inout_z = (int)target->draw_position.z;
+        *inout_level = target->grid_position.level;
+        return 1;
+    }
+    return 0;
+}
+
 void
 app_world_camera_follow(struct App* app)
 {
@@ -979,6 +1033,8 @@ app_world_camera_follow(struct App* app)
     int pitch, yaw, distance;
     int aboard_y = 0;
     int aboard_y_valid = 0;
+    int focus_level;
+    int focus_other;
 
     /* U unlocked the camera: the follow update stands down and the W/A/S/D +
      * R/F debug keys own world_camera_pos until U relocks. Without this gate
@@ -1067,6 +1123,8 @@ app_world_camera_follow(struct App* app)
 
     target_x = (int)player->draw_position.x;
     target_z = (int)player->draw_position.z;
+    focus_level = player->grid_position.level;
+    focus_other = app_world_camera_target_focus(app, &target_x, &target_z, &focus_level);
 
     /*
      * Aboard (SAILING_PLAN C5.3): the player's own coordinates are deck-local,
@@ -1079,7 +1137,8 @@ app_world_camera_follow(struct App* app)
      * handles the root-parented case, which is every hull that exists today.
      */
     aboard_y_valid = 0;
-    if( Wevs_AboardView(&app->wevs) != WORLDVIEW_ROOT && player->view_placement.view_id == Wevs_AboardView(&app->wevs) &&
+    if( !focus_other && Wevs_AboardView(&app->wevs) != WORLDVIEW_ROOT &&
+        player->view_placement.view_id == Wevs_AboardView(&app->wevs) &&
         app_wev_actor_root_fine(app, &player->view_placement, &target_x, &target_z) )
     {
         struct Wev* wev = Wevs_Get(&app->wevs, Wevs_AboardView(&app->wevs));
@@ -1113,7 +1172,7 @@ app_world_camera_follow(struct App* app)
      * the player model swung round a point beside itself while orbiting — the
      * camera appeared to orbit the tile rather than the player. */
     if( CamScript_FreeCamera(&app->cam_script) )
-        app_world_camera_oculus_step(app, target_x, target_z, player->grid_position.level);
+        app_world_camera_oculus_step(app, target_x, target_z, focus_level);
     else
         Wev_SmoothCameraFocus(
             &app->world_views.frame->orbit.anchor_x, &app->world_views.frame->orbit.anchor_z, target_x, target_z);
@@ -1134,7 +1193,7 @@ app_world_camera_follow(struct App* app)
      * clears it. cameraPitchClamp is 24.8 fixed (clamp/256 = pitch units). */
     {
         struct Heightmap* hm = app->world ? app->world->heightmap : NULL;
-        int level = player->grid_position.level;
+        int level = focus_level;
         int orbit_ix = (int)app->world_views.frame->orbit.anchor_x;
         int orbit_iz = (int)app->world_views.frame->orbit.anchor_z;
         int orbit_tile_x = orbit_ix >> 7;
@@ -1195,7 +1254,7 @@ app_world_camera_follow(struct App* app)
     target_y =
         aboard_y_valid
             ? aboard_y
-            : app_world_height(app, target_x, target_z, player->grid_position.level) - 8 - 50;
+            : app_world_height(app, target_x, target_z, focus_level) - 8 - 50;
     target_x = (int)app->world_views.frame->orbit.anchor_x;
     target_z = (int)app->world_views.frame->orbit.anchor_z;
     if( CamScript_FreeCamera(&app->cam_script) )

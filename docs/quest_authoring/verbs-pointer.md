@@ -759,7 +759,7 @@ interface the server did close (Scrambled!'s last jigsaw piece: the place script
 `torirs_jigsaw_piece_place.cs2` and the completion `if_close` in one tick).
 
 The packet pump now releases the held scripts onto the packet pipeline ahead of every packet that
-opens, closes or moves an interface (`gameproto_packet_changes_interface_mounts`), which is the
+opens, closes or moves an interface (the FLUSH column of the packet kinds, `net/rev/revpacket.c`), which is the
 reference's wire order. Content may send a script and the close behind it in one tick;
 `scrambled.rs2` `[if_button1,jigsaw:pieces]` sends the place script on the last piece too. If
 `ui.await_close` times out on an interface the server closed, this is no longer the cause.

@@ -1727,8 +1727,10 @@ App_MoveSubInterface(
     int type;
 
     assert(app);
-    if( !app->tree || source_uid < 0 || dest_uid < 0 )
-        return;
+    assert(app->tree);
+    /* The executor refuses a negative uid off the wire (IF_MOVESUB). */
+    assert(source_uid >= 0);
+    assert(dest_uid >= 0);
     idx = UITree_InterfaceParentFind(app->tree, source_uid);
     if( idx < 0 )
     {

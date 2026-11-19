@@ -311,10 +311,9 @@ App_WorldLocMerge(
     int idx;
 
     assert(app);
-    /* Pre-login there is no world at all — that is a state, not a bug. Once
-     * one exists, the mutation goes to whichever view the cursor addresses. */
-    if( !app->world )
-        return;
+    /* app->world lives from App_Init to shutdown (app.c), logged in or not;
+     * the mutation goes to whichever view the cursor addresses. */
+    assert(app->world);
     world = App_ActiveWorldview(app)->world;
     if( !world->load_complete )
         return;
