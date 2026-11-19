@@ -111,6 +111,22 @@ rs_cs2_apply_model(
     return UITree_ApplyModel(rs_cs2_tree(host), component_id, scene_model);
 }
 
+static struct UITreeSceneBridge*
+rs_cs2_bridge(struct RS_CS2Host* host)
+{
+    assert(host);
+    assert(host->bridge);
+    return host->bridge;
+}
+
+static struct VarPManager*
+rs_cs2_varps(struct RS_CS2Host* host)
+{
+    assert(host);
+    assert(host->varps);
+    return host->varps;
+}
+
 static struct CacheProvider*
 rs_cs2_provider(struct RS_CS2Host* host)
 {
@@ -271,7 +287,8 @@ rs_cs2_sprite_ready(
     /* Bound is ready: the bridge fills the scene id when the sprite lands and
      * asks again while it has not, so a script that sets the graphic every
      * run need not yield a load every run (UITreeSceneBridge_BindSprite). */
-    if( host->bridge && UITreeSceneBridge_SpriteBound(host->bridge, graphic_id) )
+    assert(host->bridge);
+    if( UITreeSceneBridge_SpriteBound(host->bridge, graphic_id) )
         return true;
     return provider && CacheProvider_SpriteHas(provider, graphic_id);
 }
@@ -405,42 +422,6 @@ rs_cs2_npc_head_ready(
             return false;
     }
     return true;
-}
-
-static bool
-rs_cs2_resolve_obj_icon(
-    struct RS_CS2Host* host,
-    int obj_id,
-    int* out_scene_id,
-    int* out_atlas_index)
-{
-    int c;
-    if( out_scene_id )
-        *out_scene_id = -1;
-    if( out_atlas_index )
-        *out_atlas_index = 0;
-    assert(host);
-    if( !host->invs || obj_id < 0 )
-        return false;
-
-    for( c = 0; c < host->invs->container_count; c++ )
-    {
-        struct InvContainer const* container = &host->invs->containers[c];
-        int slot;
-        for( slot = 0; slot < container->slot_count; slot++ )
-        {
-            if( container->slots[slot].obj_id != obj_id )
-                continue;
-            if( container->slots[slot].scene_id < 0 )
-                continue;
-            if( out_scene_id )
-                *out_scene_id = container->slots[slot].scene_id;
-            if( out_atlas_index )
-                *out_atlas_index = container->slots[slot].atlas_index;
-            return true;
-        }
-    }
-    return false;
 }
 
 static void
@@ -951,6 +932,9 @@ RS_CS2Host_Init(
     host->battery_charging = 1;
     host->network_kind = RS_CS2_NETWORK_WIFI;
     host->renderer_active = -1;
+    assert(tree);
+    assert(provider);
+    assert(invs);
     host->tree = tree;
     host->provider = provider;
     host->invs = invs;
@@ -1134,8 +1118,7 @@ RS_CS2Host_ScriptWriteVarp(
     int before;
 
     assert(host);
-    if( !host->varps )
-        return;
+    assert(host->varps);
     before = VarPManager_GetVarp(host->varps, varp_id);
     VarPManager_SetVarpOptimistic(host->varps, varp_id, value);
     if( VarPManager_GetVarp(host->varps, varp_id) != before )
@@ -1151,8 +1134,7 @@ RS_CS2Host_ScriptWriteVarpLong(
     int64_t before;
 
     assert(host);
-    if( !host->varps )
-        return;
+    assert(host->varps);
     before = VarPManager_GetVarpLong(host->varps, varp_id);
     VarPManager_SetVarpLongOptimistic(host->varps, varp_id, value);
     if( value != before )
@@ -1169,8 +1151,7 @@ RS_CS2Host_ScriptWriteVarbit(
     int before;
 
     assert(host);
-    if( !host->varps )
-        return;
+    assert(host->varps);
     /* Transmit hooks are keyed by varp, so the base varp is what "changed" as
      * far as a trigger list is concerned — the varbit id matches nothing. */
     base = VarPManager_VarbitBaseVar(host->varps, varbit_id);
@@ -1214,8 +1195,9 @@ RS_CS2Host_SetStats(
     struct RS_CS2Host* host,
     struct RS_PlayerStats* stats)
 {
-    if( host )
-        host->stats = stats;
+    assert(host);
+    assert(stats);
+    host->stats = stats;
 }
 
 void
@@ -1258,6 +1240,7 @@ RS_CS2Host_SetSocial(
     int world)
 {
     assert(host);
+    assert(social);
     host->social = social;
     host->chat_filter_mode = filter_modes;
     host->map_world = world;
@@ -1322,8 +1305,7 @@ RS_CS2Host_VarClanType(
     int var_id)
 {
     assert(host);
-    if( !host->provider )
-        return -1;
+    assert(host->provider);
     struct ToriRS_VarClanTypes const* const types = &host->provider->varclan_types;
     if( var_id < 0 || var_id >= types->count )
         return -1;
@@ -1400,7 +1382,7 @@ rs_cs2_call_on_resize_push(
     slot = (host->call_on_resize_head + host->call_on_resize_count) %
            RS_CS2_HOST_CALL_ON_RESIZE_MAX;
     host->call_on_resize[slot] = UITree_RefAt(host->tree,
-        host->tree ? UITree_FindByComponentId(host->tree, component_id) : -1);
+        UITree_FindByComponentId(rs_cs2_tree(host), component_id));
     host->call_on_resize_count++;
 }
 
@@ -1442,7 +1424,7 @@ rs_cs2_trigger_op_push(
     slot = (host->trigger_op_head + host->trigger_op_count) % RS_CS2_HOST_TRIGGER_OP_MAX;
     host->trigger_op[slot].component_id = component_id;
     host->trigger_op[slot].ref = UITree_RefAt(host->tree,
-        host->tree ? UITree_FindByComponentId(host->tree, component_id) : -1);
+        UITree_FindByComponentId(rs_cs2_tree(host), component_id));
     host->trigger_op[slot].op_index = op_index;
     host->trigger_op_count++;
 }
@@ -1625,8 +1607,9 @@ rs_cs2_settings_number_started(
         snprintf(req->zero_label, sizeof(req->zero_label), "%s", text);
 
     req->varp_id = RS_CS2Host_SettingsNumberVarp(host, req->setting_id);
+    assert(host->varps);
     req->value =
-        req->varp_id >= 0 && host->varps ? VarPManager_GetVarp(host->varps, req->varp_id) : 0;
+        req->varp_id >= 0 ? VarPManager_GetVarp(host->varps, req->varp_id) : 0;
 
     if( torirs_cc_debug() )
         TORIRS_LOG("SETTINGS_NUMBER click setting=%d varp=%d value=%d com=%d \"%s\"\n",
@@ -1683,7 +1666,8 @@ RS_CS2Host_ScriptStarted(
     /* The varp stores `colour + 1` so that zero can mean "never chosen", which
      * is what the row's own `~settings_get_colour(id) ! null` test is reading
      * for -- and what makes the panel fall back to param_1230. */
-    value = req->varp_id >= 0 && host->varps ? VarPManager_GetVarp(host->varps, req->varp_id) : 0;
+    assert(host->varps);
+    value = req->varp_id >= 0 ? VarPManager_GetVarp(host->varps, req->varp_id) : 0;
     req->colour = value > 0 ? value - 1 : req->default_colour;
 
     if( torirs_cc_debug() )
@@ -2172,8 +2156,7 @@ RS_CS2Host_SyncAudioVarp(
     int value;
 
     assert(host);
-    if( !host->varps )
-        return;
+    assert(host->varps);
     switch( varp_id )
     {
     case RS_CS2_VARP_MASTER_VOLUME:
@@ -2250,7 +2233,7 @@ rs_cs2_triggeroplocal_push(struct RS_CS2Host* host,
             snprintf(out->strings[i],sizeof(out->strings[i]),"%s",request->strings[i]);
     }
     {
-        int32_t target = host->tree ? UITree_FindByComponentId(host->tree, request->component_id) : -1;
+        int32_t target = UITree_FindByComponentId(rs_cs2_tree(host), request->component_id);
         if( target >= 0 && request->sub >= 0 )
         {
             int32_t child = UITree_FindChildBySubid(host->tree, target, request->component_id, request->sub);
@@ -2545,6 +2528,7 @@ RS_CS2Host_SetBridge(
     struct UITreeSceneBridge* bridge)
 {
     assert(host);
+    assert(bridge);
     host->bridge = bridge;
 }
 
@@ -2631,8 +2615,8 @@ exec_inv_size(
     {
         if( !rs_cs2_await_spent(thread, exact_request->kind, inv_id, -1) )
             return rs_cs2_yield_load(host, thread, exact_request, inv_id, -1);
-        if( host->invs )
-            return CS2VM2_PushInt(thread, InvManager_Size(host->invs, inv_id));
+        assert(host->invs);
+        return CS2VM2_PushInt(thread, InvManager_Size(host->invs, inv_id));
     }
     return CS2VM2_PushInt(thread, 0);
 }
@@ -2883,12 +2867,10 @@ exec_vars_read_varp(
     struct CS2VM2_Thread* thread,
     int varp_id)
 {
-    int value = 0;
     rs_cs2_settings_note_colour_varp(host, thread, varp_id);
     rs_cs2_settings_note_number_varp(host, thread, varp_id);
-    if( host->varps )
-        value = VarPManager_GetVarp(host->varps, varp_id);
-    return CS2VM2_PushInt(thread, value);
+    assert(host->varps);
+    return CS2VM2_PushInt(thread, VarPManager_GetVarp(host->varps, varp_id));
 }
 
 static int
@@ -2897,10 +2879,8 @@ exec_vars_read_varbit(
     struct CS2VM2_Thread* thread,
     int varbit_id)
 {
-    int value = 0;
-    if( host->varps )
-        value = VarPManager_GetVarbit(host->varps, varbit_id);
-    return CS2VM2_PushInt(thread, value);
+    assert(host->varps);
+    return CS2VM2_PushInt(thread, VarPManager_GetVarbit(host->varps, varbit_id));
 }
 
 static int
@@ -5117,8 +5097,8 @@ exec_set_graphic(
         (void)UITree_ApplyGraphic(
             tree,
             component_id,
-            host->bridge && graphic_id < 1000000
-                ? UITreeSceneBridge_BindSprite(host->bridge, graphic_id)
+            graphic_id < 1000000
+                ? UITreeSceneBridge_BindSprite(rs_cs2_bridge(host), graphic_id)
                 : -1,
             0);
         return CS2VM_EXECNO_OK;
@@ -5127,8 +5107,8 @@ exec_set_graphic(
     /* Upload to scene then store scene element id on the node. */
     {
         int scene_id = graphic_id;
-        if( host->bridge && graphic_id >= 0 && graphic_id < 1000000 )
-            scene_id = UITreeSceneBridge_EnsureSprite(host->bridge, graphic_id);
+        if( graphic_id >= 0 && graphic_id < 1000000 )
+            scene_id = UITreeSceneBridge_EnsureSprite(rs_cs2_bridge(host), graphic_id);
 #if UITREE_CLICK_DEBUG
         TORIRS_LOG("uitree_click: SETGRAPHIC component_id=%d graphic_id=%d scene_id=%d\n",
             component_id,
@@ -5163,8 +5143,8 @@ exec_set_feedback_sprite(
     state->feedback_fade = args->ints[1] == 1;
     state->feedback_scene = -1;
     /* Still missing after its load: no feedback art, as for a graphic. */
-    if( sprite >= 0 && host->bridge && rs_cs2_sprite_ready(host, sprite) )
-        state->feedback_scene = UITreeSceneBridge_EnsureSprite(host->bridge, sprite);
+    if( sprite >= 0 && rs_cs2_sprite_ready(host, sprite) )
+        state->feedback_scene = UITreeSceneBridge_EnsureSprite(rs_cs2_bridge(host), sprite);
     return CS2VM_EXECNO_OK;
 }
 
@@ -5184,11 +5164,10 @@ exec_set_object(
     int atlas_index = 0;
     (void)thread;
     if( getenv("TORIRS_OBJICON_DEBUG") )
-        TORIRS_LOG("OBJICON: enter com=0x%08x obj=%d count=%d bridge=%d prov=%d needs=%d\n",
+        TORIRS_LOG("OBJICON: enter com=0x%08x obj=%d count=%d prov=%d needs=%d\n",
             (unsigned)component_id,
             obj_id,
             count,
-            host->bridge ? 1 : 0,
             provider ? 1 : 0,
             provider ? ObjModelLoad_NeedsWork(provider, obj_id, count) : -1);
 
@@ -5262,76 +5241,70 @@ exec_set_object(
      * (num_mode 2), so the pile is decoration the reference happens to have
      * and this does not.
      */
-    if( host->bridge )
+    int32_t model_idx = tree ? UITree_FindByComponentId(tree, component_id) : -1;
+
+    if( model_idx >= 0 && tree->components[model_idx].type == UIELEM_RS_MODEL )
     {
-        int32_t model_idx = tree ? UITree_FindByComponentId(tree, component_id) : -1;
+        /* The stack variant, when the obj has one. Baking the BASE model
+         * for a stackable asks for a model the loader never fetched — the
+         * make-menu's `arrow_shaft` cell drew nothing while the bows
+         * beside it drew fine, because `count` is ^max_32bit_int and the
+         * loader had resolved the "many" variant. */
+        int render_obj = provider ? ObjModelLoad_RenderObjId(provider, obj_id, count) : obj_id;
+        int obj_model = UITreeSceneBridge_EnsureObjModel(host->bridge, render_obj);
 
-        if( model_idx >= 0 && tree->components[model_idx].type == UIELEM_RS_MODEL )
+        if( obj_model > 0 )
         {
-            /* The stack variant, when the obj has one. Baking the BASE model
-             * for a stackable asks for a model the loader never fetched — the
-             * make-menu's `arrow_shaft` cell drew nothing while the bows
-             * beside it drew fine, because `count` is ^max_32bit_int and the
-             * loader had resolved the "many" variant. */
-            int render_obj = provider ? ObjModelLoad_RenderObjId(provider, obj_id, count) : obj_id;
-            int obj_model = UITreeSceneBridge_EnsureObjModel(host->bridge, render_obj);
+            /* Both: the obj is what the minimenu and the tooltip read, the
+             * model is what the emit walk draws. */
+            (void)UITree_ApplyObject(tree, component_id, obj_id, count, -1, 0, num_mode);
+            (void)rs_cs2_apply_model(host, component_id, obj_model);
+            /*
+             * ...and the objtype's own 2D presentation on top, or the cell
+             * shows a close-up of one face rather than an item.
+             *
+             * CC_CREATE leaves a MODEL node at zoom 100, and 100 in these
+             * units is a camera roughly twenty times too close: `zoom2d`
+             * is what the icon rasteriser uses (default 2000, see
+             * bridge_rasterize_obj_icon) and it is the same scale the
+             * widget draw wants. The angles come from the same three
+             * fields for the same reason — an item drawn at its model's
+             * own orientation is not the shape players recognise.
+             *
+             * This is the CS2 twin of the IF_SETOBJECT packet path in
+             * app.c, which reaches the identical fields through
+             * App_SetInterfaceObjModel. The two differ only in where the
+             * divisor comes from: the packet carries a wire zoom, the
+             * opcode's second argument is a COUNT, so there is nothing to
+             * divide by here.
+             */
+            struct ToriRS_Objtype* objtype =
+                provider ? CacheProvider_ObjtypeGet(provider, render_obj) : NULL;
 
-            if( obj_model > 0 )
+            if( objtype )
             {
-                /* Both: the obj is what the minimenu and the tooltip read, the
-                 * model is what the emit walk draws. */
-                (void)UITree_ApplyObject(tree, component_id, obj_id, count, -1, 0, num_mode);
-                (void)rs_cs2_apply_model(host, component_id, obj_model);
-                /*
-                 * ...and the objtype's own 2D presentation on top, or the cell
-                 * shows a close-up of one face rather than an item.
-                 *
-                 * CC_CREATE leaves a MODEL node at zoom 100, and 100 in these
-                 * units is a camera roughly twenty times too close: `zoom2d`
-                 * is what the icon rasteriser uses (default 2000, see
-                 * bridge_rasterize_obj_icon) and it is the same scale the
-                 * widget draw wants. The angles come from the same three
-                 * fields for the same reason — an item drawn at its model's
-                 * own orientation is not the shape players recognise.
-                 *
-                 * This is the CS2 twin of the IF_SETOBJECT packet path in
-                 * app.c, which reaches the identical fields through
-                 * App_SetInterfaceObjModel. The two differ only in where the
-                 * divisor comes from: the packet carries a wire zoom, the
-                 * opcode's second argument is a COUNT, so there is nothing to
-                 * divide by here.
-                 */
-                struct ToriRS_Objtype* objtype =
-                    provider ? CacheProvider_ObjtypeGet(provider, render_obj) : NULL;
-
-                if( objtype )
-                {
-                    (void)UITree_ApplyModelAngle(
-                        tree,
-                        component_id,
-                        objtype->xan2d,
-                        objtype->yan2d,
-                        objtype->zoom2d > 0 ? objtype->zoom2d : 2000);
-                    /* xof2d/yof2d are the other half of the same composition
-                     * and are not optional: `arrow_shaft` carries yof2d -29,
-                     * and without it the shaft projects clean out of its
-                     * cell. The reference stores both (field4089/field4090);
-                     * the widget transform adds `model_x_offset` to camera X
-                     * as a translation on every backend. */
-                    (void)UITree_ApplyModelOffset(
-                        tree, component_id, objtype->offset_x2d, objtype->offset_y2d);
-                }
-                return CS2VM_EXECNO_OK;
+                (void)UITree_ApplyModelAngle(
+                    tree,
+                    component_id,
+                    objtype->xan2d,
+                    objtype->yan2d,
+                    objtype->zoom2d > 0 ? objtype->zoom2d : 2000);
+                /* xof2d/yof2d are the other half of the same composition
+                 * and are not optional: `arrow_shaft` carries yof2d -29,
+                 * and without it the shaft projects clean out of its
+                 * cell. The reference stores both (field4089/field4090);
+                 * the widget transform adds `model_x_offset` to camera X
+                 * as a translation on every backend. */
+                (void)UITree_ApplyModelOffset(
+                    tree, component_id, objtype->offset_x2d, objtype->offset_y2d);
             }
-            /* No model for this obj — fall through to the icon, which is at
-             * least something the player can identify. */
+            return CS2VM_EXECNO_OK;
         }
+        /* No model for this obj — fall through to the icon, which is at
+         * least something the player can identify. */
     }
 
-    if( host->bridge )
-        scene_id = UITreeSceneBridge_EnsureObjIcon(host->bridge, obj_id, count);
-    else
-        (void)rs_cs2_resolve_obj_icon(host, obj_id, &scene_id, &atlas_index);
+    scene_id = UITreeSceneBridge_EnsureObjIcon(rs_cs2_bridge(host), obj_id, count);
 
 #if UITREE_CLICK_DEBUG
     TORIRS_LOG("uitree_click: SETOBJECT component_id=%d obj_id=%d count=%d scene_id=%d\n",
@@ -5376,8 +5349,8 @@ exec_set_text_font(
 
     {
         int font_id = requested_font_id;
-        if( host->bridge && font_id >= 0 )
-            font_id = UITreeSceneBridge_EnsureFont(host->bridge, font_id);
+        if( font_id >= 0 )
+            font_id = UITreeSceneBridge_EnsureFont(rs_cs2_bridge(host), font_id);
         (void)UITree_ApplyTextFont(rs_cs2_tree(host), component_id, font_id);
     }
     return CS2VM_EXECNO_OK;
@@ -6246,8 +6219,8 @@ exec_widget_set_model(
     if( rs_cs2_tree(host) )
     {
         int scene_model = model_id;
-        if( host->bridge && scene_model >= 0 )
-            scene_model = UITreeSceneBridge_EnsureModel(host->bridge, scene_model);
+        if( scene_model >= 0 )
+            scene_model = UITreeSceneBridge_EnsureModel(rs_cs2_bridge(host), scene_model);
         (void)rs_cs2_apply_model(host, component_id, scene_model);
     }
     return CS2VM_EXECNO_OK;
@@ -6283,14 +6256,14 @@ exec_widget_set_model_kind(
         /* Model still missing after its load: leave the widget as it was. */
         return CS2VM_EXECNO_OK;
     }
-    if( model_kind == CS2VM_MODEL_KIND_PLAIN && rs_cs2_tree(host) )
+    if( model_kind == CS2VM_MODEL_KIND_PLAIN )
     {
         int scene_model = model_id;
-        if( host->bridge && scene_model >= 0 )
-            scene_model = UITreeSceneBridge_EnsureModel(host->bridge, scene_model);
+        if( scene_model >= 0 )
+            scene_model = UITreeSceneBridge_EnsureModel(rs_cs2_bridge(host), scene_model);
         (void)rs_cs2_apply_model(host, component_id, scene_model);
     }
-    else if( model_kind == CS2VM_MODEL_KIND_LOC && host->bridge && rs_cs2_tree(host) )
+    else if( model_kind == CS2VM_MODEL_KIND_LOC )
     {
         if( !rs_cs2_loc_model_ready(host, model_id) )
         {
@@ -6307,8 +6280,7 @@ exec_widget_set_model_kind(
      * Yield until npctype + head models are resident (IF1 Task_AppIfHead parity);
      * EnsureNpcHead returns -1 (widget unchanged) if composition still fails. */
     else if(
-        model_kind == CS2VM_MODEL_KIND_NPC_HEAD && host->bridge && rs_cs2_tree(host) &&
-        model_id >= 0 )
+        model_kind == CS2VM_MODEL_KIND_NPC_HEAD && model_id >= 0 )
     {
         if( !rs_cs2_npc_head_ready(host, model_id) )
         {
@@ -6350,8 +6322,7 @@ exec_widget_set_model_kind(
     else if(
         (model_kind == CS2VM_MODEL_KIND_PLAYER_HEAD ||
          model_kind == CS2VM_MODEL_KIND_PLAYER_SELF ||
-         model_kind == CS2VM_MODEL_KIND_PLAYER_CHATHEAD) &&
-        host->bridge && rs_cs2_tree(host) )
+         model_kind == CS2VM_MODEL_KIND_PLAYER_CHATHEAD) )
     {
         /* The CS2 host has no world handle, so it can only bind an already
          * composited player head (cache hit). The IF1 IF_SETPLAYERHEAD path
@@ -10317,7 +10288,8 @@ rs_cs2_host_exec_dispatch(
     {                                                                           \
         int const stat = request->u.name.stat;                                  \
         int value = 0;                                                          \
-        if( host->stats && stat >= 0 && stat < RS_PLAYER_STATS_SKILL_COUNT )    \
+        assert(host->stats);                                                    \
+        if( stat >= 0 && stat < RS_PLAYER_STATS_SKILL_COUNT )                   \
             value = host->stats->member[stat];                                  \
         return CS2VM2_PushInt(vm, value);                                       \
     }
@@ -10752,7 +10724,7 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_PUSH_VAR_LONG:
         return CS2VM2_PushLong(
             vm,
-            host->varps ? VarPManager_GetVarpLong(host->varps, request->u.PUSH_VAR_LONG.varp_id) : 0);
+            VarPManager_GetVarpLong(rs_cs2_varps(host), request->u.PUSH_VAR_LONG.varp_id));
     case CS2VM_HOST_REQUEST_POP_VAR_LONG:
         RS_CS2Host_ScriptWriteVarpLong(
             host, request->u.POP_VAR_LONG.varp_id, request->u.POP_VAR_LONG.value);
@@ -12083,11 +12055,13 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_RUNENERGY_VISIBLE:
         (void)request->u.RUNENERGY_VISIBLE._unused;
-        return CS2VM2_PushInt(vm, host->stats ? host->stats->run_energy : 0);
+        assert(host->stats);
+        return CS2VM2_PushInt(vm, host->stats->run_energy);
 
     case CS2VM_HOST_REQUEST_RUNWEIGHT_VISIBLE:
         (void)request->u.RUNWEIGHT_VISIBLE._unused;
-        return CS2VM2_PushInt(vm, host->stats ? host->stats->run_weight : 0);
+        assert(host->stats);
+        return CS2VM2_PushInt(vm, host->stats->run_weight);
 
     case CS2VM_HOST_REQUEST_MOUSE_GETX:
         (void)request->u.MOUSE_GETX._unused;
