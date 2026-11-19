@@ -43,6 +43,27 @@ enum
 };
 
 int
+RS_ServerState_SlotGroupLeaves(
+    struct RS_ServerState const* state,
+    int group,
+    int incoming_group)
+{
+    assert(state);
+    assert(state->if_events);
+    assert(state->if_texts);
+    assert(state->if_hides);
+    assert(state->if_colours);
+    assert(group > 0);
+    UIIfEventTable_DropGroup(state->if_events, group);
+    if( group == incoming_group )
+        return 0;
+    UIIfTextStore_DropGroup(state->if_texts, group);
+    UIIfIntStore_DropGroup(state->if_hides, group);
+    UIIfIntStore_DropGroup(state->if_colours, group);
+    return 1;
+}
+
+int
 RS_ServerState_InvContainerId(
     int inv_id,
     int component_id)

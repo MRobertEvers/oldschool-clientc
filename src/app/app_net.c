@@ -603,9 +603,11 @@ app_pump_net_packets(struct App* app)
              * ordinary settle). Out of time is the same answer as a parked
              * read: the packet runner's had_work latch, and the next turn resumes it.
              *
-             * The work the commit itself queued here (App_WorldLoadFinish's
-             * loc re-place) is part of the commit and settles whole; the
-             * pacing starts once it has. */
+             * Work the commit itself queued on this FIFO is part of the
+             * commit and settles whole; the pacing starts once it has.
+             * App_WorldLoadFinish's loc re-place is not that work: each
+             * re-placed change is a loc-lane task on the PARALLEL queue
+             * (app_spawn_loc_lane_queue, frame_runner) and lands on its own. */
             stat = TaskRunner_SettleFrameUntil(
                 &app->packet_runner, committed ? 0 : App_PacedDeadline(app));
             if( committed )
@@ -712,9 +714,12 @@ app_pump_net_packets(struct App* app)
          * every packet behind its REBUILD addresses the scene it will build:
          * pop nothing until it is committed. The commit runs HERE, at the
          * packet phase and before the next pop, so to everything behind it
-         * the rebuild is applied exactly where the wire put it. It may queue
-         * work on this FIFO (App_WorldLoadFinish's loc re-place), which the
-         * next turn of the loop settles before anything is popped.
+         * the rebuild is applied exactly where the wire put it. Work it queues
+         * on this FIFO the next turn of the loop settles before anything is
+         * popped. Its loc re-place (App_WorldLoadFinish) is not on this FIFO:
+         * each re-placed change is a loc-lane task on the PARALLEL queue
+         * (app_spawn_loc_lane_queue, frame_runner), so the packets behind the
+         * REBUILD are popped without waiting for those changes to land.
          *
          * Nothing else is held: the pipeline is idle and the REBUILD's tick,
          * open on varps alone, has its latch suspended for the hold
@@ -1047,19 +1052,6 @@ App_IfHideSet(
     assert(app);
     UIIfIntStore_Set(&app->if_hides, com_id, hide ? 1 : 0);
     App_IfHideShow(app, com_id, hide);
-}
-
-void
-App_IfStoresDropGroup(
-    struct App* app,
-    int group_id)
-{
-    assert(app);
-    UIIfTextStore_DropGroup(&app->if_texts, group_id);
-    UIIfIntStore_DropGroup(&app->if_hides, group_id);
-    UIIfIntStore_DropGroup(&app->if_colours, group_id);
-    if( torirs_env_net_debug() )
-        TORIRS_LOG("if_set*: group %d unloaded, its stored values dropped\n", group_id);
 }
 
 /* RS_CS2Host.if_written: a script's write is the newer value of the field the
