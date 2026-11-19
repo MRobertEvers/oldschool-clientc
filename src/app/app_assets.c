@@ -216,5 +216,5 @@ app_assets_frame(struct App* app)
     Assets_Pump(app->assets);
     /* Kinds that land at their load's end: anything that arrived without a
      * load ending (a loader with nothing to load) lands here. */
-    Assets_Land(app->assets, ASSET_KIND_BIT(ASSET_KIND_OBJ_MODEL) | ASSET_KIND_BIT(ASSET_KIND_NPC_BODY));
+    Assets_Land(app->assets, ASSET_KIND_BIT(ASSET_KIND_OBJ_MODEL));
 }

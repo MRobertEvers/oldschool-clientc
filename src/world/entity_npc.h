@@ -2,6 +2,7 @@
 #define WORLD_ENTITY_NPC_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "entity_facets.h"
 #include "entity_tint.h"
@@ -18,6 +19,17 @@ enum
     WORLD_NPC_SPOTANIM_SLOTS = 8,
     WORLD_NPC_HEADICON_SLOTS = 8,
     WORLD_NPC_BODY_MODELS_MAX = 8,
+};
+
+/* What the server set on the npc itself over its type's value (NAME_CHANGE,
+ * LEVEL_CHANGE, BAS_CHANGE): a retype the CLIENT makes (a varp moving its
+ * multinpc onto another rung) keeps them, as the reference keeps the
+ * overrides on the npc, not the type. A server type change clears them. */
+enum
+{
+    WORLD_NPC_OVERRIDE_NAME = 1 << 0,
+    WORLD_NPC_OVERRIDE_LEVEL = 1 << 1,
+    WORLD_NPC_OVERRIDE_STANCES = 1 << 2,
 };
 
 struct WorldEntity_NPC
@@ -56,6 +68,11 @@ struct WorldEntity_NPC
      *  default-true rule and for the same reason. */
     bool interactable;
     int combat_level;
+    /** WORLD_NPC_OVERRIDE_* bits. */
+    uint8_t overrides;
+    /** A varp its multinpc chain depends on changed since the rung it draws
+     *  was resolved (counted in World.npc_retype_wanted). */
+    bool retype_wanted;
     /* 64, matching ToriRS_Npctype.name (TORIRS_NAME_MAX) -- col-tagged names
      * like "<col=00ffff>Ancestral Glyph</col>" don't fit in 32. */
     char name[64];
@@ -144,6 +161,9 @@ struct WorldEntity_NPC
     struct WorldEntityFacet_ExactMove exact_move;
     /** Server npc slot this entity mirrors; -1 = local/unsynced. */
     int server_slot;
+    /** Unique for the World's life (World.entity_spawn_serial): with
+     *  server_slot it names this npc, never a later one in the same slot. */
+    uint32_t spawn_serial;
 };
 
 #endif

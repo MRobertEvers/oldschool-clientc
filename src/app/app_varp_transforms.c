@@ -9,6 +9,7 @@
 
 #include "app/app_internal.h"
 #include "mem/torirs_mem.h"
+#include "game/task_entity_assets.h"
 
 /* Load and resolve only the config chain. Body and interface-head consumers
  * deliberately share this step, then await their own distinct model sets. */
@@ -23,14 +24,17 @@ struct Task_NpcMultiResolve
     int depth;
 };
 
+/* The rare varp retype whose new rung's config is not resident: it waits for
+ * the config chain on the packet queue (the type is required: it decides
+ * size, ops and stances a later packet reads), and nothing else -- the body
+ * is the npc's body task's. */
 struct Task_AppNpcTransform
 {
     struct ToriRS_Task task;
     struct pt pt;
     struct App* app;
-    int world_idx;
-    int element_id;
     int server_slot;
+    uint32_t spawn_serial;
     int base_npc_id;
     int resolved_npc_id;
 };
@@ -53,12 +57,6 @@ app_npc_transform_depends_on_varp(
     struct App* app,
     int base_npc_id,
     int varp_id);
-static int
-Task_AppNpcTransform_Run(
-    struct ToriRS_Task* base,
-    struct ToriRS_IOBatch* io);
-static void
-Task_AppNpcTransform_Free(struct ToriRS_Task* base);
 static void
 app_varp_refresh_npc_transforms(
     struct App* app,
@@ -303,6 +301,72 @@ app_npc_transform_depends_on_varp(
     return 0;
 }
 
+/* The rung `base_npc_id` resolves to now (-1: none) when every config along
+ * the chain is resident: 1. 0 when a link is not resident (the walk
+ * Task_NpcMultiResolve makes, synchronously). */
+static int
+app_npc_chain_resolve_resident(
+    struct App* app,
+    int base_npc_id,
+    int* out_npc_id)
+{
+    int current = base_npc_id;
+
+    assert(out_npc_id);
+    for( int depth = 0; depth <= TORIRS_NPC_MULTI_MAX_DEPTH && current >= 0; depth++ )
+    {
+        struct ToriRS_Npctype* npctype = CacheProvider_NpctypeGet(app->provider, current);
+        int next;
+
+        if( !npctype )
+            return 0;
+        if( npctype->transform_count <= 0 || !npctype->transforms )
+            break;
+        next = VarPManager_ResolveTransform(
+            &app->varps,
+            npctype->transforms,
+            npctype->transform_count,
+            npctype->transform_varbit,
+            npctype->transform_varp);
+        if( next < 0 )
+        {
+            current = -1;
+            break;
+        }
+        if( next == current || depth == TORIRS_NPC_MULTI_MAX_DEPTH )
+            break;
+        current = next;
+    }
+    *out_npc_id = current;
+    return 1;
+}
+
+/*
+ * Draw the npc at `world_idx` as the rung `resolved` (-1: its multinpc selects
+ * nothing) under its shell. The type is applied now; the overrides the server
+ * set on the npc (name, level, stances) are kept (WORLD_NPC_OVERRIDE_*), and
+ * the body, when not resident, is the npc's body task's (App_WorldApplyNpcType
+ * wants it).
+ */
+static void
+app_npc_varp_retype_apply(
+    struct App* app,
+    int world_idx,
+    int resolved)
+{
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&app->world->entities.npc, world_idx);
+    int const hidden = resolved < 0;
+    int effective;
+
+    assert(npc);
+    effective = hidden ? npc->base_npc_id : resolved;
+    if( npc->npc_id != effective )
+        App_WorldApplyNpcType(app, world_idx, npc->element_id, effective, npc->base_npc_id);
+    npc = World_EntityPoolGet(&app->world->entities.npc, world_idx);
+    assert(npc);
+    npc->multinpc_hidden = hidden != 0;
+}
+
 static int
 Task_AppNpcTransform_Run(
     struct ToriRS_Task* base,
@@ -312,30 +376,18 @@ Task_AppNpcTransform_Run(
     struct App* app = self->app;
 
     PT_BEGIN(&self->pt);
-    PT_TASK_AWAITSELF_IF(CreateTask_NpcMultiLoad(app, self->base_npc_id, &self->resolved_npc_id));
+    PT_TASK_AWAITSELF_IF(
+        CreateTask_NpcMultiResolve(app, self->base_npc_id, &self->resolved_npc_id));
     {
-        int world_idx = self->world_idx;
-        int element_id = self->element_id;
-        struct WorldEntity_NPC* npc;
+        int world_idx = -1;
+        struct WorldEntity_NPC* npc = NULL;
 
-        if( self->server_slot >= 0 &&
-            !RS_EntitySync_FindNpc(&app->esync, self->server_slot, &world_idx, &element_id) )
-            world_idx = -1;
-        npc = world_idx >= 0 ? World_EntityPoolGet(&app->world->entities.npc, world_idx) : NULL;
-        /* Asset IO can yield for several frames. Revalidate the exact entity
-         * and wrapper so a despawn/slot reuse or server CHANGE_TYPE cannot be
-         * overwritten by this older local-var refresh. */
-        if( npc && npc->element_id == self->element_id && npc->base_npc_id == self->base_npc_id )
-        {
-            int hidden = self->resolved_npc_id < 0;
-            int effective = hidden ? self->base_npc_id : self->resolved_npc_id;
-            if( npc->npc_id != effective )
-                App_WorldApplyNpcType(
-                    app, world_idx, npc->element_id, effective, self->base_npc_id);
+        if( RS_EntitySync_FindNpc(&app->esync, self->server_slot, &world_idx, NULL) && world_idx >= 0 )
             npc = World_EntityPoolGet(&app->world->entities.npc, world_idx);
-            if( npc )
-                npc->multinpc_hidden = hidden != 0;
-        }
+        /* The configs can take a read: still the same npc under the same
+         * shell (a despawn, a slot reuse or a server CHANGE_TYPE since)? */
+        if( npc && npc->spawn_serial == self->spawn_serial && npc->base_npc_id == self->base_npc_id )
+            app_npc_varp_retype_apply(app, world_idx, self->resolved_npc_id);
     }
     PT_END(&self->pt);
 }
@@ -351,37 +403,119 @@ static struct ToriRS_TaskVTable Task_AppNpcTransform_VTable = {
     .free = Task_AppNpcTransform_Free,
 };
 
+/*
+ * A varp changed: every npc whose multinpc chain depends on it is marked, and
+ * App_EntityNpcRetypeFlush resolves and applies it -- before the next packet
+ * that is not a var write, or the frame -- so several varps in a row that one
+ * npc depends on make ONE retype, to the rung they select together, not one
+ * packet-queue task per varp that each waited out the body (FAULTS E6).
+ *
+ * Every npc there is lives in the root World's pool -- a deck's are homed to
+ * their view (view_placement.home_view) -- so this one walk covers every live
+ * view. A transmogged player's new rung is wanted here too: the per-frame
+ * reconcile draws it once it is in (it was never fetched).
+ */
 static void
 app_varp_refresh_npc_transforms(
     struct App* app,
     int varp_id)
 {
+    struct World* world;
     struct World_EntityPool* pool;
 
-    if( !app || !app->world || !app->world->load_complete || !app->provider )
+    assert(app);
+    world = app->world;
+    /* Before the first world, or with no cache: nothing is drawn yet. */
+    if( !world || !app->provider )
         return;
-    pool = &app->world->entities.npc;
+    pool = &world->entities.npc;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
          i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
-        struct Task_AppNpcTransform* task;
 
-        if( !npc || !app_npc_transform_depends_on_varp(app, npc->base_npc_id, varp_id) )
+        assert(npc);
+        if( npc->retype_wanted || !app_npc_transform_depends_on_varp(app, npc->base_npc_id, varp_id) )
             continue;
-        task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
-        assert(task);
-        task->task.vtable = &Task_AppNpcTransform_VTable;
-        strncpy(task->task.name, "NpcTransform", sizeof(task->task.name) - 1);
-        task->app = app;
-        task->world_idx = i;
-        task->element_id = npc->element_id;
-        task->server_slot = npc->server_slot;
-        task->base_npc_id = npc->base_npc_id;
-        task->resolved_npc_id = npc->npc_id;
-        PT_INIT(&task->pt);
-        TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &task->task);
+        npc->retype_wanted = true;
+        world->npc_retype_wanted++;
     }
+    pool = &world->entities.player;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Player* player = World_EntityPoolGet(pool, i);
+
+        assert(player);
+        if( player->transmog_npc_id >= 0 &&
+            app_npc_transform_depends_on_varp(app, player->transmog_npc_id, varp_id) )
+            EntityAssets_WantPlayerTransmog(app, player->transmog_npc_id);
+    }
+}
+
+void
+App_EntityNpcRetypeFlush(struct App* app)
+{
+    struct World* world;
+    struct World_EntityPool* pool;
+
+    assert(app);
+    world = app->world;
+    if( !world || world->npc_retype_wanted == 0 )
+        return;
+    /* Mid-rebuild: kept until the scene is built (it was skipped outright,
+     * and the npc kept the old rung until the next varp). */
+    if( !world->load_complete )
+        return;
+    pool = &world->entities.npc;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL && world->npc_retype_wanted > 0;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
+        int resolved;
+
+        assert(npc);
+        if( !npc->retype_wanted )
+            continue;
+        npc->retype_wanted = false;
+        world->npc_retype_wanted--;
+        if( app_npc_chain_resolve_resident(app, npc->base_npc_id, &resolved) )
+        {
+            app_npc_varp_retype_apply(app, i, resolved);
+            continue;
+        }
+        /* A rung never seen: its config is required, so the packet queue
+         * waits for it (configs are local after the boot fill). */
+        {
+            struct Task_AppNpcTransform* task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
+            assert(task);
+            task->task.vtable = &Task_AppNpcTransform_VTable;
+            strncpy(task->task.name, "NpcTransform", sizeof(task->task.name) - 1);
+            task->app = app;
+            task->server_slot = npc->server_slot;
+            task->spawn_serial = npc->spawn_serial;
+            task->base_npc_id = npc->base_npc_id;
+            task->resolved_npc_id = npc->npc_id;
+            PT_INIT(&task->pt);
+            TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &task->task);
+        }
+    }
+    /* Whatever the walk did not reach was released with its npc. */
+    world->npc_retype_wanted = 0;
+}
+
+void
+App_EntityNpcRetypeBeforePacket(
+    struct App* app,
+    int packet_type)
+{
+    assert(app);
+    /* A run of var writes is one change as far as a multinpc is concerned. */
+    if( packet_type == PKT_NAME_VARP_SMALL || packet_type == PKT_NAME_VARP_LARGE ||
+        packet_type == PKT_NAME_VARP_LONG || packet_type == PKT_NAME_VARP_SYNC ||
+        packet_type == PKT_NAME_VARP_RESET )
+        return;
+    App_EntityNpcRetypeFlush(app);
 }
 
 /*

@@ -48,6 +48,9 @@ struct WorldEntity_Player
     int team;
     /** Server player slot (pid) this entity mirrors; -1 = local/unsynced. */
     int server_pid;
+    /** Unique for the World's life (World.entity_spawn_serial): with
+     *  server_pid it names this player, never a later one in the same slot. */
+    uint32_t spawn_serial;
     /** The npc type the appearance says this player is drawn as (the 239
      *  block's 0xffff first equipment entry, p_transmogrify); -1 = the
      *  player's own body. Reference ClientPlayer.transmog (LostCity

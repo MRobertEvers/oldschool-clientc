@@ -181,7 +181,6 @@ app_async_polls(struct App* app)
         TORIRS_LOG("tex_trace: --- frame %d ---\n", ++g_tex_trace_frame);
     app_world_map_poll(app);
     app_sync_textures_poll(app);
-    app_world_bind_pending_seqs(app);
 
     if( UITreeRefresh_Take(&app->tree_refresh) )
     {

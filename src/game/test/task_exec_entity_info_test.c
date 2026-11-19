@@ -13,6 +13,7 @@
 #include "engine/uitree_scene_bridge.h"
 #include "game/rs_entity_sync.h"
 #include "game/task_exec_entity_info.h"
+#include "game/task_entity_assets.h"
 #include "net/net.h"
 #include "net/rev/gameproto_revisions.h"
 #include "streams/info_rs.h"
@@ -185,6 +186,8 @@ test_npc_info_count_zero_despawns_all(void)
     app.net = test_net();
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
+    /* The parallel tasks an npc's removal cancels are found here. */
+    app.pending = RS_Pending_New();
 
     register_npc(&app, 101, 500, 10, 20, 20);
     register_npc(&app, 102, 501, 11, 21, 20);
@@ -205,6 +208,7 @@ test_npc_info_count_zero_despawns_all(void)
     TEST_ASSERT(!RS_EntitySync_FindNpc(&app.esync, 11, NULL, NULL), "slot 11 gone");
     TEST_ASSERT(!RS_EntitySync_FindNpc(&app.esync, 12, NULL, NULL), "slot 12 gone");
 
+    RS_Pending_Free(app.pending);
     RS_EntitySync_Free(&app.esync);
     World_Free(app.world);
 }
@@ -217,6 +221,8 @@ test_npc_origin_is_root_for_shore_and_aboard_observers(void)
     app.net = test_net();
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
+    /* The parallel tasks an npc's removal cancels are found here. */
+    app.pending = RS_Pending_New();
     register_local_player(&app, 100, 7, 4, 4);
     struct WorldEntity_Player* player = World_PlayerGetByServerPid(app.world, 7);
     RS_NpcUpdateOrigin_Set(&app.npc_update_origin, 52, 51);
@@ -239,6 +245,7 @@ test_npc_origin_is_root_for_shore_and_aboard_observers(void)
     player->grid_position.level = 2;
     RS_EntityInfo_NpcOrigin(&app, &x, &z, &plane);
     TEST_ASSERT(x == 4 && z == 6 && plane == 2, "older protocols retain route-head origin fallback");
+    RS_Pending_Free(app.pending);
     RS_EntitySync_Free(&app.esync);
     World_Free(app.world);
 }
@@ -268,6 +275,8 @@ test_npc_info_unresolvable_entry_keeps_list_positions(void)
     app.net = test_net();
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
+    /* The parallel tasks an npc's removal cancels are found here. */
+    app.pending = RS_Pending_New();
 
     /* One tracked npc, but the wire says it is tracking two. */
     register_npc(&app, 301, 500, 20, 30, 30);
@@ -285,6 +294,7 @@ test_npc_info_unresolvable_entry_keeps_list_positions(void)
         app.esync.active_npcs[1] == -1,
         "position 1 is an explicit no-target, not a shift of position 0");
 
+    RS_Pending_Free(app.pending);
     RS_EntitySync_Free(&app.esync);
     World_Free(app.world);
 }
@@ -299,6 +309,8 @@ test_npc_info_count_shrink_keeps_prefix(void)
     app.net = test_net();
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
+    /* The parallel tasks an npc's removal cancels are found here. */
+    app.pending = RS_Pending_New();
 
     register_npc(&app, 201, 500, 20, 30, 30);
     register_npc(&app, 202, 501, 21, 31, 30);
@@ -316,6 +328,7 @@ test_npc_info_count_shrink_keeps_prefix(void)
     TEST_ASSERT(
         World_TestPoolIterateCount(&app.world->entities.npc) == 1, "one NPC left in world pool");
 
+    RS_Pending_Free(app.pending);
     RS_EntitySync_Free(&app.esync);
     World_Free(app.world);
 }
@@ -342,6 +355,8 @@ test_player_info_unresolvable_entry_keeps_list_positions(void)
     app.net = test_net();
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
+    /* The parallel tasks an npc's removal cancels are found here. */
+    app.pending = RS_Pending_New();
 
     register_local_player(&app, 400, 7, 39, 40);
     register_other_player(&app, 401, 8, 40, 40);
@@ -359,6 +374,7 @@ test_player_info_unresolvable_entry_keeps_list_positions(void)
         app.esync.active_players[1] == -1,
         "position 1 is an explicit no-target, not a shift of position 0");
 
+    RS_Pending_Free(app.pending);
     RS_EntitySync_Free(&app.esync);
     World_Free(app.world);
 }
@@ -373,6 +389,8 @@ test_player_info_count_zero_despawns_others(void)
     app.net = test_net();
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
+    /* The parallel tasks an npc's removal cancels are found here. */
+    app.pending = RS_Pending_New();
 
     /* Local must already exist so SET_LOCAL does not try to spawn (needs a
      * provider). It is not in active_players — count-shrink only trims that. */
@@ -393,6 +411,7 @@ test_player_info_count_zero_despawns_others(void)
         World_TestPoolIterateCount(&app.world->entities.player) == 1,
         "only local player left in pool");
 
+    RS_Pending_Free(app.pending);
     RS_EntitySync_Free(&app.esync);
     World_Free(app.world);
 }
@@ -436,6 +455,8 @@ test_npc_info_resident_sequence_queues_nothing(void)
 
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
+    /* The parallel tasks an npc's removal cancels are found here. */
+    app.pending = RS_Pending_New();
     app.provider = &provider;
     app.frame_runner.queue = ToriRS_TaskQueue_New();
     /* The sequence is wanted through the assets table, which asks the scene
@@ -469,6 +490,7 @@ test_npc_info_resident_sequence_queues_nothing(void)
     ToriRS_TaskQueue_Free(app.frame_runner.queue);
     App_AssetsFree(&app);
     ToriDraw_SceneFree(app.scene);
+    RS_Pending_Free(app.pending);
     RS_EntitySync_Free(&app.esync);
     World_Free(app.world);
     CacheProvider_FreeEngineCaches(&provider);
@@ -643,6 +665,457 @@ test_multinpc_interface_head_loads_selected_child(void)
     CacheProvider_FreeEngineCaches(&provider);
 }
 
+/* ------------------------------------------------------------------------
+ * Entities exist at once; bodies wait on the parallel queue (packet model,
+ * step "entities"; FAULTS E1-E11).
+ * ------------------------------------------------------------------------ */
+
+struct EntityFixture
+{
+    struct App app;
+    struct CacheProvider provider;
+    struct CacheProviderVTable vtable;
+    struct VarPType varp_type;
+};
+
+static struct ToriRS_Npctype*
+fixture_npctype(
+    struct EntityFixture* fx,
+    int id,
+    int model_id)
+{
+    struct ToriRS_Npctype* type = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*type));
+
+    type->size = 1;
+    type->readyanim = -1;
+    type->walkanim = -1;
+    type->walkanim_b = -1;
+    type->walkanim_l = -1;
+    type->walkanim_r = -1;
+    type->turnanim_l = -1;
+    type->turnanim_r = -1;
+    type->runanim = -1;
+    type->runanim_b = -1;
+    type->runanim_l = -1;
+    type->runanim_r = -1;
+    type->crawlanim = -1;
+    type->crawlanim_b = -1;
+    type->crawlanim_l = -1;
+    type->crawlanim_r = -1;
+    type->transform_varbit = -1;
+    type->transform_varp = -1;
+    snprintf(type->name, sizeof(type->name), "type%d", id);
+    if( model_id >= 0 )
+    {
+        type->models_count = 1;
+        type->models = ToriMem_Alloc(ToriMem_Assets(), sizeof(*type->models));
+        type->models[0] = model_id;
+    }
+    CacheProvider_NpctypeAdd(&fx->provider, id, type);
+    return type;
+}
+
+static void
+fixture_init(struct EntityFixture* fx)
+{
+    memset(fx, 0, sizeof(*fx));
+    memset(&g_head_load_trace, 0, sizeof(g_head_load_trace));
+    fx->app.net = test_net();
+    fx->vtable.Task_NpcLoad = trace_npc_load;
+    fx->vtable.Task_ModelLoad = trace_model_load;
+    fx->vtable.Task_SequenceLoad = trace_sequence_load_resident;
+    fx->provider.vtable = &fx->vtable;
+    CacheProvider_InitEngineCaches(&fx->provider);
+    VarPManager_Init(&fx->app.varps);
+    TEST_ASSERT(VarPManager_SetVarpTypes(&fx->app.varps, &fx->varp_type, 1), "fixture varps");
+    fx->app.provider = &fx->provider;
+    fx->app.world = World_TestMakeReady(104);
+    RS_EntitySync_Init(&fx->app.esync);
+    fx->app.frame_runner.queue = ToriRS_TaskQueue_New();
+    fx->app.scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    App_AssetsInit(&fx->app);
+    App_PendingInit(&fx->app);
+}
+
+static void
+fixture_free(struct EntityFixture* fx)
+{
+    /* The queue first: every parallel task unlists itself as it is freed. */
+    ToriRS_TaskQueue_Free(fx->app.frame_runner.queue);
+    App_PendingFree(&fx->app);
+    App_AssetsFree(&fx->app);
+    ToriDraw_SceneFree(fx->app.scene);
+    RS_EntitySync_Free(&fx->app.esync);
+    World_Free(fx->app.world);
+    VarPManager_Free(&fx->app.varps);
+    CacheProvider_FreeEngineCaches(&fx->provider);
+}
+
+static void
+run_npc_ops(
+    struct App* app,
+    RsprotInfoOp const* ops,
+    int count)
+{
+    run_task_to_done(CreateTask_ExecNpcInfoOps(app, ops, count));
+}
+
+static RsprotInfoOp
+op_value(
+    int kind,
+    uint64_t value)
+{
+    RsprotInfoOp op;
+
+    memset(&op, 0, sizeof(op));
+    op.kind = (uint8_t)kind;
+    op.value = value;
+    return op;
+}
+
+/* How many drive events of `kind` are in the ring; the newest one's a/b. */
+static int
+drive_count(
+    struct App const* app,
+    int kind,
+    int* out_a,
+    int* out_b)
+{
+    int n = 0;
+
+    for( int i = 0; i < app->drive_events.ring.count && i < APP_DRIVE_RING_CAPACITY; i++ )
+    {
+        struct RS_Event const* ev = &app->drive_events.entries[i];
+        if( ev->kind != kind )
+            continue;
+        n++;
+        if( out_a )
+            *out_a = ev->a;
+        if( out_b )
+            *out_b = ev->b;
+    }
+    return n;
+}
+
+static struct WorldEntity_NPC*
+npc_in_slot(
+    struct App* app,
+    int slot)
+{
+    int world_idx = -1;
+
+    if( !RS_EntitySync_FindNpc(&app->esync, slot, &world_idx, NULL) || world_idx < 0 )
+        return NULL;
+    return World_EntityPoolGet(&app->world->entities.npc, world_idx);
+}
+
+/*
+ * (a) An npc whose body is not resident exists at once, draws nothing, and
+ * one parallel task waits for its body; it is announced once its add record
+ * has placed it (E1, E2), with its server slot (E10). Removing it cancels the
+ * task.
+ */
+static void
+test_npc_cold_body_exists_and_waits_on_the_parallel_queue(void)
+{
+    printf("TEST: an npc with a cold body exists at once and its body waits on the parallel queue\n");
+
+    struct EntityFixture fx;
+    RsprotInfoOp ops[3];
+    struct WorldEntity_NPC* npc;
+    int a = -1;
+    int b = -1;
+
+    fixture_init(&fx);
+    fixture_npctype(&fx, 500, 777);
+
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 7);
+    ops[1] = op_value(RSPROT_OP_NPCTYPE, 500);
+    memset(&ops[2], 0, sizeof(ops[2]));
+    ops[2].kind = RSPROT_OP_DELTA_XZ;
+    ops[2].delta_xz.dx = 3;
+    ops[2].delta_xz.dz = -2;
+    ops[2].delta_xz.jump = 1;
+    run_npc_ops(&fx.app, ops, 3);
+
+    npc = npc_in_slot(&fx.app, 7);
+    TEST_ASSERT(npc != NULL, "the npc exists although its body is not resident");
+    TEST_ASSERT(npc && npc->npc_id == 500, "it is the type the wire named");
+    TEST_ASSERT(npc && npc->spawn_serial != 0, "it carries a spawn serial");
+    TEST_ASSERT(npc && App_EntityNpcBodyPending(&fx.app, npc), "a body task is pending for it");
+    TEST_ASSERT(
+        RS_Pending_Count(fx.app.pending, RS_PENDING_KINDS_ENTITIES_FIRST) == 1,
+        "one body task, on the parallel queue");
+    TEST_ASSERT(fx.app.packet_runner.queue == NULL, "nothing was put on the packet queue");
+    TEST_ASSERT(drive_count(&fx.app, DRIVE_EVENT_NPC_SPAWN, &a, &b) == 1, "one npc_spawn");
+    TEST_ASSERT(a == 7, "npc_spawn names the server slot, not the pool index (E10)");
+    TEST_ASSERT(b == 500, "npc_spawn names the type");
+    TEST_ASSERT(
+        npc && npc->pathing.route_x[0] == 52 + 3 && npc->pathing.route_z[0] == 52 - 2,
+        "the add record's DELTA_XZ placed it before it was announced (E1)");
+
+    /* Gone in the next packet: its body task is cancelled with it. */
+    {
+        RsprotInfoOp clear = op_value(RSPROT_OP_CLEAR_OLD, 0);
+        run_npc_ops(&fx.app, &clear, 1);
+    }
+    TEST_ASSERT(npc_in_slot(&fx.app, 7) == NULL, "the npc was removed");
+    TEST_ASSERT(
+        RS_Pending_Count(fx.app.pending, RS_PENDING_KINDS_ENTITIES_FIRST) == 0,
+        "its body task was cancelled with it");
+
+    fixture_free(&fx);
+}
+
+/* (a) + E7: a retype to a type whose body is cold draws nothing (not the old
+ * type's body) and replaces the npc's body task; a retype to none draws
+ * nothing too. */
+static void
+test_npc_retype_newest_body_wins(void)
+{
+    printf("TEST: a retype replaces the npc's pending body task\n");
+
+    struct EntityFixture fx;
+    RsprotInfoOp ops[3];
+    RsprotInfoOp change[2];
+    struct WorldEntity_NPC* npc;
+    struct RS_ParallelTask* pending;
+
+    fixture_init(&fx);
+    fixture_npctype(&fx, 500, 777);
+    fixture_npctype(&fx, 501, 778);
+
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 9);
+    ops[1] = op_value(RSPROT_OP_NPCTYPE, 500);
+    memset(&ops[2], 0, sizeof(ops[2]));
+    ops[2].kind = RSPROT_OP_DELTA_XZ;
+    run_npc_ops(&fx.app, ops, 3);
+
+    /* Kept from the last packet's list, then its block. */
+    change[0] = op_value(RSPROT_OP_ADD_OLD, 0);
+    memset(&change[1], 0, sizeof(change[1]));
+    change[1].kind = RSPROT_OP_CHANGE_TYPE;
+    change[1].change_type.npc_type = 501;
+    run_npc_ops(&fx.app, change, 2);
+
+    npc = npc_in_slot(&fx.app, 9);
+    TEST_ASSERT(npc && npc->npc_id == 501, "the retype applied at once");
+    TEST_ASSERT(
+        RS_Pending_Count(fx.app.pending, RS_PENDING_KINDS_ENTITIES_FIRST) == 1,
+        "one body task: the retype's replaced the spawn's");
+    pending = npc ? RS_Pending_Find(fx.app.pending, RS_PENDING_KINDS_ENTITIES_FIRST, App_EntityNpcKey(npc))
+                  : NULL;
+    TEST_ASSERT(pending != NULL, "and it is listed under the npc's key");
+    {
+        struct ToriDraw_SceneElement* el =
+            npc ? ToriDraw_SceneElementGet(fx.app.scene, npc->element_id) : NULL;
+        struct ToriDraw_Model const* model =
+            el && ToriDraw_ModelKindIsFull(el->model.kind) ? el->model.u.model.model : NULL;
+        TEST_ASSERT(model && model->vertex_count == 0, "it draws nothing until the body lands (E7)");
+    }
+
+    fixture_free(&fx);
+}
+
+/* E11: an npc whose config the cache does not have still exists, so the ops
+ * that follow for its slot apply instead of being dropped. */
+static void
+test_npc_unknown_type_still_exists(void)
+{
+    printf("TEST: an npc of a type the cache lacks exists and takes later ops\n");
+
+    struct EntityFixture fx;
+    RsprotInfoOp ops[4];
+    struct WorldEntity_NPC* npc;
+
+    fixture_init(&fx);
+
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 4);
+    ops[1] = op_value(RSPROT_OP_NPCTYPE, 999);
+    memset(&ops[2], 0, sizeof(ops[2]));
+    ops[2].kind = RSPROT_OP_DELTA_XZ;
+    ops[3] = op_value(RSPROT_OP_LEVEL_CHANGE, 55);
+    run_npc_ops(&fx.app, ops, 4);
+
+    npc = npc_in_slot(&fx.app, 4);
+    TEST_ASSERT(npc != NULL, "the npc exists although its config is missing");
+    TEST_ASSERT(npc && npc->combat_level == 55, "a later op for its slot applied");
+
+    fixture_free(&fx);
+}
+
+/* E3: a body that lands after a BODY_CUSTOM leaves the customisation on: the
+ * landing asks for the custom body to be mounted over the type's. */
+static void
+test_npc_body_landing_keeps_body_custom(void)
+{
+    printf("TEST: a landing body keeps the server's body customisation\n");
+
+    struct EntityFixture fx;
+    RsprotInfoOp ops[3];
+    struct WorldEntity_NPC* npc;
+    int world_idx = -1;
+    int serial;
+
+    fixture_init(&fx);
+    fixture_npctype(&fx, 502, -1);
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 3);
+    ops[1] = op_value(RSPROT_OP_NPCTYPE, 502);
+    memset(&ops[2], 0, sizeof(ops[2]));
+    ops[2].kind = RSPROT_OP_DELTA_XZ;
+    run_npc_ops(&fx.app, ops, 3);
+    TEST_ASSERT(RS_EntitySync_FindNpc(&fx.app.esync, 3, &world_idx, NULL), "spawned");
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
+    npc->body_model_count = 1;
+    npc->body_models[0] = 4242;
+    serial = npc->body_serial;
+
+    App_WorldNpcBodyLanded(&fx.app, world_idx, npc->element_id, 502, 502);
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
+    TEST_ASSERT(npc->body_serial == serial + 1, "the custom body is mounted again over the type's");
+
+    fixture_free(&fx);
+}
+
+/* E5: removing a player (or anything else not an npc) is not an npc despawn;
+ * an npc's removal is, with its server slot (E10). */
+static void
+test_only_npc_removals_are_npc_despawns(void)
+{
+    printf("TEST: only an npc's removal is reported as an npc despawn\n");
+
+    struct EntityFixture fx;
+    struct ToriDraw_Model* model;
+    int element;
+    int player;
+    RsprotInfoOp ops[3];
+    int a = -1;
+
+    fixture_init(&fx);
+    model = ToriDraw_ModelNew(0, 0, 0);
+    element = app_world_scene_element_create(&fx.app, TORIDRAW_ELEMENT_KIND_PLAYER, model, 64, 0, 64);
+    player = World_PlayerSpawn(fx.app.world, element, 0, 10, 10, World_TestDefaultIdle());
+    World_PlayerDespawn(fx.app.world, player);
+    App_WorldDrainEntityRemovedFor(&fx.app, fx.app.world);
+    TEST_ASSERT(drive_count(&fx.app, DRIVE_EVENT_NPC_DESPAWN, NULL, NULL) == 0, "a player's removal is no npc despawn");
+
+    fixture_npctype(&fx, 503, -1);
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 12);
+    ops[1] = op_value(RSPROT_OP_NPCTYPE, 503);
+    memset(&ops[2], 0, sizeof(ops[2]));
+    ops[2].kind = RSPROT_OP_DELTA_XZ;
+    run_npc_ops(&fx.app, ops, 3);
+    {
+        RsprotInfoOp clear = op_value(RSPROT_OP_CLEAR_OLD, 0);
+        run_npc_ops(&fx.app, &clear, 1);
+    }
+    App_WorldDrainEntityRemovedFor(&fx.app, fx.app.world);
+    TEST_ASSERT(drive_count(&fx.app, DRIVE_EVENT_NPC_DESPAWN, &a, NULL) == 1, "an npc's removal is one");
+    TEST_ASSERT(a == 12, "naming its server slot");
+
+    fixture_free(&fx);
+}
+
+/* (c) + E6: several varps that one npc's multinpc depends on make one retype,
+ * applied at once without the packet queue, keeping the server's overrides. */
+static void
+test_varp_retype_coalesces_and_keeps_overrides(void)
+{
+    printf("TEST: a varp retype is applied at once, once, keeping server overrides\n");
+
+    struct EntityFixture fx;
+    struct ToriRS_Npctype* shell;
+    RsprotInfoOp ops[4];
+    struct WorldEntity_NPC* npc;
+
+    fixture_init(&fx);
+    shell = fixture_npctype(&fx, 600, -1);
+    shell->transform_varp = 0;
+    shell->transform_count = 3;
+    shell->transforms = ToriMem_Alloc(ToriMem_Assets(), 3 * sizeof(*shell->transforms));
+    shell->transforms[0] = 601;
+    shell->transforms[1] = 602;
+    shell->transforms[2] = 603;
+    fixture_npctype(&fx, 601, -1);
+    fixture_npctype(&fx, 602, -1);
+    fixture_npctype(&fx, 603, -1);
+
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 20);
+    ops[1] = op_value(RSPROT_OP_NPCTYPE, 600);
+    memset(&ops[2], 0, sizeof(ops[2]));
+    ops[2].kind = RSPROT_OP_DELTA_XZ;
+    memset(&ops[3], 0, sizeof(ops[3]));
+    ops[3].kind = RSPROT_OP_NAME_CHANGE;
+    ops[3].name_change.name = "Renamed";
+    run_npc_ops(&fx.app, ops, 4);
+    npc = npc_in_slot(&fx.app, 20);
+    TEST_ASSERT(npc && npc->npc_id == 601, "spawned as the rung varp 0 selects");
+
+    fx.app.varps.var[0] = 1;
+    app_varp_change(&fx.app, 0);
+    fx.app.varps.var[0] = 2;
+    app_varp_change(&fx.app, 0);
+    TEST_ASSERT(npc->npc_id == 601, "not applied between two var writes");
+    App_EntityNpcRetypeFlush(&fx.app);
+
+    TEST_ASSERT(npc->npc_id == 603, "applied as the rung both writes select");
+    TEST_ASSERT(drive_count(&fx.app, DRIVE_EVENT_NPC_RETYPE, NULL, NULL) == 1, "one retype for two varps");
+    TEST_ASSERT(strcmp(npc->name, "Renamed") == 0, "the server's NAME_CHANGE survived the retype");
+    TEST_ASSERT(fx.app.packet_runner.queue == NULL, "nothing waited on the packet queue");
+    TEST_ASSERT(fx.app.world->npc_retype_wanted == 0, "nothing left wanted");
+
+    fixture_free(&fx);
+}
+
+/* (a): PLAYER_INFO's add makes the player at once -- nothing awaited, no
+ * default kit, no ready stance -- and registers it. */
+static void
+test_player_add_exists_at_once(void)
+{
+    printf("TEST: a new player exists at once and nothing is awaited\n");
+
+    struct EntityFixture fx;
+    RsprotInfoOp add = op_value(RSPROT_OP_ADD_NEW, 5);
+    int world_idx = -1;
+
+    fixture_init(&fx);
+    run_task_to_done(CreateTask_ExecPlayerInfoOps(&fx.app, &add, 1));
+    TEST_ASSERT(
+        RS_EntitySync_FindPlayer(&fx.app.esync, 5, &world_idx, NULL) && world_idx >= 0,
+        "the player exists and is registered");
+    TEST_ASSERT(g_head_load_trace.model_count == 0, "no kit model was asked for");
+
+    fixture_free(&fx);
+}
+
+/* E4: an npc's body is resident when the stances it PLAYS are -- the shell's,
+ * not the drawn rung's. */
+static void
+test_npc_body_resident_reads_the_shells_stances(void)
+{
+    printf("TEST: an npc body's stances are the shell's\n");
+
+    struct EntityFixture fx;
+    struct ToriRS_Npctype* shell;
+    struct ToriRS_Npctype* drawn;
+
+    fixture_init(&fx);
+    shell = fixture_npctype(&fx, 610, -1);
+    drawn = fixture_npctype(&fx, 611, -1);
+    shell->readyanim = 50;
+    drawn->readyanim = 51;
+    ToriDraw_SceneAnimationAdd(fx.app.scene, 50, calloc(1, sizeof(struct ToriDraw_Animation)));
+
+    TEST_ASSERT(
+        EntityAssets_NpcBodyResident(&fx.app, 611, 610) == 1,
+        "the shell's stance is resident: so is the body");
+    TEST_ASSERT(
+        EntityAssets_NpcBodyResident(&fx.app, 611, -1) == 0,
+        "with no shell, the drawn type's stance is the one wanted");
+
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
@@ -655,6 +1128,14 @@ main(void)
     test_player_info_unresolvable_entry_keeps_list_positions();
     test_multinpc_resolution_is_per_player();
     test_multinpc_interface_head_loads_selected_child();
+    test_npc_cold_body_exists_and_waits_on_the_parallel_queue();
+    test_npc_retype_newest_body_wins();
+    test_npc_unknown_type_still_exists();
+    test_npc_body_landing_keeps_body_custom();
+    test_only_npc_removals_are_npc_despawns();
+    test_varp_retype_coalesces_and_keeps_overrides();
+    test_player_add_exists_at_once();
+    test_npc_body_resident_reads_the_shells_stances();
     if( g_failures )
     {
         fprintf(stderr, "%d failure(s)\n", g_failures);

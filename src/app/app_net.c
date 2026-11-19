@@ -751,6 +751,8 @@ app_pump_net_packets(struct App* app)
 
             if( !app->net || !ToriRS_Network_PopPacket(app->net, &packet) )
             {
+                /* The varp retypes this run of packets wanted. */
+                App_EntityNpcRetypeFlush(app);
                 drained = 1;
                 break;
             }
@@ -853,6 +855,9 @@ app_pump_net_packets(struct App* app)
                  gameproto_packet_writes_interface_component(packet.packet_type)) &&
                 RS_ClientScriptQueue_Count(&app->pending_clientscripts) > 0 )
                 App_FlushPendingClientScripts(app, &app->packet_runner);
+            /* Npc retypes the var writes before this packet wanted, applied
+             * before it runs (app/app_varp_transforms.c). */
+            App_EntityNpcRetypeBeforePacket(app, packet.packet_type);
             TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, CreateTask_GameProtoExec(app, &packet));
             redraw = 1;
         }

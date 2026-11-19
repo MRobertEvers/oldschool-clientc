@@ -25,6 +25,61 @@
 
 /* ---- app_tasks_entities.c: entity bodies and animations ----------------- */
 
+struct WorldEntity_NPC;
+
+/** The key an npc's tasks are listed under: its server slot and spawn
+ *  serial. */
+struct RS_PendingKey
+App_EntityNpcKey(struct WorldEntity_NPC const* npc);
+
+/** Is a body task pending for `npc`? */
+int
+App_EntityNpcBodyPending(
+    struct App* app,
+    struct WorldEntity_NPC const* npc);
+
+/** Bind `seq_id` onto element `element_id` once resident, catching up from
+ *  world cycle `start_cycle` (a parallel task; replaces an earlier one for
+ *  the element). */
+void
+App_EntitySeqBindWant(
+    struct App* app,
+    int element_id,
+    int seq_id,
+    int start_cycle);
+
+/** Cancel the element's deferred bind, if it has one. */
+void
+App_EntitySeqBindCancel(
+    struct App* app,
+    int element_id);
+
+/** Is a deferred bind pending for the element as it is now? */
+int
+App_EntitySeqBindPending(
+    struct App* app,
+    int element_id);
+
+/** app_varp_transforms.c: resolve and apply now every npc retype a varp
+ *  change wanted (World.npc_retype_wanted), once the scene is built. */
+void
+App_EntityNpcRetypeFlush(struct App* app);
+
+/** The packet pump is about to run a packet of `packet_type`: the retypes are
+ *  flushed first, unless it is another var write (several make one). */
+void
+App_EntityNpcRetypeBeforePacket(
+    struct App* app,
+    int packet_type);
+
+/** app_world_seq.c: bind a resident sequence (1: bound or unbindable). */
+int
+app_world_try_bind_seq(
+    struct App* app,
+    int element_id,
+    int seq_id,
+    int start_cycle);
+
 /* ---- app_tasks_if_assets.c: interface models, chatheads, inventory icons - */
 
 /* ---- app_tasks_mounts.c: the visual parts of interface mounts, player

@@ -22,10 +22,10 @@
  * in. These tasks are that shape. The packet handler applies the op at once
  * and queues one of these on the ASSET runner.
  *
- * An npc load re-applies the type when it lands: it finds its npcs by
- * walking the pool for the (base, resolved) type it loaded, never by a world
- * index or scene element cached at queue time -- both are recycled across
- * yields, and a stale pair would dress somebody else in this entity's body.
+ * An npc load applies nothing: each npc waiting on it has its own parallel
+ * task (App_EntityNpcBodyWant), keyed on the npc's server slot and spawn
+ * serial -- never a world index or scene element cached at queue time, both
+ * recycled across yields -- which mounts the body when the load ends.
  *
  * The player loads apply nothing. A player's body is derived from its
  * appearance (and the held-item override of its playing seq) every frame by
@@ -37,11 +37,13 @@
 
 struct App;
 
-/** Is every model and stance sequence of `npc_id` resident already? */
+/** Is every model of `npc_id` and every stance sequence it plays under the
+ * shell `base_npc_id` (-1: none) resident already? */
 int
 EntityAssets_NpcBodyResident(
     struct App* app,
-    int npc_id);
+    int npc_id,
+    int base_npc_id);
 
 /** Is every config and model of the appearance `slots` (for `gender`) and
  * every sequence in `seq_ids` resident? */
@@ -53,20 +55,10 @@ EntityAssets_PlayerBodyResident(
     int const* seq_ids,
     int seq_count);
 
-/**
- * Want npc `npc_id`'s body and stances (ASSET_KIND_NPC_BODY, variant = the
- * base), and, when they are in, re-apply the type to EVERY live npc that is
- * still that type (base `base_npc_id`, resolved `npc_id`).
- *
- * One load per type in flight, in the assets table: a packet that spawns a
- * crowd of one type makes one load, not one per npc, and its landing walks
- * the pool once.
- */
-void
-EntityAssets_WantNpcBody(
-    struct App* app,
-    int base_npc_id,
-    int npc_id);
+/* An npc's body (ASSET_KIND_NPC_BODY, id = the drawn type, variant = the
+ * shell) is LOADED here and APPLIED by a parallel task per npc
+ * (App_EntityNpcBodyWant, app/app_tasks_entities.c): one load per (type,
+ * shell) in flight however many npcs wait on it. */
 
 /** Register the loaders of the composite kinds this unit owns. */
 void

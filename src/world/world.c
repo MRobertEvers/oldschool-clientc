@@ -1176,6 +1176,7 @@ World_PlayerSpawn(
                     .direct_angle = -1,
                     .turn_speed = 32 },
         .server_pid = -1,
+        .spawn_serial = ++world->entity_spawn_serial,
         /* npc id 0 is a real npc type, so "no transmog" is spelled. */
         .transmog_npc_id = -1,
         .transmog_size = 1,
@@ -1254,6 +1255,7 @@ World_NpcSpawn(
                     .turn_speed = 32 },
         .visible_ops = 0x1f,
         .server_slot = -1,
+        .spawn_serial = ++world->entity_spawn_serial,
         /* 0 is a real healthbar id (the standard bar), so "no bar" has to be
          * spelled rather than left to the pool's zeroing. */
         .combat = { .healthbar_type = -1 },

@@ -64,10 +64,25 @@ enum
 {
     /* Local-player sentinel while UPDATE_PID has not arrived. */
     ENTITY_INFO_LOCAL_SENTINEL = 2047,
-    /* Classic human movement set — placeholder until the APPEARANCE mask
-     * lands (reference always follows a spawn with an appearance update). */
-    PLAYER_DEFAULT_SEQ_READY = 808,
 };
+
+/*
+ * The hitsplat type whose duration and slot-full policy a splat of wire type
+ * `type` takes: the type its selector (opcodes 17/18) picks now, as the sprite
+ * drawn is (FAULTS E8). The reference resolves the type when it adds the
+ * splat and reads both off the result (deob class105, the add: `method268`
+ * then `method9599` when the record is a selector), and again when it draws.
+ * A selector that picks nothing keeps the wire type's: the splat is not drawn
+ * then, and its slot is held as before.
+ */
+static int
+hitsplat_policy_type(
+    struct App* app,
+    int type)
+{
+    int resolved = RS_Hitsplats_ResolveType(&app->hitsplats, &app->varps, type);
+    return resolved >= 0 ? resolved : type;
+}
 
 static void
 entity_debug_log(char const* fmt, int a, int b)
@@ -428,9 +443,9 @@ player_target_op(
     return 1;
 }
 
-/* Spawn the current target with the default composited model; the
- * appearance mask that follows swaps in the real look. Assets are cached
- * (the task awaited them). */
+/* Spawn the current target with no body; the appearance block that follows
+ * names the body, which app_world_reconcile_player_body mounts once it is
+ * resident. */
 static void
 player_ensure_now(struct Task_ExecPlayerInfo* self)
 {
@@ -780,9 +795,10 @@ player_apply_op(
                 /* Duration and slot-full policy are the hitsplat TYPE's, from
                  * the config group (opcodes 9 and 12) — not fixed client
                  * constants. The accessors fall back to the reference's own
-                 * defaults (70, discard) when the cache has no record. */
-                RS_Hitsplats_DurationFor(&self->app->hitsplats, type),
-                RS_Hitsplats_SlotPolicyFor(&self->app->hitsplats, type));
+                 * defaults (70, discard) when the cache has no record. The
+                 * type as its selector resolves now, as the sprite is. */
+                RS_Hitsplats_DurationFor(&self->app->hitsplats, hitsplat_policy_type(self->app, type)),
+                RS_Hitsplats_SlotPolicyFor(&self->app->hitsplats, hitsplat_policy_type(self->app, type)));
         }
         break;
     case RSPROT_OP_HEADBAR:
@@ -901,6 +917,9 @@ Task_ExecPlayerInfo_Run(
     struct Task_ExecPlayerInfo* self = (struct Task_ExecPlayerInfo*)base;
     struct App* app = self->app;
 
+    /* Nothing in a PLAYER_INFO is awaited any more (a new player's body is
+     * visual); the task keeps its shape for the replay's decoded lists. */
+    (void)io;
     PT_BEGIN(&self->pt);
 
     /* A replay keyframe hands its op list over already decoded
@@ -931,13 +950,12 @@ Task_ExecPlayerInfo_Run(
     {
         self->op_consumed = player_target_op(self, &self->ops[self->op_i]);
 
+        /* A new player exists at once, drawing nothing until its
+         * appearance's body is resident. Nothing is awaited: the default kit
+         * and the ready stance this used to wait for are only drawn, and
+         * the wait held every packet behind the add. */
         if( self->need_ensure )
-        {
-            PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
-            PT_TASK_AWAITSELF_IF(
-                CreateTask_SequenceLoad(app->provider, app->scene, PLAYER_DEFAULT_SEQ_READY));
             player_ensure_now(self);
-        }
 
         if( !self->op_consumed )
         {
@@ -1125,6 +1143,10 @@ struct Task_ExecNpcInfo
     int cap;
 
     int cur_slot;
+    /* The slot this packet just added an npc in, until its add record ends
+     * (the next target op, or the packet's end): announced and its NPC_ADD
+     * trigger fired then, once the record's ops have placed it. -1: none. */
+    int add_slot;
 
     /* The wire type remains the per-player multiNpc wrapper; pending_npc_type
      * is the child selected from this App's local varps after async loading. */
@@ -1236,14 +1258,69 @@ npc_spawn_now(struct Task_ExecNpcInfo* self)
             npc->server_slot = self->cur_slot;
             element_id = npc->element_id;
             RS_EntitySync_RegisterNpc(&app->esync, self->cur_slot, element_id, idx);
-            /* The cache's own "an npc appeared" script, now that the npc
-             * carries the uid every op keys on. See game/rs_client_trigger.h. */
-            App_ClientTriggerNpcAdd(app, idx);
+            /* Its body: none yet unless it is resident; a parallel task
+             * mounts it when it is. */
+            App_EntityNpcBodyWant(app, idx);
+            /* Announced, and the cache's own "an npc appeared" script run,
+             * when its add record ends (npc_finish_add). */
+            self->add_slot = self->cur_slot;
         }
         npc_trace(
             app, self->pending_npc_type, self->cur_slot, -1, idx, element_id, "SPAWNED", 1);
     }
     entity_debug_log("entity_sync: npc %d spawned (world idx %d)\n", self->cur_slot, idx);
+}
+
+/*
+ * The npc this packet added has its whole add record applied: tell the drive
+ * ring and the plugins (FAULTS E2: the snapshot was taken inside the spawn,
+ * before the slot and the shell were set), and run the cache's NPC_ADD script
+ * (FAULTS E1: it ran before the record's DELTA_XZ moved the npc off the update
+ * origin, so its script saw the origin as the npc's coordinate). See
+ * game/rs_client_trigger.h.
+ */
+static void
+npc_finish_add(struct Task_ExecNpcInfo* self)
+{
+    int world_idx = -1;
+
+    if( self->add_slot < 0 )
+        return;
+    if( RS_EntitySync_FindNpc(&self->app->esync, self->add_slot, &world_idx, NULL) && world_idx >= 0 )
+    {
+        App_WorldNpcSpawnAnnounce(self->app, world_idx);
+        App_ClientTriggerNpcAdd(self->app, world_idx);
+    }
+    self->add_slot = -1;
+}
+
+/* Does op `kind` change which npc the following ops address (the end of the
+ * current record)? Plain helper: no switch in the protothread. */
+static int
+npc_op_is_target(int kind)
+{
+    switch( kind )
+    {
+    case RSPROT_OP_ADD_OLD:
+    case RSPROT_OP_ADD_NEW:
+    case RSPROT_OP_SET_EXT:
+    case RSPROT_OP_CLEAR_OLD:
+    case RSPROT_OP_COUNT_RESET:
+    case RSPROT_OP_INFO:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+/* Remove the npc in `slot`, and every parallel task still pending for it. */
+static void
+npc_remove(
+    struct Task_ExecNpcInfo* self,
+    int slot)
+{
+    App_EntityNpcGone(self->app, slot);
+    RS_EntitySync_RemoveNpc(&self->app->esync, self->app->world, slot);
 }
 
 /*
@@ -1356,7 +1433,7 @@ npc_target_op(
             npc_trace(
                 self->app, npc_trace_type_of(self->app, stale_world_idx), self->cur_slot, -1,
                 stale_world_idx, stale_element_id, "STALE_SLOT_REUSED", 1);
-            RS_EntitySync_RemoveNpc(esync, self->app->world, self->cur_slot);
+            npc_remove(self, self->cur_slot);
         }
         if( *self->count < self->cap )
             self->list[(*self->count)++] = self->cur_slot;
@@ -1382,7 +1459,7 @@ npc_target_op(
             if( self->cleared_count < RS_ENTITY_SYNC_MAX_NPCS )
                 self->cleared[self->cleared_count++] = slot;
             else
-                RS_EntitySync_RemoveNpc(esync, self->app->world, slot);
+                npc_remove(self, slot);
         }
         self->cur_slot = -1;
         return 1;
@@ -1402,7 +1479,7 @@ npc_target_op(
             npc_trace(
                 self->app, npc_trace_type_of(self->app, w), self->old_list[i], i, w, e,
                 "REMOVE_COUNT_SHRINK", keep);
-            RS_EntitySync_RemoveNpc(esync, self->app->world, self->old_list[i]);
+            npc_remove(self, self->old_list[i]);
         }
         *self->count = 0;
         return 1;
@@ -1597,8 +1674,8 @@ npc_apply_op(
                 op->damage.total_health,
                 op->damage.delay,
                 part ? 0 : op->damage.slots,
-                RS_Hitsplats_DurationFor(&self->app->hitsplats, type),
-                RS_Hitsplats_SlotPolicyFor(&self->app->hitsplats, type));
+                RS_Hitsplats_DurationFor(&self->app->hitsplats, hitsplat_policy_type(self->app, type)),
+                RS_Hitsplats_SlotPolicyFor(&self->app->hitsplats, hitsplat_policy_type(self->app, type)));
         }
         break;
     case RSPROT_OP_HEADBAR:
@@ -1705,6 +1782,7 @@ npc_apply_op(
                 World_EntityPoolAt(&world->entities.npc, idx);
             strncpy(npc->name, op->name_change.name, sizeof(npc->name) - 1);
             npc->name[sizeof(npc->name) - 1] = '\0';
+            npc->overrides |= WORLD_NPC_OVERRIDE_NAME;
         }
         break;
     case RSPROT_OP_LEVEL_CHANGE:
@@ -1713,6 +1791,7 @@ npc_apply_op(
             struct WorldEntity_NPC* npc =
                 World_EntityPoolAt(&world->entities.npc, idx);
             npc->combat_level = (int)(uint32_t)op->value;
+            npc->overrides |= WORLD_NPC_OVERRIDE_LEVEL;
         }
         break;
     case RSPROT_OP_HEADICON_CUSTOM:
@@ -1772,6 +1851,11 @@ npc_apply_op(
              * A type whose config is not resident keeps what it had. */
             if( App_WorldNpcTypeIdle(self->app, npc->npc_id, npc->base_npc_id, &type_idle) )
                 npc->idle_animations = type_idle;
+            /* An empty mask is the reset to the type's own: no override. */
+            if( mask )
+                npc->overrides |= WORLD_NPC_OVERRIDE_STANCES;
+            else
+                npc->overrides &= (uint8_t)~WORLD_NPC_OVERRIDE_STANCES;
             if( mask & (1u << 0) ) npc->idle_animations.turnanim = op->bas_change.turnanim;
             if( mask & (1u << 1) ) npc->idle_animations.turnanim_r = op->bas_change.turnanim_r;
             if( mask & (1u << 2) ) npc->idle_animations.walkanim = op->bas_change.walkanim;
@@ -1850,13 +1934,18 @@ Task_ExecNpcInfo_Run(
         (size_t)self->old_count * sizeof(self->old_list[0]));
     *self->count = 0;
     self->cur_slot = -1;
+    self->add_slot = -1;
     self->cleared_count = 0;
     self->cur_revived = 0;
 
     for( self->op_i = 0; self->op_i < self->op_count; self->op_i++ )
     {
         uint64_t bd_t = BD_T0();
-        int targeted = npc_target_op(self, &self->ops[self->op_i]);
+        int targeted;
+
+        if( npc_op_is_target(self->ops[self->op_i].kind) )
+            npc_finish_add(self);
+        targeted = npc_target_op(self, &self->ops[self->op_i]);
 
         BD_ADD(g_bd_apply, bd_t);
         g_bd_ops++;
@@ -1926,7 +2015,12 @@ Task_ExecNpcInfo_Run(
                         {
                             npc->base_npc_id = self->pending_npc_base_type;
                             npc->multinpc_hidden = self->pending_npc_hidden != 0;
+                            /* A server type change: the type's name, level
+                             * and stances again, as it always did. */
+                            npc->overrides = 0;
                         }
+                        /* Its body, when not resident, is wanted by the
+                         * retype itself. */
                         App_WorldApplyNpcType(
                             app,
                             world_idx,
@@ -1936,10 +2030,6 @@ Task_ExecNpcInfo_Run(
                         BD_ADD(g_bd_retype, bd_t);
                     }
                 }
-                if( self->cur_slot >= 0 && self->pending_npc_type >= 0 &&
-                    !EntityAssets_NpcBodyResident(app, self->pending_npc_type) )
-                    EntityAssets_WantNpcBody(
-                        app, self->pending_npc_base_type, self->pending_npc_type);
             }
             else if( need == NPC_NEED_SEQ )
             {
@@ -1980,9 +2070,12 @@ Task_ExecNpcInfo_Run(
         }
     }
 
+    /* The last record's add, if it was one. */
+    npc_finish_add(self);
+
     /* Removed and not added back: gone. */
     for( int i = 0; i < self->cleared_count; i++ )
-        RS_EntitySync_RemoveNpc(&app->esync, app->world, self->cleared[i]);
+        npc_remove(self, self->cleared[i]);
     self->cleared_count = 0;
 
     RedrawRequest_Raise(&app->redraw_request);
