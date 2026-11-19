@@ -103,6 +103,14 @@ core_new(void)
             .full = RS_EVENT_RING_OVERWRITE,
             .cycle = &core->world->cycle,
         });
+    ScriptrunZone_Init(&core->zone,
+        (struct RS_EventSink){
+            .ring = &core->events,
+            .entries = core->event_entries,
+            .capacity = SCRIPTRUN_EVENTS,
+            .full = RS_EVENT_RING_OVERWRITE,
+            .cycle = &core->world->cycle,
+        });
     core->toplevel = -1;
     return core;
 }
@@ -111,6 +119,7 @@ static void
 core_free(struct ScriptrunCore* core)
 {
     ScriptrunModel_Free(&core->model);
+    ScriptrunZone_Free(&core->zone);
     RS_EntitySync_Free(core->esync);
     free(core->esync);
     World_Free(core->world);
@@ -462,6 +471,59 @@ test_rules(void)
     core_free(core);
 }
 
+/* The zone families: both zones fed the same is no row; a ground row and a
+ * map graphic one side lacks are each a row, a standing one written once. */
+static void
+test_zone_families(void)
+{
+    struct ScriptrunCore* core = core_new();
+    struct ScriptrunShadow* sh =
+        ScriptrunShadow_New(s_path, 242, &core->world->cycle, test_pkt_name);
+    struct ScriptrunZone* shadow_zone = ScriptrunShadow_Zone(sh);
+    struct ScriptrunZoneAt at;
+    struct PktObjAdd add = { .pos = (1 << 4) | 2, .obj_id = 995, .count = 5 };
+    struct PktMapAnim anim = { .pos = 0, .id = 1234 };
+    struct Row rows[MAX_ROWS];
+    struct Row const* r;
+    int n;
+
+    CHECK(sh != NULL, "a shadow");
+    /* The test writes the two sides apart on purpose. */
+    ScriptrunShadow_SetStrictWorld(sh, 0);
+    memset(&at, 0, sizeof(at));
+    at.origin_x = 3200;
+    at.origin_z = 3200;
+    at.base_x = 8;
+    at.base_z = 8;
+    at.scene_size = 104;
+    ScriptrunZone_Rebuild(&core->zone, 3200, 3200, 104);
+    ScriptrunZone_Rebuild(shadow_zone, 3200, 3200, 104);
+
+    ScriptrunZone_Apply(&core->zone, &at, 0, 0, PKT_NAME_OBJ_ADD, &add);
+    ScriptrunZone_Apply(shadow_zone, &at, 0, 0, PKT_NAME_OBJ_ADD, &add);
+    tick_end(sh, core);
+    n = read_rows(rows);
+    CHECK(count_family(rows, n, "ground") == 0, "the same row on both: no row");
+
+    /* The shadow's zone alone takes a second pile and a map graphic. */
+    add.count = 7;
+    ScriptrunZone_Apply(shadow_zone, &at, 0, (int)core->world->cycle, PKT_NAME_OBJ_ADD, &add);
+    ScriptrunZone_Apply(shadow_zone, &at, 0, (int)core->world->cycle, PKT_NAME_MAP_ANIM, &anim);
+    tick_end(sh, core);
+    tick_end(sh, core);
+    n = read_rows(rows);
+    r = find_row(rows, n, "ground", "3209,3210,0");
+    CHECK(r != NULL, "the tile's rows differ");
+    CHECK(strcmp(r->old_value, "995x5") == 0, "the core's one pile");
+    CHECK(strcmp(r->shared_value, "995x5 995x7") == 0, "the shadow's two, in arrival order");
+    CHECK(count_family(rows, n, "ground") == 1, "a standing difference is written once");
+    CHECK(count_family(rows, n, "map_anims") == 1, "the map graphic only one side holds");
+    CHECK(ScriptrunShadow_Rows(sh, SCRIPTRUN_SHADOW_PROJECTILES) == 0, "no projectile on either");
+
+    ScriptrunShadow_Free(sh);
+    core_free(core);
+}
+
 int
 main(void)
 {
@@ -474,6 +536,8 @@ main(void)
         (int)getpid());
     test_unset_is_no_shadow();
     test_rules();
+    remove(s_path);
+    test_zone_families();
     remove(s_path);
     printf("scriptrun_shadow_test: all passed\n");
     return 0;

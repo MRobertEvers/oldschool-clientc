@@ -39,6 +39,7 @@
 
 #include "torirs_server.h"
 #include "mem/torirs_mem.h"
+#include "game/rs_effect_log.h"
 #include "torirs_server_boot.h"
 #include "torirs_server_content.h"
 #include "torirs_server_db.h"
@@ -1474,12 +1475,20 @@ d_projectiles(lua_State* L)
     int now = (int)c->world->cycle;
     int n = 0;
 
+    static struct RS_EffectProjectile shots[RS_EFFECT_LOG_CAP / 2];
+    int const logged = RS_EffectLog_Projectiles(
+        &c->zone.effects, c->zone.effect_entries, shots, RS_EFFECT_LOG_CAP / 2);
+
     lua_pushstring(L, "ok");
     lua_newtable(L);
-    for( int i = 0; i < c->projectile_count; i++ )
+    /* The effect log's projectiles, oldest first, while their flight lasts
+     * (DriveUi_Projectiles' rule: gone once elapsed passes end_delay). */
+    for( int i = 0; i < logged; i++ )
     {
-        struct ScriptrunProjectile const* p = &c->projectiles[i];
-        int elapsed = now - p->launch_cycle;
+        struct RS_EffectProjectile const* p = &shots[i];
+        int elapsed = now - p->cycle;
+        if( elapsed > p->end_delay )
+            continue;
         if( have && radius > 0 && cheb(px, pz, p->dst_x, p->dst_z) > radius )
             continue;
         lua_newtable(L);
@@ -1528,18 +1537,24 @@ d_spotanims(lua_State* L)
     int now = (int)c->world->cycle;
     int n = 0;
 
+    static struct RS_EffectMapAnim anims[RS_EFFECT_LOG_CAP];
+    int const logged =
+        RS_EffectLog_MapAnims(&c->zone.effects, c->zone.effect_entries, anims, RS_EFFECT_LOG_CAP);
+
     lua_pushstring(L, "ok");
     lua_newtable(L);
-    for( int i = 0; i < c->map_anim_count; i++ )
+    for( int i = 0; i < logged; i++ )
     {
-        struct ScriptrunMapAnim const* a = &c->map_anims[i];
+        struct RS_EffectMapAnim const* a = &anims[i];
         int left;
-        if( have && radius > 0 && cheb(px, pz, a->x, a->z) > radius )
-            continue;
-        /* The core retires a floor graphic RS_EFFECT_MAP_ANIM_LIFE_TICKS after
-         * it lands (the server keeps no spotanim config to read its sequence
+        /* A floor graphic is listed RS_EFFECT_MAP_ANIM_LIFE_TICKS after it
+         * lands (the server keeps no spotanim config to read its sequence
          * length from). */
         left = RS_EFFECT_MAP_ANIM_LIFE_CYCLES - (now - a->cycle);
+        if( left < 0 )
+            continue;
+        if( have && radius > 0 && cheb(px, pz, a->x, a->z) > radius )
+            continue;
         lua_newtable(L);
         lua_pushinteger(L, -1);
         lua_setfield(L, -2, "seq");
@@ -1580,9 +1595,9 @@ d_loc_anims(lua_State* L)
 
     lua_pushstring(L, "ok");
     lua_newtable(L);
-    for( int i = 0; i < c->loc_anim_count; i++ )
+    for( int i = 0; i < c->zone.loc_anim_count; i++ )
     {
-        struct ScriptrunLocAnim const* a = &c->loc_anims[i];
+        struct ScriptrunLocAnim const* a = &c->zone.loc_anims[i];
         if( have && radius > 0 && cheb(px, pz, a->x, a->z) > radius )
             continue;
         lua_newtable(L);
@@ -1613,13 +1628,21 @@ d_objs(lua_State* L)
     int have = ScriptrunCore_LocalTile(c, &px, &pz, &plevel);
     int n = 0;
 
-    struct PoolOrder order[SCRIPTRUN_OBJS];
+    int const count = ScriptrunCore_ObjCount(c);
+    struct ScriptrunObjRow* rows =
+        ToriMem_Calloc(ToriMem_ServerPlayers(), (size_t)count + 1, sizeof(*rows));
+    struct PoolOrder* order =
+        ToriMem_Calloc(ToriMem_ServerPlayers(), (size_t)count + 1, sizeof(*order));
+    int const listed = ScriptrunCore_Objs(c, rows, count + 1);
     int kept = 0;
 
-    assert(c->obj_count <= SCRIPTRUN_OBJS);
-    for( int i = 0; i < c->obj_count; i++ )
+    assert(rows);
+    assert(order);
+    /* The rows in arrival order, as the real client's pool walks them; the
+     * index breaks a distance tie in that order. */
+    for( int i = 0; i < listed; i++ )
     {
-        struct ScriptrunObj const* o = &c->objs[i];
+        struct ScriptrunObjRow const* o = &rows[i];
         if( have && radius > 0 && cheb(px, pz, o->x, o->z) > radius )
             continue;
         order[kept].idx = i;
@@ -1631,7 +1654,7 @@ d_objs(lua_State* L)
     lua_newtable(L);
     for( int k = 0; k < kept; k++ )
     {
-        struct ScriptrunObj const* o = &c->objs[order[k].idx];
+        struct ScriptrunObjRow const* o = &rows[order[k].idx];
         lua_newtable(L);
         lua_pushinteger(L, o->obj_id);
         lua_setfield(L, -2, "obj_id");
@@ -1647,6 +1670,8 @@ d_objs(lua_State* L)
         lua_setfield(L, -2, "element_id");
         lua_rawseti(L, -2, ++n);
     }
+    ToriMem_Free(ToriMem_ServerPlayers(), order);
+    ToriMem_Free(ToriMem_ServerPlayers(), rows);
     return 2;
 }
 
@@ -2546,11 +2571,18 @@ d_world_op(lua_State* L)
     }
     if( strcmp(kind, "obj") == 0 )
     {
-        struct ScriptrunObj const* best = NULL;
+        int const count = ScriptrunCore_ObjCount(c);
+        struct ScriptrunObjRow* rows =
+            ToriMem_Calloc(ToriMem_ServerPlayers(), (size_t)count + 1, sizeof(*rows));
+        int const listed = ScriptrunCore_Objs(c, rows, count + 1);
+        struct ScriptrunObjRow pick;
+        struct ScriptrunObjRow const* best = NULL;
         int best_d = 1 << 30;
-        for( int i = 0; i < c->obj_count; i++ )
+
+        assert(rows);
+        for( int i = 0; i < listed; i++ )
         {
-            struct ScriptrunObj const* o = &c->objs[i];
+            struct ScriptrunObjRow const* o = &rows[i];
             int d;
             if( o->obj_id != type_id )
                 continue;
@@ -2563,8 +2595,12 @@ d_world_op(lua_State* L)
                 best = o;
             }
         }
+        if( best )
+            pick = *best;
+        ToriMem_Free(ToriMem_ServerPlayers(), rows);
         if( !best )
             return push_result(L, "not_found", "no such object on the ground in view");
+        best = &pick;
         if( push_beyond_draw(L, best->x, best->z, px, pz) )
             return 2;
         put2(payload, best->x);
