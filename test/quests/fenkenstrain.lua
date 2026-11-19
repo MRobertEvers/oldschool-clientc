@@ -115,7 +115,7 @@ return {
 
     run = function(t)
         t.quest.bind({
-            varp = "varp399_fenk_quest",
+            varp = "varb13715_creatureoffenkenstrain",
             constants = {
                 not_started = 0, sign_read = 1, hired = 2, parts = 3,
                 lightning = 4, alive = 5, tower = 6, spoke_creature = 7,
@@ -253,6 +253,7 @@ return {
             doors(prefix, { "westHallOut", "midWestOut", "northOut" })
         end
 
+        t.ticklog.start()
         t.ticks(2)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
@@ -307,15 +308,28 @@ return {
         -- (80 attack/strength/defence/hitpoints) change nothing here; no
         -- dialogue this run passes reads ~player_combat_level.
         t.exec("enterMorytania.talkToDrezel", t.player.talk_to, "priestperiltrappedmonk2", 1)
+        -- mausoleum_drezel.rs2 [label,drezel_access_holy_barrier] (RSProx
+        -- index 4459 [2047..2085]): the blessing writes 61 with its box.
         t.exec("enterMorytania.talkToDrezel-dialog", t.chat.play, {
             "player:So can I pass through that barrier now?",
-            "npc:Ah, ",
-            "npc:Morytania is an evil land",
-            "npc:You should take some basic precautions",
-            "npc:In many ways Werewolves",
-            "npc:and it is a holy relic",
-            "npc:wolf form is incredibly powerful",
-            "player:Okay, I will keep it equipped",
+            "npc:Into Morytania? Yes, you can.",
+            "npc:I must warn you though",
+            "npc:Worst of all are the vampyres",
+            "player:I'll be careful.",
+            "npc:The first settlement",
+            "npc:You should keep that dagger",
+            "player:I see. Thanks.",
+            "npc:One last thing.",
+            "player:The Myreque?",
+            "npc:Yes. They're a band of freedom fighters.",
+            "npc:Veliaf, the leader",
+            "player:I'll keep an eye out for them.",
+            "npc:Right, I think that's everything.",
+            "mesbox:Drezel blesses you",
+            "npc:Good luck out there.",
+            "options",
+            "choose:And you. See you later.",
+            "player:And you. See you later.",
         })
         t.exec("enterMorytania.drezelAdvice", t.var.await_server, "varp302_priestperil", 61, 8)
         t.exec("enterMorytania.holyBarrier", t.player.cross_gate, { loc = "pip_underground_wall_side_withportal",
@@ -326,36 +340,62 @@ return {
         t.exec("goto-readSign", t.player.goto_tile, 3496, 3489, 0)
 
         -- ================= Panel: Starting off =================
+        -- RSProx index 4606 is the flow from here on (ticks cited in
+        -- docs/rsprox-analysis/quests/creature_of_fenkenstrain.md).
+        t.ticklog.mark("leg.start")
+        -- [595..604]: the confirm on the op, the note's box on "Yes.".
         t.exec("readSign", t.player.click_loc, "fenk_signpost", 1)
         t.exec("readSign-dialog", t.chat.play, {
+            "options",
+            "choose:Yes.",
             "mesbox:The signpost has a note pinned",
         })
         t.expect("quest.stage.sign_read", t.quest.expect_stage("sign_read"))
+        t.exec("readSign.startLine", t.msg.expect, "You've started a new quest")
 
+        -- [534..575]: the brain is Roavar's sale when the jar is taken.
+        t.exec("goto-bar", t.player.goto_tile, 3493, 3474, 0)
+        -- The take opens Roavar's pages instead of picking the jar up, so
+        -- the press's own settle (a pickup) times out; the pages are the row.
+        local brain_take = t.player.click_obj("fenk_brain", 3)
+        t.note("getPickledBrain: click_obj fenk_brain 3 -> " .. tostring(brain_take))
+        t.exec("getPickledBrain-dialog", t.chat.play, {
+            "npc:You're interested in our speciality",
+            "player:What exactly is in the jar?",
+            "npc:Pickled brain, my friend.",
+            "player:Err...pickled brain from what animal?",
+            "npc:Animal? Don't be disgusting",
+            "options",
+            "choose:I'll buy one.",
+            "player:I'll buy one, please.",
+            "npc:A very wise choice",
+        })
+        t.exec("getPickledBrain.held", t.inv.await, "fenk_brain", 1, 10)
+
+        t.ticklog.mark("leg.interview")
         enter_castle("talkToFrenkenstrain")
         t.exec("talkToFrenkenstrain", t.player.talk_to, "fenk_fenkenstrain", 1)
         t.exec("talkToFrenkenstrain-dialog", t.chat.play, {
             "npc:Have you come to apply for the",
             "options",
-            "choose:Yes, if it pays well.",
+            "choose:Yes.",
             "player:Yes, if it pays well.",
             "npc:I'll have to ask you some quest",
             "player:Okay...",
             "npc:How would you describe yoursel",
             "options",
-            "choose:Braindead.",
-            "player:Braindead.",
+            "choose:Braindead",
             "npc:Mmmm, I see.",
             "npc:Just one more question. What w",
             "options",
-            "choose:Grave-digging.",
-            "player:Grave-digging.",
+            "choose:Grave-digging",
             "npc:Mmmm, I see.",
             "npc:Looks like you're just the",
             "player:Is there anything you'd like",
             "npc:Yes, there is. You're highly sk",
             "player:Err...yes, that's what I said",
-            "npc:Excellent. Now listen carefully",
+            "npc:Excellent. Now listen carefully.",
+            "npc:I need you to find some...stuff",
             "player:Stuff?",
             "npc:That's what I said...stuff.",
             "player:What kind of stuff?",
@@ -366,32 +406,8 @@ return {
         })
         t.expect("quest.stage.hired", t.quest.expect_stage("hired"))
 
-        -- Pickled brain: only sellable from Roavar once hired
-        -- (werewolfinnkeeper.rs2's beer-menu gate reads
-        -- %creatureoffenkenstrain >= fenk_hired), so this leg runs after the
-        -- interview even though Quest Helper lists it as its own earlier
-        -- panel. The Canifis bar has open doorways (no door loc; a static
-        -- flood from the castle front reaches the bar with doors closed).
-        leave_castle("getPickledBrain")
-        t.exec("goto-bar", t.player.goto_tile, 3493, 3471, 0)
-        t.exec("getPickledBrain", t.player.talk_to, "werewolfinnkeeper", 1)
-        t.exec("getPickledBrain-dialog", t.chat.play, {
-            "player:Hello there!",
-            "npc:Greetings traveller",
-            "options",
-            "choose:Do you sell pickled brains?",
-            "player:Do you sell pickled brains?",
-            "npc:Pickled brain, my friend",
-            "options",
-            "choose:I'll buy one, please.",
-            "player:I'll buy one, please.",
-            "npc:Pleasure doing business.",
-        })
-        t.exec("getPickledBrain.held", t.inv.await, "fenk_brain", 1, 10)
-
         -- ================= Panel: Graverobbing =================
-        -- Up the EAST staircase (the guide's goUpstairsForStar, 3560,3552).
-        enter_castle("goUpstairsForStar")
+        t.ticklog.mark("leg.bookcases")
         doors("goUpstairsForStar", { "northIn", "midEastIn", "eastHallIn" })
         stairs("goUpstairsForStar", EAST_UP)
 
@@ -399,8 +415,9 @@ return {
         t.exec("getBook1", t.player.click_loc, "fenk_bookcase", 1, { at = { 3555, 3558, 1 } })
         t.exec("getBook1-dialog", t.chat.play, {
             "options",
-            "choose:Handy Maggot Avoidance Techniques.",
-            "mesbox:As you pull the book a hidden",
+            "choose:Handy Maggot Avoidance Techniques",
+            "objbox:As you pull the book a hidden",
+            "objbox:You find an obsidian amulet",
         })
         t.exec("getBook1.held", t.inv.await, "fenk_obsidian_amulet", 1, 10)
         door("getBook1", "eastRoomOut")
@@ -409,54 +426,81 @@ return {
         t.exec("getBook2", t.player.click_loc, "fenk_bookcase", 1, { at = { 3542, 3558, 1 } })
         t.exec("getBook2-dialog", t.chat.play, {
             "options",
-            "choose:The Joy of Grave Digging.",
+            "choose:The Joy of Gravedigging",
             "mesbox:As you pull the book a hidden",
+            "objbox:You find a marble amulet",
         })
         t.exec("getBook2.held", t.inv.await, "fenk_marble_amulet", 1, 10)
 
         t.exec("combineAmulet", t.player.use_item_on_item, "fenk_marble_amulet", "fenk_obsidian_amulet")
+        t.exec("combineAmulet-dialog", t.chat.play, { "objbox:The marble and obsidian amulets" })
         t.exec("combineAmulet.held", t.inv.await, "fenk_star_amulet", 1, 10)
         t.check("combineAmulet.consumed", t.inv.expect_absent("fenk_marble_amulet"))
 
         door("goDownstairsForStar", "westRoomOut")
         stairs("goDownstairsForStar", WEST_DOWN)
 
+        -- [2144..2161]: the head's tale; "10 minutes to spare" sends the
+        -- guide (the ghostspeak box first, the amulet's first use).
+        t.ticklog.mark("leg.gardener")
         doors("talkToGardenerForHead", { "westHallOut", "midWestOut", "gardenIn" })
         t.exec("talkToGardenerForHead", t.player.talk_to, "fenk_gardener_multi_2", 1)
         t.exec("talkToGardenerForHead-dialog", t.chat.play, {
+            "options",
+            "choose:What happened to your head?",
             "player:What happened to your head?",
-            "npc:It got chopped off while I was",
-            "npc:Dig at my grave southeast of the",
+            "objbox:You feel power emanate",
+            "npc:Oi was in the old 'aunted Forest",
+            "player:Oh yes, dreadful bad luck.",
+            "npc:So oi thinks to meself",
+            "player:Would you show me where the place was?",
+            "npc:Well, oi s'pose oi've got 10 minutes",
         })
         t.exec("talkToGardenerForHead.flag", t.var.await_server, "varb193_fenk_spoken_to_gardener", 1, 10)
+        t.exec("talkToGardenerForHead.guide", t.var.await_server, "varb185_fenk_gardener_directions", 1, 10)
+        -- [2165]: the guide, talked to in the castle's square, says a line
+        -- overhead and opens no page.
+        t.ticklog.mark("guide.say")
+        local _, gmarks = t.ticklog.rows({ kind = "mark" })
+        local gsince = gmarks[#gmarks].serial
+        t.player.talk_to("fenk_gardener_multi", 1)
+        local gsay = nil
+        local gwait = 0
+        while gsay == nil and gwait < 10 do
+            t.ticks(1)
+            gwait = gwait + 1
+            local _, says = t.ticklog.rows({ kind = "npc_say", since = gsince })
+            gsay = says[1]
+        end
+        t.check("talkToGardenerForHead.guideSays", gsay ~= nil and gsay.text == "You need to head off to them Haunted Woods, mate."
+            and t.chat.kind() == "none",
+            "npc_say after the talk -> " .. tostring(gsay and gsay.text) .. "; chat " .. tostring(t.chat.kind())
+                .. " (want the castle's line overhead and no page, RSProx 4606 [2165])")
 
         doors("goToHeadGrave", { "gardenOut", "northOut" })
         leave_castle("goToHeadGrave")
-        t.exec("goToHeadGrave.goto", t.player.goto_tile, 3608, 3489, 0)
-        -- Ed Lestwit's grave, ^fenk_ed_grave 0_56_54_24_35 (fenkenstrain.constant:34).
-        t.exec("goToHeadGrave", t.player.click_loc, "fenk_grave_poor", 2, { at = { 3608, 3491, 0 } })
-        -- The dig's mesbox opens after anim(human_dig,0); p_delay(2), and a
-        -- click_loc that first has to step off the grave's own tile (trap 8
-        -- of section 8) adds a further tick -- click_loc's settle can win
-        -- the race on the weaker map_flag arm instead of waiting for the
-        -- mesbox (trap 24). Poll for the page instead of guessing a tick
-        -- count.
+        t.exec("goToHeadGrave.goto", t.player.goto_tile, 3608, 3490, 0)
+        -- [2297]: the spade's Dig beside Ed Lestwit's grave.
+        t.exec("goToHeadGrave", t.player.inv_op, "spade", 1)
         t.await({ level = function() return t.chat.kind() ~= "none" end,
-            note = "goToHeadGrave dig mesbox" }, 8)
+            note = "goToHeadGrave dig box" }, 10)
         t.exec("goToHeadGrave-dialog", t.chat.play, {
-            "mesbox:...and you unearth a decapitated",
+            "objbox:... and you unearth a decapitated",
         })
         t.exec("goToHeadGrave.held", t.inv.await, "fenk_head_empty", 1, 10)
+        t.exec("goToHeadGrave.guideGone", t.var.await_server, "varb185_fenk_gardener_directions", 0, 10)
 
         t.exec("combinedHead", t.player.use_item_on_item, "fenk_head_empty", "fenk_brain")
+        t.exec("combinedHead-dialog", t.chat.play, { "objbox:You squeeze the pickled brain" })
         t.exec("combinedHead.held", t.inv.await, "fenk_head_full", 1, 10)
         t.check("combinedHead.brainUsed", t.inv.expect_absent("fenk_brain"))
 
+        t.ticklog.mark("leg.caves")
         t.exec("goto-coffin", t.player.goto_tile, 3578, 3525, 0)
         local coffin_target = t.player.by_symbol("loc", "fenk_coffin")
         t.exec("useStarOnGrave", t.player.use_on, "fenk_star_amulet", coffin_target, { at = { 3578, 3527, 0 } })
         t.exec("useStarOnGrave-dialog", t.chat.play, {
-            "mesbox:The star amulet fits exactly",
+            "objbox:The star amulet fits exactly",
         })
         t.exec("useStarOnGrave.flag", t.var.await_server, "varb192_fenk_coffin", 1, 10)
         t.check("useStarOnGrave.amuletUsed", t.inv.expect_absent("fenk_star_amulet"))
@@ -465,15 +509,10 @@ return {
         await_tile(function(tt) return tt.z > 6400 end, 8, "enterExperimentCave")
         local cave_r, cave_tile = t.world.tile()
         t.check("enterExperimentCave.tile", cave_r == "ok" and cave_tile.x == 3577 and cave_tile.z == 9927 and cave_tile.level == 0,
-            "tile " .. tile_text(cave_r, cave_tile) .. " (want ^fenk_experiment_cave 3577,9927,0: fenkenstrain_parts.rs2 [oploc1,fenk_coffin])")
+            "tile " .. tile_text(cave_r, cave_tile) .. " (want 3577,9927,0: RSProx 4606 [1663])")
 
-        -- One cavern passage: the landing to the Experiment is open floor
-        -- (reach.py REACH closed-doors len=44), so the hop is travel.
         t.exec("goto-experiment", t.player.goto_tile, 3554, 9948, 0)
         t.exec("killExperiment", t.player.attack, "fenk_experiment_1", 2, 25)
-        -- Fight it to the end, however long the rolls take: every swing is
-        -- on the player's own stream (seam28), and on it the level-51
-        -- Experiment sat at a sliver of health past the old 40-tick budget.
         local _, kill_detail = t.exec("killExperiment.dead", t.npc.await_dead_engaged, 200, 6,
             { eat = { item = "lobster", below = 40 } })
         local kill_low = tonumber(tostring(kill_detail):match("lowest hp (%d+)/"))
@@ -481,6 +520,7 @@ return {
         t.check("killExperiment.margin", kill_low ~= nil and kill_low >= 20 and food_r == "ok" and food_left >= 1,
             "Experiment (level 51): lowest hp " .. tostring(kill_low) .. "/80, lobsters staged 4, left "
                 .. tostring(food_left) .. " (" .. tostring(food_r) .. ") (margin: lowest hp >= 20, a quarter of 80, AND food left)")
+        t.exec("killExperiment.keyLine", t.msg.expect, "Untradeable drop: Cavern key")
 
         local key_result, key_row = t.world.obj_near("fenk_mausoleum_key", 15)
         t.check("pickupKey.locate", key_result == "ok",
@@ -489,61 +529,67 @@ return {
         if key_result == "ok" then
             t.exec("goto-key", t.player.goto_tile, key_row.tile_x, key_row.tile_z, key_row.level)
         end
-        -- click_obj is hollow on success (ok, nil detail) -- section 8.
         local pickup_result = t.player.click_obj("fenk_mausoleum_key", 3)
         t.check("pickupKey", pickup_result == "ok", "click_obj fenk_mausoleum_key -> " .. tostring(pickup_result))
         t.exec("pickupKey.held", t.inv.await, "fenk_mausoleum_key", 1, 10)
 
-        -- The same passage west to the mausoleum door (REACH closed-doors len=72).
+        -- [1824..1827]: the key on the door spends it, unlocks it and steps
+        -- the player through (an inviswall and the open leaf for 2 ticks).
         t.exec("goto-mausoleumDoor", t.player.goto_tile, 3511, 9957, 0)
-        key_door("openMausoleumDoor", "fenk_mausoleum_key", "fenk_mausoleum_door", "fenk_mausoleum_door_open",
-            { 3510, 9957, 0 }, "varb199_fenk_unlocked_cavern")
+        local door_target = t.player.by_symbol("loc", "fenk_mausoleum_door")
+        t.exec("openMausoleumDoor", t.player.use_on, "fenk_mausoleum_key", door_target, { at = { 3510, 9957, 0 } })
+        t.exec("openMausoleumDoor.flag", t.var.await_server, "varb199_fenk_unlocked_cavern", 1, 10)
+        await_tile(function(tt) return tt.x == 3510 and tt.z == 9957 end, 6, "openMausoleumDoor.through")
         t.check("openMausoleumDoor.keyUsed", t.inv.expect_absent("fenk_mausoleum_key"))
-        t.exec("leaveExperimentCave.mausoleumDoor", t.player.pass_door, { closed = "fenk_mausoleum_door",
-            open = "fenk_mausoleum_door_open", at = { 3510, 9957, 0 }, near = { 3511, 9957 }, far = { 3509, 9957 } })
-        -- Up the cave ladder into the walled graveyard (maplink 0_54_155_48_49 -> 0_54_55_48_49).
         climb("leaveExperimentCave", "ladder_from_cellar_directional", { 3504, 9970, 0 }, { 3504, 9969 }, { 3504, 3569, 0, 1 })
 
-        t.exec("getTorso", t.player.click_loc, "fenk_grave", 2, { at = { 3502, 3576, 0 } })
-        t.await({ level = function() return t.chat.kind() ~= "none" end,
-            note = "getTorso dig mesbox" }, 8)
-        t.exec("getTorso-dialog", t.chat.play, {
-            "mesbox:...and you unearth a torso.",
-        })
-        t.exec("getTorso.held", t.inv.await, "fenk_torso", 1, 10)
+        -- [1896..1967]: each lord's grave dug with the spade beside it.
+        t.ticklog.mark("leg.lords")
+        local function dig_grave(name, stand, part, line)
+            walk(name .. ".stand", stand[1], stand[2], 0)
+            t.exec(name, t.player.inv_op, "spade", 1)
+            t.await({ level = function() return t.chat.kind() ~= "none" end, note = name .. " dig box" }, 10)
+            t.exec(name .. "-dialog", t.chat.play, { "objbox:" .. line })
+            t.exec(name .. ".held", t.inv.await, part, 1, 10)
+        end
+        dig_grave("getArm", { 3504, 3576 }, "fenk_arms", "... and you unearth a pair of arms.")
+        dig_grave("getTorso", { 3503, 3576 }, "fenk_torso", "... and you unearth a torso.")
+        dig_grave("getLeg", { 3505, 3576 }, "fenk_legs", "... and you unearth a pair of legs.")
 
-        t.exec("getArm", t.player.click_loc, "fenk_grave", 2, { at = { 3504, 3577, 0 } })
-        t.await({ level = function() return t.chat.kind() ~= "none" end,
-            note = "getArm dig mesbox" }, 8)
-        t.exec("getArm-dialog", t.chat.play, {
-            "mesbox:...and you unearth a pair of arms.",
-        })
-        t.exec("getArm.held", t.inv.await, "fenk_arms", 1, 10)
-
-        t.exec("getLeg", t.player.click_loc, "fenk_grave", 2, { at = { 3506, 3576, 0 } })
-        t.await({ level = function() return t.chat.kind() ~= "none" end,
-            note = "getLeg dig mesbox" }, 8)
-        t.exec("getLeg-dialog", t.chat.play, {
-            "mesbox:...and you unearth a pair of legs.",
-        })
-        t.exec("getLeg.held", t.inv.await, "fenk_legs", 1, 10)
-
-        -- Back through the caves: the graveyard's own memorial drops into
-        -- the cavern by the east ladder, which climbs out beside the coffin.
+        -- [1858..1863]: the island's memorial back down; east through the
+        -- unlocked entrance ([2047]) to the ladder beside the first memorial.
         t.exec("deliverBodyParts.pushMemorial", t.player.click_loc, "fenk_coffin", 1, { at = { 3505, 3571, 0 } })
         await_tile(function(tt) return tt.z > 6400 end, 8, "deliverBodyParts.pushMemorial")
         local mem_r, mem_tile = t.world.tile()
-        t.check("deliverBodyParts.inCavern", mem_r == "ok" and mem_tile.x == 3577 and mem_tile.z == 9927 and mem_tile.level == 0,
-            "after the push " .. tile_text(mem_r, mem_tile) .. " (want ^fenk_experiment_cave 3577,9927,0)")
-        climb("deliverBodyParts.caveLadder", "ladder_from_cellar_directional", { 3578, 9927, 0 }, { 3577, 9927 }, { 3578, 3526, 0, 1 })
+        t.check("deliverBodyParts.inCavern", mem_r == "ok" and mem_tile.x == 3504 and mem_tile.z == 9969 and mem_tile.level == 0,
+            "after the push " .. tile_text(mem_r, mem_tile) .. " (want 3504,9969,0: RSProx 4606 [1863])")
+        t.exec("goto-mausoleumDoorWest", t.player.goto_tile, 3510, 9957, 0)
+        t.exec("deliverBodyParts.entrance", t.player.click_loc, "fenk_mausoleum_door", 1, { at = { 3510, 9957, 0 } })
+        await_tile(function(tt) return tt.x == 3511 and tt.z == 9957 end, 6, "deliverBodyParts.entrance")
+        t.exec("goto-caveLadder", t.player.goto_tile, 3577, 9927, 0)
+        climb("deliverBodyParts.caveLadder", "ladder_from_cellar_directional", { 3578, 9927, 0 }, { 3577, 9927 }, { 3577, 3527, 0, 1 })
+
+        -- [2083..2123]: arms, legs and torso used on him, each its own line;
+        -- [2531..2539]: the head by the menu, "Superb!!" with the stage.
+        t.ticklog.mark("leg.handin")
         enter_castle("deliverBodyParts")
+        local fenk_target = t.player.by_symbol("npc", "fenk_fenkenstrain")
+        local function use_part(part, line)
+            t.exec("deliverBodyParts." .. part, t.player.use_on, part, fenk_target)
+            t.exec("deliverBodyParts." .. part .. "-dialog", t.chat.play, { "npc:" .. line })
+        end
+        use_part("fenk_arms", "Great, you've brought me some arms.")
+        use_part("fenk_legs", "Excellent, you've brought me some legs.")
+        use_part("fenk_torso", "Splendid, you've brought me a torso.")
         t.exec("deliverBodyParts", t.player.talk_to, "fenk_fenkenstrain", 1)
         t.exec("deliverBodyParts-dialog", t.chat.play, {
             "options",
             "choose:I have some body parts for you.",
-            "player:I have some body parts for you",
-            "npc:Excellent! Exactly what I needed",
-            "npc:Now I need a needle and five s",
+            "player:I have some body parts for you.",
+            "npc:Fantastic, you've brought me a head.",
+            "npc:Superb!! Those are all the parts",
+            "npc:Oh bother! I haven't got a needle",
+            "npc:Go and get me a needle",
         })
         t.expect("quest.stage.parts", t.quest.expect_stage("parts"))
 
@@ -552,19 +598,22 @@ return {
         t.exec("gatherNeedleAndThread-dialog", t.chat.play, {
             "npc:Where are my needle and thread",
             "npc:Ah, a needle. Wonderful.",
-            "npc:Some thread. Excellent.",
+            "npc:Some thread, excellent.",
             "mesbox:Fenkenstrain uses the needle a",
             "npc:Perfect. But I need one more t",
             "player:Really?",
             "npc:I have honed to perfection an a",
             "player:And what power is this?",
             "npc:The power of lightning.",
-            "npc:The storm that brews overhead w",
-            "npc:Repair the conductor and BEGONE",
+            "player:Sorry, can't make lightning",
+            "npc:Silence your insolent tongue!",
+            "player:Repair the lightning conductor, right.",
+            "npc:Repair the conductor and BEGONE!!!",
         })
         t.expect("quest.stage.lightning", t.quest.expect_stage("lightning"))
 
         -- ================= Panel: Attracting lightning =================
+        t.ticklog.mark("leg.shed")
         doors("talkToGardenerForKey", { "northIn", "gardenIn" })
         t.exec("talkToGardenerForKey", t.player.talk_to, "fenk_gardener_multi_2", 1)
         t.exec("talkToGardenerForKey-dialog", t.chat.play, {
@@ -572,17 +621,18 @@ return {
             "choose:Do you know where the key to the shed is?",
             "player:Do you know where the key to",
             "npc:Got it right 'ere in my pocket",
+            "objbox:The headless gardener hands you a rusty key.",
         })
         t.exec("talkToGardenerForKey.held", t.inv.await, "fenk_shed_key", 1, 10)
 
+        -- [2962..2965]: Open with the key held spends it and steps the
+        -- player into the shed.
         walk("searchForBrush.atShedDoor", 3548, 3565, 0)
-        key_door("openShedDoor", "fenk_shed_key", "fenk_shed_door", "fenk_shed_door_open", { 3548, 3565, 0 },
-            "varb200_fenk_unlocked_shed")
-        t.exec("searchForBrush.shedIn", t.player.pass_door, { closed = "fenk_shed_door", open = "fenk_shed_door_open",
-            at = { 3548, 3565, 0 }, near = { 3548, 3565 }, far = { 3547, 3564 } })
+        t.exec("openShedDoor", t.player.click_loc, "fenk_shed_door", 1, { at = { 3548, 3565, 0 } })
+        t.exec("openShedDoor.flag", t.var.await_server, "varb200_fenk_unlocked_shed", 1, 10)
+        await_tile(function(tt) return tt.x == 3547 and tt.z == 3565 end, 6, "openShedDoor.through")
+        t.check("openShedDoor.keyUsed", t.inv.expect_absent("fenk_shed_key"))
         t.exec("searchForBrush.open", t.player.click_loc, "fenk_broomcupboard", 1)
-        -- [oploc1,fenk_broomcupboard] loc_change(fenk_broomcupboard_open, 500):
-        -- wait for the opened cupboard to reach the client before searching it.
         local cup_r = t.await({ level = function()
             local r, row = t.world.loc_near("fenk_broomcupboard_open", 4)
             return r == "ok" and row.tile_x == 3546 and row.tile_z == 3563
@@ -590,9 +640,11 @@ return {
         t.check("searchForBrush.cupboardOpen", cup_r == "ok",
             "fenk_broomcupboard_open at 3546,3563,0 after op1 Open -> " .. tostring(cup_r))
         t.exec("searchForBrush", t.player.click_loc, "fenk_broomcupboard_open", 2)
+        t.exec("searchForBrush-dialog", t.chat.play, { "objbox:You find a garden brush in the cupboard." })
         t.exec("searchForBrush.held", t.inv.await, "fenk_brush0", 1, 10)
-        t.exec("searchForBrush.shedOut", t.player.pass_door, { closed = "fenk_shed_door", open = "fenk_shed_door_open",
-            at = { 3548, 3565, 0 }, near = { 3547, 3565 }, far = { 3549, 3565 } })
+        walk("searchForBrush.inside", 3547, 3565, 0)
+        t.exec("searchForBrush.shedOut", t.player.click_loc, "fenk_shed_door", 1, { at = { 3548, 3565, 0 } })
+        await_tile(function(tt) return tt.x == 3548 and tt.z == 3565 end, 6, "searchForBrush.shedOut")
 
         t.exec("grabCanes-1", t.player.click_loc, "fenk_canepile", 1)
         t.exec("grabCanes-2", t.player.click_loc, "fenk_canepile", 1)
@@ -605,42 +657,35 @@ return {
         t.exec("extendBrush.held", t.inv.await, "fenk_brush3", 1, 10)
         t.check("extendBrush.canesUsed", t.inv.expect_absent("fenk_cane"))
 
+        t.ticklog.mark("leg.chimney")
         doors("goUpWestStairs", { "gardenOut", "midWestIn", "westHallIn" })
         stairs("goUpWestStairs", WEST_UP)
         door("searchFirePlace", "westRoomIn")
         local fireplace_target = t.player.by_symbol("loc", "fenk_fireplace")
-        -- Only the west upstairs fireplace (1_55_55_24_35) holds the mould.
+        -- [3103..3108]: the west first-floor chimney holds the mould.
         t.exec("searchFirePlace", t.player.use_on, "fenk_brush3", fireplace_target, { at = { 3544, 3555, 1 } })
+        t.await({ level = function() return t.chat.kind() ~= "none" end, note = "searchFirePlace box" }, 10)
         t.exec("searchFirePlace-dialog", t.chat.play, {
-            "mesbox:A lightning conductor mould falls",
+            "objbox:A lightning conductor mould falls",
         })
         t.exec("searchFirePlace.held", t.inv.await, "fenk_lightning_mould", 1, 10)
 
-        -- Any furnace works (smelting.rs2's silver_bar case calls
-        -- fenk_try_cast_conductor before the ordinary jewellery menu). Quest
-        -- Helper: "Go to any furnace make a lightning rod", recommending a
-        -- Falador teleport; the wiki quick guide (oldid 15266785) names
-        -- "teleport to Falador" among its furnaces. Cast from where the
-        -- mould was found, walk into Falador's furnace room, and come back
-        -- by the recommended Fenkenstrain's Castle Teleport tablet.
+        -- [3170..3175]: the silver bar on the furnace opens the silver
+        -- crafting panel; its lightning rod cell casts the conductor.
+        t.ticklog.mark("leg.furnace")
         t.player.teleport_cast("falador_teleport", { 2965, 3378, 0 }, { name = "makeLightningRod.faladorTeleport",
             runes = { { "waterrune", 1 }, { "airrune", 3 }, { "lawrune", 1 } },
             where = "Falador square, tele_coord 0_46_52_21_50" })
-        -- Falador square -> the furnace room (2973-2977,3366-3372; the open
-        -- doorway fai_falador_poor_door_open 2977,3373): reach.py 2965,3378
-        -- -> 2974,3369 REACH closed-doors len=18, so the walk is travel.
         t.exec("makeLightningRod.toFurnace", t.player.walk_to, 2974, 3369, 40)
         local furnace_target = t.player.by_symbol("loc", "fai_falador_furnace")
-        t.exec("makeLightningRod", t.player.use_on, "silver_bar", furnace_target, { at = { 2976, 3368, 0 } })
+        t.exec("makeLightningRod.use", t.player.use_on, "silver_bar", furnace_target, { at = { 2976, 3368, 0 } })
+        t.exec("makeLightningRod.panel", t.ui.await_open, "silver_crafting", 10)
+        local rod_wr, rod_cell = t.ui.widget("silver_crafting:lightning_rod")
+        local rod_ir = t.ui.invoke(rod_cell, 1)
+        t.check("makeLightningRod", rod_wr == "ok" and rod_ir == "ok", "invoke silver_crafting:lightning_rod -> " .. tostring(rod_wr) .. " " .. tostring(rod_ir))
         t.exec("makeLightningRod.held", t.inv.await, "fenk_conductor", 1, 10)
-        -- fenkenstrain_lightning.rs2 [proc,fenk_try_cast_conductor]: the
-        -- conductor's own sentence, not the ordinary silver-crafting menu.
-        t.exec("makeLightningRod.msg", t.msg.expect, "You cast a silver lightning conductor")
         t.check("makeLightningRod.barUsed", t.inv.expect_absent("silver_bar"))
 
-        -- Back: break the tablet (teleport_tablet.rs2 [opheld1,teletab_fenk]),
-        -- graded on the landing (map_findsquare within 2 of 3550,3530,0) and
-        -- the tablet leaving the backpack.
         local tab_before_r, tab_before = t.inv.count("teletab_fenk")
         local tab_r, tab_d = t.player.inv_op("teletab_fenk", 1)
         await_tile(function(tt) return tt.level == 0 and math.abs(tt.x - 3550) <= 2 and math.abs(tt.z - 3530) <= 2 end,
@@ -655,43 +700,58 @@ return {
                 .. "; teletab_fenk " .. tostring(tab_before) .. " -> " .. tostring(tab_after)
                 .. " (want within 2 of 3550,3530,0, tele_coord 0_55_55_30_10, and the tablet 1 -> 0)")
 
-        -- The tablet lands four tiles from the castle front: walked, not goto'd.
+        t.ticklog.mark("leg.roof")
         walk("goUpWestStairsWithRod.toCastleFront", 3548, 3528, 0)
         doors("goUpWestStairsWithRod", { "frontIn", "hallIn" })
         hall_to_west_stairs("goUpWestStairsWithRod")
         stairs("goUpWestStairsWithRod", WEST_UP)
-        door("goUpTowerLadder", "conductorIn")
-        climb("goUpTowerLadder", "ladder", { 3548, 3539, 1 }, { 3549, 3539 }, { 3549, 3539, 2, 1 })
-        t.exec("repairConductor", t.player.click_loc, "fenk_conductor_broken", 1)
+        -- [3308..3314]: the conductor's double door, walked through.
+        t.exec("goUpTowerLadder.toDoor", t.player.goto_tile, 3548, 3544, 1)
+        t.exec("goUpTowerLadder.door", t.player.click_loc, "fenk_door", 1, { at = { 3549, 3543, 1 } })
+        await_tile(function(tt) return tt.level == 1 and tt.z == 3542 end, 8, "goUpTowerLadder.door")
+        climb("goUpTowerLadder", "ladder", { 3548, 3539, 1 }, { 3548, 3540 }, { 3548, 3540, 2, 1 })
+        local conductor_target = t.player.by_symbol("loc", "fenk_conductor_broken")
+        t.exec("repairConductor", t.player.use_on, "fenk_conductor", conductor_target, { at = { 3548, 3536, 2 } })
         t.exec("repairConductor-dialog", t.chat.play, {
             "mesbox:You repair the lightning conductor",
         })
         t.expect("quest.stage.alive", t.quest.expect_stage("alive"))
 
-        climb("goBackToFirstFloor.ladderDown", "laddertop", { 3548, 3539, 2 }, { 3549, 3539 }, { 3549, 3539, 1, 1 })
-        door("goBackToFirstFloor", "conductorOut")
+        climb("goBackToFirstFloor.ladderDown", "laddertop", { 3548, 3539, 2 }, { 3548, 3538 }, { 3548, 3538, 1, 1 })
+        t.exec("goBackToFirstFloor.toDoor", t.player.goto_tile, 3548, 3542, 1)
+        t.exec("goBackToFirstFloor.door", t.player.click_loc, "fenk_door_mirror", 1, { at = { 3548, 3543, 1 } })
+        await_tile(function(tt) return tt.level == 1 and tt.z == 3543 end, 8, "goBackToFirstFloor.door")
         stairs("goBackToFirstFloor", WEST_DOWN)
         west_stairs_to_hall("goBackToFirstFloor")
+        t.ticklog.mark("leg.alive")
         t.exec("talkToFenkenstrainAfterFixingRod", t.player.talk_to, "fenk_fenkenstrain", 1)
         t.exec("talkToFenkenstrainAfterFixingRod-dialog", t.chat.play, {
             "player:So did it work, then?",
             "npc:Yes, I'm afraid it did",
+            "player:I can't see it anywhere.",
             "npc:I tricked it into going up to",
+            "player:So the creature wasn't all",
+            "npc:...oh, what have I done...",
+            "player:Oh, I see, we're developing",
+            "player:Bit late for that, I'd say.",
             "npc:I have no control over it!",
+            "player:What do you want me to do about it?",
             "npc:Destroy it!!!",
         })
         t.exec("talkToFenkenstrainAfterFixingRod.held", t.inv.await, "fenk_tower_key", 1, 10)
         t.expect("quest.stage.tower", t.quest.expect_stage("tower"))
 
         -- ================= Panel: Facing the monster =================
+        t.ticklog.mark("leg.tower")
         hall_to_west_stairs("goToMonsterFloor1")
         stairs("goToMonsterFloor1", WEST_UP)
         walk("openLockedDoor.atDoor", 3548, 3551, 1)
-        key_door("openLockedDoor", "fenk_tower_key", "fenk_tower_door", "fenk_tower_door_open", { 3548, 3551, 1 },
-            "varb198_fenk_unlocked_tower")
-        t.check("openLockedDoor.keyKept", t.inv.expect_has("fenk_tower_key", 1))
-        t.exec("goToMonsterFloor2.towerDoor", t.player.pass_door, { closed = "fenk_tower_door", open = "fenk_tower_door_open",
-            at = { 3548, 3551, 1 }, near = { 3548, 3551 }, far = { 3548, 3553 } })
+        -- [3469..3470]: Open with the key held spends it, unlocks the door
+        -- and steps the player into the Tower.
+        t.exec("openLockedDoor", t.player.click_loc, "fenk_tower_door", 1, { at = { 3548, 3551, 1 } })
+        t.exec("openLockedDoor.flag", t.var.await_server, "varb198_fenk_unlocked_tower", 1, 10)
+        await_tile(function(tt) return tt.level == 1 and tt.x == 3548 and tt.z == 3552 end, 6, "openLockedDoor.through")
+        t.check("openLockedDoor.keyUsed", t.inv.expect_absent("fenk_tower_key"))
         climb("goToMonsterFloor2", "ladder", { 3548, 3554, 1 }, { 3548, 3553 }, { 3548, 3553, 2, 1 })
 
         local present_result, present_creature = t.npc.await_present("fenk_creature", 6, 5)
@@ -703,9 +763,11 @@ return {
         t.exec("talkToMonster", t.player.talk_to, "fenk_creature", 1)
         t.exec("talkToMonster-dialog", t.chat.play, {
             "player:I am commanded to destroy you, creature!",
-            "npc:Oh that's not very nice",
+            "npc:Oh that's *hic* not very *hic* nice",
+            "player:Are you feeling okay?",
+            "npc:Abso *hic* lutely.",
             "player:You don't look very dangerous.",
-            "npc:How do I look?",
+            "npc:How *hic* do I look?",
             "player:You really don't know",
             "mesbox:The creature stumbles over towards the mirror",
             "npc:AAAAARRGGGGHHHH!",
@@ -718,23 +780,37 @@ return {
             "npc:Is that what he told you?",
             "player:I found your brain in a jar",
             "npc:Of that I will not speak.",
-            "player:Is there anything I can do for you",
+            "player:That's it - I'm leaving",
             "npc:Only one - please stop Fenkenstrain",
         })
         t.expect("quest.stage.spoke_creature", t.quest.expect_stage("spoke_creature"))
 
         -- ================= Panel: Finishing off =================
-        climb("pickPocketFenkenstrain.ladderDown", "laddertop", { 3548, 3554, 2 }, { 3548, 3553 }, { 3548, 3553, 1, 1 })
-        t.exec("pickPocketFenkenstrain.towerDoor", t.player.pass_door, { closed = "fenk_tower_door", open = "fenk_tower_door_open",
-            at = { 3548, 3551, 1 }, near = { 3548, 3552 }, far = { 3548, 3550 } })
+        t.ticklog.mark("leg.finish")
+        climb("pickPocketFenkenstrain.ladderDown", "laddertop", { 3548, 3554, 2 }, { 3548, 3555 }, { 3548, 3555, 1, 1 })
+        walk("pickPocketFenkenstrain.toTowerDoor", 3548, 3552, 1)
+        t.exec("pickPocketFenkenstrain.towerDoor", t.player.click_loc, "fenk_tower_door", 1, { at = { 3548, 3551, 1 } })
+        await_tile(function(tt) return tt.level == 1 and tt.x == 3548 and tt.z == 3551 end, 6, "pickPocketFenkenstrain.towerDoor")
         stairs("pickPocketFenkenstrain.downstairs", WEST_DOWN)
         west_stairs_to_hall("pickPocketFenkenstrain")
+        t.exec("pickPocketFenkenstrain.refusal", t.player.talk_to, "fenk_fenkenstrain", 1)
+        t.exec("pickPocketFenkenstrain.refusal-dialog", t.chat.play, {
+            "npc:So have you destroyed it?!!?",
+            "player:Never, now that he has told me the truth!",
+            "npc:Oh my, oh my",
+            "npc:Why did you have to pick Rologarth's brain",
+            "player:I'm through working for you.",
+            "npc:No!! I refuse to release you!!",
+        })
         local snap_result, snap = t.skill.snapshot()
         t.check("reward.snapshot", snap_result == "ok", "skill.snapshot -> " .. tostring(snap_result))
 
+        -- [3575]: the steal is the completion, on the op.
         t.exec("pickPocketFenkenstrain", t.player.talk_to, "fenk_fenkenstrain", 3)
         t.exec("pickPocketFenkenstrain.held", t.inv.await, "ring_of_charos", 1, 10)
+        t.exec("pickPocketFenkenstrain.line", t.msg.expect, "You steal the Ring of Charos from Fenkenstrain.")
         t.expect("quest.stage.complete", t.quest.expect_stage("complete"))
+        t.exec("pickPocketFenkenstrain.switch", t.var.await_server, "varp399_fenk_quest", 8, 10)
 
         t.ticks(3)
         t.settle()
