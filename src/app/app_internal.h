@@ -464,11 +464,7 @@ enum AppSpawnKind
 {
     APP_SPAWN_PLAYER = 0,
     APP_SPAWN_NPC,
-    APP_SPAWN_PROJECTILE,
-    APP_SPAWN_PROJECTILE_SPOT,
-    APP_SPAWN_SCRIPTED_PROJ,
     APP_SPAWN_OBJ,
-    APP_SPAWN_SPOTANIM,
     APP_SPAWN_ENTITY_SPOTANIM,
     APP_SPAWN_LOC_CHANGE,
     APP_SPAWN_PLUGIN_OBJECT,
@@ -489,13 +485,12 @@ struct Task_AppSpawn
      * asserting. */
     int view;
     /*
-     * For the EFFECT kinds (spotanim, projectile) that run on the asset
-     * runner rather than the exec FIFO: the scene generation and cycle AS OF
+     * For the kinds that run on the asset runner rather than the exec FIFO
+     * (a loc change on the loc lane): the scene generation and cycle AS OF
      * ENQUEUE. Off the FIFO nothing orders the apply against a later REBUILD,
-     * so the apply compares load_seq and drops an effect the scene it was
-     * aimed at has been torn down under; and the cycles it spent loading are
-     * taken off its delays, so a projectile whose graphic took 300 ms to
-     * arrive appears mid-flight where it belongs rather than launching late.
+     * so the apply compares load_seq and drops a change the scene it was
+     * aimed at has been torn down under. (Projectiles and spotanims are
+     * parallel tasks now: app/app_tasks_effects.c.)
      */
     unsigned world_load_seq;
     int enqueue_cycle;
@@ -513,13 +508,8 @@ struct Task_AppSpawn
     int obj_id;
     int model_id;
     int seq_id;
-    int src_tile_x;
-    int src_tile_z;
-    int src_level;
     int model_i;
     int spotanim_id;
-    int spotanim_height;
-    int spotanim_delay;
     /* APP_SPAWN_ENTITY_SPOTANIM: the body scene element of the player/npc the
      * attached graphic belongs to (stable, scene-unique key to re-find the live
      * entity when the async load lands). */
@@ -531,25 +521,6 @@ struct Task_AppSpawn
      * See App_WorldLocChangeOps. */
     int loc_op_flags;
     char loc_ops[5][32];
-    /* MAP_PROJANIM (spotanim-based projectile) trajectory params. Source and
-     * destination tiles reuse src_tile_x/z and tile_x/z; src_level and level
-     * carry the source and destination levels. */
-    int proj_src_height;
-    int proj_dst_height;
-    int proj_start_delay;
-    int proj_end_delay;
-    int proj_peak;
-    int proj_arc;
-    int proj_target;
-    /* rev-239 MapProjAnimV2 source actor (wire encoding, 0 = none). */
-    int proj_source;
-    /* APP_SPAWN_SCRIPTED_PROJ: the packet, and the clientscripts it needs
-     * resident -- the three curves, then whatever they GOSUB -- with the
-     * cursor of the one being loaded (both survive the awaits). */
-    struct WorldEntity_ScriptedProjSpec scripted;
-    int curve_scripts[8];
-    int curve_script_count;
-    int curve_script_cursor;
     /* APP_SPAWN_LOC_CHANGE (zone LOC_ADD_CHANGE / LOC_DEL): the replacement loc
      * (-1 = pure delete), its map shape/angle, and the nested model-list cursor
      * (loc models are [shape_entry][model]; both indices must survive awaits). */
@@ -2843,13 +2814,6 @@ app_world_pick_finish(
 
 
 /* ---- app_world_edit.c ---- */
-/** Queue an EFFECT spawn (a spotanim, a projectile) on the asset runner,
- *  stamped with the scene it was aimed at. */
-void
-app_spawn_effect_queue(
-    struct App* app,
-    struct Task_AppSpawn* task);
-
 /** Queue an npc spawn on the packet runner; `args`' `id=` names it, and
  *  TORIRS_SPAWN_NPC overrides it (3106 when neither does). The spawn tool's
  *  key and the map editor's placement. */
@@ -3174,18 +3138,6 @@ app_world_spawn_npc_now(
     int tile_x,
     int tile_z,
     int level);
-
-void
-app_world_spawn_spotanim_now(
-    struct App* app,
-    struct World* world,
-    int spotanim_id,
-    int tile_x,
-    int tile_z,
-    int level,
-    int height,
-    int delay,
-    int late);
 
 /* ---- app_world_sync.c ---- */
 int

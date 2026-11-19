@@ -58,6 +58,34 @@ enum
     RS_EFFECT_LOC_ANIM_CLIENT_KEEP_TICKS = RS_EFFECT_LOC_ANIM_LIFE_TICKS + 2,
 };
 
+/*
+ * THE EFFECT LOG: the real client keeps the effects as the packets said them
+ * in one ring of struct RS_Event (game/rs_event_ring.h), written by the packet
+ * task, and its effect lists are READ from it: every entry still alive by the
+ * lifetimes above, oldest first. Nothing is retired from it; an entry dies by
+ * its lifetime and is overwritten in turn. It holds more than every list's
+ * cap together, and overwriting an entry that is still alive is an assert:
+ * the list that would lose it is fuller than its cap.
+ *
+ * Its kinds and payloads (absolute tiles, in the frame of the view the packet
+ * named; RS_Event.cycle is the owner's world cycle at the packet):
+ *   RS_EVENT_PROJECTILE         a=src x  b=src z  c=dst x  d=dst z
+ *   RS_EVENT_PROJECTILE_FLIGHT  a=spotanim  b=target (wire encoding)
+ *                               c=start_delay | end_delay << 16 (cycles, each
+ *                                 16 bits as on the wire)
+ *                               d=level (the destination's)
+ *     -- always the entry right after its PROJECTILE: a projectile is the
+ *        pair (the record carries four numbers; it needs nine).
+ *   RS_EVENT_MAP_ANIM           a=x  b=z  c=level  d=spotanim
+ */
+enum
+{
+    RS_EFFECT_LOG_CAP = 4096,
+};
+_Static_assert(
+    RS_EFFECT_LOG_CAP >= 2 * RS_EFFECT_PROJECTILE_CAP + RS_EFFECT_MAP_ANIM_CAP,
+    "the effect log holds every list at its cap at once");
+
 /* RS_EFFECT_MAP_ANIM_LIFE_TICKS in world cycles: both clients count a map
  * graphic's age in whole server ticks times APP_SERVER_TICK_LOGIC_CYCLES
  * (the headless core's cycle moves exactly that a tick; the real client's

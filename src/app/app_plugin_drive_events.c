@@ -80,38 +80,185 @@ App_DriveEvent(
     RS_EventSink_Stamp(&sink, (int)kind, a, b, c, d);
 }
 
+#ifndef NDEBUG
+/* Is effect-log entry `ev` (with `next`, the entry after it, or NULL) still
+ * alive at world cycle `now`? By the lifetimes of game/rs_effect_rules.h, on
+ * the world cycle (the reader's own clock is the server tick; two ticks of
+ * slack cover the drift between them). */
+static int
+app_drive_effect_alive(
+    struct RS_Event const* ev,
+    struct RS_Event const* next,
+    int now)
+{
+    int const slack = 2 * APP_SERVER_TICK_LOGIC_CYCLES;
+
+    if( ev->kind == RS_EVENT_MAP_ANIM )
+        return now - ev->cycle <= RS_EFFECT_MAP_ANIM_LIFE_CYCLES + slack;
+    if( ev->kind == RS_EVENT_PROJECTILE )
+        return next && next->kind == RS_EVENT_PROJECTILE_FLIGHT && app_drive_effect_alive(next, NULL, now);
+    assert(ev->kind == RS_EVENT_PROJECTILE_FLIGHT);
+    return now - ev->cycle <= (int)((uint32_t)ev->c >> 16) + slack;
+}
+
+/* How many entries of `kind` (RS_EVENT_PROJECTILE_FLIGHT: projectiles;
+ * RS_EVENT_MAP_ANIM) are alive now. For the caps' asserts. */
+static int
+app_drive_effect_live(
+    struct App const* app,
+    int kind)
+{
+    struct App_DriveRing const* ring = &app->drive_events;
+    int const now = app->world ? (int)app->world->cycle : 0;
+    int n = 0;
+
+    if( ring->effects.count == 0 )
+        return 0;
+    for( uint32_t s = ring->effects.oldest_serial; s <= ring->effects.newest_serial; s++ )
+    {
+        struct RS_Event const* e =
+            RS_EventRing_At(&ring->effects, ring->effect_entries, APP_DRIVE_EFFECT_LOG_CAPACITY, s);
+        if( e->kind == kind && app_drive_effect_alive(e, NULL, now) )
+            n++;
+    }
+    return n;
+}
+#endif
+
+/* Append to the effect log. The log is sized past every list's cap together,
+ * so the entry a full log overwrites is dead: one still alive means a list is
+ * over its cap, a contract violation (rs_effect_rules.h). */
+static void
+app_drive_effect_push(
+    struct App* app,
+    int kind,
+    int32_t a,
+    int32_t b,
+    int32_t c,
+    int32_t d)
+{
+    struct App_DriveRing* ring;
+    struct RS_Event ev;
+    int now;
+
+    assert(app);
+    ring = &app->drive_events;
+    now = app->world ? (int)app->world->cycle : 0;
+#ifndef NDEBUG
+    if( ring->effects.count == APP_DRIVE_EFFECT_LOG_CAPACITY )
+    {
+        uint32_t const oldest = ring->effects.oldest_serial;
+        struct RS_Event const* old =
+            RS_EventRing_At(&ring->effects, ring->effect_entries, APP_DRIVE_EFFECT_LOG_CAPACITY, oldest);
+        struct RS_Event const* after =
+            RS_EventRing_At(&ring->effects, ring->effect_entries, APP_DRIVE_EFFECT_LOG_CAPACITY, oldest + 1);
+        assert(!app_drive_effect_alive(old, after, now));
+    }
+#endif
+    memset(&ev, 0, sizeof(ev));
+    ev.kind = kind;
+    ev.cycle = now;
+    ev.a = a;
+    ev.b = b;
+    ev.c = c;
+    ev.d = d;
+    (void)RS_EventRing_Push(
+        &ring->effects, ring->effect_entries, APP_DRIVE_EFFECT_LOG_CAPACITY, RS_EVENT_RING_OVERWRITE, &ev);
+}
+
+int
+App_DriveEffectProjectiles(
+    struct App const* app,
+    struct App_DriveProjectile* out,
+    int cap)
+{
+    struct App_DriveRing const* ring;
+    int n = 0;
+
+    assert(app);
+    assert(out);
+    assert(cap >= 0);
+    ring = &app->drive_events;
+    if( ring->effects.count == 0 )
+        return 0;
+    for( uint32_t s = ring->effects.oldest_serial; s < ring->effects.newest_serial && n < cap; s++ )
+    {
+        struct RS_Event const* p =
+            RS_EventRing_At(&ring->effects, ring->effect_entries, APP_DRIVE_EFFECT_LOG_CAPACITY, s);
+        struct RS_Event const* f;
+
+        if( p->kind != RS_EVENT_PROJECTILE )
+            continue;
+        f = RS_EventRing_At(&ring->effects, ring->effect_entries, APP_DRIVE_EFFECT_LOG_CAPACITY, s + 1);
+        assert(f->kind == RS_EVENT_PROJECTILE_FLIGHT);
+        out[n].src_x = p->a;
+        out[n].src_z = p->b;
+        out[n].dst_x = p->c;
+        out[n].dst_z = p->d;
+        out[n].spotanim = f->a;
+        out[n].target = f->b;
+        out[n].start_delay = (int32_t)((uint32_t)f->c & 0xffffu);
+        out[n].end_delay = (int32_t)((uint32_t)f->c >> 16);
+        out[n].level = f->d;
+        out[n].cycle = p->cycle;
+        n++;
+    }
+    return n;
+}
+
+int
+App_DriveEffectMapAnims(
+    struct App const* app,
+    struct App_DriveMapAnim* out,
+    int cap)
+{
+    struct App_DriveRing const* ring;
+    int n = 0;
+
+    assert(app);
+    assert(out);
+    assert(cap >= 0);
+    ring = &app->drive_events;
+    if( ring->effects.count == 0 )
+        return 0;
+    for( uint32_t s = ring->effects.oldest_serial; s <= ring->effects.newest_serial && n < cap; s++ )
+    {
+        struct RS_Event const* e =
+            RS_EventRing_At(&ring->effects, ring->effect_entries, APP_DRIVE_EFFECT_LOG_CAPACITY, s);
+
+        if( e->kind != RS_EVENT_MAP_ANIM )
+            continue;
+        out[n].x = e->a;
+        out[n].z = e->b;
+        out[n].level = e->c;
+        out[n].spotanim = e->d;
+        out[n].cycle = e->cycle;
+        n++;
+    }
+    return n;
+}
+
 void
 App_DriveProjectileNote(
     struct App* app, int src_x, int src_z, int dst_x, int dst_z, int level, int spotanim,
     int target, int start_delay, int end_delay)
 {
-    struct App_DriveRing* ring;
-    struct App_DriveProjectile* p;
-    int now, kept, i;
-
     assert(app);
-    ring = &app->drive_events;
-    now = app->world ? (int)app->world->cycle : 0;
-    /* The ones a client would still draw: scriptrun_core.c's rule. */
-    kept = 0;
-    for( i = 0; i < ring->projectile_count; i++ )
-        if( ring->projectiles[i].cycle + ring->projectiles[i].end_delay >= now )
-            ring->projectiles[kept++] = ring->projectiles[i];
-    ring->projectile_count = kept;
-    /* The ring holds every projectile a client would still draw; more than
-     * its capacity in flight at once is a contract violation, not a drop. */
-    assert(ring->projectile_count < APP_DRIVE_PROJECTILE_CAP);
-    p = &ring->projectiles[ring->projectile_count++];
-    p->src_x = src_x;
-    p->src_z = src_z;
-    p->dst_x = dst_x;
-    p->dst_z = dst_z;
-    p->level = level;
-    p->spotanim = spotanim;
-    p->target = target;
-    p->start_delay = start_delay;
-    p->end_delay = end_delay;
-    p->cycle = now;
+    assert(start_delay >= 0 && start_delay <= 0xffff);
+    assert(end_delay >= 0 && end_delay <= 0xffff);
+    /* Every projectile a client would still draw is listed; more than the
+     * cap in flight at once is a contract violation, not a drop (scriptrun
+     * holds the same count, SCRIPTRUN_PROJECTILES, and asserts it). */
+    assert(app_drive_effect_live(app, RS_EVENT_PROJECTILE_FLIGHT) < APP_DRIVE_PROJECTILE_CAP);
+    /* The pair, back to back (game/rs_effect_rules.h). */
+    app_drive_effect_push(app, RS_EVENT_PROJECTILE, src_x, src_z, dst_x, dst_z);
+    app_drive_effect_push(
+        app,
+        RS_EVENT_PROJECTILE_FLIGHT,
+        spotanim,
+        target,
+        (int32_t)((uint32_t)start_delay | ((uint32_t)end_delay << 16)),
+        level);
 }
 
 #if defined(TORIRS_EMBED_SERVER) && TORIRS_EMBED_SERVER
@@ -132,49 +279,19 @@ App_DriveMapAnimElapsed(struct App_DriveMapAnim const* a)
     return (PluginDrive_ServerTick() - PluginDrive_ServerTickOfCycle(a->cycle)) * APP_SERVER_TICK_LOGIC_CYCLES;
 }
 
-void
-App_DriveMapAnimNote(struct App* app, int x, int z, int level, int spotanim)
-{
-    struct App_DriveRing* ring;
-    struct App_DriveMapAnim* a;
-    int now, kept, i;
-
-    assert(app);
-    ring = &app->drive_events;
-    now = app->world ? (int)app->world->cycle : 0;
-    /* The ones scriptrun still lists: scriptrun_core.c's retire rule. */
-    kept = 0;
-    for( i = 0; i < ring->map_anim_count; i++ )
-        if( App_DriveMapAnimElapsed(&ring->map_anims[i]) <= APP_DRIVE_MAP_ANIM_LIFE )
-            ring->map_anims[kept++] = ring->map_anims[i];
-    ring->map_anim_count = kept;
-    /* Scriptrun holds the same count (SCRIPTRUN_MAP_ANIMS) and asserts it. */
-    assert(ring->map_anim_count < APP_DRIVE_MAP_ANIM_CAP);
-    a = &ring->map_anims[ring->map_anim_count++];
-    a->x = x;
-    a->z = z;
-    a->level = level;
-    a->spotanim = spotanim;
-    a->cycle = now;
-}
-#else /* !TORIRS_EMBED_SERVER */
-/*
- * The map-anim ring has one reader, the quest driver (DriveUi_*, embedded
- * server only), and its age is counted in server ticks the driver tracks
- * (PluginDrive_ServerTick*). A client without the embedded server has
- * neither: the packet is noted nowhere.
- */
-void
-App_DriveMapAnimNote(struct App* app, int x, int z, int level, int spotanim)
-{
-    assert(app);
-    (void)app; /* the assert is all this build reads of it (NDEBUG drops it) */
-    (void)x;
-    (void)z;
-    (void)level;
-    (void)spotanim;
-}
 #endif /* TORIRS_EMBED_SERVER */
+
+/* A client without the embedded server has no reader of the map graphics
+ * (DriveUi_*), but the log is the packet's record in every build: a stamp
+ * guarded by a build is a stamp nobody notices has rotted. */
+void
+App_DriveMapAnimNote(struct App* app, int x, int z, int level, int spotanim)
+{
+    assert(app);
+    /* Scriptrun holds the same count (SCRIPTRUN_MAP_ANIMS) and asserts it. */
+    assert(app_drive_effect_live(app, RS_EVENT_MAP_ANIM) < APP_DRIVE_MAP_ANIM_CAP);
+    app_drive_effect_push(app, RS_EVENT_MAP_ANIM, x, z, level, spotanim);
+}
 
 void
 App_DriveLocAnimNote(struct App* app, int scene_x, int scene_z, int level, int shape, int seq)

@@ -29,6 +29,9 @@ static char const* const RS_EVENT_NAMES[RS_EVENT_KIND_COUNT] = {
     "inv_packet",
     "npc_seq",
     "npc_face",
+    "projectile",
+    "projectile_flight",
+    "map_anim",
 };
 
 char const*

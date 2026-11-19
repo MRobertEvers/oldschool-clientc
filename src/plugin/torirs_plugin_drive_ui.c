@@ -2035,47 +2035,29 @@ drive_ui_nearest_insert(
 /* api.drive.route: as many tiles as app_world_click.c routes a click over */
 #define DRIVE_UI_ROUTE_CAP 4000
 
-enum DriveResult
-DriveUi_Spotanims(
-    struct App* app, int radius, struct DriveSpotanimRow* out, int cap, int* out_count)
+/* The spotanim rows from `anims` (n of them, oldest first). */
+static int
+drive_ui_spotanim_rows(
+    struct App* app,
+    struct App_DriveMapAnim const* anims,
+    int n,
+    int radius,
+    struct DriveSpotanimRow* out,
+    int cap)
 {
-    /*
-     * FROM THE PACKETS, NOT THE POOL, as DriveUi_Projectiles below and for the
-     * same reason: the world's graphic entity waits on its spotanim's assets,
-     * so a first-seen graphic reached these rows a tick after scriptrun listed
-     * it (Bloat's falling flesh, 2026-10-10). These rows are the applied
-     * MAP_ANIMs (App_DriveMapAnimNote) with scriptrun's arithmetic
-     * (torirs_server_scriptrun.c d_spotanims): active, and cycles_left from a
-     * 40-tick life counted from the apply in whole server ticks
-     * (App_DriveMapAnimElapsed), not off the client's cycle. The scene element and its seq are
-     * filled from the pool's graphic on that tile once it has spawned (0 / -1
-     * before, scriptrun's values); no solver reads them.
-     */
-    long distances[DRIVE_UI_HAZARD_CAP];
+    static long distances[DRIVE_UI_HAZARD_CAP];
     int px = 0, pz = 0;
     int have_player;
     int aboard;
     int count = 0;
-    struct App_DriveRing const* ring;
     struct World_EntityPool* pool;
     int i;
 
-    assert(app);
-    assert(out);
-    assert(cap > 0);
-    assert(cap <= DRIVE_UI_HAZARD_CAP);
-    assert(out_count);
-
-    *out_count = 0;
-    if( !app->world )
-        return DRIVE_OK;
-
     have_player = drive_ui_search_origin(app, &px, &pz, &aboard);
-    ring = &app->drive_events;
     pool = &app->world->entities.spotanim;
-    for( i = 0; i < ring->map_anim_count; i++ )
+    for( i = 0; i < n; i++ )
     {
-        struct App_DriveMapAnim const* a = &ring->map_anims[i];
+        struct App_DriveMapAnim const* a = &anims[i];
         int left = APP_DRIVE_MAP_ANIM_LIFE - App_DriveMapAnimElapsed(a);
         int e;
         int j;
@@ -2088,6 +2070,7 @@ DriveUi_Spotanims(
             have_player ? drive_ui_distance2(a->x, a->z, px, pz) : 0);
         if( j < 0 )
             continue;
+        memset(&out[j], 0, sizeof(out[j]));
         out[j].spotanim_id = a->spotanim;
         out[j].tile_x = a->x;
         out[j].tile_z = a->z;
@@ -2101,7 +2084,8 @@ DriveUi_Spotanims(
         {
             struct WorldEntity_Spotanim const* spot = World_EntityPoolGet(pool, e);
 
-            if( !spot || spot->spotanim_id != a->spotanim )
+            /* A graphic whose body has not landed has no element to read. */
+            if( !spot || spot->spotanim_id != a->spotanim || spot->element_id < 0 )
                 continue;
             if( app->world->_base_tile_x + (int)(spot->draw_position.x >> 7) != a->x
                 || app->world->_base_tile_z + (int)(spot->draw_position.z >> 7) != a->z )
@@ -2111,33 +2095,27 @@ DriveUi_Spotanims(
             break;
         }
     }
-    *out_count = count;
-    return DRIVE_OK;
+    return count;
 }
 
 enum DriveResult
-DriveUi_Projectiles(
-    struct App* app, int radius, struct DriveProjectileRow* out, int cap, int* out_count)
+DriveUi_Spotanims(
+    struct App* app, int radius, struct DriveSpotanimRow* out, int cap, int* out_count)
 {
     /*
-     * FROM THE PACKETS, NOT THE POOL. The world's projectile entity is
-     * spawned by a task that awaits the spotanim's assets, so a first-seen
-     * spotanim's projectile reached these rows a tick late; and a pool read
-     * a frame after the fence counted its flight from that frame, where
-     * scriptrun counts from the tick's end. These rows are the applied
-     * MAP_PROJANIMs (App_DriveProjectileNote), in packet order, with
-     * scriptrun's arithmetic (torirs_server_scriptrun.c d_projectiles):
-     * elapsed is whole ticks from the tick that SENT it
-     * (PluginDrive_ServerTickOfCycle) to the tick perceived now, so a row
-     * read on the tick its packet is perceived has elapsed 30 on both lanes. No seq, no element: the model is the
-     * drawing's business, not the driver's.
+     * FROM THE PACKETS, NOT THE POOL, as DriveUi_Projectiles below and for the
+     * same reason: the world's graphic draws once its spotanim's assets land,
+     * and the rows are what the server said, in the server's ticks. These
+     * rows are the applied MAP_ANIMs (App_DriveMapAnimNote, kept in the
+     * effect log) with scriptrun's arithmetic (torirs_server_scriptrun.c
+     * d_spotanims): active, and cycles_left from a 40-tick life counted from
+     * the apply in whole server ticks (App_DriveMapAnimElapsed), not off the
+     * client's cycle. The scene element and its seq are filled from the
+     * pool's graphic on that tile once its body has landed (0 / -1 before,
+     * scriptrun's values); no solver reads them.
      */
-    struct App_DriveRing const* ring;
-    int px = 0, pz = 0;
-    int have_player = 0;
-    int aboard;
-    int now_tick, count = 0;
-    int i;
+    static struct App_DriveMapAnim logged[APP_DRIVE_EFFECT_LOG_CAPACITY];
+    int n;
 
     assert(app);
     assert(out);
@@ -2149,13 +2127,33 @@ DriveUi_Projectiles(
     if( !app->world )
         return DRIVE_OK;
 
+    n = App_DriveEffectMapAnims(app, logged, APP_DRIVE_EFFECT_LOG_CAPACITY);
+    *out_count = drive_ui_spotanim_rows(app, logged, n, radius, out, cap);
+    return DRIVE_OK;
+}
+
+/* The projectile rows from `shots` (n of them, oldest first). */
+static int
+drive_ui_projectile_rows(
+    struct App* app,
+    struct App_DriveProjectile const* shots,
+    int n,
+    int radius,
+    struct DriveProjectileRow* out,
+    int cap)
+{
+    int px = 0, pz = 0;
+    int have_player = 0;
+    int aboard;
+    int now_tick, count = 0;
+    int i;
+
     if( radius > 0 )
         have_player = drive_ui_search_origin(app, &px, &pz, &aboard);
-    ring = &app->drive_events;
     now_tick = PluginDrive_ServerTick();
-    for( i = 0; i < ring->projectile_count && count < cap; i++ )
+    for( i = 0; i < n && count < cap; i++ )
     {
-        struct App_DriveProjectile const* p = &ring->projectiles[i];
+        struct App_DriveProjectile const* p = &shots[i];
         int elapsed = (now_tick - PluginDrive_ServerTickOfCycle(p->cycle)) * APP_SERVER_TICK_LOGIC_CYCLES;
         struct DriveProjectileRow* row;
 
@@ -2187,7 +2185,41 @@ DriveUi_Projectiles(
         row->seq = -1;
         row->seq_frame = 0;
     }
-    *out_count = count;
+    return count;
+}
+
+enum DriveResult
+DriveUi_Projectiles(
+    struct App* app, int radius, struct DriveProjectileRow* out, int cap, int* out_count)
+{
+    /*
+     * FROM THE PACKETS, NOT THE POOL. The world's projectile exists from its
+     * packet but draws once its spotanim's assets land, and a pool read a
+     * frame after the fence counted its flight from that frame, where
+     * scriptrun counts from the tick's end. These rows are the applied
+     * MAP_PROJANIMs (App_DriveProjectileNote, kept in the effect log), in
+     * packet order, with scriptrun's arithmetic (torirs_server_scriptrun.c
+     * d_projectiles): elapsed is whole ticks from the tick that SENT it
+     * (PluginDrive_ServerTickOfCycle) to the tick perceived now, so a row
+     * read on the tick its packet is perceived has elapsed 30 on both lanes.
+     * No seq, no element: the model is the drawing's business, not the
+     * driver's.
+     */
+    static struct App_DriveProjectile logged[APP_DRIVE_EFFECT_LOG_CAPACITY / 2];
+
+    assert(app);
+    assert(out);
+    assert(cap > 0);
+    assert(cap <= DRIVE_UI_HAZARD_CAP);
+    assert(out_count);
+
+    *out_count = 0;
+    if( !app->world )
+        return DRIVE_OK;
+
+    *out_count = drive_ui_projectile_rows(
+        app, logged, App_DriveEffectProjectiles(app, logged, APP_DRIVE_EFFECT_LOG_CAPACITY / 2),
+        radius, out, cap);
     return DRIVE_OK;
 }
 

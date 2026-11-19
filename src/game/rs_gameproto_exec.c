@@ -201,6 +201,38 @@ struct ZoneAt
     int view;
 };
 
+/*
+ * The south-west tile, in absolute coordinates of the view's own frame, of the
+ * scene a packet for `view` addresses: what an absolute coord the packet
+ * carries is measured against. The root's is the accepted REBUILD's scene
+ * (also while that scene is still being built, so a packet held for it is
+ * placed in the scene it was sent for, not the one being torn down); a deck's
+ * is its own world's.
+ */
+static void
+zone_view_origin(
+    struct App* app,
+    int view,
+    int* out_x,
+    int* out_z)
+{
+    struct World const* world;
+
+    assert(app);
+    assert(out_x);
+    assert(out_z);
+    if( view == WORLDVIEW_ROOT )
+    {
+        *out_x = RS_RebuildRegion_SceneBaseX(&app->rebuild_region);
+        *out_z = RS_RebuildRegion_SceneBaseZ(&app->rebuild_region);
+        return;
+    }
+    world = WorldviewRegistry_Get(&app->worldviews, view)->world;
+    assert(world);
+    *out_x = world->_base_tile_x;
+    *out_z = world->_base_tile_z;
+}
+
 static void
 zone_tile_at(
     struct ZoneAt const* at,
@@ -755,8 +787,12 @@ exec_projanim_specific(
     assert(pkt);
     if( !app || !app->world || pkt->spotanim == 65535 )
         return;
-    local_x = pkt->x - app->world->_base_tile_x;
-    local_z = pkt->z - app->world->_base_tile_z;
+    /* Against the scene the server addressed, which is the REBUILD's while
+     * the world is still building it: the root world's own base is the old
+     * scene's until then, and the packet is held for the new one. */
+    zone_view_origin(app, WORLDVIEW_ROOT, &local_x, &local_z);
+    local_x = pkt->x - local_x;
+    local_z = pkt->z - local_z;
     /* Wire data, as exec_obj_specific's. */
     if( local_x < 0 || local_z < 0 || local_x >= app->world->_scene_size ||
         local_z >= app->world->_scene_size )
@@ -819,8 +855,10 @@ exec_obj_customise_specific(
     assert(pkt);
     if( !app || !app->world )
         return;
-    local_x = pkt->x - app->world->_base_tile_x;
-    local_z = pkt->z - app->world->_base_tile_z;
+    /* Against the scene the server addressed (exec_projanim_specific). */
+    zone_view_origin(app, WORLDVIEW_ROOT, &local_x, &local_z);
+    local_x = pkt->x - local_x;
+    local_z = pkt->z - local_z;
     /* Wire data, as exec_obj_specific's. */
     if( local_x < 0 || local_z < 0 || local_x >= app->world->_scene_size ||
         local_z >= app->world->_scene_size )
@@ -1115,23 +1153,26 @@ exec_zone_sub_packet_at(
         struct PktMapAnim const* pkt = payload;
         if( pkt->id != 65535 )
         {
+            /* The view the packet names (the cursor as of arrival), its scene
+             * and its frame: a deck's graphic is bounded by the deck. */
+            struct World const* world = App_ActiveWorldview(app)->world;
+            int origin_x;
+            int origin_z;
+
             zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
-            /* The spawn below requires the world; so does the note. */
-            assert(app->world);
+            assert(world);
             /* The reference files a MAP_ANIM only on a tile its scene holds
              * (worldview.method3333 before new class52), and drops the rest
              * without a trace. Same here, so a graphic the real client cannot
              * show is not one this client shows either. */
-            if( tile_x < 0 || tile_z < 0 || tile_x >= app->world->_scene_size ||
-                tile_z >= app->world->_scene_size )
+            if( tile_x < 0 || tile_z < 0 || tile_x >= world->_scene_size ||
+                tile_z >= world->_scene_size )
                 break;
-            App_WorldSpotanimSpawn(app, tile_x, tile_z, level, pkt->id, pkt->height, pkt->delay);
-            App_DriveMapAnimNote(
-                app,
-                app->world->_base_tile_x + tile_x,
-                app->world->_base_tile_z + tile_z,
-                level,
-                pkt->id);
+            /* The row exists now; its body lands later. */
+            (void)App_WorldSpotanimSpawn(
+                app, tile_x, tile_z, level, pkt->id, pkt->height, pkt->delay);
+            zone_view_origin(app, at->view, &origin_x, &origin_z);
+            App_DriveMapAnimNote(app, origin_x + tile_x, origin_z + tile_z, level, pkt->id);
         }
         break;
     }
@@ -1163,6 +1204,11 @@ exec_zone_sub_packet_at(
          * pkt->target names the entity the arc then homes on each cycle. */
         struct PktMapProjAnim const* pkt = payload;
         int src_tx, src_tz, dst_tx, dst_tz, src_level;
+        /* Absolute coords are the named view's: the root's scene base, or a
+         * deck's own frame. */
+        int origin_x;
+        int origin_z;
+        zone_view_origin(app, at->view, &origin_x, &origin_z);
         zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
         src_tx = tile_x;
         src_tz = tile_z;
@@ -1178,9 +1224,6 @@ exec_zone_sub_packet_at(
              * six zones of margin the client keeps on each side. Applied as
              * offsets, an absolute coord puts the arc a few tiles from the
              * scene's south-west corner and the shot flies off the map. */
-            int origin_x = RS_RebuildRegion_SceneBaseX(&ctx->app->rebuild_region);
-            int origin_z = RS_RebuildRegion_SceneBaseZ(&ctx->app->rebuild_region);
-
             dst_tx = pkt->dst_abs_x - origin_x;
             dst_tz = pkt->dst_abs_z - origin_z;
             level = pkt->dst_abs_level;
@@ -1190,20 +1233,19 @@ exec_zone_sub_packet_at(
             dst_tx = tile_x + pkt->dx_offset;
             dst_tz = tile_z + pkt->dz_offset;
         }
-        /* The spawn below requires the world; so does the note. */
-        assert(app->world);
         App_DriveProjectileNote(
                 app,
-                app->world->_base_tile_x + src_tx,
-                app->world->_base_tile_z + src_tz,
-                app->world->_base_tile_x + dst_tx,
-                app->world->_base_tile_z + dst_tz,
+                origin_x + src_tx,
+                origin_z + src_tz,
+                origin_x + dst_tx,
+                origin_z + dst_tz,
                 level,
                 pkt->spotanim,
                 pkt->target,
                 pkt->start_delay,
                 pkt->end_delay);
-        App_WorldProjectileSpawn(
+        /* The projectile exists and flies from now; its body lands later. */
+        (void)App_WorldProjectileSpawn(
             app,
             src_tx,
             src_tz,
@@ -1258,11 +1300,14 @@ exec_zone_sub_packet_at(
 
         if( idx < 0 )
             break;
+        /* The projectile exists from its ADD on, whether or not its body has
+         * landed, so a CHANGE right behind the ADD finds it. */
         if( pkt->target_x != -1 )
         {
-            int const origin_x = RS_RebuildRegion_SceneBaseX(&ctx->app->rebuild_region);
-            int const origin_z = RS_RebuildRegion_SceneBaseZ(&ctx->app->rebuild_region);
+            int origin_x;
+            int origin_z;
 
+            zone_view_origin(app, at->view, &origin_x, &origin_z);
             World_ProjectileScriptedRetarget(
                 world,
                 idx,
@@ -1285,16 +1330,22 @@ exec_zone_sub_packet_at(
          * the source is the zone tile, the target an absolute coord taken to
          * scene tiles against the rebuild origin as MAP_PROJANIM's is. */
         struct PktScriptedProjAdd const* pkt = payload;
-        int origin_x = RS_RebuildRegion_SceneBaseX(&ctx->app->rebuild_region);
-        int origin_z = RS_RebuildRegion_SceneBaseZ(&ctx->app->rebuild_region);
+        int origin_x;
+        int origin_z;
         struct WorldEntity_ScriptedProjSpec sp;
 
+        zone_view_origin(app, at->view, &origin_x, &origin_z);
         zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
-        assert(app->world);
+        /* `if (var16 == null)` (rev-241 deob Statics.java ~48257): a slot in
+         * use keeps its projectile and the packet does nothing else. The
+         * projectile exists from its ADD on, so an ADD right behind another
+         * for the same slot sees it, loaded or not. */
+        if( World_ProjectileFindScriptedSlot(App_ActiveWorldview(app)->world, pkt->slot) >= 0 )
+            break;
         App_DriveProjectileNote(
             app,
-            app->world->_base_tile_x + tile_x,
-            app->world->_base_tile_z + tile_z,
+            origin_x + tile_x,
+            origin_z + tile_z,
             pkt->target_x,
             pkt->target_z,
             pkt->target_level,
@@ -1323,10 +1374,7 @@ exec_zone_sub_packet_at(
             .curve = { pkt->curve_h, pkt->curve_a, pkt->curve_t },
             .slot = pkt->slot,
         };
-        /* `if (var16 == null)`: a slot in use keeps its projectile. */
-        if( World_ProjectileFindScriptedSlot(App_ActiveWorldview(app)->world, pkt->slot) >= 0 )
-            break;
-        App_WorldScriptedProjSpawn(app, &sp);
+        (void)App_WorldScriptedProjSpawn(app, &sp);
         break;
     }
     case PKT_NAME_LOC_MERGE:

@@ -77,7 +77,7 @@ App_WorldDrainEntityRemovedFor(
         }
         else if( ev->kind == WorldEventKind_SpotanimStarted && ev->element_id >= 0 && app->scene )
         {
-            /* The delayed map spotanim parked in app_world_spawn_spotanim_now
+            /* The delayed map spotanim parked by its body task (app_tasks_effects.c)
              * is drawing for the first time this cycle: rewind to frame 0 and
              * hand it back to the per-element tick.
              *

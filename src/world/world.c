@@ -1384,6 +1384,17 @@ World_ProjectileScriptedFreeze(
     p->delete_on_freeze_end = delete_on_end;
 }
 
+/* The next projectile or spotanim spawn serial: never 0, so a zeroed key
+ * names nothing. */
+static uint32_t
+world_next_effect_serial(struct World* world)
+{
+    world->effect_serial++;
+    if( world->effect_serial == 0 )
+        world->effect_serial = 1;
+    return world->effect_serial;
+}
+
 int
 World_ProjectileSpawn(
     struct World* world,
@@ -1405,7 +1416,7 @@ World_ProjectileSpawn(
     int source)
 {
     assert(world);
-    assert(element_id >= 0);
+    assert(element_id >= -1);
 
     struct World_EntityPool* pool = &world->entities.projectile;
     int idx = World_EntityPoolAlloc(pool);
@@ -1414,6 +1425,7 @@ World_ProjectileSpawn(
     struct WorldEntity_Projectile* p = World_EntityPoolGet(pool, idx);
     *p = (struct WorldEntity_Projectile){
         .element_id = element_id,
+        .serial = world_next_effect_serial(world),
         .level = src_level,
         .dst_level = dst_level,
         .src_x = src_x,
@@ -1460,6 +1472,23 @@ World_ProjectileDespawn(
     World_EntityPoolRelease(pool, idx);
 }
 
+struct WorldEntity_Projectile*
+World_ProjectileFind(
+    struct World* world,
+    int idx,
+    uint32_t serial)
+{
+    struct WorldEntity_Projectile* p;
+
+    assert(world);
+    assert(serial != 0);
+    if( idx < 0 || idx >= world->entities.projectile.count ||
+        !World_EntityPoolIsActive(&world->entities.projectile, idx) )
+        return NULL;
+    p = World_EntityPoolGet(&world->entities.projectile, idx);
+    return p && p->serial == serial ? p : NULL;
+}
+
 int
 World_SpotanimSpawn(
     struct World* world,
@@ -1473,7 +1502,8 @@ World_SpotanimSpawn(
     int lifetime)
 {
     assert(world);
-    assert(element_id >= 0);
+    assert(element_id >= -1);
+    assert(lifetime >= 0);
 
     struct World_EntityPool* pool = &world->entities.spotanim;
     int idx = World_EntityPoolAlloc(pool);
@@ -1482,6 +1512,7 @@ World_SpotanimSpawn(
     struct WorldEntity_Spotanim* s = World_EntityPoolGet(pool, idx);
     *s = (struct WorldEntity_Spotanim){
         .element_id = element_id,
+        .serial = world_next_effect_serial(world),
         .level = level,
         .draw_position = { .x = (uint32_t)scene_x,
                            .z = (uint32_t)scene_z,
@@ -1499,11 +1530,11 @@ World_SpotanimSpawn(
     /*
      * `idle_delay <= 0` (spotanim_map's common case, e.g. Inferno's
      * tzhaar_rock_smash) means "visible this cycle" — and the app layer
-     * (app_world_spawn_spotanim_now) already treats it that way: it skips the
-     * anim_external park-and-wait entirely and starts the model's sequence
-     * synchronously, in the SAME call that spawns this entity, because a
-     * zero-delay graphic has no flight/park window to hide the unplayed first
-     * frame behind (see that function's own comment).
+     * (the map anim body, app/app_tasks_effects.c) already treats it that way: it skips the
+     * anim_external park-and-wait entirely and binds the model's sequence when
+     * the body lands, aged by the cycles the graphic has been active, because
+     * a zero-delay graphic has no flight/park window to hide the unplayed
+     * first frame behind.
      *
      * World's bookkeeping used to disagree with what was already on screen:
      * `active` stayed false and `active_cycle` stayed 0 until the *next*
@@ -1546,6 +1577,23 @@ World_SpotanimDespawn(
     struct WorldEntity_Spotanim* s = World_EntityPoolAt(pool, idx);
     World_EmitEntityRemoved(world, s->element_id);
     World_EntityPoolRelease(pool, idx);
+}
+
+struct WorldEntity_Spotanim*
+World_SpotanimFind(
+    struct World* world,
+    int idx,
+    uint32_t serial)
+{
+    struct WorldEntity_Spotanim* s;
+
+    assert(world);
+    assert(serial != 0);
+    if( idx < 0 || idx >= world->entities.spotanim.count ||
+        !World_EntityPoolIsActive(&world->entities.spotanim, idx) )
+        return NULL;
+    s = World_EntityPoolGet(&world->entities.spotanim, idx);
+    return s && s->serial == serial ? s : NULL;
 }
 
 /* ---------------------------------------------- plugin-owned world objects */

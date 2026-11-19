@@ -6035,6 +6035,18 @@ test-drive-event-ring: $(OBJ_DIR) $(OBJS)
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/app_drive_event_ring_test $(DAT1_CACHE)
 
+# Projectiles and map graphics exist at their packet and only their bodies
+# wait (app/app_tasks_effects.c): rows at once, a CHANGE finds a projectile
+# still loading, a second ADD for a slot is dropped, a failed or cancelled
+# graphic takes its row, a deck's graphic is the deck's, a projectile held
+# through a rebuild lands in its scene, and the effect log's rows.
+.PHONY: test-effects
+test-effects: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/app_tasks_effects_test \
+		app/test/app_tasks_effects_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/app_tasks_effects_test
+
 # End-to-end dat1 RevConfig build against a dat1 cache (default
 # ../cache254.lostcity, the name this tree actually ships -- test-ui-slots
 # and test-drive-event-ring were red by default under the old ../cache254

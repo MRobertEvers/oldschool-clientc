@@ -54,6 +54,7 @@ test_names(void)
         "slot_mounted", "resume_answered", "varp_changed", "inv_changed", "obj_added",
         "obj_removed",  "map_flag",     "chat_message", "server_tick",  "npc_spawn",
         "npc_despawn",  "npc_retype",   "inv_packet",   "npc_seq",      "npc_face",
+        "projectile",   "projectile_flight", "map_anim",
     };
 
     CHECK(sizeof(expected) / sizeof(expected[0]) == RS_EVENT_KIND_COUNT, "%d kinds",
