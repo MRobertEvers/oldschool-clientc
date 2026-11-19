@@ -29,6 +29,9 @@
  * client-only, test-only module that happens to live beside it.
  */
 
+#include "game/rs_effect_rules.h"
+#include "game/rs_event_ring.h"
+
 #include <stdint.h>
 
 struct UITree;
@@ -65,7 +68,9 @@ char const* DriveResultName(enum DriveResult result);
 /* ------------------------------------------------------------------- events */
 
 /*
- * Drive events.  One fixed ring on struct App, appended by App_DriveEvent()
+ * Drive events: game/rs_event_ring.h's vocabulary, which the headless client
+ * (SCRIPTRUN_EV_*) raises too.  One fixed ring on struct App (an RS_EventRing
+ * of APP_DRIVE_RING_CAPACITY entries), appended by App_DriveEvent()
  * from the stamp sites marked `DRIVE_STAMP:` in the tree (grep for them), read
  * by cursor by the scheduler.  The ring NEVER allocates and never blocks a
  * stamp: a full ring drops its oldest entry and a reader whose cursor fell off
@@ -106,50 +111,39 @@ char const* DriveResultName(enum DriveResult result);
  * split it into two events rather than widening the record -- the ring is on
  * struct App and every byte is paid for by every client.
  */
-enum App_DriveEventKind
+/* The drive's spellings of enum RS_EventKind (the names a Lua await matches
+ * on are RS_EventKindName's, shared with the headless client). */
+enum
 {
-    DRIVE_EVENT_NONE = 0,
-    DRIVE_EVENT_SUB_OPENED,
-    DRIVE_EVENT_SUB_MOUNTED,
-    DRIVE_EVENT_SUB_CLOSED,
-    DRIVE_EVENT_CHAT_OPENED,
-    DRIVE_EVENT_SLOT_MOUNTED,
-    DRIVE_EVENT_RESUME_ANSWERED,
-    DRIVE_EVENT_VARP_CHANGED,
-    DRIVE_EVENT_INV_CHANGED,
-    DRIVE_EVENT_OBJ_ADDED,
-    DRIVE_EVENT_OBJ_REMOVED,
-    DRIVE_EVENT_MAP_FLAG,
-    DRIVE_EVENT_CHAT_MESSAGE,
-    DRIVE_EVENT_SERVER_TICK,
-    DRIVE_EVENT_NPC_SPAWN,
-    DRIVE_EVENT_NPC_DESPAWN,
-    DRIVE_EVENT_NPC_RETYPE,
-    DRIVE_EVENT_INV_PACKET,
-    DRIVE_EVENT_NPC_SEQ,
-    DRIVE_EVENT_NPC_FACE,
-    DRIVE_EVENT_KIND_COUNT
+    DRIVE_EVENT_NONE = RS_EVENT_NONE,
+    DRIVE_EVENT_SUB_OPENED = RS_EVENT_SUB_OPENED,
+    DRIVE_EVENT_SUB_MOUNTED = RS_EVENT_SUB_MOUNTED,
+    DRIVE_EVENT_SUB_CLOSED = RS_EVENT_SUB_CLOSED,
+    DRIVE_EVENT_CHAT_OPENED = RS_EVENT_CHAT_OPENED,
+    DRIVE_EVENT_SLOT_MOUNTED = RS_EVENT_SLOT_MOUNTED,
+    DRIVE_EVENT_RESUME_ANSWERED = RS_EVENT_RESUME_ANSWERED,
+    DRIVE_EVENT_VARP_CHANGED = RS_EVENT_VARP_CHANGED,
+    DRIVE_EVENT_INV_CHANGED = RS_EVENT_INV_CHANGED,
+    DRIVE_EVENT_OBJ_ADDED = RS_EVENT_OBJ_ADDED,
+    DRIVE_EVENT_OBJ_REMOVED = RS_EVENT_OBJ_REMOVED,
+    DRIVE_EVENT_MAP_FLAG = RS_EVENT_MAP_FLAG,
+    DRIVE_EVENT_CHAT_MESSAGE = RS_EVENT_CHAT_MESSAGE,
+    DRIVE_EVENT_SERVER_TICK = RS_EVENT_SERVER_TICK,
+    DRIVE_EVENT_NPC_SPAWN = RS_EVENT_NPC_SPAWN,
+    DRIVE_EVENT_NPC_DESPAWN = RS_EVENT_NPC_DESPAWN,
+    DRIVE_EVENT_NPC_RETYPE = RS_EVENT_NPC_RETYPE,
+    DRIVE_EVENT_INV_PACKET = RS_EVENT_INV_PACKET,
+    DRIVE_EVENT_NPC_SEQ = RS_EVENT_NPC_SEQ,
+    DRIVE_EVENT_NPC_FACE = RS_EVENT_NPC_FACE,
+    DRIVE_EVENT_KIND_COUNT = RS_EVENT_KIND_COUNT,
 };
 
-/** "sub_mounted", ... .  The name a Lua await predicate matches on.  Never
- *  NULL; an out-of-range kind asserts. */
-char const* DriveEventKindName(enum App_DriveEventKind kind);
-
-/** -1 when `name` is not an event kind.  A test's typo in an await
- *  descriptor is a legitimate runtime answer, not a contract violation. */
-int DriveEventKindFromName(char const* name);
-
+/* The client's ring: a full one drops its oldest entry and counts it
+ * (RS_EVENT_RING_COUNT_DROPS). An entry is a struct RS_Event: serial 1-based
+ * and monotonic for the life of the process (0 is "no event"; a cursor of 0
+ * means "everything the ring still holds"), cycle the world cycle at the stamp
+ * for deadline arithmetic, a..d per the table above. */
 #define APP_DRIVE_RING_CAPACITY 512
-
-struct App_DriveEvent
-{
-    /** 1-based and monotonic for the life of the process.  0 is "no event";
-     *  a cursor of 0 means "everything the ring still holds". */
-    uint32_t serial;
-    int32_t kind; /**< enum App_DriveEventKind */
-    int32_t cycle; /**< world cycle at the stamp, for deadline arithmetic */
-    int32_t a, b, c, d; /**< per-kind, per the table above */
-};
 
 /* A projectile as its MAP_PROJANIM packet said it, stamped with the world
  * cycle the packet was applied on. The world's projectile entity is spawned
@@ -159,7 +153,7 @@ struct App_DriveEvent
  * in the packet's tick (2026-10-09: the two tick logs parted on an urn one
  * lane carried and the other did not). The drive's projectile rows come
  * from these records, with scriptrun's arithmetic. Absolute tiles. */
-#define APP_DRIVE_PROJECTILE_CAP 256 /* = SCRIPTRUN_PROJECTILES */
+#define APP_DRIVE_PROJECTILE_CAP RS_EFFECT_PROJECTILE_CAP /* = SCRIPTRUN_PROJECTILES */
 /* It was 64. Zebak's lobs (a projectile per acid tile and per jug, flying 3-5
  * ticks) put more than that in flight at once; the assert is gone in an OPT
  * build, so the 65th wrote past the ring, off the end of the global `app`,
@@ -205,8 +199,8 @@ struct App_DriveLocChange
  * retires a floor graphic 40 ticks after it lands), the cycles counted in
  * whole server ticks (App_DriveMapAnimElapsed), never off the client's own
  * cycle. Absolute tiles. */
-#define APP_DRIVE_MAP_ANIM_CAP 2048 /* = SCRIPTRUN_MAP_ANIMS */
-#define APP_DRIVE_MAP_ANIM_LIFE (40 * 30)
+#define APP_DRIVE_MAP_ANIM_CAP RS_EFFECT_MAP_ANIM_CAP /* = SCRIPTRUN_MAP_ANIMS */
+#define APP_DRIVE_MAP_ANIM_LIFE RS_EFFECT_MAP_ANIM_LIFE_CYCLES
 struct App_DriveMapAnim
 {
     int32_t x, z, level, spotanim;
@@ -219,8 +213,8 @@ struct App_DriveMapAnim
  * as scriptrun does (scriptrun_core.c, SCRIPTRUN_LOC_ANIMS). Rows are listed
  * for APP_DRIVE_LOC_ANIM_TICKS server ticks after the tick that sent them.
  * Absolute tiles. */
-#define APP_DRIVE_LOC_ANIM_CAP 4096 /* = SCRIPTRUN_LOC_ANIMS */
-#define APP_DRIVE_LOC_ANIM_TICKS 40
+#define APP_DRIVE_LOC_ANIM_CAP RS_EFFECT_LOC_ANIM_CAP /* = SCRIPTRUN_LOC_ANIMS */
+#define APP_DRIVE_LOC_ANIM_TICKS RS_EFFECT_LOC_ANIM_LIFE_TICKS
 struct App_DriveLocAnim
 {
     int32_t x, z, level, shape, seq;
@@ -263,18 +257,11 @@ struct App_DriveRing
     int cs2_pending;
     int cs2_pending_cycle;
     int cs2_waived;
-    struct App_DriveEvent entries[APP_DRIVE_RING_CAPACITY];
-    /** Serial of the newest entry; 0 before the first stamp. */
-    uint32_t newest_serial;
-    /** Serial of the oldest entry the ring still holds; 0 while empty. */
-    uint32_t oldest_serial;
-    /** Where the next append lands. */
-    int write_index;
-    /** How many entries are live, capped at APP_DRIVE_RING_CAPACITY. */
-    int count;
-    /** Entries dropped because a reader never came back.  Reported once by
-     *  the scheduler; a climbing number means the pump is not running. */
-    uint32_t dropped;
+    struct RS_Event entries[APP_DRIVE_RING_CAPACITY];
+    /** The entries' bookkeeping. `ring.dropped` counts entries dropped
+     *  because a reader never came back; a climbing number means the pump is
+     *  not running. */
+    struct RS_EventRing ring;
 };
 
 /*
@@ -289,7 +276,7 @@ struct App_DriveRing
  */
 void App_DriveEvent(
     struct App* app,
-    enum App_DriveEventKind kind,
+    enum RS_EventKind kind,
     int32_t a,
     int32_t b,
     int32_t c,
@@ -329,7 +316,7 @@ void App_DriveLocChangesRetire(struct App* app);
 enum DriveResult App_DriveEventsRead(
     struct App* app,
     uint32_t after_serial,
-    struct App_DriveEvent* out,
+    struct RS_Event* out,
     int cap,
     int* out_count,
     uint32_t* out_serial);

@@ -28,6 +28,8 @@
  * REBUILD_NORMAL, and from the template zones of a REBUILD_REGION.
  */
 
+#include "game/rs_effect_rules.h"
+#include "game/rs_event_ring.h"
 #include "ui/uitree_if_events.h"
 
 #include <stdint.h>
@@ -45,17 +47,11 @@ enum
     SCRIPTRUN_INV_SLOTS = 512,
     SCRIPTRUN_MESSAGES = 256,
     SCRIPTRUN_TEXT = 256,
-    SCRIPTRUN_PROJECTILES = 256,
-    /* Bloat's hand volleys below 40% put ~320 floor graphics in the
-     * 40-tick window (16 shadows + 16 splats every 4 ticks); a full ring
-     * is an assert, never a dropped graphic (the dropped one is the newest,
-     * the one a bot must dodge). */
-    /* The Path of Crondis sets the sizes: its beams draw up to 120 map
-     * graphics every 5 ticks, and Jagex re-sends its 80 trap locs' idles
-     * every tick before the room starts (~30 a tick after), all kept for 40
-     * ticks (docs/rsprox-analysis/toa/crondis.md). The live ring matches. */
-    SCRIPTRUN_MAP_ANIMS = 2048,
-    SCRIPTRUN_LOC_ANIMS = 4096,
+    /* The effect lists' sizes, the live ring's too (game/rs_effect_rules.h
+     * says why each is what it is); a full list is an assert. */
+    SCRIPTRUN_PROJECTILES = RS_EFFECT_PROJECTILE_CAP,
+    SCRIPTRUN_MAP_ANIMS = RS_EFFECT_MAP_ANIM_CAP,
+    SCRIPTRUN_LOC_ANIMS = RS_EFFECT_LOC_ANIM_CAP,
     SCRIPTRUN_LOCS = 1024,
     SCRIPTRUN_OBJS = 512,
     SCRIPTRUN_MOUNTS = 64,
@@ -67,40 +63,35 @@ enum
     SCRIPTRUN_CYCLES_PER_TICK = 30,
 };
 
-/* The client's drive events (app/app_plugin_drive_events.c), same order and
- * field meanings, raised from the same packets. */
-enum ScriptrunEventKind
+/* The drive events: game/rs_event_ring.h's one vocabulary, the client's own
+ * (DRIVE_EVENT_*), raised from the same packets with the same field meanings
+ * (plugin/torirs_plugin_drive.h has the payload table). */
+enum
 {
-    SCRIPTRUN_EV_NONE = 0,
-    SCRIPTRUN_EV_SUB_OPENED,
-    SCRIPTRUN_EV_SUB_MOUNTED,
-    SCRIPTRUN_EV_SUB_CLOSED,
-    SCRIPTRUN_EV_CHAT_OPENED,
-    SCRIPTRUN_EV_SLOT_MOUNTED,
-    SCRIPTRUN_EV_RESUME_ANSWERED,
-    SCRIPTRUN_EV_VARP_CHANGED,
-    SCRIPTRUN_EV_INV_CHANGED,
-    SCRIPTRUN_EV_OBJ_ADDED,
-    SCRIPTRUN_EV_OBJ_REMOVED,
-    SCRIPTRUN_EV_MAP_FLAG,
-    SCRIPTRUN_EV_CHAT_MESSAGE,
-    SCRIPTRUN_EV_SERVER_TICK,
-    SCRIPTRUN_EV_NPC_SPAWN,
-    SCRIPTRUN_EV_NPC_DESPAWN,
-    SCRIPTRUN_EV_NPC_RETYPE,
-    SCRIPTRUN_EV_INV_PACKET,
-    SCRIPTRUN_EV_NPC_SEQ,
-    SCRIPTRUN_EV_NPC_FACE,
-    SCRIPTRUN_EV_KIND_COUNT,
+    SCRIPTRUN_EV_NONE = RS_EVENT_NONE,
+    SCRIPTRUN_EV_SUB_OPENED = RS_EVENT_SUB_OPENED,
+    SCRIPTRUN_EV_SUB_MOUNTED = RS_EVENT_SUB_MOUNTED,
+    SCRIPTRUN_EV_SUB_CLOSED = RS_EVENT_SUB_CLOSED,
+    SCRIPTRUN_EV_CHAT_OPENED = RS_EVENT_CHAT_OPENED,
+    SCRIPTRUN_EV_SLOT_MOUNTED = RS_EVENT_SLOT_MOUNTED,
+    SCRIPTRUN_EV_RESUME_ANSWERED = RS_EVENT_RESUME_ANSWERED,
+    SCRIPTRUN_EV_VARP_CHANGED = RS_EVENT_VARP_CHANGED,
+    SCRIPTRUN_EV_INV_CHANGED = RS_EVENT_INV_CHANGED,
+    SCRIPTRUN_EV_OBJ_ADDED = RS_EVENT_OBJ_ADDED,
+    SCRIPTRUN_EV_OBJ_REMOVED = RS_EVENT_OBJ_REMOVED,
+    SCRIPTRUN_EV_MAP_FLAG = RS_EVENT_MAP_FLAG,
+    SCRIPTRUN_EV_CHAT_MESSAGE = RS_EVENT_CHAT_MESSAGE,
+    SCRIPTRUN_EV_SERVER_TICK = RS_EVENT_SERVER_TICK,
+    SCRIPTRUN_EV_NPC_SPAWN = RS_EVENT_NPC_SPAWN,
+    SCRIPTRUN_EV_NPC_DESPAWN = RS_EVENT_NPC_DESPAWN,
+    SCRIPTRUN_EV_NPC_RETYPE = RS_EVENT_NPC_RETYPE,
+    SCRIPTRUN_EV_INV_PACKET = RS_EVENT_INV_PACKET,
+    SCRIPTRUN_EV_NPC_SEQ = RS_EVENT_NPC_SEQ,
+    SCRIPTRUN_EV_NPC_FACE = RS_EVENT_NPC_FACE,
+    SCRIPTRUN_EV_KIND_COUNT = RS_EVENT_KIND_COUNT,
+    /* The bot's ring: overwrites its oldest entry when full, uncounted
+     * (RS_EVENT_RING_OVERWRITE); the reader clamps its cursor to it. */
     SCRIPTRUN_EVENTS = 1024,
-};
-
-struct ScriptrunEvent
-{
-    int serial;
-    int kind;
-    int cycle;
-    int a, b, c, d;
 };
 
 struct ScriptrunInv
@@ -130,9 +121,9 @@ struct ScriptrunProjectile
 
 /* A LOC_ANIM as its packet said it: the sequence a placed loc started, on
  * the tick that sent it. Kept for SCRIPTRUN_LOC_ANIM_TICKS, the live ring's
- * APP_DRIVE_LOC_ANIM_LIFE. (The Great Olm's head is a loc: its facing and its
- * attacks are told only by these.) */
-enum { SCRIPTRUN_LOC_ANIM_TICKS = 40 };
+ * APP_DRIVE_LOC_ANIM_TICKS (both RS_EFFECT_LOC_ANIM_LIFE_TICKS). (The Great
+ * Olm's head is a loc: its facing and its attacks are told only by these.) */
+enum { SCRIPTRUN_LOC_ANIM_TICKS = RS_EFFECT_LOC_ANIM_LIFE_TICKS };
 struct ScriptrunLocAnim
 {
     int x, z, level; /* absolute */
@@ -350,8 +341,9 @@ struct ScriptrunCore
     int collision_squares;
     int collision_locs;
 
-    struct ScriptrunEvent events[SCRIPTRUN_EVENTS]; /* ring, by serial */
-    int event_serial;
+    /* The drive events, SCRIPTRUN_EVENTS of them (RS_EVENT_RING_OVERWRITE). */
+    struct RS_Event event_entries[SCRIPTRUN_EVENTS];
+    struct RS_EventRing events;
 
     /* The local player's own action seqs as its screen saw them start
      * (the drive's players() `me` row: seq_history, raid seam48). */

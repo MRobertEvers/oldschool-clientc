@@ -128,19 +128,15 @@ ScriptrunCore_Event(
     int c,
     int d)
 {
-    struct ScriptrunEvent* ev;
+    struct RS_Event ev;
 
     assert(core);
-    assert(kind > SCRIPTRUN_EV_NONE && kind < SCRIPTRUN_EV_KIND_COUNT);
-    core->event_serial++;
-    ev = &core->events[core->event_serial % SCRIPTRUN_EVENTS];
-    ev->serial = core->event_serial;
-    ev->kind = kind;
-    ev->cycle = (int)core->world->cycle;
-    ev->a = a;
-    ev->b = b;
-    ev->c = c;
-    ev->d = d;
+    assert(kind > SCRIPTRUN_EV_NONE);
+    assert(kind < SCRIPTRUN_EV_KIND_COUNT);
+    ev = (struct RS_Event){
+        .kind = kind, .cycle = (int32_t)core->world->cycle, .a = a, .b = b, .c = c, .d = d
+    };
+    RS_EventRing_Push(&core->events, core->event_entries, SCRIPTRUN_EVENTS, RS_EVENT_RING_OVERWRITE, &ev);
 }
 
 void
@@ -165,14 +161,13 @@ ScriptrunCore_BeginTick(
             core->projectiles[kept++] = *p;
     }
     core->projectile_count = kept;
-    /* Map graphics: kept for 40 ticks, the longest the floor graphics this
-     * runner is built for last (Verzik's pools, 14 ticks). A spotanim's own
-     * sequence length would be exact; the consumers judge by id and tile. */
+    /* Map graphics: kept for RS_EFFECT_MAP_ANIM_LIFE_TICKS (40), the longest
+     * the floor graphics this runner is built for last (game/rs_effect_rules.h). */
     kept = 0;
     for( int i = 0; i < core->map_anim_count; i++ )
     {
         struct ScriptrunMapAnim const* a = &core->map_anims[i];
-        if( now - a->cycle <= 40 * SCRIPTRUN_CYCLES_PER_TICK )
+        if( now - a->cycle <= RS_EFFECT_MAP_ANIM_LIFE_CYCLES )
             core->map_anims[kept++] = *a;
     }
     core->map_anim_count = kept;

@@ -68,9 +68,9 @@ queued_open(
     int target,
     int group)
 {
-    for( uint32_t i = 0; i < app->drive_events.count; i++ )
+    for( uint32_t i = 0; i < app->drive_events.ring.count; i++ )
     {
-        struct App_DriveEvent const* e = &app->drive_events.entries[i];
+        struct RS_Event const* e = &app->drive_events.entries[i];
 
         if( e->kind == DRIVE_EVENT_SUB_OPENED && e->a == target && e->b == group )
             return 1;

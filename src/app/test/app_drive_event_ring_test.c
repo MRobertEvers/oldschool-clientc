@@ -42,7 +42,7 @@ static void
 test_ring_order_and_second_read_empty(void)
 {
     struct App app;
-    struct App_DriveEvent out[8];
+    struct RS_Event out[8];
     int count = -1;
     uint32_t serial = 0;
     enum DriveResult r;
@@ -68,7 +68,7 @@ test_ring_order_and_second_read_empty(void)
     assert(serial == out[2].serial);
 
     {
-        struct App_DriveEvent out2[8];
+        struct RS_Event out2[8];
         int count2 = -1;
         uint32_t serial2 = 0;
 
@@ -84,7 +84,7 @@ static void
 test_ring_wraparound_refuses_stale_cursor(void)
 {
     struct App app;
-    struct App_DriveEvent out[8];
+    struct RS_Event out[8];
     int count = -1;
     uint32_t serial_after_first;
     uint32_t serial = 0;
@@ -96,19 +96,19 @@ test_ring_wraparound_refuses_stale_cursor(void)
     memset(&app, 0, sizeof(app));
 
     App_DriveEvent(&app, DRIVE_EVENT_SERVER_TICK, 1, 0, 0, 0);
-    serial_after_first = app.drive_events.newest_serial;
+    serial_after_first = app.drive_events.ring.newest_serial;
     assert(serial_after_first != 0);
 
     /* One more than capacity: the first entry is guaranteed gone. */
     for( i = 0; i < APP_DRIVE_RING_CAPACITY + 1; i++ )
         App_DriveEvent(&app, DRIVE_EVENT_SERVER_TICK, i + 2, 0, 0, 0);
-    assert(app.drive_events.dropped > 0);
+    assert(app.drive_events.ring.dropped > 0);
 
     r = App_DriveEventsRead(&app, serial_after_first, out, 8, &count, &serial);
     assert(r == DRIVE_REFUSED);
     printf(
         "PASS: %u dropped entries later, the first reader's cursor is refused\n",
-        app.drive_events.dropped);
+        app.drive_events.ring.dropped);
 
     /* A cursor of 0 ("everything still held") is never refused, even once
      * the ring has wrapped -- it is a fresh reader's start, not a stale one. */
@@ -166,9 +166,9 @@ test_loc_change_note_carries_the_lane_ticket(void)
 
 static int
 drive_ring_find(
-    struct App_DriveEvent const* events,
+    struct RS_Event const* events,
     int count,
-    enum App_DriveEventKind kind)
+    enum RS_EventKind kind)
 {
     int i;
     for( i = 0; i < count; i++ )
@@ -185,7 +185,7 @@ test_dat1_chat_open_close_stamps_the_ring(
 {
     struct App app;
     struct AppConfig cfg = { 0 };
-    struct App_DriveEvent out[32];
+    struct RS_Event out[32];
     int count = -1;
     uint32_t serial = 0;
     enum DriveResult r;

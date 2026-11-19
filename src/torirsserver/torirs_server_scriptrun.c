@@ -426,32 +426,24 @@ d_settled(lua_State* L)
     return 1;
 }
 
-/* app/app_plugin_drive_events.c's names, in enum ScriptrunEventKind order. */
-static char const* const EVENT_NAMES[SCRIPTRUN_EV_KIND_COUNT] = {
-    "none", "sub_opened", "sub_mounted", "sub_closed", "chat_opened", "slot_mounted",
-    "resume_answered", "varp_changed", "inv_changed", "obj_added", "obj_removed", "map_flag",
-    "chat_message", "server_tick", "npc_spawn", "npc_despawn", "npc_retype", "inv_packet",
-    "npc_seq", "npc_face",
-};
-
+/* The kind an await names (game/rs_event_ring.h's names, the client's), -1
+ * for none: "none" is no kind here, where the client filters on it. */
 static int
 event_kind(char const* name)
 {
-    for( int k = 1; k < SCRIPTRUN_EV_KIND_COUNT; k++ )
-        if( strcmp(EVENT_NAMES[k], name) == 0 )
-            return k;
-    return -1;
+    int kind = RS_EventKindFromName(name);
+    return kind > SCRIPTRUN_EV_NONE ? kind : -1;
 }
 
 static void
 push_event(
     lua_State* L,
-    struct ScriptrunEvent const* ev)
+    struct RS_Event const* ev)
 {
     lua_createtable(L, 0, 7);
     lua_pushinteger(L, ev->serial);
     lua_setfield(L, -2, "serial");
-    lua_pushstring(L, EVENT_NAMES[ev->kind]);
+    lua_pushstring(L, RS_EventKindName(ev->kind));
     lua_setfield(L, -2, "kind");
     lua_pushinteger(L, ev->cycle);
     lua_setfield(L, -2, "cycle");
@@ -1556,9 +1548,10 @@ d_spotanims(lua_State* L)
         int left;
         if( have && radius > 0 && cheb(px, pz, a->x, a->z) > radius )
             continue;
-        /* The core retires a floor graphic 40 ticks after it lands (the
-         * server keeps no spotanim config to read its sequence length from). */
-        left = 40 * SCRIPTRUN_CYCLES_PER_TICK - (now - a->cycle);
+        /* The core retires a floor graphic RS_EFFECT_MAP_ANIM_LIFE_TICKS after
+         * it lands (the server keeps no spotanim config to read its sequence
+         * length from). */
+        left = RS_EFFECT_MAP_ANIM_LIFE_CYCLES - (now - a->cycle);
         lua_newtable(L);
         lua_pushinteger(L, -1);
         lua_setfield(L, -2, "seq");
@@ -5231,7 +5224,7 @@ bot_settle(
 }
 
 /* The client's pump reads at most this many events a frame
- * (drive_pump_once's `struct App_DriveEvent events[32]`). */
+ * (drive_pump_once's `struct RS_Event events[32]`). */
 enum
 {
     SCRIPTRUN_PUMP_BATCH = 32
@@ -5264,16 +5257,16 @@ bot_step_once(struct ScriptBot* bot)
     {
         /* An on-demand Play's cursor starts at the ring's newest entry
          * (drive_demand_begin): what came before is not this script's. */
-        bot->event_cursor = c->event_serial;
+        bot->event_cursor = (int)c->events.newest_serial;
         bot->state = SCRIPTBOT_DONE; /* until it yields */
         bot_resume(bot, 5);
         return 1;
     }
 
     from = bot->event_cursor + 1;
-    if( from < c->event_serial - SCRIPTRUN_EVENTS + 1 )
-        from = c->event_serial - SCRIPTRUN_EVENTS + 1;
-    batch_end = c->event_serial;
+    if( from < (int)c->events.newest_serial - SCRIPTRUN_EVENTS + 1 )
+        from = (int)c->events.newest_serial - SCRIPTRUN_EVENTS + 1;
+    batch_end = (int)c->events.newest_serial;
     if( batch_end - from + 1 > SCRIPTRUN_PUMP_BATCH )
         batch_end = from + SCRIPTRUN_PUMP_BATCH - 1;
     if( batch_end >= from )
@@ -5285,7 +5278,8 @@ bot_step_once(struct ScriptBot* bot)
     /* Predicates run on the main state: they are plain functions. */
     for( int serial = from; serial <= batch_end; serial++ )
     {
-        struct ScriptrunEvent const* ev = &c->events[serial % SCRIPTRUN_EVENTS];
+        struct RS_Event const* ev =
+            RS_EventRing_At(&c->events, c->event_entries, SCRIPTRUN_EVENTS, (uint32_t)serial);
         int matched;
 
         if( bot->state != SCRIPTBOT_AWAIT )
@@ -5309,7 +5303,7 @@ bot_step_once(struct ScriptBot* bot)
         if( matched )
         {
             char how[64];
-            snprintf(how, sizeof(how), "event %s %d/%d", EVENT_NAMES[ev->kind], serial - from + 1,
+            snprintf(how, sizeof(how), "event %s %d/%d", RS_EventKindName(ev->kind), serial - from + 1,
                      batch_end - from + 1);
             await_trace(bot, how, bot->await_note);
             bot_settle(bot, 1);
@@ -5357,7 +5351,7 @@ bot_step(struct ScriptBot* bot)
     for( int pass = 0; pass < 32; pass++ )
     {
         int resumed = bot_step_once(bot);
-        if( !resumed && bot->event_cursor >= bot->core->event_serial )
+        if( !resumed && bot->event_cursor >= (int)bot->core->events.newest_serial )
             break;
     }
 }
@@ -5407,7 +5401,7 @@ relog_tick(
         bot->login_tick = (int)srv->tick;
         bot->tab = SCRIPTRUN_TAB_INVENTORY;
         disarm(bot);
-        bot->event_cursor = bot->core->event_serial;
+        bot->event_cursor = (int)bot->core->events.newest_serial;
         bot->relog_phase = SCRIPTBOT_RELOG_IN;
         fprintf(stderr, "scriptrun: %s logs back in as pid %d at %d,%d,%d\n", bot->name,
                 player->pid, player->x, player->z, player->level);

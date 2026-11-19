@@ -44,94 +44,37 @@ DriveResultName(enum DriveResult result)
     return DRIVE_RESULT_NAMES[result];
 }
 
-static char const* const DRIVE_EVENT_NAMES[DRIVE_EVENT_KIND_COUNT] = {
-    "none",
-    "sub_opened",
-    "sub_mounted",
-    "sub_closed",
-    "chat_opened",
-    "slot_mounted",
-    "resume_answered",
-    "varp_changed",
-    "inv_changed",
-    "obj_added",
-    "obj_removed",
-    "map_flag",
-    "chat_message",
-    "server_tick",
-    "npc_spawn",
-    "npc_despawn",
-    "npc_retype",
-    "inv_packet",
-    "npc_seq",
-    "npc_face",
-};
-
-char const*
-DriveEventKindName(enum App_DriveEventKind kind)
-{
-    assert(kind >= 0);
-    assert(kind < DRIVE_EVENT_KIND_COUNT);
-    return DRIVE_EVENT_NAMES[kind];
-}
-
-int
-DriveEventKindFromName(char const* name)
-{
-    assert(name);
-    for( int kind = 0; kind < DRIVE_EVENT_KIND_COUNT; kind++ )
-        if( strcmp(name, DRIVE_EVENT_NAMES[kind]) == 0 )
-            return kind;
-    /* A test's typo in an await descriptor: a runtime answer, not a contract
-     * violation, and the caller turns it into a Lua error naming the name. */
-    return -1;
-}
-
 void
 App_DriveEvent(
     struct App* app,
-    enum App_DriveEventKind kind,
+    enum RS_EventKind kind,
     int32_t a,
     int32_t b,
     int32_t c,
     int32_t d)
 {
-    struct App_DriveRing* ring;
-    struct App_DriveEvent* slot;
+    struct RS_Event ev;
 
     assert(app);
     assert(kind > DRIVE_EVENT_NONE);
     assert(kind < DRIVE_EVENT_KIND_COUNT);
 
-    ring = &app->drive_events;
-    slot = &ring->entries[ring->write_index];
-    if( ring->count == APP_DRIVE_RING_CAPACITY )
-    {
-        /* The entry about to be overwritten is the oldest one. Losing it is
-         * recorded rather than silent: a reader whose cursor is now older than
-         * oldest_serial is told DRIVE_REFUSED and can say "the pump stopped",
-         * which is a diagnosable failure. Skipping the event and carrying on
-         * is the one thing that is not. */
-        ring->dropped++;
-        ring->oldest_serial = slot->serial + 1;
-    }
-    else
-    {
-        ring->count++;
-    }
-
-    memset(slot, 0, sizeof(*slot));
-    slot->serial = ++ring->newest_serial;
-    slot->kind = (int32_t)kind;
-    slot->cycle = app->world ? (int32_t)app->world->cycle : 0;
-    slot->a = a;
-    slot->b = b;
-    slot->c = c;
-    slot->d = d;
-
-    if( ring->oldest_serial == 0 )
-        ring->oldest_serial = slot->serial;
-    ring->write_index = (ring->write_index + 1) % APP_DRIVE_RING_CAPACITY;
+    /* A full ring overwrites its oldest entry and counts it rather than
+     * dropping it silently: a reader whose cursor is now older than
+     * oldest_serial is told DRIVE_REFUSED and can say "the pump stopped",
+     * which is a diagnosable failure. Skipping the event and carrying on is
+     * the one thing that is not. */
+    ev = (struct RS_Event){
+        .kind = (int32_t)kind,
+        .cycle = app->world ? (int32_t)app->world->cycle : 0,
+        .a = a,
+        .b = b,
+        .c = c,
+        .d = d,
+    };
+    RS_EventRing_Push(
+        &app->drive_events.ring, app->drive_events.entries, APP_DRIVE_RING_CAPACITY,
+        RS_EVENT_RING_COUNT_DROPS, &ev);
 }
 
 void
@@ -241,11 +184,12 @@ App_DriveLocAnimNote(struct App* app, int scene_x, int scene_z, int level, int s
     assert(app->world);
     ring = &app->drive_events;
     now = (int)app->world->cycle;
-    /* Retire by cycles with a tick of slack: the rows themselves are judged
-     * by the server tick (DriveUi_LocAnims), scriptrun's rule. */
+    /* Retire by cycles with two ticks of slack (RS_EFFECT_LOC_ANIM_CLIENT_KEEP_TICKS):
+     * the rows themselves are judged by the server tick (DriveUi_LocAnims),
+     * scriptrun's rule. */
     kept = 0;
     for( i = 0; i < ring->loc_anim_count; i++ )
-        if( now - ring->loc_anims[i].cycle <= (APP_DRIVE_LOC_ANIM_TICKS + 2) * 30 )
+        if( now - ring->loc_anims[i].cycle <= RS_EFFECT_LOC_ANIM_CLIENT_KEEP_TICKS * APP_SERVER_TICK_LOGIC_CYCLES )
             ring->loc_anims[kept++] = ring->loc_anims[i];
     ring->loc_anim_count = kept;
     /* Scriptrun holds the same count (SCRIPTRUN_LOC_ANIMS) and asserts it. */
@@ -369,57 +313,20 @@ enum DriveResult
 App_DriveEventsRead(
     struct App* app,
     uint32_t after_serial,
-    struct App_DriveEvent* out,
+    struct RS_Event* out,
     int cap,
     int* out_count,
     uint32_t* out_serial)
 {
-    struct App_DriveRing* ring;
-    int written = 0;
-    int first;
-
     assert(app);
     assert(out);
     assert(out_count);
     assert(out_serial);
     assert(cap > 0);
 
-    ring = &app->drive_events;
-    *out_count = 0;
-    *out_serial = ring->newest_serial;
-    if( ring->count == 0 )
-        return DRIVE_OK;
-    /* A cursor of 0 is "everything you still hold", which is how a reader
-     * that has never polled starts. Any other cursor below the oldest
-     * surviving serial has missed entries. */
-    if( after_serial != 0 && after_serial + 1 < ring->oldest_serial )
+    if( !RS_EventRing_Read(
+            &app->drive_events.ring, app->drive_events.entries, APP_DRIVE_RING_CAPACITY, after_serial,
+            out, cap, out_count, out_serial) )
         return DRIVE_REFUSED;
-
-    first = ring->write_index - ring->count;
-    if( first < 0 )
-        first += APP_DRIVE_RING_CAPACITY;
-    /* Serials are consecutive (App_DriveEvent), so the entries at or
-     * below the cursor are a prefix whose length is arithmetic: start past
-     * it rather than walk the whole ring every pump to skip it. */
-    {
-        uint32_t const first_serial = ring->newest_serial - (uint32_t)ring->count + 1u;
-        int skip = 0;
-
-        if( after_serial >= first_serial )
-            skip = (int)(after_serial - first_serial) + 1;
-        for( int i = skip; i < ring->count && written < cap; i++ )
-        {
-            struct App_DriveEvent const* entry =
-                &ring->entries[(first + i) % APP_DRIVE_RING_CAPACITY];
-            assert(entry->serial > after_serial);
-            out[written++] = *entry;
-        }
-    }
-    *out_count = written;
-    /* Deliberately the batch's last serial and not the ring's newest: a
-     * truncated read must be re-polled from where it stopped, or the entries
-     * `cap` cut off would be skipped for good. */
-    if( written > 0 )
-        *out_serial = out[written - 1].serial;
     return DRIVE_OK;
 }

@@ -710,7 +710,7 @@ struct DriveAwait
     int active;
     int level_ref;   /* LUA_NOREF, or a registry ref to a 0-arg predicate */
     int match_ref;   /* LUA_NOREF, or a registry ref to a 1-arg predicate */
-    int event_kind;  /* -1, or an enum App_DriveEventKind to filter on */
+    int event_kind;  /* -1, or an enum RS_EventKind to filter on */
     int deadline_cycle; /* -1 = no deadline (level-only, never reached here) */
     char note[96];
 };
@@ -917,14 +917,14 @@ drive_ledger_write_summary(int code)
 }
 
 static void
-drive_push_event(struct lua_State* L, struct App_DriveEvent const* ev)
+drive_push_event(struct lua_State* L, struct RS_Event const* ev)
 {
     assert(L);
     assert(ev);
     lua_createtable(L, 0, 7);
     lua_pushinteger(L, (lua_Integer)ev->serial);
     lua_setfield(L, -2, "serial");
-    lua_pushstring(L, DriveEventKindName((enum App_DriveEventKind)ev->kind));
+    lua_pushstring(L, RS_EventKindName(ev->kind));
     lua_setfield(L, -2, "kind");
     lua_pushinteger(L, ev->cycle);
     lua_setfield(L, -2, "cycle");
@@ -967,7 +967,7 @@ drive_await_level_true(int level_ref)
 }
 
 static int
-drive_await_match_true(int match_ref, struct App_DriveEvent const* ev)
+drive_await_match_true(int match_ref, struct RS_Event const* ev)
 {
     int result;
     if( match_ref == LUA_NOREF )
@@ -1188,7 +1188,7 @@ drive_await_trace(char const* how, char const* note)
 static void
 drive_pump_once(void)
 {
-    struct App_DriveEvent events[32];
+    struct RS_Event events[32];
     int count = 0;
     uint32_t next_serial = g_sched.event_cursor;
     int i;
@@ -1270,7 +1270,7 @@ drive_pump_once(void)
         {
             char how[64];
             snprintf(how, sizeof(how), "event %s %d/%d",
-                     DriveEventKindName((enum App_DriveEventKind)events[i].kind), i + 1, count);
+                     RS_EventKindName(events[i].kind), i + 1, count);
             drive_await_trace(how, g_sched.await.note);
         }
         drive_await_settle(DRIVE_OK, NULL);
@@ -1321,7 +1321,7 @@ lua_drive_await(struct lua_State* L)
 
     lua_getfield(L, 1, "event");
     if( lua_type(L, -1) == LUA_TSTRING )
-        kind = DriveEventKindFromName(lua_tostring(L, -1));
+        kind = RS_EventKindFromName(lua_tostring(L, -1));
     lua_pop(L, 1);
 
     lua_getfield(L, 1, "level");
@@ -1905,7 +1905,7 @@ drive_demand_begin_play(void)
     }
 
     g_demand.start_pending = 0;
-    g_sched.event_cursor = g_host.app->drive_events.newest_serial;
+    g_sched.event_cursor = g_host.app->drive_events.ring.newest_serial;
     /* A new Play counts ticks from its own fences. */
     g_sched.fence_tick = -1;
     g_sched.fence_count = 0;
@@ -1984,7 +1984,7 @@ drive_demand_begin(void)
     /* The event ring's cursor starts at its newest entry: what happened before
      * the person pressed Play is not this script's to await. (A test run's
      * first pump reads from 0 -- everything since boot -- and is unchanged.) */
-    g_sched.event_cursor = g_host.app->drive_events.newest_serial;
+    g_sched.event_cursor = g_host.app->drive_events.ring.newest_serial;
     /* A new Play counts ticks from its own fences. */
     g_sched.fence_tick = -1;
     g_sched.fence_count = 0;
@@ -2164,7 +2164,7 @@ lua_drive_pump(struct lua_State* L)
 static int
 lua_drive_events(struct lua_State* L)
 {
-    struct App_DriveEvent events[64];
+    struct RS_Event events[64];
     int count = 0;
     uint32_t after = (uint32_t)PluginDrive_ArgOptInt(L, 1, 0);
     uint32_t next_serial = after;

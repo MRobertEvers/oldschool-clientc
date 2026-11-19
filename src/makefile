@@ -1020,6 +1020,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	net/session_end.c \
 	game/rs_clientscript_queue.c \
 	game/rs_server_tick.c \
+	game/rs_event_ring.c \
 	game/settle_gate.c \
 	game/rs_zone_inbox.c \
 	game/rs_rebuild_region.c \
@@ -2220,6 +2221,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-loc-lane
 	$(MAKE) test-proj-spawn-latch
 	$(MAKE) test-cam-script
+	$(MAKE) test-rs-event-ring
 	$(MAKE) test-render-mode
 	$(MAKE) test-painter-cull-bake
 	$(MAKE) test-world-views
@@ -2722,6 +2724,16 @@ test-cam-script: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/cam_script_test$(PLATFORM_EXE_SUFFIX) \
 		render/test/cam_script_test.c render/cam_script.c $(LDFLAGS)
 	./$(OBJ_DIR)/cam_script_test$(PLATFORM_EXE_SUFFIX)
+
+# The one event vocabulary and ring both clients keep (game/rs_event_ring.h):
+# the Lua-visible names, stamp order, a re-poll from the returned serial, the
+# real client's counted drops and refused stale cursor, the headless client's
+# uncounted overwrite and its by-serial reads.
+.PHONY: test-rs-event-ring
+test-rs-event-ring: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_event_ring_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_event_ring_test.c game/rs_event_ring.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_event_ring_test$(PLATFORM_EXE_SUFFIX)
 
 .PHONY: test-render-mode
 test-render-mode: $(OBJ_DIR)
@@ -6052,6 +6064,7 @@ TORIRSSERVER_ACCOUNT_SRCS = torirsserver/torirs_server_accountlink.c \
 # client files below and of scriptrun_stubs.c's link stand-ins. Its bots perceive
 # through the CLIENT's own parser, entity decoders and world model, listed here.
 SCRIPTRUN_SRCS = torirsserver/torirs_server_scriptrun.c scriptrun/scriptrun_core.c \
+	game/rs_event_ring.c \
 	scriptrun/scriptrun_stubs.c ui/uitree_if_events.c \
 	net/rev/revpacket.c net/proto/proto_adapt.c $(REV_EXEC_SRCS) \
 	net/login/login_osrs.c net/pow_sha256.c net/sha256.c \
