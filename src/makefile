@@ -784,7 +784,6 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	app/app_net.c \
 	app/app_overlay.c \
 	app/app_overlay_entities.c \
-	app/app_placeholder.c \
 	app/app_assets.c \
 	app/app_parallel_task.c \
 	app/app_tasks_ground.c \
@@ -1019,7 +1018,6 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	varp/varp_manager.c \
 	varc/varc_manager.c \
 	inv/inv_manager.c \
-	inv/widget_icon_park.c \
 	cmd/cmdring.c cmd/cmdbus.c \
 	net/isaac.c net/rsa.c net/ringbuf.c net/jbase37.c net/wordpack.c net/chat_huffman.c \
 	$(LOGIN_SRCS) net/packetbuffer.c net/net.c net/net_out.c \
@@ -2207,7 +2205,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-inv-drag
 	$(MAKE) test-target-select
 	$(MAKE) test-if-models
-	$(MAKE) test-widget-icon-park
+	$(MAKE) test-tasks-ground
 	$(MAKE) test-input-claims
 	$(MAKE) test-world-tap
 	$(MAKE) test-frame-modifiers
@@ -3011,15 +3009,24 @@ test-if-models: $(OBJ_DIR)
 		ui/test/uitree_if_models_test.c ui/uitree_if_models.c $(LDFLAGS)
 	./$(OBJ_DIR)/uitree_if_models_test$(PLATFORM_EXE_SUFFIX)
 
-# The widget obj-icon requests a clientscript parks for a logic tick: one per
-# cell, newest wins, and a release that takes the due ones from the head up to
-# its burst while the rest keep their places. A park that grew a row per write
-# would load every obj a script stepped a cell through.
-.PHONY: test-widget-icon-park
-test-widget-icon-park: $(OBJ_DIR)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/widget_icon_park_test$(PLATFORM_EXE_SUFFIX) $(TORIMEM_SRCS) \
-		inv/test/widget_icon_park_test.c inv/widget_icon_park.c $(LDFLAGS)
-	./$(OBJ_DIR)/widget_icon_park_test$(PLATFORM_EXE_SUFFIX)
+# The ground family's parallel tasks (app/app_tasks_ground.c) on a zeroed App
+# with a hand-fed cache and a fake assets loader. Ground stacks: a cold add is
+# a row at once and lands its element when the model arrives; a warm add whose
+# model will not build still keeps its row (G3); an OBJ_COUNT whose new variant
+# is not resident loads it and re-points the element (G1); an OBJ_CUSTOMISE
+# whose model is not resident loads it and re-applies (G2); a row picked up or
+# replaced while it loads is left alone; a rebuild in progress is waited out.
+# Widget icons a clientscript asks for: one task per cell, newest wins, none
+# released in the tick it was asked in, at most twelve a logic tick, the rest
+# in their places in line, and a cell whose parts are still missing asks again
+# after its back-off.
+.PHONY: test-tasks-ground
+test-tasks-ground: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test \
+		-o $(OBJ_DIR)/app_tasks_ground_test \
+		app/test/app_tasks_ground_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/app_tasks_ground_test
 
 # Who has taken a part of this frame's input: keys by OSRS code, the frame as
 # a whole and the pointer by chrome, each dropped on its own lifetime.

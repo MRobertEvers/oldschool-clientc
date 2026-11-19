@@ -393,10 +393,12 @@ test_height_fn(
     return 500;
 }
 
-/* A ground stack added before its model is resident (app/app_placeholder.c):
- * it exists with no scene element, is found by tile, is never handed back for
- * a picked element, takes its element and menu once when they land, and its
- * removal queues nothing for the drain to free. */
+/* A ground stack added before its model is resident (its model is a task of
+ * app/app_tasks_ground.c): it exists with no scene element, is found by tile,
+ * is never handed back for a picked element, takes its element and menu once
+ * when they land, and its removal queues nothing for the drain to free. Every
+ * row has its own serial, so a row that reuses a freed slot is not the row a
+ * task was waiting for. */
 void
 test_obj_stack_placeholder(void)
 {
@@ -421,8 +423,18 @@ test_obj_stack_placeholder(void)
     TEST_ASSERT(strcmp(stack->actions[0].name, "Take") == 0, "menu from the landed objtype");
     World_EventsClear(world);
     idx = World_ObjStackAdd(world, -1, 11, 12, 0, 526 /* bones */, 1, "", none);
-    World_ObjStackDel(world, idx);
-    TEST_ASSERT(World_EventsCount(world) == 0, "a removed placeholder has no element for the drain to free");
+    {
+        uint32_t const serial = World_EntityPoolGet(&world->entities.obj_stack, idx)->serial;
+        int again;
+        TEST_ASSERT(serial != 0 && serial != stack->serial, "every row has its own serial");
+        World_ObjStackDel(world, idx);
+        TEST_ASSERT(World_EventsCount(world) == 0, "a removed placeholder has no element for the drain to free");
+        again = World_ObjStackAdd(world, -1, 11, 12, 0, 526, 1, "", none);
+        TEST_ASSERT(again == idx, "the freed slot is reused");
+        TEST_ASSERT(
+            World_EntityPoolGet(&world->entities.obj_stack, again)->serial != serial,
+            "by a row with another serial");
+    }
     World_EventsClear(world);
     World_Free(world);
 }

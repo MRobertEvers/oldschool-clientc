@@ -285,6 +285,8 @@ src/world/test/wev_rebuild_test.c
 src/app/test/app_drive_event_ring_test.c
 src/app/test/app_logout_wait_test.c
 src/app/test/app_mouseover_entry_test.c
+# Added 2026-11-19 (ground step): a test of the App layer's ground tasks, on a zeroed App.
+src/app/test/app_tasks_ground_test.c
 src/engine/uitree_builder/task_slot_mount.c
 src/game/task_entity_assets.c
 src/plugin/torirs_plugin_drive.c

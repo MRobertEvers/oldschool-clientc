@@ -1614,7 +1614,7 @@ app_spawn_fan_spotanim_assets(struct Task_AppSpawn* self)
  * including a REBUILD. That is the same position a placeholder is in, and the
  * three ways the scene can go out from under a parked task are the same three
  * for both, so the guard is one function now: app_deferred_land_world, in
- * app_placeholder.c, which owns the shape.
+ * app_parallel_task.c, beside App_ParallelTaskWorld.
  */
 static struct World*
 app_spawn_effect_world(struct Task_AppSpawn const* self)

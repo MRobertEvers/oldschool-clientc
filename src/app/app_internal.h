@@ -973,34 +973,9 @@ enum TaskRunnerStat
 app_settle_cs2_frame(struct App* app);
 
 
-/* ---- app_placeholder.c ----
- *
- * A thing that exists NOW with an asset it does not have yet, and the task
- * that lands the asset later. The rule, the guards and the family are in the
- * unit's comment. Add a kind there rather than a wait to a packet handler. */
-enum AppPlaceholderKind
-{
-    /* A ground item added before its model was resident: the stack entity
-     * exists with element_id -1 and draws nothing until the model lands. */
-    APP_PLACEHOLDER_OBJ_STACK = 0,
-    /* An obj a clientscript set on a GRAPHIC cell before its icon could be
-     * baked: the cell carries the obj (its ops, tooltip and stack number all
-     * read it) with item_scene_id -1, and draws no picture until this lands. */
-    APP_PLACEHOLDER_WIDGET_ICON,
-};
-
 /** The skybox model for this frame, built once resident. */
 struct ToriDraw_ModelHandle
 app_skybox_handle(struct App* app);
-
-void
-app_placeholder_obj_stack(
-    struct App* app,
-    int scene_x,
-    int scene_z,
-    int level,
-    int obj_id,
-    int count);
 
 /* The background queue's lifetime (app_world_job.c): made beside the packet
  * FIFO at init, with its clock and the rebuild mode; freed with the other
@@ -1055,18 +1030,11 @@ app_rebuild_frames_note(
     struct App* app,
     uint64_t frame_us);
 
-/* After a rebuild lands: every stack still without a model takes a fresh
- * placeholder against the new scene generation (the one it had was dropped
- * for the rebuild). Called from App_WorldLoadFinish, after load_complete. */
-void
-app_placeholder_obj_stacks_sweep(
-    struct App* app,
-    struct World* world);
-
 /* The world a task that deferred its load may land in, or NULL when the
- * scene it was aimed at is gone. Shared by the placeholder kinds and the
- * effect spawns -- both defer onto the asset runner, so both drop for the
- * same three reasons. The unit comment has them. */
+ * scene it was aimed at is gone: the view died, a rebuild replaced the scene,
+ * or a rebuild is in progress (app_parallel_task.c, beside
+ * App_ParallelTaskWorld, which is this on a task's header). The effect
+ * spawns use it directly. */
 struct World*
 app_deferred_land_world(
     struct App* app,
@@ -1075,41 +1043,26 @@ app_deferred_land_world(
     char const* owner,
     int kind);
 
-void
-app_placeholder_widget_icon(
-    struct App* app,
-    int component_id,
-    int obj_id,
-    int count);
-
-/* Release a burst of parked placeholder requests onto the asset runner.
- * Called from the logic tick; see the unit comment for why a script's
- * placeholder cannot simply be queued where it is asked for. */
-void
-app_placeholder_release_tick(struct App* app);
-
-/* Drop the park (App teardown). */
-void
-app_placeholder_park_free(struct App* app);
-
-/* The CS2 host's lazy obj-icon hook (RS_CS2Host.widget_obj_icon_lazy): a
- * GRAPHIC cell whose obj is not resident takes a placeholder instead of
- * holding the script. */
-void
-app_cs2_widget_obj_icon_lazy(
-    void* user,
-    int component_id,
-    int obj_id,
-    int count);
-
-/* app_world_rebuild.c: give a stack added as a placeholder its model and
- * scene element for the count it has now. 1 if it landed, 0 if the model is
- * still not resident (the caller decides whether to ask again). */
+/* app_world_rebuild.c: show the model a stack's state selects now (its obj,
+ * the count variant, its OBJ_CUSTOMISE): give a stack without an element one
+ * (and its name and menu), or put the model on the element it has. 1 if it
+ * did; 0 if a part is still not resident; -1 if every part is resident and
+ * there is still no model (an obj with no ground model), or the scene had no
+ * element to give. `announce`: tell the plugins the stack changed (a stack
+ * that was waiting for its model; the add announces its own spawn). */
 int
-app_obj_stack_land(
+app_obj_stack_apply_model(
     struct App* app,
     struct World* world,
-    int idx);
+    int idx,
+    int announce);
+
+/* app_world_rebuild.c: is every part of the model the stack's state selects
+ * resident (so app_obj_stack_apply_model can build it now)? */
+int
+app_obj_stack_model_resident(
+    struct App* app,
+    struct WorldEntity_ObjStack const* stack);
 
 
 /* ---- app_if_models.c: the CS2 host's lazy-model hooks ---- */

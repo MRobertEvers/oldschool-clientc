@@ -128,12 +128,7 @@ asset_start_leaf(
     else if( key.kind == ASSET_KIND_MUSIC )
         child = CreateTask_MusicLoad(app->provider, &app->audio.music, key.id, key.variant);
     else if( key.kind == ASSET_KIND_OBJ_MODEL )
-    {
         child = CreateTask_ObjModelLoad(app->provider, &task->args[0], &task->args[1], 1);
-        /* A ground stack's model lands at the load's end, where its
-         * placeholder task landed it before the table. */
-        task->land_mask = ASSET_KIND_BIT(ASSET_KIND_OBJ_MODEL);
-    }
     else if( key.kind == ASSET_KIND_SPOTANIM )
     {
         /* The type, then its model and sequence together (each of those

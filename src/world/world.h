@@ -1855,8 +1855,8 @@ World_ObjStackSetCount(
     int idx,
     int count);
 
-/** Give a stack that was added without a scene element (a placeholder, see
- * app/app_placeholder.c) its element, once. */
+/** Give a stack that was added without a scene element (its model was not
+ * resident; app/app_tasks_ground.c) its element, once. */
 void
 World_ObjStackSetElement(
     struct World* world,

@@ -115,10 +115,10 @@ app_logic_tick(struct App* app)
     if( !RenderSkip_Held(&app->render_skip) )
         app_inv_icon_reconcile_tick(app);
 
-    /* And release a burst of the placeholders a clientscript asked for: the
-     * settle it ran in drains the same runner, so this tick is the frame
-     * boundary between the script and its loads. */
-    app_placeholder_release_tick(app);
+    /* And open this tick's release of the widget icons a clientscript asked
+     * for: the settle it ran in drains the same queue, so a tick is the
+     * frame boundary between the script and its loads. */
+    app_tasks_ground_tick(app);
 
     if( app->net )
     {

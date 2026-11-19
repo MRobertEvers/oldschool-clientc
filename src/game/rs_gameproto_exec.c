@@ -1007,8 +1007,8 @@ exec_zone_sub_packet_at(
         zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
         App_DriveEvent(app, DRIVE_EVENT_OBJ_ADDED, pkt->obj_id, pkt->count, tile_x, tile_z);
         idx = App_WorldObjStackAdd(app, tile_x, tile_z, level, pkt->obj_id, pkt->count);
-        /* A refused add (-1: no objtype, no model, no scene element) has no
-         * stack to hang the ownership on. */
+        /* -1 only for a count-0 add naming no stack on the tile: a row is
+         * made whatever the cache holds (its model may follow). */
         if( idx >= 0 )
             App_WorldObjStackSetOwnership(
                 app,
