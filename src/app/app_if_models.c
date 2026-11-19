@@ -209,7 +209,9 @@ Task_AppIfHead_Run(
 
     /* Compose only — app_if_head_poll binds the scene model onto the MODEL node
      * once it is mounted (the head packet usually precedes the interface). Force
-     * a redraw so the poll runs now that the head is composited. */
+     * a redraw so the poll runs now that the head is composited, and let the
+     * poll attempt the head again whatever it last found. */
+    UIIfModels_ForgetMiss(&app->if_models, self->component_id);
     if( scene_id >= 0 )
         RedrawRequest_Raise(&app->redraw_request);
     else if( torirs_env_net_debug() )
@@ -815,6 +817,12 @@ app_if_head_poll(struct App* app)
 
         if( head->applied_gen == app->tree->generation )
             continue;
+        /* Missed last time and nothing it could wait for has changed: no
+         * asset load ended, the tree is as it was, and its own load task has
+         * not ended (that clears the miss). */
+        if( head->missed && head->miss_serial == Assets_Serial(app->assets) &&
+            head->miss_gen == app->tree->generation )
+            continue;
         /* UI mutations can advance the tree generation every tick.  The
          * binding still re-applies as required, but its diagnostic should say
          * when this stored request first became visible to the tree, not flood
@@ -857,7 +865,13 @@ app_if_head_poll(struct App* app)
              * not the model it had before. -1 is the tree's "no model". */
             if( head->kind == UI_IFHEAD_MODEL )
                 (void)UITree_ApplyModel(app->tree, head->com_id, -1);
-            continue; /* assets not composited yet — retry next frame */
+            /* Assets not composited yet: retried once something changes, not
+             * every frame. Stamped after the apply, which may move the
+             * generation itself. */
+            head->missed = 1;
+            head->miss_serial = Assets_Serial(app->assets);
+            head->miss_gen = app->tree->generation;
+            continue;
         }
 
         if( UITree_ApplyModel(app->tree, head->com_id, scene_id) )

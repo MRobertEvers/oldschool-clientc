@@ -59,6 +59,16 @@ test_head_set_and_update(void)
     TEST_ASSERT(m.heads[0].zoom == 250 && m.heads[0].close_serial == 4, "with its zoom and serial");
     TEST_ASSERT(m.heads[0].applied_gen == 0, "and is pending again");
 
+    /* A6: a head that could not composite is remembered as missed; a new set
+     * or its load task's end makes it worth attempting again. */
+    m.heads[0].missed = 1;
+    UIIfModels_ForgetMiss(&m, 100);
+    TEST_ASSERT(m.heads[0].missed == 0, "the load task's end forgets the miss");
+    UIIfModels_ForgetMiss(&m, 999);
+    m.heads[0].missed = 1;
+    (void)UIIfModels_SetHead(&m, 100, UI_IFHEAD_OBJ, 4152, 250, 4);
+    TEST_ASSERT(m.heads[0].missed == 0, "a new set forgets the miss");
+
     UIIfModels_Free(&m);
     TEST_ASSERT(m.heads == NULL && m.head_count == 0 && m.head_cap == 0, "free empties the store");
 }

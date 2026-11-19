@@ -60,7 +60,21 @@ UIIfModels_SetHead(
     models->heads[i].zoom = zoom;
     models->heads[i].applied_gen = 0;
     models->heads[i].close_serial = close_serial;
+    models->heads[i].missed = 0;
     return i;
+}
+
+void
+UIIfModels_ForgetMiss(
+    struct UIIfModels* models,
+    int com_id)
+{
+    int i;
+
+    assert(models);
+    i = UIIfModels_HeadIndex(models, com_id);
+    if( i >= 0 )
+        models->heads[i].missed = 0;
 }
 
 void

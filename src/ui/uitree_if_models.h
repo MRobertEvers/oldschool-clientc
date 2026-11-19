@@ -60,6 +60,14 @@ struct UIIfHead
     uint32_t applied_gen; /* tree generation this was last applied at; 0 = pending */
     uint32_t close_serial; /* tree->group_close_serial when set: a later close of
                             * the group unloads it (UITree_GroupCloseSerial) */
+    /* The last attempt could not composite the head. It is not attempted
+     * again until something it could be waiting for has changed: an asset
+     * load ended (`miss_serial`, the assets table's serial), the tree
+     * changed (`miss_gen`), or its own load task ended (UIIfModels_
+     * ForgetMiss). An unresolved head was re-attempted every frame forever. */
+    uint8_t missed;
+    uint32_t miss_serial;
+    uint32_t miss_gen;
 };
 
 /* Revision-239 server-driven player-composition widgets. Each component owns
@@ -135,6 +143,13 @@ void
 UIIfModels_RemoveHeadAt(
     struct UIIfModels* models,
     int index);
+
+/** `com_id`'s head may be attempted again (its load task ended). No-op when
+ *  the component has no head. */
+void
+UIIfModels_ForgetMiss(
+    struct UIIfModels* models,
+    int com_id);
 
 /**
  * Give `com_id`'s head animation `anim_id` and make it pending again. False,
