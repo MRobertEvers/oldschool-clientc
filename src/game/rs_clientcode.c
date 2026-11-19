@@ -1,6 +1,7 @@
 #include "rs_clientcode.h"
 
 #include "app.h"
+#include "engine/asset_requests.h"
 #include "engine/cache_provider.h"
 #include "engine/uitree_scene_bridge.h"
 #include "rs_idk_design.h"
@@ -179,7 +180,7 @@ static int
 design_preview_rebuild(struct App* app)
 {
     struct RS_IdkDesign* design = &app->idk_design;
-    int model_ids[RS_IDK_DESIGN_LOAD_TRACK_MAX];
+    int model_ids[RS_IDK_DESIGN_MODELS_MAX];
     int model_count;
     int missing = 0;
 
@@ -203,12 +204,10 @@ design_preview_rebuild(struct App* app)
         if( CacheProvider_ModelHas(app->provider, model_ids[i]) )
             continue;
         missing = 1;
-        if( RS_IdkDesign_LoadRequestAdd(design, model_ids[i]) )
-        {
-            struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, model_ids[i]);
-            if( task )
-                ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
-        }
+        /* Wanted every tick it is missing; the assets table holds the one
+         * load (a window of 64 ids here re-queued past it, and a model whose
+         * load failed was never asked for again until the design changed). */
+        (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_MODEL, model_ids[i], 0), NULL);
     }
     if( missing )
         return 0; /* retry next tick, like the reference's checkModel() gate */
@@ -218,7 +217,6 @@ design_preview_rebuild(struct App* app)
         return 0;
 
     design->redraw = 0;
-    design->load_requested_count = 0;
     if( getenv("TORIRS_ANIM_DEBUG") )
         TORIRS_LOG("design_preview: rebuilt gender=%d kits=[%d,%d,%d,%d,%d,%d,%d] "
             "colours=[%d,%d,%d,%d,%d]\n",

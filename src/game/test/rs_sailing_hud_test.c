@@ -122,10 +122,7 @@ test_reset_resolves_the_ids(void)
         "selected model %d",
         hud.ids.arrow_model[RS_SAILING_HUD_ARROW_SELECTED]);
     for( int i = 0; i < RS_SAILING_HUD_ARROWS; i++ )
-    {
         CHECK(RS_SailingHud_ArrowElement(&hud, i) == -1, "arrow %d starts built", i);
-        CHECK(hud.arrow_loading[i] == 0, "arrow %d starts loading", i);
-    }
     CHECK(RS_SailingHud_SelectedHeading(&hud, 0) == -1, "a heading is selected after reset");
 
     /* A revision without sailing: every id is absent. */
@@ -192,16 +189,12 @@ test_selection_survives_a_new_clock(void)
 }
 
 static void
-test_arrow_load_and_elements(void)
+test_arrow_elements(void)
 {
     struct RS_SailingHud hud;
     int out[4] = { -7, -7, -7, -7 };
 
     reset_with(&hud, NULL, 0);
-    CHECK(RS_SailingHud_ArrowLoadBegin(&hud, 1), "the first load was not begun");
-    CHECK(!RS_SailingHud_ArrowLoadBegin(&hud, 1), "a load was begun twice");
-    CHECK(RS_SailingHud_ArrowLoadBegin(&hud, 0), "the other arrow's load was refused");
-
     CHECK(RS_SailingHud_ArrowElementsClaim(&hud, out, 4) == 0, "unbuilt arrows were claimed");
     RS_SailingHud_ArrowElementSet(&hud, 1, 44);
     CHECK(RS_SailingHud_ArrowElement(&hud, 1) == 44, "element was not remembered");
@@ -222,7 +215,7 @@ main(void)
     test_reset_resolves_the_ids();
     test_selected_heading_expires_after_30_cycles();
     test_selection_survives_a_new_clock();
-    test_arrow_load_and_elements();
+    test_arrow_elements();
 
     if( g_failures )
     {

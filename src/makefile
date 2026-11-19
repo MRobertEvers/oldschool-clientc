@@ -2779,7 +2779,8 @@ test-entity-spotanim: $(OBJ_DIR)
 
 # The sailing helm's ids and the selected heading: shown for 30 client cycles
 # from the send and not on the 30th, kept across a save and restore on another
-# clock, and an arrow's model load queued once. RevConfigRefs_Get is stubbed.
+# clock, and the arrows' scene elements. RevConfigRefs_Get is stubbed. (The arrow
+# models are wanted through the assets table, which dedupes their loads.)
 .PHONY: test-rs-sailing-hud
 test-rs-sailing-hud: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_sailing_hud_test$(PLATFORM_EXE_SUFFIX) \

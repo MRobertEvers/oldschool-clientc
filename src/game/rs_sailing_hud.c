@@ -30,10 +30,7 @@ RS_SailingHud_Reset(
     hud->ids.arrow_model[RS_SAILING_HUD_ARROW_SELECTED] =
         RevConfigRefs_Get(refs, "model", "sailing_heading_selected");
     for( int i = 0; i < RS_SAILING_HUD_ARROWS; ++i )
-    {
         hud->arrow_element[i] = -1;
-        hud->arrow_loading[i] = 0;
-    }
     hud->selected_heading = 0;
     hud->selected_until = 0;
 }
@@ -82,20 +79,6 @@ RS_SailingHud_SelectionRestore(
     assert(hud);
     hud->selected_heading = heading;
     hud->selected_until = cycle + remaining;
-}
-
-bool
-RS_SailingHud_ArrowLoadBegin(
-    struct RS_SailingHud* hud,
-    int arrow)
-{
-    assert(hud);
-    assert(arrow >= 0);
-    assert(arrow < RS_SAILING_HUD_ARROWS);
-    if( hud->arrow_loading[arrow] )
-        return false;
-    hud->arrow_loading[arrow] = 1;
-    return true;
 }
 
 int

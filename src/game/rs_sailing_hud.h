@@ -58,8 +58,6 @@ struct RS_SailingHud
     struct RS_SailingHudIds ids;
     /** Scene element each arrow was built into, -1 until it is. */
     int arrow_element[RS_SAILING_HUD_ARROWS];
-    /** 1 once a model load has been queued for that arrow. */
-    int arrow_loading[RS_SAILING_HUD_ARROWS];
     int selected_heading;
     /** First client cycle the selected heading is no longer shown on. */
     uint64_t selected_until;
@@ -105,15 +103,6 @@ RS_SailingHud_SelectionRestore(
     uint64_t cycle,
     int heading,
     uint64_t remaining);
-
-/**
- * True the first time it is asked for `arrow`, and remembers it: the caller
- * queues that arrow's model load exactly once.
- */
-bool
-RS_SailingHud_ArrowLoadBegin(
-    struct RS_SailingHud* hud,
-    int arrow);
 
 /** The scene element `arrow` was built into, or -1. */
 int

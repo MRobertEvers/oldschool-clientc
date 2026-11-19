@@ -236,9 +236,9 @@ app_sailing_register_arrows(
             continue;
         if( !CacheProvider_ModelHas(app->provider, model_id) )
         {
-            if( RS_SailingHud_ArrowLoadBegin(&app->sailing_hud, i) )
-                ToriRS_TaskQueue_Add(
-                    app->frame_runner.queue, CreateTask_ModelLoad(app->provider, model_id));
+            /* The assets table holds the one load (a flag per arrow asked
+             * once, and a failed load was never asked for again). */
+            (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_MODEL, model_id, 0), NULL);
             continue;
         }
         int element = RS_SailingHud_ArrowElement(&app->sailing_hud, i);
