@@ -2359,7 +2359,7 @@ test-editor-ghost: $(OBJ_DIR)
 test-clientscript-queue: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_clientscript_queue_test$(PLATFORM_EXE_SUFFIX) \
 		game/test/rs_clientscript_queue_test.c game/rs_clientscript_queue.c \
-		perf/frame_time_ring.c $(LDFLAGS)
+		perf/frame_time_ring.c $(TORIMEM_SRCS) $(LDFLAGS)
 	./$(OBJ_DIR)/rs_clientscript_queue_test$(PLATFORM_EXE_SUFFIX)
 
 # Whether the server tick being applied is complete. A tick that never closes
@@ -5979,6 +5979,16 @@ test-logout-wait: $(OBJ_DIR) $(OBJS)
 		app/test/app_logout_wait_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/app_logout_wait_test
+
+# The scripts family's parallel tasks (app/app_tasks_scripts.c): a visual
+# script operation is one listed task that a newer set cancels and a closed
+# interface drops; and TRIGGER_ONDIALOGABORT's listeners keep wire order (U9).
+.PHONY: test-tasks-scripts
+test-tasks-scripts: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/app_tasks_scripts_test \
+		app/test/app_tasks_scripts_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/app_tasks_scripts_test
 
 # The mouseover ENTRY's four halves all come from one row (`_7100` / the FIND
 # ops, `_7101`, `_7110`, `_7109`). The subject half used to come from the pick

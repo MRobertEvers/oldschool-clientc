@@ -188,7 +188,7 @@ App_Init(
      * structs took with them. @see tools/appc_map.py fields.
      */
     NetLinkWatch_Reset(&app->net_link);
-    RS_ClientScriptQueue_Reset(&app->pending_clientscripts);
+    RS_ClientScriptQueue_Init(&app->pending_clientscripts);
     app->dev_overlay = DevOverlay_Create();
 
     /* Before any subsystem: RS_CS2Host_Init wants its script ids, and the
@@ -638,6 +638,7 @@ App_Init(
     app->host.widget_npc_head_lazy = app_cs2_widget_npc_head_lazy;
     app->host.widget_model_direct = app_cs2_widget_model_direct;
     app->host.widget_obj_icon_lazy = app_cs2_widget_obj_icon_lazy;
+    app_tasks_scripts_bind_host(app);
     app->host.player_slot_by_name = app_cs2_player_slot_by_name;
     app->host.worldentity_config_name = app_cs2_worldentity_config_name;
     app->host.objs_on_coord = app_cs2_objs_on_coord;
@@ -1393,6 +1394,7 @@ App_Shutdown(struct App* app)
     ToriRS_IOBatch_Free(app->frame_runner.io);
     App_PendingFree(app);
     App_AssetsFree(app);
+    RS_ClientScriptQueue_Free(&app->pending_clientscripts);
     /* The scripted-projectile curve VM, before the pool is drained. */
     if( app->curve_vm )
         CS2VM2_Release(app->curve_vm);

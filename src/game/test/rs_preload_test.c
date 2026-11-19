@@ -238,6 +238,9 @@ test_shipped_osrs239_whole_archives(void)
     static char const* const whole[] = {
         "configs", "sprites", "fontmetrics", "interfaces", "textures", "binary",
         "worldmap_geography", "worldmap", "worldmap_ground",
+        /* Ours, not the deob's: the db table indexes a script's db_find waits
+         * for, local from boot. */
+        "dbtableindex",
     };
     static char const* const index_only[] = {
         "soundeffects", "musictracks", "musicsamples", "musicpatches",

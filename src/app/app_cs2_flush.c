@@ -96,14 +96,13 @@ App_RunClientScript(
             (unsigned)request->long_mask);
 
     /* Held, not run — see `pending_clientscripts` in app.h for why, and
-     * `App_FlushPendingClientScripts` for where they go. A full queue runs it
-     * now: degrading to the old ordering is a cosmetic bug, losing a script is
-     * not. */
-    if( !RS_ClientScriptQueue_Hold(
-            &app->pending_clientscripts,
-            request,
-            (uint32_t)FrameClockSerial_LogicCycle(&app->frame_clock.serial)) )
-        app_dispatch_clientscript(app, &app->frame_runner, request);
+     * `App_FlushPendingClientScripts` for where they go. A full hold grows: a
+     * script run anywhere else now would run out of wire order, ahead of the
+     * scripts held before it and the packets it was held behind (U8). */
+    RS_ClientScriptQueue_Hold(
+        &app->pending_clientscripts,
+        request,
+        (uint32_t)FrameClockSerial_LogicCycle(&app->frame_clock.serial));
 }
 
 /* Input-driven host effects are drained at the frame's CS2 fixed point.

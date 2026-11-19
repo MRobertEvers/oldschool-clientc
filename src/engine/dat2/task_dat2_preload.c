@@ -139,6 +139,7 @@ table_from_name(
         { "skeletons", RSCACHE_DAT2_TABLE_SKELETONS },
         { "maps", RSCACHE_DAT2_TABLE_MAPS },
         { "clientscript", RSCACHE_DAT2_TABLE_CLIENTSCRIPT },
+        { "dbtableindex", RSCACHE_DAT2_TABLE_DBTABLE_INDEX },
         { "worldmap_geography", RSCACHE_DAT2_TABLE_WORLDMAP_GEOGRAPHY },
         { "worldmap", RSCACHE_DAT2_TABLE_WORLDMAP },
         { "worldmap_ground", RSCACHE_DAT2_TABLE_WORLDMAP_GROUND },
