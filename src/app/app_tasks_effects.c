@@ -48,6 +48,10 @@
 #include "cs2vm2/cs2vm2_script.h"
 #include "mem/torirs_mem.h"
 
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+
 /* ---- kinds ---------------------------------------------------------------- */
 
 enum
@@ -68,6 +72,27 @@ int
 App_EffectsMapAnimBodyKind(void)
 {
     return APP_TASK_MAP_ANIM_BODY;
+}
+
+/* ---- narration ------------------------------------------------------------ */
+
+/* TORIRS_EFFECTS_TRACE=1: every body's way out, in every build (an OPT build
+ * compiles TORIRS_LOG away, and "the graphic never drew" is otherwise silent). */
+static void
+app_effects_trace(
+    char const* fmt,
+    ...)
+{
+    static int on = -1;
+    va_list ap;
+
+    if( on < 0 )
+        on = getenv("TORIRS_EFFECTS_TRACE") != NULL;
+    if( !on )
+        return;
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    va_end(ap);
 }
 
 /* ---- the ground a projectile leaves from ----------------------------------- */
@@ -321,7 +346,7 @@ app_effects_projectile_dress(
      * appearing mid-air partway to the target. */
     ToriDraw_SceneElementSetAnimLoop(app->scene, element_id, true);
     if( torirs_env_net_debug() )
-        TORIRS_LOG(
+        app_effects_trace(
             "projectile body: element=%d spotanim=%d seq=%d cycle=%d t1=%d t2=%d "
             "launched=%d target=%d\n",
             element_id,
@@ -358,7 +383,7 @@ Task_ProjectileBody_Run(
     /* Failed or abandoned: the projectile flies its course unseen. */
     if( !RS_ParallelTask_AssetHere(&self->par) )
     {
-        TORIRS_LOG("projectile body: spotanim %d model %d did not load\n",
+        app_effects_trace("projectile body: spotanim %d model %d did not load\n",
             self->spotanim_id, self->model_id);
         PT_EXIT(&self->pt);
     }
@@ -406,11 +431,14 @@ Task_ProjectileBody_Run(
         struct ToriDraw_Model* model;
 
         if( !world )
+        {
+            app_effects_trace("projectile body: spotanim %d: its scene is gone\n", self->spotanim_id);
             PT_EXIT(&self->pt);
+        }
         p = World_ProjectileFind(world, self->idx, self->serial);
         if( !p )
         {
-            TORIRS_LOG("projectile body: spotanim %d landed after its flight\n", self->spotanim_id);
+            app_effects_trace("projectile body: spotanim %d landed after its flight\n", self->spotanim_id);
             PT_EXIT(&self->pt);
         }
         if( p->cycle > p->t2 )
@@ -433,7 +461,7 @@ Task_ProjectileBody_Run(
         spot = CacheProvider_SpotanimtypeGet(app->provider, self->spotanim_id);
         if( !spot )
         {
-            TORIRS_LOG("projectile body: spotanim %d not resident\n", self->spotanim_id);
+            app_effects_trace("projectile body: spotanim %d not resident\n", self->spotanim_id);
             PT_EXIT(&self->pt);
         }
         model = app_world_build_spotanim_model(app, spot);
@@ -570,7 +598,7 @@ app_effects_map_anim_dress(
     s->lifetime = lifetime;
     if( s->active && s->active_cycle >= lifetime )
     {
-        TORIRS_LOG(
+        app_effects_trace(
             "map anim body: id=%d expired %d cycles before its assets\n",
             s->spotanim_id,
             s->active_cycle - lifetime);
@@ -626,7 +654,7 @@ app_effects_map_anim_dress(
             ToriDraw_SceneAnimListInvalidate(app->scene);
         }
     }
-    TORIRS_LOG(
+    app_effects_trace(
         "map anim body: id=%d element=%d tile=%d,%d level=%d model=%d seq=%d life=%d "
         "active=%d active_cycle=%d idle=%d\n",
         s->spotanim_id,
@@ -667,7 +695,7 @@ Task_MapAnimBody_Run(
     /* Failed or abandoned: nothing will ever draw it. */
     if( !RS_ParallelTask_AssetHere(&self->par) )
     {
-        TORIRS_LOG("map anim body: spotanim %d did not load\n", self->spotanim_id);
+        app_effects_trace("map anim body: spotanim %d did not load\n", self->spotanim_id);
         app_effects_map_anim_drop(self);
         PT_EXIT(&self->pt);
     }
@@ -680,16 +708,22 @@ Task_MapAnimBody_Run(
         struct ToriRS_Spotanimtype* spot;
 
         if( !world )
+        {
+            app_effects_trace("map anim body: spotanim %d: its scene is gone\n", self->spotanim_id);
             PT_EXIT(&self->pt);
+        }
         s = World_SpotanimFind(world, self->idx, self->serial);
         if( !s )
+        {
+            app_effects_trace("map anim body: spotanim %d: its row is gone\n", self->spotanim_id);
             PT_EXIT(&self->pt);
+        }
 
         /* 4. Apply, reading the type from the cache now. */
         spot = CacheProvider_SpotanimtypeGet(app->provider, self->spotanim_id);
         if( !spot )
         {
-            TORIRS_LOG("map anim body: spotanim %d not resident\n", self->spotanim_id);
+            app_effects_trace("map anim body: spotanim %d not resident\n", self->spotanim_id);
             World_SpotanimDespawn(world, self->idx);
             PT_EXIT(&self->pt);
         }
@@ -989,7 +1023,7 @@ App_WorldModelProjectileSpawn(
     task->model_id = model_id;
     task->seq_id = seq_id;
     app_effects_projectile_body_add(app, task, view);
-    TORIRS_LOG("spawn_projectile: %d,%d -> %d,%d target=%d\n",
+    app_effects_trace("spawn_projectile: %d,%d -> %d,%d target=%d\n",
         src_tile_x, src_tile_z, tile_x, tile_z, target);
     return idx;
 }

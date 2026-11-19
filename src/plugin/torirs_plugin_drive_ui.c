@@ -2035,52 +2035,6 @@ drive_ui_nearest_insert(
 /* api.drive.route: as many tiles as app_world_click.c routes a click over */
 #define DRIVE_UI_ROUTE_CAP 4000
 
-/*
- * TORIRS_PM_CHECK=1: the effect rows are read twice, from the old rings and
- * from the effect log, and a difference aborts (the packet-model move of the
- * rings into the log, checked over the quest guards before the rings go).
- */
-static int
-drive_ui_pm_check(void)
-{
-    static int on = -1;
-
-    if( on < 0 )
-    {
-        char const* v = getenv("TORIRS_PM_CHECK");
-        on = v && strcmp(v, "1") == 0;
-        if( on )
-            fprintf(stderr, "pm_check: effect rows compared, rings against the effect log\n");
-    }
-    return on;
-}
-
-static int g_drive_ui_pm_check_reads;
-static int g_drive_ui_pm_check_rows;
-
-static void
-drive_ui_pm_check_rows(
-    char const* what,
-    void const* a,
-    int a_count,
-    void const* b,
-    int b_count,
-    size_t row_size)
-{
-    g_drive_ui_pm_check_reads++;
-    g_drive_ui_pm_check_rows += a_count;
-    if( a_count == b_count && memcmp(a, b, (size_t)a_count * row_size) == 0 )
-    {
-        if( (g_drive_ui_pm_check_reads & 1023) == 1 )
-            fprintf(stderr, "pm_check: %d reads, %d rows, all equal\n",
-                g_drive_ui_pm_check_reads, g_drive_ui_pm_check_rows);
-        return;
-    }
-    fprintf(stderr, "pm_check: %s differ: rings %d rows, log %d rows (read %d)\n", what, a_count,
-        b_count, g_drive_ui_pm_check_reads);
-    abort();
-}
-
 /* The spotanim rows from `anims` (n of them, oldest first). */
 static int
 drive_ui_spotanim_rows(
@@ -2175,14 +2129,6 @@ DriveUi_Spotanims(
 
     n = App_DriveEffectMapAnims(app, logged, APP_DRIVE_EFFECT_LOG_CAPACITY);
     *out_count = drive_ui_spotanim_rows(app, logged, n, radius, out, cap);
-    if( drive_ui_pm_check() )
-    {
-        static struct DriveSpotanimRow old_rows[DRIVE_UI_HAZARD_CAP];
-        int old_count = drive_ui_spotanim_rows(
-            app, app->drive_events.map_anims, app->drive_events.map_anim_count, radius, old_rows, cap);
-
-        drive_ui_pm_check_rows("spotanims", old_rows, old_count, out, *out_count, sizeof(*out));
-    }
     return DRIVE_OK;
 }
 
@@ -2274,14 +2220,6 @@ DriveUi_Projectiles(
     *out_count = drive_ui_projectile_rows(
         app, logged, App_DriveEffectProjectiles(app, logged, APP_DRIVE_EFFECT_LOG_CAPACITY / 2),
         radius, out, cap);
-    if( drive_ui_pm_check() )
-    {
-        static struct DriveProjectileRow old_rows[DRIVE_UI_HAZARD_CAP];
-        int old_count = drive_ui_projectile_rows(app, app->drive_events.projectiles,
-            app->drive_events.projectile_count, radius, old_rows, cap);
-
-        drive_ui_pm_check_rows("projectiles", old_rows, old_count, out, *out_count, sizeof(*out));
-    }
     return DRIVE_OK;
 }
 

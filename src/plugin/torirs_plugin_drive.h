@@ -148,13 +148,14 @@ enum
 #define APP_DRIVE_EFFECT_LOG_CAPACITY RS_EFFECT_LOG_CAP
 
 /* A projectile as its MAP_PROJANIM packet said it, stamped with the world
- * cycle the packet was applied on. The world's projectile entity is spawned
- * by a task that first awaits the spotanim's assets (Task_AppSpawn), so a
- * first-seen spotanim's projectile reached the drive rows a tick late and a
- * tick into its flight -- where scriptrun, which keeps the packet, listed it
- * in the packet's tick (2026-10-09: the two tick logs parted on an urn one
- * lane carried and the other did not). The drive's projectile rows come
- * from these records, with scriptrun's arithmetic. Absolute tiles. */
+ * cycle the packet was applied on: a row of the effect log (App_DriveRing.
+ * effects, decoded by App_DriveEffectProjectiles). The drive reads the packet,
+ * not the world: the world's projectile exists from the packet but draws once
+ * its assets land, and a row from the pool once reached the drive a tick late
+ * and a tick into its flight -- where scriptrun, which keeps the packet,
+ * listed it in the packet's tick (2026-10-09: the two tick logs parted on an
+ * urn one lane carried and the other did not). The drive's projectile rows
+ * come from these records, with scriptrun's arithmetic. Absolute tiles. */
 #define APP_DRIVE_PROJECTILE_CAP RS_EFFECT_PROJECTILE_CAP /* = SCRIPTRUN_PROJECTILES */
 /* It was 64. Zebak's lobs (a projectile per acid tile and per jug, flying 3-5
  * ticks) put more than that in flight at once; the assert is gone in an OPT
@@ -191,9 +192,10 @@ struct App_DriveLocChange
     uint32_t lane_ticket;
 };
 /* A map graphic as its MAP_ANIM packet said it, stamped with the world cycle
- * the packet was applied on. The world's graphic entity waits on its
- * spotanim's assets the way a projectile does, so a first-seen graphic reached
- * api_drive.spotanims a tick late -- where scriptrun, which keeps the packet,
+ * the packet was applied on: a row of the effect log (App_DriveEffectMapAnims).
+ * The world's graphic draws once its spotanim's assets land, the way a
+ * projectile does, and a row from it once reached api_drive.spotanims a tick
+ * late -- where scriptrun, which keeps the packet,
  * listed it in the packet's tick (2026-10-10: Bloat's falling flesh, seen a
  * tick apart, and the relay's two lanes walked apart in his room). The
  * drive's spotanim rows come from these records, with scriptrun's arithmetic:
@@ -224,10 +226,6 @@ struct App_DriveLocAnim
 };
 struct App_DriveRing
 {
-    struct App_DriveProjectile projectiles[APP_DRIVE_PROJECTILE_CAP];
-    int projectile_count;
-    struct App_DriveMapAnim map_anims[APP_DRIVE_MAP_ANIM_CAP];
-    int map_anim_count;
     struct App_DriveLocAnim loc_anims[APP_DRIVE_LOC_ANIM_CAP];
     int loc_anim_count;
     struct App_DriveLocChange loc_changes[APP_DRIVE_LOC_CHANGE_CAP];
