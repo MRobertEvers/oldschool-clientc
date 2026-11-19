@@ -14,6 +14,7 @@
 #include "game/rs_entity_sync.h"
 #include "game/task_exec_entity_info.h"
 #include "game/task_entity_assets.h"
+#include "game/rs_hitsplat.h"
 #include "net/net.h"
 #include "net/rev/gameproto_revisions.h"
 #include "streams/info_rs.h"
@@ -774,6 +775,9 @@ op_value(
 }
 
 /* How many drive events of `kind` are in the ring; the newest one's a/b. */
+static int g_drive_last_c;
+static int g_drive_last_d;
+
 static int
 drive_count(
     struct App const* app,
@@ -793,6 +797,8 @@ drive_count(
             *out_a = ev->a;
         if( out_b )
             *out_b = ev->b;
+        g_drive_last_c = ev->c;
+        g_drive_last_d = ev->d;
     }
     return n;
 }
@@ -851,8 +857,9 @@ test_npc_cold_body_exists_and_waits_on_the_parallel_queue(void)
     TEST_ASSERT(a == 7, "npc_spawn names the server slot, not the pool index (E10)");
     TEST_ASSERT(b == 500, "npc_spawn names the type");
     TEST_ASSERT(
-        npc && npc->pathing.route_x[0] == 52 + 3 && npc->pathing.route_z[0] == 52 - 2,
-        "the add record's DELTA_XZ placed it before it was announced (E1)");
+        g_drive_last_c == 52 + 3 && g_drive_last_d == 52 - 2,
+        "it was announced (and its NPC_ADD script run) once the add record's DELTA_XZ "
+        "placed it, not on the update origin (E1)");
 
     /* Gone in the next packet: its body task is cancelled with it. */
     {
@@ -1116,6 +1123,63 @@ test_npc_body_resident_reads_the_shells_stances(void)
     fixture_free(&fx);
 }
 
+/* E8: a splat's duration comes off the type its selector resolves to when it
+ * arrives (deob class105), not off the wire's selector record. */
+static void
+test_hitsplat_duration_is_the_resolved_types(void)
+{
+    printf("TEST: a hitsplat's duration is the resolved type's\n");
+
+    struct EntityFixture fx;
+    RsprotInfoOp ops[4];
+    struct WorldEntity_NPC* npc;
+    int* sprites = ToriMem_Calloc(ToriMem_Assets(), 2, sizeof(int));
+    int* durations = ToriMem_Calloc(ToriMem_Assets(), 2, sizeof(int));
+    int* policies = ToriMem_Calloc(ToriMem_Assets(), 2, sizeof(int));
+    struct RS_HitsplatVariants* variants = ToriMem_Calloc(ToriMem_Assets(), 2, sizeof(*variants));
+
+    fixture_init(&fx);
+    RS_Hitsplats_Init(&fx.app.hitsplats);
+    sprites[0] = sprites[1] = -1;
+    durations[0] = 70;  /* the selector record's own */
+    durations[1] = 123; /* the leaf it selects */
+    policies[0] = policies[1] = -1;
+    variants[0].varbit = -1;
+    variants[0].varp = 0;
+    variants[0].count = 2;
+    variants[0].ids = ToriMem_Calloc(ToriMem_Assets(), 2, sizeof(int));
+    variants[0].ids[0] = 1;
+    variants[0].ids[1] = 1;
+    variants[1].varbit = -1;
+    variants[1].varp = -1;
+    TEST_ASSERT(
+        RS_Hitsplats_SetTypes(&fx.app.hitsplats, sprites, durations, policies, NULL, variants, 2),
+        "hitsplat types installed");
+    fixture_npctype(&fx, 504, -1);
+
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 2);
+    ops[1] = op_value(RSPROT_OP_NPCTYPE, 504);
+    memset(&ops[2], 0, sizeof(ops[2]));
+    ops[2].kind = RSPROT_OP_DELTA_XZ;
+    memset(&ops[3], 0, sizeof(ops[3]));
+    ops[3].kind = RSPROT_OP_DAMAGE;
+    ops[3].damage.damage_type = 0;
+    ops[3].damage.damage = 5;
+    ops[3].damage.health = 10;
+    ops[3].damage.total_health = 20;
+    run_npc_ops(&fx.app, ops, 4);
+
+    npc = npc_in_slot(&fx.app, 2);
+    TEST_ASSERT(npc != NULL, "spawned");
+    TEST_ASSERT(npc && npc->combat.damage_types[0] == 0, "the wire's type is kept for the draw");
+    TEST_ASSERT(
+        npc && npc->combat.damage_cycles[0] - npc->combat.damage_start_cycles[0] == 123,
+        "the duration is the resolved leaf's");
+
+    RS_Hitsplats_Free(&fx.app.hitsplats);
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
@@ -1136,6 +1200,7 @@ main(void)
     test_varp_retype_coalesces_and_keeps_overrides();
     test_player_add_exists_at_once();
     test_npc_body_resident_reads_the_shells_stances();
+    test_hitsplat_duration_is_the_resolved_types();
     if( g_failures )
     {
         fprintf(stderr, "%d failure(s)\n", g_failures);

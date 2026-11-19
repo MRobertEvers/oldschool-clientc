@@ -966,12 +966,19 @@ App_WorldNpcSpawnAnnounce(
     assert(app->world);
     spawned = World_EntityPoolGet(&app->world->entities.npc, idx);
     assert(spawned);
-    /* DRIVE_STAMP: npc_spawn -- a=npc slot b=npc_id. The server slot, as the
+    /* DRIVE_STAMP: npc_spawn -- a=npc slot b=npc_id c,d=scene tile. The server slot, as the
      * comment always said (it stamped the pool index, FAULTS E10); -1 for an
      * npc no server named (the editor's previews, the hotkey). Unconditional
      * -- the ring is present in every build, unlike the plugin-host snapshot
      * below, which stays gated on app->plugins. */
-    App_DriveEvent(app, DRIVE_EVENT_NPC_SPAWN, spawned->server_slot, spawned->npc_id, 0, 0);
+    /* c/d: the scene tile it was added on, once its add record placed it. */
+    App_DriveEvent(
+        app,
+        DRIVE_EVENT_NPC_SPAWN,
+        spawned->server_slot,
+        spawned->npc_id,
+        spawned->pathing.route_x[0],
+        spawned->pathing.route_z[0]);
     if( app->plugins )
     {
         struct ToriRS_NpcSnapshot snap;
