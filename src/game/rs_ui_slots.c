@@ -255,9 +255,40 @@ struct Task_SlotMountRefresh
     struct ToriRS_Task task;
     struct pt pt;
     struct App* app;
-    int32_t owner_index;
+    /* U5: the slot by what it IS -- a sidebar tab, or a region tag -- and
+     * not by the node index it had when the mount was queued: a tree rebuilt
+     * in between (RS_UISlots_RebindTree) moves the index, and the old one
+     * names another node or none. Re-resolved when the mount runs. */
+    int owner_tab;
+    int owner_tag;
     int iface_id;
 };
+
+/* The node that owns slot (`tab`, `tag`) in the tree as it is now; -1 when
+ * this tree has none. */
+static int32_t
+slot_owner_now(
+    struct App const* app,
+    int tab,
+    int tag)
+{
+    int32_t idx = -1;
+
+    if( tab >= 0 )
+        idx = app->slots.side_owner_index[tab];
+    else if( tag == UITREE_SLOT_MAIN_MODAL )
+        idx = app->slots.main_modal_index;
+    else if( tag == UITREE_SLOT_MAIN_OVERLAY )
+        idx = app->slots.main_overlay_index;
+    else if( tag == UITREE_SLOT_SIDE_MODAL )
+        idx = app->slots.side_modal_index;
+    else if( tag == UITREE_SLOT_CHAT )
+        idx = app->slots.chat_index;
+    if( idx < 0 || !app->tree || (uint32_t)idx >= app->tree->component_count ||
+        app->tree->components[idx].freed )
+        return -1;
+    return idx;
+}
 
 static int
 Task_SlotMountRefresh_Run(
@@ -267,8 +298,20 @@ Task_SlotMountRefresh_Run(
     struct Task_SlotMountRefresh* self = (struct Task_SlotMountRefresh*)base;
 
     PT_BEGIN(&self->pt);
-    PT_TASK_AWAITSELF_IF(
-        CreateTask_SlotMount(self->app, &self->app->builder, self->owner_index, self->iface_id));
+    if( slot_owner_now(self->app, self->owner_tab, self->owner_tag) < 0 )
+    {
+        TORIRS_LOG(
+            "rs_ui_slots: the slot (tab %d, tag %d) for iface %d is gone; skip\n",
+            self->owner_tab,
+            self->owner_tag,
+            self->iface_id);
+        PT_EXIT(&self->pt);
+    }
+    PT_TASK_AWAITSELF_IF(CreateTask_SlotMount(
+        self->app,
+        &self->app->builder,
+        slot_owner_now(self->app, self->owner_tab, self->owner_tag),
+        self->iface_id));
     App_RefreshAfterTreeMutation(self->app);
     PT_END(&self->pt);
 }
@@ -319,7 +362,13 @@ slot_mount(
     task->task.vtable = &Task_SlotMountRefresh_VTable;
     strncpy(task->task.name, "SlotMountRefresh", sizeof(task->task.name) - 1);
     task->app = app;
-    task->owner_index = owner_index;
+    assert(app->tree);
+    assert((uint32_t)owner_index < app->tree->component_count);
+    {
+        struct UITreeComponent const* owner = &app->tree->components[owner_index];
+        task->owner_tab = owner->type == UIELEM_BUILTIN_SIDEBAR ? owner->u.sidebar.tabno : -1;
+        task->owner_tag = (int)owner->slot_tag;
+    }
     task->iface_id = iface_id;
     PT_INIT(&task->pt);
     TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &task->task);

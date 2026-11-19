@@ -17,6 +17,7 @@
 #include "perf/torirs_perf.h"
 #include "ui/uitree.h"
 #include "ui/uitree_iface_stats.h"
+#include "ui/uitree_if_store.h"
 #include "ui/uitree_layout.h"
 #include "uitree_builder_bake.h"
 
@@ -34,11 +35,6 @@
 #define INTERFACE_OPEN_ONLOAD_ARGV_MAX TORIRS_COMPONENT_HOOK_ARG_MAX
 #define INTERFACE_OPEN_ONLOAD_MAX 256
 #define INTERFACE_OPEN_RUNTIME_HOOK_MAX 512
-/* Worst case is every worn + backpack slot holding a distinct obj. Sized from
- * the container defaults so the two move together; the collector clamps rather
- * than aborting if a container is ever registered with more slots than these. */
-#define INTERFACE_OPEN_SEED_OBJ_MAX \
-    (INV_MANAGER_DEFAULT_WORN_SLOTS + INV_MANAGER_DEFAULT_BACKPACK_SLOTS)
 
 struct InterfaceOpenOnLoad
 {
@@ -94,8 +90,12 @@ struct Task_InterfaceOpen
     int runtime_hook_count;
     int runtime_hook_cap;
 
-    int seed_obj_ids[INTERFACE_OPEN_SEED_OBJ_MAX];
-    int seed_obj_count;
+    /* The server's stored IF_SETTEXT / IF_SETHIDE / IF_SETCOLOUR values
+     * (InterfaceOpen_SetStores), applied to the group's fresh nodes before
+     * its load scripts run. NULL: none. */
+    struct UIIfTextStore const* texts;
+    struct UIIfIntStore const* hides;
+    struct UIIfIntStore const* colours;
 
     int i;
     int script_id;
@@ -322,11 +322,17 @@ arm_cache_transmit_hooks(
         RS_CS2_RegisterCacheTransmitHooks(self->host, self->tree, &pack->components[i]);
 }
 
-static void
-collect_seed_objs(struct Task_InterfaceOpen* self)
+int
+InterfaceOpen_CollectSeedObjs(
+    struct InvManager const* invs,
+    int* out_ids,
+    int cap)
 {
-    assert(self && self->invs);
-    self->seed_obj_count = 0;
+    int count = 0;
+
+    assert(invs);
+    assert(out_ids);
+    assert(cap > 0);
 
     static int const containers[] = {
         INV_MANAGER_CONTAINER_WORN,
@@ -334,7 +340,7 @@ collect_seed_objs(struct Task_InterfaceOpen* self)
     };
     for( size_t ci = 0; ci < sizeof(containers) / sizeof(containers[0]); ci++ )
     {
-        struct InvContainer const* c = InvManager_FindContainer(self->invs, containers[ci]);
+        struct InvContainer const* c = InvManager_FindContainer(invs, containers[ci]);
         if( !c || !c->slots )
             continue;
         for( int s = 0; s < c->slot_count; s++ )
@@ -343,9 +349,9 @@ collect_seed_objs(struct Task_InterfaceOpen* self)
             if( oid <= INV_MANAGER_EMPTY_OBJ_ID )
                 continue;
             int found = 0;
-            for( int j = 0; j < self->seed_obj_count; j++ )
+            for( int j = 0; j < count; j++ )
             {
-                if( self->seed_obj_ids[j] == oid )
+                if( out_ids[j] == oid )
                 {
                     found = 1;
                     break;
@@ -353,19 +359,162 @@ collect_seed_objs(struct Task_InterfaceOpen* self)
             }
             if( found )
                 continue;
-            if( self->seed_obj_count >= INTERFACE_OPEN_SEED_OBJ_MAX )
+            if( count >= cap )
             {
-                /* Prefetch only — the per-slot EnsureObjIcon pass below still
-                 * loads whatever the seed list misses, so drop the tail rather
-                 * than kill the client. */
+                /* Prefetch only -- the per-slot EnsureObjIcon pass still
+                 * loads whatever the seed list misses, so drop the tail
+                 * rather than kill the client. */
                 TORIRS_LOG("InterfaceOpen: seed obj list full (%d); skipping prefetch of obj %d\n",
-                    INTERFACE_OPEN_SEED_OBJ_MAX,
+                    cap,
                     oid);
-                return;
+                return count;
             }
-            self->seed_obj_ids[self->seed_obj_count++] = oid;
+            out_ids[count++] = oid;
         }
     }
+    return count;
+}
+
+void
+InterfaceOpen_BindSeedIcons(
+    struct InvManager* invs,
+    struct UITreeSceneBridge* bridge)
+{
+    static int const k_containers[] = {
+        INV_MANAGER_CONTAINER_WORN,
+        INV_MANAGER_CONTAINER_BACKPACK,
+    };
+
+    assert(invs);
+    assert(bridge);
+    for( int ci = 0; ci < (int)(sizeof(k_containers) / sizeof(k_containers[0])); ci++ )
+    {
+        struct InvContainer* c = InvManager_GetContainer(invs, k_containers[ci]);
+        if( !c )
+            continue;
+        for( int slot = 0; slot < c->slot_count; slot++ )
+        {
+            int oid = c->slots[slot].obj_id;
+            int count = c->slots[slot].obj_count;
+            int scene_id;
+            if( oid <= 0 )
+                continue;
+            scene_id = UITreeSceneBridge_EnsureObjIcon(bridge, oid, count > 0 ? count : 1);
+            if( scene_id >= 0 )
+            {
+                c->slots[slot].scene_id = scene_id;
+                c->slots[slot].atlas_index = 0;
+            }
+        }
+    }
+}
+
+int
+InterfaceOpen_BindGroupModels(
+    struct UITree* tree,
+    struct UITreeSceneBridge* bridge,
+    int group)
+{
+    struct UITreeNodeSet const* gset;
+    int bound = 0;
+
+    assert(tree);
+    assert(bridge);
+    assert(group > 0);
+    gset = UITree_GroupNodes(tree, group);
+    for( int gi = 0; gset && gi < gset->count; gi++ )
+    {
+        int32_t i = gset->slots[gi];
+        struct UITreeComponent* c;
+        int cache_id;
+        int scene_id;
+        assert(i >= 0 && (uint32_t)i < tree->component_count);
+        c = &tree->components[i];
+        if( c->freed || c->type != UIELEM_RS_MODEL )
+            continue;
+        if( c->u.rs_model.active_model_id >= 0 &&
+            UITreeSceneBridge_EnsureModel(bridge, c->u.rs_model.active_model_id) >= 0 )
+        {
+            UITree_MarkNodeDirty(tree, i);
+            bound++;
+        }
+        cache_id = c->u.rs_model.gamecache_model_id;
+        if( cache_id < 0 )
+        {
+            /* The default avatar, as upload_model_nodes poses it. */
+            if( c->behavior.client_code != 327 && c->behavior.client_code != 328 )
+                continue;
+            scene_id = UITreeSceneBridge_EnsurePlayerModel(bridge);
+            if( scene_id < 0 )
+                continue;
+            (void)UITree_SetModelAt(tree, i, scene_id);
+            (void)UITree_SetModelAnimationAt(tree, i,
+                c->u.rs_model.anim_seq_id < 0 ? bridge->player_idle_seq : c->u.rs_model.anim_seq_id,
+                0, 0, 1);
+            UITree_MarkNodeDirty(tree, i);
+            bound++;
+            continue;
+        }
+        if( UITreeSceneBridge_EnsureModel(bridge, cache_id) >= 0 )
+        {
+            /* The node already names the model; it drew nothing while the
+             * model was not here, so its emit is stale. */
+            UITree_MarkNodeDirty(tree, i);
+            bound++;
+        }
+    }
+    return bound;
+}
+
+/* U3: the server's stored values for the group, onto the nodes the bake (or
+ * an earlier bake) made, BEFORE the load scripts read them. The reference
+ * keeps them on IfType.list, which is what the group's scripts see when it
+ * loads; here they lived in stores re-applied only when a frame was
+ * published, after onLoad and the transmits had read the pack's values. */
+void
+InterfaceOpen_ApplyStoredValues(
+    struct UITree* tree,
+    struct RS_CS2Host* host,
+    int group,
+    struct UIIfTextStore const* texts,
+    struct UIIfIntStore const* hides,
+    struct UIIfIntStore const* colours)
+{
+    assert(tree);
+    assert(host);
+    assert(group > 0);
+    assert(texts);
+    assert(hides);
+    assert(colours);
+    for( int k = 0; k < texts->count; k++ )
+        if( ((texts->entries[k].com_id >> 16) & 0xffff) == group )
+            (void)UITree_ApplyText(tree, texts->entries[k].com_id, texts->entries[k].text);
+    for( int k = 0; k < hides->count; k++ )
+    {
+        int const com_id = hides->entries[k].com_id;
+        int const hide = hides->entries[k].value;
+        int32_t idx;
+        if( ((com_id >> 16) & 0xffff) != group )
+            continue;
+        idx = UITree_FindByComponentId(tree, com_id);
+        /* An unhide resumes the transmit hooks that deferred while it was
+         * hidden, as a script's if_sethide unhide does. */
+        if( idx >= 0 && tree->components[idx].behavior.hide && !hide )
+            host->widgets_loaded_dirty = 1;
+        (void)UITree_ApplyHide(tree, com_id, hide);
+    }
+    for( int k = 0; k < colours->count; k++ )
+        if( ((colours->entries[k].com_id >> 16) & 0xffff) == group )
+            (void)UITree_ApplyColour(tree, colours->entries[k].com_id, colours->entries[k].value);
+}
+
+static void
+apply_stored_values(struct Task_InterfaceOpen* self)
+{
+    if( !self->texts )
+        return; /* a caller that keeps no stores (InterfaceOpen_SetStores) */
+    InterfaceOpen_ApplyStoredValues(
+        self->tree, self->host, self->interface_id, self->texts, self->hides, self->colours);
 }
 
 static void
@@ -400,20 +549,25 @@ interface_group_in_tree(
  * list, catches that copy and any stale mount at a different slot, and clearing
  * mount_hidden un-hides exactly what the mount bookkeeping hid.
  */
-static void
-mount_pack_under_target(struct Task_InterfaceOpen* self)
+void
+InterfaceOpen_MountGroupUnder(
+    struct UITree* tree,
+    int target_uid,
+    int group,
+    int type)
 {
     int32_t mount_idx;
     struct UITreeNodeSet const* gset;
     int gi;
-    assert(self->target_uid >= 0);
-    mount_idx = UITree_FindByComponentId(self->tree, self->target_uid);
+    assert(tree);
+    assert(target_uid >= 0);
+    assert(group > 0);
+    mount_idx = UITree_FindByComponentId(tree, target_uid);
     assert(mount_idx >= 0 && "openSub target must exist");
 
-    (void)UITree_InterfaceParentSet(
-        self->tree, self->target_uid, self->interface_id, self->mount_type);
+    (void)UITree_InterfaceParentSet(tree, target_uid, group, type);
 
-    gset = UITree_GroupNodes(self->tree, self->interface_id);
+    gset = UITree_GroupNodes(tree, group);
     TORIRS_PERF_COUNT(
         TORIRS_PERF_CTR_IFACE_GROUP_SCAN_NODES, gset ? (int64_t)gset->count : 0);
     if( !gset )
@@ -423,25 +577,30 @@ mount_pack_under_target(struct Task_InterfaceOpen* self)
         int32_t i = gset->slots[gi];
         struct UITreeComponent* c;
         int cid;
-        assert(i >= 0 && (uint32_t)i < self->tree->component_count);
-        c = &self->tree->components[i];
+        assert(i >= 0 && (uint32_t)i < tree->component_count);
+        c = &tree->components[i];
         cid = c->component_id;
         if( c->freed || cid < 0 )
             continue;
         /* Pack-internal node (its parent belongs to the same group): the bake
          * already linked it, and its ancestor carries the mount. */
         if( c->parent >= 0 && c->parent != mount_idx &&
-            ((self->tree->components[c->parent].component_id >> 16) & 0xffff) ==
-                self->interface_id )
+            ((tree->components[c->parent].component_id >> 16) & 0xffff) == group )
             continue;
         if( c->mount_hidden )
         {
-            (void)UITree_SetMountHiddenAt(self->tree, i, 0);
+            (void)UITree_SetMountHiddenAt(tree, i, 0);
         }
         if( c->parent == mount_idx )
             continue;
-        UITree_Reparent(self->tree, i, mount_idx);
+        UITree_Reparent(tree, i, mount_idx);
     }
+}
+
+static void
+mount_pack_under_target(struct Task_InterfaceOpen* self)
+{
+    InterfaceOpen_MountGroupUnder(self->tree, self->target_uid, self->interface_id, self->mount_type);
 }
 
 static void
@@ -533,45 +692,19 @@ Task_InterfaceOpen_Run(
         PT_EXIT(&self->pt);
     }
 
-    /* 2. Prefetch pack sprites / fonts / models. */
-    PT_TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(self->provider, self->interface_id));
+    /* 2. The pack's sprites, fonts and npc configs: what the bake, the load
+     * scripts and the transmits read. Its models and the default avatar's kit
+     * models are VISUAL: the mount does not wait for them, and the client's
+     * parallel task binds them when they arrive (app/app_tasks_mounts.c). */
+    PT_TASK_AWAITSELF_IF(CreateTask_PackAssetsLoadRequired(self->provider, self->interface_id));
 
     /* 2b. Client-hardcoded sprites (scrollbar arrows, compass, cross, …). */
     PT_TASK_AWAITSELF_IF(CreateTask_StaticSpritesLoad(self->provider, self->bridge));
 
-    /* 3. Load seeded inv objs + inventory models, then rasterize icons. */
-    collect_seed_objs(self);
-    PT_TASK_AWAITSELF_IF(
-        CreateTask_ObjModelLoad(self->provider, self->seed_obj_ids, NULL, self->seed_obj_count));
-    {
-        static int const k_containers[] = {
-            INV_MANAGER_CONTAINER_WORN,
-            INV_MANAGER_CONTAINER_BACKPACK,
-        };
-        int ci;
-        for( ci = 0; ci < (int)(sizeof(k_containers) / sizeof(k_containers[0])); ci++ )
-        {
-            struct InvContainer* c = InvManager_GetContainer(self->invs, k_containers[ci]);
-            int slot;
-            if( !c )
-                continue;
-            for( slot = 0; slot < c->slot_count; slot++ )
-            {
-                int oid = c->slots[slot].obj_id;
-                int count = c->slots[slot].obj_count;
-                int scene_id;
-                if( oid <= 0 )
-                    continue;
-                scene_id =
-                    UITreeSceneBridge_EnsureObjIcon(self->bridge, oid, count > 0 ? count : 1);
-                if( scene_id >= 0 )
-                {
-                    c->slots[slot].scene_id = scene_id;
-                    c->slots[slot].atlas_index = 0;
-                }
-            }
-        }
-    }
+    /* 3. Icons for the worn and backpack objs whose models are here. The
+     * rest are VISUAL too: their models load on the parallel task, which
+     * binds these icons again when they arrive. */
+    InterfaceOpen_BindSeedIcons(self->invs, self->bridge);
 
     /* 4. Bake pack into UITree + collect on_load hooks (scene ids via bridge).
      *
@@ -680,6 +813,9 @@ Task_InterfaceOpen_Run(
             }
         }
     }
+
+    /* 4b. The server's stored texts, hides and colours for the group (U3). */
+    apply_stored_values(self);
 
     /* 5. Layout at full client canvas (host size via parent abs after reparent). */
     layout_tree(self);
@@ -857,6 +993,25 @@ CreateTask_InterfaceOpen(
 {
     return create_interface_open_common(
         provider, tree, host, invs, bridge, interface_id, -1, 0, stats, "InterfaceOpen");
+}
+
+void
+InterfaceOpen_SetStores(
+    struct ToriRS_Task* task,
+    struct UIIfTextStore const* texts,
+    struct UIIfIntStore const* hides,
+    struct UIIfIntStore const* colours)
+{
+    struct Task_InterfaceOpen* self = (struct Task_InterfaceOpen*)task;
+
+    assert(task);
+    assert(task->vtable == &Task_InterfaceOpen_VTable);
+    assert(texts);
+    assert(hides);
+    assert(colours);
+    self->texts = texts;
+    self->hides = hides;
+    self->colours = colours;
 }
 
 struct ToriRS_Task*

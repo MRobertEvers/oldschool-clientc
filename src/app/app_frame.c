@@ -2567,7 +2567,13 @@ app_run_once_body(
             app->if_hides.applied_generation = app->tree->generation;
             for( int i = 0; i < app->if_hides.count; i++ )
             {
-                bool ok = UITree_ApplyHide(
+                int32_t const idx = UITree_FindByComponentId(app->tree, app->if_hides.entries[i].com_id);
+                bool ok;
+                /* U4: an unhide resumes the hooks deferred while hidden. */
+                if( idx >= 0 && app->tree->components[idx].behavior.hide &&
+                    !app->if_hides.entries[i].value )
+                    app->host.widgets_loaded_dirty = 1;
+                ok = UITree_ApplyHide(
                     app->tree, app->if_hides.entries[i].com_id, app->if_hides.entries[i].value);
                 if( !ok && torirs_env_net_debug() )
                     TORIRS_LOG(

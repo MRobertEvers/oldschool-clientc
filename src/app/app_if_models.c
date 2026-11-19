@@ -43,11 +43,9 @@ enum AppIfPlayerModelOp
     APP_IFPLAYER_OBJ,
 };
 
-enum
-{
-    APP_IFPLAYER_MAX_MODELS = 64,
-};
-
+/* A player-model op whose config is not resident yet: it waits for it on
+ * the packet queue (the composition needs it, and the next op on the widget
+ * starts from this one's), then composes. Nothing else of the op waits there. */
 struct Task_AppIfPlayerModel
 {
     struct ToriRS_Task task;
@@ -57,16 +55,6 @@ struct Task_AppIfPlayerModel
     int component_id;
     int arg0;
     int arg1;
-    int cfg_i;
-    int model_i;
-    int model_count;
-    int model_ids[APP_IFPLAYER_MAX_MODELS];
-    /* The composition this op produces, committed to the widget's record
-     * only once it has been built whole. */
-    int slots[12];
-    int identkit[12];
-    int colors[5];
-    int gender;
 };
 
 /* Private to this unit, declared up front so definition order is free. */
@@ -109,7 +97,14 @@ Task_AppIfPlayerModel_Run(
 static void
 Task_AppIfPlayerModel_Free(struct ToriRS_Task* base);
 static void
-app_if_player_model_enqueue(
+app_if_player_model_compose(
+    struct App* app,
+    enum AppIfPlayerModelOp op,
+    int component_id,
+    int arg0,
+    int arg1);
+static void
+app_if_player_model_op(
     struct App* app,
     enum AppIfPlayerModelOp op,
     int component_id,
@@ -390,6 +385,94 @@ app_if_player_model_find_kit(
     return -1;
 }
 
+/*
+ * IF_SETPLAYERMODEL_*: the composition in wire order, the build later.
+ *
+ * What a later packet reads is the COMPOSITION: the next op on the widget
+ * starts from whatever this one committed. So the op is applied to the
+ * widget's record here, by the packet, in wire order. Loading the wear
+ * models and building only changes what is drawn; that is a parallel task
+ * (App_IfPlayerModelBuildAdd, app/app_tasks_mounts.c) numbered with the
+ * composition, so a build of an older composition never replaces a newer
+ * one, and the widget keeps its last built model until the new one is
+ * built. Before, the whole op -- its config, every wear model -- held the
+ * packet queue, and a composition whose parts did not all load was not
+ * committed at all.
+ */
+static void
+app_if_player_model_compose(
+    struct App* app,
+    enum AppIfPlayerModelOp op,
+    int component_id,
+    int arg0,
+    int arg1)
+{
+    struct UIIfPlayerModel* model = app_if_player_model_get(app, component_id);
+    struct WorldEntity_Player* lp = app_local_player(app);
+
+    /* No local player to clone the widget's composition from: the reference
+     * has none to show either. */
+    if( !model || !lp )
+        return;
+
+    if( op == APP_IFPLAYER_SELF )
+    {
+        memcpy(model->identkit, lp->appearance.identkit, sizeof(model->identkit));
+        memcpy(model->colors, lp->appearance.colors, sizeof(model->colors));
+        model->gender = lp->gender;
+        memcpy(
+            model->slots, arg0 ? lp->appearance.slots : lp->appearance.identkit, sizeof(model->slots));
+    }
+    else if( op == APP_IFPLAYER_BASECOLOUR )
+    {
+        if( arg0 >= 0 && arg0 < 5 )
+            model->colors[arg0] = arg1;
+    }
+    else if( op == APP_IFPLAYER_BODYTYPE )
+    {
+        int body_type = arg0;
+        if( model->gender != body_type )
+        {
+            model->gender = body_type;
+            for( int part = 0; part < PLAYER_APPEARANCE_PARTS; part++ )
+            {
+                int slot = PlayerModel_DesignPartWearpos(part);
+                /* PlayerComposition only remaps a design-kit value. Worn
+                 * objs remain exactly where they are. Returning to the
+                 * local player's type restores the cloned underneath kit;
+                 * switching away takes the first selectable target kit. */
+                if( Appearance_SlotKind(model->slots[slot]) != APPEARANCE_SLOT_KIT )
+                    continue;
+                if( body_type == lp->gender )
+                {
+                    model->slots[slot] = model->identkit[slot];
+                }
+                else
+                {
+                    int id = app_if_player_model_find_kit(app, part, body_type);
+                    if( id >= 0 )
+                        model->slots[slot] = Appearance_PackKit(id);
+                }
+            }
+        }
+    }
+    else
+    {
+        struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, arg0);
+        if( obj && obj->wearpos >= 0 && obj->wearpos < 12 )
+        {
+            model->slots[obj->wearpos] = Appearance_PackObj(arg0);
+            if( obj->wearpos2 >= 0 && obj->wearpos2 < 12 )
+                model->slots[obj->wearpos2] = 0;
+            if( obj->wearpos3 >= 0 && obj->wearpos3 < 12 )
+                model->slots[obj->wearpos3] = 0;
+        }
+    }
+
+    model->composition = ++app->if_models.composition_serial;
+    App_IfPlayerModelBuildAdd(app, model);
+}
+
 static int
 Task_AppIfPlayerModel_Run(
     struct ToriRS_Task* base,
@@ -401,119 +484,13 @@ Task_AppIfPlayerModel_Run(
     PT_BEGIN(&self->pt);
 
     /* BODYTYPE scans the complete idk table; OBJ needs its wearpos triplet.
-     * The task sits on the serial packet executor, preserving wire order while
-     * either config load yields. */
+     * Both are REQUIRED: the composition is what the next op starts from, so
+     * this waits on the packet queue, in wire order. */
     if( self->op == APP_IFPLAYER_BODYTYPE )
         PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
-    else if( self->op == APP_IFPLAYER_OBJ )
+    else
         PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->arg0));
-
-    {
-        struct UIIfPlayerModel* model = app_if_player_model_get(app, self->component_id);
-        struct WorldEntity_Player* lp = app_local_player(app);
-        if( !model || !lp )
-            PT_EXIT(&self->pt);
-
-        /* Work on a copy. The executor is strict FIFO, so the next op on this
-         * widget starts from whatever this one commits -- and it commits only
-         * a composition that built. */
-        memcpy(self->slots, model->slots, sizeof(self->slots));
-        memcpy(self->identkit, model->identkit, sizeof(self->identkit));
-        memcpy(self->colors, model->colors, sizeof(self->colors));
-        self->gender = model->gender;
-
-        if( self->op == APP_IFPLAYER_SELF )
-        {
-            memcpy(self->identkit, lp->appearance.identkit, sizeof(self->identkit));
-            memcpy(self->colors, lp->appearance.colors, sizeof(self->colors));
-            self->gender = lp->gender;
-            memcpy(
-                self->slots,
-                self->arg0 ? lp->appearance.slots : lp->appearance.identkit,
-                sizeof(self->slots));
-        }
-        else if( self->op == APP_IFPLAYER_BASECOLOUR )
-        {
-            if( self->arg0 >= 0 && self->arg0 < 5 )
-                self->colors[self->arg0] = self->arg1;
-        }
-        else if( self->op == APP_IFPLAYER_BODYTYPE )
-        {
-            int body_type = self->arg0;
-            if( self->gender != body_type )
-            {
-                self->gender = body_type;
-                for( int part = 0; part < PLAYER_APPEARANCE_PARTS; part++ )
-                {
-                    int slot = PlayerModel_DesignPartWearpos(part);
-                    /* PlayerComposition only remaps a design-kit value. Worn
-                     * objs remain exactly where they are. Returning to the
-                     * local player's type restores the cloned underneath kit;
-                     * switching away takes the first selectable target kit. */
-                    if( Appearance_SlotKind(self->slots[slot]) != APPEARANCE_SLOT_KIT )
-                        continue;
-                    if( body_type == lp->gender )
-                    {
-                        self->slots[slot] = self->identkit[slot];
-                    }
-                    else
-                    {
-                        int id = app_if_player_model_find_kit(app, part, body_type);
-                        if( id >= 0 )
-                            self->slots[slot] = Appearance_PackKit(id);
-                    }
-                }
-            }
-        }
-        else
-        {
-            struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, self->arg0);
-            if( obj && obj->wearpos >= 0 && obj->wearpos < 12 )
-            {
-                self->slots[obj->wearpos] = Appearance_PackObj(self->arg0);
-                if( obj->wearpos2 >= 0 && obj->wearpos2 < 12 )
-                    self->slots[obj->wearpos2] = 0;
-                if( obj->wearpos3 >= 0 && obj->wearpos3 < 12 )
-                    self->slots[obj->wearpos3] = 0;
-            }
-        }
-    }
-
-    /* Resolve all configs referenced by the snapshot before collecting model
-     * ids. PlayerAppearanceLoad supplies the full idk table; worn objects are
-     * loaded individually, then every gendered wear model is awaited. */
-    PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
-    for( self->cfg_i = 0; self->cfg_i < 12; self->cfg_i++ )
-    {
-        if( Appearance_SlotKind(self->slots[self->cfg_i]) == APPEARANCE_SLOT_OBJ )
-            PT_TASK_AWAITSELF_IF(
-                CreateTask_ObjLoad(app->provider, Appearance_SlotObj(self->slots[self->cfg_i])));
-    }
-    self->model_count = PlayerModel_CollectAppearanceModelIds(
-        app->provider, self->slots, self->gender, self->model_ids, APP_IFPLAYER_MAX_MODELS);
-    for( self->model_i = 0; self->model_i < self->model_count; self->model_i++ )
-        PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_ids[self->model_i]));
-
-    {
-        struct UIIfPlayerModel* model = app_if_player_model_find(app, self->component_id);
-        /* Its interface was closed while the parts loaded: the close unloaded
-         * the widget, so there is nothing to commit to. */
-        if( !model )
-            PT_EXIT(&self->pt);
-        /* A composition whose parts did not all load does not build, and is
-         * not committed: the widget keeps its last whole one. */
-        if( UITreeSceneBridge_BuildInterfacePlayerModel(
-                &app->bridge, model->scene_id, self->slots, self->colors, self->gender) >= 0 )
-        {
-            memcpy(model->slots, self->slots, sizeof(model->slots));
-            memcpy(model->identkit, self->identkit, sizeof(model->identkit));
-            memcpy(model->colors, self->colors, sizeof(model->colors));
-            model->gender = self->gender;
-            model->built = 1;
-            model->applied_gen = 0;
-            RedrawRequest_Raise(&app->redraw_request);
-        }
-    }
+    app_if_player_model_compose(app, self->op, self->component_id, self->arg0, self->arg1);
 
     PT_END(&self->pt);
 }
@@ -529,15 +506,26 @@ static struct ToriRS_TaskVTable Task_AppIfPlayerModel_VTable = {
     .free = Task_AppIfPlayerModel_Free,
 };
 
+/* Compose now when the op's config is here (SELF and BASECOLOUR need none);
+ * otherwise wait for it on the packet queue first. */
 static void
-app_if_player_model_enqueue(
+app_if_player_model_op(
     struct App* app,
     enum AppIfPlayerModelOp op,
     int component_id,
     int arg0,
     int arg1)
 {
-    struct Task_AppIfPlayerModel* task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
+    struct Task_AppIfPlayerModel* task;
+
+    if( op == APP_IFPLAYER_SELF || op == APP_IFPLAYER_BASECOLOUR ||
+        (op == APP_IFPLAYER_OBJ && (CacheProvider_ObjtypeHas(app->provider, arg0) ||
+                                    CacheProvider_ObjtypeAbsent(app->provider, arg0))) )
+    {
+        app_if_player_model_compose(app, op, component_id, arg0, arg1);
+        return;
+    }
+    task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_AppIfPlayerModel_VTable;
     strncpy(task->task.name, "AppIfPlayerModel", sizeof(task->task.name) - 1);
@@ -634,7 +622,7 @@ App_SetInterfacePlayerModelSelf(
     int copy_objs)
 {
     assert(app);
-    app_if_player_model_enqueue(app, APP_IFPLAYER_SELF, component_id, copy_objs != 0, 0);
+    app_if_player_model_op(app, APP_IFPLAYER_SELF, component_id, copy_objs != 0, 0);
 }
 
 void
@@ -645,7 +633,7 @@ App_SetInterfacePlayerModelBaseColour(
     int colour)
 {
     assert(app);
-    app_if_player_model_enqueue(app, APP_IFPLAYER_BASECOLOUR, component_id, index, colour);
+    app_if_player_model_op(app, APP_IFPLAYER_BASECOLOUR, component_id, index, colour);
 }
 
 void
@@ -655,7 +643,7 @@ App_SetInterfacePlayerModelBodyType(
     int body_type)
 {
     assert(app);
-    app_if_player_model_enqueue(app, APP_IFPLAYER_BODYTYPE, component_id, body_type, 0);
+    app_if_player_model_op(app, APP_IFPLAYER_BODYTYPE, component_id, body_type, 0);
 }
 
 void
@@ -667,7 +655,7 @@ App_SetInterfacePlayerModelObj(
     assert(app);
     if( obj_id < 0 )
         return;
-    app_if_player_model_enqueue(app, APP_IFPLAYER_OBJ, component_id, obj_id, 0);
+    app_if_player_model_op(app, APP_IFPLAYER_OBJ, component_id, obj_id, 0);
 }
 
 void

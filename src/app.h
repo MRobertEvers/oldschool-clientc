@@ -2184,6 +2184,15 @@ App_KeptMountAdd(
     int interface_id,
     int type);
 
+/** Is the newest mount change queued for slot `target_uid` an open (or a
+ *  move) of `interface_id` as `type`? 0 when none is queued for it. */
+int
+App_SlotMountQueued(
+    struct App const* app,
+    int target_uid,
+    int interface_id,
+    int type);
+
 /** RUNCLIENTSCRIPT: run a server-named clientscript with its arguments. Held
  *  until the tick fence (`pending_clientscripts`), but never past an interface
  *  open or close behind it: the packet pump releases the held scripts onto the

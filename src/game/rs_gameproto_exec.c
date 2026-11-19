@@ -2288,6 +2288,16 @@ RS_GameProto_Exec(
                     mounted = live[j].container_uid == sync->mounts[i].target_uid &&
                               live[j].group_id == sync->mounts[i].interface_id &&
                               live[j].type == sync->mounts[i].type;
+                /* U7: a root change has already queued the kept mounts of
+                 * the new top (App_RootMountsReturn), and the live snapshot
+                 * it emptied cannot say so. A second mount task for the same
+                 * group would remount it and drop its arming. */
+                if( !mounted )
+                    mounted = App_SlotMountQueued(
+                        app,
+                        sync->mounts[i].target_uid,
+                        sync->mounts[i].interface_id,
+                        sync->mounts[i].type);
                 if( mounted || !resync_reachable[i] )
                     continue;
                 App_OpenSubInterface(

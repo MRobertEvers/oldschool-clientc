@@ -10,6 +10,7 @@
 #include "mem/torirs_mem.h"
 #include "app.h"
 #include "app/app_internal.h"
+#include "engine/uitree_builder/task_interface_open.h"
 #include "game/rs_chat.h"
 #include "game/rs_clientcode.h"
 #include "game/rs_gameproto_exec.h"
@@ -1435,6 +1436,322 @@ main(void)
         RevConfigRefs_Free(&app->revconfig_refs);
         free(app);
         printf("ok - LAST_LOGIN_INFO opens the welcome screen the profile names\n");
+    }
+
+    /*
+     * U4: a server IF_SETHIDE that unhides a component resumes the transmit
+     * hooks that deferred while it was hidden, as a script's if_sethide
+     * unhide does (widgets_loaded_dirty). It did not, so a hook that missed an
+     * inventory change while hidden waited for some unrelated unhide.
+     */
+    {
+        struct App* app = calloc(1, sizeof(*app));
+        struct UITreeNodeSpec spec;
+        struct UITreeBehavior behavior;
+        int const com = (233 << 16) | 53;
+
+        assert(app);
+        app->tree = UITree_New(2);
+        memset(&spec, 0, sizeof(spec));
+        memset(&behavior, 0, sizeof(behavior));
+        spec.type = UIELEM_RS_GRAPHIC;
+        spec.component_id = com;
+        spec.width = 10;
+        spec.height = 10;
+        behavior.hide = 1;
+        spec.behavior = &behavior;
+        TEST_EXEC_ASSERT(UITree_Push(app->tree, -1, &spec) >= 0, "the hidden component is in the tree");
+
+        App_IfHideSet(app, com, 1);
+        TEST_EXEC_ASSERT(!app->host.widgets_loaded_dirty, "hiding a hidden component resumes nothing");
+        App_IfHideSet(app, com, 0);
+        TEST_EXEC_ASSERT(app->host.widgets_loaded_dirty,
+                         "a server unhide resumes the hooks deferred while it was hidden");
+        app->host.widgets_loaded_dirty = 0;
+        App_IfHideSet(app, com, 0);
+        TEST_EXEC_ASSERT(!app->host.widgets_loaded_dirty, "unhiding a shown component resumes nothing");
+
+        UIIfIntStore_Free(&app->if_hides);
+        UITree_Free(app->tree);
+        free(app);
+        printf("ok - a server unhide resumes the transmit hooks deferred while hidden\n");
+    }
+
+    /*
+     * U3: a mount applies the server's stored hides, texts and colours for
+     * the group it opened onto the group's nodes BEFORE its load scripts run
+     * (Task_InterfaceOpen step 4b, InterfaceOpen_ApplyStoredValues). They were
+     * re-applied only when a frame was published, after onLoad and the
+     * transmits had read the pack's values. Another group's entries are not
+     * touched.
+     */
+    {
+        struct UITree* t = UITree_New(4);
+        struct RS_CS2Host* host = calloc(1, sizeof(*host));
+        struct UIIfTextStore texts = { 0 };
+        struct UIIfIntStore hides = { 0 };
+        struct UIIfIntStore colours = { 0 };
+        struct UITreeNodeSpec spec;
+        struct UITreeBehavior hidden;
+        int const icon = (233 << 16) | 53;
+        int const other = (234 << 16) | 1;
+        int32_t icon_idx;
+        int32_t other_idx;
+
+        assert(host);
+        memset(&spec, 0, sizeof(spec));
+        memset(&hidden, 0, sizeof(hidden));
+        hidden.hide = 1;
+        spec.type = UIELEM_RS_GRAPHIC;
+        spec.width = 10;
+        spec.height = 10;
+        spec.behavior = &hidden;
+        spec.component_id = icon;
+        icon_idx = UITree_Push(t, -1, &spec);
+        spec.component_id = other;
+        other_idx = UITree_Push(t, -1, &spec);
+        TEST_EXEC_ASSERT(icon_idx >= 0 && other_idx >= 0, "both groups' nodes are in the tree");
+        UIIfIntStore_Set(&hides, icon, 0);
+        UIIfIntStore_Set(&hides, other, 0);
+
+        InterfaceOpen_ApplyStoredValues(t, host, 233, &texts, &hides, &colours);
+        TEST_EXEC_ASSERT(!t->components[icon_idx].behavior.hide,
+                         "the opened group's stored unhide is on its node before its scripts run");
+        TEST_EXEC_ASSERT(host->widgets_loaded_dirty, "and the unhide resumes the deferred hooks");
+        TEST_EXEC_ASSERT(t->components[other_idx].behavior.hide,
+                         "another group's stored value is left for its own mount");
+
+        UIIfIntStore_Free(&hides);
+        UIIfIntStore_Free(&colours);
+        UIIfTextStore_Free(&texts);
+        free(host);
+        UITree_Free(t);
+        printf("ok - a mount applies the group's stored values before its load scripts\n");
+    }
+
+    /*
+     * U6: an IF_OPENSUB of a group the cache does not have mounts nothing.
+     * The slot's outgoing group closes all the same (the reference closes it
+     * before it opens), and no SUB_MOUNTED is stamped for a mount that did
+     * not happen. Before, the outgoing group stayed and SUB_MOUNTED fired.
+     */
+    {
+        struct App* app = calloc(1, sizeof(*app));
+        struct CacheProvider* provider = calloc(1, sizeof(*provider));
+        struct CacheProviderVTable* no_loads = calloc(1, sizeof(*no_loads));
+        struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();
+        struct UITreeNodeSpec spec;
+        struct UITreeBehavior layer_behavior;
+        int const slot = (161 << 16) | 70;
+        int const old_root = (500 << 16) | 0;
+        int mounted = 0;
+        int closed = 0;
+        int32_t slot_idx;
+
+        assert(app);
+        assert(provider);
+        assert(no_loads);
+        provider->vtable = no_loads;
+        CacheProvider_InitEngineCaches(provider);
+        app->provider = provider;
+        app->packet_runner.queue = ToriRS_TaskQueue_New();
+        app->frame_runner.queue = ToriRS_TaskQueue_New();
+        app->assets = Assets_New();
+        App_PendingInit(app);
+        app->phase.app_state = APP_STATE_READY;
+        app->tree = UITree_New(4);
+        memset(&spec, 0, sizeof(spec));
+        memset(&layer_behavior, 0, sizeof(layer_behavior));
+        spec.behavior = &layer_behavior;
+        spec.type = UIELEM_RS_LAYER;
+        spec.width = 100;
+        spec.height = 100;
+        spec.component_id = slot;
+        slot_idx = UITree_Push(app->tree, -1, &spec);
+        spec.component_id = old_root;
+        TEST_EXEC_ASSERT(slot_idx >= 0 && UITree_Push(app->tree, slot_idx, &spec) >= 0,
+                         "the slot and its outgoing group are in the tree");
+        UITree_InterfaceParentSet(app->tree, slot, 500, 1);
+
+        App_OpenSubInterface(app, slot, 777, 1);
+        (void)ToriRS_TaskQueue_Run(app->packet_runner.queue, io);
+        for( uint32_t i = 0; i < app->drive_events.ring.count; i++ )
+        {
+            struct RS_Event const* e = &app->drive_events.entries[i];
+            mounted |= e->kind == DRIVE_EVENT_SUB_MOUNTED && e->a == slot;
+            closed |= e->kind == DRIVE_EVENT_SUB_CLOSED && e->a == slot && e->b == 500;
+        }
+        TEST_EXEC_ASSERT(!mounted, "a group the cache lacks is not reported mounted");
+        TEST_EXEC_ASSERT(closed, "the slot's outgoing group is closed all the same");
+        TEST_EXEC_ASSERT(UITree_FindByComponentId(app->tree, old_root) < 0, "and unloaded");
+        TEST_EXEC_ASSERT(UITree_InterfaceParentFind(app->tree, slot) < 0, "the slot records nothing");
+
+        ToriRS_TaskQueue_Free(app->packet_runner.queue);
+        ToriRS_TaskQueue_Free(app->frame_runner.queue);
+        App_PendingFree(app);
+        Assets_Free(app->assets);
+        UITree_Free(app->tree);
+        UIIfEventTable_Free(&app->if_events);
+        CacheProvider_FreeEngineCaches(provider);
+        free(no_loads);
+        free(provider);
+        ToriRS_IOBatch_Free(io);
+        free(app);
+        printf("ok - an IF_OPENSUB whose pack is missing closes the slot and reports no mount\n");
+    }
+
+    /*
+     * U7: IF_MOVESUB relinks the moved group (class415.method9481): the
+     * source's record moves to the destination and the group's nodes go with
+     * it. It used to queue a close of the source -- which unloaded the group
+     * -- and an open at the destination, which re-baked it from the pack, so
+     * whatever its scripts had built was lost.
+     */
+    {
+        struct App* app = calloc(1, sizeof(*app));
+        struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();
+        struct UITreeNodeSpec spec;
+        struct UITreeBehavior layer_behavior;
+        int const source = (161 << 16) | 70;
+        int const dest = (161 << 16) | 71;
+        int const moved_root = (500 << 16) | 0;
+        int const moved_child = (500 << 16) | 1;
+        int32_t dest_idx;
+        int32_t src_idx;
+        int32_t root_idx;
+        int32_t child_idx;
+        int rec;
+
+        assert(app);
+        app->packet_runner.queue = ToriRS_TaskQueue_New();
+        app->frame_runner.queue = ToriRS_TaskQueue_New();
+        app->assets = Assets_New();
+        App_PendingInit(app);
+        app->phase.app_state = APP_STATE_READY;
+        app->tree = UITree_New(8);
+        memset(&spec, 0, sizeof(spec));
+        memset(&layer_behavior, 0, sizeof(layer_behavior));
+        spec.behavior = &layer_behavior;
+        spec.type = UIELEM_RS_LAYER;
+        spec.width = 100;
+        spec.height = 100;
+        spec.component_id = source;
+        src_idx = UITree_Push(app->tree, -1, &spec);
+        spec.component_id = dest;
+        dest_idx = UITree_Push(app->tree, -1, &spec);
+        spec.component_id = moved_root;
+        root_idx = UITree_Push(app->tree, src_idx, &spec);
+        spec.component_id = moved_child;
+        child_idx = UITree_Push(app->tree, root_idx, &spec);
+        TEST_EXEC_ASSERT(src_idx >= 0 && dest_idx >= 0 && root_idx >= 0 && child_idx >= 0,
+                         "the slots and the moved group are in the tree");
+        UITree_InterfaceParentSet(app->tree, source, 500, 1);
+
+        App_MoveSubInterface(app, source, dest);
+        TEST_EXEC_ASSERT(app->packet_runner.queue->head && !app->packet_runner.queue->head->next,
+                         "IF_MOVESUB queues one relink, not a close and an open");
+        TEST_EXEC_ASSERT(App_SlotMountQueued(app, dest, 500, 1), "the destination's queued mount is the moved group");
+        TEST_EXEC_ASSERT(!App_SlotMountQueued(app, source, 500, 1), "and the source is empty in wire order");
+
+        (void)ToriRS_TaskQueue_Run(app->packet_runner.queue, io);
+        TEST_EXEC_ASSERT(app->packet_runner.queue->head == NULL, "the relink ran");
+        TEST_EXEC_ASSERT(UITree_FindByComponentId(app->tree, moved_child) == child_idx,
+                         "the moved group's nodes are kept, not unloaded and re-baked");
+        TEST_EXEC_ASSERT(app->tree->components[root_idx].parent == dest_idx,
+                         "the moved group hangs under the destination");
+        rec = UITree_InterfaceParentFind(app->tree, dest);
+        TEST_EXEC_ASSERT(rec >= 0 && app->tree->interface_parents[rec].group_id == 500,
+                         "the destination records the moved group");
+        TEST_EXEC_ASSERT(UITree_InterfaceParentFind(app->tree, source) < 0, "the source records nothing");
+
+        ToriRS_TaskQueue_Free(app->packet_runner.queue);
+        ToriRS_TaskQueue_Free(app->frame_runner.queue);
+        App_PendingFree(app);
+        Assets_Free(app->assets);
+        UITree_Free(app->tree);
+        UIIfEventTable_Free(&app->if_events);
+        ToriRS_IOBatch_Free(io);
+        free(app);
+        printf("ok - IF_MOVESUB relinks the moved group instead of closing and re-baking it\n");
+    }
+
+    /*
+     * U7: an IF_RESYNC whose top changed restates mounts App_RootMountsReturn
+     * has already queued. The live snapshot the top emptied cannot say so, and
+     * each such slot got a second mount task (a remount that also dropped the
+     * group's arming). A queued mount of the same group counts as mounted.
+     */
+    {
+        struct App* app = calloc(1, sizeof(*app));
+        int const slot = (0 << 16) | 9; /* a slot of the root (id 0 here) */
+        struct PktIfResyncMount mount = { slot, 399, 1 };
+        struct RevPacket p;
+        int queued = 0;
+
+        assert(app);
+        app->packet_runner.queue = ToriRS_TaskQueue_New();
+        app->tree = UITree_New(2);
+        App_ServerStateBind(app, &app_state);
+        ctx.app = app;
+        ctx.state = &app_state;
+
+        /* What the root change queued for its kept mount. */
+        App_OpenSubInterface(app, slot, 399, 1);
+        memset(&p, 0, sizeof(p));
+        p.packet_type = PKT_NAME_IF_RESYNC_V2;
+        p._if_resync.root_interface_id = 0;
+        p._if_resync.mount_count = 1;
+        p._if_resync.mounts = &mount;
+        RS_GameProto_Exec(&ctx, &p);
+        for( struct ToriRS_Task* t = app->packet_runner.queue->head; t; t = t->next )
+            queued++;
+        TEST_EXEC_ASSERT(queued == 1, "a restated mount already queued is not queued again");
+
+        ctx.app = NULL;
+        ctx.state = &bare_state;
+        ToriRS_TaskQueue_Free(app->packet_runner.queue);
+        UITree_Free(app->tree);
+        UIIfEventTable_Free(&app->if_events);
+        free(app);
+        printf("ok - IF_RESYNC does not mount a slot twice after a root change\n");
+    }
+
+    /*
+     * IF_SETPLAYERMODEL_*: the build is a parallel task (it holds nothing on
+     * the packet queue), keyed on the widget and its close serial, and a
+     * newer composition's build replaces an older one still loading.
+     */
+    {
+        struct App* app = calloc(1, sizeof(*app));
+        struct UIIfPlayerModel* model;
+        struct RS_PendingKey key;
+
+        assert(app);
+        app->packet_runner.queue = ToriRS_TaskQueue_New();
+        app->frame_runner.queue = ToriRS_TaskQueue_New();
+        app->assets = Assets_New();
+        App_PendingInit(app);
+        model = UIIfModels_ClaimPlayerModel(
+            &app->if_models, (84 << 16) | 4, UITREE_SCENE_IF_PLAYER_MODEL_BASE, 0);
+        model->composition = ++app->if_models.composition_serial;
+        App_IfPlayerModelBuildAdd(app, model);
+        key = RS_PendingKey_Component((84 << 16) | 4, 0);
+        TEST_EXEC_ASSERT(RS_Pending_Find(app->pending, APP_TASK_IF_PLAYER_MODEL_BUILD, key) != NULL,
+                         "the build is a pending parallel task");
+        TEST_EXEC_ASSERT(app->packet_runner.queue->head == NULL, "and nothing waits on the packet queue");
+        TEST_EXEC_ASSERT(app->frame_runner.queue->head != NULL, "it is on the parallel queue");
+        model->composition = ++app->if_models.composition_serial;
+        App_IfPlayerModelBuildAdd(app, model);
+        TEST_EXEC_ASSERT(RS_Pending_Count(app->pending, APP_TASK_IF_PLAYER_MODEL_BUILD) == 1,
+                         "a newer composition's build replaces the older one");
+
+        ToriRS_TaskQueue_Free(app->frame_runner.queue);
+        ToriRS_TaskQueue_Free(app->packet_runner.queue);
+        App_PendingFree(app);
+        Assets_Free(app->assets);
+        UIIfModels_Free(&app->if_models);
+        free(app);
+        printf("ok - a player-model build is a parallel task, newest composition wins\n");
     }
 
     UITree_Free(tree);
