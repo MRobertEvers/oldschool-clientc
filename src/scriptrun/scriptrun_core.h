@@ -36,6 +36,7 @@
 
 struct World;
 struct GameProtoRevTable;
+struct ScriptrunShadow;
 struct PktLocAddChange;
 struct RSCache_Dat2Disk;
 
@@ -366,6 +367,11 @@ struct ScriptrunCore
     int player_old_list[2048];
     int packets;
     int unhandled;
+
+    /* The packet model's shadow (scriptrun_shadow.h): the shared apply fed
+     * beside these rules and compared with them. NULL unless
+     * TORIRS_SCRIPTRUN_SHADOW names a file; nothing above reads it. */
+    struct ScriptrunShadow* shadow;
 };
 
 /** A fresh core for one bot. `rev` is the world's wire revision. */

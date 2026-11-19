@@ -13,6 +13,7 @@
 #include "world/world.h"
 #include "net/net_capture.h"
 #include "net/torirs_control.h"
+#include "scriptrun/scriptrun_shadow.h"
 #include "torirsserver/wire/osrs242/osrs242_prots.h" /* the opcode names, for the wirelog's every-packet line */
 
 #include <assert.h>
@@ -34,6 +35,9 @@ enum
 
 static FILE*
 core_wirelog_file(void);
+
+static char const*
+core_pkt_name(int pkt_name);
 
 /* world/world.h's hitmark defaults: the values the client falls back to when
  * the hitsplat config has no record (game/rs_hitsplat.c). */
@@ -80,6 +84,8 @@ ScriptrunCore_New(struct GameProtoRevTable const* rev)
         assert(core->player_decoder_state);
     }
     core->run_energy = 10000;
+    core->shadow = ScriptrunShadow_New(
+        getenv("TORIRS_SCRIPTRUN_SHADOW"), rev->number, &core->world->cycle, core_pkt_name);
     return core;
 }
 
@@ -88,6 +94,7 @@ ScriptrunCore_Free(struct ScriptrunCore* core)
 {
     if( !core )
         return;
+    ScriptrunShadow_Free(core->shadow);
     ScriptrunCore_FreeCollision(core);
     ToriMem_Free(ToriMem_ServerPlayers(), core->locs);
     UIIfEventTable_Free(&core->if_events);
@@ -2173,6 +2180,8 @@ core_packet(
         return;
     }
     core_wirelog(core, pkt_name, &packet);
+    if( core->shadow )
+        ScriptrunShadow_Before(core->shadow, core, &packet);
 
     switch( pkt_name )
     {
@@ -2507,6 +2516,8 @@ core_packet(
     default:
         break;
     }
+    if( core->shadow )
+        ScriptrunShadow_After(core->shadow, core, &packet);
     gameproto_free(&packet);
 }
 
