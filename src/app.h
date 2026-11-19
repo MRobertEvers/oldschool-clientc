@@ -490,6 +490,12 @@ struct App
      *   6. RESULTS BY QUEUE: RENDER is legal on the main queue only; SPENT on
      *      the background queue only; BLOCKED on the parallel and background
      *      queues only as a join (asyncio.h has the table).
+     *   7. BETWEEN FRAMES a native loop waits by what is queued
+     *      (ToriRS_Pacer_LoopWait, pacer.h): it never sleeps through work
+     *      that can run now, and never goes straight round again for work
+     *      that only waits on a read or a join -- it naps, pumping between
+     *      naps (App_PumpAsync) and giving the background queue the slack,
+     *      and goes back to its frames as soon as a pump moves anything.
      *
      * Exceptions, named where they live: the paced catch-up after a
      * background rebuild's commit gives the MAIN queue a deadline
@@ -3293,6 +3299,34 @@ App_DrainAudio(
 int
 App_AsyncPending(const struct App* app);
 
+/** ...and whether some of it can run at once, without a read landing or
+ *  another queue moving (the boot asked for its next frame). Work that is
+ *  pending but not runnable only waits: a native loop waits for it in naps
+ *  instead of spinning on it (ToriRS_Pacer_LoopWait, pacer.h). */
+int
+App_AsyncRunnable(const struct App* app);
+
+/** Whether the last pump ran any task at all: a loop napping through a
+ *  wait (main.c) goes back to its frames the moment one did. */
+int
+App_AsyncMoved(const struct App* app);
+
+/** Whether the main queue's head waits on a read the platform has not
+ *  answered: the frame loop naps through such a wait rather than sleeping
+ *  it out, and goes back to its frames the moment the answer lands. */
+int
+App_MainQueueWaitsOnRead(const struct App* app);
+
+/** TORIRS_QUEUE_CONTRACT_TRACE: one line of what the frame side of the
+ *  contract did since the last call -- withheld frames by named reason,
+ *  parallel pumps and how they ended, background floor pumps, the longest
+ *  background step -- then the tally restarts. Returns the length. */
+int
+App_QueueContractTraceLine(
+    struct App const* app,
+    char* out,
+    int out_size);
+
 /**
  * One pump: the main queue while the client boots, a pending client
  * script's settle, then the parallel queue to a standstill -- every task
@@ -3755,6 +3789,12 @@ char const*
 App_BootBarCaption(
     struct App* app,
     int* out_font_scene_id);
+
+/** The boot bar's position, 0..100, as the loading screen draws it: the
+ *  boot's own progress, or the percent the main queue's boot task last
+ *  asked for with its frame (TORIRS_RENDER_BOOT_BAR). */
+int
+App_BootBarPercent(struct App const* app);
 
 /** Write the current emit buffer to a BMP. Returns 0 on success. */
 int

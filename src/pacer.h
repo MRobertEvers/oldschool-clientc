@@ -204,4 +204,64 @@ void ToriRS_Pacer_SetCapFps(struct ToriRS_Pacer* pacer, int fps);
  */
 void ToriRS_Pacer_NoteFrame(struct ToriRS_Pacer* pacer, uint64_t now_us, uint64_t wait_us);
 
+/*
+ * What a native frame loop does between one App_RunOnce and the next
+ * (main.c frame_loop_step): the loop's half of the frame contract (app.h,
+ * beside the runners). Every lane that runs the shared loop -- macos, linux,
+ * win32, win64, android -- decides here; the browser has no wait of its own
+ * (its pacing is the event loop's).
+ *
+ *   NONE   straight into the next frame. A mode with no cap to keep
+ *          (--uncapped, a replay, a content test), or work queued that can
+ *          run now (the boot asked for its next frame): sleeping through it
+ *          would pace the work instead of the screen.
+ *   SLEEP  the ordinary wait: the background queue is given the slack before
+ *          the deadline (App_RunBackground), then the loop sleeps out what
+ *          is left.
+ *   NAP    work is queued that only WAITS -- a read the platform has not
+ *          answered, a join on one, another queue's state -- or the main
+ *          queue's head waits on a read (a packet). Nothing can move
+ *          it but the answer, so going straight on would spin the parallel
+ *          queue against reads still on the wire; sleeping out the whole wait
+ *          would leave a landed answer untaken until the next frame. The
+ *          background queue is given the slack, then the wait is slept in
+ *          naps of TORIRS_LOOP_NAP_MS with a pump between them (App_PumpAsync,
+ *          what the browser's torirs_web_io_pump does when a batch lands),
+ *          and the wait ends the moment a pump moves anything.
+ *
+ * Every frame, whichever it is, has already given the background queue its
+ * floor slice inside App_RunOnce, so a mode with no wait still feeds it.
+ */
+enum ToriRS_LoopWait
+{
+    TORIRS_LOOP_WAIT_NONE = 0,
+    TORIRS_LOOP_WAIT_SLEEP,
+    TORIRS_LOOP_WAIT_NAP,
+};
+
+/* One nap of a NAP wait, in ms: the most a landed answer waits to be taken
+ * up between frames. The pre-loop JS5 and launch waits in main.c nap the
+ * same 1 ms. */
+#define TORIRS_LOOP_NAP_MS 1u
+
+struct ToriRS_LoopWaitInput
+{
+    /** --uncapped: no artificial wait at all. */
+    int uncapped;
+    /** An RSProx or command-bus replay, which paces itself. */
+    int replay;
+    /** A content test (ContentTest_Enabled), which runs as fast as it can. */
+    int content_test;
+    /** The last pump left work queued (App_AsyncPending). */
+    int async_pending;
+    /** ...some of which can run at once (App_AsyncRunnable). */
+    int async_runnable;
+    /** The main queue's head waits on a read (App_MainQueueWaitsOnRead): a
+     *  packet the next frame's pump resumes the moment its answer lands. */
+    int main_waits_on_read;
+};
+
+enum ToriRS_LoopWait ToriRS_Pacer_LoopWait(struct ToriRS_LoopWaitInput const* in);
+char const* ToriRS_Pacer_LoopWaitName(enum ToriRS_LoopWait wait);
+
 #endif /* PACER_H */

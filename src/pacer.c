@@ -418,3 +418,27 @@ ToriRS_Pacer_LockedDeadline(struct ToriRS_Pacer* pacer, uint64_t now_ms)
     pacer->locked_due_ms = due;
     return due;
 }
+
+enum ToriRS_LoopWait
+ToriRS_Pacer_LoopWait(struct ToriRS_LoopWaitInput const* in)
+{
+    assert(in);
+    if( in->uncapped || in->replay || in->content_test )
+        return TORIRS_LOOP_WAIT_NONE;
+    if( in->async_runnable )
+        return TORIRS_LOOP_WAIT_NONE;
+    if( in->async_pending || in->main_waits_on_read )
+        return TORIRS_LOOP_WAIT_NAP;
+    return TORIRS_LOOP_WAIT_SLEEP;
+}
+
+char const*
+ToriRS_Pacer_LoopWaitName(enum ToriRS_LoopWait wait)
+{
+    if( wait == TORIRS_LOOP_WAIT_NONE )
+        return "none";
+    if( wait == TORIRS_LOOP_WAIT_SLEEP )
+        return "sleep";
+    assert(wait == TORIRS_LOOP_WAIT_NAP);
+    return "nap";
+}

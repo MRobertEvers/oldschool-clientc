@@ -91,6 +91,22 @@ App_QueueSiteLeave(char const* previous)
     g_app_queue_site = previous;
 }
 
+/*
+ * TORIRS_QUEUE_CONTRACT_TRACE: what one background job was given while it
+ * was pending, reported when it commits -- the check that a rebuild that
+ * holds the packet pump still lets frames through (frames, committed), and
+ * that the job gets both its floor (every App_RunOnce) and the loop's slack.
+ * Process-wide like the trace; a client has one world job at a time.
+ */
+static struct
+{
+    int frames;
+    int committed;
+    int floor_slices;
+    int slack_slices;
+    int in_floor;
+} g_job_tally;
+
 static void
 app_background_entry_check(
     struct App* app,
@@ -950,6 +966,22 @@ app_world_job_commit(struct App* app)
      * popped: latch it as the blocking flow would have, from here to its
      * SERVER_TICK_END. Counted from now, so the lost-fence backstop measures
      * this stretch, not the hold. */
+    if( TaskRunner_ContractTrace() )
+        fprintf(
+            stderr,
+            "queue_contract: trace world_job commit zone=%d,%d frames=%d committed=%d slices floor=%d slack=%d "
+            "(the job's own finish: promoted=%d)\n",
+            job->zone_x,
+            job->zone_z,
+            g_job_tally.frames,
+            g_job_tally.committed,
+            g_job_tally.floor_slices,
+            g_job_tally.slack_slices,
+            job->job.promoted);
+    g_job_tally.frames = 0;
+    g_job_tally.committed = 0;
+    g_job_tally.floor_slices = 0;
+    g_job_tally.slack_slices = 0;
     if( WorldRebuildJob_Committed(job, t_done) )
         RS_ServerTick_Resume(
             &app->server_tick, FrameClockSerial_LogicCycle(&app->frame_clock.serial));
@@ -1179,6 +1211,20 @@ app_world_job_drop_requested(struct App* app)
     app_net_lost(app, "TORIRS_WORLD_JOB_DROP_AT");
 }
 
+
+void
+app_world_job_contract_frame(
+    struct App* app,
+    int committed)
+{
+    assert(app);
+    if( !WorldRebuildJob_Pending(&app->world_job) )
+        return;
+    g_job_tally.frames++;
+    if( committed )
+        g_job_tally.committed++;
+}
+
 void
 App_RunBackground(
     struct App* app,
@@ -1214,6 +1260,10 @@ App_RunBackground(
     t1 = TaskRunner_Now(&app->background_runner);
     if( WorldRebuildJob_Pending(job) )
     {
+        if( g_job_tally.in_floor )
+            g_job_tally.floor_slices++;
+        else
+            g_job_tally.slack_slices++;
         WorldRebuildJob_NoteSlice(job, t1 - t0, building);
         app_world_job_drop_requested(app);
     }
@@ -1253,7 +1303,10 @@ app_run_background_floor(struct App* app)
     }
     if( !app->background_runner.queue->head )
         return;
+    app_contract_note_background_floor();
+    g_job_tally.in_floor = 1;
     App_RunBackground(app, PlatformWindow_TicksUs() + APP_BACKGROUND_FLOOR_US);
+    g_job_tally.in_floor = 0;
     app_background_step_report(app);
 }
 

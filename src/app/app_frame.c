@@ -111,6 +111,96 @@ App_AsyncPending(const struct App* app)
     return BootPumpStats_Pending(&app->pump_stats);
 }
 
+/* ...and could some of it run at once, without a read landing or another
+ * queue moving? The loop sleeps through work that only waits, never through
+ * this (ToriRS_Pacer_LoopWait). */
+int
+App_AsyncRunnable(const struct App* app)
+{
+    assert(app);
+    return BootPumpStats_Runnable(&app->pump_stats);
+}
+
+/* Did the last pump run any task at all? */
+int
+App_AsyncMoved(const struct App* app)
+{
+    assert(app);
+    return BootPumpStats_Moved(&app->pump_stats);
+}
+
+/* Is the main queue's head parked on a read the platform has not answered?
+ * Only the packet pump steps it once the client is in, so nothing between
+ * frames moves it -- but its answer lands on whichever queue next pumps the
+ * platform, and the loop's nap ends when it has (main.c). */
+int
+App_MainQueueWaitsOnRead(const struct App* app)
+{
+    struct ToriRS_Task const* head;
+
+    assert(app);
+    head = app->packet_runner.queue->head;
+    return head && head->io.pending;
+}
+
+/*
+ * TORIRS_QUEUE_CONTRACT_TRACE: what the frame side of the contract did since
+ * the last report, for the loop's summary line (App_QueueContractTraceLine).
+ * Process-wide like the trace itself; a client has one App.
+ */
+static struct
+{
+    int withheld[SETTLE_GATE_WITHHOLD_COUNT];
+    int pumps;
+    int pumps_between;
+    int pumps_waiting;
+    int pumps_blocked;
+    int floor_pumps;
+} g_contract_tally;
+
+void
+app_contract_note_background_floor(void)
+{
+    g_contract_tally.floor_pumps++;
+}
+
+int
+App_QueueContractTraceLine(
+    struct App const* app,
+    char* out,
+    int out_size)
+{
+    int len = 0;
+
+    assert(app);
+    assert(out);
+    assert(out_size > 0);
+    len += snprintf(out + len, (size_t)(out_size - len), "withheld");
+    for( int i = 0; i < SETTLE_GATE_WITHHOLD_COUNT && len < out_size; i++ )
+        if( g_contract_tally.withheld[i] )
+            len += snprintf(
+                out + len,
+                (size_t)(out_size - len),
+                " %s=%d",
+                SettleGate_WithholdName((enum SettleGateWithhold)i),
+                g_contract_tally.withheld[i]);
+    if( len < out_size )
+        len += snprintf(
+            out + len,
+            (size_t)(out_size - len),
+            "; parallel pumps=%d (between frames %d) ended waiting=%d blocked=%d; background floor pumps=%d "
+            "longest step %.2f ms (%s)",
+            g_contract_tally.pumps,
+            g_contract_tally.pumps_between,
+            g_contract_tally.pumps_waiting,
+            g_contract_tally.pumps_blocked,
+            g_contract_tally.floor_pumps,
+            (double)app->background_runner.longest_step_us / 1000.0,
+            app->background_runner.longest_step_name[0] ? app->background_runner.longest_step_name : "-");
+    memset(&g_contract_tally, 0, sizeof(g_contract_tally));
+    return len;
+}
+
 void
 App_NoteFrameTime(
     struct App* app,
@@ -589,6 +679,11 @@ app_pump_parallel(
     App_QueueSiteLeave(site);
     if( stat == TASK_RUNNER_PROGRESSED )
         app_pump_backstop("parallel", steps, booting);
+    g_contract_tally.pumps++;
+    if( stat == TASK_RUNNER_WAITING )
+        g_contract_tally.pumps_waiting++;
+    else if( stat == TASK_RUNNER_BLOCKED )
+        g_contract_tally.pumps_blocked++;
     if( booting )
         BootPumpStats_NoteBootSteps(&app->pump_stats, steps);
     *progressed = app->frame_runner.progressed;
@@ -609,7 +704,8 @@ app_pump_parallel(
 static enum TaskRunnerStat
 app_pump_boot_main(
     struct App* app,
-    int* steps)
+    int* steps,
+    int* moved_out)
 {
     enum TaskRunnerStat stat = TASK_RUNNER_IDLE;
     int passes = 0;
@@ -622,11 +718,14 @@ app_pump_boot_main(
             app_pump_backstop("main", passes, 1);
         BootPumpStats_NoteBootSteps(&app->pump_stats, 1);
         stat = TaskRunner_Step(&app->packet_runner);
+        if( app->packet_runner.progressed || stat == TASK_RUNNER_RENDER )
+            *moved_out = 1;
         if( stat == TASK_RUNNER_PROGRESSED )
             continue;
         if( stat != TASK_RUNNER_BLOCKED )
             break;
         (void)app_pump_parallel(app, 1, steps, &moved);
+        *moved_out |= moved;
         if( !moved )
             break;
     }
@@ -696,27 +795,54 @@ App_PumpAsync(
          * uses it to decide whether to sleep: work still queued means the
          * frame cap would be pacing the pipeline rather than the screen. */
         BootPumpStats_PassBegin(&app->pump_stats);
+        if( !from_frame )
+            g_contract_tally.pumps_between++;
         app->frame_runner.compute_check_off = booting;
         if( booting )
         {
-            enum TaskRunnerStat main_stat = app_pump_boot_main(app, &steps);
-            if( main_stat != TASK_RUNNER_IDLE )
+            int main_moved = 0;
+            enum TaskRunnerStat main_stat = app_pump_boot_main(app, &steps, &main_moved);
+            /* The boot asking for a frame is the one result that can run on
+             * at once: the next frame is its. A boot that waits on a read, or
+             * is joined on the parallel queue's loads, only waits. */
+            if( main_stat == TASK_RUNNER_RENDER )
+                BootPumpStats_SetRunnable(&app->pump_stats);
+            else if( main_stat != TASK_RUNNER_IDLE )
                 BootPumpStats_SetPending(&app->pump_stats);
+            if( main_moved )
+                BootPumpStats_SetMoved(&app->pump_stats);
         }
         settling_cs2 = !booting && (TaskRunner_HadWork(&app->frame_runner) || app->frame_runner.frame_settle_pending);
 
         if( settling_cs2 )
+        {
             settle = app_settle_cs2_frame(app);
+            if( app->frame_runner.progressed )
+                BootPumpStats_SetMoved(&app->pump_stats);
+        }
         /* The settle stops when the scripts are done; the ordinary tasks are
          * drained here, settle or not. */
         stat = app_pump_parallel(app, booting, &steps, &moved);
+        if( moved )
+            BootPumpStats_SetMoved(&app->pump_stats);
         /* A pump is not a frame; a boot frame counts. */
         BootPumpStats_NoteFrame(&app->pump_stats, from_frame, booting, settling_cs2, steps, APP_ASYNC_STEP_LIMIT);
 
-        /* Anything left to do means the next frame should start immediately
-         * instead of waiting out the cap. */
-        if( stat != TASK_RUNNER_IDLE || (settling_cs2 && settle != TASK_RUNNER_IDLE) )
+        /* Anything left means the loop must not pace it with the frame cap
+         * (main.c, ToriRS_Pacer_LoopWait). The parallel pump ends only with
+         * every task done or waiting (WAITING: a read on the wire; BLOCKED:
+         * joined), and a settle that did not finish ended the same way, so
+         * what they leave only waits: the loop waits for it in naps, never
+         * spinning on it. */
+        if( stat != TASK_RUNNER_IDLE )
             BootPumpStats_SetPending(&app->pump_stats);
+        if( settling_cs2 && settle != TASK_RUNNER_IDLE )
+        {
+            if( settle == TASK_RUNNER_WAITING || settle == TASK_RUNNER_BLOCKED )
+                BootPumpStats_SetPending(&app->pump_stats);
+            else
+                BootPumpStats_SetRunnable(&app->pump_stats);
+        }
         if( settling_cs2 && settle != TASK_RUNNER_IDLE )
             TaskRunner_SetHadWork(&app->frame_runner, 1);
         /* Tree-affecting async work (CS2 hooks/transmits) finished: refresh. */
@@ -908,6 +1034,7 @@ app_frame_withheld(
     char line[192];
 
     assert(app);
+    g_contract_tally.withheld[why]++;
     if( TaskRunner_ContractTrace() >= 2 )
         fprintf(stderr, "queue_contract: trace frame %s\n", SettleGate_WithholdName(why));
     if( why == SETTLE_GATE_WITHHOLD_REPLAY_SEEK )
@@ -983,6 +1110,7 @@ App_RunOnce(
     FrameClockSerial_NoteRunOnce(&app->frame_clock.serial);
     app_rebuild_mark(app, "start");
     result = app_run_once_body(app, now_ms, input);
+    app_world_job_contract_frame(app, result);
     app_rebuild_mark(app, "body_rest");
     /* Outside the body, so that none of its early returns (a latched frame,
      * a boot) can starve the background queue: every platform loop gives it

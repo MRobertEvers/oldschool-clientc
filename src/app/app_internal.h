@@ -1022,6 +1022,16 @@ App_QueueSiteLeave(char const* previous);
  * platform loop moves the queue with no change of its own. */
 void
 app_run_background_floor(struct App* app);
+/* TORIRS_QUEUE_CONTRACT_TRACE's tally of floor pumps that had work
+ * (app_frame.c, App_QueueContractTraceLine). */
+void
+app_contract_note_background_floor(void);
+/* TORIRS_QUEUE_CONTRACT_TRACE: one App_RunOnce while a world job is
+ * pending, and whether it committed a frame (app_world_job.c). */
+void
+app_world_job_contract_frame(
+    struct App* app,
+    int committed);
 /* The packet pump's return, in the frame a background rebuild committed in:
  * how long the packets held behind the REBUILD took (rebuild_frames.held_ms). */
 void

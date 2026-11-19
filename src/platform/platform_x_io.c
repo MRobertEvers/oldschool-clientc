@@ -113,6 +113,9 @@ enum RemoteSource
      * group is in the disk the JS5 client filled, which is all a prefetch
      * asked for. */
     REMOTE_SOURCE_JS5_PREFETCH = 3,
+    /* A local disk read held back TORIRS_IO_DEFER_MS (io_defer_ms): answered
+     * by the first Pump at or after `due_ms`. */
+    REMOTE_SOURCE_DEFERRED = 4,
 };
 
 struct RemotePendingItem
@@ -124,6 +127,8 @@ struct RemotePendingItem
     struct ToriRS_IOItem* item;
     int archive;
     int group;
+    /* REMOTE_SOURCE_DEFERRED only: when it may be answered. */
+    uint64_t due_ms;
 };
 
 struct PlatformX_IO
@@ -1681,6 +1686,70 @@ remote_pending_alloc(struct PlatformX_IO* px)
 }
 
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+/*
+ * TORIRS_IO_DEFER_MS=n: a desktop disk that answers like a remote cache. Every
+ * cache read the disk would answer inside Process is parked instead and
+ * answered by the first Pump at least n ms later -- the shape of a JS5 or
+ * browser read, on a lane whose reads are otherwise never pending. A
+ * diagnostic for the frame contract's waits (app.h, beside the runners): what
+ * the queues and the frame loop do while every task waits on a read
+ * (ToriRS_Pacer_LoopWait's NAP) can be run on any native lane with a local
+ * cache. 0 or unset: off.
+ */
+static uint64_t
+io_defer_ms(void)
+{
+    static long defer = -1;
+    if( defer < 0 )
+    {
+        char const* env = getenv("TORIRS_IO_DEFER_MS");
+        defer = env && env[0] ? strtol(env, NULL, 0) : 0;
+        if( defer < 0 )
+            defer = 0;
+    }
+    return (uint64_t)defer;
+}
+
+static void
+io_defer_park(
+    struct PlatformX_IO* px,
+    struct ToriRS_IOItem* item)
+{
+    struct RemotePendingItem* pending = remote_pending_alloc(px);
+
+    pending->in_use = 1;
+    pending->source = REMOTE_SOURCE_DEFERRED;
+    pending->item = item;
+    pending->due_ms = PlatformWindow_Ticks64() + io_defer_ms();
+    item->pending++;
+}
+
+/* Answer every deferred read whose time has come, from the disk. */
+static void
+io_defer_service(struct PlatformX_IO* px)
+{
+    uint64_t now_ms;
+
+    if( io_defer_ms() == 0 )
+        return;
+    now_ms = PlatformWindow_Ticks64();
+    for( int i = 0; i < px->pending_count; i++ )
+    {
+        struct RemotePendingItem* pending = &px->pending[i];
+        struct ToriRS_IOItem* item;
+
+        if( !pending->in_use || pending->source != REMOTE_SOURCE_DEFERRED || pending->due_ms > now_ms )
+            continue;
+        item = pending->item;
+        (void)PlatformX_IO_LoadItem(px, item);
+        assert(item->pending > 0);
+        item->pending--;
+        memset(pending, 0, sizeof(*pending));
+    }
+}
+#endif
+
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
 static int
 js5_queue_cache_item(
     struct PlatformX_IO* px,
@@ -2132,6 +2201,7 @@ PlatformX_IO_Pump(struct PlatformX_IO* px)
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
     if( px->js5 )
         PlatformXIO_Js5Pump(px, PlatformWindow_Ticks64());
+    io_defer_service(px);
 #endif
 #if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
     od_service_pending(px);
@@ -2215,6 +2285,14 @@ PlatformX_IO_Process(
 #endif
             if( queued == 0 )
                 processed++;
+        }
+        else
+#endif
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+            if( item->kind == TORIRS_IOK_CACHE && io_defer_ms() > 0 )
+        {
+            io_defer_park(px, item);
+            processed++;
         }
         else
 #endif

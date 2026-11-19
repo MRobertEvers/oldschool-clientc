@@ -258,6 +258,17 @@ app_boot_bar_font_scene_id(struct App* app)
     return UITreeSceneBridge_EnsureDebugFont1x(&app->bridge, TORIRS_CHROME_FONT_MENU);
 }
 
+int
+App_BootBarPercent(struct App const* app)
+{
+    assert(app);
+    /* A request that states no position (-1) leaves the bar where the boot
+     * state has it, as app_render.c draws it. */
+    if( app->packet_runner.render.intent == TORIRS_RENDER_BOOT_BAR && app->packet_runner.render.percent >= 0 )
+        return app->packet_runner.render.percent;
+    return RS_BootState_Progress(&app->boot);
+}
+
 char const*
 App_BootBarCaption(
     struct App* app,

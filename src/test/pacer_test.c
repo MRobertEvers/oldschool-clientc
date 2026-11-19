@@ -243,10 +243,48 @@ test_gameshell_mindel_floor(void)
         "with no floor a client that is behind does not wait at all");
 }
 
+static void
+test_loop_wait(void)
+{
+    struct ToriRS_LoopWaitInput in;
+
+    memset(&in, 0, sizeof(in));
+    TEST_ASSERT(ToriRS_Pacer_LoopWait(&in) == TORIRS_LOOP_WAIT_SLEEP, "nothing queued: the ordinary wait");
+
+    in.async_pending = 1;
+    TEST_ASSERT(
+        ToriRS_Pacer_LoopWait(&in) == TORIRS_LOOP_WAIT_NAP,
+        "work that only waits is waited for in naps, never spun on");
+
+    in.async_runnable = 1;
+    TEST_ASSERT(
+        ToriRS_Pacer_LoopWait(&in) == TORIRS_LOOP_WAIT_NONE, "work that can run now is not slept through");
+
+    memset(&in, 0, sizeof(in));
+    in.main_waits_on_read = 1;
+    TEST_ASSERT(
+        ToriRS_Pacer_LoopWait(&in) == TORIRS_LOOP_WAIT_NAP,
+        "a packet waiting on a read is napped through, so its answer is taken up before the deadline");
+
+    memset(&in, 0, sizeof(in));
+    in.uncapped = 1;
+    TEST_ASSERT(ToriRS_Pacer_LoopWait(&in) == TORIRS_LOOP_WAIT_NONE, "--uncapped never waits");
+    in.uncapped = 0;
+    in.replay = 1;
+    in.async_pending = 1;
+    TEST_ASSERT(ToriRS_Pacer_LoopWait(&in) == TORIRS_LOOP_WAIT_NONE, "a replay never waits, queued work or not");
+    in.replay = 0;
+    in.content_test = 1;
+    TEST_ASSERT(ToriRS_Pacer_LoopWait(&in) == TORIRS_LOOP_WAIT_NONE, "a content test never waits");
+
+    TEST_ASSERT(strcmp(ToriRS_Pacer_LoopWaitName(TORIRS_LOOP_WAIT_NAP), "nap") == 0, "names");
+}
+
 int
 main(void)
 {
     test_names();
+    test_loop_wait();
     test_deadline_pacer();
     test_locked_deadline();
     test_gameshell_on_budget();
