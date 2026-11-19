@@ -2861,10 +2861,12 @@ App_EntitySpotanimPrefetch(
     struct App* app,
     int spotanim_id);
 
-/* Spawn a free-standing spotanim (graphical effect) at a tile — reference
- * MapSpotAnim, driven by the MAP_ANIM zone packet. Enqueues an async load of
- * the spotanim config + its model/seq before building the world entity. */
-void
+/* Spawn a free-standing spotanim (graphical effect) at a tile of the active
+ * view — reference MapSpotAnim, driven by the MAP_ANIM zone packet. The world
+ * entity exists at once (its delay and lifetime count from now); its body
+ * (config, model, seq) lands later through a parallel task
+ * (app/app_tasks_effects.c). Returns its pool index. */
+int
 App_WorldSpotanimSpawn(
     struct App* app,
     int scene_x,
@@ -2948,15 +2950,17 @@ App_CinemaCameraRotateTo(
     int easing);
 
 /* Spawn a projectile (reference ClientProj) from a spotanim config, driven by
- * the MAP_PROJANIM zone packet. Enqueues an async load of the spotanim config +
- * its model/seq before building the world entity. Coordinates are scene tiles;
+ * the MAP_PROJANIM zone packet, in the active view's world. The projectile
+ * exists and flies at once; its body (config, model, seq) lands later through
+ * a parallel task (app/app_tasks_effects.c). Returns its pool index.
+ * Coordinates are scene tiles;
  * `src_height`/`dst_height` are the raw wire bytes (×4 applied internally);
  * `start_delay`/`end_delay`/`peak`/`arc` are the wire trajectory params
  * (Client-TS t1/t2/angle/startpos). `target` is the wire target-entity id
  * (>0 npc, <0 player) the arc homes on; `source` the actor it launches from,
  * same encoding, 0 = none (only rev-239's MapProjAnimV2 names one). The two
  * levels are the source's (painted on) and the destination's (landed on). */
-void
+int
 App_WorldProjectileSpawn(
     struct App* app,
     int src_x,
@@ -3007,10 +3011,12 @@ App_WorldObjStackSetEnabledOps(
     int enabled_ops);
 
 /* Spawn a scripted projectile (deob class56). Like App_WorldProjectileSpawn it
- * loads the spotanim first; it also loads the three curve clientscripts and
- * every script they call, because the world runs them synchronously each
- * cycle. */
-void
+ * exists at once and its body lands later; the body also loads the three
+ * curve clientscripts and every script they call, because the world runs them
+ * synchronously each cycle (it flies once they are here). The slot must be
+ * free (World_ProjectileFindScriptedSlot): a second ADD for a slot in use is
+ * the caller's to drop. Returns its pool index. */
+int
 App_WorldScriptedProjSpawn(
     struct App* app,
     struct WorldEntity_ScriptedProjSpec const* sp);

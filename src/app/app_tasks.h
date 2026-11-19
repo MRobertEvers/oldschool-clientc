@@ -20,6 +20,35 @@
 
 /* ---- app_tasks_effects.c: projectiles and spot animations --------------- */
 
+/* The packet half (App_WorldSpotanimSpawn, App_WorldProjectileSpawn and
+ * App_WorldScriptedProjSpawn) is declared in app.h: the World row exists at
+ * once, and its body is one parallel task keyed on the row's pool index and
+ * spawn serial. */
+
+/** The pending kind of a projectile's body (key RS_PendingKey_Projectile(pool
+ *  index, WorldEntity_Projectile.serial)) and of a map graphic's (key
+ *  RS_PendingKey_Id(pool index, WorldEntity_Spotanim.serial)). For tests and
+ *  later packets that ask whether a body is still pending. */
+int
+App_EffectsProjectileBodyKind(void);
+
+int
+App_EffectsMapAnimBodyKind(void);
+
+/** Hotkey 0's shot: `model_id` animated by `seq_id`, scene tiles of the
+ *  active view. Returns its pool index. */
+int
+App_WorldModelProjectileSpawn(
+    struct App* app,
+    int model_id,
+    int seq_id,
+    int src_tile_x,
+    int src_tile_z,
+    int src_level,
+    int tile_x,
+    int tile_z,
+    int target);
+
 /* ---- app_tasks_locs.c: loc changes, loc animations, merges, zone resets,
  *      zone packets for unbuilt views ----------------------------------- */
 

@@ -43,7 +43,7 @@ enum WorldEventKind
      * splash timed to a projectile's arrival spends its whole delay invisible,
      * and an animation stepped through that delay is already finished — or
      * cleared — by the time anyone can see it. See App_WorldDrainEntityRemoved
-     * and app_world_spawn_spotanim_now for the two halves. */
+     * and the map anim body (app/app_tasks_effects.c) for the two halves. */
     WorldEventKind_SpotanimStarted = 1,
 };
 
@@ -412,6 +412,10 @@ struct World
      * survives only as a cheap "the scene changed" edge for debug one-shots and
      * staleness checks that would otherwise re-run every frame. */
     unsigned load_seq;
+
+    /** The last projectile or spotanim spawn serial handed out (their
+     *  `serial`); 0 before the first. Never 0 once handed out. */
+    uint32_t effect_serial;
 
     /** Bumped whenever a runtime loc change edits the minimap wall bits (door
      * opened/closed): app_world_map_poll rebakes the baked map sprite when this
@@ -1137,7 +1141,14 @@ World_NpcDespawn(
     struct World* world,
     int idx);
 
-/** `target` is the wire target-entity id (see WorldEntity_Projectile.target):
+/** A spotanim spawned before its sequence is known (its body is still
+ *  loading): it never expires on its own; the body sets the real lifetime,
+ *  or the body's task removes it. */
+#define WORLD_SPOTANIM_LIFETIME_PENDING 0x7fffffff
+
+/** `element_id` is the scene element, or -1 for one whose body has not landed
+ * (it flies and is found, and draws nothing until the element is set).
+ * `target` is the wire target-entity id (see WorldEntity_Projectile.target):
  * non-zero makes the arc home on that entity's live position every cycle,
  * WORLD_PROJECTILE_TARGET_NONE pins it to dst_x/dst_z. `source` is the wire
  * source-actor id in the same encoding (NONE: launch from src_x/src_z/h1).
@@ -1168,6 +1179,16 @@ World_ProjectileDespawn(
     struct World* world,
     int idx);
 
+/** The projectile at pool index `idx` if it is the one spawned with `serial`,
+ *  NULL when it has ended (or its slot holds another). */
+struct WorldEntity_Projectile*
+World_ProjectileFind(
+    struct World* world,
+    int idx,
+    uint32_t serial);
+
+/** `element_id` -1: its body has not landed (as World_ProjectileSpawn's).
+ *  `lifetime` WORLD_SPOTANIM_LIFETIME_PENDING: not known yet. */
 int
 World_SpotanimSpawn(
     struct World* world,
@@ -1184,6 +1205,13 @@ void
 World_SpotanimDespawn(
     struct World* world,
     int idx);
+
+/** As World_ProjectileFind, for a spotanim. */
+struct WorldEntity_Spotanim*
+World_SpotanimFind(
+    struct World* world,
+    int idx,
+    uint32_t serial);
 
 /* ---- plugin-owned world objects (entity_pluginobj.h) ---- */
 

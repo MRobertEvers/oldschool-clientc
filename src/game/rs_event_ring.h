@@ -57,6 +57,15 @@ enum RS_EventKind
     RS_EVENT_INV_PACKET,
     RS_EVENT_NPC_SEQ,
     RS_EVENT_NPC_FACE,
+    /* THE EFFECT LOG's kinds: what the server said of a projectile or a map
+     * graphic, kept in an effect log (a ring of its own, beside the await
+     * ring: game/rs_effect_rules.h) and read back as the effect lists, never
+     * stamped into a ring a test awaits on. A projectile is two consecutive
+     * entries, PROJECTILE then PROJECTILE_FLIGHT; see rs_effect_rules.h for
+     * the payloads. */
+    RS_EVENT_PROJECTILE,
+    RS_EVENT_PROJECTILE_FLIGHT,
+    RS_EVENT_MAP_ANIM,
     RS_EVENT_KIND_COUNT
 };
 

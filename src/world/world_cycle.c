@@ -1795,9 +1795,13 @@ World_ProjectileScriptedStep(
         }
         progress = (int)floorf(curve_frac * 65536.0f + 0.5f);
     }
-    h = World_ProjectileCurve(world, proj->curve[0], progress);
-    a = World_ProjectileCurve(world, proj->curve[1], progress);
-    t = World_ProjectileCurve(world, proj->curve[2], progress);
+    /* Before its curve scripts are here it stays at its start: it draws
+     * nothing until then (its body lands with them), and the curves are pure
+     * functions of the progress, so the first step after they land is where
+     * the deob's would be. */
+    h = proj->curves_ready ? World_ProjectileCurve(world, proj->curve[0], progress) : 0.0f;
+    a = proj->curves_ready ? World_ProjectileCurve(world, proj->curve[1], progress) : 0.0f;
+    t = proj->curves_ready ? World_ProjectileCurve(world, proj->curve[2], progress) : 0.0f;
 
     len = sqrtf(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
     prev[0] = (float)proj->x;

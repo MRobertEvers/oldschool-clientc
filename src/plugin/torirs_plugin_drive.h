@@ -144,6 +144,8 @@ enum
  * means "everything the ring still holds"), cycle the world cycle at the stamp
  * for deadline arithmetic, a..d per the table above. */
 #define APP_DRIVE_RING_CAPACITY 512
+/* The effect log's capacity (App_DriveRing.effects). */
+#define APP_DRIVE_EFFECT_LOG_CAPACITY RS_EFFECT_LOG_CAP
 
 /* A projectile as its MAP_PROJANIM packet said it, stamped with the world
  * cycle the packet was applied on. The world's projectile entity is spawned
@@ -262,6 +264,15 @@ struct App_DriveRing
      *  because a reader never came back; a climbing number means the pump is
      *  not running. */
     struct RS_EventRing ring;
+    /** THE EFFECT LOG (game/rs_effect_rules.h): the projectiles and map
+     *  graphics the packets announced, written by the packet task
+     *  (App_DriveProjectileNote, App_DriveMapAnimNote) and read back as the
+     *  drive's effect rows (App_DriveEffectProjectiles / _MapAnims). A ring
+     *  of its own, not the await ring above: a raid puts hundreds of graphics
+     *  in a tick, which would run an await's cursor off the end of 512, and a
+     *  test that awaits on a match alone would be handed every one. */
+    struct RS_Event effect_entries[APP_DRIVE_EFFECT_LOG_CAPACITY];
+    struct RS_EventRing effects;
 };
 
 /*
@@ -310,6 +321,12 @@ void App_DriveProjectileNote(
 /* Record a MAP_ANIM as applied (rs_gameproto_exec.c), absolute tiles. */
 void App_DriveMapAnimNote(struct App* app, int x, int z, int level, int spotanim);
 int App_DriveMapAnimElapsed(struct App_DriveMapAnim const* a);
+/* The effect log's projectiles (map graphics), decoded into `out`, oldest
+ * first: every one it still holds, alive or not -- the reader judges by its
+ * own clock. At most `cap`; returns how many. */
+int App_DriveEffectProjectiles(
+    struct App const* app, struct App_DriveProjectile* out, int cap);
+int App_DriveEffectMapAnims(struct App const* app, struct App_DriveMapAnim* out, int cap);
 /* Record a LOC_ANIM as applied (rs_gameproto_exec.c), scene tiles. */
 void App_DriveLocAnimNote(struct App* app, int scene_x, int scene_z, int level, int shape, int seq);
 /* Record a LOC_ADD_CHANGE (or a LOC_DEL, loc_id -1) as applied

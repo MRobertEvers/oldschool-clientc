@@ -285,6 +285,9 @@ src/world/test/wev_rebuild_test.c
 src/app/test/app_drive_event_ring_test.c
 src/app/test/app_logout_wait_test.c
 src/app/test/app_mouseover_entry_test.c
+# Added 2026-11-19 (packet model, effects): a test of the effects family's
+# parallel tasks, driven through the packet executor on a calloc'd App.
+src/app/test/app_tasks_effects_test.c
 src/engine/uitree_builder/task_slot_mount.c
 src/game/task_entity_assets.c
 src/plugin/torirs_plugin_drive.c

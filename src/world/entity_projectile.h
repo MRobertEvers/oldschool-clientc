@@ -4,6 +4,7 @@
 #include "entity_facets.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 
 /** No target entity — the projectile flies to its fixed destination tile
  * (reference ClientProj.target == 0). */
@@ -11,7 +12,14 @@
 
 struct WorldEntity_Projectile
 {
+    /** The scene element it is drawn with, -1 until its body has landed: the
+     *  projectile exists, flies and is found by a later packet from its
+     *  packet on, and draws once its model is here (app/app_tasks_effects.c). */
     int element_id;
+    /** Its spawn serial (World.effect_serial at spawn, never 0): with the pool
+     *  index, the key a pending body names it by, so a body for a projectile
+     *  whose slot was reused finds a different serial and lands nowhere. */
+    uint32_t serial;
     /** The source's plane: the one the projectile is painted on (rev-239
      *  method4319 adds it on field374, the source level). */
     int level;
@@ -89,6 +97,11 @@ struct WorldEntity_Projectile
     bool scripted;
     /** H (sideways), A (up) and T (along) curve clientscript ids. */
     int curve[3];
+    /** The curve scripts and every script they call are resident: until then
+     *  the flight's clock runs and its start is read, but the curves are not
+     *  run and the position stays at the start (it draws nothing yet: its
+     *  body lands together with this). */
+    bool curves_ready;
     /** Fine offsets added to each end after its actor or tile is found. */
     int src_offset_x;
     int src_offset_z;

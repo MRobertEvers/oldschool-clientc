@@ -80,6 +80,141 @@ App_DriveEvent(
     RS_EventSink_Stamp(&sink, (int)kind, a, b, c, d);
 }
 
+#ifndef NDEBUG
+/* Is effect-log entry `ev` (with `next`, the entry after it, or NULL) still
+ * alive at world cycle `now`? By the lifetimes of game/rs_effect_rules.h, on
+ * the world cycle (the reader's own clock is the server tick; two ticks of
+ * slack cover the drift between them). */
+static int
+app_drive_effect_alive(
+    struct RS_Event const* ev,
+    struct RS_Event const* next,
+    int now)
+{
+    int const slack = 2 * APP_SERVER_TICK_LOGIC_CYCLES;
+
+    if( ev->kind == RS_EVENT_MAP_ANIM )
+        return now - ev->cycle <= RS_EFFECT_MAP_ANIM_LIFE_CYCLES + slack;
+    if( ev->kind == RS_EVENT_PROJECTILE )
+        return next && next->kind == RS_EVENT_PROJECTILE_FLIGHT && app_drive_effect_alive(next, NULL, now);
+    assert(ev->kind == RS_EVENT_PROJECTILE_FLIGHT);
+    return now - ev->cycle <= (int)((uint32_t)ev->c >> 16) + slack;
+}
+#endif
+
+/* Append to the effect log. The log is sized past every list's cap together,
+ * so the entry a full log overwrites is dead: one still alive means a list is
+ * over its cap, a contract violation (rs_effect_rules.h). */
+static void
+app_drive_effect_push(
+    struct App* app,
+    int kind,
+    int32_t a,
+    int32_t b,
+    int32_t c,
+    int32_t d)
+{
+    struct App_DriveRing* ring;
+    struct RS_Event ev;
+    int now;
+
+    assert(app);
+    ring = &app->drive_events;
+    now = app->world ? (int)app->world->cycle : 0;
+#ifndef NDEBUG
+    if( ring->effects.count == APP_DRIVE_EFFECT_LOG_CAPACITY )
+    {
+        uint32_t const oldest = ring->effects.oldest_serial;
+        struct RS_Event const* old =
+            RS_EventRing_At(&ring->effects, ring->effect_entries, APP_DRIVE_EFFECT_LOG_CAPACITY, oldest);
+        struct RS_Event const* after =
+            RS_EventRing_At(&ring->effects, ring->effect_entries, APP_DRIVE_EFFECT_LOG_CAPACITY, oldest + 1);
+        assert(!app_drive_effect_alive(old, after, now));
+    }
+#endif
+    memset(&ev, 0, sizeof(ev));
+    ev.kind = kind;
+    ev.cycle = now;
+    ev.a = a;
+    ev.b = b;
+    ev.c = c;
+    ev.d = d;
+    (void)RS_EventRing_Push(
+        &ring->effects, ring->effect_entries, APP_DRIVE_EFFECT_LOG_CAPACITY, RS_EVENT_RING_OVERWRITE, &ev);
+}
+
+int
+App_DriveEffectProjectiles(
+    struct App const* app,
+    struct App_DriveProjectile* out,
+    int cap)
+{
+    struct App_DriveRing const* ring;
+    int n = 0;
+
+    assert(app);
+    assert(out);
+    assert(cap >= 0);
+    ring = &app->drive_events;
+    if( ring->effects.count == 0 )
+        return 0;
+    for( uint32_t s = ring->effects.oldest_serial; s < ring->effects.newest_serial && n < cap; s++ )
+    {
+        struct RS_Event const* p =
+            RS_EventRing_At(&ring->effects, ring->effect_entries, APP_DRIVE_EFFECT_LOG_CAPACITY, s);
+        struct RS_Event const* f;
+
+        if( p->kind != RS_EVENT_PROJECTILE )
+            continue;
+        f = RS_EventRing_At(&ring->effects, ring->effect_entries, APP_DRIVE_EFFECT_LOG_CAPACITY, s + 1);
+        assert(f->kind == RS_EVENT_PROJECTILE_FLIGHT);
+        out[n].src_x = p->a;
+        out[n].src_z = p->b;
+        out[n].dst_x = p->c;
+        out[n].dst_z = p->d;
+        out[n].spotanim = f->a;
+        out[n].target = f->b;
+        out[n].start_delay = (int32_t)((uint32_t)f->c & 0xffffu);
+        out[n].end_delay = (int32_t)((uint32_t)f->c >> 16);
+        out[n].level = f->d;
+        out[n].cycle = p->cycle;
+        n++;
+    }
+    return n;
+}
+
+int
+App_DriveEffectMapAnims(
+    struct App const* app,
+    struct App_DriveMapAnim* out,
+    int cap)
+{
+    struct App_DriveRing const* ring;
+    int n = 0;
+
+    assert(app);
+    assert(out);
+    assert(cap >= 0);
+    ring = &app->drive_events;
+    if( ring->effects.count == 0 )
+        return 0;
+    for( uint32_t s = ring->effects.oldest_serial; s <= ring->effects.newest_serial && n < cap; s++ )
+    {
+        struct RS_Event const* e =
+            RS_EventRing_At(&ring->effects, ring->effect_entries, APP_DRIVE_EFFECT_LOG_CAPACITY, s);
+
+        if( e->kind != RS_EVENT_MAP_ANIM )
+            continue;
+        out[n].x = e->a;
+        out[n].z = e->b;
+        out[n].level = e->c;
+        out[n].spotanim = e->d;
+        out[n].cycle = e->cycle;
+        n++;
+    }
+    return n;
+}
+
 void
 App_DriveProjectileNote(
     struct App* app, int src_x, int src_z, int dst_x, int dst_z, int level, int spotanim,
@@ -112,6 +247,18 @@ App_DriveProjectileNote(
     p->start_delay = start_delay;
     p->end_delay = end_delay;
     p->cycle = now;
+
+    /* The effect log: the pair, back to back. */
+    assert(start_delay >= 0 && start_delay <= 0xffff);
+    assert(end_delay >= 0 && end_delay <= 0xffff);
+    app_drive_effect_push(app, RS_EVENT_PROJECTILE, src_x, src_z, dst_x, dst_z);
+    app_drive_effect_push(
+        app,
+        RS_EVENT_PROJECTILE_FLIGHT,
+        spotanim,
+        target,
+        (int32_t)((uint32_t)start_delay | ((uint32_t)end_delay << 16)),
+        level);
 }
 
 #if defined(TORIRS_EMBED_SERVER) && TORIRS_EMBED_SERVER
@@ -156,23 +303,20 @@ App_DriveMapAnimNote(struct App* app, int x, int z, int level, int spotanim)
     a->level = level;
     a->spotanim = spotanim;
     a->cycle = now;
+    app_drive_effect_push(app, RS_EVENT_MAP_ANIM, x, z, level, spotanim);
 }
 #else /* !TORIRS_EMBED_SERVER */
 /*
  * The map-anim ring has one reader, the quest driver (DriveUi_*, embedded
  * server only), and its age is counted in server ticks the driver tracks
  * (PluginDrive_ServerTick*). A client without the embedded server has
- * neither: the packet is noted nowhere.
+ * neither: the packet goes to the effect log alone.
  */
 void
 App_DriveMapAnimNote(struct App* app, int x, int z, int level, int spotanim)
 {
     assert(app);
-    (void)app; /* the assert is all this build reads of it (NDEBUG drops it) */
-    (void)x;
-    (void)z;
-    (void)level;
-    (void)spotanim;
+    app_drive_effect_push(app, RS_EVENT_MAP_ANIM, x, z, level, spotanim);
 }
 #endif /* TORIRS_EMBED_SERVER */
 

@@ -1,6 +1,7 @@
 /*
  * Editing the world at runtime, the game's seams: the npc and ground-item
- * spawn queues, loc changes and merges, spotanims and projectiles.
+ * spawn queues, loc changes and merges. (Spotanims and projectiles are
+ * app/app_tasks_effects.c.)
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in
@@ -8,45 +9,6 @@
  */
 
 #include "app/app_internal.h"
-
-/*
- * Queue a spawn that is an EFFECT -- a spotanim, a projectile -- on the asset
- * runner, not the exec FIFO.
- *
- * Nothing downstream in the packet stream depends on an effect having been
- * placed: no later packet addresses it, no tick fence waits for it. What the
- * FIFO gave it was only a place in line, and the price of that place was the
- * whole line: the task parks on the effect's asset chain -- spotanim config,
- * then model and sequence, then the sequence's frames -- one round trip a
- * link, and every packet behind it (other players, the npc that fired it,
- * SERVER_TICK_END) waited it out while the frame latch held the last frame.
- * Measured at the Inferno's door through the public proxy: 200-400 ms of
- * frozen world for every graphic the browser's cache had not seen, once per
- * new attack, per new npc, per seal breaking. The reference client never
- * blocks here either -- its spot anims are created at once and drawn when
- * their assets exist.
- *
- * Kinds that ARE ordered against later packets stay ordered: loc changes
- * apply in packet order on the loc lane (below), a ground item before the
- * OBJ_DEL that may follow. Off the FIFO the task captures the scene it was
- * aimed at (Task_AppSpawn.world_load_seq) so a rebuild landing first makes
- * it a no-op instead of a graphic in the wrong scene.
- */
-void
-app_spawn_effect_queue(
-    struct App* app,
-    struct Task_AppSpawn* task)
-{
-    struct World const* world = NULL;
-
-    assert(app);
-    assert(task);
-    if( WorldviewRegistry_IsLive(&app->worldviews, task->view) )
-        world = WorldviewRegistry_Get(&app->worldviews, task->view)->world;
-    task->world_load_seq = world ? world->load_seq : 0;
-    task->enqueue_cycle = world ? world->cycle : 0;
-    ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
-}
 
 /*
  * Queue a loc change on the LOC LANE: the asset runner, with a ticket that
@@ -115,89 +77,6 @@ app_world_spawn_obj(
     task->obj_id = ToriRS_EnvNamedArgOrEnv(
         args, "id", "TORIRS_SPAWN_OBJ", 1265 /* bronze pickaxe: named, with ground ops */);
     TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &task->task);
-}
-
-/* Free-standing spotanim spawn (reference MapSpotAnim / MAP_ANIM zone packet):
- * enqueue an async spawn that awaits the spotanimtype + its model + seq, then
- * builds the world entity. Public so the MAP_ANIM executor can drive it. */
-void
-App_WorldSpotanimSpawn(
-    struct App* app,
-    int scene_x,
-    int scene_z,
-    int level,
-    int spotanim_id,
-    int height,
-    int delay)
-{
-    struct Task_AppSpawn* task;
-    assert(app);
-    task = app_spawn_task_new(app, APP_SPAWN_SPOTANIM, scene_x, scene_z, level);
-    task->spotanim_id = spotanim_id;
-    task->spotanim_height = height;
-    task->spotanim_delay = delay;
-    app_spawn_effect_queue(app, task);
-}
-
-/* Server-driven projectile (reference ClientProj / MAP_PROJANIM). Public so the
- * zone-packet executor can drive it. Enqueues the spotanim + model + seq load,
- * then spawns the world projectile with the wire trajectory params. */
-void
-App_WorldProjectileSpawn(
-    struct App* app,
-    int src_x,
-    int src_z,
-    int src_level,
-    int dst_x,
-    int dst_z,
-    int dst_level,
-    int spotanim_id,
-    int src_height,
-    int dst_height,
-    int start_delay,
-    int end_delay,
-    int peak,
-    int arc,
-    int target,
-    int source)
-{
-    struct Task_AppSpawn* task;
-    assert(app);
-    /* Destination tile and level go through the task's tile_x, tile_z and level
-     * (seeded by app_spawn_task_new); source tile and level go through
-     * src_tile_x, src_tile_z and src_level. */
-    task = app_spawn_task_new(app, APP_SPAWN_PROJECTILE_SPOT, dst_x, dst_z, dst_level);
-    task->spotanim_id = spotanim_id;
-    task->src_tile_x = src_x;
-    task->src_tile_z = src_z;
-    task->src_level = src_level;
-    task->proj_src_height = src_height;
-    task->proj_dst_height = dst_height;
-    task->proj_start_delay = start_delay;
-    task->proj_end_delay = end_delay;
-    task->proj_peak = peak;
-    task->proj_arc = arc;
-    task->proj_target = target;
-    task->proj_source = source;
-    app_spawn_effect_queue(app, task);
-}
-
-void
-App_WorldScriptedProjSpawn(
-    struct App* app,
-    struct WorldEntity_ScriptedProjSpec const* sp)
-{
-    struct Task_AppSpawn* task;
-    assert(app);
-    assert(sp);
-    task = app_spawn_task_new(app, APP_SPAWN_SCRIPTED_PROJ, sp->dst_x, sp->dst_z, sp->dst_level);
-    task->spotanim_id = sp->spotanim_id;
-    task->scripted = *sp;
-    for( int i = 0; i < 3; i++ )
-        task->curve_scripts[i] = sp->curve[i];
-    task->curve_script_count = 3;
-    task->curve_script_cursor = 0;
-    app_spawn_effect_queue(app, task);
 }
 
 /* Zone LOC_ADD_CHANGE / LOC_DEL (reference locChangeCreate + locChangeDoQueue):

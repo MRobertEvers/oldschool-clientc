@@ -35,7 +35,7 @@
  * THE FAMILY. This unit owns the mechanism and the ground-stack kind. The same
  * shape was built, one at a time, before it existed, and each is the same rule
  * with its own landing:
- *   - effect spawns (spotanim, projectile): app_spawn_effect_queue, app_world_edit.c
+ *   - effect bodies (spotanim, projectile): parallel tasks, app/app_tasks_effects.c
  *   - loc changes, in order: app_spawn_loc_lane_queue, app_world_edit.c
  *   - npc and player bodies: NpcBodyLand / PlayerBodyLand, game/task_entity_assets.c
  *   - interface models and chatheads: App_SetInterfaceModel, app_if_models.c

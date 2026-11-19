@@ -1060,14 +1060,10 @@ main(void)
         TEST_EXEC_ASSERT(newer->loc_carry_any_seq == 8065, "under either condition");
         app->cfg.cache_kind = APP_CACHE_DAT2;
 
-        /* An EFFECT takes the same queue with no ticket: a spotanim or a
-         * projectile is ordered against nothing behind it, and on the FIFO
-         * its asset chain parked every later packet (200-400 ms a graphic
-         * through a browser cache). The FIFO stays empty. */
-        App_WorldSpotanimSpawn(app, 12, 34, 0, 1234 /* spotanim */, 92, 0);
-        App_WorldProjectileSpawn(app, 10, 30, 0, 12, 34, 0, 1235, 43, 31, 41, 60, 16, 15, 0, 0);
-        TEST_EXEC_ASSERT(app->packet_runner.queue->head == NULL, "effects stay off the FIFO");
-        TEST_EXEC_ASSERT(LocLane_Newest(&app->loc_lane) == 3, "and take no lane ticket");
+        /* (An EFFECT -- a spotanim, a projectile -- is a parallel task of its
+         * own now, with its World row made at the packet:
+         * app/test/app_tasks_effects_test.c.) */
+        TEST_EXEC_ASSERT(LocLane_Newest(&app->loc_lane) == 3, "three changes took three tickets");
 
         /* Freeing the queue with the lane tasks unrun releases their tickets:
          * a ticket that never released would hold every later loc change. */
