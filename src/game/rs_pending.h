@@ -75,8 +75,12 @@ enum RS_PendingKindRange
     /* app/app_tasks_scripts.c: visual script operations. */
     RS_PENDING_KINDS_SCRIPTS_FIRST = 224,
     RS_PENDING_KINDS_SCRIPTS_LAST = 255,
+    /* The App's own asset tasks that belong to no packet family
+     * (app/app_textures.c: a texture published into the scene). */
+    RS_PENDING_KINDS_ASSETS_FIRST = 256,
+    RS_PENDING_KINDS_ASSETS_LAST = 287,
 
-    RS_PENDING_KIND_MAX = 256
+    RS_PENDING_KIND_MAX = 288
 };
 
 /* ---- keys ---------------------------------------------------------------- */

@@ -16,6 +16,9 @@
  *     lacks one, not duplicated by a second change; a slot emptied cancels
  *     its task; a load that does not come is asked for again after the
  *     INV_ICONS back-off, never given up on.
+ *   - Textures: each a built model wants and the provider lacks is one
+ *     publish task (app/app_textures.c), not a callback waiter; a repeat
+ *     adds none, a failed load ends it and is remembered, a cancel ends it.
  *
  * Run: make -C src test-if-assets-tasks
  */
@@ -389,6 +392,46 @@ test_icons_wanted_on_change(void)
     fixture_free(&fx);
 }
 
+/* ---- textures: one publish task per texture a model wants --------------- */
+
+static void
+test_texture_publish_is_a_task(void)
+{
+    struct Fixture fx;
+    int const ids[] = { 41, 41, 42 };
+    int const again[] = { 41 };
+
+    printf("TEST: a texture a model wants is one parallel task until it lands\n");
+    fixture_init(&fx);
+    App_TexturesWant(&fx.app, ids, 3);
+    TEST_ASSERT(App_TexturePublishPending(&fx.app, 41), "41 is a pending task");
+    TEST_ASSERT(App_TexturePublishPending(&fx.app, 42), "and so is 42");
+    TEST_ASSERT(queued(&fx) == 2, "one task each, the repeat added nothing");
+    pump(&fx);
+    TEST_ASSERT(loads_of(ASSET_KIND_TEXTURE, 41, 0) == 1, "one load for 41");
+    App_TexturesWant(&fx.app, again, 1);
+    TEST_ASSERT(queued(&fx) == 2, "a rebuilt model asks nothing more while it loads");
+
+    /* 41 does not come: the table remembers it, the task ends, and a later
+     * model naming it asks for nothing. */
+    Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_TEXTURE, 41, 0), false);
+    pump(&fx);
+    TEST_ASSERT(!App_TexturePublishPending(&fx.app, 41), "a failed load ends its task");
+    TEST_ASSERT(
+        Assets_State(fx.app.assets, AssetKey_Make(ASSET_KIND_TEXTURE, 41, 0)) == ASSET_STATE_FAILED,
+        "and is remembered");
+    App_TexturesWant(&fx.app, again, 1);
+    TEST_ASSERT(!App_TexturePublishPending(&fx.app, 41), "so it is not asked for again");
+    pump(&fx);
+    TEST_ASSERT(loads_of(ASSET_KIND_TEXTURE, 41, 0) == 1, "still one load");
+
+    /* A logout cancels what is still waiting. */
+    RS_Pending_Cancel(fx.app.pending, RS_PendingScope_All());
+    pump(&fx);
+    TEST_ASSERT(!App_TexturePublishPending(&fx.app, 42), "a cancel ends the other");
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
@@ -396,6 +439,7 @@ main(void)
     test_npc_head_wants_textures();
     test_model_task_checks_its_head();
     test_icons_wanted_on_change();
+    test_texture_publish_is_a_task();
     if( g_failures )
     {
         printf("if_assets_tasks: %d failure(s)\n", g_failures);

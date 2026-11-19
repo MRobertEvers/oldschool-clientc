@@ -4,7 +4,7 @@
 
 #include "app.h"
 #include "net/rev/revpacket.h"
-#include "rs_gameproto_exec.h"
+#include "app/app_gameproto_exec.h"
 #include "plugin/torirs_plugin_host.h"
 #include "net/net.h"
 #include "net/torirs_control.h"
@@ -545,13 +545,9 @@ Task_GameProtoExec_Run(
     else
     {
         struct RS_ServerState state;
-        struct RS_GameProtoCtx ctx = {
-            .state = &state,
-            .tree = app->tree,
-            .app = app,
-        };
+
         App_ServerStateBind(app, &state);
-        RS_GameProto_Exec(&ctx, &self->packet);
+        App_GameProto_Exec(app, &state, &self->packet);
         RedrawRequest_Raise(&app->redraw_request);
     }
 

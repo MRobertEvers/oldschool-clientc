@@ -56,7 +56,7 @@
  */
 
 #include "app/app_internal.h"
-#include "game/rs_gameproto_exec.h"
+#include "app/app_gameproto_exec.h"
 #include "game/rs_server_state.h"
 #include "mem/torirs_mem.h"
 #include "net/rev/revpacket.h"
@@ -1216,14 +1216,10 @@ Task_ZoneHeld_Run(
     /* 4. Apply, under the cursor and zone base as of arrival. */
     {
         struct RS_ServerState state;
-        struct RS_GameProtoCtx ctx = {
-            .state = &state,
-            .tree = app->tree,
-            .app = app,
-        };
+
         App_ServerStateBind(app, &state);
-        RS_GameProto_ApplyHeldZoneOp(
-            &ctx, &self->pkt, self->base_x, self->base_z, self->level, self->par.view);
+        App_GameProto_ApplyHeldZoneOp(
+            app, &state, &self->pkt, self->base_x, self->base_z, self->level, self->par.view);
         RedrawRequest_Raise(&app->redraw_request);
     }
 

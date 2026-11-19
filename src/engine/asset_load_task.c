@@ -25,8 +25,6 @@ Task_AssetLoad_Run(
     PT_TASK_AWAITSELF(asset_load_take_child(self));
     self->ended = 1;
     Assets_Finished(self->assets, self->key, self->resident(self->data, self->key));
-    if( self->land_mask )
-        Assets_Land(self->assets, self->land_mask);
     PT_END(&self->pt);
 }
 

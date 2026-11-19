@@ -368,6 +368,7 @@ Task_ProjectileBody_Run(
 {
     struct Task_ProjectileBody* self = (struct Task_ProjectileBody*)base;
     struct App* app = self->app;
+    (void)io;
 
     PT_BEGIN(&self->pt);
 
@@ -401,10 +402,13 @@ Task_ProjectileBody_Run(
     for( ; self->scripted && self->curve_script_cursor < self->curve_script_count;
          self->curve_script_cursor++ )
     {
-        if( !CacheProvider_ClientScriptHas(
-                app->provider, self->curve_scripts[self->curve_script_cursor]) )
-            PT_TASK_AWAITSELF_IF(CreateTask_ClientScriptLoad(
-                app->provider, self->curve_scripts[self->curve_script_cursor]));
+        /* Through the assets table, as a client script's own wait is
+         * (ASSET_CONFIG_SCRIPT): one read however many shots and scripts ask,
+         * and a cancel ends the wait instead of riding the read out. */
+        PT_PARALLEL_AWAIT_ASSET(
+            app->assets,
+            AssetKey_Make(
+                ASSET_KIND_CONFIG, self->curve_scripts[self->curve_script_cursor], ASSET_CONFIG_SCRIPT));
         if( RS_ParallelTask_Cancelled(&self->par) )
             PT_EXIT(&self->pt);
         {

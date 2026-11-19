@@ -6,9 +6,10 @@ k_packet_kinds). A packet the executor learns to handle with no row would
 assert at run time in a debug build and latch nothing in an OPT one; this
 fails first.
 
-Reads the executor's three units -- the model (game/rs_server_state.c), the
-presentation (game/rs_gameproto_exec.c) and the packet task
-(game/task_gameproto_exec.c) -- for every `case PKT_NAME_X:` and every
+Reads the executor's units -- the model (game/rs_server_state.c), the
+tree-only writes (game/rs_gameproto_exec.c), the real client's presentation
+(app/app_gameproto_exec.c) and the packet task (game/task_gameproto_exec.c)
+-- for every `case PKT_NAME_X:` and every
 `packet_type == PKT_NAME_X`, and the table for its KIND(PKT_NAME_X, ...) rows.
 
     python3 tools/packet_kinds_check.py --root src
@@ -21,6 +22,7 @@ import sys
 EXECUTOR = (
     "game/rs_server_state.c",
     "game/rs_gameproto_exec.c",
+    "app/app_gameproto_exec.c",
     "game/task_gameproto_exec.c",
 )
 TABLE = "net/rev/revpacket.c"

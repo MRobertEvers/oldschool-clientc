@@ -12,9 +12,10 @@
  *     return AssetLoadTask_Start(task, CreateTask_SoundLoad(provider, key.id), queue);
  *
  * `args` is storage the child may read by pointer for as long as it runs (an
- * obj model load reads its obj and count arrays that way). `land_mask` names
- * kinds to land at the load's end, for a kind whose landing has always run
- * there. A task freed before its child ended reports itself abandoned.
+ * obj model load reads its obj and count arrays that way). A task freed
+ * before its child ended reports itself abandoned. (Its `land_mask`, kinds
+ * whose callback waiters landed at a load's end, went with the last of those
+ * waiters: whoever waits now is a task joined on the table.)
  */
 
 #include "asyncio.h"
@@ -32,7 +33,6 @@ struct AssetLoadTask
     void* data;
     /* Handed to the await on the first run. */
     struct ToriRS_Task* child;
-    uint32_t land_mask;
     int args[2];
     /* The end has been reported. */
     int ended;

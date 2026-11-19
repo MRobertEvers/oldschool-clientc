@@ -782,6 +782,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	app/app_minimap.c \
 	app/app_minimenu.c \
 	app/app_net.c \
+	app/app_gameproto_exec.c \
 	app/app_overlay.c \
 	app/app_overlay_entities.c \
 	app/app_assets.c \
@@ -3937,6 +3938,13 @@ test-highlight: $(OBJ_DIR) game/rs_highlight.c game/test/rs_highlight_test.c
 # Client triggers + the scripted-overlay store. Both are pure state modules, so
 # this needs no cache and no renderer -- but the trigger hashes ARE checked
 # against real cache.osrs239 group identifiers (see the file).
+# The triggers the client does not raise (36 npc gone, 41/42 player shown and
+# gone) are bound to no script in the cache: if an upgrade binds one, this
+# fails and the trigger is wanted (fault E10).
+.PHONY: check-client-triggers
+check-client-triggers:
+	@python3 -I $(REPO_ROOT)/tools/client_trigger_scan.py $(REPO_ROOT)/cache.osrs242 --expect-none 36 41 42
+
 test-client-trigger: $(OBJ_DIR) game/rs_client_trigger.c game/rs_entity_overlay.c game/test/rs_client_trigger_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_client_trigger_test \
 		game/rs_client_trigger.c game/rs_entity_overlay.c game/test/rs_client_trigger_test.c $(LDFLAGS)
@@ -5403,6 +5411,15 @@ check-pt-switch:
 	@python3 $(REPO_ROOT)/tools/pt_switch_audit.py . | tail -1 | grep -q "^total 0$$" \
 		&& echo "check-pt-switch: PASS (no switch inside a protothread)" \
 		|| (python3 $(REPO_ROOT)/tools/pt_switch_audit.py . && echo "check-pt-switch: FAIL" && exit 1)
+
+# No client task suspends with PT_WAITING (PT_WAIT_UNTIL / _WHILE / PT_RESTART):
+# the task queues assert on it (asyncio.h). Task_WorldLoad's reprime wait did,
+# and the first rebuild after a live reload stopped there (fault A8).
+.PHONY: check-pt-wait
+check-pt-wait:
+	@python3 $(REPO_ROOT)/tools/pt_wait_audit.py . | tail -1 | grep -q "^total 0$$" \
+		&& echo "check-pt-wait: PASS (no task suspends with PT_WAITING)" \
+		|| (python3 $(REPO_ROOT)/tools/pt_wait_audit.py . && echo "check-pt-wait: FAIL" && exit 1)
 
 # Every loop over a whole UI tree says what it is: metered (the frame loop's
 # scan meter fails a steady frame that keeps walking -- @see UITREE_SCAN_METER)

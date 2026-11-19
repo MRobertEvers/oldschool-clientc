@@ -348,11 +348,8 @@ app_draw_viewport_message(
     if( scene_id < 0 )
     {
         if( font_cache_id >= 0 )
-        {
-            struct ToriRS_Task* task = CreateTask_FontLoad(app->provider, font_cache_id);
-            if( task )
-                ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
-        }
+            (void)Assets_Want(
+                app->assets, AssetKey_Make(ASSET_KIND_CONFIG, font_cache_id, ASSET_CONFIG_FONT), NULL);
         scene_id = app_minimenu_font_scene_id(app);
     }
     if( scene_id < 0 )

@@ -13,6 +13,7 @@
 #include "engine/uitree_builder/task_interface_open.h"
 #include "game/rs_chat.h"
 #include "game/rs_clientcode.h"
+#include "app/app_gameproto_exec.h"
 #include "game/rs_gameproto_exec.h"
 #include "game/rs_player_stats.h"
 #include "game/rs_server_state.h"
@@ -449,7 +450,6 @@ main(void)
     struct RS_GameProtoCtx ctx = {
         .state = &bare_state,
         .tree = tree,
-        .app = NULL,
     };
 
     /* VARP_SMALL 42 = 5 */
@@ -763,15 +763,13 @@ main(void)
             8,
             8,
             WORLDVIEW_ROOT);
-        ctx.app = app;
         App_ServerStateBind(app, &app_state);
-        ctx.state = &app_state;
 
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_SET_ACTIVE_WORLD;
         p._set_active_world.world_id = 2009;
         p._set_active_world.level = 1;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         assert(WorldviewRegistry_Active(&app->worldviews) == 3);
         assert(WorldviewRegistry_ActiveLevel(&app->worldviews) == 1);
 
@@ -781,7 +779,7 @@ main(void)
         p.packet_type = PKT_NAME_SET_ACTIVE_WORLD;
         p._set_active_world.world_id = 3;
         p._set_active_world.level = 2;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         assert(WorldviewRegistry_Active(&app->worldviews) == 3);
         assert(WorldviewRegistry_ActiveLevel(&app->worldviews) == 1);
 
@@ -789,24 +787,22 @@ main(void)
         p.packet_type = PKT_NAME_SET_ACTIVE_WORLD;
         p._set_active_world.world_id = WORLDVIEW_WIRE_ROOT;
         p._set_active_world.level = 0;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         assert(WorldviewRegistry_Active(&app->worldviews) == WORLDVIEW_ROOT);
 
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_SET_ACTIVE_WORLD;
         p._set_active_world.world_id = 2009;
         p._set_active_world.level = 1;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         assert(WorldviewRegistry_Active(&app->worldviews) == 3);
 
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_SERVER_TICK_END;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         assert(WorldviewRegistry_Active(&app->worldviews) == WORLDVIEW_ROOT);
         assert(WorldviewRegistry_ActiveLevel(&app->worldviews) == 0);
 
-        ctx.app = NULL;
-        ctx.state = &bare_state;
         World_Free(app->world);
         free(app);
         printf("ok - SET_ACTIVE_WORLD arms the cursor and the fence resets it\n");
@@ -818,9 +814,7 @@ main(void)
         assert(app);
         app->minimap.flag_tile_x = -1;
         app->minimap.flag_tile_z = -1;
-        ctx.app = app;
         App_ServerStateBind(app, &app_state);
-        ctx.state = &app_state;
 
         {
             struct RevPacket p;
@@ -829,7 +823,7 @@ main(void)
             p._set_map_flag.x = 40;
             p._set_map_flag.z = 50;
             p._set_map_flag.clear = 0;
-            RS_GameProto_Exec(&ctx, &p);
+            App_GameProto_Exec(app, &app_state, &p);
             assert(app->minimap.flag_tile_x == 40);
             assert(app->minimap.flag_tile_z == 50);
             assert(RedrawRequest_Pending(&app->redraw_request));
@@ -841,7 +835,7 @@ main(void)
             p._set_map_flag.x = 255;
             p._set_map_flag.z = 255;
             p._set_map_flag.clear = 1;
-            RS_GameProto_Exec(&ctx, &p);
+            App_GameProto_Exec(app, &app_state, &p);
             assert(app->minimap.flag_tile_x == -1);
             assert(app->minimap.flag_tile_z == -1);
         }
@@ -860,14 +854,12 @@ main(void)
             p._set_map_flag.x = 3222;
             p._set_map_flag.z = 3218;
             p._set_map_flag.absolute = 1;
-            RS_GameProto_Exec(&ctx, &p);
+            App_GameProto_Exec(app, &app_state, &p);
             TEST_EXEC_ASSERT(app->minimap.flag_tile_x == 22, "absolute x against the world's base");
             TEST_EXEC_ASSERT(app->minimap.flag_tile_z == 34, "absolute z against the world's base");
             World_Free(app->world);
             app->world = NULL;
         }
-        ctx.app = NULL;
-        ctx.state = &bare_state;
         free(app);
         printf("ok - SET_MAP_FLAG stores scene-local tiles\n");
     }
@@ -882,15 +874,13 @@ main(void)
         unsigned serial;
 
         assert(app);
-        ctx.app = app;
         App_ServerStateBind(app, &app_state);
-        ctx.state = &app_state;
         serial = app->host.inv_change_serial;
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_UPDATE_INV_STOP_TRANSMIT;
         p._update_inv_stop_transmit.inv_id = 516;
         p._update_inv_stop_transmit.component_id = (300 << 16) | 16;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(app->host.inv_change_serial == serial + 1, "the inventory transmit is told");
         TEST_EXEC_ASSERT(app->host.inv_transmit_dirty, "and its hooks are due");
         TEST_EXEC_ASSERT(app->host.inv_changed_count == 1 && app->host.inv_changed_ids[0] == 516,
@@ -902,7 +892,7 @@ main(void)
         p.packet_type = PKT_NAME_CAM_TARGET;
         p._cam_target.type = CAM_SCRIPT_TARGET_NPC;
         p._cam_target.index = 1234;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         {
             int type = -1;
             int index = -1;
@@ -910,18 +900,16 @@ main(void)
             TEST_EXEC_ASSERT(CamScript_Target(&app->cam_script, &type, &index) == 1, "a target is set");
             TEST_EXEC_ASSERT(type == CAM_SCRIPT_TARGET_NPC && index == 1234, "the npc it names");
             p._cam_target.index = -1;
-            RS_GameProto_Exec(&ctx, &p);
+            App_GameProto_Exec(app, &app_state, &p);
             TEST_EXEC_ASSERT(CamScript_Target(&app->cam_script, &type, &index) == 0,
                 "an index of none is the local player again");
             p._cam_target.type = CAM_SCRIPT_TARGET_PLAYER;
             p._cam_target.index = 77;
-            RS_GameProto_Exec(&ctx, &p);
+            App_GameProto_Exec(app, &app_state, &p);
             CamScript_Logout(&app->cam_script);
             TEST_EXEC_ASSERT(CamScript_Target(&app->cam_script, &type, &index) == 0,
                 "a logout forgets it");
         }
-        ctx.app = NULL;
-        ctx.state = &bare_state;
         free(app);
         printf("ok - UPDATE_INV_STOP_TRANSMIT tells the transmit; CAM_TARGET sets the focus\n");
     }
@@ -940,22 +928,20 @@ main(void)
         struct App* app = calloc(1, sizeof(*app));
         struct RevPacket p;
         assert(app);
-        ctx.app = app;
         App_ServerStateBind(app, &app_state);
-        ctx.state = &app_state;
 
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_HINT_ARROW;
         p._hint_arrow.type = 1;
         p._hint_arrow.id = 41;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(
             app->hint_arrow.type == RS_HINT_ARROW_NPC, "type 1 is an npc slot");
         TEST_EXEC_ASSERT(app->hint_arrow.target == 41, "and the slot is the id");
 
         p._hint_arrow.type = 10;
         p._hint_arrow.id = 7;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(
             app->hint_arrow.type == RS_HINT_ARROW_PLAYER, "type 10 is a player pid");
 
@@ -966,7 +952,7 @@ main(void)
         p._hint_arrow.id = 3200;
         p._hint_arrow.z = 3300;
         p._hint_arrow.height = 60;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(
             app->hint_arrow.type == RS_HINT_ARROW_COORD, "type 2 is an absolute tile");
         TEST_EXEC_ASSERT(
@@ -978,7 +964,7 @@ main(void)
             "and anchored at the tile's centre");
 
         p._hint_arrow.type = 3;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(
             app->hint_arrow.type == RS_HINT_ARROW_COORD, "type 3 folds to the same form");
         TEST_EXEC_ASSERT(
@@ -986,7 +972,7 @@ main(void)
             "anchored to the tile's west edge");
 
         p._hint_arrow.type = 6;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(
             app->hint_arrow.offset_x == 64 && app->hint_arrow.offset_z == 128,
             "and type 6 to its north one");
@@ -994,11 +980,9 @@ main(void)
         /* 255 clears. Normalised on the way in so 0 means "no arrow" for every
          * pass downstream, rather than each one knowing the sentinel. */
         p._hint_arrow.type = 255;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(app->hint_arrow.type == 0, "255 is the clear");
 
-        ctx.app = NULL;
-        ctx.state = &bare_state;
         free(app);
         printf("ok - HINT_ARROW reads the wire's own type numbers\n");
     }
@@ -1171,9 +1155,7 @@ main(void)
         struct GameProtoRevTable const* rev = GameProtoRev_OSRS239();
 
         assert(app);
-        ctx.app = app;
         App_ServerStateBind(app, &app_state);
-        ctx.state = &app_state;
 
         /* MINIMAP_TOGGLE had no parser at all; parse it off the wire rather
          * than hand-filling the struct, so a mis-sized field shows up here. */
@@ -1184,7 +1166,7 @@ main(void)
                 rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_MINIMAP_TOGGLE), wire, 1, &p) > 0,
                 "MINIMAP_TOGGLE must parse");
             assert(p._minimap_toggle.state == 2);
-            RS_GameProto_Exec(&ctx, &p);
+            App_GameProto_Exec(app, &app_state, &p);
             assert(MinimapView_ToggleState(&app->minimap) == APP_MINIMAP_STATE_HIDDEN);
             assert(RedrawRequest_Pending(&app->redraw_request));
         }
@@ -1196,7 +1178,7 @@ main(void)
             memset(&p, 0, sizeof(p));
             p.packet_type = PKT_NAME_UPDATE_REBOOT_TIMER;
             p._update_reboot_timer.ticks = 100;
-            RS_GameProto_Exec(&ctx, &p);
+            App_GameProto_Exec(app, &app_state, &p);
             assert(app->session_info.reboot_timer == 100 * APP_SERVER_TICK_LOGIC_CYCLES);
             /* 100 server ticks = 60s = one minute exactly. */
             assert(app->session_info.reboot_timer / APP_LOGIC_CYCLES_PER_SECOND == 60);
@@ -1208,7 +1190,7 @@ main(void)
             p.packet_type = PKT_NAME_SET_MULTIWAY;
             p._set_multiway.multiway = 1;
             RedrawRequest_Clear(&app->redraw_request);
-            RS_GameProto_Exec(&ctx, &p);
+            App_GameProto_Exec(app, &app_state, &p);
             assert(RS_SessionInfo_Multiway(&app->session_info) == 1);
             assert(RedrawRequest_Pending(&app->redraw_request));
         }
@@ -1225,7 +1207,7 @@ main(void)
             p._last_login_info.days_since_recovery = RS_CC_RECOVERY_DAYS_SILENT;
             p._last_login_info.unread_messages = 3;
             p._last_login_info.member_warning = 1;
-            RS_GameProto_Exec(&ctx, &p);
+            App_GameProto_Exec(app, &app_state, &p);
             assert(app->session_info.welcome.last_ip == 0x01020304);
             assert(app->session_info.welcome.days_since_login == 2);
             assert(app->session_info.welcome.unread_messages == 3);
@@ -1233,8 +1215,6 @@ main(void)
         }
         printf("ok - LAST_LOGIN_INFO carries the member warning\n");
 
-        ctx.app = NULL;
-        ctx.state = &bare_state;
         free(app);
     }
 
@@ -1344,7 +1324,6 @@ main(void)
         uint8_t const full[] = { 3, 1, 0, 0, 0, 0, 0, 0, 0, 9, 21 };
         uint8_t const gone[] = { 3, 0 };
         struct App* app = calloc(1, sizeof(*app));
-        struct RS_GameProtoCtx unlock_ctx;
         struct RevPacket p;
         struct PktObjUnlockEntry entries[2] = { { 2, 5 }, { 3, 1 } };
 
@@ -1361,21 +1340,18 @@ main(void)
         RS_GroupStore_Free(&store);
 
         assert(app);
-        memset(&unlock_ctx, 0, sizeof(unlock_ctx));
-        unlock_ctx.app = app;
         App_ServerStateBind(app, &app_state);
-        unlock_ctx.state = &app_state;
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_OBJUNLOCK_UPDATE;
         p._objunlock_update.count = 2;
         p._objunlock_update.entries = entries;
-        RS_GameProto_Exec(&unlock_ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         assert(app->host.client.objunlock_present);
         assert(app->host.client.objunlock_words[2] == 5);
         assert(app->host.client.objunlock_words[5] == 1);
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_OBJUNLOCK_RESET;
-        RS_GameProto_Exec(&unlock_ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         assert(!app->host.client.objunlock_present);
         free(app);
         printf("ok - group store and objunlock\n");
@@ -1388,7 +1364,6 @@ main(void)
     {
         struct App* app = calloc(1, sizeof(*app));
         struct App_WorldView view;
-        struct RS_GameProtoCtx url_ctx;
         struct RevPacket p;
         struct CamScriptRotateCycles const* r = &app->cam_script.rotate_cycles;
 
@@ -1411,14 +1386,11 @@ main(void)
         assert(r->yaw.to == 1900 - 2048);
         assert(!r->pitch.active);
 
-        memset(&url_ctx, 0, sizeof(url_ctx));
-        url_ctx.app = app;
         App_ServerStateBind(app, &app_state);
-        url_ctx.state = &app_state;
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_URL_OPEN;
         p._text.text = (char*)"https://oldschool.runescape.com/";
-        RS_GameProto_Exec(&url_ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         assert(strcmp(app->host.client.pending_open_url, "https://oldschool.runescape.com/") == 0);
 
         free(app);
@@ -1457,9 +1429,7 @@ main(void)
             "profile declares the welcome screen with the notice paragraph");
 
         RS_UISlots_Init(&app->slots);
-        ctx.app = app;
         App_ServerStateBind(app, &app_state);
-        ctx.state = &app_state;
 
         /* Nothing to say about recovery questions and no members warning: the
          * short screen, which has no paragraph rows on it. */
@@ -1470,7 +1440,7 @@ main(void)
         p._last_login_info.days_since_recovery = RS_CC_RECOVERY_DAYS_SILENT;
         p._last_login_info.unread_messages = 0;
         p._last_login_info.member_warning = 0;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(
             app->slots.main_modal_id == iface_plain, "plain welcome screen opens");
 
@@ -1478,7 +1448,7 @@ main(void)
          * checked with a packet that would otherwise select the OTHER screen,
          * so "left alone" is distinguishable from "reopened identically". */
         p._last_login_info.member_warning = 1;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(
             app->slots.main_modal_id == iface_plain,
             "a welcome screen already open is left alone");
@@ -1488,7 +1458,7 @@ main(void)
          * is the only one carrying rows 652/653/654 to put the warning on. */
         RS_UISlots_Init(&app->slots);
         p._last_login_info.member_warning = 1;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(
             app->slots.main_modal_id == iface_notice,
             "a members warning opens the screen that can show it");
@@ -1497,7 +1467,7 @@ main(void)
         RS_UISlots_Init(&app->slots);
         p._last_login_info.member_warning = 0;
         p._last_login_info.days_since_recovery = 5;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(
             app->slots.main_modal_id == iface_notice,
             "a recovery-question notice opens the taller screen");
@@ -1506,12 +1476,10 @@ main(void)
          * would put an empty last-login row in front of the player. */
         RS_UISlots_Init(&app->slots);
         p._last_login_info.last_ip = 0;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(
             app->slots.main_modal_id == -1, "no address opens no welcome screen");
 
-        ctx.app = NULL;
-        ctx.state = &bare_state;
         RevConfigRefs_Free(&app->revconfig_refs);
         free(app);
         printf("ok - LAST_LOGIN_INFO opens the welcome screen the profile names\n");
@@ -1771,8 +1739,6 @@ main(void)
         app->packet_runner.queue = ToriRS_TaskQueue_New();
         app->tree = UITree_New(2);
         App_ServerStateBind(app, &app_state);
-        ctx.app = app;
-        ctx.state = &app_state;
 
         /* What the root change queued for its kept mount. */
         App_OpenSubInterface(app, slot, 399, 1);
@@ -1781,13 +1747,11 @@ main(void)
         p._if_resync.root_interface_id = 0;
         p._if_resync.mount_count = 1;
         p._if_resync.mounts = &mount;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         for( struct ToriRS_Task* t = app->packet_runner.queue->head; t; t = t->next )
             queued++;
         TEST_EXEC_ASSERT(queued == 1, "a restated mount already queued is not queued again");
 
-        ctx.app = NULL;
-        ctx.state = &bare_state;
         ToriRS_TaskQueue_Free(app->packet_runner.queue);
         UITree_Free(app->tree);
         UIIfEventTable_Free(&app->if_events);
