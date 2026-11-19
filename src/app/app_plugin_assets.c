@@ -78,7 +78,7 @@ app_plugin_asset_saved_path(
     assert(out_size > 0);
 
     out[0] = '\0';
-    prefs = app->plugin_prefs_path;
+    prefs = PluginBootConfig_PrefsPath(&app->plugin_boot);
     if( !prefs || !*prefs )
         return;
 
@@ -267,6 +267,7 @@ app_plugin_screenshot(
     int out_path_size)
 {
     struct App* app = (struct App*)user;
+    struct PluginScreenshot* shot;
 
     assert(app);
     assert(plugin);
@@ -275,63 +276,49 @@ app_plugin_screenshot(
     assert(out_path_size > 0);
 
     out_path[0] = '\0';
-    for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
+    /* The name is completed with ".png" when it carries no extension: this
+     * writes PNG. */
+    shot = PluginScreenshots_Claim(&app->plugin_screenshots, plugin, dir, name);
+    if( !shot )
     {
-        struct AppPluginScreenshot* shot = &app->plugin_screenshots[i];
-        size_t len;
-
-        if( shot->in_use )
-            continue;
-
-        snprintf(shot->plugin, sizeof(shot->plugin), "%s", plugin);
-        snprintf(shot->dir, sizeof(shot->dir), "%s", dir ? dir : "");
-        snprintf(shot->name, sizeof(shot->name), "%s", name);
-        /* The format is not the plugin's choice -- this writes PNG -- so a
-         * name that does not say so is completed rather than trusted. A name
-         * that already carries an extension is left alone, because a plugin
-         * that wrote "kill-42.png" meant that file and not "kill-42.png.png". */
-        len = strlen(shot->name);
-        if( !strchr(shot->name, '.') && len + 4 < sizeof(shot->name) )
-            snprintf(shot->name + len, sizeof(shot->name) - len, ".png");
-
-        /* Resolved now rather than at the write, so the caller can be told
-         * where its picture is going while it is still in a position to say
-         * so. Refused here for the same reason app_plugin_asset_write refuses:
-         * a client told not to write files must not start writing them because
-         * a plugin asked -- and a refusal before the frame is spent is better
-         * than one after it. */
-        app_plugin_screenshot_path(
-            app, shot->plugin, shot->dir, shot->name, shot->path, sizeof(shot->path));
-        if( !shot->path[0] )
-        {
-            TORIRS_ERR(
-                "plugin: %s cannot save screenshot '%s'; plugin persistence is off for "
-                "this run (TORIRS_PLUGIN_PREFS is empty), so there is no folder to put it "
-                "under and the destination is not an absolute path\n",
-                shot->plugin,
-                shot->name);
-            return 0;
-        }
-
-        shot->in_use = 1;
-        snprintf(out_path, (size_t)out_path_size, "%s", shot->path);
-        /* Render skip (app_render.c, item 3): the frame this captures lays
-         * out its overlays and mouseover text from what the PREVIOUS frame's
-         * draw left behind (posed heights, the pickset). If that frame was
-         * skipped, draw it now, late -- not a frame later, which would move
-         * the run's timeline. A request made outside the plugin pump finds
-         * nothing to catch up, or a stale state it cannot (the picture is
-         * then a frame's overlays behind, never a crash). */
-        (void)App_RenderSkipCatchUp(app);
-        return 1;
+        TORIRS_LOG(
+            "plugin: %s asked for more than %d screenshots in one frame; '%s' was dropped\n",
+            plugin,
+            PLUGIN_SCREENSHOTS_MAX,
+            name);
+        return 0;
     }
 
-    TORIRS_LOG(
-        "plugin: %s asked for more than %d screenshots in one frame; '%s' was dropped\n",
-        plugin,
-        APP_PLUGIN_SCREENSHOTS_MAX,
-        name);
-    return 0;
+    /* Resolved now rather than at the write, so the caller can be told where
+     * its picture is going while it is still in a position to say so. Refused
+     * here for the same reason app_plugin_asset_write refuses: a client told
+     * not to write files must not start writing them because a plugin asked
+     * -- and a refusal before the frame is spent is better than one after
+     * it. */
+    app_plugin_screenshot_path(
+        app, shot->plugin, shot->dir, shot->name, shot->path, sizeof(shot->path));
+    if( !shot->path[0] )
+    {
+        TORIRS_ERR(
+            "plugin: %s cannot save screenshot '%s'; plugin persistence is off for "
+            "this run (TORIRS_PLUGIN_PREFS is empty), so there is no folder to put it "
+            "under and the destination is not an absolute path\n",
+            shot->plugin,
+            shot->name);
+        return 0;
+    }
+
+    PluginScreenshots_Wait(shot);
+    snprintf(out_path, (size_t)out_path_size, "%s", shot->path);
+    /* Render skip (app_render.c, item 3): the frame this captures lays out its
+     * overlays and mouseover text from what the PREVIOUS frame's draw left
+     * behind (posed heights, the pickset). If that frame was skipped, draw it
+     * now, late -- not a frame later, which would move the run's timeline. A
+     * request made outside the plugin pump finds nothing to catch up, or a
+     * stale state it cannot (the picture is then a frame's overlays behind,
+     * never a crash). */
+    (void)App_RenderSkipCatchUp(app);
+    return 1;
 }
 
 /* -------------------------------------------------------- the captures */
@@ -512,10 +499,10 @@ app_capture_fallback_render(
      * publish a second pickset for the same frame would make a screenshot a
      * thing that can affect what a click does.
      */
-    saved_pick = app->frame_view->world_mouse_in_viewport;
-    app->frame_view->world_mouse_in_viewport = 0;
+    saved_pick = app->world_views.frame->world_mouse_in_viewport;
+    app->world_views.frame->world_mouse_in_viewport = 0;
     App_Render(app, pixels, width, height);
-    app->frame_view->world_mouse_in_viewport = saved_pick;
+    app->world_views.frame->world_mouse_in_viewport = saved_pick;
     return 1;
 }
 
@@ -539,25 +526,25 @@ app_capture_runner_render(
 
     assert(app);
     assert(pixels);
-    assert(app->view_split.attached);
+    assert(app->world_views.split.attached);
     if( !app->tree )
     {
         App_ViewSplitDrawRunner(app, pixels, 0);
-        app->view_split.offscreen_frames_for_shots++;
+        app->world_views.split.offscreen_frames_for_shots++;
         return;
     }
-    saved_view = app->frame_view;
-    app->frame_view = App_RunnerView(app);
+    saved_view = app->world_views.frame;
+    app->world_views.frame = App_RunnerView(app);
     UITree_EmitBufferInit(&runner_emit);
-    UITree_EmitWalk(app->tree, &app->ui_host, &runner_emit, app->hover_com_id);
+    UITree_EmitWalk(app->tree, &app->ui_host, &runner_emit, app->interact.published_hover_com_id);
     presented_emit = app->emit;
     app->emit = runner_emit;
     App_ViewSplitDrawRunner(app, pixels, 0);
     runner_emit = app->emit;
     app->emit = presented_emit;
     UITree_EmitBufferFree(&runner_emit);
-    app->frame_view = saved_view;
-    app->view_split.offscreen_frames_for_shots++;
+    app->world_views.frame = saved_view;
+    app->world_views.split.offscreen_frames_for_shots++;
 }
 
 /*
@@ -601,21 +588,12 @@ app_plugin_screenshots_write(
     ToriMem_Free(ToriMem_Process(), rgb);
     assert(png);
 
-    for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
-    {
-        struct AppPluginScreenshot* shot = &app->plugin_screenshots[i];
-
-        if( !shot->in_use )
-            continue;
-        shot->in_use = 0;
-
-        /* The destination was resolved -- and refused, when there was none --
-         * back when the request was made, so a queued capture always has a
-         * path to go to. */
-        assert(shot->path[0]);
+    /* Every waiting capture, in slot order, each written from the path
+     * resolved when it was asked for. */
+    for( char const* path = PluginScreenshots_Take(&app->plugin_screenshots); path;
+         path = PluginScreenshots_Take(&app->plugin_screenshots) )
         ToriRS_TaskQueue_Add(
-            app->frame_runner.queue, CreateTask_PluginAssetWrite(shot->path, png, (int)png_size));
-    }
+            app->frame_runner.queue, CreateTask_PluginAssetWrite(path, png, (int)png_size));
 
     mz_free(png);
 }
@@ -639,8 +617,7 @@ App_DrawComplete(
      * what lets a lane hand over a glReadPixels here and pay for it only on
      * the frames a capture was asked for.
      */
-    for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
-        pending += app->plugin_screenshots[i].in_use;
+    pending = PluginScreenshots_Waiting(&app->plugin_screenshots);
     if( pending == 0 )
         return;
 
@@ -653,7 +630,7 @@ App_DrawComplete(
     pixels = ToriMem_Alloc(ToriMem_Process(), (size_t)width * (size_t)height * sizeof(int));
     assert(pixels);
 
-    if( app->view_split.attached )
+    if( app->world_views.split.attached )
         app_capture_runner_render(app, pixels);
     else if( !supplier || !supplier(supplier_user, pixels, width, height) )
         app_capture_fallback_render(app, pixels, width, height);

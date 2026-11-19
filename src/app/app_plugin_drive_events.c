@@ -287,7 +287,7 @@ App_DriveLocChangesRetire(struct App* app)
 
         if( c->base_x != base_x || c->base_z != base_z )
             continue;
-        if( (int32_t)(app->loc_lane_applied - c->lane_ticket) < 0 )
+        if( LocLane_Pending(&app->loc_lane, c->lane_ticket) )
         {
             ring->loc_changes[kept++] = *c;
             continue;
@@ -361,7 +361,7 @@ App_DriveLocChangeNote(
     c->base_z = base_z;
     /* Every note follows the App_WorldLocChange that queued its change, so
      * the newest ticket is that change's. */
-    c->lane_ticket = app->loc_lane_enqueued;
+    c->lane_ticket = LocLane_Newest(&app->loc_lane);
     ring->loc_change_serial++;
 }
 

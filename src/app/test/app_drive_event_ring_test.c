@@ -137,7 +137,8 @@ test_loc_change_note_carries_the_lane_ticket(void)
     world._base_tile_z = 3200;
     app.world = &world;
 
-    app.loc_lane_enqueued = 7;
+    while( LocLane_Newest(&app.loc_lane) < 7 )
+        (void)LocLane_Take(&app.loc_lane);
     App_DriveLocChangeNote(&app, 10, 12, 0, 1234, 10, 2);
     assert(ring->loc_change_count == 1);
     assert(ring->loc_changes[0].x == 3210);
@@ -148,7 +149,7 @@ test_loc_change_note_carries_the_lane_ticket(void)
 
     /* The delete behind it on the same tile and layer replaces the note and
      * takes the later ticket: the record is held until THAT change lands. */
-    app.loc_lane_enqueued = 8;
+    (void)LocLane_Take(&app.loc_lane);
     App_DriveLocChangeNote(&app, 10, 12, 0, -1, 10, 2);
     assert(ring->loc_change_count == 1);
     assert(ring->loc_changes[0].loc_id == -1);
@@ -156,7 +157,7 @@ test_loc_change_note_carries_the_lane_ticket(void)
     assert(ring->loc_change_serial != serial);
 
     /* Another layer on the tile (a wall, shape 0) is its own record. */
-    app.loc_lane_enqueued = 9;
+    (void)LocLane_Take(&app.loc_lane);
     App_DriveLocChangeNote(&app, 10, 12, 0, 99, 0, 0);
     assert(ring->loc_change_count == 2);
     assert(ring->loc_changes[1].lane_ticket == 9);

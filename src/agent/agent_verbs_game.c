@@ -227,8 +227,8 @@ verb_game(struct AgentCtx* ctx)
     /* In the game: a session is up and the gameframe is rooted. An offline
      * boot (no connection) never is. */
     AgentJsonW_KBool(out, "logged_in",
-        app->net && app->net->state == TORIRS_NET_GAME && app->screen == APP_SCREEN_GAME);
-    AgentJsonW_KStr(out, "screen", agent_screen_name(app->screen));
+        app->net && app->net->state == TORIRS_NET_GAME && RS_ClientPhase_Screen(&app->phase) == APP_SCREEN_GAME);
+    AgentJsonW_KStr(out, "screen", agent_screen_name(RS_ClientPhase_Screen(&app->phase)));
     AgentJsonW_KBool(out, "connected", app->net != NULL && app->net->state != TORIRS_NET_DISCONNECTED);
 
     /* Absent until the local player has spawned. */
@@ -357,10 +357,10 @@ verb_chat(struct AgentCtx* ctx)
             (unsigned)sizeof(send.text) - 1);
         return AGENT_VERB_DONE;
     }
-    if( !app->net || app->net->state != TORIRS_NET_GAME || app->screen != APP_SCREEN_GAME )
+    if( !app->net || app->net->state != TORIRS_NET_GAME || RS_ClientPhase_Screen(&app->phase) != APP_SCREEN_GAME )
     {
         Agent_ReplyError(ctx, "this client is not in the game (its screen is \"%s\"): nothing would hear the line",
-            agent_screen_name(app->screen));
+            agent_screen_name(RS_ClientPhase_Screen(&app->phase)));
         return AGENT_VERB_DONE;
     }
     if( host->social_send_count >= RS_CS2_HOST_SOCIAL_SEND_MAX )
@@ -672,8 +672,8 @@ verb_npc_click(struct AgentCtx* ctx)
 
     /* Of the copies on screen, the one nearest the middle of the view: a body
      * at the edge is mostly clipped (App_NpcScreenPosition's rule). */
-    centre_x = app->world_emit_desc.x + app->world_emit_desc.w / 2;
-    centre_y = app->world_emit_desc.y + app->world_emit_desc.h / 2;
+    centre_x = app->world_views.emit_desc.x + app->world_views.emit_desc.w / 2;
+    centre_y = app->world_views.emit_desc.y + app->world_views.emit_desc.h / 2;
     pool = &app->world->entities.npc;
     /* The npc entity pool (a few hundred), walked once per request. */
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )

@@ -54,4 +54,17 @@ struct WorldEntity_ObjStack
     int never_becomes_public;
 };
 
+/* What a ground item's customise packet replaces (deob Statics.method4117). */
+struct WorldEntity_ObjCustomise
+{
+    int model;
+    int tint;
+    int recol_count;
+    int const* recol_index;
+    int const* recol_value;
+    int retex_count;
+    int const* retex_index;
+    int const* retex_value;
+};
+
 #endif

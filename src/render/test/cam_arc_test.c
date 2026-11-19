@@ -1,9 +1,9 @@
 /*
- * CAM_MOVETO_ARC's path (app/app_cam_arc.h, deob class561): the eye starts where
+ * CAM_MOVETO_ARC's path (render/cam_arc.h, deob class561): the eye starts where
  * it is, passes the via point, ends on the destination, and stays on one circle;
  * collinear points have no circle and the eye goes straight to the end.
  */
-#include "app/app_cam_arc.h"
+#include "render/cam_arc.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -32,19 +32,19 @@ near(int a, int b)
 static void
 arc_case(double x0, double z0, double vx, double vz, double x1, double z1)
 {
-    struct App_CamArc arc;
+    struct CamArc arc;
     int x, z;
     int passed_via = 0;
 
     g_case_fail = 0;
-    App_CamArcFit(&arc, x0, z0, vx, vz, x1, z1);
-    App_CamArcAt(&arc, 0.0, &x, &z);
+    CamArc_Fit(&arc, x0, z0, vx, vz, x1, z1);
+    CamArc_At(&arc, 0.0, &x, &z);
     CHECK(near(x, (int)x0) && near(z, (int)z0), "starts at the eye");
-    App_CamArcAt(&arc, 1.0, &x, &z);
+    CamArc_At(&arc, 1.0, &x, &z);
     CHECK(near(x, (int)x1) && near(z, (int)z1), "ends on the destination");
     for( int i = 0; i <= 1000; i++ )
     {
-        App_CamArcAt(&arc, i / 1000.0, &x, &z);
+        CamArc_At(&arc, i / 1000.0, &x, &z);
         CHECK(fabs(hypot(x - arc.cx, z - arc.cz) - arc.radius) <= 1.0, "stays on the circle");
         if( hypot(x - vx, z - vz) <= arc.radius * 0.01 + 2.0 )
             passed_via = 1;
@@ -55,7 +55,7 @@ arc_case(double x0, double z0, double vx, double vz, double x1, double z1)
 int
 main(void)
 {
-    struct App_CamArc arc;
+    struct CamArc arc;
     int x, z;
 
     /* Quarter, half and three-quarter turns, both senses, fine coordinates. */
@@ -69,13 +69,13 @@ main(void)
 
     /* A chord with no z change: the deob's slope is infinite, its centre NaN,
      * and Java rounds NaN to 0 -- the eye lands on 0, 0. */
-    App_CamArcFit(&arc, 1000, 2000, 2000, 2000, 3000, 3000);
-    App_CamArcAt(&arc, 0.5, &x, &z);
+    CamArc_Fit(&arc, 1000, 2000, 2000, 2000, 3000, 3000);
+    CamArc_At(&arc, 0.5, &x, &z);
     CHECK(x == 0 && z == 0, "a level chord rounds to 0, 0, as the deob's Math.round(NaN)");
 
     /* Collinear: no circle, the path is the destination. */
-    App_CamArcFit(&arc, 0, 0, 1000, 1000, 2000, 2000);
-    App_CamArcAt(&arc, 0.0, &x, &z);
+    CamArc_Fit(&arc, 0, 0, 1000, 1000, 2000, 2000);
+    CamArc_At(&arc, 0.0, &x, &z);
     CHECK(x == 2000 && z == 2000, "collinear points go straight to the end (deob)");
 
     if( g_fail )

@@ -35,8 +35,6 @@
 #define APP_OUTLINE_HULL_MESH_DIRECTIONS 16
 
 /* Private to this unit, declared up front so definition order is free. */
-static enum OverlaySurface
-app_overlay_surface(struct App const* app);
 static uint32_t
 app_overlay_chat_colour(
     struct App* app,
@@ -72,51 +70,17 @@ app_overlay_outline_scenery(
  * @see src/app.c
  */
 
-/* The stage works in surfaces; this client's draw window is a plugin-facing
- * enum. One translation, here, so nothing below has to know they are the same
- * three values in the same order -- which they need not stay. */
-static enum OverlaySurface
-app_overlay_surface(struct App const* app)
-{
-    assert(app);
-    switch( app->plugin_draw_canvas )
-    {
-    case APP_PLUGIN_SURFACE_CANVAS: return OVERLAY_SURFACE_CANVAS;
-    case APP_PLUGIN_SURFACE_PANEL: return OVERLAY_SURFACE_PANEL;
-    default: return OVERLAY_SURFACE_WORLD;
-    }
-}
-
 void
 app_overlay_push(
     struct App* app,
     struct UITreeEntityOverlay const* item)
 {
-    if( app->plugin_draw_canvas == APP_PLUGIN_SURFACE_PANEL )
+    if( OverlayStage_OpenSurface(&app->overlays) == OVERLAY_SURFACE_PANEL )
     {
-        struct UITreeEntityOverlay* out;
-
         /* PANEL is a staged, panel-local target. If the application did not
          * prepare an exact custom well, drawing is dropped rather than falling
          * through into the world list. That is the isolation boundary. */
-        if( !app->panel_overlay_stage_active )
-            return;
-        if( app->panel_overlay_stage_count >= APP_PLUGIN_PANEL_OVERLAYS_MAX )
-        {
-            app->panel_overlay_stage_overflow = 1;
-            return;
-        }
-
-        out = &app->panel_overlay_stage[app->panel_overlay_stage_count];
-        if( !ToriRSChromePanelDraw_Transform(
-                item,
-                app->panel_overlay_origin_x,
-                app->panel_overlay_origin_y,
-                app->panel_overlay_scale,
-                app->panel_overlay_clip,
-                out) )
-            return;
-        app->panel_overlay_stage_count++;
+        PanelOverlayStage_Push(&app->panel_wells, item);
         return;
     }
 
@@ -128,25 +92,9 @@ app_overlay_push(
      * is a primitive of that marker. Nothing else can be in flight: the
      * helpers are called straight from the verb and do not re-enter.
      */
-    if( app->world_tile_mark_stage_active )
+    if( TileMarkStage_IsOpen(&app->tile_marks) )
     {
-        struct ToriRS_WorldTileMark* mark;
-
-        if( app->world_tile_mark_count >= APP_WORLD_TILE_MARKS_MAX )
-        {
-            app->world_tile_mark_overflow = 1;
-            return;
-        }
-        mark = &app->world_tile_marks[app->world_tile_mark_count];
-        mark->after_command = APP_WORLD_TILE_MARK_UNPLACED;
-        mark->item = *item;
-        mark->item.clip_x = app->world_tile_mark_stage_clip.x;
-        mark->item.clip_y = app->world_tile_mark_stage_clip.y;
-        mark->item.clip_w = app->world_tile_mark_stage_clip.w;
-        mark->item.clip_h = app->world_tile_mark_stage_clip.h;
-        app->world_tile_mark_key[app->world_tile_mark_count] =
-            app->world_tile_mark_stage_key;
-        app->world_tile_mark_count++;
+        TileMarkStage_Push(&app->tile_marks, item);
         return;
     }
 
@@ -160,7 +108,7 @@ app_overlay_push(
      * an explicit plugin draw event flips it; PANEL returned above and can
      * never enter one of these game lists.
      */
-    OverlayStage_Push(&app->overlays, app_overlay_surface(app), item);
+    OverlayStage_Push(&app->overlays, OverlayStage_OpenSurface(&app->overlays), item);
 }
 
 /** How many items the open draw window has pushed, so a draw verb can report
@@ -170,39 +118,20 @@ app_overlay_count(struct App const* app)
 {
     assert(app);
     /* The panel's staging is not the stage's, so its count is not either. */
-    if( app->plugin_draw_canvas == APP_PLUGIN_SURFACE_PANEL )
-        return app->panel_overlay_stage_active ? app->panel_overlay_stage_count : 0;
+    if( OverlayStage_OpenSurface(&app->overlays) == OVERLAY_SURFACE_PANEL )
+        return PanelOverlayStage_StagedCount(&app->panel_wells);
     /* Nor is the tile-mark stage's. A marker drawn into the scene costs the
      * frame exactly what the same marker costs over it, and the budget has to
      * bill it, or "in the scene" would be a way to draw for free. */
-    if( app->world_tile_mark_stage_active )
-        return app->world_tile_mark_count;
-    return OverlayStage_Count(&app->overlays, app_overlay_surface(app));
+    if( TileMarkStage_IsOpen(&app->tile_marks) )
+        return TileMarkStage_Count(&app->tile_marks);
+    return OverlayStage_Count(&app->overlays, OverlayStage_OpenSurface(&app->overlays));
 }
 
-/**
- * The marked tile, as one int.
- *
- * A key and not a struct because it is compared, never read: the placement
- * pass below matches it against the tile a painter command names, and the
- * stage carries exactly one of them at a time.
- */
-int
-app_world_tile_mark_key(
-    int scene_x,
-    int scene_z,
-    int level)
-{
-    assert(scene_x >= 0);
-    assert(scene_x < APP_WORLD_TILE_MARK_SCENE_MAX);
-    assert(scene_z >= 0);
-    assert(scene_z < APP_WORLD_TILE_MARK_SCENE_MAX);
-    assert(level >= 0);
-    assert(level < WORLD_MAP_TERRAIN_LEVELS);
-    return ((scene_x * APP_WORLD_TILE_MARK_SCENE_MAX) + scene_z) *
-               WORLD_MAP_TERRAIN_LEVELS +
-           level;
-}
+/* The stage's tile key and the world's level count are one number. */
+_Static_assert(
+    TILE_MARK_STAGE_LEVELS == WORLD_MAP_TERRAIN_LEVELS,
+    "a tile-mark key names every terrain level the world has");
 
 /**
  * Empty the in-scene tile-marker list.
@@ -216,12 +145,7 @@ void
 app_world_tile_marks_reset(struct App* app)
 {
     assert(app);
-    app->world_tile_mark_count = 0;
-    app->world_tile_mark_overflow = 0;
-    app->world_tile_mark_unplaced = 0;
-    app->world_tile_mark_stage_active = 0;
-    app->world_tile_mark_stage_key = 0;
-    memset(&app->world_tile_mark_stage_clip, 0, sizeof(app->world_tile_mark_stage_clip));
+    TileMarkStage_Reset(&app->tile_marks);
 }
 
 void
@@ -234,21 +158,14 @@ app_world_tile_mark_begin(
     int clip_h)
 {
     assert(app);
-    assert(!app->world_tile_mark_stage_active);
-    app->world_tile_mark_stage_active = 1;
-    app->world_tile_mark_stage_key = key;
-    app->world_tile_mark_stage_clip.x = clip_x;
-    app->world_tile_mark_stage_clip.y = clip_y;
-    app->world_tile_mark_stage_clip.w = clip_w;
-    app->world_tile_mark_stage_clip.h = clip_h;
+    TileMarkStage_Begin(&app->tile_marks, key, clip_x, clip_y, clip_w, clip_h);
 }
 
 void
 app_world_tile_mark_end(struct App* app)
 {
     assert(app);
-    assert(app->world_tile_mark_stage_active);
-    app->world_tile_mark_stage_active = 0;
+    TileMarkStage_End(&app->tile_marks);
 }
 
 /**
@@ -280,32 +197,12 @@ void
 app_world_tile_marks_place(struct App* app)
 {
     struct PaintersBuffer* buffer;
-    /* The distinct TILES, not the primitives. Ten primitives of one marker
-     * share one tile and one answer, and the scan below runs once per painter
-     * command -- so searching the primitives would multiply the paint's
-     * thousands of terrain commands by ten for no new information. */
-    int tile_key[APP_WORLD_TILE_MARKS_MAX];
-    int tile_at[APP_WORLD_TILE_MARKS_MAX];
-    int tile_count = 0;
+    struct TileMarkPlacement placement;
     int depth = 0;
 
     assert(app);
-    if( app->world_tile_mark_count <= 0 )
+    if( TileMarkStage_PlaceBegin(&app->tile_marks, &placement) <= 0 )
         return;
-
-    for( int i = 0; i < app->world_tile_mark_count; i++ )
-    {
-        int at = 0;
-
-        while( at < tile_count && tile_key[at] != app->world_tile_mark_key[i] )
-            at++;
-        if( at == tile_count )
-        {
-            tile_key[tile_count] = app->world_tile_mark_key[i];
-            tile_at[tile_count] = APP_WORLD_TILE_MARK_UNPLACED;
-            tile_count++;
-        }
-    }
 
     buffer = app->painter_buffer;
     if( buffer )
@@ -313,7 +210,6 @@ app_world_tile_marks_place(struct App* app)
         for( int at = 0; at < buffer->command_count; at++ )
         {
             struct PaintersElementCommand const* cmd = &buffer->commands[at];
-            int key;
 
             if( cmd->_bf_kind == PNTR_CMD_BEGIN_WORLD )
             {
@@ -330,63 +226,30 @@ app_world_tile_marks_place(struct App* app)
             if( cmd->_bf_kind != PNTR_CMD_TERRAIN &&
                 cmd->_bf_kind != PNTR_CMD_TERRAIN_PICK_ONLY )
                 continue;
-            key = app_world_tile_mark_key(
-                (int)cmd->_terrain._bf_terrain_x,
-                (int)cmd->_terrain._bf_terrain_z,
-                (int)cmd->_terrain._bf_terrain_y);
-            /* LAST wins, deliberately: a tile can put down several storeys of
-             * ground in one pass and a marker emitted after the first of them
-             * would be painted over by the rest. */
-            for( int i = 0; i < tile_count; i++ )
-                if( tile_key[i] == key )
-                    tile_at[i] = at;
+            TileMarkPlacement_Saw(
+                &placement,
+                at,
+                TileMarkStage_Key(
+                    (int)cmd->_terrain._bf_terrain_x,
+                    (int)cmd->_terrain._bf_terrain_z,
+                    (int)cmd->_terrain._bf_terrain_y));
         }
     }
 
-    for( int i = 0; i < app->world_tile_mark_count; i++ )
-    {
-        int at = 0;
-
-        while( at < tile_count && tile_key[at] != app->world_tile_mark_key[i] )
-            at++;
-        assert(at < tile_count);
-        app->world_tile_marks[i].after_command = tile_at[at];
-        if( tile_at[at] == APP_WORLD_TILE_MARK_UNPLACED )
-            app->world_tile_mark_unplaced++;
-    }
+    TileMarkStage_PlaceFinish(&app->tile_marks, &placement);
 
     /* The two ways an in-scene marker can fail to appear, said out loud.
      * Neither is an error -- a tile off screen has no ground to be drawn
      * after, and the budget is the budget -- but both look exactly like "the
      * plugin drew nothing", which is the confusion this whole directory of
      * captures exists to stop. Only when there is something to say. */
-    if( (app->world_tile_mark_unplaced || app->world_tile_mark_overflow) &&
+    if( (app->tile_marks.unplaced || app->tile_marks.overflow) &&
         getenv("TORIRS_TRACE_PLUGIN_WORLD") )
         TORIRS_LOG(
             "PLUGIN_TILE_MARKS staged=%d unplaced=%d overflow=%d\n",
-            app->world_tile_mark_count,
-            app->world_tile_mark_unplaced,
-            app->world_tile_mark_overflow);
-
-    /* Insertion sort, and it must be STABLE: the primitives of one marker are
-     * a run -- a polygon's begin, its points and its end -- and they all carry
-     * the same command index, so an unstable sort would reorder a run into a
-     * polygon with no beginning. */
-    for( int i = 1; i < app->world_tile_mark_count; i++ )
-    {
-        struct ToriRS_WorldTileMark mark = app->world_tile_marks[i];
-        int key = app->world_tile_mark_key[i];
-        int j = i - 1;
-
-        while( j >= 0 && app->world_tile_marks[j].after_command > mark.after_command )
-        {
-            app->world_tile_marks[j + 1] = app->world_tile_marks[j];
-            app->world_tile_mark_key[j + 1] = app->world_tile_mark_key[j];
-            j--;
-        }
-        app->world_tile_marks[j + 1] = mark;
-        app->world_tile_mark_key[j + 1] = key;
-    }
+            app->tile_marks.count,
+            app->tile_marks.unplaced,
+            app->tile_marks.overflow);
 }
 
 /* One entity's overlay set. combat/damage state lives on the shared facet, so
@@ -534,7 +397,7 @@ app_overlay_build_player_headicons(
  * values are 1 = an NPC by slot, 2..6 = a COORD (id is x, z is z, the height
  * byte is how far above the tile the arrow floats and the type itself picks
  * which point of the tile), 10 = a PLAYER by pid. 255 clears, and
- * `rs_gameproto_exec.c` normalises that to 0 and 3..6 to 2.
+ * RS_HintArrow_Set (game/rs_hint_arrow.h) normalises that to 0 and 3..6 to 2.
  *
  * A subject that is out of view is not an error and not a clear: an npc can
  * walk behind the camera and come back. It simply does not project this frame,
@@ -578,28 +441,29 @@ app_overlay_build_hint_arrow(struct App* app)
     if( hint_scene <= 0 )
         return;
 
-    if( type != APP_HINT_ARROW_PLAYER && app->logic_cycle % 20 >= 10 )
+    if( type != RS_HINT_ARROW_PLAYER &&
+        FrameClockSerial_LogicCycle(&app->frame_clock.serial) % 20 >= 10 )
         return;
 
     switch( type )
     {
-    case APP_HINT_ARROW_COORD:
+    case RS_HINT_ARROW_COORD:
     {
         /*
          * A tile, in ABSOLUTE world coordinates, converted to the scene's own
          * frame through the same origin `SET_MAP_FLAG`'s absolute form uses.
-         * `rs_gameproto_exec.c` has already folded the edge forms (3..6) into
+         * RS_HintArrow_Set has already folded the edge forms (3..6) into
          * the fine offset pair, as `class268.method6676` does.
          */
-        int const base_x = (app->rebuild_zone_x - 6) * 8;
-        int const base_z = (app->rebuild_zone_z - 6) * 8;
+        int const base_x = RS_RebuildRegion_SceneBaseX(&app->rebuild_region);
+        int const base_z = RS_RebuildRegion_SceneBaseZ(&app->rebuild_region);
 
-        world_x = ((app->hint_arrow.target - base_x) << 7) + app->hint_arrow.offset_x;
-        world_z = ((app->hint_arrow.tile_z - base_z) << 7) + app->hint_arrow.offset_z;
+        world_x = RS_HintArrow_CoordFineX(&app->hint_arrow, base_x);
+        world_z = RS_HintArrow_CoordFineZ(&app->hint_arrow, base_z);
         height = app->hint_arrow.height * 2;
         break;
     }
-    case APP_HINT_ARROW_NPC:
+    case RS_HINT_ARROW_NPC:
     {
         struct WorldEntity_NPC* npc = World_NpcGetByServerSlot(app->world, app->hint_arrow.target);
         struct ToriRS_Npctype* npctype;
@@ -615,7 +479,7 @@ app_overlay_build_hint_arrow(struct App* app)
                  app_actor_seq_vertical_offset(app, &npc->animation) + 15;
         break;
     }
-    case APP_HINT_ARROW_PLAYER:
+    case RS_HINT_ARROW_PLAYER:
     {
         struct WorldEntity_Player* player =
             World_PlayerGetByServerPid(app->world, app->hint_arrow.target);
@@ -1360,8 +1224,8 @@ app_overlay_build_hover_footprint(struct App* app)
      * The live mode is App state rather than a static resolved once, because
      * the hover_footprint hotkey turns it on and off during a session. The env
      * var still chooses WHICH mode, and app_hover_footprint_toggle restores it
-     * — see App::hover_footprint_mode. */
-    int mode = app->hover_footprint;
+     * — see EditorShell::hover_footprint_mode. */
+    int mode = app->editor_shell->hover_footprint;
 
     if( !mode || !app->world )
         return;
@@ -1380,11 +1244,11 @@ app_overlay_build_hover_footprint(struct App* app)
          * know what kind of entity it found beyond where to read the id.
          */
         struct World_Picked const* hit = NULL;
-        for( int i = 0; i < app->frame_view->world_pickset.count && !hit; i++ )
+        for( int i = 0; i < app->world_views.frame->world_pickset.count && !hit; i++ )
         {
-            enum World_PickType const type = app->frame_view->world_pickset.items[i].type;
+            enum World_PickType const type = app->world_views.frame->world_pickset.items[i].type;
             if( type == WORLD_PICK_SCENERY || type == WORLD_PICK_NPC )
-                hit = &app->frame_view->world_pickset.items[i];
+                hit = &app->world_views.frame->world_pickset.items[i];
         }
         if( !hit )
             return;
@@ -1702,8 +1566,8 @@ static void
 app_overlay_build_brush_footprint(struct App* app)
 {
     static struct Editor_BrushTile tiles[EDITOR_BRUSH_TILES_MAX];
-    struct EditorUi* ui = app->editor_panel.ui;
-    struct MapEditorHover const* hover = &app->map_ghost.hover;
+    struct EditorUi* ui = app->editor_shell->editor_panel.ui;
+    struct MapEditorHover const* hover = &app->editor_shell->map_ghost.hover;
     int row_x0[EDITOR_BRUSH_RADIUS_MAX * 2 + 1];
     int row_x1[EDITOR_BRUSH_RADIUS_MAX * 2 + 1];
     int count;
@@ -1887,9 +1751,9 @@ app_overlay_editor_route_number(
 static void
 app_overlay_build_editor_ghosts(struct App* app)
 {
-    struct Editor_Panel const* panel = &app->editor_panel;
-    struct MapEditorSpawnGhost const* spawn = &app->map_ghost.spawn;
-    struct MapEditorHover const* hover = &app->map_ghost.hover;
+    struct Editor_Panel const* panel = &app->editor_shell->editor_panel;
+    struct MapEditorSpawnGhost const* spawn = &app->editor_shell->map_ghost.spawn;
+    struct MapEditorHover const* hover = &app->editor_shell->map_ghost.hover;
 
     if( !app->world )
         return;
@@ -2217,7 +2081,7 @@ static void
 app_overlay_build_editor_path(struct App* app)
 {
     static struct Editor_PathTile tiles[EDITOR_PATH_SPAN_MAX * 8];
-    struct Editor_Panel const* panel = &app->editor_panel;
+    struct Editor_Panel const* panel = &app->editor_shell->editor_panel;
     int count;
     int drawn = 0;
 
@@ -2429,8 +2293,8 @@ app_overlay_tile_grid_segment(
 static void
 app_overlay_build_editor_tile_grid(struct App* app)
 {
-    struct EditorUi const* ui = app->editor_panel.ui;
-    struct MapEditorHover const* hover = &app->map_ghost.hover;
+    struct EditorUi const* ui = app->editor_shell->editor_panel.ui;
+    struct MapEditorHover const* hover = &app->editor_shell->map_ghost.hover;
     struct Editor_Doc const* doc;
     int const r = APP_EDITOR_TILE_GRID_RADIUS;
     int centre_x;
@@ -2568,7 +2432,7 @@ app_overlay_editor_region_triangle(
 static void
 app_overlay_build_editor_region(struct App* app)
 {
-    struct Editor_Panel* panel = &app->editor_panel;
+    struct Editor_Panel* panel = &app->editor_shell->editor_panel;
     struct EditorUi* ui = panel->ui;
     const struct Editor_RegionTile* tiles = NULL;
     struct Editor_RegionStats stats;
@@ -2628,7 +2492,7 @@ app_overlay_build_editor_region(struct App* app)
 static void
 app_overlay_build_editor_run(struct App* app)
 {
-    struct Editor_Panel const* panel = &app->editor_panel;
+    struct Editor_Panel const* panel = &app->editor_shell->editor_panel;
     struct Editor_LocRunPlan const* plan = &panel->run.plan;
     int size_x = 1;
     int size_z = 1;
@@ -2778,14 +2642,14 @@ app_overlay_area_fill(
  * rectangle washed in its colour on its level and outlined along the ground,
  * the area's name at the top-left (north-west) corner of its first
  * rectangle; the selected area brighter. Absolute tiles from the panel,
- * clipped to the loaded scene and projected through app->world_emit_desc
+ * clipped to the loaded scene and projected through app->world_views.emit_desc
  * like the ghosts, so it follows the World panel. An area on every level
  * (-1) is drawn on the edit level (0 when it follows the pick).
  */
 static void
 app_overlay_build_editor_areas(struct App* app)
 {
-    struct Editor_Panel const* panel = &app->editor_panel;
+    struct Editor_Panel const* panel = &app->editor_shell->editor_panel;
     static struct Editor_AreaOverlay areas[APP_EDITOR_AREAS_MAX];
     int font_id;
     int n;
@@ -2884,7 +2748,7 @@ app_overlay_build_editor_selection(struct App* app);
 static void
 app_overlay_build_editor_gizmo(struct App* app)
 {
-    struct MapEditorPieceGhost const* ghost = &app->map_ghost.pieces;
+    struct MapEditorPieceGhost const* ghost = &app->editor_shell->map_ghost.pieces;
     struct LocEditorGizmoScreen screen;
     int hot;
 
@@ -2930,7 +2794,7 @@ app_overlay_build_editor_gizmo(struct App* app)
 void
 app_overlay_build_editor_selection(struct App* app)
 {
-    struct Editor_Panel const* panel = &app->editor_panel;
+    struct Editor_Panel const* panel = &app->editor_shell->editor_panel;
 
     /* Whatever tool is active: the selection is tool-independent (pick with
      * Select, then rotate/move/reshape with the others), so its highlight
@@ -2969,14 +2833,14 @@ app_overlay_build_editor_selection(struct App* app)
      * footprint draws, fed by the ghost's own scenery entity, so a 3x2 loc
      * shows 3x2 here without anything re-deriving sizes. Before the
      * selection early-out: a ghost exists with or without a selection. */
-    if( app->map_ghost.active && app->world )
+    if( app->editor_shell->map_ghost.active && app->world )
     {
         int const idx = World_SceneryFindAt(
             app->world,
-            app->map_ghost.spec.scene_x,
-            app->map_ghost.spec.scene_z,
-            app->map_ghost.spec.level,
-            app->map_ghost.spec.shape);
+            app->editor_shell->map_ghost.spec.scene_x,
+            app->editor_shell->map_ghost.spec.scene_z,
+            app->editor_shell->map_ghost.spec.level,
+            app->editor_shell->map_ghost.spec.shape);
         if( idx >= 0 )
         {
             struct WorldEntity_Scenery* ghost =
@@ -3059,7 +2923,7 @@ app_overlay_build_editor_selection(struct App* app)
             if( idx >= 0 )
                 scenery = World_EntityPoolGet(&app->world->entities.scenery, idx);
             if( scenery )
-                app->editor_panel.sel_element_id = scenery->element_id;
+                app->editor_shell->editor_panel.sel_element_id = scenery->element_id;
         }
         if( !scenery )
             return;
@@ -3153,9 +3017,9 @@ app_overlay_build_editor_selection(struct App* app)
  *     nothing in the watcher's picture; the thing it pressed does.
  *
  * Nothing here runs with one view: every entry point's first test is
- * `view_split.attached`, which is 0 headless and in a client with no script
+ * `world_views.split.attached`, which is 0 headless and in a client with no script
  * attached. Nothing here runs for the runner's own frames either: the marks
- * are drawn only while frame_view is the PlayerClient view, so a script's
+ * are drawn only while world_views.frame is the PlayerClient view, so a script's
  * photograph (app_capture_runner_render, which walks the emit through the
  * runner's view) carries none of them.
  *
@@ -3236,7 +3100,7 @@ static struct App_WatchState g_watch_state;
 static int
 app_watch_presented(struct App* app)
 {
-    return app->frame_view == &app->views[APP_VIEW_PLAYER_CLIENT];
+    return app->world_views.frame == &app->world_views.views[APP_VIEW_PLAYER_CLIENT];
 }
 
 /* Strip <col=..> tags and @yel@ colour codes, so a menu row reads as words
@@ -3282,15 +3146,15 @@ app_watch_sync_attach(struct App* app)
 {
     struct App_WatchState* state = &g_watch_state;
 
-    if( state->attaches_seen == app->view_split.attaches )
+    if( state->attaches_seen == app->world_views.split.attaches )
         return;
-    state->attaches_seen = app->view_split.attaches;
+    state->attaches_seen = app->world_views.split.attaches;
     state->menu_row_count = 0;
     state->cross_x = app->cross.x;
     state->cross_y = app->cross.y;
     state->cross_mode = (int)app->cross.mode;
     state->cross_cycle = app->cross.cycle;
-    state->runner_buttons = app->view_split.runner_buttons_held;
+    state->runner_buttons = app->world_views.split.runner_buttons_held;
     state->click_cross_until_ms = 0;
     state->press_active = 0;
     state->press_items_last = 0;
@@ -3343,8 +3207,8 @@ static void
 app_watch_note_press(struct App* app)
 {
     struct App_WatchState* state = &g_watch_state;
-    struct App_ViewSplit const* split = &app->view_split;
-    uint64_t const now = app->last_frame_ms;
+    struct App_ViewSplit const* split = &app->world_views.split;
+    uint64_t const now = FrameClockSerial_LastFrameMs(&app->frame_clock.serial);
     int new_cross;
     int button_rise;
 
@@ -3431,7 +3295,7 @@ app_overlay_build_watch_world(struct App* app)
     int before;
 
     assert(app);
-    if( !app->view_split.attached )
+    if( !app->world_views.split.attached )
         return;
     if( !app_watch_presented(app) || !app->world )
         return;
@@ -3441,7 +3305,7 @@ app_overlay_build_watch_world(struct App* app)
     state->press_items_last = 0;
     if( !state->press_active )
         return;
-    if( app->last_frame_ms >= state->press_until_ms )
+    if( FrameClockSerial_LastFrameMs(&app->frame_clock.serial) >= state->press_until_ms )
     {
         state->press_active = 0;
         return;
@@ -3658,7 +3522,7 @@ app_watch_trace(
     char const* badge)
 {
     struct App_WatchState* state = &g_watch_state;
-    struct App_ViewSplit const* split = &app->view_split;
+    struct App_ViewSplit const* split = &app->world_views.split;
 
     if( !state->trace_resolved )
     {
@@ -3678,14 +3542,14 @@ app_watch_trace(
         "runner_menu=%d rows=%d presses=%llu press=%d kind=%d element=%d a=%d b=%d c=%d items=%d "
         "text=\"%s\" label=\"%s\" badge_box=%d,%d,%d viewport=%d,%d,%d,%d cuts=%llu\n",
         (unsigned long long)split->presented_frames,
-        (unsigned long long)app->last_frame_ms,
+        (unsigned long long)FrameClockSerial_LastFrameMs(&app->frame_clock.serial),
         split->interact,
         badge,
         split->runner_pointer_valid,
         split->runner_x,
         split->runner_y,
         split->runner_buttons_held,
-        app->last_frame_ms < state->click_cross_until_ms,
+        FrameClockSerial_LastFrameMs(&app->frame_clock.serial) < state->click_cross_until_ms,
         App_RunnerView(app)->minimenu->visible ? 1 : 0,
         state->menu_row_count,
         (unsigned long long)state->presses,
@@ -3701,10 +3565,10 @@ app_watch_trace(
         state->badge_x,
         state->badge_y,
         state->badge_w,
-        app->world_emit_desc.x,
-        app->world_emit_desc.y,
-        app->world_emit_desc.w,
-        app->world_emit_desc.h,
+        app->world_views.emit_desc.x,
+        app->world_views.emit_desc.y,
+        app->world_views.emit_desc.w,
+        app->world_views.emit_desc.h,
         (unsigned long long)state->canvas_cuts);
     fflush(state->trace);
 }
@@ -3742,7 +3606,7 @@ app_overlay_build_feedback_text(struct App* app)
     client = &app->host.client;
     if( !UIInk_IsActive(&app->ink) || !client->show_mouse_cross || !client->feedback_popup_text )
         return;
-    if( app->ink.colour != TORIRS_INKWELL_RED || app->feedback_text[0] == '\0' )
+    if( app->ink.colour != TORIRS_INKWELL_RED || app->ink.text[0] == '\0' )
         return;
     if( cycle >= APP_FEEDBACK_TEXT_CYCLES )
         return;
@@ -3759,7 +3623,7 @@ app_overlay_build_feedback_text(struct App* app)
     }
 
     font_id = app_minimenu_font_scene_id(app);
-    box_w = app_watch_text_width(app, font_id, app->feedback_text) + 6;
+    box_w = app_watch_text_width(app, font_id, app->ink.text) + 6;
     box_x = app->ink.x <= UITREE_LAYOUT_ROOT_W / 2 ? app->ink.x + half : app->ink.x - half - box_w;
     box_y = app->ink.y;
     app_watch_canvas_rect(app, box_x, box_y, box_w, APP_FEEDBACK_TEXT_BOX_H, 0xFF5D5447u, trans);
@@ -3776,7 +3640,7 @@ app_overlay_build_feedback_text(struct App* app)
             .color = 0xFFFFFFFFu,
             .trans = trans,
         };
-        snprintf(item.text, sizeof(item.text), "%s", app->feedback_text);
+        snprintf(item.text, sizeof(item.text), "%s", app->ink.text);
         app_watch_canvas_push(app, &item);
     }
 }
@@ -3793,8 +3657,8 @@ app_overlay_build_watch_canvas(
     int count)
 {
     struct App_WatchState* state = &g_watch_state;
-    struct App_ViewSplit const* split = &app->view_split;
-    struct UITreeEmitDesc const* viewport = &app->world_emit_desc;
+    struct App_ViewSplit const* split = &app->world_views.split;
+    struct UITreeEmitDesc const* viewport = &app->world_views.emit_desc;
     char const* badge;
     int font_id;
     int badge_w;
@@ -3863,7 +3727,8 @@ app_overlay_build_watch_canvas(
                     2);
         }
         app_watch_canvas_rect(app, x - 1, y - 1, 3, 3, APP_WATCH_COLOR_GHOST, 0);
-        if( split->runner_buttons_held || app->last_frame_ms < state->click_cross_until_ms )
+        if( split->runner_buttons_held ||
+            FrameClockSerial_LastFrameMs(&app->frame_clock.serial) < state->click_cross_until_ms )
         {
             int const cx = split->runner_buttons_held ? x : state->click_cross_x;
             int const cy = split->runner_buttons_held ? y : state->click_cross_y;
@@ -3891,7 +3756,7 @@ app_overlay_watch_canvas_count(
     int count)
 {
     assert(app);
-    if( !app->view_split.attached )
+    if( !app->world_views.split.attached )
         return count;
     if( app_watch_presented(app) )
         return count;

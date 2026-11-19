@@ -115,6 +115,23 @@ struct Worldview
 struct WorldviewRegistry
 {
     struct Worldview views[WORLDVIEW_MAX];
+    /**
+     * Packet-apply cursor: the view the current tick's zone/entity packets
+     * address. SET_ACTIVE_WORLD moves it (WorldviewRegistry_SetActiveWorld);
+     * the tick fence, a CLEAR_ENTITIES and the despawn of the view it names
+     * put it back on the root (WorldviewRegistry_ResetActive). Zone
+     * applicators resolve their (world, builder) through it; async spawn
+     * tasks and the pending-zone queue copy it at enqueue time, because they
+     * outlive it. A caller may point it at a view for the span of one apply
+     * and put it back (WorldviewRegistry_SetActive).
+     */
+    int active;
+    /**
+     * Plane the last SET_ACTIVE_WORLD said the addressed view draws (the deob
+     * snapshots the active WorldView's plane beside the cursor), clamped to
+     * 0..3. 0 again whenever the cursor is reset to the root.
+     */
+    int active_level;
 };
 
 void
@@ -177,6 +194,38 @@ struct Worldview*
 WorldviewRegistry_Get(
     struct WorldviewRegistry* reg,
     int id);
+
+/** The packet-apply cursor: the view slot this tick's zone and entity
+ *  packets address. WORLDVIEW_ROOT outside a SET_ACTIVE_WORLD. */
+int
+WorldviewRegistry_Active(struct WorldviewRegistry const* reg);
+
+/** The plane the last SET_ACTIVE_WORLD named, 0..3; 0 after a reset. */
+int
+WorldviewRegistry_ActiveLevel(struct WorldviewRegistry const* reg);
+
+/**
+ * SET_ACTIVE_WORLD: point the cursor at live slot `id` and record `level`,
+ * clamped to 0..3, both beside the cursor and on the view itself
+ * (`Worldview.level`), where it outlives the tick fence.
+ */
+void
+WorldviewRegistry_SetActiveWorld(
+    struct WorldviewRegistry* reg,
+    int id,
+    int level);
+
+/** Move the cursor alone, the level untouched: a caller addressing a view for
+ *  the span of one apply, and putting the previous cursor back after it. */
+void
+WorldviewRegistry_SetActive(
+    struct WorldviewRegistry* reg,
+    int id);
+
+/** Back to the root at level 0: the tick fence, CLEAR_ENTITIES, the cursor's
+ *  view despawning. */
+void
+WorldviewRegistry_ResetActive(struct WorldviewRegistry* reg);
 
 /** True when `id` names a live view. For paths where "unknown" is an answer
  * (spawn-slot checks), not a violation. Asserts only the range. */

@@ -26,7 +26,8 @@
  * inventory model) is stamped with a distinct sentinel so the per-tick scan
  * stops re-enqueueing it; the server replacing the item resets scene_id to
  * NO_SCENE_ID and re-arms the reconcile. A slot whose parts did NOT arrive is
- * never stamped: it waits for a later pass, paced by app_obj_icon_retry_wait. */
+ * never stamped: it waits for a later pass, paced by app->inv_icon_retry
+ * (inv/inv_icon_retry.h). */
 #define APP_INV_ICON_BATCH_MAX 64
 #define APP_INV_ICON_SCENE_FAILED (-2)
 
@@ -160,15 +161,15 @@ app_ui_host_publish_inputs(struct App* app)
      * the fallback. */
     signature[UITREE_HOST_INPUT_CAMERA] = UITree_InputSignatureInt(
         signature[UITREE_HOST_INPUT_CAMERA],
-        ToriDraw_NormalizeAngle(app->frame_view->world_camera.yaw));
+        ToriDraw_NormalizeAngle(app->world_views.frame->world_camera.yaw));
     signature[UITREE_HOST_INPUT_CAMERA] = UITree_InputSignatureInt(
-        signature[UITREE_HOST_INPUT_CAMERA], app->frame_view->world_camera.pitch);
+        signature[UITREE_HOST_INPUT_CAMERA], app->world_views.frame->world_camera.pitch);
     signature[UITREE_HOST_INPUT_CAMERA] = UITree_InputSignatureInt(
-        signature[UITREE_HOST_INPUT_CAMERA], app->frame_view->world_camera_pos.x);
+        signature[UITREE_HOST_INPUT_CAMERA], app->world_views.frame->world_camera_pos.x);
     signature[UITREE_HOST_INPUT_CAMERA] = UITree_InputSignatureInt(
-        signature[UITREE_HOST_INPUT_CAMERA], app->frame_view->world_camera_pos.y);
+        signature[UITREE_HOST_INPUT_CAMERA], app->world_views.frame->world_camera_pos.y);
     signature[UITREE_HOST_INPUT_CAMERA] = UITree_InputSignatureInt(
-        signature[UITREE_HOST_INPUT_CAMERA], app->frame_view->world_camera_pos.z);
+        signature[UITREE_HOST_INPUT_CAMERA], app->world_views.frame->world_camera_pos.z);
     /* What the world letterbox is computed from (UITREE_HOST_GET_WORLD_LETTERBOX):
      * the SETFOV endpoints and the four CLAMPFOV bounds. A cutscene's clamp
      * changes nothing else the walk reads, so without these the gate would keep
@@ -213,10 +214,10 @@ app_ui_host_publish_inputs(struct App* app)
     }
     /* The runner camera split: the other view's menu is drawn too (tinted),
      * so its phases are this frame's as well. */
-    if( app->view_split.attached )
+    if( app->world_views.split.attached )
     {
         struct UIMinimenu const* other =
-            app->views[app->frame_view == &app->views[APP_VIEW_RUNNER] ? APP_VIEW_PLAYER_CLIENT : APP_VIEW_RUNNER]
+            app->world_views.views[app->world_views.frame == &app->world_views.views[APP_VIEW_RUNNER] ? APP_VIEW_PLAYER_CLIENT : APP_VIEW_RUNNER]
                 .minimenu;
         signature[UITREE_HOST_INPUT_POINTER] =
             UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], other->visible);
@@ -232,7 +233,7 @@ app_ui_host_publish_inputs(struct App* app)
                 UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], other->hovered_option);
         }
     }
-    menu = app->frame_view->minimenu;
+    menu = app->world_views.frame->minimenu;
     signature[UITREE_HOST_INPUT_POINTER] =
         UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], menu->visible);
     if( menu->visible )
@@ -320,7 +321,7 @@ app_ui_host_publish_inputs(struct App* app)
     signature[UITREE_HOST_INPUT_INVENTORY] = UITree_InputSignatureBytes(
         signature[UITREE_HOST_INPUT_INVENTORY], &app->invs.selection, sizeof(app->invs.selection));
     signature[UITREE_HOST_INPUT_INVENTORY] = UITree_InputSignatureBytes(
-        signature[UITREE_HOST_INPUT_INVENTORY], &app->objsel, sizeof(app->objsel));
+        signature[UITREE_HOST_INPUT_INVENTORY], &app->target_select.obj, sizeof(app->target_select.obj));
     {
         /* WHICH item the gesture owns, never how far it has been carried: the
          * offset already reaches emit through the POINTER lane, and hashing it
@@ -346,15 +347,15 @@ app_ui_host_publish_inputs(struct App* app)
         app->scene ? ToriDraw_SceneUIAssetRevision(app->scene) : 0);
 
     signature[UITREE_HOST_INPUT_WORLD] =
-        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_WORLD], app->minimap_state);
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_WORLD], MinimapView_ToggleState(&app->minimap));
     signature[UITREE_HOST_INPUT_WORLD] =
-        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_WORLD], app->multiway);
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_WORLD], RS_SessionInfo_Multiway(&app->session_info));
     signature[UITREE_HOST_INPUT_WORLD] =
-        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_WORLD], app->world_map_scene_id);
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_WORLD], MinimapView_MapSceneId(&app->minimap));
     signature[UITREE_HOST_INPUT_WORLD] =
-        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_WORLD], app->world_map_w);
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_WORLD], MinimapView_MapWidth(&app->minimap));
     signature[UITREE_HOST_INPUT_WORLD] =
-        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_WORLD], app->world_map_h);
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_WORLD], MinimapView_MapHeight(&app->minimap));
     signature[UITREE_HOST_INPUT_WORLD] = UITree_InputSignatureInt(
         signature[UITREE_HOST_INPUT_WORLD], app->world && app->world->load_complete);
     if( app->world && app->world->minimap )
@@ -372,12 +373,12 @@ app_ui_host_publish_inputs(struct App* app)
     if( UICross_IsActive(&app->cross) )
         signature[UITREE_HOST_INPUT_ANIMATION] = UITree_InputSignatureInt(
             signature[UITREE_HOST_INPUT_ANIMATION], UICross_AtlasFrame(&app->cross));
-    signature[UITREE_HOST_INPUT_ANIMATION] =
-        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_ANIMATION], app->reboot_timer != 0);
-    if( app->reboot_timer != 0 )
+    signature[UITREE_HOST_INPUT_ANIMATION] = UITree_InputSignatureInt(
+        signature[UITREE_HOST_INPUT_ANIMATION], app->session_info.reboot_timer != 0);
+    if( app->session_info.reboot_timer != 0 )
         signature[UITREE_HOST_INPUT_ANIMATION] = UITree_InputSignatureInt(
             signature[UITREE_HOST_INPUT_ANIMATION],
-            app->reboot_timer / APP_LOGIC_CYCLES_PER_SECOND);
+            app->session_info.reboot_timer / APP_LOGIC_CYCLES_PER_SECOND);
     /*
      * The login caret's blink phase, and only the phase.
      *
@@ -387,12 +388,14 @@ app_ui_host_publish_inputs(struct App* app)
      * which is how often the screen actually changes. The period is the
      * widget's (revconfig caret_blink=), so the client asks the tree for it.
      */
-    if( app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING )
+    if( RS_ClientPhase_OnTitle(&app->phase) )
     {
         int blink = app_title_caret_blink(app);
         signature[UITREE_HOST_INPUT_ANIMATION] = UITree_InputSignatureInt(
             signature[UITREE_HOST_INPUT_ANIMATION],
-            blink > 0 ? (int)(app->logic_cycle % (uint64_t)blink) < blink / 2 : 0);
+            blink > 0 ? (int)(FrameClockSerial_LogicCycle(&app->frame_clock.serial) %
+                              (uint64_t)blink) < blink / 2
+                      : 0);
     }
     /*
      * The fire's step counter, while there is a fire.
@@ -417,19 +420,22 @@ app_ui_host_publish_inputs(struct App* app)
     if( app->slots.flash_tab >= 0 )
         signature[UITREE_HOST_INPUT_ANIMATION] = UITree_InputSignatureInt(
             signature[UITREE_HOST_INPUT_ANIMATION],
-            RS_UISlots_TabFlashHidden(&app->slots, app->slots.flash_tab, app->logic_cycle));
+            RS_UISlots_TabFlashHidden(
+                &app->slots,
+                app->slots.flash_tab,
+                FrameClockSerial_LogicCycle(&app->frame_clock.serial)));
 
     /* Same-frame world/plugin overlay arrays are refreshed by source-tagged
      * standing records, including sources currently returning zero items.
      * Chrome is retained data, so its exact build serials participate here. */
     signature[UITREE_HOST_INPUT_OVERLAYS] = UITree_InputSignatureBytes(
         signature[UITREE_HOST_INPUT_OVERLAYS],
-        &app->dbg_ui.build_serial,
-        sizeof(app->dbg_ui.build_serial));
+        &app->dev_overlay->ui.build_serial,
+        sizeof(app->dev_overlay->ui.build_serial));
     signature[UITREE_HOST_INPUT_OVERLAYS] = UITree_InputSignatureBytes(
         signature[UITREE_HOST_INPUT_OVERLAYS],
-        &app->plugin_ui.build_serial,
-        sizeof(app->plugin_ui.build_serial));
+        &app->plugin_win->ui.build_serial,
+        sizeof(app->plugin_win->ui.build_serial));
     for( int domain = 0; domain < UITREE_HOST_INPUT_DOMAIN_COUNT; domain++ )
         (void)UITree_HostPublishInputSignature(
             &app->ui_host, (enum UITreeHostInputDomain)domain, signature[domain]);
@@ -450,10 +456,10 @@ app_inv_ui_host_change(
 
     /* A new item is not held behind the pause of one whose parts did not
      * arrive: the next tick runs a reconcile pass. */
-    app->inv_icon_next_pass_ms = 0;
+    InvIconRetry_Lift(&app->inv_icon_retry);
 
     UITree_HostInputsChanged(&app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_INVENTORY));
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 static int
@@ -553,25 +559,15 @@ Task_InvIconReconcile_Run(
         }
     }
 
-    if( self->resolved > 0 )
-    {
-        app->inv_icon_retry_wait_ms = 0;
-        app->inv_icon_next_pass_ms = 0;
-    }
-    else
-    {
-        app->inv_icon_retry_wait_ms = app_obj_icon_retry_wait(app->inv_icon_retry_wait_ms);
-        app->inv_icon_next_pass_ms =
-            (uint64_t)app->host.client.now_ms + app->inv_icon_retry_wait_ms;
-    }
+    InvIconRetry_NotePass(&app->inv_icon_retry, self->resolved, (uint64_t)app->host.client.now_ms);
 
     if( self->published_change )
         UITree_HostInputsChanged(
             &app->ui_host,
             UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_INVENTORY) |
                 UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_ASSETS));
-    app->inv_icon_reconcile_inflight = 0;
-    app->need_redraw = 1;
+    InvIconRetry_End(&app->inv_icon_retry);
+    RedrawRequest_Raise(&app->redraw_request);
     PT_END(&self->pt);
 }
 
@@ -599,8 +595,7 @@ app_inv_icon_reconcile_tick(struct App* app)
 {
     struct Task_InvIconReconcile* task;
 
-    if( app->inv_icon_reconcile_inflight ||
-        (uint64_t)app->host.client.now_ms < app->inv_icon_next_pass_ms ||
+    if( !InvIconRetry_Due(&app->inv_icon_retry, (uint64_t)app->host.client.now_ms) ||
         !InvManager_HasUnbakedIcon(&app->invs) )
         return;
 
@@ -610,7 +605,7 @@ app_inv_icon_reconcile_tick(struct App* app)
     strncpy(task->task.name, "InvIconReconcile", sizeof(task->task.name) - 1);
     task->app = app;
     PT_INIT(&task->pt);
-    app->inv_icon_reconcile_inflight = 1;
+    InvIconRetry_Begin(&app->inv_icon_retry);
     ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
 }
 
@@ -625,9 +620,9 @@ Task_AppCS1Eval_Run(
     PT_BEGIN(&self->pt);
     app->cs1_host.eval_dirty = false;
     PT_TASK_AWAITSELF_IF(CreateTask_CS1Eval(&app->cs1_host));
-    app->cs1_eval_inflight = 0;
+    RS_CS1Host_SetEvalInflight(&app->cs1_host, false);
     if( app->cs1_host.eval_dirty )
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
     PT_END(&self->pt);
 }
 
@@ -650,7 +645,7 @@ app_request_cs1_eval(struct App* app)
 {
     struct Task_AppCS1Eval* task;
 
-    if( app->cs1_eval_inflight )
+    if( RS_CS1Host_EvalInflight(&app->cs1_host) )
         return;
     task = ToriMem_Calloc(ToriMem_Script(), 1, sizeof(*task));
     assert(task);
@@ -658,7 +653,7 @@ app_request_cs1_eval(struct App* app)
     strncpy(task->task.name, "AppCS1Eval", sizeof(task->task.name) - 1);
     task->app = app;
     PT_INIT(&task->pt);
-    app->cs1_eval_inflight = 1;
+    RS_CS1Host_SetEvalInflight(&app->cs1_host, true);
     ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
 }
 

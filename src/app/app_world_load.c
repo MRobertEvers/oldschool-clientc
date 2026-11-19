@@ -56,8 +56,8 @@ app_bind_configured_overlays(struct App* app)
             app->hover_text.font_id = node->u.hovertext.font_id;
     }
     /* Every view's menu draws in the tree's face. */
-    for( int view = 0; view < app->view_split.view_count; view++ )
-        app->views[view].minimenu->font_id = minimenu_font_id;
+    for( int view = 0; view < app->world_views.split.view_count; view++ )
+        app->world_views.views[view].minimenu->font_id = minimenu_font_id;
 }
 
 /* Reference drawDetail's mapscene pass: after the tile/wall bake, plot each loc
@@ -188,10 +188,7 @@ app_rebuild_world_map(
     sprites[0] = sprite;
 
     ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_WORLD_MAP_SPRITE_ID, sprites, 1);
-    app->world_map_scene_id = UITREE_SCENE_WORLD_MAP_SPRITE_ID;
-    app->world_map_w = pixel_w;
-    app->world_map_h = pixel_h;
-    app->world_map_level = level;
+    MinimapView_SetMap(&app->minimap, UITREE_SCENE_WORLD_MAP_SPRITE_ID, pixel_w, pixel_h, level);
 #if defined(TORIRS_HAVE_GLES2)
     {
         /* The GLES2 renderer keeps a GPU copy of the pixels behind the
@@ -229,17 +226,17 @@ app_world_map_poll(struct App* app)
     static unsigned baked_minimap_seq = 0;
     struct WorldEntity_Player* local;
 
-    if( !app->world || !app->world->load_complete || app->world_map_scene_id <= 0 )
+    if( !app->world || !app->world->load_complete || !MinimapView_HasMap(&app->minimap) )
         return;
     local = app_local_player(app);
     if( !local )
         return;
-    if( app_minimap_level(app, local) == app->world_map_level &&
+    if( app_minimap_level(app, local) == MinimapView_MapLevel(&app->minimap) &&
         baked_minimap_seq == app->world->minimap_seq )
         return;
     baked_minimap_seq = app->world->minimap_seq;
     app_rebuild_world_map(app, app_minimap_level(app, local));
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 /* Task_WorldLoad on_done trampoline: adapts the void* hook to App_WorldLoadFinish. */
@@ -360,23 +357,22 @@ app_world_load_begin(
      * scene, and a rebuild is not a first look. Absolute coordinates, so the
      * restore survives the scene window moving; see WorldCameraHold.
      */
-    if( app->world && app->world_active )
+    if( app->world && WorldLoadState_Active(&app->world_load) )
     {
         /* Every attached view holds its own camera across the reload. */
-        for( int view = 0; view < app->view_split.view_count; view++ )
+        for( int view = 0; view < app->world_views.split.view_count; view++ )
             WorldCameraHold_Capture(
-                &app->views[view].cam_hold,
+                &app->world_views.views[view].cam_hold,
                 app->world->_base_tile_x,
                 app->world->_base_tile_z,
-                app->views[view].world_camera_pos.x,
-                app->views[view].world_camera_pos.y,
-                app->views[view].world_camera_pos.z,
-                app->views[view].world_camera.pitch,
-                app->views[view].world_camera.yaw);
+                app->world_views.views[view].world_camera_pos.x,
+                app->world_views.views[view].world_camera_pos.y,
+                app->world_views.views[view].world_camera_pos.z,
+                app->world_views.views[view].world_camera.pitch,
+                app->world_views.views[view].world_camera.yaw);
     }
 
-    app->world_load_attempted = 1;
-    app->world_load_inflight = 1;
+    WorldLoadState_BeginLocal(&app->world_load);
     ToriRS_BootTelemetry_Mark("world_load");
     /* Ahead of the drain, so what it removes goes with this scene. */
     if( app->editor )
@@ -420,7 +416,7 @@ app_world_load_begin(
         app_world_load_finish_cb,
         app);
     ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 /* Post-load wiring, split from the old synchronous app_world_load: height
@@ -436,23 +432,23 @@ App_WorldLoadFinish(struct App* app)
     int const timing = WorldBuilder_TimingOn();
     if( timing )
         tf[0] = WorldBuilder_TimingNowMs();
-    app->world_load_inflight = 0;
+    WorldLoadState_Land(&app->world_load);
     ToriRS_BootTelemetry_Mark("world_loaded");
     ToriPlatformWeb_Telemetry(
         "world_load_finish",
         "{\"complete\":%d,\"server_driven\":%d}",
         app->world->load_complete ? 1 : 0,
-        app->world_load_server_driven ? 1 : 0);
+        WorldLoadState_ServerDriven(&app->world_load) ? 1 : 0);
 
     if( app->world->load_complete )
     {
-        int server_driven = app->world_load_server_driven;
+        int server_driven = WorldLoadState_ServerDriven(&app->world_load);
 
-        app->world_active = 1;
+        WorldLoadState_Complete(&app->world_load);
         /* The absolute tile origin just moved, which is the one thing a plugin
          * holding saved tiles has to hear about: every scene-local number it
          * might have cached is renumbered by a rebuild. Raised after
-         * world_active so a handler that queries the world finds it live. */
+         * WorldLoadState_Complete so a handler that queries the world finds it live. */
         PluginHost_WorldLoaded(app->plugins, app->world->_base_tile_x, app->world->_base_tile_z);
         /* AFTER the event, so an object a handler placed in response to the
          * rebuild is materialised by its own set_position rather than being
@@ -506,45 +502,45 @@ App_WorldLoadFinish(struct App* app)
              * somewhere distant) the hold is meaningless and the first-look
              * centre below is correct. */
             {
-            struct App_WorldView* const saved_view = app->frame_view;
+            struct App_WorldView* const saved_view = app->world_views.frame;
             /* Every attached view is placed the same way. */
-            for( int view = 0; view < app->view_split.view_count; view++ )
+            for( int view = 0; view < app->world_views.split.view_count; view++ )
             {
-            app->frame_view = &app->views[view];
+            app->world_views.frame = &app->world_views.views[view];
             restored = WorldCameraHold_Restore(
-                &app->frame_view->cam_hold,
+                &app->world_views.frame->cam_hold,
                 app->world->_base_tile_x,
                 app->world->_base_tile_z,
                 app->world->_scene_size,
-                &app->frame_view->world_camera_pos.x,
-                &app->frame_view->world_camera_pos.y,
-                &app->frame_view->world_camera_pos.z,
-                &app->frame_view->world_camera.pitch,
-                &app->frame_view->world_camera.yaw);
+                &app->world_views.frame->world_camera_pos.x,
+                &app->world_views.frame->world_camera_pos.y,
+                &app->world_views.frame->world_camera_pos.z,
+                &app->world_views.frame->world_camera.pitch,
+                &app->world_views.frame->world_camera.yaw);
 
             if( !restored )
             {
                 /* Offline/hotkey load: place the camera at scene centre. */
-                app->frame_view->world_camera_pos.x = app->world->_scene_size / 2 * 128 + 64;
-                app->frame_view->world_camera_pos.z = app->world->_scene_size / 2 * 128 + 64;
-                app->frame_view->world_camera_pos.y = -2000;
-                app->frame_view->world_camera.pitch = 450;
-                app->frame_view->world_camera.yaw = 0;
+                app->world_views.frame->world_camera_pos.x = app->world->_scene_size / 2 * 128 + 64;
+                app->world_views.frame->world_camera_pos.z = app->world->_scene_size / 2 * 128 + 64;
+                app->world_views.frame->world_camera_pos.y = -2000;
+                app->world_views.frame->world_camera.pitch = 450;
+                app->world_views.frame->world_camera.yaw = 0;
             }
             {
                 char const* cam = getenv("TORIRS_WORLD_CAM");
                 int cx, cy, cz, cpitch, cyaw;
                 if( cam && sscanf(cam, "%d,%d,%d,%d,%d", &cx, &cy, &cz, &cpitch, &cyaw) == 5 )
                 {
-                    app->frame_view->world_camera_pos.x = cx;
-                    app->frame_view->world_camera_pos.y = cy;
-                    app->frame_view->world_camera_pos.z = cz;
-                    app->frame_view->world_camera.pitch = cpitch;
-                    app->frame_view->world_camera.yaw = cyaw;
+                    app->world_views.frame->world_camera_pos.x = cx;
+                    app->world_views.frame->world_camera_pos.y = cy;
+                    app->world_views.frame->world_camera_pos.z = cz;
+                    app->world_views.frame->world_camera.pitch = cpitch;
+                    app->world_views.frame->world_camera.yaw = cyaw;
                 }
             }
             }
-            app->frame_view = saved_view;
+            app->world_views.frame = saved_view;
             }
         }
         /* World scenery models reference textures; the bridge scan walks the
@@ -557,13 +553,13 @@ App_WorldLoadFinish(struct App* app)
         /* Decouple the BFS window from the resident scene size: rsmod floods a
          * fixed 128x128 box around the mover. LostCity leaves this at 0
          * (whole map). */
-        if( app->features )
+        if( ToriRS_Features_Resolved(&app->features) )
         {
             for( int i = 0; i < COLLISION_LEVELS; i++ )
             {
                 if( app->world->collision_maps[i] )
                     collision_map_set_route_window(
-                        app->world->collision_maps[i], app->features->route_window_tiles);
+                        app->world->collision_maps[i], app->features.route_window_tiles);
             }
         }
         {
@@ -581,16 +577,16 @@ App_WorldLoadFinish(struct App* app)
 
         if( server_driven )
         {
-            app->world_load_server_driven = 0;
+            WorldLoadState_Acknowledged(&app->world_load);
             App_SendMapBuildComplete(app);
         }
     }
     else
     {
-        app->world_load_server_driven = 0;
+        WorldLoadState_Fail(&app->world_load);
         TORIRS_LOG("app: world load incomplete\n");
     }
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
     app_rebuild_frames_finished(app);
     app_world_digest_loaded(app);
 }

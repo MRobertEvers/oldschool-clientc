@@ -344,6 +344,16 @@ struct Wevs
     /** Client cycle clock the interpolator runs on; advanced by
      * Wevs_Frame(frame_cycles), stamped onto targets at enqueue. */
     double clock;
+    /**
+     * The view the LOCAL player is standing in, recomputed every tick from
+     * geometry (SAILING_PLAN C5.1: "local player aboard iff inside a non-zero
+     * view"); WORLDVIEW_ROOT when ashore, which is also its value in every
+     * build with no world entities. Not the packet cursor
+     * (WorldviewRegistry_Active), which the server drives: this is a fact
+     * about where the avatar is. The caller computes it; this only keeps it,
+     * and puts it back on the root when the view it names goes away.
+     */
+    int aboard_view;
 };
 
 /** Native radius60 carrier insertion, independent of the hull overlap box. */
@@ -412,6 +422,22 @@ void
 Wevs_Despawn(
     struct Wevs* wevs,
     int id);
+
+/** The view the local player stands in; WORLDVIEW_ROOT ashore. */
+int
+Wevs_AboardView(struct Wevs const* wevs);
+
+/** The local player was found standing in `view_id` (WORLDVIEW_ROOT: ashore). */
+void
+Wevs_SetAboardView(
+    struct Wevs* wevs,
+    int view_id);
+
+/** View `view_id` is going away: a player aboard it is ashore again. */
+void
+Wevs_AboardViewGone(
+    struct Wevs* wevs,
+    int view_id);
 
 /** Server-ordered entity list of one view (for the packet's count/op walk). */
 int

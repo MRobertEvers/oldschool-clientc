@@ -1272,6 +1272,22 @@ UITree_EmitRetainGateQuiet(
 }
 
 void
+UITree_EmitRetainGateSetRetained(
+    struct UITreeEmitRetainGate* gate,
+    int retained)
+{
+    assert(gate);
+    gate->retained_frame = retained ? 1 : 0;
+}
+
+int
+UITree_EmitRetainGateRetained(struct UITreeEmitRetainGate const* gate)
+{
+    assert(gate);
+    return gate->retained_frame;
+}
+
+void
 UITree_EmitRetainGateCapture(
     struct UITree const* tree,
     struct UITreeEmitBuffer const* buf,

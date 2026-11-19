@@ -417,6 +417,56 @@ main(void)
         RS_Chat_Free(&chat);
     }
 
+    /* ---- the held-frame count accelerates the arrows ----------------- */
+    /*
+     * Each frame the button stays down over the chat region counts one more
+     * frame, and the arrows move four pixels per frame counted, so a held
+     * arrow speeds up. A release drops the count and the grip together; a
+     * count that survived it would make the next press jump.
+     */
+    {
+        struct RS_Chat chat;
+        struct RS_ChatFilters const filters = { 0, 0, 0, NULL };
+        int const box_h = UI_CHATVIEW_NATIVE_HEIGHT;
+        int const window = UI_CHATVIEW_WINDOW_H(box_h);
+        int const x = RS_CHAT_SCROLLBAR_LEFT + 8;
+
+        RS_Chat_Init(&chat, "Player");
+        for( int i = 0; i < 40; i++ )
+            RS_Chat_AddMessage(&chat, TYPE_GAME, NULL, NULL, "line", i);
+        CHECK(RS_Chat_ScrollCycle(&chat) == 0, "a fresh chat counts no held frames");
+
+        CHECK(RS_Chat_ScrollbarHeld(&chat, &filters, box_h, x, 8), "the up arrow is the scrollbar");
+        CHECK(RS_Chat_ScrollCycle(&chat) == 1, "one held frame, got %d", RS_Chat_ScrollCycle(&chat));
+        CHECK(chat.scroll_pos == 4, "the first held frame moves 4, got %d", chat.scroll_pos);
+        RS_Chat_ScrollbarHeld(&chat, &filters, box_h, x, 8);
+        CHECK(chat.scroll_pos == 12, "the second moves 8 more, got %d", chat.scroll_pos);
+        RS_Chat_ScrollbarHeld(&chat, &filters, box_h, x, 8);
+        CHECK(chat.scroll_pos == 24, "the third moves 12 more, got %d", chat.scroll_pos);
+
+        /* A held frame off the scrollbar still counts: every frame the
+         * button is down over the chat region is one. */
+        CHECK(!RS_Chat_ScrollbarHeld(&chat, &filters, box_h, 20, window / 2),
+              "a point off the scrollbar is not handled");
+        CHECK(RS_Chat_ScrollCycle(&chat) == 4, "and still counts, got %d", RS_Chat_ScrollCycle(&chat));
+
+        /* The grip: grabbed by a held frame on the track, dropped on release. */
+        RS_Chat_ScrollbarHeld(&chat, &filters, box_h, x, window / 2);
+        CHECK(chat.scroll_grabbed == 1, "a held frame on the track grabs the grip");
+        RS_Chat_ScrollbarRelease(&chat);
+        CHECK(RS_Chat_ScrollCycle(&chat) == 0, "a release drops the count");
+        CHECK(chat.scroll_grabbed == 0, "a release drops the grip");
+
+        {
+            int const before = chat.scroll_pos;
+            RS_Chat_ScrollbarHeld(&chat, &filters, box_h, x, window - 8);
+            CHECK(chat.scroll_pos == before - 4, "after a release the arrow starts slow again, "
+                  "got %d want %d", chat.scroll_pos, before - 4);
+        }
+
+        RS_Chat_Free(&chat);
+    }
+
     /* The crowns a speaker's name is printed with. The server sends the
      * account-mode helms at these indices (torirs_server_world.c
      * `player_chat_crown`), so the pairs are pinned from both ends. */

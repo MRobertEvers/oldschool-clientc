@@ -89,7 +89,7 @@ app_minimap_push_dot(
     struct UITreeMinimapDot* dot;
 
     app_minimap_sprite_size(app, scene_id, atlas_index, &w, &h);
-    yaw = ToriDraw_NormalizeAngle(app->frame_view->world_camera.yaw);
+    yaw = ToriDraw_NormalizeAngle(app->world_views.frame->world_camera.yaw);
     rotation.sin = ToriDraw_Sin(yaw);
     rotation.cos = ToriDraw_Cos(yaw);
     if( !MinimapView_PlaceDot(&rotation, rel_fx, rel_fz, w, h, &dx, &dy) )
@@ -144,7 +144,7 @@ app_minimap_hint_offset(struct App* app, int px, int pz, int* out_fx, int* out_f
 
     switch( app->hint_arrow.type )
     {
-    case APP_HINT_ARROW_NPC:
+    case RS_HINT_ARROW_NPC:
     {
         struct WorldEntity_NPC* npc = World_NpcGetByServerSlot(app->world, app->hint_arrow.target);
 
@@ -160,7 +160,7 @@ app_minimap_hint_offset(struct App* app, int px, int pz, int* out_fx, int* out_f
         app_wev_actor_root_fine(app, &npc->view_placement, &fx, &fz);
         break;
     }
-    case APP_HINT_ARROW_PLAYER:
+    case RS_HINT_ARROW_PLAYER:
     {
         struct WorldEntity_Player* player =
             World_PlayerGetByServerPid(app->world, app->hint_arrow.target);
@@ -172,16 +172,16 @@ app_minimap_hint_offset(struct App* app, int px, int pz, int* out_fx, int* out_f
         app_wev_actor_root_fine(app, &player->view_placement, &fx, &fz);
         break;
     }
-    case APP_HINT_ARROW_COORD:
+    case RS_HINT_ARROW_COORD:
     {
         /* Absolute, through the same origin the world pass converts with --
          * see the note there. A tile outside the loaded window is exactly what
          * the rim arrow is for, so nothing is clamped or rejected here. */
-        int const base_x = (app->rebuild_zone_x - 6) * 8;
-        int const base_z = (app->rebuild_zone_z - 6) * 8;
+        int const base_x = RS_RebuildRegion_SceneBaseX(&app->rebuild_region);
+        int const base_z = RS_RebuildRegion_SceneBaseZ(&app->rebuild_region);
 
-        fx = ((app->hint_arrow.target - base_x) << 7) + app->hint_arrow.offset_x;
-        fz = ((app->hint_arrow.tile_z - base_z) << 7) + app->hint_arrow.offset_z;
+        fx = RS_HintArrow_CoordFineX(&app->hint_arrow, base_x);
+        fz = RS_HintArrow_CoordFineZ(&app->hint_arrow, base_z);
         break;
     }
     default:
@@ -262,7 +262,7 @@ app_minimap_push_hint(struct App* app, int rel_fx, int rel_fz, int marker_scene)
         return;
 
     app_minimap_sprite_size(app, edge_scene, 0, &w, &h);
-    yaw = ToriDraw_NormalizeAngle(app->frame_view->world_camera.yaw);
+    yaw = ToriDraw_NormalizeAngle(app->world_views.frame->world_camera.yaw);
     rotation.sin = ToriDraw_Sin(yaw);
     rotation.cos = ToriDraw_Cos(yaw);
     MinimapView_PlaceRimMarker(
@@ -361,7 +361,7 @@ App_MinimapBuildDots(
                  * have swallowed it. */
                 if( app->minimap_dots.count > before )
                     app->minimap_dots.dots[app->minimap_dots.count - 1].rotate =
-                        (ToriDraw_NormalizeAngle(app->frame_view->world_camera.yaw) - wev->angle +
+                        (ToriDraw_NormalizeAngle(app->world_views.frame->world_camera.yaw) - wev->angle +
                          1024) &
                         0x7ff;
             }
@@ -490,7 +490,8 @@ App_MinimapBuildDots(
      * map this dense -- a steady yellow arrow reads as one more icon, and the
      * whole point of a hint is that it is the client shouting.
      */
-    if( app->hint_arrow.type != 0 && marker_scene > 0 && app->logic_cycle % 20 < 10 )
+    if( app->hint_arrow.type != 0 && marker_scene > 0 &&
+        FrameClockSerial_LogicCycle(&app->frame_clock.serial) % 20 < 10 )
     {
         int hint_fx = 0;
         int hint_fz = 0;
@@ -542,7 +543,7 @@ app_minimap_click(
     if( !app->world || !app->world->load_complete )
         return 0;
     /* Native permission, independent of whether the map is currently painted. */
-    if( !(RS_MinimapPermissions(app->minimap_state) & RS_MINIMAP_WALK) )
+    if( !(RS_MinimapPermissions(MinimapView_ToggleState(&app->minimap)) & RS_MINIMAP_WALK) )
         return 0;
     yaw = MinimapView_Yaw(&app->minimap);
     rotation.sin = ToriDraw_Sin(yaw);
@@ -580,7 +581,7 @@ app_minimap_click(
             tile_z,
             app->world->_base_tile_x + tile_x,
             app->world->_base_tile_z + tile_z);
-    if( app->aboard_view != WORLDVIEW_ROOT && app->net )
+    if( Wevs_AboardView(&app->wevs) != WORLDVIEW_ROOT && app->net )
     {
         int route_x[] = { tile_x }, route_z[] = { tile_z };
         /* As with viewport shore clicks, the server chooses a reachable deck
@@ -612,6 +613,6 @@ app_minimap_click(
     }
     else
         app_try_move(app, tile_x, tile_z, 1, center_x, center_y, yaw, ctrl_held);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
     return 1;
 }

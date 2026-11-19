@@ -358,7 +358,7 @@ world_builder_mark_element_keep(
  *
  * A scene element has exactly one owner. Element ids are RECYCLED, and three
  * subsystems act on the owner's id every frame: the model
- * (AppEntitySpotanim), the deferred animation bind (AppSeqBindPending) and the
+ * (EntitySpotanim), the deferred animation bind (AppSeqBindPending) and the
  * POSITION, which is written straight from the owning entity. So two entities
  * holding one id do not merely confuse a lookup -- they fight over the element,
  * and the loser is dragged around wearing the winner's model. That is what

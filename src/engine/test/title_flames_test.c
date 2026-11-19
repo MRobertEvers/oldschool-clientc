@@ -266,6 +266,24 @@ test_fixed_step(void)
     TitleFlames_Free(&flames);
 }
 
+/* The fire's own clock: lit at 0, then the gap between frames, and lit
+ * again it starts over instead of catching up on the time it was out. */
+static void
+test_elapsed_since(void)
+{
+    struct TitleFlames flames;
+    uint32_t const bg = 0xFF000000u;
+
+    init_flames(&flames, bg);
+    TEST_ASSERT(TitleFlames_ElapsedSince(&flames, 100000) == 0, "the first frame after lighting is 0 ms");
+    TEST_ASSERT(TitleFlames_ElapsedSince(&flames, 100020) == 20, "then the gap since the last frame");
+    TEST_ASSERT(TitleFlames_ElapsedSince(&flames, 100020) == 0, "the same instant twice is no time");
+    TitleFlames_Free(&flames);
+    init_flames(&flames, bg);
+    TEST_ASSERT(TitleFlames_ElapsedSince(&flames, 500000) == 0, "relit, it does not catch up");
+    TitleFlames_Free(&flames);
+}
+
 /* A profile states its own colours; the fire must actually wear them. */
 static void
 test_palette_is_configurable(void)
@@ -368,6 +386,7 @@ main(void)
     test_unplaced_side_is_absent();
     test_blur_kinds_differ();
     test_fixed_step();
+    test_elapsed_since();
     test_palette_is_configurable();
 
     if( g_failures )

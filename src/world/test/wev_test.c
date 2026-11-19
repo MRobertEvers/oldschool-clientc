@@ -1118,6 +1118,42 @@ test_home_view_for_abs_tile(void)
     printf("ok: WorldviewRegistry_HomeViewForAbsTile\n");
 }
 
+/*
+ * The packet cursor SET_ACTIVE_WORLD moves: the root after Init; a
+ * SetActiveWorld records the level clamped, beside the cursor and on the view;
+ * a bare SetActive leaves the level; a reset puts both back. The view's own
+ * level outlives the reset.
+ */
+static void
+test_active_world_cursor(void)
+{
+    struct WorldviewRegistry reg;
+
+    WorldviewRegistry_Init(&reg);
+    TEST_WEV_ASSERT(WorldviewRegistry_Active(&reg) == WORLDVIEW_ROOT, "a fresh cursor is not the root");
+    TEST_WEV_ASSERT(WorldviewRegistry_ActiveLevel(&reg) == 0, "a fresh level is not 0");
+
+    reg.views[5].live = true;
+    WorldviewRegistry_SetActiveWorld(&reg, 5, 7);
+    TEST_WEV_ASSERT(WorldviewRegistry_Active(&reg) == 5, "the cursor did not move");
+    TEST_WEV_ASSERT(WorldviewRegistry_ActiveLevel(&reg) == 3, "a level past 3 was not clamped");
+    TEST_WEV_ASSERT(reg.views[5].level == 3, "the view did not take the level");
+    WorldviewRegistry_SetActiveWorld(&reg, 5, -2);
+    TEST_WEV_ASSERT(WorldviewRegistry_ActiveLevel(&reg) == 0, "a negative level was not clamped");
+    WorldviewRegistry_SetActiveWorld(&reg, 5, 1);
+
+    WorldviewRegistry_SetActive(&reg, WORLDVIEW_ROOT);
+    TEST_WEV_ASSERT(WorldviewRegistry_Active(&reg) == WORLDVIEW_ROOT, "SetActive did not move the cursor");
+    TEST_WEV_ASSERT(WorldviewRegistry_ActiveLevel(&reg) == 1, "SetActive changed the level");
+    WorldviewRegistry_SetActive(&reg, 5);
+
+    WorldviewRegistry_ResetActive(&reg);
+    TEST_WEV_ASSERT(WorldviewRegistry_Active(&reg) == WORLDVIEW_ROOT, "the reset left the cursor off the root");
+    TEST_WEV_ASSERT(WorldviewRegistry_ActiveLevel(&reg) == 0, "the reset left the level");
+    TEST_WEV_ASSERT(reg.views[5].level == 1, "the reset cleared the view's own level");
+    printf("ok: WorldviewRegistry active cursor\n");
+}
+
 int
 main(int argc, char** argv)
 {
@@ -1131,6 +1167,7 @@ main(int argc, char** argv)
     test_footprint_tiles();
     test_deck_box_in_parent();
     test_home_view_for_abs_tile();
+    test_active_world_cursor();
     test_config_decode_cache(cache_dir);
 
     printf("wev_test: all passed\n");

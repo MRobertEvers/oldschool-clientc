@@ -91,7 +91,7 @@ void NetTransport_ReplaySetUnlocked(struct NetTransport* t, int unlocked);
 /** The clock in force: the setting above, or unlocked while a seek runs. */
 int NetTransport_ReplayUnlocked(struct NetTransport* t);
 
-/** SERVER_TICK_ENDs the client has executed, ever (App.server_tick_serial),
+/** SERVER_TICK_ENDs the client has executed, ever (RS_ServerTick_Serial of App.server_tick),
  *  every frame before the poll: a seek lands, and a hold reports, on the
  *  client's own count. */
 void NetTransport_ReplayClientTicks(struct NetTransport* t, unsigned serial);

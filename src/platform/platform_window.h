@@ -580,7 +580,7 @@ PlatformWeb_MobileDevice(void);
  * offer a KEY switch had no way to ask whether the keys existed. It does now.
  *
  * This is a fact about the DEVICE and not about input policy. `touch` (@see
- * App::touch_ui) is a policy the player and the login clienttype can both
+ * DeviceCaps.touch_ui) is a policy the player and the login clienttype can both
  * move, and TORIRS_TOUCH_UI=1 turns it on over a desk; neither conjures a soft
  * keyboard. A chrome that asks the wrong one of the two offers a button that
  * cannot work.

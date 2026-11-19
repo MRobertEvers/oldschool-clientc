@@ -133,7 +133,8 @@ struct RS_MinimenuBuildCtx
     struct RS_MinimenuSelection selection;
 
     /* SET_PLAYER_OP rows for OPPLAYER1..5 text (NULL = no player ops). Points
-     * at App::player_ops / player_ops_primary — five slots, index 0 = op 1. */
+     * at RS_PlayerOps text / primary (game/rs_player_ops.h) — five slots,
+     * index 0 = op 1. */
     char const (*player_ops)[40];
     int const* player_ops_primary;
 
@@ -203,7 +204,7 @@ struct RS_MinimenuBuildCtx
     bool locedit_active;
 
     /* The map editor's SELECT tool (src/editor/editor_panel.h,
-     * `app->editor_panel`) wants the same disambiguated-target rows
+     * `app->editor_shell->editor_panel`) wants the same disambiguated-target rows
      * locedit_active earns above, but latches into the editor panel's own
      * sel_kind/sel_scene_x/z/sel_element_id rather than locedit_loc_id --
      * the two tools can be open together, on different subjects. Labeled by

@@ -79,9 +79,16 @@ struct OverlayStage
      */
     bool batch_started;
     bool canvas_prepared;
+    /**
+     * The surface whose draw window is open: where a push that does not name
+     * a surface lands. WORLD until a plugin draw event selects another, and
+     * left alone by the per-frame list resets -- it changes only when a
+     * window is selected.
+     */
+    enum OverlaySurface open;
 };
 
-/** Empty both lists and close the batch. */
+/** Empty both lists, close the batch and open the WORLD window. */
 void
 OverlayStage_Reset(struct OverlayStage* stage);
 
@@ -92,6 +99,14 @@ OverlayStage_ResetWorld(struct OverlayStage* stage);
 /** Begin a frame's canvas list. */
 void
 OverlayStage_ResetCanvas(struct OverlayStage* stage);
+
+/** Open the draw window on one surface. */
+void
+OverlayStage_Open(struct OverlayStage* stage, enum OverlaySurface surface);
+
+/** The surface whose draw window is open. */
+enum OverlaySurface
+OverlayStage_OpenSurface(struct OverlayStage const* stage);
 
 /**
  * Keep one primitive for the surface whose draw window is open.

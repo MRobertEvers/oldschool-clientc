@@ -60,7 +60,7 @@ RS_IF1_ApplyButtonClick(
             notify = RS_ClientCode_Button(app, c);
         if( notify )
             sink_if_button(app, com_id);
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
         return 1;
     }
 
@@ -73,7 +73,7 @@ RS_IF1_ApplyButtonClick(
             int value = VarPManager_GetVarp(&app->varps, varp);
             VarPManager_SetVarpOptimistic(&app->varps, varp, 1 - value);
         }
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
         return 1;
     }
 
@@ -87,7 +87,7 @@ RS_IF1_ApplyButtonClick(
             if( VarPManager_GetVarp(&app->varps, varp) != target )
                 VarPManager_SetVarpOptimistic(&app->varps, varp, target);
         }
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
         return 1;
     }
 
@@ -107,7 +107,7 @@ RS_IF1_ApplyButtonClick(
          * the dialog so "Click here to continue" still does something. */
         if( !app->button_sink.resume_pausebutton && app->slots.chat_com_id != -1 )
             RS_UISlots_CloseModal(app);
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
         return 1;
 
     case REVCONFIG_MINIMENU_CLOSE_MODAL:

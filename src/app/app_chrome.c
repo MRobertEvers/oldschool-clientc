@@ -9,6 +9,7 @@
 
 #include "app/app_internal.h"
 
+#include "ui/chrome_compositor.h"
 #include "ui/torirs_chrome_bake.h"
 
 #include <stdio.h>
@@ -61,8 +62,8 @@ app_chrome_merged_prims(
 {
     int dbg_count = 0;
     int win_count = 0;
-    struct ToriRSChromePrim const* dbg = ToriRSChrome_Prims(&app->dbg_ui, &dbg_count);
-    struct ToriRSChromePrim const* win = ToriRSChrome_Prims(&app->plugin_ui, &win_count);
+    struct ToriRSChromePrim const* dbg = ToriRSChrome_Prims(&app->dev_overlay->ui, &dbg_count);
+    struct ToriRSChromePrim const* win = ToriRSChrome_Prims(&app->plugin_win->ui, &win_count);
 
     assert(out_count);
 
@@ -75,38 +76,34 @@ app_chrome_merged_prims(
      * the canvas as well would draw it twice. BUFFER is the only internal
      * presentation that consumes the display list here.
      */
-    if( win_count == 0 || app->plugin_exec_kind != TORIRS_CHROME_EXEC_BUFFER ||
+    if( win_count == 0 || app->plugin_win->exec_kind != TORIRS_CHROME_EXEC_BUFFER ||
         app_plugin_page_on_surface(app) )
     {
         *out_count = dbg_count;
         return dbg;
     }
 
-    /* Exact, not a heuristic: the serials move on every rebuild, including one
-     * that changed a string without changing the prim count. */
-    if( app->chrome_merged_dbg != app->dbg_ui.build_serial ||
-        app->chrome_merged_win != app->plugin_ui.build_serial ||
-        app->chrome_merged_panel != app->panel_overlay_revision )
+    if( !ChromeCompositor_MergedFor(
+            app->chrome_compositor,
+            app->dev_overlay->ui.build_serial,
+            app->plugin_win->ui.build_serial,
+            PanelOverlayStage_Revision(&app->panel_wells)) )
     {
-        int n = dbg_count < APP_CHROME_PRIMS_MAX ? dbg_count : APP_CHROME_PRIMS_MAX;
-        memcpy(app->chrome_merged, dbg, (size_t)n * sizeof(*dbg));
-        if( n < APP_CHROME_PRIMS_MAX )
-        {
-            int const take =
-                win_count < APP_CHROME_PRIMS_MAX - n ? win_count : APP_CHROME_PRIMS_MAX - n;
-            memcpy(&app->chrome_merged[n], win, (size_t)take * sizeof(*win));
-            n += take;
-        }
-        for( int i = 0; i < app->panel_overlay_count && n < APP_CHROME_PRIMS_MAX; i++ )
-            if( app_panel_overlay_to_chrome(app, i, &app->chrome_merged[n]) )
+        int n = ChromeCompositor_MergeLists(app->chrome_compositor, dbg, dbg_count, win, win_count);
+        for( int i = 0;
+             i < PanelOverlayStage_KeptCount(&app->panel_wells) && n < CHROME_COMPOSITOR_PRIMS_MAX;
+             i++ )
+            if( app_panel_overlay_to_chrome(
+                    app, i, ChromeCompositor_MergedSlot(app->chrome_compositor, n)) )
                 n++;
-        app->chrome_merged_dbg = app->dbg_ui.build_serial;
-        app->chrome_merged_win = app->plugin_ui.build_serial;
-        app->chrome_merged_panel = app->panel_overlay_revision;
-        app->chrome_merged_count = n;
+        ChromeCompositor_MergeCommit(
+            app->chrome_compositor,
+            n,
+            app->dev_overlay->ui.build_serial,
+            app->plugin_win->ui.build_serial,
+            PanelOverlayStage_Revision(&app->panel_wells));
     }
-    *out_count = app->chrome_merged_count;
-    return app->chrome_merged;
+    return ChromeCompositor_Merged(app->chrome_compositor, out_count);
 }
 
 /*
@@ -124,7 +121,7 @@ app_chrome_plugin_surface_present(struct App* app)
 {
     struct UITreeEmitDesc desc;
     struct ToriRSChromePrim const* win;
-    size_t pixels;
+    uint32_t* pixels;
     int win_count = 0;
     int width = 0;
     int height = 0;
@@ -132,45 +129,26 @@ app_chrome_plugin_surface_present(struct App* app)
 
     assert(app);
     if( !app_plugin_page_surface(app, &width, &height) ||
-        !app->plugin_exec.exec.surface_present )
+        !app->plugin_win->sync.exec.surface_present )
         return;
     /* Before the scene exists there is nothing to raster with; the keys stay
      * stale and the first frame that has one presents. */
-    if( !app->scene || !app->soft_chrome )
+    if( !app->scene || !ChromeCompositor_Soft(app->chrome_compositor) )
         return;
-    if( app->plugin_surface_win == app->plugin_ui.build_serial &&
-        app->plugin_surface_panel == app->panel_overlay_revision &&
-        app->plugin_surface_w == width && app->plugin_surface_h == height )
+    if( ChromeCompositor_SurfaceFor(
+            app->chrome_compositor, app->plugin_win->ui.build_serial,
+            PanelOverlayStage_Revision(&app->panel_wells), width, height) )
         return;
 
-    if( !app->plugin_surface_prims )
-    {
-        /* UI: the page's surface list; App_Shutdown frees it. */
-        app->plugin_surface_prims = ToriMem_Calloc(
-            ToriMem_Ui(), TORIRS_CHROME_MAX_PRIMS + APP_PLUGIN_PANEL_OVERLAYS_MAX,
-            sizeof(*app->plugin_surface_prims));
-        assert(app->plugin_surface_prims);
-    }
-    win = ToriRSChrome_Prims(&app->plugin_ui, &win_count);
-    n = win_count < TORIRS_CHROME_MAX_PRIMS ? win_count : TORIRS_CHROME_MAX_PRIMS;
-    if( n > 0 )
-        memcpy(app->plugin_surface_prims, win, (size_t)n * sizeof(*win));
-    for( int i = 0; i < app->panel_overlay_count &&
-                    n < TORIRS_CHROME_MAX_PRIMS + APP_PLUGIN_PANEL_OVERLAYS_MAX; i++ )
-        if( app_panel_overlay_to_chrome(app, i, &app->plugin_surface_prims[n]) )
+    win = ToriRSChrome_Prims(&app->plugin_win->ui, &win_count);
+    n = ChromeCompositor_SurfaceLists(app->chrome_compositor, win, win_count);
+    for( int i = 0; i < PanelOverlayStage_KeptCount(&app->panel_wells) &&
+                    n < CHROME_COMPOSITOR_SURFACE_PRIMS_MAX; i++ )
+        if( app_panel_overlay_to_chrome(
+                app, i, ChromeCompositor_SurfaceSlot(app->chrome_compositor, n)) )
             n++;
 
-    pixels = (size_t)width * (size_t)height;
-    if( pixels > app->plugin_surface_pixel_capacity )
-    {
-        /* UI: the page's surface picture; App_Shutdown frees it. */
-        uint32_t* grown = ToriMem_Realloc(
-            ToriMem_Ui(), app->plugin_surface_pixels,
-            pixels * sizeof(*app->plugin_surface_pixels));
-        assert(grown);
-        app->plugin_surface_pixels = grown;
-        app->plugin_surface_pixel_capacity = pixels;
-    }
+    pixels = ChromeCompositor_SurfacePixels(app->chrome_compositor, width, height);
 
     /* One debug-overlay descriptor, exactly what the emit pass builds for the
      * canvas, with the faces and skin asked of the bridge directly: there is
@@ -178,7 +156,7 @@ app_chrome_plugin_surface_present(struct App* app)
     memset(&desc, 0, sizeof(desc));
     desc.kind = UITREE_EMIT_DEBUG_OVERLAY;
     desc.node_index = -1;
-    desc.debug_prims = app->plugin_surface_prims;
+    desc.debug_prims = ChromeCompositor_SurfacePrims(app->chrome_compositor);
     desc.debug_prim_count = n;
     desc.debug_font_id[TORIRS_CHROME_FONT_SMALL] =
         UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIRS_CHROME_FONT_SMALL);
@@ -194,24 +172,22 @@ app_chrome_plugin_surface_present(struct App* app)
     desc.clip.w = width;
     desc.clip.h = height;
     UITreeCmd_RenderToPixelsWith(
-        app->soft_chrome, app->scene, &desc, 1,
-        (int*)app->plugin_surface_pixels, width, height);
-    app->plugin_exec.exec.surface_present(
-        app->plugin_exec.exec.user, app->plugin_surface_pixels, width, height);
+        ChromeCompositor_Soft(app->chrome_compositor), app->scene, &desc, 1, (int*)pixels, width,
+        height);
+    app->plugin_win->sync.exec.surface_present(app->plugin_win->sync.exec.user, pixels, width, height);
     /* The surface is not in the canvas TORIRS_EXIT_BMP dumps: a headless run
      * names its own file for it (each present overwrites the last). */
     {
         char const* dump = getenv("TORIRS_CHROME_SURFACE_BMP");
         if( dump && dump[0] )
-            bmp_write_file(dump, (int*)app->plugin_surface_pixels, width, height);
+            bmp_write_file(dump, (int*)pixels, width, height);
         if( getenv("TORIRS_CHROME_DEBUG") )
             fprintf(stderr, "chrome: surface page presented %dx%d, %d prims\n", width, height, n);
     }
 
-    app->plugin_surface_win = app->plugin_ui.build_serial;
-    app->plugin_surface_panel = app->panel_overlay_revision;
-    app->plugin_surface_w = width;
-    app->plugin_surface_h = height;
+    ChromeCompositor_SurfaceCommit(
+        app->chrome_compositor, app->plugin_win->ui.build_serial,
+        PanelOverlayStage_Revision(&app->panel_wells), width, height);
 }
 
 /*
@@ -263,14 +239,15 @@ app_chrome_skin_tile(struct App* app)
 
     assert(app);
     /* A build without the skin draws the flat look and tiles nothing. */
-    if( !(app->dbg_ui.skin_avail & ((uint64_t)1 << TORIRS_CHROME_SKIN_PANEL_BODY)) )
+    if( !(app->dev_overlay->ui.skin_avail & ((uint64_t)1 << TORIRS_CHROME_SKIN_PANEL_BODY)) )
         return;
-    body = ToriRSChromeBake_Skin(TORIRS_CHROME_SKIN_PANEL_BODY, ToriRSChrome_ScaleQ(&app->dbg_ui));
+    body = ToriRSChromeBake_Skin(
+        TORIRS_CHROME_SKIN_PANEL_BODY, ToriRSChrome_ScaleQ(&app->dev_overlay->ui));
     assert(body);
-    app->dbg_ui.skin_tile_w = body->w;
-    app->dbg_ui.skin_tile_h = body->h;
-    app->plugin_ui.skin_tile_w = body->w;
-    app->plugin_ui.skin_tile_h = body->h;
+    app->dev_overlay->ui.skin_tile_w = body->w;
+    app->dev_overlay->ui.skin_tile_h = body->h;
+    app->plugin_win->ui.skin_tile_w = body->w;
+    app->plugin_win->ui.skin_tile_h = body->h;
 }
 
 int
@@ -287,27 +264,28 @@ App_SetChromeScaleQ(
         q = TORIRS_CHROME_SCALE_Q_MIN;
     if( q > TORIRS_CHROME_SCALE_Q_MAX )
         q = TORIRS_CHROME_SCALE_Q_MAX;
-    if( ToriRSChrome_ScaleQ(&app->dbg_ui) == q && ToriRSChrome_ScaleQ(&app->plugin_ui) == q &&
+    if( ToriRSChrome_ScaleQ(&app->dev_overlay->ui) == q &&
+        ToriRSChrome_ScaleQ(&app->plugin_win->ui) == q &&
         UITreeSceneBridge_ChromeScaleQ(&app->bridge) == q )
         return 0;
 
     /* The scale exactly, fractions included: the bridge registers the bake's
      * faces and skin at q (UITreeSceneBridge_SetChromeScaleQ), so what the
      * model lays out with quarter metrics is what the renderer paints. */
-    ToriRSChrome_SetScaleQ(&app->dbg_ui, q);
+    ToriRSChrome_SetScaleQ(&app->dev_overlay->ui, q);
     /* Both instances, because there is one scale: the font ids resolved below
      * are shared, so a plugin window left at 1x would lay its rows out for a
      * face the renderer draws at 2x -- text overflowing boxes sized for a
      * smaller font, which is the exact failure SetScale exists to prevent. */
-    ToriRSChrome_SetScaleQ(&app->plugin_ui, q);
+    ToriRSChrome_SetScaleQ(&app->plugin_win->ui, q);
     UITreeSceneBridge_SetChromeScaleQ(&app->bridge, q);
     app_chrome_skin_tile(app);
     app_chrome_fonts_resolve(app);
     if( getenv("TORIRS_CHROME_DEBUG") )
         fprintf(
             stderr, "chrome: scale q=%d (%d%%), bridge q=%d, tile %dx%d\n", q, q * 25,
-            UITreeSceneBridge_ChromeScaleQ(&app->bridge), app->dbg_ui.skin_tile_w,
-            app->dbg_ui.skin_tile_h);
+            UITreeSceneBridge_ChromeScaleQ(&app->bridge), app->dev_overlay->ui.skin_tile_w,
+            app->dev_overlay->ui.skin_tile_h);
     return 1;
 }
 
@@ -318,8 +296,8 @@ App_SetChromeTextSmooth(
 {
     assert(app);
     smooth = smooth ? 1 : 0;
-    if( ToriRSChrome_TextSmooth(&app->dbg_ui) == smooth &&
-        ToriRSChrome_TextSmooth(&app->plugin_ui) == smooth &&
+    if( ToriRSChrome_TextSmooth(&app->dev_overlay->ui) == smooth &&
+        ToriRSChrome_TextSmooth(&app->plugin_win->ui) == smooth &&
         UITreeSceneBridge_ChromeTextSmooth(&app->bridge) == smooth )
         return 0;
 
@@ -329,8 +307,8 @@ App_SetChromeTextSmooth(
      * renderer draws: at a whole scale the tiers or the vector face, then the
      * font ids every overlay holds re-resolved. Once per move; the bake builds
      * an atlas once per (face, q) for the life of the process. */
-    ToriRSChromeBake_SetTextSmooth(&app->dbg_ui, smooth);
-    ToriRSChromeBake_SetTextSmooth(&app->plugin_ui, smooth);
+    ToriRSChromeBake_SetTextSmooth(&app->dev_overlay->ui, smooth);
+    ToriRSChromeBake_SetTextSmooth(&app->plugin_win->ui, smooth);
     UITreeSceneBridge_SetChromeTextSmooth(&app->bridge, smooth);
     app_chrome_fonts_resolve(app);
     if( getenv("TORIRS_CHROME_DEBUG") )
@@ -359,7 +337,7 @@ int
 App_ChromeScale(struct App const* app)
 {
     assert(app);
-    return ToriRSChrome_Scale(&app->dbg_ui);
+    return ToriRSChrome_Scale(&app->dev_overlay->ui);
 }
 
 int
@@ -368,13 +346,13 @@ App_SetChromeCheckStyle(
     int style)
 {
     assert(app);
-    if( ToriRSChrome_CheckStyle(&app->dbg_ui) == style )
+    if( ToriRSChrome_CheckStyle(&app->dev_overlay->ui) == style )
         return 0;
     /* Both instances, because there is one answer to "what does a checkbox
      * look like here" -- the same rule App_SetChromeScale keeps, and for a
      * sharper reason: the two panels are commonly on screen together. */
-    ToriRSChrome_SetCheckStyle(&app->dbg_ui, style);
-    ToriRSChrome_SetCheckStyle(&app->plugin_ui, style);
+    ToriRSChrome_SetCheckStyle(&app->dev_overlay->ui, style);
+    ToriRSChrome_SetCheckStyle(&app->plugin_win->ui, style);
     return 1;
 }
 
@@ -382,5 +360,5 @@ int
 App_ChromeCheckStyle(struct App const* app)
 {
     assert(app);
-    return ToriRSChrome_CheckStyle(&app->dbg_ui);
+    return ToriRSChrome_CheckStyle(&app->dev_overlay->ui);
 }

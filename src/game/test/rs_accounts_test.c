@@ -153,6 +153,48 @@ test_site_session(void)
     TEST_ASSERT(!site.signed_in, "site: nor is nothing");
 }
 
+/* Read once, shown once: the start is given a single time, and the title is
+ * rebuilt a single time, only after the load has answered. */
+static void
+test_load_latch(void)
+{
+    struct RS_AccountsLoad load;
+
+    memset(&load, 0, sizeof(load));
+    TEST_ASSERT(RS_AccountsLoad_TakeShow(&load) == 0, "nothing to show before an answer");
+    TEST_ASSERT(RS_AccountsLoad_TakeStart(&load) == 1, "the first ask starts the load");
+    TEST_ASSERT(RS_AccountsLoad_TakeStart(&load) == 0, "and only the first");
+    TEST_ASSERT(RS_AccountsLoad_Done(&load) == 0, "not answered yet");
+    TEST_ASSERT(RS_AccountsLoad_TakeShow(&load) == 0, "still nothing to show");
+    *RS_AccountsLoad_DoneFlag(&load) = 1;
+    TEST_ASSERT(RS_AccountsLoad_Done(&load) == 1, "the task's flag is the answer");
+    TEST_ASSERT(RS_AccountsLoad_TakeShow(&load) == 1, "shown once it answered");
+    TEST_ASSERT(RS_AccountsLoad_TakeShow(&load) == 0, "and shown once only");
+}
+
+/* One sign-in at a time: begun clears the record and holds it in flight until
+ * the task's answer is taken. */
+static void
+test_signin_in_flight(void)
+{
+    struct RS_AccountSignIn signin;
+
+    memset(&signin, 0, sizeof(signin));
+    snprintf(signin.error, sizeof(signin.error), "%s", "stale");
+    TEST_ASSERT(RS_AccountSignIn_Busy(&signin) == 0, "nothing in flight at first");
+    RS_AccountSignIn_Begin(&signin, RS_ACCOUNT_SIGNIN_REFRESH);
+    TEST_ASSERT(RS_AccountSignIn_Busy(&signin) == 1, "begun is in flight");
+    TEST_ASSERT(signin.grant == RS_ACCOUNT_SIGNIN_REFRESH, "with its grant");
+    TEST_ASSERT(signin.error[0] == '\0', "and the last one's leftovers cleared");
+    TEST_ASSERT(RS_AccountSignIn_TakeAnswer(&signin) == 0, "no answer yet");
+    TEST_ASSERT(RS_AccountSignIn_Busy(&signin) == 1, "so still in flight");
+    signin.done = 1;
+    TEST_ASSERT(RS_AccountSignIn_TakeAnswer(&signin) == 1, "the answer is taken");
+    TEST_ASSERT(RS_AccountSignIn_Busy(&signin) == 0, "and the next may begin");
+    RS_AccountSignIn_Begin(&signin, RS_ACCOUNT_SIGNIN_PASSWORD);
+    TEST_ASSERT(signin.done == 0, "a new sign-in has no answer");
+}
+
 int
 main(void)
 {
@@ -161,6 +203,8 @@ main(void)
     test_round_trip();
     test_flat_json();
     test_site_session();
+    test_load_latch();
+    test_signin_in_flight();
     if( g_failures )
     {
         fprintf(stderr, "%d failure(s) of %d check(s)\n", g_failures, g_checks);

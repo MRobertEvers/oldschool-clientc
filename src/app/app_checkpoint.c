@@ -14,6 +14,7 @@
 #include "ui/uitree_hovertext.h"
 #include "ui/uitree_if_events.h"
 #include "ui/uitree_if_store.h"
+#include "ui/uitree_if_models.h"
 #include "ui/uitree_interact.h"
 
 #include <assert.h>
@@ -46,10 +47,25 @@ struct AppCkptField
 
 #define APP_CKPT_FIELD(f) { #f, offsetof(struct App, f), sizeof(((struct App*)0)->f), 1 },
 #define APP_CKPT_FIELD_UNCOMPARED(f) { #f, offsetof(struct App, f), sizeof(((struct App*)0)->f), 0 },
+/* A field that moved into a module, under the name it had on App, so a
+ * mismatch still names it the way it always did. */
+#define APP_CKPT_FIELD_AS(name, f) { name, offsetof(struct App, f), sizeof(((struct App*)0)->f), 1 },
 
 static struct AppCkptField const k_fields_stats[] = { APP_CKPT_FIELD(stats) };
-static struct AppCkptField const k_fields_social[] = { APP_CKPT_FIELD(social) };
-static struct AppCkptField const k_fields_slots[] = { APP_CKPT_FIELD(slots) };
+/* The friend and ignore store, up to its message ring: the ring was an App
+ * field of its own before it moved into RS_Social, and it is checkpointed in
+ * the scalars group under its old names, so this group's bytes stay what they
+ * were. RS_Social keeps the ring as its last member for this. */
+static struct AppCkptField const k_fields_social[] = {
+    { "social", offsetof(struct App, social), offsetof(struct RS_Social, message_ring), 1 },
+};
+/* The interface slots up to the modal host: modal_host_uid and closing_modals
+ * were App fields of their own before they moved into RS_UISlots, the host is
+ * checkpointed with the mounts and the close guard not at all, so this group's
+ * bytes stay what they were. RS_UISlots keeps the two as its last members. */
+static struct AppCkptField const k_fields_slots[] = {
+    { "slots", offsetof(struct App, slots), offsetof(struct RS_UISlots, modal_host_uid), 1 },
+};
 static struct AppCkptField const k_fields_idk[] = { APP_CKPT_FIELD(idk_design) };
 /* The held RUNCLIENTSCRIPTs are empty at any moment a checkpoint can be taken
  * (ReplayCheckpoint_CanTake), so only the ring's position is state. */
@@ -72,36 +88,59 @@ static struct AppCkptField const k_fields_camera[] = {
     APP_CKPT_FIELD(cam_script.oculus_y_valid) APP_CKPT_FIELD(cam_script.oculus_y)
     APP_CKPT_FIELD(cam_script.oculus_speed) APP_CKPT_FIELD(cam_script.oculus_angle)
     APP_CKPT_FIELD(cam_script.oculus_dy) APP_CKPT_FIELD(cam_script.serial)
-    APP_CKPT_FIELD_UNCOMPARED(cam_script.events) APP_CKPT_FIELD(cam_unlock)
+    APP_CKPT_FIELD_UNCOMPARED(cam_script.events)
+    APP_CKPT_FIELD_AS("cam_unlock", cam_script.unlock)
 };
 static struct AppCkptField const k_fields_scalars[] = {
-    APP_CKPT_FIELD(hint_arrow) APP_CKPT_FIELD(player_ops) APP_CKPT_FIELD(player_ops_primary)
-    APP_CKPT_FIELD(player_attack_option) APP_CKPT_FIELD(npc_attack_option) APP_CKPT_FIELD(multiway)
-    APP_CKPT_FIELD(interaction_default_tile) APP_CKPT_FIELD(interaction_default_entity)
-    APP_CKPT_FIELD(interaction_tile) APP_CKPT_FIELD(interaction_entity) APP_CKPT_FIELD(server_zbuf)
-    APP_CKPT_FIELD(unknown_string) APP_CKPT_FIELD(site_settings) APP_CKPT_FIELD(website_token)
-    APP_CKPT_FIELD(skybox_id_plus1) APP_CKPT_FIELD(minimap_state) APP_CKPT_FIELD(welcome)
-    APP_CKPT_FIELD(reboot_timer) APP_CKPT_FIELD(pm_message_ids) APP_CKPT_FIELD(pm_message_head)
-    APP_CKPT_FIELD(tracking_enabled) APP_CKPT_FIELD(objsel) APP_CKPT_FIELD(targetsel)
-    APP_CKPT_FIELD(logout_requested) APP_CKPT_FIELD(logout_wait_cycles)
-    APP_CKPT_FIELD(chat_line_saved) APP_CKPT_FIELD(chat_line_prompt) APP_CKPT_FIELD(vm_keyboard_open)
+    APP_CKPT_FIELD(hint_arrow) APP_CKPT_FIELD_AS("player_ops", player_ops.text)
+    APP_CKPT_FIELD_AS("player_ops_primary", player_ops.primary)
+    APP_CKPT_FIELD_AS("player_attack_option", player_ops.player_attack_option)
+    APP_CKPT_FIELD_AS("npc_attack_option", player_ops.npc_attack_option)
+    APP_CKPT_FIELD_AS("multiway", session_info.multiway)
+    APP_CKPT_FIELD_AS("interaction_default_tile", interaction_mode.default_tile)
+    APP_CKPT_FIELD_AS("interaction_default_entity", interaction_mode.default_entity)
+    APP_CKPT_FIELD_AS("interaction_tile", interaction_mode.tile)
+    APP_CKPT_FIELD_AS("interaction_entity", interaction_mode.entity)
+    APP_CKPT_FIELD_AS("server_zbuf", render_mode.server_zbuf)
+    APP_CKPT_FIELD_AS("unknown_string", session_info.unknown_string)
+    APP_CKPT_FIELD_AS("site_settings", session_info.site_settings)
+    APP_CKPT_FIELD_AS("website_token", session_info.website_token)
+    APP_CKPT_FIELD_AS("skybox_id_plus1", skybox.id_plus1) APP_CKPT_FIELD_AS("minimap_state", minimap.toggle_state)
+    APP_CKPT_FIELD_AS("welcome", session_info.welcome)
+    APP_CKPT_FIELD_AS("reboot_timer", session_info.reboot_timer)
+    APP_CKPT_FIELD_AS("pm_message_ids", social.message_ring.ids)
+    APP_CKPT_FIELD_AS("pm_message_head", social.message_ring.head)
+    APP_CKPT_FIELD_AS("tracking_enabled", session_info.tracking_enabled)
+    APP_CKPT_FIELD_AS("objsel", target_select.obj)
+    APP_CKPT_FIELD_AS("targetsel", target_select.target)
+    APP_CKPT_FIELD_AS("logout_requested", session_end.logout_requested)
+    APP_CKPT_FIELD_AS("logout_wait_cycles", session_end.logout_wait_cycles)
+    APP_CKPT_FIELD_AS("chat_line_saved", chat_line.saved)
+    APP_CKPT_FIELD_AS("chat_line_prompt", chat_line.prompt)
+    APP_CKPT_FIELD_AS("vm_keyboard_open", text_input_gate.vm_keyboard_open)
     /* Which top the tree is rooted at: IF_OPENTOP is a no-op for the top the
      * App thinks is open, so a restore across a re-root must put the old one
      * back or the chase never re-roots and every IF_OPENSUB misses. */
-    APP_CKPT_FIELD(boot_interface_id) APP_CKPT_FIELD(screen)
+    APP_CKPT_FIELD_AS("boot_interface_id", boot.interface_id)
+    APP_CKPT_FIELD_AS("screen", phase.screen)
     /* What the client triggers (tile highlights, the ground-items overlay)
      * were last fired for. They fire on the EDGE of these changing, and the
      * overlays and highlight groups they build are in the checkpoint, so the
      * edges must be the checkpoint's too or a restore re-fires (or skips) a
      * trigger the recorded session did not. */
-    APP_CKPT_FIELD(highlight_last_hover_coord) APP_CKPT_FIELD(highlight_last_route)
-    APP_CKPT_FIELD(highlight_last_dest_coord) APP_CKPT_FIELD(highlight_last_mouseover)
-    APP_CKPT_FIELD_UNCOMPARED(ground_items_dirty) APP_CKPT_FIELD(ground_items_settings_seen)
-    APP_CKPT_FIELD(ground_items_aux_seen) APP_CKPT_FIELD(client_trigger_refire_pending)
+    APP_CKPT_FIELD_AS("highlight_last_hover_coord", tile_highlight_watch.hover_coord)
+    APP_CKPT_FIELD_AS("highlight_last_route", tile_highlight_watch.route)
+    APP_CKPT_FIELD_AS("highlight_last_dest_coord", tile_highlight_watch.dest_coord)
+    APP_CKPT_FIELD_AS("highlight_last_mouseover", mouseover_report.last_signature)
+    APP_CKPT_FIELD_UNCOMPARED(ground_items_dirty)
+    APP_CKPT_FIELD_AS("ground_items_settings_seen", ground_items_settings.seen)
+    APP_CKPT_FIELD_AS("ground_items_aux_seen", ground_items_settings.aux_seen)
+    APP_CKPT_FIELD_AS("client_trigger_refire_pending", client_trigger_refire.pending)
 };
 
 #undef APP_CKPT_FIELD
 #undef APP_CKPT_FIELD_UNCOMPARED
+#undef APP_CKPT_FIELD_AS
 
 struct AppCkptGroup
 {
@@ -178,19 +217,19 @@ App_CheckpointFieldsRestore(
     assert(app);
     assert(cp);
     assert(which == cp->which);
-    skybox_plus1 = app->skybox_id_plus1;
+    skybox_plus1 = app->skybox.id_plus1;
     group = &k_groups[which];
     for( int i = 0; i < group->count; i++ )
     {
         memcpy((unsigned char*)app + group->fields[i].offset, cp->data + at, group->fields[i].size);
         at += group->fields[i].size;
     }
-    if( which == APP_CKPT_FIELDS_SCALARS && app->skybox_id_plus1 != skybox_plus1 )
+    if( which == APP_CKPT_FIELDS_SCALARS && app->skybox.id_plus1 != skybox_plus1 )
     {
         /* The model is built from the id; ask for it the way CAM_SKYBOX does. */
-        int const want = app->skybox_id_plus1;
+        int const want = app->skybox.id_plus1;
 
-        app->skybox_id_plus1 = skybox_plus1;
+        app->skybox.id_plus1 = skybox_plus1;
         App_SetSkybox(app, want - 1);
     }
 }
@@ -266,11 +305,11 @@ struct AppCkptIfStores
     int texts_current;
     int hides_current;
     int colours_current;
-    struct AppIfHead* heads;
+    struct UIIfHead* heads;
     int head_count;
     /* Per head / player model: applied to the tree as it stood. */
     unsigned char* head_current;
-    struct AppIfPlayerModel* player_models;
+    struct UIIfPlayerModel* player_models;
     int player_model_count;
     unsigned char* player_model_current;
     struct UITreeInterfaceParent detached_parents[UITREE_INTERFACE_PARENT_MAX];
@@ -297,22 +336,22 @@ App_CheckpointIfStoresTake(struct App const* app)
     cp->texts_current = app->if_texts.applied_generation == gen;
     cp->hides_current = app->if_hides.applied_generation == gen;
     cp->colours_current = app->if_colours.applied_generation == gen;
-    cp->head_count = app->if_head_count;
-    cp->heads = Ckpt_Dup(g, app->if_heads, (size_t)app->if_head_count * sizeof(app->if_heads[0]));
-    cp->head_current = ToriMem_Calloc(g, (size_t)(app->if_head_count + 1), 1);
+    cp->head_count = app->if_models.head_count;
+    cp->heads = Ckpt_Dup(g, app->if_models.heads, (size_t)app->if_models.head_count * sizeof(app->if_models.heads[0]));
+    cp->head_current = ToriMem_Calloc(g, (size_t)(app->if_models.head_count + 1), 1);
     assert(cp->head_current);
-    for( int i = 0; i < app->if_head_count; i++ )
-        cp->head_current[i] = app->if_heads[i].applied_gen == gen;
-    cp->player_model_count = app->if_player_model_count;
-    cp->player_models = Ckpt_Dup(g, app->if_player_models,
-                                 (size_t)app->if_player_model_count * sizeof(app->if_player_models[0]));
-    cp->player_model_current = ToriMem_Calloc(g, (size_t)(app->if_player_model_count + 1), 1);
+    for( int i = 0; i < app->if_models.head_count; i++ )
+        cp->head_current[i] = app->if_models.heads[i].applied_gen == gen;
+    cp->player_model_count = app->if_models.player_model_count;
+    cp->player_models = Ckpt_Dup(g, app->if_models.player_models,
+                                 (size_t)app->if_models.player_model_count * sizeof(app->if_models.player_models[0]));
+    cp->player_model_current = ToriMem_Calloc(g, (size_t)(app->if_models.player_model_count + 1), 1);
     assert(cp->player_model_current);
-    for( int i = 0; i < app->if_player_model_count; i++ )
-        cp->player_model_current[i] = app->if_player_models[i].applied_gen == gen;
-    memcpy(cp->detached_parents, app->detached_parents, sizeof(cp->detached_parents));
-    cp->detached_parent_count = app->detached_parent_count;
-    cp->modal_host_uid = app->modal_host_uid;
+    for( int i = 0; i < app->if_models.player_model_count; i++ )
+        cp->player_model_current[i] = app->if_models.player_models[i].applied_gen == gen;
+    memcpy(cp->detached_parents, app->kept_mounts.items, sizeof(cp->detached_parents));
+    cp->detached_parent_count = app->kept_mounts.count;
+    cp->modal_host_uid = RS_UISlots_ModalHost(&app->slots);
     return cp;
 }
 
@@ -343,42 +382,18 @@ App_CheckpointIfStoresRestore(
 
     /* The two request tables keep the App's allocation (ToriMem_Process),
      * grown to fit. */
-    if( cp->head_count > app->if_head_cap )
-    {
-        app->if_heads = ToriMem_Realloc(ToriMem_Process(), app->if_heads, (size_t)cp->head_count * sizeof(app->if_heads[0]));
-        assert(app->if_heads);
-        app->if_head_cap = cp->head_count;
-    }
-    if( cp->head_count > 0 )
-        memcpy(app->if_heads, cp->heads, (size_t)cp->head_count * sizeof(app->if_heads[0]));
-    app->if_head_count = cp->head_count;
+    UIIfModels_RestoreHeads(&app->if_models, cp->heads, cp->head_count);
     for( int i = 0; i < cp->head_count; i++ )
-        app->if_heads[i].applied_gen = cp->head_current[i] ? gen : 0;
-    if( cp->player_model_count > app->if_player_model_cap )
-    {
-        app->if_player_models = ToriMem_Realloc(ToriMem_Process(), app->if_player_models,
-                                                (size_t)cp->player_model_count * sizeof(app->if_player_models[0]));
-        assert(app->if_player_models);
-        app->if_player_model_cap = cp->player_model_count;
-    }
+        app->if_models.heads[i].applied_gen = cp->head_current[i] ? gen : 0;
     /* A slot index is its scene id (UITREE_SCENE_IF_PLAYER_MODEL_BASE + i), so
      * slots past the checkpoint's count are freed rather than dropped. */
-    for( int i = cp->player_model_count; i < app->if_player_model_count; i++ )
-    {
-        app->if_player_models[i].com_id = -1;
-        app->if_player_models[i].built = 0;
-    }
-    if( cp->player_model_count > 0 )
-        memcpy(app->if_player_models, cp->player_models,
-               (size_t)cp->player_model_count * sizeof(app->if_player_models[0]));
-    if( cp->player_model_count > app->if_player_model_count )
-        app->if_player_model_count = cp->player_model_count;
+    UIIfModels_RestorePlayerModels(&app->if_models, cp->player_models, cp->player_model_count);
     for( int i = 0; i < cp->player_model_count; i++ )
-        app->if_player_models[i].applied_gen = cp->player_model_current[i] ? gen : 0;
+        app->if_models.player_models[i].applied_gen = cp->player_model_current[i] ? gen : 0;
 
-    memcpy(app->detached_parents, cp->detached_parents, sizeof(app->detached_parents));
-    app->detached_parent_count = cp->detached_parent_count;
-    app->modal_host_uid = cp->modal_host_uid;
+    memcpy(app->kept_mounts.items, cp->detached_parents, sizeof(app->kept_mounts.items));
+    app->kept_mounts.count = cp->detached_parent_count;
+    RS_UISlots_SetModalHost(&app->slots, cp->modal_host_uid);
 }
 
 void
@@ -436,8 +451,8 @@ App_CheckpointIfStoresEqual(
     CKPT_EQ_INT(a, b, head_count, why, why_cap);
     for( int i = 0; i < a->head_count; i++ )
     {
-        struct AppIfHead const* ha = &a->heads[i];
-        struct AppIfHead const* hb = &b->heads[i];
+        struct UIIfHead const* ha = &a->heads[i];
+        struct UIIfHead const* hb = &b->heads[i];
 
         if( ha->com_id != hb->com_id || ha->kind != hb->kind || ha->npc_id != hb->npc_id || ha->zoom != hb->zoom ||
             ha->anim_id != hb->anim_id || ha->close_serial != hb->close_serial ||
@@ -450,8 +465,8 @@ App_CheckpointIfStoresEqual(
     CKPT_EQ_INT(a, b, player_model_count, why, why_cap);
     for( int i = 0; i < a->player_model_count; i++ )
     {
-        struct AppIfPlayerModel const* ma = &a->player_models[i];
-        struct AppIfPlayerModel const* mb = &b->player_models[i];
+        struct UIIfPlayerModel const* ma = &a->player_models[i];
+        struct UIIfPlayerModel const* mb = &b->player_models[i];
 
         if( ma->com_id != mb->com_id || ma->scene_id != mb->scene_id ||
             memcmp(ma->slots, mb->slots, sizeof(ma->slots)) != 0 ||
@@ -574,9 +589,8 @@ App_CheckpointAfterRestore(struct App* app)
     UITree_EmitBufferFree(&app->emit);
     UITree_EmitBufferInit(&app->emit);
     memset(&app->emit_gate, 0, sizeof(app->emit_gate));
-    app->render_skip.catch_up_ok = 0;
-    app->render_skip.fresh = 0;
-    app->ui_retained_frame = 0;
+    RenderSkip_NoteStateLost(&app->render_skip);
+    UITree_EmitRetainGateSetRetained(&app->emit_gate, 0);
     app->damage.valid = 0;
 
     /* Pointer, focus and drag state names nodes of the tree that was. */
@@ -585,21 +599,16 @@ App_CheckpointAfterRestore(struct App* app)
     app->interact.client_cycle = client_cycle;
     UIInvDrag_Reset(&app->inv_drag);
     UIHoverText_Reset(&app->hover_text);
-    app->hover_com_id = -1;
-    app->clicked_com_id = -1;
 
     /* The frame binder's and the plugin layer's memory of the tree. The tree's
      * generation moved, so each of these would miss anyway; dropping them says
      * so rather than relying on it. */
-    app->plugin_frame_bound_valid = 0;
-    app->plugin_frame_bound_tree = NULL;
-    app->plugin_facet_ids.sidetab_valid = 0;
-    app->plugin_slot_node_gen = 0;
+    PluginFrameBinding_Invalidate(&app->plugin_frame_binding);
     UITree_FrameForget(app->tree);
 
     /* Everything that reads the session: a relayout (the tree did it), the
      * CS1 conditions, and a frame. */
     app->cs1_host.eval_dirty = true;
-    app->pending_tree_refresh = 1;
-    app->need_redraw = 1;
+    UITreeRefresh_Raise(&app->tree_refresh);
+    RedrawRequest_Raise(&app->redraw_request);
 }

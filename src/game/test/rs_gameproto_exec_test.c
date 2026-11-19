@@ -284,7 +284,7 @@ main(void)
      * IF_OPENTOP, then IF_MOVESUB from the old top's slots. The deob keeps its
      * open subs across a top change and the move relinks each into the new
      * top (class415.method9481); App_OpenRootInterface keeps the outgoing
-     * tree's mounts in detached_parents for it. RSProx index 4377: 165 -> 164
+     * tree's mounts in kept_mounts for it. RSProx index 4377: 165 -> 164
      * moved the chatbox, the journal and the rest, and this client found none
      * of them -- every dialogue after it had no slot to open into.
      */
@@ -302,10 +302,10 @@ main(void)
         assert(app);
         app->packet_runner.queue = ToriRS_TaskQueue_New();
         app->tree = UITree_New(2);
-        app->detached_parents[0] = (struct UITreeInterfaceParent){ chat_src, 162, 1 };
-        app->detached_parents[1] = (struct UITreeInterfaceParent){ journal_src, 629, 1 };
-        app->detached_parents[2] = (struct UITreeInterfaceParent){ quest_slot, 399, 1 };
-        app->detached_parent_count = 3;
+        UITreeKeptMounts_Clear(&app->kept_mounts);
+        UITreeKeptMounts_Add(&app->kept_mounts, chat_src, 162, 1);
+        UITreeKeptMounts_Add(&app->kept_mounts, journal_src, 629, 1);
+        UITreeKeptMounts_Add(&app->kept_mounts, quest_slot, 399, 1);
 
         App_MoveSubInterface(app, chat_src, chat_dest);
         App_MoveSubInterface(app, journal_src, journal_dest);
@@ -315,7 +315,7 @@ main(void)
                          "IF_MOVESUB after IF_OPENTOP must reopen the journal in the new top");
         TEST_EXEC_ASSERT(queued_open(app, quest_slot, 399),
                          "what was open inside a moved group must reopen with it");
-        TEST_EXEC_ASSERT(app->detached_parent_count == 0,
+        TEST_EXEC_ASSERT(UITreeKeptMounts_Count(&app->kept_mounts) == 0,
                          "a moved mount must leave the kept records");
 
         /* A move out of an empty slot still closes what it lands on. */
@@ -359,9 +359,9 @@ main(void)
         app->tree = UITree_New(2);
         App_RootMountsReturn(app, 165);
         App_MoveSubInterface(app, chat_osm, chat_display);
-        TEST_EXEC_ASSERT(app->detached_parent_count == 1 &&
-                             app->detached_parents[0].container_uid == hotkeys &&
-                             app->detached_parents[0].group_id == 892,
+        TEST_EXEC_ASSERT(UITreeKeptMounts_Count(&app->kept_mounts) == 1 &&
+                             UITreeKeptMounts_At(&app->kept_mounts, 0)->container_uid == hotkeys &&
+                             UITreeKeptMounts_At(&app->kept_mounts, 0)->group_id == 892,
                          "a mount the re-root does not move must stay kept");
         TEST_EXEC_ASSERT(!queued_open(app, hotkeys, 892),
                          "a kept mount must not open under a top that has no such slot");
@@ -376,7 +376,7 @@ main(void)
                          "a kept mount must reopen when its top is the root again");
         App_MoveSubInterface(app, chat_display, chat_osm);
         TEST_EXEC_ASSERT(queued_open(app, chat_osm, 162), "the moved mount must still follow its IF_MOVESUB");
-        TEST_EXEC_ASSERT(app->detached_parent_count == 0, "nothing is kept once both are back in the tree");
+        TEST_EXEC_ASSERT(UITreeKeptMounts_Count(&app->kept_mounts) == 0, "nothing is kept once both are back in the tree");
 
         /* A close names the slot whichever top is up. */
         UITree_InterfaceParentSet(app->tree, hotkeys, 892, 1);
@@ -385,7 +385,7 @@ main(void)
         app->tree = UITree_New(2);
         App_RootMountsReturn(app, 165);
         App_CloseSubInterface(app, hotkeys);
-        TEST_EXEC_ASSERT(app->detached_parent_count == 0, "IF_CLOSESUB must close a kept mount too");
+        TEST_EXEC_ASSERT(UITreeKeptMounts_Count(&app->kept_mounts) == 0, "IF_CLOSESUB must close a kept mount too");
 
         ToriRS_TaskQueue_Free(app->packet_runner.queue);
         UITree_Free(app->tree);
@@ -730,8 +730,8 @@ main(void)
         p._set_active_world.world_id = 2009;
         p._set_active_world.level = 1;
         RS_GameProto_Exec(&ctx, &p);
-        assert(app->active_world == 3);
-        assert(app->active_world_level == 1);
+        assert(WorldviewRegistry_Active(&app->worldviews) == 3);
+        assert(WorldviewRegistry_ActiveLevel(&app->worldviews) == 1);
 
         /* The slot number is not a wire id: naming it is naming a hull that
          * does not exist, refused with the cursor left where it was. */
@@ -740,28 +740,28 @@ main(void)
         p._set_active_world.world_id = 3;
         p._set_active_world.level = 2;
         RS_GameProto_Exec(&ctx, &p);
-        assert(app->active_world == 3);
-        assert(app->active_world_level == 1);
+        assert(WorldviewRegistry_Active(&app->worldviews) == 3);
+        assert(WorldviewRegistry_ActiveLevel(&app->worldviews) == 1);
 
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_SET_ACTIVE_WORLD;
         p._set_active_world.world_id = WORLDVIEW_WIRE_ROOT;
         p._set_active_world.level = 0;
         RS_GameProto_Exec(&ctx, &p);
-        assert(app->active_world == WORLDVIEW_ROOT);
+        assert(WorldviewRegistry_Active(&app->worldviews) == WORLDVIEW_ROOT);
 
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_SET_ACTIVE_WORLD;
         p._set_active_world.world_id = 2009;
         p._set_active_world.level = 1;
         RS_GameProto_Exec(&ctx, &p);
-        assert(app->active_world == 3);
+        assert(WorldviewRegistry_Active(&app->worldviews) == 3);
 
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_SERVER_TICK_END;
         RS_GameProto_Exec(&ctx, &p);
-        assert(app->active_world == WORLDVIEW_ROOT);
-        assert(app->active_world_level == 0);
+        assert(WorldviewRegistry_Active(&app->worldviews) == WORLDVIEW_ROOT);
+        assert(WorldviewRegistry_ActiveLevel(&app->worldviews) == 0);
 
         ctx.app = NULL;
         free(app);
@@ -786,7 +786,7 @@ main(void)
             RS_GameProto_Exec(&ctx, &p);
             assert(app->minimap.flag_tile_x == 40);
             assert(app->minimap.flag_tile_z == 50);
-            assert(app->need_redraw == 1);
+            assert(RedrawRequest_Pending(&app->redraw_request));
         }
         {
             struct RevPacket p;
@@ -826,14 +826,14 @@ main(void)
         p._hint_arrow.id = 41;
         RS_GameProto_Exec(&ctx, &p);
         TEST_EXEC_ASSERT(
-            app->hint_arrow.type == APP_HINT_ARROW_NPC, "type 1 is an npc slot");
+            app->hint_arrow.type == RS_HINT_ARROW_NPC, "type 1 is an npc slot");
         TEST_EXEC_ASSERT(app->hint_arrow.target == 41, "and the slot is the id");
 
         p._hint_arrow.type = 10;
         p._hint_arrow.id = 7;
         RS_GameProto_Exec(&ctx, &p);
         TEST_EXEC_ASSERT(
-            app->hint_arrow.type == APP_HINT_ARROW_PLAYER, "type 10 is a player pid");
+            app->hint_arrow.type == RS_HINT_ARROW_PLAYER, "type 10 is a player pid");
 
         /* The five tile forms are one form with five anchors. Left as five
          * types, every pass that draws a hint would have to know all five --
@@ -844,7 +844,7 @@ main(void)
         p._hint_arrow.height = 60;
         RS_GameProto_Exec(&ctx, &p);
         TEST_EXEC_ASSERT(
-            app->hint_arrow.type == APP_HINT_ARROW_COORD, "type 2 is an absolute tile");
+            app->hint_arrow.type == RS_HINT_ARROW_COORD, "type 2 is an absolute tile");
         TEST_EXEC_ASSERT(
             app->hint_arrow.target == 3200 && app->hint_arrow.tile_z == 3300,
             "carried as x and z, not as one packed coord");
@@ -856,7 +856,7 @@ main(void)
         p._hint_arrow.type = 3;
         RS_GameProto_Exec(&ctx, &p);
         TEST_EXEC_ASSERT(
-            app->hint_arrow.type == APP_HINT_ARROW_COORD, "type 3 folds to the same form");
+            app->hint_arrow.type == RS_HINT_ARROW_COORD, "type 3 folds to the same form");
         TEST_EXEC_ASSERT(
             app->hint_arrow.offset_x == 0 && app->hint_arrow.offset_z == 64,
             "anchored to the tile's west edge");
@@ -920,7 +920,7 @@ main(void)
         TEST_EXEC_ASSERT(app->frame_runner.queue->head != NULL, "the change is on the loc lane");
         TEST_EXEC_ASSERT(
             app->frame_runner.queue->head->next == NULL, "and the anim queued no task behind it");
-        TEST_EXEC_ASSERT(app->loc_lane_enqueued == 1, "the anim took no lane ticket");
+        TEST_EXEC_ASSERT(LocLane_Newest(&app->loc_lane) == 1, "the anim took no lane ticket");
         change = (struct Task_AppSpawn*)app->frame_runner.queue->head;
         TEST_EXEC_ASSERT(change->kind == APP_SPAWN_LOC_CHANGE, "the lane task is the change");
         TEST_EXEC_ASSERT(change->loc_carry_unfound_set == 1, "nothing stood: the change keeps it");
@@ -942,13 +942,13 @@ main(void)
         newer = (struct Task_AppSpawn*)app->frame_runner.queue->head->next;
         TEST_EXEC_ASSERT(newer != NULL, "the second change is queued");
         TEST_EXEC_ASSERT(
-            app_spawn_loc_lane_pending(app, app->active_world, 12, 34, 0, 3, 0) == newer,
+            app_spawn_loc_lane_pending(app, WorldviewRegistry_Active(&app->worldviews), 12, 34, 0, 3, 0) == newer,
             "the newest pending change stands for the tile");
         App_WorldSceneryAnim(app, 12, 34, 0, 22, 8065);
         TEST_EXEC_ASSERT(newer->loc_carry_unfound_seq == 8065, "the newer change keeps it");
         TEST_EXEC_ASSERT(change->loc_carry_unfound_seq == 8068, "the older one is untouched");
         TEST_EXEC_ASSERT(
-            app_spawn_loc_lane_pending(app, app->active_world, 12, 34, 0, 3, 1) == NULL,
+            app_spawn_loc_lane_pending(app, WorldviewRegistry_Active(&app->worldviews), 12, 34, 0, 3, 1) == NULL,
             "read this tick: neither change has landed");
         TEST_EXEC_ASSERT(!newer->loc_take_set, "and neither is taken");
 
@@ -956,9 +956,9 @@ main(void)
          * loading), but the deob built them in the cycle that read them: the
          * newest stands on the tile and the anim is its own, whatever its
          * loctype -- not the stale loc's, and not judged by deferanimchange. */
-        app->server_tick_serial++;
+        RS_ServerTick_EndUnfenced(&app->server_tick);
         TEST_EXEC_ASSERT(
-            app_spawn_loc_lane_pending(app, app->active_world, 12, 34, 0, 3, 1) == newer,
+            app_spawn_loc_lane_pending(app, WorldviewRegistry_Active(&app->worldviews), 12, 34, 0, 3, 1) == newer,
             "a tick later the newest change has landed");
         newer->loc_defers_anim = 0;
         App_WorldSceneryAnim(app, 12, 34, 0, 22, 8070);
@@ -973,7 +973,7 @@ main(void)
         App_WorldLocChange(app, 12, 34, 0, 32742, 22, 0);
         {
             struct Task_AppSpawn* newest =
-                app_spawn_loc_lane_pending(app, app->active_world, 12, 34, 0, 3, 0);
+                app_spawn_loc_lane_pending(app, WorldviewRegistry_Active(&app->worldviews), 12, 34, 0, 3, 0);
 
             TEST_EXEC_ASSERT(newest != newer, "the third change is the pending spawn");
             App_WorldSceneryAnim(app, 12, 34, 0, 22, 8071);
@@ -1023,13 +1023,13 @@ main(void)
         App_WorldSpotanimSpawn(app, 12, 34, 0, 1234 /* spotanim */, 92, 0);
         App_WorldProjectileSpawn(app, 10, 30, 0, 12, 34, 0, 1235, 43, 31, 41, 60, 16, 15, 0, 0);
         TEST_EXEC_ASSERT(app->packet_runner.queue->head == NULL, "effects stay off the FIFO");
-        TEST_EXEC_ASSERT(app->loc_lane_enqueued == 3, "and take no lane ticket");
+        TEST_EXEC_ASSERT(LocLane_Newest(&app->loc_lane) == 3, "and take no lane ticket");
 
         /* Freeing the queue with the lane tasks unrun releases their tickets:
          * a ticket that never released would hold every later loc change. */
         ToriRS_TaskQueue_Free(app->packet_runner.queue);
         ToriRS_TaskQueue_Free(app->frame_runner.queue);
-        TEST_EXEC_ASSERT(app->loc_lane_applied == 3, "freed unrun, every ticket released");
+        TEST_EXEC_ASSERT(LocLane_Applied(&app->loc_lane) == 3, "freed unrun, every ticket released");
         free(app);
         printf("ok - a LOC_ANIM goes to the standing loc; a pending LOC_ADD_CHANGE keeps it only as rev 239 does\n");
     }
@@ -1059,8 +1059,8 @@ main(void)
                 "MINIMAP_TOGGLE must parse");
             assert(p._minimap_toggle.state == 2);
             RS_GameProto_Exec(&ctx, &p);
-            assert(app->minimap_state == APP_MINIMAP_STATE_HIDDEN);
-            assert(app->need_redraw == 1);
+            assert(MinimapView_ToggleState(&app->minimap) == APP_MINIMAP_STATE_HIDDEN);
+            assert(RedrawRequest_Pending(&app->redraw_request));
         }
         printf("ok - MINIMAP_TOGGLE decodes and reaches the client\n");
 
@@ -1071,9 +1071,9 @@ main(void)
             p.packet_type = PKT_NAME_UPDATE_REBOOT_TIMER;
             p._update_reboot_timer.ticks = 100;
             RS_GameProto_Exec(&ctx, &p);
-            assert(app->reboot_timer == 100 * APP_SERVER_TICK_LOGIC_CYCLES);
+            assert(app->session_info.reboot_timer == 100 * APP_SERVER_TICK_LOGIC_CYCLES);
             /* 100 server ticks = 60s = one minute exactly. */
-            assert(app->reboot_timer / APP_LOGIC_CYCLES_PER_SECOND == 60);
+            assert(app->session_info.reboot_timer / APP_LOGIC_CYCLES_PER_SECOND == 60);
         }
         printf("ok - UPDATE_REBOOT_TIMER converts server ticks to client cycles\n");
 
@@ -1081,10 +1081,10 @@ main(void)
             memset(&p, 0, sizeof(p));
             p.packet_type = PKT_NAME_SET_MULTIWAY;
             p._set_multiway.multiway = 1;
-            app->need_redraw = 0;
+            RedrawRequest_Clear(&app->redraw_request);
             RS_GameProto_Exec(&ctx, &p);
-            assert(app->multiway == 1);
-            assert(app->need_redraw == 1);
+            assert(RS_SessionInfo_Multiway(&app->session_info) == 1);
+            assert(RedrawRequest_Pending(&app->redraw_request));
         }
         printf("ok - SET_MULTIWAY reaches the client\n");
 
@@ -1100,10 +1100,10 @@ main(void)
             p._last_login_info.unread_messages = 3;
             p._last_login_info.member_warning = 1;
             RS_GameProto_Exec(&ctx, &p);
-            assert(app->welcome.last_ip == 0x01020304);
-            assert(app->welcome.days_since_login == 2);
-            assert(app->welcome.unread_messages == 3);
-            assert(app->welcome.member_warning == 1);
+            assert(app->session_info.welcome.last_ip == 0x01020304);
+            assert(app->session_info.welcome.days_since_login == 2);
+            assert(app->session_info.welcome.unread_messages == 3);
+            assert(app->session_info.welcome.member_warning == 1);
         }
         printf("ok - LAST_LOGIN_INFO carries the member warning\n");
 
@@ -1143,11 +1143,11 @@ main(void)
         RS_ClientCode_Tick(app, wtree, &app->social, 0);
         assert(strcmp(test_row_text(wtree, rows[0]), "") == 0);
 
-        app->welcome.last_ip = 0x0a000205; /* 10.0.2.5 */
-        app->welcome.days_since_login = 3;
-        app->welcome.days_since_recovery = 5;
-        app->welcome.unread_messages = 2;
-        app->welcome.member_warning = 0;
+        app->session_info.welcome.last_ip = 0x0a000205; /* 10.0.2.5 */
+        app->session_info.welcome.days_since_login = 3;
+        app->session_info.welcome.days_since_recovery = 5;
+        app->session_info.welcome.unread_messages = 2;
+        app->session_info.welcome.member_warning = 0;
         RS_ClientCode_Tick(app, wtree, &app->social, 0);
         assert(
             strcmp(
@@ -1167,9 +1167,9 @@ main(void)
 
         /* Loopback carries no information, so the reference drops the clause
          * instead of showing 127.0.0.1 to every account on a local server. */
-        app->welcome.last_ip = 0x7f000001;
-        app->welcome.days_since_login = 0;
-        app->welcome.unread_messages = 0;
+        app->session_info.welcome.last_ip = 0x7f000001;
+        app->session_info.welcome.days_since_login = 0;
+        app->session_info.welcome.unread_messages = 0;
         RS_ClientCode_Tick(app, wtree, &app->social, 0);
         assert(
             strcmp(test_row_text(wtree, rows[0]), "You last logged in earlier today.") ==
@@ -1179,19 +1179,19 @@ main(void)
 
         /* 201 = nothing to say about recovery questions; the three rows go to
          * the member warning when there is one, and blank when there is not. */
-        app->welcome.days_since_recovery = RS_CC_RECOVERY_DAYS_SILENT;
-        app->welcome.member_warning = 0;
+        app->session_info.welcome.days_since_recovery = RS_CC_RECOVERY_DAYS_SILENT;
+        app->session_info.welcome.member_warning = 0;
         RS_ClientCode_Tick(app, wtree, &app->social, 0);
         for( int i = 2; i <= 4; i++ )
             assert(strcmp(test_row_text(wtree, rows[i]), "") == 0);
 
-        app->welcome.member_warning = 1;
+        app->session_info.welcome.member_warning = 1;
         RS_ClientCode_Tick(app, wtree, &app->social, 0);
         for( int i = 2; i <= 4; i++ )
             assert(test_row_text(wtree, rows[i])[0] != '\0');
 
         /* 200 = never set any, which is its own paragraph and not a day count. */
-        app->welcome.days_since_recovery = RS_CC_RECOVERY_DAYS_NEVER_SET;
+        app->session_info.welcome.days_since_recovery = RS_CC_RECOVERY_DAYS_NEVER_SET;
         RS_ClientCode_Tick(app, wtree, &app->social, 0);
         assert(
             strcmp(
@@ -1261,13 +1261,13 @@ main(void)
         struct App_WorldView view;
         struct RS_GameProtoCtx url_ctx;
         struct RevPacket p;
-        struct App_CamRotateCycles const* r = &app->cam_script.rotate_cycles;
+        struct CamScriptRotateCycles const* r = &app->cam_script.rotate_cycles;
 
         assert(app);
         memset(&view, 0, sizeof(view));
         view.world_camera.pitch = 300;
         view.world_camera.yaw = 100;
-        app->frame_view = &view;
+        app->world_views.frame = &view;
 
         App_CinemaCameraRotateBy(app, 50, 0, 30, 0);
         assert(r->active);
@@ -1275,7 +1275,7 @@ main(void)
         assert(r->yaw.from == 100);
         assert(r->yaw.to == 150);
         assert(!r->pitch.active);
-        assert(app->cam_script.scripted);
+        assert(CamScript_IsScripted(&app->cam_script));
 
         /* A negative pitch leaves the axis; the yaw goes the short way. */
         App_CinemaCameraRotateTo(app, 1900, -1, 30, 0);

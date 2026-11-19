@@ -25,10 +25,17 @@
  *      included). The hold lifts.
  *
  * The blocking flow (task_gameproto_exec.c awaiting Task_WorldLoad) is the
- * default and is untouched by any of this; see App::world_rebuild_background.
+ * default and is untouched by any of this; see App_WorldRebuildModeInit.
+ *
+ * What the job records, its phases and its slice counts are
+ * engine/world_builder/world_rebuild_job.h; the frame window around a
+ * rebuild is engine/world_builder/rebuild_frame_stats.h.
  */
 
 #include "app/app_internal.h"
+#include "engine/world_builder/rebuild_frame_stats.h"
+#include "engine/world_builder/rebuild_pace.h"
+#include "engine/world_builder/world_rebuild_job.h"
 #include "features/features.h"
 #include "game/content_test.h"
 #include "mem/torirs_mem.h"
@@ -45,17 +52,6 @@ PlatformWindow_TicksUs(void);
 #define APP_GRAVEYARD_SLICE_US 500u
 
 #define APP_WORLD_JOB_DEADLINE_MS_DEFAULT 600
-/* The paced catch-up's defaults: packet and script work per frame, how long
- * after a commit it lasts, and the slice the commit frame's own follow-up
- * scripts get. A packet is never cut, so a frame can overrun the budget by
- * one packet (an interface mount is 2-5 ms). */
-#define APP_PACE_BUDGET_US_DEFAULT 4000
-#define APP_PACE_WINDOW_MS_DEFAULT 1000
-#define APP_PACE_COMMIT_FRAME_US 2000
-/* A stop keeps pacing alive this long past it; nothing keeps it alive longer
- * than the hard limit after the commit. */
-#define APP_PACE_STOP_LINGER_US 100000
-#define APP_PACE_HARD_LIMIT_US 3000000
 
 /* The scene side a root rebuild builds (the packet task passes the same). */
 #define APP_WORLD_JOB_SCENE_SIZE 104
@@ -67,72 +63,47 @@ app_runner_clock(void* ud)
     return PlatformWindow_TicksUs();
 }
 
+/* The paced catch-up (engine/world_builder/rebuild_pace.c) on the background
+ * queue's clock and App_RunOnce's frame serial. */
 void
 App_PaceArm(struct App* app)
 {
-    uint64_t now;
-
     assert(app);
-    if( app->pace_budget_us == 0 )
-        return;
-    now = TaskRunner_Now(&app->background_runner);
-    app->pace_until_us = now + app->pace_window_us;
-    app->pace_hard_until_us = now + APP_PACE_HARD_LIMIT_US;
-    if( app->pace_hard_until_us < app->pace_until_us )
-        app->pace_hard_until_us = app->pace_until_us;
-    app->pace_commit_frame = app->run_once_serial;
-    app->pace_pop_frame = app->run_once_serial;
-    /* The commit frame has had its work: the scripts the commit itself
-     * queued get a short slice, and the first packet waits for the next
-     * frame (App_PaceHoldsPop). */
-    app->pace_deadline_frame = app->run_once_serial;
-    app->pace_deadline_us = now + APP_PACE_COMMIT_FRAME_US;
-    app->pace_stat_pop_stops = 0;
-    app->pace_stat_settle_stops = 0;
+    RebuildPace_Arm(
+        &app->pace,
+        TaskRunner_Now(&app->background_runner),
+        FrameClockSerial_RunOnce(&app->frame_clock.serial));
 }
 
 uint64_t
 App_PacedDeadline(struct App* app)
 {
-    uint64_t now;
+    uint64_t deadline;
+    int ended;
 
     assert(app);
-    if( app->pace_until_us == 0 )
+    if( !RebuildPace_Pacing(&app->pace) )
         return 0;
-    now = TaskRunner_Now(&app->background_runner);
-    if( now >= app->pace_until_us )
-    {
-        /* The window is the bound: whatever is still held applies at once
-         * from here, as it always did. */
-        if( WorldBuilder_TimingOn() )
-            TORIRS_REPORT(
-                "rebuild_pace: ended pop_stops=%d settle_stops=%d\n",
-                app->pace_stat_pop_stops,
-                app->pace_stat_settle_stops);
-        app->pace_until_us = 0;
-        return 0;
-    }
-    if( app->pace_deadline_frame != app->run_once_serial )
-    {
-        app->pace_deadline_frame = app->run_once_serial;
-        app->pace_deadline_us = now + app->pace_budget_us;
-    }
-    return app->pace_deadline_us;
+    deadline = RebuildPace_Deadline(
+        &app->pace,
+        TaskRunner_Now(&app->background_runner),
+        FrameClockSerial_RunOnce(&app->frame_clock.serial),
+        &ended);
+    if( ended && WorldBuilder_TimingOn() )
+        TORIRS_REPORT(
+            "rebuild_pace: ended pop_stops=%d settle_stops=%d\n",
+            app->pace.stat_pop_stops,
+            app->pace.stat_settle_stops);
+    return deadline;
 }
 
 void
 App_PaceNoteStop(struct App* app)
 {
-    uint64_t until;
-
     assert(app);
-    if( app->pace_until_us == 0 )
+    if( !RebuildPace_Pacing(&app->pace) )
         return;
-    until = TaskRunner_Now(&app->background_runner) + APP_PACE_STOP_LINGER_US;
-    if( until > app->pace_hard_until_us )
-        until = app->pace_hard_until_us;
-    if( until > app->pace_until_us )
-        app->pace_until_us = until;
+    RebuildPace_NoteStop(&app->pace, TaskRunner_Now(&app->background_runner));
 }
 
 int
@@ -144,20 +115,12 @@ App_PaceHoldsPop(struct App* app)
     deadline = App_PacedDeadline(app);
     if( deadline == 0 )
         return 0;
-    if( app->pace_commit_frame != app->run_once_serial )
-    {
-        /* Inside the budget; or the frame's first packet, which goes
-         * whatever the budget says: the frame queue is paced from the same
-         * deadline and runs first, and a frame it filled must not leave the
-         * packets behind it standing for the whole window. */
-        if( TaskRunner_Now(&app->background_runner) < deadline ||
-            app->pace_pop_frame != app->run_once_serial )
-        {
-            app->pace_pop_frame = app->run_once_serial;
-            return 0;
-        }
-    }
-    app->pace_stat_pop_stops++;
+    if( !RebuildPace_HoldsPop(
+            &app->pace,
+            deadline,
+            TaskRunner_Now(&app->background_runner),
+            FrameClockSerial_RunOnce(&app->frame_clock.serial)) )
+        return 0;
     App_PaceNoteStop(app);
     return 1;
 }
@@ -172,6 +135,9 @@ app_background_runner_init(struct App* app)
     /* One IO backend, as for the packet queue. */
     app->background_runner.px = app->frame_runner.px;
     app->background_runner.parallel = 1;
+    RebuildPace_Reset(&app->pace);
+    WorldRebuildJob_Reset(&app->world_job);
+    RebuildFrameStats_Reset(&app->rebuild_frames);
     TaskRunner_SetClock(&app->background_runner, app_runner_clock, NULL);
     /* The packet queue and the frame queue read the same clock: a paced
      * catch-up gives their passes a deadline too (App_PacedDeadline). */
@@ -206,6 +172,7 @@ App_WorldRebuildModeInit(struct App* app)
     char const* deadline = torirs_env_world_job_deadline_ms();
     long deadline_ms = APP_WORLD_JOB_DEADLINE_MS_DEFAULT;
     int model;
+    int background;
 
     assert(app);
     /*
@@ -215,7 +182,8 @@ App_WorldRebuildModeInit(struct App* app)
      * that there is no world to rebuild, and it reads blocking.
      * TORIRS_WORLD_REBUILD overrides the world's statement for one launch.
      */
-    model = app->features ? app->features->world_rebuild_model : TORIRS_WORLD_REBUILD_BLOCKING;
+    model = ToriRS_Features_Resolved(&app->features) ? app->features.world_rebuild_model
+                                                     : TORIRS_WORLD_REBUILD_BLOCKING;
     if( mode && mode[0] )
     {
         int const from_env = ToriRS_Features_WorldRebuildModelByName(mode);
@@ -225,7 +193,7 @@ App_WorldRebuildModeInit(struct App* app)
         else
             model = from_env;
     }
-    app->world_rebuild_background = model == TORIRS_WORLD_REBUILD_BACKGROUND;
+    background = model == TORIRS_WORLD_REBUILD_BACKGROUND;
     /*
      * A content test keys every step on the tick a state is reached and waits
      * for it with frames. A hold measured in wall time moves every packet
@@ -233,27 +201,29 @@ App_WorldRebuildModeInit(struct App* app)
      * exactly what such a run must not vary; it blocks whatever the world or
      * the launch says.
      */
-    if( app->world_rebuild_background && ContentTest_Enabled() )
-        app->world_rebuild_background = 0;
+    if( background && ContentTest_Enabled() )
+        background = 0;
     if( deadline && deadline[0] )
     {
         long const value = strtol(deadline, NULL, 0);
         if( value > 0 )
             deadline_ms = value;
     }
-    app->world_job_deadline_us = (uint64_t)deadline_ms * 1000u;
+    WorldRebuildJob_Configure(&app->world_job, background, (uint64_t)deadline_ms * 1000u);
     {
         char const* budget = torirs_env_pace_budget_us();
         char const* window = torirs_env_pace_window_ms();
 
-        app->pace_budget_us = APP_PACE_BUDGET_US_DEFAULT;
-        app->pace_window_us = (uint64_t)APP_PACE_WINDOW_MS_DEFAULT * 1000u;
+        uint64_t budget_us = REBUILD_PACE_BUDGET_US_DEFAULT;
+        uint64_t window_us = (uint64_t)REBUILD_PACE_WINDOW_MS_DEFAULT * 1000u;
+
         if( budget && budget[0] )
-            app->pace_budget_us = (uint64_t)strtoul(budget, NULL, 0);
+            budget_us = (uint64_t)strtoul(budget, NULL, 0);
         if( window && window[0] )
-            app->pace_window_us = (uint64_t)strtoul(window, NULL, 0) * 1000u;
+            window_us = (uint64_t)strtoul(window, NULL, 0) * 1000u;
+        RebuildPace_Configure(&app->pace, budget_us, window_us);
     }
-    if( app->world_rebuild_background )
+    if( WorldRebuildJob_Background(&app->world_job) )
         TORIRS_LOG("world rebuild: background (job deadline %ld ms)\n", deadline_ms);
 }
 
@@ -261,21 +231,17 @@ int
 App_WorldJobWanted(struct App const* app)
 {
     assert(app);
-    if( !app->world_rebuild_background )
-        return 0;
-    /* The editor's scenes are its own (app_world_load_begin), and a scene it
-     * shows must be the one it just asked for. */
-    if( app->editor )
-        return 0;
-    /* A first load (login, a reconnect onto nothing) has no scene to keep on
-     * screen; it takes the blocking path as it always has. */
-    if( !app->world_active || !app->world || !app->world->load_complete )
-        return 0;
     /*
+     * The editor's scenes are its own (app_world_load_begin), and a scene it
+     * shows must be the one it just asked for.
+     *
+     * A first load (login, a reconnect onto nothing) has no scene to keep on
+     * screen; it takes the blocking path as it always has.
+     *
      * The frame latch. A REBUILD is never the first packet of its server
      * tick: on every in-game REBUILD of three rev-242 recordings (29 of 29;
      * RSProx 20261022T202619, 20261022T191126, 20261028T103055) the tick was
-     * already open (server_tick_open), opened by VARP_SMALL /
+     * already open (RS_ServerTick_IsOpen), opened by VARP_SMALL /
      * VARP_LARGE and nothing else of the UI kind -- the rest being
      * UNSET_MAP_FLAG, REFLECTION_CHECKER, PACKET_GROUP_START and
      * SET_ACTIVE_WORLD -- with no clientscript held. The tick's fence
@@ -291,36 +257,30 @@ App_WorldJobWanted(struct App const* app)
      * background path here: such a tick is not varps alone, and a held
      * script is held. Those REBUILDs are done the blocking way.
      */
-    if( app->server_tick_open && app->server_tick_open_nonvar )
-        return 0;
-    if( RS_ClientScriptQueue_Count(&app->pending_clientscripts) > 0 )
-        return 0;
-    /* Unreachable while one is pending -- the pump pops nothing -- but a
-     * second job would overwrite the first's record. */
-    return !app->world_job.pending;
+    return WorldRebuildJob_Wanted(
+        &app->world_job,
+        app->editor != NULL,
+        WorldLoadState_Active(&app->world_load) && app->world && app->world->load_complete,
+        RS_ServerTick_IsOpen(&app->server_tick) && RS_ServerTick_OpenNonVar(&app->server_tick),
+        RS_ClientScriptQueue_Count(&app->pending_clientscripts) > 0);
 }
 
 int
 App_WorldJobPending(struct App const* app)
 {
     assert(app);
-    return app->world_job.pending;
+    return WorldRebuildJob_Pending(&app->world_job);
 }
 
 int
 App_WorldSettled(struct App const* app)
 {
-    assert(app);
-    return !app->world_load_inflight && !app->world_job.pending;
-}
+    struct SettleGateInput in;
 
-/* Where a job stands (AppWorldJob::phase). */
-enum
-{
-    APP_WORLD_JOB_IDLE = 0,
-    APP_WORLD_JOB_GATHER = 1,
-    APP_WORLD_JOB_STAGE = 2,
-};
+    assert(app);
+    app_settle_gate_input(app, &in);
+    return SettleGate_WorldSettled(&in);
+}
 
 /*
  * The staging scene's pool pair: the last view id the scene can mint pools
@@ -339,7 +299,7 @@ _Static_assert(APP_WORLD_STAGE_VIEW >= WORLDVIEW_MAX, "the staging pools belong 
  * at most each); the rest covers the entities the live scene spawns between
  * two units. A build that would run out does not: it stops, and the commit
  * builds in place as a scene too dense for two would have to
- * (AppWorldJob::stage_crowded).
+ * (WorldRebuildJob::stage_crowded).
  */
 #define APP_WORLD_STAGE_HEADROOM (APP_WORLD_JOB_SCENE_SIZE * APP_WORLD_JOB_SCENE_SIZE + 4096)
 
@@ -364,50 +324,6 @@ app_world_stage_crowded(struct App* app)
     assert(app);
     return TORIDRAW_SCENE_MAX_ELEMENTS - ToriDraw_SceneElementLiveCount(app->scene) <
            app_world_stage_headroom();
-}
-
-/* The REBUILD's varps, for the staging build (AppWorldJob::stage_varps). */
-static void
-app_world_job_varps_take(struct App* app)
-{
-    struct AppWorldJob* job = &app->world_job;
-
-    assert(!job->stage_varps_taken);
-    /* The type tables are the live manager's and outlive the job; only the
-     * values are the job's. Nothing writes through the copy: the builder
-     * reads varbits and varps and nothing else (VarPManager_ResolveTransform),
-     * so the long arm, the server values and the callbacks stay empty. */
-    job->stage_varps = app->varps;
-    job->stage_varps.var = NULL;
-    job->stage_varps.var_serv = NULL;
-    job->stage_varps.var_long = NULL;
-    job->stage_varps.var_long_serv = NULL;
-    job->stage_varps.var_long_set = NULL;
-    job->stage_varps.var_long_count = 0;
-    job->stage_varps.change_fn = NULL;
-    job->stage_varps.change_userdata = NULL;
-    job->stage_varps.server_update_fn = NULL;
-    job->stage_varps.server_update_userdata = NULL;
-    if( app->varps.varp_count > 0 )
-    {
-        size_t const bytes = (size_t)app->varps.varp_count * sizeof(int);
-        job->stage_varps.var = ToriMem_Alloc(ToriMem_Scene(), bytes);
-        assert(job->stage_varps.var);
-        memcpy(job->stage_varps.var, app->varps.var, bytes);
-    }
-    job->stage_varps_taken = 1;
-}
-
-static void
-app_world_job_varps_drop(struct App* app)
-{
-    struct AppWorldJob* job = &app->world_job;
-
-    if( !job->stage_varps_taken )
-        return;
-    ToriMem_Free(ToriMem_Scene(), job->stage_varps.var);
-    memset(&job->stage_varps, 0, sizeof(job->stage_varps));
-    job->stage_varps_taken = 0;
 }
 
 /*
@@ -454,7 +370,7 @@ app_world_job_varp_poke(struct App* app)
 {
     static int poked;
     char const* value = getenv("TORIRS_WORLD_JOB_VARP_POKE");
-    struct AppWorldJob* job = &app->world_job;
+    struct WorldRebuildJob* job = &app->world_job;
     int varp = -1;
     /* What is added to the varp: a varbit's lowest bit, so the write moves
      * the varbit the multiloc reads. */
@@ -541,7 +457,7 @@ app_world_stage_spent(void* userdata)
 {
     struct AppWorldStageSlice* s = (struct AppWorldStageSlice*)userdata;
 
-    s->app->world_job.build_units++;
+    WorldRebuildJob_NoteBuildUnit(&s->app->world_job);
     return ToriRS_SliceSpent(s->slice) || app_world_stage_crowded(s->app);
 }
 
@@ -551,7 +467,7 @@ Task_AppWorldStage_Run(
     struct ToriRS_IOBatch* io)
 {
     struct Task_AppWorldStage* self = (struct Task_AppWorldStage*)task_base;
-    struct AppWorldJob* job = &self->app->world_job;
+    struct WorldRebuildJob* job = &self->app->world_job;
 
     PT_BEGIN(&self->pt);
 
@@ -564,7 +480,7 @@ Task_AppWorldStage_Run(
              * already short of room never touches the scene. */
             if( app_world_stage_crowded(self->app) )
             {
-                job->stage_crowded = 1;
+                WorldRebuildJob_MarkCrowded(job);
                 break;
             }
             self->done = WorldBuilder_BuildStep(job->stage_builder, app_world_stage_spent, &slice);
@@ -572,7 +488,7 @@ Task_AppWorldStage_Run(
         if( self->done )
         {
             /* The build's last unit, which asks no `spent`. */
-            job->build_units++;
+            WorldRebuildJob_NoteBuildUnit(job);
             break;
         }
         app_world_job_varp_poke(self->app);
@@ -584,7 +500,7 @@ Task_AppWorldStage_Run(
                 job->zone_z,
                 job->build_units,
                 ToriDraw_SceneElementLiveCount(self->app->scene));
-            job->stage_crowded = 1;
+            WorldRebuildJob_MarkCrowded(job);
             break;
         }
         /* BuildStep stopped for the slice (it stops for nothing else). */
@@ -616,7 +532,7 @@ Task_AppWorldStage_Run(
         while( ToriDraw_SceneStageBatchOpen(self->app->scene) &&
                !ToriDraw_SceneStageBatchPrepared(self->app->scene) && !job->job.promoted )
         {
-            job->prep_frames++;
+            WorldRebuildJob_NotePrepFrame(job);
             self->task.spent = 1;
             PT_YIELD(&self->pt);
         }
@@ -650,7 +566,7 @@ static struct ToriRS_TaskVTable Task_AppWorldStage_VTable = {
 static void
 app_world_job_stage_free(struct App* app)
 {
-    struct AppWorldJob* job = &app->world_job;
+    struct WorldRebuildJob* job = &app->world_job;
 
     assert(!job->stage_task);
     if( job->stage_builder )
@@ -673,7 +589,7 @@ app_world_job_stage_free(struct App* app)
         CacheProvider_TrimRelease(app->provider);
         job->trim_held = 0;
     }
-    app_world_job_varps_drop(app);
+    WorldRebuildJob_DropVarps(job);
 }
 
 /*
@@ -685,16 +601,11 @@ app_world_job_stage_free(struct App* app)
 static void
 app_world_job_stage_begin(struct App* app)
 {
-    struct AppWorldJob* job = &app->world_job;
+    struct WorldRebuildJob* job = &app->world_job;
     struct Task_AppWorldStage* task;
     int estimate;
 
-    assert(job->phase == APP_WORLD_JOB_GATHER);
-    assert(ToriRS_TaskJob_Done(&job->job));
-    assert(!job->stage_world);
-    assert(!job->stage_builder);
-    job->gather = NULL;
-    job->phase = APP_WORLD_JOB_STAGE;
+    WorldRebuildJob_StageBegin(job);
 
     /* The new scene will be about the size of the one it replaces. */
     estimate = ToriDraw_ScenePoolCount(app->scene, TORIDRAW_SCENE_POOL_STATIC);
@@ -721,7 +632,7 @@ app_world_job_stage_begin(struct App* app)
             estimate,
             app_world_stage_headroom(),
             TORIDRAW_SCENE_MAX_ELEMENTS);
-        job->stage_crowded = 1;
+        WorldRebuildJob_MarkCrowded(job);
         return;
     }
 
@@ -763,14 +674,14 @@ app_world_job_stage_begin(struct App* app)
 static int
 app_world_job_advance(struct App* app)
 {
-    struct AppWorldJob* job = &app->world_job;
+    struct WorldRebuildJob* job = &app->world_job;
 
-    if( !ToriRS_TaskJob_Done(&job->job) )
+    if( !WorldRebuildJob_TasksDone(job) )
         return 0;
-    if( job->phase == APP_WORLD_JOB_GATHER )
+    if( WorldRebuildJob_Phase(job) == WORLD_REBUILD_JOB_GATHER )
     {
         app_world_job_stage_begin(app);
-        return ToriRS_TaskJob_Done(&job->job);
+        return WorldRebuildJob_TasksDone(job);
     }
     return 1;
 }
@@ -784,18 +695,14 @@ App_WorldJobStart(
     int zone_z,
     int32_t const* zones)
 {
-    struct AppWorldJob* job;
+    struct WorldRebuildJob* job;
     struct Worldview* root;
+    struct ToriRS_Task* gather;
     uint64_t now;
 
     assert(app);
     assert(chunks_xz);
-    assert(chunk_count >= 0);
-    assert(chunk_count <= (int)(sizeof(app->world_job.chunks) / sizeof(app->world_job.chunks[0]) / 2));
     job = &app->world_job;
-    assert(!job->pending);
-    assert(job->phase == APP_WORLD_JOB_IDLE);
-    assert(!job->stage_world);
     _Static_assert(
         sizeof(job->zones) == PKT_MAP_REBUILD_ZONES * sizeof(job->zones[0]),
         "the job keeps the packet's grid");
@@ -803,31 +710,12 @@ App_WorldJobStart(
     root = WorldviewRegistry_Get(&app->worldviews, WORLDVIEW_ROOT);
     now = TaskRunner_Now(&app->background_runner);
 
-    memset(&job->report, 0, sizeof(job->report));
-    job->zone_x = zone_x;
-    job->zone_z = zone_z;
-    job->chunk_count = chunk_count;
-    memcpy(job->chunks, chunks_xz, (size_t)chunk_count * 2 * sizeof(int));
-    job->have_zones = zones != NULL;
-    if( zones )
-        memcpy(job->zones, zones, sizeof(job->zones));
-    job->stalled = 0;
-    job->t_begin_us = now;
-    job->slices = 0;
-    job->slice_us_sum = 0;
-    job->slice_us_max = 0;
-    job->build_slices = 0;
-    job->build_slice_us_sum = 0;
-    job->build_slice_us_max = 0;
-    job->build_units = 0;
-    job->prep_frames = 0;
-    job->stage_crowded = 0;
-    job->held_open = 0;
+    WorldRebuildJob_Begin(job, chunks_xz, chunk_count, zone_x, zone_z, zones, now);
     /* The varps the scene is built against are the REBUILD's, as a build in
      * place at this packet would read them. */
-    app_world_job_varps_take(app);
+    WorldRebuildJob_TakeVarps(job, &app->varps);
 
-    job->gather = CreateTask_WorldGather(
+    gather = CreateTask_WorldGather(
         app->provider,
         root->builder,
         app->background_runner.queue,
@@ -838,15 +726,12 @@ App_WorldJobStart(
         APP_WORLD_JOB_SCENE_SIZE,
         job->have_zones ? job->zones : NULL,
         &job->report);
-    ToriRS_TaskJob_Start(&job->job, &app->background_runner, job->gather, now + app->world_job_deadline_us);
-    job->phase = APP_WORLD_JOB_GATHER;
-    job->pending = 1;
+    ToriRS_TaskJob_Start(&job->job, &app->background_runner, gather, WorldRebuildJob_MustFinishBy(job, now));
     /* The tick this REBUILD belongs to is open on varps alone (the only open
      * tick App_WorldJobWanted lets through); its fence is held behind us.
      * Suspend the latch for the hold, or nothing would be published until the
      * commit; the commit re-arms it for the rest of the tick. */
-    job->tick_suspended = app->server_tick_open;
-    app->server_tick_open = 0;
+    WorldRebuildJob_GatherStarted(job, gather, RS_ServerTick_Suspend(&app->server_tick));
     if( WorldBuilder_TimingOn() )
         TORIRS_REPORT(
             "world_job: start zone=%d,%d squares=%d instance=%d cycle=%llu\n",
@@ -854,7 +739,7 @@ App_WorldJobStart(
             zone_z,
             chunk_count,
             job->have_zones,
-            (unsigned long long)app->logic_cycle);
+            (unsigned long long)FrameClockSerial_LogicCycle(&app->frame_clock.serial));
 }
 
 /*
@@ -869,7 +754,7 @@ app_world_job_repeat_requested(struct App* app)
 {
     static long remaining = -2;
     static int repeating;
-    struct AppWorldJob* job = &app->world_job;
+    struct WorldRebuildJob* job = &app->world_job;
     int chunks[sizeof(job->chunks) / sizeof(job->chunks[0])];
     int32_t zones[sizeof(job->zones) / sizeof(job->zones[0])];
 
@@ -890,7 +775,7 @@ app_world_job_repeat_requested(struct App* app)
     repeating = 1;
     memcpy(chunks, job->chunks, sizeof(chunks));
     memcpy(zones, job->zones, sizeof(zones));
-    app->world_load_server_driven = 1;
+    WorldLoadState_BeginRepeat(&app->world_load);
     app_rebuild_frames_open(app, 1);
     TORIRS_REPORT("world_job: TORIRS_WORLD_JOB_REPEAT zone=%d,%d again, right after its commit\n",
         job->zone_x, job->zone_z);
@@ -907,7 +792,7 @@ app_world_job_repeat_requested(struct App* app)
 static void
 app_world_job_commit(struct App* app)
 {
-    struct AppWorldJob* job = &app->world_job;
+    struct WorldRebuildJob* job = &app->world_job;
     struct Worldview* root;
     int had_world;
     int prev_base_x;
@@ -922,8 +807,8 @@ app_world_job_commit(struct App* app)
     uint64_t t_varps;
     uint64_t t_done;
 
-    assert(ToriRS_TaskJob_Done(&job->job));
-    assert(job->phase == APP_WORLD_JOB_STAGE);
+    assert(WorldRebuildJob_TasksDone(job));
+    assert(WorldRebuildJob_Phase(job) == WORLD_REBUILD_JOB_STAGE);
     assert(!job->stage_task);
     job->gather = NULL;
     root = WorldviewRegistry_Get(&app->worldviews, WORLDVIEW_ROOT);
@@ -938,15 +823,12 @@ app_world_job_commit(struct App* app)
 
     /* The plugins' copy of the grid goes with the scene it describes, so a
      * frame of the old scene never shows it beside the new grid. */
-    app->rebuild_instance_active = job->have_zones;
-    app->rebuild_instance_zone_x = job->zone_x;
-    app->rebuild_instance_zone_z = job->zone_z;
-    if( job->have_zones )
-        memcpy(app->rebuild_instance_zones, job->zones, sizeof(app->rebuild_instance_zones));
+    RS_RebuildRegion_KeepInstance(
+        &app->rebuild_region, job->have_zones ? job->zones : NULL, job->zone_x, job->zone_z);
 
     /* The entity-shift source, as the packet task captures it. Nothing can
      * have moved the base since the packet: the pump has popped nothing. */
-    had_world = app->world_active && app->world && root->world->load_complete;
+    had_world = WorldLoadState_Active(&app->world_load) && app->world && root->world->load_complete;
     prev_base_x = had_world ? root->world->_base_tile_x : 0;
     prev_base_z = had_world ? root->world->_base_tile_z : 0;
 
@@ -982,10 +864,12 @@ app_world_job_commit(struct App* app)
             root->world->_base_tile_x - prev_base_x,
             root->world->_base_tile_z - prev_base_z);
     t_shifted = TaskRunner_Now(&app->background_runner);
-    app->rebuild_frames.build_ms = (double)(t_swapped - t_commit) / 1000.0;
-    app->rebuild_frames.swap_ms = (double)(t_swapped - t_commit) / 1000.0;
-    app->rebuild_frames.shift_ms = (double)(t_shifted - t_swapped) / 1000.0;
-    /* Clears world_load_inflight, which a stalled promotion set. */
+    RebuildFrameStats_SetCommit(
+        &app->rebuild_frames,
+        (double)(t_swapped - t_commit) / 1000.0,
+        (double)(t_swapped - t_commit) / 1000.0,
+        (double)(t_shifted - t_swapped) / 1000.0);
+    /* Lands the world load, unblanking what a stalled promotion blanked. */
     App_WorldLoadFinish(app);
     t_finished = TaskRunner_Now(&app->background_runner);
     /* After the finish, where a varp written after a build in place would
@@ -1001,24 +885,16 @@ app_world_job_commit(struct App* app)
         TORIRS_REPORT("rebuild_timing: commit finish load_finish=%.2fms varps=%.2fms stage_free=%.2fms\n",
             (double)(t_finished - t_shifted) / 1000.0, (double)(t_varps - t_finished) / 1000.0,
             (double)(t_done - t_varps) / 1000.0);
-    app->rebuild_frames.tail_ms = (double)(t_done - t_swapped) / 1000.0;
-    app->rebuild_frames.finish_ms = (double)(t_done - t_shifted) / 1000.0;
-    job->pending = 0;
-    job->stalled = 0;
-    job->phase = APP_WORLD_JOB_IDLE;
-    /* The rest of the REBUILD's tick is about to be popped: latch it as the
-     * blocking flow would have, from here to its SERVER_TICK_END. Counted
-     * from now, so the lost-fence backstop measures this stretch, not the
-     * hold. */
-    if( job->tick_suspended )
-    {
-        job->tick_suspended = 0;
-        app->server_tick_open = 1;
-        app->server_tick_open_cycle = app->logic_cycle;
-    }
-    /* The held packets popped behind this, to the pump's return. */
-    job->held_open = 1;
-    job->held_t0_us = t_done;
+    RebuildFrameStats_SetTail(
+        &app->rebuild_frames, (double)(t_done - t_swapped) / 1000.0, (double)(t_done - t_shifted) / 1000.0);
+    /* The job is idle, and the held packets popped behind this are timed to
+     * the pump's return. The rest of the REBUILD's tick is about to be
+     * popped: latch it as the blocking flow would have, from here to its
+     * SERVER_TICK_END. Counted from now, so the lost-fence backstop measures
+     * this stretch, not the hold. */
+    if( WorldRebuildJob_Committed(job, t_done) )
+        RS_ServerTick_Resume(
+            &app->server_tick, FrameClockSerial_LogicCycle(&app->frame_clock.serial));
 
     if( WorldBuilder_TimingOn() )
         TORIRS_REPORT(
@@ -1060,31 +936,30 @@ app_world_job_commit(struct App* app)
 void
 app_world_job_held_note(struct App* app)
 {
-    struct AppWorldJob* job;
+    uint64_t held_t0_us;
 
     assert(app);
-    job = &app->world_job;
-    if( !job->held_open )
+    if( !WorldRebuildJob_HeldClose(&app->world_job, &held_t0_us) )
         return;
-    job->held_open = 0;
-    app->rebuild_frames.held_ms = (double)(TaskRunner_Now(&app->background_runner) - job->held_t0_us) / 1000.0;
+    RebuildFrameStats_SetHeld(
+        &app->rebuild_frames, (double)(TaskRunner_Now(&app->background_runner) - held_t0_us) / 1000.0);
 }
 
 int
 App_WorldJobPoll(struct App* app)
 {
-    struct AppWorldJob* job;
+    struct WorldRebuildJob* job;
 
     assert(app);
     job = &app->world_job;
-    if( !job->pending )
+    if( !WorldRebuildJob_Pending(job) )
         return 1;
     if( !app_world_job_advance(app) )
     {
         uint64_t const now = TaskRunner_Now(&app->background_runner);
         uint64_t t_after;
 
-        if( now < job->job.must_finish_by_us )
+        if( !WorldRebuildJob_Overdue(job, now) )
             return 0;
         /*
          * Past its deadline: stop waiting for slices and finish it here, in
@@ -1092,24 +967,18 @@ App_WorldJobPoll(struct App* app)
          * staging build. On the desktop every read is answered as it is asked
          * for, so this runs to the end.
          */
-        if( !job->job.promoted )
-        {
-            job->job.promoted = 1;
+        if( WorldRebuildJob_Promote(job) )
             TORIRS_LOG(
                 "world_job: zone %d,%d not %s after %llu ms; finishing it now\n",
                 job->zone_x,
                 job->zone_z,
-                job->phase == APP_WORLD_JOB_GATHER ? "gathered" : "built",
+                WorldRebuildJob_Phase(job) == WORLD_REBUILD_JOB_GATHER ? "gathered" : "built",
                 (unsigned long long)((now - job->t_begin_us) / 1000u));
-        }
         (void)TaskRunner_RunUntil(&app->background_runner, 0);
-        if( app_world_job_advance(app) == 0 && job->phase == APP_WORLD_JOB_STAGE )
+        if( app_world_job_advance(app) == 0 && WorldRebuildJob_Phase(job) == WORLD_REBUILD_JOB_STAGE )
             (void)TaskRunner_RunUntil(&app->background_runner, 0);
         t_after = TaskRunner_Now(&app->background_runner);
-        job->slices++;
-        job->slice_us_sum += t_after - now;
-        if( t_after - now > job->slice_us_max )
-            job->slice_us_max = t_after - now;
+        WorldRebuildJob_NoteSlice(job, t_after - now, 0);
         if( !app_world_job_advance(app) )
         {
             /*
@@ -1118,11 +987,10 @@ App_WorldJobPoll(struct App* app)
              * blocking rebuild says while it waits -- the viewport's
              * "Loading - please wait." -- and come back next pump.
              */
-            if( !job->stalled )
+            if( WorldRebuildJob_Stall(job) )
             {
-                job->stalled = 1;
-                app->world_load_inflight = 1;
-                app->need_redraw = 1;
+                WorldLoadState_Stall(&app->world_load);
+                RedrawRequest_Raise(&app->redraw_request);
             }
             return 0;
         }
@@ -1136,12 +1004,12 @@ App_WorldJobCancel(
     struct App* app,
     char const* why)
 {
-    struct AppWorldJob* job;
+    struct WorldRebuildJob* job;
 
     assert(app);
     assert(why);
     job = &app->world_job;
-    if( !job->pending )
+    if( !WorldRebuildJob_Pending(job) )
         return;
     ToriPlatformWeb_Telemetry(
         "world_job_cancel",
@@ -1150,9 +1018,9 @@ App_WorldJobCancel(
         (int)job->phase,
         job->zone_x,
         job->zone_z);
-    if( !ToriRS_TaskJob_Done(&job->job) )
+    if( !WorldRebuildJob_TasksDone(job) )
     {
-        if( job->phase == APP_WORLD_JOB_GATHER )
+        if( WorldRebuildJob_Phase(job) == WORLD_REBUILD_JOB_GATHER )
         {
             assert(job->gather);
             TaskWorldLoad_Cancel(app->background_runner.queue, job->gather);
@@ -1166,8 +1034,8 @@ App_WorldJobCancel(
             assert(!job->stage_task);
         }
     }
-    assert(ToriRS_TaskJob_Done(&job->job));
-    if( job->phase == APP_WORLD_JOB_STAGE && WorldBuilder_TimingOn() && job->stage_builder )
+    assert(WorldRebuildJob_TasksDone(job));
+    if( WorldRebuildJob_Phase(job) == WORLD_REBUILD_JOB_STAGE && WorldBuilder_TimingOn() && job->stage_builder )
         TORIRS_REPORT(
             "world_job: cancel mid-build zone=%d,%d units=%d staged_elements=%d live_elements=%d\n",
             job->zone_x,
@@ -1180,25 +1048,15 @@ App_WorldJobCancel(
     if( WorldBuilder_TimingOn() )
         TORIRS_REPORT(
             "world_job: cancelled live_elements=%d\n", ToriDraw_SceneElementLiveCount(app->scene));
-    job->gather = NULL;
-    job->pending = 0;
-    job->phase = APP_WORLD_JOB_IDLE;
-    /* The tick it suspended ends with the session (or is superseded by the
-     * load replacing this scene); nothing of it is left to latch. */
-    job->tick_suspended = 0;
-    if( job->stalled )
-    {
-        job->stalled = 0;
-        app->world_load_inflight = 0;
-    }
-    /* Nothing was built, so nothing is acknowledged; and the zone the job was
-     * for was never the scene's, so a REBUILD naming it again must not be
-     * skipped as the same zone. */
-    app->world_load_server_driven = 0;
-    app->rebuild_zone_x = -1;
-    app->rebuild_zone_z = -1;
-    app->rebuild_frames.open = 0;
-    app->need_redraw = 1;
+    /* Idle, with no tick suspended: the tick ends with the session (or is
+     * superseded by the load replacing this scene); nothing of it is left to
+     * latch. Nothing was built, so nothing is acknowledged; and the zone the
+     * job was for was never the scene's, so a REBUILD naming it again must not
+     * be skipped as the same zone. */
+    WorldLoadState_Cancel(&app->world_load, WorldRebuildJob_Cancelled(job));
+    RS_RebuildRegion_ForgetCentre(&app->rebuild_region);
+    RebuildFrameStats_Drop(&app->rebuild_frames);
+    RedrawRequest_Raise(&app->redraw_request);
     TORIRS_LOG("world_job: zone %d,%d cancelled (%s)\n", job->zone_x, job->zone_z, why);
 }
 
@@ -1238,10 +1096,10 @@ app_world_job_drop_requested(struct App* app)
         last_begin_us = app->world_job.t_begin_us;
         jobs_seen++;
     }
-    if( jobs_seen != drop_at || ToriRS_TaskJob_Done(&app->world_job.job) )
+    if( jobs_seen != drop_at || WorldRebuildJob_TasksDone(&app->world_job) )
         return;
     if( drop_in_build &&
-        (app->world_job.phase != APP_WORLD_JOB_STAGE || app->world_job.build_units < drop_units) )
+        (WorldRebuildJob_Phase(&app->world_job) != WORLD_REBUILD_JOB_STAGE || app->world_job.build_units < drop_units) )
         return;
     drop_at = -1;
     {
@@ -1251,7 +1109,7 @@ app_world_job_drop_requested(struct App* app)
         TORIRS_REPORT(
             "world_job: TORIRS_WORLD_JOB_DROP_AT severing the session mid-%s (job %ld, %d "
             "slice(s), %d build unit(s), %d task(s) queued)\n",
-            app->world_job.phase == APP_WORLD_JOB_STAGE ? "build" : "gather",
+            WorldRebuildJob_Phase(&app->world_job) == WORLD_REBUILD_JOB_STAGE ? "build" : "gather",
             jobs_seen,
             app->world_job.slices,
             app->world_job.build_units,
@@ -1265,7 +1123,7 @@ App_RunBackground(
     struct App* app,
     uint64_t deadline_us)
 {
-    struct AppWorldJob* job;
+    struct WorldRebuildJob* job;
     uint64_t t0;
     uint64_t t1;
     int building;
@@ -1278,29 +1136,20 @@ App_RunBackground(
     if( deadline_us <= t0 )
         return;
     job = &app->world_job;
-    building = job->pending && job->phase == APP_WORLD_JOB_STAGE;
+    building = WorldRebuildJob_Pending(job) && WorldRebuildJob_Phase(job) == WORLD_REBUILD_JOB_STAGE;
     (void)TaskRunner_RunUntil(&app->background_runner, deadline_us);
     /* A gather that ended in this slice hands the rest of it to the build. */
-    if( job->pending && job->phase == APP_WORLD_JOB_GATHER && !app_world_job_advance(app) &&
-        job->phase == APP_WORLD_JOB_STAGE && TaskRunner_Now(&app->background_runner) < deadline_us )
+    if( WorldRebuildJob_Pending(job) && WorldRebuildJob_Phase(job) == WORLD_REBUILD_JOB_GATHER &&
+        !app_world_job_advance(app) && WorldRebuildJob_Phase(job) == WORLD_REBUILD_JOB_STAGE &&
+        TaskRunner_Now(&app->background_runner) < deadline_us )
     {
         building = 1;
         (void)TaskRunner_RunUntil(&app->background_runner, deadline_us);
     }
     t1 = TaskRunner_Now(&app->background_runner);
-    if( job->pending )
+    if( WorldRebuildJob_Pending(job) )
     {
-        job->slices++;
-        job->slice_us_sum += t1 - t0;
-        if( t1 - t0 > job->slice_us_max )
-            job->slice_us_max = t1 - t0;
-        if( building )
-        {
-            job->build_slices++;
-            job->build_slice_us_sum += t1 - t0;
-            if( t1 - t0 > job->build_slice_us_max )
-                job->build_slice_us_max = t1 - t0;
-        }
+        WorldRebuildJob_NoteSlice(job, t1 - t0, building);
         app_world_job_drop_requested(app);
     }
 }
@@ -1425,8 +1274,8 @@ app_world_digest_report(
         "world_digest: %s server_tick=%u cycle=%llu base=%d,%d scenery=%d/%08x npc=%d/%08x "
         "player=%d/%08x obj=%d/%08x\n",
         why,
-        app->server_tick_serial,
-        (unsigned long long)app->logic_cycle,
+        RS_ServerTick_Serial(&app->server_tick),
+        (unsigned long long)FrameClockSerial_LogicCycle(&app->frame_clock.serial),
         world->_base_tile_x,
         world->_base_tile_z,
         n_scenery,
@@ -1462,69 +1311,35 @@ app_world_digest_tick(struct App* app)
         char const* value = getenv("TORIRS_WORLD_DIGEST_EVERY");
         every = value && value[0] ? strtol(value, NULL, 0) : 0;
     }
-    if( every > 0 && app->server_tick_serial % (unsigned)every == 0 )
+    if( every > 0 && RS_ServerTick_Serial(&app->server_tick) % (unsigned)every == 0 )
         app_world_digest_report(app, "tick");
 }
 
 /* --- TORIRS_REBUILD_TIMING's frame window --------------------------------- */
 
-/* Frames reported after a rebuild's window closes. */
-#define APP_REBUILD_AFTER_FRAMES 48
-
-/* "a,b,c" in ms with one decimal, into `out` (truncated to fit). */
-static void
-app_rebuild_series_format(
-    uint16_t const* tenths,
-    int count,
-    char* out,
-    size_t out_size)
-{
-    size_t used = 0u;
-    assert(out);
-    assert(out_size > 0u);
-    out[0] = '\0';
-    for( int i = 0; i < count && used + 12u < out_size; i++ )
-        used += (size_t)snprintf(out + used, out_size - used, "%s%u.%u", i ? "," : "",
-            (unsigned)(tenths[i] / 10u), (unsigned)(tenths[i] % 10u));
-}
-
-static uint16_t
-app_rebuild_tenths(uint64_t frame_us)
-{
-    uint64_t const tenths = frame_us / 100u;
-    return tenths > 65535u ? 65535u : (uint16_t)tenths;
-}
-
 /* The frames after the window: what the renderer's tail cost them. */
 static void
 app_rebuild_frames_after_report(struct App* app)
 {
-    char series[64 * 8];
-    int over8 = 0;
-    int over16 = 0;
-    unsigned max_tenths = 0u;
-    for( int i = 0; i < app->rebuild_frames.after_frames; i++ )
-    {
-        unsigned const t = app->rebuild_frames.after[i];
-        over8 += t > 83u;
-        over16 += t > 167u;
-        if( t > max_tenths )
-            max_tenths = t;
-    }
-    app_rebuild_series_format(
-        app->rebuild_frames.after, app->rebuild_frames.after_frames, series, sizeof(series));
+    struct RebuildFrameStats const* stats = &app->rebuild_frames;
+    char series[REBUILD_FRAME_STATS_AFTER * 8];
+    int over8;
+    int over16;
+    unsigned max_tenths;
+
+    RebuildFrameStats_CountOver(stats->after, stats->after_frames, &over8, &over16, &max_tenths);
+    RebuildFrameStats_FormatSeries(stats->after, stats->after_frames, series, sizeof(series));
     TORIRS_REPORT(
         "rebuild_after: mode=%s zone=%d,%d frames=%d max=%u.%ums over8.3=%d over16.7=%d series=%s\n",
-        app->rebuild_frames.background ? "background" : "blocking",
-        app->rebuild_zone_x,
-        app->rebuild_zone_z,
-        app->rebuild_frames.after_frames,
+        stats->background ? "background" : "blocking",
+        RS_RebuildRegion_CentreX(&app->rebuild_region),
+        RS_RebuildRegion_CentreZ(&app->rebuild_region),
+        stats->after_frames,
         max_tenths / 10u,
         max_tenths % 10u,
         over8,
         over16,
         series);
-    app->rebuild_frames.after_left = 0;
 }
 
 void
@@ -1535,11 +1350,9 @@ app_rebuild_frames_open(
     assert(app);
     if( !WorldBuilder_TimingOn() )
         return;
-    if( app->rebuild_frames.after_left > 0 )
+    if( RebuildFrameStats_AfterPending(&app->rebuild_frames) )
         app_rebuild_frames_after_report(app);
-    memset(&app->rebuild_frames, 0, sizeof(app->rebuild_frames));
-    app->rebuild_frames.open = 1;
-    app->rebuild_frames.background = background;
+    RebuildFrameStats_Open(&app->rebuild_frames, background);
 }
 
 void
@@ -1550,20 +1363,16 @@ app_rebuild_mark(
     assert(app);
     assert(name);
     /* Kept through the tail too (rebuild_marks_after). */
-    if( (!app->rebuild_frames.open && app->rebuild_frames.after_left == 0) ||
-        app->rebuild_frames.marks >= 32 )
+    if( !RebuildFrameStats_WantsMark(&app->rebuild_frames) )
         return;
-    app->rebuild_frames.mark_name[app->rebuild_frames.marks] = name;
-    app->rebuild_frames.mark_us[app->rebuild_frames.marks] = PlatformWindow_TicksUs();
-    app->rebuild_frames.marks++;
+    RebuildFrameStats_Mark(&app->rebuild_frames, name, PlatformWindow_TicksUs());
 }
 
 void
 app_rebuild_frames_finished(struct App* app)
 {
     assert(app);
-    if( app->rebuild_frames.open )
-        app->rebuild_frames.closing = 1;
+    RebuildFrameStats_Finished(&app->rebuild_frames);
 }
 
 void
@@ -1571,56 +1380,27 @@ app_rebuild_frames_note(
     struct App* app,
     uint64_t frame_us)
 {
-    static uint64_t const edges_us[5] = { 2000, 5000, 10000, 20000, 50000 };
-    int bucket = 5;
+    struct RebuildFrameStats const* stats;
+    int due;
 
     assert(app);
-    if( !app->rebuild_frames.open )
+    stats = &app->rebuild_frames;
+    due = RebuildFrameStats_Note(&app->rebuild_frames, frame_us);
+    /* A slow frame in the tail says where its RunOnce went, as the commit
+     * frame does (rebuild_marks). */
+    if( due & REBUILD_FRAME_STATS_AFTER_SLOW )
     {
-        if( app->rebuild_frames.after_left > 0 )
-        {
-            app->rebuild_frames.after[app->rebuild_frames.after_frames++] =
-                app_rebuild_tenths(frame_us);
-            /* A slow frame in the tail says where its RunOnce went, as the
-             * commit frame does (rebuild_marks). */
-            if( frame_us >= 12000u && app->rebuild_frames.marks > 1 )
-            {
-                char line[32 * 40];
-                size_t used = 0u;
+        char line[REBUILD_FRAME_STATS_MARKS * 40];
 
-                line[0] = '\0';
-                for( int i = 1; i < app->rebuild_frames.marks && used + 40u < sizeof(line); i++ )
-                {
-                    double const ms =
-                        (double)(app->rebuild_frames.mark_us[i] - app->rebuild_frames.mark_us[i - 1]) / 1000.0;
-                    if( ms >= 0.3 )
-                        used += (size_t)snprintf(line + used, sizeof(line) - used, " %s=%.2f",
-                            app->rebuild_frames.mark_name[i], ms);
-                }
-                TORIRS_REPORT("rebuild_marks_after: zone=%d,%d +%d %.1fms RunOnce:%s\n",
-                    app->rebuild_zone_x, app->rebuild_zone_z, app->rebuild_frames.after_frames,
-                    (double)frame_us / 1000.0, line);
-            }
-            if( --app->rebuild_frames.after_left == 0 )
-                app_rebuild_frames_after_report(app);
-        }
-        return;
+        RebuildFrameStats_FormatMarks(stats, 0.3, line, sizeof(line));
+        TORIRS_REPORT("rebuild_marks_after: zone=%d,%d +%d %.1fms RunOnce:%s\n",
+            RS_RebuildRegion_CentreX(&app->rebuild_region),
+            RS_RebuildRegion_CentreZ(&app->rebuild_region), stats->after_frames,
+            (double)frame_us / 1000.0, line);
     }
-    if( app->rebuild_frames.frames < 192 )
-        app->rebuild_frames.series[app->rebuild_frames.frames] = app_rebuild_tenths(frame_us);
-    for( int i = 0; i < 5; i++ )
-        if( frame_us < edges_us[i] )
-        {
-            bucket = i;
-            break;
-        }
-    app->rebuild_frames.hist[bucket]++;
-    app->rebuild_frames.frames++;
-    app->rebuild_frames.sum_us += frame_us;
-    app->rebuild_frames.last_us = frame_us;
-    if( frame_us > app->rebuild_frames.max_us )
-        app->rebuild_frames.max_us = frame_us;
-    if( !app->rebuild_frames.closing )
+    if( due & REBUILD_FRAME_STATS_AFTER_DONE )
+        app_rebuild_frames_after_report(app);
+    if( !(due & REBUILD_FRAME_STATS_CLOSED) )
         return;
     /* The frame that finished the rebuild is the last one counted: for the
      * blocking flow that is usually the only one; for a job it is the commit. */
@@ -1628,59 +1408,50 @@ app_rebuild_frames_note(
         "rebuild_frames: mode=%s zone=%d,%d frames=%d max=%.2fms last=%.2fms sum=%.2fms "
         "hist(<2,<5,<10,<20,<50,>=50ms)=%d,%d,%d,%d,%d,%d build=%.2fms tail=%.2fms "
         "swap=%.2fms shift=%.2fms finish=%.2fms held=%.2fms\n",
-        app->rebuild_frames.background ? "background" : "blocking",
-        app->rebuild_zone_x,
-        app->rebuild_zone_z,
-        app->rebuild_frames.frames,
-        (double)app->rebuild_frames.max_us / 1000.0,
-        (double)app->rebuild_frames.last_us / 1000.0,
-        (double)app->rebuild_frames.sum_us / 1000.0,
-        app->rebuild_frames.hist[0],
-        app->rebuild_frames.hist[1],
-        app->rebuild_frames.hist[2],
-        app->rebuild_frames.hist[3],
-        app->rebuild_frames.hist[4],
-        app->rebuild_frames.hist[5],
-        app->rebuild_frames.build_ms,
-        app->rebuild_frames.tail_ms,
-        app->rebuild_frames.swap_ms,
-        app->rebuild_frames.shift_ms,
-        app->rebuild_frames.finish_ms,
-        app->rebuild_frames.held_ms);
+        stats->background ? "background" : "blocking",
+        RS_RebuildRegion_CentreX(&app->rebuild_region),
+        RS_RebuildRegion_CentreZ(&app->rebuild_region),
+        stats->frames,
+        (double)stats->max_us / 1000.0,
+        (double)stats->last_us / 1000.0,
+        (double)stats->sum_us / 1000.0,
+        stats->hist[0],
+        stats->hist[1],
+        stats->hist[2],
+        stats->hist[3],
+        stats->hist[4],
+        stats->hist[5],
+        stats->build_ms,
+        stats->tail_ms,
+        stats->swap_ms,
+        stats->shift_ms,
+        stats->finish_ms,
+        stats->held_ms);
     {
-        char series[192 * 8];
-        int over8 = 0;
-        int over16 = 0;
-        int const n = app->rebuild_frames.frames < 192 ? app->rebuild_frames.frames : 192;
-        for( int i = 0; i < n; i++ )
-        {
-            over8 += app->rebuild_frames.series[i] > 83u;
-            over16 += app->rebuild_frames.series[i] > 167u;
-        }
-        app_rebuild_series_format(app->rebuild_frames.series, n, series, sizeof(series));
+        char series[REBUILD_FRAME_STATS_SERIES * 8];
+        int over8;
+        int over16;
+        unsigned max_tenths;
+        int const n = RebuildFrameStats_SeriesCount(stats);
+
+        RebuildFrameStats_CountOver(stats->series, n, &over8, &over16, &max_tenths);
+        RebuildFrameStats_FormatSeries(stats->series, n, series, sizeof(series));
         TORIRS_REPORT("rebuild_series: mode=%s zone=%d,%d frames=%d over8.3=%d over16.7=%d series=%s\n",
-            app->rebuild_frames.background ? "background" : "blocking",
-            app->rebuild_zone_x,
-            app->rebuild_zone_z,
-            app->rebuild_frames.frames,
+            stats->background ? "background" : "blocking",
+            RS_RebuildRegion_CentreX(&app->rebuild_region),
+            RS_RebuildRegion_CentreZ(&app->rebuild_region),
+            stats->frames,
             over8,
             over16,
             series);
     }
-    if( app->rebuild_frames.marks > 1 )
+    if( stats->marks > 1 )
     {
-        char line[32 * 40];
-        size_t used = 0u;
-        line[0] = '\0';
-        for( int i = 1; i < app->rebuild_frames.marks && used + 40u < sizeof(line); i++ )
-            used += (size_t)snprintf(line + used, sizeof(line) - used, " %s=%.2f",
-                app->rebuild_frames.mark_name[i],
-                (double)(app->rebuild_frames.mark_us[i] - app->rebuild_frames.mark_us[i - 1]) /
-                    1000.0);
+        char line[REBUILD_FRAME_STATS_MARKS * 40];
+
+        RebuildFrameStats_FormatMarks(stats, 0.0, line, sizeof(line));
         TORIRS_REPORT("rebuild_marks: zone=%d,%d last frame's RunOnce:%s\n",
-            app->rebuild_zone_x, app->rebuild_zone_z, line);
+            RS_RebuildRegion_CentreX(&app->rebuild_region),
+            RS_RebuildRegion_CentreZ(&app->rebuild_region), line);
     }
-    app->rebuild_frames.open = 0;
-    app->rebuild_frames.after_left = APP_REBUILD_AFTER_FRAMES;
-    app->rebuild_frames.after_frames = 0;
 }

@@ -62,6 +62,7 @@
 #include "mem/torirs_mem.h"
 
 #include "engine/task_obj_model_load.h"
+#include "inv/widget_icon_park.h"
 
 /* How many times a ground-stack placeholder may go back for a model that the
  * loader says is still not there. A model the cache cannot serve at all would
@@ -84,26 +85,8 @@ enum
     APP_PLACEHOLDER_WIDGET_ICON_BURST = 12,
 };
 
-/* A widget-icon request waiting for a tick to release it. */
-struct AppPlaceholderIconRequest
-{
-    int com_id;
-    int obj_id;
-    int count;
-    /* A request the script made is due at once (0). One put back by a land
-     * that found its parts still missing is due after `wait_ms`, which the
-     * next miss doubles (app_obj_icon_retry_wait). */
-    uint64_t due_ms;
-    uint32_t wait_ms;
-};
-
-/* The park. One pointer on `struct App`; everything about it is this unit's. */
-struct AppPlaceholderPark
-{
-    struct AppPlaceholderIconRequest* icons;
-    int count;
-    int cap;
-};
+/* The park (inv/widget_icon_park.h). One pointer on `struct App`, made by
+ * this unit on the first request. */
 
 struct Task_AppPlaceholder
 {
@@ -242,7 +225,7 @@ app_placeholder_queue(
     task->task.vtable = &Task_AppPlaceholder_VTable;
     strncpy(task->task.name, "AppPlaceholder", sizeof(task->task.name) - 1);
     task->app = app;
-    task->view = app->active_world;
+    task->view = WorldviewRegistry_Active(&app->worldviews);
     if( WorldviewRegistry_IsLive(&app->worldviews, task->view) )
         world = WorldviewRegistry_Get(&app->worldviews, task->view)->world;
     task->world_load_seq = world ? world->load_seq : 0;
@@ -331,45 +314,18 @@ app_placeholder_land_obj_stack(struct Task_AppPlaceholder* self)
 }
 
 /* The cell's row in the park, made if it has none; `*found` says which. */
-static struct AppPlaceholderIconRequest*
+static struct WidgetIconRequest*
 app_placeholder_park_row(
     struct App* app,
     int component_id,
     bool* found)
 {
-    struct AppPlaceholderPark* park;
-    struct AppPlaceholderIconRequest* row = NULL;
-
     assert(app);
     assert(found);
 
     if( !app->placeholder_park )
-    {
-        app->placeholder_park = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*app->placeholder_park));
-        assert(app->placeholder_park);
-    }
-    park = app->placeholder_park;
-
-    for( int i = 0; i < park->count; i++ )
-        if( park->icons[i].com_id == component_id )
-        {
-            row = &park->icons[i];
-            break;
-        }
-    *found = row != NULL;
-    if( !row )
-    {
-        if( park->count == park->cap )
-        {
-            int cap = park->cap ? park->cap * 2 : 32;
-            park->icons = ToriMem_Realloc(ToriMem_Process(), park->icons, (size_t)cap * sizeof(*park->icons));
-            assert(park->icons);
-            park->cap = cap;
-        }
-        row = &park->icons[park->count++];
-        row->com_id = component_id;
-    }
-    return row;
+        app->placeholder_park = WidgetIconPark_New();
+    return WidgetIconPark_Row(app->placeholder_park, component_id, found);
 }
 
 /*
@@ -389,7 +345,7 @@ app_placeholder_widget_icon(
     int obj_id,
     int count)
 {
-    struct AppPlaceholderIconRequest* row;
+    struct WidgetIconRequest* row;
     bool found;
 
     assert(app);
@@ -431,50 +387,34 @@ app_cs2_widget_obj_icon_lazy(
 void
 app_placeholder_release_tick(struct App* app)
 {
-    struct AppPlaceholderPark* park;
-    uint64_t now_ms;
+    struct WidgetIconRequest due[APP_PLACEHOLDER_WIDGET_ICON_BURST];
     int release;
-    int kept;
 
     assert(app);
-    park = app->placeholder_park;
-    if( !park || park->count == 0 )
+    if( !app->placeholder_park || WidgetIconPark_Count(app->placeholder_park) == 0 )
         return;
 
-    now_ms = (uint64_t)app->host.client.now_ms;
-    release = 0;
-    kept = 0;
     /* The due rows from the head, so the rest keep their place in line. */
-    for( int i = 0; i < park->count; i++ )
+    release = WidgetIconPark_TakeDue(
+        app->placeholder_park, (uint64_t)app->host.client.now_ms, APP_PLACEHOLDER_WIDGET_ICON_BURST, due);
+    for( int i = 0; i < release; i++ )
     {
-        struct AppPlaceholderIconRequest const row = park->icons[i];
-
-        if( release < APP_PLACEHOLDER_WIDGET_ICON_BURST && row.due_ms <= now_ms )
-        {
-            struct Task_AppPlaceholder* task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
-            assert(task);
-            task->kind = APP_PLACEHOLDER_WIDGET_ICON;
-            task->component_id = row.com_id;
-            task->obj_id = row.obj_id;
-            task->count = row.count;
-            task->wait_ms = row.wait_ms;
-            app_placeholder_queue(app, task);
-            release++;
-            continue;
-        }
-        park->icons[kept++] = row;
+        struct Task_AppPlaceholder* task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
+        assert(task);
+        task->kind = APP_PLACEHOLDER_WIDGET_ICON;
+        task->component_id = due[i].com_id;
+        task->obj_id = due[i].obj_id;
+        task->count = due[i].count;
+        task->wait_ms = due[i].wait_ms;
+        app_placeholder_queue(app, task);
     }
-    park->count = kept;
 }
 
 void
 app_placeholder_park_free(struct App* app)
 {
     assert(app);
-    if( !app->placeholder_park )
-        return;
-    ToriMem_Free(ToriMem_Process(), app->placeholder_park->icons);
-    ToriMem_Free(ToriMem_Process(), app->placeholder_park);
+    WidgetIconPark_Free(app->placeholder_park);
     app->placeholder_park = NULL;
 }
 
@@ -524,7 +464,7 @@ app_placeholder_land_widget_icon(struct Task_AppPlaceholder* self)
             cell->item_num_mode);
         UITree_HostInputsChanged(
             &app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_ASSETS));
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
         return;
     }
     /* Every part resident and still no icon (an obj with no inventory
@@ -548,14 +488,14 @@ app_placeholder_land_widget_icon(struct Task_AppPlaceholder* self)
      */
     {
         bool found;
-        struct AppPlaceholderIconRequest* row =
+        struct WidgetIconRequest* row =
             app_placeholder_park_row(app, self->component_id, &found);
 
         if( found )
             return;
         row->obj_id = self->obj_id;
         row->count = self->count;
-        row->wait_ms = app_obj_icon_retry_wait(self->wait_ms);
+        row->wait_ms = InvIconRetry_NextWait(self->wait_ms);
         row->due_ms = (uint64_t)app->host.client.now_ms + row->wait_ms;
     }
 }

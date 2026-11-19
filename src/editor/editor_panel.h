@@ -187,12 +187,14 @@ struct Editor_Panel
     int pin_hover_z;
 };
 
-/** Construct the registry and every tools-panels module over `ui`. Call
- *  once, after the chrome exists. The App sets `panel->editor` after. */
+/** Construct the registry and every tools-panels module over `ui`, with
+ *  `app` as the registry's host. Call once, after the chrome exists. The App
+ *  sets `panel->editor` after. */
 void
 Editor_PanelInit(
     struct Editor_Panel* panel,
-    struct ToriRSChrome* ui);
+    struct ToriRSChrome* ui,
+    struct App* app);
 
 /** Release the registry. NULL-safe on an unbuilt panel. */
 void

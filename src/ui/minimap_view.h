@@ -19,8 +19,15 @@
  * that produces a map that is mirrored, or one that turns the wrong way as the
  * camera does -- both of which look like a map, and neither of which is one.
  *
+ * The view also holds what the map is drawn FROM and whether it may be: the
+ * baked map sprite's scene id, pixel size and the terrain level it was baked
+ * for (a level that no longer matches the player's is a sprite to rebake), and
+ * the server's MINIMAP_TOGGLE state, kept raw. The permissions that state
+ * grants are game/rs_minimap_state.h's.
+ *
  * Nothing here reads a world, an entity or a sprite. The caller supplies the
- * angle's sine and cosine and the sprite's size; this decides the placement.
+ * angle's sine and cosine and the sprite's size, bakes the sprite and reports
+ * it, and turns the toggle state into permissions; this decides the placement.
  */
 
 #include "ui/uitree_minimap_dot.h"
@@ -66,6 +73,17 @@ struct MinimapView
     /** Destination flag in scene tiles; x < 0 when there is none. */
     int flag_tile_x;
     int flag_tile_z;
+    /** The baked map sprite the widget blits (rebaked on every world load):
+     *  its scene id, -1 until the first bake, and its pixel size, which the
+     *  camera's source anchor is placed against. */
+    int map_scene_id;
+    int map_w;
+    int map_h;
+    /** Terrain level the baked sprite shows (reference minimapLevel); -1 asks
+     *  for a rebake. */
+    int map_level;
+    /** MINIMAP_TOGGLE state as the packet carried it; 0 is normal. */
+    int toggle_state;
 };
 
 /** One frame's dots. Refilled from scratch every frame. */
@@ -75,7 +93,7 @@ struct MinimapDots
     int count;
 };
 
-/** Initial state: no box, no flag. */
+/** Initial state: no box, no flag, no baked map, toggle state 0. */
 void
 MinimapView_Reset(struct MinimapView* view);
 
@@ -99,6 +117,39 @@ MinimapView_HasFlag(struct MinimapView const* view)
 
 void
 MinimapView_SetFlag(struct MinimapView* view, int scene_tile_x, int scene_tile_z);
+
+/** Record the sprite a bake just published: its scene id, size and level. */
+void
+MinimapView_SetMap(struct MinimapView* view, int scene_id, int w, int h, int level);
+
+/** True once a bake has published a sprite (scene id above 0). */
+bool
+MinimapView_HasMap(struct MinimapView const* view);
+
+int
+MinimapView_MapSceneId(struct MinimapView const* view);
+
+int
+MinimapView_MapWidth(struct MinimapView const* view);
+
+int
+MinimapView_MapHeight(struct MinimapView const* view);
+
+int
+MinimapView_MapLevel(struct MinimapView const* view);
+
+/** Forget the level the sprite was baked for, so the next check rebakes it
+ *  (deob field757 = -1). The sprite itself stays until a bake replaces it. */
+void
+MinimapView_ForgetMapLevel(struct MinimapView* view);
+
+/** The raw MINIMAP_TOGGLE state. */
+int
+MinimapView_ToggleState(struct MinimapView const* view);
+
+/** Store a MINIMAP_TOGGLE state. True when it differs from the one held. */
+bool
+MinimapView_SetToggleState(struct MinimapView* view, int state);
 
 void
 MinimapView_ClearFlag(struct MinimapView* view);

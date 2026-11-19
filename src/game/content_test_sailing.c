@@ -397,7 +397,7 @@ static int peer_screen(struct App* app, const struct WorldEntity_Player* actor,
     assert(actor);
     assert(out_x);
     assert(out_y);
-    if( !app->world || !app->world_view_valid ) return 0;
+    if( !app->world || !app->world_views.emit_valid ) return 0;
     int fine_x = (int)actor->draw_position.x;
     int fine_z = (int)actor->draw_position.z;
     int view_id = actor->view_placement.view_id;
@@ -450,12 +450,12 @@ static int peer_screen(struct App* app, const struct WorldEntity_Player* actor,
     }
     if( fine_x < 128 || fine_z < 128 ) return 0;
     return ToriRS_WorldProjectPoint(
-        &app->frame_view->world_camera,
-        &app->frame_view->world_camera_pos,
-        app->world_emit_desc.x,
-        app->world_emit_desc.y,
-        app->world_emit_desc.w,
-        app->world_emit_desc.h,
+        &app->world_views.frame->world_camera,
+        &app->world_views.frame->world_camera_pos,
+        app->world_views.emit_desc.x,
+        app->world_views.emit_desc.y,
+        app->world_views.emit_desc.w,
+        app->world_views.emit_desc.h,
         50,
         fine_x,
         ground_y - height,
@@ -469,9 +469,9 @@ static int peer_screen(struct App* app, const struct WorldEntity_Player* actor,
 static int peer_picked(struct App* app, int element_id)
 {
     assert(app);
-    for( int i = 0; i < app->frame_view->world_pickset.count; ++i )
-        if( app->frame_view->world_pickset.items[i].element_id == element_id &&
-            app->frame_view->world_pickset.items[i].type == WORLD_PICK_PLAYER )
+    for( int i = 0; i < app->world_views.frame->world_pickset.count; ++i )
+        if( app->world_views.frame->world_pickset.items[i].element_id == element_id &&
+            app->world_views.frame->world_pickset.items[i].type == WORLD_PICK_PLAYER )
             return 1;
     return 0;
 }
@@ -541,7 +541,7 @@ static int ready(struct App* app, struct ToriRSServerEmbed* embed,
         return fail(error, cap, "remove the peer before checkpointing; checkpoints cover the primary player");
     if( player->active_script || player->action_locked || player->dying ||
         player->combat_target >= 0 || player->delayed_until > srv->tick ||
-        player->remote_view_active || app->cam_script.scripted )
+        player->remote_view_active || CamScript_IsScripted(&app->cam_script) )
         return fail(error, cap, "checkpoint requires an idle player without an active script or encounter");
     for( int i = 0; i < TORIRSSERVER_WORLD_QUEUE_MAX; ++i )
         if( srv->world_queue[i].active )
@@ -658,24 +658,26 @@ int ContentTestSailing_Save(struct App* app, struct ToriRSServerEmbed* embed,
         assert(saved->cargo[i].items);
         memcpy(saved->cargo[i].items,cargo->items,(size_t)cargo->slots*sizeof(*cargo->items));
     }
-    saved->camera = app->frame_view->world_camera;
-    saved->camera_position = app->frame_view->world_camera_pos;
+    saved->camera = app->world_views.frame->world_camera;
+    saved->camera_position = app->world_views.frame->world_camera_pos;
     saved->base_x = app->world->_base_tile_x;
     saved->base_z = app->world->_base_tile_z;
-    saved->yaw = app->frame_view->orbit.yaw;
-    saved->pitch = app->frame_view->orbit.pitch;
-    saved->yaw_velocity = app->frame_view->orbit.yaw_velocity;
-    saved->pitch_velocity = app->frame_view->orbit.pitch_velocity;
-    saved->orbit_x = app->frame_view->orbit.anchor_x;
-    saved->orbit_z = app->frame_view->orbit.anchor_z;
-    saved->pitch_clamp = app->frame_view->orbit.pitch_clamp;
-    saved->zoom = app->frame_view->world_cam_zoom;
-    saved->unlocked = app->frame_view->camera_unlocked;
+    saved->yaw = app->world_views.frame->orbit.yaw;
+    saved->pitch = app->world_views.frame->orbit.pitch;
+    saved->yaw_velocity = app->world_views.frame->orbit.yaw_velocity;
+    saved->pitch_velocity = app->world_views.frame->orbit.pitch_velocity;
+    saved->orbit_x = app->world_views.frame->orbit.anchor_x;
+    saved->orbit_z = app->world_views.frame->orbit.anchor_z;
+    saved->pitch_clamp = app->world_views.frame->orbit.pitch_clamp;
+    saved->zoom = app->world_views.frame->world_cam_zoom;
+    saved->unlocked = app->world_views.frame->camera_unlocked;
     saved->side_tab = app->slots.side_tab;
-    saved->aboard_view = app->aboard_view;
-    saved->selected_heading=app->sailing_selected_heading;
-    saved->selected_remaining=app->sailing_selected_until>app->logic_cycle
-        ? app->sailing_selected_until-app->logic_cycle : 0;
+    saved->aboard_view = Wevs_AboardView(&app->wevs);
+    RS_SailingHud_SelectionSave(
+        &app->sailing_hud,
+        FrameClockSerial_LogicCycle(&app->frame_clock.serial),
+        &saved->selected_heading,
+        &saved->selected_remaining);
     saved->wev_clock = app->wevs.clock;
     saved->scenery_count=0;
     for( int view_id=1; view_id<WORLDVIEW_MAX; ++view_id )
@@ -859,7 +861,7 @@ int ContentTestSailing_RestoreDelivered(struct App* app)
     if( restore_slot < 0 ) return 1;
     const struct SailingCheckpoint* saved = checkpoints[restore_slot];
     assert(saved);
-    if( !app->world || app->aboard_view != saved->aboard_view ) return 0;
+    if( !app->world || Wevs_AboardView(&app->wevs) != saved->aboard_view ) return 0;
     for( int i = 0; i < TORIRSSERVER_VESSEL_MAX; ++i )
     {
         const struct ToriRSServerVessel* boat = &saved->vessels[i];
@@ -941,23 +943,26 @@ void ContentTestSailing_SettleRestore(struct App* app)
      * even when sailing has moved the root scene window since save. */
     int dx = (saved->base_x - app->world->_base_tile_x) * 128;
     int dz = (saved->base_z - app->world->_base_tile_z) * 128;
-    app->frame_view->world_camera = saved->camera;
-    app->frame_view->world_camera_pos = saved->camera_position;
-    app->frame_view->world_camera_pos.x += dx;
-    app->frame_view->world_camera_pos.z += dz;
-    app->frame_view->orbit.yaw = saved->yaw;
-    app->frame_view->orbit.pitch = saved->pitch;
-    app->frame_view->orbit.yaw_velocity = saved->yaw_velocity;
-    app->frame_view->orbit.pitch_velocity = saved->pitch_velocity;
-    app->frame_view->orbit.anchor_x = saved->orbit_x + dx;
-    app->frame_view->orbit.anchor_z = saved->orbit_z + dz;
-    app->frame_view->orbit.pitch_clamp = saved->pitch_clamp;
-    app->frame_view->world_cam_zoom = saved->zoom;
-    app->sailing_selected_heading=saved->selected_heading;
-    app->sailing_selected_until=app->logic_cycle+saved->selected_remaining;
-    app->frame_view->camera_unlocked = saved->unlocked;
+    app->world_views.frame->world_camera = saved->camera;
+    app->world_views.frame->world_camera_pos = saved->camera_position;
+    app->world_views.frame->world_camera_pos.x += dx;
+    app->world_views.frame->world_camera_pos.z += dz;
+    app->world_views.frame->orbit.yaw = saved->yaw;
+    app->world_views.frame->orbit.pitch = saved->pitch;
+    app->world_views.frame->orbit.yaw_velocity = saved->yaw_velocity;
+    app->world_views.frame->orbit.pitch_velocity = saved->pitch_velocity;
+    app->world_views.frame->orbit.anchor_x = saved->orbit_x + dx;
+    app->world_views.frame->orbit.anchor_z = saved->orbit_z + dz;
+    app->world_views.frame->orbit.pitch_clamp = saved->pitch_clamp;
+    app->world_views.frame->world_cam_zoom = saved->zoom;
+    RS_SailingHud_SelectionRestore(
+        &app->sailing_hud,
+        FrameClockSerial_LogicCycle(&app->frame_clock.serial),
+        saved->selected_heading,
+        saved->selected_remaining);
+    app->world_views.frame->camera_unlocked = saved->unlocked;
     app->slots.side_tab = saved->side_tab;
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
     restore_slot = -1;
 }
 

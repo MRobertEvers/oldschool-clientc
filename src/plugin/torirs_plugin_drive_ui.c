@@ -222,8 +222,8 @@ DriveUi_ModalLive(struct App* app, int* out_live)
     assert(app);
     assert(out_live);
     *out_live = 0;
-    if( app->modal_host_uid >= 0 && app->tree &&
-        UITree_InterfaceParentFind(app->tree, app->modal_host_uid) >= 0 )
+    if( RS_UISlots_ModalHost(&app->slots) >= 0 && app->tree &&
+        UITree_InterfaceParentFind(app->tree, RS_UISlots_ModalHost(&app->slots)) >= 0 )
         *out_live = 1;
     return DRIVE_OK;
 }
@@ -250,7 +250,7 @@ DriveUi_MenuRect(
     assert(out_width);
     assert(out_height);
     assert(out_hit);
-    menu = app->frame_view->minimenu;
+    menu = app->world_views.frame->minimenu;
     *out_visible = menu->visible ? 1 : 0;
     if( !menu->visible )
         return DRIVE_OK;
@@ -1021,7 +1021,7 @@ drive_ui_collision_maps(struct App* app)
     base_z = world->_base_tile_z;
     if( g_drive_ui_collision.valid && g_drive_ui_collision.world == world &&
         g_drive_ui_collision.load_seq == world->load_seq &&
-        g_drive_ui_collision.lane_applied == app->loc_lane_applied &&
+        g_drive_ui_collision.lane_applied == LocLane_Applied(&app->loc_lane) &&
         g_drive_ui_collision.ring_serial == ring->loc_change_serial &&
         g_drive_ui_collision.base_x == base_x && g_drive_ui_collision.base_z == base_z )
         return g_drive_ui_collision.maps;
@@ -1083,7 +1083,7 @@ drive_ui_collision_maps(struct App* app)
     }
     g_drive_ui_collision.world = world;
     g_drive_ui_collision.load_seq = world->load_seq;
-    g_drive_ui_collision.lane_applied = app->loc_lane_applied;
+    g_drive_ui_collision.lane_applied = LocLane_Applied(&app->loc_lane);
     g_drive_ui_collision.ring_serial = ring->loc_change_serial;
     g_drive_ui_collision.base_x = base_x;
     g_drive_ui_collision.base_z = base_z;
@@ -2310,15 +2310,15 @@ DriveUi_Route(
     if( entity_size > 0 )
     {
         collision_approach_from_shape(-2, 0, entity_size, entity_size, 0, 1, &approach);
-        nearest_opts.range = app->features->op_click_nearest_range;
+        nearest_opts.range = app->features.op_click_nearest_range;
         nearest_opts.max_dist = 100;
-        nearest_opts.rank_by_rect_distance = app->features->nearest_ranks_by_rect_distance;
+        nearest_opts.rank_by_rect_distance = app->features.nearest_ranks_by_rect_distance;
         nearest_opts.unbounded = 0;
     }
     else
     {
-        collision_nearest_opts_from_model(app->features->ground_click_nearest_model, &nearest_opts);
-        nearest_opts.unbounded = app->features->ground_click_nearest_unbounded;
+        collision_nearest_opts_from_model(app->features.ground_click_nearest_model, &nearest_opts);
+        nearest_opts.unbounded = app->features.ground_click_nearest_unbounded;
     }
     arrive_x = dst_x - base_x;
     arrive_z = dst_z - base_z;
@@ -2588,8 +2588,9 @@ DriveUi_Shutdown(void)
  *
  * A capture's file is <session>/shots/<name>.png, and the name is the ledger
  * row's own (core.lua's "NNN-<step>"). The screenshot slot it is queued in
- * (struct App's plugin_screenshots[].name, app.h) holds 71 characters, and a
- * name that did not fit used to be cut there, ".png" and all:
+ * (struct PluginScreenshot's name, plugin/plugin_screenshots.h) holds 71
+ * characters, and a name that did not fit used to be cut there, ".png" and
+ * all:
  * "089-spec.nibblers_and_pillars.nibbler_player_hits_while_pillar_stands.p"
  * was written with no extension, and gate.py then failed a green row for
  * claiming a shot that was not on disk. Wave spec rows are long by
@@ -2679,10 +2680,8 @@ drive_ui_shot(
          * DRIVE_TIMEOUT here is this function's own private "not yet"
          * signal, re-checked by ui.lua's await loop, and is never the value
          * a test sees (t.shot's declared result set is ok/refused). */
-        for( i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
-            if( app->plugin_screenshots[i].in_use &&
-                strcmp(app->plugin_screenshots[i].path, g_drive_ui_shot_path) == 0 )
-                return DRIVE_TIMEOUT;
+        if( PluginScreenshots_IsWaiting(&app->plugin_screenshots, g_drive_ui_shot_path) )
+            return DRIVE_TIMEOUT;
         if( stat(g_drive_ui_shot_path, &info) == 0 && info.st_size > 0 )
         {
             /* The banner above: an identical picture is deleted again and
@@ -2716,7 +2715,7 @@ drive_ui_shot(
     snprintf(dir, sizeof(dir), "%s/shots", session_dir);
     /* The slot's capacity less ".png": see THE SHOT'S FILE NAME above. */
     drive_ui_shot_file_stem(
-        name, sizeof(app->plugin_screenshots[0].name) - 1 - strlen(".png"), stem, sizeof(stem));
+        name, PLUGIN_SCREENSHOT_NAME_CAP - 1 - strlen(".png"), stem, sizeof(stem));
     snprintf(filename, sizeof(filename), "%s.png", stem);
     if( !App_RequestScreenshot(app, dir, filename, g_drive_ui_shot_path, sizeof(g_drive_ui_shot_path)) )
     {
@@ -2730,7 +2729,7 @@ drive_ui_shot(
     snprintf(g_drive_ui_shot_name, sizeof(g_drive_ui_shot_name), "%s", name);
     g_drive_ui_shot_keep = keep;
     g_drive_ui_shot_misses = 0;
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
     return DRIVE_TIMEOUT; /* queued; the caller polls again next frame */
 }
 
@@ -3433,7 +3432,7 @@ lua_drive_player_tile(struct lua_State* L)
 /* api_drive.instance_zone(x, z, level) -> result, { template_x, template_z,
  * template_level, rotation }: the instance template zone this client was
  * sent for that tile -- the REBUILD_REGION grid the app keeps
- * (rebuild_instance_zones, the CoX helper's source), decoded as
+ * (App rebuild_region, the CoX helper's source), decoded as
  * app_plugin_instance_zone does. Scriptrun answers the same
  * (ScriptrunCore_InstanceZone). */
 static int
@@ -3443,22 +3442,10 @@ lua_drive_instance_zone(struct lua_State* L)
     int x = (int)luaL_checkinteger(L, 1);
     int z = (int)luaL_checkinteger(L, 2);
     int level = (int)luaL_checkinteger(L, 3);
-    int dx;
-    int dz;
     int32_t packed;
 
     assert(app);
-    if( !app->rebuild_instance_active || level < 0 || level > 3 )
-    {
-        lua_pushstring(L, "not_found");
-        lua_pushnil(L);
-        return 2;
-    }
-    dx = (x >> 3) - (app->rebuild_instance_zone_x - 6);
-    dz = (z >> 3) - (app->rebuild_instance_zone_z - 6);
-    packed = 0;
-    if( dx >= 0 && dx < 13 && dz >= 0 && dz < 13 )
-        packed = app->rebuild_instance_zones[level * 169 + dx * 13 + dz];
+    packed = RS_RebuildRegion_InstanceTemplate(&app->rebuild_region, level, x >> 3, z >> 3);
     if( packed == 0 )
     {
         lua_pushstring(L, "not_found");
@@ -3935,16 +3922,10 @@ lua_drive_text(struct lua_State* L)
 static int
 drive_ui_shot_slot_busy(struct App const* app)
 {
-    int i;
-
     assert(app);
     if( !g_drive_ui_shot_path[0] )
         return 0;
-    for( i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
-        if( app->plugin_screenshots[i].in_use &&
-            strcmp(app->plugin_screenshots[i].path, g_drive_ui_shot_path) == 0 )
-            return 1;
-    return 0;
+    return PluginScreenshots_IsWaiting(&app->plugin_screenshots, g_drive_ui_shot_path) ? 1 : 0;
 }
 
 /* api.drive.shot(name, keep) -> (result, detail, unchanged, captured).

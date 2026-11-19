@@ -249,6 +249,31 @@ test_a_push_copies_the_primitive(void)
         OverlayStage_Items(&stage, OVERLAY_SURFACE_WORLD)[1].x == 99, "the second kept its own");
 }
 
+static void
+test_the_open_window_is_kept_until_another_is_selected(void)
+{
+    struct OverlayStage stage;
+
+    memset(&stage, 0x61, sizeof(stage));
+    OverlayStage_Reset(&stage);
+    TEST_ASSERT(
+        OverlayStage_OpenSurface(&stage) == OVERLAY_SURFACE_WORLD, "a fresh stage has WORLD open");
+
+    OverlayStage_Open(&stage, OVERLAY_SURFACE_PANEL);
+    TEST_ASSERT(
+        OverlayStage_OpenSurface(&stage) == OVERLAY_SURFACE_PANEL, "selecting a window opens it");
+
+    OverlayStage_ResetWorld(&stage);
+    OverlayStage_ResetCanvas(&stage);
+    TEST_ASSERT(
+        OverlayStage_OpenSurface(&stage) == OVERLAY_SURFACE_PANEL,
+        "the per-frame list resets leave the open window alone");
+
+    OverlayStage_Open(&stage, OVERLAY_SURFACE_CANVAS);
+    TEST_ASSERT(
+        OverlayStage_OpenSurface(&stage) == OVERLAY_SURFACE_CANVAS, "and the next selection wins");
+}
+
 int
 main(void)
 {
@@ -262,6 +287,7 @@ main(void)
     test_the_world_list_has_room_for_polygon_runs();
     test_pushes_keep_their_order();
     test_a_push_copies_the_primitive();
+    test_the_open_window_is_kept_until_another_is_selected();
 
     if( g_failures )
     {

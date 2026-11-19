@@ -5,6 +5,7 @@
 #include "varc/varc_manager.h"
 #include "varp/varp_manager.h"
 
+#include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -322,4 +323,35 @@ ToriRSPreviewState_ApplyFile(
         error_capacity);
     ToriMem_Free(ToriMem_Session(), bytes);
     return result;
+}
+
+int
+ToriRSPreviewState_ApplyFileOutcome(
+    char const* path,
+    struct VarPManager* varps,
+    struct VarCManager* varcs,
+    struct RS_PlayerStats* stats,
+    int* applied_count,
+    struct ToriRSPreviewStateOutcome* outcome,
+    char* error,
+    size_t error_capacity)
+{
+    assert(outcome);
+    outcome->failed = !ToriRSPreviewState_ApplyFile(
+        path, varps, varcs, stats, applied_count, &outcome->stat_mask, error, error_capacity);
+    return !outcome->failed;
+}
+
+int
+ToriRSPreviewState_OutcomeFailed(struct ToriRSPreviewStateOutcome const* outcome)
+{
+    assert(outcome);
+    return outcome->failed;
+}
+
+uint32_t
+ToriRSPreviewState_OutcomeStatMask(struct ToriRSPreviewStateOutcome const* outcome)
+{
+    assert(outcome);
+    return outcome->stat_mask;
 }

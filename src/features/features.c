@@ -347,6 +347,13 @@ ToriRS_Features_PainterDrawDistance(struct ToriRS_FeatureTable const* features)
     return ToriRS_Features_PainterDrawDistanceOf(features->painter_draw_distance);
 }
 
+int
+ToriRS_Features_Resolved(struct ToriRS_FeatureTable const* features)
+{
+    assert(features);
+    return features->name != NULL;
+}
+
 char const*
 ToriRS_Features_NearestModelName(int model)
 {

@@ -153,6 +153,9 @@ struct TitleFlames
 
     /** Milliseconds not yet consumed by a fixed step. */
     int accum_ms;
+    /** Wall clock the fire was last advanced against; 0 before the first
+     *  TitleFlames_ElapsedSince. */
+    uint64_t last_ms;
     /** Private, seeded, and never rand(): a fire that differs run to run
      *  cannot be golden-tested, and this one is. */
     uint32_t rng;
@@ -225,6 +228,18 @@ int
 TitleFlames_Advance(
     struct TitleFlames* flames,
     int elapsed_ms);
+
+/**
+ * The wall-clock milliseconds since the previous call, and `now_ms` kept as
+ * the new previous. The first call after Init answers 0: the fire starts from
+ * where it is instead of catching up on the time before it was lit.
+ *
+ * The caller reads the clock; this only remembers it.
+ */
+int
+TitleFlames_ElapsedSince(
+    struct TitleFlames* flames,
+    uint64_t now_ms);
 
 /** The composited column for one side; `width` x `height` ARGB, owned by the
  *  simulation and rewritten by the next Advance. */

@@ -42,9 +42,9 @@ EditorCamPath_AppEye(
 
     assert(app);
     assert(out);
-    if( !app->world || !app->frame_view )
+    if( !app->world || !app->world_views.frame )
         return 0;
-    view = app->frame_view;
+    view = app->world_views.frame;
     out->x = view->world_camera_pos.x + app->world->_base_tile_x * 128;
     out->y = view->world_camera_pos.y;
     out->z = view->world_camera_pos.z + app->world->_base_tile_z * 128;
@@ -66,9 +66,9 @@ EditorCamPath_AppEyeSet(
 
     assert(app);
     assert(eye);
-    if( !app->world || !app->frame_view )
+    if( !app->world || !app->world_views.frame )
         return 0;
-    view = app->frame_view;
+    view = app->world_views.frame;
     scene_x = eye->x - app->world->_base_tile_x * 128;
     scene_z = eye->z - app->world->_base_tile_z * 128;
     extent = app->world->_scene_size * 128;
@@ -81,7 +81,7 @@ EditorCamPath_AppEyeSet(
     view->world_camera.pitch = eye->pitch & 0x7ff;
     /* The free camera: the editor's world has no player to follow. */
     view->camera_unlocked = 1;
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
     return 1;
 }
 
@@ -189,7 +189,7 @@ app_overlay_build_editor_campath(struct App* app)
     int n;
 
     assert(app);
-    panel = &app->editor_panel;
+    panel = &app->editor_shell->editor_panel;
     if( !panel->ui || !app->world )
         return;
     n = Editor_CamPath_Marks(panel->ui, marks, EDITOR_CAMPATH_KEYS_MAX);

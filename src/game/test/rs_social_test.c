@@ -855,6 +855,59 @@ test_stack_table(void)
     }
 }
 
+/* ==========================================================================
+ * The message dedupe ring (RS_Social::message_ring)
+ * ========================================================================== */
+
+static void
+test_message_ring(void)
+{
+    struct RS_Social social;
+
+    printf("-- the message dedupe ring\n");
+    RS_Social_Init(&social);
+
+    /* A ring never written holds 0 in every slot, so a 0 key reads as seen. */
+    CHECK(RS_Social_MessageSeen(&social, 0), "a zero key is seen in an empty ring");
+    CHECK(RS_Social_MessageSeenOrRemember(&social, 0),
+        "a zero key is a duplicate in an empty ring");
+    CHECK(social.message_ring.head == 0, "a duplicate is not remembered (head %d)",
+        social.message_ring.head);
+
+    CHECK(!RS_Social_MessageSeenOrRemember(&social, 77), "a new id is not a duplicate");
+    CHECK(social.message_ring.head == 1, "the new id took slot 0 (head %d)",
+        social.message_ring.head);
+    CHECK(RS_Social_MessageSeenOrRemember(&social, 77), "the same id again is a duplicate");
+    CHECK(social.message_ring.head == 1, "the duplicate moved nothing (head %d)",
+        social.message_ring.head);
+
+    /* Seen does not remember: the channel paths check, then may drop the line
+     * for an ignored sender without remembering it. */
+    {
+        int64_t const key = ((int64_t)301 << 32) + 5;
+
+        CHECK(!RS_Social_MessageSeen(&social, key), "a channel key is not seen yet");
+        CHECK(!RS_Social_MessageSeen(&social, key), "checking it twice did not remember it");
+        RS_Social_MessageRemember(&social, key);
+        CHECK(RS_Social_MessageSeen(&social, key), "remembered, it is seen");
+        CHECK(social.message_ring.head == 2, "it took slot 1 (head %d)", social.message_ring.head);
+    }
+
+    /* Fill every slot with a non-zero id: the oldest is overwritten, the head
+     * wraps, and once no slot holds 0 a zero key is new. */
+    for( int i = 0; i < RS_SOCIAL_MESSAGE_RING; i++ )
+        RS_Social_MessageRemember(&social, 1000 + i);
+    CHECK(social.message_ring.head == 2, "the head wrapped back to 2 (head %d)",
+        social.message_ring.head);
+    CHECK(!RS_Social_MessageSeen(&social, 77), "the oldest id was overwritten");
+    CHECK(RS_Social_MessageSeen(&social, 1000), "the newest ids are kept");
+    CHECK(RS_Social_MessageSeen(&social, 1000 + RS_SOCIAL_MESSAGE_RING - 1), "the last id is kept");
+    CHECK(!RS_Social_MessageSeen(&social, 0), "no slot holds 0 any more");
+    CHECK(!RS_Social_MessageSeenOrRemember(&social, 0), "so a zero key is new");
+    CHECK(RS_Social_MessageSeen(&social, 0), "and is remembered");
+    CHECK(social.message_ring.head == 3, "in slot 2 (head %d)", social.message_ring.head);
+}
+
 int
 main(void)
 {
@@ -862,6 +915,7 @@ main(void)
 
     test_store();
     test_sort_chains();
+    test_message_ring();
     test_vm_dispatch();
     test_host_ops();
     test_stack_table();

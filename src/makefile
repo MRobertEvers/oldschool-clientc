@@ -819,6 +819,8 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	platform/platform_app_icon.c \
 	platform/platform_memory.c \
 	platform/platform_renderer_soft3d.c \
+	platform/text_input_gate.c \
+	platform/device_caps.c \
 	$(ASAN_COMPAT_SRC) \
 	$(PLATFORM_SRCS) \
 	$(PLATFORM_EXTRA_SRCS) \
@@ -827,21 +829,46 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	game/rs_worldmap_drag.c \
 	ui/uitree_if_events.c \
 	ui/uitree_if_store.c \
+	ui/uitree_if_models.c \
 	ui/uitree_canvas_floor.c \
 	game/rs_title_session.c \
 	editor/loc_editor_selection.c \
 	render/overlay_stage.c \
+	render/tile_mark_stage.c \
+	render/panel_overlay_stage.c \
+	render/cam_script.c \
+	render/render_mode.c \
+	render/painter_cull_bake.c \
+	render/world_views.c \
+	render/skybox_slot.c \
+	render/render_skip.c \
 	game/rs_worldmap_view.c \
+	game/rs_worldmap_surface.c \
 	ui/inv_drag.c \
+	ui/target_select.c \
+	ui/chat_line.c \
 	ui/minimap_view.c \
+	ui/uitree_kept_mounts.c \
+	ui/canvas_scale.c \
+	ui/tree_refresh.c \
+	ui/chrome_compositor.c \
 	ui/settings_pickers.c \
+	ui/dev_overlay.c \
 	ui/uitree_keyboard_owner.c \
 	ui/uitree_popup_place.c \
 	engine/async_pending.c \
+	engine/entity_spotanim.c \
 	engine/toridraw_element_anim.c \
 	torirs_env_values.c \
 	engine/world_seq_source_toridraw.c \
 	plugin/torirs_plugin_mesh.c \
+	plugin/plugin_frame_binding.c \
+	plugin/plugin_highlights.c \
+	plugin/plugin_geometry.c \
+	plugin/plugin_panel.c \
+	plugin/plugin_screenshots.c \
+	plugin/plugin_boot_config.c \
+	features/feature_facts.c \
 	render/torirs_frame.c render/torirs_pick.c \
 	render/torirs_damage_region.c \
 	render/torirs_wedge_camera_path.c \
@@ -849,6 +876,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	render/trspk_toridraw.c render/trspk_sprite.c render/trspk_pose_pool.c \
 	input/torirs_input.c input/torirs_keymap.c input/torirs_input_cmd.c \
 	input/torirs_touch.c input/torirs_gesture.c \
+	input/torirs_input_claims.c input/torirs_world_tap.c input/torirs_frame_modifiers.c \
 	game/task_cs2_script_exec.c $(BMP_DIR)/bmp.c \
 	cs2vm2/cs2vm2.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_trigger_args.c \
 	cs2vm2/cs2vm2_strpool.c \
@@ -865,6 +893,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	game/rs_worldmap.c \
 	game/rs_worldmap_render.c \
 	cs2vm2/cs2_opcode_meta.c engine/cache_provider.c engine/proctex/proctex_generator.c engine/cs2vm2_script_from_rscache.c \
+	engine/cache_mounts.c \
 	engine/cs2_opcode_dialect.c \
 	engine/torirs_lru.c \
 	engine/torirs_model_inst_cache.c \
@@ -941,12 +970,15 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	game/rs_cs2_host.c game/rs_cs2_client_ops.c game/rs_cs2_social_ops.c game/rs_cs2_market_ops.c game/rs_clan.c game/rs_group_store.c game/rs_friends_chat.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/content_test.c game/content_test_sailing.c game/rs_minimenu_build.c \
 	game/rs_minimenu_world.c \
 	game/task_gameproto_exec.c game/task_exec_entity_info.c game/task_entity_assets.c game/rs_entity_sync.c game/rs_audio.c \
+	game/entity_info_scratch.c \
 	game/rs_prefs.c game/task_prefs_io.c game/preview_state.c \
+	game/rs_save_debounce.c \
 	game/rs_accounts.c game/task_accounts_io.c \
+	game/rs_title_accounts.c game/rs_title_music.c \
 	audio/torirs_pcm.c audio/torirs_mixer.c audio/torirs_midi_file.c \
 	audio/torirs_soundbank.c audio/torirs_midi_synth.c audio/torirs_music.c \
 	engine/dat2/task_dat2_music_load.c \
-	engine/uitree_anim.c engine/entity_model_build.c engine/uitree_role_load.c \
+	engine/uitree_anim.c engine/seq_load_tracker.c engine/entity_model_build.c engine/uitree_role_load.c \
 	ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c ui/uitree_role.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_ink.c ui/uitree_minimenu.c \
@@ -962,14 +994,37 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	varp/varp_manager.c \
 	varc/varc_manager.c \
 	inv/inv_manager.c \
+	inv/inv_icon_retry.c \
+	inv/widget_icon_park.c \
 	cmd/cmdring.c cmd/cmdbus.c \
 	net/isaac.c net/rsa.c net/ringbuf.c net/jbase37.c net/wordpack.c net/chat_huffman.c \
 	$(LOGIN_SRCS) net/packetbuffer.c net/net.c net/net_out.c \
 	net/net_link_watch.c \
+	net/net_keepalive.c \
+	net/net_once.c \
+	net/session_end.c \
 	game/rs_clientscript_queue.c \
+	game/rs_server_tick.c \
+	game/settle_gate.c \
+	game/rs_zone_inbox.c \
+	game/rs_rebuild_region.c \
+	game/rs_npc_update_origin.c \
+	game/rs_hint_arrow.c \
+	game/rs_player_ops.c \
+	game/rs_interaction_mode.c \
+	game/rs_session_info.c \
+	game/rs_client_phase.c \
+	game/rs_boot_state.c \
+	game/rs_sailing_hud.c \
+	game/rs_tile_highlight_watch.c \
+	game/rs_mouseover_report.c \
+	game/rs_npc_body_lands.c \
 	perf/frame_time_ring.c \
+	perf/frame_clock.c \
+	perf/boot_pump_stats.c \
 	editor/editor_preview_camera.c \
 	editor/map_editor_ghost.c \
+	editor/editor_shell.c \
 	render/world_camera_orbit.c \
 	net/rev/revpacket.c \
 	net/rev/packets/pkt_player_appearance.c \
@@ -983,6 +1038,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	replay/replay_timeline.c replay/replay_scrub.c \
 	replay/replay_ledger.c replay/replay_ledger_entity.c replay/replay_ledger_verify.c \
 	replay/replay_classify.c replay/replay_world.c replay/replay_world_apply.c \
+	replay/replay_chase.c \
 	replay/replay_digest.c \
 	replay/replay_checkpoint.c replay/replay_checkpoint_check.c ui/uitree_checkpoint.c app/app_checkpoint.c \
 	replay/replay_checkpoint_store.c replay/replay_checkpoint_play.c \
@@ -993,6 +1049,9 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
 	world/worldview.c \
+	world/wev_aboard_trace.c \
+	world/loc_lane.c \
+	world/proj_spawn_latch.c \
 	world/wev.c world/wev_deck.c engine/dat2/task_dat2_wevconfig_load.c engine/dat2/task_dat2_grouptype_load.c engine/dat2/task_dat2_varclantype_load.c \
 	engine/world_builder/task_world_load.c \
 	editor/editor.c editor/editor_doc.c editor/editor_jm2.c editor/editor_spawn.c \
@@ -1399,6 +1458,8 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/contour_ground.o $(OBJ_DIR)/decor_buildmap.o $(OBJ_DIR)/occluder_buildmap.o \
 	$(OBJ_DIR)/world_decode_tile.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/action_plan.o $(OBJ_DIR)/wb_minimap.o \
+	$(OBJ_DIR)/rebuild_pace.o $(OBJ_DIR)/world_rebuild_job.o $(OBJ_DIR)/rebuild_frame_stats.o \
+	$(OBJ_DIR)/world_load_state.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
 # Make does not otherwise notice compiler/linker flag changes: an object built
@@ -1886,6 +1947,14 @@ $(OBJ_DIR)/collision_map.o: $(WB_DIR)/collision_map.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/collision_map.c -o $@
 $(OBJ_DIR)/action_plan.o: $(WB_DIR)/action_plan.c $(WB_DIR)/action_plan.h $(WB_DIR)/collision_map.h | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/action_plan.c -o $@
+$(OBJ_DIR)/rebuild_pace.o: $(WB_DIR)/rebuild_pace.c $(WB_DIR)/rebuild_pace.h | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c $(WB_DIR)/rebuild_pace.c -o $@
+$(OBJ_DIR)/world_load_state.o: $(WB_DIR)/world_load_state.c $(WB_DIR)/world_load_state.h | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c $(WB_DIR)/world_load_state.c -o $@
+$(OBJ_DIR)/world_rebuild_job.o: $(WB_DIR)/world_rebuild_job.c $(WB_DIR)/world_rebuild_job.h | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c $(WB_DIR)/world_rebuild_job.c -o $@
+$(OBJ_DIR)/rebuild_frame_stats.o: $(WB_DIR)/rebuild_frame_stats.c $(WB_DIR)/rebuild_frame_stats.h | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c $(WB_DIR)/rebuild_frame_stats.c -o $@
 $(OBJ_DIR)/wb_minimap.o: $(WB_DIR)/minimap.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/minimap.c -o $@
 
@@ -1914,6 +1983,47 @@ test-action-plan: $(OBJ_DIR)
 		engine/world_builder/test/action_plan_test.c engine/world_builder/action_plan.c \
 		engine/world_builder/collision_map.c features/features.c -lm
 	./$(OBJ_DIR)/action_plan_test
+
+# The paced catch-up after a background rebuild's commit: the deadline each
+# frame gets, the commit frame that pops nothing, the first packet a frame
+# always gets, and the stops that keep pacing alive up to the hard limit. A
+# wrong one is a long frame after a rebuild, or packets left standing for the
+# whole window, and neither shows up as anything but a stutter.
+.PHONY: test-rebuild-pace
+test-rebuild-pace: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rebuild_pace_test$(PLATFORM_EXE_SUFFIX) \
+		engine/world_builder/test/rebuild_pace_test.c engine/world_builder/rebuild_pace.c $(LDFLAGS)
+	./$(OBJ_DIR)/rebuild_pace_test$(PLATFORM_EXE_SUFFIX)
+
+# Whether there is a world, has a load been tried, is one running with the
+# viewport blanked, and does its finish owe the server MAP_BUILD_COMPLETE,
+# through the events the load paths raise.
+.PHONY: test-world-load-state
+test-world-load-state: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/world_load_state_test$(PLATFORM_EXE_SUFFIX) \
+		engine/world_builder/test/world_load_state_test.c engine/world_builder/world_load_state.c $(LDFLAGS)
+	./$(OBJ_DIR)/world_load_state_test$(PLATFORM_EXE_SUFFIX)
+
+# The background world rebuild's record: what a job keeps of its zone and
+# clears of the last one, the phase transitions and the asserts that guard
+# them, the slice counts, the wanted rule, the staged varps, the commit and
+# the cancel. A wrong one is a job built for the wrong zone, a held packet
+# stream that never lifts, or a timing report that lies.
+.PHONY: test-world-rebuild-job
+test-world-rebuild-job: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/world_rebuild_job_test$(PLATFORM_EXE_SUFFIX) \
+		engine/world_builder/test/world_rebuild_job_test.c engine/world_builder/world_rebuild_job.c \
+		$(TORIMEM_SRCS) $(LDFLAGS)
+	./$(OBJ_DIR)/world_rebuild_job_test$(PLATFORM_EXE_SUFFIX)
+
+# The frame times around a rebuild: the window's counts, buckets and series,
+# the frame that closes it, the frames after it, the marks and the reports a
+# noted frame makes due.
+.PHONY: test-rebuild-frame-stats
+test-rebuild-frame-stats: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rebuild_frame_stats_test$(PLATFORM_EXE_SUFFIX) \
+		engine/world_builder/test/rebuild_frame_stats_test.c engine/world_builder/rebuild_frame_stats.c $(LDFLAGS)
+	./$(OBJ_DIR)/rebuild_frame_stats_test$(PLATFORM_EXE_SUFFIX)
 
 # CS2 math/bit opcode unit test (pure VM): reuse the main link set minus main.o.
 .PHONY: test-cs2-invother
@@ -2047,23 +2157,91 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-damage-region
 	$(MAKE) test-uitree-input-signature
 	$(MAKE) test-plugin-mesh
+	$(MAKE) test-plugin-frame-binding
+	$(MAKE) test-plugin-highlights
+	$(MAKE) test-plugin-geometry
+	$(MAKE) test-plugin-panel
+	$(MAKE) test-plugin-screenshots
+	$(MAKE) test-plugin-boot-config
+	$(MAKE) test-feature-facts
 	$(MAKE) test-world-seq-source
 	$(MAKE) test-env-values
 	$(MAKE) test-uitree-if-events
 	$(MAKE) test-worldmap-drag
 	$(MAKE) test-uitree-keyboard-owner
 	$(MAKE) test-async-pending
+	$(MAKE) test-entity-spotanim
 	$(MAKE) test-ground-items-dirty
 	$(MAKE) test-uitree-popup-place
 	$(MAKE) test-settings-pickers
 	$(MAKE) test-inv-drag
+	$(MAKE) test-target-select
+	$(MAKE) test-if-models
+	$(MAKE) test-inv-icon-retry
+	$(MAKE) test-widget-icon-park
+	$(MAKE) test-input-claims
+	$(MAKE) test-world-tap
+	$(MAKE) test-frame-modifiers
+	$(MAKE) test-chat-line
 	$(MAKE) test-minimap-view
+	$(MAKE) test-uitree-kept-mounts
+	$(MAKE) test-canvas-scale
+	$(MAKE) test-tree-refresh
 	$(MAKE) test-title-session
 	$(MAKE) test-worldmap-view
+	$(MAKE) test-worldmap-surface
 	$(MAKE) test-loc-editor-selection
 	$(MAKE) test-overlay-stage
+	$(MAKE) test-tile-mark-stage
+	$(MAKE) test-panel-overlay-stage
+	$(MAKE) test-chrome-compositor
+	$(MAKE) test-dev-overlay
+	$(MAKE) test-editor-shell
+	$(MAKE) test-wev-aboard-trace
+	$(MAKE) test-loc-lane
+	$(MAKE) test-proj-spawn-latch
+	$(MAKE) test-cam-script
+	$(MAKE) test-render-mode
+	$(MAKE) test-painter-cull-bake
+	$(MAKE) test-world-views
+	$(MAKE) test-redraw-request
+	$(MAKE) test-skybox-slot
+	$(MAKE) test-replay-chase
+	$(MAKE) test-save-debounce
+	$(MAKE) test-render-skip
+	$(MAKE) test-frame-clock
+	$(MAKE) test-boot-pump-stats
 	$(MAKE) test-net-link-watch
+	$(MAKE) test-net-keepalive
+	$(MAKE) test-net-once
+	$(MAKE) test-session-end
+	$(MAKE) test-text-input-gate
+	$(MAKE) test-device-caps
 	$(MAKE) test-clientscript-queue
+	$(MAKE) test-rs-server-tick
+	$(MAKE) test-settle-gate
+	$(MAKE) test-rs-zone-inbox
+	$(MAKE) test-rs-rebuild-region
+	$(MAKE) test-rs-npc-update-origin
+	$(MAKE) test-rs-npc-body-lands
+	$(MAKE) test-rs-sailing-hud
+	$(MAKE) test-rs-tile-highlight-watch
+	$(MAKE) test-rs-mouseover-report
+	$(MAKE) test-rebuild-pace
+	$(MAKE) test-world-load-state
+	$(MAKE) test-world-rebuild-job
+	$(MAKE) test-rebuild-frame-stats
+	$(MAKE) test-rs-hint-arrow
+	$(MAKE) test-rs-interaction-mode
+	$(MAKE) test-rs-player-ops
+	$(MAKE) test-rs-session-info
+	$(MAKE) test-rs-client-phase
+	$(MAKE) test-rs-boot-state
+	$(MAKE) test-rs-title-accounts
+	$(MAKE) test-rs-title-music
+	$(MAKE) test-cache-mounts
+	$(MAKE) test-seq-load-tracker
+	$(MAKE) test-entity-info-scratch
 	$(MAKE) test-editor-ghost
 	$(MAKE) test-editor
 	$(MAKE) test-world-camera
@@ -2152,6 +2330,129 @@ test-clientscript-queue: $(OBJ_DIR)
 		perf/frame_time_ring.c $(LDFLAGS)
 	./$(OBJ_DIR)/rs_clientscript_queue_test$(PLATFORM_EXE_SUFFIX)
 
+# Whether the server tick being applied is complete. A tick that never closes
+# freezes the picture on the last committed frame, one that closes early
+# publishes half a tick, and a varp-only mark that outlives its tick sends
+# every later REBUILD down the blocking path. None of it shows as an error.
+.PHONY: test-rs-server-tick
+test-rs-server-tick: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_server_tick_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_server_tick_test.c game/rs_server_tick.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_server_tick_test$(PLATFORM_EXE_SUFFIX)
+
+# Whether the client is settled, and why not: when the live tree may be
+# published, what the frame latch names as holding it, when the packet
+# transaction is open, when the frame resumes the packet pipeline, and when the
+# world is settled. A gate that says settled early publishes half a
+# transaction; one that never does freezes the picture.
+.PHONY: test-settle-gate
+test-settle-gate: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/settle_gate_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/settle_gate_test.c game/settle_gate.c $(LDFLAGS)
+	./$(OBJ_DIR)/settle_gate_test$(PLATFORM_EXE_SUFFIX)
+
+# The hint arrow as every pass that draws it reads it: the wire's clear and its
+# four tile-edge forms folded on the way in. A fold that goes wrong points the
+# arrow at the wrong side of the tile, or leaves one that should be gone.
+.PHONY: test-rs-hint-arrow
+test-rs-hint-arrow: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_hint_arrow_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_hint_arrow_test.c game/rs_hint_arrow.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_hint_arrow_test$(PLATFORM_EXE_SUFFIX)
+
+# The server's player ops and the two Attack options. A slot written to the
+# wrong index changes which menu rows exist.
+.PHONY: test-rs-player-ops
+test-rs-player-ops: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_player_ops_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_player_ops_test.c game/rs_player_ops.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_player_ops_test$(PLATFORM_EXE_SUFFIX)
+
+# What a click may do in each world view. A view that keeps a mode after its
+# reset changes which menu rows exist.
+.PHONY: test-rs-interaction-mode
+test-rs-interaction-mode: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_interaction_mode_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_interaction_mode_test.c game/rs_interaction_mode.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_interaction_mode_test$(PLATFORM_EXE_SUFFIX)
+
+# The zone base and the zone sub-packets held while a scene loads. A held
+# packet applied at the live base lands in the wrong zone or plane, and one
+# applied out of order leaves a loc the server changed back.
+.PHONY: test-rs-zone-inbox
+test-rs-zone-inbox: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_zone_inbox_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_zone_inbox_test.c game/rs_zone_inbox.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_zone_inbox_test$(PLATFORM_EXE_SUFFIX)
+
+# The last accepted REBUILD's centre zone and the shown scene's kept template
+# grid: the scene base every scene-local coord is measured from, and the
+# instance layout the plugins read.
+.PHONY: test-rs-rebuild-region
+test-rs-rebuild-region: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_rebuild_region_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_rebuild_region_test.c game/rs_rebuild_region.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_rebuild_region_test$(PLATFORM_EXE_SUFFIX)
+
+# The tile SET_NPC_UPDATE_ORIGIN names, and whether one is named.
+.PHONY: test-rs-npc-update-origin
+test-rs-npc-update-origin: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_npc_update_origin_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_npc_update_origin_test.c game/rs_npc_update_origin.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_npc_update_origin_test$(PLATFORM_EXE_SUFFIX)
+
+# What the server says once or rarely in a session, and the reboot countdown:
+# ticks stored as client cycles, stepped down to 1 and never to 0.
+.PHONY: test-rs-session-info
+test-rs-session-info: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_session_info_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_session_info_test.c game/rs_session_info.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_session_info_test$(PLATFORM_EXE_SUFFIX)
+
+# The client's lifecycle: a bake that starts or settles, the screen each event
+# puts up, and the logout hold that only a running bake honours.
+.PHONY: test-rs-client-phase
+test-rs-client-phase: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_client_phase_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_client_phase_test.c game/rs_client_phase.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_client_phase_test$(PLATFORM_EXE_SUFFIX)
+
+# The boot bar across loud and quiet bakes, the root a bake mounts, and the
+# once-per-session preamble latch.
+.PHONY: test-rs-boot-state
+test-rs-boot-state: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_boot_state_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_boot_state_test.c game/rs_boot_state.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_boot_state_test$(PLATFORM_EXE_SUFFIX)
+
+# The title's account flow: the device's file read once on an account-server
+# world with somewhere to keep it, the site session asked once after it, the
+# sign-in latch, and the Play Now cards (linked players first, then the
+# device's own that are not among them, at most four).
+.PHONY: test-rs-title-accounts
+test-rs-title-accounts: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_title_accounts_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_title_accounts_test.c game/rs_title_accounts.c game/rs_accounts.c \
+		net/flat_json.c $(TORIMEM_SRCS) $(LDFLAGS)
+	./$(OBJ_DIR)/rs_title_accounts_test$(PLATFORM_EXE_SUFFIX)
+
+# The title's music: nothing before the button names a track, one play and
+# one stop per change, and leaving the title forgets without a stop.
+.PHONY: test-rs-title-music
+test-rs-title-music: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_title_music_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_title_music_test.c game/rs_title_music.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_title_music_test$(PLATFORM_EXE_SUFFIX)
+
+# The cache mounts, against stand-ins for rscache and the build caches: a
+# failed open mounts nothing, closing frees only what was opened, and the
+# on-demand checksum and prefetch answers are given once.
+.PHONY: test-cache-mounts
+test-cache-mounts: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/cache_mounts_test$(PLATFORM_EXE_SUFFIX) \
+		engine/test/cache_mounts_test.c engine/cache_mounts.c $(LDFLAGS)
+	./$(OBJ_DIR)/cache_mounts_test$(PLATFORM_EXE_SUFFIX)
+
 # When a session is dead, when to dial again, and when to stop. None of it is
 # observable after the fact -- a session that ends and comes back looks exactly
 # like one that was never lost, and one that is dropped while healthy looks
@@ -2162,6 +2463,55 @@ test-net-link-watch: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/net_link_watch_test$(PLATFORM_EXE_SUFFIX) \
 		net/test/net_link_watch_test.c net/net_link_watch.c $(LDFLAGS)
 	./$(OBJ_DIR)/net_link_watch_test$(PLATFORM_EXE_SUFFIX)
+
+# When the client owes the server a keepalive: due once nothing has gone out
+# for the idle bound, restarted by every send, and forgotten only by a reset.
+# No socket and no App.
+.PHONY: test-net-keepalive
+test-net-keepalive: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/net_keepalive_test$(PLATFORM_EXE_SUFFIX) \
+		net/test/net_keepalive_test.c net/net_keepalive.c $(LDFLAGS)
+	./$(OBJ_DIR)/net_keepalive_test$(PLATFORM_EXE_SUFFIX)
+
+# The once-per-run network events: the first packet is marked once, and the
+# boot cheat fires the first time and then only on its repeat cadence. No
+# socket and no App.
+.PHONY: test-net-once
+test-net-once: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/net_once_test$(PLATFORM_EXE_SUFFIX) \
+		net/test/net_once_test.c net/net_once.c $(LDFLAGS)
+	./$(OBJ_DIR)/net_once_test$(PLATFORM_EXE_SUFFIX)
+
+# A logout asks and the server ends it: the tick that drains the request arms
+# a wait that nothing counts down, a second click changes nothing, no session
+# means the request is the ending, and a closed socket while a logout is
+# pending is the answer rather than a lost link. And the LOGOUT_TRANSFER hop
+# is taken once. No socket and no App.
+.PHONY: test-session-end
+test-session-end: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/session_end_test$(PLATFORM_EXE_SUFFIX) \
+		net/test/session_end_test.c net/session_end.c $(LDFLAGS)
+	./$(OBJ_DIR)/session_end_test$(PLATFORM_EXE_SUFFIX)
+
+# Whether the on-screen keyboard should be up: the client's fields, the
+# scripts' request or a plugin's is enough; the answer is pushed only on a
+# change, except after a plugin's statement or an invalidate; and the inset
+# falling to zero retracts the scripts' request. No platform and no App.
+.PHONY: test-text-input-gate
+test-text-input-gate: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/text_input_gate_test$(PLATFORM_EXE_SUFFIX) \
+		platform/test/text_input_gate_test.c platform/text_input_gate.c $(LDFLAGS)
+	./$(OBJ_DIR)/text_input_gate_test$(PLATFORM_EXE_SUFFIX)
+
+# What the device is, stated at boot: the finger camera, the touch policy and
+# the on-screen keyboard, stored apart; and the touch policy's rule -- the
+# mobile identity or a finger platform turns it on, and an override read as a
+# number outranks both ways. No platform and no App.
+.PHONY: test-device-caps
+test-device-caps: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/device_caps_test$(PLATFORM_EXE_SUFFIX) \
+		platform/test/device_caps_test.c platform/device_caps.c $(LDFLAGS)
+	./$(OBJ_DIR)/device_caps_test$(PLATFORM_EXE_SUFFIX)
 
 # The two All Settings pickers the client builds itself. The cache's op script
 # for a colour swatch or a number field plays a click and returns -- in the
@@ -2190,6 +2540,292 @@ test-overlay-stage: $(OBJ_DIR)
 		render/test/overlay_stage_test.c render/overlay_stage.c $(LDFLAGS)
 	./$(OBJ_DIR)/overlay_stage_test$(PLATFORM_EXE_SUFFIX)
 
+# Which painter command an in-scene tile marker is drawn after. The LAST
+# terrain command of the marked tile and level, or a bridge deck paints over
+# the marker; a stable sort, or a polygon's run loses its begin; and a tile the
+# paint never drew sorts last and is counted. Each failure reads on screen as a
+# marker that is missing or under the wrong thing.
+.PHONY: test-tile-mark-stage
+test-tile-mark-stage: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/tile_mark_stage_test$(PLATFORM_EXE_SUFFIX) \
+		render/test/tile_mark_stage_test.c render/tile_mark_stage.c $(LDFLAGS)
+	./$(OBJ_DIR)/tile_mark_stage_test$(PLATFORM_EXE_SUFFIX)
+
+# The chrome lists a frame hands downstream: the merge is rebuilt only when a
+# serial or the wells' revision moves and is cut at its bound; the surface page
+# copies the window's prims at most TORIRS_CHROME_MAX_PRIMS, redraws only when a
+# key or its size moves, and its picture grows to exactly width * height.
+.PHONY: test-chrome-compositor
+test-chrome-compositor: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/chrome_compositor_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/chrome_compositor_test.c ui/chrome_compositor.c $(TORIMEM_SRCS) $(LDFLAGS)
+	./$(OBJ_DIR)/chrome_compositor_test$(PLATFORM_EXE_SUFFIX)
+
+# A plugin's panel wells: a push with no well open is dropped, never handed to
+# a game list; past the bound it is dropped and remembered, and a well that
+# overflowed or drew nothing keeps its last complete picture; retiring one
+# owner leaves every other owner's run where it was.
+.PHONY: test-panel-overlay-stage
+test-panel-overlay-stage: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/panel_overlay_stage_test$(PLATFORM_EXE_SUFFIX) \
+		render/test/panel_overlay_stage_test.c render/panel_overlay_stage.c \
+		ui/torirs_chrome_panel_draw.c $(LDFLAGS)
+	./$(OBJ_DIR)/panel_overlay_stage_test$(PLATFORM_EXE_SUFFIX)
+
+# When the plugin bridge may reuse a remembered gameframe answer: the slot
+# nodes, the interned role and facet ids, the tab stones and the binder's last
+# pass, each against the counters it was worked out at.
+.PHONY: test-plugin-frame-binding
+test-plugin-frame-binding: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/plugin_frame_binding_test$(PLATFORM_EXE_SUFFIX) \
+		plugin/test/plugin_frame_binding_test.c plugin/plugin_frame_binding.c $(LDFLAGS)
+	./$(OBJ_DIR)/plugin_frame_binding_test$(PLATFORM_EXE_SUFFIX)
+
+# The resolved highlight lists: their bound, and when the kept loc list must
+# be rebuilt from scratch rather than kept current element by element.
+.PHONY: test-plugin-highlights
+test-plugin-highlights: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/plugin_highlights_test$(PLATFORM_EXE_SUFFIX) \
+		plugin/test/plugin_highlights_test.c plugin/plugin_highlights.c $(LDFLAGS)
+	./$(OBJ_DIR)/plugin_highlights_test$(PLATFORM_EXE_SUFFIX)
+
+# The plugin geometry tables: which slot an object or mesh takes and what it
+# starts as, a full table, a handle that names nothing, the recolour stamp,
+# the revision an object stands on and the dirty flag the settle takes.
+.PHONY: test-plugin-geometry
+test-plugin-geometry: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/plugin_geometry_test$(PLATFORM_EXE_SUFFIX) \
+		plugin/test/plugin_geometry_test.c plugin/plugin_geometry.c $(LDFLAGS)
+	./$(OBJ_DIR)/plugin_geometry_test$(PLATFORM_EXE_SUFFIX)
+
+# The plugin window's row table, choice pool and build stamps: where a row
+# goes, which row a model slot or a widget maps to, the custom rows that owe a
+# present, how a choice list is split and cut, and when the page is still
+# built for what the host reports. Links ToriMem for Create and Free.
+.PHONY: test-plugin-panel
+test-plugin-panel: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/plugin_panel_test$(PLATFORM_EXE_SUFFIX) \
+		plugin/test/plugin_panel_test.c plugin/plugin_panel.c $(TORIMEM_SRCS) $(LDFLAGS)
+	./$(OBJ_DIR)/plugin_panel_test$(PLATFORM_EXE_SUFFIX)
+
+# The pending frame captures: the slot a request takes, the .png a bare name
+# gets, a full table, and captures handed back once each in slot order.
+.PHONY: test-plugin-screenshots
+test-plugin-screenshots: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/plugin_screenshots_test$(PLATFORM_EXE_SUFFIX) \
+		plugin/test/plugin_screenshots_test.c plugin/plugin_screenshots.c $(LDFLAGS)
+	./$(OBJ_DIR)/plugin_screenshots_test$(PLATFORM_EXE_SUFFIX)
+
+# What the boot handed the plugin host: the user plugins switch, the settings
+# path, and the feature snapshot the first capture takes and no later one moves.
+.PHONY: test-plugin-boot-config
+test-plugin-boot-config: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/plugin_boot_config_test$(PLATFORM_EXE_SUFFIX) \
+		plugin/test/plugin_boot_config_test.c plugin/plugin_boot_config.c $(LDFLAGS)
+	./$(OBJ_DIR)/plugin_boot_config_test$(PLATFORM_EXE_SUFFIX)
+
+# Feature behaviour resolved beyond the table: the lighting regimes after the
+# [render:light] overrides, and who draws the mouseover line.
+.PHONY: test-feature-facts
+test-feature-facts: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/feature_facts_test$(PLATFORM_EXE_SUFFIX) \
+		features/test/feature_facts_test.c features/feature_facts.c features/features.c $(LDFLAGS)
+	./$(OBJ_DIR)/feature_facts_test$(PLATFORM_EXE_SUFFIX)
+
+# The developer overlay: a created overlay is zeroed with an empty frame-time
+# ring, and the frame-time row reads milliseconds to two decimals or "--".
+.PHONY: test-dev-overlay
+test-dev-overlay: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/dev_overlay_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/dev_overlay_test.c ui/dev_overlay.c perf/frame_time_ring.c $(TORIMEM_SRCS) $(LDFLAGS)
+	./$(OBJ_DIR)/dev_overlay_test$(PLATFORM_EXE_SUFFIX)
+
+# The editor shell: a created shell is zeroed with the ghost and the preview
+# camera reset, and the footprint outline's seed and toggle.
+.PHONY: test-editor-shell
+test-editor-shell: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/editor_shell_test$(PLATFORM_EXE_SUFFIX) \
+		editor/test/editor_shell_test.c editor/editor_shell.c editor/map_editor_ghost.c \
+		editor/editor_preview_camera.c $(TORIMEM_SRCS) $(LDFLAGS)
+	./$(OBJ_DIR)/editor_shell_test$(PLATFORM_EXE_SUFFIX)
+
+# The aboard-view trace latch: a zeroed latch has traced the root view, and a
+# view is a change once.
+.PHONY: test-wev-aboard-trace
+test-wev-aboard-trace: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/wev_aboard_trace_test$(PLATFORM_EXE_SUFFIX) \
+		world/test/wev_aboard_trace_test.c world/wev_aboard_trace.c $(LDFLAGS)
+	./$(OBJ_DIR)/wev_aboard_trace_test$(PLATFORM_EXE_SUFFIX)
+
+# The loc lane's tickets: taken in order, each change's turn is the one after
+# the last released, and a ticket's release is asked across the counter wrap.
+.PHONY: test-loc-lane
+test-loc-lane: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/loc_lane_test$(PLATFORM_EXE_SUFFIX) \
+		world/test/loc_lane_test.c world/loc_lane.c $(LDFLAGS)
+	./$(OBJ_DIR)/loc_lane_test$(PLATFORM_EXE_SUFFIX)
+
+# The developer projectile hotkey: the first press marks the source, a press
+# elsewhere launches from it and clears it, a press on the source clears it.
+# No world and no App.
+.PHONY: test-proj-spawn-latch
+test-proj-spawn-latch: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/proj_spawn_latch_test$(PLATFORM_EXE_SUFFIX) \
+		world/test/proj_spawn_latch_test.c world/proj_spawn_latch.c $(LDFLAGS)
+	./$(OBJ_DIR)/proj_spawn_latch_test$(PLATFORM_EXE_SUFFIX)
+
+# The scripted camera's state and arithmetic: what each CAM_* packet sets and
+# cancels, the 28 easing curves, the rate walk and its yaw seam, the timed
+# moves and turns at a given cycle, the glide home, the shared shake roll and
+# the event ring the quest driver reads. Each wrong answer is a cutscene that
+# still plays, framed somewhere else.
+.PHONY: test-cam-script
+test-cam-script: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/cam_script_test$(PLATFORM_EXE_SUFFIX) \
+		render/test/cam_script_test.c render/cam_script.c $(LDFLAGS)
+	./$(OBJ_DIR)/cam_script_test$(PLATFORM_EXE_SUFFIX)
+
+.PHONY: test-render-mode
+test-render-mode: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/render_mode_test$(PLATFORM_EXE_SUFFIX) \
+		render/test/render_mode_test.c render/render_mode.c $(LDFLAGS)
+	./$(OBJ_DIR)/render_mode_test$(PLATFORM_EXE_SUFFIX)
+
+.PHONY: test-painter-cull-bake
+test-painter-cull-bake: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/painter_cull_bake_test$(PLATFORM_EXE_SUFFIX) \
+		render/test/painter_cull_bake_test.c render/painter_cull_bake.c $(LDFLAGS)
+	./$(OBJ_DIR)/painter_cull_bake_test$(PLATFORM_EXE_SUFFIX)
+
+.PHONY: test-world-views
+test-world-views: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/world_views_test$(PLATFORM_EXE_SUFFIX) \
+		render/test/world_views_test.c render/world_views.c $(LDFLAGS)
+	./$(OBJ_DIR)/world_views_test$(PLATFORM_EXE_SUFFIX)
+
+# render/redraw_request.h: header-only.
+.PHONY: test-redraw-request
+test-redraw-request: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/redraw_request_test$(PLATFORM_EXE_SUFFIX) \
+		render/test/redraw_request_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/redraw_request_test$(PLATFORM_EXE_SUFFIX)
+
+# The CAM_SKYBOX slot: a wanted model is asked for once per want, the old one
+# draws until the new one is built, and wanting none drops it at once.
+.PHONY: test-skybox-slot
+test-skybox-slot: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/skybox_slot_test$(PLATFORM_EXE_SUFFIX) \
+		render/test/skybox_slot_test.c render/skybox_slot.c $(LDFLAGS)
+	./$(OBJ_DIR)/skybox_slot_test$(PLATFORM_EXE_SUFFIX)
+
+# The attached-graphic table: free entries are -1, a recycled element id is
+# not a match, a full table claims nothing, and a merge is rebuilt only when
+# its slots or a drawn slot's frame changed.
+.PHONY: test-entity-spotanim
+test-entity-spotanim: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/entity_spotanim_test$(PLATFORM_EXE_SUFFIX) \
+		engine/test/entity_spotanim_test.c engine/entity_spotanim.c $(LDFLAGS)
+	./$(OBJ_DIR)/entity_spotanim_test$(PLATFORM_EXE_SUFFIX)
+
+# Npc bodies in flight: one load per (base, type), a full table registers
+# nothing, and a forget leaves every other type in flight.
+.PHONY: test-rs-npc-body-lands
+test-rs-npc-body-lands: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_npc_body_lands_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_npc_body_lands_test.c game/rs_npc_body_lands.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_npc_body_lands_test$(PLATFORM_EXE_SUFFIX)
+
+# The sailing helm's ids and the selected heading: shown for 30 client cycles
+# from the send and not on the 30th, kept across a save and restore on another
+# clock, and an arrow's model load queued once. RevConfigRefs_Get is stubbed.
+.PHONY: test-rs-sailing-hud
+test-rs-sailing-hud: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_sailing_hud_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_sailing_hud_test.c game/rs_sailing_hud.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_sailing_hud_test$(PLATFORM_EXE_SUFFIX)
+
+# The three tile-highlight refreshers' edges: every one fires once after a
+# reset, -1 included, and each value changes on its own.
+.PHONY: test-rs-tile-highlight-watch
+test-rs-tile-highlight-watch: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_tile_highlight_watch_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_tile_highlight_watch_test.c game/rs_tile_highlight_watch.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_tile_highlight_watch_test$(PLATFORM_EXE_SUFFIX)
+
+# The debug mouseover report's edge: the first ask after a reset reports, -1
+# included, and after that only a changed signature does.
+.PHONY: test-rs-mouseover-report
+test-rs-mouseover-report: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_mouseover_report_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_mouseover_report_test.c game/rs_mouseover_report.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_mouseover_report_test$(PLATFORM_EXE_SUFFIX)
+
+# Which sequence loads were already asked for: a claimed id is refused until it
+# is evicted, Add stops at a full table, and ClaimEvicting drops the oldest id
+# instead so a full table keeps deduping.
+.PHONY: test-seq-load-tracker
+test-seq-load-tracker: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/seq_load_tracker_test$(PLATFORM_EXE_SUFFIX) \
+		engine/test/seq_load_tracker_test.c engine/seq_load_tracker.c $(LDFLAGS)
+	./$(OBJ_DIR)/seq_load_tracker_test$(PLATFORM_EXE_SUFFIX)
+
+# The entity-info decoders' kept op lists: one allocation reused per slot, a
+# borrow while it is lent gets a list of its own freed on release, and Free
+# forgets both. rsprot_info_list_init is stubbed in the test.
+.PHONY: test-entity-info-scratch
+test-entity-info-scratch: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/entity_info_scratch_test$(PLATFORM_EXE_SUFFIX) \
+		$(TORIMEM_SRCS) game/test/entity_info_scratch_test.c game/entity_info_scratch.c $(LDFLAGS)
+	./$(OBJ_DIR)/entity_info_scratch_test$(PLATFORM_EXE_SUFFIX)
+
+# A replay seek's chase: the tile it states until the world comes back, and
+# the client cycles each chase tick charges -- whole on the first tick, then
+# the gap less the cycles this client ran, never below zero. A wrong charge
+# leaves every clientclock a script reads after the seek off by that much.
+.PHONY: test-replay-chase
+test-replay-chase: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/replay_chase_test$(PLATFORM_EXE_SUFFIX) \
+		replay/test/replay_chase_test.c replay/replay_chase.c $(LDFLAGS)
+	./$(OBJ_DIR)/replay_chase_test$(PLATFORM_EXE_SUFFIX)
+
+# The settings save debounce shared by prefs and plugin settings: a change is
+# written once it has been quiet for the settle, a later change moves the
+# wait, a mark at cycle 0 reads as clean, and the shutdown flush takes what is
+# pending. Too early is a rewrite per slider tick; never is a lost setting.
+.PHONY: test-save-debounce
+test-save-debounce: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_save_debounce_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_save_debounce_test.c game/rs_save_debounce.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_save_debounce_test$(PLATFORM_EXE_SUFFIX)
+
+# Which committed frames render skip draws, and whether a skipped one can
+# still be drawn late: the reasons to draw, owed draws counted in frames
+# drawn, the hold, and the catch-up an uncommitted frame takes away. Each
+# wrong answer is a run that differs from the same run with skip off.
+.PHONY: test-render-skip
+test-render-skip: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/render_skip_test$(PLATFORM_EXE_SUFFIX) \
+		render/test/render_skip_test.c render/render_skip.c $(LDFLAGS)
+	./$(OBJ_DIR)/render_skip_test$(PLATFORM_EXE_SUFFIX)
+
+# The frame loop's counters: the fixed-step accumulator (carry, clamp, the
+# frame-locked pay and the refund), the fps window and the idle timer. A
+# wrong accumulator runs the world faster or slower than the clock and says
+# nothing.
+.PHONY: test-frame-clock
+test-frame-clock: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/frame_clock_test$(PLATFORM_EXE_SUFFIX) \
+		perf/test/frame_clock_test.c perf/frame_clock.c $(LDFLAGS)
+	./$(OBJ_DIR)/frame_clock_test$(PLATFORM_EXE_SUFFIX)
+
+# The task pump's boot and busy-frame counts, and the pending flag the frame
+# loop skips its sleep on.
+.PHONY: test-boot-pump-stats
+test-boot-pump-stats: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/boot_pump_stats_test$(PLATFORM_EXE_SUFFIX) \
+		perf/test/boot_pump_stats_test.c perf/boot_pump_stats.c $(LDFLAGS)
+	./$(OBJ_DIR)/boot_pump_stats_test$(PLATFORM_EXE_SUFFIX)
+
 # What the loc editor is pointed at, and what moving it means. These are
 # editing rules, so a wrong one is a map saved with the wrong thing in it: a
 # move recorded from the tile it landed on replays as nothing, and a Reselect
@@ -2211,6 +2847,16 @@ test-worldmap-view: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_worldmap_view_test$(PLATFORM_EXE_SUFFIX) \
 		game/test/rs_worldmap_view_test.c game/rs_worldmap_view.c $(LDFLAGS)
 	./$(OBJ_DIR)/rs_worldmap_view_test$(PLATFORM_EXE_SUFFIX)
+
+# The world map surface's session state: when the heat image is drawn again,
+# which presses the surface box owns, and a screen point turned back into the
+# map position under it. A heat image held past a pan is drawn in the wrong
+# place; a box edge off by one sends a press on the map's rim to the world.
+.PHONY: test-worldmap-surface
+test-worldmap-surface: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_worldmap_surface_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_worldmap_surface_test.c game/rs_worldmap_surface.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_worldmap_surface_test$(PLATFORM_EXE_SUFFIX)
 
 # Getting from the title screen to the world, once. An automatic submit that
 # fires twice reads as a server that keeps dropping you; a connect in the same
@@ -2235,6 +2881,36 @@ test-minimap-view: $(OBJ_DIR)
 		ui/test/minimap_view_test.c ui/minimap_view.c $(LDFLAGS)
 	./$(OBJ_DIR)/minimap_view_test$(PLATFORM_EXE_SUFFIX)
 
+# The mounts kept across an IF_OPENTOP for a top that is not the live root:
+# the live tree's records win and always fit, a kept one no move claims stays,
+# and a full table reports what it forgot. A record lost here is a sub that
+# never reopens when its top returns.
+.PHONY: test-uitree-kept-mounts
+test-uitree-kept-mounts: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/uitree_kept_mounts_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/uitree_kept_mounts_test.c ui/uitree_kept_mounts.c $(LDFLAGS)
+	./$(OBJ_DIR)/uitree_kept_mounts_test$(PLATFORM_EXE_SUFFIX)
+
+# What the client keeps about its canvas scaling between the shell's reports:
+# the window a setting change must wait for, the density default, the fixed
+# window's stated layout and its readout, and the one-time restatement of the
+# lane's window mode. How the settings combine is platform/client_scale.h's.
+.PHONY: test-canvas-scale
+test-canvas-scale: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/canvas_scale_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/canvas_scale_test.c ui/canvas_scale.c $(LDFLAGS)
+	./$(OBJ_DIR)/canvas_scale_test$(PLATFORM_EXE_SUFFIX)
+
+# The one-shot tree refresh async work raises and the frame takes: taken
+# exactly once per raise, and looking does not take it. Taken twice, the tree
+# reflows on a frame nothing changed; never taken, it stays laid out for the
+# state before the work landed.
+.PHONY: test-tree-refresh
+test-tree-refresh: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/tree_refresh_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/tree_refresh_test.c ui/tree_refresh.c $(LDFLAGS)
+	./$(OBJ_DIR)/tree_refresh_test$(PLATFORM_EXE_SUFFIX)
+
 # When a press on an inventory slot becomes a drag. Two gates -- leave a dead
 # ZONE, and stay down for a dead TIME -- and dropping either one misreads whole
 # classes of gesture with nothing on screen to say so: without the zone a shaky
@@ -2247,6 +2923,81 @@ test-inv-drag: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/inv_drag_test$(PLATFORM_EXE_SUFFIX) \
 		ui/test/inv_drag_test.c ui/inv_drag.c $(LDFLAGS)
 	./$(OBJ_DIR)/inv_drag_test$(PLATFORM_EXE_SUFFIX)
+
+# The "Use <item> with" and "Cast <spell> on" selections: arming one with the
+# other clear, a clear that drops only the flag, and the spell's prompt text
+# for classic and IF3 target buttons, cut to fit.
+.PHONY: test-target-select
+test-target-select: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/target_select_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/target_select_test.c ui/target_select.c $(LDFLAGS)
+	./$(OBJ_DIR)/target_select_test$(PLATFORM_EXE_SUFFIX)
+
+# The interface-model stores: one head per component that keeps its animation
+# across an update, a removal that moves the last entry into the hole,
+# player-model slots that keep their scene id when freed and are reused before
+# the table grows, a checkpoint restore, and the local figure's
+# changed-since-built test.
+.PHONY: test-if-models
+test-if-models: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/uitree_if_models_test$(PLATFORM_EXE_SUFFIX) $(TORIMEM_SRCS) \
+		ui/test/uitree_if_models_test.c ui/uitree_if_models.c $(LDFLAGS)
+	./$(OBJ_DIR)/uitree_if_models_test$(PLATFORM_EXE_SUFFIX)
+
+# When the next inventory icon pass may run: one in flight, a pass that
+# resolved nothing holding the next off by a wait that doubles to its ceiling,
+# a pass that resolved something clearing it, and a changed inventory lifting
+# the hold.
+.PHONY: test-inv-icon-retry
+test-inv-icon-retry: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/inv_icon_retry_test$(PLATFORM_EXE_SUFFIX) \
+		inv/test/inv_icon_retry_test.c inv/inv_icon_retry.c $(LDFLAGS)
+	./$(OBJ_DIR)/inv_icon_retry_test$(PLATFORM_EXE_SUFFIX)
+
+# The widget obj-icon requests a clientscript parks for a logic tick: one per
+# cell, newest wins, and a release that takes the due ones from the head up to
+# its burst while the rest keep their places. A park that grew a row per write
+# would load every obj a script stepped a cell through.
+.PHONY: test-widget-icon-park
+test-widget-icon-park: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/widget_icon_park_test$(PLATFORM_EXE_SUFFIX) $(TORIMEM_SRCS) \
+		inv/test/widget_icon_park_test.c inv/widget_icon_park.c $(LDFLAGS)
+	./$(OBJ_DIR)/widget_icon_park_test$(PLATFORM_EXE_SUFFIX)
+
+# Who has taken a part of this frame's input: keys by OSRS code, the frame as
+# a whole and the pointer by chrome, each dropped on its own lifetime.
+.PHONY: test-input-claims
+test-input-claims: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/torirs_input_claims_test$(PLATFORM_EXE_SUFFIX) \
+		input/test/torirs_input_claims_test.c input/torirs_input_claims.c $(LDFLAGS)
+	./$(OBJ_DIR)/torirs_input_claims_test$(PLATFORM_EXE_SUFFIX)
+
+# A finger's world tap held until the pick reaches its pixel: a mouse click and
+# an answered touch run at once, an unanswered touch waits for its pick or the
+# frame limit, and a new click replaces a held one.
+.PHONY: test-world-tap
+test-world-tap: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/torirs_world_tap_test$(PLATFORM_EXE_SUFFIX) \
+		input/test/torirs_world_tap_test.c input/torirs_world_tap.c $(LDFLAGS)
+	./$(OBJ_DIR)/torirs_world_tap_test$(PLATFORM_EXE_SUFFIX)
+
+# The modifier keys latched once a frame for the move paths that run without
+# the input: nothing held after a reset, Ctrl stored as 1 or 0, the latch
+# holding until the next one, and the parked input frame reading back as parked.
+.PHONY: test-frame-modifiers
+test-frame-modifiers: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/torirs_frame_modifiers_test$(PLATFORM_EXE_SUFFIX) \
+		input/test/torirs_frame_modifiers_test.c input/torirs_frame_modifiers.c $(LDFLAGS)
+	./$(OBJ_DIR)/torirs_frame_modifiers_test$(PLATFORM_EXE_SUFFIX)
+
+# The typed chat line: focus taken and dropped, the prompt that covers a
+# closed cache line written from its lead-in, and the covered text handed back
+# on opening only while the prompt is still shown.
+.PHONY: test-chat-line
+test-chat-line: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/chat_line_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/chat_line_test.c ui/chat_line.c $(LDFLAGS)
+	./$(OBJ_DIR)/chat_line_test$(PLATFORM_EXE_SUFFIX)
 
 # Where a settings popup goes beside the row that opened it. Obviously right
 # until a row is near an edge, and then the popup is half off screen or sitting
@@ -2264,7 +3015,7 @@ test-uitree-popup-place: $(OBJ_DIR)
 # restart the walk that is running and a busy scene would never finish one.
 .PHONY: test-ground-items-dirty
 test-ground-items-dirty: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ground_items_dirty_test$(PLATFORM_EXE_SUFFIX) \
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/ground_items_dirty_test$(PLATFORM_EXE_SUFFIX) \
 		game/test/rs_ground_items_dirty_test.c game/rs_ground_items_dirty.c $(LDFLAGS)
 	./$(OBJ_DIR)/ground_items_dirty_test$(PLATFORM_EXE_SUFFIX)
 
@@ -3850,10 +4601,10 @@ test-net-out-resume: $(OBJ_DIR) $(OBJS)
 		net/test/net_out_resume_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/net_out_resume_test
 
-# CAM_MOVETO_ARC's path (app/app_cam_arc.h, deob class561): header-only.
+# CAM_MOVETO_ARC's path (render/cam_arc.h, deob class561): header-only.
 .PHONY: test-cam-arc
 test-cam-arc: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cam_arc_test app/test/cam_arc_test.c -lm
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cam_arc_test render/test/cam_arc_test.c -lm
 	./$(OBJ_DIR)/cam_arc_test
 
 # The editor free camera's scene clamp (app/app_camera_clamp.h): header-only.

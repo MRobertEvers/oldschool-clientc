@@ -1,6 +1,7 @@
 #ifndef SRC_GAME_RS_UI_SLOTS_H
 #define SRC_GAME_RS_UI_SLOTS_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 struct UITree;
@@ -54,10 +55,50 @@ struct RS_UISlots
     int chat_filter_mode[RS_UI_CHAT_FILTER_COUNT];
     /** TUT_FLASH: tab icon to flash (-1 = none). */
     int flash_tab;
+
+    /* The two below come after everything the tree seeds, and are not part of
+     * it: a rebind keeps them, and the "slots" checkpoint group stops before
+     * them (modal_host_uid is checkpointed with the mounts). */
+
+    /**
+     * The component the last MODAL sub-interface was mounted on, or -1.
+     *
+     * Recorded because "where does a modal open" is a question with no static
+     * answer: the dat1 gameframes declare a region for it (`slot=main_modal`),
+     * the dat2 ones do not -- the server names the host in IF_OPENSUB and it is
+     * a different component in the fixed frame than in the resizable one. The
+     * only thing that knows is the mount itself, so the mount is where it is
+     * written down.
+     *
+     * Kept across the close, deliberately: it is an answer about the FRAME
+     * ("modals go here"), not about the interface that happened to be open, and
+     * a reader asking between two modals wants the same rectangle.
+     */
+    int modal_host_uid;
+    /** Re-entrancy guard for optimistic modal close (rev-230 field267): while
+     *  locally unmounting type-0/3 subs, nested if_close must not re-enter. */
+    int closing_modals;
 };
 
 void
 RS_UISlots_Init(struct RS_UISlots* slots);
+
+/** The component the last modal was mounted on, or -1 (0 is a real uid). */
+int
+RS_UISlots_ModalHost(struct RS_UISlots const* slots);
+
+void
+RS_UISlots_SetModalHost(
+    struct RS_UISlots* slots,
+    int component_uid);
+
+/** Start a local close of every modal. False when one is already running,
+ *  which the caller must then leave alone. */
+bool
+RS_UISlots_ClosingModalsBegin(struct RS_UISlots* slots);
+
+void
+RS_UISlots_ClosingModalsEnd(struct RS_UISlots* slots);
 
 /**
  * Seed tab state from the baked tree: for every UIELEM_BUILTIN_SIDEBAR node,

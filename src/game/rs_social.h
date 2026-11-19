@@ -92,6 +92,22 @@ enum RS_SocialServerStatus
     RS_SOCIAL_SERVER_CONNECTED = 2,
 };
 
+/*
+ * The private and chat-channel message dedupe ring (reference field1077): one
+ * ring for every message kind, as in the client. A private message keys by its
+ * id, a clan or friends-chat message by (world << 32) + its counter. A key is
+ * "seen" when any slot holds it, and a slot never written holds 0, so a 0 key
+ * reads as seen until every slot has been written once.
+ */
+#define RS_SOCIAL_MESSAGE_RING 100
+
+struct RS_SocialMessageRing
+{
+    int64_t ids[RS_SOCIAL_MESSAGE_RING];
+    /** The slot the next remembered key goes in. */
+    int head;
+};
+
 struct RS_Social
 {
     char friend_name[RS_SOCIAL_FRIEND_MAX][RS_SOCIAL_NAME_LEN];
@@ -122,6 +138,10 @@ struct RS_Social
     int server_status; /* enum RS_SocialServerStatus */
     /** Our world id, for the green same-world highlight. */
     int node_id;
+
+    /** Kept last: the replay checkpoint's "social" domain is every field
+     *  above, and the ring is checkpointed on its own (app/app_checkpoint.c). */
+    struct RS_SocialMessageRing message_ring;
 };
 
 void
@@ -164,6 +184,29 @@ RS_Social_SortFriends(struct RS_Social* social);
 /** Stable-sort the ignores by `ignore_sort`; by name when it is empty. */
 void
 RS_Social_SortIgnores(struct RS_Social* social);
+
+/** True when `key` is in the message ring. Does not remember it. */
+bool
+RS_Social_MessageSeen(
+    struct RS_Social const* social,
+    int64_t key);
+
+/** Put `key` in the ring's next slot, over the oldest. Does not check it. */
+void
+RS_Social_MessageRemember(
+    struct RS_Social* social,
+    int64_t key);
+
+/**
+ * True when `key` was already in the ring; otherwise remember it and return
+ * false. The private-message path. The channel paths check, then may drop the
+ * message for an ignored sender without remembering it, so they call
+ * RS_Social_MessageSeen and RS_Social_MessageRemember apart.
+ */
+bool
+RS_Social_MessageSeenOrRemember(
+    struct RS_Social* social,
+    int64_t key);
 
 /*
  * ---------------------------------------------------------------------------

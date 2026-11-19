@@ -35,7 +35,8 @@ app_dispatch_clientscript(
     /* Counted until it ends (App_DriveRing.cs2_pending): the quest driver
      * reads a tick only once the scripts the tick sent have run, as a
      * scriptrun bot -- whose scripts run inline on the packet -- does. */
-    app->drive_events.cs2_pending_cycle = (int)app->logic_cycle;
+    app->drive_events.cs2_pending_cycle =
+        (int)FrameClockSerial_LogicCycle(&app->frame_clock.serial);
     RS_CS2_RunScriptJoined(
         &app->host,
         runner,
@@ -99,7 +100,9 @@ App_RunClientScript(
      * now: degrading to the old ordering is a cosmetic bug, losing a script is
      * not. */
     if( !RS_ClientScriptQueue_Hold(
-            &app->pending_clientscripts, request, (uint32_t)app->logic_cycle) )
+            &app->pending_clientscripts,
+            request,
+            (uint32_t)FrameClockSerial_LogicCycle(&app->frame_clock.serial)) )
         app_dispatch_clientscript(app, &app->frame_runner, request);
 }
 
@@ -155,12 +158,11 @@ app_cs2_flush_notifications(struct App* app)
     if( app->host.close_modal_requested )
     {
         app->host.close_modal_requested = false;
-        if( !app->closing_modals )
+        if( RS_UISlots_ClosingModalsBegin(&app->slots) )
         {
             int uids[UITREE_INTERFACE_PARENT_MAX];
             int n = 0;
 
-            app->closing_modals = 1;
             if( app->button_sink.close_modal )
                 app->button_sink.close_modal(app->button_sink.user);
 
@@ -181,8 +183,8 @@ app_cs2_flush_notifications(struct App* app)
             if( App_UiLogic(app) == APP_UI_LOGIC_CS1 )
                 RS_UISlots_CloseModal(app);
 
-            app->closing_modals = 0;
-            app->need_redraw = 1;
+            RS_UISlots_ClosingModalsEnd(&app->slots);
+            RedrawRequest_Raise(&app->redraw_request);
         }
     }
 
@@ -199,7 +201,7 @@ app_cs2_flush_notifications(struct App* app)
     if( app->host.logout_requested )
     {
         app->host.logout_requested = false;
-        app->logout_requested = 1;
+        SessionEnd_RequestLogout(&app->session_end);
     }
     /* The mobile scripts' soft keyboard: "Start chatting" shows it over the
      * chat line, its second press hides it. The chat line's focus is what the
@@ -207,16 +209,16 @@ app_cs2_flush_notifications(struct App* app)
      * focus a tap on the chat area gives. */
     if( app->host.keyboard_request )
     {
-        app->vm_keyboard_open = app->host.keyboard_request > 0;
+        TextInputGate_SetScriptRequest(&app->text_input_gate, app->host.keyboard_request > 0);
         /* The push to the platform is edge-triggered on "wanted" (see
          * App_TakeTextInputChange), and the person may have dismissed the
          * keyboard with the system's own button, which changes nothing here.
          * A request is a deliberate ask: forget what was last pushed so the
          * next take pushes the current answer again, as a tap on a login
          * field does. */
-        app->text_input_effective = -1;
+        TextInputGate_Invalidate(&app->text_input_gate);
         app->host.keyboard_request = 0;
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
     }
 
     if( app->host.resume_pausebutton_component_id != -1 )
@@ -318,7 +320,7 @@ app_cs2_flush_notifications(struct App* app)
                     RS_CS2Host_ChatAdd(
                         &app->host, RS_CHAT_TYPE_PRIVATE_TO, shown, send.name, send.text);
                 }
-                app->need_redraw = 1;
+                RedrawRequest_Raise(&app->redraw_request);
                 break;
             /*
              * chat_sendpublic from the chatbox's own submit path (script 73 ->
@@ -701,7 +703,7 @@ app_settle_cs2_frame(struct App* app)
 
         if( stat == TASK_RUNNER_SPENT )
         {
-            app->pace_stat_settle_stops++;
+            RebuildPace_NoteSettleStop(&app->pace);
             App_PaceNoteStop(app);
         }
         if( stat != TASK_RUNNER_IDLE )

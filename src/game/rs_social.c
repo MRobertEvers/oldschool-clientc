@@ -506,3 +506,37 @@ RS_Social_IsIgnored(
     assert(name);
     return find_hash(social->ignore_hash, social->ignore_name, social->ignore_count, name) >= 0;
 }
+
+bool
+RS_Social_MessageSeen(
+    struct RS_Social const* social,
+    int64_t key)
+{
+    assert(social);
+    for( int i = 0; i < RS_SOCIAL_MESSAGE_RING; i++ )
+        if( social->message_ring.ids[i] == key )
+            return true;
+    return false;
+}
+
+void
+RS_Social_MessageRemember(
+    struct RS_Social* social,
+    int64_t key)
+{
+    assert(social);
+    social->message_ring.ids[social->message_ring.head] = key;
+    social->message_ring.head = (social->message_ring.head + 1) % RS_SOCIAL_MESSAGE_RING;
+}
+
+bool
+RS_Social_MessageSeenOrRemember(
+    struct RS_Social* social,
+    int64_t key)
+{
+    assert(social);
+    if( RS_Social_MessageSeen(social, key) )
+        return true;
+    RS_Social_MessageRemember(social, key);
+    return false;
+}

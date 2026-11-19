@@ -134,6 +134,27 @@ main(void)
     CHECK(stat_mask == 0, "invalid packet reported changed stats");
     CHECK(VarPManager_GetVarp(&varps, 115) == 5, "invalid packet changed state");
 
+    /* The boot keeps the file apply's verdict and mask in an outcome. A file
+     * that cannot be opened fails and leaves the mask it had. */
+    {
+        struct ToriRSPreviewStateOutcome outcome = { 0, (uint32_t)1u << 7 };
+        CHECK(
+            !ToriRSPreviewState_ApplyFileOutcome(
+                "/nonexistent/preview_state_test.bin",
+                &varps,
+                &varcs,
+                &stats,
+                &applied,
+                &outcome,
+                error,
+                sizeof(error)),
+            "a missing file was applied");
+        CHECK(ToriRSPreviewState_OutcomeFailed(&outcome), "a missing file did not fail");
+        CHECK(
+            ToriRSPreviewState_OutcomeStatMask(&outcome) == ((uint32_t)1u << 7),
+            "a missing file changed the mask");
+    }
+
     VarCManager_Free(&varcs);
     VarPManager_Free(&varps);
     printf("preview_state_test: ok\n");

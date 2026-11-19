@@ -544,6 +544,19 @@ TitleFlames_Free(struct TitleFlames* flames)
 }
 
 int
+TitleFlames_ElapsedSince(
+    struct TitleFlames* flames,
+    uint64_t now_ms)
+{
+    int elapsed;
+
+    assert(flames);
+    elapsed = flames->last_ms == 0 ? 0 : (int)(now_ms - flames->last_ms);
+    flames->last_ms = now_ms;
+    return elapsed;
+}
+
+int
 TitleFlames_Advance(
     struct TitleFlames* flames,
     int elapsed_ms)

@@ -60,12 +60,6 @@ app_logic_cycles_per_frame(void)
 #endif
 }
 
-/* Cycles a k > 1 frame was charged and did not run (the settle fence stopped
- * it part way), paid by the next frame that reaches the logic step. Always 0 at
- * k = 1, where the fence can only stop after the frame's one cycle. One App
- * per process: file scope is the frame loop's. */
-static int s_cycles_owed;
-
 /* The ms clock a frame hands its timers. At k > 1 a frame is k x 20 ms of
  * game time, so the frame clock (content_test.c's virtual clock steps 20 ms a
  * frame) is stretched by k about its first reading, the same way the embed
@@ -102,7 +96,7 @@ int
 App_AsyncPending(const struct App* app)
 {
     assert(app);
-    return app->async_pending;
+    return BootPumpStats_Pending(&app->pump_stats);
 }
 
 void
@@ -113,7 +107,7 @@ App_NoteFrameTime(
     assert(app);
 
     PerfAudit_EndFrame(frame_us);
-    FrameTimeRing_Add(&app->dbg_frame_times, frame_us);
+    FrameTimeRing_Add(&app->dev_overlay->frame_times, frame_us);
     app_rebuild_frames_note(app, frame_us);
 }
 
@@ -122,14 +116,8 @@ App_NoteFrameDrawn(struct App* app)
 {
     assert(app);
 
-    app->frames_rendered++;
-    app->fps_window_frames++;
-    if( app->last_frame_ms - app->fps_window_start_ms >= 1000 )
-    {
-        app->fps = app->fps_window_frames;
-        app->fps_window_frames = 0;
-        app->fps_window_start_ms = app->last_frame_ms;
-    }
+    FrameClockFps_NoteDrawn(
+        &app->frame_clock.fps, FrameClockSerial_LastFrameMs(&app->frame_clock.serial));
 }
 
 uint64_t
@@ -137,14 +125,14 @@ App_LastFrameUs(struct App const* app)
 {
     assert(app);
 
-    return FrameTimeRing_NewestUs(&app->dbg_frame_times);
+    return FrameTimeRing_NewestUs(&app->dev_overlay->frame_times);
 }
 
 int
 App_InputFrameConsumed(struct App const* app)
 {
     assert(app);
-    return app->input_frame_consumed;
+    return ToriRS_InputClaimsFrameTaken(&app->input_claims);
 }
 
 int
@@ -176,9 +164,9 @@ App_PointerOwnedByUi(
     /* An open minimenu over the world: a finger dragged on it is scrolling
      * its rows (interact_minimenu_scroll), which needs the LEFT button the
      * touch layer gives a drag on a window -- MIDDLE would turn the camera. */
-    if( app->frame_view )
+    if( app->world_views.frame )
     {
-        struct UIMinimenu const* menu = app->frame_view->minimenu;
+        struct UIMinimenu const* menu = app->world_views.frame->minimenu;
         if( menu->visible && x >= menu->x && x < menu->x + menu->width && y >= menu->y &&
             y < menu->y + menu->height )
             return 1;
@@ -193,7 +181,7 @@ App_ChromePointerOwned(
     int y)
 {
     assert(app);
-    /* Asked LIVE rather than answered from app->chrome_pointer_owned: that
+    /* Asked LIVE rather than answered from the pointer claim: that
      * field is this frame's pointer, latched once, and the caller here is the
      * touch layer asking about a point of its own. */
     return app_chrome_wants_pointer(app, x, y);
@@ -230,7 +218,7 @@ App_DrainCommands(
     /* The runner camera split (struct App_ViewSplit): this bus is the
      * PHYSICAL one -- the window's events and the TORIRS_SIM_* pushes -- and
      * the driver has its own, drained after it. One branch while detached. */
-    if( app->view_split.attached )
+    if( app->world_views.split.attached )
     {
         app_view_split_drain_begin(app, input);
         while( CmdBus_Pop(bus, &header, payload) )
@@ -239,7 +227,7 @@ App_DrainCommands(
                 continue;
             app_drain_command(app, &header, payload, input);
         }
-        while( CmdBus_Pop(app->view_split.runner_bus, &header, payload) )
+        while( CmdBus_Pop(app->world_views.split.runner_bus, &header, payload) )
         {
             app_view_split_note_runner_command(app, &header, payload);
             app_drain_command(app, &header, payload, input);
@@ -313,31 +301,29 @@ app_drain_command(
             {
                 struct ToriRS_CmdKeyboardInset const* cmd =
                     (struct ToriRS_CmdKeyboardInset const*)payload;
-                if( app->keyboard_inset != (int)cmd->bottom )
+                /* A fall to zero is the keyboard going away under us -- the
+                 * person pressed the system's Back, which the client is never
+                 * told about any other way -- and the gate retracts a
+                 * script's standing request to show it; leaving it standing
+                 * kept the client asking for a keyboard nobody wanted, and
+                 * the inset with it. */
+                if( TextInputGate_SetKeyboardInset(&app->text_input_gate, (int)cmd->bottom) )
                 {
-                    /* The keyboard went away under us -- the person pressed
-                     * the system's Back, which the client is never told about
-                     * any other way. A script's standing request to show it
-                     * does not survive that; leaving it standing kept the
-                     * client asking for a keyboard nobody wanted, and the
-                     * inset with it. */
-                    if( app->keyboard_inset > 0 && (int)cmd->bottom == 0 )
-                        app->vm_keyboard_open = 0;
-                    app->keyboard_inset = (int)cmd->bottom;
+                    int const inset = TextInputGate_KeyboardInset(&app->text_input_gate);
                     if( getenv("TORIRS_RESIZE_DEBUG") )
-                        TORIRS_REPORT("keyboard inset -> %d canvas rows\n", app->keyboard_inset);
+                        TORIRS_REPORT("keyboard inset -> %d canvas rows\n", inset);
                     /* The band the layout hands to every row whose profile
                      * declared `safe_area=os:bottom` -- the login box on the
                      * profiles that state it, and nothing at all on the ones
                      * that do not. */
-                    UITree_LayoutSetSafeBottomInset(app->keyboard_inset);
+                    UITree_LayoutSetSafeBottomInset(inset);
                     if( app->tree )
                         UITree_LayoutInvalidate(app->tree);
                     /* And the title screen's, whose emit walk would otherwise
                      * reuse last frame's command buffer and draw the box at
                      * its old place. */
                     app_title_state_changed(app);
-                    app->need_redraw = 1;
+                    RedrawRequest_Raise(&app->redraw_request);
                 }
             }
             break;
@@ -366,7 +352,7 @@ app_drain_command(
         }
         case TORIRS_CMD_PLUGIN_CHROME_TOGGLE:
             assert(header.length == 0);
-            app_plugin_window_set_open(app, !app->plugin_panel_visible);
+            app_plugin_window_set_open(app, !app->plugin_win->visible);
             break;
         /*
          * Host commands. Each is the same call the equivalent TORIRS_SIM_*
@@ -514,7 +500,7 @@ app_frame_latch_note(
         if( !frames )
         {
             nreasons = 0;
-            logic_at_open = (int)app->logic_cycle;
+            logic_at_open = (int)FrameClockSerial_LogicCycle(&app->frame_clock.serial);
         }
         frames++;
         for( i = 0; i < nreasons; i++ )
@@ -539,7 +525,7 @@ app_frame_latch_note(
             sizeof line,
             "frame_latch: held %d frames, %d logic ticks:",
             frames,
-            (int)app->logic_cycle - logic_at_open);
+            (int)FrameClockSerial_LogicCycle(&app->frame_clock.serial) - logic_at_open);
         for( int i = 0; i < nreasons && n < (int)sizeof line; i++ )
             n += snprintf(line + n, sizeof line - n, " %s=%d", reasons[i], counts[i]);
         TORIRS_LOG("%s\n", line);
@@ -566,7 +552,8 @@ app_frame_latch_note(
  * pass: nothing a task does assumes it is inside App_RunOnce. The CS2 settle
  * does its layout resolve here when it reaches its fixed point, which is
  * what the frame would do at the same point; publication of the tree stays
- * with the frame, which sees frame_runner_had_work cleared and refreshes.
+ * with the frame, which sees the frame runner's had_work latch cleared and
+ * refreshes.
  */
 enum TaskRunnerStat
 App_PumpAsync(
@@ -582,7 +569,7 @@ App_PumpAsync(
      * external wait retains the last settled frame until it can resume. */
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_ASYNC)
     {
-        int booting = app->app_state == APP_STATE_BOOTING;
+        int booting = RS_ClientPhase_Booting(&app->phase);
         /*
          * Drain it. The bound this replaces came in with 8f3028ede (2026-07-22)
          * under the note "once READY a small budget keeps frame pacing", and
@@ -607,8 +594,8 @@ App_PumpAsync(
         /* Cleared here and set below, so it describes THIS frame. The caller
          * uses it to decide whether to sleep: work still queued means the
          * frame cap would be pacing the pipeline rather than the screen. */
-        app->async_pending = 0;
-        int settling_cs2 = !booting && (app->frame_runner_had_work || app->frame_runner.frame_settle_pending);
+        BootPumpStats_PassBegin(&app->pump_stats);
+        int settling_cs2 = !booting && (TaskRunner_HadWork(&app->frame_runner) || app->frame_runner.frame_settle_pending);
 
         if( settling_cs2 )
         {
@@ -629,7 +616,7 @@ App_PumpAsync(
             {
                 steps++;
                 if( booting )
-                    app->boot_steps++;
+                    BootPumpStats_NoteBootSteps(&app->pump_stats, 1);
                 /* Paced after a background rebuild's commit, like the packets
                  * and scripts behind it (App_PacedDeadline; 0 otherwise): the
                  * loads a new scene asks for -- its music track's samples are
@@ -665,36 +652,23 @@ App_PumpAsync(
                 abort();
             }
         }
-        if( !from_frame )
-        {
-            /* A pump is not a frame: none of the per-frame counts below. */
-        }
-        else if( booting )
-        {
-            app->boot_frames++;
-            if( steps >= budget )
-                app->boot_frames_budget_capped++;
-        }
-        else if( !settling_cs2 && steps >= budget )
-        {
-            /* Post-boot frame that used its whole budget with work still
-             * queued: the frame queue is being drip-fed rather than run. */
-            app->busy_frames++;
-            app->busy_steps += steps;
-        }
+        /* A pump is not a frame; a boot frame counts, capped or not; a
+         * post-boot frame that used its whole budget with work still queued
+         * is the frame queue being drip-fed rather than run. */
+        BootPumpStats_NoteFrame(&app->pump_stats, from_frame, booting, settling_cs2, steps, budget);
 
         /* Anything left to do -- a budget that ran out, or a runner that is
          * simply not idle -- means the next frame should start immediately
          * instead of waiting out the cap. */
         if( stat != TASK_RUNNER_IDLE )
-            app->async_pending = 1;
+            BootPumpStats_SetPending(&app->pump_stats);
         if( settling_cs2 && stat != TASK_RUNNER_IDLE )
-            app->frame_runner_had_work = 1;
+            TaskRunner_SetHadWork(&app->frame_runner, 1);
         /* Tree-affecting async work (CS2 hooks/transmits) finished: refresh. */
         if( settling_cs2 && stat == TASK_RUNNER_IDLE )
         {
-            app->frame_runner_had_work = 0;
-            app->pending_tree_refresh = 1;
+            TaskRunner_SetHadWork(&app->frame_runner, 0);
+            UITreeRefresh_Raise(&app->tree_refresh);
         }
         result = stat;
     }
@@ -715,7 +689,7 @@ App_PumpAsync(
  *   in_view, absent               the pointer latch the pick was armed from
  *   fallback                      the off-map ground tile was used
  *   held                          frames a finger's tap waited for its pick
- *                                 (App.world_tap_pending); 0 = ran at once
+ *                                 (App.world_tap); 0 = ran at once
  */
 static void
 app_world_click_report(
@@ -732,7 +706,7 @@ app_world_click_report(
 
     assert(app);
     assert(mctx);
-    set = &app->frame_view->world_pickset;
+    set = &app->world_views.frame->world_pickset;
     for( int i = 0; i < set->count; i++ )
     {
         if( set->items[i].type == WORLD_PICK_TERRAIN )
@@ -756,24 +730,18 @@ app_world_click_report(
         set->mouse_valid,
         set->mouse_x,
         set->mouse_y,
-        app->frame_view->world_mouse_in_viewport ? 1 : 0,
-        app->frame_view->pointer_absent ? 1 : 0,
+        app->world_views.frame->world_mouse_in_viewport ? 1 : 0,
+        app->world_views.frame->pointer_absent ? 1 : 0,
         mctx->ground_fallback_valid ? 1 : 0,
         held_frames);
 }
-
-/* Frames a finger's world tap waits for a pick at its pixel before it runs on
- * whatever the set holds (App.world_tap_pending). One drawn frame is enough;
- * the rest covers a frame that built no world (a skipped draw) without holding
- * a tap visibly late. */
-#define APP_WORLD_TAP_WAIT_FRAMES 4
 
 /*
  * A left click over bare world (no UI component hit): run the default menu
  * entry from world rows only -- Walk here / nearest entity op (reference
  * chooseDefaultMenuEntry over the last rendered frame's pickset). Returns 1
  * when a clientscript ran. `held_frames` is how long a finger's tap waited for
- * the pick (App.world_tap_pending), 0 for every other click.
+ * the pick (App.world_tap), 0 for every other click.
  */
 static int
 app_world_left_click(
@@ -794,13 +762,13 @@ app_world_left_click(
         .chat = &app->chat_source,
         .events_for_component = app_minimenu_events_for_component,
         .events_user = app,
-        .player_ops = (char const(*)[40])app->player_ops,
-        .player_ops_primary = app->player_ops_primary,
-        .player_attack_option = app->player_attack_option,
-        .npc_attack_option = app->npc_attack_option,
-        .attack_option_model = app->features->attack_option_model,
+        .player_ops = (char const(*)[40])app->player_ops.text,
+        .player_ops_primary = app->player_ops.primary,
+        .player_attack_option = app->player_ops.player_attack_option,
+        .npc_attack_option = app->player_ops.npc_attack_option,
+        .attack_option_model = app->features.attack_option_model,
         .world = app->world,
-        .world_pickset = &app->frame_view->world_pickset,
+        .world_pickset = &app->world_views.frame->world_pickset,
         .click_in_world = true,
         /* Honour an armed "Use"/spell selection so a left-click on a world
          * target casts/uses (the TGT and USEHELD_ON rows) instead of
@@ -808,7 +776,7 @@ app_world_left_click(
          * on an NPC with a spell armed built the plain ops and defaulted to
          * Attack (walk-to-melee "run up"), while the right-click menu cast. */
         .selection = app_minimenu_selection(app),
-        .locedit_active = app->locedit.visible != 0,
+        .locedit_active = app->editor_shell->locedit.visible != 0,
         .mapedit_select_active = app_mapedit_select_active(app),
         .plugin_io_down = app_plugin_io_down(app) != 0,
         .wevs = &app->wevs,
@@ -819,7 +787,7 @@ app_world_left_click(
     int default_idx;
 
     UIMinimenu_Reset(&scratch);
-    scratch.font_id = app->frame_view->minimenu->font_id;
+    scratch.font_id = app->world_views.frame->minimenu->font_id;
     app_minimenu_ctx_ground_fallback(app, &mctx, x, y);
     app_sailing_menu_context(app, &mctx, x, y);
     RS_Minimenu_Build(&mctx, x, y, &scratch);
@@ -830,14 +798,14 @@ app_world_left_click(
     app_world_click_report(app, x, y, &mctx, held_frames);
     if( default_idx >= 0 )
     {
-        struct UIMinimenu saved = *app->frame_view->minimenu;
-        *app->frame_view->minimenu = scratch;
+        struct UIMinimenu saved = *app->world_views.frame->minimenu;
+        *app->world_views.frame->minimenu = scratch;
         if( app_minimenu_use_option(
                 app, default_idx, x, y) )
             ran_cs2 = 1;
-        *app->frame_view->minimenu = saved;
+        *app->world_views.frame->minimenu = saved;
     }
-    else if( app->objsel.active || app->targetsel.active )
+    else if( UITargetSelect_Armed(&app->target_select) )
     {
         /* A world click with a use/spell mode armed but no valid target:
          * "Walk here" is suppressed while armed (rs_minimenu_world.c), so
@@ -859,7 +827,7 @@ app_world_pick_answers(struct App const* app, int x, int y)
     struct World_PickSet const* set;
 
     assert(app);
-    set = &app->frame_view->world_pickset;
+    set = &app->world_views.frame->world_pickset;
     return set->mouse_valid && set->mouse_x == x && set->mouse_y == y;
 }
 
@@ -888,8 +856,8 @@ App_RunOnce(
         report_armed = 1;
         atexit(FrameStats_Report);
     }
-    app->rebuild_frames.marks = 0;
-    app->run_once_serial++;
+    RebuildFrameStats_ClearMarks(&app->rebuild_frames);
+    FrameClockSerial_NoteRunOnce(&app->frame_clock.serial);
     app_rebuild_mark(app, "start");
     result = app_run_once_body(app, now_ms, input);
     app_rebuild_mark(app, "body_rest");
@@ -933,19 +901,19 @@ app_run_once_body(
     /* The shell keeps this input frame intact when settlement returns before
      * interaction. Mark it consumed only after the stable-tree gate below; a
      * post-interaction async yield must not replay the same click. */
-    app->input_frame_consumed = 0;
+    ToriRS_InputClaimsBeginFrame(&app->input_claims);
 
     /* Park this frame's input where the plugin api can reach it: a handler
      * fires from inside the overlay and menu builds, far below the frame that
      * owns the pointer. Cleared at the end of the frame, so a plugin can never
      * read a stale one. */
-    app->plugin_input = input;
+    ToriRS_FrameModifiersParkInput(&app->frame_modifiers, input);
 
     /* Plugins before the built-in developer tools, for the same reason those
      * run first: a plugin panel's toggle has to latch during a boot, and
      * anything it changes has to be visible to this frame's emit rebuild. */
     app->overlays.batch_started = false;
-    PluginHost_FrameStart(app->plugins, now_ms, app->frames_rendered);
+    PluginHost_FrameStart(app->plugins, now_ms, FrameClockFps_Drawn(&app->frame_clock.fps));
     /* After the frame handlers, not before: a plugin that re-authors its
      * geometry from on_frame gets it on screen this frame rather than next. */
     app_plugin_geometry_settle(app);
@@ -1003,10 +971,10 @@ app_run_once_body(
     /* The developer chrome's clock: a hovered widget's tooltip shows after
      * TORIRS_CHROME_TOOLTIP_DELAY_MS of it (ui/ owns no clock). */
     uint64_t const t_ui = FrameStats_Now();
-    ToriRSChrome_Tick(&app->dbg_ui, (int64_t)now_ms);
+    ToriRSChrome_Tick(&app->dev_overlay->ui, (int64_t)now_ms);
     app_debug_overlay_tick(app, input);
     /* Right after the developer overlay, because it shares that instance: the
-     * tick above is what routed this frame's mouse into dbg_ui, and the
+     * tick above is what routed this frame's mouse into dev_overlay->ui, and the
      * picker's own drain has to run against the activation that produced. */
     app_settings_colour_tick(app);
     app_settings_number_tick(app);
@@ -1016,13 +984,13 @@ app_run_once_body(
      * click first. This one only takes activations it owns. */
     app_plugin_panel_tick(app, input);
     /* Loc editor next, same reasoning -- and it has to run before anything
-     * downstream reads input_frame_consumed for click-to-walk. */
+     * downstream reads the frame claim for click-to-walk. */
     app_loc_editor_tick(app, input);
     /* Who owns this frame's pointer, latched after the chrome ticks that may
      * have moved, opened or closed a panel and before anything else acts on
      * it -- so every consumer below answers the question the same way. */
-    app->chrome_pointer_owned =
-        app_chrome_wants_pointer(app, input->curr.mouse_x, input->curr.mouse_y);
+    ToriRS_InputClaimsLatchChromePointer(
+        &app->input_claims, app_chrome_wants_pointer(app, input->curr.mouse_x, input->curr.mouse_y));
     /* Map editor panel after the loc editor, for the same reason and in the
      * same order it is drawn: both read this frame's hover, and the map editor
      * acts on activations the overlay latched during the two calls above. */
@@ -1034,7 +1002,7 @@ app_run_once_body(
         /* The gesture frames before the editor's tick: the chrome's events
          * they queue (a picker zoom, a Preview orbit) drain in it. */
         app_map_editor_gestures(app, input);
-        Editor_PanelTick(&app->editor_panel, app);
+        Editor_PanelTick(&app->editor_shell->editor_panel, app);
         app_map_editor_world_click(app, input);
         {
             uint64_t const t_hover = FrameStats_Now();
@@ -1057,10 +1025,10 @@ app_run_once_body(
          * visible: a resized panel's bottom trailing its top. A build on a
          * frame where the tick changed nothing is a no-op (the dirty flag).
          */
-        if( ToriRSChrome_Build(&app->dbg_ui) )
+        if( ToriRSChrome_Build(&app->dev_overlay->ui) )
         {
-            app->need_redraw = 1;
-            ToriRSChrome_DamageClear(&app->dbg_ui);
+            RedrawRequest_Raise(&app->redraw_request);
+            ToriRSChrome_DamageClear(&app->dev_overlay->ui);
         }
     }
     FrameStats_Span(FRAME_STATS_EDITOR_UI, t_ui);
@@ -1074,7 +1042,7 @@ app_run_once_body(
      * it spends the frame draining what arrived while it was.
      */
     app_net_link_watch(app, now_ms);
-    app->last_frame_ms = now_ms;
+    FrameClockSerial_NoteFrameAt(&app->frame_clock.serial, now_ms);
     /* The monotonic clock the idle-time and trading-post age commands read. */
     app->host.client.now_ms = (int64_t)now_ms;
 
@@ -1092,24 +1060,24 @@ app_run_once_body(
      * bake settle still renders a loading screen, never the gameframe. */
     app_title_swap_if_pending(app);
 
-    if( app->app_state == APP_STATE_BOOTING )
+    if( RS_ClientPhase_Booting(&app->phase) )
     {
         /* Loading screen frame; no logic/interaction until the tree exists. */
-        app->last_logic_ms = now_ms;
+        FrameClockStep_Skip(&app->frame_clock.step, now_ms);
         /* Unless this bake has a frame worth keeping behind it: no commit, so
-         * the host presents the one it already has, and need_redraw stays set
-         * for the frame that finds the tree finished. @see
+         * the host presents the one it already has, and the redraw request stays
+         * raised for the frame that finds the tree finished. @see
          * App_BootHoldsLastFrame. */
         if( App_BootHoldsLastFrame(app) )
             return 0;
-        app->need_redraw = 0;
+        RedrawRequest_Clear(&app->redraw_request);
         return 1;
     }
 
     /* A browser/cache request can be the one legitimate pause in a CS2 visual
      * transaction.  Do not run input against the partially-mutated tree, and
      * do not rebuild the emit list from it. */
-    if( app->frame_runner_had_work )
+    if( TaskRunner_HadWork(&app->frame_runner) )
     {
         app_frame_latch_note(app, "frame_runner_had_work");
         return 0;
@@ -1121,9 +1089,8 @@ app_run_once_body(
     app_async_polls(app);
     app_rebuild_mark(app, "async_polls");
 
-    /* Logic ticks at 20ms with bounded catch-up after a stall. */
-    if( app->last_logic_ms == 0 )
-        app->last_logic_ms = now_ms;
+    /* Logic ticks at 20ms with bounded catch-up after a stall
+     * (FrameClockStep_Pay starts the clock on the first frame). */
     uint64_t const t_logic = FrameStats_Now();
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LOGIC)
     {
@@ -1148,26 +1115,9 @@ app_run_once_body(
          * below. Two clocks with different rounding and different clamps is
          * how an npc's legs get ahead of where its body actually is.
          */
-        uint64_t elapsed_ms = now_ms > app->last_logic_ms ? now_ms - app->last_logic_ms : 0;
-        int ticks = 0;
-
-        app->last_logic_ms = now_ms;
         /* One clamp, shared: a stall must cost the movers and the animations
          * the same amount of time, or they resume out of step. */
-        if( elapsed_ms > (uint64_t)APP_MAX_CATCHUP_TICKS * APP_LOGIC_TICK_MS )
-        {
-            elapsed_ms = (uint64_t)APP_MAX_CATCHUP_TICKS * APP_LOGIC_TICK_MS;
-            /* Dropped on the floor rather than owed: catching up a long stall
-             * at full speed is the lurch the bound exists to prevent. */
-            app->cycle_accum_ms = 0.0;
-        }
-        app->cycle_accum_ms += (double)elapsed_ms;
-        while( app->cycle_accum_ms >= (double)APP_LOGIC_TICK_MS && ticks < APP_MAX_CATCHUP_TICKS )
-        {
-            app->cycle_accum_ms -= (double)APP_LOGIC_TICK_MS;
-            ticks++;
-        }
-        app->logic_frame_ms = elapsed_ms;
+        int ticks = FrameClockStep_Pay(&app->frame_clock.step, now_ms, APP_LOGIC_TICK_MS, APP_MAX_CATCHUP_TICKS);
         /*
          * A bounded headless run ticks ONCE per frame, on the frame and not on
          * the wall clock.
@@ -1200,10 +1150,11 @@ app_run_once_body(
 
         if( App_FrameLocked() )
         {
-            ticks = cycles_per_frame + s_cycles_owed;
-            s_cycles_owed = 0;
-            app->cycle_accum_ms = 0.0;
-            app->logic_frame_ms = (uint64_t)ticks * APP_LOGIC_TICK_MS;
+            /* Plus the cycles a k > 1 frame was charged and did not run (the
+             * settle fence stopped it part way). Always 0 at k = 1, where the
+             * fence can only stop after the frame's one cycle. */
+            ticks = FrameClockStep_PayLocked(
+                &app->frame_clock.step, cycles_per_frame, APP_LOGIC_TICK_MS);
         }
         else if( cycles_per_frame != 1 )
         {
@@ -1234,25 +1185,26 @@ app_run_once_body(
          * animation.
          *
          * A marker exists to be looked at, so its clock is the clock of the
-         * frames it is looked at in. Advancing by logic_frame_ms (the same
+         * frames it is looked at in. Advancing by the frame's length (the same
          * clamped elapsed the movers are paid from, so a stall costs it the
          * same) plays the whole 400 ms across however many frames the device
          * manages, and guarantees at least one drawn frame per touch.
          */
         if( UIInk_IsActive(&app->ink) )
         {
-            UIInk_Tick(&app->ink, (int)app->logic_frame_ms);
-            app->need_redraw = 1;
+            UIInk_Tick(&app->ink, (int)FrameClockStep_FrameMs(&app->frame_clock.step));
+            RedrawRequest_Raise(&app->redraw_request);
         }
 
         /* The chosen minimenu row's afterimage: the same clock as the marker,
          * for the same reason -- it exists to be looked at. */
-        for( int view = 0; view < app->view_split.view_count; view++ )
+        for( int view = 0; view < app->world_views.split.view_count; view++ )
         {
-            if( UIMinimenu_AfterimageActive(app->views[view].minimenu) )
+            if( UIMinimenu_AfterimageActive(app->world_views.views[view].minimenu) )
             {
-                UIMinimenu_AfterimageTick(app->views[view].minimenu, (int)app->logic_frame_ms);
-                app->need_redraw = 1;
+                UIMinimenu_AfterimageTick(
+                    app->world_views.views[view].minimenu, (int)FrameClockStep_FrameMs(&app->frame_clock.step));
+                RedrawRequest_Raise(&app->redraw_request);
             }
         }
 
@@ -1264,7 +1216,7 @@ app_run_once_body(
                 TORIRS_PERF_SCOPE_CS2()
                 {
                     if( app_logic_tick(app) )
-                        app->need_redraw = 1;
+                        RedrawRequest_Raise(&app->redraw_request);
                 }
                 app_rebuild_mark(app, "tick");
 
@@ -1284,7 +1236,7 @@ app_run_once_body(
                     app_rebuild_mark(app, "tick_cs2run");
                     if( stat != TASK_RUNNER_IDLE )
                     {
-                        app->frame_runner_had_work = 1;
+                        TaskRunner_SetHadWork(&app->frame_runner, 1);
                         ticks = t + 1;
                         break;
                     }
@@ -1306,10 +1258,9 @@ app_run_once_body(
                 if( App_FrameLocked() )
                     /* The accumulator is emptied every frame on this path:
                      * owe the cycles to the next frame instead. */
-                    s_cycles_owed = ticks_paid - ticks;
+                    FrameClockStep_Owe(&app->frame_clock.step, ticks_paid - ticks);
                 else
-                    app->cycle_accum_ms +=
-                        (double)(ticks_paid - ticks) * (double)APP_LOGIC_TICK_MS;
+                    FrameClockStep_Refund(&app->frame_clock.step, ticks_paid - ticks, APP_LOGIC_TICK_MS);
             }
         }
         else
@@ -1325,7 +1276,8 @@ app_run_once_body(
          * was just given -- already clamped, and measured off the same clock.
          * They read the fraction where the logic reads whole cycles, which is
          * the only difference between the two that should exist. */
-        app_world_frame(app, ticks, (float)app->logic_frame_ms / (float)APP_LOGIC_TICK_MS);
+        app_world_frame(
+            app, ticks, (float)FrameClockStep_FrameMs(&app->frame_clock.step) / (float)APP_LOGIC_TICK_MS);
     }
     FrameStats_Span(FRAME_STATS_LOGIC, t_logic);
     app_rebuild_mark(app, "logic");
@@ -1342,7 +1294,7 @@ app_run_once_body(
          * that logged out. Leaving it unconsumed would hold it over (a press
          * still held survives a BOOTING frame by design) and replay it on the
          * login form that is about to appear. */
-        app->input_frame_consumed = 1;
+        ToriRS_InputClaimsTakeFrame(&app->input_claims);
         return 0;
     }
 
@@ -1357,13 +1309,15 @@ app_run_once_body(
      * must also enter this pipeline: a paused client has no next logic tick to
      * start it, so publish-only server responses otherwise wait forever. This
      * drains the existing serial protocol queue without advancing simulation. */
-    if( app->packet_runner_had_work || app->server_tick_open || RS_ClientScriptQueue_Count(&app->pending_clientscripts) > 0 ||
-        (app->net && app->net->packets_head) || App_WorldJobPending(app) )
+    struct SettleGateInput settle;
+
+    app_settle_gate_input(app, &settle);
+    if( SettleGate_PacketPumpWanted(&settle) )
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TICK_PACKETS)
         {
             if( app_pump_net_packets(app) )
-                app->need_redraw = 1;
+                RedrawRequest_Raise(&app->redraw_request);
         }
     }
     app_rebuild_mark(app, "pump");
@@ -1382,7 +1336,7 @@ app_run_once_body(
         }
         if( stat != TASK_RUNNER_IDLE )
         {
-            app->frame_runner_had_work = 1;
+            TaskRunner_SetHadWork(&app->frame_runner, 1);
             app_frame_latch_note(app, stat == TASK_RUNNER_BLOCKED ? "cs2_blocked" : "cs2_pending");
             return 0;
         }
@@ -1397,15 +1351,10 @@ app_run_once_body(
      * state packets from that tick.  Its accompanying IF_SETHIDE/IF_SETTEXT
      * packets may already have mutated the live tree; retain the prior frame
      * until the script has actually been dispatched and settled. */
-    if( !App_FrameSettled(app) )
+    app_settle_gate_input(app, &settle);
+    if( !SettleGate_FrameSettled(&settle) )
     {
-        app_frame_latch_note(
-            app,
-            app->frame_runner_had_work               ? "settled:frame_runner_had_work"
-            : app->frame_runner.frame_settle_pending ? "settled:frame_settle_pending"
-            : app->packet_runner_had_work        ? "settled:packet_runner_had_work"
-            : app->server_tick_open            ? "settled:server_tick_open"
-                                               : "settled:pending_clientscripts");
+        app_frame_latch_note(app, SettleGate_ReasonName(SettleGate_FrameUnsettledReason(&settle)));
         return 0;
     }
     /* Reconcile the gameframe only after the pre-interaction CS2 transaction
@@ -1417,19 +1366,19 @@ app_run_once_body(
     /* A popup retained from the previous frame must not keep native rows live
      * after that reconciliation suppressed or rebuilt their component. */
     app_minimenu_close_if_stale(app);
-    if( app->view_split.attached )
+    if( app->world_views.split.attached )
     {
-        app->frame_view = &app->views[APP_VIEW_PLAYER_CLIENT];
+        app->world_views.frame = &app->world_views.views[APP_VIEW_PLAYER_CLIENT];
         app_minimenu_close_if_stale(app);
-        app->frame_view = &app->views[APP_VIEW_RUNNER];
+        app->world_views.frame = &app->world_views.views[APP_VIEW_RUNNER];
     }
     app_frame_latch_note(app, NULL);
 
-    app->input_frame_consumed = 1;
+    ToriRS_InputClaimsTakeFrame(&app->input_claims);
     /* The runner camera split: a frame whose game input is the watcher's
      * (Interact on, or the plugin chrome) is handled through the
      * PlayerClient view -- its pickset, its menu -- until the camera keys. */
-    if( app->view_split.physical_frame )
+    if( app->world_views.split.physical_frame )
         App_ViewSplitBindPlayerClient(app, 1);
 
     /* Per-frame interaction: returns intents; the app applies event context
@@ -1443,12 +1392,13 @@ app_run_once_body(
     /* Reference keyHeld[5]: read inside tryMove, so it applies to ground,
      * minimap AND interaction clicks. Latched here because the minimenu action
      * path that runs the last two has no input handle. */
-    app->ctrl_held = LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL) ? 1 : 0;
+    ToriRS_FrameModifiersLatchCtrl(
+        &app->frame_modifiers, LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL));
 
     /* The cycle the widget timers just ran on. onMouseRepeat has to be paired
      * with them: the cache's mouseover container is torn down and rebuilt by a
      * per-cycle timer, and the repeat is what puts the tooltip back. */
-    app->interact.client_cycle = app->logic_cycle;
+    app->interact.client_cycle = FrameClockSerial_LogicCycle(&app->frame_clock.serial);
 
     app_rebuild_mark(app, "cs2_settle_plugins");
     uint64_t const t_interact = FrameStats_Now();
@@ -1461,7 +1411,7 @@ app_run_once_body(
             input,
             now_ms,
             0,
-            app->chrome_pointer_owned,
+            ToriRS_InputClaimsChromePointer(&app->input_claims),
             &out);
     }
     FrameStats_Span(FRAME_STATS_INTERACT, t_interact);
@@ -1472,13 +1422,13 @@ app_run_once_body(
      * itself runs inside App_Render (hittest right after each visible model
      * projects), so here we only latch the mouse point the next render picks
      * at; hover tile and pickset are the last rendered frame's (world frames
-     * always mark need_redraw, so at most one frame stale). */
+     * always raise the redraw request, so at most one frame stale). */
     app_update_world_viewport(app);
     /* A viewport that only appeared now (mounted interface, unhidden layer)
      * pulls the map in on first sight — the map is loaded iff the tree has a
      * world element, never eagerly. Networked boots wait for the server's
      * REBUILD_NORMAL instead (a default region load would race/clobber it). */
-    if( app->world_view_valid && !app->world_load_attempted && !app->net_enabled )
+    if( app->world_views.emit_valid && !WorldLoadState_Attempted(&app->world_load) && !App_NetEnabled(app) )
         app_world_load_begin(app, NULL, 0);
     /*
      * `mouse_pointer_absent` is the touch host saying the finger that WAS the
@@ -1489,7 +1439,7 @@ app_run_once_body(
      * tile of the last tap for as long as the client runs, and the world pick
      * keeps re-answering it every frame.
      */
-    if( app->view_split.attached )
+    if( app->world_views.split.attached )
     {
         /* Each view latches ITS pointer: the runner's from its own events,
          * the watcher's from the physical ones; hover text follows whichever
@@ -1500,22 +1450,23 @@ app_run_once_body(
     {
         /* A held world tap keeps the finger "present" where it landed until a
          * frame has picked there: the lift's leave would otherwise reset the
-         * set the tap is waiting on (App.world_tap_pending). */
-        int const tap_held = app->world_tap_pending.active;
-        int const pointer_x = tap_held ? app->world_tap_pending.x : input->curr.mouse_x;
-        int const pointer_y = tap_held ? app->world_tap_pending.y : input->curr.mouse_y;
+         * set the tap is waiting on (App.world_tap). */
+        int pointer_x;
+        int pointer_y;
+        int const tap_held = ToriRS_WorldTapPointer(
+            &app->world_tap, input->curr.mouse_x, input->curr.mouse_y, &pointer_x, &pointer_y);
 
-        app->frame_view->pointer_absent = input->mouse_pointer_absent && !tap_held;
-        app->frame_view->world_mouse_in_viewport =
-            !app->frame_view->pointer_absent && app_world_mouse_gate(app, pointer_x, pointer_y);
-        app->frame_view->world_mouse_x = pointer_x;
-        app->frame_view->world_mouse_y = pointer_y;
-        if( !app->frame_view->world_mouse_in_viewport )
+        app->world_views.frame->pointer_absent = input->mouse_pointer_absent && !tap_held;
+        app->world_views.frame->world_mouse_in_viewport =
+            !app->world_views.frame->pointer_absent && app_world_mouse_gate(app, pointer_x, pointer_y);
+        app->world_views.frame->world_mouse_x = pointer_x;
+        app->world_views.frame->world_mouse_y = pointer_y;
+        if( !app->world_views.frame->world_mouse_in_viewport )
         {
-            app->frame_view->world_hover_tile_x = -1;
-            app->frame_view->world_hover_tile_z = -1;
-            app->frame_view->world_hover_view = 0;
-            World_PickSetReset(&app->frame_view->world_pickset);
+            app->world_views.frame->world_hover_tile_x = -1;
+            app->world_views.frame->world_hover_tile_z = -1;
+            app->world_views.frame->world_hover_view = 0;
+            World_PickSetReset(&app->world_views.frame->world_pickset);
         }
 
         /* Mouseover text before any click handling: the reference recomputes it
@@ -1548,19 +1499,19 @@ app_run_once_body(
         /* Before the dispatch hides the popup: the afterimage is cut from the
          * popup's geometry. Only where the pointer is a finger -- a mouse has
          * the hover it watched turn yellow, and the reference shows nothing. */
-        if( app->touch_ui )
-            UIMinimenu_AfterimageShow(app->frame_view->minimenu, out.minimenu_select);
+        if( DeviceCaps_TouchUi(&app->device_caps) )
+            UIMinimenu_AfterimageShow(app->world_views.frame->minimenu, out.minimenu_select);
         if( app_minimenu_use_option(
                 app, out.minimenu_select, input->curr.mouse_x, input->curr.mouse_y) )
             ran_cs2 = 1;
     }
     if( out.right_click )
     {
-        /* The menu ctx reads app->frame_view->world_pickset — the set the last rendered
+        /* The menu ctx reads app->world_views.frame->world_pickset — the set the last rendered
          * frame hittested at the hover point (v1-style pickset-during-draw). */
         int click_in_world = app_world_mouse_gate(app, out.right_click_x, out.right_click_y);
         if( !click_in_world || !app_world_drawable(app) )
-            World_PickSetReset(&app->frame_view->world_pickset);
+            World_PickSetReset(&app->world_views.frame->world_pickset);
         app_minimenu_open(app, out.right_click_x, out.right_click_y, click_in_world);
     }
 
@@ -1624,13 +1575,13 @@ app_run_once_body(
         {
             RS_CS2_InputSetFocus(&app->host, &app->frame_runner, field);
             input_took_click = 1;
-            app->input_frame_consumed = 1;
-            app->need_redraw = 1;
+            ToriRS_InputClaimsTakeFrame(&app->input_claims);
+            RedrawRequest_Raise(&app->redraw_request);
         }
         else if( had_focus )
         {
             RS_CS2_InputSetFocus(&app->host, &app->frame_runner, -1);
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
         }
         if( field >= 0 || had_focus )
             RS_CS2_PumpTransmits(&app->host, &app->frame_runner);
@@ -1653,11 +1604,11 @@ app_run_once_body(
             .chat = &app->chat_source,
             .events_for_component = app_minimenu_events_for_component,
             .events_user = app,
-            .player_ops = (char const(*)[40])app->player_ops,
-            .player_ops_primary = app->player_ops_primary,
-            .player_attack_option = app->player_attack_option,
-            .npc_attack_option = app->npc_attack_option,
-            .attack_option_model = app->features->attack_option_model,
+            .player_ops = (char const(*)[40])app->player_ops.text,
+            .player_ops_primary = app->player_ops.primary,
+            .player_attack_option = app->player_ops.player_attack_option,
+            .npc_attack_option = app->player_ops.npc_attack_option,
+            .attack_option_model = app->features.attack_option_model,
             .world = app->world,
             .world_pickset = NULL, /* UI hit: mouse was over a component */
             .click_in_world = false,
@@ -1665,7 +1616,7 @@ app_run_once_body(
              * row matches the right-click menu (reference doAction runs the
              * same chooseDefaultMenuEntry over the useMode/targetMode menu). */
             .selection = app_minimenu_selection(app),
-            .locedit_active = app->locedit.visible != 0,
+            .locedit_active = app->editor_shell->locedit.visible != 0,
             .mapedit_select_active = app_mapedit_select_active(app),
             .plugin_io_down = app_plugin_io_down(app) != 0,
             .wevs = &app->wevs,
@@ -1676,7 +1627,7 @@ app_run_once_body(
         int default_idx;
 
         UIMinimenu_Reset(&scratch);
-        scratch.font_id = app->frame_view->minimenu->font_id;
+        scratch.font_id = app->world_views.frame->minimenu->font_id;
         app_sailing_menu_context(app, &mctx, out.clicked_x, out.clicked_y);
         RS_Minimenu_Build(&mctx, out.clicked_x, out.clicked_y, &scratch);
         app_minimenu_apply_modes(app, &scratch, 0);
@@ -1713,11 +1664,11 @@ app_run_once_body(
         if( default_idx >= 0 )
         {
             /* Steal the row set: use_option consumes interact.minimenu. */
-            struct UIMinimenu saved = *app->frame_view->minimenu;
-            *app->frame_view->minimenu = scratch;
+            struct UIMinimenu saved = *app->world_views.frame->minimenu;
+            *app->world_views.frame->minimenu = scratch;
             if( app_minimenu_use_option(app, default_idx, out.clicked_x, out.clicked_y) )
                 ran_cs2 = 1;
-            *app->frame_view->minimenu = saved;
+            *app->world_views.frame->minimenu = saved;
 
             /* Drop the legacy click intent so the hook does not run twice;
              * hover/wheel/hold intents pass through untouched. Clicks carry
@@ -1736,7 +1687,7 @@ app_run_once_body(
                 out.intent_count = kept;
             }
         }
-        else if( app->objsel.active || app->targetsel.active )
+        else if( UITargetSelect_Armed(&app->target_select) )
         {
             /* The click landed on a component that offers no menu row (an empty
              * inventory slot, sidebar chrome — the general hit test resolves
@@ -1765,7 +1716,7 @@ app_run_once_body(
                 ? app_world_mouse_gate(app, out.left_click_miss_x, out.left_click_miss_y)
                 : -1,
             app_world_drawable(app),
-            app->frame_view->world_pickset.count);
+            app->world_views.frame->world_pickset.count);
     {
         int const world_click =
             app->inv_drag.component_id < 0 && out.left_click_miss && !out.minimenu_closed &&
@@ -1775,45 +1726,39 @@ app_run_once_body(
 
         if( world_click )
         {
-            /* A new click replaces a held one: the finger has moved on. */
-            app->world_tap_pending.active = 0;
-            /* A finger's tap the pick has not reached yet waits for it
-             * (App.world_tap_pending). A mouse never does: it hovered its
+            /* A new click replaces a held one: the finger has moved on. A
+             * finger's tap the pick has not reached yet waits for it
+             * (App.world_tap). A mouse never does: it hovered its
              * click's pixel for frames, and the reference clicks on the last
              * frame's set whatever it holds. */
-            if( input->last_touch &&
-                !app_world_pick_answers(app, out.left_click_miss_x, out.left_click_miss_y) )
-            {
-                app->world_tap_pending.active = 1;
-                app->world_tap_pending.x = out.left_click_miss_x;
-                app->world_tap_pending.y = out.left_click_miss_y;
-                app->world_tap_pending.frames = 0;
-                app->need_redraw = 1;
-            }
+            if( ToriRS_WorldTapClick(
+                    &app->world_tap,
+                    out.left_click_miss_x,
+                    out.left_click_miss_y,
+                    input->last_touch,
+                    app_world_pick_answers(app, out.left_click_miss_x, out.left_click_miss_y)) )
+                RedrawRequest_Raise(&app->redraw_request);
             else if( app_world_left_click(app, out.left_click_miss_x, out.left_click_miss_y, 0) )
                 ran_cs2 = 1;
         }
-        else if( app->world_tap_pending.active )
+        else if( ToriRS_WorldTapHeld(&app->world_tap) )
         {
-            int const tap_x = app->world_tap_pending.x;
-            int const tap_y = app->world_tap_pending.y;
+            int const tap_x = ToriRS_WorldTapX(&app->world_tap);
+            int const tap_y = ToriRS_WorldTapY(&app->world_tap);
 
-            app->world_tap_pending.frames++;
-            if( app_world_pick_answers(app, tap_x, tap_y) ||
-                app->world_tap_pending.frames >= APP_WORLD_TAP_WAIT_FRAMES )
+            if( ToriRS_WorldTapStep(&app->world_tap, app_world_pick_answers(app, tap_x, tap_y)) )
             {
-                app->world_tap_pending.active = 0;
                 /* Still a click the world takes: a menu or a drag that began
                  * since, or the viewport gone, drops it as it would a fresh
                  * one. */
                 if( app->inv_drag.component_id < 0 && !out.minimenu_closed &&
                     out.minimenu_select < 0 && app_world_mouse_gate(app, tap_x, tap_y) &&
                     app_world_drawable(app) &&
-                    app_world_left_click(app, tap_x, tap_y, app->world_tap_pending.frames) )
+                    app_world_left_click(app, tap_x, tap_y, ToriRS_WorldTapFrames(&app->world_tap)) )
                     ran_cs2 = 1;
             }
             else
-                app->need_redraw = 1;
+                RedrawRequest_Raise(&app->redraw_request);
         }
     }
 
@@ -1826,18 +1771,16 @@ app_run_once_body(
      * and its white outline. (A world miss with a default row is consumed above
      * and already cleared; a filled slot is owned by the drag machine.) */
     if( app->inv_drag.component_id < 0 && out.left_click_miss && !out.minimenu_closed &&
-        out.minimenu_select < 0 && (app->objsel.active || app->targetsel.active) &&
+        out.minimenu_select < 0 && UITargetSelect_Armed(&app->target_select) &&
         !(app_world_mouse_gate(app, out.left_click_miss_x, out.left_click_miss_y) &&
           app_world_drawable(app)) )
     {
         app_selection_clear(app);
     }
 
-    app->hover_com_id = out.hover_com_id;
-    if( out.clicked_com_id >= 0 )
-        app->clicked_com_id = out.clicked_com_id;
+    UIInteraction_Publish(&app->interact, &out);
     if( out.need_redraw )
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
 
     /* Inventory slot machine owns the press (reference freezes mouseLoop while
      * objDragArea != 0). InteractFrame still emits a deferred-click on_op
@@ -2062,7 +2005,7 @@ app_run_once_body(
         {
             RS_CS2_PumpTransmits(&app->host, &app->frame_runner);
             ran_cs2 = 1;
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
         }
     }
 
@@ -2192,7 +2135,7 @@ app_run_once_body(
      * keys and the hotkey passes further down would happily act on a keystroke
      * meant for a password.
      */
-    title_captures_keys = app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING;
+    title_captures_keys = RS_ClientPhase_OnTitle(&app->phase);
     if( title_captures_keys )
     {
         for( int e = 0; e < input->key_event_count; e++ )
@@ -2203,10 +2146,12 @@ app_run_once_body(
         }
     }
 
-    if( !title_captures_keys && app_chat_node_index(app) >= 0 && !app->locedit.visible )
+    if( !title_captures_keys && app_chat_node_index(app) >= 0 &&
+        !app->editor_shell->locedit.visible )
     {
         int chat_captures =
-            app->chat_input_active || app->chat.social_input_open || app->chat.dialog_input_open;
+            UIChatLine_InputActive(&app->chat_line) || app->chat.social_input_open ||
+            app->chat.dialog_input_open;
 
         /* Straight from the input queue: out.key_events only fills when some
          * component carries an onKey hook, but chat typing must work without
@@ -2223,7 +2168,7 @@ app_run_once_body(
             if( input->key_events[e].key_typed == TORIRS_OSRSKEY_ESCAPE )
             {
                 app->host.close_modal_requested = true;
-                app->need_redraw = 1;
+                RedrawRequest_Raise(&app->redraw_request);
                 continue;
             }
             /* A suppressed frame is one whose keys were focus commands (the
@@ -2253,7 +2198,7 @@ app_run_once_body(
                     input->key_events[e].key_typed,
                     input->key_events[e].key_pressed) )
             {
-                app->need_redraw = 1;
+                RedrawRequest_Raise(&app->redraw_request);
 
                 /* Count/amount dialog submitted (was open, now closed). */
                 if( was_dialog && !app->chat.dialog_input_open && dialog_copy[0] )
@@ -2407,20 +2352,17 @@ app_run_once_body(
                 app_chat_region(app, &rx, &ry, &rh, NULL) )
             {
                 struct RS_ChatFilters filters = app_chat_filters(app);
-                app->chat_scroll_cycle++;
-                if( RS_Chat_ScrollbarInput(
+                if( RS_Chat_ScrollbarHeld(
                         &app->chat,
                         &filters,
                         rh,
                         input->curr.mouse_x - rx,
-                        input->curr.mouse_y - ry,
-                        app->chat_scroll_cycle) )
-                    app->need_redraw = 1;
+                        input->curr.mouse_y - ry) )
+                    RedrawRequest_Raise(&app->redraw_request);
             }
             else
             {
-                app->chat_scroll_cycle = 0;
-                app->chat.scroll_grabbed = 0;
+                RS_Chat_ScrollbarRelease(&app->chat);
             }
         }
 
@@ -2443,7 +2385,7 @@ app_run_once_body(
                     {
                         struct RS_ChatFilters filters = app_chat_filters(app);
                         RS_Chat_Scroll(&app->chat, &filters, rh, input->curr.mouse_wheel_y);
-                        app->need_redraw = 1;
+                        RedrawRequest_Raise(&app->redraw_request);
                     }
                 }
             }
@@ -2462,27 +2404,27 @@ app_run_once_body(
      * loop had to have the frame's Enter first. Dead at a cache revision,
      * where there is no client-owned focus and `chat_submit_pending` is never
      * raised -- the chatbox's own onKey script owns submitting there. */
-    if( chat_submit_pending && app->chat_input_active )
+    if( chat_submit_pending && UIChatLine_InputActive(&app->chat_line) )
     {
-        app->chat_input_active = 0;
-        app->need_redraw = 1;
+        UIChatLine_SetInputActive(&app->chat_line, 0);
+        RedrawRequest_Raise(&app->redraw_request);
     }
 
     /* Every one of these reads the same key queue the login form just drained;
      * none of them has anything to act on before a world exists. */
-    if( app->view_split.menu_bound_to_player_client )
+    if( app->world_views.split.menu_bound_to_player_client )
         App_ViewSplitBindPlayerClient(app, 0);
     if( !title_captures_keys )
     {
-        if( app->view_split.attached )
+        if( app->world_views.split.attached )
         {
             /* The camera keys, middle button and wheel are the WATCHER's:
              * they steer the PlayerClient view from the physical events
              * alone. The runner turns its camera through its verbs. */
-            app->frame_view = &app->views[APP_VIEW_PLAYER_CLIENT];
-            app_world_camera_keys(app, &app->view_split.physical_input, &out);
-            app_world_camera_mouse(app, &app->view_split.physical_input, &out);
-            app->frame_view = &app->views[APP_VIEW_RUNNER];
+            app->world_views.frame = &app->world_views.views[APP_VIEW_PLAYER_CLIENT];
+            app_world_camera_keys(app, &app->world_views.split.physical_input, &out);
+            app_world_camera_mouse(app, &app->world_views.split.physical_input, &out);
+            app->world_views.frame = &app->world_views.views[APP_VIEW_RUNNER];
         }
         else
         {
@@ -2498,15 +2440,11 @@ app_run_once_body(
     }
 
     /* Idle timer (reference IDLE_TIMER after ~90s of no input). */
-    if( input->key_event_count > 0 || input->curr.mouse_button_down[TORIRSM_LEFT] ||
-        input->curr.mouse_button_down[TORIRSM_RIGHT] )
+    if( FrameClockIdle_Note(
+            &app->frame_clock.idle,
+            input->key_event_count > 0 || input->curr.mouse_button_down[TORIRSM_LEFT] ||
+                input->curr.mouse_button_down[TORIRSM_RIGHT]) )
     {
-        app->idle_frames = 0;
-        app->idle_timer_sent = 0;
-    }
-    else if( ++app->idle_frames > 4500 && !app->idle_timer_sent )
-    {
-        app->idle_timer_sent = 1;
         APP_NET_SEND(
             app, net_out_idle_timer(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf)));
     }
@@ -2528,7 +2466,7 @@ app_run_once_body(
             }
             if( stat != TASK_RUNNER_IDLE )
             {
-                app->frame_runner_had_work = 1;
+                TaskRunner_SetHadWork(&app->frame_runner, 1);
                 return 0;
             }
             /* Press-time track onclick → cc_dragpickup stages pending during
@@ -2583,7 +2521,7 @@ app_run_once_body(
                     TaskRunner_Drain(&drag_runner);
                     ToriRS_TaskQueue_Free(drag_queue);
                     if( pickup_out.need_redraw )
-                        app->need_redraw = 1;
+                        RedrawRequest_Raise(&app->redraw_request);
                 }
             }
             /* cc_dragpickup's hook can itself raise resize/trigger/transmit
@@ -2591,7 +2529,7 @@ app_run_once_body(
             stat = app_settle_cs2_frame(app);
             if( stat != TASK_RUNNER_IDLE )
             {
-                app->frame_runner_had_work = 1;
+                TaskRunner_SetHadWork(&app->frame_runner, 1);
                 return 0;
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LAYOUT)
@@ -2606,12 +2544,12 @@ app_run_once_body(
     if( !App_FrameSettled(app) )
         return 0;
 
-    if( app->need_redraw )
+    if( RedrawRequest_Pending(&app->redraw_request) )
     {
         /* The emit walk builds what is PRESENTED: its overlays, compass,
          * minimap and menu read the presented view (the watcher's while a
          * script is attached; the only view otherwise). */
-        app->frame_view = App_PresentedView(app);
+        app->world_views.frame = App_PresentedView(app);
         /* Mounts/bakes bump tree->generation; server texts that landed while
          * the target interface was unmounted re-apply onto the fresh nodes
          * (reference: IF_SETTEXT persists on IfType.list). */
@@ -2687,21 +2625,21 @@ app_run_once_body(
         { uint64_t const pa_w0 = PerfAudit_Now(); App_PluginLayoutTick(app);
       PA_ADD(layout_tick_ns, PerfAudit_Now() - pa_w0); }
         app_minimenu_close_if_stale(app);
-        if( app->view_split.attached )
+        if( app->world_views.split.attached )
         {
-            app->frame_view = App_RunnerView(app);
+            app->world_views.frame = App_RunnerView(app);
             app_minimenu_close_if_stale(app);
-            app->frame_view = App_PresentedView(app);
+            app->world_views.frame = App_PresentedView(app);
         }
         /* Publication invariant: an emit list is a frame commit, not a view of
          * whatever intermediate state the cooperative schedulers reached. */
         assert(App_FrameSettled(app));
         /* A replay seek holds the screen (App_RenderSkipHold): no frame it
          * runs is drawn, so the overlay layout and the emit walk that build
-         * one wait, need_redraw still set, for the frame that releases it. */
-        if( app->render_skip.hold )
+         * one wait, the redraw request still raised, for the frame that releases it. */
+        if( RenderSkip_Held(&app->render_skip) )
         {
-            app->frame_view = App_RunnerView(app);
+            app->world_views.frame = App_RunnerView(app);
             return 0;
         }
 #if defined(TORIRS_UI_EMIT_PMU)
@@ -2712,7 +2650,7 @@ app_run_once_body(
         int overlay_motion_ready = 0;
         if( !app->plugins && !UIInk_IsActive(&app->ink) )
             (void)UITree_EmitOverlayMotionBegin(
-                app->tree, &app->ui_host, &app->emit, app->hover_com_id, &app->emit_gate);
+                app->tree, &app->ui_host, &app->emit, app->interact.published_hover_com_id, &app->emit_gate);
         app_entity_overlay_layout(app);
         overlay_motion_ready =
             UITree_EmitOverlayMotionEnd(app->tree, &app->emit_gate, &overlay_motion_gate);
@@ -2740,7 +2678,7 @@ app_run_once_body(
          * downstream reads it as "THIS frame retained", and a flag that only
          * ever latches true would make every later frame claim a retention it
          * did not get. */
-        app->ui_retained_frame = 0;
+        UITree_EmitRetainGateSetRetained(&app->emit_gate, 0);
         {
             /* Three terms, not two. `dirty_gen` covers writes that claim to
              * change what a node draws; it does NOT cover layout re-resolving,
@@ -2755,7 +2693,7 @@ app_run_once_body(
              * the frame between UITree_LayoutInvalidate and EmitWalk's
              * UITree_EnsureLayout. */
             gate_quiet = UITree_EmitRetainGateQuiet(
-                app->tree, &app->ui_host, &app->emit, app->hover_com_id, &app->emit_gate);
+                app->tree, &app->ui_host, &app->emit, app->interact.published_hover_com_id, &app->emit_gate);
             /*
              * A running touch marker is never a quiet frame.
              *
@@ -2799,7 +2737,7 @@ app_run_once_body(
                     layout += app->tree->layout_stale || app->tree->layout_force_full ||
                               app->tree->layout_resolve_seq != app->emit_gate.layout_resolve_seq;
                     topology += app->tree->generation != app->emit_gate.tree_generation;
-                    hover += app->hover_com_id != app->emit_gate.hovered_component_id;
+                    hover += app->interact.published_hover_com_id != app->emit_gate.hovered_component_id;
                     host += !UITree_EmitBufferHostInputsCurrent(&app->emit, &app->ui_host);
                     unrefreshable += app->emit.volatile_unrefreshable != 0;
                     ink += UIInk_IsActive(&app->ink) != 0;
@@ -2835,7 +2773,7 @@ app_run_once_body(
              * actually failing instead of assuming it is the tree one. */
             if( app->emit_gate.primed && app->tree->dirty_gen == app->emit_gate.dirty_gen )
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GATE_TREE_QUIET, 1);
-            if( app->emit_gate.primed && app->hover_com_id == app->emit_gate.hovered_component_id )
+            if( app->emit_gate.primed && app->interact.published_hover_com_id == app->emit_gate.hovered_component_id )
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GATE_HOVER_QUIET, 1);
             if( app->emit_gate.primed )
                 TORIRS_PERF_COUNT(
@@ -2881,18 +2819,18 @@ app_run_once_body(
                     app->tree,
                     &app->ui_host,
                     &app->emit,
-                    &app->hover_com_id,
+                    &app->interact.published_hover_com_id,
                     &overlay_motion_gate) )
             {
 #if defined(TORIRS_UI_EMIT_PMU)
                 overlay_motion_reused = 1;
 #endif
-                /* Moving overlays repaint; keep ui_retained_frame false so
+                /* Moving overlays repaint; keep the retained flag false so
                  * damage presentation never treats their pixels as stable. */
 #if defined(TORIRS_OVERLAY_RETAIN_VERIFY)
                 struct UITreeEmitBuffer reference;
                 UITree_EmitBufferInit(&reference);
-                UITree_EmitWalk(app->tree, &app->ui_host, &reference, app->hover_com_id);
+                UITree_EmitWalk(app->tree, &app->ui_host, &reference, app->interact.published_hover_com_id);
                 if( reference.count != app->emit.count ||
                     memcmp(
                         reference.cmds,
@@ -2915,14 +2853,14 @@ app_run_once_body(
             else if( retain )
             {
                 int reusable = UITree_EmitRetainGateRefreshVolatile(
-                    app->tree, &app->ui_host, &app->emit, &app->hover_com_id, &app->emit_gate);
+                    app->tree, &app->ui_host, &app->emit, &app->interact.published_hover_com_id, &app->emit_gate);
                 if( reusable )
                 {
                     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_RETAINED, 1);
                     /* The command list is the one already on screen, so the
                      * chrome pixels are unchanged and only the live regions
                      * need presenting. See App_PresentDamage. */
-                    app->ui_retained_frame = 1;
+                    UITree_EmitRetainGateSetRetained(&app->emit_gate, 1);
                 }
                 else
                 {
@@ -2933,7 +2871,7 @@ app_run_once_body(
                     app->emit.count = 0;
                     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_EMIT)
                     {
-                        UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, app->hover_com_id);
+                        UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, app->interact.published_hover_com_id);
                     }
                 }
             }
@@ -2942,7 +2880,7 @@ app_run_once_body(
                 app->emit.count = 0;
                 TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_EMIT)
                 {
-                    UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, app->hover_com_id);
+                    UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, app->interact.published_hover_com_id);
                 }
             }
         }
@@ -2950,7 +2888,7 @@ app_run_once_body(
          * the full walk. A host callback or EnsureLayout inside those paths may
          * advance an input/tree epoch; capturing before publication would make
          * the next frame conservatively rebuild despite a settled result. */
-        UITree_EmitRetainGateCapture(app->tree, &app->emit, app->hover_com_id, &app->emit_gate);
+        UITree_EmitRetainGateCapture(app->tree, &app->emit, app->interact.published_hover_com_id, &app->emit_gate);
 #if defined(TORIRS_UI_EMIT_PMU)
         ui_emit_pmu_end(overlay_motion_reused, (unsigned)app->emit.count);
 #endif
@@ -3052,11 +2990,11 @@ app_run_once_body(
         }
         /* Keep painting while a server-driven rebuild is in flight so the
          * loading overlay refreshes (and picks up p12 once FontLoad lands). */
-        if( app->world_load_server_driven && app->world_load_inflight )
-            app->need_redraw = 1;
+        if( WorldLoadState_ServerLoadBlanking(&app->world_load) )
+            RedrawRequest_Raise(&app->redraw_request);
         else
-            app->need_redraw = 0;
-        app->frame_view = App_RunnerView(app);
+            RedrawRequest_Clear(&app->redraw_request);
+        app->world_views.frame = App_RunnerView(app);
         return 1;
     }
     return 0;

@@ -570,7 +570,7 @@ app_varp_refresh_view_loc_transforms(
     assert(app->provider);
     assert(varp_id >= 0);
     assert(WorldviewRegistry_IsLive(&app->worldviews, view));
-    previous_view = app->active_world;
+    previous_view = WorldviewRegistry_Active(&app->worldviews);
     {
         struct World* world = WorldviewRegistry_Get(&app->worldviews, view)->world;
         if( !world || !world->load_complete )
@@ -757,7 +757,7 @@ app_varp_refresh_view_loc_transforms(
              * to other links now. List them again on the next change. */
             index->state = 0;
         }
-        app->active_world = view;
+        WorldviewRegistry_SetActive(&app->worldviews, view);
         for( int i = 0; i < n; ++i )
             App_WorldLocChangeOps(
                 app,
@@ -769,7 +769,7 @@ app_varp_refresh_view_loc_transforms(
                 pending[i].angle,
                 pending[i].op_flags,
                 pending[i].ops);
-        app->active_world = previous_view;
+        WorldviewRegistry_SetActive(&app->worldviews, previous_view);
         return n;
     }
 }
@@ -817,7 +817,7 @@ app_varp_change(
     struct App* app = (struct App*)userdata;
 
     UITree_HostInputsChanged(&app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CLIENT_STATE));
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
     app_varp_refresh_loc_transforms(app, varp_id);
     app_varp_refresh_npc_transforms(app, varp_id);
     /* Modern audio slider clicks call GAMEOPTION/DEVICEOPTION directly, while
@@ -882,14 +882,16 @@ app_varp_server_update(
             &app->audio, VarPManager_GetVarp(&app->varps, varp_id), &app->audio_out);
         break;
     case RS_ATTACK_OPTION_CLIENTCODE_PLAYER:
-        if( app->features->attack_option_model == TORIRS_ATTACK_OPTION_MODEL_SETTINGS )
-            app->player_attack_option =
-                RS_AttackOption_FromVarp(VarPManager_GetVarp(&app->varps, varp_id));
+        if( app->features.attack_option_model == TORIRS_ATTACK_OPTION_MODEL_SETTINGS )
+            RS_PlayerOps_SetPlayerAttackOption(
+                &app->player_ops,
+                RS_AttackOption_FromVarp(VarPManager_GetVarp(&app->varps, varp_id)));
         break;
     case RS_ATTACK_OPTION_CLIENTCODE_NPC:
-        if( app->features->attack_option_model == TORIRS_ATTACK_OPTION_MODEL_SETTINGS )
-            app->npc_attack_option =
-                RS_AttackOption_FromVarp(VarPManager_GetVarp(&app->varps, varp_id));
+        if( app->features.attack_option_model == TORIRS_ATTACK_OPTION_MODEL_SETTINGS )
+            RS_PlayerOps_SetNpcAttackOption(
+                &app->player_ops,
+                RS_AttackOption_FromVarp(VarPManager_GetVarp(&app->varps, varp_id)));
         break;
     default:
         break;

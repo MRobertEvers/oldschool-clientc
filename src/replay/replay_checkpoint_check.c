@@ -186,9 +186,9 @@ ReplayCheckpointCheck_Frame(
         ReplayDigest_Take(app, &g_check.digest_b);
         g_check.b = ReplayCheckpoint_Take(app);
         g_check.clock_b = app->host.client_clock;
-        g_check.yaw_b = app->views[0].orbit.yaw;
-        g_check.pitch_b = app->views[0].orbit.pitch;
-        g_check.zoom_b = app->views[0].world_cam_zoom;
+        g_check.yaw_b = app->world_views.views[0].orbit.yaw;
+        g_check.pitch_b = app->world_views.views[0].orbit.pitch;
+        g_check.zoom_b = app->world_views.views[0].world_cam_zoom;
         g_check.coord_b = app->host.local_coord;
         /* Back to K through the scrubber's own restore: the checkpoint put
          * back, the world keyframed at K by the ledger, every packet of the N
@@ -223,8 +223,8 @@ ReplayCheckpointCheck_Frame(
         ckpt_check_digests(&g_check.digest_b, &digest_b2);
         TORIRS_REPORT("replay: checkpoint check view: yaw %d pitch %d zoom %d coord %d at B, yaw %d pitch %d zoom "
                       "%d coord %d at B2\n",
-                      g_check.yaw_b, g_check.pitch_b, g_check.zoom_b, g_check.coord_b, app->views[0].orbit.yaw,
-                      app->views[0].orbit.pitch, app->views[0].world_cam_zoom, app->host.local_coord);
+                      g_check.yaw_b, g_check.pitch_b, g_check.zoom_b, g_check.coord_b, app->world_views.views[0].orbit.yaw,
+                      app->world_views.views[0].orbit.pitch, app->world_views.views[0].world_cam_zoom, app->host.local_coord);
         ReplayCheckpoint_Free(b2);
         {
             /* TORIRS_REPLAY_CHECKPOINT_NODE=i: what node i of the live tree is,

@@ -55,3 +55,20 @@ RS_ClientTriggerScriptFor(
         id = lookup(user, RS_ClientTriggerNameHash(RS_ClientTriggerHashGlobal(trigger)));
     return id;
 }
+
+void
+RS_ClientTriggerRefire_Raise(struct RS_ClientTriggerRefire* refire)
+{
+    assert(refire);
+    refire->pending = 1;
+}
+
+bool
+RS_ClientTriggerRefire_Take(struct RS_ClientTriggerRefire* refire)
+{
+    assert(refire);
+    if( !refire->pending )
+        return false;
+    refire->pending = 0;
+    return true;
+}

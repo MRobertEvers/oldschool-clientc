@@ -1387,7 +1387,7 @@ struct RS_CS2Host
     int minimap_zoom;
 
     /** Set by LOGOUT (5630) — the modern logout button's script. Drained by the
-     *  App's tick, which defers it one more step onto App::logout_requested so
+     *  App's tick, which defers it one more step onto App::session_end so
      *  the request lands behind the packets this tick has already queued. The
      *  session then ends when the server answers it, not here. */
     bool logout_requested;
@@ -1510,7 +1510,7 @@ struct RS_CS2Host
     int safe_area_window_h;
 
     /** Backing SIDEBAR_CLEARWIDTH. There is no setter opcode and no live link yet from
-     *  this host to the render-side camera (app->frame_view->world_camera.yaw, reached via
+     *  this host to the render-side camera (app->world_views.frame->world_camera.yaw, reached via
      *  the separate UITree host bus RS_CS2Host cannot see) — 0 (facing north)
      *  until something wires the real value in. */
     int cam_yaw;

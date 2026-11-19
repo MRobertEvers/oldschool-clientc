@@ -24,9 +24,13 @@
  *     SCRATCHPAD full, not a budget blown: it stops, and the rest come back
  *     next tick. Promoting there would restart the walk that is already
  *     running.
+ *
+ * Beside it, RS_GroundItemsSettings decides when a settings change asks for
+ * the whole-scene walk.
  */
 
 #include <stdbool.h>
+#include <stdint.h>
 
 /**
  * Tiles the driver can queue in one logic tick before it gives up and rebuilds
@@ -87,5 +91,68 @@ RS_GroundItemsDirty_TakeRefreshAll(struct RS_GroundItemsDirty* dirty);
 /** Forget every queued tile. The tick does this once it has fired them. */
 void
 RS_GroundItemsDirty_Clear(struct RS_GroundItemsDirty* dirty);
+
+/**
+ * Whether the ground-items settings have changed, which is a whole-scene
+ * refresh.
+ *
+ * Two kinds of input are watched, two of each. The CARRIER VARPS hold the
+ * overlay's own toggles; the caller resolves each from its revconfig varbit
+ * once the varbit table is loaded, and the first value a carrier comes up with
+ * is a seed, not a change -- reporting it would rebuild every overlay on the
+ * first tick after the table lands. The AUX REVISIONS are the revision counters
+ * of the Ignore and Highlight lists, which start at 0.
+ *
+ * This does not know the varps, the varbit table or the lists. The caller
+ * resolves the carriers, reads their values and the revisions, and asks for
+ * the whole-scene walk when one has changed.
+ */
+#define RS_GROUND_ITEMS_SETTINGS_WATCHED 2
+
+struct RS_GroundItemsSettings
+{
+    /** The carrier varp per watched varbit, -1 until resolved. */
+    int varp[RS_GROUND_ITEMS_SETTINGS_WATCHED];
+    /** The value last seen in each carrier. */
+    int seen[RS_GROUND_ITEMS_SETTINGS_WATCHED];
+    /** The revision last seen of each aux list. */
+    uint64_t aux_seen[RS_GROUND_ITEMS_SETTINGS_WATCHED];
+};
+
+/** No carrier resolved, nothing seen. */
+void
+RS_GroundItemsSettings_Reset(struct RS_GroundItemsSettings* settings);
+
+/** The carrier varp of watched slot `i`, or a negative id while unresolved. */
+int
+RS_GroundItemsSettings_Varp(
+    struct RS_GroundItemsSettings const* settings,
+    int i);
+
+/**
+ * Slot `i`'s carrier is `varp` and its value now is `value`. Seeds the value:
+ * the next change is measured from it, and this is not one.
+ */
+void
+RS_GroundItemsSettings_Resolve(
+    struct RS_GroundItemsSettings* settings,
+    int i,
+    int varp,
+    int value);
+
+/** True when slot `i`'s carrier no longer holds the value last seen;
+ *  remembers the new one. */
+bool
+RS_GroundItemsSettings_VarpChanged(
+    struct RS_GroundItemsSettings* settings,
+    int i,
+    int value);
+
+/** True when aux list `i`'s revision is not the one last seen; remembers it. */
+bool
+RS_GroundItemsSettings_AuxChanged(
+    struct RS_GroundItemsSettings* settings,
+    int i,
+    uint64_t revision);
 
 #endif /* SRC_GAME_RS_GROUND_ITEMS_DIRTY_H */

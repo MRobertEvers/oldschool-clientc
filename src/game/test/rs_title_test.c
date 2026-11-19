@@ -446,6 +446,30 @@ test_switch_character(void)
                 "the accounts screen's actions resolve");
 }
 
+/* The password-manager form is told only what changed: the first form that
+ * says anything, then nothing until a byte of it moves. */
+static void
+test_credential_form_change(void)
+{
+    struct RS_Title title;
+    struct PlatformCredentialForm form;
+
+    RS_Title_Init(&title);
+    memset(&form, 0, sizeof(form));
+    TEST_ASSERT(RS_Title_TakeCredentialForm(&title, &form) == 0,
+                "an all-zero form is what the page starts with");
+    form.showing = 1;
+    form.x[0] = 120;
+    snprintf(form.username, sizeof(form.username), "%s", "alice");
+    TEST_ASSERT(RS_Title_TakeCredentialForm(&title, &form) == 1, "a shown form is sent");
+    TEST_ASSERT(RS_Title_TakeCredentialForm(&title, &form) == 0, "and not sent twice");
+    form.password_len = 3;
+    TEST_ASSERT(RS_Title_TakeCredentialForm(&title, &form) == 1, "a typed password is a change");
+    form.password_len = 0;
+    TEST_ASSERT(RS_Title_TakeCredentialForm(&title, &form) == 1, "so is clearing it");
+    TEST_ASSERT(title.credential_form_sent.password_len == 0, "the last one taken is kept");
+}
+
 int
 main(void)
 {
@@ -468,6 +492,7 @@ main(void)
     test_accounts_screen();
     test_link_prompt();
     test_switch_character();
+    test_credential_form_change();
 
     if( g_failures )
     {

@@ -52,6 +52,20 @@ RS_Prefs_Path(void)
 }
 
 void
+RS_Prefs_SetFile(struct RS_Prefs* prefs, char const* file)
+{
+    assert(prefs);
+    prefs->file = file;
+}
+
+char const*
+RS_Prefs_File(struct RS_Prefs const* prefs)
+{
+    assert(prefs);
+    return prefs->file;
+}
+
+void
 RS_Prefs_Defaults(struct RS_Prefs* prefs)
 {
     assert(prefs);

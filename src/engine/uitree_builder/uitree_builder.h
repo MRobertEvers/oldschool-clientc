@@ -92,6 +92,13 @@ struct UITreeBuilder
     struct UIBuilderOnLoadEntry* onloads;
     int onload_count;
     int onload_cap;
+
+    /** Set by the owner once this builder has been set up for a bake and is
+     *  kept for the process. A builder in zeroed storage that was never set up
+     *  is not active, and has nothing to Free. Init clears it with everything
+     *  else and Free leaves it alone: a remount frees an active builder,
+     *  re-inits it and marks it again. */
+    int active;
 };
 
 void
@@ -116,6 +123,14 @@ UITreeBuilder_InitEx(
 
 void
 UITreeBuilder_Free(struct UITreeBuilder* builder);
+
+/** Mark this builder as set up and kept (see UITreeBuilder::active). */
+void
+UITreeBuilder_SetActive(struct UITreeBuilder* builder);
+
+/** Nonzero once UITreeBuilder_SetActive has been called. */
+int
+UITreeBuilder_Active(struct UITreeBuilder const* builder);
 
 void
 UITreeBuilder_RegisterSprite(

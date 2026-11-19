@@ -77,6 +77,19 @@ RS_Title_Init(struct RS_Title* title)
     title->progress_percent = -1;
 }
 
+int
+RS_Title_TakeCredentialForm(
+    struct RS_Title* title,
+    struct PlatformCredentialForm const* now)
+{
+    assert(title);
+    assert(now);
+    if( memcmp(now, &title->credential_form_sent, sizeof(*now)) == 0 )
+        return 0;
+    title->credential_form_sent = *now;
+    return 1;
+}
+
 void
 RS_Title_SetHome(
     struct RS_Title* title,

@@ -147,7 +147,7 @@ import quest_list  # noqa: E402
 MIN_SHOT_BYTES = 1000
 
 # THE SHOT'S FILE NAME (TEST-3, waves seam pass 7, 2026-10-05). The client's
-# screenshot slot (app.h, struct App's plugin_screenshots[].name) holds 71
+# screenshot slot (plugin/plugin_screenshots.h, PluginScreenshot.name) holds 71
 # characters, so a row's shot name longer than 67 (71 less ".png") is written
 # under a SHORTENED file name by torirs_plugin_drive_ui.c's
 # drive_ui_shot_file_stem: the first 49 characters, "~", eight hex digits of

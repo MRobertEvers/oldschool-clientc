@@ -407,7 +407,7 @@ thumb_render(
     }
     t->scene_id = scene_id;
     t->state = THUMB_READY;
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 void
@@ -416,7 +416,8 @@ app_record_thumbs_update(struct App* app)
     int rendered = 0;
 
     assert(app);
-    if( !app->editor || !app->editor_panel.visible || !app->editor_panel.ui || !app->scene || !app->provider )
+    if( !app->editor || !app->editor_shell->editor_panel.visible ||
+        !app->editor_shell->editor_panel.ui || !app->scene || !app->provider )
         return;
     for( int i = 0; i < APP_RECORD_THUMBS && rendered < APP_RECORD_THUMBS_PER_FRAME; i++ )
     {

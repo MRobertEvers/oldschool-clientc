@@ -176,6 +176,11 @@ test_active_state_from_varp(void)
     cs1_test_declare_varps(&varps);
     RS_PlayerStats_Init(&stats);
     RS_CS1Host_Init(&host, tree, NULL, &invs, &varps, &stats);
+    TEST_ASSERT(!RS_CS1Host_EvalInflight(&host), "a fresh host has no evaluation pass queued");
+    RS_CS1Host_SetEvalInflight(&host, true);
+    TEST_ASSERT(RS_CS1Host_EvalInflight(&host), "a queued pass is in flight");
+    RS_CS1Host_SetEvalInflight(&host, false);
+    TEST_ASSERT(!RS_CS1Host_EvalInflight(&host), "and is not once it finishes");
 
     /* Active when varp 42 == 7. */
     int script[] = { CS1_OP_PUSH_VARP, 42, CS1_OP_RETURN };

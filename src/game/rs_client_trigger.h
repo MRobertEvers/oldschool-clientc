@@ -1,6 +1,8 @@
 #ifndef RS_CLIENT_TRIGGER_H
 #define RS_CLIENT_TRIGGER_H
 
+#include <stdbool.h>
+
 /*
  * Client triggers -- how the cache binds a clientscript to a THING happening.
  *
@@ -119,5 +121,39 @@ int RS_ClientTriggerScriptFor(
     int category,
     RS_ClientTriggerScriptLookupFn lookup,
     void* user);
+
+/*
+ * ---- when every ADD trigger is fired again ----
+ *
+ * A tree rebuild -- login's gameframe remount, a Fixed/Resizable switch --
+ * reclaims every node under the `entity_overlay` builtin, and the scripted
+ * overlays (game/rs_entity_overlay.h) go with them. The `cc_setonvartransmit`
+ * hook that would rebuild an overlay is registered ON the layer, so it dies
+ * with it, and nothing in the cache fires a client trigger again. The client
+ * has to notice and re-raise every ADD trigger for what is already in the
+ * world.
+ *
+ * Watching the builtin's component id does not notice it: the builtin is a
+ * manifest node, so its id is the same before and after. A scripted overlay
+ * whose layer no longer resolves is the direct observation.
+ *
+ * The overlay pass raises the refire when it finds such an overlay, and the
+ * next pass takes it before it walks the overlays, so the refire runs outside
+ * the walk it would invalidate. Raising twice before a take is one refire.
+ *
+ * This does not know what a tree, a layer or an overlay is, and does not fire
+ * anything. The caller decides when a layer is missing, and fires the
+ * triggers when Take says to.
+ */
+struct RS_ClientTriggerRefire
+{
+    int pending;
+};
+
+/** A scripted overlay's layer is gone: refire on the next take. */
+void RS_ClientTriggerRefire_Raise(struct RS_ClientTriggerRefire* refire);
+
+/** True, once, when a refire was raised since the last take. */
+bool RS_ClientTriggerRefire_Take(struct RS_ClientTriggerRefire* refire);
 
 #endif /* RS_CLIENT_TRIGGER_H */

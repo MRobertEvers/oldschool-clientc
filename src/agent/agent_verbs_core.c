@@ -34,6 +34,7 @@
 #include "platform/platform_window.h"
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_catalog.h"
+#include "ui/dev_overlay.h"
 #include "ui/torirs_chrome_metrics.h"
 #include "ui/uitree_debug_overlay.h"
 #include "ui/uitree_minimenu.h"
@@ -165,7 +166,7 @@ verb_hello(struct AgentCtx* ctx)
     AgentJsonW_KStr(w, "mode", ctx->app->editor ? "editor" : "game");
     /* Booted: the interface tree is up. The editor's panels come a little
      * later; `editor` says when. */
-    AgentJsonW_KBool(w, "ready", ctx->app->app_state == APP_STATE_READY);
+    AgentJsonW_KBool(w, "ready", RS_ClientPhase_Ready(&ctx->app->phase));
     AgentJsonW_KBool(w, "editor", Agent_EditorUi(ctx) != NULL);
     AgentJsonW_KInt(w, "frame", ctx->frame);
     AgentJsonW_KInt(w, "pid", agent_pid());
@@ -174,7 +175,8 @@ verb_hello(struct AgentCtx* ctx)
     AgentJsonW_KInt(w, "w", width);
     AgentJsonW_KInt(w, "h", height);
     AgentJsonW_ObjEnd(w);
-    AgentJsonW_KDbl(w, "chrome_scale", (double)ToriRSChrome_ScaleQ(&ctx->app->dbg_ui) / 4.0);
+    AgentJsonW_KDbl(
+        w, "chrome_scale", (double)ToriRSChrome_ScaleQ(&ctx->app->dev_overlay->ui) / 4.0);
     AgentJsonW_Key(w, "verbs");
     AgentJsonW_ArrBegin(w);
     for( int i = 0;; i++ )
@@ -282,9 +284,9 @@ agent_busy_with(
 {
     struct App* app = ctx->app;
     struct EditorUi* eui = Agent_EditorUi(ctx);
-    struct ToriRSChrome const* chrome = &app->dbg_ui;
+    struct ToriRSChrome const* chrome = &app->dev_overlay->ui;
 
-    if( app->app_state != APP_STATE_READY )
+    if( !RS_ClientPhase_Ready(&app->phase) )
         return "the client is still booting";
     if( App_AsyncPending(app) )
         return "the client has loads in flight";
@@ -334,7 +336,7 @@ wait_step(
     {
         if( op->phase == WAIT_READY )
         {
-            if( ctx->app->app_state != APP_STATE_READY )
+            if( !RS_ClientPhase_Ready(&ctx->app->phase) )
                 busy = "the client is still booting";
             else if( ctx->app->editor && !Agent_EditorUi(ctx) )
                 busy = "the editor's panels are not up yet";
@@ -792,7 +794,7 @@ type_finish(
     AgentJsonW_KInt(w, "characters", op->ints[0]);
     /* The field that had the keyboard: an agent that typed at nothing reads
      * -1 here instead of a screenshot. */
-    AgentJsonW_KInt(w, "focus", ctx->app->dbg_ui.focus);
+    AgentJsonW_KInt(w, "focus", ctx->app->dev_overlay->ui.focus);
     Agent_ReplyEnd(ctx);
 }
 
@@ -1024,7 +1026,7 @@ shot_step(
     /* A present must come for there to be a frame to capture, and the
      * picture should be of what the last request caused: keep the client
      * drawing until the file is there. */
-    ctx->app->need_redraw = 1;
+    RedrawRequest_Raise(&ctx->app->redraw_request);
 
     if( op->phase == SHOT_SETTLE )
     {
@@ -1197,7 +1199,7 @@ verb_shot(struct AgentCtx* ctx)
     /* Two frames first, so what the request before this one caused has been
      * drawn and presented. */
     op->until_frame = ctx->frame + 2;
-    ctx->app->need_redraw = 1;
+    RedrawRequest_Raise(&ctx->app->redraw_request);
     return AGENT_VERB_PENDING;
 }
 
@@ -1394,7 +1396,7 @@ agent_panel_title(
     struct AgentCtx* ctx,
     int panel)
 {
-    struct ToriRSChrome const* chrome = &ctx->app->dbg_ui;
+    struct ToriRSChrome const* chrome = &ctx->app->dev_overlay->ui;
     struct EditorUi* eui = Agent_EditorUi(ctx);
 
     if( chrome->panels[panel].title[0] )
@@ -1949,7 +1951,7 @@ Agent_WriteMinimenu(
 
     assert(ctx);
     assert(out);
-    menu = ctx->app->frame_view ? ctx->app->frame_view->minimenu : NULL;
+    menu = ctx->app->world_views.frame ? ctx->app->world_views.frame->minimenu : NULL;
     AgentJsonW_ObjBegin(out);
     AgentJsonW_KBool(out, "visible", menu && menu->visible);
     if( menu && menu->visible )
@@ -2020,7 +2022,7 @@ agent_ui_write_dropdown(
 static enum AgentVerbResult
 verb_ui(struct AgentCtx* ctx)
 {
-    struct ToriRSChrome const* chrome = &ctx->app->dbg_ui;
+    struct ToriRSChrome const* chrome = &ctx->app->dev_overlay->ui;
     struct EditorUi* eui = Agent_EditorUi(ctx);
     struct AgentUiFilter filter;
     struct AgentJsonWriter* out;
@@ -2068,7 +2070,7 @@ verb_ui(struct AgentCtx* ctx)
         AgentJsonW_Key(out, "dropdown");
         agent_ui_write_dropdown(out, chrome);
     }
-    if( ctx->app->frame_view && ctx->app->frame_view->minimenu && ctx->app->frame_view->minimenu->visible )
+    if( ctx->app->world_views.frame && ctx->app->world_views.frame->minimenu && ctx->app->world_views.frame->minimenu->visible )
     {
         AgentJsonW_Key(out, "minimenu");
         Agent_WriteMinimenu(ctx, out);
@@ -2242,7 +2244,7 @@ enum
 static const struct UIMinimenu*
 agent_minimenu(struct AgentCtx* ctx)
 {
-    return ctx->app->frame_view ? ctx->app->frame_view->minimenu : NULL;
+    return ctx->app->world_views.frame ? ctx->app->world_views.frame->minimenu : NULL;
 }
 
 /** "button 57 \"Copy to new...\" in Catalog": the target for a sentence. */
@@ -2253,7 +2255,7 @@ agent_target_describe(
     char* out,
     size_t out_size)
 {
-    struct ToriRSChrome const* chrome = &ctx->app->dbg_ui;
+    struct ToriRSChrome const* chrome = &ctx->app->dev_overlay->ui;
     char caption[TORIRS_CHROME_INPUT_MAX];
 
     if( target->kind == AGENT_TARGET_MENU )
@@ -2366,7 +2368,7 @@ agent_find_label(
     int inputs_only,
     struct AgentFind* find)
 {
-    struct ToriRSChrome const* chrome = &ctx->app->dbg_ui;
+    struct ToriRSChrome const* chrome = &ctx->app->dev_overlay->ui;
     const struct UIMinimenu* menu = agent_minimenu(ctx);
     char caption[TORIRS_CHROME_INPUT_MAX];
 
@@ -2448,7 +2450,7 @@ agent_resolve_label(
     int inputs_only,
     struct AgentTarget* out)
 {
-    struct ToriRSChrome const* chrome = &ctx->app->dbg_ui;
+    struct ToriRSChrome const* chrome = &ctx->app->dev_overlay->ui;
     struct AgentFind find;
     char names[640];
     size_t used = 0;
@@ -2541,7 +2543,7 @@ agent_target_point(
     int* out_x,
     int* out_y)
 {
-    struct ToriRSChrome const* chrome = &ctx->app->dbg_ui;
+    struct ToriRSChrome const* chrome = &ctx->app->dev_overlay->ui;
     struct ToriRSChromeRect box;
 
     if( target->kind == AGENT_TARGET_MENU )
@@ -2551,8 +2553,8 @@ agent_target_point(
             return 0;
         /* A popup taller than the screen scrolls: bring the row into its
          * window, or the click lands on nothing. */
-        if( UIMinimenu_RevealOption(ctx->app->frame_view->minimenu, target->index) )
-            ctx->app->need_redraw = 1;
+        if( UIMinimenu_RevealOption(ctx->app->world_views.frame->minimenu, target->index) )
+            RedrawRequest_Raise(&ctx->app->redraw_request);
         *out_x = menu->x + menu->width / 2;
         *out_y = UIMinimenu_OptionY(menu, target->index);
         return 1;
@@ -2621,7 +2623,7 @@ agent_target_scroll_to(
     struct AgentCtx* ctx,
     const struct AgentTarget* target)
 {
-    struct ToriRSChrome* chrome = &ctx->app->dbg_ui;
+    struct ToriRSChrome* chrome = &ctx->app->dev_overlay->ui;
     struct ToriRSChromeWidget* w;
     struct ToriRSChromePanel* p;
 
@@ -2637,7 +2639,7 @@ agent_target_scroll_to(
          * the middle of the window (the chrome clamps the ends). */
         int const first = target->index - w->rows / 2;
         ToriRSChrome_VListSetScroll(chrome, target->widget, first < 0 ? 0 : first);
-        ctx->app->need_redraw = 1;
+        RedrawRequest_Raise(&ctx->app->redraw_request);
         return 1;
     }
     if( !(p->scrollable && p->content_h > p->view_h) || agent_widget_in_view(chrome, w) )
@@ -2653,7 +2655,7 @@ agent_target_scroll_to(
             return 0;
         ToriRSChrome_PanelSetScroll(chrome, w->panel, scroll);
     }
-    ctx->app->need_redraw = 1;
+    RedrawRequest_Raise(&ctx->app->redraw_request);
     return 1;
 }
 
@@ -2670,7 +2672,7 @@ agent_target_under_pointer(
     char* why,
     size_t why_size)
 {
-    struct ToriRSChrome const* chrome = &ctx->app->dbg_ui;
+    struct ToriRSChrome const* chrome = &ctx->app->dev_overlay->ui;
     int hit;
 
     if( target->kind == AGENT_TARGET_MENU )
@@ -2747,7 +2749,7 @@ agent_target_alive(
     struct AgentCtx* ctx,
     struct AgentOp* op)
 {
-    struct ToriRSChrome const* chrome = &ctx->app->dbg_ui;
+    struct ToriRSChrome const* chrome = &ctx->app->dev_overlay->ui;
     int const widget = op->ints[UC_WIDGET];
     char caption[TORIRS_CHROME_INPUT_MAX];
 
@@ -2770,7 +2772,7 @@ agent_set_append_commit(
     struct AgentCtx* ctx,
     struct AgentOp* op)
 {
-    struct ToriRSChrome const* chrome = &ctx->app->dbg_ui;
+    struct ToriRSChrome const* chrome = &ctx->app->dev_overlay->ui;
     const struct ToriRSChromeWidget* w = &chrome->widgets[op->ints[UC_WIDGET]];
 
     Agent_ScriptFrames(op, 2);
@@ -2801,7 +2803,7 @@ ui_target_check(
     struct AgentOp* op,
     int value)
 {
-    struct ToriRSChrome* chrome = &ctx->app->dbg_ui;
+    struct ToriRSChrome* chrome = &ctx->app->dev_overlay->ui;
     struct AgentTarget target;
     char what[240];
     char why[320];
@@ -2831,7 +2833,7 @@ ui_target_check(
             && (chrome->dirty || (op->ints[UC_BUILD] && chrome->build_serial == op->ints[UC_BUILD] - 1)) )
         {
             op->ints[UC_TRIES]++;
-            ctx->app->need_redraw = 1;
+            RedrawRequest_Raise(&ctx->app->redraw_request);
             return 2;
         }
         if( !agent_target_point(ctx, &target, &x, &y) )
@@ -2972,7 +2974,7 @@ ui_target_finish(
     struct AgentCtx* ctx,
     struct AgentOp* op)
 {
-    struct ToriRSChrome const* chrome = &ctx->app->dbg_ui;
+    struct ToriRSChrome const* chrome = &ctx->app->dev_overlay->ui;
     struct AgentJsonWriter* out = Agent_ReplyBegin(ctx);
     struct AgentTarget target;
     static const char* const k_kinds[] = { "", "widget", "tab", "row", "option", "menu" };
@@ -3027,7 +3029,7 @@ agent_request_target(
     int inputs_only,
     struct AgentTarget* out)
 {
-    struct ToriRSChrome const* chrome = &ctx->app->dbg_ui;
+    struct ToriRSChrome const* chrome = &ctx->app->dev_overlay->ui;
     const char* label = NULL;
     const char* panel = NULL;
     int widget = -1;
@@ -3179,7 +3181,7 @@ agent_target_store(
     op->ints[UC_INDEX] = target->index;
     if( target->kind != AGENT_TARGET_MENU )
     {
-        const struct ToriRSChromeWidget* w = &ctx->app->dbg_ui.widgets[target->widget];
+        const struct ToriRSChromeWidget* w = &ctx->app->dev_overlay->ui.widgets[target->widget];
         op->ints[UC_SERIAL] = w->serial;
         op->ints[UC_WKIND] = w->kind;
         agent_widget_caption(w, op->path, sizeof(op->path));
@@ -3218,7 +3220,7 @@ agent_set_slider(
     int widget,
     const char* text)
 {
-    struct ToriRSChrome* chrome = &ctx->app->dbg_ui;
+    struct ToriRSChrome* chrome = &ctx->app->dev_overlay->ui;
     const struct ToriRSChromeWidget* w = &chrome->widgets[widget];
     struct AgentJsonWriter* out;
     char* end = NULL;
@@ -3291,11 +3293,11 @@ verb_ui_set(struct AgentCtx* ctx)
      * End on a focused slider), so the panel hears it through the same
      * `activated` latch a person's key or drag fires. Before this, a script
      * could only drag the knob and read where it landed. */
-    if( ctx->app->dbg_ui.widgets[target.widget].kind == TORIRS_CHROME_W_SLIDER )
+    if( ctx->app->dev_overlay->ui.widgets[target.widget].kind == TORIRS_CHROME_W_SLIDER )
         return agent_set_slider(ctx, target.widget, text);
     /* Return commits a one-line field, so a newline can only be text in a
      * text area. */
-    if( ctx->app->dbg_ui.widgets[target.widget].kind != TORIRS_CHROME_W_TEXTAREA
+    if( ctx->app->dev_overlay->ui.widgets[target.widget].kind != TORIRS_CHROME_W_TEXTAREA
         && (strchr(text, '\n') || strchr(text, '\t')) )
     {
         Agent_ReplyError(ctx, "widget %d is a one-line field: \"text\" cannot hold a newline or a tab", target.widget);

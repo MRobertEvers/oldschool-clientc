@@ -8,6 +8,7 @@
 #include "engine/entity_model_build.h"
 #include "engine/player_appearance.h"
 #include "game/rs_chat.h"
+#include "game/entity_info_scratch.h"
 #include "game/rs_entity_sync.h"
 #include "game/task_entity_assets.h"
 #include "net/net.h"
@@ -60,10 +61,6 @@ headbar_from_block(
 
 enum
 {
-    ENTITY_INFO_OPS_MAX = 4096,
-    /* The list's strings and blobs: no more than the payload (a var-short)
-     * and a NUL per op. */
-    ENTITY_INFO_BYTES_MAX = 65536 + ENTITY_INFO_OPS_MAX,
     /* Local-player sentinel while UPDATE_PID has not arrived. */
     ENTITY_INFO_LOCAL_SENTINEL = 2047,
     /* Classic human movement set — placeholder until the APPEARANCE mask
@@ -194,69 +191,6 @@ npc_trace_state(struct App* app)
 }
 
 /*
- * Op-list scratch.
- *
- * Both decoders below write into an ENTITY_INFO_OPS_MAX list (ops plus the
- * byte arena their strings and blobs live in) and drop it when the packet
- * finishes. That is ~460KB, and the server sends PLAYER_INFO and NPC_INFO on
- * every tick, so keep one list per decoder on App and hand it back instead.
- * Nothing outlives the task: an op's text points into the arena.
- *
- * App_LogicTick settles each packet task before queueing the next, so a second
- * borrow cannot overlap the first; the busy flag with a plain allocation fallback
- * keeps that a performance assumption rather than a correctness one.
- */
-static void
-info_list_borrow(
-    struct RsprotInfoOp** ops_scratch,
-    uint8_t** bytes_scratch,
-    int* busy,
-    RsprotInfoList* list)
-{
-    struct RsprotInfoOp* ops;
-    uint8_t* bytes;
-
-    if( *busy )
-    {
-        ops = ToriMem_Calloc(ToriMem_Session(), ENTITY_INFO_OPS_MAX, sizeof(*ops));
-        bytes = ToriMem_Alloc(ToriMem_Session(), ENTITY_INFO_BYTES_MAX);
-    }
-    else
-    {
-        if( !*ops_scratch )
-        {
-            *ops_scratch = ToriMem_Calloc(ToriMem_Session(), ENTITY_INFO_OPS_MAX, sizeof(**ops_scratch));
-            *bytes_scratch = ToriMem_Alloc(ToriMem_Session(), ENTITY_INFO_BYTES_MAX);
-        }
-        ops = *ops_scratch;
-        bytes = *bytes_scratch;
-        *busy = 1;
-    }
-    assert(ops);
-    assert(bytes);
-    rsprot_info_list_init(list, ops, ENTITY_INFO_OPS_MAX, bytes, ENTITY_INFO_BYTES_MAX);
-}
-
-/** Hand `list` back; a task freed before it borrowed holds none. */
-static void
-info_list_release(
-    struct RsprotInfoOp* ops_scratch,
-    int* busy,
-    RsprotInfoList* list)
-{
-    if( !list->ops )
-        return;
-    if( list->ops != ops_scratch )
-    {
-        ToriMem_Free(ToriMem_Session(), list->ops);
-        ToriMem_Free(ToriMem_Session(), list->bytes);
-    }
-    else
-        *busy = 0;
-    list->ops = NULL;
-}
-
-/*
  * TORIRS_NPCINFO_BREAKDOWN=<ms>: split one NPC_INFO apply into decode / await /
  * spawn / retype / move and print the split when it exceeds <ms>. The exec
  * pipeline runs one packet at a time, so file statics are safe accumulators;
@@ -297,16 +231,7 @@ void
 Task_EntityInfoScratchFree(struct App* app)
 {
     assert(app);
-    ToriMem_Free(ToriMem_Session(), app->npc_info_ops_scratch);
-    ToriMem_Free(ToriMem_Session(), app->player_info_ops_scratch);
-    ToriMem_Free(ToriMem_Session(), app->npc_info_bytes_scratch);
-    ToriMem_Free(ToriMem_Session(), app->player_info_bytes_scratch);
-    app->npc_info_ops_scratch = NULL;
-    app->player_info_ops_scratch = NULL;
-    app->npc_info_bytes_scratch = NULL;
-    app->player_info_bytes_scratch = NULL;
-    app->npc_info_ops_scratch_busy = 0;
-    app->player_info_ops_scratch_busy = 0;
+    EntityInfoScratch_Free(&app->entity_info_scratch);
 }
 
 /* ------------------------------------------------------------------ */
@@ -608,8 +533,8 @@ player_apply_op(
         player_abs_place(
             world,
             idx,
-            (app->rebuild_zone_x - 6) * 8 + op->xz_level.x,
-            (app->rebuild_zone_z - 6) * 8 + op->xz_level.z);
+            RS_RebuildRegion_SceneBaseX(&app->rebuild_region) + op->xz_level.x,
+            RS_RebuildRegion_SceneBaseZ(&app->rebuild_region) + op->xz_level.z);
         World_PlayerPathJump(
             world,
             idx,
@@ -634,8 +559,8 @@ player_apply_op(
          * they overflow every uint8_t in the route queue. `home_view` is what
          * tells the routing pass the stored coordinates' frame. */
         struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
-        int origin_x = (app->rebuild_zone_x - 6) * 8;
-        int origin_z = (app->rebuild_zone_z - 6) * 8;
+        int origin_x = RS_RebuildRegion_SceneBaseX(&app->rebuild_region);
+        int origin_z = RS_RebuildRegion_SceneBaseZ(&app->rebuild_region);
         int next_x;
         int next_z;
         int home_view = App_WevHomeViewForAbsTile(
@@ -981,11 +906,7 @@ Task_ExecPlayerInfo_Run(
      * (CreateTask_ExecPlayerInfoOps); a packet is read here. */
     if( !self->ops )
     {
-        info_list_borrow(
-            &app->player_info_ops_scratch,
-            &app->player_info_bytes_scratch,
-            &app->player_info_ops_scratch_busy,
-            &self->info);
+        EntityInfoScratch_Borrow(&app->entity_info_scratch.player, &self->info);
         self->ops = self->info.ops;
         /* The revision's reader (GameProtoRevTable.player_info_read). Every
          * reader writes the same op list, so nothing below this line
@@ -1084,7 +1005,7 @@ Task_ExecPlayerInfo_Run(
         }
     }
 
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 
     PT_END(&self->pt);
 }
@@ -1093,8 +1014,7 @@ static void
 Task_ExecPlayerInfo_Free(struct ToriRS_Task* base)
 {
     struct Task_ExecPlayerInfo* self = (struct Task_ExecPlayerInfo*)base;
-    info_list_release(
-        self->app->player_info_ops_scratch, &self->app->player_info_ops_scratch_busy, &self->info);
+    EntityInfoScratch_Release(&self->app->entity_info_scratch.player, &self->info);
     ToriMem_Free(ToriMem_Session(), self);
 }
 
@@ -1247,13 +1167,13 @@ RS_EntityInfo_NpcOrigin(
     /* Revision239 explicitly states the ROOT origin for NPC deltas. The
      * local player's route is deck-local aboard a boat and cannot anchor a
      * shore NPC or a projected deckhand. PLAYER_INFO never reads this state. */
-    if( app->npc_update_origin_valid )
+    if( RS_NpcUpdateOrigin_IsSet(&app->npc_update_origin) )
     {
-        *out_x = app->npc_update_origin_x;
-        *out_z = app->npc_update_origin_z;
+        *out_x = RS_NpcUpdateOrigin_X(&app->npc_update_origin);
+        *out_z = RS_NpcUpdateOrigin_Z(&app->npc_update_origin);
     }
-    if( app->aboard_view > 0 && Wevs_IsLive(&app->wevs, app->aboard_view) )
-        *out_level = Wevs_Get(&app->wevs, app->aboard_view)->parent_level;
+    if( Wevs_AboardView(&app->wevs) > 0 && Wevs_IsLive(&app->wevs, Wevs_AboardView(&app->wevs)) )
+        *out_level = Wevs_Get(&app->wevs, Wevs_AboardView(&app->wevs))->parent_level;
 }
 
 /* The origin NPC_INFO's deltas are measured from, in the frame of the world
@@ -1274,8 +1194,8 @@ npc_info_origin(
         RS_EntityInfo_NpcOrigin(app, out_x, out_z, out_level);
         return;
     }
-    *out_x = app->npc_update_origin_x;
-    *out_z = app->npc_update_origin_z;
+    *out_x = RS_NpcUpdateOrigin_X(&app->npc_update_origin);
+    *out_z = RS_NpcUpdateOrigin_Z(&app->npc_update_origin);
     *out_level = App_WevDeckLevel(app, self->view);
 }
 
@@ -1888,11 +1808,7 @@ Task_ExecNpcInfo_Run(
     /* A replay keyframe's list arrives decoded (CreateTask_ExecNpcInfoOps). */
     if( !self->ops )
     {
-        info_list_borrow(
-            &app->npc_info_ops_scratch,
-            &app->npc_info_bytes_scratch,
-            &app->npc_info_ops_scratch_busy,
-            &self->info);
+        EntityInfoScratch_Borrow(&app->entity_info_scratch.npc, &self->info);
         self->ops = self->info.ops;
     }
     if( self->info.ops )
@@ -2075,7 +1991,7 @@ Task_ExecNpcInfo_Run(
         RS_EntitySync_RemoveNpc(&app->esync, app->world, self->cleared[i]);
     self->cleared_count = 0;
 
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 
     if( npcinfo_bd_on() )
     {
@@ -2100,8 +2016,7 @@ static void
 Task_ExecNpcInfo_Free(struct ToriRS_Task* base)
 {
     struct Task_ExecNpcInfo* self = (struct Task_ExecNpcInfo*)base;
-    info_list_release(
-        self->app->npc_info_ops_scratch, &self->app->npc_info_ops_scratch_busy, &self->info);
+    EntityInfoScratch_Release(&self->app->entity_info_scratch.npc, &self->info);
     ToriMem_Free(ToriMem_Session(), self);
 }
 
@@ -2131,7 +2046,7 @@ CreateTask_ExecNpcInfo(
     task->data = data;
     task->length = length;
     task->large = large;
-    task->view = app->active_world;
+    task->view = WorldviewRegistry_Active(&app->worldviews);
     PT_INIT(&task->pt);
     return &task->task;
 }

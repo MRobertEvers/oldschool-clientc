@@ -19,6 +19,8 @@
  *   - the refresh flag is taken and cleared BEFORE the walk, so a mark arriving
  *     during the walk is recorded normally rather than swallowed by a flag that
  *     is about to be reset.
+ *   - a settings carrier's first value is a seed, not a change, and a change
+ *     after it is reported once; the aux revisions start at 0.
  *
  * Build and run:
  *   make -C src test-ground-items-dirty
@@ -143,12 +145,41 @@ test_the_flag_is_taken_before_the_walk(void)
     CHECK(listed(&dirty, 77), "a mark after the flag was taken was declined");
 }
 
+static void
+test_settings_seed_then_change(void)
+{
+    struct RS_GroundItemsSettings settings;
+
+    memset(&settings, 0x5a, sizeof(settings));
+    RS_GroundItemsSettings_Reset(&settings);
+    for( int i = 0; i < RS_GROUND_ITEMS_SETTINGS_WATCHED; i++ )
+        CHECK(RS_GroundItemsSettings_Varp(&settings, i) < 0, "carrier %d resolved after reset", i);
+
+    /* The value a carrier comes up with is a seed: reporting it would rebuild
+     * every overlay on the first tick after the varbit table lands. */
+    RS_GroundItemsSettings_Resolve(&settings, 0, 1234, 7);
+    CHECK(RS_GroundItemsSettings_Varp(&settings, 0) == 1234, "carrier 0 not remembered");
+    CHECK(RS_GroundItemsSettings_Varp(&settings, 1) < 0, "resolving 0 resolved 1");
+    CHECK(!RS_GroundItemsSettings_VarpChanged(&settings, 0, 7), "the seed read as a change");
+
+    CHECK(RS_GroundItemsSettings_VarpChanged(&settings, 0, 8), "a moved carrier was missed");
+    CHECK(!RS_GroundItemsSettings_VarpChanged(&settings, 0, 8), "one move was reported twice");
+    CHECK(RS_GroundItemsSettings_VarpChanged(&settings, 0, 7), "moving back was missed");
+
+    /* The aux revisions start at 0, and each list is its own. */
+    CHECK(!RS_GroundItemsSettings_AuxChanged(&settings, 0, 0), "revision 0 read as a change");
+    CHECK(RS_GroundItemsSettings_AuxChanged(&settings, 1, 3), "a new revision was missed");
+    CHECK(!RS_GroundItemsSettings_AuxChanged(&settings, 1, 3), "one revision was reported twice");
+    CHECK(!RS_GroundItemsSettings_AuxChanged(&settings, 0, 0), "list 1 moved list 0");
+}
+
 int
 main(void)
 {
     test_marking_dedups();
     test_the_two_overflows_differ();
     test_the_flag_is_taken_before_the_walk();
+    test_settings_seed_then_change();
 
     if( g_failures )
     {

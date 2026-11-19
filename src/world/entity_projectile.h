@@ -121,4 +121,30 @@ struct WorldEntity_Projectile
     bool delete_on_freeze_end;
 };
 
+/* A rev-241 SCRIPTEDPROJ_ADD, in scene tiles. Heights are raw (no x4); the
+ * offsets fine units; `source`/`target` MAP_PROJANIM's actor encoding (0 =
+ * none); `curve` the H, A and T clientscripts. */
+struct WorldEntity_ScriptedProjSpec
+{
+    int src_x;
+    int src_z;
+    int src_level;
+    int src_offset_x;
+    int src_offset_z;
+    int src_height;
+    int source;
+    int dst_x;
+    int dst_z;
+    int dst_level;
+    int dst_offset_x;
+    int dst_offset_z;
+    int dst_height;
+    int target;
+    int spotanim_id;
+    int start_delay;
+    int end_delay;
+    int curve[3];
+    int slot;
+};
+
 #endif

@@ -101,7 +101,7 @@ app_debug_key_held(
  * edge array CS2's KEYPRESSED reads — which, unlike enum LibToriRS_KeyCode,
  * covers the F-keys.
  *
- * Returns nothing, but marks each key it acted on in app->hotkey_consumed so a
+ * Returns nothing, but claims each key it acted on in app->input_claims so a
  * bound key does not also fire a debug world hotkey on the same press.
  */
 void
@@ -109,7 +109,7 @@ app_ui_hotkeys(
     struct App* app,
     struct LibToriRS_Input* input)
 {
-    memset(app->hotkey_consumed, 0, sizeof(app->hotkey_consumed));
+    ToriRS_InputClaimsClearKeys(&app->input_claims);
     /* The map editor's chords acted earlier this frame (app_editor_hotkeys.c,
      * before the overlay ticks); their keys stay consumed for the world
      * hotkeys below. */
@@ -126,9 +126,9 @@ app_ui_hotkeys(
      * writes to the same request flag collapse into one packet. */
     if( input->osrs_key_pressed[TORIRS_OSRSKEY_ESCAPE] )
     {
-        app->chat_input_active = 0;
+        UIChatLine_SetInputActive(&app->chat_line, 0);
         app->host.close_modal_requested = true;
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
     }
 
     if( !app->tree || app->tree->hotkey_count <= 0 )
@@ -139,7 +139,7 @@ app_ui_hotkeys(
         return;
     /* An open right-click menu owns the pointer; let it own the keyboard too,
      * matching how interact_minimenu swallows everything until it closes. */
-    if( app->frame_view->minimenu->visible )
+    if( app->world_views.frame->minimenu->visible )
         return;
 
     for( int i = 0; i < app->tree->hotkey_count; i++ )
@@ -189,8 +189,8 @@ app_ui_hotkeys(
                 };
                 UITree_Host(&app->ui_host, &set_req);
             }
-            app->hotkey_consumed[binding->osrs_key] = 1;
-            app->need_redraw = 1;
+            ToriRS_InputClaimsClaimKey(&app->input_claims, binding->osrs_key);
+            RedrawRequest_Raise(&app->redraw_request);
             if( getenv("TORIRS_HOTKEY_DEBUG") )
                 TORIRS_LOG(
                     "hotkey: osrs_key=%d node=%d effect=select_tab tab=%d\n",
@@ -257,7 +257,8 @@ app_debug_world_key(
             || app_editor_hotkeys_claimed(app, key) )
             continue;
         osrs_key = app_keycode_osrs(key);
-        if( osrs_key < 0 || osrs_key >= TORIRS_OSRSKEY_COUNT || !app->hotkey_consumed[osrs_key] )
+        if( osrs_key < 0 || osrs_key >= TORIRS_OSRSKEY_COUNT
+            || !ToriRS_InputClaimsKeyClaimed(&app->input_claims, osrs_key) )
             return &app->cfg.debug_hotkeys[i];
     }
     return NULL;
@@ -276,27 +277,27 @@ app_world_hotkeys(
      * under the real gameframe there is always some visible onKey component
      * and gating on it made every press suppress itself. */
     (void)out;
-    if( !app->world_active || !app_world_viewport_component_live(app) )
+    if( !WorldLoadState_Active(&app->world_load) || !app_world_viewport_component_live(app) )
         return;
     /* Suppressed while any text input has focus, so spawn-digit keys type
      * instead. */
     if( app_text_input_focused(app) )
         return;
-    if( app->frame_view->world_hover_tile_x < 0 || app->frame_view->world_hover_tile_z < 0 )
+    if( app->world_views.frame->world_hover_tile_x < 0 || app->world_views.frame->world_hover_tile_z < 0 )
         return;
 
     if( app_debug_world_key(app, input, APP_DEBUG_HOTKEY_SPAWN_PLAYER) )
         app_world_spawn_player(
             app,
-            app->frame_view->world_hover_tile_x,
-            app->frame_view->world_hover_tile_z,
-            app->frame_view->world_hover_tile_level);
+            app->world_views.frame->world_hover_tile_x,
+            app->world_views.frame->world_hover_tile_z,
+            app->world_views.frame->world_hover_tile_level);
     if( (binding = app_debug_world_key(app, input, APP_DEBUG_HOTKEY_SPAWN_NPC)) )
         app_world_spawn_npc(
             app,
-            app->frame_view->world_hover_tile_x,
-            app->frame_view->world_hover_tile_z,
-            app->frame_view->world_hover_tile_level,
+            app->world_views.frame->world_hover_tile_x,
+            app->world_views.frame->world_hover_tile_z,
+            app->world_views.frame->world_hover_tile_level,
             binding->args);
     if( app_debug_world_key(app, input, APP_DEBUG_HOTKEY_DAMAGE_TEST) )
         app_world_damage_test(app);
@@ -305,22 +306,22 @@ app_world_hotkeys(
     if( (binding = app_debug_world_key(app, input, APP_DEBUG_HOTKEY_SPAWN_SPOTANIM)) )
         app_world_spawn_spotanim(
             app,
-            app->frame_view->world_hover_tile_x,
-            app->frame_view->world_hover_tile_z,
-            app->frame_view->world_hover_tile_level,
+            app->world_views.frame->world_hover_tile_x,
+            app->world_views.frame->world_hover_tile_z,
+            app->world_views.frame->world_hover_tile_level,
             binding->args);
     if( (binding = app_debug_world_key(app, input, APP_DEBUG_HOTKEY_SPAWN_OBJ)) )
         app_world_spawn_obj(
             app,
-            app->frame_view->world_hover_tile_x,
-            app->frame_view->world_hover_tile_z,
-            app->frame_view->world_hover_tile_level,
+            app->world_views.frame->world_hover_tile_x,
+            app->world_views.frame->world_hover_tile_z,
+            app->world_views.frame->world_hover_tile_level,
             binding->args);
     if( (binding = app_debug_world_key(app, input, APP_DEBUG_HOTKEY_SPAWN_PROJECTILE)) )
         app_world_spawn_projectile(
             app,
-            app->frame_view->world_hover_tile_x,
-            app->frame_view->world_hover_tile_z,
-            app->frame_view->world_hover_tile_level,
+            app->world_views.frame->world_hover_tile_x,
+            app->world_views.frame->world_hover_tile_z,
+            app->world_views.frame->world_hover_tile_level,
             binding->args);
 }

@@ -29,7 +29,7 @@ app_draw_viewport_message(
 /*
  * World projection scale — recomputed per layout, the reference behaviour.
  * It is computed from the viewport WIDGET's box (world_box_*), as
- * class159.method5357 is; world_emit_desc's own rect is already the
+ * class159.method5357 is; world_views.emit_desc's own rect is already the
  * letterboxed one it settles on.
  * (docs/ORANGE_WEDGE.md §4/§11/§12, promoted to the default per §11.7).
  *
@@ -110,9 +110,9 @@ app_apply_wedge_scale(struct App* app)
         app_wedge_scale_mode(),
         app_world_fov_override(),
         app->revconfig_profile.camera.viewport_zoom,
-        app->world_view_valid,
-        app->world_emit_desc.world_box_w,
-        app->world_emit_desc.world_box_h,
+        app->world_views.emit_valid,
+        app->world_views.emit_desc.world_box_w,
+        app->world_views.emit_desc.world_box_h,
         near_zoom,
         far_zoom,
         &clamp);
@@ -124,10 +124,10 @@ app_apply_wedge_scale(struct App* app)
 
     case TORIRS_VIEWPORT_PROJECTION_FOV:
         /* The viewport is shared: every attached view projects through it. */
-        for( int view = 0; view < app->view_split.view_count; view++ )
+        for( int view = 0; view < app->world_views.split.view_count; view++ )
         {
-            app->views[view].world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_FOV;
-            app->views[view].world_camera.fov_rpi2048 = projection.fov_rpi2048;
+            app->world_views.views[view].world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_FOV;
+            app->world_views.views[view].world_camera.fov_rpi2048 = projection.fov_rpi2048;
         }
         if( torirs_env_wedge_fov_debug() )
         {
@@ -146,10 +146,10 @@ app_apply_wedge_scale(struct App* app)
 
     case TORIRS_VIEWPORT_PROJECTION_SCALE:
         /* Exact: the kernels multiply by projection_scale directly. */
-        for( int view = 0; view < app->view_split.view_count; view++ )
+        for( int view = 0; view < app->world_views.split.view_count; view++ )
         {
-            app->views[view].world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
-            app->views[view].world_camera.projection_scale = projection.scale;
+            app->world_views.views[view].world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+            app->world_views.views[view].world_camera.projection_scale = projection.scale;
         }
         if( torirs_env_wedge_fov_debug() )
         {
@@ -159,15 +159,15 @@ app_apply_wedge_scale(struct App* app)
                 last = projection.scale;
                 TORIRS_ERR(
                     "wedge: vp_h=%d zoom(near=%d far=%d)=%d -> scale=%d realised=%d\n",
-                    app->world_emit_desc.h,
+                    app->world_views.emit_desc.h,
                     projection.near_zoom,
                     projection.far_zoom,
                     projection.zoom,
                     projection.scale,
                     toridraw_projection_scale_from_cot16(toridraw_projection_cot16(
-                        app->frame_view->world_camera.projection_mode,
-                        app->frame_view->world_camera.projection_scale,
-                        app->frame_view->world_camera.fov_rpi2048)));
+                        app->world_views.frame->world_camera.projection_mode,
+                        app->world_views.frame->world_camera.projection_scale,
+                        app->world_views.frame->world_camera.fov_rpi2048)));
             }
         }
         return;
@@ -182,7 +182,7 @@ app_update_world_viewport(struct App* app)
     app_debug_height_profile(app);
     app_debug_tile_project(app);
     app_debug_tile_flags(app);
-    app->world_view_valid = 0;
+    app->world_views.emit_valid = 0;
     MinimapView_Invalidate(&app->minimap);
     if( torirs_env_world_view_debug() )
     {
@@ -236,8 +236,8 @@ app_update_world_viewport(struct App* app)
     {
         if( app->emit.cmds[i].kind == UITREE_EMIT_WORLD )
         {
-            app->world_emit_desc = app->emit.cmds[i];
-            app->world_view_valid = 1;
+            app->world_views.emit_desc = app->emit.cmds[i];
+            app->world_views.emit_valid = 1;
         }
         else if( app->emit.cmds[i].kind == UITREE_EMIT_MINIMAP )
         {
@@ -269,14 +269,14 @@ App_WorldNodeIndex(struct App const* app)
 int
 app_world_drawable(struct App* app)
 {
-    /* world_view_valid == a WORLD desc survived the last emit walk, so a hidden
+    /* world_views.emit_valid == a WORLD desc survived the last emit walk, so a hidden
      * or absent viewport component costs nothing: no paint, no 3D, no pick.
      * During a server-driven rebuild (deob gameState 25 / Client-TS sceneState
      * 1) suppress the world so mid-load frames are not a frozen wrong scene —
      * App_Render draws the "Loading - please wait." overlay instead. */
-    return app->world_view_valid && app->world && app->world->load_complete &&
+    return app->world_views.emit_valid && app->world && app->world->load_complete &&
            app->world->painter && app->painter_buffer &&
-           !(app->world_load_server_driven && app->world_load_inflight);
+           !WorldLoadState_ServerLoadBlanking(&app->world_load);
 }
 
 /* deob method5761 / Client-TS REBUILD_NORMAL: black fill of the game area plus
@@ -303,12 +303,12 @@ app_draw_viewport_message(
     if( width <= 0 || height <= 0 || !line1 )
         return;
 
-    if( app->world_view_valid )
+    if( app->world_views.emit_valid )
     {
-        vx = app->world_emit_desc.x;
-        vy = app->world_emit_desc.y;
-        vw = app->world_emit_desc.w;
-        vh = app->world_emit_desc.h;
+        vx = app->world_views.emit_desc.x;
+        vy = app->world_views.emit_desc.y;
+        vw = app->world_views.emit_desc.w;
+        vh = app->world_views.emit_desc.h;
     }
     else
     {

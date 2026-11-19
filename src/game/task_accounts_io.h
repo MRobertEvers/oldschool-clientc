@@ -30,41 +30,6 @@
 
 struct ToriRS_Task;
 
-enum RS_AccountSignInGrant
-{
-    /** The credential form: username and password. */
-    RS_ACCOUNT_SIGNIN_PASSWORD = 0,
-    /** A Play Now: the account's saved refresh token. */
-    RS_ACCOUNT_SIGNIN_REFRESH,
-    /** The credential form, "Link account": the player joins the site's web
-     *  login and plays. No refresh token: a linked account has none. */
-    RS_ACCOUNT_SIGNIN_LINK,
-    /** A linked account's Play Now (`username`), on the site's session. */
-    RS_ACCOUNT_SIGNIN_SITE,
-};
-
-/** One sign-in, owned by the app. The task fills the second half and sets
- *  `done` last. */
-struct RS_AccountSignIn
-{
-    enum RS_AccountSignInGrant grant;
-    char username[RS_ACCOUNTS_NAME_LEN];
-    char password[64];
-    char refresh_token[RS_ACCOUNTS_TOKEN_LEN];
-
-    int done;
-    /** 1: `name` and `otl` are good, dial the game; `new_refresh_token` too
-     *  for the PASSWORD and REFRESH grants. */
-    int ok;
-    /** The refresh token was refused (invalid_grant): forget the account. */
-    int refresh_refused;
-    char name[RS_ACCOUNTS_NAME_LEN];
-    char otl[64];
-    char new_refresh_token[RS_ACCOUNTS_TOKEN_LEN];
-    /** Why it failed, for the title's message line. */
-    char error[160];
-};
-
 /** Read the accounts file into `accounts` (empty when there is none) and set
  *  `*loaded` when done. */
 struct ToriRS_Task*

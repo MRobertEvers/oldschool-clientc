@@ -1,5 +1,5 @@
-#ifndef SRC_APP_APP_CAM_ARC_H
-#define SRC_APP_APP_CAM_ARC_H
+#ifndef SRC_RENDER_CAM_ARC_H
+#define SRC_RENDER_CAM_ARC_H
 
 /*
  * CAM_MOVETO_ARC's path (deob class561): the circle through the start (x0, z0),
@@ -19,14 +19,14 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-struct App_CamArc
+struct CamArc
 {
     double cx, cz, radius, a0, a1;
 };
 
 static inline void
-App_CamArcFit(
-    struct App_CamArc* arc,
+CamArc_Fit(
+    struct CamArc* arc,
     double x0,
     double z0,
     double vx,
@@ -68,7 +68,7 @@ App_CamArcFit(
  * the deob's slope infinite and its centre NaN; the eye then lands on 0, 0,
  * and this does what the client does rather than what C would. */
 static inline int
-App_CamArcJavaRound(double v)
+CamArc_JavaRound(double v)
 {
     double r;
 
@@ -84,16 +84,16 @@ App_CamArcJavaRound(double v)
 
 /** The point `f` (eased, 0..1) along the arc, rounded as the deob rounds it. */
 static inline void
-App_CamArcAt(
-    struct App_CamArc const* arc,
+CamArc_At(
+    struct CamArc const* arc,
     double f,
     int* x,
     int* z)
 {
     double a = (arc->a1 - arc->a0) * f + arc->a0;
 
-    *x = App_CamArcJavaRound(arc->cx + arc->radius * cos(a));
-    *z = App_CamArcJavaRound(arc->cz + arc->radius * sin(a));
+    *x = CamArc_JavaRound(arc->cx + arc->radius * cos(a));
+    *z = CamArc_JavaRound(arc->cz + arc->radius * sin(a));
 }
 
 #endif

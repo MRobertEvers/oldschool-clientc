@@ -55,16 +55,16 @@ app_world_viewport_component_live(struct App const* app)
     struct UITreeComponent const* node;
     int32_t idx;
 
-    if( !app || !app->tree || !app->world_view_valid )
+    if( !app || !app->tree || !app->world_views.emit_valid )
         return 0;
-    idx = app->world_emit_desc.node_index;
+    idx = app->world_views.emit_desc.node_index;
     if( idx < 0 || (uint32_t)idx >= app->tree->component_count || idx != app->tree->world_index )
         return 0;
     node = &app->tree->components[idx];
     if( node->freed || node->type != UIELEM_BUILTIN_WORLD )
         return 0;
-    if( app->world_emit_desc.component_id >= 0 &&
-        node->component_id != app->world_emit_desc.component_id )
+    if( app->world_views.emit_desc.component_id >= 0 &&
+        node->component_id != app->world_views.emit_desc.component_id )
         return 0;
     return !UITree_NodeOrAncestorDisplayHidden(app->tree, idx);
 }
@@ -74,7 +74,7 @@ app_world_viewport_component_live(struct App const* app)
  * (layers with only on_mouse_repeat / on_mouse_over — e.g. iface 548 child 40
  * on cache.643, which blankets the viewport and hammers a broken CS2) must NOT
  * block world pick: they are pass-through for clicks. Use HitTestInteractive,
- * not the CS2 hover walk (hover_com_id). */
+ * not the CS2 hover walk (interact.published_hover_com_id). */
 int
 app_world_mouse_gate(
     struct App* app,
@@ -84,7 +84,7 @@ app_world_mouse_gate(
     struct UITreeEmitClip const* clip;
     struct UITreeEmitDesc const* desc;
 
-    if( !app->world_active || !app_world_viewport_component_live(app) )
+    if( !WorldLoadState_Active(&app->world_load) || !app_world_viewport_component_live(app) )
         return 0;
     /* A chrome panel drawn over the viewport is as opaque to the world as an
      * interface is: no hover, no pick, no click-to-walk under the window. */
@@ -99,9 +99,7 @@ app_world_mouse_gate(
      * WALKED THE PLAYER, on a screen where the world is not even visible.
      * The box is the same one app_worldmap_drag_tick arms its drag from.
      */
-    if( app->worldmap.drag.box_w > 0 && app->worldmap.drag.box_h > 0 && mouse_x >= app->worldmap.drag.box_x &&
-        mouse_x < app->worldmap.drag.box_x + app->worldmap.drag.box_w && mouse_y >= app->worldmap.drag.box_y &&
-        mouse_y < app->worldmap.drag.box_y + app->worldmap.drag.box_h && app_worldmap_surface_live(app) )
+    if( RS_WorldMapSurface_BoxContains(&app->worldmap, mouse_x, mouse_y) && app_worldmap_surface_live(app) )
         return 0;
     /* A viewport interface (reference mainModalId) owns the entire viewport
      * rect: buildMinimenu adds that modal's component options there and NEVER
@@ -144,12 +142,12 @@ app_world_mouse_gate(
      * as "in world" — right-clicking an inventory item offered "Walk here"
      * (reference buildMinimenu adds world options only inside the viewport
      * rect 4..516 x 4..338). */
-    desc = &app->world_emit_desc;
+    desc = &app->world_views.emit_desc;
     if( desc->w > 0 && desc->h > 0 &&
         (mouse_x < desc->x || mouse_x >= desc->x + desc->w || mouse_y < desc->y ||
          mouse_y >= desc->y + desc->h) )
         return 0;
-    clip = &app->world_emit_desc.clip;
+    clip = &app->world_views.emit_desc.clip;
     return mouse_x >= clip->x && mouse_x < clip->x + clip->w && mouse_y >= clip->y &&
            mouse_y < clip->y + clip->h;
 }
@@ -196,7 +194,7 @@ app_world_nearest_ground_tile(
      * widths out, and the square of that does not fit in an int. */
     long long best_d2 = LLONG_MAX;
 
-    if( !world || !world->load_complete || !app->world_view_valid )
+    if( !world || !world->load_complete || !app->world_views.emit_valid )
         return 0;
 
     player = app_local_player(app);
@@ -321,9 +319,9 @@ app_try_move(
      * not be caught by it, since the reference computes that tile from the
      * minimap's own geometry and never routes it through method4269.
      */
-    if( type == 0 && app->features->ground_click_clamp_tiles > 0 )
+    if( type == 0 && app->features.ground_click_clamp_tiles > 0 )
     {
-        int clamp = app->features->ground_click_clamp_tiles;
+        int clamp = app->features.ground_click_clamp_tiles;
         int px = (int)player->draw_position.x >> 7;
         int pz = (int)player->draw_position.z >> 7;
         int dx = px - dst_x;
@@ -361,7 +359,7 @@ app_try_move(
     if( !cm )
         return 0;
 
-    if( app->features->pathing_mode == TORIRS_PATHING_SERVER_AUTHORITATIVE )
+    if( app->features.pathing_mode == TORIRS_PATHING_SERVER_AUTHORITATIVE )
     {
         /* The server owns the route and the map flag (SET_MAP_FLAG). Send the
          * destination alone — osrs230 MOVE_GAMECLICK is a fixed 5-byte body. */
@@ -373,9 +371,9 @@ app_try_move(
     {
         struct CollisionNearestOpts nearest_opts;
 
-        collision_nearest_opts_from_model(app->features->ground_click_nearest_model, &nearest_opts);
+        collision_nearest_opts_from_model(app->features.ground_click_nearest_model, &nearest_opts);
         /* Ground/minimap clicks only — see the field. */
-        nearest_opts.unbounded = app->features->ground_click_nearest_unbounded;
+        nearest_opts.unbounded = app->features.ground_click_nearest_unbounded;
         route_len = collision_map_try_route(
             cm,
             player->pathing.route_x[0],
@@ -451,7 +449,7 @@ app_try_move(
      * trip. Client-BFS eras latch the routed destination, server-
      * authoritative ones the (clamped) clicked tile. */
     MinimapView_SetFlag(&app->minimap, route_x[0], route_z[0]);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
     return 1;
 }
 
@@ -463,9 +461,9 @@ static struct CollisionNearestOpts
 app_op_nearest_opts(struct App const* app)
 {
     struct CollisionNearestOpts opts = {
-        .range = app->features->op_click_nearest_range,
+        .range = app->features.op_click_nearest_range,
         .max_dist = 100,
-        .rank_by_rect_distance = app->features->nearest_ranks_by_rect_distance,
+        .rank_by_rect_distance = app->features.nearest_ranks_by_rect_distance,
     };
     return opts;
 }
@@ -510,13 +508,13 @@ app_try_move_op(
     if( !player )
         return 0;
 
-    if( app->features->pathing_mode == TORIRS_PATHING_SERVER_AUTHORITATIVE )
+    if( app->features.pathing_mode == TORIRS_PATHING_SERVER_AUTHORITATIVE )
     {
         if( flag == APP_OP_FLAG_TARGET_TILE )
             MinimapView_SetFlag(&app->minimap, dst_x, dst_z);
         else
             MinimapView_ClearFlag(&app->minimap);
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
         return 1;
     }
 
@@ -560,7 +558,7 @@ app_try_move_op(
             ctrl_held));
 
     MinimapView_SetFlag(&app->minimap, route_x[0], route_z[0]);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
     return 1;
 }
 
@@ -586,8 +584,8 @@ app_try_move_npc(
     int size;
 
     assert(npc);
-    size = app->features->npc_approach_uses_size && npc->size > 0 ? npc->size : 1;
-    if( app->features->approach_model == TORIRS_APPROACH_RECT )
+    size = app->features.npc_approach_uses_size && npc->size > 0 ? npc->size : 1;
+    if( app->features.approach_model == TORIRS_APPROACH_RECT )
         collision_approach_from_shape(-2, 0, size, size, 0, 1, &approach);
     else
     {
@@ -613,7 +611,7 @@ app_try_move_player(
     struct CollisionApproach approach = { 0 };
 
     assert(player);
-    if( app->features->approach_model == TORIRS_APPROACH_RECT )
+    if( app->features.approach_model == TORIRS_APPROACH_RECT )
         collision_approach_from_shape(-2, 0, 1, 1, 0, 1, &approach);
     else
     {
@@ -654,7 +652,7 @@ app_scenery_approach(
 
     approach.mover_size = 1;
 
-    if( app->features->approach_model != TORIRS_APPROACH_RECT )
+    if( app->features.approach_model != TORIRS_APPROACH_RECT )
     {
         approach.kind = COLL_APPROACH_LEGACY_SHAPE;
         if( sized )
@@ -724,7 +722,7 @@ app_try_move_obj(
     if( !app_try_move_op(app, tile_x, tile_z, &exact, APP_OP_FLAG_TARGET_TILE, ctrl_held) )
     {
         struct CollisionApproach one = { 0 };
-        if( app->features->approach_model == TORIRS_APPROACH_RECT )
+        if( app->features.approach_model == TORIRS_APPROACH_RECT )
             collision_approach_from_shape(-2, 0, 1, 1, 0, 1, &one);
         else
         {
@@ -756,66 +754,66 @@ app_world_pick_finish(
         app->world,
         &app->worldviews,
         &app->wevs,
-        app->aboard_view,
+        Wevs_AboardView(&app->wevs),
         hits,
         player_level,
-        &app->frame_view->world_pickset,
+        &app->world_views.frame->world_pickset,
         &result);
     /* The point this frame hittested at, recorded with the set it produced.
      * ToriRS_Soft3D_SetPick (app_render.c) armed the pick at exactly these two
      * fields, so a reader holding the set knows which pixel it answers for --
      * see the stamp's banner in world_pickset.h. */
     World_PickSetStamp(
-        &app->frame_view->world_pickset,
-        app->frame_view->world_mouse_x,
-        app->frame_view->world_mouse_y);
+        &app->world_views.frame->world_pickset,
+        app->world_views.frame->world_mouse_x,
+        app->world_views.frame->world_mouse_y);
     if( result.hover_tile_valid )
     {
-        app->frame_view->world_hover_tile_x = result.hover_tile_x;
-        app->frame_view->world_hover_tile_z = result.hover_tile_z;
-        app->frame_view->world_hover_tile_level = result.hover_tile_level;
+        app->world_views.frame->world_hover_tile_x = result.hover_tile_x;
+        app->world_views.frame->world_hover_tile_z = result.hover_tile_z;
+        app->world_views.frame->world_hover_tile_level = result.hover_tile_level;
     }
     else
     {
-        app->frame_view->world_hover_tile_x = -1;
-        app->frame_view->world_hover_tile_z = -1;
+        app->world_views.frame->world_hover_tile_x = -1;
+        app->world_views.frame->world_hover_tile_z = -1;
     }
     if( result.hover_view_valid )
     {
-        app->frame_view->world_hover_view = result.hover_view;
-        app->frame_view->world_hover_view_x = result.hover_view_x;
-        app->frame_view->world_hover_view_z = result.hover_view_z;
-        app->frame_view->world_hover_view_level = result.hover_view_level;
+        app->world_views.frame->world_hover_view = result.hover_view;
+        app->world_views.frame->world_hover_view_x = result.hover_view_x;
+        app->world_views.frame->world_hover_view_z = result.hover_view_z;
+        app->world_views.frame->world_hover_view_level = result.hover_view_level;
     }
     else
-        app->frame_view->world_hover_view = 0;
+        app->world_views.frame->world_hover_view = 0;
 
     if( getenv("TORIRS_WORLD_PICK_DEBUG") )
     {
         TORIRS_LOG(
             "world_pick: mouse=%d,%d count=%d hover_tile=%d,%d,%d\n",
-            app->frame_view->world_mouse_x,
-            app->frame_view->world_mouse_y,
-            app->frame_view->world_pickset.count,
+            app->world_views.frame->world_mouse_x,
+            app->world_views.frame->world_mouse_y,
+            app->world_views.frame->world_pickset.count,
             result.hover_tile_valid ? result.hover_tile_x : -1,
             result.hover_tile_valid ? result.hover_tile_z : -1,
             result.hover_tile_valid ? result.hover_tile_level : -1);
-        for( int i = 0; i < app->frame_view->world_pickset.count; i++ )
+        for( int i = 0; i < app->world_views.frame->world_pickset.count; i++ )
         {
             /* Loc id/name/footprint turn an element id into something you can look up in the
              * cache — the difference between "element 4345 draws late" and "the plinth is a
              * separate 1x1 loc one tile nearer than the statue". */
             struct WorldEntity_Scenery* scenery = World_SceneryGetByElementId(
-                app->world, app->frame_view->world_pickset.items[i].element_id);
+                app->world, app->world_views.frame->world_pickset.items[i].element_id);
             TORIRS_LOG(
                 "world_pick:  [%d] element=%d type=%d tile=%d,%d,%d loc=%d size=%dx%d "
                 "origin=%d,%d,%d '%s'\n",
                 i,
-                app->frame_view->world_pickset.items[i].element_id,
-                (int)app->frame_view->world_pickset.items[i].type,
-                app->frame_view->world_pickset.items[i].tile_x,
-                app->frame_view->world_pickset.items[i].tile_z,
-                app->frame_view->world_pickset.items[i].tile_level,
+                app->world_views.frame->world_pickset.items[i].element_id,
+                (int)app->world_views.frame->world_pickset.items[i].type,
+                app->world_views.frame->world_pickset.items[i].tile_x,
+                app->world_views.frame->world_pickset.items[i].tile_z,
+                app->world_views.frame->world_pickset.items[i].tile_level,
                 scenery ? scenery->loc_id : -1,
                 scenery ? scenery->size_x : -1,
                 scenery ? scenery->size_z : -1,

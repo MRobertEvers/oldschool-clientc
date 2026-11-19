@@ -90,10 +90,10 @@ app_wev_actor_root_fine(
 static int
 app_sailing_at_helm(struct App* app)
 {
-    int id = app->sailing_at_helm_varbit;
-    return id >= 0 && id < app->varps.varbit_count && app->aboard_view != WORLDVIEW_ROOT &&
-           Wevs_IsLive(&app->wevs, app->aboard_view) &&
-           WorldviewRegistry_IsLive(&app->worldviews, app->aboard_view) &&
+    int id = app->sailing_hud.ids.at_helm_varbit;
+    return id >= 0 && id < app->varps.varbit_count && Wevs_AboardView(&app->wevs) != WORLDVIEW_ROOT &&
+           Wevs_IsLive(&app->wevs, Wevs_AboardView(&app->wevs)) &&
+           WorldviewRegistry_IsLive(&app->worldviews, Wevs_AboardView(&app->wevs)) &&
            VarPManager_GetVarbit(&app->varps, id) != 0;
 }
 
@@ -102,15 +102,15 @@ app_sailing_can_steer(struct App* app)
 {
     if( app_sailing_at_helm(app) )
         return 1;
-    int role = app->sailing_captain_role_varbit;
-    if( app->aboard_view == WORLDVIEW_ROOT || !Wevs_IsLive(&app->wevs, app->aboard_view) ||
-        !WorldviewRegistry_IsLive(&app->worldviews, app->aboard_view) || role < 0 ||
+    int role = app->sailing_hud.ids.captain_role_varbit;
+    if( Wevs_AboardView(&app->wevs) == WORLDVIEW_ROOT || !Wevs_IsLive(&app->wevs, Wevs_AboardView(&app->wevs)) ||
+        !WorldviewRegistry_IsLive(&app->worldviews, Wevs_AboardView(&app->wevs)) || role < 0 ||
         role >= app->varps.varbit_count || VarPManager_GetVarbit(&app->varps, role) != 10 )
         return 0;
-    for( int slot = 0; slot < 5; ++slot )
+    for( int slot = 0; slot < RS_SAILING_HUD_CREW_SLOTS; ++slot )
     {
-        int duty = app->sailing_crew_duty_varbit[slot];
-        int roster = app->sailing_crew_roster_varbit[slot];
+        int duty = app->sailing_hud.ids.crew_duty_varbit[slot];
+        int roster = app->sailing_hud.ids.crew_roster_varbit[slot];
         if( duty >= 0 && duty < app->varps.varbit_count && roster >= 0 &&
             roster < app->varps.varbit_count &&
             (VarPManager_GetVarbit(&app->varps, duty) == 3 ||
@@ -131,19 +131,19 @@ app_sailing_heading_at(
     int* heading)
 {
     assert(heading);
-    if( !app_sailing_can_steer(app) || !app->world_view_valid )
+    if( !app_sailing_can_steer(app) || !app->world_views.emit_valid )
         return 0;
-    struct Wev* vessel = Wevs_Get(&app->wevs, app->aboard_view);
+    struct Wev* vessel = Wevs_Get(&app->wevs, Wevs_AboardView(&app->wevs));
     if( vessel->parent_view_id != WORLDVIEW_ROOT )
         return 0;
     double x, z;
     if( !ToriRS_WorldUnprojectPlane(
-            &app->frame_view->world_camera,
-            &app->frame_view->world_camera_pos,
-            app->world_emit_desc.x,
-            app->world_emit_desc.y,
-            app->world_emit_desc.w,
-            app->world_emit_desc.h,
+            &app->world_views.frame->world_camera,
+            &app->world_views.frame->world_camera_pos,
+            app->world_views.emit_desc.x,
+            app->world_views.emit_desc.y,
+            app->world_views.emit_desc.w,
+            app->world_views.emit_desc.h,
             mouse_x,
             mouse_y,
             vessel->y,
@@ -172,7 +172,7 @@ app_sailing_menu_context(
     if( ctx->sailing_navigating && !app_sailing_at_helm(app) && ctx->world_pickset )
         for( int i = 0; i < ctx->world_pickset->count; ++i )
             if( ctx->world_pickset->items[i].type == WORLD_PICK_TERRAIN &&
-                ctx->world_pickset->items[i].view_id == app->aboard_view )
+                ctx->world_pickset->items[i].view_id == Wevs_AboardView(&app->wevs) )
                 ctx->sailing_navigating = false;
     ctx->sailing_heading_valid =
         ctx->sailing_navigating &&
@@ -189,9 +189,9 @@ app_sailing_send_heading(
     APP_NET_SEND(
         app,
         net_out_set_heading(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), heading));
-    app->sailing_selected_heading = heading;
-    app->sailing_selected_until = app->logic_cycle + 30;
-    app->need_redraw = 1;
+    RS_SailingHud_Select(
+        &app->sailing_hud, heading, FrameClockSerial_LogicCycle(&app->frame_clock.serial));
+    RedrawRequest_Raise(&app->redraw_request);
     return 1;
 }
 
@@ -205,46 +205,43 @@ app_sailing_register_arrows(
 {
     if( world != app->world || !app_sailing_can_steer(app) )
         return;
-    struct Wev* vessel = Wevs_Get(&app->wevs, app->aboard_view);
+    struct Wev* vessel = Wevs_Get(&app->wevs, Wevs_AboardView(&app->wevs));
     if( vessel->parent_view_id != WORLDVIEW_ROOT )
         return;
     int hover = -1;
-    if( app->frame_view->world_mouse_in_viewport && !app->frame_view->pointer_absent &&
-        !app->frame_view->minimenu->visible &&
+    if( app->world_views.frame->world_mouse_in_viewport && !app->world_views.frame->pointer_absent &&
+        !app->world_views.frame->minimenu->visible &&
         !strcmp(app->host.clientop.mouseover_op, "Set heading") )
         app_sailing_heading_at(
-            app, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y, &hover);
-    int selected =
-        app->logic_cycle < app->sailing_selected_until ? app->sailing_selected_heading : -1;
-    int scale = app->frame_view->world_camera.projection_mode == TORIDRAW_PROJECTION_MODE_FOV
-                    ? toridraw_projection_scale_from_fov(app->frame_view->world_camera.fov_rpi2048)
-                    : app->frame_view->world_camera.projection_scale;
+            app, app->world_views.frame->world_mouse_x, app->world_views.frame->world_mouse_y, &hover);
+    int selected = RS_SailingHud_SelectedHeading(
+        &app->sailing_hud, FrameClockSerial_LogicCycle(&app->frame_clock.serial));
+    int scale = app->world_views.frame->world_camera.projection_mode == TORIDRAW_PROJECTION_MODE_FOV
+                    ? toridraw_projection_scale_from_fov(app->world_views.frame->world_camera.fov_rpi2048)
+                    : app->world_views.frame->world_camera.projection_scale;
     if( scale <= 0 )
         scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
-    int distance = app->world_emit_desc.h > 0
-                       ? (int)(1400.0 - scale * 4.0 * 334.0 / app->world_emit_desc.h)
+    int distance = app->world_views.emit_desc.h > 0
+                       ? (int)(1400.0 - scale * 4.0 * 334.0 / app->world_views.emit_desc.h)
                        : 512;
     if( distance < 512 )
         distance = 512;
-    for( int i = 0; i < 2; ++i )
+    for( int i = 0; i < RS_SAILING_HUD_ARROWS; ++i )
     {
-        int heading = i == 0 ? hover : selected;
-        if( heading < 0 || (i == 0 && heading == selected) )
+        int heading = i == RS_SAILING_HUD_ARROW_HOVER ? hover : selected;
+        if( heading < 0 || (i == RS_SAILING_HUD_ARROW_HOVER && heading == selected) )
             continue;
-        int model_id = app->sailing_arrow_model[i];
+        int model_id = app->sailing_hud.ids.arrow_model[i];
         if( model_id < 0 )
             continue;
         if( !CacheProvider_ModelHas(app->provider, model_id) )
         {
-            if( !app->sailing_arrow_loading[i] )
-            {
+            if( RS_SailingHud_ArrowLoadBegin(&app->sailing_hud, i) )
                 ToriRS_TaskQueue_Add(
                     app->frame_runner.queue, CreateTask_ModelLoad(app->provider, model_id));
-                app->sailing_arrow_loading[i] = 1;
-            }
             continue;
         }
-        int element = app->sailing_arrow_element[i];
+        int element = RS_SailingHud_ArrowElement(&app->sailing_hud, i);
         if( element < 0 )
         {
             struct ToriRS_Model* source = CacheProvider_ModelGet(app->provider, model_id);
@@ -258,7 +255,7 @@ app_sailing_register_arrows(
             element = ToriDraw_SceneElementAddPool(app->scene, TORIDRAW_SCENE_POOL_DYNAMIC);
             assert(element >= 0);
             ToriDraw_SceneElementSetModel(app->scene, element, handle);
-            app->sailing_arrow_element[i] = element;
+            RS_SailingHud_ArrowElementSet(&app->sailing_hud, i, element);
         }
         int angle = heading * 128;
         int x = vessel->x - world->_base_tile_x * 128 -
@@ -523,11 +520,11 @@ App_WevSpawn(
         0,
         size_x_tiles,
         size_z_tiles,
-        app->active_world);
+        WorldviewRegistry_Active(&app->worldviews));
 
     {
         struct Wev* wev = Wevs_Spawn(
-            &app->wevs, id, app->active_world, config, config_id, x, z, angle, priority_group,
+            &app->wevs, id, WorldviewRegistry_Active(&app->worldviews), config, config_id, x, z, angle, priority_group,
             op_mask);
         /* The carrier floats on its parent's level: the spawn record executes
          * under the parent's cursor, and the parent's own level (deob
@@ -535,7 +532,7 @@ App_WevSpawn(
          * Mirrored onto the Wev for its height sampling (Wevs_UpdateHeights,
          * in wev.c, has no worldview.h). */
         int const parent_level =
-            WorldviewRegistry_Get(&app->worldviews, app->active_world)->level;
+            WorldviewRegistry_Get(&app->worldviews, WorldviewRegistry_Active(&app->worldviews))->level;
 
         WorldviewRegistry_Get(&app->worldviews, id)->parent_level = parent_level;
         if( wev )
@@ -563,11 +560,8 @@ App_WevDespawn(
     /* If this view is the tick's zone/rebuild cursor, the cursor is now a
      * dangling address — point it back at the root, exactly what the tick
      * fence would do. */
-    if( app->active_world == id )
-    {
-        app->active_world = WORLDVIEW_ROOT;
-        app->active_world_level = 0;
-    }
+    if( WorldviewRegistry_Active(&app->worldviews) == id )
+        WorldviewRegistry_ResetActive(&app->worldviews);
     /* Entity first (asserts its own list is empty — nested entities despawn
      * leaves-first), then its view: Release frees the owned world/builder
      * pair the spawn built. */
@@ -587,8 +581,7 @@ App_WevDespawn(
      * different world-entity: the modes SET_INTERACTION_MODE gave this one
      * must not carry over to it (the deob keys them by the wire id, which
      * leaves with the hull). */
-    app->interaction_tile[id] = -1;
-    app->interaction_entity[id] = -1;
+    RS_InteractionMode_ResetView(&app->interaction_mode, id);
 
     view = WorldviewRegistry_Get(&app->worldviews, id);
     /* The scene outlives the view. Freeing the World reclaims the deck's
@@ -606,7 +599,7 @@ App_WevDespawn(
     ToriDraw_SceneClearPool(app->scene, TORIDRAW_SCENE_POOL_DYNAMIC_VIEW(id));
 
     WorldviewRegistry_Release(&app->worldviews, id);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 /*
  * World ENTITIES -- the sailing hulls that carry a world view around the map,
@@ -677,7 +670,7 @@ app_wev_register_pseudo_locs(
             for( int i = 0; i < count; ++i )
             {
                 struct Wev* candidate = Wevs_ViewListAt(&app->wevs, view_id, i);
-                bool aboard = candidate->id == app->aboard_view;
+                bool aboard = candidate->id == Wevs_AboardView(&app->wevs);
                 if( pass == 0 ? aboard : !aboard && candidate->priority_group == groups[pass] )
                     order[ordered++] = i;
             }
@@ -1175,7 +1168,7 @@ app_wev_decide_flatten(struct App* app)
     assert(app);
     Wevs_SelectRenderStates(
         &app->wevs,
-        app->aboard_view,
+        Wevs_AboardView(&app->wevs),
         app->host.world_entity_draw_limit,
         app_wev_actor_overlaps,
         app);
@@ -1334,7 +1327,7 @@ app_wev_apply_placement(
         ToriDraw_SceneElementSetPool(
             app->scene, element_id, TORIDRAW_SCENE_POOL_DYNAMIC_VIEW(view_id));
         placement->view_id = view_id;
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
     }
     placement->x = x;
     placement->z = z;
@@ -1360,7 +1353,7 @@ app_wev_route_actors(struct App* app)
     if( !world || !app->scene )
         return;
 
-    app->aboard_view = WORLDVIEW_ROOT;
+    Wevs_SetAboardView(&app->wevs, WORLDVIEW_ROOT);
 
     pool = &world->entities.player;
     for( int pi = World_EntityPoolHead(pool); pi != WORLD_ENTITY_NIL;
@@ -1398,8 +1391,10 @@ app_wev_route_actors(struct App* app)
             {
                 if( want == WORLDVIEW_ROOT )
                 {
-                    local_x = player->view_placement.abs_x - (app->rebuild_zone_x - 6) * 8;
-                    local_z = player->view_placement.abs_z - (app->rebuild_zone_z - 6) * 8;
+                    local_x = player->view_placement.abs_x -
+                              RS_RebuildRegion_SceneBaseX(&app->rebuild_region);
+                    local_z = player->view_placement.abs_z -
+                              RS_RebuildRegion_SceneBaseZ(&app->rebuild_region);
                 }
                 player->view_placement.home_view = want;
                 World_PlayerPathJump(world, pi, true, local_x, local_z);
@@ -1445,13 +1440,12 @@ app_wev_route_actors(struct App* app)
          * aboard scene-mode flip and the deck-height focus both key off it. */
         if( app->esync.local_pid >= 0 && player->server_pid == app->esync.local_pid )
         {
-            app->aboard_view = view_id;
+            Wevs_SetAboardView(&app->wevs, view_id);
             /* Only on a change. This runs every tick for every player, and
              * "still where they were" is the answer on all but the one tick a
              * boarding capture is actually about. */
-            if( app_wev_debug_enabled() && app->dbg_aboard_view != view_id )
+            if( app_wev_debug_enabled() && WevAboardTrace_Changed(&app->aboard_trace, view_id) )
             {
-                app->dbg_aboard_view = view_id;
                 fprintf(
                     stderr,
                     "wev: local player ABOARD view %d at view-local %d,%d "
@@ -1486,7 +1480,8 @@ app_wev_route_actors(struct App* app)
             continue;
         }
         struct ToriRS_Npctype* type = NULL;
-        if( app->sailing_crew_category > 0 && Wevs_ViewListCount(&app->wevs, WORLDVIEW_ROOT) > 0 )
+        if( app->sailing_hud.ids.crew_category > 0 &&
+            Wevs_ViewListCount(&app->wevs, WORLDVIEW_ROOT) > 0 )
         {
             type = CacheProvider_NpctypeGet(
                 app->provider, npc->base_npc_id >= 0 ? npc->base_npc_id : npc->npc_id);
@@ -1497,7 +1492,8 @@ app_wev_route_actors(struct App* app)
          * NPCs, sea monsters and dock recruits retain their root-world pose.
          * NPC_INFO continues to track the original root coordinates; changing
          * those would corrupt later relative movement and target packets. */
-        if( app->sailing_crew_category > 0 && type && type->category == app->sailing_crew_category )
+        if( app->sailing_hud.ids.crew_category > 0 && type &&
+            type->category == app->sailing_hud.ids.crew_category )
             for( int pass = 0; pass < WORLDVIEW_MAX; ++pass )
             {
                 int candidate = pass == 0 ? npc->view_placement.view_id : pass;
@@ -1674,9 +1670,7 @@ app_wev_claim_deck_actors(
         return 0;
     if( view_id == WORLDVIEW_ROOT )
     {
-        for( int i = 0; i < 2 && n < max; ++i )
-            if( app->sailing_arrow_element[i] >= 0 )
-                out_element_ids[n++] = app->sailing_arrow_element[i];
+        n = RS_SailingHud_ArrowElementsClaim(&app->sailing_hud, out_element_ids, max);
         n += app->wev_flat.ops->claim_elements(
             app->wev_flat.state, out_element_ids + n, max - n);
         return n;
@@ -1771,8 +1765,7 @@ app_wev_evict_view_actors(
         app_wev_apply_placement(app, &npc->view_placement, npc->element_id, WORLDVIEW_ROOT, fx, fz);
         npc->view_placement.home_view = 0;
     }
-    if( app->aboard_view == view_id )
-        app->aboard_view = WORLDVIEW_ROOT;
+    Wevs_AboardViewGone(&app->wevs, view_id);
 }
 
 /**

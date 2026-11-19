@@ -19,6 +19,12 @@
  *   refresh = eyJhbGciOi...
  *
  * one section per account, most recently played first.
+ *
+ * Beside the list: the read-once, shown-once latch the title holds for this
+ * file and for the site session, and the record of the one sign-in in flight,
+ * with the rule that a second cannot begin before the first has answered.
+ * None of it knows when a frame runs or what the title shows; the caller asks
+ * at its own moments and does the loading, the rebuilding and the dialling.
  */
 
 #define RS_ACCOUNTS_MAX 8
@@ -123,5 +129,94 @@ void
 RS_SiteSession_Add(
     struct RS_SiteSession* site,
     char const* name);
+
+/*
+ * Read once, shown once: the device's accounts file and the site session are
+ * each asked for a single time per boot, and the title is rebuilt for the
+ * answer a single time when it lands. A load task sets `done` through
+ * RS_AccountsLoad_DoneFlag; everything else is these functions.
+ */
+struct RS_AccountsLoad
+{
+    int started;
+    /** Set by the load task when it has an answer (or found none). */
+    int done;
+    /** The title has been rebuilt for the answer. */
+    int shown;
+};
+
+/** 1 the first time it is asked, and the load counts as started from then. */
+int
+RS_AccountsLoad_TakeStart(struct RS_AccountsLoad* load);
+
+/** Where the load task records that it has answered. */
+int*
+RS_AccountsLoad_DoneFlag(struct RS_AccountsLoad* load);
+
+int
+RS_AccountsLoad_Done(struct RS_AccountsLoad const* load);
+
+/** 1 the first time it is asked after the load answered, and never again. */
+int
+RS_AccountsLoad_TakeShow(struct RS_AccountsLoad* load);
+
+enum RS_AccountSignInGrant
+{
+    /** The credential form: username and password. */
+    RS_ACCOUNT_SIGNIN_PASSWORD = 0,
+    /** A Play Now: the account's saved refresh token. */
+    RS_ACCOUNT_SIGNIN_REFRESH,
+    /** The credential form, "Link account": the player joins the site's web
+     *  login and plays. No refresh token: a linked account has none. */
+    RS_ACCOUNT_SIGNIN_LINK,
+    /** A linked account's Play Now (`username`), on the site's session. */
+    RS_ACCOUNT_SIGNIN_SITE,
+};
+
+/** One sign-in, owned by the app. The task (task_accounts_io.h) fills the
+ *  second half and sets `done` last; `busy` is the app's and the task never
+ *  touches it. One is in flight from RS_AccountSignIn_Begin until
+ *  RS_AccountSignIn_TakeAnswer says it answered. */
+struct RS_AccountSignIn
+{
+    enum RS_AccountSignInGrant grant;
+    char username[RS_ACCOUNTS_NAME_LEN];
+    char password[64];
+    char refresh_token[RS_ACCOUNTS_TOKEN_LEN];
+
+    int done;
+    /** 1: `name` and `otl` are good, dial the game; `new_refresh_token` too
+     *  for the PASSWORD and REFRESH grants. */
+    int ok;
+    /** The refresh token was refused (invalid_grant): forget the account. */
+    int refresh_refused;
+    char name[RS_ACCOUNTS_NAME_LEN];
+    char otl[64];
+    char new_refresh_token[RS_ACCOUNTS_TOKEN_LEN];
+    /** Why it failed, for the title's message line. */
+    char error[160];
+
+    /** A sign-in has begun and its answer has not been taken. */
+    int busy;
+};
+
+/**
+ * Start a sign-in with `grant`: the whole record is cleared, the grant set,
+ * and it is in flight from here. The caller fills the first half and queues
+ * the task. Beginning one while another is in flight is a caller bug.
+ */
+void
+RS_AccountSignIn_Begin(
+    struct RS_AccountSignIn* signin,
+    enum RS_AccountSignInGrant grant);
+
+/** A sign-in is in flight: begun, its answer not yet taken. */
+int
+RS_AccountSignIn_Busy(struct RS_AccountSignIn const* signin);
+
+/** For a sign-in in flight: 1 when the task has answered, and it is then no
+ *  longer in flight; 0 while it is still out. */
+int
+RS_AccountSignIn_TakeAnswer(struct RS_AccountSignIn* signin);
 
 #endif

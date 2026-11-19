@@ -600,14 +600,11 @@ app_entity_overlay_layout(struct App* app)
         return;
 
     /* A rebuilt tree took every overlay layer with it (see
-     * App::client_trigger_refire_pending). The sweep below sets the flag when
-     * it finds an overlay whose layer is gone; it is acted on here, before the
+     * game/rs_client_trigger.h). The sweep below raises the refire when it
+     * finds an overlay whose layer is gone; it is taken here, before the
      * sweep, so the refire happens outside the walk it would invalidate. */
-    if( app->client_trigger_refire_pending )
-    {
-        app->client_trigger_refire_pending = 0;
+    if( RS_ClientTriggerRefire_Take(&app->client_trigger_refire) )
         app_client_triggers_refire(app);
-    }
 
     /* The parent IS the world rect: it is what clips the overlays (see
      * UITree_ComponentClipsChildren), and the App is the only thing that knows
@@ -615,10 +612,10 @@ app_entity_overlay_layout(struct App* app)
      * no overlays -- which is right, because there is nothing to anchor to. */
     {
         struct UITreeElemPosition const* pos = &app->tree->components[parent].position;
-        int const w = app->world_view_valid ? app->world_emit_desc.w : 0;
-        int const h = app->world_view_valid ? app->world_emit_desc.h : 0;
-        int const x = app->world_view_valid ? app->world_emit_desc.x : 0;
-        int const y = app->world_view_valid ? app->world_emit_desc.y : 0;
+        int const w = app->world_views.emit_valid ? app->world_views.emit_desc.w : 0;
+        int const h = app->world_views.emit_valid ? app->world_views.emit_desc.h : 0;
+        int const x = app->world_views.emit_valid ? app->world_views.emit_desc.x : 0;
+        int const y = app->world_views.emit_valid ? app->world_views.emit_desc.y : 0;
         if( pos->kind != UIPOS_XY || pos->x != x || pos->y != y || pos->width != w ||
             pos->height != h )
             (void)UITree_SetXYBoxAt(app->tree, parent, x, y, w, h);
@@ -662,7 +659,7 @@ app_entity_overlay_layout(struct App* app)
             /* The layer is gone but the record is not: a tree rebuild. Every
              * overlay is in the same state, so this is raised once and acted
              * on at the top of the next pass. */
-            app->client_trigger_refire_pending = 1;
+            RS_ClientTriggerRefire_Raise(&app->client_trigger_refire);
             continue;
         }
         /* Projection failure is camera-owned visibility, not script-owned
@@ -799,7 +796,7 @@ app_build_entity_overlays(
      * drawn beside. */
     app_world_tile_marks_reset(app);
     *out_items = OverlayStage_Items(&app->overlays, OVERLAY_SURFACE_WORLD);
-    if( !world || !world->load_complete || !app->world_view_valid )
+    if( !world || !world->load_complete || !app->world_views.emit_valid )
         return 0;
 
     font_id = app_hitsplat_font_scene_id(app);

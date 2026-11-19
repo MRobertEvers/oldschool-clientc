@@ -92,9 +92,8 @@ ReplayWorld_ClearEntities(struct App* app)
     /* CLEAR_ENTITIES's world-entity half (rs_gameproto_exec.c). */
     while( Wevs_ViewListCount(&app->wevs, WORLDVIEW_ROOT) > 0 )
         App_WevDespawn(app, Wevs_ViewListAt(&app->wevs, WORLDVIEW_ROOT, 0)->id);
-    app->active_world = WORLDVIEW_ROOT;
-    app->active_world_level = 0;
-    app->pending_zone_count = 0;
+    WorldviewRegistry_ResetActive(&app->worldviews);
+    RS_ZoneInbox_Discard(&app->zone_inbox);
 }
 
 /* --- 2. the scene ----------------------------------------------------------- */
@@ -104,9 +103,10 @@ scene_loaded(
     struct App const* app,
     struct ReplayLedgerScene const* row)
 {
-    return app->world_active && app->world && app->world->load_complete && !row->instanced &&
-           !app->rebuild_instance_active && app->rebuild_zone_x == row->zone_x &&
-           app->rebuild_zone_z == row->zone_z;
+    return WorldLoadState_Active(&app->world_load) && app->world && app->world->load_complete && !row->instanced &&
+           !RS_RebuildRegion_InstanceActive(&app->rebuild_region) &&
+           RS_RebuildRegion_CentreX(&app->rebuild_region) == row->zone_x &&
+           RS_RebuildRegion_CentreZ(&app->rebuild_region) == row->zone_z;
 }
 
 /* The original REBUILD, parsed as net parses it and executed through
@@ -133,7 +133,7 @@ rebuild_task(
     }
     /* Past the same-zone early-out: the scene the keyframe names is the one
      * to stand in, whatever the client was showing. */
-    app->net_force_rebuild = 1;
+    RS_RebuildRegion_Force(&app->rebuild_region);
     return CreateTask_GameProtoExec(app, &packet);
 }
 
@@ -331,12 +331,10 @@ apply_zones_and_table(struct Task_ReplayWorldApply* self)
     assert(rev->player_info_state_size() == kf->player_table_size);
     rev->player_info_state_load(kf->player_table);
     app->esync.local_pid = kf->local_index;
-    app->npc_update_origin_valid = kf->npc_origin_valid;
     if( kf->npc_origin_valid )
-    {
-        app->npc_update_origin_x = kf->npc_origin_x;
-        app->npc_update_origin_z = kf->npc_origin_z;
-    }
+        RS_NpcUpdateOrigin_Set(&app->npc_update_origin, kf->npc_origin_x, kf->npc_origin_z);
+    else
+        RS_NpcUpdateOrigin_Forget(&app->npc_update_origin);
 }
 
 static int
@@ -358,7 +356,7 @@ Task_ReplayWorldApply_Run(
      * world it started from. */
     ReplayWorld_ClearEntities(app);
     /* The chase's stated tile gives way to the world it stood in for. */
-    app->replay_chase_coord_valid = 0;
+    ReplayChase_ClearCoord(&app->replay_chase);
 
     if( self->d->kf.scene >= 0 &&
         (self->d->rebuild || !scene_loaded(app, &self->d->kf.scene_row)) )
@@ -371,14 +369,14 @@ Task_ReplayWorldApply_Run(
          * is right for a server's REBUILD and wrong here, where they belong
          * to the tick the seek left. A seek back from tick 3000 to 2999 on
          * RSProx 96 kept five ground items the keyframe did not name. */
-        if( app->world_active && app->world->load_complete )
+        if( WorldLoadState_Active(&app->world_load) && app->world->load_complete )
             RS_GameProto_ReplayClearScene(app);
         self->rebuilt = 1;
         PT_TASK_AWAITSELF_IF(rebuild_task(app, self->d));
     }
     else
     {
-        app->net_force_rebuild = 0;
+        (void)RS_RebuildRegion_TakeForced(&app->rebuild_region);
         RS_GameProto_ReplayClearScene(app);
     }
 
@@ -390,7 +388,7 @@ Task_ReplayWorldApply_Run(
         PT_TASK_AWAITSELF_IF(CreateTask_ExecNpcInfoOps(app, self->ops, self->op_count));
     npc_levels(self);
     apply_npc_headicons(self);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 
     TORIRS_REPORT("replay: world keyframe at tick %d: scene %s, %d zone ops, %d players, %d npcs "
                   "(%.1f ms)\n",

@@ -115,11 +115,12 @@ app_chrome_theme_editor_choose(struct App* app)
                 "(UITREE_DEBUG_OVERLAY_UI_FONTS in ui/uitree.h); keeping the current theme\n");
         return;
     }
-    app->dbg_ui.theme = torirs_chrome_theme_editor;
+    app->dev_overlay->ui.theme = torirs_chrome_theme_editor;
     /* Its faces are the vendored ones: the bridge registers them with the
      * scene when the overlay's font ids are next resolved (and builds none
      * in a session that never gets here). */
-    UITreeSceneBridge_SetChromeUiFonts(&app->bridge, ToriRSChrome_ThemeUsesUiFonts(&app->dbg_ui.theme));
+    UITreeSceneBridge_SetChromeUiFonts(
+        &app->bridge, ToriRSChrome_ThemeUsesUiFonts(&app->dev_overlay->ui.theme));
 }
 
 void
@@ -127,7 +128,7 @@ app_debug_overlay_init(struct App* app)
 {
     assert(app);
 
-    ToriRSChrome_Init(&app->dbg_ui);
+    ToriRSChrome_Init(&app->dev_overlay->ui);
 
     /*
      * Tell the chrome which baked skin images this build actually carries.
@@ -145,14 +146,14 @@ app_debug_overlay_init(struct App* app)
     {
         char const* theme = getenv("TORIRS_CHROME_THEME");
         if( theme && strcmp(theme, "flat") == 0 )
-            app->dbg_ui.theme = torirs_chrome_theme_default;
+            app->dev_overlay->ui.theme = torirs_chrome_theme_default;
 
         /*
          * Which boolean art the checkboxes wear: the manifest's answer, and
          * TORIRS_CHROME_CHECKBOX over the top of it -- the same order every
          * other chrome option here is resolved in.
          *
-         * Set on dbg_ui alone because plugin_ui is COPIED from it a few lines
+         * Set on dev_overlay->ui alone because plugin_win->ui is COPIED from it a few lines
          * below; going through App_SetChromeCheckStyle would be a call on an
          * instance that does not exist yet.
          */
@@ -165,17 +166,17 @@ app_debug_overlay_init(struct App* app)
                 style = TORIRS_CHROME_CHECK_STYLE_TICK;
             else if( pick )
                 TORIRS_LOG("chrome: TORIRS_CHROME_CHECKBOX must be tick|box, got '%s'\n", pick);
-            ToriRSChrome_SetCheckStyle(&app->dbg_ui, style);
+            ToriRSChrome_SetCheckStyle(&app->dev_overlay->ui, style);
         }
 
         for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT && i < ToriRSChromeSkin_Count(); i++ )
-            ToriRSChrome_SetSkinAvailable(&app->dbg_ui, i, 1);
-        if( app->dbg_ui.skin_avail & (1u << TORIRS_CHROME_SKIN_PANEL_BODY) )
+            ToriRSChrome_SetSkinAvailable(&app->dev_overlay->ui, i, 1);
+        if( app->dev_overlay->ui.skin_avail & (1u << TORIRS_CHROME_SKIN_PANEL_BODY) )
         {
             struct ToriRSChromeSkin_Sprite const* body =
                 ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY);
-            app->dbg_ui.skin_tile_w = body->w;
-            app->dbg_ui.skin_tile_h = body->h;
+            app->dev_overlay->ui.skin_tile_w = body->w;
+            app->dev_overlay->ui.skin_tile_h = body->h;
         }
     }
 
@@ -187,11 +188,11 @@ app_debug_overlay_init(struct App* app)
      * the build carries -- three things a second Init would have to repeat and
      * a fourth panel would eventually be found not to have.
      */
-    app->plugin_ui = app->dbg_ui;
+    app->plugin_win->ui = app->dev_overlay->ui;
     /* The editor's windows are this instance's panels: its theme is chosen
      * now, after the copy, so the plugin window keeps the game's. */
     app_chrome_theme_editor_choose(app);
-    ToriRSChromeShell_Init(&app->plugin_shell, 320);
+    ToriRSChromeShell_Init(&app->plugin_win->shell, 320);
     /* File-static view state survives Android recreating main() in one
      * process; the App does not, so a new App must not inherit a selected page
      * whose model belonged to the previous run. */
@@ -199,61 +200,67 @@ app_debug_overlay_init(struct App* app)
     g_plugin_page_built = -1;
     g_plugin_fullscreen = 0;
     g_plugin_fullscreen_built = -1;
-    app->plugin_panel = -1;
-    app->plugin_panel_built_for = -1;
-    app->plugin_panel_built_rev = -1;
-    app->plugin_panel_built_model_rev = 0;
-    app->plugin_panel_built_generation = 0;
-    app->plugin_panel_built_registry_rev = 0;
-    app->plugin_panel_intent_sequence = 0;
-    ToriRSChromeRailSync_Init(&app->plugin_rail);
-    app->plugin_rail_has_layout = 0;
+    app->plugin_win->panel = -1;
+    app->plugin_win->built_for = -1;
+    app->plugin_win->built_rev = -1;
+    app->plugin_win->built_model_rev = 0;
+    app->plugin_win->built_generation = 0;
+    app->plugin_win->built_registry_rev = 0;
+    app->plugin_win->intent_sequence = 0;
+    ToriRSChromeRailSync_Init(&app->plugin_win->rail);
+    app->plugin_win->rail_has_layout = 0;
     /* No executor has been reported yet, and BUFFER is a real answer. */
-    app->plugin_exec_logged_kind = -1;
+    app->plugin_win->exec_logged_kind = -1;
 
-    app->dbg_visible = 0;
-    FrameTimeRing_Reset(&app->dbg_frame_times);
-    app->dbg_panel = ToriRSChrome_PanelAdd(
-        &app->dbg_ui, TORIRS_CHROME_PANEL_MENU, 8, 8, 0, k_app_debug_overlay_title);
-    app->dbg_frame_row = ToriRSChrome_MenuItem(&app->dbg_ui, app->dbg_panel, "--");
-    ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->dbg_panel, 0);
+    app->dev_overlay->visible = 0;
+    FrameTimeRing_Reset(&app->dev_overlay->frame_times);
+    app->dev_overlay->panel = ToriRSChrome_PanelAdd(
+        &app->dev_overlay->ui, TORIRS_CHROME_PANEL_MENU, 8, 8, 0, k_app_debug_overlay_title);
+    app->dev_overlay->frame_row =
+        ToriRSChrome_MenuItem(&app->dev_overlay->ui, app->dev_overlay->panel, "--");
+    ToriRSChrome_PanelSetVisible(&app->dev_overlay->ui, app->dev_overlay->panel, 0);
 
-    app->locedit.panel =
-        ToriRSChrome_PanelAdd(&app->dbg_ui, TORIRS_CHROME_PANEL_MENU, 8, 40, 0, "Loc Editor");
-    app->locedit.row_target =
-        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "nothing selected");
-    app->locedit.row_pos = ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "");
-    app->locedit.row_size = ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "");
-    app->locedit.row_extra = ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "");
-    ToriRSChrome_Separator(&app->dbg_ui, app->locedit.panel);
+    app->editor_shell->locedit.panel = ToriRSChrome_PanelAdd(
+        &app->dev_overlay->ui, TORIRS_CHROME_PANEL_MENU, 8, 40, 0, "Loc Editor");
+    app->editor_shell->locedit.row_target = ToriRSChrome_MenuItem(
+        &app->dev_overlay->ui, app->editor_shell->locedit.panel, "nothing selected");
+    app->editor_shell->locedit.row_pos =
+        ToriRSChrome_MenuItem(&app->dev_overlay->ui, app->editor_shell->locedit.panel, "");
+    app->editor_shell->locedit.row_size =
+        ToriRSChrome_MenuItem(&app->dev_overlay->ui, app->editor_shell->locedit.panel, "");
+    app->editor_shell->locedit.row_extra =
+        ToriRSChrome_MenuItem(&app->dev_overlay->ui, app->editor_shell->locedit.panel, "");
+    ToriRSChrome_Separator(&app->dev_overlay->ui, app->editor_shell->locedit.panel);
     /* Rows double as the key reference: chat input is forced off while this
      * panel is open (below), so these letters are always free to use without
      * a message box eating them. Still clickable too -- the key is the fast
      * path, the click is the discoverable one. */
-    app->locedit.item_xplus =
-        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "Move X+1  [D]");
-    app->locedit.item_xminus =
-        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "Move X-1  [A]");
-    app->locedit.item_zplus =
-        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "Move Z+1  [W]");
-    app->locedit.item_zminus =
-        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "Move Z-1  [S]");
-    app->locedit.item_rotate =
-        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "Rotate  [R]");
-    app->locedit.item_reselect =
-        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "Reselect (under cursor)  [Space]");
-    app->locedit.item_deselect =
-        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "Deselect  [Backspace]");
-    app->locedit.item_close =
-        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "Close  [9 / Esc]");
-    ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->locedit.panel, 0);
-    app->locedit.visible = 0;
+    app->editor_shell->locedit.item_xplus = ToriRSChrome_MenuItem(
+        &app->dev_overlay->ui, app->editor_shell->locedit.panel, "Move X+1  [D]");
+    app->editor_shell->locedit.item_xminus = ToriRSChrome_MenuItem(
+        &app->dev_overlay->ui, app->editor_shell->locedit.panel, "Move X-1  [A]");
+    app->editor_shell->locedit.item_zplus = ToriRSChrome_MenuItem(
+        &app->dev_overlay->ui, app->editor_shell->locedit.panel, "Move Z+1  [W]");
+    app->editor_shell->locedit.item_zminus = ToriRSChrome_MenuItem(
+        &app->dev_overlay->ui, app->editor_shell->locedit.panel, "Move Z-1  [S]");
+    app->editor_shell->locedit.item_rotate = ToriRSChrome_MenuItem(
+        &app->dev_overlay->ui, app->editor_shell->locedit.panel, "Rotate  [R]");
+    app->editor_shell->locedit.item_reselect = ToriRSChrome_MenuItem(
+        &app->dev_overlay->ui,
+        app->editor_shell->locedit.panel,
+        "Reselect (under cursor)  [Space]");
+    app->editor_shell->locedit.item_deselect = ToriRSChrome_MenuItem(
+        &app->dev_overlay->ui, app->editor_shell->locedit.panel, "Deselect  [Backspace]");
+    app->editor_shell->locedit.item_close = ToriRSChrome_MenuItem(
+        &app->dev_overlay->ui, app->editor_shell->locedit.panel, "Close  [9 / Esc]");
+    ToriRSChrome_PanelSetVisible(&app->dev_overlay->ui, app->editor_shell->locedit.panel, 0);
+    app->editor_shell->locedit.visible = 0;
 
     /* The two All Settings pickers, in this same instance for the same reason
      * the loc editor's panel is: they are in-canvas, short-lived, and share
      * the frame-time panel's Build/Prims/emit plumbing for free. */
-    UISettingsPickers_Init(&app->settings_pickers, &app->dbg_ui);
-    LocEditorSelection_Reset(&app->locedit_selection);
+    UISettingsPickers_Init(&app->dev_overlay->settings_pickers, &app->dev_overlay->ui);
+    LocEditorSelection_Reset(&app->editor_shell->locedit_selection);
 
     /* Footprint outline: the env var picks the mode AND the starting state, so
      * an existing `TORIRS_HOVER_FOOTPRINT=1` run is unchanged and the hotkey
@@ -263,11 +270,23 @@ app_debug_overlay_init(struct App* app)
     {
         char const* env = getenv("TORIRS_HOVER_FOOTPRINT");
         int mode = (env && env[0]) ? (int)strtol(env, NULL, 0) : 0;
-        if( mode < 0 )
-            mode = 0;
-        app->hover_footprint = mode;
-        app->hover_footprint_mode = mode > 0 ? mode : 1;
+        EditorShell_FootprintSeed(app->editor_shell, mode);
     }
+}
+
+/*
+ * Release the developer overlay and the editor shell App_Init made, the two
+ * records app_debug_overlay_init builds its panels in. Last in App_Shutdown:
+ * the map editor's teardown above it still reads the shell's panel.
+ */
+void
+app_debug_overlay_free(struct App* app)
+{
+    assert(app);
+    EditorShell_Free(app->editor_shell);
+    app->editor_shell = NULL;
+    DevOverlay_Free(app->dev_overlay);
+    app->dev_overlay = NULL;
 }
 
 /*
@@ -290,51 +309,43 @@ app_debug_overlay_tick(
     if( !app_text_input_focused(app) &&
         app_debug_key_down(app, input, APP_DEBUG_HOTKEY_DEBUG_OVERLAY) )
     {
-        app->dbg_visible = !app->dbg_visible;
-        ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->dbg_panel, app->dbg_visible);
+        app->dev_overlay->visible = !app->dev_overlay->visible;
+        ToriRSChrome_PanelSetVisible(
+            &app->dev_overlay->ui, app->dev_overlay->panel, app->dev_overlay->visible);
     }
 
-    if( app->dbg_visible )
+    if( app->dev_overlay->visible )
     {
-        uint32_t const mean_us = FrameTimeRing_MeanUs(&app->dbg_frame_times);
+        uint32_t const mean_us = FrameTimeRing_MeanUs(&app->dev_overlay->frame_times);
         char text[TORIRS_CHROME_INPUT_MAX];
 
-        /* Two decimals: the samples are microseconds, and rounding a 3.4 ms
-         * frame to "3 ms" throws away the part that moves. `mean_us` is 0
-         * both for "no samples yet" and for a run of sub-10us frames, and the
-         * readout says "--" for either: there is nothing useful to print. */
-        if( mean_us > 0 )
-            snprintf(
-                text,
-                sizeof(text),
-                "%u.%02u ms",
-                (unsigned)(mean_us / 1000u),
-                (unsigned)((mean_us % 1000u) / 10u));
-        else
-            snprintf(text, sizeof(text), "--");
+        /* `mean_us` is 0 both for "no samples yet" and for a run of sub-10us
+         * frames, and the readout says "--" for either: there is nothing
+         * useful to print. */
+        DevOverlay_FrameTimeText(mean_us, text, sizeof(text));
         /* Compare-then-set: an unchanged readout dirties nothing, so a steady
          * client rebuilds no display list and requests no redraw. */
-        ToriRSChrome_SetText(&app->dbg_ui, app->dbg_frame_row, text);
+        ToriRSChrome_SetText(&app->dev_overlay->ui, app->dev_overlay->frame_row, text);
     }
 
     /* The canvas the readout is drawn onto, so an open dropdown list folds up
      * into it rather than off the bottom edge. Compare-then-set inside, and
      * the canvas can change under a resize, so it is restated per tick rather
      * than captured at init — where the layout root is not resolved yet. */
-    ToriRSChrome_SetSurface(&app->dbg_ui, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    ToriRSChrome_SetSurface(&app->dev_overlay->ui, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 
     /* Build returns 0 on a frame where nothing moved. When it did rebuild the
      * canvas is stale — including the frame the panel was hidden on, whose
      * vacated pixels are still on screen until something repaints them. */
     {
         uint64_t const t_build = FrameStats_Now();
-        int const rebuilt = ToriRSChrome_Build(&app->dbg_ui);
+        int const rebuilt = ToriRSChrome_Build(&app->dev_overlay->ui);
         FrameStats_Span(FRAME_STATS_CHROME_BUILD, t_build);
         if( rebuilt )
         {
             FrameStats_Count(FRAME_STATS_CTR_CHROME_REBUILDS, 1);
-            app->need_redraw = 1;
-            ToriRSChrome_DamageClear(&app->dbg_ui);
+            RedrawRequest_Raise(&app->redraw_request);
+            ToriRSChrome_DamageClear(&app->dev_overlay->ui);
         }
     }
 }
@@ -370,16 +381,16 @@ app_settings_colour_tick(struct App* app)
     if( RS_CS2Host_TakeSettingsColourRequest(&app->host, &request) )
     {
         UISettingsPickers_OpenColour(
-            &app->settings_pickers, &app->dbg_ui, app->tree, &request);
-        app->need_redraw = 1;
+            &app->dev_overlay->settings_pickers, &app->dev_overlay->ui, app->tree, &request);
+        RedrawRequest_Raise(&app->redraw_request);
     }
     if( UISettingsPickers_ColourTick(
-            &app->settings_pickers,
-            &app->dbg_ui,
+            &app->dev_overlay->settings_pickers,
+            &app->dev_overlay->ui,
             app->tree,
             app_settings_picker_commit,
             app) )
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
 }
 
 void
@@ -391,16 +402,16 @@ app_settings_number_tick(struct App* app)
     if( RS_CS2Host_TakeSettingsNumberRequest(&app->host, &request) )
     {
         UISettingsPickers_OpenNumber(
-            &app->settings_pickers, &app->dbg_ui, app->tree, &request);
-        app->need_redraw = 1;
+            &app->dev_overlay->settings_pickers, &app->dev_overlay->ui, app->tree, &request);
+        RedrawRequest_Raise(&app->redraw_request);
     }
     if( UISettingsPickers_NumberTick(
-            &app->settings_pickers,
-            &app->dbg_ui,
+            &app->dev_overlay->settings_pickers,
+            &app->dev_overlay->ui,
             app->tree,
             app_settings_picker_commit,
             app) )
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
 }
 
 /* Cache the WORLD node's emit desc: the mouse gate rect and the viewport the
@@ -445,11 +456,11 @@ app_debug_log_position(struct App* app)
         (unsigned)World_TileFlagGet(
             app->world, local->grid_position.x, local->grid_position.z, local->grid_position.level),
         (unsigned)World_TileFlagGet(app->world, local->grid_position.x, local->grid_position.z, 1),
-        app->frame_view->world_camera_pos.x,
-        app->frame_view->world_camera_pos.y,
-        app->frame_view->world_camera_pos.z,
-        app->frame_view->world_camera.yaw,
-        app->frame_view->world_camera.pitch);
+        app->world_views.frame->world_camera_pos.x,
+        app->world_views.frame->world_camera_pos.y,
+        app->world_views.frame->world_camera_pos.z,
+        app->world_views.frame->world_camera.yaw,
+        app->world_views.frame->world_camera.pitch);
 }
 
 /* TORIRS_HPROF=x0,x1,z0,z1: ground height across a rectangle of scene tiles,
@@ -536,10 +547,10 @@ app_debug_tile_project(struct App* app)
     static int ticks = 0;
     const char* env = torirs_env_tproj();
     int x0, x1, z0, z1;
-    if( !env || !app->world || !app->world->load_complete || !app->world_view_valid )
+    if( !env || !app->world || !app->world->load_complete || !app->world_views.emit_valid )
         return;
     /* After the camera has settled, not on the load callback: the projection
-     * reads app->frame_view->world_camera, which the load has not written yet. */
+     * reads app->world_views.frame->world_camera, which the load has not written yet. */
     if( ++ticks != 120 )
         return;
     if( sscanf(env, "%d,%d,%d,%d", &x0, &x1, &z0, &z1) != 4 )
@@ -683,9 +694,14 @@ app_xpdrop_debug_tick(struct App* app)
     /* Only on change, plus a heartbeat, so a session can be left running. The
      * clock is printed but deliberately not part of the compared state — it
      * changes every tick and would make every line "new". */
-    if( strcmp(line, last) == 0 && (int)app->logic_cycle - last_print_cycle < 1500 )
+    if( strcmp(line, last) == 0 &&
+        (int)FrameClockSerial_LogicCycle(&app->frame_clock.serial) - last_print_cycle < 1500 )
         return;
     snprintf(last, sizeof(last), "%s", line);
-    last_print_cycle = (int)app->logic_cycle;
-    TORIRS_LOG("xpdrop: t=%d clock=%d %s\n", (int)app->logic_cycle, app->host.client_clock, line);
+    last_print_cycle = (int)FrameClockSerial_LogicCycle(&app->frame_clock.serial);
+    TORIRS_LOG(
+        "xpdrop: t=%d clock=%d %s\n",
+        (int)FrameClockSerial_LogicCycle(&app->frame_clock.serial),
+        app->host.client_clock,
+        line);
 }

@@ -6,6 +6,7 @@
 #include "engine/uitree_scene_bridge.h"
 #include "engine/world_builder/world_builder.h"
 #include "editor/editor_layout.h"
+#include "editor/editor_shell.h"
 #include "editor/editor_ui.h"
 #include "editor/editor_view.h"
 #include "executor_config.h"
@@ -808,10 +809,10 @@ interactive_render_present(
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
-            if( app->frame_view->world_mouse_in_viewport )
+            if( app->world_views.frame->world_mouse_in_viewport )
             {
                 ToriPlatformWin32_Renderer_D3D9_SetPick(
-                    d3d9, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
+                    d3d9, app->world_views.frame->world_mouse_x, app->world_views.frame->world_mouse_y);
                 pick_armed = 1;
                 FrameStats_Count(FRAME_STATS_CTR_PICK_FRAMES, 1);
             }
@@ -893,10 +894,10 @@ interactive_render_present(
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
-            if( app->frame_view->world_mouse_in_viewport )
+            if( app->world_views.frame->world_mouse_in_viewport )
             {
                 ToriPlatformAndroid_Renderer_GLES2_SetPick(
-                    gles2, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
+                    gles2, app->world_views.frame->world_mouse_x, app->world_views.frame->world_mouse_y);
                 pick_armed = 1;
             }
             /* The dual-core lane renders this same renderer: told once. */
@@ -977,10 +978,10 @@ interactive_render_present(
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
-            if( app->frame_view->world_mouse_in_viewport )
+            if( app->world_views.frame->world_mouse_in_viewport )
             {
                 ToriPlatformWeb_Renderer_WebGL2_SetPick(
-                    webgl2, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
+                    webgl2, app->world_views.frame->world_mouse_x, app->world_views.frame->world_mouse_y);
                 pick_armed = 1;
             }
             ToriPlatformWeb_Renderer_WebGL2_SetFrameElapsed(
@@ -1051,10 +1052,10 @@ interactive_render_present(
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
-            if( app->frame_view->world_mouse_in_viewport )
+            if( app->world_views.frame->world_mouse_in_viewport )
             {
                 ToriPlatformWeb_Renderer_WebGL1_SetPick(
-                    webgl1, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
+                    webgl1, app->world_views.frame->world_mouse_x, app->world_views.frame->world_mouse_y);
                 pick_armed = 1;
             }
             ToriPlatformWeb_Renderer_WebGL1_SetFrameElapsed(
@@ -1126,10 +1127,10 @@ interactive_render_present(
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
-            if( app->frame_view->world_mouse_in_viewport )
+            if( app->world_views.frame->world_mouse_in_viewport )
             {
                 ToriPlatformAndroid_Renderer_GLES3_SetPick(
-                    gles3, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
+                    gles3, app->world_views.frame->world_mouse_x, app->world_views.frame->world_mouse_y);
                 pick_armed = 1;
             }
             ToriPlatformAndroid_Renderer_GLES3_SetFrameElapsed(
@@ -1210,10 +1211,10 @@ interactive_render_present(
                  App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
             gl3_build_us = PlatformWindow_TicksUs() - gl3_build_us;
-            if( app->frame_view->world_mouse_in_viewport )
+            if( app->world_views.frame->world_mouse_in_viewport )
             {
                 ToriPlatformSDL2_Renderer_GL3_SetPick(
-                    gl3, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
+                    gl3, app->world_views.frame->world_mouse_x, app->world_views.frame->world_mouse_y);
                 pick_armed = 1;
             }
             ToriPlatformSDL2_Renderer_GL3_SetFrameElapsed(
@@ -2542,13 +2543,13 @@ main_rsprox_replay_digest_frame(int seeking)
     }
     if( rsprox_replay_digest.stage == 2 )
     {
-        if( app.server_tick_serial - rsprox_replay_digest.serial_at < RSPROX_REPLAY_DIGEST_AFTER )
+        if( RS_ServerTick_Serial(&app.server_tick) - rsprox_replay_digest.serial_at < RSPROX_REPLAY_DIGEST_AFTER )
             return;
         rsprox_replay_digest.stage = 3;
         rsprox_replay_digest.settle = 0;
     }
     /* Settled: the tick's scripts have run and nothing is parked. */
-    if( !App_FrameSettled(&app) || app.packet_runner_had_work )
+    if( !App_FrameSettled(&app) || TaskRunner_HadWork(&app.packet_runner) )
     {
         rsprox_replay_digest.settle = 0;
         return;
@@ -2574,7 +2575,7 @@ main_rsprox_replay_digest_frame(int seeking)
         rsprox_replay_digest.tick + RSPROX_REPLAY_DIGEST_AFTER <= st.tick_count )
     {
         rsprox_replay_digest.stage = 2;
-        rsprox_replay_digest.serial_at = app.server_tick_serial;
+        rsprox_replay_digest.serial_at = RS_ServerTick_Serial(&app.server_tick);
         rsprox_replay_digest.tick += RSPROX_REPLAY_DIGEST_AFTER;
         NetTransport_ReplayHoldAt(sock, rsprox_replay_digest.tick);
         return;
@@ -2678,8 +2679,10 @@ main_rsprox_replay_seek_frame(void)
      * long as the page likes; that is not a server gone quiet
      * (NET_LINK_TIMEOUT_MS). */
     if( (seeking || NetTransport_ReplayHeld(sock)) && app.net_link.last_recv_ms &&
-        !NetLinkWatch_Lost(&app.net_link) && app.last_frame_ms > app.net_link.last_recv_ms )
-        NetLinkWatch_NotePacket(&app.net_link, app.last_frame_ms);
+        !NetLinkWatch_Lost(&app.net_link) &&
+        FrameClockSerial_LastFrameMs(&app.frame_clock.serial) > app.net_link.last_recv_ms )
+        NetLinkWatch_NotePacket(
+            &app.net_link, FrameClockSerial_LastFrameMs(&app.frame_clock.serial));
 
     /* --replay-at: the next tick in the list, once the session plays and the
      * seek before it has landed. */
@@ -2721,12 +2724,12 @@ main_rsprox_replay_frame(void)
 
     /* What the client has executed, before the seek's edge is read: a seek
      * lands on it. */
-    NetTransport_ReplayClientTicks(sock, app.server_tick_serial);
+    NetTransport_ReplayClientTicks(sock, RS_ServerTick_Serial(&app.server_tick));
     /* A pipeline held on a scene build or a cache read is not a stalled seek.
-     * App_WorldSettled, not world_load_inflight: a background world job sets
+     * App_WorldSettled, not WorldLoadState_Inflight: a background world job sets
      * no load in flight while it gathers and stages, and the packet pump pops
      * nothing until it commits (app_world_job.c). */
-    NetTransport_ReplayClientBusy(sock, !App_WorldSettled(&app) || app.packet_runner_had_work);
+    NetTransport_ReplayClientBusy(sock, !App_WorldSettled(&app) || TaskRunner_HadWork(&app.packet_runner));
     /* Session checkpoints: take one at a clean boundary, restore one for a
      * seek (replay/replay_checkpoint_play.h). */
     ReplayCheckpointPlay_Frame(&app, sock);
@@ -3001,7 +3004,7 @@ main_chrome_scale_q(
     int cfg_chrome_scale)
 {
     char const* forced = torirs_env_chrome_scale();
-    int const touch = app->touch_ui || app->touch_camera;
+    int const touch = DeviceCaps_TouchUi(&app->device_caps) || DeviceCaps_TouchCamera(&app->device_caps);
     int q;
 
     if( forced && forced[0] )
@@ -3031,8 +3034,8 @@ main_chrome_scale_q(
     /* The editor's View > Chrome scale; Auto hands `q` back (and the View
      * menu's Auto row names it). A View row under 2x on a touch device is
      * held at 2x there too. */
-    if( app->editor && app->editor_panel.built && app->editor_panel.ui )
-        q = Editor_UiChromeScaleFor(app->editor_panel.ui, q, touch);
+    if( app->editor && app->editor_shell->editor_panel.built && app->editor_shell->editor_panel.ui )
+        q = Editor_UiChromeScaleFor(app->editor_shell->editor_panel.ui, q, touch);
     return q;
 }
 
@@ -3065,14 +3068,15 @@ main_chrome_scale_apply(
      * native path draws the vector face at every scale under "smooth always"
      * (App_SetChromeTextSmooth: the bridge's faces and the font ids), a DOM
      * hears it with SCALE and draws the vector web fonts. No metric moves. */
-    int const smooth = app->editor && app->editor_panel.built && app->editor_panel.ui
-                           ? Editor_UiTextSmooth(app->editor_panel.ui)
-                           : 0;
+    int const smooth =
+        app->editor && app->editor_shell->editor_panel.built && app->editor_shell->editor_panel.ui
+            ? Editor_UiTextSmooth(app->editor_shell->editor_panel.ui)
+            : 0;
     int changed;
 
     changed = App_SetChromeScaleQ(app, q);
     changed |= App_SetChromeTextSmooth(app, smooth);
-    ToriRSChrome_SetPageScale(&app->plugin_ui, q, PlatformWindow_ChromeDensityPercent(platform));
+    ToriRSChrome_SetPageScale(&app->plugin_win->ui, q, PlatformWindow_ChromeDensityPercent(platform));
     return changed;
 }
 
@@ -3119,14 +3123,14 @@ main_view_split_step(int committed)
     if( judged != renderer_active )
     {
         judged = renderer_active;
-        app.view_split.lane_refusal = main_view_split_lane_refusal(renderer_active);
-        if( app.view_split.attached && app.view_split.lane_refusal )
+        app.world_views.split.lane_refusal = main_view_split_lane_refusal(renderer_active);
+        if( app.world_views.split.attached && app.world_views.split.lane_refusal )
         {
-            TORIRS_REPORT("view-split: %s; detaching\n", app.view_split.lane_refusal);
+            TORIRS_REPORT("view-split: %s; detaching\n", app.world_views.split.lane_refusal);
             App_ViewDetachPlayerClient(&app);
         }
     }
-    if( !app.view_split.attached )
+    if( !app.world_views.split.attached )
         return;
     App_ViewSplitBeforePresent(&app, committed);
 }
@@ -3144,7 +3148,7 @@ main_view_split_trace(void)
     struct App_WorldView const* runner;
     struct App_WorldView const* watcher;
 
-    if( !app.view_split.attached )
+    if( !app.world_views.split.attached )
         return;
     if( !resolved )
     {
@@ -3159,15 +3163,15 @@ main_view_split_trace(void)
     }
     if( !trace )
         return;
-    runner = &app.views[APP_VIEW_RUNNER];
-    watcher = &app.views[APP_VIEW_PLAYER_CLIENT];
+    runner = &app.world_views.views[APP_VIEW_RUNNER];
+    watcher = &app.world_views.views[APP_VIEW_PLAYER_CLIENT];
     fprintf(
         trace,
         "frame=%ld tick=%d interact=%d runner=%d,%d,%d,%d,%d,%d,%d ptr=%d,%d watcher=%d,%d,%d,%d,%d,%d,%d "
         "ptr=%d,%d offscreen=%llu presented=%llu delivered=%llu dropped=%llu held=%llu menus=%d,%d\n",
         frame_count,
         app.world ? (int)(app.world->cycle / APP_SERVER_TICK_LOGIC_CYCLES) : 0,
-        app.view_split.interact,
+        app.world_views.split.interact,
         runner->orbit.yaw,
         runner->orbit.pitch,
         runner->world_cam_zoom,
@@ -3186,11 +3190,11 @@ main_view_split_trace(void)
         watcher->world_camera_pos.z,
         watcher->world_mouse_x,
         watcher->world_mouse_y,
-        (unsigned long long)app.view_split.offscreen_frames,
-        (unsigned long long)app.view_split.presented_frames,
-        (unsigned long long)app.view_split.physical_delivered,
-        (unsigned long long)app.view_split.physical_dropped,
-        (unsigned long long)app.view_split.physical_held,
+        (unsigned long long)app.world_views.split.offscreen_frames,
+        (unsigned long long)app.world_views.split.presented_frames,
+        (unsigned long long)app.world_views.split.physical_delivered,
+        (unsigned long long)app.world_views.split.physical_dropped,
+        (unsigned long long)app.world_views.split.physical_held,
         runner->minimenu->visible ? 1 : 0,
         watcher->minimenu->visible ? 1 : 0);
     fflush(trace);
@@ -3242,7 +3246,7 @@ main_view_split_sim(void)
         return;
     /* Frames count from the attach: a script's view exists only from there,
      * and a run's login takes however long it takes. */
-    if( !app.view_split.attached )
+    if( !app.world_views.split.attached )
     {
         attached_at = -1;
         return;
@@ -4021,7 +4025,7 @@ frame_loop_step(void)
      * as the hitsplat being slow. After READY the read is queued instead and
      * the pacing below drains it at event-loop rate.
      */
-    PlatformWeb_SetBlockingReads(app.app_state != APP_STATE_READY);
+    PlatformWeb_SetBlockingReads(!RS_ClientPhase_Ready(&app.phase));
 
     /* Pace the loop by what it is waiting for.
      *
@@ -4055,7 +4059,7 @@ frame_loop_step(void)
          * once per 600ms server tick, visible as a periodic stutter whenever
          * the camera was moving. The backlog this arm exists for — hundreds
          * of serially-discovered boot archives — cannot recur once READY:
-         * app_state regresses only on a full gameframe re-root, which gets
+         * the bake state regresses only on a full gameframe re-root, which gets
          * the fast drain back along with its loading screen, and world/region
          * streaming (Task_WorldLoad) stays READY and rides raf. If a region
          * load's settle rate ever matters, drain it from the IO response
@@ -4076,7 +4080,7 @@ frame_loop_step(void)
          * app_net_link_watch is for — it notices the gap and drops the
          * session rather than replaying it.
          */
-        int waiting = app.app_state != APP_STATE_READY && PlatformWeb_PendingTotal() > 0;
+        int waiting = !RS_ClientPhase_Ready(&app.phase) && PlatformWeb_PendingTotal() > 0;
         int hidden = !waiting && web_document_hidden();
         /* An unlocked replay is the one browser run with no display rate to
          * keep: setImmediate (a posted message, so no 4 ms timer clamp) runs
@@ -4160,9 +4164,9 @@ frame_loop_step(void)
         uint64_t const simulation_now = PlatformWindow_Ticks64();
         if( !sim_ready )
         {
-            if( app.app_state == APP_STATE_READY && app.screen == APP_SCREEN_GAME &&
+            if( RS_ClientPhase_Ready(&app.phase) && RS_ClientPhase_Screen(&app.phase) == APP_SCREEN_GAME &&
                 !App_AsyncPending(&app) &&
-                (!app.net || (app.net->state == TORIRS_NET_GAME && app.rebuild_zone_x >= 0)) )
+                (!app.net || (app.net->state == TORIRS_NET_GAME && RS_RebuildRegion_CentreX(&app.rebuild_region) >= 0)) )
             {
                 sim_ready = 1;
                 frame_count = 0;
@@ -4362,21 +4366,21 @@ frame_loop_step(void)
         }
     }
 
-    if( boot_stats && !boot_reported && app.app_state == APP_STATE_READY )
+    if( boot_stats && !boot_reported && RS_ClientPhase_Ready(&app.phase) )
     {
         boot_reported = 1;
         TORIRS_ERR(
             "boot: %llums  frames=%d steps=%ld capped=%d\n",
             (unsigned long long)(PlatformWindow_Ticks64() - boot_start_ms),
-            app.boot_frames,
-            app.boot_steps,
-            app.boot_frames_budget_capped);
+            BootPumpStats_BootFrames(&app.pump_stats),
+            BootPumpStats_BootSteps(&app.pump_stats),
+            BootPumpStats_BootFramesCapped(&app.pump_stats));
         ToriRS_BootTelemetry_Report(stderr, &app.frame_runner, &app.packet_runner);
     }
     /* The whole startup, once the world is in: the title's report above ends
      * before login, and the marks after it (login, world load) are what a
      * networked boot is mostly made of. */
-    if( boot_stats && !world_reported && app.app_state == APP_STATE_READY && app.world_active )
+    if( boot_stats && !world_reported && RS_ClientPhase_Ready(&app.phase) && WorldLoadState_Active(&app.world_load) )
     {
         world_reported = 1;
         TORIRS_ERR("boot: world ready\n");
@@ -4386,31 +4390,31 @@ frame_loop_step(void)
         TORIRS_ERR(
             "post-boot: busy_frames=%d busy_steps=%ld (frames that used the "
             "whole budget with work still queued)\n",
-            app.busy_frames,
-            app.busy_steps);
+            BootPumpStats_BusyFrames(&app.pump_stats),
+            BootPumpStats_BusySteps(&app.pump_stats));
 
-    if( sim_openmain > 0 && !sim_openmain_done && app.app_state == APP_STATE_READY )
+    if( sim_openmain > 0 && !sim_openmain_done && RS_ClientPhase_Ready(&app.phase) )
     {
         TORIRS_LOG("sim_openmain: opening main modal iface=%d\n", sim_openmain);
         RS_UISlots_OpenMain(&app, sim_openmain);
         sim_openmain_done = 1;
     }
 
-    if( sim_openside > 0 && !sim_openside_done && app.app_state == APP_STATE_READY )
+    if( sim_openside > 0 && !sim_openside_done && RS_ClientPhase_Ready(&app.phase) )
     {
         TORIRS_LOG("sim_openside: opening side panel iface=%d\n", sim_openside);
         RS_UISlots_OpenSide(&app, sim_openside);
         sim_openside_done = 1;
     }
 
-    if( sim_openchat > 0 && !sim_openchat_done && app.app_state == APP_STATE_READY )
+    if( sim_openchat > 0 && !sim_openchat_done && RS_ClientPhase_Ready(&app.phase) )
     {
         TORIRS_LOG("sim_openchat: opening chat dialog iface=%d\n", sim_openchat);
         RS_UISlots_OpenChat(&app, sim_openchat);
         sim_openchat_done = 1;
     }
 
-    if( sim_settab && !sim_settab_done && app.app_state == APP_STATE_READY )
+    if( sim_settab && !sim_settab_done && RS_ClientPhase_Ready(&app.phase) )
     {
         char* tab_sep = NULL;
         int tabno = (int)strtol(sim_settab, &tab_sep, 0);
@@ -4421,7 +4425,7 @@ frame_loop_step(void)
         sim_settab_done = 1;
     }
 
-    if( sim_setvarp && app.app_state == APP_STATE_READY )
+    if( sim_setvarp && RS_ClientPhase_Ready(&app.phase) )
     {
         char const* cur = sim_setvarp;
         while( *cur )
@@ -4440,7 +4444,7 @@ frame_loop_step(void)
      * chat dialogs ship both a narrow and a wide decoration layer and
      * the server picks one, so without this there is no way to see the
      * unhidden variant without a live session. */
-    if( sim_sethide && !sim_sethide_done && app.app_state == APP_STATE_READY && app.tree &&
+    if( sim_sethide && !sim_sethide_done && RS_ClientPhase_Ready(&app.phase) && app.tree &&
         (sim_openchat <= 0 || sim_openchat_done) && (!sim_settab || sim_settab_done) )
     {
         char const* cur = sim_sethide;
@@ -4459,7 +4463,7 @@ frame_loop_step(void)
         sim_sethide_done = 1;
     }
 
-    if( (sim_song_id >= 0 || sim_jingle_id >= 0) && app.app_state == APP_STATE_READY &&
+    if( (sim_song_id >= 0 || sim_jingle_id >= 0) && RS_ClientPhase_Ready(&app.phase) &&
         !sim_music_done )
     {
         if( sim_song_id >= 0 )
@@ -4479,7 +4483,7 @@ frame_loop_step(void)
      * once the client is up, and again every `every_ticks` ticks. The
      * only way to hear the audio path without a server, so it is the
      * check that "the sound plays" means a speaker and not a counter. */
-    if( sim_sound_id >= 0 && app.app_state == APP_STATE_READY )
+    if( sim_sound_id >= 0 && RS_ClientPhase_Ready(&app.phase) )
     {
         if( sim_sound_next == 0 || (sim_sound_every > 0 && frame_count >= sim_sound_next) )
         {
@@ -4529,20 +4533,20 @@ frame_loop_step(void)
                  * does not exist on screen yet.
                  *
                  * And only while a world desc actually survived that walk:
-                 * world_emit_desc is not cleared when the world goes away, so a
+                 * world_views.emit_desc is not cleared when the world goes away, so a
                  * login screen or a full-screen world map would otherwise hand
                  * the camera gesture a box that is no longer on the canvas --
                  * every other reader of the desc guards it the same way.
                  */
                 /* With the map editor open a one-finger drag is the armed
                  * tool's, never the camera's (App_EditorOwnsTouch). */
-                int const touch_world = app.world_view_valid && !App_EditorOwnsTouch(&app);
+                int const touch_world = app.world_views.emit_valid && !App_EditorOwnsTouch(&app);
                 PlatformWindow_SetTouchViewport(
                     platform,
-                    touch_world ? app.world_emit_desc.x : 0,
-                    touch_world ? app.world_emit_desc.y : 0,
-                    touch_world ? app.world_emit_desc.w : 0,
-                    touch_world ? app.world_emit_desc.h : 0);
+                    touch_world ? app.world_views.emit_desc.x : 0,
+                    touch_world ? app.world_views.emit_desc.y : 0,
+                    touch_world ? app.world_views.emit_desc.w : 0,
+                    touch_world ? app.world_views.emit_desc.h : 0);
                 /* And two fingers are the editor's gesture frames (the World
                  * camera, a GRAPH, a list), not the game's wheel notches and
                  * arrow keys, which would pan and turn the World at once --
@@ -4556,14 +4560,14 @@ frame_loop_step(void)
                 /* The editor's layout file remembers the window's box: told
                  * every frame (a cached pair of SDL reads), written only when
                  * it settles (app_map_editor_layout_tick). */
-                if( app.editor_panel.built && app.editor_panel.ui )
+                if( app.editor_shell->editor_panel.built && app.editor_shell->editor_panel.ui )
                 {
                     int wx;
                     int wy;
                     int ww;
                     int wh;
                     if( PlatformWindow_WindowBox(platform, &wx, &wy, &ww, &wh) )
-                        Editor_UiSetWindowBox(app.editor_panel.ui, wx, wy, ww, wh);
+                        Editor_UiSetWindowBox(app.editor_shell->editor_panel.ui, wx, wy, ww, wh);
                 }
                 if( sock )
                 {
@@ -5518,7 +5522,7 @@ frame_loop_step(void)
                     }
                 }
                 if( song_id >= 0 && song_frame >= 0 && frame_count >= song_frame &&
-                    app.app_state == APP_STATE_READY )
+                    RS_ClientPhase_Ready(&app.phase) )
                 {
                     TORIRS_REPORT("sim_song: play %ld\n", song_id);
                     App_PlaySong(&app, (int)song_id, true, 0, 0);
@@ -5612,9 +5616,9 @@ frame_loop_step(void)
                 if( !yaw_done && frame_count >= yaw_frame )
                 {
                     yaw_done = 1;
-                    app.frame_view->orbit.yaw = ToriDraw_NormalizeAngle(
+                    app.world_views.frame->orbit.yaw = ToriDraw_NormalizeAngle(
                         (int)strtol(yaw_env, NULL, 0));
-                    app.frame_view->orbit.yaw_velocity = 0;
+                    app.world_views.frame->orbit.yaw_velocity = 0;
                     /*
                      * Yaw only, and the pitch is deliberately NOT a second
                      * knob beside it. Measured on this lane: the reset pitch
@@ -5632,7 +5636,7 @@ frame_loop_step(void)
                     TORIRS_REPORT(
                         "sim_camera_yaw: frame %ld parked at %d\n",
                         (long)frame_count,
-                        app.frame_view->orbit.yaw);
+                        app.world_views.frame->orbit.yaw);
                 }
             }
 
@@ -6035,12 +6039,12 @@ frame_loop_step(void)
          * Set here rather than compiled into app.c so a desktop run can turn it
          * on -- a touchscreen laptop, or a test that wants the gesture without
          * a phone -- and so app.c is left stating the rule instead of the
-         * platform. @see App.touch_camera.
+         * platform. @see platform/device_caps.h.
          */
 #if defined(TORIRS_PLATFORM_ANDROID)
-        app.touch_camera = 1;
+        DeviceCaps_SetTouchCamera(&app.device_caps, 1);
 #elif defined(TORIRS_PLATFORM_WEB)
-        app.touch_camera = PlatformWeb_MobileDevice() != 0;
+        DeviceCaps_SetTouchCamera(&app.device_caps, PlatformWeb_MobileDevice() != 0);
 #endif
         /*
          * touch_ui is NOT set here any more, and neither is touch_scroll.
@@ -6133,8 +6137,7 @@ frame_loop_step(void)
         if( ContentTest_Enabled() && checkpoints )
         {
             int capture_pending = 0;
-            for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
-                capture_pending |= app.plugin_screenshots[i].in_use;
+            capture_pending = PluginScreenshots_Waiting(&app.plugin_screenshots) != 0;
             if( !capture_pending )
                 app_redraw = 0;
         }
@@ -6246,7 +6249,7 @@ frame_loop_step(void)
      */
     input_frame_pending =
         !App_InputFrameConsumed(&app) &&
-        (app.app_state == APP_STATE_READY || LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) ||
+        (RS_ClientPhase_Ready(&app.phase) || LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) ||
          LibToriRS_Input_IsMouseHeld(input, TORIRSM_MIDDLE) ||
          LibToriRS_Input_IsMouseHeld(input, TORIRSM_RIGHT));
     /* TORIRS_SWAP_DEBUG=1: how many of the last 300 loop iterations actually
@@ -6322,7 +6325,7 @@ frame_loop_step(void)
          * drawn on that lane either. */
         int const retained = !renderer_is_software(renderer_active);
 
-        held_learns = app.render_skip.hold && retained && renderer_can_learn_held_frame();
+        held_learns = RenderSkip_Held(&app.render_skip) && retained && renderer_can_learn_held_frame();
         app_redraw = App_RenderSkipFrame(&app, app_redraw, content_draw || (retained && !held_learns));
     }
     /* The runner camera split: the offscreen runner frame a driver push owed
@@ -6333,18 +6336,18 @@ frame_loop_step(void)
         /* The presented frame is drawn -- and picked, at the physical pointer
          * -- through the presented view (the watcher's while a script is
          * attached, the only view otherwise). */
-        app.frame_view = App_PresentedView(&app);
-        if( app.view_split.attached )
-            app.view_split.presented_frames++;
+        app.world_views.frame = App_PresentedView(&app);
+        if( app.world_views.split.attached )
+            app.world_views.split.presented_frames++;
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_DISPLAY)
         {
             interactive_render_present(
                 &app, platform, gl3, d3d9, gles2, webgl2, webgl1, gles3,
                 renderer_active_is_depth());
         }
-        app.frame_view = App_RunnerView(&app);
+        app.world_views.frame = App_RunnerView(&app);
     }
-    else if( App_RenderSkipEnabled(&app) || app.render_skip.hold )
+    else if( App_RenderSkipEnabled(&app) || RenderSkip_Held(&app.render_skip) )
     {
         /* Not drawn, on a lane that learns the scene from its draws: what the
          * draw would have handed it, without the draw. */
@@ -6532,7 +6535,7 @@ frame_loop_step(void)
                 long const tick = strtol(ticks, NULL, 10);
                 char path[1024];
 
-                if( (long)app.server_tick_serial < tick || !App_WorldSettled(&app) )
+                if( (long)RS_ServerTick_Serial(&app.server_tick) < tick || !App_WorldSettled(&app) )
                     break;
                 snprintf(
                     path,
@@ -6541,7 +6544,7 @@ frame_loop_step(void)
                     getenv("TORIRS_SHOT_TICK_PREFIX") ? getenv("TORIRS_SHOT_TICK_PREFIX") : "shot",
                     tick);
                 PlatformWindow_RequestCapture(platform, path);
-                TORIRS_LOG("shot_tick: tick %ld at server tick %u -> %s\n", tick, app.server_tick_serial, path);
+                TORIRS_LOG("shot_tick: tick %ld at server tick %u -> %s\n", tick, RS_ServerTick_Serial(&app.server_tick), path);
                 ticks = strchr(ticks, ',');
                 if( ticks )
                     ticks++;
@@ -6826,7 +6829,7 @@ frame_loop_teardown(void)
              * asked for a hover paid for one -- which is what left the tile
              * indicator's own headline photograph with no player to mark.
              */
-            uint64_t const hov_base_ms = app.last_frame_ms;
+            uint64_t const hov_base_ms = FrameClockSerial_LastFrameMs(&app.frame_clock.serial);
             for( int t = 0; t < 4; t++ )
             {
                 uint64_t const hov_ms = hov_base_ms + (uint64_t)(t + 1) * 20;
@@ -6865,7 +6868,7 @@ frame_loop_teardown(void)
                 sim_render_frame(&app);
             }
             TORIRS_LOG(
-                "sim_hover: parked at %d,%d hover_com_id=%d\n", hov_x, hov_y, app.hover_com_id);
+                "sim_hover: parked at %d,%d hover_com_id=%d\n", hov_x, hov_y, app.interact.published_hover_com_id);
         }
         /* Post-mount snapshot: unlike the boot-time TORIRS_DUMP_TREE (which
          * runs before any server IF_OPENSUB lands), this dumps after the
@@ -6930,7 +6933,7 @@ frame_loop_teardown(void)
         if( getenv("TORIRS_DUMP_BOUNDS") && app.tree )
         {
             if( getenv("TORIRS_TRACE_NATIVE_UI") )
-                TORIRS_REPORT("NATIVE_ROOT id=%d\n", app.boot_interface_id);
+                TORIRS_REPORT("NATIVE_ROOT id=%d\n", RS_BootState_InterfaceId(&app.boot));
             char const* filter = getenv("TORIRS_DUMP_BOUNDS");
             int want = strcmp(filter, "all") == 0 ? -1 : (int)strtol(filter, NULL, 0);
             /* tree-walk-exempt: teardown */
@@ -6991,7 +6994,7 @@ frame_loop_teardown(void)
                         UITree_ComponentTypeStr(c->type),
                         dump_node_hidden(app.tree, (int32_t)i),
                         UITree_NodeNativeVisible(
-                            app.tree, &app.ui_host, (int32_t)i, app.hover_com_id),
+                            app.tree, &app.ui_host, (int32_t)i, app.interact.published_hover_com_id),
                         UITree_NodeNativeInputPresent(app.tree, &app.ui_host, (int32_t)i),
                         c->native_hide,
                         c->slot_tag,
@@ -7134,7 +7137,7 @@ frame_loop_teardown(void)
                 active >= 0 ? PluginHost_PanelWidgetCount(app.plugins, generation) : 0;
             TORIRS_REPORT(
                 "PLUGIN_PANEL visible=%d plugin=%s view=%d generation=%u widgets=%d\n",
-                app.plugin_panel_visible,
+                app.plugin_win->visible,
                 active >= 0 ? PluginHost_Name(app.plugins, active) : "-",
                 PluginHost_PanelView(app.plugins),
                 generation,
@@ -7159,9 +7162,9 @@ frame_loop_teardown(void)
             /* Custom rows draw through the plugin's own on_ui_draw into a
              * region the executor allotted; the region is the only native
              * record of where that painting landed. */
-            for( int i = 0; i < app.plugin_panel_row_count; i++ )
+            for( int i = 0; i < app.plugin_win->row_count; i++ )
             {
-                struct AppPluginPanelRow const* row = &app.plugin_panel_rows[i];
+                struct PluginPanelRow const* row = &app.plugin_win->rows[i];
                 if( row->widget_kind != TORIRS_PANEL_WIDGET_CUSTOM || !row->custom_layout_valid )
                     continue;
                 TORIRS_REPORT(
@@ -7282,12 +7285,13 @@ frame_loop_teardown(void)
                     "exit: tabgate %d enabled=%d flash_hidden=%d flash_tab=%d\n",
                     t,
                     RS_UISlots_TabEnabled(&app.slots, t),
-                    RS_UISlots_TabFlashHidden(&app.slots, t, app.logic_cycle),
+                    RS_UISlots_TabFlashHidden(
+                        &app.slots, t, FrameClockSerial_LogicCycle(&app.frame_clock.serial)),
                     app.slots.flash_tab);
             for( int f = 0; f < 6; f++ )
                 TORIRS_LOG(
                     "exit: scene_font %d has=%d\n", f, (int)ToriDraw_SceneFontHas(app.scene, f));
-            TORIRS_LOG("exit: hover_com_id=%d\n", app.hover_com_id);
+            TORIRS_LOG("exit: hover_com_id=%d\n", app.interact.published_hover_com_id);
             TORIRS_LOG(
                 "exit: minimap_view valid=%d box=%d,%d %dx%d yaw=%d\n",
                 (int)app.minimap.valid,
@@ -7513,7 +7517,7 @@ frame_loop_teardown(void)
         TORIRS_REPORT("replay: at exit %s, tick %d of %d, clock %.1f s, held %d, seeking %d, "
                       "%llu server ticks executed\n",
                       st.phase, st.tick, st.tick_count, (double)st.clock_ms / 1000.0, st.held,
-                      st.seeking, (unsigned long long)app.server_tick_serial);
+                      st.seeking, (unsigned long long)RS_ServerTick_Serial(&app.server_tick));
     }
     NetTransport_Free(sock);
     /*
@@ -9273,7 +9277,7 @@ main(
      * shows it meanwhile, so a client that has not connected to anything looks
      * exactly like one that has. The world half of the same automount is
      * already gated this way (`[ui:varc]`, `[ui:gameframe]` and the region load
-     * in Task_AppBoot all test `!net_enabled`); this is the root itself.
+     * in Task_AppBoot all test `!App_NetEnabled`); this is the root itself.
      *
      * Offline there is no such packet, so the manifest's id is the only answer
      * there will ever be and it still roots the tree -- which is what keeps the
@@ -9294,7 +9298,7 @@ main(
      * path a clicked Login takes, so the scripted lanes exercise the flow
      * rather than bypassing it.
      */
-    if( app.net_enabled && App_HasTitleScreen(&app) )
+    if( App_NetEnabled(&app) && App_HasTitleScreen(&app) )
     {
         /* Loading FIRST, login after: the gameframe bake -- where the
          * interface packs, media and fonts are actually fetched -- runs under
@@ -9308,7 +9312,7 @@ main(
     {
         App_OpenRootInterface(
             &app,
-            app.net_enabled || cfg.interface_id == INTERFACE_ID_UNSET ? -1 : cfg.interface_id);
+            App_NetEnabled(&app) || cfg.interface_id == INTERFACE_ID_UNSET ? -1 : cfg.interface_id);
     }
 
     /* Boot is fully async (App_RunOnce pumps it; App_Render shows a loading
@@ -9322,7 +9326,7 @@ main(
         getenv("TORIRS_DUMP_CLIENTCODES") || getenv("TORIRS_CMD_REPLAY") )
         App_BootWait(&app);
 
-    if( getenv("TORIRS_PREVIEW_BMP") && app.preview_state_failed )
+    if( getenv("TORIRS_PREVIEW_BMP") && ToriRSPreviewState_OutcomeFailed(&app.boot.preview) )
     {
         main_shutdown(&app);
         return 1;
@@ -9722,11 +9726,11 @@ main(
                  * only to world_camera is gone by the next cycle. This path
                  * renders immediately and never saw that, which is exactly why
                  * the in-loop twin above could not reuse it. */
-                app.frame_view->orbit.yaw =
+                app.world_views.frame->orbit.yaw =
                     ToriDraw_NormalizeAngle((int)strtol(getenv("TORIRS_SIM_CAMERA_YAW"), NULL, 0));
-                app.frame_view->orbit.yaw_velocity = 0;
-                app.frame_view->world_camera.yaw = app.frame_view->orbit.yaw;
-                TORIRS_LOG("sim_camera_yaw: %d\n", app.frame_view->world_camera.yaw);
+                app.world_views.frame->orbit.yaw_velocity = 0;
+                app.world_views.frame->world_camera.yaw = app.world_views.frame->orbit.yaw;
+                TORIRS_LOG("sim_camera_yaw: %d\n", app.world_views.frame->world_camera.yaw);
             }
             LibToriRS_Input_Begin(yaw_input, yaw_ms);
             LibToriRS_Input_End(yaw_input);
@@ -10233,7 +10237,7 @@ main(
         {
             char const* video = getenv("SDL_VIDEODRIVER");
             char const* force = getenv("TORIRS_VIEW_SPLIT_FORCE");
-            app.view_split.presentable =
+            app.world_views.split.presentable =
                 (force && strcmp(force, "1") == 0) || !(video && strcmp(video, "dummy") == 0);
         }
         /* Only when the manifest actually said something. Unset leaves the
@@ -10380,10 +10384,10 @@ main(
          * loop pumps, so a capability resolved any later is false at every
          * on_start and true from frame one, with nobody left listening. That
          * is the exact defect touch_ui was moved out of this file to fix; @see
-         * the note beside app.touch_camera above, and App::touch_ui.
+         * the note beside the touch camera above, and platform/device_caps.h.
          */
-        app.has_screen_keyboard = PlatformWindow_HasScreenKeyboard(platform);
-        TORIRS_LOG("screen_keyboard: %d\n", app.has_screen_keyboard);
+        DeviceCaps_SetScreenKeyboard(&app.device_caps, PlatformWindow_HasScreenKeyboard(platform));
+        TORIRS_LOG("screen_keyboard: %d\n", DeviceCaps_ScreenKeyboard(&app.device_caps));
 
         /*
          * The other half of the touch viewport published every frame below:
@@ -10733,7 +10737,7 @@ main(
                                                     &rsprox_replay_rec);
                 sock = NetTransport_NewReplay(&rsprox_replay_rec, app.net->rev);
                 /* Its control frames are expected (net/torirs_control.h). */
-                app.net_replay = 1;
+                ToriRS_Network_MarkReplay(app.net);
             }
             else
                 sock = app.net ? NetTransport_New(

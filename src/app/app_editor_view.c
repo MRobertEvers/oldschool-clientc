@@ -89,7 +89,7 @@ view_apply_to_app(
     struct App* app,
     const struct EditorViewCamera* pose)
 {
-    struct App_WorldView* frame_view = app->frame_view;
+    struct App_WorldView* frame_view = app->world_views.frame;
     int scene_x;
     int scene_z;
     int extent;
@@ -119,7 +119,7 @@ view_apply_to_app(
     frame_view->world_camera.yaw = pose->yaw & 0x7ff;
     /* The free camera: a view has no player to follow. */
     frame_view->camera_unlocked = 1;
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
     g_applied_valid = 1;
     g_applied_eye = frame_view->world_camera_pos;
     g_applied_yaw = frame_view->world_camera.yaw;
@@ -136,7 +136,7 @@ view_read_from_app(
     const struct EditorViewCamera* previous,
     struct EditorViewCamera* out)
 {
-    struct App_WorldView const* frame_view = app->frame_view;
+    struct App_WorldView const* frame_view = app->world_views.frame;
     struct ToriDraw_Position const eye = frame_view->world_camera_pos;
     int extent;
 
@@ -176,7 +176,7 @@ view_apply_or_load(
     }
     g_pending_camera = *pose;
     g_pending_apply = 1;
-    if( !app->world_load_inflight )
+    if( !WorldLoadState_Inflight(&app->world_load) )
     {
         int chunks[2] = { pose->x / (64 * 128), pose->z / (64 * 128) };
         TORIRS_LOG("editor view: loading m%d_%d for the camera\n", chunks[0], chunks[1]);
@@ -234,7 +234,7 @@ EditorView_AppBoot(struct App* app)
          * shared tool, and the thin toolbar sits over it. Any other panel
          * draws no world (World is hidden) and has no toolbar. */
         const char* const module = EditorView_BootPanel();
-        assert(app->editor_panel.built);
+        assert(app->editor_shell->editor_panel.built);
         /* Lighter panel windows (design #workbench "Every panel pops out"):
          * a window that holds no World loads no world. World and Preview
          * draw one and are unchanged; any other panel keeps the mirror, the
@@ -242,28 +242,28 @@ EditorView_AppBoot(struct App* app)
          * skips the squares around the camera -- the boot's default load
          * (app_boot.c) and the camera's (view_apply_or_load) both stand
          * down, and the first-sight load in the frame never starts. */
-        Editor_PanelSetVisible(&app->editor_panel, &app->dbg_ui, 1);
+        Editor_PanelSetVisible(&app->editor_shell->editor_panel, &app->dev_overlay->ui, 1);
         if( !Editor_UiModuleNeedsWorld(module) )
         {
             g_no_world = 1;
-            app->world_load_attempted = 1;
+            WorldLoadState_Attempt(&app->world_load);
             TORIRS_REPORT("editor view: a popped-out %s panel holds no world: skipping the world load around the "
                           "camera (the mirror, the catalog link and the preview raster stay)\n",
                 module);
-            Editor_UiLog(app->editor_panel.ui,
+            Editor_UiLog(app->editor_shell->editor_panel.ui,
                 "editor: this %s window loads no world (the main window's World shows it); squares open there",
                 module);
         }
-        if( !Editor_UiSetSolo(app->editor_panel.ui, module) )
+        if( !Editor_UiSetSolo(app->editor_shell->editor_panel.ui, module) )
             TORIRS_REPORT("editor view: there is no panel '%s' to show; showing the panels\n", module);
         else
             TORIRS_REPORT("editor view: a popped-out %s panel of Client %u\n", module,
                 Editor_HostMapEdClientId(&app->editor->host));
         if( strcmp(module, "world") == 0 )
-            EditorView_ToolbarBuild(&g_app_view, &app->dbg_ui);
+            EditorView_ToolbarBuild(&g_app_view, &app->dev_overlay->ui);
     }
     else
-        EditorView_ToolbarBuild(&g_app_view, &app->dbg_ui);
+        EditorView_ToolbarBuild(&g_app_view, &app->dev_overlay->ui);
     EditorView_AskSelf(&g_app_view);
     /* The Client's state as it stands (selection, tool, brush, palette,
      * the pinned level): a window that joins late starts where the others
@@ -288,8 +288,8 @@ EditorView_AppBoot(struct App* app)
          * as the view's (it still says where the Client looks). */
         g_pending_apply = !g_no_world;
     }
-    if( app->frame_view )
-        app->frame_view->camera_unlocked = 1;
+    if( app->world_views.frame )
+        app->world_views.frame->camera_unlocked = 1;
     TORIRS_LOG("editor view: a viewer of Client %u%s\n",
         Editor_HostMapEdClientId(&app->editor->host),
         boot_set ? " at the --camera pose" : "");
@@ -305,14 +305,15 @@ EditorView_AppActivate(
     assert(app);
     if( !g_app_view_live || widget < 0 )
         return 0;
-    action = EditorView_ToolbarActivate(&g_app_view, &app->dbg_ui, widget);
+    action = EditorView_ToolbarActivate(&g_app_view, &app->dev_overlay->ui, widget);
     if( action == EDITOR_VIEW_ACTION_OPEN_PANELS )
     {
         /* Promotion: the same window becomes a full client of the Client
          * (a popped-out World leaves its solo layout for the whole set). */
-        Editor_PanelSetVisible(&app->editor_panel, &app->dbg_ui, 1);
-        if( app->editor_panel.ui && app->editor_panel.ui->solo_panel >= 0 )
-            Editor_UiClearSolo(app->editor_panel.ui);
+        Editor_PanelSetVisible(&app->editor_shell->editor_panel, &app->dev_overlay->ui, 1);
+        if( app->editor_shell->editor_panel.ui &&
+            app->editor_shell->editor_panel.ui->solo_panel >= 0 )
+            Editor_UiClearSolo(app->editor_shell->editor_panel.ui);
         TORIRS_LOG("editor view: panels opened in this window\n");
     }
     return action != EDITOR_VIEW_ACTION_NONE;
@@ -345,10 +346,10 @@ view_drive(struct App* app)
 {
     char const* resize = getenv("TORIRS_EDITOR_RESIZE");
     char const* popout = getenv("TORIRS_EDITOR_POPOUT");
-    struct EditorUi* ui = app->editor_panel.ui;
+    struct EditorUi* ui = app->editor_shell->editor_panel.ui;
 
     g_drive_frame++;
-    if( !ui || !app->editor_panel.visible )
+    if( !ui || !app->editor_shell->editor_panel.visible )
         return;
     if( resize && resize[0] && g_drive_frame == view_drive_at(resize, 200) )
     {
@@ -360,7 +361,8 @@ view_drive(struct App* app)
         if( sscanf(resize, "%31[a-z0-9_],%c,%d,%d", module, &edge, &dx, &dy) == 4
             && (panel = Editor_UiFindPanel(ui, module)) && panel->chrome_panel >= 0 )
         {
-            struct ToriRSChromeRect const r = app->dbg_ui.panels[panel->chrome_panel].last_rect;
+            struct ToriRSChromeRect const r =
+                app->dev_overlay->ui.panels[panel->chrome_panel].last_rect;
             int x = r.x + r.w / 2;
             int y = r.y + r.h / 2;
             if( edge == 'l' )
@@ -371,14 +373,25 @@ view_drive(struct App* app)
                 y = r.y + 1;
             else
                 y = r.y + r.h - 2;
-            ToriRSChrome_MouseMove(&app->dbg_ui, x, y);
-            ToriRSChrome_MouseDown(&app->dbg_ui, x, y);
-            ToriRSChrome_MouseMove(&app->dbg_ui, x + dx, y + dy);
-            ToriRSChrome_MouseUp(&app->dbg_ui, x + dx, y + dy);
-            TORIRS_REPORT("editor: TORIRS_EDITOR_RESIZE %s edge %c by %d,%d: box %d,%d %dx%d -> %d,%d %dx%d\n",
-                module, edge, dx, dy, r.x, r.y, r.w, r.h, app->dbg_ui.panels[panel->chrome_panel].x,
-                app->dbg_ui.panels[panel->chrome_panel].y, app->dbg_ui.panels[panel->chrome_panel].fixed_w,
-                app->dbg_ui.panels[panel->chrome_panel].fixed_h);
+            ToriRSChrome_MouseMove(&app->dev_overlay->ui, x, y);
+            ToriRSChrome_MouseDown(&app->dev_overlay->ui, x, y);
+            ToriRSChrome_MouseMove(&app->dev_overlay->ui, x + dx, y + dy);
+            ToriRSChrome_MouseUp(&app->dev_overlay->ui, x + dx, y + dy);
+            TORIRS_REPORT(
+                "editor: TORIRS_EDITOR_RESIZE %s edge %c by %d,%d: box %d,%d %dx%d -> %d,%d "
+                "%dx%d\n",
+                module,
+                edge,
+                dx,
+                dy,
+                r.x,
+                r.y,
+                r.w,
+                r.h,
+                app->dev_overlay->ui.panels[panel->chrome_panel].x,
+                app->dev_overlay->ui.panels[panel->chrome_panel].y,
+                app->dev_overlay->ui.panels[panel->chrome_panel].fixed_w,
+                app->dev_overlay->ui.panels[panel->chrome_panel].fixed_h);
         }
         else
             TORIRS_REPORT("editor: TORIRS_EDITOR_RESIZE '%s' names no panel edge\n", resize);
@@ -415,7 +428,8 @@ EditorView_AppFrame(struct App* app)
      * window goes -- natively the main loop ends on its next frame
      * (EditorView_ExitRequested), on the web the tab closes itself, which a
      * tab the page opened (torirsSpawnEditorView) may. */
-    if( app->editor_panel.ui && app->editor_panel.ui->dock_exit && !g_dock_exit_said )
+    if( app->editor_shell->editor_panel.ui && app->editor_shell->editor_panel.ui->dock_exit &&
+        !g_dock_exit_said )
     {
         g_dock_exit_said = 1;
         TORIRS_REPORT("editor view: docked back into the main window; closing\n");
@@ -428,23 +442,28 @@ EditorView_AppFrame(struct App* app)
     /* A popped-out World: the thin toolbar sits inside the World panel's
      * body, under its title bar (which names the Client's tool and level),
      * wherever the solo layout put the panel for this window's size. */
-    if( g_app_view.toolbar.built && app->editor_panel.ui && app->editor_panel.ui->solo_panel >= 0
-        && app->editor_panel.ui->solo_panel == app->editor_panel.ui->world_panel )
+    if( g_app_view.toolbar.built && app->editor_shell->editor_panel.ui &&
+        app->editor_shell->editor_panel.ui->solo_panel >= 0 &&
+        app->editor_shell->editor_panel.ui->solo_panel ==
+            app->editor_shell->editor_panel.ui->world_panel )
     {
-        struct ToriRSChromeRect const body = ToriRSChrome_PanelBodyRect(&app->dbg_ui, app->editor_panel.ui->world_panel);
-        int const pad = ToriRSChrome_Px(&app->dbg_ui, 8);
-        struct ToriRSChromePanel const* bar = &app->dbg_ui.panels[g_app_view.toolbar.panel];
+        struct ToriRSChromeRect const body = ToriRSChrome_PanelBodyRect(
+            &app->dev_overlay->ui, app->editor_shell->editor_panel.ui->world_panel);
+        int const pad = ToriRSChrome_Px(&app->dev_overlay->ui, 8);
+        struct ToriRSChromePanel const* bar =
+            &app->dev_overlay->ui.panels[g_app_view.toolbar.panel];
         if( body.w > 0 && (bar->x != body.x + pad || bar->y != body.y + pad) )
-            ToriRSChrome_PanelMove(&app->dbg_ui, g_app_view.toolbar.panel, body.x + pad, body.y + pad);
+            ToriRSChrome_PanelMove(
+                &app->dev_overlay->ui, g_app_view.toolbar.panel, body.x + pad, body.y + pad);
     }
 
     /* The frame's one activation is ours while the panels are hidden; once
      * they show, their dispatcher drains it and offers it back. */
-    if( !app->editor_panel.visible )
-        EditorView_AppActivate(app, ToriRSChrome_TakeActivated(&app->dbg_ui));
+    if( !app->editor_shell->editor_panel.visible )
+        EditorView_AppActivate(app, ToriRSChrome_TakeActivated(&app->dev_overlay->ui));
 
     /* A pose waiting for its world, or one the view changed itself. */
-    if( g_pending_apply && !app->world_load_inflight )
+    if( g_pending_apply && !WorldLoadState_Inflight(&app->world_load) )
         view_apply_or_load(app, &g_pending_camera);
     if( EditorView_TakeCamera(&g_app_view, &pose) )
         view_apply_or_load(app, &pose);
@@ -452,15 +471,15 @@ EditorView_AppFrame(struct App* app)
     /* What the user did with the camera this frame, for the broadcast. An
      * untouched camera keeps the pose it was given. */
     {
-        int const untouched = g_applied_valid && app->frame_view
-                              && app->frame_view->world_camera_pos.x == g_applied_eye.x
-                              && app->frame_view->world_camera_pos.y == g_applied_eye.y
-                              && app->frame_view->world_camera_pos.z == g_applied_eye.z
-                              && app->frame_view->world_camera.yaw == g_applied_yaw
-                              && app->frame_view->world_camera.pitch == g_applied_pitch;
+        int const untouched = g_applied_valid && app->world_views.frame
+                              && app->world_views.frame->world_camera_pos.x == g_applied_eye.x
+                              && app->world_views.frame->world_camera_pos.y == g_applied_eye.y
+                              && app->world_views.frame->world_camera_pos.z == g_applied_eye.z
+                              && app->world_views.frame->world_camera.yaw == g_applied_yaw
+                              && app->world_views.frame->world_camera.pitch == g_applied_pitch;
         if( !untouched )
             g_applied_valid = 0;
-        if( untouched || g_pending_apply || !app->world || !app->frame_view )
+        if( untouched || g_pending_apply || !app->world || !app->world_views.frame )
             goto publish;
     }
     {
@@ -491,7 +510,7 @@ EditorView_AppOnState(
         return 0;
     consumed = EditorView_OnState(&g_app_view, key, values, count);
     if( (consumed || key == TORIRSMAPED_STATE_EDIT_LEVEL) && g_app_view.toolbar.built )
-        EditorView_ToolbarRefresh(&g_app_view, &app->dbg_ui);
+        EditorView_ToolbarRefresh(&g_app_view, &app->dev_overlay->ui);
     return consumed;
 }
 
@@ -715,7 +734,7 @@ EditorView_AppWorldCamera(
     assert(app);
     assert(out);
     assert(level >= 0 && level <= 3);
-    if( !app->world || !app->frame_view )
+    if( !app->world || !app->world_views.frame )
         return 0;
     memset(&previous, 0, sizeof(previous));
     previous.level = level;
@@ -780,7 +799,7 @@ torirs_editor_view_spawn(void)
         struct EditorViewCamera previous;
         memset(&previous, 0, sizeof(previous));
         previous.zoom = 1200;
-        if( !g_app->world || !g_app->frame_view
+        if( !g_app->world || !g_app->world_views.frame
             || !view_read_from_app(g_app, &previous, &camera) )
             return 0;
     }

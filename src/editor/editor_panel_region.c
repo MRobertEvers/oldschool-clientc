@@ -106,12 +106,12 @@ Editor_PanelRegionHoverPoint(
     assert(out_x);
     assert(out_z);
     assert(out_level);
-    if( !app->world || !app->frame_view || !Editor_PanelHoverTile(panel, app, &scene_x, &scene_z) )
+    if( !app->world || !app->world_views.frame || !Editor_PanelHoverTile(panel, app, &scene_x, &scene_z) )
         return 0;
     level = Editor_PanelEditLevel(panel, app);
     level = level < 0 ? 0 : level > 3 ? 3 : level;
-    mx = app->frame_view->world_mouse_x;
-    my = app->frame_view->world_mouse_y;
+    mx = app->world_views.frame->world_mouse_x;
+    my = app->world_views.frame->world_mouse_y;
     *out_level = level;
     /* The pick's tile first, then its neighbours (a pick at a tile's edge
      * can name the one beside the triangle the pointer is in). */

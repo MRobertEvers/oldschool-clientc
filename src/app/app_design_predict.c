@@ -92,6 +92,6 @@ App_DesignPredictIfButton(
                     app, lp->appearance.slots, lp->gender, seqs, APP_DESIGN_SEQ_COUNT));
     }
 
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
     return 1;
 }

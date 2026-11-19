@@ -18,6 +18,8 @@ WorldviewRegistry_Init(struct WorldviewRegistry* reg)
         reg->views[i].wire_id = WORLDVIEW_WIRE_ROOT;
         reg->views[i].parent_id = WORLDVIEW_PARENT_NONE;
     }
+    reg->active = WORLDVIEW_ROOT;
+    reg->active_level = 0;
 }
 
 void
@@ -239,4 +241,49 @@ WorldviewRegistry_HomeViewForAbsTile(
     *out_local_x = abs_tile_x;
     *out_local_z = abs_tile_z;
     return WORLDVIEW_ROOT;
+}
+
+int
+WorldviewRegistry_Active(struct WorldviewRegistry const* reg)
+{
+    assert(reg);
+    return reg->active;
+}
+
+int
+WorldviewRegistry_ActiveLevel(struct WorldviewRegistry const* reg)
+{
+    assert(reg);
+    return reg->active_level;
+}
+
+void
+WorldviewRegistry_SetActiveWorld(
+    struct WorldviewRegistry* reg,
+    int id,
+    int level)
+{
+    assert(reg);
+    reg->active = id;
+    reg->active_level = level < 0 ? 0 : (level > 3 ? 3 : level);
+    WorldviewRegistry_Get(reg, id)->level = reg->active_level;
+}
+
+void
+WorldviewRegistry_SetActive(
+    struct WorldviewRegistry* reg,
+    int id)
+{
+    assert(reg);
+    assert(id >= 0);
+    assert(id < WORLDVIEW_MAX);
+    reg->active = id;
+}
+
+void
+WorldviewRegistry_ResetActive(struct WorldviewRegistry* reg)
+{
+    assert(reg);
+    reg->active = WORLDVIEW_ROOT;
+    reg->active_level = 0;
 }

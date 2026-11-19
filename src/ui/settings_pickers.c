@@ -213,10 +213,10 @@ UISettingsPickers_OpenColour(
 
 /*
  * Open, drive and commit the picker. Called once a frame, after the developer
- * overlay's tick has already routed this frame's input into dbg_ui.
+ * overlay's tick has already routed this frame's input into its chrome.
  *
  * The activation is PEEKED and only taken when it belongs to this panel.
- * dbg_ui's activation latch is shared with the loc editor and the map editor,
+ * That chrome's activation latch is shared with the loc editor and the map editor,
  * and draining it unconditionally is how the loc editor once swallowed the map
  * editor's clicks -- a dropdown that showed the new value while nothing
  * changed. Peeking costs nothing and cannot do that to anyone.
@@ -493,7 +493,7 @@ UISettingsPickers_OpenNumber(
     ToriRSChrome_PanelSetVisible(chrome, pickers->number_panel, 1);
     pickers->number_visible = 1;
 
-    /* fprintf, and gated on its own name: a dbg_ui panel reaches the platform
+    /* fprintf, and gated on its own name: a developer-chrome panel reaches the platform
      * renderer as ToriRSChrome_Prims and is invisible to every BMP path this
      * client has, so a screenshot cannot answer "did the box open" -- and
      * TORIRS_LOG is stripped from the optimized build, which is the only build

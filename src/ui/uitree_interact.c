@@ -118,7 +118,18 @@ UIInteraction_Init(struct UIInteraction* interact)
     interact->prev_hover_node_index = -1;
     interact->prev_hover_node_incarnation = 0;
     interact->last_repeat_cycle = UINT64_MAX;
+    interact->published_hover_com_id = -1;
     UIMinimenu_Reset(&interact->minimenu);
+}
+
+void
+UIInteraction_Publish(
+    struct UIInteraction* interact,
+    struct UIInteractOut const* out)
+{
+    assert(interact);
+    assert(out);
+    interact->published_hover_com_id = out->hover_com_id;
 }
 
 static void

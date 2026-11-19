@@ -268,7 +268,7 @@ app_world_apply_seq_at(
  * again, and its sequence then binds onto whoever inherited it -- the wrong
  * creature suddenly playing somebody else's animation. Dropping at the moment
  * of death removes the ambiguity instead of trying to detect it later. Same
- * class of bug as AppEntitySpotanim::owner_entity_id; see that note.
+ * class of bug as EntitySpotanim::owner_entity_id; see that note.
  */
 void
 app_seq_bind_pending_drop(
@@ -290,7 +290,7 @@ app_world_bind_pending_seqs(struct App* app)
             continue; /* element despawned while loading */
         if( app_world_try_bind_seq(app, pend->element_id, pend->seq_id, pend->start_cycle) )
         {
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
             continue;
         }
         app->seq_bind_pending.items[kept++] = *pend;

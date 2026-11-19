@@ -3,7 +3,7 @@
  * (platform/net_transport_replay.c) into a real rev-241 ToriRS_Network.
  *
  * The harness stands in for the client: a packet popped is a packet executed,
- * SERVER_TICK_ENDs are counted as App.server_tick_serial counts them and
+ * SERVER_TICK_ENDs are counted as RS_ServerTick_Serial of App.server_tick counts them and
  * handed over every frame, a REBUILD is answered with MAP_BUILD_COMPLETE, and
  * a session the transport drops is re-established the way app_net_link_watch
  * does it (logout, then a reconnect). A reconnect the transport answers with
@@ -295,7 +295,7 @@ struct Client
     /** Logic cycles a frame (App's k). */
     int k;
     int frames;
-    /** SERVER_TICK_ENDs executed, ever: App.server_tick_serial. */
+    /** SERVER_TICK_ENDs executed, ever: RS_ServerTick_Serial of App.server_tick. */
     unsigned serial;
     unsigned session_serial;
     int in_game;

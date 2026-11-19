@@ -281,6 +281,30 @@ test_trigger_script_walk(void)
     CHECK(rec.asked[1] == global_hash, "the category form was asked for category 0");
 }
 
+/*
+ * The refire after a tree rebuild: raised by the overlay pass, taken once by
+ * the next one. A take with nothing raised fires nothing, and several raises
+ * in one pass are one refire.
+ */
+static void
+test_refire_raise_and_take(void)
+{
+    struct RS_ClientTriggerRefire refire;
+
+    printf("TEST: a refire is taken once per raise\n");
+    memset(&refire, 0, sizeof(refire));
+    CHECK(!RS_ClientTriggerRefire_Take(&refire), "a zeroed refire is not pending");
+    RS_ClientTriggerRefire_Raise(&refire);
+    CHECK(refire.pending == 1, "a raise leaves the flag at 1");
+    CHECK(RS_ClientTriggerRefire_Take(&refire), "a raised refire is taken");
+    CHECK(refire.pending == 0, "a take clears the flag");
+    CHECK(!RS_ClientTriggerRefire_Take(&refire), "and is not taken twice");
+    RS_ClientTriggerRefire_Raise(&refire);
+    RS_ClientTriggerRefire_Raise(&refire);
+    CHECK(RS_ClientTriggerRefire_Take(&refire), "two raises are taken");
+    CHECK(!RS_ClientTriggerRefire_Take(&refire), "as one refire");
+}
+
 int
 main(void)
 {
@@ -289,6 +313,7 @@ main(void)
     test_trigger_script_walk();
     test_overlay_store();
     test_overlay_full();
+    test_refire_raise_and_take();
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }

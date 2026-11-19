@@ -180,6 +180,14 @@ struct RS_Chat
 
     int dialog_input_open;
     char dialog_input[16];
+
+    /** Frames the left button has been held over the scrollbar (reference
+     *  scrollCycle); drives arrow-scroll acceleration and gates grip drag.
+     *  Belongs beside scroll_grabbed and is cleared with it
+     *  (RS_Chat_ScrollbarRelease), but kept LAST: the session checkpoint
+     *  reports the struct's size up to here, and a restore keeps the live
+     *  count, as it did while the count lived outside this struct. */
+    int scroll_cycle;
 };
 
 /** Filter modes + friend lookup the layout needs, snapshot per frame. */
@@ -377,6 +385,29 @@ RS_Chat_ScrollbarInput(
     int local_x,
     int local_y,
     int cycle);
+
+/**
+ * One more frame with the left button held over the chat region: counts it
+ * in `scroll_cycle`, then drives the scrollbar with that count
+ * (RS_Chat_ScrollbarInput). Returns what that returns.
+ */
+int
+RS_Chat_ScrollbarHeld(
+    struct RS_Chat* chat,
+    struct RS_ChatFilters const* filters,
+    int height,
+    int local_x,
+    int local_y);
+
+/** The button is not held over the chat scrollbar this frame: the held-frame
+ *  count and the grip both drop to 0. */
+void
+RS_Chat_ScrollbarRelease(struct RS_Chat* chat);
+
+/** Frames the button has been held over the chat region, as last counted by
+ *  RS_Chat_ScrollbarHeld; 0 after a release. */
+int
+RS_Chat_ScrollCycle(struct RS_Chat const* chat);
 
 /**
  * One keyboard event (reference handleInputKey chat branches): printable

@@ -63,7 +63,7 @@ App_IfEventsSet(
             from,
             to,
             events);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 void
@@ -83,7 +83,7 @@ App_IfEventsDropGroup(
 
     if( torirs_env_net_debug() )
         TORIRS_LOG("if_setevents: group %d closed, its arming dropped\n", group_id);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 int
@@ -159,7 +159,7 @@ app_component_target_mask(
  * The identity the SERVER knows the armed component by — the one that goes on
  * the wire in OPPLAYERT/OPNPCT/OPLOCT/OPOBJT/OPHELDT.
  *
- * `targetsel.component_id` is the TREE id, because that is what the local
+ * `target_select.target.component_id` is the TREE id, because that is what the local
  * target-enter/leave hooks are dispatched against. For a dynamic child that id
  * is a runtime allocation the server has never heard of, so putting it on the
  * wire meant `[opplayert,sailing_sidepanel:crew_content_clicklayer]` could
@@ -168,7 +168,7 @@ app_component_target_mask(
  * and it is a no-op for a static spellbook button.
  *
  * Resolved here rather than stored at arm time because the armed component's
- * parent is what the packet needs and `targetsel` has no wire-id field; the
+ * parent is what the packet needs and `target_select.target` has no wire-id field; the
  * tree cannot have moved the child to a different container between the arm
  * and the click without destroying it, and a destroyed child resolves to
  * itself, which is what an unarmed cast already sends.
@@ -180,6 +180,6 @@ app_targetsel_wire_component(struct App const* app)
     int sub;
 
     assert(app);
-    UIIfEventTable_ButtonTarget(app->tree, app->targetsel.component_id, &com, &sub);
+    UIIfEventTable_ButtonTarget(app->tree, app->target_select.target.component_id, &com, &sub);
     return com;
 }

@@ -130,15 +130,12 @@ App_SetSkybox(
     struct App* app,
     int model_id)
 {
+    struct ToriDraw_Model* old;
+
     assert(app);
-    app->skybox_id_plus1 = model_id < 0 ? 0 : model_id + 1;
-    app->skybox_requested_plus1 = 0;
-    if( app->skybox_id_plus1 == 0 && app->skybox_model )
-    {
-        ToriDraw_ModelFree(app->skybox_model);
-        app->skybox_model = NULL;
-        app->skybox_built_plus1 = 0;
-    }
+    old = SkyboxSlot_Want(&app->skybox, model_id);
+    if( old )
+        ToriDraw_ModelFree(old);
 }
 
 /* Deob Statics.method11645's neighbour: a new skybox replaces the old one the
@@ -147,12 +144,13 @@ struct ToriDraw_ModelHandle
 app_skybox_handle(struct App* app)
 {
     struct ToriDraw_ModelHandle hnd;
+    struct ToriDraw_Model* drawn;
 
     assert(app);
     memset(&hnd, 0, sizeof(hnd));
-    if( app->skybox_id_plus1 != 0 && app->skybox_built_plus1 != app->skybox_id_plus1 )
+    if( SkyboxSlot_NeedsBuild(&app->skybox) )
     {
-        int const id = app->skybox_id_plus1 - 1;
+        int const id = SkyboxSlot_WantedId(&app->skybox);
 
         if( CacheProvider_ModelGet(app->provider, id) )
         {
@@ -162,26 +160,27 @@ app_skybox_handle(struct App* app)
 
             if( model )
             {
-                if( app->skybox_model )
-                    ToriDraw_ModelFree(app->skybox_model);
-                app->skybox_model = model;
-                app->skybox_built_plus1 = app->skybox_id_plus1;
+                struct ToriDraw_Model* old = SkyboxSlot_NoteBuilt(&app->skybox, model);
+
+                if( old )
+                    ToriDraw_ModelFree(old);
                 app_sync_textures(app);
             }
         }
-        else if( app->skybox_requested_plus1 != app->skybox_id_plus1 )
+        else if( SkyboxSlot_NeedsRequest(&app->skybox) )
         {
             struct ToriRS_Task* load = CreateTask_ModelLoad(app->provider, id);
 
-            app->skybox_requested_plus1 = app->skybox_id_plus1;
+            SkyboxSlot_NoteRequested(&app->skybox);
             if( load )
                 ToriRS_TaskQueue_Add(app->frame_runner.queue, load);
         }
     }
-    if( app->skybox_model )
+    drawn = SkyboxSlot_Model(&app->skybox);
+    if( drawn )
     {
         hnd.kind = TORIDRAWMK_MODEL;
-        hnd.u.model.model = app->skybox_model;
+        hnd.u.model.model = drawn;
     }
     return hnd;
 }
@@ -336,7 +335,7 @@ App_WorldObjStackAdd(
     assert(app);
     /* Zone mutations act on whichever view the packet cursor addresses — the
      * root scene or a boat — never on app->world directly. See app.h
-     * `active_world`. */
+     * `worldviews` and WorldviewRegistry_Active. */
     world = App_ActiveWorldview(app)->world;
     /*
      * Rev 239 has no classic OBJ_REVEAL: osrs239_parse.c hands ObjEnabledOps
@@ -378,7 +377,7 @@ App_WorldObjStackAdd(
         app_placeholder_obj_stack(app, scene_x, scene_z, level, obj_id, count);
         app_plugin_obj_notify(app, idx, APP_PLUGIN_ITEM_SPAWN);
         app_ground_items_mark(app, world, scene_x, scene_z, level);
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
         return idx;
     }
     model = app_obj_stack_build_model(app, obj_id, count);
@@ -405,7 +404,7 @@ App_WorldObjStackAdd(
             level,
             element_id);
     app_sync_textures(app);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
     {
         /* ToriRS actions are [5][64]; the entity facet stores [5][32] —
          * repack at the matching stride (same gotcha as the scenery path). */
@@ -462,7 +461,7 @@ app_obj_stack_custom_changed(
     hnd.u.model.model = model;
     ToriDraw_SceneElementSetModel(app->scene, stack->element_id, hnd);
     app_sync_textures(app);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 void
@@ -473,7 +472,7 @@ App_WorldObjStackCustomise(
     int level,
     int obj_id,
     int count,
-    struct AppObjCustomise const* custom)
+    struct WorldEntity_ObjCustomise const* custom)
 {
     struct World* world;
     struct WorldEntity_ObjStack* stack;
@@ -572,7 +571,7 @@ App_WorldObjStackSetEnabledOps(
             snprintf(actions32[a], sizeof(actions32[a]), "%s", obj->ground_actions[a]);
         World_ObjStackSetMenu(world, idx, stack->name, actions32);
     }
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 static int
@@ -631,7 +630,7 @@ app_obj_stack_land_one(
     app_plugin_obj_notify(app, idx, APP_PLUGIN_ITEM_CHANGE);
     app_ground_items_mark(
         app, world, stack->grid_position.x, stack->grid_position.z, stack->grid_position.level);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
     return 1;
 }
 
@@ -778,38 +777,36 @@ App_WorldRebuildShift(
     if( base_dx != 0 || base_dz != 0 )
     {
         /* Every attached view moves with the scene base. */
-        for( int view = 0; view < app->view_split.view_count; view++ )
+        for( int view = 0; view < app->world_views.split.view_count; view++ )
         {
-            app->views[view].world_camera_pos.x -= base_dx * 128;
-            app->views[view].world_camera_pos.z -= base_dz * 128;
-            app->views[view].orbit.anchor_x -= base_dx * 128;
-            app->views[view].orbit.anchor_z -= base_dz * 128;
+            app->world_views.views[view].world_camera_pos.x -= base_dx * 128;
+            app->world_views.views[view].world_camera_pos.z -= base_dz * 128;
+            app->world_views.views[view].orbit.anchor_x -= base_dx * 128;
+            app->world_views.views[view].orbit.anchor_z -= base_dz * 128;
         }
     }
 
     /* Cutscene camera (deob client.java's rebase: field904 = false; the targets
      * and rates stay, as there). */
-    app->cam_script.scripted = 0;
-    for( int i = 0; i < 5; i++ )
-        app->cam_script.shake[i] = 0;
+    CamScript_Rebase(&app->cam_script);
 
     /* Minimenu (deob field766 = 0): the rebuild closes an open popup, it does
      * not reconfigure it. Hide, never Reset — Reset also clears font_id, and
      * the id is boot-time chrome state nothing re-derives, so a reset here left
      * every later popup measuring against no font and sized by the character
      * estimate in UIMinimenu_PrepareShow (long rows drew past the border). */
-    for( int view = 0; view < app->view_split.view_count; view++ )
-        UIMinimenu_Hide(app->views[view].minimenu);
+    for( int view = 0; view < app->world_views.split.view_count; view++ )
+        UIMinimenu_Hide(app->world_views.views[view].minimenu);
 
     /* Force a minimap rebake (deob field757 = -1 / Client-TS minimapLevel = -1). */
-    app->world_map_level = -1;
+    MinimapView_ForgetMapLevel(&app->minimap);
 
     if( torirs_env_net_debug() )
         TORIRS_LOG("rebuild_shift: dx=%d dz=%d\n", base_dx, base_dz);
     /* Projectiles/spotanims/far stacks queued EntityRemoved above — free their
      * DYNAMIC scene elements now so the next frame does not race a full queue. */
     App_WorldDrainEntityRemoved(app);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 struct Worldview*
@@ -818,7 +815,7 @@ App_ActiveWorldview(struct App* app)
     assert(app);
     /* Get() asserts the cursor names a live view — the same failure the deob
      * client throws when a packet addresses a despawned world entity. */
-    return WorldviewRegistry_Get(&app->worldviews, app->active_world);
+    return WorldviewRegistry_Get(&app->worldviews, WorldviewRegistry_Active(&app->worldviews));
 }
 
 int
@@ -833,17 +830,15 @@ App_WorldRebuildBegin(
 
     /* deob method3310 checkSame / Client-TS mapBuildCenterZone early-out. See
      * app.h on why an instanced rebuild opts out of it. */
-    if( !force && app->world_active && app->world && app->world->load_complete &&
-        app->rebuild_zone_x == zone_x && app->rebuild_zone_z == zone_z )
+    if( !force && WorldLoadState_Active(&app->world_load) && app->world && app->world->load_complete &&
+        RS_RebuildRegion_IsCentre(&app->rebuild_region, zone_x, zone_z) )
         return 0;
 
-    app->rebuild_zone_x = zone_x;
-    app->rebuild_zone_z = zone_z;
-    app->world_load_attempted = 1;
+    RS_RebuildRegion_SetCentre(&app->rebuild_region, zone_x, zone_z);
     /* Blanks the viewport for the load's duration. A background rebuild keeps
-     * the old scene up instead; its pending job is what says "not settled". */
-    if( !background )
-        app->world_load_inflight = 1;
+     * the old scene up instead; its pending job is what says "not settled".
+     * Either way the load is the server's, and its finish acks it. */
+    WorldLoadState_BeginRebuild(&app->world_load, background);
     ToriRS_BootTelemetry_Mark("world_load:rebuild");
     ToriPlatformWeb_Telemetry(
         "world_rebuild_begin",
@@ -852,8 +847,7 @@ App_WorldRebuildBegin(
         zone_z,
         background ? 1 : 0,
         force ? 1 : 0);
-    app->world_load_server_driven = 1;
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
     app_rebuild_frames_open(app, background);
     return 1;
 }
@@ -884,7 +878,7 @@ App_WorldObjStackDel(
         app_plugin_obj_notify(app, idx, APP_PLUGIN_ITEM_DESPAWN);
         World_ObjStackDel(world, idx);
         app_ground_items_mark(app, world, scene_x, scene_z, level);
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
     }
 }
 
@@ -916,7 +910,7 @@ App_WorldObjStackSetCount(
     World_ObjStackSetCount(world, idx, count);
     app_plugin_obj_notify(app, idx, APP_PLUGIN_ITEM_CHANGE);
     app_ground_items_mark(app, world, scene_x, scene_z, level);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 void
@@ -936,6 +930,6 @@ App_WorldObjStackClearTile(
         app_plugin_obj_notify(app, idx, APP_PLUGIN_ITEM_DESPAWN);
         World_ObjStackDel(world, idx);
         app_ground_items_mark(app, world, scene_x, scene_z, level);
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
     }
 }

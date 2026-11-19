@@ -91,25 +91,26 @@ app_minimenu_ui_pick_live_reason(
  */
 
 /* Snapshot the armed use/target selection for the minimenu builder (reference
- * useMode/targetMode). objsel and targetsel are mutually exclusive — arming one
+ * useMode/targetMode). The item and the spell are mutually exclusive — arming one
  * clears the other. */
 struct RS_MinimenuSelection
 app_minimenu_selection(struct App const* app)
 {
     struct RS_MinimenuSelection sel = { .mode = RS_MINIMENU_SELECT_NONE };
-    if( app->objsel.active )
+    if( app->target_select.obj.active )
     {
         sel.mode = RS_MINIMENU_SELECT_USE_ITEM;
-        snprintf(sel.obj_name, sizeof(sel.obj_name), "%s", app->objsel.name);
-        sel.obj_slot = app->objsel.slot;
-        sel.obj_com_id = app->objsel.component_id;
+        snprintf(sel.obj_name, sizeof(sel.obj_name), "%s", app->target_select.obj.name);
+        sel.obj_slot = app->target_select.obj.slot;
+        sel.obj_com_id = app->target_select.obj.component_id;
     }
-    else if( app->targetsel.active )
+    else if( app->target_select.target.active )
     {
         sel.mode = RS_MINIMENU_SELECT_TARGET;
-        snprintf(sel.target_op, sizeof(sel.target_op), "%s", app->targetsel.op);
-        sel.target_mask = app->targetsel.mask;
-        sel.target_mask_held_bit = app->features ? app->features->target_mask_held : 0;
+        snprintf(sel.target_op, sizeof(sel.target_op), "%s", app->target_select.target.op);
+        sel.target_mask = app->target_select.target.mask;
+        sel.target_mask_held_bit =
+            ToriRS_Features_Resolved(&app->features) ? app->features.target_mask_held : 0;
     }
     if( app->world )
     {
@@ -119,9 +120,9 @@ app_minimenu_selection(struct App const* app)
     }
     RS_Minimenu_SetInteractionModes(
         &sel,
-        App_InteractionTileMode(app, WORLDVIEW_ROOT),
-        App_InteractionEntityMode(app, WORLDVIEW_ROOT),
-        app->aboard_view == WORLDVIEW_ROOT);
+        RS_InteractionMode_Tile(&app->interaction_mode, WORLDVIEW_ROOT),
+        RS_InteractionMode_Entity(&app->interaction_mode, WORLDVIEW_ROOT),
+        Wevs_AboardView(&app->wevs) == WORLDVIEW_ROOT);
     return sel;
 }
 
@@ -401,7 +402,7 @@ app_minimenu_entries_publish(
     struct UIMinimenu const* hover_menu)
 {
     struct RS_ClientOpState* clientop = &app->host.clientop;
-    struct UIMinimenu const* popup = app->frame_view->minimenu;
+    struct UIMinimenu const* popup = app->world_views.frame->minimenu;
     struct UIMinimenu const* source = popup->visible ? popup : hover_menu;
 
     clientop->menu_entry_count = 0;
@@ -473,9 +474,8 @@ app_minimenu_entry_publish(
         int const signature =
             (subject.kind < 0 ? -1 : (subject.kind * 4096) ^ subject.uid ^ subject.type) ^
             (clientop->mouseover_component * 8192);
-        if( signature != app->highlight_last_mouseover )
+        if( RS_MouseoverReport_Changed(&app->mouseover_report, signature) )
         {
-            app->highlight_last_mouseover = signature;
             TORIRS_REPORT(
                 "mouseover: type=%d kind=%d uid=%d id=%d com=%d '%s'\n",
                 minimenu_type,
@@ -516,7 +516,7 @@ app_hover_text_update(
      * no pointer on the canvas at all -- after a touch tap the position is
      * still there but nothing is hovering it, and a line naming what a finger
      * touched a minute ago is the same ghost as an unmoving cursor. */
-    if( app->frame_view->minimenu->visible || app->frame_view->pointer_absent ||
+    if( app->world_views.frame->minimenu->visible || app->world_views.frame->pointer_absent ||
         app_chrome_wants_pointer(app, mouse_x, mouse_y) || mouse_x < 0 || mouse_y < 0 ||
         mouse_x >= UITREE_LAYOUT_ROOT_W || mouse_y >= UITREE_LAYOUT_ROOT_H )
     {
@@ -538,20 +538,20 @@ app_hover_text_update(
                 .events_for_component = app_minimenu_events_for_component,
                 .events_user = app,
                 .selection = app_minimenu_selection(app),
-                .player_ops = (char const(*)[40])app->player_ops,
-                .player_ops_primary = app->player_ops_primary,
-                .player_attack_option = app->player_attack_option,
-                .npc_attack_option = app->npc_attack_option,
-                .attack_option_model = app->features->attack_option_model,
+                .player_ops = (char const(*)[40])app->player_ops.text,
+                .player_ops_primary = app->player_ops.primary,
+                .player_attack_option = app->player_ops.player_attack_option,
+                .npc_attack_option = app->player_ops.npc_attack_option,
+                .attack_option_model = app->features.attack_option_model,
                 .world = app->world,
                 /* Same rule the click paths use: world rows only when the
                  * pointer is over bare viewport. */
-                .world_pickset = click_in_world ? &app->frame_view->world_pickset : NULL,
+                .world_pickset = click_in_world ? &app->world_views.frame->world_pickset : NULL,
                 .click_in_world = click_in_world != 0,
                 .wevs = &app->wevs,
                 .view_world_fn = app_minimenu_view_world,
                 .view_world_user = app,
-                .locedit_active = app->locedit.visible != 0,
+                .locedit_active = app->editor_shell->locedit.visible != 0,
                 .mapedit_select_active = app_mapedit_select_active(app),
                 .plugin_io_down = app_plugin_io_down(app) != 0,
             };
@@ -565,7 +565,7 @@ app_hover_text_update(
         }
         /* The menu is still built: the cache's line is composed from the
          * entry published below. */
-        if( app->mouseover_text_by_cache )
+        if( ToriRS_FeatureFacts_MouseoverByCache(&app->feature_facts) )
         {
             app->hover_text.visible = false;
             app->hover_text.text[0] = '\0';
@@ -577,11 +577,11 @@ app_hover_text_update(
 
     /* Anchor at the world viewport's top-left (4726's container origin), or
      * the canvas when no viewport is on screen. */
-    if( app->world_view_valid )
+    if( app->world_views.emit_valid )
     {
-        app->hover_text.x = app->world_emit_desc.clip.x + APP_HOVERTEXT_INSET_X;
-        app->hover_text.y = app->world_emit_desc.clip.y + APP_HOVERTEXT_INSET_Y;
-        app->hover_text.w = app->world_emit_desc.clip.w - APP_HOVERTEXT_INSET_X;
+        app->hover_text.x = app->world_views.emit_desc.clip.x + APP_HOVERTEXT_INSET_X;
+        app->hover_text.y = app->world_views.emit_desc.clip.y + APP_HOVERTEXT_INSET_Y;
+        app->hover_text.w = app->world_views.emit_desc.clip.w - APP_HOVERTEXT_INSET_X;
     }
     else
     {
@@ -591,7 +591,7 @@ app_hover_text_update(
     }
 
     if( app->hover_text.visible != prev_visible || strcmp(app->hover_text.text, prev) != 0 )
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
 }
 
 /*
@@ -615,7 +615,7 @@ app_minimenu_ctx_ground_fallback(
 {
     int x = 0, z = 0, level = 0;
 
-    if( !app->features->ground_click_offmap_nearest )
+    if( !app->features.ground_click_offmap_nearest )
         return;
     if( !mctx->click_in_world || !mctx->world_pickset )
         return;
@@ -650,9 +650,9 @@ app_minimenu_shift_down(struct App const* app)
     assert(app);
     if( app->host.client.simulated_shift )
         return true;
-    if( !app->plugin_input )
+    if( !ToriRS_FrameModifiersInput(&app->frame_modifiers) )
         return false;
-    return LibToriRS_Input_IsKeyHeld(app->plugin_input, TORIRSK_SHIFT);
+    return LibToriRS_Input_IsKeyHeld(ToriRS_FrameModifiersInput(&app->frame_modifiers), TORIRSK_SHIFT);
 }
 
 /*
@@ -1087,22 +1087,22 @@ app_minimenu_open(
         .events_for_component = app_minimenu_events_for_component,
         .events_user = app,
         .selection = app_minimenu_selection(app),
-        .player_ops = (char const(*)[40])app->player_ops,
-        .player_ops_primary = app->player_ops_primary,
-        .player_attack_option = app->player_attack_option,
-        .npc_attack_option = app->npc_attack_option,
-        .attack_option_model = app->features->attack_option_model,
+        .player_ops = (char const(*)[40])app->player_ops.text,
+        .player_ops_primary = app->player_ops.primary,
+        .player_attack_option = app->player_ops.player_attack_option,
+        .npc_attack_option = app->player_ops.npc_attack_option,
+        .attack_option_model = app->features.attack_option_model,
         .world = app->world,
-        .world_pickset = &app->frame_view->world_pickset,
+        .world_pickset = &app->world_views.frame->world_pickset,
         .click_in_world = click_in_world != 0,
         .wevs = &app->wevs,
         .view_world_fn = app_minimenu_view_world,
         .view_world_user = app,
-        .locedit_active = app->locedit.visible != 0,
+        .locedit_active = app->editor_shell->locedit.visible != 0,
         .mapedit_select_active = app_mapedit_select_active(app),
         .plugin_io_down = app_plugin_io_down(app) != 0,
     };
-    struct UIMinimenu* menu = app->frame_view->minimenu;
+    struct UIMinimenu* menu = app->world_views.frame->minimenu;
     struct UIMinimenuLayout layout;
     int content_w = 0;
     int line_box = 0;
@@ -1140,15 +1140,15 @@ app_minimenu_open(
                 click_x,
                 click_y,
                 click_in_world,
-                click_in_world ? app->frame_view->world_pickset.count : 0,
-                app->player_attack_option,
-                app->npc_attack_option,
+                click_in_world ? app->world_views.frame->world_pickset.count : 0,
+                app->player_ops.player_attack_option,
+                app->player_ops.npc_attack_option,
                 lp ? lp->combat_level : -1);
         }
         if( click_in_world )
-            for( int i = 0; i < app->frame_view->world_pickset.count; i++ )
+            for( int i = 0; i < app->world_views.frame->world_pickset.count; i++ )
             {
-                struct World_Picked const* picked = &app->frame_view->world_pickset.items[i];
+                struct World_Picked const* picked = &app->world_views.frame->world_pickset.items[i];
                 TORIRS_LOG(
                     "  pick[%d] type=%d element=%d tile=%d,%d,%d\n",
                     i,
@@ -1199,7 +1199,7 @@ app_minimenu_open(
     if( UIMinimenu_PrepareShowStyled(
             menu,
             line_box,
-            app->touch_ui ? UI_MINIMENU_STYLE_TOUCH : UI_MINIMENU_STYLE_DESKTOP,
+            DeviceCaps_TouchUi(&app->device_caps) ? UI_MINIMENU_STYLE_TOUCH : UI_MINIMENU_STYLE_DESKTOP,
             app_measure_text_cb,
             app,
             &layout,
@@ -1207,7 +1207,7 @@ app_minimenu_open(
     {
         UIMinimenu_ShowAt(
             menu, layout, content_w, click_x, click_y, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
         /* Geometry beside the rows: a popup too narrow for its own text is a
          * measure that returned nothing, and this line is what says so. */
         if( getenv("TORIRS_MINIMENU_DEBUG") )
@@ -1291,25 +1291,25 @@ app_targetsel_dispatch_hook(
     struct UITreeRuntimeScriptHook hook;
 
     assert(app);
-    if( !app->tree || app->targetsel.component_id < 0 )
+    if( !app->tree || app->target_select.target.component_id < 0 )
         return;
-    idx = UITree_FindByComponentId(app->tree, app->targetsel.component_id);
+    idx = UITree_FindByComponentId(app->tree, app->target_select.target.component_id);
     if( idx < 0 )
         return;
     hook = entering ? UITree_Hooks(&app->tree->components[idx])->on_target_enter
                     : UITree_Hooks(&app->tree->components[idx])->on_target_leave;
-    RS_CS2_DispatchHook(&app->host, &app->frame_runner, app->targetsel.component_id, &hook);
+    RS_CS2_DispatchHook(&app->host, &app->frame_runner, app->target_select.target.component_id, &hook);
 }
 
 static void
 app_targetsel_clear(struct App* app)
 {
     assert(app);
-    if( !app->targetsel.active )
+    if( !app->target_select.target.active )
         return;
     app_targetsel_dispatch_hook(app, 0);
-    app->targetsel.active = 0;
-    app->need_redraw = 1;
+    UITargetSelect_ClearTarget(&app->target_select);
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 /* Disarm every "armed" selection at once — the "Use <item> with..." pick and
@@ -1327,17 +1327,20 @@ app_selection_clear(struct App* app)
     int was_armed;
 
     assert(app);
-    was_armed = app->objsel.active || app->targetsel.active;
+    was_armed = UITargetSelect_Armed(&app->target_select);
     if( !was_armed )
         return 0;
     /* TORIRS_CLICK_DEBUG=1: which armed mode a click retired. "Use is stuck" and
      * "Use was never armed" produce the same screen, and the outline is script
      * -painted, so the state itself has to say so. */
     if( getenv("TORIRS_CLICK_DEBUG") )
-        TORIRS_LOG("selclear: obj=%d tgt=%d\n", app->objsel.active, app->targetsel.active);
-    app->objsel.active = 0;
+        TORIRS_LOG(
+            "selclear: obj=%d tgt=%d\n",
+            app->target_select.obj.active,
+            app->target_select.target.active);
+    UITargetSelect_ClearObj(&app->target_select);
     app_targetsel_clear(app);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
     return 1;
 }
 
@@ -1361,7 +1364,7 @@ app_minimenu_inv_action(
 
     /*
      * "Use <held> with <this item>" / "<spell> <this item>": the previous click
-     * armed objsel or targetsel and this one completes it (reference OPHELDU /
+     * armed an item or a spell and this one completes it (reference OPHELDU /
      * OPHELDT).
      *
      * NO `app_inv_cell_op_flash` on either. Client-TS does set selectedArea for
@@ -1377,7 +1380,7 @@ app_minimenu_inv_action(
      * op it fabricated was not. The `OPHELDT_START` arming case below already
      * skips the flash for the same reason.
      */
-    if( app->objsel.active )
+    if( app->target_select.obj.active )
     {
         APP_NET_SEND(
             app,
@@ -1389,14 +1392,14 @@ app_minimenu_inv_action(
                 obj_id,
                 slot,
                 com_id,
-                app->objsel.obj_id,
-                app->objsel.slot,
-                app->objsel.component_id));
+                app->target_select.obj.obj_id,
+                app->target_select.obj.slot,
+                app->target_select.obj.component_id));
         app_selection_clear(app);
         return 1;
     }
 
-    if( opt->action == REVCONFIG_MINIMENU_TGT_HELD && app->targetsel.active )
+    if( opt->action == REVCONFIG_MINIMENU_TGT_HELD && app->target_select.target.active )
     {
         APP_NET_SEND(
             app,
@@ -1525,22 +1528,12 @@ app_minimenu_inv_action(
          * No selectedArea / settrans flash — white outline only. */
         struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, obj_id);
         app_targetsel_clear(app);
-        app->objsel.active = 1;
-        app->objsel.obj_id = obj_id;
-        app->objsel.slot = slot;
-        app->objsel.component_id = com_id;
-        /* Precision caps the copy at sizeof(objsel.name)-1 so this is
-         * provably in-bounds regardless of obj->name's declared size, rather
-         * than relying on snprintf's implicit (GCC-unprovable) truncation. */
-        snprintf(
-            app->objsel.name,
-            sizeof(app->objsel.name),
-            "%.*s",
-            (int)sizeof(app->objsel.name) - 1,
-            obj && obj->name[0] ? obj->name : "item");
+        UITargetSelect_ArmObj(
+            &app->target_select, obj_id, slot, com_id, obj && obj->name[0] ? obj->name : "item");
         if( getenv("TORIRS_CLICK_DEBUG") )
-            TORIRS_LOG("selarm: obj '%s' slot=%d com=0x%x\n", app->objsel.name, slot, com_id);
-        app->need_redraw = 1;
+            TORIRS_LOG(
+                "selarm: obj '%s' slot=%d com=0x%x\n", app->target_select.obj.name, slot, com_id);
+        RedrawRequest_Raise(&app->redraw_request);
         return 1;
     }
     case REVCONFIG_MINIMENU_OPHELD6:
@@ -1559,7 +1552,7 @@ app_minimenu_inv_action(
         else
             snprintf(line, sizeof(line), "It's a %s.", name);
         RS_CS2Host_ChatAdd(&app->host, RS_CHAT_TYPE_GAME, NULL, NULL, line);
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
         return 1;
     }
     default:
@@ -1616,15 +1609,15 @@ app_run_default_ui_row(
         .chat = &app->chat_source,
         .events_for_component = app_minimenu_events_for_component,
         .events_user = app,
-        .player_ops = (char const(*)[40])app->player_ops,
-        .player_ops_primary = app->player_ops_primary,
-        .player_attack_option = app->player_attack_option,
-        .npc_attack_option = app->npc_attack_option,
-        .attack_option_model = app->features->attack_option_model,
+        .player_ops = (char const(*)[40])app->player_ops.text,
+        .player_ops_primary = app->player_ops.primary,
+        .player_attack_option = app->player_ops.player_attack_option,
+        .npc_attack_option = app->player_ops.npc_attack_option,
+        .attack_option_model = app->features.attack_option_model,
         .world = app->world,
         .world_pickset = NULL,
         .click_in_world = false,
-        .locedit_active = app->locedit.visible != 0,
+        .locedit_active = app->editor_shell->locedit.visible != 0,
         .mapedit_select_active = app_mapedit_select_active(app),
         .plugin_io_down = app_plugin_io_down(app) != 0,
     };
@@ -1633,7 +1626,7 @@ app_run_default_ui_row(
 
     mctx.selection = app_minimenu_selection(app);
     UIMinimenu_Reset(&scratch);
-    scratch.font_id = app->frame_view->minimenu->font_id;
+    scratch.font_id = app->world_views.frame->minimenu->font_id;
     RS_Minimenu_Build(&mctx, click_x, click_y, &scratch);
     app_minimenu_apply_modes(app, &scratch, 0);
     app_minimenu_stamp_node_identities(app, &scratch);
@@ -1669,10 +1662,10 @@ app_run_default_ui_row(
     }
     if( default_idx >= 0 )
     {
-        struct UIMinimenu saved = *app->frame_view->minimenu;
-        *app->frame_view->minimenu = scratch;
+        struct UIMinimenu saved = *app->world_views.frame->minimenu;
+        *app->world_views.frame->minimenu = scratch;
         app_minimenu_use_option(app, default_idx, click_x, click_y);
-        *app->frame_view->minimenu = saved;
+        *app->world_views.frame->minimenu = saved;
     }
     else
         /* Cancel-only menu on a FILLED cell, which is what clicking the armed
@@ -1918,7 +1911,7 @@ app_inv_drag_drop(
             TaskRunner_Drain(&drag_runner);
             ToriRS_TaskQueue_Free(drag_queue);
             UITree_HookClear(&hook_copy);
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
         }
     }
 
@@ -1995,7 +1988,7 @@ app_inv_drag_cancel(struct App* app)
      * generic node drag, which is the tree's state and not the gesture's. */
     if( app->tree )
         app->tree->anti_drag = 0;
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 /*
@@ -2053,7 +2046,7 @@ app_inv_drag_tick(
     /* Never arm while the right-click popup is open: its option rows overlap
      * the grid and the reference routes those clicks through the menu first. */
     if( !UIInvDrag_Armed(&app->inv_drag) && !pointer_consumed &&
-        !app->frame_view->minimenu->visible && LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
+        !app->world_views.frame->minimenu->visible && LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
     {
         struct UITreeObjCell cell;
         /* Arm where the button went DOWN, not where the pointer is by the
@@ -2081,7 +2074,7 @@ app_inv_drag_tick(
             UIInvDrag_Arm(&app->inv_drag, &press, press_x, press_y);
             /* Both logics fade the armed cell on the down edge, so the frame
              * that arms is a frame that changed. */
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
         }
     }
 
@@ -2106,7 +2099,7 @@ app_inv_drag_tick(
         LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) )
     {
         if( UIInvDrag_Hold(&app->inv_drag, mx, my) )
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
         return;
     }
 
@@ -2288,7 +2281,7 @@ app_minimenu_pick_refusal(
 void
 app_minimenu_close_if_stale(struct App* app)
 {
-    struct UIMinimenu* menu = app->frame_view->minimenu;
+    struct UIMinimenu* menu = app->world_views.frame->minimenu;
 
     if( !menu->visible )
         return;
@@ -2297,7 +2290,7 @@ app_minimenu_close_if_stale(struct App* app)
         if( app_minimenu_ui_pick_live(app, &menu->options[i].pick) )
             continue;
         UIMinimenu_Hide(menu);
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
         return;
     }
 }
@@ -2322,12 +2315,12 @@ app_cross_show(
     UIInk_Show(
         &app->ink,
         mode == UI_CROSS_INTERACT ? TORIRS_INKWELL_RED : TORIRS_INKWELL_YELLOW,
-        app->touch_ui,
+        DeviceCaps_TouchUi(&app->device_caps),
         x,
         y);
     /* Jagex StartFeedback copies the run row's op and target for the popup
      * text; a walk passes none. */
-    snprintf(app->feedback_text, sizeof(app->feedback_text), "%s", op_text ? op_text : "");
+    UIInk_SetText(&app->ink, op_text ? op_text : "");
 }
 
 /*
@@ -2389,14 +2382,14 @@ app_minimenu_run_option(
     int click_x,
     int click_y)
 {
-    struct UIMinimenu* menu = app->frame_view->minimenu;
+    struct UIMinimenu* menu = app->world_views.frame->minimenu;
     struct UIMinimenuOption opt;
 
     if( option_index < 0 || option_index >= menu->option_count )
         return 0;
     opt = menu->options[option_index];
     UIMinimenu_Hide(menu);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 
     /* Reference doAction has no CANCEL branch at all: dismissing the menu is
      * not an interaction and must not disturb a running cross. */
@@ -2603,7 +2596,7 @@ app_minimenu_run_option(
         else
             snprintf(line, sizeof(line), "It's a %s.", name ? name : "mystery");
         RS_CS2Host_ChatAdd(&app->host, RS_CHAT_TYPE_GAME, NULL, NULL, line);
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
         return 0; /* handled locally; no CS2 task was dispatched */
     }
 
@@ -2622,7 +2615,7 @@ app_minimenu_run_option(
     {
         if( getenv("TORIRS_CHROME_DEBUG") )
             fprintf(stderr, "chrome: Manage Plugins minimenu action\n");
-        app_plugin_window_set_open(app, !app->plugin_panel_visible);
+        app_plugin_window_set_open(app, !app->plugin_win->visible);
         return 0; /* handled locally; no CS2 task was dispatched */
     }
 
@@ -2636,7 +2629,7 @@ app_minimenu_run_option(
     if( opt.action == RS_MINIMENU_ACTION_CHAT_FILTER )
     {
         if( RS_UISlots_SetChatFilter(&app->slots, opt.pick.secondary_id, opt.pick.tertiary_id) )
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
         return 0;
     }
 
@@ -2677,7 +2670,7 @@ app_minimenu_run_option(
      * re-check guards a row clicked in the one frame the tool closed on. */
     if( opt.action == RS_MINIMENU_ACTION_LOCEDIT_SELECT )
     {
-        if( app->locedit.visible )
+        if( app->editor_shell->locedit.visible )
             app_loc_editor_select_element(app, opt.pick.id);
         return 0; /* handled locally; no CS2 task was dispatched */
     }
@@ -2688,7 +2681,7 @@ app_minimenu_run_option(
      * tile than the row that was clicked. */
     if( opt.action == RS_MINIMENU_ACTION_LOCEDIT_SELECT_TERRAIN )
     {
-        if( app->locedit.visible )
+        if( app->editor_shell->locedit.visible )
             app_loc_editor_select_terrain(
                 app, opt.pick.secondary_id, opt.pick.tertiary_id, opt.pick.quaternary_id);
         return 0; /* handled locally; no CS2 task was dispatched */
@@ -2701,7 +2694,7 @@ app_minimenu_run_option(
     if( opt.action == RS_MINIMENU_ACTION_MAPEDIT_SELECT )
     {
         if( app_mapedit_select_active(app) )
-            Editor_PanelSelectLoc(&app->editor_panel, app, opt.pick.id);
+            Editor_PanelSelectLoc(&app->editor_shell->editor_panel, app, opt.pick.id);
         return 0; /* handled locally; no CS2 task was dispatched */
     }
 
@@ -2709,7 +2702,7 @@ app_minimenu_run_option(
     {
         if( app_mapedit_select_active(app) )
             Editor_PanelSelectTerrain(
-                &app->editor_panel,
+                &app->editor_shell->editor_panel,
                 app,
                 opt.pick.secondary_id,
                 opt.pick.tertiary_id,
@@ -2725,17 +2718,14 @@ app_minimenu_run_option(
     }
 
     /* Arm target mode from a spell/prayer button (reference TGT_BUTTON): the
-     * next click on a valid target casts. objsel and targetsel are mutually
+     * next click on a valid target casts. The item and the spell are mutually
      * exclusive. */
     if( opt.action == REVCONFIG_MINIMENU_TGT_BUTTON )
     {
         int32_t idx = UITree_FindByComponentId(app->tree, opt.pick.id);
-        app->objsel.active = 0;
+        UITargetSelect_ClearObj(&app->target_select);
         app_targetsel_clear(app);
-        app->targetsel.active = 1;
-        app->targetsel.component_id = opt.pick.id;
-        app->targetsel.mask = 0;
-        app->targetsel.op[0] = '\0';
+        UITargetSelect_ArmTarget(&app->target_select, opt.pick.id);
         if( idx >= 0 )
         {
             struct UITreeComponent const* node = &app->tree->components[idx];
@@ -2744,87 +2734,35 @@ app_minimenu_run_option(
              * (rs_minimenu_build's component_effective_target_mask), so the arm
              * must read the same number or a script-built target button arms
              * with mask 0 and every world row is refused. */
-            app->targetsel.mask = app_component_target_mask(app, opt.pick.id);
-            /* targetsel.op only feeds the "Cast <spell> on ..." prompt text
-             * built below. Each %s below is precision-capped so the sum of
-             * parts is provably within sizeof(targetsel.op), rather than
-             * relying on snprintf's implicit (GCC-unprovable) truncation. */
+            UITargetSelect_SetTargetMask(
+                &app->target_select, app_component_target_mask(app, opt.pick.id));
+            /* target.op only feeds the "Cast <spell> on ..." prompt text. */
             if( node->behavior.button_type == REVCONFIG_BUTTON_TYPE_TARGET )
-            {
-                /* Classic targetOp = "<verb-prefix> <base> <verb-suffix>", the
-                 * verb split on its first space (Client-TS TGT_BUTTON). */
-                char const* verb = UITree_MenuOptions(node)->target_verb;
-                char const* base = UITree_MenuOptions(node)->target_base;
-                char const* space = strchr(verb, ' ');
-                if( space )
-                {
-                    int prefix_len = (int)(space - verb);
-                    if( prefix_len > 20 )
-                        prefix_len = 20;
-                    snprintf(
-                        app->targetsel.op,
-                        sizeof(app->targetsel.op),
-                        "%.*s %.*s%.*s",
-                        prefix_len,
-                        verb,
-                        20,
-                        base,
-                        20,
-                        space);
-                }
-                else
-                    snprintf(
-                        app->targetsel.op,
-                        sizeof(app->targetsel.op),
-                        "%.*s %.*s",
-                        31,
-                        verb,
-                        31,
-                        base);
-            }
+                UITargetSelect_SetTargetOpClassic(
+                    &app->target_select,
+                    UITree_MenuOptions(node)->target_verb,
+                    UITree_MenuOptions(node)->target_base);
             else
             {
-                /* IF3 (deob method523 + the world rows that read it back): the
-                 * verb is whole, its base is the component's opBase — IF3 has no
-                 * targetText — and the target's own name is joined on with an
-                 * arrow rather than a verb suffix, so a row reads
-                 * "Cast <col>Wind Strike</col> -> <col>Goblin</col>". Built into
-                 * one string here because that is the shape the world/inventory
-                 * row builders append the target's name to.
-                 *
-                 * An empty opBase is the verb ALONE, not "verb + a space" —
-                 * the same rule add_if3_target_op_rows applies when it builds
-                 * the row. A cc_create'd button (sailing's "Edit navigator")
-                 * has no op text at all, and "Edit-navigator  -> Deckhand"
-                 * with the hole still in it is what reading the empty string
-                 * as a word looks like. */
-                if( UITree_MenuOptions(node)->option[0] == '\0' )
-                    snprintf(
-                        app->targetsel.op,
-                        sizeof(app->targetsel.op),
-                        "%.*s ->",
-                        29,
-                        UITree_MenuOptions(node)->target_verb);
-                else
-                    snprintf(
-                        app->targetsel.op,
-                        sizeof(app->targetsel.op),
-                        "%.*s %.*s ->",
-                        29,
-                        UITree_MenuOptions(node)->target_verb,
-                        29,
-                        UITree_MenuOptions(node)->option);
+                /* IF3: one string, because that is the shape the world/
+                 * inventory row builders append the target's name to; an
+                 * empty opBase is the verb alone, the same rule
+                 * add_if3_target_op_rows applies when it builds the row. */
+                UITargetSelect_SetTargetOpIf3(
+                    &app->target_select,
+                    UITree_MenuOptions(node)->target_verb,
+                    UITree_MenuOptions(node)->option);
             }
         }
         if( getenv("TORIRS_CLICK_DEBUG") )
             TORIRS_LOG(
                 "selarm: tgt com=0x%x wire=0x%x mask=0x%x op='%s'\n",
-                app->targetsel.component_id,
+                app->target_select.target.component_id,
                 app_targetsel_wire_component(app),
-                (unsigned)app->targetsel.mask,
-                app->targetsel.op);
+                (unsigned)app->target_select.target.mask,
+                app->target_select.target.op);
         app_targetsel_dispatch_hook(app, 1);
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
         return 1;
     }
 
@@ -2864,7 +2802,7 @@ app_minimenu_run_option(
                                  opt.pick.id,
                                  opt.pick.tertiary_id,
                                  opt.pick.quaternary_id,
-                                 app->ctrl_held) )
+                                 ToriRS_FrameModifiersCtrl(&app->frame_modifiers)) )
                 break;
             APP_NET_SEND(
                 app,
@@ -2876,9 +2814,9 @@ app_minimenu_run_option(
                     abs_x,
                     abs_z,
                     opt.pick.secondary_id,
-                    app->objsel.obj_id,
-                    app->objsel.slot,
-                    app->objsel.component_id));
+                    app->target_select.obj.obj_id,
+                    app->target_select.obj.slot,
+                    app->target_select.obj.component_id));
             break;
         case REVCONFIG_MINIMENU_TGT_LOC:
             if( !deck_loc && !app_try_move_loc(
@@ -2886,7 +2824,7 @@ app_minimenu_run_option(
                                  opt.pick.id,
                                  opt.pick.tertiary_id,
                                  opt.pick.quaternary_id,
-                                 app->ctrl_held) )
+                                 ToriRS_FrameModifiersCtrl(&app->frame_modifiers)) )
                 break;
             APP_NET_SEND(
                 app,
@@ -2901,7 +2839,7 @@ app_minimenu_run_option(
                     app_targetsel_wire_component(app)));
             break;
         case REVCONFIG_MINIMENU_USEHELD_ONOBJ:
-            app_try_move_obj(app, opt.pick.tertiary_id, opt.pick.quaternary_id, app->ctrl_held);
+            app_try_move_obj(app, opt.pick.tertiary_id, opt.pick.quaternary_id, ToriRS_FrameModifiersCtrl(&app->frame_modifiers));
             APP_NET_SEND(
                 app,
                 net_out_opobju(
@@ -2912,12 +2850,12 @@ app_minimenu_run_option(
                     abs_x,
                     abs_z,
                     opt.pick.secondary_id,
-                    app->objsel.obj_id,
-                    app->objsel.slot,
-                    app->objsel.component_id));
+                    app->target_select.obj.obj_id,
+                    app->target_select.obj.slot,
+                    app->target_select.obj.component_id));
             break;
         case REVCONFIG_MINIMENU_TGT_OBJ:
-            app_try_move_obj(app, opt.pick.tertiary_id, opt.pick.quaternary_id, app->ctrl_held);
+            app_try_move_obj(app, opt.pick.tertiary_id, opt.pick.quaternary_id, ToriRS_FrameModifiersCtrl(&app->frame_modifiers));
             APP_NET_SEND(
                 app,
                 net_out_opobjt(
@@ -2935,7 +2873,7 @@ app_minimenu_run_option(
             struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, opt.pick.id, NULL);
             if( npc && npc->server_slot >= 0 )
             {
-                app_try_move_npc(app, npc, app->ctrl_held);
+                app_try_move_npc(app, npc, ToriRS_FrameModifiersCtrl(&app->frame_modifiers));
                 APP_NET_SEND(
                     app,
                     net_out_opnpcu(
@@ -2944,9 +2882,9 @@ app_minimenu_run_option(
                         _nsbuf,
                         sizeof(_nsbuf),
                         npc->server_slot,
-                        app->objsel.obj_id,
-                        app->objsel.slot,
-                        app->objsel.component_id));
+                        app->target_select.obj.obj_id,
+                        app->target_select.obj.slot,
+                        app->target_select.obj.component_id));
             }
             break;
         }
@@ -2955,7 +2893,7 @@ app_minimenu_run_option(
             struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, opt.pick.id, NULL);
             if( npc && npc->server_slot >= 0 )
             {
-                app_try_move_npc(app, npc, app->ctrl_held);
+                app_try_move_npc(app, npc, ToriRS_FrameModifiersCtrl(&app->frame_modifiers));
                 APP_NET_SEND(
                     app,
                     net_out_opnpct(
@@ -2973,7 +2911,7 @@ app_minimenu_run_option(
             struct WorldEntity_Player* player = World_PlayerGetByElementId(app->world, opt.pick.id);
             if( player && player->server_pid >= 0 && player->server_pid != app->world->local_pid )
             {
-                app_try_move_player(app, player, app->ctrl_held);
+                app_try_move_player(app, player, ToriRS_FrameModifiersCtrl(&app->frame_modifiers));
                 APP_NET_SEND(
                     app,
                     net_out_opplayeru(
@@ -2982,9 +2920,9 @@ app_minimenu_run_option(
                         _nsbuf,
                         sizeof(_nsbuf),
                         player->server_pid,
-                        app->objsel.obj_id,
-                        app->objsel.slot,
-                        app->objsel.component_id));
+                        app->target_select.obj.obj_id,
+                        app->target_select.obj.slot,
+                        app->target_select.obj.component_id));
             }
             break;
         }
@@ -3004,7 +2942,7 @@ app_minimenu_run_option(
                     app_targetsel_wire_component(app));
             if( player && player->server_pid >= 0 && player->server_pid != app->world->local_pid )
             {
-                app_try_move_player(app, player, app->ctrl_held);
+                app_try_move_player(app, player, ToriRS_FrameModifiersCtrl(&app->frame_modifiers));
                 APP_NET_SEND(
                     app,
                     net_out_opplayert(
@@ -3271,7 +3209,7 @@ app_minimenu_run_option(
                     deck_route_x,
                     deck_route_z,
                     1,
-                    app->ctrl_held));
+                    ToriRS_FrameModifiersCtrl(&app->frame_modifiers)));
             app_cross_show(app, UI_CROSS_WALK, click_x, click_y, NULL);
             return 0;
         }
@@ -3281,7 +3219,7 @@ app_minimenu_run_option(
          * nothing. The server owns what the click MEANS (a steering order at
          * the helm, or a walk to the rail tile nearest the click), so send
          * the destination bare, exactly like a deck click. */
-        if( app->aboard_view != WORLDVIEW_ROOT && app->net && app->world )
+        if( Wevs_AboardView(&app->wevs) != WORLDVIEW_ROOT && app->net && app->world )
         {
             int route_x[1] = { opt.pick.secondary_id };
             int route_z[1] = { opt.pick.tertiary_id };
@@ -3298,7 +3236,7 @@ app_minimenu_run_option(
                     route_x,
                     route_z,
                     1,
-                    app->ctrl_held));
+                    ToriRS_FrameModifiersCtrl(&app->frame_modifiers)));
             app_cross_show(app, UI_CROSS_WALK, click_x, click_y, NULL);
             return 0;
         }
@@ -3318,7 +3256,7 @@ app_minimenu_run_option(
          * `if (success)`, deob client.java:9305 under method3951()). A click
          * the router refuses leaves the screen alone. */
         if( app_try_move(
-                app, opt.pick.secondary_id, opt.pick.tertiary_id, 0, 0, 0, 0, app->ctrl_held) )
+                app, opt.pick.secondary_id, opt.pick.tertiary_id, 0, 0, 0, 0, ToriRS_FrameModifiersCtrl(&app->frame_modifiers)) )
             app_cross_show(app, UI_CROSS_WALK, click_x, click_y, NULL);
         return 0;
     case UI_MINIMENU_PICK_NPC:
@@ -3328,8 +3266,8 @@ app_minimenu_run_option(
             return 0; /* not yet server-synced */
         /* Reference OP_NPC1..5 / USEHELD_ONNPC walk toward the NPC (tryMove
          * type 2) on the same click; the OP is sent regardless of the route. */
-        app_try_move_npc(app, npc, app->ctrl_held);
-        if( app->objsel.active )
+        app_try_move_npc(app, npc, ToriRS_FrameModifiersCtrl(&app->frame_modifiers));
+        if( app->target_select.obj.active )
         {
             APP_NET_SEND(
                 app,
@@ -3339,9 +3277,9 @@ app_minimenu_run_option(
                     _nsbuf,
                     sizeof(_nsbuf),
                     npc->server_slot,
-                    app->objsel.obj_id,
-                    app->objsel.slot,
-                    app->objsel.component_id));
+                    app->target_select.obj.obj_id,
+                    app->target_select.obj.slot,
+                    app->target_select.obj.component_id));
             app_selection_clear(app);
         }
         else
@@ -3364,8 +3302,8 @@ app_minimenu_run_option(
         /* Menu never emits local-player rows; refuse if one slips through. */
         if( !player || player->server_pid < 0 || player->server_pid == app->world->local_pid )
             return 0;
-        app_try_move_player(app, player, app->ctrl_held);
-        if( app->objsel.active )
+        app_try_move_player(app, player, ToriRS_FrameModifiersCtrl(&app->frame_modifiers));
+        if( app->target_select.obj.active )
         {
             APP_NET_SEND(
                 app,
@@ -3375,9 +3313,9 @@ app_minimenu_run_option(
                     _nsbuf,
                     sizeof(_nsbuf),
                     player->server_pid,
-                    app->objsel.obj_id,
-                    app->objsel.slot,
-                    app->objsel.component_id));
+                    app->target_select.obj.obj_id,
+                    app->target_select.obj.slot,
+                    app->target_select.obj.component_id));
             app_selection_clear(app);
         }
         else
@@ -3427,7 +3365,7 @@ app_minimenu_run_option(
                 opt.pick.view_id,
                 opt.pick.tertiary_id,
                 opt.pick.quaternary_id);
-            if( app->objsel.active )
+            if( app->target_select.obj.active )
             {
                 APP_NET_SEND(
                     app,
@@ -3439,9 +3377,9 @@ app_minimenu_run_option(
                         abs_x,
                         abs_z,
                         loc_id,
-                        app->objsel.obj_id,
-                        app->objsel.slot,
-                        app->objsel.component_id));
+                        app->target_select.obj.obj_id,
+                        app->target_select.obj.slot,
+                        app->target_select.obj.component_id));
                 app_selection_clear(app);
             }
             else
@@ -3468,9 +3406,9 @@ app_minimenu_run_option(
          * on the same click, then send the OP below regardless of the walk
          * result. The scene tile is the pick's (tertiary,quaternary). */
         if( !app_try_move_loc(
-                app, opt.pick.id, opt.pick.tertiary_id, opt.pick.quaternary_id, app->ctrl_held) )
+                app, opt.pick.id, opt.pick.tertiary_id, opt.pick.quaternary_id, ToriRS_FrameModifiersCtrl(&app->frame_modifiers)) )
             return 0; /* reference interactWithLoc: typecode2 == -1 sends nothing */
-        if( app->objsel.active )
+        if( app->target_select.obj.active )
         {
             APP_NET_SEND(
                 app,
@@ -3482,9 +3420,9 @@ app_minimenu_run_option(
                     abs_x,
                     abs_z,
                     loc_id,
-                    app->objsel.obj_id,
-                    app->objsel.slot,
-                    app->objsel.component_id));
+                    app->target_select.obj.obj_id,
+                    app->target_select.obj.slot,
+                    app->target_select.obj.component_id));
             app_selection_clear(app);
         }
         else
@@ -3531,9 +3469,9 @@ app_minimenu_run_option(
              * 2), and on failure retry a 1x1 approach so an adjacent tile
              * still arrives; the OP is sent below on the same click either
              * way. */
-            app_try_move_obj(app, opt.pick.tertiary_id, opt.pick.quaternary_id, app->ctrl_held);
+            app_try_move_obj(app, opt.pick.tertiary_id, opt.pick.quaternary_id, ToriRS_FrameModifiersCtrl(&app->frame_modifiers));
         }
-        if( app->objsel.active )
+        if( app->target_select.obj.active )
         {
             APP_NET_SEND(
                 app,
@@ -3545,9 +3483,9 @@ app_minimenu_run_option(
                     abs_x,
                     abs_z,
                     obj_id,
-                    app->objsel.obj_id,
-                    app->objsel.slot,
-                    app->objsel.component_id));
+                    app->target_select.obj.obj_id,
+                    app->target_select.obj.slot,
+                    app->target_select.obj.component_id));
             app_selection_clear(app);
         }
         else
@@ -3657,7 +3595,7 @@ app_minimenu_use_option(
     int click_x,
     int click_y)
 {
-    struct UIMinimenu* menu = app->frame_view->minimenu;
+    struct UIMinimenu* menu = app->world_views.frame->minimenu;
     int action = -1;
     int result;
     char report_text[64];

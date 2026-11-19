@@ -476,13 +476,7 @@ app_plugin_highlight_begin(
 static struct ToriRS_HighlightItem*
 app_plugin_highlight_push(struct App* app, struct ToriRS_HighlightItem const* proto)
 {
-    struct ToriRS_HighlightItem* item;
-
-    if( app->plugin_highlight_count >= APP_PLUGIN_HIGHLIGHTS_MAX )
-        return NULL;
-    item = &app->plugin_highlights[app->plugin_highlight_count++];
-    *item = *proto;
-    return item;
+    return PluginHighlights_Push(&app->resolved_highlights, proto);
 }
 
 /* The entity pools the rebuild walks, one per pass that has a pool. */
@@ -612,9 +606,10 @@ app_plugin_highlight_loc_cache_needs_full(struct App const* app)
     assert(app);
     assert(app->world);
 
-    return !app->plugin_highlight_loc_valid ||
-        app->plugin_highlight_loc_revision != app->host.highlight.revision ||
-        app->world->scenery_changed_overflow;
+    return PluginHighlights_LocNeedsFull(
+        &app->resolved_highlights,
+        app->host.highlight.revision,
+        app->world->scenery_changed_overflow);
 }
 
 /* Push one resolved loc into the cache. Bounded by the same cap as the live
@@ -624,13 +619,7 @@ app_plugin_highlight_loc_cache_push(
     struct App* app,
     struct ToriRS_HighlightItem const* proto)
 {
-    struct ToriRS_HighlightItem* item;
-
-    if( app->plugin_highlight_loc_count >= APP_PLUGIN_HIGHLIGHTS_MAX )
-        return NULL;
-    item = &app->plugin_highlight_loc[app->plugin_highlight_loc_count++];
-    *item = *proto;
-    return item;
+    return PluginHighlights_LocPush(&app->resolved_highlights, proto);
 }
 
 /*
@@ -735,18 +724,7 @@ app_plugin_highlight_loc_cache_forget(
     struct App* app,
     int element_id)
 {
-    int out = 0;
-    int i;
-
-    for( i = 0; i < app->plugin_highlight_loc_count; i++ )
-    {
-        if( app->plugin_highlight_loc[i].element_id == element_id )
-            continue;
-        if( out != i )
-            app->plugin_highlight_loc[out] = app->plugin_highlight_loc[i];
-        out++;
-    }
-    app->plugin_highlight_loc_count = out;
+    PluginHighlights_LocForget(&app->resolved_highlights, element_id);
 }
 
 /*
@@ -828,22 +806,22 @@ app_plugin_highlight_loc_cache_audit(struct App* app)
     if( !app_plugin_highlight_debug() )
         return;
 
-    incremental_count = app->plugin_highlight_loc_count;
+    incremental_count = PluginHighlights_LocCount(&app->resolved_highlights);
     for( i = 0; i < incremental_count; i++ )
-        incremental_sum += app->plugin_highlight_loc[i].element_id;
+        incremental_sum += PluginHighlights_LocItem(&app->resolved_highlights, i)->element_id;
 
     app_plugin_highlight_loc_cache_build(app);
-    for( i = 0; i < app->plugin_highlight_loc_count; i++ )
-        rebuilt_sum += app->plugin_highlight_loc[i].element_id;
+    for( i = 0; i < PluginHighlights_LocCount(&app->resolved_highlights); i++ )
+        rebuilt_sum += PluginHighlights_LocItem(&app->resolved_highlights, i)->element_id;
 
-    if( incremental_count != app->plugin_highlight_loc_count ||
+    if( incremental_count != PluginHighlights_LocCount(&app->resolved_highlights) ||
         incremental_sum != rebuilt_sum )
         fprintf(
             stderr,
             "highlight-loc-cache: MISMATCH incremental=%d (sum %d) rebuilt=%d (sum %d)\n",
             incremental_count,
             incremental_sum,
-            app->plugin_highlight_loc_count,
+            PluginHighlights_LocCount(&app->resolved_highlights),
             rebuilt_sum);
 }
 
@@ -864,7 +842,7 @@ app_plugin_highlight_loc_cache_build(struct App* app)
     assert(app);
     assert(app->world);
 
-    app->plugin_highlight_loc_count = 0;
+    PluginHighlights_LocClear(&app->resolved_highlights);
 
     pool = &app->world->entities.scenery;
     for( int at = World_EntityPoolHead(pool); at != WORLD_ENTITY_NIL;
@@ -889,7 +867,7 @@ app_plugin_highlights_rebuild_pools(
     assert(app);
     assert(want);
 
-    app->plugin_highlight_count = 0;
+    PluginHighlights_Clear(&app->resolved_highlights);
     if( !app->world )
         return;
     hl = &app->host.highlight;
@@ -1058,8 +1036,7 @@ app_plugin_highlights_rebuild_pools(
         if( app_plugin_highlight_loc_cache_needs_full(app) )
         {
             app_plugin_highlight_loc_cache_build(app);
-            app->plugin_highlight_loc_revision = hl->revision;
-            app->plugin_highlight_loc_valid = true;
+            PluginHighlights_LocBuilt(&app->resolved_highlights, hl->revision);
         }
         else
         {
@@ -1070,10 +1047,10 @@ app_plugin_highlights_rebuild_pools(
          * incremental pass has just applied it. */
         app->world->scenery_changed_count = 0;
         app->world->scenery_changed_overflow = false;
-        for( int i = 0; i < app->plugin_highlight_loc_count; i++ )
+        for( int i = 0; i < PluginHighlights_LocCount(&app->resolved_highlights); i++ )
         {
-            struct ToriRS_HighlightItem* out =
-                app_plugin_highlight_push(app, &app->plugin_highlight_loc[i]);
+            struct ToriRS_HighlightItem* out = app_plugin_highlight_push(
+                app, PluginHighlights_LocItem(&app->resolved_highlights, i));
             if( !out )
                 return;
             /* Recomputed rather than cached: a loc's model can finish loading
@@ -1191,17 +1168,17 @@ app_plugin_highlights_rebuild(struct App* app)
 
     if( app_plugin_highlight_debug() )
     {
-        int const gated = app->plugin_highlight_count;
+        int const gated = PluginHighlights_Count(&app->resolved_highlights);
         bool const all[APP_PLUGIN_HL_POOL_COUNT] = { true, true, true, true };
 
         app_plugin_highlights_rebuild_pools(app, all);
-        if( gated != app->plugin_highlight_count )
+        if( gated != PluginHighlights_Count(&app->resolved_highlights) )
             fprintf(
                 stderr,
                 "highlight-gate: MISMATCH gated=%d ungated=%d "
                 "(npc %d, player %d, loc %d, obj %d)\n",
                 gated,
-                app->plugin_highlight_count,
+                PluginHighlights_Count(&app->resolved_highlights),
                 (int)want[APP_PLUGIN_HL_POOL_NPC],
                 (int)want[APP_PLUGIN_HL_POOL_PLAYER],
                 (int)want[APP_PLUGIN_HL_POOL_LOC],
@@ -1263,9 +1240,9 @@ app_plugin_highlights_report(struct App* app)
     if( !app_plugin_highlight_debug() )
         return;
 
-    for( int i = 0; i < app->plugin_highlight_count; i++ )
+    for( int i = 0; i < PluginHighlights_Count(&app->resolved_highlights); i++ )
     {
-        int const kind = (int)app->plugin_highlights[i].kind;
+        int const kind = (int)PluginHighlights_Item(&app->resolved_highlights, i)->kind;
         if( kind >= 0 && kind < (int)(sizeof(tally) / sizeof(tally[0])) )
             tally[kind]++;
     }
@@ -1277,7 +1254,7 @@ app_plugin_highlights_report(struct App* app)
     fprintf(
         stderr,
         "highlight-resolve: %d drawn (tile %d, npc %d, loc %d, obj %d, player %d)\n",
-        app->plugin_highlight_count,
+        PluginHighlights_Count(&app->resolved_highlights),
         tally[TORIRS_HIGHLIGHT_TILE],
         tally[TORIRS_HIGHLIGHT_NPC],
         tally[TORIRS_HIGHLIGHT_LOC],
@@ -1304,9 +1281,9 @@ app_plugin_highlight_next(void* user, int iter, struct ToriRS_HighlightItem* out
     }
 
     next = iter + 1;
-    if( next >= app->plugin_highlight_count )
+    if( next >= PluginHighlights_Count(&app->resolved_highlights) )
         return -1;
-    *out = app->plugin_highlights[next];
+    *out = *PluginHighlights_Item(&app->resolved_highlights, next);
     return next;
 }
 
@@ -1331,7 +1308,7 @@ app_plugin_screen(void* user)
     assert(app);
     /* Handed straight across: the plugin header states enum AppScreen's own
      * values, and torirs_plugin_host.c static_asserts that it still does. */
-    return (int)app->screen;
+    return (int)RS_ClientPhase_Screen(&app->phase);
 }
 
 static int
@@ -1347,7 +1324,7 @@ app_plugin_frame_ms(void* user)
 {
     struct App* app = (struct App*)user;
     assert(app);
-    return app->last_frame_ms;
+    return FrameClockSerial_LastFrameMs(&app->frame_clock.serial);
 }
 
 static uint64_t
@@ -1649,7 +1626,7 @@ app_plugin_capability(void* user, char const* name)
     /*
      * A BOOT fact, and it must be answerable at on_start.
      *
-     * App.touch_ui used to be written from frame_loop_step, which runs after
+     * The touch policy used to be written from frame_loop_step, which runs after
      * PluginHost_Start: a plugin asking here at on_start -- the only place a
      * key declaration can be made, and the only place ExpectAbsent used to be
      * legal -- was told false on every lane and true from frame one, with
@@ -1659,7 +1636,7 @@ app_plugin_capability(void* user, char const* name)
      *     CAPPROBE at=frame60  touch=1
      *
      * It is resolved in App_Init now, beside the clientscript identity it
-     * follows. @see App.touch_ui.
+     * follows. @see platform/device_caps.h.
      *
      * THE SHAPE TO WATCH FOR. A capability answered from a field the BOOT
      * fills lies at on_start if the boot fills it late. The two answers above
@@ -1670,17 +1647,17 @@ app_plugin_capability(void* user, char const* name)
      * else that moves between at=start and at=frame60 is this defect again.
      */
     if( strcmp(name, "touch") == 0 )
-        return app->touch_ui != 0;
+        return DeviceCaps_TouchUi(&app->device_caps) != 0;
     /*
      * The DEVICE has keys to raise -- not the same question as `touch`, and
      * the pair is easy to confuse, which is why both are spelled out here.
      * `touch` is an input POLICY that a login clienttype or TORIRS_TOUCH_UI
      * can move; this is the platform's own answer and nothing overrules it.
      * A chrome offering a keyboard switch wants THIS one: a desk with
-     * TORIRS_TOUCH_UI=1 has no keys to summon. @see App::has_screen_keyboard.
+     * TORIRS_TOUCH_UI=1 has no keys to summon. @see platform/device_caps.h.
      */
     if( strcmp(name, "input.screen_keyboard") == 0 )
-        return app->has_screen_keyboard != 0;
+        return DeviceCaps_ScreenKeyboard(&app->device_caps) != 0;
     /*
      * There is a plugin WINDOW to open -- for a frame carrying a launcher.
      *
@@ -1741,18 +1718,10 @@ app_plugin_instance_zone(
 {
     struct App* app = user;
     int32_t packed;
-    int dx;
-    int dz;
 
     assert(app);
     assert(out);
-    if( !app->rebuild_instance_active || level < 0 || level > 3 )
-        return false;
-    dx = zone_x - (app->rebuild_instance_zone_x - 6);
-    dz = zone_z - (app->rebuild_instance_zone_z - 6);
-    if( dx < 0 || dx >= 13 || dz < 0 || dz >= 13 )
-        return false;
-    packed = app->rebuild_instance_zones[level * 169 + dx * 13 + dz];
+    packed = RS_RebuildRegion_InstanceTemplate(&app->rebuild_region, level, zone_x, zone_z);
     if( packed == 0 )
         return false;
     out->rotation = (packed >> 1) & 3;
@@ -1883,11 +1852,14 @@ app_plugin_key_held(void* user, int keycode)
 
     /* No input frame yet (boot, or a headless run that never pumped one) is a
      * legitimate state, not a contract violation: nothing is held. */
-    if( !app->plugin_input )
+    if( !ToriRS_FrameModifiersInput(&app->frame_modifiers) )
         return 0;
     if( keycode < 0 || keycode >= TORIRSK_COUNT )
         return 0;
-    return LibToriRS_Input_IsKeyHeld(app->plugin_input, (enum LibToriRS_KeyCode)keycode) ? 1 : 0;
+    return LibToriRS_Input_IsKeyHeld(
+               ToriRS_FrameModifiersInput(&app->frame_modifiers), (enum LibToriRS_KeyCode)keycode)
+               ? 1
+               : 0;
 }
 
 /*
@@ -2555,13 +2527,10 @@ static void
 app_plugin_feature_capture(struct App* app)
 {
     assert(app);
-    assert(app->features);
+    assert(ToriRS_Features_Resolved(&app->features));
 
-    if( app->plugin_feature_boot_valid )
-        return;
-    app->plugin_feature_boot = *app->features;
-    app->plugin_feature_boot_camera = app->revconfig_profile.camera;
-    app->plugin_feature_boot_valid = 1;
+    (void)PluginBootConfig_CaptureFeatures(
+        &app->plugin_boot, &app->features, &app->revconfig_profile.camera);
 }
 
 static struct AppPluginFeatureDesc const*
@@ -2590,14 +2559,14 @@ app_plugin_feature_cell(
     case APP_PLUGIN_FEATURE_SLOT_TABLE:
     {
         struct ToriRS_FeatureTable* table =
-            boot ? &app->plugin_feature_boot : &app->features_storage;
+            boot ? PluginBootConfig_FeatureTable(&app->plugin_boot) : &app->features;
         return (int*)((char*)table + desc->offset);
     }
     case APP_PLUGIN_FEATURE_SLOT_CAMERA:
     case APP_PLUGIN_FEATURE_SLOT_CAMERA_BIT:
     {
         struct RevConfigCameraItem* camera =
-            boot ? &app->plugin_feature_boot_camera : &app->revconfig_profile.camera;
+            boot ? PluginBootConfig_FeatureCamera(&app->plugin_boot) : &app->revconfig_profile.camera;
         /* A BIT names the mask in `offset`, so its cell is always `controls`;
          * the caller does the masking. */
         if( desc->slot == APP_PLUGIN_FEATURE_SLOT_CAMERA_BIT )
@@ -2618,7 +2587,7 @@ static struct RevConfigCameraItem*
 app_plugin_feature_camera(struct App* app, int boot)
 {
     assert(app);
-    return boot ? &app->plugin_feature_boot_camera : &app->revconfig_profile.camera;
+    return boot ? PluginBootConfig_FeatureCamera(&app->plugin_boot) : &app->revconfig_profile.camera;
 }
 
 static int
@@ -2651,14 +2620,13 @@ app_plugin_feature_repush(struct App* app)
 {
     assert(app);
 
-    RS_Audio_SetFeatures(&app->audio, app->features);
-    app->npc_light_uses_type_ambient_contrast =
-        app->features->npc_light_uses_type_ambient_contrast;
-    app->player_head_light_ambient = app->features->player_head_light_ambient;
+    RS_Audio_SetFeatures(&app->audio, &app->features);
+    ToriRS_FeatureFacts_LightFromTable(&app->feature_facts, &app->features);
     app->bridge.npc_light_uses_type_ambient_contrast =
-        app->npc_light_uses_type_ambient_contrast;
-    app->bridge.player_head_light_ambient = app->player_head_light_ambient;
-    app->need_redraw = 1;
+        ToriRS_FeatureFacts_NpcTypeAmbientContrast(&app->feature_facts);
+    app->bridge.player_head_light_ambient =
+        ToriRS_FeatureFacts_PlayerHeadAmbient(&app->feature_facts);
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 static int
@@ -2993,7 +2961,7 @@ app_plugin_display_setting(
     case TORIRS_DISPLAY_OUTPUT_HEIGHT:
     case TORIRS_DISPLAY_SCALE_ADJUSTED:
     {
-        struct AppClientScale const* scale = App_ClientScale(app);
+        struct UICanvasScale const* scale = App_ClientScale(app);
         /* Nothing has been presented yet: there is no answer to give, and a
          * zero would read as a real size. */
         if( !scale->present_known )
@@ -3344,12 +3312,12 @@ app_plugin_tile_mark_key(
         return false;
     if( scene_x >= app->world->_scene_size || scene_z >= app->world->_scene_size )
         return false;
-    if( scene_x >= APP_WORLD_TILE_MARK_SCENE_MAX ||
-        scene_z >= APP_WORLD_TILE_MARK_SCENE_MAX )
+    if( scene_x >= TILE_MARK_STAGE_SCENE_MAX ||
+        scene_z >= TILE_MARK_STAGE_SCENE_MAX )
         return false;
     if( level < 0 || level >= WORLD_MAP_TERRAIN_LEVELS )
         return false;
-    *out_key = app_world_tile_mark_key(scene_x, scene_z, level);
+    *out_key = TileMarkStage_Key(scene_x, scene_z, level);
     return true;
 }
 
@@ -3491,10 +3459,10 @@ emit:
         app_world_tile_mark_begin(
             app,
             mark_key,
-            app->world_emit_desc.x,
-            app->world_emit_desc.y,
-            app->world_emit_desc.w,
-            app->world_emit_desc.h);
+            app->world_views.emit_desc.x,
+            app->world_views.emit_desc.y,
+            app->world_views.emit_desc.w,
+            app->world_views.emit_desc.h);
     /* Taken AFTER the stage is open: the count is the open list's, and a
      * marker drawn into the scene has to bill the frame the same items the
      * same marker drawn over it would. */
@@ -3826,7 +3794,7 @@ app_plugin_image_release(void* user, int slot)
      * whatever the next publish puts there. */
     if( app->tree && (UITree_WidgetClearGraphic(app->tree, UITREE_SCENE_PLUGIN_IMAGE_BASE + slot) > 0 ||
                       UITree_WidgetClearSkin(app->tree, UITREE_SCENE_PLUGIN_IMAGE_BASE + slot) > 0) )
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
 }
 
 /*
@@ -4182,7 +4150,7 @@ app_plugin_click_node(struct App* app, int32_t node, int op)
         action_index = 0;
 
     UIMinimenu_Reset(&scratch);
-    scratch.font_id = app->frame_view->minimenu->font_id;
+    scratch.font_id = app->world_views.frame->minimenu->font_id;
     if( !UIMinimenu_AddOption(&scratch, "", action, action_index, pick) )
         return 0;
 
@@ -4191,10 +4159,10 @@ app_plugin_click_node(struct App* app, int32_t node, int op)
      * reference's doAction does not touch crossMode for one either. A
      * synthesised press has no click point to give, and this is the reason it
      * does not need one. */
-    saved = *app->frame_view->minimenu;
-    *app->frame_view->minimenu = scratch;
+    saved = *app->world_views.frame->minimenu;
+    *app->world_views.frame->minimenu = scratch;
     app_minimenu_run_option(app, 0, 0, 0);
-    *app->frame_view->minimenu = saved;
+    *app->world_views.frame->minimenu = saved;
     return 1;
 }
 
@@ -4293,13 +4261,13 @@ app_plugin_world_op(struct App* app, enum DrivePickKind kind, int element_id, in
         action);
 
     UIMinimenu_Reset(&scratch);
-    scratch.font_id = app->frame_view->minimenu->font_id;
+    scratch.font_id = app->world_views.frame->minimenu->font_id;
     if( !UIMinimenu_AddOption(&scratch, "", action, option >= 1 ? slot : 0, pick) )
         return 0;
-    saved = *app->frame_view->minimenu;
-    *app->frame_view->minimenu = scratch;
+    saved = *app->world_views.frame->minimenu;
+    *app->world_views.frame->minimenu = scratch;
     app_minimenu_run_option(app, 0, 0, 0);
-    *app->frame_view->minimenu = saved;
+    *app->world_views.frame->minimenu = saved;
     return 1;
 }
 
@@ -4323,7 +4291,7 @@ app_plugin_loc_op_at(struct App* app, int loc_id, int abs_x, int abs_z, int opti
     assert(loc_id >= 0);
     assert(option >= 1);
     assert(option <= 5);
-    if( !app->net || app->net->state != TORIRS_NET_GAME || app->objsel.active )
+    if( !app->net || app->net->state != TORIRS_NET_GAME || app->target_select.obj.active )
         return 0;
     TORIRS_REPORT(
         "quest-driver: drive.op bypass pending loc=%d at %d,%d option=%d\n", loc_id, abs_x, abs_z,
@@ -4462,17 +4430,17 @@ app_plugin_inv_op(
         return 0;
 
     UIMinimenu_Reset(&scratch);
-    scratch.font_id = app->frame_view->minimenu->font_id;
+    scratch.font_id = app->world_views.frame->minimenu->font_id;
     if( !UIMinimenu_AddOption(&scratch, "", action, action_index, pick) )
     {
         *out_reason = "the scratch minimenu would not take the row";
         return 0;
     }
     scratch.options[scratch.option_count - 1].subop = subop;
-    saved = *app->frame_view->minimenu;
-    *app->frame_view->minimenu = scratch;
+    saved = *app->world_views.frame->minimenu;
+    *app->world_views.frame->minimenu = scratch;
     app_minimenu_run_option(app, 0, 0, 0);
-    *app->frame_view->minimenu = saved;
+    *app->world_views.frame->minimenu = saved;
     return 1;
 }
 
@@ -4496,7 +4464,7 @@ app_plugin_world_walk_to(struct App* app, int abs_x, int abs_z)
         0,
         0,
         0,
-        app->ctrl_held);
+        ToriRS_FrameModifiersCtrl(&app->frame_modifiers));
 }
 
 /*
@@ -4520,7 +4488,7 @@ app_plugin_world_walk_near(struct App* app, enum DrivePickKind kind, int element
         struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, element_id, NULL);
         if( !npc || npc->server_slot < 0 )
             return 0;
-        return app_try_move_npc(app, npc, app->ctrl_held);
+        return app_try_move_npc(app, npc, ToriRS_FrameModifiersCtrl(&app->frame_modifiers));
     }
     case DRIVE_PICK_LOC:
     {
@@ -4528,7 +4496,7 @@ app_plugin_world_walk_near(struct App* app, enum DrivePickKind kind, int element
         if( !loc )
             return 0;
         return app_try_move_loc(
-            app, element_id, loc->grid_position.x, loc->grid_position.z, app->ctrl_held);
+            app, element_id, loc->grid_position.x, loc->grid_position.z, ToriRS_FrameModifiersCtrl(&app->frame_modifiers));
     }
     default:
         return 0;
@@ -4544,8 +4512,7 @@ app_plugin_text_input(void* user, int on)
     /* Raised as a pending flag rather than acted on: the App has no platform,
      * and the shell already drains statements like this beside the window-mode
      * change. @see App_TakeTextInputChange. */
-    app->text_input_on = on ? 1 : 0;
-    app->text_input_dirty = 1;
+    TextInputGate_SetPluginRequest(&app->text_input_gate, on);
 }
 
 static void
@@ -4561,21 +4528,21 @@ app_plugin_chat_focus(void* user, int on)
         return;
     if( on )
     {
-        app->chat_input_active = 1;
+        UIChatLine_SetInputActive(&app->chat_line, 1);
         /* Even when the line was already focused: the keyboard request is
          * edge-triggered, and the player may have dismissed the keyboard with
          * the focus still held -- a re-tap must bring it back. Forgetting the
          * last pushed state makes the next take push the answer again. */
-        app->text_input_effective = -1;
-        app->need_redraw = 1;
+        TextInputGate_Invalidate(&app->text_input_gate);
+        RedrawRequest_Raise(&app->redraw_request);
         return;
     }
-    if( !app->chat_input_active )
+    if( !UIChatLine_InputActive(&app->chat_line) )
         return;
-    app->chat_input_active = 0;
+    UIChatLine_SetInputActive(&app->chat_line, 0);
     /* The keyboard follows by itself: app_wants_text_input reads this flag,
      * and the shell drains the change. */
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 static int
@@ -4602,12 +4569,26 @@ app_plugin_if_click(void* user, int component_id, int op)
 _Static_assert(
     APP_PLUGIN_SURFACE_PANEL == TORIRS_PLUGIN_ENGINE_DRAW_PANEL,
     "App and plugin host panel draw surfaces drifted");
+/* The stage works in surfaces; the plugin's draw window is a plugin-facing
+ * enum. One translation, here, so nothing that pushes has to know they are the
+ * same three values in the same order -- which they need not stay. */
+static enum OverlaySurface
+app_plugin_draw_surface(int canvas)
+{
+    switch( canvas )
+    {
+    case APP_PLUGIN_SURFACE_CANVAS: return OVERLAY_SURFACE_CANVAS;
+    case APP_PLUGIN_SURFACE_PANEL: return OVERLAY_SURFACE_PANEL;
+    default: return OVERLAY_SURFACE_WORLD;
+    }
+}
+
 static void
 app_plugin_draw_select_canvas(void* user, int canvas)
 {
     struct App* app = (struct App*)user;
     assert(app);
-    app->plugin_draw_canvas = canvas;
+    OverlayStage_Open(&app->overlays, app_plugin_draw_surface(canvas));
 }
 
 /* ------------------------------------------------------- chrome + the player */
@@ -4692,13 +4673,14 @@ app_plugin_slot_node_cached(struct App* app, int slot)
     assert(app->tree);
     assert(slot >= 0 && slot < TORIRS_HOST_SURFACE_PLACEABLE_COUNT);
 
-    if( app->plugin_slot_node_gen != app->tree->generation )
+    if( !PluginFrameBinding_SlotNodesCurrent(&app->plugin_frame_binding, app->tree->generation) )
     {
         for( int i = 0; i < TORIRS_HOST_SURFACE_PLACEABLE_COUNT; i++ )
-            app->plugin_slot_node[i] = UITree_FrameSlotNode(app->tree, i);
-        app->plugin_slot_node_gen = app->tree->generation;
+            PluginFrameBinding_SetSlotNode(
+                &app->plugin_frame_binding, i, UITree_FrameSlotNode(app->tree, i));
+        PluginFrameBinding_SlotNodesResolved(&app->plugin_frame_binding, app->tree->generation);
     }
-    return app->plugin_slot_node[slot];
+    return PluginFrameBinding_SlotNode(&app->plugin_frame_binding, slot);
 }
 
 /* The engine slot a role name stands for, or -1 for a profile role. */
@@ -4927,36 +4909,37 @@ static int app_plugin_tab_active(void* user);
 static void
 app_plugin_facet_ids(struct App* app)
 {
+    struct PluginFacetIds ids;
+
     assert(app);
-    if( app->plugin_facet_ids.valid &&
-        app->plugin_facet_ids.refs_count == app->revconfig_refs.count &&
-        app->plugin_facet_ids.roles_count == app->ui_roles.count )
+    if( PluginFrameBinding_FacetIdsCurrent(
+            &app->plugin_frame_binding, app->revconfig_refs.count, app->ui_roles.count) )
         return;
 
-    app->plugin_facet_ids.refs_count = app->revconfig_refs.count;
-    app->plugin_facet_ids.roles_count = app->ui_roles.count;
+    /* The stone lookup reads every entry of the module's table, so the table
+     * and the frame's member count must be the same size. */
     _Static_assert(
-        (int)(sizeof(app->plugin_facet_ids.role_sidetab) /
-              sizeof(app->plugin_facet_ids.role_sidetab[0])) >= UITREE_FRAME_SLOT_NODES_MAX,
+        (int)(sizeof(ids.role_sidetab) / sizeof(ids.role_sidetab[0])) == UITREE_FRAME_SLOT_NODES_MAX,
         "the sidetab role cache covers every member a frame slot can have");
+    memset(&ids, 0, sizeof(ids));
     for( int tab = 0; tab < UITREE_FRAME_SLOT_NODES_MAX; tab++ )
     {
         char role[UITREE_ROLE_NAME_MAX];
         snprintf(role, sizeof(role), "sidetab_%d", tab);
-        app->plugin_facet_ids.role_sidetab[tab] = UITree_RoleFind(&app->ui_roles, role);
+        ids.role_sidetab[tab] = UITree_RoleFind(&app->ui_roles, role);
     }
-    app->plugin_facet_ids.sidetab_valid = 0;
-    app->plugin_facet_ids.varbit_sidebar_flash =
+    ids.varbit_sidebar_flash =
         RevConfigRefs_Get(&app->revconfig_refs, "varbit", "varb3756_sidebar_flash_tab");
-    app->plugin_facet_ids.varbit_cutscene =
+    ids.varbit_cutscene =
         RevConfigRefs_Get(&app->revconfig_refs, "varbit", "varb542_cutscene_status");
-    app->plugin_facet_ids.varp_run_mode =
+    ids.varp_run_mode =
         RevConfigRefs_Get(&app->revconfig_refs, "varp", "varp173_run_mode");
-    app->plugin_facet_ids.varp_special_armed =
+    ids.varp_special_armed =
         RevConfigRefs_Get(&app->revconfig_refs, "varp", "varp301_special_attack_armed");
-    app->plugin_facet_ids.role_orb_run = UITree_RoleFind(&app->ui_roles, "orb_run");
-    app->plugin_facet_ids.role_orb_spec = UITree_RoleFind(&app->ui_roles, "orb_spec");
-    app->plugin_facet_ids.valid = 1;
+    ids.role_orb_run = UITree_RoleFind(&app->ui_roles, "orb_run");
+    ids.role_orb_spec = UITree_RoleFind(&app->ui_roles, "orb_spec");
+    PluginFrameBinding_StoreFacetIds(
+        &app->plugin_frame_binding, app->revconfig_refs.count, app->ui_roles.count, &ids);
 }
 
 /*
@@ -4981,20 +4964,21 @@ app_plugin_facet_ids(struct App* app)
 static void
 app_plugin_facet_sidetab_nodes(struct App* app)
 {
+    struct PluginFrameBinding* binding;
+
     assert(app);
     assert(app->tree);
-    if( app->plugin_facet_ids.sidetab_valid &&
-        app->plugin_facet_ids.sidetab_generation == app->tree->generation &&
-        app->plugin_facet_ids.sidetab_id_generation == app->tree->id_generation )
+    binding = &app->plugin_frame_binding;
+    if( PluginFrameBinding_SidetabNodesCurrent(
+            binding, app->tree->generation, app->tree->id_generation) )
         return;
-    app->plugin_facet_ids.sidetab_generation = app->tree->generation;
-    app->plugin_facet_ids.sidetab_id_generation = app->tree->id_generation;
-    app->plugin_facet_ids.sidetab_valid = 1;
+    PluginFrameBinding_BeginSidetabNodes(binding, app->tree->generation, app->tree->id_generation);
     for( int tab = 0; tab < UITREE_FRAME_SLOT_NODES_MAX; tab++ )
-        app->plugin_facet_ids.sidetab_node[tab] =
-            app->plugin_facet_ids.role_sidetab[tab]
-                ? UITree_RoleNode(app->tree, &app->ui_roles, app->plugin_facet_ids.role_sidetab[tab])
-                : -1;
+    {
+        uint16_t const role = PluginFrameBinding_FacetIds(binding)->role_sidetab[tab];
+        PluginFrameBinding_SetSidetabNode(
+            binding, tab, role ? UITree_RoleNode(app->tree, &app->ui_roles, role) : -1);
+    }
 }
 
 /* The stone, by node identity. -1 when this node is not one. */
@@ -5003,10 +4987,7 @@ app_plugin_node_stone_tabno(struct App* app, int32_t idx)
 {
     assert(app);
     app_plugin_facet_sidetab_nodes(app);
-    for( int tab = 0; tab < UITREE_FRAME_SLOT_NODES_MAX; tab++ )
-        if( app->plugin_facet_ids.sidetab_node[tab] == idx )
-            return tab;
-    return -1;
+    return PluginFrameBinding_SidetabOf(&app->plugin_frame_binding, idx);
 }
 
 static int
@@ -5046,8 +5027,11 @@ app_plugin_tab_flagged_flash(struct App* app)
     app_plugin_facet_ids(app);
     if( app->slots.flash_tab >= 0 )
         return app->slots.flash_tab;
-    if( app->plugin_facet_ids.varbit_sidebar_flash >= 0 )
-        return VarPManager_GetVarbit(&app->varps, app->plugin_facet_ids.varbit_sidebar_flash) - 1;
+    if( PluginFrameBinding_FacetIds(&app->plugin_frame_binding)->varbit_sidebar_flash >= 0 )
+        return VarPManager_GetVarbit(
+                   &app->varps,
+                   PluginFrameBinding_FacetIds(&app->plugin_frame_binding)->varbit_sidebar_flash) -
+               1;
     return -1;
 }
 
@@ -5072,6 +5056,7 @@ app_plugin_tab_flagged_flash(struct App* app)
 static uint32_t
 app_plugin_widget_facets(struct App* app, int32_t idx)
 {
+    struct PluginFacetIds const* ids;
     struct UITreeComponent const* c;
     uint32_t facets = 0;
     int tabno;
@@ -5082,13 +5067,14 @@ app_plugin_widget_facets(struct App* app, int32_t idx)
     assert((uint32_t)idx < app->tree->component_count);
 
     app_plugin_facet_ids(app);
+    ids = PluginFrameBinding_FacetIds(&app->plugin_frame_binding);
     c = &app->tree->components[idx];
 
     /* A fact about the SCREEN, so it is reported on everything: a plugin's
      * own decoration has to fold away with the HUD it is drawn over. A lane
      * whose profile declares no cutscene varbit has no cutscene. */
-    if( app->plugin_facet_ids.varbit_cutscene >= 0 &&
-        VarPManager_GetVarbit(&app->varps, app->plugin_facet_ids.varbit_cutscene) )
+    if( ids->varbit_cutscene >= 0 &&
+        VarPManager_GetVarbit(&app->varps, ids->varbit_cutscene) )
         facets |= TORIRS_WIDGET_FACET_HIDDEN_BY_CUTSCENE;
 
     /* The panel a tab opens, or the stone that opens it: a plugin dressing
@@ -5130,13 +5116,13 @@ app_plugin_widget_facets(struct App* app, int32_t idx)
 
     /* An orb's own toggle, and only for the orb it belongs to: the run orb
      * does not light up because the special is armed. */
-    if( app->plugin_facet_ids.varp_run_mode >= 0 && app->plugin_facet_ids.role_orb_run &&
-        UITree_RoleNode(app->tree, &app->ui_roles, app->plugin_facet_ids.role_orb_run) == idx &&
-        VarPManager_GetVarp(&app->varps, app->plugin_facet_ids.varp_run_mode) )
+    if( ids->varp_run_mode >= 0 && ids->role_orb_run &&
+        UITree_RoleNode(app->tree, &app->ui_roles, ids->role_orb_run) == idx &&
+        VarPManager_GetVarp(&app->varps, ids->varp_run_mode) )
         facets |= TORIRS_WIDGET_FACET_ACTIVE;
-    if( app->plugin_facet_ids.varp_special_armed >= 0 && app->plugin_facet_ids.role_orb_spec &&
-        UITree_RoleNode(app->tree, &app->ui_roles, app->plugin_facet_ids.role_orb_spec) == idx &&
-        VarPManager_GetVarp(&app->varps, app->plugin_facet_ids.varp_special_armed) )
+    if( ids->varp_special_armed >= 0 && ids->role_orb_spec &&
+        UITree_RoleNode(app->tree, &app->ui_roles, ids->role_orb_spec) == idx &&
+        VarPManager_GetVarp(&app->varps, ids->varp_special_armed) )
         facets |= TORIRS_WIDGET_FACET_ACTIVE;
 
     return facets;
@@ -5151,7 +5137,7 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
     if( r->kind == PLUGIN_WIDGET_RESET_OWNER )
     {
         UITree_WidgetResetOwner(tree, owner);
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
         return TORIRS_CONTRACT_OK;
     }
     if( !tree ) return TORIRS_CONTRACT_UNAVAILABLE;
@@ -5249,7 +5235,7 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         break;
     case PLUGIN_WIDGET_VISIBLE:
         *r->flag=!UITree_NodeOrAncestorDisplayHidden(tree,idx) &&
-            UITree_NodeNativeVisible(tree,&app->ui_host,idx,app->hover_com_id);
+            UITree_NodeNativeVisible(tree,&app->ui_host,idx,app->interact.published_hover_com_id);
         return TORIRS_CONTRACT_OK;
     case PLUGIN_WIDGET_ACTIONS:
     case PLUGIN_WIDGET_INVOKE:
@@ -5287,10 +5273,10 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
          * press is resolved, built and then dropped without a word.
          * @see app_plugin_click_node. */
         menu.options[op].pick.allow_plugin_hidden=1;
-        struct UIMinimenu saved = *app->frame_view->minimenu;
-        *app->frame_view->minimenu = menu;
+        struct UIMinimenu saved = *app->world_views.frame->minimenu;
+        *app->world_views.frame->minimenu = menu;
         app_minimenu_run_option(app,op,0,0);
-        *app->frame_view->minimenu = saved;
+        *app->world_views.frame->minimenu = saved;
         return TORIRS_CONTRACT_OK;
     }
     case PLUGIN_WIDGET_PARENT:
@@ -5349,7 +5335,7 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
             state->local.y -= tree->components[c->parent].position.abs_y;
         }
         state->presented = !display_hidden &&
-            UITree_NodeNativeVisible(tree, &app->ui_host, idx, app->hover_com_id);
+            UITree_NodeNativeVisible(tree, &app->ui_host, idx, app->interact.published_hover_com_id);
         state->own_hidden = c->behavior.hide != 0;
         state->native_hidden = c->native_hide != 0;
         /* What the LANE offers here, which is not the same question as
@@ -5377,7 +5363,7 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
          * already put away. @see UITree_NodeSubtreePaintsArt. */
         state->paints_own_art =
             state->presented &&
-            UITree_NodeSubtreePaintsArt(tree, &app->ui_host, idx, app->hover_com_id);
+            UITree_NodeSubtreePaintsArt(tree, &app->ui_host, idx, app->interact.published_hover_com_id);
         state->text_hash = UITree_NodeTextHash(tree, idx);
         state->facets = app_plugin_widget_facets(app, idx);
         state->incarnation = r->ref.opaque[2];
@@ -5393,29 +5379,26 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
     }
     case PLUGIN_WIDGET_MODEL:
     {
-        /* struct App::if_heads[].kind stores an `enum AppIfHeadKind`
-         * (src/app/app_if_models.c) declared INSIDE that .c file, so this
-         * translation unit cannot spell its members by name. The four raw
-         * values below are that enum's fixed, ordinary (unnumbered,
-         * sequential) C layout as of app_if_models.c:16-25: 0=npc, 1=player,
-         * 2=obj, 3=model -- the same mapping torirs_plugin_drive_read.c's
-         * DriveRead_WidgetModel uses, independently, for the same reason. */
+        /* The head entry's kind is an enum UIIfHeadKind (ui/uitree_if_models.h),
+         * the same mapping torirs_plugin_drive_read.c's DriveRead_WidgetModel
+         * uses. */
         r->model->kind = TORIRS_WIDGET_MODEL_NONE;
         r->model->id = -1;
-        for( int i = 0; i < app->if_head_count; i++ )
         {
-            if( app->if_heads[i].com_id != c->component_id )
-                continue;
-            switch( app->if_heads[i].kind )
+            int const i = UIIfModels_HeadIndex(&app->if_models, c->component_id);
+            if( i >= 0 )
             {
-            case 0: r->model->kind = TORIRS_WIDGET_MODEL_NPC; break;
-            case 2: r->model->kind = TORIRS_WIDGET_MODEL_OBJ; break;
-            case 3: r->model->kind = TORIRS_WIDGET_MODEL_MODEL; break;
-            default: break; /* 1 = player: no raw identity to report */
+                struct UIIfHead const* head = &app->if_models.heads[i];
+                switch( head->kind )
+                {
+                case UI_IFHEAD_NPC: r->model->kind = TORIRS_WIDGET_MODEL_NPC; break;
+                case UI_IFHEAD_OBJ: r->model->kind = TORIRS_WIDGET_MODEL_OBJ; break;
+                case UI_IFHEAD_MODEL: r->model->kind = TORIRS_WIDGET_MODEL_MODEL; break;
+                default: break; /* player: no raw identity to report */
+                }
+                if( r->model->kind != TORIRS_WIDGET_MODEL_NONE )
+                    r->model->id = head->npc_id;
             }
-            if( r->model->kind != TORIRS_WIDGET_MODEL_NONE )
-                r->model->id = app->if_heads[i].npc_id;
-            break;
         }
         return TORIRS_CONTRACT_OK;
     }
@@ -5450,19 +5433,19 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
             if( !UITree_WidgetSetArt(tree,ref,owner,UITREE_SCENE_PLUGIN_IMAGE_BASE+r->id) ) return TORIRS_CONTRACT_FAILED;
         }
         else return TORIRS_CONTRACT_NATIVE_BLOCKED;
-        app->need_redraw=1;
+        RedrawRequest_Raise(&app->redraw_request);
         break;
     case PLUGIN_WIDGET_SET_MASK:
         if( c->plugin_owner ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
         if( c->type!=UIELEM_BUILTIN_MINIMAP && c->type!=UIELEM_BUILTIN_COMPASS && c->type!=UIELEM_BUILTIN_SPRITE )
             return TORIRS_CONTRACT_NATIVE_BLOCKED;
         if( !UITree_WidgetSetMask(tree,ref,owner,r->id<0 ? 0 : UITREE_SCENE_PLUGIN_IMAGE_BASE+r->id) ) return TORIRS_CONTRACT_FAILED;
-        app->need_redraw=1;
+        RedrawRequest_Raise(&app->redraw_request);
         break;
     case PLUGIN_WIDGET_OPACITY:
         if( c->plugin_owner!=owner ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
         if( !UITree_WidgetSetTransparency(tree,ref,owner,255-r->a) ) return TORIRS_CONTRACT_FAILED;
-        app->need_redraw=1;
+        RedrawRequest_Raise(&app->redraw_request);
         break;
     case PLUGIN_WIDGET_ANCHOR:
     {
@@ -5481,7 +5464,7 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         case UITREE_WIDGET_ANCHOR_BUDGET: return TORIRS_CONTRACT_BUDGET_EXCEEDED;
         default: return TORIRS_CONTRACT_INVALID_ARGUMENT;
         }
-        app->need_redraw=1;
+        RedrawRequest_Raise(&app->redraw_request);
         break;
     }
     case PLUGIN_WIDGET_SET_TEXT:
@@ -5527,7 +5510,7 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         break;
     default: return TORIRS_CONTRACT_UNAVAILABLE;
     }
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
     return TORIRS_CONTRACT_OK;
 }
 
@@ -5554,9 +5537,9 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
  * role resolution is memoised per generation, so it is cheap. A node stamped
  * on the last pass that this pass does not name again loses its stamp, so a
  * role that re-resolves after a CS2 rebuild does not leave two nodes both
- * claiming to be `side3`.
+ * claiming to be `side3`. What the pass remembers between runs, and when it
+ * may skip, is plugin/plugin_frame_binding.h.
  */
-#define APP_FRAME_STAMP_MAX 64
 
 /** The tag a profile-named node of `slot` is stamped with, or NONE for a slot
  *  the tree recognises by widget type alone (world, minimap, compass). */
@@ -5607,7 +5590,7 @@ app_plugin_frame_stamp_role(
     assert(next);
     assert(next_count);
     PA_INC(frame_bind_stamp_calls);
-    if( role_id == 0 || *next_count >= APP_FRAME_STAMP_MAX )
+    if( role_id == 0 || *next_count >= PLUGIN_FRAME_STAMP_MAX )
         return;
     node = UITree_RoleNode(tree, &app->ui_roles, role_id);
     if( node < 0 || (uint32_t)node >= tree->component_count )
@@ -5857,7 +5840,7 @@ void
 app_plugin_frame_bind(struct UITree* tree, void* user)
 {
     struct App* app = (struct App*)user;
-    int32_t next[APP_FRAME_STAMP_MAX];
+    int32_t next[PLUGIN_FRAME_STAMP_MAX];
     int next_count = 0;
 
     assert(tree);
@@ -5873,7 +5856,7 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
         app->ui_roles.fallback = app_plugin_frame_role_fallback;
         app->ui_roles.fallback_user = app;
         for( int i = 0; i < app->ui_roles.count; i++ ) app->ui_roles.entries[i].memo_valid = 0;
-        app->plugin_frame_bound_valid = 0;
+        PluginFrameBinding_DropBound(&app->plugin_frame_binding);
     }
 
     /* Every answer below is a function of the role memo's two keys: a role
@@ -5883,49 +5866,57 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
      * recompute 106 constants with 7,000 string compares to reach the same
      * table. A role interned after the last pass (the table grew) is the one
      * other input, and it re-arms the pass through the intern table below. */
-    if( app->plugin_frame_bound_valid && app->plugin_frame_bound_tree == tree &&
-        app->plugin_frame_bound_generation == tree->generation &&
-        app->plugin_frame_bound_id_generation == tree->id_generation &&
-        app->plugin_frame_role_ids_for_count == app->ui_roles.count )
+    if( PluginFrameBinding_BoundCurrent(
+            &app->plugin_frame_binding,
+            tree,
+            tree->generation,
+            tree->id_generation,
+            app->ui_roles.count) )
         return;
 
     /* The frame role names are compile-time constants; intern them once per
      * role table and stamp by id. Rebuilt when the table grows, since a role
      * a later profile line declares must start answering. */
-    _Static_assert(UITREE_FRAME_SLOT_COUNT <= APP_FRAME_ROLE_SLOTS, "frame slot table too small");
-    if( app->plugin_frame_role_ids_for_count != app->ui_roles.count )
+    _Static_assert(UITREE_FRAME_SLOT_COUNT <= PLUGIN_FRAME_BINDING_SLOTS, "frame slot table too small");
+    _Static_assert(
+        UITREE_FRAME_SLOT_NODES_MAX <= PLUGIN_FRAME_BINDING_MEMBERS, "frame member table too small");
+    if( !PluginFrameBinding_RoleIdsCurrent(&app->plugin_frame_binding, app->ui_roles.count) )
     {
         for( int slot = 0; slot < UITREE_FRAME_SLOT_COUNT; slot++ )
         {
             char const* name = UITree_RoleSlotName(slot);
             char role[UITREE_ROLE_NAME_MAX];
-            uint16_t* ids = app->plugin_frame_role_id[slot];
 
-            memset(ids, 0, sizeof(app->plugin_frame_role_id[slot]));
+            PluginFrameBinding_ClearRoleIds(&app->plugin_frame_binding, slot);
             if( app_plugin_frame_slot_tag(slot) == UITREE_SLOT_NONE || !name )
                 continue;
             snprintf(role, sizeof(role), "frame_%s", name);
-            ids[0] = UITree_RoleFind(&app->ui_roles, role);
+            PluginFrameBinding_SetRoleId(
+                &app->plugin_frame_binding, slot, 0, UITree_RoleFind(&app->ui_roles, role));
             if( !app_plugin_frame_slot_has_members(slot) )
                 continue;
             for( int member = 0; member < UITREE_FRAME_SLOT_NODES_MAX; member++ )
             {
                 snprintf(role, sizeof(role), "frame_%s_%d", name, member);
-                ids[1 + member] = UITree_RoleFind(&app->ui_roles, role);
+                PluginFrameBinding_SetRoleId(
+                    &app->plugin_frame_binding,
+                    slot,
+                    1 + member,
+                    UITree_RoleFind(&app->ui_roles, role));
             }
         }
         /* Not a `frame_<slot>` rung and not a numbered member of one: the
          * compass's hit region is a second node of the compass ROLE, which is
          * why it is named rather than numbered. @see
          * UITree_FrameCompassClickNode. */
-        app->plugin_frame_compass_click_role =
-            UITree_RoleFind(&app->ui_roles, "frame_compass_click");
-        app->plugin_frame_role_ids_for_count = app->ui_roles.count;
+        PluginFrameBinding_SetCompassClickRole(
+            &app->plugin_frame_binding, UITree_RoleFind(&app->ui_roles, "frame_compass_click"));
+        PluginFrameBinding_RoleIdsInterned(&app->plugin_frame_binding, app->ui_roles.count);
     }
     for( int slot = 0; slot < UITREE_FRAME_SLOT_COUNT; slot++ )
     {
         uint8_t const tag = app_plugin_frame_slot_tag(slot);
-        uint16_t const* ids = app->plugin_frame_role_id[slot];
+        uint16_t const* ids = PluginFrameBinding_RoleIds(&app->plugin_frame_binding, slot);
 
         if( tag == UITREE_SLOT_NONE || !ids[0] )
             continue;
@@ -5936,8 +5927,8 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
             app_plugin_frame_stamp_role(app, tree, ids[1 + member], tag, member, next, &next_count);
     }
     app_plugin_frame_stamp_role(
-        app, tree, app->plugin_frame_compass_click_role, UITREE_SLOT_COMPASS_CLICK, -1, next,
-        &next_count);
+        app, tree, PluginFrameBinding_CompassClickRole(&app->plugin_frame_binding),
+        UITREE_SLOT_COMPASS_CLICK, -1, next, &next_count);
 
     /* One audit per root, when asked for: the rungs are hand-copied from a
      * table the cache also ships, and a mistyped one is otherwise silent. */
@@ -5964,16 +5955,17 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
 
     /* Take back the stamps of last pass's nodes that are still alive and were
      * not named again. By incarnation: a recycled index is a different node. */
-    for( int i = 0; i < app->plugin_frame_stamp_count; i++ )
+    for( int i = 0; i < PluginFrameBinding_StampCount(&app->plugin_frame_binding); i++ )
     {
-        int32_t const idx = app->plugin_frame_stamp[i].node;
+        struct PluginFrameStamp const stamp = PluginFrameBinding_Stamp(&app->plugin_frame_binding, i);
+        int32_t const idx = stamp.node;
         struct UITreeComponent* c;
         int again = 0;
 
         if( idx < 0 || (uint32_t)idx >= tree->component_count )
             continue;
         c = &tree->components[idx];
-        if( c->freed || c->incarnation != app->plugin_frame_stamp[i].incarnation )
+        if( c->freed || c->incarnation != stamp.incarnation )
             continue;
         for( int n = 0; n < next_count && !again; n++ )
             again = next[n] == idx;
@@ -5981,12 +5973,10 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
             continue;
         UITree_FrameStamp(tree, idx, UITREE_SLOT_NONE, 0);
     }
+    PluginFrameBinding_ClearStamps(&app->plugin_frame_binding);
     for( int n = 0; n < next_count; n++ )
-    {
-        app->plugin_frame_stamp[n].node = next[n];
-        app->plugin_frame_stamp[n].incarnation = tree->components[next[n]].incarnation;
-    }
-    app->plugin_frame_stamp_count = next_count;
+        PluginFrameBinding_PushStamp(
+            &app->plugin_frame_binding, next[n], tree->components[next[n]].incarnation);
     /* One line per pass the guard let through. The matrix counts them
      * against the distinct (generation, id_generation) pairs of the run: a
      * guard that stops working shows as one line per layout tick. */
@@ -5998,10 +5988,8 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
             TORIRS_REPORT("PLUGIN_FRAME_BIND generation=%u id_generation=%u stamps=%d\n",
                           tree->generation, tree->id_generation, next_count);
     }
-    app->plugin_frame_bound_tree = tree;
-    app->plugin_frame_bound_generation = tree->generation;
-    app->plugin_frame_bound_id_generation = tree->id_generation;
-    app->plugin_frame_bound_valid = 1;
+    PluginFrameBinding_MarkBound(
+        &app->plugin_frame_binding, tree, tree->generation, tree->id_generation);
 }
 
 /**
@@ -6105,7 +6093,7 @@ app_plugin_tab_select(void* user, int tabno)
         for( int i = 0; i < 8; i++ )
             if( app_settle_cs2_frame(app) == TASK_RUNNER_IDLE )
                 break;
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
         return 1;
     }
     if( !RS_UISlots_TabEnabled(&app->slots, tabno) )

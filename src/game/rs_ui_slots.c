@@ -34,14 +34,52 @@ RS_UISlots_Init(struct RS_UISlots* slots)
     slots->side_modal_index = -1;
     slots->chat_index = -1;
     slots->flash_tab = -1;
+    slots->modal_host_uid = -1;
+}
+
+int
+RS_UISlots_ModalHost(struct RS_UISlots const* slots)
+{
+    assert(slots);
+    return slots->modal_host_uid;
+}
+
+void
+RS_UISlots_SetModalHost(
+    struct RS_UISlots* slots,
+    int component_uid)
+{
+    assert(slots);
+    slots->modal_host_uid = component_uid;
+}
+
+bool
+RS_UISlots_ClosingModalsBegin(struct RS_UISlots* slots)
+{
+    assert(slots);
+    if( slots->closing_modals )
+        return false;
+    slots->closing_modals = 1;
+    return true;
+}
+
+void
+RS_UISlots_ClosingModalsEnd(struct RS_UISlots* slots)
+{
+    assert(slots);
+    slots->closing_modals = 0;
 }
 
 void RS_UISlots_RebindTree(struct RS_UISlots* slots,struct UITree const* tree)
 {
     int modes[RS_UI_CHAT_FILTER_COUNT];
+    int const modal_host_uid = slots->modal_host_uid;
+    int const closing_modals = slots->closing_modals;
     memcpy(modes,slots->chat_filter_mode,sizeof(modes));
     RS_UISlots_InitFromTree(slots,tree);
     memcpy(slots->chat_filter_mode,modes,sizeof(modes));
+    slots->modal_host_uid = modal_host_uid;
+    slots->closing_modals = closing_modals;
 }
 
 void
@@ -268,7 +306,7 @@ slot_mount(
             TORIRS_LOG("rs_ui_slots: no mount region for iface %d\n", iface_id);
         return;
     }
-    if( !app->builder_active )
+    if( !UITreeBuilder_Active(&app->builder) )
     {
         /* Cache-interface boot (dat2 path) has no RevConfig builder; slot
          * mounts there go through the CS2 openSub flow instead. */
@@ -315,7 +353,7 @@ RS_UISlots_OpenSide(struct App* app, int iface_id)
         TORIRS_LOG("TABDBG openside iface=%d\n", iface_id);
     app->slots.side_modal_id = iface_id > 0 ? iface_id : -1;
     slot_mount(app, app->slots.side_modal_index, iface_id);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 void
@@ -341,7 +379,7 @@ RS_UISlots_OpenOverlay(struct App* app, int iface_id)
     assert(app);
     app->slots.main_overlay_id = iface_id > 0 ? iface_id : -1;
     slot_mount(app, app->slots.main_overlay_index, iface_id);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 void
@@ -350,7 +388,7 @@ RS_UISlots_OpenTut(struct App* app, int iface_id)
     assert(app);
     app->slots.tut_com_id = iface_id > 0 ? iface_id : -1;
     slot_mount(app, app->slots.chat_index, RS_UISlots_ChatRegionIface(&app->slots));
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 void
@@ -373,7 +411,7 @@ RS_UISlots_CloseModal(struct App* app)
         /* Not -1: the tutorial component was underneath and comes back. */
         slot_mount(app, app->slots.chat_index, RS_UISlots_ChatRegionIface(&app->slots));
     }
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 void
@@ -405,7 +443,7 @@ RS_UISlots_SetSideTab(struct App* app, int tabno)
     if( app->slots.side_tab != tabno )
     {
         app->slots.side_tab = tabno;
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
     }
 }
 

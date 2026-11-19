@@ -218,16 +218,14 @@ test_npc_origin_is_root_for_shore_and_aboard_observers(void)
     RS_EntitySync_Init(&app.esync);
     register_local_player(&app, 100, 7, 4, 4);
     struct WorldEntity_Player* player = World_PlayerGetByServerPid(app.world, 7);
-    app.npc_update_origin_valid = 1;
-    app.npc_update_origin_x = 52;
-    app.npc_update_origin_z = 51;
+    RS_NpcUpdateOrigin_Set(&app.npc_update_origin, 52, 51);
     int x, z, plane;
     RS_EntityInfo_NpcOrigin(&app, &x, &z, &plane);
     TEST_ASSERT(x == 52 && z == 51 && plane == 0, "shore NPC origin follows its wire packet");
     Wevs_Init(&app.wevs);
     struct WevConfig cfg = {0};
     Wevs_Spawn(&app.wevs, 1, WORLDVIEW_ROOT, &cfg, 2, 3072*128, 3160*128, 0, 0, 0);
-    app.aboard_view = 1;
+    Wevs_SetAboardView(&app.wevs, 1);
     player->grid_position.level = 1;
     player->view_placement.home_view = 1;
     player->pathing.route_x[0] = 4;
@@ -235,8 +233,8 @@ test_npc_origin_is_root_for_shore_and_aboard_observers(void)
     RS_EntityInfo_NpcOrigin(&app, &x, &z, &plane);
     TEST_ASSERT(x == 52 && z == 51 && plane == 0,
                 "aboard route4,6/deckplane1 cannot move root NPC origin52,51/plane0");
-    app.aboard_view = 0;
-    app.npc_update_origin_valid = 0;
+    Wevs_SetAboardView(&app.wevs, 0);
+    RS_NpcUpdateOrigin_Forget(&app.npc_update_origin);
     player->grid_position.level = 2;
     RS_EntityInfo_NpcOrigin(&app, &x, &z, &plane);
     TEST_ASSERT(x == 4 && z == 6 && plane == 2, "older protocols retain route-head origin fallback");
@@ -628,7 +626,7 @@ test_multinpc_interface_head_loads_selected_child(void)
         g_head_load_trace.model_count == 1 && g_head_load_trace.model_ids[0] == 777,
         "chathead loader requests the selected child's head model");
 
-    ToriMem_Free(ToriMem_Process(), app.if_heads);
+    UIIfModels_Free(&app.if_models);
     UITreeSceneBridge_Free(&app.bridge);
     ToriDraw_SceneFree(app.scene);
     ToriRS_IOBatch_Free(io);

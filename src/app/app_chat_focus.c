@@ -158,7 +158,7 @@ app_text_input_owned(
     ids = varc_ids_for_revision(app->net && app->net->rev ? (int)app->net->rev->revision : 0);
 
     owners.chat_line_present = app_chat_node_index(app) >= 0;
-    owners.chat_input_active = app->chat_input_active != 0;
+    owners.chat_input_active = UIChatLine_InputActive(&app->chat_line) != 0;
     owners.chat_social_input_open = app->chat.social_input_open != 0;
     owners.chat_dialog_input_open = app->chat.dialog_input_open != 0;
     owners.interface_input_active_varc =
@@ -189,9 +189,10 @@ app_text_input_focused_outside_chrome(struct App const* app)
 /*
  * Is a ToriRSChrome field being typed into?
  *
- * BOTH instances, which is the whole point of it being a function. dbg_ui is
- * the developer chrome (the map editor's Height field and its neighbours);
- * plugin_ui is the plugin window, and it was missing -- so a keystroke aimed
+ * BOTH instances, which is the whole point of it being a function.
+ * dev_overlay->ui is the developer chrome (the map editor's Height field and
+ * its neighbours);
+ * plugin_win->ui is the plugin window, and it was missing -- so a keystroke aimed
  * at a plugin's colour or note field also fired whatever debug hotkey shares
  * that letter, and was typed into the chat line underneath. Both are the same
  * bug app_text_input_focused exists to kill, and naming only one instance is
@@ -201,7 +202,7 @@ int
 app_chrome_holds_keyboard(struct App const* app)
 {
     assert(app);
-    return app->dbg_ui.focus >= 0 || app->plugin_ui.focus >= 0;
+    return app->dev_overlay->ui.focus >= 0 || app->plugin_win->ui.focus >= 0;
 }
 
 /*
@@ -242,7 +243,7 @@ app_chat_focus_tick(
     int* out_submit)
 {
     int suppress = 0;
-    int const was_focused = app->chat_input_active;
+    int const was_focused = UIChatLine_InputActive(&app->chat_line);
 
     assert(app);
     assert(input);
@@ -251,23 +252,23 @@ app_chat_focus_tick(
 
     if( app_chat_node_index(app) < 0 )
     {
-        if( app->chat_input_active )
+        if( UIChatLine_InputActive(&app->chat_line) )
         {
-            app->chat_input_active = 0;
-            app->need_redraw = 1;
+            UIChatLine_SetInputActive(&app->chat_line, 0);
+            RedrawRequest_Raise(&app->redraw_request);
         }
         return 0;
     }
     /* The loc editor took W/A/S/D/R/Space/Backspace for the frame and has
      * already forced the focus flags off; do not hand them back under it. */
-    if( app->locedit.visible )
+    if( app->editor_shell->locedit.visible )
         return 0;
     /* An IF3 text-entry field has the caret. Enter belongs to that field (it
      * submits), and without this the chat line would claim the same press and
      * open itself behind the box being typed into. @see UITree_InputFocusId. */
     if( app->tree && UITree_InputFocusId(app->tree) >= 0 )
     {
-        app->chat_input_active = 0;
+        UIChatLine_SetInputActive(&app->chat_line, 0);
         return 0;
     }
     /* A panel's own search box has the keyboard (the cache disarmed the
@@ -277,12 +278,13 @@ app_chat_focus_tick(
      * one. */
     if( app_iface_text_input_focused(app) )
     {
-        app->chat_input_active = 0;
+        UIChatLine_SetInputActive(&app->chat_line, 0);
         return 0;
     }
 
     if( !pointer_consumed && LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
-        app->chat_input_active = app_point_in_chat(app, input->curr.mouse_x, input->curr.mouse_y);
+        UIChatLine_SetInputActive(
+            &app->chat_line, app_point_in_chat(app, input->curr.mouse_x, input->curr.mouse_y));
 
     for( int e = 0; e < input->key_event_count; e++ )
     {
@@ -290,7 +292,7 @@ app_chat_focus_tick(
 
         if( typed == TORIRS_OSRSKEY_ESCAPE )
         {
-            app->chat_input_active = 0;
+            UIChatLine_SetInputActive(&app->chat_line, 0);
             suppress = 1;
             continue;
         }
@@ -300,17 +302,18 @@ app_chat_focus_tick(
          * the keyboard alone can start a message; with it focused it submits,
          * and the focus is released with the message the way the reference's
          * press-enter-to-chat does. */
-        if( app->chat_input_active || app->chat.social_input_open || app->chat.dialog_input_open )
+        if( UIChatLine_InputActive(&app->chat_line) || app->chat.social_input_open ||
+            app->chat.dialog_input_open )
             *out_submit = 1;
         else
         {
-            app->chat_input_active = 1;
+            UIChatLine_SetInputActive(&app->chat_line, 1);
             suppress = 1;
         }
     }
 
-    if( app->chat_input_active != was_focused )
-        app->need_redraw = 1;
+    if( UIChatLine_InputActive(&app->chat_line) != was_focused )
+        RedrawRequest_Raise(&app->redraw_request);
     return suppress;
 }
 
@@ -388,13 +391,15 @@ app_chat_lock_set_open(
     int32_t line,
     int open)
 {
-    if( open && app->chat_line_saved[0] &&
-        strcmp(app_chat_lock_text(app, line), app->chat_line_prompt) == 0 )
-        UITree_SetTextAt(app->tree, line, app->chat_line_saved);
-    app->chat_line_saved[0] = '\0';
-    app->chat_line_prompt[0] = '\0';
-    app->chat_line_open = open;
-    app->need_redraw = 1;
+    if( open )
+    {
+        char const* const covered =
+            UIChatLine_CoveredText(&app->chat_line, app_chat_lock_text(app, line));
+        if( covered )
+            UITree_SetTextAt(app->tree, line, covered);
+    }
+    UIChatLine_SetOpen(&app->chat_line, open);
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 /* Before anything reads the frame's keys: the onKey broadcast, op-key
@@ -411,8 +416,8 @@ app_chat_lock_keys(
     if( line < 0 || app_text_input_focused(app) )
         return;
 
-    if( !app->chat_line_open && LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) &&
-        !app->frame_view->minimenu->visible )
+    if( !UIChatLine_Open(&app->chat_line) && LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) &&
+        !app->world_views.frame->minimenu->visible )
     {
         int bx = 0, by = 0, bw = 0, bh = 0;
         int const mx = input->curr.mouse_x;
@@ -426,7 +431,7 @@ app_chat_lock_keys(
     {
         struct LibToriRS_KeyEvent ev = input->key_events[e];
 
-        if( app->chat_line_open )
+        if( UIChatLine_Open(&app->chat_line) )
         {
             /* Still delivered: the Enter is the line's send. */
             if( ev.key_typed == TORIRS_OSRSKEY_ENTER || ev.key_typed == TORIRS_OSRSKEY_ESCAPE )
@@ -464,36 +469,13 @@ void
 app_chat_lock_paint(struct App* app)
 {
     int32_t const line = app_chat_lock_line(app);
-    char const* text;
-    char const* colon;
-    char const* colour;
-    char const* colour_end;
+    char const* cover;
 
-    if( line < 0 || app->chat_line_open )
+    if( line < 0 || UIChatLine_Open(&app->chat_line) )
         return;
-    text = app_chat_lock_text(app, line);
-    if( strcmp(text, app->chat_line_prompt) == 0 )
-        return;
-    /* `<icon><name>:<nbsp><col=…><typed></col>*` -- the space after the colon
-     * is cp1252 0xA0, not 0x20. The "set a name" line has no name to keep and
-     * nothing typed to cover. */
-    colon = strchr(text, ':');
-    if( !colon )
-        return;
-    colour = strstr(colon, "<col=");
-    if( !colour )
-        return;
-    colour_end = strchr(colour, '>');
-    if( !colour_end )
-        return;
-    snprintf(app->chat_line_saved, sizeof(app->chat_line_saved), "%s", text);
-    snprintf(
-        app->chat_line_prompt,
-        sizeof(app->chat_line_prompt),
-        "%.*sClick here or press Enter to chat...</col>",
-        (int)(colour_end + 1 - text),
-        text);
-    UITree_SetTextAt(app->tree, line, app->chat_line_prompt);
+    cover = UIChatLine_Cover(&app->chat_line, app_chat_lock_text(app, line));
+    if( cover )
+        UITree_SetTextAt(app->tree, line, cover);
 }
 
 /*
@@ -531,7 +513,8 @@ app_chat_build_view(struct App* app)
         /* Not chat_com_id: the tutorial-progress component shares this region
          * and suppresses the log the same way a dialogue does. */
         RS_UISlots_ChatRegionIface(&app->slots) != -1,
-        app->chat_input_active || app->chat.social_input_open || app->chat.dialog_input_open,
+        UIChatLine_InputActive(&app->chat_line) || app->chat.social_input_open ||
+            app->chat.dialog_input_open,
         app_chat_prompt(app),
         &app->chat_view);
 }

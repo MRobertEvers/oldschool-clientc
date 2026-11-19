@@ -14,6 +14,7 @@
  */
 
 #include "ui/torirs_chrome_inkwell.h"
+#include "ui/uitree_minimenu.h"
 
 /** How long the state lives: its longest piece, the op popup text's 40 client
  *  cycles (Android 241 FUN_0061714c: renderer +0x28 = 40). */
@@ -34,6 +35,11 @@ struct UIInk
      *  pieces end on their own clocks inside that (app_host_request.c). */
     int cycle;
     int active;
+    /** The op row the feedback is for, "<op> <target>" as the menu printed it
+     *  -- the popup text beside an op tap (app_overlay_build_feedback_text).
+     *  "" for a walk, which has none. Its caller sets it beside UIInk_Show
+     *  (UIInk_SetText); Show itself leaves it. */
+    char text[UITREE_MINIMENU_OPTION_LEN];
 };
 
 void
@@ -43,6 +49,11 @@ UIInk_Reset(struct UIInk* ink);
  *  `halve` is nonzero when a touch tap armed it. */
 void
 UIInk_Show(struct UIInk* ink, int colour, int halve, int x, int y);
+
+/** The popup text for the op that armed it, cut to fit; "" for none.
+ *  Jagex StartFeedback copies the run row's op and target. */
+void
+UIInk_SetText(struct UIInk* ink, char const* text);
 
 void
 UIInk_Tick(struct UIInk* ink, int delta_ms);

@@ -270,6 +270,11 @@ struct UITreeEmitRetainGate
     uint32_t tree_generation;
     int hovered_component_id;
     uint8_t primed;
+    /** Set when THIS frame reused the previous command list unchanged. The
+     * chrome pixels are then identical to what is already on screen, which is
+     * what a damaged-rect present needs to know. Cleared at the start of each
+     * frame's decision, never by Capture. */
+    uint8_t retained_frame;
 };
 
 void UITree_EmitSetOverlayRetain(int enabled);
@@ -302,6 +307,16 @@ UITree_EmitRetainGateQuiet(
     struct UITreeEmitBuffer const* buf,
     int hovered_component_id,
     struct UITreeEmitRetainGate const* gate);
+
+/** Record whether this frame retained the previous command list. */
+void
+UITree_EmitRetainGateSetRetained(
+    struct UITreeEmitRetainGate* gate,
+    int retained);
+
+/** Nonzero when this frame retained the previous command list. */
+int
+UITree_EmitRetainGateRetained(struct UITreeEmitRetainGate const* gate);
 
 /** Capture the identity of the tree/hover state about to be published. */
 void

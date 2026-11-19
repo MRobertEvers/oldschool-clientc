@@ -119,7 +119,7 @@ app_set_canvas_size_exact(
         UITree_LayoutResolve(app->tree, 0, 0, width, height);
     }
 
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
     /* TORIRS_REPORT, not TORIRS_LOG: the shipping lane compiles -DNDEBUG,
      * which strips TORIRS_LOG -- and this is the one line that says whether a
      * resize arrived at all, in the build every report comes from. */
@@ -331,7 +331,7 @@ App_HighDpiMode(struct App const* app)
 
     assert(app);
     if( chosen == RS_CS2_HIGH_DPI_AUTO )
-        return app->client_scale.high_dpi_auto;
+        return UICanvasScale_HighDpiAuto(&app->client_scale);
     return (enum ClientScaleHighDpi)(chosen - RS_CS2_HIGH_DPI_DEVICE_PIXELS);
 }
 
@@ -339,9 +339,7 @@ int
 App_DisplayDensityPercent(struct App const* app)
 {
     assert(app);
-    /* 0 until a platform reports one: a headless run has no display, and 1x
-     * is what its canvas has always been. */
-    return app->client_scale.density_percent > 0 ? app->client_scale.density_percent : 100;
+    return UICanvasScale_DensityPercent(&app->client_scale);
 }
 
 void
@@ -351,9 +349,8 @@ App_SetDisplayDensity(
 {
     assert(app);
     assert(density_percent > 0);
-    if( app->client_scale.density_percent == density_percent )
+    if( !UICanvasScale_SetDensity(&app->client_scale, density_percent) )
         return;
-    app->client_scale.density_percent = density_percent;
     if( getenv("TORIRS_RESIZE_DEBUG") )
         TORIRS_REPORT("resize: display density %d%%\n", density_percent);
     /* The window moved to a display of another density: a HighDPI mode that
@@ -369,9 +366,8 @@ App_SetHighDpiAuto(
     assert(app);
     assert(mode >= 0);
     assert(mode < CLIENT_SCALE_HIGH_DPI_COUNT);
-    if( app->client_scale.high_dpi_auto == mode )
+    if( !UICanvasScale_SetHighDpiAuto(&app->client_scale, mode) )
         return;
-    app->client_scale.high_dpi_auto = mode;
     app->host.client_scale_dirty = true;
 }
 
@@ -477,8 +473,7 @@ App_ApplyWindowLayout(
     assert(app);
     assert(window_w > 0);
     assert(window_h > 0);
-    app->client_scale.window_w = window_w;
-    app->client_scale.window_h = window_h;
+    UICanvasScale_SetWindow(&app->client_scale, window_w, window_h);
     App_ClientScaleSettings(app, &settings);
     ClientScale_WindowLayout(
         &settings,
@@ -555,7 +550,7 @@ App_SetSafeArea(
         UITree_LayoutResolve(
             app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     }
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
     return 1;
 }
 
@@ -574,7 +569,7 @@ App_SyncClientScale(struct App* app)
     /* Nothing has told us how big the window is yet — a boot-time restore from
      * preferences lands here before the shell's first resize. Keep the flag:
      * the change is real, it just has nothing to divide yet. */
-    if( app->client_scale.window_w <= 0 || app->client_scale.window_h <= 0 )
+    if( !UICanvasScale_HasWindow(&app->client_scale) )
         return 0;
     app->host.client_scale_dirty = false;
     return App_ApplyWindowLayout(app, app->client_scale.window_w, app->client_scale.window_h);
@@ -587,8 +582,7 @@ App_SetClientScalePresent(
 {
     assert(app);
     assert(present);
-    app->client_scale.present = *present;
-    app->client_scale.present_known = true;
+    UICanvasScale_SetPresent(&app->client_scale, present);
     /* Fixed mode never runs App_ApplyWindowLayout, so its layout is stated
      * here: the pinned canvas, and the percent the window was sized by. */
     if( App_WindowMode(app) == CS2VM_WINDOW_MODE_FIXED )
@@ -597,18 +591,17 @@ App_SetClientScalePresent(
         int const chosen = RS_CS2Host_UiScalePercent(&app->host);
 
         App_ClientScaleSettings(app, &settings);
-        app->client_scale.layout.w = UITREE_LAYOUT_ROOT_W;
-        app->client_scale.layout.h = UITREE_LAYOUT_ROOT_H;
-        app->client_scale.layout.percent = ClientScale_RoundPercent(&settings, chosen);
-        app->client_scale.layout.shown_percent = app->client_scale.layout.percent;
-        app->client_scale.layout.rounded_by_integer = app->client_scale.layout.percent != chosen;
-        app->client_scale.layout.raised_by_limit = 0;
-        app->client_scale.layout.lowered_to_fit = 0;
+        UICanvasScale_SetFixedLayout(
+            &app->client_scale,
+            UITREE_LAYOUT_ROOT_W,
+            UITREE_LAYOUT_ROOT_H,
+            ClientScale_RoundPercent(&settings, chosen),
+            chosen);
     }
-    app->client_scale.shown_percent = app->client_scale.layout.shown_percent;
+    UICanvasScale_TakeShownPercent(&app->client_scale);
 }
 
-struct AppClientScale const*
+struct UICanvasScale const*
 App_ClientScale(struct App const* app)
 {
     assert(app);
@@ -689,34 +682,34 @@ App_PluginLayoutTick(struct App* app)
         return;
     /* Once, when the host has started: the lane's window mode is restated a
      * single time and from then on belongs to CS2 and the player. */
-    if( !app->native_window_mode_synced && PluginHost_Started(app->plugins) )
+    if( !UICanvasScale_NativeWindowModeSynced(&app->client_scale) && PluginHost_Started(app->plugins) )
     {
         App_SyncNativeWindowMode(app);
-        app->native_window_mode_synced = 1;
+        UICanvasScale_MarkNativeWindowModeSynced(&app->client_scale);
     }
     /* And the way into the plugins, which is the PLATFORM's to draw: no plugin
      * and no CS2 interface carries a plugin button. Asked once, when the host
      * has started and there is something to show; a touch client gets the
      * edge tab, a desk the sidebar. */
-    if( !app->plugin_chrome_requested && app->platform_bus && PluginHost_Started(app->plugins) )
+    if( !app->plugin_win->chrome_requested && app->platform_bus && PluginHost_Started(app->plugins) )
     {
         (void)CmdBus_PushPluginChrome(
             app->platform_bus,
-            app->touch_ui ? TORIRS_PLUGIN_CHROME_EDGE_TAB : TORIRS_PLUGIN_CHROME_SIDEBAR);
-        app->plugin_chrome_requested = 1;
+            DeviceCaps_TouchUi(&app->device_caps) ? TORIRS_PLUGIN_CHROME_EDGE_TAB : TORIRS_PLUGIN_CHROME_SIDEBAR);
+        app->plugin_win->chrome_requested = 1;
     }
     /*
      * Name the cache gameframe's regions before plugins query them. The emit
      * fence's rebind reads these stamps, and the tree keeps the binder so the
      * fence can re-run it after a rebuild.
      */
-    if( app->app_state == APP_STATE_READY && app->tree && app->tree->root_index >= 0 )
+    if( RS_ClientPhase_Ready(&app->phase) && app->tree && app->tree->root_index >= 0 )
     {
         UITree_FrameSetBinder(app->tree, app_plugin_frame_bind, app);
         UITree_FrameBind(app->tree);
     }
     bool const widgets_ready =
-        app->app_state == APP_STATE_READY && app->tree && app->tree->root_index >= 0;
+        RS_ClientPhase_Ready(&app->phase) && app->tree && app->tree->root_index >= 0;
     PluginHost_WidgetsChanged(
         app->plugins,
         widgets_ready ? app->tree->instance_id : 0,
@@ -749,21 +742,17 @@ app_wants_text_input(struct App const* app)
     /* The login form, and only while it is the screen being shown: `focus`
      * keeps its last value across a screen change, so testing it alone would
      * raise the keyboard over the main menu. */
-    if( (app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING) &&
+    if( RS_ClientPhase_OnTitle(&app->phase) &&
         app->title.screen == RS_TITLE_LOGIN_FORM && app->title.focus >= 0 &&
         app->title.focus < RS_TITLE_FIELD_COUNT )
         return 1;
 
-    if( app->chat_input_active )
+    if( UIChatLine_InputActive(&app->chat_line) )
         return 1;
 
-    /* The mobile scripts' own request. @see App::vm_keyboard_open. */
-    if( app->vm_keyboard_open )
-        return 1;
-
-    /* A plugin asked for it (torirs_plugin_bridge.u.c). Kept last so the
-     * client's own fields win when both are true. */
-    return app->text_input_on ? 1 : 0;
+    /* The mobile scripts' own request, then a plugin's
+     * (torirs_plugin_bridge.u.c). @see TextInputGate_Wanted. */
+    return TextInputGate_Wanted(&app->text_input_gate, 0);
 }
 
 int
@@ -785,6 +774,7 @@ App_TakeTextInputChange(
     int* out_on)
 {
     int wanted;
+    int on;
 
     assert(app);
 
@@ -796,17 +786,10 @@ App_TakeTextInputChange(
      * that forgot would leave the keyboard up over a screen with no field.
      */
     wanted = app_wants_text_input(app);
-    if( wanted != app->text_input_effective )
-    {
-        app->text_input_effective = wanted;
-        app->text_input_dirty = 1;
-    }
-
-    if( !app->text_input_dirty )
+    if( !TextInputGate_Take(&app->text_input_gate, wanted, &on) )
         return 0;
-    app->text_input_dirty = 0;
     if( out_on )
-        *out_on = app->text_input_effective;
+        *out_on = on;
     return 1;
 }
 
@@ -861,13 +844,33 @@ App_FrameCapFps(struct App const* app)
     return frame->cap_fps > 0 ? frame->cap_fps : 0;
 }
 
+void
+app_settle_gate_input(
+    struct App const* app,
+    struct SettleGateInput* out)
+{
+    assert(app);
+    assert(out);
+    out->frame_runner_had_work = TaskRunner_HadWork(&app->frame_runner);
+    out->frame_settle_pending = app->frame_runner.frame_settle_pending;
+    out->packet_runner_had_work = TaskRunner_HadWork(&app->packet_runner);
+    out->server_tick_open = RS_ServerTick_IsOpen(&app->server_tick);
+    out->clientscripts_held = RS_ClientScriptQueue_Count(&app->pending_clientscripts);
+    out->triggeroplocal_count = app->host.triggeroplocal_count;
+    out->close_modal_requested = app->host.close_modal_requested;
+    out->resume_pausebutton_component_id = app->host.resume_pausebutton_component_id;
+    out->social_send_count = app->host.social_send_count;
+    out->packets_queued = app->net && app->net->packets_head;
+    out->world_job_pending = App_WorldJobPending(app);
+    out->world_load_inflight = WorldLoadState_Inflight(&app->world_load);
+}
+
 int
 App_FrameSettled(struct App const* app)
 {
+    struct SettleGateInput in;
+
     assert(app);
-    return !app->frame_runner_had_work && !app->frame_runner.frame_settle_pending &&
-           !app->packet_runner_had_work && !app->server_tick_open &&
-           RS_ClientScriptQueue_Count(&app->pending_clientscripts) == 0 && app->host.triggeroplocal_count == 0 &&
-           !app->host.close_modal_requested && app->host.resume_pausebutton_component_id == -1 &&
-           app->host.social_send_count == 0;
+    app_settle_gate_input(app, &in);
+    return SettleGate_FrameSettled(&in);
 }

@@ -93,8 +93,8 @@ PluginDriveCore_CmdBus(void)
     /* The runner camera split (struct App_ViewSplit): while a script's view
      * is attached its events go to its own bus, drained after the physical
      * one, so the client knows whose every press is. */
-    if( g_app && g_app->view_split.attached )
-        return g_app->view_split.runner_bus;
+    if( g_app && g_app->world_views.split.attached )
+        return g_app->world_views.split.runner_bus;
     return g_cmdbus;
 }
 
@@ -679,7 +679,7 @@ DriveCore_Settled(struct App* app, int* out_settled)
     assert(out_settled);
     /* The same three checks content_test.c's own static `settled()` makes
      * (content_test.c:132-135) -- t.settle exists to export exactly this.
-     * App_WorldSettled, not world_load_inflight: a background rebuild keeps
+     * App_WorldSettled, not WorldLoadState_Inflight: a background rebuild keeps
      * the old scene up (the flag clear) while its packets are held. */
     *out_settled = !App_AsyncPending(app) && App_FrameSettled(app) && App_WorldSettled(app);
     return DRIVE_OK;
@@ -1178,7 +1178,9 @@ drive_pump_once(void)
      * forever; generously, since a tick's exec tasks may wait on assets. */
     if( g_app->drive_events.batch_open )
     {
-        if( (int)g_app->logic_cycle - g_app->drive_events.batch_open_cycle < 20 * APP_SERVER_TICK_LOGIC_CYCLES )
+        if( (int)FrameClockSerial_LogicCycle(&g_app->frame_clock.serial) -
+                g_app->drive_events.batch_open_cycle <
+            20 * APP_SERVER_TICK_LOGIC_CYCLES )
             return;
         fprintf(stderr,
             "drive: tick fence backstop: a server tick opened at logic cycle %d never reached "
@@ -1198,7 +1200,9 @@ drive_pump_once(void)
             ring->cs2_waived = ring->cs2_pending;
         if( ring->cs2_pending > ring->cs2_waived )
         {
-            if( (int)g_app->logic_cycle - ring->cs2_pending_cycle < 20 * APP_SERVER_TICK_LOGIC_CYCLES )
+            if( (int)FrameClockSerial_LogicCycle(&g_app->frame_clock.serial) -
+                    ring->cs2_pending_cycle <
+                20 * APP_SERVER_TICK_LOGIC_CYCLES )
                 return;
             fprintf(stderr,
                 "drive: tick fence backstop: %d clientscript(s) dispatched at the tick fence "
@@ -2091,9 +2095,9 @@ lua_drive_pump(struct lua_State* L)
      * not a wait with its own state -- login can take an arbitrary number of
      * frames and there is nothing to remember between them. */
     /* The runner camera split: every driver verb acts through the runner's
-     * view because the pump runs between the stages that move frame_view
+     * view because the pump runs between the stages that move world_views.frame
      * (the presented draw and the emit walk put it back to views[0]). */
-    assert(!g_app || g_app->frame_view == App_RunnerView(g_app));
+    assert(!g_app || g_app->world_views.frame == App_RunnerView(g_app));
     /* Raid seam37: TORIRS_DRIVE_AUTOPLAY, and a launched member's mailbox
      * and status (nothing at all in a client started without either). */
     if( g_app )
@@ -2650,7 +2654,7 @@ lua_drive_forget_varps(struct lua_State* L)
     if( !PluginDrive_OnDemand() || !g_demand_play || g_demand_state != DRIVE_DEMAND_RUNNING )
         return PluginDrive_PushResult(L, DRIVE_REFUSED,
             "drive.forget_varps: only a running Play (api.drive.play) forgets the last account's varps");
-    if( g_app->screen != APP_SCREEN_TITLE )
+    if( RS_ClientPhase_Screen(&g_app->phase) != APP_SCREEN_TITLE )
         return PluginDrive_PushResult(L, DRIVE_REFUSED,
             "drive.forget_varps: not on the title screen (log out first)");
     VarPManager_ResetAll(&g_app->varps);
@@ -4184,13 +4188,13 @@ drive_push_render_state(struct lua_State* L)
     lua_createtable(L, 0, 6);
     lua_pushboolean(L, App_RenderSkipEnabled(g_app));
     lua_setfield(L, -2, "skip");
-    lua_pushinteger(L, (lua_Integer)g_app->frames_rendered);
+    lua_pushinteger(L, (lua_Integer)FrameClockFps_Drawn(&g_app->frame_clock.fps));
     lua_setfield(L, -2, "rendered");
-    lua_pushinteger(L, (lua_Integer)g_app->render_skip.frames_drawn);
+    lua_pushinteger(L, (lua_Integer)RenderSkip_FramesDrawn(&g_app->render_skip));
     lua_setfield(L, -2, "drawn");
-    lua_pushinteger(L, (lua_Integer)g_app->render_skip.frames_skipped);
+    lua_pushinteger(L, (lua_Integer)RenderSkip_FramesSkipped(&g_app->render_skip));
     lua_setfield(L, -2, "skipped");
-    lua_pushinteger(L, (lua_Integer)g_app->render_skip.frames_caught_up);
+    lua_pushinteger(L, (lua_Integer)RenderSkip_FramesCaughtUp(&g_app->render_skip));
     lua_setfield(L, -2, "caught_up");
     /* While a hull stands in the scene every frame is drawn
      * (App_RenderSkipFrame): a reader wondering why frames are not being
@@ -4276,12 +4280,12 @@ drive_push_view(struct lua_State* L, struct App_WorldView const* view)
 static void
 drive_push_view_status(struct lua_State* L, char const* reason)
 {
-    struct App_ViewSplit const* split = &g_app->view_split;
+    struct App_ViewSplit const* split = &g_app->world_views.split;
 
     lua_createtable(L, 0, 18);
     lua_pushboolean(L, split->attached);
     lua_setfield(L, -2, "attached");
-    lua_pushinteger(L, g_app->view_split.view_count);
+    lua_pushinteger(L, g_app->world_views.split.view_count);
     lua_setfield(L, -2, "views");
     lua_pushboolean(L, split->presentable);
     lua_setfield(L, -2, "presentable");
@@ -4297,11 +4301,11 @@ drive_push_view_status(struct lua_State* L, char const* reason)
         lua_pushstring(L, split->lane_refusal);
         lua_setfield(L, -2, "lane_refusal");
     }
-    drive_push_view(L, &g_app->views[APP_VIEW_RUNNER]);
+    drive_push_view(L, &g_app->world_views.views[APP_VIEW_RUNNER]);
     lua_setfield(L, -2, "runner");
     if( split->attached )
     {
-        drive_push_view(L, &g_app->views[APP_VIEW_PLAYER_CLIENT]);
+        drive_push_view(L, &g_app->world_views.views[APP_VIEW_PLAYER_CLIENT]);
         lua_setfield(L, -2, "watcher");
     }
     lua_pushinteger(L, (lua_Integer)split->offscreen_frames);
@@ -4376,7 +4380,7 @@ lua_drive_view_interact(struct lua_State* L)
     {
         if( lua_type(L, 1) != LUA_TBOOLEAN )
             return luaL_error(L, "drive.view_interact: wants true, false or nothing");
-        if( !g_app->view_split.attached )
+        if( !g_app->world_views.split.attached )
         {
             lua_pushstring(L, DriveResultName(DRIVE_REFUSED));
             lua_pushstring(L, "drive.view_interact: no script's view is attached (one view: the person already has the game)");

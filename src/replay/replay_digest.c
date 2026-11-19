@@ -452,14 +452,17 @@ digest_scene(struct App const* app)
 {
     uint64_t h = FNV_OFFSET;
 
-    h = fnv_int(h, app->world_active);
+    h = fnv_int(h, WorldLoadState_Active(&app->world_load));
     h = fnv_int(h, app->world ? app->world->_base_tile_x : -1);
     h = fnv_int(h, app->world ? app->world->_base_tile_z : -1);
-    h = fnv_int(h, app->rebuild_zone_x);
-    h = fnv_int(h, app->rebuild_zone_z);
-    h = fnv_int(h, app->rebuild_instance_active);
-    if( app->rebuild_instance_active )
-        h = fnv_bytes(h, app->rebuild_instance_zones, sizeof(app->rebuild_instance_zones));
+    h = fnv_int(h, RS_RebuildRegion_CentreX(&app->rebuild_region));
+    h = fnv_int(h, RS_RebuildRegion_CentreZ(&app->rebuild_region));
+    h = fnv_int(h, RS_RebuildRegion_InstanceActive(&app->rebuild_region));
+    if( RS_RebuildRegion_InstanceActive(&app->rebuild_region) )
+        h = fnv_bytes(
+            h,
+            RS_RebuildRegion_InstanceGrid(&app->rebuild_region),
+            RS_REBUILD_REGION_ZONES * sizeof(int32_t));
     return h;
 }
 
@@ -485,7 +488,7 @@ digest_take(
     out->v[REPLAY_DIGEST_ZONES] = digest_zones(app, dump);
     out->v[REPLAY_DIGEST_SCENE] = digest_scene(app);
     out->client_clock = app->host.client_clock;
-    out->logic_cycle = (unsigned long long)app->logic_cycle;
+    out->logic_cycle = (unsigned long long)FrameClockSerial_LogicCycle(&app->frame_clock.serial);
 }
 
 void

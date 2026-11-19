@@ -69,7 +69,162 @@
 # plugin_nav, plugin_frame_active and view_count left. Recorded so the number
 # means "today", not forgiven: each family is a candidate for the subsystem
 # that owns it.
-struct-App-fields: 378
+# Raised from 378 to 405 on 2026-11-18 (the App factoring): the check was
+# already red at v3 62897d0b6 with 407 fields, and these arrived before the
+# factoring that starts with this change. That change deletes two fields that
+# nothing read (hitmarks_scene_id, boot_start_ms), so the number is set to the
+# tool's count after they are gone, and every extraction that follows lowers
+# it. Against c9811f112's app.h (385 by this count), 26 fields arrived and 4
+# left without passing this gate: the rebuild pacing (pace_*, 10, with
+# run_once_serial, world_job_deadline_us and world_rebuild_background), the
+# replay chase and world hop (replay_chase_*, 4; net_hop_*, 2; net_replay),
+# and the three task runners (frame_, packet_ and background_runner, with two
+# had_work flags) in place of runner, exec_runner and their two had_work
+# flags; and server_tick_open_nonvar. world_job and rebuild_frames arrived in
+# the same window but are not in the number: each is an anonymous struct whose
+# `struct` keyword sits on its own line, which this counter does not read as a
+# field. Recorded so the number means "today", not forgiven: each family is a
+# candidate for the subsystem that owns it.
+# Lowered to 372 by the RS_ZoneInbox step: the zone base and the held zone
+# packets became struct RS_ZoneInbox, the REBUILD centre and kept instance grid
+# struct RS_RebuildRegion, and the NPC update origin struct RS_NpcUpdateOrigin.
+# Lowered to 360 by the RS_SessionInfo step: LAST_LOGIN_INFO, the reboot
+# countdown, the three site strings and tracking became struct
+# RS_SessionInfo, and the message dedupe ring moved into struct RS_Social.
+# Raised to 361 by the UITargetSelect step although App lost a field: objsel
+# and targetsel, two anonymous structs this counter never read, became the one
+# named field target_select (struct UITargetSelect), which it does.
+# Lowered to 357 by the TextInputGate step: the scripts' and plugins' keyboard
+# requests, what was last pushed and the keyboard inset became struct
+# TextInputGate.
+# Lowered to 354 by the UIChatLine step: the chat line's focus, its open state
+# and the prompt cover's two buffers became struct UIChatLine.
+# Lowered to 353 by the input claims step: hotkey_consumed,
+# input_frame_consumed and chrome_pointer_owned became struct
+# ToriRS_InputClaims, and world_tap_pending, an anonymous struct this counter
+# never read, became struct ToriRS_WorldTap; App lost two fields, the number one.
+# Lowered to 347 by the FrameClock and RenderSkip step: the logic-cycle
+# accumulator, the fps window and the idle timer (8 fields) became struct
+# FrameClock, and render_skip, whose struct AppRenderSkip was declared in
+# place in a shape this counter never read, became struct RenderSkip, which it
+# does; App lost seven fields, the number six.
+# Lowered to 339 by the ReplayChase, save debounce and entity-info scratch
+# step: the replay chase's tile and clock (4 fields) became struct
+# ReplayChase, prefs_dirty_cycle and plugin_prefs_dirty_cycle became one
+# struct RS_SaveDebounce each, and the six entity-info decode scratch fields
+# became struct EntityInfoScratch.
+# Lowered to 331 by the interface models step: the head and player-model
+# tables and the local figure's last-built appearance (7 fields; if_heads,
+# if_player_models and player_model were declared in a shape this counter
+# never read) became struct UIIfModels, the three inventory-icon retry fields
+# became struct InvIconRetry, hover_com_id and clicked_com_id moved into
+# UIInteraction and feedback_text into UIInk; App lost eleven fields, the
+# number eight.
+# Lowered to 330 by the skybox and spotanims step: the four skybox fields
+# became struct SkyboxSlot, and npc_body_lands and entity_spotanims, whose
+# struct AppNpcBodyLands and struct AppEntitySpotanim were declared in place in
+# a shape this counter never read, became struct RS_NpcBodyLands and struct
+# EntitySpotanims, which it does; App lost three fields, the number one.
+# Lowered to 317 by the sailing HUD, ground-item settings and highlight watch
+# step: the ten sailing fields became struct RS_SailingHud, the three
+# ground-item settings fields struct RS_GroundItemsSettings, and the three
+# tile-highlight edges struct RS_TileHighlightWatch; App lost sixteen fields
+# and gained three.
+# Lowered to 313 by the device, input and chat leftovers step:
+# has_screen_keyboard, touch_camera and touch_ui became struct DeviceCaps,
+# ctrl_held struct ToriRS_FrameModifiers, chat_scroll_cycle moved into
+# struct RS_Chat and net_replay into struct ToriRS_Network; App lost six
+# fields and gained two.
+# Lowered to 309 by the client clocks step: logic_cycle, run_once_serial
+# and last_frame_ms became struct FrameClockSerial, and frames_rendered moved
+# into struct FrameClockFps, both inside the existing frame_clock; App lost
+# four fields and gained none.
+# Lowered to 294 by the plugin frame binding step: the bridge's gameframe
+# memos (slot nodes, frame stamps, interned role ids, facet ids, the bound
+# pass) became struct PluginFrameBinding, the resolved highlight lists struct
+# PluginHighlights, and plugin_draw_canvas moved into struct OverlayStage as
+# its open draw window; App lost nineteen fields (two of them, the stamp
+# array and the facet ids, nested structs the counter does not see) and
+# gained two.
+# Lowered to 285 by the plugin geometry and boot step: plugin_objects,
+# plugin_meshes, plugin_asset_models and plugin_geometry_dirty became struct
+# PluginGeometry; plugin_screenshots struct PluginScreenshots;
+# plugins_user, plugin_prefs_path and the three plugin_feature_boot fields
+# struct PluginBootConfig; npc_light_uses_type_ambient_contrast,
+# player_head_light_ambient and mouseover_text_by_cache struct
+# ToriRS_FeatureFacts; plugin_input moved into struct ToriRS_FrameModifiers
+# as the parked input. App lost fourteen fields and gained four; the counter
+# shows nine fewer because the old plugin_screenshots was a nested struct
+# whose brace sat on its own line, which it does not see.
+# Lowered to 272 by the panel overlay stage step: the fourteen panel_overlay*
+# fields (the kept list with its owner and row arrays, the staging list and
+# its open and overflow flags, the open well's origin, scale and clip, the
+# generation and the revision) became struct PanelOverlayStage panel_wells.
+# Lowered to 242 by the plugin panel step: the plugin window's chrome
+# instance, shell, sync, rail, executor binding, row table, choice pool, build
+# stamps, custom-well raster and plugin_chrome_requested (32 fields) became
+# struct PluginPanel, which App holds as one pointer, plugin_win; App lost
+# thirty-two fields and gained one, the number thirty because
+# plugin_panel_rows was declared in a shape this counter never read.
+# Lowered to 230 by the chrome compositor step: the merged chrome list with
+# its count and three build keys, the plugin page's surface list, pixels,
+# capacity and four keys, and soft_chrome (13 fields) became struct
+# ChromeCompositor, which App holds as one pointer, chrome_compositor.
+# Lowered to 219 by the editor shell step: the developer chrome, its
+# frame-time panel, row, visibility and ring and the settings pickers (6
+# fields) became struct DevOverlay, which App holds as one pointer,
+# dev_overlay; the loc editor's widgets and selection, the two footprint
+# modes, the hover ghost, the preview camera and the map editor's panel (7
+# fields) became struct EditorShell, held as one pointer, editor_shell; and
+# dbg_aboard_view became struct WevAboardTrace aboard_trace. App lost fourteen
+# fields and gained three.
+# Lowered to 197 by the title and cache mounts step: the account flow's oauth,
+# path, device list, signin and site with their load, shown and busy latches
+# and the Play Now cards (14 fields, title_cards among them, which this
+# counter never read) became struct RS_TitleAccounts accounts; title_song,
+# title_song_known and title_music_playing became struct RS_TitleMusic
+# title_music; credential_form_sent moved into struct RS_Title and
+# flames_last_ms into struct TitleFlames; and the two disks, the two build
+# caches and the three on-demand flags (7 fields) became struct CacheMounts
+# cache_mounts. App lost twenty-six fields and gained three.
+# Held at 197 by the world rebuild job step although App lost two fields:
+# world_rebuild_background and world_job_deadline_us moved into struct
+# WorldRebuildJob world_job, and world_job and rebuild_frames, two structs
+# defined inside App that this counter never read, became the named fields
+# world_job and rebuild_frames (struct RebuildFrameStats), which it does.
+# Lowered from 195 to 184 by the lifecycle and boot step: app_state, screen
+# and boot_hold_last_frame became phase (struct RS_ClientPhase); boot_progress,
+# boot_interface_id, boot_config_ready and preview_state_failed/_stat_mask
+# became boot (struct RS_BootState); the five boot pump counters and
+# async_pending became pump_stats (struct BootPumpStats).
+# Lowered to 176 by the world load state step: world_active,
+# world_load_attempted, world_load_inflight and world_load_server_driven
+# became world_load (struct WorldLoadState); net_force_rebuild moved into
+# struct RS_RebuildRegion; active_world and active_world_level into struct
+# WorldviewRegistry, aboard_view into struct Wevs; loc_lane_enqueued and
+# loc_lane_applied became loc_lane (struct LocLane). App lost ten fields and
+# gained two.
+# Lowered to 168 by the world views and render mode step: views, frame_view,
+# view_split, world_emit_desc and world_view_valid became world_views (struct
+# WorldViews); world_render_mode, renderer_animates_textures,
+# software_rszbuffer and server_zbuf became render_mode (struct RenderMode);
+# painter_cullmap_bake_w/_h became painter_cull_bake (struct PainterCullBake).
+# Lowered to 156 by the maps and UI bits step: world_map_scene_id, _w, _h,
+# _level and minimap_state moved into struct MinimapView; ui_retained_frame
+# into struct UITreeEmitRetainGate; modal_host_uid and closing_modals into
+# struct RS_UISlots; builder_active into struct UITreeBuilder;
+# cs1_eval_inflight into struct RS_CS1Host; native_window_mode_synced into
+# struct UICanvasScale (was AppClientScale); detached_parents and
+# detached_parent_count became kept_mounts (struct UITreeKeptMounts).
+# Lowered to 149 by the net flags and last loose fields step: net_enabled
+# moved into struct ToriRS_Network; multiway into struct RS_SessionInfo;
+# prefs_path into struct RS_Prefs; the features pointer went, its table
+# (features_storage) is the member features; net_last_send_ms became
+# net_keepalive (struct NetKeepalive); net_first_packet_marked and
+# net_cheat_sent became net_once (struct NetOnce); proj_src_tile_x, _z and
+# _level became proj_latch (struct ProjSpawnLatch). App lost ten fields and
+# gained three.
+struct-App-fields: 149
 
 src/main.c
 src/executor_config.c
@@ -131,6 +286,19 @@ src/agent/agent_server.c
 src/agent/agent_verbs_core.c
 src/agent/agent_verbs_editor.c
 src/agent/agent_verbs_game.c
+# Added 2026-11-18 (the App factoring): already reaching in at v3 62897d0b6,
+# where the check was red on them; they arrived before the factoring that
+# starts with this change. The replay scrubber's checkpoint, digest and world
+# apply (975dbee3a) save, compare and restore App state by name, and the
+# editor's region brush (06e6209cf) reads the hover tile, the world mouse and
+# the scene origin through the App. Each is a candidate for the parameter
+# treatment.
+src/editor/editor_panel_region.c
+src/replay/replay_checkpoint.c
+src/replay/replay_checkpoint_check.c
+src/replay/replay_checkpoint_play.c
+src/replay/replay_digest.c
+src/replay/replay_world_apply.c
 # The composition root of the App layer: construction, teardown and the
 # globals main.c shares. Everything else is a unit under src/app/.
 # Raised from 1255 by the touch-UI boot resolution and the Porcelain table
@@ -153,4 +321,44 @@ src/agent/agent_verbs_game.c
 # editor boot they follow; in App_Shutdown one app_map_editor_shutdown call.
 # Each subsystem is in its own unit under src/app/ (app_map_editor.c,
 # app_editor_view.c).
-app.c-lines: 1457
+# Raised from 1457 to 1496 on 2026-11-18 (the App factoring): 1496 at v3
+# 62897d0b6, where the check was already red; these lines arrived before the
+# factoring that starts with this change (1462 at c9811f112, then the editor
+# friction pass, the background world rebuild, the replay scrubber and the
+# three named task queues). The factoring that follows does not add to it: a
+# module's initialisation moves out of app.c into the module's own Reset.
+# Lowered to 1495 by the same step: the two rebuild-centre lines in App_Init
+# became one RS_RebuildRegion_ForgetCentre call.
+# Lowered to 1493 by the save debounce step: the prefs flush's pending test and
+# its clear became one RS_SaveDebounce_Take call.
+# Lowered to 1490 by the interface models step: App_Init's two hover and
+# click resets moved into UIInteraction_Init, and the two interface-model
+# table frees became one UIIfModels_Free call.
+# Lowered to 1489 by the skybox and spotanims step: App_Init's loop freeing
+# every entity-spotanim entry became one EntitySpotanims_Init call.
+# Lowered to 1462 by the sailing HUD, ground-item settings and highlight
+# watch step: their resets became RS_SailingHud_Reset,
+# RS_GroundItemsSettings_Reset and RS_TileHighlightWatch_Reset.
+# Lowered to 1456 by the plugin geometry and boot step: the mouseover owner's
+# five lines became one ToriRS_FeatureFacts_SetMouseoverText test and the
+# lighting merge's seven one four-line ToriRS_FeatureFacts_ResolveLight call;
+# the bridge copy of the lighting grew by one line.
+# Lowered to 1454 by the plugin panel step: App_Init's two plugin-window
+# field resets became one PluginPanel_Create call, and App_Shutdown's three
+# lines freeing the custom-well raster one PluginPanel_Free call and its NULL.
+# Lowered to 1451 by the chrome compositor step: App_Shutdown's six lines
+# freeing soft_chrome and the surface buffers became the renderer's free,
+# one ChromeCompositor_Free call and its NULL.
+# Lowered to 1431 by the title and cache mounts step: the build caches' and
+# disks' creation and frees became CacheMounts calls, and the account flow's
+# three-line arming one RS_TitleAccounts_Init call.
+# Lowered to 1430 by the world load state step: the cursor's root start moved
+# into WorldviewRegistry_Init.
+# Lowered to 1425 by the maps and UI bits step: App_Init's two minimap resets
+# went into MinimapView_Reset, its three world map lines and App_Shutdown's
+# two became RS_WorldMapSurface_Init and _TakeRender calls.
+# Lowered to 1421 by the net flags and last loose fields step: App_Init's
+# three projectile-latch resets became one ProjSpawnLatch_Reset call, its
+# multiway reset went into RS_SessionInfo_Reset, and the era's copy into the
+# feature table no longer repoints a pointer at it.
+app.c-lines: 1421

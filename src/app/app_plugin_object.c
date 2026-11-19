@@ -13,24 +13,18 @@ static void
 app_plugin_object_sync(
     struct App* app,
     int handle);
-static int
-app_plugin_object_recolor_stamp(struct AppPluginObject const* obj);
-static int
-app_plugin_object_geometry_revision(
-    struct App* app,
-    struct AppPluginObject const* obj);
 static struct ToriDraw_Model*
 app_plugin_object_build_model(
     struct App* app,
-    struct AppPluginObject const* obj);
+    struct PluginObject const* obj);
 static void
 app_plugin_object_teardown(
     struct App* app,
-    struct AppPluginObject* obj);
+    struct PluginObject* obj);
 static int
 app_plugin_object_scene_pos(
     struct App* app,
-    struct AppPluginObject const* obj,
+    struct PluginObject const* obj,
     int* out_world_x,
     int* out_world_z,
     int* out_world_y);
@@ -47,7 +41,7 @@ app_plugin_object_sync(
     struct App* app,
     int handle)
 {
-    struct AppPluginObject* obj = app_plugin_object_at(app, handle);
+    struct PluginObject* obj = PluginGeometry_Object(&app->plugin_geometry, handle);
     int world_x;
     int world_z;
     int world_y;
@@ -59,8 +53,8 @@ app_plugin_object_sync(
     /* A change to what the MODEL is made of cannot be applied in place. */
     if( obj->element_id >= 0 &&
         (obj->built_source != obj->source || obj->built_model_id != obj->model_id ||
-         obj->built_recolor_stamp != app_plugin_object_recolor_stamp(obj) ||
-         obj->built_geometry_revision != app_plugin_object_geometry_revision(app, obj)) )
+         obj->built_recolor_stamp != PluginObject_RecolorStamp(obj) ||
+         obj->built_geometry_revision != PluginGeometry_ObjectRevision(&app->plugin_geometry, obj)) )
         app_plugin_object_teardown(app, obj);
 
     /* Nothing to draw yet, or nothing to draw at all. */
@@ -107,7 +101,7 @@ app_plugin_object_sync(
         }
         World_PluginObjectSetActive(app->world, obj->world_index, obj->active != 0);
     }
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 /*
@@ -122,17 +116,12 @@ void
 app_plugin_objects_rebuild(struct App* app)
 {
     assert(app);
-    for( int i = 0; i < APP_PLUGIN_OBJECTS_MAX; i++ )
+    for( int i = 0; i < PLUGIN_GEOMETRY_OBJECTS_MAX; i++ )
     {
-        struct AppPluginObject* obj = &app->plugin_objects[i];
-        if( !obj->in_use )
+        struct PluginObject* obj = PluginGeometry_Object(&app->plugin_geometry, i);
+        if( !obj )
             continue;
-        obj->element_id = -1;
-        obj->world_index = -1;
-        obj->built_source = -1;
-        obj->built_model_id = -1;
-        obj->built_recolor_stamp = 0;
-        obj->built_geometry_revision = 0;
+        PluginObject_ForgetBuilt(obj);
         obj->load_pending = 0;
         app_plugin_object_sync(app, i);
     }
@@ -154,18 +143,17 @@ void
 app_plugin_geometry_settle(struct App* app)
 {
     assert(app);
-    if( !app->plugin_geometry_dirty )
+    if( !PluginGeometry_TakeDirty(&app->plugin_geometry) )
         return;
-    app->plugin_geometry_dirty = 0;
-    for( int i = 0; i < APP_PLUGIN_OBJECTS_MAX; i++ )
+    for( int i = 0; i < PLUGIN_GEOMETRY_OBJECTS_MAX; i++ )
     {
-        struct AppPluginObject* obj = &app->plugin_objects[i];
-        if( !obj->in_use )
+        struct PluginObject* obj = PluginGeometry_Object(&app->plugin_geometry, i);
+        if( !obj )
             continue;
         if( obj->source != TORIRS_HOST_MODEL_MESH && obj->source != TORIRS_HOST_MODEL_ASSET )
             continue;
         if( obj->element_id >= 0 &&
-            obj->built_geometry_revision == app_plugin_object_geometry_revision(app, obj) )
+            obj->built_geometry_revision == PluginGeometry_ObjectRevision(&app->plugin_geometry, obj) )
             continue;
         app_plugin_object_sync(app, i);
     }
@@ -194,12 +182,13 @@ app_plugin_model_publish(
     int size)
 {
     struct App* app = (struct App*)user;
-    struct AppPluginAssetModel* shipped;
+    struct PluginAssetModel* shipped;
     struct RSCache_Model* decoded;
+    struct ToriRS_Model* model;
 
     assert(app);
     assert(data);
-    if( handle < 0 || handle >= TORIRS_PLUGIN_MODELS_MAX )
+    if( handle < 0 || handle >= PLUGIN_GEOMETRY_MODELS_MAX )
         return 0;
     if( size <= 0 )
         return 0;
@@ -208,19 +197,17 @@ app_plugin_model_publish(
     if( !decoded )
         return 0;
 
-    shipped = &app->plugin_asset_models[handle];
+    shipped = PluginGeometry_ModelSlot(&app->plugin_geometry, handle);
     /* A republish of the same slot replaces what was there; the objects
      * standing on it rebuild on the revision change. */
     if( shipped->model )
         ToriRS_ModelFree(shipped->model);
-    shipped->in_use = 1;
-    shipped->model = ToriRS_ModelFromRSCache(decoded);
+    model = ToriRS_ModelFromRSCache(decoded);
     RSCache_ModelFree(decoded);
-    shipped->revision++;
+    PluginGeometry_ModelPublish(&app->plugin_geometry, handle, model);
 
-    app->plugin_geometry_dirty = 1;
-    app->need_redraw = 1;
-    return shipped->model != NULL;
+    RedrawRequest_Raise(&app->redraw_request);
+    return model != NULL;
 }
 
 void
@@ -229,40 +216,48 @@ app_plugin_model_release(
     int handle)
 {
     struct App* app = (struct App*)user;
-    struct AppPluginAssetModel* shipped;
+    struct PluginAssetModel* shipped;
 
     assert(app);
-    shipped = app_plugin_asset_model_at(app, handle);
+    shipped = PluginGeometry_Model(&app->plugin_geometry, handle);
     if( !shipped )
         return;
     if( shipped->model )
         ToriRS_ModelFree(shipped->model);
-    memset(shipped, 0, sizeof(*shipped));
     /* Objects built from it are still standing; the settle takes them down. */
-    app->plugin_geometry_dirty = 1;
-    app->need_redraw = 1;
+    PluginGeometry_ModelRelease(&app->plugin_geometry, handle);
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
+/*
+ * Geometry a plugin built itself.
+ *
+ * The reason this exists at all is that a cache id is not portable. A plugin
+ * that stands a beam of light over a drop by naming model 43330 is naming a
+ * number that means that beam in one revision, means something else in
+ * another, and is absent from most -- so the plugin works on the cache it was
+ * written against and silently draws a crate, or nothing, on the rest. An
+ * authored mesh has no such dependency: it is the same triangles wherever it
+ * is drawn.
+ *
+ * The table is the App's rather than the host's because only this side can
+ * turn a mesh into something drawable, and the arrays grow on append because
+ * the api ceilings are a limit and not a size.
+ */
 int
 app_plugin_mesh_create(void* user)
 {
     struct App* app = (struct App*)user;
-    assert(app);
+    int handle;
 
-    for( int i = 0; i < APP_PLUGIN_MESHES_MAX; i++ )
-    {
-        struct ToriRS_PluginMesh* mesh = &app->plugin_meshes[i];
-        if( mesh->in_use )
-            continue;
-        memset(mesh, 0, sizeof(*mesh));
-        mesh->in_use = 1;
-        /* Revisions start at 1 so that 0 can mean "stands on no mesh", which
-         * is what app_plugin_object_geometry_revision answers for a destroyed
-         * one -- and what tears the objects still standing on it down. */
-        mesh->revision = 1;
-        return i;
-    }
-    TORIRS_ERR("plugin: mesh table full (%d); mesh_create refused\n", APP_PLUGIN_MESHES_MAX);
+    assert(app);
+    /* Revisions start at 1 so that 0 can mean "stands on no mesh", which is
+     * what PluginGeometry_ObjectRevision answers for a destroyed one -- and
+     * what tears the objects still standing on it down. */
+    handle = PluginGeometry_MeshClaim(&app->plugin_geometry);
+    if( handle >= 0 )
+        return handle;
+    TORIRS_ERR("plugin: mesh table full (%d); mesh_create refused\n", PLUGIN_GEOMETRY_MESHES_MAX);
     return -1;
 }
 
@@ -275,13 +270,13 @@ app_plugin_mesh_destroy(
     struct ToriRS_PluginMesh* mesh;
 
     assert(app);
-    mesh = app_plugin_mesh_at(app, handle);
+    mesh = PluginGeometry_Mesh(&app->plugin_geometry, handle);
     if( !mesh )
         return;
     ToriRS_PluginMeshRelease(mesh);
     /* Objects built from it are still standing; the settle takes them down. */
-    app->plugin_geometry_dirty = 1;
-    app->need_redraw = 1;
+    PluginGeometry_MarkDirty(&app->plugin_geometry);
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 int
@@ -297,7 +292,7 @@ app_plugin_mesh_vertex(
     int index;
 
     assert(app);
-    mesh = app_plugin_mesh_at(app, handle);
+    mesh = PluginGeometry_Mesh(&app->plugin_geometry, handle);
     if( !mesh )
         return -1;
     if( mesh->vertex_count >= TORIRS_PLUGIN_MESH_VERTICES_MAX )
@@ -322,7 +317,7 @@ app_plugin_mesh_vertex(
     mesh->vertices_z[index] = (int16_t)z;
     mesh->vertex_count = index + 1;
     mesh->revision++;
-    app->plugin_geometry_dirty = 1;
+    PluginGeometry_MarkDirty(&app->plugin_geometry);
     return index;
 }
 
@@ -341,7 +336,7 @@ app_plugin_mesh_face(
     int index;
 
     assert(app);
-    mesh = app_plugin_mesh_at(app, handle);
+    mesh = PluginGeometry_Mesh(&app->plugin_geometry, handle);
     if( !mesh )
         return -1;
     if( mesh->face_count >= TORIRS_PLUGIN_MESH_FACES_MAX )
@@ -370,7 +365,7 @@ app_plugin_mesh_face(
     mesh->face_alpha[index] = (uint8_t)alpha;
     mesh->face_count = index + 1;
     mesh->revision++;
-    app->plugin_geometry_dirty = 1;
+    PluginGeometry_MarkDirty(&app->plugin_geometry);
     return index;
 }
 
@@ -378,28 +373,14 @@ int
 app_plugin_object_create(void* user)
 {
     struct App* app = (struct App*)user;
-    assert(app);
+    int handle;
 
-    for( int i = 0; i < APP_PLUGIN_OBJECTS_MAX; i++ )
-    {
-        struct AppPluginObject* obj = &app->plugin_objects[i];
-        if( obj->in_use )
-            continue;
-        memset(obj, 0, sizeof(*obj));
-        obj->in_use = 1;
-        obj->source = TORIRS_HOST_MODEL_CACHE;
-        obj->model_id = -1;
-        obj->seq_id = -1;
-        obj->loop = 1;
-        obj->level = -1;
-        obj->element_id = -1;
-        obj->world_index = -1;
-        obj->built_source = -1;
-        obj->built_model_id = -1;
-        return i;
-    }
+    assert(app);
+    handle = PluginGeometry_ObjectClaim(&app->plugin_geometry);
+    if( handle >= 0 )
+        return handle;
     TORIRS_ERR(
-        "plugin: world-object table full (%d); object_create refused\n", APP_PLUGIN_OBJECTS_MAX);
+        "plugin: world-object table full (%d); object_create refused\n", PLUGIN_GEOMETRY_OBJECTS_MAX);
     return -1;
 }
 
@@ -409,15 +390,15 @@ app_plugin_object_destroy(
     int handle)
 {
     struct App* app = (struct App*)user;
-    struct AppPluginObject* obj;
+    struct PluginObject* obj;
 
     assert(app);
-    obj = app_plugin_object_at(app, handle);
+    obj = PluginGeometry_Object(&app->plugin_geometry, handle);
     if( !obj )
         return;
     app_plugin_object_teardown(app, obj);
-    memset(obj, 0, sizeof(*obj));
-    app->need_redraw = 1;
+    PluginGeometry_ObjectRelease(&app->plugin_geometry, handle);
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 void
@@ -428,10 +409,10 @@ app_plugin_object_set_model(
     int id)
 {
     struct App* app = (struct App*)user;
-    struct AppPluginObject* obj;
+    struct PluginObject* obj;
 
     assert(app);
-    obj = app_plugin_object_at(app, handle);
+    obj = PluginGeometry_Object(&app->plugin_geometry, handle);
     if( !obj )
         return;
     if( obj->source == source && obj->model_id == id )
@@ -449,10 +430,10 @@ app_plugin_object_recolor(
     int hsl_to)
 {
     struct App* app = (struct App*)user;
-    struct AppPluginObject* obj;
+    struct PluginObject* obj;
 
     assert(app);
-    obj = app_plugin_object_at(app, handle);
+    obj = PluginGeometry_Object(&app->plugin_geometry, handle);
     if( !obj )
         return;
     if( obj->recolor_count >= TORIRS_PLUGIN_OBJECT_RECOLORS_MAX )
@@ -476,10 +457,10 @@ app_plugin_object_clear_recolors(
     int handle)
 {
     struct App* app = (struct App*)user;
-    struct AppPluginObject* obj;
+    struct PluginObject* obj;
 
     assert(app);
-    obj = app_plugin_object_at(app, handle);
+    obj = PluginGeometry_Object(&app->plugin_geometry, handle);
     if( !obj )
         return;
     obj->recolor_count = 0;
@@ -494,10 +475,10 @@ app_plugin_object_set_anim(
     int loop)
 {
     struct App* app = (struct App*)user;
-    struct AppPluginObject* obj;
+    struct PluginObject* obj;
 
     assert(app);
-    obj = app_plugin_object_at(app, handle);
+    obj = PluginGeometry_Object(&app->plugin_geometry, handle);
     if( !obj )
         return;
     if( obj->seq_id == seq_id && obj->loop == (loop != 0) )
@@ -514,7 +495,7 @@ app_plugin_object_set_anim(
             app_world_apply_seq(app, obj->element_id, bound);
         else
             ToriDraw_SceneElementSetAnimation(app->scene, obj->element_id, NULL, true);
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
     }
     else
         app_plugin_object_sync(app, handle);
@@ -528,10 +509,10 @@ app_plugin_object_set_light(
     int contrast)
 {
     struct App* app = (struct App*)user;
-    struct AppPluginObject* obj;
+    struct PluginObject* obj;
 
     assert(app);
-    obj = app_plugin_object_at(app, handle);
+    obj = PluginGeometry_Object(&app->plugin_geometry, handle);
     if( !obj )
         return;
     if( obj->ambient == ambient && obj->contrast == contrast )
@@ -556,10 +537,10 @@ app_plugin_object_set_position(
     int yaw)
 {
     struct App* app = (struct App*)user;
-    struct AppPluginObject* obj;
+    struct PluginObject* obj;
 
     assert(app);
-    obj = app_plugin_object_at(app, handle);
+    obj = PluginGeometry_Object(&app->plugin_geometry, handle);
     if( !obj )
         return;
     if( obj->tile_x == tile_x && obj->tile_z == tile_z && obj->level == level &&
@@ -580,10 +561,10 @@ app_plugin_object_set_active(
     int active)
 {
     struct App* app = (struct App*)user;
-    struct AppPluginObject* obj;
+    struct PluginObject* obj;
 
     assert(app);
-    obj = app_plugin_object_at(app, handle);
+    obj = PluginGeometry_Object(&app->plugin_geometry, handle);
     if( !obj )
         return;
     if( obj->active == (active != 0) )
@@ -598,10 +579,10 @@ app_plugin_object_ready(
     int handle)
 {
     struct App* app = (struct App*)user;
-    struct AppPluginObject* obj;
+    struct PluginObject* obj;
 
     assert(app);
-    obj = app_plugin_object_at(app, handle);
+    obj = PluginGeometry_Object(&app->plugin_geometry, handle);
     return (obj && obj->element_id >= 0) ? 1 : 0;
 }
 /*
@@ -628,7 +609,7 @@ app_plugin_object_ready(
  * Three things have to agree for one of these to draw, and they arrive at
  * different times: the plugin's intent (a model id, a tile, a colour), the
  * cache assets that intent names, and a scene element to hang them on. The
- * record in app->plugin_objects is the intent; everything below is the
+ * record in app->plugin_geometry is the intent; everything below is the
  * machinery that keeps the other two chasing it.
  *
  * The rule that makes it tractable: intent is never applied in place. A change
@@ -639,67 +620,13 @@ app_plugin_object_ready(
  * frame from rebuilding a model every frame.
  */
 
-struct AppPluginObject*
-app_plugin_object_at(
-    struct App* app,
-    int handle)
-{
-    assert(app);
-    if( handle < 0 || handle >= APP_PLUGIN_OBJECTS_MAX )
-        return NULL;
-    if( !app->plugin_objects[handle].in_use )
-        return NULL;
-    return &app->plugin_objects[handle];
-}
-
-/* A cheap identity for the recolour list, so "did the colours change?" does not
- * mean comparing two arrays on every call. Order-sensitive on purpose: recolour
- * is applied in order and two lists that differ only in order can genuinely
- * produce different models. */
-static int
-app_plugin_object_recolor_stamp(struct AppPluginObject const* obj)
-{
-    int stamp = 17;
-    assert(obj);
-    for( int i = 0; i < obj->recolor_count; i++ )
-        stamp = stamp * 31 + (obj->recolor_from[i] * 65599 + obj->recolor_to[i]);
-    return stamp * 31 + obj->recolor_count;
-}
-
-/* The revision of the geometry this object stands on, or 0 when it stands on
- * none -- a cache-sourced object, or one whose mesh was destroyed or whose
- * shipped model never decoded. Compared against built_geometry_revision, so
- * geometry that is re-authored, or that arrives late off the IO queue,
- * rebuilds the objects made from it, and geometry re-stated unchanged rebuilds
- * nothing. */
-static int
-app_plugin_object_geometry_revision(
-    struct App* app,
-    struct AppPluginObject const* obj)
-{
-    assert(app);
-    assert(obj);
-
-    if( obj->source == TORIRS_HOST_MODEL_MESH )
-    {
-        struct ToriRS_PluginMesh const* mesh = app_plugin_mesh_at(app, obj->model_id);
-        return mesh ? mesh->revision : 0;
-    }
-    if( obj->source == TORIRS_HOST_MODEL_ASSET )
-    {
-        struct AppPluginAssetModel const* shipped = app_plugin_asset_model_at(app, obj->model_id);
-        return shipped ? shipped->revision : 0;
-    }
-    return 0;
-}
-
 /* The model ids this object's source needs resident before it can be built:
  * a CACHE object names its model directly, a SPOTANIM object names it through
  * the spotanimtype. Returns -1 when it is not knowable yet. */
 int
 app_plugin_object_model_id(
     struct App* app,
-    struct AppPluginObject const* obj)
+    struct PluginObject const* obj)
 {
     assert(app);
     assert(obj);
@@ -724,7 +651,7 @@ app_plugin_object_model_id(
 int
 app_plugin_object_seq_id(
     struct App* app,
-    struct AppPluginObject const* obj)
+    struct PluginObject const* obj)
 {
     assert(app);
     assert(obj);
@@ -765,7 +692,7 @@ app_plugin_object_seq_id(
 static struct ToriDraw_Model*
 app_plugin_object_build_model(
     struct App* app,
-    struct AppPluginObject const* obj)
+    struct PluginObject const* obj)
 {
     struct ToriRS_Spotanimtype const* spot = NULL;
     struct ToriDraw_Model* model;
@@ -779,7 +706,7 @@ app_plugin_object_build_model(
         /* Not resident yet is the ordinary state for the first frame or two:
          * the file crosses the IO queue like every other asset, and the settle
          * builds the object when it lands. */
-        struct AppPluginAssetModel const* shipped = app_plugin_asset_model_at(app, obj->model_id);
+        struct PluginAssetModel const* shipped = PluginGeometry_Model(&app->plugin_geometry, obj->model_id);
         if( !shipped || !shipped->model )
             return NULL;
         model = ToriDraw_ModelFromToriRS(shipped->model);
@@ -788,7 +715,7 @@ app_plugin_object_build_model(
     }
     else if( obj->source == TORIRS_HOST_MODEL_MESH )
     {
-        struct ToriRS_PluginMesh const* mesh = app_plugin_mesh_at(app, obj->model_id);
+        struct ToriRS_PluginMesh const* mesh = PluginGeometry_Mesh(&app->plugin_geometry, obj->model_id);
         /* An empty mesh is not a bug: a plugin that has taken a handle and not
          * yet authored into it is mid-build, and the object has nothing to
          * draw until it has. A handle that names no mesh at all is the same
@@ -871,19 +798,14 @@ app_plugin_object_build_model(
 static void
 app_plugin_object_teardown(
     struct App* app,
-    struct AppPluginObject* obj)
+    struct PluginObject* obj)
 {
     assert(app);
     assert(obj);
 
     if( obj->world_index >= 0 && app->world )
         World_PluginObjectDespawn(app->world, obj->world_index);
-    obj->world_index = -1;
-    obj->element_id = -1;
-    obj->built_source = -1;
-    obj->built_model_id = -1;
-    obj->built_recolor_stamp = 0;
-    obj->built_geometry_revision = 0;
+    PluginObject_ForgetBuilt(obj);
 }
 
 /* Scene-local placement for an object's absolute tile, or 0 when it is off the
@@ -891,7 +813,7 @@ app_plugin_object_teardown(
 static int
 app_plugin_object_scene_pos(
     struct App* app,
-    struct AppPluginObject const* obj,
+    struct PluginObject const* obj,
     int* out_world_x,
     int* out_world_z,
     int* out_world_y)
@@ -928,7 +850,7 @@ app_plugin_object_materialize_now(
     struct App* app,
     int handle)
 {
-    struct AppPluginObject* obj = app_plugin_object_at(app, handle);
+    struct PluginObject* obj = PluginGeometry_Object(&app->plugin_geometry, handle);
     struct ToriDraw_Model* model;
     int world_x;
     int world_z;
@@ -962,8 +884,8 @@ app_plugin_object_materialize_now(
     obj->element_id = element_id;
     obj->built_source = obj->source;
     obj->built_model_id = obj->model_id;
-    obj->built_recolor_stamp = app_plugin_object_recolor_stamp(obj);
-    obj->built_geometry_revision = app_plugin_object_geometry_revision(app, obj);
+    obj->built_recolor_stamp = PluginObject_RecolorStamp(obj);
+    obj->built_geometry_revision = PluginGeometry_ObjectRevision(&app->plugin_geometry, obj);
     obj->world_index = World_PluginObjectSpawn(
         app->world,
         element_id,
@@ -988,6 +910,6 @@ app_plugin_object_materialize_now(
     }
 
     app_sync_textures(app);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 

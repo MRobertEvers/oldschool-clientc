@@ -116,6 +116,12 @@ test_emit_retain_gate(void)
     TEST_ASSERT(
         !UITree_EmitRetainGateQuiet(tree, &host, &emit, 680, &gate),
         "hover identity participates in retention");
+    TEST_ASSERT(!UITree_EmitRetainGateRetained(&gate), "no frame has retained yet");
+    UITree_EmitRetainGateSetRetained(&gate, 1);
+    UITree_EmitRetainGateCapture(tree, &emit, -1, &gate);
+    TEST_ASSERT(UITree_EmitRetainGateRetained(&gate), "capturing the identity keeps the frame's verdict");
+    UITree_EmitRetainGateSetRetained(&gate, 0);
+    TEST_ASSERT(!UITree_EmitRetainGateRetained(&gate), "the next frame clears it");
 
     /* Camera state was not read by this fixture; changing an unrelated host
      * domain must not manufacture a full walk. The unconditional empty overlay

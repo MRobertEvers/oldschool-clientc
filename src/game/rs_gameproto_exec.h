@@ -39,7 +39,7 @@ RS_GameProto_Exec(
     struct RevPacket* packet);
 
 /* Replay zone sub-packets that arrived while the world was async-loading
- * (App::pending_zone), in arrival order. No-op until load_complete. Called
+ * (App::zone_inbox), in arrival order. No-op until load_complete. Called
  * lazily before any live zone sub-packet, and from the app tick so a queue
  * with no follow-up traffic still drains. */
 void
@@ -49,8 +49,9 @@ struct PktZoneSubPacket;
 struct TorirsControlFrame;
 
 /** A replay control frame (net/torirs_control.h, TORIRS_CONTROL_REPLAY_*) is
- *  only ever written by the RSProx replay transport (App.net_replay): on any
- *  other connection this says so and aborts. Returns when it is expected. */
+ *  only ever written by the RSProx replay transport (ToriRS_Network_IsReplay):
+ *  on any other connection this says so and aborts. Returns when it is
+ *  expected. */
 void
 RS_GameProto_ReplayControlExpected(
     struct App const* app,

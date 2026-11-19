@@ -67,6 +67,49 @@ test_reset_has_no_map_and_no_flag(void)
 }
 
 static void
+test_the_baked_map_is_held_until_rebaked(void)
+{
+    struct MinimapView view;
+
+    MinimapView_Reset(&view);
+    TEST_ASSERT(!MinimapView_HasMap(&view), "a fresh view has no baked map");
+    TEST_ASSERT(MinimapView_MapSceneId(&view) == -1, "and says so with -1");
+    TEST_ASSERT(MinimapView_ToggleState(&view) == 0, "the toggle starts at 0");
+
+    MinimapView_SetMap(&view, 7, 512, 512, 1);
+    TEST_ASSERT(MinimapView_HasMap(&view), "a bake publishes the map");
+    TEST_ASSERT(MinimapView_MapSceneId(&view) == 7, "under its scene id");
+    TEST_ASSERT(MinimapView_MapWidth(&view) == 512 && MinimapView_MapHeight(&view) == 512,
+        "with its size");
+    TEST_ASSERT(MinimapView_MapLevel(&view) == 1, "and the level it shows");
+
+    /* A rebuild asks for a rebake by forgetting the level, not the sprite:
+     * the old one stays on screen until the new one lands. */
+    MinimapView_ForgetMapLevel(&view);
+    TEST_ASSERT(MinimapView_MapLevel(&view) == -1, "a forgotten level matches no player");
+    TEST_ASSERT(MinimapView_HasMap(&view), "the sprite outlives the forgotten level");
+
+    /* Invalidate is a per-frame statement about the box only. */
+    MinimapView_Publish(&view, 550, 4, 152, 152, 0);
+    MinimapView_Invalidate(&view);
+    TEST_ASSERT(MinimapView_MapSceneId(&view) == 7, "invalidating keeps the baked map");
+}
+
+static void
+test_the_toggle_reports_a_change_only(void)
+{
+    struct MinimapView view;
+
+    MinimapView_Reset(&view);
+    TEST_ASSERT(!MinimapView_SetToggleState(&view, 0), "the state already held is no change");
+    TEST_ASSERT(MinimapView_SetToggleState(&view, 2), "a new state is a change");
+    TEST_ASSERT(MinimapView_ToggleState(&view) == 2, "and is kept");
+    TEST_ASSERT(!MinimapView_SetToggleState(&view, 2), "sent twice, it changes once");
+    MinimapView_Invalidate(&view);
+    TEST_ASSERT(MinimapView_ToggleState(&view) == 2, "invalidating keeps the toggle");
+}
+
+static void
 test_a_click_needs_a_map_on_screen(void)
 {
     struct MinimapView view;
@@ -498,6 +541,8 @@ int
 main(void)
 {
     test_reset_has_no_map_and_no_flag();
+    test_the_baked_map_is_held_until_rebaked();
+    test_the_toggle_reports_a_change_only();
     test_a_click_needs_a_map_on_screen();
     test_invalidating_keeps_the_flag();
     test_only_clicks_inside_the_box_count();

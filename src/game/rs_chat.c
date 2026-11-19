@@ -760,6 +760,34 @@ RS_Chat_ScrollbarInput(
     return handled;
 }
 
+int
+RS_Chat_ScrollbarHeld(
+    struct RS_Chat* chat,
+    struct RS_ChatFilters const* filters,
+    int height,
+    int local_x,
+    int local_y)
+{
+    assert(chat);
+    chat->scroll_cycle++;
+    return RS_Chat_ScrollbarInput(chat, filters, height, local_x, local_y, chat->scroll_cycle);
+}
+
+void
+RS_Chat_ScrollbarRelease(struct RS_Chat* chat)
+{
+    assert(chat);
+    chat->scroll_cycle = 0;
+    chat->scroll_grabbed = 0;
+}
+
+int
+RS_Chat_ScrollCycle(struct RS_Chat const* chat)
+{
+    assert(chat);
+    return chat->scroll_cycle;
+}
+
 /* Submit whichever input line is open. */
 static int
 chat_submit(
@@ -1066,13 +1094,17 @@ RS_Chat_CheckpointRestore(
     struct RS_Chat const* cp)
 {
     struct App* drive_app;
+    int scroll_cycle;
 
     assert(chat);
     assert(cp);
     drive_app = chat->drive_app;
+    /* Not session state: the checkpoint never held it (RS_Chat.scroll_cycle). */
+    scroll_cycle = chat->scroll_cycle;
     RS_Chat_Free(chat);
     rs_chat_checkpoint_copy(chat, cp);
     chat->drive_app = drive_app;
+    chat->scroll_cycle = scroll_cycle;
 }
 
 void
@@ -1090,7 +1122,8 @@ RS_Chat_CheckpointBytes(struct RS_Chat const* cp)
     size_t bytes;
 
     assert(cp);
-    bytes = sizeof(*cp);
+    /* The struct up to scroll_cycle, which the checkpoint does not keep. */
+    bytes = offsetof(struct RS_Chat, scroll_cycle);
     for( int t = 0; t < RS_CHAT_TYPE_MAX; t++ )
         if( cp->rings[t] )
             bytes += sizeof(*cp->rings[t]) + (size_t)cp->rings[t]->count * sizeof(struct RS_ChatNode);

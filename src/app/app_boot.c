@@ -102,8 +102,8 @@ app_provider_set_cache_profile(
     /* The disk resolves logical table names to ids and decides map XTEA, so it
      * needs the same identity the decoders got. Without this it answers as
      * unset, which on a 643 cache means every logical table is ABSENT. */
-    if( app->dat2_disk )
-        RSCache_Dat2DiskSetProfile(app->dat2_disk, &profile);
+    if( CacheMounts_Dat2Disk(&app->cache_mounts) )
+        RSCache_Dat2DiskSetProfile(CacheMounts_Dat2Disk(&app->cache_mounts), &profile);
 
     CacheProvider_SetProfile(app->provider, &profile);
 }
@@ -154,7 +154,7 @@ static int
 app_boot_bake_is_quiet(struct App const* app)
 {
     assert(app);
-    return app->net_enabled && App_HasTitleScreen(app) && app->screen != APP_SCREEN_BOOT;
+    return App_NetEnabled(app) && App_HasTitleScreen(app) && RS_ClientPhase_Screen(&app->phase) != APP_SCREEN_BOOT;
 }
 
 int
@@ -164,7 +164,7 @@ App_BootTextOnly(struct App const* app)
     /* GAME only: the startup title bake is also quiet, but it belongs to the
      * boot's loading screen and holds the bar at 100 instead -- text-only is
      * the POST-LOGIN picture. */
-    return app->app_state == APP_STATE_BOOTING && app->screen == APP_SCREEN_GAME &&
+    return RS_ClientPhase_Booting(&app->phase) && RS_ClientPhase_Screen(&app->phase) == APP_SCREEN_GAME &&
            app_boot_bake_is_quiet(app);
 }
 
@@ -182,12 +182,11 @@ app_async_polls(struct App* app)
     app_sync_textures_poll(app);
     app_world_bind_pending_seqs(app);
 
-    if( app->pending_tree_refresh )
+    if( UITreeRefresh_Take(&app->tree_refresh) )
     {
-        app->pending_tree_refresh = 0;
         UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         app_request_cs1_eval(app);
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
     }
 }
 
@@ -205,15 +204,15 @@ App_BootWait(struct App* app)
     {
         enum TaskRunnerStat main_stat;
         enum TaskRunnerStat exec_stat;
-        app->boot_steps += 2;
+        BootPumpStats_NoteBootSteps(&app->pump_stats, 2);
         main_stat = TaskRunner_Step(&app->frame_runner);
         exec_stat = TaskRunner_Step(&app->packet_runner);
         app_title_swap_if_pending(app);
-        if( app->app_state == APP_STATE_READY )
+        if( RS_ClientPhase_Ready(&app->phase) )
             app_async_polls(app);
         if( main_stat == TASK_RUNNER_IDLE && exec_stat == TASK_RUNNER_IDLE &&
-            app->app_state == APP_STATE_READY && !app->pending_tree_refresh &&
-            !app->world_load_inflight )
+            RS_ClientPhase_Ready(&app->phase) && !UITreeRefresh_Pending(&app->tree_refresh) &&
+            !WorldLoadState_Inflight(&app->world_load) )
             break;
     }
     if( guard <= 0 )
@@ -281,7 +280,7 @@ App_BootBarCaption(
         caption = app->frame_runner.render.caption;
     else
         caption = RS_LoginReplies_String(
-            &app->login_replies, app->screen == APP_SCREEN_GAME ? "entering_world" : "loading");
+            &app->login_replies, RS_ClientPhase_Screen(&app->phase) == APP_SCREEN_GAME ? "entering_world" : "loading");
     if( !caption || !caption[0] )
         return NULL;
 
@@ -358,7 +357,7 @@ Task_AppBoot_Run(
      * such step keeps the client's own position. */
     if( !app_boot_bake_is_quiet(app) )
     {
-        app->boot_progress = 10;
+        RS_BootState_SetProgress(&app->boot, 10);
         if( !app_preload_announce(app, "boot_config") )
             app_title_progress(app, 10, "loading_config");
     }
@@ -397,7 +396,7 @@ Task_AppBoot_Run(
      * clientcode-driven settings, so it stays untyped there.
      */
     /*
-     * Everything from here to `boot_config_ready = 1` is ONCE PER SESSION, not
+     * Everything from here to `RS_BootState_MarkConfigReady` is ONCE PER SESSION, not
      * once per boot — and this task boots again on every root remount (the
      * Display panel's Fixed/Classic/Modern switch, App_OpenRootInterface).
      *
@@ -415,7 +414,7 @@ Task_AppBoot_Run(
      * believes before a server speaks, so re-running them mid-session would
      * overwrite what the server said with a boot-time default.
      */
-    if( !app->boot_config_ready && app->cfg.cache_kind != APP_CACHE_DAT1 )
+    if( !RS_BootState_ConfigReady(&app->boot) && app->cfg.cache_kind != APP_CACHE_DAT1 )
         PT_TASK_AWAITSELF_IF(CreateTask_Dat2VarpLoad(app->provider, &app->varps));
 
     /*
@@ -426,41 +425,41 @@ Task_AppBoot_Run(
      * nothing else, so without this table 218 loc scripts and 23 npc scripts
      * in cache.osrs239 are unreachable. See game/rs_client_trigger.h.
      */
-    if( !app->boot_config_ready )
+    if( !RS_BootState_ConfigReady(&app->boot) )
         PT_TASK_AWAITSELF_IF(CreateTask_ClientScriptTableLoad(app->provider));
 
-    if( !app->boot_config_ready && app->cfg.cache_kind == APP_CACHE_DAT1 )
+    if( !RS_BootState_ConfigReady(&app->boot) && app->cfg.cache_kind == APP_CACHE_DAT1 )
         PT_TASK_AWAITSELF_IF(CreateTask_Dat1VarbitLoad(app->provider, &app->varps));
-    else if( !app->boot_config_ready )
+    else if( !RS_BootState_ConfigReady(&app->boot) )
         PT_TASK_AWAITSELF_IF(CreateTask_Dat2VarbitLoad(app->provider, &app->varps));
 
     /* Hitsplat types. dat1 has no such config group — it keeps the splat
      * graphics in a "hitmarks" sprite archive, which the static-sprite path
      * binds — so this is a dat2-only load and an absent group is not an error. */
-    if( !app->boot_config_ready && app->cfg.cache_kind != APP_CACHE_DAT1 )
+    if( !RS_BootState_ConfigReady(&app->boot) && app->cfg.cache_kind != APP_CACHE_DAT1 )
         PT_TASK_AWAITSELF_IF(CreateTask_Dat2HitsplatLoad(app->provider, &app->hitsplats));
 
     /* WorldEntityConfig types (sailing boats, config group 72). dat2 only and
      * OldSchool 239+ within that; an absent group leaves the table empty,
      * which is the pre-sailing world rather than an error. */
-    if( !app->boot_config_ready && app->cfg.cache_kind != APP_CACHE_DAT1 )
+    if( !RS_BootState_ConfigReady(&app->boot) && app->cfg.cache_kind != APP_CACHE_DAT1 )
         PT_TASK_AWAITSELF_IF(CreateTask_Dat2WevConfigLoad(app->provider, &app->wev_configs));
 
     /* VarClanTypes (clan profile vars, config group 47): the type each VARCLAN
      * value is decoded as. dat2 only; an absent group leaves the table empty. */
-    if( !app->boot_config_ready && app->cfg.cache_kind != APP_CACHE_DAT1 )
+    if( !RS_BootState_ConfigReady(&app->boot) && app->cfg.cache_kind != APP_CACHE_DAT1 )
         PT_TASK_AWAITSELF_IF(CreateTask_Dat2VarClanTypeLoad(app->provider));
 
     /* Group configs (config group 75): the variables of each GROUP_FULL
      * record. dat2 only, once per boot, the same shape as VarClanTypes. */
-    if( !app->boot_config_ready && app->cfg.cache_kind != APP_CACHE_DAT1 )
+    if( !RS_BootState_ConfigReady(&app->boot) && app->cfg.cache_kind != APP_CACHE_DAT1 )
         PT_TASK_AWAITSELF_IF(CreateTask_Dat2GroupTypeLoad(app->provider));
 
     /* Healthbar types. dat2 only for the same reason as hitsplats -- dat1 has
      * no such config group, and the table's defaults are the reference's own
      * constructor, so an absent group draws exactly what the hardcoded 30-wide
      * bar used to. */
-    if( !app->boot_config_ready && app->cfg.cache_kind != APP_CACHE_DAT1 )
+    if( !RS_BootState_ConfigReady(&app->boot) && app->cfg.cache_kind != APP_CACHE_DAT1 )
         PT_TASK_AWAITSELF_IF(CreateTask_Dat2HealthbarLoad(app->provider, &app->healthbars));
 
     /*
@@ -470,7 +469,7 @@ Task_AppBoot_Run(
      * the table unconditionally is deliberate: the empty case is a supported
      * reading, not a failure to load.
      */
-    if( !app->boot_config_ready && app->cfg.cache_kind != APP_CACHE_DAT1 )
+    if( !RS_BootState_ConfigReady(&app->boot) && app->cfg.cache_kind != APP_CACHE_DAT1 )
         PT_TASK_AWAITSELF_IF(CreateTask_Dat2SoundscapeLoad(app->provider, &app->soundscapes));
     RS_Audio_SetSoundscapes(&app->audio, &app->soundscapes);
 
@@ -484,14 +483,14 @@ Task_AppBoot_Run(
      * the store is what GAMEOPTION_GET answers with, and the four varps below
      * are then seeded from it, so both halves of interface 116 agree.
      */
-    if( !app->boot_config_ready )
+    if( !RS_BootState_ConfigReady(&app->boot) )
     {
-        app->prefs_path = RS_Prefs_Path();
+        RS_Prefs_SetFile(&app->prefs, RS_Prefs_Path());
         RS_Prefs_Defaults(&app->prefs);
     }
-    if( !app->boot_config_ready && app->prefs_path )
-        PT_TASK_AWAITSELF_IF(CreateTask_PrefsLoad(&app->prefs, app->prefs_path));
-    if( !app->boot_config_ready )
+    if( !RS_BootState_ConfigReady(&app->boot) && RS_Prefs_File(&app->prefs) )
+        PT_TASK_AWAITSELF_IF(CreateTask_PrefsLoad(&app->prefs, RS_Prefs_File(&app->prefs)));
+    if( !RS_BootState_ConfigReady(&app->boot) )
         RS_Prefs_ApplyToHost(&app->prefs, &app->host);
     /*
      * A phone has no fixed mode: the mobile toplevel lays itself out to the
@@ -505,7 +504,7 @@ Task_AppBoot_Run(
      * so RS_Prefs_CaptureFromHost writes nothing back). A manifest or command
      * line mode below still wins.
      */
-    if( !app->boot_config_ready && CS2VM2_OnMobile() )
+    if( !RS_BootState_ConfigReady(&app->boot) && CS2VM2_OnMobile() )
         app->host.default_window_mode = CS2VM_WINDOW_MODE_RESIZABLE;
     /*
      * And a phone's default frame cap, seeded only when nothing has chosen.
@@ -517,7 +516,7 @@ Task_AppBoot_Run(
      * RS_Prefs_CaptureFromHost all see one value.
      * @see RS_CS2_MOBILE_DEFAULT_FPS_CAP.
      */
-    if( !app->boot_config_ready && CS2VM2_OnMobile() &&
+    if( !RS_BootState_ConfigReady(&app->boot) && CS2VM2_OnMobile() &&
         RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_FPS_CAP) <= 0 )
     {
         RS_CS2Host_SetOption(
@@ -546,7 +545,7 @@ Task_AppBoot_Run(
      * it would leave the saved default unapplied, since nothing calls that
      * function again.
      */
-    if( !app->boot_config_ready && app->cfg.window_mode )
+    if( !RS_BootState_ConfigReady(&app->boot) && app->cfg.window_mode )
         app->host.default_window_mode = app->cfg.window_mode;
 
     /*
@@ -560,11 +559,11 @@ Task_AppBoot_Run(
      * code on the native lanes and in the browser, where a synchronous read
      * does not exist.
      */
-    if( !app->boot_config_ready && app->plugins )
+    if( !RS_BootState_ConfigReady(&app->boot) && app->plugins )
         PT_TASK_AWAITSELF_IF(
             CreateTask_PluginBoot(
                 app->plugins,
-                app->plugins_user ? PluginManifest_Path() : NULL,
+                PluginBootConfig_UserPlugins(&app->plugin_boot) ? PluginManifest_Path() : NULL,
                 PluginPrefs_Path()));
 
     /*
@@ -598,7 +597,7 @@ Task_AppBoot_Run(
      * snapshot stays in agreement with the varps; and before the tree is built,
      * so 116 constructs its bobbles green rather than needing a repaint.
      */
-    if( !app->boot_config_ready )
+    if( !RS_BootState_ConfigReady(&app->boot) )
     {
         VarPManager_SetVarpOptimistic(
             &app->varps,
@@ -621,10 +620,10 @@ Task_AppBoot_Run(
 
     /* Baseline for the change detection below: what is in the host now is what
      * is on disk, so nothing written here counts as a change worth saving. */
-    if( !app->boot_config_ready )
+    if( !RS_BootState_ConfigReady(&app->boot) )
     {
         RS_Prefs_CaptureFromHost(&app->prefs, &app->host);
-        app->prefs_dirty_cycle = 0;
+        RS_SaveDebounce_Clear(&app->prefs_save);
     }
     if( getenv("TORIRS_AUDIO_TRACE") || getenv("TORIRS_AUDIO_DEBUG") )
         TORIRS_LOG(
@@ -653,12 +652,12 @@ Task_AppBoot_Run(
 
     /* End of the once-per-session half. A remount from here down rebuilds the
      * tree against the var state the session already has. */
-    app->boot_config_ready = 1;
+    RS_BootState_MarkConfigReady(&app->boot);
 
     /* `[ui:varc]` — the var writes that accompany the login IF_OPENSUB burst.
      * Before the tree opens, because the root's onLoad scripts branch on them.
      * Skipped when networked, for the same reason [ui:gameframe] is. */
-    if( app->cfg.varc_seed_count > 0 && !app->net_enabled )
+    if( app->cfg.varc_seed_count > 0 && !App_NetEnabled(app) )
     {
         for( int i = 0; i < app->cfg.varc_seed_count; i++ )
             VarCManager_SetInt(
@@ -677,16 +676,16 @@ Task_AppBoot_Run(
     {
         char state_error[192];
         int applied = 0;
-        app->preview_state_failed = !ToriRSPreviewState_ApplyFile(
+        (void)ToriRSPreviewState_ApplyFileOutcome(
             getenv("TORIRS_PREVIEW_STATE"),
             &app->varps,
             &app->varcs,
             &app->stats,
             &applied,
-            &app->preview_state_stat_mask,
+            &app->boot.preview,
             state_error,
             sizeof(state_error));
-        if( app->preview_state_failed )
+        if( ToriRSPreviewState_OutcomeFailed(&app->boot.preview) )
             TORIRS_ERR("preview_state: %s\n", state_error);
         else
             TORIRS_LOG("preview_state: applied %d records\n", applied);
@@ -701,7 +700,7 @@ Task_AppBoot_Run(
      * such step keeps the client's own position. */
     if( !app_boot_bake_is_quiet(app) )
     {
-        app->boot_progress = 30;
+        RS_BootState_SetProgress(&app->boot, 30);
         if( !app_preload_announce(app, "boot_tree") )
             app_title_progress(app, 30, "loaded_config");
     }
@@ -713,7 +712,7 @@ Task_AppBoot_Run(
 
     /* One root-build path. A manifest that names no RevConfig at all still comes
      * through here: the builder synthesises the single rs_iface mount of
-     * boot_interface_id, which is what the old open-the-interface-directly
+     * the boot interface id, which is what the old open-the-interface-directly
      * branch produced (TS parity: WidgetManager.setRootInterface(groupId) — any
      * group can be the root, no hardcoded 161 chrome required). */
     PT_TASK_AWAITSELF(CreateTask_UITreeBuild(&app->builder));
@@ -725,13 +724,13 @@ Task_AppBoot_Run(
      * value onLoad reads and one precise post-registration stat transmit. This
      * is preview-only and filtered to the supplied skills; unrelated hooks are
      * not made to run merely because a state packet exists. */
-    if( app->preview_state_stat_mask )
+    if( ToriRSPreviewState_OutcomeStatMask(&app->boot.preview) )
     {
         int stat_ids[RS_PLAYER_STATS_SKILL_COUNT];
         int stat_count = 0;
         for( int stat_id = 0; stat_id < RS_PLAYER_STATS_SKILL_COUNT; stat_id++ )
         {
-            if( app->preview_state_stat_mask & ((uint32_t)1u << stat_id) )
+            if( ToriRSPreviewState_OutcomeStatMask(&app->boot.preview) & ((uint32_t)1u << stat_id) )
                 stat_ids[stat_count++] = stat_id;
         }
         PT_TASK_AWAITSELF_IF(
@@ -741,7 +740,7 @@ Task_AppBoot_Run(
     TORIRS_LOG(
         "RevConfigBuild done: iface=%d ui=%s inline=%s tree_components=%u sprites=%d "
         "fonts=%d onloads=%d inv_hooks=%d var_hooks=%d mounts=%d\n",
-        app->boot_interface_id,
+        RS_BootState_InterfaceId(&app->boot),
         app->cfg.revconfig_ui_ini ? app->cfg.revconfig_ui_ini : "-",
         app->cfg.revconfig_inline_ini ? app->cfg.revconfig_inline_ini : "-",
         app->tree->component_count,
@@ -758,7 +757,7 @@ Task_AppBoot_Run(
      * such step keeps the client's own position. */
     if( !app_boot_bake_is_quiet(app) )
     {
-        app->boot_progress = 60;
+        RS_BootState_SetProgress(&app->boot, 60);
         if( !app_preload_announce(app, "boot_interfaces") )
             app_title_progress(app, 60, "loading_interfaces");
     }
@@ -784,7 +783,7 @@ Task_AppBoot_Run(
      * such step keeps the client's own position. */
     if( !app_boot_bake_is_quiet(app) )
     {
-        app->boot_progress = 75;
+        RS_BootState_SetProgress(&app->boot, 75);
         if( !app_preload_announce(app, "boot_media") )
             app_title_progress(app, 75, "loading_media");
     }
@@ -826,20 +825,20 @@ Task_AppBoot_Run(
      * Skipped when networked: the server sends the real sequence, and mounting
      * on top of it would fight whatever it opens.
      */
-    if( app->cfg.gameframe_mount_count > 0 && !app->net_enabled )
+    if( app->cfg.gameframe_mount_count > 0 && !App_NetEnabled(app) )
     {
         for( int i = 0; i < app->cfg.gameframe_mount_count; i++ )
         {
             struct BootManifestGameframeMount const* mount = &app->cfg.gameframe_mounts[i];
             int parent = mount->parent_interface_id > 0 ? mount->parent_interface_id
-                                                        : app->boot_interface_id;
+                                                        : RS_BootState_InterfaceId(&app->boot);
             App_OpenSubInterface(
                 app, (parent << 16) | (mount->component & 0xFFFF), mount->interface_id, 0);
         }
         TORIRS_LOG(
             "gameframe: queued %d sub-interface mounts under iface %d\n",
             app->cfg.gameframe_mount_count,
-            app->boot_interface_id);
+            RS_BootState_InterfaceId(&app->boot));
     }
 
     /* Tab/interface-slot state seeds from the baked tree (INI componentno= and
@@ -859,7 +858,7 @@ Task_AppBoot_Run(
      * When networked, the server's REBUILD_NORMAL is the sole world-load driver
      * (its region + scene base match the entities); a default region 50,50 load
      * here would race it and clobber the rebuilt scene, so skip it. */
-    if( App_WorldNodeIndex(app) >= 0 && !app->net_enabled && !EditorView_AppHoldsNoWorld() )
+    if( App_WorldNodeIndex(app) >= 0 && !App_NetEnabled(app) && !EditorView_AppHoldsNoWorld() )
         app_world_load_begin(app, NULL, 0);
 
     /* This stage's place in the profile's own list, where it declares
@@ -868,7 +867,7 @@ Task_AppBoot_Run(
      * such step keeps the client's own position. */
     if( !app_boot_bake_is_quiet(app) )
     {
-        app->boot_progress = 90;
+        RS_BootState_SetProgress(&app->boot, 90);
         if( !app_preload_announce(app, "boot_ready") )
             app_title_progress(app, 90, "preparing");
     }
@@ -885,22 +884,21 @@ Task_AppBoot_Run(
      * without waiting for a App_RunOnce pass to latch it. */
     app_update_world_viewport(app);
 
-    app->boot_progress = 100;
+    RS_BootState_SetProgress(&app->boot, 100);
     /* Cleared, or held for a reconnect: @see app_title_boot_settled. */
     app_title_boot_settled(app);
-    app->app_state = APP_STATE_READY;
-    /* The tree can draw now, so there is nothing left to hold. */
-    app->boot_hold_last_frame = 0;
-    ToriRS_BootTelemetry_Mark(app->screen == APP_SCREEN_GAME ? "ready:game" : "ready:title");
+    /* READY, and the tree can draw now, so there is nothing left to hold. */
+    RS_ClientPhase_BakeSettled(&app->phase);
+    ToriRS_BootTelemetry_Mark(RS_ClientPhase_Screen(&app->phase) == APP_SCREEN_GAME ? "ready:game" : "ready:title");
     /* A freshly baked title tree shows every screen's group at once until it is
      * told which one is current. */
-    if( app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING )
+    if( RS_ClientPhase_OnTitle(&app->phase) )
     {
         app_title_sync_groups(app);
         app_title_flames_start(app);
     }
-    app->pending_tree_refresh = 1;
-    app->need_redraw = 1;
+    UITreeRefresh_Raise(&app->tree_refresh);
+    RedrawRequest_Raise(&app->redraw_request);
 
     PT_END(&self->pt);
 }
@@ -968,7 +966,7 @@ app_open_tree(
      *
      * The CS2 host is passed only for dat2 — dat1 interface packs carry IF1
      * scripts, which the CS1 host evaluates on the tick instead. */
-    if( app->builder_active )
+    if( UITreeBuilder_Active(&app->builder) )
         UITreeBuilder_Free(&app->builder); /* display-mode remount: re-Init below */
     UITreeBuilder_InitEx(
         &app->builder,
@@ -1005,18 +1003,15 @@ app_open_tree(
      * a remount re-stamps the same ids onto the new nodes rather than handing
      * out fresh ones. */
     app->builder.roles = &app->ui_roles;
-    app->builder_active = 1;
+    UITreeBuilder_SetActive(&app->builder);
 
-    app->app_state = APP_STATE_BOOTING;
     /* Every bake decides for itself whether it may paint; the default is that
      * it may. Only App_Logout says otherwise, and it says so after this. */
-    app->boot_hold_last_frame = 0;
-    app->boot_interface_id = interface_id;
+    RS_ClientPhase_BakeStarted(&app->phase);
     /* A quiet bake leaves the bar where the loud one parked it (100) instead
      * of walking it back to zero for work the first bake already narrated.
      * @see app_boot_bake_is_quiet. */
-    if( !app_boot_bake_is_quiet(app) )
-        app->boot_progress = 0;
+    RS_BootState_BakeStarted(&app->boot, interface_id, app_boot_bake_is_quiet(app));
     /* The booted gameframe root is what IF_GETTOP reports: this client mounts
      * every server sub-interface into it and treats a differing server
      * IF_OPENTOP as informational (see rs_gameproto_exec), so the two agree. */
@@ -1055,8 +1050,7 @@ app_open_tree(
                 app->provider,
                 &app->preload,
                 &app->login_replies,
-                app->cache_on_demand && !app->dat1_prefetch_queued);
-            app->dat1_prefetch_queued = 1;
+                CacheMounts_TakeDat1Prefetch(&app->cache_mounts));
         }
         /*
          * Joined, not merely queued ahead: the boot waits for the loading
@@ -1101,32 +1095,18 @@ app_take_detached(
 void
 App_RootMountsDetach(struct App* app)
 {
-    struct UITreeInterfaceParent kept[UITREE_INTERFACE_PARENT_MAX];
-    int kept_count = 0;
-    int count;
+    struct UITreeInterfaceParent forgotten[UITREE_INTERFACE_PARENT_MAX];
+    int forgotten_count;
 
     assert(app);
     assert(app->tree);
-    count = app->tree->interface_parent_count;
-    assert(count >= 0);
-    assert(count <= UITREE_INTERFACE_PARENT_MAX);
-    for( int i = 0; i < app->detached_parent_count; i++ )
-        if( UITree_InterfaceParentFind(app->tree, app->detached_parents[i].container_uid) < 0 )
-            kept[kept_count++] = app->detached_parents[i];
-    memcpy(app->detached_parents, app->tree->interface_parents, (size_t)count * sizeof(app->detached_parents[0]));
-    for( int i = 0; i < kept_count; i++ )
-    {
-        if( count >= UITREE_INTERFACE_PARENT_MAX )
-        {
-            TORIRS_ERR(
-                "if-opentop: kept mount table full; iface=%d at 0x%08x is forgotten\n",
-                kept[i].group_id,
-                (unsigned)kept[i].container_uid);
-            continue;
-        }
-        app->detached_parents[count++] = kept[i];
-    }
-    app->detached_parent_count = count;
+    forgotten_count = UITreeKeptMounts_Detach(
+        &app->kept_mounts, app->tree->interface_parents, app->tree->interface_parent_count, forgotten);
+    for( int i = 0; i < forgotten_count; i++ )
+        TORIRS_ERR(
+            "if-opentop: kept mount table full; iface=%d at 0x%08x is forgotten\n",
+            forgotten[i].group_id,
+            (unsigned)forgotten[i].container_uid);
 }
 
 void
@@ -1136,12 +1116,12 @@ App_OpenRootInterface(
 {
     assert(app);
     /* The mounts go with the tree, but not out of the game: the IF_MOVESUBs
-     * after an IF_OPENTOP move them into the new top (detached_parents). */
-    if( app->screen == APP_SCREEN_GAME && app->tree )
+     * after an IF_OPENTOP move them into the new top (kept_mounts). */
+    if( RS_ClientPhase_Screen(&app->phase) == APP_SCREEN_GAME && app->tree )
         App_RootMountsDetach(app);
     else
-        app->detached_parent_count = 0;
-    app->screen = APP_SCREEN_GAME;
+        UITreeKeptMounts_Clear(&app->kept_mounts);
+    RS_ClientPhase_GameRooted(&app->phase);
     /* Half a megabyte of simulation buffers that only the title screen wants,
      * and the tree that drew them is about to be cleared. */
     app_title_flames_stop(app);
@@ -1178,8 +1158,8 @@ App_OpenTitleScreen(struct App* app)
     /* No root interface: the title screen is client widgets over a cache
      * background, and the gameframe the server will re-root to does not exist
      * until a login succeeds. */
-    app->screen = APP_SCREEN_TITLE;
-    app->detached_parent_count = 0;
+    RS_ClientPhase_ShowTitle(&app->phase);
+    UITreeKeptMounts_Clear(&app->kept_mounts);
     app_open_tree(app, -1, APP_TITLE_LAYOUT_GROUP, NULL, false);
 }
 
@@ -1197,7 +1177,7 @@ App_BootGameframeThenTitle(struct App* app)
      * app_title_swap_if_pending replaces it with the title tree the moment it
      * settles, and the post-login rebake redoes only the CPU half against
      * warm caches. */
-    app->screen = APP_SCREEN_BOOT;
+    RS_ClientPhase_BootBake(&app->phase);
     app->title_session.pending_after_boot = true;
     app_open_tree(app, -1, NULL, APP_TITLE_LAYOUT_GROUP, false);
 }
@@ -1210,7 +1190,7 @@ void
 app_title_swap_if_pending(struct App* app)
 {
     assert(app);
-    if( !app->title_session.pending_after_boot || app->app_state != APP_STATE_READY )
+    if( !app->title_session.pending_after_boot || !RS_ClientPhase_Ready(&app->phase) )
         return;
     app->title_session.pending_after_boot = false;
     App_OpenTitleScreen(app);
@@ -1236,7 +1216,7 @@ Task_OpenSubRefresh_Run(
      * app_logic_tick's exec drain forever at 100% CPU: measured on every
      * Display-panel layout switch, which sends IF_OPENTOP and its IF_OPENSUB
      * mounts in one burst. */
-    TASK_AWAIT_STATE(base, &self->pt, app->app_state != APP_STATE_BOOTING);
+    TASK_AWAIT_STATE(base, &self->pt, !RS_ClientPhase_Booting(&app->phase));
     if( self->interface_id > 0 && UITree_FindByComponentId(app->tree, self->target_uid) < 0 )
     {
         TORIRS_ERR(
@@ -1481,7 +1461,7 @@ app_open_sub(
      * App_CloseSubInterface reaches app_enqueue_open_sub directly with
      * iface -1, so an unmount cannot erase the frame's answer. */
     if( type == 0 && interface_id > 0 )
-        app->modal_host_uid = target_uid;
+        RS_UISlots_SetModalHost(&app->slots, target_uid);
     app_enqueue_open_sub(app, target_uid, interface_id, type);
 }
 
@@ -1530,7 +1510,7 @@ void
 App_KeptMountsClear(struct App* app)
 {
     assert(app);
-    app->detached_parent_count = 0;
+    UITreeKeptMounts_Clear(&app->kept_mounts);
 }
 
 void
@@ -1543,38 +1523,21 @@ App_KeptMountAdd(
     assert(app);
     assert(interface_id > 0);
     /* The table's size is this client's; how many the server states is not. */
-    if( app->detached_parent_count >= UITREE_INTERFACE_PARENT_MAX )
-    {
+    if( !UITreeKeptMounts_Add(&app->kept_mounts, target_uid, interface_id, type) )
         TORIRS_ERR(
             "if-resync: kept mount table full; iface=%d at 0x%08x is forgotten\n",
             interface_id,
             (unsigned)target_uid);
-        return;
-    }
-    app->detached_parents[app->detached_parent_count].container_uid = target_uid;
-    app->detached_parents[app->detached_parent_count].group_id = interface_id;
-    app->detached_parents[app->detached_parent_count].type = type;
-    app->detached_parent_count++;
 }
 
-/* Take the kept mount at `container_uid` out of detached_parents: its record,
- * or a group of 0 when none is kept there. */
+/* Take the kept mount at `container_uid` out of kept_mounts: its record, or a
+ * group of 0 when none is kept there. */
 static struct UITreeInterfaceParent
 app_take_detached(
     struct App* app,
     int container_uid)
 {
-    struct UITreeInterfaceParent taken = { container_uid, 0, 0 };
-
-    for( int i = 0; i < app->detached_parent_count; i++ )
-    {
-        if( app->detached_parents[i].container_uid != container_uid )
-            continue;
-        taken = app->detached_parents[i];
-        app->detached_parents[i] = app->detached_parents[--app->detached_parent_count];
-        break;
-    }
-    return taken;
+    return UITreeKeptMounts_Take(&app->kept_mounts, container_uid);
 }
 
 /* A kept group moved into the new top brings what was open inside it: the
@@ -1589,9 +1552,9 @@ app_reopen_detached_under(
 {
     int i = 0;
 
-    while( i < app->detached_parent_count )
+    while( i < UITreeKeptMounts_Count(&app->kept_mounts) )
     {
-        struct UITreeInterfaceParent inner = app->detached_parents[i];
+        struct UITreeInterfaceParent inner = *UITreeKeptMounts_At(&app->kept_mounts, i);
 
         if( (inner.container_uid >> 16) != group_id )
         {

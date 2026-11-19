@@ -47,23 +47,8 @@ app_title_layout_accounts(struct App* app);
 char const*
 app_reboot_timer_text(struct App* app)
 {
-    int seconds;
-    int minutes;
-
     assert(app);
-    if( app->reboot_timer == 0 )
-        return NULL;
-
-    seconds = app->reboot_timer / APP_LOGIC_CYCLES_PER_SECOND;
-    minutes = seconds / 60;
-    seconds %= 60;
-    snprintf(
-        app->reboot_timer_text,
-        sizeof(app->reboot_timer_text),
-        "System update in: %d:%02d",
-        minutes,
-        seconds);
-    return app->reboot_timer_text;
+    return RS_SessionInfo_RebootTimerText(&app->session_info, APP_LOGIC_CYCLES_PER_SECOND);
 }
 
 /*
@@ -198,7 +183,6 @@ app_title_flames_start(struct App* app)
     app->flames = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*app->flames));
     assert(app->flames);
     TitleFlames_Init(app->flames, pair, TORIRS_FLAME_W, col_h, runes);
-    app->flames_last_ms = 0;
 
     for( int side = 0; side < TORIRS_FLAME_SIDES; side++ )
         ToriMem_Free(ToriMem_Process(), column[side]);
@@ -231,8 +215,7 @@ app_title_flames_tick(
     if( !app->flames || !app->scene )
         return;
 
-    elapsed = app->flames_last_ms == 0 ? 0 : (int)(now_ms - app->flames_last_ms);
-    app->flames_last_ms = now_ms;
+    elapsed = TitleFlames_ElapsedSince(app->flames, now_ms);
     if( !TitleFlames_Advance(app->flames, elapsed) )
         return;
 
@@ -262,7 +245,7 @@ app_title_flames_tick(
         ToriDraw_SceneSpriteAdd(app->scene, k_slot[side], sprites, 1);
     }
 
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 /*
@@ -335,49 +318,8 @@ app_title_sync_groups(struct App* app)
     {
         int32_t idx = UITree_RoleNodeByName(app->tree, &app->ui_roles, "title_form_buttons");
         if( idx >= 0 )
-            UITree_SetScreenHiddenAt(app->tree, idx, app->screen == APP_SCREEN_CONNECTING);
+            UITree_SetScreenHiddenAt(app->tree, idx, RS_ClientPhase_Screen(&app->phase) == APP_SCREEN_CONNECTING);
     }
-}
-
-/*
- * Which accounts get the cards: the site login's linked accounts first, then
- * the device's own that are not among them, into app->title_cards.
- */
-static void
-app_title_build_cards(struct App* app)
-{
-    int count = 0;
-
-    assert(app);
-    if( app->oauth && app->site.signed_in )
-        for( int i = 0; i < app->site.count && count < APP_TITLE_ACCOUNT_CARDS; i++ )
-        {
-            app->title_cards[count].site = 1;
-            app->title_cards[count].index = i;
-            count++;
-        }
-    if( app->oauth )
-        for( int i = 0; i < app->accounts.count && count < APP_TITLE_ACCOUNT_CARDS; i++ )
-        {
-            if( RS_SiteSession_Find(&app->site, app->accounts.list[i].name) >= 0 )
-                continue;
-            app->title_cards[count].site = 0;
-            app->title_cards[count].index = i;
-            count++;
-        }
-    app->title_card_count = count;
-}
-
-/* The name on card `card`. */
-static char const*
-app_title_card_name(
-    struct App const* app,
-    int card)
-{
-    assert(card >= 0 && card < app->title_card_count);
-    if( app->title_cards[card].site )
-        return app->site.players[app->title_cards[card].index];
-    return app->accounts.list[app->title_cards[card].index].name;
 }
 
 /*
@@ -403,10 +345,10 @@ app_title_layout_accounts(struct App* app)
 
     assert(app);
     assert(app->tree);
-    app_title_build_cards(app);
-    shown = app->title_card_count;
+    RS_TitleAccounts_BuildCards(&app->accounts);
+    shown = RS_TitleAccounts_CardCount(&app->accounts);
 
-    for( int i = 0; i < APP_TITLE_ACCOUNT_CARDS; i++ )
+    for( int i = 0; i < RS_TITLE_ACCOUNT_CARDS; i++ )
     {
         char role[48];
         int32_t card;
@@ -440,7 +382,7 @@ app_title_layout_accounts(struct App* app)
         snprintf(role, sizeof(role), "title_account_name_%d", i);
         name = UITree_RoleNodeByName(app->tree, &app->ui_roles, role);
         if( name >= 0 )
-            UITree_SetTextAt(app->tree, name, app_title_card_name(app, i));
+            UITree_SetTextAt(app->tree, name, RS_TitleAccounts_CardName(&app->accounts, i));
     }
 
     /* The accounts screen's one Play Now: the chosen account, or the first
@@ -450,7 +392,9 @@ app_title_layout_accounts(struct App* app)
     chosen = UITree_RoleNodeByName(app->tree, &app->ui_roles, "title_chosen_name");
     if( chosen >= 0 )
         UITree_SetTextAt(
-            app->tree, chosen, shown > 0 ? app_title_card_name(app, app->title.chosen_account) : "");
+            app->tree,
+            chosen,
+            shown > 0 ? RS_TitleAccounts_CardName(&app->accounts, app->title.chosen_account) : "");
 
     icon = UITree_RoleNodeByName(app->tree, &app->ui_roles, "title_form_accounts_icon");
     if( icon >= 0 )
@@ -468,9 +412,10 @@ static void
 app_accounts_save(struct App* app)
 {
     assert(app);
-    if( app->accounts_path )
+    if( RS_TitleAccounts_Path(&app->accounts) )
         ToriRS_TaskQueue_Add(app->frame_runner.queue,
-                             CreateTask_AccountsSave(&app->accounts, app->accounts_path));
+                             CreateTask_AccountsSave(&app->accounts.device,
+                                                     RS_TitleAccounts_Path(&app->accounts)));
 }
 
 /*
@@ -490,35 +435,32 @@ app_accounts_begin_signin(
     char const* connecting = RS_LoginReplies_String(&app->login_replies, "connecting");
 
     assert(app);
-    assert(!app->signin_busy);
-    memset(&app->signin, 0, sizeof(app->signin));
-    app->signin.grant = grant;
+    RS_AccountSignIn_Begin(&app->accounts.signin, grant);
     if( grant == RS_ACCOUNT_SIGNIN_REFRESH )
     {
-        assert(index >= 0 && index < app->accounts.count);
-        snprintf(app->signin.username, sizeof(app->signin.username), "%s",
-                 app->accounts.list[index].name);
-        snprintf(app->signin.refresh_token, sizeof(app->signin.refresh_token), "%s",
-                 app->accounts.list[index].refresh_token);
+        assert(index >= 0 && index < app->accounts.device.count);
+        snprintf(app->accounts.signin.username, sizeof(app->accounts.signin.username), "%s",
+                 app->accounts.device.list[index].name);
+        snprintf(app->accounts.signin.refresh_token, sizeof(app->accounts.signin.refresh_token),
+                 "%s", app->accounts.device.list[index].refresh_token);
     }
     else if( grant == RS_ACCOUNT_SIGNIN_SITE )
     {
-        assert(index >= 0 && index < app->site.count);
-        snprintf(app->signin.username, sizeof(app->signin.username), "%s",
-                 app->site.players[index]);
+        assert(index >= 0 && index < app->accounts.site.count);
+        snprintf(app->accounts.signin.username, sizeof(app->accounts.signin.username), "%s",
+                 app->accounts.site.players[index]);
     }
     else
     {
-        snprintf(app->signin.username, sizeof(app->signin.username), "%s",
+        snprintf(app->accounts.signin.username, sizeof(app->accounts.signin.username), "%s",
                  RS_Title_FieldText(&app->title, RS_TITLE_FIELD_USERNAME));
-        snprintf(app->signin.password, sizeof(app->signin.password), "%s",
+        snprintf(app->accounts.signin.password, sizeof(app->accounts.signin.password), "%s",
                  RS_Title_FieldText(&app->title, RS_TITLE_FIELD_PASSWORD));
         RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_PASSWORD, NULL);
     }
-    app->signin_busy = 1;
-    ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_AccountSignIn(&app->signin));
+    ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_AccountSignIn(&app->accounts.signin));
     RS_Title_SetMessages(&app->title, connecting, NULL, NULL);
-    app->screen = APP_SCREEN_CONNECTING;
+    RS_ClientPhase_LoginSubmitted(&app->phase);
     app_title_state_changed(app);
 }
 
@@ -527,16 +469,16 @@ app_title_sign_out(struct App* app)
 {
     assert(app);
     /* What the device saved goes: every refresh token it was keeping. */
-    if( app->accounts.count > 0 )
+    if( app->accounts.device.count > 0 )
     {
-        while( app->accounts.count > 0 )
-            RS_Accounts_Forget(&app->accounts, app->accounts.count - 1);
+        while( app->accounts.device.count > 0 )
+            RS_Accounts_Forget(&app->accounts.device, app->accounts.device.count - 1);
         app_accounts_save(app);
     }
     app->title.chosen_account = 0;
     /* A site login's linked accounts are its own cards: leaving them means
      * leaving the login, which the page does (and reloads past). */
-    if( app->site.signed_in )
+    if( app->accounts.site.signed_in )
         app_session_site_sign_out();
     RS_Title_SetMessages(&app->title, NULL, NULL, NULL);
     app_title_state_changed(app);
@@ -549,11 +491,11 @@ app_accounts_forget_linked(
     struct App* app,
     char const* name)
 {
-    int index = RS_Accounts_Find(&app->accounts, name);
+    int index = RS_Accounts_Find(&app->accounts.device, name);
 
     if( index < 0 )
         return 0;
-    RS_Accounts_Forget(&app->accounts, index);
+    RS_Accounts_Forget(&app->accounts.device, index);
     return 1;
 }
 
@@ -569,7 +511,7 @@ app_accounts_forget_linked(
 static void
 app_accounts_finish_signin(struct App* app)
 {
-    struct RS_AccountSignIn* signin = &app->signin;
+    struct RS_AccountSignIn* signin = &app->accounts.signin;
 
     assert(app);
     assert(signin->done);
@@ -577,13 +519,13 @@ app_accounts_finish_signin(struct App* app)
     {
         if( signin->grant == RS_ACCOUNT_SIGNIN_LINK )
         {
-            RS_SiteSession_Add(&app->site, signin->name);
+            RS_SiteSession_Add(&app->accounts.site, signin->name);
             if( app_accounts_forget_linked(app, signin->name) )
                 app_accounts_save(app);
         }
         else if( signin->grant != RS_ACCOUNT_SIGNIN_SITE )
         {
-            RS_Accounts_Remember(&app->accounts, signin->name, signin->new_refresh_token);
+            RS_Accounts_Remember(&app->accounts.device, signin->name, signin->new_refresh_token);
             app_accounts_save(app);
         }
         app_login_refresh_jag_checksums(app);
@@ -596,8 +538,9 @@ app_accounts_finish_signin(struct App* app)
     }
 
     TORIRS_LOG("login: account server refused the sign-in: %s\n", signin->error);
-    app->screen = APP_SCREEN_TITLE;
-    if( signin->refresh_refused && RS_SiteSession_Find(&app->site, signin->username) >= 0 )
+    RS_ClientPhase_ShowTitle(&app->phase);
+    if( signin->refresh_refused &&
+        RS_SiteSession_Find(&app->accounts.site, signin->username) >= 0 )
     {
         /* Linked since this device saved it: the site's card plays it. */
         if( app_accounts_forget_linked(app, signin->username) )
@@ -606,11 +549,11 @@ app_accounts_finish_signin(struct App* app)
     }
     else if( signin->refresh_refused )
     {
-        int index = RS_Accounts_Find(&app->accounts, signin->username);
+        int index = RS_Accounts_Find(&app->accounts.device, signin->username);
 
         if( index >= 0 )
         {
-            RS_Accounts_Forget(&app->accounts, index);
+            RS_Accounts_Forget(&app->accounts.device, index);
             app_accounts_save(app);
         }
         RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_USERNAME, signin->username);
@@ -628,8 +571,8 @@ app_accounts_finish_signin(struct App* app)
  * The title screen's state changed: redraw, and tell the retention gate.
  *
  * Both halves matter. Without the epoch bump the emit walk reuses last frame's
- * command buffer and the typed character never appears; without need_redraw
- * the frame loop may not present at all.
+ * command buffer and the typed character never appears; without the redraw
+ * request the frame loop may not present at all.
  */
 void
 app_title_state_changed(struct App* app)
@@ -637,7 +580,7 @@ app_title_state_changed(struct App* app)
     assert(app);
     app_title_sync_groups(app);
     UITree_HostInputsChanged(&app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CLIENT_STATE));
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 /*
@@ -697,23 +640,16 @@ app_title_music_toggle(struct App* app)
 static void
 app_title_music_tick(struct App* app)
 {
-    bool want;
+    enum RS_TitleMusicStep step = RS_TitleMusic_Step(
+        &app->title_music,
+        RS_ClientPhase_OnTitle(&app->phase),
+        RS_CS2Host_GetOption(
+            &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_TITLE_MUSIC_DISABLED) != 0);
 
-    if( app->screen != APP_SCREEN_TITLE && app->screen != APP_SCREEN_CONNECTING )
-    {
-        app->title_music_playing = false;
-        return;
-    }
-    want = app->title_song_known &&
-           RS_CS2Host_GetOption(
-               &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_TITLE_MUSIC_DISABLED) == 0;
-    if( want == app->title_music_playing )
-        return;
-    if( want )
-        App_PlaySong(app, app->title_song, true, 0, 0);
-    else
+    if( step == RS_TITLE_MUSIC_PLAY )
+        App_PlaySong(app, RS_TitleMusic_Song(&app->title_music), true, 0, 0);
+    else if( step == RS_TITLE_MUSIC_STOP )
         App_StopSong(app, 0);
-    app->title_music_playing = want;
 }
 
 /*
@@ -756,12 +692,12 @@ app_preload_announce(
         return NULL;
 
     if( step->percent >= 0 )
-        app->boot_progress = step->percent;
+        RS_BootState_SetProgress(&app->boot, step->percent);
     RS_Title_SetProgress(
         &app->title,
         step->percent,
         step->say[0] ? RS_LoginReplies_String(&app->login_replies, step->say) : NULL);
-    if( app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING )
+    if( RS_ClientPhase_OnTitle(&app->phase) )
         app_title_state_changed(app);
     return step;
 }
@@ -776,7 +712,7 @@ app_title_progress(
     assert(string_key);
     RS_Title_SetProgress(
         &app->title, percent, RS_LoginReplies_String(&app->login_replies, string_key));
-    if( app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING )
+    if( RS_ClientPhase_OnTitle(&app->phase) )
         app_title_state_changed(app);
 }
 
@@ -801,7 +737,7 @@ void
 app_title_boot_settled(struct App* app)
 {
     assert(app);
-    if( app->screen == APP_SCREEN_TITLE && app->title_session.resume_pending )
+    if( RS_ClientPhase_Screen(&app->phase) == APP_SCREEN_TITLE && app->title_session.resume_pending )
     {
         /* 100, because the boot really did finish: everything this bar was
          * counting is loaded, and what is left is a handshake. */
@@ -844,7 +780,7 @@ app_title_resume_to_login(struct App* app)
     RS_Title_SetProgress(&app->title, -1, NULL);
     RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_USERNAME, "");
     RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_PASSWORD, "");
-    if( app->oauth )
+    if( RS_TitleAccounts_OAuth(&app->accounts) )
     {
         RS_Title_SetScreen(&app->title, app->title.home);
         RS_Title_SetMessages(
@@ -852,7 +788,7 @@ app_title_resume_to_login(struct App* app)
             RS_LoginReplies_String(&app->login_replies, "session_expired"),
             RS_LoginReplies_String(&app->login_replies, "choose_account"),
             NULL);
-        app->screen = APP_SCREEN_TITLE;
+        RS_ClientPhase_ShowTitle(&app->phase);
         app_title_state_changed(app);
         return;
     }
@@ -867,7 +803,7 @@ app_title_resume_to_login(struct App* app)
         RS_LoginReplies_String(&app->login_replies, "session_expired"),
         RS_LoginReplies_String(&app->login_replies, "enter_credentials"),
         NULL);
-    app->screen = APP_SCREEN_TITLE;
+    RS_ClientPhase_ShowTitle(&app->phase);
     app_title_state_changed(app);
 }
 
@@ -899,7 +835,7 @@ app_title_field_line(
     assert(app);
     assert(cfg);
 
-    if( app->screen != APP_SCREEN_TITLE && app->screen != APP_SCREEN_CONNECTING )
+    if( !RS_ClientPhase_OnTitle(&app->phase) )
         return 0;
     if( cfg->field < 0 || cfg->field >= RS_TITLE_FIELD_COUNT )
         return 0;
@@ -920,10 +856,10 @@ app_title_field_line(
      * "default 0 = never blink" (revconfig.h) means always shown. A profile
      * that wants no caret at all declares caret= empty instead. */
     if( focused )
-        caret_showing =
-            cfg->caret_blink > 0
-                ? (int)(app->logic_cycle % (uint64_t)cfg->caret_blink) < cfg->caret_blink / 2
-                : 1;
+        caret_showing = cfg->caret_blink > 0
+                            ? (int)(FrameClockSerial_LogicCycle(&app->frame_clock.serial) %
+                                    (uint64_t)cfg->caret_blink) < cfg->caret_blink / 2
+                            : 1;
 
     snprintf(
         app->title_session.field_line[cfg->field],
@@ -979,7 +915,7 @@ app_login_refresh_jag_checksums(struct App* app)
     int32_t crc[9];
 
     assert(app);
-    if( !app->jag_crc_from_ondemand || !app->net || !app->net->rev )
+    if( !CacheMounts_JagCrcFromOnDemand(&app->cache_mounts) || !app->net || !app->net->rev )
         return;
     if( PlatformXIO_Dat1OnDemandJagChecksumsRefresh(app->frame_runner.px, crc) == 0 )
         GameProtoRev_SetJagChecksums(app->net->rev, crc);
@@ -996,7 +932,7 @@ static enum RS_TitleScreenPhase
 app_title_phase(struct App const* app)
 {
     assert(app);
-    switch( app->screen )
+    switch( RS_ClientPhase_Screen(&app->phase) )
     {
     case APP_SCREEN_TITLE: return RS_TITLE_PHASE_TITLE;
     case APP_SCREEN_CONNECTING: return RS_TITLE_PHASE_CONNECTING;
@@ -1029,21 +965,22 @@ app_title_submit(struct App* app)
 
     /* On an account-server world the form is a password grant, not a password
      * on the wire: the dial waits for the one-time login it buys. */
-    if( app->oauth )
+    if( RS_TitleAccounts_OAuth(&app->accounts) )
     {
         char const* name = RS_Title_FieldText(&app->title, RS_TITLE_FIELD_USERNAME);
         int linked;
 
-        if( !app->net_enabled || !app->net || !name[0] || app->signin_busy )
+        if( !App_NetEnabled(app) || !name[0] ||
+            RS_AccountSignIn_Busy(&app->accounts.signin) )
             return;
-        if( !app->site.signed_in )
+        if( !app->accounts.site.signed_in )
         {
             app_accounts_begin_signin(app, RS_ACCOUNT_SIGNIN_PASSWORD, -1);
             return;
         }
         /* Already linked to this site login: its password no longer signs
          * it in, and the session does -- so the session plays it. */
-        linked = RS_SiteSession_Find(&app->site, name);
+        linked = RS_SiteSession_Find(&app->accounts.site, name);
         if( linked >= 0 )
         {
             RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_PASSWORD, NULL);
@@ -1055,7 +992,7 @@ app_title_submit(struct App* app)
         {
             char line[RS_TITLE_MESSAGE_LEN];
 
-            snprintf(line, sizeof(line), "Link %s to %s?", name, app->site.user);
+            snprintf(line, sizeof(line), "Link %s to %s?", name, app->accounts.site.user);
             RS_Title_SetMessages(&app->title, line,
                                  "A linked account signs in only from this site login.",
                                  "Log in signs in with the password, unlinked.");
@@ -1070,13 +1007,13 @@ app_title_submit(struct App* app)
      * takes both straight off the form -- see RS_TitleSession. */
     user = RS_Title_FieldText(&app->title, RS_TITLE_FIELD_USERNAME);
     if( !RS_TitleSession_Submit(
-            &app->title_session, app->net_enabled && app->net != NULL, user[0] != '\0') )
+            &app->title_session, App_NetEnabled(app), user[0] != '\0') )
         return;
 
     /* The client knows WHEN to say this; the revision says what. */
     RS_Title_SetMessages(
         &app->title, NULL, RS_LoginReplies_String(&app->login_replies, "connecting"), NULL);
-    app->screen = APP_SCREEN_CONNECTING;
+    RS_ClientPhase_LoginSubmitted(&app->phase);
     app_title_state_changed(app);
     /*
      * And stop here, one frame short of dialling.
@@ -1119,7 +1056,7 @@ app_title_tick(struct App* app)
      * which is what App_Init used to do before the connect moved to submit.
      */
     if( RS_TitleSession_TakeHeadlessLogin(
-            &app->title_session, app->net_enabled && app->net != NULL, app_title_phase(app)) )
+            &app->title_session, App_NetEnabled(app), app_title_phase(app)) )
     {
         app_login_refresh_jag_checksums(app);
         app_login_set_client_identity(app);
@@ -1131,43 +1068,39 @@ app_title_tick(struct App* app)
         return 0;
     }
 
-    if( app->screen != APP_SCREEN_TITLE && app->screen != APP_SCREEN_CONNECTING )
+    if( !RS_ClientPhase_OnTitle(&app->phase) )
         return 0;
     /* Nothing to submit into until the title tree is up. */
-    if( app->app_state != APP_STATE_READY )
+    if( !RS_ClientPhase_Ready(&app->phase) )
         return 0;
 
     /* The device's saved accounts, read once. The title is the plain front
      * menu until they land, then their cards (app_title_layout_accounts). */
-    if( app->oauth && app->accounts_path && !app->accounts_load_started )
-    {
-        app->accounts_load_started = 1;
+    if( RS_TitleAccounts_TakeDeviceLoad(&app->accounts) )
         ToriRS_TaskQueue_Add(
             app->frame_runner.queue,
-            CreateTask_AccountsLoad(&app->accounts, app->accounts_path, &app->accounts_loaded));
-    }
-    if( app->accounts_loaded && !app->accounts_shown )
+            CreateTask_AccountsLoad(&app->accounts.device,
+                                    RS_TitleAccounts_Path(&app->accounts),
+                                    RS_AccountsLoad_DoneFlag(&app->accounts.device_load)));
+    if( RS_AccountsLoad_TakeShow(&app->accounts.device_load) )
     {
-        app->accounts_shown = 1;
         app_title_state_changed(app);
         redraw = 1;
     }
     /* The site session, asked once. Its linked accounts become cards, and
      * the device's own Play Now for any of them is dropped: linking revoked
      * its token. Waits for the device's file, which it edits. */
-    if( app->oauth && app->accounts_loaded && !app->site_load_started )
-    {
-        app->site_load_started = 1;
-        ToriRS_TaskQueue_Add(app->frame_runner.queue,
-                             CreateTask_SiteSessionLoad(&app->site, &app->site_loaded));
-    }
-    if( app->site_loaded && !app->site_shown )
+    if( RS_TitleAccounts_TakeSiteLoad(&app->accounts) )
+        ToriRS_TaskQueue_Add(
+            app->frame_runner.queue,
+            CreateTask_SiteSessionLoad(&app->accounts.site,
+                                       RS_AccountsLoad_DoneFlag(&app->accounts.site_load)));
+    if( RS_AccountsLoad_TakeShow(&app->accounts.site_load) )
     {
         int forgot = 0;
 
-        app->site_shown = 1;
-        for( int i = 0; i < app->site.count; i++ )
-            forgot |= app_accounts_forget_linked(app, app->site.players[i]);
+        for( int i = 0; i < app->accounts.site.count; i++ )
+            forgot |= app_accounts_forget_linked(app, app->accounts.site.players[i]);
         if( forgot )
             app_accounts_save(app);
         app_title_state_changed(app);
@@ -1179,11 +1112,10 @@ app_title_tick(struct App* app)
      * title moves until it answers -- above all not the login-failed check
      * below, which reads an undialled link as a refusal.
      */
-    if( app->signin_busy )
+    if( RS_AccountSignIn_Busy(&app->accounts.signin) )
     {
-        if( !app->signin.done )
+        if( !RS_AccountSignIn_TakeAnswer(&app->accounts.signin) )
             return redraw;
-        app->signin_busy = 0;
         app_accounts_finish_signin(app);
         return 1;
     }
@@ -1192,11 +1124,11 @@ app_title_tick(struct App* app)
         int card = app->title.play_requested;
 
         app->title.play_requested = -1;
-        if( app->oauth && card < app->title_card_count && app->net_enabled && app->net )
+        if( RS_TitleAccounts_OAuth(&app->accounts) &&
+            card < RS_TitleAccounts_CardCount(&app->accounts) && App_NetEnabled(app) )
             app_accounts_begin_signin(app,
-                                      app->title_cards[card].site ? RS_ACCOUNT_SIGNIN_SITE
-                                                                  : RS_ACCOUNT_SIGNIN_REFRESH,
-                                      app->title_cards[card].index);
+                                      RS_TitleAccounts_CardGrant(&app->accounts, card),
+                                      RS_TitleAccounts_CardIndex(&app->accounts, card));
         return 1;
     }
     /* The link prompt was answered: back on the form, whose fields it kept,
@@ -1207,7 +1139,7 @@ app_title_tick(struct App* app)
 
         app->title.link_choice = RS_TITLE_LINK_NONE;
         RS_Title_SetScreen(&app->title, RS_TITLE_LOGIN_FORM);
-        if( app->oauth && app->net_enabled && app->net )
+        if( RS_TitleAccounts_OAuth(&app->accounts) && App_NetEnabled(app) )
             app_accounts_begin_signin(app,
                                       choice == RS_TITLE_LINK_LINK ? RS_ACCOUNT_SIGNIN_LINK
                                                                    : RS_ACCOUNT_SIGNIN_PASSWORD,
@@ -1229,12 +1161,12 @@ app_title_tick(struct App* app)
      * the session rather than the two empty boxes behind that bar.
      */
     if( RS_TitleSession_TakeResume(
-            &app->title_session, app->app_state == APP_STATE_READY, app_title_phase(app)) )
+            &app->title_session, RS_ClientPhase_Ready(&app->phase), app_title_phase(app)) )
     {
         ToriRS_BootTelemetry_Mark("resume_submit");
-        if( RS_TitleSession_Submit(&app->title_session, app->net_enabled && app->net != NULL, true) )
+        if( RS_TitleSession_Submit(&app->title_session, App_NetEnabled(app), true) )
         {
-            app->screen = APP_SCREEN_CONNECTING;
+            RS_ClientPhase_LoginSubmitted(&app->phase);
             app_title_state_changed(app);
         }
         else
@@ -1250,7 +1182,7 @@ app_title_tick(struct App* app)
     /* Credentials from the command line or the manifest: prefill and submit
      * once. */
     if( RS_TitleSession_TakePrefill(
-            &app->title_session, app->app_state == APP_STATE_READY, app_title_phase(app)) )
+            &app->title_session, RS_ClientPhase_Ready(&app->phase), app_title_phase(app)) )
     {
         RS_Title_SetFieldText(
             &app->title, RS_TITLE_FIELD_USERNAME, app->title_session.user);
@@ -1267,7 +1199,7 @@ app_title_tick(struct App* app)
         redraw = 1;
         /* A sign-in at the account server started: the link is not dialled
          * yet, and the login-failed check below would read that as a refusal. */
-        if( app->signin_busy )
+        if( RS_AccountSignIn_Busy(&app->accounts.signin) )
             return redraw;
     }
     /*
@@ -1361,7 +1293,7 @@ app_title_tick(struct App* app)
         }
         reply = RS_LoginReplies_Get(&app->login_replies, app->net->login_reply);
 
-        app->screen = APP_SCREEN_TITLE;
+        RS_ClientPhase_ShowTitle(&app->phase);
         if( reply )
         {
             RS_Title_SetMessages(&app->title, reply->line[0], reply->line[1], reply->line[2]);
@@ -1401,9 +1333,9 @@ App_TakeCredentialForm(
     assert(app);
     assert(out);
     memset(&now, 0, sizeof(now));
-    now.connecting = app->screen == APP_SCREEN_CONNECTING;
-    now.in_game = app->screen == APP_SCREEN_GAME;
-    now.showing = app->tree && app->screen == APP_SCREEN_TITLE &&
+    now.connecting = RS_ClientPhase_Screen(&app->phase) == APP_SCREEN_CONNECTING;
+    now.in_game = RS_ClientPhase_Screen(&app->phase) == APP_SCREEN_GAME;
+    now.showing = app->tree && RS_ClientPhase_Screen(&app->phase) == APP_SCREEN_TITLE &&
                   app->title.screen == RS_TITLE_LOGIN_FORM && app->title.progress_percent < 0;
     for( int i = 0; i < 2 && now.showing; i++ )
     {
@@ -1433,9 +1365,8 @@ App_TakeCredentialForm(
     snprintf(now.username, sizeof(now.username), "%s",
              RS_Title_FieldText(&app->title, RS_TITLE_FIELD_USERNAME));
     /* Both zeroed whole, so the padding compares too. */
-    if( memcmp(&now, &app->credential_form_sent, sizeof(now)) == 0 )
+    if( !RS_Title_TakeCredentialForm(&app->title, &now) )
         return 0;
-    app->credential_form_sent = now;
     *out = now;
     return 1;
 }
@@ -1445,7 +1376,7 @@ App_TakeCredentialForm(
 static int
 app_credential_form_live(struct App const* app)
 {
-    return app->screen == APP_SCREEN_TITLE && app->title.screen == RS_TITLE_LOGIN_FORM;
+    return RS_ClientPhase_Screen(&app->phase) == APP_SCREEN_TITLE && app->title.screen == RS_TITLE_LOGIN_FORM;
 }
 
 void

@@ -14,7 +14,7 @@
  *
  * POSITION. Tick t means every server packet of ticks < t has been EXECUTED by
  * the client (not merely staged) and none of tick >= t has been staged. The
- * client's own count of executed SERVER_TICK_ENDs (App.server_tick_serial) is
+ * client's own count of executed SERVER_TICK_ENDs (RS_ServerTick_Serial of App.server_tick) is
  * handed over every frame (ReplayScrub_ClientTicks) and measured from the
  * count at the session's start, so "executed" is the client's word for it.
  *
@@ -448,7 +448,7 @@ ReplayScrub_ConnectionResumed(struct ReplayScrub* scrub);
 int
 ReplayScrub_NextReconnect(struct ReplayScrub const* scrub);
 
-/** SERVER_TICK_ENDs the client has executed, ever (App.server_tick_serial),
+/** SERVER_TICK_ENDs the client has executed, ever (RS_ServerTick_Serial of App.server_tick),
  *  handed over every frame. */
 void
 ReplayScrub_ClientTicks(

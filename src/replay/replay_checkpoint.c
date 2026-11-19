@@ -161,7 +161,7 @@ ReplayCheckpoint_CanTake(
     char const* reason = NULL;
 
     assert(app);
-    if( !app->tree || app->app_state != APP_STATE_READY )
+    if( !app->tree || !RS_ClientPhase_Ready(&app->phase) )
         reason = "an interface tree is being built";
     else if( app->packet_runner.queue->head )
         reason = "a packet or interface mount is executing";
@@ -173,9 +173,10 @@ ReplayCheckpoint_CanTake(
                  app->frame_runner.queue->head->name);
         reason = runner_why;
     }
-    else if( app->frame_runner.frame_settle_pending || app->frame_runner_had_work || app->packet_runner_had_work )
+    else if( app->frame_runner.frame_settle_pending || TaskRunner_HadWork(&app->frame_runner) ||
+             TaskRunner_HadWork(&app->packet_runner) )
         reason = "the frame's clientscript transaction has not settled";
-    else if( app->server_tick_open )
+    else if( RS_ServerTick_IsOpen(&app->server_tick) )
         reason = "a server tick is half applied";
     else if( RS_ClientScriptQueue_Count(&app->pending_clientscripts) > 0 )
         reason = "a RUNCLIENTSCRIPT is held for the tick fence";
@@ -183,9 +184,9 @@ ReplayCheckpoint_CanTake(
         reason = "a clientscript is yielded on a host request";
     else if( app->host.script_callback_running )
         reason = "a clientscript callback is running";
-    else if( app->cs1_host.has_pending || app->cs1_host.has_awaited || app->cs1_eval_inflight )
+    else if( app->cs1_host.has_pending || app->cs1_host.has_awaited || RS_CS1Host_EvalInflight(&app->cs1_host) )
         reason = "a CS1 evaluation is in flight";
-    else if( app->inv_icon_reconcile_inflight )
+    else if( InvIconRetry_InFlight(&app->inv_icon_retry) )
         reason = "an inventory icon pass is in flight";
     else if( app->host.triggeroplocal_count > 0 || app->host.close_modal_requested ||
              app->host.resume_pausebutton_component_id != -1 || app->host.social_send_count > 0 )

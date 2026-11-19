@@ -1,6 +1,7 @@
 #include "uitree_ink.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <string.h>
 
 void
@@ -20,6 +21,14 @@ UIInk_Show(struct UIInk* ink, int colour, int halve, int x, int y)
     ink->halve = halve;
     ink->cycle = 0;
     ink->active = 1;
+}
+
+void
+UIInk_SetText(struct UIInk* ink, char const* text)
+{
+    assert(ink);
+    assert(text);
+    snprintf(ink->text, sizeof(ink->text), "%s", text);
 }
 
 void

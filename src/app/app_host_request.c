@@ -123,10 +123,10 @@ app_host_request(
         return UITreeSceneBridge_StaticSpriteSceneId(
             &app->bridge, (enum StaticSpriteSlot)req->u.static_sprite.slot);
     case UITREE_HOST_GET_ENTITY_OVERLAYS:
-        *req->u.get_entity_overlays.out_clip_x = app->world_emit_desc.x;
-        *req->u.get_entity_overlays.out_clip_y = app->world_emit_desc.y;
-        *req->u.get_entity_overlays.out_clip_w = app->world_emit_desc.w;
-        *req->u.get_entity_overlays.out_clip_h = app->world_emit_desc.h;
+        *req->u.get_entity_overlays.out_clip_x = app->world_views.emit_desc.x;
+        *req->u.get_entity_overlays.out_clip_y = app->world_views.emit_desc.y;
+        *req->u.get_entity_overlays.out_clip_w = app->world_views.emit_desc.w;
+        *req->u.get_entity_overlays.out_clip_h = app->world_views.emit_desc.h;
         return app_build_entity_overlays(app, req->u.get_entity_overlays.out_items);
     case UITREE_HOST_GET_CANVAS_OVERLAYS:
         /* The canvas, not the world viewport -- that difference IS this
@@ -149,16 +149,16 @@ app_host_request(
             *req->u.get_cross_position.out_y = app->cross.y;
         return 1;
     case UITREE_HOST_GET_MINIMENU_VISIBLE:
-        return app->frame_view->minimenu->visible ? 1 : 0;
+        return app->world_views.frame->minimenu->visible ? 1 : 0;
     case UITREE_HOST_GET_MINIMENU_STATE:
         assert(req->u.get_minimenu_state.out);
-        *req->u.get_minimenu_state.out = app->frame_view->minimenu;
+        *req->u.get_minimenu_state.out = app->world_views.frame->minimenu;
         /* The runner camera split: the view that is not being drawn has a
          * menu too; the emit draws it tinted (owner decision 3). */
         if( req->u.get_minimenu_state.out_other )
             *req->u.get_minimenu_state.out_other =
-                app->view_split.attached
-                    ? app->views[app->frame_view == &app->views[APP_VIEW_RUNNER] ? APP_VIEW_PLAYER_CLIENT
+                app->world_views.split.attached
+                    ? app->world_views.views[app->world_views.frame == &app->world_views.views[APP_VIEW_RUNNER] ? APP_VIEW_PLAYER_CLIENT
                                                                                   : APP_VIEW_RUNNER]
                           .minimenu
                     : NULL;
@@ -177,7 +177,7 @@ app_host_request(
     /* Compass/minimap rotation, in the 0..2047 units the rotated sprite blit
      * takes. Normalized because ToriDraw_Sin/Cos assert that range. */
     case UITREE_HOST_GET_CAMERA_YAW:
-        return ToriDraw_NormalizeAngle(app->frame_view->world_camera.yaw);
+        return ToriDraw_NormalizeAngle(app->world_views.frame->world_camera.yaw);
     /* Minimap: the baked world map plus the camera's pivot inside it. The
      * widget box is fixed, so the map scrolls by moving this source anchor. */
     case UITREE_HOST_GET_MINIMAP_STATE:
@@ -189,30 +189,30 @@ app_host_request(
          * the same frame the dots and their centre use. */
         struct WorldEntity_Player* local_player = app_local_player(app);
         int anchor_x =
-            local_player ? (int)local_player->draw_position.x : app->frame_view->world_camera_pos.x;
+            local_player ? (int)local_player->draw_position.x : app->world_views.frame->world_camera_pos.x;
         int anchor_z =
-            local_player ? (int)local_player->draw_position.z : app->frame_view->world_camera_pos.z;
+            local_player ? (int)local_player->draw_position.z : app->world_views.frame->world_camera_pos.z;
         if( local_player )
             app_wev_actor_root_fine(app, &local_player->view_placement, &anchor_x, &anchor_z);
-        if( app->world_map_scene_id <= 0 || !app->world || !app->world->minimap )
+        if( !MinimapView_HasMap(&app->minimap) || !app->world || !app->world->minimap )
             return -1;
         minimap_compute_camera_src_anchor(
             anchor_x,
             anchor_z,
-            app->world_map_w,
-            app->world_map_h,
+            MinimapView_MapWidth(&app->minimap),
+            MinimapView_MapHeight(&app->minimap),
             app->world->minimap->width,
             app->world->minimap->height,
             req->u.get_minimap_state.out_src_anchor_x,
             req->u.get_minimap_state.out_src_anchor_y);
-        return app->world_map_scene_id;
+        return MinimapView_MapSceneId(&app->minimap);
     }
     case UITREE_HOST_GET_MINIMAP_HIDDEN:
-        return !(RS_MinimapPermissions(app->minimap_state) & RS_MINIMAP_DRAW_MAP);
+        return !(RS_MinimapPermissions(MinimapView_ToggleState(&app->minimap)) & RS_MINIMAP_DRAW_MAP);
     case UITREE_HOST_GET_COMPASS_HIDDEN:
-        return !(RS_MinimapPermissions(app->minimap_state) & RS_MINIMAP_DRAW_COMPASS);
+        return !(RS_MinimapPermissions(MinimapView_ToggleState(&app->minimap)) & RS_MINIMAP_DRAW_COMPASS);
     case UITREE_HOST_GET_MINIMAP_WALK:
-        return (RS_MinimapPermissions(app->minimap_state) & RS_MINIMAP_WALK) != 0;
+        return (RS_MinimapPermissions(MinimapView_ToggleState(&app->minimap)) & RS_MINIMAP_WALK) != 0;
     case UITREE_HOST_GET_WORLD_LETTERBOX:
     {
         struct ToriRS_ViewportClamp const clamp = {
@@ -250,7 +250,7 @@ app_host_request(
                box.h != req->u.get_world_letterbox.box_h;
     }
     case UITREE_HOST_GET_MULTIWAY:
-        return app->multiway == 1;
+        return RS_SessionInfo_Multiway(&app->session_info) == 1;
     case UITREE_HOST_GET_REBOOT_TIMER:
         assert(req->u.get_reboot_timer.out_text);
         *req->u.get_reboot_timer.out_text = app_reboot_timer_text(app);
@@ -258,7 +258,7 @@ app_host_request(
     case UITREE_HOST_GET_TITLE_SCREEN:
         /* -1 rather than 0: 0 is a real screen (the front menu), so "not on
          * the title screen at all" needs a value of its own. */
-        if( app->screen != APP_SCREEN_TITLE && app->screen != APP_SCREEN_CONNECTING )
+        if( !RS_ClientPhase_OnTitle(&app->phase) )
             return -1;
         return (int)app->title.screen;
     case UITREE_HOST_GET_TITLE_FIELD:
@@ -279,9 +279,7 @@ app_host_request(
         int toggle = req->u.get_title_toggle.toggle;
         if( toggle == RS_TITLE_TOGGLE_MUSIC )
         {
-            assert(req->u.get_title_toggle.song >= 0);
-            app->title_song = req->u.get_title_toggle.song;
-            app->title_song_known = true;
+            RS_TitleMusic_SetSong(&app->title_music, req->u.get_title_toggle.song);
             return app_title_music_on(app);
         }
         if( toggle < 0 || toggle >= RS_TITLE_TOGGLE_COUNT )
@@ -334,7 +332,7 @@ app_host_request(
          * the current answer again; on a desktop that re-push is a no-op.
          */
         if( action == RS_TITLE_ACTION_FOCUS_USERNAME || action == RS_TITLE_ACTION_FOCUS_PASSWORD )
-            app->text_input_effective = -1;
+            TextInputGate_Invalidate(&app->text_input_gate);
         if( action == RS_TITLE_ACTION_TOGGLE_MUSIC )
         {
             app_title_music_toggle(app);
@@ -427,7 +425,7 @@ app_host_request(
         if( app->slots.side_tab != req->u.set_selected_tab.tabno )
         {
             app->slots.side_tab = req->u.set_selected_tab.tabno;
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
         }
         /* Opening the tab the tutorial was pointing at is the instruction being
          * followed, so the blink stops. The reference notices this while
@@ -441,13 +439,16 @@ app_host_request(
     case UITREE_HOST_GET_TAB_FLASH_HIDDEN:
         /* logic_cycle is the reference loopCycle, and the 20/10 split is its
          * own: visible for ten client ticks, hidden for ten. */
-        return RS_UISlots_TabFlashHidden(&app->slots, req->u.tab_enabled.tabno, app->logic_cycle);
+        return RS_UISlots_TabFlashHidden(
+            &app->slots,
+            req->u.tab_enabled.tabno,
+            FrameClockSerial_LogicCycle(&app->frame_clock.serial));
     case UITREE_HOST_GET_CHAT_FILTER_MODE:
         if( req->u.chat_filter.filter < 0 || req->u.chat_filter.filter >= RS_UI_CHAT_FILTER_COUNT )
             return 0;
         return app->slots.chat_filter_mode[req->u.chat_filter.filter];
     case UITREE_HOST_CYCLE_CHAT_FILTER_MODE:
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
         return RS_UISlots_CycleChatFilter(&app->slots, req->u.chat_filter.filter);
     case UITREE_HOST_APPLY_BUTTON_CLICK:
         if( !req->u.apply_button_click.component )
@@ -502,23 +503,23 @@ app_host_request(
          * addressing — a CS2 `cc_create`d item child, whose protocol identity
          * is its static parent's uid plus its index. Same shape as
          * GET_INV_DRAG: report the identity, let emit match the node. */
-        if( !app->objsel.active )
+        if( !app->target_select.obj.active )
             return 0;
         if( req->u.get_inv_selection.out_component_id )
-            *req->u.get_inv_selection.out_component_id = app->objsel.component_id;
+            *req->u.get_inv_selection.out_component_id = app->target_select.obj.component_id;
         if( req->u.get_inv_selection.out_slot )
-            *req->u.get_inv_selection.out_slot = app->objsel.slot;
+            *req->u.get_inv_selection.out_slot = app->target_select.obj.slot;
         return 1;
     case UITREE_HOST_GET_INV_SELECT_ICON:
         /* Reference TYPE_INV draw: only the slot armed for "Use" (useMode==1,
          * matching objSelectedSlot + objSelectedComId) gets the white outline.
          * The model is already resident (its plain icon is on screen), so the
          * white variant bakes on first request and is cached thereafter. */
-        if( !app->objsel.active )
+        if( !app->target_select.obj.active )
             return 0;
-        if( app->objsel.component_id != req->u.get_inv_select_icon.com_id )
+        if( app->target_select.obj.component_id != req->u.get_inv_select_icon.com_id )
             return 0;
-        if( app->objsel.slot != req->u.get_inv_select_icon.slot )
+        if( app->target_select.obj.slot != req->u.get_inv_select_icon.slot )
             return 0;
         return UITreeSceneBridge_EnsureObjIconSelected(
             &app->bridge,
@@ -537,7 +538,7 @@ app_host_request(
     case UITREE_HOST_GET_IF_EVENTS:
         return (int)App_IfEventsGetEffective(app, req->u.get_if_events.com_id);
     /* The developer overlay's display list, handed over by pointer — the array
-     * is owned by app->dbg_ui and outlives the frame. With the panel hidden the
+     * is owned by app->dev_overlay->ui and outlives the frame. With the panel hidden the
      * list is empty and this returns 0, which is the whole cost of a declared
      * but switched-off overlay. */
     case UITREE_HOST_GET_DEBUG_OVERLAY:

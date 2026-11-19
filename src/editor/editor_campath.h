@@ -469,7 +469,7 @@ int
 Editor_CamSimArrived(const struct Editor_CamSim* sim);
 
 /** One axis of the client's ease: a flat `rate` plus `rate2`/1000 of what is
- *  left, never overshooting (app_camera.c app_cinema_ease). */
+ *  left, never overshooting (render/cam_script.c CamScript_Walk). */
 int
 Editor_CamEase(
     int current,
@@ -477,7 +477,7 @@ Editor_CamEase(
     int rate,
     int rate2);
 
-/** The same for a yaw, the short way round (app_cinema_ease_yaw). */
+/** The same for a yaw, the short way round (CamScript_WalkYaw). */
 int
 Editor_CamEaseYaw(
     int current,

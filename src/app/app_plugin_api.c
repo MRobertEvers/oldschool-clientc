@@ -145,7 +145,7 @@ app_npc_screen_point(
     int* out_x,
     int* out_y)
 {
-    struct UITreeEmitDesc const* viewport = &app->world_emit_desc;
+    struct UITreeEmitDesc const* viewport = &app->world_views.emit_desc;
     int x;
     int y;
 
@@ -179,7 +179,7 @@ App_NpcElementScreenPosition(
     assert(app);
     assert(out_x);
     assert(out_y);
-    if( !app->world || !app->world_view_valid )
+    if( !app->world || !app->world_views.emit_valid )
         return -1;
     npc = World_NpcGetByElementId(app->world, element_id, NULL);
     if( !npc || npc->server_slot < 0 )
@@ -215,9 +215,9 @@ App_DeckLocScreenPosition(
     if( loc_id < 0 )
         assert(name || op);
     /* `name` and `op` narrow a loc id too (a placeholder's Build row). */
-    if( !app->world || !app->world_view_valid )
+    if( !app->world || !app->world_views.emit_valid )
         return -1;
-    viewport = &app->world_emit_desc;
+    viewport = &app->world_views.emit_desc;
     int const centre_x = viewport->x + viewport->w / 2;
     int const centre_y = viewport->y + viewport->h / 2;
     count = Wevs_ViewListCount(&app->wevs, WORLDVIEW_ROOT);
@@ -305,7 +305,7 @@ App_DeckPointScreen(
     assert(view_id != WORLDVIEW_ROOT);
     assert(out_x);
     assert(out_y);
-    if( !app->world || !app->world_view_valid || !Wevs_IsLive(&app->wevs, view_id) ||
+    if( !app->world || !app->world_views.emit_valid || !Wevs_IsLive(&app->wevs, view_id) ||
         !WorldviewRegistry_IsLive(&app->worldviews, view_id) )
         return false;
     placement.view_id = view_id;
@@ -330,9 +330,9 @@ App_NpcScreenPosition(
     assert(out_x);
     assert(out_y);
     assert(out_type);
-    if( !app->world || !app->world_view_valid )
+    if( !app->world || !app->world_views.emit_valid )
         return -1;
-    viewport = &app->world_emit_desc;
+    viewport = &app->world_views.emit_desc;
     struct World_EntityPool* pool = &app->world->entities.npc;
     /* Of the candidates on screen, the one nearest the viewport's centre: a
      * body at the corner is mostly clipped, and a hull drawn round it later
@@ -471,11 +471,11 @@ App_SetCameraPose(struct App* app, int yaw, int pitch, int zoom)
     /* Render skip: a skipped frame is drawn late with the camera it had,
      * before this write moves world_camera (App_RenderSkipCatchUp). */
     (void)App_RenderSkipCatchUp(app);
-    app->frame_view->orbit.yaw = app->frame_view->world_camera.yaw = yaw & 2047;
-    app->frame_view->orbit.pitch = app->frame_view->world_camera.pitch = pitch;
-    app->frame_view->world_cam_zoom = zoom;
-    app->frame_view->orbit.yaw_velocity = app->frame_view->orbit.pitch_velocity = 0;
-    app->need_redraw = 1;
+    app->world_views.frame->orbit.yaw = app->world_views.frame->world_camera.yaw = yaw & 2047;
+    app->world_views.frame->orbit.pitch = app->world_views.frame->world_camera.pitch = pitch;
+    app->world_views.frame->world_cam_zoom = zoom;
+    app->world_views.frame->orbit.yaw_velocity = app->world_views.frame->orbit.pitch_velocity = 0;
+    RedrawRequest_Raise(&app->redraw_request);
     return true;
 }
 
@@ -541,11 +541,11 @@ App_PluginObjectCounts(
     *in_use = 0;
     *active = 0;
     *built = 0;
-    for( int i = 0; i < APP_PLUGIN_OBJECTS_MAX; i++ )
+    for( int i = 0; i < PLUGIN_GEOMETRY_OBJECTS_MAX; i++ )
     {
-        struct AppPluginObject const* object = &app->plugin_objects[i];
+        struct PluginObject const* object = PluginGeometry_Object(&app->plugin_geometry, i);
 
-        if( !object->in_use )
+        if( !object )
             continue;
         (*in_use)++;
         if( object->active )
@@ -571,7 +571,7 @@ App_MinimenuRowCenter(
     assert(prefix);
     assert(out_x);
     assert(out_y);
-    menu = app->frame_view->minimenu;
+    menu = app->world_views.frame->minimenu;
     if( !menu->visible )
         return false;
     prefix_len = strlen(prefix);
@@ -582,7 +582,7 @@ App_MinimenuRowCenter(
         /* The caller presses the point: in a popup taller than the screen
          * the row may be scrolled out of the window, where nothing hits it. */
         if( UIMinimenu_RevealOption(menu, i) )
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
         *out_x = menu->x + menu->width / 2;
         *out_y = UIMinimenu_OptionY(menu, i);
         if( out_text && out_text_capacity > 0 )

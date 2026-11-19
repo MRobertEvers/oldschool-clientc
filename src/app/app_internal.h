@@ -29,6 +29,7 @@
 #endif
 #include "bmp.h"
 #include "game/rs_minimap_state.h"
+#include "game/settle_gate.h"
 #include "log/torirs_log.h"
 #include "torirs_env.h"
 #include "torirs_env_values.h"
@@ -47,6 +48,7 @@
 #include "cmd/cmdbus.h"
 #include "cs2vm2/cs2vm2.h"
 #include "editor/editor.h"
+#include "editor/editor_shell.h"
 #include "graphics/convex_hull.h"
 #include "torirsmaped/torirs_maped.h"
 
@@ -131,6 +133,7 @@
 #include "render/torirs_world_projection.h"
 #include "toridraw.h"
 #include "toridraw_model_transform.h"
+#include "ui/dev_overlay.h"
 #include "ui/torirs_chrome_panel_draw.h"
 #include "ui/uitree_build.h"
 #include "ui/uitree_frame.h"
@@ -161,10 +164,9 @@
 /* ---- forward struct declarations the prototypes below need ---- */
 struct App;
 struct AppConfig;
-struct AppEntitySpotanim;
+struct EntitySpotanim;
 struct AppModelRecolorSpec;
-struct AppPluginAssetModel;
-struct AppPluginObject;
+struct PluginObject;
 struct CS2VM2_Thread;
 struct LibToriRS_Input;
 struct RS_CS2GroundObj;
@@ -185,7 +187,6 @@ struct ToriRS_NpcSnapshot;
 struct ToriRS_Npctype;
 struct ToriRS_PickHits;
 struct ToriRS_PluginEngine;
-struct ToriRS_PluginMesh;
 struct ToriRS_Spotanimtype;
 struct ToriRS_Task;
 struct ToriRS_WidgetRef;
@@ -271,7 +272,9 @@ enum
             if( _nslen > 0 )                                                                       \
             {                                                                                      \
                 ToriRS_Network_SendRaw((app)->net, _nsbuf, _nslen);                                \
-                (app)->net_last_send_ms = (app)->last_frame_ms;                                    \
+                NetKeepalive_NoteSend(                                                             \
+                    &(app)->net_keepalive,                                                         \
+                    FrameClockSerial_LastFrameMs(&(app)->frame_clock.serial));                     \
             }                                                                                      \
         }                                                                                          \
     } while( 0 )
@@ -459,10 +462,10 @@ struct Task_AppSpawn
     struct ToriRS_Task task;
     struct pt pt;
     struct App* app;
-    /* The worldview cursor AS OF ENQUEUE (app->active_world). Spawn tasks run
+    /* The worldview cursor AS OF ENQUEUE (WorldviewRegistry_Active). Spawn tasks run
      * at the END of the exec FIFO, behind later packets — including the
      * SERVER_TICK_END that resets the live cursor — so the apply cannot read
-     * app->active_world when it finally runs; it must carry its own copy. The
+     * the live cursor when it finally runs; it must carry its own copy. The
      * view can legitimately die while the task is parked (a boat despawns
      * mid-flight), so applies guard on WorldviewRegistry_IsLive rather than
      * asserting. */
@@ -478,11 +481,11 @@ struct Task_AppSpawn
      */
     unsigned world_load_seq;
     int enqueue_cycle;
-    /* The loc lane's ticket (App.loc_lane_enqueued at enqueue), 0 for every
+    /* The loc lane's ticket (LocLane_Take at enqueue), 0 for every
      * other kind; released exactly once, on apply or on free. */
     unsigned loc_ticket;
     int loc_ticket_released;
-    /* APP_SPAWN_LOC_CHANGE: App.server_tick_serial at enqueue. */
+    /* APP_SPAWN_LOC_CHANGE: RS_ServerTick_Serial(&App.server_tick) at enqueue. */
     unsigned loc_tick;
     enum AppSpawnKind kind;
     int tile_x;
@@ -525,7 +528,7 @@ struct Task_AppSpawn
     /* APP_SPAWN_SCRIPTED_PROJ: the packet, and the clientscripts it needs
      * resident -- the three curves, then whatever they GOSUB -- with the
      * cursor of the one being loaded (both survive the awaits). */
-    struct AppScriptedProj scripted;
+    struct WorldEntity_ScriptedProjSpec scripted;
     int curve_scripts[8];
     int curve_script_count;
     int curve_script_cursor;
@@ -694,6 +697,14 @@ app_world_camera_smooth_reset_end(struct App* app);
 /* ---- app_canvas_layout.c ---- */
 int
 app_wants_text_input(struct App const* app);
+
+/** What the settle gate (game/settle_gate.h) reads: the runners' latches and
+ *  pending settle, the server tick, the held scripts, the CS2 host's
+ *  undrained requests, the packet queue and the world loader. */
+void
+app_settle_gate_input(
+    struct App const* app,
+    struct SettleGateInput* out);
 
 
 
@@ -933,26 +944,6 @@ app_placeholder_release_tick(struct App* app);
 void
 app_placeholder_park_free(struct App* app);
 
-/*
- * The pause before an obj icon whose parts did not arrive is asked for again,
- * doubled per miss up to the ceiling: UITreeSceneBridge_PumpSprites' pacing,
- * for the same reason. A read that came back empty -- a dropped JS5 socket, a
- * browser storage error -- is not an answer, and an icon given up on after a
- * handful of back-to-back asks stays blank for the session: the asks all land
- * inside the outage. The ceiling is what an outage costs after it ends.
- */
-#define APP_OBJ_ICON_RETRY_FIRST_MS 500u
-#define APP_OBJ_ICON_RETRY_MAX_MS 4000u
-
-/* The wait after `wait_ms` (0 = none yet). */
-static inline uint32_t
-app_obj_icon_retry_wait(uint32_t wait_ms)
-{
-    if( wait_ms == 0 )
-        return APP_OBJ_ICON_RETRY_FIRST_MS;
-    return wait_ms * 2u > APP_OBJ_ICON_RETRY_MAX_MS ? APP_OBJ_ICON_RETRY_MAX_MS : wait_ms * 2u;
-}
-
 /* The CS2 host's lazy obj-icon hook (RS_CS2Host.widget_obj_icon_lazy): a
  * GRAPHIC cell whose obj is not resident takes a placeholder instead of
  * holding the script. */
@@ -1068,6 +1059,10 @@ app_ground_items_tick(struct App* app);
 void
 app_debug_overlay_init(struct App* app);
 
+/** Release the developer overlay and the editor shell; last in App_Shutdown. */
+void
+app_debug_overlay_free(struct App* app);
+
 void
 app_debug_overlay_tick(
     struct App* app,
@@ -1117,7 +1112,7 @@ app_world_apply_entity_anim_tracks(
 void
 app_world_sync_entity_animations(struct App* app);
 
-struct AppEntitySpotanim*
+struct EntitySpotanim*
 app_entity_spotanim_find(
     struct App* app,
     int body_element_id,
@@ -1176,7 +1171,7 @@ struct EditorViewCamera;
 
 /** Every editor boot, right after the editor session opened. A viewer boot
  *  (`[editor:boot] panel=view` / `--editor-view`) builds this process's view,
- *  its toolbar in app->dbg_ui, unlocks the free camera and puts it at the
+ *  its toolbar in app->dev_overlay->ui, unlocks the free camera and puts it at the
  *  boot pose; any other editor boot is only remembered, for the page's
  *  "spawn view" (torirs_editor_view_spawn on the web). */
 void
@@ -1314,7 +1309,7 @@ app_editor_hotkeys_active(
 int
 app_editor_hotkeys_owns_camera(struct App const* app);
 
-/** Re-mark this frame's editor keys in hotkey_consumed (app_ui_hotkeys
+/** Re-mark this frame's editor keys in input_claims (app_ui_hotkeys
  *  clears the array first). */
 void
 app_editor_hotkeys_mark_consumed(struct App* app);
@@ -1324,7 +1319,7 @@ void
 app_editor_hotkeys_flush(struct App* app);
 
 /* ---- app_hotkeys.c ---- */
-/** The OSRS key code (hotkey_consumed's index) of a LibToriRS key, -1. */
+/** The OSRS key code (input_claims' key index) of a LibToriRS key, -1. */
 int
 app_keycode_osrs(int key);
 
@@ -1765,7 +1760,8 @@ void
 app_attack_options_reset(struct App* app);
 
 /**
- * Drain App::logout_requested and run the wait it arms. Once per logic tick.
+ * Drain the logout request in App::session_end and run the wait it arms.
+ * Once per logic tick.
  *
  * The request is sent and then waited on -- the server's LOGOUT packet, or the
  * socket it closes instead, is what actually ends the session. True when the
@@ -1819,13 +1815,10 @@ int
 app_overlay_count(struct App const* app);
 
 /* The in-scene tile markers: the stage a draw_tile call opens, the reset that
- * empties it and the per-frame placement against the painter buffer.
+ * empties it and the per-frame placement against the painter buffer. The
+ * stage itself is render/tile_mark_stage.h's; these carry the App's world,
+ * painter and log to it.
  * @see app_world_tile_marks_place. */
-int
-app_world_tile_mark_key(
-    int scene_x,
-    int scene_z,
-    int level);
 void
 app_world_tile_marks_reset(struct App* app);
 void
@@ -2149,20 +2142,15 @@ app_plugin_object_ready(
     void* user,
     int handle);
 
-struct AppPluginObject*
-app_plugin_object_at(
-    struct App* app,
-    int handle);
-
 int
 app_plugin_object_model_id(
     struct App* app,
-    struct AppPluginObject const* obj);
+    struct PluginObject const* obj);
 
 int
 app_plugin_object_seq_id(
     struct App* app,
-    struct AppPluginObject const* obj);
+    struct PluginObject const* obj);
 
 void
 app_plugin_object_materialize_now(
@@ -2861,7 +2849,7 @@ app_world_bind_pending_seqs(struct App* app);
 
 
 /* ---- app_world_spawn.c ---- */
-/* Queue a LOC_CHANGE on the loc lane (App.loc_lane_*). */
+/* Queue a LOC_CHANGE on the loc lane (App.loc_lane, world/loc_lane.h). */
 void
 app_spawn_loc_lane_queue(
     struct App* app,
@@ -2993,17 +2981,6 @@ app_world_spawn_spotanim_now(
     int height,
     int delay,
     int late);
-
-struct AppPluginAssetModel*
-app_plugin_asset_model_at(
-    struct App* app,
-    int handle);
-
-struct ToriRS_PluginMesh*
-app_plugin_mesh_at(
-    struct App* app,
-    int handle);
-
 
 /* ---- app_world_sync.c ---- */
 int

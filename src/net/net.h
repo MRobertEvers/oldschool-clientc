@@ -172,6 +172,21 @@ struct ToriRS_Network
      * and log in with the password instead.
      */
     int resume_in_flight;
+
+    /**
+     * This connection is the RSProx replay transport's (main.c, `--replay`):
+     * the one writer of the replay control frames (net/torirs_control.h,
+     * TORIRS_CONTROL_REPLAY_*). Marked once, when that transport is made; a
+     * replay frame on any other connection aborts
+     * (RS_GameProto_ReplayControlExpected).
+     */
+    int replay;
+    /**
+     * This run talks to a server through this handle. Set once by the App
+     * that made it, right after Init, and never cleared; a handle a test
+     * builds by hand is not enabled unless it says so.
+     */
+    int enabled;
 };
 
 /** Initialize with a revision table and RSA key (hex exponent/modulus). */
@@ -184,6 +199,23 @@ ToriRS_Network_Init(
 
 void
 ToriRS_Network_Free(struct ToriRS_Network* net);
+
+/** This connection is played back by the RSProx replay transport, for the
+ *  rest of its life. */
+void
+ToriRS_Network_MarkReplay(struct ToriRS_Network* net);
+
+/** Was this connection marked as the RSProx replay transport's? */
+int
+ToriRS_Network_IsReplay(struct ToriRS_Network const* net);
+
+/** This run talks to a server through `net`, for the rest of its life. */
+void
+ToriRS_Network_Enable(struct ToriRS_Network* net);
+
+/** Was `net` enabled? False for a handle nothing called Enable on. */
+int
+ToriRS_Network_Enabled(struct ToriRS_Network const* net);
 
 /** Deterministic client seed (tests / record-replay). */
 void

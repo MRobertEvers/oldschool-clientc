@@ -6,6 +6,7 @@
 #include "engine/entity_model_build.h"
 #include "engine/player_appearance.h"
 #include "game/rs_entity_sync.h"
+#include "game/rs_npc_body_lands.h"
 #include "net/rev/packets/pkt_player_appearance.h"
 #include "toridraw_animation.h"
 #include "toridraw_scene.h"
@@ -173,35 +174,6 @@ struct Task_NpcBodyLand
 };
 
 static int
-npc_body_land_inflight(
-    struct App* app,
-    int base_npc_id,
-    int npc_id)
-{
-    for( int i = 0; i < app->npc_body_lands.count; i++ )
-        if( app->npc_body_lands.base[i] == base_npc_id && app->npc_body_lands.type[i] == npc_id )
-            return 1;
-    return 0;
-}
-
-static void
-npc_body_land_forget(
-    struct App* app,
-    int base_npc_id,
-    int npc_id)
-{
-    for( int i = 0; i < app->npc_body_lands.count; i++ )
-    {
-        if( app->npc_body_lands.base[i] != base_npc_id || app->npc_body_lands.type[i] != npc_id )
-            continue;
-        app->npc_body_lands.count--;
-        app->npc_body_lands.base[i] = app->npc_body_lands.base[app->npc_body_lands.count];
-        app->npc_body_lands.type[i] = app->npc_body_lands.type[app->npc_body_lands.count];
-        return;
-    }
-}
-
-static int
 Task_NpcBodyLand_Run(
     struct ToriRS_Task* base,
     struct ToriRS_IOBatch* io)
@@ -229,7 +201,7 @@ Task_NpcBodyLand_Run(
      * load found this entry and queued nothing either, and the walk below
      * is what dresses it. */
     if( self->registered )
-        npc_body_land_forget(app, self->base_npc_id, self->npc_id);
+        RS_NpcBodyLands_Forget(&app->npc_body_lands, self->base_npc_id, self->npc_id);
     self->registered = 0;
 
     if( app->world )
@@ -246,7 +218,7 @@ Task_NpcBodyLand_Run(
             if( !npc || npc->base_npc_id != self->base_npc_id || npc->npc_id != self->npc_id )
                 continue;
             App_WorldNpcBodyLanded(app, idx, npc->element_id, self->npc_id, self->base_npc_id);
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
         }
     }
 
@@ -260,7 +232,7 @@ Task_NpcBodyLand_Free(struct ToriRS_Task* base)
     /* A task freed before it ran to its end (a queue torn down mid-load)
      * must not leave its type marked in flight for the rest of the session. */
     if( self->registered )
-        npc_body_land_forget(self->app, self->base_npc_id, self->npc_id);
+        RS_NpcBodyLands_Forget(&self->app->npc_body_lands, self->base_npc_id, self->npc_id);
     ToriMem_Free(ToriMem_Session(), base);
 }
 
@@ -276,25 +248,18 @@ CreateTask_NpcBodyLand(
     int npc_id)
 {
     struct Task_NpcBodyLand* task;
-    int const capacity =
-        (int)(sizeof(app->npc_body_lands.base) / sizeof(app->npc_body_lands.base[0]));
 
     assert(app);
     assert(npc_id >= 0);
-    if( npc_body_land_inflight(app, base_npc_id, npc_id) )
+    if( RS_NpcBodyLands_InFlight(&app->npc_body_lands, base_npc_id, npc_id) )
         return NULL;
     /* A full table is a crowd of sixty-four distinct types arriving in one
      * pass; the sixty-fifth simply loads without the dedupe, as every type
      * did before there was one. */
     task = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*task));
     assert(task);
-    if( app->npc_body_lands.count < capacity )
-    {
-        app->npc_body_lands.base[app->npc_body_lands.count] = base_npc_id;
-        app->npc_body_lands.type[app->npc_body_lands.count] = npc_id;
-        app->npc_body_lands.count++;
+    if( RS_NpcBodyLands_Register(&app->npc_body_lands, base_npc_id, npc_id) )
         task->registered = 1;
-    }
     task->task.vtable = &Task_NpcBodyLand_VTable;
     strncpy(task->task.name, "NpcBodyLand", sizeof(task->task.name) - 1);
     task->app = app;
@@ -348,7 +313,7 @@ Task_PlayerBodyLand_Run(
 
     /* Nothing to apply: every player whose wanted body this completes
      * rebuilds on the next frame's reconcile. */
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 
     PT_END(&self->pt);
 }
@@ -435,7 +400,7 @@ Task_PlayerTransmogLand_Run(
 
     /* Nothing to apply: the per-frame body reconcile mounts the npc's model
      * on every player drawn as it (app_world_reconcile_player_transmog). */
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 
     PT_END(&self->pt);
 }
@@ -553,7 +518,7 @@ Task_PlayerHeldLand_Run(
     PT_TASK_JOIN(pending);
 
     /* The per-frame body reconcile puts them in the player's hands. */
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 
     PT_END(&self->pt);
 }

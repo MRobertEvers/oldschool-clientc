@@ -42,6 +42,9 @@ struct RS_CS1Host
     /** Set by the eval task when a cached component result changed; the app
      *  consumes it to trigger a redraw. */
     bool eval_dirty;
+    /** An evaluation pass has been queued and has not finished. At most one is
+     *  in flight; the owner checks this before queuing another. */
+    bool eval_inflight;
 };
 
 void
@@ -52,6 +55,15 @@ RS_CS1Host_Init(
     struct InvManager* invs,
     struct VarPManager* varps,
     struct RS_PlayerStats* stats);
+
+/** Nonzero while an evaluation pass is queued and unfinished. */
+bool
+RS_CS1Host_EvalInflight(struct RS_CS1Host const* host);
+
+void
+RS_CS1Host_SetEvalInflight(
+    struct RS_CS1Host* host,
+    bool inflight);
 
 /**
  * CS1VM host_exec callback. Expects CS1VM_USER(vm) == RS_CS1Host*.

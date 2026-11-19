@@ -177,17 +177,17 @@ static int
 drive_pointer_project_point(
     struct App* app, int fine_x, int fine_z, int world_y, int* out_x, int* out_y)
 {
-    if( !app->world || !app->world_view_valid )
+    if( !app->world || !app->world_views.emit_valid )
         return 0;
     if( fine_x < 128 || fine_z < 128 )
         return 0;
     return ToriRS_WorldProjectPoint(
-        &app->frame_view->world_camera,
-        &app->frame_view->world_camera_pos,
-        app->world_emit_desc.x,
-        app->world_emit_desc.y,
-        app->world_emit_desc.w,
-        app->world_emit_desc.h,
+        &app->world_views.frame->world_camera,
+        &app->world_views.frame->world_camera_pos,
+        app->world_views.emit_desc.x,
+        app->world_views.emit_desc.y,
+        app->world_views.emit_desc.w,
+        app->world_views.emit_desc.h,
         50,
         fine_x,
         world_y,
@@ -224,7 +224,7 @@ drive_pointer_in_viewport(struct App* app, int x, int y)
     {
         MARGIN = 12
     };
-    struct UITreeEmitDesc const* viewport = &app->world_emit_desc;
+    struct UITreeEmitDesc const* viewport = &app->world_views.emit_desc;
     return x >= viewport->x + MARGIN && x < viewport->x + viewport->w - MARGIN &&
            y >= viewport->y + MARGIN && y < viewport->y + viewport->h - MARGIN;
 }
@@ -278,7 +278,7 @@ drive_pointer_screen_position_loc(struct App* app, int id, int* out_x, int* out_
     int found_any = 0;
     int i;
 
-    if( !app->world || !app->world_view_valid )
+    if( !app->world || !app->world_views.emit_valid )
         return DRIVE_NOT_VISIBLE;
     pool = &app->world->entities.scenery;
     /*
@@ -299,8 +299,8 @@ drive_pointer_screen_position_loc(struct App* app, int id, int* out_x, int* out_
     centre_z = 0;
     if( !drive_pointer_player_tile(app, &centre_x, &centre_z) )
     {
-        centre_x = app->world_emit_desc.x + app->world_emit_desc.w / 2;
-        centre_z = app->world_emit_desc.y + app->world_emit_desc.h / 2;
+        centre_x = app->world_views.emit_desc.x + app->world_views.emit_desc.w / 2;
+        centre_z = app->world_views.emit_desc.y + app->world_views.emit_desc.h / 2;
     }
     else
     {
@@ -426,7 +426,7 @@ drive_pointer_screen_position_obj(struct App* app, int id, int* out_x, int* out_
     int found_any = 0;
     int i;
 
-    if( !app->world || !app->world_view_valid )
+    if( !app->world || !app->world_views.emit_valid )
         return DRIVE_NOT_VISIBLE;
     pool = &app->world->entities.obj_stack;
     /* Ranked by distance to the LOCAL PLAYER, for the reason the loc
@@ -440,8 +440,8 @@ drive_pointer_screen_position_obj(struct App* app, int id, int* out_x, int* out_
     centre_z = 0;
     if( !drive_pointer_player_tile(app, &centre_x, &centre_z) )
     {
-        centre_x = app->world_emit_desc.x + app->world_emit_desc.w / 2;
-        centre_z = app->world_emit_desc.y + app->world_emit_desc.h / 2;
+        centre_x = app->world_views.emit_desc.x + app->world_views.emit_desc.w / 2;
+        centre_z = app->world_views.emit_desc.y + app->world_views.emit_desc.h / 2;
     }
     else
     {
@@ -533,11 +533,11 @@ drive_pointer_screen_position_player(struct App* app, int id, int* out_x, int* o
     int found_any = 0;
     int i;
 
-    if( !app->world || !app->world_view_valid )
+    if( !app->world || !app->world_views.emit_valid )
         return DRIVE_NOT_VISIBLE;
     pool = &app->world->entities.player;
-    centre_x = app->world_emit_desc.x + app->world_emit_desc.w / 2;
-    centre_z = app->world_emit_desc.y + app->world_emit_desc.h / 2;
+    centre_x = app->world_views.emit_desc.x + app->world_views.emit_desc.w / 2;
+    centre_z = app->world_views.emit_desc.y + app->world_views.emit_desc.h / 2;
     for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_Player* player = World_EntityPoolGet(pool, i);
@@ -668,9 +668,9 @@ DrivePointer_PickHolds(struct App* app, int element_id, int* out_held)
      * round once more. */
     if( !App_RenderSkipCatchUp(app) )
         return DRIVE_OK;
-    for( i = 0; i < app->frame_view->world_pickset.count; i++ )
+    for( i = 0; i < app->world_views.frame->world_pickset.count; i++ )
     {
-        if( app->frame_view->world_pickset.items[i].element_id == element_id )
+        if( app->world_views.frame->world_pickset.items[i].element_id == element_id )
         {
             *out_held = 1;
             break;
@@ -689,23 +689,23 @@ DrivePointer_PickPoint(struct App* app, struct DrivePickPoint* out_point)
     assert(out_point);
     /* Render skip: as DrivePointer_PickHolds above -- caught up first, and a
      * stamp that cannot be reads as no stamp (valid 0). */
-    out_point->valid = App_RenderSkipCatchUp(app) ? app->frame_view->world_pickset.mouse_valid : 0;
-    out_point->x = app->frame_view->world_pickset.mouse_x;
-    out_point->y = app->frame_view->world_pickset.mouse_y;
-    /* `world_emit_desc` is only a rectangle once a frame has emitted the world
-     * into one -- every other reader in this tree gates on world_view_valid
+    out_point->valid = App_RenderSkipCatchUp(app) ? app->world_views.frame->world_pickset.mouse_valid : 0;
+    out_point->x = app->world_views.frame->world_pickset.mouse_x;
+    out_point->y = app->world_views.frame->world_pickset.mouse_y;
+    /* `world_views.emit_desc` is only a rectangle once a frame has emitted the world
+     * into one -- every other reader in this tree gates on world_views.emit_valid
      * (app_camera.c, app_overlay_entities.c) and this one must too, or a
      * caller is handed the previous layout's rectangle, or zeroes, with
      * nothing saying which.  A zero width is the reader's signal that there is
      * no rectangle to test a candidate pixel against (pointer.lua's
      * QD.drive._hover_inside gives the pixel the benefit of the doubt and lets
      * the probe itself answer). */
-    if( app->world_view_valid )
+    if( app->world_views.emit_valid )
     {
-        out_point->view_x = app->world_emit_desc.x;
-        out_point->view_y = app->world_emit_desc.y;
-        out_point->view_w = app->world_emit_desc.w;
-        out_point->view_h = app->world_emit_desc.h;
+        out_point->view_x = app->world_views.emit_desc.x;
+        out_point->view_y = app->world_views.emit_desc.y;
+        out_point->view_w = app->world_views.emit_desc.w;
+        out_point->view_h = app->world_views.emit_desc.h;
     }
     else
     {
@@ -856,7 +856,7 @@ drive_pointer_model_points(
     assert(out_faces);
     *out_count = 0;
     *out_faces = 0;
-    if( !app->scene || !app->world || !app->world_view_valid )
+    if( !app->scene || !app->world || !app->world_views.emit_valid )
         return DRIVE_NOT_VISIBLE;
     if( !ToriDraw_SceneElementIsLive(app->scene, element_id) )
         return DRIVE_NOT_FOUND;
@@ -987,8 +987,8 @@ drive_pointer_world_gate(
         *out_why = "world";
         return DRIVE_OK;
     }
-    desc = &app->world_emit_desc;
-    if( !app->world_view_valid || desc->w <= 0 || desc->h <= 0 || x < desc->x || x >= desc->x + desc->w ||
+    desc = &app->world_views.emit_desc;
+    if( !app->world_views.emit_valid || desc->w <= 0 || desc->h <= 0 || x < desc->x || x >= desc->x + desc->w ||
         y < desc->y || y >= desc->y + desc->h || x < desc->clip.x || x >= desc->clip.x + desc->clip.w ||
         y < desc->clip.y || y >= desc->clip.y + desc->clip.h )
     {
@@ -1003,7 +1003,7 @@ drive_pointer_world_gate(
     /* Not a rule of the gate's own -- the open menu reaches it as a tree layer
      * -- but the reason a reader needs: a covered press leaves its menu up, and
      * while it is up no pixel anywhere is the world's. */
-    if( app->frame_view->minimenu->visible )
+    if( app->world_views.frame->minimenu->visible )
     {
         *out_why = "menu";
         return DRIVE_OK;
@@ -1082,7 +1082,7 @@ DrivePointer_MenuVisible(struct App* app, int* out_visible)
 {
     assert(app);
     assert(out_visible);
-    *out_visible = app->frame_view->minimenu->visible ? 1 : 0;
+    *out_visible = app->world_views.frame->minimenu->visible ? 1 : 0;
     return DRIVE_OK;
 }
 
@@ -1097,7 +1097,7 @@ DrivePointer_MenuRows(struct App* app, struct DriveMenuRow* out, int cap, int* o
     assert(out);
     assert(cap > 0);
     assert(out_count);
-    menu = app->frame_view->minimenu;
+    menu = app->world_views.frame->minimenu;
     if( !menu->visible )
     {
         *out_count = 0;
@@ -1157,7 +1157,7 @@ DrivePointer_MenuRowFind(
     assert(app);
     assert(out_row);
     memset(out_row, 0, sizeof(*out_row));
-    menu = app->frame_view->minimenu;
+    menu = app->world_views.frame->minimenu;
     if( !menu->visible )
         return DRIVE_NOT_VISIBLE;
     ui_kind = drive_pointer_ui_kind(kind);
@@ -1183,8 +1183,8 @@ DrivePointer_MenuRowFind(
         out_row->slot = opt->action_index;
         /* The row is found to be pressed: bring it into a popup that is
          * scrolled (taller than the screen), or its centre hits nothing. */
-        if( UIMinimenu_RevealOption(app->frame_view->minimenu, i) )
-            app->need_redraw = 1;
+        if( UIMinimenu_RevealOption(app->world_views.frame->minimenu, i) )
+            RedrawRequest_Raise(&app->redraw_request);
         out_row->centre_x = menu->x + menu->width / 2;
         out_row->centre_y = UIMinimenu_OptionY(menu, i);
         snprintf(out_row->text, sizeof(out_row->text), "%s", opt->text);
@@ -1698,12 +1698,12 @@ DrivePointer_InvOp(
      * The arming half of use_on has an observable effect in this process and
      * nothing else does: OPHELD1..5 leave as a packet whose answer arrives
      * ticks later (the Lua verb awaits that), while OPHELDT_START's whole job
-     * is to put this item into app->objsel. Checking it here is what stops
+     * is to put this item into app->target_select.obj. Checking it here is what stops
      * "the dispatcher ran" from being mistaken for "the item is armed" -- a
      * cell whose config never offered a Use row runs the same code and arms
      * nothing.
      */
-    if( option < 0 && (!app->objsel.active || app->objsel.obj_id != obj_id) )
+    if( option < 0 && (!app->target_select.obj.active || app->target_select.obj.obj_id != obj_id) )
         return DRIVE_REFUSED;
     return DRIVE_OK;
 }
@@ -1715,21 +1715,21 @@ DrivePointer_InvOp(
  *
  * Why DrivePointer_InvOp(..., option < 0) cannot be that entry point.
  *
- * app_minimenu_inv_action's objsel branch runs BEFORE the switch on the
+ * app_minimenu_inv_action's held-item branch runs BEFORE the switch on the
  * action, so with a selection already armed EVERY inventory row -- the "Use"
  * row included -- is encoded as an OPHELDU of the clicked cell on the armed
  * one and clears the selection (app_minimenu.c, the branch above
  * REVCONFIG_MINIMENU_TGT_HELD).  Re-arming the SAME cell through that path
  * therefore sends "use this item on itself", a packet no real menu can
  * produce (rs_minimenu_build.c omits the row for the arming cell), and leaves
- * objsel empty -- after which InvOp's own `option < 0 && !objsel.active`
+ * the held item clear -- after which InvOp's own `option < 0 && !target_select.obj.active`
  * check answers DRIVE_REFUSED.  That is what made the quest driver's use_on
  * refuse to re-arm between far-side retry presses at all, and so land an
  * ordinary op row on a target whose arming had not survived the retry
  * (build/quest_gate/golem row 58, build/quest_gate/fishingcompo row 30,
  * 2026-09-20).
  *
- * So this decides against app->objsel FIRST and only then touches the client:
+ * So this decides against app->target_select.obj FIRST and only then touches the client:
  *
  *   - already armed with THIS cell holding THIS obj: the arming survived,
  *     nothing at all is sent, `*out_was_armed` says so.  A caller that
@@ -1741,7 +1741,7 @@ DrivePointer_InvOp(
  *     "Use" row is taken, because leaving it lit would spend it on the next
  *     world click and the OPHELDU above would fire instead of the arming;
  *   - nothing armed: the ordinary OPHELDT_START path, with InvOp's own proof
- *     that objsel came back holding this obj.
+ *     that the held item came back holding this obj.
  *
  * `out_was_armed` is optional; every other argument names the cell exactly as
  * DrivePointer_InvOp does.  InvOp's refusal sentence is read here only to
@@ -1758,14 +1758,14 @@ DrivePointer_InvArm(
     assert(app);
     if( out_was_armed )
         *out_was_armed = 0;
-    if( app->objsel.active && app->objsel.component_id == component_id &&
-        app->objsel.slot == slot && app->objsel.obj_id == obj_id )
+    if( app->target_select.obj.active && app->target_select.obj.component_id == component_id &&
+        app->target_select.obj.slot == slot && app->target_select.obj.obj_id == obj_id )
     {
         if( out_was_armed )
             *out_was_armed = 1;
         return DRIVE_OK;
     }
-    if( app->objsel.active )
+    if( app->target_select.obj.active )
         app_selection_clear(app);
     return DrivePointer_InvOp(app, component_id, slot, obj_id, count, -1, 0, &out_reason);
 }
@@ -1779,7 +1779,7 @@ DrivePointer_InvArm(
  *
  * Why this is not just another DrivePointer_InvOp call.
  *
- * app_plugin_inv_op's `option` chooses an ACTION, and the objsel branch in
+ * app_plugin_inv_op's `option` chooses an ACTION, and the held-item branch in
  * app_minimenu_inv_action runs BEFORE the switch that reads it, so with a
  * selection armed every option value produces the same OPHELDU.  That makes
  * the option irrelevant when the arming held and load-bearing when it did
@@ -1787,16 +1787,16 @@ DrivePointer_InvArm(
  * Lua verb that armed, lost the arming, and then "clicked" the target cell
  * with op 1 would put the target item on the FLOOR and report it as a use.
  * This passes 0 (Examine) for that reason and then proves the value was never
- * read: the objsel branch is the only thing in that function that CLEARS the
- * selection, so `objsel.active` false on the far side is the client saying it
- * encoded the OPHELDU, and `objsel.active` still true means the row never ran
+ * read: the held-item branch is the only thing in that function that CLEARS the
+ * selection, so `target_select.obj.active` false on the far side is the client saying it
+ * encoded the OPHELDU, and `target_select.obj.active` still true means the row never ran
  * at all (app_minimenu_ui_pick_live rejected the cell -- the backpack tab is
  * not the shown one, or the cell holds something else now) and NOTHING was
  * sent, Examine included.
  *
  * `component_id`/`slot` name the cell that is CLICKED; the armed cell is
  * whatever the caller's arming half (DrivePointer_InvOp with option < 0) put
- * in app->objsel.  Refusing when the two are the same cell mirrors the real
+ * in app->target_select.obj.  Refusing when the two are the same cell mirrors the real
  * menu builder, which omits the "Use A with B" row for the very cell that
  * armed the selection (rs_minimenu_build.c add_inv_slot_select_row, "can't
  * use an item on itself") -- a row the player cannot see is a row this must
@@ -1813,9 +1813,9 @@ drive_pointer_inv_use_on(struct App* app, int component_id, int slot, int obj_id
     char const* refusal = NULL;
 
     assert(app);
-    if( !app->objsel.active )
+    if( !app->target_select.obj.active )
         return DRIVE_REFUSED;
-    if( app->objsel.component_id == component_id && app->objsel.slot == slot )
+    if( app->target_select.obj.component_id == component_id && app->target_select.obj.slot == slot )
     {
         app_selection_clear(app);
         return DRIVE_NO_ROW;
@@ -1825,7 +1825,7 @@ drive_pointer_inv_use_on(struct App* app, int component_id, int slot, int obj_id
         app_selection_clear(app);
         return DRIVE_NOT_FOUND;
     }
-    if( app->objsel.active )
+    if( app->target_select.obj.active )
     {
         app_selection_clear(app);
         return DRIVE_REFUSED;
@@ -1835,13 +1835,13 @@ drive_pointer_inv_use_on(struct App* app, int component_id, int slot, int obj_id
 
 /*
  * ARM A SPELL FROM ITS SPELLBOOK COMPONENT -- api_drive.spell_arm, the
- * app->targetsel twin of DrivePointer_InvArm (seam cast_spell_on_npc,
+ * app->target_select.target twin of DrivePointer_InvArm (seam cast_spell_on_npc,
  * 2026-09-27).
  *
  * WHY THE DRIVER NEEDED ITS OWN ENTRY POINT.  A player casts Wind Strike on a
  * goblin in two clicks: the spell's own "Cast <spell>" row in the magic tab
  * (REVCONFIG_MINIMENU_TGT_BUTTON, which app_minimenu_run_option turns into
- * app->targetsel -- app_minimenu.c's "Arm target mode from a spell/prayer
+ * app->target_select.target -- app_minimenu.c's "Arm target mode from a spell/prayer
  * button" branch), then the one collapsed "Cast <spell> -> <npc>" row on the
  * target (add_world_select_row, TGT_NPC), which is what sends OPNPCT.  The
  * second click is an ordinary click_minimenu "select" press, exactly as
@@ -1869,15 +1869,15 @@ drive_pointer_inv_use_on(struct App* app, int component_id, int slot, int obj_id
  *   - the dispatcher would drop the pick in silence -- display-hidden, the
  *     magic tab not the shown one (app_minimenu_pick_refusal, DRIVE_REFUSED
  *     with its sentence);
- *   - the row ran and targetsel did not come back holding THIS component
+ *   - the row ran and target_select.target did not come back holding THIS component
  *     (DRIVE_REFUSED): "the dispatcher ran" is never mistaken for "the spell
  *     is armed".
  *
  * Idempotent like InvArm: a live arming of THIS component sends nothing and
  * says so, so the Lua verb can re-arm before every retry press for free.  A
  * different live selection (a held item, another spell) is dropped first
- * through app_selection_clear, the reference's own doAction tail -- objsel
- * and targetsel are mutually exclusive.
+ * through app_selection_clear, the reference's own doAction tail -- the held item
+ * and the armed spell are mutually exclusive.
  */
 static enum DriveResult
 drive_pointer_spell_arm(
@@ -1910,7 +1910,7 @@ drive_pointer_spell_arm(
         *out_reason = "that component id is not in the interface tree";
         return DRIVE_NOT_FOUND;
     }
-    if( app->targetsel.active && app->targetsel.component_id == component_id )
+    if( app->target_select.target.active && app->target_select.target.component_id == component_id )
     {
         *out_was_armed = 1;
         return DRIVE_OK;
@@ -1937,22 +1937,22 @@ drive_pointer_spell_arm(
     if( *out_reason )
         return DRIVE_REFUSED;
 
-    if( app->objsel.active || app->targetsel.active )
+    if( UITargetSelect_Armed(&app->target_select) )
         app_selection_clear(app);
 
     UIMinimenu_Reset(&scratch);
-    scratch.font_id = app->frame_view->minimenu->font_id;
+    scratch.font_id = app->world_views.frame->minimenu->font_id;
     if( !UIMinimenu_AddOption(&scratch, "", REVCONFIG_MINIMENU_TGT_BUTTON, -1, pick) )
     {
         *out_reason = "the scratch minimenu would not take the row";
         return DRIVE_REFUSED;
     }
-    saved = *app->frame_view->minimenu;
-    *app->frame_view->minimenu = scratch;
+    saved = *app->world_views.frame->minimenu;
+    *app->world_views.frame->minimenu = scratch;
     app_minimenu_run_option(app, 0, 0, 0);
-    *app->frame_view->minimenu = saved;
+    *app->world_views.frame->minimenu = saved;
 
-    if( !app->targetsel.active || app->targetsel.component_id != component_id )
+    if( !app->target_select.target.active || app->target_select.target.component_id != component_id )
     {
         *out_reason = "the Cast row ran and targetsel did not come back armed with it";
         return DRIVE_REFUSED;
@@ -1966,7 +1966,7 @@ drive_pointer_spell_arm(
  * recruitmentdrive_spawn_artifact_and_held_cast, seam27, 2026-09-28).
  *
  * A player casts Superheat Item or Low Level Alchemy in two clicks: the
- * spell's own "Cast" row (drive_pointer_spell_arm above arms app->targetsel)
+ * spell's own "Cast" row (drive_pointer_spell_arm above arms app->target_select.target)
  * and then the "<spell> -> <item>" row the backpack cell offers while that
  * target mode is live -- rs_minimenu_build.c add_inv_slot_select_row, action
  * REVCONFIG_MINIMENU_TGT_HELD -- which app_minimenu_inv_action turns into
@@ -1988,7 +1988,7 @@ drive_pointer_spell_arm(
  *     shown tab, the cell display-hidden or holding something else
  *     (app_minimenu_pick_refusal, DRIVE_REFUSED with its sentence);
  *   - the row ran and the spell is still armed (DRIVE_REFUSED): the OPHELDT
- *     branch is the only thing on that path that consumes targetsel, so a
+ *     branch is the only thing on that path that consumes the armed spell, so a
  *     live arming afterwards means nothing was sent.
  *
  * Every failure after the arming check clears the selection, as
@@ -2012,15 +2012,15 @@ drive_pointer_inv_cast(
     assert(app);
     assert(out_reason);
     *out_reason = NULL;
-    if( !app->targetsel.active )
+    if( !app->target_select.target.active )
     {
         *out_reason = "no spell is armed (api_drive.spell_arm first)";
         return DRIVE_REFUSED;
     }
-    held_bit = app->features && app->features->target_mask_held != 0
-                   ? app->features->target_mask_held
+    held_bit = ToriRS_Features_Resolved(&app->features) && app->features.target_mask_held != 0
+                   ? app->features.target_mask_held
                    : TORIRS_TARGET_MASK_HELD_CLASSIC;
-    if( (app->targetsel.mask & held_bit) == 0 )
+    if( (app->target_select.target.mask & held_bit) == 0 )
     {
         app_selection_clear(app);
         *out_reason = "the armed spell's target mask has no held-item bit: the cell offers no cast row";
@@ -2047,19 +2047,19 @@ drive_pointer_inv_cast(
     }
 
     UIMinimenu_Reset(&scratch);
-    scratch.font_id = app->frame_view->minimenu->font_id;
+    scratch.font_id = app->world_views.frame->minimenu->font_id;
     if( !UIMinimenu_AddOption(&scratch, "", REVCONFIG_MINIMENU_TGT_HELD, 0, pick) )
     {
         app_selection_clear(app);
         *out_reason = "the scratch minimenu would not take the row";
         return DRIVE_REFUSED;
     }
-    saved = *app->frame_view->minimenu;
-    *app->frame_view->minimenu = scratch;
+    saved = *app->world_views.frame->minimenu;
+    *app->world_views.frame->minimenu = scratch;
     app_minimenu_run_option(app, 0, 0, 0);
-    *app->frame_view->minimenu = saved;
+    *app->world_views.frame->minimenu = saved;
 
-    if( app->targetsel.active )
+    if( app->target_select.target.active )
     {
         app_selection_clear(app);
         *out_reason = "the cast row ran and the spell stayed armed: nothing was sent";
@@ -2125,7 +2125,7 @@ drive_pointer_cast_npc(
     result = drive_pointer_spell_arm(app, component_id, &was_armed, out_reason);
     if( result != DRIVE_OK )
         return result;
-    if( (app->targetsel.mask & TORIRS_TARGET_MASK_NPC) == 0 )
+    if( (app->target_select.target.mask & TORIRS_TARGET_MASK_NPC) == 0 )
     {
         app_selection_clear(app);
         *out_reason = "the armed spell's target mask has no npc bit: the npc offers no cast row";
@@ -2139,17 +2139,17 @@ drive_pointer_cast_npc(
     pick.tertiary_id = npc->grid_position.x;
     pick.quaternary_id = npc->grid_position.z;
     UIMinimenu_Reset(&scratch);
-    scratch.font_id = app->frame_view->minimenu->font_id;
+    scratch.font_id = app->world_views.frame->minimenu->font_id;
     if( !UIMinimenu_AddOption(&scratch, "", REVCONFIG_MINIMENU_TGT_NPC, 0, pick) )
     {
         app_selection_clear(app);
         *out_reason = "the scratch minimenu would not take the row";
         return DRIVE_REFUSED;
     }
-    saved = *app->frame_view->minimenu;
-    *app->frame_view->minimenu = scratch;
+    saved = *app->world_views.frame->minimenu;
+    *app->world_views.frame->minimenu = scratch;
     app_minimenu_run_option(app, 0, 0, 0);
-    *app->frame_view->minimenu = saved;
+    *app->world_views.frame->minimenu = saved;
     return DRIVE_OK;
 }
 
@@ -2251,7 +2251,7 @@ drive_pointer_world_use(
 
     sel = app_minimenu_selection(app);
     UIMinimenu_Reset(&scratch);
-    scratch.font_id = app->frame_view->minimenu->font_id;
+    scratch.font_id = app->world_views.frame->minimenu->font_id;
     if( sel.mode == RS_MINIMENU_SELECT_USE_ITEM )
     {
         if( !UIMinimenu_AddOption(&scratch, "", use_action, 0, pick) )
@@ -2272,10 +2272,10 @@ drive_pointer_world_use(
         *out_reason = "nothing is armed: arm an item (inv_arm) or a spell (spell_arm) first";
         return DRIVE_REFUSED;
     }
-    saved = *app->frame_view->minimenu;
-    *app->frame_view->minimenu = scratch;
+    saved = *app->world_views.frame->minimenu;
+    *app->world_views.frame->minimenu = scratch;
     app_minimenu_run_option(app, 0, 0, 0);
-    *app->frame_view->minimenu = saved;
+    *app->world_views.frame->minimenu = saved;
     return DRIVE_OK;
 }
 
@@ -2322,12 +2322,12 @@ DrivePointer_Camera(struct App* app, int yaw, int pitch, int zoom)
      * pick) the previous frame through the NEW camera, which no frame with
      * skip off ever does. */
     (void)App_RenderSkipCatchUp(app);
-    app->frame_view->orbit.yaw = app->frame_view->world_camera.yaw = yaw & 2047;
-    app->frame_view->orbit.pitch = app->frame_view->world_camera.pitch = pitch;
-    app->frame_view->world_cam_zoom = zoom;
-    app->frame_view->orbit.yaw_velocity = 0;
-    app->frame_view->orbit.pitch_velocity = 0;
-    app->need_redraw = 1;
+    app->world_views.frame->orbit.yaw = app->world_views.frame->world_camera.yaw = yaw & 2047;
+    app->world_views.frame->orbit.pitch = app->world_views.frame->world_camera.pitch = pitch;
+    app->world_views.frame->world_cam_zoom = zoom;
+    app->world_views.frame->orbit.yaw_velocity = 0;
+    app->world_views.frame->orbit.pitch_velocity = 0;
+    RedrawRequest_Raise(&app->redraw_request);
     return DRIVE_OK;
 }
 
@@ -2342,12 +2342,12 @@ DrivePointer_CameraPose(
     assert(out_owned);
     /* The same three fields DrivePointer_Camera writes, so a pose read here
      * and written back through it is a no-op on the next follow step. */
-    *out_yaw = app->frame_view->orbit.yaw & 2047;
-    *out_pitch = app->frame_view->orbit.pitch;
-    *out_zoom = app->frame_view->world_cam_zoom;
+    *out_yaw = app->world_views.frame->orbit.yaw & 2047;
+    *out_pitch = app->world_views.frame->orbit.pitch;
+    *out_zoom = app->world_views.frame->world_cam_zoom;
     /* app_world_camera_follow's own early returns, in its own order: while
      * either holds, the follow step never reads the orbit angles. */
-    *out_owned = !app->frame_view->camera_unlocked && !app->cam_script.scripted && app->net;
+    *out_owned = !app->world_views.frame->camera_unlocked && !CamScript_IsScripted(&app->cam_script) && app->net;
     return DRIVE_OK;
 }
 
@@ -2474,13 +2474,13 @@ DrivePointer_CameraTurnToward(
     /* The arrows only steer the FOLLOW camera (app_world_camera_keys turns a
      * scripted or unlocked one directly, at its own rate): a turn there is
      * not the player's turn, and the caller snaps as it always did. */
-    if( app->frame_view->camera_unlocked || app->cam_script.scripted || !app->net )
+    if( app->world_views.frame->camera_unlocked || CamScript_IsScripted(&app->cam_script) || !app->net )
         return DRIVE_REFUSED;
     bus = PluginDriveCore_CmdBus();
     if( !bus )
         return DRIVE_UNSUPPORTED;
 
-    orbit = &app->frame_view->orbit;
+    orbit = &app->world_views.frame->orbit;
     /* Shortest way round: the gap folded into [-1024, 1023]. */
     yaw_gap = (((yaw & 2047) - (orbit->yaw & 2047) + 1024) & 2047) - 1024;
     pitch_gap = pitch - orbit->pitch;
@@ -2519,13 +2519,13 @@ DrivePointer_CameraTurnToward(
      * nothing -- the band's end, or the pointer off the world -- ends the
      * zoom for this turn. */
     wheel_step = app->revconfig_profile.camera.wheel_step;
-    zoom_gap = zoom - app->frame_view->world_cam_zoom;
+    zoom_gap = zoom - app->world_views.frame->world_cam_zoom;
     if( g_turn_wheel_pending )
     {
         g_turn_wheel_pending++;
         if( g_turn_wheel_pending > 3 )
         {
-            if( app->frame_view->world_cam_zoom == g_turn_wheel_zoom_before )
+            if( app->world_views.frame->world_cam_zoom == g_turn_wheel_zoom_before )
                 g_turn_zoom_done = 1;
             g_turn_wheel_pending = 0;
         }
@@ -2536,9 +2536,9 @@ DrivePointer_CameraTurnToward(
         /* The wheel zooms only with the pointer over the world (app_camera.c's
          * app_world_mouse_gate); anywhere else a notch would scroll a panel.
          * The last frame's pick point is where the pointer rests. */
-        if( !app->frame_view->world_pickset.mouse_valid ||
+        if( !app->world_views.frame->world_pickset.mouse_valid ||
             !app_world_mouse_gate(
-                app, app->frame_view->world_pickset.mouse_x, app->frame_view->world_pickset.mouse_y) )
+                app, app->world_views.frame->world_pickset.mouse_x, app->world_views.frame->world_pickset.mouse_y) )
             g_turn_zoom_done = 1;
     }
     if( !g_turn_wheel_pending && !g_turn_zoom_done && wheel_step > 0 &&
@@ -2548,7 +2548,7 @@ DrivePointer_CameraTurnToward(
         if( CmdBus_PushMouseWheel(bus, (int16_t)(zoom_gap < 0 ? 1 : -1)) )
         {
             g_turn_wheel_pending = 1;
-            g_turn_wheel_zoom_before = app->frame_view->world_cam_zoom;
+            g_turn_wheel_zoom_before = app->world_views.frame->world_cam_zoom;
         }
     }
     *out_yaw_arrived = yaw_arrived;
@@ -2995,7 +2995,7 @@ lua_drive_inv_arm(struct lua_State* L)
 }
 
 /* api_drive.inv_use_on(component_id, slot, obj_id, count) -> (result, nil).
- * The clicked cell only: the armed one is already in app->objsel, put there
+ * The clicked cell only: the armed one is already in app->target_select.obj, put there
  * by the caller's own api_drive.inv_op(..., -1).  See
  * drive_pointer_inv_use_on. */
 static int
@@ -3034,7 +3034,7 @@ lua_drive_inv_cast(struct lua_State* L)
 
 /* api_drive.spell_arm(component_id) -> (result, detail).  detail is
  * "already armed, nothing sent", "armed by this call: <the client's own
- * targetsel prompt>", or the refusal sentence.  See drive_pointer_spell_arm. */
+ * target_select.target.op>", or the refusal sentence.  See drive_pointer_spell_arm. */
 static int
 lua_drive_spell_arm(struct lua_State* L)
 {
@@ -3051,7 +3051,7 @@ lua_drive_spell_arm(struct lua_State* L)
         return PluginDrive_PushResult(L, result, reason);
     if( was_armed )
         return PluginDrive_PushResult(L, result, "already armed, nothing sent");
-    snprintf(detail, sizeof(detail), "armed by this call: %s", app->targetsel.op);
+    snprintf(detail, sizeof(detail), "armed by this call: %s", app->target_select.target.op);
     return PluginDrive_PushResult(L, result, detail);
 }
 
@@ -3181,11 +3181,11 @@ lua_drive_camera_turn_toward(struct lua_State* L)
         return PluginDrive_PushResult(L, result, NULL);
     lua_pushstring(L, DriveResultName(result));
     lua_newtable(L);
-    lua_pushinteger(L, app->frame_view->orbit.yaw & 2047);
+    lua_pushinteger(L, app->world_views.frame->orbit.yaw & 2047);
     lua_setfield(L, -2, "yaw");
-    lua_pushinteger(L, app->frame_view->orbit.pitch);
+    lua_pushinteger(L, app->world_views.frame->orbit.pitch);
     lua_setfield(L, -2, "pitch");
-    lua_pushinteger(L, app->frame_view->world_cam_zoom);
+    lua_pushinteger(L, app->world_views.frame->world_cam_zoom);
     lua_setfield(L, -2, "zoom");
     lua_pushboolean(L, yaw_arrived && pitch_arrived && zoom_arrived);
     lua_setfield(L, -2, "arrived");
@@ -3214,8 +3214,8 @@ lua_drive_camera_turn_release(struct lua_State* L)
  * seam32 cutscene_verb_and_camera_read: no test could read the camera, so a
  * quest whose cutscene set its stage and moved nothing passed every row. The
  * packet handlers in rs_gameproto_exec.c stamp every CAM_* packet into
- * app->cam_script (struct App_CamScript: `serial` + the `events` ring, world
- * tiles); these two verbs hand them to quest_driver/world.lua
+ * app->cam_script (render/cam_script.h: CamScript_Serial + the event ring,
+ * world tiles); these two verbs hand them to quest_driver/world.lua
  * (t.world.camera) and quest_driver/cutscene.lua (t.cutscene.await). */
 
 static char const*
@@ -3223,21 +3223,21 @@ drive_camera_op_name(int op)
 {
     switch( op )
     {
-    case APP_CAM_SCRIPT_OP_MOVETO:
+    case CAM_SCRIPT_OP_MOVETO:
         return "moveto";
-    case APP_CAM_SCRIPT_OP_LOOKAT:
+    case CAM_SCRIPT_OP_LOOKAT:
         return "lookat";
-    case APP_CAM_SCRIPT_OP_SHAKE:
+    case CAM_SCRIPT_OP_SHAKE:
         return "shake";
-    case APP_CAM_SCRIPT_OP_RESET:
+    case CAM_SCRIPT_OP_RESET:
         return "reset";
-    case APP_CAM_SCRIPT_OP_SMOOTHRESET:
+    case CAM_SCRIPT_OP_SMOOTHRESET:
         return "smoothreset";
-    case APP_CAM_SCRIPT_OP_ROTATEBY:
+    case CAM_SCRIPT_OP_ROTATEBY:
         return "rotateby";
-    case APP_CAM_SCRIPT_OP_ROTATETO:
+    case CAM_SCRIPT_OP_ROTATETO:
         return "rotateto";
-    case APP_CAM_SCRIPT_OP_LOOKAT_CYCLES:
+    case CAM_SCRIPT_OP_LOOKAT_CYCLES:
         return "lookat_cycles";
     default:
         return NULL;
@@ -3245,7 +3245,7 @@ drive_camera_op_name(int op)
 }
 
 static void
-drive_camera_push_event(struct lua_State* L, struct App_CamScriptEvent const* event)
+drive_camera_push_event(struct lua_State* L, struct CamScriptEvent const* event)
 {
     assert(L);
     assert(event);
@@ -3256,7 +3256,7 @@ drive_camera_push_event(struct lua_State* L, struct App_CamScriptEvent const* ev
     lua_setfield(L, -2, "op");
     lua_pushinteger(L, event->tick);
     lua_setfield(L, -2, "tick");
-    if( event->op == APP_CAM_SCRIPT_OP_MOVETO || event->op == APP_CAM_SCRIPT_OP_LOOKAT )
+    if( event->op == CAM_SCRIPT_OP_MOVETO || event->op == CAM_SCRIPT_OP_LOOKAT )
     {
         lua_pushinteger(L, event->world_x);
         lua_setfield(L, -2, "x");
@@ -3269,7 +3269,7 @@ drive_camera_push_event(struct lua_State* L, struct App_CamScriptEvent const* ev
         lua_pushinteger(L, event->rate2);
         lua_setfield(L, -2, "speed2");
     }
-    else if( event->op == APP_CAM_SCRIPT_OP_SHAKE )
+    else if( event->op == CAM_SCRIPT_OP_SHAKE )
     {
         lua_pushinteger(L, event->rate);
         lua_setfield(L, -2, "axis");
@@ -3285,14 +3285,14 @@ drive_camera_push_event(struct lua_State* L, struct App_CamScriptEvent const* ev
  *
  * x/z are the EYE's world tile (the scene-local eye plus the scene base);
  * yaw/pitch are the angles the frame is drawn with, scripted or not.
- * server_driven is cam_script.scripted: a MOVETO/LOOKAT arrived and neither a
+ * server_driven is CamScript_IsScripted: a MOVETO/LOOKAT arrived and neither a
  * CAM_RESET nor a scene rebuild (app_world_rebuild.c clears it) has ended it.
  * last_target is the newest MOVETO/LOOKAT still in the ring, nil if none. */
 static int
 lua_drive_camera_state(struct lua_State* L)
 {
     struct App* app = PluginDrive_App();
-    struct App_CamScript const* cam;
+    struct CamScript const* cam;
     int base_x = 0, base_z = 0;
     int tile_x = 0, tile_z = 0, level = 0;
 
@@ -3308,36 +3308,36 @@ lua_drive_camera_state(struct lua_State* L)
 
     lua_pushstring(L, DriveResultName(DRIVE_OK));
     lua_newtable(L);
-    lua_pushinteger(L, (app->frame_view->world_camera_pos.x >> 7) + base_x);
+    lua_pushinteger(L, (app->world_views.frame->world_camera_pos.x >> 7) + base_x);
     lua_setfield(L, -2, "x");
-    lua_pushinteger(L, (app->frame_view->world_camera_pos.z >> 7) + base_z);
+    lua_pushinteger(L, (app->world_views.frame->world_camera_pos.z >> 7) + base_z);
     lua_setfield(L, -2, "z");
     lua_pushinteger(L, level);
     lua_setfield(L, -2, "level");
-    lua_pushinteger(L, app->frame_view->world_camera.yaw & 2047);
+    lua_pushinteger(L, app->world_views.frame->world_camera.yaw & 2047);
     lua_setfield(L, -2, "yaw");
-    lua_pushinteger(L, app->frame_view->world_camera.pitch);
+    lua_pushinteger(L, app->world_views.frame->world_camera.pitch);
     lua_setfield(L, -2, "pitch");
-    lua_pushinteger(L, app->frame_view->world_cam_zoom);
+    lua_pushinteger(L, app->world_views.frame->world_cam_zoom);
     lua_setfield(L, -2, "zoom");
-    lua_pushboolean(L, cam->scripted != 0);
+    lua_pushboolean(L, CamScript_IsScripted(cam) != 0);
     lua_setfield(L, -2, "server_driven");
-    lua_pushinteger(L, cam->serial);
+    lua_pushinteger(L, CamScript_Serial(cam));
     lua_setfield(L, -2, "serial");
-    if( cam->serial > 0 )
+    if( CamScript_Serial(cam) > 0 )
     {
-        struct App_CamScriptEvent const* newest = &cam->events[cam->serial % APP_CAM_SCRIPT_EVENTS];
+        struct CamScriptEvent const* newest = CamScript_Event(cam, CamScript_Serial(cam));
         lua_pushstring(L, drive_camera_op_name(newest->op));
         lua_setfield(L, -2, "last_op");
     }
     /* The newest framing packet still held in the ring: a shake or a reset
      * after it does not erase where the shot was last aimed. */
-    for( int serial = cam->serial;
-         serial > 0 && serial > cam->serial - APP_CAM_SCRIPT_EVENTS;
+    for( int serial = CamScript_Serial(cam);
+         serial > 0 && serial > CamScript_Serial(cam) - CAM_SCRIPT_EVENTS;
          serial-- )
     {
-        struct App_CamScriptEvent const* event = &cam->events[serial % APP_CAM_SCRIPT_EVENTS];
-        if( event->op != APP_CAM_SCRIPT_OP_MOVETO && event->op != APP_CAM_SCRIPT_OP_LOOKAT )
+        struct CamScriptEvent const* event = CamScript_Event(cam, serial);
+        if( event->op != CAM_SCRIPT_OP_MOVETO && event->op != CAM_SCRIPT_OP_LOOKAT )
             continue;
         lua_newtable(L);
         lua_pushinteger(L, event->world_x);
@@ -3365,21 +3365,21 @@ static int
 lua_drive_camera_events(struct lua_State* L)
 {
     struct App* app = PluginDrive_App();
-    struct App_CamScript const* cam;
+    struct CamScript const* cam;
     int since = PluginDrive_ArgInt(L, 1);
     int oldest;
     int index = 1;
 
     assert(app);
     cam = &app->cam_script;
-    oldest = cam->serial - APP_CAM_SCRIPT_EVENTS + 1;
+    oldest = CamScript_Serial(cam) - CAM_SCRIPT_EVENTS + 1;
     if( oldest < 1 )
         oldest = 1;
     lua_pushstring(L, DriveResultName(DRIVE_OK));
     lua_newtable(L);
-    for( int serial = since + 1 > oldest ? since + 1 : oldest; serial <= cam->serial; serial++ )
+    for( int serial = since + 1 > oldest ? since + 1 : oldest; serial <= CamScript_Serial(cam); serial++ )
     {
-        drive_camera_push_event(L, &cam->events[serial % APP_CAM_SCRIPT_EVENTS]);
+        drive_camera_push_event(L, CamScript_Event(cam, serial));
         lua_rawseti(L, -2, index++);
     }
     lua_pushinteger(L, oldest);

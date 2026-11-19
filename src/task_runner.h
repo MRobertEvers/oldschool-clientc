@@ -51,6 +51,12 @@ struct TaskRunner
      * not be published until its whole host follow-up fixed point has settled
      * (app_settle_cs2_frame clears it). */
     int frame_settle_pending;
+    /** The owner's latch: the work it last settled on this queue did not reach
+     * a fixed point, and part of it is still parked (TaskRunner_SetHadWork).
+     * The runner itself never sets or reads it; the queue's owner does, after
+     * a settle or a pump. A queue whose owner never settles a transaction on
+     * it leaves it zero. */
+    int had_work;
     /** Did the last Step (or any pass of the last SettleFrame) run anything? */
     int progressed;
     /* What the task asked to be drawn, valid only while the last Step
@@ -185,6 +191,24 @@ TaskRunner_AddRenderBlockingSerialTask(
     task->render_blocking = 1;
     ToriRS_TaskQueue_Add(runner->queue, task);
     runner->frame_settle_pending = 1;
+}
+
+/* Latch, or clear, the owner's "last pump left work parked" (`had_work`). */
+static inline void
+TaskRunner_SetHadWork(
+    struct TaskRunner* runner,
+    int had_work)
+{
+    assert(runner);
+    runner->had_work = had_work;
+}
+
+/* Did the owner's last pump of this queue leave work parked? */
+static inline int
+TaskRunner_HadWork(struct TaskRunner const* runner)
+{
+    assert(runner);
+    return runner->had_work;
 }
 
 /* Is any task of the frame's transaction still queued? The queue is short --

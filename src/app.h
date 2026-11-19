@@ -1,55 +1,103 @@
 #ifndef SRC_APP_H
 #define SRC_APP_H
 
-#include "app/app_cam_arc.h"
 #include "asyncio.h"
 #include "engine/async_pending.h"
+#include "engine/cache_mounts.h"
 #include "engine/cache_provider.h"
+#include "engine/entity_spotanim.h"
 #include "engine/uitree_anim.h"
 #include "engine/uitree_builder/task_interface_open.h"
 #include "engine/uitree_builder/uitree_builder.h"
-#include "editor/editor_panel.h"
 #include "engine/uitree_scene_bridge.h"
 #include "engine/torirs_model_inst_cache.h"
 #include "engine/world_seq_source_toridraw.h"
 #include "features/features.h"
+#include "features/feature_facts.h"
 #include "game/rs_audio.h"
-#include "editor/editor_preview_camera.h"
 #include "render/world_camera_orbit.h"
-#include "editor/map_editor_ghost.h"
 #include "game/rs_chat.h"
 #include "game/rs_clientscript_queue.h"
-#include "perf/frame_time_ring.h"
+#include "game/rs_server_tick.h"
+#include "game/rs_zone_inbox.h"
+#include "game/rs_rebuild_region.h"
+#include "game/rs_npc_update_origin.h"
+#include "game/rs_hint_arrow.h"
+#include "game/rs_player_ops.h"
+#include "game/rs_interaction_mode.h"
+#include "game/rs_session_info.h"
+#include "game/rs_boot_state.h"
+#include "game/rs_client_phase.h"
+#include "game/rs_npc_body_lands.h"
+#include "game/rs_sailing_hud.h"
+#include "game/rs_tile_highlight_watch.h"
+#include "game/rs_mouseover_report.h"
+#include "game/rs_client_trigger.h"
+#include "perf/boot_pump_stats.h"
+#include "perf/frame_clock.h"
+#include "net/net_keepalive.h"
 #include "net/net_link_watch.h"
+#include "net/net_once.h"
+#include "net/session_end.h"
+#include "ui/chat_line.h"
 #include "ui/inv_drag.h"
 #include "ui/minimap_view.h"
-#include "ui/settings_pickers.h"
+#include "ui/tree_refresh.h"
+#include "ui/target_select.h"
 #include "game/rs_ground_items_dirty.h"
 #include "engine/title_flames.h"
 #include "game/rs_login_replies.h"
 #include "game/rs_title_session.h"
-#include "editor/loc_editor_selection.h"
+#include "render/cam_script.h"
 #include "render/overlay_stage.h"
+#include "render/panel_overlay_stage.h"
+#include "render/painter_cull_bake.h"
+#include "render/redraw_request.h"
+#include "render/render_mode.h"
+#include "plugin/plugin_frame_binding.h"
+#include "plugin/plugin_highlights.h"
+#include "plugin/plugin_boot_config.h"
+#include "plugin/plugin_geometry.h"
+#include "plugin/plugin_panel.h"
+#include "ui/chrome_compositor.h"
+#include "plugin/plugin_screenshots.h"
+#include "render/render_skip.h"
+#include "render/skybox_slot.h"
+#include "render/tile_mark_stage.h"
+#include "render/world_views.h"
+#include "replay/replay_chase.h"
 #include "game/rs_worldmap_view.h"
 #include "game/rs_preload.h"
 #include "game/rs_title.h"
 #include "game/rs_accounts.h"
+#include "game/rs_title_accounts.h"
+#include "game/rs_title_music.h"
 #include "platform/platform_credential_form.h"
 #include "game/task_accounts_io.h"
 #include "net/rev/revpacket.h"
 #include "game/rs_cs1_host.h"
 #include "game/rs_cs2_host.h"
+#include "game/entity_info_scratch.h"
 #include "game/rs_entity_sync.h"
 #include "game/rs_idk_design.h"
 #include "game/rs_if1_buttons.h"
 #include "game/rs_minimenu_build.h"
 #include "game/rs_player_stats.h"
 #include "game/rs_prefs.h"
+#include "game/rs_save_debounce.h"
 #include "platform/client_scale.h"
+#include "ui/canvas_scale.h"
+#include "platform/device_caps.h"
+#include "platform/text_input_gate.h"
 #include "game/rs_social.h"
 #include "game/rs_ui_slots.h"
 #include "game/rs_worldmap_drag.h"
+#include "game/rs_worldmap_surface.h"
 #include "input/torirs_input.h"
+#include "input/torirs_frame_modifiers.h"
+#include "input/torirs_input_claims.h"
+#include "input/torirs_world_tap.h"
+#include "inv/inv_icon_retry.h"
 #include "inv/inv_manager.h"
 #include "platform/platform_io.h"
 #include "render/torirs_damage_region.h"
@@ -60,12 +108,17 @@
 #include "ui/uitree_frame.h"
 #include "ui/uitree_if_events.h"
 #include "ui/uitree_if_store.h"
+#include "ui/uitree_if_models.h"
 #include "ui/uitree_role.h"
 #include "ui/uitree_scroll.h"
 #include "revconfig/revconfig_profile.h"
 #include "revconfig/revconfig_refs.h"
 #include "task_runner.h"
+#include "engine/world_builder/rebuild_frame_stats.h"
+#include "engine/world_builder/rebuild_pace.h"
+#include "engine/world_builder/world_rebuild_job.h"
 #include "engine/world_builder/task_world_load.h"
+#include "engine/world_builder/world_load_state.h"
 #include "toridraw_scene.h"
 #include "toridraw_sprite.h"
 #include "ui/uitree.h"
@@ -75,6 +128,7 @@
 #include "ui/torirs_chrome_shell.h"
 #include "ui/uitree_debug_overlay.h"
 #include "ui/uitree_emit.h"
+#include "ui/uitree_kept_mounts.h"
 #include "ui/uitree_host.h"
 #include "ui/uitree_hovertext.h"
 #include "ui/uitree_interact.h"
@@ -86,6 +140,11 @@
 #include "varp/varp_manager.h"
 #include "world/wev.h"
 #include "world/world_pickset.h"
+#include "world/wev_aboard_trace.h"
+#include "world/loc_lane.h"
+#include "world/entity_objstack.h"
+#include "world/entity_projectile.h"
+#include "world/proj_spawn_latch.h"
 #include "world/worldview.h"
 #include "app/app_wev_flat.h"
 
@@ -109,9 +168,11 @@ struct ToriRS_CmdHeader;
 struct ToriRS_CmdSafeArea;
 struct ToriRS_Network;
 struct RsprotInfoOp;
+struct DevOverlay;
 struct Editor;
+struct EditorShell;
 /** Placeholder requests waiting for a tick; owned by app/app_placeholder.c. */
-struct AppPlaceholderPark;
+struct WidgetIconPark;
 
 /*
  * Application shell: owns every subsystem and the update loop body, with no
@@ -177,62 +238,6 @@ enum AppDebugHotkey
     APP_DEBUG_HOTKEY_COUNT
 };
 
-/* Enable checkbox plus config rows, across every plugin the panel shows. */
-/* Play Now cards the title has room for; the device may hold more
- * (RS_ACCOUNTS_MAX), and the most recently played are the ones shown. */
-#define APP_TITLE_ACCOUNT_CARDS 4
-
-#define APP_PLUGIN_PANEL_ROWS_MAX 320
-/** What one chrome widget in the plugin window edits. */
-enum AppPluginRowKind
-{
-    /** The roster's per-plugin enable switch. Applied immediately. */
-    APP_PLUGIN_ROW_ENABLE = 0,
-    /**
-     * A config key from the plugin's schema. STAGED: the chrome widget holds
-     * the edit and nothing reaches the store until Save.
-     *
-     * The chrome is the staging buffer, which is why there is no third copy of
-     * these values anywhere -- a retained widget already holds exactly "what
-     * the user typed but has not committed".
-     */
-    APP_PLUGIN_ROW_CONFIG,
-    /** A semantic control belonging to the one selected panel model.
-     *  Its generation and serial are checked again by PluginHost at dispatch. */
-    APP_PLUGIN_ROW_PANEL_WIDGET,
-    APP_PLUGIN_ROW_SAVE,
-    APP_PLUGIN_ROW_REVERT,
-};
-
-/** Choice strings across every dropdown in the plugin window at once. */
-#define APP_PLUGIN_CHOICES_MAX 128
-/** Retained portable primitives across every custom well on the active page. */
-#define APP_PLUGIN_PANEL_OVERLAYS_MAX 512
-
-/**
- * Overlay primitives a frame may hand to the WORLD pass, over every tile.
- *
- * The same 512 the per-frame draw budget allots a plugin, because these come
- * out of that budget: a tile marker is ten primitives (a filled quad as a
- * begin / four points / end, and four border segments), so this is fifty
- * tiles' worth and the budget bites first in every case that matters. Past it
- * the staging refuses and says so rather than wrapping.
- */
-#define APP_WORLD_TILE_MARKS_MAX 512
-
-/** Scene tiles a mark key can name per axis. 512 because that is what a
- *  painter terrain command's own nine-bit x and z can name, and the key is
- *  compared against one. */
-#define APP_WORLD_TILE_MARK_SCENE_MAX 512
-
-/** "This paint never drew the marked tile." INT_MAX so the sort puts these
- *  last and the world walk's own "not reached yet" test stops at the first of
- *  them -- no second test, no second list. */
-#define APP_WORLD_TILE_MARK_UNPLACED INT_MAX
-/** Room for both chrome instances plus converted panel-local primitives. */
-#define APP_CHROME_PRIMS_MAX                                                                   \
-    (2 * TORIRS_CHROME_MAX_PRIMS + APP_PLUGIN_PANEL_OVERLAYS_MAX)
-
 /* World objects across every plugin at once. Per-plugin budgeting is the
  * host's (TORIRS_PLUGIN_OBJECT_BUDGET); this is the ceiling on the table those
  * handles index into. */
@@ -257,117 +262,6 @@ enum AppPluginRowKind
  */
 #define APP_SETTING_CLEAR_TILE_MARKERS "clear_tile_markers"
 #define APP_SETTING_CLEAR_NPC_TAGS "clear_npc_tags"
-
-/*
- * HINT_ARROW's `type` byte: what the packet's `id`/`z` fields mean.
- *
- * The reference's own values -- `PktHintArrow` states them, LostCity's
- * `HintArrowEncoder` writes them and rev 239's own `class268.method6676`
- * reads them: 1 is an NPC slot, 2..6 a tile, 10 a player pid. 255 means
- * "clear" and is normalised to 0 by `rs_gameproto_exec.c`, so 0 here is
- * simply "no arrow" and needs no name.
- *
- * These were 1=coord/2=npc until 2026-09-15, which no lane agreed with: the
- * embedded server mirrored the same two wrong numbers, so the pair only ever
- * talked to itself, and a real rev289 server pointing at an npc put the arrow
- * over whatever tile the slot number happened to name.
- *
- * The five tile forms differ only in where INSIDE the tile the arrow floats,
- * which the wire says by the type itself and the client keeps as a fine-unit
- * offset pair; `_COORD` is the centred one and the others normalise to it.
- */
-#define APP_HINT_ARROW_NPC 1
-#define APP_HINT_ARROW_COORD 2
-#define APP_HINT_ARROW_COORD_WEST 3
-#define APP_HINT_ARROW_COORD_EAST 4
-#define APP_HINT_ARROW_COORD_SOUTH 5
-#define APP_HINT_ARROW_COORD_NORTH 6
-#define APP_HINT_ARROW_PLAYER 10
-
-#define APP_PLUGIN_HIGHLIGHTS_MAX 256
-
-#define APP_PLUGIN_OBJECTS_MAX 256
-
-/*
- * One model FILE a plugin ships, decoded and held for as long as it runs.
- *
- * Held as a ToriRS_Model -- the decoded form, not the bytes and not a drawable
- * model -- for the same reason a mesh is held as triangles: the file is the
- * plugin's SHAPE, and every object standing on it builds its own drawable copy
- * with its own recolours and its own lighting baked in.
- *
- * `revision` moves when the geometry arrives or goes, which is what tells the
- * objects already pointed at this slot that there is now something to build.
- */
-struct AppPluginAssetModel
-{
-    int in_use;
-    int revision;
-    struct ToriRS_Model* model;
-};
-
-/* Authored meshes across every plugin at once: TORIRS_PLUGIN_MAX plugins at
- * TORIRS_PLUGIN_MESH_BUDGET each, which is what the host will hand out and so
- * what this has to be able to hold. */
-#define APP_PLUGIN_MESHES_MAX 128
-
-/*
- * Frame captures a plugin has asked for and the client has not taken yet.
- *
- * Small on purpose. A capture is a rare, deliberate act -- a level-up, a boss
- * kill -- and a plugin that asks for more than a handful in one frame is
- * looping by mistake; the queue tells it so rather than rendering four
- * identical frames of the same instant.
- */
-#define APP_PLUGIN_SCREENSHOTS_MAX 4
-
-/*
- * One plugin-owned model in the world.
- *
- * The plugin names an ABSOLUTE tile and a model id; everything between that
- * and a drawn element lives here. It is kept on the App side rather than in
- * World for one reason: only this layer knows the absolute tile, and only the
- * absolute tile survives a scene rebuild. A rebuild despawns every world
- * entity and its scene element, and this record is what puts them back.
- */
-struct AppPluginObject
-{
-    int in_use;
-    /* -- what the plugin asked for -- */
-    int source; /* enum ToriRS_HostModelSource */
-    int model_id;
-    int seq_id;
-    int loop;
-    /** Lighting offsets against the actor profile (ToriDraw_LightModelActor). */
-    int ambient;
-    int contrast;
-    int tile_x; /* ABSOLUTE */
-    int tile_z;
-    int level;
-    int height;
-    int yaw;
-    int active;
-    int recolor_from[TORIRS_PLUGIN_OBJECT_RECOLORS_MAX];
-    int recolor_to[TORIRS_PLUGIN_OBJECT_RECOLORS_MAX];
-    int recolor_count;
-    /* -- what has been built from it -- */
-    int element_id;
-    int world_index;
-    /** The (source, model, recolour) the live element was built from, so a
-     *  set_model or a recolour that changes nothing does not churn the model
-     *  cache every frame a plugin re-states its intent. */
-    int built_source;
-    int built_model_id;
-    int built_recolor_stamp;
-    /** The revision of the geometry the live element was built from -- a mesh's
-     *  or a shipped model's -- so re-authoring it, or its arriving late,
-     *  rebuilds the object, and re-stating the same geometry does not. 0 for
-     *  the cache-sourced kinds, which have nothing of the sort. */
-    int built_geometry_revision;
-    /** A load task is in flight. Without this a plugin polling a not-yet-
-     *  resident model on every frame would queue a task per frame. */
-    int load_pending;
-};
 
 #define APP_DEBUG_HOTKEY_MAX 64
 #define APP_DEBUG_HOTKEY_ARGS_CAP 512
@@ -651,30 +545,8 @@ enum AppPluginSurface
     APP_PLUGIN_SURFACE_PANEL = 2
 };
 
-/** App boot lifecycle: BOOTING until the root-interface build task (and its
- * dependent loads) complete through the per-frame task pump; the render path
- * draws a loading bar until READY. */
-enum AppState
-{
-    APP_STATE_BOOTING = 0,
-    APP_STATE_READY,
-};
+/* enum AppState and enum AppScreen: @see game/rs_client_phase.h. */
 
-/**
- * Which screen the session is on, orthogonal to AppState.
- *
- * AppState is a per-BAKE lifecycle -- it flips to BOOTING every time a tree is
- * rebuilt and back when that build finishes -- so it cannot say whether the
- * tree being built is the title screen or the gameframe. This says that, and
- * the two run independently: a title tree can be BOOTING, and so can the
- * gameframe that replaces it.
- *
- * The values are the deob's own gameState numbers, so a state lifted from that
- * reference reads across without a translation table. Its 25 (map load), 40
- * (connection lost) and 45 (world hop) are deliberately not here: this client
- * already draws all three as overlays inside a live gameframe, which is what
- * they are.
- */
 /**
  * The [layout:] group holding the title screen.
  *
@@ -684,80 +556,6 @@ enum AppState
  */
 #define APP_TITLE_LAYOUT_GROUP "title"
 
-enum AppScreen
-{
-    /** Engine coming up; no title tree rooted yet. deob 0/5. */
-    APP_SCREEN_BOOT = 0,
-    /** Title tree rooted; RS_Title says which of its screens shows. deob 10. */
-    APP_SCREEN_TITLE = 10,
-    /** Login handshake in flight. The title tree stays up and keeps drawing --
-     *  that is where "Connecting to server..." appears. deob 20. */
-    APP_SCREEN_CONNECTING = 20,
-    /** Gameframe rooted. deob 25/30. */
-    APP_SCREEN_GAME = 30,
-};
-
-/** One visible map surface region, with its distance from the view centre. */
-/** Everything the world map surface owns for the length of a session. */
-/** The loc editor panel's chrome handles. */
-struct App_LocEditorWidgets
-{
-    int panel;
-    int visible;
-    int row_target; /* "loc <id> shape <n>" or "no loc selected" */
-    int row_pos;    /* "x=.. z=.. level=.." */
-    int row_size;   /* "size AxB angle=N" */
-    int row_extra;  /* loc name, or "interactive=0/1" when unnamed */
-    int item_xplus;
-    int item_xminus;
-    int item_zplus;
-    int item_zminus;
-    int item_rotate;
-    int item_reselect;
-    int item_deselect;
-    int item_close;
-};
-
-struct App_WorldMapView
-{
-    /* Per-frame blits, filled by the GET_WORLDMAP_TILES host request and
-     * consumed by the same frame's draw: the visible regions first, then every
-     * map element icon over them. */
-    struct RS_WorldMapTiles tiles;
-    /** SET_HEATMAP_ENABLED (deob Statics.field3246) and what the last heat
-     *  image was drawn for. It is redrawn every 50 cycles at most. */
-    bool heatmap_on;
-    int heatmap_built_cycle;
-    int heatmap_built_w, heatmap_built_h, heatmap_built_centre_x, heatmap_built_centre_y;
-    int heatmap_built_region_px;
-    /* Visible regions for this frame, ordered nearest-the-view-centre first —
-     * the order decides who gets the frame's bake and load allowance. */
-    struct RS_WorldMapVisits visits;
-    /** Overview pane blit (clientCode 1401): one scaled compositetexture. */
-    struct UITreeWorldMapTile overview_tile;
-    /** Scene id of the uploaded overview texture; 0 until first needed, -1 if
-     *  the last upload failed. Replaced when the current area changes. */
-    int overview_scene_id;
-    /** Area id whose compositetexture is currently in the overview scene slot;
-     *  -1 when none. */
-    int overview_area_id;
-    /** Baked map-surface regions (src/game/rs_worldmap_render.h). */
-    struct RS_WorldMapRender* render;
-    /* Scene id of the synthesised flash marker drawn behind a flashing icon;
-     * 0 until first needed, -1 if it could not be built. See
-     * app_worldmap_flash_marker_scene on why it is synthesised and not a
-     * cache sprite. */
-    int flash_scene_id;
-    /** Surface box and drag-to-pan state. */
-    struct UIWorldMapDrag drag;
-    int debug_frame;
-};
-
-enum ToriRS_WorldRenderMode
-{
-    TORIRS_WORLD_PAINTER = 0,
-    TORIRS_WORLD_DEPTH = 1,
-};
 
 /**
  * Logic cycles in one server tick: 600ms of server against a 20ms client
@@ -766,27 +564,6 @@ enum ToriRS_WorldRenderMode
  * (UPDATE_REBOOT_TIMER's countdown, the clientscript fence below).
  */
 #define APP_SERVER_TICK_LOGIC_CYCLES 30
-
-/** Which CAM_* packet an App_CamScript event records (app.h cam_script). */
-enum App_CamScriptOp
-{
-    APP_CAM_SCRIPT_OP_NONE = 0,
-    APP_CAM_SCRIPT_OP_MOVETO = 1,
-    APP_CAM_SCRIPT_OP_LOOKAT = 2,
-    APP_CAM_SCRIPT_OP_SHAKE = 3,
-    APP_CAM_SCRIPT_OP_RESET = 4,
-    APP_CAM_SCRIPT_OP_MOVETO_CYCLES = 5,
-    APP_CAM_SCRIPT_OP_ROTATETO_COORDINATE = 6,
-    APP_CAM_SCRIPT_OP_MOVETO_ARC = 7,
-    APP_CAM_SCRIPT_OP_SMOOTHRESET = 8,
-    APP_CAM_SCRIPT_OP_ROTATEBY = 9,
-    APP_CAM_SCRIPT_OP_ROTATETO = 10,
-    APP_CAM_SCRIPT_OP_LOOKAT_CYCLES = 11,
-};
-
-/** Size of App_CamScript.events: the camera packets the driver can read back.
- *  A cutscene sends one to four per tick and the driver polls every frame. */
-#define APP_CAM_SCRIPT_EVENTS 64
 
 /** 20ms logic cycles in one second — the client's own clock read as wall time. */
 #define APP_LOGIC_CYCLES_PER_SECOND 50
@@ -812,17 +589,13 @@ enum AppMinimapState
 #define APP_CLIENTSCRIPT_FENCE_MAX_CYCLES APP_SERVER_TICK_LOGIC_CYCLES
 
 /**
- * The value App::logout_wait_cycles is armed with when a logout is requested.
- *
- * The rev-239 client's logoutTimer value: its CS2 logout op (5630) and CS1
- * clientCode 205 both store 250. It is NOT counted down, there or here: the
- * rev-239 client has no decrement of that field, and the session ends only
- * when the server ends it (a LOGOUT packet, or the socket it closes). A
- * fallback that ended it locally after five seconds used to live here; it
- * logged out a player the server had refused (CONTENT_BUGS ENG-29). See
- * app_logout_tick in app/app_net.c.
+ * The value the logout wait (App::session_end) is armed with when a logout is
+ * requested: SESSION_END_LOGOUT_WAIT_CYCLES, the rev-239 client's 250, never
+ * counted down (net/session_end.h). A fallback that ended it locally after
+ * five seconds used to live here; it logged out a player the server had
+ * refused (CONTENT_BUGS ENG-29). See app_logout_tick in app/app_net.c.
  */
-#define APP_LOGOUT_WAIT_CYCLES 250
+#define APP_LOGOUT_WAIT_CYCLES SESSION_END_LOGOUT_WAIT_CYCLES
 
 /**
  * Logic cycles a settings change waits before it is written to disk.
@@ -835,284 +608,6 @@ enum AppMinimapState
  */
 #define APP_PREFS_SAVE_SETTLE_TICKS 25
 
-/**
- * Client scaling, as the App knows it. @see platform/client_scale.h for how
- * interface scaling, stretch mode and the pixel limit combine.
- */
-struct AppClientScale
-{
-    /** The last unscaled game-area size the shell reported
-     *  (TORIRS_CMD_WINDOW_RESIZE), before scaling divides it into the canvas.
-     *  Kept because the canvas is a lossy function of it: at 200% a 1600x900
-     *  window and a 1601x901 one both become 800x450, so the canvas cannot be
-     *  scaled back up when a setting changes. 0 until the first resize. */
-    int window_w;
-    int window_h;
-    /** The layout the last resize or setting change asked for (before the
-     *  canvas floor), and the percent it really used. In fixed mode the
-     *  percent is the one the window was sized by. */
-    struct ClientScaleLayout layout;
-    /** What the shell presented the last frame with. Reported, not decided:
-     *  the shell calls ClientScale_Present itself. */
-    struct ClientScalePresent present;
-    bool present_known;
-    /** The scale the frame is shown at, in the unit it was chosen in. */
-    int shown_percent;
-    /** Drawable pixels per window point as a percent, as the platform last
-     *  detected it; 0 until it reports one. @see App_SetDisplayDensity. */
-    int density_percent;
-    /** What HighDPI "automatic" means on this lane. @see App_SetHighDpiAuto. */
-    enum ClientScaleHighDpi high_dpi_auto;
-};
-
-/** The most world views struct App holds: a script's and a watcher's. */
-#define APP_WORLD_VIEW_MAX 2
-
-/**
- * One WORLD VIEW: everything a camera looking at the shared world owns, and
- * nothing it shares.
- *
- * The world, the character, the UI tree and its layout, the viewport
- * rectangle and emit desc, and the game's scripted camera (`cam_script`) are
- * SHARED and stay on struct App. A view holds the camera pose (the follow
- * orbit, the eye it derives, the zoom, the reload hold, the projection scale
- * inside `world_camera`), the camera's input latches, the pointer over the
- * world, the pick results the last drawn frame left at that pointer, and the
- * right-click menu.
- *
- * Headless, and with no script attached, there is exactly ONE: App_Init
- * points `frame_view` at `views[0]` and sets `view_split.view_count` to 1.
- * While a script runs in a client that presents there are two (struct
- * App_ViewSplit: views[0] the AutomationRunner's, views[1] the watcher's
- * PlayerClient view). Every reader and writer reaches these fields through a
- * view pointer -- `app->frame_view`,
- * the view of the frame being built -- so a second view (a script's camera
- * beside the watcher's; docs/minigames/raid_loop/CAMERA_VIEW_TABLE.md names
- * which view each site will take) is a choice made where a stage begins,
- * never a global. A NULL view is a contract violation.
- */
-struct App_WorldView
-{
-    struct ToriDraw_Camera world_camera;
-    struct ToriDraw_Position world_camera_pos;
-    /* Reference orbit camera (Client-TS followCamera): velocity-driven
-     * yaw/pitch, a 1/16-eased anchor that trails the player, and a terrain
-     * pitch clamp (cameraPitchClamp, 24.8 fixed) that keeps the eye above
-     * nearby ground. cam_key_* latch arrow-held state for the follow step,
-     * which runs before key sampling in the frame.
-     *
-     * orbit_x/orbit_z are FLOAT because the reference's are (rev-239
-     * client.field917/field879, eased in client.method1605). An integer
-     * `anchor += (target - anchor) / 16` never converges: once the gap drops
-     * to 15 the truncated step is 0, so the anchor parks a permanent ~15
-     * units short on each axis and the camera orbits a point beside the
-     * player instead of the player. */
-    /** The follow camera's anchor, angles and terrain clamp. See
-     *  render/world_camera_orbit.h. */
-    struct WorldCameraOrbit orbit;
-    int cam_key_left;
-    int cam_key_right;
-    int cam_key_up;
-    int cam_key_down;
-    /* Middle-button rotate (revconfig `[camera] controls=mmb`): the press
-     * latches inside the viewport rect and keeps the pointer until release, so
-     * a drag that wanders over the sidebar keeps rotating. cam_mmb_x/y is the
-     * pointer position the last delta was measured from. */
-    int cam_mmb_active;
-    int cam_mmb_x;
-    int cam_mmb_y;
-    /*
-     * The follow camera's live ZOOM: the eye sits `pitch * 3 + this` behind
-     * the player, in fine units, so this is the additive half of zoom. It
-     * starts at `[camera] rest=` (the reference's 600, Client-TS camFollow)
-     * and smaller is closer.
-     *
-     * The wheel and the pinch move it inside `[camera] zoom_closest=` ..
-     * `zoom_furthest=`, in `wheel_step=` notches; the settings page's
-     * REVCONFIG_CAMERA_WHEEL_PINNED stops them, which is how a player asks for
-     * the 2004 camera that does not zoom. The MULTIPLICATIVE half is
-     * `[camera] distance_scale=`, which this field knows nothing about. The
-     * free camera dollies along the view axis instead and ignores all of it.
-     */
-    int world_cam_zoom;
-    /** U toggles: 1 = the follow camera stands down and W/A/S/D + R/F fly
-     *  world_camera_pos freely; relocking eases back onto the player (the
-     *  follow's own >500-unit teleport snap handles the return). */
-    int camera_unlocked;
-    /** Camera hold across an offline world reload. See
-     *  render/world_camera_orbit.h. */
-    struct WorldCameraHold cam_hold;
-
-    /* World picking: the full pickset refreshes as part of every rendered
-     * frame (App_Render hittests visible models at world_mouse_x/y); click
-     * handlers consume the last rendered set. */
-    struct World_PickSet world_pickset;
-    int world_mouse_in_viewport;
-    int world_mouse_x; /* last input mouse, canvas coords */
-    int world_mouse_y;
-    /** No pointer is resting at world_mouse_x/y: the finger that was the
-     *  pointer lifted (LibToriRS_Input_PushMouseLeave). The position is kept,
-     *  because a popup the tap opened is anchored to it, but everything hover
-     *  means -- the tile under the pointer, the world pick, the mouseover line
-     *  -- goes quiet until something points at the canvas again. */
-    int pointer_absent;
-    int world_hover_tile_x; /* scene tile, -1 = none */
-    int world_hover_tile_z;
-    int world_hover_tile_level;
-    /** The hovered DECK tile (world-entity terrain under the pointer), or
-     *  view 0 when the pointer is over no deck. Deck-LOCAL tiles at the deck
-     *  MESH level. Kept beside — never instead of — the root hover latch
-     *  above: the click cross and spawn hotkeys speak root tiles; the
-     *  boat-aware consumers (the tile-indicator plugins' hover marker)
-     *  prefer this one when set. */
-    int world_hover_view;
-    int world_hover_view_x;
-    int world_hover_view_z;
-    int world_hover_view_level;
-
-    /**
-     * The right-click menu this view's clicks open and choose from.
-     *
-     * The STORAGE is still `interact.minimenu` on struct App: the UI layer's
-     * interaction step (ui/uitree_interact.c) opens, steers and closes the
-     * menu inside struct UIInteraction, which this seam does not reach into.
-     * The app layer reads and writes it only through this pointer, so a
-     * second view's menu is a second pointer, set where that view is made.
-     */
-    struct UIMinimenu* minimenu;
-};
-
-/** The view a script's verbs read and write: `views[0]`, always (headless and
- *  with no script attached it is also the only view). */
-#define APP_VIEW_RUNNER 0
-/** The watcher's view while a script runs in a client that presents:
- *  `views[1]`, live only between App_ViewAttachPlayerClient and
- *  App_ViewDetachPlayerClient. */
-#define APP_VIEW_PLAYER_CLIENT 1
-
-/** Physical commands that wait for the runner's gesture to end (see
- *  App_ViewSplit.held). A press, its release and a few keys. */
-#define APP_VIEW_SPLIT_HELD_MAX 16
-#define APP_VIEW_SPLIT_HELD_PAYLOAD 16
-/** Watcher actions kept for the driver to read (`watcher.<what>` rows). */
-#define APP_VIEW_SPLIT_WATCHER_MAX 32
-
-struct App_ViewSplitHeld
-{
-    uint32_t type;
-    uint16_t length;
-    uint8_t payload[APP_VIEW_SPLIT_HELD_PAYLOAD];
-};
-
-struct App_ViewSplitWatcherAction
-{
-    /** Monotonic serial, from 1; the driver reads past the last one it saw. */
-    uint32_t serial;
-    /** The world clock's tick when the action reached the game. */
-    int tick;
-    /** "click", "right_click", "key", "wheel". A fixed string. */
-    char const* what;
-    int x;
-    int y;
-    int detail; /* button, key code or wheel notches */
-};
-
-/**
- * THE RUNNER CAMERA SPLIT (docs/minigames/raid_loop/CAMERA_TRIAGE_seam2.md,
- * runner_view_split). While a script runs in a client that presents, there
- * are two world views: `views[APP_VIEW_RUNNER]` (AutomationRunner: every
- * driver verb, its pointer, its picks, its menu, its photographs) and
- * `views[APP_VIEW_PLAYER_CLIENT]` (PlayerClient: what is presented, what the
- * physical mouse and keys steer). Everything here is zero and untouched while
- * `attached` is 0 -- a headless run and a client with no script attached pay
- * one predicted branch per stage boundary and nothing else.
- */
-struct App_ViewSplit
-{
-    /** How many world views are live: 1, or 2 while a script's view is
-     *  attached (App::views). */
-    int view_count;
-    /** views[1] is live. */
-    int attached;
-    /** The watcher's client presents frames: set by the host (main.c) once a
-     *  window that draws exists and render skip is off; attach refuses
-     *  without it ("nothing is presented, so there is no watcher"). */
-    int presentable;
-    /** Why the presented lane cannot carry a second view, or NULL. Set by
-     *  the host for a lane this split is not built or tested on. */
-    char const* lane_refusal;
-    /** THE INTERACT SWITCH (owner decision 1). 0 when a script starts: the
-     *  physical mouse and keys are a spectator's (orbit, zoom, hover-inspect,
-     *  the plugin chrome); 1: they act on the game through the PlayerClient
-     *  view. */
-    int interact;
-
-    /** The runner's pointer (the last position a runner event carried) and
-     *  whether one has arrived since attach. */
-    int runner_x;
-    int runner_y;
-    int runner_pointer_valid;
-    /** Runner buttons held (bit per LibToriRS_MouseButton): a gesture in
-     *  flight that physical presses must not interleave with. */
-    int runner_buttons_held;
-    /** The runner pushed an input event this frame. */
-    int runner_events_this_frame;
-    /** The physical pointer and who moved last (hover follows it). */
-    int physical_x;
-    int physical_y;
-    int physical_moved_last;
-    /** This frame's game input carries a physical gesture: the input stage
-     *  runs through the PlayerClient view and its menu. */
-    int physical_frame;
-
-    /** Every physical event, always: the PlayerClient camera's keys, middle
-     *  button and wheel, and its pointer. */
-    struct LibToriRS_Input physical_input;
-    /** The driver's own bus while attached (PluginDriveCore_CmdBus answers
-     *  it): its events are the runner's. Allocated at attach. */
-    struct ToriRS_CmdBus* runner_bus;
-    /** Physical commands waiting for the runner's gesture to end. */
-    struct App_ViewSplitHeld held[APP_VIEW_SPLIT_HELD_MAX];
-    int held_count;
-
-    /** The PlayerClient view's menu storage (views[0]'s is interact.minimenu;
-     *  App_ViewSplitBindMenu swaps the two while a physical gesture is
-     *  handled so the UI interaction step drives the right one). */
-    struct UIMinimenu player_client_menu;
-    int menu_bound_to_player_client;
-
-    /** THE OFFSCREEN RUNNER FRAME (app_render.c). */
-    int runner_fresh;
-    int runner_catch_up_ok;
-    int runner_draw_owed;
-    int offscreen; /* an offscreen frame is being drawn */
-    int* runner_pixels;
-    int runner_pixels_count;
-    struct PaintersBuffer* runner_painter_buffer;
-
-    /** Watcher actions while Interact is on (ring; the driver reads them). */
-    struct App_ViewSplitWatcherAction watcher[APP_VIEW_SPLIT_WATCHER_MAX];
-    uint32_t watcher_serial;
-
-    /** Counters (the status read; the cost proof). */
-    uint64_t offscreen_frames;
-    uint64_t offscreen_frames_for_reads;
-    uint64_t offscreen_frames_for_shots;
-    uint64_t presented_frames;
-    uint64_t physical_delivered;
-    uint64_t physical_dropped;
-    uint64_t physical_held;
-    uint64_t attaches;
-};
-
-/** CAM_SHAKE's per-frame roll, shared by every paint of one frame (the
- *  offscreen runner frame must not consume rand(); see app_world_paint). */
-struct App_ShakeRoll
-{
-    uint64_t frame;
-    int valid;
-    int jitter[5];
-};
 
 struct App
 {
@@ -1175,6 +670,10 @@ struct App
      * on it (app_settle_cs2_frame) -- a frame is withheld until its
      * render-blocking tasks are done. Asset loads, client scripts, sign-in,
      * file saves. Owns queue + io + px.
+     *
+     * Its had_work latch (TaskRunner_HadWork): tree-affecting async work (CS2
+     * hooks, transmits) is in flight; when the queue next goes idle the tree
+     * gets a refresh pass.
      */
     struct TaskRunner frame_runner;
     /** The packet queue: per-packet exec tasks and interface slot
@@ -1182,7 +681,11 @@ struct App
      * execution makes it a strict FIFO — packet application order is
      * preserved across IO yields, and a mount enqueued by a packet runs
      * before the next packet is even popped (the pump only pops a new packet
-     * when this queue is idle). */
+     * when this queue is idle).
+     *
+     * Its had_work latch (TaskRunner_HadWork): the serial packet/interface
+     * transaction yielded on real external IO. Its partially-applied tree is
+     * not eligible for frame publication. */
     struct TaskRunner packet_runner;
     /**
      * The background queue: work nothing in the frame waits on. Parallel, own
@@ -1191,51 +694,26 @@ struct App
      * whatever slack the platform loop has before its frame deadline
      * (App_RunBackground) -- so neither app_settle_cs2_frame nor the packet
      * pump ever steps it. A job on it that must be done by a deadline is
-     * finished by its owner (the world job, app_world_job.c).
+     * finished by its owner (the world job, app_world_job.c). Nothing settles
+     * a transaction on it, so its had_work latch is never set.
      */
     struct TaskRunner background_runner;
-    struct RSCache_Dat2Disk* dat2_disk;
-    struct RSCache_Dat1Disk* dat1_disk;
-    /** 1 when dat1 reads go to a LostCity server instead of dat1_disk. The
-     *  client itself belongs to the IO (platform_x_io_ondemand.h); this is only
-     *  the record that it was enabled, which the login block needs to know to
-     *  ask that server for its checksums. */
-    int cache_on_demand;
-    /** 1 when the login checksums were taken from that server's /crc (no
-     *  manifest jag_crc= and no TORIRS_JAG_CRC override) -- the condition
-     *  under which each login attempt refreshes them. The init-time read
-     *  alone was not enough: a server that repacks while this client sits at
-     *  the title leaves every later login sending boot-time sums, which is a
-     *  reply=6 loop no retry can leave. */
-    int jag_crc_from_ondemand;
-    /** 1 once a bake has queued the on-demand prefetch passes. They belong to
-     *  the SESSION's first loading screen, not to every tree bake -- the
-     *  post-login gameframe rebake reaches app_open_tree too, and re-walking
-     *  every anim, model and map square there would put a second loading
-     *  screen after the login this boot just performed. */
-    int dat1_prefetch_queued;
 
-    /* Phase 2: asset pipeline. The build cache matching the live disk backs
-     * `provider`; everything downstream sees only the provider. */
-    struct Dat2BuildCache* dat2_bc;
-    struct Dat1BuildCache* dat1_bc;
+    /* Phase 2: asset pipeline. The disk (or the on-demand stream) and the
+     * build cache that backs `provider`; everything downstream sees only the
+     * provider. @see engine/cache_mounts.h. */
+    struct CacheMounts cache_mounts;
     struct CacheProvider* provider;
     /** Lit model-instance LRU (spot/npc/loc/obj/player). Cleared at map build. */
     struct TorirsModelInstCache model_inst_cache;
     /**
-     * Entity-info decode scratch: one op list (2048 ops and their byte arena)
-     * per decoder, reused across packets rather than allocated and freed for
-     * each. PLAYER_INFO and NPC_INFO both arrive every server tick.
-     * Borrowed by the running exec task and handed back on its free; NULL until
-     * first use. Owned here so teardown reclaims them -- see
-     * task_exec_entity_info.c for the borrow/release pair.
+     * Entity-info decode scratch (game/entity_info_scratch.h): one op list and
+     * its byte arena per decoder, reused across packets rather than allocated
+     * and freed for each. PLAYER_INFO and NPC_INFO both arrive every server
+     * tick. Borrowed by the running exec task and handed back on its free;
+     * owned here so teardown reclaims them (Task_EntityInfoScratchFree).
      */
-    struct RsprotInfoOp* npc_info_ops_scratch;
-    struct RsprotInfoOp* player_info_ops_scratch;
-    uint8_t* npc_info_bytes_scratch;
-    uint8_t* player_info_bytes_scratch;
-    int npc_info_ops_scratch_busy;
-    int player_info_ops_scratch_busy;
+    struct EntityInfoScratch entity_info_scratch;
 
     /* Phase 3: scene + bridge. */
     /** Runs scripted projectiles' curve clientscripts (app_world_curve);
@@ -1250,11 +728,11 @@ struct App
      * which is the whole reason they are not made at each render.
      *
      * Two of them because the targets are independent: `soft` paints the game
-     * canvas from App_Render, while `soft_chrome` rasterises retained CUSTOM
-     * widget bitmaps for WEB/BROWSER without disturbing the game renderer.
+     * canvas from App_Render, while the chrome compositor's one rasterises retained
+     * CUSTOM widget bitmaps for WEB/BROWSER without disturbing the game
+     * renderer (@see ui/chrome_compositor.h).
      */
     struct ToriPlatform_Renderer_Soft3D* soft;
-    struct ToriPlatform_Renderer_Soft3D* soft_chrome;
 
     /* Phase 4b: world sim + builder (needs provider + scene + varps; the
      * World references assets and scene elements by integer id only). */
@@ -1281,159 +759,42 @@ struct App
     /** How a flattened hull is drawn: the live deob path or a prebuilt
      *  outline, chosen at init by TORIRS_WEV_FLAT (app/app_wev_flat.h). */
     struct AppWevFlat wev_flat;
-    /** Native bearing-marker models. Scene-owned elements are claimed across
-     * root rebuilds; a chosen heading remains highlighted for 30 cycles. */
-    int sailing_at_helm_varbit;
-    int sailing_captain_role_varbit;
-    int sailing_crew_duty_varbit[5];
-    int sailing_crew_roster_varbit[5];
-    int sailing_crew_category;
-    int sailing_arrow_model[2];
-    int sailing_arrow_element[2];
-    int sailing_arrow_loading[2];
-    int sailing_selected_heading;
-    uint64_t sailing_selected_until;
+    /** The helm's revision ids and the native bearing-marker arrows
+     * (game/rs_sailing_hud.h). Scene-owned elements are claimed across root
+     * rebuilds; a chosen heading remains highlighted for 30 cycles. */
+    struct RS_SailingHud sailing_hud;
     /** WorldEntityConfig table (config archive 72), loaded once at boot by
      * CreateTask_Dat2WevConfigLoad. Empty on a pre-sailing cache. */
     struct WevConfigTable wev_configs;
-    /**
-     * Packet-apply cursor: the view id the current tick's zone/entity packets
-     * address. SET_ACTIVE_WORLD flips it; SERVER_TICK_END resets it to
-     * WORLDVIEW_ROOT. Zone applicators resolve their (world, builder) through
-     * App_ActiveWorldview, never through `world` above directly; async spawn
-     * tasks and the pending-zone queue capture the cursor at enqueue time,
-     * because they outlive it (SERVER_TICK_END resets it before they run).
-     */
-    int active_world;
-    /**
-     * The view the LOCAL player is standing in, recomputed every tick from
-     * geometry (SAILING_PLAN C5.1 — "local player aboard iff inside a non-zero
-     * view"). WORLDVIEW_ROOT when ashore, which is also its value in every
-     * build with no world entities.
-     *
-     * Distinct from `active_world`, which is a packet-decode cursor the server
-     * drives; this one is a fact about where the avatar is. Nothing steers off
-     * it yet: the camera deliberately keeps following the local player's ROOT
-     * position, which the server keeps projected onto the hull, so an aboard
-     * player's eye tracks the moving boat without an aboard camera existing.
-     * The deob's scene-mode flip and deck-height focus are what will read it.
-     */
-    int aboard_view;
-
-    /** `TORIRS_WEV_DEBUG=1` latch: the last `aboard_view` a trace line named,
-     *  so the per-tick routing pass prints only when the answer changes.
-     *  Seeded to WORLDVIEW_ROOT by App_Init, which is also the value the first
-     *  routing pass computes, so a client that boards nothing never prints. */
-    int dbg_aboard_view;
-    /**
-     * Plane the last SET_ACTIVE_WORLD said the addressed view draws (the deob
-     * snapshots the active WorldView's plane beside the cursor). Nothing
-     * consumes it at C0 — C1's view-local zone decode does. Reset to 0 with
-     * the cursor at the tick fence.
-     */
-    int active_world_level;
+    /** `TORIRS_WEV_DEBUG=1` latch: the last aboard view (Wevs_AboardView) a
+     *  trace line named. See world/wev_aboard_trace.h. */
+    struct WevAboardTrace aboard_trace;
     struct PaintersBuffer* painter_buffer;
-    /** Selected only after the platform renderer has initialized successfully. */
-    enum ToriRS_WorldRenderMode world_render_mode;
-    /** The active renderer scrolls animated textures itself (GPU lanes), so the
-     *  per-cycle CPU texel rotate is skipped. @see App_SetRendererAnimatesTextures */
-    bool renderer_animates_textures;
-    /** Soft3D draws the world the rev-241 client's way, through its own depth
-     *  buffer in two scene passes. @see App_SetSoftwareRsZBuffer */
-    bool software_rszbuffer;
-    /** Viewport size remembered for TORIRS_PAINTER_CULL=baked debounce (0 = none). */
-    int painter_cullmap_bake_w;
-    int painter_cullmap_bake_h;
+    /** The renderer's facts and the server's ZBUF choice (render/render_mode.h).
+     *  @see App_SetWorldRenderMode, App_SetRendererAnimatesTextures,
+     *  App_SetSoftwareRsZBuffer */
+    struct RenderMode render_mode;
+    /** The viewport the TORIRS_PAINTER_CULL=baked cull map was last baked for
+     *  (render/painter_cull_bake.h). */
+    struct PainterCullBake painter_cull_bake;
     /**
-     * The world views (see struct App_WorldView). `views[0]` always exists;
-     * `view_split.view_count` is how many are live (1, and 2 is the most there will
-     * be: a script's camera and the watcher's). `frame_view` is the view the
-     * frame being built reads and writes, chosen where a stage begins: the
-     * presented draw and the emit walk set the presented view, the offscreen
-     * runner frame and the camera follow step set theirs, and each puts
-     * views[0] back -- every other moment (logic, the plugin pump, the
-     * driver's verbs) sees views[0].
+     * The world views, the frame cursor, the runner/watcher split and the
+     * WORLD node's emit desc (render/world_views.h). `world_views.frame` is
+     * the view the frame being built reads and writes, chosen where a stage
+     * begins: the presented draw and the emit walk set the presented view,
+     * the offscreen runner frame and the camera follow step set theirs, and
+     * each puts views[0] back -- every other moment (logic, the plugin pump,
+     * the driver's verbs) sees views[0].
      */
-    struct App_WorldView views[APP_WORLD_VIEW_MAX];
-    struct App_WorldView* frame_view;
-    /** The runner/watcher split (struct App_ViewSplit); all zero while no
-     *  script is attached. */
-    struct App_ViewSplit view_split;
-    /*
-     * This platform aims the camera with a FINGER, so the revision's
-     * `controls=` list does not decide whether it may.
-     *
-     * That list reproduces a revision's DESKTOP control scheme -- rev-289's
-     * client had no middle-button rotate, so `controls=arrow_keys` says so and
-     * the mouse gesture is refused. A finger drag is synthesised as a
-     * middle-button drag (ToriRS_TouchSetViewport says why: it is the one path
-     * that already has the follow-cam split, the sign convention and the pitch
-     * clamps), and it would be refused by the same test -- for reproducing a
-     * decision no revision ever made, because none of them ran on a phone.
-     *
-     * So the platform states it instead, once, at boot: where a finger is the
-     * pointer, the finger may turn the camera on every revision.
-     */
-    int touch_camera;
-    /*
-     * The pointer on this platform is a FINGER, so the interface is sized for
-     * one: the minimenu opens in its touch style (UI_MINIMENU_STYLE_TOUCH), and
-     * the row a tap chooses lingers on screen after the popup has gone.
-     *
-     * Stated by the platform at boot, like touch_camera, and for the same
-     * reason: a desktop run can turn it on (TORIRS_TOUCH_UI=1) to look at the
-     * touch popup without a phone attached.
-     *
-     * Resolved in App_Init, beside the clientscript identity it follows, and
-     * NOT from the frame loop. It is what `core.capability("touch")` answers,
-     * and the frame loop runs after PluginHost_Start -- so every plugin that
-     * asked at on_start, which is the only place a key declaration can be
-     * made, was told false on a lane where it is true.
-     */
-    int touch_ui;
-    /*
-     * This DEVICE can raise an on-screen keyboard, so a chrome may offer a
-     * switch for it.
-     *
-     * Not the same fact as touch_ui above, and the difference is the whole
-     * reason it is a second field. touch_ui is a POLICY: the login clienttype
-     * sets it, TORIRS_TOUCH_UI moves it either way, and a desk with it on is a
-     * desk. Whether keys can be summoned is the PLATFORM's answer and nothing
-     * above it can overrule -- @see PlatformWindow_HasScreenKeyboard, which is
-     * SDL_HasScreenKeyboardSupport on the SDL backends, yes on Android and no
-     * on win32gdi.
-     *
-     * Stated once at boot because it cannot change while the window lives, and
-     * it is what `core.capability("input.screen_keyboard")` answers. Zero on a
-     * headless or test run, which have no platform window to ask: a frame that
-     * places no KEYS switch is the right picture for a run with no keys.
-     */
-    int has_screen_keyboard;
-    /* Keys a revconfig hotkey binding acted on this frame, indexed by OSRS key
-     * code. Debug world hotkeys share the digit row with the rev-254 tab
-     * bindings, so they check this and stand down rather than firing both. */
-    uint8_t hotkey_consumed[TORIRS_OSRSKEY_COUNT];
-    int world_active; /* 1 once Task_WorldLoad completed */
-
-
-    /**
-     * The Place-loc tool's hover ghost: a REAL loc placed at the hovered tile
-     * through the same App_WorldLocChange seam a commit uses, then made
-     * translucent by forcing its element's face alphas. Real rather than a
-     * separate preview renderer, for the reason the artifact gives: a second
-     * draw path drifts, and this one shows the actual model at the actual
-     * scale in the actual light.
-     *
-     * Which also means it EVICTS whatever held that tile's slot, and has to
-     * put it back. See editor/map_editor_ghost.h for the bookkeeping; the
-     * scene placements it asks for are made here.
-     */
-    struct MapEditorGhost map_ghost;
-    /** The camera on the editor's model-view well, shared by the catalog's
-     *  preview and the loc editor's. See editor/editor_preview_camera.h. */
-    struct EditorPreviewCamera preview_camera;
-    /* Latches the lazy load so a map that fails is not re-queued every frame. */
-    int world_load_attempted;
+    struct WorldViews world_views;
+    /** What the device is, stated at boot: a finger camera, the touch
+     *  policy (resolved in App_Init) and an on-screen keyboard.
+     *  @see platform/device_caps.h. */
+    struct DeviceCaps device_caps;
+    /** Whether there is a world, whether a load was tried, whether one runs
+     *  with the viewport blanked, and whether the server asked for it.
+     *  @see engine/world_builder/world_load_state.h. */
+    struct WorldLoadState world_load;
 
     /**
      * World map editor session, or NULL — which is every boot that did not ask
@@ -1446,30 +807,17 @@ struct App
      * states no `[net:boot]`, so the whole net stack is simply not constructed.
      */
     struct Editor* editor;
-    /** The editor's panel. Inline rather than behind the pointer above: it is
-     *  ToriRSChrome widget handles and palette storage, and the dropdowns BORROW
-     *  that storage, so it must not move once the widgets point into it. */
-    struct Editor_Panel editor_panel;
+    /**
+     * The editors' working state, present on every boot whether or not an
+     * editor session was opened: the loc editor's panel handles and selection,
+     * the hover-footprint mode, the Place tool's hover ghost (a REAL loc placed
+     * through the same App_WorldLocChange seam a commit uses, then made
+     * translucent), the model-view well's camera, and the map editor's command
+     * panel. Its panels are built in `dev_overlay`'s chrome. Owned: made in
+     * App_Init, freed in App_Shutdown. See editor/editor_shell.h.
+     */
+    struct EditorShell* editor_shell;
 
-    /* Baked world map the minimap widget blits (rebaked on every world load).
-     * scene_id is -1 until the first bake; w/h are the sprite's pixel size,
-     * which minimap_compute_camera_src_anchor needs to place the camera. */
-    int world_map_scene_id;
-    int world_map_w;
-    int world_map_h;
-    /** Terrain level the baked minimap sprite currently shows (reference
-     * minimapLevel); a mismatch with the local player's level rebakes it. */
-    int world_map_level;
-
-    /* The WORLD node's emit desc -- the gate rect and the exact viewport the
-     * render pass draws with. Shared by every view; the pickset each draw
-     * fills is the view's (struct App_WorldView). */
-    struct UITreeEmitDesc world_emit_desc;
-    int world_view_valid;
-    /** Set when this frame reused the previous command list unchanged (PR #49's
-     *  retain gate). The chrome pixels are then identical to what is already on
-     *  screen, which is what a damaged-rect present needs to know. */
-    int ui_retained_frame;
     /**
      * Damage rectangle: the union of every region whose pixels can change
      * while the emit list stays byte-identical, in canvas coordinates.
@@ -1504,29 +852,15 @@ struct App
      * per frame (Client.gameDraw / Client.java:5122).
      */
     struct ToriRS_DamageRegion damage;
-    /**
-     * The component the last MODAL sub-interface was mounted on, or -1.
-     *
-     * Recorded because "where does a modal open" is a question with no static
-     * answer: the dat1 gameframes declare a region for it (`slot=main_modal`),
-     * the dat2 ones do not -- the server names the host in IF_OPENSUB and it is
-     * a different component in the fixed frame than in the resizable one. The
-     * only thing that knows is the mount itself, so the mount is where it is
-     * written down.
-     *
-     * Kept across the close, deliberately: it is an answer about the FRAME
-     * ("modals go here"), not about the interface that happened to be open, and
-     * a reader asking between two modals wants the same rectangle.
-     */
-    int modal_host_uid;
 
-    /** Role -> node, resolved once per tree generation. @see
-     *  app_plugin_slot_node_cached. */
-    int32_t plugin_slot_node[TORIRS_HOST_SURFACE_PLACEABLE_COUNT];
-    uint32_t plugin_slot_node_gen;
+    /** The plugin bridge's memos of the gameframe: slot nodes, interned
+     *  frame-role and facet ids, tab stones and the binder's last pass, each
+     *  with the counters it is reused under (plugin/plugin_frame_binding.h). */
+    struct PluginFrameBinding plugin_frame_binding;
     /* Minimap widget: where the last emit walk drew the map, the angle it
-     * blitted with, and the destination flag tile (reference minimapFlagX/Z).
-     * The geometry those three answer is ui/minimap_view.h. */
+     * blitted with, the destination flag tile (reference minimapFlagX/Z), the
+     * baked map sprite it blits and the MINIMAP_TOGGLE state (see enum
+     * AppMinimapState). ui/minimap_view.h. */
     struct MinimapView minimap;
     /* Per-frame minimap overlay dots, filled by the GET_MINIMAP_DOTS host
      * request during the emit walk and consumed by the same frame's draw. */
@@ -1546,154 +880,29 @@ struct App
     /**
      * Retained custom-page drawing, isolated from all three game lists.
      *
-     * Each item is tagged by the semantic widget serial that owns it. Redrawing
-     * one dirty custom well replaces only that serial's run; unchanged wells
-     * survive without invoking their plugin again. The stage is committed only
-     * after the generation/serial still name the selected page.
+     * Redrawing one dirty custom well replaces only that serial's run;
+     * unchanged wells survive without invoking their plugin again. The stage is
+     * committed only after the generation/serial still name the selected page.
+     * @see render/panel_overlay_stage.h.
      */
-    struct UITreeEntityOverlay panel_overlays[APP_PLUGIN_PANEL_OVERLAYS_MAX];
-    uint32_t panel_overlay_owner[APP_PLUGIN_PANEL_OVERLAYS_MAX];
-    /** Direct owner row for O(1) clip lookup while replaying retained items. */
-    int panel_overlay_row[APP_PLUGIN_PANEL_OVERLAYS_MAX];
-    int panel_overlay_count;
-    struct UITreeEntityOverlay panel_overlay_stage[APP_PLUGIN_PANEL_OVERLAYS_MAX];
-    int panel_overlay_stage_count;
-    int panel_overlay_stage_active;
-    int panel_overlay_stage_overflow;
+    struct PanelOverlayStage panel_wells;
     /**
      * Tile markers that belong INSIDE the 3D pass, and the tiles they mark.
-     *
-     * A tile marker the cache did not flag "always on top" is drawn with the
-     * tile's own ground instead of over the finished scene, so the player
-     * standing on the tile covers it. The primitives are the same ones the
-     * overlay list holds -- app_overlay_push routes them here while the stage
-     * is open -- and what makes them land in the right place is
-     * `after_command`, resolved once a frame against the painter buffer that
-     * was just painted (app_world_tile_marks_place).
-     *
-     * `world_tile_mark_key` is the marked tile, packed scene-local, and it is
-     * what survives from frame to frame: the command index does not, because
-     * the paint is new every frame, and the retained-overlay path can leave
-     * this list standing for several.
+     * app_overlay_push routes primitives here while the stage is open; the
+     * placement against the painter buffer runs once a frame
+     * (app_world_tile_marks_place).
      */
-    struct ToriRS_WorldTileMark world_tile_marks[APP_WORLD_TILE_MARKS_MAX];
-    int world_tile_mark_key[APP_WORLD_TILE_MARKS_MAX];
-    int world_tile_mark_count;
-    int world_tile_mark_overflow;
-    /** Marks whose tile the last paint did not draw at all -- off screen,
-     *  culled, or under a hidden roof. A legitimate state and not an error,
-     *  and counted because "the marker is gone" and "the marker is behind
-     *  something" look the same on screen. */
-    int world_tile_mark_unplaced;
-    int world_tile_mark_stage_active;
-    int world_tile_mark_stage_key;
-    /** The world viewport, stamped onto every primitive the open stage takes.
-     *  The overlay list gets its clip from the DESC it travels on; a mark has
-     *  no desc -- it is emitted inside the 3D pass -- so it has to carry one,
-     *  or a marker at the edge of the scene paints over the chrome. */
-    struct ToriRSChromeRect world_tile_mark_stage_clip;
-    int panel_overlay_origin_x;
-    int panel_overlay_origin_y;
-    int panel_overlay_scale;
-    struct ToriRSChromeRect panel_overlay_clip;
-    uint32_t panel_overlay_generation;
-    uint32_t panel_overlay_revision;
-    uint64_t panel_custom_last_draw_cycle;
-    int panel_custom_has_draw_cycle;
-    /** Reused custom-region raster; the browser transport copies before return. */
-    uint32_t* panel_custom_pixels;
-    size_t panel_custom_pixel_capacity;
-    /** Which draw list the plugin verbs append to this dispatch -- enum
-     * AppPluginSurface, whose values are the engine's
-     * TORIRS_PLUGIN_ENGINE_DRAW_* (the host's enum PluginDrawSurface is
-     * defined from the same constants). */
-    int plugin_draw_canvas;
-    /** The lane's window mode has been restated once, at plugin host start.
-     *  @see App_SyncNativeWindowMode. */
-    uint8_t native_window_mode_synced;
+    struct TileMarkStage tile_marks;
     /** The OUTBOUND command bus: requests the App makes of the platform
      *  (TORIRS_CMD_PLATFORM_*). NULL in a harness with no platform, which then
      *  asks for nothing. @see App_SetPlatformBus. */
     struct ToriRS_CmdBus* platform_bus;
-    /** The platform's plugin chrome has been asked for, once, at host start.
-     *  @see TORIRS_CMD_PLATFORM_PLUGIN_CHROME. */
-    uint8_t plugin_chrome_requested;
-    /**
-     * The cache-gameframe nodes the frame binder stamped with a slot tag on
-     * its last pass, so a role that moves to a different node (a CS2 rebuild
-     * that recycles an index) has its old stamp taken back. Node + incarnation,
-     * the tree's own identity for "still the same node".
-     * @see app_plugin_frame_bind.
-     */
-    struct
-    {
-        int32_t node;
-        uint64_t incarnation;
-    } plugin_frame_stamp[64];
-    int plugin_frame_stamp_count;
-    /** The frame roles' interned ids, [slot][0] the group and [slot][1+m]
-     *  member m; 0 = no such role. Built once per role-table size. */
-#define APP_FRAME_ROLE_SLOTS 32
-    uint16_t plugin_frame_role_id[APP_FRAME_ROLE_SLOTS][1 + 16];
-    /** `frame_compass_click`, interned with them: the compass's hit region is
-     *  a node of its own on a cache toplevel and is not a numbered member of
-     *  anything. @see UITree_FrameCompassClickNode. */
-    uint16_t plugin_frame_compass_click_role;
-    int plugin_frame_role_ids_for_count;
-    /**
-     * Everything app_plugin_widget_facets has to look up by NAME, resolved
-     * once instead of per watched element per layout fence.
-     *
-     * Two keys because there are two tables behind it and they grow at
-     * different times: `refs_count` is RevConfigRefs, whose rows are the
-     * revision's varbit and varp ids, and `roles_count` is the role table,
-     * where an orb's role is interned. Each id is -1 or 0 for "this revision
-     * does not have it", which the facet reads as a bit that is never set.
-     * @see app_plugin_facet_ids.
-     */
-    struct
-    {
-        int refs_count;
-        int roles_count;
-        int varbit_sidebar_flash;
-        int varbit_cutscene;
-        int varp_run_mode;
-        int varp_special_armed;
-        uint16_t role_orb_run;
-        uint16_t role_orb_spec;
-        uint8_t valid;
-        /**
-         * The tab STONES, which are a different question from the side
-         * panels. The binder stamps a slot tag on the panel a tab opens, so
-         * that is what carries a member number; the stone a plugin re-skins
-         * carries nothing, because on the cache lane its role is derived per
-         * root rather than authored onto the node. So the 14 `sidetab_N`
-         * roles are interned here and resolved to nodes once per publication,
-         * and a node that IS one of them answers its tab's facets.
-         *
-         * Two keys again, and both are needed: the role ids move when the
-         * table grows, the nodes move when the tree is rebuilt or a script
-         * recycles an id.
-         */
-        uint16_t role_sidetab[16];
-        int32_t sidetab_node[16];
-        uint32_t sidetab_generation;
-        uint32_t sidetab_id_generation;
-        uint8_t sidetab_valid;
-    } plugin_facet_ids;
-    /** The tree generations the stamps above were computed against; the
-     *  binder returns early while neither has moved. */
-    struct UITree const* plugin_frame_bound_tree;
-    uint32_t plugin_frame_bound_generation;
-    uint32_t plugin_frame_bound_id_generation;
-    uint8_t plugin_frame_bound_valid;
     /* The world map surface: which regions are on screen and in what order
      * (game/rs_worldmap_view.h owns that rule), this frame's blits, the baked
      * regions behind them, the overview pane, and the drag-to-pan box the emit
-     * walk records because the widget is sized by the map's own scripts. */
-    struct App_WorldMapView worldmap;
-    /** Scene id of the hitmarks sprite pack, resolved once at boot. */
-    int hitmarks_scene_id;
+     * walk records because the widget is sized by the map's own scripts.
+     * game/rs_worldmap_surface.h. */
+    struct RS_WorldMapSurface worldmap;
 
     /* Persistent IF_SETTEXT store (reference keeps text on the shared
      * IfType.list config): the server sends journal/bonus texts BEFORE the
@@ -1725,114 +934,58 @@ struct App
      * this a dialogue renders correctly and swallows every click. */
     struct UIIfEventTable if_events;
 
-    /* Persistent interface-model store (reference keeps
+    /* Persistent interface-model stores (reference keeps
      * model1Type/model1Id on IfType.list and re-resolves getModel every draw):
      * the head packet arrives before the chat interface mounts, so the request
      * must survive and re-apply on tree-topology changes. The async load task
      * makes the composited head scene model available; the per-frame poll binds
-     * it onto the MODEL node once mounted (and after each remount). */
-    struct AppIfHead
-    {
-        int com_id;
-        int kind;             /* AppIfHeadKind: npc, player, obj, or raw model */
-        int npc_id;           /* source id: npc, obj, or cache model */
-        int zoom;             /* IF_SETOBJECT third field: IF1 zoom, IF3 quantity */
-        int anim_id;          /* IF_SETANIM seq for this head, or -1 (reference modelAnim) */
-        uint32_t applied_gen; /* tree generation this was last applied at; 0 = pending */
-        uint32_t close_serial; /* tree->group_close_serial when set: a later close of
-                                * the group unloads it (UITree_GroupCloseSerial) */
-    }* if_heads;
-    int if_head_count;
-    int if_head_cap;
+     * it onto the MODEL node once mounted (and after each remount). Also the
+     * IF_SETPLAYERMODEL_* compositions, and the appearance the local player's
+     * clientCode-328 figure was last built from (app_player_model_poll).
+     * @see ui/uitree_if_models.h */
+    struct UIIfModels if_models;
 
     /* Placeholder requests a CLIENTSCRIPT asked for, parked until a logic
      * tick releases them. A script runs inside the settle, and the settle
      * drains the asset runner, so a placeholder queued from one would be
      * picked up by the very frame it was meant to leave -- app_placeholder.c
-     * has the measurement. One pointer: the park, its key and its burst bound
-     * all belong to that unit. NULL until the first request. */
-    struct AppPlaceholderPark* placeholder_park;
-
-    /* Revision-239 server-driven player-composition widgets. Each component
-     * owns a clone of the local PlayerComposition: slots is the effective
-     * kit/equipment layer, identkit is the body underneath worn objects, and
-     * colours/gender are independently mutable through the four
-     * IF_SETPLAYERMODEL_* packets. A unique scene id prevents one widget's
-     * incremental setters from changing any sibling widget. */
-    struct AppIfPlayerModel
-    {
-        int com_id;
-        int scene_id;
-        int slots[12];
-        int identkit[12];
-        int colors[5];
-        int gender;
-        int anim_id;          /* IF_SETANIM modelAnim, or -1 */
-        int built;            /* scene_id holds this composition, built whole */
-        uint32_t applied_gen; /* tree generation scene_id was bound into */
-        uint32_t close_serial; /* as AppIfHead's; com_id -1 = a free slot */
-    }* if_player_models;
-    int if_player_model_count;
-    int if_player_model_cap;
-
-    /* Live local-player model widgets (clientCode 328 — the equipment-stats
-     * figure). The composite is rebuilt from the local player's PLAYER_INFO
-     * appearance whenever any of it moves, which is the whole point: equip a
-     * helmet and the figure is wearing it. The last-built appearance is kept
-     * here so an unchanged one is not re-merged every frame; the angles and the
-     * animation frame are re-derived unconditionally (app_player_model_poll). */
-    struct
-    {
-        int slots[12];
-        int colors[5];
-        int gender;
-        int built; /* 0 until the first successful composite */
-    } player_model;
+     * has the measurement. One pointer: the park and its key are
+     * inv/widget_icon_park.h, its burst bound is that unit's. NULL until the
+     * first request. */
+    struct WidgetIconPark* placeholder_park;
 
     /* Projectile hotkey latch: first press = src tile, second = dst + fire. */
     /*
      * The loc lane: zone loc changes apply in the order they were enqueued,
      * but load off the packet queue. A task takes a ticket when it is queued
-     * (loc_lane_enqueued), loads whatever it needs on the parallel asset
-     * runner alongside the others, and only then waits for loc_lane_applied
-     * to reach the ticket before it -- so a LOC_DEL lands after the add it
+     * (LocLane_Take), loads whatever it needs on the parallel asset
+     * runner alongside the others, and only then waits for the lane's applied
+     * count to reach the ticket before it -- so a LOC_DEL lands after the add it
      * deletes, and nine rock changes at the Inferno's door cost one model
      * wave instead of nine, none of it parking the packets behind them. A
      * change not yet applied is the deob's pending spawn, which a LOC_ANIM
      * may hand its sequence to (App_WorldSceneryAnim).
-     * See app_spawn_loc_lane_queue (app_world_edit.c).
+     * See app_spawn_loc_lane_queue (app_world_edit.c) and world/loc_lane.h.
      */
-    unsigned loc_lane_enqueued;
-    unsigned loc_lane_applied;
-    /*
-     * Server ticks executed, counted in wire order on the packet queue: at
-     * SERVER_TICK_END, or at PLAYER_INFO on a revision that sends no fence.
-     * A loc change stamped with an earlier tick than the packet reading it is
-     * one the rev-239 client has already built (it builds a pending spawn in
-     * the client cycle that read it, right after the packet loop), however
-     * long this client's lane has held it.
-     */
-    unsigned server_tick_serial;
-    int proj_src_tile_x; /* -1 = unarmed */
-    int proj_src_tile_z;
-    int proj_src_tile_level;
+    struct LocLane loc_lane;
+    /** The developer projectile hotkey's source tile, marked by its first
+     *  press and spent by its second (world/proj_spawn_latch.h,
+     *  app_world_spawn_projectile). */
+    struct ProjSpawnLatch proj_latch;
 
     /* RevConfig tree builder: alive for the process, not just the build task —
      * it owns the sprite/font name registries bake resolved through. Unused
-     * (builder_active == 0) when the tree came from a cache interface open. */
+     * (UITreeBuilder_Active false) when the tree came from a cache interface
+     * open. */
     struct UITreeBuilder builder;
-    int builder_active;
 
     /* Phase 4: game state. */
     struct UITree* tree;
     struct InvManager invs;
     /* One inv obj-icon reconcile task in flight at a time (per-tick scan
-     * re-enqueues while any item slot still lacks a rasterized icon). */
-    int inv_icon_reconcile_inflight;
-    /* No reconcile pass before this; set after a pass that resolved nothing,
-     * paced by app_obj_icon_retry_wait from inv_icon_retry_wait_ms. */
-    uint64_t inv_icon_next_pass_ms;
-    uint32_t inv_icon_retry_wait_ms;
+     * re-enqueues while any item slot still lacks a rasterized icon), and the
+     * wait a pass that resolved nothing set. @see inv/inv_icon_retry.h */
+    struct InvIconRetry inv_icon_retry;
     struct VarPManager varps;
     /* Hitsplat types: type -> sprite id, from config group 32. See
      * src/game/rs_hitsplat.h for why a named sprite archive is not enough. */
@@ -1850,7 +1003,8 @@ struct App
     struct RS_CS2Host host;
     struct RS_CS1Host cs1_host;
     /** Runtime interface slots (tabs, modals, chat) — reference Client-TS
-     *  mainModalId/sideOverlayId/sideTab fields. */
+     *  mainModalId/sideOverlayId/sideTab fields — and the component the last
+     *  modal mounted on, with the optimistic modal close's re-entrancy guard. */
     struct RS_UISlots slots;
     /** Friends/ignores store feeding the clientCode row pass. */
     struct RS_Social social;
@@ -1870,58 +1024,14 @@ struct App
      *  the per-field scratch the host requests hand out. @see
      *  game/rs_title_session.h for why each of those is a rule. */
     struct RS_TitleSession title_session;
-    /**
-     * The account flow (game/task_accounts_io.h), on a world whose manifest
-     * says `[net:boot] auth=oauth`: the accounts this device has signed in
-     * with -- the title's Play Now cards -- and the one sign-in in flight.
-     * `oauth` 0 leaves the password form exactly as it was.
-     */
-    int oauth;
-    struct RS_Accounts accounts;
-    /** NULL keeps nothing (TORIRS_ACCOUNTS=""). */
-    char const* accounts_path;
-    int accounts_load_started;
-    /** Set by the load task when the file has been read (or found absent). */
-    int accounts_loaded;
-    /** The title has been rebuilt for the loaded list. */
-    int accounts_shown;
-    struct RS_AccountSignIn signin;
-    int signin_busy;
-    /**
-     * The site session (the gate's web login, the "user account") and the
-     * player accounts linked under it, asked of the account server once at
-     * boot (CreateTask_SiteSessionLoad). Linked accounts are Play Now cards
-     * ahead of the device's own; a password-form login while signed in asks
-     * to link first (RS_TITLE_LINK_PROMPT).
-     */
-    struct RS_SiteSession site;
-    int site_load_started;
-    /** Set by the task when the account server answered (or did not). */
-    int site_loaded;
-    int site_shown;
-    /** What each Play Now card plays, in card order: a linked account
-     *  (`site` 1, an index into site.players) or one of the device's
-     *  (`site` 0, into accounts). Built by app_title_layout_accounts. */
-    struct
-    {
-        int site;
-        int index;
-    } title_cards[APP_TITLE_ACCOUNT_CARDS];
-    int title_card_count;
-    /** What the page's password-manager form was last told
-     *  (App_TakeCredentialForm). */
-    struct PlatformCredentialForm credential_form_sent;
-    /**
-     * The title screen's music: which track the profile's music button names
-     * (learned from that button's song= when it is drawn; meaningful only
-     * while `title_song_known`), and whether this client started it.
-     * `title_music_playing` is only ever the title's own track: leaving the
-     * title forgets it without stopping anything, so the server's first song
-     * replaces it the way the reference's does.
-     */
-    int title_song;
-    bool title_song_known;
-    bool title_music_playing;
+    /** The account flow, on a world whose manifest says `[net:boot]
+     *  auth=oauth`: the device's accounts and the site session, each read
+     *  once, the one sign-in in flight, and the title's Play Now cards. @see
+     *  game/rs_title_accounts.h. */
+    struct RS_TitleAccounts accounts;
+    /** The title screen's own track and whether this client started it.
+     *  @see game/rs_title_music.h. */
+    struct RS_TitleMusic title_music;
 
     /** What each login rejection means, in this revision's words. Loaded from
      *  the profile beside RevConfigRefs and alive for the whole session. */
@@ -1937,46 +1047,19 @@ struct App
      * moment the gameframe roots.
      */
     struct TitleFlames* flames;
-    /** Wall clock the fire was last advanced against. */
-    uint64_t flames_last_ms;
-    /** Frames the left button has been held over the chat scrollbar (reference
-     *  scrollCycle); drives arrow-scroll acceleration and gates grip drag. */
-    int chat_scroll_cycle;
-    /** Chat input focus. When set, typed keys feed the chat input line and the
-     *  manifest-configured debug shortcuts are suppressed so they cannot fire
-     *  while composing a message. Clicking the chat region focuses; clicking
-     *  elsewhere or pressing Escape unfocuses. */
-    int chat_input_active;
-    /** Web, cache chatbox: the player opened the typed line (Enter, or a click
-     *  on it). While it is closed the digit row is the F-key row and the line
-     *  shows a prompt instead of what was typed. @see app_chat_lock_keys. */
-    int chat_line_open;
-    /** What the cache last wrote into the typed line, kept while the prompt
-     *  covers it so opening the line puts it back; and the prompt as last
-     *  written, which is how a fresh write from the line's script is told
-     *  apart from our own. */
-    char chat_line_saved[1024];
-    char chat_line_prompt[1024];
-    /** The mobile scripts asked for the soft keyboard (MOBILE_KEYBOARDSHOW*)
-     *  and have not asked to put it away. Its own flag rather than the chat
-     *  line's focus: focusing the chat line means "typed keys go to the chat
-     *  line", which the script never said, and on a phone nothing else ever
-     *  clears it -- so the client asked for the keyboard for the rest of the
-     *  session and the safe-area inset it brings squashed the whole frame
-     *  into the top half of the screen. Cleared by the script's own hide, and
-     *  by the keyboard going away underneath it (the inset falling to zero,
-     *  which is what a system Back looks like from here). */
-    int vm_keyboard_open;
+    /** The typed chat line: whether the client-painted one has the keyboard,
+     *  and whether the web's cache one is open and what its prompt covers.
+     *  @see app_chat_focus_tick, app_chat_lock_keys. */
+    struct UIChatLine chat_line;
     /** Minimenu chat-line seam (points at app_chat_line_at). */
     struct RS_MinimenuChatSource chat_source;
     /** Server-notify callbacks for IF1 button clicks (NULL until net). */
     struct RS_IF1ButtonSink button_sink;
-    /** Client ticks since boot (reference loopCycle; drives design preview). */
-    uint64_t logic_cycle;
-    /** Networking subsystem; NULL until --connect enables it. Owned heap
-     *  pointer so app.h need not include the net headers. */
+    /** Networking subsystem; NULL until --connect enables it, and whether
+     *  this run talks to a server is the handle's (ToriRS_Network_Enabled,
+     *  App_NetEnabled). Owned heap pointer so app.h need not include the net
+     *  headers. */
     struct ToriRS_Network* net;
-    int net_enabled;
 
     /*
      * Connection loss and re-establishment (reference `lostCon`, Client-TS
@@ -1994,12 +1077,10 @@ struct App
      * screen, and hand the session back with GAMERECONNECT rather than
      * fast-forwarding through a stale stream.
      */
-    /** Wall clock at the last completed App_RunOnce; 0 before the first. */
-    uint64_t last_frame_ms;
-    /** Wall clock when we last put bytes on the wire. Drives the NO_TIMEOUT
-     * keepalive, which the reference sends only after a full second of
-     * outbound silence -- any real packet resets the wait. */
-    uint64_t net_last_send_ms;
+    /** When we last put bytes on the wire (net/net_keepalive.h). Drives the
+     * NO_TIMEOUT keepalive, which the reference sends only after a full second
+     * of outbound silence -- any real packet resets the wait. */
+    struct NetKeepalive net_keepalive;
     /**
      * When the session is dead, when to dial again, and when to stop.
      *
@@ -2008,92 +1089,42 @@ struct App
      * looks exactly like one that was never lost. See net/net_link_watch.h.
      */
     struct NetLinkWatch net_link;
-    /** One-shot: the next REBUILD must run even if it names the zone the
-     * client is already standing in. Raised when a session is re-established,
-     * because that rebuild is the server's whole world state arriving again
-     * and its acknowledgement is what releases the rest of the burst. */
-    int net_force_rebuild;
-    /** A LOGOUT_TRANSFER executed: the session moves to world net_hop_world,
-     *  closed and logged in again by app_net_link_watch at the head of the
-     *  next frame (app_net.c). */
-    int net_hop_pending;
-    int net_hop_world;
-    /** The connection is the RSProx replay transport's (main.c, `--replay`):
-     *  the one writer of the replay control frames (net/torirs_control.h,
-     *  TORIRS_CONTROL_REPLAY_*). Set once at boot; a replay frame on any other
-     *  connection aborts (RS_GameProto_ReplayControlExpected). */
-    int net_replay;
-    /** A replay seek's chase (TORIRS_CONTROL_REPLAY_COORD): the world packets are
-     *  withheld, so the local player's tile is the recording's, stated per
-     *  tick, and `coord` reads it (app_tick.c) until the seek's world keyframe
-     *  clears the flag (replay/replay_world_apply.c). */
-    int replay_chase_coord_valid;
-    int replay_chase_coord;
-    /** The chase's clock (rs_gameproto_exec.c, exec_control_replay_coord):
-     *  the cycle of a chase of 30 cycles a tick in which the last chase tick
-     *  was executed, and the logic cycle this client executed it in. */
-    int64_t replay_chase_cycle;
-    uint64_t replay_chase_logic_cycle;
+    /** A replay seek's chase (TORIRS_CONTROL_REPLAY_COORD, replay/replay_chase.h):
+     *  the world packets are withheld, so the local player's tile is the
+     *  recording's, stated per tick by rs_gameproto_exec.c, and `coord` reads
+     *  it (app_tick.c) until the seek's world keyframe clears it
+     *  (replay/replay_world_apply.c); and the cycles each chase tick charges
+     *  the client clock. */
+    struct ReplayChase replay_chase;
     /**
-     * The player asked to leave, and the request has not been acted on yet.
-     *
-     * Deferred rather than done at the click, so the button's own IF_BUTTON is
-     * already in the outbound ring when the wait below is armed behind it --
-     * the server hears the request instead of a bare FIN. Raised by the CS1
-     * logout clientCode and by the CS2 host's LOGOUT opcode, drained by the
-     * logic tick. @see App_Logout.
+     * The logout the player asked for and the world hop the server ordered
+     * (net/session_end.h). The request is raised by the CS1 logout clientCode
+     * and by the CS2 host's LOGOUT opcode and drained by the logic tick
+     * (app_logout_tick); the armed wait is what app_net_tear_down_session
+     * reads to tell the server's answer apart from a connection that was
+     * lost. A LOGOUT_TRANSFER's hop is taken by app_net_link_watch at the head
+     * of the next frame (app_net.c). @see App_Logout.
      */
-    int logout_requested;
-    /**
-     * Logic cycles left to wait for the server to answer that request.
-     *
-     * Non-zero means the request is on the wire and the session has NOT ended:
-     * the world is still up, the player is still in it, and the screen has not
-     * changed. What ends it is the server -- its LOGOUT packet, or the socket
-     * it closes instead of sending one (app_net_tear_down_session reads this
-     * to tell that answer apart from a connection that was lost). The
-     * rev-239 client's logoutTimer, armed at the same 250 it uses, and its
-     * whole point is that a logout the server never heard, or refused, must
-     * not take the player off the world it is still playing.
-     *
-     * It stays armed until the session ends: nothing counts it down
-     * (@see APP_LOGOUT_WAIT_CYCLES).
-     */
-    int logout_wait_cycles;
-    /** Client-behaviour era table (src/features/features.h). Never NULL after
-     *  App_Init — unlike `net`, it is resolved on every boot because an
-     *  offline click still has to pick an approach model. Points at
-     *  `features_storage`, not at the era singleton. */
-    struct ToriRS_FeatureTable const* features;
-    /** The app's own copy of the era table, so a `[features:boot]` per-item
-     *  override lands somewhere writable. App_Init copies the resolved era in,
-     *  applies the overrides and points `features` here. Read through
-     *  `features`; this member exists to own the storage. */
-    struct ToriRS_FeatureTable features_storage;
-    /**
-     * This boot's own feature values, before any plugin set one.
-     *
-     * The Feature Flags plugin's "Revision default" is a restore, and what it
-     * restores TO is the merge of the era table, the manifest's
-     * `[features:boot]`, the env overrides and the revconfig -- which nothing
-     * outside App_Init can reconstruct once a plugin has written over it. So
-     * it is snapshotted instead, lazily, on the first plugin call (which is
-     * always after App_Init: PluginHost_Start runs from the plugin-prefs IO
-     * task). @see app_plugin_feature_capture.
-     */
-    struct ToriRS_FeatureTable plugin_feature_boot;
-    struct RevConfigCameraItem plugin_feature_boot_camera;
-    int plugin_feature_boot_valid;
-    /** Effective lighting behaviour after era + `[render:light]` merge.
-     *  Call sites read these rather than features->npc_light_* directly so a
-     *  manifest override wins without mutating the const era table. */
-    int npc_light_uses_type_ambient_contrast;
-    int player_head_light_ambient;
+    struct SessionEnd session_end;
+    /** Client-behaviour era table (src/features/features.h): the app's own
+     *  copy, so a `[features:boot]` per-item override lands somewhere
+     *  writable and the era singleton stays pristine. App_Init copies the
+     *  resolved era in and applies the overrides; it is resolved on every
+     *  boot, unlike `net`, because an offline click still has to pick an
+     *  approach model. Zeroed, and so not ToriRS_Features_Resolved, until
+     *  then. */
+    struct ToriRS_FeatureTable features;
+    /** Effective lighting behaviour after era + `[render:light]` merge, and
+     *  who draws the mouseover line (features/feature_facts.h). Call sites
+     *  read the lighting here rather than features->npc_light_* directly so a
+     *  manifest override wins without mutating the era table. */
+    struct ToriRS_FeatureFacts feature_facts;
 
     /* Phase 5: frame state. */
     struct UITreeHost ui_host;
     struct UITreeEmitBuffer emit;
-    /** Previous publication identity for the retained-emit gate. Per-App (not
+    /** Previous publication identity for the retained-emit gate, and whether
+     * this frame retained the list (UITree_EmitRetainGateRetained). Per-App (not
      * function statics) so a second client or a reinitialized App cannot inherit
      * another tree's quiet verdict. */
     struct UITreeEmitRetainGate emit_gate;
@@ -2105,25 +1136,14 @@ struct App
      * of it on a lane whose profile says `cross@mobile` -> inkwell. @see
      * ui/uitree_ink.h. */
     struct UIInk ink;
-    /* The op row the feedback is for, "<op> <target>" as the menu printed it
-     * -- the popup text beside an op tap (app_overlay_build_feedback_text).
-     * "" for a walk, which has none. Set with `ink` by app_cross_show. */
-    char feedback_text[UITREE_MINIMENU_OPTION_LEN];
     /** Mouseover text under the pointer, rebuilt every frame (reference: CS2
      * script 4726 rebuilds it every client cycle). */
     struct UIHoverText hover_text;
-    /** `[features] mouseover_text=cache`: the cache's clientscripts draw the
-     *  mouseover line, so `hover_text` stays empty and the native node paints
-     *  nothing. @see RevConfigFeaturesItem::mouseover_text. */
-    bool mouseover_text_by_cache;
-    /* Developer overlay (src/ui/README_DEBUG_OVERLAY.md): one minimenu-styled
-     * panel carrying the frame time, averaged over the last
-     * APP_DEBUG_FRAME_SAMPLES frames. It is hidden until the toggle key, and a
-     * hidden panel builds no primitives at all — the emit pass then costs one
-     * host call and paints nothing, which is why it can stay declared in a
-     * manifest permanently. The ring below keeps filling while it is hidden,
-     * so the average is already settled the frame it is shown. */
-    struct ToriRSChrome dbg_ui;
+    /* Developer overlay (src/ui/README_DEBUG_OVERLAY.md): the developer
+     * chrome instance with its frame-time panel and ring and the All Settings
+     * pickers. The loc and map editors' panels are built in its chrome too.
+     * Owned: made in App_Init, freed in App_Shutdown. See ui/dev_overlay.h. */
+    struct DevOverlay* dev_overlay;
     /**
      * Scripting/plugin host (src/plugin/). Always built in App_New: the nxt-*
      * builtins live in it whatever the plugin switch says. Seam calls still
@@ -2131,11 +1151,13 @@ struct App
      */
     struct ToriRS_PluginHost* plugins;
     /**
-     * The USER plugins are on: TORIRS_PLUGINS, else `[ui:boot] plugins=`.
-     * Off, the host carries only the nxt-* builtins and the boot task reads no
-     * script manifest.
+     * What this boot handed the plugin host: the USER plugins switch, where
+     * plugin settings are written, and this boot's feature values before any
+     * plugin set one -- snapshotted lazily on the first plugin call, which is
+     * always after App_Init (plugin/plugin_boot_config.h,
+     * app_plugin_feature_capture).
      */
-    int plugins_user;
+    struct PluginBootConfig plugin_boot;
     /**
      * quest-driver event ring (src/plugin/torirs_plugin_drive.h).
      *
@@ -2148,162 +1170,17 @@ struct App
      */
     struct App_DriveRing drive_events;
     /**
-     * The plugin window: a chrome instance of its own, not a panel in dbg_ui.
-     *
-     * Its own instance because it is the one piece of chrome a PLAYER uses
-     * rather than a developer: it has to be able to be open beside the game
-     * without the editors' claim on the keyboard, it needs its own capacity for
-     * a tab per plugin, and it is the surface a WEB/BROWSER executor binds to
-     * while the developer chrome stays on the in-canvas one. The objection this
-     * answers -- "a second chrome is a second of all the focus, damage and
-     * scale handling" -- stopped applying once input routing became one shared
-     * call that takes the instance (app_chrome_route_input).
+     * The plugin window: its chrome instance, presentation, page rows, choice
+     * pool and build stamps. Allocated by App_Init, freed by App_Shutdown,
+     * never NULL in between. @see plugin/plugin_panel.h.
      */
-    struct ToriRSChrome plugin_ui;
-    /** Placement and selection generation for the one shared plugin shell. */
-    struct ToriRSChromeShell plugin_shell;
+    struct PluginPanel* plugin_win;
     /**
-     * Which presentation the plugin window is bound to, and the sync driving
-     * it.
-     *
-     * The developer chrome is deliberately NOT bound to anything: the editors
-     * are in-canvas tools and always have been, and giving them an executor
-     * would be four more consumers to keep working for no one's benefit. The
-     * plugin window is the surface a user might want elsewhere, so it is the
-     * one with a choice.
+     * The merged chrome display list, the plugin page's surface picture and
+     * the renderer that draws plugin chrome. Allocated by App_Init, freed by
+     * App_Shutdown, never NULL in between. @see ui/chrome_compositor.h.
      */
-    struct ToriRSChromeSync plugin_exec;
-    /** Persistent navigation bridge. Unlike plugin_exec this is never shut
-     * down when the selected page collapses. */
-    struct ToriRSChromeRailSync plugin_rail;
-    /** Latest presenter-owned page allocation, generation fenced. */
-    struct ToriRSChromeRailIntent plugin_rail_layout;
-    int plugin_rail_has_layout;
-    /**
-     * The vtable the shell handed over, not yet started.
-     *
-     * Held unbound because begin() is what opens an OS window, and a window
-     * the user never asked to see must not be opened at boot. The sync above
-     * Inits from this the first time the plugin window is shown.
-     */
-    struct ToriRSChromeExec plugin_exec_pending;
-    /** enum ToriRSChromeExecKind actually bound -- which is not always the one
-     *  asked for: an executor that will not start falls back to buffer. */
-    int plugin_exec_kind;
-    /** The kind the boot line last named, so re-binding the window on every
-     *  open does not restate it. -1 until the first bind. */
-    int plugin_exec_logged_kind;
-    /**
-     * Someone NAMED that executor, rather than getting it by default.
-     *
-     * Distinct from the value, because "unset" and "explicitly buffer" are the
-     * same number and only one of them is a decision. Read for the "(configured)"
-     * / "(default)" half of the line the bind logs.
-     */
-    int plugin_exec_explicit;
-    /**
-     * The two chrome instances' display lists, concatenated for the emit layer
-     * -- which takes one pointer and one count for the whole overlay.
-     *
-     * Rebuilt only when a build serial moves, so the steady frame stays the
-     * pointer copy the retained chrome promises. Sized for both instances at
-     * once because that is the worst case it has to hold.
-     */
-    struct ToriRSChromePrim chrome_merged[APP_CHROME_PRIMS_MAX];
-    int chrome_merged_count;
-    /** The build serials the merge was made from. */
-    int chrome_merged_dbg;
-    int chrome_merged_win;
-    uint32_t chrome_merged_panel;
-    /**
-     * The plugin page on a SURFACE (ToriRSChromeExec::surface_size): its own
-     * display list -- the window's prims and its custom wells', never the
-     * developer chrome's -- rasterised with `soft_chrome` into these pixels and
-     * handed to the executor. Redrawn only when one of the four keys below
-     * moves, so a steady page presents nothing. Both buffers grow on demand
-     * and App_Shutdown frees them.
-     */
-    struct ToriRSChromePrim* plugin_surface_prims;
-    uint32_t* plugin_surface_pixels;
-    size_t plugin_surface_pixel_capacity;
-    int plugin_surface_win;
-    uint32_t plugin_surface_panel;
-    int plugin_surface_w;
-    int plugin_surface_h;
-    /** The window's panel handle in plugin_ui, or -1 before it is built. */
-    int plugin_panel;
-    int plugin_panel_visible;
-    /**
-     * Split-out choice strings for every dropdown in the plugin window, and
-     * the pointer array the chrome borrows.
-     *
-     * The chrome's dropdown BORROWS `char const* const*` and the strings must
-     * outlive the widget -- deliberately, so a palette of hundreds does not
-     * have to be copied into a fixed-size POD. Both sources here are the wrong
-     * shape for that: a config schema's `choices` and a plugin's
-     * win_set_options are one `"a|b|c"` string owned by the plugin, which is
-     * neither an array nor guaranteed to outlive a reload.
-     *
-     * So the window splits them into this pool at build time. It lives on App
-     * because the widgets point into it until the panel is rebuilt, and a
-     * local would be freed first. That is
-     * what turns an enum row from a text field with the choices printed in its
-     * label into an actual dropdown.
-     */
-    char plugin_choice_text[APP_PLUGIN_CHOICES_MAX][48];
-    char const* plugin_choice_ptrs[APP_PLUGIN_CHOICES_MAX];
-    int plugin_choice_count;
-    /** Plugin count and window revision the panel was built against. Rebuilt
-     *  when either stops matching: scripts register asynchronously, and a
-     *  plugin can declare or drop controls at any time. */
-    int plugin_panel_built_for;
-    int plugin_panel_built_rev;
-    /** ABI-21 model stamps used by the shared ToriRSChrome presenter. */
-    uint32_t plugin_panel_built_model_rev;
-    uint32_t plugin_panel_built_generation;
-    uint32_t plugin_panel_built_registry_rev;
-    /** Strictly increasing within (and harmlessly across) selections. */
-    uint64_t plugin_panel_intent_sequence;
-
-    struct AppPluginPanelRow
-    {
-        int widget;
-        int plugin;
-        /** enum AppPluginRowKind. */
-        int kind;
-        /** CONFIG: index into the plugin's schema. */
-        int cfg_index;
-        /** PLUGIN_WIDGET: the id the plugin gave it. */
-        char widget_id[TORIRS_PLUGIN_WIDGET_ID_MAX];
-        /** PANEL_WIDGET: model slot, identity, and semantic kind copied with the row. */
-        int model_index;
-        uint32_t widget_serial;
-        int widget_kind;
-        /** Last resolved custom drawing geometry: executor pixels for BUFFER,
-         * presenter-local logical pixels for an external custom sink. */
-        struct ToriRSChromeRect custom_region;
-        struct ToriRSChromeRect custom_clip;
-        int custom_layout_valid;
-        int custom_present_pending;
-    } plugin_panel_rows[APP_PLUGIN_PANEL_ROWS_MAX];
-    int plugin_panel_row_count;
-    /** Active panel-model slot -> plugin_panel_rows index + 1 (zero absent). */
-    int plugin_panel_model_rows[TORIRS_PLUGIN_WIDGETS_MAX];
-    /** Compact indexes of the active page's CUSTOM rows. */
-    int plugin_panel_custom_rows[TORIRS_PLUGIN_WIDGETS_MAX];
-    int plugin_panel_custom_row_count;
-    int plugin_panel_custom_pending_count;
-    /**
-     * This frame's input, parked for the plugin api's key_held.
-     *
-     * The input frame is a parameter to App_RunOnce rather than App state
-     * everywhere else, but a plugin handler fires from inside the overlay
-     * build and the menu build -- call sites several frames of stack below the
-     * one holding it -- and threading it through every one of them to answer
-     * "is shift down" would be a wider change than parking the pointer for the
-     * duration of the frame that owns it.
-     */
-    struct LibToriRS_Input* plugin_input;
+    struct ChromeCompositor* chrome_compositor;
     /**
      * The cache's highlight groups, resolved against this frame's world.
      *
@@ -2330,10 +1207,9 @@ struct App
      * Seeded to a value none of the three can take, so the first frame after
      * login fires all three: a group that starts empty has to be filled once,
      * and the "switched off" branch has to run once too.
+     * (game/rs_tile_highlight_watch.h)
      */
-    int highlight_last_hover_coord;
-    int highlight_last_route;
-    int highlight_last_dest_coord;
+    struct RS_TileHighlightWatch tile_highlight_watch;
 
     /**
      * Tiles whose ground-item pile changed since the last logic tick, as
@@ -2354,197 +1230,71 @@ struct App
      */
     struct RS_GroundItemsDirty ground_items_dirty;
     /** The two carrier varps behind the ground-items settings, resolved from
-     *  the revconfig varbits once the varbit table is loaded, and the values
-     *  last seen in them. -1 / -1 before the resolve. */
-    int ground_items_settings_varp[2];
-    int ground_items_settings_seen[2];
-    uint64_t ground_items_aux_seen[2];
-    /** The mouseover subject the highlighter was last run for, folded to one
-     *  int. Same edge rule as the three above. */
-    int highlight_last_mouseover;
-    /**
-     * Set when a scripted overlay's layer has gone missing from the tree.
-     *
-     * A tree rebuild -- login's gameframe remount, a Fixed/Resizable switch --
-     * reclaims every node under the `entity_overlay` builtin, and the scripted
-     * overlays (game/rs_entity_overlay.h) go with them. What makes that
-     * unrecoverable on its own is where the rebuild instructions live: the
-     * `cc_setonvartransmit` hook that would rebuild an overlay is registered ON
-     * the layer, so it dies with it, and nothing in the cache re-fires a client
-     * trigger. The client has to notice and re-raise them.
-     *
-     * Noticing by watching the builtin's component id does NOT work, and was
-     * the first attempt: the builtin is a manifest node, so its id is the same
-     * before and after. A layer that no longer resolves is the direct
-     * observation.
-     */
-    int client_trigger_refire_pending;
+     *  the revconfig varbits once the varbit table is loaded, the values last
+     *  seen in them, and the aux lists' revisions last seen
+     *  (game/rs_ground_items_dirty.h). */
+    struct RS_GroundItemsSettings ground_items_settings;
+    /** The mouseover subject the debug report line was last printed for,
+     *  folded to one int (game/rs_mouseover_report.h). */
+    struct RS_MouseoverReport mouseover_report;
+    /** Raised when a scripted overlay's layer has gone missing from the tree,
+     *  taken by the next overlay pass, which re-fires every ADD trigger
+     *  (game/rs_client_trigger.h). */
+    struct RS_ClientTriggerRefire client_trigger_refire;
 
-    struct ToriRS_HighlightItem plugin_highlights[APP_PLUGIN_HIGHLIGHTS_MAX];
-    int plugin_highlight_count;
-    /* Resolved LOC highlights, kept across frames.
-     *
-     * The loc pass is the expensive one: it walks the whole scenery pool
-     * -- ~23k entities -- testing each against the highlight member lists,
-     * and in an ordinary session that produces nothing at all. Unlike npcs
-     * and players, a loc does not move: its position comes from
-     * grid_position, so the answer only changes when the highlight state
-     * changes or when the set of scenery does. Those are exactly the two
-     * keys below. See app_plugin_highlights_rebuild_pools. */
-    struct ToriRS_HighlightItem plugin_highlight_loc[APP_PLUGIN_HIGHLIGHTS_MAX];
-    int plugin_highlight_loc_count;
-    int plugin_highlight_loc_revision;
-    bool plugin_highlight_loc_valid;
-    /** Plugin-owned world objects, indexed by the handle the plugin holds. */
-    struct AppPluginObject plugin_objects[APP_PLUGIN_OBJECTS_MAX];
-    /** Plugin-authored meshes, indexed by the handle the plugin holds. */
-    struct ToriRS_PluginMesh plugin_meshes[APP_PLUGIN_MESHES_MAX];
-    /** Plugin-shipped models, indexed by the handle the plugin holds. The host
-     *  bounds this at TORIRS_PLUGIN_MODELS_MAX, which is a slot table shared
-     *  across every plugin -- so unlike the mesh table it is not per plugin
-     *  and needs no multiplying. */
-    struct AppPluginAssetModel plugin_asset_models[TORIRS_PLUGIN_MODELS_MAX];
-    /** A mesh or a shipped model moved since the last settle, so the objects
-     *  standing on one may be holding a model built from geometry that has
-     *  changed or that no longer exists. */
-    int plugin_geometry_dirty;
+    /** The highlight groups resolved to things on screen: the list a plugin
+     *  walks and the loc highlights kept across frames
+     *  (plugin/plugin_highlights.h). */
+    struct PluginHighlights resolved_highlights;
+    /** Plugin-owned world objects, authored meshes and shipped models, each
+     *  indexed by the handle the plugin holds, and whether any geometry moved
+     *  since the last settle (plugin/plugin_geometry.h). */
+    struct PluginGeometry plugin_geometry;
     /**
      * Deferred frame captures (api->screenshot), taken at the top of the NEXT
-     * App_RunOnce.
-     *
-     * Deferred because every caller is upstream of the frame it wants: a
-     * plugin recognises a level-up while the packet is being executed, which
-     * is before the interface that announces it has been laid out, let alone
-     * drawn. Taking the shot a frame later is the difference between a
-     * screenshot of the moment and a screenshot of the moment before it.
+     * App_RunOnce (plugin/plugin_screenshots.h).
      */
-    struct AppPluginScreenshot
-    {
-        int in_use;
-        char plugin[TORIRS_PLUGIN_NAME_MAX];
-        char dir[TORIRS_PLUGIN_SCREENSHOT_DIR_MAX];
-        char name[TORIRS_PLUGIN_ASSET_NAME_MAX + 8];
-        /** The file this will be written to, resolved when the request was
-         *  made rather than when the picture is taken. The plugin is handed it
-         *  on the spot -- a deferred write has no other moment to tell anyone
-         *  where it went -- so it is worked out once, here, and the writer
-         *  uses the same string rather than resolving a second time. */
-        char path[TORIRS_IOITEM_MAX_PATH];
-    } plugin_screenshots[APP_PLUGIN_SCREENSHOTS_MAX];
-    /** Where plugin settings are written; NULL turns persistence off. */
-    char const* plugin_prefs_path;
-    /** logic_cycle at which the plugin config store last moved, or 0 when it
-     *  is on disk. Same settle delay as prefs_dirty_cycle, for the same
-     *  reason: a script editing state every tick must not be fifty writes. */
-    uint64_t plugin_prefs_dirty_cycle;
-    /** Panel / frame-time row handles, -1 until App_Init built them. */
-    int dbg_panel;
-    int dbg_frame_row;
-    int dbg_visible;
-    /** Frames drawn, cumulative, on every renderer (App_NoteFrameDrawn). What a frame-rate readout
-     *  differences: the loop runs at the pacer's rate whether or not a frame
-     *  is drawn, so counting iterations measures the pacer, not the screen. */
-    uint64_t frames_rendered;
-    /* Frames drawn in the last whole second (the reference's fps, which
-     * SEND_PING_REPLY reports), counted by App_NoteFrameDrawn. */
-    int fps;
-    int fps_window_frames;
-    uint64_t fps_window_start_ms;
+    struct PluginScreenshots plugin_screenshots;
+    /** When the plugin config store last moved and is not yet on disk
+     *  (game/rs_save_debounce.h). Same settle delay as prefs_save, for the
+     *  same reason: a script editing state every tick must not be fifty
+     *  writes. */
+    struct RS_SaveDebounce plugin_prefs_save;
+    /* The fixed-step accumulator that turns wall time into logic cycles and
+     * the cycles a frame-locked frame owes the next; the client's serials
+     * (logic cycles run, App_RunOnce calls, the time of the last frame); the
+     * fps window (frames drawn in the last whole second, which
+     * SEND_PING_REPLY reports) and frames drawn since boot on every renderer
+     * (App_NoteFrameDrawn) -- drawn, not iterated: the loop runs at the
+     * pacer's rate whether or not a frame is drawn, so counting iterations
+     * measures the pacer, not the screen; and the idle timer. See
+     * perf/frame_clock.h. */
+    struct FrameClock frame_clock;
     /**
      * Render skip: the frame loop still runs input, net, the logic tick and
      * the plugins, but App_Render and the present are skipped unless a frame
      * has to be drawn. See App_RenderSkipFrame for what forces one and why.
      * Switched by TORIRS_RENDER_SKIP=1 (App_Init), `::renderskip` typed in
      * the chatbox, and api.drive.render_skip (t.render.skip).
+     * See render/render_skip.h.
      */
-    struct AppRenderSkip
-    {
-        /** 1: draw only the frames App_RenderSkipFrame says must be drawn. */
-        int enabled;
-        /** Frames still owed a draw, the current one first
-         *  (App_RenderSkipRequestDraw), counted in frames DRAWN. */
-        int draw_frames;
-        /** The render-time state (pickset, posed bounds) is the most recent
-         *  committed frame's, as it always is with skip off. */
-        int fresh;
-        /** The most recent frame was committed and skipped, so its emit list
-         *  is the current one and App_RenderSkipCatchUp may still draw it. */
-        int catch_up_ok;
-        /** Layout-sized buffer a catch-up draw rasterises into; NULL until
-         *  the first one. */
-        int* scratch;
-        /** Loop iterations drawn and not drawn, skip on or off (with skip
-         *  off a frame App_RunOnce had nothing to redraw for is not drawn),
-         *  and skipped frames drawn late by App_RenderSkipCatchUp. */
-        uint64_t frames_drawn;
-        uint64_t frames_skipped;
-        uint64_t frames_caught_up;
-        /** A replay seek (App_RenderSkipHold): nothing is drawn but what a
-         *  retained renderer or a capture must have; the last frame stays on
-         *  screen. Independent of `enabled`. */
-        int hold;
-    } render_skip;
-    /** The last few frame durations, and their mean. See
-     *  perf/frame_time_ring.h. */
-    struct FrameTimeRing dbg_frame_times;
-    /** Loc editor: a TORIRS_CHROME_PANEL_MENU in the same dbg_ui instance (so it
-     * shares Build/Prims/emit plumbing with the frame-time panel for free).
-     * Opened at the loc under the cursor; "Move"/"Rotate" rows re-place it
-     * client-side only via App_WorldLocChange, so the readout gives exact
-     * scene coords to hand-copy into a script without a server round trip. */
-    /**
-     * The two All Settings pickers: the colour swatch editor and the number
-     * entry, as panels in the same dbg_ui instance.
+    struct RenderSkip render_skip;
+    /** The modifier keys as of the last input pump (Ctrl, reference
+     *  keyHeld[5]), latched in app_frame.c for the move paths that run
+     *  without the input, and this frame's input parked for the plugin api's
+     *  key_held and the menu's Shift.
      *
-     * Panels here rather than a chrome instance of their own for the same
-     * reason the loc editor is one: they are in-canvas, short-lived and share
-     * the frame-time panel's Build/Prims/emit plumbing for free. The cache has
-     * no picker to open -- its op script for a swatch or a field plays a click
-     * and returns -- so these ARE the rows' apply, and the value each commits
-     * goes straight into the row's varp. See ui/settings_pickers.h.
-     */
-    struct UISettingsPickers settings_pickers;
-    /** The loc editor's chrome handles: the panel, its four readout rows and
-     *  its eight buttons. Ids the chrome hands back, nothing more. */
-    struct App_LocEditorWidgets locedit;
-    /** What the panel is pointed at, and what moving it means. Set only by an
-     *  explicit Reselect/Deselect: opening or closing the panel never changes
-     *  it. @see editor/loc_editor_selection.h */
-    struct LocEditorSelection locedit_selection;
-    /** Footprint outline (app_overlay_build_hover_footprint): the live mode —
-     * 0 off, 1 the hovered loc, >1 every instance of that loc id — and the
-     * non-zero mode the toggle restores. Seeded from TORIRS_HOVER_FOOTPRINT so
-     * the env var still selects the mode; the hotkey only turns it on and off,
-     * which is what keeps an id-mode headless run togglable without losing the
-     * id it was given. */
-    int hover_footprint;
-    int hover_footprint_mode;
-    uint64_t last_logic_ms;
-    /** Unspent simulation time, in milliseconds, carried between frames.
-     *
-     *  The client simulates at a fixed 50 Hz. A frame hands its elapsed
-     *  time to this accumulator, which pays out whole 20 ms cycles and
-     *  keeps the change -- so the tick rate is exactly 50 Hz however fast
-     *  or slow frames arrive, and an uncapped frame rate cannot run the
-     *  simulation faster than real time. Both the whole cycles the logic
-     *  steps and the fraction the movers interpolate come out of the same
-     *  elapsed value, which is what stops animation and movement drifting
-     *  apart. */
-    double cycle_accum_ms;
-    /** The clamped elapsed time of the frame the tick accumulator just took,
-     *  in milliseconds. The movers interpolate this; the logic steps whole
-     *  cycles out of it. Same number, so they cannot disagree. */
-    uint64_t logic_frame_ms;
-    /** Ctrl held as of the last input pump (reference keyHeld[5]). Latched per
-     *  frame because the minimenu action path has no LibToriRS_Input in hand,
-     *  and the reference reads it inside tryMove — i.e. for ground, minimap AND
-     *  interaction clicks alike, all of which run from there. */
-    int ctrl_held;
-    int hover_com_id;
-    int clicked_com_id;
+     *  The input frame is a parameter to App_RunOnce rather than App state
+     *  everywhere else, but a plugin handler fires from inside the overlay
+     *  build and the menu build -- call sites several frames of stack below
+     *  the one holding it -- and threading it through every one of them to
+     *  answer "is shift down" would be a wider change than parking the
+     *  pointer for the duration of the frame that owns it.
+     *  @see input/torirs_frame_modifiers.h. */
+    struct ToriRS_FrameModifiers frame_modifiers;
     /**
      * A finger's tap on the world that arrived before any frame had picked
-     * at its pixel, held until one has (app_frame.c, app_world_tap_*).
+     * at its pixel, held until one has (app_frame.c).
      *
      * A world click runs the default row of the menu built from the pickset
      * the LAST rendered frame hittested. A mouse hovers for frames before it
@@ -2555,75 +1305,43 @@ struct App
      * (2026-11-16, black box `world_click` pick n=0 stamp=none): frames are
      * slow while a swapped-in world bakes, so a quick tap fit in one.
      *
-     * While `active` the pointer is kept present at (x, y) so the next frame
-     * picks there; the click runs once the set is stamped at (x, y), or after
-     * APP_WORLD_TAP_WAIT_FRAMES on whatever the set holds then.
+     * While one is held the pointer is kept present at its point so the next
+     * frame picks there; the click runs once the set is stamped at that
+     * point, or after TORIRS_WORLD_TAP_WAIT_FRAMES on whatever the set holds
+     * then. See input/torirs_world_tap.h.
      */
-    struct
-    {
-        int active;
-        int x;
-        int y;
-        int frames;
-    } world_tap_pending;
-    int need_redraw;
+    struct ToriRS_WorldTap world_tap;
+    /** The next frame has to draw. @see render/redraw_request.h. */
+    struct RedrawRequest redraw_request;
 
     /* Async lifecycle state (no blocking IO outside the platform pump). */
-    int app_state;     /* enum AppState */
-    /** enum AppScreen. Orthogonal to app_state: that says whether the current
-     *  tree has finished baking, this says which tree it is. */
-    int screen;
-    int boot_progress; /* 0..100, drives the loading bar while BOOTING */
     /**
-     * This bake must not paint: the screen keeps the frame it already has.
-     *
-     * A logout bake is the one bake with something worth keeping behind it.
-     * Everything else that rebakes a tree either has nothing on screen yet
-     * (the boot) or is covered by the bar the boot left standing (the title
-     * swap, the post-login gameframe); a logout comes off a live world, and
-     * the reference goes from that world straight to the login form. Drawing
-     * the boot bar over it puts a loading screen between two screens that
-     * were both ready -- and since the bake is quiet the bar is not even
-     * moving, so what the player sees is a full bar flashing on a cleared
-     * canvas for as many frames as the bake takes.
-     *
-     * So the frame declines instead: App_RunOnce returns no commit while this
-     * is set, and the host presents its retained frame (the software surface
-     * re-uploads its pixels; the GPU lanes leave their front buffer alone).
-     * The world stands still -- it is gone, the session ended -- until the
-     * title tree can draw the login screen in one step.
-     *
-     * Set by App_Logout, cleared by the next bake that starts and by the bake
-     * that settles. @see App_BootHoldsLastFrame.
+     * Whether the tree being baked has finished, which screen it is, and
+     * whether a logout's bake keeps the last frame on screen instead of
+     * painting: App_RunOnce returns no commit while that is held, and the host
+     * presents its retained frame (the software surface re-uploads its
+     * pixels; the GPU lanes leave their front buffer alone) until the title
+     * tree can draw the login screen in one step. Raised by App_Logout,
+     * cleared by the next bake that starts and by the bake that settles.
+     * @see game/rs_client_phase.h, App_BootHoldsLastFrame.
      */
-    int boot_hold_last_frame;
-    /* Boot pump accounting (TORIRS_BOOT_STATS): how many frames the boot took,
-     * how many scheduler steps ran in total, and how many of those frames hit
-     * the per-frame step budget — the last one is what says whether the boot is
-     * bound by work or by the frame loop handing it too few slices. */
-    int boot_frames;
-    long boot_steps;
-    int boot_frames_budget_capped;
-    uint64_t boot_start_ms;
-    /* Post-boot frames that used their whole step budget with work still
-     * pending — the frame queue being drip-fed a slice at a time. */
-    int busy_frames;
-    long busy_steps;
-
+    struct RS_ClientPhase phase;
     /*
-     * The frame queue still had work when the last App_RunOnce returned.
+     * Boot pump accounting (TORIRS_BOOT_STATS) and whether the frame queue
+     * still had work when the last App_RunOnce returned.
      *
-     * Read by the frame loop, which skips its pacing sleep while it is set.
-     * The frame cap exists to pace the SCREEN; sleeping through outstanding IO
-     * paces the download instead, and on a cold boot this client streams its
-     * whole world through that pipeline -- 516 containers for the rev-289
-     * world -- so the cap was deciding how fast the game could load.
-     *
-     * busy_frames next door has been counting the same situation for a while.
-     * This is the half that acts on it.
+     * The flag is read by the frame loop, which skips its pacing sleep while
+     * it is set. The frame cap exists to pace the SCREEN; sleeping through
+     * outstanding IO paces the download instead, and on a cold boot this
+     * client streams its whole world through that pipeline -- 516 containers
+     * for the rev-289 world -- so the cap was deciding how fast the game could
+     * load. @see perf/boot_pump_stats.h.
      */
-    int async_pending;
-    int boot_interface_id;
+    struct BootPumpStats pump_stats;
+    /** The boot bar, the root interface the bake mounts, the boot task's
+     *  once-per-session preamble latch and the headless preview's outcome.
+     *  @see game/rs_boot_state.h. */
+    struct RS_BootState boot;
     /**
      * The outgoing root's mounts, kept across a re-root (App_OpenRootInterface).
      *
@@ -2633,92 +1351,33 @@ struct App
      * here is rebuilt instead, so these records are what App_MoveSubInterface
      * finds a moved sub by. A record a re-root does not move is kept, as the
      * deob keeps it: it is in a slot only the old top has, and it reopens when
-     * that top is the root again (app_detach_tree_mounts).
+     * that top is the root again (app_detach_tree_mounts). The table's rules
+     * are ui/uitree_kept_mounts.h.
      */
-    struct UITreeInterfaceParent detached_parents[UITREE_INTERFACE_PARENT_MAX];
-    int detached_parent_count;
-    /** Invalid TORIRS_PREVIEW_STATE packet; the headless caller turns this into
-     * a non-zero process exit after the async boot task returns. */
-    int preview_state_failed;
-    uint32_t preview_state_stat_mask;
-    /**
-     * The once-per-session half of Task_AppBoot has already run.
-     *
-     * Task_AppBoot runs again on every root remount (the Display panel's
-     * Fixed/Classic/Modern switch), and its preamble is not idempotent:
-     * `VarPManager_SetVarpTypes` reallocates the varp VALUE arrays, so a second
-     * pass calloc-zeroes every varp the server has sent this session. Cache type
-     * tables and device settings cannot change inside a session; session varp
-     * state can, and only the server can put it back. */
-    int boot_config_ready;
-    /** Set when async work mutated the tree; App_RunOnce consumes it with a
+    struct UITreeKeptMounts kept_mounts;
+    /** Raised when async work mutated the tree; App_RunOnce takes it with a
      * relayout + CS1 re-eval request + redraw. */
-    int pending_tree_refresh;
-    int cs1_eval_inflight;
-    /** Tree-affecting async work (CS2 hooks, transmits) is in flight; when the
-     * runner queue next goes idle the tree gets a refresh pass. */
-    int frame_runner_had_work;
-    /** The serial packet/interface transaction yielded on real external IO.
-     * Its partially-applied tree is not eligible for frame publication. */
-    int packet_runner_had_work;
-    int world_load_inflight;
-    /** The boot report has been told about the session's first packet. */
-    int net_first_packet_marked;
-    /** Send MAP_BUILD_COMPLETE when the in-flight world load finishes (set by
-     * the REBUILD_NORMAL packet task, not by hotkey/lazy loads). */
-    int world_load_server_driven;
+    struct UITreeRefresh tree_refresh;
+    /** The boot report's first packet and the TORIRS_NET_CHEAT boot cheat:
+     *  each acted on once per run (net/net_once.h). */
+    struct NetOnce net_once;
     /** Texture ids requested but not yet published into the scene. */
     struct AsyncPendingTextures tex_pending;
     /** Element/seq bindings deferred until the sequence load lands. */
     struct AsyncPendingSeqBinds seq_bind_pending;
     /** Entity-sync bookkeeping (server slots -> world entities). */
     struct RS_EntitySync esync;
-    /** Dedupe for entity movement-seq load requests. */
+    /** Dedupe for entity movement-seq load requests; a full table drops its
+     *  oldest id (engine/seq_load_tracker.h). */
     struct SeqLoadTracker entity_seq_loads;
     /** Npc bodies on their way in (game/task_entity_assets.c): one load per
      *  (base, resolved) type however many npcs of it a packet spawns; the
-     *  completion dresses every one of them. */
-    struct AppNpcBodyLands
-    {
-        int base[64];
-        int type[64];
-        int count;
-    } npc_body_lands;
+     *  completion dresses every one of them. game/rs_npc_body_lands.h. */
+    struct RS_NpcBodyLands npc_body_lands;
     /** Entity attached-graphic (SPOTANIM mask) combine state, keyed by the
-     * entity's body scene element. While the graphic is active the element's
-     * model is the reference getTempModel Model.combine([body, spot]) — `body`
-     * holds the owned pristine snapshot restored on detach, `spot` the owned
-     * spot base model, `combined` the identity of the merged model currently on
-     * the element (owned by the element; compared, never dereferenced). */
-    struct AppEntitySpotanim
-    {
-        int body_element_id; /* -1 = free slot */
-        /*
-         * WORLD_ENTITY_ID of the entity this snapshot was taken from.
-         *
-         * The element id ALONE is not an identity: scene element ids are
-         * recycled, so an entry keyed only by `body_element_id` outlives its
-         * owner and then aliases whoever is handed that id next. Detaching such
-         * an entry pushes `body` -- the previous owner's model -- onto the new
-         * occupant's element and hands over ownership, which is how calling a
-         * familiar in the QBD arena made the Queen's model follow the player.
-         * The liveness sweep cannot see it either: a recycled id IS live.
-         */
-        int owner_entity_id;
-        /* One per rev-239 graphic slot (WORLD_NPC_SPOTANIM_SLOTS, a player's
-         * as an npc's): every slot drawing is merged onto the one body. */
-        struct AppEntitySpotanimSlot
-        {
-            int spotanim_id;   /* -1 = slot empty */
-            int load_enqueued; /* asset-load task fired for spotanim_id */
-            int applied_frame; /* spot seq frame baked into `combined`; -1 none */
-            struct ToriDraw_Model* spot;
-        } slots[8];
-        /* Bit i: slot i is in `combined`. */
-        int merged_mask;
-        struct ToriDraw_Model* body;
-        struct ToriDraw_Model* combined;
-    } entity_spotanims[64];
+     * entity's body scene element and its owner (engine/entity_spotanim.h);
+     * app_entity_sync.c builds and swaps the models. */
+    struct EntitySpotanims entity_spotanims;
 
     /* ---- server-driven state (Part 5 packet coverage) ---- */
     /** Audio packet sink (no playback backend). */
@@ -2735,132 +1394,18 @@ struct App
      * mirrored back from the host as the player changes things.
      */
     struct RS_Prefs prefs;
-    /** Where prefs are written; NULL turns persistence off (TORIRS_PREFS=""). */
-    char const* prefs_path;
-    /** logic_cycle at which prefs last moved, or 0 when they are on disk. A
-     *  slider drag changes them every tick, so the write waits for the drag to
-     *  settle rather than rewriting the file 50 times a second. */
-    uint64_t prefs_dirty_cycle;
+    /** When prefs last moved and are not yet on disk (game/rs_save_debounce.h).
+     *  A slider drag changes them every tick, so the write waits for the drag
+     *  to settle rather than rewriting the file 50 times a second. */
+    struct RS_SaveDebounce prefs_save;
     /**
-     * Camera scripting (CAM_* packets).
-     *
-     * The camera keeps easing toward its target every frame for as long as the
-     * script is up, so the packets set a destination rather than a position;
-     * only a rate2 of 100 or more snaps straight there. Heights are measured
-     * up from the ground under the tile, not in world space.
-     *
-     * Shake is per axis and all five can run at once — the encounter scripts
-     * fire one call per axis and expect them to compound, so a single slot
-     * would keep only whichever arrived last.
-     *
-     * `serial` and `events` are the READ side (seam32
-     * cutscene_verb_and_camera_read): every CAM_* packet the client executes
-     * bumps the serial and lands one event in the ring, in WORLD tiles (the
-     * scene-local split in rs_gameproto_exec.c is resolved at arrival, against
-     * the scene the shot played in). The quest driver's t.world.camera() and
-     * t.cutscene.await read them (torirs_plugin_drive_pointer.c,
-     * DrivePointer_CameraState / DrivePointer_CameraEvents); nothing that
-     * draws reads them.
+     * Camera scripting (CAM_* packets, CAM_UNLOCK included): the targets,
+     * eases, shakes, free camera and the read side's event ring
+     * (render/cam_script.h). The packet handlers in rs_gameproto_exec.c set
+     * it, app_camera.c steps the views from it, and the quest driver reads
+     * its events (torirs_plugin_drive_pointer.c).
      */
-    struct App_CamScript
-    {
-        int scripted; /* 1 while a CAM_MOVETO/LOOKAT script overrides free-fly */
-        /** CAM_SMOOTHRESET (deob client.field698): `scripted` stays 1 while
-         *  the eye glides back to the follow camera, then both clear. */
-        int smooth_reset;
-        /** Attached views that reached the follow camera this frame; the glide
-         *  ends when every one has. */
-        int smooth_reset_arrived;
-        int move_lx, move_lz, move_height, move_rate, move_rate2;
-        int look_lx, look_lz, look_height, look_rate, look_rate2;
-        /**
-         * CAM_MOVETO_CYCLES: the eye eased from where it was to a target over
-         * `duration` client cycles (deob class568, built in client.java's
-         * class243.field3064 handler). While `active`, it replaces the rate
-         * walk above; once done it holds the eye at the end until the next
-         * CAM_MOVETO/CAM_RESET. `y0`/`y1` are absolute scene y when
-         * `ignore_terrain`, else height above the ground under the eye.
-         */
-        struct App_CamMoveCycles
-        {
-            int active;
-            int x0, z0, y0, x1, z1, y1;
-            int ignore_terrain;
-            int start_cycle, duration, easing;
-            /** CAM_MOVETO_ARC (deob class561): x/z run along `arc_path`
-             *  (app/app_cam_arc.h); y eases as above. */
-            int arc;
-            struct App_CamArc arc_path;
-        } move_cycles;
-        /**
-         * CAM_ROTATETO_COORDINATE, CAM_ROTATEBY, CAM_ROTATETO: pitch and yaw
-         * eased (deob class563 x2, client.java class243.field3046; class594 x2
-         * at 241). Each axis runs its own ease: ROTATEBY/ROTATETO can restart
-         * one and leave the other's in flight. Held at the end until the next
-         * CAM_LOOKAT/CAM_RESET, like move_cycles.
-         */
-        struct App_CamRotateCycles
-        {
-            int active;
-            struct App_CamAxisEase
-            {
-                int active;
-                int from, to;
-                int start_cycle, duration, easing;
-            } pitch, yaw;
-        } rotate_cycles;
-        /**
-         * CAM_LOOKAT_CYCLES: the look-at point eased to a tile, in world units
-         * (deob class586). Done when it arrives; the look_lx/lz/height it
-         * finished on then hold, as field2173/field624/field623 do.
-         */
-        struct App_CamLookCycles
-        {
-            int active;
-            int x0, z0, height0;
-            int x1, z1, height1;
-            int start_cycle, duration, easing;
-        } look_cycles;
-        /** The last CAM_MOVETO's height: what a height-relative move adds to
-         *  (deob Statics.field6040). */
-        int last_move_height;
-        int shake[5];
-        int shake_jitter[5];    /* random spread either side of the sine */
-        int shake_amplitude[5]; /* sine amplitude */
-        int shake_speed[5];     /* sine rate, hundredths */
-        int shake_cycle[5];
-        /** The shake's per-frame roll, shared by every paint of one frame
-         *  while a script's view is attached (struct App_ShakeRoll). */
-        struct App_ShakeRoll shake_roll;
-        /** CAM_MODE (deob client.java field1275): 1 is the free camera, whose
-         *  focus the keys move instead of the player. */
-        int cam_mode;
-        /** OCULUS_SYNC's last value (field1183). */
-        int oculus_sync;
-        /** Bring the focus back to the player (field1184). */
-        int oculus_recentre;
-        /** The focus height, once the free camera has one (field5690). */
-        int oculus_y_valid;
-        int oculus_y;
-        /** How fast the focus is moving, and which way (field1180..1182). */
-        int oculus_speed;
-        int oculus_angle;
-        int oculus_dy;
-        /** The keys, sampled with the frame's input. */
-        int oculus_w, oculus_s, oculus_a, oculus_d, oculus_r, oculus_f, oculus_shift;
-        /** Camera packets executed this session; events[serial % RING] is the
-         *  newest once serial > 0. */
-        int serial;
-        struct App_CamScriptEvent
-        {
-            int serial;
-            int op; /* enum App_CamScriptOp */
-            int world_x, world_z; /* MOVETO/LOOKAT target tile; -1 otherwise */
-            int height;           /* MOVETO/LOOKAT height; SHAKE amplitude */
-            int rate, rate2;      /* MOVETO/LOOKAT speeds; SHAKE axis, speed */
-            int tick;             /* world->cycle / APP_SERVER_TICK_LOGIC_CYCLES */
-        } events[APP_CAM_SCRIPT_EVENTS];
-    } cam_script;
+    struct CamScript cam_script;
     /**
      * HINT_ARROW state -- the server pointing at something. type 0 = none.
      *
@@ -2871,114 +1416,30 @@ struct App
      * (`GraphicsDefaults::GetSpriteHintMapMarkersID` and its two siblings). So
      * the server decides whether to point, and this decides how to draw it.
      */
-    struct
-    {
-        /** APP_HINT_ARROW_NPC / _COORD / _PLAYER. 0 is none; the wire's 255
-         *  is normalised to 0 on the way in, and the four off-centre tile
-         *  forms to _COORD plus the offsets below. */
-        int type;
-        int target; /* npc slot, player pid, or the absolute tile x */
-        int tile_z;
-        int height;
-        /** Where in the tile a _COORD arrow floats, in fine units (64 is the
-         *  centre). Meaningless for the two entity forms, which follow the
-         *  entity. */
-        int offset_x;
-        int offset_z;
-    } hint_arrow;
-    /** SET_PLAYER_OP rows for the player context menu (slot 1..5 -> [0..4]). */
-    char player_ops[5][40];
-    int player_ops_primary[5];
+    struct RS_HintArrow hint_arrow;
     /**
-     * Controls-settings "Attack" options (enum RS_AttackOption; reference
-     * client.playerAttackOption / npcAttackOption). Derived state, not varp
-     * storage: varp clientcode 18 / 22 assigns them and nothing else does, so
-     * a VARP_RESET leaves them alone exactly as the reference does — it resets
-     * them only on the full game-state reset, never from its zeroed table.
-     * Both start at RS_ATTACK_OPTION_DEFAULT (Hidden).
+     * SET_PLAYER_OP rows and the two Controls-settings "Attack" options
+     * (game/rs_player_ops.h). The options are derived state, not varp storage:
+     * varp clientcode 18 / 22 assigns them and nothing else does, so a
+     * VARP_RESET leaves them alone exactly as the reference does -- it resets
+     * them only on the full game-state reset (app_attack_options_reset),
+     * never from its zeroed table.
      */
-    int player_attack_option;
-    int npc_attack_option;
-    int multiway; /* SET_MULTIWAY: 1 = in a multi-combat zone */
-    /*
-     * SET_INTERACTION_MODE / RESET_INTERACTION_MODE (deob class61): what a
-     * click may do in each world view. The tile mode (class481: 0 nothing, 1
-     * "Walk here", 2 the sail-heading control) and the entity mode (class500:
-     * 0 nothing, 1 everything, 2 examine and player ops, 3 everything) a view
-     * was given, or -1 for the defaults, which world -2 sets. A logout puts
-     * them back to 1/1 (class61.method1386). See App_InteractionMode*.
-     */
-    int interaction_default_tile;
-    int interaction_default_entity;
-    int8_t interaction_tile[WORLDVIEW_MAX];
-    int8_t interaction_entity[WORLDVIEW_MAX];
-    /* ZBUF: the server's depth-buffer choice for this session, -1 when it has
-     * made none. The software renderer's world honours it (app_render.c); the
-     * GPU renderers fix their depth mode at launch. */
-    int server_zbuf;
-    /* UNKNOWN_STRING (deob client.field772) and SITE_SETTINGS (the string the
-     * client hands its site-settings store): kept as the client keeps them. */
-    char unknown_string[256];
-    char site_settings[1024];
-    char website_token[256]; /* SET_WEBSITE_TOKEN */
-    /** CAM_SKYBOX: the model id + 1, 0 for none (deob client.java field1294). */
-    int skybox_id_plus1;
-    /** What has been built and asked for, as above. */
-    int skybox_built_plus1;
-    int skybox_requested_plus1;
-    struct ToriDraw_Model* skybox_model;
-    /** MINIMAP_TOGGLE state; see enum AppMinimapState. */
-    int minimap_state;
-    /** CAM_UNLOCK: nonzero widens the orbit camera's pitch limits to the
-     *  deob's unlocked range (client.java field758; app_world_camera_limits). */
-    int cam_unlock;
-    /** LAST_LOGIN_INFO for the welcome screen clientcode rows. */
-    struct
-    {
-        int last_ip;
-        int days_since_login;
-        /**
-         * Days since the recovery questions were last changed, with two
-         * values that are not day counts at all: 200 = never set any, 201 =
-         * the server is not telling (which is also the only state in which
-         * `member_warning` has anything to say). Reference
-         * daysSinceRecoveriesChanged.
-         */
-        int days_since_recovery;
-        int unread_messages;
-        /** 1 = a member logged into a non-members world; the recovery rows
-         *  carry that warning instead of recovery text. */
-        int member_warning;
-    } welcome;
-    /**
-     * UPDATE_REBOOT_TIMER countdown in 20ms client cycles (reference
-     * rebootTimer), NOT in the server ticks the packet carries -- exec
-     * multiplies on the way in. 0 = no update pending, and the countdown
-     * stops at 1 rather than reaching 0 so "nearly here" never reads as
-     * "cancelled".
-     */
-    int reboot_timer;
-    /** Formatted countdown line handed to the reboot_timer widget; rebuilt on
-     *  every read, so it is only valid until the next one. */
-    char reboot_timer_text[48];
-    /** The private and clan message dedupe ring (reference field1077): one
-     *  ring for both, as in the client. A private message keys by its id, a
-     *  clan message by (world << 32) + its counter. */
-    int64_t pm_message_ids[100];
-    int pm_message_head;
-    int tracking_enabled; /* ENABLE/FINISH_TRACKING */
-    int net_cheat_sent;   /* TORIRS_NET_CHEAT one-shot latch */
-    /** Zone base for follows-mode zone packets (scene-local tiles). */
-    int zone_base_x;
-    int zone_base_z;
-    /** Plane named by the latest UPDATE_ZONE_* header. Revision-239 zone
-     * updates address this plane even when the local player is elsewhere. */
-    int zone_level;
+    struct RS_PlayerOps player_ops;
+    /* SET_INTERACTION_MODE / RESET_INTERACTION_MODE (deob class61): what a
+     * click may do in each world view (game/rs_interaction_mode.h). A logout
+     * puts them back to 1/1 (class61.method1386): App_InteractionModesReset. */
+    struct RS_InteractionMode interaction_mode;
+    /* What the server says once or rarely in a session: LAST_LOGIN_INFO, the
+     * reboot countdown, the site strings, tracking, SET_MULTIWAY.
+     * game/rs_session_info.h. */
+    struct RS_SessionInfo session_info;
+    /** CAM_SKYBOX: wanted, asked for and built (render/skybox_slot.h). */
+    struct SkyboxSlot skybox;
     /* Revision 239 SET_NPC_UPDATE_ORIGIN. NPC low-resolution deltas are
-     * relative to this scene-local tile, not implicitly to the local player. */
-    int npc_update_origin_x;
-    int npc_update_origin_z;
-    int npc_update_origin_valid;
+     * relative to this scene-local tile, not implicitly to the local player.
+     * See game/rs_npc_update_origin.h. */
+    struct RS_NpcUpdateOrigin npc_update_origin;
     /**
      * RUNCLIENTSCRIPT payloads held until the server tick that pushed them has
      * been applied in full.
@@ -3026,37 +1487,38 @@ struct App
      */
     struct RS_ClientScriptQueue pending_clientscripts;
     /**
-     * Has this connection ever sent SERVER_TICK_END?
-     *
-     * The pipeline pops a packet only when it runs dry, and a tick's packets do
-     * not all arrive in one read — so "nothing left to apply" happens *inside* a
-     * tick as often as at its end, and treating it as the fence flushes early
-     * and reproduces exactly the artifact the fence exists to remove. Where a
-     * real fence exists it is therefore the only one used; the dry-pipeline
-     * fallback is for revisions that send none (lc254).
+     * The server tick fence: has this connection sent SERVER_TICK_END, is a
+     * tick half applied (the renderer keeps the preceding committed frame
+     * while it is), was it opened on varps alone (App_WorldJobWanted), and
+     * how many ticks have executed, in wire order -- at SERVER_TICK_END, or at
+     * PLAYER_INFO on a revision that sends no fence. A loc change stamped with
+     * an earlier tick than the packet reading it is one the rev-239 client has
+     * already built (it builds a pending spawn in the client cycle that read
+     * it, right after the packet loop), however long this client's lane has
+     * held it. See game/rs_server_tick.h.
      */
-    int server_tick_fence_seen;
-    /** A fenced server tick has started applying but SERVER_TICK_END has not
-     * yet executed.  The live tree may contain only part of that tick, so the
-     * renderer retains the preceding committed frame while this is set. */
-    int server_tick_open;
-    int server_tick_open_cycle;
-    /** Some packet of the open tick so far was a UI mutator other than a
-     *  plain VARP_SMALL/VARP_LARGE -- an interface, inventory, stat or script
-     *  packet. Recomputed from each tick's opening packet. A tick open on
-     *  varps alone is the shape every REBUILD arrives in, and the one a
-     *  background rebuild may suspend the latch for (App_WorldJobWanted). */
-    int server_tick_open_nonvar;
-    /** Set by App_RunOnce once the stable-tree gate has been crossed and the
-     *  current host input frame has reached interaction. */
-    int input_frame_consumed;
-    /** This frame's pointer is over chrome drawn in this canvas (a developer
-     *  panel, or the plugin window under the buffer executor), so the game
-     *  sees none of it. Latched once per frame after the chrome ticks; see
-     *  app_chrome_wants_pointer, which is also what computes it. */
-    int chrome_pointer_owned;
+    struct RS_ServerTick server_tick;
     /**
-     * Zone sub-packets that arrived while the world was still async-loading.
+     * Who has taken a part of this frame's input (input/torirs_input_claims.h):
+     *
+     *   keys     a revconfig hotkey binding, or a map editor chord, acted on
+     *            the OSRS key. Debug world hotkeys share the digit row with
+     *            the rev-254 tab bindings, so they check this and stand down
+     *            rather than firing both.
+     *   frame    taken by App_RunOnce once the stable-tree gate has been
+     *            crossed and the current host input frame has reached
+     *            interaction, and by every chrome or camera gesture that acts
+     *            on it; App_InputFrameConsumed reads it.
+     *   pointer  this frame's pointer is over chrome drawn in this canvas (a
+     *            developer panel, or the plugin window under the buffer
+     *            executor), so the game sees none of it. Latched once per
+     *            frame after the chrome ticks; see app_chrome_wants_pointer,
+     *            which is also what computes it.
+     */
+    struct ToriRS_InputClaims input_claims;
+    /**
+     * The zone base for follows-mode zone packets, and the zone sub-packets
+     * that arrived while the world was still async-loading.
      *
      * The reference cannot receive one mid-build — its scene build runs
      * synchronously inside the packet loop, so every zone update processes
@@ -3066,226 +1528,71 @@ struct App
      * load was still in flight (docs/ORANGE_WEDGE.md §17). Each entry keeps
      * the zone base and header plane AS OF ARRIVAL. Revision 239's header can
      * target a plane other than the player, so resolving it at replay time
-     * would overwrite locs in the wrong plane. Replayed in arrival order once
-     * load_complete flips.
+     * would overwrite locs in the wrong plane. It also keeps the packet-apply
+     * cursor as of arrival: a queued packet can be replayed ticks later, after
+     * SERVER_TICK_END has reset the live cursor, so resolving it at replay
+     * time would land a boat's zones in the root. Replayed in arrival order
+     * once load_complete flips. See game/rs_zone_inbox.h.
      */
-    struct AppPendingZonePkt
-    {
-        struct PktZoneSubPacket pkt;
-        int base_x; /* app->zone_base_* as of arrival */
-        int base_z;
-        int level; /* zone header plane as of arrival */
-        /* Packet-apply cursor as of arrival: a queued packet can be replayed
-         * ticks later, after SERVER_TICK_END has reset the live cursor, so
-         * resolving it at replay time would land a boat's zones in the root. */
-        int view;
-    } pending_zone[256];
-    int pending_zone_count;
+    struct RS_ZoneInbox zone_inbox;
     /** Last REBUILD_NORMAL centre zone (deob field1192/field474 /
-     * Client-TS mapBuildCenterZoneX/Z). -1 until the first rebuild. Same-zone
-     * packets early-out when the world is already active. */
-    int rebuild_zone_x;
-    int rebuild_zone_z;
-    /** The root scene's dynamic-rebuild template grid, KEPT: the world load
-     *  consumes it and the packet's copy is freed, but it is the only thing a
-     *  client is told about an instance's layout (the CoX helper's room list
-     *  is read from it). `[level*169 + zone_x*13 + zone_z]`, packed as
-     *  struct PktMapRebuild documents; centred on its own zone, so a reader
-     *  never pairs one rebuild's grid with another's scene base. */
-    int32_t rebuild_instance_zones[4 * 13 * 13];
-    int rebuild_instance_zone_x;
-    int rebuild_instance_zone_z;
-    bool rebuild_instance_active;
+     * Client-TS mapBuildCenterZoneX/Z), -1 until the first rebuild; same-zone
+     * packets early-out when the world is already active. And the root
+     * scene's dynamic-rebuild template grid, KEPT: the world load consumes it
+     * and the packet's copy is freed, but it is the only thing a client is
+     * told about an instance's layout (the CoX helper's room list is read from
+     * it). See game/rs_rebuild_region.h. */
+    struct RS_RebuildRegion rebuild_region;
 
     /**
-     * How a server REBUILD is done: the world's `[features:boot] world_rebuild`
-     * (background unless it says blocking), TORIRS_WORLD_REBUILD over that.
-     * Resolved when the features are bound (App_WorldRebuildModeInit).
+     * The paced catch-up after a background rebuild's commit
+     * (engine/world_builder/rebuild_pace.h), on the background queue's clock.
+     *
+     * The commit frame does the commit and nothing else: no packet is popped
+     * on it. For the window after it, the packets held behind the REBUILD
+     * and the scripts they dispatch are applied a budget of work a frame,
+     * stopping between packets and between tasks. A frame that stops part
+     * way through a server tick is latched like any frame whose tick has not
+     * finished arriving (App_FrameSettled), so nothing half applied is shown.
+     * @see App_PaceArm, App_PacedDeadline.
+     */
+    struct RebuildPace pace;
+    /**
+     * The background world rebuild (engine/world_builder/world_rebuild_job.h):
+     * how a server REBUILD is done, and the job in progress, if any.
+     *
+     * The mode is the world's `[features:boot] world_rebuild` (background
+     * unless it says blocking), TORIRS_WORLD_REBUILD over that, and the
+     * deadline TORIRS_WORLD_JOB_DEADLINE_MS (default 600), resolved when the
+     * features are bound (App_WorldRebuildModeInit).
      *
      * Blocking, the default: the packet task awaits the whole load inline and
      * the scene is rebuilt in place inside that packet -- the least memory,
      * and the one frame it costs is the gather and the build together.
      *
      * Background (TORIRS_WORLD_REBUILD=background): the gather runs on
-     * background_runner while the old scene stays drawn and the packets behind the
-     * REBUILD are held at the pump; the build and the tail run when it lands
-     * (app_world_job.c).
+     * background_runner while the old scene stays drawn and the packets behind
+     * the REBUILD are held at the pump; the build and the tail run when it
+     * lands (app_world_job.c). While a job is pending the packet pump pops
+     * nothing: everything the server sent after the REBUILD addresses the
+     * scene it is building. Nothing else is held -- frames, input, interfaces
+     * and outgoing packets carry on against the old scene.
+     * @see App_WorldJobPending.
      */
-    int world_rebuild_background;
-    /** A background rebuild still gathering past this many microseconds is
-     *  finished there and then (TORIRS_WORLD_JOB_DEADLINE_MS, default 600). */
-    uint64_t world_job_deadline_us;
-    /**
-     * The paced catch-up after a background rebuild's commit.
-     *
-     * The commit frame does the commit and nothing else: no packet is popped
-     * on it. For `pace_window_us` after it, the packets held behind the
-     * REBUILD and the scripts they dispatch are applied `pace_budget_us` of
-     * work a frame, stopping between packets and between tasks. A frame that
-     * stops part way through a server tick is latched like any frame whose
-     * tick has not finished arriving (App_FrameSettled), so nothing half
-     * applied is shown. @see App_PaceArm, App_PacedDeadline.
-     */
-    uint64_t pace_budget_us;
-    uint64_t pace_window_us;
-    /** Pacing ends at this time on the background queue's clock; 0: not pacing. */
-    uint64_t pace_until_us;
-    /** However much is still stopping, pacing ends here (App_PaceNoteStop). */
-    uint64_t pace_hard_until_us;
-    /** This frame's paced work stops here; valid for `pace_deadline_frame`. */
-    uint64_t pace_deadline_us;
-    uint64_t pace_deadline_frame;
-    /** The frame the commit ran on. */
-    uint64_t pace_commit_frame;
-    /** The last frame a packet was popped on while paced. */
-    uint64_t pace_pop_frame;
-    /** Counts App_RunOnce calls: what "this frame" means to the pacing. */
-    uint64_t run_once_serial;
-    /** TORIRS_REBUILD_TIMING: paced frames and stops since the last commit. */
-    int pace_stat_pop_stops;
-    int pace_stat_settle_stops;
-    /**
-     * The background rebuild in progress, if any (`pending`).
-     *
-     * While it is pending the packet pump pops nothing: everything the server
-     * sent after the REBUILD addresses the scene it is building. Nothing else
-     * is held -- frames, input, interfaces and outgoing packets carry on
-     * against the old scene. @see App_WorldJobPending.
-     */
-    struct AppWorldJob
-    {
-        int pending;
-        struct ToriRS_TaskJob job;
-        /** The gather, while it has not ended (job.join > 0). */
-        struct ToriRS_Task* gather;
-        struct WorldLoadGatherReport report;
-        int zone_x;
-        int zone_z;
-        int chunk_count;
-        int chunks[64 * 2];
-        int have_zones;
-        int32_t zones[4 * 13 * 13];
-        /** The scene base before the rebuild: the entity-shift source. */
-        int had_world;
-        int prev_base_x;
-        int prev_base_z;
-        /** A promoted job waiting on a read only the platform can answer:
-         *  the viewport shows "Loading - please wait." meanwhile. */
-        int stalled;
-        /** The REBUILD's server tick was open (on varps) and its latch is
-         *  suspended for the hold; the commit re-arms it. */
-        int tick_suspended;
-        /* TORIRS_REBUILD_TIMING: what the job cost, reported at the commit. */
-        uint64_t t_begin_us;
-        int slices;
-        uint64_t slice_us_sum;
-        uint64_t slice_us_max;
-
-        /**
-         * Where the job stands: APP_WORLD_JOB_GATHER while `job` counts the
-         * gather, APP_WORLD_JOB_STAGE while it counts the staging build.
-         */
-        int phase;
-        /**
-         * The staging scene (phase STAGE, until the commit or a cancel): a
-         * World and a WorldBuilder of the job's own, on a pool pair no view
-         * uses, built a unit at a time on background_runner while the old scene
-         * stays drawn, then swapped in whole (WorldBuilder_HotSwap). NULL
-         * outside a staging build -- a blocking client never makes one.
-         */
-        struct World* stage_world;
-        struct WorldBuilder* stage_builder;
-        /** The stage task, while it is queued. */
-        struct ToriRS_Task* stage_task;
-        /**
-         * The varps the staging build resolves multilocs against: the
-         * values at the REBUILD (App_WorldJobStart), so one scene is built
-         * against one varp state. Shares the type tables with app->varps and
-         * owns only `var` (stage_varps_taken). Whatever differs at the commit
-         * is re-resolved by the varp-transform path, as a change after a
-         * build in place is.
-         */
-        struct VarPManager stage_varps;
-        int stage_varps_taken;
-        /** The provider's derived caches are held from the gather's end to
-         *  the build's (CacheProvider_TrimHold). */
-        int trim_held;
-        /** The scene's element space could not hold the staging scene beside
-         *  the live one: the commit builds in place instead (phase B). */
-        int stage_crowded;
-        /* TORIRS_REBUILD_TIMING: the staging build's own slices. */
-        int build_slices;
-        uint64_t build_slice_us_sum;
-        uint64_t build_slice_us_max;
-        int build_units;
-        /* Frames the job waited for the renderer's staged batch (GL3). */
-        int prep_frames;
-        /* TORIRS_REBUILD_TIMING: the commit frame's packet work after the
-         * commit itself (the held packets), measured to the pump's return. */
-        int held_open;
-        uint64_t held_t0_us;
-    } world_job;
+    struct WorldRebuildJob world_job;
     /**
      * TORIRS_REBUILD_TIMING: the main-thread work of every frame from the one
      * a REBUILD started in to the one it finished in, either mode -- the
      * number the background mode exists to move (App_NoteFrameTime).
+     * engine/world_builder/rebuild_frame_stats.h.
      */
-    struct
-    {
-        int open;
-        int closing;
-        int background;
-        int frames;
-        uint64_t max_us;
-        uint64_t sum_us;
-        uint64_t last_us;
-        int hist[6];
-        double build_ms;
-        double tail_ms;
-        /* The commit frame's split, background mode: the swap (or the build
-         * in place), the entity shift, App_WorldLoadFinish, and the held
-         * packets popped behind the commit in the same frame. */
-        double swap_ms;
-        double shift_ms;
-        double finish_ms;
-        double held_ms;
-        /* Every frame's time, in tenths of a ms: the window's (series) and,
-         * after it closes, the APP_REBUILD_AFTER_FRAMES that follow it (a
-         * GPU lane is still baking the new build's tail on those). */
-        uint16_t series[192];
-        int after_left;
-        int after_frames;
-        uint16_t after[64];
-        /* The current frame's App_RunOnce, by stage (app_rebuild_mark):
-         * reported for the frame that closes the window. */
-        char const* mark_name[32];
-        uint64_t mark_us[32];
-        int marks;
-    } rebuild_frames;
+    struct RebuildFrameStats rebuild_frames;
 
     /* ---- interaction state (Part 6) ---- */
-    /** "Use <item> with ..." selection (reference objSelected). */
-    struct
-    {
-        int active;
-        int obj_id;
-        int slot;
-        int component_id;
-        char name[40];
-    } objsel;
-    /** "Cast <spell> on ..." selection (reference targetMode/targetComId/
-     * targetMask/targetOp): armed by clicking a BUTTON_TARGET spell, consumed
-     * by the next click on a valid target kind. */
-    struct
-    {
-        int active;
-        int component_id;
-        int mask;
-        char op[64];
-    } targetsel;
-    /** Frames since the last input command (IDLE_TIMER). */
-    long idle_frames;
-    int idle_timer_sent;
+    /** "Use <item> with ..." and "Cast <spell> on ..." selections: armed by
+     * a Use row or a BUTTON_TARGET spell, consumed by the next click on a
+     * valid target kind. */
+    struct UITargetSelect target_select;
 
     /** Inventory slot press/drag (reference objDrag* state machine): a left
      * press on a filled slot ARMS this — the generic node drag is suppressed
@@ -3298,28 +1605,18 @@ struct App
      * is the tree/container reach the module deliberately does not have. */
     struct UIInvDrag inv_drag;
 
-    /** Re-entrancy guard for optimistic modal close (rev-230 field267): while
-     *  locally unmounting type-0/3 subs, nested if_close must not re-enter. */
-    int closing_modals;
+    /** Client scaling state and whether the lane's window mode has been
+     *  restated (App_SyncNativeWindowMode). @see ui/canvas_scale.h. */
+    struct UICanvasScale client_scale;
 
-    /** Client scaling state. @see struct AppClientScale. */
-    struct AppClientScale client_scale;
-
-    /** CANVAS rows the OS soft keyboard covers at the bottom, 0 when it is
-     *  away (TORIRS_CMD_KEYBOARD_INSET; only touch platforms ever push it).
-     *  What the layout subtracts for every row whose profile declared
-     *  `safe_area=os:bottom` --
-     *  the login box, on the profiles that say so. */
-    int keyboard_inset;
-
-    /** A plugin asked for the on-screen keyboard. Drained by the shell, which
-     *  is the only thing here with a platform to raise one on.
-     *  @see App_TakeTextInputChange. */
-    int text_input_on;
-    /** What the platform was last told. The keyboard is raised and lowered off
-     *  this, so a redundant change never reaches the IME. */
-    int text_input_effective;
-    int text_input_dirty;
+    /** Whether the on-screen keyboard should be up and whether the platform
+     *  must be told: the scripts' and plugins' requests, what was last pushed,
+     *  and the keyboard inset (what the layout subtracts for every row whose
+     *  profile declared `safe_area=os:bottom` -- the login box, on the
+     *  profiles that say so). Drained by the shell, which is the only thing
+     *  here with a platform to raise one on. @see App_TakeTextInputChange and
+     *  platform/text_input_gate.h. */
+    struct TextInputGate text_input_gate;
 };
 
 /** Smallest client canvas. The reference's resizable mode will not go below the
@@ -3635,7 +1932,7 @@ App_SetClientScalePresent(
     struct App* app,
     struct ClientScalePresent const* present);
 
-struct AppClientScale const*
+struct UICanvasScale const*
 App_ClientScale(struct App const* app);
 
 /**
@@ -3765,20 +2062,16 @@ App_Init(
     struct AppConfig const* cfg);
 
 /**
- * Make the one world view App_Init starts with: `views[0]`, `view_count` 1,
- * `frame_view` pointing at it, and its minimenu pointer at the menu
- * `interact` keeps. Touches nothing else, so App_Init calls it right after
- * the memset and a test that builds a struct App by hand calls it the same
- * way before reaching anything that reads a view. Inline, so a test that
- * links none of src/app/ can still make one.
+ * Make the one world view App_Init starts with (WorldViews_Init), its menu
+ * pointer at the menu `interact` keeps. Touches nothing else, so App_Init
+ * calls it right after the memset and a test that builds a struct App by hand
+ * calls it the same way before reaching anything that reads a view.
  */
 static inline void
 App_WorldViewsInit(struct App* app)
 {
     assert(app);
-    app->view_split.view_count = 1;
-    app->frame_view = &app->views[0];
-    app->frame_view->minimenu = &app->interact.minimenu;
+    WorldViews_Init(&app->world_views, &app->interact.minimenu);
 }
 
 /** The view a script's verbs act through (views[0], always). */
@@ -3786,7 +2079,7 @@ static inline struct App_WorldView*
 App_RunnerView(struct App* app)
 {
     assert(app);
-    return &app->views[APP_VIEW_RUNNER];
+    return WorldViews_Runner(&app->world_views);
 }
 
 /** The view the presented frame draws: the PlayerClient view while a script
@@ -3795,7 +2088,7 @@ static inline struct App_WorldView*
 App_PresentedView(struct App* app)
 {
     assert(app);
-    return app->view_split.attached ? &app->views[APP_VIEW_PLAYER_CLIENT] : &app->views[APP_VIEW_RUNNER];
+    return WorldViews_Presented(&app->world_views);
 }
 
 /** The runner camera split (struct App_ViewSplit), app_render.c.
@@ -3943,6 +2236,11 @@ App_ViewSplitDrawRunner(
 void
 App_Shutdown(struct App* app);
 
+/** Whether this run talks to a server at all: a network handle exists and was
+ *  enabled by App_Init (ToriRS_Network_Enabled). */
+int
+App_NetEnabled(struct App const* app);
+
 /** Forget everything that belonged to the session that just ended: tracked
  * entities and the per-account UI state the reference resets alongside them.
  * Shared by the server's LOGOUT and by the connection-lost path, which differ
@@ -3962,12 +2260,6 @@ App_SendPingReply(
     int value1,
     int value2);
 
-/** The tile / entity interaction mode world view `view` answers with. */
-int
-App_InteractionTileMode(struct App const* app, int view);
-int
-App_InteractionEntityMode(struct App const* app, int view);
-
 /**
  * End the session on purpose and go back to the login screen.
  *
@@ -3978,7 +2270,7 @@ App_InteractionEntityMode(struct App const* app, int view);
  * than armed.
  *
  * This is the ENDING, not the request. The logout button does not reach it:
- * the button sends its IF_BUTTON and arms App::logout_wait_cycles, and what
+ * the button sends its IF_BUTTON and arms the wait in App::session_end, and what
  * calls this is the server's answer -- the LOGOUT packet, or the socket it
  * closes instead. The two ways in are that answer and a click with no session
  * to answer it (an offline profile, or a connection already gone). A wait
@@ -4026,7 +2318,7 @@ App_UiLogic(struct App const* app);
 
 /** Begin opening an interface as the tree root (TS WidgetManager
  * .setRootInterface). Fully async: enqueues the boot task and returns —
- * App_RunOnce pumps it and flips app_state to APP_STATE_READY when the tree
+ * App_RunOnce pumps it and flips the phase to APP_STATE_READY when the tree
  * (and initial assets) are built. App_Render draws a loading bar meanwhile. */
 void
 App_OpenRootInterface(
@@ -4114,7 +2406,7 @@ App_RootMountsReturn(
     int interface_id);
 
 /** The mounts kept for a top that is not the live root (see
- *  App.detached_parents). IF_RESYNC states the whole table, so its handler
+ *  App.kept_mounts). IF_RESYNC states the whole table, so its handler
  *  clears these and adds back the mounts whose slot the live top cannot reach. */
 void
 App_KeptMountsClear(struct App* app);
@@ -4611,7 +2903,7 @@ App_WevHomeViewForAbsTile(
  *
  * `background`: the rebuild will be a world job (App_WorldJobStart), which
  * keeps the old scene on screen while it gathers -- so the viewport is not
- * blanked (world_load_inflight stays clear).
+ * blanked (WorldLoadState_Inflight stays clear).
  */
 int
 App_WorldRebuildBegin(
@@ -4621,8 +2913,8 @@ App_WorldRebuildBegin(
     int force,
     int background);
 
-/** Resolve the rebuild mode and the job deadline (app.h world_rebuild_*),
- *  once, at init. */
+/** Resolve the rebuild mode and the job deadline (App::world_job), once,
+ *  at init. */
 void
 App_WorldRebuildModeInit(struct App* app);
 
@@ -4633,7 +2925,7 @@ App_WorldRebuildModeInit(struct App* app);
  * already loaded (a first load has nothing to keep on screen), and only when
  * the frame latch can be suspended for the hold without publishing a
  * half-applied UI transaction: the REBUILD's server tick may be open on
- * plain varps (server_tick_open_nonvar clear) and no clientscript may be
+ * plain varps (RS_ServerTick_OpenNonVar false) and no clientscript may be
  * held. The reasoning and the measurement are at the definition.
  */
 int
@@ -4670,7 +2962,7 @@ App_WorldJobPoll(struct App* app);
 
 /**
  * Start the paced catch-up: called by the commit, on the frame it ran. No-op
- * when pacing is off (pace_budget_us 0).
+ * when pacing is off (a budget of 0).
  */
 void
 App_PaceArm(struct App* app);
@@ -4710,7 +3002,7 @@ App_WorldJobCancel(
 
 /**
  * "The world is settled": no load in flight in either mode. What a test or a
- * driver waiting for the scene must ask -- world_load_inflight alone only
+ * driver waiting for the scene must ask -- WorldLoadState_Inflight alone only
  * says whether the viewport is blanked, and stays clear through a background
  * rebuild.
  */
@@ -4802,12 +3094,6 @@ App_CinemaCameraSnapPosition(struct App* app);
 void
 App_CinemaCameraSnapAngle(struct App* app);
 
-/* End the script: targets, heights and rates to 0 and the follow camera back
- * (CAM_RESET, and a CAM_SMOOTHRESET's glide on arrival). Shakes are the
- * caller's. */
-void
-App_CinemaCameraRelease(struct App* app);
-
 /** CAM_MOVETO_CYCLES / CAM_ROTATETO_COORDINATE, at arrival (rs_gameproto_exec.c).
  *  `local_x`/`local_z` are scene-local tiles. */
 void
@@ -4872,16 +3158,6 @@ App_CinemaCameraRotateTo(
     int cycles,
     int easing);
 
-void
-App_CinemaCameraLookCycles(
-    struct App* app,
-    int local_x,
-    int local_z,
-    int height,
-    int cycles,
-    int easing,
-    int height_relative);
-
 /* Spawn a projectile (reference ClientProj) from a spotanim config, driven by
  * the MAP_PROJANIM zone packet. Enqueues an async load of the spotanim config +
  * its model/seq before building the world entity. Coordinates are scene tiles;
@@ -4910,45 +3186,6 @@ App_WorldProjectileSpawn(
     int target,
     int source);
 
-/* A rev-241 SCRIPTEDPROJ_ADD, in scene tiles. Heights are raw (no x4); the
- * offsets fine units; `source`/`target` MAP_PROJANIM's actor encoding (0 =
- * none); `curve` the H, A and T clientscripts. */
-struct AppScriptedProj
-{
-    int src_x;
-    int src_z;
-    int src_level;
-    int src_offset_x;
-    int src_offset_z;
-    int src_height;
-    int source;
-    int dst_x;
-    int dst_z;
-    int dst_level;
-    int dst_offset_x;
-    int dst_offset_z;
-    int dst_height;
-    int target;
-    int spotanim_id;
-    int start_delay;
-    int end_delay;
-    int curve[3];
-    int slot;
-};
-
-/* What a ground item's customise packet replaces (deob Statics.method4117). */
-struct AppObjCustomise
-{
-    int model;
-    int tint;
-    int recol_count;
-    int const* recol_index;
-    int const* recol_value;
-    int retex_count;
-    int const* retex_index;
-    int const* retex_value;
-};
-
 /** OBJ_CUSTOMISE: the first stack on the tile with this id and count wears
  *  it; its model is rebuilt. */
 void
@@ -4959,7 +3196,7 @@ App_WorldObjStackCustomise(
     int level,
     int obj_id,
     int count,
-    struct AppObjCustomise const* custom);
+    struct WorldEntity_ObjCustomise const* custom);
 
 void
 App_WorldObjStackUncustomise(
@@ -4987,7 +3224,7 @@ App_WorldObjStackSetEnabledOps(
 void
 App_WorldScriptedProjSpawn(
     struct App* app,
-    struct AppScriptedProj const* sp);
+    struct WorldEntity_ScriptedProjSpec const* sp);
 
 /* Apply a zone LOC_ADD_CHANGE / LOC_DEL (reference locChangeCreate +
  * locChangeDoQueue): enqueues an async task on the serial exec FIFO that awaits
@@ -5264,7 +3501,7 @@ App_RenderSkipRequestDraw(
     int frames);
 
 /**
- * Make the render-time state (app->frame_view->world_pickset and the hover tile, the
+ * Make the render-time state (app->world_views.frame->world_pickset and the hover tile, the
  * posed model bounds) what it would be with skip off, before something reads
  * it: when the most recent frame was committed but skipped, draw it NOW, late,
  * into a scratch buffer -- same emit list, scene, camera and pointer, so the
@@ -5287,7 +3524,8 @@ App_RenderSkipCatchUp(struct App* app);
  * into freed tree components). The reasons:
  *   - `forced`: the host's own must-draw (content_test.c's mailbox requests,
  *     a renderer that cannot skip),
- *   - a screenshot is waiting (app->plugin_screenshots),
+ *   - a screenshot is waiting (app->plugin_screenshots,
+ *     plugin/plugin_screenshots.h),
  *   - App_RenderSkipRequestDraw owes this frame a draw, or
  *   - a world-entity view (sailing hull) stands in the loaded scene: which
  *     hulls are drawn in full (Wev render_visible / flattened) is decided
@@ -5575,7 +3813,7 @@ App_PickFinish(
     struct App* app,
     struct ToriRS_PickHits const* hits);
 
-/** True while APP_STATE_BOOTING; optionally returns boot_progress 0..100. */
+/** True while APP_STATE_BOOTING; optionally returns the boot bar 0..100. */
 bool
 App_IsBooting(
     struct App* app,
@@ -5586,7 +3824,7 @@ App_IsBooting(
  *
  * True only for the title bake a logout starts. A host that gets no commit
  * from App_RunOnce already retains its last frame; this is why it got none.
- * @see App::boot_hold_last_frame.
+ * @see RS_ClientPhase_HoldsLastFrame.
  */
 int
 App_BootHoldsLastFrame(struct App const* app);

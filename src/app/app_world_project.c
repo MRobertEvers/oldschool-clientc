@@ -35,7 +35,7 @@ app_world_project_at(
     int* out_x,
     int* out_y)
 {
-    if( !app->world || !app->world_view_valid )
+    if( !app->world || !app->world_views.emit_valid )
         return 0;
     if( fine_x < 128 || fine_z < 128 )
         return 0;
@@ -43,12 +43,12 @@ app_world_project_at(
      * be lowered experimentally, but accepting a point closer than the overlay
      * contract did before this extraction would be an appearance change. */
     return ToriRS_WorldProjectPoint(
-        &app->frame_view->world_camera,
-        &app->frame_view->world_camera_pos,
-        app->world_emit_desc.x,
-        app->world_emit_desc.y,
-        app->world_emit_desc.w,
-        app->world_emit_desc.h,
+        &app->world_views.frame->world_camera,
+        &app->world_views.frame->world_camera_pos,
+        app->world_views.emit_desc.x,
+        app->world_views.emit_desc.y,
+        app->world_views.emit_desc.w,
+        app->world_views.emit_desc.h,
         50,
         fine_x,
         world_y,
@@ -69,7 +69,7 @@ app_world_project(
     int ground_y;
     int level = 0;
 
-    if( !app->world || !app->world_view_valid )
+    if( !app->world || !app->world_views.emit_valid )
         return 0;
     if( fine_x < 128 || fine_z < 128 )
         return 0;
@@ -167,7 +167,7 @@ app_world_project_footprint(
 
     if( footprint <= 0 )
         return app_world_project(app, fine_x, fine_z, height_above_ground, out_x, out_y);
-    if( !app->world || !app->world_view_valid )
+    if( !app->world || !app->world_views.emit_valid )
         return 0;
     if( fine_x < 128 || fine_z < 128 )
         return 0;
@@ -285,7 +285,7 @@ app_entity_model_height(
 {
     struct ToriDraw_SceneElement* el;
     struct ToriDraw_BoundsCylinder* bounds;
-    struct AppEntitySpotanim* spot_entry = app_entity_spotanim_find(app, element_id, 0);
+    struct EntitySpotanim* spot_entry = app_entity_spotanim_find(app, element_id, 0);
 
     if( element_id < 0 || !app->scene || !ToriDraw_SceneElementIsLive(app->scene, element_id) )
         return 0;

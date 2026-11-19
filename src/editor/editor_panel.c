@@ -201,7 +201,7 @@ panel_sync_primary(
         panel->sel_element_id = -1;
         panel->sel_loc_id = -1;
     }
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
     panel_publish_selection(panel, app);
 }
 
@@ -216,7 +216,7 @@ hook_open_square(
     int add)
 {
     struct App* app = user;
-    struct Editor_Panel* panel = &app->editor_panel;
+    struct Editor_Panel* panel = &app->editor_shell->editor_panel;
 
     assert(app);
     panel->sq_open_pending = 1;
@@ -248,7 +248,7 @@ hook_open_square_set(
     int count)
 {
     struct App* app = user;
-    struct Editor_Panel* panel = &app->editor_panel;
+    struct Editor_Panel* panel = &app->editor_shell->editor_panel;
 
     assert(app);
     assert(squares);
@@ -269,7 +269,7 @@ hook_close_square(
     const char* storage)
 {
     struct App* app = user;
-    struct Editor_Panel* panel = &app->editor_panel;
+    struct Editor_Panel* panel = &app->editor_shell->editor_panel;
 
     assert(app);
     assert(storage);
@@ -300,10 +300,17 @@ hook_open_in_new_view(
     camera.pitch = 383;
     camera.zoom = 2600;
     if( EditorView_AppSpawn(app, &camera) )
-        Editor_UiLog(app->editor_panel.ui, "editor: opening a new view of m%d_%d", map_x, map_z);
+        Editor_UiLog(
+            app->editor_shell->editor_panel.ui,
+            "editor: opening a new view of m%d_%d",
+            map_x,
+            map_z);
     else
-        Editor_UiLog(app->editor_panel.ui, "editor: Open in new view (m%d_%d) could not start one; see the log",
-            map_x, map_z);
+        Editor_UiLog(
+            app->editor_shell->editor_panel.ui,
+            "editor: Open in new view (m%d_%d) could not start one; see the log",
+            map_x,
+            map_z);
 }
 
 static int
@@ -383,7 +390,7 @@ hook_close_editor(void* user)
 {
     struct App* app = user;
     assert(app);
-    Editor_PanelSetVisible(&app->editor_panel, &app->dbg_ui, 0);
+    Editor_PanelSetVisible(&app->editor_shell->editor_panel, &app->dev_overlay->ui, 0);
 }
 
 static void
@@ -402,8 +409,8 @@ hook_bake(void* user)
     assert(app);
     if( !app->editor )
         return;
-    Editor_UiLog(app->editor_panel.ui, "editor: baking, this takes a while");
-    Editor_UiLog(app->editor_panel.ui, "editor: bake %s",
+    Editor_UiLog(app->editor_shell->editor_panel.ui, "editor: baking, this takes a while");
+    Editor_UiLog(app->editor_shell->editor_panel.ui, "editor: bake %s",
         Editor_Bake(app->editor, hook_bake_progress, NULL) ? "finished" : "FAILED");
 }
 
@@ -420,7 +427,7 @@ hook_view_window(
 
     assert(app);
     world = app->world;
-    if( !world || !app->world_active )
+    if( !world || !WorldLoadState_Active(&app->world_load) )
         return 0;
     if( world->_chunk_ne_x < world->_chunk_sw_x || world->_chunk_ne_z < world->_chunk_sw_z )
         return 0;
@@ -436,7 +443,7 @@ hook_selection_changed(void* user)
 {
     struct App* app = user;
     assert(app);
-    panel_sync_primary(&app->editor_panel, app);
+    panel_sync_primary(&app->editor_shell->editor_panel, app);
 }
 
 /* ---- lifetime ---------------------------------------------------------------- */
@@ -478,15 +485,12 @@ panel_set_content_paths(
 void
 Editor_PanelInit(
     struct Editor_Panel* panel,
-    struct ToriRSChrome* ui)
+    struct ToriRSChrome* ui,
+    struct App* app)
 {
-    struct App* app;
-
     assert(panel);
     assert(ui);
-
-    /* The App embeds the panel: its address is the App's, by container. */
-    app = (struct App*)((char*)panel - offsetof(struct App, editor_panel));
+    assert(app);
 
     memset(panel, 0, sizeof(*panel));
     panel->sel_element_id = -1;
@@ -565,7 +569,7 @@ Editor_PanelTick(
         Editor_UiPublishView(panel->ui);
         return;
     }
-    panel->ui->shift_held = app->view_split.physical_input.key_held[TORIRSK_SHIFT] != 0;
+    panel->ui->shift_held = app->world_views.split.physical_input.key_held[TORIRSK_SHIFT] != 0;
     /* A viewer that pressed "Open panels" shares the frame's one activation
      * between its thin toolbar and the panels: the toolbar is offered it
      * first, and what it does not claim goes back for the registry. */
@@ -708,9 +712,9 @@ panel_loc_ref_pointed(
 
     if( !app->world )
         return 0;
-    picks = &app->frame_view->world_pickset;
-    if( picks->mouse_valid && picks->mouse_x == app->frame_view->world_mouse_x
-        && picks->mouse_y == app->frame_view->world_mouse_y )
+    picks = &app->world_views.frame->world_pickset;
+    if( picks->mouse_valid && picks->mouse_x == app->world_views.frame->world_mouse_x
+        && picks->mouse_y == app->world_views.frame->world_mouse_y )
     {
         /* Hits arrive back to front: the last is nearest. */
         for( int i = picks->count - 1; i >= 0; i-- )
@@ -827,7 +831,7 @@ Editor_PanelEditLevel(
 
     assert(panel);
     assert(app);
-    hover_level = app->world ? app->frame_view->world_hover_tile_level : 0;
+    hover_level = app->world ? app->world_views.frame->world_hover_tile_level : 0;
     if( !panel->ui )
         return hover_level;
     return edp_level_click(panel->ui, hover_level);
@@ -854,10 +858,10 @@ Editor_PanelHoverTile(
         *out_scene_z = panel->pin_hover_z;
         return 1;
     }
-    if( app->frame_view->world_hover_tile_x < 0 || app->frame_view->world_hover_tile_z < 0 )
+    if( app->world_views.frame->world_hover_tile_x < 0 || app->world_views.frame->world_hover_tile_z < 0 )
         return 0;
-    *out_scene_x = app->frame_view->world_hover_tile_x;
-    *out_scene_z = app->frame_view->world_hover_tile_z;
+    *out_scene_x = app->world_views.frame->world_hover_tile_x;
+    *out_scene_z = app->world_views.frame->world_hover_tile_z;
     return 1;
 }
 

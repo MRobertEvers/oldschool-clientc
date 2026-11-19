@@ -52,6 +52,13 @@ struct RS_Prefs
      */
     int default_window_mode;
 
+    /**
+     * Where this store is read from and written to: RS_Prefs_Path as the boot
+     * resolved it, NULL while persistence is off or before the boot has
+     * asked. Not a setting: RS_Prefs_Defaults and RS_Prefs_Decode leave it
+     * alone, and the file does not carry it.
+     */
+    char const* file;
 };
 
 /**
@@ -64,7 +71,16 @@ struct RS_Prefs
 char const*
 RS_Prefs_Path(void);
 
-/** Every option at its fresh-client value. Also the state after a failed load. */
+/** Where this store lives (RS_Prefs_Path's answer, NULL = not persisted). */
+void
+RS_Prefs_SetFile(struct RS_Prefs* prefs, char const* file);
+
+/** The path RS_Prefs_SetFile last stated; NULL when persistence is off. */
+char const*
+RS_Prefs_File(struct RS_Prefs const* prefs);
+
+/** Every option at its fresh-client value. Also the state after a failed load.
+ *  The file the store lives in is left as it was. */
 void
 RS_Prefs_Defaults(struct RS_Prefs* prefs);
 

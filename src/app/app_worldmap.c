@@ -331,17 +331,13 @@ app_worldmap_build_heatmap(
     int region_px)
 {
     struct UITreeWorldMapTile* tile;
-    int const cycle = (int)app->logic_cycle;
+    int const cycle = (int)FrameClockSerial_LogicCycle(&app->frame_clock.serial);
+    struct RS_WorldMapHeatmapKey const key = { box_w, box_h, centre_x, centre_y, region_px };
 
-    if( !app->worldmap.heatmap_on || !app->world || box_w <= 0 || box_h <= 0 ||
+    if( !RS_WorldMapSurface_HeatmapOn(&app->worldmap) || !app->world || box_w <= 0 || box_h <= 0 ||
         app->worldmap.tiles.count >= RS_WORLDMAP_TILES_MAX )
         return;
-    if( app->worldmap.heatmap_built_cycle < 0 ||
-        cycle - app->worldmap.heatmap_built_cycle >= 50 ||
-        app->worldmap.heatmap_built_w != box_w || app->worldmap.heatmap_built_h != box_h ||
-        app->worldmap.heatmap_built_centre_x != centre_x ||
-        app->worldmap.heatmap_built_centre_y != centre_y ||
-        app->worldmap.heatmap_built_region_px != region_px )
+    if( RS_WorldMapSurface_HeatmapStale(&app->worldmap, &key, cycle) )
     {
         enum
         {
@@ -414,12 +410,7 @@ app_worldmap_build_heatmap(
         assert(sprites);
         sprites[0] = sprite;
         ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_WORLD_MAP_HEATMAP_SPRITE_ID, sprites, 1);
-        app->worldmap.heatmap_built_cycle = cycle;
-        app->worldmap.heatmap_built_w = box_w;
-        app->worldmap.heatmap_built_h = box_h;
-        app->worldmap.heatmap_built_centre_x = centre_x;
-        app->worldmap.heatmap_built_centre_y = centre_y;
-        app->worldmap.heatmap_built_region_px = region_px;
+        RS_WorldMapSurface_HeatmapBuilt(&app->worldmap, &key, cycle);
     }
     tile = RS_WorldMapTiles_Push(&app->worldmap.tiles);
     assert(tile);
@@ -464,10 +455,7 @@ app_worldmap_build_tiles(
      * app_worldmap_surface_live, not by this box — emit only runs on redraw
      * frames, and once the interface is hidden it stops writing, so the last
      * rectangle would otherwise outlive the open map. */
-    app->worldmap.drag.box_x = box_x;
-    app->worldmap.drag.box_y = box_y;
-    app->worldmap.drag.box_w = box_w;
-    app->worldmap.drag.box_h = box_h;
+    RS_WorldMapSurface_SetBox(&app->worldmap, box_x, box_y, box_w, box_h);
     *req->u.get_worldmap_tiles.out_items = app->worldmap.tiles.items;
     if( req->u.get_worldmap_tiles.out_background_rgb )
         *req->u.get_worldmap_tiles.out_background_rgb = 0;
@@ -701,7 +689,7 @@ app_worldmap_build_tiles(
      * Last, so it lands over every icon: a marker underneath a mapfunction is a
      * marker nobody sees, and the icons are exactly what a clue step points at.
      */
-    if( app->hint_arrow.type == APP_HINT_ARROW_COORD )
+    if( app->hint_arrow.type == RS_HINT_ARROW_COORD )
     {
         int map_x, map_y;
 
@@ -972,10 +960,8 @@ app_worldmap_click(
     if( scale_fp <= 0 )
         return;
 
-    map_x = display_x + (mouse_x - (app->worldmap.drag.box_x + app->worldmap.drag.box_w / 2)) *
-                            RS_WORLDMAP_ZOOM_SCALE_ONE / scale_fp;
-    map_y = display_y - (mouse_y - (app->worldmap.drag.box_y + app->worldmap.drag.box_h / 2)) *
-                            RS_WORLDMAP_ZOOM_SCALE_ONE / scale_fp;
+    RS_WorldMapSurface_ScreenToDisplay(
+        &app->worldmap, display_x, display_y, scale_fp, mouse_x, mouse_y, &map_x, &map_y);
 
     source =
         RS_WorldMap_DisplayToSource(app->host.worldmap, ToriRS_WorldMapPackCoord(0, map_x, map_y));
@@ -1051,14 +1037,14 @@ app_worldmap_drag_tick(
     drag_input.left_held = LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
     drag_input.left_up = input->curr.mouse_button_up[TORIRSM_LEFT];
     drag_input.pointer_consumed = pointer_consumed;
-    drag_input.minimenu_visible = app->frame_view->minimenu->visible;
-    drag_input.hover_component_id = app->hover_com_id;
+    drag_input.minimenu_visible = app->world_views.frame->minimenu->visible;
+    drag_input.hover_component_id = app->interact.published_hover_com_id;
     drag_input.surface_live = app_worldmap_surface_live(app);
 
     result = UIWorldMapDrag_Tick(&app->worldmap.drag, &drag_input, app->host.worldmap);
     if( result == UI_WORLDMAP_DRAG_CLICKED )
         app_worldmap_click(app, drag_input.mouse_x, drag_input.mouse_y);
     else if( result == UI_WORLDMAP_DRAG_PANNED )
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
 }
 

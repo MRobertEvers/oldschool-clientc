@@ -64,87 +64,106 @@ app_loc_editor_refresh_labels(struct App* app)
      * A flat column reads the same number three times; a bridge deck reads
      * 1/0/0, and that spread is the readout's whole reason to exist.
      */
-    if( app->locedit_selection.terrain )
+    if( app->editor_shell->locedit_selection.terrain )
     {
         char settings[4 * 6 + 1];
         char meshes[WORLD_MAP_TERRAIN_LEVELS + 1];
-        int const cache_level = app->locedit_selection.terrain_level;
+        int const cache_level = app->editor_shell->locedit_selection.terrain_level;
 
         World_TileSettingsText(
             app->world,
-            app->locedit_selection.scene_x,
-            app->locedit_selection.scene_z,
+            app->editor_shell->locedit_selection.scene_x,
+            app->editor_shell->locedit_selection.scene_z,
             settings,
             (int)sizeof(settings));
         World_TerrainMeshLevelsText(
-            app->world, app->locedit_selection.scene_x, app->locedit_selection.scene_z, meshes, (int)sizeof(meshes));
+            app->world,
+            app->editor_shell->locedit_selection.scene_x,
+            app->editor_shell->locedit_selection.scene_z,
+            meshes,
+            (int)sizeof(meshes));
 
         snprintf(text, sizeof(text), "terrain tile, mesh on level %d", cache_level);
-        ToriRSChrome_SetText(&app->dbg_ui, app->locedit.row_target, text);
+        ToriRSChrome_SetText(&app->dev_overlay->ui, app->editor_shell->locedit.row_target, text);
         snprintf(
             text,
             sizeof(text),
             "x=%d z=%d abs(%d,%d)",
-            app->locedit_selection.scene_x,
-            app->locedit_selection.scene_z,
-            app->world ? app->world->_base_tile_x + app->locedit_selection.scene_x : -1,
-            app->world ? app->world->_base_tile_z + app->locedit_selection.scene_z : -1);
-        ToriRSChrome_SetText(&app->dbg_ui, app->locedit.row_pos, text);
+            app->editor_shell->locedit_selection.scene_x,
+            app->editor_shell->locedit_selection.scene_z,
+            app->world ? app->world->_base_tile_x + app->editor_shell->locedit_selection.scene_x
+                       : -1,
+            app->world ? app->world->_base_tile_z + app->editor_shell->locedit_selection.scene_z
+                       : -1);
+        ToriRSChrome_SetText(&app->dev_overlay->ui, app->editor_shell->locedit.row_pos, text);
         snprintf(
             text,
             sizeof(text),
             "cache=%d draw=%d paint=%d",
             cache_level,
             World_TerrainDrawLevel(
-                app->world, app->locedit_selection.scene_x, app->locedit_selection.scene_z, cache_level),
+                app->world,
+                app->editor_shell->locedit_selection.scene_x,
+                app->editor_shell->locedit_selection.scene_z,
+                cache_level),
             World_LocPaintLevel(
-                app->world, app->locedit_selection.scene_x, app->locedit_selection.scene_z, cache_level));
-        ToriRSChrome_SetText(&app->dbg_ui, app->locedit.row_size, text);
+                app->world,
+                app->editor_shell->locedit_selection.scene_x,
+                app->editor_shell->locedit_selection.scene_z,
+                cache_level));
+        ToriRSChrome_SetText(&app->dev_overlay->ui, app->editor_shell->locedit.row_size, text);
         snprintf(text, sizeof(text), "s[%s] mesh[%s]", settings, meshes);
-        ToriRSChrome_SetText(&app->dbg_ui, app->locedit.row_extra, text);
+        ToriRSChrome_SetText(&app->dev_overlay->ui, app->editor_shell->locedit.row_extra, text);
         return;
     }
 
-    if( app->locedit_selection.loc_id < 0 )
+    if( app->editor_shell->locedit_selection.loc_id < 0 )
     {
-        ToriRSChrome_SetText(&app->dbg_ui, app->locedit.row_target, "nothing selected");
-        ToriRSChrome_SetText(&app->dbg_ui, app->locedit.row_pos, "");
-        ToriRSChrome_SetText(&app->dbg_ui, app->locedit.row_size, "");
-        ToriRSChrome_SetText(&app->dbg_ui, app->locedit.row_extra, "");
+        ToriRSChrome_SetText(
+            &app->dev_overlay->ui, app->editor_shell->locedit.row_target, "nothing selected");
+        ToriRSChrome_SetText(&app->dev_overlay->ui, app->editor_shell->locedit.row_pos, "");
+        ToriRSChrome_SetText(&app->dev_overlay->ui, app->editor_shell->locedit.row_size, "");
+        ToriRSChrome_SetText(&app->dev_overlay->ui, app->editor_shell->locedit.row_extra, "");
         return;
     }
-    snprintf(text, sizeof(text), "loc %d shape %d", app->locedit_selection.loc_id, app->locedit_selection.shape);
-    ToriRSChrome_SetText(&app->dbg_ui, app->locedit.row_target, text);
+    snprintf(
+        text,
+        sizeof(text),
+        "loc %d shape %d",
+        app->editor_shell->locedit_selection.loc_id,
+        app->editor_shell->locedit_selection.shape);
+    ToriRSChrome_SetText(&app->dev_overlay->ui, app->editor_shell->locedit.row_target, text);
     snprintf(
         text,
         sizeof(text),
         "x=%d z=%d level=%d",
-        app->locedit_selection.scene_x,
-        app->locedit_selection.scene_z,
-        app->locedit_selection.level);
-    ToriRSChrome_SetText(&app->dbg_ui, app->locedit.row_pos, text);
+        app->editor_shell->locedit_selection.scene_x,
+        app->editor_shell->locedit_selection.scene_z,
+        app->editor_shell->locedit_selection.level);
+    ToriRSChrome_SetText(&app->dev_overlay->ui, app->editor_shell->locedit.row_pos, text);
     snprintf(
         text,
         sizeof(text),
         "size %dx%d angle=%d",
-        app->locedit_selection.size_x,
-        app->locedit_selection.size_z,
-        app->locedit_selection.angle);
-    ToriRSChrome_SetText(&app->dbg_ui, app->locedit.row_size, text);
+        app->editor_shell->locedit_selection.size_x,
+        app->editor_shell->locedit_selection.size_z,
+        app->editor_shell->locedit_selection.angle);
+    ToriRSChrome_SetText(&app->dev_overlay->ui, app->editor_shell->locedit.row_size, text);
     /* A baked-map loc usually has no LocType.name resolved client-side (that
      * lives in the config, not the placed entity), so an empty name is the
      * common case -- fall back to whether it can be clicked at all rather
      * than print a blank row. */
-    if( app->locedit_selection.name[0] )
+    if( app->editor_shell->locedit_selection.name[0] )
         snprintf(
             text,
             sizeof(text),
             "\"%s\" interactive=%d",
-            app->locedit_selection.name,
-            app->locedit_selection.interactive);
+            app->editor_shell->locedit_selection.name,
+            app->editor_shell->locedit_selection.interactive);
     else
-        snprintf(text, sizeof(text), "interactive=%d", app->locedit_selection.interactive);
-    ToriRSChrome_SetText(&app->dbg_ui, app->locedit.row_extra, text);
+        snprintf(
+            text, sizeof(text), "interactive=%d", app->editor_shell->locedit_selection.interactive);
+    ToriRSChrome_SetText(&app->dev_overlay->ui, app->editor_shell->locedit.row_extra, text);
 }
 
 /* Targets whatever loc sits at locedit_hover_x/z -- the last tile the cursor
@@ -167,18 +186,19 @@ app_loc_editor_reselect(struct App* app)
     int hover_z;
     int idx;
 
-    LocEditorSelection_Clear(&app->locedit_selection);
+    LocEditorSelection_Clear(&app->editor_shell->locedit_selection);
     if( !app->world ||
-        !LocEditorSelection_HoverTile(&app->locedit_selection, &hover_x, &hover_z) )
+        !LocEditorSelection_HoverTile(&app->editor_shell->locedit_selection, &hover_x, &hover_z) )
     {
         app_loc_editor_refresh_labels(app);
         return;
     }
     player = app_local_player(app);
-    app->locedit_selection.level = player ? player->grid_position.level : 0;
+    app->editor_shell->locedit_selection.level = player ? player->grid_position.level : 0;
     /* loc_shape < 0: match the first loc on the tile regardless of layer --
      * a decoration like a bridge is exactly as findable as a wall this way. */
-    idx = World_SceneryFindAt(app->world, hover_x, hover_z, app->locedit_selection.level, -1);
+    idx = World_SceneryFindAt(
+        app->world, hover_x, hover_z, app->editor_shell->locedit_selection.level, -1);
     if( idx < 0 )
     {
         app_loc_editor_refresh_labels(app);
@@ -202,7 +222,7 @@ app_loc_editor_reselect(struct App* app)
         placement.scene_x = scenery->grid_position.x;
         placement.scene_z = scenery->grid_position.z;
         placement.level = scenery->grid_position.level;
-        LocEditorSelection_SelectLoc(&app->locedit_selection, &placement);
+        LocEditorSelection_SelectLoc(&app->editor_shell->locedit_selection, &placement);
     }
     app_loc_editor_refresh_labels(app);
 }
@@ -213,7 +233,7 @@ app_loc_editor_reselect(struct App* app)
 static void
 app_loc_editor_deselect(struct App* app)
 {
-    LocEditorSelection_Clear(&app->locedit_selection);
+    LocEditorSelection_Clear(&app->editor_shell->locedit_selection);
     app_loc_editor_refresh_labels(app);
 }
 
@@ -247,7 +267,7 @@ app_loc_editor_select_element(
         placement.scene_x = scenery->grid_position.x;
         placement.scene_z = scenery->grid_position.z;
         placement.level = scenery->grid_position.level;
-        LocEditorSelection_SelectLoc(&app->locedit_selection, &placement);
+        LocEditorSelection_SelectLoc(&app->editor_shell->locedit_selection, &placement);
     }
     app_loc_editor_refresh_labels(app);
 }
@@ -264,7 +284,8 @@ app_loc_editor_select_terrain(
 {
     if( !app->world )
         return;
-    LocEditorSelection_SelectTile(&app->locedit_selection, scene_x, scene_z, cache_level);
+    LocEditorSelection_SelectTile(
+        &app->editor_shell->locedit_selection, scene_x, scene_z, cache_level);
     app_loc_editor_refresh_labels(app);
 }
 
@@ -282,7 +303,7 @@ app_loc_editor_nudge(
     int const edit_layout =
         app->world_builder && WorldBuilder_GetLayout(app->world_builder) == WORLD_BUILDER_LAYOUT_EDIT;
 
-    if( !LocEditorSelection_Nudge(&app->locedit_selection, dx, dz, &move) )
+    if( !LocEditorSelection_Nudge(&app->editor_shell->locedit_selection, dx, dz, &move) )
         return;
     /* The document first: the same move against the authored loc list, so it
      * survives a reload and can be saved. Under the EDIT layout that is the
@@ -291,7 +312,7 @@ app_loc_editor_nudge(
      * through the zone-packet seam (and so does EDIT when the square is not
      * open in the document, which the record then refused). */
     recorded = Editor_PanelRecordLocEdit(
-        &app->editor_panel,
+        &app->editor_shell->editor_panel,
         app,
         move.from_x,
         move.from_z,
@@ -322,12 +343,12 @@ app_loc_editor_rotate(struct App* app)
     int const edit_layout =
         app->world_builder && WorldBuilder_GetLayout(app->world_builder) == WORLD_BUILDER_LAYOUT_EDIT;
 
-    if( !LocEditorSelection_Rotate(&app->locedit_selection, &move) )
+    if( !LocEditorSelection_Rotate(&app->editor_shell->locedit_selection, &move) )
         return;
     /* Same pair as a nudge: the authored record first, then (STATIC, or a
      * square the document does not hold) the scene. */
     recorded = Editor_PanelRecordLocEdit(
-        &app->editor_panel,
+        &app->editor_shell->editor_panel,
         app,
         move.from_x,
         move.from_z,
@@ -393,8 +414,8 @@ app_dbgui_key_edit_from_osrs(int osrs_key)
  *
  * The game's interaction pass, the world hittest and the camera all run long
  * after the chrome handled this frame's input, and by then they cannot read
- * "the chrome took it" off `input_frame_consumed` -- the shell sets that on
- * every frame as its own replay fence. They ask this instead, and a press, a
+ * "the chrome took it" off the frame claim (`input_claims`) -- the shell takes
+ * it on every frame as its own replay fence. They ask this instead, and a press, a
  * wheel or a right click over a panel stops there.
  *
  * The plugin window counts only under the BUFFER executor. Every other
@@ -410,11 +431,11 @@ app_chrome_wants_pointer(
     int y)
 {
     assert(app);
-    if( ToriRSChrome_WantsPointer(&app->dbg_ui, x, y) )
+    if( ToriRSChrome_WantsPointer(&app->dev_overlay->ui, x, y) )
         return 1;
-    if( app->plugin_panel_visible && app->plugin_exec_kind == TORIRS_CHROME_EXEC_BUFFER &&
+    if( app->plugin_win->visible && app->plugin_win->exec_kind == TORIRS_CHROME_EXEC_BUFFER &&
         !app_plugin_page_on_surface(app) &&
-        ToriRSChrome_WantsPointer(&app->plugin_ui, x, y) )
+        ToriRSChrome_WantsPointer(&app->plugin_win->ui, x, y) )
         return 1;
     return 0;
 }
@@ -422,14 +443,14 @@ app_chrome_wants_pointer(
 /**
  * Feed one frame's pointer and keyboard to one chrome instance.
  *
- * Instance-taking rather than reaching for app->dbg_ui, because the plugin
+ * Instance-taking rather than reaching for app->dev_overlay->ui, because the plugin
  * window is a chrome of its own: routing input is the half of "a second chrome
  * is a second of all of this" that genuinely would have been duplicated, and
  * this is the one copy both instances share.
  *
  * Chrome first, then the game (README_DEBUG_OVERLAY.md §6): a click or drag
  * that lands on a panel must not also reach the world's click-to-walk
- * underneath it, which is what `input_frame_consumed` says.
+ * underneath it, which is what the frame claim (`input_claims`) says.
  */
 void
 app_chrome_route_input(
@@ -450,7 +471,7 @@ app_chrome_route_input(
             | (LibToriRS_Input_IsKeyHeld(input, TORIRSK_ALT) ? TORIRS_CHROME_MOD_ALT : 0u)
             | (LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL) ? TORIRS_CHROME_MOD_CTRL : 0u));
     if( ToriRSChrome_MouseMove(ui, input->curr.mouse_x, input->curr.mouse_y) )
-        app->input_frame_consumed = 1;
+        ToriRS_InputClaimsTakeFrame(&app->input_claims);
     /*
      * The press lands where the button actually went DOWN, not where the
      * pointer finished the frame.
@@ -466,10 +487,10 @@ app_chrome_route_input(
     if( input->curr.mouse_button_down[TORIRSM_LEFT] &&
         ToriRSChrome_MouseDown(
             ui, input->press_origin_x[TORIRSM_LEFT], input->press_origin_y[TORIRSM_LEFT]) )
-        app->input_frame_consumed = 1;
+        ToriRS_InputClaimsTakeFrame(&app->input_claims);
     if( input->curr.mouse_button_up[TORIRSM_LEFT] &&
         ToriRSChrome_MouseUp(ui, input->curr.mouse_x, input->curr.mouse_y) )
-        app->input_frame_consumed = 1;
+        ToriRS_InputClaimsTakeFrame(&app->input_claims);
 
     /*
      * The SECONDARY button, on the DOWN edge and with no release half.
@@ -489,7 +510,7 @@ app_chrome_route_input(
     if( input->curr.mouse_button_down[TORIRSM_RIGHT] &&
         ToriRSChrome_SecondaryClick(
             ui, input->press_origin_x[TORIRSM_RIGHT], input->press_origin_y[TORIRSM_RIGHT]) )
-        app->input_frame_consumed = 1;
+        ToriRS_InputClaimsTakeFrame(&app->input_claims);
 
     /* The wheel, so an open dropdown or a scrolling panel moves, plus the
      * trackpad's exact scroll and pinch, which only a GRAPH well (the map
@@ -514,7 +535,7 @@ app_chrome_route_input(
         frame.pinch_y = input->curr.pinch_y;
         frame.pinch_from_wheel = input->curr.pinch_from_wheel;
         if( ToriRSChrome_WheelFrame(ui, &frame) )
-            app->input_frame_consumed = 1;
+            ToriRS_InputClaimsTakeFrame(&app->input_claims);
     }
 
     app_chrome_route_keys(app, ui, input);
@@ -631,7 +652,7 @@ app_chrome_route_keys(
     assert(input);
 
     if( app_chrome_clipboard_chords(ui, input) )
-        app->input_frame_consumed = 1;
+        ToriRS_InputClaimsTakeFrame(&app->input_claims);
     /* Ctrl (without Alt) held over something that types: the letters of this
      * frame are chords, not characters. Windows never sends the character of
      * a Ctrl+letter; other platforms may, and Ctrl+V must not paste and then
@@ -653,7 +674,7 @@ app_chrome_route_keys(
                 consumed = ToriRSChrome_KeyEdit(ui, edit);
         }
         if( consumed )
-            app->input_frame_consumed = 1;
+            ToriRS_InputClaimsTakeFrame(&app->input_claims);
     }
 }
 
@@ -674,12 +695,14 @@ app_loc_editor_tick(
      * (ToriRSChrome_KeyEdit) -- and by the time the loc editor's own Escape is
      * read below the popup is already gone, so it is remembered here. One
      * press closes the menu; the next one closes the panel. */
-    popup_was_open = app->dbg_ui.dropdown_open >= 0 || app->dbg_ui.colorpick_open >= 0;
+    popup_was_open =
+        app->dev_overlay->ui.dropdown_open >= 0 || app->dev_overlay->ui.colorpick_open >= 0;
     /* Likewise a chrome field that is being typed in as the keys arrive: they
      * are its -- Ctrl+A selects its content, Escape leaves it -- and the loc
      * editor's shortcuts on the same keys (Ctrl+A nudges, Escape closes the
      * panel) wait for a frame in which no field has the keyboard. */
-    field_had_keys = app_chrome_focus_types(&app->dbg_ui) || app_chrome_focus_types(&app->plugin_ui);
+    field_had_keys = app_chrome_focus_types(&app->dev_overlay->ui) ||
+                     app_chrome_focus_types(&app->plugin_win->ui);
 
     /* Same suppression as the developer overlay toggle: a chat line has focus
      * must not also flip debug chrome. */
@@ -688,8 +711,11 @@ app_loc_editor_tick(
     {
         /* Toggling visibility only, never the selection -- a target picked
          * with Reselect stays active across a close/reopen. */
-        app->locedit.visible = !app->locedit.visible;
-        ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->locedit.panel, app->locedit.visible);
+        app->editor_shell->locedit.visible = !app->editor_shell->locedit.visible;
+        ToriRSChrome_PanelSetVisible(
+            &app->dev_overlay->ui,
+            app->editor_shell->locedit.panel,
+            app->editor_shell->locedit.visible);
     }
 
     /* Footprint outline, toggled here rather than in its own tick because it
@@ -700,9 +726,9 @@ app_loc_editor_tick(
     if( !app_text_input_focused(app) &&
         app_debug_key_down(app, input, APP_DEBUG_HOTKEY_HOVER_FOOTPRINT) )
     {
-        app->hover_footprint = app->hover_footprint ? 0 : app->hover_footprint_mode;
-        app->need_redraw = 1;
-        TORIRS_LOG("hover_footprint: %d\n", app->hover_footprint);
+        int const footprint = EditorShell_FootprintToggle(app->editor_shell);
+        RedrawRequest_Raise(&app->redraw_request);
+        TORIRS_LOG("hover_footprint: %d\n", footprint);
     }
 
     /* Map editor panel. Gated on the session existing, so binding this key in a
@@ -711,8 +737,11 @@ app_loc_editor_tick(
     if( app->editor && !app_text_input_focused(app) &&
         app_debug_key_down(app, input, APP_DEBUG_HOTKEY_MAP_EDITOR) )
     {
-        Editor_PanelSetVisible(&app->editor_panel, &app->dbg_ui, !app->editor_panel.visible);
-        app->need_redraw = 1;
+        Editor_PanelSetVisible(
+            &app->editor_shell->editor_panel,
+            &app->dev_overlay->ui,
+            !app->editor_shell->editor_panel.visible);
+        RedrawRequest_Raise(&app->redraw_request);
     }
 
     /* Both tools inspect locs the pick classifier drops by default — walls,
@@ -726,8 +755,8 @@ app_loc_editor_tick(
      * "Select Wall" row however the menu was gated. This one line is the
      * difference between "the menu ignores half the tile" and not. */
     WorldEntity_SceneryDebugSetTools(
-        app->locedit.visible || app->hover_footprint != 0 ||
-        (app->editor && app->editor_panel.visible));
+        app->editor_shell->locedit.visible || app->editor_shell->hover_footprint != 0 ||
+        (app->editor && app->editor_shell->editor_panel.visible));
 
     /* Remember the world tile under the cursor whenever the cursor is NOT
      * over the panel itself. Runs every frame, panel open or not, so the
@@ -736,10 +765,10 @@ app_loc_editor_tick(
      * time because reaching the menu item necessarily moved the cursor onto
      * the panel first. */
     LocEditorSelection_NoteHover(
-        &app->locedit_selection,
-        ToriRSChrome_HitTest(&app->dbg_ui, input->curr.mouse_x, input->curr.mouse_y) >= 0,
-        app->frame_view->world_hover_tile_x,
-        app->frame_view->world_hover_tile_z);
+        &app->editor_shell->locedit_selection,
+        ToriRSChrome_HitTest(&app->dev_overlay->ui, input->curr.mouse_x, input->curr.mouse_y) >= 0,
+        app->world_views.frame->world_hover_tile_x,
+        app->world_views.frame->world_hover_tile_z);
 
     /*
      * Overlay input, for ANY visible chrome panel.
@@ -751,10 +780,10 @@ app_loc_editor_tick(
      * ticked reads as broken, not as unrouted, so the gate is now "is anything
      * of this instance on screen" and a new panel needs no gate edit at all.
      */
-    if( ToriRSChrome_HasVisiblePanel(&app->dbg_ui) )
-        app_chrome_route_input(app, &app->dbg_ui, input);
+    if( ToriRSChrome_HasVisiblePanel(&app->dev_overlay->ui) )
+        app_chrome_route_input(app, &app->dev_overlay->ui, input);
 
-    if( app->locedit.visible || app->editor_panel.visible )
+    if( app->editor_shell->locedit.visible || app->editor_shell->editor_panel.visible )
     {
         /* A chat line stealing W/A/S/D/R/Space/Backspace would make the panel
          * unusable, so force it (and the modal chat variants) closed for as
@@ -767,7 +796,7 @@ app_loc_editor_tick(
          * editor's claim on the whole keyboard, and a panel a player may leave
          * open beside the game -- the plugin window -- must not disable chat
          * for as long as it is up. */
-        app->chat_input_active = 0;
+        UIChatLine_SetInputActive(&app->chat_line, 0);
         app->chat.social_input_open = 0;
         app->chat.dialog_input_open = 0;
 
@@ -795,42 +824,42 @@ app_loc_editor_tick(
             if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_A) ||
                 LibToriRS_Input_IsKeyHeld(input, TORIRSK_LEFT) )
             {
-                EditorPreviewCamera_Orbit(&app->preview_camera, 0, -yaw_step);
+                EditorPreviewCamera_Orbit(&app->editor_shell->preview_camera, 0, -yaw_step);
                 took = 1;
             }
             if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_D) ||
                 LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT) )
             {
-                EditorPreviewCamera_Orbit(&app->preview_camera, 0, yaw_step);
+                EditorPreviewCamera_Orbit(&app->editor_shell->preview_camera, 0, yaw_step);
                 took = 1;
             }
             if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_W) ||
                 LibToriRS_Input_IsKeyHeld(input, TORIRSK_UP) )
             {
-                EditorPreviewCamera_Orbit(&app->preview_camera, -pitch_step, 0);
+                EditorPreviewCamera_Orbit(&app->editor_shell->preview_camera, -pitch_step, 0);
                 took = 1;
             }
             if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_S) ||
                 LibToriRS_Input_IsKeyHeld(input, TORIRSK_DOWN) )
             {
-                EditorPreviewCamera_Orbit(&app->preview_camera, pitch_step, 0);
+                EditorPreviewCamera_Orbit(&app->editor_shell->preview_camera, pitch_step, 0);
                 took = 1;
             }
             if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_E) )
             {
-                EditorPreviewCamera_Zoom(&app->preview_camera, -1);
+                EditorPreviewCamera_Zoom(&app->editor_shell->preview_camera, -1);
                 took = 1;
             }
             if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_F) )
             {
-                EditorPreviewCamera_Zoom(&app->preview_camera, 1);
+                EditorPreviewCamera_Zoom(&app->editor_shell->preview_camera, 1);
                 took = 1;
             }
             if( took )
             {
                 /* Orbit and Zoom have already said this is the same model. */
-                app->input_frame_consumed = 1;
-                app->need_redraw = 1;
+                ToriRS_InputClaimsTakeFrame(&app->input_claims);
+                RedrawRequest_Raise(&app->redraw_request);
             }
         }
 
@@ -855,11 +884,13 @@ app_loc_editor_tick(
          * camera and nothing in the world view takes them over (owner,
          * 2026-11-07).
          */
-        if( !app->locedit.visible )
+        if( !app->editor_shell->locedit.visible )
         {
             /* The map editor's keys are its hotkey table's (app_editor_hotkeys.c). */
         }
-        else if( field_had_keys || app_chrome_focus_types(&app->dbg_ui) || app_chrome_focus_types(&app->plugin_ui) )
+        else if(
+            field_had_keys || app_chrome_focus_types(&app->dev_overlay->ui) ||
+            app_chrome_focus_types(&app->plugin_win->ui) )
         {
             /* A chrome field holds the keyboard (or did when this frame's
              * keys arrived): the letters, Backspace, Space and the Ctrl
@@ -881,8 +912,9 @@ app_loc_editor_tick(
             app_loc_editor_deselect(app);
         else if( !popup_was_open && LibToriRS_Input_IsKeyDown(input, TORIRSK_ESCAPE) )
         {
-            app->locedit.visible = 0;
-            ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->locedit.panel, 0);
+            app->editor_shell->locedit.visible = 0;
+            ToriRSChrome_PanelSetVisible(
+                &app->dev_overlay->ui, app->editor_shell->locedit.panel, 0);
         }
 
         /* Only when the LOC editor is open. The block above widened to route
@@ -890,35 +922,38 @@ app_loc_editor_tick(
          * draining the shared activation latch here swallowed the map editor's
          * clicks -- its dropdown showed the new value while its tool never
          * changed, because the activation was taken before its tick ran. */
-        activated = app->locedit.visible ? ToriRSChrome_TakeActivated(&app->dbg_ui) : -1;
+        activated = app->editor_shell->locedit.visible
+                        ? ToriRSChrome_TakeActivated(&app->dev_overlay->ui)
+                        : -1;
         if( activated >= 0 )
         {
-            if( activated == app->locedit.item_xplus )
+            if( activated == app->editor_shell->locedit.item_xplus )
                 app_loc_editor_nudge(app, 1, 0);
-            else if( activated == app->locedit.item_xminus )
+            else if( activated == app->editor_shell->locedit.item_xminus )
                 app_loc_editor_nudge(app, -1, 0);
-            else if( activated == app->locedit.item_zplus )
+            else if( activated == app->editor_shell->locedit.item_zplus )
                 app_loc_editor_nudge(app, 0, 1);
-            else if( activated == app->locedit.item_zminus )
+            else if( activated == app->editor_shell->locedit.item_zminus )
                 app_loc_editor_nudge(app, 0, -1);
-            else if( activated == app->locedit.item_rotate )
+            else if( activated == app->editor_shell->locedit.item_rotate )
                 app_loc_editor_rotate(app);
-            else if( activated == app->locedit.item_reselect )
+            else if( activated == app->editor_shell->locedit.item_reselect )
                 app_loc_editor_reselect(app);
-            else if( activated == app->locedit.item_deselect )
+            else if( activated == app->editor_shell->locedit.item_deselect )
                 app_loc_editor_deselect(app);
-            else if( activated == app->locedit.item_close )
+            else if( activated == app->editor_shell->locedit.item_close )
             {
-                app->locedit.visible = 0;
-                ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->locedit.panel, 0);
+                app->editor_shell->locedit.visible = 0;
+                ToriRSChrome_PanelSetVisible(
+                    &app->dev_overlay->ui, app->editor_shell->locedit.panel, 0);
             }
         }
     }
 
-    if( ToriRSChrome_Build(&app->dbg_ui) )
+    if( ToriRSChrome_Build(&app->dev_overlay->ui) )
     {
-        app->need_redraw = 1;
-        ToriRSChrome_DamageClear(&app->dbg_ui);
+        RedrawRequest_Raise(&app->redraw_request);
+        ToriRSChrome_DamageClear(&app->dev_overlay->ui);
     }
 }
 

@@ -176,7 +176,7 @@ App_Init(
     app->cfg = *cfg;
     /* 0 is a legal component uid, so "nothing has mounted a modal yet" needs a
      * value of its own. */
-    app->modal_host_uid = -1;
+    RS_UISlots_SetModalHost(&app->slots, -1);
 
     /*
      * Subsystems that own their own zero state, said out loud.
@@ -189,9 +189,8 @@ App_Init(
      */
     NetLinkWatch_Reset(&app->net_link);
     RS_ClientScriptQueue_Reset(&app->pending_clientscripts);
-    FrameTimeRing_Reset(&app->dbg_frame_times);
-    MapEditorGhost_Reset(&app->map_ghost);
-    EditorPreviewCamera_Reset(&app->preview_camera);
+    app->dev_overlay = DevOverlay_Create();
+    app->editor_shell = EditorShell_Create();
 
     /* Before any subsystem: RS_CS2Host_Init wants its script ids, and the
      * boot font loads want theirs. Local-file parse only — no cache IO, so it
@@ -360,12 +359,11 @@ App_Init(
 #endif
             app_boot_refuse(message);
         }
-        app->cache_on_demand = 1;
+        CacheMounts_SetOnDemand(&app->cache_mounts);
     }
     else if( cfg->cache_kind == APP_CACHE_DAT1 )
     {
-        app->dat1_disk = RSCache_Dat1DiskNewFromDirectory(cfg->cache_dir);
-        if( !app->dat1_disk )
+        if( !CacheMounts_OpenDat1Disk(&app->cache_mounts, cfg->cache_dir) )
         {
             /* Same rule as the ondemand refusal above: a missing cache is a
              * deployment state, and the message is the whole diagnosis. */
@@ -378,15 +376,12 @@ App_Init(
                 cfg->cache_dir);
             app_boot_refuse(message);
         }
-        Platform_IO_InitDat1Disk(app->frame_runner.px, app->dat1_disk);
+        Platform_IO_InitDat1Disk(app->frame_runner.px, CacheMounts_Dat1Disk(&app->cache_mounts));
         /* No xtea step: dat1 archives are not encrypted. */
     }
     else
     {
-        /* Lazy: the client reads maybe two thirds of the tables a cache ships,
-         * and decoding the rest at open cost several MB it never looked at. */
-        app->dat2_disk = RSCache_Dat2DiskNewFromDirectoryLazyTables(cfg->cache_dir);
-        if( !app->dat2_disk )
+        if( !CacheMounts_OpenDat2Disk(&app->cache_mounts, cfg->cache_dir) )
         {
             char message[512];
 
@@ -399,7 +394,7 @@ App_Init(
             app_boot_refuse(message);
         }
         app_load_map_keys(cfg);
-        Platform_IO_InitDat2Disk(app->frame_runner.px, app->dat2_disk);
+        Platform_IO_InitDat2Disk(app->frame_runner.px, CacheMounts_Dat2Disk(&app->cache_mounts));
     }
 #endif
     /* What the boot manifest said about the cache. A local backend ignores it
@@ -422,15 +417,9 @@ App_Init(
 
     /* Phase 2: asset pipeline (provider is a view over the build cache). */
     if( cfg->cache_kind == APP_CACHE_DAT1 )
-    {
-        app->dat1_bc = dat1_buildcache_new();
-        app->provider = dat1_buildcache_as_provider(app->dat1_bc);
-    }
+        app->provider = CacheMounts_OpenDat1BuildCache(&app->cache_mounts);
     else
-    {
-        app->dat2_bc = dat2_buildcache_new();
-        app->provider = dat2_buildcache_as_provider(app->dat2_bc);
-    }
+        app->provider = CacheMounts_OpenDat2BuildCache(&app->cache_mounts);
     /* Every loader that fans out needs somewhere to put its siblings, and the
      * parallel frame queue is that place -- see CacheProvider::asset_queue. */
     CacheProvider_SetAssetQueue(app->provider, app->frame_runner.queue);
@@ -460,7 +449,7 @@ App_Init(
     /* Once each, not once a frame: the outline/shadow LRU inside a renderer is
      * only worth having if it survives the frame that filled it. */
     app->soft = ToriPlatform_Renderer_Soft3D_New();
-    app->soft_chrome = ToriPlatform_Renderer_Soft3D_New();
+    app->chrome_compositor = ChromeCompositor_Create(ToriPlatform_Renderer_Soft3D_New());
     UITreeSceneBridge_Init(&app->bridge, app->scene, app->provider);
     /* The seq the design/local-player previews are posed at. Stated here, once,
      * for both the boot bake and the runtime interface mount — they share the
@@ -499,31 +488,10 @@ App_Init(
      * after every SERVER_TICK_END returns — on the root. */
     WorldviewRegistry_Init(&app->worldviews);
     WorldviewRegistry_RegisterRoot(&app->worldviews, app->world, app->world_builder);
-    app->active_world = WORLDVIEW_ROOT;
     /* World entities (sailing, SAILING_PLAN C1): no boats until
      * WORLDENTITY_INFO spawns one; the config table fills at boot. */
     Wevs_Init(&app->wevs);
-    app->sailing_at_helm_varbit =
-        RevConfigRefs_Get(&app->revconfig_refs, "varbit", "varb19205_sailing_player_at_helm");
-    app->sailing_captain_role_varbit =
-        RevConfigRefs_Get(&app->revconfig_refs, "varbit", "varb19233_sailing_captain_role");
-    for( int slot = 0; slot < 5; ++slot )
-    {
-        char key[48];
-        snprintf(key, sizeof(key), "sailing_crew_duty_%d", slot + 1);
-        app->sailing_crew_duty_varbit[slot] =
-            RevConfigRefs_Get(&app->revconfig_refs, "varbit", key);
-        snprintf(key, sizeof(key), "sailing_crew_roster_%d", slot + 1);
-        app->sailing_crew_roster_varbit[slot] =
-            RevConfigRefs_Get(&app->revconfig_refs, "varbit", key);
-    }
-    app->sailing_crew_category =
-        RevConfigRefs_Get(&app->revconfig_refs, "category", "sailing_crew");
-    app->sailing_arrow_model[0] =
-        RevConfigRefs_Get(&app->revconfig_refs, "model", "sailing_heading_hover");
-    app->sailing_arrow_model[1] =
-        RevConfigRefs_Get(&app->revconfig_refs, "model", "sailing_heading_selected");
-    app->sailing_arrow_element[0] = app->sailing_arrow_element[1] = -1;
+    RS_SailingHud_Reset(&app->sailing_hud, &app->revconfig_refs);
     WevConfigTable_Init(&app->wev_configs);
     AppWevFlat_Init(&app->wev_flat, AppWevFlat_OpsByName(torirs_env_wev_flat()));
     /* The dynamic-registration pass puts every entity floating in this world
@@ -543,49 +511,39 @@ App_Init(
     assert(app->painter_buffer);
     /* v1 GameRunescape camera defaults; repositioned on world load complete. */
     /* Both knobs are populated; projection_mode picks. See graphics/projection.h. */
-    app->frame_view->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
-    app->frame_view->world_camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
-    app->frame_view->world_camera.fov_rpi2048 = TORIDRAW_PROJECTION_FOV_DEFAULT;
+    app->world_views.frame->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    app->world_views.frame->world_camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
+    app->world_views.frame->world_camera.fov_rpi2048 = TORIDRAW_PROJECTION_FOV_DEFAULT;
     /* 50 also load-bearing for the raster, not just for what gets drawn: the
      * near plane is what keeps projected coordinates inside the kernels' 16.16
      * edge representation (+/-32,768 px). Lowering it moves the largest models
      * into overflow range -- see the note at the near clip in
      * graphics/projection.u.c before changing it or TORIRS_NEAR_PLANE. */
-    app->frame_view->world_camera.near_plane_z =
+    app->world_views.frame->world_camera.near_plane_z =
         (getenv("TORIRS_NEAR_PLANE") ? atoi(getenv("TORIRS_NEAR_PLANE")) : 50);
-    app->frame_view->world_camera.pitch = 148;
-    app->frame_view->world_camera_pos.z = -800;
+    app->world_views.frame->world_camera.pitch = 148;
+    app->world_views.frame->world_camera_pos.z = -800;
     /* The flattest the profile allows: the reference's orbitCameraPitch
      * default IS its own lower bound, so a lane that states a different range
      * boots at the bottom of the range it stated rather than at a 128 that no
      * longer means anything there. */
-    app->frame_view->orbit.pitch = app->revconfig_profile.camera.pitch_flattest;
-    app->frame_view->orbit.yaw = 0;
+    app->world_views.frame->orbit.pitch = app->revconfig_profile.camera.pitch_flattest;
+    app->world_views.frame->orbit.yaw = 0;
     /* Where the profile says this camera sits before anyone touches it.
      * `[camera] rest=`, and the band is around it, not the other way up. */
-    app->frame_view->world_cam_zoom = app->revconfig_profile.camera.rest;
-    app->frame_view->world_hover_tile_x = -1;
-    app->frame_view->world_hover_tile_z = -1;
-    app->frame_view->world_hover_tile_level = 0;
-    app->frame_view->world_hover_view = 0;
+    app->world_views.frame->world_cam_zoom = app->revconfig_profile.camera.rest;
+    app->world_views.frame->world_hover_tile_x = -1;
+    app->world_views.frame->world_hover_tile_z = -1;
+    app->world_views.frame->world_hover_tile_level = 0;
+    app->world_views.frame->world_hover_view = 0;
     /* -2, not -1: -1 is "no tile", a state the refreshers must still be run
      * for once, and seeding them equal to it would skip that first run. */
-    app->highlight_last_hover_coord = -2;
-    app->highlight_last_route = -2;
-    app->highlight_last_dest_coord = -2;
-    app->highlight_last_mouseover = -2;
+    RS_TileHighlightWatch_Reset(&app->tile_highlight_watch);
+    RS_MouseoverReport_Reset(&app->mouseover_report);
     app->ground_items_dirty.count = 0;
     app->ground_items_dirty.refresh_all = 0;
-    app->ground_items_settings_varp[0] = -1;
-    app->ground_items_settings_varp[1] = -1;
-    app->ground_items_settings_seen[0] = 0;
-    app->ground_items_settings_seen[1] = 0;
-    app->ground_items_aux_seen[0] = 0;
-    app->ground_items_aux_seen[1] = 0;
-    app->world_map_scene_id = -1;
-    app->worldmap.render = RS_WorldMapRender_New();
-    app->worldmap.overview_scene_id = 0;
-    app->worldmap.overview_area_id = -1;
+    RS_GroundItemsSettings_Reset(&app->ground_items_settings);
+    RS_WorldMapSurface_Init(&app->worldmap, RS_WorldMapRender_New());
     MinimapView_Reset(&app->minimap);
     /*
      * The plugin host.
@@ -611,14 +569,13 @@ App_Init(
 
         if( plugins_env )
             want_plugins = atoi(plugins_env) != 0;
-        app->plugins_user = want_plugins;
-        app->plugin_panel = -1;
-        app->plugin_panel_built_for = 0;
+        PluginBootConfig_SetUserPlugins(&app->plugin_boot, want_plugins);
+        app->plugin_win = PluginPanel_Create();
         /* The client is what LINKS Porcelain; the host only carries the
          * pointer, so the host's own test binaries stay free of it. */
         PluginHost_SetPorcelain(ToriRS_PorcelainApiTable());
         app->plugins = PluginHost_New(&engine);
-        app->plugin_prefs_path = PluginPrefs_Path();
+        PluginBootConfig_SetPrefsPath(&app->plugin_boot, PluginPrefs_Path());
         if( !want_plugins )
             PluginRegistry_RegisterBuiltins(app->plugins);
         else
@@ -632,26 +589,19 @@ App_Init(
             PluginDrive_Init(app);
         }
     }
-    app->rebuild_zone_x = -1;
-    app->rebuild_zone_z = -1;
-    app->proj_src_tile_x = -1;
-    app->proj_src_tile_z = -1;
-    app->proj_src_tile_level = 0;
+    RS_RebuildRegion_ForgetCentre(&app->rebuild_region);
+    ProjSpawnLatch_Reset(&app->proj_latch);
     /* Element id 0 is valid, so free entity-spotanim slots must be -1. */
-    for( size_t i = 0; i < sizeof(app->entity_spotanims) / sizeof(app->entity_spotanims[0]); i++ )
-        app->entity_spotanims[i].body_element_id = -1;
+    EntitySpotanims_Init(&app->entity_spotanims);
 
     RS_EntitySync_Init(&app->esync);
     RS_Audio_Init(&app->audio);
     ToriRS_AudioQueue_Reset(&app->audio_out);
     UIInvDrag_Reset(&app->inv_drag);
-    app->reboot_timer = 0;
-    app->multiway = 0;
+    RS_SessionInfo_Reset(&app->session_info);
     App_InteractionModesReset(app);
-    app->server_zbuf = -1;
-    app->minimap_state = 0;
-    app->cam_unlock = 0;
-    memset(&app->welcome, 0, sizeof(app->welcome));
+    RenderMode_ForgetServerZbuf(&app->render_mode);
+    CamScript_SetUnlock(&app->cam_script, 0);
     RS_Social_Init(&app->social);
     /* Reference reset path: idkDesignGender = male, then validateIdkDesign().
      * The kit scan itself waits for the idk configs, so the clientCode tick
@@ -756,9 +706,7 @@ App_Init(
     UIInteraction_Init(&app->interact);
     UIHoverText_Reset(&app->hover_text);
     app_debug_overlay_init(app);
-    app->hover_com_id = -1;
-    app->clicked_com_id = -1;
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 
     /*
      * Client-behaviour era. Resolved unconditionally — an offline boot still
@@ -839,24 +787,20 @@ App_Init(
              * left no way to say no.
              */
             {
-                char const* const env_touch = torirs_env_touch_ui();
-                app->touch_ui = (clienttype == 7 || on_mobile) ? 1 : 0;
 #if defined(TORIRS_PLATFORM_ANDROID)
-                app->touch_ui = 1;
+                int const touch_platform = 1;
+#else
+                int const touch_platform = 0;
 #endif
-                if( env_touch && env_touch[0] )
-                    app->touch_ui = atoi(env_touch) != 0;
-                app->interact.touch_scroll = app->touch_ui;
+                DeviceCaps_SetTouchUi(&app->device_caps, DeviceCaps_TouchUiRule(
+                    clienttype, on_mobile, touch_platform, torirs_env_touch_ui()));
+                app->interact.touch_scroll = DeviceCaps_TouchUi(&app->device_caps);
             }
         }
         /* Who draws the mouseover line: on a cache whose own clientscripts
          * draw it for this identity, the native node stands down or both lines
          * paint. Unstated is the client. */
-        app->mouseover_text_by_cache = false;
-        if( strcmp(rc_features->mouseover_text, "cache") == 0 )
-            app->mouseover_text_by_cache = true;
-        else if( rc_features->mouseover_text[0] &&
-                 strcmp(rc_features->mouseover_text, "client") != 0 )
+        if( !ToriRS_FeatureFacts_SetMouseoverText(&app->feature_facts, rc_features->mouseover_text) )
             TORIRS_ERR(
                 "app: [features] mouseover_text must be client|cache, got '%s'\n",
                 rc_features->mouseover_text);
@@ -870,15 +814,15 @@ App_Init(
                     "app: [features] era must be lostcity|osrs|server_routed, got '%s'\n",
                     era_name);
         }
-        app->features = era_name && era_name[0] ? ToriRS_Features_ByName(era_name) : NULL;
-        if( era_name && era_name[0] && !app->features )
+        struct ToriRS_FeatureTable const* era =
+            era_name && era_name[0] ? ToriRS_Features_ByName(era_name) : NULL;
+        if( era_name && era_name[0] && !era )
             TORIRS_ERR("app: unknown features era '%s', deriving from cache\n", era_name);
         /* Audio behaviour is era-dependent too: monophonic effects are a 2004
          * client property, not a general one. */
-        if( !app->features )
-            app->features =
-                ToriRS_Features_ForCache(cfg->cache_game, cfg->cache_epoch, cfg->cache_revision);
-        assert(app->features);
+        if( !era )
+            era = ToriRS_Features_ForCache(cfg->cache_game, cfg->cache_epoch, cfg->cache_revision);
+        assert(era);
 
         /*
          * Per-item overrides on top of the era.
@@ -886,11 +830,10 @@ App_Init(
          * The era getters hand back shared static singletons, so an override
          * has to be written into the app's own copy — otherwise one manifest
          * key would move the table every other boot in the process reads. This
-         * is the copy app->features points at from here on; the singleton stays
+         * is the copy app->features holds from here on; the singleton stays
          * the pristine statement of what the era is.
          */
-        app->features_storage = *app->features;
-        app->features = &app->features_storage;
+        app->features = *era;
         /* The era is now known, so the two Attack options can take their boot
          * value; see app_attack_options_reset. */
         app_attack_options_reset(app);
@@ -920,7 +863,7 @@ App_Init(
                     model = from_env;
             }
             if( model >= 0 )
-                app->features_storage.ground_click_nearest_model = model;
+                app->features.ground_click_nearest_model = model;
         }
         /*
          * The two permissive ground-click extensions. Every era table leaves
@@ -928,21 +871,21 @@ App_Init(
          * so this is the only place either can be turned on.
          */
         if( rc_features->ground_click_unbounded >= 0 )
-            app->features_storage.ground_click_nearest_unbounded =
+            app->features.ground_click_nearest_unbounded =
                 rc_features->ground_click_unbounded;
         if( rc_features->ground_click_offmap >= 0 )
-            app->features_storage.ground_click_offmap_nearest = rc_features->ground_click_offmap;
+            app->features.ground_click_offmap_nearest = rc_features->ground_click_offmap;
         if( cfg->features_ground_click_unbounded )
-            app->features_storage.ground_click_nearest_unbounded = 1;
+            app->features.ground_click_nearest_unbounded = 1;
         if( cfg->features_ground_click_offmap )
-            app->features_storage.ground_click_offmap_nearest = 1;
+            app->features.ground_click_offmap_nearest = 1;
         {
             char const* env = getenv("TORIRS_GROUND_CLICK_UNBOUNDED");
             if( env && env[0] )
-                app->features_storage.ground_click_nearest_unbounded = env[0] != '0';
+                app->features.ground_click_nearest_unbounded = env[0] != '0';
             env = getenv("TORIRS_GROUND_CLICK_OFFMAP");
             if( env && env[0] )
-                app->features_storage.ground_click_offmap_nearest = env[0] != '0';
+                app->features.ground_click_offmap_nearest = env[0] != '0';
         }
         if( rc_features->painter_draw_distance > 0 )
         {
@@ -954,10 +897,10 @@ App_Init(
                     TORIRS_PAINTER_DRAW_DISTANCE_MAX,
                     rc_features->painter_draw_distance);
             else
-                app->features_storage.painter_draw_distance = rc_features->painter_draw_distance;
+                app->features.painter_draw_distance = rc_features->painter_draw_distance;
         }
         if( cfg->features_painter_draw_distance_set )
-            app->features_storage.painter_draw_distance = cfg->features_painter_draw_distance;
+            app->features.painter_draw_distance = cfg->features_painter_draw_distance;
 
         /*
          * The mover model, on top of the era.
@@ -999,7 +942,7 @@ App_Init(
                 }
             }
             if( model >= 0 )
-                app->features_storage.mover_model = model;
+                app->features.mover_model = model;
         }
 
         /* How a server REBUILD replaces the scene, on top of the era: the
@@ -1007,25 +950,25 @@ App_Init(
          * TORIRS_WORLD_REBUILD and the runs that must block whatever is said,
          * both inside App_WorldRebuildModeInit. */
         if( cfg->features_world_rebuild_model_set )
-            app->features_storage.world_rebuild_model = cfg->features_world_rebuild_model;
+            app->features.world_rebuild_model = cfg->features_world_rebuild_model;
         App_WorldRebuildModeInit(app);
 
         if( torirs_env_net_debug() )
             TORIRS_LOG(
                 "app: features era=%s ground_click_nearest=%s "
                 "unbounded=%d offmap=%d painter_draw_distance=%d\n",
-                app->features->name,
-                ToriRS_Features_NearestModelName(app->features->ground_click_nearest_model),
-                app->features->ground_click_nearest_unbounded,
-                app->features->ground_click_offmap_nearest,
-                ToriRS_Features_PainterDrawDistance(app->features));
-        RS_Audio_SetFeatures(&app->audio, app->features);
+                app->features.name,
+                ToriRS_Features_NearestModelName(app->features.ground_click_nearest_model),
+                app->features.ground_click_nearest_unbounded,
+                app->features.ground_click_offmap_nearest,
+                ToriRS_Features_PainterDrawDistance(&app->features));
+        RS_Audio_SetFeatures(&app->audio, &app->features);
         /* And the world sim: the actor mover is era-dependent too (rev-239
          * integrates movement per rendered frame, the 2004 client per 20ms
-         * cycle -- enum ToriRS_MoverModel). Pointed at app->features_storage
+         * cycle -- enum ToriRS_MoverModel). Pointed at app->features
          * rather than the singleton so a manifest override reaches it, and set
          * after the overrides above for the same reason. */
-        World_SetFeatures(app->world, app->features);
+        World_SetFeatures(app->world, &app->features);
         if( torirs_env_net_debug() )
             TORIRS_LOG(
                 "app: world mover=%s\n",
@@ -1034,13 +977,10 @@ App_Init(
         /* Model lighting: era defaults for the two xrsps-vs-Client-TS
          * divergences, then [render:light] overrides, then push the regimes
          * into toridraw (compiled-in actor/scene profiles unless overridden). */
-        app->npc_light_uses_type_ambient_contrast =
-            app->features->npc_light_uses_type_ambient_contrast;
-        app->player_head_light_ambient = app->features->player_head_light_ambient;
-        if( cfg->light_npc_type_ambient_contrast_set )
-            app->npc_light_uses_type_ambient_contrast = cfg->light_npc_type_ambient_contrast;
-        if( cfg->light_player_head_ambient_set )
-            app->player_head_light_ambient = cfg->light_player_head_ambient;
+        ToriRS_FeatureFacts_ResolveLight(
+            &app->feature_facts, &app->features,
+            cfg->light_npc_type_ambient_contrast_set, cfg->light_npc_type_ambient_contrast,
+            cfg->light_player_head_ambient_set, cfg->light_player_head_ambient);
 
         {
             struct ToriDraw_LightProfile actor = *ToriDraw_LightActorProfile();
@@ -1087,8 +1027,9 @@ App_Init(
                     actor_override ? &actor : NULL, scene_override ? &scene : NULL);
         }
         app->bridge.npc_light_uses_type_ambient_contrast =
-            app->npc_light_uses_type_ambient_contrast;
-        app->bridge.player_head_light_ambient = app->player_head_light_ambient;
+            ToriRS_FeatureFacts_NpcTypeAmbientContrast(&app->feature_facts);
+        app->bridge.player_head_light_ambient =
+            ToriRS_FeatureFacts_PlayerHeadAmbient(&app->feature_facts);
     }
 
     /*
@@ -1179,16 +1120,16 @@ App_Init(
             Editor_HostMapEdClientId(&app->editor->host));
         /* Open on boot: this manifest asked for an editor, so the panel is the
          * point of the session rather than a debug aid to go find. */
-        Editor_PanelInit(&app->editor_panel, &app->dbg_ui);
+        Editor_PanelInit(&app->editor_shell->editor_panel, &app->dev_overlay->ui, app);
         /* The selection relay, both halves: the panel publishes its latch
          * through the session, and the Client's state facts land back on the
          * panel — which is how a controller connection follows this viewer's
          * clicks, and how this panel will follow a detached viewer's. */
-        app->editor_panel.editor = app->editor;
+        app->editor_shell->editor_panel.editor = app->editor;
         Editor_SetStateCallback(app->editor, app_editor_on_state, app);
         Editor_PanelSetVisible(
-            &app->editor_panel,
-            &app->dbg_ui,
+            &app->editor_shell->editor_panel,
+            &app->dev_overlay->ui,
             cfg->editor_panel == BOOTMANIFEST_EDITOR_PANEL_INPROCESS);
         /* A viewer boot builds its view here (app/app_editor_view.c). */
         EditorView_AppBoot(app);
@@ -1256,13 +1197,13 @@ App_Init(
          * cannot disagree. A manifest `jag_crc=` (or the env) is a deliberate
          * override and still wins -- that is the seam for pointing a client at
          * one server while claiming another's cache. */
-        if( app->cache_on_demand && !cfg->jag_crc_set && !getenv("TORIRS_JAG_CRC") )
+        if( CacheMounts_ArmJagCrcFromOnDemand(
+                &app->cache_mounts, cfg->jag_crc_set || getenv("TORIRS_JAG_CRC") != NULL) )
         {
             int32_t crc[9];
             /* The dial path refreshes these before every login attempt --
              * this read only primes the table for a client that never dials
              * (and keeps the failure loud when the endpoint is down). */
-            app->jag_crc_from_ondemand = 1;
             if( PlatformXIO_Dat1OnDemandJagChecksums(app->frame_runner.px, crc) == 0 )
                 GameProtoRev_SetJagChecksums(rev, crc);
             else
@@ -1277,7 +1218,7 @@ App_Init(
         app->net = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(struct ToriRS_Network));
         assert(app->net);
         ToriRS_Network_Init(app->net, rev, rsa_e, rsa_n);
-        app->net_enabled = 1;
+        ToriRS_Network_Enable(app->net);
         /* IF1 button clicks now notify the server (reference IF_BUTTON /
          * RESUME_PAUSEBUTTON). */
         app->button_sink.user = app;
@@ -1320,9 +1261,7 @@ App_Init(
                 RS_TitleSession_ArmResume(&app->title_session);
         }
         RS_TitleSession_SetConnectTarget(&app->title_session, cfg->connect_target);
-        app->oauth = cfg->connect_oauth;
-        app->accounts_path = RS_Accounts_Path();
-        RS_Accounts_Init(&app->accounts);
+        RS_TitleAccounts_Init(&app->accounts, cfg->connect_oauth, RS_Accounts_Path());
     }
 }
 
@@ -1355,16 +1294,15 @@ app_prefs_flush(struct App* app)
     struct ToriRS_IOBatch* io;
     int guard = 0;
 
-    if( !app->prefs_path )
+    if( !RS_Prefs_File(&app->prefs) )
         return;
-    if( !RS_Prefs_CaptureFromHost(&app->prefs, &app->host) && !app->prefs_dirty_cycle )
+    if( !RS_SaveDebounce_Take(&app->prefs_save, RS_Prefs_CaptureFromHost(&app->prefs, &app->host)) )
         return; /* everything the player chose is already on disk */
-    app->prefs_dirty_cycle = 0;
 
     /* Run by hand, outside any queue: the io context names the task so its
      * "slot 0" is its own item, as the queue would have done. */
     io = ToriRS_IOBatch_New();
-    task = CreateTask_PrefsSave(&app->prefs, app->prefs_path);
+    task = CreateTask_PrefsSave(&app->prefs, RS_Prefs_File(&app->prefs));
     io->task = task;
     while( task_run(task, io) == PT_YIELDED && guard++ < 8 )
         Platform_IO_Process(app->frame_runner.px, io);
@@ -1404,8 +1342,7 @@ App_Shutdown(struct App* app)
         app->net = NULL;
     }
     UITree_EmitBufferFree(&app->emit);
-    RS_WorldMapRender_Free(app->worldmap.render);
-    app->worldmap.render = NULL;
+    RS_WorldMapRender_Free(RS_WorldMapSurface_TakeRender(&app->worldmap));
     /* Before the host, which points at it. */
     RS_Chat_Free(&app->chat);
     RS_CS2Host_Free(&app->host);
@@ -1433,32 +1370,20 @@ App_Shutdown(struct App* app)
     LootStore_Free(&app->loot);
     InvManager_Free(&app->invs);
     UITree_Free(app->tree);
-    if( app->builder_active )
+    if( UITreeBuilder_Active(&app->builder) )
         UITreeBuilder_Free(&app->builder);
     UITreeSceneBridge_Free(&app->bridge);
     TorirsModelInstCache_Free(&app->model_inst_cache);
-    ToriPlatform_Renderer_Soft3D_Free(app->soft_chrome);
-    ToriMem_Free(ToriMem_Ui(), app->plugin_surface_prims);
-    app->plugin_surface_prims = NULL;
-    ToriMem_Free(ToriMem_Ui(), app->plugin_surface_pixels);
-    app->plugin_surface_pixels = NULL;
-    app->plugin_surface_pixel_capacity = 0;
-    ToriMem_Free(ToriMem_Plugins(), app->panel_custom_pixels);
-    app->panel_custom_pixels = NULL;
-    app->panel_custom_pixel_capacity = 0;
+    ToriPlatform_Renderer_Soft3D_Free(ChromeCompositor_Soft(app->chrome_compositor));
+    ChromeCompositor_Free(app->chrome_compositor);
+    app->chrome_compositor = NULL;
+    PluginPanel_Free(app->plugin_win);
+    app->plugin_win = NULL;
     ToriPlatform_Renderer_Soft3D_Free(app->soft);
     ToriDraw_SceneFree(app->scene);
-    /* Only the pair matching cfg.cache_kind was ever created; both frees assert
-     * on NULL, so the unused side must not be handed to them. */
-    if( app->dat2_bc )
-        dat2_buildcache_free(app->dat2_bc);
-    if( app->dat1_bc )
-        dat1_buildcache_free(app->dat1_bc);
+    CacheMounts_CloseBuildCaches(&app->cache_mounts);
     Platform_IO_Free(app->frame_runner.px);
-    if( app->dat2_disk )
-        RSCache_Dat2DiskFree(app->dat2_disk);
-    if( app->dat1_disk )
-        RSCache_Dat1DiskFree(app->dat1_disk);
+    CacheMounts_CloseDisks(&app->cache_mounts);
     app_background_runner_free(app);
     ToriRS_TaskQueue_Free(app->packet_runner.queue);
     ToriRS_IOBatch_Free(app->packet_runner.io);
@@ -1478,9 +1403,8 @@ App_Shutdown(struct App* app)
      * rs_preload.c). */
     RS_Preload_Free(&app->preload);
     RS_LoginReplies_Free(&app->login_replies);
-    ToriMem_Free(ToriMem_Process(), app->if_heads);
+    UIIfModels_Free(&app->if_models);
     app_placeholder_park_free(app);
-    ToriMem_Free(ToriMem_Process(), app->if_player_models);
     /* All three of these were leaked. Only the hide array was freed, and its
      * two siblings -- plus every string the text store strdup'd -- were not.
      * They have owners now. */
@@ -1492,5 +1416,6 @@ App_Shutdown(struct App* app)
     UIIfEventTable_Free(&app->if_events);
     RevConfigRefs_Free(&app->revconfig_refs);
     UITree_RoleTableFree(&app->ui_roles);
+    app_debug_overlay_free(app);
 }
 

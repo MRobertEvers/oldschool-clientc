@@ -68,7 +68,7 @@ static void
 app_world_spawn_scripted_proj_now(
     struct App* app,
     struct World* world,
-    struct AppScriptedProj const* sp,
+    struct WorldEntity_ScriptedProjSpec const* sp,
     int late);
 static void
 app_loc_change_apply_ops(
@@ -107,7 +107,7 @@ app_spawn_task_new(
     task->app = app;
     /* Single capture point for every spawn kind: the enqueue happens while the
      * addressing SET_ACTIVE_WORLD is still in force. */
-    task->view = app->active_world;
+    task->view = WorldviewRegistry_Active(&app->worldviews);
     task->kind = kind;
     task->tile_x = tile_x;
     task->tile_z = tile_z;
@@ -364,8 +364,8 @@ app_world_npc_models_resident(
  *
  * Every input app_world_build_model consumes here -- part models, recolours,
  * retextures, the two scales, ambient/contrast -- is read off the npctype, and
- * app->npc_light_uses_type_ambient_contrast is resolved once during feature
- * setup and never rewritten, so the npc id alone identifies the result. Without
+ * the npc type lighting switch (app->feature_facts) is resolved once during
+ * feature setup and never rewritten, so the npc id alone identifies the result. Without
  * this an npc walking into view paid a full merge + recolour + scale +
  * DropNonSdTextures + per-vertex light + bounds + vertex capture EVERY time,
  * even though the source models were already resident: one server tick's worth
@@ -412,8 +412,8 @@ app_world_build_npc_model(
             npctype->width_scale,
             npctype->height_scale,
             APP_LIGHT_ACTOR,
-            app->npc_light_uses_type_ambient_contrast ? npctype->contrast : 0,
-            app->npc_light_uses_type_ambient_contrast ? npctype->ambient : 0);
+            ToriRS_FeatureFacts_NpcTypeAmbientContrast(&app->feature_facts) ? npctype->contrast : 0,
+            ToriRS_FeatureFacts_NpcTypeAmbientContrast(&app->feature_facts) ? npctype->ambient : 0);
     }
     if( !model )
         return NULL;
@@ -583,7 +583,7 @@ app_world_spawn_player_now(
     }
     TORIRS_LOG("spawn_player: element=%d tile=%d,%d level=%d\n", element_id, tile_x, tile_z, level);
     app_sync_textures(app);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
     return idx;
 }
 
@@ -852,7 +852,7 @@ app_world_spawn_npc_now(
                 (unsigned long long)bd_log,
                 (unsigned long long)bd_tex);
     }
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
     if( idx != WORLD_ENTITY_NIL )
     {
         struct WorldEntity_NPC* spawned = World_EntityPoolGet(&app->world->entities.npc, idx);
@@ -962,7 +962,7 @@ app_world_spawn_projectile_now(
         t2,
         target);
     app_sync_textures(app);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 /*
@@ -1197,7 +1197,7 @@ app_world_spawn_projectile_spot_now(
             src_height * 4,
             dst_height * 4);
     app_sync_textures(app);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 /*
@@ -1297,7 +1297,7 @@ static void
 app_world_spawn_scripted_proj_now(
     struct App* app,
     struct World* world,
-    struct AppScriptedProj const* sp,
+    struct WorldEntity_ScriptedProjSpec const* sp,
     int late)
 {
     struct ToriRS_Spotanimtype* spot;
@@ -1374,7 +1374,7 @@ app_world_spawn_scripted_proj_now(
     ToriDraw_SceneElementSetAnimLoop(app->scene, element_id, true);
     app_world_load_seq(app, spot->seq);
     app_sync_textures(app);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 /* Free-standing spotanim (reference MapSpotAnim / MAP_ANIM). SYNCHRONOUS — the
@@ -1493,51 +1493,7 @@ app_world_spawn_spotanim_now(
         lifetime,
         delay);
     app_sync_textures(app);
-    app->need_redraw = 1;
-}
-
-/* ------------------------------------------------ plugin-authored meshes */
-
-/*
- * Geometry a plugin built itself, and the model made from it.
- *
- * The reason this exists at all is that a cache id is not portable. A plugin
- * that stands a beam of light over a drop by naming model 43330 is naming a
- * number that means that beam in one revision, means something else in
- * another, and is absent from most -- so the plugin works on the cache it was
- * written against and silently draws a crate, or nothing, on the rest. An
- * authored mesh has no such dependency: it is the same triangles wherever it
- * is drawn.
- *
- * Storage is the App's rather than the host's because only this side can turn
- * a mesh into something drawable, and the arrays grow on append because the
- * api ceilings are a limit and not a size.
- */
-
-struct AppPluginAssetModel*
-app_plugin_asset_model_at(
-    struct App* app,
-    int handle)
-{
-    assert(app);
-    if( handle < 0 || handle >= TORIRS_PLUGIN_MODELS_MAX )
-        return NULL;
-    if( !app->plugin_asset_models[handle].in_use )
-        return NULL;
-    return &app->plugin_asset_models[handle];
-}
-
-struct ToriRS_PluginMesh*
-app_plugin_mesh_at(
-    struct App* app,
-    int handle)
-{
-    assert(app);
-    if( handle < 0 || handle >= APP_PLUGIN_MESHES_MAX )
-        return NULL;
-    if( !app->plugin_meshes[handle].in_use )
-        return NULL;
-    return &app->plugin_meshes[handle];
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 /*
@@ -1737,10 +1693,10 @@ Task_AppSpawn_Run(
              * its late drops with it) — that is the guard, not a contract. */
             if( WorldviewRegistry_IsLive(&app->worldviews, self->view) )
             {
-                int prev_view = app->active_world;
-                app->active_world = self->view;
+                int prev_view = WorldviewRegistry_Active(&app->worldviews);
+                WorldviewRegistry_SetActive(&app->worldviews, self->view);
                 App_WorldObjStackAdd(app, self->tile_x, self->tile_z, self->level, self->obj_id, 1);
-                app->active_world = prev_view;
+                WorldviewRegistry_SetActive(&app->worldviews, prev_view);
             }
         }
         else
@@ -1774,12 +1730,12 @@ Task_AppSpawn_Run(
         PT_TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
         app_spawn_fan_spotanim_assets(self);
         PT_TASK_JOIN(pending);
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
     }
     else if( self->kind == APP_SPAWN_ENTITY_MODEL )
     {
         PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
     }
     else if( self->kind == APP_SPAWN_PROJECTILE_SPOT )
     {
@@ -1851,14 +1807,14 @@ Task_AppSpawn_Run(
          * destroyed the object, or restated its model, while this was parked.
          */
         {
-            struct AppPluginObject* obj = app_plugin_object_at(app, self->plugin_object);
+            struct PluginObject* obj = PluginGeometry_Object(&app->plugin_geometry, self->plugin_object);
             self->spotanim_id =
                 (obj && obj->source == TORIRS_HOST_MODEL_SPOTANIM) ? obj->model_id : -1;
         }
         if( self->spotanim_id >= 0 )
             PT_TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
         {
-            struct AppPluginObject* obj = app_plugin_object_at(app, self->plugin_object);
+            struct PluginObject* obj = PluginGeometry_Object(&app->plugin_geometry, self->plugin_object);
             self->model_id = obj ? app_plugin_object_model_id(app, obj) : -1;
             self->seq_id = obj ? app_plugin_object_seq_id(app, obj) : -1;
         }
@@ -1948,7 +1904,7 @@ Task_AppSpawn_Run(
          * only the task before this one advances -- state this queue does
          * not own in the runner's sense, so it is a blocked yield, retested
          * once per pass and never spun. */
-        TASK_AWAIT_STATE(&self->task, &self->pt, app->loc_lane_applied + 1 == self->loc_ticket);
+        TASK_AWAIT_STATE(&self->task, &self->pt, LocLane_IsTurn(&app->loc_lane, self->loc_ticket));
         /* The scene captured at enqueue: the view can die and the world can be
          * rebuilt while the change loaded, and both drop it (see
          * app_spawn_effect_world). */
@@ -2034,7 +1990,7 @@ Task_AppSpawn_Run(
                  * which the official client showed it. */
                 if( torirs_env_loc_lane_trace() )
                 {
-                    unsigned const fences = app->server_tick_serial - self->loc_tick;
+                    unsigned const fences = RS_ServerTick_Serial(&app->server_tick) - self->loc_tick;
 
                     TORIRS_REPORT(
                         "loc_lane: apply ticket=%u loc=%d shape=%d at %d,%d,l%d "
@@ -2079,7 +2035,7 @@ Task_AppSpawn_Run(
                     app_client_trigger_loc(app, placed, RS_TRIGGER_LOC_ADD);
             }
             app_sync_textures(app);
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
         }
         app_spawn_loc_lane_release(self);
     }
@@ -2138,7 +2094,7 @@ app_spawn_loc_lane_pending(
         if( task->view != view || task->tile_x != scene_x || task->tile_z != scene_z ||
             task->level != level || World_LocShapeToLayer(task->loc_shape) != layer )
             continue;
-        if( landed_only && task->loc_tick == app->server_tick_serial )
+        if( landed_only && task->loc_tick == RS_ServerTick_Serial(&app->server_tick) )
             continue;
         if( !newest || (int)(task->loc_ticket - newest->loc_ticket) > 0 )
             newest = task;
@@ -2208,7 +2164,7 @@ app_spawn_loc_lane_release(struct Task_AppSpawn* self)
     if( self->loc_ticket == 0 || self->loc_ticket_released )
         return;
     self->loc_ticket_released = 1;
-    self->app->loc_lane_applied++;
+    LocLane_Release(&self->app->loc_lane);
 }
 
 static void

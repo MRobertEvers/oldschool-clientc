@@ -137,7 +137,7 @@ app_texture_anim_on_cpu(const struct App* app)
     }
     if( forced )
         return 1;
-    return !app->renderer_animates_textures;
+    return !RenderMode_RendererAnimatesTextures(&app->render_mode);
 }
 
 void
@@ -166,7 +166,7 @@ app_world_frame(
     /* The bob rides the same clock Wevs_Frame just advanced. */
     app_wev_advance_bobs(app);
 
-    if( !app->world_active || !app->world_view_valid || !world )
+    if( !WorldLoadState_Active(&app->world_load) || !app->world_views.emit_valid || !world )
         return;
 
     /* Mirror the local pid so the render cycle's dynamic pass can register the
@@ -204,19 +204,19 @@ app_world_frame(
     /* Per attached view (the runner camera split): each camera follows the
      * same player its own way, and a cutscene's scripted camera -- cam_script,
      * shared -- takes every one of them (owner decision 2). */
-    app->cam_script.smooth_reset_arrived = 0;
-    for( int view = 0; view < app->view_split.view_count; view++ )
+    CamScript_GlideFrameBegin(&app->cam_script);
+    for( int view = 0; view < app->world_views.split.view_count; view++ )
     {
-        app->frame_view = &app->views[view];
+        app->world_views.frame = &app->world_views.views[view];
         app_world_camera_cinema(app);
         app_world_camera_follow(app);
     }
     app_world_camera_smooth_reset_end(app);
-    app->frame_view = App_RunnerView(app);
+    app->world_views.frame = App_RunnerView(app);
     /* Publish the orbit angles to the CS2 host (CAM_GETANGLE_XA/YA, CAM_GETYAW)
      * and take back anything CAM_FORCEANGLE snapped since the last tick. Both
      * sides speak the reference's orbitCameraPitch/Yaw units, which is what
-     * app->frame_view->orbit.pitch and app->frame_view->orbit.yaw already hold, so no conversion is
+     * app->world_views.frame->orbit.pitch and app->world_views.frame->orbit.yaw already hold, so no conversion is
      * involved. Order matters: mirror first, then apply a force, so a snap issued this tick is not
      * read back as "the camera moved there on its own". */
     /* CAM_GETANGLE / CAM_GETYAW answer for the PRESENTED view (what the
@@ -228,12 +228,12 @@ app_world_frame(
         int forced_pitch, forced_yaw;
         if( RS_CS2Host_TakeCameraForce(&app->host, &forced_pitch, &forced_yaw) )
         {
-            for( int view = 0; view < app->view_split.view_count; view++ )
+            for( int view = 0; view < app->world_views.split.view_count; view++ )
             {
-                app->views[view].orbit.pitch = forced_pitch;
-                app->views[view].orbit.yaw = forced_yaw & 0x7ff;
-                app->views[view].orbit.pitch_velocity = 0;
-                app->views[view].orbit.yaw_velocity = 0;
+                app->world_views.views[view].orbit.pitch = forced_pitch;
+                app->world_views.views[view].orbit.yaw = forced_yaw & 0x7ff;
+                app->world_views.views[view].orbit.pitch_velocity = 0;
+                app->world_views.views[view].orbit.yaw_velocity = 0;
             }
         }
     }
@@ -248,7 +248,7 @@ app_world_frame(
      * reference the same scene element.
      *
      * Scene element ids are recycled, and three separate subsystems key off
-     * them -- the model (AppEntitySpotanim), the animation (AppSeqBindPending)
+     * them -- the model (EntitySpotanim), the animation (AppSeqBindPending)
      * and the POSITION written every frame from the entity that owns the
      * element. If a despawn ever leaves an entity holding an id that has since
      * been handed to somebody else, both write to it: the survivor's model gets
@@ -327,5 +327,5 @@ app_world_frame(
                 TORIDRAW_TEXTURE_ANIM_SCRATCH_INTS);
     }
 
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }

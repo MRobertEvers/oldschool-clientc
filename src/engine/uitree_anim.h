@@ -3,6 +3,7 @@
 
 #include "asyncio.h"
 #include "engine/cache_provider.h"
+#include "engine/seq_load_tracker.h"
 #include "toridraw_scene.h"
 #include "ui/uitree.h"
 
@@ -17,14 +18,6 @@
 /** Resolve a widget's private rendered pose without mutating the registered asset. */
 struct ToriDraw_ModelHandle UITreeAnim_ModelForDraw(struct ToriDraw_Scene* scene,
     struct UITreeModelRenderCache* cache, int model_id, int sequence, int frame);
-
-#define UITREE_ANIM_SEQ_TRACK_MAX 64
-
-struct SeqLoadTracker
-{
-    int seq_ids[UITREE_ANIM_SEQ_TRACK_MAX];
-    int count;
-};
 
 /** Enqueue loads for sequences referenced by RS_MODEL nodes that are not yet
  * in the scene and not already requested. Returns the number enqueued. */

@@ -187,9 +187,9 @@ struct App_DriveLocChange
     int32_t x, z, level, layer;
     int32_t loc_id, shape, angle;
     int32_t base_x, base_z;
-    /* The loc lane ticket of the change this record notes (App.loc_lane_
-     * enqueued as the change was queued). The record is held at least until
-     * the lane has released it (App.loc_lane_applied), so an add and the
+    /* The loc lane ticket of the change this record notes (LocLane_Newest
+     * as the change was queued). The record is held at least until the lane
+     * has released it (LocLane_Pending on App.loc_lane), so an add and the
      * delete behind it on one tile and layer cannot retire on the scene's
      * empty layer while the add has yet to land. */
     uint32_t lane_ticket;
@@ -814,7 +814,7 @@ enum DriveWidgetModelKind
 };
 
 /*
- * What identity a component was told to show.  Reads struct App::if_heads[] --
+ * What identity a component was told to show.  Reads struct App::if_models.heads[] --
  * the RAW identity the server sent on IF_SETNPCHEAD / IF_SETOBJECT, stored
  * synchronously by app_if_head_store long before the composite is built, so
  * there is no second await.  c->u.rs_model.gamecache_model_id cannot answer
@@ -1676,9 +1676,9 @@ struct ToriRS_CmdBus* PluginDriveCore_CmdBus(void);
  * `active && (capture_path[0] || click_phase >= 0 || hover_requested)`
  * forced-draw branch (docs/QUEST_DRIVER_REMAINING.md B0): quest mode never
  * sets `active`, so that whole branch is dead there, and a world frame with
- * nothing else marking need_redraw (no animation, no camera drift) can go
+ * nothing else raising the redraw request (no animation, no camera drift) can go
  * an unbounded number of logic frames without ever rendering again --
- * measured B0 spike: exactly one render at boot, then app->frame_view->world_pickset
+ * measured B0 spike: exactly one render at boot, then app->world_views.frame->world_pickset
  * frozen at that one frame's contents for the rest of the run. Forcing a
  * draw while this is true gives a level-await's next poll a current frame
  * to read, the same way `hover_requested` does for the mailbox. An

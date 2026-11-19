@@ -23,7 +23,7 @@ app_logic_tick(struct App* app)
 {
     int redraw = 0;
 
-    app->logic_cycle++;
+    FrameClockSerial_NoteLogicCycle(&app->frame_clock.serial);
 
     /*
      * The logout the player asked for, drained here rather than at the click.
@@ -46,7 +46,9 @@ app_logic_tick(struct App* app)
         redraw = 1;
     if( app->flames )
         app_title_flames_tick(
-            app, (uint64_t)app->logic_cycle * (1000 / APP_LOGIC_CYCLES_PER_SECOND));
+            app,
+            (uint64_t)FrameClockSerial_LogicCycle(&app->frame_clock.serial) *
+                (1000 / APP_LOGIC_CYCLES_PER_SECOND));
 
     /*
      * System-update countdown (reference gameLoop: `if (rebootTimer > 1)
@@ -55,17 +57,14 @@ app_logic_tick(struct App* app)
      * Ahead of the early return below, because a busy exec runner must not be
      * able to stall a clock the server started.
      */
-    if( app->reboot_timer > 1 )
-    {
-        app->reboot_timer--;
+    if( RS_SessionInfo_StepRebootTimer(&app->session_info) )
         redraw = 1;
-    }
 
     /* Before the packet pump, so a handler that samples world state sees the
      * cycle it was told about rather than one already half-advanced by this
      * tick's packets. The 600ms server cadence is a different event
      * (on_server_tick, raised at the tick fence). */
-    PluginHost_LogicTick(app->plugins, (int)app->logic_cycle);
+    PluginHost_LogicTick(app->plugins, (int)FrameClockSerial_LogicCycle(&app->frame_clock.serial));
 
     app_rebuild_mark(app, "tick_pre");
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TICK_PACKETS)
@@ -78,15 +77,20 @@ app_logic_tick(struct App* app)
     /* No widget hook may observe a half-applied packet/interface transaction.
      * The next logic tick resumes the serial runner; the shell keeps presenting
      * the preceding committed framebuffer in the meantime. */
-    if( app->packet_runner_had_work || app->server_tick_open || RS_ClientScriptQueue_Count(&app->pending_clientscripts) > 0 )
-        return redraw;
+    {
+        struct SettleGateInput settle;
+
+        app_settle_gate_input(app, &settle);
+        if( SettleGate_PacketTransactionOpen(&settle) )
+            return redraw;
+    }
 
     /* Rasterize inventory item icons that the server's inv packets left
      * unresolved (queued on the same serial pipeline, so it runs after the
      * packets that dirtied the slots). */
     /* Not while a replay seek holds the screen: the icons are polled for, so
      * the frame that releases the hold bakes what is still unbaked then. */
-    if( !app->render_skip.hold )
+    if( !RenderSkip_Held(&app->render_skip) )
         app_inv_icon_reconcile_tick(app);
 
     /* And release a burst of the placeholders a clientscript asked for: the
@@ -104,7 +108,10 @@ app_logic_tick(struct App* app)
          * WebSocket frame on the wire 50 times a second -- 487 of the 502
          * sends in a 10s trace of the web client, for 586 bytes total. */
         if( app->net->state == TORIRS_NET_GAME &&
-            app->last_frame_ms - app->net_last_send_ms >= APP_NET_KEEPALIVE_MS )
+            NetKeepalive_Due(
+                &app->net_keepalive,
+                FrameClockSerial_LastFrameMs(&app->frame_clock.serial),
+                APP_NET_KEEPALIVE_MS) )
             APP_NET_SEND(
                 app,
                 net_out_no_timeout(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf)));
@@ -121,7 +128,7 @@ app_logic_tick(struct App* app)
          * COMPLETE and *discards* what arrives before it. A human cannot type
          * before the scene is up either, so this is the reference timing —
          * without it the one-shot boot cheat is silently eaten every run. */
-        if( app->net->state == TORIRS_NET_GAME && app->world_active )
+        if( app->net->state == TORIRS_NET_GAME && WorldLoadState_Active(&app->world_load) )
         {
             static int cheat_every = -1;
             char const* cheat = torirs_env_net_cheat();
@@ -136,12 +143,10 @@ app_logic_tick(struct App* app)
                 cheat_every = (every && every[0]) ? atoi(every) : 0;
             }
             if( cheat && cheat[0] )
-            {
-                if( !app->net_cheat_sent )
-                    fire = 1;
-                else if( cheat_every > 0 && (app->logic_cycle % cheat_every) == 0 )
-                    fire = 1;
-            }
+                fire = NetOnce_CheatFires(
+                    &app->net_once,
+                    FrameClockSerial_LogicCycle(&app->frame_clock.serial),
+                    cheat_every);
             if( fire )
             {
                 static int cheat_rotate = -1;
@@ -151,7 +156,6 @@ app_logic_tick(struct App* app)
                 char const* exit_bmp = getenv("TORIRS_EXIT_BMP");
                 char const* series = getenv("TORIRS_BMP_SERIES");
 
-                app->net_cheat_sent = 1;
                 /* Named / series dumps must not die into Lumbridge. `::god 1`
                  * first; a death-case capture sends `god 0` in NET_CHEAT. */
                 if( (exit_bmp && exit_bmp[0]) || (series && series[0]) )
@@ -234,7 +238,7 @@ app_logic_tick(struct App* app)
     /* Zone sub-packets queued during an async world load drain here once the
      * load completes — without this a queue with no follow-up zone traffic
      * would sit forever (the lazy flush only runs ahead of a live packet). */
-    if( app->pending_zone_count > 0 && app->world && app->world->load_complete )
+    if( RS_ZoneInbox_HeldCount(&app->zone_inbox) > 0 && app->world && app->world->load_complete )
     {
         struct RS_GameProtoCtx flush_ctx = {
             .tree = app->tree,
@@ -252,7 +256,7 @@ app_logic_tick(struct App* app)
     /*
      * THE LISTENER IS THE PLAYER, NOT THE EYE.
      *
-     * This used to read `app->frame_view->world_camera_pos`, on the reasoning that the
+     * This used to read `app->world_views.frame->world_camera_pos`, on the reasoning that the
      * camera is what the stereo field is built around. The reference disagrees,
      * and the difference is not cosmetic. Its queued-effect drain measures
      *
@@ -371,8 +375,8 @@ app_logic_tick(struct App* app)
         }
         /* A replay seek's chase withholds the world: the tile is the one the
          * recording states for this tick (the REPLAY_COORD control frame). */
-        if( app->replay_chase_coord_valid )
-            coord = app->replay_chase_coord;
+        if( ReplayChase_HasCoord(&app->replay_chase) )
+            coord = ReplayChase_Coord(&app->replay_chase);
         app->host.local_coord = coord;
         /* LOCALPLAYER_GETUID, and the other half of every
          * ACTIVEPLAYER_GETUID = LOCALPLAYER_GETUID comparison a per-player
@@ -430,20 +434,20 @@ app_logic_tick(struct App* app)
             int const level = self ? (self->grid_position.level & 3) : 0;
             dest_coord = (level << 28) | ((x & 0x3fff) << 14) | (z & 0x3fff);
         }
-        /* The runner camera split: logic runs with frame_view = views[0], so
+        /* The runner camera split: logic runs with world_views.frame = views[0], so
          * the CS2 hover coordinate and clientop's menu_open below are the
          * RUNNER's -- the game's scripts answer the player the script plays,
          * and a watcher's hover never reaches a test's timeline. */
-        if( app->world && app->frame_view->world_hover_tile_x >= 0 &&
-            app->frame_view->world_hover_tile_z >= 0 )
+        if( app->world && app->world_views.frame->world_hover_tile_x >= 0 &&
+            app->world_views.frame->world_hover_tile_z >= 0 )
         {
-            int const x = app->world->_base_tile_x + app->frame_view->world_hover_tile_x;
-            int const z = app->world->_base_tile_z + app->frame_view->world_hover_tile_z;
+            int const x = app->world->_base_tile_x + app->world_views.frame->world_hover_tile_x;
+            int const z = app->world->_base_tile_z + app->world_views.frame->world_hover_tile_z;
             int const level = World_TerrainWalkLevel(
                                   app->world,
-                                  app->frame_view->world_hover_tile_x,
-                                  app->frame_view->world_hover_tile_z,
-                                  app->frame_view->world_hover_tile_level) &
+                                  app->world_views.frame->world_hover_tile_x,
+                                  app->world_views.frame->world_hover_tile_z,
+                                  app->world_views.frame->world_hover_tile_level) &
                               3;
             hover_coord = (level << 28) | ((x & 0x3fff) << 14) | (z & 0x3fff);
         }
@@ -468,7 +472,7 @@ app_logic_tick(struct App* app)
          *
          * `menu_open` stays here: it is a fact about the popup, not about a row.
          */
-        app->host.clientop.menu_open = app->frame_view->minimenu->visible;
+        app->host.clientop.menu_open = app->world_views.frame->minimenu->visible;
 
         /*
          * Publishing is ALL the client does here.
@@ -514,9 +518,8 @@ app_logic_tick(struct App* app)
              * Firing it with no tile would run 5197's `tile_on(_6950, 5, 0)`
              * on a coord of -1 and put tile (3, 16383, 16383) in the group.
              */
-            if( hover_coord != app->highlight_last_hover_coord )
+            if( RS_TileHighlightWatch_HoverChanged(&app->tile_highlight_watch, hover_coord) )
             {
-                app->highlight_last_hover_coord = hover_coord;
                 if( hover_coord >= 0 )
                 {
                     app_cs2_set_active_player(app, app->world->local_pid);
@@ -537,9 +540,8 @@ app_logic_tick(struct App* app)
              * itself -- ACTIVEPLAYER_GETROUTECOORD(0) while walking, `coord`
              * while still -- so
              * the active player is the whole of what it needs. */
-            if( route != app->highlight_last_route )
+            if( RS_TileHighlightWatch_RouteChanged(&app->tile_highlight_watch, route) )
             {
-                app->highlight_last_route = route;
                 app_cs2_set_active_player(app, app->world->local_pid);
                 RS_CS2_RunScript(
                     &app->host,
@@ -567,10 +569,9 @@ app_logic_tick(struct App* app)
              * with the player's tile reaches the same cleared group without
              * putting a member nobody asked for in it.
              */
-            if( dest_coord != app->highlight_last_dest_coord )
+            if( RS_TileHighlightWatch_DestChanged(&app->tile_highlight_watch, dest_coord) )
             {
                 int const fire_coord = dest_coord >= 0 ? dest_coord : app->host.local_coord;
-                app->highlight_last_dest_coord = dest_coord;
                 if( fire_coord >= 0 )
                 {
                     app_cs2_set_active_player(app, app->world->local_pid);
@@ -600,7 +601,8 @@ app_logic_tick(struct App* app)
      * runs inside the draw; ours is a tick pass so emit stays pure). This is an
      * old-gen (IF1/CS1) mechanism; modern UI drives the same state via CS2. */
     if( App_UiLogic(app) == APP_UI_LOGIC_CS1 &&
-        RS_ClientCode_Tick(app, app->tree, &app->social, app->logic_cycle) )
+        RS_ClientCode_Tick(
+            app, app->tree, &app->social, FrameClockSerial_LogicCycle(&app->frame_clock.serial)) )
         redraw = 1;
 
     /* World map panning and element flashing advance on the client tick, the
@@ -672,7 +674,7 @@ app_logic_tick(struct App* app)
              * Unconditional, and it has to stay that way until the emit walk
              * reads the dirty bit.
              *
-             * `need_redraw` is the sole gate on `UITree_EmitWalk`, and that walk
+             * `redraw_request` is the sole gate on `UITree_EmitWalk`, and that walk
              * is dirty-unaware — uitree_emit.c never reads `is_dirty` and never
              * calls `UITree_NodeNeedsEmit`, so it rebuilds the whole list from
              * whatever the components currently say. Narrowing this to "the
@@ -757,39 +759,43 @@ app_logic_tick(struct App* app)
      * reports a new value every 20ms tick, and each would otherwise be a
      * separate file rewrite. Anything still pending is flushed by App_Shutdown.
      */
-    if( app->prefs_path )
+    if( RS_Prefs_File(&app->prefs) )
     {
         if( RS_Prefs_CaptureFromHost(&app->prefs, &app->host) )
-            app->prefs_dirty_cycle = app->logic_cycle;
-        else if(
-            app->prefs_dirty_cycle &&
-            app->logic_cycle - app->prefs_dirty_cycle >= APP_PREFS_SAVE_SETTLE_TICKS )
+            RS_SaveDebounce_Mark(
+                &app->prefs_save, FrameClockSerial_LogicCycle(&app->frame_clock.serial));
+        else if( RS_SaveDebounce_Due(
+                     &app->prefs_save,
+                     FrameClockSerial_LogicCycle(&app->frame_clock.serial),
+                     APP_PREFS_SAVE_SETTLE_TICKS) )
         {
             /* Queued, not written here: the write is the platform's, and this
              * is the middle of a frame. */
             ToriRS_TaskQueue_Add(
-                app->frame_runner.queue, CreateTask_PrefsSave(&app->prefs, app->prefs_path));
-            app->prefs_dirty_cycle = 0;
+                app->frame_runner.queue, CreateTask_PrefsSave(&app->prefs, RS_Prefs_File(&app->prefs)));
+            RS_SaveDebounce_Clear(&app->prefs_save);
         }
     }
 
     /* Plugin settings, on the same settle delay and for the same reason: a
      * script writing state every tick (a tag list being edited, a counter)
      * must not be fifty file rewrites a second. */
-    if( app->plugins && app->plugin_prefs_path )
+    if( app->plugins && PluginBootConfig_PrefsPath(&app->plugin_boot) )
     {
         if( PluginHost_ConfigDirty(app->plugins) )
         {
             PluginHost_ConfigClearDirty(app->plugins);
-            app->plugin_prefs_dirty_cycle = app->logic_cycle;
+            RS_SaveDebounce_Mark(
+                &app->plugin_prefs_save, FrameClockSerial_LogicCycle(&app->frame_clock.serial));
         }
-        else if(
-            app->plugin_prefs_dirty_cycle &&
-            app->logic_cycle - app->plugin_prefs_dirty_cycle >= APP_PREFS_SAVE_SETTLE_TICKS )
+        else if( RS_SaveDebounce_Due(
+                     &app->plugin_prefs_save,
+                     FrameClockSerial_LogicCycle(&app->frame_clock.serial),
+                     APP_PREFS_SAVE_SETTLE_TICKS) )
         {
             ToriRS_TaskQueue_Add(
-                app->frame_runner.queue, CreateTask_PluginSave(app->plugins, app->plugin_prefs_path));
-            app->plugin_prefs_dirty_cycle = 0;
+                app->frame_runner.queue, CreateTask_PluginSave(app->plugins, PluginBootConfig_PrefsPath(&app->plugin_boot)));
+            RS_SaveDebounce_Clear(&app->plugin_prefs_save);
         }
     }
 
@@ -846,7 +852,7 @@ app_logic_tick(struct App* app)
     /* CS1 (IF1) value scripts drive active state and %N text. The reference
      * re-evaluates them at draw time; here a task does it once per tick so the
      * VM's asset yields can be serviced asynchronously, and the emit pass just
-     * reads the cached results (the task sets need_redraw on change). */
+     * reads the cached results (the task raises the redraw request on change). */
     app_request_cs1_eval(app);
 
     /* TORIRS_STATS=1: periodic growth diagnostics — component_count must stay

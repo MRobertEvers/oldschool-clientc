@@ -889,7 +889,7 @@ VarPManager_CheckpointTake(struct VarPManager const* mgr)
     cp = ToriMem_Calloc(g, 1, sizeof(*cp));
     assert(cp);
     /* The values only: the type tables are the cache's, loaded once per
-     * session (App.boot_config_ready), and the callbacks are the App's. */
+     * session (RS_BootState_ConfigReady on App::boot), and the callbacks are the App's. */
     cp->varp_count = mgr->varp_count;
     cp->var = Ckpt_Dup(g, mgr->var, (size_t)mgr->varp_count * sizeof(int));
     cp->var_serv = Ckpt_Dup(g, mgr->var_serv, (size_t)mgr->varp_count * sizeof(int));

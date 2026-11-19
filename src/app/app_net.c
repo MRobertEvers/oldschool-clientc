@@ -91,16 +91,16 @@ void
 app_attack_options_reset(struct App* app)
 {
     assert(app);
-    assert(app->features);
-    if( app->features->attack_option_model == TORIRS_ATTACK_OPTION_MODEL_SETTINGS )
+    assert(ToriRS_Features_Resolved(&app->features));
+    if( app->features.attack_option_model == TORIRS_ATTACK_OPTION_MODEL_SETTINGS )
     {
-        app->player_attack_option = RS_ATTACK_OPTION_DEFAULT;
-        app->npc_attack_option = RS_ATTACK_OPTION_DEFAULT;
+        RS_PlayerOps_SetAttackOptions(
+            &app->player_ops, RS_ATTACK_OPTION_DEFAULT, RS_ATTACK_OPTION_DEFAULT);
     }
     else
     {
-        app->player_attack_option = RS_ATTACK_OPTION_DEPENDS;
-        app->npc_attack_option = RS_ATTACK_OPTION_DEPENDS;
+        RS_PlayerOps_SetAttackOptions(
+            &app->player_ops, RS_ATTACK_OPTION_DEPENDS, RS_ATTACK_OPTION_DEPENDS);
     }
 }
 
@@ -133,9 +133,9 @@ App_NetSessionReset(struct App* app)
      * must run even when it names the zone the client is already standing in
      * (task_gameproto_exec.c). A reconnect and a logout-then-login both end
      * here. */
-    app->net_force_rebuild = 1;
+    RS_RebuildRegion_Force(&app->rebuild_region);
     /* A replay seek's chase tile belongs to the session it was stated in. */
-    app->replay_chase_coord_valid = 0;
+    ReplayChase_ClearCoord(&app->replay_chase);
     /* The reference's game-state reset puts both Attack options back to their
      * boot value rather than recomputing them from the varp table it is about
      * to clear (rs_attack_option.h): a re-established session onto an account
@@ -151,38 +151,22 @@ App_NetSessionReset(struct App* app)
      * puts every interaction mode back, and the server's per-session choices
      * (ZBUF) end with the session. */
     App_InteractionModesReset(app);
-    app->server_zbuf = -1;
-    app->need_redraw = 1;
+    RenderMode_ForgetServerZbuf(&app->render_mode);
+    RedrawRequest_Raise(&app->redraw_request);
+}
+
+int
+App_NetEnabled(struct App const* app)
+{
+    assert(app);
+    return app->net && ToriRS_Network_Enabled(app->net);
 }
 
 void
 App_InteractionModesReset(struct App* app)
 {
     assert(app);
-    app->interaction_default_tile = 1;
-    app->interaction_default_entity = 1;
-    memset(app->interaction_tile, -1, sizeof(app->interaction_tile));
-    memset(app->interaction_entity, -1, sizeof(app->interaction_entity));
-}
-
-int
-App_InteractionTileMode(struct App const* app, int view)
-{
-    assert(app);
-    assert(view >= 0);
-    assert(view < WORLDVIEW_MAX);
-    return app->interaction_tile[view] >= 0 ? app->interaction_tile[view]
-                                            : app->interaction_default_tile;
-}
-
-int
-App_InteractionEntityMode(struct App const* app, int view)
-{
-    assert(app);
-    assert(view >= 0);
-    assert(view < WORLDVIEW_MAX);
-    return app->interaction_entity[view] >= 0 ? app->interaction_entity[view]
-                                              : app->interaction_default_entity;
+    RS_InteractionMode_Reset(&app->interaction_mode);
 }
 
 void
@@ -190,18 +174,13 @@ App_Logout(struct App* app)
 {
     assert(app);
 
-    app->logout_requested = 0;
-    app->logout_wait_cycles = 0;
-    /* A LOGOUT_TRANSFER behind which the session logged out (a recording's
-     * appended LOGOUT) moves nowhere. */
-    app->net_hop_pending = 0;
+    /* The request and its wait are over; and a LOGOUT_TRANSFER behind which
+     * the session logged out (a recording's appended LOGOUT) moves nowhere. */
+    SessionEnd_Reset(&app->session_end);
     /* What the deob's logout reset clears (Statics.method5943's neighbours:
      * field1275, field3246, field1008, the group store). */
-    app->cam_script.cam_mode = 0;
-    app->cam_script.oculus_sync = 0;
-    app->cam_script.oculus_recentre = 0;
-    app->cam_script.oculus_y_valid = 0;
-    app->worldmap.heatmap_on = false;
+    CamScript_Logout(&app->cam_script);
+    RS_WorldMapSurface_HeatmapOff(&app->worldmap);
     app->host.client.objunlock_present = false;
     RS_GroupStore_Free(&app->host.groups);
     App_SetSkybox(app, -1);
@@ -245,7 +224,7 @@ App_Logout(struct App* app)
          * session has still ended -- the socket is gone and the world is
          * cleared -- so say so rather than pretending the click did nothing. */
         TORIRS_LOG("logout: no [layout:title] in this profile; staying on the gameframe\n");
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
         return;
     }
 
@@ -275,13 +254,13 @@ App_Logout(struct App* app)
      * about to be, that is a flicker and nothing else: neither screen was
      * waiting on anything the player can see. So the frames the bake takes
      * show the last one that was committed, and the next thing drawn is the
-     * login screen. @see App::boot_hold_last_frame.
+     * login screen. @see RS_ClientPhase_LogoutHold.
      *
      * After App_OpenTitleScreen, not before: app_open_tree clears this at the
      * head of every bake, so that the flag can never outlive the one it was
      * set for.
      */
-    app->boot_hold_last_frame = 1;
+    RS_ClientPhase_LogoutHold(&app->phase);
 }
 
 /*
@@ -314,31 +293,28 @@ App_Logout(struct App* app)
 bool
 app_logout_tick(struct App* app)
 {
-    assert(app);
+    enum SessionEndAction action;
 
-    if( !app->logout_requested )
-        return false;
-    app->logout_requested = 0;
+    assert(app);
 
     /*
      * Nobody to wait for: an offline profile with no socket, or a session that
      * has already ended under the player. The request IS the ending, and
      * waiting five seconds to say so would be five seconds of a client that
      * looks like it ignored the button.
+     *
+     * A second click while the first is still waiting changes nothing: its
+     * IF_BUTTON goes out beside the first one's, and the server answers
+     * whichever it likes -- a click after the combat delay has run out is the
+     * one it says yes to. The wait is already armed and stays armed.
      */
-    if( !app->net || app->net->state != TORIRS_NET_GAME )
+    action = SessionEnd_Step(&app->session_end, app->net && app->net->state == TORIRS_NET_GAME);
+    if( action == SESSION_END_LOGOUT )
     {
         App_Logout(app);
         return true;
     }
-
-    /*
-     * A second click while the first is still waiting changes nothing here:
-     * its IF_BUTTON goes out beside the first one's, and the server answers
-     * whichever it likes -- a click after the combat delay has run out is the
-     * one it says yes to. The wait is already armed and stays armed.
-     */
-    if( app->logout_wait_cycles > 0 )
+    if( action != SESSION_END_WAIT_ARMED )
         return false;
 
     /*
@@ -353,7 +329,6 @@ app_logout_tick(struct App* app)
      * 182:8 clickmask=2, so op1 is armed and `[if_button,logout:logout]` is
      * what the server answers with.
      */
-    app->logout_wait_cycles = APP_LOGOUT_WAIT_CYCLES;
     TORIRS_LOG("logout: requested; waiting for the server\n");
     return false;
 }
@@ -419,7 +394,7 @@ app_net_tear_down_session(
      * front of a logout that had already succeeded. The undrained request
      * counts too.
      */
-    if( app->logout_wait_cycles > 0 || app->logout_requested )
+    if( SessionEnd_LogoutPending(&app->session_end) )
     {
         TORIRS_LOG("logout: server closed the session (%s)\n", why);
         App_Logout(app);
@@ -430,7 +405,7 @@ app_net_tear_down_session(
     /* The next REBUILD must run even if it names the zone the client is
      * already standing in: it is the server's whole world state arriving
      * again, and its acknowledgement is what releases the rest of the burst. */
-    app->net_force_rebuild = 1;
+    RS_RebuildRegion_Force(&app->rebuild_region);
     /* Pushes NET_OUT_DISCONNECT, so the peer sees the FIN before the
      * re-established session asks for the character back. */
     ToriRS_Network_Logout(app->net);
@@ -453,7 +428,7 @@ app_net_give_up(struct App* app)
     assert(app);
     if( !App_HasTitleScreen(app) )
     {
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
         return;
     }
     App_Logout(app);
@@ -489,9 +464,11 @@ app_net_link_watch(
 {
     struct NetLinkSighting seen;
     char const* why = NULL;
+    int hop_world;
+    uint64_t last_frame_ms;
 
     assert(app);
-    if( !app->net || !app->net_enabled )
+    if( !App_NetEnabled(app) )
         return;
 
     /*
@@ -502,15 +479,14 @@ app_net_link_watch(
      * lost connection (ToriRS_Network_Hop). The world's host is not dialled:
      * this client's transports name their server at boot.
      */
-    if( app->net_hop_pending )
+    if( SessionEnd_TakeHop(&app->session_end, &hop_world) )
     {
-        app->net_hop_pending = 0;
         if( NetLinkWatch_Drop(&app->net_link) )
         {
             TORIRS_LOG("net: LOGOUT_TRANSFER: the session moves to world %d; logging in there\n",
-                       app->net_hop_world);
+                       hop_world);
             ToriRS_Network_Hop(app->net);
-            app->net_force_rebuild = 1;
+            RS_RebuildRegion_Force(&app->rebuild_region);
             ToriRS_Network_Logout(app->net);
             App_NetSessionReset(app);
             return;
@@ -519,8 +495,8 @@ app_net_link_watch(
 
     memset(&seen, 0, sizeof(seen));
     seen.now_ms = now_ms;
-    seen.frame_gap_ms =
-        app->last_frame_ms && now_ms > app->last_frame_ms ? now_ms - app->last_frame_ms : 0;
+    last_frame_ms = FrameClockSerial_LastFrameMs(&app->frame_clock.serial);
+    seen.frame_gap_ms = last_frame_ms && now_ms > last_frame_ms ? now_ms - last_frame_ms : 0;
     seen.in_game = app->net->state == TORIRS_NET_GAME;
     seen.logging_in = app->net->state == TORIRS_NET_LOGIN;
     seen.socket_closed = (app->net->conn_status == TORIRS_NET_STATUS_DISCONNECTED ||
@@ -539,7 +515,7 @@ app_net_link_watch(
             app->net_link.reconnect_attempts);
         /* A new seed: the page's token named the session this one replaced. */
         app_session_resume_remember_net(app->net);
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
         break;
     case NET_LINK_RECONNECT:
         TORIRS_LOG("net: reconnect attempt %d\n", app->net_link.reconnect_attempts);
@@ -564,14 +540,14 @@ app_net_link_watch(
  * order is preserved because a packet and all of the mount/CS2 work it
  * awaits finish before its successor starts.  Ready cooperative yields
  * are not spread over visual frames; only real external IO can pause the
- * transaction, and that pause is covered by packet_runner_had_work.
+ * transaction, and that pause is covered by the packet runner's had_work latch.
  *
  * Called from two places, and the second is a frame-rate matter. Every 20ms
  * logic tick runs it as the tick's packet phase. But when the pipeline parks
  * mid-tick on an asynchronous read — on web every post-READY cache read is
  * one — its response lands between animation frames, long before the next
  * logic tick. Waiting for that tick meant each parked read held the visual
- * latch (packet_runner_had_work / server_tick_open) for a full 20ms, and a
+ * latch (the packet runner's had_work / an open server tick) for a full 20ms, and a
  * hitsplat whose sprite+sound chain was three reads deep froze the world for
  * three ticks every server cycle. App_RunOnce therefore also resumes a parked
  * pipeline once per frame; with nothing parked and nothing queued the call
@@ -601,9 +577,9 @@ app_pump_net_packets(struct App* app)
          * this: it runs at the top of the frame, and the rebuild starts
          * here, below it — including on a later catch-up tick in the same
          * App_RunOnce. */
-        if( app->app_state == APP_STATE_BOOTING )
+        if( RS_ClientPhase_Booting(&app->phase) )
         {
-            app->packet_runner_had_work = 1;
+            TaskRunner_SetHadWork(&app->packet_runner, 1);
             break;
         }
 
@@ -624,7 +600,7 @@ app_pump_net_packets(struct App* app)
             /* In the paced catch-up after a rebuild's commit the settle has
              * this frame's deadline (App_PacedDeadline; 0 otherwise, an
              * ordinary settle). Out of time is the same answer as a parked
-             * read: packet_runner_had_work, and the next turn resumes it.
+             * read: the packet runner's had_work latch, and the next turn resumes it.
              *
              * The work the commit itself queued here (App_WorldLoadFinish's
              * loc re-place) is part of the commit and settles whole; the
@@ -644,7 +620,7 @@ app_pump_net_packets(struct App* app)
                         "pkt_slow: type=%d %.2f ms cycle=%llu\n",
                         last_exec_packet_type,
                         dt / 1000.0,
-                        (unsigned long long)app->logic_cycle);
+                        (unsigned long long)FrameClockSerial_LogicCycle(&app->frame_clock.serial));
             }
         }
 
@@ -684,7 +660,7 @@ app_pump_net_packets(struct App* app)
                     app->frame_runner.progressed,
                     n,
                     TaskRunner_ReadsOutstanding(&app->frame_runner),
-                    (int)app->logic_cycle);
+                    (int)FrameClockSerial_LogicCycle(&app->frame_clock.serial));
             }
             if( assets != TASK_RUNNER_RENDER && app->frame_runner.progressed )
                 continue;
@@ -709,12 +685,12 @@ app_pump_net_packets(struct App* app)
                     head ? (int)head->io.kind : -1,
                     head && head->io.kind == TORIRS_IOK_CACHE ? head->io.u.cache.table_id : -1,
                     head && head->io.kind == TORIRS_IOK_CACHE ? head->io.u.cache.archive_id : -1,
-                    (int)app->logic_cycle);
+                    (int)FrameClockSerial_LogicCycle(&app->frame_clock.serial));
             }
-            app->packet_runner_had_work = 1;
+            TaskRunner_SetHadWork(&app->packet_runner, 1);
             break;
         }
-        app->packet_runner_had_work = 0;
+        TaskRunner_SetHadWork(&app->packet_runner, 0);
         /* Every packet is added with TaskRunner_AddRenderBlockingSerialTask, which arms this;
          * the FIFO's transaction is closed the moment it settles, and nothing
          * else on this runner reads the flag. */
@@ -758,7 +734,7 @@ app_pump_net_packets(struct App* app)
          * of the window after it stops popping when its budget is spent.
          * What is left stays queued, exactly as if it had not arrived yet: a
          * tick's packets reach the client over several reads anyway, and a
-         * frame that ends inside a tick is latched by server_tick_open until
+         * frame that ends inside a tick is latched by the open server tick until
          * its fence. This is not `drained`: the fence backstops below are
          * for a queue that really ran dry.
          */
@@ -776,31 +752,28 @@ app_pump_net_packets(struct App* app)
             /* Liveness, for app_net_link_watch's 15s bound. Stamped on the
              * packet rather than on the byte read: a socket that delivers
              * bytes the framer never completes is not a live session. */
-            NetLinkWatch_NotePacket(&app->net_link, app->last_frame_ms);
+            NetLinkWatch_NotePacket(
+                &app->net_link, FrameClockSerial_LastFrameMs(&app->frame_clock.serial));
 
             /* Once a revision has demonstrated explicit tick fences,
              * retain only packets that participate in an atomic UI/CS2
              * transaction. World feedback is valid between those ticks.
              * SERVER_TICK_END clears this after its exec task has run. */
-            if( app->server_tick_fence_seen && gameproto_packet_may_mutate_ui(packet.packet_type) &&
+            if( RS_ServerTick_FenceSeen(&app->server_tick) && gameproto_packet_may_mutate_ui(packet.packet_type) &&
                 packet.packet_type != PKT_NAME_SERVER_TICK_END )
             {
                 int const plain_varp = packet.packet_type == PKT_NAME_VARP_SMALL ||
                                        packet.packet_type == PKT_NAME_VARP_LARGE;
 
-                if( app->server_tick_open && !plain_varp )
-                    app->server_tick_open_nonvar = 1;
-                if( !app->server_tick_open )
-                {
-                    app->server_tick_open_nonvar = !plain_varp;
-                    app->server_tick_open_cycle = app->logic_cycle;
-                    if( getenv("TORIRS_FRAME_LATCH") )
-                        TORIRS_LOG(
-                            "frame_latch: tick opened by packet %d at cycle %d\n",
-                            (int)packet.packet_type,
-                            (int)app->logic_cycle);
-                }
-                app->server_tick_open = 1;
+                if( RS_ServerTick_NotePacket(
+                        &app->server_tick,
+                        plain_varp,
+                        FrameClockSerial_LogicCycle(&app->frame_clock.serial)) &&
+                    getenv("TORIRS_FRAME_LATCH") )
+                    TORIRS_LOG(
+                        "frame_latch: tick opened by packet %d at cycle %d\n",
+                        (int)packet.packet_type,
+                        (int)FrameClockSerial_LogicCycle(&app->frame_clock.serial));
             }
             if( packet.packet_type == PKT_NAME_SERVER_TICK_END )
                 fence_queued = 1;
@@ -825,12 +798,12 @@ app_pump_net_packets(struct App* app)
                         "rebuild_pop: type=%d tick_open=%d nonvar=%d held_scripts=%d fence_seen=%d "
                         "world_active=%d cycle=%llu before=[%s]%s\n",
                         (int)packet.packet_type,
-                        app->server_tick_open,
-                        app->server_tick_open_nonvar,
+                        (int)RS_ServerTick_IsOpen(&app->server_tick),
+                        (int)RS_ServerTick_OpenNonVar(&app->server_tick),
                         RS_ClientScriptQueue_Count(&app->pending_clientscripts),
-                        app->server_tick_fence_seen,
-                        app->world_active,
-                        (unsigned long long)app->logic_cycle,
+                        (int)RS_ServerTick_FenceSeen(&app->server_tick),
+                        WorldLoadState_Active(&app->world_load),
+                        (unsigned long long)FrameClockSerial_LogicCycle(&app->frame_clock.serial),
                         list,
                         tick_count > 24 ? "..." : "");
                 }
@@ -847,11 +820,8 @@ app_pump_net_packets(struct App* app)
             last_exec_packet_type = packet.packet_type;
             /* The first packet of the session, for the boot report: the
              * gap between login_ok and this is the server's, not ours. */
-            if( !app->net_first_packet_marked )
-            {
-                app->net_first_packet_marked = 1;
+            if( NetOnce_TakeFirstPacket(&app->net_once) )
                 ToriRS_BootTelemetry_Markf("net:first_packet:%d", (int)packet.packet_type);
-            }
             /*
              * A held RUNCLIENTSCRIPT goes ahead of an interface mount change.
              *
@@ -893,10 +863,10 @@ app_pump_net_packets(struct App* app)
      * so a tick cut short by a disconnect cannot strand a script forever.
      */
     if( drained && RS_ClientScriptQueue_Count(&app->pending_clientscripts) &&
-        (!app->server_tick_fence_seen ||
+        (!RS_ServerTick_FenceSeen(&app->server_tick) ||
          RS_ClientScriptQueue_FenceOverdue(
              &app->pending_clientscripts,
-             (uint32_t)app->logic_cycle,
+             (uint32_t)FrameClockSerial_LogicCycle(&app->frame_clock.serial),
              APP_CLIENTSCRIPT_FENCE_MAX_CYCLES)) )
     {
         /* Onto the packet pipeline, in wire order, as the fence does
@@ -905,17 +875,19 @@ app_pump_net_packets(struct App* app)
         /* Same recovery fence for a connection whose tick was cut short:
          * once we intentionally fall back to the held scripts, allow the
          * resulting fully-settled state to publish too. */
-        app->server_tick_open = 0;
+        RS_ServerTick_Close(&app->server_tick);
         redraw = 1;
     }
     else if(
-        drained && app->server_tick_open &&
-        app->logic_cycle - app->server_tick_open_cycle >= APP_CLIENTSCRIPT_FENCE_MAX_CYCLES )
+        drained && RS_ServerTick_Overdue(
+                       &app->server_tick,
+                       FrameClockSerial_LogicCycle(&app->frame_clock.serial),
+                       APP_CLIENTSCRIPT_FENCE_MAX_CYCLES) )
     {
         /* A fence can be lost without a RUNCLIENTSCRIPT in the tick.  The
          * same bounded disconnect recovery must release the visual latch
          * or the last committed frame would be retained forever. */
-        app->server_tick_open = 0;
+        RS_ServerTick_Close(&app->server_tick);
         redraw = 1;
     }
 
@@ -970,7 +942,7 @@ App_IfTextSet(
                 text ? text : "",
                 (int)applied);
     }
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 void
@@ -987,7 +959,7 @@ App_IfColourSet(
             TORIRS_LOG(
                 "if_setcolour: com=%d colour=%06x applied=%d\n", com_id, colour, (int)applied);
     }
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 void
@@ -1003,7 +975,7 @@ App_IfHideSet(
         if( torirs_env_net_debug() )
             TORIRS_REPORT("if_sethide: com=%d hide=%d applied=%d\n", com_id, hide, (int)applied);
     }
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 void
@@ -1124,7 +1096,8 @@ App_SendPingReply(
     APP_NET_SEND(
         app,
         net_out_send_ping_reply(
-            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), value1, value2, app->fps));
+            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), value1, value2,
+            FrameClockFps_Fps(&app->frame_clock.fps)));
 }
 
 /* Server ack after a REBUILD_NORMAL-driven world load finishes. */

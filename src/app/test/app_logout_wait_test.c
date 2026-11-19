@@ -37,9 +37,10 @@ int g_failures;
 /*
  * Enough App for App_Logout to run, and not one field more.
  *
- * `features` is asserted by the attack-option reset; `esync` has to be Init'd
- * because a zeroed one carries local pid 0, which the clear would then try to
- * remove from a world that does not exist here.
+ * The attack-option reset asserts `features` holds an era, and a name is what
+ * says so; the rest stays zeroed, the table's default models. `esync` has to
+ * be Init'd because a zeroed one carries local pid 0, which the clear would
+ * then try to remove from a world that does not exist here.
  */
 static struct App*
 make_app(struct ToriRS_Network* net)
@@ -47,10 +48,11 @@ make_app(struct ToriRS_Network* net)
     struct App* app = calloc(1, sizeof(*app));
 
     TEST_ASSERT(app != NULL, "allocated the app fixture");
-    app->features = &app->features_storage;
+    app->features.name = "test";
     RS_EntitySync_Init(&app->esync);
     app->net = net;
-    app->net_enabled = 1;
+    if( net )
+        ToriRS_Network_Enable(net);
     return app;
 }
 
@@ -92,12 +94,12 @@ test_the_click_does_not_end_the_session(void)
 
     printf("TEST: the click asks, and the session stays up\n");
 
-    app->logout_requested = 1;
+    SessionEnd_RequestLogout(&app->session_end);
     TEST_ASSERT(!app_logout_tick(app), "the tick that drained the request ended nothing");
     TEST_ASSERT(
-        app->logout_wait_cycles == APP_LOGOUT_WAIT_CYCLES,
+        app->session_end.logout_wait_cycles == APP_LOGOUT_WAIT_CYCLES,
         "the wait for the server's answer is armed, at the reference's 250 cycles");
-    TEST_ASSERT(!app->logout_requested, "the request was drained, not left to re-arm");
+    TEST_ASSERT(!app->session_end.logout_requested, "the request was drained, not left to re-arm");
     TEST_ASSERT(net->state == TORIRS_NET_GAME, "still in the game stream");
     TEST_ASSERT(!disconnect_queued(net), "nothing closed the socket on the player's behalf");
 
@@ -123,7 +125,7 @@ test_a_refused_logout_keeps_the_session(void)
 
     printf("TEST: a logout nothing answers leaves the player in the world\n");
 
-    app->logout_requested = 1;
+    SessionEnd_RequestLogout(&app->session_end);
     app_logout_tick(app);
     for( int cycle = 1; cycle <= 4 * APP_LOGOUT_WAIT_CYCLES && ended_on_cycle < 0; cycle++ )
     {
@@ -133,19 +135,19 @@ test_a_refused_logout_keeps_the_session(void)
          * combat delay has run out. It goes to the server; it ends nothing
          * here either. */
         if( cycle == 2 * APP_LOGOUT_WAIT_CYCLES )
-            app->logout_requested = 1;
+            SessionEnd_RequestLogout(&app->session_end);
     }
 
     TEST_ASSERT(ended_on_cycle < 0, "nothing but the server ended the session");
     TEST_ASSERT(
-        app->logout_wait_cycles == APP_LOGOUT_WAIT_CYCLES,
+        app->session_end.logout_wait_cycles == APP_LOGOUT_WAIT_CYCLES,
         "the wait is still armed, so the server's answer is still read as a logout");
     TEST_ASSERT(net->state == TORIRS_NET_GAME, "still in the game stream");
     TEST_ASSERT(!disconnect_queued(net), "nothing closed the socket on the player's behalf");
 
     /* ...and the answer, whenever it comes, is still the logout. */
     app_net_lost(app, "socket closed");
-    TEST_ASSERT(app->logout_wait_cycles == 0, "the answer ended the wait");
+    TEST_ASSERT(app->session_end.logout_wait_cycles == 0, "the answer ended the wait");
     TEST_ASSERT(
         !NetLinkWatch_Lost(&app->net_link),
         "the late answer was not read as a lost connection to redial");
@@ -167,11 +169,11 @@ test_a_closed_socket_is_the_answer(void)
 
     printf("TEST: a socket that closes during the wait IS the logout\n");
 
-    app->logout_requested = 1;
+    SessionEnd_RequestLogout(&app->session_end);
     app_logout_tick(app);
     app_net_lost(app, "socket closed");
 
-    TEST_ASSERT(app->logout_wait_cycles == 0, "the answer ended the wait");
+    TEST_ASSERT(app->session_end.logout_wait_cycles == 0, "the answer ended the wait");
     TEST_ASSERT(
         !NetLinkWatch_Lost(&app->net_link),
         "the link was not left lost, so nothing redials the world the player left");
@@ -224,7 +226,7 @@ test_a_logout_forgets_the_resumable_session(void)
     TEST_ASSERT(
         strcmp(app_session_resume_user(), "zezima") == 0, "the session was there to lose");
 
-    app->logout_requested = 1;
+    SessionEnd_RequestLogout(&app->session_end);
     app_logout_tick(app);
     app_net_lost(app, "socket closed"); /* the server's answer: see above */
 
@@ -272,9 +274,9 @@ test_no_session_means_no_wait(void)
 
     printf("TEST: with no session to answer, the click ends it at once\n");
 
-    app->logout_requested = 1;
+    SessionEnd_RequestLogout(&app->session_end);
     TEST_ASSERT(app_logout_tick(app), "the session ended on the tick that drained the request");
-    TEST_ASSERT(app->logout_wait_cycles == 0, "nothing was armed to wait for");
+    TEST_ASSERT(app->session_end.logout_wait_cycles == 0, "nothing was armed to wait for");
 
     free(app);
 }

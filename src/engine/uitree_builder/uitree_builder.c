@@ -66,6 +66,20 @@ UITreeBuilder_Free(struct UITreeBuilder* builder)
     builder->onload_count = builder->onload_cap = 0;
 }
 
+void
+UITreeBuilder_SetActive(struct UITreeBuilder* builder)
+{
+    assert(builder);
+    builder->active = 1;
+}
+
+int
+UITreeBuilder_Active(struct UITreeBuilder const* builder)
+{
+    assert(builder);
+    return builder->active;
+}
+
 static void*
 grow(
     void* ptr,

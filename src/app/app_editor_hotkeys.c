@@ -22,9 +22,9 @@
  *      (Ctrl+S saves and never also flies the camera back);
  *   5. dispatch: each fired action through the function its menu row or
  *      button calls (Editor_HotkeyRun, edpanel_hotkeys.c), the App-bound ones
- *      here; a discrete action consumes the frame (`input_frame_consumed`),
- *      its key is marked in `hotkey_consumed` (re-marked after
- *      app_ui_hotkeys clears that array), and it is logged as
+ *      here; a discrete action takes the frame (ToriRS_InputClaimsTakeFrame),
+ *      its key is claimed in `input_claims` (claimed again after
+ *      app_ui_hotkeys clears the keys), and it is logged as
  *      "editor: <action> (<chord>)".
  *
  * The camera's held flight is read by app_world_camera_keys
@@ -57,7 +57,7 @@ static struct
      *  pointer" actions (pop out, close). */
     int mouse_x;
     int mouse_y;
-    /** OSRS key codes of the keys that acted (hotkey_consumed's index). */
+    /** OSRS key codes of the keys that acted (input_claims' key index). */
     unsigned char consumed_osrs[TORIRS_OSRSKEY_COUNT];
     int consumed_any;
 
@@ -148,15 +148,15 @@ app_hk_chrome_focus(
     static const int k_slider[] = { TORIRSK_LEFT, TORIRSK_RIGHT, TORIRSK_HOME, TORIRSK_END, TORIRSK_ESCAPE };
     static const int k_well[] = { TORIRSK_LEFT, TORIRSK_RIGHT, TORIRSK_UP, TORIRSK_DOWN, TORIRSK_HOME, TORIRSK_END,
         TORIRSK_RETURN, TORIRSK_BACKSPACE, TORIRSK_DELETE, TORIRSK_ESCAPE, TORIRSK_MINUS, TORIRSK_EQUALS };
-    int const focus = app->dbg_ui.focus;
+    int const focus = app->dev_overlay->ui.focus;
     const int* keys;
     int count;
     int kind;
 
     memset(own, 0, TORIRSK_COUNT);
-    if( focus < 0 || focus >= app->dbg_ui.widget_count )
+    if( focus < 0 || focus >= app->dev_overlay->ui.widget_count )
         return 0;
-    kind = app->dbg_ui.widgets[focus].kind;
+    kind = app->dev_overlay->ui.widgets[focus].kind;
     if( kind == TORIRS_CHROME_W_VLIST )
     {
         keys = k_list;
@@ -188,7 +188,7 @@ app_hk_consume_key(
     if( osrs >= 0 && osrs < TORIRS_OSRSKEY_COUNT )
     {
         g_app_hk.consumed_osrs[osrs] = 1;
-        app->hotkey_consumed[osrs] = 1;
+        ToriRS_InputClaimsClaimKey(&app->input_claims, osrs);
         g_app_hk.consumed_any = 1;
     }
 }
@@ -210,14 +210,15 @@ app_hk_hover(
      * it is for the panels' hover service. */
     if( app_map_editor_hover_env_tile(out_x, out_z) )
     {
-        *out_level = Editor_PanelEditLevel(&app->editor_panel, app);
+        *out_level = Editor_PanelEditLevel(&app->editor_shell->editor_panel, app);
         return 1;
     }
-    if( !app->world || !Editor_PanelHoverTile(&app->editor_panel, app, &scene_x, &scene_z) )
+    if( !app->world ||
+        !Editor_PanelHoverTile(&app->editor_shell->editor_panel, app, &scene_x, &scene_z) )
         return 0;
     *out_x = app->world->_base_tile_x + scene_x;
     *out_z = app->world->_base_tile_z + scene_z;
-    *out_level = Editor_PanelEditLevel(&app->editor_panel, app);
+    *out_level = Editor_PanelEditLevel(&app->editor_shell->editor_panel, app);
     return 1;
 }
 
@@ -271,12 +272,13 @@ app_hk_pick_loc(
     int level;
     int idx;
 
-    if( !app->world || !Editor_PanelHoverTile(&app->editor_panel, app, &scene_x, &scene_z) )
+    if( !app->world ||
+        !Editor_PanelHoverTile(&app->editor_shell->editor_panel, app, &scene_x, &scene_z) )
     {
         Editor_UiStatus(ui, "Pick refused: no tile under the pointer to pick from");
         return;
     }
-    level = Editor_PanelEditLevel(&app->editor_panel, app);
+    level = Editor_PanelEditLevel(&app->editor_shell->editor_panel, app);
     idx = World_SceneryFindAt(app->world, scene_x, scene_z, level, -1);
     scenery = idx >= 0 ? World_EntityPoolGet(&app->world->entities.scenery, idx) : NULL;
     if( !scenery )
@@ -424,7 +426,7 @@ app_hk_deselect(
     struct App* app,
     struct EditorUi* ui)
 {
-    struct Editor_Panel* panel = &app->editor_panel;
+    struct Editor_Panel* panel = &app->editor_shell->editor_panel;
 
     if( panel->stroke_active )
     {
@@ -471,7 +473,7 @@ app_hk_select_same(
     struct App* app,
     struct EditorUi* ui)
 {
-    struct Editor_Panel* panel = &app->editor_panel;
+    struct Editor_Panel* panel = &app->editor_shell->editor_panel;
     int hx;
     int hz;
 
@@ -487,7 +489,7 @@ app_hk_run(
     struct EditorUi* ui,
     enum Editor_HotkeyAction action)
 {
-    struct Editor_Panel* panel = &app->editor_panel;
+    struct Editor_Panel* panel = &app->editor_shell->editor_panel;
     int x;
     int z;
     int level;
@@ -508,7 +510,7 @@ app_hk_run(
             (void)Editor_PanelPlaceLocAt(panel, app, hx, hz, Editor_PanelEditLevel(panel, app));
         else
             Editor_UiLog(ui, "editor: point at the tile to place on");
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
         break;
     }
     case EDITOR_HK_EDIT_SELECT_SQUARE:
@@ -741,7 +743,7 @@ app_editor_hotkeys_flush(struct App* app)
     struct EditorUi* ui;
 
     assert(app);
-    ui = app->editor_panel.ui;
+    ui = app->editor_shell->editor_panel.ui;
     if( !ui )
         return;
     /* A save the tick queued last frame may still sit in the queue, which
@@ -776,12 +778,13 @@ app_editor_hotkeys_frame(
     g_app_hk.valid = 0;
     memset(g_app_hk.consumed_osrs, 0, sizeof(g_app_hk.consumed_osrs));
     g_app_hk.consumed_any = 0;
-    if( !app->editor || !app->editor_panel.built || !app->editor_panel.ui )
+    if( !app->editor || !app->editor_shell->editor_panel.built ||
+        !app->editor_shell->editor_panel.ui )
         return;
-    ui = app->editor_panel.ui;
+    ui = app->editor_shell->editor_panel.ui;
     app_hk_io_tick(app, ui);
     app_hk_recent_tick(app, ui);
-    if( !app->editor_panel.visible )
+    if( !app->editor_shell->editor_panel.visible )
         return;
 
     app_hk_snapshot(app, ui, input, &snapshot);
@@ -797,7 +800,7 @@ app_editor_hotkeys_frame(
         if( pending >= 0 )
         {
             app_hk_run(app, ui, (enum Editor_HotkeyAction)pending);
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
         }
     }
     /* The Unity camera scheme's presses, ahead of the editor's world click. */
@@ -820,8 +823,8 @@ app_editor_hotkeys_frame(
         g_app_hk.valid = 1;
         if( any )
         {
-            app->input_frame_consumed = 1;
-            app->need_redraw = 1;
+            ToriRS_InputClaimsTakeFrame(&app->input_claims);
+            RedrawRequest_Raise(&app->redraw_request);
         }
         return;
     }
@@ -848,8 +851,8 @@ app_editor_hotkeys_frame(
         g_app_hk.valid = 1;
         if( any )
         {
-            app->input_frame_consumed = 1;
-            app->need_redraw = 1;
+            ToriRS_InputClaimsTakeFrame(&app->input_claims);
+            RedrawRequest_Raise(&app->redraw_request);
         }
         Editor_HotkeySnapHold(ui, 0);
         return;
@@ -859,8 +862,8 @@ app_editor_hotkeys_frame(
      * so the text-field gate below would shut everything; the graph's own
      * rows (context Q: N, Ctrl+L) resolve against it instead, and nothing
      * else does. */
-    if( Builder_GraphFocused(ui) && app->plugin_ui.focus < 0 && !app_text_input_focused_outside_chrome(app)
-        && !app_modelview_focused(app) && ui->chrome->dropdown_open < 0 && !app->frame_view->minimenu->visible )
+    if( Builder_GraphFocused(ui) && app->plugin_win->ui.focus < 0 && !app_text_input_focused_outside_chrome(app)
+        && !app_modelview_focused(app) && ui->chrome->dropdown_open < 0 && !app->world_views.frame->minimenu->visible )
     {
         memset(ui->hotkeys.repeat_held, 0, sizeof(ui->hotkeys.repeat_held));
         (void)Builder_GraphKeys(ui, &snapshot, &g_app_hk.frame);
@@ -875,8 +878,8 @@ app_editor_hotkeys_frame(
             char text[32];
             Editor_ChordDisplay(g_app_hk.frame.fired_chord[i], text, (int)sizeof(text));
             Editor_UiLog(ui, "editor: %s (%s)", Editor_HotkeyInfo(g_app_hk.frame.fired[i])->name, text);
-            app->input_frame_consumed = 1;
-            app->need_redraw = 1;
+            ToriRS_InputClaimsTakeFrame(&app->input_claims);
+            RedrawRequest_Raise(&app->redraw_request);
         }
         Editor_HotkeySnapHold(ui, 0);
         return;
@@ -887,8 +890,8 @@ app_editor_hotkeys_frame(
      * and of the developer chrome only what app_hk_chrome_focus calls typing.
      * A focused list, slider or well does not. */
     if( app_hk_chrome_focus(app, chrome_own) || app_text_input_focused_outside_chrome(app)
-        || app->plugin_ui.focus >= 0 || app_modelview_focused(app) || ui->chrome->dropdown_open >= 0
-        || app->frame_view->minimenu->visible )
+        || app->plugin_win->ui.focus >= 0 || app_modelview_focused(app) || ui->chrome->dropdown_open >= 0
+        || app->world_views.frame->minimenu->visible )
     {
         /* Nothing resolves, but a repeater must not fire the moment the
          * gate lifts on a key that is still held from before it. */
@@ -934,12 +937,12 @@ app_editor_hotkeys_frame(
                 Editor_UiLog(ui, "%s", note);
         }
         app_hk_run(app, ui, action);
-        app->input_frame_consumed = 1;
-        app->need_redraw = 1;
+        ToriRS_InputClaimsTakeFrame(&app->input_claims);
+        RedrawRequest_Raise(&app->redraw_request);
     }
     for( int a = 0; a < EDITOR_HK_COUNT; a++ )
         if( g_app_hk.frame.active[a] )
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
     Editor_HotkeySnapHold(ui, g_app_hk.frame.active[EDITOR_HK_VIEW_SNAP_HOLD]);
 }
 
@@ -969,7 +972,8 @@ int
 app_editor_hotkeys_owns_camera(struct App const* app)
 {
     assert(app);
-    return app->editor && app->editor_panel.built && app->editor_panel.visible && app->editor_panel.ui;
+    return app->editor && app->editor_shell->editor_panel.built &&
+           app->editor_shell->editor_panel.visible && app->editor_shell->editor_panel.ui;
 }
 
 void
@@ -980,5 +984,5 @@ app_editor_hotkeys_mark_consumed(struct App* app)
         return;
     for( int k = 0; k < TORIRS_OSRSKEY_COUNT; k++ )
         if( g_app_hk.consumed_osrs[k] )
-            app->hotkey_consumed[k] = 1;
+            ToriRS_InputClaimsClaimKey(&app->input_claims, k);
 }

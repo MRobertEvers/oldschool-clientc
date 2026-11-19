@@ -396,6 +396,33 @@ Wevs_Init(struct Wevs* wevs)
         wevs->wevs[i].id = i;
         wevs->wevs[i].parent_view_id = WORLDVIEW_PARENT_NONE;
     }
+    wevs->aboard_view = WORLDVIEW_ROOT;
+}
+
+int
+Wevs_AboardView(struct Wevs const* wevs)
+{
+    assert(wevs);
+    return wevs->aboard_view;
+}
+
+void
+Wevs_SetAboardView(
+    struct Wevs* wevs,
+    int view_id)
+{
+    assert(wevs);
+    wevs->aboard_view = view_id;
+}
+
+void
+Wevs_AboardViewGone(
+    struct Wevs* wevs,
+    int view_id)
+{
+    assert(wevs);
+    if( wevs->aboard_view == view_id )
+        wevs->aboard_view = WORLDVIEW_ROOT;
 }
 
 bool

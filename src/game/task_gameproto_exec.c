@@ -235,7 +235,8 @@ Task_GameProtoExec_Run(
     if( self->packet.packet_type != PKT_NAME_SERVER_TICK_END && !app->drive_events.batch_open )
     {
         app->drive_events.batch_open = 1;
-        app->drive_events.batch_open_cycle = (int)app->logic_cycle;
+        app->drive_events.batch_open_cycle =
+            (int)FrameClockSerial_LogicCycle(&app->frame_clock.serial);
     }
 
     /* Entity command streams decode + apply inside their own awaited tasks
@@ -263,10 +264,9 @@ Task_GameProtoExec_Run(
          * shift, camera/minimap, App_WorldLoadFinish) acts on the ROOT scene,
          * whatever worldArea the packet carries (rebuild_view). */
         {
-            int force = self->packet.packet_type == PKT_NAME_REBUILD_REGION ||
-                        app->net_force_rebuild;
+            int const forced = RS_RebuildRegion_TakeForced(&app->rebuild_region);
+            int force = self->packet.packet_type == PKT_NAME_REBUILD_REGION || forced;
 
-            app->net_force_rebuild = 0;
             /* Asked before Begin, which would otherwise blank the viewport
              * the background mode exists to keep. */
             self->background = App_WorldJobWanted(app);
@@ -280,7 +280,7 @@ Task_GameProtoExec_Run(
             rebuild_compute_chunks(self);
         if( self->packet._map_rebuild.region_count > 0 )
             rebuild_put_keys(self);
-        /* Background mode (App::world_rebuild_background): the same rebuild
+        /* Background mode (WorldRebuildJob_Background): the same rebuild
          * as a world job. Its gather runs on the background queue while the
          * old scene stays up and the pump holds every packet behind this
          * one; the build and everything below the await here run at its
@@ -293,26 +293,18 @@ Task_GameProtoExec_Run(
                 self->packet._map_rebuild.zones);
             PT_EXIT(&self->pt);
         }
-        /* Kept for the plugins: @see App::rebuild_instance_zones. */
+        /* Kept for the plugins: @see game/rs_rebuild_region.h. */
         _Static_assert(
-            sizeof(app->rebuild_instance_zones) ==
-                PKT_MAP_REBUILD_ZONES * sizeof(app->rebuild_instance_zones[0]),
-            "the kept grid is the packet's");
-        app->rebuild_instance_active = self->packet._map_rebuild.zones != NULL;
-        app->rebuild_instance_zone_x = self->zone_x;
-        app->rebuild_instance_zone_z = self->zone_z;
-        if( app->rebuild_instance_active )
-            memcpy(
-                app->rebuild_instance_zones,
-                self->packet._map_rebuild.zones,
-                sizeof(app->rebuild_instance_zones));
+            RS_REBUILD_REGION_ZONES == PKT_MAP_REBUILD_ZONES, "the kept grid is the packet's");
+        RS_RebuildRegion_KeepInstance(
+            &app->rebuild_region, self->packet._map_rebuild.zones, self->zone_x, self->zone_z);
         /* Entities carry scene-local coords relative to the old base;
          * capture it so they can be shifted onto the new one (Client-TS
          * shifts by mapBuildBaseX - mapBuildPrevBaseX). (world, builder)
          * resolve through rebuild_view() at every use rather than into a
          * local: locals do not survive the protothread await below. */
         self->had_world =
-            app->world_active && app->world && rebuild_view(self)->world->load_complete;
+            WorldLoadState_Active(&app->world_load) && app->world && rebuild_view(self)->world->load_complete;
         self->prev_base_x = self->had_world ? rebuild_view(self)->world->_base_tile_x : 0;
         self->prev_base_z = self->had_world ? rebuild_view(self)->world->_base_tile_z : 0;
         /* The load in its two halves, so the drain below can sit between
@@ -370,7 +362,7 @@ Task_GameProtoExec_Run(
          * (deob field5861; V3+ carries no view id on the wire), captured into
          * the task before the first await: SERVER_TICK_END resets the cursor,
          * and it execs behind this task on the same serial queue. */
-        self->wev_view_id = app->active_world;
+        self->wev_view_id = WorldviewRegistry_Active(&app->worldviews);
         /* The root has no deck: its rebuilds arrive as REBUILD_NORMAL /
          * REBUILD_REGION above, so a cursor still on the root here is a
          * protocol violation — and a cursor whose view died between the
@@ -489,7 +481,7 @@ Task_GameProtoExec_Run(
                 wev_view(self)->world->_base_tile_x,
                 wev_view(self)->world->_base_tile_z,
                 wev_view(self)->world->load_complete);
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
     }
     else if( self->packet.packet_type == PKT_NAME_OBJ_ADD ||
              self->packet.packet_type == PKT_NAME_OBJ_REVEAL ||
@@ -509,7 +501,7 @@ Task_GameProtoExec_Run(
                 .app = app,
             };
             RS_GameProto_Exec(&ctx, &self->packet);
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
         }
     }
     else if( self->packet.packet_type == PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED )
@@ -525,10 +517,10 @@ Task_GameProtoExec_Run(
                 .app = app,
             };
             RS_GameProto_Exec(&ctx, &self->packet);
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
         }
     }
-    else if( self->packet.packet_type == PKT_NAME_PLAYER_INFO && app->world_active )
+    else if( self->packet.packet_type == PKT_NAME_PLAYER_INFO && WorldLoadState_Active(&app->world_load) )
     {
         PT_TASK_AWAITSELF_IF(CreateTask_ExecPlayerInfo(
             app, self->packet._player_info.data, self->packet._player_info.length));
@@ -553,7 +545,7 @@ Task_GameProtoExec_Run(
              * is present in every build; only the plugin-host dispatch below
              * stays gated on app->plugins, the same shape as the spawn/despawn/
              * retype stamps in app_world_spawn.c. */
-            app->server_tick_serial++;
+            RS_ServerTick_EndUnfenced(&app->server_tick);
             app->drive_events.batch_open = 0;
             App_DriveEvent(
                 app, DRIVE_EVENT_SERVER_TICK, app->world ? app->world->cycle : 0, 0, 0, 0);
@@ -563,7 +555,7 @@ Task_GameProtoExec_Run(
     }
     else if( (self->packet.packet_type == PKT_NAME_NPC_INFO ||
               self->packet.packet_type == PKT_NAME_NPC_INFO_LARGE) &&
-             app->world_active )
+             WorldLoadState_Active(&app->world_load) )
     {
         PT_TASK_AWAITSELF_IF(CreateTask_ExecNpcInfo(
             app, self->packet._npc_info.data, self->packet._npc_info.length,
@@ -588,7 +580,7 @@ Task_GameProtoExec_Run(
             .app = app,
         };
         RS_GameProto_Exec(&ctx, &self->packet);
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
     }
 
     PT_END(&self->pt);

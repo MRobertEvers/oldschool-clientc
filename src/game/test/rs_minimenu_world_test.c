@@ -756,7 +756,7 @@ test_other_player_stack_rows(void)
  * The armed half of "Edit-navigator": what a target selection's mask decides
  * about a world player row.
  *
- * `App::targetsel.mask` is copied straight onto `RS_MinimenuSelection::
+ * `App::target_select.target.mask` is copied straight onto `RS_MinimenuSelection::
  * target_mask` (app.c), so this is the exact gate an armed click passes
  * through. It used to be filled from `node->behavior.target_mask`, which is 0
  * for a `cc_create`d child — no `cc_` opcode can write a target mask — and the
@@ -1655,6 +1655,16 @@ static void test_checked_widget_native_actions(void)
         "native tree remount preserves chat modes while retiring old mount identities");
     RS_UISlots_SetChatFilter(&slots,RS_UI_CHAT_FILTER_PUBLIC,0);
     TEST_ASSERT(slots.chat_filter_mode[RS_UI_CHAT_FILTER_PUBLIC]==0,"later native chat mode remains authoritative after remount");
+    TEST_ASSERT(RS_UISlots_ModalHost(&slots)==-1,"no modal has mounted on fresh slots");
+    RS_UISlots_SetModalHost(&slots,(548<<16)|16);
+    TEST_ASSERT(RS_UISlots_ClosingModalsBegin(&slots),"a modal close can start");
+    TEST_ASSERT(!RS_UISlots_ClosingModalsBegin(&slots),"a nested modal close cannot re-enter");
+    RS_UISlots_RebindTree(&slots,replacement);
+    TEST_ASSERT(RS_UISlots_ModalHost(&slots)==((548<<16)|16),"a remount keeps where modals open");
+    TEST_ASSERT(!RS_UISlots_ClosingModalsBegin(&slots),"a remount inside a modal close keeps the guard");
+    RS_UISlots_ClosingModalsEnd(&slots);
+    TEST_ASSERT(RS_UISlots_ClosingModalsBegin(&slots),"an ended close lets the next one start");
+    RS_UISlots_ClosingModalsEnd(&slots);
     UITree_Free(replacement);
     for( int if3=0;if3<2;++if3 )
     {

@@ -58,4 +58,39 @@ ToriRSPreviewState_ApplyFile(
     char* error,
     size_t error_capacity);
 
+/**
+ * What applying a preview-state file said, kept for the rest of the boot.
+ *
+ * `failed` is the verdict the headless caller turns into a non-zero process
+ * exit once the boot returns. `stat_mask` has one bit per seeded skill, for
+ * the post-build stat transmit; a file that cannot be opened or read leaves
+ * it as it was, as ToriRSPreviewState_ApplyFile leaves its mask.
+ */
+struct ToriRSPreviewStateOutcome
+{
+    int failed;
+    uint32_t stat_mask;
+};
+
+/** ToriRSPreviewState_ApplyFile, with its verdict and its stat mask kept in
+ *  `outcome`. Returns what ApplyFile returns. */
+int
+ToriRSPreviewState_ApplyFileOutcome(
+    char const* path,
+    struct VarPManager* varps,
+    struct VarCManager* varcs,
+    struct RS_PlayerStats* stats,
+    int* applied_count,
+    struct ToriRSPreviewStateOutcome* outcome,
+    char* error,
+    size_t error_capacity);
+
+/** The last apply into `outcome` failed. */
+int
+ToriRSPreviewState_OutcomeFailed(struct ToriRSPreviewStateOutcome const* outcome);
+
+/** The skills the last apply into `outcome` seeded, one bit per skill id. */
+uint32_t
+ToriRSPreviewState_OutcomeStatMask(struct ToriRSPreviewStateOutcome const* outcome);
+
 #endif

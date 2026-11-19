@@ -104,7 +104,7 @@ struct UIInteraction
      * lands inside a scrollable layer and is HELD (the touch layer sends a
      * press on its own only for a drag; a tap arrives press-and-release
      * together) scrolls that layer by its travel, and nothing under the
-     * finger is pressed. Set `touch_scroll` beside App.touch_ui; a mouse
+     * finger is pressed. Set `touch_scroll` beside DeviceCaps.touch_ui; a mouse
      * never takes this path. `ts_layer` is the layer being scrolled, -1
      * between gestures; the incarnation guards a rebuilt tree.
      */
@@ -116,6 +116,12 @@ struct UIInteraction
     /** A captured swipe target was suppressed/rebuilt mid-press. Keep owning
      * the physical gesture through release so it cannot retarget underneath. */
     int ts_press_cancelled;
+    /** What the last frame reported, kept by UIInteraction_Publish for the
+     * readers that run between frames (the emit walk, the world map drag, the
+     * plugin layer): the hovered component, -1 for none, which is not
+     * `hover_com_id` above -- a frame that runs no hover pass reports -1 and
+     * leaves that one as it was. -1 after Init. */
+    int published_hover_com_id;
 };
 
 #define UI_INTENT_MAX 16
@@ -277,6 +283,12 @@ struct UIInteractOut
 
 void
 UIInteraction_Init(struct UIInteraction* interact);
+
+/** Keep the hovered component `out` reported. */
+void
+UIInteraction_Publish(
+    struct UIInteraction* interact,
+    struct UIInteractOut const* out);
 
 /** Run one frame of interaction against the tree. now_ms gates the once-per-
  * client-cycle hooks (onMouseRepeat). */

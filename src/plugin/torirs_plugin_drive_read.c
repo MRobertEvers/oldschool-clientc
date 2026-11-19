@@ -56,23 +56,6 @@
 #include <stdio.h>
 #include <string.h>
 
-/*
- * struct App::if_heads[].kind stores an `enum AppIfHeadKind`
- * (src/app/app_if_models.c) -- and that enum is declared INSIDE that .c
- * file, not in a header, so no other translation unit may spell its members
- * by name. The four raw values below are that enum's fixed, ordinary
- * (unnumbered, sequential) C layout as of app_if_models.c:16-25:
- *   0 = APP_IFHEAD_NPC, 1 = APP_IFHEAD_PLAYER, 2 = APP_IFHEAD_OBJ,
- *   3 = APP_IFHEAD_MODEL.
- * If that file ever assigns explicit values, or app_if_models.c's owner
- * exports the enum to app.h, this mapping (and its bridge.u.c twin under the
- * PLUGIN_WIDGET_MODEL case) must move onto the named constants instead.
- */
-#define APP_IFHEAD_RAW_NPC 0
-#define APP_IFHEAD_RAW_PLAYER 1
-#define APP_IFHEAD_RAW_OBJ 2
-#define APP_IFHEAD_RAW_MODEL 3
-
 enum DriveResult
 DriveRead_WidgetModel(struct App* app, int component_id, int* out_kind, int* out_id)
 {
@@ -85,32 +68,31 @@ DriveRead_WidgetModel(struct App* app, int component_id, int* out_kind, int* out
     *out_kind = DRIVE_WIDGET_MODEL_NONE;
     *out_id = -1;
 
-    for( i = 0; i < app->if_head_count; i++ )
+    i = UIIfModels_HeadIndex(&app->if_models, component_id);
+    if( i >= 0 )
     {
-        if( app->if_heads[i].com_id != component_id )
-            continue;
+        struct UIIfHead const* head = &app->if_models.heads[i];
 
-        switch( app->if_heads[i].kind )
+        switch( head->kind )
         {
-        case APP_IFHEAD_RAW_NPC:
+        case UI_IFHEAD_NPC:
             *out_kind = DRIVE_WIDGET_MODEL_NPC;
-            *out_id = app->if_heads[i].npc_id;
+            *out_id = head->npc_id;
             break;
-        case APP_IFHEAD_RAW_OBJ:
+        case UI_IFHEAD_OBJ:
             *out_kind = DRIVE_WIDGET_MODEL_OBJ;
-            *out_id = app->if_heads[i].npc_id;
+            *out_id = head->npc_id;
             break;
-        case APP_IFHEAD_RAW_MODEL:
+        case UI_IFHEAD_MODEL:
             *out_kind = DRIVE_WIDGET_MODEL_MODEL;
-            *out_id = app->if_heads[i].npc_id;
+            *out_id = head->npc_id;
             break;
-        case APP_IFHEAD_RAW_PLAYER:
+        case UI_IFHEAD_PLAYER:
         default:
             /* A player portrait carries no raw identity to check against --
              * it is always the local player -- so this stays NONE/-1. */
             break;
         }
-        break;
     }
     return DRIVE_OK;
 }
@@ -155,7 +137,7 @@ DriveRead_WidgetPresented(struct App* app, int64_t widget, int* out_presented)
         return DRIVE_NOT_FOUND;
 
     *out_presented = !UITree_NodeOrAncestorDisplayHidden(tree, idx) &&
-        UITree_NodeNativeVisible(tree, &app->ui_host, idx, app->hover_com_id);
+        UITree_NodeNativeVisible(tree, &app->ui_host, idx, app->interact.published_hover_com_id);
     return DRIVE_OK;
 }
 
@@ -583,7 +565,7 @@ lua_drive_widget_find_op(struct lua_State* L)
                 lua_pushinteger(L, h);
                 lua_setfield(L, -2, "height");
                 lua_pushboolean(L, !UITree_NodeOrAncestorDisplayHidden(tree, n) &&
-                    UITree_NodeNativeVisible(tree, &app->ui_host, n, app->hover_com_id));
+                    UITree_NodeNativeVisible(tree, &app->ui_host, n, app->interact.published_hover_com_id));
                 lua_setfield(L, -2, "presented");
                 return 2;
             }

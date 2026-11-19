@@ -38,7 +38,7 @@ App_SetWorldRenderMode(
     enum ToriRS_WorldRenderMode mode)
 {
     if( app )
-        app->world_render_mode = mode;
+        RenderMode_SetWorld(&app->render_mode, mode);
 }
 
 void
@@ -47,7 +47,7 @@ App_SetRendererAnimatesTextures(
     bool animates)
 {
     assert(app);
-    app->renderer_animates_textures = animates;
+    RenderMode_SetRendererAnimatesTextures(&app->render_mode, animates);
 }
 
 void
@@ -56,7 +56,7 @@ App_SetSoftwareRsZBuffer(
     bool rszbuffer)
 {
     assert(app);
-    app->software_rszbuffer = rszbuffer;
+    RenderMode_SetSoftwareRsZBuffer(&app->render_mode, rszbuffer);
 }
 
 void
@@ -65,7 +65,7 @@ App_RefreshAfterTreeMutation(struct App* app)
     assert(app);
     UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     app_request_cs1_eval(app);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 bool
@@ -75,8 +75,8 @@ App_IsBooting(
 {
     assert(app);
     if( out_progress )
-        *out_progress = app->boot_progress;
-    return app->app_state == APP_STATE_BOOTING;
+        *out_progress = RS_BootState_Progress(&app->boot);
+    return RS_ClientPhase_Booting(&app->phase);
 }
 
 int
@@ -85,7 +85,7 @@ App_BootHoldsLastFrame(struct App const* app)
     assert(app);
     /* Both halves, because the flag outlives nothing but its own bake: a bake
      * that has settled is READY and draws normally whatever the flag says. */
-    return app->app_state == APP_STATE_BOOTING && app->boot_hold_last_frame;
+    return RS_ClientPhase_HoldsLastFrame(&app->phase);
 }
 
 bool
@@ -98,7 +98,7 @@ App_BuildFrame(
     assert(app);
     assert(frame);
 
-    if( app->app_state == APP_STATE_BOOTING )
+    if( RS_ClientPhase_Booting(&app->phase) )
         return false;
 
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_BUILD)
@@ -126,10 +126,10 @@ App_BuildFrame(
                 frame,
                 app->world,
                 app->painter_buffer,
-                &app->frame_view->world_camera,
-                app->frame_view->world_camera_pos.x,
-                app->frame_view->world_camera_pos.y,
-                app->frame_view->world_camera_pos.z);
+                &app->world_views.frame->world_camera,
+                app->world_views.frame->world_camera_pos.x,
+                app->world_views.frame->world_camera_pos.y,
+                app->world_views.frame->world_camera_pos.z);
             frame->skybox = app_skybox_handle(app);
             /* Must follow SetWorld: it resets slot 0 to the root identity. */
             app_wev_bind_frame_xforms(app, frame);
@@ -141,7 +141,9 @@ App_BuildFrame(
              * a whole phase before this paint exists. */
             app_world_tile_marks_place(app);
             ToriRS_FrameSetWorldTileMarks(
-                frame, app->world_tile_marks, app->world_tile_mark_count);
+                frame,
+                TileMarkStage_Marks(&app->tile_marks),
+                TileMarkStage_Count(&app->tile_marks));
         }
     }
     return true;
@@ -166,7 +168,7 @@ App_PickFinish(
  * What is skipped is App_Render (world paint + 3D + the 2D raster) and the
  * present. NOT skipped, because App_RunOnce does it before the host is asked
  * to draw: the logic tick, input, the network, the plugins, the UI layout and
- * the emit walk (app->emit, and from it app->world_emit_desc, the viewport
+ * the emit walk (app->emit, and from it app->world_views.emit_desc, the viewport
  * rectangle every projection and the world gate read). So hit testing, the
  * camera and every projection stay exactly current.
  *
@@ -180,7 +182,7 @@ App_PickFinish(
  *
  * What the draw itself produces, and so what goes stale on a skipped frame:
  *
- *   1. app->frame_view->world_pickset and the hover tile -- App_PickFinish, from the pick
+ *   1. app->world_views.frame->world_pickset and the hover tile -- App_PickFinish, from the pick
  *      the rasteriser runs at the pointer as each model projects. Read by the
  *      right-click menu build, the left-click default action, the mouseover
  *      text, and api.drive.pick_holds / pick_point.
@@ -236,24 +238,19 @@ App_RenderSkipSet(
     assert(app);
     /* A watched client with a script attached presents every frame: the
      * watcher is looking at it. Skip stays off until the script detaches. */
-    if( enabled && app->view_split.attached )
+    if( enabled && app->world_views.split.attached )
     {
         TORIRS_LOG("render-skip: refused while a script's view is attached (the watcher's frames are presented)\n");
         return;
     }
-    if( enabled && !app->render_skip.enabled )
-    {
-        app->render_skip.fresh = 1;
-        app->render_skip.catch_up_ok = 0;
-    }
-    app->render_skip.enabled = enabled ? 1 : 0;
+    RenderSkip_Set(&app->render_skip, enabled);
 }
 
 int
 App_RenderSkipEnabled(struct App const* app)
 {
     assert(app);
-    return app->render_skip.enabled;
+    return RenderSkip_Enabled(&app->render_skip);
 }
 
 void
@@ -262,13 +259,9 @@ App_RenderSkipHold(
     int hold)
 {
     assert(app);
-    if( !hold && app->render_skip.hold )
-    {
-        /* What was held back is drawn now, skip on or off. */
-        app->render_skip.draw_frames = app->render_skip.draw_frames > 1 ? app->render_skip.draw_frames : 1;
-        app->need_redraw = 1;
-    }
-    app->render_skip.hold = hold ? 1 : 0;
+    /* A release owes one drawn frame, skip on or off. */
+    if( RenderSkip_Hold(&app->render_skip, hold) )
+        RedrawRequest_Raise(&app->redraw_request);
 }
 
 void
@@ -280,14 +273,13 @@ App_RenderSkipRequestDraw(
     assert(frames > 0);
     /* Split (App_ViewSplit): every caller is a driver push -- the frame it
      * owes is the RUNNER's, drawn offscreen before the presented one. */
-    if( app->view_split.attached )
+    if( app->world_views.split.attached )
     {
-        if( app->view_split.runner_draw_owed < frames )
-            app->view_split.runner_draw_owed = frames;
+        if( app->world_views.split.runner_draw_owed < frames )
+            app->world_views.split.runner_draw_owed = frames;
         return;
     }
-    if( app->render_skip.draw_frames < frames )
-        app->render_skip.draw_frames = frames;
+    RenderSkip_RequestDraw(&app->render_skip, frames);
 }
 
 int
@@ -295,16 +287,18 @@ App_RenderSkipCatchUp(struct App* app)
 {
     int const width = UITREE_LAYOUT_ROOT_W;
     int const height = UITREE_LAYOUT_ROOT_H;
+    enum RenderSkipCatchUp catch_up;
 
     assert(app);
     /* Split: a driver read wants the RUNNER's pickset, which the presented
      * frame never fills; draw the runner's view late, exactly as a skipped
      * frame is drawn late below. */
-    if( app->view_split.attached )
+    if( app->world_views.split.attached )
         return app_view_split_catch_up(app);
-    if( !app->render_skip.enabled || app->render_skip.fresh )
+    catch_up = RenderSkip_CatchUp(&app->render_skip);
+    if( catch_up == RENDER_SKIP_CATCH_UP_FRESH )
         return 1;
-    if( !app->render_skip.catch_up_ok )
+    if( catch_up == RENDER_SKIP_CATCH_UP_LOST )
         return 0;
     if( !app->render_skip.scratch )
     {
@@ -315,9 +309,7 @@ App_RenderSkipCatchUp(struct App* app)
      * (world_mouse_* are rewritten later in this App_RunOnce, not before the
      * pump), exactly as the on-time draw would have armed it. */
     App_Render(app, app->render_skip.scratch, width, height);
-    app->render_skip.fresh = 1;
-    app->render_skip.catch_up_ok = 0;
-    app->render_skip.frames_caught_up++;
+    RenderSkip_NoteCaughtUp(&app->render_skip);
     return 1;
 }
 
@@ -327,6 +319,7 @@ app_render_skip_init(struct App* app)
     char const* skip = getenv("TORIRS_RENDER_SKIP");
 
     assert(app);
+    RenderSkip_Reset(&app->render_skip);
     /* tools/quest_gate/run.py sets it for every quest run (1, or 0 under
      * --render-every-frame); `::renderskip` and api.drive.render_skip switch
      * it afterwards. */
@@ -341,14 +334,14 @@ void
 app_render_skip_shutdown(struct App* app)
 {
     assert(app);
-    if( getenv("TORIRS_RENDER_SKIP") || app->render_skip.enabled )
+    if( getenv("TORIRS_RENDER_SKIP") || RenderSkip_Enabled(&app->render_skip) )
         TORIRS_REPORT(
             "render-skip: %llu frame(s) drawn, %llu not drawn, %llu of those drawn late "
             "for a read (skip %s at exit)\n",
-            (unsigned long long)app->render_skip.frames_drawn,
-            (unsigned long long)app->render_skip.frames_skipped,
-            (unsigned long long)app->render_skip.frames_caught_up,
-            app->render_skip.enabled ? "on" : "off");
+            (unsigned long long)RenderSkip_FramesDrawn(&app->render_skip),
+            (unsigned long long)RenderSkip_FramesSkipped(&app->render_skip),
+            (unsigned long long)RenderSkip_FramesCaughtUp(&app->render_skip),
+            RenderSkip_Enabled(&app->render_skip) ? "on" : "off");
     ToriMem_Free(ToriMem_Process(), app->render_skip.scratch);
     app->render_skip.scratch = NULL;
 }
@@ -393,68 +386,17 @@ App_RenderSkipFrame(
     int redraw,
     int forced)
 {
-    int draw = redraw;
+    int capture_pending = 0;
+    int hulls_in_scene = 0;
 
     assert(app);
-    if( app->render_skip.hold && !forced )
-    {
-        /* A replay seek (App_RenderSkipHold): the last drawn frame stays up.
-         * A capture still draws -- it was asked for -- and a forced (retained
-         * GPU) frame is not refused, for the reason the caller forces it. */
-        int capture_pending = 0;
-
-        for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
-            capture_pending |= app->plugin_screenshots[i].in_use;
-        if( !capture_pending )
-        {
-            if( redraw )
-                app->render_skip.fresh = 0;
-            app->render_skip.catch_up_ok = 0;
-            app->render_skip.frames_skipped++;
-            return 0;
-        }
-    }
-    if( app->render_skip.enabled )
-    {
-        int capture_pending = 0;
-        int must;
-
-        for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
-            capture_pending |= app->plugin_screenshots[i].in_use;
-        must = forced || capture_pending || app->render_skip.draw_frames > 0 ||
-               App_RenderSkipHullsInScene(app) > 0;
-        /* Only ever TAKES a draw away (the banner's last rule). */
-        draw = redraw && must;
-        if( draw )
-        {
-            app->render_skip.fresh = 1;
-            app->render_skip.catch_up_ok = 0;
-        }
-        else if( redraw )
-        {
-            /* Committed and skipped: the state goes stale, and this frame's
-             * emit list -- the current one until the next commit -- can
-             * still be drawn late. */
-            app->render_skip.fresh = 0;
-            app->render_skip.catch_up_ok = 1;
-        }
-        else
-        {
-            /* Not committed: with skip off nothing is drawn either, so a
-             * fresh state stays fresh; a stale one can no longer be caught
-             * up -- the tree may have moved under the old emit list. */
-            app->render_skip.catch_up_ok = 0;
-        }
-    }
-    if( draw )
-        app->render_skip.frames_drawn++;
-    else
-        app->render_skip.frames_skipped++;
-    /* A request is for frames DRAWN, not frames passed: one owed across an
-     * uncommitted stretch is still owed when the stretch ends. */
-    if( draw && app->render_skip.draw_frames > 0 )
-        app->render_skip.draw_frames--;
-    return draw;
+    /* What the skip decision reads that only the App can see: a waiting
+     * capture, and -- only when nothing else already decides the frame --
+     * the hulls standing in the loaded scene. */
+    capture_pending = PluginScreenshots_Waiting(&app->plugin_screenshots) != 0;
+    if( RenderSkip_AsksHulls(&app->render_skip, forced, capture_pending) )
+        hulls_in_scene = App_RenderSkipHullsInScene(app);
+    return RenderSkip_Frame(&app->render_skip, redraw, forced, capture_pending, hulls_in_scene);
 }
 
 /* Damage drawing is off unless asked for, so the A/B is a process restart and
@@ -511,7 +453,7 @@ app_compute_damage(
     assert(app);
 
     ToriRS_DamageRegionReset(&app->damage);
-    if( !app_damage_armed() || !app->ui_retained_frame )
+    if( !app_damage_armed() || !UITree_EmitRetainGateRetained(&app->emit_gate) )
         return;
 
     for( int i = 0; i < app->emit.count; i++ )
@@ -637,7 +579,7 @@ app_damage_note(
         return;
 
     g_damage_stats.frames++;
-    if( app->ui_retained_frame )
+    if( UITree_EmitRetainGateRetained(&app->emit_gate) )
         g_damage_stats.retained++;
     if( app->damage.valid )
     {
@@ -694,7 +636,7 @@ App_Render(
     /* The offscreen runner frame is not a drawn frame: the plugins' frame
      * count, the pacer and every "a frame was drawn" reader see only the
      * presented ones (the split's contract). */
-    if( !app->view_split.offscreen )
+    if( !app->world_views.split.offscreen )
         App_NoteFrameDrawn(app);
 
     /* Pointed at the buffer before anything draws: the boot bar and the
@@ -706,16 +648,12 @@ App_Render(
     /* A depth-collected world (TORIRS_WORLD_DEPTH) is unordered and is only
      * right through a depth buffer -- whether Soft3D is the renderer the
      * player picked or the offscreen frame under a GPU depth renderer. */
-    ToriPlatform_Renderer_Soft3D_SetDepth(app->soft, app->world_render_mode == TORIRS_WORLD_DEPTH);
+    ToriPlatform_Renderer_Soft3D_SetDepth(app->soft, RenderMode_SoftwareDepth(&app->render_mode));
     /* Only the software renderer's own frame: a GPU renderer's offscreen frame
      * keeps its own world mode. The server's ZBUF, once sent, decides for the
      * session; until then the renderer the player launched does. */
-    {
-        bool const rszbuffer =
-            app->server_zbuf >= 0 ? app->server_zbuf != 0 : app->software_rszbuffer;
-        ToriPlatform_Renderer_Soft3D_SetRsZBuffer(
-            app->soft, rszbuffer && app->world_render_mode == TORIRS_WORLD_PAINTER);
-    }
+    ToriPlatform_Renderer_Soft3D_SetRsZBuffer(
+        app->soft, RenderMode_SoftwareRsZBuffer(&app->render_mode));
 
     if( !App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
     {
@@ -734,7 +672,7 @@ App_Render(
          */
         char const* caption;
         int caption_font_scene_id = -1;
-        int percent = app->boot_progress;
+        int percent = RS_BootState_Progress(&app->boot);
 
         /*
          * What the boot task asked for, when it asked for anything.
@@ -798,10 +736,10 @@ App_Render(
      * the mouse point right after it projects (the only window where the
      * scene scratch holds its projection), then the raw hits classify into
      * the pickset + hover tile the click/hotkey paths consume next frame. */
-    if( app_world_drawable(app) && app->frame_view->world_mouse_in_viewport )
+    if( app_world_drawable(app) && app->world_views.frame->world_mouse_in_viewport )
     {
         ToriPlatform_Renderer_Soft3D_SetPick(
-            app->soft, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
+            app->soft, app->world_views.frame->world_mouse_x, app->world_views.frame->world_mouse_y);
         FrameStats_Count(FRAME_STATS_CTR_PICK_FRAMES, 1);
     }
     {
@@ -815,7 +753,7 @@ App_Render(
 
     /* deob method5761 / Client-TS REBUILD_NORMAL: while the scene rebuilds,
      * the game area shows "Loading - please wait." instead of the world. */
-    if( app->world_load_server_driven && app->world_load_inflight )
+    if( WorldLoadState_ServerLoadBlanking(&app->world_load) )
     {
         int* const layer = ToriPlatform_Renderer_Soft3D_LayerBegin(
             app->soft, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
@@ -879,16 +817,16 @@ App_SetPluginChromeExec(
 {
     assert(app);
     assert(exec);
-    app->plugin_exec_pending = *exec;
+    app->plugin_win->exec_pending = *exec;
     /* A newly installed presentation needs the complete retained rail even
      * when the registry itself did not change. */
-    ToriRSChromeRailSync_Init(&app->plugin_rail);
-    app->plugin_rail_has_layout = 0;
-    app->plugin_exec_explicit = explicit_choice ? 1 : 0;
+    ToriRSChromeRailSync_Init(&app->plugin_win->rail);
+    app->plugin_win->rail_has_layout = 0;
+    app->plugin_win->exec_explicit = explicit_choice ? 1 : 0;
     /* Carried so a refusal can name what refused. Without it the fallback
      * message said "the 'buffer' executor would not start", which is both
      * impossible and unhelpful. */
-    app->plugin_exec_kind = kind;
+    app->plugin_win->exec_kind = kind;
 }
 
 
@@ -961,7 +899,7 @@ App_ViewAttachPlayerClient(
     char const* reason = NULL;
 
     assert(app);
-    split = &app->view_split;
+    split = &app->world_views.split;
     if( split->attached )
     {
         if( out_reason )
@@ -970,7 +908,7 @@ App_ViewAttachPlayerClient(
     }
     if( !split->presentable )
         reason = "this client presents nothing (no window, or a headless run): one view, nothing created";
-    else if( app->render_skip.enabled )
+    else if( RenderSkip_Enabled(&app->render_skip) )
         reason = "render skip is on: nothing is presented, one view, nothing created";
     else if( split->lane_refusal )
         reason = split->lane_refusal;
@@ -983,20 +921,20 @@ App_ViewAttachPlayerClient(
 
     /* views[1] is a COPY of views[0]: the watcher's picture does not jump
      * when the script starts. Its menu is its own and starts closed. */
-    app->views[APP_VIEW_PLAYER_CLIENT] = app->views[APP_VIEW_RUNNER];
-    split->player_client_menu = *app->views[APP_VIEW_RUNNER].minimenu;
+    app->world_views.views[APP_VIEW_PLAYER_CLIENT] = app->world_views.views[APP_VIEW_RUNNER];
+    split->player_client_menu = *app->world_views.views[APP_VIEW_RUNNER].minimenu;
     UIMinimenu_Hide(&split->player_client_menu);
-    app->views[APP_VIEW_PLAYER_CLIENT].minimenu = &split->player_client_menu;
+    app->world_views.views[APP_VIEW_PLAYER_CLIENT].minimenu = &split->player_client_menu;
     split->menu_bound_to_player_client = 0;
-    app->view_split.view_count = 2;
-    app->frame_view = &app->views[APP_VIEW_RUNNER];
+    app->world_views.split.view_count = 2;
+    app->world_views.frame = &app->world_views.views[APP_VIEW_RUNNER];
     /* The runner turns its camera through its verbs only: no key or middle
      * button latch carries over to it. */
-    app->views[APP_VIEW_RUNNER].cam_key_left = 0;
-    app->views[APP_VIEW_RUNNER].cam_key_right = 0;
-    app->views[APP_VIEW_RUNNER].cam_key_up = 0;
-    app->views[APP_VIEW_RUNNER].cam_key_down = 0;
-    app->views[APP_VIEW_RUNNER].cam_mmb_active = 0;
+    app->world_views.views[APP_VIEW_RUNNER].cam_key_left = 0;
+    app->world_views.views[APP_VIEW_RUNNER].cam_key_right = 0;
+    app->world_views.views[APP_VIEW_RUNNER].cam_key_up = 0;
+    app->world_views.views[APP_VIEW_RUNNER].cam_key_down = 0;
+    app->world_views.views[APP_VIEW_RUNNER].cam_mmb_active = 0;
 
     split->runner_bus = ToriMem_Alloc(ToriMem_Process(), sizeof(*split->runner_bus));
     assert(split->runner_bus);
@@ -1007,8 +945,8 @@ App_ViewAttachPlayerClient(
     split->runner_pixels_count = 0;
 
     LibToriRS_Input_Init(&split->physical_input, 0);
-    split->physical_x = app->views[APP_VIEW_RUNNER].world_mouse_x;
-    split->physical_y = app->views[APP_VIEW_RUNNER].world_mouse_y;
+    split->physical_x = app->world_views.views[APP_VIEW_RUNNER].world_mouse_x;
+    split->physical_y = app->world_views.views[APP_VIEW_RUNNER].world_mouse_y;
     split->physical_input.curr.mouse_x = split->physical_x;
     split->physical_input.curr.mouse_y = split->physical_y;
     split->physical_input.prev = split->physical_input.curr;
@@ -1042,7 +980,7 @@ App_ViewDetachPlayerClient(struct App* app)
     struct UIMinimenu* storage;
 
     assert(app);
-    split = &app->view_split;
+    split = &app->world_views.split;
     if( !split->attached )
         return;
     assert(!split->menu_bound_to_player_client);
@@ -1051,14 +989,14 @@ App_ViewDetachPlayerClient(struct App* app)
     /* views[0] becomes the watcher's: what is on screen stays on screen, and
      * nothing the runner did is carried over. Its menu storage stays
      * interact.minimenu, now holding the watcher's menu. */
-    storage = app->views[APP_VIEW_RUNNER].minimenu;
+    storage = app->world_views.views[APP_VIEW_RUNNER].minimenu;
     assert(storage == &app->interact.minimenu);
-    app->views[APP_VIEW_RUNNER] = app->views[APP_VIEW_PLAYER_CLIENT];
-    app->views[APP_VIEW_RUNNER].minimenu = storage;
+    app->world_views.views[APP_VIEW_RUNNER] = app->world_views.views[APP_VIEW_PLAYER_CLIENT];
+    app->world_views.views[APP_VIEW_RUNNER].minimenu = storage;
     *storage = split->player_client_menu;
-    memset(&app->views[APP_VIEW_PLAYER_CLIENT], 0, sizeof(app->views[APP_VIEW_PLAYER_CLIENT]));
-    app->view_split.view_count = 1;
-    app->frame_view = &app->views[APP_VIEW_RUNNER];
+    memset(&app->world_views.views[APP_VIEW_PLAYER_CLIENT], 0, sizeof(app->world_views.views[APP_VIEW_PLAYER_CLIENT]));
+    app->world_views.split.view_count = 1;
+    app->world_views.frame = &app->world_views.views[APP_VIEW_RUNNER];
 
     ToriMem_Free(ToriMem_Process(), split->runner_bus);
     split->runner_bus = NULL;
@@ -1090,18 +1028,18 @@ App_ViewSetInteract(
     int interact)
 {
     assert(app);
-    if( !app->view_split.attached )
+    if( !app->world_views.split.attached )
         return;
-    if( (interact ? 1 : 0) != app->view_split.interact )
+    if( (interact ? 1 : 0) != app->world_views.split.interact )
         TORIRS_REPORT(
             "view-split: interact %s at tick %d\n",
             interact ? "ON (the watcher's clicks and keys act on the game)" : "OFF",
             app_view_split_world_tick(app));
-    app->view_split.interact = interact ? 1 : 0;
+    app->world_views.split.interact = interact ? 1 : 0;
     /* Whatever waited for a gesture was the watcher's intent while it could
      * act; switched off, it is dropped. */
     if( !interact )
-        app->view_split.held_count = 0;
+        app->world_views.split.held_count = 0;
 }
 
 int
@@ -1118,14 +1056,14 @@ App_ViewWatcherActions(
     assert(app);
     assert(out);
     assert(capacity > 0);
-    newest = app->view_split.watcher_serial;
+    newest = app->world_views.split.watcher_serial;
     if( newest <= after_serial )
         return 0;
     first = after_serial + 1;
     if( newest - first >= APP_VIEW_SPLIT_WATCHER_MAX )
         first = newest - APP_VIEW_SPLIT_WATCHER_MAX + 1;
     for( uint32_t serial = first; serial <= newest && written < capacity; serial++ )
-        out[written++] = app->view_split.watcher[serial % APP_VIEW_SPLIT_WATCHER_MAX];
+        out[written++] = app->world_views.split.watcher[serial % APP_VIEW_SPLIT_WATCHER_MAX];
     return written;
 }
 
@@ -1137,7 +1075,7 @@ app_view_split_watcher_note(
     int y,
     int detail)
 {
-    struct App_ViewSplit* split = &app->view_split;
+    struct App_ViewSplit* split = &app->world_views.split;
     struct App_ViewSplitWatcherAction* slot;
 
     split->watcher_serial++;
@@ -1166,7 +1104,7 @@ app_view_split_command_is_input(uint32_t type)
 static int
 app_view_split_runner_busy(struct App* app)
 {
-    struct App_ViewSplit const* split = &app->view_split;
+    struct App_ViewSplit const* split = &app->world_views.split;
 
     return split->runner_events_this_frame || split->runner_buttons_held ||
            App_RunnerView(app)->minimenu->visible;
@@ -1183,7 +1121,7 @@ app_view_split_deliver(
     struct LibToriRS_Input* game_input,
     int chrome)
 {
-    struct App_ViewSplit* split = &app->view_split;
+    struct App_ViewSplit* split = &app->world_views.split;
 
     (void)ToriRS_Input_ApplyCmd(game_input, header, payload);
     split->physical_frame = 1;
@@ -1231,7 +1169,7 @@ App_ViewSplitPhysicalCommand(
     assert(header);
     assert(payload);
     assert(game_input);
-    split = &app->view_split;
+    split = &app->world_views.split;
     assert(split->attached);
     if( !app_view_split_command_is_input(header->type) )
         return 0;
@@ -1296,7 +1234,7 @@ app_view_split_drain_begin(
     struct App* app,
     struct LibToriRS_Input* game_input)
 {
-    struct App_ViewSplit* split = &app->view_split;
+    struct App_ViewSplit* split = &app->world_views.split;
     int replayed = 0;
 
     assert(split->attached);
@@ -1327,7 +1265,7 @@ app_view_split_note_runner_command(
     struct ToriRS_CmdHeader const* header,
     uint8_t const* payload)
 {
-    struct App_ViewSplit* split = &app->view_split;
+    struct App_ViewSplit* split = &app->world_views.split;
 
     assert(split->attached);
     if( (header->type == TORIRS_CMD_INPUT_MOUSE_DOWN || header->type == TORIRS_CMD_INPUT_MOUSE_UP) &&
@@ -1361,8 +1299,8 @@ app_view_split_note_runner_command(
 void
 app_view_split_drain_end(struct App* app)
 {
-    assert(app->view_split.attached);
-    LibToriRS_Input_End(&app->view_split.physical_input);
+    assert(app->world_views.split.attached);
+    LibToriRS_Input_End(&app->world_views.split.physical_input);
 }
 
 void
@@ -1386,7 +1324,7 @@ App_ViewSplitDrawRunner(
     int* target = pixels;
 
     assert(app);
-    split = &app->view_split;
+    split = &app->world_views.split;
     assert(split->attached);
     assert(!split->offscreen);
     assert(app->scene);
@@ -1404,7 +1342,7 @@ App_ViewSplitDrawRunner(
     runner = App_RunnerView(app);
     scene = app->scene;
 
-    saved_view = app->frame_view;
+    saved_view = app->world_views.frame;
     saved_buffer = app->painter_buffer;
     saved_in_viewport = runner->world_mouse_in_viewport;
     /* What the presented frame owes its lane (held poses, queued load events)
@@ -1417,7 +1355,7 @@ App_ViewSplitDrawRunner(
     scene->pending_pose_count = 0;
     scene->pending_pose_cap = 0;
 
-    app->frame_view = runner;
+    app->world_views.frame = runner;
     if( !pick )
         runner->world_mouse_in_viewport = 0;
     app->painter_buffer = split->runner_painter_buffer;
@@ -1435,14 +1373,14 @@ App_ViewSplitDrawRunner(
     scene->event_queue.count = saved_event_count;
     app->painter_buffer = saved_buffer;
     runner->world_mouse_in_viewport = saved_in_viewport;
-    app->frame_view = saved_view;
+    app->world_views.frame = saved_view;
     split->offscreen_frames++;
 }
 
 static int
 app_view_split_catch_up(struct App* app)
 {
-    struct App_ViewSplit* split = &app->view_split;
+    struct App_ViewSplit* split = &app->world_views.split;
 
     if( split->offscreen || split->runner_fresh )
         return 1;
@@ -1463,7 +1401,7 @@ App_ViewSplitBeforePresent(
     struct App_ViewSplit* split;
 
     assert(app);
-    split = &app->view_split;
+    split = &app->world_views.split;
     assert(split->attached);
     if( !committed )
     {
@@ -1495,7 +1433,7 @@ App_ViewSplitBindPlayerClient(
     struct UIMinimenu swap;
 
     assert(app);
-    split = &app->view_split;
+    split = &app->world_views.split;
     assert(split->attached);
     assert((bind ? 1 : 0) != split->menu_bound_to_player_client);
     /* The UI interaction step drives interact.minimenu; for a watcher's
@@ -1506,15 +1444,15 @@ App_ViewSplitBindPlayerClient(
     split->player_client_menu = swap;
     if( bind )
     {
-        app->views[APP_VIEW_RUNNER].minimenu = &split->player_client_menu;
-        app->views[APP_VIEW_PLAYER_CLIENT].minimenu = &app->interact.minimenu;
-        app->frame_view = &app->views[APP_VIEW_PLAYER_CLIENT];
+        app->world_views.views[APP_VIEW_RUNNER].minimenu = &split->player_client_menu;
+        app->world_views.views[APP_VIEW_PLAYER_CLIENT].minimenu = &app->interact.minimenu;
+        app->world_views.frame = &app->world_views.views[APP_VIEW_PLAYER_CLIENT];
     }
     else
     {
-        app->views[APP_VIEW_RUNNER].minimenu = &app->interact.minimenu;
-        app->views[APP_VIEW_PLAYER_CLIENT].minimenu = &split->player_client_menu;
-        app->frame_view = &app->views[APP_VIEW_RUNNER];
+        app->world_views.views[APP_VIEW_RUNNER].minimenu = &app->interact.minimenu;
+        app->world_views.views[APP_VIEW_PLAYER_CLIENT].minimenu = &split->player_client_menu;
+        app->world_views.frame = &app->world_views.views[APP_VIEW_RUNNER];
     }
     split->menu_bound_to_player_client = bind ? 1 : 0;
 }
@@ -1548,20 +1486,20 @@ app_view_split_latch_pointers(struct App* app)
     struct App_WorldView* owner;
 
     assert(app);
-    split = &app->view_split;
+    split = &app->world_views.split;
     assert(split->attached);
     app_view_split_latch_one(
-        app, &app->views[APP_VIEW_RUNNER], split->runner_x, split->runner_y, !split->runner_pointer_valid);
+        app, &app->world_views.views[APP_VIEW_RUNNER], split->runner_x, split->runner_y, !split->runner_pointer_valid);
     app_view_split_latch_one(
         app,
-        &app->views[APP_VIEW_PLAYER_CLIENT],
+        &app->world_views.views[APP_VIEW_PLAYER_CLIENT],
         split->physical_x,
         split->physical_y,
         split->physical_input.mouse_pointer_absent);
     /* Hover follows whichever pointer moved last (the DESIGN's INPUT rule). */
-    owner = split->physical_moved_last ? &app->views[APP_VIEW_PLAYER_CLIENT] : &app->views[APP_VIEW_RUNNER];
-    saved = app->frame_view;
-    app->frame_view = owner;
+    owner = split->physical_moved_last ? &app->world_views.views[APP_VIEW_PLAYER_CLIENT] : &app->world_views.views[APP_VIEW_RUNNER];
+    saved = app->world_views.frame;
+    app->world_views.frame = owner;
     app_hover_text_update(app, owner->world_mouse_x, owner->world_mouse_y);
-    app->frame_view = saved;
+    app->world_views.frame = saved;
 }

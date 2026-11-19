@@ -65,7 +65,7 @@ app_spawn_effect_queue(
  * that change when TzKal-Zuk breaks loose -- paid those trips one change at
  * a time, 270 ms of frozen world for the cutscene's best moment. Here every
  * queued change loads at once and each applies the moment the one before it
- * has (App.loc_lane_applied), which keeps the ordering the FIFO gave them: a
+ * has (LocLane_IsTurn), which keeps the ordering the FIFO gave them: a
  * LOC_DEL behind the add it deletes. The reference does the same with its
  * pending spawns (deob Statics.method5669 / method6346): nothing waits on a
  * loc but the loc.
@@ -89,8 +89,8 @@ app_spawn_loc_lane_queue(
         world = WorldviewRegistry_Get(&app->worldviews, task->view)->world;
     task->world_load_seq = world ? world->load_seq : 0;
     task->enqueue_cycle = world ? world->cycle : 0;
-    task->loc_ticket = ++app->loc_lane_enqueued;
-    task->loc_tick = app->server_tick_serial;
+    task->loc_ticket = LocLane_Take(&app->loc_lane);
+    task->loc_tick = RS_ServerTick_Serial(&app->server_tick);
     ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
 }
 
@@ -204,7 +204,7 @@ App_WorldProjectileSpawn(
 void
 App_WorldScriptedProjSpawn(
     struct App* app,
-    struct AppScriptedProj const* sp)
+    struct WorldEntity_ScriptedProjSpec const* sp)
 {
     struct Task_AppSpawn* task;
     assert(app);
@@ -293,8 +293,8 @@ app_world_loc_changes_replace(struct App* app)
     count = World_LocChangesTakeStanding(app->world, standing, WORLD_LOC_CHANGE_MAX);
     /* The records are the root world's; queue against it whichever view the
      * cursor addresses (the varp re-place does the same). */
-    previous_view = app->active_world;
-    app->active_world = WORLDVIEW_ROOT;
+    previous_view = WorldviewRegistry_Active(&app->worldviews);
+    WorldviewRegistry_SetActive(&app->worldviews, WORLDVIEW_ROOT);
     for( int i = 0; i < count; i++ )
         App_WorldLocChangeOps(
             app,
@@ -306,7 +306,7 @@ app_world_loc_changes_replace(struct App* app)
             standing[i].new_angle,
             standing[i].op_flags,
             standing[i].ops);
-    app->active_world = previous_view;
+    WorldviewRegistry_SetActive(&app->worldviews, previous_view);
 }
 
 void
@@ -441,19 +441,19 @@ app_world_spawn_projectile(
     char const* args)
 {
     struct Task_AppSpawn* task;
+    int src_x = -1;
+    int src_z = -1;
+    int src_level = 0;
+    enum ProjSpawnLatchAction const action =
+        ProjSpawnLatch_Press(&app->proj_latch, tile_x, tile_z, level, &src_x, &src_z, &src_level);
 
-    if( app->proj_src_tile_x < 0 )
+    if( action == PROJ_SPAWN_LATCH_MARKED )
     {
-        app->proj_src_tile_x = tile_x;
-        app->proj_src_tile_z = tile_z;
-        app->proj_src_tile_level = level;
         TORIRS_LOG("spawn_projectile: source latched at %d,%d\n", tile_x, tile_z);
         return;
     }
-    if( app->proj_src_tile_x == tile_x && app->proj_src_tile_z == tile_z )
+    if( action == PROJ_SPAWN_LATCH_CLEARED )
     {
-        app->proj_src_tile_x = -1;
-        app->proj_src_tile_z = -1;
         TORIRS_LOG("spawn_projectile: latch cleared\n");
         return;
     }
@@ -466,12 +466,10 @@ app_world_spawn_projectile(
         "seq",
         "TORIRS_SPAWN_PROJ_SEQ",
         659 /* v1 spawn-test spotanim sequence (RUNESCAPE_PROJECTILE_SEQ_ID) */);
-    task->src_tile_x = app->proj_src_tile_x;
-    task->src_tile_z = app->proj_src_tile_z;
-    task->src_level = app->proj_src_tile_level;
+    task->src_tile_x = src_x;
+    task->src_tile_z = src_z;
+    task->src_level = src_level;
     task->proj_target = app_world_npc_target_at_tile(app, tile_x, tile_z, level);
-    app->proj_src_tile_x = -1;
-    app->proj_src_tile_z = -1;
     app_spawn_effect_queue(app, task);
 }
 
@@ -483,7 +481,7 @@ void
 app_world_damage_test(struct App* app)
 {
     struct World_EntityPool* pool;
-    int damage = 1 + (app->logic_cycle % 30);
+    int damage = 1 + (FrameClockSerial_LogicCycle(&app->frame_clock.serial) % 30);
     /* Rev 239 does not use the legacy type-0/type-1 convention: its canonical
      * red damage splat is type 28 (sprite 1359). Keep type 0 only as the
      * supported fallback for older cache families with no rev-239 record. */

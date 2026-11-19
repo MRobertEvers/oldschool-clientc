@@ -11,6 +11,7 @@ MinimapView_Reset(struct MinimapView* view)
     memset(view, 0, sizeof(*view));
     view->flag_tile_x = -1;
     view->flag_tile_z = -1;
+    view->map_scene_id = -1;
 }
 
 void
@@ -48,6 +49,75 @@ MinimapView_SetFlag(struct MinimapView* view, int scene_tile_x, int scene_tile_z
     assert(view);
     view->flag_tile_x = scene_tile_x;
     view->flag_tile_z = scene_tile_z;
+}
+
+void
+MinimapView_SetMap(struct MinimapView* view, int scene_id, int w, int h, int level)
+{
+    assert(view);
+    view->map_scene_id = scene_id;
+    view->map_w = w;
+    view->map_h = h;
+    view->map_level = level;
+}
+
+bool
+MinimapView_HasMap(struct MinimapView const* view)
+{
+    assert(view);
+    return view->map_scene_id > 0;
+}
+
+int
+MinimapView_MapSceneId(struct MinimapView const* view)
+{
+    assert(view);
+    return view->map_scene_id;
+}
+
+int
+MinimapView_MapWidth(struct MinimapView const* view)
+{
+    assert(view);
+    return view->map_w;
+}
+
+int
+MinimapView_MapHeight(struct MinimapView const* view)
+{
+    assert(view);
+    return view->map_h;
+}
+
+int
+MinimapView_MapLevel(struct MinimapView const* view)
+{
+    assert(view);
+    return view->map_level;
+}
+
+void
+MinimapView_ForgetMapLevel(struct MinimapView* view)
+{
+    assert(view);
+    view->map_level = -1;
+}
+
+int
+MinimapView_ToggleState(struct MinimapView const* view)
+{
+    assert(view);
+    return view->toggle_state;
+}
+
+bool
+MinimapView_SetToggleState(struct MinimapView* view, int state)
+{
+    assert(view);
+    if( view->toggle_state == state )
+        return false;
+    view->toggle_state = state;
+    return true;
 }
 
 bool

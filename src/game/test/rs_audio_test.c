@@ -975,6 +975,40 @@ test_late_load_timing(
     harness_free(&harness);
 }
 
+/* Where the store lives is not a setting: resetting the options or reading a
+ * file over them keeps the path the boot stated, and the file never carries
+ * it. */
+static void
+test_prefs_file_survives_load(void)
+{
+    struct RS_Prefs prefs;
+    struct RS_Prefs other;
+    void* data = NULL;
+    int size = 0;
+
+    printf("the prefs path survives a reset and a load\n");
+
+    memset(&prefs, 0, sizeof(prefs));
+    CHECK(RS_Prefs_File(&prefs) == NULL, "a zeroed store is not persisted");
+    RS_Prefs_SetFile(&prefs, "scratch/preferences.ini");
+    RS_Prefs_Defaults(&prefs);
+    CHECK(RS_Prefs_File(&prefs) != NULL, "defaults keep the path");
+    CHECK(
+        RS_Prefs_File(&prefs) && strcmp(RS_Prefs_File(&prefs), "scratch/preferences.ini") == 0,
+        "defaults keep the same path");
+
+    memset(&other, 0, sizeof(other));
+    RS_Prefs_Defaults(&other);
+    CHECK(RS_Prefs_Encode(&other, &data, &size), "a store with no path encodes");
+    RS_Prefs_Decode(&prefs, data, size);
+    CHECK(
+        RS_Prefs_File(&prefs) && strcmp(RS_Prefs_File(&prefs), "scratch/preferences.ini") == 0,
+        "a load keeps the path");
+    RS_Prefs_Decode(&other, data, size);
+    CHECK(RS_Prefs_File(&other) == NULL, "and a file does not carry one");
+    ToriMem_Free(ToriMem_Process(), data); /* RS_Prefs_Encode allocates from PROCESS */
+}
+
 int
 main(void)
 {
@@ -989,6 +1023,7 @@ main(void)
     test_boot_muted();
     test_retired_frame_keys_are_dropped();
     test_prefs_persistence();
+    test_prefs_file_survives_load();
     test_queue_without_cache();
 
     if( !RSCache_ProfileByName("lc254", &dat1_profile) )

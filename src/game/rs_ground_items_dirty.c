@@ -71,3 +71,71 @@ RS_GroundItemsDirty_Clear(struct RS_GroundItemsDirty* dirty)
     assert(dirty);
     dirty->count = 0;
 }
+
+void
+RS_GroundItemsSettings_Reset(struct RS_GroundItemsSettings* settings)
+{
+    assert(settings);
+    for( int i = 0; i < RS_GROUND_ITEMS_SETTINGS_WATCHED; i++ )
+    {
+        settings->varp[i] = -1;
+        settings->seen[i] = 0;
+        settings->aux_seen[i] = 0;
+    }
+}
+
+int
+RS_GroundItemsSettings_Varp(
+    struct RS_GroundItemsSettings const* settings,
+    int i)
+{
+    assert(settings);
+    assert(i >= 0);
+    assert(i < RS_GROUND_ITEMS_SETTINGS_WATCHED);
+    return settings->varp[i];
+}
+
+void
+RS_GroundItemsSettings_Resolve(
+    struct RS_GroundItemsSettings* settings,
+    int i,
+    int varp,
+    int value)
+{
+    assert(settings);
+    assert(i >= 0);
+    assert(i < RS_GROUND_ITEMS_SETTINGS_WATCHED);
+    assert(varp >= 0);
+    settings->varp[i] = varp;
+    settings->seen[i] = value;
+}
+
+bool
+RS_GroundItemsSettings_VarpChanged(
+    struct RS_GroundItemsSettings* settings,
+    int i,
+    int value)
+{
+    assert(settings);
+    assert(i >= 0);
+    assert(i < RS_GROUND_ITEMS_SETTINGS_WATCHED);
+    if( value == settings->seen[i] )
+        return false;
+    settings->seen[i] = value;
+    return true;
+}
+
+bool
+RS_GroundItemsSettings_AuxChanged(
+    struct RS_GroundItemsSettings* settings,
+    int i,
+    uint64_t revision)
+{
+    assert(settings);
+    assert(i >= 0);
+    assert(i < RS_GROUND_ITEMS_SETTINGS_WATCHED);
+    if( revision == settings->aux_seen[i] )
+        return false;
+    settings->aux_seen[i] = revision;
+    return true;
+}

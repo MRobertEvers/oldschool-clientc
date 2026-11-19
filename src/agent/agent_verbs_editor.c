@@ -22,6 +22,7 @@
 #include "editor/editor_doc.h"
 #include "editor/editor_hotkeys.h"
 #include "editor/editor_panel.h"
+#include "editor/editor_shell.h"
 #include "editor/editor_ui.h"
 #include "editor/editor_view.h"
 #include "editor/live/live_panel.h"
@@ -42,9 +43,9 @@ Agent_EditorUi(const struct AgentCtx* ctx)
 {
     assert(ctx);
     assert(ctx->app);
-    if( !ctx->app->editor || !ctx->app->editor_panel.built )
+    if( !ctx->app->editor || !ctx->app->editor_shell->editor_panel.built )
         return NULL;
-    return ctx->app->editor_panel.ui;
+    return ctx->app->editor_shell->editor_panel.ui;
 }
 
 struct EditorUi*
@@ -143,7 +144,7 @@ verb_editor(struct AgentCtx* ctx)
     out = Agent_ReplyBegin(ctx);
     /* Closed panels (the editor's own toggle key) leave the world on screen
      * and nothing to press. */
-    AgentJsonW_KBool(out, "panels_open", app->editor_panel.visible != 0);
+    AgentJsonW_KBool(out, "panels_open", app->editor_shell->editor_panel.visible != 0);
     AgentJsonW_KInt(out, "tool", (int)eui->tools.tool);
     AgentJsonW_KStr(out, "tool_name", Editor_ToolName(eui->tools.tool));
     /* -1: Auto, the plane under the pointer. */
@@ -432,7 +433,7 @@ verb_action(struct AgentCtx* ctx)
             info->name);
         return AGENT_VERB_DONE;
     }
-    if( !ctx->app->editor_panel.visible )
+    if( !ctx->app->editor_shell->editor_panel.visible )
     {
         Agent_ReplyError(ctx, "the editor's panels are closed, and its actions run only while they are open: open "
                               "them with the map editor's toggle key first");
@@ -478,7 +479,7 @@ verb_action(struct AgentCtx* ctx)
         }
         (void)Editor_CmdPalette_RunRow(eui, row);
     }
-    ctx->app->need_redraw = 1;
+    RedrawRequest_Raise(&ctx->app->redraw_request);
 
     /* Two frames: the one the App takes an App-bound action on, and the one
      * that draws what it did. */
@@ -568,10 +569,10 @@ agent_tile_project(
     }
     else
     {
-        world.x = app->world_emit_desc.x;
-        world.y = app->world_emit_desc.y;
-        world.w = app->world_emit_desc.w;
-        world.h = app->world_emit_desc.h;
+        world.x = app->world_views.emit_desc.x;
+        world.y = app->world_views.emit_desc.y;
+        world.w = app->world_views.emit_desc.w;
+        world.h = app->world_views.emit_desc.h;
         shown = world.w > 0 && world.h > 0;
     }
     if( !app->world )
@@ -586,10 +587,10 @@ agent_tile_project(
      * keeps the reference's near plane at 50 (app_world_project_at). */
     if( fine_x < 128 || fine_z < 128 )
         return AGENT_TILE_SCENE_EDGE;
-    if( !app->world_view_valid || !app->frame_view )
+    if( !app->world_views.emit_valid || !app->world_views.frame )
         return AGENT_TILE_BEHIND;
-    if( !ToriRS_WorldProjectPoint(&app->frame_view->world_camera, &app->frame_view->world_camera_pos,
-            app->world_emit_desc.x, app->world_emit_desc.y, app->world_emit_desc.w, app->world_emit_desc.h, 50, fine_x,
+    if( !ToriRS_WorldProjectPoint(&app->world_views.frame->world_camera, &app->world_views.frame->world_camera_pos,
+            app->world_views.emit_desc.x, app->world_views.emit_desc.y, app->world_views.emit_desc.w, app->world_views.emit_desc.h, 50, fine_x,
             /* The scene's y grows downward: above the ground is less. */
             World_HeightAt(app->world, fine_x, fine_z, level) - height, fine_z, out_x, out_y) )
         return AGENT_TILE_BEHIND;
@@ -835,7 +836,7 @@ world_click_check(
     if( op->phase < AGENT_HOVER_WAIT_FRAMES )
     {
         op->phase++;
-        ctx->app->need_redraw = 1;
+        RedrawRequest_Raise(&ctx->app->redraw_request);
         return 2;
     }
     if( !eui->app_services.hover_tile
@@ -876,7 +877,7 @@ world_click_finish(
         AgentJsonW_KInt(out, "locs_selected", eui->tools.loc_count);
     }
     /* A right click opens the menu: ui lists its rows, ui_click presses one. */
-    if( ctx->app->frame_view && ctx->app->frame_view->minimenu && ctx->app->frame_view->minimenu->visible )
+    if( ctx->app->world_views.frame && ctx->app->world_views.frame->minimenu && ctx->app->world_views.frame->minimenu->visible )
         AgentJsonW_KBool(out, "minimenu", 1);
     Agent_ReplyEnd(ctx);
 }
@@ -1033,7 +1034,7 @@ verb_camera(struct AgentCtx* ctx)
             agent_reply_not_loaded(ctx, camera.x / 128, camera.z / 128);
             return AGENT_VERB_DONE;
         }
-        ctx->app->need_redraw = 1;
+        RedrawRequest_Raise(&ctx->app->redraw_request);
         /* As it landed: the pitch is clamped to what the view allows. */
         have_pose = agent_camera_read(eui, level, &camera);
     }

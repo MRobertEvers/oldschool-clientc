@@ -70,7 +70,7 @@ app_world_reconcile_player_transmog(
  * Where the two differ is a lane that holds a change past the tick that read it,
  * which the deob does only for its own model loads: by the next tick the
  * official client shows the new loc and animates it. So a change from an
- * earlier server tick (App.server_tick_serial) counts as built, and takes the
+ * earlier server tick (RS_ServerTick_Serial of App.server_tick) counts as built, and takes the
  * sequence itself (app_spawn_loc_take); TORIRS_LOC_LANE_TRACE=1 logs every
  * anim's target and every change's wait.
  *
@@ -96,18 +96,18 @@ App_WorldSceneryAnim(
     assert(app);
     /* The view the packet addresses (SET_ACTIVE_WORLD), as every zone op uses.
      * A scene still building holds nothing a sequence could attach to. */
-    if( WorldviewRegistry_IsLive(&app->worldviews, app->active_world) )
+    if( WorldviewRegistry_IsLive(&app->worldviews, WorldviewRegistry_Active(&app->worldviews)) )
     {
-        struct Worldview* wv = WorldviewRegistry_Get(&app->worldviews, app->active_world);
+        struct Worldview* wv = WorldviewRegistry_Get(&app->worldviews, WorldviewRegistry_Active(&app->worldviews));
         if( wv->world && wv->world->load_complete )
             world = wv->world;
     }
     if( app->cfg.cache_kind != APP_CACHE_DAT1 )
     {
         pending = app_spawn_loc_lane_pending(
-            app, app->active_world, scene_x, scene_z, level, layer, 0);
+            app, WorldviewRegistry_Active(&app->worldviews), scene_x, scene_z, level, layer, 0);
         landed = app_spawn_loc_lane_pending(
-            app, app->active_world, scene_x, scene_z, level, layer, 1);
+            app, WorldviewRegistry_Active(&app->worldviews), scene_x, scene_z, level, layer, 1);
     }
     /*
      * A change read in an earlier server tick that this client's lane still
@@ -138,7 +138,7 @@ App_WorldSceneryAnim(
             scene_x,
             scene_z,
             level,
-            app->server_tick_serial,
+            RS_ServerTick_Serial(&app->server_tick),
             landed ? (stood ? "landed change (taken)" : "landed delete (nothing)")
                    : (stood ? "standing loc" : "nothing standing"),
             pending && pending != landed ? ", carried by this tick's change" : "");
@@ -229,7 +229,7 @@ app_world_scenery_anim_apply(
                 }
             }
             app_world_apply_seq(app, scenery->element_id, seq_id);
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
         }
     }
     /* A loc entity stood on the layer, drawn or not: that is the deob's
@@ -471,7 +471,7 @@ App_WorldApplyNpcType(
         }
     }
     app_sync_textures(app);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 /* NpcBodyLand's half of a retype: the body that was on the wire is resident
@@ -716,7 +716,7 @@ app_world_reconcile_player_transmog(
     player->body.npc_id = drawn;
     player->team = 0;
     app_sync_textures(app);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 void
@@ -797,7 +797,7 @@ app_world_reconcile_player_body(
     /* Every obj config of the appearance is resident (checked above). */
     player->team = app_appearance_team(app, player->appearance.slots);
     app_sync_textures(app);
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 void
@@ -887,5 +887,5 @@ App_WorldApplyPlayerAppearance(
             }
         }
     }
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }

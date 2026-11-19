@@ -88,7 +88,7 @@ enum RS_ClientCodeWelcomeColour
 
 /**
  * Refresh every clientCode-populated component from live state. Returns
- * nonzero when any node changed (caller redraws). app->logic_cycle drives the
+ * nonzero when any node changed (caller redraws). `loop_cycle` drives the
  * design-preview rotation, and the preview's composite is rebuilt here when a
  * design button marked it stale (reference idkDesignRedraw, which the
  * reference likewise services from this per-component pass).

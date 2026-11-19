@@ -276,8 +276,8 @@ design_gender_button_tick(
 /*
  * Welcome screen (reference clientComponent, CC_LAST_LOGIN_INFO onwards). The
  * five rows below are the whole of what the client does with LAST_LOGIN_INFO,
- * and every one of them is a plain read of App::welcome -- the packet exec
- * stores, and nothing else in the client consults it.
+ * and every one of them is a plain read of App::session_info.welcome -- the
+ * packet exec stores, and nothing else in the client consults it.
  *
  * `last_ip == 0` means the server did not send one (and, at login, that no
  * LAST_LOGIN_INFO has arrived yet); the reference blanks the row rather than
@@ -295,17 +295,17 @@ welcome_last_login_tick(
 
     assert(app);
     assert(tree);
-    if( app->welcome.last_ip == 0 )
+    if( app->session_info.welcome.last_ip == 0 )
         return set_node_text(tree, idx, "");
 
-    if( app->welcome.days_since_login == 0 )
+    if( app->session_info.welcome.days_since_login == 0 )
         snprintf(when, sizeof(when), "earlier today");
-    else if( app->welcome.days_since_login == 1 )
+    else if( app->session_info.welcome.days_since_login == 1 )
         snprintf(when, sizeof(when), "yesterday");
     else
-        snprintf(when, sizeof(when), "%d days ago", app->welcome.days_since_login);
+        snprintf(when, sizeof(when), "%d days ago", app->session_info.welcome.days_since_login);
 
-    ip = (uint32_t)app->welcome.last_ip;
+    ip = (uint32_t)app->session_info.welcome.last_ip;
     /* A loopback address is not information -- it is every account on a local
      * server -- so the reference drops the "from:" clause for it rather than
      * printing 127.0.0.1 to everyone. */
@@ -340,14 +340,15 @@ welcome_unread_tick(
     assert(app);
     assert(tree);
     assert(c);
-    if( app->welcome.unread_messages == 1 )
+    if( app->session_info.welcome.unread_messages == 1 )
     {
         snprintf(text, sizeof(text), "1 unread message");
         colour = RS_CC_WELCOME_COLOUR_GREEN;
     }
-    else if( app->welcome.unread_messages > 1 )
+    else if( app->session_info.welcome.unread_messages > 1 )
     {
-        snprintf(text, sizeof(text), "%d unread messages", app->welcome.unread_messages);
+        snprintf(
+            text, sizeof(text), "%d unread messages", app->session_info.welcome.unread_messages);
         colour = RS_CC_WELCOME_COLOUR_GREEN;
     }
     else
@@ -398,20 +399,25 @@ welcome_recovery_tick(
      * range and this arithmetic have drifted apart -- and the two array reads
      * below would be the first thing to notice, silently. */
     assert(row >= 0 && row < 3);
-    if( app->welcome.days_since_recovery == RS_CC_RECOVERY_DAYS_SILENT )
-        return set_node_text(tree, idx, app->welcome.member_warning == 1 ? k_members[row] : "");
-    if( app->welcome.days_since_recovery == RS_CC_RECOVERY_DAYS_NEVER_SET )
+    if( app->session_info.welcome.days_since_recovery == RS_CC_RECOVERY_DAYS_SILENT )
+        return set_node_text(
+            tree, idx, app->session_info.welcome.member_warning == 1 ? k_members[row] : "");
+    if( app->session_info.welcome.days_since_recovery == RS_CC_RECOVERY_DAYS_NEVER_SET )
         return set_node_text(tree, idx, k_never_set[row]);
 
     if( row == 0 )
     {
         char when[32];
-        if( app->welcome.days_since_recovery == 0 )
+        if( app->session_info.welcome.days_since_recovery == 0 )
             snprintf(when, sizeof(when), "Earlier today");
-        else if( app->welcome.days_since_recovery == 1 )
+        else if( app->session_info.welcome.days_since_recovery == 1 )
             snprintf(when, sizeof(when), "Yesterday");
         else
-            snprintf(when, sizeof(when), "%d days ago", app->welcome.days_since_recovery);
+            snprintf(
+                when,
+                sizeof(when),
+                "%d days ago",
+                app->session_info.welcome.days_since_recovery);
         snprintf(text, sizeof(text), "%s you changed your recovery questions", when);
         return set_node_text(tree, idx, text);
     }
@@ -524,7 +530,7 @@ RS_ClientCode_Button(
          * still in the world, which is the point: only the server knows
          * whether they are allowed out of it yet. @see app_logout_tick.
          */
-        app->logout_requested = 1;
+        SessionEnd_RequestLogout(&app->session_end);
         return 1;
     case RS_CC_ACCEPT_DESIGN:
         /* Reference sends IDK_SAVEDESIGN and returns true, so the plain
@@ -575,7 +581,7 @@ RS_ClientCode_Button(
                 app->chat.social_header,
                 k_social[i].header,
                 sizeof(app->chat.social_header) - 1);
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
             break;
         }
         return 0;
@@ -589,7 +595,7 @@ RS_ClientCode_Button(
              * clientCode tick via idkDesignRedraw. */
             if( app->provider )
                 RS_IdkDesign_Button(&app->idk_design, app->provider, cc);
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
             return 0;
         }
         return 0;

@@ -79,23 +79,6 @@ UITreeAnim_ModelForDraw(struct ToriDraw_Scene* scene, struct UITreeModelRenderCa
     return result;
 }
 
-static int
-tracker_has(struct SeqLoadTracker const* tracker, int seq_id)
-{
-    for( int i = 0; i < tracker->count; i++ )
-        if( tracker->seq_ids[i] == seq_id )
-            return 1;
-    return 0;
-}
-
-static void
-tracker_add(struct SeqLoadTracker* tracker, int seq_id)
-{
-    if( tracker->count >= UITREE_ANIM_SEQ_TRACK_MAX )
-        return;
-    tracker->seq_ids[tracker->count++] = seq_id;
-}
-
 int
 UITreeAnim_RequestMissing(
     struct UITree* tree,
@@ -127,14 +110,14 @@ UITreeAnim_RequestMissing(
             continue;
         if( ToriDraw_SceneAnimationGet(scene, seq) )
             continue;
-        if( tracker_has(tracker, seq) )
+        if( SeqLoadTracker_Has(tracker, seq) )
             continue;
         {
             struct ToriRS_Task* task = CreateTask_SequenceLoad(provider, scene, seq);
             if( !task )
                 continue;
             ToriRS_TaskQueue_Add(queue, task);
-            tracker_add(tracker, seq);
+            SeqLoadTracker_Add(tracker, seq);
             requested++;
         }
     }

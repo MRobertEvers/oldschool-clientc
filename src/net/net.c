@@ -118,6 +118,34 @@ ToriRS_Network_Init(
 }
 
 void
+ToriRS_Network_MarkReplay(struct ToriRS_Network* net)
+{
+    assert(net);
+    net->replay = 1;
+}
+
+int
+ToriRS_Network_IsReplay(struct ToriRS_Network const* net)
+{
+    assert(net);
+    return net->replay;
+}
+
+void
+ToriRS_Network_Enable(struct ToriRS_Network* net)
+{
+    assert(net);
+    net->enabled = 1;
+}
+
+int
+ToriRS_Network_Enabled(struct ToriRS_Network const* net)
+{
+    assert(net);
+    return net->enabled;
+}
+
+void
 ToriRS_Network_SetSeedFn(
     struct ToriRS_Network* net,
     loginproto_seed_fn seed_fn,

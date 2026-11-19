@@ -155,7 +155,7 @@ enum PluginWidgetRequestKind
     PLUGIN_WIDGET_STATE,
     /* A read, same rule as PLUGIN_WIDGET_STATE just above: the raw identity
      * an IF_SETNPCHEAD/IF_SETOBJECT/IF_SETMODEL bound to this component --
-     * struct App::if_heads[], never the composite scene model id. @see
+     * struct App::if_models.heads[], never the composite scene model id. @see
      * struct ToriRS_WidgetModel. */
     PLUGIN_WIDGET_MODEL,
     PLUGIN_WIDGET_POSITION, PLUGIN_WIDGET_SIZE,

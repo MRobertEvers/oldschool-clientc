@@ -14,6 +14,21 @@ OverlayStage_Reset(struct OverlayStage* stage)
     stage->canvas_count = 0;
     stage->batch_started = false;
     stage->canvas_prepared = false;
+    stage->open = OVERLAY_SURFACE_WORLD;
+}
+
+void
+OverlayStage_Open(struct OverlayStage* stage, enum OverlaySurface surface)
+{
+    assert(stage);
+    stage->open = surface;
+}
+
+enum OverlaySurface
+OverlayStage_OpenSurface(struct OverlayStage const* stage)
+{
+    assert(stage);
+    return stage->open;
 }
 
 void

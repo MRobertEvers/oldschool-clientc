@@ -599,6 +599,14 @@ int
 ToriRS_Features_PainterDrawDistance(struct ToriRS_FeatureTable const* features);
 
 /**
+ * Whether `features` holds an era: every era table names itself, so a copy of
+ * one does too, and a zeroed table -- one no era has been copied into yet --
+ * does not.
+ */
+int
+ToriRS_Features_Resolved(struct ToriRS_FeatureTable const* features);
+
+/**
  * The same rule, said about a bare stored number.
  *
  * The table's field is not the distance anything draws: 0 means "the era has

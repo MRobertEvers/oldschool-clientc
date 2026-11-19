@@ -94,6 +94,17 @@ int main(void)
     Wevs_SelectRenderStates(&all, 1, 0, actor, point);
     CHECK(a->render_visible && !a->flattened, "aboard never flattens under actor or budget");
 
+    /* Where the local player stands: ashore after Init, aboard what it is
+     * told, and ashore again when only THAT view goes away. */
+    Wevs_Init(&all);
+    CHECK(Wevs_AboardView(&all) == WORLDVIEW_ROOT, "a fresh registry is ashore");
+    Wevs_SetAboardView(&all, 3);
+    CHECK(Wevs_AboardView(&all) == 3, "aboard the view it was told");
+    Wevs_AboardViewGone(&all, 4);
+    CHECK(Wevs_AboardView(&all) == 3, "another view going away leaves the player aboard");
+    Wevs_AboardViewGone(&all, 3);
+    CHECK(Wevs_AboardView(&all) == WORLDVIEW_ROOT, "the player's view going away puts them ashore");
+
     float fx = 0, fz = 0;
     Wev_SmoothCameraFocus(&fx, &fz, 500, -500);
     CHECK(fx == 31.25f && fz == -31.25f, "camera smooths exactly at inclusive500 boundary");

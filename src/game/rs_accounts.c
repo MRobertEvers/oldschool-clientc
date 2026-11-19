@@ -291,3 +291,67 @@ RS_SiteSession_Add(
     snprintf(site->players[site->count], sizeof(site->players[0]), "%s", name);
     site->count++;
 }
+
+int
+RS_AccountsLoad_TakeStart(struct RS_AccountsLoad* load)
+{
+    assert(load);
+    if( load->started )
+        return 0;
+    load->started = 1;
+    return 1;
+}
+
+int*
+RS_AccountsLoad_DoneFlag(struct RS_AccountsLoad* load)
+{
+    assert(load);
+    return &load->done;
+}
+
+int
+RS_AccountsLoad_Done(struct RS_AccountsLoad const* load)
+{
+    assert(load);
+    return load->done;
+}
+
+int
+RS_AccountsLoad_TakeShow(struct RS_AccountsLoad* load)
+{
+    assert(load);
+    if( !load->done || load->shown )
+        return 0;
+    load->shown = 1;
+    return 1;
+}
+
+void
+RS_AccountSignIn_Begin(
+    struct RS_AccountSignIn* signin,
+    enum RS_AccountSignInGrant grant)
+{
+    assert(signin);
+    assert(!signin->busy);
+    memset(signin, 0, sizeof(*signin));
+    signin->grant = grant;
+    signin->busy = 1;
+}
+
+int
+RS_AccountSignIn_Busy(struct RS_AccountSignIn const* signin)
+{
+    assert(signin);
+    return signin->busy;
+}
+
+int
+RS_AccountSignIn_TakeAnswer(struct RS_AccountSignIn* signin)
+{
+    assert(signin);
+    assert(signin->busy);
+    if( !signin->done )
+        return 0;
+    signin->busy = 0;
+    return 1;
+}

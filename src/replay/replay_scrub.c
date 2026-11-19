@@ -1259,7 +1259,7 @@ ReplayScrub_Rewind(struct ReplayScrub* scrub)
     scrub->reconnecting = 0;
     scrub->world_wait = 0;
     /* client_scene_frame stays: a new connection does not unload the
-     * client's scene (nothing clears App.world_active), so a seek's keyframe
+     * client's scene (nothing clears WorldLoadState_Active), so a seek's keyframe
      * after a restart can keep the scene it finds. */
     /* A chase in flight starts again at the login. */
     scrub->chase_tick = -1;

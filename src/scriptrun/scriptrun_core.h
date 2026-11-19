@@ -249,7 +249,7 @@ struct ScriptrunCore
     int have_scene;
     int rebuild_zone_x, rebuild_zone_z;
     /* The last REBUILD_REGION's template grid, KEPT as the client keeps it
-     * (App rebuild_instance_zones): the only thing a client is told about an
+     * (App rebuild_region): the only thing a client is told about an
      * instance's layout. [level*169 + zone_x*13 + zone_z], packed as struct
      * PktMapRebuild documents, centred on rebuild_zone_x/z. A REBUILD_NORMAL
      * clears it. */

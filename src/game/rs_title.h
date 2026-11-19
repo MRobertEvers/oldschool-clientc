@@ -16,7 +16,13 @@
  * translation table. Everything about how these are DRAWN -- position, font,
  * colour, the caret string, the mask character, the charset, the length caps --
  * lives in revconfig and reaches this model through RS_TitleFieldCfg.
+ *
+ * It also remembers what the page's password-manager form was last told
+ * (platform_credential_form.h), so the form is sent only when it changed. The
+ * app measures the form from the drawn tree and hands it here.
  */
+
+#include "platform/platform_credential_form.h"
 
 #define RS_TITLE_FIELD_LEN 321
 #define RS_TITLE_MESSAGE_LEN 256
@@ -199,6 +205,9 @@ struct RS_Title
     int chosen_account;
     /** The link prompt's answer; the app takes it and sets it back. */
     enum RS_TitleLinkChoice link_choice;
+    /** What the page's password-manager form was last told, compared whole
+     *  (RS_Title_TakeCredentialForm); zero until the first one is taken. */
+    struct PlatformCredentialForm credential_form_sent;
 };
 
 /** Zero the model and put it on the front menu with no bar. */
@@ -231,6 +240,18 @@ void
 RS_Title_SetHome(
     struct RS_Title* title,
     enum RS_TitleScreen home);
+
+/**
+ * The page's password-manager form, as the app measured it this frame. 1 when
+ * it differs from the last one taken, byte for byte (the caller zeroes `now`
+ * whole, so padding compares too), and it is then the one remembered; 0 when
+ * the page already has it. The first form taken differs from the zeroed one
+ * only when something in it is not zero.
+ */
+int
+RS_Title_TakeCredentialForm(
+    struct RS_Title* title,
+    struct PlatformCredentialForm const* now);
 
 /** A Play Now plate for account `index`. Returns nonzero when the model
  *  changed; a press while one is already pending is ignored. */

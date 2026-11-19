@@ -133,8 +133,8 @@ int ContentTest_DrawRequested(struct App* app)
          *
          * Measured (B0 spike, a throwaway click_minimenu run traced frame by
          * frame): a quest-mode world renders exactly ONCE, early after
-         * login, and then never again once nothing else marks need_redraw
-         * (no animation, no camera drift) -- app->frame_view->world_pickset and the
+         * login, and then never again once nothing else raises the redraw request
+         * (no animation, no camera drift) -- app->world_views.frame->world_pickset and the
          * per-entity screen-position caches freeze at that one frame's
          * contents for the rest of the run. A click verb that lands after
          * that point waits out its whole deadline against a pickset that
@@ -173,7 +173,7 @@ int ContentTest_DrawRequested(struct App* app)
                 forced,
                 active,
                 running,
-                app->frame_view->world_pickset.count);
+                app->world_views.frame->world_pickset.count);
         return forced;
     }
 }
@@ -235,21 +235,21 @@ static void state_json(struct App* app, struct ToriRSServerEmbed* embed, char* o
         server ? server->x : -1,
         server ? server->z : -1,
         server ? server->level : -1,
-        app->aboard_view,
-        (unsigned long long)app->logic_cycle,
+        Wevs_AboardView(&app->wevs),
+        (unsigned long long)FrameClockSerial_LogicCycle(&app->frame_clock.serial),
         server ? ToriRSServer_EmbedWorld(embed)->tick : -1,
-        app->frame_view->orbit.yaw,
-        app->frame_view->orbit.pitch,
-        app->frame_view->world_cam_zoom,
+        app->world_views.frame->orbit.yaw,
+        app->world_views.frame->orbit.pitch,
+        app->world_views.frame->world_cam_zoom,
         app->world ? app->world->load_complete : 0,
-        app->world_render_mode);
+        RenderMode_World(&app->render_mode));
     struct WorldEntity_Player* player =
         app->world ? World_PlayerGetByServerPid(app->world, app->esync.local_pid) : NULL;
     int base_x = app->world ? app->world->_base_tile_x : 0;
     int base_z = app->world ? app->world->_base_tile_z : 0;
-    if( app->aboard_view > 0 )
+    if( Wevs_AboardView(&app->wevs) > 0 )
     {
-        struct Worldview* view = WorldviewRegistry_Get(&app->worldviews, app->aboard_view);
+        struct Worldview* view = WorldviewRegistry_Get(&app->worldviews, Wevs_AboardView(&app->wevs));
         if( view )
         {
             base_x = view->base_x;
@@ -261,7 +261,7 @@ static void state_json(struct App* app, struct ToriRSServerEmbed* embed, char* o
             ",\"x\":%d,\"z\":%d,\"camera\":%d,\"animation\":%d,\"anim_frame\":%d,\"chat_blocked\":%d}",
             player ? base_x + player->grid_position.x : -1,
             player ? base_z + player->grid_position.z : -1,
-            app->cam_script.scripted, player ? player->animation.primary.anim_id : -1,
+            CamScript_IsScripted(&app->cam_script), player ? player->animation.primary.anim_id : -1,
             player ? player->animation.primary.frame : -1, VarCManager_GetInt(&app->varcs, 11));
         size_t facing_end = strlen(result);
         snprintf(result + facing_end - 1, sizeof(result) - facing_end + 1,
@@ -283,6 +283,9 @@ static void state_json(struct App* app, struct ToriRSServerEmbed* embed, char* o
                 if( strcmp(c->plugin_key, orb_keys[k]) == 0 && !UITree_NodeOrAncestorDisplayHidden(app->tree, (int32_t)i) )
                     ++visible_orbs;
         }
+        int move_lx, move_lz, move_height, look_lx, look_lz, look_height;
+        CamScript_MoveTarget(&app->cam_script, &move_lx, &move_lz, &move_height);
+        CamScript_LookTarget(&app->cam_script, &look_lx, &look_lz, &look_height);
         size_t camera_end = strlen(result);
         snprintf(
             result + camera_end - 1,
@@ -291,17 +294,17 @@ static void state_json(struct App* app, struct ToriRSServerEmbed* embed, char* o
             "\"look_x\":%d,\"look_z\":%d,\"look_height\":%d,"
             "\"render_yaw\":%d,\"render_pitch\":%d,\"render_x\":%d,\"render_y\":%d,\"render_z\":%d,"
             "\"hide_panels\":%d,\"fov_mode\":%d,\"visible_orbs\":%d}}",
-            app->cam_script.move_lx + base_x,
-            app->cam_script.move_lz + base_z,
-            app->cam_script.move_height,
-            app->cam_script.look_lx + base_x,
-            app->cam_script.look_lz + base_z,
-            app->cam_script.look_height,
-            app->frame_view->world_camera.yaw,
-            app->frame_view->world_camera.pitch,
-            app->frame_view->world_camera_pos.x + base_x * 128,
-            app->frame_view->world_camera_pos.y,
-            app->frame_view->world_camera_pos.z + base_z * 128,
+            move_lx + base_x,
+            move_lz + base_z,
+            move_height,
+            look_lx + base_x,
+            look_lz + base_z,
+            look_height,
+            app->world_views.frame->world_camera.yaw,
+            app->world_views.frame->world_camera.pitch,
+            app->world_views.frame->world_camera_pos.x + base_x * 128,
+            app->world_views.frame->world_camera_pos.y,
+            app->world_views.frame->world_camera_pos.z + base_z * 128,
             cutscene_bit >= 0 ? VarPManager_GetVarbit(&app->varps, cutscene_bit) : -1,
             fov_bit >= 0 ? VarPManager_GetVarbit(&app->varps, fov_bit) : -1,
             visible_orbs);
@@ -322,7 +325,7 @@ static void state_json(struct App* app, struct ToriRSServerEmbed* embed, char* o
                 server->waypoint_index,server->interaction.kind,server->interaction.op,
                 server->interaction.target_id,server->interaction.x,server->interaction.z,
                 server->interaction.use_on,server->last_useitem,server->last_useslot,
-                app->objsel.active ? app->objsel.obj_id : -1);
+                app->target_select.obj.active ? app->target_select.obj.obj_id : -1);
         }
 
     snprintf(out, capacity, "%s", result);
@@ -458,7 +461,7 @@ static void capture(struct App* app, const char* filename)
     else
     {
         remove(capture_path);
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
     }
 }
 
@@ -502,13 +505,13 @@ static void wev_json(struct App* app, char* out, size_t capacity)
             }
         }
     assert(depth==0);
-    for( int n = 0; n < app->frame_view->world_pickset.count; ++n )
+    for( int n = 0; n < app->world_views.frame->world_pickset.count; ++n )
     {
-        int id = app->frame_view->world_pickset.items[n].view_id;
+        int id = app->world_views.frame->world_pickset.items[n].view_id;
         if( id>=0 && id<WORLDVIEW_MAX ) ++picks[id];
     }
     int used=snprintf(out,capacity,"{\"ok\":true,\"limit\":%d,\"aboard\":%d,\"views\":[",
-                      app->host.world_entity_draw_limit,app->aboard_view);
+                      app->host.world_entity_draw_limit,Wevs_AboardView(&app->wevs));
     int count=0;
     for( int id=1; id<WORLDVIEW_MAX; ++id )
         if( Wevs_IsLive(&app->wevs,id) )
@@ -632,7 +635,7 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
             else if( sscanf(command,"wevlimit %d",&x)==1 )
             {
                 app->host.world_entity_draw_limit=x<0 ? 0:x;
-                hover_requested=1; app->need_redraw=1;
+                hover_requested=1; RedrawRequest_Raise(&app->redraw_request);
             }
             else if( sscanf(command,"wevgroup %d %d",&x,&z)==2 )
             {
@@ -641,20 +644,20 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
                 else
                 {
                     Wevs_Get(&app->wevs,x)->priority_group=z;
-                    hover_requested=1; app->need_redraw=1;
+                    hover_requested=1; RedrawRequest_Raise(&app->redraw_request);
                 }
             }
             else if( !strcmp(command,"peer") || !strncmp(command,"peer ",5) )
             {
                 char message[256]; int changed=0;
                 if( !ContentTestSailing_PeerCommand(embed,command+4,&changed,message,sizeof(message)) ) error(message);
-                else if( changed ) { publish_pending=1; app->need_redraw=1; }
+                else if( changed ) { publish_pending=1; RedrawRequest_Raise(&app->redraw_request); }
             }
             else if( !strncmp(command, "proc ", 5) )
             {
                 char message[256];
                 if( !ContentTestSailing_PrimaryProc(embed, command + 5, message, sizeof(message)) ) error(message);
-                else { publish_pending = 1; app->need_redraw = 1; }
+                else { publish_pending = 1; RedrawRequest_Raise(&app->redraw_request); }
             }
             else if( !strcmp(command, "pause") ) running = 0;
             else if( !strcmp(command, "resume") ) running = 1;
@@ -662,7 +665,7 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
             {
                 CmdBus_PushMouseMove(bus,x,z);
                 hover_requested=1;
-                app->need_redraw=1;
+                RedrawRequest_Raise(&app->redraw_request);
             }
             else if( strncmp(command, "cheat ", 6) == 0 )
             {
@@ -684,11 +687,11 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
                     error("camera pitch must be 128..383; zoom -1000..10000");
                 else
                 {
-                    app->frame_view->orbit.yaw = app->frame_view->world_camera.yaw = x & 2047;
-                    app->frame_view->orbit.pitch = app->frame_view->world_camera.pitch = z;
-                    app->frame_view->world_cam_zoom = sub;
-                    app->frame_view->orbit.yaw_velocity = app->frame_view->orbit.pitch_velocity = 0;
-                    app->need_redraw = 1;
+                    app->world_views.frame->orbit.yaw = app->world_views.frame->world_camera.yaw = x & 2047;
+                    app->world_views.frame->orbit.pitch = app->world_views.frame->world_camera.pitch = z;
+                    app->world_views.frame->world_cam_zoom = sub;
+                    app->world_views.frame->orbit.yaw_velocity = app->world_views.frame->orbit.pitch_velocity = 0;
+                    RedrawRequest_Raise(&app->redraw_request);
                 }
             }
             else if( sscanf(command, "loc %d %d %d %511s", &op, &x, &z, name) == 4 )
@@ -713,7 +716,7 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
                     app->host.trigger_op[slot].ref = UITree_RefAt(app->tree, idx);
                     app->host.trigger_op[slot].op_index = op;
                     app->frame_runner.frame_settle_pending = 1;
-                    app->need_redraw = 1;
+                    RedrawRequest_Raise(&app->redraw_request);
                     publish_pending = 1;
                 }
             }
@@ -802,7 +805,7 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
             publish_pending = 1;
         }
         click_phase++;
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
     }
     if( remaining > 0 && !App_AsyncPending(app) )
     {
@@ -835,7 +838,7 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
      * ticks. A paused clock cannot reach the next tick's fence by itself.
      * Seal only those already-sent bytes; do not publish player/NPC masks or
      * advance scripts, since that would change the animation start timing. */
-    if( !remaining && content_test_tick_only() && app->server_tick_open )
+    if( !remaining && content_test_tick_only() && RS_ServerTick_IsOpen(&app->server_tick) )
     {
         struct ToriRSServerEmbed* pending_embed = NetTransport_TestClock(transport, test_now);
         struct ToriRSServerPlayer* pending_player = pending_embed ? ToriRSServer_EmbedPlayer(pending_embed, 0) : NULL;
@@ -862,7 +865,7 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
     {
         RS_CS2_PumpTransmits(&app->host, &app->frame_runner);
         app->frame_runner.frame_settle_pending = 1;
-        app->need_redraw = 1;
+        RedrawRequest_Raise(&app->redraw_request);
         finishing = 0;
         return;
     }
@@ -892,7 +895,7 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
                             server->rebuild_pending, ToriRSServer_EmbedPending(embed, 0));
             }
             finishing = 0;
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
             return;
         }
         ContentTestSailing_SettleRestore(app);
@@ -1108,15 +1111,14 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
     if( capture_path[0] )
     {
         struct stat info;
-        for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
-            if( app->plugin_screenshots[i].in_use && !strcmp(app->plugin_screenshots[i].path, capture_path) )
-            {
-                app->need_redraw = 1;
-                return;
-            }
+        if( PluginScreenshots_IsWaiting(&app->plugin_screenshots, capture_path) )
+        {
+            RedrawRequest_Raise(&app->redraw_request);
+            return;
+        }
         if( stat(capture_path, &info) || info.st_size == 0 ) error("renderer capture did not produce a file");
         else snprintf(result, sizeof(result), "{\"ok\":true,\"path\":\"%s\",\"width\":%d,\"height\":%d,\"renderer\":%d}",
-                      capture_path, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, app->world_render_mode);
+                      capture_path, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, RenderMode_World(&app->render_mode));
     }
     size_t len = strlen(result);
     if( len && result[len - 1] == '}' )

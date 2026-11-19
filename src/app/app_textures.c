@@ -124,7 +124,7 @@ app_sync_textures(struct App* app)
             TORIRS_LOG(
                 "tex_trace: immediate publish %d ready -> %d published\n", ready_count, published);
         if( published )
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
     }
 }
 
@@ -193,6 +193,6 @@ app_sync_textures_poll(struct App* app)
                 published,
                 app->tex_pending.count);
         if( published )
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
     }
 }

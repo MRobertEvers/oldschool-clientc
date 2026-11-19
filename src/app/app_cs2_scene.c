@@ -401,22 +401,22 @@ app_ground_items_settings_moved(struct App* app)
         int value;
         if( varbit <= 0 )
             continue;
-        if( app->ground_items_settings_varp[i] < 0 )
+        if( RS_GroundItemsSettings_Varp(&app->ground_items_settings, i) < 0 )
         {
-            app->ground_items_settings_varp[i] = VarPManager_VarbitBaseVar(app->host.varps, varbit);
-            if( app->ground_items_settings_varp[i] < 0 )
+            int const varp = VarPManager_VarbitBaseVar(app->host.varps, varbit);
+            if( varp < 0 )
                 continue;
             /* Seed rather than fire: the value a carrier comes up with is not
              * a change, and firing here would rebuild every overlay on the
              * first tick after the varbit table lands. */
-            app->ground_items_settings_seen[i] =
-                VarPManager_GetVarp(app->host.varps, app->ground_items_settings_varp[i]);
+            RS_GroundItemsSettings_Resolve(
+                &app->ground_items_settings, i, varp, VarPManager_GetVarp(app->host.varps, varp));
             continue;
         }
-        value = VarPManager_GetVarp(app->host.varps, app->ground_items_settings_varp[i]);
-        if( value == app->ground_items_settings_seen[i] )
+        value = VarPManager_GetVarp(
+            app->host.varps, RS_GroundItemsSettings_Varp(&app->ground_items_settings, i));
+        if( !RS_GroundItemsSettings_VarpChanged(&app->ground_items_settings, i, value) )
             continue;
-        app->ground_items_settings_seen[i] = value;
         moved = true;
     }
     return moved;
@@ -445,11 +445,8 @@ app_ground_items_tick(struct App* app)
     for( int i = 0; i < 2; ++i )
     {
         uint64_t revision = LootStore_VectorRevision(&app->loot, 3 + i);
-        if( revision != app->ground_items_aux_seen[i] )
-        {
-            app->ground_items_aux_seen[i] = revision;
+        if( RS_GroundItemsSettings_AuxChanged(&app->ground_items_settings, i, revision) )
             RS_GroundItemsDirty_MarkAll(&app->ground_items_dirty);
-        }
     }
     if( RS_GroundItemsDirty_TakeRefreshAll(&app->ground_items_dirty) )
         app_ground_items_mark_every_tile(app);

@@ -78,8 +78,7 @@ fixture_init(struct DotFixture* fx)
     fx->app.bridge.static_sprite_scene[STATIC_SPRITE_MAPEDGE] = fx->edge_scene;
     /* Scene origin: base = (zone - 6) * 8, so zone 6 makes an absolute tile
      * and a scene tile the same number and the hint coords below readable. */
-    fx->app.rebuild_zone_x = 6;
-    fx->app.rebuild_zone_z = 6;
+    RS_RebuildRegion_SetCentre(&fx->app.rebuild_region, 6, 6);
     /* No flag placed: -1 is the "no destination" sentinel the app resets to. */
     fx->app.minimap.flag_tile_x = -1;
 
@@ -255,7 +254,7 @@ test_the_hint_marks_its_subject(void)
     TEST_ASSERT(
         count_dots(dots, count, fx.marker_scene, 1) == 0, "no hint, no marker");
 
-    fx.app.hint_arrow.type = APP_HINT_ARROW_NPC;
+    fx.app.hint_arrow.type = RS_HINT_ARROW_NPC;
     fx.app.hint_arrow.target = 41;
     count = App_MinimapBuildDots(&fx.app, &dots);
     TEST_ASSERT(
@@ -292,14 +291,14 @@ test_the_hint_blinks(void)
     fixture_init(&fx);
     npc = spawn_npc(&fx, 10, 28, 25);
     npc->server_slot = 41;
-    fx.app.hint_arrow.type = APP_HINT_ARROW_NPC;
+    fx.app.hint_arrow.type = RS_HINT_ARROW_NPC;
     fx.app.hint_arrow.target = 41;
 
     for( int cycle = 0; cycle < 40; cycle++ )
     {
         int count;
 
-        fx.app.logic_cycle = (uint64_t)cycle;
+        fx.app.frame_clock.serial.logic_cycle = (uint64_t)cycle;
         count = App_MinimapBuildDots(&fx.app, &dots);
         if( count_dots(dots, count, fx.marker_scene, 1) )
             shown++;
@@ -308,14 +307,14 @@ test_the_hint_blinks(void)
     }
     TEST_ASSERT(shown == 20 && hidden == 20, "half of forty cycles show it");
 
-    fx.app.logic_cycle = 9;
+    fx.app.frame_clock.serial.logic_cycle = 9;
     TEST_ASSERT(
         count_dots(dots,
                    App_MinimapBuildDots(&fx.app, &dots),
                    fx.marker_scene,
                    1) == 1,
         "the tenth cycle of the period still shows it");
-    fx.app.logic_cycle = 10;
+    fx.app.frame_clock.serial.logic_cycle = 10;
     TEST_ASSERT(
         count_dots(dots,
                    App_MinimapBuildDots(&fx.app, &dots),
@@ -346,7 +345,7 @@ test_a_hint_off_the_map_points_from_the_rim(void)
      * ends at and well short of the 300 the rim gives up at. */
     npc = spawn_npc(&fx, 10, 50, 25);
     npc->server_slot = 41;
-    fx.app.hint_arrow.type = APP_HINT_ARROW_NPC;
+    fx.app.hint_arrow.type = RS_HINT_ARROW_NPC;
     fx.app.hint_arrow.target = 41;
 
     /* The dat1 lane's radii are Client.ts's own two constants. */
@@ -413,7 +412,7 @@ test_a_coord_hint_marks_the_tile_it_names(void)
     printf("TEST: a coord hint lands on the tile the server named\n");
 
     fixture_init(&fx);
-    fx.app.hint_arrow.type = APP_HINT_ARROW_COORD;
+    fx.app.hint_arrow.type = RS_HINT_ARROW_COORD;
     fx.app.hint_arrow.target = 30;
     fx.app.hint_arrow.tile_z = 25;
     fx.app.hint_arrow.offset_x = 64;

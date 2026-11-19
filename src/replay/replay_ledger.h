@@ -139,7 +139,7 @@ struct ReplayZoneOp
 
 /** One zone op, decoded again, in the shape the executor's zone arm takes:
  *  `pkt` with a ZoneAt of (base_x, base_z, level) -- rs_gameproto_exec.c
- *  exec_zone_sub_packet_at, AppPendingZonePkt. */
+ *  exec_zone_sub_packet_at, RS_ZoneInboxEntry. */
 struct ReplayWorldZoneOp
 {
     struct PktZoneSubPacket pkt;

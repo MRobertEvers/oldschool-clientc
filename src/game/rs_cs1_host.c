@@ -36,6 +36,22 @@ RS_CS1Host_Init(
     CS1VM_BindHost(&host->vm, host, RS_CS1Host_Exec);
 }
 
+bool
+RS_CS1Host_EvalInflight(struct RS_CS1Host const* host)
+{
+    assert(host);
+    return host->eval_inflight;
+}
+
+void
+RS_CS1Host_SetEvalInflight(
+    struct RS_CS1Host* host,
+    bool inflight)
+{
+    assert(host);
+    host->eval_inflight = inflight;
+}
+
 static int
 rs_cs1_yield(
     struct RS_CS1Host* host,

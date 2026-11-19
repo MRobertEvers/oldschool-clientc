@@ -8,6 +8,7 @@
 #include "net/net.h"
 #include "net/rev/revpacket.h"
 #include "net/torirs_control.h"
+#include "replay/replay_chase.h"
 #include "replay/replay_world.h"
 #include "rs_attack_option.h"
 #include "rs_audio.h"
@@ -67,8 +68,8 @@ exec_chat_add(
 }
 
 /*
- * One camera packet, recorded for the READ side (app.h: struct App_CamScript,
- * `serial` + `events`). The draw path never reads this; the quest driver does
+ * One camera packet, recorded for the READ side (render/cam_script.h,
+ * CamScript_Record). The draw path never reads this; the quest driver does
  * (t.world.camera, t.cutscene.await), so a cutscene a quest scripts can be
  * asserted rather than only survived (seam32 cutscene_verb_and_camera_read).
  *
@@ -79,26 +80,23 @@ exec_chat_add(
 static void
 exec_cam_script_record(
     struct App* app,
-    enum App_CamScriptOp kind,
+    enum CamScriptOp kind,
     int world_x,
     int world_z,
     int height,
     int rate,
     int rate2)
 {
-    struct App_CamScriptEvent* event;
-
     assert(app);
-    app->cam_script.serial++;
-    event = &app->cam_script.events[app->cam_script.serial % APP_CAM_SCRIPT_EVENTS];
-    event->serial = app->cam_script.serial;
-    event->op = (int)kind;
-    event->world_x = world_x;
-    event->world_z = world_z;
-    event->height = height;
-    event->rate = rate;
-    event->rate2 = rate2;
-    event->tick = app->world ? app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES : 0;
+    CamScript_Record(
+        &app->cam_script,
+        kind,
+        world_x,
+        world_z,
+        height,
+        rate,
+        rate2,
+        app->world ? app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES : 0);
 }
 
 /* 15-bit RS colour (r<<10|g<<5|b, 5 bits each) to RGB888. */
@@ -277,7 +275,7 @@ exec_trigger_on_dialog_abort(struct RS_GameProtoCtx const* ctx)
             continue;
         RS_CS2_DispatchHook(&app->host, &app->frame_runner, node->component_id, &hook);
     }
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 /* Where a zone sub-packet applies: base + packed nibbles, at `level`, in the
@@ -414,23 +412,18 @@ zone_pending_push_at(
     void const* payload,
     struct ZoneAt const* at)
 {
-    struct AppPendingZonePkt* entry;
-    int cap = (int)(sizeof(app->pending_zone) / sizeof(app->pending_zone[0]));
+    struct PktZoneSubPacket pkt;
 
     assert(at);
-    if( app->pending_zone_count >= cap )
+    if( RS_ZoneInbox_IsFull(&app->zone_inbox) )
     {
         TORIRS_LOG("gameproto_exec: pending-zone queue full, dropping pkt %d\n", (int)name);
         return;
     }
-    entry = &app->pending_zone[app->pending_zone_count];
-    if( !zone_sub_packet_copy(&entry->pkt, name, payload) )
+    memset(&pkt, 0, sizeof(pkt));
+    if( !zone_sub_packet_copy(&pkt, name, payload) )
         return;
-    entry->base_x = at->base_x;
-    entry->base_z = at->base_z;
-    entry->level = at->level;
-    entry->view = at->view;
-    app->pending_zone_count++;
+    RS_ZoneInbox_Hold(&app->zone_inbox, &pkt, at->base_x, at->base_z, at->level, at->view);
 }
 
 static void
@@ -439,9 +432,34 @@ zone_pending_push(
     enum GameProtoPktName name,
     void const* payload)
 {
-    struct ZoneAt at = { app->zone_base_x, app->zone_base_z, app->zone_level, app->active_world };
+    struct ZoneAt at = {
+        RS_ZoneInbox_BaseX(&app->zone_inbox),
+        RS_ZoneInbox_BaseZ(&app->zone_inbox),
+        RS_ZoneInbox_Level(&app->zone_inbox),
+        WorldviewRegistry_Active(&app->worldviews),
+    };
 
     zone_pending_push_at(app, name, payload, &at);
+}
+
+/* RS_ZoneInbox_Drain's step: one held packet, where it was as of arrival. */
+static void
+zone_pending_apply(
+    void* user,
+    struct RS_ZoneInboxEntry const* entry)
+{
+    struct RS_GameProtoCtx const* ctx = user;
+    struct App* app = ctx->app;
+    struct ZoneAt at = { entry->base_x, entry->base_z, entry->level, entry->view };
+
+    /* The entry captured its view when it queued; the view can be
+     * despawned before load_complete lets the replay run. A dead view's
+     * zone event has nowhere to land — drop it, don't resolve a released
+     * registry slot. */
+    if( entry->view != WORLDVIEW_ROOT &&
+        !WorldviewRegistry_IsLive(&app->worldviews, entry->view) )
+        return;
+    exec_zone_sub_packet_at(ctx, entry->pkt.name, &entry->pkt._loc_add_change, &at);
 }
 
 void
@@ -449,7 +467,6 @@ RS_GameProto_FlushPendingZone(struct RS_GameProtoCtx const* ctx)
 {
     struct App* app = ctx->app;
     struct World* world;
-    int i;
 
     /* `app->world` doubles as "the view registry has its root": a harness App
      * with no world never registered one, so resolving would assert. */
@@ -458,21 +475,7 @@ RS_GameProto_FlushPendingZone(struct RS_GameProtoCtx const* ctx)
     world = App_ActiveWorldview(app)->world;
     if( !world->load_complete )
         return;
-    for( i = 0; i < app->pending_zone_count; i++ )
-    {
-        struct AppPendingZonePkt const* entry = &app->pending_zone[i];
-        struct ZoneAt at = { entry->base_x, entry->base_z, entry->level, entry->view };
-
-        /* The entry captured its view when it queued; the view can be
-         * despawned before load_complete lets the replay run. A dead view's
-         * zone event has nowhere to land — drop it, don't resolve a released
-         * registry slot. */
-        if( entry->view != WORLDVIEW_ROOT &&
-            !WorldviewRegistry_IsLive(&app->worldviews, entry->view) )
-            continue;
-        exec_zone_sub_packet_at(ctx, entry->pkt.name, &entry->pkt._loc_add_change, &at);
-    }
-    app->pending_zone_count = 0;
+    RS_ZoneInbox_Drain(&app->zone_inbox, zone_pending_apply, (void*)ctx);
 }
 
 /* One loc-change record's key: the reference's locChanges identity
@@ -564,7 +567,12 @@ zone_full_reset_locs(struct App* app)
         struct World_LocChange const* latest = rec;
         int first = 1;
 
-        if( !zone_loc_change_in_zone(world, rec, app->zone_base_x, app->zone_base_z, app->zone_level) )
+        if( !zone_loc_change_in_zone(
+                world,
+                rec,
+                RS_ZoneInbox_BaseX(&app->zone_inbox),
+                RS_ZoneInbox_BaseZ(&app->zone_inbox),
+                RS_ZoneInbox_Level(&app->zone_inbox)) )
             continue;
         for( int j = 0; j < i; j++ )
         {
@@ -638,13 +646,13 @@ exec_zone_sub_packet(
     }
     /* Keep arrival order: anything still queued from the load window applies
      * before this live packet. */
-    if( app->pending_zone_count > 0 )
+    if( RS_ZoneInbox_HeldCount(&app->zone_inbox) > 0 )
         RS_GameProto_FlushPendingZone(ctx);
 
-    at.base_x = app->zone_base_x;
-    at.base_z = app->zone_base_z;
-    at.level = app->zone_level;
-    at.view = app->active_world;
+    at.base_x = RS_ZoneInbox_BaseX(&app->zone_inbox);
+    at.base_z = RS_ZoneInbox_BaseZ(&app->zone_inbox);
+    at.level = RS_ZoneInbox_Level(&app->zone_inbox);
+    at.view = WorldviewRegistry_Active(&app->worldviews);
     exec_zone_sub_packet_at(ctx, name, payload, &at);
 }
 
@@ -673,7 +681,7 @@ RS_GameProto_ReplayZoneOp(
         zone_pending_push_at(app, pkt->name, &pkt->_loc_add_change, &at);
         return;
     }
-    if( app->pending_zone_count > 0 )
+    if( RS_ZoneInbox_HeldCount(&app->zone_inbox) > 0 )
         RS_GameProto_FlushPendingZone(ctx);
     exec_zone_sub_packet_at(ctx, pkt->name, &pkt->_loc_add_change, &at);
 }
@@ -696,11 +704,11 @@ RS_GameProto_ReplayClearScene(struct App* app)
     int saved_level;
 
     assert(app);
-    saved_x = app->zone_base_x;
-    saved_z = app->zone_base_z;
-    saved_level = app->zone_level;
+    saved_x = RS_ZoneInbox_BaseX(&app->zone_inbox);
+    saved_z = RS_ZoneInbox_BaseZ(&app->zone_inbox);
+    saved_level = RS_ZoneInbox_Level(&app->zone_inbox);
     assert(app->world);
-    assert(app->active_world == WORLDVIEW_ROOT);
+    assert(WorldviewRegistry_Active(&app->worldviews) == WORLDVIEW_ROOT);
     world = app->world;
     memset(marked, 0, sizeof(marked));
     for( int i = 0; i < world->loc_change_count; i++ )
@@ -730,9 +738,7 @@ RS_GameProto_ReplayClearScene(struct App* app)
             for( int level = 0; level < 4; level++ )
             {
                 /* UPDATE_ZONE_FULL_FOLLOWS's arm, for this zone and plane. */
-                app->zone_base_x = zx * 8;
-                app->zone_base_z = zz * 8;
-                app->zone_level = level;
+                RS_ZoneInbox_SetBase(&app->zone_inbox, zx * 8, zz * 8, level);
                 zone_full_reset_locs(app);
                 for( int dz = 0; dz < 8; dz++ )
                     for( int dx = 0; dx < 8; dx++ )
@@ -740,9 +746,7 @@ RS_GameProto_ReplayClearScene(struct App* app)
             }
         }
     }
-    app->zone_base_x = saved_x;
-    app->zone_base_z = saved_z;
-    app->zone_level = saved_level;
+    RS_ZoneInbox_SetBase(&app->zone_inbox, saved_x, saved_z, saved_level);
 }
 
 /*
@@ -775,13 +779,13 @@ exec_map_anim_specific(
     at.base_x = pkt->x & ~7;
     at.base_z = pkt->z & ~7;
     at.level = zone_player_level(app);
-    at.view = app->active_world;
+    at.view = WorldviewRegistry_Active(&app->worldviews);
     if( !App_ActiveWorldview(app)->world->load_complete )
     {
         zone_pending_push_at(app, PKT_NAME_MAP_ANIM, &sub, &at);
         return;
     }
-    if( app->pending_zone_count > 0 )
+    if( RS_ZoneInbox_HeldCount(&app->zone_inbox) > 0 )
         RS_GameProto_FlushPendingZone(ctx);
     exec_zone_sub_packet_at(ctx, PKT_NAME_MAP_ANIM, &sub, &at);
 }
@@ -810,13 +814,13 @@ exec_loc_anim_specific(
     at.base_x = pkt->x & ~7;
     at.base_z = pkt->z & ~7;
     at.level = zone_player_level(app);
-    at.view = app->active_world;
+    at.view = WorldviewRegistry_Active(&app->worldviews);
     if( !App_ActiveWorldview(app)->world->load_complete )
     {
         zone_pending_push_at(app, PKT_NAME_LOC_ANIM, &sub, &at);
         return;
     }
-    if( app->pending_zone_count > 0 )
+    if( RS_ZoneInbox_HeldCount(&app->zone_inbox) > 0 )
         RS_GameProto_FlushPendingZone(ctx);
     exec_zone_sub_packet_at(ctx, PKT_NAME_LOC_ANIM, &sub, &at);
 }
@@ -874,7 +878,7 @@ exec_projanim_specific(
         zone_pending_push_at(app, PKT_NAME_MAP_PROJANIM, &sub, &at);
         return;
     }
-    if( app->pending_zone_count > 0 )
+    if( RS_ZoneInbox_HeldCount(&app->zone_inbox) > 0 )
         RS_GameProto_FlushPendingZone(ctx);
     exec_zone_sub_packet_at(ctx, PKT_NAME_MAP_PROJANIM, &sub, &at);
 }
@@ -941,7 +945,7 @@ exec_obj_customise_specific(
         zone_pending_push_at(app, sub_name, &sub, &at);
         return;
     }
-    if( app->pending_zone_count > 0 )
+    if( RS_ZoneInbox_HeldCount(&app->zone_inbox) > 0 )
         RS_GameProto_FlushPendingZone(ctx);
     exec_zone_sub_packet_at(ctx, sub_name, &sub, &at);
 }
@@ -1136,7 +1140,7 @@ exec_obj_specific(
         zone_pending_push_at(app, sub_name, &sub, &at);
         return;
     }
-    if( app->pending_zone_count > 0 )
+    if( RS_ZoneInbox_HeldCount(&app->zone_inbox) > 0 )
         RS_GameProto_FlushPendingZone(ctx);
     exec_zone_sub_packet_at(ctx, sub_name, &sub, &at);
 }
@@ -1151,7 +1155,7 @@ exec_obj_specific(
 static void
 exec_clear_entities(struct App* app)
 {
-    int const view = app->active_world;
+    int const view = WorldviewRegistry_Active(&app->worldviews);
 
     while( Wevs_ViewListCount(&app->wevs, view) > 0 )
         App_WevDespawn(app, Wevs_ViewListAt(&app->wevs, view, 0)->id);
@@ -1163,9 +1167,8 @@ exec_clear_entities(struct App* app)
     }
     else
         RS_EntitySync_ClearViewNpcs(&app->esync, app->world, view);
-    app->active_world = WORLDVIEW_ROOT;
-    app->active_world_level = 0;
-    app->need_redraw = 1;
+    WorldviewRegistry_ResetActive(&app->worldviews);
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 /*
@@ -1221,7 +1224,7 @@ exec_zone_sub_packet_at(
 {
     struct App* app = ctx->app;
     int tile_x, tile_z, level;
-    int prev_view = app->active_world;
+    int prev_view = WorldviewRegistry_Active(&app->worldviews);
 
     /* Apply under the cursor AS OF ARRIVAL. A replayed pending packet was
      * queued behind a SET_ACTIVE_WORLD the tick fence has since reset, so the
@@ -1229,7 +1232,7 @@ exec_zone_sub_packet_at(
      * spawn tasks they enqueue, which capture the cursor) all resolve their
      * (world, builder) through App_ActiveWorldview. Restored on the way out —
      * for a live packet this round-trips the same value. */
-    app->active_world = at->view;
+    WorldviewRegistry_SetActive(&app->worldviews, at->view);
 
     switch( name )
     {
@@ -1413,8 +1416,8 @@ exec_zone_sub_packet_at(
              * six zones of margin the client keeps on each side. Applied as
              * offsets, an absolute coord puts the arc a few tiles from the
              * scene's south-west corner and the shot flies off the map. */
-            int origin_x = (ctx->app->rebuild_zone_x - 6) * 8;
-            int origin_z = (ctx->app->rebuild_zone_z - 6) * 8;
+            int origin_x = RS_RebuildRegion_SceneBaseX(&ctx->app->rebuild_region);
+            int origin_z = RS_RebuildRegion_SceneBaseZ(&ctx->app->rebuild_region);
 
             dst_tx = pkt->dst_abs_x - origin_x;
             dst_tz = pkt->dst_abs_z - origin_z;
@@ -1460,7 +1463,7 @@ exec_zone_sub_packet_at(
     case PKT_NAME_OBJ_CUSTOMISE:
     {
         struct PktObjCustomise const* pkt = payload;
-        struct AppObjCustomise custom = {
+        struct WorldEntity_ObjCustomise custom = {
             .model = pkt->fields.model,
             .tint = pkt->fields.tint,
             .recol_count = pkt->fields.recol_count,
@@ -1495,8 +1498,8 @@ exec_zone_sub_packet_at(
             break;
         if( pkt->target_x != -1 )
         {
-            int const origin_x = (ctx->app->rebuild_zone_x - 6) * 8;
-            int const origin_z = (ctx->app->rebuild_zone_z - 6) * 8;
+            int const origin_x = RS_RebuildRegion_SceneBaseX(&ctx->app->rebuild_region);
+            int const origin_z = RS_RebuildRegion_SceneBaseZ(&ctx->app->rebuild_region);
 
             World_ProjectileScriptedRetarget(
                 world,
@@ -1520,9 +1523,9 @@ exec_zone_sub_packet_at(
          * the source is the zone tile, the target an absolute coord taken to
          * scene tiles against the rebuild origin as MAP_PROJANIM's is. */
         struct PktScriptedProjAdd const* pkt = payload;
-        int origin_x = (ctx->app->rebuild_zone_x - 6) * 8;
-        int origin_z = (ctx->app->rebuild_zone_z - 6) * 8;
-        struct AppScriptedProj sp;
+        int origin_x = RS_RebuildRegion_SceneBaseX(&ctx->app->rebuild_region);
+        int origin_z = RS_RebuildRegion_SceneBaseZ(&ctx->app->rebuild_region);
+        struct WorldEntity_ScriptedProjSpec sp;
 
         zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
         assert(app->world);
@@ -1537,7 +1540,7 @@ exec_zone_sub_packet_at(
             pkt->target,
             pkt->start_delay,
             pkt->end_delay);
-        sp = (struct AppScriptedProj){
+        sp = (struct WorldEntity_ScriptedProjSpec){
             .src_x = tile_x,
             .src_z = tile_z,
             .src_level = level,
@@ -1589,7 +1592,7 @@ exec_zone_sub_packet_at(
         break;
     }
 
-    app->active_world = prev_view;
+    WorldviewRegistry_SetActive(&app->worldviews, prev_view);
 }
 
 /*
@@ -1619,7 +1622,7 @@ exec_open_welcome_screen(struct App* app)
     /* No address means the server is not offering a welcome screen at all.
      * The reference gates on the same field, and it is also what keeps a
      * zero-filled App from opening one before any packet has arrived. */
-    if( app->welcome.last_ip == 0 )
+    if( app->session_info.welcome.last_ip == 0 )
         return;
     /* Never in front of something already open. LAST_LOGIN_INFO is a login
      * packet by convention, not by rule, and the reference makes the same
@@ -1627,8 +1630,8 @@ exec_open_welcome_screen(struct App* app)
     if( app->slots.main_modal_id != -1 )
         return;
 
-    iface_name = (app->welcome.days_since_recovery != RS_CC_RECOVERY_DAYS_SILENT ||
-                  app->welcome.member_warning == 1)
+    iface_name = (app->session_info.welcome.days_since_recovery != RS_CC_RECOVERY_DAYS_SILENT ||
+                  app->session_info.welcome.member_warning == 1)
                      ? "welcome_screen_notice"
                      : "welcome_screen";
     iface_id = RevConfigRefs_Get(&app->revconfig_refs, "iface", iface_name);
@@ -1670,7 +1673,7 @@ exec_worldentity_info(
 
     assert(app);
     assert(pkt);
-    view = app->active_world;
+    view = WorldviewRegistry_Active(&app->worldviews);
     /* The count is WIRE data: a count past the view's actual list is a
      * malformed or misaddressed packet (parse cannot bound it against client
      * state), and indexing the list with it walks past live entries — refuse
@@ -1786,7 +1789,7 @@ exec_worldentity_info(
             wev->seq_start_cycle = app->wevs.clock + sp->seq_delay;
         }
     }
-    app->need_redraw = 1;
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 /* ---- friends chat, clans --------------------------------------------------- */
@@ -1942,9 +1945,8 @@ exec_message_clanchannel(
         return;
 
     int64_t const key = ((int64_t)message->world << 32) + message->counter;
-    for( int i = 0; i < 100; i++ )
-        if( app->pm_message_ids[i] == key )
-            return;
+    if( RS_Social_MessageSeen(&app->social, key) )
+        return;
 
     if( !system )
     {
@@ -1953,8 +1955,7 @@ exec_message_clanchannel(
         if( ignorable && RS_Social_IsIgnored(&app->social, message->sender) )
             return;
     }
-    app->pm_message_ids[app->pm_message_head] = key;
-    app->pm_message_head = (app->pm_message_head + 1) % 100;
+    RS_Social_MessageRemember(&app->social, key);
 
     char const* const text = message->text ? message->text : "";
     if( system )
@@ -1989,14 +1990,12 @@ exec_message_friendchannel(
     assert(app);
     assert(message);
     int64_t const key = ((int64_t)message->world << 32) + message->counter;
-    for( int i = 0; i < 100; i++ )
-        if( app->pm_message_ids[i] == key )
-            return;
+    if( RS_Social_MessageSeen(&app->social, key) )
+        return;
     RS_Chat_CrownImage(message->crown, &ignorable);
     if( ignorable && RS_Social_IsIgnored(&app->social, message->sender) )
         return;
-    app->pm_message_ids[app->pm_message_head] = key;
-    app->pm_message_head = (app->pm_message_head + 1) % 100;
+    RS_Social_MessageRemember(&app->social, key);
 
     base37tostr((uint64_t)message->channel_name, channel, sizeof(channel));
     exec_escape_tags(message->text ? message->text : "", escaped, sizeof(escaped));
@@ -2078,7 +2077,7 @@ exec_control_cache_invalidate(
      * scene is built again from the rebuilt squares and the re-decoded loc
      * records. */
     if( index == 5 || (index == 2 && evicted > 0) )
-        ctx->app->net_force_rebuild = 1;
+        RS_RebuildRegion_Force(&ctx->app->rebuild_region);
     if( getenv("TORIRS_CACHE_INVALIDATE_DEBUG") )
         TORIRS_REPORT("cache invalidate: index %d, %d archive(s): %d dropped, %d until the next "
                       "login\n",
@@ -2131,10 +2130,9 @@ exec_control_replay_coord(
     /* A chase's first tick: the world it withholds is replaced whole by the
      * keyframe, so the players and npcs left standing from where the seek
      * started stop now rather than animate through the chase. */
-    if( !app->replay_chase_coord_valid && app->world )
+    if( !ReplayChase_HasCoord(&app->replay_chase) && app->world )
         ReplayWorld_ClearEntities(app);
-    app->replay_chase_coord_valid = 1;
-    app->replay_chase_coord = c.coord;
+    ReplayChase_StateCoord(&app->replay_chase, c.coord);
     app->host.local_coord = c.coord;
     /* The clock: c.cycle is the cycle a chase of 30 cycles a tick executes
      * this tick in, were its pipeline never busy. That chase runs every
@@ -2142,19 +2140,12 @@ exec_control_replay_coord(
      * too) and the rest to c.cycle besides; those are charged. The cycles
      * that did not tick clientclock here (a busy pipeline) did not there. */
     {
-        int64_t cycle = c.cycle;
-        int64_t charge = c.cycle;
+        int64_t const charge = ReplayChase_Charge(
+            &app->replay_chase,
+            c.cycle,
+            c.first,
+            FrameClockSerial_LogicCycle(&app->frame_clock.serial));
 
-        if( !c.first )
-        {
-            int64_t const ran = (int64_t)(app->logic_cycle - app->replay_chase_logic_cycle);
-
-            if( cycle < app->replay_chase_cycle + ran )
-                cycle = app->replay_chase_cycle + ran;
-            charge = cycle - app->replay_chase_cycle - ran;
-        }
-        app->replay_chase_cycle = cycle;
-        app->replay_chase_logic_cycle = app->logic_cycle;
         app->host.client_clock += (int)charge;
         {
             static int trace = -1;
@@ -2163,10 +2154,12 @@ exec_control_replay_coord(
             if( trace < 0 )
                 trace = getenv("TORIRS_REPLAY_CHASE_TRACE") != NULL;
             if( trace )
-                TORIRS_REPORT("replay: chase coord executed: clientclock %d (charged %lld), "
-                              "logic cycle %llu\n",
-                              app->host.client_clock, (long long)charge,
-                              (unsigned long long)app->logic_cycle);
+                TORIRS_REPORT(
+                    "replay: chase coord executed: clientclock %d (charged %lld), "
+                    "logic cycle %llu\n",
+                    app->host.client_clock,
+                    (long long)charge,
+                    (unsigned long long)FrameClockSerial_LogicCycle(&app->frame_clock.serial));
         }
     }
     /* What the local player's appearance would have published
@@ -2306,7 +2299,7 @@ RS_GameProto_ReplayControlExpected(
     struct TorirsControlFrame const* frame)
 {
     assert(frame);
-    if( app && app->net_replay )
+    if( app && app->net && ToriRS_Network_IsReplay(app->net) )
         return;
     TORIRS_ERR("control: a %s frame (%d bytes) on a connection that is not an RSProx replay: "
                "only the replay transport writes it\n",
@@ -2656,7 +2649,7 @@ RS_GameProto_Exec(
          * (Display Fixed/Classic/Modern). Reject non-positive ids — a live
          * server once sent 0 and wiped the tree. Same-id is a no-op. */
         int top = packet->_if_opentop.interface_id;
-        int cur = ctx->app ? ctx->app->boot_interface_id : -1;
+        int cur = ctx->app ? RS_BootState_InterfaceId(&ctx->app->boot) : -1;
         if( !ctx->app || top <= 0 )
             break;
         if( top == cur )
@@ -2709,7 +2702,7 @@ RS_GameProto_Exec(
             struct App* app = ctx->app;
             struct PktIfResync const* sync = &packet->_if_resync;
             int root_changed = sync->root_interface_id > 0 &&
-                               sync->root_interface_id != app->boot_interface_id;
+                               sync->root_interface_id != RS_BootState_InterfaceId(&app->boot);
             struct UITreeInterfaceParent live[UITREE_INTERFACE_PARENT_MAX];
             unsigned char* resync_reachable;
             int live_count = 0;
@@ -2775,7 +2768,7 @@ RS_GameProto_Exec(
              * gone. Reachable = under the root, or inside a reachable group. */
             {
                 int const root = sync->root_interface_id > 0 ? sync->root_interface_id
-                                                             : app->boot_interface_id;
+                                                             : RS_BootState_InterfaceId(&app->boot);
                 int grew = 1;
 
                 while( grew )
@@ -2912,30 +2905,37 @@ RS_GameProto_Exec(
         {
             /* Wire base is classic-scene local; with a (zone-6)*8 scene base
              * that is our-scene too. */
-            ctx->app->zone_base_x = packet->_update_zone_partial_follows.base_x;
-            ctx->app->zone_base_z = packet->_update_zone_partial_follows.base_z;
-            ctx->app->zone_level = zone_header_level(
-                ctx->app, packet->_update_zone_partial_follows.level);
+            RS_ZoneInbox_SetBase(
+                &ctx->app->zone_inbox,
+                packet->_update_zone_partial_follows.base_x,
+                packet->_update_zone_partial_follows.base_z,
+                zone_header_level(ctx->app, packet->_update_zone_partial_follows.level));
         }
         break;
     case PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS:
         if( ctx->app )
         {
             struct App* app = ctx->app;
-            app->zone_base_x = packet->_update_zone_full_follows.base_x;
-            app->zone_base_z = packet->_update_zone_full_follows.base_z;
-            app->zone_level = zone_header_level(app, packet->_update_zone_full_follows.level);
+            RS_ZoneInbox_SetBase(
+                &app->zone_inbox,
+                packet->_update_zone_full_follows.base_x,
+                packet->_update_zone_full_follows.base_z,
+                zone_header_level(app, packet->_update_zone_full_follows.level));
             /* Full update: the zone's client-side locs and obj stacks reset. */
             if( app->world )
             {
                 /* Arrival order: whatever the load window queued lands first. */
-                if( App_ActiveWorldview(app)->world->load_complete && app->pending_zone_count > 0 )
+                if( App_ActiveWorldview(app)->world->load_complete &&
+                    RS_ZoneInbox_HeldCount(&app->zone_inbox) > 0 )
                     RS_GameProto_FlushPendingZone(ctx);
                 zone_full_reset_locs(app);
                 for( int dz = 0; dz < 8; dz++ )
                     for( int dx = 0; dx < 8; dx++ )
                         App_WorldObjStackClearTile(
-                            app, app->zone_base_x + dx, app->zone_base_z + dz, app->zone_level);
+                            app,
+                            RS_ZoneInbox_BaseX(&app->zone_inbox) + dx,
+                            RS_ZoneInbox_BaseZ(&app->zone_inbox) + dz,
+                            RS_ZoneInbox_Level(&app->zone_inbox));
             }
         }
         break;
@@ -2945,9 +2945,11 @@ RS_GameProto_Exec(
             struct PktUpdateZoneEnclosed const* enc = &packet->_update_zone_enclosed;
             /* Wire base is classic-scene local; with a (zone-6)*8 scene base
              * that is our-scene too. */
-            ctx->app->zone_base_x = enc->base_x;
-            ctx->app->zone_base_z = enc->base_z;
-            ctx->app->zone_level = zone_header_level(ctx->app, enc->level);
+            RS_ZoneInbox_SetBase(
+                &ctx->app->zone_inbox,
+                enc->base_x,
+                enc->base_z,
+                zone_header_level(ctx->app, enc->level));
             for( int i = 0; i < enc->count; i++ )
                 exec_zone_sub_packet(ctx, enc->entries[i].name, &enc->entries[i]._loc_add_change);
         }
@@ -3046,28 +3048,25 @@ RS_GameProto_Exec(
                 cam_lx -= app->world->_base_tile_x;
                 cam_lz -= app->world->_base_tile_z;
             }
-            app->cam_script.move_lx = cam_lx;
-            app->cam_script.move_lz = cam_lz;
-            app->cam_script.move_height = packet->_cam_moveto.height;
-            app->cam_script.move_rate = packet->_cam_moveto.rate;
-            app->cam_script.move_rate2 = packet->_cam_moveto.rate2;
-            app->cam_script.move_cycles.active = 0;
-            app->cam_script.last_move_height = packet->_cam_moveto.height;
             /* The look half is left as it is (deob client.java, class243.field3026):
              * after a CAM_RESET its rates are 0, so the angles hold. */
-            app->cam_script.scripted = 1;
-            app->cam_script.smooth_reset = 0;
-            if( packet->_cam_moveto.rate2 >= 100 )
+            if( CamScript_MoveTo(
+                    &app->cam_script,
+                    cam_lx,
+                    cam_lz,
+                    packet->_cam_moveto.height,
+                    packet->_cam_moveto.rate,
+                    packet->_cam_moveto.rate2) )
                 App_CinemaCameraSnapPosition(app);
             exec_cam_script_record(
                 app,
-                APP_CAM_SCRIPT_OP_MOVETO,
+                CAM_SCRIPT_OP_MOVETO,
                 cam_lx + (app->world ? app->world->_base_tile_x : 0),
                 cam_lz + (app->world ? app->world->_base_tile_z : 0),
                 packet->_cam_moveto.height,
                 packet->_cam_moveto.rate,
                 packet->_cam_moveto.rate2);
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
         }
         break;
     case PKT_NAME_CAM_LOOKAT:
@@ -3082,30 +3081,27 @@ RS_GameProto_Exec(
                 cam_lx -= app->world->_base_tile_x;
                 cam_lz -= app->world->_base_tile_z;
             }
-            app->cam_script.look_lx = cam_lx;
-            app->cam_script.look_lz = cam_lz;
-            app->cam_script.look_height = packet->_cam_lookat.height;
-            app->cam_script.look_rate = packet->_cam_lookat.rate;
-            app->cam_script.look_rate2 = packet->_cam_lookat.rate2;
-            app->cam_script.rotate_cycles.active = 0;
-            app->cam_script.look_cycles.active = 0;
             /* The move half is left as it is (deob client.java, class243.field3073):
              * after a CAM_RESET its rates are 0, so the eye holds where it was
              * -- Wanted!'s scans turn to Solus without moving (RSProx 4464
              * [2833]). */
-            app->cam_script.scripted = 1;
-            app->cam_script.smooth_reset = 0;
-            if( packet->_cam_lookat.rate2 >= 100 )
+            if( CamScript_LookAt(
+                    &app->cam_script,
+                    cam_lx,
+                    cam_lz,
+                    packet->_cam_lookat.height,
+                    packet->_cam_lookat.rate,
+                    packet->_cam_lookat.rate2) )
                 App_CinemaCameraSnapAngle(app);
             exec_cam_script_record(
                 app,
-                APP_CAM_SCRIPT_OP_LOOKAT,
+                CAM_SCRIPT_OP_LOOKAT,
                 cam_lx + (app->world ? app->world->_base_tile_x : 0),
                 cam_lz + (app->world ? app->world->_base_tile_z : 0),
                 packet->_cam_lookat.height,
                 packet->_cam_lookat.rate,
                 packet->_cam_lookat.rate2);
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
         }
         break;
     case PKT_NAME_CAM_MOVETO_CYCLES:
@@ -3128,13 +3124,13 @@ RS_GameProto_Exec(
                 packet->_cam_moveto_cycles.height_relative);
             exec_cam_script_record(
                 app,
-                APP_CAM_SCRIPT_OP_MOVETO_CYCLES,
+                CAM_SCRIPT_OP_MOVETO_CYCLES,
                 cam_lx + app->world->_base_tile_x,
                 cam_lz + app->world->_base_tile_z,
                 packet->_cam_moveto_cycles.height,
                 packet->_cam_moveto_cycles.cycles,
                 packet->_cam_moveto_cycles.easing);
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
         }
         break;
     /* deob client.java class259.field3190: signed deltas from where the camera
@@ -3150,13 +3146,13 @@ RS_GameProto_Exec(
                 packet->_cam_rotate.easing);
             exec_cam_script_record(
                 ctx->app,
-                APP_CAM_SCRIPT_OP_ROTATEBY,
+                CAM_SCRIPT_OP_ROTATEBY,
                 -1,
                 -1,
                 packet->_cam_rotate.yaw,
                 packet->_cam_rotate.pitch,
                 packet->_cam_rotate.cycles);
-            ctx->app->need_redraw = 1;
+            RedrawRequest_Raise(&ctx->app->redraw_request);
         }
         break;
     /* deob client.java class259.field3187. */
@@ -3171,13 +3167,13 @@ RS_GameProto_Exec(
                 packet->_cam_rotate.easing);
             exec_cam_script_record(
                 ctx->app,
-                APP_CAM_SCRIPT_OP_ROTATETO,
+                CAM_SCRIPT_OP_ROTATETO,
                 -1,
                 -1,
                 packet->_cam_rotate.yaw,
                 packet->_cam_rotate.pitch,
                 packet->_cam_rotate.cycles);
-            ctx->app->need_redraw = 1;
+            RedrawRequest_Raise(&ctx->app->redraw_request);
         }
         break;
     case PKT_NAME_CAM_LOOKAT_CYCLES:
@@ -3186,17 +3182,18 @@ RS_GameProto_Exec(
             struct App* app = ctx->app;
             struct PktCamLookAtCycles const* l = &packet->_cam_lookat_cycles;
 
-            App_CinemaCameraLookCycles(
-                app,
+            CamScript_LookCycles(
+                &app->cam_script,
                 l->x - app->world->_base_tile_x,
                 l->z - app->world->_base_tile_z,
                 l->height,
+                l->height_relative,
+                app->world->cycle,
                 l->cycles,
-                l->easing,
-                l->height_relative);
+                l->easing);
             exec_cam_script_record(
-                app, APP_CAM_SCRIPT_OP_LOOKAT_CYCLES, l->x, l->z, l->height, l->cycles, l->easing);
-            app->need_redraw = 1;
+                app, CAM_SCRIPT_OP_LOOKAT_CYCLES, l->x, l->z, l->height, l->cycles, l->easing);
+            RedrawRequest_Raise(&app->redraw_request);
         }
         break;
     case PKT_NAME_CAM_MOVETO_ARC:
@@ -3220,13 +3217,13 @@ RS_GameProto_Exec(
                 a->height_relative);
             exec_cam_script_record(
                 app,
-                APP_CAM_SCRIPT_OP_MOVETO_ARC,
+                CAM_SCRIPT_OP_MOVETO_ARC,
                 a->x - base_x + app->world->_base_tile_x,
                 a->z - base_z + app->world->_base_tile_z,
                 a->height,
                 a->cycles,
                 a->easing);
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
         }
         break;
     case PKT_NAME_CAM_ROTATETO_COORDINATE:
@@ -3247,13 +3244,13 @@ RS_GameProto_Exec(
                 packet->_cam_rotateto_coordinate.height_relative);
             exec_cam_script_record(
                 app,
-                APP_CAM_SCRIPT_OP_ROTATETO_COORDINATE,
+                CAM_SCRIPT_OP_ROTATETO_COORDINATE,
                 cam_lx + app->world->_base_tile_x,
                 cam_lz + app->world->_base_tile_z,
                 packet->_cam_rotateto_coordinate.height,
                 packet->_cam_rotateto_coordinate.cycles,
                 packet->_cam_rotateto_coordinate.easing);
-            app->need_redraw = 1;
+            RedrawRequest_Raise(&app->redraw_request);
         }
         break;
     case PKT_NAME_CAM_SHAKE:
@@ -3262,20 +3259,18 @@ RS_GameProto_Exec(
             /* The wire order is axis, spread, amplitude, rate — the packet's
              * field names predate knowing which was which. */
             int axis = packet->_cam_shake.axis;
-            if( axis >= 0 && axis < 5 )
-            {
-                struct App* app = ctx->app;
-                app->cam_script.shake[axis] = 1;
-                app->cam_script.shake_jitter[axis] = packet->_cam_shake.amplitude;
-                app->cam_script.shake_amplitude[axis] = packet->_cam_shake.frequency;
-                app->cam_script.shake_speed[axis] = packet->_cam_shake.speed;
-                app->cam_script.shake_cycle[axis] = 0;
-            }
+            if( axis >= 0 && axis < CAM_SCRIPT_SHAKE_AXES )
+                CamScript_Shake(
+                    &ctx->app->cam_script,
+                    axis,
+                    packet->_cam_shake.amplitude,
+                    packet->_cam_shake.frequency,
+                    packet->_cam_shake.speed);
             /* Recorded whatever the axis: an out-of-range shake is still a
              * packet the server sent, and the serial counts every one. */
             exec_cam_script_record(
                 ctx->app,
-                APP_CAM_SCRIPT_OP_SHAKE,
+                CAM_SCRIPT_OP_SHAKE,
                 -1,
                 -1,
                 packet->_cam_shake.frequency,
@@ -3290,11 +3285,9 @@ RS_GameProto_Exec(
             /* Deob client.java, class243.field2937: both targets, heights and
              * rates to 0, not just the flag. A stale move rate would carry the
              * last scene's eye into the next look-at-only scene. */
-            App_CinemaCameraRelease(app);
-            for( int i = 0; i < 5; i++ )
-                app->cam_script.shake[i] = 0;
-            exec_cam_script_record(app, APP_CAM_SCRIPT_OP_RESET, -1, -1, 0, 0, 0);
-            app->need_redraw = 1;
+            CamScript_Reset(&app->cam_script);
+            exec_cam_script_record(app, CAM_SCRIPT_OP_RESET, -1, -1, 0, 0, 0);
+            RedrawRequest_Raise(&app->redraw_request);
         }
         break;
     case PKT_NAME_CAM_SMOOTHRESET:
@@ -3304,21 +3297,13 @@ RS_GameProto_Exec(
             /* Deob client.java, class243.field2963 `&& field904`: only a
              * script that is up can glide back. The targets and rates stay;
              * app_world_camera_follow walks the eye home with them, and
-             * ending it is App_CinemaCameraRelease's. Every CAM_MOVETO or
+             * ending it is CamScript_GlideEnd's. Every CAM_MOVETO or
              * CAM_LOOKAT after this cancels the glide (field698 = false). */
-            if( app->cam_script.scripted )
-            {
-                app->cam_script.smooth_reset = 1;
-                app->cam_script.move_cycles.active = 0;
-                app->cam_script.rotate_cycles.active = 0;
-                app->cam_script.look_cycles.active = 0;
-                for( int i = 0; i < 5; i++ )
-                    app->cam_script.shake[i] = 0;
-                app->need_redraw = 1;
-            }
+            if( CamScript_SmoothReset(&app->cam_script) )
+                RedrawRequest_Raise(&app->redraw_request);
             exec_cam_script_record(
                 app,
-                APP_CAM_SCRIPT_OP_SMOOTHRESET,
+                CAM_SCRIPT_OP_SMOOTHRESET,
                 -1,
                 -1,
                 0,
@@ -3338,7 +3323,7 @@ RS_GameProto_Exec(
             if( !packet->_update_friendlist.present )
             {
                 RS_CS2Host_NotifyFriendChanged(&ctx->app->host);
-                ctx->app->need_redraw = 1;
+                RedrawRequest_Raise(&ctx->app->redraw_request);
                 break;
             }
             base37tostr((uint64_t)packet->_update_friendlist.name37, name, sizeof(name));
@@ -3370,7 +3355,7 @@ RS_GameProto_Exec(
              * friend-transmit channel. Filling the store without this notify
              * leaves the panel showing whatever it drew at mount. */
             RS_CS2Host_NotifyFriendChanged(&ctx->app->host);
-            ctx->app->need_redraw = 1;
+            RedrawRequest_Raise(&ctx->app->redraw_request);
         }
         break;
     case PKT_NAME_UPDATE_IGNORELIST:
@@ -3385,7 +3370,7 @@ RS_GameProto_Exec(
                 RS_Social_AddIgnore(social, name);
             }
             RS_CS2Host_NotifyFriendChanged(&ctx->app->host);
-            ctx->app->need_redraw = 1;
+            RedrawRequest_Raise(&ctx->app->redraw_request);
         }
         break;
     case PKT_NAME_FRIENDLIST_LOADED:
@@ -3395,7 +3380,7 @@ RS_GameProto_Exec(
              * RS_Social_FriendCount answers -1 until the status reads 2. */
             ctx->app->social.server_status = packet->_friendlist_loaded.status;
             RS_CS2Host_NotifyFriendChanged(&ctx->app->host);
-            ctx->app->need_redraw = 1;
+            RedrawRequest_Raise(&ctx->app->redraw_request);
         }
         break;
     case PKT_NAME_MESSAGE_PRIVATE:
@@ -3404,17 +3389,8 @@ RS_GameProto_Exec(
             /* Dedupe by message id (reference messageIds ring). */
             struct App* app = ctx->app;
             char name[16];
-            int dup = 0;
-            for( int i = 0; i < 100; i++ )
-                if( app->pm_message_ids[i] == packet->_message_private.message_id )
-                {
-                    dup = 1;
-                    break;
-                }
-            if( dup )
+            if( RS_Social_MessageSeenOrRemember(&app->social, packet->_message_private.message_id) )
                 break;
-            app->pm_message_ids[app->pm_message_head] = packet->_message_private.message_id;
-            app->pm_message_head = (app->pm_message_head + 1) % 100;
             base37tostr((uint64_t)packet->_message_private.from, name, sizeof(name));
             exec_chat_add(
                 ctx,
@@ -3493,7 +3469,7 @@ RS_GameProto_Exec(
              * it will send a private message, so a change has to reach the CS2
              * side the same way a friend-list change does. */
             RS_CS2Host_NotifyFriendChanged(&ctx->app->host);
-            ctx->app->need_redraw = 1;
+            RedrawRequest_Raise(&ctx->app->redraw_request);
         }
         break;
 
@@ -3514,16 +3490,20 @@ RS_GameProto_Exec(
     case PKT_NAME_LAST_LOGIN_INFO:
         if( ctx->app )
         {
-            ctx->app->welcome.last_ip = packet->_last_login_info.last_ip;
-            ctx->app->welcome.days_since_login = packet->_last_login_info.days_since_login;
-            ctx->app->welcome.days_since_recovery = packet->_last_login_info.days_since_recovery;
-            ctx->app->welcome.unread_messages = packet->_last_login_info.unread_messages;
-            ctx->app->welcome.member_warning = packet->_last_login_info.member_warning;
+            ctx->app->session_info.welcome.last_ip = packet->_last_login_info.last_ip;
+            ctx->app->session_info.welcome.days_since_login =
+                packet->_last_login_info.days_since_login;
+            ctx->app->session_info.welcome.days_since_recovery =
+                packet->_last_login_info.days_since_recovery;
+            ctx->app->session_info.welcome.unread_messages =
+                packet->_last_login_info.unread_messages;
+            ctx->app->session_info.welcome.member_warning =
+                packet->_last_login_info.member_warning;
             /* The rows themselves are clientCode components RS_ClientCode_Tick
              * refreshes off this struct; this packet also OPENS the screen they
              * sit on, which is the only thing that ever does. */
             exec_open_welcome_screen(ctx->app);
-            ctx->app->need_redraw = 1;
+            RedrawRequest_Raise(&ctx->app->redraw_request);
         }
         break;
     case PKT_NAME_UPDATE_REBOOT_TIMER:
@@ -3532,8 +3512,10 @@ RS_GameProto_Exec(
          * (reference `rebootTimer = g2() * 30`, where 30 is the same ratio
          * spelled as a literal). */
         if( ctx->app )
-            ctx->app->reboot_timer =
-                packet->_update_reboot_timer.ticks * APP_SERVER_TICK_LOGIC_CYCLES;
+            RS_SessionInfo_SetRebootTimer(
+                &ctx->app->session_info,
+                packet->_update_reboot_timer.ticks,
+                APP_SERVER_TICK_LOGIC_CYCLES);
         break;
     case PKT_NAME_P_COUNTDIALOG:
         if( ctx->chat )
@@ -3558,39 +3540,29 @@ RS_GameProto_Exec(
     case PKT_NAME_SET_PLAYER_OP:
         if( ctx->app && packet->_set_player_op.slot >= 1 && packet->_set_player_op.slot <= 5 )
         {
-            int slot = packet->_set_player_op.slot - 1;
-            snprintf(
-                ctx->app->player_ops[slot],
-                sizeof(ctx->app->player_ops[slot]),
-                "%s",
-                packet->_set_player_op.text ? packet->_set_player_op.text : "");
-            ctx->app->player_ops_primary[slot] = packet->_set_player_op.primary;
+            RS_PlayerOps_Set(
+                &ctx->app->player_ops,
+                packet->_set_player_op.slot - 1,
+                packet->_set_player_op.text ? packet->_set_player_op.text : "",
+                packet->_set_player_op.primary);
         }
         break;
     case PKT_NAME_SET_MULTIWAY:
-        if( ctx->app && ctx->app->multiway != packet->_set_multiway.multiway )
-        {
-            ctx->app->multiway = packet->_set_multiway.multiway;
-            ctx->app->need_redraw = 1;
-        }
+        if( ctx->app &&
+            RS_SessionInfo_SetMultiway(&ctx->app->session_info, packet->_set_multiway.multiway) )
+            RedrawRequest_Raise(&ctx->app->redraw_request);
         break;
     /* deob client.java (class243.field3065): `field758 = g1 == 1`, the flag
      * class112.method3876/3877 read for the camera's pitch limits. */
     case PKT_NAME_CAM_UNLOCK:
-        if( ctx->app && ctx->app->cam_unlock != packet->_cam_unlock.unlock )
-        {
-            ctx->app->cam_unlock = packet->_cam_unlock.unlock;
-            ctx->app->need_redraw = 1;
-        }
+        if( ctx->app && CamScript_SetUnlock(&ctx->app->cam_script, packet->_cam_unlock.unlock) )
+            RedrawRequest_Raise(&ctx->app->redraw_request);
         break;
     case PKT_NAME_MINIMAP_TOGGLE:
         if( getenv("TORIRS_FRAME_ROLE_AUDIT") )
             TORIRS_REPORT("frame_native: MINIMAP_TOGGLE state=%d\n", packet->_minimap_toggle.state);
-        if( ctx->app && ctx->app->minimap_state != packet->_minimap_toggle.state )
-        {
-            ctx->app->minimap_state = packet->_minimap_toggle.state;
-            ctx->app->need_redraw = 1;
-        }
+        if( ctx->app && MinimapView_SetToggleState(&ctx->app->minimap, packet->_minimap_toggle.state) )
+            RedrawRequest_Raise(&ctx->app->redraw_request);
         break;
     /* ---- the prots a replay used to drop ---- */
     case PKT_NAME_SEND_PING:
@@ -3599,7 +3571,9 @@ RS_GameProto_Exec(
         break;
     case PKT_NAME_UNKNOWN_STRING:
         if( ctx->app )
-            snprintf(ctx->app->unknown_string, sizeof(ctx->app->unknown_string), "%s",
+            snprintf(ctx->app->session_info.unknown_string,
+                     sizeof(ctx->app->session_info.unknown_string),
+                     "%s",
                      packet->_text.text);
         break;
     /* deob client.java field1008: OBJUNLOCK_RESET forgets the bitset. */
@@ -3638,7 +3612,9 @@ RS_GameProto_Exec(
         break;
     case PKT_NAME_SET_WEBSITE_TOKEN:
         if( ctx->app )
-            snprintf(ctx->app->website_token, sizeof(ctx->app->website_token), "%s",
+            snprintf(ctx->app->session_info.website_token,
+                     sizeof(ctx->app->session_info.website_token),
+                     "%s",
                      packet->_text.text);
         break;
     /* deob client.java class259.field3155 -> class186.method6134. Through the
@@ -3652,7 +3628,9 @@ RS_GameProto_Exec(
         break;
     case PKT_NAME_SITE_SETTINGS:
         if( ctx->app )
-            snprintf(ctx->app->site_settings, sizeof(ctx->app->site_settings), "%s",
+            snprintf(ctx->app->session_info.site_settings,
+                     sizeof(ctx->app->session_info.site_settings),
+                     "%s",
                      packet->_text.text);
         break;
     case PKT_NAME_REFLECTION_CHECKER:
@@ -3698,8 +3676,7 @@ RS_GameProto_Exec(
                    packet->_logout_transfer.host);
         if( ctx->app )
         {
-            ctx->app->net_hop_pending = 1;
-            ctx->app->net_hop_world = packet->_logout_transfer.world_id;
+            SessionEnd_Hop(&ctx->app->session_end, packet->_logout_transfer.world_id);
         }
         break;
     case PKT_NAME_SET_INTERACTION_MODE:
@@ -3729,8 +3706,8 @@ RS_GameProto_Exec(
                 /* class61.method1414: the defaults; a reset of them is moot. */
                 if( !reset )
                 {
-                    app->interaction_default_tile = p->tile_mode;
-                    app->interaction_default_entity = p->entity_mode;
+                    RS_InteractionMode_SetDefaults(
+                        &app->interaction_mode, p->tile_mode, p->entity_mode);
                 }
                 break;
             }
@@ -3743,8 +3720,11 @@ RS_GameProto_Exec(
                 (world_id == 0 && app->net->rev->number >= 237) ? WORLDVIEW_WIRE_ROOT : world_id);
             if( slot != WORLDVIEW_SLOT_NONE )
             {
-                app->interaction_tile[slot] = (int8_t)(reset ? -1 : p->tile_mode);
-                app->interaction_entity[slot] = (int8_t)(reset ? -1 : p->entity_mode);
+                if( reset )
+                    RS_InteractionMode_ResetView(&app->interaction_mode, slot);
+                else
+                    RS_InteractionMode_SetView(
+                        &app->interaction_mode, slot, p->tile_mode, p->entity_mode);
             }
             else
                 TORIRS_LOG("exec: interaction mode for world %d refused\n", world_id);
@@ -3766,26 +3746,21 @@ RS_GameProto_Exec(
     case PKT_NAME_ZBUF:
         if( ctx->app )
         {
-            ctx->app->server_zbuf = packet->_zbuf.enabled;
-            ctx->app->need_redraw = 1;
+            RenderMode_SetServerZbuf(&ctx->app->render_mode, packet->_zbuf.enabled);
+            RedrawRequest_Raise(&ctx->app->redraw_request);
         }
         break;
     case PKT_NAME_CAM_MODE:
         if( ctx->app )
         {
-            ctx->app->cam_script.cam_mode = packet->_int_value.value;
-            ctx->app->cam_script.oculus_y_valid = 0;
-            ctx->app->need_redraw = 1;
+            CamScript_SetMode(&ctx->app->cam_script, packet->_int_value.value);
+            RedrawRequest_Raise(&ctx->app->redraw_request);
         }
         break;
     /* deob client.java class259.field3148 -> Statics.method9192. */
     case PKT_NAME_OCULUS_SYNC:
-        if( ctx->app && ctx->app->cam_script.oculus_sync != packet->_int_value.value )
-        {
-            ctx->app->cam_script.oculus_sync = packet->_int_value.value;
-            if( ctx->app->cam_script.cam_mode == 1 )
-                ctx->app->cam_script.oculus_recentre = 1;
-        }
+        if( ctx->app )
+            CamScript_OculusSync(&ctx->app->cam_script, packet->_int_value.value);
         break;
     case PKT_NAME_CAM_SKYBOX:
         if( ctx->app )
@@ -3794,9 +3769,8 @@ RS_GameProto_Exec(
     case PKT_NAME_SET_HEATMAP_ENABLED:
         if( ctx->app )
         {
-            ctx->app->worldmap.heatmap_on = packet->_int_value.value != 0;
-            ctx->app->worldmap.heatmap_built_cycle = -1;
-            ctx->app->need_redraw = 1;
+            RS_WorldMapSurface_SetHeatmap(&ctx->app->worldmap, packet->_int_value.value != 0);
+            RedrawRequest_Raise(&ctx->app->redraw_request);
         }
         break;
     case PKT_NAME_UPDATE_UID192:
@@ -3850,45 +3824,15 @@ RS_GameProto_Exec(
         }
         break;
     case PKT_NAME_HINT_ARROW:
+        /* The type and the tile anchor are folded on the way in
+         * (game/rs_hint_arrow.h), so every pass that draws it reads one form. */
         if( ctx->app )
-        {
-            int type = packet->_hint_arrow.type == 255 ? 0 : packet->_hint_arrow.type;
-
-            /*
-             * The five tile forms are one form with five anchors, and the
-             * reference folds them here rather than at the draw: 2 is the
-             * tile's centre, 3/4 its west/east edge, 5/6 its south/north
-             * (Client.ts's own 64/0/128 pairs, and `class268.method6676`'s
-             * at rev 239). Left as five types, every place that draws a hint
-             * would have to know all five.
-             */
-            ctx->app->hint_arrow.offset_x = 64;
-            ctx->app->hint_arrow.offset_z = 64;
-            switch( type )
-            {
-            case APP_HINT_ARROW_COORD_WEST:
-                ctx->app->hint_arrow.offset_x = 0;
-                break;
-            case APP_HINT_ARROW_COORD_EAST:
-                ctx->app->hint_arrow.offset_x = 128;
-                break;
-            case APP_HINT_ARROW_COORD_SOUTH:
-                ctx->app->hint_arrow.offset_z = 0;
-                break;
-            case APP_HINT_ARROW_COORD_NORTH:
-                ctx->app->hint_arrow.offset_z = 128;
-                break;
-            default:
-                break;
-            }
-            if( type >= APP_HINT_ARROW_COORD && type <= APP_HINT_ARROW_COORD_NORTH )
-                type = APP_HINT_ARROW_COORD;
-
-            ctx->app->hint_arrow.type = type;
-            ctx->app->hint_arrow.target = packet->_hint_arrow.id;
-            ctx->app->hint_arrow.tile_z = packet->_hint_arrow.z;
-            ctx->app->hint_arrow.height = packet->_hint_arrow.height;
-        }
+            RS_HintArrow_Set(
+                &ctx->app->hint_arrow,
+                packet->_hint_arrow.type,
+                packet->_hint_arrow.id,
+                packet->_hint_arrow.z,
+                packet->_hint_arrow.height);
         break;
     case PKT_NAME_RESET_ANIMS:
         if( ctx->app && ctx->app->scene )
@@ -3906,16 +3850,16 @@ RS_GameProto_Exec(
                     el->anim_cycle = 0;
                 }
             }
-            ctx->app->need_redraw = 1;
+            RedrawRequest_Raise(&ctx->app->redraw_request);
         }
         break;
     case PKT_NAME_ENABLE_TRACKING:
         if( ctx->app )
-            ctx->app->tracking_enabled = 1;
+            ctx->app->session_info.tracking_enabled = 1;
         break;
     case PKT_NAME_FINISH_TRACKING:
         if( ctx->app )
-            ctx->app->tracking_enabled = 0;
+            ctx->app->session_info.tracking_enabled = 0;
         break;
 
     /* ---- tutorial ---- */
@@ -3931,7 +3875,7 @@ RS_GameProto_Exec(
                 packet->_tut_flash.tab == ctx->app->slots.side_tab )
             {
                 ctx->app->slots.side_tab = packet->_tut_flash.tab == 3 ? 1 : 3;
-                ctx->app->need_redraw = 1;
+                RedrawRequest_Raise(&ctx->app->redraw_request);
             }
         }
         break;
@@ -4031,9 +3975,11 @@ RS_GameProto_Exec(
                 /* SetMapFlagV2 carries an absolute coord; the minimap draws in
                  * scene-local tiles. Same origin the projectile decode uses. */
                 ctx->app->minimap.flag_tile_x =
-                    packet->_set_map_flag.x - (ctx->app->rebuild_zone_x - 6) * 8;
+                    packet->_set_map_flag.x -
+                    RS_RebuildRegion_SceneBaseX(&ctx->app->rebuild_region);
                 ctx->app->minimap.flag_tile_z =
-                    packet->_set_map_flag.z - (ctx->app->rebuild_zone_z - 6) * 8;
+                    packet->_set_map_flag.z -
+                    RS_RebuildRegion_SceneBaseZ(&ctx->app->rebuild_region);
             }
             else
             {
@@ -4051,7 +3997,7 @@ RS_GameProto_Exec(
                 ctx->app->minimap.flag_tile_z,
                 0,
                 0);
-            ctx->app->need_redraw = 1;
+            RedrawRequest_Raise(&ctx->app->redraw_request);
         }
         break;
     case PKT_NAME_UPDATE_INV_STOP_TRANSMIT:
@@ -4071,9 +4017,10 @@ RS_GameProto_Exec(
     case PKT_NAME_SET_NPC_UPDATE_ORIGIN:
         if( ctx->app )
         {
-            ctx->app->npc_update_origin_x = packet->_set_npc_update_origin.x;
-            ctx->app->npc_update_origin_z = packet->_set_npc_update_origin.z;
-            ctx->app->npc_update_origin_valid = 1;
+            RS_NpcUpdateOrigin_Set(
+                &ctx->app->npc_update_origin,
+                packet->_set_npc_update_origin.x,
+                packet->_set_npc_update_origin.z);
         }
         break;
     case PKT_NAME_SET_ACTIVE_WORLD:
@@ -4096,13 +4043,11 @@ RS_GameProto_Exec(
                 TORIRS_LOG("exec: SET_ACTIVE_WORLD refused, world %d not live\n", world_id);
                 break;
             }
-            ctx->app->active_world = slot;
             /* The deob snapshots the plane alongside the id, and writes it onto
              * the addressed view itself (class100.field1400), where it outlives
              * the tick fence's return to the root. Clamped to the heightmap's
              * planes: it feeds height sampling. */
-            ctx->app->active_world_level = level < 0 ? 0 : (level > 3 ? 3 : level);
-            WorldviewRegistry_Get(&ctx->app->worldviews, slot)->level = ctx->app->active_world_level;
+            WorldviewRegistry_SetActiveWorld(&ctx->app->worldviews, slot, level);
         }
         break;
     case PKT_NAME_WORLDENTITY_INFO:
@@ -4117,14 +4062,11 @@ RS_GameProto_Exec(
          * them to see — see `pending_clientscripts` in app.h. */
         if( ctx->app )
         {
-            ctx->app->server_tick_fence_seen = 1;
-            ctx->app->server_tick_open = 0;
-            ctx->app->server_tick_serial++;
+            RS_ServerTick_Fence(&ctx->app->server_tick);
             /* SET_ACTIVE_WORLD only lasts until the fence: the deob resets
              * the cursor to the root view at end-of-tick, so a tick that
              * never re-arms it cannot leak zone updates into a boat. */
-            ctx->app->active_world = WORLDVIEW_ROOT;
-            ctx->app->active_world_level = 0;
+            WorldviewRegistry_ResetActive(&ctx->app->worldviews);
             /* Onto the packet pipeline (behind this fence task), not the
              * asset runner: the pipeline is a strict FIFO, so the tick's
              * scripts run one after another in wire order, as the reference
