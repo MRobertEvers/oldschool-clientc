@@ -39,6 +39,7 @@
 
 #include "torirs_server.h"
 #include "mem/torirs_mem.h"
+#include "game/rs_effect_log.h"
 #include "torirs_server_boot.h"
 #include "torirs_server_content.h"
 #include "torirs_server_db.h"
@@ -1474,12 +1475,20 @@ d_projectiles(lua_State* L)
     int now = (int)c->world->cycle;
     int n = 0;
 
+    static struct RS_EffectProjectile shots[RS_EFFECT_LOG_CAP / 2];
+    int const logged = RS_EffectLog_Projectiles(
+        &c->zone.effects, c->zone.effect_entries, shots, RS_EFFECT_LOG_CAP / 2);
+
     lua_pushstring(L, "ok");
     lua_newtable(L);
-    for( int i = 0; i < c->projectile_count; i++ )
+    /* The effect log's projectiles, oldest first, while their flight lasts
+     * (DriveUi_Projectiles' rule: gone once elapsed passes end_delay). */
+    for( int i = 0; i < logged; i++ )
     {
-        struct ScriptrunProjectile const* p = &c->projectiles[i];
-        int elapsed = now - p->launch_cycle;
+        struct RS_EffectProjectile const* p = &shots[i];
+        int elapsed = now - p->cycle;
+        if( elapsed > p->end_delay )
+            continue;
         if( have && radius > 0 && cheb(px, pz, p->dst_x, p->dst_z) > radius )
             continue;
         lua_newtable(L);
@@ -1528,18 +1537,24 @@ d_spotanims(lua_State* L)
     int now = (int)c->world->cycle;
     int n = 0;
 
+    static struct RS_EffectMapAnim anims[RS_EFFECT_LOG_CAP];
+    int const logged =
+        RS_EffectLog_MapAnims(&c->zone.effects, c->zone.effect_entries, anims, RS_EFFECT_LOG_CAP);
+
     lua_pushstring(L, "ok");
     lua_newtable(L);
-    for( int i = 0; i < c->map_anim_count; i++ )
+    for( int i = 0; i < logged; i++ )
     {
-        struct ScriptrunMapAnim const* a = &c->map_anims[i];
+        struct RS_EffectMapAnim const* a = &anims[i];
         int left;
-        if( have && radius > 0 && cheb(px, pz, a->x, a->z) > radius )
-            continue;
-        /* The core retires a floor graphic RS_EFFECT_MAP_ANIM_LIFE_TICKS after
-         * it lands (the server keeps no spotanim config to read its sequence
+        /* A floor graphic is listed RS_EFFECT_MAP_ANIM_LIFE_TICKS after it
+         * lands (the server keeps no spotanim config to read its sequence
          * length from). */
         left = RS_EFFECT_MAP_ANIM_LIFE_CYCLES - (now - a->cycle);
+        if( left < 0 )
+            continue;
+        if( have && radius > 0 && cheb(px, pz, a->x, a->z) > radius )
+            continue;
         lua_newtable(L);
         lua_pushinteger(L, -1);
         lua_setfield(L, -2, "seq");
@@ -1580,9 +1595,9 @@ d_loc_anims(lua_State* L)
 
     lua_pushstring(L, "ok");
     lua_newtable(L);
-    for( int i = 0; i < c->loc_anim_count; i++ )
+    for( int i = 0; i < c->zone.loc_anim_count; i++ )
     {
-        struct ScriptrunLocAnim const* a = &c->loc_anims[i];
+        struct ScriptrunLocAnim const* a = &c->zone.loc_anims[i];
         if( have && radius > 0 && cheb(px, pz, a->x, a->z) > radius )
             continue;
         lua_newtable(L);

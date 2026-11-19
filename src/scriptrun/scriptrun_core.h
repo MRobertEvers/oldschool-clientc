@@ -57,7 +57,8 @@ enum
 {
     SCRIPTRUN_TEXT = 256,
     /* The effect lists' sizes, the live ring's too (game/rs_effect_rules.h
-     * says why each is what it is); a full list is an assert. */
+     * says why each is what it is): what the zone's effect log and loc
+     * animations (scriptrun_zone.h) hold alive at once; more is an assert. */
     SCRIPTRUN_PROJECTILES = RS_EFFECT_PROJECTILE_CAP,
     SCRIPTRUN_MAP_ANIMS = RS_EFFECT_MAP_ANIM_CAP,
     SCRIPTRUN_LOC_ANIMS = RS_EFFECT_LOC_ANIM_CAP,
@@ -100,29 +101,11 @@ enum
     SCRIPTRUN_EVENTS = 1024,
 };
 
-struct ScriptrunProjectile
-{
-    int spotanim;
-    int src_x, src_z, dst_x, dst_z, level; /* absolute tiles */
-    int target;                            /* the wire's target field */
-    int launch_cycle;                      /* world cycle it was received */
-    int start_delay, end_delay;            /* cycles after receipt */
-};
-
 /* A LOC_ANIM is kept for SCRIPTRUN_LOC_ANIM_TICKS, the live ring's
  * APP_DRIVE_LOC_ANIM_TICKS (both RS_EFFECT_LOC_ANIM_LIFE_TICKS); its row is
  * struct ScriptrunLocAnim (scriptrun_zone.h). (The Great Olm's head is a loc:
  * its facing and its attacks are told only by these.) */
 enum { SCRIPTRUN_LOC_ANIM_TICKS = RS_EFFECT_LOC_ANIM_LIFE_TICKS };
-
-struct ScriptrunMapAnim
-{
-    int spotanim;
-    int x, z, level; /* absolute */
-    int height;
-    int delay;
-    int cycle; /* world cycle it was received */
-};
 
 struct ScriptrunLoc
 {
@@ -228,20 +211,15 @@ struct ScriptrunCore
     int next_element_id;
     int tick;
 
-    struct ScriptrunProjectile projectiles[SCRIPTRUN_PROJECTILES];
-    int projectile_count;
-    struct ScriptrunMapAnim map_anims[SCRIPTRUN_MAP_ANIMS];
-    int map_anim_count;
-    struct ScriptrunLocAnim loc_anims[SCRIPTRUN_LOC_ANIMS];
-    int loc_anim_count;
     /* Every placed loc the bot knows: the map's (cache level, base id) and
      * every zone change since. loc_id -1 is a removed one. */
     struct ScriptrunLoc* locs;
     int loc_count;
     int loc_capacity;
-    /* The zone families (scriptrun_zone.h): the ground rows, applied by the
-     * real client's rules onto World obj stacks (ScriptrunCore_ZoneFamilies);
-     * read with ScriptrunCore_Objs. */
+    /* The zone families (scriptrun_zone.h), applied by the real client's
+     * rules (ScriptrunCore_ZoneFamilies): the ground rows as World obj stacks
+     * (read with ScriptrunCore_Objs), the effect log the projectiles and map
+     * graphics are read from (game/rs_effect_log.h), the loc animations. */
     struct ScriptrunZone zone;
 
     int toplevel;

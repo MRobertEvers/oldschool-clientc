@@ -1585,11 +1585,15 @@ shadow_compare_effects(
 
     bag_reset(&s_bag_old, RS_EFFECT_LOG_CAP);
     bag_reset(&s_bag_new, RS_EFFECT_LOG_CAP);
-    for( int i = 0; i < core->projectile_count; i++ )
+    n = RS_EffectLog_Projectiles(&core->zone.effects, core->zone.effect_entries, shots,
+        RS_EFFECT_LOG_CAP / 2);
+    for( int i = 0; i < n; i++ )
     {
-        struct ScriptrunProjectile const* p = &core->projectiles[i];
+        struct RS_EffectProjectile const* p = &shots[i];
+        if( now - p->cycle > p->end_delay )
+            continue;
         projectile_key(key, sizeof(key), p->spotanim, p->src_x, p->src_z, p->dst_x, p->dst_z,
-            p->level, p->target, p->launch_cycle, p->start_delay, p->end_delay);
+            p->level, p->target, p->cycle, p->start_delay, p->end_delay);
         bag_add(&s_bag_old, key, NULL);
     }
     n = RS_EffectLog_Projectiles(&sh->zone.effects, sh->zone.effect_entries, shots,
@@ -1609,9 +1613,12 @@ shadow_compare_effects(
 
     bag_reset(&s_bag_old, RS_EFFECT_LOG_CAP);
     bag_reset(&s_bag_new, RS_EFFECT_LOG_CAP);
-    for( int i = 0; i < core->map_anim_count; i++ )
+    n = RS_EffectLog_MapAnims(&core->zone.effects, core->zone.effect_entries, anims, RS_EFFECT_LOG_CAP);
+    for( int i = 0; i < n; i++ )
     {
-        struct ScriptrunMapAnim const* a = &core->map_anims[i];
+        struct RS_EffectMapAnim const* a = &anims[i];
+        if( now - a->cycle > RS_EFFECT_MAP_ANIM_LIFE_CYCLES )
+            continue;
         snprintf(key, sizeof(key), "%d %d,%d,%d c%d", a->spotanim, a->x, a->z, a->level, a->cycle);
         bag_add(&s_bag_old, key, NULL);
     }
@@ -1630,9 +1637,9 @@ shadow_compare_effects(
 
     bag_reset(&s_bag_old, RS_EFFECT_LOC_ANIM_CAP);
     bag_reset(&s_bag_new, RS_EFFECT_LOC_ANIM_CAP);
-    for( int i = 0; i < core->loc_anim_count; i++ )
+    for( int i = 0; i < core->zone.loc_anim_count; i++ )
     {
-        struct ScriptrunLocAnim const* a = &core->loc_anims[i];
+        struct ScriptrunLocAnim const* a = &core->zone.loc_anims[i];
         snprintf(key, sizeof(key), "%d,%d,%d s%d seq%d t%d", a->x, a->z, a->level, a->shape, a->seq,
             a->tick);
         bag_add(&s_bag_old, key, NULL);

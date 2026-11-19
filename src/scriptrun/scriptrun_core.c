@@ -170,7 +170,6 @@ ScriptrunCore_BeginTick(
     int server_tick)
 {
     int now;
-    int kept;
 
     assert(core);
     core->tick = server_tick;
@@ -180,33 +179,6 @@ ScriptrunCore_BeginTick(
     if( core->shadow )
         ScriptrunShadow_BeginTick(core->shadow, server_tick, now);
 
-    /* A projectile the client would no longer draw: past its end cycle. */
-    kept = 0;
-    for( int i = 0; i < core->projectile_count; i++ )
-    {
-        struct ScriptrunProjectile const* p = &core->projectiles[i];
-        if( p->launch_cycle + p->end_delay >= now )
-            core->projectiles[kept++] = *p;
-    }
-    core->projectile_count = kept;
-    /* Map graphics: kept for RS_EFFECT_MAP_ANIM_LIFE_TICKS (40), the longest
-     * the floor graphics this runner is built for last (game/rs_effect_rules.h). */
-    kept = 0;
-    for( int i = 0; i < core->map_anim_count; i++ )
-    {
-        struct ScriptrunMapAnim const* a = &core->map_anims[i];
-        if( now - a->cycle <= RS_EFFECT_MAP_ANIM_LIFE_CYCLES )
-            core->map_anims[kept++] = *a;
-    }
-    core->map_anim_count = kept;
-    kept = 0;
-    for( int i = 0; i < core->loc_anim_count; i++ )
-    {
-        struct ScriptrunLocAnim const* a = &core->loc_anims[i];
-        if( core->tick - a->tick <= SCRIPTRUN_LOC_ANIM_TICKS )
-            core->loc_anims[kept++] = *a;
-    }
-    core->loc_anim_count = kept;
 }
 
 /* ------------------------------------------------------------------ helpers */
@@ -1473,22 +1445,6 @@ core_zone_sub(
         ScriptrunCore_LocChange(core, x, z, level, pkt->info >> 2, pkt->info & 3, -1, NULL);
         break;
     }
-    case PKT_NAME_LOC_ANIM:
-    {
-        struct PktLocAnim const* pkt = payload;
-        struct ScriptrunLocAnim* a;
-        core_zone_tile(core, pkt->pos, &x, &z, &level);
-        /* the live ring asserts the same capacity (APP_DRIVE_LOC_ANIM_CAP) */
-        assert(core->loc_anim_count < SCRIPTRUN_LOC_ANIMS);
-        a = &core->loc_anims[core->loc_anim_count++];
-        a->x = x;
-        a->z = z;
-        a->level = level;
-        a->shape = pkt->info >> 2;
-        a->seq = pkt->seq_id;
-        a->tick = core->tick;
-        break;
-    }
     case PKT_NAME_SOUND_AREA:
     {
         /* Logged only: a scriptrun plays no sound, but the wire audit needs every
@@ -1501,74 +1457,19 @@ core_zone_sub(
                     pkt->loops, pkt->delay, pkt->radius, pkt->inner, x, z);
         break;
     }
-    case PKT_NAME_MAP_ANIM:
-    {
-        struct PktMapAnim const* pkt = payload;
-        if( pkt->id == 65535 )
-            break;
-        core_zone_tile(core, pkt->pos, &x, &z, &level);
-        assert(core->map_anim_count < SCRIPTRUN_MAP_ANIMS);
-        {
-            struct ScriptrunMapAnim* a = &core->map_anims[core->map_anim_count++];
-            a->spotanim = pkt->id;
-            a->x = x;
-            a->z = z;
-            a->level = level;
-            a->height = pkt->height;
-            a->delay = pkt->delay;
-            a->cycle = (int)core->world->cycle;
-        }
-        break;
-    }
     case PKT_NAME_MAP_PROJANIM:
     {
+        /* Logged only: the projectile is the zone's effect log's
+         * (ScriptrunCore_ZoneFamilies). */
         struct PktMapProjAnim const* pkt = payload;
-        struct ScriptrunProjectile* p;
-        assert(core->projectile_count < SCRIPTRUN_PROJECTILES);
+        int dst_x, dst_z;
         core_zone_tile(core, pkt->pos, &x, &z, &level);
-        p = &core->projectiles[core->projectile_count++];
-        p->spotanim = pkt->spotanim;
-        p->src_x = x;
-        p->src_z = z;
-        if( pkt->dst_abs )
-        {
-            p->dst_x = pkt->dst_abs_x;
-            p->dst_z = pkt->dst_abs_z;
-            level = pkt->dst_abs_level;
-        }
-        else
-        {
-            p->dst_x = x + pkt->dx_offset;
-            p->dst_z = z + pkt->dz_offset;
-        }
-        p->level = level;
-        p->target = pkt->target;
-        p->launch_cycle = (int)core->world->cycle;
-        p->start_delay = pkt->start_delay;
-        p->end_delay = pkt->end_delay;
+        dst_x = pkt->dst_abs ? pkt->dst_abs_x : x + pkt->dx_offset;
+        dst_z = pkt->dst_abs ? pkt->dst_abs_z : z + pkt->dz_offset;
         if( core_wirelog_file() )
             fprintf(core_wirelog_file(), "%d\tprojectile\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
-                    core->tick, pkt->spotanim, x, z, p->dst_x, p->dst_z, pkt->target, pkt->src_height,
+                    core->tick, pkt->spotanim, x, z, dst_x, dst_z, pkt->target, pkt->src_height,
                     pkt->dst_height, pkt->start_delay, pkt->end_delay, pkt->peak, pkt->arc);
-        break;
-    }
-    case PKT_NAME_SCRIPTEDPROJ_ADD:
-    {
-        struct PktScriptedProjAdd const* pkt = payload;
-        struct ScriptrunProjectile* p;
-        assert(core->projectile_count < SCRIPTRUN_PROJECTILES);
-        core_zone_tile(core, pkt->pos, &x, &z, &level);
-        p = &core->projectiles[core->projectile_count++];
-        p->spotanim = pkt->spotanim;
-        p->src_x = x;
-        p->src_z = z;
-        p->dst_x = pkt->target_x;
-        p->dst_z = pkt->target_z;
-        p->level = pkt->target_level;
-        p->target = pkt->target;
-        p->launch_cycle = (int)core->world->cycle;
-        p->start_delay = pkt->start_delay;
-        p->end_delay = pkt->end_delay;
         break;
     }
     default:
@@ -2557,36 +2458,6 @@ core_packet(
         break;
     case PKT_NAME_LOC_DEL:
         core_zone_sub(core, pkt_name, &packet._loc_del);
-        break;
-    case PKT_NAME_MAP_ANIM:
-        core_zone_sub(core, pkt_name, &packet._map_anim);
-        break;
-    case PKT_NAME_MAP_ANIM_SPECIFIC:
-    {
-        /* MAP_ANIM for this player alone: a build-area tile, no zone header,
-         * on the player's own plane -- recorded as the map anim it plays as. */
-        struct PktMapAnimSpecific const* pkt = &packet._map_anim_specific;
-        int px, pz, plevel;
-
-        if( pkt->id == 65535 )
-            break;
-        if( !ScriptrunCore_LocalTile(core, &px, &pz, &plevel) )
-            plevel = 0;
-        assert(core->map_anim_count < SCRIPTRUN_MAP_ANIMS);
-        {
-            struct ScriptrunMapAnim* a = &core->map_anims[core->map_anim_count++];
-            a->spotanim = pkt->id;
-            a->x = core_cursor_base_x(core) + pkt->x;
-            a->z = core_cursor_base_z(core) + pkt->z;
-            a->level = plevel;
-            a->height = pkt->height;
-            a->delay = pkt->delay;
-            a->cycle = (int)core->world->cycle;
-        }
-        break;
-    }
-    case PKT_NAME_LOC_ANIM:
-        core_zone_sub(core, pkt_name, &packet._loc_anim);
         break;
     case PKT_NAME_MAP_PROJANIM:
         core_zone_sub(core, pkt_name, &packet._map_projanim);
