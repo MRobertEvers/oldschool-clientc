@@ -162,6 +162,7 @@ struct PktRunClientScript;
 #include <stdint.h>
 
 struct World;
+struct Assets;
 struct WorldBuilder;
 struct PaintersBuffer;
 struct RSCache_Dat1Disk;
@@ -1134,6 +1135,9 @@ struct App
     /** The boot report's first packet and the TORIRS_NET_CHEAT boot cheat:
      *  each acted on once per run (net/net_once.h). */
     struct NetOnce net_once;
+    /** Every asset wanted and not here, with at most one load in flight for
+     *  it (engine/asset_requests.h); the loaders are app/app_assets.c. */
+    struct Assets* assets;
     /** Texture ids requested but not yet published into the scene. */
     struct AsyncPendingTextures tex_pending;
     /** Element/seq bindings deferred until the sequence load lands. */

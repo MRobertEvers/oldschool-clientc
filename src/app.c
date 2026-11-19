@@ -422,6 +422,7 @@ App_Init(
     /* Every loader that fans out needs somewhere to put its siblings, and the
      * parallel frame queue is that place -- see CacheProvider::asset_queue. */
     CacheProvider_SetAssetQueue(app->provider, app->frame_runner.queue);
+    App_AssetsInit(app);
     app_provider_set_cache_profile(app, cfg);
     if( !TorirsModelInstCache_Init(&app->model_inst_cache) )
         assert(0 && "model_inst_cache init");
@@ -1386,6 +1387,8 @@ App_Shutdown(struct App* app)
     ToriRS_IOBatch_Free(app->packet_runner.io);
     ToriRS_TaskQueue_Free(app->frame_runner.queue);
     ToriRS_IOBatch_Free(app->frame_runner.io);
+    /* After the queues: a loader freed with them reports its end here. */
+    App_AssetsFree(app);
     /* The scripted-projectile curve VM, before the pool is drained. */
     if( app->curve_vm )
         CS2VM2_Release(app->curve_vm);

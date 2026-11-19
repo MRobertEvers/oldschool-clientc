@@ -30,6 +30,7 @@
 #include "bmp.h"
 #include "game/rs_minimap_state.h"
 #include "game/settle_gate.h"
+#include "engine/asset_requests.h"
 #include "log/torirs_log.h"
 #include "torirs_env.h"
 #include "torirs_env_values.h"
@@ -619,6 +620,41 @@ app_boot_refuse(char const* message);
 
 void
 app_async_polls(struct App* app);
+
+/* ---- the assets table's loaders (app/app_assets.c) ---------------------- */
+
+/** Make app->assets and register a loader for every kind. */
+void
+App_AssetsInit(struct App* app);
+
+void
+App_AssetsFree(struct App* app);
+
+/** A composite kind's loader, owned by the unit whose task follows its
+ *  chain. `data` is the App. */
+void
+App_AssetsSetLoader(
+    struct App* app,
+    enum AssetKind kind,
+    enum AssetStart (*start)(
+        void* data,
+        struct Assets* assets,
+        struct AssetKey key),
+    bool (*resident)(
+        void* data,
+        struct AssetKey key));
+
+/** Is a leaf asset here (model, texture, sprite, sequence, component pack,
+ *  sound, skybox, obj model)? */
+bool
+App_AssetResident(
+    struct App* app,
+    struct AssetKey key);
+
+/** Per frame, before the polls: the table's clock, and back-offs that are
+ *  over restarted. */
+void
+app_assets_frame(struct App* app);
 
 void
 app_boot_bar_caption(

@@ -176,6 +176,7 @@ app_async_polls(struct App* app)
     /* World-load completion is no longer polled here: Task_WorldLoad runs
      * App_WorldLoadFinish itself at its synchronous tail (via on_done, or the
      * REBUILD_NORMAL path's inline call after it awaits the load). */
+    app_assets_frame(app);
     if( app_tex_trace_enabled() )
         TORIRS_LOG("tex_trace: --- frame %d ---\n", ++g_tex_trace_frame);
     app_world_map_poll(app);

@@ -785,6 +785,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	app/app_overlay.c \
 	app/app_overlay_entities.c \
 	app/app_placeholder.c \
+	app/app_assets.c \
 	app/app_plugin_api.c \
 	app/app_plugin_assets.c \
 	app/app_plugin_bridge.c \
@@ -872,6 +873,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	ui/uitree_keyboard_owner.c \
 	ui/uitree_popup_place.c \
 	engine/async_pending.c \
+	engine/asset_requests.c \
 	engine/entity_spotanim.c \
 	engine/toridraw_element_anim.c \
 	torirs_env_values.c \
@@ -2190,6 +2192,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-worldmap-drag
 	$(MAKE) test-uitree-keyboard-owner
 	$(MAKE) test-async-pending
+	$(MAKE) test-asset-requests
 	$(MAKE) test-entity-spotanim
 	$(MAKE) test-ground-items-dirty
 	$(MAKE) test-uitree-popup-place
@@ -3070,6 +3073,17 @@ test-ground-items-dirty: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/ground_items_dirty_test$(PLATFORM_EXE_SUFFIX) \
 		game/test/rs_ground_items_dirty_test.c game/rs_ground_items_dirty.c $(LDFLAGS)
 	./$(OBJ_DIR)/ground_items_dirty_test$(PLATFORM_EXE_SUFFIX)
+
+# The assets table (engine/asset_requests.h), on fake loaders: one load for
+# many waiters, an awaiting task and wanting entries sharing a load, and every
+# policy of the one table (give up after N, back off forever, remember a
+# failure; land late, land shortened, drop after a deadline; newest replaces;
+# land one or all), plus the cases of the trackers it replaced.
+.PHONY: test-asset-requests
+test-asset-requests: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/asset_requests_test$(PLATFORM_EXE_SUFFIX) \
+		$(TORIMEM_SRCS) engine/test/asset_requests_test.c engine/asset_requests.c $(LDFLAGS)
+	./$(OBJ_DIR)/asset_requests_test$(PLATFORM_EXE_SUFFIX)
 
 # The two "asked for it, waiting for it" lists. Both fail in ways nothing else
 # in the frame notices: a duplicate queues a second decoder, an overflow makes
