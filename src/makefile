@@ -3011,6 +3011,18 @@ test-if-models: $(OBJ_DIR)
 		ui/test/uitree_if_models_test.c ui/uitree_if_models.c $(LDFLAGS)
 	./$(OBJ_DIR)/uitree_if_models_test$(PLATFORM_EXE_SUFFIX)
 
+# The interface-assets family's parallel tasks (app/app_tasks_if_assets.c) on a
+# stack App with fake loaders: IF_SETOBJECT wants its count variant's chain
+# (U1), an npc head its textures and a head task applies only to its own head
+# (U2), and inventory icons are wanted when a slot changes, deduped, cancelled
+# when the slot empties, and asked again after the back-off. Asserts on.
+.PHONY: test-if-assets-tasks
+test-if-assets-tasks: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(SRC_DIR)/world -o $(OBJ_DIR)/if_assets_tasks_test$(PLATFORM_EXE_SUFFIX) \
+		app/test/if_assets_tasks_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/if_assets_tasks_test$(PLATFORM_EXE_SUFFIX)
+
 # The widget obj-icon requests a clientscript parks for a logic tick: one per
 # cell, newest wins, and a release that takes the due ones from the head up to
 # its burst while the rest keep their places. A park that grew a row per write
