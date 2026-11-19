@@ -111,8 +111,8 @@ resolve_loc(
             if( !ScriptrunCore_Varbit(core, resolved->transform_varbit, &index) )
                 index = 0;
         }
-        else if( resolved->transform_varp != -1 && resolved->transform_varp < SCRIPTRUN_VARPS )
-            index = core->varps[resolved->transform_varp];
+        else if( resolved->transform_varp >= 0 )
+            index = VarPManager_GetVarp(&core->model.varps, resolved->transform_varp);
         if( index >= 0 && index < resolved->transform_count - 1 )
             id = resolved->transforms[index];
         else

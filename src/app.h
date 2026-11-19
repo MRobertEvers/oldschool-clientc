@@ -2279,26 +2279,10 @@ App_IfHideSet(
     int com_id,
     int hide);
 
-/** Forget every stored IF_SETTEXT, IF_SETHIDE and IF_SETCOLOUR on interface
- *  `group_id`'s components. Called when a close UNLOADS that group (the
- *  reference's IfType.list goes with it); a same-group remount keeps them. */
-void
-App_IfStoresDropGroup(
-    struct App* app,
-    int group_id);
-
 /** Drop every IF_SETEVENTS arming. Called on IF_RESYNC, which replaces the
  *  whole table; IF_OPENTOP keeps it (see that case in rs_gameproto_exec.c). */
 void
 App_IfEventsClear(struct App* app);
-
-/** Drop every IF_SETEVENTS arming on interface `group_id`'s components.
- *  Called when that group is closed out of a slot -- the real client drops
- *  them on every close, a same-group remount included (UIIfEventTable_DropGroup). */
-void
-App_IfEventsDropGroup(
-    struct App* app,
-    int group_id);
 
 /**
  * IF_SETEVENTS: mark slots `from`..`to` of a component as accepting input.
@@ -2307,7 +2291,7 @@ App_IfEventsDropGroup(
  * events before the interface holding the component has mounted, and across
  * an IF_OPENTOP, which the reference never clears them on. Not across an
  * IF_RESYNC (`App_IfEventsClear`), nor a close of the component's own group
- * (`App_IfEventsDropGroup`).
+ * (app_close_slot, RS_ServerState_SlotGroupLeaves).
  */
 void
 App_IfEventsSet(

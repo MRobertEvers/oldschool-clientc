@@ -23,7 +23,9 @@
  *
  * WHAT IS HERE. The model half of every handler whose model write and view
  * effect were already separate calls: varps, stats, inventories, the
- * interface text/hide/colour/event stores, chat lines and the count prompt,
+ * interface text/hide/colour/event stores (and the rule that drops a group's
+ * entries when it leaves its slot, RS_ServerState_SlotGroupLeaves), chat
+ * lines and the count prompt,
  * the friend and ignore lists and chat filters, the session strings and
  * timers, the player ops, the hint arrow, the npc update origin, the active
  * world cursor and interaction modes, the hidden-ops flags, and the four
@@ -139,6 +141,30 @@ enum RS_ServerStateApply
 RS_ServerState_Apply(
     struct RS_ServerState const* state,
     struct RevPacket const* packet);
+
+/**
+ * A group leaves the slot it was mounted in: IF_CLOSESUB (`incoming_group`
+ * 0), an IF_OPENSUB onto an occupied slot (`incoming_group` the group it
+ * opens, which may be the same one), the destination of an IF_MOVESUB (the
+ * group moved there). `group` is the group the slot held, which only the
+ * client knows (the real client: its queued mount tasks and its tree; the
+ * headless client: its mount table), so the client asks this at the call.
+ *
+ * The reference's one close (class415.method9520, ending in
+ * Statics.method12095) unlinks every IF_SETEVENTS node on the group's
+ * components, the same group reopened included. Its unload flag
+ * (Statics.method7193) drops the group's IfType.list, and with it the texts,
+ * hides and colours the server set on it, only when the incoming group is a
+ * different one: a group reopened in its own slot keeps them.
+ *
+ * Returns 1 when the texts, hides and colours went too, 0 when only the
+ * arming did.
+ */
+int
+RS_ServerState_SlotGroupLeaves(
+    struct RS_ServerState const* state,
+    int group,
+    int incoming_group);
 
 /** Container key for an inv packet: the revision's own inventory id when it
  *  carries one (rev 230+), else the component id the older revisions key by.

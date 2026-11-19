@@ -398,6 +398,63 @@ test_interface_stores(void)
     printf("ok - interface stores: text, hide, colour and events held with no tree\n");
 }
 
+/* RS_ServerState_SlotGroupLeaves: the reference's close (class415.method9520)
+ * drops a group's arming every time, its unload (Statics.method7193) drops its
+ * texts, hides and colours only when another group takes the slot. Both
+ * clients call it: the real client's app_close_slot, the headless client's
+ * mount table (scriptrun_core.c IF_OPENSUB / IF_CLOSESUB). */
+static void
+test_slot_group_leaves(void)
+{
+    struct Fixture* fx = fixture_new();
+    int const com = (233 << 16) | 36;
+    int const other = (162 << 16) | 5;
+    char text[] = "Congratulations";
+    struct RevPacket p;
+    unsigned events = 0;
+
+    p = packet(PKT_NAME_IF_SETTEXT);
+    p._if_settext.component_id = com;
+    p._if_settext.text = text;
+    apply(fx, &p);
+    p._if_settext.component_id = other;
+    apply(fx, &p);
+    p = packet(PKT_NAME_IF_SETHIDE);
+    p._if_sethide.component_id = com;
+    p._if_sethide.hide = 1;
+    apply(fx, &p);
+    p = packet(PKT_NAME_IF_SETCOLOUR);
+    p._if_setcolour.component_id = com;
+    p._if_setcolour.colour = 31;
+    apply(fx, &p);
+    p = packet(PKT_NAME_IF_SETEVENTS);
+    p._if_setevents.component_id = com;
+    p._if_setevents.from = 0;
+    p._if_setevents.to = 28;
+    p._if_setevents.events = 0x1;
+    apply(fx, &p);
+
+    /* The same group reopened in its own slot: the arming goes, the stores
+     * stay. */
+    CHECK(RS_ServerState_SlotGroupLeaves(&fx->state, 233, 233) == 0,
+          "a same-group remount unloads nothing");
+    CHECK(!UIIfEventTable_Lookup(&fx->if_events, com, 0, &events), "but the arming is dropped");
+    CHECK(UIIfTextStore_Get(&fx->if_texts, com) != NULL, "the text stays");
+    CHECK(UIIfIntStore_Get(&fx->if_hides, com, -1) == 1, "the hide stays");
+    CHECK(UIIfIntStore_Get(&fx->if_colours, com, -1) >= 0, "the colour stays");
+
+    /* Another group takes the slot (or a close, incoming 0): all of it goes,
+     * and only that group's. */
+    CHECK(RS_ServerState_SlotGroupLeaves(&fx->state, 233, 0) == 1, "a close unloads the group");
+    CHECK(UIIfTextStore_Get(&fx->if_texts, com) == NULL, "its text is dropped");
+    CHECK(UIIfIntStore_Get(&fx->if_hides, com, -1) == -1, "its hide is dropped");
+    CHECK(UIIfIntStore_Get(&fx->if_colours, com, -1) == -1, "its colour is dropped");
+    CHECK(UIIfTextStore_Get(&fx->if_texts, other) != NULL, "another group's text is kept");
+
+    fixture_free(fx);
+    printf("ok - slot group leaves: arming always, stores only for another group\n");
+}
+
 static void
 test_chat(void)
 {
@@ -416,6 +473,26 @@ test_chat(void)
     CHECK(fx->chat.newest && fx->chat.newest->clock == 4321, "stamped with the owner's clock");
     n = take_events(fx, ev, 8);
     CHECK(n == 1 && ev[0].kind == RS_EVENT_CHAT_MESSAGE, "chat_message from the store");
+
+    /* A line as long as a VARU8 MESSAGE_GAME allows is kept whole: the
+     * reference keeps the String (class76.method2620). The store's buffer was
+     * 200 and cut a 200-character chat-head line to 199 (doric, runemysteries:
+     * the headless shadow's report 1, M1). */
+    {
+        char long_text[256];
+
+        memset(long_text, 'a', 254);
+        long_text[0] = 'D';
+        long_text[254] = '\0';
+        p = packet(PKT_NAME_MESSAGE_GAME);
+        p._message_game.type = 114;
+        p._message_game.text = long_text;
+        apply(fx, &p);
+        CHECK(strlen(fx->chat.messages[0].text) == 254, "a 254-character line keeps every character");
+        CHECK(strlen(fx->chat.newest->text) == 254, "in the per-type store too");
+        n = take_events(fx, ev, 8);
+        CHECK(n == 1, "one chat_message for it");
+    }
 
     /* A private message is deduped by id: the second copy writes nothing. */
     p = packet(PKT_NAME_MESSAGE_PRIVATE);
@@ -828,6 +905,7 @@ main(void)
     test_stats();
     test_inventories();
     test_interface_stores();
+    test_slot_group_leaves();
     test_chat();
     test_social();
     test_session();

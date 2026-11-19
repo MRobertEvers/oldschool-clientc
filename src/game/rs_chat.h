@@ -19,7 +19,13 @@ struct UITreeHost;
 
 #define RS_CHAT_MESSAGE_MAX 100
 #define RS_CHAT_SENDER_LEN 64
-#define RS_CHAT_TEXT_LEN 200
+/* A line's text, its NUL included. The reference keeps a line as the String
+ * the packet carried (class55.method1052 -> class76.method2620 stores it
+ * whole), and MESSAGE_GAME is a VARU8 packet, so 256 holds every line the wire
+ * can send. It was 200, which cut a 200-character chat-head line copied into
+ * the chatbox ("Doric|Clay is what I use ...", doric and runemysteries) to 199
+ * characters (the headless client's shadow, report 1, M1). */
+#define RS_CHAT_TEXT_LEN 256
 #define RS_CHAT_INPUT_LEN 80
 
 /*

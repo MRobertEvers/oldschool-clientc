@@ -2231,6 +2231,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-rs-server-state
 	$(MAKE) test-pending
 	$(MAKE) test-parallel-task
+	$(MAKE) test-scriptrun-shadow
 	$(MAKE) test-render-mode
 	$(MAKE) test-painter-cull-bake
 	$(MAKE) test-world-views
@@ -5886,6 +5887,21 @@ test-rs-server-state: $(OBJ_DIR) $(OBJS)
 		$(filter-out $(OBJ_DIR)/main.o $(OBJ_DIR)/rs_server_state.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/rs_server_state_test
 
+# The headless client's shadow of the packet model (scriptrun/scriptrun_shadow.h,
+# TORIRS_SCRIPTRUN_SHADOW) against a hand-built core holding its own model
+# (scriptrun/scriptrun_model.h): agreement writes nothing, a difference is one
+# row until it changes, the event stream is aligned, the row names the packet
+# that last touched the key, a group's unload drops what the bare model keeps.
+# Asserts on, as above.
+.PHONY: test-scriptrun-shadow
+test-scriptrun-shadow: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG \
+		-o $(OBJ_DIR)/scriptrun_shadow_test \
+		scriptrun/test/scriptrun_shadow_test.c scriptrun/scriptrun_model.c \
+		scriptrun/scriptrun_shadow.c game/rs_server_state.c \
+		$(filter-out $(OBJ_DIR)/main.o $(OBJ_DIR)/rs_server_state.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/scriptrun_shadow_test
+
 # World entities (sailing, SAILING_PLAN C1): the WORLDENTITY_INFO delta
 # reader, the class458 interpolator (incl. the 2047->1 wraparound arc), the
 # footprint corner bake, and the archive-72 WevConfig decode against the real
@@ -6149,7 +6165,17 @@ SCRIPTRUN_SRCS = torirsserver/torirs_server_scriptrun.c scriptrun/scriptrun_core
 	world/world.c world/world_cycle.c world/entity_pool.c world/world_entity.c \
 	world/entity_pathing.c world/entity_registry.c game/rs_entity_sync.c \
 	scriptrun/scriptrun_collision.c engine/torirs_types.c engine/torirs_map_from_rscache.c \
-	engine/torirs_location_from_rscache.c
+	engine/torirs_location_from_rscache.c \
+	$(SCRIPTRUN_SHADOW_SRCS)
+# The packet model (game/rs_server_state.c) and the records it writes, the real
+# client's own modules, as a headless client holds them (scriptrun/scriptrun_model.c):
+# the bot's own set, and its shadow's (scriptrun/scriptrun_shadow.h,
+# TORIRS_SCRIPTRUN_SHADOW), a second set fed the bare packets to compare against.
+SCRIPTRUN_SHADOW_SRCS = scriptrun/scriptrun_model.c scriptrun/scriptrun_shadow.c game/rs_server_state.c \
+	varp/varp_manager.c game/rs_player_stats.c inv/inv_manager.c ui/uitree_if_store.c \
+	game/rs_chat.c game/rs_social.c game/rs_session_info.c net/session_end.c \
+	game/rs_server_tick.c game/rs_player_ops.c game/rs_hint_arrow.c \
+	game/rs_npc_update_origin.c game/rs_interaction_mode.c world/worldview.c
 # Dedicated read-only, multi-client JS5 cache service.
 #
 # It is separate from ToriRSServer because a client uses ONE port for JS5 and the

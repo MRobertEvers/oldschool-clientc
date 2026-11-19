@@ -2195,7 +2195,7 @@ RS_GameProto_Exec(
          * class420.method9711 + method9723) unloads the old root's widgets and
          * loads the new one; it never touches the flags table. Only IF_RESYNC
          * replaces that table, and a closed group loses its own entries
-         * (App_IfEventsDropGroup). The subs IF_MOVESUB carries into the new top
+         * (RS_ServerState_SlotGroupLeaves). The subs IF_MOVESUB carries into the new top
          * keep their masks: Jagex arms the backpack once at login and the
          * welcome screen's Play then opens the gameframe top without arming it
          * again (RSProx index 4378: IF_SETEVENTS 149:0 at line 644, IF_OPENTOP

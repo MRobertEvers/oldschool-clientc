@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "game/rs_server_state.h"
 #include "mem/torirs_mem.h"
 
 #include "cs2vm2.h"
@@ -1502,12 +1503,23 @@ app_close_slot(
     int incoming_group)
 {
     int group = app_queued_slot_group(app, target_uid);
+    struct RS_ServerState state;
+    int unloaded;
 
     if( group <= 0 )
         return;
-    App_IfEventsDropGroup(app, group);
-    if( group != incoming_group )
-        App_IfStoresDropGroup(app, group);
+    /* The rule is the packet model's (RS_ServerState_SlotGroupLeaves), which
+     * the headless client applies to its own records; which group the slot
+     * held is this client's to know. */
+    App_ServerStateBind(app, &state);
+    unloaded = RS_ServerState_SlotGroupLeaves(&state, group, incoming_group);
+    if( torirs_env_net_debug() )
+    {
+        TORIRS_LOG("if_setevents: group %d closed, its arming dropped\n", group);
+        if( unloaded )
+            TORIRS_LOG("if_set*: group %d unloaded, its stored values dropped\n", group);
+    }
+    RedrawRequest_Raise(&app->redraw_request);
 }
 
 static void
