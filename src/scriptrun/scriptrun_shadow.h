@@ -148,6 +148,21 @@ ScriptrunShadow_BeginTick(
     int tick,
     int now_cycle);
 
+/**
+ * THE INVARIANT. Both zones run the same rules (scriptrun_zone.h), and the
+ * headless client raises no parallel task (none of the kinds that exist
+ * changes game state once its asset is answered at once: scriptrun_zone.h's
+ * list), so its pending index is empty at every tick end and its world must
+ * equal the shadow's. A row in the ground, projectiles, map_anims, loc_anims
+ * or locs family therefore breaks the invariant: with `strict` (the default)
+ * the shadow says so on stderr and aborts, in every build. A test that writes
+ * the two sides apart on purpose turns it off.
+ */
+void
+ScriptrunShadow_SetStrictWorld(
+    struct ScriptrunShadow* shadow,
+    int strict);
+
 /** Rows written for `family` so far. */
 int
 ScriptrunShadow_Rows(

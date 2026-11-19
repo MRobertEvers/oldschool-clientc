@@ -24,14 +24,26 @@
  * stand-ins for what the real client's scripts would read (the last client
  * script call, the make-X and skill-multi values, the count prompt).
  *
- * WHAT IT MIRRORS. The client applies the entity streams in an async task
- * bound to the whole App (game/task_exec_entity_info.c): it awaits npc configs,
- * models and stances between ops. That cannot run here, so the target/apply
- * rules are restated in scriptrun_core.c, op for op, against the same World
- * and RS_EntitySync, with the App-only side effects (models, scene elements,
- * sounds, chat UI, drive events) left out. Keep the two in step: a change to
- * player_target_op / player_apply_op / npc_target_op / npc_apply_op there is a
- * change here.
+ * The zone families follow the real client's rules too, onto its own records
+ * (scriptrun_zone.h, ScriptrunCore_ZoneFamilies): ground rows as World obj
+ * stacks, the effect log the projectiles and map graphics are read from
+ * (game/rs_effect_log.h), the loc animations, and the root's loc change
+ * records, which a rebuild re-places. That unit also holds the one list of
+ * the real client's parallel task kinds and why this client raises none.
+ *
+ * WHAT IT MIRRORS. The client applies the entity streams in a packet task
+ * bound to the whole App (game/task_exec_entity_info.c): it awaits the npc
+ * configs the packet names, and hands bodies and sequences to parallel tasks.
+ * That cannot run here, so the target/apply rules are restated in
+ * scriptrun_core.c, op for op, against the same World and RS_EntitySync, with
+ * the npc configs read from the server's own records
+ * (ToriRSServer_NpcInfoRecord) and the App-only side effects (models, scene
+ * elements, sounds, chat UI, drive events) left out. Keep the two in step: a
+ * change to player_target_op / player_apply_op / npc_target_op / npc_apply_op
+ * there is a change here. The interface mounts are restated too (the real
+ * client's record of what is mounted is its UI tree), and the placed locs:
+ * the loc table below stands for the real client's scenery pool, which this
+ * client builds no scene for.
  *
  * WHAT IT DOES NOT KNOW. Anything the server never sent: other players'
  * stats, npc hitpoints (only the health bar's fill), server-only varps. The

@@ -85,6 +85,9 @@ struct ScriptrunShadow
     int rows[SCRIPTRUN_SHADOW_FAMILY_COUNT];
     int keys[SCRIPTRUN_SHADOW_FAMILY_COUNT];
 
+    /* Abort on a row in a world family (ScriptrunShadow_SetStrictWorld). */
+    int strict_world;
+
     int applied;
     int unchanged;
     int passed;
@@ -410,6 +413,14 @@ shadow_row(
     /* A row is rare and a reader may look mid-run: each one reaches the
      * file when it is written. */
     fflush(sh->out);
+    if( sh->strict_world && family >= SCRIPTRUN_SHADOW_GROUND && family <= SCRIPTRUN_SHADOW_LOCS )
+    {
+        fprintf(stderr,
+            "scriptrun-shadow: INVARIANT broken at tick %d: the %s family differs at %s "
+            "(core '%s', shadow '%s')\n",
+            core->tick, k_family_names[family], key, o, s);
+        abort();
+    }
 }
 
 /* A state family's key differs at this compare: a row when it did not differ
@@ -513,6 +524,7 @@ ScriptrunShadow_New(
     /* Its own World: the entity setters it is fed apply to nothing. */
     ScriptrunModel_Init(&sh->model, rev_number, cycle, sh->world, &sh->esync, sink);
     ScriptrunZone_Init(&sh->zone, sink);
+    sh->strict_world = 1;
     return sh;
 }
 
@@ -554,6 +566,15 @@ ScriptrunShadow_Free(struct ScriptrunShadow* sh)
     RS_EntitySync_Free(&sh->esync);
     World_Free(sh->world);
     ToriMem_Free(ToriMem_ServerPlayers(), sh);
+}
+
+void
+ScriptrunShadow_SetStrictWorld(
+    struct ScriptrunShadow* sh,
+    int strict)
+{
+    assert(sh);
+    sh->strict_world = strict != 0;
 }
 
 struct ScriptrunZone*

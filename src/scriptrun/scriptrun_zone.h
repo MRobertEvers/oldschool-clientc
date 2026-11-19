@@ -38,6 +38,35 @@
  *     loc's cache level (zone_loc_tile_at's bridge climb), for
  *     RS_EFFECT_LOC_ANIM_LIFE_TICKS server ticks.
  *
+ * THE PARALLEL TASKS, AND WHAT THIS CLIENT DOES WITH EACH. The ONE list of
+ * every kind the real client raises on its parallel queue (game/rs_pending.h
+ * ranges, app/app_tasks_*.c), and why this client raises none of them. Its
+ * assets are answered at once, so a task that changes game state would apply
+ * on the pump right after its packet, which is the packet itself; a task that
+ * only draws has nothing to apply here. So there is no queue to pump and the
+ * pending index is empty at every tick end (the shadow's invariant,
+ * scriptrun_shadow.h).
+ *
+ *   kind                          changes game state?  here
+ *   ---------------------------   -------------------  -------------------------
+ *   GROUND_STACK_MODEL            no (a model)         not raised; the row is
+ *                                                      written at the packet
+ *   GROUND_WIDGET_ICON            no (an icon)         not raised
+ *   PROJECTILE_BODY               no (a body)          not raised; logged at the
+ *   MAP_ANIM_BODY                 no (a body)          packet (the effect log)
+ *   LOC_CHANGE                    YES: scenery and     applied at the packet
+ *                                 collision            (ScriptrunCore_LocChange)
+ *                                                      and recorded here
+ *   LOC_MERGE                     YES: a timed hide    NOT MODELLED (LOC_MERGE is
+ *                                                      not applied by this client)
+ *   ZONE_HELD                     the held packet's    not needed: the scene is
+ *                                                      built at its packet
+ *   LOC_SEQ_BIND                  no (a sequence)      not raised
+ *   NPC_BODY, SEQ_BIND            no (a body, a seq)   not raised
+ *   IF_MODEL, INV_ICON            no                   not raised
+ *   the mounts' visual half       no                   not raised
+ *   the scripts' visual ops       no                   not raised
+ *
  * App-free: nothing here names the client's App, a scene, a model or a cache.
  */
 
