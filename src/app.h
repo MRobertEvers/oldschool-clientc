@@ -474,8 +474,12 @@ struct App
      *   3. THE PARALLEL QUEUE (frame_runner) is IO-heavy work and is
      *      DRAINED: each pump steps every task that can run at least once,
      *      then keeps stepping until every task is done, waiting on a read,
-     *      or joined on tasks that are (an asset load, siblings, its turn
-     *      behind an earlier task for the same key). Nothing else ends a
+     *      or in a NAMED wait (asyncio.h, enum ToriRS_TaskWait: an asset, a
+     *      join on tasks it fanned out, another task finishing -- its turn
+     *      behind an earlier task for the same key, or the rebuild of its
+     *      view -- or a client cycle; the macros are game/rs_parallel_task.h).
+     *      Any other wait there, TASK_AWAIT_STATE among them, is a breach
+     *      the runner asserts. Nothing else ends a
      *      pump: no clock, no step count a frame reaches, no task's request.
      *      It is pumped every App_RunOnce (App_PumpAsync), between frames on
      *      the web when a batch of reads lands (torirs_web_io_pump), inside a
@@ -503,7 +507,7 @@ struct App
      *      order to continue it awaits on the main queue.
      *   6. RESULTS BY QUEUE: RENDER is legal on the main queue only; SPENT on
      *      the background queue only; BLOCKED on the parallel and background
-     *      queues only as a join (asyncio.h has the table). Only the
+     *      queues only as a named wait (asyncio.h has the table). Only the
      *      background queue is time-sliced: on any other queue a task that
      *      asks whether the slice is over is told no (ToriRS_Slice::sliced,
      *      set in one place, TaskRunner_StepUntil), so no task there can
@@ -2833,6 +2837,28 @@ App_WorldJobStart(
 /** Is a background rebuild in progress (packets held, scene not yet built)? */
 int
 App_WorldJobPending(struct App const* app);
+
+struct RS_ParallelTask;
+
+/**
+ * A rebuild of view `view` begins: list `rebuild` (a header the rebuild owns,
+ * not on any queue) in app->pending as RS_PENDING_KIND_REBUILD for the view,
+ * so a parallel task can wait on it by name (PT_APP_AWAIT_VIEW_REBUILT). The
+ * background world job, a blocking REBUILD inside its packet task and a local
+ * load each list one from their start to their finish.
+ */
+void
+App_ViewRebuildBegin(
+    struct App* app,
+    struct RS_ParallelTask* rebuild,
+    int view);
+
+/** The rebuild ended (finished, cancelled, or its owner freed): unlist it.
+ *  A header that was never listed, or already unlisted, is left alone. */
+void
+App_ViewRebuildEnd(
+    struct App* app,
+    struct RS_ParallelTask* rebuild);
 
 /**
  * The packet pump's question, asked before every pop while a job is pending:

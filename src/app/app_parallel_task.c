@@ -94,6 +94,80 @@ App_ParallelTaskLate(
     return RS_ParallelTask_LateCycles(par, App_ParallelCycle(app));
 }
 
+uint32_t
+App_ParallelCyclesFor(uint32_t ms)
+{
+    uint32_t const cycles = (ms + APP_PARALLEL_CYCLE_MS - 1u) / APP_PARALLEL_CYCLE_MS;
+
+    return cycles > 0 ? cycles : 1u;
+}
+
+struct RS_PendingKey
+App_ViewRebuildKey(
+    struct App* app,
+    int view)
+{
+    struct RS_PendingKey none = { 0 };
+
+    assert(app);
+    if( view < 0 || !WorldviewRegistry_IsLive(&app->worldviews, view) )
+        return none;
+    return RS_PendingKey_View(
+        view, 0, 0, 0, 0, (uint32_t)WorldviewRegistry_Get(&app->worldviews, view)->wire_id);
+}
+
+bool
+App_ViewRebuilding(
+    struct App* app,
+    int view)
+{
+    assert(app);
+    assert(app->pending);
+    return RS_Pending_Find(app->pending, RS_PENDING_KIND_REBUILD, App_ViewRebuildKey(app, view)) != NULL;
+}
+
+void
+App_ViewRebuildBegin(
+    struct App* app,
+    struct RS_ParallelTask* rebuild,
+    int view)
+{
+    uint32_t scene_serial = 0;
+    struct World const* world;
+
+    assert(app);
+    assert(app->pending);
+    assert(rebuild);
+    assert(!rebuild->listed);
+    assert(WorldviewRegistry_IsLive(&app->worldviews, view));
+    world = WorldviewRegistry_Get(&app->worldviews, view)->world;
+    if( world )
+        scene_serial = world->load_seq;
+    RS_Pending_List(
+        app->pending,
+        rebuild,
+        RS_PENDING_KIND_REBUILD,
+        App_ViewRebuildKey(app, view),
+        view,
+        scene_serial,
+        App_ParallelCycle(app));
+}
+
+void
+App_ViewRebuildEnd(
+    struct App* app,
+    struct RS_ParallelTask* rebuild)
+{
+    assert(app);
+    assert(app->pending);
+    assert(rebuild);
+    /* Every end of a rebuild comes here, the ones that never began included
+     * (a packet task freed before its gather, a job cancelled twice). */
+    if( !rebuild->listed )
+        return;
+    RS_Pending_Unlist(app->pending, rebuild);
+}
+
 /*
  * The world a deferred apply belongs to, or NULL when the scene it was aimed
  * at is gone (App_ParallelTaskWorld is this on a task's header; the effect

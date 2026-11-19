@@ -470,11 +470,7 @@ Task_Dat2MusicLoad_Run(
             &task->pending);
     /* PT_TASK_JOIN's shape, written out because that macro names its task
      * `self` and this file names it `task`. @see task_dat2_healthbar_load.c. */
-    while( task->pending > 0 )
-    {
-        task->task.blocked = 1;
-        PT_YIELD(&task->pt);
-    }
+    TASK_AWAIT_JOIN(&task->task, &task->pt, task->pending);
 
     /*
      * 4. Every sample those instruments play, fetched together.
@@ -535,11 +531,7 @@ Task_Dat2MusicLoad_Run(
         }
         ToriMem_Free(ToriRS_TaskMem(&task->task), seen);
     }
-    while( task->pending > 0 )
-    {
-        task->task.blocked = 1;
-        PT_YIELD(&task->pt);
-    }
+    TASK_AWAIT_JOIN(&task->task, &task->pt, task->pending);
 
     /*
      * 5. What actually landed. The instruments installed themselves and their

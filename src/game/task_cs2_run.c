@@ -1491,6 +1491,7 @@ Task_CS2Run_Run(
         {
             int result = task_run(child, io);
             self->task.blocked = child->blocked;
+            self->task.wait = child->wait;
             self->task.wants_render = child->wants_render;
             self->task.render = child->render;
             if( result != PT_ENDED && result != PT_EXITED ) return result;

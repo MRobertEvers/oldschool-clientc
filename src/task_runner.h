@@ -661,7 +661,28 @@ TaskRunner_Step(struct TaskRunner* runner)
                 render = 1;
             }
             else if( stat == TORIRS_ASYNCIO_STAT_BLOCKED )
+            {
                 blocked = 1;
+                /* Off the main queue a task may wait only on a NAMED thing:
+                 * an asset, a join, another task, a client cycle (asyncio.h,
+                 * enum ToriRS_TaskWait). A free-form state wait there is a
+                 * task waiting on state the main queue owns. */
+                if( (runner->role == TASK_RUNNER_ROLE_PARALLEL || runner->role == TASK_RUNNER_ROLE_BACKGROUND) &&
+                    !ToriRS_TaskWaitNamed(task->wait) )
+                {
+                    char line[192];
+                    snprintf(
+                        line,
+                        sizeof(line),
+                        "task %s waited on %s state on the %s queue (only an asset, a join, another "
+                        "task or a client cycle may be waited on there)",
+                        task->name[0] ? task->name : "(unnamed)",
+                        task->wait == TORIRS_TASK_WAIT_STATE ? "free-form" : "unnamed",
+                        TaskRunner_RoleName(runner->role));
+                    TaskRunner_ContractBreach(line);
+                    assert(ToriRS_TaskWaitNamed(task->wait));
+                }
+            }
             else if( stat == TORIRS_ASYNCIO_STAT_SPENT )
             {
                 /* It ran, and stopped because the slice is over. */
@@ -736,11 +757,11 @@ TaskRunner_StatName(enum TaskRunnerStat stat)
  *
  * On the parallel and the background queue no task that can run may be left
  * without a turn this pump; on the parallel queue every task left must also
- * be waiting on a read (its item pending) or blocked -- joined on tasks that
- * are, which is every BLOCKED a parallel task may legitimately return (the
- * table of them: pm/PLATFORM_CONFORMANCE.md). A blocked task is named, not
- * breached, under TORIRS_QUEUE_CONTRACT_TRACE: the runner cannot tell a join
- * from a wait on state, and until no state wait remains the trace names them.
+ * be waiting on a read (its item pending) or blocked in a NAMED wait (an
+ * asset, a join, another task, a client cycle: enum ToriRS_TaskWait; a
+ * free-form state wait there is caught in the pass that returned it). Under
+ * TORIRS_QUEUE_CONTRACT_TRACE every blocked task left is named with its
+ * kind.
  * The main queue is a FIFO pumped until its head waits, and is not checked
  * here.
  */
@@ -753,7 +774,7 @@ TaskRunner_PumpEnd(
     int breaches = 0;
     int pending = 0;
     int blocked = 0;
-    char names[160];
+    char names[256];
     int names_len = 0;
 
     assert(runner);
@@ -811,13 +832,14 @@ TaskRunner_PumpEnd(
             continue;
         }
         blocked++;
-        if( names_len < (int)sizeof(names) - 40 )
+        if( names_len < (int)sizeof(names) - 48 )
             names_len += snprintf(
                 names + names_len,
                 sizeof(names) - (size_t)names_len,
-                " %s%s",
+                " %s%s[%s]",
                 task->name[0] ? task->name : "(unnamed)",
-                task->render_blocking ? "(script)" : "");
+                task->render_blocking ? "(script)" : "",
+                ToriRS_TaskWaitName(task->wait));
     }
     if( TaskRunner_ContractTrace() >= 2 || (TaskRunner_ContractTrace() >= 1 && (blocked > 0 || breaches > 0)) )
         fprintf(

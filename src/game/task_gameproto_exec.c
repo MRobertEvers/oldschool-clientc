@@ -1,5 +1,6 @@
 #include "task_gameproto_exec.h"
 #include "game/rs_server_state.h"
+#include "game/rs_pending.h"
 #include "mem/torirs_mem.h"
 
 #include "app.h"
@@ -52,6 +53,10 @@ struct Task_GameProtoExec
     int wev_view_id;
     int wev_scene_size;
     int32_t wev_zones[PKT_MAP_REBUILD_ZONES];
+    /* A blocking rebuild, listed in the pending index from before its gather
+     * to after its finish (App_ViewRebuildBegin): what a parallel task
+     * waiting out the rebuild of the view waits on, by name. */
+    struct RS_ParallelTask rebuild;
 };
 
 /* The view a REBUILD_NORMAL / REBUILD_REGION rebuilds: always the root. The
@@ -315,6 +320,7 @@ Task_GameProtoExec_Run(
          * them: the assets are awaited, then the build runs here, in place
          * and in one piece. */
         memset(&self->gather_report, 0, sizeof(self->gather_report));
+        App_ViewRebuildBegin(app, &self->rebuild, WORLDVIEW_ROOT);
         PT_TASK_AWAITSELF_IF(CreateTask_WorldGather(
             app->provider, rebuild_view(self)->builder, app->frame_runner.queue, self->chunks,
             self->chunk_count, self->zone_x, self->zone_z, 104,
@@ -356,6 +362,7 @@ Task_GameProtoExec_Run(
                 rebuild_view(self)->world->_base_tile_x - self->prev_base_x,
                 rebuild_view(self)->world->_base_tile_z - self->prev_base_z);
         App_WorldLoadFinish(app);
+        App_ViewRebuildEnd(app, &self->rebuild);
     }
     else if( self->packet.packet_type == PKT_NAME_REBUILD_WORLDENTITY )
     {
@@ -464,6 +471,7 @@ Task_GameProtoExec_Run(
                 self->wev_scene_size,
                 self->chunk_count);
         memset(&self->gather_report, 0, sizeof(self->gather_report));
+        App_ViewRebuildBegin(app, &self->rebuild, self->wev_view_id);
         PT_TASK_AWAITSELF_IF(CreateTask_WorldGather(
             app->provider, wev_view(self)->builder, app->frame_runner.queue, self->chunks,
             self->chunk_count, self->zone_x, self->zone_z, self->wev_scene_size,
@@ -483,6 +491,7 @@ Task_GameProtoExec_Run(
          * server-driven. */
         if( wev_view(self)->world->load_complete )
             App_WorldViewLoadFinish(app, self->wev_view_id, 1);
+        App_ViewRebuildEnd(app, &self->rebuild);
         if( getenv("TORIRS_WEV_DEBUG") )
             fprintf(
                 stderr,
@@ -562,6 +571,9 @@ static void
 Task_GameProtoExec_Free(struct ToriRS_Task* base)
 {
     struct Task_GameProtoExec* self = (struct Task_GameProtoExec*)base;
+    /* Freed mid-rebuild (a queue freed at shutdown): it is no longer under
+     * way. */
+    App_ViewRebuildEnd(self->app, &self->rebuild);
     gameproto_free(&self->packet);
     ToriMem_Free(ToriMem_Session(), self);
 }

@@ -33,24 +33,6 @@
 #include "engine/uitree_builder/task_interface_open.h"
 #include "engine/uitree_builder/task_pack_assets_load.h"
 
-/*
- * Wait for every load counted on `self->par.join` -- a fan-out: several
- * Assets_Await on the one join -- or for a cancel, which drops the waits.
- * PT_PARALLEL_AWAIT_ASSET's wait, for many assets at once. A suspension
- * point.
- */
-#define PT_MOUNTS_AWAIT_JOINED(assets)                                                             \
-    do                                                                                             \
-    {                                                                                              \
-        while( self->par.join > 0 && !self->par.cancelled )                                        \
-        {                                                                                          \
-            self->task.blocked = 1;                                                                \
-            PT_YIELD(&self->pt);                                                                   \
-        }                                                                                          \
-        if( self->par.join > 0 )                                                                   \
-            Assets_Unjoin((assets), &self->par.join);                                              \
-    } while( 0 )
-
 /* ---- a player-model widget's build ------------------------------------- */
 
 enum
@@ -104,7 +86,7 @@ Task_IfPlayerModelBuild_Run(
                 AssetKey_Make(ASSET_KIND_CONFIG, Appearance_SlotObj(self->slots[i]), ASSET_CONFIG_OBJ),
                 &self->par.join);
     }
-    PT_MOUNTS_AWAIT_JOINED(app->assets);
+    PT_PARALLEL_AWAIT_ASSETS(app->assets);
     if( RS_ParallelTask_Cancelled(&self->par) )
         PT_EXIT(&self->pt);
     self->model_count = PlayerModel_CollectAppearanceModelIds(
@@ -113,7 +95,7 @@ Task_IfPlayerModelBuild_Run(
         if( self->model_ids[i] >= 0 )
             (void)Assets_Await(
                 app->assets, AssetKey_Make(ASSET_KIND_MODEL, self->model_ids[i], 0), &self->par.join);
-    PT_MOUNTS_AWAIT_JOINED(app->assets);
+    PT_PARALLEL_AWAIT_ASSETS(app->assets);
 
     /* 2. A newer composition of the widget replaced this one. */
     if( RS_ParallelTask_Cancelled(&self->par) )
@@ -226,7 +208,7 @@ Task_MountVisuals_Run(
     for( int i = 0; i < self->seed_obj_count; i++ )
         (void)Assets_Await(
             app->assets, AssetKey_Make(ASSET_KIND_OBJ_MODEL, self->seed_obj_ids[i], 1), &self->par.join);
-    PT_MOUNTS_AWAIT_JOINED(app->assets);
+    PT_PARALLEL_AWAIT_ASSETS(app->assets);
     if( RS_ParallelTask_Cancelled(&self->par) )
         PT_EXIT(&self->pt);
     if( self->visual.needs_player )

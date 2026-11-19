@@ -332,9 +332,16 @@ Task_WorldLoad_Run(
      * scene.
      */
     self->reprime_deadline_ms = WorldBuilder_TimingNowMs() + WORLD_LOAD_REPRIME_WAIT_MS;
-    PT_WAIT_UNTIL(&self->pt,
-        !CacheProvider_ArchiveReprimePending(p, WORLD_LOAD_MAPS_INDEX)
-            || WorldBuilder_TimingNowMs() >= self->reprime_deadline_ms);
+    /* A read another loader has in flight (the map index's reprime): an
+     * ASSET wait, by name, so no queue spins on it the way the plain
+     * PT_WAIT_UNTIL that was here did (a yield the runner counts as
+     * progress). */
+    TASK_AWAIT_NAMED(
+        &self->task,
+        &self->pt,
+        TORIRS_TASK_WAIT_ASSET,
+        !CacheProvider_ArchiveReprimePending(p, WORLD_LOAD_MAPS_INDEX) ||
+            WorldBuilder_TimingNowMs() >= self->reprime_deadline_ms);
 
     /*
      * 0. Reclaim before preloading, not after.

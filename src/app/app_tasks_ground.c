@@ -106,8 +106,10 @@ enum
     APP_TASKS_GROUND_ICON_BURST = 12,
 };
 
-/* app->tasks_ground: the logic tick the widget icons count from, and how
- * many this tick has released. Made on the first icon request. */
+/* app->tasks_ground: the logic tick the widget icons count from -- the
+ * clock their cycle wait reads (PT_PARALLEL_AWAIT_CYCLE): a client cycle
+ * whose packet transaction closed -- and how many this tick has released.
+ * Made on the first icon request. */
 struct AppTasksGround
 {
     uint32_t tick;
@@ -298,12 +300,9 @@ Task_GroundStackModel_Run(
                 PT_EXIT(&self->pt);
             }
         }
-        /* 3. Still wanted? A rebuild in progress is waited out: the row
-         *    outlives it. Then the row itself, which may be gone. */
-        TASK_AWAIT_STATE(
-            &self->task,
-            &self->pt,
-            RS_ParallelTask_Cancelled(&self->par) || ground_view_settled(app, self->par.view));
+        /* 3. Still wanted? A rebuild of its view is waited out, by name:
+         *    the row outlives it. Then the row itself, which may be gone. */
+        PT_APP_AWAIT_VIEW_REBUILT(app, ground_view_settled(app, self->par.view));
         if( RS_ParallelTask_Cancelled(&self->par) )
             PT_EXIT(&self->pt);
         world = ground_view_world(app, self->par.view);
@@ -471,8 +470,10 @@ struct Task_WidgetIcon
     int count;
     /* The logic tick it was asked in: it is released in a later one. */
     uint32_t asked_tick;
-    /* After a miss: when it may be released again, and the pause it took. */
-    uint64_t due_ms;
+    /* The tick (AppTasksGround::tick) it may go in, not before: the one
+     * after it was asked, or after a miss the end of its pause; and the
+     * pause it took. */
+    uint32_t due_tick;
     uint32_t wait_ms;
 };
 
@@ -486,19 +487,13 @@ widget_icon_key(
         component_id, UITree_GroupCloseSerial(app->tree, (component_id >> 16) & 0xffff));
 }
 
-/* May this icon go now? A tick after the one it was asked in, once its pause
- * is over, and while this tick's release has room; taking a place counts it. */
+/* Its tick has come: does this tick's release have room for it? Taking a
+ * place counts it. Not a protothread. */
 static bool
-widget_icon_released(
-    struct App* app,
-    struct Task_WidgetIcon const* self)
+widget_icon_take_place(struct App* app)
 {
     struct AppTasksGround* st = ground_state(app);
 
-    if( st->tick == self->asked_tick )
-        return false;
-    if( (uint64_t)app->host.client.now_ms < self->due_ms )
-        return false;
     if( st->released >= APP_TASKS_GROUND_ICON_BURST )
         return false;
     st->released++;
@@ -575,14 +570,17 @@ Task_WidgetIcon_Run(
     PT_BEGIN(&self->pt);
     for( ;; )
     {
-        /* Its turn: a later tick than the script's, inside the tick's
-         * release. */
-        TASK_AWAIT_STATE(
-            &self->task,
-            &self->pt,
-            RS_ParallelTask_Cancelled(&self->par) || widget_icon_released(app, self));
+        /* Its turn: a later tick than the script's (a client cycle, by
+         * name), inside the tick's release; a full release waits for the
+         * next tick. */
+        PT_PARALLEL_AWAIT_CYCLE(ground_state(app)->tick, self->due_tick);
         if( RS_ParallelTask_Cancelled(&self->par) )
             PT_EXIT(&self->pt);
+        if( !widget_icon_take_place(app) )
+        {
+            self->due_tick = ground_state(app)->tick + 1u;
+            continue;
+        }
         /* 1. The obj's model and its parts. Every count <= 1 resolves alike
          *    (obj_model_resolve_count_obj_id), so -- the icon-only form,
          *    `cc_setobject($obj, -1)` -- shares the base's load. */
@@ -596,9 +594,9 @@ Task_WidgetIcon_Run(
          *    reason by itself: the cell decides. */
         if( widget_icon_apply(self) )
             PT_EXIT(&self->pt);
-        /* Parts still missing: ask again after a pause. */
+        /* Parts still missing: ask again after a pause, counted in ticks. */
         self->wait_ms = Assets_BackoffNext(Assets_Policy(ASSET_KIND_INV_ICONS), self->wait_ms);
-        self->due_ms = (uint64_t)app->host.client.now_ms + self->wait_ms;
+        self->due_tick = ground_state(app)->tick + App_ParallelCyclesFor(self->wait_ms);
     }
     PT_END(&self->pt);
 }
@@ -658,7 +656,7 @@ app_cs2_widget_obj_icon_lazy(
          * script's request is, and in the place it already has. */
         if( same->obj_id == obj_id && same->count == count )
         {
-            same->due_ms = 0;
+            same->due_tick = same->asked_tick + 1u;
             same->wait_ms = 0;
             return;
         }
@@ -676,6 +674,7 @@ app_cs2_widget_obj_icon_lazy(
     task->obj_id = obj_id;
     task->count = count;
     task->asked_tick = ground_state(app)->tick;
+    task->due_tick = task->asked_tick + 1u;
     App_ParallelTaskAdd(app, &task->task, &task->par, APP_TASKS_GROUND_WIDGET_ICON, key, -1);
 }
 

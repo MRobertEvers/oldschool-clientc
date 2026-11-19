@@ -36,6 +36,7 @@
  */
 
 #include "engine/world_builder/task_world_load.h"
+#include "game/rs_pending.h"
 #include "task_runner.h"
 #include "varp/varp_manager.h"
 
@@ -125,6 +126,11 @@ struct WorldRebuildJob
      * packets): open from the commit, at `held_t0_us`, to the pump's return. */
     int held_open;
     uint64_t held_t0_us;
+    /** The job listed in the pending index as the rebuild of the root view
+     *  (RS_PENDING_KIND_REBUILD), from its start to its commit or cancel, so a
+     *  parallel task waits on it by name (PT_APP_AWAIT_VIEW_REBUILT). The
+     *  App lists it (App_ViewRebuildBegin); nothing here touches it. */
+    struct RS_ParallelTask rebuild;
 };
 
 /** No job, nothing counted, blocking mode, no deadline. */

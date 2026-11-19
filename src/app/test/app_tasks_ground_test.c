@@ -18,7 +18,8 @@
  *     is waited out and the row is landed after it.
  * Widget icons (what inv/widget_icon_park did, as tasks):
  *   - one task per cell; a rewrite cancels the older one (newest wins);
- *   - none released in the tick it was asked in; at most twelve a tick, the
+ *   - none released in the tick it was asked in (a named cycle wait on the
+ *     release's tick); at most twelve a tick, the
  *     rest in their places in line;
  *   - a cell whose parts are still missing asks again after its back-off.
  *
@@ -565,11 +566,16 @@ test_widget_icon_missing_parts_ask_again_after_backoff(void)
     starts = starts_of(ASSET_KIND_OBJ_MODEL, 201, 1);
     CHECK(starts == 1, "not asked again at once");
     CHECK(app_widget_icons_pending(g_fx.app) == 1, "never given up while the cell wants it");
-    g_fx.app->host.client.now_ms += 499;
-    app_tasks_ground_tick(g_fx.app);
-    pump();
+    /* The pause (500 ms) is waited as ticks of 20 ms (a named cycle wait,
+     * PT_PARALLEL_AWAIT_CYCLE on the release's tick): 24 are not enough. */
+    for( int i = 0; i < 24; i++ )
+    {
+        g_fx.app->host.client.now_ms += 20;
+        app_tasks_ground_tick(g_fx.app);
+        pump();
+    }
     CHECK(starts_of(ASSET_KIND_OBJ_MODEL, 201, 1) == starts, "not before its pause is over");
-    g_fx.app->host.client.now_ms += 1;
+    g_fx.app->host.client.now_ms += 20;
     app_tasks_ground_tick(g_fx.app);
     pump();
     CHECK(starts_of(ASSET_KIND_OBJ_MODEL, 201, 1) == starts + 1, "asked again after it");

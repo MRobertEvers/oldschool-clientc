@@ -23,6 +23,16 @@
  *      caught (TaskRunner_PumpEnd asserts).
  *   3. NO TASK IS LEFT WITHOUT ITS TURN. A background pump that leaves a
  *      task that could run unstepped is caught.
+ *   5. NAMED WAITS. The set of things a task on the parallel queue may wait
+ *      on is closed (asyncio.h, enum ToriRS_TaskWait; game/rs_parallel_task.h
+ *      has the macros): an asset, many assets, a join on tasks it fanned
+ *      out, its turn behind an earlier task for the same key, the rebuild of
+ *      its view, a client cycle. Each leaves the task blocked with its kind
+ *      recorded (a pump ends on it without a breach), resumes when its
+ *      condition holds, and ends at once when the task is cancelled. A
+ *      free-form state wait (TASK_AWAIT_STATE), or a block with no kind, on
+ *      the parallel or the background queue trips the runner's assert; on
+ *      the main queue it is legal.
  *   4. WHO STEPS THE BACKGROUND QUEUE. A background pass entered from inside
  *      the script settle, or from inside a task of another queue, trips the
  *      check; the job owner's finish (owner = 1) from the packet pump does
@@ -36,6 +46,9 @@
  *   make -C src test-queue-contract
  */
 #include "asyncio.h"
+#include "engine/asset_requests.h"
+#include "game/rs_parallel_task.h"
+#include "game/rs_pending.h"
 #include "task_runner.h"
 
 #include <assert.h>
@@ -724,6 +737,433 @@ test_who_steps_the_background_queue(void)
     CHECK(dies_by_abort(owner_from_a_parallel_task));
 }
 
+/* --- 5. named waits ------------------------------------------------------------- */
+
+enum
+{
+    KIND_WAITER = RS_PENDING_KINDS_TEST_FIRST,
+};
+
+enum WaitMode
+{
+    W_ASSET = 0,
+    W_ASSETS,
+    W_JOIN,
+    W_TURN,
+    W_REBUILD,
+    W_CYCLE,
+    W_MODES,
+};
+
+static char const* const k_mode_names[W_MODES] = { "asset", "assets", "join", "turn", "rebuild", "cycle" };
+static int const k_mode_kinds[W_MODES] = {
+    TORIRS_TASK_WAIT_ASSET, TORIRS_TASK_WAIT_ASSET,   TORIRS_TASK_WAIT_JOIN,
+    TORIRS_TASK_WAIT_TURN,  TORIRS_TASK_WAIT_REBUILD, TORIRS_TASK_WAIT_CYCLE,
+};
+
+/* The world the waits look at: an assets table with a loader that answers
+ * only when told, a pending index, a client cycle, a view that is or is not
+ * built. */
+struct NamedFx
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px;
+    struct Assets* assets;
+    struct RS_Pending* index;
+    uint32_t cycle;
+    int built;
+    /* A rebuild of view 0 and an earlier task for the waiter's key: headers
+     * listed by hand. */
+    struct RS_ParallelTask rebuild;
+    struct RS_ParallelTask earlier;
+};
+
+enum
+{
+    OUT_WAITING = 0,
+    OUT_RESUMED,
+    OUT_CANCELLED,
+};
+
+struct Waiter
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct RS_ParallelTask par;
+    struct NamedFx* fx;
+    int mode;
+    int join;
+    uint32_t due;
+    int* outcome;
+};
+
+/* A sibling a JOIN waits for: ends at cycle `due` (a named wait itself). */
+struct CycleSibling
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct NamedFx* fx;
+    uint32_t due;
+};
+
+static enum AssetStart
+named_fake_start(void* data, struct Assets* assets, struct AssetKey key)
+{
+    (void)data;
+    (void)assets;
+    (void)key;
+    return ASSET_START_LOADING;
+}
+
+static bool
+named_fake_resident(void* data, struct AssetKey key)
+{
+    (void)data;
+    (void)key;
+    return false;
+}
+
+static struct RS_PendingKey
+waiter_key(void)
+{
+    return RS_PendingKey_View(0, 3, 4, 0, 1, 1);
+}
+
+static struct RS_PendingKey
+rebuild_key(void)
+{
+    return RS_PendingKey_View(0, 0, 0, 0, 0, 1);
+}
+
+static int
+CycleSibling_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
+{
+    struct CycleSibling* self = (struct CycleSibling*)base;
+    (void)io;
+    PT_BEGIN(&self->pt);
+    TASK_AWAIT_NAMED(&self->task, &self->pt, TORIRS_TASK_WAIT_CYCLE, (int32_t)(self->fx->cycle - self->due) >= 0);
+    PT_END(&self->pt);
+}
+
+static struct ToriRS_TaskVTable k_cycle_sibling_vtable = { .run = CycleSibling_Run, .free = task_free_libc };
+
+static int
+Waiter_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
+{
+    struct Waiter* self = (struct Waiter*)base;
+    struct NamedFx* fx = self->fx;
+    (void)io;
+
+    PT_BEGIN(&self->pt);
+    if( self->mode == W_ASSET )
+        PT_PARALLEL_AWAIT_ASSET(fx->assets, AssetKey_Make(ASSET_KIND_MODEL, 7, 0));
+    else if( self->mode == W_ASSETS )
+    {
+        (void)Assets_Await(fx->assets, AssetKey_Make(ASSET_KIND_MODEL, 8, 0), &self->par.join);
+        (void)Assets_Await(fx->assets, AssetKey_Make(ASSET_KIND_MODEL, 9, 0), &self->par.join);
+        PT_PARALLEL_AWAIT_ASSETS(fx->assets);
+    }
+    else if( self->mode == W_JOIN )
+    {
+        struct CycleSibling* sib = calloc(1, sizeof(*sib));
+        assert(sib);
+        sib->task.vtable = &k_cycle_sibling_vtable;
+        strcpy(sib->task.name, "sibling");
+        sib->fx = fx;
+        sib->due = self->due;
+        PT_INIT(&sib->pt);
+        ToriRS_TaskQueue_AddParallelPoolSubTask(fx->runner.queue, &sib->task, &self->join);
+        PT_PARALLEL_AWAIT_JOIN(fx->runner.queue, join);
+    }
+    else if( self->mode == W_TURN )
+        PT_PARALLEL_AWAIT_TURN(fx->index);
+    else if( self->mode == W_REBUILD )
+        PT_PARALLEL_AWAIT_REBUILD(fx->index, rebuild_key(), fx->built);
+    else
+        PT_PARALLEL_AWAIT_CYCLE(fx->cycle, self->due);
+    if( RS_ParallelTask_Cancelled(&self->par) )
+    {
+        *self->outcome = OUT_CANCELLED;
+        PT_EXIT(&self->pt);
+    }
+    *self->outcome = OUT_RESUMED;
+    PT_END(&self->pt);
+}
+
+static void
+Waiter_Free(struct ToriRS_Task* base)
+{
+    struct Waiter* self = (struct Waiter*)base;
+    RS_ParallelTask_Release(self->fx->index, self->fx->assets, &self->par);
+    free(self);
+}
+
+static struct ToriRS_TaskVTable k_waiter_vtable = { .run = Waiter_Run, .free = Waiter_Free };
+
+static struct Waiter*
+add_waiter(struct NamedFx* fx, int mode, uint32_t due, int* outcome)
+{
+    struct Waiter* t = calloc(1, sizeof(*t));
+    assert(t);
+    t->task.vtable = &k_waiter_vtable;
+    snprintf(t->task.name, sizeof(t->task.name), "wait_%s", k_mode_names[mode]);
+    t->fx = fx;
+    t->mode = mode;
+    t->due = due;
+    t->outcome = outcome;
+    *outcome = OUT_WAITING;
+    PT_INIT(&t->pt);
+    RS_ParallelTask_Add(fx->runner.queue, fx->index, &t->task, &t->par, KIND_WAITER, waiter_key(), 0, 1, fx->cycle);
+    return t;
+}
+
+static void
+named_fx_init(struct NamedFx* fx)
+{
+    struct AssetLoader loader;
+
+    memset(fx, 0, sizeof(*fx));
+    runner_init(&fx->runner, &fx->px, NULL, TASK_RUNNER_ROLE_PARALLEL);
+    fx->assets = Assets_New();
+    loader.start = named_fake_start;
+    loader.resident = named_fake_resident;
+    loader.data = fx;
+    Assets_SetLoader(fx->assets, ASSET_KIND_MODEL, &loader);
+    fx->index = RS_Pending_New();
+    fx->cycle = 100;
+}
+
+static void
+named_fx_free(struct NamedFx* fx)
+{
+    CHECK(fx->runner.queue->head == NULL);
+    if( fx->rebuild.listed )
+        RS_Pending_Unlist(fx->index, &fx->rebuild);
+    if( fx->earlier.listed )
+        RS_Pending_Unlist(fx->index, &fx->earlier);
+    CHECK(RS_Pending_Listed(fx->index) == 0);
+    runner_free(&fx->runner);
+    RS_Pending_Free(fx->index);
+    Assets_Free(fx->assets);
+}
+
+static enum TaskRunnerStat
+named_pump(struct NamedFx* fx)
+{
+    int steps = 0;
+    return TaskRunner_PumpToStandstill(&fx->runner, 100, &steps);
+}
+
+/* Make mode `mode`'s condition hold. */
+static void
+named_release(struct NamedFx* fx, int mode)
+{
+    if( mode == W_ASSET )
+        Assets_Finished(fx->assets, AssetKey_Make(ASSET_KIND_MODEL, 7, 0), true);
+    else if( mode == W_ASSETS )
+    {
+        Assets_Finished(fx->assets, AssetKey_Make(ASSET_KIND_MODEL, 8, 0), true);
+        Assets_Finished(fx->assets, AssetKey_Make(ASSET_KIND_MODEL, 9, 0), true);
+    }
+    else if( mode == W_JOIN || mode == W_CYCLE )
+        fx->cycle = 110;
+    else if( mode == W_TURN )
+        RS_Pending_Unlist(fx->index, &fx->earlier);
+    else
+    {
+        RS_Pending_Unlist(fx->index, &fx->rebuild);
+        fx->built = 1;
+    }
+}
+
+/* What each mode's condition is waiting behind, set up before the waiter. */
+static void
+named_arm(struct NamedFx* fx, int mode)
+{
+    if( mode == W_TURN )
+        RS_Pending_List(fx->index, &fx->earlier, KIND_WAITER, waiter_key(), 0, 1, fx->cycle);
+    else if( mode == W_REBUILD )
+    {
+        RS_Pending_List(fx->index, &fx->rebuild, RS_PENDING_KIND_REBUILD, rebuild_key(), 0, 1, fx->cycle);
+        fx->built = 0;
+    }
+}
+
+static void
+test_named_waits_resume_and_cancel(void)
+{
+    printf("TEST: every named wait leaves its kind, resumes when its condition holds, and ends on cancel\n");
+    for( int mode = 0; mode < W_MODES; mode++ )
+    {
+        struct NamedFx fx;
+        struct Waiter* waiter;
+        int outcome;
+
+        /* Resumes when its condition holds. */
+        named_fx_init(&fx);
+        named_arm(&fx, mode);
+        waiter = add_waiter(&fx, mode, 110, &outcome);
+        CHECK(named_pump(&fx) == TASK_RUNNER_BLOCKED);
+        CHECK(outcome == OUT_WAITING);
+        CHECK(waiter->task.blocked);
+        CHECK(waiter->task.wait == k_mode_kinds[mode]);
+        CHECK(!fx.runner.in_pump);
+        /* Still waiting a pump later: nothing moved it. */
+        CHECK(named_pump(&fx) == TASK_RUNNER_BLOCKED);
+        CHECK(outcome == OUT_WAITING);
+        if( mode == W_REBUILD )
+        {
+            /* Both halves: no rebuild listed, but none has happened. */
+            RS_Pending_Unlist(fx.index, &fx.rebuild);
+            CHECK(named_pump(&fx) == TASK_RUNNER_BLOCKED);
+            CHECK(outcome == OUT_WAITING);
+            fx.built = 1;
+        }
+        else
+            named_release(&fx, mode);
+        CHECK(named_pump(&fx) == TASK_RUNNER_IDLE);
+        if( outcome != OUT_RESUMED )
+            fprintf(stderr, "FAIL: the %s wait did not resume\n", k_mode_names[mode]);
+        CHECK(outcome == OUT_RESUMED);
+        named_fx_free(&fx);
+
+        /* Ends at once on a cancel, its condition still unmet. */
+        named_fx_init(&fx);
+        named_arm(&fx, mode);
+        (void)add_waiter(&fx, mode, 110, &outcome);
+        CHECK(named_pump(&fx) == TASK_RUNNER_BLOCKED);
+        /* (The turn's earlier task shares the key, and is cancelled too.) */
+        CHECK(RS_Pending_CancelKey(fx.index, KIND_WAITER, waiter_key()) == (mode == W_TURN ? 2 : 1));
+        (void)named_pump(&fx);
+        if( outcome != OUT_CANCELLED )
+            fprintf(stderr, "FAIL: the %s wait did not end on its cancel\n", k_mode_names[mode]);
+        CHECK(outcome == OUT_CANCELLED);
+        /* A join's sibling outlives its cancelled parent and ends on its own. */
+        if( mode == W_JOIN )
+        {
+            CHECK(fx.runner.queue->head != NULL);
+            fx.cycle = 110;
+            CHECK(named_pump(&fx) == TASK_RUNNER_IDLE);
+        }
+        if( mode == W_ASSET || mode == W_ASSETS )
+        {
+            /* The loads it dropped still end in the table; nothing counts
+             * into the freed task. */
+            named_release(&fx, mode);
+        }
+        named_fx_free(&fx);
+    }
+}
+
+/* A task that waits on free-form state, as the converted tasks did. */
+struct StatePoll
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    int* flag;
+};
+
+static int
+StatePoll_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
+{
+    struct StatePoll* self = (struct StatePoll*)base;
+    (void)io;
+    PT_BEGIN(&self->pt);
+    TASK_AWAIT_STATE(&self->task, &self->pt, *self->flag);
+    PT_END(&self->pt);
+}
+
+static struct ToriRS_TaskVTable k_state_poll_vtable = { .run = StatePoll_Run, .free = task_free_libc };
+
+/* And one that blocks by hand, naming nothing. */
+static int
+BareBlock_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
+{
+    struct StatePoll* self = (struct StatePoll*)base;
+    (void)io;
+    PT_BEGIN(&self->pt);
+    while( !*self->flag )
+    {
+        self->task.blocked = 1;
+        PT_YIELD(&self->pt);
+    }
+    PT_END(&self->pt);
+}
+
+static struct ToriRS_TaskVTable k_bare_block_vtable = { .run = BareBlock_Run, .free = task_free_libc };
+
+static int g_never;
+
+static struct ToriRS_Task*
+new_state_poll(struct ToriRS_TaskVTable* vtable, int* flag)
+{
+    struct StatePoll* t = calloc(1, sizeof(*t));
+    assert(t);
+    t->task.vtable = vtable;
+    strcpy(t->task.name, vtable == &k_state_poll_vtable ? "state_poll" : "bare_block");
+    t->flag = flag;
+    PT_INIT(&t->pt);
+    return &t->task;
+}
+
+static void
+state_poll_on_parallel(void)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px = { 0 };
+    int steps = 0;
+
+    runner_init(&runner, &px, NULL, TASK_RUNNER_ROLE_PARALLEL);
+    ToriRS_TaskQueue_Add(runner.queue, new_state_poll(&k_state_poll_vtable, &g_never));
+    (void)TaskRunner_PumpToStandstill(&runner, 100, &steps);
+}
+
+static void
+state_poll_on_background(void)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px = { 0 };
+    struct FakeClock clock = { 0 };
+
+    runner_init(&runner, &px, &clock, TASK_RUNNER_ROLE_BACKGROUND);
+    ToriRS_TaskQueue_Add(runner.queue, new_state_poll(&k_state_poll_vtable, &g_never));
+    (void)TaskRunner_RunUntil(&runner, clock.now_us + 2000);
+}
+
+static void
+bare_block_on_parallel(void)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px = { 0 };
+    int steps = 0;
+
+    runner_init(&runner, &px, NULL, TASK_RUNNER_ROLE_PARALLEL);
+    ToriRS_TaskQueue_Add(runner.queue, new_state_poll(&k_bare_block_vtable, &g_never));
+    (void)TaskRunner_PumpToStandstill(&runner, 100, &steps);
+}
+
+static void
+test_a_state_poll_off_the_main_queue_is_caught(void)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px = { 0 };
+    int flag = 0;
+
+    printf("TEST: a free-form state wait on the parallel or background queue trips the assert; on the "
+           "main queue it is legal\n");
+    CHECK(dies_by_abort(state_poll_on_parallel));
+    CHECK(dies_by_abort(state_poll_on_background));
+    CHECK(dies_by_abort(bare_block_on_parallel));
+    /* The main queue is the main thread: it waits on what it needs. */
+    runner_init(&runner, &px, NULL, TASK_RUNNER_ROLE_MAIN);
+    ToriRS_TaskQueue_Add(runner.queue, new_state_poll(&k_state_poll_vtable, &flag));
+    CHECK(TaskRunner_Step(&runner) == TASK_RUNNER_BLOCKED);
+    CHECK(runner.queue->head->wait == TORIRS_TASK_WAIT_STATE);
+    flag = 1;
+    CHECK(TaskRunner_Step(&runner) == TASK_RUNNER_IDLE);
+    runner_free(&runner);
+}
+
 int
 main(void)
 {
@@ -735,6 +1175,8 @@ main(void)
     test_a_pump_ended_early_is_caught();
     test_a_task_without_its_turn_is_caught();
     test_who_steps_the_background_queue();
+    test_named_waits_resume_and_cancel();
+    test_a_state_poll_off_the_main_queue_is_caught();
     if( g_failures )
     {
         printf("queue_contract_test: %d failure(s)\n", g_failures);

@@ -113,4 +113,39 @@ App_ParallelTaskLate(
     struct App const* app,
     struct RS_ParallelTask const* par);
 
+/* ---- the named waits, the client's half (rs_parallel_task.h has them) ----- */
+
+/* A client cycle is 20 ms (the logic tick, 50 a second). */
+#define APP_PARALLEL_CYCLE_MS 20u
+
+/** The cycles a pause of `ms` takes, at least one: what a wait that was
+ *  stated in milliseconds (an assets back-off) waits as a client cycle. */
+uint32_t
+App_ParallelCyclesFor(uint32_t ms);
+
+/**
+ * The key a rebuild of `view` is listed under in app->pending
+ * (RS_PENDING_KIND_REBUILD): the view and its generation. Shape
+ * RS_PENDING_KEY_NONE -- which names no rebuild -- for a view that is not
+ * live.
+ */
+struct RS_PendingKey
+App_ViewRebuildKey(
+    struct App* app,
+    int view);
+
+/** Is a rebuild of `view` listed (under way)? */
+bool
+App_ViewRebuilding(
+    struct App* app,
+    int view);
+
+/**
+ * (c) the rebuild of this task's view: wait until none is listed and `built`
+ * holds (the view has a built scene, or is gone), or the task is cancelled.
+ * PT_PARALLEL_AWAIT_REBUILD on the client's index and the task's view.
+ */
+#define PT_APP_AWAIT_VIEW_REBUILT(app, built)                                                      \
+    PT_PARALLEL_AWAIT_REBUILD((app)->pending, App_ViewRebuildKey((app), self->par.view), (built))
+
 #endif /* SRC_APP_APP_PARALLEL_TASK_H */

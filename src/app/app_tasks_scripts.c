@@ -484,9 +484,7 @@ Task_ScriptPackModels_Run(
 
     /* Every model at once: independent records, one consumer. */
     app_script_pack_models_want(self);
-    TASK_AWAIT_STATE(&self->task, &self->pt, self->par.join <= 0 || self->par.cancelled);
-    if( self->par.join > 0 )
-        Assets_Unjoin(app->assets, &self->par.join);
+    PT_PARALLEL_AWAIT_ASSETS(app->assets);
     /* A player-design preview widget composes the default kit. */
     if( self->needs_player && !RS_ParallelTask_Cancelled(&self->par) )
         PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));

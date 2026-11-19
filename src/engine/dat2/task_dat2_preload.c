@@ -450,7 +450,10 @@ preload_fill_caption(struct Task_Dat2Preload* task)
             (task)->task.render.caption = (task)->caption;                                         \
         }                                                                                          \
         else                                                                                       \
+        {                                                                                          \
             (task)->task.blocked = 1;                                                              \
+            (task)->task.wait = TORIRS_TASK_WAIT_JOIN;                                             \
+        }                                                                                          \
         PT_YIELD(&(task)->pt);                                                                     \
     } while( 0 )
 
@@ -535,6 +538,7 @@ Task_Dat2Preload_Run(
         if( task->pending <= 0 )
             break;
         task->task.blocked = 1;
+        task->task.wait = TORIRS_TASK_WAIT_JOIN;
         PT_YIELD(&task->pt);
     }
     if( task->index_step )

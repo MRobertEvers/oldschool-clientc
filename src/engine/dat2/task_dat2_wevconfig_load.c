@@ -63,11 +63,7 @@ Task_Dat2WevConfigLoad_Run(
             task->bc->assets,
             AssetKey_Make(ASSET_KIND_REF_TABLE, RSCACHE_DAT2_TABLE_CONFIGS, 0),
             &task->ref_join);
-        while( task->ref_join > 0 )
-        {
-            task->task.blocked = 1;
-            PT_YIELD(&task->pt);
-        }
+        TASK_AWAIT_ASSETS(&task->task, &task->pt, task->ref_join);
         if( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_TABLE_CONFIGS) &&
             Assets_State(
                 task->bc->assets,

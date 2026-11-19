@@ -27,7 +27,10 @@
  *     skipped by the runner.
  *   - the OTHER-QUEUE seam: `ToriRS_Task::blocked` (TASK_AWAIT_STATE,
  *     PT_TASK_JOIN). A task waiting on state this queue cannot change is
- *     stepped once per pass, never spun.
+ *     stepped once per pass, never spun. WHAT it waits on is named
+ *     (`ToriRS_Task::wait`, enum ToriRS_TaskWait): the set is closed, and on
+ *     the parallel and background queues only the named kinds -- an asset,
+ *     a join, another task, a client cycle -- are legal (task_runner.h).
  *
  * Everything else -- a child run inline, a fan-out of siblings, a request to
  * have the screen drawn -- is composition over those two.
@@ -45,13 +48,15 @@
  * the three runners; task_runner.h enforces it by the runner's role):
  *
  *   YIELD, DONE   any queue.
- *   BLOCKED       any queue. On the main (packet) queue it is a wait on state
- *                 another queue owns. On the parallel and background queues
- *                 the only legitimate kind is a JOIN -- on siblings, on an
- *                 asset load (Assets_Await), or on an earlier task for the
- *                 same key (PT_PARALLEL_AWAIT_TURN) -- each of which ends
- *                 when tasks that wait on reads end. TORIRS_QUEUE_CONTRACT_
- *                 TRACE names every such task a pump leaves blocked.
+ *   BLOCKED       any queue. On the main (packet) queue it may be a wait on
+ *                 any state another queue owns. On the parallel and
+ *                 background queues only a NAMED wait (enum ToriRS_TaskWait):
+ *                 an asset, a join on tasks it fanned out, another task
+ *                 finishing (its turn behind an earlier task for the same
+ *                 key, or the rebuild of its view), or a client cycle. A
+ *                 free-form state wait there is a breach the runner asserts;
+ *                 TORIRS_QUEUE_CONTRACT_TRACE names every task a pump leaves
+ *                 blocked, with its kind.
  *   RENDER        the MAIN queue only: it is pumped until a task asks for a
  *                 frame, its head waits, or it is empty. Anywhere else the
  *                 runner reports a contract violation naming the task.
@@ -283,6 +288,69 @@ struct ToriRS_RenderRequest
 
 struct ToriRS_TaskVTable;
 
+/*
+ * WHAT A BLOCKED TASK WAITS ON (ToriRS_Task::wait). The set is closed: a
+ * task blocks only through a macro that names its kind, and the runner tells
+ * them apart.
+ *
+ *   STATE    free-form state another queue owns (TASK_AWAIT_STATE). The MAIN
+ *            queue's alone: it is the main thread, and may wait on anything
+ *            it needs in order to continue (an interface sub-mount waiting
+ *            out a root rebuild, app_boot.c). On the parallel or background
+ *            queue it is a breach and the runner asserts.
+ *   ASSET    (a) an asset load counted on the task's join by the assets
+ *            table (Assets_Await; PT_PARALLEL_AWAIT_ASSET / _ASSETS), or a
+ *            read another loader has in flight.
+ *   JOIN     (b) tasks it fanned out (ToriRS_TaskQueue_AddParallelPoolSubTask,
+ *            PT_TASK_JOIN; PT_PARALLEL_AWAIT_JOIN when it can be cancelled).
+ *   TURN     (c) another task finishing: an earlier task for the same key
+ *            (PT_PARALLEL_AWAIT_TURN).
+ *   REBUILD  (c) another task finishing: the rebuild of its view, listed in
+ *            the pending index while it runs (PT_PARALLEL_AWAIT_REBUILD).
+ *   CYCLE    (d) a client cycle: "not before cycle N" (PT_PARALLEL_AWAIT_CYCLE).
+ *
+ * NONE: not blocked (a read of its own on the wire is `io.pending`, not a
+ * wait kind). A task that sets `blocked` without a kind reads as NONE and is
+ * the same breach as STATE off the main queue.
+ */
+enum ToriRS_TaskWait
+{
+    TORIRS_TASK_WAIT_NONE = 0,
+    TORIRS_TASK_WAIT_STATE,
+    TORIRS_TASK_WAIT_ASSET,
+    TORIRS_TASK_WAIT_JOIN,
+    TORIRS_TASK_WAIT_TURN,
+    TORIRS_TASK_WAIT_REBUILD,
+    TORIRS_TASK_WAIT_CYCLE,
+};
+
+static inline char const*
+ToriRS_TaskWaitName(int wait)
+{
+    if( wait == TORIRS_TASK_WAIT_STATE )
+        return "state";
+    if( wait == TORIRS_TASK_WAIT_ASSET )
+        return "asset";
+    if( wait == TORIRS_TASK_WAIT_JOIN )
+        return "join";
+    if( wait == TORIRS_TASK_WAIT_TURN )
+        return "turn";
+    if( wait == TORIRS_TASK_WAIT_REBUILD )
+        return "rebuild";
+    if( wait == TORIRS_TASK_WAIT_CYCLE )
+        return "cycle";
+    return "none";
+}
+
+/* Is `wait` one a task on the parallel or the background queue may be in?
+ * (STATE and NONE are not.) */
+static inline int
+ToriRS_TaskWaitNamed(int wait)
+{
+    return wait == TORIRS_TASK_WAIT_ASSET || wait == TORIRS_TASK_WAIT_JOIN || wait == TORIRS_TASK_WAIT_TURN ||
+           wait == TORIRS_TASK_WAIT_REBUILD || wait == TORIRS_TASK_WAIT_CYCLE;
+}
+
 struct ToriRS_Task
 {
     struct ToriRS_TaskVTable* vtable;
@@ -302,6 +370,10 @@ struct ToriRS_Task
      * `wants_render` and for the same reason: the runner never sees a child,
      * so a block a child raises is only a block if its parent says so. */
     int blocked;
+    /* What the block is on (enum ToriRS_TaskWait), set with `blocked` by the
+     * macro that blocked, cleared with it on every resume, carried up from an
+     * awaited child with it. */
+    int wait;
 
     /* Set by PT_TASK_YIELD_TO_RENDER for the duration of one yield: this
      * task wants a frame published before it is resumed, and `render` says
@@ -562,33 +634,53 @@ task_run(
     assert(task->vtable->run);
 
     task->blocked = 0;
+    task->wait = TORIRS_TASK_WAIT_NONE;
     task->wants_render = 0;
     task->spent = 0;
     return task->vtable->run(task, io);
 }
 
 /*
- * Wait for a condition this queue cannot make true.
+ * Wait for a condition this queue cannot make true, and say what kind of
+ * thing it is (enum ToriRS_TaskWait). THE one way a task blocks: every named
+ * wait below is this with its kind.
  *
  * A plain PT_YIELD means "I asked the platform for something; resume me when
  * it lands", and the runner honours that by stepping the queue again straight
- * away. A task that instead waits on client state — a tree rebuild running on
- * another queue, say — must NOT be stepped again: that state can only change
- * once the frame loop gets its turn back, so re-running the task in place is
- * an unbreakable busy-wait, not a wait.
+ * away. A task that instead waits on something another queue or the frame
+ * moves must NOT be stepped again: that can only change once the frame loop
+ * gets its turn back, so re-running the task in place is an unbreakable
+ * busy-wait, not a wait.
  *
  * This marks the yield so the runner can tell the two apart and end the frame.
- * The condition is re-tested on each resume, i.e. once per frame at most.
+ * The condition is re-tested on each resume, i.e. once per pass at most.
  */
-#define TASK_AWAIT_STATE(task, pt, cond)                                                           \
+#define TASK_AWAIT_NAMED(task, pt, kind, cond)                                                     \
     do                                                                                             \
     {                                                                                              \
         while( !(cond) )                                                                           \
         {                                                                                          \
             (task)->blocked = 1;                                                                   \
+            (task)->wait = (kind);                                                                 \
             PT_YIELD(pt);                                                                          \
         }                                                                                          \
     } while( 0 )
+
+/*
+ * Wait on FREE-FORM state another queue owns -- a tree rebuild running on
+ * another queue, say. The MAIN queue's alone (enum ToriRS_TaskWait, STATE):
+ * on the parallel or background queue the runner asserts; a task there waits
+ * through one of the named waits instead.
+ */
+#define TASK_AWAIT_STATE(task, pt, cond) TASK_AWAIT_NAMED(task, pt, TORIRS_TASK_WAIT_STATE, cond)
+
+/* Wait until `count` (the int a fan-out counts its siblings on) is 0: a JOIN.
+ * PT_TASK_JOIN's shape for a task whose struct is not named `self`. */
+#define TASK_AWAIT_JOIN(task, pt, count) TASK_AWAIT_NAMED(task, pt, TORIRS_TASK_WAIT_JOIN, (count) <= 0)
+
+/* Wait until `count` (a join the assets table counts loads on, Assets_Await)
+ * is 0: an ASSET wait. */
+#define TASK_AWAIT_ASSETS(task, pt, count) TASK_AWAIT_NAMED(task, pt, TORIRS_TASK_WAIT_ASSET, (count) <= 0)
 
 /*
  * Suspend so the frame loop can draw, and say what it should draw.
@@ -1126,7 +1218,10 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
                 (task)->render = _child->render;                                                   \
             }                                                                                      \
             if( _child->blocked )                                                                  \
+            {                                                                                      \
                 (task)->blocked = 1;                                                               \
+                (task)->wait = _child->wait;                                                       \
+            }                                                                                      \
             if( _child->spent )                                                                    \
                 (task)->spent = 1;                                                                 \
             return _await_res;                                                                     \
@@ -1161,7 +1256,10 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
                     (task)->render = _child->render;                                               \
                 }                                                                                  \
                 if( _child->blocked )                                                              \
+                {                                                                                  \
                     (task)->blocked = 1;                                                           \
+                    (task)->wait = _child->wait;                                                   \
+                }                                                                                  \
                 if( _child->spent )                                                                \
                     (task)->spent = 1;                                                             \
                 return _await_res;                                                                 \
@@ -1219,22 +1317,14 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
  *
  * The siblings run on their own queue -- the parallel frame queue, where the
  * runner puts all their reads on the wire together -- so this is a wait on
- * state THIS queue does not own, and it says so (`blocked`, see
- * TASK_AWAIT_STATE): the settle loop ends, the frame queue gets its turn, and
+ * state THIS queue does not own, and it says so (`blocked`, kind JOIN, see
+ * TASK_AWAIT_NAMED): the settle loop ends, the frame queue gets its turn, and
  * the parent is resumed once per pass rather than spun. Unlike a residency
  * wait it needs no budget: a task always ends, so the count always reaches
  * zero.
  *
  * A PT_ suspension point; see PT_TASK_AWAITSELF for what that costs you.
  */
-#define PT_TASK_JOIN(join_field)                                                                   \
-    do                                                                                             \
-    {                                                                                              \
-        while( (self)->join_field > 0 )                                                            \
-        {                                                                                          \
-            (self)->task.blocked = 1;                                                              \
-            PT_YIELD(&(self)->pt);                                                                 \
-        }                                                                                          \
-    } while( 0 )
+#define PT_TASK_JOIN(join_field) TASK_AWAIT_JOIN(&(self)->task, &(self)->pt, (self)->join_field)
 
 #endif

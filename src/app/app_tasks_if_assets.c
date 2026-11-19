@@ -461,9 +461,9 @@ struct Task_InvIcon
     int slot;
     int obj_id;
     int count;
-    /* The pause before asking again, and when it is over. */
+    /* The pause before asking again, and the client cycle it is over. */
     uint32_t wait_ms;
-    uint64_t due_ms;
+    uint32_t due_cycle;
 };
 
 static struct ToriRS_TaskVTable Task_InvIcon_VTable = {
@@ -506,12 +506,6 @@ inv_icon_slot(struct Task_InvIcon const* self)
     return slot;
 }
 
-static uint64_t
-inv_icon_now(struct App const* app)
-{
-    return (uint64_t)app->host.client.now_ms;
-}
-
 static int
 Task_InvIcon_Run(
     struct ToriRS_Task* base,
@@ -540,10 +534,10 @@ Task_InvIcon_Run(
             PT_EXIT(&self->pt);
         if( !ObjModelLoad_NeedsWork(app->provider, self->obj_id, self->count) )
             break;
+        /* The back-off, waited as a client cycle (a timer, by name). */
         self->wait_ms = Assets_BackoffNext(Assets_Policy(ASSET_KIND_INV_ICONS), self->wait_ms);
-        self->due_ms = inv_icon_now(app) + self->wait_ms;
-        TASK_AWAIT_STATE(
-            &self->task, &self->pt, self->par.cancelled || inv_icon_now(app) >= self->due_ms);
+        self->due_cycle = App_ParallelCycle(app) + App_ParallelCyclesFor(self->wait_ms);
+        PT_PARALLEL_AWAIT_CYCLE(App_ParallelCycle(app), self->due_cycle);
         if( RS_ParallelTask_Cancelled(&self->par) )
             PT_EXIT(&self->pt);
     }

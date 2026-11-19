@@ -355,13 +355,7 @@ Task_LocChange_Run(
                 break;
         }
         loc_change_want_models(self);
-        while( self->par.join > 0 && !self->par.cancelled )
-        {
-            self->task.blocked = 1;
-            PT_YIELD(&self->pt);
-        }
-        if( self->par.join > 0 )
-            Assets_Unjoin(app->assets, &self->par.join);
+        PT_PARALLEL_AWAIT_ASSETS(app->assets);
     }
 
     /* 2. Replaced by a newer change for this key, or its scope went. */
@@ -369,9 +363,9 @@ Task_LocChange_Run(
         PT_EXIT(&self->pt);
 
     /* 3. Still wanted? Its scene mid-rebuild is not an answer yet: the
-     * rebuild's finish carries it over (or drops it) by cancelling it. */
-    TASK_AWAIT_STATE(
-        &self->task, &self->pt, self->par.cancelled || !loc_scene_building(app, &self->par));
+     * rebuild of its view is waited out, by name, and its finish carries
+     * the change over (or drops it) by cancelling it. */
+    PT_APP_AWAIT_VIEW_REBUILT(app, !loc_scene_building(app, &self->par));
     if( RS_ParallelTask_Cancelled(&self->par) )
         PT_EXIT(&self->pt);
     world = App_ParallelTaskWorld(app, &self->par, "loc change");
@@ -754,14 +748,6 @@ static struct ToriRS_TaskVTable Task_LocMerge_VTable = {
     .free = Task_LocMerge_Free,
 };
 
-static bool
-loc_merge_due(
-    struct App const* app,
-    uint32_t at)
-{
-    return (int32_t)(App_ParallelCycle(app) - at) >= 0;
-}
-
 /* The record for the merge's key after its hide: what the key's FIRST change
  * replaced, which the deob's countdown puts back. Not a protothread. */
 static bool
@@ -803,8 +789,7 @@ Task_LocMerge_Run(
     PT_BEGIN(&self->pt);
 
     /* 1. Wait for the hide's time (Client-TS locChangeCreate's t1+1). */
-    TASK_AWAIT_STATE(
-        &self->task, &self->pt, self->par.cancelled || loc_merge_due(app, self->hide_at));
+    PT_PARALLEL_AWAIT_CYCLE(App_ParallelCycle(app), self->hide_at);
     if( RS_ParallelTask_Cancelled(&self->par) )
         PT_EXIT(&self->pt);
     world = App_ParallelTaskWorld(app, &self->par, "loc merge");
@@ -816,8 +801,7 @@ Task_LocMerge_Run(
         app, self->par.view, world, &c, (int)(self->restore_at - App_ParallelCycle(app)), 0, -1);
 
     /* 2. Wait for the restore's time (t2+1). */
-    TASK_AWAIT_STATE(
-        &self->task, &self->pt, self->par.cancelled || loc_merge_due(app, self->restore_at));
+    PT_PARALLEL_AWAIT_CYCLE(App_ParallelCycle(app), self->restore_at);
     if( RS_ParallelTask_Cancelled(&self->par) )
         PT_EXIT(&self->pt);
     world = App_ParallelTaskWorld(app, &self->par, "loc merge");
@@ -1200,13 +1184,11 @@ Task_ZoneHeld_Run(
     (void)io;
     PT_BEGIN(&self->pt);
 
-    /* 1. Wait for ITS view to be built, and for the packets held for it
-     * before this one. */
-    TASK_AWAIT_STATE(
-        &self->task,
-        &self->pt,
-        self->par.cancelled || zone_view_gone(app, &self->par) ||
-            zone_view_built(app, self->par.view));
+    /* 1. Wait for ITS view to be built -- the rebuild of its view, by name:
+     * none under way and one done (or the view gone) -- and for the packets
+     * held for it before this one. */
+    PT_APP_AWAIT_VIEW_REBUILT(
+        app, zone_view_gone(app, &self->par) || zone_view_built(app, self->par.view));
     PT_PARALLEL_AWAIT_TURN(app->pending);
 
     /* 2, 3. Cancelled (a logout, a replay's reset), or its view is gone. */

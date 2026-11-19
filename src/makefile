@@ -5380,7 +5380,8 @@ test-task-budget: $(OBJ_DIR)
 # drains, every task gets its turn, who steps the background queue. Asserts
 # live (the death checks fork and expect SIGABRT).
 test-queue-contract: $(OBJ_DIR)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/queue_contract_test $(TORIMEM_SRCS) game/test/queue_contract_test.c perf/torirs_perf.c -lm
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/queue_contract_test $(TORIMEM_SRCS) game/test/queue_contract_test.c \
+		game/rs_pending.c engine/asset_requests.c perf/torirs_perf.c -lm
 	./$(OBJ_DIR)/queue_contract_test
 
 # CS2 visual transactions: ready work drains past the old per-frame caps, while

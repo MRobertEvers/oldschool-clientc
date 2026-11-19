@@ -829,11 +829,7 @@ Task_Dat2TextureLoad_Run(
                 task->bc->base.asset_queue,
                 create_sprite_load(task->bc, task->dep_sprites[i], NULL, NULL),
                 &task->pending);
-        while( task->pending > 0 )
-        {
-            task->task.blocked = 1;
-            PT_YIELD(&task->pt);
-        }
+        TASK_AWAIT_JOIN(&task->task, &task->pt, task->pending);
 
         proc_texture = proctex_bake(
             proctex_program_get(task->bc, task->texture_id),
@@ -893,11 +889,7 @@ Task_Dat2TextureLoad_Run(
             create_sprite_load(
                 task->bc, task->def->sprite_ids[i], &task->packs[i], &task->failed),
             &task->pending);
-    while( task->pending > 0 )
-    {
-        task->task.blocked = 1;
-        PT_YIELD(&task->pt);
-    }
+    TASK_AWAIT_JOIN(&task->task, &task->pt, task->pending);
     if( task->failed )
     {
         task_dat2_texture_load_clear_packs(task);

@@ -791,6 +791,8 @@ App_WorldJobStart(
     now = TaskRunner_Now(&app->background_runner);
 
     WorldRebuildJob_Begin(job, chunks_xz, chunk_count, zone_x, zone_z, zones, now);
+    /* Listed as the rebuild of the root view until its commit or cancel. */
+    App_ViewRebuildBegin(app, &job->rebuild, WORLDVIEW_ROOT);
     /* The varps the scene is built against are the REBUILD's, as a build in
      * place at this packet would read them. */
     WorldRebuildJob_TakeVarps(job, &app->varps);
@@ -1026,6 +1028,8 @@ app_world_job_commit(struct App* app)
             job->report.seqs,
             job->prep_frames,
             ToriDraw_SceneBatchStagingSupported(app->scene));
+    /* The rebuild of the root view has finished, its finish included. */
+    App_ViewRebuildEnd(app, &job->rebuild);
     app_world_job_repeat_requested(app);
 }
 
@@ -1153,6 +1157,7 @@ App_WorldJobCancel(
      * job was for was never the scene's, so a REBUILD naming it again must not
      * be skipped as the same zone. */
     WorldLoadState_Cancel(&app->world_load, WorldRebuildJob_Cancelled(job));
+    App_ViewRebuildEnd(app, &job->rebuild);
     RS_RebuildRegion_ForgetCentre(&app->rebuild_region);
     RebuildFrameStats_Drop(&app->rebuild_frames);
     RedrawRequest_Raise(&app->redraw_request);

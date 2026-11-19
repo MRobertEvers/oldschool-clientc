@@ -75,8 +75,23 @@ enum RS_PendingKindRange
     /* app/app_tasks_scripts.c: visual script operations. */
     RS_PENDING_KINDS_SCRIPTS_FIRST = 224,
     RS_PENDING_KINDS_SCRIPTS_LAST = 255,
+    /* The scene's own work, listed so a parallel task can wait on it by
+     * name (rs_parallel_task.h, PT_PARALLEL_AWAIT_REBUILD): the spare range
+     * at the end, taken for it. */
+    RS_PENDING_KINDS_WORLD_FIRST = 256,
+    RS_PENDING_KINDS_WORLD_LAST = 287,
 
-    RS_PENDING_KIND_MAX = 256
+    RS_PENDING_KIND_MAX = 288
+};
+
+/* A view's scene being rebuilt: the background world job (app_world_job.c),
+ * a blocking REBUILD inside its packet task (task_gameproto_exec.c), and a
+ * local or editor load (app_world_load.c). Keyed by the view
+ * (RS_PendingKey_View with tile 0,0, level 0, layer 0 and the view's
+ * generation), listed from the rebuild's start to its finish. */
+enum
+{
+    RS_PENDING_KIND_REBUILD = RS_PENDING_KINDS_WORLD_FIRST,
 };
 
 /* ---- keys ---------------------------------------------------------------- */

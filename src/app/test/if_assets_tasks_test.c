@@ -370,10 +370,16 @@ test_icons_wanted_on_change(void)
     pump(&fx);
     TEST_ASSERT(App_InvIconsPending(&fx.app) == 1, "a load that did not come is not given up");
     TEST_ASSERT(loads_of(ASSET_KIND_OBJ_MODEL, 2000, 1) == 1, "and is not asked for at once");
+    /* The pause (500 ms) is waited as client cycles of 20 ms: a named
+     * cycle wait, PT_PARALLEL_AWAIT_CYCLE. 400 ms in, not yet. */
     fx.app.host.client.now_ms = 1400;
+    for( int i = 0; i < 20; i++ )
+        FrameClockSerial_NoteLogicCycle(&fx.app.frame_clock.serial);
     pump(&fx);
     TEST_ASSERT(loads_of(ASSET_KIND_OBJ_MODEL, 2000, 1) == 1, "nor before the pause is over");
     fx.app.host.client.now_ms = 1600;
+    for( int i = 0; i < 10; i++ )
+        FrameClockSerial_NoteLogicCycle(&fx.app.frame_clock.serial);
     pump(&fx);
     TEST_ASSERT(loads_of(ASSET_KIND_OBJ_MODEL, 2000, 1) == 2, "but after it, it asks again");
 

@@ -23,6 +23,21 @@
  * apply, in order, the later one waits its turn (PT_PARALLEL_AWAIT_TURN)
  * before it applies.
  *
+ * WHAT A PARALLEL TASK MAY WAIT ON is closed, and these are the ways
+ * (asyncio.h, enum ToriRS_TaskWait, has the kinds; the runner asserts on any
+ * other wait on this queue, TASK_AWAIT_STATE among them):
+ *
+ *   (a) an asset            PT_PARALLEL_AWAIT_ASSET, PT_PARALLEL_AWAIT_ASSETS
+ *   (b) tasks it fanned out PT_PARALLEL_AWAIT_JOIN (PT_TASK_JOIN when it
+ *                           cannot be cancelled)
+ *   (c) another task        PT_PARALLEL_AWAIT_TURN (an earlier task for the
+ *       finishing           same key), PT_PARALLEL_AWAIT_REBUILD (the
+ *                           rebuild of its view)
+ *   (d) a client cycle      PT_PARALLEL_AWAIT_CYCLE ("not before cycle N")
+ *
+ * Every one of them also ends when the task is cancelled, so step 2 above
+ * follows each.
+ *
  * The task embeds, after its `struct ToriRS_Task task` and `struct pt pt`,
  * the common header as a member named `par`:
  *
@@ -117,6 +132,16 @@ RS_ParallelTask_LateCycles(
     return now_cycle - par->arrived_cycle;
 }
 
+/** Has cycle `now` reached `due`? A signed difference, so it holds across
+ *  the wrap of a 32-bit cycle count. */
+static inline bool
+RS_ParallelTask_CycleReached(
+    uint32_t now,
+    uint32_t due)
+{
+    return (int32_t)(now - due) >= 0;
+}
+
 /** Did the last awaited asset arrive? (FAILED: it failed; DROPPED: its load
  *  was abandoned or replaced, or the wait was cut short by a cancel.) */
 static inline bool
@@ -140,11 +165,8 @@ RS_ParallelTask_AssetHere(struct RS_ParallelTask const* par)
     {                                                                                              \
         assert(self->par.join == 0);                                                               \
         (void)Assets_AwaitOutcome((assets), (key), &self->par.join, &self->par.outcome);           \
-        while( self->par.join > 0 && !self->par.cancelled )                                        \
-        {                                                                                          \
-            self->task.blocked = 1;                                                                \
-            PT_YIELD(&self->pt);                                                                   \
-        }                                                                                          \
+        TASK_AWAIT_NAMED(                                                                          \
+            &self->task, &self->pt, TORIRS_TASK_WAIT_ASSET, self->par.join <= 0 || self->par.cancelled); \
         if( self->par.join > 0 )                                                                   \
         {                                                                                          \
             Assets_Unjoin((assets), &self->par.join);                                              \
@@ -153,12 +175,77 @@ RS_ParallelTask_AssetHere(struct RS_ParallelTask const* par)
     } while( 0 )
 
 /**
- * Wait until no task of this task's kind for its key, added before it, is
- * still pending in `index` (or this task is cancelled). Cancelled earlier
+ * (a), many at once: wait for every load the task counted on its header's
+ * join (several Assets_Await on `&self->par.join`, a fan-out of independent
+ * records with one consumer), or for a cancel, which drops the waits. No
+ * outcome: the body asks the cache what arrived. A suspension point.
+ */
+#define PT_PARALLEL_AWAIT_ASSETS(assets)                                                           \
+    do                                                                                             \
+    {                                                                                              \
+        TASK_AWAIT_NAMED(                                                                          \
+            &self->task, &self->pt, TORIRS_TASK_WAIT_ASSET, self->par.join <= 0 || self->par.cancelled); \
+        if( self->par.join > 0 )                                                                   \
+            Assets_Unjoin((assets), &self->par.join);                                              \
+    } while( 0 )
+
+/**
+ * (b) wait until every sibling counted on `self->join_field` (an int on the
+ * task, filled by ToriRS_TaskQueue_AddParallelPoolSubTask on `queue`) has
+ * ended, or the task is cancelled; on a cancel the siblings are detached
+ * (they run on and end on their own, counting into nothing). A suspension
+ * point.
+ */
+#define PT_PARALLEL_AWAIT_JOIN(queue, join_field)                                                  \
+    do                                                                                             \
+    {                                                                                              \
+        TASK_AWAIT_NAMED(                                                                          \
+            &self->task, &self->pt, TORIRS_TASK_WAIT_JOIN, self->join_field <= 0 || self->par.cancelled); \
+        if( self->join_field > 0 )                                                                 \
+            ToriRS_TaskQueue_DetachJoin((queue), &self->join_field);                               \
+    } while( 0 )
+
+/**
+ * (c) wait until no task of this task's kind for its key, added before it,
+ * is still pending in `index` (or this task is cancelled). Cancelled earlier
  * tasks do not count: they will not apply. A suspension point.
  */
 #define PT_PARALLEL_AWAIT_TURN(index)                                                              \
-    TASK_AWAIT_STATE(                                                                              \
-        &self->task, &self->pt, self->par.cancelled || !RS_Pending_EarlierPending((index), &self->par))
+    TASK_AWAIT_NAMED(                                                                              \
+        &self->task,                                                                               \
+        &self->pt,                                                                                 \
+        TORIRS_TASK_WAIT_TURN,                                                                     \
+        self->par.cancelled || !RS_Pending_EarlierPending((index), &self->par))
+
+/**
+ * (c) wait out the rebuild of this task's view: until no rebuild of it is
+ * listed in `index` (RS_PENDING_KIND_REBUILD for `rebuild_key`, the view's
+ * key; a key of shape RS_PENDING_KEY_NONE names no rebuild) AND `built` --
+ * the view has a built scene, or is gone -- holds; or the task is cancelled.
+ * Both halves, because a view can be waiting for a rebuild that has not been
+ * sent yet (a world entity's deck, spawned before its REBUILD_WORLDENTITY):
+ * the index says a rebuild is under way, `built` says one has happened. The
+ * key and `built` are re-read on every resume. A suspension point.
+ */
+#define PT_PARALLEL_AWAIT_REBUILD(index, rebuild_key, built)                                       \
+    TASK_AWAIT_NAMED(                                                                              \
+        &self->task,                                                                               \
+        &self->pt,                                                                                 \
+        TORIRS_TASK_WAIT_REBUILD,                                                                  \
+        self->par.cancelled ||                                                                     \
+            (!RS_Pending_Find((index), RS_PENDING_KIND_REBUILD, (rebuild_key)) && (built)))
+
+/**
+ * (d) wait for a client cycle: not before cycle `due` (compared as a signed
+ * difference, so it holds across the wrap) on the clock `now` reads (the
+ * client's logic cycle, App_ParallelCycle), or until the task is cancelled.
+ * `now` is re-read on every resume. A suspension point.
+ */
+#define PT_PARALLEL_AWAIT_CYCLE(now, due)                                                          \
+    TASK_AWAIT_NAMED(                                                                              \
+        &self->task,                                                                               \
+        &self->pt,                                                                                 \
+        TORIRS_TASK_WAIT_CYCLE,                                                                    \
+        self->par.cancelled || RS_ParallelTask_CycleReached((now), (due)))
 
 #endif /* SRC_GAME_RS_PARALLEL_TASK_H */
