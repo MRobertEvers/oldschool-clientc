@@ -70,7 +70,7 @@ app_settings_picker_commit(
  *
  * "Boots the editor" is the manifest's own test (app.c, phase 5b): a content
  * directory, or a daemon to dial. Asked of the configuration and not of
- * app->editor, which does not exist yet when the chrome is made; a session
+ * App.map_editor, which does not exist yet when the chrome is made; a session
  * whose editor then fails to open keeps this theme on its few developer
  * panels, which is the lesser surprise than a theme that changes after boot.
  */
@@ -214,9 +214,9 @@ app_debug_overlay_init(struct App* app)
 }
 
 /*
- * Release the developer overlay and the editor shell App_Init made, the two
- * records app_debug_overlay_init builds its panels in. Last in App_Shutdown:
- * the map editor's teardown above it still reads the shell's panel.
+ * Release the developer overlay App_Init made, the record
+ * app_debug_overlay_init builds its panels in. Last in App_Shutdown: the map
+ * editor's teardown above it still reads its panel's chrome.
  *
  * The side-apps go first (app_tools.c): a tool's state may hold a panel of the
  * overlay, never the other way round.
@@ -226,8 +226,6 @@ app_debug_overlay_free(struct App* app)
 {
     assert(app);
     app_tools_free(app);
-    EditorShell_Free(app->editor_shell);
-    app->editor_shell = NULL;
     DevOverlay_Free(app->dev_overlay);
     app->dev_overlay = NULL;
 }

@@ -22,18 +22,19 @@ app_tools_register(struct App* app)
     assert(!app->side_apps);
     app->side_apps = SideApps_New(&app->cfg.side_app_bindings);
 
-    /* The hotkeys whose tools have not moved onto the registry yet: their
-     * names, answered by polling (app_hotkeys.c). */
-    app_debug_hotkeys_register(app);
-
     /* The developer chrome's side-apps, in the order their panels are made in
      * it (SideApps_BuildChrome) and their keys are delivered: the frame-time
      * panel at the early chrome point; then at the dev panels' point the loc
-     * editor's toggle before the hover footprint's. The plugin window answers
-     * its toggle key only, at its own tick. */
+     * editor's toggle before the hover footprint's, and last the map
+     * editor's, which is registered in an editor boot only -- whether or not
+     * its ToriRSMapEd answered, so its toggle's binding stays inert rather
+     * than unknown. The plugin window answers its toggle key only, at its own
+     * tick. */
     app_tool_frame_time_register(app);
     app_tool_loc_editor_register(app);
     app_tool_hover_footprint_register(app);
+    if( MapEditorConfig_IsEditorBoot(&app->cfg.map_editor) )
+        app_map_editor_side_app_register(app);
     app_plugin_window_register(app);
 
     /* The world-hotkeys point, in the rank its actions carry:

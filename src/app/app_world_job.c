@@ -259,7 +259,7 @@ App_WorldJobWanted(struct App const* app)
      */
     return WorldRebuildJob_Wanted(
         &app->world_job,
-        app->editor != NULL,
+        App_MapEditorOpen(app),
         WorldLoadState_Active(&app->world_load) && app->world && app->world->load_complete,
         RS_ServerTick_IsOpen(&app->server_tick) && RS_ServerTick_OpenNonVar(&app->server_tick),
         RS_ClientScriptQueue_Count(&app->pending_clientscripts) > 0);

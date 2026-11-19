@@ -14,7 +14,9 @@
  * and a chosen menu action is offered in registration order until one takes
  * it; an
  * action's mode reaches the predicate as declared, press-or-held included;
- * the free hooks run last-registered first.
+ * a world load's two points reach every world_load hook in registration
+ * order, the squares at the second only; the free hooks run
+ * last-registered first.
  *
  * Run: make -C src test-side-app
  */
@@ -736,6 +738,80 @@ test_press_or_held_mode(void)
     SideApps_Free(apps);
 }
 
+/* A world load's points: every side-app with the hook, in registration order;
+ * the squares only at SIDE_APP_WORLD_LOAD_SQUARES. */
+static void
+fake_world_load(
+    void* self,
+    struct SideAppHost* host,
+    enum SideAppWorldLoadPoint point,
+    int const* squares_xz,
+    int square_count)
+{
+    struct FakeTool* tool = self;
+    char line[128];
+
+    TEST_ASSERT(host == g_host, "the world load hook gets the host");
+    if( point == SIDE_APP_WORLD_LOAD_BEGIN )
+    {
+        TEST_ASSERT(squares_xz == NULL, "no squares at the begin point");
+        snprintf(line, sizeof(line), "%s:begin;", tool->name);
+    }
+    else
+    {
+        TEST_ASSERT(point == SIDE_APP_WORLD_LOAD_SQUARES, "the squares point");
+        snprintf(line, sizeof(line), "%s:squares%d", tool->name, square_count);
+        for( int i = 0; i < square_count; i++ )
+        {
+            char pair[32];
+            snprintf(pair, sizeof(pair), ",%d/%d", squares_xz[i * 2], squares_xz[i * 2 + 1]);
+            strncat(line, pair, sizeof(line) - strlen(line) - 1);
+        }
+        strncat(line, ";", sizeof(line) - strlen(line) - 1);
+    }
+    strncat(g_log, line, sizeof(g_log) - strlen(g_log) - 1);
+}
+
+static void
+test_world_load(void)
+{
+    static struct SideAppBindingTable table;
+    static struct FakeTool first = { "first" };
+    static struct FakeTool bare = { "bare" };
+    static struct FakeTool second = { "second" };
+    static struct SideAppHooks const loads = { .world_load = fake_world_load };
+    static struct SideAppHooks const none = { 0 };
+    static struct SideAppAction const first_polled[] = {
+        { "first_polled", SIDE_APP_PHASE_POLLED, SIDE_APP_GATE_CTRL, SIDE_APP_KEY_PRESS, 0 },
+    };
+    static struct SideAppAction const bare_polled[] = {
+        { "bare_polled", SIDE_APP_PHASE_POLLED, SIDE_APP_GATE_CTRL, SIDE_APP_KEY_PRESS, 0 },
+    };
+    static struct SideAppAction const second_polled[] = {
+        { "second_polled", SIDE_APP_PHASE_POLLED, SIDE_APP_GATE_CTRL, SIDE_APP_KEY_PRESS, 0 },
+    };
+    int const squares[] = { 50, 50, 51, 50 };
+
+    memset(&table, 0, sizeof(table));
+    struct SideApps* apps = SideApps_New(&table);
+    SideApps_Register(apps, "first", &first, &loads, first_polled, 1);
+    SideApps_Register(apps, "bare", &bare, &none, bare_polled, 1);
+    SideApps_Register(apps, "second", &second, &loads, second_polled, 1);
+
+    g_log[0] = '\0';
+    SideApps_WorldLoad(apps, SIDE_APP_WORLD_LOAD_BEGIN, g_host, NULL, 0);
+    TEST_ASSERT(strcmp(g_log, "first:begin;second:begin;") == 0, "begin: each hook, in registration order");
+    g_log[0] = '\0';
+    SideApps_WorldLoad(apps, SIDE_APP_WORLD_LOAD_SQUARES, g_host, squares, 2);
+    TEST_ASSERT(
+        strcmp(g_log, "first:squares2,50/50,51/50;second:squares2,50/50,51/50;") == 0,
+        "squares: each hook gets every pair, in registration order");
+    g_log[0] = '\0';
+    SideApps_WorldLoad(apps, SIDE_APP_WORLD_LOAD_SQUARES, g_host, squares, 0);
+    TEST_ASSERT(strcmp(g_log, "first:squares0;second:squares0;") == 0, "a load of no squares still tells");
+    SideApps_Free(apps);
+}
+
 int
 main(void)
 {
@@ -747,6 +823,7 @@ main(void)
     test_frame_chrome_overlay_scenery();
     test_press_or_held_mode();
     test_keyboard_and_menu();
+    test_world_load();
     if( g_failures )
     {
         printf("side_app: %d check(s) failed\n", g_failures);

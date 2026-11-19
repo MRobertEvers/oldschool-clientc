@@ -136,7 +136,7 @@ static int
 app_plugin_editor_page(struct App const* app)
 {
     assert(app);
-    if( !app->editor || !app->plugins )
+    if( !App_MapEditorOpen(app) || !app->plugins )
         return -1;
     return PluginHost_IndexOf(app->plugins, TORIRS_PLUGIN_CLIENT_SETTINGS.id);
 }

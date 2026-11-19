@@ -27,10 +27,10 @@ app_catalog_palette_update(struct App* app)
     int scene_id;
 
     assert(app);
-    if( !app->editor || !app->editor_shell->editor_panel.visible ||
-        !app->editor_shell->editor_panel.ui || !app->scene || !app->provider )
+    if( !app->map_editor || !app->map_editor->editor_panel.visible ||
+        !app->map_editor->editor_panel.ui || !app->scene || !app->provider )
         return;
-    ui = app->editor_shell->editor_panel.ui;
+    ui = app->map_editor->editor_panel.ui;
     if( !Editor_CatalogPalette_ThumbWanted(ui, &kind, &id, &slot) )
         return;
     /* The shared renderer (app_record_thumbs.c) answers once its assets are

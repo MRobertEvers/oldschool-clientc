@@ -551,13 +551,13 @@ app_hover_text_update(
                 .wevs = &app->wevs,
                 .view_world_fn = app_minimenu_view_world,
                 .view_world_user = app,
-                .mapedit_select_active = app_mapedit_select_active(app),
                 .plugin_io_down = app_plugin_io_down(app) != 0,
             };
             UIMinimenu_Reset(&scratch);
             scratch.font_id = app->hover_text.font_id;
             app_sailing_menu_context(app, &mctx, mouse_x, mouse_y);
-            /* The side-apps' menu flags (the loc editor's locedit_active). */
+            /* The side-apps' menu flags (the loc editor's locedit_active, the map
+             * editor's mapedit_select_active). */
             SideApps_MenuFlags(app->side_apps, &mctx);
             RS_Minimenu_Build(&mctx, mouse_x, mouse_y, &scratch);
             app_minimenu_apply_modes(app, &scratch, 0);
@@ -1099,7 +1099,6 @@ app_minimenu_open(
         .wevs = &app->wevs,
         .view_world_fn = app_minimenu_view_world,
         .view_world_user = app,
-        .mapedit_select_active = app_mapedit_select_active(app),
         .plugin_io_down = app_plugin_io_down(app) != 0,
     };
     struct UIMinimenu* menu = app->world_views.frame->minimenu;
@@ -1109,7 +1108,8 @@ app_minimenu_open(
 
     app_minimenu_ctx_ground_fallback(app, &mctx, click_x, click_y);
     app_sailing_menu_context(app, &mctx, click_x, click_y);
-    /* The side-apps' menu flags (the loc editor's locedit_active). */
+    /* The side-apps' menu flags (the loc editor's locedit_active, the map
+     * editor's mapedit_select_active). */
     SideApps_MenuFlags(app->side_apps, &mctx);
     RS_Minimenu_Build(&mctx, click_x, click_y, menu);
     /* Before the plugins, so their re-sort covers these rows too -- the client
@@ -1619,7 +1619,6 @@ app_run_default_ui_row(
         .world = app->world,
         .world_pickset = NULL,
         .click_in_world = false,
-        .mapedit_select_active = app_mapedit_select_active(app),
         .plugin_io_down = app_plugin_io_down(app) != 0,
     };
     struct UIMinimenu scratch;
@@ -1628,7 +1627,8 @@ app_run_default_ui_row(
     mctx.selection = app_minimenu_selection(app);
     UIMinimenu_Reset(&scratch);
     scratch.font_id = app->world_views.frame->minimenu->font_id;
-    /* The side-apps' menu flags (the loc editor's locedit_active). */
+    /* The side-apps' menu flags (the loc editor's locedit_active, the map
+     * editor's mapedit_select_active). */
     SideApps_MenuFlags(app->side_apps, &mctx);
     RS_Minimenu_Build(&mctx, click_x, click_y, &scratch);
     app_minimenu_apply_modes(app, &scratch, 0);
@@ -2665,7 +2665,8 @@ app_minimenu_run_option(
         return 0;
     }
 
-    /* The side-apps' own rows (the loc editor's "Select" pair,
+    /* The side-apps' own rows (the loc editor's "Select" pair, the map
+     * editor's SELECT tool pair and previewed spawn row,
      * rs_minimenu_world.c, gated on the flags SideApps_MenuFlags set):
      * entirely client-side, same shape as the Examine intercept above -- must
      * also run before the pick.kind switch, or a scenery-kind pick with such
@@ -2673,36 +2674,6 @@ app_minimenu_run_option(
      * mis-send an OPLOC. */
     if( SideApps_MenuAction(app->side_apps, app_side_app_host(app), opt.action, &opt) )
         return 0; /* handled locally; no CS2 task was dispatched */
-
-    /* Map editor SELECT tool's pair of the loc editor's two rows -- same
-     * shape, a different panel's latch. The `app_mapedit_select_active` re-check
-     * guards a row clicked in the one frame the tool closed or switched off
-     * SELECT. */
-    if( opt.action == RS_MINIMENU_ACTION_MAPEDIT_SELECT )
-    {
-        if( app_mapedit_select_active(app) )
-            Editor_PanelSelectLoc(&app->editor_shell->editor_panel, app, opt.pick.id);
-        return 0; /* handled locally; no CS2 task was dispatched */
-    }
-
-    if( opt.action == RS_MINIMENU_ACTION_MAPEDIT_SELECT_TERRAIN )
-    {
-        if( app_mapedit_select_active(app) )
-            Editor_PanelSelectTerrain(
-                &app->editor_shell->editor_panel,
-                app,
-                opt.pick.secondary_id,
-                opt.pick.tertiary_id,
-                opt.pick.quaternary_id);
-        return 0; /* handled locally; no CS2 task was dispatched */
-    }
-
-    /* A previewed spawn's row: any tool, the Spawns selection takes it. */
-    if( opt.action == RS_MINIMENU_ACTION_MAPEDIT_SELECT_SPAWN )
-    {
-        app_map_editor_spawn_preview_select_element(app, opt.pick.id);
-        return 0; /* handled locally; no CS2 task was dispatched */
-    }
 
     /* Arm target mode from a spell/prayer button (reference TGT_BUTTON): the
      * next click on a valid target casts. The item and the spell are mutually

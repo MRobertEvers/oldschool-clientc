@@ -22,7 +22,7 @@
 #include "editor/editor_doc.h"
 #include "editor/editor_hotkeys.h"
 #include "editor/editor_panel.h"
-#include "editor/editor_shell.h"
+#include "editor/map_editor_app.h"
 #include "editor/editor_ui.h"
 #include "editor/editor_view.h"
 #include "editor/live/live_panel.h"
@@ -43,9 +43,9 @@ Agent_EditorUi(const struct AgentCtx* ctx)
 {
     assert(ctx);
     assert(ctx->app);
-    if( !ctx->app->editor || !ctx->app->editor_shell->editor_panel.built )
+    if( !App_MapEditor(ctx->app) || !App_MapEditor(ctx->app)->editor_panel.built )
         return NULL;
-    return ctx->app->editor_shell->editor_panel.ui;
+    return App_MapEditor(ctx->app)->editor_panel.ui;
 }
 
 struct EditorUi*
@@ -55,7 +55,7 @@ Agent_NeedEditor(struct AgentCtx* ctx)
 
     if( eui )
         return eui;
-    if( !ctx->app->editor )
+    if( !App_MapEditor(ctx->app) )
         Agent_ReplyError(ctx, "not an editor window: this client was not booted with the map editor (hello's mode is "
                               "\"game\")");
     else
@@ -144,7 +144,7 @@ verb_editor(struct AgentCtx* ctx)
     out = Agent_ReplyBegin(ctx);
     /* Closed panels (the editor's own toggle key) leave the world on screen
      * and nothing to press. */
-    AgentJsonW_KBool(out, "panels_open", app->editor_shell->editor_panel.visible != 0);
+    AgentJsonW_KBool(out, "panels_open", App_MapEditor(app)->editor_panel.visible != 0);
     AgentJsonW_KInt(out, "tool", (int)eui->tools.tool);
     AgentJsonW_KStr(out, "tool_name", Editor_ToolName(eui->tools.tool));
     /* -1: Auto, the plane under the pointer. */
@@ -156,25 +156,25 @@ verb_editor(struct AgentCtx* ctx)
         if( eui->lane.changes_known )
             AgentJsonW_KInt(out, "lane_changes", eui->lane.changes);
     }
-    AgentJsonW_KBool(out, "writable", app->editor->writable != 0 && (!eui->lane.known || eui->lane.writable));
-    if( !app->editor->writable && app->editor->read_only_reason[0] )
-        AgentJsonW_KStr(out, "read_only_reason", app->editor->read_only_reason);
+    AgentJsonW_KBool(out, "writable", App_MapEditor(app)->session->writable != 0 && (!eui->lane.known || eui->lane.writable));
+    if( !App_MapEditor(app)->session->writable && App_MapEditor(app)->session->read_only_reason[0] )
+        AgentJsonW_KStr(out, "read_only_reason", App_MapEditor(app)->session->read_only_reason);
     /* Open documents with edits no save has taken yet. */
-    AgentJsonW_KInt(out, "unsaved", Editor_DocUnsavedCount(&app->editor->doc));
+    AgentJsonW_KInt(out, "unsaved", Editor_DocUnsavedCount(&App_MapEditor(app)->session->doc));
 
     AgentJsonW_Key(out, "squares_open");
     AgentJsonW_ArrBegin(out);
-    for( int i = 0; i < app->editor->doc.square_count; i++ )
+    for( int i = 0; i < App_MapEditor(app)->session->doc.square_count; i++ )
     {
-        const struct Editor_Square* square = &app->editor->doc.squares[i];
+        const struct Editor_Square* square = &App_MapEditor(app)->session->doc.squares[i];
         if( !square->loaded )
             continue;
         AgentJsonW_ObjBegin(out);
         AgentJsonW_KInt(out, "x", square->map_x);
         AgentJsonW_KInt(out, "z", square->map_z);
         /* "" is the content tree's maps/. */
-        if( app->editor->doc.square_storage[i][0] )
-            AgentJsonW_KStr(out, "storage", app->editor->doc.square_storage[i]);
+        if( App_MapEditor(app)->session->doc.square_storage[i][0] )
+            AgentJsonW_KStr(out, "storage", App_MapEditor(app)->session->doc.square_storage[i]);
         if( square->dirty_map || square->dirty_loc )
             AgentJsonW_KBool(out, "unsaved", 1);
         AgentJsonW_ObjEnd(out);
@@ -287,9 +287,9 @@ verb_editor(struct AgentCtx* ctx)
         AgentJsonW_KStr(out, "run", "idle");
     /* The ports the lane's servers listen on (RUN starts them): a script
      * that wants to connect something of its own reads them here. */
-    if( Editor_HostIsMapEd(&app->editor->host) )
+    if( Editor_HostIsMapEd(&App_MapEditor(app)->session->host) )
     {
-        struct ToriRSMapEd* const embedded = Editor_HostMapEdEmbedServer(&app->editor->host);
+        struct ToriRSMapEd* const embedded = Editor_HostMapEdEmbedServer(&App_MapEditor(app)->session->host);
         int ports[3];
         if( embedded && ToriRSMapEd_LanePorts(embedded, ports) )
         {
@@ -433,7 +433,7 @@ verb_action(struct AgentCtx* ctx)
             info->name);
         return AGENT_VERB_DONE;
     }
-    if( !ctx->app->editor_shell->editor_panel.visible )
+    if( !App_MapEditor(ctx->app)->editor_panel.visible )
     {
         Agent_ReplyError(ctx, "the editor's panels are closed, and its actions run only while they are open: open "
                               "them with the map editor's toggle key first");
@@ -648,7 +648,7 @@ agent_reply_not_loaded(
     if( !app->world )
         Agent_ReplyError(ctx, "no square is open, so tile %d,%d is nowhere on screen: open m%d_%d first", x, z, x / 64,
             z / 64);
-    else if( !app->editor )
+    else if( !App_MapEditor(app) )
         /* A game window loads the scene around its player. */
         Agent_ReplyError(ctx, "tile %d,%d is not in the loaded scene (tiles %d,%d to %d,%d): move the player nearer "
                               "first (chat \"::tele ...\", or the editor's Place player)",
@@ -669,7 +669,7 @@ verb_tile_to_screen(struct AgentCtx* ctx)
     /* An editor window's World panel, or a game window's 3D view: a tester
      * driving the play client needs the point of a loc's tile as much as
      * the editor's driver does. */
-    struct EditorUi* eui = ctx->app->editor ? Agent_NeedEditor(ctx) : NULL;
+    struct EditorUi* eui = App_MapEditor(ctx->app) ? Agent_NeedEditor(ctx) : NULL;
     struct AgentJsonWriter* out;
     enum AgentTileSight sight;
     int x = 0;
@@ -679,7 +679,7 @@ verb_tile_to_screen(struct AgentCtx* ctx)
     int px;
     int py;
 
-    if( (ctx->app->editor && !eui) || !agent_arg_tile(ctx, eui, &x, &z, &level) )
+    if( (App_MapEditor(ctx->app) && !eui) || !agent_arg_tile(ctx, eui, &x, &z, &level) )
         return AGENT_VERB_DONE;
     if( Agent_ArgInt(ctx, "height", &height) < 0 )
         return AGENT_VERB_DONE;

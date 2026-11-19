@@ -190,7 +190,6 @@ App_Init(
     NetLinkWatch_Reset(&app->net_link);
     RS_ClientScriptQueue_Reset(&app->pending_clientscripts);
     app->dev_overlay = DevOverlay_Create();
-    app->editor_shell = EditorShell_Create();
 
     /* Before any subsystem: RS_CS2Host_Init wants its script ids, and the
      * boot font loads want theirs. Local-file parse only — no cache IO, so it
@@ -1102,32 +1101,31 @@ App_Init(
             goto editor_skipped;
         }
 
-        app->editor = ToriMem_Alloc(ToriMem_Process(), sizeof(*app->editor));
-        assert(app->editor);
+        app_map_editor_app_open(app);
         Editor_OpenHost(
-            app->editor, &editor_host, editor_label, CacheProvider_Profile(app->provider));
+            app->map_editor->session, &editor_host, editor_label, CacheProvider_Profile(app->provider));
         /* A loc / npc / obj the lane made is not in this cache: the loaders
          * ask the session for it (editor/editor_lanerecs.h), from the first
          * world load on. */
-        Editor_LaneRecords_Attach(app->editor, app->provider);
+        Editor_LaneRecords_Attach(app->map_editor->session, app->provider);
         /* The Client id is printed because it is the handle another PROCESS
          * needs to join this session: `torirsmapedctl --client <id>`. */
         TORIRS_LOG(
             "app: map editor over %s (%s, client %u)\n",
             editor_label,
-            app->editor->writable ? "writable" : "read-only, another server holds it",
-            Editor_HostMapEdClientId(&app->editor->host));
+            app->map_editor->session->writable ? "writable" : "read-only, another server holds it",
+            Editor_HostMapEdClientId(&app->map_editor->session->host));
         /* Open on boot: this manifest asked for an editor, so the panel is the
          * point of the session rather than a debug aid to go find. */
-        Editor_PanelInit(&app->editor_shell->editor_panel, &app->dev_overlay->ui, app);
+        Editor_PanelInit(&app->map_editor->editor_panel, &app->dev_overlay->ui, app);
         /* The selection relay, both halves: the panel publishes its latch
          * through the session, and the Client's state facts land back on the
          * panel — which is how a controller connection follows this viewer's
          * clicks, and how this panel will follow a detached viewer's. */
-        app->editor_shell->editor_panel.editor = app->editor;
-        Editor_SetStateCallback(app->editor, app_editor_on_state, app);
+        app->map_editor->editor_panel.editor = app->map_editor->session;
+        Editor_SetStateCallback(app->map_editor->session, app_editor_on_state, app);
         Editor_PanelSetVisible(
-            &app->editor_shell->editor_panel,
+            &app->map_editor->editor_panel,
             &app->dev_overlay->ui,
             cfg->map_editor.panel == BOOTMANIFEST_EDITOR_PANEL_INPROCESS);
         /* A viewer boot builds its view here (app/app_editor_view.c). */
@@ -1322,17 +1320,17 @@ App_Shutdown(struct App* app)
      * config store, and both are torn down below. */
     PluginHost_Free(app->plugins);
     app->plugins = NULL;
-    if( app->editor )
+    if( app->map_editor )
     {
+        struct Editor* const session = app->map_editor->session;
         /* Releases the content-tree lock. Unsaved edits are NOT written here:
          * a save is something the user asks for, and silently flushing on exit
          * would put edits on disk that were abandoned on purpose. */
-        if( Editor_DocHasUnsaved(&app->editor->doc) )
+        if( Editor_DocHasUnsaved(&session->doc) )
             TORIRS_LOG("app: map editor closing with unsaved edits\n");
         app_map_editor_shutdown(app);
-        Editor_Close(app->editor);
-        ToriMem_Free(ToriMem_Process(), app->editor);
-        app->editor = NULL;
+        Editor_Close(session);
+        app_map_editor_app_close(app);
     }
     if( app->net )
     {

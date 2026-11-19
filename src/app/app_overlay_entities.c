@@ -939,14 +939,14 @@ app_build_entity_overlays(
         }
     }
 
-    /* The side-apps' world marks: the debug hover footprint, the hovered
-     * loc's painter footprint in red (app_tool_hover_footprint.c). Last so the
+    /* The side-apps' world marks, in registration order: the debug hover
+     * footprint, the hovered loc's painter footprint in red
+     * (app_tool_hover_footprint.c); then the map editor's previews and its
+     * own latch, in green (app_mapeditor_overlay.c) -- separate from the
+     * hover mark so a select-tool session and TORIRS_HOVER_FOOTPRINT can be
+     * on at once without one drawing over the other's meaning. Last so the
      * outline layers above bars/splats/chat. */
     SideApps_DrawWorldOverlay(app->side_apps, app_side_app_host(app));
-    /* The map editor's own latch, in green -- separate from the hover mark
-     * above so a select-tool session and TORIRS_HOVER_FOOTPRINT can be on at
-     * once without one drawing over the other's meaning. */
-    app_overlay_build_editor_selection(app);
     /* What the script's runner just pressed, outlined in the watcher's own
      * projection (a no-op with one view). */
     app_overlay_build_watch_world(app);

@@ -174,7 +174,7 @@ struct ToriRS_Network;
 struct RsprotInfoOp;
 struct DevOverlay;
 struct Editor;
-struct EditorShell;
+struct MapEditorApp;
 /** Placeholder requests waiting for a tick; owned by app/app_placeholder.c. */
 struct WidgetIconPark;
 
@@ -672,26 +672,23 @@ struct App
     struct WorldLoadState world_load;
 
     /**
-     * World map editor session, or NULL — which is every boot that did not ask
-     * for one, i.e. every normal client run.
+     * The map editor, or NULL -- which is every boot that did not ask for one,
+     * i.e. every normal client run, and an editor boot whose ToriRSMapEd
+     * could not be reached.
      *
-     * Owned. Present only when `[editor:boot] content_dir=` named a content
-     * tree. While it exists the squares the world builder meshes come from that
-     * tree's `.jm2`/`.jl2` text rather than from the baked cache, and edits are
-     * saved back as text. It never speaks to a game server: an editor boot
-     * states no `[net:boot]`, so the whole net stack is simply not constructed.
+     * Owned. Made in App_Init's editor block beside the session it holds
+     * (struct Editor: present only when `[editor:boot] content_dir=` named a
+     * content tree or server=tcp dialled a daemon), freed in App_Shutdown.
+     * While it exists the squares the world builder meshes come from that
+     * tree's `.jm2`/`.jl2` text rather than from the baked cache, and edits
+     * are saved back as text. It never speaks to a game server: an editor boot
+     * states no `[net:boot]`, so the whole net stack is simply not
+     * constructed. It holds the command panel (built in `dev_overlay`'s
+     * chrome) and the Place tool's hover ghost. Shared code asks the map
+     * editor queries (app/app_mapeditor_app.c), never this pointer.
+     * @see editor/map_editor_app.h.
      */
-    struct Editor* editor;
-    /**
-     * The editors' working state, present on every boot whether or not an
-     * editor session was opened: the loc editor's panel handles and selection,
-     * the hover-footprint mode, the Place tool's hover ghost (a REAL loc placed
-     * through the same App_WorldLocChange seam a commit uses, then made
-     * translucent), the model-view well's camera, and the map editor's command
-     * panel. Its panels are built in `dev_overlay`'s chrome. Owned: made in
-     * App_Init, freed in App_Shutdown. See editor/editor_shell.h.
-     */
-    struct EditorShell* editor_shell;
+    struct MapEditorApp* map_editor;
 
     /**
      * Damage rectangle: the union of every region whose pixels can change
@@ -2647,18 +2644,6 @@ App_WorldObjStackSetOwnership(
     int owner,
     int never_becomes_public);
 
-/** Editor placement: enqueue the same client-side spawn task the debug
- *  hotkeys use (awaits assets, then lands the entity). Scene only -- the
- *  spawn FILE half lives in the editor's session list. */
-void
-App_EditorPlaceSpawn(
-    struct App* app,
-    int is_obj,
-    int id,
-    int scene_x,
-    int scene_z,
-    int level);
-
 void
 App_WorldObjStackDel(
     struct App* app,
@@ -3555,6 +3540,53 @@ App_EditorOwnsGestureFrames(struct App const* app);
  */
 int
 App_WantsPanCursor(struct App const* app);
+
+/*
+ * The map editor, asked (app/app_mapeditor_app.c). Each tests for the editor
+ * once and answers no / zero / "no override" in a boot without one, so a
+ * caller outside the editor never reads App.map_editor.
+ */
+
+/** The map editor's record, NULL in a boot without one: the one accessor the
+ *  editor's own units outside the App layer (the agent's editor verbs, the
+ *  command panel) take it through. Shared code asks the queries below. */
+struct MapEditorApp*
+App_MapEditor(struct App const* app);
+
+/** Is there a map editor session (an editor boot whose ToriRSMapEd
+ *  answered)? */
+int
+App_MapEditorOpen(struct App const* app);
+
+/** The open documents with unsaved edits; 0 without an editor. */
+int
+App_MapEditorUnsavedCount(struct App const* app);
+
+/** The chrome's quarter scale under the editor's View > Chrome scale: `q`
+ *  itself on Auto, without an editor, or before its panel is live. */
+int
+App_MapEditorChromeScaleFor(
+    struct App const* app,
+    int q,
+    int touch);
+
+/** View > Text rendering's "smooth always"; 0 without an editor or before its
+ *  panel is live. */
+int
+App_MapEditorTextSmooth(struct App const* app);
+
+/** Does the editor's layout remember the window's box this frame (its panel
+ *  is live)? Then App_MapEditorSetWindowBox tells it. */
+int
+App_MapEditorKeepsWindowBox(struct App const* app);
+
+void
+App_MapEditorSetWindowBox(
+    struct App* app,
+    int x,
+    int y,
+    int w,
+    int h);
 
 /**
  * Relayout + CS1 re-evaluate + mark for redraw after an out-of-band tree

@@ -459,12 +459,12 @@ region_lay(
     }
     commands = edp_scratch(&capacity);
     if( ui->tools.region_underlay )
-        count = Editor_RegionUnderlayCommands(&app->editor->doc, stroke->level, ui->tools.underlay_id, &grid,
+        count = Editor_RegionUnderlayCommands(&app->map_editor->session->doc, stroke->level, ui->tools.underlay_id, &grid,
             ui->tools.region_feather, ui->tools.region_seed, commands, capacity, &stats);
     else
     {
         region_params(ui, stroke->subtract, &params);
-        count = Editor_RegionOverlayCommands(&app->editor->doc, stroke->level, &params, ui->tools.overlay_id, &grid,
+        count = Editor_RegionOverlayCommands(&app->map_editor->session->doc, stroke->level, &params, ui->tools.overlay_id, &grid,
             commands, capacity, &stats);
     }
     Editor_RegionGridFree(&grid);
@@ -505,7 +505,7 @@ Editor_PanelRegionRelease(
     assert(app);
     stroke = &panel->region;
     ui = panel->ui;
-    if( !stroke->active || !ui || !app->editor )
+    if( !stroke->active || !ui || !app->map_editor )
         return 0;
     stroke->held = 0;
     if( stroke->tool == EDITOR_TOOL_REGION )
@@ -557,10 +557,10 @@ Editor_PanelTidyAt(
     assert(panel);
     assert(app);
     ui = panel->ui;
-    if( !ui || !app->editor || !app->world )
+    if( !ui || !app->map_editor || !app->world )
         return 0;
     level = level < 0 ? 0 : level > 3 ? 3 : level;
-    begun = Editor_RegionTidyBegin(&app->editor->doc, level, app->world->_base_tile_x + scene_x,
+    begun = Editor_RegionTidyBegin(&app->map_editor->session->doc, level, app->world->_base_tile_x + scene_x,
         app->world->_base_tile_z + scene_z, ui->tools.region_tidy_halves, ui->tools.region_hardness, &tidy);
     if( begun == 0 )
     {
@@ -575,7 +575,7 @@ Editor_PanelTidyAt(
     }
     set = ui->tools.region_set >= 0 && ui->tools.region_set < EDITOR_REGION_SET_COUNT ? ui->tools.region_set : 0;
     commands = edp_scratch(&capacity);
-    count = Editor_RegionTidyCommands(&app->editor->doc, &tidy, (enum Editor_RegionSet)set, ui->tools.region_hardness,
+    count = Editor_RegionTidyCommands(&app->map_editor->session->doc, &tidy, (enum Editor_RegionSet)set, ui->tools.region_hardness,
         commands, capacity, &stats);
     applied = edp_apply(ui, commands, count, Editor_ToolName(EDITOR_TOOL_TIDY));
     if( count == 0 )
@@ -627,7 +627,7 @@ Editor_PanelRegionPreview(
     ui = panel->ui;
     *out_tiles = NULL;
     memset(out_stats, 0, sizeof(*out_stats));
-    if( !ui || !app->editor || !app->world )
+    if( !ui || !app->map_editor || !app->world )
         return 0;
     tool = stroke->active ? stroke->tool : (int)ui->tools.tool;
     if( !region_is_tool(tool) && tool != EDITOR_TOOL_TIDY )
@@ -678,10 +678,10 @@ Editor_PanelRegionPreview(
         struct Editor_RegionTidy tidy;
         int const set =
             ui->tools.region_set >= 0 && ui->tools.region_set < EDITOR_REGION_SET_COUNT ? ui->tools.region_set : 0;
-        if( Editor_RegionTidyBegin(&app->editor->doc, stroke->hover_level, (int)floor(stroke->hover_x),
+        if( Editor_RegionTidyBegin(&app->map_editor->session->doc, stroke->hover_level, (int)floor(stroke->hover_x),
                 (int)floor(stroke->hover_z), ui->tools.region_tidy_halves, ui->tools.region_hardness, &tidy)
             > 0 )
-            count = Editor_RegionTidyPlan(&app->editor->doc, &tidy, (enum Editor_RegionSet)set,
+            count = Editor_RegionTidyPlan(&app->map_editor->session->doc, &tidy, (enum Editor_RegionSet)set,
                 ui->tools.region_hardness, g_preview_tiles, room, out_stats);
         Editor_RegionTidyFree(&tidy);
     }
@@ -707,7 +707,7 @@ Editor_PanelRegionPreview(
         else if( !ui->tools.overlay_none )
         {
             region_params(ui, stroke->subtract, &params);
-            count = Editor_RegionOverlayPlan(&app->editor->doc, level, &params, ui->tools.overlay_id, &grid,
+            count = Editor_RegionOverlayPlan(&app->map_editor->session->doc, level, &params, ui->tools.overlay_id, &grid,
                 g_preview_tiles, room, out_stats);
         }
         Editor_RegionGridFree(&grid);

@@ -227,7 +227,10 @@
 # Held at 149 by the side-app core step: proj_latch left for the projectile
 # tool's own struct (app/app_tool_projectile.c); side_apps (struct SideApps,
 # sideapp/side_app.h, the registry of the debug tools) arrived.
-struct-App-fields: 149
+# Lowered to 148 by the map editor app step: editor (struct Editor) and
+# editor_shell (struct EditorShell) left; map_editor (struct MapEditorApp,
+# editor/map_editor_app.h, NULL outside an editor boot) arrived.
+struct-App-fields: 148
 
 src/main.c
 src/executor_config.c
@@ -366,4 +369,4 @@ src/replay/replay_world_apply.c
 # feature table no longer repoints a pointer at it.
 # Lowered to 1420 by the per-app config step: App_Init's two-line editor-boot
 # test became one MapEditorConfig_IsEditorBoot call.
-app.c-lines: 1420
+app.c-lines: 1418

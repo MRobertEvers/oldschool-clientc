@@ -776,7 +776,6 @@ app_world_left_click(
          * on an NPC with a spell armed built the plain ops and defaulted to
          * Attack (walk-to-melee "run up"), while the right-click menu cast. */
         .selection = app_minimenu_selection(app),
-        .mapedit_select_active = app_mapedit_select_active(app),
         .plugin_io_down = app_plugin_io_down(app) != 0,
         .wevs = &app->wevs,
         .view_world_fn = app_minimenu_view_world,
@@ -789,7 +788,8 @@ app_world_left_click(
     scratch.font_id = app->world_views.frame->minimenu->font_id;
     app_minimenu_ctx_ground_fallback(app, &mctx, x, y);
     app_sailing_menu_context(app, &mctx, x, y);
-    /* The side-apps' menu flags (the loc editor's locedit_active). */
+    /* The side-apps' menu flags (the loc editor's locedit_active, the map
+     * editor's mapedit_select_active). */
     SideApps_MenuFlags(app->side_apps, &mctx);
     RS_Minimenu_Build(&mctx, x, y, &scratch);
     app_minimenu_apply_modes(app, &scratch, 0);
@@ -961,11 +961,11 @@ app_run_once_body(
 
     app_cs2_flush_settings_mirrors(app);
 
-    /* The map editor's hotkeys before every other key reader: a chord its
-     * table claims (Ctrl+S) must be withheld from the manifest's debug
-     * hotkeys the overlay, the loc editor and the camera read below, and its
-     * keys are marked consumed for the world hotkeys (app_editor_hotkeys.c). */
-    app_editor_hotkeys_frame(app, input);
+    /* The side-apps' first key readers (the map editor's hotkeys), before
+     * every other: a chord one claims (Ctrl+S) must be withheld from the
+     * manifest's debug hotkeys the overlay, the loc editor and the camera
+     * read below, and its keys stay consumed for the world hotkeys. */
+    SideApps_Frame(app->side_apps, SIDE_APP_PHASE_FIRST_KEYS, app_side_app_host(app), input);
 
     /* Developer overlay first: its toggle key has to latch during a boot too,
      * and its readout has to be current before this frame's emit rebuild. */
@@ -993,46 +993,11 @@ app_run_once_body(
      * it -- so every consumer below answers the question the same way. */
     ToriRS_InputClaimsLatchChromePointer(
         &app->input_claims, app_chrome_wants_pointer(app, input->curr.mouse_x, input->curr.mouse_y));
-    /* Map editor panel after the loc editor, for the same reason and in the
-     * same order it is drawn: both read this frame's hover, and the map editor
-     * acts on activations the overlay latched during the two calls above. */
-    if( app->editor )
-    {
-        /* A viewer window's toolbar, camera read-back and broadcast; it takes
-         * the frame's activation only while the command panels are hidden. */
-        EditorView_AppFrame(app);
-        /* The gesture frames before the editor's tick: the chrome's events
-         * they queue (a picker zoom, a Preview orbit) drain in it. */
-        app_map_editor_gestures(app, input);
-        Editor_PanelTick(&app->editor_shell->editor_panel, app);
-        app_map_editor_world_click(app, input);
-        {
-            uint64_t const t_hover = FrameStats_Now();
-            app_map_editor_ghost_update(app);
-            app_map_editor_preview_update(app);
-            /* The small pictures of records (app_record_thumbs.c: the Gallery's
-             * tiles, the Catalog's npc rows) and the Catalog palette's slots. */
-            app_record_thumbs_update(app);
-            app_catalog_palette_update(app);
-            FrameStats_Span(FRAME_STATS_HOVER_GHOSTS, t_hover);
-        }
-        app_map_editor_open_pending_square(app);
-        app_map_editor_drain(app);
-        /*
-         * The chrome built once more, AFTER the editor's tick. The build in
-         * app_dev_panels_tick ran before it, on this frame's pointer, so
-         * everything the editor's tick then did to the chrome -- a well sized
-         * to the panel it sits in, a label, a group's window shown -- would
-         * otherwise be drawn a frame late, and geometry a frame late is
-         * visible: a resized panel's bottom trailing its top. A build on a
-         * frame where the tick changed nothing is a no-op (the dirty flag).
-         */
-        if( ToriRSChrome_Build(&app->dev_overlay->ui) )
-        {
-            RedrawRequest_Raise(&app->redraw_request);
-            ToriRSChrome_DamageClear(&app->dev_overlay->ui);
-        }
-    }
+    /* The side-apps' frame work on the latched pointer (the map editor's
+     * panel, after the loc editor for the same reason and in the same order
+     * it is drawn: both read this frame's hover, and the map editor acts on
+     * activations the overlay latched during the calls above). */
+    SideApps_Frame(app->side_apps, SIDE_APP_PHASE_POINTER_LATCHED, app_side_app_host(app), input);
     FrameStats_Span(FRAME_STATS_EDITOR_UI, t_ui);
 
     /*
@@ -1618,7 +1583,6 @@ app_run_once_body(
              * row matches the right-click menu (reference doAction runs the
              * same chooseDefaultMenuEntry over the useMode/targetMode menu). */
             .selection = app_minimenu_selection(app),
-                .mapedit_select_active = app_mapedit_select_active(app),
             .plugin_io_down = app_plugin_io_down(app) != 0,
             .wevs = &app->wevs,
             .view_world_fn = app_minimenu_view_world,
@@ -1630,7 +1594,8 @@ app_run_once_body(
         UIMinimenu_Reset(&scratch);
         scratch.font_id = app->world_views.frame->minimenu->font_id;
         app_sailing_menu_context(app, &mctx, out.clicked_x, out.clicked_y);
-        /* The side-apps' menu flags (the loc editor's locedit_active). */
+        /* The side-apps' menu flags (the loc editor's locedit_active, the map
+         * editor's mapedit_select_active). */
         SideApps_MenuFlags(app->side_apps, &mctx);
         RS_Minimenu_Build(&mctx, out.clicked_x, out.clicked_y, &scratch);
         app_minimenu_apply_modes(app, &scratch, 0);

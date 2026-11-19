@@ -367,6 +367,34 @@ side_apps_entry_has_phase(
     return 0;
 }
 
+void
+SideApps_WorldLoad(
+    struct SideApps* apps,
+    enum SideAppWorldLoadPoint point,
+    struct SideAppHost* host,
+    int const* squares_xz,
+    int square_count)
+{
+    assert(apps);
+    assert(host);
+    assert(square_count >= 0);
+    if( point == SIDE_APP_WORLD_LOAD_BEGIN )
+    {
+        assert(!squares_xz);
+        assert(square_count == 0);
+    }
+    else
+    {
+        assert(point == SIDE_APP_WORLD_LOAD_SQUARES);
+        if( square_count > 0 )
+            assert(squares_xz);
+    }
+
+    for( int s = 0; s < apps->count; s++ )
+        if( apps->entries[s].hooks->world_load )
+            apps->entries[s].hooks->world_load(apps->entries[s].self, host, point, squares_xz, square_count);
+}
+
 int
 SideApps_BindingCount(struct SideApps const* apps)
 {

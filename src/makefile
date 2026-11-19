@@ -776,6 +776,9 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	app/app_if_models.c \
 	app/app_lookup.c \
 	app/app_map_editor.c \
+	app/app_mapeditor_app.c \
+	app/app_mapeditor_camera.c \
+	app/app_mapeditor_overlay.c \
 	app/app_minimap.c \
 	app/app_minimenu.c \
 	app/app_net.c \
@@ -1034,7 +1037,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	perf/boot_pump_stats.c \
 	editor/editor_preview_camera.c \
 	editor/map_editor_ghost.c \
-	editor/editor_shell.c \
+	editor/map_editor_app.c \
 	editor/hover_footprint.c \
 	render/world_camera_orbit.c \
 	net/rev/revpacket.c \
@@ -2209,7 +2212,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-panel-overlay-stage
 	$(MAKE) test-chrome-compositor
 	$(MAKE) test-dev-overlay
-	$(MAKE) test-editor-shell
+	$(MAKE) test-map-editor-app
 	$(MAKE) test-hover-footprint
 	$(MAKE) test-wev-aboard-trace
 	$(MAKE) test-loc-lane
@@ -2655,13 +2658,14 @@ test-dev-overlay: $(OBJ_DIR)
 		ui/test/dev_overlay_test.c ui/dev_overlay.c editor/editor_preview_camera.c $(TORIMEM_SRCS) $(LDFLAGS)
 	./$(OBJ_DIR)/dev_overlay_test$(PLATFORM_EXE_SUFFIX)
 
-# The editor shell: a created shell is zeroed with the ghost reset.
-.PHONY: test-editor-shell
-test-editor-shell: $(OBJ_DIR)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/editor_shell_test$(PLATFORM_EXE_SUFFIX) \
-		editor/test/editor_shell_test.c editor/editor_shell.c editor/map_editor_ghost.c \
+# The map editor's app record: a new one is zeroed with the ghost reset and
+# holds what it was given; the panel-state rules and the level mask.
+.PHONY: test-map-editor-app
+test-map-editor-app: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/map_editor_app_test$(PLATFORM_EXE_SUFFIX) \
+		editor/test/map_editor_app_test.c editor/map_editor_app.c editor/map_editor_ghost.c \
 		$(TORIMEM_SRCS) $(LDFLAGS)
-	./$(OBJ_DIR)/editor_shell_test$(PLATFORM_EXE_SUFFIX)
+	./$(OBJ_DIR)/map_editor_app_test$(PLATFORM_EXE_SUFFIX)
 
 # The hover-footprint outline's state: the env mode's seed and the toggle.
 .PHONY: test-hover-footprint

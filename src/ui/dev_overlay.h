@@ -8,7 +8,7 @@
  * The chrome instance belongs to this record. The frame-time panel (a
  * side-app, app/app_tool_frame_time.c), the loc editor's panel (a side-app,
  * app/app_tool_loc_editor.c) and the map editor's panels
- * (editor/editor_shell.h) are built in it too, but each holds
+ * (editor/map_editor_app.h) are built in it too, but each holds
  * only the widget ids it was handed back: the App unit passes `&overlay->ui`
  * to every call that adds, reads or shows a panel, and the plugin window's
  * instance is copied from it once at init.

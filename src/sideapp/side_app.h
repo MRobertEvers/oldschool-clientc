@@ -69,10 +69,31 @@ enum SideAppPhase
      *  holders' shared work (chat forced closed, the model-view keys); before
      *  the chrome is built. */
     SIDE_APP_PHASE_DEV_PANELS_INPUT,
-    /** Never delivered: the owner polls its own bindings. Only the App
-     *  layer's bridge for the tools not moved onto the registry yet. */
+    /** Frame-hook point (no key actions): first of the frame's key readers,
+     *  before the dev chrome's tick -- a chord taken here is withheld from
+     *  every side-app key and camera key read after it. */
+    SIDE_APP_PHASE_FIRST_KEYS,
+    /** Frame-hook point (no key actions): after the chrome ticks and the
+     *  latch of who owns this frame's pointer, before the BOOTING early-out:
+     *  the activations the dev chrome latched this frame are still there to
+     *  take. */
+    SIDE_APP_PHASE_POINTER_LATCHED,
+    /** Never delivered: the owner polls its own bindings. No side-app of the
+     *  client declares one; the registry keeps the kind for a tool that
+     *  reads its own bindings. */
     SIDE_APP_PHASE_POLLED,
     SIDE_APP_PHASE_COUNT
+};
+
+/** The points of a world load a side-app is told of (SideApps_WorldLoad). */
+enum SideAppWorldLoadPoint
+{
+    /** The load is starting, before the scene's removed entities are
+     *  drained: what the side-app placed in the scene comes down with it. */
+    SIDE_APP_WORLD_LOAD_BEGIN,
+    /** The squares the load takes are known, before the load task is
+     *  queued: a side-app may seed the provider with its own copy of them. */
+    SIDE_APP_WORLD_LOAD_SQUARES
 };
 
 /** The key rule an action's binding is read under. What each one means is the
@@ -177,6 +198,15 @@ struct SideAppHooks
         struct SideAppHost* host,
         int action,
         void const* option);
+    /** A world load reached `point` (SideApps_WorldLoad). At
+     *  SIDE_APP_WORLD_LOAD_SQUARES `squares_xz` holds `square_count` map
+     *  square (x, z) pairs; at BEGIN it is NULL and the count 0. */
+    void (*world_load)(
+        void* self,
+        struct SideAppHost* host,
+        enum SideAppWorldLoadPoint point,
+        int const* squares_xz,
+        int square_count);
 };
 
 /** Does this binding's key fire, under this gate and mode, this frame? */
@@ -306,6 +336,17 @@ SideApps_MenuAction(
     struct SideAppHost* host,
     int action,
     void const* option);
+
+/** Tell each side-app with a world_load hook, in registration order, that a
+ *  world load reached `point`. `squares_xz` (`square_count` pairs) is given
+ *  at SIDE_APP_WORLD_LOAD_SQUARES only; NULL and 0 at BEGIN. */
+void
+SideApps_WorldLoad(
+    struct SideApps* apps,
+    enum SideAppWorldLoadPoint point,
+    struct SideAppHost* host,
+    int const* squares_xz,
+    int square_count);
 
 int
 SideApps_BindingCount(struct SideApps const* apps);

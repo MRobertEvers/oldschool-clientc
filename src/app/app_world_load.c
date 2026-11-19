@@ -375,33 +375,14 @@ app_world_load_begin(
     WorldLoadState_BeginLocal(&app->world_load);
     ToriRS_BootTelemetry_Mark("world_load");
     /* Ahead of the drain, so what it removes goes with this scene. */
-    if( app->editor )
-        app_map_editor_world_load_begin(app);
+    SideApps_WorldLoad(app->side_apps, SIDE_APP_WORLD_LOAD_BEGIN, app_side_app_host(app), NULL, 0);
     App_WorldDrainEntityRemoved(app);
 
-    /*
-     * Editor boots seed the provider from the content tree before the load
-     * runs, so what gets meshed is the `.jm2`/`.jl2` text being edited rather
-     * than the last bake. Task_WorldLoad skips a square the provider already
-     * holds, so the text wins simply by being there first — the editor never
-     * has to invalidate or race the cache path, and an unsaved edit is visible
-     * without a bake.
-     *
-     * A square the content tree does not carry is left alone and loads from the
-     * cache as usual, which is what lets an editor session sit at the edge of
-     * authored content and still see the world around it.
-     */
-    if( app->editor )
-    {
-        for( int i = 0; i < chunk_pair_count; i++ )
-        {
-            Editor_LoadSquare(app->editor, app->provider, chunks_xz[i * 2], chunks_xz[i * 2 + 1]);
-            /* EDIT layout: the square's first shadow, taken with the seed so
-             * the flush can tell what later commands changed. A no-op under
-             * STATIC and for a square that already has one. */
-            app_map_editor_shadow_seed(app, chunks_xz[i * 2], chunks_xz[i * 2 + 1]);
-        }
-    }
+    /* The side-apps' copy of the squares, before the load runs: an editor
+     * boot seeds the provider from the content tree it edits, and
+     * Task_WorldLoad skips a square the provider already holds
+     * (app_mapeditor_app.c). */
+    SideApps_WorldLoad(app->side_apps, SIDE_APP_WORLD_LOAD_SQUARES, app_side_app_host(app), chunks_xz, chunk_pair_count);
 
     task = CreateTask_WorldLoad(
         app->provider,

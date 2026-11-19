@@ -216,7 +216,7 @@ hook_open_square(
     int add)
 {
     struct App* app = user;
-    struct Editor_Panel* panel = &app->editor_shell->editor_panel;
+    struct Editor_Panel* panel = &app->map_editor->editor_panel;
 
     assert(app);
     panel->sq_open_pending = 1;
@@ -248,7 +248,7 @@ hook_open_square_set(
     int count)
 {
     struct App* app = user;
-    struct Editor_Panel* panel = &app->editor_shell->editor_panel;
+    struct Editor_Panel* panel = &app->map_editor->editor_panel;
 
     assert(app);
     assert(squares);
@@ -269,7 +269,7 @@ hook_close_square(
     const char* storage)
 {
     struct App* app = user;
-    struct Editor_Panel* panel = &app->editor_shell->editor_panel;
+    struct Editor_Panel* panel = &app->map_editor->editor_panel;
 
     assert(app);
     assert(storage);
@@ -289,7 +289,7 @@ hook_open_in_new_view(
     struct EditorViewCamera camera;
 
     assert(app);
-    assert(app->editor); /* the panels tick only with a session */
+    assert(app->map_editor); /* the panels tick only with a session */
     /* Looking down at the square's middle from the default orbit
      * (editor/editor_view.h: absolute fine units, yaw, pitch, distance). */
     memset(&camera, 0, sizeof(camera));
@@ -301,13 +301,13 @@ hook_open_in_new_view(
     camera.zoom = 2600;
     if( EditorView_AppSpawn(app, &camera) )
         Editor_UiLog(
-            app->editor_shell->editor_panel.ui,
+            app->map_editor->editor_panel.ui,
             "editor: opening a new view of m%d_%d",
             map_x,
             map_z);
     else
         Editor_UiLog(
-            app->editor_shell->editor_panel.ui,
+            app->map_editor->editor_panel.ui,
             "editor: Open in new view (m%d_%d) could not start one; see the log",
             map_x,
             map_z);
@@ -390,7 +390,7 @@ hook_close_editor(void* user)
 {
     struct App* app = user;
     assert(app);
-    Editor_PanelSetVisible(&app->editor_shell->editor_panel, &app->dev_overlay->ui, 0);
+    Editor_PanelSetVisible(&app->map_editor->editor_panel, &app->dev_overlay->ui, 0);
 }
 
 static void
@@ -407,11 +407,11 @@ hook_bake(void* user)
 {
     struct App* app = user;
     assert(app);
-    if( !app->editor )
+    if( !app->map_editor )
         return;
-    Editor_UiLog(app->editor_shell->editor_panel.ui, "editor: baking, this takes a while");
-    Editor_UiLog(app->editor_shell->editor_panel.ui, "editor: bake %s",
-        Editor_Bake(app->editor, hook_bake_progress, NULL) ? "finished" : "FAILED");
+    Editor_UiLog(app->map_editor->editor_panel.ui, "editor: baking, this takes a while");
+    Editor_UiLog(app->map_editor->editor_panel.ui, "editor: bake %s",
+        Editor_Bake(app->map_editor->session, hook_bake_progress, NULL) ? "finished" : "FAILED");
 }
 
 static int
@@ -443,7 +443,7 @@ hook_selection_changed(void* user)
 {
     struct App* app = user;
     assert(app);
-    panel_sync_primary(&app->editor_shell->editor_panel, app);
+    panel_sync_primary(&app->map_editor->editor_panel, app);
 }
 
 /* ---- lifetime ---------------------------------------------------------------- */
@@ -499,7 +499,7 @@ Editor_PanelInit(
 
     panel->ui = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*panel->ui));
     assert(panel->ui);
-    Editor_UiInit(panel->ui, ui, app->editor);
+    Editor_UiInit(panel->ui, ui, app->map_editor->session);
     panel->ui->app = app;
     panel->ui->hooks_user = app;
     panel->ui->hooks.open_square = hook_open_square;
@@ -558,10 +558,10 @@ Editor_PanelTick(
     assert(panel);
     assert(app);
 
-    if( !panel->built || !app->editor )
+    if( !panel->built || !app->map_editor )
         return;
     /* The session can arrive after Init (app.c sets it); so can the editor. */
-    panel->ui->editor = app->editor;
+    panel->ui->editor = app->map_editor->session;
     if( !panel->visible )
     {
         /* A viewer (or this window with its panels closed) still frames its
@@ -961,9 +961,9 @@ Editor_PanelDeleteLocAt(
 
     assert(panel);
     assert(app);
-    if( !panel->ui || !app->editor || !panel_loc_ref_pointed(app, scene_x, scene_z, level, &ref) )
+    if( !panel->ui || !app->map_editor || !panel_loc_ref_pointed(app, scene_x, scene_z, level, &ref) )
         return 0;
-    if( !Editor_LocOpsDelete(&app->editor->doc, &ref, 1, &command, 1, &result) )
+    if( !Editor_LocOpsDelete(&app->map_editor->session->doc, &ref, 1, &command, 1, &result) )
         return 0;
     if( !edp_apply(panel->ui, &command, 1, "delete loc") )
         return 0;
@@ -986,12 +986,12 @@ Editor_PanelClearLocsAt(
 
     assert(panel);
     assert(app);
-    if( !panel->ui || !app->editor )
+    if( !panel->ui || !app->map_editor )
         return 0;
     if( !panel_scene_to_world(app, scene_x, scene_z, &ref.x, &ref.z) )
         return 0;
     Editor_LocRefAt(&ref, ref.x, ref.z, level, 0, -1, 0);
-    square = Editor_DocFindSquare(&app->editor->doc, ref.map_x, ref.map_z);
+    square = Editor_DocFindSquare(&app->map_editor->session->doc, ref.map_x, ref.map_z);
     if( !square || !square->loaded )
         return 0;
     /* Every layer on the tile, from the document: one undo step. */
@@ -1036,7 +1036,7 @@ Editor_PanelDeleteLocByElement(
 
     assert(panel);
     assert(app);
-    if( !panel->ui || !app->world || !app->editor )
+    if( !panel->ui || !app->world || !app->map_editor )
         return 0;
     scenery = World_SceneryGetByElementId(app->world, element_id);
     if( !scenery )
@@ -1045,7 +1045,7 @@ Editor_PanelDeleteLocByElement(
         return 0;
     Editor_LocRefAt(&ref, world_x, world_z, scenery->grid_position.level, scenery->shape, scenery->loc_id,
         scenery->angle & 3);
-    if( !Editor_LocOpsDelete(&app->editor->doc, &ref, 1, &command, 1, &result) )
+    if( !Editor_LocOpsDelete(&app->map_editor->session->doc, &ref, 1, &command, 1, &result) )
     {
         Editor_UiStatus(panel->ui, "Delete refused: that loc is not in an open square");
         return 0;
@@ -1085,17 +1085,17 @@ Editor_PanelRecordLocEdit(
 
     assert(panel);
     assert(app);
-    if( !panel->ui || !app->editor )
+    if( !panel->ui || !app->map_editor )
         return 0;
     if( !panel_scene_to_world(app, from_scene_x, from_scene_z, &from_x, &from_z)
         || !panel_scene_to_world(app, to_scene_x, to_scene_z, &to_x, &to_z) )
         return 0;
     Editor_LocRefAt(&ref, from_x, from_z, level, shape, loc_id, from_angle & 3);
     if( to_x != from_x || to_z != from_z )
-        count = Editor_LocOpsNudge(&app->editor->doc, &ref, 1, to_x - from_x, to_z - from_z, commands, 2, &result);
+        count = Editor_LocOpsNudge(&app->map_editor->session->doc, &ref, 1, to_x - from_x, to_z - from_z, commands, 2, &result);
     else
         count = Editor_LocOpsRotate(
-            &app->editor->doc, &ref, 1, (to_angle - from_angle) & 3, commands, 2, &result);
+            &app->map_editor->session->doc, &ref, 1, (to_angle - from_angle) & 3, commands, 2, &result);
     return edp_apply(panel->ui, commands, count, "loc edit") > 0;
 }
 
@@ -1169,7 +1169,7 @@ Editor_PanelApplyToolAt(
     assert(panel);
     assert(app);
     ui = panel->ui;
-    if( !ui || !app->editor || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
+    if( !ui || !app->map_editor || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
         return 0;
 
     if( ui->tools.tool == EDITOR_TOOL_SCATTER )
@@ -1195,8 +1195,8 @@ Editor_PanelApplyToolAt(
             Editor_UiStatus(ui, "Scatter refused: select locs to scatter, or pick one in the catalog");
             return 0;
         }
-        count = Editor_ScatterCommands(&app->editor->doc, &op, commands, capacity);
-        if( count == 0 && !Editor_DocFindSquare(&app->editor->doc, world_x / 64, world_z / 64) )
+        count = Editor_ScatterCommands(&app->map_editor->session->doc, &op, commands, capacity);
+        if( count == 0 && !Editor_DocFindSquare(&app->map_editor->session->doc, world_x / 64, world_z / 64) )
             Editor_UiLog(ui, "editor: m%d_%d is not open in the editor", world_x / 64, world_z / 64);
         return edp_apply(ui, commands, count, op.erase ? "scatter erase" : "scatter");
     }
@@ -1210,14 +1210,14 @@ Editor_PanelApplyToolAt(
         /* The top is the height of the tile the stroke began on, held over
          * the drag as Flatten holds its target. */
         if( !ui->tools.flatten_valid
-            && Editor_OpsDerivedHeight(&app->editor->doc, world_x, world_z, l, &ui->tools.flatten_height) )
+            && Editor_OpsDerivedHeight(&app->map_editor->session->doc, world_x, world_z, l, &ui->tools.flatten_height) )
             ui->tools.flatten_valid = 1;
         if( !ui->tools.flatten_valid )
         {
             Editor_UiLog(ui, "editor: m%d_%d is not open in the editor", world_x / 64, world_z / 64);
             return 0;
         }
-        count = Editor_PlateauBrushCommands(&app->editor->doc, l, ui->tools.flatten_height, ui->tools.plateau_skirt,
+        count = Editor_PlateauBrushCommands(&app->map_editor->session->doc, l, ui->tools.flatten_height, ui->tools.plateau_skirt,
             &ui->tools.brush, world_x, world_z, commands, capacity);
         return edp_apply(ui, commands, count, "plateau");
     }
@@ -1251,7 +1251,7 @@ Editor_PanelApplyToolAt(
         if( ui->tools.tool == EDITOR_TOOL_FLATTEN )
         {
             if( !ui->tools.flatten_valid
-                && Editor_OpsDerivedHeight(&app->editor->doc, world_x, world_z, op.level, &ui->tools.flatten_height) )
+                && Editor_OpsDerivedHeight(&app->map_editor->session->doc, world_x, world_z, op.level, &ui->tools.flatten_height) )
                 ui->tools.flatten_valid = 1;
             if( !ui->tools.flatten_valid )
                 return 0;
@@ -1272,7 +1272,7 @@ Editor_PanelApplyToolAt(
                 int const lower = ui->tools.height_mode == EDITOR_HEIGHT_MODE_LOWER;
                 int ground = 0;
 
-                if( !Editor_OpsDerivedHeight(&app->editor->doc, world_x, world_z, op.level, &ground) )
+                if( !Editor_OpsDerivedHeight(&app->map_editor->session->doc, world_x, world_z, op.level, &ground) )
                     return 0;
                 /* Heights grow downward: up is less. */
                 Editor_UiSetHeightTarget(ui, lower ? ground + step : ground - step);
@@ -1291,8 +1291,8 @@ Editor_PanelApplyToolAt(
         op.overlay_shape = ui->tools.overlay_shape;
         op.overlay_rotation = ui->tools.overlay_rotation;
         op.flags_value = ui->tools.flags_value;
-        count = Editor_BrushCommands(&app->editor->doc, &op, commands, capacity);
-        if( count == 0 && !Editor_DocFindSquare(&app->editor->doc, world_x / 64, world_z / 64) )
+        count = Editor_BrushCommands(&app->map_editor->session->doc, &op, commands, capacity);
+        if( count == 0 && !Editor_DocFindSquare(&app->map_editor->session->doc, world_x / 64, world_z / 64) )
             Editor_UiLog(ui, "editor: m%d_%d is not open in the editor", world_x / 64, world_z / 64);
         {
             int const applied = edp_apply(ui, commands, count, Editor_ToolName(ui->tools.tool));
@@ -1352,12 +1352,12 @@ Editor_PanelHeightWheel(
     assert(app);
     assert(notches != 0);
     ui = panel->ui;
-    if( !ui || !app->editor || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
+    if( !ui || !app->map_editor || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
         return 0;
     /* The first notch starts the grid on the ground under the pointer. */
     if( !ui->tools.height_valid )
     {
-        if( !Editor_OpsDerivedHeight(&app->editor->doc, world_x, world_z, l, &ui->tools.height_target) )
+        if( !Editor_OpsDerivedHeight(&app->map_editor->session->doc, world_x, world_z, l, &ui->tools.height_target) )
         {
             Editor_UiStatus(ui, "Height refused: m%d_%d is not open", world_x / 64, world_z / 64);
             return 0;
@@ -1383,7 +1383,7 @@ Editor_PanelHeightWheel(
         op.brush.strength = 100;
         op.height_target = ui->tools.height_target;
         op.height_mode = ui->tools.height_mode;
-        (void)edp_apply(ui, commands, Editor_BrushCommands(&app->editor->doc, &op, commands, capacity), "Height");
+        (void)edp_apply(ui, commands, Editor_BrushCommands(&app->map_editor->session->doc, &op, commands, capacity), "Height");
         return 1;
     }
 }
@@ -1404,9 +1404,9 @@ Editor_PanelHeightPick(
     assert(panel);
     assert(app);
     ui = panel->ui;
-    if( !ui || !app->editor || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
+    if( !ui || !app->map_editor || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
         return 0;
-    if( !Editor_OpsDerivedHeight(&app->editor->doc, world_x, world_z, level < 0 ? 0 : level > 3 ? 3 : level, &height) )
+    if( !Editor_OpsDerivedHeight(&app->map_editor->session->doc, world_x, world_z, level < 0 ? 0 : level > 3 ? 3 : level, &height) )
     {
         Editor_UiStatus(ui, "Height pick refused: m%d_%d is not open", world_x / 64, world_z / 64);
         return 0;
@@ -1475,10 +1475,10 @@ Editor_PanelPathHeightPick(
 
     assert(panel);
     assert(app);
-    if( !panel->ui || !app->editor || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
+    if( !panel->ui || !app->map_editor || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
         return 0;
     level = level < 0 ? 0 : level > 3 ? 3 : level;
-    if( !Editor_OpsDerivedHeight(&app->editor->doc, world_x, world_z, level, &here) )
+    if( !Editor_OpsDerivedHeight(&app->map_editor->session->doc, world_x, world_z, level, &here) )
     {
         Editor_UiStatus(panel->ui, "Path: that square is not open here; no height to pick");
         return 0;
@@ -1625,7 +1625,7 @@ Editor_PanelPathEnd(
     if( !panel->path.active )
         return 0;
     panel->path.active = 0;
-    if( !ui || !app->editor )
+    if( !ui || !app->map_editor )
         return 0;
     /* No overlay picked: the common floor of the path's style, said below.
      * Only a cache with no such floor (or one still loading it) refuses. */
@@ -1641,13 +1641,13 @@ Editor_PanelPathEnd(
     }
     Editor_PanelPathParams(ui, &params);
     commands = edp_scratch(&capacity);
-    count = Editor_PathCommands(&app->editor->doc, panel->path.level, &params, ui->tools.overlay_id, panel->path.xs,
+    count = Editor_PathCommands(&app->map_editor->session->doc, panel->path.level, &params, ui->tools.overlay_id, panel->path.xs,
         panel->path.zs, panel->path.count, commands, capacity, &closed);
     /* The ground under it, in the same undo step: a tile both painted and
      * lifted is one command. */
     if( ui->tools.path_height_mode > EDITOR_PATH_HEIGHT_OFF
         && ui->tools.path_height_mode < EDITOR_PATH_HEIGHT_MODE_COUNT )
-        count = Editor_PathHeightCommands(&app->editor->doc, panel->path.level, &params,
+        count = Editor_PathHeightCommands(&app->map_editor->session->doc, panel->path.level, &params,
             (enum Editor_PathHeightMode)ui->tools.path_height_mode, ui->tools.path_height_units, panel->path.xs,
             panel->path.zs, panel->path.count, commands, count, capacity, &closed);
     applied = edp_apply(ui, commands, count, Editor_ToolName(EDITOR_TOOL_PAINT_PATH));

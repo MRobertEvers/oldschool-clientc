@@ -706,38 +706,18 @@ app_dev_panels_tick(
     SideApps_Frame(app->side_apps, SIDE_APP_PHASE_DEV_PANELS_BEGIN, app_side_app_host(app), input);
 
     /* The side-apps' panel toggles (the loc editor's, then the hover
-     * footprint's), suppressed while a chat line has focus: typing a message
-     * must not flip debug chrome. */
+     * footprint's, then the map editor's), suppressed while a chat line has
+     * focus: typing a message must not flip debug chrome. */
     if( !app_text_input_focused(app) )
         app_side_app_deliver_keys(app, input, SIDE_APP_PHASE_DEV_PANELS);
 
-    /* Map editor panel. Gated on the session existing, so binding this key in a
-     * manifest with no [editor:boot] is inert rather than a panel with nothing
-     * behind it. */
-    if( app->editor && !app_text_input_focused(app) &&
-        app_debug_key_down(app, input, APP_DEBUG_HOTKEY_MAP_EDITOR) )
-    {
-        Editor_PanelSetVisible(
-            &app->editor_shell->editor_panel,
-            &app->dev_overlay->ui,
-            !app->editor_shell->editor_panel.visible);
-        RedrawRequest_Raise(&app->redraw_request);
-    }
-
-    /* The side-apps that inspect locs (the loc editor, the hover footprint)
-     * see locs the pick classifier drops by default -- walls, fences, gravel,
-     * ground decor: everything with no ops on it, which is most of what a
-     * placement or footprint question is actually about. Told here, once, from
-     * the toggles that own the state, so no tool has to reach into the pick
-     * path itself. */
-    /* The MAP editor makes every loc pickable too: its Select/Delete minimenu
-     * rows are built per PICKED element, so a wall or roof with no ops of its
-     * own -- invisible to the pick without this flag -- could never grow a
-     * "Select Wall" row however the menu was gated. This one line is the
-     * difference between "the menu ignores half the tile" and not. */
-    WorldEntity_SceneryDebugSetTools(
-        SideApps_AnyInspectsScenery(app->side_apps) ||
-        (app->editor && app->editor_shell->editor_panel.visible));
+    /* The side-apps that inspect locs (the loc editor, the hover footprint,
+     * the map editor's shown panel) see locs the pick classifier drops by
+     * default -- walls, fences, gravel, ground decor: everything with no ops
+     * on it, which is most of what a placement or footprint question is
+     * actually about. Told here, once, from the toggles that own the state, so
+     * no tool has to reach into the pick path itself. */
+    WorldEntity_SceneryDebugSetTools(SideApps_AnyInspectsScenery(app->side_apps));
 
     SideApps_Frame(app->side_apps, SIDE_APP_PHASE_DEV_PANELS_HOVER, app_side_app_host(app), input);
 
@@ -754,7 +734,7 @@ app_dev_panels_tick(
     if( ToriRSChrome_HasVisiblePanel(&app->dev_overlay->ui) )
         app_chrome_route_input(app, &app->dev_overlay->ui, input);
 
-    if( SideApps_AnyHoldsKeyboard(app->side_apps) || app->editor_shell->editor_panel.visible )
+    if( SideApps_AnyHoldsKeyboard(app->side_apps) || app_map_editor_panel_shown(app) )
     {
         /* A chat line stealing W/A/S/D/R/Space/Backspace would make an editor
          * panel unusable, so force it (and the modal chat variants) closed for

@@ -163,7 +163,7 @@ verb_hello(struct AgentCtx* ctx)
 
     Agent_SurfaceSize(&width, &height);
     AgentJsonW_KInt(w, "version", AGENT_API_VERSION);
-    AgentJsonW_KStr(w, "mode", ctx->app->editor ? "editor" : "game");
+    AgentJsonW_KStr(w, "mode", App_MapEditorOpen(ctx->app) ? "editor" : "game");
     /* Booted: the interface tree is up. The editor's panels come a little
      * later; `editor` says when. */
     AgentJsonW_KBool(w, "ready", RS_ClientPhase_Ready(&ctx->app->phase));
@@ -338,7 +338,7 @@ wait_step(
         {
             if( !RS_ClientPhase_Ready(&ctx->app->phase) )
                 busy = "the client is still booting";
-            else if( ctx->app->editor && !Agent_EditorUi(ctx) )
+            else if( App_MapEditorOpen(ctx->app) && !Agent_EditorUi(ctx) )
                 busy = "the editor's panels are not up yet";
         }
         else
@@ -426,9 +426,9 @@ verb_quit(struct AgentCtx* ctx)
         return AGENT_VERB_DONE;
     /* The window's close box asks nothing; an agent that quits by mistake
      * should not lose a map to it. */
-    if( !discard && ctx->app->editor )
+    if( !discard && App_MapEditorOpen(ctx->app) )
     {
-        int const unsaved = Editor_DocUnsavedCount(&ctx->app->editor->doc);
+        int const unsaved = App_MapEditorUnsavedCount(ctx->app);
         if( unsaved > 0 )
         {
             Agent_ReplyError(ctx,

@@ -189,7 +189,7 @@ app_overlay_build_editor_campath(struct App* app)
     int n;
 
     assert(app);
-    panel = &app->editor_shell->editor_panel;
+    panel = &app->map_editor->editor_panel;
     if( !panel->ui || !app->world )
         return;
     n = Editor_CamPath_Marks(panel->ui, marks, EDITOR_CAMPATH_KEYS_MAX);

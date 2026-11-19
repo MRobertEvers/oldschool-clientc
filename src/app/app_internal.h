@@ -48,7 +48,7 @@
 #include "cmd/cmdbus.h"
 #include "cs2vm2/cs2vm2.h"
 #include "editor/editor.h"
-#include "editor/editor_shell.h"
+#include "editor/map_editor_app.h"
 #include "graphics/convex_hull.h"
 #include "torirsmaped/torirs_maped.h"
 
@@ -71,22 +71,6 @@ app_from_side_app_host(struct SideAppHost* host)
     assert(host);
     return (struct App*)host;
 }
-
-/*
- * The bridge for the developer hotkeys not moved onto a side-app yet.
- *
- * Their callers still poll app_debug_key_down with one of these. Each value is
- * an action name in app_hotkeys.c's table, registered as the polled actions of
- * one bridge side-app so a binding to it resolves. Entries leave as their
- * tools become side-apps; the last one deletes this. The manifest names a
- * target by the string beside it.
- */
-enum AppDebugHotkey
-{
-    /** Show/hide the map editor panel. Only does anything in an editor boot. */
-    APP_DEBUG_HOTKEY_MAP_EDITOR,      /* map_editor_toggle */
-    APP_DEBUG_HOTKEY_COUNT
-};
 
 /* Highlight colours. The model silhouette is the brighter of the two because it
  * is the "this is the thing" mark; the ground footprint under it is supporting
@@ -686,6 +670,41 @@ app_world_camera_mouse(
     struct LibToriRS_Input* input,
     struct UIInteractOut const* out);
 
+/** TORIRS_CAM_DEBUG=1: one line whenever a mouse gesture moves the camera
+ *  (app_camera.c; the editor's gestures say so too). */
+void
+app_debug_log_camera(
+    struct App* app,
+    char const* what,
+    int follow_cam);
+
+/* ---- app_mapeditor_camera.c ----
+ *
+ * The map editor's camera, asked by app_camera.c at three points. Each is a
+ * no-op answering 0 while the editor does not own the camera. */
+
+/** The camera keys' flight: the editor's own (while it owns the camera),
+ *  then the editor's free camera held over the loaded scene whichever
+ *  flight moved it. Once per view the keys steer. */
+void
+app_map_editor_camera_flight(
+    struct App* app,
+    int move);
+
+/** The editor's turn / tilt actions into the view's four turn keys, while it
+ *  owns the camera: 1 when it set them, 0 when the game's rules apply. */
+int
+app_map_editor_camera_turn_keys(struct App* app);
+
+/** The editor's grab pan, then its Unity-style scheme: 1 when the scheme took
+ *  the mouse whole (the default scheme's drags and wheel do not run). */
+int
+app_map_editor_camera_mouse(
+    struct App* app,
+    struct LibToriRS_Input* input,
+    struct UIInteractOut const* out,
+    int follow_cam);
+
 /**
  * The editor's Unity-style camera scheme (editor_recent.h
  * EDITOR_CAMERA_SCHEME_UNITY): run from the hotkey dispatcher BEFORE the
@@ -1144,7 +1163,7 @@ app_ground_items_tick(struct App* app);
 void
 app_debug_overlay_init(struct App* app);
 
-/** Release the developer overlay and the editor shell; last in App_Shutdown. */
+/** Release the side-apps and the developer overlay; last in App_Shutdown. */
 void
 app_debug_overlay_free(struct App* app);
 
@@ -1264,10 +1283,6 @@ struct EditorViewCamera;
 void
 EditorView_AppBoot(struct App* app);
 
-/** 1 once EditorView_AppBoot ran: this process is a viewer. */
-int
-EditorView_AppIsView(void);
-
 /** 1 when this process is a window popped out to show a panel that draws no
  *  world (`--editor-panel <module>`, the module neither "world" nor
  *  "preview": Editor_UiModuleNeedsWorld): the boot's default world load and
@@ -1378,7 +1393,7 @@ app_editor_hotkeys_frame(
     struct LibToriRS_Input* input);
 
 /** The editor's table claims `key` under this frame's modifiers (bound in a
- *  live context): app_debug_key_down / _held skip it. */
+ *  live context): the side-apps' CTRL keys skip it. */
 int
 app_editor_hotkeys_claimed(
     struct App const* app,
@@ -1406,20 +1421,9 @@ void
 app_editor_hotkeys_flush(struct App* app);
 
 /* ---- app_hotkeys.c ---- */
-/** Register the bridge side-app that answers the AppDebugHotkey names.
- *  Called from app_tools.c only. */
-void
-app_debug_hotkeys_register(struct App* app);
-
 /** The OSRS key code (input_claims' key index) of a LibToriRS key, -1. */
 int
 app_keycode_osrs(int key);
-
-int
-app_debug_key_down(
-    struct App const* app,
-    struct LibToriRS_Input* input,
-    enum AppDebugHotkey target);
 
 void
 app_ui_hotkeys(
@@ -1529,8 +1533,6 @@ app_minimenu_font_scene_id(struct App* app);
 
 
 /* ---- app_map_editor.c ---- */
-bool
-app_mapedit_select_active(struct App const* app);
 
 /** The minimenu's "Select spawn" row: the previewed spawn that scene element
  *  is joins the Spawns selection (Shift adds it, as a list click does). */
@@ -1633,7 +1635,7 @@ app_map_editor_var_preview(
     int count);
 
 /** The editor's whole shutdown (App_Shutdown): the layout and hotkeys files,
- *  Editor_PanelFree, then app_map_editor_free. Needs app->editor. */
+ *  Editor_PanelFree, then app_map_editor_free. Needs the map editor. */
 void
 app_map_editor_shutdown(struct App* app);
 
@@ -2008,6 +2010,9 @@ app_overlay_outline_scenery(
 void
 app_overlay_build_feedback_text(struct App* app);
 
+/** The map editor's world overlay (app_mapeditor_overlay.c): its previews,
+ *  grids, gizmo and selection while its panel is shown. Called from the map
+ *  editor side-app's world_overlay hook only. */
 void
 app_overlay_build_editor_selection(struct App* app);
 
@@ -2448,6 +2453,75 @@ app_tool_free_camera_register(struct App* app);
 /** Register the hover footprint outline. Called from app_tools.c only. */
 void
 app_tool_hover_footprint_register(struct App* app);
+
+/* ---- app_mapeditor_app.c ----
+ *
+ * The map editor as the App holds it (editor/map_editor_app.h, App.map_editor,
+ * NULL in every boot that is not an editor boot). Every unit of the layer
+ * that is not a map editor unit asks these; each tests for the editor once
+ * and answers no when there is none. The map editor's own units read
+ * App.map_editor directly. Each query keeps the exact test its sites made:
+ * where two sites tested different things they are different queries.
+ */
+
+/** Make the map editor's record and the (unopened) session it holds, in App
+ *  Init's editor block once ToriRSMapEd answered. The session is in the
+ *  PROCESS group, the record in EDITOR. */
+void
+app_map_editor_app_open(struct App* app);
+
+/** Free the session App_Shutdown just closed, then the record. */
+void
+app_map_editor_app_close(struct App* app);
+
+/** Register the map editor as a side-app (its panel toggle, its frame work at
+ *  SIDE_APP_PHASE_FIRST_KEYS and _POINTER_LATCHED, its menu rows and its
+ *  world-load seeding). Called from app_tools.c only, in an editor boot. */
+void
+app_map_editor_side_app_register(struct App* app);
+
+/** The map editor's record; asserts there is one. For the editor code still
+ *  in shared units (app_overlay.c, app_camera.c), past a query that said
+ *  yes. */
+static inline struct MapEditorApp*
+app_map_editor_of(struct App const* app)
+{
+    assert(app);
+    assert(app->map_editor);
+    return app->map_editor;
+}
+
+/** Is the editor's command panel shown (an editor and its panel visible)?
+ *  The pick filter, the dev panels' keyboard holders, the touch, the
+ *  selection overlay. */
+int
+app_map_editor_panel_shown(struct App const* app);
+
+/** The command panel's Vis row mask, which REPLACES the draw's level mask;
+ *  0 without an editor, or on "all levels". */
+unsigned
+app_map_editor_vis_level_mask(struct App const* app);
+
+/** A viewer window's level cap (editor/editor_view.h), which replaces the
+ *  mask after the Vis row; 0 without an editor, or for every level. */
+unsigned
+app_map_editor_view_level_mask(struct App const* app);
+
+/** The loc editor's move or rotate, recorded into the map editor document
+ *  (Editor_PanelRecordLocEdit); 0 when there is no editor or the document
+ *  refused it. */
+int
+app_map_editor_record_loc_edit(
+    struct App* app,
+    int from_scene_x,
+    int from_scene_z,
+    int level,
+    int loc_id,
+    int shape,
+    int from_angle,
+    int to_scene_x,
+    int to_scene_z,
+    int to_angle);
 
 /* ---- app_tool_loc_editor.c ---- */
 /** Register the loc editor. Called from app_tools.c only. */

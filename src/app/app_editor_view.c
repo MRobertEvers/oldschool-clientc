@@ -62,12 +62,6 @@ static int g_no_world;
 static int g_dock_exit_said;
 
 int
-EditorView_AppIsView(void)
-{
-    return g_app_view_live;
-}
-
-int
 EditorView_AppHoldsNoWorld(void)
 {
     return g_no_world;
@@ -191,14 +185,14 @@ EditorView_AppBoot(struct App* app)
     int boot_set;
 
     assert(app);
-    assert(app->editor);
+    assert(app->map_editor);
     assert(!g_app_view_live);
 
     g_app = app;
     if( app->cfg.map_editor.panel != BOOTMANIFEST_EDITOR_PANEL_VIEW )
         return;
 
-    EditorView_Init(&g_app_view, app->editor);
+    EditorView_Init(&g_app_view, app->map_editor->session);
     g_app_view_live = 1;
     /* Photographs of popped-out windows: a window inherits its leader's
      * environment, TORIRS_PRESENT_BMP included, so each takes its own file
@@ -234,7 +228,7 @@ EditorView_AppBoot(struct App* app)
          * shared tool, and the thin toolbar sits over it. Any other panel
          * draws no world (World is hidden) and has no toolbar. */
         const char* const module = EditorView_BootPanel();
-        assert(app->editor_shell->editor_panel.built);
+        assert(app->map_editor->editor_panel.built);
         /* Lighter panel windows (design #workbench "Every panel pops out"):
          * a window that holds no World loads no world. World and Preview
          * draw one and are unchanged; any other panel keeps the mirror, the
@@ -242,7 +236,7 @@ EditorView_AppBoot(struct App* app)
          * skips the squares around the camera -- the boot's default load
          * (app_boot.c) and the camera's (view_apply_or_load) both stand
          * down, and the first-sight load in the frame never starts. */
-        Editor_PanelSetVisible(&app->editor_shell->editor_panel, &app->dev_overlay->ui, 1);
+        Editor_PanelSetVisible(&app->map_editor->editor_panel, &app->dev_overlay->ui, 1);
         if( !Editor_UiModuleNeedsWorld(module) )
         {
             g_no_world = 1;
@@ -250,15 +244,15 @@ EditorView_AppBoot(struct App* app)
             TORIRS_REPORT("editor view: a popped-out %s panel holds no world: skipping the world load around the "
                           "camera (the mirror, the catalog link and the preview raster stay)\n",
                 module);
-            Editor_UiLog(app->editor_shell->editor_panel.ui,
+            Editor_UiLog(app->map_editor->editor_panel.ui,
                 "editor: this %s window loads no world (the main window's World shows it); squares open there",
                 module);
         }
-        if( !Editor_UiSetSolo(app->editor_shell->editor_panel.ui, module) )
+        if( !Editor_UiSetSolo(app->map_editor->editor_panel.ui, module) )
             TORIRS_REPORT("editor view: there is no panel '%s' to show; showing the panels\n", module);
         else
             TORIRS_REPORT("editor view: a popped-out %s panel of Client %u\n", module,
-                Editor_HostMapEdClientId(&app->editor->host));
+                Editor_HostMapEdClientId(&app->map_editor->session->host));
         if( strcmp(module, "world") == 0 )
             EditorView_ToolbarBuild(&g_app_view, &app->dev_overlay->ui);
     }
@@ -268,9 +262,9 @@ EditorView_AppBoot(struct App* app)
     /* The Client's state as it stands (selection, tool, brush, palette,
      * the pinned level): a window that joins late starts where the others
      * are. */
-    if( Editor_HostIsMapEd(&app->editor->host) )
+    if( Editor_HostIsMapEd(&app->map_editor->session->host) )
     {
-        int const replayed = Editor_HostMapEdStateSync(&app->editor->host);
+        int const replayed = Editor_HostMapEdStateSync(&app->map_editor->session->host);
         /* A plain viewer has no panels to follow the pinned level: it takes
          * it once as its cap. A popped-out panel's session follows the
          * level (and every shared tool) live, so its view adds no cap. */
@@ -291,7 +285,7 @@ EditorView_AppBoot(struct App* app)
     if( app->world_views.frame )
         app->world_views.frame->camera_unlocked = 1;
     TORIRS_LOG("editor view: a viewer of Client %u%s\n",
-        Editor_HostMapEdClientId(&app->editor->host),
+        Editor_HostMapEdClientId(&app->map_editor->session->host),
         boot_set ? " at the --camera pose" : "");
 }
 
@@ -310,10 +304,10 @@ EditorView_AppActivate(
     {
         /* Promotion: the same window becomes a full client of the Client
          * (a popped-out World leaves its solo layout for the whole set). */
-        Editor_PanelSetVisible(&app->editor_shell->editor_panel, &app->dev_overlay->ui, 1);
-        if( app->editor_shell->editor_panel.ui &&
-            app->editor_shell->editor_panel.ui->solo_panel >= 0 )
-            Editor_UiClearSolo(app->editor_shell->editor_panel.ui);
+        Editor_PanelSetVisible(&app->map_editor->editor_panel, &app->dev_overlay->ui, 1);
+        if( app->map_editor->editor_panel.ui &&
+            app->map_editor->editor_panel.ui->solo_panel >= 0 )
+            Editor_UiClearSolo(app->map_editor->editor_panel.ui);
         TORIRS_LOG("editor view: panels opened in this window\n");
     }
     return action != EDITOR_VIEW_ACTION_NONE;
@@ -346,10 +340,10 @@ view_drive(struct App* app)
 {
     char const* resize = getenv("TORIRS_EDITOR_RESIZE");
     char const* popout = getenv("TORIRS_EDITOR_POPOUT");
-    struct EditorUi* ui = app->editor_shell->editor_panel.ui;
+    struct EditorUi* ui = app->map_editor->editor_panel.ui;
 
     g_drive_frame++;
-    if( !ui || !app->editor_shell->editor_panel.visible )
+    if( !ui || !app->map_editor->editor_panel.visible )
         return;
     if( resize && resize[0] && g_drive_frame == view_drive_at(resize, 200) )
     {
@@ -428,7 +422,7 @@ EditorView_AppFrame(struct App* app)
      * window goes -- natively the main loop ends on its next frame
      * (EditorView_ExitRequested), on the web the tab closes itself, which a
      * tab the page opened (torirsSpawnEditorView) may. */
-    if( app->editor_shell->editor_panel.ui && app->editor_shell->editor_panel.ui->dock_exit &&
+    if( app->map_editor->editor_panel.ui && app->map_editor->editor_panel.ui->dock_exit &&
         !g_dock_exit_said )
     {
         g_dock_exit_said = 1;
@@ -442,13 +436,13 @@ EditorView_AppFrame(struct App* app)
     /* A popped-out World: the thin toolbar sits inside the World panel's
      * body, under its title bar (which names the Client's tool and level),
      * wherever the solo layout put the panel for this window's size. */
-    if( g_app_view.toolbar.built && app->editor_shell->editor_panel.ui &&
-        app->editor_shell->editor_panel.ui->solo_panel >= 0 &&
-        app->editor_shell->editor_panel.ui->solo_panel ==
-            app->editor_shell->editor_panel.ui->world_panel )
+    if( g_app_view.toolbar.built && app->map_editor->editor_panel.ui &&
+        app->map_editor->editor_panel.ui->solo_panel >= 0 &&
+        app->map_editor->editor_panel.ui->solo_panel ==
+            app->map_editor->editor_panel.ui->world_panel )
     {
         struct ToriRSChromeRect const body = ToriRSChrome_PanelBodyRect(
-            &app->dev_overlay->ui, app->editor_shell->editor_panel.ui->world_panel);
+            &app->dev_overlay->ui, app->map_editor->editor_panel.ui->world_panel);
         int const pad = ToriRSChrome_Px(&app->dev_overlay->ui, 8);
         struct ToriRSChromePanel const* bar =
             &app->dev_overlay->ui.panels[g_app_view.toolbar.panel];
@@ -459,7 +453,7 @@ EditorView_AppFrame(struct App* app)
 
     /* The frame's one activation is ours while the panels are hidden; once
      * they show, their dispatcher drains it and offers it back. */
-    if( !app->editor_shell->editor_panel.visible )
+    if( !app->map_editor->editor_panel.visible )
         EditorView_AppActivate(app, ToriRSChrome_TakeActivated(&app->dev_overlay->ui));
 
     /* A pose waiting for its world, or one the view changed itself. */
@@ -578,7 +572,7 @@ view_session_port(
         return app->cfg.map_editor.server_port > 0 ? app->cfg.map_editor.server_port : TORIRSMAPED_DEFAULT_PORT;
     if( g_embed_listener )
         return ToriRSMapEd_ListenerPort(g_embed_listener);
-    server = Editor_HostIsMapEd(&app->editor->host) ? Editor_HostMapEdEmbedServer(&app->editor->host) : NULL;
+    server = Editor_HostIsMapEd(&app->map_editor->session->host) ? Editor_HostMapEdEmbedServer(&app->map_editor->session->host) : NULL;
     if( !server )
     {
         snprintf(why, (size_t)why_size, "this session has no ToriRSMapEd server another window could join");
@@ -614,10 +608,10 @@ EditorView_AppSpawnModule(
     assert(app);
     assert(why);
     assert(why_size > 0);
-    assert(app->editor);
+    assert(app->map_editor);
 
     why[0] = '\0';
-    group = Editor_HostMapEdClientId(&app->editor->host);
+    group = Editor_HostMapEdClientId(&app->map_editor->session->host);
     /* No camera (a window with no world yet): the default orbit over the
      * boot square, so the window still loads somewhere sensible. */
     if( camera )
@@ -672,13 +666,13 @@ EditorView_AppSpawnModule(
          * daemon's view can join it, and as good as the local launch for one
          * beside us. SPAWN_VIEW carries a camera and no panel, so a popped-out
          * panel (World included) is always this host's own launch. */
-        if( is_viewer && (app->editor->capabilities & TORIRSMAPED_CAP_SPAWN_VIEW) )
+        if( is_viewer && (app->map_editor->session->capabilities & TORIRSMAPED_CAP_SPAWN_VIEW) )
         {
             int32_t values[TORIRSMAPED_CAMERA_VALUES];
             int pid = 0;
             enum EditorHost_Status status;
             EditorView_CameraToValues(&pose, values);
-            status = Editor_HostMapEdSpawnView(&app->editor->host, values, &pid);
+            status = Editor_HostMapEdSpawnView(&app->map_editor->session->host, values, &pid);
             if( status == EDITOR_HOST_OK )
             {
                 TORIRS_REPORT("editor view: the server started a view (pid %d)\n", pid);
@@ -790,7 +784,7 @@ torirs_editor_view_spawn(void)
 {
     struct EditorViewCamera camera;
 
-    if( !g_app || !g_app->editor )
+    if( !g_app || !g_app->map_editor )
         return 0;
     if( g_app_view_live && g_app_view.camera_valid )
         camera = g_app_view.camera;

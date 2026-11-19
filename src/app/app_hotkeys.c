@@ -1,7 +1,6 @@
 /*
  * Hotkeys: the game's configured UI hotkeys, the CTRL modifier rule and the
- * key predicate the side-apps are delivered under, and the bridge for the
- * developer hotkeys not moved onto the registry yet.
+ * key predicate the side-apps are delivered under.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in
@@ -13,11 +12,6 @@
 /* Private to this unit, declared up front so definition order is free. */
 static int
 app_debug_modifier_held(struct LibToriRS_Input* input);
-static struct SideAppBinding const*
-app_debug_binding_down(
-    struct App const* app,
-    struct LibToriRS_Input* input,
-    enum AppDebugHotkey target);
 static int
 app_debug_world_key_fires(
     struct App const* app,
@@ -29,38 +23,6 @@ app_side_app_key_fires(
     struct SideAppBinding const* binding,
     enum SideAppGate gate,
     enum SideAppKeyMode mode);
-
-/*
- * The bridge: the names of the hotkeys whose tools are not side-apps yet, one
- * per enum AppDebugHotkey value, registered as one side-app's polled actions
- * so a manifest binding to one resolves. app_debug_key_down reads the
- * bindings resolved to it. An entry leaves when its tool registers the name
- * itself.
- */
-#define APP_DEBUG_HOTKEYS_BRIDGE "app_debug_hotkeys"
-#define APP_DEBUG_HOTKEY_POLLED(n) { (n), SIDE_APP_PHASE_POLLED, SIDE_APP_GATE_CTRL, SIDE_APP_KEY_PRESS, 0 }
-static struct SideAppAction const k_app_debug_hotkey_actions[APP_DEBUG_HOTKEY_COUNT] = {
-    [APP_DEBUG_HOTKEY_MAP_EDITOR] = APP_DEBUG_HOTKEY_POLLED("map_editor_toggle"),
-};
-#undef APP_DEBUG_HOTKEY_POLLED
-
-static struct SideAppHooks const k_app_debug_hotkeys_hooks = { 0 };
-
-void
-app_debug_hotkeys_register(struct App* app)
-{
-    assert(app);
-    assert(app->side_apps);
-    for( int i = 0; i < APP_DEBUG_HOTKEY_COUNT; i++ )
-        assert(k_app_debug_hotkey_actions[i].name);
-    SideApps_Register(
-        app->side_apps,
-        APP_DEBUG_HOTKEYS_BRIDGE,
-        NULL,
-        &k_app_debug_hotkeys_hooks,
-        k_app_debug_hotkey_actions,
-        APP_DEBUG_HOTKEY_COUNT);
-}
 
 /*
  * A chord the map editor's table claims this frame (bound in a live context:
@@ -86,38 +48,6 @@ app_debug_modifier_held(struct LibToriRS_Input* input)
 {
     assert(input);
     return LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL);
-}
-
-static struct SideAppBinding const*
-app_debug_binding_down(
-    struct App const* app,
-    struct LibToriRS_Input* input,
-    enum AppDebugHotkey target)
-{
-    struct SideApps const* apps = app->side_apps;
-    int bridge;
-
-    if( !app_debug_modifier_held(input) )
-        return NULL;
-    bridge = SideApps_IndexOf(apps, APP_DEBUG_HOTKEYS_BRIDGE);
-    for( int i = 0; i < SideApps_BindingCount(apps); i++ )
-    {
-        struct SideAppBinding const* binding = SideApps_BindingAt(apps, i);
-        if( SideApps_BindingAnswers(apps, i, bridge, target) &&
-            LibToriRS_Input_IsKeyDown(input, binding->key) &&
-            !app_editor_hotkeys_claimed(app, binding->key) )
-            return binding;
-    }
-    return NULL;
-}
-
-int
-app_debug_key_down(
-    struct App const* app,
-    struct LibToriRS_Input* input,
-    enum AppDebugHotkey target)
-{
-    return app_debug_binding_down(app, input, target) != NULL;
 }
 
 /*
@@ -288,8 +218,7 @@ app_debug_world_key_fires(
 }
 
 /*
- * The side-apps' key predicate: the same rules the bridge readers above apply,
- * named by gate. CTRL: the modifier held, the key down (PRESS), held (HELD)
+ * The side-apps' key predicate, named by gate. CTRL: the modifier held, the key down (PRESS), held (HELD)
  * or either (PRESS_OR_HELD), not a key the map editor claimed. WORLD (app_debug_world_key_fires): no
  * modifier, the key down, not a key the map editor or a revconfig hotkey
  * claimed this frame.

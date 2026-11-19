@@ -436,17 +436,12 @@ app_world_paint(struct App* app)
      * point of the row is to see a plane the ordinary rules would hide, and an
      * AND could only ever take levels away. 0 is "all levels", the default,
      * and leaves everything above untouched. */
-    uint8_t editor_vis_mask = 0;
-    if( app->editor )
-    {
-        editor_vis_mask = Editor_PanelVisLevelMask(&app->editor_shell->editor_panel);
-        if( editor_vis_mask )
-            level_mask = editor_vis_mask;
-    }
+    uint8_t const editor_vis_mask = (uint8_t)app_map_editor_vis_level_mask(app);
+    if( editor_vis_mask )
+        level_mask = editor_vis_mask;
     /* A viewer window's level cap (editor/editor_view.h); 0 = every level. */
-    if( app->editor )
     {
-        uint8_t const view_mask = EditorView_AppLevelMask(app);
+        uint8_t const view_mask = (uint8_t)app_map_editor_view_level_mask(app);
         if( view_mask )
             level_mask = view_mask;
     }

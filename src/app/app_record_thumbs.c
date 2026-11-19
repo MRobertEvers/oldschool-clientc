@@ -416,8 +416,8 @@ app_record_thumbs_update(struct App* app)
     int rendered = 0;
 
     assert(app);
-    if( !app->editor || !app->editor_shell->editor_panel.visible ||
-        !app->editor_shell->editor_panel.ui || !app->scene || !app->provider )
+    if( !app->map_editor || !app->map_editor->editor_panel.visible ||
+        !app->map_editor->editor_panel.ui || !app->scene || !app->provider )
         return;
     for( int i = 0; i < APP_RECORD_THUMBS && rendered < APP_RECORD_THUMBS_PER_FRAME; i++ )
     {

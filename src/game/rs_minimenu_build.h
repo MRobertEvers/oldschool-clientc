@@ -207,7 +207,7 @@ struct RS_MinimenuBuildCtx
     bool locedit_active;
 
     /* The map editor's SELECT tool (src/editor/editor_panel.h,
-     * `app->editor_shell->editor_panel`) wants the same disambiguated-target rows
+     * `App.map_editor->editor_panel`) wants the same disambiguated-target rows
      * locedit_active earns above, but latches into the editor panel's own
      * sel_kind/sel_scene_x/z/sel_element_id rather than the loc editor's
      * selection --

@@ -6,7 +6,6 @@
 #include "engine/uitree_scene_bridge.h"
 #include "engine/world_builder/world_builder.h"
 #include "editor/editor_layout.h"
-#include "editor/editor_shell.h"
 #include "editor/editor_ui.h"
 #include "editor/editor_view.h"
 #include "executor_config.h"
@@ -3045,9 +3044,7 @@ main_chrome_scale_q(
     /* The editor's View > Chrome scale; Auto hands `q` back (and the View
      * menu's Auto row names it). A View row under 2x on a touch device is
      * held at 2x there too. */
-    if( app->editor && app->editor_shell->editor_panel.built && app->editor_shell->editor_panel.ui )
-        q = Editor_UiChromeScaleFor(app->editor_shell->editor_panel.ui, q, touch);
-    return q;
+    return App_MapEditorChromeScaleFor(app, q, touch);
 }
 
 /*
@@ -3079,10 +3076,7 @@ main_chrome_scale_apply(
      * native path draws the vector face at every scale under "smooth always"
      * (App_SetChromeTextSmooth: the bridge's faces and the font ids), a DOM
      * hears it with SCALE and draws the vector web fonts. No metric moves. */
-    int const smooth =
-        app->editor && app->editor_shell->editor_panel.built && app->editor_shell->editor_panel.ui
-            ? Editor_UiTextSmooth(app->editor_shell->editor_panel.ui)
-            : 0;
+    int const smooth = App_MapEditorTextSmooth(app);
     int changed;
 
     changed = App_SetChromeScaleQ(app, q);
@@ -4571,14 +4565,14 @@ frame_loop_step(void)
                 /* The editor's layout file remembers the window's box: told
                  * every frame (a cached pair of SDL reads), written only when
                  * it settles (app_map_editor_layout_tick). */
-                if( app.editor_shell->editor_panel.built && app.editor_shell->editor_panel.ui )
+                if( App_MapEditorKeepsWindowBox(&app) )
                 {
                     int wx;
                     int wy;
                     int ww;
                     int wh;
                     if( PlatformWindow_WindowBox(platform, &wx, &wy, &ww, &wh) )
-                        Editor_UiSetWindowBox(app.editor_shell->editor_panel.ui, wx, wy, ww, wh);
+                        App_MapEditorSetWindowBox(&app, wx, wy, ww, wh);
                 }
                 if( sock )
                 {

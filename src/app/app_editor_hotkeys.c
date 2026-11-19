@@ -18,7 +18,7 @@
  *   4. Editor_HotkeysResolve against ui->hotkeys: the chords that fire, the
  *      held actions that are active (the camera, the click accelerators), and
  *      the keys the table CLAIMS -- bound in a live context, whether or not
- *      they acted -- which app_debug_key_down / app_debug_key_held then skip
+ *      they acted -- which the side-apps' CTRL keys then skip
  *      (Ctrl+S saves and never also flies the camera back);
  *   5. dispatch: each fired action through the function its menu row or
  *      button calls (Editor_HotkeyRun, edpanel_hotkeys.c), the App-bound ones
@@ -210,15 +210,15 @@ app_hk_hover(
      * it is for the panels' hover service. */
     if( app_map_editor_hover_env_tile(out_x, out_z) )
     {
-        *out_level = Editor_PanelEditLevel(&app->editor_shell->editor_panel, app);
+        *out_level = Editor_PanelEditLevel(&app->map_editor->editor_panel, app);
         return 1;
     }
     if( !app->world ||
-        !Editor_PanelHoverTile(&app->editor_shell->editor_panel, app, &scene_x, &scene_z) )
+        !Editor_PanelHoverTile(&app->map_editor->editor_panel, app, &scene_x, &scene_z) )
         return 0;
     *out_x = app->world->_base_tile_x + scene_x;
     *out_z = app->world->_base_tile_z + scene_z;
-    *out_level = Editor_PanelEditLevel(&app->editor_shell->editor_panel, app);
+    *out_level = Editor_PanelEditLevel(&app->map_editor->editor_panel, app);
     return 1;
 }
 
@@ -273,12 +273,12 @@ app_hk_pick_loc(
     int idx;
 
     if( !app->world ||
-        !Editor_PanelHoverTile(&app->editor_shell->editor_panel, app, &scene_x, &scene_z) )
+        !Editor_PanelHoverTile(&app->map_editor->editor_panel, app, &scene_x, &scene_z) )
     {
         Editor_UiStatus(ui, "Pick refused: no tile under the pointer to pick from");
         return;
     }
-    level = Editor_PanelEditLevel(&app->editor_shell->editor_panel, app);
+    level = Editor_PanelEditLevel(&app->map_editor->editor_panel, app);
     idx = World_SceneryFindAt(app->world, scene_x, scene_z, level, -1);
     scenery = idx >= 0 ? World_EntityPoolGet(&app->world->entities.scenery, idx) : NULL;
     if( !scenery )
@@ -426,12 +426,12 @@ app_hk_deselect(
     struct App* app,
     struct EditorUi* ui)
 {
-    struct Editor_Panel* panel = &app->editor_shell->editor_panel;
+    struct Editor_Panel* panel = &app->map_editor->editor_panel;
 
     if( panel->stroke_active )
     {
         ui->tools.stroke_open = 0;
-        Editor_StrokeEnd(app->editor);
+        Editor_StrokeEnd(app->map_editor->session);
         panel->stroke_active = 0;
         return;
     }
@@ -473,7 +473,7 @@ app_hk_select_same(
     struct App* app,
     struct EditorUi* ui)
 {
-    struct Editor_Panel* panel = &app->editor_shell->editor_panel;
+    struct Editor_Panel* panel = &app->map_editor->editor_panel;
     int hx;
     int hz;
 
@@ -489,7 +489,7 @@ app_hk_run(
     struct EditorUi* ui,
     enum Editor_HotkeyAction action)
 {
-    struct Editor_Panel* panel = &app->editor_shell->editor_panel;
+    struct Editor_Panel* panel = &app->map_editor->editor_panel;
     int x;
     int z;
     int level;
@@ -743,7 +743,7 @@ app_editor_hotkeys_flush(struct App* app)
     struct EditorUi* ui;
 
     assert(app);
-    ui = app->editor_shell->editor_panel.ui;
+    ui = app->map_editor->editor_panel.ui;
     if( !ui )
         return;
     /* A save the tick queued last frame may still sit in the queue, which
@@ -778,13 +778,13 @@ app_editor_hotkeys_frame(
     g_app_hk.valid = 0;
     memset(g_app_hk.consumed_osrs, 0, sizeof(g_app_hk.consumed_osrs));
     g_app_hk.consumed_any = 0;
-    if( !app->editor || !app->editor_shell->editor_panel.built ||
-        !app->editor_shell->editor_panel.ui )
+    if( !app->map_editor || !app->map_editor->editor_panel.built ||
+        !app->map_editor->editor_panel.ui )
         return;
-    ui = app->editor_shell->editor_panel.ui;
+    ui = app->map_editor->editor_panel.ui;
     app_hk_io_tick(app, ui);
     app_hk_recent_tick(app, ui);
-    if( !app->editor_shell->editor_panel.visible )
+    if( !app->map_editor->editor_panel.visible )
         return;
 
     app_hk_snapshot(app, ui, input, &snapshot);
@@ -972,8 +972,8 @@ int
 app_editor_hotkeys_owns_camera(struct App const* app)
 {
     assert(app);
-    return app->editor && app->editor_shell->editor_panel.built &&
-           app->editor_shell->editor_panel.visible && app->editor_shell->editor_panel.ui;
+    return app->map_editor && app->map_editor->editor_panel.built &&
+           app->map_editor->editor_panel.visible && app->map_editor->editor_panel.ui;
 }
 
 void

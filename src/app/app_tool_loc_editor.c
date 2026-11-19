@@ -463,8 +463,7 @@ app_loc_editor_nudge(
      * top would leave a second, default-lit copy. STATIC still shows it
      * through the zone-packet seam (and so does EDIT when the square is not
      * open in the document, which the record then refused). */
-    recorded = Editor_PanelRecordLocEdit(
-        &app->editor_shell->editor_panel,
+    recorded = app_map_editor_record_loc_edit(
         app,
         move.from_x,
         move.from_z,
@@ -501,8 +500,7 @@ app_loc_editor_rotate(
         return;
     /* Same pair as a nudge: the authored record first, then (STATIC, or a
      * square the document does not hold) the scene. */
-    recorded = Editor_PanelRecordLocEdit(
-        &app->editor_shell->editor_panel,
+    recorded = app_map_editor_record_loc_edit(
         app,
         move.from_x,
         move.from_z,

@@ -159,21 +159,6 @@ app_preview_raster(
     int width,
     int height);
 
-/**
- * Whether the map editor's SELECT tool is the thing the minimenu should be
- * offering "Select wall/object/decor/terrain" rows for -- panel closed or a
- * paint tool active both mean no such row belongs on the menu, same as
- * the open loc editor's menu flag gates its own Select row
- * (app_tool_loc_editor.c).
- */
-bool
-app_mapedit_select_active(struct App const* app)
-{
-    assert(app);
-    return app->editor_shell->editor_panel.visible &&
-           Editor_PanelTool(&app->editor_shell->editor_panel) == EDITOR_TOOL_SELECT;
-}
-
 /** Keyboard belongs to the catalog's model view? (Focused via a click; the
  *  chrome holds the focus, the app routes the keys.) */
 int
@@ -182,26 +167,6 @@ app_modelview_focused(struct App const* app)
     int const f = app->dev_overlay->ui.focus;
     return f >= 0 && f < app->dev_overlay->ui.widget_count &&
            app->dev_overlay->ui.widgets[f].kind == TORIRS_CHROME_W_MODELVIEW;
-}
-
-void
-App_EditorPlaceSpawn(
-    struct App* app,
-    int is_obj,
-    int id,
-    int scene_x,
-    int scene_z,
-    int level)
-{
-    char args[32];
-
-    assert(app);
-
-    snprintf(args, sizeof(args), "id=%d", id);
-    if( is_obj )
-        app_world_spawn_obj(app, scene_x, scene_z, level, args);
-    else
-        app_world_spawn_npc(app, scene_x, scene_z, level, args);
 }
 
 /** Shared-state facts from this connection's Client land on the panel — the
@@ -227,7 +192,7 @@ app_editor_on_state(
      * resolves with its value (the panels still hear it below). */
     if( key == TORIRSMAPED_STATE_VAR_PREVIEW )
         (void)app_map_editor_var_preview(&app->varps, values, count);
-    Editor_PanelApplySharedState(&app->editor_shell->editor_panel, app, key, values, count);
+    Editor_PanelApplySharedState(&app->map_editor->editor_panel, app, key, values, count);
 }
 
 /*
@@ -341,7 +306,7 @@ void
 app_map_editor_shutdown(struct App* app)
 {
     assert(app);
-    assert(app->editor);
+    assert(app->map_editor);
     app_map_editor_layout_flush(app);
     /* The var preview is the editor's: the world resolves with the
      * player's vars again once it closes. */
@@ -352,7 +317,7 @@ app_map_editor_shutdown(struct App* app)
     /* The embedded server's loopback listener, before the session it serves
      * goes (app/app_editor_view.c). */
     EditorView_AppShutdown(app);
-    Editor_PanelFree(&app->editor_shell->editor_panel);
+    Editor_PanelFree(&app->map_editor->editor_panel);
     app_map_editor_free(app);
 }
 
@@ -407,15 +372,15 @@ ui_service_hover_tile(
     /* A photograph's parked hover (TORIRS_EDITOR_HOVER) is the pointer. */
     if( app_map_editor_hover_env_tile(out_world_x, out_world_z) )
     {
-        *out_level = Editor_PanelEditLevel(&app->editor_shell->editor_panel, app);
+        *out_level = Editor_PanelEditLevel(&app->map_editor->editor_panel, app);
         return 1;
     }
     if( !app->world ||
-        !Editor_PanelHoverTile(&app->editor_shell->editor_panel, app, &scene_x, &scene_z) )
+        !Editor_PanelHoverTile(&app->map_editor->editor_panel, app, &scene_x, &scene_z) )
         return 0;
     *out_world_x = scene_x + app->world->_base_tile_x;
     *out_world_z = scene_z + app->world->_base_tile_z;
-    *out_level = Editor_PanelEditLevel(&app->editor_shell->editor_panel, app);
+    *out_level = Editor_PanelEditLevel(&app->map_editor->editor_panel, app);
     return 1;
 }
 
@@ -453,7 +418,7 @@ ui_service_select_terrain(
     if( !app->world )
         return;
     Editor_PanelSelectTerrain(
-        &app->editor_shell->editor_panel,
+        &app->map_editor->editor_panel,
         app,
         world_x - app->world->_base_tile_x,
         world_z - app->world->_base_tile_z,
@@ -666,10 +631,10 @@ ui_service_world_busy(void* user_data)
      * open: a caller that waits for "not busy" to put the camera somewhere
      * of its own (a scene's Enter, a placed scratch square's view) would
      * otherwise be overwritten by it a frame later (2026-11-09). */
-    return WorldLoadState_Inflight(&app->world_load) || app->editor_shell->editor_panel.sq_open_pending ||
-           app->editor_shell->editor_panel.sq_set_count > 0 ||
-           app->editor_shell->editor_panel.sq_close_pending ||
-           app->editor_shell->editor_panel.sq_goto_pending;
+    return WorldLoadState_Inflight(&app->world_load) || app->map_editor->editor_panel.sq_open_pending ||
+           app->map_editor->editor_panel.sq_set_count > 0 ||
+           app->map_editor->editor_panel.sq_close_pending ||
+           app->map_editor->editor_panel.sq_goto_pending;
 }
 
 static void
@@ -1602,8 +1567,8 @@ app_map_editor_shadow_seed(
     int map_z)
 {
     assert(app);
-    assert(app->editor);
-    app_map_editor_edit_seed(app->editor, app->provider, app->world_builder, map_x, map_z);
+    assert(app->map_editor);
+    app_map_editor_edit_seed(app->map_editor->session, app->provider, app->world_builder, map_x, map_z);
 }
 
 /* Squares one world load takes (app_world_load.c's APP_WORLD_MAP_SQUARE_MAX). */
@@ -1635,7 +1600,7 @@ app_map_editor_shown_squares(
     int* out,
     int max)
 {
-    struct Editor_Doc const* doc = &app->editor->doc;
+    struct Editor_Doc const* doc = &app->map_editor->session->doc;
     int count = 0;
 
     for( int i = 0; i < doc->square_count && count < max; i++ )
@@ -1666,7 +1631,7 @@ app_map_editor_release_squares(
     const int* kept_xz,
     int kept_count)
 {
-    struct Editor_Doc* doc = &app->editor->doc;
+    struct Editor_Doc* doc = &app->map_editor->session->doc;
 
     for( int i = doc->square_count - 1; i >= 0; i-- )
     {
@@ -1688,7 +1653,7 @@ app_map_editor_release_squares(
             snprintf(key, sizeof(key), "%s/m%d_%d", doc->square_storage[i], map_x, map_z);
         else
             snprintf(key, sizeof(key), "m%d_%d", map_x, map_z);
-        Editor_CloseDoc(app->editor, EDITOR_DOC_SQUARE, key);
+        Editor_CloseDoc(app->map_editor->session, EDITOR_DOC_SQUARE, key);
         sh = app_edit_shadow_find(map_x, map_z);
         if( sh )
             sh->used = 0;
@@ -1759,7 +1724,7 @@ app_map_editor_close_square(
     struct App* app,
     struct Editor_Panel* panel)
 {
-    struct Editor_Doc* doc = &app->editor->doc;
+    struct Editor_Doc* doc = &app->map_editor->session->doc;
     int chunks[APP_MAP_EDITOR_OPEN_MAX * 2];
     int count = 0;
     int shown = 0;
@@ -1821,7 +1786,7 @@ app_map_editor_open_square_set(
 {
     int chunks[EDITOR_UI_OPEN_SET_MAX * 2];
     int count = 0;
-    struct AppEditCtx ctx = { app->editor, app->provider, app->world_builder, app->world, app->scene };
+    struct AppEditCtx ctx = { app->map_editor->session, app->provider, app->world_builder, app->world, app->scene };
 
     for( int i = 0; i < panel->sq_set_count; i++ )
     {
@@ -1830,7 +1795,7 @@ app_map_editor_open_square_set(
         {
             char key[EDITOR_DOC_KEY_MAX + EDITOR_DOC_STORAGE_MAX];
             snprintf(key, sizeof(key), "%s/m%d_%d", ref->storage, ref->map_x, ref->map_z);
-            if( !Editor_OpenDoc(app->editor, EDITOR_DOC_SQUARE, key) )
+            if( !Editor_OpenDoc(app->map_editor->session, EDITOR_DOC_SQUARE, key) )
             {
                 TORIRS_ERR("editor: cannot open %s\n", key);
                 continue;
@@ -1845,7 +1810,7 @@ app_map_editor_open_square_set(
         return;
     for( int i = 0; i < count; i++ )
     {
-        struct Editor_Square* square = Editor_DocFindSquare(&app->editor->doc, chunks[i * 2], chunks[i * 2 + 1]);
+        struct Editor_Square* square = Editor_DocFindSquare(&app->map_editor->session->doc, chunks[i * 2], chunks[i * 2 + 1]);
         if( square && square->loaded && app->provider )
             app_edit_seed_provider(&ctx, square);
     }
@@ -1878,8 +1843,8 @@ app_map_editor_open_pending_square(struct App* app)
 
     assert(app);
 
-    panel = &app->editor_shell->editor_panel;
-    if( !app->editor )
+    panel = &app->map_editor->editor_panel;
+    if( !app->map_editor )
         return;
     /* The camera move an Open asked for, once the square's load has landed.
      * Cleared whether or not the tile turned out to be in the scene, so a
@@ -1917,7 +1882,7 @@ app_map_editor_open_pending_square(struct App* app)
     {
         char key[EDITOR_DOC_KEY_MAX];
         snprintf(key, sizeof(key), "%s/m%d_%d", panel->sq_open_storage, panel->sq_open_x, panel->sq_open_z);
-        if( !Editor_OpenDoc(app->editor, EDITOR_DOC_SQUARE, key) )
+        if( !Editor_OpenDoc(app->map_editor->session, EDITOR_DOC_SQUARE, key) )
         {
             TORIRS_ERR("editor: cannot open %s\n", key);
             return;
@@ -1947,10 +1912,10 @@ app_map_editor_open_pending_square(struct App* app)
     /* Every square already in the mirror seeds the provider from the
      * document (an open lane square, a created one, unsaved edits). */
     {
-        struct AppEditCtx ctx = { app->editor, app->provider, app->world_builder, app->world, app->scene };
+        struct AppEditCtx ctx = { app->map_editor->session, app->provider, app->world_builder, app->world, app->scene };
         for( int i = 0; i < count; i++ )
         {
-            struct Editor_Square* square = Editor_DocFindSquare(&app->editor->doc, chunks[i * 2], chunks[i * 2 + 1]);
+            struct Editor_Square* square = Editor_DocFindSquare(&app->map_editor->session->doc, chunks[i * 2], chunks[i * 2 + 1]);
             if( square && square->loaded && app->provider )
                 app_edit_seed_provider(&ctx, square);
         }
@@ -2396,10 +2361,10 @@ app_map_editor_flush_edits(struct App* app)
         return; /* the load lands first; the queue waits for it */
     if( !app->world || !WorldLoadState_Active(&app->world_load) )
         return;
-    had_work = app->editor->rebuild_count > 0;
+    had_work = app->map_editor->session->rebuild_count > 0;
     /* The document changed under the ghost: take it down first, so the sync
      * never meets an occupant the ghost has hidden. It is back next frame. */
-    if( had_work && app->editor_shell->map_ghost.active )
+    if( had_work && app->map_editor->map_ghost.active )
         app_map_editor_ghost_remove(app);
     /* A floor record the ground may wear was defined: the tiles baked
      * without it (a hole) or with its old colour are only right again from
@@ -2408,12 +2373,12 @@ app_map_editor_flush_edits(struct App* app)
     if( g_app_floor_rebake )
     {
         g_app_floor_rebake = 0;
-        (void)app_map_editor_edit_step(app->editor, app->provider, app->world_builder, app->world, app->scene);
+        (void)app_map_editor_edit_step(app->map_editor->session, app->provider, app->world_builder, app->world, app->scene);
         app_edit_rebake_window(app);
         return;
     }
     if( app_map_editor_edit_step(
-            app->editor, app->provider, app->world_builder, app->world, app->scene) )
+            app->map_editor->session, app->provider, app->world_builder, app->world, app->scene) )
     {
         app_edit_rebake_window(app);
         return;
@@ -2431,7 +2396,7 @@ app_map_editor_flush(struct App* app)
      * is also where an embedded editor server runs its slice (the catalog's
      * warm build among it): the frame stats count it as pump, not flush. */
     t = FrameStats_Now();
-    Editor_PumpFacts(app->editor);
+    Editor_PumpFacts(app->map_editor->session);
     FrameStats_Span(FRAME_STATS_PUMP, t);
     t = FrameStats_Now();
     /* A lane record the world may show was decoded again from its text (a
@@ -2468,12 +2433,12 @@ app_map_editor_flush(struct App* app)
 static struct EditorUi const*
 app_map_editor_world_owner(struct App const* app)
 {
-    if( !app->editor || !app->editor_shell->editor_panel.built ||
-        !app->editor_shell->editor_panel.visible || !app->editor_shell->editor_panel.ui )
+    if( !app->map_editor || !app->map_editor->editor_panel.built ||
+        !app->map_editor->editor_panel.visible || !app->map_editor->editor_panel.ui )
         return NULL;
-    if( app->editor_shell->editor_panel.ui->layout_surface_w <= 0 )
+    if( app->map_editor->editor_panel.ui->layout_surface_w <= 0 )
         return NULL;
-    return app->editor_shell->editor_panel.ui;
+    return app->map_editor->editor_panel.ui;
 }
 
 /** The World body cut to the widget box (surface pixels); 0 when nothing of
@@ -2637,9 +2602,9 @@ static struct
 static void
 app_map_editor_layout_tick(struct App* app)
 {
-    struct EditorUi* ui = app->editor_shell->editor_panel.ui;
+    struct EditorUi* ui = app->map_editor->editor_panel.ui;
 
-    if( !app->editor_shell->editor_panel.built || !ui || g_app_editor_layout.state == 3 )
+    if( !app->map_editor->editor_panel.built || !ui || g_app_editor_layout.state == 3 )
         return;
     if( g_app_editor_layout.state == 0 )
     {
@@ -2716,7 +2681,7 @@ app_map_editor_layout_flush(struct App* app)
     assert(app);
     /* The hotkeys file rides the same shutdown (src/app.c calls this). */
     app_editor_hotkeys_flush(app);
-    ui = app->editor_shell->editor_panel.ui;
+    ui = app->map_editor->editor_panel.ui;
     if( g_app_editor_layout.state != 2 || !ui )
         return;
     if( Editor_UiLayoutBusy(ui) )
@@ -2753,9 +2718,9 @@ static struct
 static void
 app_map_editor_prefs_tick(struct App* app)
 {
-    struct EditorUi* ui = app->editor_shell->editor_panel.ui;
+    struct EditorUi* ui = app->map_editor->editor_panel.ui;
 
-    if( !app->editor_shell->editor_panel.built || !ui || g_app_editor_prefs.state == 3 )
+    if( !app->map_editor->editor_panel.built || !ui || g_app_editor_prefs.state == 3 )
         return;
     if( g_app_editor_prefs.state == 0 )
     {
@@ -2806,7 +2771,7 @@ app_map_editor_drain(struct App* app)
 
     assert(app);
 
-    if( !app->editor )
+    if( !app->map_editor )
         return;
     app_map_editor_layout_tick(app);
     app_map_editor_prefs_tick(app);
@@ -2818,12 +2783,12 @@ app_map_editor_drain(struct App* app)
         app_map_editor_flush(app);
         return;
     }
-    if( app->editor->rebuild_count == 0 )
+    if( app->map_editor->session->rebuild_count == 0 )
         return;
     if( WorldLoadState_Inflight(&app->world_load) )
         return; /* A load is already rewriting the scene; let it land first. */
 
-    count = Editor_DrainRebuilds(app->editor, app->provider, squares, EDITOR_REBUILD_QUEUE_MAX);
+    count = Editor_DrainRebuilds(app->map_editor->session, app->provider, squares, EDITOR_REBUILD_QUEUE_MAX);
     if( count <= 0 )
         return;
 
@@ -2866,7 +2831,7 @@ app_map_editor_hover_world(
     int scene_x;
     int scene_z;
 
-    if( !Editor_PanelHoverTile(&app->editor_shell->editor_panel, app, &scene_x, &scene_z) )
+    if( !Editor_PanelHoverTile(&app->map_editor->editor_panel, app, &scene_x, &scene_z) )
         return 0;
     *out_x = app->world->_base_tile_x + scene_x;
     *out_z = app->world->_base_tile_z + scene_z;
@@ -2946,10 +2911,10 @@ app_map_editor_void_hover(struct App* app)
     struct Editor_Doc const* doc;
     int size;
 
-    if( !app->editor || !app->world || !app->world_views.emit_valid || !app->world_views.frame->world_mouse_in_viewport
+    if( !app->map_editor || !app->world || !app->world_views.emit_valid || !app->world_views.frame->world_mouse_in_viewport
         || app->world_views.frame->world_hover_tile_x >= 0 )
         return;
-    doc = &app->editor->doc;
+    doc = &app->map_editor->session->doc;
     size = app->world->_scene_size;
     for( int i = 0; i < doc->square_count; i++ )
     {
@@ -3081,7 +3046,7 @@ app_map_editor_select_mode(
     struct LibToriRS_Input* input)
 {
     return Editor_LocSelectModeOf(
-        app->editor_shell->editor_panel.ui->shift_held,
+        app->map_editor->editor_panel.ui->shift_held,
         LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL),
         LibToriRS_Input_IsKeyHeld(input, TORIRSK_ALT));
 }
@@ -3113,7 +3078,7 @@ app_map_editor_drag(
     struct App* app,
     struct LibToriRS_Input* input)
 {
-    struct Editor_Panel* panel = &app->editor_shell->editor_panel;
+    struct Editor_Panel* panel = &app->map_editor->editor_panel;
     struct EditorUi* ui = panel->ui;
     int const released =
         input->curr.mouse_button_up[TORIRSM_LEFT] || !LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
@@ -3208,22 +3173,22 @@ app_map_editor_drag(
         {
             /* One drag, one undo step: the stroke opened on press. */
             ui->tools.stroke_open = 0;
-            Editor_StrokeEnd(app->editor);
+            Editor_StrokeEnd(app->map_editor->session);
             panel->stroke_active = 0;
             /* A Height drag that moved nothing because the grid is where the
              * ground is: say how to move the grid, once for the drag. */
             if( g_app_height_drag.armed && ui->tools.height_mode == EDITOR_HEIGHT_MODE_LOWER
                 && g_app_height_drag.ground >= 0
-                && Editor_HistoryAppliedCommands(Editor_GetHistory(app->editor)) == g_app_height_drag.applied_before )
+                && Editor_HistoryAppliedCommands(Editor_GetHistory(app->map_editor->session)) == g_app_height_drag.applied_before )
                 Editor_UiStatus(ui, "Height: this ground is at 0, the lowest it goes; raise the land around it "
                                     "(a new square's Flat fill starts at h20 for this)");
             else if( g_app_height_drag.armed && g_app_height_drag.grid_at_ground
-                && Editor_HistoryAppliedCommands(Editor_GetHistory(app->editor)) == g_app_height_drag.applied_before )
+                && Editor_HistoryAppliedCommands(Editor_GetHistory(app->map_editor->session)) == g_app_height_drag.applied_before )
                 Editor_UiStatus(ui, "Height: this ground is already at the grid; Ctrl+wheel moves the grid");
             /* A one-way mode with the grid on the far side moves nothing
              * either: say which way the grid is. */
             else if( g_app_height_drag.armed && ui->tools.height_mode != EDITOR_HEIGHT_MODE_BOTH
-                     && Editor_HistoryAppliedCommands(Editor_GetHistory(app->editor))
+                     && Editor_HistoryAppliedCommands(Editor_GetHistory(app->map_editor->session))
                             == g_app_height_drag.applied_before )
                 Editor_UiStatus(ui, "Height: nothing moved; %s, and the grid (h%d) is %s this ground. Ctrl+click sets it here",
                     ui->tools.height_mode == EDITOR_HEIGHT_MODE_LOWER ? "lower only never lifts" : "raise only never sinks",
@@ -3235,7 +3200,7 @@ app_map_editor_drag(
              * one that filled the yard). */
             if( ui->tools.tool == EDITOR_TOOL_SCATTER )
             {
-                int const placed = Editor_HistoryAppliedCommands(Editor_GetHistory(app->editor))
+                int const placed = Editor_HistoryAppliedCommands(Editor_GetHistory(app->map_editor->session))
                                    - g_app_scatter_drag_before;
                 if( placed > 0 )
                     Editor_UiStatus(ui, "Scatter: %d edit%s in one step (Ctrl+Z undoes it; Alt+drag erases)", placed,
@@ -3256,7 +3221,7 @@ app_map_editor_drag(
             else if( ui->tools.tool == EDITOR_TOOL_PAINT_UNDERLAY || ui->tools.tool == EDITOR_TOOL_PAINT_OVERLAY
                      || ui->tools.tool == EDITOR_TOOL_PAINT_FLAGS )
             {
-                int const edits = Editor_HistoryAppliedCommands(Editor_GetHistory(app->editor))
+                int const edits = Editor_HistoryAppliedCommands(Editor_GetHistory(app->map_editor->session))
                                   - g_app_scatter_drag_before;
                 char what[48];
                 if( ui->tools.tool == EDITOR_TOOL_PAINT_UNDERLAY )
@@ -3316,7 +3281,7 @@ int
 App_EditorOwnsTouch(struct App const* app)
 {
     assert(app);
-    return app->editor && app->editor_shell->editor_panel.visible;
+    return app->map_editor && app->map_editor->editor_panel.visible;
 }
 
 /** The World's camera is the free one, which the editor's gestures move:
@@ -3348,9 +3313,9 @@ app_map_editor_gesture_ground(
 {
     struct App_WorldView* view = app->world_views.frame;
     int const extent = app->world->_scene_size * 128;
-    int const level = app->editor_shell->editor_panel.ui &&
-                              app->editor_shell->editor_panel.ui->tools.edit_level >= 0
-                          ? app->editor_shell->editor_panel.ui->tools.edit_level
+    int const level = app->map_editor->editor_panel.ui &&
+                              app->map_editor->editor_panel.ui->tools.edit_level >= 0
+                          ? app->map_editor->editor_panel.ui->tools.edit_level
                           : 0;
     int ground;
     double hit_x;
@@ -3378,7 +3343,7 @@ app_map_editor_world_gesture(
 {
     struct EditorWorldGestureView view;
 
-    if( !app->editor_shell->editor_panel.visible || !app->world || !app->world_views.emit_valid ||
+    if( !app->map_editor->editor_panel.visible || !app->world || !app->world_views.emit_valid ||
         !app->world_views.frame )
         return;
     if( app->world->_scene_size <= 0 || WorldLoadState_Inflight(&app->world_load) )
@@ -3487,9 +3452,9 @@ app_map_editor_gestures(
 
     assert(app);
     assert(input);
-    if( !app->editor || !app->editor_shell->editor_panel.ui )
+    if( !app->map_editor || !app->map_editor->editor_panel.ui )
         return;
-    ui = app->editor_shell->editor_panel.ui;
+    ui = app->map_editor->editor_panel.ui;
     /* The touch flag: the hint strip spells gestures while it is up. */
     Editor_UiSetTouchInput(ui, ToriRS_InputLastWasTouch(input));
     app_map_editor_view_middle_drag(app, input, ui);
@@ -3561,8 +3526,8 @@ app_map_editor_world_click(
     assert(app);
     assert(input);
 
-    panel = &app->editor_shell->editor_panel;
-    if( !app->editor || !panel->ui )
+    panel = &app->map_editor->editor_panel;
+    if( !app->map_editor || !panel->ui )
         return;
     ui = panel->ui;
     /* The wheel's stroke closes at rest, at Ctrl's release, under another
@@ -3576,7 +3541,7 @@ app_map_editor_world_click(
         if( ui->tools.stroke_open )
         {
             ui->tools.stroke_open = 0;
-            Editor_StrokeEnd(app->editor);
+            Editor_StrokeEnd(app->map_editor->session);
         }
     }
     /* ui->shift_held is set by the hotkey dispatcher (app_editor_hotkeys.c),
@@ -3593,7 +3558,7 @@ app_map_editor_world_click(
         if( !panel->visible )
         {
             g_app_gizmo.active = 0;
-            MapEditorPieceGhost_Clear(&app->editor_shell->map_ghost.pieces);
+            MapEditorPieceGhost_Clear(&app->map_editor->map_ghost.pieces);
             return;
         }
         app_map_editor_gizmo_drag(app, input);
@@ -3619,7 +3584,7 @@ app_map_editor_world_click(
             if( panel->stroke_active )
             {
                 ui->tools.stroke_open = 0;
-                Editor_StrokeEnd(app->editor);
+                Editor_StrokeEnd(app->map_editor->session);
             }
             panel->stroke_active = 0;
             panel->rect_dragging = 0;
@@ -3677,8 +3642,8 @@ app_map_editor_world_click(
             return;
         if( ground && !g_app_height_wheel.open && !ui->tools.stroke_open )
         {
-            Editor_StrokeBegin(app->editor);
-            Editor_HistoryName(app->editor, "Height");
+            Editor_StrokeBegin(app->map_editor->session);
+            Editor_HistoryName(app->map_editor->session, "Height");
             ui->tools.stroke_open = 1;
             g_app_height_wheel.open = 1;
         }
@@ -3757,9 +3722,9 @@ app_map_editor_world_click(
         }
         if( Editor_ToolIsBrush(tool) )
         {
-            Editor_StrokeBegin(app->editor);
+            Editor_StrokeBegin(app->map_editor->session);
             /* The History panel's row says which brush made the stroke. */
-            Editor_HistoryName(app->editor, Editor_ToolName(tool));
+            Editor_HistoryName(app->map_editor->session, Editor_ToolName(tool));
             ui->tools.stroke_open = 1;
             ui->tools.flatten_valid = 0;
             /* Scatter with Alt held erases; every Roughen and Scatter stroke
@@ -3773,12 +3738,12 @@ app_map_editor_world_click(
             panel->stroke_active = 1;
             panel->stroke_last_x = hx;
             panel->stroke_last_z = hz;
-            g_app_scatter_drag_before = Editor_HistoryAppliedCommands(Editor_GetHistory(app->editor));
+            g_app_scatter_drag_before = Editor_HistoryAppliedCommands(Editor_GetHistory(app->map_editor->session));
             g_app_height_drag.armed = tool == EDITOR_TOOL_HEIGHT;
             if( g_app_height_drag.armed )
             {
                 int const ground = app_world_height(app, hx * 128 + 64, hz * 128 + 64, level);
-                g_app_height_drag.applied_before = Editor_HistoryAppliedCommands(Editor_GetHistory(app->editor));
+                g_app_height_drag.applied_before = Editor_HistoryAppliedCommands(Editor_GetHistory(app->map_editor->session));
                 g_app_height_drag.ground = ground;
             }
             Editor_PanelApplyToolAt(panel, app, hx, hz, level);
@@ -4052,7 +4017,7 @@ static void
 app_map_editor_ghost_forget(struct App* app)
 {
     assert(app);
-    MapEditorGhost_Commit(&app->editor_shell->map_ghost);
+    MapEditorGhost_Commit(&app->map_editor->map_ghost);
 }
 
 /** Remove the ghost, put back whatever it displaced, forget. */
@@ -4064,7 +4029,7 @@ app_map_editor_ghost_remove(struct App* app)
     bool has_restore = false;
 
     assert(app);
-    if( !MapEditorGhost_Remove(&app->editor_shell->map_ghost, &removed, &has_restore, &restore) )
+    if( !MapEditorGhost_Remove(&app->map_editor->map_ghost, &removed, &has_restore, &restore) )
         return;
     if( app_map_editor_ghost_is_edit(app) )
     {
@@ -4131,7 +4096,7 @@ app_map_editor_ghost_place_edit(
     const struct MapEditorGhostSpec* wanted)
 {
     struct WorldBuilder* wb = app->world_builder;
-    struct AppEditCtx ctx = { app->editor, app->provider, wb, app->world, app->scene };
+    struct AppEditCtx ctx = { app->map_editor->session, app->provider, wb, app->world, app->scene };
     struct MapEditorGhostSpec displaced;
     struct World_LocPlacement place;
     int has_displaced = 0;
@@ -4186,7 +4151,7 @@ app_map_editor_ghost_place_edit(
     g_app_edit_ghost.occupant_handle = has_displaced ? occupant : WORLD_BUILDER_HANDLE_NONE;
     g_app_edit_ghost.bake_serial = WorldEdit_BakeSerial(wb);
     (void)WorldBuilder_Flush(wb);
-    MapEditorGhost_Place(&app->editor_shell->map_ghost, wanted, has_displaced ? &displaced : NULL);
+    MapEditorGhost_Place(&app->map_editor->map_ghost, wanted, has_displaced ? &displaced : NULL);
     return 1;
 }
 
@@ -4374,7 +4339,7 @@ app_map_editor_hover_update(
     struct App* app,
     struct Editor_Panel* panel)
 {
-    struct MapEditorHover* hover = &app->editor_shell->map_ghost.hover;
+    struct MapEditorHover* hover = &app->map_editor->map_ghost.hover;
 
     app_map_editor_hover_env_resolve();
     memset(hover, 0, sizeof(*hover));
@@ -4411,7 +4376,7 @@ app_map_editor_spawn_ghost_remove(struct App* app)
     int entity;
 
     if( !MapEditorSpawnGhost_Remove(
-            &app->editor_shell->map_ghost.spawn,
+            &app->map_editor->map_ghost.spawn,
             app->world ? app->world->load_seq : 0,
             &spec,
             &entity) )
@@ -4443,7 +4408,7 @@ static struct
 static int
 app_map_editor_spawn_ghost_land(struct App* app)
 {
-    struct MapEditorSpawnGhost* ghost = &app->editor_shell->map_ghost.spawn;
+    struct MapEditorSpawnGhost* ghost = &app->map_editor->map_ghost.spawn;
     struct MapEditorSpawnSpec const* spec = &ghost->spec;
 
     if( !app->world || !app->provider )
@@ -4540,7 +4505,7 @@ app_map_editor_obj_stack_fade(
 static void
 app_map_editor_spawn_ghost_fade(struct App* app)
 {
-    struct MapEditorSpawnGhost* ghost = &app->editor_shell->map_ghost.spawn;
+    struct MapEditorSpawnGhost* ghost = &app->map_editor->map_ghost.spawn;
 
     if( !ghost->active || ghost->entity < 0 || ghost->faded || !app->world || !app->scene )
         return;
@@ -4558,7 +4523,7 @@ app_map_editor_spawn_ghost_update(
     struct App* app,
     struct EditorUi* ui)
 {
-    struct MapEditorHover const* hover = &app->editor_shell->map_ghost.hover;
+    struct MapEditorHover const* hover = &app->map_editor->map_ghost.hover;
     struct MapEditorSpawnSpec want;
     /* A Ctrl+drag of a spawn (below, "Ctrl+drag"): its own body at the tile
      * under the pointer, as Place previews a pick -- not on its own tile,
@@ -4589,14 +4554,14 @@ app_map_editor_spawn_ghost_update(
     }
     /* A rebuild that did not start here (app_map_editor_world_load_begin
      * took down its own): forget it, place it again. */
-    if( app->editor_shell->map_ghost.spawn.active && app->editor_shell->map_ghost.spawn.entity >= 0
-        && (!app->world || app->editor_shell->map_ghost.spawn.load_seq != app->world->load_seq) )
+    if( app->map_editor->map_ghost.spawn.active && app->map_editor->map_ghost.spawn.entity >= 0
+        && (!app->world || app->map_editor->map_ghost.spawn.load_seq != app->world->load_seq) )
         app_map_editor_spawn_ghost_remove(app);
-    if( !wanted || !MapEditorSpawnGhost_Matches(&app->editor_shell->map_ghost.spawn, &want) )
+    if( !wanted || !MapEditorSpawnGhost_Matches(&app->map_editor->map_ghost.spawn, &want) )
         app_map_editor_spawn_ghost_remove(app);
-    if( wanted && !app->editor_shell->map_ghost.spawn.active )
-        MapEditorSpawnGhost_Place(&app->editor_shell->map_ghost.spawn, &want);
-    if( MapEditorSpawnGhost_Pending(&app->editor_shell->map_ghost.spawn) )
+    if( wanted && !app->map_editor->map_ghost.spawn.active )
+        MapEditorSpawnGhost_Place(&app->map_editor->map_ghost.spawn, &want);
+    if( MapEditorSpawnGhost_Pending(&app->map_editor->map_ghost.spawn) )
         (void)app_map_editor_spawn_ghost_land(app);
     app_map_editor_spawn_ghost_fade(app);
 }
@@ -4930,7 +4895,7 @@ app_spawn_preview_select(
      * replaced the old one latches its spawn's tile. */
     if( Editor_Spawns_SelectFromWorld(ui, &item->want.row, mode) )
         Editor_PanelSelectTerrain(
-            &app->editor_shell->editor_panel,
+            &app->map_editor->editor_panel,
             app,
             item->want.row.abs_x - app->world->_base_tile_x,
             item->want.row.abs_z - app->world->_base_tile_z,
@@ -4947,7 +4912,7 @@ app_map_editor_spawn_preview_select_element(
     struct EditorUi* ui;
 
     assert(app);
-    ui = app->editor_shell->editor_panel.ui;
+    ui = app->map_editor->editor_panel.ui;
     if( !ui || !app->world )
         return;
     if( app_player_preview_take_element(app, ui, element_id) )
@@ -5161,7 +5126,7 @@ app_map_editor_player_ghost_update(
     struct App* app,
     struct EditorUi* ui)
 {
-    struct MapEditorHover const* hover = &app->editor_shell->map_ghost.hover;
+    struct MapEditorHover const* hover = &app->map_editor->map_ghost.hover;
     struct Editor_AccountLook look;
     int look_serial = -1;
     int slots[APPEARANCE_SLOT_COUNT];
@@ -5343,7 +5308,7 @@ app_player_preview_select(
     (void)Editor_Spawns_Select(ui, &none, 0);
     g_app_player_preview.selected = 1;
     Editor_PanelSelectTerrain(
-        &app->editor_shell->editor_panel,
+        &app->map_editor->editor_panel,
         app,
         g_app_player_preview.scene_x,
         g_app_player_preview.scene_z,
@@ -5496,7 +5461,7 @@ App_MapEditorGizmoScreen(
     assert(out_hot);
     memset(out, 0, sizeof(*out));
     *out_hot = g_app_gizmo.active ? (int)g_app_gizmo.drag.handle : g_app_gizmo.hot;
-    panel = &app->editor_shell->editor_panel;
+    panel = &app->map_editor->editor_panel;
     ui = panel->ui;
     if( !panel->visible || !ui || !app->world || ui->tools.loc_count == 0 )
         return 0;
@@ -5556,7 +5521,7 @@ app_gizmo_preview(
     struct EditorUi* ui)
 {
     struct LocEditorGizmoResult result;
-    struct MapEditorPieceGhost* ghost = &app->editor_shell->map_ghost.pieces;
+    struct MapEditorPieceGhost* ghost = &app->map_editor->map_ghost.pieces;
 
     LocEditorGizmo_DragResult(&g_app_gizmo.drag, &result);
     if( result.action != LOC_EDITOR_GIZMO_DO_MOVE && result.action != LOC_EDITOR_GIZMO_DO_DUPLICATE )
@@ -5590,7 +5555,7 @@ app_gizmo_preview(
         piece.scene_z = wz - app->world->_base_tile_z;
         piece.level = ref->level;
         app_gizmo_loc_size(app, ref, &piece.size_x, &piece.size_z);
-        square = Editor_DocFindSquare(&app->editor->doc, wx / 64, wz / 64);
+        square = Editor_DocFindSquare(&app->map_editor->session->doc, wx / 64, wz / 64);
         if( square && square->loaded )
             held = Editor_SquareLocFind(square, ref->level, wx % 64, wz % 64, ref->shape);
         /* Held by a loc the move carries along is free: it leaves first. */
@@ -5699,7 +5664,7 @@ app_map_editor_move_press(
     int scene_z,
     int level)
 {
-    struct Editor_Panel* panel = &app->editor_shell->editor_panel;
+    struct Editor_Panel* panel = &app->map_editor->editor_panel;
     struct MapEditorSpawnPreviewItem* item;
     struct Editor_LocRef under;
 
@@ -5748,9 +5713,9 @@ app_map_editor_move_drag(
     struct App* app,
     struct LibToriRS_Input* input)
 {
-    struct Editor_Panel* panel = &app->editor_shell->editor_panel;
+    struct Editor_Panel* panel = &app->map_editor->editor_panel;
     struct EditorUi* ui = panel->ui;
-    struct MapEditorPieceGhost* ghost = &app->editor_shell->map_ghost.pieces;
+    struct MapEditorPieceGhost* ghost = &app->map_editor->map_ghost.pieces;
     int const released =
         input->curr.mouse_button_up[TORIRSM_LEFT] || !LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
     int hx;
@@ -5855,7 +5820,7 @@ app_map_editor_gizmo_press(
     struct App* app,
     struct LibToriRS_Input* input)
 {
-    struct Editor_Panel* panel = &app->editor_shell->editor_panel;
+    struct Editor_Panel* panel = &app->map_editor->editor_panel;
     struct LocEditorGizmoScreen screen;
     enum LocEditorGizmoHandle handle;
     int hot;
@@ -5889,7 +5854,7 @@ app_map_editor_gizmo_drag(
     struct App* app,
     struct LibToriRS_Input* input)
 {
-    struct Editor_Panel* panel = &app->editor_shell->editor_panel;
+    struct Editor_Panel* panel = &app->map_editor->editor_panel;
     struct EditorUi* ui = panel->ui;
     int const released =
         input->curr.mouse_button_up[TORIRSM_LEFT] || !LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
@@ -5910,7 +5875,7 @@ app_map_editor_gizmo_drag(
     if( !released )
         return;
     g_app_gizmo.active = 0;
-    MapEditorPieceGhost_Clear(&app->editor_shell->map_ghost.pieces);
+    MapEditorPieceGhost_Clear(&app->map_editor->map_ghost.pieces);
     RedrawRequest_Raise(&app->redraw_request);
     /* The selection may have gone while the button was held (an undo from
      * another window): nothing to act on is not an edit. */
@@ -5932,10 +5897,10 @@ app_map_editor_piece_ghost_update(
     struct App* app,
     struct EditorUi* ui)
 {
-    struct Editor_Panel* panel = &app->editor_shell->editor_panel;
-    struct MapEditorPieceGhost* ghost = &app->editor_shell->map_ghost.pieces;
+    struct Editor_Panel* panel = &app->map_editor->editor_panel;
+    struct MapEditorPieceGhost* ghost = &app->map_editor->map_ghost.pieces;
     const struct Editor_Stamp* stamp = edp_stamp_armed(ui);
-    const struct Editor_History* history = Editor_GetHistory(app->editor);
+    const struct Editor_History* history = Editor_GetHistory(app->map_editor->session);
     unsigned serial;
     int wx;
     int wz;
@@ -5962,7 +5927,7 @@ app_map_editor_piece_ghost_update(
     }
     if( g_app_gizmo.active )
         return;
-    if( !stamp || !panel->visible || !app->editor_shell->map_ghost.hover.valid || !app->world )
+    if( !stamp || !panel->visible || !app->map_editor->map_ghost.hover.valid || !app->world )
     {
         if( ghost->source == MAP_EDITOR_PIECE_GHOST_STAMP )
         {
@@ -5971,8 +5936,8 @@ app_map_editor_piece_ghost_update(
         }
         return;
     }
-    wx = app->world->_base_tile_x + app->editor_shell->map_ghost.hover.scene_x;
-    wz = app->world->_base_tile_z + app->editor_shell->map_ghost.hover.scene_z;
+    wx = app->world->_base_tile_x + app->map_editor->map_ghost.hover.scene_x;
+    wz = app->world->_base_tile_z + app->map_editor->map_ghost.hover.scene_z;
     level = Editor_PanelEditLevel(panel, app);
     /* Rebuilt when the tile, the turn or the document moves. */
     serial = (unsigned)history->applied * 2654435761u ^ (unsigned)history->count;
@@ -5987,7 +5952,7 @@ app_map_editor_piece_ghost_update(
         int pl;
         int holder;
         if( stamp->pieces[i].kind != EDITOR_STAMP_LOC
-            || !Editor_StampPieceLanding(&app->editor->doc, stamp, i, wx, wz, level, &px, &pz, &pl, &holder) )
+            || !Editor_StampPieceLanding(&app->map_editor->session->doc, stamp, i, wx, wz, level, &px, &pz, &pl, &holder) )
             continue;
         memset(&piece, 0, sizeof(piece));
         piece.scene_x = px - app->world->_base_tile_x;
@@ -6020,8 +5985,8 @@ app_map_editor_ghost_update(struct App* app)
 
     assert(app);
 
-    panel = &app->editor_shell->editor_panel;
-    if( !app->editor || !panel->ui )
+    panel = &app->map_editor->editor_panel;
+    if( !app->map_editor || !panel->ui )
         return;
     ui = panel->ui;
     app_map_editor_hover_update(app, panel);
@@ -6043,10 +6008,10 @@ app_map_editor_ghost_update(struct App* app)
      * of itself reads as flicker). An armed stamp is the multi-piece ghost's,
      * and so is a gizmo drag. */
     {
-        int const hover_ok = app->editor_shell->map_ghost.hover.valid && !g_app_gizmo.active;
+        int const hover_ok = app->map_editor->map_ghost.hover.valid && !g_app_gizmo.active;
 
-        gx = app->editor_shell->map_ghost.hover.scene_x;
-        gz = app->editor_shell->map_ghost.hover.scene_z;
+        gx = app->map_editor->map_ghost.hover.scene_x;
+        gz = app->map_editor->map_ghost.hover.scene_z;
         if( panel->visible && hover_ok && ui->tools.tool == EDITOR_TOOL_LOC_PLACE && !edp_stamp_armed(ui)
             && ui->tools.pick_kind == CACHEPROVIDER_CATALOG_LOC && ui->tools.pick_id >= 0 )
         {
@@ -6060,16 +6025,16 @@ app_map_editor_ghost_update(struct App* app)
             if( app->world )
                 edp_place_pose_at(
                     ui,
-                    app->world->_base_tile_x + app->editor_shell->map_ghost.hover.scene_x,
-                    app->world->_base_tile_z + app->editor_shell->map_ghost.hover.scene_z,
+                    app->world->_base_tile_x + app->map_editor->map_ghost.hover.scene_x,
+                    app->world->_base_tile_z + app->map_editor->map_ghost.hover.scene_z,
                     level,
                     &shape,
                     &angle);
         }
         else if( panel->visible && hover_ok && ui->tools.tool == EDITOR_TOOL_LOC_MOVE
                  && panel->sel_kind == EDITOR_SELECTION_LOC
-                 && !(app->editor_shell->map_ghost.hover.scene_x == panel->sel_scene_x
-                      && app->editor_shell->map_ghost.hover.scene_z == panel->sel_scene_z) )
+                 && !(app->map_editor->map_ghost.hover.scene_x == panel->sel_scene_x
+                      && app->map_editor->map_ghost.hover.scene_z == panel->sel_scene_z) )
         {
             want = 1;
             id = panel->sel_loc_id;
@@ -6110,10 +6075,10 @@ app_map_editor_ghost_update(struct App* app)
                                                    .shape = shape,
                                                    .angle = angle };
 
-        if( !want || !MapEditorGhost_Matches(&app->editor_shell->map_ghost, &wanted) )
+        if( !want || !MapEditorGhost_Matches(&app->map_editor->map_ghost, &wanted) )
             app_map_editor_ghost_remove(app);
 
-        if( want && !app->editor_shell->map_ghost.active )
+        if( want && !app->map_editor->map_ghost.active )
         {
             if( app_map_editor_ghost_is_edit(app) )
             {
@@ -6147,7 +6112,7 @@ app_map_editor_ghost_update(struct App* app)
                 }
                 App_WorldLocChange(app, wanted.scene_x, wanted.scene_z, level, id, shape, angle);
                 MapEditorGhost_Place(
-                    &app->editor_shell->map_ghost, &wanted, has_displaced ? &displaced : NULL);
+                    &app->map_editor->map_ghost, &wanted, has_displaced ? &displaced : NULL);
                 RedrawRequest_Raise(&app->redraw_request);
             }
         }
@@ -6156,14 +6121,14 @@ app_map_editor_ghost_update(struct App* app)
     /* Translucency, once a placement has produced an element. Written onto
      * the ELEMENT's own model (ForWrite: placements of one loc share a model,
      * and fading it in place would ghost every other copy on screen). */
-    if( MapEditorGhost_NeedsFade(&app->editor_shell->map_ghost) && app->world && app->scene )
+    if( MapEditorGhost_NeedsFade(&app->map_editor->map_ghost) && app->world && app->scene )
     {
         int const idx = World_SceneryFindAt(
             app->world,
-            app->editor_shell->map_ghost.spec.scene_x,
-            app->editor_shell->map_ghost.spec.scene_z,
-            app->editor_shell->map_ghost.spec.level,
-            app->editor_shell->map_ghost.spec.shape);
+            app->map_editor->map_ghost.spec.scene_x,
+            app->map_editor->map_ghost.spec.scene_z,
+            app->map_editor->map_ghost.spec.level,
+            app->map_editor->map_ghost.spec.shape);
         if( idx >= 0 )
         {
             struct WorldEntity_Scenery* scenery = World_EntityPoolGet(&app->world->entities.scenery, idx);
@@ -6179,7 +6144,7 @@ app_map_editor_ghost_update(struct App* app)
                     model->face_alphas = TORIDRAW_MALLOC((size_t)model->face_count);
                 }
                 memset(model->face_alphas, 150, (size_t)model->face_count);
-                MapEditorGhost_NoteFaded(&app->editor_shell->map_ghost);
+                MapEditorGhost_NoteFaded(&app->map_editor->map_ghost);
                 RedrawRequest_Raise(&app->redraw_request);
             }
         }
@@ -6625,10 +6590,10 @@ app_map_editor_shape_strip_update(struct App* app)
 
     /* After the world's first load: a raster at boot ran before the scene's
      * tables were ready and drew slivers. */
-    if( !app->editor_shell->editor_panel.ui || !app->scene || !app->provider || !app->world ||
+    if( !app->map_editor->editor_panel.ui || !app->scene || !app->provider || !app->world ||
         !app->world->load_complete || WorldLoadState_Inflight(&app->world_load) )
         return;
-    count = Editor_Locs_ShapeStrip(app->editor_shell->editor_panel.ui, &loc_id, shapes, &view);
+    count = Editor_Locs_ShapeStrip(app->map_editor->editor_panel.ui, &loc_id, shapes, &view);
     if( count <= 0 )
         return;
     if( loc_id == last_loc && count == last_count && memcmp(shapes, last_shapes, sizeof(int) * (size_t)count) == 0 )
@@ -6720,7 +6685,7 @@ app_map_editor_shape_strip_update(struct App* app)
         {
             static uint32_t version;
             Editor_Locs_ShapeStripSprite(
-                app->editor_shell->editor_panel.ui,
+                app->map_editor->editor_panel.ui,
                 APP_EDITOR_SHAPE_STRIP_SPRITE_ID,
                 strip_w,
                 APP_EDITOR_SHAPE_THUMB_H,
@@ -6753,7 +6718,7 @@ app_map_editor_preview_update(struct App* app)
      *  piled thousands of duplicate loads into the queue). */
     static int models_kind = -1;
     static int models_id = -1;
-    struct Editor_Panel* panel = &app->editor_shell->editor_panel;
+    struct Editor_Panel* panel = &app->map_editor->editor_panel;
     struct ToriDraw_Sprite* sprite = NULL;
     int cat_kind;
     int cat_view;
@@ -6769,7 +6734,7 @@ app_map_editor_preview_update(struct App* app)
     assert(app);
     app_map_editor_shape_strip_update(app);
 
-    if( !app->editor || !panel->visible || !panel->ui )
+    if( !app->map_editor || !panel->visible || !panel->ui )
         return;
     /* The Preview module owns the well (panels/edpanel_preview.c), the
      * catalog the pick (panels/edpanel_catalog.c). A closed Preview renders
