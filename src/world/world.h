@@ -603,10 +603,12 @@ struct World
      *  "new list that happens to be the same length". */
     int area_sound_generation;
 
-    /** Client-side temporary loc-change list (Client-TS locChanges /
-     * deob world.field1353). Pushed by App_WorldLocChange; shifted on
-     * REBUILD_NORMAL and unlinked when out of the 104 window. Not re-applied
-     * after a rebuild — the server re-sends zone state. */
+    /** Client-side loc-change list (Client-TS locChanges / deob
+     * world.field1353): what each changed tile and layer held before its
+     * first change and holds now. Pushed when a loc change applies
+     * (app/app_tasks_locs.c); shifted on REBUILD_NORMAL and unlinked when out
+     * of the 104 window; re-placed after a rebuild
+     * (World_LocChangesTakeStanding) and restored by a zone reset. */
     struct World_LocChange loc_changes[WORLD_LOC_CHANGE_MAX];
     int loc_change_count;
 };
@@ -1968,9 +1970,9 @@ World_ShiftEntities(
 /** Record a temporary loc change (Client-TS locChanges.push). One record per
  * (level, layer, x, z): a change to a key that has one updates its new_*,
  * timing and menu and keeps its old_* (the loc before the key's first change).
- * old_* may be -1 when unknown; end_time of -1 means "permanent until replaced" (not
- * countdown-ticked). end_time > 0 is a countdown (locChangeDoQueue): hide/apply
- * new_type when start_time reaches 0, restore old_type when end_time reaches 0. */
+ * old_* may be -1 when unknown; end_time of -1 means "permanent until replaced".
+ * end_time >= 0 marks a LOC_MERGE's hide (app/app_tasks_locs.c times it): not
+ * permanent, so a rebuild drops the key (World_LocChangesTakeStanding). */
 void
 World_LocChangePush(
     struct World* world,
@@ -2038,19 +2040,6 @@ World_LocChangesTakeStanding(
 /** Clear every temporary loc-change record (scene rebuild). */
 void
 World_LocChangesClear(struct World* world);
-
-/**
- * Advance countdown LocChanges (Client-TS locChangeDoQueue). Entries with
- * end_time < 0 are permanent records and are skipped. For each elapsed cycle,
- * decrements timers and invokes `apply` when start hits 0 (new_type) or end
- * hits 0 (old_type, then removes the entry).
- */
-void
-World_LocChangesTick(
-    struct World* world,
-    int cycles_elapsed,
-    void (*apply)(void* user, int level, int x, int z, int loc_id, int shape, int angle),
-    void* user);
 
 /** Despawn every projectile + spotanim (reference mapBuild clears both when
  * the new scene lands; their trajectories are scene-local). Emits

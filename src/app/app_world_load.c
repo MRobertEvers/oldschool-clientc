@@ -437,23 +437,17 @@ App_WorldLoadFinish(struct App* app)
         app_plugin_objects_rebuild(app);
         if( timing )
             tf[1] = WorldBuilder_TimingNowMs();
-        /* Every loc in the new scene gets its LOC_ADD trigger. After the
-         * plugin seam because a trigger script can create overlays, and the
-         * object rebuild sweeps anything placed before it. */
-        app_client_triggers_world_loaded(app);
+        /* The finish every rebuilt view runs (a deck's too): every loc in the
+         * new scene gets its LOC_ADD trigger, ground items still waiting for
+         * a model take new placeholders against this generation, and --
+         * server-driven only, an offline or editor load builds from text that
+         * already holds its edits -- every loc a zone packet changed, landed
+         * or still pending, is put back on the scene built from the map.
+         * After the plugin seam because a trigger script can create overlays,
+         * and the object rebuild sweeps anything placed before it. */
         if( timing )
             tf[2] = WorldBuilder_TimingNowMs();
-        /* Ground items still without a model and with no task waiting for
-         * one (their loads gave up): asked for again, once per rebuild. */
-        app_ground_stacks_sweep(app, app->world);
-        /* The scene was built from the map, so every loc a zone packet changed
-         * is back to the map's, and a zone that stayed in view is not resent:
-         * re-place them (World_LocChangesTakeStanding). Server-driven only --
-         * an offline or editor load builds from text that already holds its
-         * edits. On the loc lane like the packets were, so a change that
-         * arrives after this lands after it. */
-        if( server_driven )
-            app_world_loc_changes_replace(app);
+        App_WorldViewLoadFinish(app, WORLDVIEW_ROOT, server_driven);
         if( timing )
             tf[3] = WorldBuilder_TimingNowMs();
         World_SetHeightFn(app->world, app_world_height, app);

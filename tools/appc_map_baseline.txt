@@ -282,7 +282,10 @@ src/world/test/wev_rebuild_test.c
 # client -- and the rest are tests and two task units that kept the pointer.
 # src/game/rs_chat.c left 2026-11-19 (packet model step): it stamps
 # chat_message through an RS_EventSink now, not an App pointer.
+# src/app/test/app_loc_tasks_test.c added 2026-11-19 (locs step): it drives
+# the locs family's parallel tasks on a real App's queue and index.
 src/app/test/app_drive_event_ring_test.c
+src/app/test/app_loc_tasks_test.c
 src/app/test/app_logout_wait_test.c
 src/app/test/app_mouseover_entry_test.c
 # Added 2026-11-19 (ground step): a test of the App layer's ground tasks, on a zeroed App.

@@ -475,6 +475,12 @@ Task_GameProtoExec_Run(
             wev_view(self)->builder, self->chunks, self->chunk_count, self->zone_x,
             self->zone_z, self->wev_scene_size, self->wev_zones);
         WorldLoad_ReportTiming(&self->gather_report);
+        /* The finish a root rebuild runs, for this view: its locs' LOC_ADD
+         * triggers, its ground stacks' models, its loc changes put back on
+         * the scene built from the map, its textures. A deck rebuild is
+         * server-driven. */
+        if( wev_view(self)->world->load_complete )
+            App_WorldViewLoadFinish(app, self->wev_view_id, 1);
         if( getenv("TORIRS_WEV_DEBUG") )
             fprintf(
                 stderr,
@@ -484,41 +490,6 @@ Task_GameProtoExec_Run(
                 wev_view(self)->world->_base_tile_z,
                 wev_view(self)->world->load_complete);
         RedrawRequest_Raise(&app->redraw_request);
-    }
-    else if( self->packet.packet_type == PKT_NAME_OBJ_ADD ||
-             self->packet.packet_type == PKT_NAME_OBJ_REVEAL ||
-             self->packet.packet_type == PKT_NAME_OBJ_COUNT )
-    {
-        /* A ground item's model is NOT awaited here: App_WorldObjStackAdd
-         * creates the stack at once and a parallel task lands the model
-         * (app/app_tasks_ground.c). The wait used to be one round trip per
-         * first-seen drop, with every packet and the frame behind it. */
-        {
-            struct RS_ServerState state;
-            struct RS_GameProtoCtx ctx = {
-                .state = &state,
-                .tree = app->tree,
-                .app = app,
-            };
-            App_ServerStateBind(app, &state);
-            RS_GameProto_Exec(&ctx, &self->packet);
-            RedrawRequest_Raise(&app->redraw_request);
-        }
-    }
-    else if( self->packet.packet_type == PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED )
-    {
-        /* Its obj entries land through placeholders too -- see above. */
-        {
-            struct RS_ServerState state;
-            struct RS_GameProtoCtx ctx = {
-                .state = &state,
-                .tree = app->tree,
-                .app = app,
-            };
-            App_ServerStateBind(app, &state);
-            RS_GameProto_Exec(&ctx, &self->packet);
-            RedrawRequest_Raise(&app->redraw_request);
-        }
     }
     else if( self->packet.packet_type == PKT_NAME_PLAYER_INFO && WorldLoadState_Active(&app->world_load) )
     {

@@ -4274,7 +4274,7 @@ app_plugin_world_op(struct App* app, enum DrivePickKind kind, int element_id, in
 /*
  * OPLOC `option` (1..5) on a loc the SERVER has placed at (`abs_x`,`abs_z`)
  * that this client's scenery does not show yet: a zone change waits on its
- * models before the scene lands it (App_DriveLocChangeNote), so there is no
+ * models before the scene lands it (App_DriveLocChangesPending), so there is no
  * element to pick and app_plugin_world_op cannot reach it. The wire wants only
  * the op, the tile and the id (net_out_oploc); the server paths, as it does for
  * every op under the server-authoritative era (app_try_move_op sends no route

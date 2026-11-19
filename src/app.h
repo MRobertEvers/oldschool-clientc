@@ -18,7 +18,6 @@
 #include "game/rs_chat.h"
 #include "game/rs_clientscript_queue.h"
 #include "game/rs_server_tick.h"
-#include "game/rs_zone_inbox.h"
 #include "game/rs_rebuild_region.h"
 #include "game/rs_npc_update_origin.h"
 #include "game/rs_hint_arrow.h"
@@ -142,7 +141,6 @@
 #include "world/wev.h"
 #include "world/world_pickset.h"
 #include "world/wev_aboard_trace.h"
-#include "world/loc_lane.h"
 #include "world/entity_objstack.h"
 #include "world/entity_projectile.h"
 #include "sideapp/side_app_binding.h"
@@ -382,6 +380,15 @@ struct AppConfig
 
 
 /* enum AppState and enum AppScreen: @see game/rs_client_phase.h. */
+
+/* The south-west tile (scene tiles) and plane the latest UPDATE_ZONE_* header
+ * named (App.zone_base). */
+struct App_ZoneBase
+{
+    int base_x;
+    int base_z;
+    int level;
+};
 
 struct App
 {
@@ -731,18 +738,13 @@ struct App
 
     /* Projectile hotkey latch: first press = src tile, second = dst + fire. */
     /*
-     * The loc lane: zone loc changes apply in the order they were enqueued,
-     * but load off the packet queue. A task takes a ticket when it is queued
-     * (LocLane_Take), loads whatever it needs on the parallel asset
-     * runner alongside the others, and only then waits for the lane's applied
-     * count to reach the ticket before it -- so a LOC_DEL lands after the add it
-     * deletes, and nine rock changes at the Inferno's door cost one model
-     * wave instead of nine, none of it parking the packets behind them. A
-     * change not yet applied is the deob's pending spawn, which a LOC_ANIM
-     * may hand its sequence to (App_WorldSceneryAnim).
-     * See app_spawn_loc_lane_queue (app_world_edit.c) and world/loc_lane.h.
+     * Moves whenever the set of pending loc changes does: one is added, or
+     * one ends (applied, replaced, dropped). A loc change is a parallel task
+     * of app/app_tasks_locs.c, keyed per view, tile, level and layer; what
+     * the quest driver reads as "a change the scene has not caught up with"
+     * is that task (App_DriveLocChangesPending), and its caches key on this.
      */
-    struct LocLane loc_lane;
+    uint32_t loc_task_serial;
     /** The side-apps: the debug tools, their key bindings and their state
      *  (sideapp/side_app.h). Registered by App_Init through app/app_tools.c,
      *  the one place that lists them; freed with the dev overlay. */
@@ -1281,24 +1283,18 @@ struct App
      */
     struct ToriRS_InputClaims input_claims;
     /**
-     * The zone base for follows-mode zone packets, and the zone sub-packets
-     * that arrived while the world was still async-loading.
+     * The zone base for follows-mode zone packets: the south-west tile (scene
+     * tiles) and plane the latest UPDATE_ZONE_* header named, which the
+     * sub-packets after it address. A revision-239 header can name a plane
+     * other than the local player's.
      *
-     * The reference cannot receive one mid-build — its scene build runs
-     * synchronously inside the packet loop, so every zone update processes
-     * after the build it follows. Our REBUILD is an async task, and dropping
-     * what arrives in that window diverges: the Inferno's flank walls and
-     * rubble land two ticks after REBUILD_REGION and vanished whenever the
-     * load was still in flight (docs/ORANGE_WEDGE.md §17). Each entry keeps
-     * the zone base and header plane AS OF ARRIVAL. Revision 239's header can
-     * target a plane other than the player, so resolving it at replay time
-     * would overwrite locs in the wrong plane. It also keeps the packet-apply
-     * cursor as of arrival: a queued packet can be replayed ticks later, after
-     * SERVER_TICK_END has reset the live cursor, so resolving it at replay
-     * time would land a boat's zones in the root. Replayed in arrival order
-     * once load_complete flips. See game/rs_zone_inbox.h.
+     * A zone sub-packet for a view that is not built yet (a boat whose
+     * REBUILD_WORLDENTITY has not landed, a replay's scene still loading) is
+     * not held here: it is a parallel task that wants THAT view, carrying the
+     * base, plane and view as of its arrival (App_ZonePacketHold,
+     * app/app_tasks_locs.c), applied in arrival order once the view is built.
      */
-    struct RS_ZoneInbox zone_inbox;
+    struct App_ZoneBase zone_base;
     /** Last REBUILD_NORMAL centre zone (deob field1192/field474 /
      * Client-TS mapBuildCenterZoneX/Z), -1 until the first rebuild; same-zone
      * packets early-out when the world is already active. And the root
@@ -3080,6 +3076,65 @@ App_WorldLocMerge(
     int start_cycle,
     int end_cycle,
     int player_pid);
+
+struct PktZoneSubPacket;
+
+/**
+ * Hold zone sub-packet `pkt` for view `view` (the base, plane and view as of
+ * its arrival) until that view is built and every packet held for it before
+ * this one has applied. A parallel task (app/app_tasks_locs.c); cancelled at
+ * logout. The packet is copied.
+ */
+void
+App_ZonePacketHold(
+    struct App* app,
+    struct PktZoneSubPacket const* pkt,
+    int base_x,
+    int base_z,
+    int level,
+    int view);
+
+/** Is a zone sub-packet held for `view` (so a later one for it must be held
+ *  behind it)? */
+bool
+App_ZonePacketsHeld(
+    struct App* app,
+    int view);
+
+/** Drop every held zone sub-packet unapplied (a replay's scene reset). */
+void
+App_ZonePacketsDiscard(struct App* app);
+
+/**
+ * UPDATE_ZONE_FULL_FOLLOWS's half for the loc changes still pending: cancel
+ * the loc changes and merges pending in view `view`'s 8x8 zone at
+ * (`base_x`, `base_z`) on the walked plane `zone_level` (each tile's cache
+ * level, as a loc packet means it). Returns how many it cancelled.
+ */
+int
+App_LocChangesCancelZone(
+    struct App* app,
+    int view,
+    int base_x,
+    int base_z,
+    int zone_level);
+
+/** Cancel every pending loc change and merge (a replay's scene reset). */
+void
+App_LocChangesCancelAll(struct App* app);
+
+/**
+ * The finish every rebuilt view runs once its scene is built (the root's from
+ * App_WorldLoadFinish, a deck's from REBUILD_WORLDENTITY): LOC_ADD triggers
+ * for its locs, its ground stacks' models, and -- server-driven only -- the
+ * loc changes the map does not hold put back, those that had landed and those
+ * still pending, and its textures.
+ */
+void
+App_WorldViewLoadFinish(
+    struct App* app,
+    int view,
+    int server_driven);
 
 /**
  * Drain the command bus, routing each command to its subsystem: the single

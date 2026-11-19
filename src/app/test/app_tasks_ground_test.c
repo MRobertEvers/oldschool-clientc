@@ -417,7 +417,7 @@ test_a_model_never_served_is_asked_four_times(void)
     CHECK(queued() == 0, "the task gave up");
     CHECK(row(idx)->element_id < 0, "the row stays, without a model");
     /* A rebuild asks once more for a row still without one. */
-    app_ground_stacks_sweep(g_fx.app, g_fx.world);
+    app_ground_stacks_sweep(g_fx.app, g_fx.world, WORLDVIEW_ROOT);
     pump();
     CHECK(starts_of(ASSET_KIND_OBJ_MODEL, 106, 1) == attempts + 1, "the sweep asks again");
     CHECK(app_ground_stack_pending(g_fx.app, g_fx.world, idx), "with a task of its own");

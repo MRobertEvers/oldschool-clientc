@@ -936,40 +936,51 @@ main(void)
      * change, so content that animated a loc on the tick it placed it worked
      * here and never on RuneLite.
      *
-     * Pinned here: the anim takes no lane ticket and no task (it is applied at
-     * once); a change still pending for the tile and LAYER is found and handed
-     * the sequence under the deob's two conditions; the newest of two pending
-     * changes is the one that holds it; and the dat1 lanes, whose 2004-era loc
-     * changes carry no sequence, never hand it over. The scene half
-     * (app_world_scenery_anim_apply) needs a built world and is the same call
-     * the old lane task made.
+     * Pinned here: the anim queues no task (it is applied at once); the change
+     * pending for the tile and LAYER is found through the pending index and
+     * handed the sequence under the deob's two conditions; a newer change for
+     * the key replaces the pending one (the deob keeps one pending spawn per
+     * tile and layer and overwrites it) and is the one that holds it; and the
+     * dat1 lanes, whose 2004-era loc changes carry no sequence, never hand it
+     * over. The scene half (app_world_scenery_anim_apply) needs a built world
+     * and is the same call the change's task makes (app/test/
+     * app_loc_tasks_test.c runs it on one).
      */
     {
         struct App* app = calloc(1, sizeof(*app));
-        struct Task_AppSpawn* change;
-        struct Task_AppSpawn* newer;
-        struct Task_AppSpawn probe;
+        static struct World loc_world;
+        static char loc_builder[1];
+        struct Task_LocChange* change;
+        struct Task_LocChange* newer;
+        struct Task_LocChange* newest;
+        struct Task_LocChange probe;
         int seq = -1;
         int carried;
 
         assert(app);
         app->packet_runner.queue = ToriRS_TaskQueue_New();
         app->frame_runner.queue = ToriRS_TaskQueue_New();
+        App_AssetsInit(app);
+        App_PendingInit(app);
+        /* A root view whose world is not built: nothing stands on any tile. */
+        memset(&loc_world, 0, sizeof(loc_world));
+        WorldviewRegistry_Init(&app->worldviews);
+        WorldviewRegistry_RegisterRoot(
+            &app->worldviews, &loc_world, (struct WorldBuilder*)loc_builder);
 
-        /* No world here: nothing stands on the tile, so the pending change
-         * carries the sequence whatever its loctype says. */
         App_WorldLocChange(app, 12, 34, 0, 32744 /* loc */, 22 /* grounddecor */, 0);
         App_WorldSceneryAnim(app, 12, 34, 0, 22, 8068 /* seq */);
         TEST_EXEC_ASSERT(app->packet_runner.queue->head == NULL, "nothing on the packet FIFO");
-        TEST_EXEC_ASSERT(app->frame_runner.queue->head != NULL, "the change is on the loc lane");
+        TEST_EXEC_ASSERT(app->frame_runner.queue->head != NULL, "the change is a parallel task");
         TEST_EXEC_ASSERT(
             app->frame_runner.queue->head->next == NULL, "and the anim queued no task behind it");
-        TEST_EXEC_ASSERT(LocLane_Newest(&app->loc_lane) == 1, "the anim took no lane ticket");
-        change = (struct Task_AppSpawn*)app->frame_runner.queue->head;
-        TEST_EXEC_ASSERT(change->kind == APP_SPAWN_LOC_CHANGE, "the lane task is the change");
-        TEST_EXEC_ASSERT(change->loc_carry_unfound_set == 1, "nothing stood: the change keeps it");
-        TEST_EXEC_ASSERT(change->loc_carry_unfound_seq == 8068, "the sequence it keeps");
-        carried = app_spawn_loc_carried(change, &seq);
+        change = app_loc_change_pending(app, WORLDVIEW_ROOT, 12, 34, 0, 3);
+        TEST_EXEC_ASSERT(
+            change == (struct Task_LocChange*)app->frame_runner.queue->head,
+            "the pending index finds it by view, tile, level and layer");
+        TEST_EXEC_ASSERT(change->carry.unfound_set == 1, "nothing stood: the change keeps it");
+        TEST_EXEC_ASSERT(change->carry.unfound_seq == 8068, "the sequence it keeps");
+        carried = app_loc_change_carried(change, &seq);
         TEST_EXEC_ASSERT(carried == 1, "a plain loctype places its loc on it");
         TEST_EXEC_ASSERT(seq == 8068, "on that sequence");
 
@@ -977,99 +988,91 @@ main(void)
          * neither is this change's pending spawn. */
         App_WorldSceneryAnim(app, 12, 34, 0, 10, 1111);
         App_WorldSceneryAnim(app, 13, 34, 0, 22, 2222);
-        TEST_EXEC_ASSERT(change->loc_carry_unfound_seq == 8068, "another layer is not its tile");
-        TEST_EXEC_ASSERT(change->loc_carry_any_seq == 8068, "nor is another tile");
+        TEST_EXEC_ASSERT(change->carry.unfound_seq == 8068, "another layer is not its tile");
+        TEST_EXEC_ASSERT(change->carry.any_seq == 8068, "nor is another tile");
 
-        /* Two pending changes for one tile: the newer one is the pending spawn
-         * (the deob keeps one per tile and layer and overwrites it). */
+        /* A second change for the tile replaces the first: one pending spawn
+         * per tile and layer, overwritten. */
         App_WorldLocChange(app, 12, 34, 0, 32743, 22, 0);
-        newer = (struct Task_AppSpawn*)app->frame_runner.queue->head->next;
+        newer = (struct Task_LocChange*)app->frame_runner.queue->head->next;
         TEST_EXEC_ASSERT(newer != NULL, "the second change is queued");
+        TEST_EXEC_ASSERT(change->par.cancelled, "and the first is cancelled");
         TEST_EXEC_ASSERT(
-            app_spawn_loc_lane_pending(app, WorldviewRegistry_Active(&app->worldviews), 12, 34, 0, 3, 0) == newer,
-            "the newest pending change stands for the tile");
+            app_loc_change_pending(app, WORLDVIEW_ROOT, 12, 34, 0, 3) == newer,
+            "the newest change stands for the tile");
         App_WorldSceneryAnim(app, 12, 34, 0, 22, 8065);
-        TEST_EXEC_ASSERT(newer->loc_carry_unfound_seq == 8065, "the newer change keeps it");
-        TEST_EXEC_ASSERT(change->loc_carry_unfound_seq == 8068, "the older one is untouched");
-        TEST_EXEC_ASSERT(
-            app_spawn_loc_lane_pending(app, WorldviewRegistry_Active(&app->worldviews), 12, 34, 0, 3, 1) == NULL,
-            "read this tick: neither change has landed");
-        TEST_EXEC_ASSERT(!newer->loc_take_set, "and neither is taken");
+        TEST_EXEC_ASSERT(newer->carry.unfound_seq == 8065, "the newer change keeps it");
+        TEST_EXEC_ASSERT(change->carry.unfound_seq == 8068, "the older one is untouched");
+        TEST_EXEC_ASSERT(!newer->carry.take_set, "read this tick: it is not taken");
 
-        /* A tick later both changes are still on the lane (their models are
-         * loading), but the deob built them in the cycle that read them: the
-         * newest stands on the tile and the anim is its own, whatever its
-         * loctype -- not the stale loc's, and not judged by deferanimchange. */
+        /* A tick later it is still pending (its models are loading), but the
+         * deob built it in the cycle that read it: the anim is its own,
+         * whatever its loctype -- not the stale loc's, and not judged by
+         * deferanimchange. */
         RS_ServerTick_EndUnfenced(&app->server_tick);
-        TEST_EXEC_ASSERT(
-            app_spawn_loc_lane_pending(app, WorldviewRegistry_Active(&app->worldviews), 12, 34, 0, 3, 1) == newer,
-            "a tick later the newest change has landed");
-        newer->loc_defers_anim = 0;
+        newer->defers_anim = 0;
         App_WorldSceneryAnim(app, 12, 34, 0, 22, 8070);
-        TEST_EXEC_ASSERT(newer->loc_take_set == 1, "the landed change takes it");
-        TEST_EXEC_ASSERT(newer->loc_carry_unfound_seq == 8065, "not as a carry");
-        carried = app_spawn_loc_carried(newer, &seq);
+        TEST_EXEC_ASSERT(newer->carry.take_set == 1, "the landed change takes it");
+        TEST_EXEC_ASSERT(newer->carry.unfound_seq == 8065, "not as a carry");
+        carried = app_loc_change_carried(newer, &seq);
         TEST_EXEC_ASSERT(carried == 1, "a plain loctype starts on it");
         TEST_EXEC_ASSERT(seq == 8070, "the later sequence over the carried one");
 
-        /* A change read in THIS tick on top of the landed one: the anim found
-         * the landed loc standing, so a plain loctype does not carry it. */
+        /* A change read in THIS tick replaces the landed one; nothing stands
+         * in this unbuilt scene, so the new change carries the anim. */
         App_WorldLocChange(app, 12, 34, 0, 32742, 22, 0);
-        {
-            struct Task_AppSpawn* newest =
-                app_spawn_loc_lane_pending(app, WorldviewRegistry_Active(&app->worldviews), 12, 34, 0, 3, 0);
-
-            TEST_EXEC_ASSERT(newest != newer, "the third change is the pending spawn");
-            App_WorldSceneryAnim(app, 12, 34, 0, 22, 8071);
-            TEST_EXEC_ASSERT(newer->loc_take_seq == 8071, "the landed loc took it");
-            TEST_EXEC_ASSERT(!newest->loc_carry_unfound_set, "a loc stood: no unfound carry");
-            TEST_EXEC_ASSERT(newest->loc_carry_any_seq == 8071, "only the deferring slot");
-        }
+        newest = app_loc_change_pending(app, WORLDVIEW_ROOT, 12, 34, 0, 3);
+        TEST_EXEC_ASSERT(newest != newer, "the third change is the pending spawn");
+        TEST_EXEC_ASSERT(newer->par.cancelled, "the landed one is replaced");
+        App_WorldSceneryAnim(app, 12, 34, 0, 22, 8071);
+        TEST_EXEC_ASSERT(newest->carry.unfound_seq == 8071, "nothing stood: an unfound carry");
+        TEST_EXEC_ASSERT(newer->carry.take_seq == 8070, "the replaced change gets nothing");
 
         /* The two conditions, on a bare change. A loc that STOOD took the
          * sequence itself: a loctype without deferanimchange keeps whatever it
          * held before (here nothing), one with it takes the sequence too. */
         memset(&probe, 0, sizeof(probe));
-        probe.kind = APP_SPAWN_LOC_CHANGE;
-        app_spawn_loc_carry(&probe, 7559, 1);
-        probe.loc_defers_anim = 0;
+        probe.change.loc_id = 1;
+        app_loc_change_carry(&probe, 7559, 1);
+        probe.defers_anim = 0;
         TEST_EXEC_ASSERT(
-            app_spawn_loc_carried(&probe, &seq) == 0, "a loc stood: a plain loctype loses it");
-        probe.loc_defers_anim = 1;
-        carried = app_spawn_loc_carried(&probe, &seq);
+            app_loc_change_carried(&probe, &seq) == 0, "a loc stood: a plain loctype loses it");
+        probe.defers_anim = 1;
+        carried = app_loc_change_carried(&probe, &seq);
         TEST_EXEC_ASSERT(carried == 1, "deferanimchange keeps it anyway");
         TEST_EXEC_ASSERT(seq == 7559, "that sequence");
         /* field666 is one slot, written last-wins under those conditions: an
          * unfound 7560 then a found 7561 leaves 7560 for a plain loctype and
          * 7561 for a deferring one. */
-        app_spawn_loc_carry(&probe, 7560, 0);
-        app_spawn_loc_carry(&probe, 7561, 1);
-        probe.loc_defers_anim = 0;
-        carried = app_spawn_loc_carried(&probe, &seq);
+        app_loc_change_carry(&probe, 7560, 0);
+        app_loc_change_carry(&probe, 7561, 1);
+        probe.defers_anim = 0;
+        carried = app_loc_change_carried(&probe, &seq);
         TEST_EXEC_ASSERT(carried == 1, "the unfound write stands for a plain loctype");
         TEST_EXEC_ASSERT(seq == 7560, "the last unfound one");
-        probe.loc_defers_anim = 1;
-        carried = app_spawn_loc_carried(&probe, &seq);
+        probe.defers_anim = 1;
+        carried = app_loc_change_carried(&probe, &seq);
         TEST_EXEC_ASSERT(carried == 1, "a deferring loctype took every write");
         TEST_EXEC_ASSERT(seq == 7561, "the last of them");
 
         /* The 2004-era lanes: the anim reaches the standing loc or nothing. */
         app->cfg.cache_kind = APP_CACHE_DAT1;
         App_WorldSceneryAnim(app, 12, 34, 0, 22, 4444);
-        TEST_EXEC_ASSERT(newer->loc_carry_unfound_seq == 8065, "dat1 never hands it over");
-        TEST_EXEC_ASSERT(newer->loc_carry_any_seq == 8065, "under either condition");
+        TEST_EXEC_ASSERT(newest->carry.unfound_seq == 8071, "dat1 never hands it over");
+        TEST_EXEC_ASSERT(newest->carry.any_seq == 8071, "under either condition");
         app->cfg.cache_kind = APP_CACHE_DAT2;
 
         /* (An EFFECT -- a spotanim, a projectile -- is a parallel task of its
          * own now, with its World row made at the packet:
          * app/test/app_tasks_effects_test.c.) */
-        TEST_EXEC_ASSERT(LocLane_Newest(&app->loc_lane) == 3, "three changes took three tickets");
 
-        /* Freeing the queue with the lane tasks unrun releases their tickets:
-         * a ticket that never released would hold every later loc change. */
+        /* Freeing the queue with the changes unrun unlists every one of them
+         * from the pending index. */
         ToriRS_TaskQueue_Free(app->packet_runner.queue);
         ToriRS_TaskQueue_Free(app->frame_runner.queue);
-        TEST_EXEC_ASSERT(LocLane_Applied(&app->loc_lane) == 3, "freed unrun, every ticket released");
+        TEST_EXEC_ASSERT(RS_Pending_Listed(app->pending) == 0, "freed unrun, every change unlisted");
+        App_PendingFree(app);
+        App_AssetsFree(app);
         free(app);
         printf("ok - a LOC_ANIM goes to the standing loc; a pending LOC_ADD_CHANGE keeps it only as rev 239 does\n");
     }

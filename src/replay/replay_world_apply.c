@@ -94,7 +94,7 @@ ReplayWorld_ClearEntities(struct App* app)
     while( Wevs_ViewListCount(&app->wevs, WORLDVIEW_ROOT) > 0 )
         App_WevDespawn(app, Wevs_ViewListAt(&app->wevs, WORLDVIEW_ROOT, 0)->id);
     WorldviewRegistry_ResetActive(&app->worldviews);
-    RS_ZoneInbox_Discard(&app->zone_inbox);
+    App_ZonePacketsDiscard(app);
 }
 
 /* --- 2. the scene ----------------------------------------------------------- */

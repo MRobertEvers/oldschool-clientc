@@ -123,6 +123,9 @@ enum AssetConfigType
 {
     ASSET_CONFIG_IDK = 0,
     ASSET_CONFIG_OBJ = 1,
+    /* A loc type (app/app_tasks_locs.c: a loc change resolves its multiloc
+     * chain one record at a time). */
+    ASSET_CONFIG_LOC = 2,
 };
 
 #define ASSET_KIND_BIT(kind) (1u << (unsigned)(kind))

@@ -209,7 +209,7 @@ test_scripted_projectile_exists_at_its_add(void)
 
     printf("SCRIPTEDPROJ_ADD: the projectile exists at once; CHANGE finds it; a second ADD is dropped\n");
     fixture_init(&fx);
-    RS_ZoneInbox_SetBase(&fx.app->zone_inbox, 16, 24, 0);
+    fx.app->zone_base = (struct App_ZoneBase){ .base_x = 16, .base_z = 24, .level = 0 };
 
     memset(&p, 0, sizeof(p));
     p.packet_type = PKT_NAME_SCRIPTEDPROJ_ADD;
@@ -296,7 +296,7 @@ test_projanim_and_map_anim_exist_at_once(void)
 
     printf("MAP_PROJANIM and MAP_ANIM: rows at once; a map graphic's failed body takes its row\n");
     fixture_init(&fx);
-    RS_ZoneInbox_SetBase(&fx.app->zone_inbox, 40, 48, 0);
+    fx.app->zone_base = (struct App_ZoneBase){ .base_x = 40, .base_z = 48, .level = 0 };
 
     memset(&p, 0, sizeof(p));
     p.packet_type = PKT_NAME_MAP_PROJANIM;
@@ -379,7 +379,7 @@ test_deck_map_anim_uses_the_deck(void)
     WorldviewRegistry_SetActive(&fx.app->worldviews, 3);
 
     /* Tile 20,20 is in the root scene but not on a 16-tile deck. */
-    RS_ZoneInbox_SetBase(&fx.app->zone_inbox, 16, 16, 0);
+    fx.app->zone_base = (struct App_ZoneBase){ .base_x = 16, .base_z = 16, .level = 0 };
     memset(&p, 0, sizeof(p));
     p.packet_type = PKT_NAME_MAP_ANIM;
     p._map_anim.pos = (4 << 4) | 4;
@@ -388,7 +388,7 @@ test_deck_map_anim_uses_the_deck(void)
     CHECK(count_active(&fx.deck->entities.spotanim) == 0, "F3: off the deck: dropped");
     CHECK(count_active(&fx.root->entities.spotanim) == 0, "F3: and not put in the root");
 
-    RS_ZoneInbox_SetBase(&fx.app->zone_inbox, 0, 8, 0);
+    fx.app->zone_base = (struct App_ZoneBase){ .base_x = 0, .base_z = 8, .level = 0 };
     memset(&p, 0, sizeof(p));
     p.packet_type = PKT_NAME_MAP_ANIM;
     p._map_anim.pos = (5 << 4) | 1; /* 5,9 */
@@ -430,12 +430,14 @@ test_projanim_specific_held_for_the_new_scene(void)
     p._projanim_specific.spotanim = 91;
     p._projanim_specific.end_delay = 50;
     exec(&fx, &p);
-    CHECK(RS_ZoneInbox_HeldCount(&fx.app->zone_inbox) == 1, "held while the scene builds");
+    CHECK(App_ZonePacketsHeld(fx.app, WORLDVIEW_ROOT), "held while the scene builds");
     CHECK(count_active(&fx.root->entities.projectile) == 0, "nothing in the old scene");
 
     World_ResetScene(fx.root, 60, 60, 104);
     World_SetLoadComplete(fx.root, true);
-    RS_GameProto_FlushPendingZone(&fx.ctx);
+    /* The held packet is a parallel task waiting for its view to be built
+     * (app/app_tasks_locs.c); the pump applies it. */
+    pump(&fx);
     CHECK(count_active(&fx.root->entities.projectile) == 1, "applied once the scene is built");
     proj = World_EntityPoolGet(&fx.root->entities.projectile, World_EntityPoolHead(&fx.root->entities.projectile));
     CHECK(proj->src_x == 10 * 128 + 64 && proj->src_z == 12 * 128 + 64,

@@ -607,8 +607,7 @@ app_pump_net_packets(struct App* app)
              *
              * The commit's own work settles whole here; the pacing starts once
              * it has. (App_WorldLoadFinish's loc re-place is not part of it:
-             * it goes through the loc lane onto the parallel queue,
-             * app_spawn_loc_lane_queue.) */
+             * each re-placed loc is a parallel task, app/app_tasks_locs.c.) */
             stat = TaskRunner_SettleFrameUntil(
                 &app->packet_runner, committed ? 0 : App_PacedDeadline(app));
             if( committed )
@@ -717,8 +716,8 @@ app_pump_net_packets(struct App* app)
          * packet phase and before the next pop, so to everything behind it
          * the rebuild is applied exactly where the wire put it. Work it queues
          * on this FIFO is settled by the next turn of the loop before anything
-         * is popped; App_WorldLoadFinish's loc re-place is not on it (the loc
-         * lane queues it on the parallel queue, app_spawn_loc_lane_queue).
+         * is popped; App_WorldLoadFinish's loc re-place is not on it (each
+         * re-placed loc is a parallel task, app/app_tasks_locs.c).
          *
          * Nothing else is held: the pipeline is idle and the REBUILD's tick,
          * open on varps alone, has its latch suspended for the hold

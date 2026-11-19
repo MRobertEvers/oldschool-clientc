@@ -431,13 +431,15 @@ app_ground_stack_pending(
 void
 app_ground_stacks_sweep(
     struct App* app,
-    struct World* world)
+    struct World* world,
+    int view)
 {
     struct World_EntityPool* pool;
 
     assert(app);
     assert(world);
-    assert(world == app->world);
+    assert(WorldviewRegistry_IsLive(&app->worldviews, view));
+    assert(world == WorldviewRegistry_Get(&app->worldviews, view)->world);
     assert(world->load_complete);
     pool = &world->entities.obj_stack;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
@@ -449,7 +451,7 @@ app_ground_stacks_sweep(
         if( RS_Pending_Find(
                 app->pending, APP_TASKS_GROUND_STACK_MODEL, ground_stack_key(i, stack->serial)) )
             continue;
-        app_ground_stack_show(app, world, WORLDVIEW_ROOT, i, 1);
+        app_ground_stack_show(app, world, view, i, 1);
     }
 }
 
