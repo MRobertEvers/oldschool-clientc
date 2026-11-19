@@ -89,6 +89,10 @@ struct UIIfPlayerModel
     int built;            /* scene_id holds this composition, built whole */
     uint32_t applied_gen; /* tree generation scene_id was bound into */
     uint32_t close_serial; /* as UIIfHead's; com_id -1 = a free slot */
+    /* The composition the packets last committed (UIIfModels.
+     * composition_serial when it was committed). A build of an older one
+     * is stale and is not put into scene_id. */
+    uint32_t composition;
 };
 
 /* Live local-player model widgets (clientCode 328 -- the equipment-stats
@@ -113,6 +117,9 @@ struct UIIfModels
     struct UIIfPlayerModel* player_models;
     int player_model_count;
     int player_model_cap;
+    /* Counts every composition a player-model packet commits, for every
+     * component, so a composition number is never reused. */
+    uint32_t composition_serial;
     struct UIIfLocalPlayerModel local_player;
 };
 

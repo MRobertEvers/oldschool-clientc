@@ -104,6 +104,23 @@ main(
     assert(node_child_count(app.tree, app.slots.main_modal_index) == 0);
     printf("PASS: CloseModal cleared the mount\n");
 
+    /* U5: a queued slot mount names its slot, not the node index it had when
+     * it was queued. A tree rebuilt in between (RS_UISlots_RebindTree) can
+     * leave the old index naming another node or none; the mount re-resolves
+     * the slot when it runs, and a slot this tree no longer has is skipped. */
+    {
+        int32_t const region = app.slots.main_modal_index;
+        RS_UISlots_OpenMain(&app, 12);
+        app.slots.main_modal_index = -1; /* the rebuilt tree has no main region */
+        App_BootWait(&app);
+        TEST_CHECK(node_child_count(app.tree, region) == 0);
+        app.slots.main_modal_index = region;
+        RS_UISlots_CloseModal(&app);
+        App_BootWait(&app);
+        TEST_CHECK(node_child_count(app.tree, region) == 0);
+        printf("PASS: a queued slot mount re-resolves its slot when it runs\n");
+    }
+
     /* IF_SETTAB into the empty slot 7, then clear it with 65535. */
     RS_UISlots_SetTab(&app, 7, 5608);
     App_BootWait(&app);

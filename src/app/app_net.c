@@ -1035,9 +1035,18 @@ App_IfHideShow(
 {
     assert(app);
     {
+        int32_t const idx = app->tree ? UITree_FindByComponentId(app->tree, com_id) : -1;
+        int const was_hidden = idx >= 0 && app->tree->components[idx].behavior.hide;
         bool applied = UITree_ApplyHide(app->tree, com_id, hide);
         if( torirs_env_net_debug() )
             TORIRS_REPORT("if_sethide: com=%d hide=%d applied=%d\n", com_id, hide, (int)applied);
+        /* U4: an unhide resumes the transmit hooks that deferred while the
+         * component was hidden -- the same flag a script's if_sethide unhide
+         * raises (rs_cs2_host.c exec_widget_set_hide). Without it a hook that
+         * missed an inventory or var change while hidden waited for some
+         * unrelated unhide. */
+        if( was_hidden && !hide )
+            app->host.widgets_loaded_dirty = 1;
     }
     RedrawRequest_Raise(&app->redraw_request);
 }
