@@ -159,6 +159,7 @@ group_getvar(
     int const slot = var & 0xffff;
     struct CacheProvider const* provider = host->provider;
 
+    assert(provider);
     if( group )
     {
         struct RS_GroupValue const* value;
@@ -171,7 +172,7 @@ group_getvar(
         value = &group->values[scope][slot];
         return group_push(vm, var, value->int_value, value->long_value, value->string_value);
     }
-    if( !provider || def_id >= provider->group_types.count ||
+    if( def_id >= provider->group_types.count ||
         slot >= provider->group_types.types[def_id].var_count[scope] )
         return group_push(vm, var, 0, 0, "");
     {
