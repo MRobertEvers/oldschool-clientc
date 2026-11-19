@@ -211,7 +211,9 @@ return {
         grow(t, 4)
         t.expect("bella.grown", t.var.await_server("varb748_varbit_748", 8, 5))
         local _, hp0 = t.skill.read("hitpoints")
-        t.exec("bella.bare", t.player.click_loc, "farming_belladonna_patch", 1)
+        -- A bare-handed pick changes nothing the click's settle watches for (no
+        -- chat, no loc, no inventory): the hit is the answer, checked below.
+        t.player.click_loc("farming_belladonna_patch", 1)
         t.ticks(3)
         do
             local _, hp1 = t.skill.read("hitpoints")

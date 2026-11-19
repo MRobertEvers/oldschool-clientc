@@ -538,8 +538,13 @@ enum
      *
      * Raised 3200 -> 3328 when Forestry's tree timer
      * (skill_woodcutting/configs/tree_timer.varp, 9599..9601) reached it.
+     *
+     * Raised 3328 -> 3456 when the farming patches' flags words
+     * (skill_farming/configs/farming_state.varp, 9720..9752) passed 9728: the
+     * special trees' disease rolls and the cactus, mushroom and belladonna
+     * patches aborted on PUSH_VARP ("varp 9742 is outside the mock's range").
      */
-    TORIRSSERVER_VARP_SERVER_HEADROOM = 3328,
+    TORIRSSERVER_VARP_SERVER_HEADROOM = 3456,
     TORIRSSERVER_VARP_COUNT = TORIRSSERVER_VARP_CACHE_MAX + TORIRSSERVER_VARP_SERVER_HEADROOM,
     /*
      * World-shared variables — `%name` resolving to SSC_SYM_VARS, one value per

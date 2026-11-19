@@ -31,7 +31,7 @@
  *
  * Plus the one rule the server adds: varps live in the server headroom, so a
  * varp at or past TORIRSSERVER_VARP_CACHE_MAX + TORIRSSERVER_VARP_SERVER_HEADROOM
- * (6400 + 3200, torirs_server.h) is refused rather than handed out to be
+ * (6400 + 3456, torirs_server.h) is refused rather than handed out to be
  * dropped by the server's bounds check.
  *
  * NOTHING HERE WRITES A FILE. The result of an allocation is a list of
@@ -56,9 +56,9 @@
 #include <stddef.h>
 
 /** The varp ceiling: TORIRSSERVER_VARP_CACHE_MAX (6400) +
- *  TORIRSSERVER_VARP_SERVER_HEADROOM (3200). editor_alloc_test checks it
+ *  TORIRSSERVER_VARP_SERVER_HEADROOM (3456). editor_alloc_test checks it
  *  against torirs_server.h. */
-#define EDITOR_ALLOC_VARP_CEILING 9600
+#define EDITOR_ALLOC_VARP_CEILING 9856
 
 /** ss_allocate.py's marker line, verbatim. */
 #define EDITOR_ALLOC_MARKER                                                                        \
