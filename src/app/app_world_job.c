@@ -107,6 +107,12 @@ static struct
     int in_floor;
 } g_job_tally;
 
+char const*
+App_QueueSiteNow(void)
+{
+    return g_app_queue_site;
+}
+
 static void
 app_background_entry_check(
     struct App* app,

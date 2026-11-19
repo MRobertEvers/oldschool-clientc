@@ -458,7 +458,10 @@ struct App
      *      pumped until a task asks for a frame (RENDER), its head waits, or
      *      it is empty. It alone may ask for a frame -- which is why the boot
      *      and its preload run here (app_open_tree): before login there are
-     *      no packets. Its tasks may wait on any state.
+     *      no packets. A frame it asked for is owed until the next frame
+     *      begins (TaskRunner_RenderOwed), so a pump that is not a frame (the
+     *      browser's between-frames pump) does not resume the task that
+     *      asked. Its tasks may wait on any state.
      *   3. THE PARALLEL QUEUE (frame_runner) is IO-heavy work and is
      *      DRAINED: each pump steps every task that can run at least once,
      *      then keeps stepping until every task is done, waiting on a read,
@@ -474,7 +477,9 @@ struct App
      *   4. THE BACKGROUND QUEUE (background_runner) is CPU-heavy work and is
      *      GIVEN TIME: a floor slice every App_RunOnce
      *      (app_run_background_floor) plus whatever slack the platform loop
-     *      has (App_RunBackground). Each pump steps every task that can run
+     *      has before its next frame is due (App_RunBackground; in the
+     *      browser no later than the display's next vsync,
+     *      ToriRS_Pacer_SlackEndUs). Each pump steps every task that can run
      *      ONCE whatever the clock says -- the queue always makes progress,
      *      even on a frame that missed its deadline -- then keeps stepping
      *      until every task is done or the slice is up; a long task checks
