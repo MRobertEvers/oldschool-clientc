@@ -965,10 +965,15 @@ Assets_Lift(
     assets->entries[idx].retry_at = 0;
 }
 
-int
-Assets_Land(
+/* Assets_Land and Assets_LandFor: the arrivals of `kind_mask` whose waiter
+ * has `land` and `ctx` (`land` NULL: every waiter). A dropped waiter's node
+ * is released by either. */
+static int
+land_arrivals(
     struct Assets* assets,
-    uint32_t kind_mask)
+    uint32_t kind_mask,
+    AssetLandFn land,
+    void* ctx)
 {
     int32_t take_head = NIL;
     int32_t take_tail = NIL;
@@ -984,7 +989,9 @@ Assets_Land(
     while( n != NIL )
     {
         int32_t next = assets->nodes[n].next;
-        bool take = (kind_mask & ASSET_KIND_BIT(assets->nodes[n].key.kind)) != 0;
+        bool take = (kind_mask & ASSET_KIND_BIT(assets->nodes[n].key.kind)) != 0 &&
+                    (!land || assets->nodes[n].type != NODE_WANT ||
+                        (assets->nodes[n].waiter.land == land && assets->nodes[n].waiter.ctx == ctx));
         int32_t* head = take ? &take_head : &keep_head;
         int32_t* tail = take ? &take_tail : &keep_tail;
 
@@ -1025,6 +1032,24 @@ Assets_Land(
         landed++;
     }
     return landed;
+}
+
+int
+Assets_Land(
+    struct Assets* assets,
+    uint32_t kind_mask)
+{
+    return land_arrivals(assets, kind_mask, NULL, NULL);
+}
+
+int
+Assets_LandFor(
+    struct Assets* assets,
+    AssetLandFn land,
+    void* ctx)
+{
+    assert(land);
+    return land_arrivals(assets, ASSET_KIND_ALL, land, ctx);
 }
 
 int

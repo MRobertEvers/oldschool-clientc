@@ -233,7 +233,10 @@
 # Raised to 149 by the assets table step: assets (struct Assets,
 # engine/asset_requests.h) arrived; the trackers it replaces leave in the
 # commits that follow.
-struct-App-fields: 149
+# Raised to 150 by the parked lookup step: parked (struct Park,
+# game/rs_parked.h), the one lookup every family of parked work shares;
+# the per-family pending records it replaces leave in the family steps.
+struct-App-fields: 150
 
 src/main.c
 src/executor_config.c
@@ -375,4 +378,6 @@ src/replay/replay_world_apply.c
 # test became one MapEditorConfig_IsEditorBoot call.
 # Raised to 1421 by the assets table step: App_AssetsInit after the provider
 # is opened, App_AssetsFree (and its comment) after the queues.
-app.c-lines: 1421
+# Raised to 1423 by the parked lookup step: App_ParkedInit after
+# App_AssetsInit, App_ParkedFree before the teardown that frees the table.
+app.c-lines: 1423

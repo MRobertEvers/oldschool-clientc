@@ -40,7 +40,9 @@ int g_failures;
  * The attack-option reset asserts `features` holds an era, and a name is what
  * says so; the rest stays zeroed, the table's default models. `esync` has to
  * be Init'd because a zeroed one carries local pid 0, which the clear would
- * then try to remove from a world that does not exist here.
+ * then try to remove from a world that does not exist here. The logout
+ * cancels everything parked, so the parked lookup (and the assets table under
+ * it) is made too.
  */
 static struct App*
 make_app(struct ToriRS_Network* net)
@@ -50,10 +52,20 @@ make_app(struct ToriRS_Network* net)
     TEST_ASSERT(app != NULL, "allocated the app fixture");
     app->features.name = "test";
     RS_EntitySync_Init(&app->esync);
+    App_AssetsInit(app);
+    App_ParkedInit(app);
     app->net = net;
     if( net )
         ToriRS_Network_Enable(net);
     return app;
+}
+
+static void
+free_app(struct App* app)
+{
+    App_ParkedFree(app);
+    App_AssetsFree(app);
+    free(app);
 }
 
 /* A network that is in the game stream and has never been connected to
@@ -103,7 +115,7 @@ test_the_click_does_not_end_the_session(void)
     TEST_ASSERT(net->state == TORIRS_NET_GAME, "still in the game stream");
     TEST_ASSERT(!disconnect_queued(net), "nothing closed the socket on the player's behalf");
 
-    free(app);
+    free_app(app);
     free(net);
 }
 
@@ -153,7 +165,7 @@ test_a_refused_logout_keeps_the_session(void)
         "the late answer was not read as a lost connection to redial");
     TEST_ASSERT(net->state == TORIRS_NET_DISCONNECTED, "the session ended");
 
-    free(app);
+    free_app(app);
     free(net);
 }
 
@@ -179,7 +191,7 @@ test_a_closed_socket_is_the_answer(void)
         "the link was not left lost, so nothing redials the world the player left");
     TEST_ASSERT(net->state == TORIRS_NET_DISCONNECTED, "the session ended");
 
-    free(app);
+    free_app(app);
     free(net);
 }
 
@@ -197,7 +209,7 @@ test_a_closed_socket_with_no_logout_pending_still_reconnects(void)
 
     TEST_ASSERT(NetLinkWatch_Lost(&app->net_link), "the link is lost and being re-established");
 
-    free(app);
+    free_app(app);
     free(net);
 }
 
@@ -234,7 +246,7 @@ test_a_logout_forgets_the_resumable_session(void)
         app_session_resume_user()[0] == '\0',
         "a reload would have logged back into the world the player left");
 
-    free(app);
+    free_app(app);
     free(net);
 }
 
@@ -260,7 +272,7 @@ test_a_lost_connection_keeps_the_resumable_session(void)
         "a dropped socket threw away the session key that gets the player back");
 
     app_session_resume_forget();
-    free(app);
+    free_app(app);
     free(net);
 }
 
@@ -278,7 +290,7 @@ test_no_session_means_no_wait(void)
     TEST_ASSERT(app_logout_tick(app), "the session ended on the tick that drained the request");
     TEST_ASSERT(app->session_end.logout_wait_cycles == 0, "nothing was armed to wait for");
 
-    free(app);
+    free_app(app);
 }
 
 int

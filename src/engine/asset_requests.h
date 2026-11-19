@@ -357,6 +357,15 @@ Assets_Land(
     struct Assets* assets,
     uint32_t kind_mask);
 
+/** As Assets_Land, for the arrivals of every kind whose waiter has `land`
+ *  and `ctx` only: an owner that lands its own waiters at its own point (the
+ *  parked lookup's landing point) without landing anyone else's. */
+int
+Assets_LandFor(
+    struct Assets* assets,
+    AssetLandFn land,
+    void* ctx);
+
 /** Forget every want waiter with `land` and `ctx` for which `match` answers
  *  true (pending or arrived), uncalled. Returns how many. */
 int
