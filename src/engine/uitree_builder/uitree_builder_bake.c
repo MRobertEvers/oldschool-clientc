@@ -539,7 +539,7 @@ uitree_builder_bake_pack_under_owner(
         /* The record's own transmit hooks, armed here rather than by a script.
          * They must exist before the builder's initial var/inv dispatch or the
          * mount paints from the onload and then goes deaf. */
-        if( builder->host )
+        if( builder->scripts == UITREE_BUILDER_SCRIPTS_CS2 )
             RS_CS2_RegisterCacheTransmitHooks(builder->host, tree, src);
     }
 
