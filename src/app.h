@@ -160,7 +160,7 @@ struct PktRunClientScript;
 
 struct World;
 struct Assets;
-struct Park;
+struct RS_Pending;
 struct WorldBuilder;
 struct PaintersBuffer;
 struct RSCache_Dat1Disk;
@@ -471,10 +471,10 @@ struct App
      * a transaction on it, so its had_work latch is never set.
      */
     struct TaskRunner background_runner;
-    /** Parked work: what a packet, script or varp could not finish because
-     *  something purely visual was not here yet, one entry per target, landed
-     *  at the frame's landing point (game/rs_parked.h; app/app_parked.c). */
-    struct Park* parked;
+    /** The pending index: every live parallel task on frame_runner, found by
+     *  what it is for and cancelled by key or scope; it holds no data of its
+     *  own (game/rs_pending.h; app/app_parallel_task.h). */
+    struct RS_Pending* pending;
 
     /* Phase 2: asset pipeline. The disk (or the on-demand stream) and the
      * build cache that backs `provider`; everything downstream sees only the

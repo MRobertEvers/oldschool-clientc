@@ -326,8 +326,8 @@ app_seq_bind_pending_drop(
         app->assets, app_seq_bind_landed, app, app_seq_bind_is_element, &element_id);
 }
 
-/* Per-frame: bind deferred element/sequence pairs whose loads landed -- the
- * SEQUENCE kind's landing point, where the poll that did this stood. */
+/* Per-frame: bind deferred element/sequence pairs whose loads landed -- where
+ * the SEQUENCE kind's waiters land, where the poll that did this stood. */
 void
 app_world_bind_pending_seqs(struct App* app)
 {

@@ -103,6 +103,8 @@ struct AssetNode
     uint8_t outcome;
     struct AssetKey key;
     int* join;
+    /* NODE_JOIN from Assets_AwaitOutcome: written when the attempt ends. */
+    enum AssetOutcome* result;
     struct AssetWaiter waiter;
     uint64_t wanted_at;
 };
@@ -399,12 +401,14 @@ entry_has_want(
     return false;
 }
 
-/* Release every join counting this entry's attempt: the attempt ended. Wants
- * stay. Dead nodes are freed on the way. */
+/* Release every join counting this entry's attempt: the attempt ended, with
+ * `outcome` (written to an awaiter that asked for it). Wants stay. Dead nodes
+ * are freed on the way. */
 static void
 entry_release_joins(
     struct Assets* assets,
-    int idx)
+    int idx,
+    enum AssetOutcome outcome)
 {
     struct AssetEntry* e = &assets->entries[idx];
     int32_t n = e->head;
@@ -422,6 +426,8 @@ entry_release_joins(
             {
                 assert(*assets->nodes[n].join > 0);
                 (*assets->nodes[n].join)--;
+                if( assets->nodes[n].result )
+                    *assets->nodes[n].result = outcome;
             }
             node_release(assets, n);
         }
@@ -451,7 +457,7 @@ entry_arrive_all(
     struct AssetEntry* e;
     int32_t n;
 
-    entry_release_joins(assets, idx);
+    entry_release_joins(assets, idx, outcome);
     e = &assets->entries[idx];
     n = e->head;
     while( n != NIL )
@@ -627,7 +633,7 @@ Assets_Finished(
     }
     else if( policy->fail == ASSET_FAIL_BACKOFF )
     {
-        entry_release_joins(assets, idx);
+        entry_release_joins(assets, idx, ASSET_OUTCOME_FAILED);
         e = &assets->entries[idx];
         e->wait_ms = Assets_BackoffNext(policy, e->wait_ms);
         e->retry_at = assets->now_ms + e->wait_ms;
@@ -637,7 +643,7 @@ Assets_Finished(
     {
         assert(policy->fail == ASSET_FAIL_GIVE_UP);
         assert(policy->fail_attempts >= 1);
-        entry_release_joins(assets, idx);
+        entry_release_joins(assets, idx, ASSET_OUTCOME_FAILED);
         e = &assets->entries[idx];
         if( e->attempts < policy->fail_attempts && e->head != NIL )
         {
@@ -669,7 +675,7 @@ Assets_Abandoned(
     e = &assets->entries[idx];
     assert(e->state == ASSET_STATE_LOADING);
     assets->kind_loading[key.kind]--;
-    entry_release_joins(assets, idx);
+    entry_release_joins(assets, idx, ASSET_OUTCOME_DROPPED);
     e = &assets->entries[idx];
     if( e->superseded )
     {
@@ -824,13 +830,15 @@ static void
 add_join(
     struct Assets* assets,
     int idx,
-    int* join)
+    int* join,
+    enum AssetOutcome* result)
 {
     int32_t n = node_alloc(assets);
 
     assets->nodes[n].type = NODE_JOIN;
     assets->nodes[n].key = assets->entries[idx].key;
     assets->nodes[n].join = join;
+    assets->nodes[n].result = result;
     (*join)++;
     entry_append(assets, idx, n);
 }
@@ -905,34 +913,73 @@ Assets_Want(
     return (enum AssetState)assets->entries[idx].state;
 }
 
+/* Assets_Await and Assets_AwaitOutcome. `result` NULL: nobody asked. */
+static int
+await_key(
+    struct Assets* assets,
+    struct AssetKey key,
+    int* join,
+    enum AssetOutcome* result)
+{
+    int idx;
+
+    check_key(key);
+    idx = entry_find(assets, key);
+    if( idx >= 0 && entry_land_if_resident(assets, idx) )
+    {
+        if( result )
+            *result = ASSET_OUTCOME_LANDED;
+        return 0;
+    }
+    if( idx < 0 )
+    {
+        if( key_resident(assets, key) )
+        {
+            if( result )
+                *result = ASSET_OUTCOME_LANDED;
+            return 0;
+        }
+        if( Assets_Policy((enum AssetKind)key.kind)->newer == ASSET_NEWER_REPLACE )
+            supersede_others(assets, key);
+        idx = entry_insert(assets, key);
+    }
+    else if( assets->entries[idx].state == ASSET_STATE_FAILED )
+    {
+        if( result )
+            *result = ASSET_OUTCOME_FAILED;
+        return 0;
+    }
+    /* Until the attempt ends: not here. */
+    if( result )
+        *result = ASSET_OUTCOME_DROPPED;
+    add_join(assets, idx, join, result);
+    /* A task is waiting: a back-off does not hold it. */
+    maybe_start(assets, key, true);
+    return 1;
+}
+
 int
 Assets_Await(
     struct Assets* assets,
     struct AssetKey key,
     int* join)
 {
-    int idx;
-
     assert(assets);
     assert(join);
-    check_key(key);
-    idx = entry_find(assets, key);
-    if( idx >= 0 && entry_land_if_resident(assets, idx) )
-        return 0;
-    if( idx < 0 )
-    {
-        if( key_resident(assets, key) )
-            return 0;
-        if( Assets_Policy((enum AssetKind)key.kind)->newer == ASSET_NEWER_REPLACE )
-            supersede_others(assets, key);
-        idx = entry_insert(assets, key);
-    }
-    else if( assets->entries[idx].state == ASSET_STATE_FAILED )
-        return 0;
-    add_join(assets, idx, join);
-    /* A task is waiting: a back-off does not hold it. */
-    maybe_start(assets, key, true);
-    return 1;
+    return await_key(assets, key, join, NULL);
+}
+
+int
+Assets_AwaitOutcome(
+    struct Assets* assets,
+    struct AssetKey key,
+    int* join,
+    enum AssetOutcome* outcome)
+{
+    assert(assets);
+    assert(join);
+    assert(outcome);
+    return await_key(assets, key, join, outcome);
 }
 
 void
@@ -952,6 +999,7 @@ Assets_Unjoin(
         {
             assets->nodes[i].type = NODE_DEAD;
             assets->nodes[i].join = NULL;
+            assets->nodes[i].result = NULL;
         }
     *join = 0;
 }
@@ -1017,15 +1065,12 @@ Assets_Lift(
     assets->entries[idx].retry_at = 0;
 }
 
-/* Assets_Land and Assets_LandFor: the arrivals of `kind_mask` whose waiter
- * has `land` and `ctx` (`land` NULL: every waiter). A dropped waiter's node
- * is released by either. */
-static int
-land_arrivals(
+/* BEING REMOVED with the callback waiters (see the header). A dropped
+ * waiter's node is released here. */
+int
+Assets_Land(
     struct Assets* assets,
-    uint32_t kind_mask,
-    AssetLandFn land,
-    void* ctx)
+    uint32_t kind_mask)
 {
     int32_t take_head = NIL;
     int32_t take_tail = NIL;
@@ -1041,9 +1086,7 @@ land_arrivals(
     while( n != NIL )
     {
         int32_t next = assets->nodes[n].next;
-        bool take = (kind_mask & ASSET_KIND_BIT(assets->nodes[n].key.kind)) != 0 &&
-                    (!land || assets->nodes[n].type != NODE_WANT ||
-                        (assets->nodes[n].waiter.land == land && assets->nodes[n].waiter.ctx == ctx));
+        bool take = (kind_mask & ASSET_KIND_BIT(assets->nodes[n].key.kind)) != 0;
         int32_t* head = take ? &take_head : &keep_head;
         int32_t* tail = take ? &take_tail : &keep_tail;
 
@@ -1084,24 +1127,6 @@ land_arrivals(
         landed++;
     }
     return landed;
-}
-
-int
-Assets_Land(
-    struct Assets* assets,
-    uint32_t kind_mask)
-{
-    return land_arrivals(assets, kind_mask, NULL, NULL);
-}
-
-int
-Assets_LandFor(
-    struct Assets* assets,
-    AssetLandFn land,
-    void* ctx)
-{
-    assert(land);
-    return land_arrivals(assets, ASSET_KIND_ALL, land, ctx);
 }
 
 int

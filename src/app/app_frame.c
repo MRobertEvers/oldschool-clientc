@@ -884,31 +884,17 @@ App_RunOnce(
 }
 
 /*
- * ONE FRAME, IN ORDER, as the packet design states it (both clients):
- *
- *   input
- *   -> logic ticks: the packets in order, then the tick's client scripts
- *      settle
- *   -> the parallel queue is pumped until nothing more can progress
- *   -> THE LANDING POINT: every arrival of the parked lookup is landed, in
- *      parked arrival order
- *   -> if a landing queued a client script, the script settle runs once more
- *   -> one background slice
- *   -> the frame is published if packets and scripts are settled.
- *
- * Landings never run in the middle of a packet task or in the middle of a
- * script settle. Carried to the next frame: loaders still waiting on a read,
- * parked entries, the background job.
- *
- * Where each sits in the body below, which keeps the order it already had:
- * the parallel queue is pumped near the top (App_PumpAsync), so the landing
- * point that follows it lands what the loads started by the last frame's
- * packets brought in; it runs after the async completion polls and before
- * this frame's logic ticks, and settles any script a landing queued at once
- * (App_ParkedLandingPoint). The logic ticks and their settles, the packet
- * pump and the pre-interaction settle follow; the frame is published only
- * once the settle gate says packets and scripts are settled; the background
- * slice is App_RunOnce's floor after the body.
+ * THE QUEUES A FRAME RUNS. The packet queue (app->packet_runner: one task
+ * per packet, in order) and client scripts HOLD the frame: nothing is
+ * published until they are settled. The parallel queue (app->frame_runner)
+ * does NOT, except for a task added render-blocking: an ordinary task on it
+ * (a loader, a parallel task, app/app_parallel_task.h) is carried across
+ * frames and a frame published over it is a correct frame. The parallel
+ * queue is stepped near the top of every frame until nothing more can
+ * progress (App_PumpAsync), inside a client script's settle
+ * (app_settle_cs2_frame), and from the packet pump while the packet queue is
+ * blocked on it (app_pump_net_packets). The background queue gets one slice
+ * after the body (app_run_background_floor).
  */
 static int
 app_run_once_body(
@@ -1094,16 +1080,6 @@ app_run_once_body(
      * binds, and any queued tree refresh (relayout + CS1 + redraw). */
     app_async_polls(app);
     app_rebuild_mark(app, "async_polls");
-    /* THE LANDING POINT (app/app_parked.c): the parked lookup's arrivals, in
-     * parked arrival order, under a budget. After the parallel queue was
-     * pumped above, after the early-out for a settle still in progress, and
-     * never while a packet task is in flight; a script a landing queued is
-     * settled there before anything below can publish. */
-    if( !App_ParkedLandingPoint(app) )
-    {
-        app_frame_latch_note(app, "parked_landing_cs2");
-        return 0;
-    }
 
     /* Logic ticks at 20ms with bounded catch-up after a stall
      * (FrameClockStep_Pay starts the clock on the first frame). */

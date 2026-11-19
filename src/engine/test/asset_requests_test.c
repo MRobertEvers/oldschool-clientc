@@ -12,7 +12,8 @@
  * id remembered), AsyncPendingSeqBinds (a dropped element's binds never
  * land), InvIconRetry (the doubling wait, one pass in flight, a lift that
  * keeps the wait), and the music guard (one loader of the kind, the older
- * song never installed).
+ * song never installed). And what an awaiting task learns when its join drops
+ * (Assets_AwaitOutcome).
  *
  * Run: make -C src test-asset-requests
  */
@@ -172,7 +173,7 @@ test_one_load_many_waiters(void)
     TEST_ASSERT(Assets_State(assets, key) == ASSET_STATE_NONE, "a landed asset has no entry");
     TEST_ASSERT(lands.count == 0, "landing waits for Assets_Land");
     TEST_ASSERT(Assets_Land(assets, ASSET_KIND_BIT(ASSET_KIND_TEXTURE)) == 0,
-        "another kind's landing point lands none of it");
+        "landing another kind lands none of it");
     TEST_ASSERT(Assets_Land(assets, ASSET_KIND_BIT(ASSET_KIND_MODEL)) == 3, "three landings");
     TEST_ASSERT(lands.tag[0] == 1 && lands.tag[1] == 2 && lands.tag[2] == 3,
         "landed in the order they asked");
@@ -226,7 +227,7 @@ test_await_and_want_share(void)
 
     Assets_Finished(assets, key, true);
     TEST_ASSERT(join == 0 && join2 == 0, "the awaiters are released when the load ends");
-    TEST_ASSERT(Assets_Land(assets, ASSET_KIND_ALL) == 1, "the want lands at the landing point");
+    TEST_ASSERT(Assets_Land(assets, ASSET_KIND_ALL) == 1, "the want lands when Assets_Land is called");
 
     /* A failed attempt releases the awaiters too: a task always resumes. */
     join = 0;
@@ -792,6 +793,84 @@ test_growth(void)
     Assets_Free(assets);
 }
 
+/* ---- what an awaiter learns -------------------------------------------- */
+
+/* After the join drops, the awaiting task knows how the attempt ended: here,
+ * failed (and whether the table goes back for it), or abandoned. Written at
+ * once when nothing is counted. A task that went away (Assets_Unjoin) is
+ * never written to again. */
+static void
+test_await_outcome(void)
+{
+    struct FakeLoader fake;
+    struct Assets* assets = table_with(ASSET_KIND_MODEL, &fake);
+    struct AssetKey key = AssetKey_Make(ASSET_KIND_MODEL, 41, 0);
+    enum AssetOutcome outcome = ASSET_OUTCOME_LANDED;
+    int join = 0;
+
+    TEST_ASSERT(Assets_AwaitOutcome(assets, key, &join, &outcome) == 1 && join == 1,
+        "counted on the join");
+    TEST_ASSERT(outcome == ASSET_OUTCOME_DROPPED, "not here while the attempt runs");
+    Assets_Finished(assets, key, true);
+    TEST_ASSERT(join == 0 && outcome == ASSET_OUTCOME_LANDED, "landed: here");
+
+    /* Already resident: nothing counted, and the answer is written at once. */
+    fake.resident_ids[fake.resident_count++] = 42;
+    outcome = ASSET_OUTCOME_DROPPED;
+    TEST_ASSERT(Assets_AwaitOutcome(assets, AssetKey_Make(ASSET_KIND_MODEL, 42, 0), &join,
+                    &outcome) == 0 && join == 0,
+        "a resident asset is not waited for");
+    TEST_ASSERT(outcome == ASSET_OUTCOME_LANDED, "and the task is told it is here");
+
+    /* A failed attempt of a back-off kind: FAILED, and the table will go
+     * back for it (the task may await again). */
+    key = AssetKey_Make(ASSET_KIND_MODEL, 43, 0);
+    Assets_AwaitOutcome(assets, key, &join, &outcome);
+    Assets_Finished(assets, key, false);
+    TEST_ASSERT(join == 0 && outcome == ASSET_OUTCOME_FAILED, "the attempt failed");
+    TEST_ASSERT(Assets_State(assets, key) == ASSET_STATE_WANTED, "and a retry is due");
+    TEST_ASSERT(Assets_AwaitOutcome(assets, key, &join, &outcome) == 1,
+        "awaiting again starts the retry at once");
+    Assets_Finished(assets, key, true);
+    TEST_ASSERT(join == 0 && outcome == ASSET_OUTCOME_LANDED, "the second await landed");
+
+    /* An abandoned load (its loader freed): DROPPED, not FAILED. */
+    key = AssetKey_Make(ASSET_KIND_MODEL, 44, 0);
+    Assets_AwaitOutcome(assets, key, &join, &outcome);
+    Assets_Abandoned(assets, key);
+    TEST_ASSERT(join == 0 && outcome == ASSET_OUTCOME_DROPPED, "abandoned: not here, not failed");
+
+    /* A task that went away is never written to. */
+    key = AssetKey_Make(ASSET_KIND_MODEL, 45, 0);
+    Assets_AwaitOutcome(assets, key, &join, &outcome);
+    Assets_Unjoin(assets, &join);
+    outcome = ASSET_OUTCOME_FAILED;
+    Assets_Finished(assets, key, true);
+    TEST_ASSERT(join == 0 && outcome == ASSET_OUTCOME_FAILED, "an unjoined outcome is untouched");
+    Assets_Free(assets);
+
+    /* A remembered failure answers at once; give-up after N ends FAILED with
+     * the entry gone. */
+    assets = table_with(ASSET_KIND_TEXTURE, &fake);
+    key = AssetKey_Make(ASSET_KIND_TEXTURE, 7, 0);
+    Assets_AwaitOutcome(assets, key, &join, &outcome);
+    Assets_Finished(assets, key, false);
+    TEST_ASSERT(join == 0 && outcome == ASSET_OUTCOME_FAILED, "a texture that failed");
+    outcome = ASSET_OUTCOME_LANDED;
+    TEST_ASSERT(Assets_AwaitOutcome(assets, key, &join, &outcome) == 0 &&
+                    outcome == ASSET_OUTCOME_FAILED,
+        "is remembered: answered FAILED at once");
+    Assets_Free(assets);
+
+    assets = table_with(ASSET_KIND_NPC_BODY, &fake);
+    key = AssetKey_Make(ASSET_KIND_NPC_BODY, 3, 3);
+    Assets_AwaitOutcome(assets, key, &join, &outcome);
+    Assets_Finished(assets, key, false);
+    TEST_ASSERT(join == 0 && outcome == ASSET_OUTCOME_FAILED, "an npc body given up on");
+    TEST_ASSERT(Assets_State(assets, key) == ASSET_STATE_NONE, "the entry is gone");
+    Assets_Free(assets);
+}
+
 int
 main(void)
 {
@@ -809,6 +888,7 @@ main(void)
     test_configs_one_read();
     test_same_waiter_twice_lands_twice();
     test_growth();
+    test_await_outcome();
     if( g_failures )
     {
         printf("asset_requests_test: %d FAILED\n", g_failures);

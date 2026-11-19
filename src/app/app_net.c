@@ -181,8 +181,8 @@ App_Logout(struct App* app)
     /* What the deob's logout reset clears (Statics.method5943's neighbours:
      * field1275, field3246, field1008, the group store). */
     CamScript_Logout(&app->cam_script);
-    /* Nothing parked belongs to the screen we are going back to. */
-    Park_Cancel(app->parked, ParkScope_All());
+    /* No pending parallel task belongs to the screen we are going back to. */
+    (void)RS_Pending_Cancel(app->pending, RS_PendingScope_All());
     RS_WorldMapSurface_HeatmapOff(&app->worldmap);
     app->host.client.objunlock_present = false;
     RS_GroupStore_Free(&app->host.groups);

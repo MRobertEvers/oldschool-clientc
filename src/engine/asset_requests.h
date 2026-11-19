@@ -24,14 +24,26 @@
  *
  * Two ways to ask:
  *
- *  - Assets_Await(key, &join): REQUIRED. The calling task counts the load on
- *    one of its join fields and waits with PT_TASK_JOIN. The count drops when
- *    the attempt in flight ENDS, landed or not -- a task waiting on a load
- *    must always be released, and it re-reads the cache to see what it got.
- *  - Assets_Want(key, waiter): VISUAL. The waiter -- an opaque handle and a
- *    landing function -- is called from Assets_Land once the asset has
- *    arrived or the kind's policy has given up on it. A NULL waiter only asks
- *    for the load (a prefetch, or an owner that polls residency itself).
+ *  - Assets_Await(key, &join): the calling task counts the load on one of
+ *    its join fields and waits with PT_TASK_JOIN. The count drops when the
+ *    attempt in flight ENDS, landed or not -- a task waiting on a load must
+ *    always be released. Assets_AwaitOutcome also writes, when the attempt
+ *    ends, whether the asset is here (LANDED), the attempt failed (FAILED:
+ *    Assets_State then says whether the table goes back for it), or the
+ *    attempt was abandoned or replaced (DROPPED). Which queue the task is on
+ *    is what makes the wait REQUIRED (the packet queue, a client script) or
+ *    VISUAL (a parallel task on the parallel queue, app/app_parallel_task.h);
+ *    the call is the same.
+ *  - Assets_Want(key, NULL): start loading; nobody waits (a prefetch, or an
+ *    owner that polls residency itself).
+ *
+ * BEING REMOVED: the CALLBACK WAITER -- Assets_Want(key, waiter) with a
+ * landing function called from Assets_Land (struct AssetWaiter, AssetLandFn,
+ * struct AssetWaiterHandle, Assets_Land, Assets_DropWaiters,
+ * Assets_WaiterCount, and the late and landed policies, which exist only for
+ * waiters). The callers still using it (textures, the music install, the
+ * ground-stack model, deferred sequence binds) become parallel tasks that
+ * await, family by family; nothing new may register a waiter.
  *
  * Either way a loader is started only if none is in flight for the entry. The
  * client supplies one loader per kind (Assets_SetLoader): `start` puts a load
@@ -44,18 +56,21 @@
  *   - fail:   give up after N attempts / retry with back-off forever /
  *             remember the failure;
  *   - late:   land anyway / land with the delay shortened (the waiter is told
- *             how late it is) / drop after a deadline;
+ *             how late it is) / drop after a deadline; BEING REMOVED with
+ *             the waiters (a parallel task asks how late it is itself);
  *   - newer:  keep both / a newer request of the kind replaces the older (one
  *             loader of the kind in flight, the older's waiters dropped);
  *   - landed: the one entry (every waiter is landed) / every entry waiting on
  *             the asset (waiters with the same landing function and context
- *             collapse into one call, which finds every target itself).
+ *             collapse into one call, which finds every target itself);
+ *             BEING REMOVED with the waiters.
  *
  * Capacities grow explicitly up to a fixed ceiling; reaching it is an assert,
  * never a silent stop of dedupe.
  *
- * Landing happens only in Assets_Land, which the client calls at the points
- * where each kind lands. A landing function may call back into the table.
+ * A waiter (being removed) lands only in Assets_Land, which the client calls
+ * at the points where each kind lands. A landing function may call back into
+ * the table.
  */
 
 #include <stdbool.h>
@@ -146,6 +161,7 @@ enum AssetFailPolicy
     ASSET_FAIL_REMEMBER,
 };
 
+/* BEING REMOVED with the callback waiters: only a waiter is landed late. */
 enum AssetLatePolicy
 {
     /* Land whenever it arrives. */
@@ -167,6 +183,7 @@ enum AssetNewerPolicy
     ASSET_NEWER_REPLACE,
 };
 
+/* BEING REMOVED with the callback waiters. */
 enum AssetLandedPolicy
 {
     /* Every waiter is landed with its own call. */
@@ -229,22 +246,30 @@ struct AssetLoader
     void* data;
 };
 
-/** Opaque to the table: whatever the waiter's owner needs to find its target
- *  again. Never a pointer to something that can be freed while it waits. */
+/** BEING REMOVED (the callback waiter; see the unit comment). Opaque to the
+ *  table: whatever the waiter's owner needs to find its target again. Never a
+ *  pointer to something that can be freed while it waits. */
 struct AssetWaiterHandle
 {
     int32_t v[4];
 };
 
+/* How a load ended, for a waiter and for Assets_AwaitOutcome. */
 enum AssetOutcome
 {
+    /* Here. */
     ASSET_OUTCOME_LANDED = 0,
-    /* The policy gave up on it, or remembered it failed. */
+    /* A waiter: the policy gave up on it, or remembered it failed. An
+     * awaiter: this attempt failed (Assets_State: FAILED remembered, NONE
+     * given up, WANTED to be retried after its back-off). */
     ASSET_OUTCOME_FAILED,
-    /* Too late under ASSET_LATE_DROP_AFTER, or replaced by a newer request. */
+    /* A waiter: too late under ASSET_LATE_DROP_AFTER, or replaced by a newer
+     * request. An awaiter: the attempt was abandoned (its loader freed) or
+     * replaced; the asset is not here. */
     ASSET_OUTCOME_DROPPED,
 };
 
+/* BEING REMOVED (the callback waiter). */
 typedef void (*AssetLandFn)(
     void* ctx,
     struct AssetKey key,
@@ -252,6 +277,7 @@ typedef void (*AssetLandFn)(
     enum AssetOutcome outcome,
     uint32_t late_ms);
 
+/* BEING REMOVED (the callback waiter). */
 struct AssetWaiter
 {
     AssetLandFn land;
@@ -310,8 +336,8 @@ uint64_t
 Assets_Clock(struct Assets const* assets);
 
 /**
- * VISUAL: register `waiter` (NULL: no waiter) and start a load if none is in
- * flight. Answers what was found:
+ * Start a load if none is in flight; with a `waiter` (BEING REMOVED: pass
+ * NULL in new code), register it to be landed. Answers what was found:
  *   HERE    resident; nothing registered, the caller lands it now;
  *   FAILED  remembered failure; nothing registered;
  *   LOADING / WANTED  registered (or collapsed under ASSET_LANDED_ALL).
@@ -324,16 +350,32 @@ Assets_Want(
     struct AssetWaiter const* waiter);
 
 /**
- * REQUIRED: count the load on `*join` and start one if none is in flight
- * (an entry waiting out a back-off starts now: a task is waiting on it).
- * Returns 1 when counted, 0 when nothing to wait for (here, or a remembered
- * failure). `*join` drops when the attempt in flight ends, landed or not.
+ * Count the load on `*join` and start one if none is in flight (an entry
+ * waiting out a back-off starts now: a task is waiting on it). Returns 1 when
+ * counted, 0 when nothing to wait for (here, or a remembered failure).
+ * `*join` drops when the attempt in flight ends, landed or not.
  */
 int
 Assets_Await(
     struct Assets* assets,
     struct AssetKey key,
     int* join);
+
+/**
+ * As Assets_Await, and `*outcome` says how it ended once `*join` has dropped
+ * for it: LANDED here, FAILED this attempt failed, DROPPED abandoned or
+ * replaced. Written at once when nothing is counted (LANDED here, FAILED a
+ * remembered failure); DROPPED while the attempt runs. `outcome` lives where
+ * `join` does (the awaiting task) and is forgotten with it by Assets_Unjoin.
+ * One outcome per await: a task awaiting several assets on one join gives
+ * each its own outcome, or asks the cache.
+ */
+int
+Assets_AwaitOutcome(
+    struct Assets* assets,
+    struct AssetKey key,
+    int* join,
+    enum AssetOutcome* outcome);
 
 /** A task counting on `join` is going away before its loads ended: stop
  *  counting them. `*join` is zeroed. */
@@ -377,25 +419,17 @@ Assets_Lift(
     struct AssetKey key);
 
 /**
- * Land every arrival of the kinds in `kind_mask`, in the order the waiters
- * registered. Arrivals made by the landings themselves wait for the next call.
- * Returns how many landing calls were made.
+ * BEING REMOVED (the callback waiter). Land every arrival of the kinds in
+ * `kind_mask`, in the order the waiters registered. Arrivals made by the
+ * landings themselves wait for the next call. Returns how many landing calls
+ * were made.
  */
 int
 Assets_Land(
     struct Assets* assets,
     uint32_t kind_mask);
 
-/** As Assets_Land, for the arrivals of every kind whose waiter has `land`
- *  and `ctx` only: an owner that lands its own waiters at its own point (the
- *  parked lookup's landing point) without landing anyone else's. */
-int
-Assets_LandFor(
-    struct Assets* assets,
-    AssetLandFn land,
-    void* ctx);
-
-/** Forget every want waiter with `land` and `ctx` for which `match` answers
+/** BEING REMOVED (the callback waiter). Forget every want waiter with `land` and `ctx` for which `match` answers
  *  true (pending or arrived), uncalled. Returns how many. */
 int
 Assets_DropWaiters(
@@ -445,7 +479,8 @@ Assets_Count(
     struct Assets const* assets,
     enum AssetKind kind);
 
-/** Want waiters registered or arrived and not landed, of `kind`
+/** BEING REMOVED (the callback waiter). Want waiters registered or arrived
+ *  and not landed, of `kind`
  *  (ASSET_KIND_COUNT for all). */
 int
 Assets_WaiterCount(

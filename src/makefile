@@ -786,14 +786,14 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	app/app_overlay_entities.c \
 	app/app_placeholder.c \
 	app/app_assets.c \
-	app/app_parked.c \
-	app/app_parked_ground.c \
-	app/app_parked_effects.c \
-	app/app_parked_locs.c \
-	app/app_parked_entities.c \
-	app/app_parked_if_assets.c \
-	app/app_parked_mounts.c \
-	app/app_parked_scripts.c \
+	app/app_parallel_task.c \
+	app/app_tasks_ground.c \
+	app/app_tasks_effects.c \
+	app/app_tasks_locs.c \
+	app/app_tasks_entities.c \
+	app/app_tasks_if_assets.c \
+	app/app_tasks_mounts.c \
+	app/app_tasks_scripts.c \
 	app/app_plugin_api.c \
 	app/app_plugin_assets.c \
 	app/app_plugin_bridge.c \
@@ -1033,7 +1033,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	game/rs_server_state.c \
 	game/settle_gate.c \
 	game/rs_zone_inbox.c \
-	game/rs_parked.c \
+	game/rs_pending.c \
 	game/rs_rebuild_region.c \
 	game/rs_npc_update_origin.c \
 	game/rs_hint_arrow.c \
@@ -2233,7 +2233,8 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-cam-script
 	$(MAKE) test-rs-event-ring
 	$(MAKE) test-rs-server-state
-	$(MAKE) test-parked
+	$(MAKE) test-pending
+	$(MAKE) test-parallel-task
 	$(MAKE) test-render-mode
 	$(MAKE) test-painter-cull-bake
 	$(MAKE) test-world-views
@@ -2416,17 +2417,27 @@ test-rs-zone-inbox: $(OBJ_DIR)
 		game/test/rs_zone_inbox_test.c game/rs_zone_inbox.c $(LDFLAGS)
 	./$(OBJ_DIR)/rs_zone_inbox_test$(PLATFORM_EXE_SUFFIX)
 
-# The parked lookup (game/rs_parked.h), on fake kinds, a fake clock and a real
-# assets table with fake loaders: newest replaces on a key, keys with a
-# generation, landing only at the landing point and in arrival order under a
-# budget, stale waiters of replaced and cancelled entries, every cancel scope,
-# chains, the failed and late policies, owner and timed readiness, an asset
-# landed ALL, growth.
-.PHONY: test-parked
-test-parked: $(OBJ_DIR)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_parked_test$(PLATFORM_EXE_SUFFIX) \
-		$(TORIMEM_SRCS) game/test/rs_parked_test.c game/rs_parked.c engine/asset_requests.c $(LDFLAGS)
-	./$(OBJ_DIR)/rs_parked_test$(PLATFORM_EXE_SUFFIX)
+# The pending index (game/rs_pending.h) over bare task headers: find the
+# newest pending task by kind and key, a key's generation, cancel by key and
+# by every scope, "an earlier task for this key is pending", order across the
+# wrap, many tasks in one bucket.
+.PHONY: test-pending
+test-pending: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_pending_test$(PLATFORM_EXE_SUFFIX) \
+		$(TORIMEM_SRCS) game/test/rs_pending_test.c game/rs_pending.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_pending_test$(PLATFORM_EXE_SUFFIX)
+
+# The shape of a parallel task (game/rs_parallel_task.h), worked once: a task
+# on a parallel runner with a fake assets loader applies when its asset
+# arrives, exits when a newer one cancelled it, when its scope was cancelled,
+# when its scene moved on and when too late, applies "absent" on a failed
+# load, follows a chain, and two tasks for one key apply in order.
+.PHONY: test-parallel-task
+test-parallel-task: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_parallel_task_test$(PLATFORM_EXE_SUFFIX) \
+		$(TORIMEM_SRCS) game/test/rs_parallel_task_test.c game/rs_pending.c engine/asset_requests.c \
+		perf/torirs_perf.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_parallel_task_test$(PLATFORM_EXE_SUFFIX)
 
 # The last accepted REBUILD's centre zone and the shown scene's kept template
 # grid: the scene base every scene-local coord is measured from, and the

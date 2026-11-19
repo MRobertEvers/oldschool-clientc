@@ -246,6 +246,9 @@
 # Raised to 144 by the parked lookup step: parked (struct Park,
 # game/rs_parked.h), the one lookup every family of parked work shares;
 # the per-family pending records it replaces leave in the family steps.
+# Kept at 144 by the parallel task step: parked becomes pending (struct
+# RS_Pending, game/rs_pending.h), the index of live parallel tasks on
+# frame_runner, which holds no data of its own.
 struct-App-fields: 144
 
 src/main.c
@@ -395,4 +398,6 @@ src/replay/replay_world_apply.c
 # one-line comment.
 # Raised to 1426 by the parked lookup step: App_ParkedInit after
 # App_AssetsInit, App_ParkedFree before the teardown that frees the table.
+# Kept at 1426 by the parallel task step: App_PendingInit in its place, and
+# App_PendingFree moves after the frame queue is freed (its tasks unlist).
 app.c-lines: 1426

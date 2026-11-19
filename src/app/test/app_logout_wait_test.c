@@ -41,8 +41,8 @@ int g_failures;
  * says so; the rest stays zeroed, the table's default models. `esync` has to
  * be Init'd because a zeroed one carries local pid 0, which the clear would
  * then try to remove from a world that does not exist here. The logout
- * cancels everything parked, so the parked lookup (and the assets table under
- * it) is made too.
+ * cancels every pending parallel task, so the pending index (and the assets
+ * table it is made after) is made too.
  */
 static struct App*
 make_app(struct ToriRS_Network* net)
@@ -53,7 +53,7 @@ make_app(struct ToriRS_Network* net)
     app->features.name = "test";
     RS_EntitySync_Init(&app->esync);
     App_AssetsInit(app);
-    App_ParkedInit(app);
+    App_PendingInit(app);
     app->net = net;
     if( net )
         ToriRS_Network_Enable(net);
@@ -63,7 +63,7 @@ make_app(struct ToriRS_Network* net)
 static void
 free_app(struct App* app)
 {
-    App_ParkedFree(app);
+    App_PendingFree(app);
     App_AssetsFree(app);
     free(app);
 }

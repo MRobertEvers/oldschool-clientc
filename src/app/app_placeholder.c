@@ -27,8 +27,9 @@
  * A guard that fires is a no-op, never a stale asset in the wrong place.
  *
  * WHAT COUNTS AS CRITICAL is the one thing this file does not decide: the
- * scene rebuild stays on the FIFO (REBUILD parks on Task_WorldLoad behind the
- * loading screen, by design), and an npc's config read stays inline (it is a
+ * scene rebuild stays on the FIFO (the REBUILD's packet task awaits the
+ * gather, CreateTask_WorldGather, and builds inline, behind the loading
+ * screen, by design), and an npc's config read stays inline (it is a
  * preloaded config group, an IndexedDB hit, not a wire read).
  *
  * THE FAMILY. This unit owns the mechanism and the ground-stack kind. The same
@@ -55,8 +56,10 @@
  * time; the park is also what bounds the burst. A future kind asked for by a
  * script needs the same seam, which is why the park is here and not in the
  * caller.
- * A new non-critical load belongs here, as a kind: an enum value, the fields
- * its land needs, one await, one land.
+ * A new non-critical load does NOT belong here: it is a parallel task of its
+ * family (app/app_parallel_task.h; the family units are listed in
+ * app/app_tasks.h), and the kinds above move there as their families convert
+ * them.
  */
 #include "app/app_internal.h"
 #include "mem/torirs_mem.h"
