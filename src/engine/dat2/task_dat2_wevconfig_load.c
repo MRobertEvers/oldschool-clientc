@@ -1,6 +1,7 @@
 #include "engine/dat2/dat2_tasks.h"
 #include "mem/torirs_mem.h"
 
+#include "engine/asset_requests.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "world/wev.h"
@@ -35,6 +36,8 @@ struct Task_Dat2WevConfigLoad
     struct pt pt;
     struct Dat2BuildCache* bc;
     struct WevConfigTable* table;
+    /* The configs reference table's load, while this waits on it. */
+    int ref_join;
 };
 
 static int
@@ -51,29 +54,28 @@ Task_Dat2WevConfigLoad_Run(
 
     PT_BEGIN(&task->pt);
 
-    /* One fetch of the configs table for every loader that wants it
-     * (dat2_buildcache.h, reference_table_loading). */
+    /* One fetch of the configs table for every loader that wants it,
+     * awaited through the assets table (ASSET_KIND_REF_TABLE). */
     while( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_TABLE_CONFIGS) )
     {
-        if( task->bc->reference_table_loading[RSCACHE_DAT2_TABLE_CONFIGS] )
+        assert(task->bc->assets);
+        Assets_Await(
+            task->bc->assets,
+            AssetKey_Make(ASSET_KIND_REF_TABLE, RSCACHE_DAT2_TABLE_CONFIGS, 0),
+            &task->ref_join);
+        while( task->ref_join > 0 )
         {
             task->task.blocked = 1;
             PT_YIELD(&task->pt);
-            continue;
         }
-        task->bc->reference_table_loading[RSCACHE_DAT2_TABLE_CONFIGS] = 1;
-        RSCache_IO_Dat2ReferenceTableLoad(io, 0, RSCACHE_DAT2_TABLE_CONFIGS);
-        PT_YIELD(&task->pt);
-
+        if( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_TABLE_CONFIGS) &&
+            Assets_State(
+                task->bc->assets,
+                AssetKey_Make(ASSET_KIND_REF_TABLE, RSCACHE_DAT2_TABLE_CONFIGS, 0)) ==
+                ASSET_STATE_NONE )
         {
-            struct RSCache_ReferenceTable* configs = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
-            task->bc->reference_table_loading[RSCACHE_DAT2_TABLE_CONFIGS] = 0;
-            if( !configs )
-            {
-                fprintf(stderr, "wevconfig: no configs reference table\n");
-                PT_EXIT(&task->pt);
-            }
-            dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_TABLE_CONFIGS, configs);
+            fprintf(stderr, "wevconfig: no configs reference table\n");
+            PT_EXIT(&task->pt);
         }
     }
     if( !RSCache_ReferenceTableHasArchive(
@@ -159,6 +161,9 @@ Task_Dat2WevConfigLoad_Run(
 static void
 Task_Dat2WevConfigLoad_Free(struct ToriRS_Task* task_base)
 {
+    struct Task_Dat2WevConfigLoad* task = (struct Task_Dat2WevConfigLoad*)task_base;
+    if( task->ref_join > 0 )
+        Assets_Unjoin(task->bc->assets, &task->ref_join);
     ToriMem_Free(ToriMem_Assets(), task_base);
 }
 

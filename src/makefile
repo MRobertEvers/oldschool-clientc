@@ -947,7 +947,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	engine/dat2/task_dat2_obj_load.c engine/dat2/task_dat2_npc_load.c \
 	engine/dat2/task_dat2_spotanim_load.c engine/dat2/task_dat2_sound_load.c \
 	engine/dat2/task_dat2_idk_load.c \
-	engine/dat2/task_dat2_map_load.c engine/dat2/task_dat2_loc_load.c \
+	engine/dat2/task_dat2_map_load.c engine/dat2/task_dat2_ref_table_load.c engine/dat2/task_dat2_loc_load.c \
 	engine/dat2/task_dat2_flotype_load.c engine/dat2/task_dat2_underlay_load.c \
 	engine/dat2/task_dat2_texture_load.c \
 	engine/dat2/task_dat2_preload.c engine/dat2/task_dat2_group_touch.c \

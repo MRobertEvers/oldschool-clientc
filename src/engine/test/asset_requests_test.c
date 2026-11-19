@@ -243,7 +243,10 @@ test_await_and_want_share(void)
     TEST_ASSERT(join == 0, "the load's end no longer touches the freed count");
 
     /* An abandoned loader (its task freed mid-read) is not a failure: the
-     * entry is wanted again and a pump restarts it for its waiter. */
+     * entry is wanted again and a pump restarts it for its waiter. A5: the
+     * maps reference table's loading flag was set by the square reading it
+     * and never cleared when that square's task was freed mid-read, so its
+     * siblings waited forever; an abandoned load releases them instead. */
     memset(&lands, 0, sizeof(lands));
     join = 0;
     Assets_Want(assets, AssetKey_Make(ASSET_KIND_SEQUENCE, 11, 0), &w);

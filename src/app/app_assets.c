@@ -26,6 +26,7 @@
 
 #include "engine/asset_load_task.h"
 #include "engine/asset_requests.h"
+#include "engine/dat2/dat2_tasks.h"
 #include "engine/task_obj_model_load.h"
 #include "game/task_entity_assets.h"
 
@@ -179,6 +180,9 @@ App_AssetsInit(struct App* app)
     /* The composites: each unit registers the task that follows its chain. */
     EntityAssets_RegisterLoaders(app);
     app_inv_icon_assets_register(app);
+    /* The dat2 cache's shared prerequisite, its reference tables. */
+    if( app->cfg.cache_kind == APP_CACHE_DAT2 && app->provider )
+        Dat2BuildCache_AttachAssets((struct Dat2BuildCache*)app->provider, app->assets);
 }
 
 void
