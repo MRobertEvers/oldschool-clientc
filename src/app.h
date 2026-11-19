@@ -28,7 +28,6 @@
 #include "game/rs_session_info.h"
 #include "game/rs_boot_state.h"
 #include "game/rs_client_phase.h"
-#include "game/rs_npc_body_lands.h"
 #include "game/rs_sailing_hud.h"
 #include "game/rs_tile_highlight_watch.h"
 #include "game/rs_mouseover_report.h"
@@ -1147,10 +1146,6 @@ struct App
     /** Dedupe for entity movement-seq load requests; a full table drops its
      *  oldest id (engine/seq_load_tracker.h). */
     struct SeqLoadTracker entity_seq_loads;
-    /** Npc bodies on their way in (game/task_entity_assets.c): one load per
-     *  (base, resolved) type however many npcs of it a packet spawns; the
-     *  completion dresses every one of them. game/rs_npc_body_lands.h. */
-    struct RS_NpcBodyLands npc_body_lands;
     /** Entity attached-graphic (SPOTANIM mask) combine state, keyed by the
      * entity's body scene element and its owner (engine/entity_spotanim.h);
      * app_entity_sync.c builds and swaps the models. */

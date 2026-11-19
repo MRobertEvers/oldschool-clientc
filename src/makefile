@@ -1037,7 +1037,6 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	game/rs_sailing_hud.c \
 	game/rs_tile_highlight_watch.c \
 	game/rs_mouseover_report.c \
-	game/rs_npc_body_lands.c \
 	perf/frame_time_ring.c \
 	perf/frame_clock.c \
 	perf/boot_pump_stats.c \
@@ -2249,7 +2248,6 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-rs-zone-inbox
 	$(MAKE) test-rs-rebuild-region
 	$(MAKE) test-rs-npc-update-origin
-	$(MAKE) test-rs-npc-body-lands
 	$(MAKE) test-rs-sailing-hud
 	$(MAKE) test-rs-tile-highlight-watch
 	$(MAKE) test-rs-mouseover-report
@@ -2781,14 +2779,6 @@ test-entity-spotanim: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/entity_spotanim_test$(PLATFORM_EXE_SUFFIX) \
 		engine/test/entity_spotanim_test.c engine/entity_spotanim.c $(LDFLAGS)
 	./$(OBJ_DIR)/entity_spotanim_test$(PLATFORM_EXE_SUFFIX)
-
-# Npc bodies in flight: one load per (base, type), a full table registers
-# nothing, and a forget leaves every other type in flight.
-.PHONY: test-rs-npc-body-lands
-test-rs-npc-body-lands: $(OBJ_DIR)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_npc_body_lands_test$(PLATFORM_EXE_SUFFIX) \
-		game/test/rs_npc_body_lands_test.c game/rs_npc_body_lands.c $(LDFLAGS)
-	./$(OBJ_DIR)/rs_npc_body_lands_test$(PLATFORM_EXE_SUFFIX)
 
 # The sailing helm's ids and the selected heading: shown for 30 client cycles
 # from the send and not on the 30th, kept across a save and restore on another

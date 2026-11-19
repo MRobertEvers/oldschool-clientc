@@ -54,18 +54,23 @@ EntityAssets_PlayerBodyResident(
     int seq_count);
 
 /**
- * Load npc `npc_id`'s body and stances, then re-apply the type to EVERY live
- * npc that is still that type (base `base_npc_id`, resolved `npc_id`).
+ * Want npc `npc_id`'s body and stances (ASSET_KIND_NPC_BODY, variant = the
+ * base), and, when they are in, re-apply the type to EVERY live npc that is
+ * still that type (base `base_npc_id`, resolved `npc_id`).
  *
- * One per type in flight: a packet that spawns a crowd of one type queues
- * one load, not one per npc, and the completion walks the pool. NULL when
- * that type's load is already on its way.
+ * One load per type in flight, in the assets table: a packet that spawns a
+ * crowd of one type makes one load, not one per npc, and its landing walks
+ * the pool once.
  */
-struct ToriRS_Task*
-CreateTask_NpcBodyLand(
+void
+EntityAssets_WantNpcBody(
     struct App* app,
     int base_npc_id,
     int npc_id);
+
+/** Register the loaders of the composite kinds this unit owns. */
+void
+EntityAssets_RegisterLoaders(struct App* app);
 
 /**
  * Fetch the configs of the appearance `slots`, the models they name for

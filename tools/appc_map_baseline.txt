@@ -233,7 +233,9 @@
 # Raised to 149 by the assets table step: assets (struct Assets,
 # engine/asset_requests.h) arrived; the trackers it replaces leave in the
 # commits that follow.
-struct-App-fields: 149
+# Lowered to 148 by the npc body step: npc_body_lands (struct RS_NpcBodyLands)
+# left for the table's ASSET_KIND_NPC_BODY.
+struct-App-fields: 148
 
 src/main.c
 src/executor_config.c

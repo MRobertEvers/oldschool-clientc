@@ -24,6 +24,7 @@
 
 #include "engine/asset_requests.h"
 #include "engine/task_obj_model_load.h"
+#include "game/task_entity_assets.h"
 
 struct Task_AssetLoad
 {
@@ -213,6 +214,8 @@ App_AssetsInit(struct App* app)
     app->assets = Assets_New();
     for( size_t i = 0; i < sizeof(leaves) / sizeof(leaves[0]); i++ )
         App_AssetsSetLoader(app, leaves[i], asset_start_leaf, asset_resident_leaf);
+    /* The composites: each unit registers the task that follows its chain. */
+    EntityAssets_RegisterLoaders(app);
 }
 
 void

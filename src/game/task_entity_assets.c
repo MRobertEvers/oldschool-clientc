@@ -6,7 +6,7 @@
 #include "engine/entity_model_build.h"
 #include "engine/player_appearance.h"
 #include "game/rs_entity_sync.h"
-#include "game/rs_npc_body_lands.h"
+#include "engine/asset_requests.h"
 #include "net/rev/packets/pkt_player_appearance.h"
 #include "toridraw_animation.h"
 #include "toridraw_scene.h"
@@ -76,9 +76,10 @@ EntityAssets_PlayerBodyResident(
 }
 
 /*
- * Queue a loader for every distinct id as a sibling counted on `pending`.
- * Duplicates are skipped because the loaders only decline an id that is
- * already RESIDENT, and two in flight for one id would both decode it.
+ * Await every id through the assets table, counted on `pending`. The table
+ * holds at most one load per id however many fan-outs (and the per-frame
+ * binders) ask for it, so a model or a stance two bodies share is read once;
+ * a duplicate in one list is the same entry asked twice.
  */
 static void
 fanout_models(
@@ -88,17 +89,8 @@ fanout_models(
     int* pending)
 {
     for( int i = 0; i < count; i++ )
-    {
-        int dup = 0;
-        if( ids[i] < 0 )
-            continue;
-        for( int j = 0; j < i && !dup; j++ )
-            dup = ids[j] == ids[i];
-        if( dup )
-            continue;
-        ToriRS_TaskQueue_AddParallelPoolSubTask(
-            app->frame_runner.queue, CreateTask_ModelLoad(app->provider, ids[i]), pending);
-    }
+        if( ids[i] >= 0 )
+            Assets_Await(app->assets, AssetKey_Make(ASSET_KIND_MODEL, ids[i], 0), pending);
 }
 
 static void
@@ -109,19 +101,8 @@ fanout_seqs(
     int* pending)
 {
     for( int i = 0; i < count; i++ )
-    {
-        int dup = 0;
-        if( ids[i] < 0 )
-            continue;
-        for( int j = 0; j < i && !dup; j++ )
-            dup = ids[j] == ids[i];
-        if( dup )
-            continue;
-        ToriRS_TaskQueue_AddParallelPoolSubTask(
-            app->frame_runner.queue,
-            CreateTask_SequenceLoad(app->provider, app->scene, ids[i]),
-            pending);
-    }
+        if( ids[i] >= 0 )
+            Assets_Await(app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, ids[i], 0), pending);
 }
 
 /* The idk / obj config behind every slot, one sibling each (a kit and an
@@ -167,9 +148,8 @@ struct Task_NpcBodyLand
     struct App* app;
     int base_npc_id;
     int npc_id;
-    /* This task holds the in-flight entry for its type (the table was not
-     * full when it was made), so it is the one to clear it. */
-    int registered;
+    /* The end has been reported to the table. */
+    int ended;
     int pending;
 };
 
@@ -196,15 +176,37 @@ Task_NpcBodyLand_Run(
     }
     PT_TASK_JOIN(pending);
 
-    /* Forgotten BEFORE the walk: an npc of this type spawned from here on
-     * finds the body resident and queues nothing; one spawned during the
-     * load found this entry and queued nothing either, and the walk below
-     * is what dresses it. */
-    if( self->registered )
-        RS_NpcBodyLands_Forget(&app->npc_body_lands, self->base_npc_id, self->npc_id);
-    self->registered = 0;
+    /* Ended BEFORE the walk: an npc of this type spawned from here on finds
+     * the body resident and wants nothing; one spawned during the load found
+     * the entry loading and its want collapsed into the walk below, which is
+     * what dresses it. The walk lands here, at the load's end, as it always
+     * has. */
+    self->ended = 1;
+    Assets_Finished(
+        app->assets, AssetKey_Make(ASSET_KIND_NPC_BODY, self->npc_id, self->base_npc_id), true);
+    Assets_Land(app->assets, ASSET_KIND_BIT(ASSET_KIND_NPC_BODY));
 
-    if( app->world )
+    PT_END(&self->pt);
+}
+
+/* The NPC_BODY landing (ASSET_LANDED_ALL: one call per load): re-apply the
+ * type to every live npc that is still (base, type). */
+static void
+npc_body_land_walk(
+    void* ctx,
+    struct AssetKey key,
+    struct AssetWaiterHandle handle,
+    enum AssetOutcome outcome,
+    uint32_t late_ms)
+{
+    struct App* app = ctx;
+    int const npc_id = key.id;
+    int const base_npc_id = key.variant;
+
+    (void)handle;
+    (void)late_ms;
+    if( outcome != ASSET_OUTCOME_LANDED || !app->world )
+        return;
     {
         struct World_EntityPool* pool = &app->world->entities.npc;
         for( int idx = 0; idx < pool->count; idx++ )
@@ -213,16 +215,14 @@ Task_NpcBodyLand_Run(
             if( !World_EntityPoolIsActive(pool, idx) )
                 continue;
             npc = World_EntityPoolGet(pool, idx);
-            /* Retyped while the body was on the wire: that op queued its
+            /* Retyped while the body was on the wire: that op wanted its
              * own load. */
-            if( !npc || npc->base_npc_id != self->base_npc_id || npc->npc_id != self->npc_id )
+            if( !npc || npc->base_npc_id != base_npc_id || npc->npc_id != npc_id )
                 continue;
-            App_WorldNpcBodyLanded(app, idx, npc->element_id, self->npc_id, self->base_npc_id);
+            App_WorldNpcBodyLanded(app, idx, npc->element_id, npc_id, base_npc_id);
             RedrawRequest_Raise(&app->redraw_request);
         }
     }
-
-    PT_END(&self->pt);
 }
 
 static void
@@ -230,9 +230,14 @@ Task_NpcBodyLand_Free(struct ToriRS_Task* base)
 {
     struct Task_NpcBodyLand* self = (struct Task_NpcBodyLand*)base;
     /* A task freed before it ran to its end (a queue torn down mid-load)
-     * must not leave its type marked in flight for the rest of the session. */
-    if( self->registered )
-        RS_NpcBodyLands_Forget(&self->app->npc_body_lands, self->base_npc_id, self->npc_id);
+     * must not leave its type loading for the rest of the session. */
+    if( !self->ended )
+    {
+        if( self->pending > 0 )
+            Assets_Unjoin(self->app->assets, &self->pending);
+        Assets_Abandoned(
+            self->app->assets, AssetKey_Make(ASSET_KIND_NPC_BODY, self->npc_id, self->base_npc_id));
+    }
     ToriMem_Free(ToriMem_Session(), base);
 }
 
@@ -241,32 +246,61 @@ static struct ToriRS_TaskVTable Task_NpcBodyLand_VTable = {
     .free = Task_NpcBodyLand_Free,
 };
 
-struct ToriRS_Task*
-CreateTask_NpcBodyLand(
+/* NPC_BODY's loader: id = the type drawn, variant = its base. */
+static enum AssetStart
+npc_body_start(
+    void* data,
+    struct Assets* assets,
+    struct AssetKey key)
+{
+    struct App* app = data;
+    struct Task_NpcBodyLand* task;
+
+    (void)assets;
+    task = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_NpcBodyLand_VTable;
+    strncpy(task->task.name, "NpcBodyLand", sizeof(task->task.name) - 1);
+    task->app = app;
+    task->base_npc_id = key.variant;
+    task->npc_id = key.id;
+    PT_INIT(&task->pt);
+    ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
+    return ASSET_START_LOADING;
+}
+
+static bool
+npc_body_resident(
+    void* data,
+    struct AssetKey key)
+{
+    return EntityAssets_NpcBodyResident((struct App*)data, key.id) != 0;
+}
+
+void
+EntityAssets_WantNpcBody(
     struct App* app,
     int base_npc_id,
     int npc_id)
 {
-    struct Task_NpcBodyLand* task;
+    struct AssetWaiter walk;
 
     assert(app);
     assert(npc_id >= 0);
-    if( RS_NpcBodyLands_InFlight(&app->npc_body_lands, base_npc_id, npc_id) )
-        return NULL;
-    /* A full table is a crowd of sixty-four distinct types arriving in one
-     * pass; the sixty-fifth simply loads without the dedupe, as every type
-     * did before there was one. */
-    task = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*task));
-    assert(task);
-    if( RS_NpcBodyLands_Register(&app->npc_body_lands, base_npc_id, npc_id) )
-        task->registered = 1;
-    task->task.vtable = &Task_NpcBodyLand_VTable;
-    strncpy(task->task.name, "NpcBodyLand", sizeof(task->task.name) - 1);
-    task->app = app;
-    task->base_npc_id = base_npc_id;
-    task->npc_id = npc_id;
-    PT_INIT(&task->pt);
-    return &task->task;
+    memset(&walk, 0, sizeof(walk));
+    walk.land = npc_body_land_walk;
+    walk.ctx = app;
+    (void)Assets_Want(
+        app->assets, AssetKey_Make(ASSET_KIND_NPC_BODY, npc_id, base_npc_id), &walk);
+}
+
+void
+EntityAssets_RegisterLoaders(struct App* app)
+{
+    struct AssetLoader npc_body = { npc_body_start, npc_body_resident, app };
+
+    assert(app);
+    Assets_SetLoader(app->assets, ASSET_KIND_NPC_BODY, &npc_body);
 }
 
 /* --------------------------------------------------------------- player */

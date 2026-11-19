@@ -1933,12 +1933,8 @@ Task_ExecNpcInfo_Run(
                 }
                 if( self->cur_slot >= 0 && self->pending_npc_type >= 0 &&
                     !EntityAssets_NpcBodyResident(app, self->pending_npc_type) )
-                {
-                    struct ToriRS_Task* land = CreateTask_NpcBodyLand(
+                    EntityAssets_WantNpcBody(
                         app, self->pending_npc_base_type, self->pending_npc_type);
-                    if( land )
-                        ToriRS_TaskQueue_Add(app->frame_runner.queue, land);
-                }
             }
             else if( need == NPC_NEED_SEQ )
             {
