@@ -93,6 +93,9 @@ def variants(name, kind):
         c.append(m.group(1) + "_" + kind + "_fullygrown")
     # The cache's own spellings: herb_marentill_diseased_1 (one r) beside
     # herb_marrentill_1, and celastrus_dead_1 beside celastrus_tree_1.
+    # snapegrass_seedling waters to snapegrass_seed_watered.
+    if name.endswith("_seedling"):
+        c.append(name[:-len("_seedling")] + "_seed_" + kind)
     more = []
     for x in c:
         more.append(x.replace("marrentill", "marentill"))
@@ -101,8 +104,10 @@ def variants(name, kind):
 
 
 def is_healthy(name):
-    return not re.search(r"(diseased|dead|weed|stump|claim|_seed$|seedling|"
-                         r"watered|placeholder)", name) and name != "null"
+    # "weeds" / "_weeded", not "weed": goutweed, ranarr weed and dwarf weed
+    # are crops.
+    return not re.search(r"(diseased|dead|weeds|_weeded|stump|claim|_seed$|"
+                         r"seedling|watered|placeholder)", name) and name != "null"
 
 
 def build():

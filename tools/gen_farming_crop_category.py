@@ -39,14 +39,23 @@ WRAPPERS = [
     "farming_bush_patch_1",
     "farming_tree_patch_1",
     "farming_fruit_tree_patch_1",
+    "farming_hardwood_tree_patch_1",
+    "farming_spirit_tree_patch_1",
+    "farming_calquat_tree_patch",
+    "farming_celastrus_patch_1",
+    "farming_crystal_tree_patch_1",
+    "farming_redwood_tree_patch_0_1",
+    "farming_cactus_patch",
+    "farming_mushroom_patch",
+    "farming_belladonna_patch",
 ]
 
 HEADER = """// Generated: every growing-crop morph of a farming patch, in one category.
 //
-// Source is the multiloc tables of the seven patch wrappers in configs/all.loc
-// (farming_veg_patch_1, farming_flower_patch_1, farming_herb_patch_1,
-// farming_hops_patch_1, farming_bush_patch_1, farming_tree_patch_1,
-// farming_fruit_tree_patch_1), minus every weeds / bare-patch state.
+// Source is the multiloc tables of one wrapper per patch family in
+// configs/all.loc (allotment, flower, herb, hops, bush, tree, fruit tree,
+// hardwood, spirit, calquat, celastrus, crystal, redwood, cactus, mushroom,
+// belladonna), minus every weeds / bare-patch state.
 //
 // See pack/category.pack for why the category exists. Regenerate rather than
 // hand-edit: `tools/gen_farming_crop_category.py`.
