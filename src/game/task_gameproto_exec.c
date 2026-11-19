@@ -241,8 +241,10 @@ Task_GameProtoExec_Run(
             (int)FrameClockSerial_LogicCycle(&app->frame_clock.serial);
     }
 
-    /* Entity command streams decode + apply inside their own awaited tasks
-     * (spawn/appearance/seq cache loads). Everything else applies
+    /* Entity command streams decode + apply inside their own awaited tasks,
+     * which wait only for the npc configs the stream names. Bodies, sequences
+     * and spot animations are not awaited: each is a parallel task
+     * (app/app_tasks_entities.c). Everything else applies
      * synchronously; handlers that mutate interfaces enqueue slot-mount
      * tasks BEHIND this one on the same serial queue, so ordering with later
      * packets holds. */
