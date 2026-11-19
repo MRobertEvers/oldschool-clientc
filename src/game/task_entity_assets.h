@@ -85,22 +85,33 @@ CreateTask_PlayerBodyLand(
     int seq_count);
 
 /**
- * A transmogged player's body: load npc `npc_id`'s config chain (multinpc
- * rungs included), then the models and stances of the type it selects. A
- * plain fetch like PlayerBodyLand -- the per-frame reconcile mounts it.
+ * A transmogged player's body (ASSET_KIND_PLAYER_TRANSMOG): npc `npc_id`'s
+ * config chain (multinpc rungs included), then the models and stances of the
+ * type it selects. A plain fetch like PlayerBodyLand -- the per-frame
+ * reconcile mounts it. One load per shell in flight however many appearance
+ * blocks name it, and none at all once what it selects is resident.
  */
-struct ToriRS_Task*
-CreateTask_PlayerTransmogLand(
+void
+EntityAssets_WantPlayerTransmog(
     struct App* app,
     int npc_id);
 
 /**
- * Load sequence `seq_id`, then the obj configs and wear models it swaps into
- * the player's hands (replaceheldleft/right), gendered as the player with
- * `server_pid` is when the configs are in.
+ * What sequence `seq_id` swaps into a player's hands (ASSET_KIND_PLAYER_HELD,
+ * variant = `gender`): the sequence, then the obj configs and wear models of
+ * its replaceheldleft/right. One load per (seq, gender) in flight, and none
+ * once they are resident.
  */
-struct ToriRS_Task*
-CreateTask_PlayerHeldLand(
+void
+EntityAssets_WantPlayerHeld(
+    struct App* app,
+    int seq_id,
+    int gender);
+
+/** EntityAssets_WantPlayerHeld for the player with `server_pid`, gendered as
+ *  that player is now (0 when it has no entity). */
+void
+EntityAssets_WantPlayerHeldForPid(
     struct App* app,
     int server_pid,
     int seq_id);

@@ -6,6 +6,7 @@
  * rejects them (visible, Walk-here only).
  */
 #include "app.h"
+#include "app/app_internal.h"
 #include "mem/torirs_mem.h"
 #include "asyncio.h"
 #include "engine/cache_provider.h"
@@ -437,6 +438,10 @@ test_npc_info_resident_sequence_queues_nothing(void)
     RS_EntitySync_Init(&app.esync);
     app.provider = &provider;
     app.frame_runner.queue = ToriRS_TaskQueue_New();
+    /* The sequence is wanted through the assets table, which asks the scene
+     * whether it is registered before it asks the loader. */
+    app.scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    App_AssetsInit(&app);
 
     register_npc(&app, 601, 500, 30, 30, 30);
 
@@ -462,6 +467,8 @@ test_npc_info_resident_sequence_queues_nothing(void)
         "the animation is on the npc whether or not anything had to be loaded");
 
     ToriRS_TaskQueue_Free(app.frame_runner.queue);
+    App_AssetsFree(&app);
+    ToriDraw_SceneFree(app.scene);
     RS_EntitySync_Free(&app.esync);
     World_Free(app.world);
     CacheProvider_FreeEngineCaches(&provider);
@@ -594,6 +601,7 @@ test_multinpc_interface_head_loads_selected_child(void)
     app.provider = &provider;
     /* The asset runner: app_if_head_enqueue streams the head load there. */
     app.frame_runner.queue = ToriRS_TaskQueue_New();
+    App_AssetsInit(&app);
     io = ToriRS_IOBatch_New();
     app.scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
     TEST_ASSERT(app.scene != NULL, "chathead fixture scene initialized");

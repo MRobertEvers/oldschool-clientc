@@ -2460,12 +2460,8 @@ RS_GameProto_Exec(
      * spotanim's asset are the client's to fetch. */
     case PKT_NAME_ANIM_SPECIFIC:
         if( modelled == RS_SERVER_STATE_APPLIED && ctx->app && packet->_anim_specific.id >= 0 )
-            ToriRS_TaskQueue_Add(
-                ctx->app->frame_runner.queue,
-                CreateTask_PlayerHeldLand(
-                    ctx->app,
-                    RS_ServerState_LocalPid(ctx->state->esync),
-                    packet->_anim_specific.id));
+            EntityAssets_WantPlayerHeldForPid(
+                ctx->app, RS_ServerState_LocalPid(ctx->state->esync), packet->_anim_specific.id);
         break;
     case PKT_NAME_NPC_ANIM_SPECIFIC:
         break;

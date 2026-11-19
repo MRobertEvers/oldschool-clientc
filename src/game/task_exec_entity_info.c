@@ -969,15 +969,14 @@ Task_ExecPlayerInfo_Run(
                     {
                         App_WorldApplyPlayerAppearance(app, world_idx, &self->app_decoded);
                         /* Transmogged (the 0xffff entry): the body is the
-                         * npc's, fetched like an npc's -- every time, since
-                         * NpcBodyResident cannot see a cold config or a
-                         * multinpc rung, and a resident record's loader is
-                         * a no-op. The fetch below still runs for the
-                         * stances the block names. */
+                         * npc's, wanted through the assets table, whose
+                         * residency test walks the shell's config and its
+                         * multinpc rungs -- so a block naming it while it
+                         * loads, or once it is in, queues nothing (every
+                         * block queued a load before). The fetch below still
+                         * runs for the stances the block names. */
                         if( self->app_decoded.npc_id >= 0 )
-                            ToriRS_TaskQueue_Add(
-                                app->frame_runner.queue,
-                                CreateTask_PlayerTransmogLand(app, self->app_decoded.npc_id));
+                            EntityAssets_WantPlayerTransmog(app, self->app_decoded.npc_id);
                         if( !EntityAssets_PlayerBodyResident(
                                 app, self->app_decoded.slots, self->app_decoded.gender, seqs, 7) )
                             ToriRS_TaskQueue_Add(
@@ -998,10 +997,15 @@ Task_ExecPlayerInfo_Run(
                 if( world_idx >= 0 )
                     World_PlayerSetPrimaryAnimation(
                         app->world, world_idx, self->pending_seq, self->pending_delay);
-                if( self->pending_seq >= 0 && self->cur_pid >= 0 )
-                    ToriRS_TaskQueue_Add(
-                        app->frame_runner.queue,
-                        CreateTask_PlayerHeldLand(app, self->cur_pid, self->pending_seq));
+                /* Wanted, gendered as the player is now: one load per (seq,
+                 * gender) in flight, none once it is in (every seq queued a
+                 * load before, resident or not). */
+                if( self->pending_seq >= 0 && world_idx >= 0 )
+                {
+                    struct WorldEntity_Player const* player =
+                        World_EntityPoolGet(&app->world->entities.player, world_idx);
+                    EntityAssets_WantPlayerHeld(app, self->pending_seq, player ? player->gender : 0);
+                }
             }
         }
     }
