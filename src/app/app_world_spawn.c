@@ -2166,8 +2166,8 @@ Task_AppSpawn_Free(struct ToriRS_Task* base)
 {
     struct Task_AppSpawn* self = (struct Task_AppSpawn*)base;
     /* Freed while its parts load: the table must stop counting them on this
-     * task. At shutdown the table is already gone. */
-    if( self->pending > 0 && self->app && self->app->assets )
+     * task. At shutdown the table is closed and ignores it. */
+    if( self->pending > 0 )
         Assets_Unjoin(self->app->assets, &self->pending);
     app_spawn_loc_lane_release((struct Task_AppSpawn*)base);
     ToriMem_Free(ToriMem_Process(), base);

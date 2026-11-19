@@ -231,7 +231,7 @@ Task_NpcBodyLand_Free(struct ToriRS_Task* base)
     struct Task_NpcBodyLand* self = (struct Task_NpcBodyLand*)base;
     /* A task freed before it ran to its end (a queue torn down mid-load)
      * must not leave its type loading for the rest of the session. */
-    if( !self->ended && self->app->assets )
+    if( !self->ended )
     {
         if( self->pending > 0 )
             Assets_Unjoin(self->app->assets, &self->pending);

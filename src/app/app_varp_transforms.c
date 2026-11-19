@@ -230,8 +230,8 @@ Task_NpcMultiLoad_Free(struct ToriRS_Task* base)
 {
     struct Task_NpcMultiLoad* self = (struct Task_NpcMultiLoad*)base;
     /* Freed while its parts still load: the table must not count them on
-     * this task any more. At shutdown the table is already gone. */
-    if( self->pending > 0 && self->app->assets )
+     * this task any more. At shutdown the table is closed and ignores it. */
+    if( self->pending > 0 )
         Assets_Unjoin(self->app->assets, &self->pending);
     ToriMem_Free(ToriMem_Process(), base);
 }

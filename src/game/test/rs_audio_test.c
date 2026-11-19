@@ -35,6 +35,8 @@
 #include "platform/platform_x_io.h"
 #include "varp/varp_manager.h"
 #include "task_runner.h"
+#include "engine/asset_load_task.h"
+#include "engine/asset_requests.h"
 
 #include <rscache.h>
 
@@ -380,6 +382,9 @@ test_prefs_persistence(void)
 /** One frame: tick the game's sound queue, pump async loads, hand the platform
  *  whatever came out. Exactly the order main.c uses. */
 static struct ToriDraw_Scene* g_scene = NULL;
+/* The harness's assets table: its SOUND loader queues the provider's load on
+ * the harness runner, which `frame` drains. NULL with no cache. */
+static struct Assets* g_assets = NULL;
 
 static void
 frame(
@@ -394,7 +399,7 @@ frame(
 
     /* No world and no device: the listener is the origin and the music player
      * synthesises nothing, which is what a headless run looks like. */
-    RS_Audio_Tick(audio, provider, runner, g_scene, NULL, 0, 0, 0, NULL, queue);
+    RS_Audio_Tick(audio, provider, runner ? g_assets : NULL, g_scene, NULL, 0, 0, 0, NULL, queue);
     /* Loads the tick queued must complete before the next tick can see them. */
     if( runner )
         TaskRunner_Drain(runner);
@@ -561,10 +566,14 @@ struct harness
 static void
 harness_free(struct harness* harness)
 {
+    if( g_assets )
+        Assets_Close(g_assets);
     RS_Audio_Shutdown(&harness->audio);
     PlatformAudio_Free(harness->platform);
     if( harness->task_queue )
         ToriRS_TaskQueue_Free(harness->task_queue);
+    Assets_Free(g_assets);
+    g_assets = NULL;
     if( harness->io )
         ToriRS_IOBatch_Free(harness->io);
     PlatformX_IO_Free(harness->px);
@@ -577,6 +586,28 @@ harness_free(struct harness* harness)
     if( harness->dat2_disk )
         RSCache_Dat2DiskFree(harness->dat2_disk);
     memset(harness, 0, sizeof(*harness));
+}
+
+/* The client's SOUND loader, on the harness runner. */
+static bool
+harness_sound_resident(
+    void* data,
+    struct AssetKey key)
+{
+    struct harness* harness = data;
+    return CacheProvider_SoundHas(harness->provider, key.id) != 0;
+}
+
+static enum AssetStart
+harness_sound_start(
+    void* data,
+    struct Assets* assets,
+    struct AssetKey key)
+{
+    struct harness* harness = data;
+    struct AssetLoadTask* task = AssetLoadTask_New(assets, key, harness_sound_resident, harness);
+    return AssetLoadTask_Start(
+        task, CreateTask_SoundLoad(harness->provider, key.id), harness->task_queue);
 }
 
 static bool
@@ -647,6 +678,11 @@ harness_init(
     harness->runner.queue = harness->task_queue;
     harness->runner.io = harness->io;
     harness->runner.px = harness->px;
+    {
+        struct AssetLoader loader = { harness_sound_start, harness_sound_resident, harness };
+        g_assets = Assets_New();
+        Assets_SetLoader(g_assets, ASSET_KIND_SOUND, &loader);
+    }
     return true;
 }
 
@@ -935,7 +971,7 @@ test_late_load_timing(
         struct ToriRS_AudioCommand commands[TORIRS_AUDIO_QUEUE_MAX];
         int count;
         RS_Audio_Tick(
-            &harness.audio, harness.provider, &harness.runner, g_scene, NULL, 0, 0, 0, NULL,
+            &harness.audio, harness.provider, g_assets, g_scene, NULL, 0, 0, 0, NULL,
             &harness.queue);
         /* No TaskRunner_Drain: the load stays outstanding. */
         count = ToriRS_AudioQueue_Drain(&harness.queue, commands, TORIRS_AUDIO_QUEUE_MAX);
@@ -943,6 +979,11 @@ test_late_load_timing(
         PlatformAudio_Update(harness.platform);
     }
     CHECK(harness.audio.played == 0, "nothing played while the clip was withheld");
+    /* Asked every tick of the stall, loaded once: the table holds the load
+     * (an effect asked once through a flag; an ambient loop or an emitter
+     * queued a load every tick until the clip landed). */
+    CHECK(Assets_LoadsStarted(g_assets, ASSET_KIND_SOUND) == 1,
+        "one load for every tick that asked");
     CHECK(harness.audio.count == 1, "the entry survived the stall");
 
     /* One frame with the drain: the load completes and the effect is overdue. */

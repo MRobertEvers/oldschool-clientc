@@ -13,7 +13,8 @@
  *
  * A LEAF load (a model, a texture, a sprite, a sequence, a component pack, a
  * sound, a song, the skybox, an obj model) is the provider's CreateTask_*
- * wrapped in Task_AssetLoad, which reports the end to the table; a
+ * wrapped in AssetLoadTask (engine/asset_load_task.h), which reports the end
+ * to the table; a
  * spot-animation is the spawn task that follows its chain, wrapped the same. A COMPOSITE
  * (an npc body, a held item, a transmog, the inventory icon pass, a
  * spot-animation, a reference table) is the task that already followed its
@@ -23,74 +24,10 @@
 #include "app/app_internal.h"
 #include "mem/torirs_mem.h"
 
+#include "engine/asset_load_task.h"
 #include "engine/asset_requests.h"
 #include "engine/task_obj_model_load.h"
 #include "game/task_entity_assets.h"
-
-struct Task_AssetLoad
-{
-    struct ToriRS_Task task;
-    struct pt pt;
-    struct App* app;
-    struct AssetKey key;
-    /* Made by the start, handed to the await on the first run. */
-    struct ToriRS_Task* child;
-    /* ASSET_KIND_OBJ_MODEL: the one-element arrays CreateTask_ObjModelLoad
-     * reads by pointer for as long as it runs. */
-    int obj_id;
-    int count;
-    /* The end has been reported. A task freed without it was torn down. */
-    int ended;
-};
-
-static struct ToriRS_Task*
-asset_load_take_child(struct Task_AssetLoad* self)
-{
-    struct ToriRS_Task* child = self->child;
-    self->child = NULL;
-    return child;
-}
-
-static int
-Task_AssetLoad_Run(
-    struct ToriRS_Task* base,
-    struct ToriRS_IOBatch* io)
-{
-    struct Task_AssetLoad* self = (struct Task_AssetLoad*)base;
-    struct App* app = self->app;
-
-    PT_BEGIN(&self->pt);
-    PT_TASK_AWAITSELF(asset_load_take_child(self));
-    self->ended = 1;
-    Assets_Finished(app->assets, self->key, App_AssetResident(app, self->key));
-    /* A ground stack's model lands at the load's end, where its placeholder
-     * task landed it before the table. */
-    if( self->key.kind == ASSET_KIND_OBJ_MODEL )
-        Assets_Land(app->assets, ASSET_KIND_BIT(ASSET_KIND_OBJ_MODEL));
-    PT_END(&self->pt);
-}
-
-static void
-Task_AssetLoad_Free(struct ToriRS_Task* base)
-{
-    struct Task_AssetLoad* self = (struct Task_AssetLoad*)base;
-
-    /* Freed mid-read: the entry must not stay "loading" for the rest of the
-     * session, which is what a flag left set did. At shutdown the table goes
-     * first (App_AssetsFree), and there is nothing to tell. */
-    if( !self->ended && self->app->assets )
-        Assets_Abandoned(self->app->assets, self->key);
-    if( self->pt.user )
-        task_free((struct ToriRS_Task*)self->pt.user);
-    if( self->child )
-        task_free(self->child);
-    ToriMem_Free(ToriMem_Process(), self);
-}
-
-static struct ToriRS_TaskVTable Task_AssetLoad_VTable = {
-    .run = Task_AssetLoad_Run,
-    .free = Task_AssetLoad_Free,
-};
 
 bool
 App_AssetResident(
@@ -123,6 +60,16 @@ App_AssetResident(
 }
 
 static bool
+asset_resident_never(
+    void* data,
+    struct AssetKey key)
+{
+    (void)data;
+    (void)key;
+    return false;
+}
+
+static bool
 asset_resident_leaf(
     void* data,
     struct AssetKey key)
@@ -133,6 +80,16 @@ asset_resident_leaf(
     return App_AssetResident((struct App*)data, key);
 }
 
+/* The end's answer: a song's load is its whole answer (the player installs
+ * it), everything else is asked of the cache. */
+static bool
+asset_resident_at_end(
+    void* data,
+    struct AssetKey key)
+{
+    return App_AssetResident((struct App*)data, key);
+}
+
 static enum AssetStart
 asset_start_leaf(
     void* data,
@@ -140,14 +97,9 @@ asset_start_leaf(
     struct AssetKey key)
 {
     struct App* app = data;
-    struct Task_AssetLoad* task;
+    struct AssetLoadTask* task = AssetLoadTask_New(assets, key, asset_resident_at_end, app);
     struct ToriRS_Task* child = NULL;
 
-    (void)assets;
-    task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
-    assert(task);
-    task->obj_id = key.id;
-    task->count = key.variant;
     if( key.kind == ASSET_KIND_MODEL || key.kind == ASSET_KIND_SKYBOX )
         child = CreateTask_ModelLoad(app->provider, key.id);
     else if( key.kind == ASSET_KIND_TEXTURE )
@@ -163,7 +115,12 @@ asset_start_leaf(
     else if( key.kind == ASSET_KIND_MUSIC )
         child = CreateTask_MusicLoad(app->provider, &app->audio.music, key.id, key.variant);
     else if( key.kind == ASSET_KIND_OBJ_MODEL )
-        child = CreateTask_ObjModelLoad(app->provider, &task->obj_id, &task->count, 1);
+    {
+        child = CreateTask_ObjModelLoad(app->provider, &task->args[0], &task->args[1], 1);
+        /* A ground stack's model lands at the load's end, where its
+         * placeholder task landed it before the table. */
+        task->land_mask = ASSET_KIND_BIT(ASSET_KIND_OBJ_MODEL);
+    }
     else if( key.kind == ASSET_KIND_SPOTANIM )
     {
         /* The type, then its model and sequence together (each of those
@@ -175,23 +132,11 @@ asset_start_leaf(
     }
     else
         assert(0 && "not a leaf kind");
-
-    if( !child )
-    {
-        /* The provider makes no task for a record it already holds. */
-        ToriMem_Free(ToriMem_Process(), task);
-        return key.kind != ASSET_KIND_MUSIC && App_AssetResident(app, key) ? ASSET_START_HERE
-                                                                           : ASSET_START_FAILED;
-    }
-    task->task.vtable = &Task_AssetLoad_VTable;
-    snprintf(task->task.name, sizeof(task->task.name), "AssetLoad:%s",
-        Assets_Policy((enum AssetKind)key.kind)->name);
-    task->app = app;
-    task->key = key;
-    task->child = child;
-    PT_INIT(&task->pt);
-    ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
-    return ASSET_START_LOADING;
+    /* No task from the provider: it already holds the record (or, for a
+     * song, cannot load it). */
+    if( !child && key.kind == ASSET_KIND_MUSIC )
+        task->resident = asset_resident_never;
+    return AssetLoadTask_Start(task, child, app->frame_runner.queue);
 }
 
 void

@@ -314,7 +314,7 @@ app_logic_tick(struct App* app)
         RS_Audio_Tick(
             &app->audio,
             app->provider,
-            &app->frame_runner,
+            app->assets,
             app->scene,
             app->world,
             listener_x,

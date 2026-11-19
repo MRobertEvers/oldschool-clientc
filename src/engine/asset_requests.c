@@ -69,7 +69,8 @@ static struct AssetPolicy const g_asset_policy[ASSET_KIND_COUNT] = {
                                ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ALL },
     [ASSET_KIND_IF_GROUP] = { "if_group", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_LATE_LAND, 0,
                               ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ONE },
-    [ASSET_KIND_SOUND] = { "sound", ASSET_FAIL_BACKOFF, 0, 500, 4000, ASSET_LATE_DROP_AFTER, 200,
+    [ASSET_KIND_SOUND] = { "sound", ASSET_FAIL_BACKOFF, 0, 500, 4000, ASSET_LATE_DROP_AFTER,
+                           ASSETS_SOUND_LATE_LIMIT_MS,
                            ASSET_NEWER_KEEP_BOTH, ASSET_LANDED_ONE },
     [ASSET_KIND_MUSIC] = { "music", ASSET_FAIL_GIVE_UP, 1, 0, 0, ASSET_LATE_LAND, 0,
                            ASSET_NEWER_REPLACE, ASSET_LANDED_ONE },
@@ -135,6 +136,8 @@ struct Assets
 
     uint64_t now_ms;
     uint32_t serial;
+    /* Assets_Close: shutting down, ends are ignored. */
+    int closed;
 
     struct AssetKey* scratch;
     int scratch_cap;
@@ -583,6 +586,8 @@ Assets_Finished(
 
     assert(assets);
     check_key(key);
+    if( assets->closed )
+        return;
     idx = entry_find(assets, key);
     assert(idx >= 0 && "a load ended that the table did not start");
     e = &assets->entries[idx];
@@ -651,6 +656,8 @@ Assets_Abandoned(
 
     assert(assets);
     check_key(key);
+    if( assets->closed )
+        return;
     idx = entry_find(assets, key);
     assert(idx >= 0 && "a load was abandoned that the table did not start");
     e = &assets->entries[idx];
@@ -716,6 +723,13 @@ Assets_Free(struct Assets* assets)
     ToriMem_Free(ToriMem_Process(), assets->nodes);
     ToriMem_Free(ToriMem_Process(), assets->scratch);
     ToriMem_Free(ToriMem_Process(), assets);
+}
+
+void
+Assets_Close(struct Assets* assets)
+{
+    assert(assets);
+    assets->closed = 1;
 }
 
 void
@@ -922,6 +936,11 @@ Assets_Unjoin(
 {
     assert(assets);
     assert(join);
+    if( assets->closed )
+    {
+        *join = 0;
+        return;
+    }
     for( int i = 0; i < assets->node_cap; i++ )
         if( assets->nodes[i].type == NODE_JOIN && assets->nodes[i].join == join )
         {

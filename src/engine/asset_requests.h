@@ -273,6 +273,15 @@ Assets_New(void);
 void
 Assets_Free(struct Assets* assets);
 
+/**
+ * The client is shutting down: from here every end, abandonment and unjoin is
+ * ignored. A task queue freed whole frees its tasks without ending their
+ * joins (the parents are freed with them), so a loader freed with it must not
+ * end the table's either. Close before freeing the queues, free after.
+ */
+void
+Assets_Close(struct Assets* assets);
+
 /** The kind's loader. Wanting a kind with none is an assert. */
 void
 Assets_SetLoader(
@@ -429,6 +438,10 @@ uint32_t
 Assets_LoadsStarted(
     struct Assets const* assets,
     enum AssetKind kind);
+
+/** ASSET_KIND_SOUND's deadline: a sound more than ten client cycles of 20 ms
+ *  late is dropped (the reference's delays[i] >= -10). */
+#define ASSETS_SOUND_LATE_LIMIT_MS 200
 
 /** The ceilings: reaching either is an assert. */
 #define ASSETS_ENTRIES_MAX 65536

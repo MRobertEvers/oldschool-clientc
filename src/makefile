@@ -873,6 +873,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	ui/uitree_keyboard_owner.c \
 	ui/uitree_popup_place.c \
 	engine/asset_requests.c \
+	engine/asset_load_task.c \
 	engine/entity_spotanim.c \
 	engine/toridraw_element_anim.c \
 	torirs_env_values.c \

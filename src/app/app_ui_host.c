@@ -590,7 +590,7 @@ static void
 Task_InvIconReconcile_Free(struct ToriRS_Task* base)
 {
     struct Task_InvIconReconcile* self = (struct Task_InvIconReconcile*)base;
-    if( !self->ended && self->app->assets )
+    if( !self->ended )
         Assets_Abandoned(self->app->assets, app_inv_icon_key());
     ToriMem_Free(ToriMem_Process(), base);
 }

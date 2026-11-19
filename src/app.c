@@ -1383,14 +1383,14 @@ App_Shutdown(struct App* app)
     Platform_IO_Free(app->frame_runner.px);
     CacheMounts_CloseDisks(&app->cache_mounts);
     /* Before the queues: a queue frees its tasks without ending their joins,
-     * and a loader freed with it must not end the table's either (it finds
-     * app->assets gone). */
-    App_AssetsFree(app);
+     * and a loader freed with it must not end the table's either. */
+    Assets_Close(app->assets);
     app_background_runner_free(app);
     ToriRS_TaskQueue_Free(app->packet_runner.queue);
     ToriRS_IOBatch_Free(app->packet_runner.io);
     ToriRS_TaskQueue_Free(app->frame_runner.queue);
     ToriRS_IOBatch_Free(app->frame_runner.io);
+    App_AssetsFree(app);
     /* The scripted-projectile curve VM, before the pool is drained. */
     if( app->curve_vm )
         CS2VM2_Release(app->curve_vm);

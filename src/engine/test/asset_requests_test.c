@@ -258,6 +258,15 @@ test_await_and_want_share(void)
         "without counting an attempt");
     Assets_Pump(assets);
     TEST_ASSERT(fake.start_count == 1, "the pump restarts it");
+
+    /* Shutting down: a loader freed with its queue ends nothing, and its
+     * parent's join (freed with the same queue) is not touched. */
+    join = 7;
+    Assets_Await(assets, AssetKey_Make(ASSET_KIND_SEQUENCE, 12, 0), &join);
+    Assets_Close(assets);
+    Assets_Abandoned(assets, AssetKey_Make(ASSET_KIND_SEQUENCE, 12, 0));
+    Assets_Finished(assets, AssetKey_Make(ASSET_KIND_SEQUENCE, 11, 0), true);
+    TEST_ASSERT(join == 8, "a closed table releases no join");
     Assets_Free(assets);
 }
 
