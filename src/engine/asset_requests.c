@@ -464,7 +464,8 @@ start_load(
     struct AssetKey key);
 
 /* REPLACE kinds: with no loader of the kind running, start the one entry that
- * is still wanted. */
+ * is still wanted, unless it is waiting out a back-off (the pump or the next
+ * want starts it then). */
 static void
 start_next_of_kind(
     struct Assets* assets,
@@ -482,6 +483,8 @@ start_next_of_kind(
             e->superseded )
             continue;
         assert(!found && "a REPLACE kind holds one wanted entry");
+        if( e->retry_at > assets->now_ms )
+            continue;
         next = e->key;
         found = true;
     }
