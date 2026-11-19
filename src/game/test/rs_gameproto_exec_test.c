@@ -406,13 +406,21 @@ main(void)
     int32_t node = UITree_Push(tree, -1, &spec);
     assert(node >= 0);
 
+    /* RS_GameProto_Exec requires an App. A section that needs more than a
+     * zeroed one swaps its own in and hands this one back; the tree and the
+     * chat are bound as app.c binds them. */
+    struct App* base_app = calloc(1, sizeof(*base_app));
+    assert(base_app);
+    base_app->tree = tree;
+    RS_CS2Host_SetChat(&base_app->host, &chat);
+
     struct RS_GameProtoCtx ctx = {
         .tree = tree,
         .invs = &invs,
         .varps = &varps,
         .stats = &stats,
         .chat = &chat,
-        .app = NULL,
+        .app = base_app,
     };
 
     /* VARP_SMALL 42 = 5 */
@@ -763,7 +771,7 @@ main(void)
         assert(WorldviewRegistry_Active(&app->worldviews) == WORLDVIEW_ROOT);
         assert(WorldviewRegistry_ActiveLevel(&app->worldviews) == 0);
 
-        ctx.app = NULL;
+        ctx.app = base_app;
         free(app);
         printf("ok - SET_ACTIVE_WORLD arms the cursor and the fence resets it\n");
     }
@@ -799,7 +807,7 @@ main(void)
             assert(app->minimap.flag_tile_x == -1);
             assert(app->minimap.flag_tile_z == -1);
         }
-        ctx.app = NULL;
+        ctx.app = base_app;
         free(app);
         printf("ok - SET_MAP_FLAG stores scene-local tiles\n");
     }
@@ -873,7 +881,7 @@ main(void)
         RS_GameProto_Exec(&ctx, &p);
         TEST_EXEC_ASSERT(app->hint_arrow.type == 0, "255 is the clear");
 
-        ctx.app = NULL;
+        ctx.app = base_app;
         free(app);
         printf("ok - HINT_ARROW reads the wire's own type numbers\n");
     }
@@ -1107,7 +1115,7 @@ main(void)
         }
         printf("ok - LAST_LOGIN_INFO carries the member warning\n");
 
-        ctx.app = NULL;
+        ctx.app = base_app;
         free(app);
     }
 
@@ -1234,7 +1242,7 @@ main(void)
         RS_GroupStore_Free(&store);
 
         assert(app);
-        memset(&unlock_ctx, 0, sizeof(unlock_ctx));
+        unlock_ctx = ctx;
         unlock_ctx.app = app;
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_OBJUNLOCK_UPDATE;
@@ -1282,7 +1290,7 @@ main(void)
         assert(r->yaw.to == 1900 - 2048);
         assert(!r->pitch.active);
 
-        memset(&url_ctx, 0, sizeof(url_ctx));
+        url_ctx = ctx;
         url_ctx.app = app;
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_URL_OPEN;
@@ -1377,12 +1385,14 @@ main(void)
         TEST_EXEC_ASSERT(
             app->slots.main_modal_id == -1, "no address opens no welcome screen");
 
-        ctx.app = NULL;
+        ctx.app = base_app;
         RevConfigRefs_Free(&app->revconfig_refs);
         free(app);
         printf("ok - LAST_LOGIN_INFO opens the welcome screen the profile names\n");
     }
 
+    UIIfTextStore_Free(&base_app->if_texts);
+    free(base_app);
     UITree_Free(tree);
     InvManager_Free(&invs);
     VarPManager_Free(&varps);

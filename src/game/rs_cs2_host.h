@@ -1796,7 +1796,8 @@ RS_CS2Host_SetSocial(
 void
 RS_CS2Host_NotifyFriendChanged(struct RS_CS2Host* host);
 
-/** Point the CHAT_* history opcodes at the client's message store. */
+/** Point the CHAT_* history opcodes at the client's message store. Every
+ *  host that runs scripts or adds messages needs one: those paths assert it. */
 void
 RS_CS2Host_SetChat(
     struct RS_CS2Host* host,

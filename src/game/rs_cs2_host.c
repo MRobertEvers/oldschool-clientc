@@ -1276,6 +1276,7 @@ RS_CS2Host_SetChat(
     struct RS_Chat* chat)
 {
     assert(host);
+    assert(chat);
     host->chat = chat;
 }
 
@@ -1288,8 +1289,7 @@ RS_CS2Host_ChatAdd(
     char const* text)
 {
     assert(host);
-    if( !host->chat )
-        return;
+    assert(host->chat);
     RS_Chat_AddMessage(host->chat, type, name, sender, text, host->client_clock);
     host->chat_transmit_dirty = 1;
 }
@@ -9376,17 +9376,20 @@ exec_chat(
      * with GETPREVUID, reading each node with GETHISTORYEX_BYUID and writing
      * one line component per message that passes its own filters.
      *
-     * A NULL store is a run with no chatbox (a headless harness), and the
-     * answers below are the same ones the reference gives for a message that
-     * has fallen out of its ring: an empty history rather than a refusal. */
+     * Every host that runs scripts has a chat store (RS_CS2Host_SetChat);
+     * a message that has fallen out of its ring answers as the reference
+     * does, an empty history rather than a refusal. */
     case CS2_OP_CHAT_GETHISTORYLENGTH:
-        return CS2VM2_PushInt(vm, host->chat ? RS_Chat_TypeCount(host->chat, type) : 0);
+        assert(host->chat);
+        return CS2VM2_PushInt(vm, RS_Chat_TypeCount(host->chat, type));
 
     case CS2_OP_CHAT_GETNEXTUID:
-        return CS2VM2_PushInt(vm, host->chat ? RS_Chat_NextUid(host->chat, uid) : -1);
+        assert(host->chat);
+        return CS2VM2_PushInt(vm, RS_Chat_NextUid(host->chat, uid));
 
     case CS2_OP_CHAT_GETPREVUID:
-        return CS2VM2_PushInt(vm, host->chat ? RS_Chat_PrevUid(host->chat, uid) : -1);
+        assert(host->chat);
+        return CS2VM2_PushInt(vm, RS_Chat_PrevUid(host->chat, uid));
 
     case CS2_OP_CHAT_GETHISTORY_BYUID_PRE195:
     case CS2_OP_CHAT_GETHISTORY_BYTYPEANDLINE_PRE195:
@@ -9397,11 +9400,11 @@ exec_chat(
                            opcode == CS2_OP_CHAT_GETHISTORY_BYUID;
         int const extended = opcode == CS2_OP_CHAT_GETHISTORY_BYUID ||
                              opcode == CS2_OP_CHAT_GETHISTORY_BYTYPEANDLINE;
-        struct RS_ChatNode const* node = NULL;
+        struct RS_ChatNode const* node;
 
-        if( host->chat )
-            node = by_uid ? RS_Chat_NodeByUid(host->chat, uid)
-                          : RS_Chat_NodeByTypeAndLine(host->chat, type, line);
+        assert(host->chat);
+        node = by_uid ? RS_Chat_NodeByUid(host->chat, uid)
+                      : RS_Chat_NodeByTypeAndLine(host->chat, type, line);
 
         /*
          * Six values, or eight for the `ex` forms:
@@ -9448,33 +9451,31 @@ exec_chat(
     case CS2_OP_CHAT_SETMESSAGEFILTER:
         /* The public-chat search box above the tabs. Client state: the
          * chatbox script reads it back and drops lines that do not match. */
-        if( host->chat )
-        {
-            snprintf(
-                host->chat->message_filter,
-                sizeof(host->chat->message_filter),
-                "%s",
-                text ? text : "");
-            /* A filter change re-selects which lines are visible, so the
-             * scrollback has to be rebuilt -- the same channel a new message
-             * uses, because it is the same redraw. */
-            host->chat_transmit_dirty = 1;
-        }
+        assert(host->chat);
+        snprintf(
+            host->chat->message_filter,
+            sizeof(host->chat->message_filter),
+            "%s",
+            text ? text : "");
+        /* A filter change re-selects which lines are visible, so the
+         * scrollback has to be rebuilt -- the same channel a new message
+         * uses, because it is the same redraw. */
+        host->chat_transmit_dirty = 1;
         return CS2VM_EXECNO_OK;
 
     case CS2_OP_CHAT_GETMESSAGEFILTER:
-        return rs_cs2_push_text(vm, host->chat ? host->chat->message_filter : "");
+        assert(host->chat);
+        return rs_cs2_push_text(vm, host->chat->message_filter);
 
     case CS2_OP_CHAT_SETTIMESTAMPS:
-        if( host->chat )
-        {
-            host->chat->timestamps = timestamps;
-            host->chat_transmit_dirty = 1;
-        }
+        assert(host->chat);
+        host->chat->timestamps = timestamps;
+        host->chat_transmit_dirty = 1;
         return CS2VM_EXECNO_OK;
 
     case CS2_OP_CHAT_GETTIMESTAMPS:
-        return CS2VM2_PushInt(vm, host->chat ? host->chat->timestamps : 0);
+        assert(host->chat);
+        return CS2VM2_PushInt(vm, host->chat->timestamps);
 
     case CS2_OP_CHAT_SENDCLAN:
         /* No clan channel at this client. The arguments are popped by the VM

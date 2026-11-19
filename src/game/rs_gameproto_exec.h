@@ -27,8 +27,8 @@ struct RS_GameProtoCtx
     struct VarPManager* varps;
     struct RS_PlayerStats* stats;
     struct RS_Chat* chat;
-    /** Optional: interface-open packets and world load need the App. When
-     *  NULL those handlers are skipped (unit tests pass a NULL app). */
+    /** Required, like every field above: RS_GameProto_Exec asserts each one.
+     *  A test that has no live client passes a zeroed App. */
     struct App* app;
 };
 
