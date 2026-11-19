@@ -34,13 +34,6 @@ app_obj_stack_build_model(
     int obj_id,
     int count);
 static void
-app_obj_stack_refresh_model(
-    struct App* app,
-    struct World* world,
-    int idx,
-    int count);
-
-static void
 app_plugin_obj_notify(
     struct App* app,
     int idx,
@@ -90,8 +83,9 @@ app_plugin_obj_notify(
  * priestperil dropNotes). The note keeps its own contrast/ambient, as genCert
  * copies neither. ObjModelLoad_NeedsWork already waits for the template.
  *
- * NULL when the variant's objtype or model is not resident yet -- the caller
- * leaves the element alone and the async load lands on a later packet.
+ * NULL when the variant's objtype or model is not resident yet, or the obj
+ * has no ground model at all: app_obj_stack_apply_model leaves the stack as
+ * it is (a ground task, app/app_tasks_ground.c, waits for what is missing).
  */
 static struct ToriDraw_Model*
 app_obj_stack_build_model(
@@ -252,45 +246,10 @@ app_obj_stack_model_for(
     return app_obj_stack_build_model(app, stack->obj_id, count);
 }
 
-/* Re-point a live stack's element at the model its NEW count selects. The
- * variant only changes at the ten count_co thresholds, so this is a no-op for
- * most count edits. Call BEFORE World_ObjStackSetCount: the count still on the
- * entity is what decides whether anything has to change. */
-static void
-app_obj_stack_refresh_model(
-    struct App* app,
-    struct World* world,
-    int idx,
-    int count)
-{
-    struct WorldEntity_ObjStack* stack;
-    struct ToriDraw_Model* model;
-    struct ToriDraw_ModelHandle hnd;
-
-    assert(app);
-    assert(world);
-    assert(idx >= 0);
-    stack = World_EntityPoolGet(&world->entities.obj_stack, idx);
-    assert(stack);
-    if( ObjModelLoad_RenderObjId(app->provider, stack->obj_id, stack->count) ==
-        ObjModelLoad_RenderObjId(app->provider, stack->obj_id, count) )
-        return;
-    if( stack->element_id < 0 || !ToriDraw_SceneElementIsLive(app->scene, stack->element_id) )
-        return;
-    model = app_obj_stack_model_for(app, stack, count);
-    if( !model )
-        return;
-    memset(&hnd, 0, sizeof(hnd));
-    hnd.kind = TORIDRAWMK_MODEL;
-    hnd.u.model.model = model;
-    /* Disposes the model the element was holding. */
-    ToriDraw_SceneElementSetModel(app->scene, stack->element_id, hnd);
-    app_sync_textures(app);
-}
-
 /*
- * Ground item stacks (zone OBJ_* packets). The objtype + its inventory
- * model must already be cached (the packet task awaits the loads).
+ * Ground item stacks (zone OBJ_* packets). The row is the server's and is
+ * written at packet time, whatever the cache holds; its model is the
+ * picture, and is never waited for here.
  *
  * EVERY call adds one row, even when the tile already holds a row of the same
  * obj. That is the reference's rule: OBJ_ADD always pushes a new ClientObj
@@ -308,6 +267,13 @@ app_obj_stack_refresh_model(
  * there (seam pass matthew-mbp-m4-b52-seam1 (a); raid seam
  * client_ground_obj_merge). It also lost a count: a second private coin drop
  * overwrote the first pile's count instead of standing beside it.
+ *
+ * The row exists before its model, always. A model that is resident is put
+ * on it now; one that is not is a ground task's (app_ground_stack_show). A
+ * model that will not build -- every part resident, and the obj still gives
+ * none -- leaves the row without an element, listed and clickable through
+ * the overlay as the server has it. It used to drop the whole add instead,
+ * row and all, while the same obj arriving cold kept its row (G3).
  */
 int
 App_WorldObjStackAdd(
@@ -318,13 +284,10 @@ App_WorldObjStackAdd(
     int obj_id,
     int count)
 {
+    static const char none[5][32] = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
     struct ToriRS_Objtype* obj;
-    struct ToriDraw_Model* model;
-    int world_x = scene_x * 128 + 64;
-    int world_z = scene_z * 128 + 64;
-    int world_y;
-    int element_id;
     struct World* world;
+    int idx;
 
     assert(app);
     /* Zone mutations act on whichever view the packet cursor addresses — the
@@ -343,118 +306,42 @@ App_WorldObjStackAdd(
         return World_ObjStackFind(world, scene_x, scene_z, level, obj_id);
 
     /* The BASE objtype carries the name and the ground ops the minimenu reads;
-     * the model comes from whichever count variant `count` selects. */
+     * the model comes from whichever count variant `count` selects. Not
+     * resident yet: the name and menu arrive with the model. */
     obj = CacheProvider_ObjtypeGet(app->provider, obj_id);
-    /*
-     * Not resident yet -- the objtype, its count variant, the inventory model
-     * or a texture it wears: the stack exists NOW without a scene element and
-     * a placeholder lands the model when it arrives (app_placeholder.c). This
-     * used to be the packet handler's own wait, on the FIFO, one round trip
-     * per first-seen drop with every packet and the frame behind it.
-     */
-    if( !obj || ObjModelLoad_NeedsWork(app->provider, obj_id, count) )
-    {
-        static const char none[5][32] = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
-        int idx;
-        if( obj )
-        {
-            char actions32[5][32];
-            for( int a = 0; a < 5; a++ )
-                snprintf(actions32[a], sizeof(actions32[a]), "%s", obj->ground_actions[a]);
-            idx = World_ObjStackAdd(
-                world, -1, scene_x, scene_z, level, obj_id, count, obj->name, actions32);
-        }
-        else
-            idx = World_ObjStackAdd(world, -1, scene_x, scene_z, level, obj_id, count, "", none);
-        if( idx < 0 )
-            return -1;
-        app_placeholder_obj_stack(app, scene_x, scene_z, level, obj_id, count);
-        app_plugin_obj_notify(app, idx, APP_PLUGIN_ITEM_SPAWN);
-        app_ground_items_mark(app, world, scene_x, scene_z, level);
-        RedrawRequest_Raise(&app->redraw_request);
-        return idx;
-    }
-    model = app_obj_stack_build_model(app, obj_id, count);
-    if( !model )
-        return -1;
-
-    /* LocType.raiseobject: world Y is negative-up, so subtracting raise lifts
-     * the stack onto the table (Client-TS objs.y - objs.height). */
-    /* The heightmap of the world the stack lives in: app_world_height reads
-     * the ROOT, and a deck stack's tile is deck-local (seam18 C). */
-    world_y = World_HeightAt(world, world_x, world_z, level) -
-              World_ObjRaiseGet(world, scene_x, scene_z, level);
-    element_id = app_world_scene_element_create(
-        app, TORIDRAW_ELEMENT_KIND_OBJSTACK, model, world_x, world_y, world_z);
-    if( element_id < 0 )
-        return -1;
-
-    if( torirs_env_net_debug() )
-        TORIRS_LOG(
-            "objstack: obj=%d tile=%d,%d,%d element=%d\n",
-            obj_id,
-            scene_x,
-            scene_z,
-            level,
-            element_id);
-    app_sync_textures(app);
-    RedrawRequest_Raise(&app->redraw_request);
+    if( obj )
     {
         /* ToriRS actions are [5][64]; the entity facet stores [5][32] —
          * repack at the matching stride (same gotcha as the scenery path). */
         char actions32[5][32];
         for( int a = 0; a < 5; a++ )
             snprintf(actions32[a], sizeof(actions32[a]), "%s", obj->ground_actions[a]);
-        int const idx = World_ObjStackAdd(
-            world, element_id, scene_x, scene_z, level, obj_id, count, obj->name, actions32);
-        app_plugin_obj_notify(app, idx, APP_PLUGIN_ITEM_SPAWN);
-        app_ground_items_mark(app, world, scene_x, scene_z, level);
-        return idx;
+        idx = World_ObjStackAdd(
+            world, -1, scene_x, scene_z, level, obj_id, count, obj->name, actions32);
     }
+    else
+        idx = World_ObjStackAdd(world, -1, scene_x, scene_z, level, obj_id, count, "", none);
+    if( idx < 0 )
+        return -1;
+    app_ground_stack_show(app, world, WorldviewRegistry_Active(&app->worldviews), idx, 0);
+    app_plugin_obj_notify(app, idx, APP_PLUGIN_ITEM_SPAWN);
+    app_ground_items_mark(app, world, scene_x, scene_z, level);
+    RedrawRequest_Raise(&app->redraw_request);
+    return idx;
 }
 
-/* Rebuild a customised stack's model on its element, or send it back to the
- * placeholder when the replacement model is not resident yet. */
+/* A stack's OBJ_(UN)CUSTOMISE changed what its model is: show the new one,
+ * now if every part is resident, or when a ground task has loaded the
+ * replacement model. The element keeps the model it has until then. It used
+ * to queue the replacement model's load and forget it, so a stack that
+ * already had an element was never re-shaped (G2). */
 static void
 app_obj_stack_custom_changed(
     struct App* app,
     struct World* world,
     int idx)
 {
-    struct WorldEntity_ObjStack* stack;
-    struct ToriDraw_Model* model;
-    struct ToriDraw_ModelHandle hnd;
-
-    stack = World_EntityPoolGet(&world->entities.obj_stack, idx);
-    assert(stack);
-    if( stack->customised && stack->custom_model > -1 &&
-        !CacheProvider_ModelGet(app->provider, stack->custom_model) )
-    {
-        struct ToriRS_Task* load = CreateTask_ModelLoad(app->provider, stack->custom_model);
-
-        if( load )
-            ToriRS_TaskQueue_Add(app->frame_runner.queue, load);
-        if( stack->element_id >= 0 )
-            return;
-        app_placeholder_obj_stack(
-            app,
-            stack->grid_position.x,
-            stack->grid_position.z,
-            stack->grid_position.level,
-            stack->obj_id,
-            stack->count);
-        return;
-    }
-    if( stack->element_id < 0 || !ToriDraw_SceneElementIsLive(app->scene, stack->element_id) )
-        return;
-    model = app_obj_stack_model_for(app, stack, stack->count);
-    if( !model )
-        return;
-    memset(&hnd, 0, sizeof(hnd));
-    hnd.kind = TORIDRAWMK_MODEL;
-    hnd.u.model.model = model;
-    ToriDraw_SceneElementSetModel(app->scene, stack->element_id, hnd);
-    app_sync_textures(app);
+    app_ground_stack_show(app, world, WorldviewRegistry_Active(&app->worldviews), idx, 1);
     RedrawRequest_Raise(&app->redraw_request);
 }
 
@@ -568,15 +455,32 @@ App_WorldObjStackSetEnabledOps(
     RedrawRequest_Raise(&app->redraw_request);
 }
 
-static int
-app_obj_stack_land_one(
+int
+app_obj_stack_model_resident(
+    struct App* app,
+    struct WorldEntity_ObjStack const* stack)
+{
+    assert(app);
+    assert(stack);
+    if( ObjModelLoad_NeedsWork(app->provider, stack->obj_id, stack->count) )
+        return 0;
+    if( stack->customised && stack->custom_model > -1 &&
+        !CacheProvider_ModelHas(app->provider, stack->custom_model) )
+        return 0;
+    return 1;
+}
+
+int
+app_obj_stack_apply_model(
     struct App* app,
     struct World* world,
-    int idx)
+    int idx,
+    int announce)
 {
     struct WorldEntity_ObjStack* stack;
     struct ToriRS_Objtype* obj;
     struct ToriDraw_Model* model;
+    struct ToriDraw_ModelHandle hnd;
     int world_x, world_z, world_y;
     int element_id;
 
@@ -585,26 +489,45 @@ app_obj_stack_land_one(
     assert(idx >= 0);
     stack = World_EntityPoolGet(&world->entities.obj_stack, idx);
     assert(stack);
-    assert(stack->element_id < 0);
+    if( !app_obj_stack_model_resident(app, stack) )
+        return 0;
     obj = CacheProvider_ObjtypeGet(app->provider, stack->obj_id);
-    if( !obj || ObjModelLoad_NeedsWork(app->provider, stack->obj_id, stack->count) )
-        return 0;
-    if( stack->customised && stack->custom_model > -1 &&
-        !CacheProvider_ModelGet(app->provider, stack->custom_model) )
-        return 0;
+    if( !obj )
+        return -1;
+    if( stack->element_id >= 0 )
+    {
+        /* A count past a variant threshold, or a customisation: the same
+         * element, the model its state selects now. */
+        if( !ToriDraw_SceneElementIsLive(app->scene, stack->element_id) )
+            return -1;
+        model = app_obj_stack_model_for(app, stack, stack->count);
+        if( !model )
+            return -1;
+        memset(&hnd, 0, sizeof(hnd));
+        hnd.kind = TORIDRAWMK_MODEL;
+        hnd.u.model.model = model;
+        /* Disposes the model the element was holding. */
+        ToriDraw_SceneElementSetModel(app->scene, stack->element_id, hnd);
+        app_sync_textures(app);
+        RedrawRequest_Raise(&app->redraw_request);
+        return 1;
+    }
     model = app_obj_stack_model_for(app, stack, stack->count);
     if( !model )
-        return 0;
+        return -1;
     world_x = stack->grid_position.x * 128 + 64;
     world_z = stack->grid_position.z * 128 + 64;
-    /* LocType.raiseobject, as in App_WorldObjStackAdd. */
+    /* LocType.raiseobject: world Y is negative-up, so subtracting raise lifts
+     * the stack onto the table (Client-TS objs.y - objs.height). The
+     * heightmap of the world the stack lives in: app_world_height reads the
+     * ROOT, and a deck stack's tile is deck-local (seam18 C). */
     world_y = World_HeightAt(world, world_x, world_z, stack->grid_position.level) -
               World_ObjRaiseGet(
                   world, stack->grid_position.x, stack->grid_position.z, stack->grid_position.level);
     element_id = app_world_scene_element_create(
         app, TORIDRAW_ELEMENT_KIND_OBJSTACK, model, world_x, world_y, world_z);
     if( element_id < 0 )
-        return 0;
+        return -1;
     World_ObjStackSetElement(world, idx, element_id);
     {
         char actions32[5][32];
@@ -614,65 +537,19 @@ app_obj_stack_land_one(
     }
     if( torirs_env_net_debug() )
         TORIRS_LOG(
-            "objstack: obj=%d tile=%d,%d,%d element=%d (landed)\n",
+            "objstack: obj=%d tile=%d,%d,%d element=%d%s\n",
             stack->obj_id,
             stack->grid_position.x,
             stack->grid_position.z,
             stack->grid_position.level,
-            element_id);
+            element_id,
+            announce ? " (landed)" : "");
     app_sync_textures(app);
-    app_plugin_obj_notify(app, idx, APP_PLUGIN_ITEM_CHANGE);
+    if( announce )
+        app_plugin_obj_notify(app, idx, APP_PLUGIN_ITEM_CHANGE);
     app_ground_items_mark(
         app, world, stack->grid_position.x, stack->grid_position.z, stack->grid_position.level);
     RedrawRequest_Raise(&app->redraw_request);
-    return 1;
-}
-
-/*
- * Land `idx`, then every other row of the same obj on the same tile that is
- * still waiting for its model.
- *
- * Two identical items on one tile are two rows (App_WorldObjStackAdd), and
- * when both arrive before the objtype is resident each queues a placeholder.
- * The placeholder finds its stack by (tile, obj id) -- World_ObjStackFind,
- * the OLDEST row -- so the second placeholder finds the first row, sees it
- * already landed, and stops: the second row would stay without a scene
- * element (nothing drawn, nothing to click) until the next world load swept
- * it. Landing the siblings here, while the first placeholder holds the
- * resident objtype, closes that for every row whose count selects a resident
- * model. A sibling whose count variant is still loading is left to the sweep
- * (app_placeholder_obj_stacks_sweep); see the open issue in the raid seam
- * notes (app_placeholder.c should look up the first ELEMENT-LESS row).
- */
-int
-app_obj_stack_land(
-    struct App* app,
-    struct World* world,
-    int idx)
-{
-    struct World_EntityPool* pool;
-    struct WorldEntity_ObjStack const* landed;
-    int scene_x, scene_z, level, obj_id;
-
-    if( !app_obj_stack_land_one(app, world, idx) )
-        return 0;
-    pool = &world->entities.obj_stack;
-    landed = World_EntityPoolGet(pool, idx);
-    assert(landed);
-    scene_x = landed->grid_position.x;
-    scene_z = landed->grid_position.z;
-    level = landed->grid_position.level;
-    obj_id = landed->obj_id;
-    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
-         i = World_EntityPoolNext(pool, i) )
-    {
-        struct WorldEntity_ObjStack const* sibling = World_EntityPoolGet(pool, i);
-        if( i == idx || !sibling || sibling->element_id >= 0 || sibling->obj_id != obj_id ||
-            sibling->grid_position.x != scene_x || sibling->grid_position.z != scene_z ||
-            sibling->grid_position.level != level )
-            continue;
-        app_obj_stack_land_one(app, world, i);
-    }
     return 1;
 }
 
@@ -747,6 +624,7 @@ App_WorldRebuildShift(
                 /* Off the new scene: the client stops tracking it, and a
                  * plugin drawing against it has to hear so. */
                 app_plugin_obj_notify(app, i, APP_PLUGIN_ITEM_DESPAWN);
+                app_ground_stack_forget(app, world, i);
                 World_ObjStackDel(world, i);
             }
             else if( stack->element_id >= 0 )
@@ -870,6 +748,7 @@ App_WorldObjStackDel(
         /* Ahead of the release, so a plugin's last look at the stack is a
          * whole one -- the same ordering the npc despawn path uses. */
         app_plugin_obj_notify(app, idx, APP_PLUGIN_ITEM_DESPAWN);
+        app_ground_stack_forget(app, world, idx);
         World_ObjStackDel(world, idx);
         app_ground_items_mark(app, world, scene_x, scene_z, level);
         RedrawRequest_Raise(&app->redraw_request);
@@ -900,8 +779,24 @@ App_WorldObjStackSetCount(
     idx = World_ObjStackFind(world, scene_x, scene_z, level, obj_id);
     if( idx < 0 )
         return;
-    app_obj_stack_refresh_model(app, world, idx, count);
-    World_ObjStackSetCount(world, idx, count);
+    {
+        struct WorldEntity_ObjStack const* stack =
+            World_EntityPoolGet(&world->entities.obj_stack, idx);
+        /* The variant only changes at the ten count_co thresholds, so most
+         * count edits leave a drawn stack's model as it is. A stack still
+         * without one is shown again whatever the count: its variant cannot
+         * be told before its objtype is resident. A new variant that is not
+         * resident is loaded and the element re-pointed when it is; the old
+         * model stays drawn meanwhile. It used to keep the old model for
+         * good (G1). */
+        int const reshape = stack->element_id < 0 ||
+                            ObjModelLoad_RenderObjId(app->provider, obj_id, stack->count) !=
+                                ObjModelLoad_RenderObjId(app->provider, obj_id, count);
+
+        World_ObjStackSetCount(world, idx, count);
+        if( reshape )
+            app_ground_stack_show(app, world, WorldviewRegistry_Active(&app->worldviews), idx, 0);
+    }
     app_plugin_obj_notify(app, idx, APP_PLUGIN_ITEM_CHANGE);
     app_ground_items_mark(app, world, scene_x, scene_z, level);
     RedrawRequest_Raise(&app->redraw_request);
@@ -922,6 +817,7 @@ App_WorldObjStackClearTile(
     while( (idx = World_ObjStackFind(world, scene_x, scene_z, level, -1)) >= 0 )
     {
         app_plugin_obj_notify(app, idx, APP_PLUGIN_ITEM_DESPAWN);
+        app_ground_stack_forget(app, world, idx);
         World_ObjStackDel(world, idx);
         app_ground_items_mark(app, world, scene_x, scene_z, level);
         RedrawRequest_Raise(&app->redraw_request);

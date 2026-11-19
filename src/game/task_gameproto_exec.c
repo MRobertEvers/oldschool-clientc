@@ -490,8 +490,8 @@ Task_GameProtoExec_Run(
              self->packet.packet_type == PKT_NAME_OBJ_COUNT )
     {
         /* A ground item's model is NOT awaited here: App_WorldObjStackAdd
-         * creates the stack at once and a placeholder lands the model
-         * (app/app_placeholder.c). The wait used to be one round trip per
+         * creates the stack at once and a parallel task lands the model
+         * (app/app_tasks_ground.c). The wait used to be one round trip per
          * first-seen drop, with every packet and the frame behind it. */
         {
             struct RS_ServerState state;

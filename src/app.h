@@ -174,8 +174,9 @@ struct RsprotInfoOp;
 struct DevOverlay;
 struct Editor;
 struct MapEditorApp;
-/** Placeholder requests waiting for a tick; owned by app/app_placeholder.c. */
-struct WidgetIconPark;
+/** The ground family's tick state (the widget icons' release); owned by
+ *  app/app_tasks_ground.c. */
+struct AppTasksGround;
 
 /*
  * Application shell: owns every subsystem and the update loop body, with no
@@ -719,14 +720,14 @@ struct App
      * @see ui/uitree_if_models.h */
     struct UIIfModels if_models;
 
-    /* Placeholder requests a CLIENTSCRIPT asked for, parked until a logic
-     * tick releases them. A script runs inside the settle, and the settle
-     * drains the asset runner, so a placeholder queued from one would be
-     * picked up by the very frame it was meant to leave -- app_placeholder.c
-     * has the measurement. One pointer: the park and its key are
-     * inv/widget_icon_park.h, its burst bound is that unit's. NULL until the
-     * first request. */
-    struct WidgetIconPark* placeholder_park;
+    /* The widget icons a CLIENTSCRIPT asked for wait, as parallel tasks,
+     * for a logic tick to release them a bounded number at a time. A script
+     * runs inside the settle, and the settle drains the parallel queue, so
+     * an icon load made from one would be stepped by the very frame it was
+     * meant to leave -- app/app_tasks_ground.c has the measurement and the
+     * bound. This is the tick counter and the release count those tasks
+     * read. NULL until the first request. */
+    struct AppTasksGround* tasks_ground;
 
     /* Projectile hotkey latch: first press = src tile, second = dst + fire. */
     /*

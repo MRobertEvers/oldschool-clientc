@@ -3785,6 +3785,13 @@ World_ObjStackAdd(
     stack = World_EntityPoolGet(pool, idx);
     memset(stack, 0, sizeof(*stack));
     stack->element_id = element_id;
+    /* Process-wide, so (pool index, serial) names one row in every world. */
+    {
+        static uint32_t s_obj_stack_serial;
+        if( ++s_obj_stack_serial == 0 )
+            ++s_obj_stack_serial;
+        stack->serial = s_obj_stack_serial;
+    }
     stack->grid_position.x = scene_x;
     stack->grid_position.z = scene_z;
     stack->grid_position.level = level;

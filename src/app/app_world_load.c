@@ -443,10 +443,9 @@ App_WorldLoadFinish(struct App* app)
         app_client_triggers_world_loaded(app);
         if( timing )
             tf[2] = WorldBuilder_TimingNowMs();
-        /* Ground items that were still waiting for a model when the scene was
-         * rebuilt: their placeholders dropped themselves for the rebuild and
-         * take new ones now, against this generation. */
-        app_placeholder_obj_stacks_sweep(app, app->world);
+        /* Ground items still without a model and with no task waiting for
+         * one (their loads gave up): asked for again, once per rebuild. */
+        app_ground_stacks_sweep(app, app->world);
         /* The scene was built from the map, so every loc a zone packet changed
          * is back to the map's, and a zone that stayed in view is not resent:
          * re-place them (World_LocChangesTakeStanding). Server-driven only --

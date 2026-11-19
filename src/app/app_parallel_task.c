@@ -93,3 +93,47 @@ App_ParallelTaskLate(
 {
     return RS_ParallelTask_LateCycles(par, App_ParallelCycle(app));
 }
+
+/*
+ * The world a deferred apply belongs to, or NULL when the scene it was aimed
+ * at is gone (App_ParallelTaskWorld is this on a task's header; the effect
+ * spawns in app_world_spawn.c call it directly). Three reasons, all guards
+ * rather than asserts -- a task cannot be told the world moved under it:
+ *
+ *   - the VIEW died (a boat despawned);
+ *   - a REBUILD replaced the world, and the same tile coordinates now name a
+ *     different place (the reference drops its pending spot anims here too);
+ *   - a rebuild is IN PROGRESS, and this queue is the one pumping it, so
+ *     applying would put an element in a scene being reset.
+ *
+ * `owner` and `kind` only name the dropped task in the log.
+ */
+struct World*
+app_deferred_land_world(
+    struct App* app,
+    int view,
+    unsigned world_load_seq,
+    char const* owner,
+    int kind)
+{
+    struct Worldview* wv;
+
+    assert(app);
+    assert(owner);
+    if( !WorldviewRegistry_IsLive(&app->worldviews, view) )
+        return NULL;
+    wv = WorldviewRegistry_Get(&app->worldviews, view);
+    if( !wv->world )
+        return NULL;
+    if( wv->world->load_seq != world_load_seq )
+    {
+        TORIRS_LOG("%s: kind=%d dropped, scene rebuilt while its assets loaded\n", owner, kind);
+        return NULL;
+    }
+    if( !wv->world->load_complete )
+    {
+        TORIRS_LOG("%s: kind=%d dropped, scene mid-rebuild\n", owner, kind);
+        return NULL;
+    }
+    return wv->world;
+}
