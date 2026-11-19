@@ -83,15 +83,15 @@ int
 UITreeAnim_RequestMissing(
     struct UITree* tree,
     struct ToriDraw_Scene* scene,
-    struct CacheProvider* provider,
-    struct ToriRS_TaskQueue* queue,
-    struct SeqLoadTracker* tracker)
+    struct Assets* assets)
 {
     int requested = 0;
     int model_n;
     int mi;
 
-    assert(tree && scene && queue && tracker);
+    assert(tree);
+    assert(scene);
+    assert(assets);
     model_n = tree->models.count;
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_ANIM_SCAN, 1);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_ANIM_SCAN_NODES, (int64_t)model_n);
@@ -110,16 +110,10 @@ UITreeAnim_RequestMissing(
             continue;
         if( ToriDraw_SceneAnimationGet(scene, seq) )
             continue;
-        if( SeqLoadTracker_Has(tracker, seq) )
-            continue;
-        {
-            struct ToriRS_Task* task = CreateTask_SequenceLoad(provider, scene, seq);
-            if( !task )
-                continue;
-            ToriRS_TaskQueue_Add(queue, task);
-            SeqLoadTracker_Add(tracker, seq);
-            requested++;
-        }
+        /* Never a silent stop: the tracker this replaced recorded nothing
+         * once it held 64 ids, and every later id was queued every tick. */
+        (void)Assets_Want(assets, AssetKey_Make(ASSET_KIND_SEQUENCE, seq, 0), NULL);
+        requested++;
     }
     return requested;
 }

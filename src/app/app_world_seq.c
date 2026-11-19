@@ -222,20 +222,18 @@ app_world_apply_seq(
     app_world_apply_seq_at(app, element_id, seq_id, app->world ? app->world->cycle : 0);
 }
 
-/* Queue a sequence load (no-op when cached) without binding it to anything,
- * for an element that binds it later (a projectile, at launch). */
+/* Want a sequence without binding it to anything, for an element that binds
+ * it later (a projectile, at launch). One load in flight per sequence: asking
+ * again while it loads is the same entry (the residency test alone queued a
+ * second decoder for every ask inside the load's window). */
 void
 app_world_load_seq(
     struct App* app,
     int seq_id)
 {
-    struct ToriRS_Task* task;
-
     if( seq_id < 0 )
         return;
-    task = CreateTask_SequenceLoad(app->provider, app->scene, seq_id);
-    if( task )
-        ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
+    (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, seq_id, 0), NULL);
 }
 
 /* app_world_apply_seq for a sequence that started on world cycle

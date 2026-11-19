@@ -174,8 +174,10 @@ Task_NpcMultiLoad_Run(
          * five sequences each several reads deep -- for a roster of a thousand
          * that is the difference between a world that populates and one that
          * trickles. They are independent reads with a common consumer, which
-         * is exactly the shape the runner can overlap: queued as siblings,
-         * each gets its own IO slot and they are all on the wire at once.
+         * is exactly the shape the runner can overlap: awaited through the
+         * assets table, each is one load on the parallel queue with its own
+         * IO slot -- shared with any body or binder asking for the same part
+         * -- and they are all on the wire at once.
          *
          * Then joined, not waited on for residency: a part the cache cannot
          * serve never becomes resident, and the residency wait this replaced
@@ -190,9 +192,9 @@ Task_NpcMultiLoad_Run(
                  self->model_i++ )
             {
                 if( npctype->models[self->model_i] >= 0 )
-                    ToriRS_TaskQueue_AddParallelPoolSubTask(
-                        app->frame_runner.queue,
-                        CreateTask_ModelLoad(app->provider, npctype->models[self->model_i]),
+                    Assets_Await(
+                        app->assets,
+                        AssetKey_Make(ASSET_KIND_MODEL, npctype->models[self->model_i], 0),
                         &self->pending);
             }
             if( npctype )
@@ -209,9 +211,9 @@ Task_NpcMultiLoad_Run(
                 for( self->seq_i = 0; self->seq_i < 5; self->seq_i++ )
                 {
                     if( seqs[self->seq_i] >= 0 )
-                        ToriRS_TaskQueue_AddParallelPoolSubTask(
-                            app->frame_runner.queue,
-                            CreateTask_SequenceLoad(app->provider, app->scene, seqs[self->seq_i]),
+                        Assets_Await(
+                            app->assets,
+                            AssetKey_Make(ASSET_KIND_SEQUENCE, seqs[self->seq_i], 0),
                             &self->pending);
                 }
             }
@@ -226,6 +228,11 @@ Task_NpcMultiLoad_Run(
 static void
 Task_NpcMultiLoad_Free(struct ToriRS_Task* base)
 {
+    struct Task_NpcMultiLoad* self = (struct Task_NpcMultiLoad*)base;
+    /* Freed while its parts still load: the table must not count them on
+     * this task any more. At shutdown the table is already gone. */
+    if( self->pending > 0 && self->app->assets )
+        Assets_Unjoin(self->app->assets, &self->pending);
     ToriMem_Free(ToriMem_Process(), base);
 }
 

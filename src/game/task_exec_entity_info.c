@@ -3,6 +3,7 @@
 #include "torirs_env.h"
 
 #include "app.h"
+#include "engine/asset_requests.h"
 #include "game/rs_healthbar.h"
 #include "game/rs_hitsplat.h"
 #include "engine/entity_model_build.h"
@@ -1965,19 +1966,12 @@ Task_ExecNpcInfo_Run(
                             (int32_t)(app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES),
                             0);
                 }
+                /* Wanted, not loaded here: the track binder wants the same
+                 * sequence every frame, and the assets table holds the one
+                 * load both of them asked for (they each queued their own). */
                 if( self->pending_seq >= 0 )
-                {
-                    /* NULL means "already registered" -- the loader's
-                     * documented no-op, and the ordinary case for the second
-                     * and every later ANIM naming one seq (an npc repeating
-                     * its attack, a shopkeeper's gesture). The queue takes a
-                     * task, never the absence of one; the npc-body fetch above
-                     * reads the same way. */
-                    struct ToriRS_Task* load =
-                        CreateTask_SequenceLoad(app->provider, app->scene, self->pending_seq);
-                    if( load )
-                        ToriRS_TaskQueue_Add(app->frame_runner.queue, load);
-                }
+                    (void)Assets_Want(
+                        app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, self->pending_seq, 0), NULL);
             }
         }
     }

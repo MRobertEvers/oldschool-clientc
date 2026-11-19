@@ -848,8 +848,7 @@ Task_AppBoot_Run(
 
     /* Queue model-widget sequences (they land through the frame pump and
      * render at rest pose meanwhile) and apply whatever is already loaded. */
-    UITreeAnim_RequestMissing(
-        app->tree, app->scene, app->provider, app->frame_runner.queue, &app->seq_loads);
+    UITreeAnim_RequestMissing(app->tree, app->scene, app->assets);
     UITreeAnim_Advance(app->tree, app->scene, 0);
 
     app_sync_textures(app);

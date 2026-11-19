@@ -3,7 +3,7 @@
 
 #include "asyncio.h"
 #include "engine/cache_provider.h"
-#include "engine/seq_load_tracker.h"
+#include "engine/asset_requests.h"
 #include "toridraw_scene.h"
 #include "ui/uitree.h"
 
@@ -19,15 +19,14 @@
 struct ToriDraw_ModelHandle UITreeAnim_ModelForDraw(struct ToriDraw_Scene* scene,
     struct UITreeModelRenderCache* cache, int model_id, int sequence, int frame);
 
-/** Enqueue loads for sequences referenced by RS_MODEL nodes that are not yet
- * in the scene and not already requested. Returns the number enqueued. */
+/** Want (ASSET_KIND_SEQUENCE) every sequence an RS_MODEL node plays that is
+ * not yet in the scene; the assets table holds one load per sequence however
+ * often it is asked. Returns how many were wanted. */
 int
 UITreeAnim_RequestMissing(
     struct UITree* tree,
     struct ToriDraw_Scene* scene,
-    struct CacheProvider* provider,
-    struct ToriRS_TaskQueue* queue,
-    struct SeqLoadTracker* tracker);
+    struct Assets* assets);
 
 /**
  * Advance every animated RS_MODEL by `cycles` 50hz client cycles (0 =

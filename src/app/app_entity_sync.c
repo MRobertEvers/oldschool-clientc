@@ -78,37 +78,23 @@ app_world_sync_one_entity_spotanim(
     int element_id,
     int owner_entity_id);
 
-/* Request a sequence load once (deduped through the entity seq tracker).
+/* Want a sequence (ASSET_KIND_SEQUENCE): one load however often it is asked.
  *
- * The tracker is what stops this from re-queueing a load every world tick for
- * the whole of a sequence's load window: `ToriDraw_SceneAnimationHas` above only
- * goes true once the load LANDS, so between the request and the registration
- * that test says "missing" every tick.
- *
- * It is a fixed 64-entry table and it used to only *record* under the capacity
- * check while queueing unconditionally — so once 64 distinct entity sequences
- * had been seen in a session (an afternoon of walking and fighting passes that
- * easily; it is never pruned), the dedupe silently stopped working and every
- * tick queued another Dat2SequenceLoad for the same seq. Each one that landed
- * called ToriDraw_SceneAnimationAdd, which used to free the animation live
- * elements were already pointing at. The claim overwrites the oldest entry
- * instead (engine/seq_load_tracker.h): the table stays bounded, dedupe keeps
- * working, and an evicted-but-still-loading seq costs at worst one redundant
- * task, which the registry now absorbs safely. */
+ * Asked every frame for every entity's tracks until the sequence registers --
+ * `ToriDraw_SceneAnimationHas` only goes true once the load LANDS. The assets
+ * table is what stops each ask from queueing a load: it holds one entry per
+ * sequence in flight, with no capacity at which the dedupe stops (the 64-entry
+ * tracker before it evicted its oldest id, and a tracker before that stopped
+ * recording when full and queued a load a tick per seq), and the packet
+ * handlers, the npc bodies and this binder now share the one load. */
 void
 app_request_entity_seq(
     struct App* app,
     int seq_id)
 {
-    struct ToriRS_Task* task;
-
     if( seq_id < 0 || ToriDraw_SceneAnimationHas(app->scene, seq_id) )
         return;
-    if( !SeqLoadTracker_ClaimEvicting(&app->entity_seq_loads, seq_id) )
-        return;
-    task = CreateTask_SequenceLoad(app->provider, app->scene, seq_id);
-    if( task )
-        ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
+    (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, seq_id, 0), NULL);
 }
 
 /* Bind one entity's World animation state onto its scene element (reference

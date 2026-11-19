@@ -900,7 +900,6 @@ struct App
      * another tree's quiet verdict. */
     struct UITreeEmitRetainGate emit_gate;
     struct UIInteraction interact;
-    struct SeqLoadTracker seq_loads;
     struct InterfaceOpenStats open_stats;
     struct UICross cross;
     /* The touch marker: armed with the cross (app_cross_show), drawn instead
@@ -1143,9 +1142,6 @@ struct App
     struct AsyncPendingSeqBinds seq_bind_pending;
     /** Entity-sync bookkeeping (server slots -> world entities). */
     struct RS_EntitySync esync;
-    /** Dedupe for entity movement-seq load requests; a full table drops its
-     *  oldest id (engine/seq_load_tracker.h). */
-    struct SeqLoadTracker entity_seq_loads;
     /** Entity attached-graphic (SPOTANIM mask) combine state, keyed by the
      * entity's body scene element and its owner (engine/entity_spotanim.h);
      * app_entity_sync.c builds and swaps the models. */

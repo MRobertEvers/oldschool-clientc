@@ -972,8 +972,7 @@ app_logic_tick(struct App* app)
 
     /* Animations: request missing sequences (async), apply what's loaded.
      * In-flight sequences render at rest pose until they land. */
-    UITreeAnim_RequestMissing(
-        app->tree, app->scene, app->provider, app->frame_runner.queue, &app->seq_loads);
+    UITreeAnim_RequestMissing(app->tree, app->scene, app->assets);
     if( UITreeAnim_Advance(app->tree, app->scene, 1) )
         redraw = 1;
 

@@ -235,7 +235,9 @@
 # commits that follow.
 # Lowered to 148 by the npc body step: npc_body_lands (struct RS_NpcBodyLands)
 # left for the table's ASSET_KIND_NPC_BODY.
-struct-App-fields: 148
+# Lowered to 146 by the sequence trackers step: entity_seq_loads and seq_loads
+# (struct SeqLoadTracker) left for the table's ASSET_KIND_SEQUENCE.
+struct-App-fields: 146
 
 src/main.c
 src/executor_config.c
@@ -376,5 +378,5 @@ src/replay/replay_world_apply.c
 # Lowered to 1420 by the per-app config step: App_Init's two-line editor-boot
 # test became one MapEditorConfig_IsEditorBoot call.
 # Raised to 1421 by the assets table step: App_AssetsInit after the provider
-# is opened, App_AssetsFree (and its comment) after the queues.
-app.c-lines: 1421
+# is opened, App_AssetsFree (and its comment) before the queues.
+app.c-lines: 1423

@@ -70,9 +70,10 @@ Task_AssetLoad_Free(struct ToriRS_Task* base)
 {
     struct Task_AssetLoad* self = (struct Task_AssetLoad*)base;
 
-    /* Freed mid-read (a queue torn down): the entry must not stay "loading"
-     * for the rest of the session, which is what a flag left set did. */
-    if( !self->ended )
+    /* Freed mid-read: the entry must not stay "loading" for the rest of the
+     * session, which is what a flag left set did. At shutdown the table goes
+     * first (App_AssetsFree), and there is nothing to tell. */
+    if( !self->ended && self->app->assets )
         Assets_Abandoned(self->app->assets, self->key);
     if( self->pt.user )
         task_free((struct ToriRS_Task*)self->pt.user);

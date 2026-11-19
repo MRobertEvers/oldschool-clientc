@@ -995,7 +995,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	audio/torirs_pcm.c audio/torirs_mixer.c audio/torirs_midi_file.c \
 	audio/torirs_soundbank.c audio/torirs_midi_synth.c audio/torirs_music.c \
 	engine/dat2/task_dat2_music_load.c \
-	engine/uitree_anim.c engine/seq_load_tracker.c engine/entity_model_build.c engine/uitree_role_load.c \
+	engine/uitree_anim.c engine/entity_model_build.c engine/uitree_role_load.c \
 	ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c ui/uitree_role.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_ink.c ui/uitree_minimenu.c \
@@ -2264,7 +2264,6 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-rs-title-accounts
 	$(MAKE) test-rs-title-music
 	$(MAKE) test-cache-mounts
-	$(MAKE) test-seq-load-tracker
 	$(MAKE) test-entity-info-scratch
 	$(MAKE) test-editor-ghost
 	$(MAKE) test-editor
@@ -2804,15 +2803,6 @@ test-rs-mouseover-report: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_mouseover_report_test$(PLATFORM_EXE_SUFFIX) \
 		game/test/rs_mouseover_report_test.c game/rs_mouseover_report.c $(LDFLAGS)
 	./$(OBJ_DIR)/rs_mouseover_report_test$(PLATFORM_EXE_SUFFIX)
-
-# Which sequence loads were already asked for: a claimed id is refused until it
-# is evicted, Add stops at a full table, and ClaimEvicting drops the oldest id
-# instead so a full table keeps deduping.
-.PHONY: test-seq-load-tracker
-test-seq-load-tracker: $(OBJ_DIR)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/seq_load_tracker_test$(PLATFORM_EXE_SUFFIX) \
-		engine/test/seq_load_tracker_test.c engine/seq_load_tracker.c $(LDFLAGS)
-	./$(OBJ_DIR)/seq_load_tracker_test$(PLATFORM_EXE_SUFFIX)
 
 # The entity-info decoders' kept op lists: one allocation reused per slot, a
 # borrow while it is lent gets a list of its own freed on release, and Free
