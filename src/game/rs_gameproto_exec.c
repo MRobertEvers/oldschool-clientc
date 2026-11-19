@@ -19,6 +19,7 @@
 #include "rs_cs2_host.h"
 #include "rs_entity_sync.h"
 #include "rs_player_stats.h"
+#include "rs_server_state.h"
 #include "rs_social.h"
 #include "rs_ui_slots.h"
 #include "task_entity_assets.h"
@@ -54,12 +55,23 @@ exec_chat_add(
     char const* text)
 {
     assert(ctx);
-    if( !ctx->chat )
-        return;
+    assert(ctx->state->chat);
     if( ctx->app )
         RS_CS2Host_ChatAdd(&ctx->app->host, type, name, sender, text);
     else
-        RS_Chat_AddMessage(ctx->chat, type, name, sender, text, 0);
+        RS_Chat_AddMessage(ctx->state->chat, type, name, sender, text, 0);
+}
+
+/* The presentation half of a chat line the model already stored
+ * (RS_ServerState_Apply): the chat-transmit channel has to say so, or the
+ * cache's `[proc,rebuildchatbox]` never runs and the line sits in a store
+ * nothing draws. */
+static void
+exec_chat_presented(struct RS_GameProtoCtx const* ctx)
+{
+    assert(ctx);
+    if( ctx->app )
+        RS_CS2Host_NotifyChatAdded(&ctx->app->host);
 }
 
 /*
@@ -94,31 +106,6 @@ exec_cam_script_record(
         app->world ? app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES : 0);
 }
 
-/* 15-bit RS colour (r<<10|g<<5|b, 5 bits each) to RGB888. */
-static int
-rs15_to_rgb(int c)
-{
-    int r = (c >> 10) & 0x1f;
-    int g = (c >> 5) & 0x1f;
-    int b = c & 0x1f;
-    return ((r << 3) << 16) | ((g << 3) << 8) | (b << 3);
-}
-
-/* Container key for an inv packet: the revision's own inventory id when it
- * carries one (rev 230+ addresses the container and the bound component
- * separately, and CS2 reads containers by inventory id), else the component id
- * the older revisions use as the container key. Zero counts as absent, not as
- * container 0: RevPacket is zero-initialised before parsing, so a revision (or
- * a hand-built test packet) that never touches inv_id must keep the legacy
- * component-id keying. */
-static int
-exec_inv_container_id(
-    int inv_id,
-    int component_id)
-{
-    return inv_id > 0 ? inv_id : component_id;
-}
-
 static void
 exec_if_clearinv_node(
     struct UITree* tree,
@@ -144,78 +131,6 @@ exec_if_clearinv_node(
         exec_if_clearinv_node(tree, child);
         child = next;
     }
-}
-
-static void
-exec_update_inv_full(
-    struct RS_GameProtoCtx const* ctx,
-    struct PktUpdateInvFull const* p)
-{
-    /* Obj icons upload lazily when the bound inv view next renders (same path
-     * as the RevConfig-seeded containers). */
-    int container = exec_inv_container_id(p->inv_id, p->component_id);
-    if( InvManager_EnsureContainer(ctx->invs, container, p->size, "server-inv") < 0 )
-        return;
-    InvManager_ApplyFull(ctx->invs, container, p->obj_ids, p->obj_counts, p->size);
-    /* Containers arrive long after the interface that paints them was built,
-     * so the CS2 paint script has to be told to run again. */
-    if( ctx->app )
-    {
-        /* DRIVE_STAMP: inv_packet -- a=container_id. The dat1 lane's
-         * container update; ctx->app is NULL in the headless packet harness
-         * and the unit tests this file's own comment above already notes. */
-        App_DriveEvent(ctx->app, DRIVE_EVENT_INV_PACKET, container, 0, 0, 0);
-        RS_CS2Host_NotifyInvChanged(&ctx->app->host,
-                                   p->inv_id > 0 ? container & 0x7fff : container);
-    }
-    if( getenv("TORIRS_INV_DEBUG") )
-    {
-        TORIRS_LOG("inv-full: container=%d (com 0x%08x) size=%d\n",
-            container,
-            (unsigned)p->component_id,
-            p->size);
-        for( int i = 0; i < p->size; i++ )
-            if( p->obj_ids[i] > 0 )
-                TORIRS_LOG("  slot %2d obj=%d x%d\n", i, p->obj_ids[i], p->obj_counts[i]);
-    }
-}
-
-static void
-exec_update_inv_partial(
-    struct RS_GameProtoCtx const* ctx,
-    struct PktUpdateInvPartial const* p)
-{
-    int container = exec_inv_container_id(p->inv_id, p->component_id);
-    if( InvManager_EnsureContainer(ctx->invs, container, 0, "server-inv") < 0 )
-        return;
-    /* DRIVE_STAMP: inv_packet -- a=container_id. See exec_update_inv_full;
-     * ctx->app is NULL in the headless packet harness and unit tests. */
-    if( ctx->app )
-        App_DriveEvent(ctx->app, DRIVE_EVENT_INV_PACKET, container, 0, 0, 0);
-    if( getenv("TORIRS_INV_DEBUG") )
-        TORIRS_LOG("inv-partial: container=%d (com 0x%08x) slots=%d\n",
-            container,
-            (unsigned)p->component_id,
-            p->count);
-    for( int i = 0; i < p->count; i++ )
-    {
-        /* Addressed by CONTAINER id, as UPDATE_INV_FULL is. This used to go
-         * through InvManager_SetSlot, which takes a SOURCE index and reads any
-         * small number as one: a shop's stock is inv 1, sources[1] is the worn
-         * equipment, so buying a steel axe at Bob's wrote "steel axe x2" (the
-         * shop's new stock line) into the weapon slot (recording
-         * mrobertevers/20261115-170422, tick 178). ApplyPartial also marks a
-         * changed slot iconless (INV_MANAGER_NO_SCENE_ID) for the reconcile. */
-        int const slot = p->entries[i].slot;
-        int const obj_id = p->entries[i].obj_id;
-        int const obj_count = p->entries[i].count;
-        InvManager_ApplyPartial(ctx->invs, container, &slot, &obj_id, &obj_count, 1);
-        if( getenv("TORIRS_INV_DEBUG") )
-            TORIRS_LOG("  slot %2d obj=%d x%d\n", slot, obj_id, obj_count);
-    }
-    if( ctx->app && p->count > 0 )
-        RS_CS2Host_NotifyInvChanged(&ctx->app->host,
-                                   p->inv_id > 0 ? container & 0x7fff : container);
 }
 
 /* The local player's plane is the fallback for classic zone headers which do
@@ -945,110 +860,6 @@ exec_obj_customise_specific(
     exec_zone_sub_packet_at(ctx, sub_name, &sub, &at);
 }
 
-/* The slot PLAYER_INFO files the local player under until the server has named
- * its pid (task_exec_entity_info.c, ENTITY_INFO_LOCAL_SENTINEL). */
-enum
-{
-    EXEC_LOCAL_PLAYER_SENTINEL = 2047,
-};
-
-/*
- * ANIM_SPECIFIC: a seq on the local player only (deob Statics.method6644, the
- * player SEQUENCE block's rule, which World_PlayerSetPrimaryAnimation is). The
- * track binder fetches the seq; held models land as they do for the block.
- */
-static void
-exec_anim_specific(
-    struct App* app,
-    struct PktAnimSpecific const* pkt)
-{
-    int pid;
-    int idx = -1;
-    int element = -1;
-
-    assert(app);
-    assert(pkt);
-    if( !app->world )
-        return;
-    pid = app->esync.local_pid >= 0 ? app->esync.local_pid : EXEC_LOCAL_PLAYER_SENTINEL;
-    RS_EntitySync_FindPlayer(&app->esync, pid, &idx, &element);
-    if( idx < 0 )
-        return;
-    World_PlayerSetPrimaryAnimation(app->world, idx, pkt->id, pkt->delay);
-    if( pkt->id >= 0 )
-        ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_PlayerHeldLand(app, pid, pkt->id));
-}
-
-/* NPC_ANIM_SPECIFIC: the npc SEQUENCE block's rule for one player (deob
- * client.java class259.field3183); an npc this client has not been told about
- * is ignored, as the deob's null check is. */
-static void
-exec_npc_anim_specific(
-    struct App* app,
-    struct PktNpcAnimSpecific const* pkt)
-{
-    int idx = -1;
-    int element = -1;
-
-    assert(app);
-    assert(pkt);
-    if( !app->world )
-        return;
-    RS_EntitySync_FindNpc(&app->esync, pkt->index, &idx, &element);
-    if( idx < 0 )
-        return;
-    World_NpcSetPrimaryAnimation(app->world, idx, pkt->id, pkt->delay);
-    App_DriveEvent(
-        app,
-        DRIVE_EVENT_NPC_SEQ,
-        pkt->index,
-        pkt->id,
-        (int32_t)(app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES),
-        0);
-}
-
-/* NPC_SPOTANIM_SPECIFIC / PLAYER_SPOTANIM_SPECIFIC: class83.method2252, the
- * spotanim block's setter, for one player. */
-static void
-exec_npc_spotanim_specific(
-    struct App* app,
-    struct PktEntitySpotanimSpecific const* pkt)
-{
-    int idx = -1;
-    int element = -1;
-
-    assert(app);
-    assert(pkt);
-    if( !app->world )
-        return;
-    RS_EntitySync_FindNpc(&app->esync, pkt->index, &idx, &element);
-    if( idx < 0 )
-        return;
-    World_NpcSetSpotanim(app->world, idx, pkt->slot, pkt->id, pkt->height, pkt->delay, false);
-    if( pkt->id >= 0 )
-        App_EntitySpotanimPrefetch(app, pkt->id);
-}
-
-static void
-exec_player_spotanim_specific(
-    struct App* app,
-    struct PktEntitySpotanimSpecific const* pkt)
-{
-    int idx = -1;
-    int element = -1;
-
-    assert(app);
-    assert(pkt);
-    if( !app->world )
-        return;
-    RS_EntitySync_FindPlayer(&app->esync, pkt->index, &idx, &element);
-    if( idx < 0 )
-        return;
-    World_PlayerSetSpotanim(app->world, idx, pkt->slot, pkt->id, pkt->height, pkt->delay, false);
-    if( pkt->id >= 0 )
-        App_EntitySpotanimPrefetch(app, pkt->id);
-}
-
 /*
  * OBJ_ADD_SPECIFIC / OBJ_DEL_SPECIFIC / OBJ_COUNT_SPECIFIC: a ground obj for
  * this player only, at an ABSOLUTE tile with no zone header. Played through
@@ -1164,50 +975,6 @@ exec_clear_entities(struct App* app)
         RS_EntitySync_ClearViewNpcs(&app->esync, app->world, view);
     WorldviewRegistry_ResetActive(&app->worldviews);
     RedrawRequest_Raise(&app->redraw_request);
-}
-
-/*
- * NPC_HEADICON_SPECIFIC: one slot of one npc's head icons, for this player
- * (deob class86.method2936). The first write copies the type's icons in
- * (`new class629(type)`); an npc this client does not track is skipped, as the
- * reference's lookup misses.
- */
-static void
-exec_npc_headicon_specific(
-    struct App* app,
-    struct PktNpcHeadiconSpecific const* pkt)
-{
-    struct World* world = app->world;
-    int group[WORLD_NPC_HEADICON_SLOTS];
-    int index[WORLD_NPC_HEADICON_SLOTS];
-    struct WorldEntity_NPC* npc;
-    int idx;
-
-    if( pkt->slot < 0 || pkt->slot >= WORLD_NPC_HEADICON_SLOTS )
-    {
-        TORIRS_LOG("exec: NPC_HEADICON_SPECIFIC slot %d refused\n", pkt->slot);
-        return;
-    }
-    if( !world || !RS_EntitySync_FindNpc(&app->esync, pkt->npc_index, &idx, NULL) )
-        return;
-    npc = World_EntityPoolAt(&world->entities.npc, idx);
-    for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
-    {
-        group[i] = npc->headicon_custom ? npc->headicon_group[i] : -1;
-        index[i] = npc->headicon_custom ? npc->headicon_index[i] : -1;
-    }
-    if( !npc->headicon_custom )
-    {
-        struct ToriRS_Npctype* type = CacheProvider_NpctypeGet(app->provider, npc->npc_id);
-        if( type )
-        {
-            group[0] = type->head_icon_group;
-            index[0] = type->head_icon_index;
-        }
-    }
-    group[pkt->slot] = pkt->group;
-    index[pkt->slot] = pkt->index;
-    World_NpcSetHeadiconCustom(world, idx, true, group, index);
 }
 
 static void
@@ -1895,31 +1662,6 @@ exec_clan(
         TORIRS_ERR("gameproto_exec: %s did not decode (%d bytes)\n", name, payload->length);
 }
 
-/* The reference escapes a player's clan message for display (class2.method12):
- * a tag in what they typed draws as the characters, not as markup. */
-static void
-exec_escape_tags(
-    char const* text,
-    char* out,
-    size_t cap)
-{
-    size_t written = 0;
-    assert(cap > 0);
-    for( ; *text; text++ )
-    {
-        char const* piece = *text == '<' ? "<lt>" : *text == '>' ? "<gt>" : NULL;
-        size_t const piece_len = piece ? 4 : 1;
-        if( written + piece_len >= cap )
-            break;
-        if( piece )
-            memcpy(out + written, piece, piece_len);
-        else
-            out[written] = *text;
-        written += piece_len;
-    }
-    out[written] = '\0';
-}
-
 static void
 exec_message_clanchannel(
     struct RS_GameProtoCtx const* ctx,
@@ -1962,55 +1704,9 @@ exec_message_clanchannel(
     }
     char escaped[RS_CHAT_TEXT_LEN];
     char name[RS_CHAT_SENDER_LEN];
-    exec_escape_tags(text, escaped, sizeof(escaped));
+    RS_ServerState_EscapeTags(text, escaped, sizeof(escaped));
     RS_Chat_CrownedName(message->crown, message->sender, name, sizeof(name));
     exec_chat_add(ctx, message->clan_type >= 0 ? RS_CHAT_TYPE_CLAN_CHAT : RS_CHAT_TYPE_CLAN_GUEST_CHAT, name, channel->name, escaped);
-}
-
-/* MESSAGE_FRIENDCHANNEL: deob client.java class259.field3189. Shares the message
- * id ring with the other chat prots, and the crown decides whether the sender's
- * ignore applies. The channel's name is what this store keeps in `sender`, as
- * exec_message_clanchannel does. */
-static void
-exec_message_friendchannel(
-    struct RS_GameProtoCtx const* ctx,
-    struct PktMessageFriendChannel const* message)
-{
-    struct App* app = ctx->app;
-    char channel[16];
-    char escaped[RS_CHAT_TEXT_LEN];
-    char name[RS_CHAT_SENDER_LEN];
-    int ignorable;
-
-    assert(app);
-    assert(message);
-    int64_t const key = ((int64_t)message->world << 32) + message->counter;
-    if( RS_Social_MessageSeen(&app->social, key) )
-        return;
-    RS_Chat_CrownImage(message->crown, &ignorable);
-    if( ignorable && RS_Social_IsIgnored(&app->social, message->sender) )
-        return;
-    RS_Social_MessageRemember(&app->social, key);
-
-    base37tostr((uint64_t)message->channel_name, channel, sizeof(channel));
-    exec_escape_tags(message->text ? message->text : "", escaped, sizeof(escaped));
-    RS_Chat_CrownedName(message->crown, message->sender, name, sizeof(name));
-    exec_chat_add(ctx, RS_CHAT_TYPE_FRIENDS_CHAT, name, channel, escaped);
-}
-
-/* The deob's CRC-32 (class643.field7000). */
-static uint32_t
-exec_crc32(uint8_t const* data, size_t length)
-{
-    uint32_t crc = 0xffffffffu;
-
-    for( size_t i = 0; i < length; i++ )
-    {
-        crc ^= data[i];
-        for( int bit = 0; bit < 8; bit++ )
-            crc = (crc >> 1) ^ (0xedb88320u & (0u - (crc & 1u)));
-    }
-    return ~crc;
 }
 
 /* deob class630.method13772: clientscript 85 hears a group arrive or leave. */
@@ -2118,7 +1814,11 @@ RS_GameProto_Exec(
     struct RS_GameProtoCtx const* ctx,
     struct RevPacket* packet)
 {
-    assert(ctx && packet);
+    enum RS_ServerStateApply modelled;
+
+    assert(ctx);
+    assert(packet);
+    assert(ctx->state);
 
     if( packet->_control )
     {
@@ -2126,32 +1826,34 @@ RS_GameProto_Exec(
         return;
     }
 
+    /* The model half first (game/rs_server_state.c): every record the packet
+     * writes is written before anything below presents it. What follows for a
+     * packet the model applied is that packet's presentation only. */
+    modelled = RS_ServerState_Apply(ctx->state, packet);
+
     switch( packet->packet_type )
     {
-    /* ---- varps ---- */
+    /* ---- varps (model only; varp_changed is the model's stamp) ---- */
     case PKT_NAME_VARP_SMALL:
-        VarPManager_ApplySmall(ctx->varps, packet->_varp_small.variable, packet->_varp_small.value);
         if( exec_trace_native_ui() )
             TORIRS_REPORT("NATIVE_PACKET VARP_SMALL variable=%d value=%d\n",
                 packet->_varp_small.variable, packet->_varp_small.value);
         break;
     case PKT_NAME_VARP_LARGE:
-        VarPManager_ApplyLarge(ctx->varps, packet->_varp_large.variable, packet->_varp_large.value);
-        break;
     case PKT_NAME_VARP_LONG:
-        VarPManager_ApplyLong(ctx->varps, packet->_varp_long.variable, packet->_varp_long.value);
+    case PKT_NAME_VARP_SYNC:
+    case PKT_NAME_VARP_RESET:
         break;
 
     /* ---- player stats ---- */
     case PKT_NAME_UPDATE_STAT:
-        if( packet->_update_stat.stat >= 0 &&
-            packet->_update_stat.stat < RS_PLAYER_STATS_SKILL_COUNT )
+        if( modelled == RS_SERVER_STATE_APPLIED )
         {
-            RS_PlayerStats_SetXp(ctx->stats, packet->_update_stat.stat, packet->_update_stat.xp);
-            ctx->stats->current_level[packet->_update_stat.stat] = packet->_update_stat.level;
+            struct RS_PlayerStats const* stats = ctx->state->stats;
+
             if( exec_trace_native_ui() )
                 TORIRS_REPORT("NATIVE_PACKET UPDATE_STAT applied stat=%d level=%d xp=%d\n",
-                    packet->_update_stat.stat, ctx->stats->current_level[packet->_update_stat.stat],
+                    packet->_update_stat.stat, stats->current_level[packet->_update_stat.stat],
                     packet->_update_stat.xp);
             /* A level-up is read from the BASE level SetXp just derived, not
              * from the boosted one on the wire: a potion raises that and a
@@ -2160,58 +1862,63 @@ RS_GameProto_Exec(
                 App_NotifyStatLevel(
                     ctx->app,
                     packet->_update_stat.stat,
-                    ctx->stats->base_level[packet->_update_stat.stat]);
+                    stats->base_level[packet->_update_stat.stat]);
             /* The reactive half. Without it the skills tab paints once at
              * build time — against the zeroes the client starts with — and
              * nothing ever asks it to paint again, which is the same shape as
              * the inv-transmit gap that left server-driven inventories blank. */
             if( ctx->app )
                 RS_CS2Host_NotifyStatChanged(&ctx->app->host, packet->_update_stat.stat);
-            RS_PlayerStats_RecomputeCombatLevel(ctx->stats);
         }
         break;
     /* The reactive half, same shape as UPDATE_STAT above: the orb's CS2 binds
      * IF_SETONMISCTRANSMIT, so without a notify it paints its build-time value
      * and is only ever refreshed by an unrelated interface event. Gated on the
-     * value actually changing because the dispatch walks every component —
-     * and the server already change-gates these packets, so an unchanged value
-     * arriving at all is unusual. */
+     * value actually changing (the model answers UNCHANGED otherwise) because
+     * the dispatch walks every component — and the server already change-gates
+     * these packets, so an unchanged value arriving at all is unusual. */
     case PKT_NAME_UPDATE_RUNENERGY:
-        ctx->stats->run_energy_raw = packet->_update_run_energy.run_energy_raw;
-        if( ctx->stats->run_energy != packet->_update_run_energy.run_energy )
-        {
-            ctx->stats->run_energy = packet->_update_run_energy.run_energy;
-            if( ctx->app )
-                RS_CS2Host_NotifyMiscChanged(&ctx->app->host);
-        }
-        break;
     case PKT_NAME_UPDATE_RUNWEIGHT:
-        if( ctx->stats->run_weight != packet->_update_runweight.run_weight )
-        {
-            ctx->stats->run_weight = packet->_update_runweight.run_weight;
-            if( ctx->app )
-                RS_CS2Host_NotifyMiscChanged(&ctx->app->host);
-        }
+        if( modelled == RS_SERVER_STATE_APPLIED && ctx->app )
+            RS_CS2Host_NotifyMiscChanged(&ctx->app->host);
         break;
 
     /* ---- inventories ---- */
-    /* inv_packet stamped inside exec_update_inv_full/_partial (DRIVE_STAMP
-     * there), not here: the cache lane's inv.await rides inv_changed instead
-     * and both callees already branch on ctx->app. */
+    /* Containers arrive long after the interface that paints them was built,
+     * so the CS2 paint script has to be told to run again. Obj icons upload
+     * lazily when the bound inv view next renders (same path as the
+     * RevConfig-seeded containers). inv_packet is the model's stamp. */
     case PKT_NAME_UPDATE_INV_FULL:
-        exec_update_inv_full(ctx, &packet->_update_inv_full);
+        if( modelled == RS_SERVER_STATE_APPLIED && ctx->app )
+        {
+            struct PktUpdateInvFull const* p = &packet->_update_inv_full;
+            int const container = RS_ServerState_InvContainerId(p->inv_id, p->component_id);
+
+            RS_CS2Host_NotifyInvChanged(
+                &ctx->app->host, p->inv_id > 0 ? container & 0x7fff : container);
+        }
         break;
     case PKT_NAME_UPDATE_INV_PARTIAL:
-        exec_update_inv_partial(ctx, &packet->_update_inv_partial);
+        if( modelled == RS_SERVER_STATE_APPLIED && ctx->app && packet->_update_inv_partial.count > 0 )
+        {
+            struct PktUpdateInvPartial const* p = &packet->_update_inv_partial;
+            int const container = RS_ServerState_InvContainerId(p->inv_id, p->component_id);
+
+            RS_CS2Host_NotifyInvChanged(
+                &ctx->app->host, p->inv_id > 0 ? container & 0x7fff : container);
+        }
+        break;
+    case PKT_NAME_UPDATE_INV_STOP_TRANSMIT:
         break;
 
     /* ---- interface component mutations ---- */
+    /* The store write is the model's; these put the value on the node when
+     * the node is mounted, and an app-less run (the unit tests) writes the
+     * tree it was handed. */
     case PKT_NAME_IF_SETTEXT:
-        /* Persist through the app store when available: journal/bonus texts
-         * arrive before their interface mounts (tests exec without an app). */
         if( ctx->app )
         {
-            App_IfTextSet(ctx->app, packet->_if_settext.component_id, packet->_if_settext.text);
+            App_IfTextShow(ctx->app, packet->_if_settext.component_id, packet->_if_settext.text);
             /* A quest completion is painted onto the scroll and never said
              * aloud (content: questscroll.rs2), so this is the only place the
              * client can see one happen. */
@@ -2224,7 +1931,7 @@ RS_GameProto_Exec(
         /* Persisting, like IF_SETHIDE: the server enables a component's events
          * before the interface holding it has finished mounting. */
         if( ctx->app )
-            App_IfEventsSet(
+            App_IfEventsShow(
                 ctx->app,
                 packet->_if_setevents.component_id,
                 packet->_if_setevents.from,
@@ -2235,12 +1942,8 @@ RS_GameProto_Exec(
         if( getenv("TORIRS_TRACE_NATIVE_UI") )
             TORIRS_REPORT("NATIVE_PACKET IF_SETHIDE received com=%d hide=%d\n",
                 packet->_if_sethide.component_id, packet->_if_sethide.hide);
-        /* Persisting setter, not a one-shot apply: IF_SETHIDE routinely lands
-         * before the interface it targets has finished mounting (the mount is
-         * an async task), and the reference keeps `hide` on IfType.list where
-         * it survives. */
         if( ctx->app )
-            App_IfHideSet(ctx->app, packet->_if_sethide.component_id, packet->_if_sethide.hide);
+            App_IfHideShow(ctx->app, packet->_if_sethide.component_id, packet->_if_sethide.hide);
         else
             UITree_ApplyHide(
                 ctx->tree, packet->_if_sethide.component_id, packet->_if_sethide.hide);
@@ -2252,15 +1955,15 @@ RS_GameProto_Exec(
          * one setter of the family that could be silently dropped — and it was,
          * every time, for an overlay the server opens and colours together. */
         if( ctx->app )
-            App_IfColourSet(
+            App_IfColourShow(
                 ctx->app,
                 packet->_if_setcolour.component_id,
-                rs15_to_rgb(packet->_if_setcolour.colour));
+                RS_ServerState_Rs15ToRgb(packet->_if_setcolour.colour));
         else
             UITree_ApplyColour(
                 ctx->tree,
                 packet->_if_setcolour.component_id,
-                rs15_to_rgb(packet->_if_setcolour.colour));
+                RS_ServerState_Rs15ToRgb(packet->_if_setcolour.colour));
         break;
     case PKT_NAME_IF_SETMODEL:
         /* A wire model id addresses the cache, not the renderer's scene. The
@@ -2617,14 +2320,7 @@ RS_GameProto_Exec(
 
     /* ---- chat ---- */
     case PKT_NAME_MESSAGE_GAME:
-        /* The TYPE is the server's, not a constant: it picks the filter tab,
-         * the colour and the prefix the chatbox script draws the line with. */
-        exec_chat_add(
-            ctx,
-            packet->_message_game.type,
-            packet->_message_game.name,
-            packet->_message_game.name,
-            packet->_message_game.text);
+        exec_chat_presented(ctx);
         /* Independent of the chatbox: a headless run has no chat model, and a
          * plugin watching for a boss kill has to work there too. */
         if( ctx->app )
@@ -2633,28 +2329,6 @@ RS_GameProto_Exec(
                 packet->_message_game.type,
                 packet->_message_game.name,
                 packet->_message_game.text);
-        /*
-         * Printed by default, and that is a deliberate inversion.
-         *
-         * This used to be gated on TORIRS_NET_DEBUG — the whole packet
-         * firehose — which made a script's own `mes` output invisible to
-         * anyone who had not already guessed that variable. A headless run
-         * paints no chatbox, so stderr is the only channel content has, and
-         * `mes` is how a debugproc reports what it found. Gating the one line
-         * a test harness exists to read behind a general-purpose trace switch
-         * cost this session three misdiagnoses: a probe that ran correctly and
-         * printed nothing reads exactly like a script that aborted.
-         *
-         * The volume does not justify a gate — login sends five of these and a
-         * busy tick a handful — so the switch is an opt-OUT for a caller that
-         * genuinely wants silence.
-         */
-        {
-            char const* quiet = getenv("TORIRS_MES");
-
-            if( !quiet || strcmp(quiet, "0") != 0 )
-                TORIRS_LOG("message_game: %s\n", packet->_message_game.text);
-        }
         break;
 
     /* ---- world rebuild ---- */
@@ -2782,21 +2456,24 @@ RS_GameProto_Exec(
     case PKT_NAME_PROJANIM_SPECIFIC:
         exec_projanim_specific(ctx, &packet->_projanim_specific);
         break;
+    /* The seq and spotanim are the model's; the held models and the
+     * spotanim's asset are the client's to fetch. */
     case PKT_NAME_ANIM_SPECIFIC:
-        if( ctx->app )
-            exec_anim_specific(ctx->app, &packet->_anim_specific);
+        if( modelled == RS_SERVER_STATE_APPLIED && ctx->app && packet->_anim_specific.id >= 0 )
+            ToriRS_TaskQueue_Add(
+                ctx->app->frame_runner.queue,
+                CreateTask_PlayerHeldLand(
+                    ctx->app,
+                    RS_ServerState_LocalPid(ctx->state->esync),
+                    packet->_anim_specific.id));
         break;
     case PKT_NAME_NPC_ANIM_SPECIFIC:
-        if( ctx->app )
-            exec_npc_anim_specific(ctx->app, &packet->_npc_anim_specific);
         break;
     case PKT_NAME_NPC_SPOTANIM_SPECIFIC:
-        if( ctx->app )
-            exec_npc_spotanim_specific(ctx->app, &packet->_entity_spotanim_specific);
-        break;
     case PKT_NAME_PLAYER_SPOTANIM_SPECIFIC:
-        if( ctx->app )
-            exec_player_spotanim_specific(ctx->app, &packet->_entity_spotanim_specific);
+        if( modelled == RS_SERVER_STATE_APPLIED && ctx->app &&
+            packet->_entity_spotanim_specific.id >= 0 )
+            App_EntitySpotanimPrefetch(ctx->app, packet->_entity_spotanim_specific.id);
         break;
     case PKT_NAME_SOUND_AREA:
         exec_zone_sub_packet(ctx, PKT_NAME_SOUND_AREA, &packet->_sound_area);
@@ -3092,92 +2769,29 @@ RS_GameProto_Exec(
         break;
 
     /* ---- social ---- */
+    /* The friends panel's rows are cc_created from the store by the client's
+     * own script 125, so nothing repaints them but the friend-transmit
+     * channel. Filling the store without this notify leaves the panel showing
+     * whatever it drew at mount. Script 681 reads the chat filter modes back
+     * through chat_getfilter_private before it will send a private message,
+     * so a filter change reaches the CS2 side the same way. */
     case PKT_NAME_UPDATE_FRIENDLIST:
-        if( ctx->app )
-        {
-            char name[16];
-            struct RS_Social* social = &ctx->app->social;
-            int found = 0;
-            social->server_status = 2;
-            if( !packet->_update_friendlist.present )
-            {
-                RS_CS2Host_NotifyFriendChanged(&ctx->app->host);
-                RedrawRequest_Raise(&ctx->app->redraw_request);
-                break;
-            }
-            base37tostr((uint64_t)packet->_update_friendlist.name37, name, sizeof(name));
-            for( int i = 0; i < social->friend_count; i++ )
-            {
-                if( strcmp(social->friend_name[i], name) == 0 )
-                {
-                    RS_Social_SetFriendWorld(social, i, packet->_update_friendlist.world);
-                    social->friend_rank[i] = packet->_update_friendlist.rank;
-                    snprintf(social->friend_previous_name[i], RS_SOCIAL_NAME_LEN, "%s",
-                        packet->_update_friendlist.previous_name);
-                    found = 1;
-                    break;
-                }
-            }
-            if( !found && RS_Social_AddFriend(social, name, packet->_update_friendlist.world) )
-            {
-                int const added = social->friend_count - 1;
-                social->friend_rank[added] = packet->_update_friendlist.rank;
-                snprintf(social->friend_previous_name[added], RS_SOCIAL_NAME_LEN, "%s",
-                    packet->_update_friendlist.previous_name);
-            }
-            /* The client re-applies the scripts' sort chain on every friend
-             * update (class476.java:207), so a world change re-orders the list
-             * without the panel asking. */
-            RS_Social_SortFriends(social);
-            /* The friends panel's rows are cc_created from this store by the
-             * client's own script 125, so nothing repaints them but the
-             * friend-transmit channel. Filling the store without this notify
-             * leaves the panel showing whatever it drew at mount. */
-            RS_CS2Host_NotifyFriendChanged(&ctx->app->host);
-            RedrawRequest_Raise(&ctx->app->redraw_request);
-        }
-        break;
     case PKT_NAME_UPDATE_IGNORELIST:
-        if( ctx->app )
-        {
-            struct RS_Social* social = &ctx->app->social;
-            social->ignore_count = 0;
-            for( int i = 0; i < packet->_update_ignorelist.count; i++ )
-            {
-                char name[16];
-                base37tostr((uint64_t)packet->_update_ignorelist.names37[i], name, sizeof(name));
-                RS_Social_AddIgnore(social, name);
-            }
-            RS_CS2Host_NotifyFriendChanged(&ctx->app->host);
-            RedrawRequest_Raise(&ctx->app->redraw_request);
-        }
-        break;
     case PKT_NAME_FRIENDLIST_LOADED:
+    case PKT_NAME_CHAT_FILTER_SETTINGS:
         if( ctx->app )
         {
-            /* This is what ends the panel's "Loading friends list" state:
-             * RS_Social_FriendCount answers -1 until the status reads 2. */
-            ctx->app->social.server_status = packet->_friendlist_loaded.status;
             RS_CS2Host_NotifyFriendChanged(&ctx->app->host);
             RedrawRequest_Raise(&ctx->app->redraw_request);
         }
         break;
     case PKT_NAME_MESSAGE_PRIVATE:
-        if( ctx->app && ctx->chat )
+        if( modelled == RS_SERVER_STATE_APPLIED )
         {
-            /* Dedupe by message id (reference messageIds ring). */
-            struct App* app = ctx->app;
             char name[16];
-            if( RS_Social_MessageSeenOrRemember(&app->social, packet->_message_private.message_id) )
-                break;
+
+            exec_chat_presented(ctx);
             base37tostr((uint64_t)packet->_message_private.from, name, sizeof(name));
-            exec_chat_add(
-                ctx,
-                packet->_message_private.staff_mod ? RS_CHAT_TYPE_PRIVATE_FROM_MOD
-                                                   : RS_CHAT_TYPE_PRIVATE_FROM,
-                name,
-                name,
-                packet->_message_private.text);
             if( ctx->app )
                 App_NotifyChatMessage(
                     ctx->app,
@@ -3187,121 +2801,27 @@ RS_GameProto_Exec(
                     packet->_message_private.text);
         }
         break;
-    /* deob client.java class259.field3170: the line the sender sees for a
-     * private message they sent. */
     case PKT_NAME_MESSAGE_PRIVATE_ECHO:
-        if( ctx->app && ctx->chat )
-        {
-            char escaped[RS_CHAT_TEXT_LEN];
-
-            exec_escape_tags(
-                packet->_message_private_echo.text ? packet->_message_private_echo.text : "",
-                escaped,
-                sizeof(escaped));
-            exec_chat_add(
-                ctx,
-                RS_CHAT_TYPE_PRIVATE_TO,
-                packet->_message_private_echo.recipient,
-                packet->_message_private_echo.recipient,
-                escaped);
-        }
-        break;
     case PKT_NAME_MESSAGE_FRIENDCHANNEL:
-        if( ctx->app && ctx->chat )
-            exec_message_friendchannel(ctx, &packet->_message_friendchannel);
-        break;
-    case PKT_NAME_CHAT_FILTER_SETTINGS:
-        if( ctx->app )
-        {
-            /*
-             * Only the modes the packet actually carried.
-             *
-             * The classic wire sends three bytes and the private mode is one of
-             * them. Revision 239 sends TWO -- public and trade -- because the
-             * private-chat filter moved to a packet of its own: the deob's
-             * packet table has `field3058 = new class243(124, 2)`, whose handler
-             * writes only the public and trade fields (client.java:2820), beside
-             * `field2939 = new class243(5, 1)`, whose handler is the ONLY thing
-             * that writes the private filter the CS2 side reads back through
-             * chat_getfilter_private (Statics.field5072, opcode 5005).
-             *
-             * So a revision whose CHAT_FILTER_SETTINGS has no private byte marks
-             * the field absent with a negative value -- the same convention the
-             * zone headers use for a plane a revision does not send -- and the
-             * client's own copy stands. Writing the missing field through was
-             * what put "Private On" back under the player the instant after they
-             * chose Show friends, and then fed that stale 0 back to the server
-             * on their next filter change.
-             */
-            /* CHAT_FILTER_SETTINGS_PRIVATECHAT arrives through this arm with
-             * only the private mode present. */
-            if( packet->_chat_filter_settings.chat_public_mode >= 0 )
-                ctx->app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_PUBLIC] =
-                    packet->_chat_filter_settings.chat_public_mode;
-            if( packet->_chat_filter_settings.chat_private_mode >= 0 )
-                ctx->app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_PRIVATE] =
-                    packet->_chat_filter_settings.chat_private_mode;
-            if( packet->_chat_filter_settings.chat_trade_mode >= 0 )
-                ctx->app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_TRADE] =
-                    packet->_chat_filter_settings.chat_trade_mode;
-            /* Script 681 reads these back through chat_getfilter_private before
-             * it will send a private message, so a change has to reach the CS2
-             * side the same way a friend-list change does. */
-            RS_CS2Host_NotifyFriendChanged(&ctx->app->host);
-            RedrawRequest_Raise(&ctx->app->redraw_request);
-        }
+        if( modelled == RS_SERVER_STATE_APPLIED )
+            exec_chat_presented(ctx);
         break;
 
     /* ---- misc state ---- */
     case PKT_NAME_UPDATE_PID:
-        if( ctx->app )
-            ctx->app->esync.local_pid = packet->_update_pid.local_player_index;
-        break;
-    case PKT_NAME_VARP_SYNC:
-        /* Restore the client-visible copy from the server-authoritative set
-         * (rev-230 client.java VARP_SYNC / LostCity Client.ts:7390). Distinct
-         * from VARP_RESET, which zeroes both. */
-        VarPManager_ApplySync(ctx->varps);
-        break;
-    case PKT_NAME_VARP_RESET:
-        VarPManager_ResetAll(ctx->varps);
         break;
     case PKT_NAME_LAST_LOGIN_INFO:
+        /* The rows are clientCode components RS_ClientCode_Tick refreshes off
+         * the session record the model wrote; this packet also OPENS the
+         * screen they sit on, which is the only thing that ever does. */
         if( ctx->app )
         {
-            ctx->app->session_info.welcome.last_ip = packet->_last_login_info.last_ip;
-            ctx->app->session_info.welcome.days_since_login =
-                packet->_last_login_info.days_since_login;
-            ctx->app->session_info.welcome.days_since_recovery =
-                packet->_last_login_info.days_since_recovery;
-            ctx->app->session_info.welcome.unread_messages =
-                packet->_last_login_info.unread_messages;
-            ctx->app->session_info.welcome.member_warning =
-                packet->_last_login_info.member_warning;
-            /* The rows themselves are clientCode components RS_ClientCode_Tick
-             * refreshes off this struct; this packet also OPENS the screen they
-             * sit on, which is the only thing that ever does. */
             exec_open_welcome_screen(ctx->app);
             RedrawRequest_Raise(&ctx->app->redraw_request);
         }
         break;
     case PKT_NAME_UPDATE_REBOOT_TIMER:
-        /* The wire carries SERVER ticks; the countdown runs on the 20ms client
-         * cycle, so it is converted once here rather than at every read
-         * (reference `rebootTimer = g2() * 30`, where 30 is the same ratio
-         * spelled as a literal). */
-        if( ctx->app )
-            RS_SessionInfo_SetRebootTimer(
-                &ctx->app->session_info,
-                packet->_update_reboot_timer.ticks,
-                APP_SERVER_TICK_LOGIC_CYCLES);
-        break;
     case PKT_NAME_P_COUNTDIALOG:
-        if( ctx->chat )
-        {
-            ctx->chat->dialog_input_open = 1;
-            ctx->chat->dialog_input[0] = '\0';
-        }
         break;
     case PKT_NAME_LOGOUT:
         if( ctx->app )
@@ -3317,18 +2837,9 @@ RS_GameProto_Exec(
         }
         break;
     case PKT_NAME_SET_PLAYER_OP:
-        if( ctx->app && packet->_set_player_op.slot >= 1 && packet->_set_player_op.slot <= 5 )
-        {
-            RS_PlayerOps_Set(
-                &ctx->app->player_ops,
-                packet->_set_player_op.slot - 1,
-                packet->_set_player_op.text ? packet->_set_player_op.text : "",
-                packet->_set_player_op.primary);
-        }
         break;
     case PKT_NAME_SET_MULTIWAY:
-        if( ctx->app &&
-            RS_SessionInfo_SetMultiway(&ctx->app->session_info, packet->_set_multiway.multiway) )
+        if( modelled == RS_SERVER_STATE_APPLIED && ctx->app )
             RedrawRequest_Raise(&ctx->app->redraw_request);
         break;
     /* deob client.java (class243.field3065): `field758 = g1 == 1`, the flag
@@ -3349,11 +2860,6 @@ RS_GameProto_Exec(
             App_SendPingReply(ctx->app, packet->_send_ping.value1, packet->_send_ping.value2);
         break;
     case PKT_NAME_UNKNOWN_STRING:
-        if( ctx->app )
-            snprintf(ctx->app->session_info.unknown_string,
-                     sizeof(ctx->app->session_info.unknown_string),
-                     "%s",
-                     packet->_text.text);
         break;
     /* deob client.java field1008: OBJUNLOCK_RESET forgets the bitset. */
     case PKT_NAME_OBJUNLOCK_RESET:
@@ -3390,11 +2896,6 @@ RS_GameProto_Exec(
     case PKT_NAME_HISCORE_REPLY:
         break;
     case PKT_NAME_SET_WEBSITE_TOKEN:
-        if( ctx->app )
-            snprintf(ctx->app->session_info.website_token,
-                     sizeof(ctx->app->session_info.website_token),
-                     "%s",
-                     packet->_text.text);
         break;
     /* deob client.java class259.field3155 -> class186.method6134. Through the
      * host's slot, so main.c opens it on the platform as CS2's openurl does. */
@@ -3406,11 +2907,6 @@ RS_GameProto_Exec(
                      packet->_text.text);
         break;
     case PKT_NAME_SITE_SETTINGS:
-        if( ctx->app )
-            snprintf(ctx->app->session_info.site_settings,
-                     sizeof(ctx->app->session_info.site_settings),
-                     "%s",
-                     packet->_text.text);
         break;
     case PKT_NAME_REFLECTION_CHECKER:
         /* The reference answers by reflecting over its own JVM classes. There
@@ -3445,73 +2941,9 @@ RS_GameProto_Exec(
         }
         break;
     case PKT_NAME_LOGOUT_TRANSFER:
-        /* The session moves to another world (deob client.java, the
-         * LOGOUT_TRANSFER arm: gameState 45, the socket closed, the world
-         * switched; state 45 then logs in with GAMELOGIN and the account's
-         * credentials). The move is the link watch's, at the head of the next
-         * frame (app_net_link_watch): not here, in the middle of the packet
-         * pipeline whose session it ends. */
-        TORIRS_LOG("exec: LOGOUT_TRANSFER to world %d (%s)\n", packet->_logout_transfer.world_id,
-                   packet->_logout_transfer.host);
-        if( ctx->app )
-        {
-            SessionEnd_Hop(&ctx->app->session_end, packet->_logout_transfer.world_id);
-        }
-        break;
     case PKT_NAME_SET_INTERACTION_MODE:
     case PKT_NAME_RESET_INTERACTION_MODE:
-        if( ctx->app )
-        {
-            struct App* app = ctx->app;
-            struct PktInteractionMode const* p = &packet->_interaction_mode;
-            int const reset = packet->packet_type == PKT_NAME_RESET_INTERACTION_MODE;
-
-            /* Wire data, guarded like SET_ACTIVE_WORLD's: a mode the tables do
-             * not have, or a view past the registry, is refused. */
-            if( !reset && (p->tile_mode < 0 || p->tile_mode > 2 || p->entity_mode < 0 ||
-                           p->entity_mode > 3) )
-            {
-                TORIRS_LOG("exec: interaction modes %d/%d refused\n", p->tile_mode,
-                           p->entity_mode);
-                break;
-            }
-            /* The id arrives as the wire's unsigned u16: the deob reads it
-             * as a short, so -2 (every view) is 65534 here and -1 is 65535. */
-            int const world_id = (int16_t)p->world_id;
-            int slot;
-
-            if( world_id == -2 )
-            {
-                /* class61.method1414: the defaults; a reset of them is moot. */
-                if( !reset )
-                {
-                    RS_InteractionMode_SetDefaults(
-                        &app->interaction_mode, p->tile_mode, p->entity_mode);
-                }
-                break;
-            }
-            /* The root's id is the revision's: -1 before 237, 0 from it (the
-             * same move SET_ACTIVE_WORLD's adapter folds). */
-            assert(app->net);
-            assert(app->net->rev);
-            slot = WorldviewRegistry_SlotForWire(
-                &app->worldviews,
-                (world_id == 0 && app->net->rev->number >= 237) ? WORLDVIEW_WIRE_ROOT : world_id);
-            if( slot != WORLDVIEW_SLOT_NONE )
-            {
-                if( reset )
-                    RS_InteractionMode_ResetView(&app->interaction_mode, slot);
-                else
-                    RS_InteractionMode_SetView(
-                        &app->interaction_mode, slot, p->tile_mode, p->entity_mode);
-            }
-            else
-                TORIRS_LOG("exec: interaction mode for world %d refused\n", world_id);
-        }
-        break;
     case PKT_NAME_NPC_HEADICON_SPECIFIC:
-        if( ctx->app )
-            exec_npc_headicon_specific(ctx->app, &packet->_npc_headicon_specific);
         break;
     case PKT_NAME_OBJ_ADD_SPECIFIC:
     case PKT_NAME_OBJ_DEL_SPECIFIC:
@@ -3553,9 +2985,6 @@ RS_GameProto_Exec(
         }
         break;
     case PKT_NAME_UPDATE_UID192:
-        if( exec_crc32(packet->_uid192.data, sizeof(packet->_uid192.data)) ==
-            (uint32_t)packet->_uid192.crc )
-            login_osrs_set_uid192(packet->_uid192.data);
         break;
     case PKT_NAME_GROUP_VAR:
         if( ctx->app )
@@ -3586,32 +3015,10 @@ RS_GameProto_Exec(
          * further until they are. */
         break;
 
-    /* deob client.java: Statics.field2218 / field3892 / field4203 = the byte as a
-     * boolean; the world menu builders read them (rs_minimenu_world.c). */
     case PKT_NAME_HIDENPCOPS:
     case PKT_NAME_HIDELOCOPS:
     case PKT_NAME_HIDEOBJOPS:
-        if( ctx->app && ctx->app->world )
-        {
-            bool const hidden = packet->_hide_ops.hidden != 0;
-            if( packet->packet_type == PKT_NAME_HIDENPCOPS )
-                ctx->app->world->hidden_ops.npc = hidden;
-            else if( packet->packet_type == PKT_NAME_HIDELOCOPS )
-                ctx->app->world->hidden_ops.loc = hidden;
-            else
-                ctx->app->world->hidden_ops.obj = hidden;
-        }
-        break;
     case PKT_NAME_HINT_ARROW:
-        /* The type and the tile anchor are folded on the way in
-         * (game/rs_hint_arrow.h), so every pass that draws it reads one form. */
-        if( ctx->app )
-            RS_HintArrow_Set(
-                &ctx->app->hint_arrow,
-                packet->_hint_arrow.type,
-                packet->_hint_arrow.id,
-                packet->_hint_arrow.z,
-                packet->_hint_arrow.height);
         break;
     case PKT_NAME_RESET_ANIMS:
         if( ctx->app && ctx->app->scene )
@@ -3633,12 +3040,7 @@ RS_GameProto_Exec(
         }
         break;
     case PKT_NAME_ENABLE_TRACKING:
-        if( ctx->app )
-            ctx->app->session_info.tracking_enabled = 1;
-        break;
     case PKT_NAME_FINISH_TRACKING:
-        if( ctx->app )
-            ctx->app->session_info.tracking_enabled = 0;
         break;
 
     /* ---- tutorial ---- */
@@ -3779,55 +3181,8 @@ RS_GameProto_Exec(
             RedrawRequest_Raise(&ctx->app->redraw_request);
         }
         break;
-    case PKT_NAME_UPDATE_INV_STOP_TRANSMIT:
-        /* Reference clears the bound inventory's slots (linkObjType[i] = -1).
-         * ApplyFull with count 0 empties every slot; a no-op if the container
-         * was never transmitted. */
-        if( ctx->invs )
-            InvManager_ApplyFull(
-                ctx->invs,
-                exec_inv_container_id(
-                    packet->_update_inv_stop_transmit.inv_id,
-                    packet->_update_inv_stop_transmit.component_id),
-                NULL,
-                NULL,
-                0);
-        break;
     case PKT_NAME_SET_NPC_UPDATE_ORIGIN:
-        if( ctx->app )
-        {
-            RS_NpcUpdateOrigin_Set(
-                &ctx->app->npc_update_origin,
-                packet->_set_npc_update_origin.x,
-                packet->_set_npc_update_origin.z);
-        }
-        break;
     case PKT_NAME_SET_ACTIVE_WORLD:
-        /* Points the zone/rebuild applicators at a world view until the tick
-         * fence resets it (deob class100 activeWorld). The id and level are
-         * WIRE data — a raw g2 and a raw byte — so a value outside the
-         * registry, a dead view, or an impossible plane is a malformed or
-         * lagging server, guarded rather than asserted: an assert-only check
-         * is an abort in debug and an OOB registry/heightmap index in the
-         * NDEBUG release lane. The deob throws here; our release build has
-         * to refuse instead. */
-        if( ctx->app )
-        {
-            int world_id = packet->_set_active_world.world_id;
-            int level = packet->_set_active_world.level;
-            int slot = WorldviewRegistry_SlotForWire(&ctx->app->worldviews, world_id);
-
-            if( slot == WORLDVIEW_SLOT_NONE )
-            {
-                TORIRS_LOG("exec: SET_ACTIVE_WORLD refused, world %d not live\n", world_id);
-                break;
-            }
-            /* The deob snapshots the plane alongside the id, and writes it onto
-             * the addressed view itself (class100.field1400), where it outlives
-             * the tick fence's return to the root. Clamped to the heightmap's
-             * planes: it feeds height sampling. */
-            WorldviewRegistry_SetActiveWorld(&ctx->app->worldviews, slot, level);
-        }
         break;
     case PKT_NAME_WORLDENTITY_INFO:
         /* App-less harnesses have no registry or scene to spawn into; the
@@ -3839,13 +3194,10 @@ RS_GameProto_Exec(
         /* The fence. Every packet of this tick has been applied, so the scripts
          * the tick pushed can now repaint against the state the server meant
          * them to see — see `pending_clientscripts` in app.h. */
+        /* The model has fenced the tick, returned the active-world cursor to
+         * the root and stamped server_tick (RS_ServerState_Apply). */
         if( ctx->app )
         {
-            RS_ServerTick_Fence(&ctx->app->server_tick);
-            /* SET_ACTIVE_WORLD only lasts until the fence: the deob resets
-             * the cursor to the root view at end-of-tick, so a tick that
-             * never re-arms it cannot leak zone updates into a boat. */
-            WorldviewRegistry_ResetActive(&ctx->app->worldviews);
             /* Onto the packet pipeline (behind this fence task), not the
              * asset runner: the pipeline is a strict FIFO, so the tick's
              * scripts run one after another in wire order, as the reference
@@ -3859,17 +3211,7 @@ RS_GameProto_Exec(
              * server tick is now in world state, so a snapshot read here
              * agrees with what the server believes. Anything sampled mid-tick
              * is reading a half-applied world. */
-            /* DRIVE_STAMP: server_tick -- a=world cycle. Every await's
-             * deadline is counted in these, and every level predicate is
-             * re-checked on one. */
             ctx->app->drive_events.batch_open = 0;
-            App_DriveEvent(
-                ctx->app,
-                DRIVE_EVENT_SERVER_TICK,
-                ctx->app->world ? ctx->app->world->cycle : 0,
-                0,
-                0,
-                0);
             PluginHost_ServerTick(
                 ctx->app->plugins, ctx->app->world ? ctx->app->world->cycle : 0);
         }

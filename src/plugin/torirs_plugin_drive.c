@@ -2682,6 +2682,11 @@ lua_drive_forget_varps(struct lua_State* L)
         return PluginDrive_PushResult(L, DRIVE_REFUSED,
             "drive.forget_varps: not on the title screen (log out first)");
     VarPManager_ResetAll(&g_host.app->varps);
+    /* DRIVE_STAMP: varp_changed -- a=-1 (every varp), as a VARP_RESET packet
+     * stamps it (game/rs_server_state.c): this is the same reset, made by the
+     * driver rather than the server. */
+    App_DriveEvent(g_host.app, DRIVE_EVENT_VARP_CHANGED, -1,
+        VarPManager_GetVarp(&g_host.app->varps, -1), 0, 0);
     fprintf(stderr, "quest-driver: on demand: play %s: the last account's client varps forgotten\n",
         g_demand.id);
     return PluginDrive_PushResult(L, DRIVE_OK, "client varps zeroed");

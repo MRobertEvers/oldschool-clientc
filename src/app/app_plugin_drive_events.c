@@ -44,6 +44,24 @@ DriveResultName(enum DriveResult result)
     return DRIVE_RESULT_NAMES[result];
 }
 
+struct RS_EventSink
+App_DriveEventSink(struct App* app)
+{
+    assert(app);
+    /* A full ring overwrites its oldest entry and counts it rather than
+     * dropping it silently: a reader whose cursor is now older than
+     * oldest_serial is told DRIVE_REFUSED and can say "the pump stopped",
+     * which is a diagnosable failure. Skipping the event and carrying on is
+     * the one thing that is not. */
+    return (struct RS_EventSink){
+        .ring = &app->drive_events.ring,
+        .entries = app->drive_events.entries,
+        .capacity = APP_DRIVE_RING_CAPACITY,
+        .full = RS_EVENT_RING_COUNT_DROPS,
+        .cycle = app->world ? &app->world->cycle : NULL,
+    };
+}
+
 void
 App_DriveEvent(
     struct App* app,
@@ -53,28 +71,13 @@ App_DriveEvent(
     int32_t c,
     int32_t d)
 {
-    struct RS_Event ev;
+    struct RS_EventSink sink;
 
     assert(app);
     assert(kind > DRIVE_EVENT_NONE);
     assert(kind < DRIVE_EVENT_KIND_COUNT);
-
-    /* A full ring overwrites its oldest entry and counts it rather than
-     * dropping it silently: a reader whose cursor is now older than
-     * oldest_serial is told DRIVE_REFUSED and can say "the pump stopped",
-     * which is a diagnosable failure. Skipping the event and carrying on is
-     * the one thing that is not. */
-    ev = (struct RS_Event){
-        .kind = (int32_t)kind,
-        .cycle = app->world ? (int32_t)app->world->cycle : 0,
-        .a = a,
-        .b = b,
-        .c = c,
-        .d = d,
-    };
-    RS_EventRing_Push(
-        &app->drive_events.ring, app->drive_events.entries, APP_DRIVE_RING_CAPACITY,
-        RS_EVENT_RING_COUNT_DROPS, &ev);
+    sink = App_DriveEventSink(app);
+    RS_EventSink_Stamp(&sink, (int)kind, a, b, c, d);
 }
 
 void

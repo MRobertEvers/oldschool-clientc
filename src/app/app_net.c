@@ -9,6 +9,7 @@
 
 #include "app/app_internal.h"
 #include "boot_telemetry.h"
+#include "game/rs_server_state.h"
 
 /* Private to this unit, declared up front so definition order is free. */
 static bool
@@ -925,14 +926,53 @@ App_SendIdkDesign(
             app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), gender, kits, colours));
 }
 
+/*
+ * The packet model's records are this App's modules. Bound per packet, so a
+ * value that is read rather than pointed at (the revision's number) is the
+ * one in force when the packet applies.
+ */
 void
-App_IfTextSet(
+App_ServerStateBind(
+    struct App* app,
+    struct RS_ServerState* out)
+{
+    assert(app);
+    assert(out);
+    *out = (struct RS_ServerState){
+        .varps = &app->varps,
+        .stats = &app->stats,
+        .invs = &app->invs,
+        .if_texts = &app->if_texts,
+        .if_hides = &app->if_hides,
+        .if_colours = &app->if_colours,
+        .if_events = &app->if_events,
+        .chat = &app->chat,
+        .chat_clock = &app->host.client_clock,
+        .social = &app->social,
+        .chat_filter_mode = app->slots.chat_filter_mode,
+        .session_info = &app->session_info,
+        .session_end = &app->session_end,
+        .server_tick = &app->server_tick,
+        .player_ops = &app->player_ops,
+        .hint_arrow = &app->hint_arrow,
+        .npc_update_origin = &app->npc_update_origin,
+        .interaction_mode = &app->interaction_mode,
+        .rev_number = app->net && app->net->rev ? app->net->rev->number : -1,
+        .worldviews = &app->worldviews,
+        .world = app->world,
+        .esync = &app->esync,
+        .provider = app->provider,
+        .events = App_DriveEventSink(app),
+    };
+}
+
+void
+App_IfTextShow(
     struct App* app,
     int com_id,
     char const* text)
 {
     assert(app);
-    UIIfTextStore_Set(&app->if_texts, com_id, text);
     {
         bool applied = UITree_ApplyText(app->tree, com_id, text);
         if( torirs_env_net_debug() )
@@ -946,6 +986,33 @@ App_IfTextSet(
 }
 
 void
+App_IfTextSet(
+    struct App* app,
+    int com_id,
+    char const* text)
+{
+    assert(app);
+    UIIfTextStore_Set(&app->if_texts, com_id, text);
+    App_IfTextShow(app, com_id, text);
+}
+
+void
+App_IfColourShow(
+    struct App* app,
+    int com_id,
+    int colour)
+{
+    assert(app);
+    {
+        bool applied = UITree_ApplyColour(app->tree, com_id, colour);
+        if( torirs_env_net_debug() )
+            TORIRS_LOG(
+                "if_setcolour: com=%d colour=%06x applied=%d\n", com_id, colour, (int)applied);
+    }
+    RedrawRequest_Raise(&app->redraw_request);
+}
+
+void
 App_IfColourSet(
     struct App* app,
     int com_id,
@@ -953,11 +1020,20 @@ App_IfColourSet(
 {
     assert(app);
     UIIfIntStore_Set(&app->if_colours, com_id, colour);
+    App_IfColourShow(app, com_id, colour);
+}
+
+void
+App_IfHideShow(
+    struct App* app,
+    int com_id,
+    int hide)
+{
+    assert(app);
     {
-        bool applied = UITree_ApplyColour(app->tree, com_id, colour);
+        bool applied = UITree_ApplyHide(app->tree, com_id, hide);
         if( torirs_env_net_debug() )
-            TORIRS_LOG(
-                "if_setcolour: com=%d colour=%06x applied=%d\n", com_id, colour, (int)applied);
+            TORIRS_REPORT("if_sethide: com=%d hide=%d applied=%d\n", com_id, hide, (int)applied);
     }
     RedrawRequest_Raise(&app->redraw_request);
 }
@@ -970,12 +1046,7 @@ App_IfHideSet(
 {
     assert(app);
     UIIfIntStore_Set(&app->if_hides, com_id, hide ? 1 : 0);
-    {
-        bool applied = UITree_ApplyHide(app->tree, com_id, hide);
-        if( torirs_env_net_debug() )
-            TORIRS_REPORT("if_sethide: com=%d hide=%d applied=%d\n", com_id, hide, (int)applied);
-    }
-    RedrawRequest_Raise(&app->redraw_request);
+    App_IfHideShow(app, com_id, hide);
 }
 
 void

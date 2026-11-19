@@ -1021,6 +1021,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	game/rs_clientscript_queue.c \
 	game/rs_server_tick.c \
 	game/rs_event_ring.c \
+	game/rs_server_state.c \
 	game/settle_gate.c \
 	game/rs_zone_inbox.c \
 	game/rs_rebuild_region.c \
@@ -2222,6 +2223,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-proj-spawn-latch
 	$(MAKE) test-cam-script
 	$(MAKE) test-rs-event-ring
+	$(MAKE) test-rs-server-state
 	$(MAKE) test-render-mode
 	$(MAKE) test-painter-cull-bake
 	$(MAKE) test-world-views
@@ -5845,6 +5847,18 @@ test-net-exec: $(OBJ_DIR) $(OBJS)
 		game/test/rs_gameproto_exec_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/net_exec_test
+
+# The packet model (game/rs_server_state.h) with no App and no UI tree: a
+# packet in, the records and the stamped events out, per family it applies.
+# Asserts on: the model and the test compile without NDEBUG, so the model's
+# contract asserts are live here even in an OPT build.
+.PHONY: test-rs-server-state
+test-rs-server-state: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test \
+		-o $(OBJ_DIR)/rs_server_state_test \
+		game/test/rs_server_state_test.c game/rs_server_state.c \
+		$(filter-out $(OBJ_DIR)/main.o $(OBJ_DIR)/rs_server_state.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/rs_server_state_test
 
 # World entities (sailing, SAILING_PLAN C1): the WORLDENTITY_INFO delta
 # reader, the class458 interpolator (incl. the 2047->1 wraparound arc), the

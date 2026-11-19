@@ -14,6 +14,7 @@
 #include "game/rs_clientcode.h"
 #include "game/rs_gameproto_exec.h"
 #include "game/rs_player_stats.h"
+#include "game/rs_server_state.h"
 #include "game/task_gameproto_exec.h"
 #include "inv/inv_manager.h"
 #include "net/rev/gameproto_revisions.h"
@@ -406,12 +407,46 @@ main(void)
     int32_t node = UITree_Push(tree, -1, &spec);
     assert(node >= 0);
 
-    struct RS_GameProtoCtx ctx = {
-        .tree = tree,
-        .invs = &invs,
+    /* The bare managers as the packet model's records, with an event ring of
+     * the test's own: the model half of each packet writes these, and the
+     * app-less presentation writes `tree`. A block that executes against an
+     * App binds the App's records instead (App_ServerStateBind). */
+    static struct RS_Event bare_events[64];
+    struct RS_EventRing bare_ring;
+    struct UIIfTextStore bare_texts;
+    struct UIIfIntStore bare_hides;
+    struct UIIfIntStore bare_colours;
+    struct UIIfEventTable bare_if_events;
+    int const bare_clock = 0;
+    struct RS_ServerState bare_state;
+    struct RS_ServerState app_state;
+
+    memset(&bare_ring, 0, sizeof(bare_ring));
+    memset(&bare_texts, 0, sizeof(bare_texts));
+    memset(&bare_hides, 0, sizeof(bare_hides));
+    memset(&bare_colours, 0, sizeof(bare_colours));
+    memset(&bare_if_events, 0, sizeof(bare_if_events));
+    bare_state = (struct RS_ServerState){
         .varps = &varps,
         .stats = &stats,
+        .invs = &invs,
+        .if_texts = &bare_texts,
+        .if_hides = &bare_hides,
+        .if_colours = &bare_colours,
+        .if_events = &bare_if_events,
         .chat = &chat,
+        .chat_clock = &bare_clock,
+        .rev_number = -1,
+        .events = {
+            .ring = &bare_ring,
+            .entries = bare_events,
+            .capacity = 64,
+            .full = RS_EVENT_RING_OVERWRITE,
+        },
+    };
+    struct RS_GameProtoCtx ctx = {
+        .state = &bare_state,
+        .tree = tree,
         .app = NULL,
     };
 
@@ -724,6 +759,8 @@ main(void)
             8,
             WORLDVIEW_ROOT);
         ctx.app = app;
+        App_ServerStateBind(app, &app_state);
+        ctx.state = &app_state;
 
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_SET_ACTIVE_WORLD;
@@ -764,6 +801,7 @@ main(void)
         assert(WorldviewRegistry_ActiveLevel(&app->worldviews) == 0);
 
         ctx.app = NULL;
+        ctx.state = &bare_state;
         free(app);
         printf("ok - SET_ACTIVE_WORLD arms the cursor and the fence resets it\n");
     }
@@ -775,6 +813,8 @@ main(void)
         app->minimap.flag_tile_x = -1;
         app->minimap.flag_tile_z = -1;
         ctx.app = app;
+        App_ServerStateBind(app, &app_state);
+        ctx.state = &app_state;
 
         {
             struct RevPacket p;
@@ -800,6 +840,7 @@ main(void)
             assert(app->minimap.flag_tile_z == -1);
         }
         ctx.app = NULL;
+        ctx.state = &bare_state;
         free(app);
         printf("ok - SET_MAP_FLAG stores scene-local tiles\n");
     }
@@ -819,6 +860,8 @@ main(void)
         struct RevPacket p;
         assert(app);
         ctx.app = app;
+        App_ServerStateBind(app, &app_state);
+        ctx.state = &app_state;
 
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_HINT_ARROW;
@@ -874,6 +917,7 @@ main(void)
         TEST_EXEC_ASSERT(app->hint_arrow.type == 0, "255 is the clear");
 
         ctx.app = NULL;
+        ctx.state = &bare_state;
         free(app);
         printf("ok - HINT_ARROW reads the wire's own type numbers\n");
     }
@@ -1048,6 +1092,8 @@ main(void)
 
         assert(app);
         ctx.app = app;
+        App_ServerStateBind(app, &app_state);
+        ctx.state = &app_state;
 
         /* MINIMAP_TOGGLE had no parser at all; parse it off the wire rather
          * than hand-filling the struct, so a mis-sized field shows up here. */
@@ -1108,6 +1154,7 @@ main(void)
         printf("ok - LAST_LOGIN_INFO carries the member warning\n");
 
         ctx.app = NULL;
+        ctx.state = &bare_state;
         free(app);
     }
 
@@ -1236,6 +1283,8 @@ main(void)
         assert(app);
         memset(&unlock_ctx, 0, sizeof(unlock_ctx));
         unlock_ctx.app = app;
+        App_ServerStateBind(app, &app_state);
+        unlock_ctx.state = &app_state;
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_OBJUNLOCK_UPDATE;
         p._objunlock_update.count = 2;
@@ -1284,6 +1333,8 @@ main(void)
 
         memset(&url_ctx, 0, sizeof(url_ctx));
         url_ctx.app = app;
+        App_ServerStateBind(app, &app_state);
+        url_ctx.state = &app_state;
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_URL_OPEN;
         p._text.text = (char*)"https://oldschool.runescape.com/";
@@ -1327,6 +1378,8 @@ main(void)
 
         RS_UISlots_Init(&app->slots);
         ctx.app = app;
+        App_ServerStateBind(app, &app_state);
+        ctx.state = &app_state;
 
         /* Nothing to say about recovery questions and no members warning: the
          * short screen, which has no paragraph rows on it. */
@@ -1378,6 +1431,7 @@ main(void)
             app->slots.main_modal_id == -1, "no address opens no welcome screen");
 
         ctx.app = NULL;
+        ctx.state = &bare_state;
         RevConfigRefs_Free(&app->revconfig_refs);
         free(app);
         printf("ok - LAST_LOGIN_INFO opens the welcome screen the profile names\n");
@@ -1386,6 +1440,10 @@ main(void)
     UITree_Free(tree);
     InvManager_Free(&invs);
     VarPManager_Free(&varps);
+    UIIfTextStore_Free(&bare_texts);
+    UIIfIntStore_Free(&bare_hides);
+    UIIfIntStore_Free(&bare_colours);
+    UIIfEventTable_Free(&bare_if_events);
     printf("net-exec: all tests passed\n");
     return 0;
 }

@@ -261,11 +261,12 @@ src/world/test/wev_rebuild_test.c
 # quest-driver units (src/plugin/torirs_plugin_drive*.c) read the App by
 # design through g_app -- the driver is a test harness bolted onto the live
 # client -- and the rest are tests and two task units that kept the pointer.
+# src/game/rs_chat.c left 2026-11-19 (packet model step): it stamps
+# chat_message through an RS_EventSink now, not an App pointer.
 src/app/test/app_drive_event_ring_test.c
 src/app/test/app_logout_wait_test.c
 src/app/test/app_mouseover_entry_test.c
 src/engine/uitree_builder/task_slot_mount.c
-src/game/rs_chat.c
 src/game/task_entity_assets.c
 src/plugin/torirs_plugin_drive.c
 src/plugin/torirs_plugin_drive_chat.c

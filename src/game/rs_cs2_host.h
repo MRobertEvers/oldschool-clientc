@@ -1850,6 +1850,13 @@ RS_CS2Host_ExecClientOp(
     struct CS2VM2_Thread* vm,
     struct CS2VM_HostSignatureArgs const* args);
 
+/** A line the packet model has already put in the chat store
+ *  (game/rs_server_state.c): raise the chat-transmit channel, as
+ *  RS_CS2Host_ChatAdd does after its own store write. Nothing when no store
+ *  is bound (a headless harness), as there. */
+void
+RS_CS2Host_NotifyChatAdded(struct RS_CS2Host* host);
+
 void
 RS_CS2Host_ChatAdd(
     struct RS_CS2Host* host,

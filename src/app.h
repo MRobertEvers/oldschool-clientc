@@ -2227,6 +2227,41 @@ App_SendIdkDesign(
     int const kits[RS_IDK_DESIGN_PARTS],
     int const colours[RS_IDK_DESIGN_COLOURS]);
 
+/** The presentation halves of IF_SETTEXT / IF_SETCOLOUR / IF_SETHIDE /
+ *  IF_SETEVENTS, whose store write the packet model has already made
+ *  (game/rs_server_state.c): put the value on the node if it is mounted, log
+ *  it under TORIRS_NET_DEBUG, and redraw. `colour` is RGB888. */
+void
+App_IfTextShow(
+    struct App* app,
+    int com_id,
+    char const* text);
+void
+App_IfColourShow(
+    struct App* app,
+    int com_id,
+    int colour);
+void
+App_IfHideShow(
+    struct App* app,
+    int com_id,
+    int hide);
+void
+App_IfEventsShow(
+    struct App* app,
+    int com_id,
+    int from,
+    int to,
+    int events);
+
+/** Bind the packet model's records (game/rs_server_state.h) to this App's
+ *  modules, for one packet: RS_GameProtoCtx.state. */
+struct RS_ServerState;
+void
+App_ServerStateBind(
+    struct App* app,
+    struct RS_ServerState* out);
+
 /** IF_SETTEXT: persist (reference IfType.list semantics) + apply if mounted. */
 void
 App_IfTextSet(

@@ -274,6 +274,14 @@ struct App_DriveRing
  * every build, because a stamp guarded by an env var is a stamp nobody
  * notices has rotted.  Owner: core-events.
  */
+/*
+ * The drive ring bound as an RS_EventSink: what a stamp site that does not
+ * know struct App holds (the packet model, the chat store) to stamp into this
+ * same ring, with this ring's capacity, full-ring policy and world cycle.
+ * App_DriveEvent stamps through it too, so there is one stamp path.
+ */
+struct RS_EventSink App_DriveEventSink(struct App* app);
+
 void App_DriveEvent(
     struct App* app,
     enum RS_EventKind kind,

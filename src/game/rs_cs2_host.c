@@ -1280,6 +1280,15 @@ RS_CS2Host_SetChat(
 }
 
 void
+RS_CS2Host_NotifyChatAdded(struct RS_CS2Host* host)
+{
+    assert(host);
+    if( !host->chat )
+        return;
+    host->chat_transmit_dirty = 1;
+}
+
+void
 RS_CS2Host_ChatAdd(
     struct RS_CS2Host* host,
     int type,

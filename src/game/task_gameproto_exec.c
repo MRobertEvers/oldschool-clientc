@@ -1,4 +1,5 @@
 #include "task_gameproto_exec.h"
+#include "game/rs_server_state.h"
 #include "mem/torirs_mem.h"
 
 #include "app.h"
@@ -493,14 +494,13 @@ Task_GameProtoExec_Run(
          * (app/app_placeholder.c). The wait used to be one round trip per
          * first-seen drop, with every packet and the frame behind it. */
         {
+            struct RS_ServerState state;
             struct RS_GameProtoCtx ctx = {
+                .state = &state,
                 .tree = app->tree,
-                .invs = &app->invs,
-                .varps = &app->varps,
-                .stats = &app->stats,
-                .chat = &app->chat,
                 .app = app,
             };
+            App_ServerStateBind(app, &state);
             RS_GameProto_Exec(&ctx, &self->packet);
             RedrawRequest_Raise(&app->redraw_request);
         }
@@ -509,14 +509,13 @@ Task_GameProtoExec_Run(
     {
         /* Its obj entries land through placeholders too -- see above. */
         {
+            struct RS_ServerState state;
             struct RS_GameProtoCtx ctx = {
+                .state = &state,
                 .tree = app->tree,
-                .invs = &app->invs,
-                .varps = &app->varps,
-                .stats = &app->stats,
-                .chat = &app->chat,
                 .app = app,
             };
+            App_ServerStateBind(app, &state);
             RS_GameProto_Exec(&ctx, &self->packet);
             RedrawRequest_Raise(&app->redraw_request);
         }
@@ -572,14 +571,13 @@ Task_GameProtoExec_Run(
     }
     else
     {
+        struct RS_ServerState state;
         struct RS_GameProtoCtx ctx = {
+            .state = &state,
             .tree = app->tree,
-            .invs = &app->invs,
-            .varps = &app->varps,
-            .stats = &app->stats,
-            .chat = &app->chat,
             .app = app,
         };
+        App_ServerStateBind(app, &state);
         RS_GameProto_Exec(&ctx, &self->packet);
         RedrawRequest_Raise(&app->redraw_request);
     }

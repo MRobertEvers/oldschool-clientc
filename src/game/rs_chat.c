@@ -1,7 +1,6 @@
 #include "rs_chat.h"
 #include "mem/torirs_mem.h"
 
-#include "plugin/torirs_plugin_drive.h"
 #include "rs_social.h"
 #include "input/torirs_keymap.h"
 #include "ui/uitree_host.h"
@@ -38,10 +37,11 @@ RS_Chat_Init(struct RS_Chat* chat, char const* username)
 }
 
 void
-RS_Chat_SetDriveApp(struct RS_Chat* chat, struct App* app)
+RS_Chat_SetEventSink(struct RS_Chat* chat, struct RS_EventSink sink)
 {
     assert(chat);
-    chat->drive_app = app;
+    assert(sink.ring);
+    chat->events = sink;
 }
 
 /*
@@ -156,11 +156,11 @@ RS_Chat_AddMessage(
      * HERE and not App_NotifyChatMessage, which misses clan chat and the
      * synthetic logout line: this is the one choke point every insertion
      * (rs_gameproto_exec.c, RS_CS2Host_ChatAdd, a clan-chat line) passes
-     * through. `drive_app` is NULL for a bare unit-test RS_Chat -- a
+     * through. `events` is unbound for a bare unit-test RS_Chat -- a
      * legitimate topology, not a contract violation, so the stamp is
      * skipped rather than asserted. */
-    if( chat->drive_app )
-        App_DriveEvent(chat->drive_app, DRIVE_EVENT_CHAT_MESSAGE, type, serial, 0, 0);
+    if( chat->events.ring )
+        RS_EventSink_Stamp(&chat->events, RS_EVENT_CHAT_MESSAGE, type, serial, 0, 0);
 }
 
 static struct
@@ -1084,7 +1084,7 @@ RS_Chat_CheckpointTake(struct RS_Chat const* chat)
     cp = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*cp));
     assert(cp);
     rs_chat_checkpoint_copy(cp, chat);
-    cp->drive_app = NULL;
+    memset(&cp->events, 0, sizeof(cp->events));
     return cp;
 }
 
@@ -1093,17 +1093,17 @@ RS_Chat_CheckpointRestore(
     struct RS_Chat* chat,
     struct RS_Chat const* cp)
 {
-    struct App* drive_app;
+    struct RS_EventSink events;
     int scroll_cycle;
 
     assert(chat);
     assert(cp);
-    drive_app = chat->drive_app;
+    events = chat->events;
     /* Not session state: the checkpoint never held it (RS_Chat.scroll_cycle). */
     scroll_cycle = chat->scroll_cycle;
     RS_Chat_Free(chat);
     rs_chat_checkpoint_copy(chat, cp);
-    chat->drive_app = drive_app;
+    chat->events = events;
     chat->scroll_cycle = scroll_cycle;
 }
 

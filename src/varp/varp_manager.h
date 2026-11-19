@@ -185,23 +185,25 @@ VarPManager_GetClientcode(
     const struct VarPManager* mgr,
     int id);
 
-/** Apply VARP_SMALL: variable (g2), value (g1 signed byte). */
-void
+/** Apply VARP_SMALL: variable (g2), value (g1 signed byte). Returns whether
+ *  the update was applied -- whether it reached the server-update callback --
+ *  which a negative id, or one past what the table can grow to, is not. */
+bool
 VarPManager_ApplySmall(
     struct VarPManager* mgr,
     int variable,
     int value);
 
-/** Apply VARP_LARGE: variable (g2), value (g4). */
-void
+/** Apply VARP_LARGE: variable (g2), value (g4). Returns as ApplySmall. */
+bool
 VarPManager_ApplyLarge(
     struct VarPManager* mgr,
     int variable,
     int value);
 
 /** Apply VARP_LONG: the varp's long value. Fires change and server-update
- *  exactly as VARP_LARGE does. */
-void
+ *  exactly as VARP_LARGE does, and returns as it does. */
+bool
 VarPManager_ApplyLong(
     struct VarPManager* mgr,
     int variable,
@@ -224,6 +226,14 @@ VarPManager_SetVarpLongOptimistic(
 /** VARP_SYNC: restore client-visible vars from the server-authoritative set. */
 void
 VarPManager_ApplySync(struct VarPManager* mgr);
+
+/** VARP_SYNC, telling `each` every varp it restored, in the order it restored
+ *  them, right after that varp's server-update callback. */
+void
+VarPManager_ApplySyncEach(
+    struct VarPManager* mgr,
+    VarPManager_ServerUpdateFn each,
+    void* each_userdata);
 
 /** VARP_RESET: zero every var (client + server-authoritative). */
 void

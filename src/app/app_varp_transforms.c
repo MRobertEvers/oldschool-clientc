@@ -857,11 +857,8 @@ app_varp_server_update(
     struct App* app = (struct App*)userdata;
     assert(app);
 
-    /* DRIVE_STAMP: varp_changed -- a=varp_id b=new value. The
-     * server-confirmed seam; var.await wakes here plus on server_tick, and a
-     * varbit name is translated to its base varp before matching. */
-    App_DriveEvent(
-        app, DRIVE_EVENT_VARP_CHANGED, varp_id, VarPManager_GetVarp(&app->varps, varp_id), 0, 0);
+    /* varp_changed is stamped by the packet model, right after the write
+     * whose server update this is (game/rs_server_state.c). */
 
     RS_CS2Host_NotifyVarChanged(&app->host, varp_id);
 

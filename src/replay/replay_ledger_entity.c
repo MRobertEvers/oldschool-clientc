@@ -53,8 +53,8 @@
  * recorded order, so FACE_ENTITY against FACE_DIR lands as it did.
  *
  * NPC_HEADICON_SPECIFIC is not an info op but a packet of its own that writes
- * ONE head-icon slot of an npc this client tracks (exec_npc_headicon_specific,
- * rs_gameproto_exec.c: an npc not in the registry is skipped, a slot outside
+ * ONE head-icon slot of an npc this client tracks (state_npc_headicon_specific,
+ * game/rs_server_state.c: an npc not in the registry is skipped, a slot outside
  * 0..7 refused; the first write copies the type's icons in). So it gets a
  * sticky slot per head-icon slot, set from the npc list as it stands when the
  * packet arrives, and a HEADICON_CUSTOM, which writes every slot, clears them.
@@ -699,7 +699,7 @@ ledger_entity_step(
     {
         struct RevPacket pkt;
 
-        /* exec_npc_headicon_specific: one slot of an npc in the registry. */
+        /* state_npc_headicon_specific: one slot of an npc in the registry. */
         if( ledger_parse(ledger, f, &pkt) )
         {
             struct PktNpcHeadiconSpecific const* h = &pkt._npc_headicon_specific;

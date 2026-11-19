@@ -7,6 +7,7 @@
  */
 
 #include "app/app_internal.h"
+#include "game/rs_server_state.h"
 
 /*
  * The 20 ms client tick.
@@ -240,14 +241,13 @@ app_logic_tick(struct App* app)
      * would sit forever (the lazy flush only runs ahead of a live packet). */
     if( RS_ZoneInbox_HeldCount(&app->zone_inbox) > 0 && app->world && app->world->load_complete )
     {
+        struct RS_ServerState flush_ctx_state;
         struct RS_GameProtoCtx flush_ctx = {
+            .state = &flush_ctx_state,
             .tree = app->tree,
-            .invs = &app->invs,
-            .varps = &app->varps,
-            .stats = &app->stats,
-            .chat = &app->chat,
             .app = app,
         };
+        App_ServerStateBind(app, &flush_ctx_state);
         RS_GameProto_FlushPendingZone(&flush_ctx);
     }
 

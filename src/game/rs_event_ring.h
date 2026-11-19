@@ -147,4 +147,35 @@ RS_EventRing_At(
     int capacity,
     uint32_t serial);
 
+/*
+ * One owner's ring, bound for stamping: what a stamp site that is not the
+ * owner (the packet model, game/rs_server_state.c; the chat store,
+ * game/rs_chat.c) holds so it can stamp into the owner's ring without
+ * knowing what the owner is. Built by the owner (the real client:
+ * App_DriveEventSink), copied by value, never freed: it points into the
+ * owner. All zero is "no ring bound" -- `ring` is NULL.
+ */
+struct RS_EventSink
+{
+    struct RS_EventRing* ring;
+    struct RS_Event* entries;
+    int capacity;
+    enum RS_EventRingFull full;
+    /** The owner's world cycle, read at each stamp into RS_Event.cycle; NULL
+     *  when the owner has no world (a calloc'd App in a test), which stamps
+     *  0 -- what the owner's own stamp records then. */
+    int const* cycle;
+};
+
+/** Stamp one event of `kind` with payload a..d (torirs_plugin_drive.h's
+ *  table) into the sink's ring. `sink->ring` must be bound. */
+void
+RS_EventSink_Stamp(
+    struct RS_EventSink const* sink,
+    int kind,
+    int32_t a,
+    int32_t b,
+    int32_t c,
+    int32_t d);
+
 #endif

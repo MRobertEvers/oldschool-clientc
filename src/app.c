@@ -683,8 +683,8 @@ App_Init(
     RS_CS2Host_SetChat(&app->host, &app->chat);
     /* Every RS_Chat_AddMessage call -- clan chat and the logout line included,
      * neither of which reaches App_NotifyChatMessage -- stamps chat_message
-     * onto the drive event ring through this. See RS_Chat_SetDriveApp. */
-    RS_Chat_SetDriveApp(&app->chat, app);
+     * onto the drive event ring through this. See RS_Chat_SetEventSink. */
+    RS_Chat_SetEventSink(&app->chat, App_DriveEventSink(app));
     RS_CS2Host_SetBridge(&app->host, &app->bridge);
     /* Close the reactive loop: a varp update from the *server* flags a
      * var-transmit re-dispatch on the host, so interfaces react to value changes

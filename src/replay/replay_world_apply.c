@@ -23,6 +23,7 @@
  *   6. The NPC_HEADICON_SPECIFICs still in force, as the packets themselves.
  */
 #include "replay/replay_world.h"
+#include "game/rs_server_state.h"
 
 #include "app.h"
 #include "game/rs_entity_sync.h"
@@ -269,8 +270,8 @@ npc_levels(struct Task_ReplayWorldApply* self)
 }
 
 /* The NPC_HEADICON_SPECIFICs still in force, through the packet's own arm
- * (exec_npc_headicon_specific: the npc found by slot, the type's icons copied
- * in on the first write), once the npcs stand. */
+ * (game/rs_server_state.c, state_npc_headicon_specific: the npc found by slot,
+ * the type's icons copied in on the first write), once the npcs stand. */
 _Static_assert(REPLAY_NPC_HEADICON_SLOTS == WORLD_NPC_HEADICON_SLOTS,
                "the ledger keeps a sticky slot per head-icon slot");
 
@@ -279,14 +280,13 @@ apply_npc_headicons(struct Task_ReplayWorldApply* self)
 {
     struct App* app = self->app;
     struct ReplayWorldKeyframe const* kf = &self->d->kf;
+    struct RS_ServerState state;
     struct RS_GameProtoCtx ctx = {
+        .state = &state,
         .tree = app->tree,
-        .invs = &app->invs,
-        .varps = &app->varps,
-        .stats = &app->stats,
-        .chat = &app->chat,
         .app = app,
     };
+    App_ServerStateBind(app, &state);
 
     for( int i = 0; i < kf->npc_headicon_count; i++ )
     {
@@ -311,14 +311,13 @@ apply_zones_and_table(struct Task_ReplayWorldApply* self)
     struct App* app = self->app;
     struct ReplayWorldKeyframe const* kf = &self->d->kf;
     struct GameProtoRevTable const* rev = app->net->rev;
+    struct RS_ServerState state;
     struct RS_GameProtoCtx ctx = {
+        .state = &state,
         .tree = app->tree,
-        .invs = &app->invs,
-        .varps = &app->varps,
-        .stats = &app->stats,
-        .chat = &app->chat,
         .app = app,
     };
+    App_ServerStateBind(app, &state);
 
     for( int i = 0; i < kf->zone_op_count; i++ )
     {

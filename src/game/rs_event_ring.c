@@ -170,3 +170,30 @@ RS_EventRing_At(
     assert(entries[index].serial == serial);
     return &entries[index];
 }
+
+void
+RS_EventSink_Stamp(
+    struct RS_EventSink const* sink,
+    int kind,
+    int32_t a,
+    int32_t b,
+    int32_t c,
+    int32_t d)
+{
+    struct RS_Event ev;
+
+    assert(sink);
+    assert(sink->ring);
+    assert(sink->entries);
+    assert(kind > RS_EVENT_NONE);
+    assert(kind < RS_EVENT_KIND_COUNT);
+    ev = (struct RS_Event){
+        .kind = (int32_t)kind,
+        .cycle = sink->cycle ? (int32_t)*sink->cycle : 0,
+        .a = a,
+        .b = b,
+        .c = c,
+        .d = d,
+    };
+    RS_EventRing_Push(sink->ring, sink->entries, sink->capacity, sink->full, &ev);
+}

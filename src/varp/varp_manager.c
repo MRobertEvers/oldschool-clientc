@@ -163,16 +163,16 @@ varp_mark_int(
         mgr->var_long_set[variable] = 0;
 }
 
-static void
+static bool
 apply_varp_value(
     struct VarPManager* mgr,
     int variable,
     int value)
 {
     if( variable < 0 )
-        return;
+        return false;
     if( variable >= mgr->varp_count && !ensure_untyped_var_capacity(mgr, variable) )
-        return;
+        return false;
 
     varp_mark_int(mgr, variable);
     mgr->var_serv[variable] = value;
@@ -187,6 +187,7 @@ apply_varp_value(
      * changed-varp ring for every server update, so a redundant resend still
      * re-runs the hooks that list it. */
     notify_server_update(mgr, variable);
+    return true;
 }
 
 static void
@@ -530,24 +531,24 @@ VarPManager_SetServerUpdateCallback(
     mgr->server_update_userdata = userdata;
 }
 
-void
+bool
 VarPManager_ApplySmall(
     struct VarPManager* mgr,
     int variable,
     int value)
 {
     assert(mgr);
-    apply_varp_value(mgr, variable, value);
+    return apply_varp_value(mgr, variable, value);
 }
 
-void
+bool
 VarPManager_ApplyLarge(
     struct VarPManager* mgr,
     int variable,
     int value)
 {
     assert(mgr);
-    apply_varp_value(mgr, variable, value);
+    return apply_varp_value(mgr, variable, value);
 }
 
 static void
@@ -581,7 +582,7 @@ ensure_long_capacity(
     mgr->var_long_count = grown;
 }
 
-void
+bool
 VarPManager_ApplyLong(
     struct VarPManager* mgr,
     int variable,
@@ -589,7 +590,7 @@ VarPManager_ApplyLong(
 {
     assert(mgr);
     if( variable < 0 )
-        return;
+        return false;
     ensure_long_capacity(mgr, variable);
     mgr->var_long_set[variable] = 1;
     mgr->var_long_serv[variable] = value;
@@ -600,6 +601,7 @@ VarPManager_ApplyLong(
     }
     /* As VARP_LARGE: a resend still re-runs the hooks that list the id. */
     notify_server_update(mgr, variable);
+    return true;
 }
 
 int64_t
@@ -683,6 +685,15 @@ VarPManager_SetVarbitOptimistic(
 void
 VarPManager_ApplySync(struct VarPManager* mgr)
 {
+    VarPManager_ApplySyncEach(mgr, NULL, NULL);
+}
+
+void
+VarPManager_ApplySyncEach(
+    struct VarPManager* mgr,
+    VarPManager_ServerUpdateFn each,
+    void* each_userdata)
+{
     assert(mgr);
 
     for( int i = 0; i < mgr->varp_count; i++ )
@@ -692,6 +703,8 @@ VarPManager_ApplySync(struct VarPManager* mgr)
             mgr->var[i] = mgr->var_serv[i];
             notify_change(mgr, i);
             notify_server_update(mgr, i);
+            if( each )
+                each(each_userdata, i);
         }
     }
     for( int i = 0; i < mgr->var_long_count; i++ )
@@ -701,6 +714,8 @@ VarPManager_ApplySync(struct VarPManager* mgr)
             mgr->var_long[i] = mgr->var_long_serv[i];
             notify_change(mgr, i);
             notify_server_update(mgr, i);
+            if( each )
+                each(each_userdata, i);
         }
     }
 }

@@ -1,6 +1,7 @@
 #ifndef SRC_GAME_RS_CHAT_H
 #define SRC_GAME_RS_CHAT_H
 
+#include "game/rs_event_ring.h"
 #include "ui/uitree_chatview.h"
 
 #include <stddef.h>
@@ -8,7 +9,6 @@
 
 struct RS_Social;
 struct UITreeHost;
-struct App;
 
 /*
  * Chat model: the 100-entry message ring, filter-aware line layout, the typed
@@ -146,13 +146,13 @@ struct RS_Chat
     /** Next `RS_ChatMessage.serial` to hand out. A separate counter from
      *  `next_uid`: see the field comment on RS_ChatMessage.serial. */
     int next_message_serial;
-    /** The App this chat's messages are stamped to the drive event ring
-     *  through (RS_Chat_SetDriveApp). NULL for every RS_Chat built off the
-     *  stack by a unit test with no App in scope -- that is a legitimate
-     *  topology, the same way `app->plugins` is NULL when plugins are
-     *  switched off, and RS_Chat_AddMessage skips the stamp rather than
+    /** The event ring this chat's messages are stamped to as `chat_message`
+     *  (RS_Chat_SetEventSink). Unbound (`events.ring` NULL) for every RS_Chat
+     *  built off the stack by a unit test with no ring in scope -- that is a
+     *  legitimate topology, the same way `app->plugins` is NULL when plugins
+     *  are switched off, and RS_Chat_AddMessage skips the stamp rather than
      *  asserting it. */
-    struct App* drive_app;
+    struct RS_EventSink events;
     /** One-entry memo for uid lookup. The scripts walk the history strictly
      *  in order -- read uid, ask for the previous one, read that -- so a
      *  single remembered node turns a list walk per line into a pointer hop. */
@@ -203,13 +203,13 @@ void
 RS_Chat_Init(struct RS_Chat* chat, char const* username);
 
 /**
- * Wire the App a live client stamps `chat_message` drive events through.
- * Called once, alongside RS_CS2Host_SetChat, by whatever owns both `app` and
- * `&app->chat`. Never called by a unit test that builds a bare RS_Chat --
- * `drive_app` stays NULL there and RS_Chat_AddMessage skips the stamp.
+ * Bind the event ring a live client stamps `chat_message` events into.
+ * Called once, alongside RS_CS2Host_SetChat, by whatever owns both the ring
+ * and the chat. Never called by a unit test that builds a bare RS_Chat --
+ * `events` stays unbound there and RS_Chat_AddMessage skips the stamp.
  */
 void
-RS_Chat_SetDriveApp(struct RS_Chat* chat, struct App* app);
+RS_Chat_SetEventSink(struct RS_Chat* chat, struct RS_EventSink sink);
 
 /**
  * Does this message occupy a chat line under the current filters?
