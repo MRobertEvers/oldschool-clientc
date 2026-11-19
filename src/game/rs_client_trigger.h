@@ -49,17 +49,18 @@
  */
 /** An npc became visible (`Client::GetNPCPosNewVis`). Subject = npc type. */
 #define RS_TRIGGER_NPC_ADD 35
-/** An npc went away (`Client::DestroyNpc`). Subject = npc type. */
-#define RS_TRIGGER_NPC_DEL 36
 /** The scene builder placed a loc (`Client::OnLoadLocation`). Subject = loc
  *  type. This is the big one: 218 scripts in this cache. */
 #define RS_TRIGGER_LOC_ADD 37
 /** A zone packet changed a loc (`Client::LocChangeUnchecked`). */
 #define RS_TRIGGER_LOC_CHANGE 38
-/** A player became visible / went away. Subject is unused (players have no
- *  type), so only the global form can match. */
-#define RS_TRIGGER_PLAYER_ADD 41
-#define RS_TRIGGER_PLAYER_DEL 42
+/* 36 (npc gone, `Client::DestroyNpc`), 41 and 42 (a player became visible /
+ * went away) are not named: no cache this client reads binds a script to them
+ * in any form (tools/client_trigger_scan.py: 0 in cache.osrs239 and in
+ * cache.osrs242, against 24 and 31 for trigger 35), and the rev-239 deob has
+ * no trigger lookup of its own to say the client raises them. Firing one
+ * would look up nothing; `make check-client-triggers` says so again after a
+ * cache upgrade. */
 /** The right-click menu opened (`Minimenu::Open`). Global form only. */
 #define RS_TRIGGER_MINIMENU_OPEN 82
 

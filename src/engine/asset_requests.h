@@ -41,9 +41,14 @@
  * landing function called from Assets_Land (struct AssetWaiter, AssetLandFn,
  * struct AssetWaiterHandle, Assets_Land, Assets_DropWaiters,
  * Assets_WaiterCount, and the late and landed policies, which exist only for
- * waiters). The callers still using it (textures, the music install) become
- * parallel tasks that await, as the ground-stack model, the npc body and the
- * deferred sequence bind have; nothing new may register a waiter.
+ * waiters). The one caller still using it is the music install
+ * (app/app_tick.c): a REPLACE kind, whose superseded wants land DROPPED at
+ * once while an awaiter of a superseded loading entry is kept to the end, and
+ * a want honours the back-off where an await restarts at once -- so it
+ * becomes a parallel task only once the await has those two rules. The
+ * ground-stack model, the npc body, the deferred sequence bind and the
+ * texture publish (app/app_textures.c) are parallel tasks that await;
+ * nothing new may register a waiter.
  *
  * Either way a loader is started only if none is in flight for the entry. The
  * client supplies one loader per kind (Assets_SetLoader): `start` puts a load
@@ -99,7 +104,7 @@ enum AssetKind
     ASSET_KIND_OBJ_MODEL,
     /* No entries and no loader: its row is the back-off an icon whose model
      * chain did not come waits out before asking again (an inventory slot's
-     * Task_InvIcon, a widget icon's park row). */
+     * Task_InvIcon, a widget icon's Task_WidgetIcon). */
     ASSET_KIND_INV_ICONS,
     /* An interface group's component pack. */
     ASSET_KIND_IF_GROUP,

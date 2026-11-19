@@ -18,6 +18,7 @@
  *   make -C src test-tasks-scripts
  */
 
+#include "app/app_gameproto_exec.h"
 #include "app.h"
 #include "app/app_internal.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -324,10 +325,9 @@ test_dialog_abort_runs_on_the_packet_queue(void)
                     .full = RS_EVENT_RING_OVERWRITE },
     };
     {
-        struct RS_GameProtoCtx ctx = { .state = &state, .tree = fx.app->tree, .app = fx.app };
         memset(&packet, 0, sizeof(packet));
         packet.packet_type = PKT_NAME_TRIGGER_ONDIALOGABORT;
-        RS_GameProto_Exec(&ctx, &packet);
+        App_GameProto_Exec(fx.app, &state, &packet);
     }
 
     CHECK(queued(fx.app->frame_runner.queue) == 0,

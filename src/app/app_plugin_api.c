@@ -39,12 +39,8 @@ App_LootNotifyKill(
     {
         cost = obj->cost;
     }
-    else if( app->provider )
-    {
-        struct ToriRS_Task* load = CreateTask_ObjLoad(app->provider, obj_id);
-        if( load )
-            ToriRS_TaskQueue_Add(app->frame_runner.queue, load);
-    }
+    else
+        (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_CONFIG, obj_id, ASSET_CONFIG_OBJ), NULL);
 
     int event_id = app->loot.next_event_id++;
     LootStore_AddKillLoot(&app->loot, source_name, obj_id, qty, cost, event_id);

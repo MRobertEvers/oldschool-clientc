@@ -217,8 +217,8 @@ def discover():
                 operations.append({"name": name, "path": path, "line": lineno})
         if path == "src/cs2vm2/cs2vm2_host_request_kinds.def":
             pass
-        if path == "src/game/rs_gameproto_exec.c":
-            packets = sorted(set(re.findall(r"case (PKT_NAME_\w+):", clean)))
+        if path in ("src/game/rs_gameproto_exec.c", "src/app/app_gameproto_exec.c"):
+            packets = sorted(set(packets + re.findall(r"case (PKT_NAME_\w+):", clean)))
     # All widget opcodes, not just SET-prefixed ones: create/copy/delete,
     # getters, listeners, input, find, op and target operations all matter.
     hosted = []

@@ -82,12 +82,11 @@ app_hitsplat_font_scene_id(struct App* app)
     if( font_cache_id < 0 )
         return -1;
     scene_id = UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id);
+    /* Asked every frame it is missing: the assets table holds the one read
+     * (it was a new FontLoad queued per frame until one landed). */
     if( scene_id < 0 )
-    {
-        struct ToriRS_Task* task = CreateTask_FontLoad(app->provider, font_cache_id);
-        if( task )
-            ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
-    }
+        (void)Assets_Want(
+            app->assets, AssetKey_Make(ASSET_KIND_CONFIG, font_cache_id, ASSET_CONFIG_FONT), NULL);
     return scene_id;
 }
 
@@ -99,12 +98,12 @@ app_minimenu_font_scene_id(struct App* app)
         font_cache_id >= 0 ? UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id) : -1;
     if( scene_id <= 0 && font_cache_id >= 0 )
     {
-        /* Queue the load (no blocking drain — the boot task awaits this font
+        /* Want the load (no blocking drain — the boot task awaits this font
          * before binding the configured overlay models, so at runtime a miss
-         * just falls through to the text-node scan below until it lands). */
-        struct ToriRS_Task* task = CreateTask_FontLoad(app->provider, font_cache_id);
-        if( task )
-            ToriRS_TaskQueue_Add(app->frame_runner.queue, task);
+         * just falls through to the text-node scan below until it lands).
+         * One read in flight however many frames ask. */
+        (void)Assets_Want(
+            app->assets, AssetKey_Make(ASSET_KIND_CONFIG, font_cache_id, ASSET_CONFIG_FONT), NULL);
     }
     if( scene_id <= 0 )
     {

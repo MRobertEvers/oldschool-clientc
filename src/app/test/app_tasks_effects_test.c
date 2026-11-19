@@ -21,6 +21,7 @@
  *     projectile decoded whole.
  */
 
+#include "app/app_gameproto_exec.h"
 #include "app.h"
 #include "app/app_internal.h"
 #include "game/rs_gameproto_exec.h"
@@ -82,7 +83,6 @@ struct Fixture
     struct World* deck;
     struct ToriRS_IOBatch* io;
     struct RS_ServerState state;
-    struct RS_GameProtoCtx ctx;
 };
 
 static char g_dummy_builder[1];
@@ -133,8 +133,6 @@ fixture_init(struct Fixture* fx)
         WORLDVIEW_ROOT);
 
     App_ServerStateBind(fx->app, &fx->state);
-    fx->ctx.state = &fx->state;
-    fx->ctx.app = fx->app;
 }
 
 static void
@@ -193,7 +191,7 @@ exec(
     struct Fixture* fx,
     struct RevPacket* p)
 {
-    RS_GameProto_Exec(&fx->ctx, p);
+    App_GameProto_Exec(fx->app, &fx->state, p);
 }
 
 /* ---- the cases ----------------------------------------------------------- */
@@ -450,6 +448,39 @@ test_projanim_specific_held_for_the_new_scene(void)
     printf("PASS\n");
 }
 
+/* The same for a ground stack: OBJ_ADD_SPECIFIC's absolute tile is measured
+ * against the accepted REBUILD's base, not the old scene still in app->world
+ * (it was, so a stack sent mid-rebuild was placed one scene off, or refused
+ * as outside it). */
+static void
+test_obj_specific_held_for_the_new_scene(void)
+{
+    struct Fixture fx;
+    struct RevPacket p;
+
+    printf("F3: an OBJ_ADD_SPECIFIC sent during a rebuild is measured against the new scene\n");
+    fixture_init(&fx);
+    RS_RebuildRegion_SetCentre(&fx.app->rebuild_region, 60, 60);
+    World_SetLoadComplete(fx.root, false);
+    memset(&p, 0, sizeof(p));
+    p.packet_type = PKT_NAME_OBJ_ADD_SPECIFIC;
+    /* Tile 100 of the new scene (base 432); 180 of the old (base 352), which
+     * is past its edge. */
+    p._obj_specific.x = 432 + 100;
+    p._obj_specific.z = 432 + 12;
+    p._obj_specific.obj_id = 995;
+    p._obj_specific.count = 1;
+    exec(&fx, &p);
+    CHECK(App_ZonePacketsHeld(fx.app, WORLDVIEW_ROOT),
+        "F3: held for the new scene, not refused as outside the old one");
+    (void)RS_Pending_Cancel(fx.app->pending, RS_PendingScope_All());
+    pump(&fx);
+    CHECK(!App_ZonePacketsHeld(fx.app, WORLDVIEW_ROOT), "a cancel ends it");
+    fixture_free(&fx);
+    g_started_count = 0;
+    printf("PASS\n");
+}
+
 int
 main(void)
 {
@@ -457,6 +488,7 @@ main(void)
     test_projanim_and_map_anim_exist_at_once();
     test_deck_map_anim_uses_the_deck();
     test_projanim_specific_held_for_the_new_scene();
+    test_obj_specific_held_for_the_new_scene();
     if( g_failures )
     {
         printf("app_tasks_effects_test: %d check(s) FAILED\n", g_failures);

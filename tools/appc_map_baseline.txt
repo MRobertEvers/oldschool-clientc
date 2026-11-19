@@ -262,7 +262,9 @@ src/editor/editor_panel.c
 src/game/content_test.c
 src/game/content_test_sailing.c
 src/game/rs_clientcode.c
-src/game/rs_gameproto_exec.c
+# src/game/rs_gameproto_exec.c left 2026-11-19 (j2_sweep): the App half of
+# every packet moved to src/app/app_gameproto_exec.c; what stays is the model
+# and the tree-only writes.
 src/game/rs_if1_buttons.c
 src/game/rs_ui_slots.c
 src/game/task_exec_entity_info.c

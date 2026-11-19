@@ -330,9 +330,18 @@ Task_WorldLoad_Run(
      * in no table this client has yet, so loading now reads it as absent and
      * nothing loads it again. Bounded, so a dead JS5 link cannot hold up the
      * scene.
+     *
+     * A wait on the platform's read, re-tested once a pump (TASK_AWAIT_STATE).
+     * Never PT_WAIT_UNTIL: that returns PT_WAITING, which no task queue
+     * accepts (ToriRS_TaskQueue_RunTask asserts on it, and an NDEBUG build
+     * answers ERROR), so the first rebuild after a live reload stopped here.
+     * Nor a plain PT_YIELD: the parallel queue steps a task that yielded
+     * straight away, which would spin for the whole wait inside one frame.
      */
     self->reprime_deadline_ms = WorldBuilder_TimingNowMs() + WORLD_LOAD_REPRIME_WAIT_MS;
-    PT_WAIT_UNTIL(&self->pt,
+    TASK_AWAIT_STATE(
+        &self->task,
+        &self->pt,
         !CacheProvider_ArchiveReprimePending(p, WORLD_LOAD_MAPS_INDEX)
             || WorldBuilder_TimingNowMs() >= self->reprime_deadline_ms);
 

@@ -8,8 +8,9 @@
  * world rebuild) runs before the next packet is popped — the pump in
  * app_logic_tick only pops a new packet when the queue is idle.
  *
- * Simple state mutations run synchronously through RS_GameProto_Exec (kept
- * App-optional and pure for the unit tests); packets whose execution needs
+ * Simple state mutations run synchronously through App_GameProto_Exec (the
+ * model, RS_ServerState_Apply, then the App's presentation; the unit tests
+ * drive the App-free RS_GameProto_Exec); packets whose execution needs
  * cache IO (entity info decode, world rebuild) await their loads inside the
  * task — never a blocking drain.
  */

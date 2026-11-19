@@ -27,7 +27,7 @@
 
 #include "app.h"
 #include "game/rs_entity_sync.h"
-#include "game/rs_gameproto_exec.h"
+#include "app/app_gameproto_exec.h"
 #include "game/task_exec_entity_info.h"
 #include "game/task_gameproto_exec.h"
 #include "mem/torirs_mem.h"
@@ -281,11 +281,6 @@ apply_npc_headicons(struct Task_ReplayWorldApply* self)
     struct App* app = self->app;
     struct ReplayWorldKeyframe const* kf = &self->d->kf;
     struct RS_ServerState state;
-    struct RS_GameProtoCtx ctx = {
-        .state = &state,
-        .tree = app->tree,
-        .app = app,
-    };
     App_ServerStateBind(app, &state);
 
     for( int i = 0; i < kf->npc_headicon_count; i++ )
@@ -299,7 +294,7 @@ apply_npc_headicons(struct Task_ReplayWorldApply* self)
         packet._npc_headicon_specific.slot = h->icon_slot;
         packet._npc_headicon_specific.group = h->group;
         packet._npc_headicon_specific.index = h->index;
-        RS_GameProto_Exec(&ctx, &packet);
+        App_GameProto_Exec(app, &state, &packet);
     }
 }
 
@@ -312,18 +307,13 @@ apply_zones_and_table(struct Task_ReplayWorldApply* self)
     struct ReplayWorldKeyframe const* kf = &self->d->kf;
     struct GameProtoRevTable const* rev = app->net->rev;
     struct RS_ServerState state;
-    struct RS_GameProtoCtx ctx = {
-        .state = &state,
-        .tree = app->tree,
-        .app = app,
-    };
     App_ServerStateBind(app, &state);
 
     for( int i = 0; i < kf->zone_op_count; i++ )
     {
         struct ReplayWorldZoneOp const* z = &kf->zone_ops[i];
 
-        RS_GameProto_ReplayZoneOp(&ctx, &z->pkt, z->base_x, z->base_z, z->level);
+        App_GameProto_ReplayZoneOp(app, &state, &z->pkt, z->base_x, z->base_z, z->level);
     }
     assert(rev->player_info_state_size);
     assert(rev->player_info_state_load);
@@ -369,14 +359,14 @@ Task_ReplayWorldApply_Run(
          * to the tick the seek left. A seek back from tick 3000 to 2999 on
          * RSProx 96 kept five ground items the keyframe did not name. */
         if( WorldLoadState_Active(&app->world_load) && app->world->load_complete )
-            RS_GameProto_ReplayClearScene(app);
+            App_GameProto_ReplayClearScene(app);
         self->rebuilt = 1;
         PT_TASK_AWAITSELF_IF(rebuild_task(app, self->d));
     }
     else
     {
         (void)RS_RebuildRegion_TakeForced(&app->rebuild_region);
-        RS_GameProto_ReplayClearScene(app);
+        App_GameProto_ReplayClearScene(app);
     }
 
     apply_zones_and_table(self);
