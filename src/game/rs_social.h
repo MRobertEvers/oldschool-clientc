@@ -317,9 +317,9 @@ RS_Social_MessageSeenOrRemember(
  */
 
 /**
- * Friend count as clientscript 125 wants it: -1 while the friend server has not
- * said "loaded" (which renders "Loading friends list<br>Please wait..."), the
- * real count once it has.
+ * Friend count as the rev-239 client's 3600 answers it: -2 at friend server
+ * status 0 (LOADING), -1 at 1 (CONNECTING), the real count at 2 (script 125
+ * draws "Loading friends list<br>Please wait..." for either negative).
  *
  * It must never answer negative after loading — script 681 refuses every list
  * mutation with "Unable to complete action - system busy." while the count is
@@ -328,8 +328,9 @@ RS_Social_MessageSeenOrRemember(
 int
 RS_Social_FriendCount(struct RS_Social const* social);
 
-/** Ignore count. Never negative: script 129 reads `< 0` as "loading" and script
- *  681 refuses ignore mutations on it. */
+/** Ignore count as 3621 answers it: -1 until the friend server status is 2,
+ *  the real count after. Script 129 reads `< 0` as "Loading ignore list" and
+ *  script 681 refuses ignore mutations on it ("system busy"). */
 int
 RS_Social_IgnoreCount(struct RS_Social const* social);
 

@@ -97,8 +97,14 @@ test_store(void)
      * that is non-negative *before* it paints an empty list as though the
      * server had answered.
      */
+    /* J4: the deob's 3600 answers -2 while the friend server status is 0,
+     * -1 while it is 1, the count at 2 (Statics.method7997); script 125
+     * tells -2 (`<= -2`) and -1 apart, though both draw "Loading". */
     social.server_status = RS_SOCIAL_SERVER_LOADING;
-    CHECK(RS_Social_FriendCount(&social) < 0, "a friend list that has not loaded reads as negative");
+    CHECK(RS_Social_FriendCount(&social) == -2, "a friend list at status 0 reads -2, got %d",
+        RS_Social_FriendCount(&social));
+    social.server_status = RS_SOCIAL_SERVER_CONNECTING;
+    CHECK(RS_Social_FriendCount(&social) == -1, "at status 1 -1, got %d", RS_Social_FriendCount(&social));
     social.server_status = RS_SOCIAL_SERVER_CONNECTED;
     CHECK(RS_Social_FriendCount(&social) == 0, "and as its real count once it has");
 
@@ -140,13 +146,21 @@ test_store(void)
 
     CHECK(RS_Social_DelFriend(&social, "nobody") == 0, "deleting a stranger changes nothing");
 
-    /* The ignore list is a separate list and must never answer negative —
-     * script 129 reads `< 0` as "loading" and 681 refuses on it. */
-    CHECK(RS_Social_IgnoreCount(&social) == 0, "the ignore list starts empty and non-negative");
+    /* J4: the ignore count is -1 until the friend server has loaded (deob
+     * 3621: method1217, status 2, or -1). This test used to pin "never
+     * negative", which is what let script 681 add an ignore and script 129
+     * draw an empty list before the server had answered. */
+    social.server_status = RS_SOCIAL_SERVER_LOADING;
+    CHECK(RS_Social_IgnoreCount(&social) == -1, "the ignore count is -1 while loading, got %d",
+        RS_Social_IgnoreCount(&social));
+    social.server_status = RS_SOCIAL_SERVER_CONNECTING;
+    CHECK(RS_Social_IgnoreCount(&social) == -1, "and at status 1");
+    social.server_status = RS_SOCIAL_SERVER_CONNECTED;
+    CHECK(RS_Social_IgnoreCount(&social) == 0, "the ignore list starts empty once loaded");
     CHECK(RS_Social_AddIgnore(&social, "eve") == 1, "eve can be ignored");
     CHECK(RS_Social_IsIgnored(&social, "Eve"), "and is found under any spelling");
     CHECK(!RS_Social_IsFriend(&social, "eve"), "without joining the friend list");
-    CHECK(RS_Social_IgnoreCount(&social) >= 0, "the ignore count is never negative");
+    CHECK(RS_Social_IgnoreCount(&social) == 1, "and counts one");
 }
 
 /* ==========================================================================
@@ -649,8 +663,14 @@ test_host_ops(void)
     social.server_status = RS_SOCIAL_SERVER_LOADING;
     call_social(t, CS2_OP_FRIEND_COUNT, 0, NULL);
     CS2VM2_PopInt(t, &iv);
-    CHECK(iv < 0, "and answers negative while the friend server is still loading, got %d", iv);
+    CHECK(iv == -2, "and answers -2 while the friend server is still loading, got %d", iv);
+    call_social(t, CS2_OP_IGNORE_COUNT, 0, NULL);
+    CS2VM2_PopInt(t, &iv);
+    CHECK(iv == -1, "ignore_count answers -1 then (deob 3621), got %d", iv);
     social.server_status = RS_SOCIAL_SERVER_CONNECTED;
+    call_social(t, CS2_OP_IGNORE_COUNT, 0, NULL);
+    CS2VM2_PopInt(t, &iv);
+    CHECK(iv == 0, "and the count once loaded, got %d", iv);
 
     /*
      * friend_getname pushes TWO strings — the display name and the player's

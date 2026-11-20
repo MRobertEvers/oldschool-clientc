@@ -1002,7 +1002,8 @@ state_friendlist_loaded(
     struct PktFriendListLoaded const* p)
 {
     /* This is what ends the panel's "Loading friends list" state:
-     * RS_Social_FriendCount answers -1 until the status reads 2. */
+     * RS_Social_FriendCount and RS_Social_IgnoreCount answer negative until
+     * the status reads 2. */
     state->social->server_status = p->status;
     return RS_SERVER_STATE_APPLIED;
 }

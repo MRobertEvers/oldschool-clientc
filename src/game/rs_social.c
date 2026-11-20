@@ -618,13 +618,10 @@ int
 RS_Social_FriendCount(struct RS_Social const* social)
 {
     assert(social);
-    /*
-     * The 2004 client says this by reporting 0 friends while
-     * friendServerStatus != 2 (Client.ts, the CC_FRIENDS_* clientCode branch);
-     * the rev-230 panel spells the same state as a negative count, so that is
-     * the translation. -1 rather than -2: both render the same text, and -1 is
-     * what script 129's ignore twin uses.
-     */
+    /* The rev-239 client's 3600 (Statics.method7997): -2 at friend server
+     * status 0, -1 at 1, the count at 2. */
+    if( social->server_status == RS_SOCIAL_SERVER_LOADING )
+        return -2;
     if( social->server_status != RS_SOCIAL_SERVER_CONNECTED )
         return -1;
     return social->friend_count;
@@ -633,7 +630,12 @@ RS_Social_FriendCount(struct RS_Social const* social)
 int
 RS_Social_IgnoreCount(struct RS_Social const* social)
 {
-    return social ? social->ignore_count : 0;
+    assert(social);
+    /* 3621: the count once the friend server has loaded (method1217, status
+     * 2), -1 before. */
+    if( social->server_status != RS_SOCIAL_SERVER_CONNECTED )
+        return -1;
+    return social->ignore_count;
 }
 
 void
