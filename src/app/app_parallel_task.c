@@ -177,18 +177,6 @@ App_ParallelCyclesFor(uint32_t ms)
     return cycles > 0 ? cycles : 1u;
 }
 
-/* How many tasks are parked on `trigger` (TORIRS_QUEUE_CONTRACT_TRACE). */
-static int
-app_trigger_subscribers(struct ToriRS_Trigger const* trigger)
-{
-    int n = 0;
-
-    assert(trigger);
-    for( struct ToriRS_Task const* task = trigger->subs; task; task = task->park_next )
-        n++;
-    return n;
-}
-
 struct RS_PendingKey
 App_ViewRebuildKey(
     struct App* app,
@@ -214,7 +202,8 @@ static void
 app_view_rebuild_trace(
     struct App const* app,
     int view,
-    char const* what)
+    char const* what,
+    struct ToriRS_TriggerOwner const* priming)
 {
     struct ToriRS_Trigger const* trigger;
     struct ToriRS_Task const* sub;
@@ -237,13 +226,19 @@ app_view_rebuild_trace(
             len += snprintf(
                 names + len, sizeof(names) - (size_t)len, " %s", sub->name[0] ? sub->name : "(unnamed)");
     }
+    /* Priming: the new owner, and the older prime it abandons (its waiters
+     * wake, find the view primed again and wait again). Ending: the owner
+     * that primed it, or "(not primed)". */
     fprintf(
         stderr,
-        "queue_contract: trace rebuild view %d %s '%s' owner %s, %d parked on it%s%s\n",
+        "queue_contract: trace rebuild view %d %s '%s' owner %s%s%s, %d parked on it%s%s\n",
         view,
         what,
         trigger->name ? trigger->name : "?",
-        trigger->owner ? ToriRS_TriggerOwner_Name(trigger->owner) : "(none)",
+        priming ? ToriRS_TriggerOwner_Name(priming)
+                : (trigger->owner ? ToriRS_TriggerOwner_Name(trigger->owner) : "(not primed)"),
+        priming && trigger->owner ? "; abandons the prime of " : "",
+        priming && trigger->owner ? ToriRS_TriggerOwner_Name(trigger->owner) : "",
         n,
         n ? ":" : "",
         names);
@@ -278,22 +273,8 @@ App_ViewRebuildBegin(
     /* What a task waiting out this view's rebuild parks on, from here to the
      * commit. A prime the view held for its first scene, or an older
      * rebuild's, is abandoned by this one (its waiters wait again). */
-    if( TaskRunner_ContractTrace() )
-    {
-        struct ToriRS_Trigger const* built = &app->triggers.view_built[view];
-
-        fprintf(
-            stderr,
-            "queue_contract: trace view %d rebuild: trigger '%s' primed by %s (%d parked on it%s%s)\n",
-            view,
-            built->name ? built->name : "(unnamed)",
-            ToriRS_TriggerOwner_Name(owner),
-            app_trigger_subscribers(built),
-            built->owner ? "; abandons the prime of " : "",
-            built->owner ? ToriRS_TriggerOwner_Name(built->owner) : "");
-    }
+    app_view_rebuild_trace(app, view, "priming", owner);
     ToriRS_Trigger_Prime(&app->triggers.view_built[view], owner);
-    app_view_rebuild_trace(app, view, "primed");
 }
 
 void
@@ -317,28 +298,10 @@ App_ViewRebuildEnd(
      * the trigger (task_free, ToriRS_TaskJob_End), which is what the
      * waiters need -- they find the view as it is and go on or exit. */
     if( view >= 0 && view < WORLDVIEW_MAX )
-        app_view_rebuild_trace(app, view, built ? "built, firing" : "ended unbuilt (its owner's end abandons)");
+        app_view_rebuild_trace(
+            app, view, built ? "built, firing" : "ended unbuilt (its owner's end abandons)", NULL);
     if( built && view >= 0 && view < WORLDVIEW_MAX )
-    {
-        struct ToriRS_Trigger* trigger = &app->triggers.view_built[view];
-        int const primed = ToriRS_Trigger_Primed(trigger);
-        int const subscribers = app_trigger_subscribers(trigger);
-
-        ToriRS_Trigger_FireIfPrimed(trigger);
-        if( TaskRunner_ContractTrace() )
-            fprintf(
-                stderr,
-                "queue_contract: trace view %d rebuild: trigger '%s' %s (%d parked on it made ready)\n",
-                view,
-                trigger->name ? trigger->name : "(unnamed)",
-                primed ? "fired" : "was not primed",
-                subscribers);
-    }
-    else if( TaskRunner_ContractTrace() )
-        fprintf(
-            stderr,
-            "queue_contract: trace view %d rebuild: not built; its owner's end abandons the trigger\n",
-            view);
+        ToriRS_Trigger_FireIfPrimed(&app->triggers.view_built[view]);
 }
 
 /*
