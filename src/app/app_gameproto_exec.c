@@ -11,14 +11,14 @@
  * and the parallel tasks and asset wants for what must not hold the packet
  * pump. The families whose record still lives in the scene or the tree
  * (zones, locs, ground items, projectiles, interface mounts, world entities)
- * are applied here whole. A client with no App (the unit tests) runs the model
- * and the tree-only writes in game/rs_gameproto_exec.c instead, and the arms
- * that write only a tree are that file's, called from here.
+ * are applied here whole. The arms that write only a tree are the game
+ * half's (game/rs_gameproto_exec.c, RS_GameProto_PresentTree), called from
+ * here; a client with no App runs that half alone.
  *
- * This was game/rs_gameproto_exec.c, bound to the App through an optional
- * `app` member of RS_GameProtoCtx and some 80 `if( ctx->app )` guards that a
- * real client never failed. The App is now this file's parameter, always
- * present; the tests' app-less branches went with the guards.
+ * The App is required (fa5680f77): every field of the context is asserted once
+ * on entry (app_exec_ctx) and no arm tests one. app->world, ->scene and
+ * ->provider being NULL are real states and keep their guards. Every arm of
+ * every dispatch switch here is one call to its own static exec_ function.
  */
 
 #include "app/app_internal.h"
@@ -58,13 +58,35 @@
 #include "log/torirs_log.h"
 
 /* One packet's context inside this file: the model's records, the tree the
- * tree-only arms write, and the App, which is never NULL here. */
+ * tree-only arms write, the App, and what the model made of the packet. Every
+ * field is required: app_exec_ctx asserts each once, and no arm tests one. */
 struct AppGameProtoCtx
 {
     struct RS_ServerState const* state;
     struct UITree* tree;
     struct App* app;
+    /** RS_ServerState_Apply's answer for this packet (PASS for a zone op
+     *  replayed from a hold or a keyframe: its model already ran). */
+    enum RS_ServerStateApply modelled;
 };
+
+/* The context every entry of this file runs a packet under. */
+static struct AppGameProtoCtx
+app_exec_ctx(
+    struct App* app,
+    struct RS_ServerState const* state)
+{
+    struct AppGameProtoCtx ctx;
+
+    assert(app);
+    assert(state);
+    assert(app->tree);
+    ctx.state = state;
+    ctx.tree = app->tree;
+    ctx.app = app;
+    ctx.modelled = RS_SERVER_STATE_PASS;
+    return ctx;
+}
 
 /*
  * Put a line in the chatbox.
@@ -120,7 +142,6 @@ exec_cam_script_record(
     int rate2)
 {
     assert(app);
-    assert(app->world);
     CamScript_Record(
         &app->cam_script,
         kind,
@@ -129,7 +150,7 @@ exec_cam_script_record(
         height,
         rate,
         rate2,
-        app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES);
+        app->world ? app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES : 0);
 }
 
 /* The local player's plane is the fallback for classic zone headers which do
@@ -422,12 +443,9 @@ App_GameProto_ApplyHeldZoneOp(
     int view)
 {
     struct ZoneAt at = { base_x, base_z, level, view };
-    struct AppGameProtoCtx ctx;
+    struct AppGameProtoCtx ctx = app_exec_ctx(app, state);
 
-    assert(app);
-    assert(state);
     assert(pkt);
-    ctx = (struct AppGameProtoCtx){ .state = state, .tree = app->tree, .app = app };
     exec_zone_sub_packet_at(&ctx, pkt->name, &pkt->_loc_add_change, &at);
 }
 
@@ -606,10 +624,11 @@ exec_zone_sub_packet(
     struct App* app = ctx->app;
     struct ZoneAt at;
 
-    /* `app->world` doubles as "the view registry has its root": a harness App
-     * with no world never registered one. */
+    /* `app->world` doubles as "the view registry has its root": no world
+     * yet is a real state, and nothing registered one to resolve. */
     assert(app);
-    assert(app->world);
+    if( !app->world )
+        return;
     at = zone_at_now(app);
     zone_exec_or_hold(ctx, name, payload, &at);
 }
@@ -623,14 +642,11 @@ App_GameProto_ReplayZoneOp(
     int base_z,
     int level)
 {
-    struct AppGameProtoCtx ctx;
+    struct AppGameProtoCtx ctx = app_exec_ctx(app, state);
     struct ZoneAt at;
 
-    assert(app);
     assert(app->world);
-    assert(state);
     assert(pkt);
-    ctx = (struct AppGameProtoCtx){ .state = state, .tree = app->tree, .app = app };
     at.base_x = base_x;
     at.base_z = base_z;
     at.level = level;
@@ -728,7 +744,8 @@ exec_map_anim_specific(
     assert(pkt);
     /* Same root-registered sentinel as exec_zone_sub_packet. */
     assert(app);
-    assert(app->world);
+    if( !app->world )
+        return;
     memset(&sub, 0, sizeof(sub));
     sub.pos = ((pkt->x & 7) << 4) | (pkt->z & 7);
     sub.id = pkt->id;
@@ -757,7 +774,8 @@ exec_loc_anim_specific(
 
     assert(pkt);
     assert(app);
-    assert(app->world);
+    if( !app->world )
+        return;
     memset(&sub, 0, sizeof(sub));
     sub.pos = ((pkt->x & 7) << 4) | (pkt->z & 7);
     sub.info = pkt->info;
@@ -788,8 +806,7 @@ exec_projanim_specific(
 
     assert(pkt);
     assert(app);
-    assert(app->world);
-    if( pkt->spotanim == 65535 )
+    if( !app->world || pkt->spotanim == 65535 )
         return;
     /* Against the scene the server addressed, which is the REBUILD's while
      * the world is still building it: the root world's own base is the old
@@ -851,7 +868,8 @@ exec_obj_customise_specific(
 
     assert(pkt);
     assert(app);
-    assert(app->world);
+    if( !app->world )
+        return;
     /* Against the scene the server addressed (exec_projanim_specific). */
     zone_view_origin(app, WORLDVIEW_ROOT, &local_x, &local_z);
     local_x = pkt->x - local_x;
@@ -917,7 +935,8 @@ exec_obj_specific(
 
     assert(pkt);
     assert(app);
-    assert(app->world);
+    if( !app->world )
+        return;
     /* Against the scene the server addressed (exec_projanim_specific): the
      * accepted REBUILD's base, which during a rebuild is the new scene's while
      * app->world's is still the old one (F3's pattern; it converted against
@@ -1004,6 +1023,443 @@ exec_clear_entities(struct App* app)
 }
 
 static void
+exec_zone_full_follows(
+    struct AppGameProtoCtx const* ctx,
+    struct ZoneAt const* at)
+{
+    zone_full_reset(ctx->app, at);
+}
+
+static void
+exec_zone_obj_add(
+    struct AppGameProtoCtx const* ctx,
+    struct ZoneAt const* at,
+    struct PktObjAdd const* pkt)
+{
+    /* DRIVE_STAMP: obj_added -- a=obj_id b=count c=tile_x d=tile_z.
+     * drop's corroboration: the item appearing at the player's tile. */
+    struct App* app = ctx->app;
+    int tile_x, tile_z, level;
+    int idx;
+    zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+    App_DriveEvent(app, DRIVE_EVENT_OBJ_ADDED, pkt->obj_id, pkt->count, tile_x, tile_z);
+    idx = App_WorldObjStackAdd(app, tile_x, tile_z, level, pkt->obj_id, pkt->count);
+    /* -1 only for a count-0 add naming no stack on the tile: a row is
+     * made whatever the cache holds (its model may follow). */
+    if( idx >= 0 )
+        App_WorldObjStackSetOwnership(
+            app,
+            idx,
+            pkt->time_until_public,
+            pkt->time_until_despawn,
+            pkt->ownership_type,
+            pkt->never_becomes_public);
+}
+
+static void
+exec_zone_obj_del(
+    struct AppGameProtoCtx const* ctx,
+    struct ZoneAt const* at,
+    struct PktObjDel const* pkt)
+{
+    /* DRIVE_STAMP: obj_removed -- a=obj_id c=tile_x d=tile_z. click_obj
+     * learns the stack vanished from this; no polling. */
+    struct App* app = ctx->app;
+    int tile_x, tile_z, level;
+    zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+    App_DriveEvent(app, DRIVE_EVENT_OBJ_REMOVED, pkt->obj_id, 0, tile_x, tile_z);
+    App_WorldObjStackDel(app, tile_x, tile_z, level, pkt->obj_id);
+}
+
+static void
+exec_zone_obj_count(
+    struct AppGameProtoCtx const* ctx,
+    struct ZoneAt const* at,
+    struct PktObjCount const* pkt)
+{
+    struct App* app = ctx->app;
+    int tile_x, tile_z, level;
+    zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+    App_WorldObjStackSetCount(app, tile_x, tile_z, level, pkt->obj_id, pkt->new_count);
+}
+
+static void
+exec_zone_obj_reveal(
+    struct AppGameProtoCtx const* ctx,
+    struct ZoneAt const* at,
+    struct PktObjReveal const* pkt)
+{
+    /* Reveal targets one receiver; everyone else already sees it. */
+    struct App* app = ctx->app;
+    int tile_x, tile_z, level;
+    /* OBJ_ENABLED_OPS shares this name and addresses every viewer. */
+    if( pkt->has_enabled_ops )
+    {
+        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+        App_WorldObjStackSetEnabledOps(app, tile_x, tile_z, level, pkt->obj_id, pkt->enabled_ops);
+        return;
+    }
+    if( ctx->app->esync.local_pid >= 0 && pkt->receiver != ctx->app->esync.local_pid )
+        return;
+    zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+    App_WorldObjStackAdd(app, tile_x, tile_z, level, pkt->obj_id, pkt->count);
+}
+
+static void
+exec_zone_loc_del(
+    struct AppGameProtoCtx const* ctx,
+    struct ZoneAt const* at,
+    struct PktLocDel const* pkt)
+{
+    struct App* app = ctx->app;
+    int tile_x, tile_z, level;
+    zone_loc_tile_at(app, at, pkt->pos, &tile_x, &tile_z, &level);
+    /* Remove the loc in this shape's layer (scene + collision). shape =
+     * info >> 2 keys the layer so a door (WALL) removal only hits the WALL
+     * loc, not a centrepiece/floor-decor sharing the tile. loc_id = -1 = no
+     * replacement. A loc change like an add (app/app_tasks_locs.c): it
+     * replaces an add still loading for the tile and layer, and loads
+     * nothing itself. */
+    App_WorldLocChange(app, tile_x, tile_z, level, -1, pkt->info >> 2, pkt->info & 0x3);
+}
+
+static void
+exec_zone_loc_add_change(
+    struct AppGameProtoCtx const* ctx,
+    struct ZoneAt const* at,
+    struct PktLocAddChange const* pkt)
+{
+    /* Replace the loc in this layer: remove the stale loc and spawn the new
+     * one (scene + collision), matching Client-TS locChangeUnchecked. Async:
+     * the new loc's models are usually absent from the static build's
+     * preload, so the change applies once they're resident (reference
+     * changeLocAvailable gate in locChangeDoQueue). */
+    struct App* app = ctx->app;
+    int tile_x, tile_z, level;
+    zone_loc_tile_at(app, at, pkt->pos, &tile_x, &tile_z, &level);
+    /* The op mask and replacement labels ride along: they describe THIS
+     * placement, so they cannot be recovered from the loc id later. */
+    App_WorldLocChangeOps(
+        app, tile_x, tile_z, level, pkt->loc_id, pkt->info >> 2, pkt->info & 0x3,
+        pkt->op_flags, pkt->ops);
+    if( torirs_env_net_debug() )
+        TORIRS_LOG("gameproto_exec: LOC_ADD_CHANGE loc=%d shape=%d angle=%d at %d,%d,l%d\n",
+            pkt->loc_id,
+            pkt->info >> 2,
+            pkt->info & 0x3,
+            tile_x,
+            tile_z,
+            level);
+}
+
+static void
+exec_zone_loc_anim(
+    struct AppGameProtoCtx const* ctx,
+    struct ZoneAt const* at,
+    struct PktLocAnim const* pkt)
+{
+    struct App* app = ctx->app;
+    int tile_x, tile_z, level;
+    zone_loc_tile_at(app, at, pkt->pos, &tile_x, &tile_z, &level);
+    App_WorldSceneryAnim(app, tile_x, tile_z, level, pkt->info >> 2, pkt->seq_id);
+    /* The driver reads the animation from the packet, not from the
+     * scenery that waits on the loc's models (App_DriveLocAnimNote). */
+    if( App_ActiveWorldview(app)->world == app->world )
+        App_DriveLocAnimNote(app, tile_x, tile_z, level, pkt->info >> 2, pkt->seq_id);
+}
+
+static void
+exec_zone_map_anim(
+    struct AppGameProtoCtx const* ctx,
+    struct ZoneAt const* at,
+    struct PktMapAnim const* pkt)
+{
+    /* Free-standing graphical effect at a tile (reference MAP_ANIM ->
+     * new MapSpotAnim). id 65535 is the clear sentinel; ignore it. */
+    struct App* app = ctx->app;
+    int tile_x, tile_z, level;
+    if( pkt->id != 65535 )
+    {
+        /* The view the packet names (the cursor as of arrival), its scene
+         * and its frame: a deck's graphic is bounded by the deck. */
+        struct World const* world = App_ActiveWorldview(app)->world;
+        int origin_x;
+        int origin_z;
+
+        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+        assert(world);
+        /* The reference files a MAP_ANIM only on a tile its scene holds
+         * (worldview.method3333 before new class52), and drops the rest
+         * without a trace. Same here, so a graphic the real client cannot
+         * show is not one this client shows either. */
+        if( tile_x < 0 || tile_z < 0 || tile_x >= world->_scene_size ||
+            tile_z >= world->_scene_size )
+            return;
+        /* The row exists now; its body lands later. */
+        (void)App_WorldSpotanimSpawn(
+            app, tile_x, tile_z, level, pkt->id, pkt->height, pkt->delay);
+        zone_view_origin(app, at->view, &origin_x, &origin_z);
+        App_DriveMapAnimNote(app, origin_x + tile_x, origin_z + tile_z, level, pkt->id);
+    }
+}
+
+static void
+exec_zone_sound_area(
+    struct AppGameProtoCtx const* ctx,
+    struct ZoneAt const* at,
+    struct PktSoundArea const* pkt)
+{
+    /*
+     * A one-shot sound at a tile, with its own audible radius. The level is
+     * decoded but not used to gate it: the reference range-checks in x/z
+     * only, and a forge on the floor below is meant to be heard.
+     */
+    struct App* app = ctx->app;
+    int tile_x, tile_z, level;
+    /* 65535 is the wire's -1: Jagex's `sound_area id=-1` for an npc with
+     * no sound of its own. The reference queues it and then finds no
+     * synth 65535 to load; nothing is heard either way, so it stops here
+     * rather than asking the cache for a sound that does not exist. */
+    if( pkt->id == 65535 )
+        return;
+    zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+    App_PlaySoundAt(
+        app, pkt->id, pkt->loops, pkt->delay, tile_x, tile_z, pkt->radius, pkt->inner);
+}
+
+static void
+exec_zone_map_projanim(
+    struct AppGameProtoCtx const* ctx,
+    struct ZoneAt const* at,
+    struct PktMapProjAnim const* pkt)
+{
+    /* Projectile spawn from a spotanim config (reference MAP_PROJANIM ->
+     * new ClientProj). The base tile is `pos` within the zone; the
+     * destination is offset by dx/dz (the target's cast-time position, which
+     * is also the initial aim point). peak/arc are Client-TS angle/startpos.
+     * pkt->target names the entity the arc then homes on each cycle. */
+    struct App* app = ctx->app;
+    int tile_x, tile_z, level;
+    int src_tx, src_tz, dst_tx, dst_tz, src_level;
+    /* Absolute coords are the named view's: the root's scene base, or a
+     * deck's own frame. */
+    int origin_x;
+    int origin_z;
+    zone_view_origin(app, at->view, &origin_x, &origin_z);
+    zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+    src_tx = tile_x;
+    src_tz = tile_z;
+    /* The zone's plane is the SOURCE's; rev-239 states the landing plane
+     * separately in the absolute coord, and paints the projectile on the
+     * source's (method4319 adds it on field374). */
+    src_level = level;
+    if( pkt->dst_abs )
+    {
+        /* Revision 239 states the landing point as an absolute CoordGrid;
+         * everything below the parse works in scene-local tiles, and the
+         * scene origin is the zone the last rebuild centred on, minus the
+         * six zones of margin the client keeps on each side. Applied as
+         * offsets, an absolute coord puts the arc a few tiles from the
+         * scene's south-west corner and the shot flies off the map. */
+        dst_tx = pkt->dst_abs_x - origin_x;
+        dst_tz = pkt->dst_abs_z - origin_z;
+        level = pkt->dst_abs_level;
+    }
+    else
+    {
+        dst_tx = tile_x + pkt->dx_offset;
+        dst_tz = tile_z + pkt->dz_offset;
+    }
+    App_DriveProjectileNote(
+            app,
+            origin_x + src_tx,
+            origin_z + src_tz,
+            origin_x + dst_tx,
+            origin_z + dst_tz,
+            level,
+            pkt->spotanim,
+            pkt->target,
+            pkt->start_delay,
+            pkt->end_delay);
+    /* The projectile exists and flies from now; its body lands later. */
+    (void)App_WorldProjectileSpawn(
+        app,
+        src_tx,
+        src_tz,
+        src_level,
+        dst_tx,
+        dst_tz,
+        level,
+        pkt->spotanim,
+        pkt->src_height,
+        pkt->dst_height,
+        pkt->start_delay,
+        pkt->end_delay,
+        pkt->peak,
+        pkt->arc,
+        pkt->target,
+        pkt->source);
+}
+
+static void
+exec_zone_obj_customise(
+    struct AppGameProtoCtx const* ctx,
+    struct ZoneAt const* at,
+    struct PktObjCustomise const* pkt)
+{
+    struct App* app = ctx->app;
+    int tile_x, tile_z, level;
+    struct WorldEntity_ObjCustomise custom = {
+        .model = pkt->fields.model,
+        .tint = pkt->fields.tint,
+        .recol_count = pkt->fields.recol_count,
+        .recol_index = pkt->fields.recol_index,
+        .recol_value = pkt->fields.recol_value,
+        .retex_count = pkt->fields.retex_count,
+        .retex_index = pkt->fields.retex_index,
+        .retex_value = pkt->fields.retex_value,
+    };
+
+    zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+    App_WorldObjStackCustomise(app, tile_x, tile_z, level, pkt->obj_id, pkt->count, &custom);
+}
+
+static void
+exec_zone_obj_uncustomise(
+    struct AppGameProtoCtx const* ctx,
+    struct ZoneAt const* at,
+    struct PktObjUncustomise const* pkt)
+{
+    struct App* app = ctx->app;
+    int tile_x, tile_z, level;
+
+    zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+    App_WorldObjStackUncustomise(app, tile_x, tile_z, level, pkt->obj_id, pkt->count);
+}
+
+static void
+exec_zone_scriptedproj_change(
+    struct AppGameProtoCtx const* ctx,
+    struct ZoneAt const* at,
+    struct PktScriptedProjChange const* pkt)
+{
+    /* Deob class278.field3434 -> class56.method1481; an absent slot is
+     * ignored there too. */
+    struct App* app = ctx->app;
+    struct World* world = App_ActiveWorldview(app)->world;
+    int const idx = World_ProjectileFindScriptedSlot(world, pkt->slot);
+
+    if( idx < 0 )
+        return;
+    /* The projectile exists from its ADD on, whether or not its body has
+     * landed, so a CHANGE right behind the ADD finds it. */
+    if( pkt->target_x != -1 )
+    {
+        int origin_x;
+        int origin_z;
+
+        zone_view_origin(app, at->view, &origin_x, &origin_z);
+        World_ProjectileScriptedRetarget(
+            world,
+            idx,
+            (pkt->target_x - origin_x) * 128 + 64,
+            (pkt->target_z - origin_z) * 128 + 64,
+            pkt->target_level,
+            pkt->target_offset_x,
+            pkt->target_offset_z,
+            pkt->target_height,
+            pkt->target);
+    }
+    if( pkt->freeze_cycles != -1 )
+        World_ProjectileScriptedFreeze(
+            world, idx, pkt->freeze_cycles, pkt->delete_on_freeze_end != 0);
+}
+
+static void
+exec_zone_scriptedproj_add(
+    struct AppGameProtoCtx const* ctx,
+    struct ZoneAt const* at,
+    struct PktScriptedProjAdd const* pkt)
+{
+    /* Rev-241 scripted projectile (deob class278.field3437 -> new class56):
+     * the source is the zone tile, the target an absolute coord taken to
+     * scene tiles against the rebuild origin as MAP_PROJANIM's is. */
+    struct App* app = ctx->app;
+    int tile_x, tile_z, level;
+    int origin_x;
+    int origin_z;
+    struct WorldEntity_ScriptedProjSpec sp;
+
+    zone_view_origin(app, at->view, &origin_x, &origin_z);
+    zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+    /* `if (var16 == null)` (rev-241 deob Statics.java ~48257): a slot in
+     * use keeps its projectile and the packet does nothing else. The
+     * projectile exists from its ADD on, so an ADD right behind another
+     * for the same slot sees it, loaded or not. */
+    if( World_ProjectileFindScriptedSlot(App_ActiveWorldview(app)->world, pkt->slot) >= 0 )
+        return;
+    App_DriveProjectileNote(
+        app,
+        origin_x + tile_x,
+        origin_z + tile_z,
+        pkt->target_x,
+        pkt->target_z,
+        pkt->target_level,
+        pkt->spotanim,
+        pkt->target,
+        pkt->start_delay,
+        pkt->end_delay);
+    sp = (struct WorldEntity_ScriptedProjSpec){
+        .src_x = tile_x,
+        .src_z = tile_z,
+        .src_level = level,
+        .src_offset_x = pkt->source_offset_x,
+        .src_offset_z = pkt->source_offset_z,
+        .src_height = pkt->source_height,
+        .source = pkt->source,
+        .dst_x = pkt->target_x - origin_x,
+        .dst_z = pkt->target_z - origin_z,
+        .dst_level = pkt->target_level,
+        .dst_offset_x = pkt->target_offset_x,
+        .dst_offset_z = pkt->target_offset_z,
+        .dst_height = pkt->target_height,
+        .target = pkt->target,
+        .spotanim_id = pkt->spotanim,
+        .start_delay = pkt->start_delay,
+        .end_delay = pkt->end_delay,
+        .curve = { pkt->curve_h, pkt->curve_a, pkt->curve_t },
+        .slot = pkt->slot,
+    };
+    (void)App_WorldScriptedProjSpawn(app, &sp);
+}
+
+static void
+exec_zone_loc_merge(
+    struct AppGameProtoCtx const* ctx,
+    struct ZoneAt const* at,
+    struct PktLocMerge const* pkt)
+{
+    /* P_LOCMERGE: hide the loc for [start,end) and mark the player so the
+     * loc model rides with them (Client-TS zonePacket P_LOCMERGE). */
+    struct App* app = ctx->app;
+    int tile_x, tile_z, level;
+    int pid;
+    zone_loc_tile_at(app, at, pkt->pos, &tile_x, &tile_z, &level);
+    pid = pkt->pid;
+    App_WorldLocMerge(
+        app,
+        tile_x,
+        tile_z,
+        level,
+        pkt->loc_id,
+        pkt->info >> 2,
+        pkt->info & 0x3,
+        pkt->start,
+        pkt->end,
+        pid);
+}
+
+static void
 exec_zone_sub_packet_at(
     struct AppGameProtoCtx const* ctx,
     enum GameProtoPktName name,
@@ -1011,7 +1467,6 @@ exec_zone_sub_packet_at(
     struct ZoneAt const* at)
 {
     struct App* app = ctx->app;
-    int tile_x, tile_z, level;
     int prev_view = WorldviewRegistry_Active(&app->worldviews);
 
     /* Apply under the cursor AS OF ARRIVAL. A replayed pending packet was
@@ -1025,363 +1480,53 @@ exec_zone_sub_packet_at(
     switch( name )
     {
     case PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS:
-        zone_full_reset(app, at);
+        exec_zone_full_follows(ctx, at);
         break;
     case PKT_NAME_OBJ_ADD:
-    {
-        /* DRIVE_STAMP: obj_added -- a=obj_id b=count c=tile_x d=tile_z.
-         * drop's corroboration: the item appearing at the player's tile. */
-        struct PktObjAdd const* pkt = payload;
-        int idx;
-        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
-        App_DriveEvent(app, DRIVE_EVENT_OBJ_ADDED, pkt->obj_id, pkt->count, tile_x, tile_z);
-        idx = App_WorldObjStackAdd(app, tile_x, tile_z, level, pkt->obj_id, pkt->count);
-        /* -1 only for a count-0 add naming no stack on the tile: a row is
-         * made whatever the cache holds (its model may follow). */
-        if( idx >= 0 )
-            App_WorldObjStackSetOwnership(
-                app,
-                idx,
-                pkt->time_until_public,
-                pkt->time_until_despawn,
-                pkt->ownership_type,
-                pkt->never_becomes_public);
+        exec_zone_obj_add(ctx, at, payload);
         break;
-    }
     case PKT_NAME_OBJ_DEL:
-    {
-        /* DRIVE_STAMP: obj_removed -- a=obj_id c=tile_x d=tile_z. click_obj
-         * learns the stack vanished from this; no polling. */
-        struct PktObjDel const* pkt = payload;
-        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
-        App_DriveEvent(app, DRIVE_EVENT_OBJ_REMOVED, pkt->obj_id, 0, tile_x, tile_z);
-        App_WorldObjStackDel(app, tile_x, tile_z, level, pkt->obj_id);
+        exec_zone_obj_del(ctx, at, payload);
         break;
-    }
     case PKT_NAME_OBJ_COUNT:
-    {
-        struct PktObjCount const* pkt = payload;
-        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
-        App_WorldObjStackSetCount(app, tile_x, tile_z, level, pkt->obj_id, pkt->new_count);
+        exec_zone_obj_count(ctx, at, payload);
         break;
-    }
     case PKT_NAME_OBJ_REVEAL:
-    {
-        /* Reveal targets one receiver; everyone else already sees it. */
-        struct PktObjReveal const* pkt = payload;
-        /* OBJ_ENABLED_OPS shares this name and addresses every viewer. */
-        if( pkt->has_enabled_ops )
-        {
-            zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
-            App_WorldObjStackSetEnabledOps(app, tile_x, tile_z, level, pkt->obj_id, pkt->enabled_ops);
-            break;
-        }
-        if( ctx->app->esync.local_pid >= 0 && pkt->receiver != ctx->app->esync.local_pid )
-            break;
-        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
-        App_WorldObjStackAdd(app, tile_x, tile_z, level, pkt->obj_id, pkt->count);
+        exec_zone_obj_reveal(ctx, at, payload);
         break;
-    }
     case PKT_NAME_LOC_DEL:
-    {
-        struct PktLocDel const* pkt = payload;
-        zone_loc_tile_at(app, at, pkt->pos, &tile_x, &tile_z, &level);
-        /* Remove the loc in this shape's layer (scene + collision). shape =
-         * info >> 2 keys the layer so a door (WALL) removal only hits the WALL
-         * loc, not a centrepiece/floor-decor sharing the tile. loc_id = -1 = no
-         * replacement. A loc change like an add (app/app_tasks_locs.c): it
-         * replaces an add still loading for the tile and layer, and loads
-         * nothing itself. */
-        App_WorldLocChange(app, tile_x, tile_z, level, -1, pkt->info >> 2, pkt->info & 0x3);
+        exec_zone_loc_del(ctx, at, payload);
         break;
-    }
     case PKT_NAME_LOC_ADD_CHANGE:
-    {
-        /* Replace the loc in this layer: remove the stale loc and spawn the new
-         * one (scene + collision), matching Client-TS locChangeUnchecked. Async:
-         * the new loc's models are usually absent from the static build's
-         * preload, so the change applies once they're resident (reference
-         * changeLocAvailable gate in locChangeDoQueue). */
-        struct PktLocAddChange const* pkt = payload;
-        zone_loc_tile_at(app, at, pkt->pos, &tile_x, &tile_z, &level);
-        /* The op mask and replacement labels ride along: they describe THIS
-         * placement, so they cannot be recovered from the loc id later. */
-        App_WorldLocChangeOps(
-            app, tile_x, tile_z, level, pkt->loc_id, pkt->info >> 2, pkt->info & 0x3,
-            pkt->op_flags, pkt->ops);
-        if( torirs_env_net_debug() )
-            TORIRS_LOG("gameproto_exec: LOC_ADD_CHANGE loc=%d shape=%d angle=%d at %d,%d,l%d\n",
-                pkt->loc_id,
-                pkt->info >> 2,
-                pkt->info & 0x3,
-                tile_x,
-                tile_z,
-                level);
+        exec_zone_loc_add_change(ctx, at, payload);
         break;
-    }
     case PKT_NAME_LOC_ANIM:
-    {
-        struct PktLocAnim const* pkt = payload;
-        zone_loc_tile_at(app, at, pkt->pos, &tile_x, &tile_z, &level);
-        App_WorldSceneryAnim(app, tile_x, tile_z, level, pkt->info >> 2, pkt->seq_id);
-        /* The driver reads the animation from the packet, not from the
-         * scenery that waits on the loc's models (App_DriveLocAnimNote). */
-        if( App_ActiveWorldview(app)->world == app->world )
-            App_DriveLocAnimNote(app, tile_x, tile_z, level, pkt->info >> 2, pkt->seq_id);
+        exec_zone_loc_anim(ctx, at, payload);
         break;
-    }
     case PKT_NAME_MAP_ANIM:
-    {
-        /* Free-standing graphical effect at a tile (reference MAP_ANIM ->
-         * new MapSpotAnim). id 65535 is the clear sentinel; ignore it. */
-        struct PktMapAnim const* pkt = payload;
-        if( pkt->id != 65535 )
-        {
-            /* The view the packet names (the cursor as of arrival), its scene
-             * and its frame: a deck's graphic is bounded by the deck. */
-            struct World const* world = App_ActiveWorldview(app)->world;
-            int origin_x;
-            int origin_z;
-
-            zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
-            assert(world);
-            /* The reference files a MAP_ANIM only on a tile its scene holds
-             * (worldview.method3333 before new class52), and drops the rest
-             * without a trace. Same here, so a graphic the real client cannot
-             * show is not one this client shows either. */
-            if( tile_x < 0 || tile_z < 0 || tile_x >= world->_scene_size ||
-                tile_z >= world->_scene_size )
-                break;
-            /* The row exists now; its body lands later. */
-            (void)App_WorldSpotanimSpawn(
-                app, tile_x, tile_z, level, pkt->id, pkt->height, pkt->delay);
-            zone_view_origin(app, at->view, &origin_x, &origin_z);
-            App_DriveMapAnimNote(app, origin_x + tile_x, origin_z + tile_z, level, pkt->id);
-        }
+        exec_zone_map_anim(ctx, at, payload);
         break;
-    }
     case PKT_NAME_SOUND_AREA:
-    {
-        /*
-         * A one-shot sound at a tile, with its own audible radius. The level is
-         * decoded but not used to gate it: the reference range-checks in x/z
-         * only, and a forge on the floor below is meant to be heard.
-         */
-        struct PktSoundArea const* pkt = payload;
-        /* 65535 is the wire's -1: Jagex's `sound_area id=-1` for an npc with
-         * no sound of its own. The reference queues it and then finds no
-         * synth 65535 to load; nothing is heard either way, so it stops here
-         * rather than asking the cache for a sound that does not exist. */
-        if( pkt->id == 65535 )
-            break;
-        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
-        App_PlaySoundAt(
-            app, pkt->id, pkt->loops, pkt->delay, tile_x, tile_z, pkt->radius, pkt->inner);
+        exec_zone_sound_area(ctx, at, payload);
         break;
-    }
     case PKT_NAME_MAP_PROJANIM:
-    {
-        /* Projectile spawn from a spotanim config (reference MAP_PROJANIM ->
-         * new ClientProj). The base tile is `pos` within the zone; the
-         * destination is offset by dx/dz (the target's cast-time position, which
-         * is also the initial aim point). peak/arc are Client-TS angle/startpos.
-         * pkt->target names the entity the arc then homes on each cycle. */
-        struct PktMapProjAnim const* pkt = payload;
-        int src_tx, src_tz, dst_tx, dst_tz, src_level;
-        /* Absolute coords are the named view's: the root's scene base, or a
-         * deck's own frame. */
-        int origin_x;
-        int origin_z;
-        zone_view_origin(app, at->view, &origin_x, &origin_z);
-        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
-        src_tx = tile_x;
-        src_tz = tile_z;
-        /* The zone's plane is the SOURCE's; rev-239 states the landing plane
-         * separately in the absolute coord, and paints the projectile on the
-         * source's (method4319 adds it on field374). */
-        src_level = level;
-        if( pkt->dst_abs )
-        {
-            /* Revision 239 states the landing point as an absolute CoordGrid;
-             * everything below the parse works in scene-local tiles, and the
-             * scene origin is the zone the last rebuild centred on, minus the
-             * six zones of margin the client keeps on each side. Applied as
-             * offsets, an absolute coord puts the arc a few tiles from the
-             * scene's south-west corner and the shot flies off the map. */
-            dst_tx = pkt->dst_abs_x - origin_x;
-            dst_tz = pkt->dst_abs_z - origin_z;
-            level = pkt->dst_abs_level;
-        }
-        else
-        {
-            dst_tx = tile_x + pkt->dx_offset;
-            dst_tz = tile_z + pkt->dz_offset;
-        }
-        App_DriveProjectileNote(
-                app,
-                origin_x + src_tx,
-                origin_z + src_tz,
-                origin_x + dst_tx,
-                origin_z + dst_tz,
-                level,
-                pkt->spotanim,
-                pkt->target,
-                pkt->start_delay,
-                pkt->end_delay);
-        /* The projectile exists and flies from now; its body lands later. */
-        (void)App_WorldProjectileSpawn(
-            app,
-            src_tx,
-            src_tz,
-            src_level,
-            dst_tx,
-            dst_tz,
-            level,
-            pkt->spotanim,
-            pkt->src_height,
-            pkt->dst_height,
-            pkt->start_delay,
-            pkt->end_delay,
-            pkt->peak,
-            pkt->arc,
-            pkt->target,
-            pkt->source);
+        exec_zone_map_projanim(ctx, at, payload);
         break;
-    }
     case PKT_NAME_OBJ_CUSTOMISE:
-    {
-        struct PktObjCustomise const* pkt = payload;
-        struct WorldEntity_ObjCustomise custom = {
-            .model = pkt->fields.model,
-            .tint = pkt->fields.tint,
-            .recol_count = pkt->fields.recol_count,
-            .recol_index = pkt->fields.recol_index,
-            .recol_value = pkt->fields.recol_value,
-            .retex_count = pkt->fields.retex_count,
-            .retex_index = pkt->fields.retex_index,
-            .retex_value = pkt->fields.retex_value,
-        };
-
-        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
-        App_WorldObjStackCustomise(app, tile_x, tile_z, level, pkt->obj_id, pkt->count, &custom);
+        exec_zone_obj_customise(ctx, at, payload);
         break;
-    }
     case PKT_NAME_OBJ_UNCUSTOMISE:
-    {
-        struct PktObjUncustomise const* pkt = payload;
-
-        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
-        App_WorldObjStackUncustomise(app, tile_x, tile_z, level, pkt->obj_id, pkt->count);
+        exec_zone_obj_uncustomise(ctx, at, payload);
         break;
-    }
     case PKT_NAME_SCRIPTEDPROJ_CHANGE:
-    {
-        /* Deob class278.field3434 -> class56.method1481; an absent slot is
-         * ignored there too. */
-        struct PktScriptedProjChange const* pkt = payload;
-        struct World* world = App_ActiveWorldview(app)->world;
-        int const idx = World_ProjectileFindScriptedSlot(world, pkt->slot);
-
-        if( idx < 0 )
-            break;
-        /* The projectile exists from its ADD on, whether or not its body has
-         * landed, so a CHANGE right behind the ADD finds it. */
-        if( pkt->target_x != -1 )
-        {
-            int origin_x;
-            int origin_z;
-
-            zone_view_origin(app, at->view, &origin_x, &origin_z);
-            World_ProjectileScriptedRetarget(
-                world,
-                idx,
-                (pkt->target_x - origin_x) * 128 + 64,
-                (pkt->target_z - origin_z) * 128 + 64,
-                pkt->target_level,
-                pkt->target_offset_x,
-                pkt->target_offset_z,
-                pkt->target_height,
-                pkt->target);
-        }
-        if( pkt->freeze_cycles != -1 )
-            World_ProjectileScriptedFreeze(
-                world, idx, pkt->freeze_cycles, pkt->delete_on_freeze_end != 0);
+        exec_zone_scriptedproj_change(ctx, at, payload);
         break;
-    }
     case PKT_NAME_SCRIPTEDPROJ_ADD:
-    {
-        /* Rev-241 scripted projectile (deob class278.field3437 -> new class56):
-         * the source is the zone tile, the target an absolute coord taken to
-         * scene tiles against the rebuild origin as MAP_PROJANIM's is. */
-        struct PktScriptedProjAdd const* pkt = payload;
-        int origin_x;
-        int origin_z;
-        struct WorldEntity_ScriptedProjSpec sp;
-
-        zone_view_origin(app, at->view, &origin_x, &origin_z);
-        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
-        /* `if (var16 == null)` (rev-241 deob Statics.java ~48257): a slot in
-         * use keeps its projectile and the packet does nothing else. The
-         * projectile exists from its ADD on, so an ADD right behind another
-         * for the same slot sees it, loaded or not. */
-        if( World_ProjectileFindScriptedSlot(App_ActiveWorldview(app)->world, pkt->slot) >= 0 )
-            break;
-        App_DriveProjectileNote(
-            app,
-            origin_x + tile_x,
-            origin_z + tile_z,
-            pkt->target_x,
-            pkt->target_z,
-            pkt->target_level,
-            pkt->spotanim,
-            pkt->target,
-            pkt->start_delay,
-            pkt->end_delay);
-        sp = (struct WorldEntity_ScriptedProjSpec){
-            .src_x = tile_x,
-            .src_z = tile_z,
-            .src_level = level,
-            .src_offset_x = pkt->source_offset_x,
-            .src_offset_z = pkt->source_offset_z,
-            .src_height = pkt->source_height,
-            .source = pkt->source,
-            .dst_x = pkt->target_x - origin_x,
-            .dst_z = pkt->target_z - origin_z,
-            .dst_level = pkt->target_level,
-            .dst_offset_x = pkt->target_offset_x,
-            .dst_offset_z = pkt->target_offset_z,
-            .dst_height = pkt->target_height,
-            .target = pkt->target,
-            .spotanim_id = pkt->spotanim,
-            .start_delay = pkt->start_delay,
-            .end_delay = pkt->end_delay,
-            .curve = { pkt->curve_h, pkt->curve_a, pkt->curve_t },
-            .slot = pkt->slot,
-        };
-        (void)App_WorldScriptedProjSpawn(app, &sp);
+        exec_zone_scriptedproj_add(ctx, at, payload);
         break;
-    }
     case PKT_NAME_LOC_MERGE:
-    {
-        /* P_LOCMERGE: hide the loc for [start,end) and mark the player so the
-         * loc model rides with them (Client-TS zonePacket P_LOCMERGE). */
-        struct PktLocMerge const* pkt = payload;
-        int pid;
-        zone_loc_tile_at(app, at, pkt->pos, &tile_x, &tile_z, &level);
-        pid = pkt->pid;
-        App_WorldLocMerge(
-            app,
-            tile_x,
-            tile_z,
-            level,
-            pkt->loc_id,
-            pkt->info >> 2,
-            pkt->info & 0x3,
-            pkt->start,
-            pkt->end,
-            pid);
+        exec_zone_loc_merge(ctx, at, payload);
         break;
-    }
     default:
         break;
     }
@@ -1790,7 +1935,7 @@ exec_control_cache_invalidate(
     int evicted = 0;
     int deferred = 0;
 
-    if( !ctx->app || !ctx->app->provider )
+    if( !ctx->app->provider )
         return;
     if( !torirs_control_invalidate_decode(frame, &index, &count) )
     {
@@ -1853,20 +1998,1573 @@ exec_control(
     TORIRS_ERR("control: unknown frame type %d (%d bytes) -- dropped\n", frame->type, frame->length);
 }
 
+static void
+exec_varp_small(
+    struct AppGameProtoCtx const* ctx,
+    struct PktVarpSmall const* p)
+{
+    (void)ctx;
+    if( exec_trace_native_ui() )
+        TORIRS_REPORT("NATIVE_PACKET VARP_SMALL variable=%d value=%d\n",
+            p->variable, p->value);
+}
+
+static void
+exec_update_stat(
+    struct AppGameProtoCtx const* ctx,
+    struct PktUpdateStat const* p)
+{
+    if( ctx->modelled == RS_SERVER_STATE_APPLIED )
+    {
+        struct RS_PlayerStats const* stats = ctx->state->stats;
+
+        if( exec_trace_native_ui() )
+            TORIRS_REPORT("NATIVE_PACKET UPDATE_STAT applied stat=%d level=%d xp=%d\n",
+                p->stat, stats->current_level[p->stat],
+                p->xp);
+        /* A level-up is read from the BASE level SetXp just derived, not
+         * from the boosted one on the wire: a potion raises that and a
+         * drain lowers it, and neither is an advance. */
+        App_NotifyStatLevel(
+            ctx->app,
+            p->stat,
+            stats->base_level[p->stat]);
+        /* The reactive half. Without it the skills tab paints once at
+         * build time — against the zeroes the client starts with — and
+         * nothing ever asks it to paint again, which is the same shape as
+         * the inv-transmit gap that left server-driven inventories blank. */
+        RS_CS2Host_NotifyStatChanged(&ctx->app->host, p->stat);
+    }
+}
+
+/* The reactive half, same shape as UPDATE_STAT above: the orb's CS2 binds
+ * IF_SETONMISCTRANSMIT, so without a notify it paints its build-time value
+ * and is only ever refreshed by an unrelated interface event. Gated on the
+ * value actually changing (the model answers UNCHANGED otherwise) because
+ * the dispatch walks every component — and the server already change-gates
+ * these packets, so an unchanged value arriving at all is unusual. */
+static void
+exec_run_misc_changed(struct AppGameProtoCtx const* ctx)
+{
+    if( ctx->modelled == RS_SERVER_STATE_APPLIED )
+        RS_CS2Host_NotifyMiscChanged(&ctx->app->host);
+}
+
+/* Containers arrive long after the interface that paints them was built,
+ * so the CS2 paint script has to be told to run again. Obj icons upload
+ * lazily when the bound inv view next renders (same path as the
+ * RevConfig-seeded containers). inv_packet is the model's stamp. */
+static void
+exec_update_inv_full(
+    struct AppGameProtoCtx const* ctx,
+    struct PktUpdateInvFull const* p)
+{
+    if( ctx->modelled == RS_SERVER_STATE_APPLIED )
+    {
+        int const container = RS_ServerState_InvContainerId(p->inv_id, p->component_id);
+
+        RS_CS2Host_NotifyInvChanged(
+            &ctx->app->host, p->inv_id > 0 ? container & 0x7fff : container);
+    }
+}
+
+static void
+exec_update_inv_partial(
+    struct AppGameProtoCtx const* ctx,
+    struct PktUpdateInvPartial const* p)
+{
+    if( ctx->modelled == RS_SERVER_STATE_APPLIED && p->count > 0 )
+    {
+        int const container = RS_ServerState_InvContainerId(p->inv_id, p->component_id);
+
+        RS_CS2Host_NotifyInvChanged(
+            &ctx->app->host, p->inv_id > 0 ? container & 0x7fff : container);
+    }
+}
+
+/* deob client.java (class243.field2979): the inventory is unlinked and its
+ * id goes onto the same changed-inventory ring UPDATE_INV_FULL feeds
+ * (field733.method9432), so the inventory's transmit hooks run and redraw
+ * the emptied slots. */
+static void
+exec_update_inv_stop_transmit(
+    struct AppGameProtoCtx const* ctx,
+    struct PktUpdateInvStopTransmit const* p)
+{
+    if( ctx->modelled == RS_SERVER_STATE_APPLIED )
+    {
+        int const container = RS_ServerState_InvContainerId(p->inv_id, p->component_id);
+
+        RS_CS2Host_NotifyInvChanged(
+            &ctx->app->host, p->inv_id > 0 ? container & 0x7fff : container);
+    }
+}
+
+/* The store write is the model's; these put the value on the node when
+ * the node is mounted (App_If*Show), and the mount puts it there again. */
+static void
+exec_if_settext(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfSetText const* p)
+{
+    App_IfTextShow(ctx->app, p->component_id, p->text);
+    /* A quest completion is painted onto the scroll and never said
+     * aloud (content: questscroll.rs2), so this is the only place the
+     * client can see one happen. */
+    App_NotifyInterfaceText(ctx->app, p->text);
+}
+
+static void
+exec_if_setevents(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfSetEvents const* p)
+{
+    /* Persisting, like IF_SETHIDE: the server enables a component's events
+     * before the interface holding it has finished mounting. */
+    App_IfEventsShow(
+        ctx->app,
+        p->component_id,
+        p->from,
+        p->to,
+        p->events);
+}
+
+static void
+exec_if_sethide(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfSetHide const* p)
+{
+    if( getenv("TORIRS_TRACE_NATIVE_UI") )
+        TORIRS_REPORT("NATIVE_PACKET IF_SETHIDE received com=%d hide=%d\n",
+            p->component_id, p->hide);
+    App_IfHideShow(ctx->app, p->component_id, p->hide);
+}
+
+static void
+exec_if_setcolour(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfSetColour const* p)
+{
+    /* Persisting, like IF_SETTEXT and IF_SETHIDE above, and for the same
+     * reason: a colour written in the tick its interface is mounted has no
+     * node to land on yet. This applied straight to the tree, so it was the
+     * one setter of the family that could be silently dropped — and it was,
+     * every time, for an overlay the server opens and colours together. */
+    App_IfColourShow(
+        ctx->app,
+        p->component_id,
+        RS_ServerState_Rs15ToRgb(p->colour));
+}
+
+static void
+exec_if_setmodel(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfSetModel const* p)
+{
+    /* A wire model id addresses the cache, not the renderer's scene. The
+     * App owns the asynchronous cache-load/upload bridge and persistence
+     * across an interface remount. */
+    App_SetInterfaceModel(
+        ctx->app,
+        p->component_id,
+        p->model_id);
+}
+
+static void
+exec_if_setobject(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfSetObject const* p)
+{
+    /* Reference IfType.getModel type 4: the obj's 3D interface model (the
+     * server drives the combat-tab weapon display with this on equip). */
+    App_SetInterfaceObjModel(
+        ctx->app,
+        p->component_id,
+        p->obj_id,
+        p->zoom);
+}
+
+static void
+exec_if_setnpchead(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfSetNpcHead const* p)
+{
+    /* Reference IfType.getModel type 2: composite the npc chathead and bind
+     * it. Needs the App (async model loads via the exec runner). */
+    App_SetInterfaceNpcHead(
+        ctx->app, p->component_id, p->npc_id);
+}
+
+static void
+exec_if_setplayerhead(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfSetPlayerHead const* p)
+{
+    /* Reference IfType.getModel type 3: local-player chathead. */
+    App_SetInterfacePlayerHead(ctx->app, p->component_id);
+}
+
+static void
+exec_if_setanim(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfSetAnim const* p)
+{
+    /* Reference modelAnim: the chathead's talk/idle sequence. Persist via the
+     * App (survives the chat interface mounting after the packet). */
+    App_SetInterfaceModelAnim(
+        ctx->app, p->component_id, p->anim_id);
+}
+
+static void
+exec_if_setnpchead_active(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfSetNpcHeadActive const* p)
+{
+    if( ctx->app->world )
+    {
+        int world_idx;
+        if( RS_EntitySync_FindNpc(
+                &ctx->app->esync,
+                p->index,
+                &world_idx,
+                NULL) )
+        {
+            struct WorldEntity_NPC* npc =
+                World_EntityPoolGet(&ctx->app->world->entities.npc, world_idx);
+            if( npc )
+                App_SetInterfaceNpcHead(
+                    ctx->app,
+                    p->component_id,
+                    npc->npc_id);
+        }
+    }
+}
+
+static void
+exec_if_setplayermodel_basecolour(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfSetPlayerModel const* p)
+{
+    App_SetInterfacePlayerModelBaseColour(
+        ctx->app,
+        p->component_id,
+        p->index,
+        p->value);
+}
+
+static void
+exec_if_setplayermodel_bodytype(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfSetPlayerModel const* p)
+{
+    App_SetInterfacePlayerModelBodyType(
+        ctx->app,
+        p->component_id,
+        p->value);
+}
+
+static void
+exec_if_setplayermodel_obj(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfSetPlayerModel const* p)
+{
+    App_SetInterfacePlayerModelObj(
+        ctx->app,
+        p->component_id,
+        p->value);
+}
+
+static void
+exec_if_setplayermodel_self(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfSetPlayerModel const* p)
+{
+    App_SetInterfacePlayerModelSelf(
+        ctx->app,
+        p->component_id,
+        p->value);
+}
+
+static void
+exec_if_openmain(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfOpenMain const* p)
+{
+    RS_UISlots_OpenMain(ctx->app, p->component_id);
+}
+
+static void
+exec_if_openside(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfOpenSide const* p)
+{
+    RS_UISlots_OpenSide(ctx->app, p->component_id);
+}
+
+static void
+exec_if_openmain_side(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfOpenMainSide const* p)
+{
+    RS_UISlots_OpenMainSide(
+        ctx->app,
+        p->main_component_id,
+        p->side_component_id);
+}
+
+static void
+exec_if_openchat(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfOpenChat const* p)
+{
+    RS_UISlots_OpenChat(ctx->app, p->component_id);
+}
+
+static void
+exec_if_close(struct AppGameProtoCtx const* ctx)
+{
+    RS_UISlots_CloseModal(ctx->app);
+}
+
+static void
+exec_if_settab(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfSetTab const* p)
+{
+    if( getenv("TORIRS_TRACE_NATIVE_UI") )
+        TORIRS_REPORT("NATIVE_PACKET IF_SETTAB received tab=%d com=%d\n",
+            p->tab_id, p->component_id);
+    RS_UISlots_SetTab(ctx->app, p->tab_id, p->component_id);
+}
+
+static void
+exec_if_opentop(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfOpenTop const* p)
+{
+    /* Switch the gameframe root when the server asks for a different top
+     * (Display Fixed/Classic/Modern). Reject non-positive ids — a live
+     * server once sent 0 and wiped the tree. Same-id is a no-op. */
+    int top = p->interface_id;
+    int cur = RS_BootState_InterfaceId(&ctx->app->boot);
+    if( top <= 0 )
+        return;
+    if( top == cur )
+        return;
+    TORIRS_LOG("if-opentop: switching root %d -> %d\n", cur, top);
+    /*
+     * The IF_SETEVENTS arming survives the switch.
+     *
+     * The reference's open-top (rev 239 class415.method9502, rev 241
+     * class420.method9711 + method9723) unloads the old root's widgets and
+     * loads the new one; it never touches the flags table. Only IF_RESYNC
+     * replaces that table, and a closed group loses its own entries
+     * (RS_ServerState_SlotGroupLeaves). The subs IF_MOVESUB carries into the new top
+     * keep their masks: Jagex arms the backpack once at login and the
+     * welcome screen's Play then opens the gameframe top without arming it
+     * again (RSProx index 4378: IF_SETEVENTS 149:0 at line 644, IF_OPENTOP
+     * at 782, an op on a backpack item at 4258). Clearing here left every
+     * backpack slot without its target bits, so no item offered "Use".
+     */
+    App_OpenRootInterface(ctx->app, top);
+}
+
+static void
+exec_if_opensub(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfOpenSub const* p)
+{
+    if( torirs_env_net_debug() )
+        TORIRS_LOG("if-opensub: iface=%d target=0x%08x (%d<<16|%d) type=%d\n",
+            p->interface_id,
+            (unsigned)p->target_uid,
+            (p->target_uid >> 16) & 0xffff,
+            p->target_uid & 0xffff,
+            p->type);
+    App_OpenSubInterface(
+        ctx->app,
+        p->target_uid,
+        p->interface_id,
+        p->type);
+}
+
+static void
+exec_if_closesub(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfCloseSub const* p)
+{
+    App_CloseSubInterface(ctx->app, p->target_uid);
+}
+
+static void
+exec_if_movesub(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfMoveSub const* p)
+{
+    /* Wire data: a component uid is (group << 16) | child, never negative.
+     * One that is names no slot either side of the move, so the packet is
+     * refused here, in one place, with a line. */
+    if( p->source_uid < 0 || p->dest_uid < 0 )
+    {
+        TORIRS_ERR("gameproto_exec: IF_MOVESUB 0x%08x -> 0x%08x names no component, refused\n",
+            (unsigned)p->source_uid,
+            (unsigned)p->dest_uid);
+        return;
+    }
+    App_MoveSubInterface(
+        ctx->app, p->source_uid, p->dest_uid);
+}
+
+static void
+exec_if_resync_v2(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfResync const* sync)
+{
+    struct App* app = ctx->app;
+    int root_changed = sync->root_interface_id > 0 &&
+                       sync->root_interface_id != RS_BootState_InterfaceId(&app->boot);
+    struct UITreeInterfaceParent live[UITREE_INTERFACE_PARENT_MAX];
+    unsigned char* resync_reachable;
+    int live_count = 0;
+
+    if( root_changed )
+        App_OpenRootInterface(app, sync->root_interface_id);
+    resync_reachable = ToriMem_Calloc(
+        ToriMem_Process(), (size_t)(sync->mount_count > 0 ? sync->mount_count : 1), 1);
+    assert(resync_reachable);
+
+    /*
+     * RECONCILE against what is already mounted; do not close and
+     * reopen the lot.
+     *
+     * The snapshot is the server's mount registry, so a slot it
+     * restates with the same group and type is a slot the client
+     * already has right — and closing it is destructive, not neutral.
+     * A close reclaims the whole widget group (App_CloseSubInterface),
+     * which throws away everything the CS2 scripts built on top of the
+     * cache pack: hidden/shown layers, dynamic children, the lot. The
+     * reopen re-bakes from the pack and only re-runs that pack's OWN
+     * onload, so anything configured from outside it stays lost.
+     *
+     * Measured on the Display panel's layout switch, which is the only
+     * thing that sends this packet: `ToriRSServer_GameframeOpentop`
+     * remounts the frame and then commits the same registry here. The
+     * toplevel's onload had already picked the popout strip's
+     * collapsed variant (`popout` 728: layer 4 shown, layer 7 hidden)
+     * and created its three panel buttons as dynamic children of
+     * 728:6; the blanket close threw all of it away and the reopen
+     * came back at the cache defaults — a black strip with no buttons.
+     *
+     * Closing what the snapshot does NOT restate is still this
+     * packet's job, and that is what removes the stale mounts an
+     * interrupted layout switch leaves behind.
+     */
+    live_count = ctx->tree->interface_parent_count;
+    if( live_count > UITREE_INTERFACE_PARENT_MAX )
+        live_count = UITREE_INTERFACE_PARENT_MAX;
+    memcpy(live, ctx->tree->interface_parents, (size_t)live_count * sizeof(live[0]));
+    for( int i = 0; i < live_count; i++ )
+    {
+        int keep = 0;
+        for( int j = 0; !keep && j < sync->mount_count; j++ )
+            keep = sync->mounts[j].target_uid == live[i].container_uid &&
+                   sync->mounts[j].interface_id == live[i].group_id &&
+                   sync->mounts[j].type == live[i].type;
+        if( !keep )
+            App_CloseSubInterface(app, live[i].container_uid);
+    }
+    App_IfEventsClear(app);
+    /* The snapshot is one table, and it can state a mount in a slot
+     * the live top does not have: the server keeps what a root switch
+     * did not move (the phone's hotkey column while the world map's
+     * top is up). Those are kept, not opened -- their slot is not in
+     * this tree -- and a kept record the snapshot does not restate is
+     * gone. Reachable = under the root, or inside a reachable group. */
+    {
+        int const root = sync->root_interface_id > 0 ? sync->root_interface_id
+                                                     : RS_BootState_InterfaceId(&app->boot);
+        int grew = 1;
+
+        while( grew )
+        {
+            grew = 0;
+            for( int i = 0; i < sync->mount_count; i++ )
+            {
+                int const slot_group = (int)((uint32_t)sync->mounts[i].target_uid >> 16);
+                int found = slot_group == root;
+
+                if( resync_reachable[i] )
+                    continue;
+                for( int j = 0; !found && j < sync->mount_count; j++ )
+                    found = resync_reachable[j] && sync->mounts[j].interface_id == slot_group;
+                if( found )
+                {
+                    resync_reachable[i] = 1;
+                    grew = 1;
+                }
+            }
+        }
+        App_KeptMountsClear(app);
+        for( int i = 0; i < sync->mount_count; i++ )
+            if( !resync_reachable[i] && sync->mounts[i].interface_id > 0 )
+                App_KeptMountAdd(
+                    app,
+                    sync->mounts[i].target_uid,
+                    sync->mounts[i].interface_id,
+                    sync->mounts[i].type);
+    }
+    for( int i = 0; i < sync->mount_count; i++ )
+    {
+        int mounted = 0;
+        for( int j = 0; !mounted && j < live_count; j++ )
+            mounted = live[j].container_uid == sync->mounts[i].target_uid &&
+                      live[j].group_id == sync->mounts[i].interface_id &&
+                      live[j].type == sync->mounts[i].type;
+        /* U7: a root change has already queued the kept mounts of
+         * the new top (App_RootMountsReturn), and the live snapshot
+         * it emptied cannot say so. A second mount task for the same
+         * group would remount it and drop its arming. */
+        if( !mounted )
+            mounted = App_SlotMountQueued(
+                app,
+                sync->mounts[i].target_uid,
+                sync->mounts[i].interface_id,
+                sync->mounts[i].type);
+        if( mounted || !resync_reachable[i] )
+            continue;
+        App_OpenSubInterface(
+            app,
+            sync->mounts[i].target_uid,
+            sync->mounts[i].interface_id,
+            sync->mounts[i].type);
+    }
+    for( int i = 0; i < sync->event_count; i++ )
+    {
+        uint32_t mask = sync->events[i].events1 |
+            ((sync->events[i].events2 & UINT32_C(0x3ff)) << 1);
+        App_IfEventsSet(
+            app,
+            sync->events[i].component_id,
+            sync->events[i].from,
+            sync->events[i].to,
+            (int)mask);
+    }
+    ToriMem_Free(ToriMem_Process(), resync_reachable);
+}
+
+static void
+exec_runclientscript(
+    struct AppGameProtoCtx const* ctx,
+    struct RevPacket* packet)
+{
+    App_RunClientScript(ctx->app, packet->_runclientscript);
+}
+
+static void
+exec_message_game(
+    struct AppGameProtoCtx const* ctx,
+    struct PktMessageGame const* p)
+{
+    exec_chat_presented(ctx);
+    /* Independent of the chatbox: a headless run has no chat model, and a
+     * plugin watching for a boss kill has to work there too. */
+    App_NotifyChatMessage(
+        ctx->app,
+        p->type,
+        p->name,
+        p->text);
+}
+
+static void
+exec_rebuild(
+    struct AppGameProtoCtx const* ctx,
+    struct PktMapRebuild const* p)
+{
+    (void)ctx;
+    /* Handled inside Task_GameProtoExec (world-load await + MAP_BUILD_
+     * COMPLETE ack); reaching here means the packet was executed directly,
+     * not through that task. */
+    if( torirs_env_net_debug() )
+        TORIRS_LOG("gameproto_exec: %s zone=%d,%d (not through the exec task)\n",
+            p->zones ? "REBUILD_REGION" : "REBUILD_NORMAL",
+            p->zonex,
+            p->zonez);
+}
+
+static void
+exec_entity_info_dropped(
+    struct AppGameProtoCtx const* ctx,
+    struct RevPacket* packet)
+{
+    (void)ctx;
+    /* Consumed by Task_GameProtoExec's awaited entity-info tasks once a
+     * scene is loaded (WorldLoadState_Active). Reaching here is the one
+     * real "not ready" case: no REBUILD has built a scene this session
+     * yet, and every coordinate in the stream is relative to the scene
+     * base the rebuild sets, so there is nothing to place against. The
+     * server sends REBUILD before the first info packet of a session, so
+     * this is a stray packet, and it is dropped on purpose. */
+    if( torirs_env_net_debug() )
+        TORIRS_LOG("gameproto_exec: entity info packet %d dropped (no active world)\n",
+            packet->packet_type);
+}
+
+static void
+exec_update_zone_partial_follows(
+    struct AppGameProtoCtx const* ctx,
+    struct PktUpdateZonePartialFollows const* p)
+{
+    /* Wire base is classic-scene local; with a (zone-6)*8 scene base
+     * that is our-scene too. */
+    zone_set_base(
+        ctx->app,
+        p->base_x,
+        p->base_z,
+        zone_header_level(ctx->app, p->level));
+}
+
+static void
+exec_update_zone_full_follows(
+    struct AppGameProtoCtx const* ctx,
+    struct PktUpdateZoneFullFollows const* p)
+{
+    struct App* app = ctx->app;
+    zone_set_base(
+        app,
+        p->base_x,
+        p->base_z,
+        zone_header_level(app, p->level));
+    /* Full update: the zone's client-side locs and obj stacks reset --
+     * in arrival order with the packets around it: held behind any
+     * packet still held for the view, or for its scene to be built. */
+    if( app->world )
+    {
+        struct ZoneAt at = zone_at_now(app);
+
+        zone_exec_or_hold(ctx, PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS, NULL, &at);
+    }
+}
+
+static void
+exec_update_zone_partial_enclosed(
+    struct AppGameProtoCtx const* ctx,
+    struct PktUpdateZoneEnclosed const* enc)
+{
+    /* Wire base is classic-scene local; with a (zone-6)*8 scene base
+     * that is our-scene too. */
+    zone_set_base(
+        ctx->app,
+        enc->base_x,
+        enc->base_z,
+        zone_header_level(ctx->app, enc->level));
+    for( int i = 0; i < enc->count; i++ )
+        exec_zone_sub_packet(ctx, enc->entries[i].name, &enc->entries[i]._loc_add_change);
+}
+
+/* The seq and spotanim are the model's; the held models and the
+ * spotanim's asset are the client's to fetch. */
+static void
+exec_anim_specific(
+    struct AppGameProtoCtx const* ctx,
+    struct PktAnimSpecific const* p)
+{
+    if( ctx->modelled == RS_SERVER_STATE_APPLIED && p->id >= 0 )
+        EntityAssets_WantPlayerHeldForPid(
+            ctx->app, RS_ServerState_LocalPid(ctx->state->esync), p->id);
+}
+
+static void
+exec_entity_spotanim_specific(
+    struct AppGameProtoCtx const* ctx,
+    struct PktEntitySpotanimSpecific const* p)
+{
+    if( ctx->modelled == RS_SERVER_STATE_APPLIED &&
+        p->id >= 0 )
+        App_EntitySpotanimPrefetch(ctx->app, p->id);
+}
+
+static void
+exec_cam_moveto(
+    struct AppGameProtoCtx const* ctx,
+    struct PktCamMoveTo const* p)
+{
+    struct App* app = ctx->app;
+    /* Classic wire coords are scene-local tiles; the V2 packet's are
+     * absolute world tiles (packet->absolute), converted here against
+     * the scene the shot plays in. These only record where the camera
+     * is headed; App_CinemaCamera walks it there. */
+    int cam_lx = p->local_x;
+    int cam_lz = p->local_z;
+    if( p->absolute && app->world )
+    {
+        cam_lx -= app->world->_base_tile_x;
+        cam_lz -= app->world->_base_tile_z;
+    }
+    /* The look half is left as it is (deob client.java, class243.field3026):
+     * after a CAM_RESET its rates are 0, so the angles hold. */
+    if( CamScript_MoveTo(
+            &app->cam_script,
+            cam_lx,
+            cam_lz,
+            p->height,
+            p->rate,
+            p->rate2) )
+        App_CinemaCameraSnapPosition(app);
+    exec_cam_script_record(
+        app,
+        CAM_SCRIPT_OP_MOVETO,
+        cam_lx + (app->world ? app->world->_base_tile_x : 0),
+        cam_lz + (app->world ? app->world->_base_tile_z : 0),
+        p->height,
+        p->rate,
+        p->rate2);
+    RedrawRequest_Raise(&app->redraw_request);
+}
+
+static void
+exec_cam_lookat(
+    struct AppGameProtoCtx const* ctx,
+    struct PktCamLookAt const* p)
+{
+    struct App* app = ctx->app;
+    /* Same absolute-vs-scene-local split as CAM_MOVETO above. */
+    int cam_lx = p->local_x;
+    int cam_lz = p->local_z;
+    if( p->absolute && app->world )
+    {
+        cam_lx -= app->world->_base_tile_x;
+        cam_lz -= app->world->_base_tile_z;
+    }
+    /* The move half is left as it is (deob client.java, class243.field3073):
+     * after a CAM_RESET its rates are 0, so the eye holds where it was
+     * -- Wanted!'s scans turn to Solus without moving (RSProx 4464
+     * [2833]). */
+    if( CamScript_LookAt(
+            &app->cam_script,
+            cam_lx,
+            cam_lz,
+            p->height,
+            p->rate,
+            p->rate2) )
+        App_CinemaCameraSnapAngle(app);
+    exec_cam_script_record(
+        app,
+        CAM_SCRIPT_OP_LOOKAT,
+        cam_lx + (app->world ? app->world->_base_tile_x : 0),
+        cam_lz + (app->world ? app->world->_base_tile_z : 0),
+        p->height,
+        p->rate,
+        p->rate2);
+    RedrawRequest_Raise(&app->redraw_request);
+}
+
+static void
+exec_cam_moveto_cycles(
+    struct AppGameProtoCtx const* ctx,
+    struct PktCamMoveToCycles const* p)
+{
+    if( ctx->app->world )
+    {
+        struct App* app = ctx->app;
+        /* World tiles from v2 on; v0/v1 (222-236) send build-area tiles. */
+        int cam_lx = p->x -
+                     (p->absolute ? app->world->_base_tile_x : 0);
+        int cam_lz = p->z -
+                     (p->absolute ? app->world->_base_tile_z : 0);
+        App_CinemaCameraMoveCycles(
+            app,
+            cam_lx,
+            cam_lz,
+            p->height,
+            p->cycles,
+            p->ignore_terrain,
+            p->easing,
+            p->height_relative);
+        exec_cam_script_record(
+            app,
+            CAM_SCRIPT_OP_MOVETO_CYCLES,
+            cam_lx + app->world->_base_tile_x,
+            cam_lz + app->world->_base_tile_z,
+            p->height,
+            p->cycles,
+            p->easing);
+        RedrawRequest_Raise(&app->redraw_request);
+    }
+}
+
+/* deob client.java class259.field3190: signed deltas from where the camera
+ * is. Recorded as yaw, pitch, cycles in height, rate, rate2. */
+static void
+exec_cam_rotateby(
+    struct AppGameProtoCtx const* ctx,
+    struct PktCamRotate const* p)
+{
+    if( ctx->app->world )
+    {
+        App_CinemaCameraRotateBy(
+            ctx->app,
+            p->yaw,
+            p->pitch,
+            p->cycles,
+            p->easing);
+        exec_cam_script_record(
+            ctx->app,
+            CAM_SCRIPT_OP_ROTATEBY,
+            -1,
+            -1,
+            p->yaw,
+            p->pitch,
+            p->cycles);
+        RedrawRequest_Raise(&ctx->app->redraw_request);
+    }
+}
+
+/* deob client.java class259.field3187. */
+static void
+exec_cam_rotateto(
+    struct AppGameProtoCtx const* ctx,
+    struct PktCamRotate const* p)
+{
+    if( ctx->app->world )
+    {
+        App_CinemaCameraRotateTo(
+            ctx->app,
+            p->yaw,
+            p->pitch,
+            p->cycles,
+            p->easing);
+        exec_cam_script_record(
+            ctx->app,
+            CAM_SCRIPT_OP_ROTATETO,
+            -1,
+            -1,
+            p->yaw,
+            p->pitch,
+            p->cycles);
+        RedrawRequest_Raise(&ctx->app->redraw_request);
+    }
+}
+
+static void
+exec_cam_lookat_cycles(
+    struct AppGameProtoCtx const* ctx,
+    struct PktCamLookAtCycles const* p)
+{
+    if( ctx->app->world )
+    {
+        struct App* app = ctx->app;
+        struct PktCamLookAtCycles const* l = p;
+
+        CamScript_LookCycles(
+            &app->cam_script,
+            l->x - app->world->_base_tile_x,
+            l->z - app->world->_base_tile_z,
+            l->height,
+            l->height_relative,
+            app->world->cycle,
+            l->cycles,
+            l->easing);
+        exec_cam_script_record(
+            app, CAM_SCRIPT_OP_LOOKAT_CYCLES, l->x, l->z, l->height, l->cycles, l->easing);
+        RedrawRequest_Raise(&app->redraw_request);
+    }
+}
+
+static void
+exec_cam_moveto_arc(
+    struct AppGameProtoCtx const* ctx,
+    struct PktCamMoveToArc const* p)
+{
+    if( ctx->app->world )
+    {
+        struct App* app = ctx->app;
+        struct PktCamMoveToArc const* a = p;
+        int base_x = a->absolute ? app->world->_base_tile_x : 0;
+        int base_z = a->absolute ? app->world->_base_tile_z : 0;
+
+        App_CinemaCameraMoveArc(
+            app,
+            a->x - base_x,
+            a->z - base_z,
+            a->via_x - base_x,
+            a->via_z - base_z,
+            a->height,
+            a->cycles,
+            a->ignore_terrain,
+            a->easing,
+            a->height_relative);
+        exec_cam_script_record(
+            app,
+            CAM_SCRIPT_OP_MOVETO_ARC,
+            a->x - base_x + app->world->_base_tile_x,
+            a->z - base_z + app->world->_base_tile_z,
+            a->height,
+            a->cycles,
+            a->easing);
+        RedrawRequest_Raise(&app->redraw_request);
+    }
+}
+
+static void
+exec_cam_rotateto_coordinate(
+    struct AppGameProtoCtx const* ctx,
+    struct PktCamRotateToCoordinate const* p)
+{
+    if( ctx->app->world )
+    {
+        struct App* app = ctx->app;
+        int cam_lx = p->x -
+                     (p->absolute ? app->world->_base_tile_x : 0);
+        int cam_lz = p->z -
+                     (p->absolute ? app->world->_base_tile_z : 0);
+        App_CinemaCameraRotateCycles(
+            app,
+            cam_lx,
+            cam_lz,
+            p->height,
+            p->cycles,
+            p->easing,
+            p->height_relative);
+        exec_cam_script_record(
+            app,
+            CAM_SCRIPT_OP_ROTATETO_COORDINATE,
+            cam_lx + app->world->_base_tile_x,
+            cam_lz + app->world->_base_tile_z,
+            p->height,
+            p->cycles,
+            p->easing);
+        RedrawRequest_Raise(&app->redraw_request);
+    }
+}
+
+static void
+exec_cam_shake(
+    struct AppGameProtoCtx const* ctx,
+    struct PktCamShake const* p)
+{
+    /* The wire order is axis, spread, amplitude, rate — the packet's
+     * field names predate knowing which was which. */
+    int axis = p->axis;
+    if( axis >= 0 && axis < CAM_SCRIPT_SHAKE_AXES )
+        CamScript_Shake(
+            &ctx->app->cam_script,
+            axis,
+            p->amplitude,
+            p->frequency,
+            p->speed);
+    /* Recorded whatever the axis: an out-of-range shake is still a
+     * packet the server sent, and the serial counts every one. */
+    exec_cam_script_record(
+        ctx->app,
+        CAM_SCRIPT_OP_SHAKE,
+        -1,
+        -1,
+        p->frequency,
+        axis,
+        p->speed);
+}
+
+static void
+exec_cam_reset(struct AppGameProtoCtx const* ctx)
+{
+    struct App* app = ctx->app;
+    /* Deob client.java, class243.field2937: both targets, heights and
+     * rates to 0, not just the flag. A stale move rate would carry the
+     * last scene's eye into the next look-at-only scene. */
+    CamScript_Reset(&app->cam_script);
+    exec_cam_script_record(app, CAM_SCRIPT_OP_RESET, -1, -1, 0, 0, 0);
+    RedrawRequest_Raise(&app->redraw_request);
+}
+
+static void
+exec_cam_smoothreset(
+    struct AppGameProtoCtx const* ctx,
+    struct PktCamSmoothReset const* p)
+{
+    struct App* app = ctx->app;
+    /* Deob client.java, class243.field2963 `&& field904`: only a
+     * script that is up can glide back. The targets and rates stay;
+     * app_world_camera_follow walks the eye home with them, and
+     * ending it is CamScript_GlideEnd's. Every CAM_MOVETO or
+     * CAM_LOOKAT after this cancels the glide (field698 = false). */
+    if( CamScript_SmoothReset(&app->cam_script) )
+        RedrawRequest_Raise(&app->redraw_request);
+    exec_cam_script_record(
+        app,
+        CAM_SCRIPT_OP_SMOOTHRESET,
+        -1,
+        -1,
+        0,
+        p->move_constant_speed,
+        p->move_proportional_speed);
+}
+
+/* deob client.java class243.field2935 (V3) / field3045 (V4): field2521 is
+ * the type, field774 the index, and the camera's focus is that entity
+ * (client.method1700, Statics.method8560) until a login puts the local
+ * player back. app_world_camera_follow reads it. */
+static void
+exec_cam_target(
+    struct AppGameProtoCtx const* ctx,
+    struct PktCamTarget const* p)
+{
+    if( CamScript_SetTarget(&ctx->app->cam_script, p->type, p->index) )
+        RedrawRequest_Raise(&ctx->app->redraw_request);
+}
+
+/* The friends panel's rows are cc_created from the store by the client's
+ * own script 125, so nothing repaints them but the friend-transmit
+ * channel. Filling the store without this notify leaves the panel showing
+ * whatever it drew at mount. Script 681 reads the chat filter modes back
+ * through chat_getfilter_private before it will send a private message,
+ * so a filter change reaches the CS2 side the same way. */
+static void
+exec_friend_changed(struct AppGameProtoCtx const* ctx)
+{
+    RS_CS2Host_NotifyFriendChanged(&ctx->app->host);
+    RedrawRequest_Raise(&ctx->app->redraw_request);
+}
+
+static void
+exec_message_private(
+    struct AppGameProtoCtx const* ctx,
+    struct PktMessagePrivate const* p)
+{
+    if( ctx->modelled == RS_SERVER_STATE_APPLIED )
+    {
+        char name[16];
+
+        exec_chat_presented(ctx);
+        base37tostr((uint64_t)p->from, name, sizeof(name));
+        App_NotifyChatMessage(
+            ctx->app,
+            p->staff_mod ? RS_CHAT_TYPE_PRIVATE_FROM_MOD
+                                               : RS_CHAT_TYPE_PRIVATE_FROM,
+            name,
+            p->text);
+    }
+}
+
+/* Plugins hear every chat line the store takes, as they hear MESSAGE_GAME
+ * and MESSAGE_PRIVATE: RuneLite's ChatMessage fires for every line the
+ * client adds, whichever channel. */
+static void
+exec_message_private_echo(
+    struct AppGameProtoCtx const* ctx,
+    struct PktMessagePrivateEcho const* p)
+{
+    if( ctx->modelled == RS_SERVER_STATE_APPLIED )
+    {
+        exec_chat_presented(ctx);
+        App_NotifyChatMessage(
+            ctx->app,
+            RS_CHAT_TYPE_PRIVATE_TO,
+            p->recipient,
+            p->text ? p->text : "");
+    }
+}
+
+static void
+exec_message_friendchannel(
+    struct AppGameProtoCtx const* ctx,
+    struct PktMessageFriendChannel const* p)
+{
+    if( ctx->modelled == RS_SERVER_STATE_APPLIED )
+    {
+        exec_chat_presented(ctx);
+        App_NotifyChatMessage(
+            ctx->app,
+            RS_CHAT_TYPE_FRIENDS_CHAT,
+            p->sender,
+            p->text ? p->text : "");
+    }
+}
+
+static void
+exec_last_login_info(struct AppGameProtoCtx const* ctx)
+{
+    /* The rows are clientCode components RS_ClientCode_Tick refreshes off
+     * the session record the model wrote; this packet also OPENS the
+     * screen they sit on, which is the only thing that ever does. */
+    exec_open_welcome_screen(ctx->app);
+    RedrawRequest_Raise(&ctx->app->redraw_request);
+}
+
+static void
+exec_logout(struct AppGameProtoCtx const* ctx)
+{
+    struct App* app = ctx->app;
+    /* The server ending the session and the player asking to are the
+     * same ending: socket closed, world forgotten, login screen back
+     * up. The chat line goes in first because App_Logout is what takes
+     * the chatbox away -- it is the only feedback a profile with no
+     * title screen to return to ever gets. */
+    exec_chat_add(ctx, RS_CHAT_TYPE_GAME, NULL, NULL, "You have been logged out.");
+    App_Logout(app);
+}
+
+static void
+exec_set_multiway(struct AppGameProtoCtx const* ctx)
+{
+    if( ctx->modelled == RS_SERVER_STATE_APPLIED )
+        RedrawRequest_Raise(&ctx->app->redraw_request);
+}
+
+/* deob client.java (class243.field3065): `field758 = g1 == 1`, the flag
+ * class112.method3876/3877 read for the camera's pitch limits. */
+static void
+exec_cam_unlock(
+    struct AppGameProtoCtx const* ctx,
+    struct PktCamUnlock const* p)
+{
+    if( CamScript_SetUnlock(&ctx->app->cam_script, p->unlock) )
+        RedrawRequest_Raise(&ctx->app->redraw_request);
+}
+
+static void
+exec_minimap_toggle(
+    struct AppGameProtoCtx const* ctx,
+    struct PktMinimapToggle const* p)
+{
+    if( getenv("TORIRS_FRAME_ROLE_AUDIT") )
+        TORIRS_REPORT("frame_native: MINIMAP_TOGGLE state=%d\n", p->state);
+    if( MinimapView_SetToggleState(&ctx->app->minimap, p->state) )
+        RedrawRequest_Raise(&ctx->app->redraw_request);
+}
+
+static void
+exec_send_ping(
+    struct AppGameProtoCtx const* ctx,
+    struct PktSendPing const* p)
+{
+    App_SendPingReply(ctx->app, p->value1, p->value2);
+}
+
+/* deob client.java field1008: OBJUNLOCK_RESET forgets the bitset. */
+static void
+exec_objunlock_reset(struct AppGameProtoCtx const* ctx)
+{
+    ctx->app->host.client.objunlock_present = false;
+}
+
+/* class561.method12548: each entry names its word by delta from the last.
+ * The deob throws on a word past the end; here it is dropped with a line. */
+static void
+exec_objunlock_update(
+    struct AppGameProtoCtx const* ctx,
+    struct PktObjUnlock const* p)
+{
+    struct RS_CS2ClientState* client = &ctx->app->host.client;
+    int word = 0;
+
+    if( !client->objunlock_present )
+    {
+        memset(client->objunlock_words, 0, sizeof(client->objunlock_words));
+        client->objunlock_present = true;
+    }
+    for( int i = 0; i < p->count; i++ )
+    {
+        word += p->entries[i].delta;
+        if( word < 0 || word >= RS_CS2_OBJUNLOCK_WORDS )
+        {
+            TORIRS_LOG("exec: objunlock word %d out of range\n", word);
+            break;
+        }
+        client->objunlock_words[word] = (uint64_t)p->entries[i].bits;
+    }
+}
+
+/* deob client.java class259.field3155 -> class186.method6134. Through the
+ * host's slot, so main.c opens it on the platform as CS2's openurl does. */
+static void
+exec_url_open(
+    struct AppGameProtoCtx const* ctx,
+    struct PktText const* p)
+{
+    snprintf(ctx->app->host.client.pending_open_url,
+             sizeof(ctx->app->host.client.pending_open_url),
+             "%s",
+             p->text);
+}
+
+static void
+exec_logout_withreason(
+    struct AppGameProtoCtx const* ctx,
+    struct PktLogoutWithReason const* p)
+{
+    struct App* app = ctx->app;
+    char key[48];
+    char const* line[3];
+
+    exec_chat_add(ctx, RS_CHAT_TYPE_GAME, NULL, NULL, "You have been logged out.");
+    App_Logout(app);
+    /* What the login screen says, by reason (deob Statics.method7871:
+     * 1 kicked, 2 the servers updating) -- the profile's words. */
+    for( int i = 0; i < 3; i++ )
+    {
+        snprintf(key, sizeof(key), "logout_reason_%d_line%d",
+                 p->reason, i + 1);
+        line[i] = RS_LoginReplies_String(&app->login_replies, key);
+    }
+    RS_Title_SetMessages(&app->title, line[0], line[1], line[2]);
+    RS_Title_SetScreen(&app->title, RS_TITLE_INFO);
+}
+
+static void
+exec_zbuf(
+    struct AppGameProtoCtx const* ctx,
+    struct PktZBuf const* p)
+{
+    RenderMode_SetServerZbuf(&ctx->app->render_mode, p->enabled);
+    RedrawRequest_Raise(&ctx->app->redraw_request);
+}
+
+static void
+exec_cam_mode(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIntValue const* p)
+{
+    CamScript_SetMode(&ctx->app->cam_script, p->value);
+    RedrawRequest_Raise(&ctx->app->redraw_request);
+}
+
+/* deob client.java class259.field3148 -> Statics.method9192. */
+static void
+exec_oculus_sync(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIntValue const* p)
+{
+    CamScript_OculusSync(&ctx->app->cam_script, p->value);
+}
+
+static void
+exec_cam_skybox(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIntValue const* p)
+{
+    App_SetSkybox(ctx->app, p->value);
+}
+
+static void
+exec_set_heatmap_enabled(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIntValue const* p)
+{
+    RS_WorldMapSurface_SetHeatmap(&ctx->app->worldmap, p->value != 0);
+    RedrawRequest_Raise(&ctx->app->redraw_request);
+}
+
+static void
+exec_group_var(
+    struct AppGameProtoCtx const* ctx,
+    struct PktGroupVar const* p)
+{
+    for( int i = 0; i < p->count; i++ )
+        RS_GroupStore_ApplyVar(
+            &ctx->app->host.groups,
+            p->updates[i].index,
+            p->updates[i].packed,
+            p->updates[i].int_value,
+            p->updates[i].long_value,
+            p->updates[i].string_value);
+}
+
+static void
+exec_group_full(
+    struct AppGameProtoCtx const* ctx,
+    struct PktRawPayload const* p)
+{
+    /* A player in no group gets the packet EMPTY (both rev-241 recordings
+     * of 2026-10-22/28 open with one): nothing to apply, and no bytes for
+     * RS_GroupStore_ApplyFull to be handed. */
+    if( ctx->app->provider && p->length > 0 )
+        RS_GroupStore_ApplyFull(
+            &ctx->app->host.groups,
+            &ctx->app->provider->group_types,
+            p->data,
+            p->length,
+            exec_group_notify,
+            ctx->app);
+    /* The group-ironman shared storage (deob class603.method13001). Its
+     * readers are the group storage clientscript commands, which this
+     * client does not implement; the payload is decoded and kept no
+     * further until they are. */
+}
+
+static void
+exec_reset_anims(struct AppGameProtoCtx const* ctx)
+{
+    if( ctx->app->scene )
+    {
+        int slot_count = ToriDraw_SceneElementSlotCount(ctx->app->scene);
+        for( int element_id = 0; element_id < slot_count; element_id++ )
+        {
+            struct ToriDraw_SceneElement* el;
+            if( !ToriDraw_SceneElementIsLive(ctx->app->scene, element_id) )
+                continue;
+            el = ToriDraw_SceneElementGet(ctx->app->scene, element_id);
+            if( el )
+            {
+                el->anim_frame = 0;
+                el->anim_cycle = 0;
+            }
+        }
+        RedrawRequest_Raise(&ctx->app->redraw_request);
+    }
+}
+
+static void
+exec_tut_flash(
+    struct AppGameProtoCtx const* ctx,
+    struct PktTutFlash const* p)
+{
+    ctx->app->slots.flash_tab = p->tab;
+    /* Asked to flash the tab the player is already looking at, the
+     * reference moves them OFF it -- an open panel covers its own icon,
+     * so a blink nobody can see is no instruction at all. 3 is the
+     * inventory, which is where it sends you unless that IS the tab. */
+    if( p->tab >= 0 &&
+        p->tab == ctx->app->slots.side_tab )
+    {
+        ctx->app->slots.side_tab = p->tab == 3 ? 1 : 3;
+        RedrawRequest_Raise(&ctx->app->redraw_request);
+    }
+}
+
+static void
+exec_tut_open(
+    struct AppGameProtoCtx const* ctx,
+    struct PktTutOpen const* p)
+{
+    RS_UISlots_OpenTut(ctx->app, p->component_id);
+}
+
+static void
+exec_synth_sound(
+    struct AppGameProtoCtx const* ctx,
+    struct PktSynthSound const* p)
+{
+    App_PlaySound(
+        ctx->app,
+        p->id,
+        p->loops,
+        p->delay);
+}
+
+static void
+exec_midi_song_withsecondary(
+    struct AppGameProtoCtx const* ctx,
+    struct PktMidiSongWithSecondary const* p)
+{
+    /*
+     * Same as MIDI_SONG, plus a variant of the same arrangement held ready
+     * for a later MIDI_SWAP. Tracks always loop.
+     */
+    App_PlaySongWithSecondary(
+        ctx->app,
+        p->primary_id,
+        p->secondary_id,
+        p->fade_out_ms,
+        p->fade_in_ms);
+}
+
+static void
+exec_midi_swap(
+    struct AppGameProtoCtx const* ctx,
+    struct PktMidiSwap const* p)
+{
+    App_SwapSong(
+        ctx->app,
+        p->fade_out_ms,
+        p->fade_in_ms);
+}
+
+static void
+exec_midi_song(
+    struct AppGameProtoCtx const* ctx,
+    struct PktMidiSong const* p)
+{
+    /*
+     * The V2 form the modern revisions send carries a fade envelope; the
+     * older one does not and decodes to zeroes, which reads correctly as
+     * "switch immediately". A track always loops -- it is background music,
+     * and the server only ever replaces it.
+     */
+    App_PlaySong(
+        ctx->app,
+        p->id,
+        true,
+        p->fade_out_ms,
+        p->fade_in_ms);
+}
+
+static void
+exec_midi_jingle(
+    struct AppGameProtoCtx const* ctx,
+    struct PktMidiJingle const* p)
+{
+    App_PlayJingle(ctx->app, p->id, p->delay);
+}
+
+static void
+exec_midi_song_stop(
+    struct AppGameProtoCtx const* ctx,
+    struct PktMidiSongStop const* p)
+{
+    App_StopSong(ctx->app, p->fade_out_ms);
+}
+
+static void
+exec_ambientsound_start(
+    struct AppGameProtoCtx const* ctx,
+    struct PktAmbientSoundStart const* p)
+{
+    App_SetAmbientSound(
+        ctx->app,
+        p->id,
+        p->fade_ms);
+}
+
+static void
+exec_ambientsound_stop(
+    struct AppGameProtoCtx const* ctx,
+    struct PktAmbientSoundStop const* p)
+{
+    App_SetAmbientSound(ctx->app, -1, p->fade_ms);
+}
+
+static void
+exec_if_openoverlay(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfOpenOverlay const* p)
+{
+    RS_UISlots_OpenOverlay(ctx->app, p->component_id);
+}
+
+static void
+exec_if_settab_active(
+    struct AppGameProtoCtx const* ctx,
+    struct PktIfSetTabActive const* p)
+{
+    RS_UISlots_SetSideTab(ctx->app, p->tab_id);
+}
+
+static void
+exec_unset_map_flag(
+    struct AppGameProtoCtx const* ctx,
+    struct PktSetMapFlag const* p)
+{
+    /* DRIVE_STAMP: map_flag -- a=-1 when cleared, else a=tile_x b=tile_z.
+     * BOTH branches: walk_to, talk_to and click_loc all read the clear as
+     * "the route finished or was abandoned". */
+    /* Wire tiles are classic-scene local; with a (zone-6)*8 base that is
+     * our-scene too. */
+    if( p->clear )
+    {
+        ctx->app->minimap.flag_tile_x = -1;
+        ctx->app->minimap.flag_tile_z = -1;
+    }
+    else if( p->absolute )
+    {
+        /* SetMapFlagV2 carries an absolute coord; the minimap draws in
+         * scene-local tiles. Converted against the root world's base:
+         * the origin the camera packets use and the one the flag is
+         * read back against (app_tick.c, the CS2 destination coord).
+         * The deob converts against the view whose rectangle holds the
+         * coord (client.java class243.field3077: field748.method1423,
+         * class100.method3310); for every coord in the root scene that
+         * is the root's base. A flag on a deck's staging rectangle has
+         * no minimap of its own here and lands off this scene. */
+        ctx->app->minimap.flag_tile_x =
+            p->x - (ctx->app->world ? ctx->app->world->_base_tile_x : 0);
+        ctx->app->minimap.flag_tile_z =
+            p->z - (ctx->app->world ? ctx->app->world->_base_tile_z : 0);
+    }
+    else
+    {
+        ctx->app->minimap.flag_tile_x = p->x;
+        ctx->app->minimap.flag_tile_z = p->z;
+    }
+    /* Both branches land here: a clear leaves flag_tile_{x,z} at the
+     * -1 the first branch set, so one stamp of the settled value
+     * covers "a=-1 when cleared, else a=tile_x b=tile_z" without
+     * repeating the call per branch. */
+    App_DriveEvent(
+        ctx->app,
+        DRIVE_EVENT_MAP_FLAG,
+        ctx->app->minimap.flag_tile_x,
+        ctx->app->minimap.flag_tile_z,
+        0,
+        0);
+    RedrawRequest_Raise(&ctx->app->redraw_request);
+}
+
+static void
+exec_server_tick_end(struct AppGameProtoCtx const* ctx)
+{
+    /* The fence. Every packet of this tick has been applied, so the scripts
+     * the tick pushed can now repaint against the state the server meant
+     * them to see — see `pending_clientscripts` in app.h. */
+    /* The model has fenced the tick, returned the active-world cursor to
+     * the root and stamped server_tick (RS_ServerState_Apply). */
+    /* Onto the packet pipeline (behind this fence task), not the
+     * asset runner: the pipeline is a strict FIFO, so the tick's
+     * scripts run one after another in wire order, as the reference
+     * runs them inline. On the asset runner a script parked on a
+     * sprite load let the next one overtake it: the House
+     * Advertisement board's "list complete" call (poh_board_addline
+     * row 200) ran before the row call had counted its row, and drew
+     * "No houses are currently listed." over the house it listed. */
+    App_FlushPendingClientScripts(ctx->app, &ctx->app->packet_runner);
+    /* The 600ms cadence a plugin actually wants: every packet of this
+     * server tick is now in world state, so a snapshot read here
+     * agrees with what the server believes. Anything sampled mid-tick
+     * is reading a half-applied world. */
+    ctx->app->drive_events.batch_open = 0;
+    PluginHost_ServerTick(
+        ctx->app->plugins, ctx->app->world ? ctx->app->world->cycle : 0);
+}
+
+static void
+exec_update_tradingpost(
+    struct AppGameProtoCtx const* ctx,
+    struct PktUpdateTradingPost const* p)
+{
+    RS_CS2Host_ApplyTradingPost(
+        &ctx->app->host, p, ctx->app->host.client.now_ms);
+    ctx->app->host.active_offers_transmit_dirty = 1;
+}
+
+static void
+exec_update_stockmarket_slot(
+    struct AppGameProtoCtx const* ctx,
+    struct PktUpdateStockmarketSlot const* p)
+{
+    if( p->slot < RS_CS2_STOCKMARKET_SLOTS )
+    {
+        struct RS_CS2StockmarketOffer* offer = &ctx->app->host.stockmarket[p->slot];
+        offer->status = p->status;
+        offer->obj = p->obj;
+        offer->price = p->price;
+        offer->count = p->count;
+        offer->completed_count = p->completed_count;
+        offer->completed_gold = p->completed_gold;
+    }
+    else
+        TORIRS_ERR("gameproto_exec: UPDATE_STOCKMARKET_SLOT slot %d out of range\n", p->slot);
+    ctx->app->host.stock_transmit_dirty = 1;
+}
+
 void
 App_GameProto_Exec(
     struct App* app,
     struct RS_ServerState const* state,
     struct RevPacket* packet)
 {
-    struct AppGameProtoCtx ctx_;
+    struct AppGameProtoCtx ctx_ = app_exec_ctx(app, state);
     struct AppGameProtoCtx const* ctx = &ctx_;
-    enum RS_ServerStateApply modelled;
 
-    assert(app);
-    assert(state);
     assert(packet);
-    ctx_ = (struct AppGameProtoCtx){ .state = state, .tree = app->tree, .app = app };
 
     if( packet->_control )
     {
@@ -1877,15 +3575,13 @@ App_GameProto_Exec(
     /* The model half first (game/rs_server_state.c): every record the packet
      * writes is written before anything below presents it. What follows for a
      * packet the model applied is that packet's presentation only. */
-    modelled = RS_ServerState_Apply(ctx->state, packet);
+    ctx_.modelled = RS_ServerState_Apply(ctx->state, packet);
 
     switch( packet->packet_type )
     {
     /* ---- varps (model only; varp_changed is the model's stamp) ---- */
     case PKT_NAME_VARP_SMALL:
-        if( exec_trace_native_ui() )
-            TORIRS_REPORT("NATIVE_PACKET VARP_SMALL variable=%d value=%d\n",
-                packet->_varp_small.variable, packet->_varp_small.value);
+        exec_varp_small(ctx, &packet->_varp_small);
         break;
     case PKT_NAME_VARP_LARGE:
     case PKT_NAME_VARP_LONG:
@@ -1895,152 +3591,51 @@ App_GameProto_Exec(
 
     /* ---- player stats ---- */
     case PKT_NAME_UPDATE_STAT:
-        if( modelled == RS_SERVER_STATE_APPLIED )
-        {
-            struct RS_PlayerStats const* stats = ctx->state->stats;
-
-            if( exec_trace_native_ui() )
-                TORIRS_REPORT("NATIVE_PACKET UPDATE_STAT applied stat=%d level=%d xp=%d\n",
-                    packet->_update_stat.stat, stats->current_level[packet->_update_stat.stat],
-                    packet->_update_stat.xp);
-            /* A level-up is read from the BASE level SetXp just derived, not
-             * from the boosted one on the wire: a potion raises that and a
-             * drain lowers it, and neither is an advance. */
-            App_NotifyStatLevel(
-                ctx->app,
-                packet->_update_stat.stat,
-                stats->base_level[packet->_update_stat.stat]);
-            /* The reactive half. Without it the skills tab paints once at
-             * build time — against the zeroes the client starts with — and
-             * nothing ever asks it to paint again, which is the same shape as
-             * the inv-transmit gap that left server-driven inventories blank. */
-            RS_CS2Host_NotifyStatChanged(&ctx->app->host, packet->_update_stat.stat);
-        }
+        exec_update_stat(ctx, &packet->_update_stat);
         break;
-    /* The reactive half, same shape as UPDATE_STAT above: the orb's CS2 binds
-     * IF_SETONMISCTRANSMIT, so without a notify it paints its build-time value
-     * and is only ever refreshed by an unrelated interface event. Gated on the
-     * value actually changing (the model answers UNCHANGED otherwise) because
-     * the dispatch walks every component — and the server already change-gates
-     * these packets, so an unchanged value arriving at all is unusual. */
     case PKT_NAME_UPDATE_RUNENERGY:
     case PKT_NAME_UPDATE_RUNWEIGHT:
-        if( modelled == RS_SERVER_STATE_APPLIED )
-            RS_CS2Host_NotifyMiscChanged(&ctx->app->host);
+        exec_run_misc_changed(ctx);
         break;
 
     /* ---- inventories ---- */
-    /* Containers arrive long after the interface that paints them was built,
-     * so the CS2 paint script has to be told to run again. Obj icons upload
-     * lazily when the bound inv view next renders (same path as the
-     * RevConfig-seeded containers). inv_packet is the model's stamp. */
     case PKT_NAME_UPDATE_INV_FULL:
-        if( modelled == RS_SERVER_STATE_APPLIED )
-        {
-            struct PktUpdateInvFull const* p = &packet->_update_inv_full;
-            int const container = RS_ServerState_InvContainerId(p->inv_id, p->component_id);
-
-            RS_CS2Host_NotifyInvChanged(
-                &ctx->app->host, p->inv_id > 0 ? container & 0x7fff : container);
-        }
+        exec_update_inv_full(ctx, &packet->_update_inv_full);
         break;
     case PKT_NAME_UPDATE_INV_PARTIAL:
-        if( modelled == RS_SERVER_STATE_APPLIED && packet->_update_inv_partial.count > 0 )
-        {
-            struct PktUpdateInvPartial const* p = &packet->_update_inv_partial;
-            int const container = RS_ServerState_InvContainerId(p->inv_id, p->component_id);
-
-            RS_CS2Host_NotifyInvChanged(
-                &ctx->app->host, p->inv_id > 0 ? container & 0x7fff : container);
-        }
+        exec_update_inv_partial(ctx, &packet->_update_inv_partial);
         break;
-    /* deob client.java (class243.field2979): the inventory is unlinked and its
-     * id goes onto the same changed-inventory ring UPDATE_INV_FULL feeds
-     * (field733.method9432), so the inventory's transmit hooks run and redraw
-     * the emptied slots. */
     case PKT_NAME_UPDATE_INV_STOP_TRANSMIT:
-        if( modelled == RS_SERVER_STATE_APPLIED )
-        {
-            struct PktUpdateInvStopTransmit const* p = &packet->_update_inv_stop_transmit;
-            int const container = RS_ServerState_InvContainerId(p->inv_id, p->component_id);
-
-            RS_CS2Host_NotifyInvChanged(
-                &ctx->app->host, p->inv_id > 0 ? container & 0x7fff : container);
-        }
+        exec_update_inv_stop_transmit(ctx, &packet->_update_inv_stop_transmit);
         break;
 
     /* ---- interface component mutations ---- */
-    /* The store write is the model's; these put the value on the node when
-     * the node is mounted, and an app-less run (the unit tests) writes the
-     * tree it was handed. */
     case PKT_NAME_IF_SETTEXT:
-        App_IfTextShow(ctx->app, packet->_if_settext.component_id, packet->_if_settext.text);
-        /* A quest completion is painted onto the scroll and never said
-         * aloud (content: questscroll.rs2), so this is the only place the
-         * client can see one happen. */
-        App_NotifyInterfaceText(ctx->app, packet->_if_settext.text);
+        exec_if_settext(ctx, &packet->_if_settext);
         break;
     case PKT_NAME_IF_SETEVENTS:
-        /* Persisting, like IF_SETHIDE: the server enables a component's events
-         * before the interface holding it has finished mounting. */
-        App_IfEventsShow(
-            ctx->app,
-            packet->_if_setevents.component_id,
-            packet->_if_setevents.from,
-            packet->_if_setevents.to,
-            packet->_if_setevents.events);
+        exec_if_setevents(ctx, &packet->_if_setevents);
         break;
     case PKT_NAME_IF_SETHIDE:
-        if( getenv("TORIRS_TRACE_NATIVE_UI") )
-            TORIRS_REPORT("NATIVE_PACKET IF_SETHIDE received com=%d hide=%d\n",
-                packet->_if_sethide.component_id, packet->_if_sethide.hide);
-        App_IfHideShow(ctx->app, packet->_if_sethide.component_id, packet->_if_sethide.hide);
+        exec_if_sethide(ctx, &packet->_if_sethide);
         break;
     case PKT_NAME_IF_SETCOLOUR:
-        /* Persisting, like IF_SETTEXT and IF_SETHIDE above, and for the same
-         * reason: a colour written in the tick its interface is mounted has no
-         * node to land on yet. This applied straight to the tree, so it was the
-         * one setter of the family that could be silently dropped — and it was,
-         * every time, for an overlay the server opens and colours together. */
-        App_IfColourShow(
-            ctx->app,
-            packet->_if_setcolour.component_id,
-            RS_ServerState_Rs15ToRgb(packet->_if_setcolour.colour));
+        exec_if_setcolour(ctx, &packet->_if_setcolour);
         break;
     case PKT_NAME_IF_SETMODEL:
-        /* A wire model id addresses the cache, not the renderer's scene. The
-         * App owns the asynchronous cache-load/upload bridge and persistence
-         * across an interface remount. */
-        App_SetInterfaceModel(
-            ctx->app,
-            packet->_if_setmodel.component_id,
-            packet->_if_setmodel.model_id);
+        exec_if_setmodel(ctx, &packet->_if_setmodel);
         break;
     case PKT_NAME_IF_SETOBJECT:
-        /* Reference IfType.getModel type 4: the obj's 3D interface model (the
-         * server drives the combat-tab weapon display with this on equip). */
-        App_SetInterfaceObjModel(
-            ctx->app,
-            packet->_if_setobject.component_id,
-            packet->_if_setobject.obj_id,
-            packet->_if_setobject.zoom);
+        exec_if_setobject(ctx, &packet->_if_setobject);
         break;
     case PKT_NAME_IF_SETNPCHEAD:
-        /* Reference IfType.getModel type 2: composite the npc chathead and bind
-         * it. Needs the App (async model loads via the exec runner). */
-        App_SetInterfaceNpcHead(
-            ctx->app, packet->_if_setnpchead.component_id, packet->_if_setnpchead.npc_id);
+        exec_if_setnpchead(ctx, &packet->_if_setnpchead);
         break;
     case PKT_NAME_IF_SETPLAYERHEAD:
-        /* Reference IfType.getModel type 3: local-player chathead. */
-        App_SetInterfacePlayerHead(ctx->app, packet->_if_setplayerhead.component_id);
+        exec_if_setplayerhead(ctx, &packet->_if_setplayerhead);
         break;
     case PKT_NAME_IF_SETANIM:
-        /* Reference modelAnim: the chathead's talk/idle sequence. Persist via the
-         * App (survives the chat interface mounting after the packet); fall back
-         * to a direct field set for tests with no App. */
-        App_SetInterfaceModelAnim(
-            ctx->app, packet->_if_setanim.component_id, packet->_if_setanim.anim_id);
+        exec_if_setanim(ctx, &packet->_if_setanim);
         break;
     /* Written to the tree alone, the same in a client with no App
      * (game/rs_gameproto_exec.c): they rely on the mount task having been
@@ -2053,283 +3648,59 @@ App_GameProto_Exec(
         RS_GameProto_PresentTree(ctx->tree, packet);
         break;
     case PKT_NAME_IF_SETNPCHEAD_ACTIVE:
-    {
-        int world_idx;
-
-        /* app->world lives from App_Init to shutdown (app.c). */
-        assert(ctx->app->world);
-        if( RS_EntitySync_FindNpc(
-                &ctx->app->esync,
-                packet->_if_setnpchead_active.index,
-                &world_idx,
-                NULL) )
-        {
-            struct WorldEntity_NPC* npc =
-                World_EntityPoolGet(&ctx->app->world->entities.npc, world_idx);
-            if( npc )
-                App_SetInterfaceNpcHead(
-                    ctx->app,
-                    packet->_if_setnpchead_active.component_id,
-                    npc->npc_id);
-        }
-    }
+        exec_if_setnpchead_active(ctx, &packet->_if_setnpchead_active);
         break;
     case PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR:
-        App_SetInterfacePlayerModelBaseColour(
-            ctx->app,
-            packet->_if_setplayermodel.component_id,
-            packet->_if_setplayermodel.index,
-            packet->_if_setplayermodel.value);
+        exec_if_setplayermodel_basecolour(ctx, &packet->_if_setplayermodel);
         break;
     case PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE:
-        App_SetInterfacePlayerModelBodyType(
-            ctx->app,
-            packet->_if_setplayermodel.component_id,
-            packet->_if_setplayermodel.value);
+        exec_if_setplayermodel_bodytype(ctx, &packet->_if_setplayermodel);
         break;
     case PKT_NAME_IF_SETPLAYERMODEL_OBJ:
-        App_SetInterfacePlayerModelObj(
-            ctx->app,
-            packet->_if_setplayermodel.component_id,
-            packet->_if_setplayermodel.value);
+        exec_if_setplayermodel_obj(ctx, &packet->_if_setplayermodel);
         break;
     case PKT_NAME_IF_SETPLAYERMODEL_SELF:
-        App_SetInterfacePlayerModelSelf(
-            ctx->app,
-            packet->_if_setplayermodel.component_id,
-            packet->_if_setplayermodel.value);
+        exec_if_setplayermodel_self(ctx, &packet->_if_setplayermodel);
         break;
 
     /* ---- interface slots (need the App / RS_UISlots) ---- */
     case PKT_NAME_IF_OPENMAIN:
-        RS_UISlots_OpenMain(ctx->app, packet->_if_openmain.component_id);
+        exec_if_openmain(ctx, &packet->_if_openmain);
         break;
     case PKT_NAME_IF_OPENSIDE:
-        RS_UISlots_OpenSide(ctx->app, packet->_if_openside.component_id);
+        exec_if_openside(ctx, &packet->_if_openside);
         break;
     case PKT_NAME_IF_OPENMAIN_SIDE:
-        RS_UISlots_OpenMainSide(
-            ctx->app,
-            packet->_if_openmain_side.main_component_id,
-            packet->_if_openmain_side.side_component_id);
+        exec_if_openmain_side(ctx, &packet->_if_openmain_side);
         break;
     case PKT_NAME_IF_OPENCHAT:
-        RS_UISlots_OpenChat(ctx->app, packet->_if_openchat.component_id);
+        exec_if_openchat(ctx, &packet->_if_openchat);
         break;
     case PKT_NAME_IF_CLOSE:
-        RS_UISlots_CloseModal(ctx->app);
+        exec_if_close(ctx);
         break;
     case PKT_NAME_IF_SETTAB:
-        if( getenv("TORIRS_TRACE_NATIVE_UI") )
-            TORIRS_REPORT("NATIVE_PACKET IF_SETTAB received tab=%d com=%d\n",
-                packet->_if_settab.tab_id, packet->_if_settab.component_id);
-        RS_UISlots_SetTab(ctx->app, packet->_if_settab.tab_id, packet->_if_settab.component_id);
+        exec_if_settab(ctx, &packet->_if_settab);
         break;
 
     /* ---- modern gameframe interfaces (rev-230 openTop/openSub) ---- */
     case PKT_NAME_IF_OPENTOP:
-    {
-        /* Switch the gameframe root when the server asks for a different top
-         * (Display Fixed/Classic/Modern). Reject non-positive ids — a live
-         * server once sent 0 and wiped the tree. Same-id is a no-op. */
-        int top = packet->_if_opentop.interface_id;
-        int cur = RS_BootState_InterfaceId(&ctx->app->boot);
-        if( top <= 0 )
-            break;
-        if( top == cur )
-            break;
-        TORIRS_LOG("if-opentop: switching root %d -> %d\n", cur, top);
-        /*
-         * The IF_SETEVENTS arming survives the switch.
-         *
-         * The reference's open-top (rev 239 class415.method9502, rev 241
-         * class420.method9711 + method9723) unloads the old root's widgets and
-         * loads the new one; it never touches the flags table. Only IF_RESYNC
-         * replaces that table, and a closed group loses its own entries
-         * (RS_ServerState_SlotGroupLeaves). The subs IF_MOVESUB carries into the new top
-         * keep their masks: Jagex arms the backpack once at login and the
-         * welcome screen's Play then opens the gameframe top without arming it
-         * again (RSProx index 4378: IF_SETEVENTS 149:0 at line 644, IF_OPENTOP
-         * at 782, an op on a backpack item at 4258). Clearing here left every
-         * backpack slot without its target bits, so no item offered "Use".
-         */
-        App_OpenRootInterface(ctx->app, top);
+        exec_if_opentop(ctx, &packet->_if_opentop);
         break;
-    }
     case PKT_NAME_IF_OPENSUB:
-        if( torirs_env_net_debug() )
-            TORIRS_LOG("if-opensub: iface=%d target=0x%08x (%d<<16|%d) type=%d\n",
-                packet->_if_opensub.interface_id,
-                (unsigned)packet->_if_opensub.target_uid,
-                (packet->_if_opensub.target_uid >> 16) & 0xffff,
-                packet->_if_opensub.target_uid & 0xffff,
-                packet->_if_opensub.type);
-        App_OpenSubInterface(
-            ctx->app,
-            packet->_if_opensub.target_uid,
-            packet->_if_opensub.interface_id,
-            packet->_if_opensub.type);
+        exec_if_opensub(ctx, &packet->_if_opensub);
         break;
     case PKT_NAME_IF_CLOSESUB:
-        App_CloseSubInterface(ctx->app, packet->_if_closesub.target_uid);
+        exec_if_closesub(ctx, &packet->_if_closesub);
         break;
     case PKT_NAME_IF_MOVESUB:
-        /* Wire data: a component uid is (group << 16) | child, never negative.
-         * One that is names no slot either side of the move, so the packet is
-         * refused here, in one place, with a line. */
-        if( packet->_if_movesub.source_uid < 0 || packet->_if_movesub.dest_uid < 0 )
-        {
-            TORIRS_ERR("gameproto_exec: IF_MOVESUB 0x%08x -> 0x%08x names no component, refused\n",
-                (unsigned)packet->_if_movesub.source_uid,
-                (unsigned)packet->_if_movesub.dest_uid);
-            break;
-        }
-        App_MoveSubInterface(
-            ctx->app, packet->_if_movesub.source_uid, packet->_if_movesub.dest_uid);
+        exec_if_movesub(ctx, &packet->_if_movesub);
         break;
     case PKT_NAME_IF_RESYNC_V2:
-    {
-        struct App* app = ctx->app;
-        struct PktIfResync const* sync = &packet->_if_resync;
-        int root_changed = sync->root_interface_id > 0 &&
-                           sync->root_interface_id != RS_BootState_InterfaceId(&app->boot);
-        struct UITreeInterfaceParent live[UITREE_INTERFACE_PARENT_MAX];
-        unsigned char* resync_reachable;
-        int live_count = 0;
-
-        if( root_changed )
-            App_OpenRootInterface(app, sync->root_interface_id);
-        resync_reachable = ToriMem_Calloc(
-            ToriMem_Process(), (size_t)(sync->mount_count > 0 ? sync->mount_count : 1), 1);
-        assert(resync_reachable);
-
-        /*
-         * RECONCILE against what is already mounted; do not close and
-         * reopen the lot.
-         *
-         * The snapshot is the server's mount registry, so a slot it
-         * restates with the same group and type is a slot the client
-         * already has right — and closing it is destructive, not neutral.
-         * A close reclaims the whole widget group (App_CloseSubInterface),
-         * which throws away everything the CS2 scripts built on top of the
-         * cache pack: hidden/shown layers, dynamic children, the lot. The
-         * reopen re-bakes from the pack and only re-runs that pack's OWN
-         * onload, so anything configured from outside it stays lost.
-         *
-         * Measured on the Display panel's layout switch, which is the only
-         * thing that sends this packet: `ToriRSServer_GameframeOpentop`
-         * remounts the frame and then commits the same registry here. The
-         * toplevel's onload had already picked the popout strip's
-         * collapsed variant (`popout` 728: layer 4 shown, layer 7 hidden)
-         * and created its three panel buttons as dynamic children of
-         * 728:6; the blanket close threw all of it away and the reopen
-         * came back at the cache defaults — a black strip with no buttons.
-         *
-         * Closing what the snapshot does NOT restate is still this
-         * packet's job, and that is what removes the stale mounts an
-         * interrupted layout switch leaves behind.
-         */
-        if( app->tree )
-        {
-            live_count = app->tree->interface_parent_count;
-            if( live_count > UITREE_INTERFACE_PARENT_MAX )
-                live_count = UITREE_INTERFACE_PARENT_MAX;
-            memcpy(
-                live,
-                app->tree->interface_parents,
-                (size_t)live_count * sizeof(live[0]));
-        }
-        for( int i = 0; i < live_count; i++ )
-        {
-            int keep = 0;
-            for( int j = 0; !keep && j < sync->mount_count; j++ )
-                keep = sync->mounts[j].target_uid == live[i].container_uid &&
-                       sync->mounts[j].interface_id == live[i].group_id &&
-                       sync->mounts[j].type == live[i].type;
-            if( !keep )
-                App_CloseSubInterface(app, live[i].container_uid);
-        }
-        App_IfEventsClear(app);
-        /* The snapshot is one table, and it can state a mount in a slot
-         * the live top does not have: the server keeps what a root switch
-         * did not move (the phone's hotkey column while the world map's
-         * top is up). Those are kept, not opened -- their slot is not in
-         * this tree -- and a kept record the snapshot does not restate is
-         * gone. Reachable = under the root, or inside a reachable group. */
-        {
-            int const root = sync->root_interface_id > 0 ? sync->root_interface_id
-                                                         : RS_BootState_InterfaceId(&app->boot);
-            int grew = 1;
-
-            while( grew )
-            {
-                grew = 0;
-                for( int i = 0; i < sync->mount_count; i++ )
-                {
-                    int const slot_group = (int)((uint32_t)sync->mounts[i].target_uid >> 16);
-                    int found = slot_group == root;
-
-                    if( resync_reachable[i] )
-                        continue;
-                    for( int j = 0; !found && j < sync->mount_count; j++ )
-                        found = resync_reachable[j] && sync->mounts[j].interface_id == slot_group;
-                    if( found )
-                    {
-                        resync_reachable[i] = 1;
-                        grew = 1;
-                    }
-                }
-            }
-            App_KeptMountsClear(app);
-            for( int i = 0; i < sync->mount_count; i++ )
-                if( !resync_reachable[i] && sync->mounts[i].interface_id > 0 )
-                    App_KeptMountAdd(
-                        app,
-                        sync->mounts[i].target_uid,
-                        sync->mounts[i].interface_id,
-                        sync->mounts[i].type);
-        }
-        for( int i = 0; i < sync->mount_count; i++ )
-        {
-            int mounted = 0;
-            for( int j = 0; !mounted && j < live_count; j++ )
-                mounted = live[j].container_uid == sync->mounts[i].target_uid &&
-                          live[j].group_id == sync->mounts[i].interface_id &&
-                          live[j].type == sync->mounts[i].type;
-            /* U7: a root change has already queued the kept mounts of
-             * the new top (App_RootMountsReturn), and the live snapshot
-             * it emptied cannot say so. A second mount task for the same
-             * group would remount it and drop its arming. */
-            if( !mounted )
-                mounted = App_SlotMountQueued(
-                    app,
-                    sync->mounts[i].target_uid,
-                    sync->mounts[i].interface_id,
-                    sync->mounts[i].type);
-            if( mounted || !resync_reachable[i] )
-                continue;
-            App_OpenSubInterface(
-                app,
-                sync->mounts[i].target_uid,
-                sync->mounts[i].interface_id,
-                sync->mounts[i].type);
-        }
-        for( int i = 0; i < sync->event_count; i++ )
-        {
-            uint32_t mask = sync->events[i].events1 |
-                ((sync->events[i].events2 & UINT32_C(0x3ff)) << 1);
-            App_IfEventsSet(
-                app,
-                sync->events[i].component_id,
-                sync->events[i].from,
-                sync->events[i].to,
-                (int)mask);
-        }
-        ToriMem_Free(ToriMem_Process(), resync_reachable);
-    }
+        exec_if_resync_v2(ctx, &packet->_if_resync);
         break;
     case PKT_NAME_RUNCLIENTSCRIPT:
-        App_RunClientScript(ctx->app, packet->_runclientscript);
+        exec_runclientscript(ctx, packet);
         break;
     case PKT_NAME_TRIGGER_ONDIALOGABORT:
         exec_trigger_on_dialog_abort(ctx);
@@ -2337,86 +3708,29 @@ App_GameProto_Exec(
 
     /* ---- chat ---- */
     case PKT_NAME_MESSAGE_GAME:
-        exec_chat_presented(ctx);
-        /* Independent of the chatbox: a headless run has no chat model, and a
-         * plugin watching for a boss kill has to work there too. */
-        App_NotifyChatMessage(
-            ctx->app,
-            packet->_message_game.type,
-            packet->_message_game.name,
-            packet->_message_game.text);
+        exec_message_game(ctx, &packet->_message_game);
         break;
 
     /* ---- world rebuild ---- */
     case PKT_NAME_REBUILD_NORMAL:
     case PKT_NAME_REBUILD_REGION:
-        /* Handled inside Task_GameProtoExec (world-load await + MAP_BUILD_
-         * COMPLETE ack); reaching here means no app context. */
-        if( torirs_env_net_debug() )
-            TORIRS_LOG("gameproto_exec: %s zone=%d,%d (no app ctx)\n",
-                packet->_map_rebuild.zones ? "REBUILD_REGION" : "REBUILD_NORMAL",
-                packet->_map_rebuild.zonex,
-                packet->_map_rebuild.zonez);
+        exec_rebuild(ctx, &packet->_map_rebuild);
         break;
     case PKT_NAME_PLAYER_INFO:
     case PKT_NAME_NPC_INFO:
     case PKT_NAME_NPC_INFO_LARGE:
-        /* Consumed by Task_GameProtoExec's awaited entity-info tasks once a
-         * scene is loaded (WorldLoadState_Active). Reaching here is the one
-         * real "not ready" case: no REBUILD has built a scene this session
-         * yet, and every coordinate in the stream is relative to the scene
-         * base the rebuild sets, so there is nothing to place against. The
-         * server sends REBUILD before the first info packet of a session, so
-         * this is a stray packet, and it is dropped on purpose. Without an App
-         * (the unit harness) there is no world to apply it to either. */
-        if( torirs_env_net_debug() )
-            TORIRS_LOG("gameproto_exec: entity info packet %d dropped (no active world)\n",
-                packet->packet_type);
+        exec_entity_info_dropped(ctx, packet);
         break;
 
     /* ---- zone packets (world mutations) ---- */
     case PKT_NAME_UPDATE_ZONE_PARTIAL_FOLLOWS:
-        /* Wire base is classic-scene local; with a (zone-6)*8 scene base
-         * that is our-scene too. */
-        zone_set_base(
-            ctx->app,
-            packet->_update_zone_partial_follows.base_x,
-            packet->_update_zone_partial_follows.base_z,
-            zone_header_level(ctx->app, packet->_update_zone_partial_follows.level));
+        exec_update_zone_partial_follows(ctx, &packet->_update_zone_partial_follows);
         break;
     case PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS:
-    {
-        struct App* app = ctx->app;
-        zone_set_base(
-            app,
-            packet->_update_zone_full_follows.base_x,
-            packet->_update_zone_full_follows.base_z,
-            zone_header_level(app, packet->_update_zone_full_follows.level));
-        /* Full update: the zone's client-side locs and obj stacks reset --
-         * in arrival order with the packets around it: held behind any
-         * packet still held for the view, or for its scene to be built.
-         * app->world lives from App_Init to shutdown (app.c). */
-        assert(app->world);
-        {
-            struct ZoneAt at = zone_at_now(app);
-
-            zone_exec_or_hold(ctx, PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS, NULL, &at);
-        }
-    }
+        exec_update_zone_full_follows(ctx, &packet->_update_zone_full_follows);
         break;
     case PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED:
-    {
-        struct PktUpdateZoneEnclosed const* enc = &packet->_update_zone_enclosed;
-        /* Wire base is classic-scene local; with a (zone-6)*8 scene base
-         * that is our-scene too. */
-        zone_set_base(
-            ctx->app,
-            enc->base_x,
-            enc->base_z,
-            zone_header_level(ctx->app, enc->level));
-        for( int i = 0; i < enc->count; i++ )
-            exec_zone_sub_packet(ctx, enc->entries[i].name, &enc->entries[i]._loc_add_change);
-    }
+        exec_update_zone_partial_enclosed(ctx, &packet->_update_zone_enclosed);
         break;
     case PKT_NAME_OBJ_ADD:
         exec_zone_sub_packet(ctx, PKT_NAME_OBJ_ADD, &packet->_obj_add);
@@ -2467,20 +3781,14 @@ App_GameProto_Exec(
     case PKT_NAME_PROJANIM_SPECIFIC:
         exec_projanim_specific(ctx, &packet->_projanim_specific);
         break;
-    /* The seq and spotanim are the model's; the held models and the
-     * spotanim's asset are the client's to fetch. */
     case PKT_NAME_ANIM_SPECIFIC:
-        if( modelled == RS_SERVER_STATE_APPLIED && packet->_anim_specific.id >= 0 )
-            EntityAssets_WantPlayerHeldForPid(
-                ctx->app, RS_ServerState_LocalPid(ctx->state->esync), packet->_anim_specific.id);
+        exec_anim_specific(ctx, &packet->_anim_specific);
         break;
     case PKT_NAME_NPC_ANIM_SPECIFIC:
         break;
     case PKT_NAME_NPC_SPOTANIM_SPECIFIC:
     case PKT_NAME_PLAYER_SPOTANIM_SPECIFIC:
-        if( modelled == RS_SERVER_STATE_APPLIED &&
-            packet->_entity_spotanim_specific.id >= 0 )
-            App_EntitySpotanimPrefetch(ctx->app, packet->_entity_spotanim_specific.id);
+        exec_entity_spotanim_specific(ctx, &packet->_entity_spotanim_specific);
         break;
     case PKT_NAME_SOUND_AREA:
         exec_zone_sub_packet(ctx, PKT_NAME_SOUND_AREA, &packet->_sound_area);
@@ -2497,428 +3805,93 @@ App_GameProto_Exec(
 
     /* ---- camera ---- */
     case PKT_NAME_CAM_MOVETO:
-    {
-        struct App* app = ctx->app;
-        /* app->world lives from App_Init to shutdown (app.c). */
-        assert(app->world);
-        /* Classic wire coords are scene-local tiles; the V2 packet's are
-         * absolute world tiles (packet->absolute), converted here against
-         * the scene the shot plays in. These only record where the camera
-         * is headed; App_CinemaCamera walks it there. */
-        int cam_lx = packet->_cam_moveto.local_x;
-        int cam_lz = packet->_cam_moveto.local_z;
-        if( packet->_cam_moveto.absolute )
-        {
-            cam_lx -= app->world->_base_tile_x;
-            cam_lz -= app->world->_base_tile_z;
-        }
-        /* The look half is left as it is (deob client.java, class243.field3026):
-         * after a CAM_RESET its rates are 0, so the angles hold. */
-        if( CamScript_MoveTo(
-                &app->cam_script,
-                cam_lx,
-                cam_lz,
-                packet->_cam_moveto.height,
-                packet->_cam_moveto.rate,
-                packet->_cam_moveto.rate2) )
-            App_CinemaCameraSnapPosition(app);
-        exec_cam_script_record(
-            app,
-            CAM_SCRIPT_OP_MOVETO,
-            cam_lx + app->world->_base_tile_x,
-            cam_lz + app->world->_base_tile_z,
-            packet->_cam_moveto.height,
-            packet->_cam_moveto.rate,
-            packet->_cam_moveto.rate2);
-        RedrawRequest_Raise(&app->redraw_request);
-    }
+        exec_cam_moveto(ctx, &packet->_cam_moveto);
         break;
     case PKT_NAME_CAM_LOOKAT:
-    {
-        struct App* app = ctx->app;
-        assert(app->world);
-        /* Same absolute-vs-scene-local split as CAM_MOVETO above. */
-        int cam_lx = packet->_cam_lookat.local_x;
-        int cam_lz = packet->_cam_lookat.local_z;
-        if( packet->_cam_lookat.absolute )
-        {
-            cam_lx -= app->world->_base_tile_x;
-            cam_lz -= app->world->_base_tile_z;
-        }
-        /* The move half is left as it is (deob client.java, class243.field3073):
-         * after a CAM_RESET its rates are 0, so the eye holds where it was
-         * -- Wanted!'s scans turn to Solus without moving (RSProx 4464
-         * [2833]). */
-        if( CamScript_LookAt(
-                &app->cam_script,
-                cam_lx,
-                cam_lz,
-                packet->_cam_lookat.height,
-                packet->_cam_lookat.rate,
-                packet->_cam_lookat.rate2) )
-            App_CinemaCameraSnapAngle(app);
-        exec_cam_script_record(
-            app,
-            CAM_SCRIPT_OP_LOOKAT,
-            cam_lx + app->world->_base_tile_x,
-            cam_lz + app->world->_base_tile_z,
-            packet->_cam_lookat.height,
-            packet->_cam_lookat.rate,
-            packet->_cam_lookat.rate2);
-        RedrawRequest_Raise(&app->redraw_request);
-    }
+        exec_cam_lookat(ctx, &packet->_cam_lookat);
         break;
     case PKT_NAME_CAM_MOVETO_CYCLES:
-    {
-        struct App* app = ctx->app;
-
-        /* app->world lives from App_Init to shutdown (app.c). */
-        assert(app->world);
-        /* World tiles from v2 on; v0/v1 (222-236) send build-area tiles. */
-        int cam_lx = packet->_cam_moveto_cycles.x -
-                     (packet->_cam_moveto_cycles.absolute ? app->world->_base_tile_x : 0);
-        int cam_lz = packet->_cam_moveto_cycles.z -
-                     (packet->_cam_moveto_cycles.absolute ? app->world->_base_tile_z : 0);
-        App_CinemaCameraMoveCycles(
-            app,
-            cam_lx,
-            cam_lz,
-            packet->_cam_moveto_cycles.height,
-            packet->_cam_moveto_cycles.cycles,
-            packet->_cam_moveto_cycles.ignore_terrain,
-            packet->_cam_moveto_cycles.easing,
-            packet->_cam_moveto_cycles.height_relative);
-        exec_cam_script_record(
-            app,
-            CAM_SCRIPT_OP_MOVETO_CYCLES,
-            cam_lx + app->world->_base_tile_x,
-            cam_lz + app->world->_base_tile_z,
-            packet->_cam_moveto_cycles.height,
-            packet->_cam_moveto_cycles.cycles,
-            packet->_cam_moveto_cycles.easing);
-        RedrawRequest_Raise(&app->redraw_request);
-    }
+        exec_cam_moveto_cycles(ctx, &packet->_cam_moveto_cycles);
         break;
-    /* deob client.java class259.field3190: signed deltas from where the camera
-     * is. Recorded as yaw, pitch, cycles in height, rate, rate2. */
     case PKT_NAME_CAM_ROTATEBY:
-        /* app->world lives from App_Init to shutdown (app.c). */
-        assert(ctx->app->world);
-        App_CinemaCameraRotateBy(
-            ctx->app,
-            packet->_cam_rotate.yaw,
-            packet->_cam_rotate.pitch,
-            packet->_cam_rotate.cycles,
-            packet->_cam_rotate.easing);
-        exec_cam_script_record(
-            ctx->app,
-            CAM_SCRIPT_OP_ROTATEBY,
-            -1,
-            -1,
-            packet->_cam_rotate.yaw,
-            packet->_cam_rotate.pitch,
-            packet->_cam_rotate.cycles);
-        RedrawRequest_Raise(&ctx->app->redraw_request);
+        exec_cam_rotateby(ctx, &packet->_cam_rotate);
         break;
-    /* deob client.java class259.field3187. */
     case PKT_NAME_CAM_ROTATETO:
-        /* app->world lives from App_Init to shutdown (app.c). */
-        assert(ctx->app->world);
-        App_CinemaCameraRotateTo(
-            ctx->app,
-            packet->_cam_rotate.yaw,
-            packet->_cam_rotate.pitch,
-            packet->_cam_rotate.cycles,
-            packet->_cam_rotate.easing);
-        exec_cam_script_record(
-            ctx->app,
-            CAM_SCRIPT_OP_ROTATETO,
-            -1,
-            -1,
-            packet->_cam_rotate.yaw,
-            packet->_cam_rotate.pitch,
-            packet->_cam_rotate.cycles);
-        RedrawRequest_Raise(&ctx->app->redraw_request);
+        exec_cam_rotateto(ctx, &packet->_cam_rotate);
         break;
     case PKT_NAME_CAM_LOOKAT_CYCLES:
-    {
-        struct App* app = ctx->app;
-
-        /* app->world lives from App_Init to shutdown (app.c). */
-        assert(app->world);
-        struct PktCamLookAtCycles const* l = &packet->_cam_lookat_cycles;
-
-        CamScript_LookCycles(
-            &app->cam_script,
-            l->x - app->world->_base_tile_x,
-            l->z - app->world->_base_tile_z,
-            l->height,
-            l->height_relative,
-            app->world->cycle,
-            l->cycles,
-            l->easing);
-        exec_cam_script_record(
-            app, CAM_SCRIPT_OP_LOOKAT_CYCLES, l->x, l->z, l->height, l->cycles, l->easing);
-        RedrawRequest_Raise(&app->redraw_request);
-    }
+        exec_cam_lookat_cycles(ctx, &packet->_cam_lookat_cycles);
         break;
     case PKT_NAME_CAM_MOVETO_ARC:
-    {
-        struct App* app = ctx->app;
-
-        /* app->world lives from App_Init to shutdown (app.c). */
-        assert(app->world);
-        struct PktCamMoveToArc const* a = &packet->_cam_moveto_arc;
-        int base_x = a->absolute ? app->world->_base_tile_x : 0;
-        int base_z = a->absolute ? app->world->_base_tile_z : 0;
-
-        App_CinemaCameraMoveArc(
-            app,
-            a->x - base_x,
-            a->z - base_z,
-            a->via_x - base_x,
-            a->via_z - base_z,
-            a->height,
-            a->cycles,
-            a->ignore_terrain,
-            a->easing,
-            a->height_relative);
-        exec_cam_script_record(
-            app,
-            CAM_SCRIPT_OP_MOVETO_ARC,
-            a->x - base_x + app->world->_base_tile_x,
-            a->z - base_z + app->world->_base_tile_z,
-            a->height,
-            a->cycles,
-            a->easing);
-        RedrawRequest_Raise(&app->redraw_request);
-    }
+        exec_cam_moveto_arc(ctx, &packet->_cam_moveto_arc);
         break;
     case PKT_NAME_CAM_ROTATETO_COORDINATE:
-    {
-        struct App* app = ctx->app;
-
-        /* app->world lives from App_Init to shutdown (app.c). */
-        assert(app->world);
-        int cam_lx = packet->_cam_rotateto_coordinate.x -
-                     (packet->_cam_rotateto_coordinate.absolute ? app->world->_base_tile_x : 0);
-        int cam_lz = packet->_cam_rotateto_coordinate.z -
-                     (packet->_cam_rotateto_coordinate.absolute ? app->world->_base_tile_z : 0);
-        App_CinemaCameraRotateCycles(
-            app,
-            cam_lx,
-            cam_lz,
-            packet->_cam_rotateto_coordinate.height,
-            packet->_cam_rotateto_coordinate.cycles,
-            packet->_cam_rotateto_coordinate.easing,
-            packet->_cam_rotateto_coordinate.height_relative);
-        exec_cam_script_record(
-            app,
-            CAM_SCRIPT_OP_ROTATETO_COORDINATE,
-            cam_lx + app->world->_base_tile_x,
-            cam_lz + app->world->_base_tile_z,
-            packet->_cam_rotateto_coordinate.height,
-            packet->_cam_rotateto_coordinate.cycles,
-            packet->_cam_rotateto_coordinate.easing);
-        RedrawRequest_Raise(&app->redraw_request);
-    }
+        exec_cam_rotateto_coordinate(ctx, &packet->_cam_rotateto_coordinate);
         break;
     case PKT_NAME_CAM_SHAKE:
-    {
-        /* The wire order is axis, spread, amplitude, rate — the packet's
-         * field names predate knowing which was which. */
-        int axis = packet->_cam_shake.axis;
-        if( axis >= 0 && axis < CAM_SCRIPT_SHAKE_AXES )
-            CamScript_Shake(
-                &ctx->app->cam_script,
-                axis,
-                packet->_cam_shake.amplitude,
-                packet->_cam_shake.frequency,
-                packet->_cam_shake.speed);
-        /* Recorded whatever the axis: an out-of-range shake is still a
-         * packet the server sent, and the serial counts every one. */
-        exec_cam_script_record(
-            ctx->app,
-            CAM_SCRIPT_OP_SHAKE,
-            -1,
-            -1,
-            packet->_cam_shake.frequency,
-            axis,
-            packet->_cam_shake.speed);
-    }
+        exec_cam_shake(ctx, &packet->_cam_shake);
         break;
     case PKT_NAME_CAM_RESET:
-    {
-        struct App* app = ctx->app;
-        /* Deob client.java, class243.field2937: both targets, heights and
-         * rates to 0, not just the flag. A stale move rate would carry the
-         * last scene's eye into the next look-at-only scene. */
-        CamScript_Reset(&app->cam_script);
-        exec_cam_script_record(app, CAM_SCRIPT_OP_RESET, -1, -1, 0, 0, 0);
-        RedrawRequest_Raise(&app->redraw_request);
-    }
+        exec_cam_reset(ctx);
         break;
     case PKT_NAME_CAM_SMOOTHRESET:
-    {
-        struct App* app = ctx->app;
-        /* Deob client.java, class243.field2963 `&& field904`: only a
-         * script that is up can glide back. The targets and rates stay;
-         * app_world_camera_follow walks the eye home with them, and
-         * ending it is CamScript_GlideEnd's. Every CAM_MOVETO or
-         * CAM_LOOKAT after this cancels the glide (field698 = false). */
-        if( CamScript_SmoothReset(&app->cam_script) )
-            RedrawRequest_Raise(&app->redraw_request);
-        exec_cam_script_record(
-            app,
-            CAM_SCRIPT_OP_SMOOTHRESET,
-            -1,
-            -1,
-            0,
-            packet->_cam_smoothreset.move_constant_speed,
-            packet->_cam_smoothreset.move_proportional_speed);
-    }
+        exec_cam_smoothreset(ctx, &packet->_cam_smoothreset);
         break;
-
-    /* deob client.java class243.field2935 (V3) / field3045 (V4): field2521 is
-     * the type, field774 the index, and the camera's focus is that entity
-     * (client.method1700, Statics.method8560) until a login puts the local
-     * player back. app_world_camera_follow reads it. */
     case PKT_NAME_CAM_TARGET:
-        if( CamScript_SetTarget(&ctx->app->cam_script, packet->_cam_target.type, packet->_cam_target.index) )
-            RedrawRequest_Raise(&ctx->app->redraw_request);
+        exec_cam_target(ctx, &packet->_cam_target);
         break;
 
     /* ---- social ---- */
-    /* The friends panel's rows are cc_created from the store by the client's
-     * own script 125, so nothing repaints them but the friend-transmit
-     * channel. Filling the store without this notify leaves the panel showing
-     * whatever it drew at mount. Script 681 reads the chat filter modes back
-     * through chat_getfilter_private before it will send a private message,
-     * so a filter change reaches the CS2 side the same way. */
     case PKT_NAME_UPDATE_FRIENDLIST:
     case PKT_NAME_UPDATE_IGNORELIST:
     case PKT_NAME_FRIENDLIST_LOADED:
     case PKT_NAME_CHAT_FILTER_SETTINGS:
-        RS_CS2Host_NotifyFriendChanged(&ctx->app->host);
-        RedrawRequest_Raise(&ctx->app->redraw_request);
+        exec_friend_changed(ctx);
         break;
     case PKT_NAME_MESSAGE_PRIVATE:
-        if( modelled == RS_SERVER_STATE_APPLIED )
-        {
-            char name[16];
-
-            exec_chat_presented(ctx);
-            base37tostr((uint64_t)packet->_message_private.from, name, sizeof(name));
-            App_NotifyChatMessage(
-                ctx->app,
-                packet->_message_private.staff_mod ? RS_CHAT_TYPE_PRIVATE_FROM_MOD
-                                                   : RS_CHAT_TYPE_PRIVATE_FROM,
-                name,
-                packet->_message_private.text);
-        }
+        exec_message_private(ctx, &packet->_message_private);
         break;
-    /* Plugins hear every chat line the store takes, as they hear MESSAGE_GAME
-     * and MESSAGE_PRIVATE: RuneLite's ChatMessage fires for every line the
-     * client adds, whichever channel. */
     case PKT_NAME_MESSAGE_PRIVATE_ECHO:
-        if( modelled == RS_SERVER_STATE_APPLIED )
-        {
-            exec_chat_presented(ctx);
-            App_NotifyChatMessage(
-                ctx->app,
-                RS_CHAT_TYPE_PRIVATE_TO,
-                packet->_message_private_echo.recipient,
-                packet->_message_private_echo.text ? packet->_message_private_echo.text : "");
-        }
+        exec_message_private_echo(ctx, &packet->_message_private_echo);
         break;
     case PKT_NAME_MESSAGE_FRIENDCHANNEL:
-        if( modelled == RS_SERVER_STATE_APPLIED )
-        {
-            exec_chat_presented(ctx);
-            App_NotifyChatMessage(
-                ctx->app,
-                RS_CHAT_TYPE_FRIENDS_CHAT,
-                packet->_message_friendchannel.sender,
-                packet->_message_friendchannel.text ? packet->_message_friendchannel.text : "");
-        }
+        exec_message_friendchannel(ctx, &packet->_message_friendchannel);
         break;
 
     /* ---- misc state ---- */
     case PKT_NAME_UPDATE_PID:
         break;
     case PKT_NAME_LAST_LOGIN_INFO:
-        /* The rows are clientCode components RS_ClientCode_Tick refreshes off
-         * the session record the model wrote; this packet also OPENS the
-         * screen they sit on, which is the only thing that ever does. */
-        exec_open_welcome_screen(ctx->app);
-        RedrawRequest_Raise(&ctx->app->redraw_request);
+        exec_last_login_info(ctx);
         break;
     case PKT_NAME_UPDATE_REBOOT_TIMER:
     case PKT_NAME_P_COUNTDIALOG:
         break;
     case PKT_NAME_LOGOUT:
-    {
-        struct App* app = ctx->app;
-        /* The server ending the session and the player asking to are the
-         * same ending: socket closed, world forgotten, login screen back
-         * up. The chat line goes in first because App_Logout is what takes
-         * the chatbox away -- it is the only feedback a profile with no
-         * title screen to return to ever gets. */
-        exec_chat_add(ctx, RS_CHAT_TYPE_GAME, NULL, NULL, "You have been logged out.");
-        App_Logout(app);
-    }
+        exec_logout(ctx);
         break;
     case PKT_NAME_SET_PLAYER_OP:
         break;
     case PKT_NAME_SET_MULTIWAY:
-        if( modelled == RS_SERVER_STATE_APPLIED )
-            RedrawRequest_Raise(&ctx->app->redraw_request);
+        exec_set_multiway(ctx);
         break;
-    /* deob client.java (class243.field3065): `field758 = g1 == 1`, the flag
-     * class112.method3876/3877 read for the camera's pitch limits. */
     case PKT_NAME_CAM_UNLOCK:
-        if( ctx->app && CamScript_SetUnlock(&ctx->app->cam_script, packet->_cam_unlock.unlock) )
-            RedrawRequest_Raise(&ctx->app->redraw_request);
+        exec_cam_unlock(ctx, &packet->_cam_unlock);
         break;
     case PKT_NAME_MINIMAP_TOGGLE:
-        if( getenv("TORIRS_FRAME_ROLE_AUDIT") )
-            TORIRS_REPORT("frame_native: MINIMAP_TOGGLE state=%d\n", packet->_minimap_toggle.state);
-        if( ctx->app && MinimapView_SetToggleState(&ctx->app->minimap, packet->_minimap_toggle.state) )
-            RedrawRequest_Raise(&ctx->app->redraw_request);
+        exec_minimap_toggle(ctx, &packet->_minimap_toggle);
         break;
     /* ---- the prots a replay used to drop ---- */
     case PKT_NAME_SEND_PING:
-        App_SendPingReply(ctx->app, packet->_send_ping.value1, packet->_send_ping.value2);
+        exec_send_ping(ctx, &packet->_send_ping);
         break;
     case PKT_NAME_UNKNOWN_STRING:
         break;
-    /* deob client.java field1008: OBJUNLOCK_RESET forgets the bitset. */
     case PKT_NAME_OBJUNLOCK_RESET:
-        ctx->app->host.client.objunlock_present = false;
+        exec_objunlock_reset(ctx);
         break;
-    /* class561.method12548: each entry names its word by delta from the last.
-     * The deob throws on a word past the end; here it is dropped with a line. */
     case PKT_NAME_OBJUNLOCK_UPDATE:
-    {
-        struct RS_CS2ClientState* client = &ctx->app->host.client;
-        int word = 0;
-
-        if( !client->objunlock_present )
-        {
-            memset(client->objunlock_words, 0, sizeof(client->objunlock_words));
-            client->objunlock_present = true;
-        }
-        for( int i = 0; i < packet->_objunlock_update.count; i++ )
-        {
-            word += packet->_objunlock_update.entries[i].delta;
-            if( word < 0 || word >= RS_CS2_OBJUNLOCK_WORDS )
-            {
-                TORIRS_LOG("exec: objunlock word %d out of range\n", word);
-                break;
-            }
-            client->objunlock_words[word] = (uint64_t)packet->_objunlock_update.entries[i].bits;
-        }
-    }
+        exec_objunlock_update(ctx, &packet->_objunlock_update);
         break;
     /* The deob reads and discards both. */
     case PKT_NAME_ACCOUNT_FLAGS:
@@ -2926,13 +3899,8 @@ App_GameProto_Exec(
         break;
     case PKT_NAME_SET_WEBSITE_TOKEN:
         break;
-    /* deob client.java class259.field3155 -> class186.method6134. Through the
-     * host's slot, so main.c opens it on the platform as CS2's openurl does. */
     case PKT_NAME_URL_OPEN:
-        snprintf(ctx->app->host.client.pending_open_url,
-                 sizeof(ctx->app->host.client.pending_open_url),
-                 "%s",
-                 packet->_text.text);
+        exec_url_open(ctx, &packet->_text);
         break;
     case PKT_NAME_SITE_SETTINGS:
         break;
@@ -2948,24 +3916,7 @@ App_GameProto_Exec(
          * that arrived together already applies together. */
         break;
     case PKT_NAME_LOGOUT_WITHREASON:
-    {
-        struct App* app = ctx->app;
-        char key[48];
-        char const* line[3];
-
-        exec_chat_add(ctx, RS_CHAT_TYPE_GAME, NULL, NULL, "You have been logged out.");
-        App_Logout(app);
-        /* What the login screen says, by reason (deob Statics.method7871:
-         * 1 kicked, 2 the servers updating) -- the profile's words. */
-        for( int i = 0; i < 3; i++ )
-        {
-            snprintf(key, sizeof(key), "logout_reason_%d_line%d",
-                     packet->_logout_withreason.reason, i + 1);
-            line[i] = RS_LoginReplies_String(&app->login_replies, key);
-        }
-        RS_Title_SetMessages(&app->title, line[0], line[1], line[2]);
-        RS_Title_SetScreen(&app->title, RS_TITLE_INFO);
-    }
+        exec_logout_withreason(ctx, &packet->_logout_withreason);
         break;
     case PKT_NAME_LOGOUT_TRANSFER:
     case PKT_NAME_SET_INTERACTION_MODE:
@@ -2981,77 +3932,35 @@ App_GameProto_Exec(
         exec_clear_entities(ctx->app);
         break;
     case PKT_NAME_ZBUF:
-        RenderMode_SetServerZbuf(&ctx->app->render_mode, packet->_zbuf.enabled);
-        RedrawRequest_Raise(&ctx->app->redraw_request);
+        exec_zbuf(ctx, &packet->_zbuf);
         break;
     case PKT_NAME_CAM_MODE:
-        CamScript_SetMode(&ctx->app->cam_script, packet->_int_value.value);
-        RedrawRequest_Raise(&ctx->app->redraw_request);
+        exec_cam_mode(ctx, &packet->_int_value);
         break;
-    /* deob client.java class259.field3148 -> Statics.method9192. */
     case PKT_NAME_OCULUS_SYNC:
-        CamScript_OculusSync(&ctx->app->cam_script, packet->_int_value.value);
+        exec_oculus_sync(ctx, &packet->_int_value);
         break;
     case PKT_NAME_CAM_SKYBOX:
-        App_SetSkybox(ctx->app, packet->_int_value.value);
+        exec_cam_skybox(ctx, &packet->_int_value);
         break;
     case PKT_NAME_SET_HEATMAP_ENABLED:
-        RS_WorldMapSurface_SetHeatmap(&ctx->app->worldmap, packet->_int_value.value != 0);
-        RedrawRequest_Raise(&ctx->app->redraw_request);
+        exec_set_heatmap_enabled(ctx, &packet->_int_value);
         break;
     case PKT_NAME_UPDATE_UID192:
         break;
     case PKT_NAME_GROUP_VAR:
-        for( int i = 0; i < packet->_group_var.count; i++ )
-            RS_GroupStore_ApplyVar(
-                &ctx->app->host.groups,
-                packet->_group_var.updates[i].index,
-                packet->_group_var.updates[i].packed,
-                packet->_group_var.updates[i].int_value,
-                packet->_group_var.updates[i].long_value,
-                packet->_group_var.updates[i].string_value);
+        exec_group_var(ctx, &packet->_group_var);
         break;
     case PKT_NAME_GROUP_FULL:
-        /* A player in no group gets the packet EMPTY (both rev-241 recordings
-         * of 2026-10-22/28 open with one): nothing to apply, and no bytes for
-         * RS_GroupStore_ApplyFull to be handed. */
-        if( ctx->app->provider && packet->_raw_payload.length > 0 )
-            RS_GroupStore_ApplyFull(
-                &ctx->app->host.groups,
-                &ctx->app->provider->group_types,
-                packet->_raw_payload.data,
-                packet->_raw_payload.length,
-                exec_group_notify,
-                ctx->app);
-        /* The group-ironman shared storage (deob class603.method13001). Its
-         * readers are the group storage clientscript commands, which this
-         * client does not implement; the payload is decoded and kept no
-         * further until they are. */
+        exec_group_full(ctx, &packet->_raw_payload);
         break;
-
     case PKT_NAME_HIDENPCOPS:
     case PKT_NAME_HIDELOCOPS:
     case PKT_NAME_HIDEOBJOPS:
     case PKT_NAME_HINT_ARROW:
         break;
     case PKT_NAME_RESET_ANIMS:
-        if( ctx->app->scene )
-        {
-            int slot_count = ToriDraw_SceneElementSlotCount(ctx->app->scene);
-            for( int element_id = 0; element_id < slot_count; element_id++ )
-            {
-                struct ToriDraw_SceneElement* el;
-                if( !ToriDraw_SceneElementIsLive(ctx->app->scene, element_id) )
-                    continue;
-                el = ToriDraw_SceneElementGet(ctx->app->scene, element_id);
-                if( el )
-                {
-                    el->anim_frame = 0;
-                    el->anim_cycle = 0;
-                }
-            }
-            RedrawRequest_Raise(&ctx->app->redraw_request);
-        }
+        exec_reset_anims(ctx);
         break;
     case PKT_NAME_ENABLE_TRACKING:
     case PKT_NAME_FINISH_TRACKING:
@@ -3059,159 +3968,56 @@ App_GameProto_Exec(
 
     /* ---- tutorial ---- */
     case PKT_NAME_TUT_FLASH:
-        ctx->app->slots.flash_tab = packet->_tut_flash.tab;
-        /* Asked to flash the tab the player is already looking at, the
-         * reference moves them OFF it -- an open panel covers its own icon,
-         * so a blink nobody can see is no instruction at all. 3 is the
-         * inventory, which is where it sends you unless that IS the tab. */
-        if( packet->_tut_flash.tab >= 0 &&
-            packet->_tut_flash.tab == ctx->app->slots.side_tab )
-        {
-            ctx->app->slots.side_tab = packet->_tut_flash.tab == 3 ? 1 : 3;
-            RedrawRequest_Raise(&ctx->app->redraw_request);
-        }
+        exec_tut_flash(ctx, &packet->_tut_flash);
         break;
     case PKT_NAME_TUT_OPEN:
-        RS_UISlots_OpenTut(ctx->app, packet->_tut_open.component_id);
+        exec_tut_open(ctx, &packet->_tut_open);
         break;
 
     /* ---- audio ---- */
     case PKT_NAME_SYNTH_SOUND:
-        App_PlaySound(
-            ctx->app,
-            packet->_synth_sound.id,
-            packet->_synth_sound.loops,
-            packet->_synth_sound.delay);
+        exec_synth_sound(ctx, &packet->_synth_sound);
         break;
     case PKT_NAME_MIDI_SONG_WITHSECONDARY:
-        /*
-         * Same as MIDI_SONG, plus a variant of the same arrangement held ready
-         * for a later MIDI_SWAP. Tracks always loop.
-         */
-        App_PlaySongWithSecondary(
-            ctx->app,
-            packet->_midi_song_with_secondary.primary_id,
-            packet->_midi_song_with_secondary.secondary_id,
-            packet->_midi_song_with_secondary.fade_out_ms,
-            packet->_midi_song_with_secondary.fade_in_ms);
+        exec_midi_song_withsecondary(ctx, &packet->_midi_song_with_secondary);
         break;
     case PKT_NAME_MIDI_SWAP:
-        App_SwapSong(
-            ctx->app,
-            packet->_midi_swap.fade_out_ms,
-            packet->_midi_swap.fade_in_ms);
+        exec_midi_swap(ctx, &packet->_midi_swap);
         break;
     case PKT_NAME_MIDI_SONG:
-        /*
-         * The V2 form the modern revisions send carries a fade envelope; the
-         * older one does not and decodes to zeroes, which reads correctly as
-         * "switch immediately". A track always loops -- it is background music,
-         * and the server only ever replaces it.
-         */
-        App_PlaySong(
-            ctx->app,
-            packet->_midi_song.id,
-            true,
-            packet->_midi_song.fade_out_ms,
-            packet->_midi_song.fade_in_ms);
+        exec_midi_song(ctx, &packet->_midi_song);
         break;
     case PKT_NAME_MIDI_JINGLE:
-        App_PlayJingle(ctx->app, packet->_midi_jingle.id, packet->_midi_jingle.delay);
+        exec_midi_jingle(ctx, &packet->_midi_jingle);
         break;
     case PKT_NAME_MIDI_SONG_STOP:
-        App_StopSong(ctx->app, packet->_midi_song_stop.fade_out_ms);
+        exec_midi_song_stop(ctx, &packet->_midi_song_stop);
         break;
     case PKT_NAME_AMBIENTSOUND_START:
-        App_SetAmbientSound(
-            ctx->app,
-            packet->_ambientsound_start.id,
-            packet->_ambientsound_start.fade_ms);
+        exec_ambientsound_start(ctx, &packet->_ambientsound_start);
         break;
     case PKT_NAME_AMBIENTSOUND_STOP:
-        App_SetAmbientSound(ctx->app, -1, packet->_ambientsound_stop.fade_ms);
+        exec_ambientsound_stop(ctx, &packet->_ambientsound_stop);
         break;
 
     /* ---- remaining interface packets ---- */
     case PKT_NAME_IF_OPENOVERLAY:
-        RS_UISlots_OpenOverlay(ctx->app, packet->_if_openoverlay.component_id);
+        exec_if_openoverlay(ctx, &packet->_if_openoverlay);
         break;
     case PKT_NAME_IF_SETTAB_ACTIVE:
-        RS_UISlots_SetSideTab(ctx->app, packet->_if_settab_active.tab_id);
+        exec_if_settab_active(ctx, &packet->_if_settab_active);
         break;
     case PKT_NAME_UNSET_MAP_FLAG:
-        /* DRIVE_STAMP: map_flag -- a=-1 when cleared, else a=tile_x b=tile_z.
-         * BOTH branches: walk_to, talk_to and click_loc all read the clear as
-         * "the route finished or was abandoned". */
-        /* Wire tiles are classic-scene local; with a (zone-6)*8 base that is
-         * our-scene too. */
-        if( packet->_set_map_flag.clear )
-        {
-            ctx->app->minimap.flag_tile_x = -1;
-            ctx->app->minimap.flag_tile_z = -1;
-        }
-        else if( packet->_set_map_flag.absolute )
-        {
-            /* SetMapFlagV2 carries an absolute coord; the minimap draws in
-             * scene-local tiles. Converted against the root world's base:
-             * the origin the camera packets use and the one the flag is
-             * read back against (app_tick.c, the CS2 destination coord).
-             * The deob converts against the view whose rectangle holds the
-             * coord (client.java class243.field3077: field748.method1423,
-             * class100.method3310); for every coord in the root scene that
-             * is the root's base. A flag on a deck's staging rectangle has
-             * no minimap of its own here and lands off this scene. */
-            assert(ctx->app->world);
-            ctx->app->minimap.flag_tile_x = packet->_set_map_flag.x - ctx->app->world->_base_tile_x;
-            ctx->app->minimap.flag_tile_z = packet->_set_map_flag.z - ctx->app->world->_base_tile_z;
-        }
-        else
-        {
-            ctx->app->minimap.flag_tile_x = packet->_set_map_flag.x;
-            ctx->app->minimap.flag_tile_z = packet->_set_map_flag.z;
-        }
-        /* Both branches land here: a clear leaves flag_tile_{x,z} at the
-         * -1 the first branch set, so one stamp of the settled value
-         * covers "a=-1 when cleared, else a=tile_x b=tile_z" without
-         * repeating the call per branch. */
-        App_DriveEvent(
-            ctx->app,
-            DRIVE_EVENT_MAP_FLAG,
-            ctx->app->minimap.flag_tile_x,
-            ctx->app->minimap.flag_tile_z,
-            0,
-            0);
-        RedrawRequest_Raise(&ctx->app->redraw_request);
+        exec_unset_map_flag(ctx, &packet->_set_map_flag);
         break;
     case PKT_NAME_SET_NPC_UPDATE_ORIGIN:
     case PKT_NAME_SET_ACTIVE_WORLD:
         break;
     case PKT_NAME_WORLDENTITY_INFO:
-        /* App-less harnesses have no registry or scene to spawn into; the
-         * ops-address-the-active-view walk lives in the helper above. */
         exec_worldentity_info(ctx->app, &packet->_worldentity_info);
         break;
     case PKT_NAME_SERVER_TICK_END:
-        /* The fence. Every packet of this tick has been applied, so the scripts
-         * the tick pushed can now repaint against the state the server meant
-         * them to see — see `pending_clientscripts` in app.h. */
-        /* The model has fenced the tick, returned the active-world cursor to
-         * the root and stamped server_tick (RS_ServerState_Apply). */
-        /* Onto the packet pipeline (behind this fence task), not the
-         * asset runner: the pipeline is a strict FIFO, so the tick's
-         * scripts run one after another in wire order, as the reference
-         * runs them inline. On the asset runner a script parked on a
-         * sprite load let the next one overtake it: the House
-         * Advertisement board's "list complete" call (poh_board_addline
-         * row 200) ran before the row call had counted its row, and drew
-         * "No houses are currently listed." over the house it listed. */
-        App_FlushPendingClientScripts(ctx->app, &ctx->app->packet_runner);
-        /* The 600ms cadence a plugin actually wants: every packet of this
-         * server tick is now in world state, so a snapshot read here
-         * agrees with what the server believes. Anything sampled mid-tick
-         * is reading a half-applied world. */
-        ctx->app->drive_events.batch_open = 0;
-        assert(ctx->app->world);
-        PluginHost_ServerTick(ctx->app->plugins, ctx->app->world->cycle);
+        exec_server_tick_end(ctx);
         break;
 
     /* ---- friends chat, clans, Grand Exchange ---- */
@@ -3235,27 +4041,10 @@ App_GameProto_Exec(
             &packet->_message_clanchannel);
         break;
     case PKT_NAME_UPDATE_TRADINGPOST:
-        RS_CS2Host_ApplyTradingPost(
-            &ctx->app->host, &packet->_update_tradingpost, ctx->app->host.client.now_ms);
-        ctx->app->host.active_offers_transmit_dirty = 1;
+        exec_update_tradingpost(ctx, &packet->_update_tradingpost);
         break;
     case PKT_NAME_UPDATE_STOCKMARKET_SLOT:
-    {
-        struct PktUpdateStockmarketSlot const* p = &packet->_update_stockmarket_slot;
-        if( p->slot < RS_CS2_STOCKMARKET_SLOTS )
-        {
-            struct RS_CS2StockmarketOffer* offer = &ctx->app->host.stockmarket[p->slot];
-            offer->status = p->status;
-            offer->obj = p->obj;
-            offer->price = p->price;
-            offer->count = p->count;
-            offer->completed_count = p->completed_count;
-            offer->completed_gold = p->completed_gold;
-        }
-        else
-            TORIRS_ERR("gameproto_exec: UPDATE_STOCKMARKET_SLOT slot %d out of range\n", p->slot);
-        ctx->app->host.stock_transmit_dirty = 1;
-    }
+        exec_update_stockmarket_slot(ctx, &packet->_update_stockmarket_slot);
         break;
 
     default:
