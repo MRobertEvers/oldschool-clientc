@@ -229,8 +229,7 @@ ToriRS_Trigger_Outcome(struct ToriRS_Trigger const* trigger)
 void
 ToriRS_Trigger_Retire(struct ToriRS_Trigger* trigger)
 {
-    if( !trigger )
-        return;
+    assert(trigger);
     if( trigger->owner )
         trigger_end(trigger, TORIRS_TRIGGER_ABANDONED, TORIRS_WAKE_ABANDONED);
     assert(!trigger->subs);
@@ -275,8 +274,7 @@ ToriRS_Clock_Advance(
 void
 ToriRS_Clock_Retire(struct ToriRS_Clock* clock)
 {
-    if( !clock )
-        return;
+    assert(clock);
     while( clock->head )
         ToriRS_TaskWake(clock->head, TORIRS_WAKE_CYCLE);
 }

@@ -495,7 +495,6 @@ test_the_owner_ending_abandons(void)
 
     /* A deallocator's trigger: retired with nobody priming it is fine;
      * retired while primed abandons. */
-    ToriRS_Trigger_Retire(NULL);
     memset(&trigger, 0, sizeof(trigger));
     ToriRS_Trigger_Retire(&trigger);
 }

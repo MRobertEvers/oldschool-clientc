@@ -237,8 +237,8 @@ ToriRS_Trigger_Outcome(struct ToriRS_Trigger const* trigger);
 
 /*
  * Its storage is going away: if primed, abandon it (its subscribers wake
- * ABANDONED). The deallocator's half: accepts a trigger never primed, and a
- * NULL.
+ * ABANDONED). The deallocator's half: accepts a trigger never primed. The
+ * trigger is always storage embedded in its owner, so it is never NULL.
  */
 void
 ToriRS_Trigger_Retire(struct ToriRS_Trigger* trigger);
