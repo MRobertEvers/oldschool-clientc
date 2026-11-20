@@ -40,6 +40,7 @@
 
 #include <rscache.h>
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -385,6 +386,25 @@ static struct ToriDraw_Scene* g_scene = NULL;
 /* The harness's assets table: its SOUND loader queues the provider's load on
  * the harness runner, which `frame` drains. NULL with no cache. */
 static struct Assets* g_assets = NULL;
+/* The harness's compute queue (CacheProvider::compute_queue): a dat2 effect is
+ * rendered there (task_dat2_sound_load.c), its loader joined on the render.
+ * NULL with no cache. */
+static struct TaskRunner* g_compute = NULL;
+
+/* Settle what the loads need, as a frame does: the asset queue drained, then
+ * the compute queue, until neither has work (a load joined on a render
+ * resumes on the asset queue once the render ends). */
+static void
+drain_loads(struct TaskRunner* runner)
+{
+    assert(runner);
+    TaskRunner_Drain(runner);
+    while( g_compute && g_compute->queue->head )
+    {
+        TaskRunner_Drain(g_compute);
+        TaskRunner_Drain(runner);
+    }
+}
 
 static void
 frame(
@@ -402,7 +422,7 @@ frame(
     RS_Audio_Tick(audio, provider, runner ? g_assets : NULL, g_scene, NULL, 0, 0, 0, NULL, queue);
     /* Loads the tick queued must complete before the next tick can see them. */
     if( runner )
-        TaskRunner_Drain(runner);
+        drain_loads(runner);
     count = ToriRS_AudioQueue_Drain(queue, commands, TORIRS_AUDIO_QUEUE_MAX);
     PlatformAudio_SubmitAll(platform, commands, count);
     /* Mixing is what turns an accepted command into audible samples, and the
@@ -704,6 +724,7 @@ struct harness
     struct PlatformAudio* platform;
     struct CacheProvider* provider;
     struct TaskRunner runner;
+    struct TaskRunner compute;
     struct ToriRS_IOBatch* io;
     struct ToriRS_TaskQueue* task_queue;
     struct PlatformX_IO* px;
@@ -722,6 +743,11 @@ harness_free(struct harness* harness)
     PlatformAudio_Free(harness->platform);
     if( harness->task_queue )
         ToriRS_TaskQueue_Free(harness->task_queue);
+    if( harness->compute.queue )
+        ToriRS_TaskQueue_Free(harness->compute.queue);
+    if( harness->compute.io )
+        ToriRS_IOBatch_Free(harness->compute.io);
+    g_compute = NULL;
     Assets_Free(g_assets);
     g_assets = NULL;
     if( harness->io )
@@ -824,6 +850,13 @@ harness_init(
     }
     CacheProvider_SetProfile(harness->provider, profile);
     CacheProvider_SetAssetQueue(harness->provider, harness->task_queue);
+    harness->compute.queue = ToriRS_TaskQueue_New();
+    harness->compute.io = ToriRS_IOBatch_New();
+    harness->compute.px = harness->px;
+    harness->compute.role = TASK_RUNNER_ROLE_BACKGROUND;
+    harness->compute.parallel = 1;
+    CacheProvider_SetComputeQueue(harness->provider, harness->compute.queue);
+    g_compute = &harness->compute;
 
     harness->runner.queue = harness->task_queue;
     harness->runner.io = harness->io;
@@ -935,7 +968,7 @@ test_cache_pipeline(
             if( task )
             {
                 ToriRS_TaskQueue_Add(harness.runner.queue, task);
-                TaskRunner_Drain(&harness.runner);
+                drain_loads(&harness.runner);
             }
             RS_Audio_Synth(&harness.audio, id, 1, 0);
             frame(
@@ -990,7 +1023,7 @@ test_overlap_rule(
         if( task )
         {
             ToriRS_TaskQueue_Add(harness.runner.queue, task);
-            TaskRunner_Drain(&harness.runner);
+            drain_loads(&harness.runner);
         }
         sound = CacheProvider_SoundGet(harness.provider, id);
         if( !sound )
@@ -1137,7 +1170,7 @@ test_late_load_timing(
     CHECK(harness.audio.count == 1, "the entry survived the stall");
 
     /* One frame with the drain: the load completes and the effect is overdue. */
-    TaskRunner_Drain(&harness.runner);
+    drain_loads(&harness.runner);
     played_after = harness.audio.played;
     frame(&harness.audio, harness.provider, &harness.runner, &harness.queue, harness.platform);
     CHECK(
