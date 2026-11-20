@@ -545,13 +545,14 @@ app_minimap_flag_abs(
     int* out_x,
     int* out_z)
 {
-    int const view_id = app->minimap.flag_view;
+    int view_id;
 
     assert(app);
     assert(out_x);
     assert(out_z);
     if( !MinimapView_HasFlag(&app->minimap) )
         return 0;
+    view_id = app->minimap.flag_view;
     if( view_id == WORLDVIEW_ROOT )
     {
         if( !app->world )

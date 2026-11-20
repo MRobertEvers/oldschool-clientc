@@ -883,6 +883,13 @@ main(void)
             TEST_EXEC_ASSERT(app->minimap.flag_tile_x == 22, "absolute x against the world's base");
             TEST_EXEC_ASSERT(app->minimap.flag_tile_z == 34, "absolute z against the world's base");
             TEST_EXEC_ASSERT(app->minimap.flag_view == 0, "a root tile is the root's");
+            {
+                int abs_x = -1;
+                int abs_z = -1;
+
+                TEST_EXEC_ASSERT(app_minimap_flag_abs(app, &abs_x, &abs_z) == 1, "a root flag reads back");
+                TEST_EXEC_ASSERT(abs_x == 3222 && abs_z == 3218, "against the root's base");
+            }
 
             /* A coord inside a world entity's staging rectangle is that
              * deck's tile, in the deck's own terms (deob client.java
