@@ -249,15 +249,18 @@ precise_timer_wait(uint64_t us)
 void
 PlatformWin32Timing_SleepUntilMs(uint64_t deadline_ms)
 {
+    uint64_t began_us;
+
     if( timing.references == 0 )
         PlatformWin32Timing_Init();
     request_fine_timer_period();
     if( !precise.resolved )
         precise_timer_resolve();
+    began_us = PlatformWin32Timing_NowUs();
     for( ;; )
     {
         struct ToriRS_SleepStep const step =
-            ToriRS_SleepPlan_Next(PlatformWin32Timing_NowUs(), deadline_ms, precise.timer != NULL);
+            ToriRS_SleepPlan_Next(PlatformWin32Timing_NowUs(), deadline_ms, began_us, precise.timer != NULL);
 
         if( step.kind == TORIRS_SLEEP_STEP_DONE )
             return;

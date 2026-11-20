@@ -23,6 +23,16 @@
  * With the timer the plan is one timer wait to the deadline (and again if it
  * returns early); without it, the Sleep plan above. XP (the win32 lane) and
  * Windows 10 before 1803 keep the Sleep plan.
+ *
+ * Except for a wait that is a millisecond or less from the moment it was asked
+ * for -- the loop's nap is exactly that -- which the Sleep plan sleeps with
+ * Sleep(1) instead of spinning on Sleep(0) for all of it. Measured on Windows
+ * 11 with the timer switched off (TORIRS_WIN32_PRECISE_TIMER=0): a boot whose
+ * reads were deferred napped at 94-100% of a core, against 2-6% on the timer.
+ * The nap may end up to about a millisecond late, which it allows ("never a
+ * frame late on an answer by more than a nap"); a longer wait keeps the
+ * Sleep(0) rechecks for its last millisecond, so a frame deadline is not
+ * overshot.
  */
 
 #include <stdint.h>
@@ -47,13 +57,14 @@ struct ToriRS_SleepStep
 
 /*
  * The next step toward `deadline_ms`, at `now_us` on the same clock (the
- * lane's monotonic microseconds). `precise_timer`: the high-resolution
- * waitable timer exists.
+ * lane's monotonic microseconds). `began_us`: when the wait was asked for, on
+ * that clock. `precise_timer`: the high-resolution waitable timer exists.
  */
 static inline struct ToriRS_SleepStep
 ToriRS_SleepPlan_Next(
     uint64_t now_us,
     uint64_t deadline_ms,
+    uint64_t began_us,
     int precise_timer)
 {
     struct ToriRS_SleepStep step = { TORIRS_SLEEP_STEP_DONE, 0 };
@@ -77,6 +88,13 @@ ToriRS_SleepPlan_Next(
     {
         step.kind = TORIRS_SLEEP_STEP_SLEEP_MS;
         step.amount = remaining_ms - 1;
+        return step;
+    }
+    /* A wait that was never longer than this millisecond: the nap. */
+    if( began_us >= deadline_us || deadline_us - began_us <= 1000u )
+    {
+        step.kind = TORIRS_SLEEP_STEP_SLEEP_MS;
+        step.amount = 1;
         return step;
     }
     step.kind = TORIRS_SLEEP_STEP_YIELD;
