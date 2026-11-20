@@ -1115,6 +1115,7 @@ RS_CS2Host_NotifyVarChanged(
      * per-tick pump to re-dispatch (TS parity: value changes bump changedVarpCount,
      * processed once per cycle rather than synchronously mid-script). */
     host->var_change_serial++;
+    host->var_changed_ring[host->var_change_serial & (RS_CS2_HOST_CHANGE_RING - 1)] = var_id;
     host->var_transmit_dirty = 1;
     if( torirs_cc_debug() )
         TORIRS_LOG("VAR_CHANGED id=%d serial=%u\n", var_id, host->var_change_serial);
@@ -1197,6 +1198,7 @@ RS_CS2Host_NotifyInvChanged(
 {
     assert(host);
     host->inv_change_serial++;
+    host->inv_changed_ring[host->inv_change_serial & (RS_CS2_HOST_CHANGE_RING - 1)] = container_id;
     host->inv_transmit_dirty = 1;
     if( torirs_cc_debug() )
         TORIRS_LOG("INV_CHANGED container=%d serial=%u\n",
@@ -13211,7 +13213,8 @@ rs_cs2_host_exec_dispatch(
     F(active_offers_transmit_dirty) F(clan_settings_transmit_dirty) F(clan_channel_transmit_dirty) \
     F(chat_transmit_dirty) F(inv_changed_ids) F(inv_changed_count) F(inv_changed_all) \
     F(var_changed_ids) F(var_changed_count) F(var_changed_all) F(var_change_serial) \
-    F(inv_change_serial) F(stat_change_serial) F(item_search_count) F(item_search_index) \
+    F(inv_change_serial) F(stat_change_serial) F(var_changed_ring) F(inv_changed_ring)        \
+    F(item_search_count) F(item_search_index) \
     F(db_find_count) F(db_find_cursor) F(social_send) F(social_send_count) F(social_send_head) \
     F(call_on_resize_count) F(call_on_resize_head) F(trigger_op_count) F(trigger_op_head) F(sound) \
     F(sound_count) F(sound_head) F(triggeroplocal_count) F(triggeroplocal_head)

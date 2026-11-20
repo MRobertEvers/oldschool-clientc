@@ -2496,21 +2496,50 @@ struct Task_CS2InvTransmitDispatch
     struct Task_CS2HookSnapshot snapshot;
 };
 
-static int
-hook_matches_container(
-    struct RS_CS2InvTransmitHook const* hook,
-    int container_id)
+/*
+ * IS A LISTENER DUE? The reference's rule, one component at a time (rev-239
+ * class415.method9488, the three blocks at lines 876-1010): a component whose
+ * own last-seen count is behind the client's is due when it has no trigger
+ * list, when it is more than a ring's length behind, or when one of the
+ * changes SINCE ITS OWN LAST LOOK is in its list. Either way it has then
+ * looked, and its count moves up (the caller's job).
+ *
+ * A component that has never looked (count 0: class308.java:611) is always
+ * more than a ring behind, which is what fires a freshly opened interface's
+ * listeners once. What this replaces was a mount that ran every listener in
+ * the whole UI whenever any varp had changed since the last pass, whatever
+ * its triggers said: the bank opens two interfaces in one tick, and its
+ * 150,000-instruction build script ran four times in that frame.
+ */
+int
+RS_CS2_TransmitHookDue(
+    int const* trigger_ids,
+    int trigger_count,
+    uint32_t last_seen_serial,
+    uint32_t serial,
+    int const* ring)
 {
-    int i;
-    assert(hook);
-    if( container_id < 0 )
+    uint32_t n;
+
+    assert(ring);
+    assert(serial > last_seen_serial);
+    if( trigger_count <= 0 )
         return 1;
-    if( hook->trigger_count <= 0 )
+    assert(trigger_ids);
+    if( serial - last_seen_serial > RS_CS2_HOST_CHANGE_RING )
         return 1;
-    for( i = 0; i < hook->trigger_count; i++ )
+    for( n = last_seen_serial + 1; n != serial + 1; n++ )
     {
-        if( hook->trigger_ids[i] == container_id )
+        int const id = ring[n & (RS_CS2_HOST_CHANGE_RING - 1)];
+        int t;
+
+        if( id < 0 )
             return 1;
+        for( t = 0; t < trigger_count; t++ )
+        {
+            if( trigger_ids[t] == id )
+                return 1;
+        }
     }
     return 0;
 }
@@ -2536,9 +2565,28 @@ Task_CS2InvTransmitDispatch_Run(
             self->snapshot.refs[self->hook_index], self->hook_index);
         if( slot < 0 ) continue;
         hook = &self->host->inv_transmit_hooks[slot];
-        if( self->unhide_only ? !hook->pending_unhide
-                              : !hook_matches_container(hook, self->container_id) )
-            continue;
+        if( self->unhide_only )
+        {
+            if( !hook->pending_unhide )
+                continue;
+        }
+        else
+        {
+            /* Nothing since this hook last looked; or it looks now, and what
+             * changed since is not in its list (RS_CS2_TransmitHookDue). */
+            if( hook->last_seen_serial >= self->host->inv_change_serial )
+                continue;
+            if( !RS_CS2_TransmitHookDue(
+                    hook->trigger_ids,
+                    hook->trigger_count,
+                    hook->last_seen_serial,
+                    self->host->inv_change_serial,
+                    self->host->inv_changed_ring) )
+            {
+                hook->last_seen_serial = self->host->inv_change_serial;
+                continue;
+            }
+        }
         if( hook->script_id <= 0 )
             continue;
         /* Dead hook (component reclaimed): mark seen so it never fires — a missing
@@ -2748,10 +2796,28 @@ Task_CS2VarTransmitDispatch_Run(
                 RS_CS2_VarTransmitTriggersMatch(hook, self->var_ids, self->var_count),
                 UITree_ComponentOrAncestorHidden(self->host->tree, hook->component_id));
         }
-        if( self->unhide_only
-                ? !hook->pending_unhide
-                : !RS_CS2_VarTransmitTriggersMatch(hook, self->var_ids, self->var_count) )
-            continue;
+        if( self->unhide_only )
+        {
+            if( !hook->pending_unhide )
+                continue;
+        }
+        else
+        {
+            /* Nothing since this hook last looked; or it looks now, and what
+             * changed since is not in its list (RS_CS2_TransmitHookDue). */
+            if( hook->last_seen_serial >= self->host->var_change_serial )
+                continue;
+            if( !RS_CS2_TransmitHookDue(
+                    hook->trigger_ids,
+                    hook->trigger_count,
+                    hook->last_seen_serial,
+                    self->host->var_change_serial,
+                    self->host->var_changed_ring) )
+            {
+                hook->last_seen_serial = self->host->var_change_serial;
+                continue;
+            }
+        }
         if( hook->script_id <= 0 )
             continue;
         /* Dead hook (component reclaimed): mark seen so it never fires — a missing
