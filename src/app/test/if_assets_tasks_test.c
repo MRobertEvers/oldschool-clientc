@@ -905,6 +905,130 @@ test_npc_head_custom_empty_list_shows_nothing(void)
     fixture_free(&fx);
 }
 
+/*
+ * A chathead customisation that arrives while the head is shown (NPC_INFO
+ * HEAD_CUSTOM after IF_SETNPCHEAD_ACTIVE) shows at once: the reference's
+ * IfType.getModel resolves model type 6 against the npc on every draw
+ * (class308.method7279), so the widget follows the npc's override. Before,
+ * the override was captured when the head was set and a later one never
+ * reached the widget.
+ */
+static void
+test_active_head_follows_its_npc(void)
+{
+    struct Fixture fx;
+    struct ToriRS_Npctype* type;
+    struct WorldEntity_NPC* npc;
+    struct UIIfHead const* head;
+    int const com = 0x00e70002;
+    int const first[1] = { 81 };
+    int const second[1] = { 82 };
+    int idx;
+
+    printf("TEST: an active chathead follows a customisation that arrives while it is shown\n");
+    fixture_init(&fx);
+    fx.app.tree = UITree_New(16);
+    type = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*type));
+    assert(type);
+    type->transform_varbit = -1;
+    type->transform_varp = -1;
+    type->heads_count = 1;
+    type->heads = ToriMem_Alloc(ToriMem_Assets(), sizeof(*type->heads));
+    assert(type->heads);
+    type->heads[0] = 80;
+    CacheProvider_NpctypeAdd(&fx.provider, 501, type);
+    fx.app.world = World_New();
+    RS_EntitySync_Init(&fx.app.esync);
+    idx = World_NpcSpawn(fx.app.world, 9, 501, 0, 10, 10, 1, (struct WorldEntityFacet_IdleAnimations){ 0 });
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, idx);
+    npc->server_slot = 13;
+    RS_EntitySync_RegisterNpc(&fx.app.esync, 13, 9, idx);
+    {
+        struct WorldNpcOverrideIn in = { .models_sent = true, .model_count = 1, .models = first };
+        World_NpcSetHeadCustom(fx.app.world, idx, &in);
+    }
+    App_SetInterfaceNpcHeadCustom(&fx.app, com, idx);
+    pump(&fx);
+    TEST_ASSERT(loads_of(ASSET_KIND_MODEL, 81, 0) == 1, "the shown override's model is wanted");
+    if( loads_of(ASSET_KIND_MODEL, 81, 0) == 1 )
+        Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_MODEL, 81, 0), false);
+    pump(&fx);
+
+    /* HEAD_CUSTOM again while the head is up: a new override. */
+    {
+        struct WorldNpcOverrideIn in = { .models_sent = true, .model_count = 1, .models = second };
+        World_NpcSetHeadCustom(fx.app.world, idx, &in);
+    }
+    app_if_head_poll(&fx.app);
+    pump(&fx);
+    head = head_of(&fx, com);
+    TEST_ASSERT(head && head->custom_serial == npc->head_custom.serial,
+        "the shown head names the npc's newer override, not the one it was set with");
+    TEST_ASSERT(loads_of(ASSET_KIND_MODEL, 82, 0) == 1, "the new override's model is not wanted");
+    if( loads_of(ASSET_KIND_MODEL, 82, 0) == 1 )
+        Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_MODEL, 82, 0), false);
+    pump(&fx);
+
+    /* The customisation reset (NULL, the block's 0x1): the type's head. */
+    World_NpcSetHeadCustom(fx.app.world, idx, NULL);
+    app_if_head_poll(&fx.app);
+    pump(&fx);
+    head = head_of(&fx, com);
+    TEST_ASSERT(head && head->custom_serial == 0 && head->npc_id == 501, "a reset shows the type's head");
+    TEST_ASSERT(loads_of(ASSET_KIND_MODEL, 80, 0) == 1, "and wants the type's head model");
+    if( loads_of(ASSET_KIND_MODEL, 80, 0) == 1 )
+        Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_MODEL, 80, 0), false);
+    pump(&fx);
+
+    /* A plain active head (no customisation when it was set) takes one that
+     * arrives later. */
+    App_SetInterfaceNpcHeadActive(&fx.app, com + 1, idx);
+    pump(&fx);
+    {
+        int const third[1] = { 83 };
+        struct WorldNpcOverrideIn in = { .models_sent = true, .model_count = 1, .models = third };
+        World_NpcSetHeadCustom(fx.app.world, idx, &in);
+    }
+    app_if_head_poll(&fx.app);
+    pump(&fx);
+    head = head_of(&fx, com + 1);
+    TEST_ASSERT(head && head->custom_serial == npc->head_custom.serial, "a plain active head takes a later override");
+    TEST_ASSERT(loads_of(ASSET_KIND_MODEL, 83, 0) == 1, "and wants its model");
+    if( loads_of(ASSET_KIND_MODEL, 83, 0) == 1 )
+        Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_MODEL, 83, 0), false);
+    pump(&fx);
+
+    /* A plain IF_SETNPCHEAD on the widget names a type: it follows nothing,
+     * and a later customisation of the npc leaves it alone. */
+    App_SetInterfaceNpcHead(&fx.app, com + 1, 501);
+    pump(&fx);
+    if( loads_of(ASSET_KIND_MODEL, 80, 0) == 2 )
+        Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_MODEL, 80, 0), false);
+    pump(&fx);
+    {
+        int const fourth[1] = { 84 };
+        struct WorldNpcOverrideIn in = { .models_sent = true, .model_count = 1, .models = fourth };
+        World_NpcSetHeadCustom(fx.app.world, idx, &in);
+    }
+    app_if_head_poll(&fx.app);
+    pump(&fx);
+    head = head_of(&fx, com + 1);
+    TEST_ASSERT(head && head->custom_serial == 0 && head->active_npc_slot < 0, "a type's head follows no npc");
+    /* The first widget is still active: it takes the override too. */
+    if( loads_of(ASSET_KIND_MODEL, 84, 0) >= 1 )
+        Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_MODEL, 84, 0), false);
+    pump(&fx);
+    head = head_of(&fx, com);
+    TEST_ASSERT(head && head->custom_serial == npc->head_custom.serial, "while the active one follows it");
+
+    RS_EntitySync_Free(&fx.app.esync);
+    World_Free(fx.app.world);
+    fx.app.world = NULL;
+    UITree_Free(fx.app.tree);
+    fx.app.tree = NULL;
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
@@ -920,6 +1044,7 @@ main(void)
     test_npc_head_custom_loads_its_models();
     test_a_close_seen_after_the_last_pump_publishes();
     test_npc_head_custom_empty_list_shows_nothing();
+    test_active_head_follows_its_npc();
     if( g_failures )
     {
         printf("if_assets_tasks: %d failure(s)\n", g_failures);

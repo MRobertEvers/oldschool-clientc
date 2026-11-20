@@ -3134,6 +3134,16 @@ App_SetInterfaceNpcHeadCustom(
     int component_id,
     int world_idx);
 
+/* IF_SETNPCHEAD_ACTIVE for the npc at pool index `world_idx`: its head as the
+ * npc stands now -- the local player's when its customisation mirrors, the
+ * override's when it has one, else its type's -- and the head follows the npc
+ * from then on (app_if_head_poll), as the reference resolves it every draw. */
+void
+App_SetInterfaceNpcHeadActive(
+    struct App* app,
+    int component_id,
+    int world_idx);
+
 /* The local player's body changed: every npc whose body customisation mirrors
  * the local player (0x10) is remounted from it. */
 void

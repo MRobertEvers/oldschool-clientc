@@ -138,6 +138,50 @@ app_if_forget_closed(struct App* app)
     }
 }
 
+/* Record on `head` the npc it follows and what of it the head was set from
+ * (UIIfHead.active_npc_slot). */
+static void
+app_if_head_follow(
+    struct UIIfHead* head,
+    struct WorldEntity_NPC const* npc)
+{
+    head->active_npc_slot = npc->server_slot;
+    head->active_npc_spawn_serial = npc->spawn_serial;
+    head->active_npc_id = npc->npc_id;
+    head->active_custom_serial = npc->head_custom.active ? npc->head_custom.serial : 0;
+    head->active_mirror = npc->head_custom.active && npc->head_custom.mirror;
+}
+
+/* An active head whose npc changed what it shows -- a chathead customisation
+ * set, replaced or reset, a mirror turned on or off, a retype -- is set again
+ * from the npc as it is now. The npc gone, or another in its slot: the head
+ * keeps what it shows. */
+static void
+app_if_heads_follow(struct App* app)
+{
+    if( !app->world )
+        return;
+    for( int i = 0; i < app->if_models.head_count; i++ )
+    {
+        struct UIIfHead const* head = &app->if_models.heads[i];
+        struct WorldEntity_NPC const* npc;
+        int world_idx;
+
+        if( head->active_npc_slot < 0 )
+            continue;
+        if( !RS_EntitySync_FindNpc(&app->esync, head->active_npc_slot, &world_idx, NULL) )
+            continue;
+        npc = World_EntityPoolGet(&app->world->entities.npc, world_idx);
+        if( !npc || npc->spawn_serial != head->active_npc_spawn_serial )
+            continue;
+        if( npc->npc_id == head->active_npc_id &&
+            (npc->head_custom.active ? npc->head_custom.serial : 0) == head->active_custom_serial &&
+            (npc->head_custom.active && npc->head_custom.mirror) == (head->active_mirror != 0) )
+            continue;
+        App_SetInterfaceNpcHeadActive(app, head->com_id, world_idx);
+    }
+}
+
 /* Persist the head request keyed by component id (reference IfType.list keeps
  * model1Type/model1Id): re-applied by app_if_head_poll whenever the interface
  * (re)mounts, so it survives a head packet that lands before its chat interface
@@ -175,6 +219,10 @@ app_if_head_store(
     {
         head->close_serial = app_if_close_serial_now(app);
         head->applied_gen = 0;
+        /* This set names a type, a model or an obj, not an npc: the head
+         * follows nothing now (App_SetInterfaceNpcHeadActive records it again
+         * after this when it is an active set). */
+        head->active_npc_slot = -1;
         return 0;
     }
     App_IfModelCancel(app, com_id);
@@ -411,6 +459,12 @@ app_if_player_model_op(
 {
     struct Task_AppIfPlayerModel* task;
 
+    /* The latest set wins over a script's visual task, as in the head store:
+     * a loc or obj model a script set still loading for this widget would
+     * bind over the composition when it lands. Cancelled here, in wire
+     * order, whether the op composes now or waits for its config. */
+    if( app->tree )
+        app_cs2_widget_visual_cancel(app, component_id);
     if( op == APP_IFPLAYER_SELF || op == APP_IFPLAYER_BASECOLOUR ||
         (op == APP_IFPLAYER_OBJ && (CacheProvider_ObjtypeHas(app->provider, arg0) ||
                                     CacheProvider_ObjtypeAbsent(app->provider, arg0))) )
@@ -511,6 +565,7 @@ App_SetInterfaceNpcHeadCustom(
     {
         head->close_serial = app_if_close_serial_now(app);
         head->applied_gen = 0;
+        app_if_head_follow(head, npc);
         return;
     }
     App_IfModelCancel(app, component_id);
@@ -518,7 +573,38 @@ App_SetInterfaceNpcHeadCustom(
     app->if_models.heads[i].custom_serial = npc->head_custom.serial;
     app->if_models.heads[i].custom_npc_slot = npc->server_slot;
     app->if_models.heads[i].custom_npc_spawn_serial = npc->spawn_serial;
+    app_if_head_follow(&app->if_models.heads[i], npc);
     App_IfModelWant(app, component_id);
+}
+
+void
+App_SetInterfaceNpcHeadActive(
+    struct App* app,
+    int component_id,
+    int world_idx)
+{
+    struct WorldEntity_NPC const* npc;
+    int i;
+
+    assert(app);
+    assert(app->world);
+    npc = World_EntityPoolGet(&app->world->entities.npc, world_idx);
+    assert(npc);
+    /* A chathead customisation that mirrors (HEAD_CUSTOM 0x10) shows the
+     * local player's head (deob class308.method7279: model type 6 with
+     * field5094 is type 3). */
+    if( npc->head_custom.active && npc->head_custom.mirror )
+        App_SetInterfacePlayerHead(app, component_id);
+    else if( npc->head_custom.active )
+    {
+        App_SetInterfaceNpcHeadCustom(app, component_id, world_idx);
+        return;
+    }
+    else
+        App_SetInterfaceNpcHead(app, component_id, npc->npc_id);
+    i = UIIfModels_HeadIndex(&app->if_models, component_id);
+    assert(i >= 0);
+    app_if_head_follow(&app->if_models.heads[i], npc);
 }
 
 void
@@ -727,6 +813,7 @@ app_if_head_poll(struct App* app)
         return;
 
     app_if_forget_closed(app);
+    app_if_heads_follow(app);
     for( int i = 0; i < app->if_models.head_count; i++ )
     {
         struct UIIfHead* head = &app->if_models.heads[i];

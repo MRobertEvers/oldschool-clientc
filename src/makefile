@@ -6291,6 +6291,16 @@ test-sound-load: $(OBJ_DIR) $(OBJS)
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/sound_load_split_test ..
 
+# The same split for a dat1 effect (engine/dat1/task_dat1_sound_load.c):
+# read on the asset queue, rendered on the compute queue in bounded steps,
+# against the real cache254.lostcity.
+.PHONY: test-dat1-sound-load
+test-dat1-sound-load: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/dat1_sound_load_split_test \
+		engine/dat1/test/dat1_sound_load_split_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/dat1_sound_load_split_test ..
+
 # The music install (app/app_tick.c, Task_MusicInstall): a parallel task that
 # awaits the song; a newer song cancels the older task and loads after the
 # older loader ends; a failed song is told to the player.

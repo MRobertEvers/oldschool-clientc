@@ -76,6 +76,17 @@ struct UIIfHead
     uint32_t custom_serial;
     int custom_npc_slot;
     uint32_t custom_npc_spawn_serial;
+    /* An IF_SETNPCHEAD_ACTIVE head FOLLOWS its npc: the reference resolves
+     * model type 6 against the npc on every draw (class308.method7279), so a
+     * HEAD_CUSTOM, its reset or a retype that arrives while the head is shown
+     * shows at once. The npc (server slot, spawn serial; slot -1: the head
+     * follows nothing) and what the head was set from: the npc's type, its
+     * customisation's serial (0: none) and whether that mirrors. */
+    int active_npc_slot;
+    uint32_t active_npc_spawn_serial;
+    int active_npc_id;
+    uint32_t active_custom_serial;
+    uint8_t active_mirror;
 };
 
 /* Revision-239 server-driven player-composition widgets. Each component owns

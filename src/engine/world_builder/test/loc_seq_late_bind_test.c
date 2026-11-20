@@ -22,6 +22,13 @@
  * build. The barrel's vertices, its bind pose and its lit colours must be the
  * same both ways.
  *
+ * And until its sequence binds -- for ever, if the sequence never loads --
+ * the barrel is drawn in its static form: turned, resized and offset as the
+ * map places it and lit that way, the rest pose the bind gives it. Before,
+ * the post transforms were applied only by the bind, so in that window the
+ * loc stood at its authored pose, unturned (rotation 2 drew it facing the
+ * other way).
+ *
  *   make -C src test-loc-seq-bind
  */
 
@@ -147,6 +154,7 @@ main(
     char path[1024];
     struct RSCache profile;
     int chunks[2] = { 50, 50 };
+    struct LocLook before;
     struct LocLook late;
     struct LocLook built;
     int missing[4096];
@@ -204,6 +212,7 @@ main(
     for( int i = 0; i < n; i++ )
         has_8490 |= missing[i] == SEQ_OGE_BANNER_FLUTTER;
     CHECK(has_8490, "sequence 8490 is not among the %d the build left missing", n);
+    look_at(world, scene, &before);
     run_all(queue, io, px, CreateTask_SequenceLoad(provider, scene, SEQ_OGE_BANNER_FLUTTER));
     CHECK(ToriDraw_SceneAnimationGet(scene, SEQ_OGE_BANNER_FLUTTER) != NULL, "sequence 8490 did not load");
     bound = WorldBuilder_BindLocSequence(builder, SEQ_OGE_BANNER_FLUTTER);
@@ -235,6 +244,28 @@ main(
         printf("   barrel: %d faces; late bind vs bound in the build: %d of %d lit corner colours differ\n",
             late.face_count, differ, late.face_count * 3);
     }
+    CHECK(before.found, "the barrel is not in the scene before its sequence binds");
+    if( before.found && built.found )
+    {
+        int before_differ = 0;
+
+        CHECK(!before.animated, "animated before its sequence was loaded");
+        CHECK(before.vertex_count == built.vertex_count && before.face_count == built.face_count,
+            "shape differs before the bind: %d/%d vertices, %d/%d faces", before.vertex_count, built.vertex_count,
+            before.face_count, built.face_count);
+        CHECK(before.vertex_sum == built.vertex_sum,
+            "before its sequence binds the barrel is drawn at another pose than its rest pose (%ld, rest %ld): "
+            "its orient, resize and offset are not applied",
+            before.vertex_sum, built.vertex_sum);
+        if( before.face_count == built.face_count )
+            for( int i = 0; i < before.face_count * 3; i++ )
+                before_differ += before.colors[i] != built.colors[i];
+        CHECK(before_differ == 0, "%d of %d lit corner colours differ between the unbound barrel and the bound one",
+            before_differ, before.face_count * 3);
+        printf("   barrel before its sequence binds: vertices %s the rest pose, %d of %d lit corner colours differ\n",
+            before.vertex_sum == built.vertex_sum ? "at" : "NOT at", before_differ, before.face_count * 3);
+    }
+    free(before.colors);
     free(late.colors);
     free(built.colors);
 
