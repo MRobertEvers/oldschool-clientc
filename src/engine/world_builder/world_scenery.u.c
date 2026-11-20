@@ -1486,21 +1486,31 @@ scenery_load_animation(
     }
 }
 
-/* The sequence placed scenery entry `sc` plays: its loc resolved through the
- * transform chain as the build resolved it, the child's `anim=` or the base's
- * (world_builder_resolve_loc_for_place); -1 for none. */
+/* The config placed scenery entry `sc` was built from: its loc resolved
+ * through the transform chain as the build resolved it, the child's `anim=`
+ * or the base's (world_builder_resolve_loc_for_place); NULL for none. */
+static struct ToriRS_Location*
+scenery_entry_loc(
+    struct WorldBuilder* builder,
+    struct WorldEntity_Scenery const* sc,
+    struct ToriRS_Location* storage)
+{
+    struct ToriRS_Location* base = CacheProvider_LocationGet(builder->cache, sc->loc_id);
+
+    if( !base )
+        return NULL;
+    return world_builder_resolve_loc_for_place(builder, base, storage);
+}
+
+/* The sequence placed scenery entry `sc` plays; -1 for none. */
 static int
 scenery_entry_seq(
     struct WorldBuilder* builder,
     struct WorldEntity_Scenery const* sc)
 {
     struct ToriRS_Location storage;
-    struct ToriRS_Location* base = CacheProvider_LocationGet(builder->cache, sc->loc_id);
-    struct ToriRS_Location* cfg;
+    struct ToriRS_Location* cfg = scenery_entry_loc(builder, sc, &storage);
 
-    if( !base )
-        return -1;
-    cfg = world_builder_resolve_loc_for_place(builder, base, &storage);
     return cfg ? cfg->seq_id : -1;
 }
 
@@ -1552,14 +1562,36 @@ WorldBuilder_BindLocSequence(
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_Scenery const* sc = World_EntityPoolGet(pool, i);
+        struct ToriRS_Location storage;
+        struct ToriRS_Location* cfg;
         struct ToriDraw_SceneElement* element;
 
-        if( !sc || sc->element_id < 0 || scenery_entry_seq(builder, sc) != seq_id )
+        if( !sc || sc->element_id < 0 )
+            continue;
+        cfg = scenery_entry_loc(builder, sc, &storage);
+        if( !cfg || cfg->seq_id != seq_id )
             continue;
         element = ToriDraw_SceneElementGet(builder->scene, sc->element_id);
         if( !element || element->animation )
             continue;
         scenery_load_animation(builder, sc->element_id, seq_id);
+        /* The build lit this model at its authored pose, before the orient,
+         * resize and offset the bind has just applied as its post transforms
+         * (a loc bound DURING the build gets them before the build's lighting).
+         * Lit as it stands now, as a runtime loc spawn is lit, so it looks as
+         * it would had its sequence been here for the build -- otherwise a
+         * turned loc keeps the colours of its unturned faces, its lit side
+         * facing away from the light. */
+        if( element->animation && ToriDraw_ModelKindIsFull(element->model.kind) && element->model.u.model.model &&
+            ToriDraw_ModelIsLightable(element->model.u.model.model) )
+        {
+            struct ToriDraw_ModelHandle hnd = {
+                .kind = TORIDRAWMK_MODEL,
+                .u.model.model = element->model.u.model.model,
+            };
+            ToriDraw_LightModelScene(hnd, cfg->contrast, cfg->ambient);
+            ToriDraw_ModelFreeNormals(element->model.u.model.model);
+        }
         bound++;
     }
     return bound;
