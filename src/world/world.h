@@ -203,6 +203,14 @@ struct World_SeqSource
      * the graphic, as the reference does the cycle one comes due without a
      * valid seq (deob Statics ~40085, `var13.method3011()`). */
     int (*spotanim_seq)(void* userdata, int spotanim_id);
+    /* Fetch sequence `seq_id` (>= 0): a track was just set to it -- a
+     * sequence sent, a stance or a movement seq the step chose, a parked
+     * sequence waiting on its priority -- and its frames will be needed. Asked
+     * once per change, never per frame, and for every entity's tracks again
+     * when the source is bound (World_SetSeqSource). NULL: a client that
+     * loads no frames (the headless one). `want_userdata` is its own. */
+    void* want_userdata;
+    void (*want)(void* want_userdata, int seq_id);
 };
 
 /* World_SeqSource.spotanim_seq's "resolved, nothing to play". */
@@ -1490,6 +1498,13 @@ World_NpcSetAnimation(
 
 #define WORLD_ANIMATION_TYPE_PRIMARY 0
 #define WORLD_ANIMATION_TYPE_SECONDARY 1
+
+/** Ask the seq source for sequence `seq_id` (World_SeqSource.want); nothing
+ *  for an id < 0 or a source with no fetch. */
+void
+World_SeqWant(
+    struct World* world,
+    int seq_id);
 
 void
 World_SetSeqSource(

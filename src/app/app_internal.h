@@ -1148,6 +1148,12 @@ app_request_entity_seq(
     struct App* app,
     int seq_id);
 
+/* World_SeqSource.want (app_world_load.c binds it): a track was set to it. */
+void
+app_world_seq_want(
+    void* want_userdata,
+    int seq_id);
+
 void
 app_world_apply_entity_anim_tracks(
     struct App* app,

@@ -500,6 +500,63 @@ test_player_add_hit_and_chat(void)
     fixture_free(&f);
 }
 
+/* ---- wants raised on change (World_SeqSource.want) ---- */
+
+static int g_wants[16];
+static int g_want_count;
+
+static void
+test_want(
+    void* userdata,
+    int seq_id)
+{
+    (void)userdata;
+    if( g_want_count < 16 )
+        g_wants[g_want_count] = seq_id;
+    g_want_count++;
+}
+
+/* A sequence is asked for where a track changes to it -- a SEQUENCE sent,
+ * the movement step choosing a stance -- and a steady world asks for none;
+ * binding a source asks once for every track already set. */
+static void
+test_wants_raised_on_change(void)
+{
+    struct Fixture f;
+    struct RsprotInfoOp add[] = {
+        op_value(RSPROT_OP_ADD_NEW, 3),
+        op_value(RSPROT_OP_NPCTYPE, 7),
+        op_delta(0, 0, true),
+    };
+    struct RsprotInfoOp seq[3];
+    struct World_SeqSource source;
+    int wants_after_settle;
+
+    fixture_init(&f);
+    memset(&source, 0, sizeof(source));
+    source.want = test_want;
+    World_SetSeqSource(f.world, &source);
+    g_want_count = 0;
+    World_SetLoadComplete(f.world, true);
+    RS_EntityApply_NpcInfo(&f.in, 0, add, 3);
+    World_Cycle(f.world, 1);
+    CHECK(g_want_count == 1 && g_wants[0] == 701, "the spawn's first step asks for its ready stance");
+    for( int i = 0; i < 50; i++ )
+        World_Cycle(f.world, 1);
+    wants_after_settle = g_want_count;
+    CHECK(wants_after_settle == 1, "a steady world asks for nothing more");
+    seq[0] = op_value(RSPROT_OP_ADD_OLD, 0);
+    seq[1] = op_value(RSPROT_OP_SET_EXT, 0);
+    seq[2] = op_value(RSPROT_OP_SEQUENCE, 0);
+    seq[2].sequence.sequence_id = 1234;
+    RS_EntityApply_NpcInfo(&f.in, 0, seq, 3);
+    CHECK(g_want_count == 2 && g_wants[1] == 1234, "a sequence sent is asked for once");
+    g_want_count = 0;
+    World_SetSeqSource(f.world, &source);
+    CHECK(g_want_count >= 1, "a bound source is asked for the tracks already set");
+    fixture_free(&f);
+}
+
 int
 main(void)
 {
@@ -510,6 +567,7 @@ main(void)
     test_npc_hidden_rung();
     test_npc_types_listed_once();
     test_player_add_hit_and_chat();
+    test_wants_raised_on_change();
     printf("rs_entity_apply_test: %d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }
