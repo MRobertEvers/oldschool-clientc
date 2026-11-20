@@ -163,15 +163,28 @@ RS_Chat_AddMessage(
         RS_EventSink_Stamp(&chat->events, RS_EVENT_CHAT_MESSAGE, type, serial, 0, 0);
 }
 
+/* deob class278: (index, field3451 image, field3430 staff, field3449
+ * ignorable), in index order. */
 static struct
 {
     int image;
     int ignorable;
+    int staff;
 } const k_chat_crowns[] = {
-    { -1, 1 }, { 0, 1 },  { 1, 0 },  { 2, 1 },  { 3, 1 },  { 10, 1 },
-    { 22, 1 }, { 41, 1 }, { 42, 1 }, { 43, 1 }, { 44, 1 }, { 45, 1 },
-    { 46, 1 }, { 47, 1 }, { 48, 1 }, { 49, 1 }, { 52, 1 },
+    { -1, 1, 0 }, { 0, 1, 1 },  { 1, 0, 1 },  { 2, 1, 0 },  { 3, 1, 0 },  { 10, 1, 0 },
+    { 22, 1, 0 }, { 41, 1, 0 }, { 42, 1, 0 }, { 43, 1, 0 }, { 44, 1, 0 }, { 45, 1, 0 },
+    { 46, 1, 0 }, { 47, 1, 0 }, { 48, 1, 0 }, { 49, 1, 0 }, { 52, 1, 0 },
 };
+
+int
+RS_Chat_CrownIsStaff(int crown)
+{
+    int const count = (int)(sizeof(k_chat_crowns) / sizeof(k_chat_crowns[0]));
+
+    if( crown < 0 || crown >= count )
+        return 0;
+    return k_chat_crowns[crown].staff;
+}
 
 int
 RS_Chat_InTutorialArea(

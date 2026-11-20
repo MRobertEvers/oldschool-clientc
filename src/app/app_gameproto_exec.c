@@ -3042,7 +3042,7 @@ exec_message_private(
         base37tostr((uint64_t)p->from, name, sizeof(name));
         App_NotifyChatMessage(
             ctx->app,
-            p->staff_mod ? RS_CHAT_TYPE_PRIVATE_FROM_MOD
+            RS_Chat_CrownIsStaff(p->staff_mod) ? RS_CHAT_TYPE_PRIVATE_FROM_MOD
                                                : RS_CHAT_TYPE_PRIVATE_FROM,
             name,
             p->text);

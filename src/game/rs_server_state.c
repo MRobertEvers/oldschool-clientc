@@ -768,6 +768,8 @@ state_message_private(
     struct PktMessagePrivate const* p)
 {
     char name[16];
+    char crowned[RS_CHAT_SENDER_LEN];
+    char escaped[RS_CHAT_TEXT_LEN];
 
     /* deob client.java class243.field2953: the line is shown, and its id
      * remembered, only while the local player is off Tutorial Island
@@ -782,13 +784,19 @@ state_message_private(
     if( RS_Social_IsIgnored(state->social, name) )
         return RS_SERVER_STATE_UNCHANGED;
     RS_Social_MessageRemember(state->social, p->message_id);
+    /* As the reference files it: typed 7 for a staff crown only
+     * (class278.field3430), the crown's image before the name
+     * (method6324(field3451) + name), the text's tags escaped
+     * (class671.method14451). `staff_mod` is the wire's crown index. */
+    RS_Chat_CrownedName(p->staff_mod, name, crowned, sizeof(crowned));
+    RS_ServerState_EscapeTags(p->text ? p->text : "", escaped, sizeof(escaped));
     state_chat_add(
         state,
-        p->staff_mod ? RS_CHAT_TYPE_PRIVATE_FROM_MOD
+        RS_Chat_CrownIsStaff(p->staff_mod) ? RS_CHAT_TYPE_PRIVATE_FROM_MOD
                                            : RS_CHAT_TYPE_PRIVATE_FROM,
+        crowned,
         name,
-        name,
-        p->text);
+        escaped);
     return RS_SERVER_STATE_APPLIED;
 }
 
