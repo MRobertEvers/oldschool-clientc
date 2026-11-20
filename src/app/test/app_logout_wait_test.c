@@ -47,7 +47,9 @@ int g_failures;
  * be Init'd because a zeroed one carries local pid 0, which the clear would
  * then try to remove from a world that does not exist here. The logout
  * cancels every pending parallel task, so the pending index (and the assets
- * table it is made after) is made too.
+ * table it is made after) is made too. A session's end empties the friend
+ * and ignore lists through the host, so the host is handed the social store
+ * as App_Init hands it (app.c, RS_CS2Host_SetSocial).
  */
 static struct App*
 make_app(struct ToriRS_Network* net)
@@ -56,6 +58,8 @@ make_app(struct ToriRS_Network* net)
 
     TEST_ASSERT(app != NULL, "allocated the app fixture");
     app->features.name = "test";
+    RS_Social_Init(&app->social);
+    RS_CS2Host_SetSocial(&app->host, &app->social, app->slots.chat_filter_mode, app->social.node_id);
     RS_EntitySync_Init(&app->esync);
     App_AssetsInit(app);
     App_PendingInit(app);
@@ -186,11 +190,19 @@ test_a_closed_socket_is_the_answer(void)
 
     printf("TEST: a socket that closes during the wait IS the logout\n");
 
+    app->social.friend_count = 1;
+    app->social.ignore_count = 1;
+    app->social.server_status = RS_SOCIAL_SERVER_CONNECTED;
     SessionEnd_RequestLogout(&app->session_end);
     app_logout_tick(app);
     app_net_lost(app, "socket closed");
 
     TEST_ASSERT(app->session_end.logout_wait_cycles == 0, "the answer ended the wait");
+    /* Deob Statics.method9200 -> class58.method1166: the next session's
+     * lists arrive as changes to empty ones, its friend server loading. */
+    TEST_ASSERT(app->social.friend_count == 0, "the session's end emptied the friend list");
+    TEST_ASSERT(app->social.ignore_count == 0, "and the ignore list");
+    TEST_ASSERT(app->social.server_status == RS_SOCIAL_SERVER_LOADING, "and set the friend server loading");
     TEST_ASSERT(
         !NetLinkWatch_Lost(&app->net_link),
         "the link was not left lost, so nothing redials the world the player left");
