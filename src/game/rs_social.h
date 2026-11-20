@@ -11,16 +11,23 @@
  * (FRIEND_COUNT / FRIEND_GETNAME / FRIEND_GETWORLD / IGNORE_*) that
  * clientscripts 125 and 129 build every panel row from.
  *
- * Entries are keyed by the base-37 hash, not by the display string, exactly as
- * the reference keys them: the same player reaches this store as "bob" from a
- * packet, as "Bob" from a chat line and as "B o b" from a typed prompt, and all
- * three have to be one entry. `*_name[]` keeps the raw unpacked form; the
- * display form (underscores to spaces, words capitalised) is produced on the
- * way out by RS_Social_DisplayName.
+ * Entries are keyed by the base-37 hash, not by the display string: the same
+ * player reaches this store as "bob" from a typed prompt, as "Bob" from a chat
+ * line and as "B\xa0o b" from a packet, and all three have to be one entry
+ * (the reference's Username folds case, space, underscore, hyphen and NBSP).
+ * `*_name[]` keeps the name as the wire (or the prompt) spells it, and that is
+ * what the panels are handed: the rev-239 client shows a Username as it was
+ * given (deob class7.method35 returns the string unchanged). A base-37 wire's
+ * adapter writes the 2004 client's display form (RS_Social_DisplayName's rule)
+ * into the packet, because that is how its client showed a name.
  */
 
-#define RS_SOCIAL_FRIEND_MAX 200
-#define RS_SOCIAL_IGNORE_MAX 100
+/* What the reference's readers keep: an entry past 400 is skipped (deob
+ * Statics.method10091 `method10590() >= 400`, class428.method9746 `< 400`).
+ * The 200 / 100 a free account may ADD is the scripts' and the server's
+ * limit, not the store's. */
+#define RS_SOCIAL_FRIEND_MAX 400
+#define RS_SOCIAL_IGNORE_MAX 400
 #define RS_SOCIAL_NAME_LEN 64
 /* The client's chain is a linked list with no bound; scripts build chains of
  * two or three. A step past this many is dropped like a step after a terminal
@@ -108,6 +115,36 @@ struct RS_SocialMessageRing
     int head;
 };
 
+/*
+ * The friend login and logout notices (deob class447.field5447, a list of
+ * class474). A friend already on the list whose world changes queues one,
+ * "logged in" for a non-zero world and "logged out" for 0; one already
+ * queued for the other direction cancels it and nothing is queued
+ * (Statics.method10091). So a world hop -- out, then in on the next world a
+ * few seconds later -- says nothing. A friend new to the list, which is every
+ * friend in a login's first list (the list is emptied at login), queues
+ * nothing. class58.method1165 prints a notice once its stamp, the second it
+ * was queued plus 5, is below the current second less 5: between ten and
+ * eleven seconds after. The reference counts wall seconds; this store counts
+ * the client clock, RS_SOCIAL_CYCLES_PER_SECOND to a second.
+ */
+#define RS_SOCIAL_NOTICE_MAX 512
+#define RS_SOCIAL_CYCLES_PER_SECOND 50
+
+struct RS_SocialNotice
+{
+    char name[RS_SOCIAL_NAME_LEN]; /* the friend, as the wire spelled them */
+    int64_t hash;                  /* the store's key for `name` */
+    int world;                     /* 0: logged out, else logged in */
+    int stamp;                     /* the second it was queued, plus 5 */
+};
+
+struct RS_SocialNotices
+{
+    struct RS_SocialNotice entries[RS_SOCIAL_NOTICE_MAX]; /* oldest first */
+    int count;
+};
+
 struct RS_Social
 {
     char friend_name[RS_SOCIAL_FRIEND_MAX][RS_SOCIAL_NAME_LEN];
@@ -132,8 +169,13 @@ struct RS_Social
 
     char ignore_name[RS_SOCIAL_IGNORE_MAX][RS_SOCIAL_NAME_LEN];
     int64_t ignore_hash[RS_SOCIAL_IGNORE_MAX];
+    /** The name the ignored player had before a rename, raw; "" when none
+     *  (IGNORE_GETNAME's second string). */
+    char ignore_previous_name[RS_SOCIAL_IGNORE_MAX][RS_SOCIAL_NAME_LEN];
     int ignore_count;
     struct RS_SocialSortChain ignore_sort;
+
+    struct RS_SocialNotices notices;
 
     int server_status; /* enum RS_SocialServerStatus */
     /** Our world id, for the green same-world highlight. */
@@ -158,6 +200,66 @@ RS_Social_AddIgnore(struct RS_Social* social, char const* name);
 
 int
 RS_Social_DelIgnore(struct RS_Social* social, char const* name);
+
+/** Remove ignore `index` (0 <= index < ignore_count), closing the gap. */
+void
+RS_Social_DelIgnoreAt(struct RS_Social* social, int index);
+
+/** The ignore list index of `name`, matched as RS_Social_IsIgnored matches
+ *  it; -1 when `name` is not ignored. */
+int
+RS_Social_IgnoreIndex(struct RS_Social const* social, char const* name);
+
+/** Give ignore `index` the name `name` (its key follows) and the previous
+ *  name `previous_name` (class473.method10601: a rename keeps the entry). */
+void
+RS_Social_SetIgnoreNames(
+    struct RS_Social* social,
+    int index,
+    char const* name,
+    char const* previous_name);
+
+/** Friend `name` (already on the list) moved from one world to `world` at
+ *  client clock `clock`: queue or cancel a notice by the reference's rule
+ *  (struct RS_SocialNotices). */
+void
+RS_Social_FriendWorldNotice(
+    struct RS_Social* social,
+    char const* name,
+    int world,
+    int clock);
+
+/** The oldest notice due at client clock `clock`, taken off the queue and
+ *  written as the line the reference prints ("<name> has logged in." /
+ *  "<name> has logged out.", class280.field3630 / field3631) into `text`.
+ *  0 when none is due. The caller files the line as chat type 5
+ *  (Statics.method7544(5, "", text)). */
+int
+RS_Social_TakeDueNotice(
+    struct RS_Social* social,
+    int clock,
+    char* text,
+    int cap);
+
+/** Give friend `index` the name `name` (its key follows) and the previous
+ *  name `previous_name`: a rename keeps the entry (class473.method10601). */
+void
+RS_Social_SetFriendNames(
+    struct RS_Social* social,
+    int index,
+    char const* name,
+    char const* previous_name);
+
+/** Remove friend `index` (0 <= index < friend_count), closing the gap. */
+void
+RS_Social_DelFriendAt(struct RS_Social* social, int index);
+
+/** Empty both lists and set the friend server back to LOADING, as the
+ *  reference's game-state reset does at every login (deob Statics.method9200
+ *  -> class58.method1166). The message ring, the sort chains and the queued
+ *  notices stay (class447 does not clear field5447 there). */
+void
+RS_Social_ResetForLogin(struct RS_Social* social);
 
 /**
  * Set friend `index`'s world, recording the change serial when it differs.
@@ -231,18 +333,24 @@ RS_Social_FriendCount(struct RS_Social const* social);
 int
 RS_Social_IgnoreCount(struct RS_Social const* social);
 
-/** Display name of friend `index` into `out`; "" when out of range. */
+/** Friend `index`'s name as stored (the wire's spelling) into `out`; "" when
+ *  out of range. */
 void
 RS_Social_FriendName(struct RS_Social const* social, int index, char* out, int cap);
 
-/** Display name of ignore `index` into `out`; "" when out of range. */
+/** Ignore `index`'s name as stored into `out`; "" when out of range. */
 void
 RS_Social_IgnoreName(struct RS_Social const* social, int index, char* out, int cap);
 
-/** Previous display name of friend `index` into `out`; "" when none or out of
- *  range. */
+/** Friend `index`'s previous name as stored into `out`; "" when none or out
+ *  of range. */
 void
 RS_Social_FriendPreviousName(struct RS_Social const* social, int index, char* out, int cap);
+
+/** Ignore `index`'s previous name as stored into `out`; "" when none or out
+ *  of range. */
+void
+RS_Social_IgnorePreviousName(struct RS_Social const* social, int index, char* out, int cap);
 
 /** Rank of friend `index`; 0 out of range. */
 int
@@ -267,9 +375,10 @@ int
 RS_Social_IsIgnored(struct RS_Social const* social, char const* name);
 
 /**
- * Reference JString.toScreenName: underscores become spaces and the first
- * letter of each word is capitalised. The store keeps the raw base-37 form, so
- * this is applied on the way out to anything a player reads.
+ * The 2004 reference's JString.toScreenName: underscores become spaces and the
+ * first letter of each word is capitalised. For a name that only exists as a
+ * base-37 key (the rs-family wires, a typed prompt's echo); never applied to a
+ * name a rev-221+ wire spelled.
  */
 void
 RS_Social_DisplayName(char const* raw, char* out, int cap);

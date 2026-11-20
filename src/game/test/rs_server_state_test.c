@@ -510,8 +510,23 @@ test_chat(void)
     snprintf(p._message_private_echo.recipient, sizeof(p._message_private_echo.recipient), "%s",
              "bob");
     apply(fx, &p);
-    CHECK(strcmp(fx->chat.newest->text, "a <lt>b<gt> tag") == 0,
-          "the echo's tags draw as characters");
+    /* Sentence-cased, then escaped (deob class243.field2949:
+     * class671.method14451(Statics.method10915(text))). This pinned the
+     * uncased "a <lt>b<gt> tag". */
+    CHECK(strcmp(fx->chat.newest->text, "A <lt>b<gt> tag") == 0,
+          "the echo is sentence-cased and its tags draw as characters");
+    {
+        char shouty[] = "hI tHERE. wHAT? oK";
+
+        p = packet(PKT_NAME_MESSAGE_PRIVATE);
+        snprintf(p._message_private.sender, sizeof(p._message_private.sender), "bob");
+        p._message_private.message_id = 79;
+        p._message_private.text = shouty;
+        apply(fx, &p);
+        CHECK(strcmp(fx->chat.newest->text, "Hi there. What? Ok") == 0,
+              "a private line is sentence-cased (class243.field2953)");
+        (void)take_events(fx, ev, 8);
+    }
 
     /* The reference's tutorial gate (deob Statics.method6894 -> field765):
      * with the local player on Tutorial Island no friend-channel or private
@@ -544,6 +559,9 @@ test_chat(void)
         p._message_private.text = fc_text;
         CHECK(apply(fx, &p) == RS_SERVER_STATE_UNCHANGED, "nor a private one");
         CHECK(fx->chat.message_count == count, "nothing reached the store");
+        /* PLAYER_INFO's public chat, the real client's rule (deob
+         * class95.method3131): nobody is heard on the island either. */
+        CHECK(!RS_ServerState_PublicChatShown(&fx->state, "carol", true), "nor a public line on the island");
         fx->world->_base_tile_x = 3176;
         fx->world->_base_tile_z = 3176;
         p = packet(PKT_NAME_MESSAGE_FRIENDCHANNEL);
@@ -558,6 +576,14 @@ test_chat(void)
         p._message_private.message_id = 78;
         p._message_private.text = fc_text;
         CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "and the private one");
+        CHECK(RS_ServerState_PublicChatShown(&fx->state, "carol", true), "and a public line off it");
+        CHECK(!RS_ServerState_PublicChatShown(&fx->state, NULL, true), "but not from a player with no name yet");
+        RS_Social_AddIgnore(&fx->social, "Carol");
+        CHECK(!RS_ServerState_PublicChatShown(&fx->state, "carol", true),
+            "an ignored speaker with an ignorable crown is not heard");
+        CHECK(RS_ServerState_PublicChatShown(&fx->state, "carol", false),
+            "a crown the ignore list cannot silence is (class278.field3449)");
+        RS_Social_DelIgnore(&fx->social, "carol");
         (void)take_events(fx, ev, 8);
     }
 
@@ -576,7 +602,7 @@ test_social(void)
 {
     struct Fixture* fx = fixture_new();
     struct RevPacket p;
-    int64_t names[2];
+    struct PktUpdateIgnoreListEntry ignores[2];
     struct PktUpdateFriendListEntry friend_entry;
 
     memset(&friend_entry, 0, sizeof(friend_entry));
@@ -594,13 +620,14 @@ test_social(void)
     CHECK(fx->social.friend_count == 1, "a second update for her is an update");
     CHECK(RS_Social_FriendWorld(&fx->social, 0) == 330, "of her world");
 
-    names[0] = strtobase37("carl");
-    names[1] = strtobase37("dave");
+    memset(ignores, 0, sizeof(ignores));
+    snprintf(ignores[0].name, sizeof(ignores[0].name), "carl");
+    snprintf(ignores[1].name, sizeof(ignores[1].name), "dave");
     p = packet(PKT_NAME_UPDATE_IGNORELIST);
     p._update_ignorelist.count = 2;
-    p._update_ignorelist.names37 = names;
+    p._update_ignorelist.entries = ignores;
     apply(fx, &p);
-    CHECK(fx->social.ignore_count == 2, "the ignore list is replaced");
+    CHECK(fx->social.ignore_count == 2, "both ignores are added");
 
     /* A private message from an ignored name is not shown, and its id is
      * not remembered (deob client.java class243.field2953: the ignore test,
@@ -616,19 +643,25 @@ test_social(void)
         p._message_private.text = pm_text;
         CHECK(apply(fx, &p) == RS_SERVER_STATE_UNCHANGED, "an ignored sender's private line is dropped");
         CHECK(fx->chat.message_count == count, "nothing reached the store");
+        /* Dave taken off the list: a removal entry (class428.method9746's
+         * leading 4). */
+        ignores[1].removed = 1;
         p = packet(PKT_NAME_UPDATE_IGNORELIST);
         p._update_ignorelist.count = 1;
-        p._update_ignorelist.names37 = names;
+        p._update_ignorelist.entries = &ignores[1];
         apply(fx, &p);
+        CHECK(fx->social.ignore_count == 1, "a removal entry takes one name off");
         p = packet(PKT_NAME_MESSAGE_PRIVATE);
         snprintf(p._message_private.sender, sizeof(p._message_private.sender), "dave");
         p._message_private.message_id = 91;
         p._message_private.text = pm_text;
         CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "unignored, the same message is shown: its id was not kept");
+        ignores[1].removed = 0;
         p = packet(PKT_NAME_UPDATE_IGNORELIST);
-        p._update_ignorelist.count = 2;
-        p._update_ignorelist.names37 = names;
+        p._update_ignorelist.count = 1;
+        p._update_ignorelist.entries = &ignores[1];
         apply(fx, &p);
+        CHECK(fx->social.ignore_count == 2, "and an add puts it back beside the other");
     }
 
     /* A private line as the reference files it (deob client.java
@@ -647,7 +680,7 @@ test_social(void)
         CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "an ironman's private line is shown");
         CHECK(fx->chat.newest->type == RS_CHAT_TYPE_PRIVATE_FROM, "typed as a private line, not a mod's");
         CHECK(strncmp(fx->chat.newest->name, "<img=2>", 7) == 0, "named with the crown's image");
-        CHECK(strcmp(fx->chat.newest->text, "a <lt>col=ff0000<gt>red<lt>/col<gt> word") == 0,
+        CHECK(strcmp(fx->chat.newest->text, "A <lt>col=ff0000<gt>red<lt>/col<gt> word") == 0,
             "its tags draw as characters");
         p._message_private.message_id = 93;
         p._message_private.staff_mod = 2; /* a Jagex moderator's */

@@ -299,17 +299,48 @@ prep_update_ignorelist(MsgUpdateIgnoreList* m)
     m->entries = entries;
 }
 
+/* Every entry, by the name the wire sends, as a change to the list held: the
+ * deob (class428.method9746) reads to the end of the payload, removes on a
+ * leading 4 and otherwise adds or renames. A name that is not a Username is
+ * the reference's IllegalStateException: the packet does not parse. */
 int
 adapt_update_ignorelist(MsgUpdateIgnoreList const* m, struct RevPacket* out)
 {
     struct PktUpdateIgnoreList* p = &out->_update_ignorelist;
 
     memset(p, 0, sizeof(*p));
-    p->count = m->count;
-    p->names37 = (int64_t*)ToriMem_Alloc(ToriMem_Net(), (size_t)m->count * sizeof(int64_t) + 1);
-    assert(p->names37);
+    p->replaces = 0;
+    if( m->count <= 0 )
+        return 1;
     for( int i = 0; i < m->count; i++ )
-        p->names37[i] = m->entries[i].name ? (int64_t)strtobase37(m->entries[i].name) : 0;
+    {
+        MsgUpdateIgnoreListEntry const* e = &m->entries[i];
+        int const removed = (e->flags & MSG_UPDATE_IGNORELIST_REMOVED) != 0;
+
+        if( !e->name || !e->name[0] || strlen(e->name) >= sizeof(p->entries[0].name) )
+            return 0;
+        if( !removed && e->previous_name && strlen(e->previous_name) >= sizeof(p->entries[0].previous_name) )
+            return 0;
+    }
+    p->entries = (struct PktUpdateIgnoreListEntry*)ToriMem_Alloc(
+        ToriMem_Net(), (size_t)m->count * sizeof(*p->entries));
+    assert(p->entries);
+    p->count = m->count;
+    for( int i = 0; i < m->count; i++ )
+    {
+        MsgUpdateIgnoreListEntry const* e = &m->entries[i];
+        struct PktUpdateIgnoreListEntry* to = &p->entries[i];
+
+        memset(to, 0, sizeof(*to));
+        snprintf(to->name, sizeof(to->name), "%s", e->name);
+        /* The codec's test, so what is read and what it means agree. */
+        to->removed = (e->flags & MSG_UPDATE_IGNORELIST_REMOVED) != 0;
+        if( !to->removed )
+        {
+            to->match_previous = (e->flags & 0x1) != 0;
+            snprintf(to->previous_name, sizeof(to->previous_name), "%s", e->previous_name ? e->previous_name : "");
+        }
+    }
     return 1;
 }
 
@@ -349,6 +380,7 @@ adapt_update_friendlist(MsgUpdateFriendList const* m, struct RevPacket* out)
         snprintf(e->name, sizeof(e->name), "%s", m->entries[i].name);
         snprintf(e->previous_name, sizeof(e->previous_name), "%s",
             m->entries[i].previous_name ? m->entries[i].previous_name : "");
+        e->match_previous = m->entries[i].added == 1;
         e->world = m->entries[i].world_id;
         e->rank = m->entries[i].rank;
     }
@@ -3212,6 +3244,25 @@ adapt_friendlist_loaded_rs(MsgFriendlistLoadedRs const* m, struct RevPacket* out
     return 1;
 }
 
+/* A base-37 name as the 2004 client showed it (TextClass.fixName over
+ * nameForLong): underscores to spaces, each word's first letter capitalised.
+ * The wire carries no spelling, so this is the name these revisions display. */
+static void
+adapt_base37_display_name(int64_t name37, char* out, int cap)
+{
+    int word_start = 1;
+
+    base37tostr((uint64_t)name37, out, cap);
+    for( int i = 0; out[i] != '\0'; i++ )
+    {
+        if( out[i] == '_' )
+            out[i] = ' ';
+        if( word_start && out[i] >= 'a' && out[i] <= 'z' )
+            out[i] = (char)(out[i] - 'a' + 'A');
+        word_start = out[i] == ' ';
+    }
+}
+
 int
 adapt_update_friendlist_rs(MsgUpdateFriendlistRs const* m, struct RevPacket* out)
 {
@@ -3223,7 +3274,7 @@ adapt_update_friendlist_rs(MsgUpdateFriendlistRs const* m, struct RevPacket* out
     assert(p->entries);
     memset(p->entries, 0, sizeof(*p->entries));
     p->count = 1;
-    base37tostr((uint64_t)m->name37, p->entries[0].name, (int)sizeof(p->entries[0].name));
+    adapt_base37_display_name(m->name37, p->entries[0].name, (int)sizeof(p->entries[0].name));
     p->entries[0].world = m->world;
     return 1;
 }
@@ -3236,18 +3287,23 @@ prep_update_ignorelist_rs(MsgUpdateIgnoreListRs* m)
     m->names37 = names;
 }
 
+/* The whole list, each name a base-37 key shown as the 2004 client showed it. */
 int
 adapt_update_ignorelist_rs(MsgUpdateIgnoreListRs const* m, struct RevPacket* out)
 {
     struct PktUpdateIgnoreList* p = &out->_update_ignorelist;
 
+    memset(p, 0, sizeof(*p));
+    p->replaces = 1;
     p->count = m->count;
-    p->names37 = NULL;
     if( m->count > 0 )
     {
-        p->names37 = (int64_t*)ToriMem_Alloc(ToriMem_Net(), (size_t)m->count * sizeof(int64_t));
-        assert(p->names37);
-        memcpy(p->names37, m->names37, (size_t)m->count * sizeof(int64_t));
+        p->entries = (struct PktUpdateIgnoreListEntry*)ToriMem_Alloc(
+            ToriMem_Net(), (size_t)m->count * sizeof(*p->entries));
+        assert(p->entries);
+        memset(p->entries, 0, (size_t)m->count * sizeof(*p->entries));
+        for( int i = 0; i < m->count; i++ )
+            adapt_base37_display_name(m->names37[i], p->entries[i].name, (int)sizeof(p->entries[i].name));
     }
     return 1;
 }

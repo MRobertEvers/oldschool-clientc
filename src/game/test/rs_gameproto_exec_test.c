@@ -101,11 +101,11 @@ test_put_jstr(uint8_t* out, int at, char const* text)
  * Statics.method10091): added, name, previous name, world, rank, properties,
  * the online-only world name, platform and flags, the notes. */
 static int
-test_put_friend(uint8_t* out, int at, char const* name, int world)
+test_put_friend_renamed(uint8_t* out, int at, int lead, char const* name, char const* previous, int world)
 {
-    out[at++] = 0;
+    out[at++] = (uint8_t)lead;
     at = test_put_jstr(out, at, name);
-    at = test_put_jstr(out, at, "");
+    at = test_put_jstr(out, at, previous);
     out[at++] = (uint8_t)(world >> 8);
     out[at++] = (uint8_t)world;
     out[at++] = 0;
@@ -117,6 +117,56 @@ test_put_friend(uint8_t* out, int at, char const* name, int world)
         memset(out + at, 0, 4);
         at += 4;
     }
+    return test_put_jstr(out, at, "");
+}
+
+static int
+test_put_friend(uint8_t* out, int at, char const* name, int world)
+{
+    return test_put_friend_renamed(out, at, 0, name, "", world);
+}
+
+/* One UPDATE_FRIENDLIST packet through the rev-242 reader and the model. */
+static void
+test_friend_packet(
+    struct App* app,
+    struct RS_ServerState* state,
+    uint8_t const* wire,
+    int len)
+{
+    struct GameProtoRevTable const* rev = GameProtoRev_Osrs(242);
+    struct RevPacket p;
+
+    memset(&p, 0, sizeof(p));
+    TEST_EXEC_ASSERT(
+        rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_UPDATE_FRIENDLIST), (uint8_t*)wire, len, &p),
+        "an UPDATE_FRIENDLIST parses");
+    App_GameProto_Exec(app, state, &p);
+    gameproto_free(&p);
+}
+
+/* The client cycles from `*clock` to `to`, the notices drained every one. */
+static void
+test_notice_cycles(struct RS_ServerState* state, int* clock, int to)
+{
+    while( *clock < to )
+    {
+        (*clock)++;
+        RS_ServerState_FriendNotices(state->social, state->chat, *clock);
+    }
+}
+
+/* One UPDATE_IGNORELIST entry (rsprot update_ignorelist.h, deob
+ * class428.method9746): the flags byte, the name, and unless the flags say
+ * "removed" (4), the previous name and the note. */
+static int
+test_put_ignore(uint8_t* out, int at, int flags, char const* name, char const* previous)
+{
+    out[at++] = (uint8_t)flags;
+    at = test_put_jstr(out, at, name);
+    if( flags & 0x4 )
+        return at;
+    at = test_put_jstr(out, at, previous);
     return test_put_jstr(out, at, "");
 }
 
@@ -675,7 +725,6 @@ main(void)
         struct RS_Social* pm_social = calloc(1, sizeof(*pm_social));
         struct RS_Chat* pm_chat = calloc(1, sizeof(*pm_chat));
         int pm_filters[3] = { 0, 1, 0 }; /* public on, private friends, trade on */
-        int64_t ignored[1];
         uint8_t wire[512];
         int len = 0;
         struct RevPacket p;
@@ -712,12 +761,13 @@ main(void)
             TEST_EXEC_ASSERT(RS_Social_FriendWorld(pm_social, i) == 435, "with her world");
         }
 
+        len = test_put_ignore(wire, 0, 0x1, "Spam\xa0" "Bot", "");
         memset(&p, 0, sizeof(p));
-        p.packet_type = PKT_NAME_UPDATE_IGNORELIST;
-        ignored[0] = (int64_t)strtobase37("spam_bot");
-        p._update_ignorelist.count = 1;
-        p._update_ignorelist.names37 = ignored;
+        TEST_EXEC_ASSERT(
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_UPDATE_IGNORELIST), wire, len, &p),
+            "a one-entry UPDATE_IGNORELIST parses");
         App_GameProto_Exec(base_app, &pm_state, &p);
+        gameproto_free(&p);
 
         filters = (struct RS_ChatFilters){ .public_mode = 0, .private_mode = 1, .trade_mode = 0, .social = pm_social };
 
@@ -774,6 +824,284 @@ main(void)
         free(pm_chat);
         free(pm_social);
         printf("ok - a private message from a crowned friend passes the friends-only filter\n");
+    }
+
+    /* B4: the friend login/logout notices and the rename rule, on recording
+     * 96's own sequence (index 236, rev 227). Its login list holds every
+     * friend and the client says nothing about any of them. Later updates
+     * are single entries: "Bills Late" goes offline at [439] and nothing
+     * follows (a logout: "Bills Late has logged out." ten to eleven seconds
+     * on); "Xarpos" goes offline at [995] and is back on world 442 at [1007],
+     * twelve ticks (7.2 s) later (a world hop: the logout notice is still
+     * queued, the login cancels it, nothing is said); "Eden Cosine" comes
+     * online on 435 at [7960] (logged in). The rules are deob
+     * Statics.method10091 (queue or cancel; only an entry already on the
+     * list) and class58.method1165 (print once stamp+5 < now-5, in seconds). */
+    {
+        struct RS_ServerState fs = bare_state;
+        struct RS_Social* fsoc = calloc(1, sizeof(*fsoc));
+        struct RS_Chat* fchat = calloc(1, sizeof(*fchat));
+        uint8_t wire[512];
+        int clock = 0;
+        int len;
+
+        assert(fsoc);
+        assert(fchat);
+        RS_Social_Init(fsoc);
+        RS_Chat_Init(fchat, "Player");
+        fs.social = fsoc;
+        fs.chat = fchat;
+        fs.chat_clock = &clock;
+
+        len = test_put_friend(wire, 0, "Bills\xa0" "Late", 443);
+        len = test_put_friend(wire, len, "Xarpos", 457);
+        len = test_put_friend(wire, len, "Eden\xa0" "Cosine", 0);
+        test_friend_packet(base_app, &fs, wire, len);
+        TEST_EXEC_ASSERT(fsoc->friend_count == 3, "the login list is the friend list");
+        test_notice_cycles(&fs, &clock, 1000);
+        TEST_EXEC_ASSERT(fchat->message_count == 0, "the first list after login says nothing");
+
+        /* [439] Bills Late logs out, at clock 1000 (second 20, stamp 25). */
+        len = test_put_friend(wire, 0, "Bills\xa0" "Late", 0);
+        test_friend_packet(base_app, &fs, wire, len);
+        test_notice_cycles(&fs, &clock, 1549);
+        TEST_EXEC_ASSERT(fchat->message_count == 0, "nothing ten seconds on (second 30: 25 < 25 is false)");
+        test_notice_cycles(&fs, &clock, 1550);
+        TEST_EXEC_ASSERT(fchat->message_count == 1, "the logout notice at second 31");
+        TEST_EXEC_ASSERT(fchat->newest->type == RS_CHAT_TYPE_PRIVATE_SYSTEM, "typed 5");
+        TEST_EXEC_ASSERT(fchat->newest->name[0] == '\0', "with no name");
+        TEST_EXEC_ASSERT(strcmp(fchat->newest->text, "Bills\xa0" "Late has logged out.") == 0,
+            "\"Bills Late has logged out.\", as the wire spells him");
+
+        /* [995] .. [1007] Xarpos hops: out, then in on 442 7.2 s later. */
+        len = test_put_friend(wire, 0, "Xarpos", 0);
+        test_friend_packet(base_app, &fs, wire, len);
+        test_notice_cycles(&fs, &clock, clock + 360);
+        len = test_put_friend(wire, 0, "Xarpos", 442);
+        test_friend_packet(base_app, &fs, wire, len);
+        test_notice_cycles(&fs, &clock, clock + 1500);
+        TEST_EXEC_ASSERT(fchat->message_count == 1, "a world hop says nothing");
+        TEST_EXEC_ASSERT(RS_Social_FriendWorld(fsoc, RS_Social_FriendIndex(fsoc, "xarpos")) == 442,
+            "and the friend is on the new world");
+
+        /* [7960] Eden Cosine logs in on 435. */
+        len = test_put_friend(wire, 0, "Eden\xa0" "Cosine", 435);
+        test_friend_packet(base_app, &fs, wire, len);
+        test_notice_cycles(&fs, &clock, clock + 600);
+        TEST_EXEC_ASSERT(fchat->message_count == 2, "a login is said");
+        TEST_EXEC_ASSERT(strcmp(fchat->newest->text, "Eden\xa0" "Cosine has logged in.") == 0,
+            "\"Eden Cosine has logged in.\"");
+
+        /* A rename: the leading byte 1 finds the friend by the previous name;
+         * the entry keeps its place and world and takes the new names. */
+        len = test_put_friend_renamed(wire, 0, 1, "Eden\xa0" "Sine", "Eden\xa0" "Cosine", 435);
+        test_friend_packet(base_app, &fs, wire, len);
+        TEST_EXEC_ASSERT(fsoc->friend_count == 3, "a rename is the same friend, not a new one");
+        TEST_EXEC_ASSERT(!RS_Social_IsFriend(fsoc, "Eden Cosine") && RS_Social_IsFriend(fsoc, "Eden Sine"),
+            "under the new name");
+        {
+            char prev[RS_SOCIAL_NAME_LEN];
+            int const i = RS_Social_FriendIndex(fsoc, "eden_sine");
+
+            RS_Social_FriendPreviousName(fsoc, i, prev, (int)sizeof(prev));
+            TEST_EXEC_ASSERT(strcmp(prev, "Eden\xa0" "Cosine") == 0, "remembering the old one");
+        }
+        /* Both names on the list as two entries: the previous one goes. */
+        len = test_put_friend(wire, 0, "Old\xa0" "Pal", 0);
+        len = test_put_friend(wire, len, "New\xa0" "Pal", 0);
+        test_friend_packet(base_app, &fs, wire, len);
+        len = test_put_friend_renamed(wire, 0, 1, "New\xa0" "Pal", "Old\xa0" "Pal", 0);
+        test_friend_packet(base_app, &fs, wire, len);
+        TEST_EXEC_ASSERT(fsoc->friend_count == 4 && !RS_Social_IsFriend(fsoc, "Old Pal"),
+            "a rename onto a name already listed drops the previous entry");
+
+        /* A relog: the session reset empties the list, and the new login's
+         * list, every world different, says nothing. */
+        {
+            int const lines = fchat->message_count;
+
+            RS_Social_ResetForLogin(fsoc);
+            TEST_EXEC_ASSERT(RS_Social_FriendCount(fsoc) < 0, "loading again after the reset");
+            len = test_put_friend(wire, 0, "Bills\xa0" "Late", 301);
+            len = test_put_friend(wire, len, "Xarpos", 0);
+            test_friend_packet(base_app, &fs, wire, len);
+            test_notice_cycles(&fs, &clock, clock + 1500);
+            TEST_EXEC_ASSERT(fchat->message_count == lines, "the first list after a relog says nothing");
+            TEST_EXEC_ASSERT(fsoc->friend_count == 2, "and is the whole list");
+        }
+
+        RS_Chat_Free(fchat);
+        free(fchat);
+        free(fsoc);
+        printf("ok - friend login/logout notices and renames follow the reference\n");
+    }
+
+    /* B2: the ignore list, as recording 96 (index 236, rev 227) sends it at
+     * login: [update_ignorelist] added "60ibis2142", added "Kill\xa0777"
+     * (an NBSP, as the wire bytes show). Each rev-221+ entry is a change to
+     * the list held (deob class428.method9746): a later one-entry add keeps
+     * the others, a leading 4 removes, and the low bit finds a renamed entry
+     * by its previous name. The names are kept as spelled and matched by the
+     * Username key, like the friend list. */
+    {
+        struct GameProtoRevTable const* rev = GameProtoRev_Osrs(242);
+        struct RS_ServerState ig_state = bare_state;
+        struct RS_Social* ig = calloc(1, sizeof(*ig));
+        uint8_t wire[256];
+        char name[RS_SOCIAL_NAME_LEN];
+        int len;
+        struct RevPacket p;
+
+        assert(rev);
+        assert(ig);
+        RS_Social_Init(ig);
+        ig_state.social = ig;
+
+        len = test_put_ignore(wire, 0, 0, "60ibis2142", "");
+        len = test_put_ignore(wire, len, 0, "Kill\xa0" "777", "");
+        memset(&p, 0, sizeof(p));
+        TEST_EXEC_ASSERT(
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_UPDATE_IGNORELIST), wire, len, &p),
+            "recording 96's login UPDATE_IGNORELIST parses");
+        App_GameProto_Exec(base_app, &ig_state, &p);
+        gameproto_free(&p);
+        TEST_EXEC_ASSERT(ig->ignore_count == 2, "both ignores are held");
+        RS_Social_IgnoreName(ig, 1, name, (int)sizeof(name));
+        TEST_EXEC_ASSERT(strcmp(name, "Kill\xa0" "777") == 0, "an ignore is named as the wire spells it");
+        TEST_EXEC_ASSERT(RS_Social_IsIgnored(ig, "kill 777"), "and found by any spelling of it");
+
+        /* The server's answer to an ignore add is that one entry. */
+        len = test_put_ignore(wire, 0, 0x1, "Spam\xa0" "Bot", "");
+        memset(&p, 0, sizeof(p));
+        TEST_EXEC_ASSERT(
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_UPDATE_IGNORELIST), wire, len, &p),
+            "a one-entry add parses");
+        App_GameProto_Exec(base_app, &ig_state, &p);
+        gameproto_free(&p);
+        TEST_EXEC_ASSERT(ig->ignore_count == 3, "a one-entry update adds to the list, it does not replace it");
+
+        /* A removal: the flags byte 4 and the name alone. */
+        len = test_put_ignore(wire, 0, 0x4, "60ibis2142", "");
+        memset(&p, 0, sizeof(p));
+        TEST_EXEC_ASSERT(
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_UPDATE_IGNORELIST), wire, len, &p),
+            "a removal parses");
+        App_GameProto_Exec(base_app, &ig_state, &p);
+        gameproto_free(&p);
+        TEST_EXEC_ASSERT(!RS_Social_IsIgnored(ig, "60ibis2142"), "a removal entry unignores the name");
+        TEST_EXEC_ASSERT(ig->ignore_count == 2, "and leaves the rest");
+
+        /* A rename: found by the previous name, it takes the new one. */
+        len = test_put_ignore(wire, 0, 0x1, "Kill Seven", "Kill\xa0" "777");
+        memset(&p, 0, sizeof(p));
+        TEST_EXEC_ASSERT(
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_UPDATE_IGNORELIST), wire, len, &p),
+            "a rename parses");
+        App_GameProto_Exec(base_app, &ig_state, &p);
+        gameproto_free(&p);
+        TEST_EXEC_ASSERT(ig->ignore_count == 2, "a rename is the same entry");
+        TEST_EXEC_ASSERT(RS_Social_IsIgnored(ig, "Kill Seven") && !RS_Social_IsIgnored(ig, "Kill 777"),
+            "under its new name only");
+        {
+            int const i = RS_Social_IgnoreIndex(ig, "kill_seven");
+
+            RS_Social_IgnorePreviousName(ig, i, name, (int)sizeof(name));
+            TEST_EXEC_ASSERT(strcmp(name, "Kill\xa0" "777") == 0, "remembering the previous name");
+        }
+
+        /* The rs-family wires send the whole list as base-37 keys, and the
+         * list is replaced. */
+        {
+            struct GameProtoRevTable const* rs = GameProtoRev_ByName("rs254");
+            uint64_t const key = strtobase37("bob_smith");
+
+            assert(rs);
+            for( int i = 0; i < 8; i++ )
+                wire[i] = (uint8_t)(key >> (56 - 8 * i));
+            memset(&p, 0, sizeof(p));
+            TEST_EXEC_ASSERT(
+                rs->parse_wire(rs, rs->packetin_wire(PKT_NAME_UPDATE_IGNORELIST), wire, 8, &p),
+                "an rs254 UPDATE_IGNORELIST parses");
+            App_GameProto_Exec(base_app, &ig_state, &p);
+            gameproto_free(&p);
+            TEST_EXEC_ASSERT(ig->ignore_count == 1, "an rs-wire list replaces the list");
+            RS_Social_IgnoreName(ig, 0, name, (int)sizeof(name));
+            TEST_EXEC_ASSERT(strcmp(name, "Bob Smith") == 0, "named as its client showed the key");
+        }
+
+        free(ig);
+        printf("ok - the ignore list is keyed and matched like the friend list, on every wire\n");
+    }
+
+    /* The store keeps what the reference's readers keep: up to 400 friends
+     * and 400 ignores (Statics.method10091, class428.method9746). A member's
+     * 250-friend login list was cut at 200 and a 150-ignore list at 100. */
+    {
+        struct GameProtoRevTable const* rev = GameProtoRev_Osrs(242);
+        struct RS_ServerState cs = bare_state;
+        struct RS_Social* csoc = calloc(1, sizeof(*csoc));
+        static uint8_t big[16384];
+        int clock = 0;
+        int len = 0;
+        struct RevPacket p;
+
+        assert(csoc);
+        RS_Social_Init(csoc);
+        cs.social = csoc;
+        cs.chat_clock = &clock;
+        for( int i = 0; i < 250; i++ )
+        {
+            char name[16];
+
+            snprintf(name, sizeof(name), "friend%d", i);
+            len = test_put_friend(big, len, name, 0);
+        }
+        test_friend_packet(base_app, &cs, big, len);
+        TEST_EXEC_ASSERT(csoc->friend_count == 250, "a 250-friend list is kept whole");
+        len = 0;
+        for( int i = 0; i < 150; i++ )
+        {
+            char name[16];
+
+            snprintf(name, sizeof(name), "ignore%d", i);
+            len = test_put_ignore(big, len, 0, name, "");
+        }
+        memset(&p, 0, sizeof(p));
+        TEST_EXEC_ASSERT(
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_UPDATE_IGNORELIST), big, len, &p),
+            "a 150-ignore list parses");
+        App_GameProto_Exec(base_app, &cs, &p);
+        gameproto_free(&p);
+        TEST_EXEC_ASSERT(csoc->ignore_count == 150, "and a 150-ignore list");
+        free(csoc);
+        printf("ok - the friend and ignore lists hold what the reference keeps\n");
+    }
+
+    /* B3: a name is shown as the wire spells it. A rev-221+ wire spells it
+     * (the store keeps "Eden\xa0Cosine", checked above); an rs-family wire
+     * sends only its base-37 key, and its 2004 client showed that key as
+     * TextClass.fixName does: "bob_smith" is "Bob Smith". The store no longer
+     * title-cases on the way out, so the rs adapter writes that form. */
+    {
+        struct GameProtoRevTable const* rs = GameProtoRev_ByName("rs254");
+        uint64_t const key = strtobase37("bob_smith");
+        uint8_t wire[9];
+        struct RevPacket p;
+
+        assert(rs);
+        for( int i = 0; i < 8; i++ )
+            wire[i] = (uint8_t)(key >> (56 - 8 * i));
+        wire[8] = 2;
+        memset(&p, 0, sizeof(p));
+        TEST_EXEC_ASSERT(
+            rs->parse_wire(rs, rs->packetin_wire(PKT_NAME_UPDATE_FRIENDLIST), wire, (int)sizeof(wire), &p),
+            "an rs254 UPDATE_FRIENDLIST parses");
+        TEST_EXEC_ASSERT(p._update_friendlist.count == 1, "one friend per packet on the rs wire");
+        TEST_EXEC_ASSERT(strcmp(p._update_friendlist.entries[0].name, "Bob Smith") == 0,
+            "an rs wire's friend is named as its client showed the key");
+        TEST_EXEC_ASSERT(p._update_friendlist.entries[0].world == 2, "with the world");
+        gameproto_free(&p);
+        printf("ok - an rs-wire friend is named as its client showed it\n");
     }
 
     /* REBUILD_NORMAL square rect: classic (zone-6)*8 scene covers at most 3x3

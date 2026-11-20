@@ -260,6 +260,22 @@ state_chat_add(
     RS_Chat_AddMessage(state->chat, type, name, sender, text, *state->chat_clock);
 }
 
+/* A player's line as the reference files every one it reads from a private,
+ * private-echo or friends-chat packet (deob client.java, class243.field2953,
+ * field2949, field2995): class671.method14451(Statics.method10915(text)),
+ * sentence case and then the tags escaped. */
+static void
+state_player_text(
+    char const* text,
+    char* out,
+    size_t cap)
+{
+    char cased[RS_CHAT_TEXT_LEN];
+
+    RS_Chat_SentenceCase(text ? text : "", cased, sizeof(cased));
+    RS_ServerState_EscapeTags(cased, out, cap);
+}
+
 /* The reference's tutorial gate on friend-channel and private lines
  * (RS_Chat_InTutorialArea): computed from the local player's tile, scene-local
  * plus the root's base as the deob's (fine >> 7) + field3266's base. No local
@@ -282,6 +298,25 @@ state_local_player_in_tutorial_area(struct RS_ServerState const* state)
     return RS_Chat_InTutorialArea(
         state->world->_base_tile_x + self->grid_position.x,
         state->world->_base_tile_z + self->grid_position.z);
+}
+
+bool
+RS_ServerState_PublicChatShown(
+    struct RS_ServerState const* state,
+    char const* sender,
+    bool ignorable)
+{
+    assert(state);
+    assert(state->social);
+    /* class95.method3131: a speaker with no name yet (field531) says
+     * nothing; an ignorable crown's wearer on the ignore list is silent;
+     * and nobody is heard while the local player is on Tutorial Island
+     * (client.field765). */
+    if( !sender )
+        return false;
+    if( ignorable && RS_Social_IsIgnored(state->social, sender) )
+        return false;
+    return !state_local_player_in_tutorial_area(state);
 }
 
 /* MESSAGE_FRIENDCHANNEL: deob client.java class259.field3189. Shares the message
@@ -313,7 +348,7 @@ state_message_friendchannel(
     RS_Social_MessageRemember(state->social, key);
 
     base37tostr((uint64_t)message->channel_name, channel, sizeof(channel));
-    RS_ServerState_EscapeTags(message->text ? message->text : "", escaped, sizeof(escaped));
+    state_player_text(message->text, escaped, sizeof(escaped));
     RS_Chat_CrownedName(message->crown, message->sender, name, sizeof(name));
     state_chat_add(state, RS_CHAT_TYPE_FRIENDS_CHAT, name, channel, escaped);
     return RS_SERVER_STATE_APPLIED;
@@ -322,8 +357,13 @@ state_message_friendchannel(
 /* ---- social ---------------------------------------------------------------- */
 
 /* deob Statics.method10091: each entry finds its friend by name (the
- * Username, so case and space/underscore/NBSP do not tell two apart), takes
- * the wire's spelling of it, and its world, rank and previous name. */
+ * Username, so case and space/underscore/NBSP do not tell two apart) and,
+ * when its leading byte is 1, by its previous name too: found under both as
+ * two entries, the previous one goes (Statics.method10612); found under
+ * either, the entry takes the wire's names (a rename, class473.method10601).
+ * Found under neither, it is added, and a new friend says nothing. An entry
+ * already on the list whose world changes queues the login or logout notice
+ * (RS_Social_FriendWorldNotice), stamped with the client clock. */
 static void
 state_update_friendlist(
     struct RS_ServerState const* state,
@@ -332,6 +372,7 @@ state_update_friendlist(
     struct RS_Social* social = state->social;
 
     assert(social);
+    assert(state->chat_clock);
     social->server_status = 2;
     if( p->count == 0 )
         return;
@@ -341,22 +382,59 @@ state_update_friendlist(
         struct PktUpdateFriendListEntry const* entry = &p->entries[e];
         int index = RS_Social_FriendIndex(social, entry->name);
 
+        if( entry->match_previous && entry->previous_name[0] )
+        {
+            int const previous = RS_Social_FriendIndex(social, entry->previous_name);
+
+            if( previous >= 0 && previous != index )
+            {
+                if( index < 0 )
+                    index = previous;
+                else
+                {
+                    RS_Social_DelFriendAt(social, previous);
+                    if( previous < index )
+                        index--;
+                }
+            }
+        }
         if( index >= 0 )
         {
-            snprintf(social->friend_name[index], RS_SOCIAL_NAME_LEN, "%s", entry->name);
+            RS_Social_SetFriendNames(social, index, entry->name, entry->previous_name);
+            if( social->friend_world[index] != entry->world )
+                RS_Social_FriendWorldNotice(social, entry->name, entry->world, *state->chat_clock);
             RS_Social_SetFriendWorld(social, index, entry->world);
         }
         else if( RS_Social_AddFriend(social, entry->name, entry->world) )
+        {
             index = social->friend_count - 1;
+            RS_Social_SetFriendNames(social, index, entry->name, entry->previous_name);
+        }
         else
             continue;
         social->friend_rank[index] = entry->rank;
-        snprintf(social->friend_previous_name[index], RS_SOCIAL_NAME_LEN, "%s", entry->previous_name);
     }
     /* The client re-applies the scripts' sort chain on every friend update
      * (class476.java:207), so a world change re-orders the list without the
      * panel asking. */
     RS_Social_SortFriends(social);
+}
+
+/* The login and logout notices due by now, each a type-5 line with no name
+ * (deob class58.method1165, run every client cycle: Statics.method7544(5,
+ * "", name + " has logged in.")). A client calls this from its own clock. */
+void
+RS_ServerState_FriendNotices(
+    struct RS_Social* social,
+    struct RS_Chat* chat,
+    int clock)
+{
+    char text[RS_CHAT_TEXT_LEN];
+
+    assert(social);
+    assert(chat);
+    while( RS_Social_TakeDueNotice(social, clock, text, (int)sizeof(text)) )
+        RS_Chat_AddMessage(chat, RS_CHAT_TYPE_PRIVATE_SYSTEM, "", NULL, text, clock);
 }
 
 /* ---- session --------------------------------------------------------------- */
@@ -796,7 +874,7 @@ state_message_private(
      * (class76.method2620), so a friend whose name has capitals or an NBSP
      * still reads as one to the private filter (script 91, pm_filtertest). */
     RS_Chat_CrownedName(p->staff_mod, p->sender, crowned, sizeof(crowned));
-    RS_ServerState_EscapeTags(p->text ? p->text : "", escaped, sizeof(escaped));
+    state_player_text(p->text, escaped, sizeof(escaped));
     state_chat_add(
         state,
         RS_Chat_CrownIsStaff(p->staff_mod) ? RS_CHAT_TYPE_PRIVATE_FROM_MOD
@@ -816,10 +894,7 @@ state_message_private_echo(
 {
     char escaped[RS_CHAT_TEXT_LEN];
 
-    RS_ServerState_EscapeTags(
-        p->text ? p->text : "",
-        escaped,
-        sizeof(escaped));
+    state_player_text(p->text, escaped, sizeof(escaped));
     state_chat_add(
         state,
         RS_CHAT_TYPE_PRIVATE_TO,
@@ -847,18 +922,70 @@ state_update_friendlist_apply(
     return RS_SERVER_STATE_APPLIED;
 }
 
+/* One rev-221+ entry, as deob class428.method9746 applies it: a removal
+ * deletes the name (class58.method1171 -> method10596); otherwise the entry
+ * is found by its name and, when the low bit is set, by its previous name
+ * too. Found under both as two entries, the previous one goes (Statics
+ * .method10612); found under either, it takes the wire's names (a rename,
+ * class473.method10601); found under neither, it is added. */
+static void
+state_ignore_entry(
+    struct RS_Social* social,
+    struct PktUpdateIgnoreListEntry const* entry)
+{
+    int index;
+
+    if( entry->removed )
+    {
+        (void)RS_Social_DelIgnore(social, entry->name);
+        return;
+    }
+    index = RS_Social_IgnoreIndex(social, entry->name);
+    if( entry->match_previous && entry->previous_name[0] )
+    {
+        int const previous = RS_Social_IgnoreIndex(social, entry->previous_name);
+
+        if( previous >= 0 && previous != index )
+        {
+            if( index < 0 )
+                index = previous;
+            else
+            {
+                RS_Social_DelIgnoreAt(social, previous);
+                if( previous < index )
+                    index--;
+            }
+        }
+    }
+    if( index < 0 )
+    {
+        if( !RS_Social_AddIgnore(social, entry->name) )
+            return;
+        index = social->ignore_count - 1;
+    }
+    RS_Social_SetIgnoreNames(social, index, entry->name, entry->previous_name);
+}
+
+/* UPDATE_IGNORELIST. On rev 221+ each entry changes the list held (an add
+ * from the server is one entry, not the list); the rs-family wires send the
+ * whole list, which replaces it. Names are the wire's spelling: an ignore is
+ * found and shown like a friend (RS_Social's key), never through base37
+ * text, which lost the capitals and the NBSP. */
 static enum RS_ServerStateApply
 state_update_ignorelist(
     struct RS_ServerState const* state,
     struct PktUpdateIgnoreList const* p)
 {
-    state->social->ignore_count = 0;
+    struct RS_Social* social = state->social;
+
+    assert(social);
+    if( p->replaces )
+        social->ignore_count = 0;
+    if( p->count == 0 )
+        return RS_SERVER_STATE_APPLIED;
+    assert(p->entries);
     for( int i = 0; i < p->count; i++ )
-    {
-        char name[16];
-        base37tostr((uint64_t)p->names37[i], name, sizeof(name));
-        RS_Social_AddIgnore(state->social, name);
-    }
+        state_ignore_entry(social, &p->entries[i]);
     return RS_SERVER_STATE_APPLIED;
 }
 

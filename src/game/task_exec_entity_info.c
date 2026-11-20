@@ -8,6 +8,7 @@
 #include "game/rs_entity_sync.h"
 #include "game/rs_healthbar.h"
 #include "game/rs_hitsplat.h"
+#include "game/rs_server_state.h"
 #include "game/task_entity_assets.h"
 #include "net/net.h"
 #include "net/rev/packets/pkt_player_appearance.h"
@@ -220,6 +221,21 @@ host_npc_origin(
     *out_level = App_WevDeckLevel(h->app, view);
 }
 
+/* The reference's rule for a public line (the ignore list, Tutorial Island),
+ * against this App's own store and local player. */
+static bool
+host_public_chat_shown(
+    void* ctx,
+    char const* sender,
+    bool ignorable)
+{
+    struct EntityInfoHost const* h = ctx;
+    struct RS_ServerState state;
+
+    App_ServerStateBind(h->app, &state);
+    return RS_ServerState_PublicChatShown(&state, sender, ignorable);
+}
+
 static int
 host_player_spawn(
     void* ctx,
@@ -366,6 +382,7 @@ static struct RS_EntityApplyHost const k_app_host = {
     .headbar_persist = host_headbar_persist,
     .home_view = host_home_view,
     .npc_origin = host_npc_origin,
+    .public_chat_shown = host_public_chat_shown,
     .player_spawn = host_player_spawn,
     .npc_spawn = host_npc_spawn,
     .npc_retype = host_npc_retype,

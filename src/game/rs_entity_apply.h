@@ -140,6 +140,12 @@ struct RS_EntityApplyHost
     /** The origin NPC_INFO's deltas for view `view` are measured from, in
      *  that view's tiles, and its level. */
     void (*npc_origin)(void* ctx, int view, int* out_x, int* out_z, int* out_level);
+    /** Is a public line (the chat block) from player `sender` (NULL: no name
+     *  yet) shown, chatbox and overhead? `ignorable`: the speaker's crown
+     *  lets the ignore list silence them. The real client answers as the
+     *  reference (RS_ServerState_PublicChatShown); the headless client
+     *  records what the server sent and answers true. */
+    bool (*public_chat_shown)(void* ctx, char const* sender, bool ignorable);
 
     /* ---- makers ---- */
 

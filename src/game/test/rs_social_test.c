@@ -116,8 +116,15 @@ test_store(void)
     CHECK(RS_Social_FriendCount(&social) == 1, "so he is still one entry");
     CHECK(RS_Social_IsFriend(&social, "BOB"), "and any spelling finds him");
 
+    /* The panel is handed the name as it was given, not title-cased: the
+     * rev-239 client shows a Username unchanged (deob class7.method35), so a
+     * wire "iGud PK" is "iGud PK", never "IGud PK". This used to pin "Bob". */
     RS_Social_FriendName(&social, 0, name, (int)sizeof(name));
-    CHECK(strcmp(name, "Bob") == 0, "the panel is handed the display form, got \"%s\"", name);
+    CHECK(strcmp(name, "bob") == 0, "the panel is handed the name as stored, got \"%s\"", name);
+    RS_Social_AddFriend(&social, "iGud PK", 1);
+    RS_Social_FriendName(&social, 1, name, (int)sizeof(name));
+    CHECK(strcmp(name, "iGud PK") == 0, "a wire spelling keeps its case, got \"%s\"", name);
+    CHECK(RS_Social_DelFriend(&social, "igud_pk") == 1, "and is still found by its key");
 
     RS_Social_DisplayName("bob_smith", name, (int)sizeof(name));
     CHECK(strcmp(name, "Bob Smith") == 0, "underscores become spaces and words capitalise, got \"%s\"", name);
@@ -129,7 +136,7 @@ test_store(void)
     CHECK(RS_Social_DelFriend(&social, "Carol") == 1, "carol can be deleted under a different case");
     CHECK(RS_Social_FriendCount(&social) == 2, "leaving two");
     RS_Social_FriendName(&social, 1, name, (int)sizeof(name));
-    CHECK(strcmp(name, "Dave") == 0, "and the gap closes rather than the tail being swapped in, got \"%s\"", name);
+    CHECK(strcmp(name, "dave") == 0, "and the gap closes rather than the tail being swapped in, got \"%s\"", name);
 
     CHECK(RS_Social_DelFriend(&social, "nobody") == 0, "deleting a stranger changes nothing");
 
@@ -388,6 +395,24 @@ test_sort_chains(void)
     CHECK(strcmp(social.friend_name[0], "erin") == 0,
         "a first report of offline negates the serial, got \"%s\"", friend_order(&social));
 
+    /* The name sorts compare the Username key (deob class628 ->
+     * class7.method28), not the shown spelling: "Amy" and "amy" sort the
+     * same, and a capital does not jump the list. */
+    {
+        struct RS_Social cased;
+
+        RS_Social_Init(&cased);
+        RS_Social_AddFriend(&cased, "bob", 0);
+        RS_Social_AddFriend(&cased, "Zed", 0);
+        RS_Social_AddFriend(&cased, "Amy\xa0" "Lee", 0);
+        RS_Social_AddFriend(&cased, "amy_k", 0);
+        RS_Social_AddFriend(&cased, "aZz", 0);
+        RS_Social_AddFriend(&cased, "abc", 0);
+        RS_Social_SortFriends(&cased);
+        CHECK(strcmp(friend_order(&cased), "abc amy_k Amy\xa0" "Lee aZz bob Zed") == 0,
+            "names sort by their key, case and separators folded, got \"%s\"", friend_order(&cased));
+    }
+
     /* Ignores: name, either direction. */
     RS_Social_AddIgnore(&social, "zed");
     RS_Social_AddIgnore(&social, "amy");
@@ -636,15 +661,15 @@ test_host_ops(void)
     CHECK(CS2VM2_PopStr(t, &sv) == CS2VM_EXECNO_OK, "friend_getname pushes a second string");
     CHECK(sv && sv[0] == '\0', "which is empty for a friend who never renamed");
     CHECK(CS2VM2_PopStr(t, &sv2) == CS2VM_EXECNO_OK, "and a first");
-    CHECK(sv2 && strcmp(sv2, "Bob") == 0, "which is the display name, got \"%s\"", sv2 ? sv2 : "(null)");
+    CHECK(sv2 && strcmp(sv2, "bob") == 0, "which is the name as stored, got \"%s\"", sv2 ? sv2 : "(null)");
 
     /* A renamed friend's previous name and rank, as UPDATE_FRIENDLIST gave them. */
-    snprintf(social.friend_previous_name[0], RS_SOCIAL_NAME_LEN, "%s", "old_bob");
+    snprintf(social.friend_previous_name[0], RS_SOCIAL_NAME_LEN, "%s", "Old\xa0" "Bob");
     social.friend_rank[0] = 3;
     call_social(t, CS2_OP_FRIEND_GETNAME, 0, NULL);
     CS2VM2_PopStr(t, &sv);
     CS2VM2_PopStr(t, &sv2);
-    CHECK(sv && strcmp(sv, "Old Bob") == 0, "the second string is the previous display name, got \"%s\"", sv ? sv : "(null)");
+    CHECK(sv && strcmp(sv, "Old\xa0" "Bob") == 0, "the second string is the previous name as the wire spelled it, got \"%s\"", sv ? sv : "(null)");
     call_social(t, CS2_OP_FRIEND_GETRANK, 0, NULL);
     CS2VM2_PopInt(t, &iv);
     CHECK(iv == 3, "friend_getrank answers the stored rank, got %d", iv);
@@ -792,6 +817,26 @@ test_host_ops(void)
     host.friend_transmit_dirty = 0;
     RS_CS2Host_NotifyFriendChanged(&host);
     CHECK(host.friend_transmit_dirty != 0, "NotifyFriendChanged raises the repaint flag");
+
+    /* The real client's notice drain is the host's cycle tick: a queued
+     * logout notice reaches the chatbox as type 5 between ten and eleven
+     * seconds (500..550 cycles) later (deob class58.method1165). */
+    {
+        int const lines = chat.message_count;
+        int ticks = 0;
+
+        RS_Social_FriendWorldNotice(&social, "bob", 0, host.client_clock);
+        while( chat.message_count == lines && ticks < 1000 )
+        {
+            RS_CS2Host_Tick(&host);
+            ticks++;
+        }
+        CHECK(chat.message_count == lines + 1, "the host's cycle tick files a due notice");
+        CHECK(ticks > 500 && ticks <= 550, "ten to eleven seconds after it was queued, got %d cycles", ticks);
+        CHECK(chat.newest && chat.newest->type == RS_CHAT_TYPE_PRIVATE_SYSTEM &&
+                  strcmp(chat.newest->text, "bob has logged out.") == 0,
+            "as \"bob has logged out.\", typed 5");
+    }
 
     CS2VM2_Free(&vm);
     RS_Chat_Free(&chat);

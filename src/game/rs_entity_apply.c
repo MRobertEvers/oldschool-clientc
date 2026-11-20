@@ -2,6 +2,7 @@
 
 #include "game/rs_chat.h"
 #include "game/rs_entity_sync.h"
+#include "game/rs_server_state.h"
 #include "log/torirs_log.h"
 #include "mem/torirs_mem.h"
 #include "net/rev/gameproto_revisions.h"
@@ -590,15 +591,64 @@ static void
 player_chat_line(
     struct PlayerApply* self,
     int idx,
+    int chat_type,
     char const* sender,
     char const* sender_key,
     char const* text)
 {
     struct RS_EntityNote n = {
         .kind = RS_ENTITY_NOTE_CHAT, .idx = idx, .pid = self->cur_pid, .slot = -1,
-        .chat_type = RS_CHAT_TYPE_PUBLIC, .sender = sender, .sender_key = sender_key, .text = text,
+        .chat_type = chat_type, .sender = sender, .sender_key = sender_key, .text = text,
     };
     note(self->in, &n);
+}
+
+/* A public line from PLAYER_INFO's chat block, as deob class95.method3131
+ * (and its reader, class109.method3196) files it: the host decides whether
+ * it is shown at all (the ignore list, Tutorial Island); the text is put in
+ * sentence case and its tags escaped (class671.method14451(Statics
+ * .method10915(text))); the line is typed by the crown and the autotyper
+ * flag and named with the crown's image; the overhead is the same text,
+ * trimmed. */
+static void
+player_public_chat(
+    struct PlayerApply* self,
+    int idx,
+    RsprotInfoChat const* chat,
+    char const* text)
+{
+    struct RS_EntityApplyIn const* in = self->in;
+    struct WorldEntity_Player* player = World_EntityPoolGet(&in->world->entities.player, idx);
+    char const* name = player && player->name[0] ? player->name : NULL;
+    char crowned[RS_CHAT_SENDER_LEN];
+    char cased[RS_CHAT_TEXT_LEN];
+    char escaped[RS_CHAT_TEXT_LEN];
+    char const* overhead;
+    size_t end;
+    int ignorable;
+
+    assert(in->host->public_chat_shown);
+    RS_Chat_CrownImage(chat->type, &ignorable);
+    if( !in->host->public_chat_shown(in->host->ctx, name, ignorable != 0) )
+        return;
+    RS_Chat_SentenceCase(text, cased, sizeof(cased));
+    RS_ServerState_EscapeTags(cased, escaped, sizeof(escaped));
+    /* `type` is the speaker's crown: it decorates the printed name only; the
+     * sender friend/ignore keys on stays the bare name. */
+    RS_Chat_CrownedName(chat->type, name ? name : "Player", crowned, sizeof(crowned));
+    player_chat_line(self, idx, RS_Chat_PublicType(chat->type, chat->autotyper == 1), crowned, name, escaped);
+    /* String.trim: what is at or under a space goes from both ends. */
+    overhead = escaped;
+    while( *overhead && (unsigned char)*overhead <= ' ' )
+        overhead++;
+    end = strlen(overhead);
+    while( end > 0 && (unsigned char)overhead[end - 1] <= ' ' )
+        end--;
+    memmove(cased, overhead, end);
+    cased[end] = '\0';
+    /* colourEffect: high byte = chatColour, low byte = chatEffect
+     * (reference Client.ts:8164). */
+    World_PlayerSetChat(in->world, idx, cased, chat->colour_effect >> 8, chat->colour_effect & 0xff);
 }
 
 /* Apply one non-target op to the current target. */
@@ -780,7 +830,7 @@ player_apply_op(
             struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
             char const* name = player && player->name[0] ? player->name : NULL;
 
-            player_chat_line(self, idx, name ? name : "Player", name, op->say.text);
+            player_chat_line(self, idx, RS_CHAT_TYPE_PUBLIC, name ? name : "Player", name, op->say.text);
             /* Forced chat draws overhead in plain yellow (colour/effect 0). */
             World_PlayerSetChat(world, idx, op->say.text, 0, 0);
         }
@@ -795,18 +845,7 @@ player_apply_op(
             text = in->rev->chat_unpack(op->chat.data, op->chat.length);
             if( text )
             {
-                struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
-                char const* name = player && player->name[0] ? player->name : NULL;
-                char crowned[RS_CHAT_SENDER_LEN];
-
-                /* `type` is the speaker's crown: it decorates the printed name
-                 * only; the sender friend/ignore keys on stays the bare name. */
-                RS_Chat_CrownedName(op->chat.type, name ? name : "Player", crowned, sizeof(crowned));
-                player_chat_line(self, idx, crowned, name, text);
-                /* colourEffect: high byte = chatColour, low byte = chatEffect
-                 * (reference Client.ts:8164). */
-                World_PlayerSetChat(
-                    world, idx, text, op->chat.colour_effect >> 8, op->chat.colour_effect & 0xff);
+                player_public_chat(self, idx, &op->chat, text);
                 ToriMem_Free(ToriMem_Net(), text); /* chat_unpack's */
             }
         }

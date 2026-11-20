@@ -191,6 +191,9 @@ ScriptrunCore_BeginTick(
         ScriptrunShadow_BeginTick(core->shadow, server_tick, now);
     /* The cycle clock moves: a loc merge due by now hides or restores. */
     ScriptrunTasks_BeginTick(core->tasks, (uint32_t)now);
+    /* And a friend's login/logout notice due by now is a chatbox line, as
+     * the real client files it (once a cycle there, once a tick here). */
+    RS_ServerState_FriendNotices(&core->model.social, &core->model.chat, now);
 }
 
 /* ------------------------------------------------------------------ helpers */
@@ -514,6 +517,21 @@ core_host_home_view(
  * player's route (RS_EntityInfo_NpcOrigin, less the sailing level). A deck's
  * own stream: SET_NPC_UPDATE_ORIGIN as sent -- deck-local tiles -- on the
  * deck's plane (the rider's own when they ride it; decks are authored at 1). */
+/* The headless client records every public line the server sent: a test
+ * reads what was said, so nothing here is hidden by the ignore list or the
+ * tutorial gate the real client applies (RS_ServerState_PublicChatShown). */
+static bool
+core_host_public_chat_shown(
+    void* ctx,
+    char const* sender,
+    bool ignorable)
+{
+    (void)ctx;
+    (void)sender;
+    (void)ignorable;
+    return true;
+}
+
 static void
 core_host_npc_origin(
     void* ctx,
@@ -734,6 +752,7 @@ core_entity_apply_in(
         .headbar_persist = core_host_headbar_persist,
         .home_view = core_host_home_view,
         .npc_origin = core_host_npc_origin,
+        .public_chat_shown = core_host_public_chat_shown,
         .player_spawn = core_host_player_spawn,
         .npc_spawn = core_host_npc_spawn,
         .npc_retype = core_host_npc_retype,
