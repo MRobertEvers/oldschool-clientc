@@ -30,8 +30,11 @@ enum
     /* Map graphics alive at once. Bloat's hand volleys below 40% put ~320
      * floor graphics in the 40-tick window (16 shadows + 16 splats every 4
      * ticks); the Path of Crondis's beams draw up to 120 every 5 ticks
-     * (docs/rsprox-analysis/toa/crondis.md). */
-    RS_EFFECT_MAP_ANIM_CAP = 2048,
+     * (docs/rsprox-analysis/toa/crondis.md). It was 2048, which our own
+     * server passes: the Wardens' P3 sends 2874 in one window
+     * (test/raids/toa_wardens_p3_tells.lua) and Yama 2056 (test/bosses/
+     * yama.lua), and a debug build of either client aborted mid-fight. */
+    RS_EFFECT_MAP_ANIM_CAP = 4096,
 
     /* Loc animations alive at once. Jagex re-sends the Path of Crondis's 80
      * trap locs' idles every tick before the room starts (~30 a tick after). */
@@ -81,7 +84,7 @@ enum
  */
 enum
 {
-    RS_EFFECT_LOG_CAP = 4096,
+    RS_EFFECT_LOG_CAP = 8192,
 };
 _Static_assert(
     RS_EFFECT_LOG_CAP >= 2 * RS_EFFECT_PROJECTILE_CAP + RS_EFFECT_MAP_ANIM_CAP,

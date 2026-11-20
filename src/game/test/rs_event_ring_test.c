@@ -211,7 +211,7 @@ test_effect_rules(void)
 {
     /* The numbers both clients stated before there was one place for them. */
     CHECK(RS_EFFECT_PROJECTILE_CAP == 256, "projectile cap %d", RS_EFFECT_PROJECTILE_CAP);
-    CHECK(RS_EFFECT_MAP_ANIM_CAP == 2048, "map anim cap %d", RS_EFFECT_MAP_ANIM_CAP);
+    CHECK(RS_EFFECT_MAP_ANIM_CAP == 4096, "map anim cap %d", RS_EFFECT_MAP_ANIM_CAP);
     CHECK(RS_EFFECT_LOC_ANIM_CAP == 4096, "loc anim cap %d", RS_EFFECT_LOC_ANIM_CAP);
     CHECK(RS_EFFECT_MAP_ANIM_LIFE_CYCLES == 40 * 30, "map anim life %d cycles",
           RS_EFFECT_MAP_ANIM_LIFE_CYCLES);
