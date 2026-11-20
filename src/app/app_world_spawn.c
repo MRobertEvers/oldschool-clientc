@@ -212,28 +212,36 @@ app_world_build_model(
     int light_contrast,
     int light_ambient)
 {
-    struct ToriDraw_Model* parts[16];
+    /* Every part the caller named: a server's body customisation sends up to
+     * 255 (FAULTS E12), and a fixed 16 here dropped the rest unseen. Sixteen
+     * fit on the stack; more take a frame buffer, freed before returning. */
+    struct ToriDraw_Model* parts_local[16];
+    struct ToriDraw_Model** parts = parts_local;
     struct ToriDraw_Model* model = NULL;
     int part_count = 0;
 
-    for( int i = 0; i < count && part_count < 16; i++ )
+    if( count > (int)(sizeof(parts_local) / sizeof(parts_local[0])) )
+    {
+        parts = ToriMem_Alloc(ToriMem_Frame(), (size_t)count * sizeof(*parts));
+        assert(parts);
+    }
+    for( int i = 0; i < count; i++ )
     {
         struct ToriRS_Model* rs = CacheProvider_ModelGet(app->provider, model_ids[i]);
         struct ToriDraw_Model* part = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;
         if( part )
             parts[part_count++] = part;
     }
-    if( part_count == 0 )
-        return NULL;
-
     if( part_count > 1 )
     {
         model = ToriDraw_ModelMerge(parts, part_count);
         for( int i = 0; i < part_count; i++ )
             ToriDraw_ModelFree(parts[i]);
     }
-    else
+    else if( part_count == 1 )
         model = parts[0];
+    if( parts != parts_local )
+        ToriMem_Free(ToriMem_Frame(), parts);
     if( !model )
         return NULL;
 

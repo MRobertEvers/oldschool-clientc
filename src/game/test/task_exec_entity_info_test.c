@@ -975,9 +975,11 @@ test_npc_body_landing_keeps_body_custom(void)
     ops[2].kind = RSPROT_OP_DELTA_XZ;
     run_npc_ops(&fx.app, ops, 3);
     TEST_ASSERT(RS_EntitySync_FindNpc(&fx.app.esync, 3, &world_idx, NULL), "spawned");
+    {
+        int const custom[1] = { 4242 };
+        World_NpcSetBodyModels(fx.app.world, world_idx, custom, 1);
+    }
     npc = World_EntityPoolGet(&fx.app.world->entities.npc, world_idx);
-    npc->body_model_count = 1;
-    npc->body_models[0] = 4242;
     serial = npc->body_serial;
 
     App_WorldNpcBodyLanded(&fx.app, world_idx, npc->element_id, 502, 502);
@@ -985,6 +987,107 @@ test_npc_body_landing_keeps_body_custom(void)
     TEST_ASSERT(npc->body_serial == serial + 1, "the custom body is mounted again over the type's");
 
     fixture_free(&fx);
+}
+
+/* E12: a BODY_CUSTOM block's model count is a byte and the reference sizes
+ * the list from it. Nine models (one past the npc row's old fixed eight) and
+ * 255 (the most a byte says) go through osrs242's real NPC_INFO reader and
+ * the npc exec into the world, and every one reads back. */
+static int
+e12_model(int i)
+{
+    /* Above 0xFFFF, so g4_3412's high half is exercised too. */
+    return 0x12345 + i * 0x101;
+}
+
+static int
+e12_npc_info_body_custom(
+    uint8_t* out,
+    int cap,
+    int model_count)
+{
+    int n = 0;
+
+    TEST_ASSERT(cap >= 4 + 4 + 2 + model_count * 4, "the packet fits its buffer");
+    /* The bit section: 8 bits of count (1), the npc updated (1), stood still
+     * with extended info (type 00), then no adds: the 0xFFFF terminator,
+     * needed because the extended tail leaves 28 or more readable bits. */
+    out[n++] = 0x01;
+    out[n++] = 0x9F; /* 1 00 11111 */
+    out[n++] = 0xFF;
+    out[n++] = 0xE0; /* 111, then the pad to a byte */
+    /* The flag word: 0x4 -> a second byte, 0x400 -> a third, 0x200000 -> a
+     * fourth carrying BIT_BODY_CUSTOMISATION_V3 (0x2000000). */
+    out[n++] = 0x04;
+    out[n++] = 0x04;
+    out[n++] = 0x20;
+    out[n++] = 0x02;
+    /* BodyCustomisationV3: flag 0x2 (counted models), the count (g1), each
+     * model g4_3412. */
+    out[n++] = 0x02;
+    out[n++] = (uint8_t)model_count;
+    for( int i = 0; i < model_count; i++ )
+    {
+        uint32_t v = (uint32_t)e12_model(i);
+        out[n++] = (uint8_t)(v >> 8);
+        out[n++] = (uint8_t)v;
+        out[n++] = (uint8_t)(v >> 24);
+        out[n++] = (uint8_t)(v >> 16);
+    }
+    return n;
+}
+
+static void
+test_npc_body_custom_keeps_every_wire_model(void)
+{
+    static int const counts[] = { 9, 255 };
+    static uint8_t packet[4 + 4 + 2 + 255 * 4];
+    static struct ToriRS_Network net242;
+
+    printf("TEST: a BODY_CUSTOM of 9 and of 255 models reaches the world whole\n");
+    net242.rev = GameProtoRev_OSRS242();
+    for( size_t c = 0; c < sizeof(counts) / sizeof(counts[0]); c++ )
+    {
+        struct EntityFixture fx;
+        struct WorldEntity_NPC* npc;
+        int len;
+        int serial;
+        int wrong = 0;
+
+        fixture_init(&fx);
+        fx.app.net = &net242;
+        register_npc(&fx.app, 301, 500, 6, 30, 30);
+        npc = npc_in_slot(&fx.app, 6);
+        TEST_ASSERT(npc != NULL, "the npc is tracked before the packet");
+        if( !npc )
+        {
+            fixture_free(&fx);
+            continue;
+        }
+        serial = npc->body_serial;
+        npc->seq_sent_id = 4321;
+
+        len = e12_npc_info_body_custom(packet, (int)sizeof(packet), counts[c]);
+        run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+
+        npc = npc_in_slot(&fx.app, 6);
+        TEST_ASSERT(npc != NULL, "the npc survived the packet");
+        if( !npc )
+        {
+            fixture_free(&fx);
+            continue;
+        }
+        TEST_ASSERT(npc->body_model_count == counts[c], "the count is the wire's");
+        TEST_ASSERT(npc->body_models != NULL, "the list is there");
+        for( int i = 0; npc->body_models && i < npc->body_model_count; i++ )
+            if( npc->body_models[i] != e12_model(i) )
+                wrong++;
+        TEST_ASSERT(wrong == 0, "every model is the wire's, in order");
+        TEST_ASSERT(npc->body_serial == serial + 1, "the body is asked to remount");
+        TEST_ASSERT(npc->seq_sent_id == 4321, "the row past the list is untouched");
+        TEST_ASSERT(npc->server_slot == 6, "the server slot is untouched");
+        fixture_free(&fx);
+    }
 }
 
 /* E5: removing a player (or anything else not an npc) is not an npc despawn;
@@ -1199,6 +1302,7 @@ main(void)
     test_npc_retype_newest_body_wins();
     test_npc_unknown_type_still_exists();
     test_npc_body_landing_keeps_body_custom();
+    test_npc_body_custom_keeps_every_wire_model();
     test_only_npc_removals_are_npc_despawns();
     test_varp_retype_coalesces_and_keeps_overrides();
     test_player_add_exists_at_once();

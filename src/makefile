@@ -4883,6 +4883,20 @@ test-world: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 		$(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/world_test
 
+# An npc's body customisation keeps every model the wire sent: 0, 8, 9 and 255
+# read back whole, through a replacement, both despawns and World_Free (FAULTS
+# E12). CFLAGS as given, so OPT=1 runs it with asserts compiled out.
+.PHONY: test-npc-body-models
+test-npc-body-models: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/npc_body_models_test $(TORIMEM_SRCS) \
+		world/entity_pool.c world/world_entity.c world/entity_pathing.c \
+		world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
+		engine/world_builder/heightmap.c engine/world_builder/collision_map.c \
+		engine/world_builder/minimap.c painters/painters.c painters/scene_occluders.c \
+		features/features.c world/test/npc_body_models_test.c \
+		$(TORIDRAW_UNITY_LINK_OBJS)
+	./$(OBJ_DIR)/npc_body_models_test
+
 test-pick: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/pick_face_test \
 		render/test/pick_face_test.c \

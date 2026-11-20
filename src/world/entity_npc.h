@@ -18,7 +18,6 @@ enum
 {
     WORLD_NPC_SPOTANIM_SLOTS = 8,
     WORLD_NPC_HEADICON_SLOTS = 8,
-    WORLD_NPC_BODY_MODELS_MAX = 8,
 };
 
 /* What the server set on the npc itself over its type's value (NAME_CHANGE,
@@ -108,9 +107,18 @@ struct WorldEntity_NPC
      * the body is built from these models instead of the type's. Bumping
      * `body_serial` asks the app to remount the body (app_world_reconcile_
      * npc_body); `body_mounted_serial` is the one it last mounted.
+     *
+     * `body_models` is sized from the wire's count, as the reference does
+     * (`new int[count]`, the count a byte: up to 255), never a fixed array:
+     * a fixed one let a block of more models than it held write past it in
+     * a build without asserts (FAULTS E12). The row owns it, on
+     * ToriMem_Scene() like the pool the row lives in; NULL when the count is
+     * 0. World_NpcSetBodyModels replaces it, World_NpcDespawn hands it to the
+     * removal's snapshot (World_EventsClear frees it there) and World_Free
+     * frees what is left. A retype keeps it (the override is the npc's).
      */
     int body_model_count;
-    int body_models[WORLD_NPC_BODY_MODELS_MAX];
+    int* body_models;
     int body_serial;
     int body_mounted_serial;
     /**

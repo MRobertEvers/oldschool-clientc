@@ -1672,7 +1672,9 @@ World_NpcSetHeadiconCustom(
     int const index[WORLD_NPC_HEADICON_SLOTS]);
 
 /* Body customisation: draw `models` instead of the type's; 0 models is the
- * type's again. Bumps the npc's body_serial for the app's remount. */
+ * type's again. Any count: the row keeps its own copy, sized from it (the
+ * wire's count is a byte). `models` is required when the count is not 0.
+ * Bumps the npc's body_serial for the app's remount. */
 void
 World_NpcSetBodyModels(
     struct World* world,

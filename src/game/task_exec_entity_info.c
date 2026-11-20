@@ -1809,7 +1809,16 @@ npc_apply_op(
         }
         break;
     case RSPROT_OP_BODY_CUSTOM:
-        if( idx >= 0 )
+        /* Every model the block sent, however many (FAULTS E12). A count
+         * with no list is the op list's byte arena having overflowed
+         * (rsprot_info_ints): the models were never kept, so the npc keeps
+         * the body it has, and says so. */
+        if( idx >= 0 && !op->body.reset && op->body.model_count > 0 && !op->body.models )
+            TORIRS_ERR(
+                "npc_info: npc %d body customisation of %d models lost: the op list overflowed\n",
+                idx,
+                (int)op->body.model_count);
+        else if( idx >= 0 )
             World_NpcSetBodyModels(
                 world, idx, op->body.models, op->body.reset ? 0 : op->body.model_count);
         break;

@@ -59,6 +59,16 @@ World_Free(struct World* world)
     ToriMem_Free(ToriMem_Scene(), world->tile_last_occupied_cycle);
     ToriMem_Free(ToriMem_Scene(), world->mapscenes);
     ToriMem_Free(ToriMem_Scene(), world->area_sounds);
+    /* What a live npc row owns goes before its pool (the removals' snapshots
+     * went with World_EventsClear above). */
+    for( int ni = World_EntityPoolHead(&world->entities.npc); ni != WORLD_ENTITY_NIL;
+         ni = World_EntityPoolNext(&world->entities.npc, ni) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolAt(&world->entities.npc, ni);
+        ToriMem_Free(ToriMem_Scene(), npc->body_models);
+        npc->body_models = NULL;
+        npc->body_model_count = 0;
+    }
     World_EntityListFree(&world->entities);
     for( int i = 0; i < world->scenery_info.count; i++ )
         ToriMem_Free(ToriMem_Scene(), world->scenery_info.entries[i]);
@@ -1043,8 +1053,11 @@ World_EmitEntityRemoved(
  * nothing (and can find an unrelated replacement after slot reuse). Keeping a
  * queue-owned copy makes the despawn event a real snapshot rather than an id
  * whose subject has already vanished.
+ *
+ * True when a snapshot was queued: it then owns what the row owned (its body
+ * models), freed by World_EventsClear, and the caller must not free them.
  */
-static void
+static bool
 World_EmitNpcRemoved(
     struct World* world,
     struct WorldEntity_NPC const* npc)
@@ -1054,7 +1067,7 @@ World_EmitNpcRemoved(
     assert(world);
     assert(npc);
     if( npc->element_id < 0 )
-        return;
+        return false;
     assert(world->event_count < WORLD_MAX_EVENTS && "world event queue full — raise WORLD_MAX_EVENTS");
     event = &world->events[world->event_count++];
     *event = (struct World_Event){
@@ -1064,6 +1077,7 @@ World_EmitNpcRemoved(
     event->removed_npc = ToriMem_Alloc(ToriMem_Scene(), sizeof(*event->removed_npc));
     assert(event->removed_npc);
     *event->removed_npc = *npc;
+    return true;
 }
 
 static int
@@ -1286,7 +1300,12 @@ World_NpcDespawn(
         return;
 
     struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
-    World_EmitNpcRemoved(world, npc);
+    /* The body models go with the snapshot when one is queued; otherwise
+     * nothing else holds them. */
+    if( !World_EmitNpcRemoved(world, npc) )
+        ToriMem_Free(ToriMem_Scene(), npc->body_models);
+    npc->body_models = NULL;
+    npc->body_model_count = 0;
     World_EntityPoolRelease(pool, idx);
 }
 
@@ -2780,6 +2799,8 @@ World_EventsClear(struct World* world)
     assert(world);
     for( int i = 0; i < world->event_count; i++ )
     {
+        if( world->events[i].removed_npc )
+            ToriMem_Free(ToriMem_Scene(), world->events[i].removed_npc->body_models);
         ToriMem_Free(ToriMem_Scene(), world->events[i].removed_npc);
         world->events[i].removed_npc = NULL;
     }
@@ -3566,17 +3587,27 @@ World_NpcSetBodyModels(
     int const* models,
     int model_count)
 {
+    int* owned = NULL;
+
     assert(world);
     assert(model_count >= 0);
-    assert(model_count <= WORLD_NPC_BODY_MODELS_MAX);
+    if( model_count > 0 )
+        assert(models);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
+    /* As many as the wire sent (the reference's `new int[count]`): no cap,
+     * so nothing a block reads as valid is cut or written past (FAULTS E12).
+     * Copied before the old list is freed, so `models` may be the row's own. */
     if( model_count > 0 )
-        assert(models);
+    {
+        owned = ToriMem_Alloc(ToriMem_Scene(), (size_t)model_count * sizeof(*owned));
+        assert(owned);
+        memcpy(owned, models, (size_t)model_count * sizeof(*owned));
+    }
+    ToriMem_Free(ToriMem_Scene(), npc->body_models);
+    npc->body_models = owned;
     npc->body_model_count = model_count;
-    for( int i = 0; i < model_count; i++ )
-        npc->body_models[i] = models[i];
     npc->body_serial++;
 }
 
