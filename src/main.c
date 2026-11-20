@@ -4214,6 +4214,48 @@ main_hidden_skip_draw(
 #endif
 }
 
+/*
+ * The frames that ran with nowhere to put a picture (PlatformWindow_CanPresent
+ * false: Android while its activity is stopped or its SurfaceView is being
+ * recreated). Called once a frame, before the draw decision spends anything.
+ * TORIRS_QUEUE_CONTRACT_TRACE prints, when the surface comes back, how many
+ * frames ran without one, how many of them spent the scene's queue as a
+ * skipped Soft3D frame does, and the most scene events the queue held: on a
+ * retained (GLES) lane nothing spends it, so that number is how close the
+ * queue came to its cap (TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE), past which
+ * td_scene_emit drops events.
+ */
+static void
+main_surfaceless_trace(
+    int surfaceless,
+    int spent)
+{
+    static int frames;
+    static int spent_frames;
+    static int events_high;
+    struct ToriDraw_EventQueue const* events;
+
+    if( !surfaceless )
+    {
+        if( frames && TaskRunner_ContractTrace() )
+            fprintf(stderr,
+                    "queue_contract: trace surface back: %d frames ran with no surface, %d of them spent the "
+                    "scene's queue, most events queued %d\n",
+                    frames, spent_frames, events_high);
+        frames = 0;
+        spent_frames = 0;
+        events_high = 0;
+        return;
+    }
+    frames++;
+    if( spent )
+        spent_frames++;
+    events = ToriDraw_SceneEvents(app.scene);
+    assert(events);
+    if( events->count > events_high )
+        events_high = events->count;
+}
+
 /** One iteration of the frame loop. Returns 0 when the client should stop. */
 static int
 frame_loop_step(void)
@@ -4357,6 +4399,9 @@ frame_loop_step(void)
     int held_learns = 0;
     /* A hidden browser tab's frame: run whole, not drawn (main_hidden_skip_draw). */
     int hidden_skip = 0;
+    /* A frame with no surface on a lane that reads the scene directly: not
+     * drawn, and spent as a skipped frame is (main_surfaceless_trace). */
+    int surfaceless_spend = 0;
 #if !defined(__EMSCRIPTEN__)
     enum ToriRS_LoopWait loop_wait;
 #endif
@@ -6459,7 +6504,8 @@ frame_loop_step(void)
      * Retained presents are skipped for the same reason: there is no
      * retained frame to show and no surface to show it on.
      */
-    if( !PlatformWindow_CanPresent(platform) )
+    int const surfaceless = !PlatformWindow_CanPresent(platform);
+    if( surfaceless )
         app_redraw = 0;
     /*
      * An input frame App_RunOnce did not consume is held over to the next
@@ -6563,7 +6609,21 @@ frame_loop_step(void)
         app_redraw = App_RenderSkipFrame(&app, app_redraw, content_draw || (retained && !held_learns));
         if( hidden_skip )
             app_redraw = 0;
+        /*
+         * No surface, on Soft3D: spend the scene's load-event queue and the
+         * models held for this frame's poses (ToriDraw_SceneFrameEnd below),
+         * exactly as a skipped frame does. Without it nothing spends them
+         * until a surface returns: the queue fills to its cap and every event
+         * after it is dropped -- among them the sound loads audio reads from
+         * it on the tick. Soft3D reads the scene itself, so nothing it would
+         * draw is lost, and a frame with a surface never reaches this. A
+         * retained lane (GLES2/GLES3) keeps its queue: those events are the
+         * only way it learns the scene (left for the owner, see
+         * main_surfaceless_trace).
+         */
+        surfaceless_spend = surfaceless && !retained && !app_redraw;
     }
+    main_surfaceless_trace(surfaceless, surfaceless_spend);
     /* The runner camera split: the offscreen runner frame a driver push owed
      * is drawn here, BEFORE the presented one (one branch while detached). */
     main_view_split_step(app_committed);
@@ -6583,7 +6643,7 @@ frame_loop_step(void)
         }
         app.world_views.frame = App_RunnerView(&app);
     }
-    else if( hidden_skip || App_RenderSkipEnabled(&app) || RenderSkip_Held(&app.render_skip) )
+    else if( hidden_skip || surfaceless_spend || App_RenderSkipEnabled(&app) || RenderSkip_Held(&app.render_skip) )
     {
         /* Not drawn, on a lane that learns the scene from its draws: what the
          * draw would have handed it, without the draw. */
