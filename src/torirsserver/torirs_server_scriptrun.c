@@ -420,6 +420,134 @@ d_server_tick(lua_State* L)
     return 2;
 }
 
+/* The camera's read side (scriptrun_core.h `cam`), in the shapes the client's
+ * verbs answer with (plugin/torirs_plugin_drive_pointer.c
+ * drive_camera_op_name / drive_camera_push_event / lua_drive_camera_state /
+ * lua_drive_camera_events), so t.cutscene.await reads one sequence on both
+ * clients. The eye's own pose (x, z, yaw, pitch, zoom) is not answered: a
+ * headless client has no eye. */
+static char const*
+camera_op_name(int op)
+{
+    if( op == CAM_SCRIPT_OP_MOVETO )
+        return "moveto";
+    if( op == CAM_SCRIPT_OP_LOOKAT )
+        return "lookat";
+    if( op == CAM_SCRIPT_OP_SHAKE )
+        return "shake";
+    if( op == CAM_SCRIPT_OP_RESET )
+        return "reset";
+    if( op == CAM_SCRIPT_OP_SMOOTHRESET )
+        return "smoothreset";
+    if( op == CAM_SCRIPT_OP_ROTATEBY )
+        return "rotateby";
+    if( op == CAM_SCRIPT_OP_ROTATETO )
+        return "rotateto";
+    if( op == CAM_SCRIPT_OP_LOOKAT_CYCLES )
+        return "lookat_cycles";
+    return NULL;
+}
+
+static void
+camera_push_event(
+    lua_State* L,
+    struct CamScriptEvent const* event)
+{
+    assert(event);
+    lua_newtable(L);
+    lua_pushinteger(L, event->serial);
+    lua_setfield(L, -2, "serial");
+    lua_pushstring(L, camera_op_name(event->op));
+    lua_setfield(L, -2, "op");
+    lua_pushinteger(L, event->tick);
+    lua_setfield(L, -2, "tick");
+    if( event->op == CAM_SCRIPT_OP_MOVETO || event->op == CAM_SCRIPT_OP_LOOKAT )
+    {
+        lua_pushinteger(L, event->world_x);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, event->world_z);
+        lua_setfield(L, -2, "z");
+        lua_pushinteger(L, event->height);
+        lua_setfield(L, -2, "height");
+        lua_pushinteger(L, event->rate);
+        lua_setfield(L, -2, "speed");
+        lua_pushinteger(L, event->rate2);
+        lua_setfield(L, -2, "speed2");
+    }
+    else if( event->op == CAM_SCRIPT_OP_SHAKE )
+    {
+        lua_pushinteger(L, event->rate);
+        lua_setfield(L, -2, "axis");
+        lua_pushinteger(L, event->height);
+        lua_setfield(L, -2, "amplitude");
+        lua_pushinteger(L, event->rate2);
+        lua_setfield(L, -2, "speed");
+    }
+}
+
+/* api.drive.camera_state() -> ("ok", {server_driven, serial, last_op,
+ * last_target = {x, z, height, op}}). */
+static int
+d_camera_state(lua_State* L)
+{
+    struct CamScript const* cam = &bot_of(L)->core->cam;
+    int serial = CamScript_Serial(cam);
+
+    lua_pushstring(L, "ok");
+    lua_newtable(L);
+    lua_pushboolean(L, CamScript_IsScripted(cam) != 0);
+    lua_setfield(L, -2, "server_driven");
+    lua_pushinteger(L, serial);
+    lua_setfield(L, -2, "serial");
+    if( serial > 0 )
+    {
+        lua_pushstring(L, camera_op_name(CamScript_Event(cam, serial)->op));
+        lua_setfield(L, -2, "last_op");
+    }
+    for( int s = serial; s > 0 && s > serial - CAM_SCRIPT_EVENTS; s-- )
+    {
+        struct CamScriptEvent const* event = CamScript_Event(cam, s);
+
+        if( event->op != CAM_SCRIPT_OP_MOVETO && event->op != CAM_SCRIPT_OP_LOOKAT )
+            continue;
+        lua_newtable(L);
+        lua_pushinteger(L, event->world_x);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, event->world_z);
+        lua_setfield(L, -2, "z");
+        lua_pushinteger(L, event->height);
+        lua_setfield(L, -2, "height");
+        lua_pushstring(L, camera_op_name(event->op));
+        lua_setfield(L, -2, "op");
+        lua_setfield(L, -2, "last_target");
+        break;
+    }
+    return 2;
+}
+
+/* api.drive.camera_events(since) -> ("ok", {event...}, oldest). */
+static int
+d_camera_events(lua_State* L)
+{
+    struct CamScript const* cam = &bot_of(L)->core->cam;
+    int since = (int)luaL_optinteger(L, 1, 0);
+    int serial = CamScript_Serial(cam);
+    int oldest = serial - CAM_SCRIPT_EVENTS + 1;
+    int index = 1;
+
+    if( oldest < 1 )
+        oldest = 1;
+    lua_pushstring(L, "ok");
+    lua_newtable(L);
+    for( int s = since + 1 > oldest ? since + 1 : oldest; s <= serial; s++ )
+    {
+        camera_push_event(L, CamScript_Event(cam, s));
+        lua_rawseti(L, -2, index++);
+    }
+    lua_pushinteger(L, oldest);
+    return 3;
+}
+
 static int
 d_settled(lua_State* L)
 {
@@ -4788,6 +4916,8 @@ push_drive_table(
     }
     bind(L, bot, "tick", d_tick);
     bind(L, bot, "server_tick", d_server_tick);
+    bind(L, bot, "camera_state", d_camera_state);
+    bind(L, bot, "camera_events", d_camera_events);
     bind(L, bot, "settled", d_settled);
     bind(L, bot, "await", d_await);
     bind(L, bot, "report", d_report);

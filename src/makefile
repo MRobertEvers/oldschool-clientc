@@ -6593,7 +6593,7 @@ TORIRSSERVER_ACCOUNT_SRCS = torirsserver/torirs_server_hiscoreslink.c \
 # client files below and of scriptrun_stubs.c's link stand-ins. Its bots perceive
 # through the CLIENT's own parser, entity decoders and world model, listed here.
 SCRIPTRUN_SRCS = torirsserver/torirs_server_scriptrun.c scriptrun/scriptrun_core.c \
-	game/rs_event_ring.c \
+	game/rs_event_ring.c render/cam_script.c \
 	scriptrun/scriptrun_stubs.c ui/uitree_if_events.c \
 	net/rev/revpacket.c net/proto/proto_adapt.c $(REV_EXEC_SRCS) \
 	net/login/login_osrs.c net/pow_sha256.c net/sha256.c \
