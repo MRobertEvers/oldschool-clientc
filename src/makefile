@@ -6696,12 +6696,18 @@ endif
 # none of which is linked here. -flto drops them at OPT=1; without LTO only
 # the dead-code strip does, as it does for the client and the world tests,
 # so an asserts-live (OPT=0) server links on macOS too.
+# One file on Windows, as the client is (platform.mk's -static note): the
+# repository MinGW is threads=posix, so without -static the server imports
+# libwinpthread-1.dll and, run from anywhere but a shell with the toolchain's
+# bin/ on PATH, dies before main with STATUS_DLL_NOT_FOUND (0xC0000135, exit
+# 3221225781) -- what a run on Windows 11 found.
+TORIRSSERVER_STATIC_LDFLAGS := $(if $(filter win32 win64,$(PLATFORM)),-static -static-libgcc)
 $(TORIRSSERVER_BIN): $(TORIRSSERVER_OBJS) $(TORIRSSERVER_LINK_OBJS) | $(OBJ_DIR)
 	@mkdir -p $(TORIRSSERVER_OBJ_DIR) $(if $(TORIRSSERVER_LTO_CACHE),$(TORIRSSERVER_LTO_CACHE_DIR))
 	$(file >$(TORIRSSERVER_OBJ_DIR)/link_objs.rsp,$(TORIRSSERVER_OBJS))
 	$(LTO_CACHE_LINK) $(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/torirsserver $(TORIRSSERVER_OBJS_ARG) \
 		$(TORIRSSERVER_LINK_OBJS) \
-		-lm $(JS5_SOCKET_LIBS) $(PLATFORM_STRIP_LDFLAGS) $(TORIRSSERVER_LTO_CACHE)
+		-lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_STATIC_LDFLAGS) $(PLATFORM_STRIP_LDFLAGS) $(TORIRSSERVER_LTO_CACHE)
 	@echo "built $(TORIRSSERVER_BIN)"
 
 # The headless client's core fed the server's own osrs242 wire bytes (encoded
