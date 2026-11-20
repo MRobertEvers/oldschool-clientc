@@ -1274,15 +1274,22 @@ selftest_lane_present(
 #define SELFTEST_LANE_RS2012_TD_PROBE "[proc,rs2012_td_init]"
 
 /* A stanza that is done with a secondary player drops it here rather than by
- * clearing `active`: the slot's bank is heap memory, and a later
- * ToriRSServer_WorldAddPlayer into the slot memsets the struct -- which is how
- * eight banks were still live at the suite's exit. (WorldRemovePlayer also
- * saves to disk, which a stanza must not do.) */
+ * clearing `active`: the slot's bank, containers, varp map and input queue are
+ * heap memory, and a later ToriRSServer_WorldAddPlayer into the slot memsets
+ * the struct -- which is how eight banks were still live at the suite's exit.
+ * world_seat_player asserts the varp map and the input queue are gone, so a
+ * drop that released only the bank aborted the next seat at OPT=0 ('two
+ * far-apart players each hold their own window'). The same four releases
+ * ToriRSServer_WorldPlayerInit makes before its own memset. (WorldRemovePlayer
+ * also saves to disk, which a stanza must not do.) */
 static void
 selftest_drop_player(struct ToriRSServerPlayer* player)
 {
     assert(player);
     ToriRSServer_BankShutdownPlayer(player);
+    ToriRSServer_ContainerShutdownPlayer(player);
+    ToriRSServer_VarpsFree(&player->varps);
+    ToriRSServer_WorldInputFree(player);
     player->active = 0;
 }
 
