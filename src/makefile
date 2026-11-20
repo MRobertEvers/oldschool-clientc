@@ -2321,6 +2321,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-parallel-task
 	$(MAKE) test-scriptrun-shadow
 	$(MAKE) test-scriptrun-zone
+	$(MAKE) test-scriptrun-tasks
 	$(MAKE) test-render-mode
 	$(MAKE) test-painter-cull-bake
 	$(MAKE) test-world-views
@@ -6035,6 +6036,20 @@ test-scriptrun-zone: $(OBJ_DIR) $(OBJS)
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/scriptrun_zone_test
 
+# The headless client's parallel queue (scriptrun/scriptrun_tasks.h) running
+# the loc tasks both clients share (game/rs_loc_tasks.h): a change applies in
+# the pump after its packet, a LOC_MERGE hides at start+1 and restores at
+# end+1 on the bot's cycle, a rebuild drops it, a zone reset or a newer change
+# cancels it, an unservable config drops a change, a tick ends with nothing
+# but cycle waits. The bot's loc table is a recording stand-in. Asserts on.
+.PHONY: test-scriptrun-tasks
+test-scriptrun-tasks: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG \
+		-o $(OBJ_DIR)/scriptrun_tasks_test \
+		scriptrun/test/scriptrun_tasks_test.c scriptrun/scriptrun_tasks.c scriptrun/scriptrun_zone.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/scriptrun_tasks_test
+
 # World entities (sailing, SAILING_PLAN C1): the WORLDENTITY_INFO delta
 # reader, the class458 interpolator (incl. the 2047->1 wraparound arc), the
 # footprint corner bake, and the archive-72 WevConfig decode against the real
@@ -6318,6 +6333,7 @@ SCRIPTRUN_SRCS = torirsserver/torirs_server_scriptrun.c scriptrun/scriptrun_core
 	world/entity_pathing.c world/entity_registry.c game/rs_entity_sync.c game/rs_entity_apply.c \
 	scriptrun/scriptrun_collision.c engine/torirs_types.c engine/torirs_map_from_rscache.c \
 	engine/torirs_location_from_rscache.c \
+	scriptrun/scriptrun_tasks.c game/rs_loc_tasks.c game/rs_pending.c engine/asset_requests.c perf/torirs_perf.c \
 	$(SCRIPTRUN_SHADOW_SRCS)
 # The packet model (game/rs_server_state.c) and the records it writes, the real
 # client's own modules, as a headless client holds them (scriptrun/scriptrun_model.c):

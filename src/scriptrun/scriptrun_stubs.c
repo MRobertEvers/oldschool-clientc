@@ -12,6 +12,7 @@
 #include "engine/world_builder/heightmap.h"
 #include "engine/world_builder/minimap.h"
 #include "painters/painters.h"
+#include "platform/platform_x_io.h"
 #include "ui/uitree.h"
 
 #include <stdint.h>
@@ -82,4 +83,43 @@ painters_cullmap_free(struct PaintersCullMap* cm)
 {
     (void)cm;
     scriptrun_stub_reached("painters_cullmap_free");
+}
+
+/* The IO a bot's parallel queue (scriptrun/scriptrun_tasks.c) gives a turn:
+ * its tasks never read, so nothing lands and a read aborts. */
+struct PlatformX_IO
+{
+    int unused;
+};
+
+static struct PlatformX_IO s_scriptrun_io;
+
+struct PlatformX_IO*
+PlatformX_IO_New(void)
+{
+    return &s_scriptrun_io;
+}
+
+void
+PlatformX_IO_Free(struct PlatformX_IO* px)
+{
+    (void)px;
+}
+
+void
+PlatformX_IO_Pump(struct PlatformX_IO* px)
+{
+    (void)px;
+}
+
+int
+PlatformX_IO_Process(
+    struct PlatformX_IO* px,
+    struct ToriRS_IOBatch* io)
+{
+    (void)px;
+    if( io->active_count > 0 )
+        scriptrun_stub_reached("PlatformX_IO_Process with a read");
+    ToriRS_IOBatch_Reset(io);
+    return 0;
 }

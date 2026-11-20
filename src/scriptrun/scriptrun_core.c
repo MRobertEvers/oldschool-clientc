@@ -15,6 +15,7 @@
 #include "net/net_capture.h"
 #include "net/torirs_control.h"
 #include "scriptrun/scriptrun_shadow.h"
+#include "scriptrun/scriptrun_tasks.h"
 #include "torirsserver/wire/osrs242/osrs242_prots.h" /* the opcode names, for the wirelog's every-packet line */
 
 #include <assert.h>
@@ -95,6 +96,7 @@ ScriptrunCore_New(struct GameProtoRevTable const* rev)
     core->toplevel = -1;
     core->resume_pending = -1;
     core->next_element_id = 1;
+    core->tasks = ScriptrunTasks_New(core);
     if( rev->player_info_state_size )
     {
         core->player_decoder_state =
@@ -117,6 +119,9 @@ ScriptrunCore_Free(struct ScriptrunCore* core)
 {
     if( !core )
         return;
+    /* First: a task still queued (a merge waiting out its time) is its own
+     * host's, and frees itself through the core. */
+    ScriptrunTasks_Free(core->tasks);
     ScriptrunShadow_Free(core->shadow);
     ScriptrunCore_FreeCollision(core);
     ToriMem_Free(ToriMem_ServerPlayers(), core->locs);
@@ -184,7 +189,8 @@ ScriptrunCore_BeginTick(
     ScriptrunZone_BeginTick(&core->zone, server_tick, now);
     if( core->shadow )
         ScriptrunShadow_BeginTick(core->shadow, server_tick, now);
-
+    /* The cycle clock moves: a loc merge due by now hides or restores. */
+    ScriptrunTasks_BeginTick(core->tasks, (uint32_t)now);
 }
 
 /* ------------------------------------------------------------------ helpers */
@@ -843,28 +849,61 @@ core_zone_header_level(
 }
 
 
+/* A zone loc packet's tile in the cursor's view: its scene tile and the
+ * CACHE level it means there (zone_loc_tile_at's bridge climb). */
+static void
+core_zone_loc_tile(
+    struct ScriptrunCore const* core,
+    struct RS_LocHost const* host,
+    int pos,
+    int* scene_x,
+    int* scene_z,
+    int* level)
+{
+    *scene_x = core->zone_base_x + ((pos >> 4) & 7);
+    *scene_z = core->zone_base_z + (pos & 7);
+    *level = host->ops->cache_level(host->ctx, core->active_world, *scene_x, *scene_z, core->zone_level);
+}
+
 static void
 core_zone_sub(
     struct ScriptrunCore* core,
     int name,
     void const* payload)
 {
+    static const char none[5][32] = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
+    struct RS_LocHost const host = ScriptrunTasks_LocHost(core->tasks);
+    struct RS_LocChange c;
     int x, z, level;
 
     switch( name )
     {
+    /* The loc kinds are the tasks both clients run (game/rs_loc_tasks.h),
+     * on this bot's parallel queue; a change applies in the pump after its
+     * packet, a merge at its cycles. */
     case PKT_NAME_LOC_ADD_CHANGE:
     {
         struct PktLocAddChange const* pkt = payload;
-        core_zone_tile(core, pkt->pos, &x, &z, &level);
-        ScriptrunCore_LocChange(core, x, z, level, pkt->info >> 2, pkt->info & 3, pkt->loc_id, pkt);
+        core_zone_loc_tile(core, &host, pkt->pos, &x, &z, &level);
+        RS_LocChange_Fill(&c, x, z, level, pkt->loc_id, pkt->info >> 2, pkt->info & 3,
+            pkt->op_flags & 0x1f, pkt->ops);
+        (void)RS_LocChange_Add(&host, core->active_world, &c, NULL, (unsigned)core->tick, 1);
         break;
     }
     case PKT_NAME_LOC_DEL:
     {
         struct PktLocDel const* pkt = payload;
-        core_zone_tile(core, pkt->pos, &x, &z, &level);
-        ScriptrunCore_LocChange(core, x, z, level, pkt->info >> 2, pkt->info & 3, -1, NULL);
+        core_zone_loc_tile(core, &host, pkt->pos, &x, &z, &level);
+        RS_LocChange_Fill(&c, x, z, level, -1, pkt->info >> 2, pkt->info & 3, 0x1f, none);
+        (void)RS_LocChange_Add(&host, core->active_world, &c, NULL, (unsigned)core->tick, 1);
+        break;
+    }
+    case PKT_NAME_LOC_MERGE:
+    {
+        /* The loc model riding with the player is drawn, not kept. */
+        struct PktLocMerge const* pkt = payload;
+        core_zone_loc_tile(core, &host, pkt->pos, &x, &z, &level);
+        RS_LocMerge_Add(&host, core->active_world, x, z, level, pkt->info >> 2, pkt->start, pkt->end);
         break;
     }
     case PKT_NAME_SOUND_AREA:
@@ -1048,8 +1087,9 @@ core_zone_obj_specific(
     ScriptrunZone_Apply(zone, &at, core->tick, (int)core->world->cycle, sub_name, &sub);
 }
 
-/* A zone LOC_ADD_CHANGE / LOC_DEL's record, the root's only (a deck's loc
- * changes are its own world's, which this client does not keep). */
+/* A zone LOC_ADD_CHANGE / LOC_DEL's record in a zone that runs no loc tasks
+ * (the shadow's), the root's only: what the tasks' place writes
+ * (ScriptrunTasks_LocRecord). */
 static void
 core_zone_loc(
     struct ScriptrunCore const* core,
@@ -1059,68 +1099,49 @@ core_zone_loc(
     void const* payload)
 {
     static const char none[5][32] = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
-    char const (*ops)[32] = none;
-    int pos, info, loc_id;
-    int op_flags = 0x1f;
-    int tx, tz, x, z, level, old_loc, old_shape, old_angle;
+    struct PktLocAddChange const* add = payload;
+    struct PktLocDel const* del = payload;
+    int const pos = name == PKT_NAME_LOC_ADD_CHANGE ? add->pos : del->pos;
+    int const info = name == PKT_NAME_LOC_ADD_CHANGE ? add->info : del->info;
+    int const tx = (pos >> 4) & 7;
+    int const tz = pos & 7;
+    struct RS_LocChange c;
 
+    assert(name == PKT_NAME_LOC_ADD_CHANGE || name == PKT_NAME_LOC_DEL);
     if( at->view != 0 )
         return;
     if( name == PKT_NAME_LOC_ADD_CHANGE )
-    {
-        struct PktLocAddChange const* pkt = payload;
-        pos = pkt->pos;
-        info = pkt->info;
-        loc_id = pkt->loc_id;
-        op_flags = pkt->op_flags & 0x1f;
-        ops = pkt->ops;
-    }
+        RS_LocChange_Fill(&c, at->base_x + tx, at->base_z + tz, at->level + at->loc_climb[tx][tz],
+            add->loc_id, info >> 2, info & 3, add->op_flags & 0x1f, add->ops);
     else
-    {
-        struct PktLocDel const* pkt = payload;
-        assert(name == PKT_NAME_LOC_DEL);
-        pos = pkt->pos;
-        info = pkt->info;
-        loc_id = -1;
-    }
-    tx = (pos >> 4) & 7;
-    tz = pos & 7;
-    x = at->base_x + tx;
-    z = at->base_z + tz;
-    level = at->level + at->loc_climb[tx][tz];
-    old_loc = ScriptrunCore_MapLocAt(core, at->origin_x + x, at->origin_z + z, level,
-        World_LocShapeToLayer(info >> 2), &old_shape, &old_angle);
-    ScriptrunZone_LocChange(zone, x, z, level, info >> 2, info & 3, loc_id, old_loc, old_shape,
-        old_angle, (int)core->world->cycle, op_flags, ops);
+        RS_LocChange_Fill(&c, at->base_x + tx, at->base_z + tz, at->level + at->loc_climb[tx][tz],
+            -1, info >> 2, info & 3, 0x1f, none);
+    ScriptrunTasks_LocRecord(core, zone, zone->world, 0, &c, -1);
 }
 
 /*
  * A rebuild of the root put the map's locs back: every change that stood
- * before it and is still on the scene is placed again, collision with it, and
- * recorded afresh with the new scene's map loc as its old one -- the real
- * client's App_WorldViewLoadFinish (World_LocChangesTakeStanding, deob
- * client.method2278). The server does not resend a zone that stayed in view.
+ * before it and is still on the scene is a loc change again, on the new scene
+ * -- the real client's carry-over (App_WorldViewLoadFinish,
+ * World_LocChangesTakeStanding, deob client.method2278). The server does not
+ * resend a zone that stayed in view.
  */
 static void
 core_replace_standing(struct ScriptrunCore* core)
 {
     static struct World_LocChange standing[WORLD_LOC_CHANGE_MAX];
+    struct RS_LocHost const host = ScriptrunTasks_LocHost(core->tasks);
     int const count =
         World_LocChangesTakeStanding(core->zone.world, standing, WORLD_LOC_CHANGE_MAX);
-    int const base_x = core_base_x(core);
-    int const base_z = core_base_z(core);
 
     for( int i = 0; i < count; i++ )
     {
-        struct World_LocChange const* c = &standing[i];
-        int old_shape, old_angle;
-        int const old_loc = ScriptrunCore_MapLocAt(
-            core, base_x + c->x, base_z + c->z, c->level, c->layer, &old_shape, &old_angle);
+        struct World_LocChange const* rec = &standing[i];
+        struct RS_LocChange c;
 
-        ScriptrunCore_LocPlace(core, base_x + c->x, base_z + c->z, c->level, c->new_shape,
-            c->new_angle, c->new_type, c->op_flags, c->ops);
-        ScriptrunZone_LocChange(&core->zone, c->x, c->z, c->level, c->new_shape, c->new_angle,
-            c->new_type, old_loc, old_shape, old_angle, (int)core->world->cycle, c->op_flags, c->ops);
+        RS_LocChange_Fill(&c, rec->x, rec->z, rec->level, rec->new_type, rec->new_shape,
+            rec->new_angle, rec->op_flags, rec->ops);
+        (void)RS_LocChange_Add(&host, 0, &c, NULL, (unsigned)core->tick, 0);
     }
 }
 
@@ -1128,7 +1149,8 @@ void
 ScriptrunCore_ZoneFamilies(
     struct ScriptrunCore const* core,
     struct ScriptrunZone* zone,
-    struct RevPacket const* packet)
+    struct RevPacket const* packet,
+    int loc_records)
 {
     struct ScriptrunZoneAt at;
     int const name = packet->packet_type;
@@ -1175,7 +1197,10 @@ ScriptrunCore_ZoneFamilies(
             int const sub = enc->entries[i].name;
 
             if( sub == PKT_NAME_LOC_ADD_CHANGE || sub == PKT_NAME_LOC_DEL )
-                core_zone_loc(core, zone, &at, sub, &enc->entries[i]._loc_add_change);
+            {
+                if( loc_records )
+                    core_zone_loc(core, zone, &at, sub, &enc->entries[i]._loc_add_change);
+            }
             else
                 ScriptrunZone_Apply(zone, &at, tick, now, sub, &enc->entries[i]._loc_add_change);
         }
@@ -1183,6 +1208,8 @@ ScriptrunCore_ZoneFamilies(
     }
     if( name == PKT_NAME_LOC_ADD_CHANGE || name == PKT_NAME_LOC_DEL )
     {
+        if( !loc_records )
+            return;
         ScriptrunCore_ZoneAt(core, &at);
         core_zone_loc(core, zone, &at, name,
             name == PKT_NAME_LOC_DEL ? (void const*)&packet->_loc_del : (void const*)&packet->_loc_add_change);
@@ -1333,6 +1360,7 @@ core_view_despawn(
 
     assert(id > 0 && id < SCRIPTRUN_VIEWS);
     ScriptrunCore_DropViewLocs(core, id);
+    ScriptrunTasks_SceneBuilt(core->tasks, id);
     RS_EntitySync_ClearViewNpcs(core->esync, core->world, id);
     memset(&core->views[id], 0, sizeof(core->views[id]));
     for( int i = 0; i < core->view_list_count; i++ )
@@ -1456,6 +1484,7 @@ core_rebuild_worldentity(
     v->base_x = pkt->base_x;
     v->base_z = pkt->base_z;
     ScriptrunCore_LoadViewLocs(core, id, zones, v->size_x / 8, v->size_z / 8);
+    ScriptrunTasks_SceneBuilt(core->tasks, id);
     ToriMem_Free(ToriMem_ServerPlayers(), zones);
 }
 
@@ -1483,6 +1512,7 @@ core_rebuild(
     core->world->_base_tile_x = core_base_x(core);
     core->world->_base_tile_z = core_base_z(core);
     core->world->load_complete = true;
+    ScriptrunTasks_SceneBuilt(core->tasks, 0);
 }
 
 static void
@@ -1909,6 +1939,14 @@ core_packet(
          * zone_full_reset_locs does: the state behind this header names only
          * what still differs from the map, so a change the server has since
          * reverted would otherwise stand here and not on the client. */
+        {
+            /* A merge pending in the zone is cancelled first, as the real
+             * client's zone_full_reset_locs cancels its zone's tasks. */
+            struct RS_LocHost const host = ScriptrunTasks_LocHost(core->tasks);
+
+            (void)RS_LocTasks_CancelZone(&host, core->active_world, core->zone_base_x,
+                core->zone_base_z, level);
+        }
         ScriptrunCore_ZoneResetLocs(core, x0, z0, level);
         break;
     }
@@ -2046,6 +2084,7 @@ core_packet(
         break;
     case PKT_NAME_LOGOUT:
         core->logged_out = 1;
+        ScriptrunTasks_CancelAll(core->tasks);
         break;
     default:
         break;
@@ -2053,12 +2092,18 @@ core_packet(
     /* The zone families, by the real client's rules, after the switch has
      * moved the cursor and the scene (scriptrun_zone.h); then a rebuilt
      * root's standing loc changes, on the new scene. */
-    ScriptrunCore_ZoneFamilies(core, &core->zone, &packet);
+    ScriptrunCore_ZoneFamilies(core, &core->zone, &packet, 0);
     if( rebuilt )
         core_replace_standing(core);
+    /* The parallel queue, until every task is done or parked: the loc
+     * changes this packet made are placed here. At the tick's end nothing
+     * may be left but a wait for a cycle. */
+    ScriptrunTasks_Pump(core->tasks);
+    if( pkt_name == PKT_NAME_SERVER_TICK_END )
+        ScriptrunTasks_AssertIdle(core->tasks);
     if( core->shadow )
     {
-        ScriptrunCore_ZoneFamilies(core, ScriptrunShadow_Zone(core->shadow), &packet);
+        ScriptrunCore_ZoneFamilies(core, ScriptrunShadow_Zone(core->shadow), &packet, 1);
         ScriptrunShadow_After(core->shadow, core, &packet);
     }
     gameproto_free(&packet);
