@@ -3,15 +3,23 @@
  *
  * task_dat2_music_load.c: the song, instrument and sample tasks run on the
  * provider's asset queue (the App's parallel queue, drained every frame) and
- * only READ there; the sample decode -- milliseconds per sample, which in
- * wasm aborted a strict session at login as a parallel task computing -- is
- * one task on the provider's compute queue (the App's background queue,
- * given time and time-sliced). Against a real cache this checks:
+ * only READ there; the track's unpack and the sample decode -- milliseconds
+ * of CPU each, which in wasm aborted a strict session at login as a parallel
+ * task computing, and then was one 15-16 ms step of the background job -- are
+ * jobs on the provider's compute queue (the App's background queue, given
+ * time and time-sliced), cut into bounded steps. Against a real cache this
+ * checks:
  *
- *   - the decode task is on the compute queue and never on the asset queue;
- *   - it stops between samples when its slice is spent (several slices);
- *   - the song is installed only after it has ended, with every sample the
- *     song plays in the bank: the song still starts with every sample ready;
+ *   - the unpack and the decode are on the compute queue, never on the asset
+ *     queue;
+ *   - they stop when their slice is spent (several slices);
+ *   - the song is installed only after the decode has ended, with every sample
+ *     the song plays in the bank: the song still starts with every sample
+ *     ready;
+ *   - THE LONGEST STEP: with every background slice already over when it is
+ *     given, each step is one bounded unit of work, and its processor time
+ *     (thread CPU time, so a loaded machine does not inflate it) stays under
+ *     a bound -- as does the longest step of the reads on the asset queue;
  *   - nothing is left on either queue.
  *
  *   make -C src test-music-load
@@ -30,6 +38,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 static int g_failures;
 
@@ -90,12 +99,50 @@ runner_free(struct TaskRunner* runner)
     ToriRS_IOBatch_Free(runner->io);
 }
 
+/* The clock mode B reads: this thread's processor time in microseconds, so
+ * the runners' own step measurement (longest_step_us) is the work a step did,
+ * not the time a loaded machine took to give it. */
+static uint64_t
+real_now(void* data)
+{
+    struct timespec ts;
+
+    (void)data;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
+    return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u;
+}
+
+/* The bounds mode B holds a step to, in processor time natively. Before the
+ * cut a decode step was one whole sample (up to 8 ms; 4 ms on these songs,
+ * 15-16 ms in wasm) and the track's unpack was a step of the asset queue (up
+ * to 2.9 ms). A cut step is a fraction of a millisecond. */
+#define LONGEST_DECODE_STEP_US 1500
+#define LONGEST_READ_STEP_US 1000
+
+/*
+ * One cold song through both queues.
+ *
+ * MODE A (`timed` 0): the fake clock, which finds every slice spent at its
+ * first check, so the decode is spread over many frames; checks where each
+ * task ran and that the song is installed only once every sample is in.
+ *
+ * MODE B (`timed` 1): a real clock, and every background slice already over
+ * when it is given, so each step of the decode is exactly ONE unit of its work
+ * (guarantee 1: a task gets its step whatever the clock says, and stops at
+ * its first slice check). The runners' own measurement then says how long the
+ * longest unit is, and the longest step of the reads on the parallel queue
+ * (the track and the patches, unpacked where they are read): what one frame
+ * pays for either.
+ */
 static void
-test_song_reads_here_decodes_there(
+run_song(
     char const* root,
     char const* cache_name,
     char const* profile_name,
-    int song_id)
+    int song_id,
+    int timed,
+    uint64_t* out_longest_decode_us,
+    uint64_t* out_longest_read_us)
 {
     char path[1024];
     struct RSCache profile;
@@ -112,10 +159,11 @@ test_song_reads_here_decodes_there(
     int decode_seen_frames = 0;
     int installed_while_decoding = 0;
     int decode_on_asset_queue = 0;
+    int unpack_seen_frames = 0;
     int steps = 0;
 
-    printf("TEST: %s song %d: reads on the asset queue, the decode on the compute queue\n",
-        cache_name, song_id);
+    printf("TEST: %s song %d (%s clock): reads on the asset queue, the decode on the compute queue\n",
+        cache_name, song_id, timed ? "real" : "fake");
     snprintf(path, sizeof(path), "%s/%s", root, cache_name);
     disk = RSCache_Dat2DiskNewFromDirectory(path);
     if( !disk )
@@ -132,6 +180,14 @@ test_song_reads_here_decodes_there(
 
     runner_init(&parallel, px, TASK_RUNNER_ROLE_PARALLEL);
     runner_init(&background, px, TASK_RUNNER_ROLE_BACKGROUND);
+    if( timed )
+    {
+        TaskRunner_SetClock(&parallel, real_now, NULL);
+        TaskRunner_SetClock(&background, real_now, NULL);
+        /* Measures every parallel step (longest_step_us) without naming
+         * any: nothing here is slower than this. */
+        parallel.slow_task_us = UINT64_MAX / 2;
+    }
     bc = dat2_buildcache_new();
     provider = dat2_buildcache_as_provider(bc);
     CacheProvider_SetProfile(provider, &profile);
@@ -146,23 +202,30 @@ test_song_reads_here_decodes_there(
 
     /* Frames: the asset queue drained, then the compute queue given a slice,
      * as App_RunOnce does (the floor slice). */
-    while( (parallel.queue->head || background.queue->head) && frames < 10000 )
+    while( (parallel.queue->head || background.queue->head) && frames < 100000 )
     {
         (void)TaskRunner_PumpToStandstill(&parallel, 1 << 20, &steps);
-        if( queue_has(parallel.queue, "Dat2MusicDecode") )
+        if( queue_has(parallel.queue, "Dat2MusicDecode") ||
+            queue_has(parallel.queue, "Dat2MusicUnpack") )
             decode_on_asset_queue = 1;
+        if( queue_has(background.queue, "Dat2MusicUnpack") )
+            unpack_seen_frames++;
         if( queue_has(background.queue, "Dat2MusicDecode") )
         {
             decode_seen_frames++;
             if( player.current_song == song_id )
                 installed_while_decoding = 1;
         }
-        (void)TaskRunner_RunUntil(&background, g_now_us + 2000);
+        if( timed )
+            (void)TaskRunner_RunUntil(&background, real_now(NULL));
+        else
+            (void)TaskRunner_RunUntil(&background, g_now_us + 2000);
         frames++;
     }
 
     CHECK(!parallel.queue->head && !background.queue->head, "work left after %d frames", frames);
-    CHECK(!decode_on_asset_queue, "the decode ran on the asset queue");
+    CHECK(!decode_on_asset_queue, "the unpack or the decode ran on the asset queue");
+    CHECK(unpack_seen_frames >= 1, "the track was not unpacked on the compute queue");
     CHECK(decode_seen_frames > 1,
         "the decode was on the compute queue for %d frame(s), not sliced across several",
         decode_seen_frames);
@@ -171,8 +234,16 @@ test_song_reads_here_decodes_there(
     CHECK(player.song != NULL, "the installed song has no track");
     CHECK(player.vorbis_setup != NULL, "the Vorbis setup was not decoded");
     CHECK(player.retained_count > 0, "the installed song holds no instrument");
-    printf("   %d frame(s); the decode on the compute queue across %d of them\n",
-        frames, decode_seen_frames);
+    printf("   %d frame(s); the unpack on the compute queue across %d, the decode across %d\n",
+        frames, unpack_seen_frames, decode_seen_frames);
+    if( timed )
+    {
+        printf("   longest background step %.3f ms (%s); longest read step on the parallel queue %.3f ms (%s)\n",
+            (double)background.longest_step_us / 1000.0, background.longest_step_name,
+            (double)parallel.longest_step_us / 1000.0, parallel.longest_step_name);
+        *out_longest_decode_us = background.longest_step_us;
+        *out_longest_read_us = parallel.longest_step_us;
+    }
 
     ToriRS_Music_Free(&player);
     dat2_buildcache_free(bc);
@@ -188,8 +259,31 @@ main(
     char** argv)
 {
     char const* root = argc > 1 ? argv[1] : "..";
+    /* Four songs, and 735: the largest track in the cache (its whole unpack
+     * is the 2.9 ms above). */
+    static int const songs[] = { 0, 1, 76, 147, 735 };
+    uint64_t longest_decode = 0;
+    uint64_t longest_read = 0;
 
-    test_song_reads_here_decodes_there(root, "cache.osrs239", "osrs239", 0);
+    run_song(root, "cache.osrs239", "osrs239", 0, 0, NULL, NULL);
+    for( size_t i = 0; i < sizeof(songs) / sizeof(songs[0]); i++ )
+    {
+        uint64_t decode_us = 0;
+        uint64_t read_us = 0;
+        run_song(root, "cache.osrs239", "osrs239", songs[i], 1, &decode_us, &read_us);
+        if( decode_us > longest_decode )
+            longest_decode = decode_us;
+        if( read_us > longest_read )
+            longest_read = read_us;
+    }
+    printf("LONGEST STEP: background %.3f ms, reads %.3f ms (native processor time; one unit of work each)\n",
+        (double)longest_decode / 1000.0, (double)longest_read / 1000.0);
+    CHECK(longest_decode < LONGEST_DECODE_STEP_US,
+        "a background step took %.3f ms (bound %.3f ms)", (double)longest_decode / 1000.0,
+        LONGEST_DECODE_STEP_US / 1000.0);
+    CHECK(longest_read < LONGEST_READ_STEP_US,
+        "a read step took %.3f ms (bound %.3f ms)", (double)longest_read / 1000.0,
+        LONGEST_READ_STEP_US / 1000.0);
     if( g_failures )
     {
         printf("music_load_split_test: %d failure(s)\n", g_failures);

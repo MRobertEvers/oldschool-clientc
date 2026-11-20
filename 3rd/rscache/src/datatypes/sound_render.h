@@ -76,6 +76,34 @@ RSCache_SoundEffectRender(
     struct RSCache_SoundPcm* out);
 
 /**
+ * The same render in steps, for a caller that must stop between them (a
+ * background job that checks its clock): New sizes and allocates it (NULL
+ * when the effect has no audible tone, as the one-call render's false),
+ * each Step renders and mixes ONE tone and answers whether every tone is in,
+ * and Take hands over the PCM, as the one-call render fills `out`. The effect
+ * is borrowed: the caller keeps it alive until Free. The one-call render above
+ * is these four.
+ */
+struct RSCache_SoundRender;
+
+struct RSCache_SoundRender*
+RSCache_SoundRenderNew(
+    const struct RSCache* cache,
+    const struct RSCache_SoundEffect* effect);
+
+bool
+RSCache_SoundRenderStep(struct RSCache_SoundRender* render);
+
+void
+RSCache_SoundRenderTake(
+    struct RSCache_SoundRender* render,
+    struct RSCache_SoundPcm* out);
+
+/** NULL is accepted. */
+void
+RSCache_SoundRenderFree(struct RSCache_SoundRender* render);
+
+/**
  * Repeat the loop span `loop_count` times in place of the single pass the
  * render produced (reference Wave.generate's loop expansion, which runs on the
  * rendered bytes and so composes with a render done once and cached).

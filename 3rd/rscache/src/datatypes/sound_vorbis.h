@@ -69,6 +69,35 @@ RSCache_VorbisSampleNewDecode(
     int data_size);
 
 /**
+ * The same decode in steps, for a caller that must stop between them (a
+ * background job that checks its clock): New reads the header and makes the
+ * buffers, each Step decodes packets until at least `frame_budget` frames
+ * came out (one packet at least) and answers whether the decode is finished,
+ * and Take hands over the sample (NULL if a packet was malformed). The blob
+ * is borrowed: the caller keeps `data` alive until Free. The one-call decode
+ * above is these four with an unbounded budget.
+ */
+struct RSCache_VorbisSampleDecode;
+
+struct RSCache_VorbisSampleDecode*
+RSCache_VorbisSampleDecodeNew(
+    const struct RSCache_VorbisSetup* setup,
+    const char* data,
+    int data_size);
+
+bool
+RSCache_VorbisSampleDecodeStep(
+    struct RSCache_VorbisSampleDecode* decode,
+    int frame_budget);
+
+struct RSCache_AudioSample*
+RSCache_VorbisSampleDecodeTake(struct RSCache_VorbisSampleDecode* decode);
+
+/** NULL is accepted. */
+void
+RSCache_VorbisSampleDecodeFree(struct RSCache_VorbisSampleDecode* decode);
+
+/**
  * Decode a self-contained index 4 sample file: `u4 setupLength`, setup header,
  * sample blob. The setup is built, used and freed here — call it only for
  * effect samples, never for music samples, which share one setup.

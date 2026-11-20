@@ -1,6 +1,7 @@
 #include "sound_vorbis.h"
 #include "../rscache_alloc.h"
 
+#include <assert.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1742,28 +1743,55 @@ read_be32(
                  ((uint32_t)data[offset + 2] << 8) | (uint32_t)data[offset + 3]);
 }
 
-struct RSCache_AudioSample*
-RSCache_VorbisSampleNewDecode(
+/*
+ * A sample decode in steps (RSCache_VorbisSampleDecodeNew): what the one-call
+ * decode keeps in locals across its packet loop, kept here between steps.
+ */
+struct RSCache_VorbisSampleDecode
+{
+    const uint8_t* bytes; /* borrowed: the caller keeps the blob alive */
+    int data_size;
+    int cursor;
+    int packet;
+    int packet_count;
+    int written;
+    int out_capacity;
+    float* out;
+    struct vorbis_stream stream;
+    struct RSCache_AudioSample* sample;
+    bool finished;
+    bool failed;
+};
+
+void
+RSCache_VorbisSampleDecodeFree(struct RSCache_VorbisSampleDecode* decode)
+{
+    if( !decode )
+        return;
+    RSCACHE_FREE(decode->stream.work);
+    RSCACHE_FREE(decode->stream.previous);
+    RSCACHE_FREE(decode->stream.classifications);
+    RSCACHE_FREE(decode->out);
+    RSCache_AudioSampleFree(decode->sample);
+    RSCACHE_FREE(decode);
+}
+
+struct RSCache_VorbisSampleDecode*
+RSCache_VorbisSampleDecodeNew(
     const struct RSCache_VorbisSetup* setup,
     const char* data,
     int data_size)
 {
     const uint8_t* bytes = (const uint8_t*)data;
-    struct RSCache_AudioSample* sample = NULL;
-    struct vorbis_stream stream;
-    float* out = NULL;
-    int out_capacity;
-    int cursor = 0;
+    struct RSCache_VorbisSampleDecode* decode;
     int sample_rate;
     int sample_count;
     int loop_start;
     int loop_end;
     bool loop = false;
     int packet_count;
-    int written = 0;
     int max_partitions = 0;
 
-    memset(&stream, 0, sizeof(stream));
     if( !setup || !data || data_size < 20 )
         return NULL;
 
@@ -1777,22 +1805,32 @@ RSCache_VorbisSampleNewDecode(
         loop = true;
     }
     packet_count = read_be32(bytes, 16);
-    cursor = 20;
 
     if( sample_rate <= 0 || sample_count < 0 || sample_count > (1 << 27) || packet_count < 0 ||
         packet_count > (1 << 22) )
         return NULL;
 
-    sample = RSCache_AudioSampleNew(sample_rate, sample_count);
-    if( !sample )
+    decode = RSCACHE_CALLOC(1, sizeof(*decode));
+    if( !decode )
         return NULL;
-    sample->loop_start = loop_start;
-    sample->loop_end = loop_end;
-    sample->loop = loop;
+    decode->bytes = bytes;
+    decode->data_size = data_size;
+    decode->cursor = 20;
+    decode->packet_count = packet_count;
 
-    stream.setup = setup;
-    stream.work = RSCACHE_CALLOC((size_t)setup->blocksize_long, sizeof(float));
-    stream.previous = RSCACHE_CALLOC((size_t)setup->blocksize_long, sizeof(float));
+    decode->sample = RSCache_AudioSampleNew(sample_rate, sample_count);
+    if( !decode->sample )
+    {
+        RSCache_VorbisSampleDecodeFree(decode);
+        return NULL;
+    }
+    decode->sample->loop_start = loop_start;
+    decode->sample->loop_end = loop_end;
+    decode->sample->loop = loop;
+
+    decode->stream.setup = setup;
+    decode->stream.work = RSCACHE_CALLOC((size_t)setup->blocksize_long, sizeof(float));
+    decode->stream.previous = RSCACHE_CALLOC((size_t)setup->blocksize_long, sizeof(float));
     for( int i = 0; i < setup->residue_count; i++ )
     {
         const struct vorbis_residue* residue = &setup->residues[i];
@@ -1801,57 +1839,109 @@ RSCache_VorbisSampleNewDecode(
         if( partitions > max_partitions )
             max_partitions = partitions;
     }
-    stream.classifications_size = max_partitions > 0 ? max_partitions : 1;
-    stream.classifications = RSCACHE_CALLOC((size_t)stream.classifications_size, sizeof(int));
-    out_capacity = setup->blocksize_long;
-    out = RSCACHE_CALLOC((size_t)out_capacity, sizeof(float));
-    if( !stream.work || !stream.previous || !stream.classifications || !out )
-        goto fail;
-
-    for( int i = 0; i < packet_count; i++ )
+    decode->stream.classifications_size = max_partitions > 0 ? max_partitions : 1;
+    decode->stream.classifications =
+        RSCACHE_CALLOC((size_t)decode->stream.classifications_size, sizeof(int));
+    decode->out_capacity = setup->blocksize_long;
+    decode->out = RSCACHE_CALLOC((size_t)decode->out_capacity, sizeof(float));
+    if( !decode->stream.work || !decode->stream.previous || !decode->stream.classifications ||
+        !decode->out )
     {
+        RSCache_VorbisSampleDecodeFree(decode);
+        return NULL;
+    }
+    return decode;
+}
+
+bool
+RSCache_VorbisSampleDecodeStep(
+    struct RSCache_VorbisSampleDecode* decode,
+    int frame_budget)
+{
+    int produced_this_step = 0;
+
+    assert(decode);
+    assert(frame_budget > 0);
+    if( decode->finished )
+        return true;
+
+    /* At least one packet a step, then packets until the budget is met. */
+    while( decode->packet < decode->packet_count &&
+           (produced_this_step == 0 || produced_this_step < frame_budget) )
+    {
+        const uint8_t* bytes = decode->bytes;
         int length = 0;
         int chunk;
         int produced;
 
         do
         {
-            if( cursor >= data_size )
+            if( decode->cursor >= decode->data_size )
                 goto fail;
-            chunk = bytes[cursor++];
+            chunk = bytes[decode->cursor++];
             length += chunk;
         } while( chunk >= 255 );
-        if( length < 0 || cursor + length > data_size )
+        if( length < 0 || decode->cursor + length > decode->data_size )
             goto fail;
 
-        produced = vorbis_decode_packet(&stream, bytes + cursor, length, out, out_capacity);
-        cursor += length;
+        produced = vorbis_decode_packet(
+            &decode->stream, bytes + decode->cursor, length, decode->out, decode->out_capacity);
+        decode->cursor += length;
+        decode->packet++;
         if( produced < 0 )
             goto fail;
-        for( int j = 0; j < produced && written < sample_count; j++ )
+        for( int j = 0; j < produced && decode->written < decode->sample->sample_count; j++ )
         {
-            int value = (int)(out[j] * 32768.0f);
+            int value = (int)(decode->out[j] * 32768.0f);
             if( value > 32767 )
                 value = 32767;
             if( value < -32768 )
                 value = -32768;
-            sample->samples[written++] = (int16_t)value;
+            decode->sample->samples[decode->written++] = (int16_t)value;
         }
+        /* A packet that produced nothing (the first) still counts as work. */
+        produced_this_step += produced > 0 ? produced : 1;
     }
-
-    RSCACHE_FREE(stream.work);
-    RSCACHE_FREE(stream.previous);
-    RSCACHE_FREE(stream.classifications);
-    RSCACHE_FREE(out);
-    return sample;
+    if( decode->packet >= decode->packet_count )
+        decode->finished = true;
+    return decode->finished;
 
 fail:
-    RSCACHE_FREE(stream.work);
-    RSCACHE_FREE(stream.previous);
-    RSCACHE_FREE(stream.classifications);
-    RSCACHE_FREE(out);
-    RSCache_AudioSampleFree(sample);
-    return NULL;
+    decode->finished = true;
+    decode->failed = true;
+    return true;
+}
+
+struct RSCache_AudioSample*
+RSCache_VorbisSampleDecodeTake(struct RSCache_VorbisSampleDecode* decode)
+{
+    struct RSCache_AudioSample* sample;
+
+    assert(decode);
+    assert(decode->finished);
+    if( decode->failed )
+        return NULL;
+    sample = decode->sample;
+    decode->sample = NULL;
+    return sample;
+}
+
+struct RSCache_AudioSample*
+RSCache_VorbisSampleNewDecode(
+    const struct RSCache_VorbisSetup* setup,
+    const char* data,
+    int data_size)
+{
+    struct RSCache_VorbisSampleDecode* decode = RSCache_VorbisSampleDecodeNew(setup, data, data_size);
+    struct RSCache_AudioSample* sample;
+
+    if( !decode )
+        return NULL;
+    while( !RSCache_VorbisSampleDecodeStep(decode, 1 << 30) )
+        ;
+    sample = RSCache_VorbisSampleDecodeTake(decode);
+    RSCache_VorbisSampleDecodeFree(decode);
+    return sample;
 }
 
 struct RSCache_AudioSample*
