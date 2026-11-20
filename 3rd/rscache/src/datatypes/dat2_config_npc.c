@@ -94,6 +94,9 @@ RSCache_Dat2ConfigNpcFlags(const struct RSCache* cache)
         flags |= RSCACHE_CONFIG_NPC_DECODE_REV237_INT_MODEL_IDS;
         flags |= RSCACHE_CONFIG_NPC_DECODE_REV237_ENTITY_OPS;
     }
+    if( RSCache_RevisionAtLeastOsrs(
+            cache, RSCACHE_TYPE_NPC, 241, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
+        flags |= RSCACHE_CONFIG_NPC_DECODE_REV241_RECOLOR_ALL;
 
     return flags;
 }
@@ -280,6 +283,11 @@ RSCache_Dat2ConfigNpcEncodeProfile(
             p2(&buffer, npc->retexture_to_find[i]);
             p2(&buffer, npc->retexture_to_replace[i]);
         }
+    }
+    if( NPC_HAS(RECOLOR_ALL) && (flags & RSCACHE_CONFIG_NPC_DECODE_REV241_RECOLOR_ALL) )
+    {
+        p1(&buffer, 42);
+        p2(&buffer, npc->recolor_all);
     }
 
     if( NPC_HAS(CHATHEADS) )
@@ -503,6 +511,7 @@ RSCache_Dat2ConfigNpcInit(struct RSCache_Dat2ConfigNpc* npc)
     RSCache_PresenceReset(&npc->present);
     npc->bas_type_id = -1;
     npc->footprint_size = -1;
+    npc->recolor_all = -1;
     /*
      * No movement sounds unless opcode 134 says otherwise. Zero would not do:
      * 0 is a real sound-effect id, so leaving these zeroed would give every npc
@@ -1306,6 +1315,17 @@ RSCache_Dat2ConfigNpcDecodeOp(
                 npc->retexture_to_replace[idx] = g2(buffer);
             }
             NPC_SET(RETEXTURE);
+            break;
+        }
+        case 42:
+        {
+            /* The type's recolour-all (rev-241 class431, rev-242 class454:
+             * `var27 = (short) g2`). Before rev 241 the opcode has no payload
+             * a decoder could know, so it stops here as any unknown one. */
+            if( !(flags & RSCACHE_CONFIG_NPC_DECODE_REV241_RECOLOR_ALL) )
+                goto unknown_opcode;
+            npc->recolor_all = g2(buffer);
+            NPC_SET(RECOLOR_ALL);
             break;
         }
         case 60:

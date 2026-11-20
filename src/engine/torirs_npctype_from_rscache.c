@@ -209,6 +209,8 @@ ToriRS_NpctypeFromRSCacheDat1(
     npctype->interactable = true;
     npctype->ambient = src->ambient;
     npctype->contrast = src->contrast;
+    /* No dat1 cache has opcode 42 (a rev-241 OldSchool opcode). */
+    npctype->has_recolor_all = false;
     /* The dat1 decoder does not surface opcode 102. Stated rather than left at
      * the calloc zeroes: sprite group 0 and frame 0 are both real. */
     npctype->head_icon_group = -1;
@@ -313,6 +315,11 @@ ToriRS_NpctypeFromRSCacheDat2(
                 npctype->ambient_sound_volume);
     }
 
+    /* Opcode 42 when the record stated it, read as the reference's short:
+     * 65535 is none. */
+    npctype->has_recolor_all =
+        RSCache_PresenceHas(&src->present, RSCACHE_NPC_FIELD_RECOLOR_ALL) && src->recolor_all != 0xffff;
+    npctype->recolor_all = npctype->has_recolor_all ? src->recolor_all : -1;
     torirs_npctype_copy_pairs_int(
         &npctype->recolors_from,
         &npctype->recolors_to,

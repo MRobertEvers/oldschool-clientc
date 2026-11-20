@@ -408,6 +408,15 @@ struct ToriRS_Npctype
     int* retextures_from;
     int* retextures_to;
     int retexture_count;
+    /** The type's recolour-all (npc config opcode 42, rev 241+; rev-242 deob
+     *  class454.field5610): while `has_recolor_all`, every face of the body
+     *  and the chathead takes `recolor_all` INSTEAD of the per-colour list,
+     *  unless a customisation sends its own (class454.method10217). The
+     *  retextures still apply. Absent for no opcode 42, or 65535 there (-1 as
+     *  the reference's short). A flag, not a -1 value: 0 is a colour, and a
+     *  type built zeroed must not paint itself black. */
+    bool has_recolor_all;
+    int recolor_all;
     /*
      * Movement animation set (-1 = none).
      *

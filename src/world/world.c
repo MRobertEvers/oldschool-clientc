@@ -3941,6 +3941,17 @@ World_NpcOverrideRecolourAll(struct WorldNpcOverride const* o)
     return o->recolour_all & 0xffff;
 }
 
+int
+World_NpcRecolourAll(
+    struct WorldNpcOverride const* o,
+    int type_recolour_all)
+{
+    assert(o);
+    if( o->active && o->has_recolour_all )
+        return World_NpcOverrideRecolourAll(o);
+    return type_recolour_all;
+}
+
 int64_t
 World_NpcBodyModelKey(
     int npc_id,

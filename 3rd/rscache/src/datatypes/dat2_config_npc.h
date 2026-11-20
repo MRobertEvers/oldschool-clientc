@@ -84,6 +84,7 @@ enum RSCache_Dat2ConfigNpcField
     RSCACHE_NPC_FIELD_SUB_OPS,             /* 251 (rev237), one entry per opcode */
     RSCACHE_NPC_FIELD_COND_OPS,            /* 252 (rev237) */
     RSCACHE_NPC_FIELD_COND_SUB_OPS,        /* 253 (rev237) */
+    RSCACHE_NPC_FIELD_RECOLOR_ALL,         /* 42 (rev241) */
     RSCACHE_NPC_FIELD_COUNT
 };
 
@@ -137,6 +138,11 @@ struct RSCache_Dat2ConfigNpc
     int* retexture_to_find;
     int* retexture_to_replace;
     int retexture_count;
+    /** Opcode 42 (rev 241+): the type's recolour-all, a u16 HSL word every
+     *  face of its body and head takes in place of the per-colour list (rev-242
+     *  deob class454.field5610, read as a short: 65535 is none). -1 when the
+     *  record does not state it. */
+    int recolor_all;
     int* chathead_models;
     int chathead_models_count;
     bool is_minimap_visible;
@@ -293,6 +299,12 @@ struct RSCache_Dat2ConfigNpc
 
 /** Rev 233+: opcode 111 means renderPriority=2 instead of isFollower. */
 #define RSCACHE_CONFIG_NPC_DECODE_REV233_OP111 256
+
+/** Rev 241+: opcode 42, the type's recolour-all (a g2). The rev-239 reference
+ *  has no such opcode (class405 lists 42 among the ones it ignores); the
+ *  rev-241 one reads `var27 = (short) g2` (class431) and rev 242's the same
+ *  (class454.field5610). */
+#define RSCACHE_CONFIG_NPC_DECODE_REV241_RECOLOR_ALL 1024
 
 /**
  * The RS2 build-669+ branch (rev 727 and its neighbours).
