@@ -18,7 +18,8 @@
  * The App is required (fa5680f77): every field of the context is asserted once
  * on entry (app_exec_ctx) and no arm tests one. app->world, ->scene and
  * ->provider being NULL are real states and keep their guards. Every arm of
- * every dispatch switch here is one call to its own static exec_ function.
+ * the packet switch (App_GameProto_Exec) and of the zone sub-packet switch
+ * (exec_zone_sub_packet_at) is one call to its own static exec_ function.
  */
 
 #include "app/app_internal.h"
