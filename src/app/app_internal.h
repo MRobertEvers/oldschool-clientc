@@ -2754,6 +2754,15 @@ app_wev_cycle_views(struct App* app);
 void
 app_wev_advance_bobs(struct App* app);
 
+/* A hull's one-shot sequence (WORLDENTITY_INFO's seq): set from `seq_delay`
+ * cycles away and wanted once, here, where it changes. */
+void
+app_wev_set_seq(
+    struct App* app,
+    struct Wev* wev,
+    int seq_id,
+    int seq_delay);
+
 
 /* ---- app_world_apply.c ---- */
 /* Attach `seq_id` to the loc standing on the tile's layer now (deob

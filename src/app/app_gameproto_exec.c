@@ -1670,13 +1670,7 @@ exec_worldentity_info(
         if( up->has_op_mask )
             wev->op_mask = (unsigned)up->op_mask;
         if( up->has_seq )
-        {
-            wev->seq_id = up->seq_id;
-            wev->seq_delay = up->seq_delay;
-            /* One animaya frame per 20 ms cycle; the delay holds frame 0
-             * that many cycles away (deob field5699). */
-            wev->seq_start_cycle = app->wevs.clock + up->seq_delay;
-        }
+            app_wev_set_seq(app, wev, up->seq_id, up->seq_delay);
     }
 
     for( int i = 0; i < despawn_count; i++ )
@@ -1723,11 +1717,7 @@ exec_worldentity_info(
             continue; /* refused (bad config/size) — App_WevSpawn logged it */
 
         if( sp->has_seq )
-        {
-            wev->seq_id = sp->seq_id;
-            wev->seq_delay = sp->seq_delay;
-            wev->seq_start_cycle = app->wevs.clock + sp->seq_delay;
-        }
+            app_wev_set_seq(app, wev, sp->seq_id, sp->seq_delay);
     }
     RedrawRequest_Raise(&app->redraw_request);
 }

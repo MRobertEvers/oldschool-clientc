@@ -543,9 +543,32 @@ App_WevSpawn(
 
         WorldviewRegistry_Get(&app->worldviews, id)->parent_level = parent_level;
         if( wev )
+        {
             wev->parent_level = parent_level;
+            /* Its idle bob loops from now: wanted here, where the hull
+             * names it, not by app_wev_advance_bobs every frame. */
+            app_request_entity_seq(app, config->anim_id);
+        }
         return wev;
     }
+}
+
+void
+app_wev_set_seq(
+    struct App* app,
+    struct Wev* wev,
+    int seq_id,
+    int seq_delay)
+{
+    assert(app);
+    assert(wev);
+    wev->seq_id = seq_id;
+    wev->seq_delay = seq_delay;
+    /* One animaya frame per 20 ms cycle; the delay holds frame 0 that many
+     * cycles away (deob field5699). */
+    wev->seq_start_cycle = app->wevs.clock + seq_delay;
+    /* The one-shot changed to `seq_id`: wanted here, once. */
+    app_request_entity_seq(app, seq_id);
 }
 
 void
@@ -1785,8 +1808,9 @@ app_wev_cycle_views(struct App* app)
  *
  * One animaya frame per 20 ms client cycle (the Wevs clock). A completed
  * one-shot clears itself and restarts the idle at frame 0, exactly the
- * deob's completion rule. Seqs still loading request themselves and bob 0
- * until the load lands. Native class467.method10419 applies its current
+ * deob's completion rule. A seq is wanted where it is set (the config's idle
+ * at the spawn, a one-shot in app_wev_set_seq), never here: one still
+ * loading bobs 0 until the load lands. Native class467.method10419 applies its current
  * animation matrix to both full and flattened scenes.
  */
 void
@@ -1825,12 +1849,11 @@ app_wev_advance_bobs(struct App* app)
         else
             continue;
 
+        /* Not resident (or not skeletal): it was wanted where it was set
+         * (App_WevSpawn, app_wev_set_seq); the bob waits for it at 0. */
         anim = WorldSeqSourceToriDraw_Animation(&app->seq_source, active);
         if( !anim || !anim->skeletal )
-        {
-            app_request_entity_seq(app, active);
             continue;
-        }
         /* Playback is bounded by anim->frame_count — the seq's mayarange
          * span (the deob's playable window), which the loader clamps to the
          * bake. The curves can run longer (authoring range the game never
@@ -1853,10 +1876,7 @@ app_wev_advance_bobs(struct App* app)
                 continue;
             anim = WorldSeqSourceToriDraw_Animation(&app->seq_source, wev->config->anim_id);
             if( !anim || !anim->skeletal )
-            {
-                app_request_entity_seq(app, wev->config->anim_id);
                 continue;
-            }
             sk = anim->skeletal;
             if( anim->frame_count <= 0 || sk->frame_count <= 0 || sk->bone_count <= 0 )
                 continue;

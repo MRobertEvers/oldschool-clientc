@@ -6204,6 +6204,16 @@ test-loc-tasks: $(OBJ_DIR) $(OBJS)
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/app_loc_tasks_test
 
+# A hull's sequences are wanted where they change, not every frame
+# (app/app_wev.c): a spawn wants its idle once, a one-shot is wanted where it
+# is set, and steady frames want nothing.
+.PHONY: test-wev-seq-wants
+test-wev-seq-wants: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG \
+		-o $(OBJ_DIR)/app_wev_seq_want_test app/test/app_wev_seq_want_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/app_wev_seq_want_test
+
 # The scripts family's parallel tasks (app/app_tasks_scripts.c): a visual
 # script operation is one listed task that a newer set cancels and a closed
 # interface drops; and TRIGGER_ONDIALOGABORT's listeners keep wire order (U9).
