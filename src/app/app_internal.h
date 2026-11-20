@@ -1184,6 +1184,11 @@ app_entity_spotanim_drop(
     struct App* app,
     int body_element_id);
 
+/* The table's owner ends (App_Shutdown): every entry's body snapshot and
+ * graphic models are freed, then the table. */
+void
+app_entity_spotanims_free(struct App* app);
+
 void
 app_world_sync_entity_spotanims(struct App* app);
 

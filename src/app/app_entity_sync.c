@@ -351,6 +351,30 @@ app_entity_spotanim_drop(
         app_entity_spotanim_detach(app, entry, false);
 }
 
+/* The table's owner ends. An entry still wearing a graphic holds the body
+ * snapshot and every slot's graphic (entity_spotanim.h: the caller frees each
+ * model before an entry is cleared); nothing else will now, because the
+ * frame's sweep of dead elements never runs again. `combined` is the
+ * element's, freed with the scene. A doric run on the test client left one
+ * such snapshot, 112 blocks of lib:toridraw, at exit. */
+void
+app_entity_spotanims_free(struct App* app)
+{
+    assert(app);
+    for( int i = 0; i < app->entity_spotanims.capacity; i++ )
+    {
+        struct EntitySpotanim* entry = &app->entity_spotanims.entries[i];
+
+        if( entry->body_element_id < 0 )
+            continue;
+        ToriDraw_ModelFree(entry->body);
+        for( int k = 0; k < entry->slot_count; k++ )
+            ToriDraw_ModelFree(entry->slots[k].spot);
+        EntitySpotanim_Clear(entry);
+    }
+    EntitySpotanims_Free(&app->entity_spotanims);
+}
+
 /* The scale (128 == 1.0) that a later resize by `resize` takes back to 128. */
 static int
 app_entity_spotanim_unscale(int resize)
