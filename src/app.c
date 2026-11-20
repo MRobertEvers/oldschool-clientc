@@ -1322,8 +1322,8 @@ App_Shutdown(struct App* app)
     App_PendingTrace(app, "at exit");
     app_prefs_flush(app);
     app_render_skip_shutdown(app);
-    /* The quest driver's Lua thread lives in the plugin host's state, and its
-     * buffers in PLUGINS and NET: it goes before the host. */
+    app_title_flames_stop(app); /* an exit from the title screen leaves them running */
+    /* The quest driver's Lua thread (host state; buffers in PLUGINS, NET) goes before the host. */
     PluginDrive_Shutdown();
     /* Plugins first: on_stop callbacks may still read world state and the
      * config store, and both are torn down below. */
