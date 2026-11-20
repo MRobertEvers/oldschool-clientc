@@ -1949,8 +1949,12 @@ Task_CS2Run_Run(
                 int next;
                 struct ToriRS_Npctype* npc;
 
-                PT_TASK_AWAITSELF_IF(
-                    CreateTask_NpcLoad(self->provider, self->yield_npc_id));
+                /* Each rung's config through the assets table, as the NPC
+                 * yield reads it (a host with no table loads it itself). */
+                if( !task_cs2_read(self, task_cs2_config(ASSET_CONFIG_NPC, self->yield_npc_id)) )
+                    PT_TASK_AWAITSELF_IF(
+                        CreateTask_NpcLoad(self->provider, self->yield_npc_id));
+                PT_TASK_JOIN(join);
                 npc = CacheProvider_NpctypeGet(
                     self->provider, self->yield_npc_id);
                 if( !npc || npc->transform_count <= 0 || !npc->transforms )

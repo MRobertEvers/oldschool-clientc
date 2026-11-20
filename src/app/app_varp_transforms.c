@@ -22,6 +22,10 @@ struct Task_NpcMultiResolve
     int* out_npc_id;
     int current_npc_id;
     int depth;
+    /* The config read in flight, counted through the assets table
+     * (ASSET_KIND_CONFIG, ASSET_CONFIG_NPC): one load per npc type however
+     * many resolves, scripts and heads ask for it at once. */
+    int join;
 };
 
 /* The rare varp retype whose new rung's config is not resident: it waits for
@@ -79,6 +83,7 @@ Task_NpcMultiResolve_Run(
     struct Task_NpcMultiResolve* self = (struct Task_NpcMultiResolve*)base;
     struct App* app = self->app;
 
+    (void)io;
     PT_BEGIN(&self->pt);
 
     self->current_npc_id = self->base_npc_id;
@@ -87,7 +92,11 @@ Task_NpcMultiResolve_Run(
     for( self->depth = 0; self->depth <= TORIRS_NPC_MULTI_MAX_DEPTH && self->current_npc_id >= 0;
          self->depth++ )
     {
-        PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(app->provider, self->current_npc_id));
+        (void)Assets_Await(
+            app->assets,
+            AssetKey_Make(ASSET_KIND_CONFIG, self->current_npc_id, ASSET_CONFIG_NPC),
+            &self->join);
+        PT_TASK_JOIN(join);
         {
             struct ToriRS_Npctype* npctype =
                 CacheProvider_NpctypeGet(app->provider, self->current_npc_id);
@@ -119,6 +128,11 @@ Task_NpcMultiResolve_Run(
 static void
 Task_NpcMultiResolve_Free(struct ToriRS_Task* base)
 {
+    struct Task_NpcMultiResolve* self = (struct Task_NpcMultiResolve*)base;
+    /* Freed while it waits (its parent cancelled, a queue torn down): the
+     * table must not count on a join that is gone. */
+    if( self->join > 0 )
+        Assets_Unjoin(self->app->assets, &self->join);
     ToriMem_Free(ToriMem_Process(), base);
 }
 
@@ -135,7 +149,9 @@ CreateTask_NpcMultiResolve(
 {
     struct Task_NpcMultiResolve* task;
 
-    assert(app && out_npc_id);
+    assert(app);
+    assert(app->assets);
+    assert(out_npc_id);
     task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_NpcMultiResolve_VTable;
