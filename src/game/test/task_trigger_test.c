@@ -1903,6 +1903,107 @@ test_a_task_woken_behind_the_walk_gets_its_turn(void)
     runner_free(&runner);
 }
 
+/* --- a parked script keeps the next serial script behind it ------------------
+ *
+ * The bank crash (2026-11-20, `assert(node)` in CC_GETID): dropping an item on
+ * the "+" tab sends the bank and the tab varbits back. The inv-transmit
+ * dispatch ran bankmain_build (clientscript 276), whose tab-icon proc parked
+ * loading proc 507. Before PR #155 the var-transmit dispatch queued behind it
+ * then ran its own build, CC_DELETEALL'd the tab strip under the parked
+ * script, and the resume found its dot component gone -- `.cc_getid` in proc
+ * 508 asserted. The reference runs a script to its end before the next starts,
+ * so a script parked on a load must keep every later render-blocking script
+ * behind it on the parallel queue, through the parked CHILD as well. */
+
+struct Dispatch
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    /* What its script parks on, or NULL: it runs straight through. */
+    struct ToriRS_Trigger* load;
+    int id;
+    int* order;
+    int* order_len;
+};
+
+static int
+Dispatch_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
+{
+    struct Dispatch* self = (struct Dispatch*)base;
+    (void)io;
+    PT_BEGIN(&self->pt);
+    self->order[(*self->order_len)++] = self->id * 10 + 1;
+    if( self->load )
+    {
+        struct Sub* script = calloc(1, sizeof(*script));
+        assert(script);
+        sub_init(script, "script", self->load);
+        script->task.vtable = &k_sibling_vtable;
+        script->while_primed = 1;
+        self->pt.user = &script->task;
+        PT_TASK_AWAITSELF(self->pt.user);
+    }
+    self->order[(*self->order_len)++] = self->id * 10 + 2;
+    PT_END(&self->pt);
+}
+
+static struct ToriRS_TaskVTable k_dispatch_vtable = { .run = Dispatch_Run, .free = task_free_libc };
+
+static struct Dispatch*
+dispatch_new(char const* name, struct ToriRS_Trigger* load, int id, int* order, int* order_len)
+{
+    struct Dispatch* d = calloc(1, sizeof(*d));
+    assert(d);
+    d->task.vtable = &k_dispatch_vtable;
+    snprintf(d->task.name, sizeof(d->task.name), "%s", name);
+    d->load = load;
+    d->id = id;
+    d->order = order;
+    d->order_len = order_len;
+    PT_INIT(&d->pt);
+    return d;
+}
+
+static void
+test_a_parked_script_keeps_the_next_serial_script_behind_it(void)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px = { 0 };
+    struct ToriRS_Trigger load = { 0 };
+    struct ToriRS_TriggerOwner cache = { 0 };
+    int order[8];
+    int order_len = 0;
+    struct Dispatch* inv;
+    struct Dispatch* var;
+
+    printf("TEST: a render-blocking script parked on a load keeps the next one waiting for its end\n");
+    runner_init(&runner, &px, TASK_RUNNER_ROLE_PARALLEL);
+    ToriRS_Trigger_Init(&load, "proc 507's load");
+    ToriRS_TriggerOwner_Init(&cache, TORIRS_OWNER_EXTERNAL, "the cache");
+    ToriRS_Trigger_Prime(&load, &cache);
+    inv = dispatch_new("InvTransmitDispatch", &load, 1, order, &order_len);
+    var = dispatch_new("VarTransmitDispatch", NULL, 2, order, &order_len);
+    TaskRunner_AddRenderBlockingSerialTask(&runner, &inv->task);
+    TaskRunner_AddRenderBlockingSerialTask(&runner, &var->task);
+
+    CHECK(pump(&runner) == TASK_RUNNER_WAITING);
+    /* The first script started and parked; the second has not started. */
+    CHECK(order_len == 1 && order[0] == 11);
+    CHECK(inv->task.parked);
+    CHECK(var->task.parked);
+    CHECK(var->task.park.kind == TORIRS_TASK_WAIT_TURN);
+    CHECK(var->task.park.trigger == ToriRS_TaskEnded(&inv->task));
+
+    /* The load lands: the first ends, then the second runs. */
+    ToriRS_Trigger_Fire(&load);
+    CHECK(pump(&runner) == TASK_RUNNER_IDLE);
+    CHECK(order_len == 4);
+    CHECK(order[0] == 11 && order[1] == 12 && order[2] == 21 && order[3] == 22);
+    CHECK(runner.queue->head == NULL);
+    runner_free(&runner);
+    ToriRS_TriggerOwner_End(&cache, 0);
+}
+
 int
 main(void)
 {
@@ -1922,6 +2023,7 @@ main(void)
     test_a_loop_through_a_count_asserts();
     test_a_loop_through_an_inline_child_asserts();
     test_a_task_woken_behind_the_walk_gets_its_turn();
+    test_a_parked_script_keeps_the_next_serial_script_behind_it();
     if( g_failures )
     {
         printf("task_trigger_test: %d failure(s)\n", g_failures);
