@@ -628,6 +628,69 @@ test_bind_without_a_loader_is_unbound(void)
     fixture_free(&fx);
 }
 
+/* E12: an npc's overhead from a sprite group other than the client's prayer
+ * pack (a server headicon customisation naming its own group) is bound by
+ * its id and loads through the assets table; every set slot is drawn, in
+ * slot order; the prayer group draws from the client's own pack; and a type
+ * with no customisation still draws its one icon. */
+static void
+test_npc_headicon_groups_load(void)
+{
+    struct Fixture fx;
+    struct WorldEntity_NPC npc;
+    struct ToriRS_Npctype type;
+    struct AppNpcHeadicon icons[WORLD_NPC_HEADICON_SLOTS];
+    int const prayer_scene = 4321;
+    int n;
+
+    printf("TEST: an npc headicon of any sprite group is bound and loads through the assets table\n");
+    sprite_fixture_init(&fx);
+    memset(&npc, 0, sizeof(npc));
+    memset(&type, 0, sizeof(type));
+    type.head_icon_group = -1;
+    type.head_icon_index = -1;
+    for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
+    {
+        npc.headicon_group[i] = -1;
+        npc.headicon_index[i] = -1;
+    }
+    npc.headicon_custom = true;
+    npc.headicon_group[1] = 88;
+    npc.headicon_index[1] = 0;
+    npc.headicon_group[3] = APP_HEADICONS_PRAYER_GROUP;
+    npc.headicon_index[3] = 2;
+    npc.headicon_group[5] = 77; /* a group with no frame: not drawn */
+    npc.headicon_index[5] = -1;
+
+    n = app_overlay_npc_headicons(&fx.app, &type, &npc, prayer_scene, APP_HEADICONS_PRAYER_GROUP, icons);
+    TEST_ASSERT(n == 2, "both set slots are drawn");
+    TEST_ASSERT(n >= 1 && icons[0].scene_id > 0 && icons[0].scene_id != prayer_scene && icons[0].frame == 0,
+        "group 88 first, bound by its id");
+    TEST_ASSERT(n >= 2 && icons[1].scene_id == prayer_scene && icons[1].frame == 2,
+        "the prayer group from the client's own pack");
+    TEST_ASSERT(App_SpriteFillPending(&fx.app, 88), "group 88 loads through its fill task");
+    TEST_ASSERT(!App_SpriteFillPending(&fx.app, 77), "a slot with no frame binds nothing");
+    pump(&fx);
+    TEST_ASSERT(loads_of(ASSET_KIND_SPRITE, 88, 0) == 1, "asked of the assets table once");
+
+    /* It lands with one frame: frame 0 draws, frame 1 of it would not. */
+    CacheProvider_SpriteAdd(&fx.provider, 88, drawable_sprite());
+    Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_SPRITE, 88, 0), true);
+    pump(&fx);
+    TEST_ASSERT(!App_SpriteFillPending(&fx.app, 88), "and it landed");
+    npc.headicon_index[1] = 1;
+    n = app_overlay_npc_headicons(&fx.app, &type, &npc, prayer_scene, APP_HEADICONS_PRAYER_GROUP, icons);
+    TEST_ASSERT(n == 1 && icons[0].scene_id == prayer_scene, "a frame the group lacks is not drawn");
+
+    /* No customisation: the type's one icon, an older cache's frame-only
+     * icon from the prayer pack. */
+    npc.headicon_custom = false;
+    type.head_icon_index = 4;
+    n = app_overlay_npc_headicons(&fx.app, &type, &npc, prayer_scene, APP_HEADICONS_PRAYER_GROUP, icons);
+    TEST_ASSERT(n == 1 && icons[0].scene_id == prayer_scene && icons[0].frame == 4, "the type's icon");
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
@@ -639,6 +702,7 @@ main(void)
     test_sprite_reservation_fills_when_it_lands();
     test_sprite_reservation_outlives_a_logout();
     test_bind_without_a_loader_is_unbound();
+    test_npc_headicon_groups_load();
     if( g_failures )
     {
         printf("if_assets_tasks: %d failure(s)\n", g_failures);

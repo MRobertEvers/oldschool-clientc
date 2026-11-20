@@ -1905,6 +1905,29 @@ app_overlay_build_player_headicons(
 void
 app_overlay_build_hint_arrow(struct App* app);
 
+/* One overhead icon an npc draws: the sprite group's scene id and the frame. */
+struct AppNpcHeadicon
+{
+    int scene_id;
+    int frame;
+};
+
+/* The overhead icons an npc draws, in slot order (deob Statics ~24626: every
+ * slot whose group and frame are set, the override's when the server set one,
+ * else the type's). The prayer group is the client's own pack
+ * (`prayer_scene`); any other group is bound by its id through the bridge,
+ * which loads it through the assets table (UITreeSceneBridge_BindSprite). A
+ * frame the resident group does not have draws nothing, as the reference's
+ * `index < sprites.length` test. Returns how many were written to `out`. */
+int
+app_overlay_npc_headicons(
+    struct App* app,
+    struct ToriRS_Npctype const* npctype,
+    struct WorldEntity_NPC const* npc,
+    int prayer_scene,
+    int prayer_group,
+    struct AppNpcHeadicon out[WORLD_NPC_HEADICON_SLOTS]);
+
 void
 app_overlay_build_npc_headicon(
     struct App* app,
