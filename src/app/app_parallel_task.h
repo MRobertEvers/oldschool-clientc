@@ -183,6 +183,33 @@ App_BootBuilt(struct App* app);
  * task's view.
  */
 #define PT_APP_AWAIT_VIEW_REBUILT(app, built)                                                      \
-    PT_PARALLEL_AWAIT_REBUILD(App_ViewBuiltTrigger((app), self->par.view), (built))
+    do                                                                                             \
+    {                                                                                              \
+        self->par.rebuild_parked = 0;                                                              \
+        while( !self->par.cancelled &&                                                             \
+               RS_ParallelTask_AskRebuild(&self->task, App_ViewBuiltTrigger((app), self->par.view), (built)) ) \
+        {                                                                                          \
+            if( !self->par.rebuild_parked )                                                        \
+                App_ParallelTaskRebuildTrace((app), &self->par, "parks on");                       \
+            self->par.rebuild_parked = 1;                                                          \
+            PT_YIELD(&self->pt);                                                                   \
+        }                                                                                          \
+        if( self->par.rebuild_parked )                                                             \
+            App_ParallelTaskRebuildTrace((app), &self->par, "woke from");                          \
+    } while( 0 )
+
+/*
+ * TORIRS_QUEUE_CONTRACT_TRACE: one line when a parallel task parks on its
+ * view's rebuild (`what` "parks on") and one when it is resumed past it
+ * ("woke from"): the task, how the wait ended, and the scene serial it was
+ * made in against the one the view holds now -- the evidence that a task
+ * reaching its apply mid-rebuild waits for the commit and then re-checks
+ * against the NEW scene. Silent otherwise.
+ */
+void
+App_ParallelTaskRebuildTrace(
+    struct App* app,
+    struct RS_ParallelTask const* par,
+    char const* what);
 
 #endif /* SRC_APP_APP_PARALLEL_TASK_H */

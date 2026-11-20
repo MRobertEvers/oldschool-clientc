@@ -235,6 +235,9 @@ struct RS_ParallelTask
     uint8_t cancelled;
     /* Listed in an index (between add and free). */
     uint8_t listed;
+    /* Parked on its view's rebuild in the current wait for it
+     * (PT_APP_AWAIT_VIEW_REBUILT): what the wake's trace line keys on. */
+    uint8_t rebuild_parked;
     struct RS_PendingKey key;
     /* The view it belongs to (-1: none, an interface's or a song's) and that
      * view's scene serial when it was made (World.load_seq; 0 with no view,

@@ -245,6 +245,42 @@ app_view_rebuild_trace(
 }
 
 void
+App_ParallelTaskRebuildTrace(
+    struct App* app,
+    struct RS_ParallelTask const* par,
+    char const* what)
+{
+    struct Worldview const* wv;
+    struct ToriRS_Task const* task;
+    int live;
+
+    assert(app);
+    assert(par);
+    assert(what);
+    if( !TaskRunner_ContractTrace() )
+        return;
+    task = par->task;
+    live = par->view >= 0 && WorldviewRegistry_IsLive(&app->worldviews, par->view);
+    wv = live ? WorldviewRegistry_Get(&app->worldviews, par->view) : NULL;
+    fprintf(
+        stderr,
+        "queue_contract: trace rebuild view %d: %s %s its scene's rebuild%s; made in scene %u, the view "
+        "holds scene %u%s%s\n",
+        par->view,
+        task && task->name[0] ? task->name : "(unnamed)",
+        what,
+        task && what[0] == 'w'
+            ? (task->woke == TORIRS_WAKE_FIRED       ? " (fired: the commit)"
+                  : task->woke == TORIRS_WAKE_ABANDONED ? " (abandoned: its owner ended)"
+                                                        : " (cancelled or not parked)")
+            : "",
+        par->scene_serial,
+        wv && wv->world ? wv->world->load_seq : 0u,
+        wv && wv->world && !wv->world->load_complete ? " (still loading)" : "",
+        par->cancelled ? ", cancelled" : "");
+}
+
+void
 App_ViewRebuildBegin(
     struct App* app,
     struct RS_ParallelTask* rebuild,
