@@ -443,7 +443,33 @@ struct ToriRS_Slice
      * with a SPENT it may not return.
      */
     int sliced;
+    /**
+     * The unit meter of a sliced pass (TaskRunner::unit_limit_us): a slice
+     * can be overrun by as much work as a task does between two asks of
+     * "is the slice over?", so each ask closes a UNIT, read on `unit_cost_us`
+     * (the stepping thread's processor clock; NULL: not metered). The
+     * runner sets the mark when it starts a task's step and reads
+     * `unit_longest` when the step returns.
+     */
+    uint64_t (*unit_cost_us)(void);
+    uint64_t unit_mark;
+    uint64_t unit_longest;
 };
+
+/** Close the unit in progress on a metered slice: the work since the last
+ *  ask (or since the step began) is one unit. */
+static inline void
+ToriRS_SliceUnitEnd(struct ToriRS_Slice* slice)
+{
+    uint64_t now;
+
+    assert(slice != NULL);
+    assert(slice->unit_cost_us != NULL);
+    now = slice->unit_cost_us();
+    if( now - slice->unit_mark > slice->unit_longest )
+        slice->unit_longest = now - slice->unit_mark;
+    slice->unit_mark = now;
+}
 
 /** Is the slice over? Always no for a pass with no limit, without reading
  *  the clock; always no on a queue that is not time-sliced (`sliced`); and
@@ -456,6 +482,8 @@ ToriRS_SliceSpent(struct ToriRS_Slice* slice)
         return 0;
     if( !slice->sliced )
         return 0;
+    if( slice->unit_cost_us )
+        ToriRS_SliceUnitEnd(slice);
     if( slice->grace )
     {
         slice->grace = 0;

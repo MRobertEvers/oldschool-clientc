@@ -1351,6 +1351,183 @@ test_a_cancel_after_the_last_pump_is_not_a_breach(void)
     }
 }
 
+
+/* --- G2: a background unit over its limit is named ----------------------------
+ *
+ * A background step runs until its slice is over, so its LENGTH is the slice's;
+ * what can overrun a slice is the work a task does between two asks of "is the
+ * slice over?" -- a unit. The runner meters units on the background queue's
+ * sliced passes, on its cost clock, and names a task whose unit is over the
+ * limit (TaskRunner::unit_limit_us, TORIRS_QUEUE_CONTRACT_UNIT_MS), once per
+ * name, aborting under strict as the parallel compute check does. */
+static uint64_t g_unit_cost_us;
+static struct FakeClock g_unit_wall;
+
+static uint64_t
+unit_cost_now(void)
+{
+    return g_unit_cost_us;
+}
+
+/* `units` units of `unit_us` each (cost and wall clock alike), asking after
+ * each; `lead_us` of work before the first. */
+struct Lumpy
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    uint64_t lead_us;
+    uint64_t unit_us;
+    int units;
+    int done;
+};
+
+static int
+Lumpy_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
+{
+    struct Lumpy* self = (struct Lumpy*)base;
+    PT_BEGIN(&self->pt);
+    g_unit_cost_us += self->lead_us;
+    g_unit_wall.now_us += self->lead_us;
+    PT_TASK_YIELD_IF_SPENT();
+    while( self->done < self->units )
+    {
+        g_unit_cost_us += self->unit_us;
+        g_unit_wall.now_us += self->unit_us;
+        self->done++;
+        PT_TASK_YIELD_IF_SPENT();
+    }
+    PT_END(&self->pt);
+}
+
+static struct ToriRS_TaskVTable k_lumpy_vtable = { .run = Lumpy_Run, .free = task_free_libc };
+
+static void
+add_lumpy(struct TaskRunner* runner, char const* name, uint64_t lead_us, uint64_t unit_us, int units)
+{
+    struct Lumpy* t = calloc(1, sizeof(*t));
+    assert(t);
+    t->task.vtable = &k_lumpy_vtable;
+    snprintf(t->task.name, sizeof(t->task.name), "%s", name);
+    t->lead_us = lead_us;
+    t->unit_us = unit_us;
+    t->units = units;
+    PT_INIT(&t->pt);
+    ToriRS_TaskQueue_Add(runner->queue, &t->task);
+}
+
+/* Floor slices of 2 ms until the queue is empty. */
+static void
+floor_slices(struct TaskRunner* runner)
+{
+    for( int frame = 0; runner->queue->head && frame < 1000; frame++ )
+        (void)TaskRunner_RunUntil(runner, g_unit_wall.now_us + 2000);
+}
+
+/* In a child, its stderr kept in `path`: the env limit, a background queue on
+ * the cost clock, one task whose first unit is 6 ms. */
+static void
+lump_in_a_child(char const* path)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px = { 0 };
+
+    (void)!freopen(path, "w", stderr);
+    setenv("TORIRS_QUEUE_CONTRACT_UNIT_MS", "4", 1);
+    runner_init(&runner, &px, &g_unit_wall, TASK_RUNNER_ROLE_BACKGROUND);
+    TaskRunner_SetCostClock(&runner, unit_cost_now);
+    add_lumpy(&runner, "Lump", 6000, 500, 4);
+    floor_slices(&runner);
+    runner_free(&runner);
+    fflush(stderr);
+}
+
+static void
+test_a_background_unit_over_its_limit_is_named(void)
+{
+    char path[] = "/tmp/queue_contract_unit_XXXXXX";
+    char buf[4096];
+    size_t got;
+    FILE* f;
+    int fd;
+    pid_t pid;
+    int status = 0;
+
+    printf("TEST: a background task whose work between two slice checks is over the limit is named (G2)\n");
+    fd = mkstemp(path);
+    assert(fd >= 0);
+    close(fd);
+    fflush(stdout);
+    fflush(stderr);
+    pid = fork();
+    assert(pid >= 0);
+    if( pid == 0 )
+    {
+        lump_in_a_child(path);
+        _exit(0);
+    }
+    (void)waitpid(pid, &status, 0);
+    f = fopen(path, "r");
+    assert(f);
+    got = fread(buf, 1, sizeof(buf) - 1, f);
+    buf[got] = '\0';
+    fclose(f);
+    unlink(path);
+    if( !strstr(buf, "queue_contract: background task Lump ran 6.00 ms") )
+        fprintf(stderr, "FAIL: a 6 ms background unit against a 4 ms limit printed no breach; stderr was: %s\n", buf);
+    CHECK(strstr(buf, "queue_contract: background task Lump ran 6.00 ms") != NULL);
+}
+
+static void
+test_background_units_are_metered(void)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px = { 0 };
+
+    printf("TEST: background units are metered on the cost clock, on sliced passes only (G2)\n");
+    runner_init(&runner, &px, &g_unit_wall, TASK_RUNNER_ROLE_BACKGROUND);
+    TaskRunner_SetCostClock(&runner, unit_cost_now);
+    runner.unit_limit_us = 4000;
+    /* Twelve 1 ms units: steps of a whole slice each, units of 1 ms, no breach. */
+    add_lumpy(&runner, "Fine", 0, 1000, 12);
+    floor_slices(&runner);
+    CHECK(runner.unit_named_count == 0);
+    CHECK(runner.longest_unit_us == 1000);
+    CHECK(runner.longest_step_us >= 2000);
+    /* One 6 ms unit: named, once, though it is given several slices. */
+    add_lumpy(&runner, "Lump", 6000, 6000, 3);
+    floor_slices(&runner);
+    CHECK(runner.unit_named_count == 1);
+    CHECK(runner.unit_named_count == 1 && strcmp(runner.unit_named[0], "Lump") == 0);
+    CHECK(runner.longest_unit_us == 6000);
+    CHECK(strcmp(runner.longest_unit_name, "Lump") == 0);
+    /* A 6 ms unit in the guaranteed step of a slice already over: the same. */
+    add_lumpy(&runner, "Late", 6000, 100, 1);
+    (void)TaskRunner_RunUntil(&runner, g_unit_wall.now_us + 1);
+    floor_slices(&runner);
+    CHECK(runner.unit_named_count == 2);
+    runner_free(&runner);
+
+    /* An owner running a job to its end (no deadline) is not metered: no
+     * slice bounds that pass. */
+    runner_init(&runner, &px, &g_unit_wall, TASK_RUNNER_ROLE_BACKGROUND);
+    TaskRunner_SetCostClock(&runner, unit_cost_now);
+    runner.unit_limit_us = 4000;
+    add_lumpy(&runner, "Promoted", 9000, 9000, 2);
+    (void)TaskRunner_RunUntil(&runner, 0);
+    CHECK(!runner.queue->head);
+    CHECK(runner.unit_named_count == 0);
+    runner_free(&runner);
+
+    /* The parallel queue is not sliced: its own check is the compute one. */
+    runner_init(&runner, &px, &g_unit_wall, TASK_RUNNER_ROLE_PARALLEL);
+    TaskRunner_SetCostClock(&runner, unit_cost_now);
+    runner.unit_limit_us = 4000;
+    add_lumpy(&runner, "Parallel", 9000, 0, 0);
+    (void)TaskRunner_Step(&runner);
+    CHECK(runner.unit_named_count == 0);
+    runner_free(&runner);
+}
+
 int
 main(void)
 {
@@ -1367,6 +1544,8 @@ main(void)
     test_the_compute_check_reads_the_cost_clock();
     test_a_frame_is_published_at_a_standstill();
     test_a_cancel_after_the_last_pump_is_not_a_breach();
+    test_a_background_unit_over_its_limit_is_named();
+    test_background_units_are_metered();
     if( g_failures )
     {
         printf("queue_contract_test: %d failure(s)\n", g_failures);

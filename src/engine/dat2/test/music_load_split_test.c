@@ -112,6 +112,15 @@ real_now(void* data)
     return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u;
 }
 
+/* The same clock in a cost clock's shape (TaskRunner_SetCostClock): the
+ * background runner meters each UNIT on it -- the work between two asks of
+ * "is the slice over?", which is what can overrun a slice (G2). */
+static uint64_t
+real_cost_now(void)
+{
+    return real_now(NULL);
+}
+
 /* The bounds mode B holds a step to, in processor time natively. Before the
  * cut a decode step was one whole sample (up to 8 ms; 4 ms on these songs,
  * 15-16 ms in wasm) and the track's unpack was a step of the asset queue (up
@@ -142,6 +151,7 @@ run_song(
     int song_id,
     int timed,
     uint64_t* out_longest_decode_us,
+    uint64_t* out_longest_unit_us,
     uint64_t* out_longest_read_us)
 {
     char path[1024];
@@ -184,6 +194,8 @@ run_song(
     {
         TaskRunner_SetClock(&parallel, real_now, NULL);
         TaskRunner_SetClock(&background, real_now, NULL);
+        TaskRunner_SetCostClock(&background, real_cost_now);
+        background.unit_limit_us = LONGEST_DECODE_STEP_US;
         /* Measures every parallel step (longest_step_us) without naming
          * any: nothing here is slower than this. */
         parallel.slow_task_us = UINT64_MAX / 2;
@@ -238,10 +250,14 @@ run_song(
         frames, unpack_seen_frames, decode_seen_frames);
     if( timed )
     {
-        printf("   longest background step %.3f ms (%s); longest read step on the parallel queue %.3f ms (%s)\n",
+        printf("   longest background step %.3f ms (%s), longest unit %.3f ms (%s); longest read step on the "
+               "parallel queue %.3f ms (%s)\n",
             (double)background.longest_step_us / 1000.0, background.longest_step_name,
+            (double)background.longest_unit_us / 1000.0, background.longest_unit_name,
             (double)parallel.longest_step_us / 1000.0, parallel.longest_step_name);
+        CHECK(background.unit_named_count == 0, "a background unit was over %.3f ms", LONGEST_DECODE_STEP_US / 1000.0);
         *out_longest_decode_us = background.longest_step_us;
+        *out_longest_unit_us = background.longest_unit_us;
         *out_longest_read_us = parallel.longest_step_us;
     }
 
@@ -263,21 +279,26 @@ main(
      * is the 2.9 ms above). */
     static int const songs[] = { 0, 1, 76, 147, 735 };
     uint64_t longest_decode = 0;
+    uint64_t longest_unit = 0;
     uint64_t longest_read = 0;
 
-    run_song(root, "cache.osrs239", "osrs239", 0, 0, NULL, NULL);
+    run_song(root, "cache.osrs239", "osrs239", 0, 0, NULL, NULL, NULL);
     for( size_t i = 0; i < sizeof(songs) / sizeof(songs[0]); i++ )
     {
         uint64_t decode_us = 0;
+        uint64_t unit_us = 0;
         uint64_t read_us = 0;
-        run_song(root, "cache.osrs239", "osrs239", songs[i], 1, &decode_us, &read_us);
+        run_song(root, "cache.osrs239", "osrs239", songs[i], 1, &decode_us, &unit_us, &read_us);
         if( decode_us > longest_decode )
             longest_decode = decode_us;
+        if( unit_us > longest_unit )
+            longest_unit = unit_us;
         if( read_us > longest_read )
             longest_read = read_us;
     }
-    printf("LONGEST STEP: background %.3f ms, reads %.3f ms (native processor time; one unit of work each)\n",
-        (double)longest_decode / 1000.0, (double)longest_read / 1000.0);
+    printf("LONGEST STEP: background %.3f ms (longest unit %.3f ms), reads %.3f ms (native processor time; a "
+           "step of a slice already over is its guaranteed turn)\n",
+        (double)longest_decode / 1000.0, (double)longest_unit / 1000.0, (double)longest_read / 1000.0);
     CHECK(longest_decode < LONGEST_DECODE_STEP_US,
         "a background step took %.3f ms (bound %.3f ms)", (double)longest_decode / 1000.0,
         LONGEST_DECODE_STEP_US / 1000.0);

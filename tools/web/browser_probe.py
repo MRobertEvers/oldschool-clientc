@@ -196,6 +196,43 @@ def print_telemetry(t) -> None:
               f"queued={idb['queued']} errors={idb['errors']} ===")
 
 
+BACKGROUND_RE = re.compile(r"queue_contract: trace background longest (step|unit) ([\d.]+) ms \(([^)]*)\)")
+UNIT_BREACH_RE = re.compile(r"queue_contract: background task (\S+) ran ([\d.]+) ms between two slice checks")
+
+
+def background_longest(text: str):
+    """The background queue's longest STEP and longest UNIT out of a client log
+    run with TORIRS_QUEUE_CONTRACT_TRACE=1, and every unit-limit breach.
+
+    A step runs until its slice is over (the floor's 2 ms, or the loop's whole
+    slack), so its length is the slice's. A unit is the work between two asks
+    of "is the slice over?": what can overrun a slice, and what the wasm lane
+    is held to (TaskRunner::unit_limit_us). Returns
+    {"step": (ms, name) | None, "unit": (ms, name) | None, "breaches": [(name, ms)]}.
+    """
+    out = {"step": None, "unit": None, "breaches": []}
+    for m in BACKGROUND_RE.finditer(text):
+        kind, ms, name = m.group(1), float(m.group(2)), m.group(3)
+        if out[kind] is None or ms > out[kind][0]:
+            out[kind] = (ms, name)
+    for m in UNIT_BREACH_RE.finditer(text):
+        out["breaches"].append((m.group(1), float(m.group(2))))
+    return out
+
+
+def print_background(text: str) -> None:
+    b = background_longest(text)
+    if b["step"] is None and b["unit"] is None:
+        print("=== background queue: no trace lines (add &env=TORIRS_QUEUE_CONTRACT_TRACE=1) ===")
+        return
+    step = "%.2f ms (%s)" % b["step"] if b["step"] else "-"
+    unit = "%.2f ms (%s)" % b["unit"] if b["unit"] else "-"
+    print(f"=== background queue: longest step {step}, longest unit {unit}; "
+          f"{len(b['breaches'])} unit-limit breach(es) ===")
+    for name, ms in b["breaches"]:
+        print(f"  over the limit: {name} {ms:.2f} ms")
+
+
 def summarize_trace(lines) -> None:
     """Idle gaps and serialized chains out of a TORIRS_IO_TRACE=1 trace.
 
@@ -265,8 +302,9 @@ def main() -> int:
     ap.add_argument("--shots", help="save a PNG of the page at every sample into this directory")
     ap.add_argument("--summary", action="store_true",
                     help="after the last sample, print the boot telemetry (marks, runner counters, "
-                         "wire stats) and, with TORIRS_IO_TRACE=1 in the URL, the IO trace's idle "
-                         "gaps and serialized read chains")
+                         "wire stats), with TORIRS_QUEUE_CONTRACT_TRACE=1 in the URL the background "
+                         "queue's longest step and longest unit, and with TORIRS_IO_TRACE=1 the IO "
+                         "trace's idle gaps and serialized read chains")
     ap.add_argument("--until", help="stop early once the client log contains this text "
                          "(e.g. 'boot: world ready'), checked every sample")
     ap.add_argument("--profile", help="reuse this Chrome profile directory instead of a fresh one, "
@@ -331,6 +369,10 @@ def main() -> int:
                 print_telemetry(json.loads(raw) if raw else None)
             except Exception as err:
                 print(f"summary: telemetry unavailable: {err}", flush=True)
+            try:
+                print_background(cdp.evaluate("(document.getElementById('log') || {}).textContent || ''"))
+            except Exception as err:
+                print(f"summary: client log unavailable: {err}", flush=True)
             trace = cdp.evaluate("(globalThis.__torirs_io_trace || []).join('\\n')")
             if trace:
                 summarize_trace(trace.splitlines())
