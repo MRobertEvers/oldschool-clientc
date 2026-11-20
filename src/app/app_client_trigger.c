@@ -8,7 +8,6 @@
  */
 
 #include "app/app_internal.h"
-#include "mem/torirs_mem.h"
 #include "torirs_env.h"
 
 /*
@@ -23,37 +22,24 @@
  */
 
 /*
- * The subject, queued.
+ * The subject, carried by its script.
  *
  * RS_CS2_RunScript does not run a script -- it queues one, because a script
  * may have to be read off disk first. So writing the active-subject register
  * beside the queue call is writing it for whichever npc happens to be last:
  * one region load queues twenty-six copies of the global npc-add script, they
  * all run during the same settle, and every one of them sees npc twenty-six.
- * Measured before this existed -- all twenty-six npcs shared one overlay pair,
+ * Measured before the fix: all twenty-six npcs shared one overlay pair,
  * indices 0 and 1.
  *
- * The fix is to make the write part of the queue rather than of the caller: a
- * one-shot task that carries its own snapshot, queued immediately in front of
- * the script. The queue is a strict serial FIFO, so "immediately in front"
- * survives every IO yield the script itself takes.
+ * So the write is the script's own: the script task carries a copy of its
+ * subject and writes the register at its first step
+ * (RS_CS2_RunScriptAsSubject, Task_CS2Run_SetSubject). It was a one-shot task
+ * of its own queued in front of the script, which no cancel or query could
+ * find and which relied on the queue's order to stay in front.
  */
-struct Task_ClientTriggerSubject
-{
-    struct ToriRS_Task task;
-    struct pt pt;
-    struct RS_CS2Host* host;
-    int kind;
-    struct RS_ClientOpContext ctx;
-};
 
 /* Private to this unit, declared up front so definition order is free. */
-static int
-Task_ClientTriggerSubject_Run(
-    struct ToriRS_Task* task_base,
-    struct ToriRS_IOBatch* io);
-static void
-Task_ClientTriggerSubject_Free(struct ToriRS_Task* task_base);
 static void
 app_client_trigger_queue(
     struct App* app,
@@ -96,52 +82,15 @@ app_client_trigger_loc_fire(
     int category,
     int script_id);
 
-static int
-Task_ClientTriggerSubject_Run(
-    struct ToriRS_Task* task_base,
-    struct ToriRS_IOBatch* io)
-{
-    struct Task_ClientTriggerSubject* task = (struct Task_ClientTriggerSubject*)task_base;
-
-    (void)io;
-    PT_BEGIN(&task->pt);
-    RS_ClientOpActiveSet(&task->host->clientop, (enum RS_ClientOpKind)task->kind, &task->ctx);
-    PT_END(&task->pt);
-}
-
-static void
-Task_ClientTriggerSubject_Free(struct ToriRS_Task* task_base)
-{
-    ToriMem_Free(ToriMem_Script(), task_base);
-}
-
-static struct ToriRS_TaskVTable Task_ClientTriggerSubject_VTable = {
-    .run = Task_ClientTriggerSubject_Run,
-    .free = Task_ClientTriggerSubject_Free,
-};
-
 static void
 app_client_trigger_queue(
     struct App* app,
     struct RS_ClientOpContext const* ctx,
     int script_id)
 {
-    struct Task_ClientTriggerSubject* task;
-
     assert(app);
     assert(ctx);
-
-    task = ToriMem_Calloc(ToriMem_Script(), 1, sizeof(*task));
-    assert(task);
-    task->task.vtable = &Task_ClientTriggerSubject_VTable;
-    strcpy(task->task.name, "ClientTriggerSubject");
-    task->host = &app->host;
-    task->kind = ctx->kind;
-    task->ctx = *ctx;
-    PT_INIT(&task->pt);
-    ToriRS_TaskQueue_Add(app->frame_runner.queue, &task->task);
-
-    RS_CS2_RunScript(&app->host, &app->frame_runner, script_id, NULL, 0, 0, NULL, 0);
+    RS_CS2_RunScriptAsSubject(&app->host, &app->frame_runner, script_id, ctx);
 }
 
 /* RS_ClientTriggerScriptLookupFn over the cache provider. */

@@ -52,6 +52,21 @@ Task_CS2Run_SetLongArgs(
     uint64_t long_mask,
     int64_t const* long_args);
 
+struct RS_ClientOpContext;
+
+/**
+ * The active subject of kind `subject->kind` this script runs for (a client
+ * trigger's npc or loc, app/app_client_trigger.c): written to the host's
+ * client-op register (RS_ClientOpActiveSet) at the script's first step, so
+ * each of twenty-six npc-add scripts queued in one settle reads its own npc.
+ * The subject is the script's own data -- copied here -- not a second task
+ * queued in front of it.
+ */
+void
+Task_CS2Run_SetSubject(
+    struct ToriRS_Task* task,
+    struct RS_ClientOpContext const* subject);
+
 /** Same as CreateTask_CS2Run but starts from an already-loaded script pointer. */
 struct ToriRS_Task*
 CreateTask_CS2RunScript(
