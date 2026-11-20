@@ -983,7 +983,8 @@ struct PktUpdateIgnoreList
 struct PktUpdateFriendListEntry
 {
     /** The display name as the wire carries it (rev 221+: a jstr, capitals
-     *  and NBSPs kept); the base37 wires give the decoded key, lowercase. */
+     *  and NBSPs kept); the base37 wires give the decoded key as their client
+     *  showed it ("bob_smith" -> "Bob Smith"). */
     char name[64];
     /** The friend's previous display name, "" when none (rev 239 only). */
     char previous_name[64];

@@ -11,12 +11,15 @@
  * (FRIEND_COUNT / FRIEND_GETNAME / FRIEND_GETWORLD / IGNORE_*) that
  * clientscripts 125 and 129 build every panel row from.
  *
- * Entries are keyed by the base-37 hash, not by the display string, exactly as
- * the reference keys them: the same player reaches this store as "bob" from a
- * packet, as "Bob" from a chat line and as "B o b" from a typed prompt, and all
- * three have to be one entry. `*_name[]` keeps the raw unpacked form; the
- * display form (underscores to spaces, words capitalised) is produced on the
- * way out by RS_Social_DisplayName.
+ * Entries are keyed by the base-37 hash, not by the display string: the same
+ * player reaches this store as "bob" from a typed prompt, as "Bob" from a chat
+ * line and as "B\xa0o b" from a packet, and all three have to be one entry
+ * (the reference's Username folds case, space, underscore, hyphen and NBSP).
+ * `*_name[]` keeps the name as the wire (or the prompt) spells it, and that is
+ * what the panels are handed: the rev-239 client shows a Username as it was
+ * given (deob class7.method35 returns the string unchanged). A base-37 wire's
+ * adapter writes the 2004 client's display form (RS_Social_DisplayName's rule)
+ * into the packet, because that is how its client showed a name.
  */
 
 #define RS_SOCIAL_FRIEND_MAX 200
@@ -231,16 +234,17 @@ RS_Social_FriendCount(struct RS_Social const* social);
 int
 RS_Social_IgnoreCount(struct RS_Social const* social);
 
-/** Display name of friend `index` into `out`; "" when out of range. */
+/** Friend `index`'s name as stored (the wire's spelling) into `out`; "" when
+ *  out of range. */
 void
 RS_Social_FriendName(struct RS_Social const* social, int index, char* out, int cap);
 
-/** Display name of ignore `index` into `out`; "" when out of range. */
+/** Ignore `index`'s name as stored into `out`; "" when out of range. */
 void
 RS_Social_IgnoreName(struct RS_Social const* social, int index, char* out, int cap);
 
-/** Previous display name of friend `index` into `out`; "" when none or out of
- *  range. */
+/** Friend `index`'s previous name as stored into `out`; "" when none or out
+ *  of range. */
 void
 RS_Social_FriendPreviousName(struct RS_Social const* social, int index, char* out, int cap);
 
@@ -267,9 +271,10 @@ int
 RS_Social_IsIgnored(struct RS_Social const* social, char const* name);
 
 /**
- * Reference JString.toScreenName: underscores become spaces and the first
- * letter of each word is capitalised. The store keeps the raw base-37 form, so
- * this is applied on the way out to anything a player reads.
+ * The 2004 reference's JString.toScreenName: underscores become spaces and the
+ * first letter of each word is capitalised. For a name that only exists as a
+ * base-37 key (the rs-family wires, a typed prompt's echo); never applied to a
+ * name a rev-221+ wire spelled.
  */
 void
 RS_Social_DisplayName(char const* raw, char* out, int cap);

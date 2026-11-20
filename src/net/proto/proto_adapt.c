@@ -3212,6 +3212,25 @@ adapt_friendlist_loaded_rs(MsgFriendlistLoadedRs const* m, struct RevPacket* out
     return 1;
 }
 
+/* A base-37 name as the 2004 client showed it (TextClass.fixName over
+ * nameForLong): underscores to spaces, each word's first letter capitalised.
+ * The wire carries no spelling, so this is the name these revisions display. */
+static void
+adapt_base37_display_name(int64_t name37, char* out, int cap)
+{
+    int word_start = 1;
+
+    base37tostr((uint64_t)name37, out, cap);
+    for( int i = 0; out[i] != '\0'; i++ )
+    {
+        if( out[i] == '_' )
+            out[i] = ' ';
+        if( word_start && out[i] >= 'a' && out[i] <= 'z' )
+            out[i] = (char)(out[i] - 'a' + 'A');
+        word_start = out[i] == ' ';
+    }
+}
+
 int
 adapt_update_friendlist_rs(MsgUpdateFriendlistRs const* m, struct RevPacket* out)
 {
@@ -3223,7 +3242,7 @@ adapt_update_friendlist_rs(MsgUpdateFriendlistRs const* m, struct RevPacket* out
     assert(p->entries);
     memset(p->entries, 0, sizeof(*p->entries));
     p->count = 1;
-    base37tostr((uint64_t)m->name37, p->entries[0].name, (int)sizeof(p->entries[0].name));
+    adapt_base37_display_name(m->name37, p->entries[0].name, (int)sizeof(p->entries[0].name));
     p->entries[0].world = m->world;
     return 1;
 }

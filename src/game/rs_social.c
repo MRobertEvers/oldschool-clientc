@@ -4,6 +4,7 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <stdio.h>
 #include <string.h>
 #include <strings.h>
 
@@ -227,15 +228,80 @@ RS_Social_SortAppend(
     chain->count++;
 }
 
-/* The name the client compares (class5.method191, a String compareTo): the
- * displayed form, byte-wise. */
+/* A Username's separators (deob Statics.method8328): trimmed from both ends
+ * before the key is made. The bytes are the wire's cp1252. */
+static bool
+name_is_separator(unsigned char c)
+{
+    return c == 0xa0 || c == ' ' || c == '_' || c == '-';
+}
+
+/* One character of a Username's key (deob Statics.method12690): separators
+ * fold to '_', the accented Latin-1 letters to their base letter, the rest
+ * to lower case. 0 drops the character. */
+static char
+name_key_char(unsigned char c)
+{
+    static char const k_latin1[64] = {
+        /* 0xc0 */ 'a', 'a', 'a', 'a', 'a', 0, 0, 'c', 'e', 'e', 'e', 'e', 0, 'i', 'i', 'i',
+        /* 0xd0 */ 0, 'n', 'o', 'o', 'o', 'o', 'o', 0, 0, 'u', 'u', 'u', 'u', 0, 0, 'b',
+        /* 0xe0 */ 'a', 'a', 'a', 'a', 'a', 0, 0, 'c', 'e', 'e', 'e', 'e', 0, 'i', 'i', 'i',
+        /* 0xf0 */ 0, 'n', 'o', 'o', 'o', 'o', 'o', 0, 0, 'u', 'u', 'u', 'u', 0, 0, 'y',
+    };
+
+    if( name_is_separator(c) )
+        return '_';
+    if( (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || c == '#' || c == '[' || c == ']' )
+        return (char)c;
+    if( c >= 'A' && c <= 'Z' )
+        return (char)(c - 'A' + 'a');
+    if( c == 0x9f ) /* cp1252 Y-diaeresis, U+0178 */
+        return 'y';
+    if( c >= 0xc0 )
+        return k_latin1[c - 0xc0];
+    return 0;
+}
+
+/* The key a Username compares by (deob class7.field12): the name trimmed of
+ * separators, at most 12 characters, folded by name_key_char. "" when the
+ * name is no Username (empty, or too long), which compareTo puts last. */
+static void
+name_key(char const* name, char out[RS_SOCIAL_NAME_LEN])
+{
+    size_t start = 0;
+    size_t end = strlen(name);
+    int n = 0;
+
+    while( start < end && name_is_separator((unsigned char)name[start]) )
+        start++;
+    while( end > start && name_is_separator((unsigned char)name[end - 1]) )
+        end--;
+    out[0] = '\0';
+    if( end - start < 1 || end - start > 12 )
+        return;
+    for( size_t i = start; i < end; i++ )
+    {
+        char const c = name_key_char((unsigned char)name[i]);
+
+        if( c )
+            out[n++] = c;
+    }
+    out[n] = '\0';
+}
+
+/* The order the client sorts names in (deob class628, class7.method28): by
+ * the Username key, a String compareTo; a name with no key sorts after every
+ * name with one. */
 static int
 compare_names(char const* a_raw, char const* b_raw)
 {
     char a[RS_SOCIAL_NAME_LEN];
     char b[RS_SOCIAL_NAME_LEN];
-    RS_Social_DisplayName(a_raw, a, (int)sizeof(a));
-    RS_Social_DisplayName(b_raw, b, (int)sizeof(b));
+
+    name_key(a_raw, a);
+    name_key(b_raw, b);
+    if( !a[0] || !b[0] )
+        return (a[0] ? -1 : 0) + (b[0] ? 1 : 0);
     return strcmp(a, b);
 }
 
@@ -430,7 +496,7 @@ RS_Social_FriendName(
     out[0] = '\0';
     if( !social || index < 0 || index >= social->friend_count )
         return;
-    RS_Social_DisplayName(social->friend_name[index], out, cap);
+    snprintf(out, (size_t)cap, "%s", social->friend_name[index]);
 }
 
 void
@@ -446,7 +512,7 @@ RS_Social_IgnoreName(
     out[0] = '\0';
     if( !social || index < 0 || index >= social->ignore_count )
         return;
-    RS_Social_DisplayName(social->ignore_name[index], out, cap);
+    snprintf(out, (size_t)cap, "%s", social->ignore_name[index]);
 }
 
 void
@@ -463,7 +529,7 @@ RS_Social_FriendPreviousName(
     out[0] = '\0';
     if( index < 0 || index >= social->friend_count )
         return;
-    RS_Social_DisplayName(social->friend_previous_name[index], out, cap);
+    snprintf(out, (size_t)cap, "%s", social->friend_previous_name[index]);
 }
 
 int

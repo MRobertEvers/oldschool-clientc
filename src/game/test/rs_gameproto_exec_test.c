@@ -776,6 +776,33 @@ main(void)
         printf("ok - a private message from a crowned friend passes the friends-only filter\n");
     }
 
+    /* B3: a name is shown as the wire spells it. A rev-221+ wire spells it
+     * (the store keeps "Eden\xa0Cosine", checked above); an rs-family wire
+     * sends only its base-37 key, and its 2004 client showed that key as
+     * TextClass.fixName does: "bob_smith" is "Bob Smith". The store no longer
+     * title-cases on the way out, so the rs adapter writes that form. */
+    {
+        struct GameProtoRevTable const* rs = GameProtoRev_ByName("rs254");
+        uint64_t const key = strtobase37("bob_smith");
+        uint8_t wire[9];
+        struct RevPacket p;
+
+        assert(rs);
+        for( int i = 0; i < 8; i++ )
+            wire[i] = (uint8_t)(key >> (56 - 8 * i));
+        wire[8] = 2;
+        memset(&p, 0, sizeof(p));
+        TEST_EXEC_ASSERT(
+            rs->parse_wire(rs, rs->packetin_wire(PKT_NAME_UPDATE_FRIENDLIST), wire, (int)sizeof(wire), &p),
+            "an rs254 UPDATE_FRIENDLIST parses");
+        TEST_EXEC_ASSERT(p._update_friendlist.count == 1, "one friend per packet on the rs wire");
+        TEST_EXEC_ASSERT(strcmp(p._update_friendlist.entries[0].name, "Bob Smith") == 0,
+            "an rs wire's friend is named as its client showed the key");
+        TEST_EXEC_ASSERT(p._update_friendlist.entries[0].world == 2, "with the world");
+        gameproto_free(&p);
+        printf("ok - an rs-wire friend is named as its client showed it\n");
+    }
+
     /* REBUILD_NORMAL square rect: classic (zone-6)*8 scene covers at most 3x3
      * map squares. Zone centre 50,50 -> base 352 -> squares 5..7. */
     {
