@@ -626,7 +626,13 @@ hmap_search(
     assert(m->entries);
     assert(key);
 
-    uint64_t hash = m->hash_fn(key, m->key_size, m->arg);
+    /* An int key under the default hash and compare, which is what nearly
+     * every map in the tree is: the same hash value and the same answer, with
+     * the hash and the compare inlined at a constant length instead of called
+     * through two pointers. */
+    int const int_key =
+        m->key_size == 4 && m->hash_fn == hmap_hash_bytes && m->eq_fn == hmap_eq_bytes;
+    uint64_t hash = int_key ? hmap_hash_bytes(key, 4, m->arg) : m->hash_fn(key, m->key_size, m->arg);
     if( hash == 0 )
         hash = 1;
 
@@ -671,7 +677,7 @@ hmap_search(
             void* entry = hmap_slot_entry_ptr(m, idx);
             void* ekey = hmap_entry_key_ptr(m, entry);
 
-            if( m->eq_fn(ekey, key, m->key_size, m->arg) )
+            if( int_key ? memcmp(ekey, key, 4) == 0 : m->eq_fn(ekey, key, m->key_size, m->arg) )
             {
                 if( action == HMAP_REMOVE )
                 {
