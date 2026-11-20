@@ -14767,6 +14767,22 @@ chat_publish_private_filter_varbit(
  * wholesale on this packet, so an empty one is the statement "you have no
  * ignores", which is different from never having been told.
  */
+/* `me`'s whole ignore list to `player`. */
+static void
+social_send_ignore_list(
+    struct ToriRSServerPlayer* player,
+    int64_t me)
+{
+    int64_t ignores[TORIRSSERVER_SOCIAL_IGNORES_MAX];
+    int n = ToriRSServer_FriendsIgnoreCount(me);
+
+    if( n > (int)(sizeof(ignores) / sizeof(ignores[0])) )
+        n = (int)(sizeof(ignores) / sizeof(ignores[0]));
+    for( int i = 0; i < n; i++ )
+        ToriRSServer_FriendsIgnoreGet(me, i, &ignores[i]);
+    ToriRSServer_SendUpdateIgnorelist(player, ignores, n);
+}
+
 void
 ToriRSServer_WorldSocialLogin(struct ToriRSServerPlayer* player)
 {
@@ -14790,16 +14806,7 @@ ToriRSServer_WorldSocialLogin(struct ToriRSServerPlayer* player)
         if( ToriRSServer_FriendsGet(me, i, &friend37, &world) )
             ToriRSServer_SendUpdateFriendlist(player, friend37, world);
     }
-    {
-        int64_t ignores[TORIRSSERVER_SOCIAL_IGNORES_MAX];
-        int n = ToriRSServer_FriendsIgnoreCount(me);
-
-        if( n > (int)(sizeof(ignores) / sizeof(ignores[0])) )
-            n = (int)(sizeof(ignores) / sizeof(ignores[0]));
-        for( int i = 0; i < n; i++ )
-            ToriRSServer_FriendsIgnoreGet(me, i, &ignores[i]);
-        ToriRSServer_SendUpdateIgnorelist(player, ignores, n);
-    }
+    social_send_ignore_list(player, me);
 
     /* The client's own filter UI is driven by these three, and nothing else
      * tells it what the server thinks they are. The reference has no equivalent
@@ -14899,6 +14906,17 @@ handle_social_list(
         break;
     case PKTOUT_NAME_IGNORELIST_ADD:
         result = ToriRSServer_FriendsIgnoreAdd(me, target);
+        /* The rev-239 client does not add an ignore itself (class58
+         * .method1218 only sends): the list changes when this answer, one
+         * added entry, arrives. A wire whose client replaces the list on
+         * every UPDATE_IGNORELIST (the rs wires) is sent the whole list. */
+        if( result == TORIRSSERVER_SOCIAL_OK )
+        {
+            if( ToriRSServer_WireIgnoreListByEntry(player) )
+                ToriRSServer_SendUpdateIgnorelist(player, &target, 1);
+            else
+                social_send_ignore_list(player, me);
+        }
         social_broadcast_to_followers(srv, me);
         break;
     case PKTOUT_NAME_IGNORELIST_DEL:

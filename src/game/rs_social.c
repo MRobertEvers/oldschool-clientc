@@ -756,6 +756,20 @@ RS_Social_IsIgnored(
     return find_hash(social->ignore_hash, social->ignore_name, social->ignore_count, name) >= 0;
 }
 
+int
+RS_Social_SameName(
+    char const* a,
+    char const* b)
+{
+    int64_t const ha = name_hash(a);
+    int64_t const hb = name_hash(b);
+
+    if( ha != 0 && hb != 0 )
+        return ha == hb;
+    /* An unpackable name compares literally, as find_hash does. */
+    return strcasecmp(a, b) == 0;
+}
+
 bool
 RS_Social_MessageSeen(
     struct RS_Social const* social,

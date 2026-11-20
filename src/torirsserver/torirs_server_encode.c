@@ -3740,9 +3740,10 @@ ToriRSServer_SendUpdateIgnorelist(
     const int64_t* names37,
     int count)
 {
-    /* The whole list at once — the client replaces its store wholesale
-     * (rs_gameproto_exec.c, PKT_NAME_UPDATE_IGNORELIST), which is why there is
-     * no single-entry form to pair with UPDATE_FRIENDLIST's. */
+    /* The rs wires' client replaces its store with these keys; a wire with an
+     * entry writer (pl->ignore_entry) states each name as an add, which its
+     * client applies to the list held (rs_server_state.c state_ignore_entry),
+     * so a login dump and a one-entry answer to IGNORELIST_ADD are both this. */
     struct RsprotBuf buf;
     open_packet(&buf, (size_t)(count > 0 ? count : 0) * 8 + 16);
     {
@@ -3761,6 +3762,15 @@ ToriRSServer_SendUpdateIgnorelist(
         }
     }
     flush(player, &buf, OP_UPDATE_IGNORELIST, 2);
+}
+
+int
+ToriRSServer_WireIgnoreListByEntry(struct ToriRSServerPlayer* player)
+{
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+    assert(player);
+    return pl && pl->ignore_entry;
 }
 
 void

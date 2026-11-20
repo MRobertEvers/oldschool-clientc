@@ -375,6 +375,11 @@ RS_Social_FriendIndex(struct RS_Social const* social, char const* name);
 int
 RS_Social_IsIgnored(struct RS_Social const* social, char const* name);
 
+/** True when `a` and `b` name one player, matched as the lists match (the
+ *  reference's Username equals: case, space, underscore and NBSP fold). */
+int
+RS_Social_SameName(char const* a, char const* b);
+
 /**
  * The 2004 reference's JString.toScreenName: underscores become spaces and the
  * first letter of each word is capitalised. For a name that only exists as a

@@ -10161,13 +10161,20 @@ ToriRSServer_SendUpdateFriendlist(
 void
 ToriRSServer_SendUpdateFriendlistEmpty(struct ToriRSServerPlayer* player);
 
-/** The whole ignore list: p8 name37 * count. The client replaces its store
- *  wholesale, so there is no single-entry form. */
+/** Ignore list entries: p8 name37 * count on the rs wires, whose client
+ *  replaces its store wholesale; one added entry each on a wire that states
+ *  entries (ToriRSServer_WireIgnoreListByEntry), whose client changes its
+ *  list entry by entry (rev-239 class428.method9746). */
 void
 ToriRSServer_SendUpdateIgnorelist(
     struct ToriRSServerPlayer* player,
     const int64_t* names37,
     int count);
+
+/** Does this player's wire state UPDATE_IGNORELIST entry by entry (an entry
+ *  is a change to the list held), rather than as the whole list? */
+int
+ToriRSServer_WireIgnoreListByEntry(struct ToriRSServerPlayer* player);
 
 /** 0 loading, 1 connecting, 2 online. Sent once, after the login dump. */
 void
