@@ -1654,6 +1654,142 @@ test_a_loop_through_a_count_asserts(void)
     /* A join whose child waits on something else is no loop: test_a_count_join. */
 }
 
+/* --- 6c. a loop through a child run inline ------------------------------------
+ *
+ * A parent awaiting a child INLINE (PT_TASK_AWAITSELF) is the task the queue
+ * parks on the child's behalf; the child itself is never parked and never
+ * queued. When the child owns a trigger (it primed it) and the chain from what
+ * the parent parks on leads back to that trigger, nothing can ever fire it:
+ * the child runs only when its parent is stepped, and its parent waits on the
+ * chain. Here the child primes `held`, queues `inlineQ`, which waits on
+ * `held`, and then waits on inlineQ's end: inlineParent -> inlineQ -> the
+ * child, run inline by inlineParent. Caught when it is made, in either order
+ * (the parent's park first, or inlineQ's), with every task in it named. */
+struct InlineLoopChild
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct ToriRS_TaskQueue* queue;
+    struct ToriRS_Trigger held;
+    struct Sub* q;
+    /* Yield once after queueing inlineQ, so inlineQ parks first. */
+    int q_first;
+};
+
+static int
+InlineLoopChild_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
+{
+    struct InlineLoopChild* self = (struct InlineLoopChild*)base;
+    (void)io;
+    PT_BEGIN(&self->pt);
+    ToriRS_Trigger_Init(&self->held, "the child's commit");
+    ToriRS_Trigger_Prime(&self->held, ToriRS_TaskOwner(&self->task));
+    self->q = calloc(1, sizeof(*self->q));
+    assert(self->q);
+    sub_init(self->q, "inlineQ", &self->held);
+    self->q->task.vtable = &k_sibling_vtable;
+    ToriRS_TaskQueue_Add(self->queue, &self->q->task);
+    if( self->q_first )
+        PT_YIELD(&self->pt);
+    TASK_AWAIT_TRIGGER(&self->task, &self->pt, TORIRS_TASK_WAIT_TURN, ToriRS_TaskEnded(&self->q->task));
+    ToriRS_Trigger_Fire(&self->held);
+    PT_END(&self->pt);
+}
+
+static struct ToriRS_TaskVTable k_inline_loop_child_vtable = { .run = InlineLoopChild_Run,
+                                                               .free = task_free_libc };
+
+struct InlineLoopParent
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct ToriRS_TaskQueue* queue;
+    int q_first;
+};
+
+static struct ToriRS_Task*
+new_inline_loop_child(struct InlineLoopParent* parent)
+{
+    struct InlineLoopChild* child = calloc(1, sizeof(*child));
+
+    assert(child);
+    child->task.vtable = &k_inline_loop_child_vtable;
+    strcpy(child->task.name, "inlineChild");
+    child->queue = parent->queue;
+    child->q_first = parent->q_first;
+    PT_INIT(&child->pt);
+    return &child->task;
+}
+
+static int
+InlineLoopParent_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
+{
+    struct InlineLoopParent* self = (struct InlineLoopParent*)base;
+    PT_BEGIN(&self->pt);
+    PT_TASK_AWAITSELF(new_inline_loop_child(self));
+    PT_END(&self->pt);
+}
+
+static struct ToriRS_TaskVTable k_inline_loop_parent_vtable = { .run = InlineLoopParent_Run,
+                                                                .free = task_free_libc };
+
+static void
+inline_loop(int q_first)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px = { 0 };
+    struct InlineLoopParent* parent = calloc(1, sizeof(*parent));
+
+    assert(parent);
+    runner_init(&runner, &px, TASK_RUNNER_ROLE_PARALLEL);
+    parent->task.vtable = &k_inline_loop_parent_vtable;
+    strcpy(parent->task.name, "inlineParent");
+    parent->queue = runner.queue;
+    parent->q_first = q_first;
+    PT_INIT(&parent->pt);
+    ToriRS_TaskQueue_Add(runner.queue, &parent->task);
+    (void)pump(&runner);
+    (void)pump(&runner);
+    /* Both parked and neither can wake: the hang this must not be. */
+    fprintf(stderr, "inline_loop: no abort; parent parked=%d, inlineQ parked=%d\n", parent->task.parked,
+            runner.queue->head && runner.queue->head->next ? runner.queue->head->next->parked : -1);
+    _exit(0);
+}
+
+static void
+inline_loop_parent_parks_first(void)
+{
+    inline_loop(0);
+}
+
+static void
+inline_loop_q_parks_first(void)
+{
+    inline_loop(1);
+}
+
+static void
+test_a_loop_through_an_inline_child_asserts(void)
+{
+    char said[1024];
+    void (*cases[])(void) = { inline_loop_parent_parks_first, inline_loop_q_parks_first };
+    char const* names[] = { "the parent parks first", "the waiter on the child's trigger parks first" };
+
+    printf("TEST: a wait whose chain leads to a trigger owned by a child run inline by the waiter aborts "
+           "when it is made, printing the chain\n");
+    for( int i = 0; i < 2; i++ )
+    {
+        int died = dies_by_abort_saying(cases[i], said, sizeof(said));
+
+        fprintf(stderr, "  %s: %.400s\n", names[i], said);
+        CHECK(died);
+        CHECK(strstr(said, "closes a loop") != NULL);
+        CHECK(strstr(said, "inlineParent") != NULL);
+        CHECK(strstr(said, "inlineChild") != NULL);
+        CHECK(strstr(said, "inlineQ") != NULL);
+    }
+}
+
 /* --- 13. a task woken behind the walk still gets its turn -------------------- */
 
 struct Clocked
@@ -1784,6 +1920,7 @@ main(void)
     test_the_chain_bottoms_out_in_a_read();
     test_a_long_chain_is_not_a_loop();
     test_a_loop_through_a_count_asserts();
+    test_a_loop_through_an_inline_child_asserts();
     test_a_task_woken_behind_the_walk_gets_its_turn();
     if( g_failures )
     {

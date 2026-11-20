@@ -398,6 +398,12 @@ struct ToriRS_Task
      * whole at client exit, the task parked on the child's behalf -- frees it
      * here (task_free), with whatever it holds. */
     struct ToriRS_Task* inline_child;
+    /* The reverse link: the task running this one inline, while it does. A
+     * child run inline is never parked itself -- its parent is parked on its
+     * behalf -- so a wait chain that reaches a trigger this child owns goes
+     * on through the parent (task_trigger.c), or a loop through it would
+     * hang unseen. */
+    struct ToriRS_Task* inline_parent;
 };
 
 /*
@@ -1309,6 +1315,7 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
         if( !(pt)->user )                                                                          \
             (pt)->user = (child_expr);                                                             \
         (task)->inline_child = (pt)->user;                                                         \
+        (task)->inline_child->inline_parent = (task);                                              \
         __attribute__((fallthrough));                                                              \
     case __LINE__:                                                                                 \
     {                                                                                              \
@@ -1347,6 +1354,8 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
         if( !(pt)->user )                                                                          \
             (pt)->user = (expr);                                                                   \
         (task)->inline_child = (pt)->user;                                                         \
+        if( (task)->inline_child )                                                                 \
+            (task)->inline_child->inline_parent = (task);                                          \
         __attribute__((fallthrough));                                                              \
     case __LINE__:                                                                                 \
     {                                                                                              \

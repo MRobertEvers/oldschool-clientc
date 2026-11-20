@@ -417,20 +417,33 @@ chain_put(
     return len + (size_t)n;
 }
 
+/* The task that waits for `task`: itself, or -- for a child run inline
+ * (TASK_AWAITEX), which is never parked -- the queued task running it, whose
+ * park is the child's. */
+static struct ToriRS_Task const*
+waits_as(struct ToriRS_Task const* task)
+{
+    while( !task->parked && task->inline_parent )
+        task = task->inline_parent;
+    return task;
+}
+
 /* The next link of a chain: the task that owns the trigger `task` is parked
- * on, or NULL where the chain bottoms out (not parked, parked on a count or a
- * cycle, an unprimed trigger, a job or an outside owner). */
+ * on (as the task that waits for that owner, waits_as), or NULL where the
+ * chain bottoms out (not parked, parked on a count or a cycle, an unprimed
+ * trigger, a job or an outside owner). */
 static struct ToriRS_Task const*
 chain_next(struct ToriRS_Task const* task)
 {
     struct ToriRS_TriggerOwner const* owner;
 
+    task = waits_as(task);
     if( !task->parked || task->park.on != TORIRS_PARK_TRIGGER )
         return NULL;
     owner = task->park.trigger->owner;
     if( !owner || owner->kind != TORIRS_OWNER_TASK )
         return NULL;
-    return owner->task;
+    return waits_as(owner->task);
 }
 
 int
@@ -521,6 +534,13 @@ ToriRS_TaskChainFormat(
         }
         len = chain_put(out, out_size, len, " -> ");
         task = owner->task;
+        /* An owner run inline waits as the task running it. */
+        while( !task->parked && task->inline_parent )
+        {
+            snprintf(piece, sizeof(piece), "%s, run inline by ", task_name(task));
+            len = chain_put(out, out_size, len, piece);
+            task = task->inline_parent;
+        }
         /* A loop is refused when it is made; this is the backstop. */
         if( (++hops & 1) == 0 )
             tortoise = chain_next(tortoise);
@@ -549,7 +569,7 @@ closes_loop(
     *at_count = 0;
     if( !trigger->owner || trigger->owner->kind != TORIRS_OWNER_TASK )
         return 0;
-    hare = trigger->owner->task;
+    hare = waits_as(trigger->owner->task);
     tortoise = hare;
     for( ;; )
     {
@@ -673,9 +693,12 @@ walk_waiters(
 
         if( i > 0 && (t == target || (target_join && t->join == target_join)) )
             return i;
-        for( struct ToriRS_Trigger const* trig = t->owner.primed; trig; trig = trig->owner_next )
-            for( struct ToriRS_Task const* sub = trig->subs; sub; sub = sub->park_next )
-                walk_push(walk, sub, i);
+        /* What it primed, and what every child it runs inline primed: their
+         * waiters wait on it. */
+        for( struct ToriRS_Task const* in = t; in; in = in->inline_child )
+            for( struct ToriRS_Trigger const* trig = in->owner.primed; trig; trig = trig->owner_next )
+                for( struct ToriRS_Task const* sub = trig->subs; sub; sub = sub->park_next )
+                    walk_push(walk, sub, i);
         if( t->join )
             for( struct ToriRS_Task const* p = g_count_bucket[count_bucket(t->join)]; p; p = p->park_next )
                 if( p->park.count == t->join && !walk_has(walk, p) )
@@ -795,7 +818,7 @@ ToriRS_TaskPark(struct ToriRS_Task* task)
             ToriRS_TaskFatal(line);
         }
         if( at_count )
-            loop_through_counts(task, trigger->owner->task, NULL);
+            loop_through_counts(task, waits_as(trigger->owner->task), NULL);
         park_link_front(&trigger->subs, task);
     }
     else if( task->park.on == TORIRS_PARK_COUNT )
