@@ -70,6 +70,24 @@ int main(void)
                 CHECK(fabs(rz - 6400 - dz) < 6);
             }
     }
+    {
+        /* An eye thousands of tiles from the point: the replay back-step's
+         * first frame has this one (fx-ub, 2026-11-20). The 32-bit rotation
+         * overflowed int there, which is undefined; the projection is now
+         * the geometry's, within the 16.16 tables' rounding. */
+        struct ToriDraw_Camera far_camera = { .yaw = 0, .pitch = 128,
+            .projection_mode = TORIDRAW_PROJECTION_MODE_SCALE, .projection_scale = 512 };
+        struct ToriDraw_Position far_eye = { .x = -316352, .y = -768, .z = -411696 };
+        double const pitch = 128 * 6.28318530717958647693 / 2048;
+        double const dx = 2112 - far_eye.x, dy = -384 - far_eye.y, dz = 6464 - far_eye.z;
+        double const y2 = dy * cos(pitch) - dz * sin(pitch);
+        double const z2 = dy * sin(pitch) + dz * cos(pitch);
+        int x, y;
+        CHECK(ToriRS_WorldProjectPoint(&far_camera, &far_eye, 5, 9, 765, 503, 50,
+                                      2112, -384, 6464, &x, &y));
+        CHECK(fabs(x - (5 + 765 / 2 + dx * 512 / z2)) < 2);
+        CHECK(fabs(y - (9 + 503 / 2 + y2 * 512 / z2)) < 2);
+    }
     struct ToriDraw_Camera camera = { .pitch = 0, .yaw = 0,
         .projection_mode = TORIDRAW_PROJECTION_MODE_SCALE, .projection_scale = 512 };
     struct ToriDraw_Position eye = { .x = 6400, .y = -1000, .z = 6400 };

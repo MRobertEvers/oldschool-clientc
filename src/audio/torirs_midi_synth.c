@@ -459,7 +459,7 @@ channel_note_on(
             channel->note_on[note] = held;
             target =
                 ((held->portamento_delta * held->portamento_remaining) >> 12) + held->base_pitch;
-            held->base_pitch += (note - held->note) << 8;
+            held->base_pitch += (note - held->note) * 256;
             held->portamento_delta = target - held->base_pitch;
             held->portamento_remaining = 4096;
             held->note = note;
@@ -988,7 +988,7 @@ node_step_envelopes(
     if( envelope )
         node->vibrato_phase += envelope->vibrato_speed;
 
-    pitch_factor = (double)(((node->note - 60) << 8) +
+    pitch_factor = (double)(((node->note - 60) * 256) + /* a note below 60 is negative */
                             ((node->portamento_delta * node->portamento_remaining) >> 12)) /
                    MIDI_ENVELOPE_PER_OCTAVE;
 
