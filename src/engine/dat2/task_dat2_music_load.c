@@ -4,6 +4,7 @@
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/dat2/dat2_tasks.h"
+#include "engine/torirs_sound_from_rscache.h"
 
 #include "asyncio.h"
 #include "cache/rscache_io.h"
@@ -72,7 +73,8 @@
  * given time, time-sliced), and both are CUT INTO BOUNDED STEPS with the
  * decoder's state kept in the job between them: the unpack MUSIC_UNPACK_UNITS
  * units of the track at a time, a Vorbis sample MUSIC_DECODE_FRAMES frames at
- * a time, a percussion effect one tone at a time; the clock is checked after
+ * a time, a percussion effect TORIRS_SOUND_RENDER_STEP_SAMPLES samples of
+ * render at a time (inside a tone); the clock is checked after
  * every step (TASK_YIELD_IF_SPENT). A step is then a fraction of a millisecond
  * natively, whatever the song (test-music-load reports the longest). The song
  * hands the unpack the track's archive and joins it; later it hands the decode
@@ -366,8 +368,8 @@ Task_Dat2MusicDecode_Run(
             }
             else if( effect_sample_begin(task, slot->archive) )
             {
-                /* One tone a step. */
-                while( !RSCache_SoundRenderStep(task->render) )
+                /* TORIRS_SOUND_RENDER_STEP_SAMPLES samples of work a step. */
+                while( !RSCache_SoundRenderStep(task->render, TORIRS_SOUND_RENDER_STEP_SAMPLES) )
                     TASK_YIELD_IF_SPENT(&task->task, &task->pt, io);
                 slot = &task->slots[task->next];
                 effect_sample_end(task, slot->id);

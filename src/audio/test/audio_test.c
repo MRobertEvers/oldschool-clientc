@@ -1696,7 +1696,8 @@ test_stepped_decodes_equal(
         render = RSCache_SoundRenderNew(&profile, effect);
         if( render )
         {
-            while( !RSCache_SoundRenderStep(render) )
+            /* An odd budget, so steps end mid-tone and mid-pass. */
+            while( !RSCache_SoundRenderStep(render, 509) )
                 ;
             RSCache_SoundRenderTake(render, &stepped);
             RSCache_SoundRenderFree(render);

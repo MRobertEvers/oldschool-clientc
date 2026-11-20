@@ -26,6 +26,24 @@ ToriRS_SoundFromRSCache(
     int sound_id,
     struct RSCache_SoundEffect* effect);
 
+/**
+ * How much of a sound effect's render one step of a background job does
+ * (RSCache_SoundRenderStep's budget, in samples of work): a fraction of a
+ * millisecond of processor time natively, whatever the effect.
+ */
+#define TORIRS_SOUND_RENDER_STEP_SAMPLES 4096
+
+/**
+ * ToriRS_SoundFromRSCache's last half, for a render made in steps: the sound
+ * of an effect rendered to `pcm` (which it takes: `pcm->samples` is the
+ * sound's, or freed), whose trim removed `queue_delay` ticks of lead-in.
+ */
+struct ToriRS_Sound*
+ToriRS_SoundFromRSCachePcm(
+    int sound_id,
+    struct RSCache_SoundPcm* pcm,
+    int queue_delay);
+
 /** Transfer an exactly decoded index-14 recorded sample into a playable sound.
  * Ownership of `sample->samples` moves on success. */
 struct ToriRS_Sound*

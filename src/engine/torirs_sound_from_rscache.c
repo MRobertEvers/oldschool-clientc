@@ -26,22 +26,34 @@ ToriRS_SoundFromRSCache(
 
     if( !RSCache_SoundEffectRender(profile, effect, &pcm) )
         return NULL;
+    return ToriRS_SoundFromRSCachePcm(sound_id, &pcm, queue_delay);
+}
 
+struct ToriRS_Sound*
+ToriRS_SoundFromRSCachePcm(
+    int sound_id,
+    struct RSCache_SoundPcm* pcm,
+    int queue_delay)
+{
+    struct ToriRS_Sound* sound;
+
+    assert(pcm);
     sound = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*sound));
     assert(sound);
 
     sound->id = sound_id;
     /* ownership moves to the ToriRS type: RSCache -> ASSET */
-    sound->pcm = pcm.samples && pcm.sample_count > 0
-                     ? ToriMem_TakeFromRSCache(ToriMem_Assets(), pcm.samples, (size_t)pcm.sample_count)
+    sound->pcm = pcm->samples && pcm->sample_count > 0
+                     ? ToriMem_TakeFromRSCache(ToriMem_Assets(), pcm->samples, (size_t)pcm->sample_count)
                      : NULL;
     if( !sound->pcm )
-        RSCACHE_FREE(pcm.samples);
-    sound->sample_count = pcm.sample_count;
-    sound->sample_rate = pcm.sample_rate;
+        RSCACHE_FREE(pcm->samples);
+    pcm->samples = NULL;
+    sound->sample_count = pcm->sample_count;
+    sound->sample_rate = pcm->sample_rate;
     sound->channels = 1;
-    sound->loop_start = pcm.loop_start;
-    sound->loop_end = pcm.loop_end;
+    sound->loop_start = pcm->loop_start;
+    sound->loop_end = pcm->loop_end;
     sound->queue_delay = queue_delay;
     return sound;
 }

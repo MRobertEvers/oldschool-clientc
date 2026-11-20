@@ -6239,6 +6239,17 @@ test-music-load: $(OBJ_DIR) $(OBJS)
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/music_load_split_test ..
 
+# A sound effect's loader reads on the asset queue and renders on the compute
+# queue (the background queue), in bounded steps, and adds the sound the moment
+# the render ends: engine/dat2/task_dat2_sound_load.c, against the real
+# osrs242 cache (the longest render, 8787, and three short effects).
+.PHONY: test-sound-load
+test-sound-load: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/sound_load_split_test \
+		engine/dat2/test/sound_load_split_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/sound_load_split_test ..
+
 # The music install (app/app_tick.c, Task_MusicInstall): a parallel task that
 # awaits the song; a newer song cancels the older task and loads after the
 # older loader ends; a failed song is told to the player.
