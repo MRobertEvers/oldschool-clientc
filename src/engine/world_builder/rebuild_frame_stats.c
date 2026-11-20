@@ -22,6 +22,13 @@ RebuildFrameStats_Reset(struct RebuildFrameStats* stats)
     memset(stats, 0, sizeof(*stats));
 }
 
+void
+RebuildFrameStats_Arm(struct RebuildFrameStats* stats)
+{
+    assert(stats);
+    stats->armed = 1;
+}
+
 int
 RebuildFrameStats_AfterPending(struct RebuildFrameStats const* stats)
 {
@@ -34,8 +41,19 @@ RebuildFrameStats_Open(
     struct RebuildFrameStats* stats,
     int background)
 {
+    struct RebuildFrameStats kept;
+
     assert(stats);
+    /* The frame the window opens in keeps the marks it took before. */
+    kept = *stats;
     memset(stats, 0, sizeof(*stats));
+    stats->armed = kept.armed;
+    if( kept.armed )
+    {
+        memcpy(stats->mark_name, kept.mark_name, sizeof(stats->mark_name));
+        memcpy(stats->mark_us, kept.mark_us, sizeof(stats->mark_us));
+        stats->marks = kept.marks;
+    }
     stats->open = 1;
     stats->background = background;
 }
@@ -67,7 +85,7 @@ RebuildFrameStats_WantsMark(struct RebuildFrameStats const* stats)
 {
     assert(stats);
     /* Kept through the frames after the window too. */
-    if( !stats->open && stats->after_left == 0 )
+    if( !stats->armed && !stats->open && stats->after_left == 0 )
         return 0;
     return stats->marks < REBUILD_FRAME_STATS_MARKS;
 }
@@ -141,6 +159,8 @@ RebuildFrameStats_Note(
         }
         return due;
     }
+    if( stats->frames == 0 && stats->armed )
+        due |= REBUILD_FRAME_STATS_FIRST;
     if( stats->frames < REBUILD_FRAME_STATS_SERIES )
         stats->series[stats->frames] = rebuild_frame_stats_tenths(frame_us);
     for( int i = 0; i < REBUILD_FRAME_STATS_BUCKETS - 1; i++ )
@@ -156,12 +176,12 @@ RebuildFrameStats_Note(
     if( frame_us > stats->max_us )
         stats->max_us = frame_us;
     if( !stats->closing )
-        return 0;
+        return due;
     /* The frame that finished the rebuild is the last one counted. */
     stats->open = 0;
     stats->after_left = REBUILD_FRAME_STATS_AFTER_FRAMES;
     stats->after_frames = 0;
-    return REBUILD_FRAME_STATS_CLOSED;
+    return due | REBUILD_FRAME_STATS_CLOSED;
 }
 
 int

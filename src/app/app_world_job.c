@@ -218,6 +218,10 @@ app_background_runner_init(struct App* app)
     RebuildPace_Reset(&app->pace);
     WorldRebuildJob_Reset(&app->world_job);
     RebuildFrameStats_Reset(&app->rebuild_frames);
+    /* TORIRS_REBUILD_TIMING: marks on every frame, so the frame a rebuild
+     * opens in can say where all of it went (rebuild_marks_first). */
+    if( WorldBuilder_TimingOn() )
+        RebuildFrameStats_Arm(&app->rebuild_frames);
     TaskRunner_SetClock(&app->background_runner, app_runner_clock, NULL);
     /* The packet queue and the frame queue read the same clock: a paced
      * catch-up gives their passes a deadline too (App_PacedDeadline). */
@@ -1557,6 +1561,31 @@ app_rebuild_frames_note(
     assert(app);
     stats = &app->rebuild_frames;
     due = RebuildFrameStats_Note(&app->rebuild_frames, frame_us);
+    /* The frame the rebuild started in, whole: what the platform loop did
+     * before App_RunOnce (the net poll, and with it an in-process server's
+     * tick), App_RunOnce mark by mark, and what the loop did after it (the
+     * draw, audio) up to this note. */
+    if( (due & REBUILD_FRAME_STATS_FIRST) && stats->marks > 0 )
+    {
+        char line[REBUILD_FRAME_STATS_MARKS * 40];
+        uint64_t const now_us = PlatformWindow_TicksUs();
+        uint64_t const start_us = now_us >= frame_us ? now_us - frame_us : 0;
+        uint64_t const first_us = stats->mark_us[0];
+        uint64_t const last_us = stats->mark_us[stats->marks - 1];
+
+        RebuildFrameStats_FormatMarks(stats, 0.3, line, sizeof(line));
+        TORIRS_REPORT(
+            "rebuild_marks_first: mode=%s zone=%d,%d %.1fms: before RunOnce=%.2f RunOnce=%.2f after RunOnce=%.2f | "
+            "RunOnce:%s\n",
+            stats->background ? "background" : "blocking",
+            RS_RebuildRegion_CentreX(&app->rebuild_region),
+            RS_RebuildRegion_CentreZ(&app->rebuild_region),
+            (double)frame_us / 1000.0,
+            first_us > start_us ? (double)(first_us - start_us) / 1000.0 : 0.0,
+            (double)(last_us - first_us) / 1000.0,
+            now_us > last_us ? (double)(now_us - last_us) / 1000.0 : 0.0,
+            line);
+    }
     /* A slow frame in the tail says where its RunOnce went, as the commit
      * frame does (rebuild_marks). */
     if( due & REBUILD_FRAME_STATS_AFTER_SLOW )

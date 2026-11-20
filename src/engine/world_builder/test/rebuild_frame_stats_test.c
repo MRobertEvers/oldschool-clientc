@@ -208,6 +208,43 @@ test_count_and_format(void)
     TEST_ASSERT(strcmp(tiny, "1.2") == 0, "cut to fit");
 }
 
+/* Armed stats mark every frame: the frame a window opens in keeps the marks
+ * it took before the opening, and its note -- only its, only when armed --
+ * makes the first frame's report due. A blocking rebuild's one frame is both
+ * the first and the closing one. */
+static void
+test_armed_stats_report_the_first_frame_whole(void)
+{
+    struct RebuildFrameStats stats;
+    char line[REBUILD_FRAME_STATS_MARKS * 40];
+
+    memset(&stats, 0x5a, sizeof(stats));
+    RebuildFrameStats_Reset(&stats);
+    TEST_ASSERT(!RebuildFrameStats_WantsMark(&stats), "reset: not armed");
+    RebuildFrameStats_Arm(&stats);
+    TEST_ASSERT(RebuildFrameStats_WantsMark(&stats), "armed: marks with no window");
+    TEST_ASSERT(RebuildFrameStats_Note(&stats, 9000) == 0, "a frame with no window makes nothing due");
+    RebuildFrameStats_ClearMarks(&stats);
+    RebuildFrameStats_Mark(&stats, "start", 1000);
+    RebuildFrameStats_Mark(&stats, "tick_pump", 1500);
+    RebuildFrameStats_Open(&stats, 1);
+    RebuildFrameStats_Mark(&stats, "bg_floor", 2500);
+    TEST_ASSERT(stats.marks == 3, "the marks before the opening are kept");
+    RebuildFrameStats_FormatMarks(&stats, 0.0, line, sizeof(line));
+    TEST_ASSERT(strcmp(line, " tick_pump=0.50 bg_floor=1.00") == 0, "the whole frame's splits");
+    TEST_ASSERT(RebuildFrameStats_Note(&stats, 3000) == REBUILD_FRAME_STATS_FIRST, "the first frame is due");
+    TEST_ASSERT(RebuildFrameStats_Note(&stats, 3000) == 0, "the second is not");
+    RebuildFrameStats_Finished(&stats);
+    TEST_ASSERT(RebuildFrameStats_Note(&stats, 3000) == REBUILD_FRAME_STATS_CLOSED, "the closing frame closes");
+    TEST_ASSERT(RebuildFrameStats_WantsMark(&stats), "still armed after the window");
+
+    RebuildFrameStats_Open(&stats, 0);
+    RebuildFrameStats_Finished(&stats);
+    TEST_ASSERT(
+        RebuildFrameStats_Note(&stats, 3000) == (REBUILD_FRAME_STATS_FIRST | REBUILD_FRAME_STATS_CLOSED),
+        "a one-frame window is first and closing at once");
+}
+
 int
 main(void)
 {
@@ -219,6 +256,7 @@ main(void)
     test_the_marks();
     test_the_commit_split_and_a_reopen();
     test_count_and_format();
+    test_armed_stats_report_the_first_frame_whole();
     if( g_failures )
     {
         printf("rebuild_frame_stats_test: %d failure(s)\n", g_failures);
