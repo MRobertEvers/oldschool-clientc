@@ -406,9 +406,11 @@ publish_sound(
  *
  * The scene's event queue is shared with the renderer, which clears it at the
  * end of its frame. This runs on the logic tick, before that, and keeps its own
- * cursor; a queue that shrank means the renderer cleared it and the cursor
- * restarts. Events the renderer does not understand (ours) it skips, and vice
- * versa, so the two consumers do not interfere.
+ * cursor; the queue's `spent` count says when the renderer has cleared it since
+ * (a queue shorter than the cursor is not enough: refilled past the cursor
+ * before the tick, its first events would be skipped), and the cursor restarts.
+ * Events the renderer does not understand (ours) it skips, and vice versa, so
+ * the two consumers do not interfere.
  */
 static void
 drain_scene_events(
@@ -424,8 +426,13 @@ drain_scene_events(
     events = ToriDraw_SceneEvents(scene);
     if( !events )
         return;
-    if( audio->scene_event_cursor > events->count )
+    if( audio->scene_event_queue != events || audio->scene_event_spent != events->spent ||
+        audio->scene_event_cursor > events->count )
+    {
+        audio->scene_event_queue = events;
+        audio->scene_event_spent = events->spent;
         audio->scene_event_cursor = 0;
+    }
 
     while( audio->scene_event_cursor < events->count )
     {

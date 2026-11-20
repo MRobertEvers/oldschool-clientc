@@ -3098,4 +3098,5 @@ ToriDraw_SceneFrameEnd(struct ToriDraw_Scene* scene)
     }
     scene->pending_pose_count = 0;
     scene->event_queue.count = 0;
+    scene->event_queue.spent++;
 }
