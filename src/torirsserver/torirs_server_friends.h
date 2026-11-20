@@ -1,6 +1,7 @@
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_FRIENDS_H
 #define SRC_TORIRSSERVER_TORIRS_SERVER_FRIENDS_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 /*
@@ -97,6 +98,9 @@ enum
      * arrays. */
     TORIRSSERVER_SOCIAL_FRIENDS_MAX = 256,
     TORIRSSERVER_SOCIAL_IGNORES_MAX = 128,
+    /* A display name's text, with its terminator: twelve characters is what
+     * base 37 and the login screen allow; room for a multi-byte character. */
+    TORIRSSERVER_SOCIAL_DISPLAY_MAX = 32,
 };
 
 /*
@@ -206,14 +210,44 @@ ToriRSServer_FriendsLogout(int64_t name37);
 
 /**
  * A player online as `old37` is now called `new37` (a display name set on
- * Tutorial Island): its lists, modes and presence move to the new name, and
- * the old name stays behind offline with empty lists, as a name a follower
- * listed. 0 when the roster cannot track `new37`.
+ * Tutorial Island): its lists, modes and presence move to the new name, the
+ * old spelling becomes the new name's previous one, and every list holding
+ * the old name holds the new one instead -- a friend follows the account, as
+ * Jagex's do (RSProx index 236 [3]: "Tianzhen", previous name "00sanguine").
+ * The old key stays behind offline with empty lists. 0 when the roster cannot
+ * track `new37`. The caller sets the new spelling
+ * (ToriRSServer_FriendsSetDisplayName) and tells the followers.
  */
 int
 ToriRSServer_FriendsRename(
     int64_t old37,
     int64_t new37);
+
+/**
+ * The spelling a name is shown in: its player's display name, as given at
+ * login (the save's `display_name`) or by a rename, which is what Jagex sends
+ * in every friend and ignore row (RSProx index 236: "Eden Cosine", "iGud PK",
+ * "Kill 777"). Base 37 is the key and keeps neither capitals nor spaces, so a
+ * name whose player has not been seen since the roster started is shown as
+ * base 37 spells it.
+ */
+void
+ToriRSServer_FriendsSetDisplayName(
+    int64_t name37,
+    const char* display);
+
+void
+ToriRSServer_FriendsDisplayName(
+    int64_t name37,
+    char* out,
+    size_t cap);
+
+/** The spelling before the name's last rename, "" for none. */
+void
+ToriRSServer_FriendsPreviousName(
+    int64_t name37,
+    char* out,
+    size_t cap);
 
 /** Is this name online, and on which world? 0 = offline or unknown. This is the
  *  raw answer; `ToriRSServer_FriendsGet` is the one that applies `isVisibleTo`. */

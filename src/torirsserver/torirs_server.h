@@ -10148,10 +10148,19 @@ ToriRSServer_PacketGroupEnd(struct ToriRSServerPlayer* player);
  * either.
  */
 
-/** One friend-list entry: p8 name37, p1 world. Both the login dump (one packet
- *  per friend) and every delta afterwards use this. */
+/** One friend-list entry: p8 name37, p1 world (the rs wires), or the display
+ *  name, its previous spelling and the world (rev 239+). Both the login dump
+ *  (one packet per friend) and every delta afterwards use this. */
 void
 ToriRSServer_SendUpdateFriendlist(
+    struct ToriRSServerPlayer* player,
+    int64_t name37,
+    int world);
+
+/** The same entry for a friend who was just renamed: the rev 239+ client finds
+ *  the row by the previous name and renames it rather than adding a second. */
+void
+ToriRSServer_SendUpdateFriendlistRenamed(
     struct ToriRSServerPlayer* player,
     int64_t name37,
     int world);

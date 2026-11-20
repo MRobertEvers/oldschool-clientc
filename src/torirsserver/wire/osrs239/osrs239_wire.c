@@ -633,12 +633,16 @@ w239_friendlist_loaded(struct RsprotBuf* buf, int status)
  * an online-only pjstr/g1/g4 block; then a trailing pjstr note.
  */
 static void
-w239_friend_entry(struct RsprotBuf* buf, const char* name, int world)
+w239_friend_entry(struct RsprotBuf* buf, const char* name, const char* previous,
+                 int match_previous, int world)
 {
     const char* safe = name ? name : "";
-    rsprot_p1(buf, 0);                 /* not renamed */
+    rsprot_p1(buf, match_previous ? 1 : 0);
     rsprot_pjstr(buf, safe);
-    rsprot_pjstr(buf, safe); /* previousName */
+    /* "" when the friend was never renamed: Jagex's rows carry one only
+     * after a rename (RSProx index 236 [3]: 7 of the 94 in the login dump,
+     * e.g. "Tianzhen" after "00sanguine"); the name twice reads as one. */
+    rsprot_pjstr(buf, previous ? previous : "");
     rsprot_p2_12(buf, (uint16_t)world);
     rsprot_p1(buf, 0);                 /* rank */
     rsprot_p1(buf, 0);                 /* flags */
@@ -805,11 +809,11 @@ w239_run_clientscript(
  * form is written here because this server only ever sends a whole list.
  */
 static void
-w239_ignore_entry(struct RsprotBuf* buf, const char* name)
+w239_ignore_entry(struct RsprotBuf* buf, const char* name, const char* previous)
 {
     rsprot_p1(buf, 0x1);
     rsprot_pjstr(buf, name ? name : "");
-    rsprot_pjstr(buf, ""); /* previousName */
+    rsprot_pjstr(buf, previous ? previous : ""); /* previousName */
     rsprot_pjstr(buf, ""); /* note */
 }
 

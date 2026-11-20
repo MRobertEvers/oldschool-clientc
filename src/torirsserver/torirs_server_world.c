@@ -14690,6 +14690,35 @@ social_broadcast_to_followers(
 }
 
 /*
+ * Everyone who lists a player just renamed is told the new name with the old
+ * as its previous one, flagged so their client renames the row it holds
+ * (ToriRSServer_SendUpdateFriendlistRenamed) instead of adding a second.
+ */
+static void
+social_announce_rename(
+    struct ToriRSServer* srv,
+    int64_t name37)
+{
+    int64_t followers[TORIRSSERVER_SOCIAL_FRIENDS_MAX];
+    int count = ToriRSServer_FriendsFollowers(name37, followers, (int)(sizeof(followers) /
+                                                                  sizeof(followers[0])));
+
+    if( count > (int)(sizeof(followers) / sizeof(followers[0])) )
+        count = (int)(sizeof(followers) / sizeof(followers[0]));
+    for( int i = 0; i < count; i++ )
+    {
+        struct ToriRSServerPlayer* viewer = social_player_by_name37(srv, followers[i]);
+
+        if( !viewer )
+            continue;
+        ToriRSServer_SendUpdateFriendlistRenamed(
+            viewer, name37,
+            ToriRSServer_FriendsVisibleTo(followers[i], name37) ? ToriRSServer_FriendsWorld(name37)
+                                                                : 0);
+    }
+}
+
+/*
  * "<name> has logged in." — the one sentence this feature adds, said by content.
  *
  * The reference has no counterpart. Its 2004 client watched the world byte in
@@ -16878,9 +16907,11 @@ ToriRSServer_WorldChangeDisplayName(
             ToriRSServer_DisplayNameRelease(name, player->account_name);
         return 0;
     }
+    ToriRSServer_FriendsSetDisplayName(new37, name);
     snprintf(old_name, sizeof(old_name), "%s", player->display_name);
     snprintf(player->display_name, sizeof(player->display_name), "%s", name);
     player->name37 = new37;
+    social_announce_rename(srv, new37);
     if( !display_name_same(old_name, name) && !display_name_same(old_name, player->account_name) )
         ToriRSServer_DisplayNameRelease(old_name, player->account_name);
     player->masks |= TORIRSSERVER_PMASK_APPEARANCE;
@@ -17781,9 +17812,13 @@ ToriRSServer_WorldLogin(struct ToriRSServerPlayer* player)
      * player who set it to Friends or Off found it on again next session, and
      * Board-friend reads exactly that mode.
      */
-    ToriRSServer_FriendsLogin(player->name37, player->saved_chat_public_mode,
-                          player->saved_chat_private_mode,
-                          player->saved_chat_trade_mode, player->staff_level);
+    /* And how the name is spelled, which every friend and ignore row that
+     * names this player carries (the save's `display_name`). A name the
+     * roster refuses (one base 37 cannot hold) has no row to spell. */
+    if( ToriRSServer_FriendsLogin(player->name37, player->saved_chat_public_mode,
+                                  player->saved_chat_private_mode,
+                                  player->saved_chat_trade_mode, player->staff_level) )
+        ToriRSServer_FriendsSetDisplayName(player->name37, player->display_name);
 
     /*
      * 1. The scene.

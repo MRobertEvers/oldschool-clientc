@@ -269,8 +269,12 @@ struct ToriRSServerWirePayload
     void (*message_private)(struct RsprotBuf* buf, const char* from, int world, int counter,
                             int crown, uint8_t const* text, int text_len);
     /** One UPDATE_FRIENDLIST row. Rev 239 is a name/string record rather than
-     *  the classic p8 base37 + p1 world tuple. */
-    void (*friend_entry)(struct RsprotBuf* buf, const char* name, int world);
+     *  the classic p8 base37 + p1 world tuple: the display name, the previous
+     *  display name ("" for none), and `match_previous`, the leading byte the
+     *  client reads as "find the row by the previous name too" (a rename;
+     *  Statics.method10091 var4). */
+    void (*friend_entry)(struct RsprotBuf* buf, const char* name, const char* previous,
+                         int match_previous, int world);
     /** The header of an inventory update; the slot loop follows in the caller,
      *  which is the only thing that knows the container. */
     void (*inv_header)(struct RsprotBuf* buf, int pkt_name, int uid, int container,
@@ -299,8 +303,9 @@ struct ToriRSServerWirePayload
         int argc);
 
     /** One ignore-list entry. The list is name-based at this revision rather
-     *  than a flat array of base-37 longs. */
-    void (*ignore_entry)(struct RsprotBuf* buf, const char* name);
+     *  than a flat array of base-37 longs: the display name and the previous
+     *  display name ("" for none). */
+    void (*ignore_entry)(struct RsprotBuf* buf, const char* name, const char* previous);
 
     /** The whole REBUILD_REGION: header, the distinct source-square count and
      *  the descriptor grid. `zones` is level-major, then x, then z, with -1

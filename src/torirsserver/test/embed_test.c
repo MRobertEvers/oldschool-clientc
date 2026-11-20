@@ -144,6 +144,11 @@ struct Peer
     int saw_friend_count;
     int64_t saw_friend_name37;
     int saw_friend_world;
+    /** The same entry's text: its display name, its previous one, and its
+     *  leading "find the row by the previous name" byte (a rename). */
+    char saw_friend_name[64];
+    char saw_friend_previous[64];
+    int saw_friend_match_previous;
     /** FRIENDLIST_LOADED's status byte, or -1 if none has arrived. */
     int saw_friendlist_loaded;
     /** UPDATE_IGNORELIST: how many packets, and the entry count of the last. */
@@ -668,6 +673,14 @@ absorb_social(
         peer->saw_friend_world = packet->_update_friendlist.count > 0
                                      ? packet->_update_friendlist.entries[0].world
                                      : 0;
+        if( packet->_update_friendlist.count > 0 )
+        {
+            snprintf(peer->saw_friend_name, sizeof(peer->saw_friend_name), "%s",
+                     packet->_update_friendlist.entries[0].name);
+            snprintf(peer->saw_friend_previous, sizeof(peer->saw_friend_previous), "%s",
+                     packet->_update_friendlist.entries[0].previous_name);
+            peer->saw_friend_match_previous = packet->_update_friendlist.entries[0].match_previous;
+        }
         return 1;
     case PKT_NAME_FRIENDLIST_LOADED:
         peer->saw_friendlist_loaded = packet->_friendlist_loaded.status;
@@ -2522,6 +2535,43 @@ main(void)
                 check(peers[1].saw_friendlist_loaded >= 1, "bob's own login burst still reached him");
                 check(!peer_saw_game(&peers[1], "bob has logged in."),
                       "and bob was not told about his own login");
+
+                /*
+                 * ── a friend's name is its spelling, and follows a rename ──
+                 *
+                 * Jagex's rows carry the display name, capitals and spaces
+                 * kept, and the previous name only after a rename (RSProx
+                 * index 236 [3]: "Eden Cosine", "iGud PK"; "Tianzhen" with
+                 * previous name "00sanguine"; 87 of 94 rows with none). Base
+                 * 37 is the key: it spells "Bob Smith" as "bob_smith".
+                 */
+                check(strcmp(peers[0].saw_friend_name, "bob") == 0 &&
+                          peers[0].saw_friend_previous[0] == '\0' &&
+                          !peers[0].saw_friend_match_previous,
+                      "alice's row for bob carries his name and no previous one");
+                {
+                    struct ToriRSServerPlayer* bob_again = ToriRSServer_EmbedPlayer(embed, rejoin);
+
+                    check(bob_again != NULL, "bob is a player again");
+                    if( bob_again )
+                    {
+                        peers[0].saw_friend_count = 0;
+                        ToriRSServer_WorldSetActive(world, bob_again);
+                        check(ToriRSServer_WorldChangeDisplayName(world, "Bob Smith"),
+                              "bob renames himself Bob Smith");
+                        for( int round = 0; round < 4; round++ )
+                            pump(peers, 2, embed, 1, 64);
+                        check(ToriRSServer_FriendsIsFriend(alice37, (int64_t)strtobase37("Bob Smith")),
+                              "alice's list follows him to the new name");
+                        check(peers[0].saw_friend_count > 0 &&
+                                  strcmp(peers[0].saw_friend_name, "Bob Smith") == 0,
+                              "and her client is told \"Bob Smith\", capitals and space kept");
+                        check(strcmp(peers[0].saw_friend_previous, "bob") == 0 &&
+                                  peers[0].saw_friend_match_previous,
+                              "with \"bob\" as the previous name, so her row is renamed in place");
+                        check(peers[0].saw_friend_world != 0, "and still online");
+                    }
+                }
             }
         }
     }

@@ -3692,25 +3692,31 @@ ToriRSServer_SendMessageTyped(
  * only write it down.
  */
 
-void
-ToriRSServer_SendUpdateFriendlist(
+static void
+send_friend_entry(
     struct ToriRSServerPlayer* player,
     int64_t name37,
+    int match_previous,
     int world)
 {
     /* One entry per packet, both for the login dump and for the deltas after
      * it. `world` is 0 for "offline, or not visible to you" — the conflation is
      * the reference's (FriendServer.sendPlayerWorldUpdate) and is the whole of
-     * how "Private chat: off" hides a player from their own friends. */
+     * how "Private chat: off" hides a player from their own friends. The name
+     * is the friend's display spelling, not base 37's (torirs_server_friends.h,
+     * ToriRSServer_FriendsDisplayName). */
     struct RsprotBuf buf;
-    open_packet(&buf, 64);
+    open_packet(&buf, 128);
     {
         const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->friend_entry )
         {
-            char name[16];
-            base37tostr((uint64_t)name37, name, (int)sizeof(name));
-            pl->friend_entry(&buf, name, world);
+            char name[TORIRSSERVER_SOCIAL_DISPLAY_MAX];
+            char previous[TORIRSSERVER_SOCIAL_DISPLAY_MAX];
+
+            ToriRSServer_FriendsDisplayName(name37, name, sizeof(name));
+            ToriRSServer_FriendsPreviousName(name37, previous, sizeof(previous));
+            pl->friend_entry(&buf, name, previous, match_previous, world);
         }
         else
         {
@@ -3719,6 +3725,27 @@ ToriRSServer_SendUpdateFriendlist(
         }
     }
     flush(player, &buf, OP_UPDATE_FRIENDLIST, 2);
+}
+
+void
+ToriRSServer_SendUpdateFriendlist(
+    struct ToriRSServerPlayer* player,
+    int64_t name37,
+    int world)
+{
+    send_friend_entry(player, name37, 0, world);
+}
+
+void
+ToriRSServer_SendUpdateFriendlistRenamed(
+    struct ToriRSServerPlayer* player,
+    int64_t name37,
+    int world)
+{
+    /* The leading byte set: the client finds the row by the previous name as
+     * well and renames it in place (Statics.method10091 var4), where a plain
+     * entry under a new name would add a second row. */
+    send_friend_entry(player, name37, 1, world);
 }
 
 void
@@ -3745,7 +3772,7 @@ ToriRSServer_SendUpdateIgnorelist(
      * client applies to the list held (rs_server_state.c state_ignore_entry),
      * so a login dump and a one-entry answer to IGNORELIST_ADD are both this. */
     struct RsprotBuf buf;
-    open_packet(&buf, (size_t)(count > 0 ? count : 0) * 8 + 16);
+    open_packet(&buf, (size_t)(count > 0 ? count : 0) * (3 * TORIRSSERVER_SOCIAL_DISPLAY_MAX) + 16);
     {
         const struct ToriRSServerWirePayload* pl = wire_payload(player);
 
@@ -3753,9 +3780,12 @@ ToriRSServer_SendUpdateIgnorelist(
         {
             if( pl && pl->ignore_entry )
             {
-                char name[16];
-                base37tostr((uint64_t)names37[i], name, (int)sizeof(name));
-                pl->ignore_entry(&buf, name);
+                char name[TORIRSSERVER_SOCIAL_DISPLAY_MAX];
+                char previous[TORIRSSERVER_SOCIAL_DISPLAY_MAX];
+
+                ToriRSServer_FriendsDisplayName(names37[i], name, sizeof(name));
+                ToriRSServer_FriendsPreviousName(names37[i], previous, sizeof(previous));
+                pl->ignore_entry(&buf, name, previous);
                 continue;
             }
             rsprot_p8_12345678(&buf, names37[i]);
