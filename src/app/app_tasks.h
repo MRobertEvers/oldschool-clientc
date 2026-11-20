@@ -371,10 +371,22 @@ enum AppTaskMountsKind
     /* A player-model widget's build (IF_SETPLAYERMODEL_*): key
      * RS_PendingKey_Component(widget, its close serial). */
     APP_TASK_IF_PLAYER_MODEL_BUILD = RS_PENDING_KINDS_MOUNTS_FIRST,
-    /* A mounted group's models, default avatar and seed inventory models:
-     * key RS_PendingKey_Component(group << 16, its close serial). */
-    APP_TASK_MOUNT_VISUALS,
+    /* A mounted widget's model, its active model, and the default avatar on
+     * a player-preview widget: key RS_PendingKey_Component(the node's
+     * component id, its group's close serial). */
+    APP_TASK_MOUNT_MODEL,
+    APP_TASK_MOUNT_ACTIVE_MODEL,
+    APP_TASK_MOUNT_AVATAR,
+    /* Task_AppSpawn's parallel kinds (app/app_world_spawn.c): a developer
+     * spawn, RS_PendingKey_Id(its serial, 0) in its view; a plugin object's
+     * model, RS_PendingKey_Id(its handle, 0). */
+    APP_TASK_SPAWN,
+    APP_TASK_SPAWN_PLUGIN_OBJECT,
 };
+_Static_assert((int)APP_TASK_SPAWN_PLUGIN_OBJECT <= (int)RS_PENDING_KINDS_MOUNTS_LAST, "mounts kinds fit the range");
+
+/* The most model widgets one slot mount bakes (a dat1 slot holds a few). */
+#define APP_MOUNT_SUBTREE_MODELS_MAX 256
 
 /** Build the composition `model` now holds, when its parts are here, into its
  *  scene slot: a parallel task. A newer composition's build replaces it. */
@@ -383,14 +395,27 @@ App_IfPlayerModelBuildAdd(
     struct App* app,
     struct UIIfPlayerModel const* model);
 
-/** Group `group` has just been mounted: what of its pack the mount did not
- *  wait for (models, the default avatar, seed inventory models) is bound
- *  when it arrives, by a parallel task. Adds nothing when all of it is
- *  here. */
-void
+/** Group `group` has just been mounted: each model its widgets show that is
+ *  not here (a model, an active model, the default avatar) is bound when it
+ *  arrives, by one parallel task a model; the worn and backpack icons not
+ *  baked yet are wanted (App_InvIconsWant). Returns how many model tasks it
+ *  added (0 when all of it is here). */
+int
 App_MountVisualsAdd(
     struct App* app,
     int group);
+
+/** The same for every model node of the root the boot has just built
+ *  (IF_OPENTOP, the title, a display-mode remount). An old-format (dat1) slot
+ *  mount's are App_SlotVisualsAdd's, declared beside CreateTask_SlotMount
+ *  (engine/uitree_builder/task_slot_mount.h) for the engine's slot mount. */
+int
+App_RootVisualsAdd(struct App* app);
+
+/** A new root is being built over the old tree: cancel every pending mount
+ *  model task. */
+void
+App_MountsTreeCleared(struct App* app);
 
 /** Group `group` was closed (unloaded): cancel its pending visual tasks. */
 void
