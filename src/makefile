@@ -5324,7 +5324,7 @@ test-web-cache-invalidate:
 test-debug-overlay-visual: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_model_sprite.o
 	@mkdir -p build
-	$(CC) $(CFLAGS) -I$(BMP_DIR) -o $(OBJ_DIR)/debug_overlay_visual $(TORIMEM_SRCS) \
+	$(CC) $(CFLAGS) $(PLATFORM_STRIP_LDFLAGS) -I$(BMP_DIR) -o $(OBJ_DIR)/debug_overlay_visual $(TORIMEM_SRCS) \
 		ui/test/uitree_debug_overlay_visual.c \
 		ui/uitree_debug_overlay.c engine/torirs_debug_font_baked.c \
 		engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
