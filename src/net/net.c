@@ -783,6 +783,13 @@ ToriRS_Network_PopPacket(
 }
 
 int
+ToriRS_Network_HasPacket(struct ToriRS_Network const* net)
+{
+    assert(net);
+    return net->packets_head && !net->packets_head->held;
+}
+
+int
 ToriRS_Network_PopOut(
     struct ToriRS_Network* net,
     struct ToriRS_CmdHeader* header,
