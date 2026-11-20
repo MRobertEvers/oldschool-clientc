@@ -446,4 +446,5 @@ src/replay/replay_world_apply.c
 # Raised to 1434 by the slow-read tool: the frame queue's executor is told the
 # client's frame count (TORIRS_IO_DEFER_FRAMES), and App_Shutdown traces the
 # pending index once (App_PendingTrace, at exit).
-app.c-lines: 1434
+# Raised to 1437 by fx4-build O2: App_Shutdown frees the map keys App loaded.
+app.c-lines: 1437

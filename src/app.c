@@ -1415,6 +1415,9 @@ App_Shutdown(struct App* app)
      * rs_preload.c). */
     RS_Preload_Free(&app->preload);
     RS_LoginReplies_Free(&app->login_replies);
+    /* The map keys this App loaded (app_load_map_keys) or a REBUILD added: after the
+     * queues, which held the loc loads that read them. */
+    RSCache_XteaConfigCleanupKeys();
     UIIfModels_Free(&app->if_models);
     app_entity_spotanims_free(app);
     app_tasks_ground_free(app);

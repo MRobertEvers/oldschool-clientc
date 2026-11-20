@@ -4916,6 +4916,27 @@ replay-group-check: $(OBJ_DIR) $(OBJS)
 		replay/test/replay_group_check.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/replay_group_check $(RECORDINGS)
 
+# The real client replays a real recording headless for REPLAY_EXIT_FRAMES
+# frames and exits through App_Shutdown under TORIRS_MEM_STRICT=1, where a
+# block any group still holds at exit is fatal: every table the replay lane
+# fills (recording 96 boots the encrypted osrs227 cache, so the map keys too)
+# has an owner that frees it. Not a suite test -- it needs a recording:
+#   make -C src OPT=1 PLATFORM_OBJ_BASE=<b> PLATFORM_TARGET=<b>_opt/torirs <b>_opt/torirs
+#   make -C src OPT=1 PLATFORM_OBJ_BASE=<b> replay-exit-check REPLAY_EXIT_BINARY=<b>_opt/torirs
+REPLAY_EXIT_BINARY ?= $(TARGET)
+REPLAY_EXIT_RECORDING ?= $(HOME)/.rsprox/binary/archive/96.bin
+REPLAY_EXIT_FRAMES ?= 300
+.PHONY: replay-exit-check
+replay-exit-check: $(OBJ_DIR)
+	cd $(REPO_ROOT) && env SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy TORIRS_PLUGINS=0 \
+		TORIRS_PREFS="$(CURDIR)/$(OBJ_DIR)/replay_exit_prefs.ini" \
+		TORIRS_EDITOR_LAYOUT="$(CURDIR)/$(OBJ_DIR)/replay_exit_layout.ini" \
+		TORIRS_MAX_FRAMES=$(REPLAY_EXIT_FRAMES) TORIRS_MEM_STRICT=1 \
+		"$(CURDIR)/$(REPLAY_EXIT_BINARY)" --manifest manifests/manifest_osrs242_replay.ini \
+		--replay "$(REPLAY_EXIT_RECORDING)" --soft3d > "$(CURDIR)/$(OBJ_DIR)/replay_exit.log" 2>&1 \
+		|| { grep "torimem" "$(CURDIR)/$(OBJ_DIR)/replay_exit.log"; echo "replay-exit-check FAILED"; exit 1; }
+	@echo "replay-exit-check: $(REPLAY_EXIT_FRAMES) frames, nothing held at exit"
+
 # A fast seek against linear play on a real recording: the private client
 # runs each tick twice (TORIRS_REPLAY_SEEK=fullsim, then fast) and every
 # --replay-digest domain is compared at the tick and 64 ticks later
