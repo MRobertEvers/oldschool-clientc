@@ -269,8 +269,9 @@ state_local_player_in_tutorial_area(struct RS_ServerState const* state)
     struct WorldEntity_Player const* self;
     int world_idx;
 
-    assert(state->world);
-    assert(state->esync);
+    /* No world yet is a real state: no local player either. */
+    if( !state->world )
+        return 0;
     if( state->esync->local_pid < 0 ||
         !RS_EntitySync_FindPlayer(state->esync, state->esync->local_pid, &world_idx, NULL) )
         return 0;
@@ -444,8 +445,9 @@ state_anim_specific(
     int idx = -1;
     int element = -1;
 
-    assert(state->world);
-    assert(state->esync);
+    /* app->world NULL is a real state (fa5680f77): nothing to set. */
+    if( !state->world )
+        return RS_SERVER_STATE_UNCHANGED;
     RS_EntitySync_FindPlayer(state->esync, RS_ServerState_LocalPid(state->esync), &idx, &element);
     if( idx < 0 )
         return RS_SERVER_STATE_UNCHANGED;
@@ -464,8 +466,9 @@ state_npc_anim_specific(
     int idx = -1;
     int element = -1;
 
-    assert(state->world);
-    assert(state->esync);
+    /* app->world NULL is a real state (fa5680f77): nothing to set. */
+    if( !state->world )
+        return RS_SERVER_STATE_UNCHANGED;
     RS_EntitySync_FindNpc(state->esync, pkt->index, &idx, &element);
     if( idx < 0 )
         return RS_SERVER_STATE_UNCHANGED;
@@ -492,8 +495,9 @@ state_spotanim_specific(
     int idx = -1;
     int element = -1;
 
-    assert(state->world);
-    assert(state->esync);
+    /* app->world NULL is a real state (fa5680f77): nothing to set. */
+    if( !state->world )
+        return RS_SERVER_STATE_UNCHANGED;
     if( npc )
         RS_EntitySync_FindNpc(state->esync, pkt->index, &idx, &element);
     else
@@ -524,8 +528,9 @@ state_npc_headicon_specific(
     struct WorldEntity_NPC* npc;
     int idx;
 
-    assert(state->world);
-    assert(state->esync);
+    /* app->world NULL is a real state (fa5680f77): nothing to set. */
+    if( !state->world )
+        return RS_SERVER_STATE_UNCHANGED;
     if( pkt->slot < 0 || pkt->slot >= WORLD_NPC_HEADICON_SLOTS )
     {
         TORIRS_LOG("exec: NPC_HEADICON_SPECIFIC slot %d refused\n", pkt->slot);
@@ -559,6 +564,581 @@ state_npc_headicon_specific(
 
 /* ---- the switch -------------------------------------------------------------- */
 
+static enum RS_ServerStateApply
+state_varp_small(
+    struct RS_ServerState const* state,
+    struct PktVarpSmall const* p)
+{
+    if( VarPManager_ApplySmall(
+            state->varps, p->variable, p->value) )
+        state_stamp_varp(state, p->variable);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_varp_large(
+    struct RS_ServerState const* state,
+    struct PktVarpLarge const* p)
+{
+    if( VarPManager_ApplyLarge(
+            state->varps, p->variable, p->value) )
+        state_stamp_varp(state, p->variable);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_varp_long(
+    struct RS_ServerState const* state,
+    struct PktVarpLong const* p)
+{
+    if( VarPManager_ApplyLong(
+            state->varps, p->variable, p->value) )
+        state_stamp_varp(state, p->variable);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_varp_sync(
+    struct RS_ServerState const* state)
+{
+    /* Restore the client-visible copy from the server-authoritative set
+     * (rev-230 client.java VARP_SYNC / LostCity Client.ts:7390). Distinct
+     * from VARP_RESET, which zeroes both. */
+    VarPManager_ApplySyncEach(state->varps, state_varp_synced, (void*)state);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_varp_reset(
+    struct RS_ServerState const* state)
+{
+    VarPManager_ResetAll(state->varps);
+    /* The reset's one server update is id -1, "every varp". */
+    state_stamp_varp(state, -1);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_update_stat(
+    struct RS_ServerState const* state,
+    struct PktUpdateStat const* p)
+{
+    if( p->stat < 0 ||
+        p->stat >= RS_PLAYER_STATS_SKILL_COUNT )
+        return RS_SERVER_STATE_UNCHANGED;
+    RS_PlayerStats_SetXp(state->stats, p->stat, p->xp);
+    state->stats->current_level[p->stat] = p->level;
+    RS_PlayerStats_RecomputeCombatLevel(state->stats);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_update_runenergy(
+    struct RS_ServerState const* state,
+    struct PktUpdateRunEnergy const* p)
+{
+    state->stats->run_energy_raw = p->run_energy_raw;
+    if( state->stats->run_energy == p->run_energy )
+        return RS_SERVER_STATE_UNCHANGED;
+    state->stats->run_energy = p->run_energy;
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_update_runweight(
+    struct RS_ServerState const* state,
+    struct PktUpdateRunWeight const* p)
+{
+    if( state->stats->run_weight == p->run_weight )
+        return RS_SERVER_STATE_UNCHANGED;
+    state->stats->run_weight = p->run_weight;
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_update_inv_stop_transmit(
+    struct RS_ServerState const* state,
+    struct PktUpdateInvStopTransmit const* p)
+{
+    /* Reference clears the bound inventory's slots (linkObjType[i] = -1).
+     * ApplyFull with count 0 empties every slot; a no-op if the container
+     * was never transmitted. */
+    InvManager_ApplyFull(
+        state->invs,
+        RS_ServerState_InvContainerId(
+            p->inv_id,
+            p->component_id),
+        NULL,
+        NULL,
+        0);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+/* Persisting setters, not one-shot applies: each of these routinely lands
+ * before the interface it targets has finished mounting (the mount is an
+ * async task), and the reference keeps the value on IfType.list where it
+ * survives. The store is the record; the tree is the client's. */
+static enum RS_ServerStateApply
+state_if_settext(
+    struct RS_ServerState const* state,
+    struct PktIfSetText const* p)
+{
+    UIIfTextStore_Set(
+        state->if_texts, p->component_id, p->text);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_if_setevents(
+    struct RS_ServerState const* state,
+    struct PktIfSetEvents const* p)
+{
+    UIIfEventTable_Set(
+        state->if_events,
+        p->component_id,
+        p->from,
+        p->to,
+        p->events);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_if_sethide(
+    struct RS_ServerState const* state,
+    struct PktIfSetHide const* p)
+{
+    UIIfIntStore_Set(
+        state->if_hides, p->component_id, p->hide ? 1 : 0);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_if_setcolour(
+    struct RS_ServerState const* state,
+    struct PktIfSetColour const* p)
+{
+    UIIfIntStore_Set(
+        state->if_colours,
+        p->component_id,
+        RS_ServerState_Rs15ToRgb(p->colour));
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_message_game(
+    struct RS_ServerState const* state,
+    struct PktMessageGame const* p)
+{
+    /* The TYPE is the server's, not a constant: it picks the filter tab,
+     * the colour and the prefix the chatbox script draws the line with. */
+    state_chat_add(
+        state,
+        p->type,
+        p->name,
+        p->name,
+        p->text);
+    /*
+     * Printed by default, and that is a deliberate inversion.
+     *
+     * This used to be gated on TORIRS_NET_DEBUG -- the whole packet
+     * firehose -- which made a script's own `mes` output invisible to
+     * anyone who had not already guessed that variable. A headless run
+     * paints no chatbox, so stderr is the only channel content has, and
+     * `mes` is how a debugproc reports what it found. The switch is an
+     * opt-OUT for a caller that genuinely wants silence.
+     */
+    {
+        char const* quiet = getenv("TORIRS_MES");
+
+        if( !quiet || strcmp(quiet, "0") != 0 )
+            TORIRS_LOG("message_game: %s\n", p->text);
+    }
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_message_private(
+    struct RS_ServerState const* state,
+    struct PktMessagePrivate const* p)
+{
+    char name[16];
+
+    /* deob client.java class243.field2953: the line is shown, and its id
+     * remembered, only while the local player is off Tutorial Island
+     * (field765 == 0). Then dedupe by message id (reference messageIds
+     * ring). */
+    if( state_local_player_in_tutorial_area(state) )
+        return RS_SERVER_STATE_UNCHANGED;
+    if( RS_Social_MessageSeenOrRemember(state->social, p->message_id) )
+        return RS_SERVER_STATE_UNCHANGED;
+    base37tostr((uint64_t)p->from, name, sizeof(name));
+    state_chat_add(
+        state,
+        p->staff_mod ? RS_CHAT_TYPE_PRIVATE_FROM_MOD
+                                           : RS_CHAT_TYPE_PRIVATE_FROM,
+        name,
+        name,
+        p->text);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+/* deob client.java class259.field3170: the line the sender sees for a
+ * private message they sent. */
+static enum RS_ServerStateApply
+state_message_private_echo(
+    struct RS_ServerState const* state,
+    struct PktMessagePrivateEcho const* p)
+{
+    char escaped[RS_CHAT_TEXT_LEN];
+
+    RS_ServerState_EscapeTags(
+        p->text ? p->text : "",
+        escaped,
+        sizeof(escaped));
+    state_chat_add(
+        state,
+        RS_CHAT_TYPE_PRIVATE_TO,
+        p->recipient,
+        p->recipient,
+        escaped);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_p_countdialog(
+    struct RS_ServerState const* state)
+{
+    state->chat->dialog_input_open = 1;
+    state->chat->dialog_input[0] = '\0';
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_update_friendlist_apply(
+    struct RS_ServerState const* state,
+    struct PktUpdateFriendList const* p)
+{
+    state_update_friendlist(state, p);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_update_ignorelist(
+    struct RS_ServerState const* state,
+    struct PktUpdateIgnoreList const* p)
+{
+    state->social->ignore_count = 0;
+    for( int i = 0; i < p->count; i++ )
+    {
+        char name[16];
+        base37tostr((uint64_t)p->names37[i], name, sizeof(name));
+        RS_Social_AddIgnore(state->social, name);
+    }
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_friendlist_loaded(
+    struct RS_ServerState const* state,
+    struct PktFriendListLoaded const* p)
+{
+    /* This is what ends the panel's "Loading friends list" state:
+     * RS_Social_FriendCount answers -1 until the status reads 2. */
+    state->social->server_status = p->status;
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_chat_filter_settings(
+    struct RS_ServerState const* state,
+    struct PktChatFilterSettings const* p)
+{
+    /*
+     * Only the modes the packet actually carried.
+     *
+     * The classic wire sends three bytes and the private mode is one of
+     * them. Revision 239 sends TWO -- public and trade -- because the
+     * private-chat filter moved to a packet of its own: the deob's packet
+     * table has `field3058 = new class243(124, 2)`, whose handler writes
+     * only the public and trade fields (client.java:2820), beside
+     * `field2939 = new class243(5, 1)`, whose handler is the ONLY thing
+     * that writes the private filter the CS2 side reads back through
+     * chat_getfilter_private (Statics.field5072, opcode 5005).
+     *
+     * So a revision whose CHAT_FILTER_SETTINGS has no private byte marks
+     * the field absent with a negative value -- the same convention the
+     * zone headers use for a plane a revision does not send -- and the
+     * client's own copy stands. Writing the missing field through was what
+     * put "Private On" back under the player the instant after they chose
+     * Show friends, and then fed that stale 0 back to the server on their
+     * next filter change. CHAT_FILTER_SETTINGS_PRIVATECHAT arrives through
+     * this arm with only the private mode present.
+     */
+    if( p->chat_public_mode >= 0 )
+        state->chat_filter_mode[RS_UI_CHAT_FILTER_PUBLIC] =
+            p->chat_public_mode;
+    if( p->chat_private_mode >= 0 )
+        state->chat_filter_mode[RS_UI_CHAT_FILTER_PRIVATE] =
+            p->chat_private_mode;
+    if( p->chat_trade_mode >= 0 )
+        state->chat_filter_mode[RS_UI_CHAT_FILTER_TRADE] =
+            p->chat_trade_mode;
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_update_pid(
+    struct RS_ServerState const* state,
+    struct PktUpdatePid const* p)
+{
+    state->esync->local_pid = p->local_player_index;
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_last_login_info(
+    struct RS_ServerState const* state,
+    struct PktLastLoginInfo const* p)
+{
+    /* The welcome rows are clientCode components RS_ClientCode_Tick
+     * refreshes off this struct; opening the screen they sit on is the
+     * client's. */
+    state->session_info->welcome.last_ip = p->last_ip;
+    state->session_info->welcome.days_since_login = p->days_since_login;
+    state->session_info->welcome.days_since_recovery =
+        p->days_since_recovery;
+    state->session_info->welcome.unread_messages = p->unread_messages;
+    state->session_info->welcome.member_warning = p->member_warning;
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_update_reboot_timer(
+    struct RS_ServerState const* state,
+    struct PktUpdateRebootTimer const* p)
+{
+    /* The wire carries SERVER ticks; the countdown runs on the 20ms client
+     * cycle, so it is converted once here rather than at every read
+     * (reference `rebootTimer = g2() * 30`, where 30 is the same ratio
+     * spelled as a literal). */
+    RS_SessionInfo_SetRebootTimer(
+        state->session_info, p->ticks, APP_SERVER_TICK_LOGIC_CYCLES);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_set_multiway(
+    struct RS_ServerState const* state,
+    struct PktSetMultiway const* p)
+{
+    return RS_SessionInfo_SetMultiway(state->session_info, p->multiway)
+               ? RS_SERVER_STATE_APPLIED
+               : RS_SERVER_STATE_UNCHANGED;
+}
+
+static enum RS_ServerStateApply
+state_enable_tracking(
+    struct RS_ServerState const* state)
+{
+    state->session_info->tracking_enabled = 1;
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_finish_tracking(
+    struct RS_ServerState const* state)
+{
+    state->session_info->tracking_enabled = 0;
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_unknown_string(
+    struct RS_ServerState const* state,
+    struct PktText const* p)
+{
+    snprintf(state->session_info->unknown_string,
+             sizeof(state->session_info->unknown_string),
+             "%s",
+             p->text);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_set_website_token(
+    struct RS_ServerState const* state,
+    struct PktText const* p)
+{
+    snprintf(state->session_info->website_token,
+             sizeof(state->session_info->website_token),
+             "%s",
+             p->text);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_site_settings(
+    struct RS_ServerState const* state,
+    struct PktText const* p)
+{
+    snprintf(state->session_info->site_settings,
+             sizeof(state->session_info->site_settings),
+             "%s",
+             p->text);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_logout_transfer(
+    struct RS_ServerState const* state,
+    struct PktLogoutTransfer const* p)
+{
+    /* The session moves to another world (deob client.java, the
+     * LOGOUT_TRANSFER arm: gameState 45, the socket closed, the world
+     * switched; state 45 then logs in with GAMELOGIN and the account's
+     * credentials). The move is the link watch's, at the head of the next
+     * frame (app_net_link_watch): not here, in the middle of the packet
+     * pipeline whose session it ends. */
+    TORIRS_LOG("exec: LOGOUT_TRANSFER to world %d (%s)\n", p->world_id,
+               p->host);
+    SessionEnd_Hop(state->session_end, p->world_id);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_update_uid192(
+    struct RS_ServerState const* state,
+    struct PktUid192 const* p)
+{
+    (void)state;
+    if( state_crc32(p->data, sizeof(p->data)) == (uint32_t)p->crc )
+        login_osrs_set_uid192(p->data);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_set_player_op(
+    struct RS_ServerState const* state,
+    struct PktSetPlayerOp const* p)
+{
+    if( p->slot < 1 || p->slot > 5 )
+        return RS_SERVER_STATE_UNCHANGED;
+    RS_PlayerOps_Set(
+        state->player_ops,
+        p->slot - 1,
+        p->text ? p->text : "",
+        p->primary);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_set_interaction_mode(
+    struct RS_ServerState const* state,
+    struct RevPacket const* packet)
+{
+    state_interaction_mode(
+        state,
+        &packet->_interaction_mode,
+        packet->packet_type == PKT_NAME_RESET_INTERACTION_MODE);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+/* deob client.java: Statics.field2218 / field3892 / field4203 = the byte as a
+ * boolean; the world menu builders read them (rs_minimenu_world.c). */
+static enum RS_ServerStateApply
+state_hide_ops(
+    struct RS_ServerState const* state,
+    struct RevPacket const* packet)
+{
+    bool const hidden = packet->_hide_ops.hidden != 0;
+
+    if( !state->world )
+        return RS_SERVER_STATE_UNCHANGED;
+    if( packet->packet_type == PKT_NAME_HIDENPCOPS )
+        state->world->hidden_ops.npc = hidden;
+    else if( packet->packet_type == PKT_NAME_HIDELOCOPS )
+        state->world->hidden_ops.loc = hidden;
+    else
+        state->world->hidden_ops.obj = hidden;
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_hint_arrow(
+    struct RS_ServerState const* state,
+    struct PktHintArrow const* p)
+{
+    /* The type and the tile anchor are folded on the way in
+     * (game/rs_hint_arrow.h), so every pass that draws it reads one form. */
+    RS_HintArrow_Set(
+        state->hint_arrow,
+        p->type,
+        p->id,
+        p->z,
+        p->height);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_set_npc_update_origin(
+    struct RS_ServerState const* state,
+    struct PktSetNpcUpdateOrigin const* p)
+{
+    RS_NpcUpdateOrigin_Set(
+        state->npc_update_origin,
+        p->x,
+        p->z);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_set_active_world(
+    struct RS_ServerState const* state,
+    struct PktSetActiveWorld const* p)
+{
+    /* Points the zone/rebuild applicators at a world view until the tick
+     * fence resets it (deob class100 activeWorld). The id and level are
+     * WIRE data -- a raw g2 and a raw byte -- so a value outside the
+     * registry, a dead view, or an impossible plane is a malformed or
+     * lagging server, guarded rather than asserted: an assert-only check is
+     * an abort in debug and an OOB registry/heightmap index in the NDEBUG
+     * release lane. The deob throws here; our release build has to refuse
+     * instead. */
+    int const world_id = p->world_id;
+    int slot;
+
+    slot = WorldviewRegistry_SlotForWire(state->worldviews, world_id);
+    if( slot == WORLDVIEW_SLOT_NONE )
+    {
+        TORIRS_LOG("exec: SET_ACTIVE_WORLD refused, world %d not live\n", world_id);
+        return RS_SERVER_STATE_UNCHANGED;
+    }
+    /* The deob snapshots the plane alongside the id, and writes it onto the
+     * addressed view itself (class100.field1400), where it outlives the
+     * tick fence's return to the root. Clamped to the heightmap's planes:
+     * it feeds height sampling. */
+    WorldviewRegistry_SetActiveWorld(
+        state->worldviews, slot, p->level);
+    return RS_SERVER_STATE_APPLIED;
+}
+
+static enum RS_ServerStateApply
+state_server_tick_end(
+    struct RS_ServerState const* state)
+{
+    /* The fence: every packet of this tick has been applied. */
+    RS_ServerTick_Fence(state->server_tick);
+    /* SET_ACTIVE_WORLD only lasts until the fence: the deob resets the
+     * cursor to the root view at end-of-tick, so a tick that never re-arms
+     * it cannot leak zone updates into a boat. */
+    WorldviewRegistry_ResetActive(state->worldviews);
+    /* DRIVE_STAMP: server_tick -- a=world cycle. Every await's deadline is
+     * counted in these, and every level predicate is re-checked on one. */
+    state_stamp(
+        state, RS_EVENT_SERVER_TICK, state->events.cycle ? *state->events.cycle : 0, 0, 0, 0);
+    return RS_SERVER_STATE_APPLIED;
+}
+
 enum RS_ServerStateApply
 RS_ServerState_Apply(
     struct RS_ServerState const* state,
@@ -566,6 +1146,30 @@ RS_ServerState_Apply(
 {
     assert(state);
     assert(packet);
+    /* Every record is required, asserted once here and tested by no arm.
+     * The two that may be absent are real states, guarded where read: no
+     * world yet (app->world), and no npc configs (the headless client). */
+    assert(state->varps);
+    assert(state->stats);
+    assert(state->invs);
+    assert(state->if_texts);
+    assert(state->if_hides);
+    assert(state->if_colours);
+    assert(state->if_events);
+    assert(state->chat);
+    assert(state->chat_clock);
+    assert(state->social);
+    assert(state->chat_filter_mode);
+    assert(state->session_info);
+    assert(state->session_end);
+    assert(state->server_tick);
+    assert(state->player_ops);
+    assert(state->hint_arrow);
+    assert(state->npc_update_origin);
+    assert(state->interaction_mode);
+    assert(state->worldviews);
+    assert(state->esync);
+    assert(state->events.ring);
 
     if( packet->_control )
         return RS_SERVER_STATE_PASS;
@@ -574,60 +1178,23 @@ RS_ServerState_Apply(
     {
     /* ---- varps ---- */
     case PKT_NAME_VARP_SMALL:
-        assert(state->varps);
-        if( VarPManager_ApplySmall(
-                state->varps, packet->_varp_small.variable, packet->_varp_small.value) )
-            state_stamp_varp(state, packet->_varp_small.variable);
-        return RS_SERVER_STATE_APPLIED;
+        return state_varp_small(state, &packet->_varp_small);
     case PKT_NAME_VARP_LARGE:
-        assert(state->varps);
-        if( VarPManager_ApplyLarge(
-                state->varps, packet->_varp_large.variable, packet->_varp_large.value) )
-            state_stamp_varp(state, packet->_varp_large.variable);
-        return RS_SERVER_STATE_APPLIED;
+        return state_varp_large(state, &packet->_varp_large);
     case PKT_NAME_VARP_LONG:
-        assert(state->varps);
-        if( VarPManager_ApplyLong(
-                state->varps, packet->_varp_long.variable, packet->_varp_long.value) )
-            state_stamp_varp(state, packet->_varp_long.variable);
-        return RS_SERVER_STATE_APPLIED;
+        return state_varp_long(state, &packet->_varp_long);
     case PKT_NAME_VARP_SYNC:
-        /* Restore the client-visible copy from the server-authoritative set
-         * (rev-230 client.java VARP_SYNC / LostCity Client.ts:7390). Distinct
-         * from VARP_RESET, which zeroes both. */
-        assert(state->varps);
-        VarPManager_ApplySyncEach(state->varps, state_varp_synced, (void*)state);
-        return RS_SERVER_STATE_APPLIED;
+        return state_varp_sync(state);
     case PKT_NAME_VARP_RESET:
-        assert(state->varps);
-        VarPManager_ResetAll(state->varps);
-        /* The reset's one server update is id -1, "every varp". */
-        state_stamp_varp(state, -1);
-        return RS_SERVER_STATE_APPLIED;
+        return state_varp_reset(state);
 
     /* ---- player stats ---- */
     case PKT_NAME_UPDATE_STAT:
-        assert(state->stats);
-        if( packet->_update_stat.stat < 0 ||
-            packet->_update_stat.stat >= RS_PLAYER_STATS_SKILL_COUNT )
-            return RS_SERVER_STATE_UNCHANGED;
-        RS_PlayerStats_SetXp(state->stats, packet->_update_stat.stat, packet->_update_stat.xp);
-        state->stats->current_level[packet->_update_stat.stat] = packet->_update_stat.level;
-        RS_PlayerStats_RecomputeCombatLevel(state->stats);
-        return RS_SERVER_STATE_APPLIED;
+        return state_update_stat(state, &packet->_update_stat);
     case PKT_NAME_UPDATE_RUNENERGY:
-        assert(state->stats);
-        state->stats->run_energy_raw = packet->_update_run_energy.run_energy_raw;
-        if( state->stats->run_energy == packet->_update_run_energy.run_energy )
-            return RS_SERVER_STATE_UNCHANGED;
-        state->stats->run_energy = packet->_update_run_energy.run_energy;
-        return RS_SERVER_STATE_APPLIED;
+        return state_update_runenergy(state, &packet->_update_run_energy);
     case PKT_NAME_UPDATE_RUNWEIGHT:
-        assert(state->stats);
-        if( state->stats->run_weight == packet->_update_runweight.run_weight )
-            return RS_SERVER_STATE_UNCHANGED;
-        state->stats->run_weight = packet->_update_runweight.run_weight;
-        return RS_SERVER_STATE_APPLIED;
+        return state_update_runweight(state, &packet->_update_runweight);
 
     /* ---- inventories ---- */
     case PKT_NAME_UPDATE_INV_FULL:
@@ -635,353 +1202,80 @@ RS_ServerState_Apply(
     case PKT_NAME_UPDATE_INV_PARTIAL:
         return state_update_inv_partial(state, &packet->_update_inv_partial);
     case PKT_NAME_UPDATE_INV_STOP_TRANSMIT:
-        /* Reference clears the bound inventory's slots (linkObjType[i] = -1).
-         * ApplyFull with count 0 empties every slot; a no-op if the container
-         * was never transmitted. */
-        assert(state->invs);
-        InvManager_ApplyFull(
-            state->invs,
-            RS_ServerState_InvContainerId(
-                packet->_update_inv_stop_transmit.inv_id,
-                packet->_update_inv_stop_transmit.component_id),
-            NULL,
-            NULL,
-            0);
-        return RS_SERVER_STATE_APPLIED;
+        return state_update_inv_stop_transmit(state, &packet->_update_inv_stop_transmit);
 
     /* ---- the interface stores ---- */
-    /* Persisting setters, not one-shot applies: each of these routinely lands
-     * before the interface it targets has finished mounting (the mount is an
-     * async task), and the reference keeps the value on IfType.list where it
-     * survives. The store is the record; the tree is the client's. */
     case PKT_NAME_IF_SETTEXT:
-        assert(state->if_texts);
-        UIIfTextStore_Set(
-            state->if_texts, packet->_if_settext.component_id, packet->_if_settext.text);
-        return RS_SERVER_STATE_APPLIED;
+        return state_if_settext(state, &packet->_if_settext);
     case PKT_NAME_IF_SETEVENTS:
-        assert(state->if_events);
-        UIIfEventTable_Set(
-            state->if_events,
-            packet->_if_setevents.component_id,
-            packet->_if_setevents.from,
-            packet->_if_setevents.to,
-            packet->_if_setevents.events);
-        return RS_SERVER_STATE_APPLIED;
+        return state_if_setevents(state, &packet->_if_setevents);
     case PKT_NAME_IF_SETHIDE:
-        assert(state->if_hides);
-        UIIfIntStore_Set(
-            state->if_hides, packet->_if_sethide.component_id, packet->_if_sethide.hide ? 1 : 0);
-        return RS_SERVER_STATE_APPLIED;
+        return state_if_sethide(state, &packet->_if_sethide);
     case PKT_NAME_IF_SETCOLOUR:
-        assert(state->if_colours);
-        UIIfIntStore_Set(
-            state->if_colours,
-            packet->_if_setcolour.component_id,
-            RS_ServerState_Rs15ToRgb(packet->_if_setcolour.colour));
-        return RS_SERVER_STATE_APPLIED;
+        return state_if_setcolour(state, &packet->_if_setcolour);
 
     /* ---- chat ---- */
     case PKT_NAME_MESSAGE_GAME:
-        /* The TYPE is the server's, not a constant: it picks the filter tab,
-         * the colour and the prefix the chatbox script draws the line with. */
-        state_chat_add(
-            state,
-            packet->_message_game.type,
-            packet->_message_game.name,
-            packet->_message_game.name,
-            packet->_message_game.text);
-        /*
-         * Printed by default, and that is a deliberate inversion.
-         *
-         * This used to be gated on TORIRS_NET_DEBUG -- the whole packet
-         * firehose -- which made a script's own `mes` output invisible to
-         * anyone who had not already guessed that variable. A headless run
-         * paints no chatbox, so stderr is the only channel content has, and
-         * `mes` is how a debugproc reports what it found. The switch is an
-         * opt-OUT for a caller that genuinely wants silence.
-         */
-        {
-            char const* quiet = getenv("TORIRS_MES");
-
-            if( !quiet || strcmp(quiet, "0") != 0 )
-                TORIRS_LOG("message_game: %s\n", packet->_message_game.text);
-        }
-        return RS_SERVER_STATE_APPLIED;
+        return state_message_game(state, &packet->_message_game);
     case PKT_NAME_MESSAGE_PRIVATE:
-    {
-        char name[16];
-
-        /* deob client.java class243.field2953: the line is shown, and its id
-         * remembered, only while the local player is off Tutorial Island
-         * (field765 == 0). Then dedupe by message id (reference messageIds
-         * ring). */
-        assert(state->social);
-        if( state_local_player_in_tutorial_area(state) )
-            return RS_SERVER_STATE_UNCHANGED;
-        if( RS_Social_MessageSeenOrRemember(state->social, packet->_message_private.message_id) )
-            return RS_SERVER_STATE_UNCHANGED;
-        base37tostr((uint64_t)packet->_message_private.from, name, sizeof(name));
-        state_chat_add(
-            state,
-            packet->_message_private.staff_mod ? RS_CHAT_TYPE_PRIVATE_FROM_MOD
-                                               : RS_CHAT_TYPE_PRIVATE_FROM,
-            name,
-            name,
-            packet->_message_private.text);
-        return RS_SERVER_STATE_APPLIED;
-    }
-    /* deob client.java class259.field3170: the line the sender sees for a
-     * private message they sent. */
+        return state_message_private(state, &packet->_message_private);
     case PKT_NAME_MESSAGE_PRIVATE_ECHO:
-    {
-        char escaped[RS_CHAT_TEXT_LEN];
-
-        RS_ServerState_EscapeTags(
-            packet->_message_private_echo.text ? packet->_message_private_echo.text : "",
-            escaped,
-            sizeof(escaped));
-        state_chat_add(
-            state,
-            RS_CHAT_TYPE_PRIVATE_TO,
-            packet->_message_private_echo.recipient,
-            packet->_message_private_echo.recipient,
-            escaped);
-        return RS_SERVER_STATE_APPLIED;
-    }
+        return state_message_private_echo(state, &packet->_message_private_echo);
     case PKT_NAME_MESSAGE_FRIENDCHANNEL:
         return state_message_friendchannel(state, &packet->_message_friendchannel);
     case PKT_NAME_P_COUNTDIALOG:
-        assert(state->chat);
-        state->chat->dialog_input_open = 1;
-        state->chat->dialog_input[0] = '\0';
-        return RS_SERVER_STATE_APPLIED;
+        return state_p_countdialog(state);
 
     /* ---- social ---- */
     case PKT_NAME_UPDATE_FRIENDLIST:
-        state_update_friendlist(state, &packet->_update_friendlist);
-        return RS_SERVER_STATE_APPLIED;
+        return state_update_friendlist_apply(state, &packet->_update_friendlist);
     case PKT_NAME_UPDATE_IGNORELIST:
-        assert(state->social);
-        state->social->ignore_count = 0;
-        for( int i = 0; i < packet->_update_ignorelist.count; i++ )
-        {
-            char name[16];
-            base37tostr((uint64_t)packet->_update_ignorelist.names37[i], name, sizeof(name));
-            RS_Social_AddIgnore(state->social, name);
-        }
-        return RS_SERVER_STATE_APPLIED;
+        return state_update_ignorelist(state, &packet->_update_ignorelist);
     case PKT_NAME_FRIENDLIST_LOADED:
-        /* This is what ends the panel's "Loading friends list" state:
-         * RS_Social_FriendCount answers -1 until the status reads 2. */
-        assert(state->social);
-        state->social->server_status = packet->_friendlist_loaded.status;
-        return RS_SERVER_STATE_APPLIED;
+        return state_friendlist_loaded(state, &packet->_friendlist_loaded);
     case PKT_NAME_CHAT_FILTER_SETTINGS:
-        /*
-         * Only the modes the packet actually carried.
-         *
-         * The classic wire sends three bytes and the private mode is one of
-         * them. Revision 239 sends TWO -- public and trade -- because the
-         * private-chat filter moved to a packet of its own: the deob's packet
-         * table has `field3058 = new class243(124, 2)`, whose handler writes
-         * only the public and trade fields (client.java:2820), beside
-         * `field2939 = new class243(5, 1)`, whose handler is the ONLY thing
-         * that writes the private filter the CS2 side reads back through
-         * chat_getfilter_private (Statics.field5072, opcode 5005).
-         *
-         * So a revision whose CHAT_FILTER_SETTINGS has no private byte marks
-         * the field absent with a negative value -- the same convention the
-         * zone headers use for a plane a revision does not send -- and the
-         * client's own copy stands. Writing the missing field through was what
-         * put "Private On" back under the player the instant after they chose
-         * Show friends, and then fed that stale 0 back to the server on their
-         * next filter change. CHAT_FILTER_SETTINGS_PRIVATECHAT arrives through
-         * this arm with only the private mode present.
-         */
-        assert(state->chat_filter_mode);
-        if( packet->_chat_filter_settings.chat_public_mode >= 0 )
-            state->chat_filter_mode[RS_UI_CHAT_FILTER_PUBLIC] =
-                packet->_chat_filter_settings.chat_public_mode;
-        if( packet->_chat_filter_settings.chat_private_mode >= 0 )
-            state->chat_filter_mode[RS_UI_CHAT_FILTER_PRIVATE] =
-                packet->_chat_filter_settings.chat_private_mode;
-        if( packet->_chat_filter_settings.chat_trade_mode >= 0 )
-            state->chat_filter_mode[RS_UI_CHAT_FILTER_TRADE] =
-                packet->_chat_filter_settings.chat_trade_mode;
-        return RS_SERVER_STATE_APPLIED;
+        return state_chat_filter_settings(state, &packet->_chat_filter_settings);
 
     /* ---- session ---- */
     case PKT_NAME_UPDATE_PID:
-        assert(state->esync);
-        state->esync->local_pid = packet->_update_pid.local_player_index;
-        return RS_SERVER_STATE_APPLIED;
+        return state_update_pid(state, &packet->_update_pid);
     case PKT_NAME_LAST_LOGIN_INFO:
-        /* The welcome rows are clientCode components RS_ClientCode_Tick
-         * refreshes off this struct; opening the screen they sit on is the
-         * client's. */
-        assert(state->session_info);
-        state->session_info->welcome.last_ip = packet->_last_login_info.last_ip;
-        state->session_info->welcome.days_since_login = packet->_last_login_info.days_since_login;
-        state->session_info->welcome.days_since_recovery =
-            packet->_last_login_info.days_since_recovery;
-        state->session_info->welcome.unread_messages = packet->_last_login_info.unread_messages;
-        state->session_info->welcome.member_warning = packet->_last_login_info.member_warning;
-        return RS_SERVER_STATE_APPLIED;
+        return state_last_login_info(state, &packet->_last_login_info);
     case PKT_NAME_UPDATE_REBOOT_TIMER:
-        /* The wire carries SERVER ticks; the countdown runs on the 20ms client
-         * cycle, so it is converted once here rather than at every read
-         * (reference `rebootTimer = g2() * 30`, where 30 is the same ratio
-         * spelled as a literal). */
-        assert(state->session_info);
-        RS_SessionInfo_SetRebootTimer(
-            state->session_info, packet->_update_reboot_timer.ticks, APP_SERVER_TICK_LOGIC_CYCLES);
-        return RS_SERVER_STATE_APPLIED;
+        return state_update_reboot_timer(state, &packet->_update_reboot_timer);
     case PKT_NAME_SET_MULTIWAY:
-        assert(state->session_info);
-        return RS_SessionInfo_SetMultiway(state->session_info, packet->_set_multiway.multiway)
-                   ? RS_SERVER_STATE_APPLIED
-                   : RS_SERVER_STATE_UNCHANGED;
+        return state_set_multiway(state, &packet->_set_multiway);
     case PKT_NAME_ENABLE_TRACKING:
-        assert(state->session_info);
-        state->session_info->tracking_enabled = 1;
-        return RS_SERVER_STATE_APPLIED;
+        return state_enable_tracking(state);
     case PKT_NAME_FINISH_TRACKING:
-        assert(state->session_info);
-        state->session_info->tracking_enabled = 0;
-        return RS_SERVER_STATE_APPLIED;
+        return state_finish_tracking(state);
     case PKT_NAME_UNKNOWN_STRING:
-        assert(state->session_info);
-        snprintf(state->session_info->unknown_string,
-                 sizeof(state->session_info->unknown_string),
-                 "%s",
-                 packet->_text.text);
-        return RS_SERVER_STATE_APPLIED;
+        return state_unknown_string(state, &packet->_text);
     case PKT_NAME_SET_WEBSITE_TOKEN:
-        assert(state->session_info);
-        snprintf(state->session_info->website_token,
-                 sizeof(state->session_info->website_token),
-                 "%s",
-                 packet->_text.text);
-        return RS_SERVER_STATE_APPLIED;
+        return state_set_website_token(state, &packet->_text);
     case PKT_NAME_SITE_SETTINGS:
-        assert(state->session_info);
-        snprintf(state->session_info->site_settings,
-                 sizeof(state->session_info->site_settings),
-                 "%s",
-                 packet->_text.text);
-        return RS_SERVER_STATE_APPLIED;
+        return state_site_settings(state, &packet->_text);
     case PKT_NAME_LOGOUT_TRANSFER:
-        /* The session moves to another world (deob client.java, the
-         * LOGOUT_TRANSFER arm: gameState 45, the socket closed, the world
-         * switched; state 45 then logs in with GAMELOGIN and the account's
-         * credentials). The move is the link watch's, at the head of the next
-         * frame (app_net_link_watch): not here, in the middle of the packet
-         * pipeline whose session it ends. */
-        TORIRS_LOG("exec: LOGOUT_TRANSFER to world %d (%s)\n", packet->_logout_transfer.world_id,
-                   packet->_logout_transfer.host);
-        assert(state->session_end);
-        SessionEnd_Hop(state->session_end, packet->_logout_transfer.world_id);
-        return RS_SERVER_STATE_APPLIED;
+        return state_logout_transfer(state, &packet->_logout_transfer);
     case PKT_NAME_UPDATE_UID192:
-        if( state_crc32(packet->_uid192.data, sizeof(packet->_uid192.data)) ==
-            (uint32_t)packet->_uid192.crc )
-            login_osrs_set_uid192(packet->_uid192.data);
-        return RS_SERVER_STATE_APPLIED;
+        return state_update_uid192(state, &packet->_uid192);
     case PKT_NAME_SET_PLAYER_OP:
-        assert(state->player_ops);
-        if( packet->_set_player_op.slot < 1 || packet->_set_player_op.slot > 5 )
-            return RS_SERVER_STATE_UNCHANGED;
-        RS_PlayerOps_Set(
-            state->player_ops,
-            packet->_set_player_op.slot - 1,
-            packet->_set_player_op.text ? packet->_set_player_op.text : "",
-            packet->_set_player_op.primary);
-        return RS_SERVER_STATE_APPLIED;
+        return state_set_player_op(state, &packet->_set_player_op);
     case PKT_NAME_SET_INTERACTION_MODE:
     case PKT_NAME_RESET_INTERACTION_MODE:
-        state_interaction_mode(
-            state,
-            &packet->_interaction_mode,
-            packet->packet_type == PKT_NAME_RESET_INTERACTION_MODE);
-        return RS_SERVER_STATE_APPLIED;
-    /* deob client.java: Statics.field2218 / field3892 / field4203 = the byte as a
-     * boolean; the world menu builders read them (rs_minimenu_world.c). */
+        return state_set_interaction_mode(state, packet);
     case PKT_NAME_HIDENPCOPS:
     case PKT_NAME_HIDELOCOPS:
     case PKT_NAME_HIDEOBJOPS:
-    {
-        bool const hidden = packet->_hide_ops.hidden != 0;
-
-        assert(state->world);
-        if( packet->packet_type == PKT_NAME_HIDENPCOPS )
-            state->world->hidden_ops.npc = hidden;
-        else if( packet->packet_type == PKT_NAME_HIDELOCOPS )
-            state->world->hidden_ops.loc = hidden;
-        else
-            state->world->hidden_ops.obj = hidden;
-        return RS_SERVER_STATE_APPLIED;
-    }
+        return state_hide_ops(state, packet);
     case PKT_NAME_HINT_ARROW:
-        /* The type and the tile anchor are folded on the way in
-         * (game/rs_hint_arrow.h), so every pass that draws it reads one form. */
-        assert(state->hint_arrow);
-        RS_HintArrow_Set(
-            state->hint_arrow,
-            packet->_hint_arrow.type,
-            packet->_hint_arrow.id,
-            packet->_hint_arrow.z,
-            packet->_hint_arrow.height);
-        return RS_SERVER_STATE_APPLIED;
+        return state_hint_arrow(state, &packet->_hint_arrow);
     case PKT_NAME_SET_NPC_UPDATE_ORIGIN:
-        assert(state->npc_update_origin);
-        RS_NpcUpdateOrigin_Set(
-            state->npc_update_origin,
-            packet->_set_npc_update_origin.x,
-            packet->_set_npc_update_origin.z);
-        return RS_SERVER_STATE_APPLIED;
+        return state_set_npc_update_origin(state, &packet->_set_npc_update_origin);
     case PKT_NAME_SET_ACTIVE_WORLD:
-    {
-        /* Points the zone/rebuild applicators at a world view until the tick
-         * fence resets it (deob class100 activeWorld). The id and level are
-         * WIRE data -- a raw g2 and a raw byte -- so a value outside the
-         * registry, a dead view, or an impossible plane is a malformed or
-         * lagging server, guarded rather than asserted: an assert-only check is
-         * an abort in debug and an OOB registry/heightmap index in the NDEBUG
-         * release lane. The deob throws here; our release build has to refuse
-         * instead. */
-        int const world_id = packet->_set_active_world.world_id;
-        int slot;
-
-        assert(state->worldviews);
-        slot = WorldviewRegistry_SlotForWire(state->worldviews, world_id);
-        if( slot == WORLDVIEW_SLOT_NONE )
-        {
-            TORIRS_LOG("exec: SET_ACTIVE_WORLD refused, world %d not live\n", world_id);
-            return RS_SERVER_STATE_UNCHANGED;
-        }
-        /* The deob snapshots the plane alongside the id, and writes it onto the
-         * addressed view itself (class100.field1400), where it outlives the
-         * tick fence's return to the root. Clamped to the heightmap's planes:
-         * it feeds height sampling. */
-        WorldviewRegistry_SetActiveWorld(
-            state->worldviews, slot, packet->_set_active_world.level);
-        return RS_SERVER_STATE_APPLIED;
-    }
+        return state_set_active_world(state, &packet->_set_active_world);
     case PKT_NAME_SERVER_TICK_END:
-        /* The fence: every packet of this tick has been applied. */
-        assert(state->server_tick);
-        assert(state->worldviews);
-        RS_ServerTick_Fence(state->server_tick);
-        /* SET_ACTIVE_WORLD only lasts until the fence: the deob resets the
-         * cursor to the root view at end-of-tick, so a tick that never re-arms
-         * it cannot leak zone updates into a boat. */
-        WorldviewRegistry_ResetActive(state->worldviews);
-        /* DRIVE_STAMP: server_tick -- a=world cycle. Every await's deadline is
-         * counted in these, and every level predicate is re-checked on one. */
-        state_stamp(
-            state, RS_EVENT_SERVER_TICK, state->events.cycle ? *state->events.cycle : 0, 0, 0, 0);
-        return RS_SERVER_STATE_APPLIED;
+        return state_server_tick_end(state);
 
     /* ---- per-player entity setters ---- */
     case PKT_NAME_ANIM_SPECIFIC:
