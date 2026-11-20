@@ -29,6 +29,7 @@
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/dat2/dat2_tasks.h"
 #include "engine/task_obj_model_load.h"
+#include "game/rs_worldmap_render.h"
 #include "game/task_entity_assets.h"
 
 bool
@@ -57,6 +58,12 @@ App_AssetResident(
         return CacheProvider_IdkHas(app->provider, key.id);
     if( key.kind == ASSET_KIND_CONFIG && key.variant >= ASSET_CONFIG_SCRIPTS_FIRST )
         return app_script_config_resident(app, key);
+    if( key.kind == ASSET_KIND_CONFIG && key.variant == ASSET_CONFIG_UNDERLAY )
+        return CacheProvider_UnderlayHas(app->provider, key.id);
+    if( key.kind == ASSET_KIND_CONFIG && key.variant == ASSET_CONFIG_FLOTYPE )
+        return CacheProvider_FlotypeHas(app->provider, key.id);
+    if( key.kind == ASSET_KIND_WORLDMAP_GEOGRAPHY )
+        return CacheProvider_WorldMapGeographyHas(app->provider, key.id);
     if( key.kind == ASSET_KIND_CONFIG )
     {
         assert(key.variant == ASSET_CONFIG_OBJ);
@@ -101,6 +108,39 @@ asset_resident_at_end(
     return App_AssetResident((struct App*)data, key);
 }
 
+/* A region's tiles: the compositemap records of its area that land on it,
+ * found again from the key (which carries the area id and the region). NULL
+ * when the world map is not loaded, the area is gone or nothing lands there
+ * -- a failed attempt. */
+static struct ToriRS_Task*
+app_worldmap_geography_load(
+    struct App* app,
+    int key)
+{
+    struct ToriRS_WorldMapAreas* areas = CacheProvider_WorldMapGet(app->provider);
+    struct ToriRS_WorldMapRegionSource sources[64];
+    int const area_id = (int)(((uint32_t)key >> 24) & 0xFFu);
+    int const region_x = (key >> 12) & 0xFFF;
+    int const region_y = key & 0xFFF;
+
+    for( int i = 0; areas && i < areas->count; i++ )
+    {
+        struct ToriRS_WorldMapArea const* area = &areas->areas[i];
+        int count;
+
+        if( (area->id & 0xFF) != area_id )
+            continue;
+        if( CacheProvider_WorldMapGeographyKey(area->id, region_x, region_y) != key )
+            continue;
+        count = RS_WorldMapRender_RegionSources(
+            area, region_x, region_y, sources, (int)(sizeof(sources) / sizeof(sources[0])));
+        if( count == 0 )
+            return NULL;
+        return CreateTask_WorldMapGeographyLoad(app->provider, key, sources, count);
+    }
+    return NULL;
+}
+
 static enum AssetStart
 asset_start_leaf(
     void* data,
@@ -127,6 +167,12 @@ asset_start_leaf(
         child = CreateTask_IdkLoad(app->provider, key.id);
     else if( key.kind == ASSET_KIND_CONFIG && key.variant >= ASSET_CONFIG_SCRIPTS_FIRST )
         child = app_script_config_load(app, key);
+    else if( key.kind == ASSET_KIND_CONFIG && key.variant == ASSET_CONFIG_UNDERLAY )
+        child = CreateTask_UnderlayLoad(app->provider, key.id);
+    else if( key.kind == ASSET_KIND_CONFIG && key.variant == ASSET_CONFIG_FLOTYPE )
+        child = CreateTask_FlotypeLoad(app->provider, key.id);
+    else if( key.kind == ASSET_KIND_WORLDMAP_GEOGRAPHY )
+        child = app_worldmap_geography_load(app, key.id);
     else if( key.kind == ASSET_KIND_CONFIG )
         child = CreateTask_ObjLoad(app->provider, key.id);
     else if( key.kind == ASSET_KIND_MUSIC )
@@ -180,7 +226,7 @@ App_AssetsInit(struct App* app)
     static enum AssetKind const leaves[] = {
         ASSET_KIND_MODEL,    ASSET_KIND_TEXTURE, ASSET_KIND_SPRITE, ASSET_KIND_SEQUENCE,
         ASSET_KIND_IF_GROUP, ASSET_KIND_SOUND,   ASSET_KIND_MUSIC,  ASSET_KIND_SKYBOX,
-        ASSET_KIND_OBJ_MODEL, ASSET_KIND_SPOTANIM, ASSET_KIND_CONFIG,
+        ASSET_KIND_OBJ_MODEL, ASSET_KIND_SPOTANIM, ASSET_KIND_CONFIG, ASSET_KIND_WORLDMAP_GEOGRAPHY,
     };
 
     assert(app);

@@ -694,18 +694,18 @@ ui_service_worldmap_poll(
     if( !area && !(area_id == EDITOR_UI_MAP_AREA_ALL && app->provider && CacheProvider_WorldMapGet(app->provider)) )
         return -1;
     if( !app_mapeditor_state(app)->wells.worldmap )
-        app_mapeditor_state(app)->wells.worldmap = RS_WorldMapOverview_New();
+        app_mapeditor_state(app)->wells.worldmap = RS_WorldMapOverview_New(app->assets);
     window.square_x0 = square_x0;
     window.square_z0 = square_z0;
     window.squares_w = squares_w;
     window.squares_h = squares_h;
     clock_gettime(CLOCK_MONOTONIC, &poll_t0);
     if( area_id == EDITOR_UI_MAP_AREA_ALL )
-        *out_missing = RS_WorldMapOverview_PollAll(app_mapeditor_state(app)->wells.worldmap, app->provider, app->scene, app->frame_runner.queue,
+        *out_missing = RS_WorldMapOverview_PollAll(app_mapeditor_state(app)->wells.worldmap, app->provider, app->scene,
             UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPSCENE),
             CacheProvider_WorldMapGet(app->provider), &window, px_per_square);
     else
-        *out_missing = RS_WorldMapOverview_Poll(app_mapeditor_state(app)->wells.worldmap, app->provider, app->scene, app->frame_runner.queue,
+        *out_missing = RS_WorldMapOverview_Poll(app_mapeditor_state(app)->wells.worldmap, app->provider, app->scene,
             UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPSCENE), area, &window,
             px_per_square);
     /* TORIRS_WORLDMAP_STATS=1: how long a window takes to arrive, from its
@@ -754,7 +754,7 @@ ui_service_worldmap_render_tile(
     if( !area && !(area_id == EDITOR_UI_MAP_AREA_ALL && app->provider && CacheProvider_WorldMapGet(app->provider)) )
         return 0;
     if( !app_mapeditor_state(app)->wells.worldmap )
-        app_mapeditor_state(app)->wells.worldmap = RS_WorldMapOverview_New();
+        app_mapeditor_state(app)->wells.worldmap = RS_WorldMapOverview_New(app->assets);
     tile.pixels_per_square = px_per_square;
     tile.pixel_x0 = pixel_x0;
     tile.pixel_y0 = pixel_y0;

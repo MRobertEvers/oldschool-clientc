@@ -16,6 +16,14 @@
  *     Task_ClientTriggerSubject queued in front of it.
  *   - The npc multi-resolve reads each rung's config through the assets table
  *     (ASSET_CONFIG_NPC): two resolves of one type load it once.
+ *   - The world map renderer (game/rs_worldmap_render.c) wants a region's
+ *     tiles (ASSET_KIND_WORLDMAP_GEOGRAPHY), its floors (CONFIG UNDERLAY /
+ *     FLOTYPE) and its locs (CONFIG LOC) from the assets table: one load per
+ *     asset however many frames ask while it is in flight, a load that came
+ *     back empty asked for again only after the table's back-off, and the
+ *     frame's load allowance still spent only by loads it started. Its own
+ *     request table (asked-for ids and the frame each was asked on, retried
+ *     after 120 frames) is gone.
  *
  * Run: make -C src test-app-trackers
  */
@@ -27,6 +35,7 @@
 #include "engine/uitree_scene_bridge.h"
 #include "game/rs_clientop.h"
 #include "game/task_cs2_run.h"
+#include "game/rs_worldmap_render.h"
 #include "game/task_entity_assets.h"
 #include "mem/torirs_mem.h"
 #include "net/rev/packets/pkt_player_appearance.h"
@@ -335,6 +344,133 @@ test_script_carries_its_subject(void)
     CacheProvider_FreeEngineCaches(&provider);
 }
 
+/* ---- the world map's wants ---------------------------------------------- */
+
+static struct CacheProvider* g_wm_provider;
+
+static bool
+wm_resident(
+    void* data,
+    struct AssetKey key)
+{
+    (void)data;
+    if( key.kind == ASSET_KIND_WORLDMAP_GEOGRAPHY )
+        return CacheProvider_WorldMapGeographyHas(g_wm_provider, key.id);
+    if( key.kind == ASSET_KIND_TEXTURE )
+        return CacheProvider_TextureHas(g_wm_provider, key.id);
+    if( key.variant == ASSET_CONFIG_UNDERLAY )
+        return CacheProvider_UnderlayHas(g_wm_provider, key.id);
+    if( key.variant == ASSET_CONFIG_FLOTYPE )
+        return CacheProvider_FlotypeHas(g_wm_provider, key.id);
+    assert(key.variant == ASSET_CONFIG_LOC);
+    return CacheProvider_LocationHas(g_wm_provider, key.id);
+}
+
+static int
+wm_frame(
+    struct RS_WorldMapRender* render,
+    struct ToriDraw_Scene* scene,
+    struct ToriRS_WorldMapArea const* area)
+{
+    int size = 0;
+    RS_WorldMapRender_BeginFrame(render);
+    return RS_WorldMapRender_RegionSprite(render, g_wm_provider, scene, area, 0, 0, 1, &size, NULL);
+}
+
+static void
+test_worldmap_wants_through_the_table(void)
+{
+    struct CacheProvider provider;
+    struct CacheProviderVTable vtable;
+    struct Assets* assets = Assets_New();
+    struct AssetLoader loader = { fake_start, wm_resident, NULL };
+    struct ToriRS_WorldMapRegionSource source;
+    struct ToriRS_WorldMapArea area;
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    struct RS_WorldMapRender* render;
+    struct RSCache_WorldMapGeography* geography;
+    int const key = CacheProvider_WorldMapGeographyKey(0, 0, 0);
+
+    printf("TEST: the world map wants its tiles, floors and locs from the assets table\n");
+    memset(&g_loads, 0, sizeof(g_loads));
+    memset(&provider, 0, sizeof(provider));
+    memset(&vtable, 0, sizeof(vtable));
+    provider.vtable = &vtable;
+    CacheProvider_InitEngineCaches(&provider);
+    g_wm_provider = &provider;
+    Assets_SetLoader(assets, ASSET_KIND_WORLDMAP_GEOGRAPHY, &loader);
+    Assets_SetLoader(assets, ASSET_KIND_CONFIG, &loader);
+    Assets_SetLoader(assets, ASSET_KIND_TEXTURE, &loader);
+    Assets_SetClock(assets, 1000);
+    memset(&source, 0, sizeof(source));
+    source.planes = 1;
+    memset(&area, 0, sizeof(area));
+    area.region_sources = &source;
+    area.region_source_count = 1;
+    render = RS_WorldMapRender_New(assets);
+
+    /* No tiles: wanted once, not again while they load. */
+    TEST_ASSERT(wm_frame(render, scene, &area) == -1, "nothing to draw yet");
+    TEST_ASSERT(loads_of(ASSET_KIND_WORLDMAP_GEOGRAPHY, key, 0) == 1, "the tiles are wanted");
+    TEST_ASSERT(wm_frame(render, scene, &area) == -1, "still nothing");
+    TEST_ASSERT(loads_of(ASSET_KIND_WORLDMAP_GEOGRAPHY, key, 0) == 1, "and not asked for twice in flight");
+
+    /* The read comes back empty: asked again only after the back-off. */
+    Assets_Finished(assets, AssetKey_Make(ASSET_KIND_WORLDMAP_GEOGRAPHY, key, 0), false);
+    (void)wm_frame(render, scene, &area);
+    TEST_ASSERT(loads_of(ASSET_KIND_WORLDMAP_GEOGRAPHY, key, 0) == 1, "not inside the back-off");
+    Assets_SetClock(assets, 1600);
+    (void)wm_frame(render, scene, &area);
+    TEST_ASSERT(loads_of(ASSET_KIND_WORLDMAP_GEOGRAPHY, key, 0) == 2, "asked again after it");
+
+    /* The tiles land, naming a floor and a loc that are not resident. */
+    geography = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*geography));
+    assert(geography);
+    geography->planes = 1;
+    geography->underlay[0] = 6; /* floor 5, stored +1 */
+    geography->decor[0][1].items = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(struct RSCache_WorldMapDecor));
+    assert(geography->decor[0][1].items);
+    geography->decor[0][1].count = 1;
+    geography->decor[0][1].capacity = 1;
+    geography->decor[0][1].items[0].loc_id = 77;
+    CacheProvider_WorldMapGeographyAdd(&provider, key, geography);
+    Assets_Finished(assets, AssetKey_Make(ASSET_KIND_WORLDMAP_GEOGRAPHY, key, 0), true);
+    TEST_ASSERT(wm_frame(render, scene, &area) == -1, "the region waits for its floors");
+    TEST_ASSERT(loads_of(ASSET_KIND_CONFIG, 5, ASSET_CONFIG_UNDERLAY) == 1, "the floor is wanted");
+    TEST_ASSERT(loads_of(ASSET_KIND_CONFIG, 77, ASSET_CONFIG_LOC) == 1, "and the loc");
+    (void)wm_frame(render, scene, &area);
+    TEST_ASSERT(loads_of(ASSET_KIND_CONFIG, 5, ASSET_CONFIG_UNDERLAY) == 1 &&
+                    loads_of(ASSET_KIND_CONFIG, 77, ASSET_CONFIG_LOC) == 1,
+        "neither twice while in flight");
+
+    /* The frame's allowance counts loads started, nothing else. */
+    Assets_Finished(assets, AssetKey_Make(ASSET_KIND_CONFIG, 5, ASSET_CONFIG_UNDERLAY), false);
+    Assets_Finished(assets, AssetKey_Make(ASSET_KIND_CONFIG, 77, ASSET_CONFIG_LOC), false);
+    RS_WorldMapRender_SetFrameBudget(render, 6, 1);
+    (void)wm_frame(render, scene, &area);
+    TEST_ASSERT(loads_of(ASSET_KIND_CONFIG, 5, ASSET_CONFIG_UNDERLAY) +
+                        loads_of(ASSET_KIND_CONFIG, 77, ASSET_CONFIG_LOC) ==
+                    3,
+        "one load a frame under an allowance of one");
+    (void)wm_frame(render, scene, &area);
+    TEST_ASSERT(loads_of(ASSET_KIND_CONFIG, 5, ASSET_CONFIG_UNDERLAY) == 2 &&
+                    loads_of(ASSET_KIND_CONFIG, 77, ASSET_CONFIG_LOC) == 2,
+        "the other on the next");
+
+    /* The decor list is the test's allocation (ToriMem), not rscache's: freed
+     * here before the provider frees the rest. */
+    geography = CacheProvider_WorldMapGeographyGet(&provider, key);
+    assert(geography);
+    ToriMem_Free(ToriMem_Assets(), geography->decor[0][1].items);
+    geography->decor[0][1].items = NULL;
+    geography->decor[0][1].count = 0;
+    RS_WorldMapRender_Clear(render, scene);
+    RS_WorldMapRender_Free(render);
+    Assets_Free(assets);
+    ToriDraw_SceneFree(scene);
+    CacheProvider_FreeEngineCaches(&provider);
+}
+
 int
 main(void)
 {
@@ -342,6 +478,7 @@ main(void)
     test_player_body_resident_wants_nothing();
     test_npc_resolve_reads_through_the_table();
     test_script_carries_its_subject();
+    test_worldmap_wants_through_the_table();
     if( g_failures )
     {
         printf("app_trackers: %d failure(s)\n", g_failures);

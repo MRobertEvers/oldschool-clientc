@@ -13,7 +13,10 @@
  * land), InvIconRetry (the doubling wait, one pass in flight, a lift that
  * keeps the wait), and the music guard (one loader of the kind, the older
  * song never installed). And what an awaiting task learns when its join drops
- * (Assets_AwaitOutcome).
+ * (Assets_AwaitOutcome). And the lo-tables step's kinds: the world map's
+ * region tiles (WORLDMAP_GEOGRAPHY, back-off forever, in place of its own
+ * request table's two-second re-ask) and the floor configs it colours with
+ * (CONFIG UNDERLAY / FLOTYPE, their own ids beside every other config's).
  *
  * Run: make -C src test-asset-requests
  */
@@ -737,6 +740,57 @@ test_configs_one_read(void)
     Assets_Free(assets);
 }
 
+/* The world map's request table (rs_worldmap_render.c): an id asked for
+ * once while in flight, asked again after a read that came back empty, never
+ * given up on. A region's tiles are WORLDMAP_GEOGRAPHY under a back-off; the
+ * floors are configs of their own variants (an underlay 5 is no flotype 5 and
+ * no loc 5). */
+static void
+test_worldmap_kinds(void)
+{
+    struct FakeLoader fake;
+    struct Assets* assets = table_with(ASSET_KIND_WORLDMAP_GEOGRAPHY, &fake);
+    struct AssetKey const tiles = AssetKey_Make(ASSET_KIND_WORLDMAP_GEOGRAPHY, (1 << 24) | (50 << 12) | 50, 0);
+    struct AssetPolicy const* policy = Assets_Policy(ASSET_KIND_WORLDMAP_GEOGRAPHY);
+    struct FakeLoader configs;
+    struct AssetLoader config_loader = { fake_start, fake_resident, &configs };
+
+    TEST_ASSERT(policy->fail == ASSET_FAIL_BACKOFF, "a region's tiles are retried, never given up");
+    TEST_ASSERT(policy->backoff_first_ms == 500 && policy->backoff_max_ms == 4000, "500 ms doubling to 4 s");
+    Assets_SetClock(assets, 10000);
+    TEST_ASSERT(Assets_Due(assets, tiles), "never asked: due");
+    TEST_ASSERT(Assets_Want(assets, tiles, NULL) == ASSET_STATE_LOADING, "wanted: loading");
+    TEST_ASSERT(!Assets_Due(assets, tiles), "in flight: not due");
+    TEST_ASSERT(Assets_Want(assets, tiles, NULL) == ASSET_STATE_LOADING && fake.start_count == 1,
+        "a second frame's want shares the load");
+    Assets_Finished(assets, tiles, false);
+    TEST_ASSERT(Assets_State(assets, tiles) == ASSET_STATE_WANTED, "an empty read is kept, wanted");
+    Assets_SetClock(assets, 10499);
+    TEST_ASSERT(!Assets_Due(assets, tiles), "not due inside the first pause");
+    Assets_SetClock(assets, 10500);
+    TEST_ASSERT(Assets_Due(assets, tiles), "due after it");
+    (void)Assets_Want(assets, tiles, NULL);
+    TEST_ASSERT(fake.start_count == 2, "and asked again");
+    Assets_Finished(assets, tiles, false);
+    Assets_SetClock(assets, 11400);
+    TEST_ASSERT(!Assets_Due(assets, tiles), "the second pause is doubled");
+    Assets_SetClock(assets, 11500);
+    TEST_ASSERT(Assets_Due(assets, tiles), "1000 ms");
+    (void)Assets_Want(assets, tiles, NULL);
+    Assets_Finished(assets, tiles, true);
+    TEST_ASSERT(Assets_State(assets, tiles) == ASSET_STATE_NONE, "landed: no entry, asked at once next time");
+
+    memset(&configs, 0, sizeof(configs));
+    configs.answer = ASSET_START_LOADING;
+    Assets_SetLoader(assets, ASSET_KIND_CONFIG, &config_loader);
+    (void)Assets_Want(assets, AssetKey_Make(ASSET_KIND_CONFIG, 5, ASSET_CONFIG_UNDERLAY), NULL);
+    (void)Assets_Want(assets, AssetKey_Make(ASSET_KIND_CONFIG, 5, ASSET_CONFIG_FLOTYPE), NULL);
+    (void)Assets_Want(assets, AssetKey_Make(ASSET_KIND_CONFIG, 5, ASSET_CONFIG_LOC), NULL);
+    (void)Assets_Want(assets, AssetKey_Make(ASSET_KIND_CONFIG, 5, ASSET_CONFIG_UNDERLAY), NULL);
+    TEST_ASSERT(configs.start_count == 3, "underlay 5, flotype 5 and loc 5 are three reads, the repeat none");
+    Assets_Free(assets);
+}
+
 /* AsyncPendingSeqBinds kept duplicates on purpose: the same element bound
  * twice (re-bound at a later cycle) is two binds, and both land. */
 static void
@@ -886,6 +940,7 @@ main(void)
     test_land_one_or_all();
     test_drop_waiters();
     test_configs_one_read();
+    test_worldmap_kinds();
     test_same_waiter_twice_lands_twice();
     test_growth();
     test_await_outcome();

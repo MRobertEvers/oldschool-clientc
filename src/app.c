@@ -547,7 +547,7 @@ App_Init(
     app->ground_items_dirty.count = 0;
     app->ground_items_dirty.refresh_all = 0;
     RS_GroundItemsSettings_Reset(&app->ground_items_settings);
-    RS_WorldMapSurface_Init(&app->worldmap, RS_WorldMapRender_New());
+    RS_WorldMapSurface_Init(&app->worldmap, RS_WorldMapRender_New(app->assets));
     MinimapView_Reset(&app->minimap);
     /*
      * The plugin host.
