@@ -248,6 +248,11 @@ check_duplicate_animation_registration_keeps_the_first(void)
  * Negative controls, both verified: drop the original_vertices copy out of
  * ToriDraw_ModelCopy and the first three CHECKs fail; drop the capture out of
  * ToriDraw_SceneElementSetModel and the last one fails.
+ *
+ * Since ef1a116c3 SetModel captures only for an element that is already
+ * animated (capturing for every mounted model cost 3.3 MB a region), and the
+ * element captures when it becomes animated; between them an element still
+ * cannot hold an unresettable model, and that is what is checked.
  */
 static void
 check_a_copied_model_keeps_its_bind_pose(void)
@@ -255,6 +260,7 @@ check_a_copied_model_keeps_its_bind_pose(void)
     struct ToriDraw_Model* src = ToriDraw_ModelNew(2, 0, 0);
     struct ToriDraw_Model* copy;
     struct ToriDraw_Model* uncaptured;
+    struct ToriDraw_Model* swapped;
     struct ToriDraw_Scene* scene;
     struct ToriDraw_ModelHandle hnd;
     int element_id;
@@ -319,10 +325,32 @@ check_a_copied_model_keeps_its_bind_pose(void)
     element_id = ToriDraw_SceneElementAdd(scene);
     ToriDraw_SceneElementSetModel(scene, element_id, hnd);
     CHECK(
+        !uncaptured->original_vertices_x,
+        "a model mounted on an element nothing animates is not captured yet");
+    ToriDraw_SceneElementSetAnimationSeq(scene, element_id, 1);
+    CHECK(
         uncaptured->original_vertices_x && uncaptured->original_vertices_y &&
             uncaptured->original_vertices_y[0] == 77,
-        "mounting a model with no bind pose captures one, so no element can hold "
-        "a model whose AnimateReset is a no-op");
+        "the element becoming animated captures its model's bind pose");
+
+    /* The QBD's order: a model swapped under the live animation. */
+    swapped = ToriDraw_ModelNew(2, 0, 0);
+    CHECK(swapped != NULL, "swapped model allocation");
+    if( swapped )
+    {
+        swapped->vertices_x = calloc(2, sizeof(vertexint_t));
+        swapped->vertices_y = calloc(2, sizeof(vertexint_t));
+        swapped->vertices_z = calloc(2, sizeof(vertexint_t));
+        assert(swapped->vertices_y);
+        swapped->vertices_y[0] = 55;
+        hnd.u.model.model = swapped;
+        ToriDraw_SceneElementSetModel(scene, element_id, hnd);
+        CHECK(
+            swapped->original_vertices_x && swapped->original_vertices_y &&
+                swapped->original_vertices_y[0] == 55,
+            "mounting a model under a live animation captures its bind pose, so no element "
+            "can hold a model whose AnimateReset is a no-op");
+    }
 
     ToriDraw_SceneFree(scene);
 }
