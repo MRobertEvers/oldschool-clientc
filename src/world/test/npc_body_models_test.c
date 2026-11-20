@@ -317,6 +317,101 @@ test_recolours_and_retextures(void)
     TEST_ASSERT(scene_live_blocks() == before, "nothing is left on the scene group");
 }
 
+/* FREEZE (entity_freeze.h): a window stops the pose and the sequence from
+ * stepping and draws the tracks as it began; its reset byte stops the live
+ * sequence while the drawing keeps it; a window that is over is reused; a
+ * cancel drops every window and draws the live tracks again; the windows go
+ * with the row. */
+static int
+freeze_frames(void* userdata, int seq_id)
+{
+    (void)userdata;
+    (void)seq_id;
+    return 50;
+}
+
+static int
+freeze_duration(void* userdata, int seq_id, int frame)
+{
+    (void)userdata;
+    (void)seq_id;
+    (void)frame;
+    return 1;
+}
+
+static int
+freeze_loops(void* userdata, int seq_id)
+{
+    (void)userdata;
+    (void)seq_id;
+    return 99;
+}
+
+static void
+test_freeze_windows(void)
+{
+    intptr_t before = scene_live_blocks();
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int ni = World_NpcSpawn(world, 7, 1234, 0, 20, 20, 1, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+    struct WorldEntityFacet_Animation const* drawn;
+    int primary_frame;
+    int secondary_frame;
+
+    printf("TEST: a freeze window holds the tracks and draws them as it began\n");
+    world->seq_source.frame_count = freeze_frames;
+    world->seq_source.frame_duration = freeze_duration;
+    world->seq_source.max_loops = freeze_loops;
+    npc->animation.secondary.anim_id = (uint16_t)idle.readyanim;
+    World_NpcSetPrimaryAnimation(world, ni, 500, 0);
+    World_Cycle(world, 3);
+    TEST_ASSERT(npc->animation.primary.anim_id == 500 && npc->animation.primary.frame > 0, "the sequence plays");
+    TEST_ASSERT(World_EntityDrawnAnimation(&npc->animation, &npc->freeze) == &npc->animation,
+        "unfrozen, the live tracks are drawn");
+
+    World_NpcFreeze(world, ni, 1, 4, false);
+    World_Cycle(world, 1);
+    TEST_ASSERT(npc->freeze.frozen, "the window covers the cycle it starts on");
+    primary_frame = npc->animation.primary.frame;
+    secondary_frame = npc->animation.secondary.frame;
+    World_Cycle(world, 2);
+    TEST_ASSERT(npc->animation.primary.frame == primary_frame, "the sequence holds");
+    TEST_ASSERT(npc->animation.secondary.frame == secondary_frame, "and so does the pose");
+    drawn = World_EntityDrawnAnimation(&npc->animation, &npc->freeze);
+    TEST_ASSERT(drawn != &npc->animation && drawn->primary.anim_id == 500, "the snapshot is drawn");
+    World_Cycle(world, 3);
+    TEST_ASSERT(!npc->freeze.frozen, "past its end the freeze is over");
+    TEST_ASSERT(npc->animation.primary.frame > primary_frame, "and the sequence steps again");
+
+    /* The reset byte: the live sequence stops as the window starts, and the
+     * drawing keeps the frame it froze on. The window that was over is
+     * reused. */
+    World_NpcFreeze(world, ni, 1, 5, true);
+    TEST_ASSERT(npc->freeze.count == 1, "a window that is over is reused");
+    World_Cycle(world, 1);
+    TEST_ASSERT(npc->animation.primary.anim_id == (uint16_t)-1, "the reset stops the live sequence");
+    drawn = World_EntityDrawnAnimation(&npc->animation, &npc->freeze);
+    TEST_ASSERT(drawn->primary.anim_id == 500, "while the frozen drawing keeps it");
+
+    /* Two open windows, then the cancel (65535): all go, the live tracks
+     * draw, and its reset stops a sequence set meanwhile. */
+    World_NpcFreeze(world, ni, 2, 40, false);
+    TEST_ASSERT(npc->freeze.count == 2, "an open window is not reused");
+    World_NpcSetPrimaryAnimation(world, ni, 501, 0);
+    World_NpcFreeze(world, ni, -1, -1, true);
+    TEST_ASSERT(npc->freeze.count == 0 && !npc->freeze.frozen, "a cancel drops every window");
+    TEST_ASSERT(npc->animation.primary.anim_id == (uint16_t)-1, "and its reset stops the sequence");
+    TEST_ASSERT(World_EntityDrawnAnimation(&npc->animation, &npc->freeze) == &npc->animation,
+        "the live tracks are drawn again");
+
+    World_NpcFreeze(world, ni, 0, 9, false);
+    World_NpcDespawn(world, ni);
+    World_EventsClear(world);
+    World_Free(world);
+    TEST_ASSERT(scene_live_blocks() == before, "the windows go with the row");
+}
+
 int
 main(void)
 {
@@ -324,6 +419,7 @@ main(void)
     test_replace_and_reuse();
     test_despawn_and_free();
     test_recolours_and_retextures();
+    test_freeze_windows();
     if( g_failures )
     {
         fprintf(stderr, "%d failure(s)\n", g_failures);

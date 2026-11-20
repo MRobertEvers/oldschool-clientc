@@ -13,6 +13,9 @@
 #include <string.h>
 #include "log/torirs_log.h"
 
+static void
+world_freeze_free(struct WorldEntityFreeze* f);
+
 #define WORLD_PROJECTILE_ANGLE_TO_RAD 0.02454369
 #define WORLD_PROJECTILE_ANGLE_TO_RPI2048 325.949
 
@@ -67,6 +70,9 @@ World_Free(struct World* world)
         struct WorldEntity_NPC* npc = World_EntityPoolAt(&world->entities.npc, ni);
         World_NpcOverridesFree(npc);
     }
+    for( int pi = World_EntityPoolHead(&world->entities.player); pi != WORLD_ENTITY_NIL;
+         pi = World_EntityPoolNext(&world->entities.player, pi) )
+        world_freeze_free(&((struct WorldEntity_Player*)World_EntityPoolAt(&world->entities.player, pi))->freeze);
     World_EntityListFree(&world->entities);
     for( int i = 0; i < world->scenery_info.count; i++ )
         ToriMem_Free(ToriMem_Scene(), world->scenery_info.entries[i]);
@@ -1219,6 +1225,7 @@ World_PlayerDespawn(
 
     struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     World_EmitEntityRemoved(world, player->element_id);
+    world_freeze_free(&player->freeze);
     World_EntityPoolRelease(pool, idx);
 }
 
@@ -1304,6 +1311,7 @@ World_NpcDespawn(
         World_NpcOverridesFree(npc);
     npc->body_custom = (struct WorldNpcOverride){ 0 };
     npc->head_custom = (struct WorldNpcOverride){ 0 };
+    npc->freeze = (struct WorldEntityFreeze){ 0 };
     World_EntityPoolRelease(pool, idx);
 }
 
@@ -3649,6 +3657,13 @@ world_override_free(struct WorldNpcOverride* o)
     *o = (struct WorldNpcOverride){ 0 };
 }
 
+static void
+world_freeze_free(struct WorldEntityFreeze* f)
+{
+    ToriMem_Free(ToriMem_Scene(), f->windows);
+    *f = (struct WorldEntityFreeze){ 0 };
+}
+
 void
 World_NpcOverridesFree(struct WorldEntity_NPC* npc)
 {
@@ -3656,6 +3671,107 @@ World_NpcOverridesFree(struct WorldEntity_NPC* npc)
         return;
     world_override_free(&npc->body_custom);
     world_override_free(&npc->head_custom);
+    world_freeze_free(&npc->freeze);
+}
+
+static void
+world_stop_primary(struct WorldEntityFacet_Animation* anim)
+{
+    anim->primary.anim_id = (uint16_t)-1;
+    anim->primary.frame = 0;
+    anim->primary.cycle = 0;
+    anim->primary.loop = 0;
+    anim->primary.delay = 0;
+}
+
+static void
+world_freeze_set(
+    struct World* world,
+    struct WorldEntityFreeze* f,
+    struct WorldEntityFacet_Animation* anim,
+    int delay,
+    int duration,
+    bool reset)
+{
+    int const now = (int)world->cycle;
+    int start;
+    int end;
+
+    if( delay < 0 || duration < 0 )
+    {
+        /* method3627, then method3498 for the reset byte. The reference
+         * leaves its frozen flag to the next step, drawing no snapshot until
+         * then; the live tracks are drawn here at once. */
+        f->count = 0;
+        f->frozen = false;
+        if( reset )
+            world_stop_primary(anim);
+        return;
+    }
+    start = now + delay;
+    end = start + duration;
+    /* A window that is over is reused (class431.method9827). */
+    for( int i = 0; i < f->count; i++ )
+    {
+        struct WorldFreezeWindow* w = &f->windows[i];
+        if( !(now >= w->start_cycle && now < w->end_cycle) && now >= w->end_cycle )
+        {
+            w->start_cycle = start;
+            w->end_cycle = end;
+            w->reset_seq = reset;
+            return;
+        }
+    }
+    if( f->count == f->cap )
+    {
+        int cap = f->cap ? f->cap * 2 : 4;
+        f->windows = ToriMem_Realloc(ToriMem_Scene(), f->windows, (size_t)cap * sizeof(*f->windows));
+        assert(f->windows);
+        f->cap = cap;
+    }
+    f->windows[f->count++] = (struct WorldFreezeWindow){
+        .start_cycle = start, .end_cycle = end, .seen_cycle = 0, .reset_seq = reset
+    };
+}
+
+void
+World_NpcFreeze(
+    struct World* world,
+    int idx,
+    int delay,
+    int duration,
+    bool reset)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.npc;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
+    world_freeze_set(world, &npc->freeze, &npc->animation, delay, duration, reset);
+}
+
+void
+World_PlayerFreeze(
+    struct World* world,
+    int idx,
+    int delay,
+    int duration,
+    bool reset)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.player;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
+    world_freeze_set(world, &player->freeze, &player->animation, delay, duration, reset);
+}
+
+struct WorldEntityFacet_Animation const*
+World_EntityDrawnAnimation(
+    struct WorldEntityFacet_Animation const* anim,
+    struct WorldEntityFreeze const* freeze)
+{
+    assert(anim);
+    assert(freeze);
+    return freeze->frozen ? &freeze->drawn : anim;
 }
 
 /* Replace `o` with a copy of `in` (NULL: none). Every array as many as the

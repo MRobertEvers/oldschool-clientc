@@ -763,6 +763,43 @@ test_player_reset_clears_tint_transparency_facing(void)
     fixture_free(&f);
 }
 
+/* PLAYER_INFO FREEZE (0x80000 at rev 239): a window on the player; 65535 is
+ * the cancel, and its reset stops the sequence. */
+static void
+test_player_freeze(void)
+{
+    struct Fixture f;
+    struct RsprotInfoOp first[3];
+    struct RsprotInfoOp second[2];
+    struct WorldEntity_Player* player;
+    int idx = -1;
+
+    fixture_init(&f);
+    first[0] = op_value(RSPROT_OP_ADD_NEW, 11);
+    first[1] = op_value(RSPROT_OP_SEQUENCE, 0);
+    first[1].sequence.sequence_id = 700;
+    first[2] = op_value(RSPROT_OP_FREEZE, 0);
+    first[2].freeze.delay = 5;
+    first[2].freeze.duration = 20;
+    first[2].freeze.cancel = 0;
+    RS_EntityApply_PlayerInfo(&f.in, first, 3);
+    RS_EntitySync_FindPlayer(&f.esync, 11, &idx, NULL);
+    player = World_EntityPoolGet(&f.world->entities.player, idx);
+    CHECK(player && player->freeze.count == 1 && player->freeze.windows[0].start_cycle == (int)f.world->cycle + 5 &&
+              player->freeze.windows[0].end_cycle == (int)f.world->cycle + 25 && !player->freeze.windows[0].reset_seq,
+        "a freeze window on the player");
+    second[0] = op_value(RSPROT_OP_ADD_OLD, 0);
+    second[1] = op_value(RSPROT_OP_FREEZE, 0);
+    second[1].freeze.delay = 65535;
+    second[1].freeze.duration = 65535;
+    second[1].freeze.cancel = 1;
+    RS_EntityApply_PlayerInfo(&f.in, second, 2);
+    player = World_EntityPoolGet(&f.world->entities.player, idx);
+    CHECK(player->freeze.count == 0, "65535 cancels it");
+    CHECK(player->animation.primary.anim_id == (uint16_t)-1, "and its reset stops the sequence");
+    fixture_free(&f);
+}
+
 int
 main(void)
 {
@@ -777,6 +814,7 @@ main(void)
     test_player_name_extras_and_reset();
     test_npc_body_and_head_custom();
     test_player_reset_clears_tint_transparency_facing();
+    test_player_freeze();
     printf("rs_entity_apply_test: %d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }

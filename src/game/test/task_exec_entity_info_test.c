@@ -1237,6 +1237,62 @@ test_npc_body_custom_mirror_and_player(void)
     fixture_free(&fx);
 }
 
+/* E12 FREEZE, decoded: osrs242's npc freeze block (flag 0x8: g2_21_add128
+ * delay, g2_21 duration, g1 reset) opens a window in the world; 65535 is the
+ * cancel. */
+static int
+e12_npc_info_freeze(
+    uint8_t* out,
+    int cap,
+    int delay,
+    int duration,
+    int reset)
+{
+    RsprotBuf b;
+
+    rsprot_buf_wrap(&b, out, cap);
+    rsprot_p1(&b, 0x01);
+    rsprot_p1(&b, 0x9F);
+    rsprot_p1(&b, 0xFF);
+    rsprot_p1(&b, 0xE0);
+    rsprot_p1(&b, 0x08);
+    rsprot_p2_21_add128(&b, delay);
+    rsprot_p2_21(&b, duration);
+    rsprot_p1(&b, reset);
+    TEST_ASSERT(b.err == 0, "the packet fits its buffer");
+    return b.wpos;
+}
+
+static void
+test_npc_freeze_reaches_the_world(void)
+{
+    static uint8_t packet[32];
+    static struct ToriRS_Network net242;
+    struct EntityFixture fx;
+    struct WorldEntity_NPC* npc;
+    int len;
+    int now;
+
+    printf("TEST: an NPC_INFO freeze opens a window; 65535 cancels\n");
+    net242.rev = GameProtoRev_OSRS242();
+    fixture_init(&fx);
+    fx.app.net = &net242;
+    register_npc(&fx.app, 301, 500, 6, 30, 30);
+    now = (int)fx.app.world->cycle;
+    len = e12_npc_info_freeze(packet, (int)sizeof(packet), 30, 90, 1);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && npc->freeze.count == 1, "one window");
+    TEST_ASSERT(npc && npc->freeze.count == 1 && npc->freeze.windows[0].start_cycle == now + 30 &&
+                    npc->freeze.windows[0].end_cycle == now + 120 && npc->freeze.windows[0].reset_seq,
+        "from the cycle plus the delay, for the duration, with its reset");
+    len = e12_npc_info_freeze(packet, (int)sizeof(packet), 65535, 65535, 0);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && npc->freeze.count == 0, "65535 cancels every window");
+    fixture_free(&fx);
+}
+
 /* E5: removing a player (or anything else not an npc) is not an npc despawn;
  * an npc's removal is, with its server slot (E10). */
 static void
@@ -1452,6 +1508,7 @@ main(void)
     test_npc_body_custom_keeps_every_wire_model();
     test_npc_body_custom_recolours_without_models();
     test_npc_body_custom_mirror_and_player();
+    test_npc_freeze_reaches_the_world();
     test_only_npc_removals_are_npc_despawns();
     test_varp_retype_coalesces_and_keeps_overrides();
     test_player_add_exists_at_once();

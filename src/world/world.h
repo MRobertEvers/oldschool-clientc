@@ -1731,8 +1731,37 @@ World_NpcSetHeadCustom(
  * (deob Statics.method9224: the override's array replaces the type's, index
  * for index over the type's source list): its own where it sent one for `i`,
  * else `type_value`, the type's. `o` may be inactive (the type's). */
-/* Free what a row's customisations own and clear them (a removal snapshot's
- * too). Accepts NULL. */
+/* FREEZE (entity_freeze.h; deob class105.method3557 / method3627): `delay`
+ * and `duration` in client cycles, -1 for none (the wire's 65535). Both
+ * set: a window from cycle + delay for `duration` cycles, `reset` stopping
+ * the sequence as it starts. Either none: every window and the frozen
+ * drawing go, and `reset` stops the sequence now. */
+void
+World_NpcFreeze(
+    struct World* world,
+    int idx,
+    int delay,
+    int duration,
+    bool reset);
+
+void
+World_PlayerFreeze(
+    struct World* world,
+    int idx,
+    int delay,
+    int duration,
+    bool reset);
+
+/* The tracks an actor is DRAWN with: the live ones, or while a freeze window
+ * covers the cycle the snapshot taken as it began (class105.method3528 /
+ * Statics.method3603). */
+struct WorldEntityFacet_Animation const*
+World_EntityDrawnAnimation(
+    struct WorldEntityFacet_Animation const* anim,
+    struct WorldEntityFreeze const* freeze);
+
+/* Free what a row owns -- its customisations and its freeze windows -- and
+ * clear them (a removal snapshot's too). Accepts NULL. */
 void
 World_NpcOverridesFree(struct WorldEntity_NPC* npc);
 

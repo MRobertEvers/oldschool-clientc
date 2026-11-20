@@ -6,6 +6,7 @@
 
 #include "entity_facets.h"
 #include "entity_tint.h"
+#include "entity_freeze.h"
 #include "entity_transparency.h"
 
 /*
@@ -133,6 +134,8 @@ struct WorldEntity_NPC
      *  body faded in or out -- Ocellus teleporting. Applied per frame by
      *  app_world_sync_npc_transparency. */
     struct WorldEntityTransparency transparency;
+    /** FREEZE windows and the frozen drawing (entity_freeze.h). */
+    struct WorldEntityFreeze freeze;
     /**
      * Headicon customisation (rev-239 0x400000): while `headicon_custom`, the
      * overhead draws these eight (sprite group, frame) slots instead of the

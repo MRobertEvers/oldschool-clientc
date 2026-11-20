@@ -237,7 +237,8 @@ app_world_sync_entity_animations(struct App* app)
         if( player )
         {
             app_world_apply_entity_anim_tracks(
-                app, player->element_id, &player->animation, &player->idle_animations);
+                app, player->element_id, World_EntityDrawnAnimation(&player->animation, &player->freeze),
+                &player->idle_animations);
             app_world_reconcile_player_body(app, player);
         }
     }
@@ -249,7 +250,8 @@ app_world_sync_entity_animations(struct App* app)
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
         if( npc )
             app_world_apply_entity_anim_tracks(
-                app, npc->element_id, &npc->animation, &npc->idle_animations);
+                app, npc->element_id, World_EntityDrawnAnimation(&npc->animation, &npc->freeze),
+                &npc->idle_animations);
     }
 }
 

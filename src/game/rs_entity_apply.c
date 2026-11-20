@@ -895,6 +895,12 @@ player_apply_op(
     case RSPROT_OP_RESET:
         /* Applied at the start of its record (player_reset). */
         break;
+    case RSPROT_OP_FREEZE:
+        /* deob class95 ~650: 65535 is none; the byte != 0 is the reset. */
+        World_PlayerFreeze(
+            world, idx, op->freeze.delay == 65535 ? -1 : (int)op->freeze.delay,
+            op->freeze.duration == 65535 ? -1 : (int)op->freeze.duration, op->freeze.cancel != 0);
+        break;
     case RSPROT_OP_TRANSPARENCY:
         player_note_op(self, idx, op, 0, 0, 0, 0);
         World_PlayerSetTransparency(
@@ -1690,6 +1696,13 @@ npc_apply_op(
             }
             World_NpcSetHeadiconCustom(world, idx, op->headicon.mask != 0, group, index);
         }
+        break;
+    case RSPROT_OP_FREEZE:
+        /* deob Statics ~47731: 65535 is none; the byte != 0 is the reset. */
+        if( idx >= 0 )
+            World_NpcFreeze(
+                world, idx, op->freeze.delay == 65535 ? -1 : (int)op->freeze.delay,
+                op->freeze.duration == 65535 ? -1 : (int)op->freeze.duration, op->freeze.cancel != 0);
         break;
     case RSPROT_OP_BODY_CUSTOM:
     case RSPROT_OP_HEAD_CUSTOM:
