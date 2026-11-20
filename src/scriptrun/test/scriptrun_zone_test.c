@@ -345,11 +345,45 @@ test_loc_records(void)
     ScriptrunZone_Free(zone);
 }
 
+/* Floor graphics as busy as our own content sends them: the Wardens' P3
+ * (test/raids/toa_wardens_p3_tells.lua) puts 2874 MAP_ANIMs in one 41-tick
+ * window and Yama (test/bosses/yama.lua) 2056, both past the 2048 the list
+ * once held, so a debug build of either client aborted in the middle of the
+ * fight. Every one still alive is listed. */
+static void
+test_effects_at_a_bosss_load(void)
+{
+    static struct RS_EffectMapAnim anims[RS_EFFECT_LOG_CAP];
+    struct ScriptrunZone* zone = zone_new();
+    struct ScriptrunZoneAt at = at_root(8, 8, 0);
+    int const per_tick = 71;
+    int const ticks = RS_EFFECT_MAP_ANIM_LIFE_TICKS + 1;
+    int const now = (ticks - 1) * APP_SERVER_TICK_LOGIC_CYCLES;
+    int n;
+
+    for( int t = 0; t < ticks; t++ )
+    {
+        for( int i = 0; i < per_tick; i++ )
+        {
+            struct PktMapAnim p = { .pos = pos(i & 7, (i >> 3) & 7), .id = 2000 + i };
+            ScriptrunZone_Apply(zone, &at, 0, t * APP_SERVER_TICK_LOGIC_CYCLES, PKT_NAME_MAP_ANIM, &p);
+        }
+    }
+    CHECK(RS_EffectLog_Live(&zone->effects, zone->effect_entries, RS_EVENT_MAP_ANIM, now, 0) ==
+              per_tick * ticks,
+        "every floor graphic of a 41-tick window is alive");
+    n = RS_EffectLog_MapAnims(&zone->effects, zone->effect_entries, anims, RS_EFFECT_LOG_CAP);
+    CHECK(n == per_tick * ticks, "and listed");
+    CHECK(anims[0].cycle == 0 && anims[n - 1].cycle == now, "oldest first, the newest last");
+    ScriptrunZone_Free(zone);
+}
+
 int
 main(void)
 {
     test_ground();
     test_effects();
+    test_effects_at_a_bosss_load();
     test_loc_records();
     printf("scriptrun_zone_test: all passed\n");
     return 0;
