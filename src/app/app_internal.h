@@ -475,6 +475,9 @@ struct Task_AppSpawn
 {
     struct ToriRS_Task task;
     struct pt pt;
+    /* Listed in app->pending while it is a parallel task (app_spawn_task_add:
+     * every kind but APP_SPAWN_ENTITY_SPOTANIM, the assets table's loader). */
+    struct RS_ParallelTask par;
     struct App* app;
     /* The worldview cursor AS OF ENQUEUE (WorldviewRegistry_Active). Spawn tasks run
      * at the END of the exec FIFO, behind later packets — including the
@@ -3007,6 +3010,14 @@ app_spawn_task_new(
     int tile_x,
     int tile_z,
     int level);
+
+/* Add a spawn made by app_spawn_task_new (any kind but
+ * APP_SPAWN_ENTITY_SPOTANIM) to the parallel queue: what it waits for is only
+ * drawn, and nothing a packet or script reads waits behind it. */
+void
+app_spawn_task_add(
+    struct App* app,
+    struct Task_AppSpawn* task);
 
 bool
 app_npc_wants_zbuffer(

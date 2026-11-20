@@ -990,6 +990,25 @@ app_spawn_fan_spotanim_assets(struct Task_AppSpawn* self)
             app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, self->seq_id, 0), &self->pending);
 }
 
+/*
+ * The spawns no packet makes -- the developer hotkeys' player, npc and ground
+ * item, and a plugin's object -- wait only for what they draw: a parallel
+ * task each (app_spawn_task_add), never the packet queue, so nothing a later
+ * packet reads waits behind a model. The body reads top to bottom: wait for
+ * the parts, exit if cancelled (a logout) or no longer wanted (the view's
+ * scene was replaced: a hotkey's tile is the old scene's), then apply.
+ */
+static bool
+app_spawn_wanted(struct Task_AppSpawn* self)
+{
+    if( RS_ParallelTask_Cancelled(&self->par) )
+        return false;
+    /* A plugin object re-resolves its record by handle when it applies. */
+    if( self->kind == APP_SPAWN_PLUGIN_OBJECT )
+        return true;
+    return App_ParallelTaskWorld(self->app, &self->par, "spawn") != NULL;
+}
+
 static int
 Task_AppSpawn_Run(
     struct ToriRS_Task* base,
@@ -1005,6 +1024,8 @@ Task_AppSpawn_Run(
         PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
         PT_TASK_AWAITSELF_IF(
             CreateTask_SequenceLoad(app->provider, app->scene, APP_PLAYER_SEQ_READY));
+        if( !app_spawn_wanted(self) )
+            PT_EXIT(&self->pt);
         app_world_spawn_player_now(app, self->tile_x, self->tile_z, self->level);
     }
     else if( self->kind == APP_SPAWN_NPC )
@@ -1013,6 +1034,8 @@ Task_AppSpawn_Run(
          * this player's selected child so developer/content spawns follow the
          * same multiNpc path as NPC_INFO. */
         PT_TASK_AWAITSELF_IF(CreateTask_NpcMultiLoad(app, self->npc_id, &self->model_id));
+        if( !app_spawn_wanted(self) )
+            PT_EXIT(&self->pt);
         {
             int effective = self->model_id >= 0 ? self->model_id : self->npc_id;
             int idx = app_world_spawn_npc_announced(
@@ -1037,6 +1060,8 @@ Task_AppSpawn_Run(
         if( self->model_id > 0 )
         {
             PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
+            if( !app_spawn_wanted(self) )
+                PT_EXIT(&self->pt);
             /* The applicator resolves the cursor itself, so re-arm it with the
              * view captured at enqueue for the duration of the call. The view
              * can have died while the task was parked (a despawned boat takes
@@ -1086,6 +1111,15 @@ Task_AppSpawn_Run(
             PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
         if( self->seq_id >= 0 )
             PT_TASK_AWAITSELF_IF(CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
+        if( !app_spawn_wanted(self) )
+        {
+            /* Its record still says a load is on its way: a later sync asks
+             * again. */
+            struct PluginObject* obj = PluginGeometry_Object(&app->plugin_geometry, self->plugin_object);
+            if( obj )
+                obj->load_pending = 0;
+            PT_EXIT(&self->pt);
+        }
         app_plugin_object_materialize_now(app, self->plugin_object);
     }
 
@@ -1100,6 +1134,34 @@ Task_AppSpawn_Free(struct ToriRS_Task* base)
      * task. At shutdown the table is closed and ignores it. */
     if( self->pending > 0 )
         Assets_Unjoin(self->app->assets, &self->pending);
+    if( self->par.listed )
+        App_ParallelTaskRelease(self->app, &self->par);
     ToriMem_Free(ToriMem_Process(), base);
+}
+
+void
+app_spawn_task_add(
+    struct App* app,
+    struct Task_AppSpawn* task)
+{
+    /* Each developer spawn is its own target: two hotkey presses are two
+     * spawns. */
+    static uint32_t spawn_serial;
+
+    assert(app);
+    assert(task);
+    assert(task->app == app);
+    assert(task->kind != APP_SPAWN_ENTITY_SPOTANIM);
+    if( task->kind == APP_SPAWN_PLUGIN_OBJECT )
+        App_ParallelTaskAdd(
+            app,
+            &task->task,
+            &task->par,
+            APP_TASK_SPAWN_PLUGIN_OBJECT,
+            RS_PendingKey_Id(task->plugin_object, 0),
+            -1);
+    else
+        App_ParallelTaskAdd(
+            app, &task->task, &task->par, APP_TASK_SPAWN, RS_PendingKey_Id((int)++spawn_serial, 0), task->view);
 }
 
