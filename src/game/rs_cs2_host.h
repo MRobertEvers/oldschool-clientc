@@ -700,6 +700,9 @@ struct RS_CS2TriggerOpLocal
 /** Var ids remembered per tick for transmit-hook matching; past this the tick
  *  degrades to "every hook re-runs" (correct, just not selective). */
 #define RS_CS2_HOST_VAR_CHANGED_MAX 64
+/** How many changes back a listener can still be told WHICH ids changed: the
+ *  reference's ring size. Further behind than this, it is simply due. */
+#define RS_CS2_HOST_CHANGE_RING 32
 /* Must match CS2VM_HostRequest_IF_SetOnInvTransmit.int_args — the copy below is
  * a sizeof(dest) memcpy, so the two cannot differ. */
 #define RS_CS2_HOST_TRANSMIT_INT_ARG_MAX CS2VM_SETON_INT_ARG_MAX
@@ -1667,6 +1670,14 @@ struct RS_CS2Host
     uint32_t var_change_serial;
     uint32_t inv_change_serial;
     uint32_t stat_change_serial;
+    /** What each of the last RS_CS2_HOST_CHANGE_RING changes was: change number
+     *  n (the serial after it) names its varp at [n & (RING - 1)], its container
+     *  likewise. A listener reads the changes since ITS OWN last look off these
+     *  (RS_CS2_TransmitHookDue), as the reference's components do off the
+     *  client's 32-entry rings (rev-239 class415.method9488). -1: the change
+     *  did not say what it was, and every listener is due. */
+    int var_changed_ring[RS_CS2_HOST_CHANGE_RING];
+    int inv_changed_ring[RS_CS2_HOST_CHANGE_RING];
 
     /** Live pointer position in canvas coords, backing MOUSE_GETX / MOUSE_GETY
      *  (-1,-1 when the pointer is off the canvas, as the reference reports).
@@ -1973,13 +1984,15 @@ RS_CS2Host_QueueSettingsMirror(
     int value);
 
 /**
- * cc_setobject's resident half: on a MODEL widget the obj's 3D interface
- * model posed as its icon is, else (or with no model) the obj's icon. What
- * the app's visual task calls once the obj model it waited for is here (or
- * failed: the icon is built from what arrived, as a script that waited did).
+ * cc_setobject's model half: on a MODEL widget the obj's 3D interface model,
+ * else (or with no model) the obj's icon. What the app's visual task calls
+ * once the obj model it waited for is here (or failed: the icon is built from
+ * what arrived, as a script that waited did). It writes no pose: the set
+ * posed the widget when it ran, as the reference's opcode does, and anything
+ * the script wrote over that pose since must stay.
  */
 void
-RS_CS2Host_SetObjectResident(
+RS_CS2Host_SetObjectModelLanded(
     struct RS_CS2Host* host,
     int component_id,
     int obj_id,

@@ -661,7 +661,17 @@ return {
         ---------------------------------------------------------------
         -- Graduation
         ---------------------------------------------------------------
-        t.exec("homeTeleport", t.player.cast, "teleport_home_standard", nil, 12)
+        -- One press, then the 24-tick channel (RSProx 4289: the press at
+        -- [1337], the landing at [1361]). Not t.player.cast: it presses again
+        -- after three ticks with no move, and a second press restarts the
+        -- channel.
+        t.ui.tab("magic")
+        local _, home_cast = t.ui.widget("magic_spellbook:teleport_home_standard")
+        t.exec("homeTeleport", t.ui.invoke, home_cast, 1)
+        t.await({ level = function()
+            local tl = here()
+            return tl ~= nil and math.abs(tl.x - 3222) <= 2 and math.abs(tl.z - 3218) <= 2
+        end, note = "homeTeleport landing" }, 30)
         stage("complete")
         on_tile("homeTeleport.lumbridge", 3222, 3218, 0, 2)
         local KIT = {

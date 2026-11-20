@@ -77,6 +77,12 @@ struct TestHostState
     int minimap_scene_id;
     int multiway;
     char const* reboot_timer_text;
+    /** When set, GET_INV_DRAG reports the CS2 cell `inv_drag_component` armed
+     *  and carried by (inv_drag_dx, inv_drag_dy). */
+    int inv_drag_armed;
+    int inv_drag_component;
+    int inv_drag_dx;
+    int inv_drag_dy;
     /* Optional stub slots for UITREE_HOST_GET_INV_SOURCE_SLOT (tests). */
     int inv_source_id;
     struct UIInvSlotData inv_slots[UI_INV_SLOT_OFFSET_MAX];
@@ -214,6 +220,21 @@ UITree_TestHostRequest(void* user, struct UITreeHostRequest* req)
         *req->u.get_inv_source_slot.out = st->inv_slots[slot];
         return 1;
     }
+    case UITREE_HOST_GET_INV_DRAG:
+        if( !st->inv_drag_armed )
+            return 0;
+        /* A CS2 cell is named by its component; the grid's pair is unused. */
+        if( req->u.get_inv_drag.out_source_id )
+            *req->u.get_inv_drag.out_source_id = -1;
+        if( req->u.get_inv_drag.out_slot )
+            *req->u.get_inv_drag.out_slot = -1;
+        if( req->u.get_inv_drag.out_dx )
+            *req->u.get_inv_drag.out_dx = st->inv_drag_dx;
+        if( req->u.get_inv_drag.out_dy )
+            *req->u.get_inv_drag.out_dy = st->inv_drag_dy;
+        if( req->u.get_inv_drag.out_component_id )
+            *req->u.get_inv_drag.out_component_id = st->inv_drag_component;
+        return 1;
     default:
         return 0;
     }
@@ -274,6 +295,7 @@ void test_widget_skin(void);
 void test_widget_skin_survives_cc_rebuild(void);
 void test_widget_idempotent_edits(void);
 void test_layer_clip_compounds(void);
+void test_held_drag_over_group(void);
 void test_walk_topology(void);
 void test_mounted_world_resize(void);
 void test_hover_input(void);

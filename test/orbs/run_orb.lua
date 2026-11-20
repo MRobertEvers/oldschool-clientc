@@ -34,6 +34,7 @@ return {
     id = "run_orb",
     fixture = "fresh_lumbridge.ini",
     max_frames = 20000,
+    setup = { "::setlevel magic 25", "::runes" },
     run = function(t)
         local start = server(t, "varp173_option_run")
         local ok, d = press(t, "orbs:runbutton")
@@ -42,11 +43,15 @@ return {
             d .. "; option_run server " .. tostring(start) .. " -> " .. tostring(server(t, "varp173_option_run"))
             .. ", client " .. tostring(varp(t, "varp173_option_run")))
 
-        -- Home Teleport holds the player in p_delay for several ticks.
+        -- A rune teleport holds the player in p_delay (p_delay(1); p_delay(0)
+        -- in ~player_teleport_cast). Home Teleport no longer does: Jagex's
+        -- channel never sets busy, and it is a weak queue here.
         local served = server(t, "varp173_option_run")
         t.ui.tab("magic")
         t.ticks(1)
-        press(t, "magic_spellbook:teleport_home_standard")
+        local _, tele = t.ui.widget("magic_spellbook:varrock_teleport")
+        t.ui.invoke(tele, 1)
+        t.ticks(1)
         local _, w = t.ui.widget("orbs:runbutton")
         t.ui.invoke(w, 1)
         -- A few frames on, inside the tick, before the server has answered:

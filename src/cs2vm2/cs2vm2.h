@@ -20,9 +20,10 @@
 #define CS2VM_SCRIPT_ARG_KEY_PRESSED -2147483639
 #define CS2VM_SCRIPT_ARG_OP_SUBINDEX -2147483638
 
-/* On CS2VM_EXECNO_YIELD the host must not partially mutate VM state; the opcode
- * checkpoint in CS2VM2_RunScript rolls back stack, frames, and pc so RunScript can
- * be re-entered after external host work. */
+/* On CS2VM_EXECNO_YIELD the opcode's stacks go back to its yield mark (struct
+ * CS2VM2_YieldMark, below) and the loop steps the pc back, so RunScript can be
+ * re-entered after external host work. The host must not have changed anything
+ * else: no frame pushed or popped, no frame contents written. */
 #define CS2VM_EXECNO_YIELD -2
 #define CS2VM_EXECNO_ERROR -1
 #define CS2VM_EXECNO_OK 0
@@ -191,17 +192,27 @@ struct CS2VM2_Array
 
 #define CS2VM2_CHILDREN_ITER_MAX 256
 
-/* A yield rolls the VM back to the start of the opcode that yielded. Per the
- * CS2VM_EXECNO_YIELD contract (see above), a yielding host op must not have mutated
- * frame contents or pushed/popped frames — only operand-stack tops. So the checkpoint
- * only records the stack/frame pointers (plus the active/dot ids and, implicitly, the
- * pc which is reset on restore); the ~12 KB-per-frame `frames` array is never copied. */
-struct CS2VM2_YieldCheckpoint
+/*
+ * THE YIELD MARK. A yield rolls the VM back to the start of the opcode that
+ * yielded, and the opcode's own implementation is what makes that possible:
+ * before it touches anything it takes a mark (CS2VM2_PrepareYield), and it
+ * cannot ask the host without handing the mark over (CS2VM2_Ask), so an
+ * implementation that never prepared cannot yield. When the host answers "not
+ * ready" the stacks and the two component ids go back to the mark; the loop
+ * then steps the pc back and the opcode runs again on resume.
+ *
+ * Nothing is saved for an instruction that does not yield. The mark is sixteen
+ * bytes passed by value, so it lives in two registers; taking it is three
+ * reads the implementation's first pop was about to make. The frame stack is
+ * not in it: a yielding op must not push or pop a frame (the CS2VM_EXECNO_YIELD
+ * contract above), and a debug build checks that at every yield.
+ */
+struct CS2VM2_YieldMark
 {
-    int ints_stack_top;
-    int strs_stack_top;
-    int longs_stack_top;
-    int frame_sp;
+    uint16_t ints_stack_top;
+    uint16_t strs_stack_top;
+    uint16_t longs_stack_top;
+    uint16_t unused;
     int active_component_id;
     int dot_component_id;
 };
@@ -314,6 +325,17 @@ struct CS2VM2_Thread
         char* old_string;
     } undo_log[CS2VM2_ARRAY_UNDO_MAX];
     int undo_log_len;
+    /* Set by CS2VM2_Ask when the host's answer was "not ready" and the stacks
+     * went back to the mark. The loop requires it at every yield: a yield that
+     * arrives without it was not unwound, and the client stops there. */
+    int yield_unwound;
+    /* Debug builds only: the stacks and frame depth as the current instruction
+     * found them. CS2VM2_PrepareYield asserts a mark is taken before any of
+     * them moved, every time the instruction runs. */
+    int instr_ints_stack_top;
+    int instr_strs_stack_top;
+    int instr_longs_stack_top;
+    int instr_frame_sp;
 
     int children_iter_indices[CS2VM2_CHILDREN_ITER_MAX];
     int children_iter_count;

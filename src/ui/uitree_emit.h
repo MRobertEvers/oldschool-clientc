@@ -10,6 +10,8 @@
 
 /** Buffer for text after CS1 %N placeholder substitution. */
 #define UITREE_EMIT_TEXT_FMT_MAX 128
+/** Descs one armed item cell can emit: its icon and its stack count. */
+#define UITREE_EMIT_HELD_DRAG_MAX 4
 
 /** Draw descriptors produced by a UITree walk. Game resolves scene_ids. */
 enum UITreeEmitKind
@@ -204,6 +206,12 @@ struct UITreeEmitBuffer
     struct UITreeEmitDesc* cmds;
     int count;
     int cap;
+    /** Walk scratch: the armed item cell's descs (its icon and stack count),
+     *  taken out of tree order when the walk reaches the cell and put back
+     *  when the interface group holding it is finished, under the clip that
+     *  group was drawn under. Empty between walks. See emit_hold_armed_cell. */
+    struct UITreeEmitDesc held_drag[UITREE_EMIT_HELD_DRAG_MAX];
+    int held_drag_count;
     /** Set by `UITree_EmitWalk` when any desc in `cmds` carries a host-owned
      *  pointer whose lifetime is this frame only — minimap dots, entity
      *  overlays, worldmap tiles, debug prims.

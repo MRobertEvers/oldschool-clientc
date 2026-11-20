@@ -100,6 +100,17 @@ CreateTask_CS2VarTransmitDispatch(
     struct RS_CS2Host* host,
     int var_id);
 
+/** Whether a transmit listener is due: the reference's per-component rule
+ *  (task_cs2_run.c). `serial` is the channel's change count and must be past
+ *  `last_seen_serial`; `ring` is that channel's RS_CS2_HOST_CHANGE_RING ids. */
+int
+RS_CS2_TransmitHookDue(
+    int const* trigger_ids,
+    int trigger_count,
+    uint32_t last_seen_serial,
+    uint32_t serial,
+    int const* ring);
+
 /**
  * Same, for a whole set of changed var ids (RS_CS2Host::var_changed_ids): a hook
  * runs when any of them is one of its triggers. An empty set means every hook,

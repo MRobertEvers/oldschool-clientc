@@ -59,6 +59,18 @@ torirs_trace_drag(void)
     return cached;
 }
 
+/* TORIRS_OBJICON_DEBUG, resolved once for the same reason: cc_setobject asks
+ * twice a call, and the bank's build script sets all 1,410 of its slots on
+ * every run. Unresolved, the two lookups were 1.8 ms of a bank-open frame. */
+static int
+torirs_objicon_debug(void)
+{
+    static int cached = -1;
+    if( cached < 0 )
+        cached = getenv("TORIRS_OBJICON_DEBUG") != NULL;
+    return cached;
+}
+
 /* Resolved once: getenv locks and scans the whole environment, and this gate sits
  * on cc_create, which a container rebuild issues once per row. */
 static int
@@ -1103,6 +1115,7 @@ RS_CS2Host_NotifyVarChanged(
      * per-tick pump to re-dispatch (TS parity: value changes bump changedVarpCount,
      * processed once per cycle rather than synchronously mid-script). */
     host->var_change_serial++;
+    host->var_changed_ring[host->var_change_serial & (RS_CS2_HOST_CHANGE_RING - 1)] = var_id;
     host->var_transmit_dirty = 1;
     if( torirs_cc_debug() )
         TORIRS_LOG("VAR_CHANGED id=%d serial=%u\n", var_id, host->var_change_serial);
@@ -1185,6 +1198,7 @@ RS_CS2Host_NotifyInvChanged(
 {
     assert(host);
     host->inv_change_serial++;
+    host->inv_changed_ring[host->inv_change_serial & (RS_CS2_HOST_CHANGE_RING - 1)] = container_id;
     host->inv_transmit_dirty = 1;
     if( torirs_cc_debug() )
         TORIRS_LOG("INV_CHANGED container=%d serial=%u\n",
@@ -5141,10 +5155,7 @@ exec_set_graphic(
     struct UITree* tree = rs_cs2_tree(host);
     (void)thread;
 
-    static int objicon_debug = -1;
-    if( objicon_debug < 0 )
-        objicon_debug = getenv("TORIRS_OBJICON_DEBUG") != NULL;
-    if( objicon_debug )
+    if( torirs_objicon_debug() )
         TORIRS_LOG("GFXDBG: com=0x%08x gfx=%d\n",
             (unsigned)component_id,
             graphic_id);
@@ -5211,11 +5222,71 @@ exec_set_feedback_sprite(
     return CS2VM_EXECNO_OK;
 }
 
-/* cc_setobject's second half, once the obj's model is here (or will never
- * be): on a MODEL widget the obj's 3D interface model and its 2D pose, else
- * (or with no model) the obj's icon. */
+/*
+ * cc_setobject's pose on a MODEL widget: the objtype's own 2D presentation,
+ * or the cell shows a close-up of one face rather than an item.
+ *
+ * CC_CREATE leaves a MODEL node at zoom 100, and 100 in these units is a
+ * camera roughly twenty times too close: `zoom2d` is what the icon rasteriser
+ * uses (default 2000, see bridge_rasterize_obj_icon) and it is the same scale
+ * the widget draw wants. The angles come from the same three fields for the
+ * same reason -- an item drawn at its model's own orientation is not the
+ * shape players recognise. xof2d/yof2d are the other half of the same
+ * composition and are not optional: `arrow_shaft` carries yof2d -29, and
+ * without it the shaft projects clean out of its cell. The reference stores
+ * both (field4089/field4090); the widget transform adds `model_x_offset` to
+ * camera X as a translation on every backend.
+ *
+ * This is the CS2 twin of the IF_SETOBJECT packet path (app_if_obj_pose).
+ * The two differ only in where the divisor comes from: the packet carries a
+ * wire zoom, the opcode's second argument is a COUNT, so there is nothing to
+ * divide by here.
+ *
+ * The reference writes the pose INSIDE the opcode (Statics.java, CC_SETOBJECT:
+ * modelAngleX/Y/Z, offsets and modelZoom from the objtype before it returns),
+ * so a cc_setmodelangle the script makes after it wins, and cc_getmodelzoom
+ * reads it at once. So the pose is written when the set runs, never when the
+ * model lands: the welcome screen's loading circle (loading_icon_orbit_build)
+ * sets each rune's obj and then its own staggered zoom, and a pose written
+ * when the models landed put all thirteen back on zoom2d, so the circle
+ * pulsed all at once instead of turning.
+ */
 static void
-rs_cs2_set_object_resident(
+rs_cs2_pose_obj_model(
+    struct RS_CS2Host* host,
+    int component_id,
+    int render_obj)
+{
+    struct UITree* tree = rs_cs2_tree(host);
+    struct ToriRS_Objtype* objtype = CacheProvider_ObjtypeGet(rs_cs2_provider(host), render_obj);
+
+    assert(objtype);
+    (void)UITree_ApplyModelAngle(
+        tree, component_id, objtype->xan2d, objtype->yan2d, objtype->zoom2d > 0 ? objtype->zoom2d : 2000);
+    (void)UITree_ApplyModelOffset(tree, component_id, objtype->offset_x2d, objtype->offset_y2d);
+}
+
+/* The objtype the pose reads -- the stack variant's when `count` selects one
+ * -- is resident, so cc_setobject can pose the widget now. */
+static bool
+rs_cs2_obj_pose_ready(
+    struct RS_CS2Host* host,
+    int obj_id,
+    int count)
+{
+    struct CacheProvider* provider = rs_cs2_provider(host);
+
+    if( !CacheProvider_ObjtypeHas(provider, obj_id) )
+        return false;
+    return CacheProvider_ObjtypeHas(provider, ObjModelLoad_RenderObjId(provider, obj_id, count));
+}
+
+/* cc_setobject's model, once the obj's model is here (or will never be): on a
+ * MODEL widget the obj's 3D interface model, answering the objtype it drew
+ * (the stack variant's when there is one), else (or with no model) the obj's
+ * icon, answering -1. Writes no pose. */
+static int
+rs_cs2_bind_object_model(
     struct RS_CS2Host* host,
     int component_id,
     int obj_id,
@@ -5265,46 +5336,7 @@ rs_cs2_set_object_resident(
              * model is what the emit walk draws. */
             (void)UITree_ApplyObject(tree, component_id, obj_id, count, -1, 0, num_mode);
             (void)rs_cs2_apply_model(host, component_id, obj_model);
-            /*
-             * ...and the objtype's own 2D presentation on top, or the cell
-             * shows a close-up of one face rather than an item.
-             *
-             * CC_CREATE leaves a MODEL node at zoom 100, and 100 in these
-             * units is a camera roughly twenty times too close: `zoom2d`
-             * is what the icon rasteriser uses (default 2000, see
-             * bridge_rasterize_obj_icon) and it is the same scale the
-             * widget draw wants. The angles come from the same three
-             * fields for the same reason — an item drawn at its model's
-             * own orientation is not the shape players recognise.
-             *
-             * This is the CS2 twin of the IF_SETOBJECT packet path in
-             * app.c, which reaches the identical fields through
-             * App_SetInterfaceObjModel. The two differ only in where the
-             * divisor comes from: the packet carries a wire zoom, the
-             * opcode's second argument is a COUNT, so there is nothing to
-             * divide by here.
-             */
-            struct ToriRS_Objtype* objtype =
-                CacheProvider_ObjtypeGet(provider, render_obj);
-
-            if( objtype )
-            {
-                (void)UITree_ApplyModelAngle(
-                    tree,
-                    component_id,
-                    objtype->xan2d,
-                    objtype->yan2d,
-                    objtype->zoom2d > 0 ? objtype->zoom2d : 2000);
-                /* xof2d/yof2d are the other half of the same composition
-                 * and are not optional: `arrow_shaft` carries yof2d -29,
-                 * and without it the shaft projects clean out of its
-                 * cell. The reference stores both (field4089/field4090);
-                 * the widget transform adds `model_x_offset` to camera X
-                 * as a translation on every backend. */
-                (void)UITree_ApplyModelOffset(
-                    tree, component_id, objtype->offset_x2d, objtype->offset_y2d);
-            }
-            return;
+            return render_obj;
         }
         /* No model for this obj — fall through to the icon, which is at
          * least something the player can identify. */
@@ -5319,7 +5351,7 @@ rs_cs2_set_object_resident(
         count,
         scene_id);
 #endif
-    if( getenv("TORIRS_OBJICON_DEBUG") )
+    if( torirs_objicon_debug() )
     {
         int32_t dbg = UITree_FindByComponentId(tree, component_id);
         TORIRS_LOG("OBJICON: apply com=0x%08x obj=%d scene=%d idx=%d type=%d\n",
@@ -5330,10 +5362,27 @@ rs_cs2_set_object_resident(
             dbg >= 0 ? (int)tree->components[dbg].type : -1);
     }
     (void)UITree_ApplyObject(tree, component_id, obj_id, count, scene_id, atlas_index, num_mode);
+    return -1;
+}
+
+/* cc_setobject with everything resident: the model and its pose, or the
+ * icon. */
+static void
+rs_cs2_set_object_resident(
+    struct RS_CS2Host* host,
+    int component_id,
+    int obj_id,
+    int count,
+    int num_mode)
+{
+    int const render_obj = rs_cs2_bind_object_model(host, component_id, obj_id, count, num_mode);
+
+    if( render_obj >= 0 && CacheProvider_ObjtypeHas(rs_cs2_provider(host), render_obj) )
+        rs_cs2_pose_obj_model(host, component_id, render_obj);
 }
 
 void
-RS_CS2Host_SetObjectResident(
+RS_CS2Host_SetObjectModelLanded(
     struct RS_CS2Host* host,
     int component_id,
     int obj_id,
@@ -5341,7 +5390,7 @@ RS_CS2Host_SetObjectResident(
     int num_mode)
 {
     assert(host);
-    rs_cs2_set_object_resident(host, component_id, obj_id, count, num_mode);
+    (void)rs_cs2_bind_object_model(host, component_id, obj_id, count, num_mode);
 }
 
 
@@ -5358,7 +5407,7 @@ exec_set_object(
     struct UITree* tree = rs_cs2_tree(host);
     struct CacheProvider* provider = rs_cs2_provider(host);
     (void)thread;
-    if( getenv("TORIRS_OBJICON_DEBUG") )
+    if( torirs_objicon_debug() )
         TORIRS_LOG("OBJICON: enter com=0x%08x obj=%d count=%d needs=%d\n",
             (unsigned)component_id,
             obj_id,
@@ -5388,10 +5437,10 @@ exec_set_object(
          * picture is missing — and let the app bake and bind the icon off the
          * script's back (see RS_CS2Host.widget_obj_icon_lazy).
          *
-         * A MODEL widget draws the obj in 3D, and the angle/offset composition
-         * in rs_cs2_set_object_resident is the only place that knows how: its
-         * task calls that once the model is here (widget_obj_model_lazy, just
-         * below). A host with neither hook yields as before.
+         * A MODEL widget draws the obj in 3D: the set poses it now
+         * (rs_cs2_pose_obj_model) and its task binds the model once it is
+         * here (widget_obj_model_lazy, just below). A host with neither hook
+         * yields as before.
          */
         int32_t const pending_idx =
             UITree_FindByComponentId(tree, component_id);
@@ -5404,14 +5453,20 @@ exec_set_object(
             host->widget_obj_icon_lazy(host->world_user, component_id, obj_id, count);
             return CS2VM_EXECNO_OK;
         }
-        /* A MODEL widget is visual too (task_cs2_run.c, the yield table): the
-         * obj is on the node now, its model draws nothing until it is here,
-         * and the app finishes the composition below when it is
-         * (RS_CS2Host_SetObjectResident). */
-        if( draws_model && host->widget_obj_model_lazy )
+        /* A MODEL widget's model is visual too (task_cs2_run.c, the yield
+         * table): the obj is on the node now, its model draws nothing until
+         * it is here, and the app binds it when it is
+         * (RS_CS2Host_SetObjectModelLanded). Its pose is not visual -- the
+         * reference writes it in the opcode, and the script's next
+         * cc_setmodelangle must land on top of it -- so it is written now.
+         * A set whose objtype is not resident yet cannot pose: the script
+         * waits for the obj below, as every set did before the lazy path,
+         * and poses when it resumes. */
+        if( draws_model && host->widget_obj_model_lazy && rs_cs2_obj_pose_ready(host, obj_id, count) )
         {
             (void)UITree_ApplyObject(tree, component_id, obj_id, count, -1, 0, num_mode);
             (void)rs_cs2_apply_model(host, component_id, -1);
+            rs_cs2_pose_obj_model(host, component_id, ObjModelLoad_RenderObjId(provider, obj_id, count));
             host->widget_obj_model_lazy(host->world_user, component_id, obj_id, count, num_mode);
             return CS2VM_EXECNO_OK;
         }
@@ -6797,7 +6852,15 @@ rs_cs2_copy_hook_str_args(
     *out_count = str_arg_count;
     if( *out_count > CS2VM_SETON_STR_ARG_MAX )
         *out_count = CS2VM_SETON_STR_ARG_MAX;
-    memcpy(out_args, str_args, sizeof(char[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN]));
+    if( *out_count < 0 )
+        *out_count = 0;
+    /* The rows below the count are the request's; the rows past it were never
+     * written by the VM (CS2VM_SETON_ZERO_HEAD) and are zeroed here, so a
+     * stored hook is the same bytes whatever was on the VM's stack -- the
+     * checkpoint compares these entries bytewise. */
+    memcpy(out_args, str_args, (size_t)*out_count * CS2VM_SETON_STR_ARG_LEN);
+    memset(out_args[*out_count], 0,
+        (size_t)(CS2VM_SETON_STR_ARG_MAX - *out_count) * CS2VM_SETON_STR_ARG_LEN);
 }
 
 /*
@@ -9974,7 +10037,12 @@ exec_widget_set_scroll_pos(
     int const requested_y = scroll_y;
     if( node && node->type == UIELEM_RS_LAYER )
     {
-        UITree_EnsureLayout(tree);
+        /* The clamp reads this layer's own box and nothing else, and a box
+         * depends only on its ancestors: resolve that chain, not the tree. A
+         * script that has just created a thousand children (bankmain_build
+         * ends on if_setscrollsize) otherwise pays for laying every one of
+         * them out here, and the settle pass lays them out again. */
+        UITree_EnsureLayoutFor(tree, rs_cs2_find_node(host, component_id));
         int const max_x = UITree_ScrollMaxX(node);
         int const max_y = UITree_ScrollMaxY(node);
         if( scroll_x < 0 )
@@ -10021,7 +10089,8 @@ exec_widget_set_scroll_size(
             int32_t const idx = rs_cs2_find_node(host, component_id);
             int scroll_x;
             int scroll_y;
-            UITree_EnsureLayout(tree);
+            /* The layer's own box only; see exec_widget_set_scroll_pos. */
+            UITree_EnsureLayoutFor(tree, idx);
             UITree_ScrollGetClamped(node, &scroll_x, &scroll_y);
             (void)UITree_SetScrollPosAt(tree, idx, scroll_x, scroll_y);
         }
@@ -13200,7 +13269,8 @@ rs_cs2_host_exec_dispatch(
     F(active_offers_transmit_dirty) F(clan_settings_transmit_dirty) F(clan_channel_transmit_dirty) \
     F(chat_transmit_dirty) F(inv_changed_ids) F(inv_changed_count) F(inv_changed_all) \
     F(var_changed_ids) F(var_changed_count) F(var_changed_all) F(var_change_serial) \
-    F(inv_change_serial) F(stat_change_serial) F(item_search_count) F(item_search_index) \
+    F(inv_change_serial) F(stat_change_serial) F(var_changed_ring) F(inv_changed_ring)        \
+    F(item_search_count) F(item_search_index) \
     F(db_find_count) F(db_find_cursor) F(social_send) F(social_send_count) F(social_send_head) \
     F(call_on_resize_count) F(call_on_resize_head) F(trigger_op_count) F(trigger_op_head) F(sound) \
     F(sound_count) F(sound_head) F(triggeroplocal_count) F(triggeroplocal_head)
