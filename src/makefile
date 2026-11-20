@@ -3109,6 +3109,17 @@ test-if-assets-tasks: $(OBJ_DIR) $(OBJS)
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/if_assets_tasks_test$(PLATFORM_EXE_SUFFIX)
 
+# The visual waits that left the main queue (app/app_tasks_mounts.c, the
+# spawns, BODYTYPE, the loose head): each a parallel task, nothing waiting on
+# the packet queue while its model is out, and cancelled by the close of what
+# it was for. Asserts on.
+.PHONY: test-tasks-mounts
+test-tasks-mounts: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(SRC_DIR)/world -o $(OBJ_DIR)/app_tasks_mounts_test$(PLATFORM_EXE_SUFFIX) \
+		app/test/app_tasks_mounts_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/app_tasks_mounts_test$(PLATFORM_EXE_SUFFIX)
+
 # Who has taken a part of this frame's input: keys by OSRS code, the frame as
 # a whole and the pointer by chrome, each dropped on its own lifetime.
 .PHONY: test-input-claims
