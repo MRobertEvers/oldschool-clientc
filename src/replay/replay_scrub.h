@@ -57,6 +57,7 @@
  * transport).
  */
 
+#include "net/rev/gameproto_revisions.h"
 #include "replay/replay_timeline.h"
 
 #include <stdint.h>
@@ -397,6 +398,16 @@ ReplayScrub_SetSeekMode(
 
 enum ReplaySeekMode
 ReplayScrub_SeekMode(struct ReplayScrub const* scrub);
+
+/** What the world ledger asks a typed npc customisation's colour counts of
+ *  (ReplayLedger_Build's `npc_types`, the clients' GameProtoNpcTypeLengths
+ *  contract, by type). Before the ledger is built; without it, a keyframe
+ *  across such a block reads its frame only up to the block. */
+void
+ReplayScrub_SetNpcTypeLengths(
+    struct ReplayScrub* scrub,
+    GameProtoNpcTypeLengths npc_types,
+    void* npc_types_ctx);
 
 /** Client cycles a chase tick is given (1..REPLAY_TICK_CYCLES); the rest of
  *  the tick's 30 are charged to clientclock instead of run, so that it reads

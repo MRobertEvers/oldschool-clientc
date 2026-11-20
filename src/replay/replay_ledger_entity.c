@@ -107,6 +107,7 @@
  */
 #include "replay/replay_ledger_internal.h"
 
+#include "mem/torirs_mem.h"
 #include "net/rev/pktnames.h"
 #include "rsprot_buf.h"
 
@@ -510,6 +511,185 @@ npc_fresh(
     sticky_clear(npc->sticky, REPLAY_NPC_STICKY_COUNT);
 }
 
+/*
+ * A typed customisation block's question, put to one NPC_INFO frame's read
+ * (GameProtoNpcTypeLengths). Building, it is answered: `old` through the
+ * ledger's own npc list before the frame (`state`), the type through the
+ * ledger's npc_types; and the answer is kept. Afterwards (a fold from a key,
+ * a frame re-read for a keyframe) the kept answers are handed back in the
+ * order they were asked, so every read of a frame reads it the same way.
+ */
+struct NpcTypeAsk
+{
+    struct ReplayLedger const* ledger;
+    struct ReplayLedger* building;
+    struct ReplayEntityState const* state;
+    uint32_t frame;
+    /* Building: this frame's answers start here. Replaying: its kept ones. */
+    int first;
+    int count;
+    int next;
+};
+
+static void
+npc_type_answer_keep(
+    struct NpcTypeAsk* ask,
+    int answered,
+    int recolours,
+    int retextures)
+{
+    struct ReplayLedger* b = ask->building;
+
+    if( b->answer_count == b->answer_cap )
+    {
+        int const cap = b->answer_cap ? b->answer_cap * 2 : 64;
+
+        b->answers = ToriMem_Realloc(ToriMem_Net(), b->answers, (size_t)cap * sizeof(*b->answers));
+        assert(b->answers);
+        b->answer_cap = cap;
+    }
+    b->answers[b->answer_count].answered = answered;
+    b->answers[b->answer_count].recolours = recolours;
+    b->answers[b->answer_count].retextures = retextures;
+    b->answer_count++;
+    ask->count++;
+}
+
+static int
+npc_type_lengths(
+    void* ctx,
+    int old,
+    int npc_type,
+    int head,
+    int* recolours,
+    int* retextures)
+{
+    struct NpcTypeAsk* ask = ctx;
+    int answered = 1;
+
+    assert(ask);
+    assert(recolours);
+    assert(retextures);
+    *recolours = 0;
+    *retextures = 0;
+    if( !ask->building )
+    {
+        struct ReplayLedgerTypeAnswer const* a;
+
+        /* The same bytes ask the same questions as when the frame was built. */
+        assert(ask->next < ask->count);
+        a = &ask->ledger->answers[ask->first + ask->next++];
+        *recolours = a->recolours;
+        *retextures = a->retextures;
+        return a->answered;
+    }
+    if( npc_type < 0 && old >= 0 )
+    {
+        /* The npc the list held at `old` before this frame, as the clients
+         * ask theirs (RS_EntityApply_NpcOldType): none is nothing to read
+         * the arrays by. */
+        struct ReplayLedgerNpc const* npc =
+            old < ask->state->npc_count ? &ask->state->npcs[old] : NULL;
+
+        npc_type = npc && npc->slot >= 0 && npc->type != REPLAY_NPC_TYPE_NONE ? npc->type : -1;
+        if( npc_type < 0 )
+            answered = 0;
+    }
+    if( answered && npc_type >= 0 )
+        answered = ask->ledger->npc_types(ask->ledger->npc_types_ctx, -1, npc_type, head, recolours, retextures);
+    npc_type_answer_keep(ask, answered, *recolours, *retextures);
+    return answered;
+}
+
+/* This frame's kept answers, for a read after the build. */
+static void
+npc_type_ask_kept(
+    struct NpcTypeAsk* ask,
+    struct ReplayLedger const* ledger,
+    uint32_t f)
+{
+    int lo = 0;
+    int hi = ledger->answer_frame_count;
+
+    memset(ask, 0, sizeof(*ask));
+    ask->ledger = ledger;
+    ask->frame = f;
+    while( lo < hi )
+    {
+        int const mid = (lo + hi) / 2;
+
+        if( ledger->answer_frames[mid].frame < f )
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    if( lo < ledger->answer_frame_count && ledger->answer_frames[lo].frame == f )
+    {
+        ask->first = ledger->answer_frames[lo].first;
+        ask->count = ledger->answer_frames[lo].count;
+    }
+}
+
+/* One NPC_INFO frame read, its typed blocks answered (npc_type_lengths)
+ * when the ledger has npc types. */
+static int
+npc_info_read(
+    struct ReplayLedger const* ledger,
+    struct ReplayLedger* building,
+    struct ReplayEntityState const* state,
+    uint32_t f,
+    int large,
+    RsprotInfoList* list)
+{
+    struct RsproxRecordingFrame const* fr = &ledger->rec->frames[f];
+    struct GameProtoRevTable const* rev = ledger->rev;
+    struct NpcTypeAsk ask;
+    int count;
+
+    if( building )
+    {
+        memset(&ask, 0, sizeof(ask));
+        ask.ledger = ledger;
+        ask.building = building;
+        ask.state = state;
+        ask.frame = f;
+        ask.first = building->answer_count;
+    }
+    else
+        npc_type_ask_kept(&ask, ledger, f);
+    if( large )
+        assert(rev->npc_info_read_large);
+    else
+        assert(rev->npc_info_read);
+    count = (large ? rev->npc_info_read_large : rev->npc_info_read)(
+        ledger->rec->data + fr->offset, (int)fr->length, ledger->npc_types ? npc_type_lengths : NULL,
+        ledger->npc_types ? &ask : NULL, list);
+    if( building && ask.count > 0 )
+    {
+        struct ReplayLedgerTypeFrame* tf;
+
+        if( building->answer_frame_count == building->answer_frame_cap )
+        {
+            int const cap = building->answer_frame_cap ? building->answer_frame_cap * 2 : 32;
+
+            building->answer_frames = ToriMem_Realloc(
+                ToriMem_Net(), building->answer_frames, (size_t)cap * sizeof(*building->answer_frames));
+            assert(building->answer_frames);
+            building->answer_frame_cap = cap;
+        }
+        /* Frames are built in order: the index stays sorted. */
+        assert(building->answer_frame_count == 0 ||
+               building->answer_frames[building->answer_frame_count - 1].frame < f);
+        tf = &building->answer_frames[building->answer_frame_count++];
+        tf->frame = f;
+        tf->first = ask.first;
+        tf->count = ask.count;
+    }
+    else if( !building )
+        assert(ask.next == ask.count);
+    return count;
+}
+
 static void
 npc_info(
     struct ReplayLedger const* ledger,
@@ -520,7 +700,6 @@ npc_info(
 {
     static struct ReplayLedgerNpc old[REPLAY_LEDGER_MAX_NPCS];
     static int cleared[REPLAY_LEDGER_MAX_NPCS];
-    struct RsproxRecordingFrame const* fr = &ledger->rec->frames[f];
     RsprotInfoList list;
     int count;
     int old_count = state->npc_count;
@@ -531,18 +710,7 @@ npc_info(
     int revived = 0;
 
     rsprot_info_list_init(&list, g_ops, LEDGER_INFO_OPS, g_bytes, LEDGER_INFO_BYTES);
-    if( large )
-    {
-        assert(ledger->rev->npc_info_read_large);
-        count = ledger->rev->npc_info_read_large(ledger->rec->data + fr->offset, (int)fr->length,
-                                                 NULL, NULL, &list);
-    }
-    else
-    {
-        assert(ledger->rev->npc_info_read);
-        count = ledger->rev->npc_info_read(ledger->rec->data + fr->offset, (int)fr->length, NULL, NULL,
-                                           &list);
-    }
+    count = npc_info_read(ledger, building, state, f, large, &list);
     if( building )
     {
         building->stats.npc_info_frames++;
@@ -1213,7 +1381,8 @@ freeze_retime(
 }
 
 /* The NPC_INFO frame last decoded for a keyframe: the npc stream is
- * stateless, so a frame decodes the same way whenever it is asked. */
+ * stateless and a typed block is handed the answers the build gave it
+ * (npc_info_read), so a frame decodes the same way whenever it is asked. */
 struct NpcDecode
 {
     uint32_t frame;
@@ -1235,19 +1404,11 @@ npc_op_resolve(
 
     if( cache->frame != f )
     {
-        struct RsproxRecordingFrame const* fr = &ledger->rec->frames[f];
         int name = ledger_frame_name(ledger, f);
 
         cache->frame = f;
-        if( name == PKT_NAME_NPC_INFO_LARGE )
-            cache->count = ledger->rev->npc_info_read_large(ledger->rec->data + fr->offset,
-                                                            (int)fr->length, NULL, NULL, &cache->list);
-        else
-        {
-            assert(name == PKT_NAME_NPC_INFO);
-            cache->count = ledger->rev->npc_info_read(ledger->rec->data + fr->offset,
-                                                      (int)fr->length, NULL, NULL, &cache->list);
-        }
+        assert(name == PKT_NAME_NPC_INFO_LARGE || name == PKT_NAME_NPC_INFO);
+        cache->count = npc_info_read(ledger, NULL, NULL, f, name == PKT_NAME_NPC_INFO_LARGE, &cache->list);
     }
     if( index >= cache->count )
         return 0;

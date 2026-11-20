@@ -164,6 +164,13 @@ struct ReplaySeekTimes;
 void NetTransport_ReplaySeekTimes(struct NetTransport* t, struct ReplaySeekTimes* out);
 /** Client cycles per chase tick (1..30): TORIRS_REPLAY_CHASE_CYCLES. */
 void NetTransport_ReplaySetChaseCycles(struct NetTransport* t, int cycles);
+/** What the world ledger asks a typed npc customisation's colour counts of,
+ *  by type (net/rev GameProtoNpcTypeLengths; ReplayScrub_SetNpcTypeLengths).
+ *  Before the first poll. */
+void NetTransport_ReplaySetNpcTypeLengths(
+    struct NetTransport* t,
+    int (*npc_types)(void* ctx, int old, int npc_type, int head, int* recolours, int* retextures),
+    void* npc_types_ctx);
 
 /** The recording's timeline as the page's timeline() JSON, malloc'd. */
 char* NetTransport_ReplayTimelineJson(struct NetTransport* t);

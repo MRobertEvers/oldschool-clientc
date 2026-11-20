@@ -35,6 +35,7 @@
 #include "replay/replay_digest.h"
 #include "replay/replay_checkpoint_check.h"
 #include "replay/replay_checkpoint_play.h"
+#include "replay/replay_npc_types.h"
 #include "replay/replay_scrub.h"
 #include "replay/replay_viewer.h"
 #include "platform/platform_audio.h"
@@ -7962,6 +7963,8 @@ frame_loop_teardown(void)
                       st.seeking, (unsigned long long)RS_ServerTick_Serial(&app.server_tick));
     }
     NetTransport_Free(sock);
+    ReplayNpcTypes_Free(rsprox_replay.npc_types);
+    rsprox_replay.npc_types = NULL;
     /*
      * The audio ledger, and the leak check the retained API makes possible.
      *
@@ -11256,6 +11259,12 @@ main(
                 rsprox_recording_resolve_reconnects(RsproxRecording_Rev(&rsprox_replay.rec),
                                                     &rsprox_replay.rec);
                 sock = NetTransport_NewReplay(&rsprox_replay.rec, app.net->rev);
+                /* Its world ledger reads a typed npc customisation by the
+                 * npc's type, from this cache's npc configs (read once). */
+                rsprox_replay.npc_types =
+                    ReplayNpcTypes_NewFromCacheDir(cfg.cache_dir, CacheProvider_Profile(app.provider));
+                if( rsprox_replay.npc_types )
+                    NetTransport_ReplaySetNpcTypeLengths(sock, ReplayNpcTypes_Lengths, rsprox_replay.npc_types);
                 /* Its control frames are expected (net/torirs_control.h). */
                 ToriRS_Network_MarkReplay(app.net);
             }

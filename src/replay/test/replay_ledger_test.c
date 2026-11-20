@@ -427,6 +427,14 @@ struct Gen
 #define A5_HEAD_MODEL 70777
 #define A5_FREEZE_DELAY 2
 #define A5_FREEZE_DURATION 900
+/* I4: the HEAD_CUSTOM is the TYPED form (241's 0x80000): with colours
+ * (0x4) it carries as many as its npc's TYPE has and no count, so its read
+ * asks the ledger's npc types; a NAME_CHANGE follows it in the record, which a
+ * read that stopped at the block would never reach. Every type here has
+ * A5_TYPE_RECOLOURS colours (a5_npc_types). */
+#define A5_TYPE_RECOLOURS 3
+#define A5_RECOLOUR 4100
+#define A5_NAME "Renamed by A5"
 #define A5_EXTRAS_TICK 100
 #define A5_RESET_TICK 150
 #define A5_BOTH_TICK 160
@@ -637,20 +645,23 @@ gen_npc_info(struct Gen* g)
         /* 241's blocks (npc_info_osrs241.c): the flag word 0x90 (FREEZE 0x80,
          * and 0x10 for a second byte), 0x20 (0x2000: a third), 0x08
          * (HEAD_CUSTOMISATION_V2, 0x80000); FREEZE before HEAD_CUSTOM. */
-        uint8_t tail[32];
+        uint8_t tail[64];
         RsprotBuf t;
         int bytes;
 
         rsprot_buf_wrap(&t, tail, (int)sizeof(tail));
         rsprot_p1(&t, 0x90);
-        rsprot_p1(&t, 0x20);
+        rsprot_p1(&t, 0x24); /* and 0x400: NAME_CHANGE */
         rsprot_p1(&t, 0x08);
         rsprot_p2_21(&t, A5_FREEZE_DELAY);
         rsprot_p2_12(&t, A5_FREEZE_DURATION);
         rsprot_p1_neg(&t, 0);
-        rsprot_p1_sub128(&t, 0x2); /* a model list, no colours */
+        rsprot_p1_sub128(&t, 0x2 | 0x4); /* a model list and the type's colours */
         rsprot_p1(&t, 1);
         rsprot_p4_4321(&t, A5_HEAD_MODEL);
+        for( int k = 0; k < A5_TYPE_RECOLOURS; k++ )
+            rsprot_p2_12(&t, A5_RECOLOUR + k);
+        rsprot_pjstr(&t, A5_NAME);
         TEST_CHECK(rsprot_buf_ok(&t));
         if( rsprot_npc_info_tail_needs_sentinel((size_t)b.pos, (size_t)t.wpos) )
             bits(&b, 16, 0xFFFF);
@@ -1019,6 +1030,28 @@ check_keyframe(
  * those cycles while any remain (and none after), and the decorations
  * exactly while they stand.
  */
+/* I4: the ledger's npc types (GameProtoNpcTypeLengths, by type): every type
+ * has A5_TYPE_RECOLOURS colours. `ctx` counts the questions. */
+static int g_a5_type_asks;
+
+static int
+a5_npc_types(
+    void* ctx,
+    int old,
+    int npc_type,
+    int head,
+    int* recolours,
+    int* retextures)
+{
+    TEST_CHECK(old == -1); /* the ledger resolves its list's index itself */
+    TEST_CHECK(npc_type >= 0);
+    TEST_CHECK(head == 1);
+    (*(int*)ctx)++;
+    *recolours = A5_TYPE_RECOLOURS;
+    *retextures = 0;
+    return 1;
+}
+
 static void
 check_a5(
     struct ReplayLedger* ledger,
@@ -1036,6 +1069,7 @@ check_a5(
         struct ReplayWorldKeyframe kf;
         struct ReplayWorldNpc const* npc = NULL;
         int head = 0;
+        int named = 0;
         int freezes = 0;
 
         TEST_CHECK(ReplayLedger_WorldAt(ledger, tick, &kf));
@@ -1051,7 +1085,17 @@ check_a5(
             {
                 TEST_CHECK(op->body.model_count == 1);
                 TEST_CHECK(op->body.models && op->body.models[0] == A5_HEAD_MODEL);
+                /* I4: the type's count of colours, read whole. */
+                TEST_CHECK(op->body.recolour_count == A5_TYPE_RECOLOURS);
+                for( int k = 0; op->body.recolours && k < op->body.recolour_count; k++ )
+                    TEST_CHECK(op->body.recolours[k] == A5_RECOLOUR + k);
                 head++;
+            }
+            if( op->kind == RSPROT_OP_NAME_CHANGE )
+            {
+                /* I4: the block after it in the record was reached. */
+                TEST_CHECK(op->name_change.name && strcmp(op->name_change.name, A5_NAME) == 0);
+                named++;
             }
             if( op->kind == RSPROT_OP_FREEZE )
             {
@@ -1067,6 +1111,7 @@ check_a5(
             int const now = tick * REPLAY_LEDGER_CYCLES_PER_TICK;
 
             TEST_CHECK(head == 1);
+            TEST_CHECK(named == 1);
             TEST_CHECK(freezes == (now < end));
             checked_frozen += now < end;
             checked_thawed += now >= end;
@@ -1188,7 +1233,7 @@ main(void)
     }
     g_rev->player_info_state_save(before);
 
-    ledger = ReplayLedger_Build(&rec, g_rev);
+    ledger = ReplayLedger_Build(&rec, g_rev, a5_npc_types, &g_a5_type_asks);
     ReplayLedger_Stats(ledger, &st);
     TEST_CHECK(st.scenes == 2);
     TEST_CHECK(ReplayLedger_Scene(ledger, 0)->login == 1);
@@ -1279,6 +1324,7 @@ main(void)
             check_keyframe(ledger, &rec, t);
         check_specific(ledger, &gen);
         check_a5(ledger, &gen);
+        TEST_CHECK(g_a5_type_asks == 1); /* asked once, when built */
     }
     {
         uint32_t* alive = malloc((size_t)(ReplayLedger_ZoneOpsAliveMax(ledger) + 1) * sizeof(*alive));

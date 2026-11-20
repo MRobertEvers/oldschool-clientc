@@ -126,6 +126,10 @@ struct ReplayScrub
     /** Built on the first fast seek (ReplayLedger_Build): the keyframes and
      *  the chase's tiles. */
     struct ReplayLedger* ledger;
+    /** What the ledger asks a typed npc customisation's colours of
+     *  (ReplayScrub_SetNpcTypeLengths), NULL: none. */
+    GameProtoNpcTypeLengths npc_types;
+    void* npc_types_ctx;
     int ledger_failed;
     /** The chase: the tick whose COORD went last (-1: none this session). */
     int chase_tick;
@@ -318,7 +322,7 @@ ledger_ready(struct ReplayScrub* scrub)
         return 0;
     }
     ReplayClassify_Check();
-    scrub->ledger = ReplayLedger_Build(scrub->rec, rev);
+    scrub->ledger = ReplayLedger_Build(scrub->rec, rev, scrub->npc_types, scrub->npc_types_ctx);
     assert(scrub->ledger);
     {
         struct ReplayLedgerStats st;
@@ -842,6 +846,20 @@ ReplayScrub_SeekMode(struct ReplayScrub const* scrub)
 {
     assert(scrub);
     return scrub->mode;
+}
+
+void
+ReplayScrub_SetNpcTypeLengths(
+    struct ReplayScrub* scrub,
+    GameProtoNpcTypeLengths npc_types,
+    void* npc_types_ctx)
+{
+    assert(scrub);
+    assert(npc_types);
+    /* The ledger reads its frames once, when it is built. */
+    assert(!scrub->ledger);
+    scrub->npc_types = npc_types;
+    scrub->npc_types_ctx = npc_types_ctx;
 }
 
 void

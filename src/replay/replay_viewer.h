@@ -48,6 +48,8 @@ struct ReplayViewerSeek
     int present_pending;
 };
 
+struct ReplayNpcTypes;
+
 struct ReplayViewer
 {
     /** The --replay file; NULL = not a replay boot. Opened at boot, so its
@@ -65,6 +67,10 @@ struct ReplayViewer
     char const* at;
     struct ReplayViewerDigest digest;
     struct ReplayViewerSeek seek;
+    /** The npc types the transport's world ledger reads a typed npc
+     *  customisation by (replay/replay_npc_types.h), from the client's cache;
+     *  NULL when that cache has none to give. Outlives the transport. */
+    struct ReplayNpcTypes* npc_types;
 };
 
 #endif

@@ -46,6 +46,7 @@
  * player_info_osrs<N> / osrsm<N> reader).
  */
 
+#include "net/rev/gameproto_revisions.h"
 #include "net/rev/revpacket.h"
 #include "streams/rsprot_info.h"
 
@@ -344,11 +345,20 @@ struct ReplayLedgerStats
 
 /** Build the ledger. `rec` must be indexed (RsproxRecording_Index) and its
  *  RECONNECT frames resolved (rsprox_recording_resolve_reconnects); `rev` its
- *  revision's table (RsproxRecording_Rev). Both must outlive the ledger. */
+ *  revision's table (RsproxRecording_Rev). Both must outlive the ledger.
+ *
+ *  `npc_types` answers a typed customisation block's question by type (the
+ *  clients' GameProtoNpcTypeLengths contract, asked with `old` -1: the
+ *  ledger resolves an index to a type from its own npc list), with
+ *  `npc_types_ctx`; NULL when this replay has no npc configs, and then such
+ *  a block stops its frame's read, as the reader does with no lookup. It is
+ *  only called while building. */
 struct ReplayLedger*
 ReplayLedger_Build(
     struct RsproxRecording const* rec,
-    struct GameProtoRevTable const* rev);
+    struct GameProtoRevTable const* rev,
+    GameProtoNpcTypeLengths npc_types,
+    void* npc_types_ctx);
 
 /** Accepts NULL. */
 void

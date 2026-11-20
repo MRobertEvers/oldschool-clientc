@@ -16,11 +16,14 @@
  */
 #include "replay/replay_ledger.h"
 #include "replay/replay_ledger_verify.h"
+#include "replay/replay_npc_types.h"
 
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/revpacket.h"
 #include "net/rsprox_recording.h"
 #include "streams/rsprot_info.h"
+
+#include <rscache.h>
 
 #include <assert.h>
 #include <stdio.h>
@@ -133,6 +136,7 @@ check(char const* path)
     };
     int sample_ticks[SAMPLES + 8];
     int n = 0;
+    struct ReplayNpcTypes* types = NULL;
 
     memset(&rec, 0, sizeof(rec));
     if( RsproxRecording_OpenFile(&rec, path, err, sizeof(err)) != 0 )
@@ -172,7 +176,18 @@ check(char const* path)
                rec.frame_count, rec.tick_count, reconnects);
     }
 
-    ledger = ReplayLedger_Build(&rec, rev);
+    /* NPC_CACHE: the recording's revision's cache answers the typed npc
+     * customisation blocks, as the replay client's does. */
+    {
+        char const* npc_cache = getenv("NPC_CACHE");
+        struct RSCache profile =
+            RSCache_ProfileForIdentity(RSCACHE_GAME_OLDSCHOOL, RSCACHE_EPOCH_DAT2, rec.revision, 0);
+
+        if( npc_cache && npc_cache[0] )
+            types = ReplayNpcTypes_NewFromCacheDir(npc_cache, &profile);
+        printf("  npc types: %s\n", types ? npc_cache : "none (a typed customisation stops its frame)");
+    }
+    ledger = ReplayLedger_Build(&rec, rev, types ? ReplayNpcTypes_Lengths : NULL, types);
     ReplayLedger_Stats(ledger, &st);
     ticks = ReplayLedger_TickCount(ledger);
 
@@ -331,6 +346,7 @@ check(char const* path)
     printf("%s %s\n", failures ? "FAIL" : "PASS", path);
 
     ReplayLedger_Free(ledger);
+    ReplayNpcTypes_Free(types);
     free(before);
     free(after);
     RsproxRecording_Free(&rec);
