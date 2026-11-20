@@ -19345,7 +19345,8 @@ ToriRSServer_WorldLocSet(
 }
 
 /* The body of ToriRSServer_WorldLocSetOps, already bound to the window the
- * mutation lands in (`covered` says whether any built window holds the tile). */
+ * mutation lands in (`covered` says whether the tile's map square is loaded in
+ * the collision store). */
 static int
 world_loc_set_ops_in_window(
     struct ToriRSServer* srv,
@@ -19379,8 +19380,8 @@ world_loc_set_ops_in_window(
     assert(ops);
 
     /*
-     * A tile no built window covers. The reference has no such case — its
-     * World holds every zone — and content is entitled to the same reach:
+     * A tile whose map square is not loaded. The reference has no such case —
+     * its World holds every zone — and content is entitled to the same reach:
      * puro-puro's crop circle rotates through eight farms and at most one of
      * them is ever near a player. The ZoneMap is world-indexed and is the
      * durable authority anyway (§3.17), so the mutation is recorded there and
@@ -19509,8 +19510,20 @@ ToriRSServer_WorldLocSetOps(
 
     if( covering )
         ToriRSServer_SceneBindWindow(covering);
+    /*
+     * The store, not a window's view, decides where the change lands. A window
+     * holds a ring of squares beyond its 104x104 view, and a square nobody
+     * holds lingers before it is dropped; in both cases the square is loaded
+     * and is what the next lookup reads, though no view contains the tile. A
+     * change applied only to the ZoneMap there left the square describing the
+     * old loc: a door whose 500-tick revert fired while its player was away
+     * came back shut on every client and open in the store, and the next Open
+     * found no loc on the tile (imp, '<- OPLOC1 23972 at 3109,3167 slot=-1').
+     * A square that is not loaded is rebuilt from the cache and the ZoneMap
+     * when it loads, so the ZoneMap alone is right only for that one.
+     */
     result = world_loc_set_ops_in_window(srv, x, z, level, shape, loc_id, angle, kind, ops,
-                                         covering != NULL);
+                                         ToriRSServer_SceneContains(x, z));
     ToriRSServer_SceneBindWindow(home);
     if( result )
         ToriRSServer_TicklogLocSet(srv, ToriRSServer_CoordPack(level, x, z), loc_id, shape, angle,
@@ -19601,15 +19614,13 @@ ToriRSServer_WorldLocReverts(struct ToriRSServer* srv)
          * expiring) — `ToriRSServer_WorldLocSet` decides which by looking, rather
          * than by remembering which opcode armed the timer.
          *
-         * It can refuse, and there is one way that happens which is worth
-         * saying out loud: collision windows cover only where the world is
-         * being watched from (the root anchor plus each player's own window),
-         * so a revert armed before everyone walked away may be aimed at a tile
-         * no built window covers any more. The ZoneMap record stands, which is
-         * the safe direction — the clients were told the loc changed and it
-         * stays changed — but the timer is spent, so the loc never comes back.
-         * That is the windowed-collision limitation, not this table's, and it
-         * is reported rather than swallowed.
+         * Whether anyone is watching does not matter. A revert aimed at a
+         * tile whose square is loaded lands in the store whether or not a
+         * window's view holds it, and one whose square is not loaded is
+         * recorded in the ZoneMap, which the square replays when it loads: a
+         * loc change with no observer still happened. What can refuse is the
+         * change itself (an unknown loc id, a delete of nothing), and that is
+         * reported rather than swallowed.
          */
         /*
          * Undoing a `loc_add` takes away the loc that was added, and never the
@@ -19647,8 +19658,7 @@ ToriRSServer_WorldLocReverts(struct ToriRSServer* srv)
                                    entry->loc_id, entry->angle, TORIRSSERVER_LOC_SET_CHANGE) &&
             srv->verbose )
             fprintf(stderr,
-                    "torirsserver: a loc revert at %d,%d could not apply — outside the built "
-                    "scene; %d stays as it is\n",
+                    "torirsserver: a loc revert at %d,%d could not apply; %d stays as it is\n",
                     entry->x, entry->z, entry->loc_id);
     }
 }
@@ -19673,9 +19683,9 @@ ToriRSServer_WorldLocReverts(struct ToriRSServer* srv)
  * "forever" from meaning "next tick".
  */
 /*
- * Whether a loc stands on (x, z, level, shape) right now: the covering
- * window's scene when one is built there, else the ZoneMap record (the only
- * memory of a tile no window covers). The bound window is restored.
+ * Whether a loc stands on (x, z, level, shape) right now: the collision store
+ * when the tile's square is loaded, else the ZoneMap record (the only memory
+ * of a tile no loaded square holds).
  */
 static int
 world_loc_key_live(
@@ -19685,20 +19695,16 @@ world_loc_key_live(
     int level,
     int shape)
 {
-    struct ToriRSServerSceneWindow* bound = ToriRSServer_SceneBoundWindow();
-    struct ToriRSServerSceneWindow* covering = ToriRSServer_SceneWindowFind(x, z);
     struct ToriRSServerZoneLoc* record;
 
-    if( covering )
+    /* The same test the mutation makes (ToriRSServer_WorldLocSetOps): a
+     * loaded square is the truth, whether or not a window's view holds it. */
+    if( ToriRSServer_SceneContains(x, z) )
     {
-        struct ToriRSServerSceneLoc* standing;
-        int live;
+        struct ToriRSServerSceneLoc* standing =
+            ToriRSServer_SceneLoc(ToriRSServer_SceneFindLocExact(x, z, level, shape));
 
-        ToriRSServer_SceneBindWindow(covering);
-        standing = ToriRSServer_SceneLoc(ToriRSServer_SceneFindLocExact(x, z, level, shape));
-        live = standing && standing->active;
-        ToriRSServer_SceneBindWindow(bound);
-        return live;
+        return standing && standing->active;
     }
     record = ToriRSServer_ZoneLocFind(srv, x, z, level, shape);
     return record && record->loc_id >= 0;
