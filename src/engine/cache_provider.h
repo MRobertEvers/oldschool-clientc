@@ -154,8 +154,12 @@ struct CacheProvider
      * asset queue is drained. The frame contract's split: reads on the asset
      * queue, CPU-heavy decoding here. A loader that hands work here joins it
      * like any fan-out (ToriRS_TaskQueue_AddParallelPoolSubTask / a join), and
-     * asserts this is set: today only the music loader does
-     * (task_dat2_music_load.c, the sample decode). NULL until named.
+     * asserts this is set. The loaders that do: music (task_dat2_music_load.c,
+     * the track's unpack and the sample decode), dat2 and dat1 sound effects
+     * (task_dat2_sound_load.c, the render and a rev-727 sample's Vorbis
+     * decode; task_dat1_sound_load.c, the render), the world map
+     * (task_dat2_worldmap_load.c, the decode) and the dat1 component pack
+     * (task_dat1_component_pack_load.c, the decode). NULL until named.
      */
     struct ToriRS_TaskQueue* compute_queue;
 
