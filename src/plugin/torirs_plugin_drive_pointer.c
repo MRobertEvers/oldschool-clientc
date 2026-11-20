@@ -1202,14 +1202,17 @@ DrivePointer_MenuRowFind(
 static int
 drive_pointer_opplayer_action_for_slot(int slot)
 {
-    static int const ids[5] = {
+    static int const ids[8] = {
         REVCONFIG_MINIMENU_OPPLAYER1,
         REVCONFIG_MINIMENU_OPPLAYER2,
         REVCONFIG_MINIMENU_OPPLAYER3,
         REVCONFIG_MINIMENU_OPPLAYER4,
         REVCONFIG_MINIMENU_OPPLAYER5,
+        REVCONFIG_MINIMENU_OPPLAYER6,
+        REVCONFIG_MINIMENU_OPPLAYER7,
+        REVCONFIG_MINIMENU_OPPLAYER8,
     };
-    return (slot >= 0 && slot < 5) ? ids[slot] : REVCONFIG_MINIMENU_OPPLAYER1;
+    return (slot >= 0 && slot < 8) ? ids[slot] : REVCONFIG_MINIMENU_OPPLAYER1;
 }
 
 /*

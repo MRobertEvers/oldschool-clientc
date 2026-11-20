@@ -34,6 +34,7 @@
 #include "world.h"
 #include "world_pickset.h"
 
+#include "game/rs_player_ops.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -92,8 +93,8 @@ test_entry_subject_is_the_acting_row(void)
     World_PickSetAdd(&picks, NPC_VISIBLE_ELEMENT, WORLD_PICK_NPC, 25, 25, 0, 0);
 
     {
-        char player_ops[5][40];
-        int player_ops_primary[5] = { 0 };
+        char player_ops[RS_PLAYER_OPS_SLOTS][40];
+        int player_ops_primary[RS_PLAYER_OPS_SLOTS] = { 0 };
         struct RS_MinimenuBuildCtx ctx = {
             .selection = { .mode = RS_MINIMENU_SELECT_NONE },
             .player_ops = (char const(*)[40])player_ops,

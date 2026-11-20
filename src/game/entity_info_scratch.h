@@ -35,6 +35,8 @@
  * lists at teardown.
  */
 
+#include "net/rev/gameproto_revisions.h"
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -75,6 +77,9 @@ struct EntityInfoScratchSlot
  * A decoder: the revision's reader, and for a stream with state across
  * packets (the OSRS player table) how to save and restore it -- all three, or
  * all NULL for a stream with none (GameProtoRevTable's player_info_state_*).
+ * An NPC_INFO reader is `npc_read` instead of `read`, with the host's npc
+ * type lookup for the typed customisation blocks (`lengths`, NULL for none;
+ * GameProtoNpcTypeLengths).
  */
 struct EntityInfoReader
 {
@@ -82,6 +87,14 @@ struct EntityInfoReader
         uint8_t const* data,
         int len,
         struct RsprotInfoList* out);
+    int (*npc_read)(
+        uint8_t const* data,
+        int len,
+        GameProtoNpcTypeLengths lengths,
+        void* ctx,
+        struct RsprotInfoList* out);
+    GameProtoNpcTypeLengths lengths;
+    void* lengths_ctx;
     size_t (*state_size)(void);
     void (*state_save)(void* out);
     void (*state_load)(void const* in);

@@ -37,6 +37,7 @@
 #include "engine/asset_requests.h"
 #include "engine/cache_provider.h"
 #include "engine/uitree_scene_bridge.h"
+#include "mem/torimem_toridraw.h"
 #include "world/entity_npc.h"
 #include "world/world.h"
 #include "game/rs_entity_sync.h"
@@ -674,6 +675,7 @@ test_npc_headicon_groups_load(void)
         "group 88 first, bound by its id");
     TEST_ASSERT(n >= 2 && icons[1].scene_id == prayer_scene && icons[1].frame == 2,
         "the prayer group from the client's own pack");
+    TEST_ASSERT(n >= 2 && icons[0].slot == 1 && icons[1].slot == 3, "each keeps its slot, which places it");
     TEST_ASSERT(App_SpriteFillPending(&fx.app, 88), "group 88 loads through its fill task");
     TEST_ASSERT(!App_SpriteFillPending(&fx.app, 77), "a slot with no frame binds nothing");
     pump(&fx);
@@ -696,6 +698,47 @@ test_npc_headicon_groups_load(void)
     n = app_overlay_npc_headicons(&fx.app, &type, &npc, prayer_scene, APP_HEADICONS_PRAYER_GROUP, icons);
     TEST_ASSERT(n == 1 && icons[0].scene_id == prayer_scene && icons[0].frame == 4, "the type's icon");
     fixture_free(&fx);
+}
+
+/*
+ * A2: where an npc's overhead icon goes (deob Statics.method6709, the npc
+ * branch, bytecode at offsets 2884-2915 as javap prints it):
+ *
+ *     draw(sx + vx - (w >> 1), sy + ((vy - h - 2) * (slot + 1) - h) - 4)
+ *
+ * (sx, sy) the anchor in the viewport, (vx, vy) the viewport's origin, w and
+ * h the frame's art. Numbers from that, for a 25 x 25 icon and a 30 x 21 one,
+ * the anchor at (300, 200) in the viewport:
+ *   resizable (origin 0, 0): slot 0 at y 200 - 56 = 144, slot 1 at 117,
+ *     slot 3 at 63 (a step of h + 2 = 27); x 300 - 12 = 288;
+ *   fixed (origin 4, 4), on the canvas (304, 204): slot 0 at 204 - 4 + (4 -
+ *     27) - 25 - 4 = 148, slot 1 at 125, slot 2 at 102 (a step of h + 2 - vy
+ *     = 23); x 304 - 12 = 292;
+ *   30 x 21, resizable: slot 0 at 200 - 2*21 - 6 = 152, x 300 - 15 = 285.
+ * The player branch draws at x - 12 whatever the icon, and the old npc rule
+ * was that one (y - 30, then 27 per drawn icon).
+ */
+static void
+test_npc_headicon_placement(void)
+{
+    int x;
+    int y;
+
+    printf("TEST: an npc headicon is placed by its art and its slot, as the reference's npc branch\n");
+    app_overlay_npc_headicon_place(300, 200, 0, 0, 25, 25, &x, &y);
+    TEST_ASSERT(x == 288 && y == 144, "one icon, resizable: (288, 144)");
+    app_overlay_npc_headicon_place(300, 200, 0, 1, 25, 25, &x, &y);
+    TEST_ASSERT(x == 288 && y == 117, "slot 1, resizable: 27 above slot 0");
+    app_overlay_npc_headicon_place(300, 200, 0, 3, 25, 25, &x, &y);
+    TEST_ASSERT(y == 63, "slot 3 is placed by its slot, not its rank");
+    app_overlay_npc_headicon_place(304, 204, 4, 0, 25, 25, &x, &y);
+    TEST_ASSERT(x == 292 && y == 148, "one icon, fixed: (292, 148) on the canvas");
+    app_overlay_npc_headicon_place(304, 204, 4, 1, 25, 25, &x, &y);
+    TEST_ASSERT(y == 125, "slot 1, fixed: 23 above slot 0");
+    app_overlay_npc_headicon_place(304, 204, 4, 2, 25, 25, &x, &y);
+    TEST_ASSERT(y == 102, "slot 2, fixed: 23 above slot 1");
+    app_overlay_npc_headicon_place(300, 200, 0, 0, 30, 21, &x, &y);
+    TEST_ASSERT(x == 285 && y == 152, "a 30 x 21 icon is centred and lifted by its own size");
 }
 
 /* E12 HEAD_CUSTOM: an IF_SETNPCHEAD_ACTIVE head of an npc carrying a
@@ -1155,9 +1198,143 @@ test_active_head_follow_is_a_want_not_a_bind(void)
     fixture_free(&fx);
 }
 
+/*
+ * A3: a customised chathead (IF_SETNPCHEAD_ACTIVE of an npc with HEAD_CUSTOM)
+ * composites one model per override serial. Each override change used to add
+ * one for the rest of the session. Now one that no head names and no widget
+ * draws leaves the scene and is freed (the reference keeps its chatheads in
+ * an LRU): over many changes the composites -- and the blocks of ToriDraw's
+ * ToriMem group they are made on -- stay flat, and the one the widget still
+ * draws while its successor loads is kept.
+ */
+static struct ToriRS_Model*
+a3_triangle(void)
+{
+    struct ToriRS_Model* m = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m));
+
+    assert(m);
+    m->vertex_count = 3;
+    m->face_count = 1;
+    m->vertices_x = ToriMem_Calloc(ToriMem_Assets(), 3, sizeof(*m->vertices_x));
+    m->vertices_y = ToriMem_Calloc(ToriMem_Assets(), 3, sizeof(*m->vertices_y));
+    m->vertices_z = ToriMem_Calloc(ToriMem_Assets(), 3, sizeof(*m->vertices_z));
+    m->vertices_x[1] = 64;
+    m->vertices_z[2] = 64;
+    m->face_indices_a = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_indices_a));
+    m->face_indices_b = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_indices_b));
+    m->face_indices_c = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_indices_c));
+    m->face_indices_b[0] = 1;
+    m->face_indices_c[0] = 2;
+    m->face_colors = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_colors));
+    m->face_colors_a = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_colors_a));
+    m->face_colors_b = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_colors_b));
+    m->face_colors_c = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*m->face_colors_c));
+    return m;
+}
+
+static void
+test_custom_heads_are_released(void)
+{
+    struct Fixture fx;
+    struct ToriRS_Npctype* type;
+    struct WorldEntity_NPC* npc;
+    struct UIIfHead const* head;
+    struct UITreeNodeSpec spec;
+    int const com = 0x00e70002;
+    int const model[1] = { 81 };
+    int idx;
+    int shown = -1;
+    intptr_t blocks_after_first = 0;
+    int most = 0;
+
+    printf("TEST: customised chatheads no head names and no widget draws are released\n");
+    fixture_init(&fx);
+    fx.app.tree = UITree_New(16);
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_MODEL;
+    spec.component_id = com;
+    spec.width = 32;
+    spec.height = 32;
+    spec.u.rs_model.gamecache_model_id = -1;
+    spec.u.rs_model.active_model_id = -1;
+    TEST_ASSERT(UITree_Push(fx.app.tree, -1, &spec) >= 0, "the head's widget");
+    type = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*type));
+    assert(type);
+    type->transform_varbit = -1;
+    type->transform_varp = -1;
+    CacheProvider_NpctypeAdd(&fx.provider, 501, type);
+    CacheProvider_ModelAdd(&fx.provider, 81, a3_triangle());
+    fx.app.world = World_New();
+    RS_EntitySync_Init(&fx.app.esync);
+    idx = World_NpcSpawn(fx.app.world, 9, 501, 0, 10, 10, 1, (struct WorldEntityFacet_IdleAnimations){ 0 });
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, idx);
+    npc->server_slot = 13;
+    RS_EntitySync_RegisterNpc(&fx.app.esync, 13, 9, idx);
+
+    for( int change = 0; change < 200; change++ )
+    {
+        struct WorldNpcOverrideIn in = { .models_sent = true, .model_count = 1, .models = model };
+
+        World_NpcSetHeadCustom(fx.app.world, idx, &in);
+        if( change == 0 )
+            App_SetInterfaceNpcHeadCustom(&fx.app, com, idx);
+        else
+            app_if_head_wants(&fx.app);
+        if( change == 1 )
+        {
+            /* The successor has not landed: the widget still draws the
+             * first, which two sweeps leave alone. */
+            app_if_head_poll(&fx.app);
+            app_if_head_poll(&fx.app);
+            TEST_ASSERT(ToriDraw_SceneModelHas(fx.app.scene, shown), "the composite the widget draws is kept");
+        }
+        /* A frame: the bind moves the widget to the newest; the one before
+         * is found unused by the next sweep and released at the one after. */
+        pump(&fx);
+        app_if_head_poll(&fx.app);
+        app_if_head_poll(&fx.app);
+        app_if_head_poll(&fx.app);
+        head = head_of(&fx, com);
+        if( change == 0 )
+        {
+            shown = head ? head->bound_scene_id : -1;
+            TEST_ASSERT(shown >= 0 && ToriDraw_SceneModelHas(fx.app.scene, shown), "the first override is drawn");
+        }
+        if( change == 2 )
+            blocks_after_first = ToriMem_LibToriDraw()->live_blocks;
+        if( UITreeSceneBridge_NpcHeadCustomCount(&fx.app.bridge) > most )
+            most = UITreeSceneBridge_NpcHeadCustomCount(&fx.app.bridge);
+    }
+    head = head_of(&fx, com);
+    TEST_ASSERT(head && head->custom_serial == npc->head_custom.serial && head->bound_scene_id >= 0,
+        "the newest override is the one drawn");
+    TEST_ASSERT(!ToriDraw_SceneModelHas(fx.app.scene, shown), "the first is gone from the scene");
+    TEST_ASSERT(most <= 2, "never more than the drawn one and its successor");
+    TEST_ASSERT(UITreeSceneBridge_NpcHeadCustomCount(&fx.app.bridge) == 1, "one composite after 200 changes");
+    printf("  ToriDraw blocks after 3 overrides %ld, after 200: %ld\n", (long)blocks_after_first,
+        (long)ToriMem_LibToriDraw()->live_blocks);
+    TEST_ASSERT(ToriMem_LibToriDraw()->live_blocks == blocks_after_first, "and ToriDraw's group is flat");
+
+    /* The head closes: nothing names or draws its composite. */
+    UIIfModels_RemoveHeadAt(&fx.app.if_models, UIIfModels_HeadIndex(&fx.app.if_models, com));
+    app_if_head_poll(&fx.app);
+    app_if_head_poll(&fx.app);
+    TEST_ASSERT(UITreeSceneBridge_NpcHeadCustomCount(&fx.app.bridge) == 0, "a closed head's composite goes too");
+
+    RS_EntitySync_Free(&fx.app.esync);
+    World_Free(fx.app.world);
+    fx.app.world = NULL;
+    UITree_Free(fx.app.tree);
+    fx.app.tree = NULL;
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
+    /* Before the first call into ToriDraw, as the client does (main.c): its
+     * models are then blocks of ToriMem_LibToriDraw(), which A3 counts. */
+    ToriMem_InstallToriDraw();
     test_obj_wants_its_count_variant();
     test_npc_head_wants_textures();
     test_model_task_checks_its_head();
@@ -1167,12 +1344,14 @@ main(void)
     test_sprite_reservation_outlives_a_logout();
     test_bind_without_a_loader_is_unbound();
     test_npc_headicon_groups_load();
+    test_npc_headicon_placement();
     test_npc_head_custom_loads_its_models();
     test_a_close_seen_after_the_last_pump_publishes();
     test_npc_head_custom_empty_list_shows_nothing();
     test_active_head_follows_its_npc();
     test_head_bind_adds_no_task();
     test_active_head_follow_is_a_want_not_a_bind();
+    test_custom_heads_are_released();
     if( g_failures )
     {
         printf("if_assets_tasks: %d failure(s)\n", g_failures);

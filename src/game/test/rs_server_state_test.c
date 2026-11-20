@@ -781,8 +781,16 @@ test_session(void)
         CHECK(fx->player_ops.text[1][0] == '\0', "SET_PLAYER_OP \"null\" clears the row");
         p._set_player_op.text = op;
     }
+    /* Eight slots, as the reference's (deob client.java `var169 >= 1 &&
+     * var169 <= 8`): 6..8 are rows like the rest, and nothing else is. */
     p._set_player_op.slot = 6;
-    CHECK(apply(fx, &p) == RS_SERVER_STATE_UNCHANGED, "slot 6 is not a row");
+    CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "slot 6 is a row");
+    CHECK(strcmp(fx->player_ops.text[5], "Follow") == 0, "SET_PLAYER_OP slot 6 is row 5");
+    p._set_player_op.slot = 8;
+    CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "slot 8 is a row");
+    CHECK(strcmp(fx->player_ops.text[7], "Follow") == 0, "SET_PLAYER_OP slot 8 is row 7");
+    p._set_player_op.slot = 9;
+    CHECK(apply(fx, &p) == RS_SERVER_STATE_UNCHANGED, "slot 9 is not one");
 
     p = packet(PKT_NAME_LOGOUT_TRANSFER);
     p._logout_transfer.world_id = 330;

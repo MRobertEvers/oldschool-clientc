@@ -3762,11 +3762,27 @@ world_freeze_set(
 
     if( delay < 0 || duration < 0 )
     {
-        /* method3627, then method3498 for the reset byte. The reference
-         * leaves its frozen flag to the next step, drawing no snapshot until
-         * then; the live tracks are drawn here at once. */
+        /* method3627, then method3498 for the reset byte. The windows and
+         * the snapshots go (field1510 / field1509 = null) and the frozen flag
+         * (field1479) is left to the next step (Statics.method7852), so until
+         * it runs the actor does not turn (Statics.method1 turns before that
+         * step, `if (!field1479)`) and is drawn with no sequence: method3528
+         * and method3603 answer null for a frozen actor with no snapshot, and
+         * the model falls back to its held pose track (class105.method943,
+         * field1461), which is the pose here -- held, as nothing steps it
+         * while frozen. A window added before that step finds the flag still
+         * set and takes no snapshot either (method7852's `if
+         * (!var1.field1479)`), in the reference too. */
         f->count = 0;
-        f->frozen = false;
+        if( f->frozen )
+        {
+            f->drawn = *anim;
+            f->drawn.primary.anim_id = (uint16_t)-1;
+            f->drawn.primary.frame = 0;
+            f->drawn.primary.cycle = 0;
+            f->drawn.primary.loop = 0;
+            f->drawn.primary.delay = 0;
+        }
         if( reset )
             world_stop_primary(anim);
         return;
@@ -3864,6 +3880,8 @@ world_override_set(
         next.recolours = world_override_ints(in->recolours, in->recolour_count);
         next.retexture_count = in->retexture_count;
         next.retextures = world_override_ints(in->retextures, in->retexture_count);
+        next.has_recolour_all = in->has_recolour_all;
+        next.recolour_all = in->recolour_all;
         next.mirror = in->mirror;
         next.player = in->player;
         next.body_type = in->body_type;
@@ -3910,6 +3928,17 @@ World_NpcOverrideRecolour(
     assert(o);
     assert(i >= 0);
     return o->active && i < o->recolour_count ? o->recolours[i] : type_value;
+}
+
+int
+World_NpcOverrideRecolourAll(struct WorldNpcOverride const* o)
+{
+    assert(o);
+    if( !o->active || !o->has_recolour_all )
+        return -1;
+    if( (o->recolour_all & 0xffff) == 0xffff )
+        return -1;
+    return o->recolour_all & 0xffff;
 }
 
 int64_t

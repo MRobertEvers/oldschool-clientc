@@ -278,6 +278,8 @@ UITreeSceneBridge_Free(struct UITreeSceneBridge* bridge)
     bridge_hmap_free(bridge->obj_icon_border_map);
     bridge_hmap_free(bridge->npc_head_map);
     bridge_hmap_free(bridge->obj_model_map);
+    /* Their models are the scene's, and go with it. */
+    ToriMem_Free(ToriMem_Ui(), bridge->custom_heads);
     /* The icons' pixels are the scene's, and go with it. */
     ToriDraw_FontSetIcons(NULL, 0);
     memset(bridge, 0, sizeof(*bridge));
@@ -970,6 +972,7 @@ bridge_skin_sprite(int w, int h, uint32_t const* argb)
     spr->crop_width = w;
     spr->crop_height = h;
     spr->trim_width = w;
+    spr->trim_height = h;
     /* Baked chrome art carries real coverage (rounded corners, soft
      * shadows). @see ToriDraw_Sprite::alpha_channel. */
     spr->alpha_channel = 1;
@@ -1102,6 +1105,7 @@ UITreeSceneBridge_EnsureInkwell(struct UITreeSceneBridge* bridge)
                 spr->crop_width = size;
                 spr->crop_height = size;
                 spr->trim_width = size;
+                spr->trim_height = size;
                 /* The frames carry real coverage -- soft edges, and coloured
                  * pixels under alpha 0 where the baker padded -- so a consumer
                  * must read the alpha byte, never derive one from the colour.
@@ -1156,6 +1160,7 @@ bridge_publish_argb(
     sprite->crop_width = width;
     sprite->crop_height = height;
     sprite->trim_width = width;
+    sprite->trim_height = height;
     /* A plugin image is a decoded PNG: alpha is a channel, and a plugin that
      * drew a transparent coloured pixel meant it. @see
      * ToriDraw_Sprite::alpha_channel. */
@@ -1786,7 +1791,60 @@ UITreeSceneBridge_EnsureNpcHeadCustom(
     scene_id = (int)(UITREE_SCENE_NPC_HEAD_CUSTOM_BASE | (serial & UITREE_SCENE_NPC_HEAD_CUSTOM_MASK));
     ToriDraw_SceneModelAdd(bridge->scene, scene_id, hnd);
     bridge_map_put(bridge, bridge->npc_head_map, key, scene_id);
+    if( bridge->custom_head_count == bridge->custom_head_cap )
+    {
+        int cap = bridge->custom_head_cap ? bridge->custom_head_cap * 2 : 8;
+
+        bridge->custom_heads = ToriMem_Realloc(
+            ToriMem_Ui(), bridge->custom_heads, (size_t)cap * sizeof(*bridge->custom_heads));
+        assert(bridge->custom_heads);
+        bridge->custom_head_cap = cap;
+    }
+    bridge->custom_heads[bridge->custom_head_count++] =
+        (struct UITreeSceneBridgeCustomHead){ .serial = serial, .scene_id = scene_id, .doomed = 0 };
     return scene_id;
+}
+
+int
+UITreeSceneBridge_NpcHeadCustomCount(struct UITreeSceneBridge const* bridge)
+{
+    assert(bridge);
+    return bridge->custom_head_count;
+}
+
+void
+UITreeSceneBridge_NpcHeadCustomSweep(
+    struct UITreeSceneBridge* bridge,
+    bool (*in_use)(void* user, uint32_t serial, int scene_id),
+    void* user)
+{
+    assert(bridge);
+    assert(in_use);
+    for( int i = 0; i < bridge->custom_head_count; )
+    {
+        struct UITreeSceneBridgeCustomHead* c = &bridge->custom_heads[i];
+        int key;
+        struct ToriDraw_ModelHandle gone;
+
+        if( in_use(user, c->serial, c->scene_id) )
+        {
+            c->doomed = 0;
+            i++;
+            continue;
+        }
+        if( !c->doomed )
+        {
+            c->doomed = 1;
+            i++;
+            continue;
+        }
+        key = -1 - (int)(c->serial & UITREE_SCENE_NPC_HEAD_CUSTOM_MASK);
+        (void)hmap_search(bridge->npc_head_map, &key, HMAP_REMOVE);
+        gone = ToriDraw_SceneModelRemove(bridge->scene, c->scene_id);
+        ToriDraw_ModelHandleFree(gone);
+        bridge_assets_changed(bridge);
+        *c = bridge->custom_heads[--bridge->custom_head_count];
+    }
 }
 
 int

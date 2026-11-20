@@ -3,6 +3,7 @@
 #include "rs_minimenu_build.h"
 
 #include "rs_attack_option.h"
+#include "game/rs_player_ops.h"
 #include "world/entity_player.h"
 #include "world/world.h"
 #include "world/wev.h"
@@ -926,16 +927,21 @@ add_npc_stack_rows(
 static int
 opplayer_action_for_slot(int slot)
 {
-    static int const ids[5] = {
+    static int const ids[RS_PLAYER_OPS_SLOTS] = {
         REVCONFIG_MINIMENU_OPPLAYER1, REVCONFIG_MINIMENU_OPPLAYER2,
         REVCONFIG_MINIMENU_OPPLAYER3, REVCONFIG_MINIMENU_OPPLAYER4,
-        REVCONFIG_MINIMENU_OPPLAYER5,
+        REVCONFIG_MINIMENU_OPPLAYER5, REVCONFIG_MINIMENU_OPPLAYER6,
+        REVCONFIG_MINIMENU_OPPLAYER7, REVCONFIG_MINIMENU_OPPLAYER8,
     };
-    return (slot >= 0 && slot < 5) ? ids[slot] : REVCONFIG_MINIMENU_OPPLAYER1;
+    assert(slot >= 0);
+    assert(slot < RS_PLAYER_OPS_SLOTS);
+    return ids[slot];
 }
 
 /* Client-TS addPlayerOptions: never emit rows for the local player. Use/target
- * modes short-circuit; otherwise SET_PLAYER_OP text drives OPPLAYER1..5. */
+ * modes short-circuit; otherwise SET_PLAYER_OP text drives OPPLAYER1..8, added
+ * slot 8 first (deob Statics ~29066: `for (var18 = 7; var18 >= 0; var18--)`,
+ * each row's action field724[slot], 44..51). */
 static void
 add_player_rows(
     struct UIMinimenu* menu,
@@ -1004,7 +1010,7 @@ add_player_rows(
     if( !ctx->player_ops )
         return;
 
-    for( int i = 4; i >= 0; i-- )
+    for( int i = RS_PLAYER_OPS_SLOTS - 1; i >= 0; i-- )
     {
         int action;
         bool deprioritize;

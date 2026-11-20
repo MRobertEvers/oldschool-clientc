@@ -1463,6 +1463,8 @@ npc_apply_custom(
         .recolours = b->recolours,
         .retexture_count = b->retexture_count,
         .retextures = b->retextures,
+        .has_recolour_all = b->has_recolour_all,
+        .recolour_all = b->recolour_all,
         .mirror = b->mirror >= 0 ? b->mirror == 1 : (b->flag & 0x10) != 0,
         .player = (b->flag & 0x20) != 0 && b->body_type >= 0,
         .body_type = b->body_type,
@@ -1847,6 +1849,34 @@ RS_EntityApply_NpcInfo(
     for( int i = 0; i < self.cleared_count; i++ )
         npc_remove(&self, g_scratch.cleared[i]);
     g_scratch.busy = 0;
+}
+
+int
+RS_EntityApply_NpcOldType(
+    struct World* world,
+    struct RS_EntitySync* esync,
+    int view,
+    int old)
+{
+    int* list;
+    int* count;
+    int cap;
+    int world_idx = -1;
+    int element_id = -1;
+    struct WorldEntity_NPC* npc;
+
+    assert(world);
+    assert(esync);
+    assert(view >= 0);
+    assert(old >= 0);
+    RS_EntitySync_NpcList(esync, view, &list, &count, &cap);
+    (void)cap;
+    if( old >= *count || list[old] < 0 )
+        return -1;
+    if( !RS_EntitySync_FindNpc(esync, list[old], &world_idx, &element_id) || world_idx < 0 )
+        return -1;
+    npc = World_EntityPoolGet(&world->entities.npc, world_idx);
+    return npc ? npc->base_npc_id : -1;
 }
 
 int

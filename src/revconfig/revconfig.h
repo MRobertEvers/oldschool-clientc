@@ -57,6 +57,11 @@ enum RevConfigMiniMenuAction
     REVCONFIG_MINIMENU_OPPLAYER3 = 27,
     REVCONFIG_MINIMENU_OPPLAYER4 = 387,
     REVCONFIG_MINIMENU_OPPLAYER5 = 185,
+    /* Rev-254 has five player ops; the OSRS reference eight (deob field724
+     * 49..51). Ids of this client's, below the +2000 deprioritise bias. */
+    REVCONFIG_MINIMENU_OPPLAYER6 = 1715,
+    REVCONFIG_MINIMENU_OPPLAYER7 = 1716,
+    REVCONFIG_MINIMENU_OPPLAYER8 = 1717,
     /* World entity ops (rev-254 scheme; mirrors v0 minimenu_action.h). */
     REVCONFIG_MINIMENU_OPNPC1 = 242,
     REVCONFIG_MINIMENU_OPNPC2 = 209,

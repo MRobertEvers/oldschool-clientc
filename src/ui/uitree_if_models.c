@@ -52,6 +52,7 @@ UIIfModels_SetHead(
             models->head_cap = cap;
         }
         models->heads[i].anim_id = -1; /* preserved across a head update (below) */
+        models->heads[i].bound_scene_id = -1; /* so is what the widget draws */
         models->head_count++;
     }
     models->heads[i].com_id = com_id;

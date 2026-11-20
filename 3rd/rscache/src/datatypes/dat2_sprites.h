@@ -53,6 +53,8 @@ struct RSCache_Dat2Sprite
      * canvas — a hitsplat body is `field6921` wide, not `field6918`. */
     int trim_x;
     int trim_width;
+    int trim_y;
+    int trim_height;
 
     uint8_t* palette_pixels;
     uint8_t* pixel_alphas;

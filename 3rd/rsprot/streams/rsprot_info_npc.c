@@ -51,6 +51,17 @@ added(RsprotInfoList *out, int slot, const RsprotNpcRecord *rec)
         rsprot_info_emit_value(out, RSPROT_OP_SPAWN_CYCLE, rec->spawn_cycle);
 }
 
+/* An npc kept from the host's list, at `old` there and `position` in this
+ * packet's: at most 255 of them (an 8-bit count), under the cap. */
+static void
+kept(RsprotNpcExtended *extended, int *count, int position, int old)
+{
+    extended[*count].position = position;
+    extended[*count].old = old;
+    extended[*count].type = -1;
+    (*count)++;
+}
+
 int32_t
 rsprot_info_npc_delta(RsprotBuf *b, int bits)
 {
@@ -62,7 +73,7 @@ rsprot_info_npc_delta(RsprotBuf *b, int bits)
 int
 rsprot_info_npc_sections(
     RsprotBuf *b, int delta_bits, RsprotNpcRecordRead record, RsprotInfoList *out,
-    int extended[RSPROT_INFO_NPC_EXTENDED_MAX])
+    RsprotNpcExtended extended[RSPROT_INFO_NPC_EXTENDED_MAX])
 {
     int extended_count = 0;
     int list_index = 0;
@@ -94,11 +105,11 @@ rsprot_info_npc_sections(
         rsprot_info_emit_value(out, RSPROT_OP_INFO, 1);
         if (type == 0) {
             /* Stood still with extended info: the bit is implied. */
-            extended[extended_count++] = list_index;
+            kept(extended, &extended_count, list_index, old);
         } else if (type == 1) {
             step(out, rsprot_gbits(b, 3), 1);
             if (rsprot_gbits(b, 1))
-                extended[extended_count++] = list_index;
+                kept(extended, &extended_count, list_index, old);
         } else {
             if (rsprot_gbits(b, 1) == 1) {
                 step(out, rsprot_gbits(b, 3), 2);
@@ -107,7 +118,7 @@ rsprot_info_npc_sections(
                 step(out, rsprot_gbits(b, 3), 0);
             }
             if (rsprot_gbits(b, 1))
-                extended[extended_count++] = list_index;
+                kept(extended, &extended_count, list_index, old);
         }
         list_index++;
     }
@@ -125,8 +136,12 @@ rsprot_info_npc_sections(
         if (b->err)
             break;
         added(out, slot, &rec);
-        if (rec.extended && extended_count < RSPROT_INFO_NPC_EXTENDED_MAX)
-            extended[extended_count++] = list_index;
+        if (rec.extended && extended_count < RSPROT_INFO_NPC_EXTENDED_MAX) {
+            extended[extended_count].position = list_index;
+            extended[extended_count].old = -1;
+            extended[extended_count].type = rec.type;
+            extended_count++;
+        }
         list_index++;
     }
     rsprot_buf_bit_end(b);

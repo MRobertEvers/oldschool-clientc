@@ -70,6 +70,10 @@ struct UIIfHead
     uint8_t landed;
     int scene_id;
     int landed_npc_id;
+    /* The scene id the widget draws: what the bind last applied to it (-1
+     * none). A new set of the head leaves it: the widget keeps drawing it
+     * until the new head lands and binds. */
+    int bound_scene_id;
     /* An IF_SETNPCHEAD_ACTIVE head of an npc that carries a chathead
      * customisation (NPC_INFO HEAD_CUSTOM): the npc's server slot and spawn
      * serial, and the override's serial (WorldNpcOverride.serial), which the

@@ -116,6 +116,13 @@ struct UITreeSceneBridge
     /** npc_id → composited chathead scene model id (reference NpcType.getHead). */
     struct HMap* npc_head_map;
 
+    /** The chatheads composited under a server customisation that are in the
+     *  scene (UITreeSceneBridge_EnsureNpcHeadCustom), each released by
+     *  UITreeSceneBridge_NpcHeadCustomSweep once nothing shows it. */
+    struct UITreeSceneBridgeCustomHead* custom_heads;
+    int custom_head_count;
+    int custom_head_cap;
+
     /** obj_id → lit interface model scene id (reference IfType.getModel type 4,
      * set by IF_SETOBJECT — e.g. the combat-tab weapon model). */
     struct HMap* obj_model_map;
@@ -763,6 +770,34 @@ UITreeSceneBridge_EnsureNpcHeadCustom(
     int recolour_count,
     int const* retextures,
     int retexture_count);
+
+/** One composited customised chathead: its override's serial and scene id.
+ *  `doomed`: the last sweep found it unused. */
+struct UITreeSceneBridgeCustomHead
+{
+    uint32_t serial;
+    int scene_id;
+    uint8_t doomed;
+};
+
+/** How many customised chatheads are in the scene. */
+int
+UITreeSceneBridge_NpcHeadCustomCount(struct UITreeSceneBridge const* bridge);
+
+/**
+ * Release the customised chatheads nothing uses any more. `in_use` answers for
+ * one (its override's serial and scene id): a head that names the serial, or a
+ * widget that still draws the scene id. One found unused twice running -- two
+ * sweeps, a frame apart -- leaves the scene and is freed, with its memo: a
+ * frame built before it went unused never draws a freed model. Each override
+ * change used to add a composite for the rest of the session (the reference
+ * keeps its chatheads in an LRU, class304.field3984).
+ */
+void
+UITreeSceneBridge_NpcHeadCustomSweep(
+    struct UITreeSceneBridge* bridge,
+    bool (*in_use)(void* user, uint32_t serial, int scene_id),
+    void* user);
 
 int
 UITreeSceneBridge_EnsureNpcHead(

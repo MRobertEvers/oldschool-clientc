@@ -67,6 +67,10 @@ struct ToriDraw_Sprite
      */
     int trim_x;
     int trim_width;
+    /* The same box's y and height: the reference's field6911 is the art's
+     * height (an npc overhead icon is placed by it, deob Statics.method6709). */
+    int trim_y;
+    int trim_height;
     /* Cached "is every pixel a==255", and the buffer it was computed for.
      * @see ToriDraw_SpriteAlphaClass. */
     unsigned char alpha_class;

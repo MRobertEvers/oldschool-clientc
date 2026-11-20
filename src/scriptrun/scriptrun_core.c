@@ -804,7 +804,7 @@ core_player_info(
 {
     struct RS_EntityApplyHost host;
     struct RS_EntityApplyIn in;
-    struct EntityInfoReader reader;
+    struct EntityInfoReader reader = { 0 };
     RsprotInfoList list;
     int op_count;
 
@@ -820,6 +820,47 @@ core_player_info(
     EntityInfoScratch_Release(&core->info_scratch.player, &list);
 }
 
+/* What a typed customisation block's lookup reads: this client and the view
+ * the packet is for. */
+struct CoreNpcTypeLookup
+{
+    struct ScriptrunCore* core;
+    int view;
+};
+
+/* The typed customisation blocks' question (GameProtoNpcTypeLengths), from
+ * the server's own records, which hold every type: a type it has no record
+ * of has no lists, as the reference's default type. */
+static int
+core_npc_type_lengths(
+    void* ctx,
+    int old,
+    int npc_type,
+    int head,
+    int* recolours,
+    int* retextures)
+{
+    struct CoreNpcTypeLookup const* lookup = ctx;
+    struct ToriRSServerNpcInfo const* record;
+
+    (void)head;
+    *recolours = 0;
+    *retextures = 0;
+    if( npc_type < 0 && old >= 0 )
+    {
+        npc_type = RS_EntityApply_NpcOldType(lookup->core->world, lookup->core->esync, lookup->view, old);
+        if( npc_type < 0 )
+            return 0; /* no npc this side has: nothing to read the arrays by */
+    }
+    record = npc_type >= 0 ? ToriRSServer_NpcInfoRecord(npc_type) : NULL;
+    if( record )
+    {
+        *recolours = record->recolour_count;
+        *retextures = record->retexture_count;
+    }
+    return 1;
+}
+
 static void
 core_npc_info(
     struct ScriptrunCore* core,
@@ -833,9 +874,12 @@ core_npc_info(
     RsprotInfoList list;
     int op_count;
     int view = core->active_world;
+    struct CoreNpcTypeLookup lookup = { core, view };
 
     assert(core->rev->npc_info_read);
-    reader.read = core->rev->npc_info_read;
+    reader.npc_read = core->rev->npc_info_read;
+    reader.lengths = core_npc_type_lengths;
+    reader.lengths_ctx = &lookup;
     EntityInfoScratch_Borrow(&core->info_scratch.npc, &list);
     op_count = EntityInfoScratch_Read(&core->info_scratch.npc, &list, &reader, data, length);
     /* A deck view that is not live has no npcs to describe. */

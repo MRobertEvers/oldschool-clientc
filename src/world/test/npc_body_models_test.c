@@ -394,16 +394,49 @@ test_freeze_windows(void)
     drawn = World_EntityDrawnAnimation(&npc->animation, &npc->freeze);
     TEST_ASSERT(drawn->primary.anim_id == 500, "while the frozen drawing keeps it");
 
-    /* Two open windows, then the cancel (65535): all go, the live tracks
-     * draw, and its reset stops a sequence set meanwhile. */
+    /* Two open windows, then the cancel (65535): all go and its reset stops
+     * a sequence set meanwhile. The frozen flag waits for the next step
+     * (class105.method3627 clears only the windows and the snapshots), so
+     * until then the actor is drawn with no sequence and its held pose, and
+     * the step clears the flag and draws the live tracks again. */
     World_NpcFreeze(world, ni, 2, 40, false);
     TEST_ASSERT(npc->freeze.count == 2, "an open window is not reused");
     World_NpcSetPrimaryAnimation(world, ni, 501, 0);
+    secondary_frame = npc->animation.secondary.frame;
     World_NpcFreeze(world, ni, -1, -1, true);
-    TEST_ASSERT(npc->freeze.count == 0 && !npc->freeze.frozen, "a cancel drops every window");
+    TEST_ASSERT(npc->freeze.count == 0, "a cancel drops every window");
     TEST_ASSERT(npc->animation.primary.anim_id == (uint16_t)-1, "and its reset stops the sequence");
+    TEST_ASSERT(npc->freeze.frozen, "the frozen flag is left to the next step");
+    drawn = World_EntityDrawnAnimation(&npc->animation, &npc->freeze);
+    TEST_ASSERT(drawn != &npc->animation && drawn->primary.anim_id == (uint16_t)-1,
+        "until then no sequence is drawn, not the snapshot");
+    TEST_ASSERT(drawn->secondary.frame == secondary_frame, "and the pose as it is held");
+    World_Cycle(world, 1);
+    TEST_ASSERT(!npc->freeze.frozen, "the next step clears the flag");
     TEST_ASSERT(World_EntityDrawnAnimation(&npc->animation, &npc->freeze) == &npc->animation,
-        "the live tracks are drawn again");
+        "and the live tracks are drawn again");
+
+    /* A frozen actor does not turn, and after a cancel it waits for the
+     * step: the reference turns first (Statics.method1, `if
+     * (!field1479)`) and clears the flag last (method7852), so the cycle
+     * after a cancel turns nothing and the next one does. */
+    {
+        uint16_t yaw;
+
+        World_NpcFreeze(world, ni, 0, 40, false);
+        World_Cycle(world, 1);
+        TEST_ASSERT(npc->freeze.frozen, "frozen again");
+        yaw = npc->orientation.yaw;
+        npc->orientation.dst_yaw = (uint16_t)((yaw + 512) & 0x7ff);
+        npc->facing.turn_speed = 32;
+        World_Cycle(world, 2);
+        TEST_ASSERT(npc->orientation.yaw == yaw, "a frozen actor does not turn");
+        World_NpcFreeze(world, ni, -1, -1, false);
+        World_Cycle(world, 1);
+        TEST_ASSERT(npc->orientation.yaw == yaw, "nor in the cycle after a cancel");
+        World_Cycle(world, 1);
+        TEST_ASSERT(npc->orientation.yaw != yaw, "and turns in the one after that");
+    }
 
     World_NpcFreeze(world, ni, 0, 9, false);
     World_NpcDespawn(world, ni);

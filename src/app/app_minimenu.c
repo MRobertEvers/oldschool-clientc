@@ -867,7 +867,9 @@ app_minimenu_row_properties(struct UIMinimenuOption const* opt)
             return entity | player | (1u << RS_MINIMENU_PROP_TARGET);
         if( action == REVCONFIG_MINIMENU_OPPLAYER1 || action == REVCONFIG_MINIMENU_OPPLAYER2 ||
             action == REVCONFIG_MINIMENU_OPPLAYER3 || action == REVCONFIG_MINIMENU_OPPLAYER4 ||
-            action == REVCONFIG_MINIMENU_OPPLAYER5 || action == REVCONFIG_MINIMENU_OPPLAYER_TRADEREQ ||
+            action == REVCONFIG_MINIMENU_OPPLAYER5 || action == REVCONFIG_MINIMENU_OPPLAYER6 ||
+            action == REVCONFIG_MINIMENU_OPPLAYER7 || action == REVCONFIG_MINIMENU_OPPLAYER8 ||
+            action == REVCONFIG_MINIMENU_OPPLAYER_TRADEREQ ||
             action == REVCONFIG_MINIMENU_OPPLAYER_DUELREQ )
             return entity | player;
     }
