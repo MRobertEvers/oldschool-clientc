@@ -34,15 +34,10 @@ struct AppOverlayPos
 
 /* Private to this unit, declared up front so definition order is free. */
 static int
-app_overlay_build_healthbar(
-    struct App* app,
-    struct WorldEntityFacet_Combat const* combat,
-    int screen_x,
-    int screen_y);
-static int
 app_overlay_build_entity(
     struct App* app,
     int element_id,
+    bool chat_shown,
     struct WorldEntityFacet_Combat const* combat,
     struct WorldEntityFacet_DrawPosition const* draw_position,
     struct WorldEntityFacet_ViewPlacement const* placement,
@@ -74,16 +69,17 @@ app_overlay_anchor(
  *
  * Reference: the health-bar block of drawEntities, class381 and class66.
  *
- * Returns what the bar adds to the overhead stack's lift (deob
- * Statics.method6709: `var27 += height`, drawn, `var27 += 2`; the rectangle
- * is 5 tall), 0 when nothing was drawn.
+ * Where it goes is the overhead stack's (app_internal.h): its top at
+ * screen_y - (lift + height), the height its back sprite's or the
+ * rectangle's 5. Returns what it adds to the lift, 0 when nothing was drawn.
  */
-static int
+int
 app_overlay_build_healthbar(
     struct App* app,
     struct WorldEntityFacet_Combat const* combat,
     int screen_x,
-    int screen_y)
+    int screen_y,
+    int lift)
 {
     struct RS_HealthbarType const* type =
         RS_Healthbars_TypeFor(&app->healthbars, combat->healthbar_type);
@@ -163,10 +159,11 @@ app_overlay_build_healthbar(
 
     if( !sprites )
     {
+        /* `var27 += 5`, filled at y - var27 (sy - 3 with nothing below). */
         struct UITreeEntityOverlay bar = {
             .kind = UITREE_ENTITY_OVERLAY_RECT,
             .x = bar_x,
-            .y = screen_y - 3,
+            .y = screen_y - (lift + RS_HEALTHBAR_FALLBACK_HEIGHT),
             .w = drawn,
             .h = RS_HEALTHBAR_FALLBACK_HEIGHT,
             .color = 0xFF00FF00u, /* Colour.GREEN */
@@ -185,9 +182,11 @@ app_overlay_build_healthbar(
          * because its right edge is the sprite's own, not a cut. */
         int clip_w = (drawn == span) ? padding * 2 + drawn : padding + drawn;
         int x = bar_x - padding;
-        /* Centred on the same row the rectangle path uses, so switching
-         * between the two does not move the bar. */
-        int y = screen_y - back_h / 2;
+        /* `var27 += var32.field6911` (the back sprite's height), drawn at
+         * y - var27: the top is sy - (h - 2) with nothing below, which for
+         * the 5-px standard bar is the rectangle's sy - 3. It was centred on
+         * sy (sy - h/2), a pixel low for that bar and more for a taller one. */
+        int y = screen_y - (lift + back_h);
         int trans = (alpha >= 0 && alpha < 255) ? 255 - alpha : 0;
         struct UITreeEntityOverlay back = {
             .kind = UITREE_ENTITY_OVERLAY_SPRITE,
@@ -222,6 +221,7 @@ static int
 app_overlay_build_entity(
     struct App* app,
     int element_id,
+    bool chat_shown,
     struct WorldEntityFacet_Combat const* combat,
     struct WorldEntityFacet_DrawPosition const* draw_position,
     struct WorldEntityFacet_ViewPlacement const* placement,
@@ -266,7 +266,10 @@ app_overlay_build_entity(
             &screen_x,
             &screen_y) )
     {
-        bars_lift = app_overlay_build_healthbar(app, combat, screen_x, screen_y);
+        /* Above the chat line when one is up: the reference's chat takes
+         * its 12 of var27 before the bars (app_overlay_bars_base_lift). */
+        bars_lift = app_overlay_build_healthbar(
+            app, combat, screen_x, screen_y, app_overlay_bars_base_lift(chat_shown));
     }
     else if(
         combat->healthbar_type < 0 && combat->combat_cycle > cycle + 100 &&
@@ -847,6 +850,7 @@ app_build_entity_overlays(
         (void)app_overlay_build_entity(
             app,
             npc->element_id,
+            app_overlay_chat_shown(&npc->chat),
             &npc->combat,
             &npc->draw_position,
             &npc->view_placement,
@@ -892,6 +896,7 @@ app_build_entity_overlays(
             lift = app_overlay_build_entity(
                 app,
                 player->element_id,
+                app_overlay_chat_shown(&player->chat),
                 &player->combat,
                 &player->draw_position,
                 &player->view_placement,

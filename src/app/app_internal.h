@@ -1929,6 +1929,27 @@ app_overlay_overhead_lift(
     bool chat_shown,
     int bars_lift);
 
+/* The lift the first health bar stacks on: -2, or 10 above a chat line
+ * (var27 before the bars, app_overlay_overhead_lift's start). */
+int
+app_overlay_bars_base_lift(bool chat_shown);
+
+/*
+ * One overhead health bar (deob Statics.method6709's bar loop), drawn above
+ * `lift`, the stack's lift before it (app_overlay_bars_base_lift, then each
+ * earlier bar's return): `var27 += height`, drawn with its top at
+ * screen_y - var27, `var27 += 2`. A sprite bar's height is its back sprite's
+ * (var32.field6911), a rectangle's 5. Returns what it added to the lift
+ * (height + 2), 0 when nothing was drawn.
+ */
+int
+app_overlay_build_healthbar(
+    struct App* app,
+    struct WorldEntityFacet_Combat const* combat,
+    int screen_x,
+    int screen_y,
+    int lift);
+
 /* One overhead icon a player draws: from the PK pack (the skull) or the
  * prayer pack, the frame, and the lift it is drawn at (canvas y = anchor y
  * minus it, x = anchor x - 12). */

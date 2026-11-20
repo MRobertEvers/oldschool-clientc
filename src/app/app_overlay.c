@@ -317,16 +317,24 @@ app_overlay_player_hint_lift(
 }
 
 int
+app_overlay_bars_base_lift(bool chat_shown)
+{
+    int lift = -2;
+
+    /* The chat line's slot (deob: field683 = sy - var27, then var27 += 12). */
+    if( chat_shown )
+        lift += 12;
+    return lift;
+}
+
+int
 app_overlay_overhead_lift(
     bool chat_shown,
     int bars_lift)
 {
-    int lift = -2;
+    int lift = app_overlay_bars_base_lift(chat_shown);
 
     assert(bars_lift >= 0);
-    /* The chat line's slot (deob: field683 = sy - var27, then var27 += 12). */
-    if( chat_shown )
-        lift += 12;
     /* Each bar: var27 += its height, drawn, var27 += 2. */
     lift += bars_lift;
     /* `if (var27 == -2) var27 += 7`. */
