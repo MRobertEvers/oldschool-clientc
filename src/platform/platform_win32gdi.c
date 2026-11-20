@@ -3294,6 +3294,18 @@ PlatformWindow_TicksUs(void)
     return PlatformWin32Timing_NowUs();
 }
 
+uint64_t
+PlatformWindow_ThreadCpuUs(void)
+{
+    return PlatformWin32Timing_ThreadCpuUs();
+}
+
+int
+PlatformWindow_ThreadCpuIsWall(void)
+{
+    return PlatformWin32Timing_ThreadCpuIsWall();
+}
+
 void
 PlatformWindow_SleepUntil(uint64_t deadline_ms)
 {

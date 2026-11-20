@@ -2,7 +2,9 @@
 
 #include <windows.h>
 #include <mmsystem.h>
+#include <intrin.h>
 
+#include <assert.h>
 #include <limits.h>
 #include <string.h>
 
@@ -214,4 +216,86 @@ PlatformWin32Timing_SleepUntilMs(uint64_t deadline_ms)
         /* Sleep may return early. Re-read the monotonic clock rather than
          * letting a short wait make the client run above its 50 fps cap. */
     }
+}
+
+/* --- the thread's processor time (PlatformWindow_ThreadCpuUs) -------------
+ *
+ * QueryThreadCycleTime is exact (no 15.6 ms scheduler granularity, which
+ * GetThreadTimes has and which would make a 4 ms check all-or-nothing), but
+ * it counts cycles. On every x86 Windows that has it, those are
+ * time-stamp-counter ticks, so the counter's rate converts them: measured
+ * once, as rdtsc against QueryPerformanceCounter over a 10 ms Sleep (both
+ * clocks run while the thread sleeps, so the ratio is the counter's rate and
+ * the sleep's own jitter does not matter). Resolved through GetProcAddress so
+ * the XP lane, which has no such call, still loads; there, and if the rate
+ * cannot be measured, the wall clock stands in. */
+typedef BOOL(WINAPI* Win32QueryThreadCycleTimeFn)(HANDLE, PULONG64);
+
+static struct
+{
+    int resolved;
+    Win32QueryThreadCycleTimeFn query;
+    double cycles_per_us;
+} cpu_clock;
+
+static void
+cpu_clock_resolve(void)
+{
+    HMODULE kernel;
+
+    cpu_clock.resolved = 1;
+    if( timing.references == 0 )
+        PlatformWin32Timing_Init();
+    if( !timing.qpc_valid )
+        return;
+    kernel = GetModuleHandleA("kernel32.dll");
+    if( !kernel )
+        return;
+    cpu_clock.query = (Win32QueryThreadCycleTimeFn)(void (*)(void))GetProcAddress(kernel, "QueryThreadCycleTime");
+    if( !cpu_clock.query )
+        return;
+    {
+        LARGE_INTEGER q0;
+        LARGE_INTEGER q1;
+        unsigned long long t0;
+        unsigned long long t1;
+        double us;
+
+        QueryPerformanceCounter(&q0);
+        t0 = __rdtsc();
+        Sleep(10);
+        QueryPerformanceCounter(&q1);
+        t1 = __rdtsc();
+        us = (double)(q1.QuadPart - q0.QuadPart) * 1000000.0 / (double)timing.qpc_frequency.QuadPart;
+        if( us > 0.0 && t1 > t0 )
+            cpu_clock.cycles_per_us = (double)(t1 - t0) / us;
+        else
+            cpu_clock.query = NULL;
+    }
+}
+
+int
+PlatformWin32Timing_ThreadCpuIsWall(void)
+{
+    if( !cpu_clock.resolved )
+        cpu_clock_resolve();
+    return cpu_clock.query == NULL;
+}
+
+uint64_t
+PlatformWin32Timing_ThreadCpuUs(void)
+{
+    ULONG64 cycles = 0;
+    BOOL ok;
+
+    if( !cpu_clock.resolved )
+        cpu_clock_resolve();
+    if( !cpu_clock.query )
+        return PlatformWin32Timing_NowUs();
+    /* The current thread's pseudo-handle always has the access it needs;
+     * a failure here would mix two clocks in one difference. */
+    ok = cpu_clock.query(GetCurrentThread(), &cycles);
+    assert(ok);
+    (void)ok;
+    return (uint64_t)((double)cycles / cpu_clock.cycles_per_us);
 }

@@ -104,9 +104,14 @@ struct TaskRunner
     int stepping;
     /** Why the last pump ended (TORIRS_QUEUE_CONTRACT_TRACE). */
     char const* pump_end;
-    /** A parallel task whose one step took at least this long is computing,
-     *  not waiting: named once per name per session (0: off). */
+    /** A parallel task whose one step COST at least this much processor
+     *  time is computing, not waiting: named once per name per session (0:
+     *  off). Read on `cost_now_us` when the runner has one (the stepping
+     *  thread's CPU clock, TaskRunner_SetCostClock), else on the queue's
+     *  wall clock; the breach line gives both. */
     uint64_t compute_step_us;
+    /** The clock a step's cost is read on (NULL: the wall clock). */
+    uint64_t (*cost_now_us)(void);
     /** Set while the App boots: the boot's loads are not what that
      *  threshold measures. */
     int compute_check_off;
@@ -341,6 +346,23 @@ TaskRunner_SetClock(
     assert(now_us);
     runner->io->slice.now_us = now_us;
     runner->io->slice.now_ud = now_ud;
+}
+
+/*
+ * The clock the compute check reads a step's COST on: processor time of the
+ * thread that steps the queue (PlatformWindow_ThreadCpuUs on the App's
+ * queues), so a step measured on a loaded machine reads what it computed,
+ * not how long it waited for a core. Without one the check reads the wall
+ * clock. The runner names no platform: the clock is handed in.
+ */
+static inline void
+TaskRunner_SetCostClock(
+    struct TaskRunner* runner,
+    uint64_t (*cost_now_us)(void))
+{
+    assert(runner);
+    assert(cost_now_us);
+    runner->cost_now_us = cost_now_us;
 }
 
 static inline uint64_t
@@ -697,12 +719,17 @@ TaskRunner_Step(struct TaskRunner* runner)
                 /* The name is copied first: a task that ends is freed by its run. */
                 char name[sizeof(task->name)];
                 int const ordinary = !task->render_blocking;
+                uint64_t const c0 = runner->cost_now_us ? runner->cost_now_us() : 0;
                 uint64_t t0 = TaskRunner_Now(runner);
                 uint64_t dt;
+                uint64_t cost;
 
                 memcpy(name, task->name, sizeof(name));
                 stat = ToriRS_TaskQueue_RunTask(runner->queue, runner->io, task);
                 dt = TaskRunner_Now(runner) - t0;
+                /* What the step computed: its thread's processor time where
+                 * the runner has that clock, else the wall time it took. */
+                cost = runner->cost_now_us ? runner->cost_now_us() - c0 : dt;
                 if( runner->slow_task_us && dt >= runner->slow_task_us )
                     fprintf(stderr, "task_slow: %s %.2f ms\n", name[0] ? name : "(unnamed)", (double)dt / 1000.0);
                 if( dt > runner->longest_step_us )
@@ -711,7 +738,7 @@ TaskRunner_Step(struct TaskRunner* runner)
                     memcpy(runner->longest_step_name, name, sizeof(runner->longest_step_name));
                 }
                 if( runner->role == TASK_RUNNER_ROLE_PARALLEL && runner->compute_step_us && ordinary &&
-                    !runner->compute_check_off && dt >= runner->compute_step_us )
+                    !runner->compute_check_off && cost >= runner->compute_step_us )
                 {
                     int seen = 0;
                     for( int i = 0; i < runner->compute_named_count; i++ )
@@ -719,15 +746,17 @@ TaskRunner_Step(struct TaskRunner* runner)
                             seen = 1;
                     if( !seen )
                     {
-                        char line[192];
+                        char line[256];
                         if( runner->compute_named_count < (int)(sizeof(runner->compute_named) / sizeof(runner->compute_named[0])) )
                             memcpy(runner->compute_named[runner->compute_named_count++], name, sizeof(name));
                         snprintf(
                             line,
                             sizeof(line),
-                            "parallel task %s computed %.2f ms in one step (threshold %.2f ms): "
-                            "CPU work belongs on the background queue",
+                            "parallel task %s computed %.2f ms in one step (%s; %.2f ms wall; threshold "
+                            "%.2f ms): CPU work belongs on the background queue",
                             name[0] ? name : "(unnamed)",
+                            (double)cost / 1000.0,
+                            runner->cost_now_us ? "thread CPU time" : "wall time",
                             (double)dt / 1000.0,
                             (double)runner->compute_step_us / 1000.0);
                         TaskRunner_ContractBreach(line);

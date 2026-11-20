@@ -1151,6 +1151,85 @@ test_the_between_frames_pump(void)
     CHECK(dies_by_abort(between_frames_stepped_main_after_boot));
 }
 
+/* --- the compute check reads a step's COST, not its wall time ----------------
+ *
+ * A parallel step that took long on the wall clock but cost little processor
+ * time (it waited for a core on a loaded machine) is not computing; one that
+ * cost more than the threshold is, whatever the wall clock says. Without a
+ * cost clock the check falls back to the wall time. */
+static struct FakeClock g_burn_wall;
+static uint64_t g_burn_cost_us;
+
+static uint64_t
+burn_cost_now(void)
+{
+    return g_burn_cost_us;
+}
+
+struct Burner
+{
+    struct ToriRS_Task task;
+    uint64_t wall_us;
+    uint64_t cost_us;
+};
+
+static int
+Burner_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
+{
+    struct Burner* self = (struct Burner*)base;
+
+    (void)io;
+    g_burn_wall.now_us += self->wall_us;
+    g_burn_cost_us += self->cost_us;
+    return TORIRS_ASYNCIO_STAT_DONE;
+}
+
+static struct ToriRS_TaskVTable k_burner_vtable = { .run = Burner_Run, .free = task_free_libc };
+
+static void
+burn_once(struct TaskRunner* runner, char const* name, uint64_t wall_us, uint64_t cost_us)
+{
+    struct Burner* task = calloc(1, sizeof(*task));
+
+    assert(task);
+    task->task.vtable = &k_burner_vtable;
+    snprintf(task->task.name, sizeof(task->task.name), "%s", name);
+    task->wall_us = wall_us;
+    task->cost_us = cost_us;
+    ToriRS_TaskQueue_Add(runner->queue, &task->task);
+    (void)TaskRunner_Step(runner);
+}
+
+static void
+test_the_compute_check_reads_the_cost_clock(void)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px = { 0 };
+
+    runner_init(&runner, &px, &g_burn_wall, TASK_RUNNER_ROLE_PARALLEL);
+    runner.compute_step_us = 4000;
+    TaskRunner_SetCostClock(&runner, burn_cost_now);
+    /* 12 ms on the wall, 1 ms of processor: a loaded machine, not work. */
+    burn_once(&runner, "Waited", 12000, 1000);
+    CHECK(runner.compute_named_count == 0);
+    /* 1 ms on the wall cannot hide 5 ms of processor (clocks disagree only
+     * in a test, but the check must follow the cost one). */
+    burn_once(&runner, "Computed", 1000, 5000);
+    CHECK(runner.compute_named_count == 1);
+    CHECK(runner.compute_named_count == 1 && strcmp(runner.compute_named[0], "Computed") == 0);
+    /* Named once per name. */
+    burn_once(&runner, "Computed", 1000, 5000);
+    CHECK(runner.compute_named_count == 1);
+    runner_free(&runner);
+
+    /* No cost clock: the wall time is the cost. */
+    runner_init(&runner, &px, &g_burn_wall, TASK_RUNNER_ROLE_PARALLEL);
+    runner.compute_step_us = 4000;
+    burn_once(&runner, "WallOnly", 12000, 1000);
+    CHECK(runner.compute_named_count == 1);
+    runner_free(&runner);
+}
+
 int
 main(void)
 {
@@ -1164,6 +1243,7 @@ main(void)
     test_who_steps_the_background_queue();
     test_named_waits_resume_and_cancel();
     test_the_between_frames_pump();
+    test_the_compute_check_reads_the_cost_clock();
     if( g_failures )
     {
         printf("queue_contract_test: %d failure(s)\n", g_failures);

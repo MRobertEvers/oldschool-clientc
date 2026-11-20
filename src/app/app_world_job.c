@@ -43,6 +43,8 @@
 
 extern uint64_t
 PlatformWindow_TicksUs(void);
+extern uint64_t
+PlatformWindow_ThreadCpuUs(void);
 
 /* The slice App_RunOnce always gives the background queue, so every platform
  * loop moves it with no change of its own. */
@@ -123,9 +125,60 @@ app_background_entry_check(
         &app->packet_runner, &app->frame_runner, &app->background_runner, g_app_queue_site, owner);
 }
 
-/* The parallel queue's "computes" threshold (TaskRunner::compute_step_us):
- * TORIRS_QUEUE_CONTRACT_COMPUTE_MS overrides it, 0 turns it off. */
-#define APP_PARALLEL_COMPUTE_US_DEFAULT 4000u
+/*
+ * The parallel queue's "computes" threshold (TaskRunner::compute_step_us),
+ * per lane, ONE table. A step's cost is read on PlatformWindow_ThreadCpuUs:
+ * the stepping thread's processor time where the lane has that clock, so a
+ * strict run on a loaded machine no longer aborts on a step that waited for
+ * a core (the wall-time check named NpcBodyLand at 10.36 ms and MountVisuals
+ * at 5.85 ms beside parallel builds, both clean on a quiet machine). The
+ * number is a share of the 20 ms logic frame a parallel step may take before
+ * it is CPU work on the IO queue -- a property of the frame, not of a
+ * machine, so a slower lane that computes more per step is exactly what it
+ * should name. TORIRS_QUEUE_CONTRACT_COMPUTE_MS overrides it, 0 turns it off.
+ */
+struct AppComputeLane
+{
+    char const* lane;
+    uint32_t threshold_us;
+    /* What the number rests on. */
+    char const* evidence;
+};
+
+static struct AppComputeLane const k_app_compute_lanes[] = {
+    { "macos", 4000u,
+      "thread CPU time. lo-checks: cooks_assistant strict at 4 ms with all 16 cores spun by another "
+      "process; the 96.bin replay windows at a 0.3 ms threshold named only AssetLoad:obj_model "
+      "(0.56 ms) and Dat2LocLoad (0.91 ms) -- AppCS1Eval, 14.1 ms on the wall clock under load, "
+      "never reached 0.3 ms of processor time" },
+    { "linux", 4000u, "thread CPU time, the same clock as macos; not run (no toolchain here)" },
+    { "android", 4000u,
+      "thread CPU time, the same clock; never run on a device. A phone computes a step more slowly, "
+      "which the check is there to name, not to excuse" },
+    { "windows", 4000u,
+      "QueryThreadCycleTime at the time-stamp counter's rate (wall time on XP, which lacks it); "
+      "built only, never run" },
+    { "web", 4000u,
+      "wall time (one thread, performance.now(), 100 us steps). fv_web: 18 strict boots and 16 "
+      "strict sessions on Soft3D, WebGL2 and WebGL1 at 4 ms, 0 compute lines once the music decode "
+      "moved to the background queue (43a8f9ad9)" },
+};
+
+static struct AppComputeLane const*
+app_compute_lane(void)
+{
+#if defined(TORIRS_PLATFORM_WEB)
+    return &k_app_compute_lanes[4];
+#elif defined(TORIRS_PLATFORM_ANDROID) || defined(__ANDROID__)
+    return &k_app_compute_lanes[2];
+#elif defined(_WIN32)
+    return &k_app_compute_lanes[3];
+#elif defined(__APPLE__)
+    return &k_app_compute_lanes[0];
+#else
+    return &k_app_compute_lanes[1];
+#endif
+}
 
 static uint64_t
 app_parallel_compute_us(void)
@@ -134,7 +187,7 @@ app_parallel_compute_us(void)
 
     if( env && env[0] )
         return (uint64_t)(atof(env) * 1000.0);
-    return APP_PARALLEL_COMPUTE_US_DEFAULT;
+    return app_compute_lane()->threshold_us;
 }
 
 /* The paced catch-up (engine/world_builder/rebuild_pace.c) on the background
@@ -215,6 +268,9 @@ app_background_runner_init(struct App* app)
     app->frame_runner.role = TASK_RUNNER_ROLE_PARALLEL;
     app->background_runner.role = TASK_RUNNER_ROLE_BACKGROUND;
     app->frame_runner.compute_step_us = app_parallel_compute_us();
+    /* What a parallel step costs is read on the stepping thread's processor
+     * clock (the lane table above). */
+    TaskRunner_SetCostClock(&app->frame_runner, PlatformWindow_ThreadCpuUs);
     RebuildPace_Reset(&app->pace);
     WorldRebuildJob_Reset(&app->world_job);
     RebuildFrameStats_Reset(&app->rebuild_frames);
