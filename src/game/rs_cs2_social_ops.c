@@ -160,8 +160,8 @@ RS_CS2Host_ExecSocialOp(
         return CS2VM_EXECNO_OK;
     /* friendlist_sort_rank: a chaining rank comparator on the friend list. */
     case CS2_OP_FRIENDLIST_SORT_RANK:
-        if( host->social )
-            RS_Social_SortAppend(&host->social->friend_sort, RS_SOCIAL_SORT_RANK, ints[0] == 1);
+        assert(host->social);
+        RS_Social_SortAppend(&host->social->friend_sort, RS_SOCIAL_SORT_RANK, ints[0] == 1);
         return CS2VM_EXECNO_OK;
 
     /* ---- friends chat -------------------------------------------------- */
@@ -195,9 +195,11 @@ RS_CS2Host_ExecSocialOp(
             return push_bool(vm, member && host->local_player_name[0] &&
                                      RS_FriendsChat_NamesEqual(member->name, host->local_player_name));
         case CS2_OP_FRIENDSCHAT_ISFRIEND:
-            return push_bool(vm, member && host->social && RS_Social_IsFriend(host->social, member->name));
+            assert(host->social);
+            return push_bool(vm, member && RS_Social_IsFriend(host->social, member->name));
         default:
-            return push_bool(vm, member && host->social && RS_Social_IsIgnored(host->social, member->name));
+            assert(host->social);
+            return push_bool(vm, member && RS_Social_IsIgnored(host->social, member->name));
         }
     }
     case CS2_OP_FRIENDSCHAT_GETCHATMINKICK:

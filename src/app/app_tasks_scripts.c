@@ -455,7 +455,8 @@ app_script_pack_models_bind(struct Task_ScriptPackModels* self)
         struct UITreeComponent* c;
         int scene_id;
 
-        assert(idx >= 0 && (uint32_t)idx < tree->component_count);
+        assert(idx >= 0);
+        assert((uint32_t)idx < tree->component_count);
         c = &tree->components[idx];
         if( c->type != UIELEM_RS_MODEL || ((c->component_id >> 16) & 0xffff) != self->group )
             continue;

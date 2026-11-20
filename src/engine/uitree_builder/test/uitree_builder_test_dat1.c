@@ -115,7 +115,7 @@ main(
     InvManager_Init(&invs);
 
     struct UITreeBuilder builder;
-    UITreeBuilder_InitEx(&builder, provider, tree, &invs, NULL, ui_ini, cache_ini);
+    UITreeBuilder_InitCS1(&builder, provider, tree, &invs, ui_ini, cache_ini);
     builder.bridge = &bridge;
 
     ToriRS_TaskQueue_Add(runner.queue, CreateTask_UITreeBuild(&builder));

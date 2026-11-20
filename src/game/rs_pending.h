@@ -78,12 +78,15 @@ enum RS_PendingKindRange
     RS_PENDING_KINDS_SCRIPTS_FIRST = 224,
     RS_PENDING_KINDS_SCRIPTS_LAST = 255,
     /* The scene's own work, listed so a parallel task can wait on it by
-     * name (rs_parallel_task.h, PT_PARALLEL_AWAIT_REBUILD): the spare range
-     * at the end, taken for it. */
+     * name (rs_parallel_task.h, PT_PARALLEL_AWAIT_REBUILD). */
     RS_PENDING_KINDS_WORLD_FIRST = 256,
     RS_PENDING_KINDS_WORLD_LAST = 287,
+    /* The App's own asset tasks that belong to no packet family
+     * (app/app_textures.c: a texture published into the scene). */
+    RS_PENDING_KINDS_ASSETS_FIRST = 288,
+    RS_PENDING_KINDS_ASSETS_LAST = 319,
 
-    RS_PENDING_KIND_MAX = 288
+    RS_PENDING_KIND_MAX = 320
 };
 
 /* A view's scene being rebuilt: the background world job (app_world_job.c),

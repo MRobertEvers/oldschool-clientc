@@ -13,6 +13,7 @@
 #include "engine/uitree_builder/task_interface_open.h"
 #include "game/rs_chat.h"
 #include "game/rs_clientcode.h"
+#include "app/app_gameproto_exec.h"
 #include "game/rs_gameproto_exec.h"
 #include "game/rs_player_stats.h"
 #include "game/rs_server_state.h"
@@ -409,48 +410,69 @@ main(void)
     int32_t node = UITree_Push(tree, -1, &spec);
     assert(node >= 0);
 
-    /* The bare managers as the packet model's records, with an event ring of
-     * the test's own: the model half of each packet writes these, and the
-     * app-less presentation writes `tree`. A block that executes against an
-     * App binds the App's records instead (App_ServerStateBind). */
+    /* App_GameProto_Exec requires an App (fa5680f77). A section that needs
+     * more than a zeroed one makes its own; this one has the tree and the
+     * chat bound as app.c binds them. Its records are the App's
+     * (App_ServerStateBind), with the managers, the chat and an event ring of
+     * the test's own in place of the zeroed App's, so the checks below read
+     * them. */
     static struct RS_Event bare_events[64];
     struct RS_EventRing bare_ring;
-    struct UIIfTextStore bare_texts;
-    struct UIIfIntStore bare_hides;
-    struct UIIfIntStore bare_colours;
-    struct UIIfEventTable bare_if_events;
-    int const bare_clock = 0;
     struct RS_ServerState bare_state;
     struct RS_ServerState app_state;
+    struct App* base_app = calloc(1, sizeof(*base_app));
 
+    assert(base_app);
+    base_app->tree = tree;
+    RS_CS2Host_SetChat(&base_app->host, &chat);
     memset(&bare_ring, 0, sizeof(bare_ring));
-    memset(&bare_texts, 0, sizeof(bare_texts));
-    memset(&bare_hides, 0, sizeof(bare_hides));
-    memset(&bare_colours, 0, sizeof(bare_colours));
-    memset(&bare_if_events, 0, sizeof(bare_if_events));
-    bare_state = (struct RS_ServerState){
-        .varps = &varps,
-        .stats = &stats,
-        .invs = &invs,
-        .if_texts = &bare_texts,
-        .if_hides = &bare_hides,
-        .if_colours = &bare_colours,
-        .if_events = &bare_if_events,
-        .chat = &chat,
-        .chat_clock = &bare_clock,
-        .rev_number = -1,
-        .events = {
-            .ring = &bare_ring,
-            .entries = bare_events,
-            .capacity = 64,
-            .full = RS_EVENT_RING_OVERWRITE,
-        },
+    App_ServerStateBind(base_app, &bare_state);
+    bare_state.varps = &varps;
+    bare_state.stats = &stats;
+    bare_state.invs = &invs;
+    bare_state.chat = &chat;
+    bare_state.rev_number = -1;
+    bare_state.events = (struct RS_EventSink){
+        .ring = &bare_ring,
+        .entries = bare_events,
+        .capacity = 64,
+        .full = RS_EVENT_RING_OVERWRITE,
     };
-    struct RS_GameProtoCtx ctx = {
-        .state = &bare_state,
-        .tree = tree,
-        .app = NULL,
-    };
+
+    /* The App-free half (game/rs_gameproto_exec.c): the model, and the
+     * tree-only arms. An interface setter's value is the model's store; with
+     * no App nothing puts it on the node. */
+    {
+        struct RS_GameProtoCtx ctx = {
+            .state = &bare_state,
+            .tree = tree,
+        };
+        char text[] = "stored";
+        struct RevPacket p;
+        int32_t idx;
+
+        memset(&p, 0, sizeof(p));
+        p.packet_type = PKT_NAME_VARP_SMALL;
+        p._varp_small.variable = 43;
+        p._varp_small.value = 7;
+        RS_GameProto_Exec(&ctx, &p);
+        TEST_EXEC_ASSERT(VarPManager_GetVarp(&varps, 43) == 7, "the model half applies a varp");
+
+        memset(&p, 0, sizeof(p));
+        p.packet_type = PKT_NAME_IF_SETTEXT;
+        p._if_settext.component_id = 0x1234;
+        p._if_settext.text = text;
+        RS_GameProto_Exec(&ctx, &p);
+        TEST_EXEC_ASSERT(
+            strcmp(UIIfTextStore_Get(bare_state.if_texts, 0x1234), "stored") == 0,
+            "IF_SETTEXT is the model's store");
+        idx = UITree_FindByComponentId(tree, 0x1234);
+        assert(idx >= 0);
+        TEST_EXEC_ASSERT(
+            strcmp(tree->components[idx].u.rs_text.text, "before") == 0,
+            "with no App the node is left to the App's setter");
+        printf("ok - the App-free half writes the model and the tree-only arms\n");
+    }
 
     /* VARP_SMALL 42 = 5 */
     {
@@ -459,7 +481,7 @@ main(void)
         p.packet_type = PKT_NAME_VARP_SMALL;
         p._varp_small.variable = 42;
         p._varp_small.value = 5;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(base_app, &bare_state, &p);
         assert(VarPManager_GetVarp(&varps, 42) == 5);
         printf("ok - VARP_SMALL applied\n");
     }
@@ -470,7 +492,7 @@ main(void)
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_UPDATE_RUNENERGY;
         p._update_run_energy.run_energy = 73;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(base_app, &bare_state, &p);
         assert(stats.run_energy == 73);
         printf("ok - UPDATE_RUNENERGY applied\n");
     }
@@ -483,7 +505,7 @@ main(void)
         p._update_stat.stat = 0;
         p._update_stat.xp = 37224;
         p._update_stat.level = 40;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(base_app, &bare_state, &p);
         assert(stats.current_level[0] == 40);
         printf("ok - UPDATE_STAT applied\n");
     }
@@ -499,7 +521,7 @@ main(void)
         p._update_inv_full.size = 3;
         p._update_inv_full.obj_ids = obj_ids;
         p._update_inv_full.obj_counts = obj_counts;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(base_app, &bare_state, &p);
         assert(InvManager_GetObj(&invs, 3214, 0) == 995);
         assert(InvManager_GetObj(&invs, 3214, 2) == 4151);
         printf("ok - UPDATE_INV_FULL applied\n");
@@ -528,7 +550,7 @@ main(void)
         p._update_inv_full.size = 4;
         p._update_inv_full.obj_ids = worn_ids;
         p._update_inv_full.obj_counts = worn_counts;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(base_app, &bare_state, &p);
 
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_UPDATE_INV_FULL;
@@ -536,14 +558,14 @@ main(void)
         p._update_inv_full.size = 4;
         p._update_inv_full.obj_ids = shop_ids;
         p._update_inv_full.obj_counts = shop_counts;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(base_app, &bare_state, &p);
 
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_UPDATE_INV_PARTIAL;
         p._update_inv_partial.inv_id = shop_inv;
         p._update_inv_partial.count = 1;
         p._update_inv_partial.entries = &entry;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(base_app, &bare_state, &p);
 
         TEST_EXEC_ASSERT(InvManager_GetObj(&invs, INV_MANAGER_CONTAINER_WORN, 3) == 1351,
             "the weapon slot keeps the bronze axe the server put there");
@@ -564,7 +586,7 @@ main(void)
         p.packet_type = PKT_NAME_IF_SETTEXT;
         p._if_settext.component_id = 0x1234;
         p._if_settext.text = text;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(base_app, &bare_state, &p);
         {
             int32_t idx = UITree_FindByComponentId(tree, 0x1234);
             assert(idx >= 0);
@@ -580,7 +602,7 @@ main(void)
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_MESSAGE_GAME;
         p._message_game.text = text;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(base_app, &bare_state, &p);
         assert(chat.message_count == 1);
         assert(strcmp(chat.messages[0].text, "A goblin appears.") == 0);
         printf("ok - MESSAGE_GAME applied\n");
@@ -744,6 +766,7 @@ main(void)
         static char dummy_builder[1];
 
         assert(app);
+        app->tree = tree; /* required (App_GameProto_Exec asserts it) */
         /* A real App's world lives from App_Init to shutdown, and the fence
          * reads its cycle (the plugin tick). */
         app->world = World_New();
@@ -763,15 +786,13 @@ main(void)
             8,
             8,
             WORLDVIEW_ROOT);
-        ctx.app = app;
         App_ServerStateBind(app, &app_state);
-        ctx.state = &app_state;
 
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_SET_ACTIVE_WORLD;
         p._set_active_world.world_id = 2009;
         p._set_active_world.level = 1;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         assert(WorldviewRegistry_Active(&app->worldviews) == 3);
         assert(WorldviewRegistry_ActiveLevel(&app->worldviews) == 1);
 
@@ -781,7 +802,7 @@ main(void)
         p.packet_type = PKT_NAME_SET_ACTIVE_WORLD;
         p._set_active_world.world_id = 3;
         p._set_active_world.level = 2;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         assert(WorldviewRegistry_Active(&app->worldviews) == 3);
         assert(WorldviewRegistry_ActiveLevel(&app->worldviews) == 1);
 
@@ -789,24 +810,22 @@ main(void)
         p.packet_type = PKT_NAME_SET_ACTIVE_WORLD;
         p._set_active_world.world_id = WORLDVIEW_WIRE_ROOT;
         p._set_active_world.level = 0;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         assert(WorldviewRegistry_Active(&app->worldviews) == WORLDVIEW_ROOT);
 
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_SET_ACTIVE_WORLD;
         p._set_active_world.world_id = 2009;
         p._set_active_world.level = 1;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         assert(WorldviewRegistry_Active(&app->worldviews) == 3);
 
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_SERVER_TICK_END;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         assert(WorldviewRegistry_Active(&app->worldviews) == WORLDVIEW_ROOT);
         assert(WorldviewRegistry_ActiveLevel(&app->worldviews) == 0);
 
-        ctx.app = NULL;
-        ctx.state = &bare_state;
         World_Free(app->world);
         free(app);
         printf("ok - SET_ACTIVE_WORLD arms the cursor and the fence resets it\n");
@@ -816,11 +835,10 @@ main(void)
     {
         struct App* app = calloc(1, sizeof(*app));
         assert(app);
+        app->tree = tree; /* required (App_GameProto_Exec asserts it) */
         app->minimap.flag_tile_x = -1;
         app->minimap.flag_tile_z = -1;
-        ctx.app = app;
         App_ServerStateBind(app, &app_state);
-        ctx.state = &app_state;
 
         {
             struct RevPacket p;
@@ -829,7 +847,7 @@ main(void)
             p._set_map_flag.x = 40;
             p._set_map_flag.z = 50;
             p._set_map_flag.clear = 0;
-            RS_GameProto_Exec(&ctx, &p);
+            App_GameProto_Exec(app, &app_state, &p);
             assert(app->minimap.flag_tile_x == 40);
             assert(app->minimap.flag_tile_z == 50);
             assert(RedrawRequest_Pending(&app->redraw_request));
@@ -841,7 +859,7 @@ main(void)
             p._set_map_flag.x = 255;
             p._set_map_flag.z = 255;
             p._set_map_flag.clear = 1;
-            RS_GameProto_Exec(&ctx, &p);
+            App_GameProto_Exec(app, &app_state, &p);
             assert(app->minimap.flag_tile_x == -1);
             assert(app->minimap.flag_tile_z == -1);
         }
@@ -860,14 +878,12 @@ main(void)
             p._set_map_flag.x = 3222;
             p._set_map_flag.z = 3218;
             p._set_map_flag.absolute = 1;
-            RS_GameProto_Exec(&ctx, &p);
+            App_GameProto_Exec(app, &app_state, &p);
             TEST_EXEC_ASSERT(app->minimap.flag_tile_x == 22, "absolute x against the world's base");
             TEST_EXEC_ASSERT(app->minimap.flag_tile_z == 34, "absolute z against the world's base");
             World_Free(app->world);
             app->world = NULL;
         }
-        ctx.app = NULL;
-        ctx.state = &bare_state;
         free(app);
         printf("ok - SET_MAP_FLAG stores scene-local tiles\n");
     }
@@ -882,15 +898,14 @@ main(void)
         unsigned serial;
 
         assert(app);
-        ctx.app = app;
+        app->tree = tree; /* required (App_GameProto_Exec asserts it) */
         App_ServerStateBind(app, &app_state);
-        ctx.state = &app_state;
         serial = app->host.inv_change_serial;
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_UPDATE_INV_STOP_TRANSMIT;
         p._update_inv_stop_transmit.inv_id = 516;
         p._update_inv_stop_transmit.component_id = (300 << 16) | 16;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(app->host.inv_change_serial == serial + 1, "the inventory transmit is told");
         TEST_EXEC_ASSERT(app->host.inv_transmit_dirty, "and its hooks are due");
         TEST_EXEC_ASSERT(app->host.inv_changed_count == 1 && app->host.inv_changed_ids[0] == 516,
@@ -902,7 +917,7 @@ main(void)
         p.packet_type = PKT_NAME_CAM_TARGET;
         p._cam_target.type = CAM_SCRIPT_TARGET_NPC;
         p._cam_target.index = 1234;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         {
             int type = -1;
             int index = -1;
@@ -910,18 +925,16 @@ main(void)
             TEST_EXEC_ASSERT(CamScript_Target(&app->cam_script, &type, &index) == 1, "a target is set");
             TEST_EXEC_ASSERT(type == CAM_SCRIPT_TARGET_NPC && index == 1234, "the npc it names");
             p._cam_target.index = -1;
-            RS_GameProto_Exec(&ctx, &p);
+            App_GameProto_Exec(app, &app_state, &p);
             TEST_EXEC_ASSERT(CamScript_Target(&app->cam_script, &type, &index) == 0,
                 "an index of none is the local player again");
             p._cam_target.type = CAM_SCRIPT_TARGET_PLAYER;
             p._cam_target.index = 77;
-            RS_GameProto_Exec(&ctx, &p);
+            App_GameProto_Exec(app, &app_state, &p);
             CamScript_Logout(&app->cam_script);
             TEST_EXEC_ASSERT(CamScript_Target(&app->cam_script, &type, &index) == 0,
                 "a logout forgets it");
         }
-        ctx.app = NULL;
-        ctx.state = &bare_state;
         free(app);
         printf("ok - UPDATE_INV_STOP_TRANSMIT tells the transmit; CAM_TARGET sets the focus\n");
     }
@@ -940,22 +953,21 @@ main(void)
         struct App* app = calloc(1, sizeof(*app));
         struct RevPacket p;
         assert(app);
-        ctx.app = app;
+        app->tree = tree; /* required (App_GameProto_Exec asserts it) */
         App_ServerStateBind(app, &app_state);
-        ctx.state = &app_state;
 
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_HINT_ARROW;
         p._hint_arrow.type = 1;
         p._hint_arrow.id = 41;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(
             app->hint_arrow.type == RS_HINT_ARROW_NPC, "type 1 is an npc slot");
         TEST_EXEC_ASSERT(app->hint_arrow.target == 41, "and the slot is the id");
 
         p._hint_arrow.type = 10;
         p._hint_arrow.id = 7;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(
             app->hint_arrow.type == RS_HINT_ARROW_PLAYER, "type 10 is a player pid");
 
@@ -966,7 +978,7 @@ main(void)
         p._hint_arrow.id = 3200;
         p._hint_arrow.z = 3300;
         p._hint_arrow.height = 60;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(
             app->hint_arrow.type == RS_HINT_ARROW_COORD, "type 2 is an absolute tile");
         TEST_EXEC_ASSERT(
@@ -978,7 +990,7 @@ main(void)
             "and anchored at the tile's centre");
 
         p._hint_arrow.type = 3;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(
             app->hint_arrow.type == RS_HINT_ARROW_COORD, "type 3 folds to the same form");
         TEST_EXEC_ASSERT(
@@ -986,7 +998,7 @@ main(void)
             "anchored to the tile's west edge");
 
         p._hint_arrow.type = 6;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(
             app->hint_arrow.offset_x == 64 && app->hint_arrow.offset_z == 128,
             "and type 6 to its north one");
@@ -994,11 +1006,9 @@ main(void)
         /* 255 clears. Normalised on the way in so 0 means "no arrow" for every
          * pass downstream, rather than each one knowing the sentinel. */
         p._hint_arrow.type = 255;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(app->hint_arrow.type == 0, "255 is the clear");
 
-        ctx.app = NULL;
-        ctx.state = &bare_state;
         free(app);
         printf("ok - HINT_ARROW reads the wire's own type numbers\n");
     }
@@ -1171,9 +1181,8 @@ main(void)
         struct GameProtoRevTable const* rev = GameProtoRev_OSRS239();
 
         assert(app);
-        ctx.app = app;
+        app->tree = tree; /* required (App_GameProto_Exec asserts it) */
         App_ServerStateBind(app, &app_state);
-        ctx.state = &app_state;
 
         /* MINIMAP_TOGGLE had no parser at all; parse it off the wire rather
          * than hand-filling the struct, so a mis-sized field shows up here. */
@@ -1184,7 +1193,7 @@ main(void)
                 rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_MINIMAP_TOGGLE), wire, 1, &p) > 0,
                 "MINIMAP_TOGGLE must parse");
             assert(p._minimap_toggle.state == 2);
-            RS_GameProto_Exec(&ctx, &p);
+            App_GameProto_Exec(app, &app_state, &p);
             assert(MinimapView_ToggleState(&app->minimap) == APP_MINIMAP_STATE_HIDDEN);
             assert(RedrawRequest_Pending(&app->redraw_request));
         }
@@ -1196,7 +1205,7 @@ main(void)
             memset(&p, 0, sizeof(p));
             p.packet_type = PKT_NAME_UPDATE_REBOOT_TIMER;
             p._update_reboot_timer.ticks = 100;
-            RS_GameProto_Exec(&ctx, &p);
+            App_GameProto_Exec(app, &app_state, &p);
             assert(app->session_info.reboot_timer == 100 * APP_SERVER_TICK_LOGIC_CYCLES);
             /* 100 server ticks = 60s = one minute exactly. */
             assert(app->session_info.reboot_timer / APP_LOGIC_CYCLES_PER_SECOND == 60);
@@ -1208,7 +1217,7 @@ main(void)
             p.packet_type = PKT_NAME_SET_MULTIWAY;
             p._set_multiway.multiway = 1;
             RedrawRequest_Clear(&app->redraw_request);
-            RS_GameProto_Exec(&ctx, &p);
+            App_GameProto_Exec(app, &app_state, &p);
             assert(RS_SessionInfo_Multiway(&app->session_info) == 1);
             assert(RedrawRequest_Pending(&app->redraw_request));
         }
@@ -1225,7 +1234,7 @@ main(void)
             p._last_login_info.days_since_recovery = RS_CC_RECOVERY_DAYS_SILENT;
             p._last_login_info.unread_messages = 3;
             p._last_login_info.member_warning = 1;
-            RS_GameProto_Exec(&ctx, &p);
+            App_GameProto_Exec(app, &app_state, &p);
             assert(app->session_info.welcome.last_ip == 0x01020304);
             assert(app->session_info.welcome.days_since_login == 2);
             assert(app->session_info.welcome.unread_messages == 3);
@@ -1233,8 +1242,6 @@ main(void)
         }
         printf("ok - LAST_LOGIN_INFO carries the member warning\n");
 
-        ctx.app = NULL;
-        ctx.state = &bare_state;
         free(app);
     }
 
@@ -1344,7 +1351,6 @@ main(void)
         uint8_t const full[] = { 3, 1, 0, 0, 0, 0, 0, 0, 0, 9, 21 };
         uint8_t const gone[] = { 3, 0 };
         struct App* app = calloc(1, sizeof(*app));
-        struct RS_GameProtoCtx unlock_ctx;
         struct RevPacket p;
         struct PktObjUnlockEntry entries[2] = { { 2, 5 }, { 3, 1 } };
 
@@ -1361,21 +1367,19 @@ main(void)
         RS_GroupStore_Free(&store);
 
         assert(app);
-        memset(&unlock_ctx, 0, sizeof(unlock_ctx));
-        unlock_ctx.app = app;
+        app->tree = tree; /* required (App_GameProto_Exec asserts it) */
         App_ServerStateBind(app, &app_state);
-        unlock_ctx.state = &app_state;
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_OBJUNLOCK_UPDATE;
         p._objunlock_update.count = 2;
         p._objunlock_update.entries = entries;
-        RS_GameProto_Exec(&unlock_ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         assert(app->host.client.objunlock_present);
         assert(app->host.client.objunlock_words[2] == 5);
         assert(app->host.client.objunlock_words[5] == 1);
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_OBJUNLOCK_RESET;
-        RS_GameProto_Exec(&unlock_ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         assert(!app->host.client.objunlock_present);
         free(app);
         printf("ok - group store and objunlock\n");
@@ -1388,11 +1392,11 @@ main(void)
     {
         struct App* app = calloc(1, sizeof(*app));
         struct App_WorldView view;
-        struct RS_GameProtoCtx url_ctx;
         struct RevPacket p;
         struct CamScriptRotateCycles const* r = &app->cam_script.rotate_cycles;
 
         assert(app);
+        app->tree = tree; /* required (App_GameProto_Exec asserts it) */
         memset(&view, 0, sizeof(view));
         view.world_camera.pitch = 300;
         view.world_camera.yaw = 100;
@@ -1411,14 +1415,11 @@ main(void)
         assert(r->yaw.to == 1900 - 2048);
         assert(!r->pitch.active);
 
-        memset(&url_ctx, 0, sizeof(url_ctx));
-        url_ctx.app = app;
         App_ServerStateBind(app, &app_state);
-        url_ctx.state = &app_state;
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_URL_OPEN;
         p._text.text = (char*)"https://oldschool.runescape.com/";
-        RS_GameProto_Exec(&url_ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         assert(strcmp(app->host.client.pending_open_url, "https://oldschool.runescape.com/") == 0);
 
         free(app);
@@ -1442,6 +1443,7 @@ main(void)
         int const iface_notice = 6073; /* ...and 655 (plus 652/653/654) here */
 
         assert(app);
+        app->tree = tree; /* required (App_GameProto_Exec asserts it) */
         RevConfigRefs_Init(&app->revconfig_refs);
         RevConfigRefs_LoadSources(
             &app->revconfig_refs,
@@ -1457,9 +1459,7 @@ main(void)
             "profile declares the welcome screen with the notice paragraph");
 
         RS_UISlots_Init(&app->slots);
-        ctx.app = app;
         App_ServerStateBind(app, &app_state);
-        ctx.state = &app_state;
 
         /* Nothing to say about recovery questions and no members warning: the
          * short screen, which has no paragraph rows on it. */
@@ -1470,7 +1470,7 @@ main(void)
         p._last_login_info.days_since_recovery = RS_CC_RECOVERY_DAYS_SILENT;
         p._last_login_info.unread_messages = 0;
         p._last_login_info.member_warning = 0;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(
             app->slots.main_modal_id == iface_plain, "plain welcome screen opens");
 
@@ -1478,7 +1478,7 @@ main(void)
          * checked with a packet that would otherwise select the OTHER screen,
          * so "left alone" is distinguishable from "reopened identically". */
         p._last_login_info.member_warning = 1;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(
             app->slots.main_modal_id == iface_plain,
             "a welcome screen already open is left alone");
@@ -1488,7 +1488,7 @@ main(void)
          * is the only one carrying rows 652/653/654 to put the warning on. */
         RS_UISlots_Init(&app->slots);
         p._last_login_info.member_warning = 1;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(
             app->slots.main_modal_id == iface_notice,
             "a members warning opens the screen that can show it");
@@ -1497,7 +1497,7 @@ main(void)
         RS_UISlots_Init(&app->slots);
         p._last_login_info.member_warning = 0;
         p._last_login_info.days_since_recovery = 5;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(
             app->slots.main_modal_id == iface_notice,
             "a recovery-question notice opens the taller screen");
@@ -1506,12 +1506,10 @@ main(void)
          * would put an empty last-login row in front of the player. */
         RS_UISlots_Init(&app->slots);
         p._last_login_info.last_ip = 0;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         TEST_EXEC_ASSERT(
             app->slots.main_modal_id == -1, "no address opens no welcome screen");
 
-        ctx.app = NULL;
-        ctx.state = &bare_state;
         RevConfigRefs_Free(&app->revconfig_refs);
         free(app);
         printf("ok - LAST_LOGIN_INFO opens the welcome screen the profile names\n");
@@ -1639,6 +1637,8 @@ main(void)
         App_PendingInit(app);
         app->phase.app_state = APP_STATE_READY;
         app->tree = UITree_New(4);
+        /* The host's tree is bound, as App init binds it (ba95a2734). */
+        app->host.tree = app->tree;
         memset(&spec, 0, sizeof(spec));
         memset(&layer_behavior, 0, sizeof(layer_behavior));
         spec.behavior = &layer_behavior;
@@ -1771,8 +1771,6 @@ main(void)
         app->packet_runner.queue = ToriRS_TaskQueue_New();
         app->tree = UITree_New(2);
         App_ServerStateBind(app, &app_state);
-        ctx.app = app;
-        ctx.state = &app_state;
 
         /* What the root change queued for its kept mount. */
         App_OpenSubInterface(app, slot, 399, 1);
@@ -1781,13 +1779,11 @@ main(void)
         p._if_resync.root_interface_id = 0;
         p._if_resync.mount_count = 1;
         p._if_resync.mounts = &mount;
-        RS_GameProto_Exec(&ctx, &p);
+        App_GameProto_Exec(app, &app_state, &p);
         for( struct ToriRS_Task* t = app->packet_runner.queue->head; t; t = t->next )
             queued++;
         TEST_EXEC_ASSERT(queued == 1, "a restated mount already queued is not queued again");
 
-        ctx.app = NULL;
-        ctx.state = &bare_state;
         ToriRS_TaskQueue_Free(app->packet_runner.queue);
         UITree_Free(app->tree);
         UIIfEventTable_Free(&app->if_events);
@@ -1833,13 +1829,14 @@ main(void)
         printf("ok - a player-model build is a parallel task, newest composition wins\n");
     }
 
+    UIIfTextStore_Free(&base_app->if_texts);
+    UIIfIntStore_Free(&base_app->if_hides);
+    UIIfIntStore_Free(&base_app->if_colours);
+    UIIfEventTable_Free(&base_app->if_events);
+    free(base_app);
     UITree_Free(tree);
     InvManager_Free(&invs);
     VarPManager_Free(&varps);
-    UIIfTextStore_Free(&bare_texts);
-    UIIfIntStore_Free(&bare_hides);
-    UIIfIntStore_Free(&bare_colours);
-    UIIfEventTable_Free(&bare_if_events);
     printf("net-exec: all tests passed\n");
     return 0;
 }

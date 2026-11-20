@@ -12,10 +12,12 @@
 #include "net/rev/revpacket.h"
 #include "scriptrun/scriptrun_core.h"
 #include "scriptrun/scriptrun_model.h"
+#include "scriptrun/scriptrun_zone.h"
 #include "world/world.h"
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 enum
@@ -61,6 +63,9 @@ struct ScriptrunShadow
     struct RS_Event entries[SHADOW_EVENTS];
     struct RS_EventRing ring;
     struct ScriptrunModel model;
+    /* The zone families (scriptrun_zone.h), applied by the owning core
+     * (ScriptrunCore_ZoneFamilies) after its own apply. */
+    struct ScriptrunZone zone;
 
     /* ---- the comparer ---- */
     FILE* out;
@@ -75,8 +80,13 @@ struct ScriptrunShadow
     struct ShadowMap touches;
     /* hash(family, key) -> a: hash(old, shared), b: the compare that saw it */
     struct ShadowMap diffs;
+    /* Scratch for the loc compare: recorded key -> core table row + 1. */
+    struct ShadowMap touches_scratch;
     int rows[SCRIPTRUN_SHADOW_FAMILY_COUNT];
     int keys[SCRIPTRUN_SHADOW_FAMILY_COUNT];
+
+    /* Abort on a row in a world family (ScriptrunShadow_SetStrictWorld). */
+    int strict_world;
 
     int applied;
     int unchanged;
@@ -87,6 +97,7 @@ struct ScriptrunShadow
 
 static char const* const k_family_names[SCRIPTRUN_SHADOW_FAMILY_COUNT] = {
     "varps", "stats", "invs", "messages", "if_texts", "if_hides", "if_events", "events",
+    "ground", "projectiles", "map_anims", "loc_anims", "locs",
 };
 
 char const*
@@ -402,6 +413,14 @@ shadow_row(
     /* A row is rare and a reader may look mid-run: each one reaches the
      * file when it is written. */
     fflush(sh->out);
+    if( sh->strict_world && family >= SCRIPTRUN_SHADOW_GROUND && family <= SCRIPTRUN_SHADOW_LOCS )
+    {
+        fprintf(stderr,
+            "scriptrun-shadow: INVARIANT broken at tick %d: the %s family differs at %s "
+            "(core '%s', shadow '%s')\n",
+            core->tick, k_family_names[family], key, o, s);
+        abort();
+    }
 }
 
 /* A state family's key differs at this compare: a row when it did not differ
@@ -464,6 +483,8 @@ shadow_packet_diff(
 
 static int s_shadow_opened;
 
+static void shadow_bags_free(void);
+
 struct ScriptrunShadow*
 ScriptrunShadow_New(
     char const* path,
@@ -474,8 +495,10 @@ ScriptrunShadow_New(
     struct ScriptrunShadow* sh;
     struct RS_EventSink sink;
 
-    if( !path || !path[0] )
-        return NULL;
+    /* Whether there is a shadow is the caller's (TORIRS_SCRIPTRUN_SHADOW
+     * set and not empty, scriptrun_core.c). */
+    assert(path);
+    assert(path[0] != '\0');
     assert(cycle);
     sh = ToriMem_Calloc(ToriMem_ServerPlayers(), 1, sizeof(*sh));
     assert(sh);
@@ -502,6 +525,8 @@ ScriptrunShadow_New(
     };
     /* Its own World: the entity setters it is fed apply to nothing. */
     ScriptrunModel_Init(&sh->model, rev_number, cycle, sh->world, &sh->esync, sink);
+    ScriptrunZone_Init(&sh->zone, sink);
+    sh->strict_world = 1;
     return sh;
 }
 
@@ -520,6 +545,13 @@ ScriptrunShadow_Free(struct ScriptrunShadow* sh)
         sh->passed,
         sh->entity_setters,
         sh->overflow);
+    fprintf(stderr,
+        "scriptrun-shadow: zone ground_rows %d effect_log_entries %u loc_anims %d loc_records %d loc_changes %d\n",
+        ScriptrunZone_ObjCount(&sh->zone),
+        (unsigned)sh->zone.effects.newest_serial,
+        sh->zone.loc_anim_count,
+        sh->zone.world->loc_change_count,
+        sh->zone.loc_changes_seen);
     for( int f = 0; f < SCRIPTRUN_SHADOW_FAMILY_COUNT; f++ )
         fprintf(stderr,
             "scriptrun-shadow: family %s rows %d keys %d\n",
@@ -529,10 +561,39 @@ ScriptrunShadow_Free(struct ScriptrunShadow* sh)
     fclose(sh->out);
     map_free(&sh->touches);
     map_free(&sh->diffs);
+    map_free(&sh->touches_scratch);
     ScriptrunModel_Free(&sh->model);
+    ScriptrunZone_Free(&sh->zone);
+    shadow_bags_free();
     RS_EntitySync_Free(&sh->esync);
     World_Free(sh->world);
     ToriMem_Free(ToriMem_ServerPlayers(), sh);
+}
+
+void
+ScriptrunShadow_SetStrictWorld(
+    struct ScriptrunShadow* sh,
+    int strict)
+{
+    assert(sh);
+    sh->strict_world = strict != 0;
+}
+
+struct ScriptrunZone*
+ScriptrunShadow_Zone(struct ScriptrunShadow* sh)
+{
+    assert(sh);
+    return &sh->zone;
+}
+
+void
+ScriptrunShadow_BeginTick(
+    struct ScriptrunShadow* sh,
+    int tick,
+    int now_cycle)
+{
+    assert(sh);
+    ScriptrunZone_BeginTick(&sh->zone, tick, now_cycle);
 }
 
 int
@@ -603,7 +664,8 @@ shadow_event_kind_shared(int kind)
 {
     return kind == RS_EVENT_VARP_CHANGED || kind == RS_EVENT_INV_CHANGED ||
            kind == RS_EVENT_INV_PACKET || kind == RS_EVENT_CHAT_MESSAGE ||
-           kind == RS_EVENT_SERVER_TICK || kind == RS_EVENT_NPC_SEQ;
+           kind == RS_EVENT_SERVER_TICK || kind == RS_EVENT_NPC_SEQ ||
+           kind == RS_EVENT_OBJ_ADDED || kind == RS_EVENT_OBJ_REMOVED;
 }
 
 /* The events of the shared kinds stamped after `mark`, oldest first. */
@@ -645,17 +707,16 @@ event_cell(
     char* buf,
     size_t cap)
 {
-    if( !ev )
-        snprintf(buf, cap, "-");
-    else
-        snprintf(buf,
-            cap,
-            "%s %d,%d,%d,%d",
-            RS_EventKindName(ev->kind),
-            (int)ev->a,
-            (int)ev->b,
-            (int)ev->c,
-            (int)ev->d);
+    assert(ev);
+    assert(buf);
+    snprintf(buf,
+        cap,
+        "%s %d,%d,%d,%d",
+        RS_EventKindName(ev->kind),
+        (int)ev->a,
+        (int)ev->b,
+        (int)ev->c,
+        (int)ev->d);
 }
 
 /* One step of an alignment: both sides hold the element (match), or only the
@@ -779,8 +840,15 @@ event_emit(
     char ob[96];
     char sb[96];
 
-    event_cell(o, ob, sizeof(ob));
-    event_cell(s, sb, sizeof(sb));
+    /* A side with no event at this row reads "-". */
+    if( o )
+        event_cell(o, ob, sizeof(ob));
+    else
+        snprintf(ob, sizeof(ob), "-");
+    if( s )
+        event_cell(s, sb, sizeof(sb));
+    else
+        snprintf(sb, sizeof(sb), "-");
     shadow_packet_diff(e->sh,
         e->core,
         SCRIPTRUN_SHADOW_EVENTS,
@@ -1299,6 +1367,403 @@ shadow_compare_if_events(
     }
 }
 
+/* ------------------------------------------------------ the zone families */
+
+/* One side's listing: (key, item) entries in the side's order, then sorted
+ * by key (the side's order kept within a key) and folded into one value per
+ * key: its items space-separated, or with BAG_COUNT how many there were. */
+struct ShadowBagEntry
+{
+    char key[SHADOW_KEY_LEN * 2];
+    char item[48];
+    int seq;
+};
+
+struct ShadowBag
+{
+    struct ShadowBagEntry* e;
+    int n;
+    int cap;
+    /* The folded listing: unique keys, sorted, each with its value. */
+    int* first; /* index of the key's first entry */
+    char (*values)[SHADOW_VALUE_LEN];
+    int keys;
+};
+
+static void
+bag_reset(
+    struct ShadowBag* b,
+    int cap)
+{
+    if( cap < 1 )
+        cap = 1;
+    if( b->cap < cap )
+    {
+        ToriMem_Free(ToriMem_ServerPlayers(), b->e);
+        ToriMem_Free(ToriMem_ServerPlayers(), b->first);
+        ToriMem_Free(ToriMem_ServerPlayers(), b->values);
+        b->e = ToriMem_Calloc(ToriMem_ServerPlayers(), (size_t)cap, sizeof(*b->e));
+        b->first = ToriMem_Calloc(ToriMem_ServerPlayers(), (size_t)cap, sizeof(*b->first));
+        b->values = ToriMem_Calloc(ToriMem_ServerPlayers(), (size_t)cap, sizeof(*b->values));
+        assert(b->e);
+        assert(b->first);
+        assert(b->values);
+        b->cap = cap;
+    }
+    b->n = 0;
+    b->keys = 0;
+}
+
+static void
+bag_free(struct ShadowBag* b)
+{
+    ToriMem_Free(ToriMem_ServerPlayers(), b->e);
+    ToriMem_Free(ToriMem_ServerPlayers(), b->first);
+    ToriMem_Free(ToriMem_ServerPlayers(), b->values);
+    memset(b, 0, sizeof(*b));
+}
+
+static void
+bag_add(
+    struct ShadowBag* b,
+    char const* key,
+    char const* item)
+{
+    assert(b->n < b->cap);
+    snprintf(b->e[b->n].key, sizeof(b->e[b->n].key), "%s", key);
+    snprintf(b->e[b->n].item, sizeof(b->e[b->n].item), "%s", item ? item : "");
+    b->e[b->n].seq = b->n;
+    b->n++;
+}
+
+static int
+bag_entry_cmp(
+    void const* x,
+    void const* y)
+{
+    struct ShadowBagEntry const* a = x;
+    struct ShadowBagEntry const* c = y;
+    int const k = strcmp(a->key, c->key);
+
+    return k ? k : a->seq - c->seq;
+}
+
+enum
+{
+    BAG_ITEMS = 0,
+    BAG_COUNT,
+};
+
+static void
+bag_fold(
+    struct ShadowBag* b,
+    int mode)
+{
+    qsort(b->e, (size_t)b->n, sizeof(*b->e), bag_entry_cmp);
+    b->keys = 0;
+    for( int i = 0; i < b->n; )
+    {
+        int j = i;
+        size_t len = 0;
+        char* v = b->values[b->keys];
+
+        v[0] = '\0';
+        while( j < b->n && strcmp(b->e[j].key, b->e[i].key) == 0 )
+        {
+            if( mode == BAG_ITEMS )
+                len += (size_t)snprintf(
+                    v + len, len < SHADOW_VALUE_LEN ? SHADOW_VALUE_LEN - len : 0, "%s%s",
+                    len ? " " : "", b->e[j].item);
+            if( len >= SHADOW_VALUE_LEN )
+                len = SHADOW_VALUE_LEN - 1;
+            j++;
+        }
+        if( mode == BAG_COUNT )
+            snprintf(v, SHADOW_VALUE_LEN, "%d", j - i);
+        b->first[b->keys++] = i;
+        i = j;
+    }
+}
+
+/* Every key either side holds whose values differ is a state row. Both sides
+ * folded. */
+static void
+shadow_compare_bags(
+    struct ScriptrunShadow* sh,
+    struct ScriptrunCore const* core,
+    int family,
+    struct ShadowBag const* o,
+    struct ShadowBag const* w)
+{
+    int i = 0;
+    int j = 0;
+
+    while( i < o->keys || j < w->keys )
+    {
+        char const* ko = i < o->keys ? o->e[o->first[i]].key : NULL;
+        char const* kw = j < w->keys ? w->e[w->first[j]].key : NULL;
+        int const c = !ko ? 1 : !kw ? -1 : strcmp(ko, kw);
+
+        if( c < 0 )
+        {
+            shadow_state_diff(sh, core, family, ko, o->values[i], "-", 0);
+            i++;
+        }
+        else if( c > 0 )
+        {
+            shadow_state_diff(sh, core, family, kw, "-", w->values[j], 0);
+            j++;
+        }
+        else
+        {
+            if( strcmp(o->values[i], w->values[j]) != 0 )
+                shadow_state_diff(sh, core, family, ko, o->values[i], w->values[j], 0);
+            i++;
+            j++;
+        }
+    }
+}
+
+/* Scratch for the compares, shared by every shadow of the process (one
+ * compares at a time); released with any shadow and remade on the next use. */
+static struct ShadowBag s_bag_old;
+static struct ShadowBag s_bag_new;
+
+static void
+shadow_bags_free(void)
+{
+    bag_free(&s_bag_old);
+    bag_free(&s_bag_new);
+}
+
+/* The ground rows of each tile, in each side's order. */
+static void
+shadow_compare_ground(
+    struct ScriptrunShadow* sh,
+    struct ScriptrunCore const* core)
+{
+    int const n_old = ScriptrunZone_ObjCount(&core->zone);
+    int const n_new = ScriptrunZone_ObjCount(&sh->zone);
+    int const cap = (n_old > n_new ? n_old : n_new) + 1;
+    struct ScriptrunObjRow* rows;
+    int deck_x[SCRIPTRUN_ZONE_VIEWS];
+    int deck_z[SCRIPTRUN_ZONE_VIEWS];
+    char key[SHADOW_KEY_LEN];
+    char item[48];
+    int n;
+
+    bag_reset(&s_bag_old, cap);
+    bag_reset(&s_bag_new, cap);
+    for( int v = 0; v < SCRIPTRUN_ZONE_VIEWS && v < SCRIPTRUN_VIEWS; v++ )
+    {
+        deck_x[v] = core->views[v].base_x;
+        deck_z[v] = core->views[v].base_z;
+    }
+    rows = ToriMem_Calloc(ToriMem_ServerPlayers(), (size_t)cap, sizeof(*rows));
+    assert(rows);
+    n = ScriptrunZone_Objs(&core->zone, deck_x, deck_z, rows, cap);
+    for( int i = 0; i < n; i++ )
+    {
+        snprintf(key, sizeof(key), "%d,%d,%d", rows[i].x, rows[i].z, rows[i].level);
+        snprintf(item, sizeof(item), "%dx%d", rows[i].obj_id, rows[i].count);
+        bag_add(&s_bag_old, key, item);
+    }
+    n = ScriptrunZone_Objs(&sh->zone, deck_x, deck_z, rows, cap);
+    for( int i = 0; i < n; i++ )
+    {
+        snprintf(key, sizeof(key), "%d,%d,%d", rows[i].x, rows[i].z, rows[i].level);
+        snprintf(item, sizeof(item), "%dx%d", rows[i].obj_id, rows[i].count);
+        bag_add(&s_bag_new, key, item);
+    }
+    ToriMem_Free(ToriMem_ServerPlayers(), rows);
+    bag_fold(&s_bag_old, BAG_ITEMS);
+    bag_fold(&s_bag_new, BAG_ITEMS);
+    shadow_compare_bags(sh, core, SCRIPTRUN_SHADOW_GROUND, &s_bag_old, &s_bag_new);
+}
+
+static void
+projectile_key(
+    char* key,
+    size_t cap,
+    int spotanim,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    int level,
+    int target,
+    int cycle,
+    int start_delay,
+    int end_delay)
+{
+    snprintf(key, cap, "%d %d,%d>%d,%d l%d t%d c%d %d-%d", spotanim, src_x, src_z, dst_x, dst_z,
+        level, target, cycle, start_delay, end_delay);
+}
+
+/* The projectiles and the map graphics still listed at the tick's cycle. */
+static void
+shadow_compare_effects(
+    struct ScriptrunShadow* sh,
+    struct ScriptrunCore const* core)
+{
+    static struct RS_EffectProjectile shots[RS_EFFECT_LOG_CAP / 2];
+    static struct RS_EffectMapAnim anims[RS_EFFECT_LOG_CAP];
+    int const now = (int)core->world->cycle;
+    char key[SHADOW_KEY_LEN * 2];
+    int n;
+
+    bag_reset(&s_bag_old, RS_EFFECT_LOG_CAP);
+    bag_reset(&s_bag_new, RS_EFFECT_LOG_CAP);
+    n = RS_EffectLog_Projectiles(&core->zone.effects, core->zone.effect_entries, shots,
+        RS_EFFECT_LOG_CAP / 2);
+    for( int i = 0; i < n; i++ )
+    {
+        struct RS_EffectProjectile const* p = &shots[i];
+        if( now - p->cycle > p->end_delay )
+            continue;
+        projectile_key(key, sizeof(key), p->spotanim, p->src_x, p->src_z, p->dst_x, p->dst_z,
+            p->level, p->target, p->cycle, p->start_delay, p->end_delay);
+        bag_add(&s_bag_old, key, NULL);
+    }
+    n = RS_EffectLog_Projectiles(&sh->zone.effects, sh->zone.effect_entries, shots,
+        RS_EFFECT_LOG_CAP / 2);
+    for( int i = 0; i < n; i++ )
+    {
+        struct RS_EffectProjectile const* p = &shots[i];
+        if( now - p->cycle > p->end_delay )
+            continue;
+        projectile_key(key, sizeof(key), p->spotanim, p->src_x, p->src_z, p->dst_x, p->dst_z,
+            p->level, p->target, p->cycle, p->start_delay, p->end_delay);
+        bag_add(&s_bag_new, key, NULL);
+    }
+    bag_fold(&s_bag_old, BAG_COUNT);
+    bag_fold(&s_bag_new, BAG_COUNT);
+    shadow_compare_bags(sh, core, SCRIPTRUN_SHADOW_PROJECTILES, &s_bag_old, &s_bag_new);
+
+    bag_reset(&s_bag_old, RS_EFFECT_LOG_CAP);
+    bag_reset(&s_bag_new, RS_EFFECT_LOG_CAP);
+    n = RS_EffectLog_MapAnims(&core->zone.effects, core->zone.effect_entries, anims, RS_EFFECT_LOG_CAP);
+    for( int i = 0; i < n; i++ )
+    {
+        struct RS_EffectMapAnim const* a = &anims[i];
+        if( now - a->cycle > RS_EFFECT_MAP_ANIM_LIFE_CYCLES )
+            continue;
+        snprintf(key, sizeof(key), "%d %d,%d,%d c%d", a->spotanim, a->x, a->z, a->level, a->cycle);
+        bag_add(&s_bag_old, key, NULL);
+    }
+    n = RS_EffectLog_MapAnims(&sh->zone.effects, sh->zone.effect_entries, anims, RS_EFFECT_LOG_CAP);
+    for( int i = 0; i < n; i++ )
+    {
+        struct RS_EffectMapAnim const* a = &anims[i];
+        if( now - a->cycle > RS_EFFECT_MAP_ANIM_LIFE_CYCLES )
+            continue;
+        snprintf(key, sizeof(key), "%d %d,%d,%d c%d", a->spotanim, a->x, a->z, a->level, a->cycle);
+        bag_add(&s_bag_new, key, NULL);
+    }
+    bag_fold(&s_bag_old, BAG_COUNT);
+    bag_fold(&s_bag_new, BAG_COUNT);
+    shadow_compare_bags(sh, core, SCRIPTRUN_SHADOW_MAP_ANIMS, &s_bag_old, &s_bag_new);
+
+    bag_reset(&s_bag_old, RS_EFFECT_LOC_ANIM_CAP);
+    bag_reset(&s_bag_new, RS_EFFECT_LOC_ANIM_CAP);
+    for( int i = 0; i < core->zone.loc_anim_count; i++ )
+    {
+        struct ScriptrunLocAnim const* a = &core->zone.loc_anims[i];
+        snprintf(key, sizeof(key), "%d,%d,%d s%d seq%d t%d", a->x, a->z, a->level, a->shape, a->seq,
+            a->tick);
+        bag_add(&s_bag_old, key, NULL);
+    }
+    for( int i = 0; i < sh->zone.loc_anim_count; i++ )
+    {
+        struct ScriptrunLocAnim const* a = &sh->zone.loc_anims[i];
+        snprintf(key, sizeof(key), "%d,%d,%d s%d seq%d t%d", a->x, a->z, a->level, a->shape, a->seq,
+            a->tick);
+        bag_add(&s_bag_new, key, NULL);
+    }
+    bag_fold(&s_bag_old, BAG_COUNT);
+    bag_fold(&s_bag_new, BAG_COUNT);
+    shadow_compare_bags(sh, core, SCRIPTRUN_SHADOW_LOC_ANIMS, &s_bag_old, &s_bag_new);
+}
+
+/* At every key the zone's loc records hold, what stands: the record's latest
+ * against the core's table (its row in that layer still standing, if any). */
+static void
+shadow_compare_locs(
+    struct ScriptrunShadow* sh,
+    struct ScriptrunCore const* core)
+{
+    struct World const* world = sh->zone.world;
+    char key[SHADOW_KEY_LEN];
+    char item[48];
+    int const base_x = sh->zone.base_x;
+    int const base_z = sh->zone.base_z;
+
+    if( world->loc_change_count == 0 )
+        return;
+    bag_reset(&s_bag_old, world->loc_change_count);
+    bag_reset(&s_bag_new, world->loc_change_count);
+    map_free(&sh->touches_scratch);
+    for( int i = 0; i < world->loc_change_count; i++ )
+    {
+        struct World_LocChange const* rec = &world->loc_changes[i];
+        int inserted;
+        int at;
+        uint64_t const k = ((uint64_t)(uint32_t)(base_x + rec->x) << 34) ^
+                           ((uint64_t)(uint32_t)(base_z + rec->z) << 6) ^
+                           ((uint64_t)rec->level << 2) ^ (uint64_t)rec->layer ^ (1ull << 63);
+
+        snprintf(key, sizeof(key), "%d,%d,%d,L%d", base_x + rec->x, base_z + rec->z, rec->level,
+            rec->layer);
+        if( rec->new_type < 0 )
+            snprintf(item, sizeof(item), "none");
+        else
+            snprintf(item, sizeof(item), "%d s%d a%d", rec->new_type, rec->new_shape, rec->new_angle);
+        bag_add(&s_bag_new, key, item);
+        at = map_put(&sh->touches_scratch, k, &inserted);
+        sh->touches_scratch.a[at] = (uint64_t)i;
+        sh->touches_scratch.b[at] = 0;
+    }
+    /* The core's standing row per recorded key: the last one in the table. */
+    for( int i = 0; i < core->loc_count; i++ )
+    {
+        struct ScriptrunLoc const* l = &core->locs[i];
+        int at;
+        uint64_t k;
+
+        if( l->view != 0 || l->loc_id < 0 )
+            continue;
+        k = ((uint64_t)(uint32_t)l->x << 34) ^ ((uint64_t)(uint32_t)l->z << 6) ^
+            ((uint64_t)l->level << 2) ^ (uint64_t)World_LocShapeToLayer(l->shape) ^ (1ull << 63);
+        at = map_find(&sh->touches_scratch, k);
+        if( at < 0 )
+            continue;
+        sh->touches_scratch.b[at] = (uint32_t)i + 1;
+    }
+    for( int i = 0; i < world->loc_change_count; i++ )
+    {
+        struct World_LocChange const* rec = &world->loc_changes[i];
+        uint64_t const k = ((uint64_t)(uint32_t)(base_x + rec->x) << 34) ^
+                           ((uint64_t)(uint32_t)(base_z + rec->z) << 6) ^
+                           ((uint64_t)rec->level << 2) ^ (uint64_t)rec->layer ^ (1ull << 63);
+        int const at = map_find(&sh->touches_scratch, k);
+        uint32_t const row = at >= 0 ? sh->touches_scratch.b[at] : 0;
+
+        snprintf(key, sizeof(key), "%d,%d,%d,L%d", base_x + rec->x, base_z + rec->z, rec->level,
+            rec->layer);
+        if( row == 0 )
+            snprintf(item, sizeof(item), "none");
+        else
+        {
+            struct ScriptrunLoc const* l = &core->locs[row - 1];
+            snprintf(item, sizeof(item), "%d s%d a%d", l->loc_id, l->shape, l->angle);
+        }
+        bag_add(&s_bag_old, key, item);
+    }
+    bag_fold(&s_bag_old, BAG_ITEMS);
+    bag_fold(&s_bag_new, BAG_ITEMS);
+    shadow_compare_bags(sh, core, SCRIPTRUN_SHADOW_LOCS, &s_bag_old, &s_bag_new);
+}
+
 void
 ScriptrunShadow_After(
     struct ScriptrunShadow* sh,
@@ -1321,4 +1786,7 @@ ScriptrunShadow_After(
     shadow_compare_texts(sh, core);
     shadow_compare_hides(sh, core);
     shadow_compare_if_events(sh, core);
+    shadow_compare_ground(sh, core);
+    shadow_compare_effects(sh, core);
+    shadow_compare_locs(sh, core);
 }

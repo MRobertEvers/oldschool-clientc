@@ -24,14 +24,26 @@
  * stand-ins for what the real client's scripts would read (the last client
  * script call, the make-X and skill-multi values, the count prompt).
  *
- * WHAT IT MIRRORS. The client applies the entity streams in an async task
- * bound to the whole App (game/task_exec_entity_info.c): it awaits npc configs,
- * models and stances between ops. That cannot run here, so the target/apply
- * rules are restated in scriptrun_core.c, op for op, against the same World
- * and RS_EntitySync, with the App-only side effects (models, scene elements,
- * sounds, chat UI, drive events) left out. Keep the two in step: a change to
- * player_target_op / player_apply_op / npc_target_op / npc_apply_op there is a
- * change here.
+ * The zone families follow the real client's rules too, onto its own records
+ * (scriptrun_zone.h, ScriptrunCore_ZoneFamilies): ground rows as World obj
+ * stacks, the effect log the projectiles and map graphics are read from
+ * (game/rs_effect_log.h), the loc animations, and the root's loc change
+ * records, which a rebuild re-places. That unit also holds the one list of
+ * the real client's parallel task kinds and why this client raises none.
+ *
+ * WHAT IT MIRRORS. The client applies the entity streams in a packet task
+ * bound to the whole App (game/task_exec_entity_info.c): it awaits the npc
+ * configs the packet names, and hands bodies and sequences to parallel tasks.
+ * That cannot run here, so the target/apply rules are restated in
+ * scriptrun_core.c, op for op, against the same World and RS_EntitySync, with
+ * the npc configs read from the server's own records
+ * (ToriRSServer_NpcInfoRecord) and the App-only side effects (models, scene
+ * elements, sounds, chat UI, drive events) left out. Keep the two in step: a
+ * change to player_target_op / player_apply_op / npc_target_op / npc_apply_op
+ * there is a change here. The interface mounts are restated too (the real
+ * client's record of what is mounted is its UI tree), and the placed locs:
+ * the loc table below stands for the real client's scenery pool, which this
+ * client builds no scene for.
  *
  * WHAT IT DOES NOT KNOW. Anything the server never sent: other players'
  * stats, npc hitpoints (only the health bar's fill), server-only varps. The
@@ -42,6 +54,7 @@
 #include "game/rs_effect_rules.h"
 #include "game/rs_event_ring.h"
 #include "scriptrun/scriptrun_model.h"
+#include "scriptrun/scriptrun_zone.h"
 
 #include <stdint.h>
 
@@ -49,18 +62,19 @@ struct World;
 struct GameProtoRevTable;
 struct ScriptrunShadow;
 struct PktLocAddChange;
+struct RevPacket;
 struct RSCache_Dat2Disk;
 
 enum
 {
     SCRIPTRUN_TEXT = 256,
     /* The effect lists' sizes, the live ring's too (game/rs_effect_rules.h
-     * says why each is what it is); a full list is an assert. */
+     * says why each is what it is): what the zone's effect log and loc
+     * animations (scriptrun_zone.h) hold alive at once; more is an assert. */
     SCRIPTRUN_PROJECTILES = RS_EFFECT_PROJECTILE_CAP,
     SCRIPTRUN_MAP_ANIMS = RS_EFFECT_MAP_ANIM_CAP,
     SCRIPTRUN_LOC_ANIMS = RS_EFFECT_LOC_ANIM_CAP,
     SCRIPTRUN_LOCS = 1024,
-    SCRIPTRUN_OBJS = 512,
     SCRIPTRUN_MOUNTS = 64,
     SCRIPTRUN_SCRIPT_ARGS = 32,
     /* Client logic cycles per server tick: the unit World and the drive's
@@ -99,36 +113,11 @@ enum
     SCRIPTRUN_EVENTS = 1024,
 };
 
-struct ScriptrunProjectile
-{
-    int spotanim;
-    int src_x, src_z, dst_x, dst_z, level; /* absolute tiles */
-    int target;                            /* the wire's target field */
-    int launch_cycle;                      /* world cycle it was received */
-    int start_delay, end_delay;            /* cycles after receipt */
-};
-
-/* A LOC_ANIM as its packet said it: the sequence a placed loc started, on
- * the tick that sent it. Kept for SCRIPTRUN_LOC_ANIM_TICKS, the live ring's
- * APP_DRIVE_LOC_ANIM_TICKS (both RS_EFFECT_LOC_ANIM_LIFE_TICKS). (The Great
- * Olm's head is a loc: its facing and its attacks are told only by these.) */
+/* A LOC_ANIM is kept for SCRIPTRUN_LOC_ANIM_TICKS, the live ring's
+ * APP_DRIVE_LOC_ANIM_TICKS (both RS_EFFECT_LOC_ANIM_LIFE_TICKS); its row is
+ * struct ScriptrunLocAnim (scriptrun_zone.h). (The Great Olm's head is a loc:
+ * its facing and its attacks are told only by these.) */
 enum { SCRIPTRUN_LOC_ANIM_TICKS = RS_EFFECT_LOC_ANIM_LIFE_TICKS };
-struct ScriptrunLocAnim
-{
-    int x, z, level; /* absolute */
-    int shape;
-    int seq;
-    int tick; /* core->tick at the apply: the tick that sent it */
-};
-
-struct ScriptrunMapAnim
-{
-    int spotanim;
-    int x, z, level; /* absolute */
-    int height;
-    int delay;
-    int cycle; /* world cycle it was received */
-};
 
 struct ScriptrunLoc
 {
@@ -179,13 +168,6 @@ struct ScriptrunView
     int op_mask;
     int base_x, base_z; /* staging rectangle SW corner, absolute tiles */
     int level;          /* the plane SET_ACTIVE_WORLD named for it */
-};
-
-struct ScriptrunObj
-{
-    int x, z, level; /* absolute */
-    int obj_id;
-    int count;
 };
 
 struct ScriptrunMount
@@ -241,19 +223,16 @@ struct ScriptrunCore
     int next_element_id;
     int tick;
 
-    struct ScriptrunProjectile projectiles[SCRIPTRUN_PROJECTILES];
-    int projectile_count;
-    struct ScriptrunMapAnim map_anims[SCRIPTRUN_MAP_ANIMS];
-    int map_anim_count;
-    struct ScriptrunLocAnim loc_anims[SCRIPTRUN_LOC_ANIMS];
-    int loc_anim_count;
     /* Every placed loc the bot knows: the map's (cache level, base id) and
      * every zone change since. loc_id -1 is a removed one. */
     struct ScriptrunLoc* locs;
     int loc_count;
     int loc_capacity;
-    struct ScriptrunObj objs[SCRIPTRUN_OBJS];
-    int obj_count;
+    /* The zone families (scriptrun_zone.h), applied by the real client's
+     * rules (ScriptrunCore_ZoneFamilies): the ground rows as World obj stacks
+     * (read with ScriptrunCore_Objs), the effect log the projectiles and map
+     * graphics are read from (game/rs_effect_log.h), the loc animations. */
+    struct ScriptrunZone zone;
 
     int toplevel;
     /* The component a resume was sent on and not yet answered (the client's
@@ -472,6 +451,21 @@ ScriptrunCore_LocChange(
     int loc_id,
     struct PktLocAddChange const* menu);
 
+/** ScriptrunCore_LocChange at a CACHE level (no bridge climb), with the
+ *  placement's own menu (`op_flags`, `ops`): a standing change re-placed after
+ *  a rebuild. */
+void
+ScriptrunCore_LocPlace(
+    struct ScriptrunCore* core,
+    int abs_x,
+    int abs_z,
+    int level,
+    int shape,
+    int angle,
+    int loc_id,
+    int op_flags,
+    const char ops[5][32]);
+
 /**
  * UPDATE_ZONE_FULL_FOLLOWS for the zone whose south-west tile is (abs_x0,
  * abs_z0) on the walked level `zone_level`: every loc a zone change put in it
@@ -486,6 +480,62 @@ ScriptrunCore_ZoneResetLocs(
     int abs_x0,
     int abs_z0,
     int zone_level);
+
+/** The cache level a loc on scene tile (`sx`, `sz`) of the root sits at when
+ *  a zone names walked plane `zone_level`: one above it on a bridge column
+ *  (World_LocCacheLevel; zone_loc_tile_at). */
+int
+ScriptrunCore_LocCacheLevel(
+    struct ScriptrunCore const* core,
+    int sx,
+    int sz,
+    int zone_level);
+
+/** The map's loc in `layer` at an absolute root tile and cache level (the
+ *  loc the scene was built with there, whatever has changed it since), its
+ *  shape and angle; -1 when the map put none there. */
+int
+ScriptrunCore_MapLocAt(
+    struct ScriptrunCore const* core,
+    int abs_x,
+    int abs_z,
+    int level,
+    int layer,
+    int* out_shape,
+    int* out_angle);
+
+/** Every ground row the bot knows (scriptrun_zone.h ScriptrunZone_Objs):
+ *  the root's, then each deck's, in arrival order, absolute tiles. At most
+ *  `cap`; returns how many. ScriptrunCore_ObjCount says how many there are. */
+int
+ScriptrunCore_Objs(
+    struct ScriptrunCore const* core,
+    struct ScriptrunObjRow* out,
+    int cap);
+
+int
+ScriptrunCore_ObjCount(struct ScriptrunCore const* core);
+
+/** The zone cursor as it stands (the last header's base and plane, the
+ *  SET_ACTIVE_WORLD view), as a ScriptrunZoneAt. */
+void
+ScriptrunCore_ZoneAt(
+    struct ScriptrunCore const* core,
+    struct ScriptrunZoneAt* out);
+
+/**
+ * Apply `packet`'s zone families (scriptrun_zone.h: ground rows, the effect
+ * log, loc animations) to `zone`, AFTER the core has applied the packet (so
+ * its cursor, its views and its scene base are the packet's): the zone
+ * sub-packets at the cursor, an enclosed zone's entries, UPDATE_ZONE_FULL_FOLLOWS's
+ * reset, the *_SPECIFIC forms at their own tiles, a rebuild's shift, and a
+ * deck that went. The core's own zone and its shadow's both go through here.
+ */
+void
+ScriptrunCore_ZoneFamilies(
+    struct ScriptrunCore const* core,
+    struct ScriptrunZone* zone,
+    struct RevPacket const* packet);
 
 /** Release the collision scene (the builder and the loc table). */
 void

@@ -502,12 +502,30 @@ or `[js5:boot]` in the manifest. Settings are resolved in
 
 ---
 
-### The two servers
+### The servers
 
-Both are always built native, even from a web build:
-`make -C src servers`. They have different jobs, different lifetimes and very
-different exposure, which is why they are separate executables with separate
-bind addresses. Full detail in [docs/WEB_SERVERS.md](docs/WEB_SERVERS.md).
+A deployment is five servers, always built native, even from a web build
+(`make -C src servers`; `torirsserver` is its own target). They have different
+jobs, lifetimes and exposure, so each is its own handler, and any of them can
+run in its own process or inside another's. Between processes every request is
+signed (HMAC-SHA256, `src/service/`).
+
+| server | source | what it owns |
+| --- | --- | --- |
+| game | [`src/torirsserver/`](src/torirsserver/) | the world; it holds a character's save while that character is logged in |
+| account | [`src/accountserver/`](src/accountserver/) | the login server: player accounts, every save, display names, and the lock saying which world has each character |
+| hiscores | [`src/hiscoresserver/`](src/hiscoresserver/) | hiscores, experience history, sessions, the adventure log -- told by the game, never asked |
+| website | [`src/websiteserver/`](src/websiteserver/) | the public front door: the sign-in gate, user accounts (web logins, which hold player accounts), OAuth, the account site |
+| IO | [`src/ioserver/`](src/ioserver/) | the raw client page and its assets, boot files, the dat1 proxy, JS5 (`--js5-port`); behind the website |
+
+A browser reaches only the website and the game's WebSocket. The website
+forwards the client's files to the IO server. A login takes the character's
+save from the account server, and the logout hands it back. `torirsd`
+([`src/daemon/torirsd.c`](src/daemon/torirsd.c)) starts all of them from one
+`torirsd.ini` in that order and stops them in the reverse, game first; if any
+one exits, the rest stop too. How they talk, the save's ownership and the
+daemon's file are in [docs/WEB_SERVERS.md](docs/WEB_SERVERS.md) ("The five
+servers").
 
 #### `io_server` — the page, the boot files, and the dat1 proxy
 

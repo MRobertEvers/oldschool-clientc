@@ -2317,8 +2317,20 @@ app_tex_trace_enabled(void);
 void
 app_sync_textures(struct App* app);
 
+/** The textures models built since the last call want (at most 256): each
+ *  already in the provider is published now, each not is one
+ *  Task_TexturePublish, a failed or resident or pending one nothing. */
 void
-app_sync_textures_poll(struct App* app);
+App_TexturesWant(
+    struct App* app,
+    int const* ids,
+    int id_count);
+
+/** Is a Task_TexturePublish pending for texture `id` (tests, the want). */
+int
+App_TexturePublishPending(
+    struct App const* app,
+    int id);
 
 
 /* ---- app_tick.c ---- */

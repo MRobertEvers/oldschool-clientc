@@ -1418,7 +1418,7 @@ answer_auth_item(struct ToriRS_IOItem* item)
         route = "/game/play";
     else if( strcmp(endpoint, "revoke") == 0 )
         route = "/oauth/revoke";
-    /* The gate session's own player accounts (io_gate.h /account). */
+    /* The gate session's own player accounts (website_gate.h /account). */
     else if( strcmp(endpoint, "user") == 0 )
         route = "/account/players";
     else if( strcmp(endpoint, "link") == 0 )

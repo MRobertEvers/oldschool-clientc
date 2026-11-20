@@ -56,7 +56,7 @@
  */
 
 #include "app/app_internal.h"
-#include "game/rs_gameproto_exec.h"
+#include "app/app_gameproto_exec.h"
 #include "game/rs_server_state.h"
 #include "mem/torirs_mem.h"
 #include "net/rev/revpacket.h"
@@ -581,7 +581,8 @@ app_loc_change_pending(
     struct Task_LocChange* task;
 
     assert(app);
-    if( !app->pending || !WorldviewRegistry_IsLive(&app->worldviews, view) )
+    assert(app->pending);
+    if( !WorldviewRegistry_IsLive(&app->worldviews, view) )
         return NULL;
     par = RS_Pending_Find(
         app->pending,
@@ -847,9 +848,10 @@ App_WorldLocMerge(
     uint32_t const now = App_ParallelCycle(app);
 
     assert(app);
-    /* Created at boot, freed at shutdown; and a zone packet reaches here only
-     * for a built view (App_ZonePacketHold holds the rest). */
-    assert(app->world);
+    /* No world yet is a real state (fa5680f77). A zone packet reaches here
+     * only for a built view (App_ZonePacketHold holds the rest). */
+    if( !app->world )
+        return;
     assert(App_ActiveWorldview(app)->world->load_complete);
 
     /* Countdown: hide after start_cycle cycles, restore after end_cycle --
@@ -1198,14 +1200,10 @@ Task_ZoneHeld_Run(
     /* 4. Apply, under the cursor and zone base as of arrival. */
     {
         struct RS_ServerState state;
-        struct RS_GameProtoCtx ctx = {
-            .state = &state,
-            .tree = app->tree,
-            .app = app,
-        };
+
         App_ServerStateBind(app, &state);
-        RS_GameProto_ApplyHeldZoneOp(
-            &ctx, &self->pkt, self->base_x, self->base_z, self->level, self->par.view);
+        App_GameProto_ApplyHeldZoneOp(
+            app, &state, &self->pkt, self->base_x, self->base_z, self->level, self->par.view);
         RedrawRequest_Raise(&app->redraw_request);
     }
 

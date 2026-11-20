@@ -47,12 +47,26 @@ struct UIBuilderOnLoadEntry
     char strv[UITREE_BUILDER_ONLOAD_STR_MAX][UITREE_BUILDER_ONLOAD_STR_LEN];
 };
 
+/** Which script VM the interfaces a bake mounts run. Chosen by the
+ *  constructor (UITreeBuilder_InitCS1 / _InitCS2), never inferred. */
+enum UITreeBuilderScripts
+{
+    /** dat1 packs: IF1 scripts, which the CS1 host evaluates on the tick. The
+     *  bake runs no onLoad scripts and arms no transmit hooks. */
+    UITREE_BUILDER_SCRIPTS_CS1,
+    /** dat2 packs: the bake runs their CS2 onLoad scripts and arms their
+     *  transmit hooks through `host`. */
+    UITREE_BUILDER_SCRIPTS_CS2,
+};
+
 struct UITreeBuilder
 {
     struct CacheProvider* provider;
     struct UITree* tree;
     struct InvManager* invs;
-    struct RS_CS2Host* host; /* may be NULL — parent task skips CS2 */
+    enum UITreeBuilderScripts scripts;
+    /** The CS2 host under UITREE_BUILDER_SCRIPTS_CS2; NULL under CS1. */
+    struct RS_CS2Host* host;
     /** Optional: when set, bake remaps sprite ids to scene ids (EnsureSprite)
      * and uploads fonts (EnsureFont) so the tree renders directly. NULL keeps
      * raw provider/cache ids on the nodes. */
@@ -73,7 +87,7 @@ struct UITreeBuilder
     char inline_ini_path[512];
     /** Group a componentno-less `type=rs_iface` mounts: the manifest's boot
      *  interface, or whatever the server last re-rooted to. -1 = none, which is
-     *  what UITreeBuilder_Init leaves behind. */
+     *  what both constructors leave behind. */
     int root_interface_id;
     /** Which `[layout:<group>]` this bake takes, and which it refuses. Empty =
      *  take everything / refuse nothing, the pre-title behaviour.
@@ -101,18 +115,21 @@ struct UITreeBuilder
     int active;
 };
 
+/** A builder for dat1 interfaces (IF1 scripts, no CS2 host). `cache_ini_path`
+ *  is the optional cache/sprites RevConfig INI. */
 void
-UITreeBuilder_Init(
+UITreeBuilder_InitCS1(
     struct UITreeBuilder* builder,
     struct CacheProvider* provider,
     struct UITree* tree,
     struct InvManager* invs,
-    struct RS_CS2Host* host,
-    char const* ini_path);
+    char const* ini_path,
+    char const* cache_ini_path);
 
-/** Like Init, but also loads a cache/sprites RevConfig INI. */
+/** A builder for dat2 interfaces, whose onLoad scripts and transmit hooks run
+ *  through `host`. `cache_ini_path` as for UITreeBuilder_InitCS1. */
 void
-UITreeBuilder_InitEx(
+UITreeBuilder_InitCS2(
     struct UITreeBuilder* builder,
     struct CacheProvider* provider,
     struct UITree* tree,

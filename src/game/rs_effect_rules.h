@@ -8,7 +8,7 @@
  * projectiles (MAP_PROJANIM / SCRIPTEDPROJ), map graphics (MAP_ANIM) and loc
  * animations (LOC_ANIM). The real client keeps them in App.drive_events
  * (app/app_plugin_drive_events.c, read by plugin/torirs_plugin_drive_ui.c);
- * the headless client in its core (scriptrun/scriptrun_core.c, read by
+ * the headless client in its zone (scriptrun/scriptrun_zone.h, read by
  * torirsserver/torirs_server_scriptrun.c). Every site that states one of these
  * numbers reads it from here.
  *
@@ -59,9 +59,10 @@ enum
 };
 
 /*
- * THE EFFECT LOG: the real client keeps the effects as the packets said them
- * in one ring of struct RS_Event (game/rs_event_ring.h), written by the packet
- * task, and its effect lists are READ from it: every entry still alive by the
+ * THE EFFECT LOG: both clients keep the effects as the packets said them in
+ * one ring of struct RS_Event (game/rs_event_ring.h), written at the packet
+ * through game/rs_effect_log.h, and their effect lists are READ from it:
+ * every entry still alive by the
  * lifetimes above, oldest first. Nothing is retired from it; an entry dies by
  * its lifetime and is overwritten in turn. It holds more than every list's
  * cap together, and overwriting an entry that is still alive is an assert:

@@ -303,7 +303,9 @@ ToriRSServer_RecordingLogin(
     assert(player);
     player->recording = NULL;
     ToriRSServer_SaveFileName(player->account_name, key, sizeof(key));
-    if( !key[0] || !ToriRSServer_AuthIsRecorded(player->account_name) )
+    /* The account's `record` flag came with the login's check
+     * (ToriRSServerPlayer.account_record): no file read on the tick. */
+    if( !key[0] || !player->account_record )
         return;
 
     rec = find_parked(key);

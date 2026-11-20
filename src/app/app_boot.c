@@ -185,7 +185,6 @@ app_async_polls(struct App* app)
     if( app_tex_trace_enabled() )
         TORIRS_LOG("tex_trace: --- frame %d ---\n", ++g_tex_trace_frame);
     app_world_map_poll(app);
-    app_sync_textures_poll(app);
 
     if( UITreeRefresh_Take(&app->tree_refresh) )
     {
@@ -1008,18 +1007,27 @@ app_open_tree(
      * a pack is baked *under* the rs_iface node its layout record placed, so
      * whatever the CS2 scripts then do to it stays inside that subtree.
      *
-     * The CS2 host is passed only for dat2 — dat1 interface packs carry IF1
-     * scripts, which the CS1 host evaluates on the tick instead. */
+     * Only a dat2 bake runs CS2 -- dat1 interface packs carry IF1 scripts,
+     * which the CS1 host evaluates on the tick instead. */
     if( UITreeBuilder_Active(&app->builder) )
         UITreeBuilder_Free(&app->builder); /* display-mode remount: re-Init below */
-    UITreeBuilder_InitEx(
-        &app->builder,
-        app->provider,
-        app->tree,
-        &app->invs,
-        App_UiLogic(app) == APP_UI_LOGIC_CS1 ? NULL : &app->host,
-        app->cfg.revconfig_ui_ini,
-        app->cfg.revconfig_cache_ini);
+    if( App_UiLogic(app) == APP_UI_LOGIC_CS1 )
+        UITreeBuilder_InitCS1(
+            &app->builder,
+            app->provider,
+            app->tree,
+            &app->invs,
+            app->cfg.revconfig_ui_ini,
+            app->cfg.revconfig_cache_ini);
+    else
+        UITreeBuilder_InitCS2(
+            &app->builder,
+            app->provider,
+            app->tree,
+            &app->invs,
+            &app->host,
+            app->cfg.revconfig_ui_ini,
+            app->cfg.revconfig_cache_ini);
     if( app->cfg.revconfig_inline_ini )
         strncpy(
             app->builder.inline_ini_path,

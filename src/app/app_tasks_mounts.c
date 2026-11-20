@@ -224,7 +224,8 @@ Task_MountVisuals_Run(
     RedrawRequest_Raise(&app->redraw_request);
 
     /* 3. Still the opening of the group it was made for. */
-    if( !app->tree || !UITree_GroupPresent(app->tree, self->group) ||
+    assert(app->tree);
+    if( !UITree_GroupPresent(app->tree, self->group) ||
         UITree_GroupCloseSerial(app->tree, self->group) != self->close_serial )
         PT_EXIT(&self->pt);
 

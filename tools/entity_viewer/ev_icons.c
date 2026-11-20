@@ -1,7 +1,7 @@
 /*
  * ev_icons — every obj's inventory icon, and the account site's other art,
  * rendered headless once per cache for the staff player editor
- * (src/ioserver/io_site.c /admin/players/<name>).
+ * (src/websiteserver/website_site.c /admin/players/<name>).
  *
  *   ev_icons --rev osrs242 ../../cache.osrs242 \
  *            --names ../../OSRS-Content/osrs-content --out /tmp/admin-art

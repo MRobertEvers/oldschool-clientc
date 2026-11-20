@@ -1343,7 +1343,7 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # adventure_log(int $kind, int $amount, string $label)
     #
     # One line of the active player's adventure log on the account site
-    # (torirs_server_accountlog.h): `kind` says what happened (1 = a quest
+    # (torirs_server_hiscoreslog.h): `kind` says what happened (1 = a quest
     # completed, `amount` its quest points, `label` its name). Content decides
     # what is worth a line; the engine only records it, and only on a world
     # whose accounts mean something (one that checks passwords).
