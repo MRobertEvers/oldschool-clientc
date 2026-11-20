@@ -6549,7 +6549,12 @@ frame_loop_step(void)
         int draw_period_ms;
         ToriRS_Pacer_SetCapFps(&main_pacing.frame_pacer, App_FrameCapFps(&app));
         draw_period_ms = ToriRS_Pacer_DrawPeriodMs(&main_pacing.frame_pacer);
-        if( app_redraw && !main_pacing.uncapped && !replay &&
+        /* Not on a frame-locked client (the content test): its frames are
+         * virtual time, and a gate on the WALL clock made which frames were
+         * drawn -- and so what a screenshot showed -- depend on how fast the
+         * machine ran them (pm-fx3-win P2). Its draws are decided by frame
+         * (render skip) alone. */
+        if( app_redraw && !main_pacing.uncapped && !replay && !App_FrameLocked() &&
             (App_AsyncPending(&app) || draw_period_ms > main_pacing.frame_pacer.period_ms) )
         {
             uint64_t const draw_now = PlatformWindow_Ticks64();
