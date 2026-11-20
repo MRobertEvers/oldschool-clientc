@@ -14,9 +14,9 @@
 --     2513,3494, on both raft trips.
 --   * Hadley's house: in and out by elfdoor 2520,3432; the spiralstairs both ways by maplink
 --     (maplink_0_39_53_23_38_up -> 2518,3431,1; maplink_1_39_53_22_39_down -> 2519,3430,0).
---   * Golrie's cellar: down the Tree Gnome Village ladder (quest_waterfall_locs.rs2:25, +6400 z
+--   * Golrie's cellar: down the Tree Gnome Village ladder (quest_waterfall_locs.rs2 [oploc1,roving_golrie_ladder_to_cellar], +6400 z
 --     from the player's tile), in by the key on golrie_gate, out by its op1 (walk-through,
---     quest_waterfall_locs.rs2:377), up by ladder_from_cellar_directional
+--     [label,waterfall_golrie_gate]), up by ladder_from_cellar_directional
 --     (maplink_0_39_149_37_20 -> 2533,3156).
 --   * Glarial's tomb: in by the pebble, out by its ladder (maplink_0_39_153_61_52_up -> 2557,3444).
 --   * Baxtorian Falls: the key crate room by castledoubledoorl 2582,9875 in and out, north by
@@ -68,6 +68,8 @@ return {
             points = 1,
         })
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
+        -- The wire audit against RSProx index 4349 reads this run's ticklog.tsv.
+        t.ticklog.start()
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
@@ -101,30 +103,45 @@ return {
         t.exec("goto-talkToAlmera", t.player.goto_tile, 2530, 3495, 0)
         yard_in("talkToAlmera")
         t.exec("talkToAlmera", t.player.talk_to, "almera_waterfall_quest", 1)
+        -- RSProx index 4349 [356..364]: the fixture's combat level is under 25, so the
+        -- warning box comes before the start confirm.
         t.exec("talkToAlmera-chat", t.chat.play, {
             "player:Hello.",
-            "npc:Nice to see an outsider",
-            "choose:How can I help?",
+            "npc:Ah, hello there. Nice to see an outsider",
+            "mesbox:Before starting this quest, be aware that your combat level",
+            "choose:Yes.",
             "player:How can I help?",
             "npc:It's my son Hudon",
             "player:I could go and take a look",
-            "npc:Would you?",
+            "npc:Would you? You are kind.",
         })
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
 
-        -- ---- boardRaft (the raft meets Hudon: started -> spoken_to_hudon) ----
+        -- A move inside the fade frame (waterfall_frame.rs2): the first box has no
+        -- continue row, so wait for the landing tile, then a tick for the second box.
+        local function await_tile(name, x, z, limit)
+            t.await({ level = function()
+                local tile_result, tile = t.world.tile()
+                return tile_result == "ok" and tile ~= nil and tile.x == x and tile.z == z
+            end, note = name .. ": the move to " .. x .. "," .. z }, limit or 20)
+            t.ticks(1)
+        end
+
+        -- ---- boardRaft (the raft meets Hudon: started -> spoken_to_hudon; 4349 [372..391]) ----
         raft_pocket("boardRaft")
         t.exec("boardRaft", t.player.click_loc, "lograft_waterfall_quest", 1)
-        t.await({ level = function() return t.chat.kind() ~= "none" end, note = "raft lands and Hudon's page opens" }, 20)
+        await_tile("boardRaft", 2512, 3481)
         t.exec("boardRaft-chat", t.chat.play, {
-            "player:Hello son",
+            "mesbox:...you crash into a small island.",
+            "player:Hello son, are you okay? You need help?",
             "npc:It looks like you need the help",
             "player:Your mum sent me",
-            "npc:Don't play nice",
+            "npc:Don't play nice with me, I know you're looking for the treasure too.",
             "player:Where is this treasure",
             "npc:Just because I'm small",
             "player:Maybe I could help",
             "npc:I'm fine alone",
+            "player:Hmm... I wonder what this treasure is.",
         })
         t.expect("quest.stage.spoken_to_hudon", t.quest.expect_stage("spoken_to_hudon"))
 
@@ -136,25 +153,64 @@ return {
         })
 
         -- ---- useRopeOnRock, useRopeOnTree, getInBarrel ----
-        local rock = t.player.by_symbol("loc", "crossing_rock_waterfall_quest")
-        t.exec("useRopeOnRock", t.player.use_on, "rope", rock)
+        -- The rope is thrown 8 tiles from the rock (4349 [398]); use_on's walk_near
+        -- clicks toward the unreachable tile beside it first, and its settle then sees
+        -- no edge it knows (no line, no page, no jump), so the row is the landing on
+        -- the far bank 9 ticks after the throw (4349 [407]: 2513,3468).
+        local function rope_on_rock(tag)
+            local rock = t.player.by_symbol("loc", "crossing_rock_waterfall_quest")
+            t.player.use_on("rope", rock)
+            t.await({ level = function()
+                local tile_result, tile = t.world.tile()
+                return tile_result == "ok" and tile ~= nil and tile.x == 2513 and tile.z == 3468
+            end, note = tag .. ": across the rope to 2513,3468" }, 40)
+            tile_check(tag, function(tile) return tile.x == 2513 and tile.z == 3468 and tile.level == 0 end,
+                "2513,3468,0, the bank beside the rock")
+        end
+        rope_on_rock("useRopeOnRock")
         local tree = t.player.by_symbol("loc", "overhanging_tree1_waterfall_quest")
         t.exec("useRopeOnTree", t.player.use_on, "rope", tree)
         t.ticks(2)
         -- [oplocu,overhanging_tree1_waterfall_quest]: p_teleport(0_39_54_15_7) lets the player down onto the ledge.
         tile_check("useRopeOnTree-landed", function(tile) return tile.x == 2511 and tile.z == 3463 and tile.level == 0 end,
             "2511,3463,0, the ledge below the tree")
+        t.exec("useRopeOnTree-chat", t.chat.play, { "mesbox:You tie the rope to the tree and climb down to the ledge below." })
         t.exec("getInBarrel", t.player.click_loc, "barrel_waterfall_quest", 1)
-        t.ticks(4)
+        await_tile("getInBarrel", 2527, 3413)
+        t.exec("getInBarrel-chat", t.chat.play, { "mesbox:You climb into the barrel and push off the edge." })
 
         tile_check("getInBarrel-washedUp", function(tile) return tile.x == 2527 and tile.z == 3413 and tile.level == 0 end,
             "2527,3413,0, ^waterfall_fail_coord")
+
+        -- ---- talkToGerald (no recording talks to him: the wiki's pages, gerald.rs2) ----
+        t.exec("talkToGerald", t.player.talk_to, "gerald_waterfall_quest", 1)
+        t.exec("talkToGerald-chat", t.chat.play, {
+            "player:Hello.",
+            "npc:Hello traveller. Are you here to fish or to hunt for treasure?",
+            "player:Why do you say that?",
+            "npc:Adventurers pass through here every week",
+            "player:What treasure are they looking for?",
+            "npc:They say there's treasure hidden within the waterfall",
+            "player:Interesting, is there somewhere I can learn more about this?",
+            "npc:You could ask Hadley the tourist guide.",
+        })
 
         -- ---- goUpstairsHadley, searchBookcase, readBook ----
         -- The river bank to Hadley's door is open ground (reach.py 2527,3413 -> 2521,3432: REACH len=37).
         t.exec("walk-goUpstairsHadley", t.player.walk_to, 2521, 3432, 50)
         t.exec("goUpstairsHadley.houseDoorIn", t.player.pass_door, { closed = "elfdoor", open = "elfdooropen",
             at = { 2520, 3432, 0 }, near = { 2521, 3432 }, far = { 2520, 3431 } })
+        -- ---- talkToHadley (no recording talks to him: the wiki's pages, hadley.rs2) ----
+        t.exec("talkToHadley", t.player.talk_to, "hadley_waterfall_quest", 1)
+        t.exec("talkToHadley-intro", t.chat.drain, { stop_at = "options" })
+        t.exec("talkToHadley-chat", t.chat.play, {
+            "choose:Is there treasure under the waterfall?",
+            "player:Is there treasure under the waterfall?",
+            "npc:Ha ha... Another treasure hunter.",
+            "choose:Thanks, goodbye.",
+            "player:Thanks, goodbye.",
+            "npc:Enjoy your visit.",
+        })
         t.exec("goUpstairsHadley", t.player.climb, { loc = "spiralstairs", op = 1, op_name = "Climb-up",
             at = { 2517, 3429, 0 }, src = { 2519, 3430 }, dest = { 2518, 3431, 1 } })
         t.ticks(3)
@@ -163,6 +219,7 @@ return {
         t.inv.await("baxtorian_book_waterfall_quest", 1, 6)
         local book_result, book_count = t.inv.count("baxtorian_book_waterfall_quest")
         t.check("searchBookcase-book", book_count == 1, "Book on Baxtorian in backpack: " .. tostring(book_count))
+        t.exec("searchBookcase-chat", t.chat.play, { "objbox:You find a book named 'Book on Baxtorian' on the bookcase." })
         t.exec("readBook", t.player.inv_op, "baxtorian_book_waterfall_quest", 1)
         t.exec("readBook-pages", t.ui.read_book, 30)
         t.expect("quest.stage.opened_book_on_baxtorian", t.quest.expect_stage("opened_book_on_baxtorian"))
@@ -189,33 +246,31 @@ return {
         t.inv.await("golrie_key_waterfall_quest", 1, 6)
         local key_result, key_count = t.inv.count("golrie_key_waterfall_quest")
         t.check("searchGnomeCrate-key", key_count == 1, "Golrie's key in backpack: " .. tostring(key_count))
+        t.exec("searchGnomeCrate-chat", t.chat.play, { "objbox:You find a key in the crate." })
 
-        -- ---- enterGnomeDoor ----
+        -- ---- enterGnomeDoor (4349 [767..770]: the gate's Open with the key in the pack) ----
         t.exec("walk-enterGnomeDoor", t.player.walk_to, 2515, 9573, 50)
-        local golrie_gate = t.player.by_symbol("loc", "golrie_gate_waterfall_quest")
-        t.exec("enterGnomeDoor", t.player.use_on, "golrie_key_waterfall_quest", golrie_gate)
+        t.exec("enterGnomeDoor", t.player.click_loc, "golrie_gate_waterfall_quest", 1)
         t.ticks(4)
-        -- [label,waterfall_golrie_door]: the key carries the player through to the gate's north side.
+        -- [label,waterfall_golrie_gate]: the key carries the player through to the gate's north side.
         tile_check("enterGnomeDoor-through", function(tile) return tile.z >= 9576 and tile.level == 0 end,
             "in Golrie's room, z >= 9576")
 
-        -- ---- talkToGolrie ----
+        -- ---- talkToGolrie (4349 [771..781]) ----
         t.exec("talkToGolrie", t.player.talk_to, "golrie_waterfall_quest", 1)
         t.exec("talkToGolrie-chat", t.chat.play, {
-            "player:Hello, is your name Golrie?",
-            "npc:That's me",
-            "player:Do you mind if I have a look?",
+            "player:Who are you, and what are you doing here?",
+            "npc:I'm Golrie, and this is my home.",
+            "player:Do you need some help?",
+            "npc:Oh don't worry, I'm sure I'll work something out.",
+            "player:In that case, do you mind if I have a look around?",
             "npc:No, of course not.",
-        })
-        t.await({ level = function() return t.chat.kind() ~= "none" end, note = "Golrie's pebble page opens after the search" }, 20)
-        t.exec("talkToGolrie-rest", t.chat.play, {
+            "objbox:You look amongst the junk on the floor and find Glarial's pebble.",
             "player:Could I take this old pebble?",
-            "npc:Oh that, yes have it",
-        })
-        t.await({ level = function() return t.chat.kind() ~= "none" end, note = "Golrie thanks you for the key" }, 20)
-        t.exec("talkToGolrie-farewell", t.chat.play, {
-            "npc:Thanks a lot for the key",
-            "player:OK... Take care Golrie.",
+            "npc:Oh that. Yes, have it.",
+            "objbox:You give Golrie the key.",
+            "npc:Ah, thanks a lot for the key, traveller.",
+            "player:No problem. Take care, Golrie.",
         })
         t.inv.await("glarials_pebble_waterfall_quest", 1, 6)
         local pebble_result, pebble_count = t.inv.count("glarials_pebble_waterfall_quest")
@@ -235,17 +290,17 @@ return {
         t.exec("goto-usePebble", t.player.goto_tile, 2558, 3446, 0)
         local tombstone = t.player.by_symbol("loc", "glarials_tombstone_waterfall_quest")
         t.exec("usePebble", t.player.use_on, "glarials_pebble_waterfall_quest", tombstone)
-        t.ticks(10)
+        await_tile("usePebble", 2555, 9844, 30)
+        t.exec("usePebble-chat", t.chat.play, { "mesbox:You place the pebble in the gravestone's small indent." })
         t.expect("quest.stage.entered_glarial_tomb", t.quest.expect_stage("entered_glarial_tomb"))
 
-        -- ---- searchGlarialChest ----
+        -- ---- searchGlarialChest (4349 [932..940]: Open gives the amulet) ----
         t.exec("walk-searchGlarialChest", t.player.walk_to, 2531, 9844, 40)
-        t.exec("searchGlarialChest-open", t.player.click_loc, "glarials_chest_closed_waterfall_quest", 1)
-        t.ticks(2)
-        t.exec("searchGlarialChest", t.player.click_loc, "glarials_chest_open_waterfall_quest", 1)
+        t.exec("searchGlarialChest", t.player.click_loc, "glarials_chest_closed_waterfall_quest", 1)
         t.inv.await("glarials_amulet_waterfall_quest", 1, 6)
         local amulet_result, amulet_count = t.inv.count("glarials_amulet_waterfall_quest")
         t.check("searchGlarialChest-amulet", amulet_count == 1, "Glarial's amulet in backpack: " .. tostring(amulet_count))
+        t.exec("searchGlarialChest-chat", t.chat.play, { "objbox:You find a small amulet in the chest." })
 
         -- ---- searchGlarialCoffin ----
         t.exec("walk-searchGlarialCoffin", t.player.walk_to, 2542, 9813, 50)
@@ -253,6 +308,7 @@ return {
         t.inv.await("glarials_urn_full_waterfall_quest", 1, 6)
         local urn_result, urn_count = t.inv.count("glarials_urn_full_waterfall_quest")
         t.check("searchGlarialCoffin-urn", urn_count == 1, "Glarial's urn in backpack: " .. tostring(urn_count))
+        t.exec("searchGlarialCoffin-chat", t.chat.play, { "objbox:You find an urn full of ashes in the tomb." })
 
         -- ---- leave Glarial's tomb by its ladder ----
         t.exec("walk-leaveTomb", t.player.walk_to, 2557, 9844, 50)
@@ -274,20 +330,22 @@ return {
         yard_in("boardRaftFinal")
         raft_pocket("boardRaftFinal")
         t.exec("boardRaftFinal", t.player.click_loc, "lograft_waterfall_quest", 1)
-        t.ticks(8)
-        local rock2 = t.player.by_symbol("loc", "crossing_rock_waterfall_quest")
-        t.exec("useRopeOnRockFinal", t.player.use_on, "rope", rock2)
+        await_tile("boardRaftFinal", 2512, 3481)
+        t.exec("boardRaftFinal-chat", t.chat.play, { "mesbox:...you crash into a small island." })
+        rope_on_rock("useRopeOnRockFinal")
         local tree2 = t.player.by_symbol("loc", "overhanging_tree1_waterfall_quest")
         t.exec("useRopeOnTreeFinal", t.player.use_on, "rope", tree2)
         t.ticks(2)
         -- [oplocu,overhanging_tree1_waterfall_quest]: p_teleport(0_39_54_15_7) lets the player down onto the ledge.
         tile_check("useRopeOnTreeFinal-landed", function(tile) return tile.x == 2511 and tile.z == 3463 and tile.level == 0 end,
             "2511,3463,0, the ledge below the tree")
+        t.exec("useRopeOnTreeFinal-chat", t.chat.play, { "mesbox:You tie the rope to the tree and climb down to the ledge below." })
 
-        -- ---- equipAmulet, enterFalls ----
+        -- ---- equipAmulet, enterFalls (4349 [985], [1093..1097]) ----
         t.exec("equipAmulet", t.player.equip, "glarials_amulet_waterfall_quest")
         t.exec("enterFalls", t.player.click_loc, "waterfall_ledge_door", 1)
-        t.ticks(6)
+        await_tile("enterFalls", 2575, 9861)
+        t.exec("enterFalls-chat", t.chat.play, { "mesbox:You enter the waterfall." })
         t.expect("quest.stage.entered_waterfall", t.quest.expect_stage("entered_waterfall"))
 
 
@@ -299,6 +357,7 @@ return {
         t.inv.await("baxtorian_key_waterfall_quest", 1, 6)
         local fkey_result, fkey_count = t.inv.count("baxtorian_key_waterfall_quest")
         t.check("searchFallsCrate-key", fkey_count == 1, "Baxtorian's key in backpack: " .. tostring(fkey_count))
+        t.exec("searchFallsCrate-chat", t.chat.play, { "objbox:You find a key in the crate." })
 
         -- ---- useKeyOnFallsDoor ----
         -- Out of the crate room, north through the large door at 2565,9881, the key on the
@@ -365,8 +424,18 @@ return {
         t.check("statue-found", statue_result == "ok", "statue_queen_waterfall_quest within 30 tiles: " .. tostring(statue_result) .. " " .. tostring(statue_row))
         t.exec("unequipAmulet", t.player.unequip, "glarials_amulet_waterfall_quest")
         local statue = t.player.by_symbol("loc", "statue_queen_waterfall_quest")
+        -- 4349 [1245..1249]: the fade, cam_shake on three axes, the floor raised, cam_reset.
+        local statue_mark = t.cutscene.mark()
         t.exec("placeAmulet", t.player.use_on, "glarials_amulet_waterfall_quest", statue)
-        t.ticks(8)
+        await_tile("placeAmulet", 2603, 9914)
+        -- t.cutscene.await wants a framing packet and this scene has none: three
+        -- cam_shake and a cam_reset, so the row counts the camera packets.
+        local statue_after = t.cutscene.mark()
+        t.check("placeAmulet.camera", type(statue_mark) == "number" and type(statue_after) == "number"
+            and statue_after - statue_mark >= 4,
+            "camera packets during the statue: " .. tostring(statue_mark) .. " -> " .. tostring(statue_after)
+            .. " (want 4: cam_shake x3 + cam_reset, 4349 [1246], [1248])")
+        t.exec("placeAmulet-chat", t.chat.play, { "mesbox:You place the amulet around the neck of the statue." })
         t.expect("quest.stage.placed_amulet", t.quest.expect_stage("placed_amulet"))
 
         -- ---- useUrnOnChalice ----

@@ -68,6 +68,9 @@ App_SendCommand(
      * verdict lets it retry until the send lands. */
     if( !app->net || app->net->state != TORIRS_NET_GAME )
         return false;
+    /* The plugins hear it first, as they would a typed "::" line. */
+    if( app_plugin_command(app, text) )
+        return true;
     if( app_client_cheat(app, text) )
         return true;
     APP_NET_SEND(

@@ -76,6 +76,28 @@ ChromeCompositor_MergeLists(
     return n;
 }
 
+int
+ChromeCompositor_MergeAppend(
+    struct ChromeCompositor* comp,
+    int at,
+    struct ToriRSChromePrim const* prims,
+    int count)
+{
+    int take;
+
+    assert(comp);
+    assert(at >= 0);
+    assert(at <= CHROME_COMPOSITOR_PRIMS_MAX);
+    assert(count >= 0);
+    take = count < CHROME_COMPOSITOR_PRIMS_MAX - at ? count : CHROME_COMPOSITOR_PRIMS_MAX - at;
+    if( take > 0 )
+    {
+        assert(prims);
+        memcpy(&comp->merged[at], prims, (size_t)take * sizeof(*prims));
+    }
+    return at + (take > 0 ? take : 0);
+}
+
 struct ToriRSChromePrim*
 ChromeCompositor_MergedSlot(
     struct ChromeCompositor* comp,
@@ -147,6 +169,29 @@ ChromeCompositor_SurfaceLists(
     if( n > 0 )
         memcpy(comp->surface_prims, win, (size_t)n * sizeof(*win));
     return n;
+}
+
+int
+ChromeCompositor_SurfaceAppend(
+    struct ChromeCompositor* comp,
+    int at,
+    struct ToriRSChromePrim const* prims,
+    int count)
+{
+    int take;
+
+    assert(comp);
+    assert(comp->surface_prims);
+    assert(at >= 0);
+    assert(at <= CHROME_COMPOSITOR_SURFACE_PRIMS_MAX);
+    assert(count >= 0);
+    take = count < CHROME_COMPOSITOR_SURFACE_PRIMS_MAX - at ? count : CHROME_COMPOSITOR_SURFACE_PRIMS_MAX - at;
+    if( take > 0 )
+    {
+        assert(prims);
+        memcpy(&comp->surface_prims[at], prims, (size_t)take * sizeof(*prims));
+    }
+    return at + (take > 0 ? take : 0);
 }
 
 struct ToriRSChromePrim*

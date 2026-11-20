@@ -26,6 +26,26 @@ struct ToriRS_ScriptEvent
     struct ToriRS_ScriptRef ref;
     struct ToriRS_WidgetRef widget; /* Optional live widget at the approved hook site. */
 };
+/*
+ * on_script_pre / on_script_post (RuneLite's ScriptPreFired /
+ * ScriptPostFired) for a script id the plugin watches (scripts.watch).
+ * `ref` reads and writes the event's values through the same counts /
+ * get_int / set_int / get_string / set_string as a script callback, index 0
+ * the TOP: at PRE the script's arguments (index 0 its LAST int / string
+ * argument -- where RuneLite's getIntStack()[size-1] finds it, for an invoked
+ * script and a top-level one alike); at POST the values it returned. Writes
+ * at PRE change what the script receives, at POST what its caller sees.
+ * `invoked` is true for a gosub callee (RuneLite's null getScriptEvent);
+ * `widget` is the source widget of a top-level listener script when the VM
+ * names one.
+ */
+struct ToriRS_ScriptHookEvent
+{
+    int32_t script_id;
+    bool invoked;
+    struct ToriRS_ScriptRef ref;
+    struct ToriRS_WidgetRef widget;
+};
 struct ToriRS_WidgetActionRef
 {
     struct ToriRS_WidgetRef widget;
@@ -227,6 +247,9 @@ enum ToriRS_WidgetModelKind
     TORIRS_WIDGET_MODEL_NPC,
     TORIRS_WIDGET_MODEL_OBJ,
     TORIRS_WIDGET_MODEL_MODEL,
+    /* set_model only: the local player's chathead. Never answered by a
+     * model read (see above). */
+    TORIRS_WIDGET_MODEL_PLAYER,
 };
 
 /**
@@ -240,6 +263,79 @@ struct ToriRS_WidgetModel
 {
     enum ToriRS_WidgetModelKind kind;
     int32_t id;
+};
+
+/*
+ * widget:detail() -- RuneLite's Widget getters in ONE read, for a port that
+ * reads a game widget the way RuneLite code does (getText, getItemId,
+ * getSpriteId, getActions, getOriginalX...). Set `struct_size` before the call.
+ *
+ * Identity follows RuneLite, not the tree: a dynamic (cc_create) child answers
+ * its PARENT's component id with its own `index`; a static component answers
+ * index -1. `type` is RuneLite's WidgetType (0 layer, 2 inventory, 3
+ * rectangle, 4 text, 5 graphic, 6 model, 7 text inventory, 9 line), -1 for a
+ * client-built node RuneLite has no type for (the minimap, a sidebar, a
+ * plugin's own text). A field the node does not carry reads RuneLite's
+ * default: item -1 / quantity 0, sprite -1, model -1, animation -1, font -1,
+ * text "". `sprite_id` is the CACHE sprite the node shows (-1 while the node
+ * shows an obj icon or no art, or when the art is not a cache sprite);
+ * `font_id` the cache font, -1 for a client chrome font. `text` and
+ * `text_color` are the node's OWN values: a retained set_native_text edit is
+ * drawn but not answered here (the caller wrote it and knows it).
+ *
+ * Geometry: x, y, width, height are the drawn CANVAS box (getCanvasLocation +
+ * getWidth/getHeight); relative_x/y the laid-out position in the parent;
+ * original_* the authored inputs before the size and position modes
+ * (getOriginalX..., the values cc_setposition/cc_setsize wrote). `opacity` is
+ * RuneLite's: transparency, 0 opaque .. 255 invisible.
+ *
+ * `hidden` is RuneLite's isHidden (this node or an ancestor does not show);
+ * `self_hidden` the node's own hide bit (isSelfHidden). `parent_id` the
+ * component id of the parent node RuneLite would answer (getParentId): for a
+ * dynamic child the component it hangs from, for a mounted interface's root
+ * the mount container; -1 at the top.
+ */
+/** Longest string set_native_text takes, in bytes. */
+#define TORIRS_WIDGET_NATIVE_TEXT_MAX 4096
+#define TORIRS_WIDGET_DETAIL_TEXT_MAX 512
+#define TORIRS_WIDGET_DETAIL_NAME_MAX 128
+#define TORIRS_WIDGET_DETAIL_ACTIONS 10
+#define TORIRS_WIDGET_DETAIL_ACTION_MAX 64
+struct ToriRS_WidgetDetail
+{
+    uint32_t struct_size;
+    int32_t id, index, type, content_type;
+    int32_t item_id, item_quantity, sprite_id, model_id, model_type, animation_id;
+    int32_t text_color, font_id;
+    bool hidden, self_hidden;
+    int32_t x, y, width, height;
+    int32_t original_x, original_y, original_width, original_height;
+    int32_t relative_x, relative_y;
+    int32_t scroll_x, scroll_y, scroll_width, scroll_height;
+    int32_t opacity, parent_id;
+    /** Highest op slot with a label, plus one: actions[0 .. action_count-1]
+     *  is RuneLite's getActions() (an empty slot is ""). 0: none. */
+    int32_t action_count;
+    /** Truncated to the buffer; never markup-stripped. */
+    char text[TORIRS_WIDGET_DETAIL_TEXT_MAX];
+    /** The op base (getName): what the menu calls the component. */
+    char name[TORIRS_WIDGET_DETAIL_NAME_MAX];
+    char actions[TORIRS_WIDGET_DETAIL_ACTIONS][TORIRS_WIDGET_DETAIL_ACTION_MAX];
+};
+
+/*
+ * One argument of a NATIVE component's CS2 listener (widget:listener), in
+ * RuneLite's Object[] order: element 0 is the script id, the rest the
+ * arguments as the script was armed with them -- the magic ScriptEvent ints
+ * (-2147483645 for the widget id and so on) kept as they are.
+ */
+#define TORIRS_WIDGET_LISTENER_ARGS_MAX 65
+#define TORIRS_WIDGET_LISTENER_STRING_MAX 80
+struct ToriRS_WidgetListenerArg
+{
+    bool is_string;
+    int32_t int_value;
+    char string_value[TORIRS_WIDGET_LISTENER_STRING_MAX];
 };
 
 /* Event payload strings and argument views are borrowed for the callback.
@@ -288,6 +384,28 @@ enum ToriRS_WidgetRelation
     TORIRS_WIDGET_RELATION_BEHIND,
     TORIRS_WIDGET_RELATION_REPLACE,
 };
+/* scripts.run: one argument, an int or a string, in the script's own order. */
+#define TORIRS_SCRIPT_RUN_ARGS_MAX 32
+#define TORIRS_SCRIPT_RUN_INTS_MAX 64
+#define TORIRS_SCRIPT_RUN_STRINGS_MAX 16
+#define TORIRS_SCRIPT_RUN_STRING_LEN 512
+struct ToriRS_ScriptArg
+{
+    bool is_string;
+    int32_t int_value;
+    /** Borrowed for the call; NULL reads as "". */
+    char const* string_value;
+};
+/** What a script left on the VM's stacks when it returned (getIntStack /
+ *  getStringStack), bottom of the stack first. */
+struct ToriRS_ScriptResult
+{
+    size_t int_count;
+    int32_t ints[TORIRS_SCRIPT_RUN_INTS_MAX];
+    size_t string_count;
+    char strings[TORIRS_SCRIPT_RUN_STRINGS_MAX][TORIRS_SCRIPT_RUN_STRING_LEN];
+};
+
 /* Access is valid only during this plugin's synchronous script callback.
  * Stack indices are zero-based from the top. Setters cannot resize stacks. */
 struct ToriRS_ScriptApi
@@ -302,7 +420,40 @@ struct ToriRS_ScriptApi
     enum ToriRS_ContractResult (*set_int)(void*,struct ToriRS_ScriptRef,size_t index,int32_t);
     enum ToriRS_ContractResult (*get_string)(void*,struct ToriRS_ScriptRef,size_t index,char*,size_t capacity,size_t* required);
     enum ToriRS_ContractResult (*set_string)(void*,struct ToriRS_ScriptRef,size_t index,char const*);
+    /*
+     * Run one clientscript to completion NOW, on the client's own VM and host
+     * (Client.runScript), and hand back what it returned.
+     *
+     * An event context only (never a draw callback), and only with the VM
+     * idle: inside on_script_callback, or while any script is executing, it
+     * is WRONG_CONTEXT, because the reference asserts the same. Ints fill the
+     * script's int arguments and strings its string arguments, each in order;
+     * more of either than the script declares is INVALID_ARGUMENT.
+     *
+     * A synchronous run cannot wait for the cache. When the script, or
+     * anything it reaches (a gosub, an enum, a db row, ...), is not resident
+     * the run is abandoned at that opcode, the load is queued, and the answer
+     * is PENDING: ask again on a later frame. A load that ran and found
+     * nothing answers that lookup's miss on the next run, as Task_CS2Run's own
+     * resume does. NATIVE_BLOCKED for a script that awaits something only an
+     * interface mount can supply (a component pack, a model to bake); FAILED
+     * for a script error; BUDGET_EXCEEDED when it left more on a stack than a
+     * ToriRS_ScriptResult holds; UNAVAILABLE on a client with no CS2 VM.
+     * RUNELITE_CALLBACK opcodes inside the run raise no plugin callback.
+     */
+    enum ToriRS_ContractResult (*run)(void*,int32_t script_id,struct ToriRS_ScriptArg const* args,size_t arg_count,
+                                      struct ToriRS_ScriptResult* out);
+    /*
+     * Watch (or stop watching) one clientscript id for on_script_pre /
+     * on_script_post. Unwatched ids cost the VM nothing. At most
+     * TORIRS_SCRIPT_WATCH_MAX ids per plugin (BUDGET_EXCEEDED past it); an id
+     * outside 0..65535 is INVALID_ARGUMENT; restating a watch is OK. A
+     * stopped plugin's watches go with it. UNAVAILABLE on a client with no
+     * CS2 VM. Not from a draw callback.
+     */
+    enum ToriRS_ContractResult (*watch)(void*,int32_t script_id,bool on);
 };
+#define TORIRS_SCRIPT_WATCH_MAX 32
 typedef void (*ToriRS_WidgetListener)(struct ToriRS_Api*, void* user,
                                     struct ToriRS_WidgetEvent const* event);
 
@@ -404,6 +555,105 @@ struct ToriRS_WidgetApi
      * owner's relation and needs no target. Self, ancestor/descendant pairs and
      * cycles are INVALID_ARGUMENT; a dead target is STALE_REFERENCE. */
     enum ToriRS_ContractResult (*set_anchor)(void*,struct ToriRS_WidgetRef,struct ToriRS_WidgetRef target,enum ToriRS_WidgetRelation relation);
+
+    /* RuneLite's Widget getters in one read; see ToriRS_WidgetDetail. Set
+     * `out->struct_size` first. A read: any widget, any owner, any context. */
+    enum ToriRS_ContractResult (*detail)(void*, struct ToriRS_WidgetRef, struct ToriRS_WidgetDetail* out);
+    /* The three child lists RuneLite separates, each in draw order and each
+     * shaped like `children` (count past capacity is BUDGET_EXCEEDED):
+     * dynamic = the cc_create children (getDynamicChildren), static = the
+     * interface's own components under this one (getStaticChildren), nested =
+     * the root(s) of an interface mounted IN this component
+     * (getNestedChildren). A plugin's own owned controls are in none. */
+    enum ToriRS_ContractResult (*dynamic_children)(void*, struct ToriRS_WidgetRef,
+                                                 struct ToriRS_WidgetRef*, size_t capacity, size_t* count);
+    enum ToriRS_ContractResult (*static_children)(void*, struct ToriRS_WidgetRef,
+                                                struct ToriRS_WidgetRef*, size_t capacity, size_t* count);
+    enum ToriRS_ContractResult (*nested_children)(void*, struct ToriRS_WidgetRef,
+                                                struct ToriRS_WidgetRef*, size_t capacity, size_t* count);
+    /* Retained edits on a NATIVE text widget's string and colour (RuneLite's
+     * setText / setTextColor on a game widget: dialogue option highlighting).
+     * Owner-scoped exactly like set_hidden: the newest owner's edit is drawn,
+     * the widget's own text and colour stay as the game set them, and reset /
+     * plugin teardown shows them again. The GAME writing a new string (or
+     * colour) to the widget drops that edit, RuneLite's order: a script's
+     * setText overwrites a plugin's, and the plugin writes again if it still
+     * wants to; so does a cc_create rebuild of a dynamic child. The colour replaces the BASE colour
+     * (a hover or active colour the cache gives the node still wins while it
+     * applies). Text is at most 4096 bytes (BUDGET_EXCEEDED past it). An owned
+     * control or a non-text widget is NATIVE_BLOCKED (use set_text). */
+    enum ToriRS_ContractResult (*set_native_text)(void*, struct ToriRS_WidgetRef, char const* text);
+    enum ToriRS_ContractResult (*set_native_text_color)(void*, struct ToriRS_WidgetRef, uint32_t rgb);
+    /* An owned ITEM control (createChild(GRAPHIC) + setItemId): keyed and
+     * idempotent like create_image. set_item shows obj `obj_id` with stack
+     * `quantity` on it (the client's own obj icon, its count drawn by the
+     * cache's stackable rule); obj -1 clears it. PENDING while the obj's model
+     * is not resident: the load is queued and the icon appears by itself when
+     * it lands (the obj is already on the control for every reader). On a
+     * NATIVE item cell (a game graphic/objbox: the bank's slots) set_item is
+     * a retained re-lay, owner-scoped like set_native_text: the cell shows
+     * the plugin's obj and quantity to every reader (its icon, stack count,
+     * menu target, detail) until reset/teardown puts the game's back, or the
+     * GAME writes the cell itself (a script's cc_setobject), which drops the
+     * edit -- RuneLite's order. Any other native widget is NATIVE_BLOCKED.
+     * set_opacity on a native widget is the same kind of retained edit of
+     * its transparency. `quantity_mode` is the count rule the item draws
+     * with, RuneLite's ItemQuantityMode (0 NEVER, 1 ALWAYS, 2 STACKABLE --
+     * setItemQuantityMode: the bank tab numbers every re-laid cell), or -1
+     * for the cell's own rule (the game's on a native cell, STACKABLE on an
+     * owned control); on a native cell it rides the re-lay and goes with it.
+     * Outside -1..2 is INVALID_ARGUMENT. */
+    enum ToriRS_ContractResult (*create_item)(void*, struct ToriRS_WidgetRef parent, char const* key, struct ToriRS_WidgetRef* out);
+    enum ToriRS_ContractResult (*set_item)(void*, struct ToriRS_WidgetRef, int32_t obj_id, int32_t quantity,
+                                         int32_t quantity_mode);
+    /* A CACHE sprite (setSpriteId). On an owned image control it is the
+     * control's art at the control's size; on a native sprite or graphic it
+     * is a retained re-skin exactly like set_image with size 0,0 (reset drops
+     * it). A sprite the cache does not have is UNAVAILABLE; one still loading
+     * is bound and fills in when it lands. */
+    enum ToriRS_ContractResult (*set_sprite)(void*, struct ToriRS_WidgetRef, int32_t sprite_id);
+    /* A NATIVE component's CS2 listener as RuneLite's Object[]: `name` in
+     * RuneLite's spelling ("onInvTransmit", "onKey", "onOp", "onTimer",
+     * "onVarTransmit", "onClick", "onMouseOver", "onMouseLeave",
+     * "onMouseRepeat", "onHold", "onRelease", "onDrag", "onDragComplete",
+     * "onScrollWheel", "onTargetEnter", "onTargetLeave", "onDialogAbort",
+     * "onLoad"). UNAVAILABLE when nothing is armed there -- always for
+     * "onLoad", which this client runs at the mount and does not keep. An
+     * unknown name is INVALID_ARGUMENT. Read-only. */
+    enum ToriRS_ContractResult (*listener)(void*, struct ToriRS_WidgetRef, char const* name,
+                                         struct ToriRS_WidgetListenerArg* out, size_t capacity, size_t* count);
+    /* An owned RECTANGLE control (createChild(RECTANGLE)): keyed and capped
+     * like create_image. set_rect gives it its colour and whether it is
+     * filled (an outline is 1 px); its opacity is set_opacity's. */
+    enum ToriRS_ContractResult (*create_rect)(void*, struct ToriRS_WidgetRef parent, char const* key, struct ToriRS_WidgetRef* out);
+    enum ToriRS_ContractResult (*set_rect)(void*, struct ToriRS_WidgetRef, uint32_t rgb, bool filled);
+    /* An owned MODEL control (createChild(MODEL)): draws nothing until
+     * set_model binds what it shows -- a cache model id
+     * (TORIRS_WIDGET_MODEL_MODEL), an npc's chathead by npc id (NPC), an
+     * obj's inventory model (OBJ) or the local player's chathead
+     * (TORIRS_WIDGET_MODEL_PLAYER, id ignored). PENDING while the model is
+     * not resident: the load is queued and the control binds it by itself
+     * when it is composited. set_model_pose is the camera (RuneLite's
+     * rotationX/Y/Z in 2048ths of a turn, modelZoom; 0 zoom keeps it) and
+     * set_model_anim the sequence it plays (-1 none). Owned only:
+     * NATIVE_BLOCKED on a game widget. */
+    enum ToriRS_ContractResult (*create_model)(void*, struct ToriRS_WidgetRef parent, char const* key, struct ToriRS_WidgetRef* out);
+    enum ToriRS_ContractResult (*set_model)(void*, struct ToriRS_WidgetRef, int32_t kind, int32_t id);
+    enum ToriRS_ContractResult (*set_model_pose)(void*, struct ToriRS_WidgetRef, int32_t x_angle, int32_t y_angle,
+                                               int32_t z_angle, int32_t zoom);
+    enum ToriRS_ContractResult (*set_model_anim)(void*, struct ToriRS_WidgetRef, int32_t sequence);
+    /* A NATIVE layer's scroll size (RuneLite's setScrollWidth/Height: the
+     * bank tab's laid-out list is taller than the build made it). A plain
+     * write, as RuneLite's is: the game's next scroll-size write (the
+     * script's own rebuild) replaces it, and nothing restores it on reset.
+     * NATIVE_BLOCKED on anything but a native layer. */
+    enum ToriRS_ContractResult (*set_scroll_size)(void*, struct ToriRS_WidgetRef, int32_t width, int32_t height);
+    /* A NATIVE widget's own hide, written through like set_item's re-lay
+     * (RuneLite's setHidden on a game widget: false SHOWS a node the game hid,
+     * which set_hidden -- a presentation hide that only ever adds hiding --
+     * cannot). reset/teardown restores the game's; the game's own hide write
+     * drops the edit. NATIVE_BLOCKED on an owned control. */
+    enum ToriRS_ContractResult (*set_native_hidden)(void*, struct ToriRS_WidgetRef, bool hidden);
 
     /* Follow a semantic binding at native publication boundaries. A new
      * subscription receives BOUND when available; replacement sends UNBOUND

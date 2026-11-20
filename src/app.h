@@ -765,6 +765,33 @@ struct App
      *  frame-role and facet ids, tab stones and the binder's last pass, each
      *  with the counters it is reused under (plugin/plugin_frame_binding.h). */
     struct PluginFrameBinding plugin_frame_binding;
+    /*
+     * The cache loads the plugin bridge queued for a record a plugin asked
+     * for and the cache did not hold: cache.enum_def / npc_def / loc_def, and
+     * whatever a scripts.run had to abandon its opcode for.
+     *
+     * A plugin's call cannot wait, so it answers PENDING and queues the load;
+     * `join` is the count the frame queue decrements when that load ENDS,
+     * however it ends (ToriRS_TaskQueue_AddParallelPoolSubTask). That is what
+     * tells "still loading" from "the load ran and there is no such record" --
+     * the second is MISSING (or, for a script, the lookup's own miss), never a
+     * PENDING the caller would ask about for the rest of the session. Keyed
+     * on what was loaded, oldest reused first; a slot whose load is still
+     * out is never reused, because the queue holds a pointer to its count.
+     */
+    struct AppPluginLoadMemo
+    {
+        int kind;
+        int id;
+        int id2;
+        int join;
+        uint32_t stamp;
+    } plugin_loads[32];
+    uint32_t plugin_load_stamp;
+    /* Whether this lane can hand a plugin's url to a browser (client.open_url):
+     * set by main.c from the platform, never on a replay or a headless run.
+     * 0 refuses every request. */
+    int plugin_open_url_ok;
     /* Minimap widget: where the last emit walk drew the map, the angle it
      * blitted with, the destination flag tile (reference minimapFlagX/Z), the
      * baked map sprite it blits and the MINIMAP_TOGGLE state (see enum
@@ -1570,6 +1597,17 @@ App_SetCanvasSize(
  */
 int
 App_SetChromeScaleQ(struct App* app, int q);
+
+/**
+ * The percent the chrome's display scale must be divided by because the
+ * chrome is drawn INTO the canvas: the canvas's layout percent (drawable
+ * pixels per canvas pixel; 200 for a game lane on a 2x display) while the
+ * plugin window draws in the canvas (the BUFFER presentation with no surface),
+ * else 100 -- a page on a surface (the SDL strip, a pop-out) or in a DOM is in
+ * device pixels, and the map editor's canvas states its own chrome scale.
+ */
+int
+App_ChromeCanvasPercent(struct App const* app);
 
 /** App_SetChromeScaleQ(app, 4 * scale), for an integer scale 1..3. */
 int
@@ -3061,6 +3099,19 @@ App_EntitySpotanimPrefetch(
  * (app/app_tasks_effects.c). Returns its pool index. */
 int
 App_WorldSpotanimSpawn(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int spotanim_id,
+    int height,
+    int delay);
+
+/* The same MAP_ANIM, told to the plugins (on_map_anim, RuneLite's
+ * GraphicsObjectCreated): root-scene tile; queued only while a running
+ * plugin listens. */
+void
+App_PluginMapAnim(
     struct App* app,
     int scene_x,
     int scene_z,

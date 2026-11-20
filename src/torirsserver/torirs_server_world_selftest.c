@@ -3785,6 +3785,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
 }
 
 #include "test/sailing_server_selftest.u.h"
+#include "test/friendchat_selftest.u.h"
 #include "test/sailing_multiplayer_selftest.u.h"
 #include "test/npc_add_face_selftest.u.h"
 /* Before the lifecycle header, which is its only caller: the stale-callback
@@ -5970,6 +5971,15 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer mcannon selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("mcannon");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_FRIENDCHAT_ONLY") )
+    {
+        selftest_friendchat(srv);
+        fprintf(stderr, "ToriRSServer friends chat selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("friendchat");
         return g_selftest_failures;
     }
 
@@ -52696,6 +52706,8 @@ ToriRSServer_WorldSelftest(void)
         ToriRSServer_FriendsReset();
     }
 
+    selftest_friendchat(srv);
+
     fprintf(stderr, "ToriRSServer selftest: charged item vars survive container moves\n");
     {
         /*
@@ -58700,7 +58712,13 @@ ToriRSServer_WorldSelftest(void)
                                    "be placed near (2603,9915,0), got slot %d", statue_slot);
                     if( statue_slot >= 0 )
                     {
-                        /* Incomplete pillars: damage, no advance. */
+                        /* Incomplete pillars: the room floods and the player
+                         * is washed downstream (the OSRS wiki's Transcript:
+                         * Waterfall Quest; the 2004 port's 20-damage boulder is
+                         * gone): no damage, no advance, the amulet kept. */
+                        /* Each rune's objbox above parks its script; a
+                         * parked dialogue drops the next trigger. */
+                        selftest_clear_pending(srv, player);
                         ToriRSServer_VarpPut(player, varp_puzzle, 0);
                         ToriRSServer_VarpPut(player, varp_waterfall, 6); /* waterfall_entered_puzzle_room */
                         for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
@@ -58708,39 +58726,26 @@ ToriRSServer_WorldSelftest(void)
                         inv_set(player, 0, obj_amulet, 1);
                         player->last_useitem = obj_amulet;
                         player->last_useslot = 0;
-                        /* Own the baseline: an earlier stanza on this
-                         * shared player may have left hitpoints/max low --
-                         * give it real headroom so a 20-damage hit doesn't
-                         * just floor at 0 and hide whether the damage call
-                         * even ran. ToriRSServer_CombatSyncHitpoints (called
-                         * on combat/stat events) recomputes max_hitpoints
-                         * FROM stat_level[HITPOINTS], not the other way
-                         * round, and clamps hitpoints down to it -- so
-                         * max_hitpoints can never legitimately exceed 99
-                         * this way (an earlier attempt tried max_hitpoints
-                         * = 990 directly and watched it get clamped back
-                         * to stat_level's 99 on the very next sync). 99 is
-                         * plenty of headroom over the 20-point hit. */
                         player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = 99;
                         player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = 99;
                         player->max_hitpoints = 99;
                         player->hitpoints = 99;
                         hp_before = player->hitpoints;
-                        /* [oplocu,statue_queen_waterfall_quest] opens with
-                         * p_delay(0), and the failure branch chains a
-                         * further p_delay(2) before the damage lands --
-                         * tick until it moves rather than guessing a fixed
-                         * count (a fixed 1 and 4 both undershot this same
-                         * chain earlier in this pass). */
+                        /* [oplocu,statue_queen_waterfall_quest]: p_delay(0),
+                         * then the fade frame (waterfall_frame.rs2) moves the
+                         * player to ^waterfall_fail_coord 2527,3413 two ticks on
+                         * and parks on its last box -- tick until the move. */
                         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_statue,
                                                            ToriRSServer_LocCategory(loc_statue),
                                                            statue_slot);
-                        for( int t = 0; t < 20 && player->hitpoints == hp_before; t++ )
+                        for( int t = 0; t < 20 && !(player->x == 2527 && player->z == 3413); t++ )
                             selftest_tick(srv);
-                        SELFTEST_CHECK(player->hitpoints == hp_before - 20,
-                                       "an incomplete pillar set should hit the player "
-                                       "for 20, went %d -> %d",
-                                       hp_before, player->hitpoints);
+                        SELFTEST_CHECK(player->x == 2527 && player->z == 3413,
+                                       "an incomplete pillar set should wash the player "
+                                       "down to 2527,3413, at %d,%d", player->x, player->z);
+                        SELFTEST_CHECK(player->hitpoints == hp_before,
+                                       "an incomplete pillar set must not hurt the player, "
+                                       "went %d -> %d", hp_before, player->hitpoints);
                         SELFTEST_CHECK(ToriRSServer_Varp(player, varp_waterfall) == 6,
                                        "an incomplete pillar set must not advance "
                                        "%%waterfall_quest, got %d",
@@ -58748,6 +58753,11 @@ ToriRSServer_WorldSelftest(void)
                         SELFTEST_CHECK(player->inv[0].obj_id == obj_amulet,
                                        "the amulet must not be consumed on a failed "
                                        "placement, got obj %d", player->inv[0].obj_id);
+                        /* The wash parks on its continue box: release it and
+                         * stand at the statue again. */
+                        selftest_clear_pending(srv, player);
+                        ToriRSServer_WorldTeleport(srv, 0, 2603, 9915);
+                        selftest_tick(srv);
 
                         /* Complete pillars: succeeds, consumes the amulet,
                          * advances to placed_amulet. The success branch
@@ -58781,8 +58791,8 @@ ToriRSServer_WorldSelftest(void)
                      * (this stanza or another) blocks NORMAL-timer/queue
                      * processing until closed -- confirmed live, mainmodal
                      * was already non-zero going into this section on one
-                     * run. */
-                    ToriRSServer_WorldCloseModal(srv);
+                     * run. The statue's scene parks on its last box. */
+                    selftest_clear_pending(srv, player);
                     ToriRSServer_WorldTeleport(srv, 0, 2604, 9911);
                     selftest_tick(srv);
                     for( cx = 2596; cx <= 2612 && chalice_slot < 0; cx++ )

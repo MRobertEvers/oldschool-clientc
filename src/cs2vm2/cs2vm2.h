@@ -104,6 +104,16 @@ struct CS2VM2_Frame
     int has_return;
     int return_int_count;
     int return_ints[8];
+
+    /* Script hooks (CS2VM2_SetScriptHook): set when this frame's script was
+     * watched as it was entered and the PRE hook ran, so its RETURN raises the
+     * POST hook -- a watch added mid-call never posts a frame it did not pre.
+     * The bases are the int/string stack heights the callee started from
+     * (arguments already moved into its locals): what lies above them at the
+     * return is what the script returned. */
+    uint8_t hooked;
+    int hook_int_base;
+    int hook_str_base;
 };
 
 /*
@@ -387,6 +397,55 @@ int
 CS2VM2_ClientType(void);
 int
 CS2VM2_OnMobile(void);
+
+/*
+ * Script hooks: RuneLite's ScriptPreFired / ScriptPostFired, for the script
+ * ids someone WATCHES. Process-wide like the client identity above (the app
+ * installs one hook; every VM thread is the client's), and free for an id
+ * nobody watches: entry, gosub and return test one global count and, only
+ * when it is non-zero, one bit.
+ *
+ *   PRE   a top-level script, before its first opcode (its arguments are in
+ *         its locals; `invoked` 0), or a gosub callee once it is pushed and
+ *         BEFORE its arguments leave the caller's stacks (`invoked` 1: the
+ *         arguments are the top of the int/string stacks, the last one on
+ *         top -- where RuneLite's getIntStack() finds them).
+ *   POST  the watched script's RETURN, after its frame is popped: the values
+ *         it returned are the top of the stacks (above the bases its frame
+ *         recorded at PRE).
+ *
+ * The hook runs synchronously inside the VM: it may read and write those
+ * stack slots / locals and nothing else of the thread. A script that is
+ * abandoned or errors never posts. Ids are 0..CS2VM2_SCRIPT_WATCH_MAX-1.
+ */
+#define CS2VM2_SCRIPT_WATCH_MAX 65536
+enum CS2VM2_ScriptHookPhase
+{
+    CS2VM2_SCRIPT_HOOK_PRE = 0,
+    CS2VM2_SCRIPT_HOOK_POST = 1,
+};
+/* `int_count` / `string_count`: how many values the event exposes -- the
+ * script's declared arguments at PRE (in its locals when not `invoked`, on
+ * top of the stacks when it is), the values above its bases at POST. */
+typedef void (*CS2VM2_ScriptHook_Fn)(
+    void* user,
+    struct CS2VM2_Thread* thread,
+    int script_id,
+    enum CS2VM2_ScriptHookPhase phase,
+    int invoked,
+    int int_count,
+    int string_count);
+/** Install (or with NULL clear) the one hook. */
+void
+CS2VM2_SetScriptHook(CS2VM2_ScriptHook_Fn fn, void* user);
+/** Watch / unwatch one id. False for an id out of range. Counted per id: two
+ *  watches need two unwatches. */
+bool
+CS2VM2_ScriptWatch(int script_id, bool on);
+/** How many ids are watched now (0 = every hook point is one load and a
+ *  branch). */
+int
+CS2VM2_ScriptWatchCount(void);
 extern char g_cs2_trace_extra[512];
 
 /**
@@ -584,6 +643,17 @@ CS2VM2_SetLongCurrentFrameLocal(
     struct CS2VM2_Thread* thread,
     int local,
     int64_t value);
+
+/* Reads of the current (top) frame's locals: 0 / "" where unwritten. */
+int
+CS2VM2_GetIntCurrentFrameLocal(
+    struct CS2VM2_Thread* thread,
+    int local);
+
+char const*
+CS2VM2_GetStringCurrentFrameLocal(
+    struct CS2VM2_Thread* thread,
+    int local);
 
 int
 CS2VM2_RunScript(struct CS2VM2_Thread* thread);

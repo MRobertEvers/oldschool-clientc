@@ -29,6 +29,7 @@
 #include "torirs_server_db.h"
 #include "torirs_server_equipment.h"
 #include "torirs_server_friends.h"
+#include "torirs_server_friendchat.h"
 #include "torirs_server_ids.h"
 #include "torirs_server_runenergy.h"
 #include "torirs_server_save.h"
@@ -111,6 +112,10 @@ reapply_loc(
 
 static void
 ToriRSServer_WorldLoginFinish(struct ToriRSServerPlayer* player);
+static void
+world_resume_finish(struct ToriRSServerPlayer* player);
+static void
+world_send_varps_full(struct ToriRSServerPlayer* player);
 
 /* Where the scene reads its map squares from. Set once beside the other cache
  * loaders; kept here rather than threaded through every rebuild path because
@@ -14468,6 +14473,15 @@ handle_map_build_complete(
     }
 
     player->login_scene_pending = 0;
+    if( player->resume_burst )
+    {
+        player->resume_burst = 0;
+        if( srv->verbose )
+            fprintf(stderr,
+                    "torirsserver: re-attach scene barrier complete; sending the resync\n");
+        world_resume_finish(player);
+        return;
+    }
     if( srv->verbose )
         fprintf(stderr,
                 "torirsserver: login scene barrier complete; sending player/UI/state burst\n");
@@ -14653,7 +14667,8 @@ social_send_world_update(
     ToriRSServer_SendUpdateFriendlist(
         viewer,
         other37,
-        ToriRSServer_FriendsVisibleTo(viewer37, other37) ? ToriRSServer_FriendsWorld(other37) : 0);
+        ToriRSServer_FriendsVisibleTo(viewer37, other37) ? ToriRSServer_FriendsWorld(other37) : 0,
+        ToriRSServer_FriendchatFriendRank(viewer37, other37));
 }
 
 /*
@@ -14850,7 +14865,8 @@ ToriRSServer_WorldSocialLogin(struct ToriRSServerPlayer* player)
         int world = 0;
 
         if( ToriRSServer_FriendsGet(me, i, &friend37, &world) )
-            ToriRSServer_SendUpdateFriendlist(player, friend37, world);
+            ToriRSServer_SendUpdateFriendlist(player, friend37, world,
+                                              ToriRSServer_FriendchatFriendRank(me, friend37));
     }
     social_send_ignore_list(player, me);
 
@@ -14881,6 +14897,11 @@ ToriRSServer_WorldSocialLogin(struct ToriRSServerPlayer* player)
      */
     social_notify_followers(srv, me, player->display_name,
                             SS_TRIGGER_FRIENDLOGIN);
+
+    /* Friends chat: the owner's settings, and "no channel yet" -- the empty
+     * UPDATE_FRIENDCHAT_CHANNEL_FULL every recorded login burst carries
+     * (RSProx index 753 [0]). A rejoin is content's (`~friendchat_login`). */
+    ToriRSServer_FriendchatLogin(player);
 }
 
 /** The name37 in an 8-byte social packet, or 0 if the frame is short. */
@@ -14948,6 +14969,8 @@ handle_social_list(
         break;
     case PKTOUT_NAME_FRIENDLIST_DEL:
         result = ToriRSServer_FriendsDel(me, target);
+        if( result == TORIRSSERVER_SOCIAL_OK )
+            ToriRSServer_FriendchatFriendRemoved(me, target);
         social_broadcast_to_followers(srv, me);
         break;
     case PKTOUT_NAME_IGNORELIST_ADD:
@@ -15243,37 +15266,125 @@ handle_message_public(
     int len)
 {
     struct ToriRSServerPlayer* player = srv->active_player;
+    int type;
     int packed_len;
 
     (void)name;
     if( !player )
         return;
-    /* Two header bytes and at least one packed byte. Under that there is no
+    /* Three header bytes (type, colour, effect: wire_in.c's normalised
+     * MessagePublic) and at least one packed byte. Under that there is no
      * message, which is a malformed frame rather than an empty one: the
      * client's own submit path never sends a blank line. */
-    if( len < 3 )
+    if( len < 4 )
         return;
-    packed_len = len - 2;
-    if( packed_len > (int)sizeof(player->chat_data) )
+    type = payload[0];
+    packed_len = len - 3;
+
+    /*
+     * Type 2 is a friends-chat line: the client sends it as MESSAGE_PUBLIC
+     * with the slash it was typed with (RSProx index 236 [131155]
+     * `type=2, message="/sup fellas"`), and it goes to the channel, never
+     * over the speaker's head.
+     *
+     * Type 3 is a clan line ("//", "///"); this server has no clans, so it is
+     * said nowhere -- it was said aloud before, which is the leak a clan
+     * line must never be.
+     */
+    if( type == 2 )
+    {
+        char* text = chat_huffman_unpack(payload + 3, packed_len);
+
+        if( srv->verbose )
+            fprintf(stderr, "torirsserver: <- MESSAGE_PUBLIC friendschat \"%s\"\n", text);
+        ToriRSServer_FriendchatSay(player, text, player_chat_crown(player));
+        ToriMem_Free(ToriMem_Net(), text); /* chat_huffman_unpack's */
+        return;
+    }
+    if( type == 3 )
         return;
 
-    player->chat_colour_effect = (payload[0] << 8) | payload[1];
+    if( packed_len > (int)sizeof(player->chat_data) )
+        return;
+    player->chat_colour_effect = (payload[1] << 8) | payload[2];
     player->chat_type = player_chat_crown(player);
-    memcpy(player->chat_data, payload + 2, (size_t)packed_len);
+    memcpy(player->chat_data, payload + 3, (size_t)packed_len);
     player->chat_len = packed_len;
     player->masks |= TORIRSSERVER_PMASK_CHAT;
 
     if( srv->verbose )
     {
-        char* text = chat_huffman_unpack(payload + 2, packed_len);
+        char* text = chat_huffman_unpack(payload + 3, packed_len);
 
         fprintf(
             stderr,
             "torirsserver: <- MESSAGE_PUBLIC colour=%d effect=%d \"%s\"\n",
-            payload[0],
             payload[1],
+            payload[2],
             text);
         ToriMem_Free(ToriMem_Net(), text); /* chat_huffman_unpack's */
+    }
+}
+
+/*
+ * The friends-chat packets: a NUL-terminated name (none for the leave), and
+ * for SETRANK the rank before it (wire_in.c's normalised body; the revisions
+ * order and transform the two differently, RSProt's FriendChatSetRank v1..v10).
+ * The service in torirs_server_friendchat.c decides everything.
+ */
+static int
+friendchat_read_name(
+    const uint8_t* payload,
+    int len,
+    char* out,
+    int size)
+{
+    int text_len = 0;
+
+    out[0] = '\0';
+    while( text_len < len && payload[text_len] != 0 )
+        text_len++;
+    if( text_len >= len || text_len >= size )
+        return 0;
+    memcpy(out, payload, (size_t)text_len);
+    out[text_len] = '\0';
+    return 1;
+}
+
+static void
+handle_friendchat(
+    struct ToriRSServer* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    struct ToriRSServerPlayer* player = srv->active_player;
+    char who[32];
+
+    if( !player )
+        return;
+    switch( name )
+    {
+    case PKTOUT_NAME_FRIENDCHAT_JOIN_LEAVE:
+        /* An empty body is the leave (RSProt's `has_name` loop not taken). */
+        if( len == 0 )
+        {
+            ToriRSServer_FriendchatJoinLeave(player, NULL);
+            return;
+        }
+        if( friendchat_read_name(payload, len, who, (int)sizeof(who)) )
+            ToriRSServer_FriendchatJoinLeave(player, who);
+        return;
+    case PKTOUT_NAME_FRIENDCHAT_KICK:
+        if( friendchat_read_name(payload, len, who, (int)sizeof(who)) )
+            ToriRSServer_FriendchatKick(player, who);
+        return;
+    case PKTOUT_NAME_FRIENDCHAT_SETRANK:
+        if( len >= 2 && friendchat_read_name(payload + 1, len - 1, who, (int)sizeof(who)) )
+            ToriRSServer_FriendchatSetRank(player, who, payload[0]);
+        return;
+    default:
+        return;
     }
 }
 
@@ -15505,6 +15616,9 @@ static const struct ToriRSServerPacketRoute k_packet_routes[] = {
     { PKTOUT_NAME_CHAT_SETMODE, handle_chat_setmode },
     { PKTOUT_NAME_MESSAGE_PRIVATE, handle_message_private },
     { PKTOUT_NAME_MESSAGE_PUBLIC, handle_message_public },
+    { PKTOUT_NAME_FRIENDCHAT_JOIN_LEAVE, handle_friendchat },
+    { PKTOUT_NAME_FRIENDCHAT_KICK, handle_friendchat },
+    { PKTOUT_NAME_FRIENDCHAT_SETRANK, handle_friendchat },
     { PKTOUT_NAME_WINDOW_STATUS, handle_window_status },
 };
 
@@ -16722,6 +16836,9 @@ ToriRSServer_WorldRemovePlayer(
      * their panel with "Offline" beside it. The reference does the same thing
      * from `World.removePlayer` (World.ts:1590).
      */
+    /* Out of any friends-chat channel while the name still reads online, so
+     * the members' SINGLEUSER delete names this world. */
+    ToriRSServer_FriendchatLogout(player);
     ToriRSServer_FriendsLogout(player->name37);
     player_set_occupancy(player, 0);
     /* The pid's scene window is released inside ToriRSServer_WorldPlayerFree
@@ -16862,6 +16979,7 @@ ToriRSServer_WorldChangeDisplayName(
     if( !ToriRSServer_DisplayNameClaim(name, player->account_name) )
         return 0;
     new37 = (int64_t)strtobase37(name);
+    ToriRSServer_FriendchatRename(player->name37, new37);
     if( !ToriRSServer_FriendsRename(player->name37, new37) )
     {
         if( !display_name_same(name, player->account_name) )
@@ -17030,6 +17148,17 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
             player->client_type = session->client_type;
             player->platform_type = session->platform_type;
         }
+        /*
+         * The input clock, as world_seat_player stamps it -- again, because
+         * the memset above wiped that stamp. Left at 0 it read as "idle since
+         * tick 0": in a world older than the idle clock every login was
+         * already past it (the idle logout removed the player on its first
+         * tick, test-torirsserver-host-reattach), and past
+         * TORIRSSERVER_AFK_COMBAT_TICKS it arrived unable to fight until its
+         * first click. No session: no client to time out.
+         */
+        player->last_input_tick =
+            session && world ? (int32_t)world->tick : TORIRSSERVER_INPUT_TICK_NEVER;
         ToriRSServer_IfStateInit(&player->interfaces);
     }
     /* On the home tile, not in the middle of the scene: the scene is 104 tiles
@@ -18130,21 +18259,7 @@ ToriRSServer_WorldLoginFinish(struct ToriRSServerPlayer* player)
      * describes one tick's changes, and a character with a hundred perm varps
      * is not a change.
      */
-    for( int varp = 0; varp < TORIRSSERVER_VARP_COUNT; varp++ )
-    {
-        const struct ToriRSServerVarpDef* def;
-        int32_t value = ToriRSServer_Varp(player, varp);
-
-        if( value == 0 )
-            continue;
-        def = ToriRSServer_ContentVarp(varp);
-        if( !def || !def->transmit )
-            continue;
-        if( value >= -128 && value <= 127 )
-            ToriRSServer_SendVarpSmall(player, varp, (int)value);
-        else
-            ToriRSServer_SendVarpLarge(player, varp, (int)value);
-    }
+    world_send_varps_full(player);
 
     /*
      * 5. Containers, in full. Deltas take over from the next tick.
@@ -18226,6 +18341,198 @@ ToriRSServer_WorldLoginFinish(struct ToriRSServerPlayer* player)
      */
 
     ToriRSServer_SendTickEnd(player);
+}
+
+/*
+ * Every transmitted varp the player holds that is not zero, as the login
+ * states a returning character's: the client starts a session with a zeroed
+ * table (and a re-attach zeroes it with VARP_RESET first), so a zero is
+ * already agreed and anything else has to be said.
+ */
+static void
+world_send_varps_full(struct ToriRSServerPlayer* player)
+{
+    for( int varp = 0; varp < TORIRSSERVER_VARP_COUNT; varp++ )
+    {
+        const struct ToriRSServerVarpDef* def;
+        int32_t value = ToriRSServer_Varp(player, varp);
+
+        if( value == 0 )
+            continue;
+        def = ToriRSServer_ContentVarp(varp);
+        if( !def || !def->transmit )
+            continue;
+        if( value >= -128 && value <= 127 )
+            ToriRSServer_SendVarpSmall(player, varp, (int)value);
+        else
+            ToriRSServer_SendVarpLarge(player, varp, (int)value);
+    }
+}
+
+void
+ToriRSServer_WorldDetachPlayer(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player)
+{
+    assert(srv);
+    assert(player);
+    assert(player->world == srv);
+    (void)srv;
+    assert(player->active);
+    assert(player->session);
+    /* Nothing sent from here reaches anyone; a re-attach continues the file. */
+    ToriRSServer_RecordingPark(player);
+    player->session = NULL;
+    player->detached = 1;
+    /* A scene barrier waits on a client's MAP_BUILD_COMPLETE, and
+     * phase_players skips the player holding one: with no client to send it,
+     * a detached player would stand frozen -- no step, no queue, no swing --
+     * until it came back. The re-attach rebuilds the scene anyway. (A login
+     * whose own burst never finished is removed, not detached: the host.) */
+    player->rebuild_scene_pending = 0;
+    if( player->resume_burst )
+    {
+        player->resume_burst = 0;
+        player->login_scene_pending = 0;
+    }
+    fprintf(stderr,
+            "torirsserver: %s lost its connection (pid %d); stays in the world until it "
+            "reconnects or the idle logout\n",
+            player->display_name, player->pid);
+}
+
+/*
+ * The re-attach's half of the reference's onReconnect that needs the client's
+ * scene: run off the barrier's MAP_BUILD_COMPLETE on revision 239+, at once
+ * before it. In onReconnect's order -- varps, invs, stats, the run orb --
+ * after the local actor and the modal, which is what the client is told
+ * first on a login too (ToriRSServer_WorldLoginFinish, 1b).
+ */
+static void
+world_resume_finish(struct ToriRSServerPlayer* player)
+{
+    struct ToriRSServer* srv = player->world;
+
+    ToriRSServer_WorldSetActive(srv, player);
+    ToriRSServer_SendSetActiveWorld(player);
+    ToriRSServer_SendUpdatePid(player, player->pid);
+    /* The client dropped every entity, its own among them: it needs the
+     * appearance and the move speed again. Left on the masks rather than
+     * cleared after this send, because every other observer reads the same
+     * masks this tick and may still be owed a change made while it was away. */
+    player_move_speed_sync(player);
+    player->masks |= TORIRSSERVER_PMASK_APPEARANCE;
+    ToriRSServer_SendPlayerInfo(player);
+
+    /* The reference closes the modal on a reconnect (Player.onReconnect,
+     * `closeModal()`): whatever a script opened or changed in it while the
+     * client was away never reached it. */
+    ToriRSServer_WorldCloseModal(srv);
+
+    /* `ResetClientVarCache` and every transmitted varp: a varp a script moved
+     * back to zero while nobody was listening must reach zero here too. */
+    ToriRSServer_Send(player, PKT_NAME_VARP_RESET, NULL, 0, 0);
+    world_send_varps_full(player);
+    ToriRSServer_WorldSyncCombatVarbits(srv);
+
+    /* `refreshInvs()`: every container this player is shown, in full on the
+     * next flush, as a fresh bind would send it. */
+    for( int i = 0; i < TORIRSSERVER_CONTAINER_MAX; i++ )
+    {
+        struct ToriRSServerContainer* row = &player->containers[i];
+
+        if( !row->used )
+            continue;
+        for( int l = 0; l < row->listener_count; l++ )
+            if( row->listeners[l].player == player )
+                row->listeners[l].first_seen = 1;
+    }
+
+    for( int stat = 0; stat < TORIRSSERVER_STAT_COUNT; stat++ )
+        ToriRSServer_SendStat(
+            player,
+            stat,
+            player->stat_level[stat],
+            player->stat_xp_tenths[stat] / 10,
+            player->stat_boosted[stat]);
+    player->run_energy_sent = player->run_energy;
+    ToriRSServer_SendRunEnergy(player, player->run_energy_sent);
+    player->run_weight_sent = player_weight_grams(player) / 1000;
+    ToriRSServer_SendRunWeight(player, player->run_weight_sent);
+
+    /* The client dropped its friends chat, clans and offers with the session
+     * (RS_CS2Host_ResetSocialForLogin); presence never left. */
+    ToriRSServer_WorldSocialLogin(player);
+    ToriRSServer_SendNpcInfo(player);
+    ToriRSServer_SendTickEnd(player);
+}
+
+void
+ToriRSServer_WorldAttachPlayer(
+    struct ToriRSServerPlayer* player,
+    struct ToriRSServerSession* session)
+{
+    struct ToriRSServer* srv;
+
+    assert(player);
+    assert(session);
+    assert(player->active);
+    assert(!player->session);
+    srv = player->world;
+    player->session = session;
+    player->detached = 0;
+    player->logout_requested = 0;
+    memcpy(player->session_seed, session->seed, sizeof(player->session_seed));
+    player->client_type = session->client_type;
+    player->platform_type = session->platform_type;
+    /* Coming back to the tab is the person at the client: the idle clock
+     * restarts here, as it would for a click. */
+    player->last_input_tick = (int32_t)srv->tick;
+    ToriRSServer_WorldSetActive(srv, player);
+
+    /*
+     * Forget what the old client was told about the world. Its entities and
+     * scene went with the session; what the server still believes it holds
+     * would otherwise be deltas against nothing. The level-change reset is
+     * that for npcs, zones and players; the rest is what it leaves: the npc
+     * slot names, the arrow, the world entities, the self entry (which
+     * RECONNECT_OK puts back).
+     */
+    ToriRSServer_WorldPlayerLevelChanged(player);
+    ToriRSServer_PidSetClear(&player->player_tracked);
+    ToriRSServer_SlotMapReset(player);
+    ToriRSServer_HintArrowReset(player);
+    player->wev_tracked_count = 0;
+    memset(player->deck_serial, 0, sizeof(player->deck_serial));
+
+    /* The parked recording continues, and RECONNECT_OK is its next record. */
+    ToriRSServer_RecordingLogin(player, 1);
+    /* Before any game packet: the response is read raw, and it carries the
+     * player-info init that seeds where the client stands. */
+    player->login_reconnect = 1;
+    if( session->reconnect )
+    {
+        ToriRSServer_SendReconnectOk(player);
+        session->reconnect = 0;
+    }
+    else
+        ToriRSServer_SessionSendLoginOk(session);
+    /* Any barrier left from the old client is superseded by this rebuild: a
+     * stale one would eat the MAP_BUILD_COMPLETE the resync waits for. */
+    player->rebuild_scene_pending = 0;
+
+    /* The client forces this rebuild whatever zone it names (its session
+     * reset does), and on 239+ holds everything behind it until it has built
+     * the scene; the resync waits on the same barrier a login does. */
+    ToriRSServer_SendRebuild(player);
+    player->rebuild_pending = 0;
+    if( srv->wire && srv->wire->revision >= 239 )
+    {
+        player->login_scene_pending = 1;
+        player->resume_burst = 1;
+        return;
+    }
+    world_resume_finish(player);
 }
 
 /* ------------------------------------------------------------------ */
@@ -21360,7 +21667,9 @@ phase_client_out(struct ToriRSServerPlayer* player)
          * (REBUILD_WORLDENTITY inside the hull's own view, which has its own
          * lifecycle and its own acknowledgement), and freezing the helmsman
          * of a moving hull is worse than any race this guards. */
-        if( srv->wire && srv->wire->revision >= 239 &&
+        /* Not for a detached player: no client will acknowledge the scene,
+         * and the barrier would freeze it until one came back. */
+        if( srv->wire && srv->wire->revision >= 239 && !player->detached &&
             ToriRSServer_MapInstanceFind(player->x, player->z) != 0 &&
             !ToriRSServer_VesselAtTile(srv, player->x, player->z) &&
             (player->x != player->v5_last_x || player->z != player->v5_last_z ||
@@ -21819,6 +22128,9 @@ world_tick_body(struct ToriRSServer* srv)
     phase_npcs(srv);
     BD_MARK();
     phase_players(srv);
+    /* Friends chat: the answers to last tick's joins and any settings window
+     * that has run its 100 ticks (torirs_server_friendchat.h). */
+    ToriRSServer_FriendchatTick(srv);
     /* The tick log's tiles: after every npc and every player has moved, so a
      * PLAYER_TILE row is the tile the NEXT tick's npcs will scan
      * (ENCOUNTER_TIMING.md section 1). One branch while the log is off. */

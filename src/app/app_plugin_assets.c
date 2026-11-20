@@ -118,6 +118,28 @@ app_plugin_asset_read(
     return 1;
 }
 
+/* A Lua plugin's module: one script item, handed to `deliver` as it lands
+ * (task_plugin_io.c CreateTask_PluginScriptRead). */
+int
+app_plugin_script_read(
+    void* user,
+    char const* path,
+    int serial,
+    void (*deliver)(void* deliver_user, int serial, char const* path, void* data, int size),
+    void* deliver_user)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    assert(path);
+    assert(deliver);
+
+    if( !app->plugins )
+        return 0;
+    ToriRS_TaskQueue_Add(app->frame_runner.queue, CreateTask_PluginScriptRead(path, serial, deliver, deliver_user));
+    return 1;
+}
+
 int
 app_plugin_asset_write(
     void* user,

@@ -423,6 +423,72 @@ ToriRSServer_WireMessagePrivateOsrs(struct RsprotBuf* buf, const char* from, int
         rsprot_pdata(buf, text, (size_t)text_len);
 }
 
+/*
+ * Friends chat, as every OSRS wire writes it. RSProt has one row for each of
+ * the three across 222..242 (3rd/rsprot/packets/update_friendchat_channel_
+ * full_v2.c, update_friendchat_channel_singleuser.c, message_friendchannel.c:
+ * the 242 client's readers), so the three wires share one writer each, as they
+ * share MESSAGE_PRIVATE's above.
+ *
+ * The world name is written empty, as UPDATE_FRIENDLIST's is on every wire
+ * here. Jagex sends "Old School 67" (RSProx index 761 [11]); no clientscript
+ * the chat-channel panel runs reads it (`friendschat_getchatuserworld` is the
+ * number), and this server's world has no name to send.
+ */
+void
+ToriRSServer_WireFriendchatFullOsrs(struct RsprotBuf* buf, const char* owner, int64_t channel37,
+                                    int kick_rank, const char* const* names, const int* worlds,
+                                    const int* ranks, int count)
+{
+    assert(buf);
+    assert(owner);
+    assert(count >= 0);
+    assert(count == 0 || names);
+    assert(count == 0 || worlds);
+    assert(count == 0 || ranks);
+    rsprot_pjstr(buf, owner);
+    rsprot_p8_12345678(buf, channel37);
+    rsprot_p1(buf, kick_rank & 0xff);
+    rsprot_psmart1or2null(buf, count);
+    for( int i = 0; i < count; i++ )
+    {
+        assert(names[i]);
+        rsprot_pjstr(buf, names[i]);
+        rsprot_p2_12(buf, worlds[i]);
+        rsprot_p1(buf, ranks[i] & 0xff);
+        rsprot_pjstr(buf, "");
+    }
+}
+
+void
+ToriRSServer_WireFriendchatUserOsrs(struct RsprotBuf* buf, const char* name, int world, int rank)
+{
+    assert(buf);
+    assert(name);
+    rsprot_pjstr(buf, name);
+    rsprot_p2_12(buf, world);
+    rsprot_p1(buf, rank & 0xff);
+    if( rank != -128 )
+        rsprot_pjstr(buf, "");
+}
+
+void
+ToriRSServer_WireMessageFriendchannelOsrs(struct RsprotBuf* buf, const char* sender,
+                                          int64_t channel37, int world, int counter, int crown,
+                                          uint8_t const* text, int text_len)
+{
+    assert(buf);
+    assert(sender);
+    assert(text_len >= 0);
+    rsprot_pjstr(buf, sender);
+    rsprot_p8_12345678(buf, channel37);
+    rsprot_p2_12(buf, world);
+    rsprot_p3_123(buf, counter & 0xFFFFFF);
+    rsprot_p1(buf, crown);
+    if( text_len > 0 )
+        rsprot_pdata(buf, text, (size_t)text_len);
+}
+
 const struct ToriRSServerWire*
 ToriRSServer_WireByName(char const* name)
 {

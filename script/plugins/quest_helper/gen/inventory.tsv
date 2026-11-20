@@ -1,0 +1,1495 @@
+# kind	owner	lua	java	uses
+class	Array			1
+class	boolean			2
+class	com.google.common.collect.ArrayListMultimap			1
+class	com.google.common.collect.HashMultimap			1
+class	com.google.common.collect.ImmutableList			173
+class	com.google.common.collect.ImmutableList$Builder			21
+class	com.google.common.collect.ImmutableMap$Builder			4
+class	com.google.common.collect.Lists			4
+class	com.google.common.collect.Multimaps			1
+class	com.google.common.collect.Sets			2
+class	com.google.common.primitives.Ints			2
+class	com.google.common.primitives.Shorts			2
+class	com.google.gson.Gson			1
+class	com.google.gson.JsonSyntaxException			1
+class	com.google.gson.reflect.TypeToken			1
+class	com.google.inject.CreationException			1
+class	com.google.inject.Module			3
+class	java.awt.BasicStroke			7
+class	java.awt.Color			62
+class	java.awt.Point			3
+class	java.awt.Polygon			5
+class	java.awt.Rectangle			7
+class	java.awt.font.TextAttribute			2
+class	java.awt.geom.AffineTransform			4
+class	java.awt.geom.Area			2
+class	java.awt.geom.Line2D$Double			11
+class	java.awt.geom.Path2D$Double			1
+class	java.awt.geom.Point2D$Double			1
+class	java.awt.image.BufferedImage			2
+class	java.lang.Boolean			3
+class	java.lang.Character			3
+class	java.lang.Enum			80
+class	java.lang.Exception			2
+class	java.lang.IllegalArgumentException			5
+class	java.lang.IllegalStateException			12
+class	java.lang.IndexOutOfBoundsException			2
+class	java.lang.Integer			38
+class	java.lang.Long			1
+class	java.lang.Math			107
+class	java.lang.NullPointerException			19
+class	java.lang.NumberFormatException			4
+class	java.lang.Object			123
+class	java.lang.Runnable			49
+class	java.lang.RuntimeException			2
+class	java.lang.String			24
+class	java.lang.StringBuilder			7
+class	java.lang.System			5
+class	java.lang.UnsupportedOperationException			2
+class	java.math.BigInteger			2
+class	java.time.Instant			1
+class	java.util.AbstractMap$SimpleEntry			1
+class	java.util.ArrayList			814
+class	java.util.Arrays			2025
+class	java.util.Collections			888
+class	java.util.Comparator			11
+class	java.util.EnumMap			1
+class	java.util.EnumSet			1
+class	java.util.HashMap			302
+class	java.util.HashSet			42
+class	java.util.LinkedHashMap			26
+class	java.util.LinkedHashSet			11
+class	java.util.LinkedList			3
+class	java.util.List			1535
+class	java.util.Locale			6
+class	java.util.Map			8
+class	java.util.Objects			30
+class	java.util.Optional			5
+class	java.util.Random			1
+class	java.util.Set			5
+class	java.util.TreeMap			5
+class	java.util.TreeSet			2
+class	java.util.concurrent.Callable			2
+class	java.util.concurrent.atomic.AtomicInteger			7
+class	java.util.function.BiConsumer			41
+class	java.util.function.BiFunction			18
+class	java.util.function.BinaryOperator			2
+class	java.util.function.BooleanSupplier			7
+class	java.util.function.Consumer			69
+class	java.util.function.Function			89
+class	java.util.function.IntConsumer			1
+class	java.util.function.IntFunction			5
+class	java.util.function.IntPredicate			6
+class	java.util.function.IntUnaryOperator			1
+class	java.util.function.Predicate			147
+class	java.util.function.Supplier			4
+class	java.util.function.ToIntBiFunction			2
+class	java.util.function.ToIntFunction			3
+class	java.util.function.UnaryOperator			5
+class	java.util.regex.Pattern			19
+class	java.util.stream.Collectors			45
+class	java.util.stream.IntStream			3
+class	java.util.stream.Stream			9
+class	javax.swing.ImageIcon			1
+class	javax.swing.SwingUtilities			8
+class	net.runelite.api.ChatMessageType			22
+class	net.runelite.api.Client			25
+class	net.runelite.api.DecorativeObject			4
+class	net.runelite.api.GameObject			4
+class	net.runelite.api.GameState			29
+class	net.runelite.api.GroundObject			4
+class	net.runelite.api.Item			16
+class	net.runelite.api.JagexColor			1
+class	net.runelite.api.MenuAction			18
+class	net.runelite.api.Model			1
+class	net.runelite.api.NPC			3
+class	net.runelite.api.Perspective			23
+class	net.runelite.api.Point			5
+class	net.runelite.api.Prayer			30
+class	net.runelite.api.Quest			206
+class	net.runelite.api.QuestState			506
+class	net.runelite.api.Skill			1536
+class	net.runelite.api.WallObject			4
+class	net.runelite.api.WorldType			7
+class	net.runelite.api.coords.Direction			71
+class	net.runelite.api.coords.LocalPoint			13
+class	net.runelite.api.coords.WorldPoint			16843
+class	net.runelite.api.events.ChatMessage			11
+class	net.runelite.api.events.ClientTick			2
+class	net.runelite.api.events.CommandExecuted			1
+class	net.runelite.api.events.DecorativeObjectDespawned			1
+class	net.runelite.api.events.DecorativeObjectSpawned			1
+class	net.runelite.api.events.GameObjectDespawned			1
+class	net.runelite.api.events.GameObjectSpawned			1
+class	net.runelite.api.events.GameStateChanged			5
+class	net.runelite.api.events.GameTick			70
+class	net.runelite.api.events.GrandExchangeSearched			1
+class	net.runelite.api.events.GraphicsObjectCreated			1
+class	net.runelite.api.events.GroundObjectDespawned			1
+class	net.runelite.api.events.GroundObjectSpawned			1
+class	net.runelite.api.events.InteractingChanged			1
+class	net.runelite.api.events.ItemContainerChanged			4
+class	net.runelite.api.events.ItemDespawned			1
+class	net.runelite.api.events.ItemSpawned			1
+class	net.runelite.api.events.MenuEntryAdded			2
+class	net.runelite.api.events.MenuOptionClicked			3
+class	net.runelite.api.events.NpcChanged			3
+class	net.runelite.api.events.NpcDespawned			4
+class	net.runelite.api.events.NpcSpawned			4
+class	net.runelite.api.events.ScriptCallbackEvent			1
+class	net.runelite.api.events.ScriptPostFired			2
+class	net.runelite.api.events.ScriptPreFired			2
+class	net.runelite.api.events.VarClientIntChanged			5
+class	net.runelite.api.events.VarbitChanged			12
+class	net.runelite.api.events.WallObjectDespawned			1
+class	net.runelite.api.events.WallObjectSpawned			1
+class	net.runelite.api.events.WidgetClosed			1
+class	net.runelite.api.events.WidgetLoaded			10
+class	net.runelite.api.widgets.JavaScriptCallback			13
+class	net.runelite.client.RuneLite			1
+class	net.runelite.client.callback.ClientThread			4
+class	net.runelite.client.callback.Hooks			1
+class	net.runelite.client.callback.Hooks$RenderableDrawListener			1
+class	net.runelite.client.chat.ChatColorType			4
+class	net.runelite.client.chat.ChatMessageBuilder			3
+class	net.runelite.client.chat.ChatMessageManager			3
+class	net.runelite.client.chat.QueuedMessage			4
+class	net.runelite.client.config.Config			1
+class	net.runelite.client.config.ConfigManager			6
+class	net.runelite.client.config.RuneScapeProfileType			3
+class	net.runelite.client.eventbus.EventBus			16
+class	net.runelite.client.events.ClientShutdown			1
+class	net.runelite.client.events.ConfigChanged			3
+class	net.runelite.client.events.PluginMessage			3
+class	net.runelite.client.events.RuneScapeProfileChanged			1
+class	net.runelite.client.events.ServerNpcLoot			2
+class	net.runelite.client.game.FishingSpot			2
+class	net.runelite.client.game.ItemManager			6
+class	net.runelite.client.game.SkillIconManager			1
+class	net.runelite.client.game.SpriteManager			2
+class	net.runelite.client.game.chatbox.ChatboxInput			1
+class	net.runelite.client.input.KeyListener			1
+class	net.runelite.client.plugins.Plugin			1
+class	net.runelite.client.plugins.PluginManager			1
+class	net.runelite.client.plugins.bank.BankSearch			1
+class	net.runelite.client.plugins.timetracking.Tab			28
+class	net.runelite.client.plugins.timetracking.farming.Produce			589
+class	net.runelite.client.ui.ClientToolbar			1
+class	net.runelite.client.ui.ColorScheme			8
+class	net.runelite.client.ui.FontManager			11
+class	net.runelite.client.ui.JagexColors			3
+class	net.runelite.client.ui.NavigationButton			1
+class	net.runelite.client.ui.components.colorpicker.ColorPickerManager			1
+class	net.runelite.client.ui.overlay.Overlay			5
+class	net.runelite.client.ui.overlay.OverlayLayer			13
+class	net.runelite.client.ui.overlay.OverlayManager			1
+class	net.runelite.client.ui.overlay.OverlayPanel			7
+class	net.runelite.client.ui.overlay.OverlayPosition			6
+class	net.runelite.client.ui.overlay.OverlayPriority			2
+class	net.runelite.client.ui.overlay.OverlayUtil			19
+class	net.runelite.client.ui.overlay.components.LineComponent			23
+class	net.runelite.client.ui.overlay.components.PanelComponent			1
+class	net.runelite.client.ui.overlay.outline.ModelOutlineRenderer			1
+class	net.runelite.client.ui.overlay.tooltip.Tooltip			1
+class	net.runelite.client.ui.overlay.tooltip.TooltipManager			1
+class	net.runelite.client.ui.overlay.worldmap.WorldMapPoint			1
+class	net.runelite.client.ui.overlay.worldmap.WorldMapPointManager			1
+class	net.runelite.client.util.ColorUtil			6
+class	net.runelite.client.util.ImageUtil			4
+class	net.runelite.client.util.QuantityFormatter			5
+class	net.runelite.client.util.Text			17
+class	org.apache.commons.lang3.StringUtils			1
+class	org.apache.commons.lang3.tuple.Pair			2
+class	org.slf4j.LoggerFactory			27
+ctor	com.google.common.collect.ImmutableList$Builder	__new__	Builder()	21
+ctor	com.google.common.collect.ImmutableMap$Builder	__new__	Builder()	4
+ctor	com.google.gson.reflect.TypeToken	__new__	TypeToken()	1
+ctor	java.awt.BasicStroke	__new__float	BasicStroke(float)	7
+ctor	java.awt.Color	__new__int_int_int	Color(int_int_int)	3
+ctor	java.awt.Color	__new__int_int_int_int	Color(int_int_int_int)	35
+ctor	java.awt.Point	__new__int_int	Point(int_int)	3
+ctor	java.awt.Polygon	__new__	Polygon()	5
+ctor	java.awt.Rectangle	__new__int_int_int_int	Rectangle(int_int_int_int)	7
+ctor	java.awt.geom.AffineTransform	__new__	AffineTransform()	4
+ctor	java.awt.geom.Area	__new__	Area()	1
+ctor	java.awt.geom.Area	__new__Shape	Area(Shape)	1
+ctor	java.awt.geom.Line2D$Double	__new__double_double_double_double	Double(double_double_double_double)	11
+ctor	java.awt.geom.Path2D$Double	__new__	Double()	1
+ctor	java.awt.geom.Point2D$Double	__new__	Double()	1
+ctor	java.awt.image.BufferedImage	__new__int_int_int	BufferedImage(int_int_int)	2
+ctor	java.lang.IllegalArgumentException	__new__String	IllegalArgumentException(String)	1
+ctor	java.lang.IllegalStateException	__new__String	IllegalStateException(String)	12
+ctor	java.lang.NullPointerException	__new__String	NullPointerException(String)	19
+ctor	java.lang.Object	__new	Object()	152
+ctor	java.lang.RuntimeException	__new__	RuntimeException()	1
+ctor	java.lang.StringBuilder	__new__	StringBuilder()	6
+ctor	java.lang.StringBuilder	__new__String	StringBuilder(String)	1
+ctor	java.lang.UnsupportedOperationException	__new__String	UnsupportedOperationException(String)	2
+ctor	java.util.AbstractMap$SimpleEntry	__new__Object_Object	SimpleEntry(Object_Object)	1
+ctor	java.util.ArrayList	__new__	ArrayList()	739
+ctor	java.util.ArrayList	__new__Collection	ArrayList(Collection)	75
+ctor	java.util.EnumMap	__new__Class	EnumMap(Class)	1
+ctor	java.util.HashMap	__new__	HashMap()	300
+ctor	java.util.HashMap	__new__Map	HashMap(Map)	2
+ctor	java.util.HashSet	__new__	HashSet()	11
+ctor	java.util.HashSet	__new__Collection	HashSet(Collection)	31
+ctor	java.util.LinkedHashMap	__new__	LinkedHashMap()	26
+ctor	java.util.LinkedHashSet	__new__	LinkedHashSet()	10
+ctor	java.util.LinkedHashSet	__new__Collection	LinkedHashSet(Collection)	1
+ctor	java.util.LinkedList	__new__	LinkedList()	3
+ctor	java.util.Random	__new__	Random()	1
+ctor	java.util.TreeMap	__new__	TreeMap()	5
+ctor	java.util.TreeSet	__new__	TreeSet()	1
+ctor	java.util.TreeSet	__new__Comparator	TreeSet(Comparator)	1
+ctor	java.util.concurrent.atomic.AtomicInteger	__new__int	AtomicInteger(int)	7
+ctor	javax.swing.ImageIcon	__new__Image	ImageIcon(Image)	1
+ctor	net.runelite.api.Item	__new	Item(int_int)	16
+ctor	net.runelite.api.Point	__new	Point(int_int)	5
+ctor	net.runelite.api.coords.LocalPoint	__new__int_int	LocalPoint(int_int)	4
+ctor	net.runelite.api.coords.WorldPoint	__new	WorldPoint(int_int_int)	16811
+ctor	net.runelite.client.chat.ChatMessageBuilder	__new	ChatMessageBuilder()	3
+ctor	net.runelite.client.events.PluginMessage	__new__String_String	PluginMessage(String_String)	2
+ctor	net.runelite.client.events.PluginMessage	__new__String_String_Map	PluginMessage(String_String_Map)	1
+ctor	net.runelite.client.game.chatbox.ChatboxInput	__new	ChatboxInput()	1
+ctor	net.runelite.client.plugins.Plugin	__new	Plugin()	1
+ctor	net.runelite.client.ui.overlay.Overlay	__new__	Overlay()	5
+ctor	net.runelite.client.ui.overlay.OverlayPanel	__new__	OverlayPanel()	3
+ctor	net.runelite.client.ui.overlay.components.PanelComponent	__new	PanelComponent()	1
+ctor	net.runelite.client.ui.overlay.tooltip.Tooltip	__new__String	Tooltip(String)	1
+ctor	net.runelite.client.ui.overlay.worldmap.WorldMapPoint	__new__WorldPoint_BufferedImage	WorldMapPoint(WorldPoint_BufferedImage)	1
+enum	net.runelite.api.ChatMessageType	CONSOLE		1
+enum	net.runelite.api.ChatMessageType	DIALOG		2
+enum	net.runelite.api.ChatMessageType	ENGINE		1
+enum	net.runelite.api.ChatMessageType	GAMEMESSAGE		9
+enum	net.runelite.api.ChatMessageType	ITEM_EXAMINE		1
+enum	net.runelite.api.ChatMessageType	MESBOX		5
+enum	net.runelite.api.ChatMessageType	NPC_EXAMINE		1
+enum	net.runelite.api.ChatMessageType	PUBLICCHAT		1
+enum	net.runelite.api.ChatMessageType	SPAM		1
+enum	net.runelite.api.GameState	HOPPING		4
+enum	net.runelite.api.GameState	LOADING		6
+enum	net.runelite.api.GameState	LOGGED_IN		18
+enum	net.runelite.api.GameState	LOGIN_SCREEN		1
+enum	net.runelite.api.MenuAction	CC_OP		1
+enum	net.runelite.api.MenuAction	GAME_OBJECT_FIFTH_OPTION		1
+enum	net.runelite.api.MenuAction	GAME_OBJECT_FIRST_OPTION		1
+enum	net.runelite.api.MenuAction	GAME_OBJECT_FOURTH_OPTION		1
+enum	net.runelite.api.MenuAction	GAME_OBJECT_SECOND_OPTION		1
+enum	net.runelite.api.MenuAction	GAME_OBJECT_THIRD_OPTION		1
+enum	net.runelite.api.MenuAction	GROUND_ITEM_FIFTH_OPTION		1
+enum	net.runelite.api.MenuAction	GROUND_ITEM_FIRST_OPTION		1
+enum	net.runelite.api.MenuAction	GROUND_ITEM_FOURTH_OPTION		1
+enum	net.runelite.api.MenuAction	GROUND_ITEM_SECOND_OPTION		1
+enum	net.runelite.api.MenuAction	GROUND_ITEM_THIRD_OPTION		2
+enum	net.runelite.api.MenuAction	RUNELITE		2
+enum	net.runelite.api.MenuAction	RUNELITE_HIGH_PRIORITY		3
+enum	net.runelite.api.MenuAction	WIDGET_TARGET_ON_GAME_OBJECT		1
+enum	net.runelite.api.Prayer	PIETY		2
+enum	net.runelite.api.Prayer	PROTECT_FROM_MAGIC		10
+enum	net.runelite.api.Prayer	PROTECT_FROM_MELEE		8
+enum	net.runelite.api.Prayer	PROTECT_FROM_MISSILES		8
+enum	net.runelite.api.Prayer	SMITE		2
+enum	net.runelite.api.Quest	ALFRED_GRIMHANDS_BARCRAWL		1
+enum	net.runelite.api.Quest	ANIMAL_MAGNETISM		1
+enum	net.runelite.api.Quest	ANOTHER_SLICE_OF_HAM		1
+enum	net.runelite.api.Quest	AT_FIRST_LIGHT		1
+enum	net.runelite.api.Quest	A_KINGDOM_DIVIDED		1
+enum	net.runelite.api.Quest	A_NIGHT_AT_THE_THEATRE		1
+enum	net.runelite.api.Quest	A_PORCINE_OF_INTEREST		1
+enum	net.runelite.api.Quest	A_SOULS_BANE		1
+enum	net.runelite.api.Quest	A_TAIL_OF_TWO_CATS		1
+enum	net.runelite.api.Quest	A_TASTE_OF_HOPE		1
+enum	net.runelite.api.Quest	BARBARIAN_TRAINING		1
+enum	net.runelite.api.Quest	BEAR_YOUR_SOUL		1
+enum	net.runelite.api.Quest	BELOW_ICE_MOUNTAIN		1
+enum	net.runelite.api.Quest	BENEATH_CURSED_SANDS		1
+enum	net.runelite.api.Quest	BETWEEN_A_ROCK		1
+enum	net.runelite.api.Quest	BIG_CHOMPY_BIRD_HUNTING		1
+enum	net.runelite.api.Quest	BIOHAZARD		1
+enum	net.runelite.api.Quest	BLACK_KNIGHTS_FORTRESS		1
+enum	net.runelite.api.Quest	BONE_VOYAGE		1
+enum	net.runelite.api.Quest	CABIN_FEVER		1
+enum	net.runelite.api.Quest	CHILDREN_OF_THE_SUN		1
+enum	net.runelite.api.Quest	CLIENT_OF_KOUREND		1
+enum	net.runelite.api.Quest	CLOCK_TOWER		1
+enum	net.runelite.api.Quest	COLD_WAR		1
+enum	net.runelite.api.Quest	CONTACT		1
+enum	net.runelite.api.Quest	COOKS_ASSISTANT		1
+enum	net.runelite.api.Quest	CREATURE_OF_FENKENSTRAIN		1
+enum	net.runelite.api.Quest	CURRENT_AFFAIRS		1
+enum	net.runelite.api.Quest	CURSE_OF_THE_EMPTY_LORD		1
+enum	net.runelite.api.Quest	DADDYS_HOME		1
+enum	net.runelite.api.Quest	DARKNESS_OF_HALLOWVALE		1
+enum	net.runelite.api.Quest	DEATH_ON_THE_ISLE		1
+enum	net.runelite.api.Quest	DEATH_PLATEAU		1
+enum	net.runelite.api.Quest	DEATH_TO_THE_DORGESHUUN		1
+enum	net.runelite.api.Quest	DEFENDER_OF_VARROCK		1
+enum	net.runelite.api.Quest	DEMON_SLAYER		1
+enum	net.runelite.api.Quest	DESERT_TREASURE_I		1
+enum	net.runelite.api.Quest	DESERT_TREASURE_II__THE_FALLEN_EMPIRE		1
+enum	net.runelite.api.Quest	DEVIOUS_MINDS		1
+enum	net.runelite.api.Quest	DORICS_QUEST		1
+enum	net.runelite.api.Quest	DRAGON_SLAYER_I		1
+enum	net.runelite.api.Quest	DRAGON_SLAYER_II		1
+enum	net.runelite.api.Quest	DREAM_MENTOR		1
+enum	net.runelite.api.Quest	DRUIDIC_RITUAL		1
+enum	net.runelite.api.Quest	DWARF_CANNON		1
+enum	net.runelite.api.Quest	EADGARS_RUSE		1
+enum	net.runelite.api.Quest	EAGLES_PEAK		1
+enum	net.runelite.api.Quest	ELEMENTAL_WORKSHOP_I		1
+enum	net.runelite.api.Quest	ELEMENTAL_WORKSHOP_II		1
+enum	net.runelite.api.Quest	ENAKHRAS_LAMENT		1
+enum	net.runelite.api.Quest	ENLIGHTENED_JOURNEY		1
+enum	net.runelite.api.Quest	ENTER_THE_ABYSS		1
+enum	net.runelite.api.Quest	ERNEST_THE_CHICKEN		1
+enum	net.runelite.api.Quest	ETHICALLY_ACQUIRED_ANTIQUITIES		1
+enum	net.runelite.api.Quest	FAIRYTALE_II__CURE_A_QUEEN		1
+enum	net.runelite.api.Quest	FAIRYTALE_I__GROWING_PAINS		1
+enum	net.runelite.api.Quest	FAMILY_CREST		1
+enum	net.runelite.api.Quest	FAMILY_PEST		1
+enum	net.runelite.api.Quest	FIGHT_ARENA		1
+enum	net.runelite.api.Quest	FISHING_CONTEST		1
+enum	net.runelite.api.Quest	FORGETTABLE_TALE		1
+enum	net.runelite.api.Quest	GARDEN_OF_TRANQUILLITY		1
+enum	net.runelite.api.Quest	GERTRUDES_CAT		1
+enum	net.runelite.api.Quest	GETTING_AHEAD		1
+enum	net.runelite.api.Quest	GHOSTS_AHOY		1
+enum	net.runelite.api.Quest	GOBLIN_DIPLOMACY		1
+enum	net.runelite.api.Quest	GRIM_TALES		1
+enum	net.runelite.api.Quest	HAUNTED_MINE		1
+enum	net.runelite.api.Quest	HAZEEL_CULT		1
+enum	net.runelite.api.Quest	HEROES_QUEST		1
+enum	net.runelite.api.Quest	HIS_FAITHFUL_SERVANTS		1
+enum	net.runelite.api.Quest	HOLY_GRAIL		1
+enum	net.runelite.api.Quest	HOPESPEARS_WILL		1
+enum	net.runelite.api.Quest	HORROR_FROM_THE_DEEP		1
+enum	net.runelite.api.Quest	ICTHLARINS_LITTLE_HELPER		1
+enum	net.runelite.api.Quest	IMP_CATCHER		1
+enum	net.runelite.api.Quest	IN_AID_OF_THE_MYREQUE		1
+enum	net.runelite.api.Quest	IN_SEARCH_OF_KNOWLEDGE		1
+enum	net.runelite.api.Quest	IN_SEARCH_OF_THE_MYREQUE		1
+enum	net.runelite.api.Quest	JUNGLE_POTION		1
+enum	net.runelite.api.Quest	KINGS_RANSOM		1
+enum	net.runelite.api.Quest	LAIR_OF_TARN_RAZORLOR		1
+enum	net.runelite.api.Quest	LAND_OF_THE_GOBLINS		1
+enum	net.runelite.api.Quest	LEGENDS_QUEST		1
+enum	net.runelite.api.Quest	LOST_CITY		1
+enum	net.runelite.api.Quest	LUNAR_DIPLOMACY		1
+enum	net.runelite.api.Quest	MAGE_ARENA_I		1
+enum	net.runelite.api.Quest	MAGE_ARENA_II		1
+enum	net.runelite.api.Quest	MAKING_FRIENDS_WITH_MY_ARM		1
+enum	net.runelite.api.Quest	MAKING_HISTORY		1
+enum	net.runelite.api.Quest	MEAT_AND_GREET		1
+enum	net.runelite.api.Quest	MERLINS_CRYSTAL		1
+enum	net.runelite.api.Quest	MISTHALIN_MYSTERY		1
+enum	net.runelite.api.Quest	MONKEY_MADNESS_I		1
+enum	net.runelite.api.Quest	MONKEY_MADNESS_II		1
+enum	net.runelite.api.Quest	MONKS_FRIEND		1
+enum	net.runelite.api.Quest	MOUNTAIN_DAUGHTER		1
+enum	net.runelite.api.Quest	MOURNINGS_END_PART_I		1
+enum	net.runelite.api.Quest	MOURNINGS_END_PART_II		1
+enum	net.runelite.api.Quest	MURDER_MYSTERY		1
+enum	net.runelite.api.Quest	MY_ARMS_BIG_ADVENTURE		1
+enum	net.runelite.api.Quest	NATURE_SPIRIT		1
+enum	net.runelite.api.Quest	OBSERVATORY_QUEST		1
+enum	net.runelite.api.Quest	OLAFS_QUEST		1
+enum	net.runelite.api.Quest	ONE_SMALL_FAVOUR		1
+enum	net.runelite.api.Quest	PANDEMONIUM		1
+enum	net.runelite.api.Quest	PERILOUS_MOONS		1
+enum	net.runelite.api.Quest	PIRATES_TREASURE		1
+enum	net.runelite.api.Quest	PLAGUE_CITY		1
+enum	net.runelite.api.Quest	PRIEST_IN_PERIL		1
+enum	net.runelite.api.Quest	PRINCE_ALI_RESCUE		1
+enum	net.runelite.api.Quest	PRYING_TIMES		1
+enum	net.runelite.api.Quest	RAG_AND_BONE_MAN_I		1
+enum	net.runelite.api.Quest	RAG_AND_BONE_MAN_II		1
+enum	net.runelite.api.Quest	RATCATCHERS		1
+enum	net.runelite.api.Quest	RECIPE_FOR_DISASTER		10
+enum	net.runelite.api.Quest	RECRUITMENT_DRIVE		1
+enum	net.runelite.api.Quest	REGICIDE		1
+enum	net.runelite.api.Quest	ROMEO__JULIET		1
+enum	net.runelite.api.Quest	ROVING_ELVES		1
+enum	net.runelite.api.Quest	ROYAL_TROUBLE		1
+enum	net.runelite.api.Quest	RUM_DEAL		1
+enum	net.runelite.api.Quest	RUNE_MYSTERIES		1
+enum	net.runelite.api.Quest	SCORPION_CATCHER		1
+enum	net.runelite.api.Quest	SCRAMBLED		1
+enum	net.runelite.api.Quest	SEA_SLUG		1
+enum	net.runelite.api.Quest	SECRETS_OF_THE_NORTH		1
+enum	net.runelite.api.Quest	SHADES_OF_MORTTON		1
+enum	net.runelite.api.Quest	SHADOWS_OF_CUSTODIA		1
+enum	net.runelite.api.Quest	SHADOW_OF_THE_STORM		1
+enum	net.runelite.api.Quest	SHEEP_HERDER		1
+enum	net.runelite.api.Quest	SHEEP_SHEARER		1
+enum	net.runelite.api.Quest	SHIELD_OF_ARRAV		2
+enum	net.runelite.api.Quest	SHILO_VILLAGE		1
+enum	net.runelite.api.Quest	SINS_OF_THE_FATHER		1
+enum	net.runelite.api.Quest	SKIPPY_AND_THE_MOGRES		1
+enum	net.runelite.api.Quest	SLEEPING_GIANTS		1
+enum	net.runelite.api.Quest	SONG_OF_THE_ELVES		1
+enum	net.runelite.api.Quest	SPIRITS_OF_THE_ELID		1
+enum	net.runelite.api.Quest	SWAN_SONG		1
+enum	net.runelite.api.Quest	TAI_BWO_WANNAI_TRIO		1
+enum	net.runelite.api.Quest	TALE_OF_THE_RIGHTEOUS		1
+enum	net.runelite.api.Quest	TEARS_OF_GUTHIX		1
+enum	net.runelite.api.Quest	TEMPLE_OF_IKOV		1
+enum	net.runelite.api.Quest	TEMPLE_OF_THE_EYE		1
+enum	net.runelite.api.Quest	THE_ASCENT_OF_ARCEUUS		1
+enum	net.runelite.api.Quest	THE_CORSAIR_CURSE		1
+enum	net.runelite.api.Quest	THE_CURSE_OF_ARRAV		1
+enum	net.runelite.api.Quest	THE_DEPTHS_OF_DESPAIR		1
+enum	net.runelite.api.Quest	THE_DIG_SITE		1
+enum	net.runelite.api.Quest	THE_ENCHANTED_KEY		1
+enum	net.runelite.api.Quest	THE_EYES_OF_GLOUPHRIE		1
+enum	net.runelite.api.Quest	THE_FEUD		1
+enum	net.runelite.api.Quest	THE_FINAL_DAWN		1
+enum	net.runelite.api.Quest	THE_FORSAKEN_TOWER		1
+enum	net.runelite.api.Quest	THE_FREMENNIK_EXILES		1
+enum	net.runelite.api.Quest	THE_FREMENNIK_ISLES		1
+enum	net.runelite.api.Quest	THE_FREMENNIK_TRIALS		1
+enum	net.runelite.api.Quest	THE_GARDEN_OF_DEATH		1
+enum	net.runelite.api.Quest	THE_GENERALS_SHADOW		1
+enum	net.runelite.api.Quest	THE_GIANT_DWARF		1
+enum	net.runelite.api.Quest	THE_GOLEM		1
+enum	net.runelite.api.Quest	THE_GRAND_TREE		1
+enum	net.runelite.api.Quest	THE_GREAT_BRAIN_ROBBERY		1
+enum	net.runelite.api.Quest	THE_HAND_IN_THE_SAND		1
+enum	net.runelite.api.Quest	THE_HEART_OF_DARKNESS		1
+enum	net.runelite.api.Quest	THE_IDES_OF_MILK		1
+enum	net.runelite.api.Quest	THE_KNIGHTS_SWORD		1
+enum	net.runelite.api.Quest	THE_LOST_TRIBE		1
+enum	net.runelite.api.Quest	THE_PATH_OF_GLOUPHRIE		1
+enum	net.runelite.api.Quest	THE_QUEEN_OF_THIEVES		1
+enum	net.runelite.api.Quest	THE_RED_REEF		1
+enum	net.runelite.api.Quest	THE_RESTLESS_GHOST		1
+enum	net.runelite.api.Quest	THE_RIBBITING_TALE_OF_A_LILY_PAD_LABOUR_DISPUTE		1
+enum	net.runelite.api.Quest	THE_SLUG_MENACE		1
+enum	net.runelite.api.Quest	THE_TOURIST_TRAP		1
+enum	net.runelite.api.Quest	THRONE_OF_MISCELLANIA		1
+enum	net.runelite.api.Quest	TOWER_OF_LIFE		1
+enum	net.runelite.api.Quest	TREE_GNOME_VILLAGE		1
+enum	net.runelite.api.Quest	TRIBAL_TOTEM		1
+enum	net.runelite.api.Quest	TROLL_ROMANCE		1
+enum	net.runelite.api.Quest	TROLL_STRONGHOLD		1
+enum	net.runelite.api.Quest	TROUBLED_TORTUGANS		1
+enum	net.runelite.api.Quest	TWILIGHTS_PROMISE		1
+enum	net.runelite.api.Quest	UNDERGROUND_PASS		1
+enum	net.runelite.api.Quest	VALE_TOTEMS		1
+enum	net.runelite.api.Quest	VAMPYRE_SLAYER		1
+enum	net.runelite.api.Quest	WANTED		1
+enum	net.runelite.api.Quest	WATCHTOWER		1
+enum	net.runelite.api.Quest	WATERFALL_QUEST		1
+enum	net.runelite.api.Quest	WHAT_LIES_BELOW		1
+enum	net.runelite.api.Quest	WHILE_GUTHIX_SLEEPS		1
+enum	net.runelite.api.Quest	WITCHS_HOUSE		1
+enum	net.runelite.api.Quest	WITCHS_POTION		1
+enum	net.runelite.api.Quest	X_MARKS_THE_SPOT		1
+enum	net.runelite.api.Quest	ZOGRE_FLESH_EATERS		1
+enum	net.runelite.api.QuestState	FINISHED		448
+enum	net.runelite.api.QuestState	IN_PROGRESS		43
+enum	net.runelite.api.QuestState	NOT_STARTED		15
+enum	net.runelite.api.Skill	AGILITY		167
+enum	net.runelite.api.Skill	ATTACK		27
+enum	net.runelite.api.Skill	CONSTRUCTION		49
+enum	net.runelite.api.Skill	COOKING		60
+enum	net.runelite.api.Skill	CRAFTING		101
+enum	net.runelite.api.Skill	DEFENCE		30
+enum	net.runelite.api.Skill	FARMING		73
+enum	net.runelite.api.Skill	FIREMAKING		65
+enum	net.runelite.api.Skill	FISHING		58
+enum	net.runelite.api.Skill	FLETCHING		31
+enum	net.runelite.api.Skill	HERBLORE		52
+enum	net.runelite.api.Skill	HITPOINTS		16
+enum	net.runelite.api.Skill	HUNTER		53
+enum	net.runelite.api.Skill	MAGIC		105
+enum	net.runelite.api.Skill	MINING		104
+enum	net.runelite.api.Skill	PRAYER		44
+enum	net.runelite.api.Skill	RANGED		42
+enum	net.runelite.api.Skill	RUNECRAFT		45
+enum	net.runelite.api.Skill	SAILING		16
+enum	net.runelite.api.Skill	SLAYER		67
+enum	net.runelite.api.Skill	SMITHING		70
+enum	net.runelite.api.Skill	STRENGTH		46
+enum	net.runelite.api.Skill	THIEVING		116
+enum	net.runelite.api.Skill	WOODCUTTING		98
+enum	net.runelite.api.WorldType	DEADMAN		1
+enum	net.runelite.api.WorldType	NOSAVE_MODE		1
+enum	net.runelite.api.WorldType	QUEST_SPEEDRUNNING		1
+enum	net.runelite.api.WorldType	SEASONAL		3
+enum	net.runelite.api.WorldType	TOURNAMENT_WORLD		1
+enum	net.runelite.api.coords.Direction	EAST		2
+enum	net.runelite.api.coords.Direction	NORTH		13
+enum	net.runelite.api.coords.Direction	SOUTH		19
+enum	net.runelite.api.coords.Direction	WEST		33
+enum	net.runelite.client.chat.ChatColorType	HIGHLIGHT		1
+enum	net.runelite.client.chat.ChatColorType	NORMAL		3
+enum	net.runelite.client.game.FishingSpot	QUEST_RUM_DEAL		1
+enum	net.runelite.client.game.FishingSpot	SHRIMP		1
+enum	net.runelite.client.plugins.timetracking.Tab	ALLOTMENT		1
+enum	net.runelite.client.plugins.timetracking.Tab	BUSH		1
+enum	net.runelite.client.plugins.timetracking.Tab	FLOWER		1
+enum	net.runelite.client.plugins.timetracking.Tab	FRUIT_TREE		6
+enum	net.runelite.client.plugins.timetracking.Tab	GRAPE		1
+enum	net.runelite.client.plugins.timetracking.Tab	HERB		2
+enum	net.runelite.client.plugins.timetracking.Tab	HOPS		1
+enum	net.runelite.client.plugins.timetracking.Tab	SPECIAL		9
+enum	net.runelite.client.plugins.timetracking.Tab	TREE		6
+enum	net.runelite.client.plugins.timetracking.farming.Produce	ANYHERB		1
+enum	net.runelite.client.plugins.timetracking.farming.Produce	APPLE		7
+enum	net.runelite.client.plugins.timetracking.farming.Produce	ASGARNIAN		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	ATTAS		1
+enum	net.runelite.client.plugins.timetracking.farming.Produce	AVANTOE		3
+enum	net.runelite.client.plugins.timetracking.farming.Produce	BANANA		7
+enum	net.runelite.client.plugins.timetracking.farming.Produce	BARLEY		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	BELLADONNA		4
+enum	net.runelite.client.plugins.timetracking.farming.Produce	BIG_COMPOST		7
+enum	net.runelite.client.plugins.timetracking.farming.Produce	BIG_ROTTEN_TOMATO		7
+enum	net.runelite.client.plugins.timetracking.farming.Produce	BIG_SUPERCOMPOST		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	BIG_ULTRACOMPOST		1
+enum	net.runelite.client.plugins.timetracking.farming.Produce	CABBAGE		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	CACTUS		6
+enum	net.runelite.client.plugins.timetracking.farming.Produce	CADANTINE		3
+enum	net.runelite.client.plugins.timetracking.farming.Produce	CADAVABERRIES		6
+enum	net.runelite.client.plugins.timetracking.farming.Produce	CALQUAT		6
+enum	net.runelite.client.plugins.timetracking.farming.Produce	CAMPHOR		7
+enum	net.runelite.client.plugins.timetracking.farming.Produce	CELASTRUS		8
+enum	net.runelite.client.plugins.timetracking.farming.Produce	COMPOST		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	COTTON		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	CRYSTAL_TREE		4
+enum	net.runelite.client.plugins.timetracking.farming.Produce	CURRY		7
+enum	net.runelite.client.plugins.timetracking.farming.Produce	DRAGONFRUIT		7
+enum	net.runelite.client.plugins.timetracking.farming.Produce	DWARF_WEED		3
+enum	net.runelite.client.plugins.timetracking.farming.Produce	DWELLBERRIES		6
+enum	net.runelite.client.plugins.timetracking.farming.Produce	ELKHORN_CORAL		4
+enum	net.runelite.client.plugins.timetracking.farming.Produce	EMPTY_BIG_COMPOST_BIN		1
+enum	net.runelite.client.plugins.timetracking.farming.Produce	EMPTY_COMPOST_BIN		1
+enum	net.runelite.client.plugins.timetracking.farming.Produce	FLAX		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	GOUTWEED		4
+enum	net.runelite.client.plugins.timetracking.farming.Produce	GRAPE		3
+enum	net.runelite.client.plugins.timetracking.farming.Produce	GUAM		3
+enum	net.runelite.client.plugins.timetracking.farming.Produce	HAMMERSTONE		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	HARRALANDER		3
+enum	net.runelite.client.plugins.timetracking.farming.Produce	HEMP		6
+enum	net.runelite.client.plugins.timetracking.farming.Produce	HESPORI		2
+enum	net.runelite.client.plugins.timetracking.farming.Produce	HUASCA		3
+enum	net.runelite.client.plugins.timetracking.farming.Produce	IASOR		1
+enum	net.runelite.client.plugins.timetracking.farming.Produce	IRIT		3
+enum	net.runelite.client.plugins.timetracking.farming.Produce	IRONWOOD		7
+enum	net.runelite.client.plugins.timetracking.farming.Produce	JANGERBERRIES		6
+enum	net.runelite.client.plugins.timetracking.farming.Produce	JUTE		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	KRANDORIAN		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	KRONOS		1
+enum	net.runelite.client.plugins.timetracking.farming.Produce	KWUARM		3
+enum	net.runelite.client.plugins.timetracking.farming.Produce	LANTADYME		3
+enum	net.runelite.client.plugins.timetracking.farming.Produce	LIMPWURT		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	MAGIC		9
+enum	net.runelite.client.plugins.timetracking.farming.Produce	MAHOGANY		7
+enum	net.runelite.client.plugins.timetracking.farming.Produce	MAPLE		9
+enum	net.runelite.client.plugins.timetracking.farming.Produce	MARIGOLD		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	MARRENTILL		3
+enum	net.runelite.client.plugins.timetracking.farming.Produce	MUSHROOM		4
+enum	net.runelite.client.plugins.timetracking.farming.Produce	NASTURTIUM		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	OAK		9
+enum	net.runelite.client.plugins.timetracking.farming.Produce	ONION		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	ORANGE		8
+enum	net.runelite.client.plugins.timetracking.farming.Produce	PALM		7
+enum	net.runelite.client.plugins.timetracking.farming.Produce	PAPAYA		7
+enum	net.runelite.client.plugins.timetracking.farming.Produce	PILLAR_CORAL		4
+enum	net.runelite.client.plugins.timetracking.farming.Produce	PINEAPPLE		7
+enum	net.runelite.client.plugins.timetracking.farming.Produce	POISON_IVY		7
+enum	net.runelite.client.plugins.timetracking.farming.Produce	POTATO		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	POTATO_CACTUS		6
+enum	net.runelite.client.plugins.timetracking.farming.Produce	RANARR		3
+enum	net.runelite.client.plugins.timetracking.farming.Produce	REDBERRIES		6
+enum	net.runelite.client.plugins.timetracking.farming.Produce	REDWOOD		7
+enum	net.runelite.client.plugins.timetracking.farming.Produce	ROSEMARY		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	ROSEWOOD		7
+enum	net.runelite.client.plugins.timetracking.farming.Produce	ROTTEN_TOMATO		3
+enum	net.runelite.client.plugins.timetracking.farming.Produce	SCARECROW		2
+enum	net.runelite.client.plugins.timetracking.farming.Produce	SEAWEED		4
+enum	net.runelite.client.plugins.timetracking.farming.Produce	SNAPDRAGON		3
+enum	net.runelite.client.plugins.timetracking.farming.Produce	SNAPE_GRASS		7
+enum	net.runelite.client.plugins.timetracking.farming.Produce	SPIRIT_TREE		6
+enum	net.runelite.client.plugins.timetracking.farming.Produce	STRAWBERRY		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	SUPERCOMPOST		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	SWEETCORN		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	TARROMIN		3
+enum	net.runelite.client.plugins.timetracking.farming.Produce	TEAK		7
+enum	net.runelite.client.plugins.timetracking.farming.Produce	TOADFLAX		3
+enum	net.runelite.client.plugins.timetracking.farming.Produce	TOMATO		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	TORSTOL		3
+enum	net.runelite.client.plugins.timetracking.farming.Produce	ULTRACOMPOST		1
+enum	net.runelite.client.plugins.timetracking.farming.Produce	UMBRAL_CORAL		4
+enum	net.runelite.client.plugins.timetracking.farming.Produce	WATERMELON		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	WEEDS		128
+enum	net.runelite.client.plugins.timetracking.farming.Produce	WHITEBERRIES		6
+enum	net.runelite.client.plugins.timetracking.farming.Produce	WHITE_LILY		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	WILDBLOOD		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	WILLOW		10
+enum	net.runelite.client.plugins.timetracking.farming.Produce	WOAD		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	YANILLIAN		5
+enum	net.runelite.client.plugins.timetracking.farming.Produce	YEW		9
+enum	net.runelite.client.ui.overlay.OverlayLayer	ABOVE_SCENE		3
+enum	net.runelite.client.ui.overlay.OverlayLayer	ABOVE_WIDGETS		1
+enum	net.runelite.client.ui.overlay.OverlayLayer	ALWAYS_ON_TOP		5
+enum	net.runelite.client.ui.overlay.OverlayLayer	UNDER_WIDGETS		4
+enum	net.runelite.client.ui.overlay.OverlayPosition	DYNAMIC		5
+enum	net.runelite.client.ui.overlay.OverlayPosition	TOOLTIP		1
+enum	net.runelite.client.ui.overlay.OverlayPriority	HIGH		2
+field	java.awt.Polygon	xpoints	xpoints	1
+field	java.awt.Polygon	ypoints	ypoints	1
+field	java.awt.Rectangle	height	height	9
+field	java.awt.Rectangle	width	width	9
+field	java.awt.Rectangle	x	x	15
+field	java.awt.Rectangle	y	y	15
+field	java.awt.geom.Line2D$Double	x1	x1	4
+field	java.awt.geom.Line2D$Double	x2	x2	8
+field	java.awt.geom.Line2D$Double	y1	y1	4
+field	java.awt.geom.Line2D$Double	y2	y2	8
+field	java.awt.geom.Point2D$Double	x	x	3
+field	java.awt.geom.Point2D$Double	y	y	3
+field	net.runelite.client.plugins.Plugin	injector	injector	3
+field	net.runelite.client.ui.overlay.OverlayPanel	panelComponent	panelComponent	6
+manual-ctor	com.questhelper.panel.QuestHelperPanel	__new	QuestHelperPanel(QuestHelperPlugin_QuestManager_ConfigManager)	1
+manual-method	com.questhelper.panel.QuestHelperPanel	addQuest	addQuest(QuestHelper_boolean)	1
+manual-method	com.questhelper.panel.QuestHelperPanel	refresh	refresh(List_boolean_Map_QuestFilterArr)	2
+manual-method	com.questhelper.panel.QuestHelperPanel	refreshSkillFiltering	refreshSkillFiltering()	1
+manual-method	com.questhelper.panel.QuestHelperPanel	removeQuest	removeQuest()	2
+manual-method	com.questhelper.panel.QuestHelperPanel	updateHighlight__Client_QuestStep	updateHighlight(Client_QuestStep)	1
+manual-method	com.questhelper.panel.QuestHelperPanel	updateItemRequirements	updateItemRequirements(Client)	2
+manual-method	com.questhelper.panel.QuestHelperPanel	updateLocks	updateLocks()	1
+manual-method	com.questhelper.panel.QuestHelperPanel	updateRegionFilterVisibility	updateRegionFilterVisibility(boolean)	2
+manual-method	com.questhelper.panel.QuestHelperPanel	updateStepsTexts	updateStepsTexts()	1
+manual-static	com.questhelper.panel.JGenerator	makeJTextArea__	makeJTextArea()	1
+method	com.google.common.collect.ImmutableCollection$Builder	addAll__Iterable	addAll(Iterable)	21
+method	com.google.common.collect.ImmutableCollection$Builder	add__Object	add(Object)	5
+method	com.google.common.collect.ImmutableCollection$Builder	add__ObjectArr	add(ObjectArr)	16
+method	com.google.common.collect.ImmutableCollection$Builder	build	build()	21
+method	com.google.common.collect.ImmutableMap$Builder	build	build()	4
+method	com.google.common.collect.ImmutableMap$Builder	put__Object_Object	put(Object_Object)	42
+method	com.google.common.collect.Multimap	clear	clear()	2
+method	com.google.common.collect.Multimap	containsKey	containsKey(Object)	1
+method	com.google.common.collect.Multimap	forEach	forEach(BiConsumer)	1
+method	com.google.common.collect.Multimap	get	get(Object)	5
+method	com.google.common.collect.Multimap	keySet	keySet()	1
+method	com.google.common.collect.Multimap	put	put(Object_Object)	2
+method	com.google.gson.Gson	fromJson__String_Class	fromJson(String_Class)	1
+method	com.google.gson.Gson	fromJson__String_Type	fromJson(String_Type)	1
+method	com.google.gson.Gson	toJson__Object	toJson(Object)	2
+method	com.google.gson.reflect.TypeToken	getType	getType()	1
+method	com.google.inject.Binder	bind__Class	bind(Class)	1
+method	com.google.inject.Binder	install	install(Module)	1
+method	com.google.inject.Injector	createChildInjector__ModuleArr	createChildInjector(ModuleArr)	1
+method	com.google.inject.Injector	injectMembers	injectMembers(Object)	4
+method	com.google.inject.Module	configure	configure(Binder)	1
+method	com.google.inject.binder.LinkedBindingBuilder	toInstance	toInstance(Object)	1
+method	java.awt.AWTEvent	consume	consume()	3
+method	java.awt.Color	darker	darker()	3
+method	java.awt.Color	getBlue	getBlue()	28
+method	java.awt.Color	getGreen	getGreen()	28
+method	java.awt.Color	getRGB	getRGB()	8
+method	java.awt.Color	getRed	getRed()	28
+method	java.awt.Font	deriveFont__Map	deriveFont(Map)	1
+method	java.awt.Font	deriveFont__int_float	deriveFont(int_float)	10
+method	java.awt.Font	getAttributes	getAttributes()	1
+method	java.awt.FontMetrics	stringWidth	stringWidth(String)	1
+method	java.awt.Graphics	create__	create()	4
+method	java.awt.Graphics	dispose	dispose()	4
+method	java.awt.Graphics	drawImage__Image_int_int_ImageObserver	drawImage(Image_int_int_ImageObserver)	7
+method	java.awt.Graphics	drawImage__Image_int_int_int_int_ImageObserver	drawImage(Image_int_int_int_int_ImageObserver)	1
+method	java.awt.Graphics	drawRect	drawRect(int_int_int_int)	2
+method	java.awt.Graphics	drawString__String_int_int	drawString(String_int_int)	12
+method	java.awt.Graphics	getFontMetrics__Font	getFontMetrics(Font)	1
+method	java.awt.Graphics	setClip__Shape	setClip(Shape)	1
+method	java.awt.Graphics	setColor	setColor(Color)	76
+method	java.awt.Graphics	setFont	setFont(Font)	11
+method	java.awt.Graphics2D	draw	draw(Shape)	42
+method	java.awt.Graphics2D	fill	fill(Shape)	40
+method	java.awt.Graphics2D	setStroke	setStroke(Stroke)	7
+method	java.awt.Graphics2D	setTransform	setTransform(AffineTransform)	4
+method	java.awt.Image	getGraphics	getGraphics()	2
+method	java.awt.MenuContainer	getFont	getFont()	1
+method	java.awt.Polygon	addPoint	addPoint(int_int)	13
+method	java.awt.Rectangle	contains__Rectangle	contains(Rectangle)	2
+method	java.awt.Rectangle	contains__int_int	contains(int_int)	3
+method	java.awt.Rectangle	intersects__Rectangle	intersects(Rectangle)	2
+method	java.awt.Shape	contains__double_double	contains(double_double)	3
+method	java.awt.Shape	getBounds	getBounds()	12
+method	java.awt.Shape	getBounds2D	getBounds2D()	2
+method	java.awt.event.KeyEvent	getKeyChar	getKeyChar()	1
+method	java.awt.event.KeyEvent	getKeyCode	getKeyCode()	1
+method	java.awt.geom.AffineTransform	rotate__double	rotate(double)	4
+method	java.awt.geom.AffineTransform	setToIdentity	setToIdentity()	4
+method	java.awt.geom.AffineTransform	translate	translate(double_double)	4
+method	java.awt.geom.Area	add	add(Area)	1
+method	java.awt.geom.Area	isEmpty	isEmpty()	1
+method	java.awt.geom.Path2D	closePath	closePath()	1
+method	java.awt.geom.Path2D	lineTo	lineTo(double_double)	1
+method	java.awt.geom.Path2D	moveTo	moveTo(double_double)	1
+method	java.awt.geom.RectangularShape	getCenterX	getCenterX()	3
+method	java.awt.geom.RectangularShape	getCenterY	getCenterY()	1
+method	java.awt.geom.RectangularShape	getHeight	getHeight()	1
+method	java.awt.geom.RectangularShape	getMaxX	getMaxX()	2
+method	java.awt.geom.RectangularShape	getMaxY	getMaxY()	6
+method	java.awt.geom.RectangularShape	getMinX	getMinX()	1
+method	java.awt.geom.RectangularShape	getMinY	getMinY()	5
+method	java.awt.geom.RectangularShape	getWidth	getWidth()	2
+method	java.awt.geom.RectangularShape	getX	getX()	4
+method	java.awt.geom.RectangularShape	getY	getY()	4
+method	java.awt.image.RenderedImage	getHeight	getHeight()	9
+method	java.awt.image.RenderedImage	getWidth	getWidth()	11
+method	java.lang.AbstractStringBuilder	append__String	append(String)	17
+method	java.lang.AbstractStringBuilder	append__int	append(int)	3
+method	java.lang.CharSequence	charAt	charAt(int)	23
+method	java.lang.CharSequence	isEmpty	isEmpty()	12
+method	java.lang.CharSequence	length	length()	8
+method	java.lang.Class	cast	cast(Object)	9
+method	java.lang.Class	isInstance	isInstance(Object)	15
+method	java.lang.Enum	getDeclaringClass	getDeclaringClass()	1
+method	java.lang.Enum	name	name()	33
+method	java.lang.Iterable	forEach	forEach(Consumer)	38
+method	java.lang.Iterable	iterator	iterator()	11
+method	java.lang.Number	doubleValue	doubleValue()	10
+method	java.lang.Object	clone	clone()	1
+method	java.lang.Object	equals	equals(Object)	134
+method	java.lang.Object	getClass	getClass()	5
+method	java.lang.Object	hashCode	hashCode()	14
+method	java.lang.Object	toString	toString()	18
+method	java.lang.Runnable	run	run()	51
+method	java.lang.String	contains	contains(CharSequence)	50
+method	java.lang.String	endsWith	endsWith(String)	2
+method	java.lang.String	equalsIgnoreCase	equalsIgnoreCase(String)	5
+method	java.lang.String	indexOf__String	indexOf(String)	2
+method	java.lang.String	isBlank	isBlank()	6
+method	java.lang.String	replaceAll	replaceAll(String_String)	7
+method	java.lang.String	replace__CharSequence_CharSequence	replace(CharSequence_CharSequence)	7
+method	java.lang.String	split__String	split(String)	9
+method	java.lang.String	startsWith__String	startsWith(String)	4
+method	java.lang.String	substring__int	substring(int)	4
+method	java.lang.String	substring__int_int	substring(int_int)	5
+method	java.lang.String	toLowerCase__	toLowerCase()	7
+method	java.lang.String	toLowerCase__Locale	toLowerCase(Locale)	6
+method	java.lang.String	toUpperCase__	toUpperCase()	2
+method	java.lang.String	trim	trim()	5
+method	java.lang.Throwable	getMessage	getMessage()	2
+method	java.lang.Throwable	printStackTrace__	printStackTrace()	1
+method	java.math.BigInteger	testBit	testBit(int)	2
+method	java.time.Instant	getEpochSecond	getEpochSecond()	1
+method	java.util.Collection	add	add(Object)	3233
+method	java.util.Collection	addAll	addAll(Collection)	132
+method	java.util.Collection	clear	clear()	32
+method	java.util.Collection	contains	contains(Object)	92
+method	java.util.Collection	containsAll	containsAll(Collection)	5
+method	java.util.Collection	isEmpty	isEmpty()	82
+method	java.util.Collection	remove	remove(Object)	17
+method	java.util.Collection	removeAll	removeAll(Collection)	2
+method	java.util.Collection	removeIf	removeIf(Predicate)	10
+method	java.util.Collection	size	size()	92
+method	java.util.Collection	stream	stream()	93
+method	java.util.Collection	toArray__ObjectArr	toArray(ObjectArr)	22
+method	java.util.Comparator	compare	compare(Object_Object)	1
+method	java.util.Comparator	thenComparing__Function	thenComparing(Function)	2
+method	java.util.Iterator	next	next()	11
+method	java.util.List	add__int_Object	add(int_Object)	1
+method	java.util.List	get	get(int)	167
+method	java.util.List	indexOf	indexOf(Object)	3
+method	java.util.List	remove__int	remove(int)	5
+method	java.util.List	replaceAll	replaceAll(UnaryOperator)	4
+method	java.util.List	set	set(int_Object)	6
+method	java.util.List	subList	subList(int_int)	6
+method	java.util.Map	clear	clear()	3
+method	java.util.Map	computeIfAbsent	computeIfAbsent(Object_Function)	16
+method	java.util.Map	computeIfPresent	computeIfPresent(Object_BiFunction)	2
+method	java.util.Map	containsKey	containsKey(Object)	5
+method	java.util.Map	containsValue	containsValue(Object)	1
+method	java.util.Map	entrySet	entrySet()	20
+method	java.util.Map	forEach	forEach(BiConsumer)	38
+method	java.util.Map	get	get(Object)	389
+method	java.util.Map	getOrDefault	getOrDefault(Object_Object)	1
+method	java.util.Map	isEmpty	isEmpty()	2
+method	java.util.Map	keySet	keySet()	10
+method	java.util.Map	put	put(Object_Object)	3743
+method	java.util.Map	putAll	putAll(Map)	10
+method	java.util.Map	putIfAbsent	putIfAbsent(Object_Object)	3
+method	java.util.Map	remove__Object	remove(Object)	5
+method	java.util.Map	replace__Object_Object	replace(Object_Object)	42
+method	java.util.Map	size	size()	3
+method	java.util.Map	values	values()	17
+method	java.util.Map$Entry	getKey	getKey()	29
+method	java.util.Map$Entry	getValue	getValue()	27
+method	java.util.Optional	get	get()	2
+method	java.util.Optional	isEmpty	isEmpty()	1
+method	java.util.Optional	isPresent	isPresent()	1
+method	java.util.Optional	map	map(Function)	2
+method	java.util.Optional	orElse	orElse(Object)	13
+method	java.util.OptionalInt	orElse	orElse(int)	1
+method	java.util.Queue	poll	poll()	1
+method	java.util.Queue	remove__	remove()	1
+method	java.util.concurrent.Callable	call	call()	3
+method	java.util.concurrent.atomic.AtomicInteger	get	get()	15
+method	java.util.concurrent.atomic.AtomicInteger	getAndDecrement	getAndDecrement()	2
+method	java.util.concurrent.atomic.AtomicInteger	set	set(int)	11
+method	java.util.function.BiConsumer	accept	accept(Object_Object)	42
+method	java.util.function.BiFunction	apply	apply(Object_Object)	23
+method	java.util.function.BooleanSupplier	getAsBoolean	getAsBoolean()	8
+method	java.util.function.Consumer	accept	accept(Object)	73
+method	java.util.function.Consumer	andThen	andThen(Consumer)	1
+method	java.util.function.Function	apply	apply(Object)	95
+method	java.util.function.IntConsumer	accept	accept(int)	1
+method	java.util.function.IntFunction	apply	apply(int)	5
+method	java.util.function.IntPredicate	test	test(int)	6
+method	java.util.function.IntUnaryOperator	applyAsInt	applyAsInt(int)	3
+method	java.util.function.Predicate	or_	or(Predicate)	3
+method	java.util.function.Predicate	test	test(Object)	146
+method	java.util.function.Supplier	get	get()	5
+method	java.util.function.ToIntBiFunction	applyAsInt	applyAsInt(Object_Object)	3
+method	java.util.function.ToIntFunction	applyAsInt	applyAsInt(Object)	3
+method	java.util.random.RandomGenerator	nextInt__int	nextInt(int)	1
+method	java.util.regex.MatchResult	group__int	group(int)	30
+method	java.util.regex.Matcher	find__	find()	19
+method	java.util.regex.Matcher	replaceAll__String	replaceAll(String)	1
+method	java.util.regex.Pattern	matcher	matcher(CharSequence)	17
+method	java.util.stream.IntStream	anyMatch	anyMatch(IntPredicate)	5
+method	java.util.stream.IntStream	boxed	boxed()	3
+method	java.util.stream.IntStream	filter	filter(IntPredicate)	1
+method	java.util.stream.IntStream	findFirst	findFirst()	1
+method	java.util.stream.IntStream	forEach	forEach(IntConsumer)	1
+method	java.util.stream.IntStream	mapToObj	mapToObj(IntFunction)	2
+method	java.util.stream.IntStream	sum	sum()	3
+method	java.util.stream.Stream	allMatch	allMatch(Predicate)	6
+method	java.util.stream.Stream	anyMatch	anyMatch(Predicate)	19
+method	java.util.stream.Stream	collect__Collector	collect(Collector)	50
+method	java.util.stream.Stream	count	count()	5
+method	java.util.stream.Stream	distinct	distinct()	4
+method	java.util.stream.Stream	filter	filter(Predicate)	106
+method	java.util.stream.Stream	findAny	findAny()	1
+method	java.util.stream.Stream	findFirst	findFirst()	13
+method	java.util.stream.Stream	flatMap	flatMap(Function)	12
+method	java.util.stream.Stream	forEach	forEach(Consumer)	14
+method	java.util.stream.Stream	limit	limit(long)	2
+method	java.util.stream.Stream	map	map(Function)	37
+method	java.util.stream.Stream	mapToInt	mapToInt(ToIntFunction)	3
+method	java.util.stream.Stream	noneMatch	noneMatch(Predicate)	3
+method	java.util.stream.Stream	reduce__Object_BinaryOperator	reduce(Object_BinaryOperator)	1
+method	java.util.stream.Stream	sorted__Comparator	sorted(Comparator)	3
+method	java.util.stream.Stream	toArray__	toArray()	3
+method	java.util.stream.Stream	toArray__IntFunction	toArray(IntFunction)	3
+method	net.runelite.api.Actor	getAnimation	getAnimation()	3
+method	net.runelite.api.Actor	getCanvasImageLocation	getCanvasImageLocation(BufferedImage_int)	1
+method	net.runelite.api.Actor	getCanvasTilePoly	getCanvasTilePoly()	1
+method	net.runelite.api.Actor	getCombatLevel	getCombatLevel()	2
+method	net.runelite.api.Actor	getConvexHull	getConvexHull()	2
+method	net.runelite.api.Actor	getIdlePoseAnimation	getIdlePoseAnimation()	1
+method	net.runelite.api.Actor	getInteracting	getInteracting()	11
+method	net.runelite.api.Actor	getLocalLocation	getLocalLocation()	30
+method	net.runelite.api.Actor	getLogicalHeight	getLogicalHeight()	1
+method	net.runelite.api.Actor	getMinimapLocation	getMinimapLocation()	4
+method	net.runelite.api.Actor	getName	getName()	15
+method	net.runelite.api.Actor	getOrientation	getOrientation()	2
+method	net.runelite.api.Actor	getWalkAnimation	getWalkAnimation()	1
+method	net.runelite.api.Actor	getWorldLocation	getWorldLocation()	19
+method	net.runelite.api.Actor	setAnimation	setAnimation(int)	1
+method	net.runelite.api.Actor	setAnimationFrame	setAnimationFrame(int)	1
+method	net.runelite.api.Animation	getNumFrames	getNumFrames()	2
+method	net.runelite.api.CameraFocusableEntity	getWorldView	getWorldView()	12
+method	net.runelite.api.Client	addChatMessage__ChatMessageType_String_String_String	addChatMessage(ChatMessageType_String_String_String)	1
+method	net.runelite.api.Client	createRuneLiteObject	createRuneLiteObject()	1
+method	net.runelite.api.Client	getBoostedSkillLevel	getBoostedSkillLevel(Skill)	4
+method	net.runelite.api.Client	getCameraX	getCameraX()	1
+method	net.runelite.api.Client	getCameraY	getCameraY()	1
+method	net.runelite.api.Client	getCameraYawTarget	getCameraYawTarget()	1
+method	net.runelite.api.Client	getCanvasHeight	getCanvasHeight()	1
+method	net.runelite.api.Client	getCanvasWidth	getCanvasWidth()	1
+method	net.runelite.api.Client	getEnum	getEnum(int)	4
+method	net.runelite.api.Client	getGameState	getGameState()	14
+method	net.runelite.api.Client	getHintArrowNpc	getHintArrowNpc()	4
+method	net.runelite.api.Client	getIntStack	getIntStack()	5
+method	net.runelite.api.Client	getIntStackSize	getIntStackSize()	2
+method	net.runelite.api.Client	getItemContainer__int	getItemContainer(int)	19
+method	net.runelite.api.Client	getItemDefinition	getItemDefinition(int)	3
+method	net.runelite.api.Client	getLocalPlayer	getLocalPlayer()	76
+method	net.runelite.api.Client	getMenu	getMenu()	8
+method	net.runelite.api.Client	getMinimapZoom	getMinimapZoom()	2
+method	net.runelite.api.Client	getMouseCanvasPosition	getMouseCanvasPosition()	7
+method	net.runelite.api.Client	getNpcDefinition	getNpcDefinition(int)	2
+method	net.runelite.api.Client	getObjectDefinition	getObjectDefinition(int)	2
+method	net.runelite.api.Client	getPlane	getPlane()	9
+method	net.runelite.api.Client	getRealSkillLevel	getRealSkillLevel(Skill)	30
+method	net.runelite.api.Client	getScene	getScene()	5
+method	net.runelite.api.Client	getTickCount	getTickCount()	21
+method	net.runelite.api.Client	getTopLevelWorldView	getTopLevelWorldView()	48
+method	net.runelite.api.Client	getVarbitValue__int	getVarbitValue(int)	272
+method	net.runelite.api.Client	getVarcIntValue	getVarcIntValue(int)	10
+method	net.runelite.api.Client	getVarcStrValue	getVarcStrValue(int)	1
+method	net.runelite.api.Client	getVarpValue	getVarpValue(int)	42
+method	net.runelite.api.Client	getViewportWidth	getViewportWidth()	1
+method	net.runelite.api.Client	getWeight	getWeight()	2
+method	net.runelite.api.Client	getWidget__int	getWidget(int)	107
+method	net.runelite.api.Client	getWidget__int_int	getWidget(int_int)	36
+method	net.runelite.api.Client	getWorldMap	getWorldMap()	2
+method	net.runelite.api.Client	getWorldType	getWorldType()	4
+method	net.runelite.api.Client	getWorldView	getWorldView(int)	8
+method	net.runelite.api.Client	isInInstancedRegion	isInInstancedRegion()	1
+method	net.runelite.api.Client	isMenuOpen	isMenuOpen()	2
+method	net.runelite.api.Client	isResized	isResized()	1
+method	net.runelite.api.Client	loadAnimation	loadAnimation(int)	2
+method	net.runelite.api.Client	loadModelData	loadModelData(int)	3
+method	net.runelite.api.Client	menuAction	menuAction(int_int_MenuAction_int_int_String_String)	1
+method	net.runelite.api.Client	mergeModels__ModelDataArr	mergeModels(ModelDataArr)	4
+method	net.runelite.api.Client	playSoundEffect__int	playSoundEffect(int)	2
+method	net.runelite.api.Client	runScript	runScript(ObjectArr)	8
+method	net.runelite.api.Client	setGeSearchResultCount	setGeSearchResultCount(int)	2
+method	net.runelite.api.Client	setGeSearchResultIds	setGeSearchResultIds(shortArr)	2
+method	net.runelite.api.Client	setGeSearchResultIndex	setGeSearchResultIndex(int)	2
+method	net.runelite.api.Client	setVarbit	setVarbit(int_int)	2
+method	net.runelite.api.Client	setVarcIntValue	setVarcIntValue(int_int)	4
+method	net.runelite.api.Client	setVarcStrValue	setVarcStrValue(int_String)	4
+method	net.runelite.api.DecorativeObject	getConvexHull	getConvexHull()	1
+method	net.runelite.api.DecorativeObject	getRenderable	getRenderable()	1
+method	net.runelite.api.DecorativeObject	getRenderable2	getRenderable2()	1
+method	net.runelite.api.EnumComposition	getIntVals	getIntVals()	1
+method	net.runelite.api.EnumComposition	getIntValue	getIntValue(int)	3
+method	net.runelite.api.EnumComposition	size	size()	2
+method	net.runelite.api.GameEngine	isClientThread	isClientThread()	2
+method	net.runelite.api.GameObject	getConvexHull	getConvexHull()	2
+method	net.runelite.api.GameObject	getRenderable	getRenderable()	1
+method	net.runelite.api.GameObject	sizeX	sizeX()	2
+method	net.runelite.api.GameObject	sizeY	sizeY()	2
+method	net.runelite.api.GraphicsObject	getId	getId()	1
+method	net.runelite.api.GraphicsObject	getLocation	getLocation()	1
+method	net.runelite.api.GroundObject	getConvexHull	getConvexHull()	2
+method	net.runelite.api.GroundObject	getRenderable	getRenderable()	1
+method	net.runelite.api.IndexedObjectSet	byIndex	byIndex(int)	4
+method	net.runelite.api.IndexedObjectSet	stream	stream()	5
+method	net.runelite.api.Item	getId	getId()	37
+method	net.runelite.api.Item	getQuantity	getQuantity()	19
+method	net.runelite.api.ItemComposition	getName	getName()	21
+method	net.runelite.api.ItemComposition	getPlaceholderId	getPlaceholderId()	1
+method	net.runelite.api.ItemComposition	getPlaceholderTemplateId	getPlaceholderTemplateId()	1
+method	net.runelite.api.ItemComposition	isTradeable	isTradeable()	1
+method	net.runelite.api.ItemContainer	contains	contains(int)	2
+method	net.runelite.api.ItemContainer	count__	count()	4
+method	net.runelite.api.ItemContainer	count__int	count(int)	2
+method	net.runelite.api.ItemContainer	find	find(int)	1
+method	net.runelite.api.ItemContainer	getItem	getItem(int)	1
+method	net.runelite.api.ItemContainer	getItems	getItems()	16
+method	net.runelite.api.ItemLayer	getHeight	getHeight()	1
+method	net.runelite.api.Menu	createMenuEntry	createMenuEntry(int)	4
+method	net.runelite.api.Menu	getMenuEntries	getMenuEntries()	6
+method	net.runelite.api.Menu	getMenuWidth	getMenuWidth()	1
+method	net.runelite.api.Menu	getMenuX	getMenuX()	1
+method	net.runelite.api.Menu	getMenuY	getMenuY()	1
+method	net.runelite.api.MenuEntry	getActor	getActor()	1
+method	net.runelite.api.MenuEntry	getIdentifier	getIdentifier()	1
+method	net.runelite.api.MenuEntry	getNpc	getNpc()	1
+method	net.runelite.api.MenuEntry	getOption	getOption()	2
+method	net.runelite.api.MenuEntry	getParam0	getParam0()	1
+method	net.runelite.api.MenuEntry	getType	getType()	6
+method	net.runelite.api.MenuEntry	getWidget	getWidget()	1
+method	net.runelite.api.MenuEntry	onClick__Consumer	onClick(Consumer)	4
+method	net.runelite.api.MenuEntry	setDeprioritized	setDeprioritized(boolean)	3
+method	net.runelite.api.MenuEntry	setIdentifier	setIdentifier(int)	1
+method	net.runelite.api.MenuEntry	setOption	setOption(String)	5
+method	net.runelite.api.MenuEntry	setParam0	setParam0(int)	6
+method	net.runelite.api.MenuEntry	setParam1	setParam1(int)	5
+method	net.runelite.api.MenuEntry	setTarget	setTarget(String)	5
+method	net.runelite.api.MenuEntry	setType	setType(MenuAction)	4
+method	net.runelite.api.Mesh	getFaceCount	getFaceCount()	1
+method	net.runelite.api.Mesh	getFaceTransparencies	getFaceTransparencies()	1
+method	net.runelite.api.Mesh	scale	scale(int_int_int)	1
+method	net.runelite.api.ModelData	cloneColors	cloneColors()	6
+method	net.runelite.api.ModelData	cloneVertices	cloneVertices()	1
+method	net.runelite.api.ModelData	light__	light()	4
+method	net.runelite.api.ModelData	light__int_int_int_int_int	light(int_int_int_int_int)	1
+method	net.runelite.api.ModelData	recolor	recolor(short_short)	3
+method	net.runelite.api.NPC	getComposition	getComposition()	5
+method	net.runelite.api.NPC	getId	getId()	22
+method	net.runelite.api.NPC	getIndex	getIndex()	1
+method	net.runelite.api.NPCComposition	getColorToReplace	getColorToReplace()	1
+method	net.runelite.api.NPCComposition	getColorToReplaceWith	getColorToReplaceWith()	1
+method	net.runelite.api.NPCComposition	getId	getId()	6
+method	net.runelite.api.NPCComposition	getModels	getModels()	1
+method	net.runelite.api.NPCComposition	getName	getName()	1
+method	net.runelite.api.ObjectComposition	getId	getId()	2
+method	net.runelite.api.ObjectComposition	getImpostor	getImpostor()	3
+method	net.runelite.api.ObjectComposition	getImpostorIds	getImpostorIds()	1
+method	net.runelite.api.ObjectComposition	getName	getName()	1
+method	net.runelite.api.ParamHolder	getIntValue	getIntValue(int)	1
+method	net.runelite.api.Player	getPlayerComposition	getPlayerComposition()	2
+method	net.runelite.api.PlayerComposition	getGender	getGender()	1
+method	net.runelite.api.Point	getX	getX()	46
+method	net.runelite.api.Point	getY	getY()	56
+method	net.runelite.api.Prayer	getVarbit	getVarbit()	1
+method	net.runelite.api.Quest	getId	getId()	15
+method	net.runelite.api.Quest	getName	getName()	2
+method	net.runelite.api.Renderable	getModel	getModel()	2
+method	net.runelite.api.Renderable	getModelHeight	getModelHeight()	2
+method	net.runelite.api.RuneLiteObject	getAnimation	getAnimation()	2
+method	net.runelite.api.RuneLiteObject	getAnimationFrame	getAnimationFrame()	2
+method	net.runelite.api.RuneLiteObject	isActive	isActive()	2
+method	net.runelite.api.RuneLiteObject	setActive	setActive(boolean)	5
+method	net.runelite.api.RuneLiteObject	setAnimation	setAnimation(Animation)	2
+method	net.runelite.api.RuneLiteObject	setModel	setModel(Model)	2
+method	net.runelite.api.RuneLiteObject	setShouldLoop	setShouldLoop(boolean)	4
+method	net.runelite.api.RuneLiteObjectController	getLocation	getLocation()	12
+method	net.runelite.api.RuneLiteObjectController	getModel	getModel()	4
+method	net.runelite.api.RuneLiteObjectController	getOrientation	getOrientation()	3
+method	net.runelite.api.RuneLiteObjectController	getWorldView	getWorldView()	1
+method	net.runelite.api.RuneLiteObjectController	setLocation	setLocation(LocalPoint_int)	3
+method	net.runelite.api.RuneLiteObjectController	setOrientation	setOrientation(int)	1
+method	net.runelite.api.Scene	getTiles	getTiles()	13
+method	net.runelite.api.Scene	removeGameObject	removeGameObject(GameObject)	1
+method	net.runelite.api.ScriptEvent	getOp	getOp()	1
+method	net.runelite.api.ScriptEvent	getSource	getSource()	1
+method	net.runelite.api.ScriptEvent	getTypedKeyCode	getTypedKeyCode()	3
+method	net.runelite.api.Skill	getName	getName()	3
+method	net.runelite.api.Tile	getDecorativeObject	getDecorativeObject()	3
+method	net.runelite.api.Tile	getGameObjects	getGameObjects()	8
+method	net.runelite.api.Tile	getGroundItems	getGroundItems()	5
+method	net.runelite.api.Tile	getGroundObject	getGroundObject()	6
+method	net.runelite.api.Tile	getItemLayer	getItemLayer()	2
+method	net.runelite.api.Tile	getLocalLocation	getLocalLocation()	5
+method	net.runelite.api.Tile	getWallObject	getWallObject()	4
+method	net.runelite.api.Tile	getWorldLocation	getWorldLocation()	1
+method	net.runelite.api.TileItem	getId	getId()	10
+method	net.runelite.api.TileObject	getClickbox	getClickbox()	3
+method	net.runelite.api.TileObject	getId	getId()	18
+method	net.runelite.api.TileObject	getLocalLocation	getLocalLocation()	3
+method	net.runelite.api.TileObject	getWorldLocation	getWorldLocation()	2
+method	net.runelite.api.TileObject	getWorldView	getWorldView()	3
+method	net.runelite.api.WallObject	getConvexHull	getConvexHull()	2
+method	net.runelite.api.WallObject	getConvexHull2	getConvexHull2()	1
+method	net.runelite.api.WallObject	getRenderable1	getRenderable1()	1
+method	net.runelite.api.WallObject	getRenderable2	getRenderable2()	1
+method	net.runelite.api.WorldEntity	getConfig	getConfig()	1
+method	net.runelite.api.WorldEntity	transformToMainWorld	transformToMainWorld(LocalPoint)	4
+method	net.runelite.api.WorldEntityConfig	getId	getId()	1
+method	net.runelite.api.WorldView	getId	getId()	4
+method	net.runelite.api.WorldView	getMapRegions	getMapRegions()	1
+method	net.runelite.api.WorldView	getPlane	getPlane()	16
+method	net.runelite.api.WorldView	getScene	getScene()	12
+method	net.runelite.api.WorldView	isTopLevel	isTopLevel()	4
+method	net.runelite.api.WorldView	npcs	npcs()	14
+method	net.runelite.api.WorldView	worldEntities	worldEntities()	5
+method	net.runelite.api.WorldView	worldViews	worldViews()	3
+method	net.runelite.api.coords.LocalPoint	distanceTo	distanceTo(LocalPoint)	4
+method	net.runelite.api.coords.LocalPoint	getSceneX	getSceneX()	10
+method	net.runelite.api.coords.LocalPoint	getSceneY	getSceneY()	10
+method	net.runelite.api.coords.LocalPoint	getWorldView	getWorldView()	7
+method	net.runelite.api.coords.LocalPoint	getX	getX()	14
+method	net.runelite.api.coords.LocalPoint	getY	getY()	14
+method	net.runelite.api.coords.WorldPoint	distanceTo2D	distanceTo2D(WorldPoint)	4
+method	net.runelite.api.coords.WorldPoint	distanceTo__WorldPoint	distanceTo(WorldPoint)	15
+method	net.runelite.api.coords.WorldPoint	dx	dx(int)	2
+method	net.runelite.api.coords.WorldPoint	dy	dy(int)	2
+method	net.runelite.api.coords.WorldPoint	dz	dz(int)	28
+method	net.runelite.api.coords.WorldPoint	getPlane	getPlane()	42
+method	net.runelite.api.coords.WorldPoint	getRegionID	getRegionID()	4
+method	net.runelite.api.coords.WorldPoint	getRegionX	getRegionX()	4
+method	net.runelite.api.coords.WorldPoint	getRegionY	getRegionY()	4
+method	net.runelite.api.coords.WorldPoint	getX	getX()	48
+method	net.runelite.api.coords.WorldPoint	getY	getY()	47
+method	net.runelite.api.coords.WorldPoint	isInScene__Client	isInScene(Client)	3
+method	net.runelite.api.events.ChatMessage	getMessage	getMessage()	24
+method	net.runelite.api.events.ChatMessage	getTimestamp	getTimestamp()	1
+method	net.runelite.api.events.ChatMessage	getType	getType()	17
+method	net.runelite.api.events.CommandExecuted	getArguments	getArguments()	5
+method	net.runelite.api.events.CommandExecuted	getCommand	getCommand()	5
+method	net.runelite.api.events.DecorativeObjectDespawned	getDecorativeObject	getDecorativeObject()	1
+method	net.runelite.api.events.DecorativeObjectSpawned	getDecorativeObject	getDecorativeObject()	1
+method	net.runelite.api.events.GameObjectDespawned	getGameObject	getGameObject()	1
+method	net.runelite.api.events.GameObjectSpawned	getGameObject	getGameObject()	1
+method	net.runelite.api.events.GameStateChanged	getGameState	getGameState()	14
+method	net.runelite.api.events.GrandExchangeSearched	consume	consume()	1
+method	net.runelite.api.events.GraphicsObjectCreated	getGraphicsObject	getGraphicsObject()	1
+method	net.runelite.api.events.GroundObjectDespawned	getGroundObject	getGroundObject()	1
+method	net.runelite.api.events.GroundObjectSpawned	getGroundObject	getGroundObject()	1
+method	net.runelite.api.events.InteractingChanged	getSource	getSource()	1
+method	net.runelite.api.events.InteractingChanged	getTarget	getTarget()	2
+method	net.runelite.api.events.ItemContainerChanged	getContainerId	getContainerId()	7
+method	net.runelite.api.events.ItemContainerChanged	getItemContainer	getItemContainer()	5
+method	net.runelite.api.events.ItemDespawned	getItem	getItem()	2
+method	net.runelite.api.events.ItemDespawned	getTile	getTile()	1
+method	net.runelite.api.events.ItemSpawned	getItem	getItem()	2
+method	net.runelite.api.events.ItemSpawned	getTile	getTile()	1
+method	net.runelite.api.events.MenuEntryAdded	getActionParam0	getActionParam0()	4
+method	net.runelite.api.events.MenuEntryAdded	getActionParam1	getActionParam1()	4
+method	net.runelite.api.events.MenuEntryAdded	getIdentifier	getIdentifier()	1
+method	net.runelite.api.events.MenuEntryAdded	getMenuEntry	getMenuEntry()	7
+method	net.runelite.api.events.MenuEntryAdded	getOption	getOption()	5
+method	net.runelite.api.events.MenuEntryAdded	getTarget	getTarget()	2
+method	net.runelite.api.events.MenuOptionClicked	consume	consume()	1
+method	net.runelite.api.events.MenuOptionClicked	getItemId	getItemId()	1
+method	net.runelite.api.events.MenuOptionClicked	getMenuEntry	getMenuEntry()	1
+method	net.runelite.api.events.MenuOptionClicked	getMenuOption	getMenuOption()	3
+method	net.runelite.api.events.MenuOptionClicked	getMenuTarget	getMenuTarget()	1
+method	net.runelite.api.events.MenuOptionClicked	getParam1	getParam1()	1
+method	net.runelite.api.events.MenuOptionClicked	getWidget	getWidget()	2
+method	net.runelite.api.events.NpcChanged	getNpc	getNpc()	8
+method	net.runelite.api.events.NpcDespawned	getNpc	getNpc()	5
+method	net.runelite.api.events.NpcSpawned	getNpc	getNpc()	6
+method	net.runelite.api.events.ScriptCallbackEvent	getEventName	getEventName()	1
+method	net.runelite.api.events.ScriptPostFired	getScriptId	getScriptId()	4
+method	net.runelite.api.events.ScriptPreFired	getScriptEvent	getScriptEvent()	1
+method	net.runelite.api.events.ScriptPreFired	getScriptId	getScriptId()	2
+method	net.runelite.api.events.VarbitChanged	getValue	getValue()	12
+method	net.runelite.api.events.VarbitChanged	getVarbitId	getVarbitId()	9
+method	net.runelite.api.events.VarbitChanged	getVarpId	getVarpId()	8
+method	net.runelite.api.events.WallObjectDespawned	getWallObject	getWallObject()	1
+method	net.runelite.api.events.WallObjectSpawned	getWallObject	getWallObject()	1
+method	net.runelite.api.events.WidgetClosed	getGroupId	getGroupId()	1
+method	net.runelite.api.events.WidgetLoaded	getGroupId	getGroupId()	16
+method	net.runelite.api.widgets.JavaScriptCallback	run	run(ScriptEvent)	13
+method	net.runelite.api.widgets.Widget	clearActions	clearActions()	2
+method	net.runelite.api.widgets.Widget	contains	contains(Point)	1
+method	net.runelite.api.widgets.Widget	createChild__int_int	createChild(int_int)	26
+method	net.runelite.api.widgets.Widget	deleteAllChildren	deleteAllChildren()	3
+method	net.runelite.api.widgets.Widget	getAnimationId	getAnimationId()	3
+method	net.runelite.api.widgets.Widget	getBounds	getBounds()	81
+method	net.runelite.api.widgets.Widget	getCanvasLocation	getCanvasLocation()	37
+method	net.runelite.api.widgets.Widget	getChild	getChild(int)	23
+method	net.runelite.api.widgets.Widget	getChildren	getChildren()	17
+method	net.runelite.api.widgets.Widget	getDynamicChildren	getDynamicChildren()	9
+method	net.runelite.api.widgets.Widget	getHeight	getHeight()	27
+method	net.runelite.api.widgets.Widget	getId	getId()	3
+method	net.runelite.api.widgets.Widget	getIndex	getIndex()	2
+method	net.runelite.api.widgets.Widget	getItemId	getItemId()	23
+method	net.runelite.api.widgets.Widget	getItemQuantity	getItemQuantity()	5
+method	net.runelite.api.widgets.Widget	getModelId	getModelId()	7
+method	net.runelite.api.widgets.Widget	getName	getName()	3
+method	net.runelite.api.widgets.Widget	getNestedChildren	getNestedChildren()	2
+method	net.runelite.api.widgets.Widget	getOnKeyListener	getOnKeyListener()	1
+method	net.runelite.api.widgets.Widget	getOriginalHeight	getOriginalHeight()	2
+method	net.runelite.api.widgets.Widget	getOriginalWidth	getOriginalWidth()	1
+method	net.runelite.api.widgets.Widget	getOriginalX	getOriginalX()	10
+method	net.runelite.api.widgets.Widget	getOriginalY	getOriginalY()	10
+method	net.runelite.api.widgets.Widget	getParent	getParent()	1
+method	net.runelite.api.widgets.Widget	getRelativeY	getRelativeY()	3
+method	net.runelite.api.widgets.Widget	getRotationY	getRotationY()	2
+method	net.runelite.api.widgets.Widget	getScrollHeight	getScrollHeight()	3
+method	net.runelite.api.widgets.Widget	getScrollY	getScrollY()	1
+method	net.runelite.api.widgets.Widget	getSpriteId	getSpriteId()	5
+method	net.runelite.api.widgets.Widget	getStaticChildren	getStaticChildren()	8
+method	net.runelite.api.widgets.Widget	getText	getText()	74
+method	net.runelite.api.widgets.Widget	getWidth	getWidth()	19
+method	net.runelite.api.widgets.Widget	isHidden	isHidden()	25
+method	net.runelite.api.widgets.Widget	isSelfHidden	isSelfHidden()	1
+method	net.runelite.api.widgets.Widget	revalidate	revalidate()	34
+method	net.runelite.api.widgets.Widget	setAction	setAction(int_String)	17
+method	net.runelite.api.widgets.Widget	setAnimationId	setAnimationId(int)	2
+method	net.runelite.api.widgets.Widget	setChildren	setChildren(WidgetArr)	1
+method	net.runelite.api.widgets.Widget	setDragDeadTime	setDragDeadTime(int)	1
+method	net.runelite.api.widgets.Widget	setFontId	setFontId(int)	10
+method	net.runelite.api.widgets.Widget	setHasListener	setHasListener(boolean)	6
+method	net.runelite.api.widgets.Widget	setHidden	setHidden(boolean)	12
+method	net.runelite.api.widgets.Widget	setItemId	setItemId(int)	3
+method	net.runelite.api.widgets.Widget	setItemQuantity	setItemQuantity(int)	4
+method	net.runelite.api.widgets.Widget	setItemQuantityMode	setItemQuantityMode(int)	2
+method	net.runelite.api.widgets.Widget	setModelId	setModelId(int)	5
+method	net.runelite.api.widgets.Widget	setModelType	setModelType(int)	2
+method	net.runelite.api.widgets.Widget	setModelZoom	setModelZoom(int)	5
+method	net.runelite.api.widgets.Widget	setName	setName(String)	3
+method	net.runelite.api.widgets.Widget	setNoClickThrough	setNoClickThrough(boolean)	2
+method	net.runelite.api.widgets.Widget	setOnClickListener	setOnClickListener(ObjectArr)	5
+method	net.runelite.api.widgets.Widget	setOnDragCompleteListener	setOnDragCompleteListener(ObjectArr)	2
+method	net.runelite.api.widgets.Widget	setOnDragListener	setOnDragListener(ObjectArr)	2
+method	net.runelite.api.widgets.Widget	setOnKeyListener	setOnKeyListener(ObjectArr)	2
+method	net.runelite.api.widgets.Widget	setOnMouseLeaveListener	setOnMouseLeaveListener(ObjectArr)	2
+method	net.runelite.api.widgets.Widget	setOnMouseOverListener	setOnMouseOverListener(ObjectArr)	1
+method	net.runelite.api.widgets.Widget	setOnOpListener	setOnOpListener(ObjectArr)	7
+method	net.runelite.api.widgets.Widget	setOnTimerListener	setOnTimerListener(ObjectArr)	2
+method	net.runelite.api.widgets.Widget	setOpacity	setOpacity(int)	3
+method	net.runelite.api.widgets.Widget	setOriginalHeight	setOriginalHeight(int)	23
+method	net.runelite.api.widgets.Widget	setOriginalWidth	setOriginalWidth(int)	23
+method	net.runelite.api.widgets.Widget	setOriginalX	setOriginalX(int)	18
+method	net.runelite.api.widgets.Widget	setOriginalY	setOriginalY(int)	23
+method	net.runelite.api.widgets.Widget	setRotationX	setRotationX(int)	5
+method	net.runelite.api.widgets.Widget	setRotationY	setRotationY(int)	1
+method	net.runelite.api.widgets.Widget	setRotationZ	setRotationZ(int)	4
+method	net.runelite.api.widgets.Widget	setScrollHeight	setScrollHeight(int)	1
+method	net.runelite.api.widgets.Widget	setSpriteId	setSpriteId(int)	11
+method	net.runelite.api.widgets.Widget	setText	setText(String)	21
+method	net.runelite.api.widgets.Widget	setTextColor	setTextColor(int)	14
+method	net.runelite.api.widgets.Widget	setTextShadowed	setTextShadowed(boolean)	3
+method	net.runelite.api.widgets.Widget	setType	setType(int)	2
+method	net.runelite.api.widgets.Widget	setWidthMode	setWidthMode(int)	3
+method	net.runelite.api.widgets.Widget	setXPositionMode	setXPositionMode(int)	13
+method	net.runelite.api.widgets.Widget	setXTextAlignment	setXTextAlignment(int)	9
+method	net.runelite.api.widgets.Widget	setYPositionMode	setYPositionMode(int)	13
+method	net.runelite.api.widgets.Widget	setYTextAlignment	setYTextAlignment(int)	5
+method	net.runelite.api.worldmap.WorldMap	getWorldMapData	getWorldMapData()	2
+method	net.runelite.api.worldmap.WorldMap	getWorldMapPosition	getWorldMapPosition()	1
+method	net.runelite.api.worldmap.WorldMap	getWorldMapZoom	getWorldMapZoom()	1
+method	net.runelite.api.worldmap.WorldMapData	surfaceContainsPosition	surfaceContainsPosition(int_int)	3
+method	net.runelite.client.callback.ClientThread	invokeAtTickEnd	invokeAtTickEnd(Runnable)	5
+method	net.runelite.client.callback.ClientThread	invokeLater__BooleanSupplier	invokeLater(BooleanSupplier)	1
+method	net.runelite.client.callback.ClientThread	invokeLater__Runnable	invokeLater(Runnable)	36
+method	net.runelite.client.callback.ClientThread	invoke__BooleanSupplier	invoke(BooleanSupplier)	2
+method	net.runelite.client.callback.Hooks	registerRenderableDrawListener	registerRenderableDrawListener(RenderableDrawListener)	1
+method	net.runelite.client.callback.Hooks	unregisterRenderableDrawListener	unregisterRenderableDrawListener(RenderableDrawListener)	1
+method	net.runelite.client.callback.Hooks$RenderableDrawListener	draw	draw(Renderable_boolean)	1
+method	net.runelite.client.chat.ChatMessageBuilder	append__ChatColorType	append(ChatColorType)	4
+method	net.runelite.client.chat.ChatMessageBuilder	append__String	append(String)	7
+method	net.runelite.client.chat.ChatMessageBuilder	build	build()	3
+method	net.runelite.client.chat.ChatMessageManager	queue	queue(QueuedMessage)	4
+method	net.runelite.client.chat.QueuedMessage$QueuedMessageBuilder	build	build()	4
+method	net.runelite.client.chat.QueuedMessage$QueuedMessageBuilder	name	name(String)	1
+method	net.runelite.client.chat.QueuedMessage$QueuedMessageBuilder	runeLiteFormattedMessage	runeLiteFormattedMessage(String)	4
+method	net.runelite.client.chat.QueuedMessage$QueuedMessageBuilder	timestamp	timestamp(int)	2
+method	net.runelite.client.chat.QueuedMessage$QueuedMessageBuilder	type	type(ChatMessageType)	4
+method	net.runelite.client.config.ConfigManager	getConfig	getConfig(Class)	1
+method	net.runelite.client.config.ConfigManager	getConfiguration__String_String	getConfiguration(String_String)	3
+method	net.runelite.client.config.ConfigManager	getConfiguration__String_String_String	getConfiguration(String_String_String)	1
+method	net.runelite.client.config.ConfigManager	getConfiguration__String_String_String_Type	getConfiguration(String_String_String_Type)	2
+method	net.runelite.client.config.ConfigManager	getRSProfileConfiguration__String_String	getRSProfileConfiguration(String_String)	13
+method	net.runelite.client.config.ConfigManager	getRSProfileConfiguration__String_String_Type	getRSProfileConfiguration(String_String_Type)	3
+method	net.runelite.client.config.ConfigManager	getRSProfileKey	getRSProfileKey()	8
+method	net.runelite.client.config.ConfigManager	setConfiguration__String_String_Object	setConfiguration(String_String_Object)	41
+method	net.runelite.client.config.ConfigManager	setConfiguration__String_String_String	setConfiguration(String_String_String)	6
+method	net.runelite.client.config.ConfigManager	setConfiguration__String_String_String_String	setConfiguration(String_String_String_String)	1
+method	net.runelite.client.config.ConfigManager	setRSProfileConfiguration	setRSProfileConfiguration(String_String_Object)	13
+method	net.runelite.client.config.ConfigManager	unsetConfiguration__String_String	unsetConfiguration(String_String)	2
+method	net.runelite.client.config.ConfigManager	unsetRSProfileConfiguration	unsetRSProfileConfiguration(String_String)	3
+method	net.runelite.client.eventbus.EventBus	post	post(Object)	5
+method	net.runelite.client.eventbus.EventBus	register__Object	register(Object)	10
+method	net.runelite.client.eventbus.EventBus	unregister__Object	unregister(Object)	9
+method	net.runelite.client.events.ConfigChanged	getGroup	getGroup()	4
+method	net.runelite.client.events.ConfigChanged	getKey	getKey()	14
+method	net.runelite.client.events.ConfigChanged	getNewValue	getNewValue()	4
+method	net.runelite.client.events.ServerNpcLoot	getComposition	getComposition()	1
+method	net.runelite.client.game.FishingSpot	getIds	getIds()	2
+method	net.runelite.client.game.ItemManager	getImage__int	getImage(int)	5
+method	net.runelite.client.game.ItemManager	getImage__int_int_boolean	getImage(int_int_boolean)	1
+method	net.runelite.client.game.ItemManager	getItemComposition	getItemComposition(int)	19
+method	net.runelite.client.game.ItemManager	getItemOutline	getItemOutline(int_int_Color)	2
+method	net.runelite.client.game.SpriteManager	getSprite	getSprite(int_int)	6
+method	net.runelite.client.game.chatbox.ChatboxPanelManager	close	close()	5
+method	net.runelite.client.game.chatbox.ChatboxPanelManager	getContainerWidget	getContainerWidget()	3
+method	net.runelite.client.game.chatbox.ChatboxPanelManager	getCurrentInput	getCurrentInput()	2
+method	net.runelite.client.game.chatbox.ChatboxPanelManager	openInput	openInput(ChatboxInput)	1
+method	net.runelite.client.game.chatbox.ChatboxPanelManager	shouldTakeInput	shouldTakeInput()	2
+method	net.runelite.client.plugins.bank.BankSearch	layoutBank	layoutBank()	1
+method	net.runelite.client.plugins.bank.BankSearch	reset	reset(boolean)	4
+method	net.runelite.client.plugins.timetracking.farming.Produce	getHarvestStages	getHarvestStages()	1
+method	net.runelite.client.plugins.timetracking.farming.Produce	getRegrowTickrate	getRegrowTickrate()	1
+method	net.runelite.client.plugins.timetracking.farming.Produce	getStages	getStages()	36
+method	net.runelite.client.plugins.timetracking.farming.Produce	getTickrate	getTickrate()	1
+method	net.runelite.client.ui.ClientToolbar	addNavigation	addNavigation(NavigationButton)	1
+method	net.runelite.client.ui.ClientToolbar	openPanel	openPanel(NavigationButton)	1
+method	net.runelite.client.ui.ClientToolbar	removeNavigation	removeNavigation(NavigationButton)	1
+method	net.runelite.client.ui.NavigationButton$NavigationButtonBuilder	build	build()	1
+method	net.runelite.client.ui.NavigationButton$NavigationButtonBuilder	icon	icon(BufferedImage)	1
+method	net.runelite.client.ui.NavigationButton$NavigationButtonBuilder	panel	panel(PluginPanel)	1
+method	net.runelite.client.ui.NavigationButton$NavigationButtonBuilder	priority	priority(int)	1
+method	net.runelite.client.ui.NavigationButton$NavigationButtonBuilder	tooltip	tooltip(String)	1
+method	net.runelite.client.ui.overlay.Overlay	getLayer	getLayer()	3
+method	net.runelite.client.ui.overlay.Overlay	setDragTargetable	setDragTargetable(boolean)	1
+method	net.runelite.client.ui.overlay.Overlay	setLayer	setLayer(OverlayLayer)	10
+method	net.runelite.client.ui.overlay.Overlay	setPosition	setPosition(OverlayPosition)	6
+method	net.runelite.client.ui.overlay.Overlay	setPriority__OverlayPriority	setPriority(OverlayPriority)	2
+method	net.runelite.client.ui.overlay.Overlay	setPriority__float	setPriority(float)	2
+method	net.runelite.client.ui.overlay.OverlayManager	add	add(Overlay)	8
+method	net.runelite.client.ui.overlay.OverlayManager	remove	remove(Overlay)	9
+method	net.runelite.client.ui.overlay.OverlayManager	saveOverlay	saveOverlay(Overlay)	1
+method	net.runelite.client.ui.overlay.OverlayPanel	render	render(Graphics2D)	4
+method	net.runelite.client.ui.overlay.components.LayoutableRenderableEntity	getBounds	getBounds()	1
+method	net.runelite.client.ui.overlay.components.LayoutableRenderableEntity	setPreferredLocation	setPreferredLocation(Point)	2
+method	net.runelite.client.ui.overlay.components.LineComponent$LineComponentBuilder	build	build()	23
+method	net.runelite.client.ui.overlay.components.LineComponent$LineComponentBuilder	left	left(String)	23
+method	net.runelite.client.ui.overlay.components.LineComponent$LineComponentBuilder	leftColor	leftColor(Color)	14
+method	net.runelite.client.ui.overlay.components.LineComponent$LineComponentBuilder	right	right(String)	5
+method	net.runelite.client.ui.overlay.components.LineComponent$LineComponentBuilder	rightColor	rightColor(Color)	5
+method	net.runelite.client.ui.overlay.components.PanelComponent	getChildren	getChildren()	22
+method	net.runelite.client.ui.overlay.outline.ModelOutlineRenderer	drawOutline__Actor_int_Color_int	drawOutline(Actor_int_Color_int)	1
+method	net.runelite.client.ui.overlay.outline.ModelOutlineRenderer	drawOutline__RuneLiteObject_int_Color_int	drawOutline(RuneLiteObject_int_Color_int)	1
+method	net.runelite.client.ui.overlay.outline.ModelOutlineRenderer	drawOutline__TileObject_int_Color_int	drawOutline(TileObject_int_Color_int)	2
+method	net.runelite.client.ui.overlay.tooltip.TooltipManager	add	add(Tooltip)	1
+method	net.runelite.client.ui.overlay.worldmap.WorldMapPoint	getWorldPoint	getWorldPoint()	1
+method	net.runelite.client.ui.overlay.worldmap.WorldMapPoint	isCurrentlyEdgeSnapped	isCurrentlyEdgeSnapped()	2
+method	net.runelite.client.ui.overlay.worldmap.WorldMapPoint	onEdgeSnap	onEdgeSnap()	1
+method	net.runelite.client.ui.overlay.worldmap.WorldMapPoint	onEdgeUnsnap	onEdgeUnsnap()	1
+method	net.runelite.client.ui.overlay.worldmap.WorldMapPoint	setImage	setImage(BufferedImage)	5
+method	net.runelite.client.ui.overlay.worldmap.WorldMapPoint	setImagePoint	setImagePoint(Point)	3
+method	net.runelite.client.ui.overlay.worldmap.WorldMapPoint	setJumpOnClick	setJumpOnClick(boolean)	1
+method	net.runelite.client.ui.overlay.worldmap.WorldMapPoint	setName	setName(String)	1
+method	net.runelite.client.ui.overlay.worldmap.WorldMapPoint	setSnapToEdge	setSnapToEdge(boolean)	1
+method	net.runelite.client.ui.overlay.worldmap.WorldMapPointManager	add	add(WorldMapPoint)	2
+method	net.runelite.client.ui.overlay.worldmap.WorldMapPointManager	remove	remove(WorldMapPoint)	1
+method	net.runelite.client.ui.overlay.worldmap.WorldMapPointManager	removeIf	removeIf(Predicate)	1
+method	org.apache.commons.lang3.tuple.Pair	getLeft	getLeft()	5
+method	org.apache.commons.lang3.tuple.Pair	getRight	getRight()	5
+method	org.slf4j.Logger	debug__String	debug(String)	2
+method	org.slf4j.Logger	debug__String_Object	debug(String_Object)	2
+method	org.slf4j.Logger	debug__String_ObjectArr	debug(String_ObjectArr)	4
+method	org.slf4j.Logger	debug__String_Object_Object	debug(String_Object_Object)	4
+method	org.slf4j.Logger	error__String	error(String)	2
+method	org.slf4j.Logger	warn__String	warn(String)	5
+method	org.slf4j.Logger	warn__String_Object	warn(String_Object)	2
+sfield	java.awt.Color	BLACK	BLACK	1
+sfield	java.awt.Color	BLUE	BLUE	1
+sfield	java.awt.Color	CYAN	CYAN	2
+sfield	java.awt.Color	GRAY	GRAY	3
+sfield	java.awt.Color	GREEN	GREEN	1
+sfield	java.awt.Color	LIGHT_GRAY	LIGHT_GRAY	2
+sfield	java.awt.Color	MAGENTA	MAGENTA	1
+sfield	java.awt.Color	ORANGE	ORANGE	1
+sfield	java.awt.Color	RED	RED	2
+sfield	java.awt.Color	WHITE	WHITE	3
+sfield	java.awt.font.TextAttribute	UNDERLINE	UNDERLINE	1
+sfield	java.awt.font.TextAttribute	UNDERLINE_ON	UNDERLINE_ON	1
+sfield	java.lang.Boolean	FALSE	FALSE	1
+sfield	java.lang.Boolean	TRUE	TRUE	1
+sfield	java.util.Collections	EMPTY_LIST	EMPTY_LIST	74
+sfield	java.util.Locale	ROOT	ROOT	6
+sfield	net.runelite.api.Perspective	COSINE14	COSINE14	1
+sfield	net.runelite.api.Perspective	SINE14	SINE14	1
+sfield	net.runelite.client.ui.ColorScheme	BRAND_ORANGE_TRANSPARENT	BRAND_ORANGE_TRANSPARENT	8
+sfield	net.runelite.client.ui.JagexColors	CHAT_GAME_EXAMINE_TEXT_OPAQUE_BACKGROUND	CHAT_GAME_EXAMINE_TEXT_OPAQUE_BACKGROUND	2
+sfield	net.runelite.client.ui.JagexColors	YELLOW_INTERFACE_TEXT	YELLOW_INTERFACE_TEXT	1
+static	com.google.common.collect.ArrayListMultimap	create__	create()	1
+static	com.google.common.collect.HashMultimap	create__	create()	1
+static	com.google.common.collect.ImmutableList	of__Object	of(Object)	1
+static	com.google.common.collect.ImmutableList	of__Object_Object	of(Object_Object)	14
+static	com.google.common.collect.ImmutableList	of__Object_Object_Object	of(Object_Object_Object)	6
+static	com.google.common.collect.ImmutableList	of__Object_Object_Object_Object	of(Object_Object_Object_Object)	23
+static	com.google.common.collect.ImmutableList	of__Object_Object_Object_Object_Object	of(Object_Object_Object_Object_Object)	37
+static	com.google.common.collect.ImmutableList	of__Object_Object_Object_Object_Object_Object	of(Object_Object_Object_Object_Object_Object)	10
+static	com.google.common.collect.ImmutableList	of__Object_Object_Object_Object_Object_Object_Object	of(Object_Object_Object_Object_Object_Object_Object)	9
+static	com.google.common.collect.ImmutableList	of__Object_Object_Object_Object_Object_Object_Object_Object	of(Object_Object_Object_Object_Object_Object_Object_Object)	13
+static	com.google.common.collect.ImmutableList	of__Object_Object_Object_Object_Object_Object_Object_Object_Object	of(Object_Object_Object_Object_Object_Object_Object_Object_Object)	11
+static	com.google.common.collect.ImmutableList	of__Object_Object_Object_Object_Object_Object_Object_Object_Object_Object	of(Object_Object_Object_Object_Object_Object_Object_Object_Object_Object)	4
+static	com.google.common.collect.ImmutableList	of__Object_Object_Object_Object_Object_Object_Object_Object_Object_Object_Object	of(Object_Object_Object_Object_Object_Object_Object_Object_Object_Object_Object)	2
+static	com.google.common.collect.ImmutableList	of__Object_Object_Object_Object_Object_Object_Object_Object_Object_Object_Object_Object_ObjectArr	of(Object_Object_Object_Object_Object_Object_Object_Object_Object_Object_Object_Object_ObjectArr)	43
+static	com.google.common.collect.Lists	reverse	reverse(List)	4
+static	com.google.common.collect.Multimaps	unmodifiableMultimap__Multimap	unmodifiableMultimap(Multimap)	1
+static	com.google.common.collect.Sets	immutableEnumSet__Enum_EnumArr	immutableEnumSet(Enum_EnumArr)	2
+static	com.google.common.primitives.Ints	contains	contains(intArr_int)	2
+static	com.google.common.primitives.Shorts	toArray	toArray(Collection)	2
+static	java.lang.Character	toUpperCase__char	toUpperCase(char)	3
+static	java.lang.Enum	valueOf	valueOf(Class_String)	2
+static	java.lang.Integer	parseInt__String	parseInt(String)	21
+static	java.lang.Integer	parseInt__String_int	parseInt(String_int)	4
+static	java.lang.Integer	toString__int	toString(int)	13
+static	java.lang.Long	parseLong__String	parseLong(String)	1
+static	java.lang.Math	abs__double	abs(double)	1
+static	java.lang.Math	abs__int	abs(int)	14
+static	java.lang.Math	atan	atan(double)	3
+static	java.lang.Math	atan2	atan2(double_double)	5
+static	java.lang.Math	ceil	ceil(double)	4
+static	java.lang.Math	cos	cos(double)	2
+static	java.lang.Math	floorMod__int_int	floorMod(int_int)	36
+static	java.lang.Math	max__int_int	max(int_int)	22
+static	java.lang.Math	min__int_int	min(int_int)	16
+static	java.lang.Math	pow	pow(double_double)	1
+static	java.lang.Math	round__double	round(double)	1
+static	java.lang.Math	sin	sin(double)	2
+static	java.lang.String	format__String_ObjectArr	format(String_ObjectArr)	10
+static	java.lang.String	join__CharSequence_CharSequenceArr	join(CharSequence_CharSequenceArr)	2
+static	java.lang.String	valueOf__Object	valueOf(Object)	1
+static	java.lang.String	valueOf__int	valueOf(int)	11
+static	java.lang.System	arraycopy	arraycopy(Object_int_Object_int_int)	3
+static	java.lang.System	currentTimeMillis	currentTimeMillis()	2
+static	java.math.BigInteger	valueOf__long	valueOf(long)	2
+static	java.time.Instant	now__	now()	1
+static	java.util.Arrays	asList	asList(ObjectArr)	1980
+static	java.util.Arrays	copyOf__ObjectArr_int	copyOf(ObjectArr_int)	3
+static	java.util.Arrays	equals__ObjectArr_ObjectArr	equals(ObjectArr_ObjectArr)	1
+static	java.util.Arrays	equals__intArr_intArr	equals(intArr_intArr)	3
+static	java.util.Arrays	fill__intArr_int	fill(intArr_int)	1
+static	java.util.Arrays	hashCode__intArr	hashCode(intArr)	1
+static	java.util.Arrays	stream__ObjectArr	stream(ObjectArr)	26
+static	java.util.Arrays	stream__intArr	stream(intArr)	9
+static	java.util.Arrays	toString__intArr	toString(intArr)	1
+static	java.util.Collections	addAll	addAll(Collection_ObjectArr)	10
+static	java.util.Collections	emptyList	emptyList()	9
+static	java.util.Collections	reverse	reverse(List)	4
+static	java.util.Collections	singletonList	singletonList(Object)	786
+static	java.util.Collections	singletonMap	singletonMap(Object_Object)	3
+static	java.util.Collections	unmodifiableMap	unmodifiableMap(Map)	1
+static	java.util.Collections	unmodifiableSet	unmodifiableSet(Set)	1
+static	java.util.Comparator	comparing__Function	comparing(Function)	6
+static	java.util.Comparator	comparing__Function_Comparator	comparing(Function_Comparator)	2
+static	java.util.Comparator	reverseOrder	reverseOrder()	2
+static	java.util.EnumSet	of__Enum_EnumArr	of(Enum_EnumArr)	1
+static	java.util.List	of__	of()	30
+static	java.util.List	of__Object	of(Object)	426
+static	java.util.List	of__ObjectArr	of(ObjectArr)	80
+static	java.util.List	of__Object_Object	of(Object_Object)	291
+static	java.util.List	of__Object_Object_Object	of(Object_Object_Object)	363
+static	java.util.List	of__Object_Object_Object_Object	of(Object_Object_Object_Object)	120
+static	java.util.List	of__Object_Object_Object_Object_Object	of(Object_Object_Object_Object_Object)	81
+static	java.util.List	of__Object_Object_Object_Object_Object_Object	of(Object_Object_Object_Object_Object_Object)	51
+static	java.util.List	of__Object_Object_Object_Object_Object_Object_Object	of(Object_Object_Object_Object_Object_Object_Object)	38
+static	java.util.List	of__Object_Object_Object_Object_Object_Object_Object_Object	of(Object_Object_Object_Object_Object_Object_Object_Object)	20
+static	java.util.List	of__Object_Object_Object_Object_Object_Object_Object_Object_Object	of(Object_Object_Object_Object_Object_Object_Object_Object_Object)	23
+static	java.util.List	of__Object_Object_Object_Object_Object_Object_Object_Object_Object_Object	of(Object_Object_Object_Object_Object_Object_Object_Object_Object_Object)	12
+static	java.util.Map	of__Object_Object_Object_Object_Object_Object	of(Object_Object_Object_Object_Object_Object)	8
+static	java.util.Objects	equals__Object_Object	equals(Object_Object)	11
+static	java.util.Objects	isNull	isNull(Object)	1
+static	java.util.Objects	nonNull	nonNull(Object)	17
+static	java.util.Objects	requireNonNull__Object	requireNonNull(Object)	1
+static	java.util.Optional	empty	empty()	1
+static	java.util.Optional	of	of(Object)	4
+static	java.util.Set	of__Object	of(Object)	3
+static	java.util.Set	of__Object_Object_Object_Object	of(Object_Object_Object_Object)	2
+static	java.util.function.UnaryOperator	identity	identity()	1
+static	java.util.regex.Pattern	compile__String	compile(String)	18
+static	java.util.regex.Pattern	compile__String_int	compile(String_int)	1
+static	java.util.stream.Collectors	joining__CharSequence	joining(CharSequence)	2
+static	java.util.stream.Collectors	toCollection	toCollection(Supplier)	3
+static	java.util.stream.Collectors	toList	toList()	22
+static	java.util.stream.Collectors	toMap__Function_Function	toMap(Function_Function)	1
+static	java.util.stream.Collectors	toMap__Function_Function_BinaryOperator	toMap(Function_Function_BinaryOperator)	1
+static	java.util.stream.Collectors	toSet	toSet()	10
+static	java.util.stream.Collectors	toUnmodifiableList	toUnmodifiableList()	6
+static	java.util.stream.IntStream	of__intArr	of(intArr)	1
+static	java.util.stream.IntStream	range	range(int_int)	2
+static	java.util.stream.Stream	concat	concat(Stream_Stream)	3
+static	java.util.stream.Stream	of__ObjectArr	of(ObjectArr)	6
+static	javax.swing.SwingUtilities	invokeLater	invokeLater(Runnable)	8
+static	net.runelite.api.JagexColor	rgbToHSL	rgbToHSL(int_double)	1
+static	net.runelite.api.Perspective	getCanvasImageLocation	getCanvasImageLocation(Client_LocalPoint_BufferedImage_int)	1
+static	net.runelite.api.Perspective	getCanvasTilePoly__Client_LocalPoint	getCanvasTilePoly(Client_LocalPoint)	3
+static	net.runelite.api.Perspective	getCanvasTilePoly__Client_LocalPoint_int	getCanvasTilePoly(Client_LocalPoint_int)	3
+static	net.runelite.api.Perspective	getClickbox	getClickbox(Client_WorldView_Model_int_int_int_int)	2
+static	net.runelite.api.Perspective	getTileHeight	getTileHeight(Client_LocalPoint_int)	4
+static	net.runelite.api.Perspective	localToCanvas__Client_LocalPoint_int_int	localToCanvas(Client_LocalPoint_int_int)	2
+static	net.runelite.api.Perspective	localToCanvas__Client_int_int_int	localToCanvas(Client_int_int_int)	2
+static	net.runelite.api.Perspective	localToMinimap__Client_LocalPoint	localToMinimap(Client_LocalPoint)	2
+static	net.runelite.api.Perspective	localToMinimap__Client_LocalPoint_int	localToMinimap(Client_LocalPoint_int)	2
+static	net.runelite.api.Skill	values	values()	1
+static	net.runelite.api.coords.LocalPoint	fromWorld__Client_WorldPoint	fromWorld(Client_WorldPoint)	5
+static	net.runelite.api.coords.LocalPoint	fromWorld__WorldView_WorldPoint	fromWorld(WorldView_WorldPoint)	4
+static	net.runelite.api.coords.WorldPoint	fromCoord	fromCoord(int)	1
+static	net.runelite.api.coords.WorldPoint	fromLocalInstance__Client_LocalPoint	fromLocalInstance(Client_LocalPoint)	17
+static	net.runelite.api.coords.WorldPoint	fromLocalInstance__Client_LocalPoint_int	fromLocalInstance(Client_LocalPoint_int)	3
+static	net.runelite.api.coords.WorldPoint	fromLocal__Client_LocalPoint	fromLocal(Client_LocalPoint)	1
+static	net.runelite.api.coords.WorldPoint	fromLocal__WorldView_int_int_int	fromLocal(WorldView_int_int_int)	1
+static	net.runelite.api.coords.WorldPoint	fromRegion	fromRegion(int_int_int_int)	7
+static	net.runelite.api.coords.WorldPoint	toLocalInstance__WorldView_WorldPoint	toLocalInstance(WorldView_WorldPoint)	2
+static	net.runelite.client.RuneLite	getInjector	getInjector()	1
+static	net.runelite.client.chat.QueuedMessage	builder	builder()	4
+static	net.runelite.client.config.RuneScapeProfileType	getCurrent	getCurrent(Client)	3
+static	net.runelite.client.ui.FontManager	getRunescapeBoldFont	getRunescapeBoldFont()	1
+static	net.runelite.client.ui.FontManager	getRunescapeFont	getRunescapeFont()	10
+static	net.runelite.client.ui.NavigationButton	builder	builder()	1
+static	net.runelite.client.ui.overlay.OverlayUtil	renderHoverableArea	renderHoverableArea(Graphics2D_Shape_Point_Color_Color_Color)	3
+static	net.runelite.client.ui.overlay.OverlayUtil	renderImageLocation__Graphics2D_Point_BufferedImage	renderImageLocation(Graphics2D_Point_BufferedImage)	3
+static	net.runelite.client.ui.overlay.OverlayUtil	renderPolygon__Graphics2D_Shape_Color	renderPolygon(Graphics2D_Shape_Color)	7
+static	net.runelite.client.ui.overlay.OverlayUtil	renderTextLocation	renderTextLocation(Graphics2D_Point_String_Color)	1
+static	net.runelite.client.ui.overlay.OverlayUtil	renderTileOverlay__Client_Graphics2D_LocalPoint_BufferedImage_Color	renderTileOverlay(Client_Graphics2D_LocalPoint_BufferedImage_Color)	5
+static	net.runelite.client.ui.overlay.components.LineComponent	builder	builder()	23
+static	net.runelite.client.util.ColorUtil	colorWithAlpha	colorWithAlpha(Color_int)	5
+static	net.runelite.client.util.ColorUtil	wrapWithColorTag	wrapWithColorTag(String_Color)	1
+static	net.runelite.client.util.ImageUtil	fillImage	fillImage(BufferedImage_Color)	1
+static	net.runelite.client.util.ImageUtil	loadImageResource	loadImageResource(Class_String)	2
+static	net.runelite.client.util.ImageUtil	resizeImage__BufferedImage_int_int_boolean	resizeImage(BufferedImage_int_int_boolean)	1
+static	net.runelite.client.util.QuantityFormatter	formatNumber__long	formatNumber(long)	3
+static	net.runelite.client.util.QuantityFormatter	quantityToStackSize	quantityToStackSize(long)	2
+static	net.runelite.client.util.Text	removeTags	removeTags(String)	6
+static	net.runelite.client.util.Text	sanitize	sanitize(String)	1
+static	net.runelite.client.util.Text	titleCase	titleCase(Enum)	10
+static	org.apache.commons.lang3.StringUtils	substringBetween__String_String_String	substringBetween(String_String_String)	1
+static	org.apache.commons.lang3.tuple.Pair	of	of(Object_Object)	2
+static	org.slf4j.LoggerFactory	getLogger__Class	getLogger(Class)	27

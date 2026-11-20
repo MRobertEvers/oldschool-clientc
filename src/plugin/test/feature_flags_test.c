@@ -490,6 +490,68 @@ fake_draw_rect(
     (void)a;
     return 0;
 }
+/* The Quest Helper drawing hooks; nothing here draws a polygon or reads a map. */
+static int
+fake_draw_polygon(void* u, int const* xs, int const* ys, int count, uint32_t fill_rgb,
+    int fill_alpha, uint32_t outline_rgb, int outline_width)
+{
+    (void)u;
+    (void)xs;
+    (void)ys;
+    (void)fill_rgb;
+    (void)fill_alpha;
+    (void)outline_rgb;
+    (void)outline_width;
+    return count;
+}
+static int
+fake_text_width(void* u, char const* text)
+{
+    (void)u;
+    (void)text;
+    return -1;
+}
+static int
+fake_text_height(void* u)
+{
+    (void)u;
+    return -1;
+}
+static int
+fake_minimap_project(void* u, int fine_x, int fine_z, int* out_x, int* out_y)
+{
+    (void)u;
+    (void)fine_x;
+    (void)fine_z;
+    (void)out_x;
+    (void)out_y;
+    return 0;
+}
+static int
+fake_minimap_bounds(void* u, struct ToriRS_MinimapBounds* out)
+{
+    (void)u;
+    (void)out;
+    return 0;
+}
+static int
+fake_worldmap_project(void* u, int tile_x, int tile_z, int level, int* out_x, int* out_y)
+{
+    (void)u;
+    (void)tile_x;
+    (void)tile_z;
+    (void)level;
+    (void)out_x;
+    (void)out_y;
+    return 0;
+}
+static int
+fake_worldmap_bounds(void* u, struct ToriRS_Rect* out)
+{
+    (void)u;
+    (void)out;
+    return 0;
+}
 static void
 fake_draw_select_canvas(
     void* u,
@@ -1123,6 +1185,13 @@ fake_engine(void)
     e.draw_line = fake_draw_line;
     e.draw_text = fake_draw_text;
     e.draw_rect = fake_draw_rect;
+    e.draw_polygon = fake_draw_polygon;
+    e.text_width = fake_text_width;
+    e.text_height = fake_text_height;
+    e.minimap_project = fake_minimap_project;
+    e.minimap_bounds = fake_minimap_bounds;
+    e.worldmap_project = fake_worldmap_project;
+    e.worldmap_bounds = fake_worldmap_bounds;
     e.draw_select_canvas = fake_draw_select_canvas;
     e.mouse_pos = fake_mouse_pos;
     e.component_rect = fake_component_rect;

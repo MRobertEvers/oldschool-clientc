@@ -10,7 +10,7 @@
  *
  * Coverage by layer:
  *     64  VM core
- *    432  host commands
+ *    444  host commands
  *      9  host commands (db)
  *     10  host commands (inv)
  *      8  host commands (loc)
@@ -19,7 +19,7 @@
  *      2  host commands (param)
  *      8  host commands (player)
  *     18  host commands (poh)
- *    573  total, of 621 declared opcodes
+ *    585  total, of 633 declared opcodes
  */
 
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_OPCODE_COVERAGE_GEN_H
@@ -27,8 +27,8 @@
 
 #include <stdint.h>
 
-#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 573
-#define TORIRSSERVER_OPCODE_DECLARED_COUNT 621
+#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 585
+#define TORIRSSERVER_OPCODE_DECLARED_COUNT 633
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -37,7 +37,7 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define TORIRSSERVER_OPCODE_VALUE_LIMIT 11328
+#define TORIRSSERVER_OPCODE_VALUE_LIMIT 11372
 
 /* Ascending, so a lookup can binary-search. */
 static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_COUNT] = {
@@ -614,6 +614,18 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     11325, /* SS_OP_GE_OFFER_COLLECT (host commands) */
     11326, /* SS_OP_SEND_VARP_LONG (host commands) */
     11327, /* SS_OP_P_ORIENTATION (host commands) */
+    11360, /* SS_OP_FRIENDCHAT_PREFIX (host commands) */
+    11361, /* SS_OP_FRIENDCHAT_ENABLED (host commands) */
+    11362, /* SS_OP_FRIENDCHAT_ENTERRANK (host commands) */
+    11363, /* SS_OP_FRIENDCHAT_TALKRANK (host commands) */
+    11364, /* SS_OP_FRIENDCHAT_KICKRANK (host commands) */
+    11365, /* SS_OP_FRIENDCHAT_SETENTERRANK (host commands) */
+    11366, /* SS_OP_FRIENDCHAT_SETTALKRANK (host commands) */
+    11367, /* SS_OP_FRIENDCHAT_SETKICKRANK (host commands) */
+    11368, /* SS_OP_FRIENDCHAT_SETPREFIX (host commands) */
+    11369, /* SS_OP_FRIENDCHAT_DISABLE (host commands) */
+    11370, /* SS_OP_FRIENDCHAT_REJOINNAME (host commands) */
+    11371, /* SS_OP_FRIENDCHAT_CURRENT (host commands) */
 };
 
 #endif

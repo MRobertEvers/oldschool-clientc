@@ -1865,6 +1865,42 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # `midi_song` is the model, down to -1 meaning stop, because the two
     # answer the same question about the same square.
     "AMBIENTSOUND": (11038, 1, 0, 0, 0),
+
+    # Friends chat: the active player's own channel, as the chat-channel setup
+    # panel (interface 94) reads and changes it. The channel itself is the
+    # engine's (src/torirsserver/torirs_server_friendchat.h): it outlives the
+    # owner's session and answers joins from other players, so content asks it
+    # rather than keeping a copy in varps. Ranks are the wire's (-1 anyone, 0
+    # friends, 1..6 Recruit..General, 7 only the owner).
+    #
+    # The setters return what the change did, for content to word: 0 nothing
+    # to say, 1 a 100-tick window opened ("Changes will take effect on your
+    # friends channel in the next 60 seconds."), 2 the channel was enabled now
+    # (RSProx index 753 [25], [75], [753]).
+    #
+    # friendchat_prefix()(string) -- "Test Fc Name", "" if never set
+    "FRIENDCHAT_PREFIX": (11360, 0, 0, 0, 1),
+    # friendchat_enabled()(int)
+    "FRIENDCHAT_ENABLED": (11361, 0, 0, 1, 0),
+    # friendchat_enterrank()(int), friendchat_talkrank()(int), friendchat_kickrank()(int)
+    "FRIENDCHAT_ENTERRANK": (11362, 0, 0, 1, 0),
+    "FRIENDCHAT_TALKRANK": (11363, 0, 0, 1, 0),
+    "FRIENDCHAT_KICKRANK": (11364, 0, 0, 1, 0),
+    # friendchat_setenterrank(int)(int), friendchat_settalkrank(int)(int),
+    # friendchat_setkickrank(int)(int)
+    "FRIENDCHAT_SETENTERRANK": (11365, 1, 0, 1, 0),
+    "FRIENDCHAT_SETTALKRANK": (11366, 1, 0, 1, 0),
+    "FRIENDCHAT_SETKICKRANK": (11367, 1, 0, 1, 0),
+    # friendchat_setprefix(string)(int) -- also enables the channel
+    "FRIENDCHAT_SETPREFIX": (11368, 0, 1, 1, 0),
+    # friendchat_disable()(int)
+    "FRIENDCHAT_DISABLE": (11369, 0, 0, 1, 0),
+    # friendchat_rejoinname()(string) -- the owner whose channel the player
+    # was in at logout ("" for none), for clientscript chatchannel_login
+    "FRIENDCHAT_REJOINNAME": (11370, 0, 0, 0, 1),
+    # friendchat_current()(string) -- the owner of the channel the player is
+    # in now, "" for none
+    "FRIENDCHAT_CURRENT": (11371, 0, 0, 0, 1),
 }
 
 # ---------------------------------------------------------------------------
@@ -2022,6 +2058,18 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_SETOPS": (1 << POINTER_BITS["active_npc"], 0),
     "MES_SPAM": (1 << POINTER_BITS["active_player"], 0),
     "MES_TYPED": (1 << POINTER_BITS["active_player"], 0),
+    "FRIENDCHAT_PREFIX": (1 << POINTER_BITS["active_player"], 0),
+    "FRIENDCHAT_ENABLED": (1 << POINTER_BITS["active_player"], 0),
+    "FRIENDCHAT_ENTERRANK": (1 << POINTER_BITS["active_player"], 0),
+    "FRIENDCHAT_TALKRANK": (1 << POINTER_BITS["active_player"], 0),
+    "FRIENDCHAT_KICKRANK": (1 << POINTER_BITS["active_player"], 0),
+    "FRIENDCHAT_SETENTERRANK": (1 << POINTER_BITS["active_player"], 0),
+    "FRIENDCHAT_SETTALKRANK": (1 << POINTER_BITS["active_player"], 0),
+    "FRIENDCHAT_SETKICKRANK": (1 << POINTER_BITS["active_player"], 0),
+    "FRIENDCHAT_SETPREFIX": (1 << POINTER_BITS["active_player"], 0),
+    "FRIENDCHAT_DISABLE": (1 << POINTER_BITS["active_player"], 0),
+    "FRIENDCHAT_REJOINNAME": (1 << POINTER_BITS["active_player"], 0),
+    "FRIENDCHAT_CURRENT": (1 << POINTER_BITS["active_player"], 0),
     "P_RUNBLOCK": (1 << POINTER_BITS["active_player"], 0),
     "MIDI_SONG_ENVELOPE": (1 << POINTER_BITS["active_player"], 0),
     "NPC_SETDEATHTYPE": (1 << POINTER_BITS["active_npc"], 0),

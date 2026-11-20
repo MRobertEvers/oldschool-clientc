@@ -1091,6 +1091,10 @@ exec_zone_map_anim(
         /* The row exists now; its body lands later. */
         (void)App_WorldSpotanimSpawn(
             app, tile_x, tile_z, level, pkt->id, pkt->height, pkt->delay);
+        /* GraphicsObjectCreated: the root scene's graphics only, as the
+         * loc rows are the root world's. */
+        if( world == app->world )
+            App_PluginMapAnim(app, tile_x, tile_z, level, pkt->id, pkt->height, pkt->delay);
         zone_view_origin(app, at->view, &origin_x, &origin_z);
         App_DriveMapAnimNote(app, origin_x + tile_x, origin_z + tile_z, level, pkt->id);
     }
@@ -3398,8 +3402,9 @@ exec_server_tick_end(struct AppGameProtoCtx const* ctx)
      * agrees with what the server believes. Anything sampled mid-tick
      * is reading a half-applied world. */
     ctx->app->drive_events.batch_open = 0;
-    PluginHost_ServerTick(
-        ctx->app->plugins, ctx->app->world ? ctx->app->world->cycle : 0);
+    if( ctx->app->plugins )
+        PluginHost_ServerTick(
+            ctx->app->plugins, ctx->app->world ? ctx->app->world->cycle : 0);
 }
 
 static void

@@ -4946,6 +4946,10 @@ rs_cs2_item_search_clear(struct RS_CS2Host* host)
     host->item_search_index = 0;
 }
 
+/* The most ids a plugin's answer to the GE search may give (RuneLite caps its
+ * own at 250). */
+#define RS_CS2_ITEM_SEARCH_HOOK_MAX 256
+
 /* OC_FIND/OC_FINDNEXT/OC_FINDRESET: a stateful item-name search. FIND scans
  * every resident objtype for a lowercased name substring (yielding once to
  * bulk-load the obj group first), FINDNEXT walks the matches in ascending id
@@ -4978,6 +4982,28 @@ exec_oc_find(
 
     /* OC_FIND: start a fresh search, discarding any previous results. */
     rs_cs2_item_search_clear(host);
+
+    /* The GE search, offered to the plugins first (RuneLite's
+     * GrandExchangeSearched): an answer replaces the scan. */
+    if( ge_tradeable_only && host->item_search && query && query[0] != '\0' )
+    {
+        int ids[RS_CS2_ITEM_SEARCH_HOOK_MAX];
+        int const n = host->item_search(
+            host->item_search_user, query, true, ids, RS_CS2_ITEM_SEARCH_HOOK_MAX);
+        if( n >= 0 )
+        {
+            if( n > 0 )
+            {
+                host->item_search_results = ToriMem_Calloc(ToriMem_Script(), (size_t)n, sizeof(int));
+                assert(host->item_search_results);
+                memcpy(host->item_search_results, ids, sizeof(int) * (size_t)n);
+            }
+            host->item_search_count = n;
+            host->item_search_cap = n;
+            host->item_search_index = 0;
+            return CS2VM2_PushInt(thread, n);
+        }
+    }
 
     if( query && query[0] != '\0' )
     {
@@ -13190,6 +13216,7 @@ rs_cs2_host_exec_dispatch(
     F(tree) F(provider) F(invs) F(varps) F(stats) F(social) F(chat) F(chat_filter_mode) F(bridge)  \
     F(events_override_for_component) F(events_user) F(if_written) F(if_written_user)               \
     F(script_callback) F(script_callback_user) F(script_callback_running) F(loc_at_coord)          \
+    F(item_search) F(item_search_user)                                                             \
     F(coord_in_scene) F(player_slot_by_name) F(worldentity_config_name) F(npc_by_uid)               \
     F(widget_model_lazy) F(widget_npc_head_lazy) F(widget_model_direct) F(widget_obj_icon_lazy)    \
     F(widget_loc_model_lazy) F(widget_obj_model_lazy) F(pack_models_lazy) F(widget_visual_cancel)  \

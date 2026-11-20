@@ -122,8 +122,42 @@ struct UITreeWidgetGeometry
     /* Native re-skin: serial 0 = never stated. */
     uint64_t art_serial, mask_serial;
     int art_scene_id, mask_scene_id;
+    /* Native text / colour (UITree_WidgetSetNativeText/Color): serial 0 =
+     * never stated. `text` is this edit's own copy (ToriMem_Ui), freed with
+     * the edit. */
+    uint64_t text_serial, text_color_serial;
+    char* text;
+    int text_color;
+    /* Native obj / transparency (UITree_WidgetSetNativeObject /
+     * SetNativeTransparency): WRITTEN THROUGH to the node, so every reader of
+     * a cell (the emit's icon and stack count, the minimenu, detail) sees the
+     * plugin's obj with no override path of its own. `native_*` is the game's
+     * value from before the first edit of that aspect on this node -- every
+     * edit of the aspect carries the same copy -- and is what a reset puts
+     * back once no edit is left. Serial 0 = never stated. */
+    uint64_t obj_serial;
+    int obj_id, obj_count, obj_scene_id, obj_atlas_index;
+    /* The count rule the edit draws with (item_num_mode: 0 stackable-only,
+     * 1 always, 2 never); -1 = the game's own (native_obj_num_mode). */
+    int obj_num_mode;
+    bool obj_native_saved;
+    int native_obj_id, native_obj_count, native_obj_scene_id, native_obj_atlas_index, native_obj_num_mode;
+    uint64_t trans_serial;
+    int trans;
+    bool trans_native_saved;
+    int native_trans;
+    /* Native hide (UITree_WidgetSetNativeHidden): the node's own hide bits,
+     * written through the same way. */
+    uint64_t hide_serial;
+    bool hide;
+    bool hide_native_saved;
+    uint8_t native_hide_behavior, native_hide_native;
 };
 static uint64_t widget_geometry_serial;
+static bool uitree_set_object(struct UITree* tree, int32_t idx, int obj_id, int obj_count,
+                              int scene_id, int atlas_index, int num_mode);
+static bool uitree_set_transparency(struct UITree* tree, int32_t idx, int transparency);
+static bool uitree_set_hide(struct UITree* tree, int32_t idx, uint8_t behavior_hide, uint8_t native_hide);
 
 static int canvas_query_compact=-1;
 void UITree_CanvasQuerySetCompact(int enabled) { canvas_query_compact=enabled!=0; }
@@ -441,6 +475,7 @@ uitree_all_sets_clear(struct UITree* tree)
     tree->world_index = -1;
     tree->worldmap_index = -1;
     tree->entity_overlay_index = -1;
+    tree->mount_root_group = -1;
 }
 
 static uint32_t
@@ -1889,6 +1924,7 @@ uitree_widget_geometry_free_list(struct UITree* tree, struct UITreeWidgetGeometr
             tree->widget_anchor_edits--;
             tree->anchor_generation++;
         }
+        ToriMem_Free(ToriMem_Ui(), edit->text);
         ToriMem_Free(ToriMem_Ui(), edit);
         edit = next;
     }
@@ -1930,6 +1966,26 @@ uitree_park_edits(struct UITree* tree, int32_t parent_index, int32_t idx)
         memmove(tree->parked_edits, tree->parked_edits + 1,
                 sizeof(tree->parked_edits[0]) * (UITREE_PARKED_EDITS_MAX - 1));
         tree->parked_edit_count--;
+    }
+    /* A native TEXT edit is about the string the script is about to rewrite
+     * (a dialogue page's options are deleted and created again), so it does
+     * not survive the rebuild: carried over it would draw the old option's
+     * words over the new one, and nothing would ever take them back. */
+    for( struct UITreeWidgetGeometry* e = c->widget_geometry; e; e = e->next )
+    {
+        ToriMem_Free(ToriMem_Ui(), e->text);
+        e->text = NULL;
+        e->text_serial = 0;
+        e->text_color_serial = 0;
+        e->text_color = 0;
+        /* Same for an obj or transparency re-lay: about the cell that is
+         * going, and the copy of its native value with it. */
+        e->obj_serial = 0;
+        e->obj_native_saved = false;
+        e->trans_serial = 0;
+        e->trans_native_saved = false;
+        e->hide_serial = 0;
+        e->hide_native_saved = false;
     }
     slot = &tree->parked_edits[tree->parked_edit_count++];
     slot->parent_index = parent_index;
@@ -2295,6 +2351,11 @@ UITree_CheckpointGeometryDup(struct UITreeWidgetGeometry const* list)
 
         assert(copy);
         copy->next = NULL;
+        if( list->text )
+        {
+            copy->text = ToriMem_Strdup(ToriMem_Ui(), list->text);
+            assert(copy->text);
+        }
         *tail = copy;
         tail = &copy->next;
     }
@@ -2323,7 +2384,9 @@ UITree_CheckpointGeometryEqual(
             a->y != b->y || a->width != b->width || a->height != b->height || a->hidden != b->hidden ||
             a->outline != b->outline || a->anchor_relation != b->anchor_relation ||
             a->anchor_target.index != b->anchor_target.index || a->art_scene_id != b->art_scene_id ||
-            a->mask_scene_id != b->mask_scene_id )
+            a->mask_scene_id != b->mask_scene_id || a->text_color != b->text_color ||
+            (a->text_serial != 0) != (b->text_serial != 0) ||
+            strcmp(a->text ? a->text : "", b->text ? b->text : "") != 0 )
             return 0;
     }
     return a == b;
@@ -2383,7 +2446,17 @@ uitree_clear(
     }
     tree->root_index = kept_first;
     tree->last_root_index = kept_last;
-    /* A kept group was never opened, so no mount record names it as a child. */
+    /* A kept group was never opened, so no mount record names it as a child.
+     * Every mount the table held, and the toplevel, closes with the tree. */
+    if( tree->mount_listener )
+    {
+        for( int i = 0; i < tree->interface_parent_count; i++ )
+            if( tree->interface_parents[i].group_id > 0 )
+                tree->mount_listener(tree->mount_listener_user, tree->interface_parents[i].group_id, 0);
+        if( tree->mount_root_group > 0 )
+            tree->mount_listener(tree->mount_listener_user, tree->mount_root_group, 0);
+    }
+    tree->mount_root_group = -1;
     tree->interface_parent_count = 0;
     tree->canvas_candidates_valid = 0;
     tree->generation++;
@@ -4398,6 +4471,12 @@ UITree_SetHideAt(
     struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
     if( !c )
         return false;
+    /* The game's own hide write drops a plugin's native hide edit. */
+    for( struct UITreeWidgetGeometry* e = c->widget_geometry; e; e = e->next )
+    {
+        e->hide_serial = 0;
+        e->hide_native_saved = false;
+    }
     hide = hide ? 1 : 0;
     /*
      * Writing the value that is already there and marking the node dirty anyway
@@ -4419,6 +4498,21 @@ UITree_SetHideAt(
         tree,
         idx,
         UITREE_IMPACT_EMIT_SELF | UITREE_IMPACT_REACHABILITY);
+    return true;
+}
+
+/* The hide bits as a plugin's native hide edit writes them (no drop). */
+static bool
+uitree_set_hide(struct UITree* tree, int32_t idx, uint8_t behavior_hide, uint8_t native_hide)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c )
+        return false;
+    if( c->behavior.hide == behavior_hide && c->native_hide == native_hide )
+        return true;
+    c->behavior.hide = behavior_hide;
+    c->native_hide = native_hide;
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF | UITREE_IMPACT_REACHABILITY);
     return true;
 }
 
@@ -4641,6 +4735,32 @@ UITree_ApplyClickMask(
     return true;
 }
 
+/*
+ * The game wrote this node's string (or colour) itself: a plugin's retained
+ * native edit of that aspect was about the value it replaced, and goes --
+ * RuneLite's order, where a script's setText overwrites a plugin's and the
+ * plugin writes again if it still wants to. Nothing to walk on a node no
+ * plugin edits.
+ */
+static void
+uitree_widget_native_write_drops_edits(struct UITreeComponent* c, bool text, bool colour)
+{
+    for( struct UITreeWidgetGeometry* e = c->widget_geometry; e; e = e->next )
+    {
+        if( text && e->text_serial )
+        {
+            ToriMem_Free(ToriMem_Ui(), e->text);
+            e->text = NULL;
+            e->text_serial = 0;
+        }
+        if( colour && e->text_color_serial )
+        {
+            e->text_color_serial = 0;
+            e->text_color = 0;
+        }
+    }
+}
+
 bool
 UITree_SetTextAt(
     struct UITree* tree,
@@ -4671,6 +4791,7 @@ UITree_SetTextAt(
     {
         ToriMem_Free(ToriMem_Ui(), (void*)c->u.rs_text.text);
         c->u.rs_text.text = copy;
+        uitree_widget_native_write_drops_edits(c, true, false);
     }
     else
     {
@@ -5242,6 +5363,190 @@ int UITree_WidgetClearSkin(struct UITree* tree, int scene_id)
     return cleared;
 }
 
+/* `edit` has just left node `idx`'s list: if it held the obj or the
+ * transparency the node shows, show the next newest edit's, or the game's own
+ * value when none is left. */
+static void
+uitree_widget_native_content_restore(struct UITree* tree, int32_t idx, struct UITreeWidgetGeometry const* edit)
+{
+    struct UITreeComponent* c = &tree->components[idx];
+    if( edit->obj_serial )
+    {
+        struct UITreeWidgetGeometry const* next = NULL;
+        bool won = true;
+        for( struct UITreeWidgetGeometry const* e = c->widget_geometry; e; e = e->next )
+        {
+            if( e->obj_serial > edit->obj_serial ) won = false;
+            if( e->obj_serial && (!next || e->obj_serial > next->obj_serial) ) next = e;
+        }
+        if( won && next )
+            (void)uitree_set_object(tree, idx, next->obj_id, next->obj_count, next->obj_scene_id,
+                                    next->obj_atlas_index,
+                                    next->obj_num_mode >= 0 ? next->obj_num_mode : next->native_obj_num_mode);
+        else if( won && edit->obj_native_saved )
+            (void)uitree_set_object(tree, idx, edit->native_obj_id, edit->native_obj_count,
+                                    edit->native_obj_scene_id, edit->native_obj_atlas_index,
+                                    edit->native_obj_num_mode);
+    }
+    if( edit->hide_serial )
+    {
+        struct UITreeWidgetGeometry const* next = NULL;
+        bool won = true;
+        for( struct UITreeWidgetGeometry const* e = c->widget_geometry; e; e = e->next )
+        {
+            if( e->hide_serial > edit->hide_serial ) won = false;
+            if( e->hide_serial && (!next || e->hide_serial > next->hide_serial) ) next = e;
+        }
+        if( won && next )
+            (void)uitree_set_hide(tree, idx, next->hide, next->hide);
+        else if( won && edit->hide_native_saved )
+            (void)uitree_set_hide(tree, idx, edit->native_hide_behavior, edit->native_hide_native);
+    }
+    if( edit->trans_serial )
+    {
+        struct UITreeWidgetGeometry const* next = NULL;
+        bool won = true;
+        for( struct UITreeWidgetGeometry const* e = c->widget_geometry; e; e = e->next )
+        {
+            if( e->trans_serial > edit->trans_serial ) won = false;
+            if( e->trans_serial && (!next || e->trans_serial > next->trans_serial) ) next = e;
+        }
+        if( won && next )
+            (void)uitree_set_transparency(tree, idx, next->trans);
+        else if( won && edit->trans_native_saved )
+            (void)uitree_set_transparency(tree, idx, edit->native_trans);
+    }
+}
+
+/* A native node whose obj a plugin may re-lay: a graphic or objbox cell. */
+static int32_t
+uitree_widget_native_cell(struct UITree* tree, struct UITreeNodeRef ref)
+{
+    int32_t idx = UITree_ResolveRef(tree, ref);
+    if( idx < 0 || widget_geometry_serial == UINT64_MAX )
+        return -1;
+    struct UITreeComponent const* c = &tree->components[idx];
+    if( c->plugin_owner || (c->type != UIELEM_RS_GRAPHIC && c->type != UIELEM_CC_OBJ) )
+        return -1;
+    return idx;
+}
+
+bool UITree_WidgetSetNativeObject(struct UITree* tree, struct UITreeNodeRef ref, uint64_t owner,
+                                  int obj_id, int obj_count, int scene_id, int num_mode)
+{
+    assert(num_mode >= -1);
+    assert(num_mode <= 2);
+    assert(tree);
+    assert(owner);
+    int32_t const idx = uitree_widget_native_cell(tree, ref);
+    if( idx < 0 )
+        return false;
+    struct UITreeComponent* c = &tree->components[idx];
+    struct UITreeWidgetGeometry* edit = uitree_widget_geometry(c, owner);
+    if( !edit )
+        return false;
+    if( obj_id < 0 )
+    {
+        obj_id = UITREE_NO_OBJ;
+        obj_count = 0;
+        scene_id = -1;
+    }
+    bool wins = edit->obj_serial != 0;
+    for( struct UITreeWidgetGeometry const* e = c->widget_geometry; e; e = e->next )
+        if( e != edit && e->obj_serial > edit->obj_serial ) wins = false;
+    /* A restatement already in force writes nothing. */
+    if( wins && edit->obj_id == obj_id && edit->obj_count == obj_count && edit->obj_scene_id == scene_id &&
+        edit->obj_num_mode == num_mode )
+        return true;
+    if( !edit->obj_native_saved )
+    {
+        /* The game's value: another edit's copy when there is one (the node
+         * shows THAT edit now), else what the node holds. */
+        struct UITreeWidgetGeometry const* held = NULL;
+        for( struct UITreeWidgetGeometry const* e = c->widget_geometry; e; e = e->next )
+            if( e != edit && e->obj_native_saved ) held = e;
+        edit->native_obj_id = held ? held->native_obj_id : c->item_id;
+        edit->native_obj_count = held ? held->native_obj_count : c->item_count;
+        edit->native_obj_scene_id = held ? held->native_obj_scene_id : c->item_scene_id;
+        edit->native_obj_atlas_index = held ? held->native_obj_atlas_index : c->item_atlas_index;
+        edit->native_obj_num_mode = held ? held->native_obj_num_mode : c->item_num_mode;
+        edit->obj_native_saved = true;
+    }
+    edit->obj_id = obj_id;
+    edit->obj_count = obj_count;
+    edit->obj_scene_id = scene_id;
+    edit->obj_atlas_index = 0;
+    edit->obj_num_mode = num_mode;
+    edit->obj_serial = ++widget_geometry_serial;
+    (void)uitree_set_object(tree, idx, obj_id, obj_count, scene_id, 0,
+                            num_mode >= 0 ? num_mode : edit->native_obj_num_mode);
+    return true;
+}
+
+bool UITree_WidgetSetNativeHidden(struct UITree* tree, struct UITreeNodeRef ref, uint64_t owner, bool hidden)
+{
+    assert(tree);
+    assert(owner);
+    int32_t const idx = UITree_ResolveRef(tree, ref);
+    if( idx < 0 || widget_geometry_serial == UINT64_MAX || tree->components[idx].plugin_owner )
+        return false;
+    struct UITreeComponent* c = &tree->components[idx];
+    struct UITreeWidgetGeometry* edit = uitree_widget_geometry(c, owner);
+    if( !edit )
+        return false;
+    bool wins = edit->hide_serial != 0;
+    for( struct UITreeWidgetGeometry const* e = c->widget_geometry; e; e = e->next )
+        if( e != edit && e->hide_serial > edit->hide_serial ) wins = false;
+    if( wins && edit->hide == hidden )
+        return true;
+    if( !edit->hide_native_saved )
+    {
+        struct UITreeWidgetGeometry const* held = NULL;
+        for( struct UITreeWidgetGeometry const* e = c->widget_geometry; e; e = e->next )
+            if( e != edit && e->hide_native_saved ) held = e;
+        edit->native_hide_behavior = held ? held->native_hide_behavior : c->behavior.hide;
+        edit->native_hide_native = held ? held->native_hide_native : c->native_hide;
+        edit->hide_native_saved = true;
+    }
+    edit->hide = hidden;
+    edit->hide_serial = ++widget_geometry_serial;
+    (void)uitree_set_hide(tree, idx, hidden ? 1 : 0, hidden ? 1 : 0);
+    return true;
+}
+
+bool UITree_WidgetSetNativeTransparency(struct UITree* tree, struct UITreeNodeRef ref, uint64_t owner,
+                                        int transparency)
+{
+    assert(tree);
+    assert(owner);
+    assert(transparency >= 0);
+    assert(transparency <= 255);
+    int32_t const idx = UITree_ResolveRef(tree, ref);
+    if( idx < 0 || widget_geometry_serial == UINT64_MAX || tree->components[idx].plugin_owner )
+        return false;
+    struct UITreeComponent* c = &tree->components[idx];
+    struct UITreeWidgetGeometry* edit = uitree_widget_geometry(c, owner);
+    if( !edit )
+        return false;
+    bool wins = edit->trans_serial != 0;
+    for( struct UITreeWidgetGeometry const* e = c->widget_geometry; e; e = e->next )
+        if( e != edit && e->trans_serial > edit->trans_serial ) wins = false;
+    if( wins && edit->trans == transparency )
+        return true;
+    if( !edit->trans_native_saved )
+    {
+        struct UITreeWidgetGeometry const* held = NULL;
+        for( struct UITreeWidgetGeometry const* e = c->widget_geometry; e; e = e->next )
+            if( e != edit && e->trans_native_saved ) held = e;
+        edit->native_trans = held ? held->native_trans : c->trans;
+        edit->trans_native_saved = true;
+    }
+    edit->trans = transparency;
+    edit->trans_serial = ++widget_geometry_serial;
+    (void)uitree_set_transparency(tree, idx, transparency);
+    return true;
+}
+
 bool UITree_WidgetReset(struct UITree* tree, struct UITreeNodeRef ref, uint64_t owner)
 {
     int32_t idx = UITree_ResolveRef(tree, ref);
@@ -5254,11 +5559,13 @@ bool UITree_WidgetReset(struct UITree* tree, struct UITreeNodeRef ref, uint64_t 
         {
             bool const anchored = edit->anchor_serial != 0;
             *link = edit->next;
+            uitree_widget_native_content_restore(tree, idx, edit);
             if( anchored )
             {
                 tree->widget_anchor_edits--;
                 tree->anchor_generation++;
             }
+            ToriMem_Free(ToriMem_Ui(), edit->text);
             ToriMem_Free(ToriMem_Ui(), edit);
             uitree_widget_refresh_hidden(tree,idx);
             uitree_note_mutation(tree, idx, UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_EMIT_SELF |
@@ -5281,6 +5588,103 @@ bool UITree_WidgetSetTextOutline(struct UITree* tree,struct UITreeNodeRef ref,ui
     edit->outline=outline;edit->outline_serial=++widget_geometry_serial;
     uitree_widget_refresh_hidden(tree,idx);
     return true;
+}
+
+/* A native text node this owner may edit, or -1. Owned controls carry their
+ * own text (UITree_SetTextAt through set_text) and are refused here. */
+static int32_t
+uitree_widget_native_text_node(struct UITree* tree, struct UITreeNodeRef ref)
+{
+    int32_t idx = UITree_ResolveRef(tree, ref);
+    if( idx < 0 || widget_geometry_serial == UINT64_MAX )
+        return -1;
+    struct UITreeComponent const* c = &tree->components[idx];
+    if( c->type != UIELEM_RS_TEXT || c->plugin_owner )
+        return -1;
+    return idx;
+}
+
+bool UITree_WidgetSetNativeText(struct UITree* tree, struct UITreeNodeRef ref, uint64_t owner, char const* text)
+{
+    assert(tree);
+    assert(owner);
+    assert(text);
+    assert(strlen(text) <= UITREE_WIDGET_NATIVE_TEXT_MAX);
+    int32_t const idx = uitree_widget_native_text_node(tree, ref);
+    if( idx < 0 )
+        return false;
+    struct UITreeComponent* c = &tree->components[idx];
+    struct UITreeWidgetGeometry* edit = uitree_widget_geometry(c, owner);
+    if( !edit )
+        return false;
+    /* A restated string the readers already see changes nothing: no serial,
+     * no dirty node, so a plugin may restate its highlight every frame. */
+    bool const same = edit->text_serial && edit->text && strcmp(edit->text, text) == 0;
+    if( same )
+    {
+        bool wins = true;
+        for( struct UITreeWidgetGeometry const* e = c->widget_geometry; e; e = e->next )
+            if( e != edit && e->text_serial > edit->text_serial ) wins = false;
+        if( wins )
+            return true;
+    }
+    if( !same )
+    {
+        char* copy = ToriMem_Strdup(ToriMem_Ui(), text);
+        assert(copy);
+        ToriMem_Free(ToriMem_Ui(), edit->text);
+        edit->text = copy;
+    }
+    edit->text_serial = ++widget_geometry_serial;
+    /* The string can change the line count, so the node re-lays itself. */
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_EMIT_SELF);
+    return true;
+}
+
+bool UITree_WidgetSetNativeTextColor(struct UITree* tree, struct UITreeNodeRef ref, uint64_t owner, int rgb)
+{
+    assert(tree);
+    assert(owner);
+    assert(rgb >= 0);
+    assert(rgb <= 0xffffff);
+    int32_t const idx = uitree_widget_native_text_node(tree, ref);
+    if( idx < 0 )
+        return false;
+    struct UITreeComponent* c = &tree->components[idx];
+    struct UITreeWidgetGeometry* edit = uitree_widget_geometry(c, owner);
+    if( !edit )
+        return false;
+    if( edit->text_color_serial && edit->text_color == rgb )
+    {
+        bool wins = true;
+        for( struct UITreeWidgetGeometry const* e = c->widget_geometry; e; e = e->next )
+            if( e != edit && e->text_color_serial > edit->text_color_serial ) wins = false;
+        if( wins )
+            return true;
+    }
+    edit->text_color = rgb;
+    edit->text_color_serial = ++widget_geometry_serial;
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
+    return true;
+}
+
+int UITree_WidgetNativeTextAt(struct UITree const* tree, int32_t idx, char const** out_text, int* out_rgb)
+{
+    assert(tree);
+    assert(out_text);
+    assert(out_rgb);
+    if( idx < 0 || (uint32_t)idx >= tree->component_count || tree->components[idx].freed )
+        return 0;
+    struct UITreeWidgetGeometry const* text = NULL;
+    struct UITreeWidgetGeometry const* color = NULL;
+    for( struct UITreeWidgetGeometry const* e = tree->components[idx].widget_geometry; e; e = e->next )
+    {
+        if( e->text_serial && (!text || e->text_serial > text->text_serial) ) text = e;
+        if( e->text_color_serial && (!color || e->text_color_serial > color->text_color_serial) ) color = e;
+    }
+    if( text ) *out_text = text->text;
+    if( color ) *out_rgb = color->text_color;
+    return (text ? 1 : 0) | (color ? 2 : 0);
 }
 
 bool UITree_WidgetSetProjectionHeight(struct UITree* tree,struct UITreeNodeRef ref,uint64_t owner,int height)
@@ -5378,6 +5782,32 @@ int32_t UITree_WidgetCreateGraphic(struct UITree* tree, struct UITreeNodeRef par
 {
     struct UITreeNodeSpec spec={0};
     spec.type=UIELEM_RS_GRAPHIC;
+    return uitree_widget_create_owned(tree,parent,owner,key,&spec);
+}
+
+/* Owned RECTANGLE: an outlined black box until set; colour/fill through
+ * UITree_SetColourAt / UITree_SetNativeIntAt(FILL), transparency through
+ * UITree_WidgetSetTransparency -- the same fields a cc_create'd rect has. */
+int32_t UITree_WidgetCreateRect(struct UITree* tree, struct UITreeNodeRef parent, uint64_t owner, char const* key)
+{
+    struct UITreeNodeSpec spec={0};
+    spec.type=UIELEM_RS_RECT;
+    spec.u.rs_rect.color=0;
+    spec.u.rs_rect.filled=0;
+    return uitree_widget_create_owned(tree,parent,owner,key,&spec);
+}
+
+/* Owned MODEL: draws nothing until a scene model is bound (UITree_SetModelAt);
+ * the cc_create defaults otherwise (zoom 100, no animation). */
+int32_t UITree_WidgetCreateModel(struct UITree* tree, struct UITreeNodeRef parent, uint64_t owner, char const* key)
+{
+    struct UITreeNodeSpec spec={0};
+    spec.type=UIELEM_RS_MODEL;
+    spec.u.rs_model.gamecache_model_id=-1;
+    spec.u.rs_model.active_model_id=-1;
+    spec.u.rs_model.anim_seq_id=-1;
+    spec.u.rs_model.active_anim_seq_id=-1;
+    spec.u.rs_model.zoom=100;
     return uitree_widget_create_owned(tree,parent,owner,key,&spec);
 }
 
@@ -5766,7 +6196,10 @@ UITree_SetColourAt(
     }
     c->colour = colour;
     if( c->type == UIELEM_RS_TEXT )
+    {
         c->u.rs_text.color = colour;
+        uitree_widget_native_write_drops_edits(c, false, true);
+    }
     else if( c->type == UIELEM_RS_RECT )
         c->u.rs_rect.color = colour;
     else if( c->type == UIELEM_RS_ARC )
@@ -5822,8 +6255,27 @@ UITree_ApplyFillColour(
     return UITree_SetFillColourAt(tree, idx, colour);
 }
 
+/* As UITree_SetObjectAt: the game's write drops a plugin's native
+ * transparency edit. */
 bool
 UITree_SetTransparencyAt(
+    struct UITree* tree,
+    int32_t idx,
+    int transparency)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c )
+        return false;
+    for( struct UITreeWidgetGeometry* e = c->widget_geometry; e; e = e->next )
+    {
+        e->trans_serial = 0;
+        e->trans_native_saved = false;
+    }
+    return uitree_set_transparency(tree, idx, transparency);
+}
+
+static bool
+uitree_set_transparency(
     struct UITree* tree,
     int32_t idx,
     int transparency)
@@ -6350,9 +6802,9 @@ UITree_ApplyScrollPos(
     return UITree_SetScrollPosAt(tree, idx, scroll_x, scroll_y);
 }
 
-bool
-UITree_SetObjectAt(struct UITree* tree, int32_t idx, int obj_id, int obj_count,
-                   int scene_id, int atlas_index, int num_mode)
+static bool
+uitree_set_object(struct UITree* tree, int32_t idx, int obj_id, int obj_count,
+                  int scene_id, int atlas_index, int num_mode)
 {
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
     struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
@@ -6376,6 +6828,23 @@ UITree_SetObjectAt(struct UITree* tree, int32_t idx, int obj_id, int obj_count,
     c->item_num_mode = (uint8_t)num_mode;
     uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
     return true;
+}
+
+/* The game (or the client for it) writes a cell's obj: a plugin's native obj
+ * edit was about the value this replaces and goes, RuneLite's order -- the
+ * script's setItemId wins until the plugin writes again. */
+bool
+UITree_SetObjectAt(struct UITree* tree, int32_t idx, int obj_id, int obj_count,
+                   int scene_id, int atlas_index, int num_mode)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c ) return false;
+    for( struct UITreeWidgetGeometry* e = c->widget_geometry; e; e = e->next )
+    {
+        e->obj_serial = 0;
+        e->obj_native_saved = false;
+    }
+    return uitree_set_object(tree, idx, obj_id, obj_count, scene_id, atlas_index, num_mode);
 }
 
 bool
@@ -7160,6 +7629,7 @@ UITree_InterfaceParentSet(
     assert(group_id > 0);
 
     idx = UITree_InterfaceParentFind(tree, container_uid);
+    int const previous = idx >= 0 ? tree->interface_parents[idx].group_id : -1;
     if( idx < 0 )
     {
         assert(tree->interface_parent_count < UITREE_INTERFACE_PARENT_MAX);
@@ -7168,7 +7638,43 @@ UITree_InterfaceParentSet(
     tree->interface_parents[idx].container_uid = container_uid;
     tree->interface_parents[idx].group_id = group_id;
     tree->interface_parents[idx].type = type;
+    /* A restatement of the same mount (a type change) is no news. */
+    if( tree->mount_listener && previous != group_id )
+    {
+        if( previous > 0 )
+            tree->mount_listener(tree->mount_listener_user, previous, 0);
+        tree->mount_listener(tree->mount_listener_user, group_id, 1);
+    }
     return idx;
+}
+
+void
+UITree_SetMountListener(
+    struct UITree* tree,
+    void (*listener)(void* user, int group_id, int open),
+    void* user)
+{
+    assert(tree);
+    tree->mount_listener = listener;
+    tree->mount_listener_user = listener ? user : NULL;
+}
+
+void
+UITree_MountNotifyRoot(
+    struct UITree* tree,
+    int group_id)
+{
+    assert(tree);
+    assert(group_id > 0);
+    if( tree->mount_root_group == group_id )
+        return;
+    int const previous = tree->mount_root_group;
+    tree->mount_root_group = group_id;
+    if( !tree->mount_listener )
+        return;
+    if( previous > 0 )
+        tree->mount_listener(tree->mount_listener_user, previous, 0);
+    tree->mount_listener(tree->mount_listener_user, group_id, 1);
 }
 
 void
@@ -7182,10 +7688,13 @@ UITree_InterfaceParentClear(
     idx = UITree_InterfaceParentFind(tree, container_uid);
     if( idx < 0 )
         return;
+    int const group_id = tree->interface_parents[idx].group_id;
     last = tree->interface_parent_count - 1;
     if( idx != last )
         tree->interface_parents[idx] = tree->interface_parents[last];
     tree->interface_parent_count--;
+    if( tree->mount_listener && group_id > 0 )
+        tree->mount_listener(tree->mount_listener_user, group_id, 0);
 }
 
 int

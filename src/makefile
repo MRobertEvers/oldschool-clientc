@@ -1184,7 +1184,7 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_ops_poh.c \
 	torirsserver/torirs_server_bank.c torirsserver/torirs_server_bank_tables.c torirsserver/torirs_server_container.c torirsserver/torirs_server_equipment.c \
 	torirsserver/torirs_server_shop.c \
-	torirsserver/torirs_server_friends.c \
+	torirsserver/torirs_server_friends.c torirsserver/torirs_server_friendchat.c \
 	torirsserver/torirs_server_ge.c \
 	torirsserver/torirs_server_ids.c \
 	torirsserver/torirs_server_boot.c torirsserver/torirs_server_save.c torirsserver/torirs_server_savefile.c torirsserver/torirs_server_hiscoreslog.c torirsserver/torirs_server_recording.c torirsserver/torirs_server_transport.c torirsserver/torirs_server_session.c \
@@ -2160,6 +2160,12 @@ test-cs2-math: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_math_ops_test \
 		cs2vm2/test/math_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_math_ops_test
+
+# The script hooks (ScriptPreFired / ScriptPostFired for watched ids).
+test-cs2-script-hooks: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_script_hook_test \
+		cs2vm2/test/script_hook_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_script_hook_test
 
 test-cs2-long: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_long_ops_test \
@@ -8551,6 +8557,18 @@ test-torirsserver-reconnect-claim: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o 
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_ReconnectClaimTest
+
+# The socket host keeps a player whose link went in the world, and a reconnect
+# re-attaches it instead of reloading it from the save; a reloaded page (a
+# fresh boot with a resume key) still gets a whole login. The real server
+# binary on a loopback port against the real client login machine over TCP.
+.PHONY: test-torirsserver-host-reattach
+test-torirsserver-host-reattach: $(TORIRSSERVER_BIN) $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_HostReattachTest \
+		torirsserver/test/host_reattach_test.c $(filter-out net/proto/proto_info.c,$(TORIRSSERVER_CORE_SRCS)) \
+		net/net_out.c \
+		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_HostReattachTest ./src/$(TORIRSSERVER_BIN) ./src/$(OBJ_DIR)
 
 # Passwords (torirs_server_auth.h): PBKDF2-HMAC-SHA256 against published
 # vectors, then logins through the real client login machine -- a first login

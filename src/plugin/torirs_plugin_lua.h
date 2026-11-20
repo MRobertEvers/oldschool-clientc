@@ -94,6 +94,29 @@ int PluginLua_AddScript(
     int source_len,
     uint32_t flags);
 
+/** What a plugin's manifest section says about its script beyond the source. */
+struct PluginLuaScriptOptions
+{
+    /** Script directory sandbox modules are read from ("plugins/quest_helper"),
+     *  or NULL for a script that has none. */
+    char const* module_root;
+    /** The manifest's budget=: instructions one outermost callback may run;
+     *  0 is the default (400000). Clamped to the host's ceiling. */
+    int step_budget;
+    /** The manifest's memory_mb=: the script's Lua heap cap in MiB; 0 (or a
+     *  negative value) is the default 16, more than 64 is clamped to 64. */
+    int memory_mb;
+};
+
+/** PluginLua_AddScript with the manifest's options. */
+int PluginLua_AddScriptEx(
+    struct ToriRS_PluginHost* host,
+    char const* name,
+    char const* source,
+    int source_len,
+    uint32_t flags,
+    struct PluginLuaScriptOptions const* options);
+
 /** Closes every script state. Called from the runtime host's own shutdown. */
 void PluginLua_Shutdown(void);
 

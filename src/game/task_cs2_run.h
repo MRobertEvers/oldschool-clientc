@@ -201,4 +201,39 @@ CreateTask_CS2StatTransmitDispatchSet(
 struct ToriRS_Task*
 CreateTask_CS2StatTransmitUnhideDispatch(struct RS_CS2Host* host);
 
+/*
+ * What a yielded host request is waiting for, for a runner that CANNOT wait
+ * (the plugin api's synchronous scripts.run): it abandons the run, queues the
+ * loads, and runs the script again on a later frame.
+ *
+ * `plan` is Task_CS2Run's own yield plan (opaque outside task_cs2_run.c) and
+ * ids[0..count) the records it loads, in the order the task awaits them; a
+ * negative id is a half the request does not need. count 0 is a plan that
+ * needs no load at all: resume the thread at once, exactly as the task does.
+ */
+struct CS2VM_HostRequest;
+struct CacheProvider;
+struct CS2RunAwait
+{
+    int plan;
+    int ids[2];
+    int count;
+};
+
+/** 1 with `out` filled; 0 when only Task_CS2Run's own resume can satisfy the
+ *  request (a component pack baked into the tree, a model set, an obj icon). */
+int
+CS2Run_RequestAwait(
+    struct RS_CS2Host* host,
+    struct CS2VM_HostRequest const* request,
+    struct CS2RunAwait* out);
+
+/** The load for ids[which], or NULL when that record is already resident or
+ *  there is nothing to load for it -- the CreateTask_*Load convention. */
+struct ToriRS_Task*
+CS2Run_RequestLoadTask(
+    struct CacheProvider* provider,
+    struct CS2RunAwait const* await,
+    int which);
+
 #endif /* TASK_CS2_RUN_H */

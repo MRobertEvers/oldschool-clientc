@@ -343,6 +343,10 @@ app_cs2_flush_notifications(struct App* app)
                         send.colour_effect));
                 break;
             case RS_CS2_SOCIAL_SEND_CHEAT:
+                /* The chatbox's own "::" line: the plugins hear it first
+                 * (on_command), and a consumed one goes nowhere. */
+                if( app_plugin_command(app, send.text) )
+                    break;
                 if( strncmp(send.text, "lootkill ", 9) == 0 )
                 {
                     char lk_source[64] = { 0 };

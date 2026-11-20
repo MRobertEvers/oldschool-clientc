@@ -28,8 +28,11 @@
  * negative size" on the reserved member and not as "you are out of slots".
  * Raising it once is cheaper than having the next module to grow read that
  * message and think the struct is corrupt.
+ *
+ * Sixteen since the cache module's twelfth verb (loc_def) left it no spare
+ * and sprite_image needed a thirteenth (2026-11-19).
  */
-#define TORIRS_API_V2_MODULE_RESERVED_SLOTS 12
+#define TORIRS_API_V2_MODULE_RESERVED_SLOTS 16
 #define TORIRS_DESCRIPTOR_V2_RESERVED_WORDS 8
 
 /* Existing module padding remains during the coordinated source migration.
@@ -168,6 +171,23 @@ struct ToriRS_DrawContext
  */
 #define TORIRS_TILE_OUTLINE_WIDTH_DEFAULT 2
 
+/** Vertices one ToriRS_Graphics::polygon call may carry. A zone outline is
+ *  one vertex per edge tile, so a 60x60 area is ~240. */
+#define TORIRS_DRAW_POLYGON_POINTS_MAX 256
+
+/** The minimap as drawn this frame, in the callback's pixels. */
+struct ToriRS_MinimapBounds
+{
+    /** The map widget's box: the scissor every minimap dot is drawn inside. */
+    struct ToriRS_Rect box;
+    /** The pixel the local player sits on (the box centre). */
+    int centre_x;
+    int centre_y;
+    /** The dot ring: the client draws no dot whose distance from the centre
+     *  exceeds this (MINIMAP_DOT_RADIUS_PIXELS, RuneLite's 6400 squared). */
+    int radius;
+};
+
 /* Callback-scoped graphics context, like Overlay.render(Graphics2D). It draws
  * primitives only; live UI is authored through widgets. Never retain it. */
 struct ToriRS_Graphics
@@ -251,6 +271,101 @@ struct ToriRS_Graphics
     bool (*context)(
         struct ToriRS_Graphics* draw,
         struct ToriRS_DrawContext* out);
+    /**
+     * A polygon in this callback's local pixels: a wash, a border, or both
+     * (Graphics2D.fill / draw of a java.awt.Polygon).
+     *
+     * `xs`/`ys` hold `count` vertices, 1..TORIRS_DRAW_POLYGON_POINTS_MAX; the
+     * last joins the first. The wash fills by the EVEN-ODD rule, the one
+     * java.awt.Polygon fills by, so a concave or self-crossing outline fills the
+     * way it does under Graphics2D -- the overlay layer's own fill is convex
+     * only, so the host splits anything else into convex pieces first. Each
+     * part is drawn only when its own number is non-zero: `fill_alpha` 0 is no
+     * wash, `outline_width` 0 no border. Under three points there is no wash;
+     * two points are one segment.
+     *
+     * Clipped to the callback's clip like every other primitive. The answer is
+     * the host's: BUDGET when the frame's draw allotment is spent.
+     */
+    enum ToriRS_Result (*polygon)(
+        struct ToriRS_Graphics* draw,
+        int const* xs,
+        int const* ys,
+        int count,
+        uint32_t fill_rgb,
+        int fill_alpha,
+        uint32_t outline_rgb,
+        int outline_width);
+    /**
+     * Width in pixels of `text` in the font `text` draws with (FontMetrics
+     * .stringWidth). -1 while that font is not resident yet -- the same frames
+     * on which `text` draws nothing.
+     *
+     * `text` draws CENTRED on its x with y as the baseline, so a caller laying
+     * text out from a left edge adds half of this. In a panel well's draw
+     * (on_ui_draw) it STARTS at x instead, on every presenter (the in-canvas
+     * and surface pages draw a chrome TEXT prim; the browser pages' raster
+     * moves the centred world text by half this width to match).
+     */
+    int (*text_width)(
+        struct ToriRS_Graphics* draw,
+        char const* text);
+    /** That font's line height in pixels (FontMetrics.getHeight), or -1 while
+     *  it is not resident. */
+    int (*text_height)(
+        struct ToriRS_Graphics* draw);
+    /** The callback-local pixel a scene-local fine point projects to at
+     *  `height` above the ground; api.draw.project in this callback's
+     *  coordinates. False when it is behind the camera or no scene is drawn. */
+    bool (*project)(
+        struct ToriRS_Graphics* draw,
+        int fine_x,
+        int fine_z,
+        int height,
+        int* out_x,
+        int* out_y);
+    /**
+     * Where a scene-local fine point lands on the minimap as the client drew
+     * it this frame (Perspective.localToMinimap): offset from the local
+     * player, four pixels a tile, turned by the angle the map was blitted at.
+     *
+     * False when the minimap is not drawn (closed, hidden by MINIMAP_TOGGLE,
+     * no local player) or the point is where the client would not draw a dot
+     * either: past the dot ring (@see ToriRS_MinimapBounds::radius) or outside
+     * the map's box.
+     */
+    bool (*minimap_project)(
+        struct ToriRS_Graphics* draw,
+        int fine_x,
+        int fine_z,
+        int* out_x,
+        int* out_y);
+    /** The drawn minimap, in this callback's pixels. False when it is not drawn. */
+    bool (*minimap_bounds)(
+        struct ToriRS_Graphics* draw,
+        struct ToriRS_MinimapBounds* out);
+    /**
+     * Where an absolute world tile's CENTRE lands on the open world map
+     * (WorldMapOverlay.mapWorldPointToGraphicsPoint): through the shown area's
+     * sections onto the map surface, then the view's centre and live zoom.
+     *
+     * False when the world map is closed or the shown area does not cover the
+     * tile at that level. A covered tile that is merely scrolled out of the
+     * view still answers, so a line to it can be clipped to
+     * worldmap_bounds rather than vanish.
+     */
+    bool (*worldmap_project)(
+        struct ToriRS_Graphics* draw,
+        int tile_x,
+        int tile_z,
+        int level,
+        int* out_x,
+        int* out_y);
+    /** The open world map's view rectangle in this callback's pixels. False
+     *  when it is closed. */
+    bool (*worldmap_bounds)(
+        struct ToriRS_Graphics* draw,
+        struct ToriRS_Rect* out);
 };
 
 /* ------------------------------------------------------------------------ */
@@ -559,6 +674,52 @@ struct ToriRS_MenuApi
         struct ToriRS_MenuBuildEvent* menu,
         char const* text,
         uint32_t action_id);
+    /**
+     * The whole menu of this build, bottom row first as the payload lists it
+     * (RuneLite's Menu.setMenuEntries / removeMenuEntry / createMenuEntry's
+     * index): each entry a payload row or one of this plugin's own rows from
+     * this handler (@see ToriRS_MenuRowRef). The payload is the WHOLE menu as
+     * it stands when this plugin's handler runs -- the native rows and every
+     * row an earlier plugin added, in the order it left them -- so the list
+     * names every row, and one NOT listed is removed. Applied when this
+     * plugin's on_menu_build returns; plugins run in event order (higher
+     * `event_priority` first), so a later plugin orders the menu an earlier
+     * one ordered, as RuneLite's subscribers compose by priority. Within one
+     * handler the last call wins. The menu is then NOT re-sorted. A
+     * deprioritized row keeps its place in the list and sinks below every
+     * row not deprioritized once the build is done (each half in order); the
+     * mark stays with the row for the rest of the build. The entity holders'
+     * rows come after every plugin. INVALID for an index outside the payload,
+     * a tag this plugin did not add in this handler, a row listed twice, or
+     * more than TORIRS_PLUGIN_MENU_ROWS_MAX + TORIRS_PLUGIN_MENU_ROUTES_MAX
+     * entries. Only inside on_menu_build.
+     */
+    enum ToriRS_Result (*set_order)(
+        struct ToriRS_Api* api,
+        struct ToriRS_MenuBuildEvent* menu,
+        struct ToriRS_MenuRowRef const* rows,
+        int count);
+    /**
+     * Replace the drawn text of payload row `row` (MenuEntry.setOption /
+     * setTarget on a native row): the option, a space and the target, with
+     * the client's @tag@ colours. The row keeps its action, so a click still
+     * does what the game row does. Applied when this plugin's handler returns
+     * (a later plugin's payload shows it); the last text set for a row wins. BUDGET past 127 bytes, INVALID for an index outside
+     * the payload. Only inside on_menu_build.
+     */
+    enum ToriRS_Result (*set_text)(
+        struct ToriRS_Api* api,
+        struct ToriRS_MenuBuildEvent* menu,
+        int row,
+        char const* text);
+    /**
+     * Whether the right-click menu is up (Client.isMenuOpen), and its box in
+     * canvas pixels (Menu.getMenuX/Y/Width/Height). False when it is not.
+     * A read: any callback.
+     */
+    bool (*shown)(
+        struct ToriRS_Api* api,
+        struct ToriRS_Rect* out);
 };
 
 /* The pixels themselves are emitted through ToriRS_Graphics. This module
@@ -810,7 +971,44 @@ struct ToriRS_SceneApi
     bool (*instance_ready)(
         struct ToriRS_Api* api,
         struct ToriRS_SceneInstanceRef instance);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 7])(void);
+    /**
+     * instance_position at a SUB-TILE point: `fine_x`/`fine_z` are ABSOLUTE
+     * fine units (tile * 128 + 0..127; 64 is a tile's centre, which is where
+     * instance_position stands an instance), level 0..3, yaw 0..2047, height
+     * up from the ground. RuneLite's RuneLiteObject.setLocation(LocalPoint)
+     * at the point's own position (a fake npc walking between tiles).
+     * INVALID for a negative coordinate or a level/yaw out of range;
+     * UNSUPPORTED on an engine without it.
+     */
+    enum ToriRS_Result (*instance_place)(
+        struct ToriRS_Api* api,
+        struct ToriRS_SceneInstanceRef instance,
+        int fine_x,
+        int fine_z,
+        int level,
+        int height,
+        int yaw);
+    /**
+     * The scene element the instance is drawn as (what draw.world_hull and
+     * draw.element_height take), -1 while it is not drawn: its model still
+     * loading, off the scene, or never placed. An inactive instance keeps
+     * its element (it is hidden, not torn down).
+     */
+    int (*instance_element)(
+        struct ToriRS_Api* api,
+        struct ToriRS_SceneInstanceRef instance);
+    /**
+     * Whether the pointer is on the instance's MODEL: the frame's
+     * per-triangle pick (the render pass's hit test the minimenu is built
+     * from; a plugin object is never a menu row itself) -- RuneLite's
+     * Perspective.getClickbox(...).contains(mouse). false when the instance
+     * is inactive or not drawn, or the pointer is off the viewport. A plugin
+     * offers its own rows for it from on_menu_build.
+     */
+    bool (*instance_hit)(
+        struct ToriRS_Api* api,
+        struct ToriRS_SceneInstanceRef instance);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 10])(void);
 };
 
 struct ToriRS_PanelApi
@@ -849,6 +1047,10 @@ struct ToriRS_PanelApi
         struct ToriRS_Api* api,
         char const* id,
         int value);
+    /** A CUSTOM well's logical height: 0 the default, under
+     *  TORIRS_PANEL_CUSTOM_HEIGHT_MIN raised to it, except
+     *  TORIRS_PANEL_CUSTOM_HEIGHT_COLLAPSED, which hides the well on every
+     *  presenter until a later height shows it again (no page rebuild). */
     enum ToriRS_Result (*set_height)(
         struct ToriRS_Api* api,
         char const* id,
@@ -898,7 +1100,137 @@ struct ToriRS_PanelApi
     enum ToriRS_Result (*scroll_to)(
         struct ToriRS_Api* api,
         int scroll);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 9])(void);
+    /**
+     * Open this plugin's registered page in the side panel, as the player's
+     * own rail click would (RuneLite's ClientToolbar.openPanel). Taken at the
+     * NEXT frame start, never inside the callback that asked; a page that is
+     * already up stays up (this never collapses it, unlike a second click).
+     * Ignored for a plugin with no registered page. @see panel.attention for
+     * asking to be noticed instead.
+     */
+    void (*show)(struct ToriRS_Api* api);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 10])(void);
+};
+
+/* ---- config records, as the cache states them (cache.enum_def / npc_def /
+ * loc_def). Fixed-size strings are COPIES: a record may be evicted after the
+ * call returns, and a plugin must never hold a pointer into the cache. ---- */
+
+#define TORIRS_DEF_NAME_MAX 64
+#define TORIRS_DEF_ACTIONS 5
+#define TORIRS_DEF_ACTION_MAX 64
+#define TORIRS_DEF_STRING_MAX 256
+
+/**
+ * A caller-owned list a def call fills: `values` holds `capacity` ints (NULL
+ * with capacity 0 asks only how many there are), and the callee writes the
+ * TRUE `count` and the first min(count, capacity) values. A caller that sees
+ * count > capacity asks again with room for all of them -- nothing is cut.
+ */
+struct ToriRS_DefList
+{
+    int* values;
+    int capacity;
+    int count;
+};
+
+/** One enum (EnumComposition). Types are the cache's type characters: 'i'
+ *  int, 's' string, 'o' obj, ... `value_is_string` is what selects which of
+ *  the entry's two values is meant. */
+struct ToriRS_EnumDef
+{
+    int id;
+    int key_type;
+    int value_type;
+    bool value_is_string;
+    int default_int;
+    char default_string[TORIRS_DEF_STRING_MAX];
+    /** Entries the enum carries; enum_def fills up to `capacity` of them. */
+    int count;
+};
+
+struct ToriRS_EnumEntry
+{
+    int key;
+    int int_value;
+    /** "" for an int enum. */
+    char string_value[TORIRS_DEF_STRING_MAX];
+};
+
+/**
+ * One npc type (NPCComposition). `impostor` is the multinpc child the
+ * client's own varps select now (getTransformedComposition), -1 when the
+ * selection is "none" or the type is not a shell -- the same resolution the
+ * world and the chathead path use.
+ */
+struct ToriRS_NpcDef
+{
+    int id;
+    char name[TORIRS_DEF_NAME_MAX];
+    char actions[TORIRS_DEF_ACTIONS][TORIRS_DEF_ACTION_MAX];
+    int size;
+    int combat_level;
+    int transform_varbit;
+    int transform_varp;
+    int impostor;
+    struct ToriRS_DefList transforms;
+    struct ToriRS_DefList models;
+    struct ToriRS_DefList recolor_from;
+    struct ToriRS_DefList recolor_to;
+};
+
+/** One loc type (ObjectComposition). `impostor` as for ToriRS_NpcDef. */
+struct ToriRS_LocDef
+{
+    int id;
+    char name[TORIRS_DEF_NAME_MAX];
+    char actions[TORIRS_DEF_ACTIONS][TORIRS_DEF_ACTION_MAX];
+    int size_x;
+    int size_z;
+    int transform_varbit;
+    int transform_varp;
+    int impostor;
+    /** The mapscene and the map icon (mapfunction: RuneLite getMapIconId), -1 for none. */
+    int map_scene;
+    int map_icon;
+    struct ToriRS_DefList transforms;
+};
+
+/**
+ * One sequence (RuneLite's Animation): its frame count and each frame's
+ * length in client cycles (frame_lengths is the caller's list, @see
+ * ToriRS_DefList), `duration` their sum, `frame_step` the loop-back offset
+ * (-1 none), `skeletal` true for an Animaya seq (whose frames each read 1).
+ */
+struct ToriRS_SeqDef
+{
+    int id;
+    int frame_count;
+    int duration;
+    int frame_step;
+    bool skeletal;
+    struct ToriRS_DefList frame_lengths;
+};
+
+/** What the hint arrow points at (game.hint_arrow). */
+enum ToriRS_HintArrowKind
+{
+    TORIRS_HINT_ARROW_NONE = 0,
+    TORIRS_HINT_ARROW_NPC,
+    TORIRS_HINT_ARROW_TILE,
+    TORIRS_HINT_ARROW_PLAYER,
+};
+
+struct ToriRS_HintArrowInfo
+{
+    enum ToriRS_HintArrowKind kind;
+    /** Absolute world tile, for TORIRS_HINT_ARROW_TILE. */
+    int tile_x;
+    int tile_z;
+    /** Server slot, for TORIRS_HINT_ARROW_NPC; -1 otherwise. */
+    int npc_slot;
+    /** Server pid, for TORIRS_HINT_ARROW_PLAYER; -1 otherwise. */
+    int player_pid;
 };
 
 /* Explicit escape hatch for lane-specific plugins. Nothing in the widget
@@ -925,8 +1257,103 @@ struct ToriRS_CacheApi
         char const* kind,
         char const* name,
         int* out_id);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 5])(void);
+    /**
+     * Client variables (varcint / varcstr), the store the cache's scripts
+     * read and write (getVarcIntValue / getVarcStrValue). An int never set
+     * reads -1 and a string "" -- the client's own Varcs semantics, which is
+     * what a script reading the same id sees.
+     *
+     * `varc_str` copies into `out` (NUL-terminated, cut at capacity) and
+     * states the size it needs in `*required`, terminator included; with
+     * capacity 0 it only measures. False for an id outside the store.
+     */
+    int (*varc_int)(
+        struct ToriRS_Api* api,
+        int id);
+    bool (*varc_str)(
+        struct ToriRS_Api* api,
+        int id,
+        char* out,
+        size_t capacity,
+        size_t* required);
+    /** Write a varc (setVarcIntValue / setVarcStrValue): the same store a
+     *  script's own write lands in, so a script that reads it next sees it.
+     *  INVALID for an id outside 0..TORIRS_VARC_ID_MAX-1; UNSUPPORTED inside
+     *  a draw callback, which may not mutate client state. */
+    enum ToriRS_Result (*set_varc_int)(
+        struct ToriRS_Api* api,
+        int id,
+        int value);
+    enum ToriRS_Result (*set_varc_str)(
+        struct ToriRS_Api* api,
+        int id,
+        char const* value);
+    /**
+     * One enum (getEnum), and up to `capacity` of its entries in the cache's
+     * order. READY fills `out` (out->count is the true entry count) and
+     * entries[0 .. min(count, capacity)); PENDING means the record was not
+     * resident and this call queued its load -- ask again; MISSING that the
+     * load ran and there is no such record.
+     */
+    enum ToriRS_AssetState (*enum_def)(
+        struct ToriRS_Api* api,
+        int id,
+        struct ToriRS_EnumDef* out,
+        struct ToriRS_EnumEntry* entries,
+        int capacity);
+    /** One npc / loc type (getNpcDefinition / getObjectDefinition), with the
+     *  same READY / PENDING / MISSING answers as enum_def. The lists in `out`
+     *  are the caller's: @see ToriRS_DefList. */
+    enum ToriRS_AssetState (*npc_def)(
+        struct ToriRS_Api* api,
+        int id,
+        struct ToriRS_NpcDef* out);
+    enum ToriRS_AssetState (*loc_def)(
+        struct ToriRS_Api* api,
+        int id,
+        struct ToriRS_LocDef* out);
+    /**
+     * One frame of a CACHE sprite as one of this plugin's images
+     * (SpriteManager.getSprite): READY with `out` set; PENDING while the
+     * sprite group loads (this call bound it, the bridge fills it when it
+     * lands -- ask again later); MISSING for a sprite the cache does not
+     * list or a frame past its last. The image is composed under the name
+     * `cache-sprite-<id>-<frame>`, so asking again reuses its slot -- but
+     * re-copies the pixels: keep the ref once READY.
+     */
+    enum ToriRS_AssetState (*sprite_image)(
+        struct ToriRS_Api* api,
+        int sprite_id,
+        int frame,
+        struct ToriRS_ImageRef* out);
+    /**
+     * A CLIENT-SIDE varbit write (RuneLite's Client.setVarbit /
+     * setVarbitValue): the same optimistic write a clientscript's own
+     * `%varbit = v` makes -- the bits land in the client's copy of the base
+     * varp and that varp's transmit listeners run -- and never a packet: the
+     * server's next VARP for that varp replaces it. INVALID for a varbit the
+     * client does not know; UNSUPPORTED inside a draw callback.
+     */
+    enum ToriRS_Result (*set_varbit)(
+        struct ToriRS_Api* api,
+        int varbit_id,
+        int value);
+    /**
+     * One sequence (Client.loadAnimation / Animation.getNumFrames), READY /
+     * PENDING / MISSING as enum_def: a seq not resident is loaded (PENDING),
+     * one the cache lacks is MISSING.
+     */
+    enum ToriRS_AssetState (*seq_def)(
+        struct ToriRS_Api* api,
+        int seq_id,
+        struct ToriRS_SeqDef* out);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 15])(void);
 };
+
+/** Varc ids a plugin may write: the client's store grows to the id written,
+ *  so an unbounded id would be an unbounded allocation. The cache's own
+ *  varcs sit far below this. */
+#define TORIRS_VARC_ID_MAX 32768
 
 /** Client-owned settings and process facts, separate from plugin config. */
 struct ToriRS_ClientApi
@@ -967,7 +1394,30 @@ struct ToriRS_ClientApi
     void (*disable_self)(
         struct ToriRS_Api* api,
         char const* reason);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 2])(void);
+    /**
+     * Open `url` in the player's browser (RuneLite's LinkBrowser.browse):
+     * the desktop's default browser, the browser lane's window.open, an
+     * Android intent -- through the platform, at the next frame end. Only an
+     * http:// or https:// url of at most 500 printable bytes (INVALID
+     * otherwise). UNSUPPORTED on a lane that has no browser to hand it to (a
+     * headless or replay run) and inside a draw callback; CONFLICT while an
+     * earlier url of this frame is still waiting to go out.
+     */
+    enum ToriRS_Result (*open_url)(
+        struct ToriRS_Api* api,
+        char const* url);
+    /**
+     * Glide the open world map to an ABSOLUTE tile (RuneLite's
+     * WorldMap.setWorldMapPositionTarget; the map's own jumptosourcecoord).
+     * UNSUPPORTED while the world map is closed or inside a draw callback;
+     * NOT_FOUND when the map area shown does not cover the tile at `level`.
+     */
+    enum ToriRS_Result (*worldmap_jump)(
+        struct ToriRS_Api* api,
+        int tile_x,
+        int tile_z,
+        int level);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 4])(void);
 };
 
 /** Player/game data that is neither raw cache state nor scene ownership. */
@@ -1050,7 +1500,118 @@ struct ToriRS_GameApi
     bool (*loot_source_clear)(
         struct ToriRS_Api* api,
         int source_id);
-    TORIRS_API_V2_MODULE_RESERVED;
+    /**
+     * A chatbox line made on THIS client (Client.addChatMessage): it goes
+     * into the client's own message store and the cache's chatbox draws it
+     * like any other. Never a packet -- nothing leaves the client -- and it
+     * raises no on_chat_message and feeds no game-event recogniser, because a
+     * plugin's text is not the server speaking.
+     *
+     * `type` is the chat type the wire uses (RuneLite's ChatMessageType
+     * value: 0 game, 2 public, ...), 0..127; INVALID outside it. `sender`
+     * may be "" for a line with no speaker. UNSUPPORTED in a draw callback.
+     */
+    enum ToriRS_Result (*chat_add)(
+        struct ToriRS_Api* api,
+        int type,
+        char const* sender,
+        char const* text);
+    /**
+     * The hint arrow (Client.setHintArrow / clearHintArrow / getHintArrow*):
+     * the ONE arrow the HINT_ARROW packet also sets, so a plugin's arrow and
+     * the server's replace each other exactly as they do in the reference.
+     *
+     * A tile arrow floats over the centre of an absolute tile on the plane the
+     * player is on -- the client's arrow carries no level, the packet's does
+     * not either, and `level` is accepted for the caller's symmetry only. An
+     * npc arrow names a server slot that must be a live npc (NOT_FOUND
+     * otherwise). The setters are UNSUPPORTED in a draw callback.
+     */
+    enum ToriRS_Result (*hint_arrow_tile)(
+        struct ToriRS_Api* api,
+        int tile_x,
+        int tile_z,
+        int level);
+    enum ToriRS_Result (*hint_arrow_npc)(
+        struct ToriRS_Api* api,
+        int server_slot);
+    enum ToriRS_Result (*hint_arrow_clear)(struct ToriRS_Api* api);
+    /** False when no arrow is up. */
+    bool (*hint_arrow)(
+        struct ToriRS_Api* api,
+        struct ToriRS_HintArrowInfo* out);
+    /** Play a sound effect on this client (Client.playSoundEffect): the queue
+     *  SYNTH_SOUND feeds, `loops` plays (1 = once), after `delay` client
+     *  ticks. INVALID for a negative id or loops outside 1..255. */
+    enum ToriRS_Result (*sound)(
+        struct ToriRS_Api* api,
+        int sound_id,
+        int loops,
+        int delay);
+    /** The weight UPDATE_RUNWEIGHT last stated, in kg (Client.getWeight). */
+    int (*weight)(struct ToriRS_Api* api);
+    /** The world's flag mask as the WORLDFLAGS script command reads it
+     *  (Client.getWorldType's mask: bit 0 members, ...). */
+    int (*world_types)(struct ToriRS_Api* api);
+    /** Server ticks this client has executed (Client.getTickCount). */
+    int (*tick)(struct ToriRS_Api* api);
+    /**
+     * Client.getItemContainer(id) for ANY container: the id is the one
+     * on_inventory_changed reports (the wire's inventory id -- 93 the
+     * backpack, 516 a shop, 659 group storage, ...), so a plugin that heard
+     * the event can read what changed. Answers 0 for a container this client
+     * has never been sent. inventory_size/inventory_slot stay the way to name
+     * the client's OWN three without carrying their numbers.
+     */
+    int (*container_size)(
+        struct ToriRS_Api* api,
+        int container_id);
+    /** One slot of that container: false when it is not held or `slot` is
+     *  outside it; an empty slot is true with obj id -1. */
+    bool (*container_slot)(
+        struct ToriRS_Api* api,
+        int container_id,
+        int slot,
+        int* out_obj_id,
+        int* out_count);
+    /**
+     * WorldView.worldEntities(): walk the live world entities (sailing
+     * boats). -1 starts; the answer is the next iterator, negative at the
+     * end. @see struct ToriRS_WorldEntitySnapshot for the coordinates.
+     */
+    int (*world_entity_next)(
+        struct ToriRS_Api* api,
+        int iterator,
+        struct ToriRS_WorldEntitySnapshot* out);
+    /**
+     * WorldEntity.transformToMainWorld: a point of entity `id`'s own world, in
+     * fine units relative to its staging base (a deck tile t is t*128+64),
+     * through the hull's live transform (interpolated position and yaw) to
+     * ABSOLUTE root fine units. false when `id` is not a live entity.
+     */
+    bool (*world_entity_to_main)(
+        struct ToriRS_Api* api,
+        int id,
+        int deck_fine_x,
+        int deck_fine_z,
+        int* out_fine_x,
+        int* out_fine_z);
+    /**
+     * WorldEntity.getWorldView().getScene(): the locs of entity `id`'s OWN
+     * world -- its deck and hull pieces -- by the iterator protocol of
+     * world.scenery_next (-1 starts; a negative answer ends, also for an id
+     * that is not live). tile_x/tile_z are ABSOLUTE tiles of its staging
+     * rectangle (relative to base_x/base_z they are the deck-local tile a
+     * point carries through world_entity_to_main), level its own plane,
+     * element_id the drawn model (draw.world_hull outlines it where the
+     * descent draws it). Scene-scoped like scenery_next.
+     */
+    int (*world_entity_loc_next)(
+        struct ToriRS_Api* api,
+        int id,
+        int iterator,
+        struct ToriRS_ScenerySnapshot* out);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 10])(void);
 };
 
 /* ------------------------------------------------------------------------ */
@@ -2525,6 +3086,64 @@ struct ToriRS_PluginCallbacks
         struct ToriRS_Api* api,
         void* state,
         struct ToriRS_PanelLayoutEvent const* event);
+    /* The three below cost NOTHING while no running plugin has them: the host
+     * asks for varp values, queues mounts and coalesces inventories only for a
+     * subscriber. @see PluginHost_InterfaceChanged / PluginHost_InventoryChanged
+     * and ToriRS_PluginEngine::varp_values. */
+    /** Once per changed varp per server tick, before on_server_tick. The first
+     *  tick after a subscriber appears only records the values. */
+    void (*on_var_changed)(
+        struct ToriRS_Api* api,
+        void* state,
+        struct ToriRS_VarChangedEvent const* event);
+    /** An interface group mounted or unmounted, at the next frame start. */
+    void (*on_interface)(
+        struct ToriRS_Api* api,
+        void* state,
+        struct ToriRS_InterfaceEvent const* event);
+    /** An inventory container changed, coalesced per frame. */
+    void (*on_inventory_changed)(
+        struct ToriRS_Api* api,
+        void* state,
+        struct ToriRS_InventoryChangedEvent const* event);
+    /* The two below are queued only while a running plugin has them, and
+     * delivered at the next frame start after on_inventory_changed.
+     * @see PluginHost_LocChanged / PluginHost_MapAnim. */
+    /** A root-scene loc changed after the scene was built, as it lands. */
+    void (*on_loc_changed)(
+        struct ToriRS_Api* api,
+        void* state,
+        struct ToriRS_LocChangedEvent const* event);
+    /** A MAP_ANIM graphic started on a root-scene tile. */
+    void (*on_map_anim)(
+        struct ToriRS_Api* api,
+        void* state,
+        struct ToriRS_MapAnimEvent const* event);
+    /** The GE item search, synchronously from inside its script: answer it
+     *  by setting consumed/ids/count. Only raised while a running plugin has
+     *  it. @see PluginHost_ItemSearch. */
+    void (*on_item_search)(
+        struct ToriRS_Api* api,
+        void* state,
+        struct ToriRS_ItemSearchEvent* event);
+    /** A WATCHED clientscript is about to run / has returned (scripts.watch),
+     *  synchronously from inside the VM: read and write its arguments /
+     *  return values through event->ref. No script may be run from here.
+     *  @see ToriRS_ScriptHookEvent, PluginHost_ScriptHook. */
+    void (*on_script_pre)(
+        struct ToriRS_Api* api,
+        void* state,
+        struct ToriRS_ScriptHookEvent const* event);
+    void (*on_script_post)(
+        struct ToriRS_Api* api,
+        void* state,
+        struct ToriRS_ScriptHookEvent const* event);
+    /** A "::" command, before it is sent: CONSUME keeps it from the server.
+     *  @see ToriRS_CommandEvent, PluginHost_Command. */
+    enum ToriRS_CallbackResult (*on_command)(
+        struct ToriRS_Api* api,
+        void* state,
+        struct ToriRS_CommandEvent const* event);
 };
 
 #define TORIRS_PLUGIN_CALLBACKS_REQUIRED_SIZE ((uint32_t)sizeof(uint32_t))

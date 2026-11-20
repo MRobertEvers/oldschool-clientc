@@ -47,7 +47,13 @@ app_panel_overlay_to_chrome(
     assert(out);
     if( !app_plugin_panel_overlay_visible(app, index, &visible) )
         return 0;
-    return ToriRSChromePanelDraw_ToChromePrim(&visible, out);
+    if( !ToriRSChromePanelDraw_ToChromePrim(&visible, out) )
+        return 0;
+    /* The prim is read after this returns: its text must be the kept list's
+     * own string, not `visible`'s (a stack copy). */
+    if( out->kind == TORIRS_CHROME_PRIM_TEXT )
+        out->text = PanelOverlayStage_KeptText(&app->panel_wells, index);
+    return 1;
 }
 
 /**
@@ -97,13 +103,18 @@ app_chrome_merged_prims(
             app->plugin_win->ui.build_serial,
             PanelOverlayStage_Revision(&app->panel_wells)) )
     {
-        int n = ChromeCompositor_MergeLists(app->chrome_compositor, dbg, dbg_count, win, win_count);
+        /* The window's panels, its custom wells, THEN its overlay prims (an
+         * open dropdown list, the colour popup, the tooltip): a list hanging
+         * over the well below its button must be drawn over it. */
+        int const popups = ToriRSChrome_OverlayPrimStart(&app->plugin_win->ui);
+        int n = ChromeCompositor_MergeLists(app->chrome_compositor, dbg, dbg_count, win, popups);
         for( int i = 0;
              i < PanelOverlayStage_KeptCount(&app->panel_wells) && n < CHROME_COMPOSITOR_PRIMS_MAX;
              i++ )
             if( app_panel_overlay_to_chrome(
                     app, i, ChromeCompositor_MergedSlot(app->chrome_compositor, n)) )
                 n++;
+        n = ChromeCompositor_MergeAppend(app->chrome_compositor, n, win + popups, win_count - popups);
         ChromeCompositor_MergeCommit(
             app->chrome_compositor,
             n,
@@ -149,12 +160,17 @@ app_chrome_plugin_surface_present(struct App* app)
         return;
 
     win = ToriRSChrome_Prims(&app->plugin_win->ui, &win_count);
-    n = ChromeCompositor_SurfaceLists(app->chrome_compositor, win, win_count);
-    for( int i = 0; i < PanelOverlayStage_KeptCount(&app->panel_wells) &&
-                    n < CHROME_COMPOSITOR_SURFACE_PRIMS_MAX; i++ )
-        if( app_panel_overlay_to_chrome(
-                app, i, ChromeCompositor_SurfaceSlot(app->chrome_compositor, n)) )
-            n++;
+    /* Panels, wells, then the overlay prims, as app_chrome_merged_prims. */
+    {
+        int const popups = ToriRSChrome_OverlayPrimStart(&app->plugin_win->ui);
+        n = ChromeCompositor_SurfaceLists(app->chrome_compositor, win, popups);
+        for( int i = 0; i < PanelOverlayStage_KeptCount(&app->panel_wells) &&
+                        n < CHROME_COMPOSITOR_SURFACE_PRIMS_MAX; i++ )
+            if( app_panel_overlay_to_chrome(
+                    app, i, ChromeCompositor_SurfaceSlot(app->chrome_compositor, n)) )
+                n++;
+        n = ChromeCompositor_SurfaceAppend(app->chrome_compositor, n, win + popups, win_count - popups);
+    }
 
     pixels = ChromeCompositor_SurfacePixels(app->chrome_compositor, width, height);
 
@@ -256,6 +272,31 @@ app_chrome_skin_tile(struct App* app)
     app->dev_overlay->ui.skin_tile_h = body->h;
     app->plugin_win->ui.skin_tile_w = body->w;
     app->plugin_win->ui.skin_tile_h = body->h;
+}
+
+int
+App_ChromeCanvasPercent(struct App const* app)
+{
+    struct PluginPanel const* win;
+    int percent;
+
+    assert(app);
+    win = app->plugin_win;
+    if( App_MapEditorOpen(app) )
+        return 100;
+    /* Bound: what it actually presents through. Not yet bound (the window
+     * was never opened): what it was handed -- a DOM executor that then
+     * refuses to start falls back into the canvas, and the next frame asks
+     * again. */
+    if( win->sync.live )
+    {
+        if( win->exec_kind != TORIRS_CHROME_EXEC_BUFFER || win->sync.exec.surface_size )
+            return 100;
+    }
+    else if( win->exec_kind != TORIRS_CHROME_EXEC_BUFFER || win->exec_pending.surface_size )
+        return 100;
+    percent = app->client_scale.layout.percent;
+    return percent > 100 ? percent : 100;
 }
 
 int

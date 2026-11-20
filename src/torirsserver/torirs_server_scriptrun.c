@@ -2047,7 +2047,7 @@ d_message_serial(lua_State* L)
 /* ----------------------------------------------------------- inputs */
 
 /* api_drive.say(text) -> "ok" | "refused": a line of PUBLIC chat, as the
- * client's chatbox sends it -- MESSAGE_PUBLIC, colour/effect 0, the Huffman
+ * client's chatbox sends it -- MESSAGE_PUBLIC, its chat type, colour/effect 0, the Huffman
  * text (net/chat_huffman.h), in the body handle_message_public reads once a
  * wire's translator has run -- queued like every bot input for the next tick
  * boundary. Refused: a line the chatbox would not send (empty or over 80:
@@ -2060,17 +2060,21 @@ d_say(lua_State* L)
 {
     struct ScriptBot* bot = bot_of(L);
     char const* text = luaL_checkstring(L, 1);
-    uint8_t payload[2 + 256];
+    uint8_t payload[3 + 256];
     int packed_len;
 
     if( !chat_huffman_says(text) )
         return push_result(L, "refused", "say: empty, over 80 characters, or a character chat cannot carry");
     if( text[0] == ':' && text[1] == ':' )
         return push_result(L, "refused", "say: a :: line is a command, not chat");
-    payload[0] = 0; /* colour */
-    payload[1] = 0; /* effect */
-    packed_len = chat_huffman_pack(payload + 2, (int)sizeof(payload) - 2, text);
-    handle(bot, PKTOUT_NAME_MESSAGE_PUBLIC, payload, 2 + packed_len);
+    /* The chat type the client picks from the line's start: "/" is the
+     * friends chat (2), "//" a clan (3), anything else public (0). The
+     * client keeps the slash in the text (RSProx index 236 [131155]). */
+    payload[0] = text[0] != '/' ? 0 : (text[1] == '/' ? 3 : 2);
+    payload[1] = 0; /* colour */
+    payload[2] = 0; /* effect */
+    packed_len = chat_huffman_pack(payload + 3, (int)sizeof(payload) - 3, text);
+    handle(bot, PKTOUT_NAME_MESSAGE_PUBLIC, payload, 3 + packed_len);
     return push_result(L, "ok", "said");
 }
 

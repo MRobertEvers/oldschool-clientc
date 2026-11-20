@@ -30,6 +30,9 @@ struct World_Picked
 };
 
 #define WORLD_PICKSET_MAX 256
+/** Root model hits that classify as no game entity (a plugin's own scene
+ *  object), kept beside the set for a plugin's hit test; nearest first. */
+#define WORLD_PICKSET_UNCLASSIFIED_MAX 16
 
 struct World_PickSet
 {
@@ -51,6 +54,13 @@ struct World_PickSet
     int mouse_valid;
     int mouse_x;
     int mouse_y;
+    /**
+     * Element ids of the ROOT model hits that classified as nothing -- no
+     * npc, player, loc or obj stack: a plugin's scene object (api.scene
+     * instance_hit). Never menu rows; the minimenu reads only `items`.
+     */
+    int unclassified[WORLD_PICKSET_UNCLASSIFIED_MAX];
+    int unclassified_count;
 };
 
 void

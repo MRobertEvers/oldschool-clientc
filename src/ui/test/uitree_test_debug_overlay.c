@@ -1721,6 +1721,33 @@ test_debug_overlay_custom_region(void)
             g_ui.widgets[custom].custom_clip_w == 0 &&
             g_ui.widgets[custom].custom_clip_h == 0,
         "a custom well scrolled away retains no drawable clip");
+    /* ...but it is still the page's well to a presenter that scrolls the page
+     * itself (the browser page's intent names it with well-local
+     * coordinates): scrolled out of THIS window is not out of the page. Quest
+     * Helper's quest list, below the hidden window's fold, took no click in
+     * the browser before (live 2026-11-20). */
+    {
+        int local_x = -1;
+        int local_y = -1;
+        uint32_t generation = 99;
+        uint32_t serial = 99;
+
+        TEST_ASSERT(
+            g_ui.widgets[custom].w == 0 && g_ui.widgets[custom].content_w > 0,
+            "a scrolled-out row keeps its content width beside its zeroed hit box");
+        TEST_ASSERT(
+            ToriRSChrome_CustomActivate(&g_ui, custom, 4, 4) &&
+                ToriRSChrome_TakeActivated(&g_ui) == custom &&
+                ToriRSChrome_ActivationWasCustom(
+                    &g_ui, &local_x, &local_y, &generation, &serial) &&
+                local_x == 4 && local_y == 4,
+            "an intent on a well scrolled out of the window is latched at its own coordinates");
+        TEST_ASSERT(
+            !ToriRSChrome_CustomActivate(
+                &g_ui, custom,
+                (g_ui.widgets[custom].content_w - 2) / ToriRSChrome_Scale(&g_ui), 0),
+            "...and still bounded by the well's width");
+    }
 }
 
 /* Find one TEXT primitive by its exact string. The display list is the only

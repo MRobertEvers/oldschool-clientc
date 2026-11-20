@@ -409,6 +409,77 @@ app_plugin_panel_track_semantic(
         app->plugin_win, widget, plugin, model_index, model->serial, model->kind, model->id);
 }
 
+/*
+ * The field being typed into, across a structural rebuild of the same page.
+ *
+ * ClearWidgets drops every widget, and the focus with them. A page whose
+ * STRUCTURE follows what is typed -- Quest Helper's search, which turns the
+ * open quest's page back into the quest list on the first character
+ * (QuestHelperPanel.onSearchBarChanged) -- was rebuilt by that first key, and
+ * the rest of the word went nowhere ("r" kept, "egicide" lost, live
+ * 2026-11-20). The field is the plugin's own control under its own id, so the
+ * rebuilt page names it again; the focus goes back to it, caret and all.
+ */
+struct PluginPanelKeptFocus
+{
+    int plugin;
+    int caret;
+    char widget_id[TORIRS_PLUGIN_WIDGET_ID_MAX];
+};
+
+static bool
+app_plugin_panel_focus_is_text(int widget_kind)
+{
+    return widget_kind == TORIRS_PANEL_WIDGET_INPUT || widget_kind == TORIRS_PANEL_WIDGET_TEXTAREA;
+}
+
+/** The plugin text field holding the focus now, or kept->plugin -1. */
+static void
+app_plugin_panel_focus_save(struct App* app, struct PluginPanelKeptFocus* kept)
+{
+    struct ToriRSChrome const* ui;
+
+    assert(app);
+    assert(kept);
+    kept->plugin = -1;
+    kept->caret = 0;
+    kept->widget_id[0] = '\0';
+    ui = &app->plugin_win->ui;
+    if( ui->focus < 0 )
+        return;
+    for( int i = 0; i < app->plugin_win->row_count; i++ )
+    {
+        struct PluginPanelRow const* row = &app->plugin_win->rows[i];
+        if( row->widget != ui->focus || row->kind != PLUGIN_PANEL_ROW_PANEL_WIDGET ||
+            !app_plugin_panel_focus_is_text(row->widget_kind) || !row->widget_id[0] )
+            continue;
+        kept->plugin = row->plugin;
+        kept->caret = ui->widgets[ui->focus].caret;
+        snprintf(kept->widget_id, sizeof(kept->widget_id), "%s", row->widget_id);
+        return;
+    }
+}
+
+/** Focus the rebuilt page's field of the same plugin and id, if it has one. */
+static void
+app_plugin_panel_focus_restore(struct App* app, struct PluginPanelKeptFocus const* kept)
+{
+    assert(app);
+    assert(kept);
+    if( kept->plugin < 0 )
+        return;
+    for( int i = 0; i < app->plugin_win->row_count; i++ )
+    {
+        struct PluginPanelRow const* row = &app->plugin_win->rows[i];
+        if( row->plugin != kept->plugin || row->kind != PLUGIN_PANEL_ROW_PANEL_WIDGET ||
+            !app_plugin_panel_focus_is_text(row->widget_kind) ||
+            strcmp(row->widget_id, kept->widget_id) != 0 )
+            continue;
+        (void)ToriRSChrome_FocusWidget(&app->plugin_win->ui, row->widget, kept->caret);
+        return;
+    }
+}
+
 /** Put one config key's stored value into the widget showing it. */
 /**
  * The packed HSL16 a stored colour value names.
@@ -661,6 +732,23 @@ app_plugin_panel_readout(
         snprintf(out, out_size, "%s", empty ? empty : "");
 }
 
+/* A custom well's chrome height: its logical height at the chrome's scale; a
+ * collapsed one keeps the minimum (it is hidden, so the size is never seen,
+ * but a well grown back from it starts from a legal box). */
+static int
+app_plugin_panel_custom_px(
+    struct App const* app,
+    struct ToriRS_PanelWidget const* model)
+{
+    int const logical = model->preferred_height == TORIRS_PANEL_CUSTOM_HEIGHT_COLLAPSED
+                            ? TORIRS_PANEL_CUSTOM_HEIGHT_MIN
+                            : model->preferred_height;
+
+    assert(app);
+    assert(model);
+    return logical * ToriRSChrome_Scale(&app->plugin_win->ui);
+}
+
 static int
 app_plugin_panel_select_inputs(
     struct ToriRS_PanelWidget const* model,
@@ -873,7 +961,13 @@ app_plugin_panel_build_semantic(
             &app->plugin_win->ui,
             app->plugin_win->panel,
             model->label,
-            model->preferred_height * ToriRSChrome_Scale(&app->plugin_win->ui));
+            app_plugin_panel_custom_px(app, model));
+        /* A collapsed well (TORIRS_PANEL_CUSTOM_HEIGHT_COLLAPSED) is a hidden
+         * chrome widget: no room, no frame, no paint, on every presenter. */
+        if( widget >= 0 )
+            ToriRSChrome_SetHidden(
+                &app->plugin_win->ui, widget,
+                model->preferred_height == TORIRS_PANEL_CUSTOM_HEIGHT_COLLAPSED);
         break;
 
     default:
@@ -1155,10 +1249,15 @@ app_plugin_panel_patch_row(
         break;
     case TORIRS_PANEL_WIDGET_CUSTOM:
         if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_HEIGHT )
+        {
             ToriRSChrome_SetCustomHeight(
                 &app->plugin_win->ui,
                 row->widget,
-                model->preferred_height * ToriRSChrome_Scale(&app->plugin_win->ui));
+                app_plugin_panel_custom_px(app, model));
+            ToriRSChrome_SetHidden(
+                &app->plugin_win->ui, row->widget,
+                model->preferred_height == TORIRS_PANEL_CUSTOM_HEIGHT_COLLAPSED);
+        }
         break;
     case TORIRS_PANEL_WIDGET_CHECKBOX:
     case TORIRS_PANEL_WIDGET_TOGGLE:
@@ -1355,7 +1454,8 @@ app_plugin_panel_sync(struct App* app)
         }
     }
 
-    if( app->plugin_win->panel < 0 )
+    int const panel_created = app->plugin_win->panel < 0;
+    if( panel_created )
     {
         /*
          * Sized in CHROME pixels, so the window holds the same number of rows
@@ -1389,10 +1489,21 @@ app_plugin_panel_sync(struct App* app)
             &app->plugin_win->ui, app->plugin_win->panel, app->plugin_win->visible);
     }
 
-    /* Geometry, re-applied on every build rather than only on the first.
+    /* Geometry: on the first build, on a fullscreen toggle, and on every build
+     * while the window IS a surface (it fills it). NOT on an ordinary page
+     * rebuild of the floating window: that is the box the player moved and
+     * resized, and a plugin that changes page on a click (Quest Helper:
+     * picking a quest, Close helper, the assist-level page) snapped it back
+     * to 8,72 at 260 tall on every click (live, 2026-11-19).
      * @see app_plugin_panel_place, which is also how a scale or canvas change
      * re-places the box between builds. */
-    app_plugin_panel_place(app);
+    {
+        int room_w;
+        int room_h;
+        if( panel_created || g_plugin_fullscreen_built != g_plugin_fullscreen ||
+            app_plugin_page_surface(app, &room_w, &room_h) )
+            app_plugin_panel_place(app);
+    }
 
     /* A page that named a plugin the host no longer has is a page with nothing
      * to build; the roster is the honest answer to that. */
@@ -1431,6 +1542,12 @@ app_plugin_panel_sync(struct App* app)
      * reconciler exists to remove. Restored only when the page is the same
      * page: a different plugin's page, or the roster, has no place to keep.
      */
+    /* The field being typed into, on the same page and face only: a
+     * different page has no field of this plugin's to go back to. */
+    struct PluginPanelKeptFocus kept_focus = { .plugin = -1 };
+    if( g_plugin_page >= 0 && g_plugin_page_built == g_plugin_page &&
+        g_plugin_page_view_built == g_plugin_page_view )
+        app_plugin_panel_focus_save(app, &kept_focus);
     {
         int const keep_scroll =
             g_plugin_page == g_plugin_page_scrolled
@@ -1801,6 +1918,7 @@ app_plugin_panel_sync(struct App* app)
      * has to survive that.
      */
     ToriRSChrome_PanelSetClosable(&app->plugin_win->ui, app->plugin_win->panel, 1);
+    app_plugin_panel_focus_restore(app, &kept_focus);
 
     /* Callbacks above may have changed either compatibility controls or the
      * active model. Stamp what was actually consumed, not the pre-build
@@ -2061,7 +2179,11 @@ app_plugin_panel_apply(struct App* app, int widget)
 
     row_index = PluginPanel_RowFindWidget(app->plugin_win, widget);
     if( row_index < 0 )
+    {
+        if( getenv("TORIRS_CHROME_DEBUG") )
+            fprintf(stderr, "chrome: activation of widget %d names no row\n", widget);
         return;
+    }
     row = &app->plugin_win->rows[row_index];
 
     switch( row->kind )
@@ -2169,7 +2291,17 @@ app_plugin_panel_apply(struct App* app, int widget)
             if( (custom_generation != 0 &&
                  custom_generation != app->plugin_win->built_generation) ||
                 (custom_serial != 0 && custom_serial != row->widget_serial) )
+            {
+                if( getenv("TORIRS_CHROME_DEBUG") )
+                    fprintf(
+                        stderr,
+                        "chrome: well click on widget %d refused: generation %u (page %u), "
+                        "serial %u (row %u)\n",
+                        widget, (unsigned)custom_generation,
+                        (unsigned)app->plugin_win->built_generation, (unsigned)custom_serial,
+                        (unsigned)row->widget_serial);
                 return;
+            }
             /* Same event, same fences, same coordinates -- the BUTTON is
              * the only difference, so it is the only thing decided here.
              * A well is one control, and a plugin whose strip has per-band
@@ -2971,6 +3103,26 @@ app_plugin_panel_raster_custom(
         row->widget_serial,
         row->custom_region.x,
         row->custom_region.y);
+
+    /*
+     * A well's TEXT starts AT x, as every other presenter of this panel draws
+     * it: the in-canvas and surface pages turn it into a chrome TEXT prim,
+     * which is left-aligned (torirs_chrome_panel_draw.c). The emit below is
+     * the world layer's, whose TEXT is centred on x (torirs_frame.c), so the
+     * browser pages drew every line half its width to the left -- Quest
+     * Helper's quest list lost its first letters ("ests" for "Quests") in the
+     * web client (live, 2026-11-20). Moved here by half the width in the font
+     * the emit draws it with, the page shows what the canvas shows.
+     */
+    for( int i = 0; i < count; i++ )
+    {
+        struct UITreeEntityOverlay* item = &PanelOverlayStage_Staged(&app->panel_wells)[i];
+        if( item->kind != UITREE_ENTITY_OVERLAY_TEXT || item->font_id < 0 || item->text[0] == '\0' )
+            continue;
+        if( !ToriDraw_SceneFontGet(app->scene, item->font_id) )
+            continue;
+        item->x += app_measure_text_cb(app, item->font_id, item->text) / 2;
+    }
 
     if( count > 0 )
     {

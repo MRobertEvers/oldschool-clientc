@@ -61,3 +61,13 @@
 #include "lutf8lib.c"
 #include "lvm.c"
 #include "lzio.c"
+
+/* How many instructions an armed count hook still has before it fires: the
+ * plugin host reads it after an outermost callback, so the instructions that
+ * callback ran are (budget - this). Upstream keeps the counter in lstate.h
+ * with no API to read it; this one accessor is the whole exposure. */
+int
+torirs_lua_hookcount_left(lua_State* L)
+{
+    return L->hookcount;
+}

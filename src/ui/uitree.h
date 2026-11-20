@@ -1615,6 +1615,18 @@ struct UITree
     /** Mounted sub-interfaces (TS WidgetManager.interfaceParents). */
     struct UITreeInterfaceParent interface_parents[UITREE_INTERFACE_PARENT_MAX];
     int interface_parent_count;
+    /**
+     * Told when an interface GROUP is mounted or unmounted: every
+     * UITree_InterfaceParentSet / Clear, the toplevel through
+     * UITree_MountNotifyRoot, and the whole table when the tree is cleared.
+     * NULL (the default) costs one pointer test per mount. The plugin bridge
+     * hangs on_interface off it -- an event from the mount itself, never a
+     * scan for groups that appeared. @see UITree_SetMountListener.
+     */
+    void (*mount_listener)(void* user, int group_id, int open);
+    void* mount_listener_user;
+    /** The toplevel group UITree_MountNotifyRoot last announced, or -1. */
+    int mount_root_group;
     /** SETANTIDRAG — suppress new drag initiation while set. */
     uint8_t anti_drag;
     /** CC/IF_DRAGPICKUP staged for the input loop (reference dragTryPickup).
@@ -2476,6 +2488,45 @@ int UITree_WidgetClearSkin(struct UITree*, int scene_id);
 bool UITree_WidgetSetProjectionHeight(struct UITree*,struct UITreeNodeRef,uint64_t owner,int height);
 int UITree_WidgetProjectionHeight(struct UITree const*,int32_t node);
 bool UITree_WidgetSetTextOutline(struct UITree*,struct UITreeNodeRef,uint64_t owner,bool outline);
+/* Retained edits on a NATIVE text node's string and colour (RuneLite's
+ * setText / setTextColor on a game widget), owner-scoped like set_hidden: the
+ * newest owner's edit is drawn, the node's own text and colour are untouched,
+ * and UITree_WidgetReset / ResetOwner drops the edit so the native value shows
+ * again. The game writing a NEW string (UITree_SetTextAt) or colour
+ * (UITree_SetColourAt) drops that aspect's edits, as does a dynamic child's
+ * delete-and-recreate (RuneLite's order: the script's write wins until the
+ * plugin writes again). An owned control takes its text through set_text
+ * instead (false).
+ * The string is copied; it must not exceed UITREE_WIDGET_NATIVE_TEXT_MAX. */
+#define UITREE_WIDGET_NATIVE_TEXT_MAX 4096
+bool UITree_WidgetSetNativeText(struct UITree*,struct UITreeNodeRef,uint64_t owner,char const* text);
+bool UITree_WidgetSetNativeTextColor(struct UITree*,struct UITreeNodeRef,uint64_t owner,int rgb);
+/* The winning native text edits of `idx`: bit 1 text (*out_text set), bit 2
+ * colour (*out_rgb set); 0 when no owner edits either. */
+int UITree_WidgetNativeTextAt(struct UITree const*,int32_t idx,char const** out_text,int* out_rgb);
+/* Retained re-lay of a NATIVE item cell (RuneLite's setItemId /
+ * setItemQuantity on a game widget: the bank tab's laid-out slots), and a
+ * native node's transparency (setOpacity). Unlike the text edits these are
+ * WRITTEN THROUGH -- the node's obj (and scene id, -1 while the icon loads)
+ * or transparency becomes the plugin's, so every reader of the cell agrees
+ * -- and the game's own value is kept beside the edit: UITree_WidgetReset /
+ * ResetOwner put the next newest owner's value back, or the game's once no
+ * edit is left. The game writing the cell itself (UITree_SetObjectAt /
+ * UITree_SetTransparencyAt: a script's cc_setobject, cc_settrans, an
+ * IF_SETOBJECT) or a dynamic child's delete-and-recreate DROPS the edit,
+ * RuneLite's order. A cell is a native RS_GRAPHIC or CC_OBJ node (false for
+ * any other, or an owned control); an obj below 0 clears it. A restatement
+ * already in force writes nothing. `num_mode` is the count rule the cell
+ * draws with while the edit holds (item_num_mode: 0 stackable-only, 1 always,
+ * 2 never; RuneLite's setItemQuantityMode), -1 the game's own. */
+bool UITree_WidgetSetNativeObject(struct UITree*,struct UITreeNodeRef,uint64_t owner,
+                                  int obj_id,int obj_count,int scene_id,int num_mode);
+bool UITree_WidgetSetNativeTransparency(struct UITree*,struct UITreeNodeRef,uint64_t owner,int transparency);
+/* The same for a native node's OWN hide (RuneLite's setHidden on a game
+ * widget, which can show a node the game hid -- unlike the presentation hide
+ * of UITree_WidgetSetHidden, which only ever adds hiding). The game's own
+ * hide write (UITree_SetHideAt) drops it. */
+bool UITree_WidgetSetNativeHidden(struct UITree*,struct UITreeNodeRef,uint64_t owner,bool hidden);
 bool UITree_WidgetReset(struct UITree*, struct UITreeNodeRef, uint64_t owner);
 void UITree_WidgetResetOwner(struct UITree*, uint64_t owner);
 int32_t UITree_WidgetCreateText(struct UITree*, struct UITreeNodeRef parent, uint64_t owner,
@@ -2492,6 +2543,10 @@ bool UITree_WidgetSetOperation(struct UITree*,struct UITreeNodeRef,uint64_t owne
  * step; ClearGraphic blanks every plugin-owned graphic still showing a scene id
  * whose pixels were released, so a freed slot is never drawn again. */
 int32_t UITree_WidgetCreateGraphic(struct UITree*, struct UITreeNodeRef parent, uint64_t owner, char const* key);
+/* Owned RECTANGLE and MODEL controls, keyed and capped like the graphic. A
+ * model control draws nothing until a scene model is bound to it. */
+int32_t UITree_WidgetCreateRect(struct UITree*, struct UITreeNodeRef parent, uint64_t owner, char const* key);
+int32_t UITree_WidgetCreateModel(struct UITree*, struct UITreeNodeRef parent, uint64_t owner, char const* key);
 bool UITree_WidgetSetGraphic(struct UITree*,struct UITreeNodeRef,uint64_t owner,int scene_id,int width,int height);
 int UITree_WidgetClearGraphic(struct UITree*, int scene_id);
 bool UITree_WidgetSetTransparency(struct UITree*,struct UITreeNodeRef,uint64_t owner,int transparency);
@@ -3058,6 +3113,20 @@ void
 UITree_InterfaceParentClear(
     struct UITree* tree,
     int container_uid);
+
+/** Install (or with NULL remove) the mount listener. @see UITree::mount_listener. */
+void
+UITree_SetMountListener(
+    struct UITree* tree,
+    void (*listener)(void* user, int group_id, int open),
+    void* user);
+
+/** The toplevel group is now `group_id` (IF_OPENTOP): announces the previous
+ *  toplevel closed and this one open. Re-announcing the same group is silent. */
+void
+UITree_MountNotifyRoot(
+    struct UITree* tree,
+    int group_id);
 
 int
 UITree_InterfaceParentIsMountedGroup(

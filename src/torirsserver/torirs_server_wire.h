@@ -269,8 +269,27 @@ struct ToriRSServerWirePayload
     void (*message_private)(struct RsprotBuf* buf, const char* from, int world, int counter,
                             int crown, uint8_t const* text, int text_len);
     /** One UPDATE_FRIENDLIST row. Rev 239 is a name/string record rather than
-     *  the classic p8 base37 + p1 world tuple. */
-    void (*friend_entry)(struct RsprotBuf* buf, const char* name, int world);
+     *  the classic p8 base37 + p1 world tuple; `rank` is the friend's
+     *  friends-chat rank (RSProt's `friend.rank`, the byte after the world). */
+    void (*friend_entry)(struct RsprotBuf* buf, const char* name, int world, int rank);
+    /**
+     * UPDATE_FRIENDCHAT_CHANNEL_FULL_V2's body for a channel (the empty body,
+     * "no channel", is the caller's: it writes nothing). RSProt states one
+     * layout for 222..242: jstr owner, p8 channel name37, p1 kick rank, the
+     * member count as a smart (null) byte, then jstr name, p2 world, p1 rank,
+     * jstr world name per member. NULL on a revision with no friends chat.
+     */
+    void (*friendchat_full)(struct RsprotBuf* buf, const char* owner, int64_t channel37,
+                            int kick_rank, const char* const* names, const int* worlds,
+                            const int* ranks, int count);
+    /** UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER: jstr name, p2 world, p1 rank,
+     *  and the world name unless rank is -128 (the delete). */
+    void (*friendchat_user)(struct RsprotBuf* buf, const char* name, int world, int rank);
+    /** MESSAGE_FRIENDCHANNEL: jstr sender, p8 channel name37, p2 world, p3
+     *  the per-world message counter, p1 crown, then the Huffman text. */
+    void (*message_friendchannel)(struct RsprotBuf* buf, const char* sender, int64_t channel37,
+                                  int world, int counter, int crown, uint8_t const* text,
+                                  int text_len);
     /** The header of an inventory update; the slot loop follows in the caller,
      *  which is the only thing that knows the container. */
     void (*inv_header)(struct RsprotBuf* buf, int pkt_name, int uid, int container,
@@ -552,6 +571,19 @@ ToriRSServer_WirePlayerIndex(int pool_pid)
 void
 ToriRSServer_WireMessagePrivateOsrs(struct RsprotBuf* buf, const char* from, int world,
                                     int counter, int crown, uint8_t const* text, int text_len);
+
+/** The three friends-chat writers every OSRS wire shares (RSProt's single
+ *  222..242 rows; see the hooks above). */
+void
+ToriRSServer_WireFriendchatFullOsrs(struct RsprotBuf* buf, const char* owner, int64_t channel37,
+                                    int kick_rank, const char* const* names, const int* worlds,
+                                    const int* ranks, int count);
+void
+ToriRSServer_WireFriendchatUserOsrs(struct RsprotBuf* buf, const char* name, int world, int rank);
+void
+ToriRSServer_WireMessageFriendchannelOsrs(struct RsprotBuf* buf, const char* sender,
+                                          int64_t channel37, int world, int counter, int crown,
+                                          uint8_t const* text, int text_len);
 
 /** The pool slot a revision-239 wire index names (the inverse of
  *  ToriRSServer_WirePlayerIndex), -1 for index 0, which names nobody. */

@@ -20,6 +20,8 @@ PluginGeometry_ObjectClaim(struct PluginGeometry* geom)
         obj->seq_id = -1;
         obj->loop = 1;
         obj->level = -1;
+        obj->sub_x = 64;
+        obj->sub_z = 64;
         obj->element_id = -1;
         obj->world_index = -1;
         obj->built_source = -1;

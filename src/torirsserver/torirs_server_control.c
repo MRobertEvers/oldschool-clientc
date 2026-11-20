@@ -1215,6 +1215,9 @@ ctl_handle_logout(
             if( g_ctl_logout_asked[i].pid == player->pid + 1 &&
                 g_ctl_logout_asked[i].login_generation == player->login_generation )
                 slot = i;
+        /* Either way it is a logout, so the socket's close removes the player
+         * rather than leaving it in the world detached. */
+        player->logout_requested = 1;
         if( slot >= 0 && srv->tick - g_ctl_logout_asked[slot].tick >= CTL_LOGOUT_GRACE_TICKS )
         {
             ToriRSServer_SessionKill(player->session);

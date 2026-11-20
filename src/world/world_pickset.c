@@ -7,6 +7,7 @@ World_PickSetReset(struct World_PickSet* pickset)
 {
     assert(pickset);
     pickset->count = 0;
+    pickset->unclassified_count = 0;
     /* The point goes with the hits: a set with nothing in it was hittested
      * nowhere, and a reader asking "was this stamped at my pixel?" must get
      * no for an emptied one. */

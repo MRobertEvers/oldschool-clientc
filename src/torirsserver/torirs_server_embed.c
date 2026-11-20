@@ -1922,7 +1922,7 @@ pump_client(
         struct ToriRSServerPlayer* player;
         struct ToriRSServerPlayer* evict;
         int claim = ToriRSServer_ClaimSlot(&embed->claims, &embed->srv, &client->session,
-                                           ToriRSServer_EmbedNowMs(), &evict);
+                                           ToriRSServer_EmbedNowMs(), &evict, NULL);
 
         if( evict )
         {

@@ -844,6 +844,12 @@ struct RS_CS2Host
     void (*script_callback)(void* user, struct CS2VM2_Thread*, char const* name);
     void* script_callback_user;
     bool script_callback_running;
+    /** The GE item search (OC_FIND with the tradeable filter), offered to the
+     *  plugins before the cache scan: up to `cap` ids written to `out` and
+     *  their count, or -1 to scan as usual (RuneLite's GrandExchangeSearched).
+     *  Synchronous: it must neither yield nor run the VM. Optional. */
+    int (*item_search)(void* user, char const* query, bool tradeable_only, int* out, int cap);
+    void* item_search_user;
 
     /*
      * The scene, for the two ops that ask about it: LOC_FIND (6803) and

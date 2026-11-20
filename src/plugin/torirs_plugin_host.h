@@ -28,7 +28,7 @@
  * schema ceiling a plugin is held to, and the difference is the headroom for
  * those strays.
  *
- * The schema half of that pair is PLUGIN_LUA_MAX_CONFIG (32) for a script;
+ * The schema half of that pair is PLUGIN_LUA_MAX_CONFIG (64) for a script;
  * PluginHost_Register refuses any def, C or Lua, whose schema does not fit
  * here. Sized against the plugin this tree ports from -- RuneLite's Ground
  * Items carries 33 settings -- rather than against the plugins that exist
@@ -36,10 +36,11 @@
  * first.
  *
  * The cost is fixed and paid whether or not a plugin uses it:
- * sizeof(struct PluginConfigSlot) is 260, so the store is 40 * 260 = ~10 KB
- * per plugin and ~333 KB across TORIRS_PLUGIN_MAX.
+ * sizeof(struct PluginConfigSlot) is 260, so the store is 72 * 260 = ~18 KB
+ * per plugin and ~600 KB across TORIRS_PLUGIN_MAX. Raised from 40 for the
+ * Quest Helper port, whose RuneLite config carries 39 settings.
  */
-#define TORIRS_PLUGIN_CONFIG_MAX 40
+#define TORIRS_PLUGIN_CONFIG_MAX 72
 #define TORIRS_PLUGIN_CONFIG_VALUE_MAX 192
 #define TORIRS_PLUGIN_SUBS_MAX 32
 /* Rows one menu build may carry routes for. Bounded by the menu itself. */
@@ -47,6 +48,15 @@
 /* Overlay items one plugin may push per frame, before the host clips it and
  * says so. The pool it draws from is shared with health bars and chat. */
 #define TORIRS_PLUGIN_DRAW_BUDGET 512
+/* Chat types a plugin's client-side line may carry (engine.chat_add): the
+ * client's message store files one ring per type, RS_CHAT_TYPE_MAX of them,
+ * and the bridge static_asserts the two still agree. */
+#define TORIRS_PLUGIN_CHAT_TYPE_MAX 128
+/* Vertices one engine draw_polygon may carry: a plugin's
+ * TORIRS_DRAW_POLYGON_POINTS_MAX after the runtime has clipped them to the
+ * callback's box. Each of the four clip edges emits at most 1.5x its input,
+ * and 1.5^4 < 6. */
+#define TORIRS_PLUGIN_ENGINE_POLYGON_POINTS_MAX (TORIRS_DRAW_POLYGON_POINTS_MAX * 6 + 8)
 /** World objects one plugin may hold at once. A loot beam per lit tile is the
  *  shape this is sized for; past it object_create refuses and says so. */
 #define TORIRS_PLUGIN_OBJECT_BUDGET 64
@@ -158,12 +168,23 @@ enum PluginWidgetRequestKind
      * struct App::if_models.heads[], never the composite scene model id. @see
      * struct ToriRS_WidgetModel. */
     PLUGIN_WIDGET_MODEL,
+    /* Reads, same rule: ToriRS_WidgetDetail, the three RuneLite child lists,
+     * and a native CS2 listener's arguments. */
+    PLUGIN_WIDGET_DETAIL, PLUGIN_WIDGET_DYNAMIC_CHILDREN, PLUGIN_WIDGET_STATIC_CHILDREN,
+    PLUGIN_WIDGET_NESTED_CHILDREN, PLUGIN_WIDGET_LISTENER,
     PLUGIN_WIDGET_POSITION, PLUGIN_WIDGET_SIZE,
     PLUGIN_WIDGET_REVALIDATE, PLUGIN_WIDGET_RESET, PLUGIN_WIDGET_RESET_OWNER,
     PLUGIN_WIDGET_CREATE_TEXT, PLUGIN_WIDGET_SET_TEXT, PLUGIN_WIDGET_TEXT_COLOR, PLUGIN_WIDGET_TEXT_ALIGN, PLUGIN_WIDGET_REMOVE,
     PLUGIN_WIDGET_HIDDEN, PLUGIN_WIDGET_PROJECTION_HEIGHT, PLUGIN_WIDGET_TEXT_OUTLINE, PLUGIN_WIDGET_INVOKE, PLUGIN_WIDGET_SET_ON_OP,
     PLUGIN_WIDGET_CREATE_IMAGE, PLUGIN_WIDGET_SET_IMAGE, PLUGIN_WIDGET_OPACITY, PLUGIN_WIDGET_ANCHOR, PLUGIN_WIDGET_SET_MASK,
-    PLUGIN_WIDGET_CANVAS_POSITION, PLUGIN_WIDGET_MOVE_AFTER
+    PLUGIN_WIDGET_CANVAS_POSITION, PLUGIN_WIDGET_MOVE_AFTER,
+    /* Native text edits, the owned item control, a cache sprite. */
+    PLUGIN_WIDGET_NATIVE_TEXT, PLUGIN_WIDGET_NATIVE_TEXT_COLOR,
+    PLUGIN_WIDGET_CREATE_ITEM, PLUGIN_WIDGET_SET_ITEM, PLUGIN_WIDGET_SET_SPRITE,
+    /* Owned RECTANGLE and MODEL controls. */
+    PLUGIN_WIDGET_CREATE_RECT, PLUGIN_WIDGET_SET_RECT,
+    PLUGIN_WIDGET_CREATE_MODEL, PLUGIN_WIDGET_SET_MODEL, PLUGIN_WIDGET_SET_MODEL_POSE,
+    PLUGIN_WIDGET_SET_MODEL_ANIM, PLUGIN_WIDGET_SCROLL_SIZE, PLUGIN_WIDGET_NATIVE_HIDDEN
 };
 struct PluginWidgetRequest
 {
@@ -176,6 +197,10 @@ struct PluginWidgetRequest
     struct ToriRS_WidgetBounds* bounds;
     struct ToriRS_WidgetState* state; /* STATE: filled by the adapter. */
     struct ToriRS_WidgetModel* model; /* MODEL: filled by the adapter. */
+    struct ToriRS_WidgetDetail* detail; /* DETAIL: filled by the adapter. */
+    /* LISTENER: `name` is the RuneLite listener name; `capacity` and `count`
+     * bound these as they bound `refs` for CHILDREN. */
+    struct ToriRS_WidgetListenerArg* listener_args;
     bool* flag;
     struct ToriRS_WidgetAction* actions;
     struct ToriRS_WidgetActionRef action;
@@ -409,6 +434,130 @@ struct ToriRS_PluginEngine
         void* user,
         int obj_id,
         struct ToriRS_ItemInfo* out);
+
+    /*
+     * The Quest Helper port's cache, game and script seams. ALL OPTIONAL: a
+     * NULL here is a client without that facility, and the plugin is told
+     * UNSUPPORTED / nil rather than a made-up value. The host has done the
+     * context checks (never a draw callback for a writer) and the range checks
+     * a plugin's numbers need before any of these is called.
+     *
+     * varc_str answers the store's own string (never NULL, "" when unset),
+     * borrowed until the next varc write. @see ToriRS_CacheApi::varc_int.
+     */
+    int (*varc_int)(
+        void* user,
+        int id);
+    char const* (*varc_str)(
+        void* user,
+        int id);
+    void (*set_varc_int)(
+        void* user,
+        int id,
+        int value);
+    void (*set_varc_str)(
+        void* user,
+        int id,
+        char const* value);
+    /** enum ToriRS_AssetState; may queue the record's load. @see enum_def. */
+    int (*enum_def)(
+        void* user,
+        int id,
+        struct ToriRS_EnumDef* out,
+        struct ToriRS_EnumEntry* entries,
+        int capacity);
+    int (*npc_def)(
+        void* user,
+        int id,
+        struct ToriRS_NpcDef* out);
+    int (*loc_def)(
+        void* user,
+        int id,
+        struct ToriRS_LocDef* out);
+    /** Frame `frame` of cache sprite `sprite_id`: 1 with `*out_argb` at
+     *  w*h ARGB pixels (valid until the engine next runs), 0 not yet (the
+     *  sprite is bound and loading), -1 never (no such sprite or frame).
+     *  @see cache.sprite_image. */
+    int (*sprite_pixels)(
+        void* user,
+        int sprite_id,
+        int frame,
+        uint32_t const** out_argb,
+        int* out_w,
+        int* out_h);
+    /** A client-side chat line; `type` is 0..127. @see chat_add. */
+    void (*chat_add)(
+        void* user,
+        int type,
+        char const* sender,
+        char const* text);
+    /** Point the hint arrow: `kind` TORIRS_HINT_ARROW_TILE (a = tile x,
+     *  b = tile z), _NPC (a = server slot; 0 when no live npc holds it) or
+     *  _NONE (clear). Returns 1 when set. */
+    int (*hint_arrow_set)(
+        void* user,
+        int kind,
+        int a,
+        int b);
+    int (*hint_arrow_get)(
+        void* user,
+        struct ToriRS_HintArrowInfo* out);
+    void (*sound)(
+        void* user,
+        int sound_id,
+        int loops,
+        int delay);
+    int (*weight)(void* user);
+    int (*world_types)(void* user);
+    int (*tick)(void* user);
+    /** The client's live int varp values, borrowed: `*out` holds the count
+     *  this returns, valid until the next engine call. OPTIONAL: NULL means
+     *  this engine raises no on_var_changed. Asked once per server tick, and
+     *  only while some running plugin has on_var_changed. */
+    int (*varp_values)(
+        void* user,
+        int32_t const** out);
+    /** enum ToriRS_ContractResult. The host has checked the context, the
+     *  argument count bound and `out`. @see ToriRS_ScriptApi::run. */
+    int (*script_run)(
+        void* user,
+        int script_id,
+        struct ToriRS_ScriptArg const* args,
+        int arg_count,
+        struct ToriRS_ScriptResult* out);
+    /** Watch / unwatch one clientscript id for the script hooks: the host
+     *  calls it once per change of the UNION of every running plugin's
+     *  watches (an id two plugins watch is watched once). OPTIONAL: NULL
+     *  means this engine raises no on_script_pre / on_script_post. */
+    bool (*script_watch)(
+        void* user,
+        int script_id,
+        bool on);
+    /** A client-side varbit write (a script's own): 1 written, 0 for a
+     *  varbit the client does not know. OPTIONAL. @see cache.set_varbit. */
+    int (*set_varbit)(
+        void* user,
+        int varbit_id,
+        int value);
+    /** enum ToriRS_AssetState; may queue the seq's load. OPTIONAL.
+     *  @see cache.seq_def. */
+    int (*seq_def)(
+        void* user,
+        int seq_id,
+        struct ToriRS_SeqDef* out);
+    /** enum ToriRS_Result: hand `url` (checked: http(s), printable, <= 500
+     *  bytes) to the platform. OPTIONAL: NULL is a client with no browser.
+     *  @see client.open_url. */
+    int (*open_url)(
+        void* user,
+        char const* url);
+    /** enum ToriRS_Result: glide the open world map to an absolute tile.
+     *  OPTIONAL. @see client.worldmap_jump. */
+    int (*worldmap_jump)(
+        void* user,
+        int tile_x,
+        int tile_z,
+        int level);
     /** One container slot. `inv` is enum ToriRS_InventoryKind.
      *  @see inv_slot. */
     int (*inv_slot)(
@@ -421,6 +570,47 @@ struct ToriRS_PluginEngine
     int (*inv_size)(
         void* user,
         int inv);
+    /** One slot of ANY container the client holds, by the container id
+     *  on_inventory_changed reports (93, 516, 659, ...): 1 with -1 for an
+     *  empty slot, 0 when the client holds no such container or the slot is
+     *  past its end. OPTIONAL (absent: every container reads as not held).
+     *  @see game.container_slot. */
+    int (*container_slot)(
+        void* user,
+        int container_id,
+        int slot,
+        int* out_obj_id,
+        int* out_count);
+    /** That container's slot count; 0 when it is not held. OPTIONAL.
+     *  @see game.container_size. */
+    int (*container_size)(
+        void* user,
+        int container_id);
+    /** Walk the live world entities (sailing boats). Iterator protocol of
+     *  npc_next (-1 starts; a negative answer ends). OPTIONAL (absent: none).
+     *  @see game.world_entity_next. */
+    int (*world_entity_next)(
+        void* user,
+        int iter,
+        struct ToriRS_WorldEntitySnapshot* out);
+    /** A point of entity `id`'s own world (fine units relative to its staging
+     *  base) -> where it is now in the root: ABSOLUTE fine. 0 when `id` is not
+     *  a live entity. OPTIONAL. @see game.world_entity_to_main. */
+    int (*world_entity_to_main)(
+        void* user,
+        int id,
+        int deck_fine_x,
+        int deck_fine_z,
+        int* out_fine_x,
+        int* out_fine_z);
+    /** Walk the locs of entity `id`'s OWN world (its deck and hull), iterator
+     *  protocol of loc_next; tiles ABSOLUTE in its staging rectangle, level
+     *  its own plane. OPTIONAL (absent: none). @see game.world_entity_loc_next. */
+    int (*world_entity_loc_next)(
+        void* user,
+        int id,
+        int iter,
+        struct ToriRS_ScenerySnapshot* out);
 
     int (*project)(
         void* user,
@@ -603,6 +793,54 @@ struct ToriRS_PluginEngine
         int h,
         uint32_t rgb,
         int fill_alpha);
+    /** A polygon in canvas pixels, already translated and clipped by the
+     *  runtime: an even-odd wash when `fill_alpha` > 0 (split into convex runs
+     *  by the engine when it is not one) and a closed border when
+     *  `outline_width` > 0. 1 <= count <= TORIRS_PLUGIN_ENGINE_POLYGON_POINTS_MAX.
+     *  @see ToriRS_Graphics::polygon. */
+    int (*draw_polygon)(
+        void* user,
+        int const* xs,
+        int const* ys,
+        int count,
+        uint32_t fill_rgb,
+        int fill_alpha,
+        uint32_t outline_rgb,
+        int outline_width);
+    /** Pixel width of `text`, and the line height, in the font draw_text
+     *  draws with; -1 while that font is not resident. */
+    int (*text_width)(
+        void* user,
+        char const* text);
+    int (*text_height)(
+        void* user);
+    /** Scene-local fine point -> canvas pixel on the drawn minimap; 0 when the
+     *  map is not drawn or the client would draw no dot there.
+     *  @see ToriRS_Graphics::minimap_project. */
+    int (*minimap_project)(
+        void* user,
+        int fine_x,
+        int fine_z,
+        int* out_x,
+        int* out_y);
+    /** The drawn minimap's box, centre and dot ring; 0 when it is not drawn. */
+    int (*minimap_bounds)(
+        void* user,
+        struct ToriRS_MinimapBounds* out);
+    /** Absolute world tile -> canvas pixel of its centre on the open world
+     *  map; 0 when the map is closed or its area does not cover the tile.
+     *  @see ToriRS_Graphics::worldmap_project. */
+    int (*worldmap_project)(
+        void* user,
+        int tile_x,
+        int tile_z,
+        int level,
+        int* out_x,
+        int* out_y);
+    /** The open world map's view rectangle; 0 when it is closed. */
+    int (*worldmap_bounds)(
+        void* user,
+        struct ToriRS_Rect* out);
 
     /** Append a row carrying `action_id` to the menu build in progress.
      *  Returns 1 on success, 0 when the menu is full. */
@@ -624,6 +862,37 @@ struct ToriRS_PluginEngine
         void* user,
         void* cursor,
         int index);
+    /** Rows in the menu being built, every row included. OPTIONAL with the
+     *  four below: without them menu.set_order / set_text answer UNSUPPORTED
+     *  and a later plugin is handed the payload the build started with. */
+    int (*menu_count)(
+        void* user,
+        void* cursor);
+    /** Replace row `index`'s drawn text (cut at the menu's own row size). */
+    void (*menu_set_text)(
+        void* user,
+        void* cursor,
+        int index,
+        char const* text);
+    /** Rebuild the menu as rows order[0..count): each a CURRENT index,
+     *  listed at most once; a row not listed is gone. */
+    void (*menu_permute)(
+        void* user,
+        void* cursor,
+        int const* order,
+        int count);
+    /** Row `index` of the menu being built as a payload row (the bridge's
+     *  on_menu_build conversion), so the host can hand the next plugin the
+     *  menu as an earlier one left it. `out->text` points into the menu. */
+    void (*menu_row)(
+        void* user,
+        void* cursor,
+        int index,
+        struct ToriRS_MenuRow* out);
+    /** The right-click menu's box when it is up. OPTIONAL. */
+    int (*menu_shown)(
+        void* user,
+        struct ToriRS_Rect* out);
 
     /* Assets. The engine owns the paths and the IO queue; the host owns the
      * resident bytes and who is allowed to see them, which is why `plugin` is
@@ -635,6 +904,16 @@ struct ToriRS_PluginEngine
         void* user,
         char const* plugin,
         char const* name);
+    /** Queue a read of a SCRIPT item -- resolved the way plugins/plugins.ini
+     *  is, so the browser lane serves it too -- for a Lua plugin's module.
+     *  `deliver` runs when it lands with the bytes (ToriMem NET group, handed
+     *  over) or NULL. Returns 1 when queued. May be NULL in a test engine. */
+    int (*script_read)(
+        void* user,
+        char const* path,
+        int serial,
+        void (*deliver)(void* deliver_user, int serial, char const* path, void* data, int size),
+        void* deliver_user);
     /** Queue a write. `data` is COPIED by the engine; the host may replace its
      * resident copy as soon as the call returns. */
     int (*asset_write)(
@@ -774,6 +1053,24 @@ struct ToriRS_PluginEngine
         int object,
         int active);
     int (*object_ready)(
+        void* user,
+        int object);
+    /* OPTIONAL (absent = UNSUPPORTED, -1, false): a sub-tile placement in
+     * ABSOLUTE fine units (tile * 128 + 0..127), the scene element the object
+     * is drawn as (-1 while it is not), and whether the pointer is on its
+     * model in the frame's per-triangle pick. */
+    void (*object_set_fine_position)(
+        void* user,
+        int object,
+        int fine_x,
+        int fine_z,
+        int level,
+        int height,
+        int yaw);
+    int (*object_element)(
+        void* user,
+        int object);
+    int (*object_hit)(
         void* user,
         int object);
 
@@ -968,6 +1265,94 @@ PluginHost_ChatMessage(
     char const* sender,
     char const* text);
 
+/**
+ * An interface GROUP was mounted (`open`) or unmounted, from the engine's
+ * mount seam (UITree::mount_listener), never a scan. Queued and delivered as
+ * on_interface at the next PluginHost_FrameStart, before on_frame_start, in
+ * the order the mounts happened. Nothing is queued while no running plugin has
+ * on_interface. At most PLUGIN_HOST_INTERFACE_QUEUE_MAX per frame; past that
+ * the oldest are dropped (logged once).
+ */
+#define PLUGIN_HOST_INTERFACE_QUEUE_MAX 128
+void
+PluginHost_InterfaceChanged(
+    struct ToriRS_PluginHost* host,
+    int group_id,
+    bool open);
+
+/**
+ * Inventory container `inv` changed (any slot, any source). Coalesced per
+ * container and delivered as on_inventory_changed at the next
+ * PluginHost_FrameStart, after the frame's on_interface events. Nothing is
+ * queued while no running plugin has on_inventory_changed.
+ */
+#define PLUGIN_HOST_INVENTORY_QUEUE_MAX 32
+/**
+ * A root-scene loc changed after the scene was built (the loc lane landed a
+ * LOC_ADD_CHANGE / LOC_DEL / zone-reset restore). Queued and delivered as
+ * on_loc_changed at the next PluginHost_FrameStart, after that frame's
+ * inventories, in the order they landed. Nothing is queued while no running
+ * plugin has on_loc_changed. At most PLUGIN_HOST_LOC_QUEUE_MAX per frame; past
+ * that the oldest are dropped (logged once).
+ */
+#define PLUGIN_HOST_LOC_QUEUE_MAX 256
+void
+PluginHost_LocChanged(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_LocChangedEvent const* event);
+/**
+ * A MAP_ANIM graphic on a root-scene tile, delivered as on_map_anim at the
+ * next frame start after the loc changes; the same queue rules, at most
+ * PLUGIN_HOST_MAP_ANIM_QUEUE_MAX per frame.
+ */
+#define PLUGIN_HOST_MAP_ANIM_QUEUE_MAX 128
+void
+PluginHost_MapAnim(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_MapAnimEvent const* event);
+/**
+ * A "::" command the player entered, `text` the body after the "::", before
+ * the client sends it as a cheat: raises on_command for every running plugin
+ * with the handler, in event order, until one consumes it. 1 when consumed
+ * (the caller then sends nothing and runs no client cheat), 0 otherwise --
+ * always 0, at the cost of one test, while no running plugin has the handler.
+ */
+int
+PluginHost_Command(
+    struct ToriRS_PluginHost* host,
+    char const* text);
+/**
+ * The GE item search for `query` is about to scan the cache. Asks the running
+ * plugins with on_item_search, in event order, until one consumes it: then up
+ * to `cap` of its ids are written to `out` and their count returned. -1 when
+ * nobody answered (the client searches as usual) -- always -1, at the cost of
+ * one test, while no running plugin has the handler.
+ */
+int
+PluginHost_ItemSearch(
+    struct ToriRS_PluginHost* host,
+    char const* query,
+    bool tradeable_only,
+    int* out,
+    int cap);
+/**
+ * A watched clientscript's PRE (`post` false) or POST hook, from inside the
+ * VM: raises on_script_pre / on_script_post for every running plugin that
+ * watches `script_id` and has the handler, each with a script ref over
+ * `stack` (valid for that dispatch only). One test while nobody watches.
+ */
+void
+PluginHost_ScriptHook(
+    struct ToriRS_PluginHost* host,
+    bool post,
+    int script_id,
+    bool invoked,
+    struct PluginScriptStack const* stack);
+void
+PluginHost_InventoryChanged(
+    struct ToriRS_PluginHost* host,
+    int inv);
+
 /** A recognised notable moment. `kind` is the recogniser's stable name and
  *  must not be NULL; `subject` and `text` may be. */
 void
@@ -990,6 +1375,16 @@ void
 PluginHost_ObjDespawn(
     struct ToriRS_PluginHost* host,
     struct ToriRS_GroundItemSnapshot const* obj);
+
+/** Queue a script-item read through the engine (engine.script_read). Returns
+ *  false when the engine has no IO for it; `deliver` is then never called. */
+bool
+PluginHost_ScriptRead(
+    struct ToriRS_PluginHost* host,
+    char const* path,
+    int serial,
+    void (*deliver)(void* deliver_user, int serial, char const* path, void* data, int size),
+    void* deliver_user);
 
 /** An engine-side asset read finished. `data` is HANDED OVER on success (the
  *  host frees it); NULL means the read failed, and the plugin is told so. Both
@@ -1040,8 +1435,13 @@ PluginHost_DrawCanvas(
     int width,
     int height);
 
-/** Dispatches on_menu_build. `cursor` is handed to engine->menu_add. */
-void
+/** Dispatches on_menu_build, plugin by plugin in event order, each handed
+ *  the menu as the ones before it left it (@see ToriRS_MenuApi::set_order).
+ *  `cursor` is handed to engine->menu_add. `menu->row_count` is every row of
+ *  the menu (at most TORIRS_PLUGIN_MENU_ROWS_MAX). True when a plugin set the
+ *  build's order (menu.set_order): the caller must then NOT re-sort the menu,
+ *  the order stands as the plugins gave it. */
+bool
 PluginHost_MenuBuild(
     struct ToriRS_PluginHost* host,
     void* cursor,

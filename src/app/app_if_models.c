@@ -527,6 +527,41 @@ app_cs2_widget_model_direct(
     UIIfModels_Forget(&app->if_models, component_id);
 }
 
+/*
+ * A plugin's owned MODEL control: the scene model for (kind, id) if it is
+ * composited now, else -1 -- and, with `request`, the same load-and-composite
+ * task an IF_SET* head queues (Task_AppIfHead, keyed by no component: the
+ * plugin bridge binds the result itself when this answers >= 0). `kind` is
+ * an enum UIIfHeadKind; `id` is ignored for the player.
+ */
+int
+App_PluginModelScene(
+    struct App* app,
+    int kind,
+    int id,
+    bool request)
+{
+    int scene_id = -1;
+
+    assert(app);
+    if( kind == UI_IFHEAD_NPC )
+        scene_id = UITreeSceneBridge_EnsureNpcHead(&app->bridge, id);
+    else if( kind == UI_IFHEAD_OBJ )
+        scene_id = UITreeSceneBridge_EnsureObjModel(&app->bridge, id);
+    else if( kind == UI_IFHEAD_MODEL )
+        scene_id = UITreeSceneBridge_EnsureModel(&app->bridge, id);
+    else
+    {
+        struct WorldEntity_Player* lp = app_local_player(app);
+        if( lp )
+            scene_id = UITreeSceneBridge_EnsurePlayerHead(
+                &app->bridge, lp->appearance.slots, lp->appearance.colors, lp->gender);
+    }
+    if( scene_id < 0 && request )
+        app_if_head_enqueue(app, (enum UIIfHeadKind)kind, -1, id);
+    return scene_id;
+}
+
 void
 App_SetInterfaceNpcHead(
     struct App* app,

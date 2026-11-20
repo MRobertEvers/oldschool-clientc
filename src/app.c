@@ -467,6 +467,9 @@ App_Init(
      * the bridge for icon rasterization). */
     app->tree = UITree_New(256);
     assert(app->tree);
+    /* on_interface: the plugin host hears of every interface mount from the
+     * mount itself (app_plugin_mount_changed queues only for a subscriber). */
+    UITree_SetMountListener(app->tree, app_plugin_mount_changed, app);
     /* Which side of a minimap/compass mask is the window is a property of the
      * era's art, not of the widget — see UITree.mask_keep_opaque. RS2 (634)
      * ships a stencil, OldSchool a corner cover. */
@@ -635,6 +638,8 @@ App_Init(
     app->host.if_written_user = app;
     app->host.script_callback = app_script_callback;
     app->host.script_callback_user = app;
+    app->host.item_search = app_item_search;
+    app->host.item_search_user = app;
     app->host.loc_at_coord = app_cs2_loc_at_coord;
     app->host.coord_in_scene = app_cs2_coord_in_scene;
     app->host.player_route = app_cs2_player_route;
@@ -1329,6 +1334,8 @@ App_Shutdown(struct App* app)
      * config store, and both are torn down below. */
     PluginHost_Free(app->plugins);
     app->plugins = NULL;
+    /* The script hook app_plugin_engine installed names this app. */
+    CS2VM2_SetScriptHook(NULL, NULL);
     if( app->map_editor )
     {
         struct Editor* const session = app->map_editor->session;

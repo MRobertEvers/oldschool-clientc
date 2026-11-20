@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11328] = {
+static const char* const g_ss_opcode_names[11372] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -628,6 +628,18 @@ static const char* const g_ss_opcode_names[11328] = {
     [11325] = "GE_OFFER_COLLECT",
     [11326] = "SEND_VARP_LONG",
     [11327] = "P_ORIENTATION",
+    [11360] = "FRIENDCHAT_PREFIX",
+    [11361] = "FRIENDCHAT_ENABLED",
+    [11362] = "FRIENDCHAT_ENTERRANK",
+    [11363] = "FRIENDCHAT_TALKRANK",
+    [11364] = "FRIENDCHAT_KICKRANK",
+    [11365] = "FRIENDCHAT_SETENTERRANK",
+    [11366] = "FRIENDCHAT_SETTALKRANK",
+    [11367] = "FRIENDCHAT_SETKICKRANK",
+    [11368] = "FRIENDCHAT_SETPREFIX",
+    [11369] = "FRIENDCHAT_DISABLE",
+    [11370] = "FRIENDCHAT_REJOINNAME",
+    [11371] = "FRIENDCHAT_CURRENT",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -637,7 +649,7 @@ static const char* const g_ss_opcode_names[11328] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11328] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11372] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -1259,6 +1271,18 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11328] = {
     [11325] = { 3, 0, 0, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* GE_OFFER_COLLECT */
     [11326] = { 2, 0, 0, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* SEND_VARP_LONG */
     [11327] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* P_ORIENTATION */
+    [11360] = { 0, 0, 0, 1, 1, 0, 0, 0, 0x001, 0x000 }, /* FRIENDCHAT_PREFIX */
+    [11361] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* FRIENDCHAT_ENABLED */
+    [11362] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* FRIENDCHAT_ENTERRANK */
+    [11363] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* FRIENDCHAT_TALKRANK */
+    [11364] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* FRIENDCHAT_KICKRANK */
+    [11365] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* FRIENDCHAT_SETENTERRANK */
+    [11366] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* FRIENDCHAT_SETTALKRANK */
+    [11367] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* FRIENDCHAT_SETKICKRANK */
+    [11368] = { 0, 1, 1, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* FRIENDCHAT_SETPREFIX */
+    [11369] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* FRIENDCHAT_DISABLE */
+    [11370] = { 0, 0, 0, 1, 1, 0, 0, 0, 0x001, 0x000 }, /* FRIENDCHAT_REJOINNAME */
+    [11371] = { 0, 0, 0, 1, 1, 0, 0, 0, 0x001, 0x000 }, /* FRIENDCHAT_CURRENT */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */

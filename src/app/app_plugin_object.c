@@ -544,10 +544,12 @@ app_plugin_object_set_position(
     if( !obj )
         return;
     if( obj->tile_x == tile_x && obj->tile_z == tile_z && obj->level == level &&
-        obj->height == height && obj->yaw == yaw )
+        obj->height == height && obj->yaw == yaw && obj->sub_x == 64 && obj->sub_z == 64 )
         return;
     obj->tile_x = tile_x;
     obj->tile_z = tile_z;
+    obj->sub_x = 64;
+    obj->sub_z = 64;
     obj->level = level;
     obj->height = height;
     obj->yaw = yaw;
@@ -584,6 +586,99 @@ app_plugin_object_ready(
     assert(app);
     obj = PluginGeometry_Object(&app->plugin_geometry, handle);
     return (obj && obj->element_id >= 0) ? 1 : 0;
+}
+
+/*
+ * A sub-tile placement: ABSOLUTE fine units (tile * 128 + 0..127), RuneLite's
+ * LocalPoint carried to the world. The record keeps the tile and the offset
+ * in it apart, so the tile -- what a rebuild does not invalidate -- is still
+ * the identity, and a walk across a tile edge is a position change applied in
+ * place like any other.
+ */
+void
+app_plugin_object_set_fine_position(
+    void* user,
+    int handle,
+    int fine_x,
+    int fine_z,
+    int level,
+    int height,
+    int yaw)
+{
+    struct App* app = (struct App*)user;
+    struct PluginObject* obj;
+    int const tile_x = fine_x >> 7;
+    int const tile_z = fine_z >> 7;
+    int const sub_x = fine_x & 127;
+    int const sub_z = fine_z & 127;
+
+    assert(app);
+    assert(fine_x >= 0);
+    assert(fine_z >= 0);
+    /* the host asserted the plugin owns the handle; an owned handle is in use */
+    obj = PluginGeometry_Object(&app->plugin_geometry, handle);
+    assert(obj);
+    if( obj->tile_x == tile_x && obj->tile_z == tile_z && obj->sub_x == sub_x && obj->sub_z == sub_z &&
+        obj->level == level && obj->height == height && obj->yaw == yaw )
+        return;
+    obj->tile_x = tile_x;
+    obj->tile_z = tile_z;
+    obj->sub_x = sub_x;
+    obj->sub_z = sub_z;
+    obj->level = level;
+    obj->height = height;
+    obj->yaw = yaw;
+    app_plugin_object_sync(app, handle);
+}
+
+/* The scene element the object is drawn as, -1 while it is not built (its
+ * model loading, off the scene, inactive objects keep theirs). */
+int
+app_plugin_object_element(
+    void* user,
+    int handle)
+{
+    struct App* app = (struct App*)user;
+    struct PluginObject* obj;
+
+    assert(app);
+    obj = PluginGeometry_Object(&app->plugin_geometry, handle);
+    assert(obj);
+    if( obj->element_id < 0 || !app->scene || !ToriDraw_SceneElementIsLive(app->scene, obj->element_id) )
+        return -1;
+    return obj->element_id;
+}
+
+/*
+ * Whether the pointer is on the object's model: the frame's own per-triangle
+ * hit test (the render pass's pick, the one the minimenu is built from),
+ * which keeps every root hit that names no game entity -- a plugin's object
+ * is one -- beside the classified set. RuneLite's
+ * Perspective.getClickbox(...).contains(mouse). 0 while the pointer is off
+ * the viewport, the set was stamped at another point, or the object is not
+ * drawn (inactive, off the scene, not built).
+ */
+int
+app_plugin_object_hit(
+    void* user,
+    int handle)
+{
+    struct App* app = (struct App*)user;
+    struct PluginObject* obj;
+    struct World_PickSet const* set;
+
+    assert(app);
+    obj = PluginGeometry_Object(&app->plugin_geometry, handle);
+    assert(obj);
+    if( obj->element_id < 0 || !obj->active )
+        return 0;
+    set = &App_PresentedView(app)->world_pickset;
+    if( !set->mouse_valid || App_PresentedView(app)->pointer_absent )
+        return 0;
+    for( int i = 0; i < set->unclassified_count; i++ )
+        if( set->unclassified[i] == obj->element_id )
+            return 1;
+    return 0;
 }
 /*
  * PLUGIN-AUTHORED OBJECTS -- world objects a plugin creates and owns, rather
@@ -835,8 +930,8 @@ app_plugin_object_scene_pos(
         scene_z >= app->world->_scene_size )
         return 0;
 
-    *out_world_x = scene_x * 128 + 64;
-    *out_world_z = scene_z * 128 + 64;
+    *out_world_x = scene_x * 128 + obj->sub_x;
+    *out_world_z = scene_z * 128 + obj->sub_z;
     /* World y is negative-up, so subtracting `height` raises the model off the
      * ground -- the same arithmetic a map spotanim's height uses. */
     *out_world_y = app_world_height(app, *out_world_x, *out_world_z, obj->level) - obj->height;

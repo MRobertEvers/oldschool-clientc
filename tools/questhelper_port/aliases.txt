@@ -1,0 +1,2 @@
+# gameval names the 1.13.6 api jar (our revision) lacks: <Class.NAME> <id>
+NpcID.HATIUS_LUMBRIDGE_DIARY 16815

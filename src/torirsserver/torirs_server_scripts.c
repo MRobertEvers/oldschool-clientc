@@ -34,6 +34,7 @@
 #include "torirs_server_container.h"
 #include "torirs_server_content.h"
 #include "torirs_server_friends.h"
+#include "torirs_server_friendchat.h"
 #include "torirs_server_ge.h"
 #include "torirs_server_ids.h"
 #include "torirs_server_scene.h"
@@ -6343,6 +6344,70 @@ script_command(
         ToriRSServer_SendMessageTyped(player, 105, text);
         return 1;
     }
+
+    /*
+     * Friends chat: the active player's own channel, for the setup panel
+     * (interface_friends/scripts/friendchat.rs2). The service is
+     * torirs_server_friendchat.c; these only ask and tell it. Every one needs
+     * the player (the generator's require mask), so `player` is set here.
+     */
+    case SS_OP_FRIENDCHAT_PREFIX:
+        SSVM_PushStr(state, ToriRSServer_FriendchatPrefix(player));
+        return 1;
+    case SS_OP_FRIENDCHAT_ENABLED:
+        SSVM_PushInt(state, ToriRSServer_FriendchatEnabled(player));
+        return 1;
+    case SS_OP_FRIENDCHAT_ENTERRANK:
+        SSVM_PushInt(state, ToriRSServer_FriendchatEnterRank(player));
+        return 1;
+    case SS_OP_FRIENDCHAT_TALKRANK:
+        SSVM_PushInt(state, ToriRSServer_FriendchatTalkRank(player));
+        return 1;
+    case SS_OP_FRIENDCHAT_KICKRANK:
+        SSVM_PushInt(state, ToriRSServer_FriendchatKickRank(player));
+        return 1;
+    case SS_OP_FRIENDCHAT_SETENTERRANK:
+    case SS_OP_FRIENDCHAT_SETTALKRANK:
+    case SS_OP_FRIENDCHAT_SETKICKRANK:
+    {
+        int32_t rank;
+        int lowest = opcode == SS_OP_FRIENDCHAT_SETKICKRANK ? 2 : TORIRSSERVER_FRIENDCHAT_RANK_ANYONE;
+        enum ToriRSServerFriendchatChange change;
+
+        if( !SSVM_PopInt(state, &rank) )
+            return 1;
+        if( rank < lowest || rank > TORIRSSERVER_FRIENDCHAT_RANK_OWNER )
+        {
+            SSVM_Abort(state, "friendchat rank out of range");
+            return 1;
+        }
+        if( opcode == SS_OP_FRIENDCHAT_SETENTERRANK )
+            change = ToriRSServer_FriendchatSetEnterRank(player, rank);
+        else if( opcode == SS_OP_FRIENDCHAT_SETTALKRANK )
+            change = ToriRSServer_FriendchatSetTalkRank(player, rank);
+        else
+            change = ToriRSServer_FriendchatSetKickRank(player, rank);
+        SSVM_PushInt(state, (int32_t)change);
+        return 1;
+    }
+    case SS_OP_FRIENDCHAT_SETPREFIX:
+    {
+        const char* prefix;
+
+        if( !SSVM_PopStr(state, &prefix) )
+            return 1;
+        SSVM_PushInt(state, (int32_t)ToriRSServer_FriendchatSetPrefix(player, prefix ? prefix : ""));
+        return 1;
+    }
+    case SS_OP_FRIENDCHAT_DISABLE:
+        SSVM_PushInt(state, (int32_t)ToriRSServer_FriendchatDisable(player));
+        return 1;
+    case SS_OP_FRIENDCHAT_REJOINNAME:
+        SSVM_PushStr(state, ToriRSServer_FriendchatRejoinName(player));
+        return 1;
+    case SS_OP_FRIENDCHAT_CURRENT:
+        SSVM_PushStr(state, ToriRSServer_FriendchatCurrent(player));
+        return 1;
 
     /* mes_typed(int $type, string $text): the dialogue echo (114) and the
      * mesbox echo (115) the chat procs send beside each page (RSProx 4293). */
@@ -15874,6 +15939,9 @@ script_command(
          * A selftest player has no session; that is a real state, not a
          * contract violation. */
         assert(player);
+        /* A logout, not a lost link: the host removes the player rather than
+         * leaving it in the world detached (torirs_server_host.c). */
+        player->logout_requested = 1;
         if( player->session )
             ToriRSServer_SessionKill(player->session);
         return 1;

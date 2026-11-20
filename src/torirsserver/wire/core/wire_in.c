@@ -334,6 +334,22 @@ nul_prefix(uint8_t const* in, int in_len, int* text_len)
 }
 
 int
+wire_in_friendchat_setrank(struct RsprotBuf* w, const char* friend_name, int rank)
+{
+    size_t len;
+
+    assert(w);
+    if( !friend_name )
+        return 0;
+    len = strlen(friend_name);
+    if( len == 0 || len > 12 || rank < 0 || rank > 255 )
+        return 0;
+    rsprot_p1(w, rank);
+    rsprot_pjstr(w, friend_name);
+    return 1;
+}
+
+int
 wire_in_body(
     int name,
     uint8_t const* in,
@@ -470,10 +486,11 @@ wire_in_body(
 
     /* MESSAGE_PUBLIC is RSProt's MessagePublic: g1 type, g1 colour, g1
      * effect, a pattern byte per colour past 12 (13-20), the Huffman text,
-     * and a clan type after it when the type is 3. handle_message_public
-     * reads colour, effect, text. A patterned colour is dropped: the
-     * player-info chat block this server writes carries no pattern, so the
-     * line could not be passed on as it was said. */
+     * and a clan type after it when the type is 3. The world gets type,
+     * colour, effect, text: the type is what tells a friends-chat line (2)
+     * and a clan line (3) from one said aloud. A patterned colour is
+     * dropped: the player-info chat block this server writes carries no
+     * pattern, so the line could not be passed on as it was said. */
     case PKTOUT_NAME_MESSAGE_PUBLIC:
     {
         int text_end;
@@ -483,10 +500,32 @@ wire_in_body(
         text_end = in[0] == 3 ? in_len - 1 : in_len;
         if( text_end <= 3 )
             return PKTOUT_NAME_NONE;
+        rsprot_p1(&w, in[0]);
         rsprot_p1(&w, in[1]);
         rsprot_p1(&w, in[2]);
         rsprot_pdata(&w, in + 3, (size_t)(text_end - 3));
         return wire_in_done(&w, name, out_len);
+    }
+
+    /* FRIENDCHAT_JOIN_LEAVE: the owner's name as a NUL string, or no body at
+     * all for the leave (RSProt's one 222..242 row). FRIENDCHAT_KICK: the
+     * name. Both pass through once the body is exactly that. */
+    case PKTOUT_NAME_FRIENDCHAT_JOIN_LEAVE:
+    case PKTOUT_NAME_FRIENDCHAT_KICK:
+    {
+        int text_len;
+
+        if( in_len == 0 && name == PKTOUT_NAME_FRIENDCHAT_JOIN_LEAVE )
+        {
+            *out_len = 0;
+            return name;
+        }
+        if( !nul_prefix(in, in_len, &text_len) || text_len + 1 != in_len || text_len <= 0 ||
+            text_len > 12 )
+            return PKTOUT_NAME_NONE;
+        if( !passthrough(in, in_len, out, out_cap, out_len) )
+            return PKTOUT_NAME_NONE;
+        return name;
     }
 
     /*

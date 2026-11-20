@@ -41,7 +41,8 @@ ToriRSServer_ClaimSlot(
     const struct ToriRSServer* srv,
     const struct ToriRSServerSession* session,
     long now_ms,
-    struct ToriRSServerPlayer** out_evict)
+    struct ToriRSServerPlayer** out_evict,
+    struct ToriRSServerPlayer** out_attach)
 {
     char save_path[1024];
 
@@ -50,6 +51,8 @@ ToriRSServer_ClaimSlot(
     assert(session);
     assert(out_evict);
     *out_evict = NULL;
+    if( out_attach )
+        *out_attach = NULL;
 
     snprintf(save_path, sizeof(save_path), "%s", ToriRSServer_SavePath(session->display_name));
     /* A name that sanitises to nothing has no save and so no identity. */
@@ -61,22 +64,39 @@ ToriRSServer_ClaimSlot(
      * checks no password, so refusing it would only strand a player whose old
      * socket has not closed yet. A reconnect must also hold that session's key,
      * and comes back in its slot.
+     *
+     * A player whose connection went is still online (detached): the session
+     * it played on is over, but the character is in the world until the idle
+     * logout. A reconnect holding that session's key from a client that kept
+     * its state is the reference's "reconnect a new socket with player in the
+     * world" -- the same player, re-attached, nothing reloaded.
      */
     for( int pid = 0; pid < srv->player_count; pid++ )
     {
         const struct ToriRSServerPlayer* online = &srv->players[pid];
+        const int32_t* seed;
 
-        if( !online->active || !online->session || online->session == session )
+        if( !online->active || online->session == session )
+            continue;
+        if( !online->session && !online->detached )
             continue;
         if( strcmp(ToriRSServer_SavePath(online->account_name), save_path) != 0 )
             continue;
-        if( session->reconnect && memcmp(session->presented_seed, online->session->seed,
-                                         sizeof(session->presented_seed)) != 0 )
+        seed = online->session ? online->session->seed : online->session_seed;
+        if( session->reconnect &&
+            memcmp(session->presented_seed, seed, sizeof(session->presented_seed)) != 0 )
         {
             fprintf(stderr,
                     "torirsserver: reconnect for %s presents another session's key; refusing\n",
                     online->display_name);
             return TORIRSSERVER_CLAIM_REFUSE;
+        }
+        if( out_attach && session->reconnect && !session->client_fresh )
+        {
+            fprintf(stderr, "torirsserver: %s reconnected; re-attaching (pid %d%s)\n",
+                    online->display_name, pid, online->detached ? ", was detached" : "");
+            *out_attach = (struct ToriRSServerPlayer*)online;
+            return pid;
         }
         fprintf(stderr, "torirsserver: %s %s; dropping the old session (pid %d)\n",
                 online->display_name, session->reconnect ? "reconnected" : "logged in again",

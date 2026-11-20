@@ -633,14 +633,14 @@ w239_friendlist_loaded(struct RsprotBuf* buf, int status)
  * an online-only pjstr/g1/g4 block; then a trailing pjstr note.
  */
 static void
-w239_friend_entry(struct RsprotBuf* buf, const char* name, int world)
+w239_friend_entry(struct RsprotBuf* buf, const char* name, int world, int rank)
 {
     const char* safe = name ? name : "";
     rsprot_p1(buf, 0);                 /* not renamed */
     rsprot_pjstr(buf, safe);
     rsprot_pjstr(buf, safe); /* previousName */
     rsprot_p2_12(buf, (uint16_t)world);
-    rsprot_p1(buf, 0);                 /* rank */
+    rsprot_p1(buf, rank & 0xff);         /* rank */
     rsprot_p1(buf, 0);                 /* flags */
     if( world > 0 )
     {
@@ -1148,6 +1148,9 @@ static const struct ToriRSServerWirePayload k_payload_osrs239 = {
     .ambientsound_stop = w239_ambientsound_stop,
     .friendlist_loaded = w239_friendlist_loaded,
     .friend_entry = w239_friend_entry,
+    .friendchat_full = ToriRSServer_WireFriendchatFullOsrs,
+    .friendchat_user = ToriRSServer_WireFriendchatUserOsrs,
+    .message_friendchannel = ToriRSServer_WireMessageFriendchannelOsrs,
     .inv_header = w239_inv_header,
     .inv_slot = w239_inv_slot,
     .inv_stop_transmit = w239_inv_stop_transmit,
@@ -1189,6 +1192,10 @@ static const struct ToriRSServerWirePayload k_payload_osrs239 = {
  * three because revision 239 has no such packet at all.
  */
 static const int k_transcribed_osrs239[] = {
+    /* Friends chat: the shared writers in torirs_server_wire.c (RSProt's one
+     * 222..242 row each). */
+    PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_FULL, PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER,
+    PKT_NAME_MESSAGE_FRIENDCHANNEL,
     /* MessagePrivateEncoder through the `message_private` hook: display name,
      * world, 24-bit counter, crown, then the packed text. */
     PKT_NAME_MESSAGE_PRIVATE,

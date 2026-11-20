@@ -2572,9 +2572,15 @@
             renderWidgetContent(record);
     }
     /* One clamp for a custom well's height, so the ADD that first states it
-     * and the WIDGET_HEIGHT that moves it cannot disagree. */
+     * and the WIDGET_HEIGHT that moves it cannot disagree. Its bounds are the
+     * model's (TORIRS_PANEL_CUSTOM_HEIGHT_MIN / _MAX, torirs_plugin_types.h):
+     * a tighter cap here squeezed the plugin's whole bitmap into the shorter
+     * box -- Quest Helper's 2000-pixel quest list drawn at a quarter of its
+     * height in the browser (live, 2026-11-20). */
+    var CUSTOM_HEIGHT_MIN = 48;
+    var CUSTOM_HEIGHT_MAX = 2048;
     function customHeightPx(rows) {
-        return "".concat(Math.max(48, Math.min(512, rows || 120)), "px");
+        return "".concat(Math.max(CUSTOM_HEIGHT_MIN, Math.min(CUSTOM_HEIGHT_MAX, rows || 120)), "px");
     }
     /* The chrome scale (TORIRS_CHROME_CMD_SCALE): value / den device pixels
      * per chrome pixel, 1.25x as 5 / 4. The page keeps authoring in 1x chrome

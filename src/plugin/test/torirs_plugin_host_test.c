@@ -513,6 +513,102 @@ fake_draw_rect(
     g_engine.draw_items += 1;
     return 1;
 }
+/* Every draw_polygon the engine received, in order, so a case can read the
+ * runtime's translation and its clip off what actually arrived. */
+enum { FAKE_POLY_CALLS_MAX = 16, FAKE_POLY_POINTS_MAX = 32 };
+static struct
+{
+    int count;
+    int x[FAKE_POLY_POINTS_MAX];
+    int y[FAKE_POLY_POINTS_MAX];
+    int fill_alpha;
+    int outline_width;
+} g_poly[FAKE_POLY_CALLS_MAX];
+static int g_poly_calls;
+static int
+fake_draw_polygon(
+    void* u,
+    int const* xs,
+    int const* ys,
+    int count,
+    uint32_t fill_rgb,
+    int fill_alpha,
+    uint32_t outline_rgb,
+    int outline_width)
+{
+    (void)u;
+    (void)fill_rgb;
+    (void)outline_rgb;
+    if( g_poly_calls < FAKE_POLY_CALLS_MAX )
+    {
+        g_poly[g_poly_calls].count = count;
+        for( int i = 0; i < count && i < FAKE_POLY_POINTS_MAX; i++ )
+        {
+            g_poly[g_poly_calls].x[i] = xs[i];
+            g_poly[g_poly_calls].y[i] = ys[i];
+        }
+        g_poly[g_poly_calls].fill_alpha = fill_alpha;
+        g_poly[g_poly_calls].outline_width = outline_width;
+    }
+    g_poly_calls++;
+    g_engine.draw_items += count + 2;
+    return count + 2;
+}
+static int
+fake_text_width(void* u, char const* text)
+{
+    (void)u;
+    return (int)strlen(text) * 6;
+}
+static int
+fake_text_height(void* u)
+{
+    (void)u;
+    return 12;
+}
+/* A minimap at canvas (550, 4), 152 square, centred on fine (0, 0) at one
+ * pixel per 32 fine units: only the arithmetic the runtime adds is under test. */
+static int
+fake_minimap_project(void* u, int fine_x, int fine_z, int* out_x, int* out_y)
+{
+    (void)u;
+    if( fine_x < 0 )
+        return 0;
+    *out_x = 626 + fine_x / 32;
+    *out_y = 80 - fine_z / 32;
+    return 1;
+}
+static int
+fake_minimap_bounds(void* u, struct ToriRS_MinimapBounds* out)
+{
+    (void)u;
+    out->box = (struct ToriRS_Rect){ 550, 4, 152, 152 };
+    out->centre_x = 626;
+    out->centre_y = 80;
+    out->radius = 80;
+    return 1;
+}
+/* The world map is open only while this is set. */
+static int g_worldmap_open;
+static int
+fake_worldmap_project(void* u, int tile_x, int tile_z, int level, int* out_x, int* out_y)
+{
+    (void)u;
+    if( !g_worldmap_open || level != 0 )
+        return 0;
+    *out_x = 100 + (tile_x - 3200) * 4;
+    *out_y = 300 - (tile_z - 3200) * 4;
+    return 1;
+}
+static int
+fake_worldmap_bounds(void* u, struct ToriRS_Rect* out)
+{
+    (void)u;
+    if( !g_worldmap_open )
+        return 0;
+    *out = (struct ToriRS_Rect){ 20, 40, 500, 400 };
+    return 1;
+}
 static int
 fake_obj_next(
     void* u,
@@ -1330,6 +1426,13 @@ fake_engine(void)
     e.draw_line = fake_draw_line;
     e.draw_text = fake_draw_text;
     e.draw_rect = fake_draw_rect;
+    e.draw_polygon = fake_draw_polygon;
+    e.text_width = fake_text_width;
+    e.text_height = fake_text_height;
+    e.minimap_project = fake_minimap_project;
+    e.minimap_bounds = fake_minimap_bounds;
+    e.worldmap_project = fake_worldmap_project;
+    e.worldmap_bounds = fake_worldmap_bounds;
     e.mouse_pos = fake_mouse_pos;
     e.component_rect = fake_component_rect;
     e.display_setting = fake_display_setting;
@@ -2376,6 +2479,109 @@ static void test_world_draw_context(void)
 }
 
 /*
+ * The Quest Helper drawing verbs: a polygon, the font's metrics, and the two
+ * map projections, through the builder the way a plugin reaches them.
+ *
+ * The polygon is the one with logic of its own in the runtime. A polygon on
+ * the surface goes to the engine whole, wash and border in one call. One that
+ * crosses the edge goes as TWO things: the wash cut to the box, and the
+ * border's own edges cut to the box -- never an outline of the cut, which
+ * would draw a frame along the canvas edge nobody asked for.
+ *
+ * MUTATION 1: outline the clipped wash (pass `border` on the clipped fill call).
+ *   Red: "the cut wash carries no border".
+ * MUTATION 2: drop the clip and pass the raw points.
+ *   Red: "the wash is cut at the canvas edge".
+ * MUTATION 3: answer OK from api_draw_polygon's budget arm.
+ *   Red: "a polygon past the budget answers BUDGET".
+ */
+static enum ToriRS_Result poly_inside, poly_clipped, poly_budget_last;
+static int poly_tw, poly_th, poly_mm_ok, poly_mm_x, poly_mm_y, poly_mm_off;
+static int poly_mb_ok, poly_wm_closed, poly_wb_closed, poly_wm_ok, poly_wm_x, poly_wm_y, poly_wb_ok;
+static int poly_wm_level, poly_proj_ok, poly_proj_x, poly_proj_y;
+static struct ToriRS_MinimapBounds poly_mb;
+static struct ToriRS_Rect poly_wb;
+static void poly_draw(struct ToriRS_Api* api,void* state,struct ToriRS_Graphics* graphics)
+{
+    int const qx[4] = { 10, 50, 50, 10 };
+    int const qy[4] = { 10, 10, 40, 40 };
+    int const tx[3] = { -20, 60, 60 };
+    int const ty[3] = { 100, 100, 200 };
+    int scratch_x = 0, scratch_y = 0;
+    struct ToriRS_Rect scratch_rect;
+    (void)api;(void)state;
+    g_poly_calls = 0;
+    poly_inside = graphics->polygon(graphics, qx, qy, 4, 0xff0000u, 80, 0xffffffu, 2);
+    poly_clipped = graphics->polygon(graphics, tx, ty, 3, 0x00ff00u, 80, 0xffffffu, 1);
+    poly_tw = graphics->text_width(graphics, "Quest");
+    poly_th = graphics->text_height(graphics);
+    poly_proj_ok = graphics->project(graphics, 1280, 2560, 0, &poly_proj_x, &poly_proj_y);
+    poly_mm_ok = graphics->minimap_project(graphics, 320, 64, &poly_mm_x, &poly_mm_y);
+    poly_mm_off = graphics->minimap_project(graphics, -1, 0, &scratch_x, &scratch_y);
+    memset(&poly_mb, 0, sizeof(poly_mb));
+    poly_mb_ok = graphics->minimap_bounds(graphics, &poly_mb);
+    g_worldmap_open = 0;
+    poly_wm_closed = graphics->worldmap_project(graphics, 3201, 3199, 0, &scratch_x, &scratch_y);
+    poly_wb_closed = graphics->worldmap_bounds(graphics, &scratch_rect);
+    g_worldmap_open = 1;
+    poly_wm_ok = graphics->worldmap_project(graphics, 3201, 3199, 0, &poly_wm_x, &poly_wm_y);
+    poly_wm_level = graphics->worldmap_project(graphics, 3201, 3199, 1, &scratch_x, &scratch_y);
+    poly_wb_ok = graphics->worldmap_bounds(graphics, &poly_wb);
+    g_worldmap_open = 0;
+    for( int i = 0; i < 200; i++ )
+        poly_budget_last = graphics->polygon(graphics, qx, qy, 4, 0xff0000u, 80, 0, 0);
+}
+static int poly_has_point(int call, int x, int y)
+{
+    for( int i = 0; i < g_poly[call].count && i < FAKE_POLY_POINTS_MAX; i++ )
+        if( g_poly[call].x[i] == x && g_poly[call].y[i] == y )
+            return 1;
+    return 0;
+}
+static void test_draw_polygon_and_maps(void)
+{
+    struct ToriRS_PluginEngine engine=fake_engine();
+    struct ToriRS_PluginHost* host=PluginHost_New(&engine);
+    struct ToriRS_PluginDef def={.struct_size=sizeof(def),.id="poly-maps",.title="Poly",.version="3",
+        .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_draw_canvas=poly_draw}};
+    CHECK(PluginHost_Register(host,&def)>=0,"polygon fixture registers");
+    PluginHost_Start(host);
+    PluginHost_DrawCanvas(host,765,503);
+
+    CHECK(poly_inside==TORIRS_RESULT_OK && g_poly[0].count==4 &&
+          g_poly[0].fill_alpha==80 && g_poly[0].outline_width==2 &&
+          g_poly[0].x[0]==10 && g_poly[0].y[0]==10 && g_poly[0].x[2]==50 && g_poly[0].y[2]==40,
+          "a polygon on the surface reaches the engine whole, wash and border in one call");
+    CHECK(poly_clipped==TORIRS_RESULT_OK && g_poly_calls>=5,
+          "a polygon over the edge is drawn as its cut wash and its cut edges");
+    CHECK(g_poly[1].fill_alpha==80 && g_poly[1].outline_width==0,
+          "the cut wash carries no border");
+    CHECK(g_poly[1].count==4 && poly_has_point(1,0,100) && poly_has_point(1,60,100) &&
+          poly_has_point(1,60,200) && poly_has_point(1,0,125),
+          "the wash is cut at the canvas edge");
+    CHECK(g_poly[2].count==2 && g_poly[2].fill_alpha==0 && g_poly[2].outline_width==1 &&
+          poly_has_point(2,0,100) && poly_has_point(2,60,100),
+          "a border edge crossing the edge is cut to it");
+    CHECK(g_poly[4].count==2 && poly_has_point(4,60,200) && poly_has_point(4,0,125),
+          "the closing edge is cut too");
+    CHECK(poly_budget_last==TORIRS_RESULT_BUDGET,"a polygon past the budget answers BUDGET");
+
+    CHECK(poly_tw==30 && poly_th==12,"text metrics are the engine's");
+    CHECK(poly_proj_ok && poly_proj_x==10 && poly_proj_y==20,"draw.project is api.draw.project at origin zero");
+    CHECK(poly_mm_ok && poly_mm_x==636 && poly_mm_y==78,"a minimap point is the engine's canvas pixel");
+    CHECK(!poly_mm_off,"an undrawn minimap point answers false");
+    CHECK(poly_mb_ok && poly_mb.box.x==550 && poly_mb.box.width==152 && poly_mb.centre_x==626 &&
+          poly_mb.centre_y==80 && poly_mb.radius==80,
+          "the minimap's bounds come through whole");
+    CHECK(!poly_wm_closed && !poly_wb_closed,"a closed world map answers false to both");
+    CHECK(poly_wm_ok && poly_wm_x==104 && poly_wm_y==304,"an open world map projects a tile");
+    CHECK(!poly_wm_level,"a level the map does not cover answers false");
+    CHECK(poly_wb_ok && poly_wb.x==20 && poly_wb.y==40 && poly_wb.width==500 && poly_wb.height==400,
+          "the open world map's view rectangle");
+    PluginHost_Free(host);
+}
+
+/*
  * The world hull ANSWERS its two refusals.
  *
  * `ToriRS_Graphics::world_hull` is declared to return a result; api_draw_hull
@@ -2903,6 +3109,1332 @@ static void test_script_callbacks(void)
     PluginHost_Free(script_test_host);
 }
 
+/* ------------------------------------------------------------------------ *
+ * The Quest Helper port's cache, game and script verbs, end to end through
+ * the host: the range and context checks the host adds, and what reaches the
+ * engine. The engine's own answers are the fakes' below.
+ *
+ * MUTATION 1: drop plugin_ctx_may_mutate from api_set_varc_int.
+ *   Red: "a draw callback cannot write a varc".
+ * MUTATION 2: drop the type range test in api_chat_add.
+ *   Red: "a chat type past the store's rings is refused".
+ * MUTATION 3: drop the SCRIPT_CALLBACK arm of api_script_run.
+ *   Red: "scripts.run is refused inside on_script_callback".
+ * MUTATION 4: fill only `capacity` in the def list and report it as count.
+ *   Red: "a def list states its true count past the caller's room".
+ * ------------------------------------------------------------------------ */
+static int qh_varc_ints[8];
+static char qh_varc_str[64];
+static int qh_chat_type, qh_chat_calls;
+static char qh_chat_sender[32], qh_chat_text[64];
+static int qh_arrow_kind, qh_arrow_a, qh_arrow_b;
+static int qh_sound_id, qh_sound_loops, qh_sound_delay, qh_sound_calls;
+static int qh_run_calls, qh_run_args;
+static int qh_fake_varc_int(void* u,int id){(void)u;return id>=0&&id<8?qh_varc_ints[id]:-1;}
+static char const* qh_fake_varc_str(void* u,int id){(void)u;return id==3?qh_varc_str:"";}
+static void qh_fake_set_varc_int(void* u,int id,int v){(void)u;if(id>=0&&id<8)qh_varc_ints[id]=v;}
+static void qh_fake_set_varc_str(void* u,int id,char const* v){(void)u;if(id==3)snprintf(qh_varc_str,sizeof(qh_varc_str),"%s",v);}
+static int qh_fake_enum_def(void* u,int id,struct ToriRS_EnumDef* out,struct ToriRS_EnumEntry* entries,int capacity)
+{
+    (void)u;
+    if( id==6 ) return TORIRS_ASSET_PENDING;
+    if( id!=5 ) return TORIRS_ASSET_MISSING;
+    memset(out,0,sizeof(*out));
+    out->id=5;out->key_type='i';out->value_type='i';out->default_int=-1;out->count=3;
+    for( int i=0;i<3&&i<capacity;i++ ){entries[i].key=10+i;entries[i].int_value=100+i;entries[i].string_value[0]=0;}
+    return TORIRS_ASSET_READY;
+}
+static void qh_fake_list(struct ToriRS_DefList* list,int const* v,int n)
+{ list->count=n;for( int i=0;i<n&&i<list->capacity;i++ ) list->values[i]=v[i]; }
+static int qh_fake_npc_def(void* u,int id,struct ToriRS_NpcDef* out)
+{
+    int const transforms[3]={11,12,-1},models[2]={100,101},from[1]={5},to[1]={6};
+    (void)u;
+    if( id!=10 ) return TORIRS_ASSET_MISSING;
+    out->id=10;snprintf(out->name,sizeof(out->name),"Cook");snprintf(out->actions[0],sizeof(out->actions[0]),"Talk-to");
+    out->size=1;out->combat_level=0;out->transform_varbit=-1;out->transform_varp=29;out->impostor=12;
+    qh_fake_list(&out->transforms,transforms,3);qh_fake_list(&out->models,models,2);
+    qh_fake_list(&out->recolor_from,from,1);qh_fake_list(&out->recolor_to,to,1);
+    return TORIRS_ASSET_READY;
+}
+static int qh_fake_loc_def(void* u,int id,struct ToriRS_LocDef* out)
+{
+    (void)u;
+    if( id!=20 ) return TORIRS_ASSET_PENDING;
+    out->id=20;snprintf(out->name,sizeof(out->name),"Door");out->size_x=1;out->size_z=2;out->impostor=-1;
+    out->map_scene=-1;out->map_icon=-1;qh_fake_list(&out->transforms,NULL,0);
+    return TORIRS_ASSET_READY;
+}
+static void qh_fake_chat_add(void* u,int type,char const* sender,char const* text)
+{
+    (void)u;qh_chat_calls++;qh_chat_type=type;
+    snprintf(qh_chat_sender,sizeof(qh_chat_sender),"%s",sender);snprintf(qh_chat_text,sizeof(qh_chat_text),"%s",text);
+}
+static int qh_fake_arrow_set(void* u,int kind,int a,int b)
+{
+    (void)u;
+    if( kind==TORIRS_HINT_ARROW_NPC && a!=7 ) return 0;
+    qh_arrow_kind=kind;qh_arrow_a=a;qh_arrow_b=b;return 1;
+}
+static int qh_fake_arrow_get(void* u,struct ToriRS_HintArrowInfo* out)
+{
+    (void)u;
+    if( qh_arrow_kind==TORIRS_HINT_ARROW_NONE ) return 0;
+    out->kind=(enum ToriRS_HintArrowKind)qh_arrow_kind;
+    if( qh_arrow_kind==TORIRS_HINT_ARROW_TILE ){out->tile_x=qh_arrow_a;out->tile_z=qh_arrow_b;}
+    if( qh_arrow_kind==TORIRS_HINT_ARROW_NPC ) out->npc_slot=qh_arrow_a;
+    return 1;
+}
+static void qh_fake_sound(void* u,int id,int loops,int delay){(void)u;qh_sound_calls++;qh_sound_id=id;qh_sound_loops=loops;qh_sound_delay=delay;}
+static int qh_fake_weight(void* u){(void)u;return 42;}
+static int qh_fake_world_types(void* u){(void)u;return 1;}
+static int qh_fake_tick(void* u){(void)u;return 777;}
+static int qh_fake_script_run(void* u,int script_id,struct ToriRS_ScriptArg const* args,int count,struct ToriRS_ScriptResult* out)
+{
+    (void)u;qh_run_calls++;qh_run_args=count;
+    if( script_id!=4029 ) return TORIRS_CONTRACT_PENDING;
+    out->int_count=1;out->ints[0]=args[0].int_value==1?2:0;
+    out->string_count=1;snprintf(out->strings[0],sizeof(out->strings[0]),"done");
+    return TORIRS_CONTRACT_OK;
+}
+
+static int qh_varc_read,qh_varc_str_ok;static size_t qh_varc_required;static char qh_varc_copy[64];
+static enum ToriRS_Result qh_set_ok,qh_set_bad_id,qh_setstr_ok;
+static enum ToriRS_AssetState qh_enum_state,qh_enum_pending,qh_enum_count_state,qh_npc_state,qh_npc_missing,qh_loc_state,qh_loc_pending;
+static struct ToriRS_EnumDef qh_enum;static struct ToriRS_EnumEntry qh_entries[2];
+static struct ToriRS_NpcDef qh_npc;static int qh_npc_transforms[2];static int qh_npc_models[4];
+static struct ToriRS_LocDef qh_loc;
+static enum ToriRS_Result qh_chat_ok,qh_chat_bad,qh_tile_ok,qh_npc_ok,qh_npc_absent,qh_clear_ok,qh_tile_bad;
+static bool qh_arrow_tile_read,qh_arrow_npc_read,qh_arrow_cleared_read;
+static struct ToriRS_HintArrowInfo qh_arrow_tile_info,qh_arrow_npc_info;
+static enum ToriRS_Result qh_sound_ok,qh_sound_bad;
+static int qh_weight,qh_world_types,qh_tick;
+static enum ToriRS_ContractResult qh_run_ok,qh_run_too_many,qh_run_pending,qh_run_draw,qh_run_script_cb;
+static struct ToriRS_ScriptResult qh_run_result;
+static enum ToriRS_Result qh_draw_set,qh_draw_chat,qh_draw_arrow,qh_draw_sound;
+static int qh_draw_read;
+
+static void qh_tick_cb(struct ToriRS_Api* api,void* state,struct ToriRS_TickEvent const* ev)
+{
+    struct ToriRS_GameApi const* game=api->game;
+    struct ToriRS_ScriptArg args[TORIRS_SCRIPT_RUN_ARGS_MAX+1];
+    (void)state;(void)ev;
+    qh_set_ok=api->cache.set_varc_int(api,2,55);
+    qh_set_bad_id=api->cache.set_varc_int(api,TORIRS_VARC_ID_MAX,1);
+    qh_varc_read=api->cache.varc_int(api,2);
+    qh_setstr_ok=api->cache.set_varc_str(api,3,"quest search");
+    qh_varc_str_ok=api->cache.varc_str(api,3,qh_varc_copy,sizeof(qh_varc_copy),&qh_varc_required);
+
+    qh_enum_state=api->cache.enum_def(api,5,&qh_enum,qh_entries,2);
+    qh_enum_pending=api->cache.enum_def(api,6,&qh_enum,NULL,0);
+    qh_enum_count_state=api->cache.enum_def(api,-1,&qh_enum,NULL,0);
+    memset(&qh_npc,0,sizeof(qh_npc));
+    qh_npc.transforms=(struct ToriRS_DefList){qh_npc_transforms,2,0};
+    qh_npc.models=(struct ToriRS_DefList){qh_npc_models,4,0};
+    qh_npc_state=api->cache.npc_def(api,10,&qh_npc);
+    qh_npc_missing=api->cache.npc_def(api,11,&qh_npc);
+    memset(&qh_loc,0,sizeof(qh_loc));
+    qh_loc_state=api->cache.loc_def(api,20,&qh_loc);
+    qh_loc_pending=api->cache.loc_def(api,21,&qh_loc);
+
+    qh_chat_ok=game->chat_add(api,0,"","Quest Helper: started");
+    qh_chat_bad=game->chat_add(api,TORIRS_PLUGIN_CHAT_TYPE_MAX,"","nope");
+    qh_tile_ok=game->hint_arrow_tile(api,3222,3218,0);
+    qh_arrow_tile_read=game->hint_arrow(api,&qh_arrow_tile_info);
+    qh_tile_bad=game->hint_arrow_tile(api,3222,3218,4);
+    qh_npc_absent=game->hint_arrow_npc(api,8);
+    qh_npc_ok=game->hint_arrow_npc(api,7);
+    qh_arrow_npc_read=game->hint_arrow(api,&qh_arrow_npc_info);
+    qh_clear_ok=game->hint_arrow_clear(api);
+    {
+        struct ToriRS_HintArrowInfo none;
+        qh_arrow_cleared_read=game->hint_arrow(api,&none);
+    }
+    qh_sound_ok=game->sound(api,2266,1,0);
+    qh_sound_bad=game->sound(api,-1,1,0);
+    qh_weight=game->weight(api);qh_world_types=game->world_types(api);qh_tick=game->tick(api);
+
+    memset(args,0,sizeof(args));
+    args[0].int_value=1;
+    qh_run_ok=api->scripts.run(api->scripts.context,4029,args,1,&qh_run_result);
+    {
+        /* Its own result: every run clears what it is handed first. */
+        struct ToriRS_ScriptResult scratch;
+        qh_run_too_many=api->scripts.run(api->scripts.context,4029,args,TORIRS_SCRIPT_RUN_ARGS_MAX+1,&scratch);
+        qh_run_pending=api->scripts.run(api->scripts.context,4030,args,1,&scratch);
+    }
+}
+static void qh_draw_cb(struct ToriRS_Api* api,void* state,struct ToriRS_Graphics* graphics)
+{
+    struct ToriRS_ScriptResult result;
+    (void)state;(void)graphics;
+    qh_draw_set=api->cache.set_varc_int(api,2,99);
+    qh_draw_read=api->cache.varc_int(api,2);
+    qh_draw_chat=api->game->chat_add(api,0,"","in a frame");
+    qh_draw_arrow=api->game->hint_arrow_clear(api);
+    qh_draw_sound=api->game->sound(api,2266,1,0);
+    qh_run_draw=api->scripts.run(api->scripts.context,4029,NULL,0,&result);
+}
+static void qh_script_cb(struct ToriRS_Api* api,void* state,struct ToriRS_ScriptEvent const* event)
+{
+    struct ToriRS_ScriptResult result;
+    (void)state;(void)event;
+    qh_run_script_cb=api->scripts.run(api->scripts.context,4029,NULL,0,&result);
+}
+static int qh_bare_varc_int,qh_bare_tick;static bool qh_bare_varc_str,qh_bare_arrow;
+static enum ToriRS_Result qh_bare_set,qh_bare_chat;static enum ToriRS_AssetState qh_bare_enum;
+static enum ToriRS_ContractResult qh_bare_run;
+static void qh_bare_tick_cb(struct ToriRS_Api* api,void* state,struct ToriRS_TickEvent const* ev)
+{
+    struct ToriRS_EnumDef e;struct ToriRS_HintArrowInfo arrow;struct ToriRS_ScriptResult result;size_t required;
+    (void)state;(void)ev;
+    qh_bare_varc_int=api->cache.varc_int(api,1);
+    qh_bare_varc_str=api->cache.varc_str(api,1,NULL,0,&required);
+    qh_bare_set=api->cache.set_varc_int(api,1,1);
+    qh_bare_enum=api->cache.enum_def(api,1,&e,NULL,0);
+    qh_bare_chat=api->game->chat_add(api,0,"","x");
+    qh_bare_arrow=api->game->hint_arrow(api,&arrow);
+    qh_bare_tick=api->game->tick(api);
+    qh_bare_run=api->scripts.run(api->scripts.context,1,NULL,0,&result);
+}
+
+/* ------------------------------------------------------------------------ */
+/* Quest Helper port: widget detail / child lists / native text / items /     */
+/* listeners, and the three engine-news events.                               */
+/* ------------------------------------------------------------------------ */
+
+static int qhw_kind = -1, qhw_requests;
+static char qhw_text[64];
+static int qhw_a, qhw_b, qhw_id;
+static enum ToriRS_ContractResult
+qhw_request(void* user, uint64_t owner, struct PluginWidgetRequest* r)
+{
+    (void)user;(void)owner;
+    qhw_kind = (int)r->kind;
+    ++qhw_requests;
+    switch( r->kind )
+    {
+    case PLUGIN_WIDGET_DETAIL:
+        r->detail->id = 0x00e70001; r->detail->index = 3; r->detail->type = 4;
+        snprintf(r->detail->text, sizeof(r->detail->text), "%s", "Yes please");
+        snprintf(r->detail->actions[0], sizeof(r->detail->actions[0]), "%s", "Continue");
+        r->detail->action_count = 1;
+        return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_DYNAMIC_CHILDREN:
+    case PLUGIN_WIDGET_STATIC_CHILDREN:
+    case PLUGIN_WIDGET_NESTED_CHILDREN:
+    {
+        size_t const n = r->kind == PLUGIN_WIDGET_DYNAMIC_CHILDREN ? 2 : 1;
+        for( size_t i = 0; i < n && i < r->capacity; i++ )
+            r->refs[i] = (struct ToriRS_WidgetRef){{77, 50 + i, 1}};
+        *r->count = n;
+        return n > r->capacity ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
+    }
+    case PLUGIN_WIDGET_LISTENER:
+        if( strcmp(r->name, "onLoad") == 0 ) return TORIRS_CONTRACT_UNAVAILABLE;
+        *r->count = 3;
+        if( r->capacity < 3 ) return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+        r->listener_args[0] = (struct ToriRS_WidgetListenerArg){.int_value = 277};
+        r->listener_args[1] = (struct ToriRS_WidgetListenerArg){.int_value = -2147483645};
+        r->listener_args[2] = (struct ToriRS_WidgetListenerArg){.is_string = true, .string_value = "Search"};
+        return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_NATIVE_TEXT:
+        snprintf(qhw_text, sizeof(qhw_text), "%s", r->name);
+        return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_NATIVE_TEXT_COLOR:
+    case PLUGIN_WIDGET_SET_SPRITE:
+        qhw_a = r->a;
+        return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_CREATE_ITEM:
+        *r->refs = (struct ToriRS_WidgetRef){{77, 60, 1}};
+        return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_SET_ITEM:
+        qhw_a = r->a; qhw_b = r->b; qhw_id = r->id;
+        return TORIRS_CONTRACT_PENDING;
+    default:
+        return TORIRS_CONTRACT_OK;
+    }
+}
+
+static void qhw_start(struct ToriRS_Api* api, void* state)
+{
+    struct ToriRS_WidgetApi* ui = &api->widgets;
+    struct ToriRS_WidgetRef const w = {{77, 2, 3}};
+    struct ToriRS_WidgetRef refs[4], item;
+    struct ToriRS_WidgetDetail d = {.struct_size = sizeof(d)};
+    struct ToriRS_WidgetListenerArg args[4];
+    size_t count = 99;
+    (void)state;
+
+    CHECK(ui->detail(ui->context, w, &d) == TORIRS_CONTRACT_OK && qhw_kind == PLUGIN_WIDGET_DETAIL &&
+          d.id == 0x00e70001 && d.index == 3 && strcmp(d.text, "Yes please") == 0 && d.action_count == 1 &&
+          d.struct_size == sizeof(d),
+          "detail reaches the adapter and keeps the caller's struct_size");
+    CHECK(ui->dynamic_children(ui->context, w, NULL, 0, &count) == TORIRS_CONTRACT_BUDGET_EXCEEDED && count == 2,
+          "a zero-capacity dynamic list answers its count");
+    CHECK(ui->dynamic_children(ui->context, w, refs, 4, &count) == TORIRS_CONTRACT_OK && count == 2 &&
+          qhw_kind == PLUGIN_WIDGET_DYNAMIC_CHILDREN && refs[1].opaque[1] == 51,
+          "dynamic children are the dynamic list");
+    CHECK(ui->static_children(ui->context, w, refs, 4, &count) == TORIRS_CONTRACT_OK && count == 1 &&
+          qhw_kind == PLUGIN_WIDGET_STATIC_CHILDREN, "static children are the static list");
+    CHECK(ui->nested_children(ui->context, w, refs, 4, &count) == TORIRS_CONTRACT_OK && count == 1 &&
+          qhw_kind == PLUGIN_WIDGET_NESTED_CHILDREN, "nested children are the nested list");
+
+    CHECK(ui->set_native_text(ui->context, w, "<col=00ff00>Yes please") == TORIRS_CONTRACT_OK &&
+          qhw_kind == PLUGIN_WIDGET_NATIVE_TEXT && strcmp(qhw_text, "<col=00ff00>Yes please") == 0,
+          "a native text edit reaches the adapter");
+    {
+        static char too_long[TORIRS_WIDGET_NATIVE_TEXT_MAX + 2];
+        int const before = qhw_requests;
+        memset(too_long, 'a', sizeof(too_long) - 1);
+        CHECK(ui->set_native_text(ui->context, w, too_long) == TORIRS_CONTRACT_BUDGET_EXCEEDED &&
+              qhw_requests == before, "an over-long native text never reaches the adapter");
+    }
+    CHECK(ui->set_native_text_color(ui->context, w, 0x1000000) == TORIRS_CONTRACT_INVALID_ARGUMENT,
+          "a native text colour is 0xRRGGBB");
+    CHECK(ui->set_native_text_color(ui->context, w, 0x00ff00) == TORIRS_CONTRACT_OK && qhw_a == 0x00ff00 &&
+          qhw_kind == PLUGIN_WIDGET_NATIVE_TEXT_COLOR, "a native text colour reaches the adapter");
+
+    CHECK(ui->create_item(ui->context, w, "", &item) == TORIRS_CONTRACT_INVALID_ARGUMENT, "an owned item needs a key");
+    CHECK(ui->create_item(ui->context, w, "bank-1", &item) == TORIRS_CONTRACT_OK && item.opaque[1] == 60 &&
+          qhw_kind == PLUGIN_WIDGET_CREATE_ITEM, "owned item creation returns the adapter's child");
+    CHECK(ui->set_item(ui->context, item, -2, 1, -1) == TORIRS_CONTRACT_INVALID_ARGUMENT, "an obj id below -1 is refused");
+    CHECK(ui->set_item(ui->context, item, 995, -1, -1) == TORIRS_CONTRACT_INVALID_ARGUMENT, "a negative quantity is refused");
+    CHECK(ui->set_item(ui->context, item, 995, 1000, -1) == TORIRS_CONTRACT_PENDING && qhw_a == 995 && qhw_b == 1000 &&
+          qhw_id == -1, "set_item passes the adapter's pending through");
+    CHECK(ui->set_item(ui->context, item, 995, 1, 3) == TORIRS_CONTRACT_INVALID_ARGUMENT &&
+          ui->set_item(ui->context, item, 995, 1, -2) == TORIRS_CONTRACT_INVALID_ARGUMENT,
+          "a quantity mode outside -1..2 is refused");
+    CHECK(ui->set_item(ui->context, item, 995, 1, 1) == TORIRS_CONTRACT_PENDING && qhw_id == 1,
+          "the quantity mode (ItemQuantityMode.ALWAYS) reaches the adapter");
+    CHECK(ui->set_sprite(ui->context, w, -1) == TORIRS_CONTRACT_INVALID_ARGUMENT, "a sprite id is never negative");
+    CHECK(ui->set_sprite(ui->context, w, 1453) == TORIRS_CONTRACT_OK && qhw_a == 1453 &&
+          qhw_kind == PLUGIN_WIDGET_SET_SPRITE, "a sprite reaches the adapter");
+
+    CHECK(ui->listener(ui->context, w, "", args, 4, &count) == TORIRS_CONTRACT_INVALID_ARGUMENT,
+          "a listener needs a name");
+    CHECK(ui->listener(ui->context, w, "onInvTransmit", args, 4, &count) == TORIRS_CONTRACT_OK && count == 3 &&
+          args[0].int_value == 277 && args[1].int_value == -2147483645 && args[2].is_string &&
+          strcmp(args[2].string_value, "Search") == 0, "a listener answers RuneLite's Object[] order");
+    CHECK(ui->listener(ui->context, w, "onLoad", args, 4, &count) == TORIRS_CONTRACT_UNAVAILABLE,
+          "an absent listener is unavailable");
+}
+static void qhw_draw(struct ToriRS_Api* api, void* state, struct ToriRS_Graphics* graphics)
+{
+    struct ToriRS_WidgetApi* ui = &api->widgets;
+    struct ToriRS_WidgetRef const w = {{77, 2, 3}};
+    struct ToriRS_WidgetDetail d = {.struct_size = sizeof(d)};
+    size_t count = 0;
+    (void)state;(void)graphics;
+    CHECK(ui->detail(ui->context, w, &d) == TORIRS_CONTRACT_OK, "paint may read a widget's detail");
+    CHECK(ui->dynamic_children(ui->context, w, NULL, 0, &count) == TORIRS_CONTRACT_BUDGET_EXCEEDED && count == 2,
+          "paint may read the child lists");
+    CHECK(ui->set_native_text(ui->context, w, "x") == TORIRS_CONTRACT_WRONG_CONTEXT, "paint cannot edit native text");
+    CHECK(ui->set_native_text_color(ui->context, w, 1) == TORIRS_CONTRACT_WRONG_CONTEXT, "paint cannot recolour native text");
+    CHECK(ui->set_item(ui->context, w, 1, 1, -1) == TORIRS_CONTRACT_WRONG_CONTEXT, "paint cannot set an item");
+    CHECK(ui->set_sprite(ui->context, w, 1) == TORIRS_CONTRACT_WRONG_CONTEXT, "paint cannot set a sprite");
+}
+static void qhw_stop(struct ToriRS_Api* api, void* state)
+{
+    struct ToriRS_WidgetRef out;
+    (void)state;
+    CHECK(api->widgets.create_item(api->widgets.context, (struct ToriRS_WidgetRef){{77, 2, 3}}, "late", &out) ==
+              TORIRS_CONTRACT_WRONG_CONTEXT, "shutdown cannot create an owned item");
+}
+
+/* The engine-news events. */
+static struct ToriRS_PluginHost* qhe_host;
+static int32_t qhe_values[8];
+static int qhe_count, qhe_value_calls;
+static int qhe_var_events, qhe_last_varp, qhe_last_value, qhe_last_old;
+static char qhe_trace[128];
+static int qhe_varp_values(void* user, int32_t const** out)
+{
+    (void)user;
+    ++qhe_value_calls;
+    *out = qhe_values;
+    return qhe_count;
+}
+static void qhe_var(struct ToriRS_Api* api, void* state, struct ToriRS_VarChangedEvent const* ev)
+{
+    (void)api;(void)state;
+    ++qhe_var_events;
+    qhe_last_varp = ev->varp; qhe_last_value = ev->value; qhe_last_old = ev->old;
+}
+static void qhe_interface(struct ToriRS_Api* api, void* state, struct ToriRS_InterfaceEvent const* ev)
+{
+    char step[24];
+    (void)state;
+    snprintf(step, sizeof(step), "%c%d ", ev->open ? '+' : '-', ev->group);
+    strncat(qhe_trace, step, sizeof(qhe_trace) - strlen(qhe_trace) - 1);
+    /* A mount raised from a handler waits for the next frame. */
+    if( ev->group == 999 )
+        PluginHost_InterfaceChanged(qhe_host, 1000, true);
+    (void)api;
+}
+static void qhe_inventory(struct ToriRS_Api* api, void* state, struct ToriRS_InventoryChangedEvent const* ev)
+{
+    char step[24];
+    (void)api;(void)state;
+    snprintf(step, sizeof(step), "i%d ", ev->inv);
+    strncat(qhe_trace, step, sizeof(qhe_trace) - strlen(qhe_trace) - 1);
+}
+/* The fix round's seams: cache.sprite_image, panel.show, on_loc_changed and
+ * on_map_anim. */
+static uint32_t qhf_sprite[4] = { 0xFF102030u, 0x00000000u, 0xFF405060u, 0xFF708090u };
+static int qhf_sprite_calls;
+static int qhf_sprite_pixels(void* user, int id, int frame, uint32_t const** out, int* w, int* h)
+{
+    (void)user;
+    ++qhf_sprite_calls;
+    if( id == 5 && frame == 0 ) { *out = qhf_sprite; *w = 2; *h = 2; return 1; }
+    if( id == 6 ) return 0;
+    return -1;
+}
+static enum ToriRS_AssetState qhf_s5, qhf_s6, qhf_s7, qhf_s5f1, qhf_bad;
+static uint32_t qhf_s5_ref;
+static char qhf_trace[256];
+static void qhf_tick(struct ToriRS_Api* api, void* state, struct ToriRS_TickEvent const* ev)
+{
+    struct ToriRS_ImageRef r = { 0 };
+    (void)state;(void)ev;
+    qhf_s5 = api->cache.sprite_image(api, 5, 0, &r); qhf_s5_ref = (uint32_t)r.value;
+    qhf_s6 = api->cache.sprite_image(api, 6, 0, &r);
+    qhf_s7 = api->cache.sprite_image(api, 7, 0, &r);
+    qhf_s5f1 = api->cache.sprite_image(api, 5, 1, &r);
+    qhf_bad = api->cache.sprite_image(api, -1, 0, &r);
+}
+static void qhf_start(struct ToriRS_Api* api, void* state)
+{
+    struct ToriRS_PanelDescriptor panel = { .preferred_width = 320 };
+    (void)state;
+    CHECK(api->panel.request(api, &panel) == TORIRS_RESULT_OK, "the fix fixture registers a page");
+}
+static void qhf_frame(struct ToriRS_Api* api, void* state, struct ToriRS_FrameEvent const* ev)
+{
+    (void)state;(void)ev;
+    if( qhf_trace[0] == 'S' )
+    {
+        qhf_trace[0] = 0;
+        api->panel.show(api);
+    }
+}
+static void qhf_loc(struct ToriRS_Api* api, void* state, struct ToriRS_LocChangedEvent const* ev)
+{
+    char step[48];
+    (void)api;(void)state;
+    snprintf(step, sizeof(step), "L%d:%d>%d ", ev->tile_x, ev->old_loc_id, ev->loc_id);
+    strncat(qhf_trace, step, sizeof(qhf_trace) - strlen(qhf_trace) - 1);
+}
+static void qhf_map_anim(struct ToriRS_Api* api, void* state, struct ToriRS_MapAnimEvent const* ev)
+{
+    char step[48];
+    (void)api;(void)state;
+    snprintf(step, sizeof(step), "G%d@%d ", ev->spotanim, ev->tile_x);
+    strncat(qhf_trace, step, sizeof(qhf_trace) - strlen(qhf_trace) - 1);
+}
+static void qhf_item_search(struct ToriRS_Api* api, void* state, struct ToriRS_ItemSearchEvent* ev)
+{
+    (void)api;(void)state;
+    if( strcmp(ev->query, "quest-helper") != 0 ) return;
+    ev->consumed = true;
+    ev->count = 3; ev->ids[0] = 952; ev->ids[1] = 995; ev->ids[2] = 1925;
+}
+/* ---- script hooks: scripts.watch + on_script_pre / on_script_post ---- */
+static int sh_watch_calls[4];   /* [0] on 505, [1] off 505, [2] on 514, [3] off 514 */
+static char sh_trace[256];
+static int sh_run_result;
+static bool sh_engine_watch(void* user, int script_id, bool on)
+{
+    (void)user;
+    if( script_id == 505 ) sh_watch_calls[on ? 0 : 1]++;
+    if( script_id == 514 ) sh_watch_calls[on ? 2 : 3]++;
+    return script_id >= 0 && script_id <= 65535;
+}
+static int sh_engine_run(void* user, int script_id, struct ToriRS_ScriptArg const* args, int arg_count,
+                         struct ToriRS_ScriptResult* out)
+{
+    (void)user;(void)script_id;(void)args;(void)arg_count;(void)out;
+    return TORIRS_CONTRACT_OK;
+}
+struct ShStack { int32_t ints[3]; };
+static int32_t sh_get_int(void* user, size_t i) { return ((struct ShStack*)user)->ints[2 - i]; }
+static void sh_set_int(void* user, size_t i, int32_t v) { ((struct ShStack*)user)->ints[2 - i] = v; }
+static char const* sh_get_string(void* user, size_t i) { (void)user;(void)i; return ""; }
+static bool sh_set_string(void* user, size_t i, char const* v) { (void)user;(void)i;(void)v; return false; }
+static void sh_hook(struct ToriRS_Api* api, struct ToriRS_ScriptHookEvent const* ev, char tag)
+{
+    size_t ints = 0, strings = 0;
+    int32_t top = -1;
+    char step[48];
+    CHECK(api->scripts.counts(api->scripts.context, ev->ref, &ints, &strings) == TORIRS_CONTRACT_OK,
+          "a hook's ref answers counts");
+    (void)api->scripts.get_int(api->scripts.context, ev->ref, 0, &top);
+    snprintf(step, sizeof(step), "%c%d:%zu:%d%s ", tag, ev->script_id, ints, top, ev->invoked ? "i" : "");
+    strncat(sh_trace, step, sizeof(sh_trace) - strlen(sh_trace) - 1);
+    if( tag == 'Q' && ev->script_id == 514 )
+        (void)api->scripts.set_int(api->scripts.context, ev->ref, 0, 1);
+    {
+        struct ToriRS_ScriptResult result;
+        sh_run_result = api->scripts.run(api->scripts.context, 77, NULL, 0, &result);
+    }
+}
+static void sh_a_pre(struct ToriRS_Api* api, void* state, struct ToriRS_ScriptHookEvent const* ev) { (void)state; sh_hook(api, ev, 'a'); }
+static void sh_a_post(struct ToriRS_Api* api, void* state, struct ToriRS_ScriptHookEvent const* ev) { (void)state; sh_hook(api, ev, 'A'); }
+static void sh_b_post(struct ToriRS_Api* api, void* state, struct ToriRS_ScriptHookEvent const* ev) { (void)state; sh_hook(api, ev, 'Q'); }
+static void sh_a_start(struct ToriRS_Api* api, void* state)
+{
+    (void)state;
+    CHECK(api->scripts.watch(api->scripts.context, 505, true) == TORIRS_CONTRACT_OK, "a plugin watches a script");
+    CHECK(api->scripts.watch(api->scripts.context, 505, true) == TORIRS_CONTRACT_OK, "restating a watch is fine");
+    CHECK(api->scripts.watch(api->scripts.context, 70000, true) == TORIRS_CONTRACT_INVALID_ARGUMENT,
+          "an id past 65535 is refused");
+}
+static void sh_b_start(struct ToriRS_Api* api, void* state)
+{
+    (void)state;
+    CHECK(api->scripts.watch(api->scripts.context, 505, true) == TORIRS_CONTRACT_OK, "a second plugin watches the same id");
+    CHECK(api->scripts.watch(api->scripts.context, 514, true) == TORIRS_CONTRACT_OK, "and another");
+}
+static void test_script_hooks(void)
+{
+    struct ToriRS_PluginEngine engine = fake_engine();
+    engine.script_watch = sh_engine_watch;
+    engine.script_run = sh_engine_run;
+    struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+    struct ToriRS_PluginDef a = {.struct_size=sizeof(a),.id="sh-a",.title="SH A",.version="1",
+        .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_start=sh_a_start,
+                    .on_script_pre=sh_a_pre,.on_script_post=sh_a_post}};
+    struct ToriRS_PluginDef b = {.struct_size=sizeof(b),.id="sh-b",.title="SH B",.version="1",
+        .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_start=sh_b_start,
+                    .on_script_post=sh_b_post}};
+    struct ShStack values = {{ 10, 20, 0 }};
+    struct PluginScriptStack stack = {.user=&values,.int_count=3,.string_count=0,.writable_ints=7,
+        .get_int=sh_get_int,.set_int=sh_set_int,.get_string=sh_get_string,.set_string=sh_set_string};
+    int const ia = PluginHost_Register(host, &a);
+    int const ib = PluginHost_Register(host, &b);
+    memset(sh_watch_calls, 0, sizeof(sh_watch_calls));
+    sh_trace[0] = 0;
+    CHECK(ia >= 0 && ib >= 0, "both hook plugins register");
+    PluginHost_Start(host);
+    CHECK(sh_watch_calls[0] == 1 && sh_watch_calls[2] == 1,
+          "the engine hears each watched id once, however many plugins watch it");
+
+    PluginHost_ScriptHook(host, false, 505, true, &stack);
+    PluginHost_ScriptHook(host, true, 505, true, &stack);
+    PluginHost_ScriptHook(host, true, 514, true, &stack);
+    PluginHost_ScriptHook(host, false, 777, false, &stack);
+    CHECK(strcmp(sh_trace, "a505:3:0i A505:3:0i Q505:3:0i Q514:3:0i ") == 0,
+          "each hook reaches only the plugins watching that script, with its values");
+    CHECK(values.ints[2] == 1, "a post hook writes the value the script returned");
+    CHECK(sh_run_result == TORIRS_CONTRACT_WRONG_CONTEXT, "no script can be run from inside a hook");
+
+    PluginHost_SetEnabled(host, ia, false);
+    CHECK(sh_watch_calls[1] == 0, "an id another plugin still watches stays watched");
+    PluginHost_SetEnabled(host, ib, false);
+    CHECK(sh_watch_calls[1] == 1 && sh_watch_calls[3] == 1, "the last plugin to stop takes its watches with it");
+    sh_trace[0] = 0;
+    PluginHost_ScriptHook(host, false, 505, true, &stack);
+    CHECK(sh_trace[0] == 0, "a stopped plugin hears no hook");
+    PluginHost_Free(host);
+}
+
+static void test_quest_helper_fix_seams(void)
+{
+    struct ToriRS_PluginEngine engine = fake_engine();
+    engine.sprite_pixels = qhf_sprite_pixels;
+    struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+    struct ToriRS_PluginDef def = {.struct_size=sizeof(def),.id="qh-fix",.title="QH fix",.version="3",
+        .flags=TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
+        .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_start=qhf_start,.on_server_tick=qhf_tick,
+                    .on_frame_start=qhf_frame,.on_loc_changed=qhf_loc,.on_map_anim=qhf_map_anim,
+                    .on_item_search=qhf_item_search}};
+    struct ToriRS_LocChangedEvent door = { 3226, 3240, 0, 0, 1, 1531, 1530, 0, 0 };
+    struct ToriRS_MapAnimEvent puff = { 3227, 3241, 0, 86, 0, 0, 5 };
+    int const index = PluginHost_Register(host, &def);
+    CHECK(index >= 0, "fix fixture registers");
+    PluginHost_Start(host);
+    qhf_trace[0] = 0;
+
+    {
+        int ids[4] = { -7, -7, -7, -7 };
+        CHECK(PluginHost_ItemSearch(host, "quest-helper", true, ids, 4) == -1 && ids[0] == -7,
+              "a switched-off subscriber is not asked the GE search");
+    }
+    /* Switched off: nothing queued. */
+    PluginHost_LocChanged(host, &door);
+    PluginHost_MapAnim(host, &puff);
+    PluginHost_FrameStart(host, 0, 0);
+    CHECK(qhf_trace[0] == 0, "a switched-off subscriber queues no loc change or graphic");
+
+    PluginHost_SetEnabled(host, index, true);
+    PluginHost_ServerTick(host, 1);
+    {
+        int ids[4] = { 0 };
+        int two[2] = { 0 };
+        CHECK(PluginHost_ItemSearch(host, "spade", true, ids, 4) == -1, "an unanswered GE search is the client's");
+        CHECK(PluginHost_ItemSearch(host, "quest-helper", true, ids, 4) == 3 && ids[0] == 952 && ids[2] == 1925,
+              "an answered GE search hands back the plugin's ids");
+        CHECK(PluginHost_ItemSearch(host, "quest-helper", true, two, 2) == 2 && two[1] == 995,
+              "the answer is cut to the caller's room");
+    }
+    CHECK(qhf_s5 == TORIRS_ASSET_READY && qhf_s5_ref != 0, "a resident sprite frame is an image");
+    CHECK(g_composed.w == 2 && g_composed.h == 2 && g_composed.argb[2] == 0xFF405060u,
+          "the sprite's own pixels are what was composed");
+    CHECK(qhf_s6 == TORIRS_ASSET_PENDING, "a sprite still loading is PENDING");
+    CHECK(qhf_s7 == TORIRS_ASSET_MISSING && qhf_s5f1 == TORIRS_ASSET_MISSING,
+          "no such sprite, or a frame past its last, is MISSING");
+    CHECK(qhf_bad == TORIRS_ASSET_INVALID, "a negative sprite id is bad input");
+
+    PluginHost_LocChanged(host, &door);
+    door.old_loc_id = 1531; door.loc_id = -1; door.tile_x = 3227;
+    PluginHost_LocChanged(host, &door);
+    PluginHost_MapAnim(host, &puff);
+    CHECK(qhf_trace[0] == 0, "loc changes wait for the frame boundary");
+    PluginHost_FrameStart(host, 0, 0);
+    CHECK(strcmp(qhf_trace, "L3226:1530>1531 L3227:1531>-1 G86@3227 ") == 0,
+          "loc changes arrive in landing order, then the graphics");
+    qhf_trace[0] = 0;
+    for( int i = 0; i < PLUGIN_HOST_LOC_QUEUE_MAX + 3; i++ )
+    {
+        door.tile_x = i;
+        PluginHost_LocChanged(host, &door);
+    }
+    PluginHost_FrameStart(host, 0, 0);
+    CHECK(strncmp(qhf_trace, "L3:", 3) == 0, "past the queue's room the oldest loc changes are dropped");
+    qhf_trace[0] = 0;
+
+    CHECK(PluginHost_PanelActive(host) != index, "the page is not up before panel.show");
+    qhf_trace[0] = 'S'; qhf_trace[1] = 0;
+    PluginHost_FrameStart(host, 0, 0);
+    CHECK(PluginHost_PanelActive(host) != index, "panel.show waits for the next frame start");
+    PluginHost_FrameStart(host, 0, 0);
+    CHECK(PluginHost_PanelActive(host) == index, "panel.show opens the plugin's page");
+    qhf_trace[0] = 'S'; qhf_trace[1] = 0;
+    PluginHost_FrameStart(host, 0, 0);
+    PluginHost_FrameStart(host, 0, 0);
+    CHECK(PluginHost_PanelActive(host) == index, "panel.show never collapses a page that is up");
+    PluginHost_Free(host);
+}
+
+static void test_quest_helper_widgets_events(void)
+{
+    {
+        struct ToriRS_PluginEngine engine = fake_engine();
+        engine.widget_request = qhw_request;
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+        struct ToriRS_PluginDef def = {.struct_size=sizeof(def),.id="qh-widgets",.title="QH widgets",.version="3",
+            .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_start=qhw_start,.on_stop=qhw_stop,
+                        .on_draw_canvas=qhw_draw}};
+        CHECK(PluginHost_Register(host, &def) >= 0, "widget fixture registers");
+        PluginHost_Start(host);
+        PluginHost_DrawCanvas(host, 765, 503);
+        PluginHost_Free(host);
+    }
+    {
+        struct ToriRS_PluginEngine engine = fake_engine();
+        engine.varp_values = qhe_varp_values;
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+        qhe_host = host;
+        struct ToriRS_PluginDef listener = {.struct_size=sizeof(listener),.id="qh-events",.title="QH events",.version="3",
+            .flags=TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
+            .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_var_changed=qhe_var,
+                        .on_interface=qhe_interface,.on_inventory_changed=qhe_inventory}};
+        struct ToriRS_PluginDef bystander = {.struct_size=sizeof(bystander),.id="qh-bystander",.title="Bystander",.version="3",
+            .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks)}};
+        int const index = PluginHost_Register(host, &listener);
+        CHECK(index >= 0 && PluginHost_Register(host, &bystander) >= 0, "event fixtures register");
+        PluginHost_Start(host);
+        qhe_count = 4; qhe_values[0] = 1; qhe_values[1] = 2; qhe_values[2] = 3; qhe_values[3] = 5;
+        qhe_value_calls = qhe_var_events = 0; qhe_trace[0] = 0;
+
+        /* Disabled: nothing is asked, nothing is queued. */
+        PluginHost_ServerTick(host, 1);
+        PluginHost_InterfaceChanged(host, 162, true);
+        PluginHost_InventoryChanged(host, 93);
+        PluginHost_FrameStart(host, 0, 0);
+        CHECK(qhe_value_calls == 0 && qhe_trace[0] == 0,
+              "a subscriber that is switched off costs no varp read and queues no news");
+
+        PluginHost_SetEnabled(host, index, true);
+        PluginHost_ServerTick(host, 2);
+        CHECK(qhe_value_calls == 1 && qhe_var_events == 0, "the first tick only records the values");
+        qhe_values[3] = 7;
+        PluginHost_ServerTick(host, 3);
+        CHECK(qhe_var_events == 1 && qhe_last_varp == 3 && qhe_last_value == 7 && qhe_last_old == 5,
+              "a changed varp is one event with its old value");
+        PluginHost_ServerTick(host, 4);
+        CHECK(qhe_var_events == 1, "an unchanged tick raises nothing");
+        qhe_values[1] = 9; qhe_values[2] = 4;
+        qhe_count = 6; qhe_values[4] = 11; qhe_values[5] = 12;
+        PluginHost_ServerTick(host, 5);
+        CHECK(qhe_var_events == 3 && qhe_last_varp == 2 && qhe_last_old == 3,
+              "every changed varp is reported once, and a grown table only records its new varps");
+        qhe_values[5] = 13;
+        PluginHost_ServerTick(host, 6);
+        CHECK(qhe_var_events == 4 && qhe_last_varp == 5 && qhe_last_old == 12, "a recorded new varp reports its next change");
+
+        PluginHost_InterfaceChanged(host, 162, true);
+        PluginHost_InterfaceChanged(host, 231, true);
+        PluginHost_InventoryChanged(host, 93);
+        PluginHost_InventoryChanged(host, 94);
+        PluginHost_InventoryChanged(host, 93);
+        PluginHost_InterfaceChanged(host, 231, false);
+        PluginHost_InterfaceChanged(host, 999, true);
+        CHECK(qhe_trace[0] == 0, "news waits for the frame boundary");
+        PluginHost_FrameStart(host, 0, 0);
+        CHECK(strcmp(qhe_trace, "+162 +231 -231 +999 i93 i94 ") == 0,
+              "mounts arrive in order, then each changed inventory once");
+        qhe_trace[0] = 0;
+        PluginHost_FrameStart(host, 0, 0);
+        CHECK(strcmp(qhe_trace, "+1000 ") == 0, "a mount raised from a handler arrives the next frame");
+
+        PluginHost_SetEnabled(host, index, false);
+        int const calls = qhe_value_calls;
+        PluginHost_ServerTick(host, 7);
+        CHECK(qhe_value_calls == calls, "switching the subscriber off stops the varp reads");
+        PluginHost_SetEnabled(host, index, true);
+        qhe_values[0] = 40;
+        PluginHost_ServerTick(host, 8);
+        CHECK(qhe_var_events == 4, "a restarted subscriber is re-seeded, never handed an old change");
+        PluginHost_Free(host);
+        qhe_host = NULL;
+    }
+}
+
+static void test_quest_helper_cache_game_scripts(void)
+{
+    struct ToriRS_PluginEngine engine=fake_engine();
+    engine.capability=script_test_capability;
+    engine.varc_int=qh_fake_varc_int;engine.varc_str=qh_fake_varc_str;
+    engine.set_varc_int=qh_fake_set_varc_int;engine.set_varc_str=qh_fake_set_varc_str;
+    engine.enum_def=qh_fake_enum_def;engine.npc_def=qh_fake_npc_def;engine.loc_def=qh_fake_loc_def;
+    engine.chat_add=qh_fake_chat_add;engine.hint_arrow_set=qh_fake_arrow_set;engine.hint_arrow_get=qh_fake_arrow_get;
+    engine.sound=qh_fake_sound;engine.weight=qh_fake_weight;engine.world_types=qh_fake_world_types;engine.tick=qh_fake_tick;
+    engine.script_run=qh_fake_script_run;
+    struct ToriRS_PluginHost* host=PluginHost_New(&engine);
+    struct ToriRS_PluginDef def={.struct_size=sizeof(def),.id="qh-seams",.title="QH",.version="3",
+        .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_server_tick=qh_tick_cb,
+            .on_draw_canvas=qh_draw_cb,.on_script_callback=qh_script_cb}};
+    memset(qh_varc_ints,0xff,sizeof(qh_varc_ints));qh_varc_str[0]=0;
+    qh_chat_calls=0;qh_sound_calls=0;qh_run_calls=0;qh_arrow_kind=TORIRS_HINT_ARROW_NONE;
+    CHECK(PluginHost_Register(host,&def)>=0,"cache/game/scripts fixture registers");
+    PluginHost_Start(host);
+    PluginHost_ServerTick(host,1);
+
+    CHECK(qh_set_ok==TORIRS_RESULT_OK && qh_varc_read==55,"a varc int write lands in the store a read sees");
+    CHECK(qh_set_bad_id==TORIRS_RESULT_INVALID,"a varc id past TORIRS_VARC_ID_MAX is refused");
+    CHECK(qh_setstr_ok==TORIRS_RESULT_OK && qh_varc_str_ok && strcmp(qh_varc_copy,"quest search")==0 &&
+          qh_varc_required==strlen("quest search")+1,
+          "a varc string is copied out with its size");
+    CHECK(qh_enum_state==TORIRS_ASSET_READY && qh_enum.count==3 && qh_enum.key_type=='i' &&
+          qh_entries[0].key==10 && qh_entries[1].int_value==101,
+          "an enum fills its header and as many entries as there is room for");
+    CHECK(qh_enum_pending==TORIRS_ASSET_PENDING,"a loading enum answers PENDING");
+    CHECK(qh_enum_count_state==TORIRS_ASSET_INVALID,"a negative enum id is bad input");
+    CHECK(qh_npc_state==TORIRS_ASSET_READY && strcmp(qh_npc.name,"Cook")==0 && qh_npc.impostor==12 &&
+          strcmp(qh_npc.actions[0],"Talk-to")==0,
+          "an npc def comes through");
+    CHECK(qh_npc.transforms.count==3 && qh_npc_transforms[0]==11 && qh_npc_transforms[1]==12,
+          "a def list states its true count past the caller's room");
+    CHECK(qh_npc.models.count==2 && qh_npc_models[1]==101,"a list with room is filled whole");
+    CHECK(qh_npc.recolor_from.count==1,"a NULL zero-capacity list only counts");
+    CHECK(qh_npc_missing==TORIRS_ASSET_MISSING,"an npc the cache has none of is MISSING");
+    CHECK(qh_loc_state==TORIRS_ASSET_READY && qh_loc.size_z==2 && qh_loc_pending==TORIRS_ASSET_PENDING,
+          "a loc def comes through, and a loading one answers PENDING");
+
+    CHECK(qh_chat_ok==TORIRS_RESULT_OK && qh_chat_calls==1 && qh_chat_type==0 &&
+          strcmp(qh_chat_text,"Quest Helper: started")==0,
+          "a chat line reaches the client store");
+    CHECK(qh_chat_bad==TORIRS_RESULT_INVALID && qh_chat_calls==1,"a chat type past the store's rings is refused");
+    CHECK(qh_tile_ok==TORIRS_RESULT_OK && qh_arrow_tile_read && qh_arrow_tile_info.kind==TORIRS_HINT_ARROW_TILE &&
+          qh_arrow_tile_info.tile_x==3222 && qh_arrow_tile_info.tile_z==3218 && qh_arrow_tile_info.npc_slot==-1,
+          "a tile arrow is set and read back");
+    CHECK(qh_tile_bad==TORIRS_RESULT_INVALID,"a level no map has is refused");
+    CHECK(qh_npc_absent==TORIRS_RESULT_NOT_FOUND,"an arrow at a slot no npc holds is NOT_FOUND");
+    CHECK(qh_npc_ok==TORIRS_RESULT_OK && qh_arrow_npc_read && qh_arrow_npc_info.npc_slot==7,"an npc arrow is set");
+    CHECK(qh_clear_ok==TORIRS_RESULT_OK && !qh_arrow_cleared_read,"a cleared arrow reads as none");
+    CHECK(qh_sound_ok==TORIRS_RESULT_OK && qh_sound_id==2266 && qh_sound_loops==1 && qh_sound_bad==TORIRS_RESULT_INVALID &&
+          qh_sound_calls==1,
+          "a sound reaches the engine and a negative id does not");
+    CHECK(qh_weight==42 && qh_world_types==1 && qh_tick==777,"weight, world types and tick are the engine's");
+
+    CHECK(qh_run_ok==TORIRS_CONTRACT_OK && qh_run_result.int_count==1 && qh_run_result.ints[0]==2 &&
+          strcmp(qh_run_result.strings[0],"done")==0 && qh_run_args==1,
+          "scripts.run hands the engine the arguments and the caller the stacks");
+    CHECK(qh_run_too_many==TORIRS_CONTRACT_INVALID_ARGUMENT,"more arguments than a run carries is refused by the host");
+    CHECK(qh_run_pending==TORIRS_CONTRACT_PENDING,"the engine's PENDING comes through");
+
+    qh_run_calls=0;
+    PluginHost_DrawCanvas(host,765,503);
+    CHECK(qh_draw_set==TORIRS_RESULT_UNSUPPORTED && qh_draw_read==55,"a draw callback cannot write a varc, but reads one");
+    CHECK(qh_draw_chat==TORIRS_RESULT_UNSUPPORTED && qh_draw_arrow==TORIRS_RESULT_UNSUPPORTED &&
+          qh_draw_sound==TORIRS_RESULT_UNSUPPORTED,
+          "a draw callback cannot add a chat line, move the arrow or play a sound");
+    CHECK(qh_run_draw==TORIRS_CONTRACT_WRONG_CONTEXT && qh_run_calls==0,"scripts.run is refused in a draw callback");
+
+    {
+        struct PluginScriptStack stack={.int_count=2,.string_count=1,.writable_ints=1,.writable_strings=1,
+            .get_int=script_test_get_int,.set_int=script_test_set_int,
+            .get_string=script_test_get_string,.set_string=script_test_set_string};
+        qh_run_script_cb=TORIRS_CONTRACT_OK;
+        PluginHost_ScriptCallback(host,"caption",99,&stack);
+        CHECK(qh_run_script_cb==TORIRS_CONTRACT_WRONG_CONTEXT && qh_run_calls==0,
+              "scripts.run is refused inside on_script_callback");
+    }
+    PluginHost_Free(host);
+
+    /* An engine without the seams: readers say "not here", writers UNSUPPORTED. */
+    {
+        struct ToriRS_PluginEngine bare=fake_engine();
+        struct ToriRS_PluginHost* h=PluginHost_New(&bare);
+        struct ToriRS_PluginDef bare_def={.struct_size=sizeof(bare_def),.id="qh-bare",.title="QH bare",.version="3",
+            .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_server_tick=qh_bare_tick_cb}};
+        CHECK(PluginHost_Register(h,&bare_def)>=0,"bare-engine fixture registers");
+        PluginHost_Start(h);
+        PluginHost_ServerTick(h,1);
+        CHECK(qh_bare_varc_int==-1 && !qh_bare_varc_str && qh_bare_set==TORIRS_RESULT_UNSUPPORTED &&
+              qh_bare_enum==TORIRS_ASSET_MISSING && qh_bare_chat==TORIRS_RESULT_UNSUPPORTED &&
+              !qh_bare_arrow && qh_bare_tick==0 && qh_bare_run==TORIRS_CONTRACT_UNAVAILABLE,
+              "an engine without the seams answers 'not here', never a made-up value");
+        PluginHost_Free(h);
+    }
+}
+
+/* ------------------------------------------------------------------------ *
+ * The Quest Helper port's client-APIs round, through the host: the menu
+ * edit plan (set_order / set_text / shown), on_command, cache.set_varbit /
+ * seq_def, client.open_url / worldmap_jump. The menu is a fake of strings so
+ * the order the host hands the engine is visible.
+ *
+ * MUTATION 1: apply the plan before the entity holders' drops (or never
+ *   update menu_payload_at on a drop).  Red: "a holder's drop does not move
+ *   the plan's rows".
+ * MUTATION 2: let set_order name another plugin's tag.  Red: "a tag is this
+ *   plugin's own".
+ * MUTATION 3: drop plugin_ctx_may_mutate from api_set_varbit.  Red: "a draw
+ *   callback cannot write a varbit".
+ * MUTATION 4: dispatch on_command past a consumer.  Red: "a consumed command
+ *   reaches no later plugin".
+ * ------------------------------------------------------------------------ */
+static char qc_rows[32][128];
+static int qc_actions[32];
+static int qc_count, qc_permutes, qc_texts;
+static int qc_menu_add(void* u, void* cursor, char const* text, int action)
+{
+    (void)u; (void)cursor;
+    snprintf(qc_rows[qc_count], sizeof(qc_rows[0]), "%s", text);
+    qc_actions[qc_count++] = action;
+    return 1;
+}
+static int qc_menu_drop(void* u, void* cursor, int index)
+{
+    (void)u; (void)cursor;
+    if( index < 0 || index >= qc_count ) return 0;
+    for( int i = index + 1; i < qc_count; i++ ) { memcpy(qc_rows[i - 1], qc_rows[i], sizeof(qc_rows[0])); qc_actions[i - 1] = qc_actions[i]; }
+    qc_count--;
+    return 1;
+}
+static int qc_menu_count(void* u, void* cursor) { (void)u; (void)cursor; return qc_count; }
+static void qc_menu_set_text(void* u, void* cursor, int index, char const* text)
+{ (void)u; (void)cursor; qc_texts++; snprintf(qc_rows[index], sizeof(qc_rows[0]), "%s", text); }
+static void qc_menu_permute(void* u, void* cursor, int const* order, int count)
+{
+    char old[32][128]; int old_actions[32];
+    (void)u; (void)cursor;
+    qc_permutes++;
+    memcpy(old, qc_rows, sizeof(old)); memcpy(old_actions, qc_actions, sizeof(old_actions));
+    for( int i = 0; i < count; i++ ) { memcpy(qc_rows[i], old[order[i]], sizeof(qc_rows[0])); qc_actions[i] = old_actions[order[i]]; }
+    qc_count = count;
+}
+static void qc_menu_row(void* u, void* cursor, int index, struct ToriRS_MenuRow* out)
+{
+    (void)u; (void)cursor;
+    memset(out, 0, sizeof(*out));
+    out->text = qc_rows[index];
+    out->action = qc_actions[index];
+    out->npc_slot = out->player_pid = out->target_id = out->component_id = out->slot = -1;
+}
+static int qc_menu_shown(void* u, struct ToriRS_Rect* out)
+{ (void)u; *out = (struct ToriRS_Rect){ 100, 50, 120, 70 }; return 1; }
+static int qc_varbits[4];
+static int qc_set_varbit(void* u, int id, int value) { (void)u; if( id < 0 || id >= 4 ) return 0; qc_varbits[id] = value; return 1; }
+static int qc_seq_def(void* u, int id, struct ToriRS_SeqDef* out)
+{
+    static int const lengths[3] = { 4, 5, 6 };
+    (void)u;
+    if( id == 8 ) return TORIRS_ASSET_PENDING;
+    if( id != 7 ) return TORIRS_ASSET_MISSING;
+    out->id = 7; out->frame_count = 3; out->duration = 15; out->frame_step = -1; out->skeletal = false;
+    qh_fake_list(&out->frame_lengths, lengths, 3);
+    return TORIRS_ASSET_READY;
+}
+static char qc_url[512];
+static int qc_url_calls;
+static int qc_open_url(void* u, char const* url)
+{ (void)u; qc_url_calls++; snprintf(qc_url, sizeof(qc_url), "%s", url); return TORIRS_RESULT_OK; }
+static int qc_jump_x, qc_jump_z;
+static int qc_worldmap_jump(void* u, int x, int z, int level)
+{ (void)u; (void)level; if( x > 9000 ) return TORIRS_RESULT_NOT_FOUND; qc_jump_x = x; qc_jump_z = z; return TORIRS_RESULT_OK; }
+
+static int qc_mode;
+static enum ToriRS_Result qc_r_order, qc_r_bad_row, qc_r_dup, qc_r_bad_tag, qc_r_text, qc_r_long;
+static enum ToriRS_CallbackResult qc_build(struct ToriRS_Api* api, void* state, struct ToriRS_MenuBuildEvent* ev)
+{
+    (void)state;
+    if( qc_mode == 1 )
+    {
+        /* RuneLite's "Start Quest Helper" at length-1, Walk here deprioritized,
+         * the npc row's text replaced, Cancel removed. */
+        struct ToriRS_MenuRowRef order[4] = {
+            { 1, 0, false },          /* Examine */
+            { 2, 0, true },           /* Walk here, deprioritized */
+            { -1, 41, false },        /* our row */
+            { 3, 0, false },          /* Talk-to (top) */
+        };
+        static char long_text[200];
+        CHECK(api->menu.add(api, ev, "Start Quest Helper", 41), "the plugin's row is added");
+        qc_r_bad_row = api->menu.set_order(api, ev, (struct ToriRS_MenuRowRef[]){ { 9, 0, false } }, 1);
+        qc_r_dup = api->menu.set_order(api, ev, (struct ToriRS_MenuRowRef[]){ { 1, 0, false }, { 1, 0, false } }, 2);
+        qc_r_bad_tag = api->menu.set_order(api, ev, (struct ToriRS_MenuRowRef[]){ { -1, 99, false } }, 1);
+        qc_r_order = api->menu.set_order(api, ev, order, 4);
+        qc_r_text = api->menu.set_text(api, ev, 3, "Talk-to @yel@Fake Veos");
+        memset(long_text, 'x', sizeof(long_text) - 1);
+        qc_r_long = api->menu.set_text(api, ev, 3, long_text);
+    }
+    return TORIRS_CALLBACK_CONTINUE;
+}
+static enum ToriRS_CallbackResult qc_build_other(struct ToriRS_Api* api, void* state, struct ToriRS_MenuBuildEvent* ev)
+{
+    (void)state;
+    if( qc_mode == 1 )
+    {
+        CHECK(api->menu.add(api, ev, "Other plugin", 7), "another plugin adds a row");
+        qc_r_bad_tag = api->menu.set_order(api, ev, (struct ToriRS_MenuRowRef[]){ { -1, 41, false } }, 1) ==
+                               TORIRS_RESULT_INVALID ? qc_r_bad_tag : TORIRS_RESULT_OK;
+    }
+    return TORIRS_CALLBACK_CONTINUE;
+}
+static int qc_commands_a, qc_commands_b;
+static char qc_cmd_name[64], qc_cmd_args[64];
+static enum ToriRS_CallbackResult qc_command_a(struct ToriRS_Api* api, void* state, struct ToriRS_CommandEvent const* ev)
+{
+    (void)api; (void)state;
+    qc_commands_a++;
+    snprintf(qc_cmd_name, sizeof(qc_cmd_name), "%s", ev->name);
+    snprintf(qc_cmd_args, sizeof(qc_cmd_args), "%s", ev->args);
+    return strcmp(ev->name, "questhelperdebug") == 0 ? TORIRS_CALLBACK_CONSUME : TORIRS_CALLBACK_CONTINUE;
+}
+static enum ToriRS_CallbackResult qc_command_b(struct ToriRS_Api* api, void* state, struct ToriRS_CommandEvent const* ev)
+{ (void)api; (void)state; (void)ev; qc_commands_b++; return TORIRS_CALLBACK_CONTINUE; }
+static enum ToriRS_Result qc_v_ok, qc_v_bad, qc_u_ok, qc_u_bad, qc_u_ftp, qc_j_ok, qc_j_far, qc_j_level;
+static enum ToriRS_AssetState qc_s_ready, qc_s_pending, qc_s_missing;
+static struct ToriRS_SeqDef qc_seq;
+static int qc_seq_lengths[2];
+static bool qc_shown;
+static struct ToriRS_Rect qc_shown_box;
+/* container_slot/container_size: a shop (516) the fake holds, 3 slots, slot 1
+ * empty; any other id is not held. */
+static int qc_container_slot(void* u, int container, int slot, int* id, int* count)
+{
+    (void)u;
+    if( container != 516 || slot < 0 || slot >= 3 )
+        return 0;
+    *id = slot == 1 ? -1 : 1925 + slot;
+    *count = slot == 1 ? 0 : 10 + slot;
+    return 1;
+}
+static int qc_container_size(void* u, int container) { (void)u; return container == 516 ? 3 : 0; }
+static int qc_c_size, qc_c_size_none, qc_c_id[3], qc_c_count[3];
+static bool qc_c_ok[3], qc_c_past, qc_c_none;
+/* world_entity_next / world_entity_to_main: two boats (views 3 and 7). */
+static int qc_wev_next(void* u, int iter, struct ToriRS_WorldEntitySnapshot* out)
+{
+    (void)u;
+    int const next = iter < 3 ? 3 : iter < 7 ? 7 : -1;
+    if( next < 0 ) return -1;
+    memset(out, 0, sizeof(*out));
+    out->id = next; out->config_id = next == 3 ? 9 : 12; out->fine_x = 3200 * 128; out->fine_z = 3200 * 128;
+    out->base_x = 6400 + next * 16; out->base_z = 6400; out->size_x = 16; out->size_z = 8; out->deck_level = 1;
+    return next;
+}
+static int qc_wev_to_main(void* u, int id, int x, int z, int* ox, int* oz)
+{ (void)u; if( id != 3 ) return 0; *ox = 3200 * 128 + x; *oz = 3200 * 128 + z; return 1; }
+static int qc_w_ids[4], qc_w_configs[4], qc_w_count, qc_w_mx, qc_w_mz;
+static bool qc_w_main_ok, qc_w_main_gone;
+/* world_entity_loc_next: boat 3's own world holds two hull locs. */
+static int qc_wev_loc_next(void* u, int id, int iter, struct ToriRS_ScenerySnapshot* out)
+{
+    (void)u;
+    if( id != 3 || iter >= 1 ) return -1;
+    memset(out, 0, sizeof(*out));
+    out->loc_id = iter < 0 ? 59001 : 59002; out->tile_x = 6448 + (iter < 0 ? 0 : 1); out->tile_z = 6400;
+    out->level = 1; out->element_id = iter < 0 ? 700 : 701; out->size_x = 1; out->size_z = 1;
+    return iter < 0 ? 0 : 1;
+}
+static int qc_wl_ids[4], qc_wl_elements[4], qc_wl_count, qc_wl_gone;
+static void qc_tick(struct ToriRS_Api* api, void* state, struct ToriRS_TickEvent const* ev)
+{
+    (void)state; (void)ev;
+    qc_v_ok = api->cache.set_varbit(api, 2, 9);
+    qc_v_bad = api->cache.set_varbit(api, 5, 1);
+    memset(&qc_seq, 0, sizeof(qc_seq));
+    qc_seq.frame_lengths = (struct ToriRS_DefList){ qc_seq_lengths, 2, 0 };
+    qc_s_ready = api->cache.seq_def(api, 7, &qc_seq);
+    qc_s_pending = api->cache.seq_def(api, 8, &qc_seq);
+    qc_s_missing = api->cache.seq_def(api, 9, &qc_seq);
+    qc_u_bad = api->client->open_url(api, "https://example.org/a b");
+    qc_u_ftp = api->client->open_url(api, "ftp://example.org/");
+    qc_u_ok = api->client->open_url(api, "https://github.com/Zoinkwiz/quest-helper");
+    qc_j_ok = api->client->worldmap_jump(api, 3222, 3218, 0);
+    qc_j_far = api->client->worldmap_jump(api, 9999, 3218, 0);
+    qc_j_level = api->client->worldmap_jump(api, 3222, 3218, 4);
+    qc_shown = api->menu.shown(api, &qc_shown_box);
+    qc_c_size = api->game->container_size(api, 516);
+    qc_c_size_none = api->game->container_size(api, 659);
+    for( int i = 0; i < 3; i++ )
+        qc_c_ok[i] = api->game->container_slot(api, 516, i, &qc_c_id[i], &qc_c_count[i]);
+    {
+        int id = 0, count = 0;
+        qc_c_past = api->game->container_slot(api, 516, 3, &id, &count);
+        qc_c_none = api->game->container_slot(api, 659, 0, &id, &count);
+    }
+    {
+        struct ToriRS_WorldEntitySnapshot w;
+        int it = -1;
+        qc_w_count = 0;
+        while( (it = api->game->world_entity_next(api, it, &w)) >= 0 && qc_w_count < 4 )
+        {
+            qc_w_ids[qc_w_count] = w.id; qc_w_configs[qc_w_count] = w.config_id; qc_w_count++;
+        }
+        qc_w_main_ok = api->game->world_entity_to_main(api, 3, 64, 192, &qc_w_mx, &qc_w_mz);
+        {
+            struct ToriRS_ScenerySnapshot loc;
+            int at = -1;
+            qc_wl_count = 0;
+            while( (at = api->game->world_entity_loc_next(api, 3, at, &loc)) >= 0 && qc_wl_count < 4 )
+            {
+                qc_wl_ids[qc_wl_count] = loc.loc_id; qc_wl_elements[qc_wl_count] = loc.element_id; qc_wl_count++;
+            }
+            qc_wl_gone = api->game->world_entity_loc_next(api, 5, -1, &loc);
+        }
+        {
+            int x = 0, z = 0;
+            qc_w_main_gone = api->game->world_entity_to_main(api, 5, 64, 64, &x, &z);
+        }
+    }
+}
+static enum ToriRS_Result qc_d_varbit, qc_d_url, qc_d_jump;
+static void qc_draw(struct ToriRS_Api* api, void* state, struct ToriRS_Graphics* graphics)
+{
+    (void)state; (void)graphics;
+    qc_d_varbit = api->cache.set_varbit(api, 2, 1);
+    qc_d_url = api->client->open_url(api, "https://example.org/");
+    qc_d_jump = api->client->worldmap_jump(api, 3222, 3218, 0);
+}
+
+static void qc_menu_reset(void)
+{
+    static char const* const rows[4] = { "Cancel", "Examine @yel@Veos", "Walk here", "Talk-to @yel@Veos" };
+    qc_count = 0;
+    for( int i = 0; i < 4; i++ ) { snprintf(qc_rows[i], sizeof(qc_rows[0]), "%s", rows[i]); qc_actions[i] = 1000 + i; }
+    qc_count = 4;
+}
+
+/* ------------------------------------------------------------------------ *
+ * menu.set_order across plugins (the panel/menu round): the payload is the
+ * WHOLE menu, and two plugins that order it compose by event_priority --
+ * each handed the menu as the higher-priority ones left it, their rows
+ * included -- instead of the last caller winning.
+ *
+ * MUTATION 1: dispatch on_menu_build with plugin_dispatch (plans applied at
+ *   the end, last wins).  Red: "the later plugin is handed the earlier one's
+ *   row" and "the two orders compose".
+ * MUTATION 2: cap the bridge payload at 16 again.  Red: "a 20-row menu is
+ *   handed whole" (host side: ROWS_MAX).
+ * ------------------------------------------------------------------------ */
+static int qm_mode;
+static int qm_low_rows, qm_high_rows;
+static char qm_low_row3[128];
+static enum ToriRS_Result qm_r_high, qm_r_low;
+static enum ToriRS_CallbackResult qm_high(struct ToriRS_Api* api, void* state, struct ToriRS_MenuBuildEvent* ev)
+{
+    (void)state;
+    qm_high_rows = ev->row_count;
+    if( qm_mode == 1 )
+    {
+        /* Its row just below the top (QuestMenuHandler's "Start Quest Helper"). */
+        struct ToriRS_MenuRowRef order[5] = { { 0, 0, false }, { 1, 0, false }, { 2, 0, false }, { -1, 5, false }, { 3, 0, false } };
+        CHECK(api->menu.add(api, ev, "High row", 5), "the high-priority plugin adds its row");
+        qm_r_high = api->menu.set_order(api, ev, order, 5);
+    }
+    return TORIRS_CALLBACK_CONTINUE;
+}
+static enum ToriRS_CallbackResult qm_low(struct ToriRS_Api* api, void* state, struct ToriRS_MenuBuildEvent* ev)
+{
+    (void)state;
+    qm_low_rows = ev->row_count;
+    qm_low_row3[0] = '\0';
+    if( ev->row_count > 3 && ev->rows[3].text )
+        snprintf(qm_low_row3, sizeof(qm_low_row3), "%s", ev->rows[3].text);
+    if( qm_mode == 1 )
+    {
+        /* Walk here (payload row 2) to the top; every other row where it is. */
+        struct ToriRS_MenuRowRef order[5] = { { 0, 0, false }, { 1, 0, false }, { 3, 0, false }, { 4, 0, false }, { 2, 0, false } };
+        qm_r_low = api->menu.set_order(api, ev, order, 5);
+    }
+    else if( qm_mode == 2 )
+    {
+        /* The whole 20-row menu, reversed: rows past the old 16 are named. */
+        struct ToriRS_MenuRowRef order[20];
+        for( int i = 0; i < 20; i++ )
+            order[i] = (struct ToriRS_MenuRowRef){ 19 - i, 0, false };
+        qm_r_low = api->menu.set_order(api, ev, order, 20);
+    }
+    return TORIRS_CALLBACK_CONTINUE;
+}
+
+static void test_menu_order_composes(void)
+{
+    struct ToriRS_PluginEngine engine = fake_engine();
+    struct ToriRS_MenuBuildEvent ev;
+    int cursor = 0;
+    bool ordered;
+    engine.menu_add = qc_menu_add; engine.menu_drop = qc_menu_drop; engine.menu_count = qc_menu_count;
+    engine.menu_set_text = qc_menu_set_text; engine.menu_permute = qc_menu_permute; engine.menu_row = qc_menu_row;
+    struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+    /* Registered low first: the dispatch order is the priority's, not the
+     * registration's. */
+    struct ToriRS_PluginDef low = { .struct_size = sizeof(low), .id = "qm-low", .title = "QM low", .version = "1",
+        .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks), .on_menu_build = qm_low } };
+    struct ToriRS_PluginDef high = { .struct_size = sizeof(high), .id = "qm-high", .title = "QM high", .version = "1",
+        .event_priority = 10,
+        .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks), .on_menu_build = qm_high } };
+    CHECK(PluginHost_Register(host, &low) >= 0 && PluginHost_Register(host, &high) >= 0, "compose fixtures register");
+    PluginHost_Start(host);
+
+    qm_mode = 1;
+    qc_menu_reset();
+    qc_permutes = 0;
+    memset(&ev, 0, sizeof(ev));
+    ev.row_count = 4;
+    ordered = PluginHost_MenuBuild(host, &cursor, &ev, false);
+    CHECK(qm_r_high == TORIRS_RESULT_OK && qm_r_low == TORIRS_RESULT_OK, "both orders are accepted");
+    CHECK(qm_high_rows == 4, "the higher-priority plugin runs first, on the native rows");
+    CHECK(qm_low_rows == 5 && strcmp(qm_low_row3, "High row") == 0,
+          "the later plugin is handed the earlier one's row, where it put it");
+    CHECK(ordered && qc_count == 5 && strcmp(qc_rows[0], "Cancel") == 0 && strcmp(qc_rows[1], "Examine @yel@Veos") == 0 &&
+              strcmp(qc_rows[2], "High row") == 0 && strcmp(qc_rows[3], "Talk-to @yel@Veos") == 0 &&
+              strcmp(qc_rows[4], "Walk here") == 0,
+          "the two orders compose: the high row below the old top, then Walk here moved over both");
+    CHECK(qc_permutes == 2, "each plugin's order applied once");
+
+    /* A menu larger than the old 16-row payload is handed whole. */
+    qm_mode = 2;
+    qc_count = 0;
+    for( int i = 0; i < 20; i++ )
+    {
+        snprintf(qc_rows[i], sizeof(qc_rows[0]), "Row %d", i);
+        qc_actions[i] = 2000 + i;
+    }
+    qc_count = 20;
+    memset(&ev, 0, sizeof(ev));
+    ev.row_count = 20;
+    ordered = PluginHost_MenuBuild(host, &cursor, &ev, false);
+    CHECK(qm_low_rows == 20 && qm_r_low == TORIRS_RESULT_OK, "a 20-row menu is handed whole and ordered whole");
+    CHECK(ordered && qc_count == 20 && strcmp(qc_rows[0], "Row 19") == 0 && strcmp(qc_rows[19], "Row 0") == 0 &&
+              strcmp(qc_rows[3], "Row 16") == 0,
+          "rows past the old 16 move too");
+    PluginHost_Free(host);
+}
+
+/* ------------------------------------------------------------------------ */
+/* Quest Helper port: sub-tile instance placement, the instance's element and */
+/* its hit test (RuneLiteObject.setLocation / getClickbox).                    */
+/* ------------------------------------------------------------------------ */
+
+static int qs_fine_x, qs_fine_z, qs_fine_level, qs_fine_calls, qs_hit_object = -1;
+static void qs_fine(void* u, int object, int fine_x, int fine_z, int level, int height, int yaw)
+{ (void)u;(void)object;(void)height;(void)yaw; qs_fine_x = fine_x; qs_fine_z = fine_z; qs_fine_level = level; qs_fine_calls++; }
+static int qs_element(void* u, int object) { (void)u; return object == qs_hit_object ? 900 + object : -1; }
+static int qs_hit(void* u, int object) { (void)u; return object == qs_hit_object; }
+static enum ToriRS_Result qs_place_ok, qs_place_negative, qs_place_level, qs_place_yaw, qs_place_stale;
+static int qs_element_drawn, qs_element_stale;
+static bool qs_hit_on, qs_hit_stale;
+static void qs_tick(struct ToriRS_Api* api, void* state, struct ToriRS_TickEvent const* ev)
+{
+    struct ToriRS_SceneInstanceRef inst = { 0 }, gone = { 0 };
+    int was_in_use[FAKE_OBJECTS_MAX];
+    (void)state; (void)ev;
+    for( int i = 0; i < FAKE_OBJECTS_MAX; i++ )
+        was_in_use[i] = g_engine.objects[i].in_use;
+    (void)api->scene.instance_create(api, &inst);
+    for( int i = 0; i < FAKE_OBJECTS_MAX; i++ )
+        if( g_engine.objects[i].in_use && !was_in_use[i] ) qs_hit_object = i;
+    (void)api->scene.instance_create(api, &gone);
+    api->scene.instance_destroy(api, gone);
+    qs_place_ok = api->scene.instance_place(api, inst, 3222 * 128 + 17, 3218 * 128 + 100, 0, 0, 512);
+    qs_place_negative = api->scene.instance_place(api, inst, -1, 3218 * 128, 0, 0, 0);
+    qs_place_level = api->scene.instance_place(api, inst, 3222 * 128, 3218 * 128, 4, 0, 0);
+    qs_place_yaw = api->scene.instance_place(api, inst, 3222 * 128, 3218 * 128, 0, 0, 2048);
+    qs_place_stale = api->scene.instance_place(api, gone, 3222 * 128, 3218 * 128, 0, 0, 0);
+    qs_element_drawn = api->scene.instance_element(api, inst);
+    qs_element_stale = api->scene.instance_element(api, gone);
+    qs_hit_on = api->scene.instance_hit(api, inst);
+    qs_hit_stale = api->scene.instance_hit(api, gone);
+    api->scene.instance_destroy(api, inst);
+}
+static enum ToriRS_Result qs_bare_place;
+static int qs_bare_element;
+static bool qs_bare_hit;
+static void qs_bare_tick(struct ToriRS_Api* api, void* state, struct ToriRS_TickEvent const* ev)
+{
+    struct ToriRS_SceneInstanceRef inst = { 0 };
+    (void)state; (void)ev;
+    (void)api->scene.instance_create(api, &inst);
+    qs_bare_place = api->scene.instance_place(api, inst, 3222 * 128, 3218 * 128, 0, 0, 0);
+    qs_bare_element = api->scene.instance_element(api, inst);
+    qs_bare_hit = api->scene.instance_hit(api, inst);
+    api->scene.instance_destroy(api, inst);
+}
+static void test_scene_instance_place(void)
+{
+    {
+        struct ToriRS_PluginEngine engine = fake_engine();
+        engine.object_set_fine_position = qs_fine; engine.object_element = qs_element; engine.object_hit = qs_hit;
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+        struct ToriRS_PluginDef def = { .struct_size = sizeof(def), .id = "qs-place", .title = "QS", .version = "1",
+            .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks), .on_server_tick = qs_tick } };
+        CHECK(PluginHost_Register(host, &def) >= 0, "instance-place fixture registers");
+        PluginHost_Start(host);
+        PluginHost_ServerTick(host, 1);
+        CHECK(qs_place_ok == TORIRS_RESULT_OK && qs_fine_calls == 1 && qs_fine_x == 3222 * 128 + 17 &&
+              qs_fine_z == 3218 * 128 + 100 && qs_fine_level == 0,
+              "instance_place hands an absolute sub-tile point to the engine");
+        CHECK(qs_place_negative == TORIRS_RESULT_INVALID && qs_place_level == TORIRS_RESULT_INVALID &&
+              qs_place_yaw == TORIRS_RESULT_INVALID && qs_place_stale == TORIRS_RESULT_INVALID && qs_fine_calls == 1,
+              "a negative point, a level past 3, a yaw past 2047 and a destroyed instance never reach it");
+        CHECK(qs_element_drawn == 900 + qs_hit_object && qs_element_stale == -1,
+              "instance_element answers the drawn element, -1 for a destroyed instance");
+        CHECK(qs_hit_on && !qs_hit_stale, "instance_hit is the engine's pick; a destroyed instance is never hit");
+        PluginHost_Free(host);
+    }
+    {
+        struct ToriRS_PluginEngine engine = fake_engine();
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+        struct ToriRS_PluginDef def = { .struct_size = sizeof(def), .id = "qs-bare", .title = "QS", .version = "1",
+            .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks), .on_server_tick = qs_bare_tick } };
+        CHECK(PluginHost_Register(host, &def) >= 0, "bare-engine fixture registers");
+        PluginHost_Start(host);
+        PluginHost_ServerTick(host, 1);
+        CHECK(qs_bare_place == TORIRS_RESULT_UNSUPPORTED && qs_bare_element == -1 && !qs_bare_hit,
+              "an engine without the hooks: place UNSUPPORTED, no element, never hit");
+        PluginHost_Free(host);
+    }
+}
+
+static void test_quest_helper_client_apis(void)
+{
+    struct ToriRS_PluginEngine engine = fake_engine();
+    struct ToriRS_MenuBuildEvent ev;
+    int cursor = 0;
+    bool ordered;
+    engine.menu_add = qc_menu_add; engine.menu_drop = qc_menu_drop; engine.menu_count = qc_menu_count;
+    engine.menu_set_text = qc_menu_set_text; engine.menu_permute = qc_menu_permute; engine.menu_shown = qc_menu_shown;
+    engine.menu_row = qc_menu_row;
+    engine.set_varbit = qc_set_varbit; engine.seq_def = qc_seq_def; engine.open_url = qc_open_url;
+    engine.worldmap_jump = qc_worldmap_jump;
+    engine.container_slot = qc_container_slot; engine.container_size = qc_container_size;
+    engine.world_entity_next = qc_wev_next; engine.world_entity_to_main = qc_wev_to_main;
+    engine.world_entity_loc_next = qc_wev_loc_next;
+    struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+    struct ToriRS_PluginDef def = { .struct_size = sizeof(def), .id = "qc-apis", .title = "QC", .version = "3",
+        .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks), .on_menu_build = qc_build,
+            .on_server_tick = qc_tick, .on_draw_canvas = qc_draw, .on_command = qc_command_a } };
+    struct ToriRS_PluginDef other = { .struct_size = sizeof(other), .id = "qc-other", .title = "QC2", .version = "3",
+        .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks), .on_menu_build = qc_build_other,
+            .on_command = qc_command_b } };
+    CHECK(PluginHost_Register(host, &def) >= 0 && PluginHost_Register(host, &other) >= 0, "client-API fixtures register");
+    PluginHost_Start(host);
+
+    /* No plan: the host leaves the order to the caller's sort. */
+    qc_mode = 0;
+    qc_menu_reset();
+    memset(&ev, 0, sizeof(ev));
+    ev.row_count = 4;
+    ordered = PluginHost_MenuBuild(host, &cursor, &ev, false);
+    CHECK(!ordered && qc_permutes == 0 && qc_texts == 0 && qc_count == 4, "a build nobody edits is left alone");
+
+    qc_mode = 1;
+    qc_menu_reset();
+    memset(&ev, 0, sizeof(ev));
+    ev.row_count = 4;
+    ordered = PluginHost_MenuBuild(host, &cursor, &ev, false);
+    CHECK(qc_r_bad_row == TORIRS_RESULT_INVALID, "a row past the payload is refused");
+    CHECK(qc_r_dup == TORIRS_RESULT_INVALID, "a row listed twice is refused");
+    CHECK(qc_r_bad_tag == TORIRS_RESULT_INVALID, "a tag is this plugin's own");
+    CHECK(qc_r_order == TORIRS_RESULT_OK && qc_r_text == TORIRS_RESULT_OK, "the plan is accepted");
+    CHECK(qc_r_long == TORIRS_RESULT_BUDGET, "a row text past the menu's row size is refused");
+    CHECK(ordered && qc_permutes == 2, "an ordered build tells the caller not to re-sort (the plan, then the sink)");
+    CHECK(qc_count == 5, "Cancel is gone; the other plugin's row stays");
+    /* The other plugin ran after the plan was applied, so its row landed on
+     * the ordered menu's top (createMenuEntry(-1)); the deprioritized walk
+     * sank below every row once the build was done. */
+    CHECK(qc_count == 5 && strcmp(qc_rows[0], "Walk here") == 0 && strcmp(qc_rows[1], "Examine @yel@Veos") == 0 &&
+              strcmp(qc_rows[2], "Start Quest Helper") == 0 && strcmp(qc_rows[3], "Talk-to @yel@Fake Veos") == 0 &&
+              strcmp(qc_rows[4], "Other plugin") == 0,
+          "bottom first: the deprioritized walk, the plan in order with the new text, then the later plugin's row");
+
+    qc_shown = false;
+    PluginHost_ServerTick(host, 1);
+    CHECK(qc_v_ok == TORIRS_RESULT_OK && qc_varbits[2] == 9, "set_varbit reaches the client's varbit write");
+    CHECK(qc_v_bad == TORIRS_RESULT_INVALID, "a varbit the client does not know is INVALID");
+    CHECK(qc_s_ready == TORIRS_ASSET_READY && qc_seq.frame_count == 3 && qc_seq.duration == 15 &&
+              qc_seq.frame_lengths.count == 3 && qc_seq_lengths[0] == 4 && qc_seq_lengths[1] == 5,
+          "a seq states its frames, its true length count past the caller's room, and its duration");
+    CHECK(qc_s_pending == TORIRS_ASSET_PENDING && qc_s_missing == TORIRS_ASSET_MISSING, "seq_def's PENDING and MISSING come through");
+    CHECK(qc_u_bad == TORIRS_RESULT_INVALID && qc_u_ftp == TORIRS_RESULT_INVALID, "a url with a space or another scheme is refused");
+    CHECK(qc_u_ok == TORIRS_RESULT_OK && qc_url_calls == 1 && strcmp(qc_url, "https://github.com/Zoinkwiz/quest-helper") == 0,
+          "an https url reaches the platform, and only it");
+    CHECK(qc_j_ok == TORIRS_RESULT_OK && qc_jump_x == 3222 && qc_jump_z == 3218, "worldmap_jump reaches the map");
+    CHECK(qc_j_far == TORIRS_RESULT_NOT_FOUND && qc_j_level == TORIRS_RESULT_INVALID, "an uncovered tile and a bad level");
+    CHECK(qc_shown && qc_shown_box.x == 100 && qc_shown_box.height == 70, "menu.shown answers the open menu's box");
+    CHECK(qc_c_size == 3 && qc_c_size_none == 0, "container_size: a held shop by its id, 0 for one never sent");
+    CHECK(qc_c_ok[0] && qc_c_id[0] == 1925 && qc_c_count[0] == 10 && qc_c_ok[2] && qc_c_id[2] == 1927 && qc_c_count[2] == 12,
+          "container_slot reads any container by the id on_inventory_changed reports");
+    CHECK(qc_c_ok[1] && qc_c_id[1] == -1, "an empty slot of a held container is true with -1");
+    CHECK(!qc_c_past && !qc_c_none, "a slot past the end, and a container not held, are false");
+    CHECK(qc_w_count == 2 && qc_w_ids[0] == 3 && qc_w_ids[1] == 7 && qc_w_configs[0] == 9 && qc_w_configs[1] == 12,
+          "world_entity_next walks every live boat with its config id");
+    CHECK(qc_w_main_ok && qc_w_mx == 3200 * 128 + 64 && qc_w_mz == 3200 * 128 + 192,
+          "world_entity_to_main carries a deck point through the engine's transform");
+    CHECK(!qc_w_main_gone, "world_entity_to_main of an entity that is not live is false");
+    CHECK(qc_wl_count == 2 && qc_wl_ids[0] == 59001 && qc_wl_ids[1] == 59002 && qc_wl_elements[1] == 701,
+          "world_entity_loc_next walks the boat's own locs with their elements");
+    CHECK(qc_wl_gone < 0, "world_entity_loc_next of an entity that is not live ends at once");
+
+    PluginHost_DrawCanvas(host, 765, 503);
+    CHECK(qc_d_varbit == TORIRS_RESULT_UNSUPPORTED && qc_varbits[2] == 9, "a draw callback cannot write a varbit");
+    CHECK(qc_d_url == TORIRS_RESULT_UNSUPPORTED && qc_url_calls == 1 && qc_d_jump == TORIRS_RESULT_UNSUPPORTED,
+          "a draw callback cannot open a url or move the map");
+
+    CHECK(PluginHost_Command(host, "qh-inv") == 0 && qc_commands_a == 1 && qc_commands_b == 1 &&
+              strcmp(qc_cmd_name, "qh-inv") == 0 && qc_cmd_args[0] == '\0',
+          "an unconsumed command reaches every subscriber");
+    CHECK(PluginHost_Command(host, "questhelperdebug a b") == 1 && qc_commands_a == 2 && qc_commands_b == 1 &&
+              strcmp(qc_cmd_name, "questhelperdebug") == 0 && strcmp(qc_cmd_args, "a b") == 0,
+          "a consumed command reaches no later plugin and is reported consumed");
+    PluginHost_Free(host);
+
+    /* An engine without the hooks: edits UNSUPPORTED, the caller sorts. */
+    {
+        struct ToriRS_PluginEngine bare = fake_engine();
+        struct ToriRS_PluginHost* h = PluginHost_New(&bare);
+        CHECK(PluginHost_Command(h, "x") == 0, "with no subscriber a command is never consumed");
+        PluginHost_Free(h);
+    }
+}
+
 int
 main(void)
 {
@@ -3185,6 +4717,24 @@ main(void)
                 strcmp(widget->id, "labelled_chart") == 0 &&
                 strcmp(widget->label, "Activity chart") == 0,
             "general custom nodes preserve their explicitly authored label");
+        /* A collapsed well (TORIRS_PANEL_CUSTOM_HEIGHT_COLLAPSED) is a height
+         * the host keeps -- the presenter hides the row -- while any other
+         * height under the minimum is still raised to it. */
+        CHECK(
+            g_v2_api[1]->panel.set_height(g_v2_api[1], "labelled_chart", TORIRS_PANEL_CUSTOM_HEIGHT_COLLAPSED) ==
+                    TORIRS_RESULT_OK &&
+                PluginHost_PanelWidgetAt(hv2, generation, 4)->preferred_height ==
+                    TORIRS_PANEL_CUSTOM_HEIGHT_COLLAPSED,
+            "a custom well collapses in place");
+        CHECK(
+            g_v2_api[1]->panel.set_height(g_v2_api[1], "labelled_chart", -5) == TORIRS_RESULT_OK &&
+                PluginHost_PanelWidgetAt(hv2, generation, 4)->preferred_height ==
+                    TORIRS_PANEL_CUSTOM_HEIGHT_MIN,
+            "any other height under the minimum is raised to it");
+        CHECK(
+            g_v2_api[1]->panel.set_height(g_v2_api[1], "labelled_chart", 72) == TORIRS_RESULT_OK &&
+                PluginHost_PanelWidgetAt(hv2, generation, 4)->preferred_height == 72,
+            "and a collapsed well grows back by a setter");
 
         /* ---- a button the page cannot service does not fire ------------ */
         widget = PluginHost_PanelWidgetAt(hv2, generation, 6);
@@ -3650,6 +5200,14 @@ main(void)
     test_widget_operations();
     test_widget_images();
     test_world_draw_context();
+    test_draw_polygon_and_maps();
+    test_quest_helper_cache_game_scripts();
+    test_quest_helper_client_apis();
+    test_scene_instance_place();
+    test_menu_order_composes();
+    test_quest_helper_widgets_events();
+    test_quest_helper_fix_seams();
+    test_script_hooks();
     test_world_hull_answers_its_refusals();
     test_world_tile_answers_its_refusal();
     printf("%d checks, %d failures\n", g_checks, g_failures);

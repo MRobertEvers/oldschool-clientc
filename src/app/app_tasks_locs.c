@@ -177,6 +177,10 @@ loc_place(
         c->op_flags,
         c->ops);
     WorldBuilder_ApplyLocChange(wv->builder, c->x, c->z, c->level, c->loc_id, c->shape, c->angle);
+    /* RuneLite's ObjectDespawned and ObjectSpawned events (all four
+     * object kinds): the scenery shows the change from here on. */
+    app_plugin_loc_changed(
+        app, world, c->x, c->z, c->level, c->shape, c->angle, c->loc_id, old_type, old_shape, old_angle);
     if( c->loc_id >= 0 )
     {
         int placed_idx;

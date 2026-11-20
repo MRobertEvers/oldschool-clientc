@@ -1276,6 +1276,23 @@ enum
 #define TORIRSSERVER_AFK_COMBAT_TICKS 2000
 
 /*
+ * How long a player stays logged in with no input of their own: the idle
+ * logout.
+ *
+ * The rev-239 client asks for it after 15000 client cycles (20 ms) without
+ * mouse or keyboard -- five minutes, `client.field983`'s default, which
+ * setIdleTimeout clamps to 15000..90000 -- and the reference's logout phase
+ * honours it once nothing prevents the logout (World.processLogouts,
+ * `requestIdleLogout` against `preventLogoutUntil`). Here the server keeps the
+ * clock itself, off `last_input_tick`, so it runs the same whether a client is
+ * attached or its connection went: a player whose tab was hidden stays in the
+ * world (ToriRSServerPlayer::detached) until this ends the session, not until
+ * the socket closes. 300 s / 600 ms = 500 ticks. Content may defer it,
+ * `[proc,idle_logout_allowed]` (combat, a locked minigame wave).
+ */
+#define TORIRSSERVER_IDLE_LOGOUT_TICKS 500
+
+/*
  * How long a swing keeps a player and an npc in combat with each other, for
  * single-way combat: content's `add(%lastcombat, 8) > map_clock`
  * (skill_combat/combat.rs2). The engine needs the number for the reads it
@@ -4071,6 +4088,26 @@ struct ToriRSServerPlayer
      */
     struct ToriRSServer* world;
     struct ToriRSServerSession* session;
+    /**
+     * In the world with no client: its connection went and nothing has logged
+     * it out. The reference keeps an x-logged player standing where it was
+     * (World.processLogouts) and a GAMERECONNECT re-attaches the new socket
+     * to it (World.ts "reconnect a new socket with player in the world");
+     * here the same is ToriRSServer_WorldDetachPlayer /
+     * ToriRSServer_WorldAttachPlayer. What ends it is the idle logout
+     * (TORIRSSERVER_IDLE_LOGOUT_TICKS), as for a player still connected.
+     */
+    int detached;
+    /** The cipher seed of the session last attached: what a GAMERECONNECT
+     *  must present to have this player back, connected or not. */
+    int32_t session_seed[4];
+    /** The session's end is a logout -- the button's p_logout, the idle
+     *  logout, the control link -- and not a lost link: the host removes
+     *  the player rather than detaching it. */
+    int logout_requested;
+    /** The scene barrier (`login_scene_pending`) is a re-attach's: its
+     *  MAP_BUILD_COMPLETE sends the resync, not the login burst. */
+    int resume_burst;
     /** The account's session recording, when its record says `record = 1`
      *  (torirs_server_recording.h); NULL otherwise. Set at login after the
      *  init clears the slot, cleared when the player leaves it. */
@@ -4270,6 +4307,28 @@ struct ToriRSServerPlayer
     int saved_chat_public_mode;
     int saved_chat_private_mode;
     int saved_chat_trade_mode;
+    /** The friends-chat channel this player is talking in: its owner's
+     *  base-37 name, 0 for none (torirs_server_friendchat.h). The channel's
+     *  member list is the service's; this is the player's side of it, so a
+     *  logout knows which channel to leave. */
+    int64_t friendchat_owner37;
+    /** A FRIENDCHAT_JOIN_LEAVE waiting for its answer: the owner asked for,
+     *  and the tick the answer goes out. Jagex answers a join a tick or two
+     *  after "Attempting to join chat-channel..." (RSProx index 753 [7..9],
+     *  762 [7..8]); 0 owner = nothing pending. */
+    int64_t friendchat_join_owner37;
+    int friendchat_join_tick;
+    /** `[friendchat]` as the save recorded it -- the owner's channel settings
+     *  and the channel the player was in at logout -- carried to the one
+     *  `ToriRSServer_FriendchatLogin` call like `saved_chat_*` above.
+     *  `friendchat_saved` 0 = the save had no section. */
+    int friendchat_saved;
+    int friendchat_saved_enabled;
+    int64_t friendchat_saved_prefix37;
+    int friendchat_saved_enter;
+    int friendchat_saved_talk;
+    int friendchat_saved_kick;
+    char friendchat_saved_channel[16];
     /** The login header's clientType / platformType, copied from the session
      *  (see ToriRSServerSession). `ToriRSServer_PlayerIsMobile` reads them:
      *  a mobile client keeps the mobile gameframe (`toplevel_osm`) through
@@ -6489,6 +6548,37 @@ void
 ToriRSServer_WorldRemovePlayer(
     struct ToriRSServer* srv,
     struct ToriRSServerPlayer* player);
+
+/**
+ * The player's connection went, and nothing logged it out: it stays in the
+ * world, as it was, with no client (ToriRSServerPlayer::detached). No
+ * `[logout]`, no save, no slot freed -- the session is still the player's
+ * until the idle logout ends it (TORIRSSERVER_IDLE_LOGOUT_TICKS) or a
+ * reconnect takes it back (ToriRSServer_WorldAttachPlayer). Every send to it
+ * is dropped meanwhile, as for any sessionless player.
+ */
+void
+ToriRSServer_WorldDetachPlayer(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player);
+
+/**
+ * A reconnect takes back a player that is still in the world: the reference's
+ * "reconnect a new socket with player in the world" and Player.onReconnect.
+ *
+ * Nothing is loaded and no script runs: not `[logout]`, not `[login]`. The
+ * client kept its widgets, varps and inventories across the lost link and
+ * dropped its entities and scene (App_NetSessionReset), so the server forgets
+ * what it told that client about the world, answers RECONNECT_OK with the
+ * player-info init, rebuilds the scene and, once the client has built it,
+ * restates the player's own state (varps from a VARP_RESET, stats, the run
+ * orb, every bound container) and closes any modal, as the reference does.
+ * `player` must have no session: the host detaches it from any old one first.
+ */
+void
+ToriRSServer_WorldAttachPlayer(
+    struct ToriRSServerPlayer* player,
+    struct ToriRSServerSession* session);
 
 /**
  * The despawn choke point for players — the exact `ToriRSServer_WorldNpcFree`
@@ -10149,12 +10239,69 @@ ToriRSServer_PacketGroupEnd(struct ToriRSServerPlayer* player);
  */
 
 /** One friend-list entry: p8 name37, p1 world. Both the login dump (one packet
- *  per friend) and every delta afterwards use this. */
+ *  per friend) and every delta afterwards use this. `rank` is the friend's
+ *  friends-chat rank in the viewer's channel (0 a plain friend, 1 Recruit ..
+ *  6 General: RSProx index 759 [3198], `rank=2` beside Normo), which the
+ *  chat-channel setup panel's list draws (torirs_server_friendchat.h). */
 void
 ToriRSServer_SendUpdateFriendlist(
     struct ToriRSServerPlayer* player,
     int64_t name37,
-    int world);
+    int world,
+    int rank);
+
+/*
+ * Friends chat (the chat-channel tab, interface 7). The service that decides
+ * what goes in these is torirs_server_friendchat.h; every layout is RSProt's
+ * one row for revisions 222..242 (3rd/rsprot/packets/update_friendchat_*.c,
+ * message_friendchannel.c), the client's own readers.
+ */
+
+/** One channel member as UPDATE_FRIENDCHAT_CHANNEL_FULL lists it. */
+struct ToriRSServerFriendchatMemberOut
+{
+    const char* name;
+    int world;
+    int rank;
+};
+
+/** The whole channel: the owner's display name, the channel's base-37 name,
+ *  the kick rank and every member in join order (RSProx index 758 [8]). */
+void
+ToriRSServer_SendFriendchatChannelFull(
+    struct ToriRSServerPlayer* player,
+    const char* owner,
+    int64_t channel37,
+    int kick_rank,
+    const struct ToriRSServerFriendchatMemberOut* members,
+    int count);
+
+/** The empty UPDATE_FRIENDCHAT_CHANNEL_FULL: "you are in no channel", sent at
+ *  login and with every leave, kick and removal (RSProx index 753 [0], [954]). */
+void
+ToriRSServer_SendFriendchatChannelLeft(struct ToriRSServerPlayer* player);
+
+/** One member joined, changed rank (`add` again, RSProx index 754 [186]) or
+ *  left: `rank` -128 is the delete (index 761 [98]). */
+void
+ToriRSServer_SendFriendchatChannelUser(
+    struct ToriRSServerPlayer* player,
+    const char* name,
+    int world,
+    int rank);
+
+/** One line said in the channel: the sender's display name, the channel's
+ *  base-37 name, the sender's world and per-world message counter, the
+ *  sender's crown, then the Huffman text (RSProx index 236 [131217]). */
+void
+ToriRSServer_SendMessageFriendchannel(
+    struct ToriRSServerPlayer* player,
+    const char* sender,
+    int64_t channel37,
+    int world,
+    int32_t counter,
+    int crown,
+    const char* text);
 
 /** Empty UPDATE_FRIENDLIST: required to promote rev-239's social store from
  * FRIENDLIST_LOADED's "loading" state when the account has no entries. */
