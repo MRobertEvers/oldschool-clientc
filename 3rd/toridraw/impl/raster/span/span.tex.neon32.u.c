@@ -783,9 +783,9 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
     int blocks = steps >> 3;
     int remaining = steps & 7;
 
-    int step_au8 = step_au_dx << 3;
-    int step_bv8 = step_bv_dx << 3;
-    int step_cw8 = step_cw_dx << 3;
+    int step_au8 = step_au_dx * 8;
+    int step_bv8 = step_bv_dx * 8;
+    int step_cw8 = step_cw_dx * 8;
 
     /* Block k's end uv is block k+1's start uv - carry it forward instead of
      * dividing for it twice. This variant clamps u (unlike the NEON opaque
@@ -827,8 +827,8 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
              * draw it per pixel rather than smearing one row across eight. */
             if( w_n != 0 && tex_span_lerp8_fits(cur_v, nxt_v, texture_width) )
             {
-                int s_u = (nxt_u - cur_u) << (texture_shift - 3);
-                int s_v = (nxt_v - cur_v) << (texture_shift - 3);
+                int s_u = (int)((unsigned int)(nxt_u - cur_u) << (texture_shift - 3));
+                int s_v = (int)((unsigned int)(nxt_v - cur_v) << (texture_shift - 3));
 
                 raster_linear_opaque_blend_lerp8_v3(
                     &pixel_buffer[offset],
@@ -919,8 +919,8 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
             return;
         }
 
-        int s_u = (nxt_u - cur_u) << (texture_shift - 3);
-        int s_v = (nxt_v - cur_v) << (texture_shift - 3);
+        int s_u = (int)((unsigned int)(nxt_u - cur_u) << (texture_shift - 3));
+        int s_v = (int)((unsigned int)(nxt_v - cur_v) << (texture_shift - 3));
 
         int u_scan = cur_u << texture_shift;
         int v_scan = tex_span_wrapped_scan_start(cur_v, texture_width, texture_shift);
@@ -981,9 +981,9 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
     int blocks = steps >> 3;
     int remaining = steps & 7;
 
-    int step_au8 = step_au_dx << 3;
-    int step_bv8 = step_bv_dx << 3;
-    int step_cw8 = step_cw_dx << 3;
+    int step_au8 = step_au_dx * 8;
+    int step_bv8 = step_bv_dx * 8;
+    int step_cw8 = step_cw_dx * 8;
 
     /* As in the opaque twin: block k's end uv is block k+1's start uv. The
      * carried u is the CLAMPED one, matching what this block actually used as
@@ -1024,8 +1024,8 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
              * draw it per pixel rather than smearing one row across eight. */
             if( w_n != 0 && tex_span_lerp8_fits(cur_v, nxt_v, texture_width) )
             {
-                int s_u = (nxt_u - cur_u) << (texture_shift - 3);
-                int s_v = (nxt_v - cur_v) << (texture_shift - 3);
+                int s_u = (int)((unsigned int)(nxt_u - cur_u) << (texture_shift - 3));
+                int s_v = (int)((unsigned int)(nxt_v - cur_v) << (texture_shift - 3));
 
                 raster_linear_transparent_blend_lerp8_v3(
                     &pixel_buffer[offset],
@@ -1116,8 +1116,8 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
             return;
         }
 
-        int s_u = (nxt_u - cur_u) << (texture_shift - 3);
-        int s_v = (nxt_v - cur_v) << (texture_shift - 3);
+        int s_u = (int)((unsigned int)(nxt_u - cur_u) << (texture_shift - 3));
+        int s_v = (int)((unsigned int)(nxt_v - cur_v) << (texture_shift - 3));
 
         int u_scan = cur_u << texture_shift;
         int v_scan = tex_span_wrapped_scan_start(cur_v, texture_width, texture_shift);
@@ -1491,7 +1491,7 @@ draw_texture_scanline_opaque_blend_affine_branching_lerp8_ish16_ordered(
     u_coord_end = clamp(u_coord_end, 0, texture_width - 1);
 
     int u_scan = u_coord << texture_shift;
-    int v_scan = v_coord << texture_shift;
+    int v_scan = (int)((unsigned int)v_coord << texture_shift);
     int step_u = ((u_coord_end - u_coord) << texture_shift) / width;
     int step_v = ((v_coord_end - v_coord) << texture_shift) / width;
 
@@ -1604,7 +1604,7 @@ draw_texture_scanline_transparent_blend_affine_branching_lerp8_ish16_ordered(
     u_coord_end = clamp(u_coord_end, 0, texture_width - 1);
 
     int u_scan = u_coord << texture_shift;
-    int v_scan = v_coord << texture_shift;
+    int v_scan = (int)((unsigned int)v_coord << texture_shift);
     int step_u = ((u_coord_end - u_coord) << texture_shift) / width;
     int step_v = ((v_coord_end - v_coord) << texture_shift) / width;
 

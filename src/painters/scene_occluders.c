@@ -430,10 +430,12 @@ scene_occluders_select_for_camera(
                 o->hides = OCCLUDER_HIDES_EAST_OF_PLANE;
                 depth = -depth;
             }
-            o->spread_min_z = ((o->min_z - eye_z) << 8) / depth;
-            o->spread_max_z = ((o->max_z - eye_z) << 8) / depth;
-            o->spread_min_y = ((o->min_y - eye_y) << 8) / depth;
-            o->spread_max_y = ((o->max_y - eye_y) << 8) / depth;
+            /* The spreads are * 256, not << 8: an occluder edge below or left
+             * of the eye is negative, and shifting a negative int is undefined. */
+            o->spread_min_z = ((o->min_z - eye_z) * 256) / depth;
+            o->spread_max_z = ((o->max_z - eye_z) * 256) / depth;
+            o->spread_min_y = ((o->min_y - eye_y) * 256) / depth;
+            o->spread_max_y = ((o->max_y - eye_y) * 256) / depth;
             occ->active[occ->active_count++] = o;
         }
         else if( o->plane == OCCLUDER_PLANE_CONSTANT_Z )
@@ -476,10 +478,10 @@ scene_occluders_select_for_camera(
                 o->hides = OCCLUDER_HIDES_NORTH_OF_PLANE;
                 depth = -depth;
             }
-            o->spread_min_x = ((o->min_x - eye_x) << 8) / depth;
-            o->spread_max_x = ((o->max_x - eye_x) << 8) / depth;
-            o->spread_min_y = ((o->min_y - eye_y) << 8) / depth;
-            o->spread_max_y = ((o->max_y - eye_y) << 8) / depth;
+            o->spread_min_x = ((o->min_x - eye_x) * 256) / depth;
+            o->spread_max_x = ((o->max_x - eye_x) * 256) / depth;
+            o->spread_min_y = ((o->min_y - eye_y) * 256) / depth;
+            o->spread_max_y = ((o->max_y - eye_y) * 256) / depth;
             occ->active[occ->active_count++] = o;
         }
         else if( o->plane == OCCLUDER_PLANE_CONSTANT_Y )
@@ -523,10 +525,10 @@ scene_occluders_select_for_camera(
                 continue;
 
             o->hides = OCCLUDER_HIDES_BELOW_PLANE;
-            o->spread_min_x = ((o->min_x - eye_x) << 8) / depth;
-            o->spread_max_x = ((o->max_x - eye_x) << 8) / depth;
-            o->spread_min_z = ((o->min_z - eye_z) << 8) / depth;
-            o->spread_max_z = ((o->max_z - eye_z) << 8) / depth;
+            o->spread_min_x = ((o->min_x - eye_x) * 256) / depth;
+            o->spread_max_x = ((o->max_x - eye_x) * 256) / depth;
+            o->spread_min_z = ((o->min_z - eye_z) * 256) / depth;
+            o->spread_max_z = ((o->max_z - eye_z) * 256) / depth;
             occ->active[occ->active_count++] = o;
         }
     }

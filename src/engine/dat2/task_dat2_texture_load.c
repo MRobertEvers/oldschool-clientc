@@ -423,7 +423,9 @@ texture_bake(
             int alpha = 0xff;
             if( (layer->palette[pi] & 0xf8f8ff) == 0 )
                 alpha = 0;
-            adjusted_palette[pi] = (alpha << 24) | ToriRS_TextureGammaBlend(layer->palette[pi], 0.8);
+            /* In uint32_t: alpha 0xff shifted into an int's sign bit is undefined. */
+            adjusted_palette[pi] = (int)((uint32_t)alpha << 24 |
+                                         (uint32_t)ToriRS_TextureGammaBlend(layer->palette[pi], 0.8));
         }
 
         for( pixel_index = 0; pixel_index < layer->width * layer->height; pixel_index++ )

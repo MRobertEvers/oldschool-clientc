@@ -129,7 +129,8 @@ contour_ground_next_type_threshold_blend(
         return true;
     }
 
-    int y_ratio = (vy << CONTOUR_Y_RATIO_FP_SHIFT) / cg->_min_y;
+    /* * (1 << shift), not << shift: vy is negative above the ground plane. */
+    int y_ratio = (vy * (1 << CONTOUR_Y_RATIO_FP_SHIFT)) / cg->_min_y;
     if( cg->_substep == CG_SUBSTEP_BEFORE_PRIMARY_FETCH )
     {
         if( y_ratio >= cg->param )

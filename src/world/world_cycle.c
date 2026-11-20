@@ -1421,6 +1421,10 @@ World_ActorLeftSceneReset(
     if( view_placement->home_view != 0 )
         return;
 
+    /* A loaded world has a scene (load_complete is set only by the swap of a
+     * finished build, World_SwapScene, or scriptrun's rebuild). Without one
+     * the limit is (0 - 1) << 7, a shift of a negative value. */
+    assert(world->_scene_size > 0);
     uint32_t const x = draw_position->x;
     uint32_t const z = draw_position->z;
     uint32_t const scene_limit = (uint32_t)((world->_scene_size - 1) << 7);

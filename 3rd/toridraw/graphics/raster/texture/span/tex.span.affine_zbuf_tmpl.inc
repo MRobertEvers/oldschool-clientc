@@ -101,7 +101,7 @@ TAZ_SPAN_FN(
     u_coord_end = clamp(u_coord_end, 0, texture_width - 1);
 
     int u_scan = u_coord << texture_shift;
-    int v_scan = v_coord << texture_shift;
+    int v_scan = (int)((unsigned int)v_coord << texture_shift);
     int step_u = ((u_coord_end - u_coord) << texture_shift) / width;
     int step_v = ((v_coord_end - v_coord) << texture_shift) / width;
 

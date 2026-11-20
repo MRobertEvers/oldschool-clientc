@@ -123,7 +123,8 @@ static uint32_t get_bits(bunzip_data *bd, uint8_t bits_wanted) {
 
         /* Avoid 32-bit overflow (dump bit buffer to top of output) */
         if (bd->inbufBitCount >= 24) {
-            bits = bd->inbufBits & ((1 << bd->inbufBitCount) - 1);
+            /* inbufBitCount is 24..31 here: 1 << 31 in int is undefined. */
+            bits = bd->inbufBits & ((1u << bd->inbufBitCount) - 1u);
             bits_wanted -= bd->inbufBitCount;
             bits <<= bits_wanted;
             bd->inbufBitCount = 0;

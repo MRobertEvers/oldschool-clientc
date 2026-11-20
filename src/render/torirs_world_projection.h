@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <math.h>
+#include <stdint.h>
 
 #include "impl/projection/projection.scalar_reference.h"
 #include "toridraw_math.h"
@@ -48,12 +49,17 @@ ToriRS_WorldProjectPoint(
     sin_yaw = ToriDraw_Sin(camera->yaw);
     cos_yaw = ToriDraw_Cos(camera->yaw);
 
-    tmp = (dz * sin_yaw + dx * cos_yaw) >> 16;
-    dz = (dz * cos_yaw - dx * sin_yaw) >> 16;
+    /* The products in 64 bits. A point and eye inside one scene are at most
+     * ~13,000 units apart and every product fits an int, so this is the same
+     * arithmetic there; a point (or an eye, as on a replay back-step's first
+     * frame) thousands of tiles away overflowed int, which is undefined. The
+     * reference projects in floats, where it does not wrap either. */
+    tmp = (int)(((int64_t)dz * sin_yaw + (int64_t)dx * cos_yaw) >> 16);
+    dz = (int)(((int64_t)dz * cos_yaw - (int64_t)dx * sin_yaw) >> 16);
     dx = tmp;
 
-    tmp = (dy * cos_pitch - dz * sin_pitch) >> 16;
-    dz = (dy * sin_pitch + dz * cos_pitch) >> 16;
+    tmp = (int)(((int64_t)dy * cos_pitch - (int64_t)dz * sin_pitch) >> 16);
+    dz = (int)(((int64_t)dy * sin_pitch + (int64_t)dz * cos_pitch) >> 16);
     dy = tmp;
 
     if( near_plane_z <= 0 )
@@ -68,8 +74,15 @@ ToriRS_WorldProjectPoint(
     if( scale <= 0 )
         scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
 
-    *out_x = viewport_x + viewport_w / 2 + dx * scale / dz;
-    *out_y = viewport_y + viewport_h / 2 + dy * scale / dz;
+    {
+        int64_t const sx = (int64_t)dx * scale / dz;
+        int64_t const sy = (int64_t)dy * scale / dz;
+        /* Millions of pixels off the viewport is not a point on it. */
+        if( sx < -(1 << 24) || sx > (1 << 24) || sy < -(1 << 24) || sy > (1 << 24) )
+            return 0;
+        *out_x = viewport_x + viewport_w / 2 + (int)sx;
+        *out_y = viewport_y + viewport_h / 2 + (int)sy;
+    }
     return 1;
 }
 

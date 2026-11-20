@@ -167,9 +167,11 @@ ToriDraw_CalculateVertexNormals(
         int magnitude = sqrt(normal_x * normal_x + normal_y * normal_y + normal_z * normal_z);
         if( magnitude <= 0 )
             magnitude = 1;
-        normal_x <<= 8;
-        normal_y <<= 8;
-        normal_z <<= 8;
+        /* A multiply, not <<= 8: the normal is often negative, and a left
+         * shift of a negative int is undefined. Same instruction. */
+        normal_x *= 256;
+        normal_y *= 256;
+        normal_z *= 256;
         normal_x /= magnitude;
         normal_y /= magnitude;
         normal_z /= magnitude;

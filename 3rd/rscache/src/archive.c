@@ -113,31 +113,30 @@ archive_read_container_revision(
         archive->revision = (int)RSCache_BufferG2(buffer);
 }
 
+/* Java int arithmetic: the hash wraps. Done in uint32_t, where wrapping is
+ * defined, and cast back to the two's-complement int. */
 static int
 hash_djb2(char* name)
 {
-    int hash = 0;
+    uint32_t hash = 0;
     for( int i = 0; name[i] != '\0'; i++ )
-    {
-        hash = (hash << 5) - hash + name[i];
-        hash = hash & hash;
-    }
-    return hash;
+        hash = (hash << 5) - hash + (uint32_t)name[i];
+    return (int)hash;
 }
 
 static int
 hash_rolling_polynomial_uppercase(const char* name)
 {
     char c = 0;
-    int hash = 0;
+    uint32_t hash = 0;
     for( int i = 0; name[i] != '\0'; i++ )
     {
         c = name[i];
         if( c >= 'a' && c <= 'z' )
             c = (char)(c - 'a' + 'A');
-        hash = (hash * 61 + c - 32) | 0;
+        hash = hash * 61u + (uint32_t)c - 32u;
     }
-    return hash;
+    return (int)hash;
 }
 
 int

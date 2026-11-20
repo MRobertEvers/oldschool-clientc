@@ -48,7 +48,8 @@ test_init_free(void)
     VarPManager_Init(&mgr);
 
     for( int i = 0; i < VARP_MANAGER_READBIT_MAX; i++ )
-        TEST_ASSERT(mgr.readbit[i] == ((1 << i) - 1), "readbit mask");
+        TEST_ASSERT(mgr.readbit[i] == (int)((1u << i) - 1u), "readbit mask");
+    TEST_ASSERT(mgr.readbit[31] == 0x7fffffff, "readbit[31] masks 31 bits");
 
     TEST_ASSERT(mgr.varp_count == 0, "varp_count zero");
     TEST_ASSERT(mgr.varbit_count == 0, "varbit_count zero");
@@ -205,6 +206,38 @@ test_set_varbit_optimistic(void)
     TEST_ASSERT(VarPManager_GetVarbit(&mgr, 0) == 3, "low bits after");
     TEST_ASSERT(VarPManager_GetVarbit(&mgr, 1) == 2, "high bits preserved");
     TEST_ASSERT(mgr.var_serv[0] == 0, "var_serv not updated by optimistic");
+
+    VarPManager_Free(&mgr);
+}
+
+/* A one-bit varbit at bit 31 (varb62_boardgames_challengeroom, varb78) and a
+ * seven-bit one ending there (varb73): the set shifts its mask into the sign
+ * bit. Under UBSan (check-ubsan-units) an int shift there aborts. */
+static void
+test_varbit_at_bit_31(void)
+{
+    printf("TEST: varbit at bit 31\n");
+
+    struct VarPManager mgr;
+    VarPManager_Init(&mgr);
+
+    struct VarPType types[1] = { { 0 } };
+    TEST_ASSERT(VarPManager_SetVarpTypes(&mgr, types, 1), "SetVarpTypes");
+    struct VarBitType vbs[2] = {
+        { .basevar = 0, .startbit = 31, .endbit = 31 },
+        { .basevar = 0, .startbit = 25, .endbit = 31 },
+    };
+    TEST_ASSERT(VarPManager_SetVarbitTypes(&mgr, vbs, 2), "SetVarbitTypes");
+
+    mgr.var[0] = 0x12345;
+    VarPManager_SetVarbitOptimistic(&mgr, 0, 1);
+    TEST_ASSERT(mgr.var[0] == (int)0x80012345u, "bit 31 set, the rest kept");
+    TEST_ASSERT(VarPManager_GetVarbit(&mgr, 0) == 1, "bit 31 reads 1");
+    VarPManager_SetVarbitOptimistic(&mgr, 1, 0x55);
+    TEST_ASSERT(mgr.var[0] == (int)0xaa012345u, "bits 25..31 hold 0x55");
+    TEST_ASSERT(VarPManager_GetVarbit(&mgr, 1) == 0x55, "bits 25..31 read 0x55");
+    VarPManager_SetVarbitOptimistic(&mgr, 0, 0);
+    TEST_ASSERT(mgr.var[0] == 0x2a012345, "bit 31 cleared");
 
     VarPManager_Free(&mgr);
 }
@@ -658,6 +691,7 @@ main(void)
     test_apply_small_large();
     test_optimistic_and_sync();
     test_set_varbit_optimistic();
+    test_varbit_at_bit_31();
     test_load_varp_dat();
     test_load_varbit_dat();
     test_single_bit_varbit();

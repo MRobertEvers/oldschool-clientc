@@ -17,6 +17,16 @@ typedef enum
     COMPRESSION_FORMAT_ZLIB = 2
 } compression_format_t;
 
+/* The gzip footer's ISIZE: little-endian, at any alignment. A load through
+ * uint32_t* of an odd address is undefined (and faults on strict-alignment
+ * targets); the byte-assembled read is what it meant on every one. */
+static inline uint32_t
+gzip_footer_isize(const uint8_t* footer)
+{
+    return (uint32_t)footer[0] | (uint32_t)footer[1] << 8 | (uint32_t)footer[2] << 16 |
+           (uint32_t)footer[3] << 24;
+}
+
 static inline compression_format_t
 detect_compression_format(
     const uint8_t* data,
@@ -102,7 +112,7 @@ RSCache_CompressionGzipUncompressedSize(
     uint8_t* compressed_data,
     int compressed_length)
 {
-    return *(uint32_t*)(compressed_data + compressed_length - 4);
+    return gzip_footer_isize(compressed_data + compressed_length - 4);
 }
 
 uint32_t
@@ -123,7 +133,7 @@ RSCache_CompressionGzipDecompress(
     {
         if( (flags & RSCACHE_GZIP_NO_FOOTER) == 0 )
         {
-            int uncompressed_length = *(int*)(compressed_data + compressed_length - 4);
+            int uncompressed_length = (int)gzip_footer_isize(compressed_data + compressed_length - 4);
             assert(out_length >= uncompressed_length);
         }
 

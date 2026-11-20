@@ -235,10 +235,12 @@ RSCache_BufferG4(struct RSCache_Buffer* buffer)
 {
     if( buffer->position + 4u > buffer->size )
         return 0;
-    int value = (buffer->data[buffer->position] & 0xff) << 24 |
-                (buffer->data[buffer->position + 1] & 0xff) << 16 |
-                (buffer->data[buffer->position + 2] & 0xff) << 8 |
-                (buffer->data[buffer->position + 3] & 0xff);
+    /* Assembled in uint32_t: a first byte >= 0x80 shifted into bit 31 of an
+     * int is undefined; the cast back is the two's-complement value. */
+    int value = (int)((uint32_t)(buffer->data[buffer->position] & 0xff) << 24 |
+                      (uint32_t)(buffer->data[buffer->position + 1] & 0xff) << 16 |
+                      (uint32_t)(buffer->data[buffer->position + 2] & 0xff) << 8 |
+                      (uint32_t)(buffer->data[buffer->position + 3] & 0xff));
     buffer->position += 4;
     return value;
 }
@@ -260,7 +262,7 @@ RSCache_BufferG8(struct RSCache_Buffer* buffer)
 {
     int64_t high = (int64_t)RSCache_BufferG4(buffer) & 0xffffffffLL;
     int64_t low = (int64_t)RSCache_BufferG4(buffer) & 0xffffffffLL;
-    return (high << 32) | low;
+    return (int64_t)((uint64_t)high << 32 | (uint64_t)low);
 }
 
 void
@@ -347,8 +349,8 @@ RSCache_BufferG4At(
     const uint8_t* data,
     int* offset)
 {
-    int value = (data[*offset] << 24) | (data[*offset + 1] << 16) | (data[*offset + 2] << 8) |
-                data[*offset + 3];
+    int value = (int)((uint32_t)data[*offset] << 24 | (uint32_t)data[*offset + 1] << 16 |
+                      (uint32_t)data[*offset + 2] << 8 | (uint32_t)data[*offset + 3]);
     *offset += 4;
     return value;
 }
