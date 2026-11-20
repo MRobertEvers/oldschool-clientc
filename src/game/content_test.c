@@ -583,8 +583,10 @@ static uint64_t quest_clock_step_ms(void)
  * holds, the one thing the frame contract (app.h) lets hold the game: the
  * boot, a packet task waiting on work (a REBUILD's gather included;
  * App_MainQueueWaitsOnWork -- a READY one runs in the next logic cycle, so
- * holding the clock for it would hold it forever), and the packet side's
- * latches (scripts, an open tick). A parallel task waiting on
+ * holding the clock for it would hold it forever), and the client scripts'
+ * latches. Not the whole settle gate: an open server tick is closed by the
+ * server's fence, which a held clock never sends (a logout left one open and
+ * held the clock for good). A parallel task waiting on
  * its read does not hold it, so the server's next packets arrive while it
  * waits: the target despawns, the scene rebuilds, the interface closes, the
  * key is written again -- what a real client on a slow cache meets.
@@ -623,7 +625,8 @@ static int content_test_clock_held(struct App* app)
 {
     int const mode = content_test_mode();
     if( mode == 2 )
-        return RS_ClientPhase_Booting(&app->phase) || App_MainQueueWaitsOnWork(app) || !App_FrameSettled(app);
+        return RS_ClientPhase_Booting(&app->phase) || App_MainQueueWaitsOnWork(app) ||
+               TaskRunner_HadWork(&app->frame_runner) || app->frame_runner.frame_settle_pending;
     if( mode == 1 )
         return App_AsyncPending(app) || App_ClientBusy(app);
     return App_AsyncPending(app);
