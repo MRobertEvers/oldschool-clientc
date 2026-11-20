@@ -6227,6 +6227,17 @@ test-worldmap-load: $(OBJ_DIR) $(OBJS)
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/worldmap_load_split_test ..
 
+# An animated loc whose sequence binds after the build (WorldBuilder_BindLocSequence)
+# looks as one bound during it: its post transforms and its lighting, against
+# the real osrs242 cache (engine/world_builder/world_scenery.u.c).
+.PHONY: test-loc-seq-bind
+test-loc-seq-bind: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(SRC_DIR)/painters -I$(SRC_DIR)/engine/world_builder \
+		-I$(SRC_DIR)/world -o $(OBJ_DIR)/loc_seq_late_bind_test \
+		engine/world_builder/test/loc_seq_late_bind_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/loc_seq_late_bind_test ..
+
 # The music install (app/app_tick.c, Task_MusicInstall): a parallel task that
 # awaits the song; a newer song cancels the older task and loads after the
 # older loader ends; a failed song is told to the player.
