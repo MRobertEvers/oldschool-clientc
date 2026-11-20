@@ -650,11 +650,14 @@ test_multinpc_interface_head_loads_selected_child(void)
     TEST_ASSERT(
         ToriRS_TaskQueue_Run(app.frame_runner.queue, io) == TORIRS_ASYNCIO_STAT_DONE,
         "multiNpc chathead load task completes");
+    /* Both configs are resident, and the resolve reads each rung through
+     * the assets table, which loads nothing that is here: the provider is
+     * not asked for either. The walk through the shell is proven by the head
+     * model below, which only the selected child names. */
     TEST_ASSERT(
-        trace_has_id(
-            g_head_load_trace.npc_ids, g_head_load_trace.npc_count, 100) &&
-            trace_has_id(g_head_load_trace.npc_ids, g_head_load_trace.npc_count, 101),
-        "chathead loader requests both the shell and selected child configs");
+        !trace_has_id(g_head_load_trace.npc_ids, g_head_load_trace.npc_count, 100) &&
+            !trace_has_id(g_head_load_trace.npc_ids, g_head_load_trace.npc_count, 101),
+        "chathead resolve reads the resident shell and child configs without a load");
     TEST_ASSERT(
         g_head_load_trace.model_count == 1 && g_head_load_trace.model_ids[0] == 777,
         "chathead loader requests the selected child's head model");
