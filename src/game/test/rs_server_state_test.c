@@ -734,6 +734,17 @@ test_session(void)
     p._set_player_op.text = op;
     apply(fx, &p);
     CHECK(strcmp(fx->player_ops.text[1], "Follow") == 0, "SET_PLAYER_OP slot 2 is row 1");
+    /* The text "null" (any case) is no op: the reference clears the slot
+     * (deob client.java class243.field2940: equalsIgnoreCase(class280.field3641,
+     * "null") -> null), which is how Jagex takes "Attack" away again. */
+    {
+        char null_op[] = "Null";
+
+        p._set_player_op.text = null_op;
+        apply(fx, &p);
+        CHECK(fx->player_ops.text[1][0] == '\0', "SET_PLAYER_OP \"null\" clears the row");
+        p._set_player_op.text = op;
+    }
     p._set_player_op.slot = 6;
     CHECK(apply(fx, &p) == RS_SERVER_STATE_UNCHANGED, "slot 6 is not a row");
 

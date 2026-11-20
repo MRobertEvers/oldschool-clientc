@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 /* The slot PLAYER_INFO files the local player under until the server has named
  * its pid (task_exec_entity_info.c, ENTITY_INFO_LOCAL_SENTINEL). */
@@ -1039,12 +1040,18 @@ state_set_player_op(
     struct RS_ServerState const* state,
     struct PktSetPlayerOp const* p)
 {
+    char const* text = p->text ? p->text : "";
+
     if( p->slot < 1 || p->slot > 5 )
         return RS_SERVER_STATE_UNCHANGED;
+    /* The text "null", in any case, is no op (deob client.java
+     * class243.field2940: equalsIgnoreCase(class280.field3641) -> null). */
+    if( strcasecmp(text, "null") == 0 )
+        text = "";
     RS_PlayerOps_Set(
         state->player_ops,
         p->slot - 1,
-        p->text ? p->text : "",
+        text,
         p->primary);
     return RS_SERVER_STATE_APPLIED;
 }
