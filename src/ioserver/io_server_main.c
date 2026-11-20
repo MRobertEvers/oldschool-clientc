@@ -1930,7 +1930,7 @@ usage(char const* argv0)
         stderr,
         "usage: %s [--manifest <boot.ini> | --rev <name> <cache_dir>]\n"
         "          [--port N] [--root DIR] [--boot-root DIR] [--config DIR]\n"
-        "          [--script DIR] [--gate LANDING] [--telemetry-dir DIR] [-v]\n"
+        "          [--script DIR] [--gate LANDING] [--telemetry-dir DIR] [--loopback] [-v]\n"
         "\n"
         "  --manifest   PREOPEN one world's cache (and its LostCity wire) at\n"
         "               startup, so an unreachable server is named here rather\n"
@@ -1942,6 +1942,9 @@ usage(char const* argv0)
         "  --boot-root  directory served over GET /boot/<path> — the manifests and\n"
         "               RevConfig INIs the client opens by name (default .)\n"
         "  --port       listen port (default %d)\n"
+        "  --loopback   listen on 127.0.0.1 only (default: every interface, so a\n"
+        "               phone on the LAN can load the page); a local test run's\n"
+        "               choice\n"
         "  --maped-port proxy /maped/ to the map-editor daemon on 127.0.0.1:N, the\n"
         "               web editor's link to it (off by default)\n"
         "  --page-query send a bare GET / to /?<QUERY> -- the page's command\n"
@@ -1989,6 +1992,7 @@ main(
     struct IOWireCache preopen;
     char const* rev_name = NULL;
     int port = IO_SERVER_DEFAULT_PORT;
+    int loopback_only = 0;
     int have_preopen = 0;
     int want_ondemand = 0;
 
@@ -2087,6 +2091,11 @@ main(
             snprintf(server.telemetry_dir, sizeof(server.telemetry_dir), "%s", argv[++i]);
             continue;
         }
+        if( strcmp(argv[i], "--loopback") == 0 )
+        {
+            loopback_only = 1;
+            continue;
+        }
         if( strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0 )
         {
             server.verbose = 1;
@@ -2171,7 +2180,7 @@ main(
     fflush(stdout);
 
     AccountClient_SetExchange(io_server_account_exchange);
-    if( HttpServer_Run(port, io_server_handler, &server) != 0 )
+    if( HttpServer_RunOn(loopback_only, port, io_server_handler, &server) != 0 )
         return 1;
 
     printf("io_server: served=%ld failed=%ld bytes=%ld\n",
