@@ -1128,11 +1128,40 @@ end
 -- The press is skipped when the rows are already built, so re-opening a
 -- second quest's journal in one test does not tear the list down and rebuild
 -- it (cc_deleteall) under its own feet.
+-- A press lands only on what is DISPLAYED. api_drive.if_click answers ok as
+-- soon as the node exists, and the dispatcher then drops a pick whose node or
+-- an ancestor is hidden, with no packet and no word (pointer.lua's
+-- _worn_press has the measurement). A tab's switch script that waits on a
+-- read leaves the side panel hidden while its rows already exist, so a press
+-- made then is a click on nothing -- which a player cannot make. Wait for
+-- what pickset's pick_live asks, as a player waits for the panel to show;
+-- no wait at all when it already shows. (ok) or (not_visible, detail).
+function QD.ui._journal_await_presented(component_id, what, ticks)
+    local function presented()
+        local result, shown = api_drive.widget_presented(component_id)
+        return result == "ok" and shown == true
+    end
+    if presented() then
+        return "ok", nil
+    end
+    local shown = await({ level = presented, note = "ui.journal_open: " .. what .. " displayed" }, ticks)
+    if shown ~= "ok" then
+        return "not_visible", "ui.journal_open: " .. what .. " was never displayed within "
+            .. tostring(ticks) .. " ticks"
+    end
+    return "ok", nil
+end
+
 -- One op-1 press on the quest-list strip icon: (ok) or (result, detail).
 function QD.ui._journal_press_quest_list()
     local icon_result, icon_id = api_drive.component("side_journal:quest_list", -1)
     if icon_result ~= "ok" then
         return "not_visible", "ui.journal_open: side_journal:quest_list is not mounted"
+    end
+    local shown_result, shown_detail =
+        QD.ui._journal_await_presented(icon_id, "side_journal:quest_list", 20)
+    if shown_result ~= "ok" then
+        return shown_result, shown_detail
     end
     local click_result, click_detail = api_drive.if_click(icon_id, 1)
     if click_result ~= "ok" then
@@ -1399,6 +1428,12 @@ function QD.ui.journal_open(display_name)
     local find_result, row_component_id, row_sub = QD.ui._journal_find_row(display_name)
     if find_result ~= "ok" then
         return find_result, row_component_id
+    end
+
+    local shown_result, shown_detail = QD.ui._journal_await_presented(
+        row_component_id, string.format("the %q row (sub %d)", display_name, row_sub), 20)
+    if shown_result ~= "ok" then
+        return shown_result, shown_detail
     end
 
     -- op 2 is "Read journal:" (clientscript 2633's own cc_setop(2, ...)); the
