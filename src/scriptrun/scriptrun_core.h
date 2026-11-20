@@ -31,19 +31,17 @@
  * records, which a rebuild re-places. That unit also holds the one list of
  * the real client's parallel task kinds and why this client raises none.
  *
- * WHAT IT MIRRORS. The client applies the entity streams in a packet task
- * bound to the whole App (game/task_exec_entity_info.c): it awaits the npc
- * configs the packet names, and hands bodies and sequences to parallel tasks.
- * That cannot run here, so the target/apply rules are restated in
- * scriptrun_core.c, op for op, against the same World and RS_EntitySync, with
- * the npc configs read from the server's own records
- * (ToriRSServer_NpcInfoRecord) and the App-only side effects (models, scene
- * elements, sounds, chat UI, drive events) left out. Keep the two in step: a
- * change to player_target_op / player_apply_op / npc_target_op / npc_apply_op
- * there is a change here. The interface mounts are restated too (the real
- * client's record of what is mounted is its UI tree), and the placed locs:
- * the loc table below stands for the real client's scenery pool, which this
- * client builds no scene for.
+ * WHAT IT SHARES WITH THE ENTITY STREAMS. PLAYER_INFO and NPC_INFO are
+ * applied by the real client's rules, game/rs_entity_apply.h, the one copy
+ * both clients call, against the same World and RS_EntitySync. This client is
+ * that apply's host (scriptrun_core.c, "the entity streams"): its npc configs
+ * are the server's own records of the pack's client configs
+ * (ToriRSServer_NpcInfoRecord), its entities have no models, and of the
+ * App-only side effects it keeps the chat store, the npc_seq / npc_face
+ * stamps, its own sequence history and the wirelog. The interface mounts are
+ * restated (the real client's record of what is mounted is its UI tree), and
+ * the placed locs: the loc table below stands for the real client's scenery
+ * pool, which this client builds no scene for.
  *
  * WHAT IT DOES NOT KNOW. Anything the server never sent: other players'
  * stats, npc hitpoints (only the health bar's fill), server-only varps. The
@@ -306,8 +304,6 @@ struct ScriptrunCore
     void* npc_ops;
     void* player_ops;
     void* info_bytes;
-    int npc_old_list[2048];
-    int player_old_list[2048];
     int packets;
     int unhandled;
 

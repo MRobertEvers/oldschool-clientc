@@ -374,23 +374,46 @@ app_npc_type_idle(
     };
 }
 
+/* A type's facts as the shared rule gives them to an npc (RS_EntityNpcType):
+ * the shell's size, turn speed and stances, the drawn rung's name, ops,
+ * level and draw flags. The strings are `npctype`'s. */
+static void
+app_npc_type_record(
+    struct ToriRS_NpcEntityFacts const* facts,
+    struct ToriRS_Npctype const* npctype,
+    struct RS_EntityNpcType* out)
+{
+    _Static_assert(TORIRS_MENU_ACTION_SLOTS == 5, "an npc has five ops");
+    out->size = facts->size;
+    out->turn_speed = facts->turn_speed;
+    out->idle = app_npc_type_idle(facts, npctype);
+    out->name = npctype->name;
+    for( int i = 0; i < 5; i++ )
+        out->actions[i] = npctype->actions[i];
+    out->combat_level = npctype->combat_level;
+    out->alwaysontop = npctype->alwaysontop;
+    out->minimap_visible = npctype->minimap_visible;
+    out->interactable = npctype->interactable;
+    out->no_rotation_flag = npctype->no_rotation_flag;
+}
+
 int
-App_WorldNpcTypeIdle(
+App_WorldNpcTypeRecord(
     struct App* app,
     int npc_type,
     int base_npc_type,
-    struct WorldEntityFacet_IdleAnimations* out)
+    struct RS_EntityNpcType* out)
 {
     struct ToriRS_Npctype* npctype;
     struct ToriRS_NpcEntityFacts facts;
 
     assert(app);
     assert(out);
-    npctype = CacheProvider_NpctypeGet(app->provider, npc_type);
+    npctype = npc_type >= 0 ? CacheProvider_NpctypeGet(app->provider, npc_type) : NULL;
     if( !npctype )
         return 0;
     app_npc_entity_facts(app, base_npc_type, npctype, &facts);
-    *out = app_npc_type_idle(&facts, npctype);
+    app_npc_type_record(&facts, npctype, out);
     return 1;
 }
 
@@ -426,13 +449,14 @@ App_WorldApplyNpcType(
 
     model_mounted = app_world_npc_mount_body(app, element_id, npc_type, npctype);
 
+    /* The type and its facts: the shared rule (game/rs_entity_apply.h), the
+     * one the headless client applies too. What the server set on the npc
+     * stays (WORLD_NPC_OVERRIDE_*). */
     {
-        struct WorldEntity_NPC const* before = World_EntityPoolGet(&app->world->entities.npc, world_idx);
-        struct WorldEntityFacet_IdleAnimations const idle =
-            before && (before->overrides & WORLD_NPC_OVERRIDE_STANCES)
-                ? before->idle_animations
-                : app_npc_type_idle(&facts, npctype);
-        World_NpcSetType(app->world, world_idx, npc_type, facts.size, &idle);
+        struct RS_EntityNpcType record;
+
+        app_npc_type_record(&facts, npctype, &record);
+        RS_EntityApply_NpcRetyped(app->world, world_idx, npc_type, &record);
     }
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(&app->world->entities.npc, world_idx);
@@ -464,19 +488,6 @@ App_WorldApplyNpcType(
             app_world_apply_seq(app, element_id, facts.readyanim);
         if( npc )
         {
-            /* What the server set on the npc stays (WORLD_NPC_OVERRIDE_*). */
-            if( !(npc->overrides & WORLD_NPC_OVERRIDE_LEVEL) )
-                npc->combat_level = npctype->combat_level;
-            npc->alwaysontop = npctype->alwaysontop;
-            npc->minimap_visible = npctype->minimap_visible;
-            npc->interactable = npctype->interactable;
-            npc->facing.turn_speed = facts.turn_speed;
-            npc->facing.no_rotation_flag = npctype->no_rotation_flag;
-            if( !(npc->overrides & WORLD_NPC_OVERRIDE_NAME) )
-                snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
-            for( int i = 0; i < 5; i++ )
-                snprintf(
-                    npc->actions[i].name, sizeof(npc->actions[i].name), "%s", npctype->actions[i]);
             /* A body customisation outlives the transformation (deob: the
              * override is kept on the npc, not the type): mount it over the
              * type's body just mounted. */
@@ -856,57 +867,11 @@ App_WorldApplyPlayerAppearance(
     assert(app);
     assert(appearance);
 
-    /* Data only. The body is derived from it by
-     * app_world_reconcile_player_body on the next frame, once whole. */
+    /* The entity already holds it (RS_EntityApply_PlayerAppearance: slots,
+     * colours, stances, name, headicons, the transmog npc). Data only: the
+     * body is derived from it by app_world_reconcile_player_body on the next
+     * frame, once whole. */
     {
-        struct WorldEntityFacet_IdleAnimations idle = {
-            .readyanim = appearance->readyanim,
-            .walkanim = appearance->walkanim,
-            .turnanim = appearance->turnanim,
-            /* rev-239 class60: field1481 = field1480 -- one turn seq both ways. */
-            .turnanim_r = appearance->turnanim,
-            .runanim = appearance->runanim,
-            .walkanim_b = appearance->walkanim_b,
-            .walkanim_r = appearance->walkanim_r,
-            .walkanim_l = appearance->walkanim_l,
-            /* The appearance block states no run or crawl directions. */
-            .runanim_b = -1,
-            .runanim_r = -1,
-            .runanim_l = -1,
-            .crawlanim = -1,
-            .crawlanim_b = -1,
-            .crawlanim_r = -1,
-            .crawlanim_l = -1,
-        };
-        World_PlayerSetAppearance(
-            app->world,
-            world_idx,
-            appearance->slots,
-            appearance->identkit,
-            appearance->colors,
-            &idle,
-            appearance->name,
-            appearance->combat_level,
-            appearance->gender);
-
-        /* Overhead prayer/skull headicon bitmask (reference
-         * ClientPlayer.headicons, appearance g1). SetAppearance carries no
-         * headicon field, so copy it onto the entity directly for the overlay
-         * pass. */
-        {
-            struct WorldEntity_Player* ent =
-                World_EntityPoolGet(&app->world->entities.player, world_idx);
-            if( ent )
-            {
-                ent->headicon = appearance->headicon;
-                /* The 0xffff first equipment entry's npc (LostCity
-                 * ClientPlayer.ts setAppearance: `this.transmog = null` then
-                 * set by the block, so every appearance restates it). Drawn
-                 * by app_world_reconcile_player_transmog. */
-                ent->transmog_npc_id = appearance->npc_id;
-            }
-        }
-
         /* Local player's real name now known: sync it to the chatbox so the
          * public-chat local echo shows the login name instead of the default
          * "Player". The reference echoes with this.localPlayer.name

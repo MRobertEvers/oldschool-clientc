@@ -116,6 +116,7 @@ app_from_side_app_host(struct SideAppHost* host)
 #include "game/rs_client_trigger.h"
 #include "game/rs_clientcode.h"
 #include "game/rs_cs2_dispatch.h"
+#include "game/rs_entity_apply.h"
 #include "game/rs_ground_items_dirty.h"
 #include "game/rs_game_events.h"
 #include "game/rs_gameproto_exec.h"
