@@ -962,6 +962,89 @@ test_npc_unknown_type_still_exists(void)
     fixture_free(&fx);
 }
 
+/*
+ * A session that ends under a waiting NPC_INFO.
+ *
+ * NPC_INFO waits on the packet queue for the npc configs its records name.
+ * Its records are positions in the lists the server and this client rebuild
+ * in lockstep, so they mean something only against the lists they were sent
+ * against. A session end (App_NetSessionReset: logout, a lost link, a world
+ * hop) clears those lists (RS_EntitySync_Clear) while the packet waits; the
+ * packet, resumed after, must apply nothing -- it used to spawn its npcs into
+ * the cleared world, announce them (npc_spawn, the NPC_ADD script) on the
+ * title screen, and leave them registered for the next session.
+ */
+static int g_config_resident;
+
+static enum AssetStart
+config_start_loading(
+    void* data,
+    struct Assets* assets,
+    struct AssetKey key)
+{
+    (void)data;
+    (void)assets;
+    (void)key;
+    return ASSET_START_LOADING;
+}
+
+static bool
+config_resident_when_told(
+    void* data,
+    struct AssetKey key)
+{
+    (void)data;
+    (void)key;
+    return g_config_resident != 0;
+}
+
+static void
+test_npc_info_from_an_ended_session_applies_nothing(void)
+{
+    printf("TEST: an NPC_INFO waiting on a config when the session ends applies nothing after\n");
+
+    struct EntityFixture fx;
+    RsprotInfoOp ops[3];
+    struct ToriRS_Task* task;
+    struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();
+    int st;
+    int spawns;
+
+    fixture_init(&fx);
+    g_config_resident = 0;
+    App_AssetsSetLoader(&fx.app, ASSET_KIND_CONFIG, config_start_loading, config_resident_when_told);
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 9);
+    ops[1] = op_value(RSPROT_OP_NPCTYPE, 903);
+    memset(&ops[2], 0, sizeof(ops[2]));
+    ops[2].kind = RSPROT_OP_DELTA_XZ;
+    task = CreateTask_ExecNpcInfoOps(&fx.app, ops, 3);
+    io->task = task;
+    st = task_run(task, io);
+    TEST_ASSERT(st == PT_YIELDED && task->park_req.on == TORIRS_PARK_COUNT, "it waits on the config");
+    TEST_ASSERT(npc_in_slot(&fx.app, 9) == NULL, "nothing applied yet");
+    spawns = drive_count(&fx.app, RS_EVENT_NPC_SPAWN, NULL, NULL);
+
+    /* The session ends while it waits. */
+    RS_EntitySync_Clear(&fx.app.esync, fx.app.world);
+
+    /* The config lands; the packet resumes. */
+    fixture_npctype(&fx, 903, -1);
+    g_config_resident = 1;
+    Assets_Finished(fx.app.assets, AssetKey_Make(ASSET_KIND_CONFIG, 903, ASSET_CONFIG_NPC), true);
+    do
+        st = task_run(task, io);
+    while( st == PT_YIELDED && task->park_req.on == TORIRS_PARK_NONE );
+    TEST_ASSERT(st == PT_ENDED || st == PT_EXITED, "it ends");
+    TEST_ASSERT(npc_in_slot(&fx.app, 9) == NULL, "the ended session's npc is not spawned");
+    TEST_ASSERT(fx.app.esync.active_npc_count == 0, "nor listed for the next session");
+    TEST_ASSERT(
+        World_TestPoolIterateCount(&fx.app.world->entities.npc) == 0, "nor in the world");
+    TEST_ASSERT(drive_count(&fx.app, RS_EVENT_NPC_SPAWN, NULL, NULL) == spawns, "nor announced");
+    task_free(task);
+    ToriRS_IOBatch_Free(io);
+    fixture_free(&fx);
+}
+
 /* E3: a body that lands after a BODY_CUSTOM leaves the customisation on: the
  * landing asks for the custom body to be mounted over the type's. */
 static void
@@ -1504,6 +1587,7 @@ main(void)
     test_npc_cold_body_exists_and_waits_on_the_parallel_queue();
     test_npc_retype_newest_body_wins();
     test_npc_unknown_type_still_exists();
+    test_npc_info_from_an_ended_session_applies_nothing();
     test_npc_body_landing_keeps_body_custom();
     test_npc_body_custom_keeps_every_wire_model();
     test_npc_body_custom_recolours_without_models();
