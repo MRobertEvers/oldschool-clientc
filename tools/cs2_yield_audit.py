@@ -1,111 +1,126 @@
 #!/usr/bin/env python3
-"""Which CS2 opcodes can yield, read off the interpreter's own source.
+"""The CS2 interpreter's yield rule, checked against its source.
 
-A yield reaches the interpreter loop from one place only: the host's answer to
-`vm->vm->host_exec(...)`, returned up through the handler that asked. So an
-opcode whose handler cannot reach a `host_exec` call cannot yield, and the loop
-need not save a yield checkpoint for it (src/cs2vm2/cs2vm2.c,
-cs2vm2_run_script_body).
+The loop saves nothing for a yield (src/cs2vm2/cs2vm2.h, struct
+CS2VM2_YieldMark). An opcode's implementation that can reach the host takes a
+mark before it touches anything, and the host is asked only through
+CS2VM2_Ask, which takes the mark. A debug build asserts a late mark the moment
+the instruction runs and every build aborts on a yield that was not unwound;
+this catches the same mistakes without running anything:
 
-This reads src/cs2vm2/cs2vm2.c: every function body, the calls between them,
-and the `case CS2_OP_X: return Handler(...)` rows of CS2VM2_RunOp. It writes
-the opcodes that CANNOT yield to src/cs2vm2/cs2vm2_no_yield.gen.h.
+  1. `host_exec` is called from exactly one place, CS2VM2_Ask.
+  2. A function CS2VM2_RunOp dispatches to that reaches CS2VM2_Ask takes its
+     mark as its FIRST statement, before any pop.
+  3. A function that reaches CS2VM2_Ask and is not dispatched to (a helper)
+     takes the mark as a parameter and never makes its own: by the time a
+     helper runs, its caller may have popped.
+  4. Inside CS2VM2_RunOp, a case block that asks takes its mark as the
+     block's first statement.
 
-    tools/cs2_yield_audit.py --write     regenerate the header
-    tools/cs2_yield_audit.py --check     fail if the header is not what the source says
-                                         (make -C src check-cs2-yield)
-
-It errs toward "may yield": a case whose body is not a single `return f(...)`,
-a handler it cannot find, and any function with a call through a pointer or a
-member are all left out of the list.
+    tools/cs2_yield_audit.py          (make -C src check-cs2-yield)
 """
-import argparse
+import collections
 import os
 import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCE = os.path.join(ROOT, "src", "cs2vm2", "cs2vm2.c")
-HEADER = os.path.join(ROOT, "src", "cs2vm2", "cs2vm2_no_yield.gen.h")
 
 FUNC_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\(([^;{]*?)\)\s*\n\{\n(.*?)\n\}\n", re.S | re.M)
 CALL_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(")
-# A call the reader cannot follow: through a member (`->f(`, `.f(`) or a pointer.
-INDIRECT_RE = re.compile(r"(->|\.)\s*[A-Za-z_][A-Za-z0-9_]*\s*\(|\(\s*\*\s*[A-Za-z_][A-Za-z0-9_]*\s*\)\s*\(")
 COMMENT_RE = re.compile(r"/\*.*?\*/|//[^\n]*", re.S)
+PREPARE = "struct CS2VM2_YieldMark const mark = CS2VM2_PrepareYield(vm);"
+MARK_PARAM = "struct CS2VM2_YieldMark mark"
+# The loop and what drives it: they reach CS2VM2_Ask only by running opcodes.
+LOOP_CHAIN = {
+    "CS2VM2_RunOp", "cs2vm2_run_script_body", "cs2vm2_run_script_body_timed", "CS2VM2_RunScript",
+    "CS2VM2_Run", "CS2VM2_ThreadRun", "CS2VM2_ThreadResume",
+}
 
 
-def no_yield_opcodes():
+def first_statement(body):
+    for line in body.split("\n"):
+        if line.strip():
+            return line.strip()
+    return ""
+
+
+def main():
     with open(SOURCE, encoding="utf-8") as handle:
         source = handle.read()
     functions = {}
     for match in FUNC_RE.finditer(source):
-        functions[match.group(1)] = COMMENT_RE.sub("", match.group(3))
-    assert "CS2VM2_RunOp" in functions, "CS2VM2_RunOp not found in " + SOURCE
+        functions[match.group(1)] = (match.group(2), COMMENT_RE.sub("", match.group(3)))
+    assert "CS2VM2_RunOp" in functions and "CS2VM2_Ask" in functions, "cs2vm2.c: loop functions not found"
 
-    reaches_host = {name for name, body in functions.items() if INDIRECT_RE.search(body)}
-    calls = {name: set(CALL_RE.findall(body)) & set(functions) for name, body in functions.items()}
+    problems = []
+    for name, (_, body) in functions.items():
+        if "host_exec(" in body and name != "CS2VM2_Ask":
+            problems.append("%s calls host_exec itself: the host is asked only through CS2VM2_Ask" % name)
+
+    calls = {name: set(CALL_RE.findall(body)) & set(functions) for name, (_, body) in functions.items()}
+    asks = {name for name, callees in calls.items() if "CS2VM2_Ask" in callees}
     changed = True
     while changed:
         changed = False
         for name, callees in calls.items():
-            if name not in reaches_host and callees & reaches_host:
-                reaches_host.add(name)
+            if name not in asks and callees & asks:
+                asks.add(name)
                 changed = True
+    asks -= LOOP_CHAIN
+    callers = collections.defaultdict(set)
+    for name, callees in calls.items():
+        for callee in callees:
+            callers[callee].add(name)
 
-    opcodes = []
-    pending = []
-    for line in functions["CS2VM2_RunOp"].split("\n"):
-        case = re.match(r"\s*case (CS2_OP_[A-Z0-9_]+):\s*$", line)
-        if case:
-            pending.append(case.group(1))
+    entries = 0
+    helpers = 0
+    for name in sorted(asks):
+        params, body = functions[name]
+        dispatched = callers[name] == {"CS2VM2_RunOp"}
+        makes_mark = "CS2VM2_PrepareYield(" in body
+        if dispatched:
+            entries += 1
+            if first_statement(body) != PREPARE:
+                problems.append("%s is dispatched to and reaches the host: its first statement must be `%s`"
+                                % (name, PREPARE))
+            if body.count("CS2VM2_PrepareYield(") != 1:
+                problems.append("%s takes more than one mark" % name)
+        else:
+            helpers += 1
+            if MARK_PARAM not in re.sub(r"\s+", " ", params):
+                problems.append("%s reaches the host from a caller's instruction: it must take `%s`"
+                                % (name, MARK_PARAM))
+            if makes_mark:
+                problems.append("%s is a helper and makes its own mark: by then its caller may have popped" % name)
+            if "CS2VM2_RunOp" in callers[name] and len(callers[name]) > 1:
+                problems.append("%s is both dispatched to and called as a helper" % name)
+
+    # Case blocks of the dispatch that ask the host themselves.
+    blocks = 0
+    runop = functions["CS2VM2_RunOp"][1]
+    for match in re.finditer(r"CS2VM2_Ask\(vm, &request, ([^)]*(?:\([^)]*\))?)\)", runop):
+        blocks += 1
+        argument = match.group(1)
+        if argument == "CS2VM2_PrepareYield(vm)":
             continue
-        if not pending or not line.strip():
-            continue
-        ret = re.match(r"\s*return\s+([A-Za-z_][A-Za-z0-9_]*)\(.*\);\s*$", line)
-        if ret and ret.group(1) in functions and ret.group(1) not in reaches_host:
-            opcodes.extend(pending)
-        pending = []
-    return sorted(set(opcodes))
+        # The dispatch's own case label (four spaces in), not one of a switch
+        # nested inside the block.
+        head = runop.rfind("\n    case CS2_OP_", 0, match.start()) + 1
+        block = runop[head:match.start()]
+        opened = block.find("{")
+        if argument != "mark" or opened < 0 or first_statement(block[opened + 1:]) != PREPARE:
+            problems.append("CS2VM2_RunOp, %s: a case that asks the host takes its mark as the block's "
+                            "first statement" % runop[head:runop.find(":", head)].strip())
 
-
-def render(opcodes):
-    lines = [
-        "/* Generated by tools/cs2_yield_audit.py --write. Do not edit: `make -C src",
-        " * check-cs2-yield` fails when this is not what cs2vm2.c says.",
-        " *",
-        " * The opcodes whose handlers cannot reach the host, so cannot yield: the",
-        " * interpreter loop saves no yield checkpoint for them. */",
-        "#ifndef CS2VM2_NO_YIELD_GEN_H",
-        "#define CS2VM2_NO_YIELD_GEN_H",
-        "",
-        "#define CS2VM2_NO_YIELD_COUNT %d" % len(opcodes),
-        "",
-        "static const unsigned char g_cs2vm2_no_yield[CS2_OPCODE_MAX + 1] = {",
-    ]
-    lines += ["    [%s] = 1," % name for name in opcodes]
-    lines += ["};", "", "#endif", ""]
-    return "\n".join(lines)
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--write", action="store_true")
-    group.add_argument("--check", action="store_true")
-    arguments = parser.parse_args()
-    text = render(no_yield_opcodes())
-    if arguments.write:
-        with open(HEADER, "w", encoding="utf-8") as handle:
-            handle.write(text)
-        print("cs2_yield_audit: wrote %s" % os.path.relpath(HEADER, ROOT))
-        return 0
-    current = open(HEADER, encoding="utf-8").read() if os.path.exists(HEADER) else ""
-    if current != text:
-        print("check-cs2-yield: FAIL (src/cs2vm2/cs2vm2_no_yield.gen.h is not what cs2vm2.c says; "
-              "run tools/cs2_yield_audit.py --write)")
+    if problems:
+        for problem in problems:
+            print("check-cs2-yield: " + problem)
+        print("check-cs2-yield: FAIL (%d)" % len(problems))
         return 1
-    print("check-cs2-yield: PASS (%d opcodes cannot reach the host)" % text.count("] = 1,"))
+    print("check-cs2-yield: PASS (%d dispatched implementations take a mark first, %d helpers take "
+          "their caller's, %d dispatch cases ask in place)" % (entries, helpers, blocks))
     return 0
 
 
