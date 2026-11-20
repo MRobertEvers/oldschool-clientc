@@ -158,14 +158,14 @@ test_notice_cycles(struct RS_ServerState* state, int* clock, int to)
 }
 
 /* One UPDATE_IGNORELIST entry (rsprot update_ignorelist.h, deob
- * class428.method9746): the flags byte, the name, and unless the flags say
- * "removed" (4), the previous name and the note. */
+ * class428.method9746): the flags byte, the name, and unless the flags are
+ * "removed" (exactly 4), the previous name and the note. */
 static int
 test_put_ignore(uint8_t* out, int at, int flags, char const* name, char const* previous)
 {
     out[at++] = (uint8_t)flags;
     at = test_put_jstr(out, at, name);
-    if( flags & 0x4 )
+    if( flags == 0x4 )
         return at;
     at = test_put_jstr(out, at, previous);
     return test_put_jstr(out, at, "");
@@ -1135,6 +1135,24 @@ main(void)
             RS_Social_IgnorePreviousName(ig, i, name, (int)sizeof(name));
             TEST_EXEC_ASSERT(strcmp(name, "Kill\xa0" "777") == 0, "remembering the previous name");
         }
+
+        /* J2: only a leading byte EQUAL to 4 is a removal (class428
+         * .method9746 `var4 == 4`); any other value is an add whose low bit
+         * matches the previous name. 5 has the 4 bit set: read as a removal
+         * it stops after the name, and the add's previous name and note are
+         * read as the next entry. The bytes: 05 "Five\xa0Ways" 00 | 00 | 00,
+         * then 00 "Next" 00 | 00 | 00. */
+        len = test_put_ignore(wire, 0, 0x5, "Five\xa0" "Ways", "");
+        len = test_put_ignore(wire, len, 0, "Next", "");
+        memset(&p, 0, sizeof(p));
+        TEST_EXEC_ASSERT(
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_UPDATE_IGNORELIST), wire, len, &p),
+            "an entry led by 5 is an add, and the list parses");
+        App_GameProto_Exec(base_app, &ig_state, &p);
+        gameproto_free(&p);
+        TEST_EXEC_ASSERT(RS_Social_IsIgnored(ig, "Five Ways"), "the entry led by 5 is added");
+        TEST_EXEC_ASSERT(RS_Social_IsIgnored(ig, "Next"), "and the entry after it is read whole");
+        TEST_EXEC_ASSERT(ig->ignore_count == 4, "two adds");
 
         /* The rs-family wires send the whole list as base-37 keys, and the
          * list is replaced. */
