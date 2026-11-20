@@ -599,6 +599,81 @@ test_social(void)
     apply(fx, &p);
     CHECK(fx->social.ignore_count == 2, "the ignore list is replaced");
 
+    /* A private message from an ignored name is not shown, and its id is
+     * not remembered (deob client.java class243.field2953: the ignore test,
+     * Statics.field818.method1168, sets the same `seen` flag the id ring does,
+     * for any crown). Off the list, the same message is a line. */
+    {
+        char pm_text[] = "psst";
+        int const count = fx->chat.message_count;
+
+        p = packet(PKT_NAME_MESSAGE_PRIVATE);
+        p._message_private.from = strtobase37("dave");
+        p._message_private.message_id = 91;
+        p._message_private.text = pm_text;
+        CHECK(apply(fx, &p) == RS_SERVER_STATE_UNCHANGED, "an ignored sender's private line is dropped");
+        CHECK(fx->chat.message_count == count, "nothing reached the store");
+        p = packet(PKT_NAME_UPDATE_IGNORELIST);
+        p._update_ignorelist.count = 1;
+        p._update_ignorelist.names37 = names;
+        apply(fx, &p);
+        p = packet(PKT_NAME_MESSAGE_PRIVATE);
+        p._message_private.from = strtobase37("dave");
+        p._message_private.message_id = 91;
+        p._message_private.text = pm_text;
+        CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "unignored, the same message is shown: its id was not kept");
+        p = packet(PKT_NAME_UPDATE_IGNORELIST);
+        p._update_ignorelist.count = 2;
+        p._update_ignorelist.names37 = names;
+        apply(fx, &p);
+    }
+
+    /* A private line as the reference files it (deob client.java
+     * class243.field2953): typed 7 only for a staff crown (class278.field3430:
+     * crowns 1 and 2), 3 for every other crown; the name carries the crown's
+     * image (method6324(field3451) + name); the text's tags are escaped
+     * (class671.method14451), as the echo's are. */
+    {
+        char pm_text[] = "a <col=ff0000>red</col> word";
+
+        p = packet(PKT_NAME_MESSAGE_PRIVATE);
+        p._message_private.from = strtobase37("iron_erin");
+        p._message_private.message_id = 92;
+        p._message_private.staff_mod = 3; /* an ironman's crown */
+        p._message_private.text = pm_text;
+        CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "an ironman's private line is shown");
+        CHECK(fx->chat.newest->type == RS_CHAT_TYPE_PRIVATE_FROM, "typed as a private line, not a mod's");
+        CHECK(strncmp(fx->chat.newest->name, "<img=2>", 7) == 0, "named with the crown's image");
+        CHECK(strcmp(fx->chat.newest->text, "a <lt>col=ff0000<gt>red<lt>/col<gt> word") == 0,
+            "its tags draw as characters");
+        p._message_private.message_id = 93;
+        p._message_private.staff_mod = 2; /* a Jagex moderator's */
+        CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "a moderator's private line is shown");
+        CHECK(fx->chat.newest->type == RS_CHAT_TYPE_PRIVATE_FROM_MOD, "typed as a mod's");
+        CHECK(strncmp(fx->chat.newest->name, "<img=1>", 7) == 0, "with the moderator's crown");
+    }
+
+    /* A game message naming an ignored player is not shown either (deob
+     * client.java class243.field2978: the name, when the packet has one, is
+     * put to the same ignore test); one with no name, or another name, is. */
+    {
+        char gm_text[] = "wishes to trade with you.";
+        char ignored_name[] = "Dave";
+        char other_name[] = "Erin";
+        int const count = fx->chat.message_count;
+
+        p = packet(PKT_NAME_MESSAGE_GAME);
+        p._message_game.type = 101;
+        p._message_game.name = ignored_name;
+        p._message_game.text = gm_text;
+        CHECK(apply(fx, &p) == RS_SERVER_STATE_UNCHANGED, "a game message from an ignored name is dropped");
+        CHECK(fx->chat.message_count == count, "nothing reached the store");
+        p._message_game.name = other_name;
+        CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "another name's is shown");
+        p._message_game.name = NULL;
+        CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "and one with no name");
+    }
+
     p = packet(PKT_NAME_FRIENDLIST_LOADED);
     p._friendlist_loaded.status = 1;
     apply(fx, &p);
@@ -659,6 +734,17 @@ test_session(void)
     p._set_player_op.text = op;
     apply(fx, &p);
     CHECK(strcmp(fx->player_ops.text[1], "Follow") == 0, "SET_PLAYER_OP slot 2 is row 1");
+    /* The text "null" (any case) is no op: the reference clears the slot
+     * (deob client.java class243.field2940: equalsIgnoreCase(class280.field3641,
+     * "null") -> null), which is how Jagex takes "Attack" away again. */
+    {
+        char null_op[] = "Null";
+
+        p._set_player_op.text = null_op;
+        apply(fx, &p);
+        CHECK(fx->player_ops.text[1][0] == '\0', "SET_PLAYER_OP \"null\" clears the row");
+        p._set_player_op.text = op;
+    }
     p._set_player_op.slot = 6;
     CHECK(apply(fx, &p) == RS_SERVER_STATE_UNCHANGED, "slot 6 is not a row");
 

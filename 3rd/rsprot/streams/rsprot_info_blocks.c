@@ -196,6 +196,7 @@ rsprot_info_flags(RsprotInfoBlocks *t, int who, const uint32_t ext[3], uint32_t 
     }
     t->who = who;
     t->flag = flag;
+    t->move_speed_read = 0;
     return 1;
 }
 
@@ -361,8 +362,10 @@ move_speed(RsprotInfoBlocks *t, uint32_t bit, RsprotInfoKind kind, const RsprotI
         return block_end(t, before, kind, bit);
     rsprot_info_emit_value(t->out, persistent ? RSPROT_OP_MOVE_SPEED : RSPROT_OP_TEMP_MOVE_SPEED,
                            (uint64_t)(int64_t)value);
-    if (persistent)
+    if (persistent) {
         pp->pi->move_speed[t->who] = speed;
+        t->move_speed_read = 1;
+    }
     op_index = pp->movement_op[t->who];
     if (op_index >= 0 && op_index < t->out->count) {
         RsprotInfoXZLevel *m = &t->out->ops[op_index].xz_level;
@@ -398,9 +401,10 @@ rsprot_info_reset(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoValueEnc *e
      * g1 nothing reads). The block's effect is the actor reset
      * (class95.method3110), which puts the slot's persistent traversal back
      * to walk (field1344 = class174.field2476) -- the decoder's half; the
-     * executor applies the rest at the start of the record. */
+     * executor applies the rest at the start of the record. The reset comes
+     * first there, so a move speed this record already sent stands. */
     assert(pp);
-    if (!t->b->err)
+    if (!t->b->err && !t->move_speed_read)
         pp->pi->move_speed[t->who] = RSPROT_TRAVERSAL_WALK;
     rsprot_info_emit_value(t->out, RSPROT_OP_RESET, (uint64_t)(int64_t)value);
     return block_end(t, before, RSPROT_IK_RESET, bit);

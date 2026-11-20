@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 /* The slot PLAYER_INFO files the local player under until the server has named
  * its pid (task_exec_entity_info.c, ENTITY_INFO_LOCAL_SENTINEL). */
@@ -729,6 +730,12 @@ state_message_game(
     struct RS_ServerState const* state,
     struct PktMessageGame const* p)
 {
+    /* A line naming a player is dropped when that player is ignored (deob
+     * client.java class243.field2978: the name, when sent, goes to the
+     * ignore test, Statics.field818.method1168). */
+    assert(state->social);
+    if( p->name && RS_Social_IsIgnored(state->social, p->name) )
+        return RS_SERVER_STATE_UNCHANGED;
     /* The TYPE is the server's, not a constant: it picks the filter tab,
      * the colour and the prefix the chatbox script draws the line with. */
     state_chat_add(
@@ -762,23 +769,35 @@ state_message_private(
     struct PktMessagePrivate const* p)
 {
     char name[16];
+    char crowned[RS_CHAT_SENDER_LEN];
+    char escaped[RS_CHAT_TEXT_LEN];
 
     /* deob client.java class243.field2953: the line is shown, and its id
      * remembered, only while the local player is off Tutorial Island
-     * (field765 == 0). Then dedupe by message id (reference messageIds
-     * ring). */
+     * (field765 == 0), when the id is not in the ring (reference messageIds
+     * ring) and the sender is not ignored (Statics.field818.method1168, for
+     * any crown: unlike a friend-channel line's, no crown exempts it). */
     if( state_local_player_in_tutorial_area(state) )
         return RS_SERVER_STATE_UNCHANGED;
-    if( RS_Social_MessageSeenOrRemember(state->social, p->message_id) )
+    if( RS_Social_MessageSeen(state->social, p->message_id) )
         return RS_SERVER_STATE_UNCHANGED;
     base37tostr((uint64_t)p->from, name, sizeof(name));
+    if( RS_Social_IsIgnored(state->social, name) )
+        return RS_SERVER_STATE_UNCHANGED;
+    RS_Social_MessageRemember(state->social, p->message_id);
+    /* As the reference files it: typed 7 for a staff crown only
+     * (class278.field3430), the crown's image before the name
+     * (method6324(field3451) + name), the text's tags escaped
+     * (class671.method14451). `staff_mod` is the wire's crown index. */
+    RS_Chat_CrownedName(p->staff_mod, name, crowned, sizeof(crowned));
+    RS_ServerState_EscapeTags(p->text ? p->text : "", escaped, sizeof(escaped));
     state_chat_add(
         state,
-        p->staff_mod ? RS_CHAT_TYPE_PRIVATE_FROM_MOD
+        RS_Chat_CrownIsStaff(p->staff_mod) ? RS_CHAT_TYPE_PRIVATE_FROM_MOD
                                            : RS_CHAT_TYPE_PRIVATE_FROM,
+        crowned,
         name,
-        name,
-        p->text);
+        escaped);
     return RS_SERVER_STATE_APPLIED;
 }
 
@@ -1021,12 +1040,18 @@ state_set_player_op(
     struct RS_ServerState const* state,
     struct PktSetPlayerOp const* p)
 {
+    char const* text = p->text ? p->text : "";
+
     if( p->slot < 1 || p->slot > 5 )
         return RS_SERVER_STATE_UNCHANGED;
+    /* The text "null", in any case, is no op (deob client.java
+     * class243.field2940: equalsIgnoreCase(class280.field3641) -> null). */
+    if( strcasecmp(text, "null") == 0 )
+        text = "";
     RS_PlayerOps_Set(
         state->player_ops,
         p->slot - 1,
-        p->text ? p->text : "",
+        text,
         p->primary);
     return RS_SERVER_STATE_APPLIED;
 }

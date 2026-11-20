@@ -281,6 +281,12 @@ RS_Chat_InTutorialArea(
     int world_x,
     int world_z);
 
+/** Is crown index `crown` a moderator's (class278.field3430: player and Jagex
+ *  moderators)? A private line from one is typed PRIVATE_FROM_MOD. 0 for an
+ *  index past the table. */
+int
+RS_Chat_CrownIsStaff(int crown);
+
 /** `<img=N>name` for a crowned speaker, plain `name` otherwise, into `out`. */
 void
 RS_Chat_CrownedName(
