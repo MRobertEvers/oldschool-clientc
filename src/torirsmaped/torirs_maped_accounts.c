@@ -3414,6 +3414,15 @@ acct_handle_use(
             "the editor knows no password for %s: make the account here (New account) to use it for RUN", file);
         return;
     }
+    /* A password the lane cannot hold whole would log in with its first 23
+     * characters: refused, as the name is above. (One made here is 8 to 20;
+     * a longer one is a hand-edited accounts.ini.) */
+    if( strlen(pass) >= sizeof(jobs->lane.play_pass) )
+    {
+        acct_status(maped, session, request, EDITOR_HOST_REFUSED, file, "the play account's password is at most %d characters",
+            (int)sizeof(jobs->lane.play_pass) - 1);
+        return;
+    }
     snprintf(jobs->lane.play_user, sizeof(jobs->lane.play_user), "%s", file);
     snprintf(jobs->lane.play_pass, sizeof(jobs->lane.play_pass), "%s", pass);
     ToriRSMapEd_AcctSaveSet(&state->registry, "lane", "play_user", file);

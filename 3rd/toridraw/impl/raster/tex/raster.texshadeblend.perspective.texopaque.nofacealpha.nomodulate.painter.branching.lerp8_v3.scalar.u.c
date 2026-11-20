@@ -64,11 +64,11 @@ raster_texshadeblend_persp_texopaque_branching_lerp8_v3_ordered(
     int step_edge_x_BC_ish16 = 0;
 
     if( dy_AC > 0 )
-        step_edge_x_AC_ish16 = (dx_AC * 65536) / dy_AC;
+        step_edge_x_AC_ish16 = toridraw_wrap_shl(dx_AC, 16) / dy_AC;
     if( dy_AB > 0 )
-        step_edge_x_AB_ish16 = (dx_AB * 65536) / dy_AB;
+        step_edge_x_AB_ish16 = toridraw_wrap_shl(dx_AB, 16) / dy_AB;
     if( dy_BC > 0 )
-        step_edge_x_BC_ish16 = (dx_BC * 65536) / dy_BC;
+        step_edge_x_BC_ish16 = toridraw_wrap_shl(dx_BC, 16) / dy_BC;
 
     // Assumes that the world coordinates differ from uv coordinates only by a scaling factor
     int vU_x = orthographic_uend_x1 - orthographic_uvorigin_x0;
@@ -115,22 +115,22 @@ raster_texshadeblend_persp_texopaque_branching_lerp8_v3_ordered(
 
     // Shades are provided 0-127, shift up by 1, then up by 8 to get 0-255.
     // Again, kramer's rule.
-    int shade8bit_yhat_ish8 = ((dx_AC * dblend7bit_ab - dx_AB * dblend7bit_ac) * 512) / sarea_abc;
-    int shade8bit_xhat_ish8 = ((dy_AB * dblend7bit_ac - dy_AC * dblend7bit_ab) * 512) / sarea_abc;
+    int shade8bit_yhat_ish8 = toridraw_wrap_shl(dx_AC * dblend7bit_ab - dx_AB * dblend7bit_ac, 9) / sarea_abc;
+    int shade8bit_xhat_ish8 = toridraw_wrap_shl(dy_AB * dblend7bit_ac - dy_AC * dblend7bit_ab, 9) / sarea_abc;
 
     /* Modular: the reference client relies on int wraparound here, and an edge-on
      * triangle reaches the overflow. See graphics/int_wrap.h. */
     int shade8bit_edge_ish8 = toridraw_wrap_add(
-        toridraw_wrap_sub(shade7bit_a << 9, toridraw_wrap_mul(shade8bit_xhat_ish8, x0)),
+        toridraw_wrap_sub(toridraw_wrap_shl(shade7bit_a, 9), toridraw_wrap_mul(shade8bit_xhat_ish8, x0)),
         shade8bit_xhat_ish8);
 
     int au = 0;
     int bv = 0;
     int cw = 0;
 
-    int edge_x_AC_ish16 = x0 * 65536;
-    int edge_x_AB_ish16 = x0 * 65536;
-    int edge_x_BC_ish16 = x1 * 65536;
+    int edge_x_AC_ish16 = toridraw_wrap_shl(x0, 16);
+    int edge_x_AB_ish16 = toridraw_wrap_shl(x0, 16);
+    int edge_x_BC_ish16 = toridraw_wrap_shl(x1, 16);
 
     if( y0 < 0 )
     {

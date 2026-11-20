@@ -783,9 +783,9 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
     int blocks = steps >> 3;
     int remaining = steps & 7;
 
-    int step_au8 = step_au_dx * 8;
-    int step_bv8 = step_bv_dx * 8;
-    int step_cw8 = step_cw_dx * 8;
+    int step_au8 = toridraw_wrap_shl(step_au_dx, 3);
+    int step_bv8 = toridraw_wrap_shl(step_bv_dx, 3);
+    int step_cw8 = toridraw_wrap_shl(step_cw_dx, 3);
 
     /* Block k's end uv is block k+1's start uv - carry it forward instead of
      * dividing for it twice. This variant clamps u (unlike the NEON opaque
@@ -981,9 +981,9 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
     int blocks = steps >> 3;
     int remaining = steps & 7;
 
-    int step_au8 = step_au_dx * 8;
-    int step_bv8 = step_bv_dx * 8;
-    int step_cw8 = step_cw_dx * 8;
+    int step_au8 = toridraw_wrap_shl(step_au_dx, 3);
+    int step_bv8 = toridraw_wrap_shl(step_bv_dx, 3);
+    int step_cw8 = toridraw_wrap_shl(step_cw_dx, 3);
 
     /* As in the opaque twin: block k's end uv is block k+1's start uv. The
      * carried u is the CLAMPED one, matching what this block actually used as

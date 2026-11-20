@@ -2,6 +2,7 @@
 #define FLAT_SCREEN_OPAQUE_BRANCHING_S4_C
 
 #include "graphics/dash_restrict.h"
+#include "graphics/int_wrap.h"
 #include "graphics/raster/flat/flat_screen_edges.h"
 
 #include <assert.h>
@@ -143,23 +144,23 @@ raster_flat_screen_opaque_branching_s4_ordered(
     int step_edge_x_BC_ish16;
 
     if( dy_AC > 0 )
-        step_edge_x_AC_ish16 = (dx_AC * 65536) / dy_AC;
+        step_edge_x_AC_ish16 = toridraw_wrap_shl(dx_AC, 16) / dy_AC;
     else
         step_edge_x_AC_ish16 = 0;
 
     if( dy_AB > 0 )
-        step_edge_x_AB_ish16 = (dx_AB * 65536) / dy_AB;
+        step_edge_x_AB_ish16 = toridraw_wrap_shl(dx_AB, 16) / dy_AB;
     else
         step_edge_x_AB_ish16 = 0;
 
     if( y2 != y1 )
-        step_edge_x_BC_ish16 = ((x2 - x1) * 65536) / (y2 - y1);
+        step_edge_x_BC_ish16 = toridraw_wrap_shl(x2 - x1, 16) / (y2 - y1);
     else
         step_edge_x_BC_ish16 = 0;
 
-    int edge_x_AC_ish16 = x0 * 65536;
-    int edge_x_AB_ish16 = x0 * 65536;
-    int edge_x_BC_ish16 = x1 * 65536;
+    int edge_x_AC_ish16 = toridraw_wrap_shl(x0, 16);
+    int edge_x_AB_ish16 = toridraw_wrap_shl(x0, 16);
+    int edge_x_BC_ish16 = toridraw_wrap_shl(x1, 16);
 
     if( y0 < 0 )
     {

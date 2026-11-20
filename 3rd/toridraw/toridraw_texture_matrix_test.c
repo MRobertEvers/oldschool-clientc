@@ -686,7 +686,8 @@ test_sampler_contracts(void)
             {
                 for( int vv = -3 * width; vv < 3 * width; vv += 11 )
                 {
-                    int idx = tex_sampler_index(&s, uu << shift, vv << shift);
+                    /* uu and vv go negative: a wrapping shift, as the span's own u << shift. */
+                    int idx = tex_sampler_index(&s, toridraw_wrap_shl(uu, shift), toridraw_wrap_shl(vv, shift));
                     int u = idx & (width - 1);
                     int v = idx >> shift;
 

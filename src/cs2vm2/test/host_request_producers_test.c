@@ -23,7 +23,7 @@ enum
 };
 
 _Static_assert(
-    HOST_REQUEST_PRODUCER_COUNT == 902,
+    HOST_REQUEST_PRODUCER_COUNT == 912,
     "the producer replay test must exercise every hosted opcode");
 
 struct CaptureHost
@@ -357,8 +357,19 @@ main(void)
 {
     int failures = exercise_script_callback();
 
+    int exercised = 0;
     for( int i = 0; i < HOST_REQUEST_PRODUCER_COUNT; i++ )
+    {
+        /* Hosted with no known stack signature (cs2vm2_opcode_stack.gen.h
+         * known = 0, and neither deob dispatches it): CS2VM2_Op_HostSignature
+         * asserts on it, so no script can produce its request. Named, so a new
+         * hosted opcode without a signature fails here instead of being
+         * skipped. */
+        if( HOST_REQUEST_PRODUCERS[i].opcode == CS2_OP_UNKNOWN_COMMAND_3188 )
+            continue;
         failures += exercise_producer(&HOST_REQUEST_PRODUCERS[i]);
+        exercised++;
+    }
 
     failures += exercise_input_set_producer(
         CS2VM_HOST_REQUEST_CC_INPUT_SETCARET,
@@ -382,8 +393,8 @@ main(void)
     }
 
     printf(
-        "host request producer replay: %d exact kinds and CC/IF input payloads "
-        "preserved across yield/retry; synchronous callback results checked\n",
-        HOST_REQUEST_PRODUCER_COUNT);
+        "host request producer replay: %d exact kinds (of %d hosted) and CC/IF input "
+        "payloads preserved across yield/retry; synchronous callback results checked\n",
+        exercised, HOST_REQUEST_PRODUCER_COUNT);
     return 0;
 }

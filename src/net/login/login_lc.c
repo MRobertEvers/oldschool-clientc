@@ -150,7 +150,8 @@ loginproto_send(
     uint8_t* out,
     int out_size)
 {
-    assert(out_size >= ringbuf_avail(loginproto->out));
+    assert(out_size >= 0);
+    assert((size_t)out_size >= ringbuf_avail(loginproto->out));
     return ringbuf_read(loginproto->out, out, out_size);
 }
 
