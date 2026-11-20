@@ -61,6 +61,51 @@ App_PendingTrace(
         st.turn_waits);
 }
 
+enum
+{
+    APP_GATHER_TRACE_ELEMENTS = 64,
+};
+
+static int g_gather_elements[APP_GATHER_TRACE_ELEMENTS];
+static int g_gather_element_count;
+
+void
+App_ParallelTraceApplyDuringGather(
+    struct App const* app,
+    char const* name,
+    int element_id)
+{
+    static unsigned applied;
+
+    assert(app);
+    assert(name);
+    if( !TaskRunner_ContractTrace() || !App_WorldJobPending(app) )
+        return;
+    fprintf(stderr, "queue_contract: trace %s applies during a background gather onto element %d (%u so far)\n",
+            name, element_id, ++applied);
+    if( element_id >= 0 && g_gather_element_count < APP_GATHER_TRACE_ELEMENTS )
+        g_gather_elements[g_gather_element_count++] = element_id;
+}
+
+void
+App_ParallelTraceGatherCommitted(struct App const* app)
+{
+    assert(app);
+    if( !TaskRunner_ContractTrace() )
+        return;
+    for( int i = 0; i < g_gather_element_count; i++ )
+    {
+        int const id = g_gather_elements[i];
+        struct ToriDraw_SceneElement* el =
+            ToriDraw_SceneElementIsLive(app->scene, id) ? ToriDraw_SceneElementGet(app->scene, id) : NULL;
+        int const modelled = el && ToriDraw_ModelKindIsFull(el->model.kind) && el->model.u.model.model;
+
+        fprintf(stderr, "queue_contract: trace after the commit, element %d applied during the gather: %s\n", id,
+                !el ? "gone" : modelled ? "live, with its model" : "live, WITHOUT a model");
+    }
+    g_gather_element_count = 0;
+}
+
 void
 App_PendingFree(struct App* app)
 {

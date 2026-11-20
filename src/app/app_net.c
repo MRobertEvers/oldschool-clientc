@@ -418,7 +418,9 @@ app_net_tear_down_session(
     /* Pushes NET_OUT_DISCONNECT, so the peer sees the FIN before the
      * re-established session asks for the character back. */
     ToriRS_Network_Logout(app->net);
+    App_PendingTrace(app, "at a lost link");
     App_NetSessionReset(app);
+    App_PendingTrace(app, "after the lost link's reset");
 }
 
 /*

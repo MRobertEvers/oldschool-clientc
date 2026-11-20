@@ -105,6 +105,7 @@ Task_NpcBody_Run(
         PT_EXIT(&self->pt);
 
     /* 4. Mount it, reading the models from the cache now. */
+    App_ParallelTraceApplyDuringGather(app, "NpcBody", npc->element_id);
     App_WorldNpcBodyLanded(app, world_idx, npc->element_id, self->npc_id, self->base_npc_id);
     RedrawRequest_Raise(&app->redraw_request);
 

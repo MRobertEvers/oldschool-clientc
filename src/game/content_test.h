@@ -13,4 +13,9 @@ void ContentTest_End(struct App*, struct NetTransport*);
  * the quest driver reads and acts only on frames it steps, so a slow read
  * shows it nothing a fast one would not (content_test.c). 0 by default. */
 int ContentTest_DriverHeld(void);
+/* TORIRS_CONTENT_TEST_BACKGROUND=1 with TORIRS_CONTENT_TEST_RACE=1: the
+ * world's own rebuild model (background) runs under the test, so a race run
+ * meets what a player's client meets while a REBUILD gathers. 0 otherwise:
+ * a content test blocks on every rebuild (app_world_job.c). */
+int ContentTest_BackgroundRebuild(void);
 #endif

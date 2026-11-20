@@ -342,7 +342,7 @@ App_WorldRebuildModeInit(struct App* app)
      * exactly what such a run must not vary; it blocks whatever the world or
      * the launch says.
      */
-    if( background && ContentTest_Enabled() )
+    if( background && ContentTest_Enabled() && !ContentTest_BackgroundRebuild() )
         background = 0;
     if( deadline && deadline[0] )
     {
@@ -1067,6 +1067,7 @@ app_world_job_commit(struct App* app)
             g_job_tally.floor_slices,
             g_job_tally.slack_slices,
             job->job.promoted);
+    App_ParallelTraceGatherCommitted(app);
     g_job_tally.frames = 0;
     g_job_tally.committed = 0;
     g_job_tally.floor_slices = 0;

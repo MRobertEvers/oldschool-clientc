@@ -110,6 +110,23 @@ App_ParallelTaskRelease(
  * a rebuild replaced the scene, or a rebuild is in progress).
  * `owner` names the task in the log line a drop prints. The task has a view.
  */
+/* TORIRS_QUEUE_CONTRACT_TRACE: say that the task `name` applies while a
+ * background rebuild is gathering (App_WorldJobPending) -- the race the
+ * background queue makes possible, kept visible in a run's log -- onto scene
+ * element `element_id` (-1: none to follow). The job's commit then says
+ * whether each such element still stands with its model
+ * (App_ParallelTraceGatherCommitted). */
+void
+App_ParallelTraceApplyDuringGather(
+    struct App const* app,
+    char const* name,
+    int element_id);
+
+/* The background rebuild committed: what applied during its gather, read
+ * back (TORIRS_QUEUE_CONTRACT_TRACE). */
+void
+App_ParallelTraceGatherCommitted(struct App const* app);
+
 struct World*
 App_ParallelTaskWorld(
     struct App* app,

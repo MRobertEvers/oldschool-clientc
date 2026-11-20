@@ -163,6 +163,29 @@ function QD.session.logout()
             .. (QD.session.SCREEN_NAME[number] or tostring(number)) .. ")"
     end
     local from = QD.session._tile_text() or "?"
+    -- An open modal comes off first, as a player must take it off: a shop or
+    -- bank opens its side half in the gameframe's side modal, and while that
+    -- has a sub the gameframe hides every tab stone (toplevel_sidebuttons_
+    -- enable), so there is no logout stone to press. Pressing the tab under
+    -- it anyway (app_plugin_tab_select runs the switch script with no stone)
+    -- left logout:logout hidden under the side modal: 'never displayed in 360
+    -- frame(s)'. One input, its own resume: the close, then the tab.
+    local closed_first = ""
+    local live_result, live = api_drive.modal_live()
+    if live_result == "ok" and live then
+        local close_result, close_detail = QD.ui.close_modal()
+        if close_result ~= "ok" then
+            return close_result, "session.logout: the open modal would not close: " .. tostring(close_detail)
+        end
+        local gone = QD.session._await_polls(function()
+            local result, still = api_drive.modal_live()
+            return result == "ok" and not still
+        end, QD.session.LOGOUT_PAINT_POLLS, "session.logout: the open modal closes")
+        if not gone then
+            return "timeout", "session.logout: the open modal was still up after the close"
+        end
+        closed_first = " (closed the open modal first)"
+    end
     local tab_result, tab_detail = QD.ui.tab("logout")
     if tab_result ~= "ok" then
         return tab_result, "session.logout: the logout tab did not open: " .. tostring(tab_detail)
@@ -224,8 +247,8 @@ function QD.session.logout()
         and "the server closed the session"
         or "the client's own 5 s fallback ended it (the server never answered)"
     return "ok", string.format(
-        "logged out from %s via logout:logout (displayed after %d frame(s)); title screen after %d frame(s) -- %s%s",
-        from, shown_polls, polls, how, repressed)
+        "logged out from %s via logout:logout (displayed after %d frame(s)); title screen after %d frame(s) -- %s%s%s",
+        from, shown_polls, polls, how, repressed, closed_first)
 end
 
 -- t.session.login(user, password) -> ok | refused | timeout

@@ -1790,7 +1790,8 @@ remote_pending_alloc(struct PlatformX_IO* px)
  * diagnostic for the frame contract's waits (app.h, beside the runners): what
  * the queues and the frame loop do while every task waits on a read
  * (ToriRS_Pacer_LoopWait's NAP) can be run on any native lane with a local
- * cache. 0 or unset: off.
+ * cache. 0 or unset: off. The content test refuses it (content_test.c): its
+ * clock is virtual, so use TORIRS_IO_DEFER_FRAMES there.
  */
 static uint64_t
 io_defer_ms(void)

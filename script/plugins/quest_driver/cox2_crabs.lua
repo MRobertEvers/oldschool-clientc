@@ -1425,6 +1425,9 @@ QD.T2.register("cox_crabs", {
             local vr, v = api_drive.varp(ids.nodef)
             if vr ~= "ok" or v == 1 then break end
             QD.raid._tob_tab(S, ids.combat_tab)
+            -- The tab's panel shows a frame or a read later: a press before
+            -- it does is dropped unseen (ui.await_presented).
+            QD.ui.await_presented(ids.retaliate, S.who .. ": combat_interface:retaliate", 10)
             api_drive.if_click(ids.retaliate, 1)
             for _ = 1, 2 do
                 await({ event = "server_tick", match = function() return true end, note = S.who .. ": retaliate" }, 3)

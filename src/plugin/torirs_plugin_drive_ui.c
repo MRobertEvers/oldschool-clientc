@@ -2616,9 +2616,31 @@ drive_ui_shot_dedupe(char const* path, char const* name, int keep)
     return 0;
 }
 
+/* The loc index and the read's scratch, freed with the driver: a world that
+ * outlives the driver (the App's, freed after it) stops telling the index. */
+static void
+drive_loc_index_release(void)
+{
+    struct World* world = g_drive_loc_index.world;
+
+    if( world && g_drive_loc_index.app && g_drive_loc_index.app->world == world &&
+        world->scenery_listener == drive_loc_index_listener )
+        World_SetSceneryListener(world, NULL, NULL);
+    ToriMem_Free(ToriMem_Plugins(), g_drive_loc_index.slots);
+    ToriMem_Free(ToriMem_Plugins(), g_drive_loc_index.id_head);
+    ToriMem_Free(ToriMem_Plugins(), g_drive_loc_index.tile_head);
+    memset(&g_drive_loc_index, 0, sizeof(g_drive_loc_index));
+    ToriMem_Free(ToriMem_Plugins(), g_drive_loc_gather);
+    ToriMem_Free(ToriMem_Plugins(), g_drive_loc_keys);
+    g_drive_loc_gather = NULL;
+    g_drive_loc_keys = NULL;
+    g_drive_loc_gather_cap = 0;
+}
+
 void
 DriveUi_Shutdown(void)
 {
+    drive_loc_index_release();
     ToriMem_Free(ToriMem_Plugins(), g_drive_ui_shot_last_bytes);
     g_drive_ui_shot_last_bytes = NULL;
     g_drive_ui_shot_last_size = 0;

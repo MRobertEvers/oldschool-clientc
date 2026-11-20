@@ -468,6 +468,42 @@ test_a_parallel_task_that_never_converges_aborts_the_packet_pump(void)
         "the packet pump's settle of the parallel queue hit a runaway backstop");
 }
 
+/*
+ * A WORLD HOP (LOGOUT_TRANSFER) ends the session as a logout and a lost link
+ * do (pm open finding E3: a hop was never run; the embedded server has one
+ * world and never sends it). The watch takes the parked hop at the head of
+ * the next frame: the socket closes, the session's epoch moves -- a NPC_INFO
+ * or a REBUILD still waiting from the world it left applies nothing
+ * (task_exec_entity_info.c, task_gameproto_exec.c rebuild_session_ended) --
+ * and the next dial is a fresh login (state 45), not a reconnect. Once.
+ */
+static void
+test_a_hop_ends_the_session_and_dials_fresh(void)
+{
+    struct ToriRS_Network* net = make_net_in_game();
+    struct App* app = make_app(net);
+    uint32_t const epoch = app->esync.epoch;
+
+    printf("TEST: a world hop ends the session: the socket closes, the epoch moves, the next login is fresh\n");
+
+    SessionEnd_Hop(&app->session_end, 330);
+    app_net_link_watch(app, 1000);
+    TEST_ASSERT(disconnect_queued(net), "the hop closed the session");
+    TEST_ASSERT(app->esync.epoch != epoch, "the session's epoch moved: what waits from the old world is stale");
+    TEST_ASSERT(net->hop == 1, "the next dial is a fresh login with the account's credentials");
+    TEST_ASSERT(!app->session_end.hop_pending, "the hop was taken");
+    TEST_ASSERT(NetLinkWatch_Lost(&app->net_link), "the watch dials again, as for any lost link");
+    {
+        uint32_t const after = app->esync.epoch;
+
+        app_net_link_watch(app, 1001);
+        TEST_ASSERT(app->esync.epoch == after, "taken once: the next frame ends nothing more");
+    }
+
+    free_app(app);
+    free(net);
+}
+
 int
 main(void)
 {
@@ -481,6 +517,7 @@ main(void)
     test_a_lost_connection_keeps_the_resumable_session();
     test_no_session_means_no_wait();
     test_a_backlog_is_not_silence();
+    test_a_hop_ends_the_session_and_dials_fresh();
     test_a_parallel_task_that_never_converges_aborts_the_packet_pump();
 
     if( g_failures )
