@@ -880,6 +880,21 @@ player_apply_op(
             World_PlayerBeginModernFacing(world, idx, op->face_angle.movement_mode);
         World_PlayerFaceAngle(world, idx, op->face_angle.angle, op->face_angle.instant);
         break;
+    case RSPROT_OP_NAME_EXTRAS:
+    {
+        /* deob Statics.method3160: before the name, after it, after the
+         * combat level -- the minimenu row prints them (Statics ~29047). */
+        struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
+        char const* parts[3] = { op->name_extras.before_name, op->name_extras.after_name,
+                                 op->name_extras.after_combat_level };
+
+        for( int i = 0; player && i < 3; i++ )
+            snprintf(player->name_extras[i], sizeof(player->name_extras[i]), "%s", parts[i] ? parts[i] : "");
+        break;
+    }
+    case RSPROT_OP_RESET:
+        /* Applied at the start of its record (player_reset). */
+        break;
     case RSPROT_OP_TRANSPARENCY:
         player_note_op(self, idx, op, 0, 0, 0, 0);
         World_PlayerSetTransparency(
@@ -890,6 +905,64 @@ player_apply_op(
     default:
         break;
     }
+}
+
+/* Does op `kind` end the current player record (the ops after it address
+ * another player, or none)? */
+static int
+player_op_is_target(int kind)
+{
+    switch( kind )
+    {
+    case RSPROT_OP_SET_LOCAL_PLAYER:
+    case RSPROT_OP_ADD_OLD:
+    case RSPROT_OP_ADD_NEW:
+    case RSPROT_OP_SET_EXT:
+    case RSPROT_OP_CLEAR_OLD:
+    case RSPROT_OP_REMOVE_PID:
+    case RSPROT_OP_COUNT_RESET:
+    case RSPROT_OP_INFO:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+/* Does the record starting at `from` carry a RESET block? */
+static int
+player_record_resets(
+    struct RsprotInfoOp const* ops,
+    int from,
+    int count)
+{
+    for( int i = from; i < count && !player_op_is_target(ops[i].kind); i++ )
+        if( ops[i].kind == RSPROT_OP_RESET )
+            return 1;
+    return 0;
+}
+
+/*
+ * The RESET block (PLAYER_INFO 0x2 at rev 239, `player_reset`): the actor
+ * reset, deob class95.method3110, which the reference runs BEFORE any other
+ * block of the record (class109.method3804 tests 0x2 first and reads the
+ * block's byte later, in wire order). Of what it clears, this client holds
+ * the name decorations (Arrays.fill(field1355, "")) and the sequence
+ * (Statics.method7179(actor, -1, 0) on each instance); the persistent
+ * traversal (field1344 = walk) is the decoder's (rsprot_info_reset). The
+ * value itself is read and dropped.
+ */
+static void
+player_reset(
+    struct RS_EntityApplyIn const* in,
+    int idx)
+{
+    struct WorldEntity_Player* player = World_EntityPoolGet(&in->world->entities.player, idx);
+
+    if( !player )
+        return;
+    for( int i = 0; i < 3; i++ )
+        player->name_extras[i][0] = '\0';
+    World_PlayerSetPrimaryAnimation(in->world, idx, -1, 0);
 }
 
 static void
@@ -946,6 +1019,14 @@ RS_EntityApply_PlayerInfo(
          * appearance's body is resident. */
         if( self.need_ensure )
             player_ensure_now(&self);
+        /* A record that resets the actor resets it before its other blocks. */
+        if( consumed && self.cur_pid >= 0 && player_op_is_target(ops[i].kind) &&
+            player_record_resets(ops, i + 1, count) )
+        {
+            int idx = player_target(&self);
+            if( idx >= 0 )
+                player_reset(in, idx);
+        }
         if( !consumed )
             player_apply_op(&self, &ops[i]);
     }

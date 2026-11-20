@@ -557,6 +557,57 @@ test_wants_raised_on_change(void)
     fixture_free(&f);
 }
 
+/* NAME_EXTRAS decorates the player; a RESET in the same record runs before
+ * the record's other blocks (deob class109.method3804 tests 0x2 first), so
+ * the decorations and a sequence sent beside it survive, while what came
+ * before is cleared. */
+static void
+test_player_name_extras_and_reset(void)
+{
+    struct Fixture f;
+    struct RsprotInfoOp first[3];
+    struct RsprotInfoOp second[5];
+    struct RsprotInfoOp third[2];
+    struct WorldEntity_Player const* player;
+    int idx = -1;
+
+    fixture_init(&f);
+    first[0] = op_value(RSPROT_OP_ADD_NEW, 4);
+    first[1] = op_value(RSPROT_OP_NAME_EXTRAS, 0);
+    first[1].name_extras.before_name = "<img=1>";
+    first[1].name_extras.after_name = "";
+    first[1].name_extras.after_combat_level = " (x)";
+    first[2] = op_value(RSPROT_OP_SEQUENCE, 0);
+    first[2].sequence.sequence_id = 500;
+    RS_EntityApply_PlayerInfo(&f.in, first, 3);
+    RS_EntitySync_FindPlayer(&f.esync, 4, &idx, NULL);
+    player = World_EntityPoolGet(&f.world->entities.player, idx);
+    CHECK(strcmp(player->name_extras[0], "<img=1>") == 0 && strcmp(player->name_extras[2], " (x)") == 0,
+        "the decorations are kept");
+    /* Reset with a new decoration and a new sequence in the same record. */
+    second[0] = op_value(RSPROT_OP_ADD_OLD, 0);
+    second[1] = op_value(RSPROT_OP_NAME_EXTRAS, 0);
+    second[1].name_extras.before_name = "a";
+    second[1].name_extras.after_name = "b";
+    second[1].name_extras.after_combat_level = "c";
+    second[2] = op_value(RSPROT_OP_SEQUENCE, 0);
+    second[2].sequence.sequence_id = 600;
+    second[3] = op_value(RSPROT_OP_RESET, 0);
+    second[4] = op_value(RSPROT_OP_INFO, 0);
+    RS_EntityApply_PlayerInfo(&f.in, second, 5);
+    player = World_EntityPoolGet(&f.world->entities.player, idx);
+    CHECK(strcmp(player->name_extras[0], "a") == 0 && strcmp(player->name_extras[1], "b") == 0,
+        "a reset runs before the record's own decorations");
+    CHECK(player->animation.primary.anim_id == 600, "and before its sequence");
+    third[0] = op_value(RSPROT_OP_ADD_OLD, 0);
+    third[1] = op_value(RSPROT_OP_RESET, 0);
+    RS_EntityApply_PlayerInfo(&f.in, third, 2);
+    player = World_EntityPoolGet(&f.world->entities.player, idx);
+    CHECK(player->name_extras[0][0] == '\0' && player->name_extras[2][0] == '\0', "a reset alone clears them");
+    CHECK(player->animation.primary.anim_id == (uint16_t)-1, "and stops the sequence");
+    fixture_free(&f);
+}
+
 int
 main(void)
 {
@@ -568,6 +619,7 @@ main(void)
     test_npc_types_listed_once();
     test_player_add_hit_and_chat();
     test_wants_raised_on_change();
+    test_player_name_extras_and_reset();
     printf("rs_entity_apply_test: %d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }

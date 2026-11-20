@@ -392,7 +392,16 @@ rsprot_info_reset(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoValueEnc *e
 {
     int before = begin(t, RSPROT_IK_RESET, bit);
     int32_t value = RD(value);
+    RsprotPlayerPacket *pp = t->player;
 
+    /* The value is read and dropped (deob class109.method3804, flag 0x2: one
+     * g1 nothing reads). The block's effect is the actor reset
+     * (class95.method3110), which puts the slot's persistent traversal back
+     * to walk (field1344 = class174.field2476) -- the decoder's half; the
+     * executor applies the rest at the start of the record. */
+    assert(pp);
+    if (!t->b->err)
+        pp->pi->move_speed[t->who] = RSPROT_TRAVERSAL_WALK;
     rsprot_info_emit_value(t->out, RSPROT_OP_RESET, (uint64_t)(int64_t)value);
     return block_end(t, before, RSPROT_IK_RESET, bit);
 }

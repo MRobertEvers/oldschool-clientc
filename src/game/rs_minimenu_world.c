@@ -973,16 +973,28 @@ add_player_rows(
         return;
     viewer_combat_level = world_local_combat_level(world);
     viewer_team = world_local_team(world);
+    /* The name decorations around the name and after the level (deob
+     * Statics ~29047: extras[0] + name + extras[1] + level + extras[2]). */
     if( player->combat_level > 0 && viewer_combat_level >= 0 )
         snprintf(
             tooltip,
             sizeof(tooltip),
-            "%s%s (level-%d)",
+            "%s%s%s%s (level-%d)%s",
+            player->name_extras[0],
             player->name[0] ? player->name : "Player",
+            player->name_extras[1],
             combat_colour_code(viewer_combat_level, player->combat_level),
-            player->combat_level);
+            player->combat_level,
+            player->name_extras[2]);
     else
-        snprintf(tooltip, sizeof(tooltip), "%s", player->name[0] ? player->name : "Player");
+        snprintf(
+            tooltip,
+            sizeof(tooltip),
+            "%s%s%s%s",
+            player->name_extras[0],
+            player->name[0] ? player->name : "Player",
+            player->name_extras[1],
+            player->name_extras[2]);
 
     if( add_world_select_row(
             menu, sel, pick, "@whi@", tooltip, 0x8, REVCONFIG_MINIMENU_USEHELD_ONPLAYER,

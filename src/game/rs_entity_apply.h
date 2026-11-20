@@ -10,8 +10,10 @@
  * (an npc removed and added in one packet is MOVED, not respawned), moves
  * (walk, run, crawl, the coordinate snaps, the deltas, exact moves), facing,
  * sequences, attached graphics, overhead text and chat, hit splats and bars,
- * tints and fades, type changes, appearances and the npc customisation
- * blocks. Nothing here names struct App, a scene, a UI tree or a CS2 host.
+ * tints and fades, type changes, appearances, the name decorations and the
+ * actor reset (run before the rest of its record, as the reference does), and
+ * the npc customisation blocks. Nothing here names struct App, a scene, a UI
+ * tree or a CS2 host.
  *
  * WHAT THE CLIENT SUPPLIES (struct RS_EntityApplyHost). Three kinds of call,
  * each answered synchronously:
