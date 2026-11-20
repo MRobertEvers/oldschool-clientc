@@ -35,7 +35,7 @@ enum
     APP_TASK_MUSIC_INSTALL = RS_PENDING_KINDS_ASSETS_FIRST + 1,
 };
 _Static_assert(
-    APP_TASK_MUSIC_INSTALL <= RS_PENDING_KINDS_ASSETS_LAST,
+    (int)APP_TASK_MUSIC_INSTALL <= (int)RS_PENDING_KINDS_ASSETS_LAST,
     "the music install is in the App's assets range");
 
 struct Task_MusicInstall

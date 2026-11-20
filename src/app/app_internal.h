@@ -3110,6 +3110,16 @@ app_npc_entity_facts(
     struct ToriRS_Npctype const* drawn,
     struct ToriRS_NpcEntityFacts* out);
 
+struct RS_EntityNpcType;
+
+/* The shared rule's record of a resident type (App_WorldNpcTypeRecord without
+ * the lookup): `facts` from app_npc_entity_facts for `npctype`. */
+void
+app_npc_type_record(
+    struct ToriRS_NpcEntityFacts const* facts,
+    struct ToriRS_Npctype const* npctype,
+    struct RS_EntityNpcType* out);
+
 int
 app_world_spawn_npc_now(
     struct App* app,

@@ -377,7 +377,7 @@ app_npc_type_idle(
 /* A type's facts as the shared rule gives them to an npc (RS_EntityNpcType):
  * the shell's size, turn speed and stances, the drawn rung's name, ops,
  * level and draw flags. The strings are `npctype`'s. */
-static void
+void
 app_npc_type_record(
     struct ToriRS_NpcEntityFacts const* facts,
     struct ToriRS_Npctype const* npctype,
