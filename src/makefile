@@ -3309,7 +3309,7 @@ test-world-seq-source: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/hmap.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/world_seq_source_test $(TORIMEM_SRCS) \
 		engine/test/world_seq_source_toridraw_test.c engine/world_seq_source_toridraw.c \
 		engine/cache_provider.c world/world.c world/entity_pathing.c world/entity_pool.c \
-		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/hmap.o
+		perf/torirs_perf.c $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/hmap.o
 	./$(OBJ_DIR)/world_seq_source_test
 
 # A plugin-authored mesh: the two halves grow independently and keep what was
@@ -4390,7 +4390,7 @@ test-editor-cmd: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/edito
 test-editor-jm2: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/editor_spawn.c \
 		editor/test/editor_jm2_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_jm2_test $(TORIMEM_SRCS) \
-		editor/editor_jm2.c editor/editor_doc.c editor/editor_spawn.c \
+		editor/editor_jm2.c editor/editor_doc.c editor/editor_spawn.c editor/editor_if.c \
 		editor/test/editor_jm2_test.c $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_jm2_test $(EDITOR_CONTENT_DIR)
 
@@ -5382,7 +5382,7 @@ test-frame-tile-mark: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 .PHONY: test-soft3d-interface-filter
 test-soft3d-interface-filter: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_model_sprite.o $(ASAN_DYLD_SHIM)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/soft3d_interface_filter_test $(TORIMEM_SRCS) \
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/soft3d_interface_filter_test $(TORIMEM_SRCS) \
 		platform/test/soft3d_interface_filter_test.c \
 		platform/platform_renderer_soft3d.c \
 		render/torirs_frame.c render/torirs_pick.c \
@@ -5509,7 +5509,7 @@ test-preload: $(OBJ_DIR)
 test-login-replies: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_login_replies_test $(TORIMEM_SRCS) \
 		game/test/rs_login_replies_test.c game/rs_login_replies.c \
-		revconfig/revconfig.c revconfig/revconfig_load.c $(INI_SRC)
+		revconfig/revconfig.c revconfig/revconfig_load.c ui/torirs_chrome_inkwell.c $(INI_SRC)
 	./$(OBJ_DIR)/rs_login_replies_test
 
 # JPEG decode over the real title backgrounds on disk. Skips a cache that is
@@ -5526,7 +5526,7 @@ test-jpeg-decode: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 
 test-minimap: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/engine/minimap -I$(BMP_DIR) -o $(OBJ_DIR)/minimap_test $(TORIMEM_SRCS) \
-		engine/minimap/minimap.c engine/torirs_types.c $(BMP_DIR)/bmp.c \
+		engine/minimap/minimap.c engine/torirs_types.c engine/torirs_component_hook.c $(BMP_DIR)/bmp.c \
 		engine/minimap/minimap_test.c
 	./$(OBJ_DIR)/minimap_test
 
@@ -5992,13 +5992,13 @@ endif
 test-blit-scaled: $(OBJ_DIR)
 	$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
 		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/blit_scaled_test \
-		$(TORIDRAW_DIR)/toridraw_blit_scaled_test.c -lm
+		$(TORIDRAW_DIR)/toridraw_blit_scaled_test.c $(TORIDRAW_DIR)/toridraw_alloc.c -lm
 	./$(OBJ_DIR)/blit_scaled_test
 
 test-blit-opaque: $(OBJ_DIR)
 	$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
 		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/blit_opaque_test \
-		$(TORIDRAW_DIR)/toridraw_blit_opaque_test.c -lm
+		$(TORIDRAW_DIR)/toridraw_blit_opaque_test.c $(TORIDRAW_DIR)/toridraw_alloc.c -lm
 	./$(OBJ_DIR)/blit_opaque_test
 
 # The `gouraudrgb` family: per-channel RGB interpolation, as opposed to
@@ -6065,18 +6065,21 @@ test-rotate-blit: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 # The depth renderers' draw order: radix words against a stable sort.
 test-trspk-order-sort: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/trspk_order_sort_test \
-		render/test/trspk_order_sort_test.c $(TRSPK_UNITY_SRC)
+		render/test/trspk_order_sort_test.c $(TRSPK_UNITY_SRC) \
+		$(TORIDRAW_DIR)/graphics/shared_tables.c
 	./$(OBJ_DIR)/trspk_order_sort_test
 
 test-trspk-modelarena-index: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/trspk_modelarena_index_test \
-		render/test/trspk_modelarena_index_test.c $(TRSPK_UNITY_SRC)
+		render/test/trspk_modelarena_index_test.c $(TRSPK_UNITY_SRC) \
+		$(TORIDRAW_DIR)/graphics/shared_tables.c
 	./$(OBJ_DIR)/trspk_modelarena_index_test
 
 # The 32-bit world build: contiguous bases, key lookup, rebuild and clear.
 test-trspk-batch32: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/trspk_batch32_test \
-		render/test/trspk_batch32_test.c $(TRSPK_UNITY_SRC)
+		render/test/trspk_batch32_test.c $(TRSPK_UNITY_SRC) \
+		$(TORIDRAW_DIR)/graphics/shared_tables.c
 	./$(OBJ_DIR)/trspk_batch32_test
 
 # The ES 3.0 painter's index packer. Header-only and GL-free, so it builds and
@@ -8380,7 +8383,7 @@ test-loc-ops-wire: $(OBJ_DIR) $(RSPROT_TEST_DEPS) $(OBJ_DIR)/rsprot_packets_unit
 		torirsserver/test/loc_ops_wire_test.c \
 		$(TORIRSSERVER_WIRE_SRCS) torirsserver/torirs_server_loc_ops.c \
 		torirsserver/torirs_server_interface_state.c \
-		net/wordpack.c $(RSCACHE_DIR)/src/rsbuffer.c \
+		net/wordpack.c $(RSCACHE_DIR)/src/rsbuffer.c $(RSCACHE_DIR)/src/rscache_alloc.c \
 		$(OBJ_DIR)/rsprot_packets_unity.o $(RSPROT_TEST_DEPS) \
 		$(OBJ_DIR)/jbase37.o -lm
 	./$(OBJ_DIR)/loc_ops_wire_test
