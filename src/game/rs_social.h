@@ -22,8 +22,12 @@
  * into the packet, because that is how its client showed a name.
  */
 
-#define RS_SOCIAL_FRIEND_MAX 200
-#define RS_SOCIAL_IGNORE_MAX 100
+/* What the reference's readers keep: an entry past 400 is skipped (deob
+ * Statics.method10091 `method10590() >= 400`, class428.method9746 `< 400`).
+ * The 200 / 100 a free account may ADD is the scripts' and the server's
+ * limit, not the store's. */
+#define RS_SOCIAL_FRIEND_MAX 400
+#define RS_SOCIAL_IGNORE_MAX 400
 #define RS_SOCIAL_NAME_LEN 64
 /* The client's chain is a linked list with no bound; scripts build chains of
  * two or three. A step past this many is dropped like a step after a terminal

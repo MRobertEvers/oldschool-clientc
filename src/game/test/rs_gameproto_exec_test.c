@@ -1033,6 +1033,50 @@ main(void)
         printf("ok - the ignore list is keyed and matched like the friend list, on every wire\n");
     }
 
+    /* The store keeps what the reference's readers keep: up to 400 friends
+     * and 400 ignores (Statics.method10091, class428.method9746). A member's
+     * 250-friend login list was cut at 200 and a 150-ignore list at 100. */
+    {
+        struct GameProtoRevTable const* rev = GameProtoRev_Osrs(242);
+        struct RS_ServerState cs = bare_state;
+        struct RS_Social* csoc = calloc(1, sizeof(*csoc));
+        static uint8_t big[16384];
+        int clock = 0;
+        int len = 0;
+        struct RevPacket p;
+
+        assert(csoc);
+        RS_Social_Init(csoc);
+        cs.social = csoc;
+        cs.chat_clock = &clock;
+        for( int i = 0; i < 250; i++ )
+        {
+            char name[16];
+
+            snprintf(name, sizeof(name), "friend%d", i);
+            len = test_put_friend(big, len, name, 0);
+        }
+        test_friend_packet(base_app, &cs, big, len);
+        TEST_EXEC_ASSERT(csoc->friend_count == 250, "a 250-friend list is kept whole");
+        len = 0;
+        for( int i = 0; i < 150; i++ )
+        {
+            char name[16];
+
+            snprintf(name, sizeof(name), "ignore%d", i);
+            len = test_put_ignore(big, len, 0, name, "");
+        }
+        memset(&p, 0, sizeof(p));
+        TEST_EXEC_ASSERT(
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_UPDATE_IGNORELIST), big, len, &p),
+            "a 150-ignore list parses");
+        App_GameProto_Exec(base_app, &cs, &p);
+        gameproto_free(&p);
+        TEST_EXEC_ASSERT(csoc->ignore_count == 150, "and a 150-ignore list");
+        free(csoc);
+        printf("ok - the friend and ignore lists hold what the reference keeps\n");
+    }
+
     /* B3: a name is shown as the wire spells it. A rev-221+ wire spells it
      * (the store keeps "Eden\xa0Cosine", checked above); an rs-family wire
      * sends only its base-37 key, and its 2004 client showed that key as
