@@ -7,6 +7,7 @@
 #include "rsbuffer.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,27 +28,19 @@
  * See seq_file_pos_for_id() in src/engine/dat2/task_dat2_sequence_load.c.
  */
 /*
- * Core of the two decode entry points. With `out_blob` NULL every member gets
- * its own allocation and the result is freed with RSCache_FileListFree — the
- * historical contract, and some callers rely on it to steal or replace
- * individual member pointers. With `out_blob` non-NULL every member's bytes
- * land in one shared block (returned through `out_blob`); the member pointers
- * alias it and must never be freed or reseated individually, and the result is
- * freed with RSCache_FileListFreeShared.
+ * The per-member decode: every member gets its own allocation and the result
+ * is freed with RSCache_FileListFree -- the historical contract, and some
+ * callers rely on it to steal or replace individual member pointers. The
+ * shared-block decode is RSCache_FileListSplit run to its end.
  */
 static struct RSCache_FileList*
 filelist_new_from_decode(
     char* data,
     int data_size,
-    int num_files,
-    char** out_blob)
+    int num_files)
 {
     struct RSCache_FileList* filelist = RSCACHE_MALLOC(sizeof(struct RSCache_FileList));
     assert(filelist != NULL);
-
-    char* blob = NULL;
-    if( out_blob )
-        *out_blob = NULL;
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, data, data_size);
@@ -90,8 +83,6 @@ filelist_new_from_decode(
         }
         memcpy(filelist->files[0], data, (size_t)data_size);
         filelist->file_sizes[0] = data_size;
-        if( out_blob )
-            *out_blob = filelist->files[0];
         return filelist;
     }
 
@@ -150,36 +141,11 @@ filelist_new_from_decode(
             goto error;
     }
 
-    if( out_blob )
+    for( int id = 0; id < num_files; id++ )
     {
-        /* The members partition the payload, so their sizes cannot sum past the
-         * container — a table that says otherwise is malformed, and on a 32-bit
-         * size_t the sum could also wrap and undersize the block. */
-        uint64_t total = 0;
-        for( int id = 0; id < num_files; id++ )
-            total += (uint64_t)sizes[id];
-        if( total > (uint64_t)buffer.size )
+        filelist->files[id] = RSCACHE_MALLOC((size_t)sizes[id] ? (size_t)sizes[id] : 1u);
+        if( !filelist->files[id] )
             goto error;
-
-        blob = RSCACHE_MALLOC(total > 0 ? (size_t)total : 1u);
-        if( !blob )
-            goto error;
-
-        total = 0;
-        for( int id = 0; id < num_files; id++ )
-        {
-            filelist->files[id] = blob + total;
-            total += (uint64_t)sizes[id];
-        }
-    }
-    else
-    {
-        for( int id = 0; id < num_files; id++ )
-        {
-            filelist->files[id] = RSCACHE_MALLOC((size_t)sizes[id] ? (size_t)sizes[id] : 1u);
-            if( !filelist->files[id] )
-                goto error;
-        }
     }
 
     buffer.position = 0;
@@ -204,8 +170,6 @@ filelist_new_from_decode(
     RSCACHE_FREE(sizes);
     RSCACHE_FREE(file_offsets);
 
-    if( out_blob )
-        *out_blob = blob;
     return filelist;
 
 error:
@@ -218,17 +182,7 @@ error:
 
     RSCACHE_FREE(sizes);
     RSCACHE_FREE(file_offsets);
-    if( out_blob )
-    {
-        /* The member pointers alias `blob` — RSCache_FileListFree would free
-         * each of them individually. */
-        RSCACHE_FREE(blob);
-        RSCACHE_FREE(filelist->files);
-        RSCACHE_FREE(filelist->file_sizes);
-        RSCACHE_FREE(filelist);
-    }
-    else
-        RSCache_FileListFree(filelist);
+    RSCache_FileListFree(filelist);
     return NULL;
 }
 
@@ -238,7 +192,248 @@ RSCache_FileListNewFromDecode(
     int data_size,
     int num_files)
 {
-    return filelist_new_from_decode(data, data_size, num_files, NULL);
+    return filelist_new_from_decode(data, data_size, num_files);
+}
+
+/* The resumable split's phases, in order. */
+enum
+{
+    SPLIT_SIZES = 1, /* the size table: chunks x members int32 deltas */
+    SPLIT_CHECK,     /* every member's length, and the block they need */
+    SPLIT_LAYOUT,    /* every member's place in the block */
+    SPLIT_COPY,      /* the payload: chunks x members */
+    SPLIT_DONE,
+    SPLIT_TAKEN,
+    SPLIT_FAILED,
+};
+
+static void
+split_free_tables(struct RSCache_FileListSplit* split)
+{
+    if( split->chunk_sizes )
+    {
+        for( int i = 0; i < split->chunks; i++ )
+            RSCACHE_FREE(split->chunk_sizes[i]);
+        RSCACHE_FREE(split->chunk_sizes);
+    }
+    split->chunk_sizes = NULL;
+    RSCACHE_FREE(split->sizes);
+    split->sizes = NULL;
+    RSCACHE_FREE(split->file_offsets);
+    split->file_offsets = NULL;
+}
+
+static void
+split_fail(struct RSCache_FileListSplit* split)
+{
+    split_free_tables(split);
+    RSCACHE_FREE(split->blob);
+    split->blob = NULL;
+    if( split->filelist )
+    {
+        RSCACHE_FREE(split->filelist->files);
+        RSCACHE_FREE(split->filelist->file_sizes);
+        RSCACHE_FREE(split->filelist);
+    }
+    split->filelist = NULL;
+    split->phase = SPLIT_FAILED;
+}
+
+int
+RSCache_FileListSplitBegin(
+    struct RSCache_FileListSplit* split,
+    char* data,
+    int data_size,
+    int num_files)
+{
+    struct RSCache_Buffer buffer;
+
+    assert(split);
+    assert(data);
+    memset(split, 0, sizeof(*split));
+    split->phase = SPLIT_FAILED;
+    /* A group's member count is the archive's: input, not a contract. */
+    if( num_files <= 0 )
+        return -1;
+    split->data = data;
+    split->data_size = data_size;
+    split->num_files = num_files;
+    split->filelist = RSCACHE_MALLOC(sizeof(struct RSCache_FileList));
+    assert(split->filelist);
+    split->filelist->files = RSCACHE_CALLOC((size_t)num_files, sizeof(char*));
+    assert(split->filelist->files);
+    split->filelist->file_sizes = RSCACHE_CALLOC((size_t)num_files, sizeof(int));
+    assert(split->filelist->file_sizes);
+    split->filelist->file_count = num_files;
+
+    if( num_files == 1 )
+    {
+        split->blob = RSCACHE_MALLOC((size_t)data_size > 0 ? (size_t)data_size : 1u);
+        assert(split->blob);
+        memcpy(split->blob, data, (size_t)data_size);
+        split->filelist->files[0] = split->blob;
+        split->filelist->file_sizes[0] = data_size;
+        split->blob_bytes = data_size > 0 ? (uint64_t)data_size : 0;
+        split->phase = SPLIT_DONE;
+        return 0;
+    }
+
+    RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
+    buffer.position = buffer.size - 1;
+    split->chunks = g1(&buffer);
+    /* As filelist_new_from_decode: the size table has to fit the payload. */
+    if( split->chunks <= 0 ||
+        (uint64_t)split->chunks * (uint64_t)num_files * 4u + 1u > (uint64_t)buffer.size )
+    {
+        split->chunks = 0;
+        split_fail(split);
+        return -1;
+    }
+    split->chunk_sizes = RSCACHE_MALLOC((size_t)split->chunks * sizeof(int*));
+    assert(split->chunk_sizes);
+    for( int i = 0; i < split->chunks; i++ )
+    {
+        split->chunk_sizes[i] = RSCACHE_MALLOC((size_t)num_files * sizeof(int));
+        assert(split->chunk_sizes[i]);
+    }
+    split->sizes = RSCACHE_CALLOC((size_t)num_files, sizeof(int));
+    assert(split->sizes);
+    split->position = buffer.size - 1 - (uint32_t)split->chunks * (uint32_t)num_files * 4u;
+    split->phase = SPLIT_SIZES;
+    return 0;
+}
+
+int
+RSCache_FileListSplitStep(
+    struct RSCache_FileListSplit* split,
+    int entries)
+{
+    struct RSCache_Buffer buffer;
+    int const n = split->num_files;
+
+    assert(split);
+    assert(entries > 0);
+    if( split->phase == SPLIT_DONE )
+        return 1;
+    assert(split->phase >= SPLIT_SIZES);
+    assert(split->phase <= SPLIT_COPY);
+    RSCache_BufferInit(&buffer, (uint8_t*)split->data, (uint32_t)split->data_size);
+    buffer.position = split->position;
+    while( entries > 0 && split->phase != SPLIT_DONE )
+    {
+        if( split->phase == SPLIT_SIZES )
+        {
+            int delta = g4(&buffer);
+
+            split->chunk_size += delta;
+            split->chunk_sizes[split->chunk][split->id] = split->chunk_size;
+            split->sizes[split->id] += split->chunk_size;
+            if( ++split->id == n )
+            {
+                split->id = 0;
+                split->chunk_size = 0;
+                if( ++split->chunk == split->chunks )
+                {
+                    split->chunk = 0;
+                    split->total = 0;
+                    split->phase = SPLIT_CHECK;
+                }
+            }
+        }
+        else if( split->phase == SPLIT_CHECK )
+        {
+            /* Signed deltas summed can make any length; the members partition
+             * the payload, so no length and no sum may pass it. */
+            int const size = split->sizes[split->id];
+
+            if( size < 0 || (uint64_t)size > (uint64_t)buffer.size )
+            {
+                split_fail(split);
+                return -1;
+            }
+            split->total += (uint64_t)size;
+            if( ++split->id == n )
+            {
+                if( split->total > (uint64_t)buffer.size )
+                {
+                    split_fail(split);
+                    return -1;
+                }
+                split->blob = RSCACHE_MALLOC(split->total > 0 ? (size_t)split->total : 1u);
+                assert(split->blob);
+                split->blob_bytes = split->total;
+                split->file_offsets = RSCACHE_CALLOC((size_t)n, sizeof(int));
+                assert(split->file_offsets);
+                split->id = 0;
+                split->total = 0;
+                split->phase = SPLIT_LAYOUT;
+            }
+        }
+        else if( split->phase == SPLIT_LAYOUT )
+        {
+            split->filelist->files[split->id] = split->blob + split->total;
+            split->total += (uint64_t)split->sizes[split->id];
+            if( ++split->id == n )
+            {
+                split->id = 0;
+                buffer.position = 0;
+                split->phase = SPLIT_COPY;
+            }
+        }
+        else
+        {
+            int const id = split->id;
+            int const chunk_size = split->chunk_sizes[split->chunk][id];
+
+            greadto(
+                &buffer,
+                split->filelist->files[id] + split->file_offsets[id],
+                split->sizes[id] - split->file_offsets[id],
+                chunk_size);
+            split->file_offsets[id] += chunk_size;
+            split->filelist->file_sizes[id] += chunk_size;
+            if( ++split->id == n )
+            {
+                split->id = 0;
+                if( ++split->chunk == split->chunks )
+                {
+                    split_free_tables(split);
+                    split->phase = SPLIT_DONE;
+                }
+            }
+        }
+        entries--;
+    }
+    split->position = buffer.position;
+    return split->phase == SPLIT_DONE;
+}
+
+struct RSCache_FileList*
+RSCache_FileListSplitTake(
+    struct RSCache_FileListSplit* split,
+    char** out_blob)
+{
+    struct RSCache_FileList* filelist;
+
+    assert(split);
+    assert(out_blob);
+    assert(split->phase == SPLIT_DONE);
+    filelist = split->filelist;
+    *out_blob = split->blob;
+    split->filelist = NULL;
+    split->blob = NULL;
+    split->phase = SPLIT_TAKEN;
+    return filelist;
+}
+
+void
+RSCache_FileListSplitAbandon(struct RSCache_FileListSplit* split)
+{
+    if( !split )
+        return;
+    if( split->phase == SPLIT_TAKEN || split->phase == SPLIT_FAILED )
+        return;
+    split_fail(split);
 }
 
 struct RSCache_FileList*
@@ -248,8 +443,19 @@ RSCache_FileListNewFromDecodeShared(
     int num_files,
     char** out_blob)
 {
+    struct RSCache_FileListSplit split;
+    int done;
+
     assert(out_blob);
-    return filelist_new_from_decode(data, data_size, num_files, out_blob);
+    *out_blob = NULL;
+    /* One implementation: the split run to its end. */
+    if( RSCache_FileListSplitBegin(&split, data, data_size, num_files) != 0 )
+        return NULL;
+    done = RSCache_FileListSplitStep(&split, INT_MAX);
+    if( done < 0 )
+        return NULL;
+    assert(done == 1);
+    return RSCache_FileListSplitTake(&split, out_blob);
 }
 
 void

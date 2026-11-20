@@ -6335,6 +6335,17 @@ test-loc-seq-bind: $(OBJ_DIR) $(OBJS)
 # queue (the background queue), in bounded steps, and adds the sound the moment
 # the render ends: engine/dat2/task_dat2_sound_load.c, against the real
 # osrs242 cache (the longest render, 8787, and three short effects).
+# The loc config load on the time-sliced background queue, against the real
+# cache.osrs242 (engine/dat2/test/loc_load_split_test.c): the loc group's
+# split is made a bounded number of entries at a time, shared by every load
+# waiting for it, and is the per-member decode byte for byte.
+.PHONY: test-loc-load-split
+test-loc-load-split: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/loc_load_split_test \
+		engine/dat2/test/loc_load_split_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/loc_load_split_test ..
+
 .PHONY: test-sound-load
 test-sound-load: $(OBJ_DIR) $(OBJS)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/sound_load_split_test \
