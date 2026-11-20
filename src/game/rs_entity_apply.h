@@ -97,6 +97,20 @@ enum RS_EntityNoteKind
     RS_ENTITY_NOTE_PLAYER_OP,
 };
 
+/*
+ * One thing the host shows or records, handed to `present`.
+ *
+ * EVERY POINTER IN A NOTE LIVES ONLY FOR THE CALL. `sender`, `sender_key` and
+ * `text` may point at the apply's own stack buffers (a public line is
+ * sentence-cased and escaped into one), `appearance` and `op` into the decoded
+ * packet. A host copies what it keeps before `present` returns, as both real
+ * hosts do (RS_CS2Host_ChatAdd, RS_Chat_AddMessage); a pointer kept past the
+ * call reads a dead frame. Under asserts the three strings are lent from
+ * buffers that are overwritten with RS_ENTITY_NOTE_POISON as soon as `present`
+ * returns, so a host that keeps one reads that line, not by luck the text.
+ */
+#define RS_ENTITY_NOTE_POISON "<a note's string read after its call>"
+
 struct RS_EntityNote
 {
     enum RS_EntityNoteKind kind;
@@ -162,6 +176,8 @@ struct RS_EntityApplyHost
 
     /* ---- presentation ---- */
 
+    /** `note` and everything it points at are valid only until this returns
+     *  (see struct RS_EntityNote): copy what is kept. */
     void (*present)(void* ctx, struct RS_EntityNote const* note);
 };
 

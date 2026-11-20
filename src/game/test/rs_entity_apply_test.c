@@ -59,6 +59,10 @@ struct TestHost
     char note_text[NOTES_MAX][512];
     /* The entity's tile when NPC_ADDED was presented. */
     int added_x, added_z;
+    /* The last CHAT note's strings as handed over, NOT copied: what a host
+     * that broke the lifetime rule (rs_entity_apply.h) would be holding. */
+    char const* kept_sender;
+    char const* kept_text;
     /* public_chat_shown: the answer, and what it was last asked. */
     bool chat_hidden;
     int chat_asks;
@@ -250,6 +254,11 @@ host_present(
         h->notes[h->note_count].text = h->note_text[h->note_count];
     }
     h->note_count++;
+    if( n->kind == RS_ENTITY_NOTE_CHAT )
+    {
+        h->kept_sender = n->sender;
+        h->kept_text = n->text;
+    }
     if( n->kind == RS_ENTITY_NOTE_NPC_ADDED )
     {
         struct WorldEntity_NPC const* npc = World_EntityPoolGet(&h->world->entities.npc, n->idx);
@@ -636,6 +645,37 @@ test_public_chat(void)
     CHECK(f.h.notes[f.h.note_count - 1].chat_type == 91, "the autotyper's staff line is 91");
     send_public_chat(&f, "hi", 0, 1);
     CHECK(f.h.notes[f.h.note_count - 1].chat_type == 90, "and anyone else's 90");
+    fixture_free(&f);
+}
+
+/* A note's strings live only for the call: a host that kept the pointers
+ * reads the poison once the call is over, not the line by luck (this test
+ * runs with asserts on, which is when the apply lends and poisons them). */
+static void
+test_note_strings_poisoned_after_the_call(void)
+{
+    struct Fixture f;
+    struct RsprotInfoOp add = op_value(RSPROT_OP_ADD_NEW, 12);
+    struct WorldEntity_Player* player;
+    int idx = -1;
+
+    fixture_init(&f);
+    f.rev.chat_unpack = test_chat_unpack;
+    RS_EntityApply_PlayerInfo(&f.in, &add, 1);
+    RS_EntitySync_FindPlayer(&f.esync, 12, &idx, NULL);
+    player = World_EntityPoolGet(&f.world->entities.player, idx);
+    assert(player);
+    snprintf(player->name, sizeof(player->name), "%s", "Kept");
+
+    send_public_chat(&f, "hello there", 0, 0);
+    CHECK(notes_of(&f.h, RS_ENTITY_NOTE_CHAT) == 1, "the line is filed");
+    CHECK(strcmp(f.h.notes[f.h.note_count - 1].text, "Hello there") == 0,
+        "a host that copies inside the call has the line");
+    CHECK(f.h.kept_text && strcmp(f.h.kept_text, RS_ENTITY_NOTE_POISON) == 0,
+        "a host that kept the text pointer reads the poison");
+    CHECK(f.h.kept_sender && strcmp(f.h.kept_sender, RS_ENTITY_NOTE_POISON) == 0,
+        "and the sender's");
+    CHECK(strcmp(player->chat.message, "Hello there") == 0, "the overhead is not touched by it");
     fixture_free(&f);
 }
 
@@ -1037,6 +1077,7 @@ main(void)
     test_player_add_hit_and_chat();
     test_public_chat();
     test_public_chat_hidden_flag();
+    test_note_strings_poisoned_after_the_call();
     test_wants_raised_on_change();
     test_player_name_extras_and_reset();
     test_npc_body_and_head_custom();
