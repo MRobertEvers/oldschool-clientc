@@ -62,6 +62,10 @@ struct NetTransportEmbed
 {
     struct NetTransport base;
     struct ToriRSServerEmbed* embed;
+    /* This client's link to `embed` (its client 0) is open. A dropped link
+     * or a logout closes it and leaves the world running, as a server does;
+     * the next CONNECT opens a new one into the same world. */
+    int linked;
     /* The client's protocol name, forwarded to ToriRSServer_EmbedStart so the
      * in-process server's wire always matches the client's. Points into the
      * static revision table, so no copy is needed. */
@@ -473,6 +477,17 @@ embed_poll(
                 self->next_tick_ms = 0;
                 self->leader_boundaries = 0;
                 self->clock_frames = 0;
+                self->linked = 1; /* ToriRSServer_EmbedStart opened client 0 */
+            }
+            else if( !self->linked )
+            {
+                /* The world outlived the last link: this one joins it, so a
+                 * reconnect finds the departed player's record (claim.c). */
+                int client = ToriRSServer_EmbedConnect(self->embed);
+
+                assert(client == 0);
+                (void)client;
+                self->linked = 1;
             }
             emit_status(self, bus, TORIRS_NET_STATUS_CONNECTED);
         }
@@ -506,16 +521,31 @@ embed_poll(
             /* One client: this host is the game itself, playing alone. */
             ToriRSServer_EmbedWrite(self->embed, 0, payload, header.length);
         }
+        else if( header.type == TORIRS_NET_OUT_DISCONNECT && self->embed && self->party_listener < 0 )
+        {
+            /*
+             * The LINK ends, the world does not: exactly what the socket host
+             * does when a connection closes (host_conn_release) and what a real
+             * server does on a dropped link. The world lets go of the player
+             * -- writing its save -- and notes it departed, so a reconnect
+             * inside the reclaim window comes back to its slot
+             * (ToriRSServer_ClaimSlot), and a later login loads the save into
+             * the same running world. Stopping the whole server here made
+             * every reconnect meet a freshly booted one with no record of the
+             * player: "has no session to reclaim; refusing", always.
+             */
+            ToriRSServer_EmbedDisconnect(self->embed, 0);
+            self->linked = 0;
+            emit_status(self, bus, TORIRS_NET_STATUS_DISCONNECTED);
+        }
         else if( header.type == TORIRS_NET_OUT_DISCONNECT && self->embed )
         {
             /*
-             * The embedded server dies with the session it served, exactly as
-             * the forked child of the socket host does — including the save it
-             * writes on the way out. A following CONNECT starts a fresh one,
-             * which is what makes a reconnect over this transport equivalent
-             * to one over a socket.
+             * A party leader's world dies with its session: its members'
+             * links are released with it (party_host_release).
              */
             ToriRSServer_EmbedStop(self->embed);
+            self->linked = 0;
             self->embed = NULL;
             self->next_tick_ms = 0;
             if( self->party_runtime )
@@ -593,7 +623,9 @@ embed_poll(
                 }
             }
         }
-        if( !alive )
+        /* No link open (between a drop and the reconnect): the world ticks
+         * on and there is no session to report on. */
+        if( !alive && self->linked )
         {
             emit_status(self, bus, TORIRS_NET_STATUS_DISCONNECTED);
             return;
