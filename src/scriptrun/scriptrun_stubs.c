@@ -31,9 +31,10 @@ scriptrun_stub_reached(const char* name)
 }
 
 /* ui/uitree_if_events.c's two tree lookups (Effective, ButtonTarget); the
- * bot keeps the table and reads it with Lookup alone. */
+ * bot keeps the table and reads it with Lookup alone. UITree_FindByComponentId
+ * is inline in the header now; this is the call it makes on a miss. */
 int32_t
-UITree_FindByComponentId(
+UITree_FindByComponentIdSlow(
     struct UITree const* tree,
     int component_id)
 {

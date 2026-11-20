@@ -3105,7 +3105,7 @@ uitree_id_index_note_added(struct UITree* tree, int32_t idx)
 }
 
 int32_t
-UITree_FindByComponentId(
+UITree_FindByComponentIdSlow(
     struct UITree const* tree,
     int component_id)
 {
@@ -3145,7 +3145,7 @@ UITree_FindByComponentId(
                  * interface closed and its ids were asked for). After it the
                  * map holds no tombstone, so the second probe answers. */
                 UITree_RebuildIdIndex(t);
-                return UITree_FindByComponentId(tree, component_id);
+                return UITree_FindByComponentIdSlow(tree, component_id);
             }
             else if( result == -2 )
             {

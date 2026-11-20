@@ -218,24 +218,18 @@ obj_model_face_count(
     return model->face_count;
 }
 
-/* Whether a resident model names a texture that is not resident. The model is
- * looked up once, not twice per face, and a run of faces on one texture asks
- * about that texture once: cc_setobject asks this for every bank cell. */
+/* Whether a resident model names a texture that is not resident. A run of
+ * faces on one texture asks about that texture once. */
 static int
-obj_model_textures_missing(
+obj_model_textures_missing_in(
     struct CacheProvider* provider,
-    int model_id)
+    struct ToriRS_Model const* model)
 {
-    struct ToriRS_Model* model;
     int last = -1;
-    int f;
 
-    if( model_id <= 0 )
+    if( !model->face_textures )
         return 0;
-    model = CacheProvider_ModelGet(provider, model_id);
-    if( !model || !model->face_textures )
-        return 0;
-    for( f = 0; f < model->face_count; f++ )
+    for( int f = 0; f < model->face_count; f++ )
     {
         int const texture_id = (int)model->face_textures[f];
         if( texture_id < 0 || texture_id == last )
@@ -245,6 +239,23 @@ obj_model_textures_missing(
         last = texture_id;
     }
     return 0;
+}
+
+/* The same for a model id: nothing missing when the model itself is not
+ * resident or names none (the caller asks about the model separately). */
+static int
+obj_model_textures_missing(
+    struct CacheProvider* provider,
+    int model_id)
+{
+    struct ToriRS_Model* model;
+
+    if( model_id <= 0 )
+        return 0;
+    model = CacheProvider_ModelGet(provider, model_id);
+    if( !model )
+        return 0;
+    return obj_model_textures_missing_in(provider, model);
 }
 
 int
@@ -262,65 +273,119 @@ ObjModelLoad_RenderObjId(
     return count_obj_id > 0 ? count_obj_id : obj_id;
 }
 
+/* The three rules ObjModelLoad_NeedsWork applies, read off an objtype that is
+ * already in hand. The id-taking helpers above look the objtype up each time
+ * they are asked, which for one plain item was the same lookup six times, and
+ * cc_setobject asks 4,230 times when the bank opens. Each must agree with its
+ * id-taking twin: obj_model_resolve_count_obj_id, obj_model_render_obj_id,
+ * obj_model_cert_link_id. */
+static int
+obj_model_count_variant_of(
+    struct ToriRS_Objtype const* obj,
+    int count)
+{
+    int countobj_id = -1;
+
+    if( count <= 1 )
+        return -1;
+    for( int i = 0; i < 10; i++ )
+    {
+        if( count >= obj->count_co[i] && obj->count_co[i] != 0 )
+            countobj_id = obj->count_obj[i];
+    }
+    return countobj_id > 0 ? countobj_id : -1;
+}
+
+static int
+obj_model_render_id_of(
+    struct ToriRS_Objtype const* obj,
+    int obj_id)
+{
+    if( obj->inventory_model_id <= 0 && obj->cert_template > 0 )
+        return obj->cert_template;
+    if( obj->inventory_model_id <= 0 && obj->placeholder_template >= 0 &&
+        obj->placeholder_link >= 0 )
+        return obj->placeholder_link;
+    return obj_id;
+}
+
 int
 ObjModelLoad_NeedsWork(
     struct CacheProvider* provider,
     int obj_id,
     int count)
 {
+    struct ToriRS_Objtype* obj;
+    struct ToriRS_Objtype* shown;
+    struct ToriRS_Objtype* render;
+    struct ToriRS_Model* model;
     int count_obj_id;
+    int shown_id;
     int render_obj_id;
     int model_id;
 
     assert(provider);
     if( obj_id < 0 ) /* obj 0 (Dwarf remains) is a real item */
         return 0;
-    if( !CacheProvider_ObjtypeHas(provider, obj_id) )
+    obj = CacheProvider_ObjtypeGet(provider, obj_id);
+    if( !obj )
         return CacheProvider_ObjtypeAbsent(provider, obj_id) ? 0 : 1;
 
-    count_obj_id = obj_model_resolve_count_obj_id(provider, obj_id, count);
-    if( count_obj_id > 0 && !CacheProvider_ObjtypeHas(provider, count_obj_id) )
-        return 1;
+    /* The objtype the cell shows: the stack's count variant when it has one. */
+    count_obj_id = obj_model_count_variant_of(obj, count);
+    shown = obj;
+    shown_id = obj_id;
+    if( count_obj_id > 0 )
+    {
+        shown = CacheProvider_ObjtypeGet(provider, count_obj_id);
+        if( !shown )
+            return 1;
+        shown_id = count_obj_id;
+    }
 
     /* A bank note's model lives on its cert template objtype, which must be
      * resident before the model (and the icon) can resolve. */
-    render_obj_id = obj_model_render_obj_id(provider, count_obj_id > 0 ? count_obj_id : obj_id);
-    if( render_obj_id >= 0 && !CacheProvider_ObjtypeHas(provider, render_obj_id) )
-        return 1;
+    render_obj_id = obj_model_render_id_of(shown, shown_id);
+    render = shown;
+    if( render_obj_id != shown_id )
+    {
+        render = render_obj_id >= 0 ? CacheProvider_ObjtypeGet(provider, render_obj_id) : NULL;
+        if( render_obj_id >= 0 && !render )
+            return 1;
+    }
 
     /* A bank note also composites its base item (cert_link) icon on top, so the
      * base objtype, its model, and that model's textures must all load too. */
+    if( shown->inventory_model_id <= 0 && shown->cert_template > 0 && shown->cert_link >= 0 )
     {
-        int base_obj_id = obj_model_cert_link_id(
-            provider, count_obj_id > 0 ? count_obj_id : obj_id);
-        if( base_obj_id >= 0 )
-        {
-            int base_model_id;
+        int base_obj_id = shown->cert_link;
+        int base_model_id;
 
+        if( !CacheProvider_ObjtypeHas(provider, base_obj_id) )
+            return 1;
+        if( obj_model_resolve_count_obj_id(provider, base_obj_id, OBJ_MODEL_CERT_BASE_COUNT) > 0 )
+        {
+            base_obj_id =
+                obj_model_resolve_count_obj_id(provider, base_obj_id, OBJ_MODEL_CERT_BASE_COUNT);
             if( !CacheProvider_ObjtypeHas(provider, base_obj_id) )
                 return 1;
-            if( obj_model_resolve_count_obj_id(
-                    provider, base_obj_id, OBJ_MODEL_CERT_BASE_COUNT) > 0 )
-            {
-                base_obj_id = obj_model_resolve_count_obj_id(
-                    provider, base_obj_id, OBJ_MODEL_CERT_BASE_COUNT);
-                if( !CacheProvider_ObjtypeHas(provider, base_obj_id) )
-                    return 1;
-            }
-            base_model_id = obj_model_objtype_model_id(provider, base_obj_id);
-            if( base_model_id > 0 && !CacheProvider_ModelHas(provider, base_model_id) )
-                return 1;
-            if( obj_model_textures_missing(provider, base_model_id) )
-                return 1;
         }
+        base_model_id = obj_model_objtype_model_id(provider, base_obj_id);
+        if( base_model_id > 0 && !CacheProvider_ModelHas(provider, base_model_id) )
+            return 1;
+        if( obj_model_textures_missing(provider, base_model_id) )
+            return 1;
     }
 
-    model_id = obj_model_resolve_inventory_model_id(provider, obj_id, count_obj_id);
-    if( model_id > 0 && !CacheProvider_ModelHas(provider, model_id) )
+    /* The inventory model of the objtype that is drawn, and its textures:
+     * the icon raster reads them, and they load with the model batch. */
+    model_id = render && render->inventory_model_id > 0 ? render->inventory_model_id : -1;
+    if( model_id <= 0 )
+        return 0;
+    model = CacheProvider_ModelGet(provider, model_id);
+    if( !model )
         return 1;
-
-    /* Icon raster reads face textures; they load with the model batch. */
-    return obj_model_textures_missing(provider, model_id);
+    return obj_model_textures_missing_in(provider, model);
 }
 
 static int

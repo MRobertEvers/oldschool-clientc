@@ -2227,10 +2227,25 @@ UITree_NodeNeedsEmit(struct UITreeComponent const* component);
 void
 UITree_MarkFrameAlwaysDirtyTypes(struct UITree* tree);
 
+/** The map lookup behind UITree_FindByComponentId; call that. */
 int32_t
-UITree_FindByComponentId(
+UITree_FindByComponentIdSlow(
     struct UITree const* tree,
     int component_id);
+
+/** The live node holding `component_id`, or -1. The last answer is checked
+ *  here, in the caller, so the run of lookups a client script makes for one
+ *  component costs a compare each and not a call. */
+static inline int32_t
+UITree_FindByComponentId(
+    struct UITree const* tree,
+    int component_id)
+{
+    assert(tree);
+    if( tree->id_last_id_plus1 == component_id + 1 && tree->id_last_gen == tree->id_generation )
+        return tree->id_last_idx;
+    return UITree_FindByComponentIdSlow(tree, component_id);
+}
 
 /**
  * Re-point every debug-overlay component at a different set of baked fonts.
