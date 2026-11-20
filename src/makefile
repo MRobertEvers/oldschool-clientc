@@ -4194,6 +4194,18 @@ test-trackers: $(OBJ_DIR) plugin/plugins/xp_tracker.c plugin/plugins/loot_tracke
 		plugin/test/tracker_test.c $(LDFLAGS)
 	$(TRACKER_TEST_ENV) ./$(OBJ_DIR)/tracker_test
 
+# Every chat line the client adds reaches a plugin's on_chat_message, the
+# private echo, friend-channel and clan-channel kinds included: the packets go
+# through the client's executor into a PluginHost over the client's own engine
+# (app_plugin_engine), so it links the app object set minus main. It lives in
+# app/test because it builds an App.
+.PHONY: test-plugin-chat-kinds
+test-plugin-chat-kinds: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_chat_kinds_test \
+		app/test/app_plugin_chat_kinds_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/plugin_chat_kinds_test
+
 test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/test/torirs_plugin_host_test.c $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_host_test $(TORIMEM_SRCS) \

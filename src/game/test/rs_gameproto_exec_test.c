@@ -22,6 +22,7 @@
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/revpacket.h"
 #include "render/cam_script.h"
+#include "toridraw_math.h"
 #include "ui/uitree.h"
 #include "varp/varp_manager.h"
 #include "world/world.h"
@@ -881,6 +882,55 @@ main(void)
             App_GameProto_Exec(app, &app_state, &p);
             TEST_EXEC_ASSERT(app->minimap.flag_tile_x == 22, "absolute x against the world's base");
             TEST_EXEC_ASSERT(app->minimap.flag_tile_z == 34, "absolute z against the world's base");
+            TEST_EXEC_ASSERT(app->minimap.flag_view == 0, "a root tile is the root's");
+            {
+                int abs_x = -1;
+                int abs_z = -1;
+
+                TEST_EXEC_ASSERT(app_minimap_flag_abs(app, &abs_x, &abs_z) == 1, "a root flag reads back");
+                TEST_EXEC_ASSERT(abs_x == 3222 && abs_z == 3218, "against the root's base");
+            }
+
+            /* A coord inside a world entity's staging rectangle is that
+             * deck's tile, in the deck's own terms (deob client.java
+             * class243.field3077: field748.method1423 picks the view whose
+             * rectangle holds it, class100.method3310 subtracts ITS base),
+             * and it reads back as the absolute tile the server sent. */
+            {
+                struct Worldview* deck = &app->worldviews.views[3];
+                int abs_x = -1;
+                int abs_z = -1;
+
+                WorldviewRegistry_Init(&app->worldviews);
+                deck->id = 3;
+                deck->wire_id = 77;
+                deck->base_x = 2048;
+                deck->base_z = 5120;
+                deck->size_x_tiles = 16;
+                deck->size_z_tiles = 16;
+                deck->parent_id = WORLDVIEW_ROOT;
+                deck->live = true;
+                p._set_map_flag.x = 2048 + 5;
+                p._set_map_flag.z = 5120 + 9;
+                App_GameProto_Exec(app, &app_state, &p);
+                TEST_EXEC_ASSERT(app->minimap.flag_view == 3, "a deck coord is the deck's flag");
+                TEST_EXEC_ASSERT(app->minimap.flag_tile_x == 5, "deck-local x");
+                TEST_EXEC_ASSERT(app->minimap.flag_tile_z == 9, "deck-local z");
+                TEST_EXEC_ASSERT(app_minimap_flag_abs(app, &abs_x, &abs_z) == 1, "it reads back");
+                TEST_EXEC_ASSERT(abs_x == 2053 && abs_z == 5129, "as the absolute tile sent");
+                /* The root's scene moving does not move a deck's tile. */
+                TEST_EXEC_ASSERT(
+                    MinimapView_RebaseFlag(&app->minimap, 8, -8, 104), "a root rebuild keeps it");
+                TEST_EXEC_ASSERT(app->minimap.flag_tile_x == 5 && app->minimap.flag_tile_z == 9,
+                    "where it was on the deck");
+                p._set_map_flag.clear = 1;
+                App_GameProto_Exec(app, &app_state, &p);
+                TEST_EXEC_ASSERT(!MinimapView_HasFlag(&app->minimap), "a clear clears it");
+                TEST_EXEC_ASSERT(app->minimap.flag_view == 0, "and forgets the deck");
+                TEST_EXEC_ASSERT(app_minimap_flag_abs(app, &abs_x, &abs_z) == 0, "no flag reads back");
+                p._set_map_flag.clear = 0;
+                WorldviewRegistry_Init(&app->worldviews);
+            }
             World_Free(app->world);
             app->world = NULL;
         }
@@ -937,6 +987,107 @@ main(void)
         }
         free(app);
         printf("ok - UPDATE_INV_STOP_TRANSMIT tells the transmit; CAM_TARGET sets the focus\n");
+    }
+
+    /* CAM_TARGET's world-entity and coordinate targets move the follow camera
+     * (deob client.java method1936 / method1700 cases 2 and 3, the focus step
+     * method1605): a hull in the root by its wire id, a root coordinate on the
+     * centre of its tile, and a coordinate inside a hull's staging rectangle on
+     * that deck tile pushed out through the hull. The anchor snaps to a focus
+     * more than 500 fine units away, so each step reads the focus directly. */
+    {
+        struct App* app = calloc(1, sizeof(*app));
+        struct ToriRS_Network* net = calloc(1, sizeof(*net));
+        struct World* deck_world = World_New();
+        struct WevConfig config;
+        struct WorldEntityFacet_IdleAnimations idle;
+        struct Worldview* deck;
+        struct Wev* wev;
+        struct RevPacket p;
+        int self_idx;
+
+        assert(app);
+        assert(net);
+        memset(&idle, 0xff, sizeof(idle)); /* every stance -1: none */
+        ToriDraw_InitMath(); /* the hull transform's trig tables */
+        app->tree = tree; /* required (App_GameProto_Exec asserts it) */
+        App_ServerStateBind(app, &app_state);
+        app->net = net;
+        app->world_views.frame = &app->world_views.views[0];
+        app->world = World_New();
+        app->world->_base_tile_x = 3200;
+        app->world->_base_tile_z = 3136;
+        RS_EntitySync_Init(&app->esync);
+        self_idx = World_PlayerSpawn(app->world, 40, 0, 50, 50, idle);
+        RS_EntitySync_RegisterPlayer(&app->esync, 5, 40, self_idx);
+        app->esync.local_pid = 5;
+        app->world->local_pid = 5;
+
+        /* One hull in the root: wire id 900 in slot 1, its deck a 16x16
+         * staging rectangle at (6400, 6400), the hull at root tile
+         * (3220, 3150), unturned. */
+        WorldviewRegistry_Init(&app->worldviews);
+        Wevs_Init(&app->wevs);
+        deck = &app->worldviews.views[1];
+        deck->id = 1;
+        deck->wire_id = 900;
+        deck->world = deck_world;
+        deck->base_x = 6400;
+        deck->base_z = 6400;
+        deck->size_x_tiles = 16;
+        deck->size_z_tiles = 16;
+        deck->parent_id = WORLDVIEW_ROOT;
+        deck->live = true;
+        WevConfig_Init(&config, 3);
+        wev = Wevs_Spawn(&app->wevs, 1, WORLDVIEW_ROOT, &config, 3, 3220 << 7, 3150 << 7, 0, 0, WEV_OP_MASK_ALL);
+        assert(wev);
+
+        app_world_camera_follow(app);
+        TEST_EXEC_ASSERT((int)app->world_views.frame->orbit.anchor_x == (50 << 7) + 64,
+            "with no target the camera follows the local player");
+
+        memset(&p, 0, sizeof(p));
+        p.packet_type = PKT_NAME_CAM_TARGET;
+        p._cam_target.type = CAM_SCRIPT_TARGET_WORLDENTITY;
+        p._cam_target.index = 900;
+        App_GameProto_Exec(app, &app_state, &p);
+        app_world_camera_follow(app);
+        TEST_EXEC_ASSERT((int)app->world_views.frame->orbit.anchor_x == (3220 - 3200) << 7,
+            "a world entity target: the hull's x in the root scene");
+        TEST_EXEC_ASSERT((int)app->world_views.frame->orbit.anchor_z == (3150 - 3136) << 7,
+            "and its z");
+
+        p._cam_target.type = CAM_SCRIPT_TARGET_COORD;
+        p._cam_target.index = (1 << 28) | (3210 << 14) | 3140;
+        App_GameProto_Exec(app, &app_state, &p);
+        app_world_camera_follow(app);
+        TEST_EXEC_ASSERT((int)app->world_views.frame->orbit.anchor_x == (10 << 7) + 64,
+            "a root coordinate target: the centre of its tile");
+        TEST_EXEC_ASSERT((int)app->world_views.frame->orbit.anchor_z == (4 << 7) + 64, "on both axes");
+
+        /* Deck tile (3, 5) is (448, 704) on the deck; recentred by half the
+         * 16-tile rectangle (-1024) and carried to the hull at (2560, 1792). */
+        p._cam_target.index = (6400 + 3) << 14 | (6400 + 5);
+        App_GameProto_Exec(app, &app_state, &p);
+        app_world_camera_follow(app);
+        TEST_EXEC_ASSERT((int)app->world_views.frame->orbit.anchor_x == 2560 + 448 - 1024,
+            "a deck coordinate target: the deck tile pushed out through the hull");
+        TEST_EXEC_ASSERT((int)app->world_views.frame->orbit.anchor_z == 1792 + 704 - 1024, "on both axes");
+
+        /* A wire id no hull has: the local player again. */
+        p._cam_target.type = CAM_SCRIPT_TARGET_WORLDENTITY;
+        p._cam_target.index = 901;
+        App_GameProto_Exec(app, &app_state, &p);
+        app_world_camera_follow(app);
+        TEST_EXEC_ASSERT((int)app->world_views.frame->orbit.anchor_x == (50 << 7) + 64,
+            "a hull that is not there leaves the local player's focus");
+
+        World_Free(deck_world);
+        World_Free(app->world);
+        RS_EntitySync_Free(&app->esync);
+        free(net);
+        free(app);
+        printf("ok - CAM_TARGET follows a world entity and a coordinate, on a deck too\n");
     }
 
     /*

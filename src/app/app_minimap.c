@@ -500,6 +500,14 @@ App_MinimapBuildDots(
             app_minimap_push_hint(app, hint_fx, hint_fz, marker_scene);
     }
 
+    /* The flag's tile is drawn against the root-space focus whichever view
+     * it is in, as the deob draws it: client.java ~4087-4094 and
+     * Statics.java ~9655-9661 place field990/field900 -- the tile in the
+     * view SET_MAP_FLAG resolved it to, deck-local for a deck -- relative to
+     * field1052/field872, the follow focus already pushed out through the
+     * hull (client.java ~9343-9350). A flag on a deck therefore lands where
+     * its deck-local tile would be in the root scene, which is off this
+     * circle unless the player stands near the root scene's corner. */
     if( marker_scene > 0 && MinimapView_HasFlag(&app->minimap) )
         app_minimap_push_dot(
             app,
@@ -521,6 +529,47 @@ App_MinimapBuildDots(
         }
     }
     return app->minimap_dots.count;
+}
+
+/*
+ * The destination flag in absolute map tiles: the base of the view its tile is
+ * in plus the tile (MinimapView.flag_view). The root's base is the root
+ * world's, the origin SET_MAP_FLAG's absolute form was converted against; a
+ * deck's is its staging rectangle's. Returns 0, outputs untouched, when there
+ * is no flag, no root world to read it against, or the deck it names has gone
+ * (its tile has no absolute meaning any more).
+ */
+int
+app_minimap_flag_abs(
+    struct App* app,
+    int* out_x,
+    int* out_z)
+{
+    int view_id;
+
+    assert(app);
+    assert(out_x);
+    assert(out_z);
+    if( !MinimapView_HasFlag(&app->minimap) )
+        return 0;
+    view_id = app->minimap.flag_view;
+    if( view_id == WORLDVIEW_ROOT )
+    {
+        if( !app->world )
+            return 0;
+        *out_x = app->world->_base_tile_x + app->minimap.flag_tile_x;
+        *out_z = app->world->_base_tile_z + app->minimap.flag_tile_z;
+        return 1;
+    }
+    if( !WorldviewRegistry_IsLive(&app->worldviews, view_id) )
+        return 0;
+    {
+        struct Worldview const* view = WorldviewRegistry_Get(&app->worldviews, view_id);
+
+        *out_x = view->base_x + app->minimap.flag_tile_x;
+        *out_z = view->base_z + app->minimap.flag_tile_z;
+    }
+    return 1;
 }
 
 /* Minimap click-to-walk (reference minimapLoop, Client.ts 2990-3032): map the

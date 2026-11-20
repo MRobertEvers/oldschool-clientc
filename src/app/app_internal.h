@@ -1669,6 +1669,12 @@ app_minimap_click(
     int mouse_y,
     int ctrl_held);
 
+int
+app_minimap_flag_abs(
+    struct App* app,
+    int* out_x,
+    int* out_z);
+
 
 /* ---- app_minimenu.c ---- */
 struct RS_MinimenuSelection

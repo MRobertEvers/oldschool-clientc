@@ -411,10 +411,8 @@ App_LocalPlayerTiles(
         *true_z = base_z + player->grid_position.z;
     }
     *level = player->grid_position.level;
-    if( app->minimap.flag_tile_x >= 0 )
+    if( app_minimap_flag_abs(app, flag_x, flag_z) )
     {
-        *flag_x = base_x + app->minimap.flag_tile_x;
-        *flag_z = base_z + app->minimap.flag_tile_z;
         *dest_x = *flag_x;
         *dest_z = *flag_z;
     }

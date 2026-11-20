@@ -46,9 +46,17 @@ MinimapView_Yaw(struct MinimapView const* view)
 void
 MinimapView_SetFlag(struct MinimapView* view, int scene_tile_x, int scene_tile_z)
 {
+    MinimapView_SetFlagInView(view, 0, scene_tile_x, scene_tile_z);
+}
+
+void
+MinimapView_SetFlagInView(struct MinimapView* view, int view_id, int tile_x, int tile_z)
+{
     assert(view);
-    view->flag_tile_x = scene_tile_x;
-    view->flag_tile_z = scene_tile_z;
+    assert(view_id >= 0);
+    view->flag_view = view_id;
+    view->flag_tile_x = tile_x;
+    view->flag_tile_z = tile_z;
 }
 
 void
@@ -128,6 +136,8 @@ MinimapView_RebaseFlag(struct MinimapView* view, int base_dx, int base_dz, int s
 
     if( !MinimapView_HasFlag(view) )
         return false;
+    if( view->flag_view != 0 )
+        return true;
     view->flag_tile_x -= base_dx;
     view->flag_tile_z -= base_dz;
     /* A flag the reload left behind is dropped rather than clamped. Clamped,
@@ -148,6 +158,7 @@ MinimapView_ClearFlag(struct MinimapView* view)
     assert(view);
     view->flag_tile_x = -1;
     view->flag_tile_z = -1;
+    view->flag_view = 0;
 }
 
 bool

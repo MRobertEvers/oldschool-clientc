@@ -392,6 +392,32 @@ test_a_flag_left_behind_is_dropped(void)
     TEST_ASSERT(!MinimapView_HasFlag(&view), "and still no flag");
 }
 
+/* A flag on a world entity's deck is in the deck's own tiles (deob
+ * class100.method3310 subtracts that view's base), which the ROOT scene
+ * moving does not move: a root reload leaves it where it is, and a later
+ * flag on the root, or a clear, forgets the deck. */
+static void
+test_a_deck_flag_ignores_the_roots_reload(void)
+{
+    struct MinimapView view = placed_map();
+
+    MinimapView_SetFlagInView(&view, 3, 5, 9);
+    TEST_ASSERT(view.flag_view == 3, "the flag is the deck's");
+    TEST_ASSERT(MinimapView_RebaseFlag(&view, 8, -8, 104), "a root reload keeps it");
+    TEST_ASSERT(view.flag_tile_x == 5 && view.flag_tile_z == 9, "on the deck tile it named");
+    TEST_ASSERT(MinimapView_RebaseFlag(&view, 200, 200, 104), "however far the root moved");
+    TEST_ASSERT(view.flag_tile_x == 5, "still");
+
+    MinimapView_SetFlag(&view, 40, 50);
+    TEST_ASSERT(view.flag_view == 0, "a root flag is the root's again");
+    TEST_ASSERT(MinimapView_RebaseFlag(&view, 8, 0, 104) && view.flag_tile_x == 32,
+        "and slides with the root");
+
+    MinimapView_SetFlagInView(&view, 3, 5, 9);
+    MinimapView_ClearFlag(&view);
+    TEST_ASSERT(!MinimapView_HasFlag(&view) && view.flag_view == 0, "a clear forgets the deck");
+}
+
 static void
 test_the_dot_buffer_hands_out_blank_slots(void)
 {
@@ -557,6 +583,7 @@ main(void)
     test_a_dot_beyond_the_radius_is_refused();
     test_the_flag_moves_with_a_reloaded_scene();
     test_a_flag_left_behind_is_dropped();
+    test_a_deck_flag_ignores_the_roots_reload();
     test_the_dot_buffer_hands_out_blank_slots();
     test_the_hint_bands_are_the_references_own();
     test_the_rim_arrow_points_the_way_it_sits();
