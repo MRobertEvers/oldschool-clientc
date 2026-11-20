@@ -765,6 +765,58 @@ test_npc_head_custom_loads_its_models(void)
     fixture_free(&fx);
 }
 
+/* E12 HEAD_CUSTOM, an EMPTY model list (0x2 with a count of 0): the
+ * override's models are the empty array the block sent (deob
+ * Statics.method9224 takes class399.field5091 whenever it is non-null), so
+ * the head is a model of no parts and shows nothing -- never the type's own
+ * head, which is what a block without 0x2 shows. */
+static void
+test_npc_head_custom_empty_list_shows_nothing(void)
+{
+    struct Fixture fx;
+    struct ToriRS_Npctype* type;
+    struct ToriRS_Model* model;
+    struct WorldEntity_NPC* npc;
+    struct UIIfHead const* head;
+    int const com = 0x00e70003;
+    int idx;
+
+    printf("TEST: a chathead customisation with an empty model list shows nothing\n");
+    fixture_init(&fx);
+    type = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*type));
+    assert(type);
+    type->transform_varbit = -1;
+    type->transform_varp = -1;
+    type->heads_count = 1;
+    type->heads = ToriMem_Alloc(ToriMem_Assets(), sizeof(*type->heads));
+    assert(type->heads);
+    type->heads[0] = 70;
+    CacheProvider_NpctypeAdd(&fx.provider, 500, type);
+    /* The type's head is resident: drawing it would composite at once. */
+    model = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*model));
+    assert(model);
+    CacheProvider_ModelAdd(&fx.provider, 70, model);
+    fx.app.world = World_New();
+    RS_EntitySync_Init(&fx.app.esync);
+    idx = World_NpcSpawn(fx.app.world, 9, 500, 0, 10, 10, 1, (struct WorldEntityFacet_IdleAnimations){ 0 });
+    npc = World_EntityPoolGet(&fx.app.world->entities.npc, idx);
+    npc->server_slot = 12;
+    RS_EntitySync_RegisterNpc(&fx.app.esync, 12, 9, idx);
+    {
+        struct WorldNpcOverrideIn in = { .models_sent = true, .model_count = 0 };
+        World_NpcSetHeadCustom(fx.app.world, idx, &in);
+    }
+    App_SetInterfaceNpcHeadCustom(&fx.app, com, idx);
+    pump(&fx);
+    head = head_of(&fx, com);
+    TEST_ASSERT(head && head->landed, "the head lands");
+    TEST_ASSERT(head && head->scene_id < 0, "with nothing to show, not the type's head");
+    RS_EntitySync_Free(&fx.app.esync);
+    World_Free(fx.app.world);
+    fx.app.world = NULL;
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
@@ -778,6 +830,7 @@ main(void)
     test_bind_without_a_loader_is_unbound();
     test_npc_headicon_groups_load();
     test_npc_head_custom_loads_its_models();
+    test_npc_head_custom_empty_list_shows_nothing();
     if( g_failures )
     {
         printf("if_assets_tasks: %d failure(s)\n", g_failures);
