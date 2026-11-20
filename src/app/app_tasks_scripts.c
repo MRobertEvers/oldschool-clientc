@@ -30,8 +30,9 @@
  *   Task_ScriptLocModel    cc_setlocmodel: the loc's config, then each of
  *                          its models (a chain: the ids are in the config).
  *   Task_ScriptObjModel    cc_setobject on a MODEL widget: the obj's model
- *                          composite, then the host's resident half
- *                          (RS_CS2Host_SetObjectResident).
+ *                          composite, then the host's model half
+ *                          (RS_CS2Host_SetObjectModelLanded; the set
+ *                          already wrote the pose).
  *   Task_ScriptPackModels  a pack a script's COMPONENT yield baked: the
  *                          models, npc configs and player kit its widgets
  *                          name, then the bind the bake did when they were
@@ -342,8 +343,9 @@ Task_ScriptObjModel_Run(
         app->tree->components[idx].item_count != self->count )
         PT_EXIT(&self->pt);
     /* Failed or not, finish as a script that waited would have: the model
-     * from what arrived, else the obj's icon. */
-    RS_CS2Host_SetObjectResident(
+     * from what arrived, else the obj's icon. Not the pose: the set wrote it,
+     * and a cc_setmodelangle the script made after the set must stay. */
+    RS_CS2Host_SetObjectModelLanded(
         &app->host, self->widget.component_id, self->obj_id, self->count, self->num_mode);
     RedrawRequest_Raise(&app->redraw_request);
 

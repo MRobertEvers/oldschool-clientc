@@ -1969,13 +1969,15 @@ RS_CS2Host_QueueSettingsMirror(
     int value);
 
 /**
- * cc_setobject's resident half: on a MODEL widget the obj's 3D interface
- * model posed as its icon is, else (or with no model) the obj's icon. What
- * the app's visual task calls once the obj model it waited for is here (or
- * failed: the icon is built from what arrived, as a script that waited did).
+ * cc_setobject's model half: on a MODEL widget the obj's 3D interface model,
+ * else (or with no model) the obj's icon. What the app's visual task calls
+ * once the obj model it waited for is here (or failed: the icon is built from
+ * what arrived, as a script that waited did). It writes no pose: the set
+ * posed the widget when it ran, as the reference's opcode does, and anything
+ * the script wrote over that pose since must stay.
  */
 void
-RS_CS2Host_SetObjectResident(
+RS_CS2Host_SetObjectModelLanded(
     struct RS_CS2Host* host,
     int component_id,
     int obj_id,
