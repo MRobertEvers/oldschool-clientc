@@ -13,6 +13,7 @@
 #include "mem/torirs_mem.h"
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/pktnames.h"
+#include "net/rev/revpacket.h"
 #include "net/rsprox_recording.h"
 #include "replay/replay_checkpoint_store.h"
 #include "replay/replay_classify.h"
@@ -81,6 +82,13 @@ struct ReplayScrub
     int next_input;
     int last_tick;
     uint64_t clock_ms;
+    /** Wire bytes of a handed-out PACKET_GROUP_START's members not handed out
+     *  yet (0: no group open). The client holds a group's members until the
+     *  bytes its header stated have all come (net.c gameproto_drain), and a
+     *  server sends nothing between them; so while this is owed, the next
+     *  frame is the group's next member, whatever a seek, an input or a
+     *  window restatement would otherwise put there (group_member). */
+    int group_owed;
 
     /* The map-build barrier: after the REBUILD of tick wait_tick, nothing of a
      * later tick goes until MAP_BUILD_COMPLETE. */
@@ -173,6 +181,57 @@ struct ReplayScrub
 /* The chase's schedule, below the seek plans that close one. */
 static void
 chase_sched_end(struct ReplayScrub* scrub);
+
+/* What a server frame costs on the wire, framed as the transport frames it
+ * (net_transport_replay.c pend_packet): the pSmart1Or2 opcode, the length
+ * the prot table says to send, the payload. */
+static int
+frame_wire_bytes(
+    struct ReplayScrub const* scrub,
+    struct RsproxRecordingFrame const* f)
+{
+    int const size = scrub->rev->packetin_size(f->opcode);
+    int n = f->opcode >= 0x80 ? 2 : 1;
+
+    if( size == PKTIN_LENGTH_VARU8 )
+        n += 1;
+    else if( size == PKTIN_LENGTH_VARU16 )
+        n += 2;
+    return n + (int)f->length;
+}
+
+/* A frame has been handed out: keep the open group's count. A
+ * PACKET_GROUP_START opens one for the bytes its header states (groups do
+ * not nest: net.c asserts it); every frame after it is a member until those
+ * bytes are paid. */
+static void
+group_account(
+    struct ReplayScrub* scrub,
+    struct RsproxRecordingFrame const* f)
+{
+    if( scrub->rev->packetin_code(f->opcode) == PKT_NAME_PACKET_GROUP_START )
+    {
+        struct RevPacket packet;
+
+        assert(scrub->group_owed == 0);
+        memset(&packet, 0, sizeof(packet));
+        if( scrub->rev->parse_wire(
+                scrub->rev, f->opcode, scrub->rec->data + f->offset, (int)f->length, &packet) > 0 )
+            scrub->group_owed = packet._packet_group_start.length;
+        return;
+    }
+    if( scrub->group_owed == 0 )
+        return;
+    scrub->group_owed -= frame_wire_bytes(scrub, f);
+    if( scrub->group_owed < 0 )
+    {
+        /* The recording's own group does not add up: its bytes are input,
+         * not a contract. The client's group closes on this frame too. */
+        TORIRS_ERR("replay: tick %d: frame %d overran its packet group by %d bytes\n", f->tick,
+                   scrub->cursor - 1, -scrub->group_owed);
+        scrub->group_owed = 0;
+    }
+}
 
 /* The first tick none of whose packets has been handed out. */
 static int
@@ -1000,6 +1059,7 @@ cursor_back(
     assert(scrub->session_live);
     assert(tick >= 0);
     assert(tick <= staged_frontier(scrub));
+    assert(scrub->group_owed == 0);
     rec = scrub->rec;
     while( f < rec->frame_count && rec->frames[f].tick < tick )
         f++;
@@ -1045,6 +1105,9 @@ ReplayScrub_CheckpointWanted(
     assert(out_clock_ms);
     if( !scrub->session_live || scrub->restarting || scrub->reconnecting || scrub->cursor == 0 )
         return 0;
+    /* Half a group on the bus is no boundary. */
+    if( scrub->group_owed > 0 )
+        return 0;
     if( scrub->seeking )
     {
         enum ReplaySeekStepKind const step = seek_step(scrub);
@@ -1076,6 +1139,9 @@ ReplayScrub_RestoreWanted(struct ReplayScrub const* scrub)
     if( !scrub->seeking || seek_step(scrub) != REPLAY_SEEK_RESTORE || !scrub->session_live )
         return NULL;
     if( ReplayScrub_Reached(scrub) < scrub->plan.drain_tick )
+        return NULL;
+    /* The client's stream may not be restored under a group it has begun. */
+    if( scrub->group_owed > 0 )
         return NULL;
     return scrub->plan.restore_cp;
 }
@@ -1252,6 +1318,9 @@ ReplayScrub_Rewind(struct ReplayScrub* scrub)
     assert(scrub);
     scrub->cursor = 0;
     scrub->next_input = 0;
+    /* A new connection's stream opens with no group (net.c resets its own at
+     * the login). */
+    scrub->group_owed = 0;
     /* The session starts again in the class the recorder booted in, not the
      * one the playhead left. */
     if( scrub->window_from_recording )
@@ -1308,6 +1377,8 @@ ReplayScrub_ConnectionLost(struct ReplayScrub* scrub)
     assert(scrub);
     assert(scrub->session_live);
     scrub->reconnecting = 1;
+    /* So does the one that takes the session up. */
+    scrub->group_owed = 0;
 }
 
 void
@@ -1500,8 +1571,12 @@ ReplayScrub_Advance(
         scrub->map_built = 1;
     }
     /* The barrier holds the clock too: the time the client spends building
-     * is not recorded time, so the packets behind it keep their spacing. */
-    if( scrub->wait_map && !scrub->map_built )
+     * is not recorded time, so the packets behind it keep their spacing.
+     * Not while the REBUILD's own packet group is still owed: the client
+     * holds the REBUILD until the group's last member is in, and builds
+     * nothing before it (recording 96, tick 29991: a REBUILD_REGION in a
+     * group whose last members came 69 ms after it). */
+    if( scrub->wait_map && !scrub->map_built && scrub->group_owed == 0 )
         return;
     /* A chase runs the recording's clock 30 / chase_cycles times as fast:
      * a tick of it is chase_cycles client cycles, and the client charges its
@@ -1538,6 +1613,7 @@ ReplayScrub_Next(
     {
         struct RsproxRecordingFrame const* f;
         int chasing;
+        int in_group;
 
         if( scrub->seeking && seek_step(scrub) == REPLAY_SEEK_RESTART )
         {
@@ -1550,7 +1626,11 @@ ReplayScrub_Next(
         /* Nothing goes before the new session: a chase plays its login. */
         if( scrub->seeking && scrub->restarting )
             return REPLAY_NEXT_WAIT;
-        if( scrub->seeking && seek_step(scrub) == REPLAY_SEEK_WORLD )
+        /* A group the client has begun is finished first, as linear play
+         * finishes it: no keyframe, input, window or chase step goes between
+         * its members (group_owed). */
+        in_group = scrub->group_owed > 0;
+        if( !in_group && scrub->seeking && seek_step(scrub) == REPLAY_SEEK_WORLD )
         {
             /* One keyframe in flight: the next waits for the client to take
              * the last (replay_world.h). */
@@ -1585,12 +1665,13 @@ ReplayScrub_Next(
                 return REPLAY_NEXT_WAIT;
             return REPLAY_NEXT_END;
         }
-        if( scrub->window_due )
+        if( !in_group && scrub->window_due )
         {
             out->window_mode = scrub->window_due;
             scrub->window_due = 0;
             return REPLAY_NEXT_WINDOW;
         }
+        if( !in_group )
         {
             enum ReplayNext const input = pass_inputs(scrub, out);
 
@@ -1605,8 +1686,9 @@ ReplayScrub_Next(
             scrub->wait_map = 0;
         }
         /* A RESTORE finishing a chase tick keeps its world withheld. */
-        chasing = scrub->seeking && (seek_step(scrub) == REPLAY_SEEK_CHASE ||
-                                     (seek_step(scrub) == REPLAY_SEEK_RESTORE && scrub->plan.drain_chasing));
+        chasing = !in_group && scrub->seeking &&
+                  (seek_step(scrub) == REPLAY_SEEK_CHASE ||
+                   (seek_step(scrub) == REPLAY_SEEK_RESTORE && scrub->plan.drain_chasing));
         if( chasing && seek_step(scrub) == REPLAY_SEEK_CHASE && f->tick >= scrub->plan.world_tick )
         {
             /* Every tick in front of P handed out: the keyframe next. */
@@ -1759,6 +1841,7 @@ ReplayScrub_Next(
         scrub->last_tick = f->tick;
         if( f->opcode == RSPROX_RECORDING_RECONNECT )
             return REPLAY_NEXT_RESUME;
+        group_account(scrub, f);
         /* The very REBUILD_NORMAL the client built last, handed out again after
          * a checkpoint restore moved the cursor back over it: the client's
          * same-zone early-out sends no MAP_BUILD_COMPLETE for it, so there is

@@ -4900,6 +4900,18 @@ test-replay-scrub: $(OBJ_DIR) $(OBJS)
 		replay/test/replay_scrub_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/replay_scrub_test
 
+# Packet groups across a seek on a real recording (not a suite test: it needs
+# one): every group adds up as the transport frames it; every group whose
+# members arrive after its header is held open in a real network by the
+# replay transport, a seek is begun inside it, and the seek must land with
+# no byte counted into the group that its header did not state.
+#   make -C src OPT=1 PLATFORM_OBJ_BASE=<objdir> replay-group-check RECORDINGS=<file.bin>
+.PHONY: replay-group-check
+replay-group-check: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/replay_group_check \
+		replay/test/replay_group_check.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/replay_group_check $(RECORDINGS)
+
 # A fast seek against linear play on a real recording: the private client
 # runs each tick twice (TORIRS_REPLAY_SEEK=fullsim, then fast) and every
 # --replay-digest domain is compared at the tick and 64 ticks later
