@@ -491,8 +491,10 @@ test_a_joined_fanout_completes_across_slices(void)
     }
     TEST_CHECK(finished == 40);
     /* Every loader gets its turn each pump, so the fan-out needs only a few
-     * (the read, the decode, the collect), each overrunning by its steps. */
-    TEST_CHECK(slices >= 3);
+     * (the read, the decode), each overrunning by its steps; the collect
+     * comes in the slice of the last decode, since the parent its end
+     * readies is owed its turn in that pump (TaskRunner_RunUntil). */
+    TEST_CHECK(slices >= 2);
     TEST_CHECK(runner.queue->head == NULL);
     printf("ok - a 40-load fan-out joined on the given-time queue completes in %d 2 ms slices\n",
         slices);
