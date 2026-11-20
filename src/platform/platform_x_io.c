@@ -1596,6 +1596,63 @@ cache_source_parks(enum CacheSource source)
 }
 #endif
 
+#if !defined(NDEBUG)
+/*
+ * TORIRS_IO_FAIL=t:a[,t:a...]: a fault injection, in asserts-live builds only
+ * (NDEBUG compiles it out). Every disk read of archive `a` in logical dat2
+ * table `t` (RSCACHE_DAT2_TABLE_*; `a` may be `*` for the whole table) fails
+ * as a missing archive does, so what a task does when the asset it waits for
+ * can never be served can be run on purpose: a visual load ends its task and
+ * is remembered, a required one follows its policy, and nothing waits forever.
+ * Beside TORIRS_IO_DEFER_MS below, which makes reads slow instead. Unset: off.
+ */
+static int
+io_fail_wanted(
+    int table,
+    int archive)
+{
+    static char const* spec;
+    static int read;
+    char const* at;
+
+    if( !read )
+    {
+        spec = getenv("TORIRS_IO_FAIL");
+        read = 1;
+    }
+    if( !spec || !spec[0] )
+        return 0;
+    for( at = spec; *at; )
+    {
+        char* end = NULL;
+        long const t = strtol(at, &end, 10);
+
+        if( end == at || *end != ':' )
+            return 0;
+        at = end + 1;
+        if( *at == '*' )
+        {
+            if( t == table )
+                return 1;
+            at++;
+        }
+        else
+        {
+            long const a = strtol(at, &end, 10);
+
+            if( end == at )
+                return 0;
+            if( t == table && a == archive )
+                return 1;
+            at = end;
+        }
+        if( *at == ',' )
+            at++;
+    }
+    return 0;
+}
+#endif
+
 static int
 load_cache_item_dat2(
     struct PlatformX_IO* px,
@@ -1617,6 +1674,14 @@ load_cache_item_dat2(
         return -1;
     }
 
+#if !defined(NDEBUG)
+    if( io_fail_wanted(logical_table, archive_id) )
+    {
+        TORIRS_LOG("io_fail: table=%d archive=%d failed on purpose (TORIRS_IO_FAIL)\n", logical_table, archive_id);
+        item->error_code = -1;
+        return -1;
+    }
+#endif
     {
         static int trace_enabled = -1;
         if( trace_enabled < 0 )
