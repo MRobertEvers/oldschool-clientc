@@ -12,7 +12,6 @@ ToriRS_SoundFromRSCache(
     int sound_id,
     struct RSCache_SoundEffect* effect)
 {
-    struct ToriRS_Sound* sound;
     struct RSCache_SoundPcm pcm;
     int queue_delay;
 
