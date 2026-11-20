@@ -504,6 +504,11 @@ struct ToriRS_TaskQueue
 {
     struct ToriRS_Task* head;
     struct ToriRS_Task* tail;
+    /* The newest render-blocking task (a client script) still on this queue,
+     * or NULL: the one the next script waits its turn behind
+     * (TaskRunner_AddRenderBlockingSerialTask). Cleared when it leaves the
+     * queue (ToriRS_TaskQueue_Remove). */
+    struct ToriRS_Task* serial_tail;
 };
 
 /**
@@ -1137,6 +1142,8 @@ ToriRS_TaskQueue_Remove(
         queue->head = task->next;
     if( queue->tail == task )
         queue->tail = task->prev;
+    if( queue->serial_tail == task )
+        queue->serial_tail = NULL;
 
     /*
      * A task ends with its item consumed and nothing on the wire. One that

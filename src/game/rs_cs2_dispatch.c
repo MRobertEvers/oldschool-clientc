@@ -136,8 +136,10 @@ RS_CS2_DispatchHook(
     }
     if( !task )
         return;
-    /* Enqueue only — the app's per-frame pump drives it. The task queue is a
-     * strict serial FIFO, so hook ordering is preserved across IO yields. */
+    /* Enqueue only — the app's per-frame pump drives it. Scripts are serial
+     * among themselves on any queue (TaskRunner_AddRenderBlockingSerialTask:
+     * each waits its turn behind the one before), so hook ordering is
+     * preserved across IO yields. */
     TaskRunner_AddRenderBlockingSerialTask(runner, task);
 }
 

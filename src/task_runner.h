@@ -462,17 +462,40 @@ ToriRS_TaskJob_Done(struct ToriRS_TaskJob const* job)
  * On the asset runner that is every script, hook and transmit painter
  * (game/rs_cs2_dispatch.c). On the packet queue it is every packet: an
  * ordered application IS a transaction, so app_net.c adds with this too.
+ *
+ * SERIAL among themselves, on the parallel queue too: a script waits its turn
+ * behind the script queued before it (parked on that task's `ended`, a TURN
+ * wait) and is not stepped until it has ended. The reference runs client
+ * scripts one at a time, to their end, in the order they were raised; here a
+ * script may stop for a required read, and on an overlapping queue the ones
+ * behind it then ran from what it had read and not yet written. A burst of
+ * keys typed in one frame queues one onKey script per key, the first of
+ * which stops for the chat line's procs the first time anything is typed:
+ * each read the empty line, and the line kept only the last key (G1, web and
+ * native alike). Ordinary tasks still overlap with the scripts and with each
+ * other: only render-blocking tasks form this lane.
  */
 static inline void
 TaskRunner_AddRenderBlockingSerialTask(
     struct TaskRunner* runner,
     struct ToriRS_Task* task)
 {
+    struct ToriRS_Task* ahead;
+
     assert(runner);
     assert(task);
     task->render_blocking = 1;
+    ahead = runner->queue->serial_tail;
     ToriRS_TaskQueue_Add(runner->queue, task);
+    runner->queue->serial_tail = task;
     runner->frame_settle_pending = 1;
+    /* A strict-FIFO queue never steps past its head, so only an overlapping
+     * one needs the wait made. */
+    if( runner->parallel && ahead )
+    {
+        ToriRS_TaskAskTrigger(task, TORIRS_TASK_WAIT_TURN, &ahead->ended);
+        ToriRS_TaskPark(task);
+    }
 }
 
 /* Has a task on this queue asked for a frame that has not been shown yet?
