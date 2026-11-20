@@ -78,13 +78,19 @@ return {
         t.exec("wield-throwableWeapon", t.player.equip, "rune_dart")
 
         -- One fight's margin from await_dead_engaged's eat detail (combat.lua: `lowest hp x/y`).
-        local function margin_row(name, fight, detail)
+        -- `entered` (optional) is the hitpoints the fight began with: the lowest reading covers the whole
+        -- wait, so a fight that takes nothing reads the entry hitpoints back, and the dungeon's attrition
+        -- before it is not the fight's margin. Lucien entered at 24/99 with both sharks spent on the key
+        -- path (headless, the trap Search done) and never hit; the row graded the walk, not the fight.
+        local function margin_row(name, fight, detail, entered)
             local lowest = tonumber(tostring(detail):match("lowest hp (%-?%d+)/"))
             local food_result, food_left = t.inv.count(FOOD)
-            t.check(name, lowest ~= nil and lowest >= 25 and food_result == "ok",
-                fight .. ": lowest hp " .. tostring(lowest) .. "/99 (staged ::setlevel hitpoints 99), " .. FOOD
+            local untouched = entered ~= nil and lowest ~= nil and lowest >= entered
+            t.check(name, lowest ~= nil and (lowest >= 25 or untouched) and food_result == "ok",
+                fight .. ": lowest hp " .. tostring(lowest) .. "/99 (staged ::setlevel hitpoints 99)"
+                    .. (entered ~= nil and (", entered at " .. tostring(entered)) or "") .. ", " .. FOOD
                     .. " staged 2, left " .. tostring(food_left) .. " (" .. tostring(food_result) .. ")"
-                    .. " -- margin: lowest hp >= 25")
+                    .. " -- margin: lowest hp >= 25, or the fight took none")
         end
 
         -- The web over the boots' pocket: web.rs2 [oplocu,bigweb_slashable] (knife allowed), random(2) -- a
@@ -733,6 +739,7 @@ return {
         t.ticks(5)
         t.exec("mindTrick2-box", t.chat.play, { "mesbox:You decide not to attack Lucien." })
         t.exec("mindTrick2-wearPendant", t.player.equip, "ikov_pendantofarmardyl")
+        local _, lucien_entry_hp = t.skill.read("hitpoints")
         t.exec("killLucien", t.player.attack, "ikov_lucien2", 2, 30)
         -- Lucien is level 14 (quest_ikov.npc: attack 12, strength 10, 17 hp): the last shark is kept for a real
         -- emergency, not eaten at the fire warrior's threshold (run 2 ate it at once on a 49-hp entry).
@@ -741,7 +748,7 @@ return {
         -- ticks), so the wait never re-presses (attempts 0) and the defeat page is the kill's outcome.
         local lucien_result, lucien_detail = t.npc.await_dead_engaged(60, 0, { eat = { item = FOOD, below = 30 } })
         t.note("await_dead_engaged on Lucien -> " .. tostring(lucien_result) .. ": " .. tostring(lucien_detail))
-        margin_row("killLucien.margin", "Lucien", lucien_detail)
+        margin_row("killLucien.margin", "Lucien", lucien_detail, lucien_entry_hp and lucien_entry_hp.level)
         -- The reward is paid when the defeat page is continued ([queue,ikov_lucien_defeated]): read the skills
         -- while it is up, after every hit of the kill has paid its combat xp.
         t.await({ level = function() return t.chat.kind() ~= "none" end,
