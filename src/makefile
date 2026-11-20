@@ -6485,7 +6485,7 @@ SCRIPTRUN_SRCS = torirsserver/torirs_server_scriptrun.c scriptrun/scriptrun_core
 SCRIPTRUN_SHADOW_SRCS = scriptrun/scriptrun_model.c scriptrun/scriptrun_shadow.c game/rs_server_state.c \
 	scriptrun/scriptrun_zone.c game/rs_effect_log.c \
 	varp/varp_manager.c game/rs_player_stats.c inv/inv_manager.c ui/uitree_if_store.c \
-	ui/uitree_if_models.c game/rs_chat.c game/rs_social.c game/rs_session_info.c net/session_end.c \
+	ui/uitree_if_models.c ui/uitree_kept_mounts.c game/rs_chat.c game/rs_social.c game/rs_session_info.c net/session_end.c \
 	game/rs_server_tick.c game/rs_player_ops.c game/rs_hint_arrow.c \
 	game/rs_npc_update_origin.c game/rs_interaction_mode.c world/worldview.c
 # Dedicated read-only, multi-client JS5 cache service.
@@ -6667,6 +6667,19 @@ $(TORIRSSERVER_BIN): $(TORIRSSERVER_OBJS) $(TORIRSSERVER_LINK_OBJS) | $(OBJ_DIR)
 		$(TORIRSSERVER_LINK_OBJS) \
 		-lm $(JS5_SOCKET_LIBS) $(PLATFORM_STRIP_LDFLAGS) $(TORIRSSERVER_LTO_CACHE)
 	@echo "built $(TORIRSSERVER_BIN)"
+
+# The headless client's core fed the server's own osrs242 wire bytes (encoded
+# by the RSProt codecs the 242 writer uses): IF_MOVESUB moves a mount, the
+# models set on MODEL components are kept until the slot changes group, and
+# the per-player entity setters reach its World through the packet model.
+# Links the server's objects but its main. Asserts on in the test itself.
+.PHONY: test-scriptrun-core
+test-scriptrun-core: $(TORIRSSERVER_OBJS) $(TORIRSSERVER_LINK_OBJS) | $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(LUA_DIR) $(RSPROT_INCLUDES) \
+		-o $(OBJ_DIR)/scriptrun_core_test scriptrun/test/scriptrun_core_test.c \
+		$(filter-out %/torirs_server_main.o,$(TORIRSSERVER_OBJS)) $(TORIRSSERVER_LINK_OBJS) \
+		-lm $(JS5_SOCKET_LIBS) $(PLATFORM_STRIP_LDFLAGS)
+	./$(OBJ_DIR)/scriptrun_core_test
 
 # ---- ToriRSMapEd -----------------------------------------------------------
 #

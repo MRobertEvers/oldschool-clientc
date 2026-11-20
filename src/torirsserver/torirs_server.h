@@ -1705,6 +1705,13 @@ struct ToriRSServerNpcInfo
     int transform_varp;
     int* transforms;
     int transform_count;
+    /** The overhead icon the type carries (config opcode 102, its first
+     *  entry: a sprite group and an index in it, -1 for none), as the client
+     *  reads it (torirs_npctype_from_rscache.c). The headless client's
+     *  NPC_HEADICON_SPECIFIC starts from it, as the real client's does from
+     *  its NpcType. */
+    int head_icon_group;
+    int head_icon_index;
 };
 
 /**

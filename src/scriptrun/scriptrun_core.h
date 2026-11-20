@@ -56,6 +56,7 @@
 #include "scriptrun/scriptrun_model.h"
 #include "scriptrun/scriptrun_zone.h"
 #include "ui/uitree_if_models.h"
+#include "ui/uitree_kept_mounts.h"
 
 #include <stdint.h>
 
@@ -243,10 +244,13 @@ struct ScriptrunCore
     /* The group in each slot, as the bot's mounts stand: what an IF_OPENSUB
      * or IF_CLOSESUB names as the group leaving (RS_ServerState_SlotGroupLeaves
      * then drops its IF_SETEVENTS arming, and its texts, hides and colours
-     * when a different group takes the slot). IF_OPENTOP clears the table;
-     * IF_MOVESUB is not followed. */
+     * when a different group takes the slot). IF_MOVESUB relinks a mount.
+     * IF_OPENTOP moves the table into `kept_mounts`, the real client's own
+     * store of the mounts kept under a top that is not the root, from which
+     * the IF_MOVESUBs after it, and a top that returns, take them back. */
     struct ScriptrunMount mounts[SCRIPTRUN_MOUNTS];
     int mount_count;
+    struct UITreeKeptMounts kept_mounts;
     /* The last RUNCLIENTSCRIPT of `menu_script` (chatbox_multi_init, 58: the
      * chatmenu's title and rows), kept whatever runs after it -- a stat-boost
      * timer (4517, 4518) sent on the menu's tick used to replace it and empty

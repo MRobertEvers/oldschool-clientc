@@ -546,17 +546,20 @@ state_npc_headicon_specific(
         group[i] = npc->headicon_custom ? npc->headicon_group[i] : -1;
         index[i] = npc->headicon_custom ? npc->headicon_index[i] : -1;
     }
-    if( !npc->headicon_custom )
+    if( !npc->headicon_custom && state->provider )
     {
-        struct ToriRS_Npctype* type;
+        struct ToriRS_Npctype* type = CacheProvider_NpctypeGet(state->provider, npc->npc_id);
 
-        assert(state->provider);
-        type = CacheProvider_NpctypeGet(state->provider, npc->npc_id);
         if( type )
         {
             group[0] = type->head_icon_group;
             index[0] = type->head_icon_index;
         }
+    }
+    else if( !npc->headicon_custom )
+    {
+        assert(state->npc_head_icon);
+        (void)state->npc_head_icon(state->npc_head_icon_ctx, npc->npc_id, &group[0], &index[0]);
     }
     group[pkt->slot] = pkt->group;
     index[pkt->slot] = pkt->index;
