@@ -4722,6 +4722,16 @@ test-osrs241-npcinfo-large: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
 		$(RSPROT_INFO_OBJS) -lm
 	./$(OBJ_DIR)/osrs241_npc_info_large_test
 
+# NPC_INFO's typed customisations read their colours by the npc's type: two
+# real recorded frames (rev 226, rev 234) and a rev 222 retype in the record.
+.PHONY: test-npc-info-typed
+test-npc-info-typed: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/npc_info_typed_custom_test $(TORIMEM_SRCS) \
+		net/rev/test/npc_info_typed_custom_test.c \
+		net/proto/proto_info.c \
+		$(RSPROT_INFO_OBJS) -lm
+	./$(OBJ_DIR)/npc_info_typed_custom_test
+
 # PLAYER_INFO's rev-241 tail: rsprot's 241 writer against its 241 reader,
 # block by block (the face angle and TRANSPARENCY above all).
 test-osrs241-player-info: $(OBJ_DIR) $(RSPROT_INFO_OBJS)

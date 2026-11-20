@@ -199,6 +199,19 @@ RS_EntityApply_NpcTypes(
     int* out,
     int cap);
 
+/**
+ * The wire type (the shell the server named, base_npc_id) of the npc that
+ * `view`'s list holds at index `old`, as it stands before the next NPC_INFO
+ * is applied; -1 when that position names no npc this side has. What a
+ * decoder's type question (GameProtoNpcTypeLengths, `old`) is answered from.
+ */
+int
+RS_EntityApply_NpcOldType(
+    struct World* world,
+    struct RS_EntitySync* esync,
+    int view,
+    int old);
+
 /* ---- the type rules, for the makers ---- */
 
 /** A new npc's type facts (after World_NpcSpawn gave it the type's size and

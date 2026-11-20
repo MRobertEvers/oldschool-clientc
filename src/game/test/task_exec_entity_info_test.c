@@ -1264,6 +1264,200 @@ test_npc_body_custom_recolours_without_models(void)
     fixture_free(&fx);
 }
 
+/*
+ * A1: a TYPED customisation (BodyCustomisationV2: rev 239's 0x800000, rev
+ * 242's 0x10000) carries as many recolours and retextures as the npc's TYPE
+ * has, with no count on the wire (deob Statics ~47320: field1237.field5139 /
+ * field5158 .length). The reader asks the client; an unanswered question used
+ * to end the whole packet there, so every npc after it went un-updated. Two
+ * kept npcs: slot 6 (type 500, two recolours and one retexture) with the
+ * typed block, then slot 7 with an overhead line.
+ */
+enum
+{
+    A1_TYPE_KEPT = 500,
+    A1_TYPE_COLD = 700,
+    A1_TYPE_ABSENT = 701,
+};
+
+static int g_a1_cold_loads;
+static struct EntityFixture* g_a1_fx;
+
+static void
+a1_npctype_lists(
+    struct ToriRS_Npctype* type,
+    int recolours,
+    int retextures)
+{
+    type->recolor_count = recolours;
+    type->retexture_count = retextures;
+    if( recolours > 0 )
+    {
+        type->recolors_from = ToriMem_Calloc(ToriMem_Assets(), (size_t)recolours, sizeof(int));
+        type->recolors_to = ToriMem_Calloc(ToriMem_Assets(), (size_t)recolours, sizeof(int));
+    }
+    if( retextures > 0 )
+    {
+        type->retextures_from = ToriMem_Calloc(ToriMem_Assets(), (size_t)retextures, sizeof(int));
+        type->retextures_to = ToriMem_Calloc(ToriMem_Assets(), (size_t)retextures, sizeof(int));
+    }
+}
+
+/* The npc config loader of the "not resident when the packet is read" case:
+ * the cold type turns up when it is loaded; the absent one never does. */
+static struct ToriRS_Task*
+a1_npc_load(
+    struct CacheProvider* provider,
+    int npc_id)
+{
+    (void)provider;
+    if( npc_id == A1_TYPE_COLD )
+    {
+        g_a1_cold_loads++;
+        a1_npctype_lists(fixture_npctype(g_a1_fx, A1_TYPE_COLD, -1), 2, 1);
+    }
+    return NULL;
+}
+
+/* Rev 239: flag word 0x40 | 0x800 | 0x800000 (0x40 and 0x800 carry the next
+ * bytes), the block's flag g1, recolours g2 big-endian (method13235),
+ * retextures g2 little-endian (method13175); then SAY (0x2). Rev 242: flag
+ * word 0x4 | 0x400 | 0x10000, flag g1_neg, both lists g2_12; SAY is 0x10. */
+static int
+a1_typed_packet(
+    uint8_t* out,
+    int cap,
+    int rev,
+    int recolours,
+    int retextures)
+{
+    RsprotBuf b;
+
+    rsprot_buf_wrap(&b, out, cap);
+    /* Two kept npcs, each stood still with extended info (1 00), then the
+     * 0xFFFF terminator, padded to the byte. */
+    rsprot_p1(&b, 0x02);
+    rsprot_p1(&b, 0x93); /* 100 100 11 */
+    rsprot_p1(&b, 0xFF);
+    rsprot_p1(&b, 0xFC); /* 111111, then the pad */
+    if( rev == 239 )
+    {
+        rsprot_p1(&b, 0x40);
+        rsprot_p1(&b, 0x08);
+        rsprot_p1(&b, 0x80);
+        rsprot_p1(&b, 0x4 | 0x8);
+        for( int i = 0; i < recolours; i++ )
+            rsprot_p2_12(&b, 1111 * (i + 1));
+        for( int i = 0; i < retextures; i++ )
+            rsprot_p2_21(&b, 3333 + i);
+        rsprot_p1(&b, 0x02);
+    }
+    else
+    {
+        rsprot_p1(&b, 0x04);
+        rsprot_p1(&b, 0x04);
+        rsprot_p1(&b, 0x01);
+        rsprot_p1_neg(&b, 0x4 | 0x8);
+        for( int i = 0; i < recolours; i++ )
+            rsprot_p2_12(&b, 1111 * (i + 1));
+        for( int i = 0; i < retextures; i++ )
+            rsprot_p2_12(&b, 3333 + i);
+        rsprot_p1(&b, 0x10);
+    }
+    rsprot_pjstr(&b, "after");
+    TEST_ASSERT(b.err == 0, "the packet fits its buffer");
+    return b.wpos;
+}
+
+static void
+test_npc_typed_custom_reads_the_rest_of_the_packet(void)
+{
+    static uint8_t packet[64];
+    static struct ToriRS_Network net;
+    int const revs[2] = { 239, 242 };
+
+    printf("TEST: a typed customisation with recolours reads its type's counts; the packet goes on\n");
+    for( int r = 0; r < 2; r++ )
+    {
+        struct EntityFixture fx;
+        struct WorldEntity_NPC* npc;
+        int len;
+
+        fixture_init(&fx);
+        net.rev = revs[r] == 239 ? GameProtoRev_OSRS239() : GameProtoRev_OSRS242();
+        fx.app.net = &net;
+        a1_npctype_lists(fixture_npctype(&fx, A1_TYPE_KEPT, -1), 2, 1);
+        fixture_npctype(&fx, 501, -1);
+        register_npc(&fx.app, 301, A1_TYPE_KEPT, 6, 30, 30);
+        register_npc(&fx.app, 302, 501, 7, 31, 30);
+
+        len = a1_typed_packet(packet, (int)sizeof(packet), revs[r], 2, 1);
+        run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+        npc = npc_in_slot(&fx.app, 6);
+        TEST_ASSERT(npc && npc->body_custom.active, "the typed block is applied");
+        TEST_ASSERT(npc && npc->body_custom.recolour_count == 2 && npc->body_custom.recolours &&
+                        npc->body_custom.recolours[0] == 1111 && npc->body_custom.recolours[1] == 2222,
+            "with as many recolours as its type has, as sent");
+        TEST_ASSERT(npc && npc->body_custom.retexture_count == 1 && npc->body_custom.retextures &&
+                        npc->body_custom.retextures[0] == 3333,
+            "and its retexture");
+        npc = npc_in_slot(&fx.app, 7);
+        TEST_ASSERT(npc && strcmp(npc->chat.message, "after") == 0,
+            "the npc after it is updated: the read did not stop");
+        fixture_free(&fx);
+    }
+}
+
+/* The type's config is not resident when the packet is read: the packet waits
+ * for it and is read again (a type whose config never comes reads as the
+ * reference's default type, with no lists). */
+static void
+test_npc_typed_custom_waits_for_its_type(void)
+{
+    static uint8_t packet[64];
+    static struct ToriRS_Network net;
+    struct EntityFixture fx;
+    struct WorldEntity_NPC* npc;
+    int len;
+
+    printf("TEST: a typed customisation of a type not yet resident waits for its config\n");
+    fixture_init(&fx);
+    g_a1_fx = &fx;
+    g_a1_cold_loads = 0;
+    fx.vtable.Task_NpcLoad = a1_npc_load;
+    net.rev = GameProtoRev_OSRS242();
+    fx.app.net = &net;
+    fixture_npctype(&fx, 501, -1);
+    register_npc(&fx.app, 301, A1_TYPE_COLD, 6, 30, 30);
+    register_npc(&fx.app, 302, 501, 7, 31, 30);
+    len = a1_typed_packet(packet, (int)sizeof(packet), 242, 2, 1);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    TEST_ASSERT(g_a1_cold_loads == 1, "the config is loaded once");
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && npc->body_custom.recolour_count == 2 && npc->body_custom.retexture_count == 1,
+        "the block is read with the loaded type's counts");
+    npc = npc_in_slot(&fx.app, 7);
+    TEST_ASSERT(npc && strcmp(npc->chat.message, "after") == 0, "and the packet is read to its end");
+    fixture_free(&fx);
+
+    fixture_init(&fx);
+    g_a1_fx = &fx;
+    fx.vtable.Task_NpcLoad = a1_npc_load;
+    fx.app.net = &net;
+    fixture_npctype(&fx, 501, -1);
+    register_npc(&fx.app, 301, A1_TYPE_ABSENT, 6, 30, 30);
+    register_npc(&fx.app, 302, 501, 7, 31, 30);
+    len = a1_typed_packet(packet, (int)sizeof(packet), 242, 0, 0);
+    run_task_to_done(CreateTask_ExecNpcInfo(&fx.app, packet, len, 0));
+    npc = npc_in_slot(&fx.app, 6);
+    TEST_ASSERT(npc && npc->body_custom.active && npc->body_custom.recolour_count == 0,
+        "a type the cache lacks has no lists");
+    npc = npc_in_slot(&fx.app, 7);
+    TEST_ASSERT(npc && strcmp(npc->chat.message, "after") == 0, "and the packet is read to its end");
+    fixture_free(&fx);
+    g_a1_fx = NULL;
+}
+
 /* E12, flags 0x10 and 0x20: a body customisation that mirrors the local
  * player is remounted when the local player's body changes, and one that is
  * a player composition draws nothing of the npc's type and does not follow
@@ -1730,6 +1924,8 @@ main(void)
     test_npc_body_landing_keeps_body_custom();
     test_npc_body_custom_keeps_every_wire_model();
     test_npc_body_custom_recolours_without_models();
+    test_npc_typed_custom_reads_the_rest_of_the_packet();
+    test_npc_typed_custom_waits_for_its_type();
     test_npc_body_custom_mirror_and_player();
     test_npc_body_custom_player_draws_its_models();
     test_npc_freeze_reaches_the_world();

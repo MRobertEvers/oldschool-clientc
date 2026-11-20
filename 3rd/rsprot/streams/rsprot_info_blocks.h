@@ -44,6 +44,14 @@ typedef struct RsprotInfoBlocks
     /* NPC_INFO only: the type lookup CUSTOM_TYPED needs (NULL ends the tail). */
     RsprotNpcTypeLengths lengths;
     void *ctx;
+    /* NPC_INFO only: the npc this record is for. */
+    const RsprotNpcExtended *npc;
+    /* NPC_INFO only: this record's TRANSFORMATION has been read, and the type
+     * it named: the type a later block of the record reads against (the
+     * reference's npc type field, written by the transformation in record
+     * order). Cleared per record by rsprot_info_flags. */
+    int retyped;
+    int32_t retyped_type;
 } RsprotInfoBlocks;
 
 /* --- encodings ------------------------------------------------------------ */

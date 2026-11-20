@@ -98,7 +98,11 @@ EntityInfoScratch_Read(
     assert(list);
     assert(list->ops);
     assert(reader);
-    assert(reader->read);
+    /* One reader, of either shape. */
+    if( reader->npc_read )
+        assert(!reader->read);
+    else
+        assert(reader->read);
     stateful = reader->state_size != NULL;
     if( stateful )
     {
@@ -118,7 +122,9 @@ EntityInfoScratch_Read(
     }
     for( ;; )
     {
-        count = reader->read(data, len, list);
+        count = reader->npc_read
+                    ? reader->npc_read(data, len, reader->lengths, reader->lengths_ctx, list)
+                    : reader->read(data, len, list);
         if( !list->overflow )
             return count;
         grow(slot, list);

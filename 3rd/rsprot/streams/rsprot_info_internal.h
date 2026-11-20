@@ -72,13 +72,24 @@ int32_t rsprot_info_npc_delta(RsprotBuf *b, int bits);
 
 #define RSPROT_INFO_NPC_EXTENDED_MAX 512
 
+/** One npc whose extended info follows the sections. `position` is its index
+ *  in the list this packet rebuilds (SET_EXT's value). Exactly one of the other
+ *  two says who it is: `old`, its index in the host's list before the packet
+ *  (an npc kept), or `type`, the type its entering-view record named (a
+ *  newcomer); the other is -1. */
+typedef struct RsprotNpcExtended
+{
+    int position;
+    int old;
+    int type;
+} RsprotNpcExtended;
+
 /** The high-resolution section and the entering-view records, which read the
  *  same at every revision but for `record`: writes the movement ops and lists
- *  in `extended` the list positions whose extended info follows. Returns how
- *  many. */
+ *  in `extended` the npcs whose extended info follows. Returns how many. */
 int rsprot_info_npc_sections(
     RsprotBuf *b, int delta_bits, RsprotNpcRecordRead record, RsprotInfoList *out,
-    int extended[RSPROT_INFO_NPC_EXTENDED_MAX]);
+    RsprotNpcExtended extended[RSPROT_INFO_NPC_EXTENDED_MAX]);
 
 /* --- WORLDENTITY_INFO: rsprot_info_worldentity.c ---------------------------------- */
 

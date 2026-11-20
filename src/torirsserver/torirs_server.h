@@ -1705,6 +1705,11 @@ struct ToriRSServerNpcInfo
     int transform_varp;
     int* transforms;
     int transform_count;
+    /** NpcType recolour and retexture source counts (config opcodes 40, 41):
+     *  how many colours a typed NPC_INFO customisation block carries for the
+     *  type, which the headless client's reader asks. */
+    int recolour_count;
+    int retexture_count;
 };
 
 /**

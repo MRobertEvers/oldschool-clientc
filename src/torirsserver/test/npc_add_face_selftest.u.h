@@ -62,7 +62,7 @@ selftest_add_face_read(
         int count;
 
         rsprot_info_list_init(&list, ops, 4096, g_selftest_info_bytes, (int)sizeof(g_selftest_info_bytes));
-        count = rev->npc_info_read(capture.packets[at].data, capture.packets[at].len, &list);
+        count = rev->npc_info_read(capture.packets[at].data, capture.packets[at].len, NULL, NULL, &list);
         for( int i = 0; i < count; i++ )
         {
             const struct RsprotInfoOp* op = &ops[i];

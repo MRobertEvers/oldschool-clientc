@@ -197,6 +197,8 @@ rsprot_info_flags(RsprotInfoBlocks *t, int who, const uint32_t ext[3], uint32_t 
     t->who = who;
     t->flag = flag;
     t->move_speed_read = 0;
+    t->retyped = 0;
+    t->retyped_type = -1;
     return 1;
 }
 
@@ -417,6 +419,10 @@ rsprot_info_transformation(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoVa
     int32_t type = RD(value);
 
     rsprot_info_emit(t->out, RSPROT_OP_CHANGE_TYPE)->change_type.npc_type = id_or_none(type);
+    if (!t->b->err) {
+        t->retyped = 1;
+        t->retyped_type = id_or_none(type);
+    }
     return block_end(t, before, RSPROT_IK_TRANSFORMATION, bit);
 }
 
@@ -925,6 +931,46 @@ body(RsprotInfoBlocks *t, RsprotInfoOpKind kind, int32_t flag)
     return b;
 }
 
+/* The recolour and retexture counts of the type a typed block reads against:
+ * the type this record's TRANSFORMATION named if it came first, else the
+ * newcomer's or the kept npc's (the reference reads its npc's type field as
+ * it stands when the block is read: deob Statics ~47320, field1237.field5139
+ * / field5158, which the transformation block writes in record order). 0 and
+ * the counts when the host answered; 0 when it cannot yet. A count is a
+ * config's g1, so one past 255 is not a type's, and neither array may claim
+ * more bytes than the payload has left. */
+static int
+typed_lengths(RsprotInfoBlocks *t, int head, int flag, int *recol, int *retex)
+{
+    int old = -1;
+    int type = -1;
+    int need = 0;
+
+    *recol = 0;
+    *retex = 0;
+    if (!t->lengths || !t->npc)
+        return 0;
+    if (t->retyped)
+        type = t->retyped_type;
+    else {
+        old = t->npc->old;
+        type = t->npc->type;
+    }
+    if (!t->lengths(t->ctx, old, type, head, recol, retex))
+        return 0;
+    if (*recol < 0 || *recol > 255 || *retex < 0 || *retex > 255)
+        return 0;
+    if ((flag & 0x4) != 0)
+        need += 2 * *recol;
+    if ((flag & 0x8) != 0)
+        need += 2 * *retex;
+    if (need > rsprot_buf_readable(t->b)) {
+        t->b->err |= RSPROT_BUF_ERR_UNDERFLOW;
+        return 0;
+    }
+    return 1;
+}
+
 /* Flag byte: 0x1 reset (nothing follows), 0x2 counted models, 0x4 / 0x8
  * recolours / retextures as many as the npc TYPE has, 0x10 a mirror byte. */
 static int
@@ -956,9 +1002,7 @@ custom_typed_block(RsprotInfoBlocks *t, uint32_t bit, RsprotInfoKind kind,
         int recol = 0;
         int retex = 0;
 
-        if (!t->lengths ||
-            !t->lengths(t->ctx, t->who, kind == RSPROT_IK_HEAD_CUSTOM_TYPED, &recol, &retex) ||
-            recol < 0 || retex < 0) {
+        if (!typed_lengths(t, kind == RSPROT_IK_HEAD_CUSTOM_TYPED, flag, &recol, &retex)) {
             t->b->err |= RSPROT_BUF_ERR_RANGE; /* no way to step an array of unknown length */
             return block_end(t, before, kind, bit);
         }

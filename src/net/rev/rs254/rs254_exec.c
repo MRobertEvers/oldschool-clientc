@@ -3627,6 +3627,15 @@ appear(uint8_t const* d, int l, struct PktPlayerAppearance* o)
     return PktPlayerAppearance_DecodeAs(o, APPEARANCE_ENC_CLASSIC, d, l);
 }
 
+/* The classic npc stream has no typed customisation: nothing asks for a type. */
+static int
+ninfo(uint8_t const* d, int l, GameProtoNpcTypeLengths n, void* c, struct RsprotInfoList* o)
+{
+    (void)n;
+    (void)c;
+    return npc_info_rs254(d, l, o);
+}
+
 static struct GameProtoRevTable k_rev = {
     .name = "rs254",
     .number = 254,
@@ -3651,7 +3660,7 @@ static struct GameProtoRevTable k_rev = {
     .component_id_bytes = 0,
     .reconnect_kind = NET_RECONNECT_CREDS,
     .player_info_read = player_info_rs254,
-    .npc_info_read = npc_info_rs254,
+    .npc_info_read = ninfo,
     .chat_unpack = wordpack_unpack_bytes,
     .chat_pack = wordpack_pack_bytes,
     .chat_says = wordpack_says,

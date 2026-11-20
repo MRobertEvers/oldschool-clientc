@@ -1811,6 +1811,34 @@ RS_EntityApply_NpcInfo(
 }
 
 int
+RS_EntityApply_NpcOldType(
+    struct World* world,
+    struct RS_EntitySync* esync,
+    int view,
+    int old)
+{
+    int* list;
+    int* count;
+    int cap;
+    int world_idx = -1;
+    int element_id = -1;
+    struct WorldEntity_NPC* npc;
+
+    assert(world);
+    assert(esync);
+    assert(view >= 0);
+    assert(old >= 0);
+    RS_EntitySync_NpcList(esync, view, &list, &count, &cap);
+    (void)cap;
+    if( old >= *count || list[old] < 0 )
+        return -1;
+    if( !RS_EntitySync_FindNpc(esync, list[old], &world_idx, &element_id) || world_idx < 0 )
+        return -1;
+    npc = World_EntityPoolGet(&world->entities.npc, world_idx);
+    return npc ? npc->base_npc_id : -1;
+}
+
+int
 RS_EntityApply_NpcTypes(
     struct RsprotInfoOp const* ops,
     int count,

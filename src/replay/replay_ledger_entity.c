@@ -438,12 +438,13 @@ npc_info(
     {
         assert(ledger->rev->npc_info_read_large);
         count = ledger->rev->npc_info_read_large(ledger->rec->data + fr->offset, (int)fr->length,
-                                                 &list);
+                                                 NULL, NULL, &list);
     }
     else
     {
         assert(ledger->rev->npc_info_read);
-        count = ledger->rev->npc_info_read(ledger->rec->data + fr->offset, (int)fr->length, &list);
+        count = ledger->rev->npc_info_read(ledger->rec->data + fr->offset, (int)fr->length, NULL, NULL,
+                                           &list);
     }
     if( building )
     {
@@ -1100,12 +1101,12 @@ npc_op_resolve(
         cache->frame = f;
         if( name == PKT_NAME_NPC_INFO_LARGE )
             cache->count = ledger->rev->npc_info_read_large(ledger->rec->data + fr->offset,
-                                                            (int)fr->length, &cache->list);
+                                                            (int)fr->length, NULL, NULL, &cache->list);
         else
         {
             assert(name == PKT_NAME_NPC_INFO);
             cache->count = ledger->rev->npc_info_read(ledger->rec->data + fr->offset,
-                                                      (int)fr->length, &cache->list);
+                                                      (int)fr->length, NULL, NULL, &cache->list);
         }
     }
     if( index >= cache->count )

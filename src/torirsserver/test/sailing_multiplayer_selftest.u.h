@@ -27,7 +27,7 @@ osrs239_npc_info_read_ops(const uint8_t* data, int len, struct RsprotInfoOp* ops
     RsprotInfoList list;
 
     rsprot_info_list_init(&list, ops, cap, g_selftest_info_bytes, (int)sizeof(g_selftest_info_bytes));
-    return GameProtoRev_OSRS239()->npc_info_read(data, len, &list);
+    return GameProtoRev_OSRS239()->npc_info_read(data, len, NULL, NULL, &list);
 }
 
 struct SailingClientProbe

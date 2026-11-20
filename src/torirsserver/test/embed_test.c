@@ -475,7 +475,7 @@ absorb_npc_info(
     int n;
 
     rsprot_info_list_init(&list, ops, (int)(sizeof(ops) / sizeof(ops[0])), bytes, sizeof(bytes));
-    n = peer->net.rev->npc_info_read(data, length, &list);
+    n = peer->net.rev->npc_info_read(data, length, NULL, NULL, &list);
 
     for( int i = 0; i < n; i++ )
     {

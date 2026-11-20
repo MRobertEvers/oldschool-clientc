@@ -263,6 +263,8 @@ npc_load_record(
     g_npcs[id].combat_level = npc->combat_level;
     g_npcs[id].size = npc->size > 0 ? npc->size : 1;
     g_npcs[id].turnspeed = npc->rotation_speed;
+    g_npcs[id].recolour_count = npc->recolor_count;
+    g_npcs[id].retexture_count = npc->retexture_count;
     /* Config opcode 18. Stored unconditionally, above the `name` gate the
      * accessor applies: a nameless multinpc instance still dispatches, and 1,585
      * of the categorised records in this cache have no name. 0 is the decoder's

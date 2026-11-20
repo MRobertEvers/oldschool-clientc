@@ -426,7 +426,7 @@ Task_ExecPlayerInfo_Run(
     if( !self->ops )
     {
         struct GameProtoRevTable const* rev;
-        struct EntityInfoReader reader;
+        struct EntityInfoReader reader = { 0 };
 
         EntityInfoScratch_Borrow(&app->entity_info_scratch.player, &self->info);
         /* The revision's reader (GameProtoRevTable.player_info_read). Every
@@ -546,10 +546,125 @@ struct Task_ExecNpcInfo
     /* The session it was sent in (RS_EntitySync::epoch). */
     uint32_t epoch;
 
+    /* The npc types a typed customisation block asked about whose configs
+     * were not resident: the read stopped there, so they are awaited and the
+     * packet read again (npcinfo_type_lengths). The list keeps every type
+     * this packet awaited; `missing_count` of them, from `missing_from`, are
+     * the ones the last read asked for. */
+    int* missing;
+    int missing_from;
+    int missing_count;
+    int missing_cap;
+    int missing_i;
+    int missing_resolved;
+
     uint64_t bd_start; /* TORIRS_NPCINFO_BREAKDOWN only */
     uint64_t bd_decode;
     uint64_t bd_await;
 };
+
+/* 1 when this packet has already awaited `npc_type`'s config. */
+static int
+npcinfo_awaited(
+    struct Task_ExecNpcInfo const* self,
+    int npc_type)
+{
+    for( int i = 0; i < self->missing_from; i++ )
+        if( self->missing[i] == npc_type )
+            return 1;
+    return 0;
+}
+
+static void
+npcinfo_missing_add(
+    struct Task_ExecNpcInfo* self,
+    int npc_type)
+{
+    int end = self->missing_from + self->missing_count;
+
+    for( int i = self->missing_from; i < end; i++ )
+        if( self->missing[i] == npc_type )
+            return;
+    if( end == self->missing_cap )
+    {
+        int cap = self->missing_cap ? self->missing_cap * 2 : 8;
+        int* grown = ToriMem_Calloc(ToriMem_Session(), (size_t)cap, sizeof(int));
+
+        assert(grown);
+        if( end > 0 )
+            memcpy(grown, self->missing, (size_t)end * sizeof(int));
+        ToriMem_Free(ToriMem_Session(), self->missing);
+        self->missing = grown;
+        self->missing_cap = cap;
+    }
+    self->missing[end] = npc_type;
+    self->missing_count++;
+}
+
+/*
+ * The typed customisation blocks' question (GameProtoNpcTypeLengths): the
+ * recolour and retexture counts of the type the block reads against, from its
+ * config. A config that is not resident yet cannot answer: the type is noted
+ * and the read stops there, to be read again once it is. One that is still
+ * not here once it was awaited (the cache has no such type) answers as the
+ * reference's default type, with no lists: each type is awaited at most once.
+ */
+static int
+npcinfo_type_lengths(
+    void* ctx,
+    int old,
+    int npc_type,
+    int head,
+    int* recolours,
+    int* retextures)
+{
+    struct Task_ExecNpcInfo* self = ctx;
+    struct App* app = self->app;
+    struct ToriRS_Npctype* npctype;
+
+    (void)head;
+    *recolours = 0;
+    *retextures = 0;
+    if( npc_type < 0 && old >= 0 )
+    {
+        npc_type = RS_EntityApply_NpcOldType(app->world, &app->esync, self->view, old);
+        if( npc_type < 0 )
+            return 0; /* no npc this side has: nothing to read the arrays by */
+    }
+    if( npc_type < 0 )
+        return 1;
+    npctype = CacheProvider_NpctypeGet(app->provider, npc_type);
+    if( npctype )
+    {
+        *recolours = npctype->recolor_count;
+        *retextures = npctype->retexture_count;
+        return 1;
+    }
+    if( npcinfo_awaited(self, npc_type) )
+        return 1;
+    npcinfo_missing_add(self, npc_type);
+    return 0;
+}
+
+static void
+npcinfo_decode(struct Task_ExecNpcInfo* self)
+{
+    struct App* app = self->app;
+    struct GameProtoRevTable const* rev;
+    /* The npc stream keeps no state across packets. */
+    struct EntityInfoReader reader = { 0 };
+
+    assert(app->net);
+    rev = app->net->rev;
+    /* Only a table that names NPC_INFO_LARGE routes one here. */
+    reader.npc_read = self->large ? rev->npc_info_read_large : rev->npc_info_read;
+    assert(reader.npc_read);
+    reader.lengths = npcinfo_type_lengths;
+    reader.lengths_ctx = self;
+    self->missing_count = 0;
+    self->op_count = EntityInfoScratch_Read(
+        &app->entity_info_scratch.npc, &self->info, &reader, self->data, self->length);
+}
 
 static int
 Task_ExecNpcInfo_Run(
@@ -565,18 +680,25 @@ Task_ExecNpcInfo_Run(
     /* A replay keyframe's list arrives decoded (CreateTask_ExecNpcInfoOps). */
     if( !self->ops )
     {
-        struct GameProtoRevTable const* rev;
-        /* The npc stream keeps no state across packets. */
-        struct EntityInfoReader reader = { 0 };
-
         EntityInfoScratch_Borrow(&app->entity_info_scratch.npc, &self->info);
-        assert(app->net);
-        rev = app->net->rev;
-        /* Only a table that names NPC_INFO_LARGE routes one here. */
-        reader.read = self->large ? rev->npc_info_read_large : rev->npc_info_read;
-        assert(reader.read);
-        self->op_count = EntityInfoScratch_Read(
-            &app->entity_info_scratch.npc, &self->info, &reader, self->data, self->length);
+        /* A typed customisation block reads as many colours as its npc's type
+         * has. A type whose config is not here yet stopped the read at its
+         * block: await each such config, then read the whole packet again
+         * (the stream is stateless). A type is awaited once: afterwards it
+         * answers from its config or as having none, so every pass settles
+         * the types it asked about and reaches further or completes. */
+        for( ;; )
+        {
+            npcinfo_decode(self);
+            if( self->missing_count == 0 )
+                break;
+            for( self->missing_i = self->missing_from;
+                 self->missing_i < self->missing_from + self->missing_count;
+                 self->missing_i++ )
+                PT_TASK_AWAITSELF_IF(CreateTask_NpcMultiResolve(
+                    app, self->missing[self->missing_i], &self->missing_resolved));
+            self->missing_from += self->missing_count;
+        }
         self->ops = self->info.ops;
     }
     self->bd_decode = BD_T0();
@@ -648,6 +770,7 @@ Task_ExecNpcInfo_Free(struct ToriRS_Task* base)
     EntityInfoScratch_Release(&self->app->entity_info_scratch.npc, &self->info);
     ToriMem_Free(ToriMem_Session(), self->types);
     ToriMem_Free(ToriMem_Session(), self->resolved);
+    ToriMem_Free(ToriMem_Session(), self->missing);
     ToriMem_Free(ToriMem_Session(), self);
 }
 

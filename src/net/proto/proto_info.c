@@ -23,11 +23,13 @@ proto_info_npc_read(
     RsprotNpcInfoReadFn read,
     uint8_t const* data,
     int len,
+    RsprotNpcTypeLengths lengths,
+    void* ctx,
     RsprotInfoList* out)
 {
     assert(read);
     assert(out);
-    return read(data, len, NULL, NULL, out);
+    return read(data, len, lengths, ctx, out);
 }
 
 void
