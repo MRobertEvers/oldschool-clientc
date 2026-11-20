@@ -349,7 +349,7 @@ app_draw_viewport_message(
     {
         if( font_cache_id >= 0 )
             (void)Assets_Want(
-                app->assets, AssetKey_Make(ASSET_KIND_CONFIG, font_cache_id, ASSET_CONFIG_FONT), NULL);
+                app->assets, AssetKey_Make(ASSET_KIND_CONFIG, font_cache_id, ASSET_CONFIG_FONT));
         scene_id = app_minimenu_font_scene_id(app);
     }
     if( scene_id < 0 )

@@ -228,7 +228,7 @@ app_world_load_seq(
 {
     if( seq_id < 0 )
         return;
-    (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, seq_id, 0), NULL);
+    (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, seq_id, 0));
 }
 
 /* app_world_apply_seq for a sequence that started on world cycle

@@ -112,7 +112,7 @@ UITreeAnim_RequestMissing(
             continue;
         /* Never a silent stop: the tracker this replaced recorded nothing
          * once it held 64 ids, and every later id was queued every tick. */
-        (void)Assets_Want(assets, AssetKey_Make(ASSET_KIND_SEQUENCE, seq, 0), NULL);
+        (void)Assets_Want(assets, AssetKey_Make(ASSET_KIND_SEQUENCE, seq, 0));
         requested++;
     }
     return requested;

@@ -207,7 +207,7 @@ design_preview_rebuild(struct App* app)
         /* Wanted every tick it is missing; the assets table holds the one
          * load (a window of 64 ids here re-queued past it, and a model whose
          * load failed was never asked for again until the design changed). */
-        (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_MODEL, model_ids[i], 0), NULL);
+        (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_MODEL, model_ids[i], 0));
     }
     if( missing )
         return 0; /* retry next tick, like the reference's checkModel() gate */

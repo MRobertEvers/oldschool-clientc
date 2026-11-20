@@ -162,7 +162,7 @@ app_skybox_handle(struct App* app)
             }
         }
         else
-            (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SKYBOX, id, 0), NULL);
+            (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SKYBOX, id, 0));
     }
     drawn = SkyboxSlot_Model(&app->skybox);
     if( drawn )

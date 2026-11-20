@@ -238,7 +238,7 @@ app_sailing_register_arrows(
         {
             /* The assets table holds the one load (a flag per arrow asked
              * once, and a failed load was never asked for again). */
-            (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_MODEL, model_id, 0), NULL);
+            (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_MODEL, model_id, 0));
             continue;
         }
         int element = RS_SailingHud_ArrowElement(&app->sailing_hud, i);

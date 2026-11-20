@@ -2065,7 +2065,7 @@ Task_ExecNpcInfo_Run(
                  * load both of them asked for (they each queued their own). */
                 if( self->pending_seq >= 0 )
                     (void)Assets_Want(
-                        app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, self->pending_seq, 0), NULL);
+                        app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, self->pending_seq, 0));
             }
         }
     }

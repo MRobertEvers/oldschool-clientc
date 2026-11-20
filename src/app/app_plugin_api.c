@@ -40,7 +40,7 @@ App_LootNotifyKill(
         cost = obj->cost;
     }
     else if( app->provider )
-        (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_CONFIG, obj_id, ASSET_CONFIG_OBJ), NULL);
+        (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_CONFIG, obj_id, ASSET_CONFIG_OBJ));
 
     int event_id = app->loot.next_event_id++;
     LootStore_AddKillLoot(&app->loot, source_name, obj_id, qty, cost, event_id);

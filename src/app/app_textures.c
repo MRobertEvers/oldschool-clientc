@@ -50,8 +50,8 @@ app_tex_trace_frame(void)
  * is whatever app->bridge holds when it lands (a texture is not bound to a
  * scene serial: a rebuild wants the same ids again and a published one is
  * kept). A load that ended without it is FAILED, which the table remembers
- * (it was texture_failed[2048], which forgot every id past 2047). It was the
- * table's last callback waiter but the music install's. */
+ * (it was texture_failed[2048], which forgot every id past 2047). It was a
+ * callback waiter of the table's. */
 enum
 {
     APP_TASK_TEXTURE_PUBLISH = RS_PENDING_KINDS_ASSETS_FIRST + 0,

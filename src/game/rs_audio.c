@@ -555,7 +555,7 @@ audio_want_sound(
 {
     if( !provider || !assets || sound_id < 0 )
         return;
-    (void)Assets_Want(assets, AssetKey_Make(ASSET_KIND_SOUND, sound_id, 0), NULL);
+    (void)Assets_Want(assets, AssetKey_Make(ASSET_KIND_SOUND, sound_id, 0));
 }
 
 static void

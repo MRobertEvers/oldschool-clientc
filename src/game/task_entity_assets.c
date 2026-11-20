@@ -493,7 +493,7 @@ EntityAssets_WantPlayerTransmog(
 {
     assert(app);
     assert(npc_id >= 0);
-    (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_PLAYER_TRANSMOG, npc_id, 0), NULL);
+    (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_PLAYER_TRANSMOG, npc_id, 0));
 }
 
 /* ----------------------------------------------------------- held items */
@@ -685,7 +685,7 @@ EntityAssets_WantPlayerHeld(
 {
     assert(app);
     assert(seq_id >= 0);
-    (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_PLAYER_HELD, seq_id, gender), NULL);
+    (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_PLAYER_HELD, seq_id, gender));
 }
 
 void

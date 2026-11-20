@@ -78,7 +78,9 @@ struct RS_Soundscapes;
  * costs too (its archive reads are synchronous and in-memory, so it simply never
  * hits the window).
  */
-#define RS_AUDIO_LATE_LIMIT_TICKS (ASSETS_SOUND_LATE_LIMIT_MS / 20)
+/* The reference's `delays[i] >= -10`: ten client ticks. The queue's own rule,
+ * counted on its own countdown (the assets table has no late policy). */
+#define RS_AUDIO_LATE_LIMIT_TICKS 10
 
 /**
  * Reference default (Client.waveVolume = 128 on its 0..128 scale), on the
