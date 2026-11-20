@@ -284,6 +284,25 @@ state_local_player_in_tutorial_area(struct RS_ServerState const* state)
         state->world->_base_tile_z + self->grid_position.z);
 }
 
+bool
+RS_ServerState_PublicChatShown(
+    struct RS_ServerState const* state,
+    char const* sender,
+    bool ignorable)
+{
+    assert(state);
+    assert(state->social);
+    /* class95.method3131: a speaker with no name yet (field531) says
+     * nothing; an ignorable crown's wearer on the ignore list is silent;
+     * and nobody is heard while the local player is on Tutorial Island
+     * (client.field765). */
+    if( !sender )
+        return false;
+    if( ignorable && RS_Social_IsIgnored(state->social, sender) )
+        return false;
+    return !state_local_player_in_tutorial_area(state);
+}
+
 /* MESSAGE_FRIENDCHANNEL: deob client.java class259.field3189. Shares the message
  * id ring with the other chat prots, and the crown decides whether the sender's
  * ignore applies. The channel's name is what the store keeps in `sender`, as a

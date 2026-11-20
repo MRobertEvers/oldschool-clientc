@@ -238,6 +238,101 @@ RS_Chat_CrownedName(
         snprintf(out, cap, "%s", name);
 }
 
+int
+RS_Chat_PublicType(
+    int crown,
+    int autotyper)
+{
+    if( RS_Chat_CrownIsStaff(crown) )
+        return autotyper ? 91 : RS_CHAT_TYPE_PUBLIC_MOD;
+    return autotyper ? 90 : RS_CHAT_TYPE_PUBLIC;
+}
+
+/* Java's Character tests over the cp1252 bytes a line is made of: ASCII, the
+ * Latin-1 letters, and cp1252's own S/Z/OE/Y-diaeresis pairs and f-hook. */
+static int
+cp1252_is_upper(unsigned char c)
+{
+    return (c >= 'A' && c <= 'Z') || (c >= 0xc0 && c <= 0xde && c != 0xd7) || c == 0x8a || c == 0x8c ||
+           c == 0x8e || c == 0x9f;
+}
+
+static int
+cp1252_is_lower(unsigned char c)
+{
+    return (c >= 'a' && c <= 'z') || (c >= 0xdf && c != 0xf7) || c == 0x9a || c == 0x9c || c == 0x9e ||
+           c == 0x83 || c == 0xb5;
+}
+
+static int
+cp1252_is_letter(unsigned char c)
+{
+    return cp1252_is_upper(c) || cp1252_is_lower(c) || c == 0xaa || c == 0xba;
+}
+
+static unsigned char
+cp1252_lower(unsigned char c)
+{
+    if( (c >= 'A' && c <= 'Z') || (c >= 0xc0 && c <= 0xde && c != 0xd7) )
+        return (unsigned char)(c + 0x20);
+    if( c == 0x8a || c == 0x8c || c == 0x8e )
+        return (unsigned char)(c + 0x10);
+    if( c == 0x9f )
+        return 0xff;
+    return c;
+}
+
+/* Character.toTitleCase, less the two the reference leaves alone (181, the
+ * micro sign, and 402, f-hook: cp1252 0x83). */
+static unsigned char
+cp1252_title(unsigned char c)
+{
+    if( (c >= 'a' && c <= 'z') || (c >= 0xe0 && c <= 0xfe && c != 0xf7) )
+        return (unsigned char)(c - 0x20);
+    if( c == 0x9a || c == 0x9c || c == 0x9e )
+        return (unsigned char)(c - 0x10);
+    if( c == 0xff )
+        return 0x9f;
+    return c;
+}
+
+void
+RS_Chat_SentenceCase(
+    char const* text,
+    char* out,
+    size_t cap)
+{
+    /* 2: a sentence starts; 1: after a space or symbol; 0: after a letter. */
+    int state = 2;
+    size_t i = 0;
+
+    assert(text);
+    assert(out);
+    assert(cap > 0);
+    for( ; text[i] != '\0' && i + 1 < cap; i++ )
+    {
+        unsigned char c = (unsigned char)text[i];
+
+        if( state == 0 )
+            c = cp1252_lower(c);
+        else if( state == 2 || cp1252_is_upper(c) )
+            c = cp1252_title(c);
+        if( cp1252_is_letter(c) )
+            state = 0;
+        else if( c == '.' || c == '?' || c == '!' )
+            state = 2;
+        else if( c == ' ' || c == 0xa0 )
+        {
+            if( state != 2 )
+                state = 1;
+        }
+        else
+            state = 1;
+        out[i] = (char)c;
+    }
+    out[i] = '\0';
+}
+
 char const*
 RS_Chat_Uncrowned(char const* name)
 {

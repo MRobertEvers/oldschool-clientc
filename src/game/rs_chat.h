@@ -295,6 +295,28 @@ RS_Chat_CrownedName(
     char* out,
     size_t cap);
 
+/** The chat types a public line is filed as (deob class95.method3131): 1 for
+ *  a staff crown's (class278.field3430), 2 otherwise, and 91 / 90 for the
+ *  same line sent by the autotyper. */
+int
+RS_Chat_PublicType(
+    int crown,
+    int autotyper);
+
+/**
+ * A player's typed line put into sentence case, as the reference does to
+ * every public line it reads (deob Statics.method10915): the first letter of
+ * the line and of each sentence (after '.', '?' or '!') is a capital, every
+ * letter straight after a letter is lower case, and a capital after a space
+ * or a symbol stays. `text` is cp1252, as the wire's; `out` is the same
+ * length.
+ */
+void
+RS_Chat_SentenceCase(
+    char const* text,
+    char* out,
+    size_t cap);
+
 /** `name` past a leading crown image (`<img=N>` for a crown's N), as the
  *  reference strips one before a friend or ignore test (Statics.method11885);
  *  `name` itself when it has none. */

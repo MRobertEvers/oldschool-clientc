@@ -544,6 +544,9 @@ test_chat(void)
         p._message_private.text = fc_text;
         CHECK(apply(fx, &p) == RS_SERVER_STATE_UNCHANGED, "nor a private one");
         CHECK(fx->chat.message_count == count, "nothing reached the store");
+        /* PLAYER_INFO's public chat, the real client's rule (deob
+         * class95.method3131): nobody is heard on the island either. */
+        CHECK(!RS_ServerState_PublicChatShown(&fx->state, "carol", true), "nor a public line on the island");
         fx->world->_base_tile_x = 3176;
         fx->world->_base_tile_z = 3176;
         p = packet(PKT_NAME_MESSAGE_FRIENDCHANNEL);
@@ -558,6 +561,14 @@ test_chat(void)
         p._message_private.message_id = 78;
         p._message_private.text = fc_text;
         CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "and the private one");
+        CHECK(RS_ServerState_PublicChatShown(&fx->state, "carol", true), "and a public line off it");
+        CHECK(!RS_ServerState_PublicChatShown(&fx->state, NULL, true), "but not from a player with no name yet");
+        RS_Social_AddIgnore(&fx->social, "Carol");
+        CHECK(!RS_ServerState_PublicChatShown(&fx->state, "carol", true),
+            "an ignored speaker with an ignorable crown is not heard");
+        CHECK(RS_ServerState_PublicChatShown(&fx->state, "carol", false),
+            "a crown the ignore list cannot silence is (class278.field3449)");
+        RS_Social_DelIgnore(&fx->social, "carol");
         (void)take_events(fx, ev, 8);
     }
 

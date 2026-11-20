@@ -3,6 +3,7 @@
  * against a World, an entity sync state and a host that records what it was
  * asked. Asserts on.
  */
+#include "game/rs_chat.h"
 #include "game/rs_entity_apply.h"
 #include "game/rs_entity_sync.h"
 #include "mem/torirs_mem.h"
@@ -14,6 +15,7 @@
 #include "world/world.h"
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -51,7 +53,26 @@ struct TestHost
     int note_count;
     /* The entity's tile when NPC_ADDED was presented. */
     int added_x, added_z;
+    /* public_chat_shown: the answer, and what it was last asked. */
+    bool chat_hidden;
+    int chat_asks;
+    char chat_asked_sender[64];
+    bool chat_asked_ignorable;
 };
+
+static bool
+host_public_chat_shown(
+    void* ctx,
+    char const* sender,
+    bool ignorable)
+{
+    struct TestHost* h = ctx;
+
+    h->chat_asks++;
+    snprintf(h->chat_asked_sender, sizeof(h->chat_asked_sender), "%s", sender ? sender : "(none)");
+    h->chat_asked_ignorable = ignorable;
+    return !h->chat_hidden;
+}
 
 static int
 host_npc_resolve(
@@ -252,6 +273,7 @@ fixture_init(struct Fixture* f)
         .headbar_persist = host_headbar_persist,
         .home_view = host_home_view,
         .npc_origin = host_npc_origin,
+        .public_chat_shown = host_public_chat_shown,
         .player_spawn = host_player_spawn,
         .npc_spawn = host_npc_spawn,
         .npc_retype = host_npc_retype,
@@ -498,6 +520,97 @@ test_player_add_hit_and_chat(void)
         "a nameless speaker prints as Player and keys on nothing");
     CHECK(notes_of(&f.h, RS_ENTITY_NOTE_PLAYER_SEQ) == 1, "the sequence noted");
     CHECK(player && player->animation.primary.anim_id == 422, "and set");
+    fixture_free(&f);
+}
+
+/* The chat block's text as the fixture's "revision" packs it: the bytes are
+ * the text (the real readers' Huffman and wordpack are tested elsewhere). */
+static char*
+test_chat_unpack(
+    uint8_t const* data,
+    int len)
+{
+    char* out = ToriMem_Alloc(ToriMem_Net(), (size_t)len + 1);
+
+    assert(out);
+    memcpy(out, data, (size_t)len);
+    out[len] = '\0';
+    return out;
+}
+
+/* One chat block from pid 12 (added by the first call). */
+static void
+send_public_chat(
+    struct Fixture* f,
+    char const* text,
+    int crown,
+    int autotyper)
+{
+    struct RsprotInfoOp ops[2];
+
+    ops[0] = op_value(RSPROT_OP_ADD_NEW, 12);
+    ops[1] = op_value(RSPROT_OP_CHAT, 0);
+    ops[1].chat.data = (uint8_t const*)text;
+    ops[1].chat.length = (uint8_t)strlen(text);
+    ops[1].chat.type = (uint8_t)crown;
+    ops[1].chat.autotyper = (uint8_t)autotyper;
+    ops[1].chat.colour_effect = 0x0102;
+    RS_EntityApply_PlayerInfo(&f->in, ops, 2);
+}
+
+/* B1: a public line as deob class95.method3131 files it. The host decides
+ * whether it is heard (the real client: ignore list and Tutorial Island; the
+ * headless: always); a hidden line sets no overhead either. The text is
+ * sentence-cased (Statics.method10915) and its tags escaped
+ * (class671.method14451); the type follows the crown and the autotyper (1 /
+ * 2, 91 / 90); the overhead is the same text, trimmed. */
+static void
+test_public_chat(void)
+{
+    struct Fixture f;
+    struct RsprotInfoOp add = op_value(RSPROT_OP_ADD_NEW, 12);
+    struct WorldEntity_Player* player;
+    struct RS_EntityNote const* line;
+    int idx = -1;
+
+    fixture_init(&f);
+    f.rev.chat_unpack = test_chat_unpack;
+    RS_EntityApply_PlayerInfo(&f.in, &add, 1);
+    RS_EntitySync_FindPlayer(&f.esync, 12, &idx, NULL);
+    player = World_EntityPoolGet(&f.world->entities.player, idx);
+    assert(player);
+    snprintf(player->name, sizeof(player->name), "%s", "Spam\xa0" "Bot");
+
+    /* An ignored speaker (crown 0 can be ignored): asked, and silent. */
+    f.h.chat_hidden = true;
+    send_public_chat(&f, "buy gold", 0, 0);
+    CHECK(f.h.chat_asks == 1 && strcmp(f.h.chat_asked_sender, "Spam\xa0" "Bot") == 0 && f.h.chat_asked_ignorable,
+        "the host is asked about the speaker, with an ignorable crown");
+    CHECK(notes_of(&f.h, RS_ENTITY_NOTE_CHAT) == 0, "a hidden line is not filed");
+    CHECK(player->chat.message[0] == '\0', "nor shown overhead");
+
+    /* Heard: sentence case, escaped tags, type 2, the trimmed overhead. */
+    f.h.chat_hidden = false;
+    send_public_chat(&f, "  hELLO wORLD. <col=ff0000>red!  ", 0, 0);
+    CHECK(notes_of(&f.h, RS_ENTITY_NOTE_CHAT) == 1, "a heard line is filed");
+    line = &f.h.notes[f.h.note_count - 1];
+    CHECK(line->kind == RS_ENTITY_NOTE_CHAT && line->chat_type == RS_CHAT_TYPE_PUBLIC, "typed 2 for a plain crown");
+    CHECK(line->kind == RS_ENTITY_NOTE_CHAT &&
+              strcmp(line->text, "  Hello world. <lt>col=ff0000<gt>red!  ") == 0,
+        "sentence-cased with its tags escaped");
+    CHECK(strcmp(player->chat.message, "Hello world. <lt>col=ff0000<gt>red!") == 0,
+        "the overhead is the same text, trimmed");
+
+    /* A Jagex moderator's crown (2): staff, and not ignorable. */
+    send_public_chat(&f, "hi", 2, 0);
+    line = &f.h.notes[f.h.note_count - 1];
+    CHECK(!f.h.chat_asked_ignorable, "a moderator's crown is not ignorable");
+    CHECK(line->chat_type == RS_CHAT_TYPE_PUBLIC_MOD && strcmp(line->sender, "<img=1>Spam\xa0" "Bot") == 0,
+        "typed 1 and named with the crown's image");
+    send_public_chat(&f, "hi", 2, 1);
+    CHECK(f.h.notes[f.h.note_count - 1].chat_type == 91, "the autotyper's staff line is 91");
+    send_public_chat(&f, "hi", 0, 1);
+    CHECK(f.h.notes[f.h.note_count - 1].chat_type == 90, "and anyone else's 90");
     fixture_free(&f);
 }
 
@@ -810,6 +923,7 @@ main(void)
     test_npc_hidden_rung();
     test_npc_types_listed_once();
     test_player_add_hit_and_chat();
+    test_public_chat();
     test_wants_raised_on_change();
     test_player_name_extras_and_reset();
     test_npc_body_and_head_custom();
