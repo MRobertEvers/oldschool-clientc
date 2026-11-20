@@ -118,6 +118,7 @@ ScriptrunCore_Free(struct ScriptrunCore* core)
     ScriptrunCore_FreeCollision(core);
     ToriMem_Free(ToriMem_ServerPlayers(), core->locs);
     ScriptrunModel_Free(&core->model);
+    UIIfModels_Free(&core->if_models);
     ScriptrunZone_Free(&core->zone);
     RS_EntitySync_Free(core->esync);
     ToriMem_Free(ToriMem_ServerPlayers(), core->esync);
@@ -1857,6 +1858,53 @@ core_model_feeds(int pkt_name)
            pkt_name != PKT_NAME_NPC_HEADICON_SPECIFIC;
 }
 
+/* `group` leaves the slot it was mounted in for `incoming_group` (0: a close),
+ * by the packet model's rule; when that unloads it (another group takes the
+ * slot), the models its components were told to show go with it, as the real
+ * client's close-serial expiry drops them (app_if_forget_closed). */
+static void
+core_slot_group_leaves(
+    struct ScriptrunCore* core,
+    int group,
+    int incoming_group)
+{
+    int i = 0;
+
+    if( !RS_ServerState_SlotGroupLeaves(&core->model.state, group, incoming_group) )
+        return;
+    while( i < core->if_models.head_count )
+    {
+        if( ((core->if_models.heads[i].com_id >> 16) & 0xffff) == group )
+            UIIfModels_RemoveHeadAt(&core->if_models, i);
+        else
+            i++;
+    }
+}
+
+/* IF_SETNPCHEAD_ACTIVE: the head of the npc in server slot `slot`, as the
+ * real client resolves it (App_SetInterfaceNpcHeadActive): a chathead
+ * customisation that mirrors shows the local player, anything else the npc's
+ * type. An npc this bot does not track sets nothing, as the client's lookup
+ * misses. */
+static void
+core_set_npc_head_active(
+    struct ScriptrunCore* core,
+    int component,
+    int slot)
+{
+    struct WorldEntity_NPC const* npc;
+    int idx;
+
+    if( !RS_EntitySync_FindNpc(core->esync, slot, &idx, NULL) )
+        return;
+    npc = World_EntityPoolGet(&core->world->entities.npc, idx);
+    assert(npc);
+    if( npc->head_custom.active && npc->head_custom.mirror )
+        (void)UIIfModels_SetHead(&core->if_models, component, UI_IFHEAD_PLAYER, -1, 0, 0);
+    else
+        (void)UIIfModels_SetHead(&core->if_models, component, UI_IFHEAD_NPC, npc->npc_id, 0, 0);
+}
+
 static void
 core_packet(
     struct ScriptrunCore* core,
@@ -2022,8 +2070,7 @@ core_packet(
          * same group goes straight back in, and its texts, hides and colours
          * when another group takes the slot (the real client's app_close_slot). */
         if( i < core->mount_count && core->mounts[i].interface_id > 0 )
-            (void)RS_ServerState_SlotGroupLeaves(
-                &core->model.state, core->mounts[i].interface_id, packet._if_opensub.interface_id);
+            core_slot_group_leaves(core, core->mounts[i].interface_id, packet._if_opensub.interface_id);
         if( i == core->mount_count && core->mount_count < SCRIPTRUN_MOUNTS )
             core->mount_count++;
         if( i < core->mount_count )
@@ -2049,12 +2096,33 @@ core_packet(
                 ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_CLOSED, packet._if_closesub.target_uid,
                                     core->mounts[i].interface_id, 0, 0);
                 if( core->mounts[i].interface_id > 0 )
-                    (void)RS_ServerState_SlotGroupLeaves(
-                        &core->model.state, core->mounts[i].interface_id, 0);
+                    core_slot_group_leaves(core, core->mounts[i].interface_id, 0);
                 core->mounts[i] = core->mounts[--core->mount_count];
                 break;
             }
         }
+        break;
+    /* The models the server tells MODEL components to show: recorded as the
+     * real client records them (UIIfModels_SetHead), for widget_model. */
+    case PKT_NAME_IF_SETNPCHEAD:
+        (void)UIIfModels_SetHead(&core->if_models, packet._if_setnpchead.component_id, UI_IFHEAD_NPC,
+                                 packet._if_setnpchead.npc_id, 0, 0);
+        break;
+    case PKT_NAME_IF_SETNPCHEAD_ACTIVE:
+        core_set_npc_head_active(core, packet._if_setnpchead_active.component_id,
+                                 packet._if_setnpchead_active.index);
+        break;
+    case PKT_NAME_IF_SETPLAYERHEAD:
+        (void)UIIfModels_SetHead(&core->if_models, packet._if_setplayerhead.component_id, UI_IFHEAD_PLAYER,
+                                 -1, 0, 0);
+        break;
+    case PKT_NAME_IF_SETOBJECT:
+        (void)UIIfModels_SetHead(&core->if_models, packet._if_setobject.component_id, UI_IFHEAD_OBJ,
+                                 packet._if_setobject.obj_id, packet._if_setobject.zoom, 0);
+        break;
+    case PKT_NAME_IF_SETMODEL:
+        (void)UIIfModels_SetHead(&core->if_models, packet._if_setmodel.component_id, UI_IFHEAD_MODEL,
+                                 packet._if_setmodel.model_id, 0, 0);
         break;
     case PKT_NAME_RUNCLIENTSCRIPT:
         if( packet._runclientscript )
@@ -2215,4 +2283,16 @@ ScriptrunCore_SetHide(
 {
     assert(core);
     return UIIfIntStore_Get(&core->model.if_hides, component, -1);
+}
+
+struct UIIfHead const*
+ScriptrunCore_Head(
+    struct ScriptrunCore const* core,
+    int component)
+{
+    int i;
+
+    assert(core);
+    i = UIIfModels_HeadIndex(&core->if_models, component);
+    return i >= 0 ? &core->if_models.heads[i] : NULL;
 }

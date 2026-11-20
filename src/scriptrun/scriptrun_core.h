@@ -55,6 +55,7 @@
 #include "game/rs_event_ring.h"
 #include "scriptrun/scriptrun_model.h"
 #include "scriptrun/scriptrun_zone.h"
+#include "ui/uitree_if_models.h"
 
 #include <stdint.h>
 
@@ -289,6 +290,15 @@ struct ScriptrunCore
     /* The packet model's records (scriptrun_model.h), bound to this core's
      * World, entity sync and event ring. */
     struct ScriptrunModel model;
+
+    /* The model each MODEL component was told to show (IF_SETNPCHEAD,
+     * IF_SETNPCHEAD_ACTIVE, IF_SETPLAYERHEAD, IF_SETOBJECT, IF_SETMODEL), in
+     * the real client's own store (ui/uitree_if_models.h): one entry per
+     * component, last write wins, forgotten when its group is unloaded (it
+     * leaves its slot for another group, RS_ServerState_SlotGroupLeaves), as
+     * the reference's close drops the group's IfType list. Nothing is drawn
+     * from it; the drive's widget_model reads it. */
+    struct UIIfModels if_models;
 
     /* The local player's own action seqs as its screen saw them start
      * (the drive's players() `me` row: seq_history, raid seam48). */
@@ -641,6 +651,14 @@ ScriptrunCore_Text(
  *  packet said", not "shown". */
 int
 ScriptrunCore_SetHide(
+    struct ScriptrunCore const* core,
+    int component);
+
+/** The model the server set on `component` (kind UI_IFHEAD_*, and the npc,
+ *  obj or cache model id), or NULL when none stands since its group was last
+ *  unloaded. */
+struct UIIfHead const*
+ScriptrunCore_Head(
     struct ScriptrunCore const* core,
     int component);
 

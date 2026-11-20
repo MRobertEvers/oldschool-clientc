@@ -6485,7 +6485,7 @@ SCRIPTRUN_SRCS = torirsserver/torirs_server_scriptrun.c scriptrun/scriptrun_core
 SCRIPTRUN_SHADOW_SRCS = scriptrun/scriptrun_model.c scriptrun/scriptrun_shadow.c game/rs_server_state.c \
 	scriptrun/scriptrun_zone.c game/rs_effect_log.c \
 	varp/varp_manager.c game/rs_player_stats.c inv/inv_manager.c ui/uitree_if_store.c \
-	game/rs_chat.c game/rs_social.c game/rs_session_info.c net/session_end.c \
+	ui/uitree_if_models.c game/rs_chat.c game/rs_social.c game/rs_session_info.c net/session_end.c \
 	game/rs_server_tick.c game/rs_player_ops.c game/rs_hint_arrow.c \
 	game/rs_npc_update_origin.c game/rs_interaction_mode.c world/worldview.c
 # Dedicated read-only, multi-client JS5 cache service.
