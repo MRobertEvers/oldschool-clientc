@@ -1591,6 +1591,28 @@ app_run_once_body(
          * was just given -- already clamped, and measured off the same clock.
          * They read the fraction where the logic reads whole cycles, which is
          * the only difference between the two that should exist. */
+        /*
+         * The parallel queue, drained after this frame's logic ticks (the
+         * frame contract's pump guarantee). The pump at the top of the frame
+         * (App_PumpAsync) ran before them; the steps of the parallel queue
+         * inside them -- the packet pump's settle while its head is joined on
+         * it (app_net.c) and each tick's script settle, which stop when the
+         * scripts are done, not at a standstill -- can leave an ordinary task
+         * that could run (a loader whose desktop read Process answered, a
+         * parallel task a packet added with its asset resident), and it
+         * waited for the next frame's pump while this frame was published
+         * without it. Here, ahead of the world's cycle, it applies in the
+         * order it would have at the next frame's top: before the world
+         * frame drains what it removed. A script it queues is settled below
+         * (frame_settle_pending), before anything is published.
+         */
+        if( ticks > 0 )
+        {
+            int steps = 0;
+            int moved = 0;
+
+            (void)app_pump_parallel(app, 0, &steps, &moved);
+        }
         app_world_frame(
             app, ticks, (float)FrameClockStep_FrameMs(&app->frame_clock.step) / (float)APP_LOGIC_TICK_MS);
     }
