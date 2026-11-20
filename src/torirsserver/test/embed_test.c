@@ -2154,7 +2154,14 @@ main(void)
         int64_t bob37 = (int64_t)strtobase37("bob");
 
         /* ── What the login burst already sent ── */
-        check(peers[0].saw_friendlist_loaded == 2,
+        /* "Loaded" is two packets on a rev-221+ wire: FRIENDLIST_LOADED is a
+         * bare marker the client reads as state 1 (deob class58.method1191;
+         * adapt_friendlist_loaded states 1), and the UPDATE_FRIENDLIST after
+         * it, empty or not, is what reads as state 2 (class58.method1164). An
+         * rs-family wire states 2 in the marker itself. This used to demand
+         * 2 of the marker, which no rev-221+ wire can send. */
+        check((peers[0].saw_friendlist_loaded == 1 && peers[0].saw_friend_count > 0) ||
+                  peers[0].saw_friendlist_loaded == 2,
               "alice's login told her client the friend list finished loading");
         check(peers[0].saw_ignorelist_count > 0 && peers[0].saw_ignorelist_len == 0,
               "and handed it an ignore list, empty but stated");
