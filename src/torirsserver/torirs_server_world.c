@@ -14910,10 +14910,15 @@ social_read_name37(
  * alternative is a second public entry point on the service whose only purpose
  * is to be asked a question before the real call.
  *
- * Nothing is sent to the player on a failure. The reference is silent on every
- * one of these paths — duplicate add, full list, delete of a name that is not
- * there — and torirs_server_friends.h says in as many words that no caller may invent
- * a message here.
+ * A failure changes nothing on the player's client. LostCity is silent on
+ * every path -- duplicate add, full list, delete of a name that is not there --
+ * and so is this, with one exception Jagex's own server shows: an add of a
+ * name that names no player is answered with a friend notification, "Unable to
+ * add friend - unknown player.", and no list update (RSProx index 786 [6031],
+ * [6047]; index 1702 [334]). Here that is the name base 37 cannot hold
+ * (TORIRSSERVER_SOCIAL_INVALID_NAME). The rev-239 client adds a friend when the
+ * update arrives (class58.method1180 only sends), so an update after a refusal
+ * would list the refused name.
  */
 static void
 handle_social_list(
@@ -14940,6 +14945,11 @@ handle_social_list(
     {
     case PKTOUT_NAME_FRIENDLIST_ADD:
         result = ToriRSServer_FriendsAdd(me, target);
+        if( result == TORIRSSERVER_SOCIAL_INVALID_NAME )
+            ToriRSServer_SendMessageTyped(player, TORIRSSERVER_CHATTYPE_FRIENDNOTIFICATION,
+                                          "Unable to add friend - unknown player.");
+        if( result != TORIRSSERVER_SOCIAL_OK )
+            break;
         /* Two updates, both the reference's: the new friend's world straight
          * back to the adder, and a broadcast because the adder's own "Friends"
          * privacy mode may now let this person see *them*. */

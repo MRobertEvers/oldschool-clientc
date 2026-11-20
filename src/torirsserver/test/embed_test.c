@@ -2311,6 +2311,33 @@ main(void)
         check(peers[1].saw_friend_count == 0,
               "bob heard nothing — he does not have alice in his list");
 
+        /*
+         * ── a refused add ──
+         *
+         * A name that base 37 cannot hold names no player. Jagex answers such
+         * an add with one friend notification and no list update (RSProx
+         * index 786 [6023] -> [6031] and [6040] -> [6047], index 1702 [334]:
+         * MESSAGE_GAME type=friendnotification "Unable to add friend - unknown
+         * player.", no UPDATE_FRIENDLIST). The rev-239 client adds a friend
+         * only when the update arrives, so an update sent anyway would put the
+         * refused name in the list.
+         */
+        {
+            const char* nobody = "nobody_can_have_this_name";
+
+            peers[0].saw_friend_count = 0;
+            peer_reset_game(&peers[0]);
+            peer_social_name37(&peers[0], PKTOUT_NAME_FRIENDLIST_ADD, nobody);
+            for( int round = 0; round < 6; round++ )
+                pump(peers, 2, embed, 1, 64);
+            check(!ToriRSServer_FriendsIsFriend(alice37, (int64_t)strtobase37(nobody)),
+                  "an add of a name no player can have is refused by the service");
+            check(peers[0].saw_friend_count == 0,
+                  "and alice's client is sent no list update for it");
+            check(peer_saw_game(&peers[0], "Unable to add friend - unknown player."),
+                  "but Jagex's answer: \"Unable to add friend - unknown player.\"");
+        }
+
         /* ── the private message ── */
         peers[0].saw_pm_count = 0;
         peers[1].saw_pm_count = 0;

@@ -117,6 +117,10 @@ enum ToriRSServerChatModePrivate
     TORIRSSERVER_CHAT_PRIVATE_OFF = 2,
 };
 
+/** MESSAGE_GAME's chat type for a friend notification (RSProx's
+ *  `chattype_friendnotification`, 30): what Jagex answers a refused add with. */
+#define TORIRSSERVER_CHATTYPE_FRIENDNOTIFICATION 30
+
 /**
  * What a mutation did.
  *
@@ -126,7 +130,10 @@ enum ToriRSServerChatModePrivate
  * that is not there. That silence is the ported behaviour, so no caller of this
  * module may turn a non-OK result into a message to the player: inventing one
  * would be inventing a behaviour the reference does not have
- * (docs/FRIENDS_PRIVATE_CHAT.md §2.3). The result exists so the *caller* knows
+ * (docs/FRIENDS_PRIVATE_CHAT.md §2.3). The one answer there is is Jagex's own,
+ * recorded: a friend add of a name that names no player
+ * (TORIRSSERVER_SOCIAL_INVALID_NAME) is told "Unable to add friend - unknown
+ * player." (handle_social_list). The result exists so the *caller* knows
  * whether anything changed and therefore whether to send an update packet, and
  * so the selftest can assert on the cap.
  */
