@@ -127,8 +127,8 @@ struct ScriptrunLoc
     int angle;
     int loc_id; /* -1: deleted */
     /* The map's placement this row stands for (its loc id), or -1 for a row a
-     * zone change appended. A map row a change deleted keeps it, so a zone's
-     * full reset (ScriptrunCore_ZoneResetLocs) can put the map's loc back. */
+     * zone change appended. A map row a change deleted keeps it
+     * (ScriptrunCore_MapLocAt reads it for a change's record). */
     int map_loc_id;
     /* The world view the row belongs to: 0 the root scene, 1..15 a boat's
      * deck (its staging-rectangle tiles). A root rebuild keeps deck rows, as
@@ -455,21 +455,6 @@ ScriptrunCore_LocPlace(
     int loc_id,
     int op_flags,
     const char ops[5][32]);
-
-/**
- * UPDATE_ZONE_FULL_FOLLOWS for the zone whose south-west tile is (abs_x0,
- * abs_z0) on the walked level `zone_level`: every loc a zone change put in it
- * goes, and every map loc a change deleted comes back, collision undone and
- * restamped -- the client's zone_full_reset_locs (rs_gameproto_exec.c), which
- * reverts each changed (level, x, z, layer) to the map's loc before the
- * zone's state re-applies what still differs.
- */
-void
-ScriptrunCore_ZoneResetLocs(
-    struct ScriptrunCore* core,
-    int abs_x0,
-    int abs_z0,
-    int zone_level);
 
 /** The cache level a loc on scene tile (`sx`, `sz`) of the root sits at when
  *  a zone names walked plane `zone_level`: one above it on a bridge column

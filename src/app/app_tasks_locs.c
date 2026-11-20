@@ -617,6 +617,24 @@ App_WorldLocMerge(
 /* ---- cancels ------------------------------------------------------------- */
 
 int
+App_LocChangesZoneReset(
+    struct App* app,
+    int view,
+    int base_x,
+    int base_z,
+    int zone_level)
+{
+    struct RS_LocHost host;
+
+    assert(app);
+    assert(WorldviewRegistry_IsLive(&app->worldviews, view));
+    assert(WorldviewRegistry_Get(&app->worldviews, view)->world);
+    host = loc_host(app);
+    return RS_LocTasks_ZoneReset(
+        &host, view, base_x, base_z, zone_level, RS_ServerTick_Serial(&app->server_tick));
+}
+
+int
 App_LocChangesCancelZone(
     struct App* app,
     int view,

@@ -5,6 +5,7 @@
  */
 #include "game/rs_effect_log.h"
 #include "game/rs_event_ring.h"
+#include "game/rs_loc_tasks.h"
 #include "net/rev/revpacket.h"
 #include "scriptrun/scriptrun_zone.h"
 #include "world/world.h"
@@ -320,9 +321,27 @@ test_loc_records(void)
     /* A rebuild keeps the record and moves it with the scene. */
     ScriptrunZone_Rebuild(zone, 3208, 3200, 104);
     CHECK(zone->world->loc_change_count == 1 && rec->x == 2, "the record moved with the scene");
-    /* A full zone resend: the map's loc stands again. */
-    ScriptrunZone_LocZoneReset(zone, 0, 16, 0, climb);
-    CHECK(rec->new_type == 1529 && rec->new_angle == 1, "the key stands as the map's");
+    /* A full zone resend, by the loc core's rule (both clients'): the map's
+     * loc stands again, and is put back by one change. */
+    {
+        static struct RS_LocChange restores[RS_LOC_ZONE_KEYS];
+        int levels[8][8];
+        int n;
+
+        for( int dx = 0; dx < 8; dx++ )
+            for( int dz = 0; dz < 8; dz++ )
+                levels[dx][dz] = climb[dx][dz];
+        n = RS_LocZone_ResetRecords(zone->world, 0, 16, levels, true, restores);
+        CHECK(rec->new_type == 1529 && rec->new_angle == 1, "the key stands as the map's");
+        CHECK(n == 1 && restores[0].loc_id == 1529 && restores[0].x == 2 && restores[0].z == 20 &&
+                  restores[0].angle == 1,
+            "one put-back: the map's loc on its tile");
+        n = RS_LocZone_ResetRecords(zone->world, 0, 16, levels, true, restores);
+        CHECK(n == 0, "a second reset has nothing to put back");
+        n = RS_LocZone_ResetRecords(zone->world, 0, 16, levels, false, restores);
+        CHECK(n == 0 && zone->world->loc_change_count == 0,
+            "a scene still loading drops the zone's records (it is the map's)");
+    }
     ScriptrunZone_Free(zone);
 }
 

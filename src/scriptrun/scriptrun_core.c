@@ -1183,8 +1183,23 @@ ScriptrunCore_ZoneFamilies(
     if( name == PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS )
     {
         ScriptrunCore_ZoneAt(core, &at);
-        if( at.view == 0 )
-            ScriptrunZone_LocZoneReset(zone, at.base_x, at.base_z, at.level, at.loc_climb);
+        /* The bot's own records were reset with its loc tasks (the packet's
+         * switch, RS_LocTasks_ZoneReset). A zone that keeps its records here
+         * (`loc_records`, the shadow's) takes the same rule's records half,
+         * and records each put-back as the bot's apply does. */
+        if( loc_records && at.view == 0 )
+        {
+            static struct RS_LocChange restores[RS_LOC_ZONE_KEYS];
+            int levels[8][8];
+            int count;
+
+            for( int dx = 0; dx < 8; dx++ )
+                for( int dz = 0; dz < 8; dz++ )
+                    levels[dx][dz] = at.level + at.loc_climb[dx][dz];
+            count = RS_LocZone_ResetRecords(zone->world, at.base_x, at.base_z, levels, true, restores);
+            for( int i = 0; i < count; i++ )
+                ScriptrunTasks_LocRecord(core, zone, zone->world, 0, &restores[i], -1);
+        }
         ScriptrunZone_Apply(zone, &at, tick, now, name, NULL);
         return;
     }
@@ -1927,28 +1942,20 @@ core_packet(
         break;
     case PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS:
     {
-        int x0, z0, level;
+        struct RS_LocHost const host = ScriptrunTasks_LocHost(core->tasks);
+
         core->zone_base_x = packet._update_zone_full_follows.base_x;
         core->zone_base_z = packet._update_zone_full_follows.base_z;
         core->zone_level = core_zone_header_level(core, packet._update_zone_full_follows.level);
         /* A full zone resend restates every obj in it: the zone families
-         * forget the old ones (ScriptrunCore_ZoneFamilies, below). */
-        x0 = core_cursor_base_x(core) + core->zone_base_x;
-        z0 = core_cursor_base_z(core) + core->zone_base_z;
-        level = core->zone_level;
-        /* ...and resets its locs to the map's, as the client's
-         * zone_full_reset_locs does: the state behind this header names only
-         * what still differs from the map, so a change the server has since
-         * reverted would otherwise stand here and not on the client. */
-        {
-            /* A merge pending in the zone is cancelled first, as the real
-             * client's zone_full_reset_locs cancels its zone's tasks. */
-            struct RS_LocHost const host = ScriptrunTasks_LocHost(core->tasks);
-
-            (void)RS_LocTasks_CancelZone(&host, core->active_world, core->zone_base_x,
-                core->zone_base_z, level);
-        }
-        ScriptrunCore_ZoneResetLocs(core, x0, z0, level);
+         * forget the old ones (ScriptrunCore_ZoneFamilies, below). And it
+         * resets its locs to the map's by the loc core's rule, the real
+         * client's (RS_LocTasks_ZoneReset): the zone's pending changes go,
+         * its records say the map's loc stands, and the map's loc is put back
+         * through a loc change wherever one left something else -- placed,
+         * key by key, in the pump after this packet. */
+        (void)RS_LocTasks_ZoneReset(&host, core->active_world, core->zone_base_x,
+            core->zone_base_z, core->zone_level, (unsigned)core->tick);
         break;
     }
     case PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED:

@@ -425,40 +425,6 @@ ScriptrunZone_Apply(
     }
 }
 
-/* ---- loc change records ---------------------------------------------------- */
-
-void
-ScriptrunZone_LocZoneReset(
-    struct ScriptrunZone* zone,
-    int x0,
-    int z0,
-    int level,
-    uint8_t const climb[8][8])
-{
-    struct World* world;
-
-    assert(zone);
-    assert(climb);
-    world = zone->world;
-    for( int i = 0; i < world->loc_change_count; i++ )
-    {
-        struct World_LocChange* rec = &world->loc_changes[i];
-        int const dx = rec->x - x0;
-        int const dz = rec->z - z0;
-
-        if( dx < 0 || dx >= 8 || dz < 0 || dz >= 8 || rec->level != level + climb[dx][dz] )
-            continue;
-        /* The map's loc stands again; the key keeps this one record. */
-        if( rec->old_shape < 0 )
-            rec->old_shape = rec->new_shape;
-        rec->new_type = rec->old_type;
-        rec->new_angle = rec->old_angle;
-        rec->new_shape = rec->old_shape;
-        rec->start_time = -1;
-        rec->end_time = -1;
-    }
-}
-
 /* ---- readers --------------------------------------------------------------- */
 
 static int
