@@ -2506,6 +2506,11 @@ void
 RS_CS2Host_ResetSocialForLogin(struct RS_CS2Host* host)
 {
     assert(host);
+    assert(host->social);
+    /* The friend and ignore lists too (deob Statics.method9200 ->
+     * class58.method1166): the next session's lists arrive as changes to an
+     * empty list, and its first friend list is not a run of world changes. */
+    RS_Social_ResetForLogin(host->social);
     RS_FriendsChat_Init(&host->friends_chat);
     RS_ClanStore_Reset(&host->clan, false);
     memset(host->stockmarket, 0, sizeof(host->stockmarket));
@@ -9148,10 +9153,13 @@ exec_social(
         RS_Social_FriendPreviousName(social, index, name, (int)sizeof(name));
         return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, name));
     case CS2_OP_IGNORE_GETNAME:
+        /* The name, then the previous name, as 3601 (deob 3622:
+         * class454.method10200 / method10201). */
         RS_Social_IgnoreName(social, index, name, (int)sizeof(name));
         if( CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, name)) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
+        RS_Social_IgnorePreviousName(social, index, name, (int)sizeof(name));
+        return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, name));
 
     case CS2_OP_FRIEND_GETWORLD:
         return CS2VM2_PushInt(vm, RS_Social_FriendWorld(social, index));

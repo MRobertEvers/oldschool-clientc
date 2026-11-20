@@ -176,8 +176,26 @@ RS_Social_AddIgnore(
     strncpy(social->ignore_name[social->ignore_count], name, RS_SOCIAL_NAME_LEN - 1);
     social->ignore_name[social->ignore_count][RS_SOCIAL_NAME_LEN - 1] = '\0';
     social->ignore_hash[social->ignore_count] = name_hash(name);
+    social->ignore_previous_name[social->ignore_count][0] = '\0';
     social->ignore_count++;
     return 1;
+}
+
+void
+RS_Social_DelIgnoreAt(
+    struct RS_Social* social,
+    int index)
+{
+    assert(social);
+    assert(index >= 0);
+    assert(index < social->ignore_count);
+    for( int i = index; i + 1 < social->ignore_count; i++ )
+    {
+        memcpy(social->ignore_name[i], social->ignore_name[i + 1], RS_SOCIAL_NAME_LEN);
+        social->ignore_hash[i] = social->ignore_hash[i + 1];
+        memcpy(social->ignore_previous_name[i], social->ignore_previous_name[i + 1], RS_SOCIAL_NAME_LEN);
+    }
+    social->ignore_count--;
 }
 
 int
@@ -189,13 +207,44 @@ RS_Social_DelIgnore(
     int idx = find_hash(social->ignore_hash, social->ignore_name, social->ignore_count, name);
     if( idx < 0 )
         return 0;
-    for( int i = idx; i + 1 < social->ignore_count; i++ )
-    {
-        memcpy(social->ignore_name[i], social->ignore_name[i + 1], RS_SOCIAL_NAME_LEN);
-        social->ignore_hash[i] = social->ignore_hash[i + 1];
-    }
-    social->ignore_count--;
+    RS_Social_DelIgnoreAt(social, idx);
     return 1;
+}
+
+int
+RS_Social_IgnoreIndex(
+    struct RS_Social const* social,
+    char const* name)
+{
+    assert(social);
+    assert(name);
+    return find_hash(social->ignore_hash, social->ignore_name, social->ignore_count, name);
+}
+
+void
+RS_Social_SetIgnoreNames(
+    struct RS_Social* social,
+    int index,
+    char const* name,
+    char const* previous_name)
+{
+    assert(social);
+    assert(index >= 0);
+    assert(index < social->ignore_count);
+    assert(name);
+    assert(previous_name);
+    snprintf(social->ignore_name[index], RS_SOCIAL_NAME_LEN, "%s", name);
+    social->ignore_hash[index] = name_hash(name);
+    snprintf(social->ignore_previous_name[index], RS_SOCIAL_NAME_LEN, "%s", previous_name);
+}
+
+void
+RS_Social_ResetForLogin(struct RS_Social* social)
+{
+    assert(social);
+    social->friend_count = 0;
+    social->ignore_count = 0;
+    social->server_status = RS_SOCIAL_SERVER_LOADING;
 }
 
 void
@@ -457,6 +506,9 @@ RS_Social_SortIgnores(struct RS_Social* social)
             int64_t const hash = social->ignore_hash[j - 1];
             social->ignore_hash[j - 1] = social->ignore_hash[j];
             social->ignore_hash[j] = hash;
+            memcpy(name, social->ignore_previous_name[j - 1], RS_SOCIAL_NAME_LEN);
+            memcpy(social->ignore_previous_name[j - 1], social->ignore_previous_name[j], RS_SOCIAL_NAME_LEN);
+            memcpy(social->ignore_previous_name[j], name, RS_SOCIAL_NAME_LEN);
         }
     }
 }
@@ -530,6 +582,23 @@ RS_Social_FriendPreviousName(
     if( index < 0 || index >= social->friend_count )
         return;
     snprintf(out, (size_t)cap, "%s", social->friend_previous_name[index]);
+}
+
+void
+RS_Social_IgnorePreviousName(
+    struct RS_Social const* social,
+    int index,
+    char* out,
+    int cap)
+{
+    if( cap <= 0 )
+        return;
+    assert(social);
+    assert(out);
+    out[0] = '\0';
+    if( index < 0 || index >= social->ignore_count )
+        return;
+    snprintf(out, (size_t)cap, "%s", social->ignore_previous_name[index]);
 }
 
 int

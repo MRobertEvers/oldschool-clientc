@@ -120,6 +120,20 @@ test_put_friend(uint8_t* out, int at, char const* name, int world)
     return test_put_jstr(out, at, "");
 }
 
+/* One UPDATE_IGNORELIST entry (rsprot update_ignorelist.h, deob
+ * class428.method9746): the flags byte, the name, and unless the flags say
+ * "removed" (4), the previous name and the note. */
+static int
+test_put_ignore(uint8_t* out, int at, int flags, char const* name, char const* previous)
+{
+    out[at++] = (uint8_t)flags;
+    at = test_put_jstr(out, at, name);
+    if( flags & 0x4 )
+        return at;
+    at = test_put_jstr(out, at, previous);
+    return test_put_jstr(out, at, "");
+}
+
 /* MESSAGE_PRIVATE (rsprot message_private.c): sender, world, the world's
  * message counter, the crown, the huffman text. */
 static int
@@ -675,7 +689,6 @@ main(void)
         struct RS_Social* pm_social = calloc(1, sizeof(*pm_social));
         struct RS_Chat* pm_chat = calloc(1, sizeof(*pm_chat));
         int pm_filters[3] = { 0, 1, 0 }; /* public on, private friends, trade on */
-        int64_t ignored[1];
         uint8_t wire[512];
         int len = 0;
         struct RevPacket p;
@@ -712,12 +725,13 @@ main(void)
             TEST_EXEC_ASSERT(RS_Social_FriendWorld(pm_social, i) == 435, "with her world");
         }
 
+        len = test_put_ignore(wire, 0, 0x1, "Spam\xa0" "Bot", "");
         memset(&p, 0, sizeof(p));
-        p.packet_type = PKT_NAME_UPDATE_IGNORELIST;
-        ignored[0] = (int64_t)strtobase37("spam_bot");
-        p._update_ignorelist.count = 1;
-        p._update_ignorelist.names37 = ignored;
+        TEST_EXEC_ASSERT(
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_UPDATE_IGNORELIST), wire, len, &p),
+            "a one-entry UPDATE_IGNORELIST parses");
         App_GameProto_Exec(base_app, &pm_state, &p);
+        gameproto_free(&p);
 
         filters = (struct RS_ChatFilters){ .public_mode = 0, .private_mode = 1, .trade_mode = 0, .social = pm_social };
 
@@ -774,6 +788,103 @@ main(void)
         free(pm_chat);
         free(pm_social);
         printf("ok - a private message from a crowned friend passes the friends-only filter\n");
+    }
+
+    /* B2: the ignore list, as recording 96 (index 236, rev 227) sends it at
+     * login: [update_ignorelist] added "60ibis2142", added "Kill\xa0777"
+     * (an NBSP, as the wire bytes show). Each rev-221+ entry is a change to
+     * the list held (deob class428.method9746): a later one-entry add keeps
+     * the others, a leading 4 removes, and the low bit finds a renamed entry
+     * by its previous name. The names are kept as spelled and matched by the
+     * Username key, like the friend list. */
+    {
+        struct GameProtoRevTable const* rev = GameProtoRev_Osrs(242);
+        struct RS_ServerState ig_state = bare_state;
+        struct RS_Social* ig = calloc(1, sizeof(*ig));
+        uint8_t wire[256];
+        char name[RS_SOCIAL_NAME_LEN];
+        int len;
+        struct RevPacket p;
+
+        assert(rev);
+        assert(ig);
+        RS_Social_Init(ig);
+        ig_state.social = ig;
+
+        len = test_put_ignore(wire, 0, 0, "60ibis2142", "");
+        len = test_put_ignore(wire, len, 0, "Kill\xa0" "777", "");
+        memset(&p, 0, sizeof(p));
+        TEST_EXEC_ASSERT(
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_UPDATE_IGNORELIST), wire, len, &p),
+            "recording 96's login UPDATE_IGNORELIST parses");
+        App_GameProto_Exec(base_app, &ig_state, &p);
+        gameproto_free(&p);
+        TEST_EXEC_ASSERT(ig->ignore_count == 2, "both ignores are held");
+        RS_Social_IgnoreName(ig, 1, name, (int)sizeof(name));
+        TEST_EXEC_ASSERT(strcmp(name, "Kill\xa0" "777") == 0, "an ignore is named as the wire spells it");
+        TEST_EXEC_ASSERT(RS_Social_IsIgnored(ig, "kill 777"), "and found by any spelling of it");
+
+        /* The server's answer to an ignore add is that one entry. */
+        len = test_put_ignore(wire, 0, 0x1, "Spam\xa0" "Bot", "");
+        memset(&p, 0, sizeof(p));
+        TEST_EXEC_ASSERT(
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_UPDATE_IGNORELIST), wire, len, &p),
+            "a one-entry add parses");
+        App_GameProto_Exec(base_app, &ig_state, &p);
+        gameproto_free(&p);
+        TEST_EXEC_ASSERT(ig->ignore_count == 3, "a one-entry update adds to the list, it does not replace it");
+
+        /* A removal: the flags byte 4 and the name alone. */
+        len = test_put_ignore(wire, 0, 0x4, "60ibis2142", "");
+        memset(&p, 0, sizeof(p));
+        TEST_EXEC_ASSERT(
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_UPDATE_IGNORELIST), wire, len, &p),
+            "a removal parses");
+        App_GameProto_Exec(base_app, &ig_state, &p);
+        gameproto_free(&p);
+        TEST_EXEC_ASSERT(!RS_Social_IsIgnored(ig, "60ibis2142"), "a removal entry unignores the name");
+        TEST_EXEC_ASSERT(ig->ignore_count == 2, "and leaves the rest");
+
+        /* A rename: found by the previous name, it takes the new one. */
+        len = test_put_ignore(wire, 0, 0x1, "Kill Seven", "Kill\xa0" "777");
+        memset(&p, 0, sizeof(p));
+        TEST_EXEC_ASSERT(
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_UPDATE_IGNORELIST), wire, len, &p),
+            "a rename parses");
+        App_GameProto_Exec(base_app, &ig_state, &p);
+        gameproto_free(&p);
+        TEST_EXEC_ASSERT(ig->ignore_count == 2, "a rename is the same entry");
+        TEST_EXEC_ASSERT(RS_Social_IsIgnored(ig, "Kill Seven") && !RS_Social_IsIgnored(ig, "Kill 777"),
+            "under its new name only");
+        {
+            int const i = RS_Social_IgnoreIndex(ig, "kill_seven");
+
+            RS_Social_IgnorePreviousName(ig, i, name, (int)sizeof(name));
+            TEST_EXEC_ASSERT(strcmp(name, "Kill\xa0" "777") == 0, "remembering the previous name");
+        }
+
+        /* The rs-family wires send the whole list as base-37 keys, and the
+         * list is replaced. */
+        {
+            struct GameProtoRevTable const* rs = GameProtoRev_ByName("rs254");
+            uint64_t const key = strtobase37("bob_smith");
+
+            assert(rs);
+            for( int i = 0; i < 8; i++ )
+                wire[i] = (uint8_t)(key >> (56 - 8 * i));
+            memset(&p, 0, sizeof(p));
+            TEST_EXEC_ASSERT(
+                rs->parse_wire(rs, rs->packetin_wire(PKT_NAME_UPDATE_IGNORELIST), wire, 8, &p),
+                "an rs254 UPDATE_IGNORELIST parses");
+            App_GameProto_Exec(base_app, &ig_state, &p);
+            gameproto_free(&p);
+            TEST_EXEC_ASSERT(ig->ignore_count == 1, "an rs-wire list replaces the list");
+            RS_Social_IgnoreName(ig, 0, name, (int)sizeof(name));
+            TEST_EXEC_ASSERT(strcmp(name, "Bob Smith") == 0, "named as its client showed the key");
+        }
+
+        free(ig);
+        printf("ok - the ignore list is keyed and matched like the friend list, on every wire\n");
     }
 
     /* B3: a name is shown as the wire spells it. A rev-221+ wire spells it

@@ -576,7 +576,7 @@ test_social(void)
 {
     struct Fixture* fx = fixture_new();
     struct RevPacket p;
-    int64_t names[2];
+    struct PktUpdateIgnoreListEntry ignores[2];
     struct PktUpdateFriendListEntry friend_entry;
 
     memset(&friend_entry, 0, sizeof(friend_entry));
@@ -594,13 +594,14 @@ test_social(void)
     CHECK(fx->social.friend_count == 1, "a second update for her is an update");
     CHECK(RS_Social_FriendWorld(&fx->social, 0) == 330, "of her world");
 
-    names[0] = strtobase37("carl");
-    names[1] = strtobase37("dave");
+    memset(ignores, 0, sizeof(ignores));
+    snprintf(ignores[0].name, sizeof(ignores[0].name), "carl");
+    snprintf(ignores[1].name, sizeof(ignores[1].name), "dave");
     p = packet(PKT_NAME_UPDATE_IGNORELIST);
     p._update_ignorelist.count = 2;
-    p._update_ignorelist.names37 = names;
+    p._update_ignorelist.entries = ignores;
     apply(fx, &p);
-    CHECK(fx->social.ignore_count == 2, "the ignore list is replaced");
+    CHECK(fx->social.ignore_count == 2, "both ignores are added");
 
     /* A private message from an ignored name is not shown, and its id is
      * not remembered (deob client.java class243.field2953: the ignore test,
@@ -616,19 +617,25 @@ test_social(void)
         p._message_private.text = pm_text;
         CHECK(apply(fx, &p) == RS_SERVER_STATE_UNCHANGED, "an ignored sender's private line is dropped");
         CHECK(fx->chat.message_count == count, "nothing reached the store");
+        /* Dave taken off the list: a removal entry (class428.method9746's
+         * leading 4). */
+        ignores[1].removed = 1;
         p = packet(PKT_NAME_UPDATE_IGNORELIST);
         p._update_ignorelist.count = 1;
-        p._update_ignorelist.names37 = names;
+        p._update_ignorelist.entries = &ignores[1];
         apply(fx, &p);
+        CHECK(fx->social.ignore_count == 1, "a removal entry takes one name off");
         p = packet(PKT_NAME_MESSAGE_PRIVATE);
         snprintf(p._message_private.sender, sizeof(p._message_private.sender), "dave");
         p._message_private.message_id = 91;
         p._message_private.text = pm_text;
         CHECK(apply(fx, &p) == RS_SERVER_STATE_APPLIED, "unignored, the same message is shown: its id was not kept");
+        ignores[1].removed = 0;
         p = packet(PKT_NAME_UPDATE_IGNORELIST);
-        p._update_ignorelist.count = 2;
-        p._update_ignorelist.names37 = names;
+        p._update_ignorelist.count = 1;
+        p._update_ignorelist.entries = &ignores[1];
         apply(fx, &p);
+        CHECK(fx->social.ignore_count == 2, "and an add puts it back beside the other");
     }
 
     /* A private line as the reference files it (deob client.java

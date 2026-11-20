@@ -135,6 +135,9 @@ struct RS_Social
 
     char ignore_name[RS_SOCIAL_IGNORE_MAX][RS_SOCIAL_NAME_LEN];
     int64_t ignore_hash[RS_SOCIAL_IGNORE_MAX];
+    /** The name the ignored player had before a rename, raw; "" when none
+     *  (IGNORE_GETNAME's second string). */
+    char ignore_previous_name[RS_SOCIAL_IGNORE_MAX][RS_SOCIAL_NAME_LEN];
     int ignore_count;
     struct RS_SocialSortChain ignore_sort;
 
@@ -161,6 +164,30 @@ RS_Social_AddIgnore(struct RS_Social* social, char const* name);
 
 int
 RS_Social_DelIgnore(struct RS_Social* social, char const* name);
+
+/** Remove ignore `index` (0 <= index < ignore_count), closing the gap. */
+void
+RS_Social_DelIgnoreAt(struct RS_Social* social, int index);
+
+/** The ignore list index of `name`, matched as RS_Social_IsIgnored matches
+ *  it; -1 when `name` is not ignored. */
+int
+RS_Social_IgnoreIndex(struct RS_Social const* social, char const* name);
+
+/** Give ignore `index` the name `name` (its key follows) and the previous
+ *  name `previous_name` (class473.method10601: a rename keeps the entry). */
+void
+RS_Social_SetIgnoreNames(
+    struct RS_Social* social,
+    int index,
+    char const* name,
+    char const* previous_name);
+
+/** Empty both lists and set the friend server back to LOADING, as the
+ *  reference's game-state reset does at every login (deob Statics.method9200
+ *  -> class58.method1166). The message ring and the sort chains stay. */
+void
+RS_Social_ResetForLogin(struct RS_Social* social);
 
 /**
  * Set friend `index`'s world, recording the change serial when it differs.
@@ -247,6 +274,11 @@ RS_Social_IgnoreName(struct RS_Social const* social, int index, char* out, int c
  *  of range. */
 void
 RS_Social_FriendPreviousName(struct RS_Social const* social, int index, char* out, int cap);
+
+/** Ignore `index`'s previous name as stored into `out`; "" when none or out
+ *  of range. */
+void
+RS_Social_IgnorePreviousName(struct RS_Social const* social, int index, char* out, int cap);
 
 /** Rank of friend `index`; 0 out of range. */
 int

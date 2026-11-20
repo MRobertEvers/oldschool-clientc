@@ -844,18 +844,70 @@ state_update_friendlist_apply(
     return RS_SERVER_STATE_APPLIED;
 }
 
+/* One rev-221+ entry, as deob class428.method9746 applies it: a removal
+ * deletes the name (class58.method1171 -> method10596); otherwise the entry
+ * is found by its name and, when the low bit is set, by its previous name
+ * too. Found under both as two entries, the previous one goes (Statics
+ * .method10612); found under either, it takes the wire's names (a rename,
+ * class473.method10601); found under neither, it is added. */
+static void
+state_ignore_entry(
+    struct RS_Social* social,
+    struct PktUpdateIgnoreListEntry const* entry)
+{
+    int index;
+
+    if( entry->removed )
+    {
+        (void)RS_Social_DelIgnore(social, entry->name);
+        return;
+    }
+    index = RS_Social_IgnoreIndex(social, entry->name);
+    if( entry->match_previous && entry->previous_name[0] )
+    {
+        int const previous = RS_Social_IgnoreIndex(social, entry->previous_name);
+
+        if( previous >= 0 && previous != index )
+        {
+            if( index < 0 )
+                index = previous;
+            else
+            {
+                RS_Social_DelIgnoreAt(social, previous);
+                if( previous < index )
+                    index--;
+            }
+        }
+    }
+    if( index < 0 )
+    {
+        if( !RS_Social_AddIgnore(social, entry->name) )
+            return;
+        index = social->ignore_count - 1;
+    }
+    RS_Social_SetIgnoreNames(social, index, entry->name, entry->previous_name);
+}
+
+/* UPDATE_IGNORELIST. On rev 221+ each entry changes the list held (an add
+ * from the server is one entry, not the list); the rs-family wires send the
+ * whole list, which replaces it. Names are the wire's spelling: an ignore is
+ * found and shown like a friend (RS_Social's key), never through base37
+ * text, which lost the capitals and the NBSP. */
 static enum RS_ServerStateApply
 state_update_ignorelist(
     struct RS_ServerState const* state,
     struct PktUpdateIgnoreList const* p)
 {
-    state->social->ignore_count = 0;
+    struct RS_Social* social = state->social;
+
+    assert(social);
+    if( p->replaces )
+        social->ignore_count = 0;
+    if( p->count == 0 )
+        return RS_SERVER_STATE_APPLIED;
+    assert(p->entries);
     for( int i = 0; i < p->count; i++ )
-    {
-        char name[16];
-        base37tostr((uint64_t)p->names37[i], name, sizeof(name));
-        RS_Social_AddIgnore(state->social, name);
-    }
+        state_ignore_entry(social, &p->entries[i]);
     return RS_SERVER_STATE_APPLIED;
 }
 

@@ -974,10 +974,30 @@ struct PktHideOps
     int hidden;
 };
 
+/* One UPDATE_IGNORELIST entry. On rev 221+ an entry is a change to the list
+ * the client holds (deob class428.method9746): a leading 4 removes `name`;
+ * otherwise `name` is added, or renamed onto an entry it already has. */
+struct PktUpdateIgnoreListEntry
+{
+    /** As the wire spells it (rev 221+: a jstr, capitals and NBSPs kept);
+     *  the base37 wires give the key as their client showed it. */
+    char name[64];
+    /** The name before a rename, "" when none. */
+    char previous_name[64];
+    /** The leading byte was 4: `name` is no longer ignored. */
+    int removed;
+    /** The leading byte's low bit (RSProt `added`): the reference also finds
+     *  the entry by `previous_name` (class428.method9746 var7). */
+    int match_previous;
+};
+
 struct PktUpdateIgnoreList
 {
+    /** 1 when the packet IS the list (the rs-family wires: the 2004 client
+     *  replaces its list); 0 when each entry changes the list held. */
+    int replaces;
     int count;
-    int64_t* names37; /* heap-allocated, count entries */
+    struct PktUpdateIgnoreListEntry* entries; /* heap-allocated, count entries */
 };
 
 struct PktUpdateFriendListEntry
