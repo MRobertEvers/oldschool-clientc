@@ -43,9 +43,12 @@
 #include "mem/torirs_mem.h"
 #include "toridraw_scene.h"
 
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 static int g_failures;
 
@@ -765,6 +768,91 @@ test_npc_head_custom_loads_its_models(void)
     fixture_free(&fx);
 }
 
+/* ---- a close the frame notices after its last pump ---------------------- */
+
+/* Runs `body` in a forked child: 1 when it died by SIGABRT (an assert). */
+static int
+dies_by_abort(void (*body)(void))
+{
+    pid_t pid;
+    int status = 0;
+
+    fflush(stdout);
+    fflush(stderr);
+    pid = fork();
+    assert(pid >= 0);
+    if( pid == 0 )
+    {
+        body();
+        _exit(0);
+    }
+    (void)waitpid(pid, &status, 0);
+    return WIFSIGNALED(status) && WTERMSIG(status) == SIGABRT;
+}
+
+static struct Fixture g_close_fx;
+
+static void
+publish_the_game_frame(void)
+{
+    TaskRunner_CheckPublishedAtStandstill(&g_close_fx.app.frame_runner, "the game frame");
+}
+
+/*
+ * The frame's rebind of interface heads (app_if_head_poll) runs after the
+ * frame's last pump and before the publish check (app/app_frame.c). It is
+ * where a close that no later set noticed is first seen: app_if_forget_closed
+ * drops the head and cancels its task, and the cancel wakes the task if it
+ * is parked on its load. At the publish it is ready, having had its turn in
+ * the frame's pump -- and all it will do is exit. Publishing over it is not a
+ * frame published over late work (strict mode aborted here).
+ */
+static void
+test_a_close_seen_after_the_last_pump_publishes(void)
+{
+    struct ToriRS_Npctype* npc;
+    struct ToriRS_Task* task;
+    int const com = 0x00e70001;
+
+    printf("TEST: a head whose interface closed, cancelled by the rebind after the frame's last pump, "
+           "does not trip the publish check\n");
+    fixture_init(&g_close_fx);
+    g_close_fx.app.tree = UITree_New(2);
+    npc = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*npc));
+    assert(npc);
+    npc->transform_varbit = -1;
+    npc->transform_varp = -1;
+    npc->heads_count = 1;
+    npc->heads = ToriMem_Alloc(ToriMem_Assets(), sizeof(*npc->heads));
+    assert(npc->heads);
+    npc->heads[0] = 70;
+    CacheProvider_NpctypeAdd(&g_close_fx.provider, 500, npc);
+
+    App_SetInterfaceNpcHead(&g_close_fx.app, com, 500);
+    pump(&g_close_fx);
+    TEST_ASSERT(loads_of(ASSET_KIND_MODEL, 70, 0) == 1, "the head waits on its model");
+    task = g_close_fx.app.frame_runner.queue->head;
+    TEST_ASSERT(task && task->parked, "parked on the load");
+    /* The frame's pump stepped it (this fixture's pump does not stamp). */
+    if( task )
+        task->turn = 1;
+    TEST_ASSERT(!dies_by_abort(publish_the_game_frame), "a parked head is no breach");
+
+    /* The dialogue closes; no later set says so; the frame rebinds. */
+    UITree_ReclaimInterfaceGroup(g_close_fx.app.tree, com >> 16);
+    app_if_head_poll(&g_close_fx.app);
+    TEST_ASSERT(head_of(&g_close_fx, com) == NULL, "the rebind forgot the closed head");
+    TEST_ASSERT(task && !task->parked && task->woke == TORIRS_WAKE_CANCELLED, "and its cancel woke the task");
+    TEST_ASSERT(!dies_by_abort(publish_the_game_frame), "publishing over a task that will only exit is no breach");
+
+    /* The next frame's pump: it exits. */
+    pump(&g_close_fx);
+    TEST_ASSERT(g_close_fx.app.frame_runner.queue->head == NULL, "the cancelled head task ended");
+    UITree_Free(g_close_fx.app.tree);
+    g_close_fx.app.tree = NULL;
+    fixture_free(&g_close_fx);
+}
+
 int
 main(void)
 {
@@ -778,6 +866,7 @@ main(void)
     test_bind_without_a_loader_is_unbound();
     test_npc_headicon_groups_load();
     test_npc_head_custom_loads_its_models();
+    test_a_close_seen_after_the_last_pump_publishes();
     if( g_failures )
     {
         printf("if_assets_tasks: %d failure(s)\n", g_failures);
