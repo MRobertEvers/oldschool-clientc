@@ -1472,9 +1472,27 @@ scenery_load_animation(
             element_id,
             seq_id,
             anim ? anim->frame_count : -1);
-    if( !anim || anim->frame_count <= 0 || ((!anim->frames || !anim->base) && !anim->skeletal) )
-        return;
     element = ToriDraw_SceneElementGet(builder->scene, element_id);
+    if( !anim || anim->frame_count <= 0 || ((!anim->frames || !anim->base) && !anim->skeletal) )
+    {
+        /* Not here yet (bound when it lands, WorldBuilder_BindLocSequence),
+         * or never: drawn meanwhile in its static form, the rest pose the
+         * bind gives it. The model holds its AUTHORED pose with the map's
+         * orient as a post transform (scenery_add_normal); captured as the
+         * bind pose and posed as SetAnimationSeq does, so the bind, which
+         * resets to the capture first, turns it once. The build's lighting
+         * at its end then lights it turned. */
+        if( element && ToriDraw_ModelKindIsFull(element->model.kind) && element->model.u.model.model &&
+            element->model.u.model.model->post_transform && !element->model.u.model.model->original_vertices_x )
+        {
+            struct ToriDraw_Model* model = element->model.u.model.model;
+
+            ToriDraw_ModelCaptureOriginalVertices(model);
+            ToriDraw_ModelApplyPostTransforms(model);
+            ToriDraw_ModelSetBoundsCylinder(model);
+        }
+        return;
+    }
     ToriDraw_SceneElementSetAnimationSeq(builder->scene, element_id, seq_id);
     ToriDraw_SceneElementSetAnimation(builder->scene, element_id, anim, true);
     if( element )
