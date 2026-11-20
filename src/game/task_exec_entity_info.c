@@ -995,12 +995,8 @@ Task_ExecPlayerInfo_Run(
                          * runs for the stances the block names. */
                         if( self->app_decoded.npc_id >= 0 )
                             EntityAssets_WantPlayerTransmog(app, self->app_decoded.npc_id);
-                        if( !EntityAssets_PlayerBodyResident(
-                                app, self->app_decoded.slots, self->app_decoded.gender, seqs, 7) )
-                            ToriRS_TaskQueue_Add(
-                                app->frame_runner.queue,
-                                CreateTask_PlayerBodyLand(
-                                    app, self->app_decoded.slots, self->app_decoded.gender, seqs, 7));
+                        (void)EntityAssets_WantPlayerBody(
+                            app, self->app_decoded.slots, self->app_decoded.gender, seqs, 7);
                     }
                 }
             }

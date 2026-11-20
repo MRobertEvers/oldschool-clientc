@@ -3109,6 +3109,17 @@ test-if-assets-tasks: $(OBJ_DIR) $(OBJS)
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/if_assets_tasks_test$(PLATFORM_EXE_SUFFIX)
 
+# Work that kept a tracker of its own, on the assets table and the pending
+# index now: a player's body fetch (one listed task per distinct body), the
+# npc multi-resolve's config reads, a client trigger's subject carried by its
+# script (app/test/app_trackers_test.c).
+.PHONY: test-app-trackers
+test-app-trackers: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(SRC_DIR)/world -o $(OBJ_DIR)/app_trackers_test$(PLATFORM_EXE_SUFFIX) \
+		app/test/app_trackers_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/app_trackers_test$(PLATFORM_EXE_SUFFIX)
+
 # Who has taken a part of this frame's input: keys by OSRS code, the frame as
 # a whole and the pointer by chrome, each dropped on its own lifetime.
 .PHONY: test-input-claims

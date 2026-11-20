@@ -308,6 +308,9 @@ src/app/test/app_tasks_effects_test.c
 # Added 2026-11-19 (ifassets step): the interface-assets tasks run on a stack App.
 src/app/test/if_assets_tasks_test.c
 src/app/test/app_tasks_scripts_test.c
+# Added 2026-11-19 (lo-tables step): the trackers moved onto the assets table
+# and the pending index, run on a stack App's queue, table and index.
+src/app/test/app_trackers_test.c
 src/engine/uitree_builder/task_slot_mount.c
 src/game/task_entity_assets.c
 src/plugin/torirs_plugin_drive.c

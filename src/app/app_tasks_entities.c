@@ -39,6 +39,8 @@ enum
 };
 
 _Static_assert(APP_TASK_SEQ_BIND <= RS_PENDING_KINDS_ENTITIES_LAST, "entity task kinds in range");
+/* The range's last id is a player's body fetch (game/task_entity_assets.h). */
+_Static_assert(APP_TASK_SEQ_BIND < ENTITY_ASSETS_KIND_PLAYER_BODY, "entity task kinds below the body fetch");
 
 struct RS_PendingKey
 App_EntityNpcKey(struct WorldEntity_NPC const* npc)
