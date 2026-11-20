@@ -2914,6 +2914,18 @@ test-entity-info-scratch: $(OBJ_DIR)
 		$(TORIMEM_SRCS) game/test/entity_info_scratch_test.c game/entity_info_scratch.c $(LDFLAGS)
 	./$(OBJ_DIR)/entity_info_scratch_test$(PLATFORM_EXE_SUFFIX)
 
+# The read both clients fill an entity-info op list with
+# (EntityInfoScratch_Read): a legal crowded PLAYER_INFO (the server's own
+# writer, 255 players entering view with a busy tick's blocks) and a crowded
+# NPC_INFO need more than a default list; the read grows it, reads the packet
+# again from the stream state before it, and hands back every op.
+.PHONY: test-entity-info-read
+test-entity-info-read: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/entity_info_read_test$(PLATFORM_EXE_SUFFIX) \
+		$(TORIMEM_SRCS) game/test/entity_info_read_test.c game/entity_info_scratch.c \
+		$(RSPROT_INFO_OBJS) -lm $(LDFLAGS)
+	./$(OBJ_DIR)/entity_info_read_test$(PLATFORM_EXE_SUFFIX)
+
 # A replay seek's chase: the tile it states until the world comes back, and
 # the client cycles each chase tick charges -- whole on the first tick, then
 # the gap less the cycles this client ran, never below zero. A wrong charge
@@ -6399,6 +6411,7 @@ SCRIPTRUN_SRCS = torirsserver/torirs_server_scriptrun.c scriptrun/scriptrun_core
 	net/rev/packets/pkt_player_appearance.c \
 	world/world.c world/world_cycle.c world/entity_pool.c world/world_entity.c \
 	world/entity_pathing.c world/entity_registry.c game/rs_entity_sync.c game/rs_entity_apply.c \
+	game/entity_info_scratch.c \
 	scriptrun/scriptrun_collision.c engine/torirs_types.c engine/torirs_map_from_rscache.c \
 	engine/torirs_location_from_rscache.c \
 	scriptrun/scriptrun_tasks.c game/rs_loc_tasks.c game/rs_pending.c engine/asset_requests.c perf/torirs_perf.c \

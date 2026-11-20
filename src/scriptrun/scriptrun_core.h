@@ -50,6 +50,7 @@
  * REBUILD_NORMAL, and from the template zones of a REBUILD_REGION.
  */
 
+#include "game/entity_info_scratch.h"
 #include "game/rs_effect_rules.h"
 #include "game/rs_event_ring.h"
 #include "scriptrun/scriptrun_model.h"
@@ -301,11 +302,9 @@ struct ScriptrunCore
      * keep one file-static table; see ScriptrunCore_Packet). */
     void* player_decoder_state;
 
-    /* Decoder scratch (the client's op lists): ops, and the byte arena
-     * whichever decode is running writes its strings into. */
-    void* npc_ops;
-    void* player_ops;
-    void* info_bytes;
+    /* The decoders' op lists, the client's own (game/entity_info_scratch.h):
+     * each sized to its packet by EntityInfoScratch_Read. */
+    struct EntityInfoScratch info_scratch;
     int packets;
     int unhandled;
 

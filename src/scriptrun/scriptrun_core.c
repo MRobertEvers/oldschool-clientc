@@ -24,13 +24,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* The decoder's array size, and the local-player sentinel while no UPDATE_PID
- * has arrived (rev 239 never sends one), as game/rs_entity_apply.c reads it. */
+/* The local-player sentinel while no UPDATE_PID has arrived (rev 239 never
+ * sends one), as game/rs_entity_apply.c reads it. */
 enum
 {
-    CORE_ENTITY_OPS_MAX = 2048,
-    /* An op list's strings and blobs: the payload and a NUL per op at most. */
-    CORE_ENTITY_BYTES_MAX = 65536 + CORE_ENTITY_OPS_MAX,
     CORE_LOCAL_SENTINEL = 2047,
 };
 
@@ -65,14 +62,9 @@ ScriptrunCore_New(struct GameProtoRevTable const* rev)
     core->esync = ToriMem_Calloc(ToriMem_ServerPlayers(), 1, sizeof(*core->esync));
     assert(core->esync);
     RS_EntitySync_Init(core->esync);
-    core->npc_ops =
-        ToriMem_Calloc(ToriMem_ServerPlayers(), CORE_ENTITY_OPS_MAX, sizeof(struct RsprotInfoOp));
-    assert(core->npc_ops);
-    core->player_ops = ToriMem_Calloc(
-        ToriMem_ServerPlayers(), CORE_ENTITY_OPS_MAX, sizeof(struct RsprotInfoOp));
-    assert(core->player_ops);
-    core->info_bytes = ToriMem_Alloc(ToriMem_ServerPlayers(), CORE_ENTITY_BYTES_MAX);
-    assert(core->info_bytes);
+    /* The lists are allocated on their first packet. */
+    core->info_scratch.npc.group = ToriMem_ServerPlayers();
+    core->info_scratch.player.group = ToriMem_ServerPlayers();
     ScriptrunModel_Init(&core->model,
         rev->number,
         &core->world->cycle,
@@ -130,9 +122,7 @@ ScriptrunCore_Free(struct ScriptrunCore* core)
     RS_EntitySync_Free(core->esync);
     ToriMem_Free(ToriMem_ServerPlayers(), core->esync);
     World_Free(core->world);
-    ToriMem_Free(ToriMem_ServerPlayers(), core->npc_ops);
-    ToriMem_Free(ToriMem_ServerPlayers(), core->player_ops);
-    ToriMem_Free(ToriMem_ServerPlayers(), core->info_bytes);
+    EntityInfoScratch_Free(&core->info_scratch);
     ToriMem_Free(ToriMem_ServerPlayers(), core->player_decoder_state);
     ToriMem_Free(ToriMem_ServerPlayers(), core);
 }
@@ -783,17 +773,22 @@ core_player_info(
     uint8_t const* data,
     int length)
 {
-    struct RsprotInfoOp* ops = core->player_ops;
     struct RS_EntityApplyHost host;
     struct RS_EntityApplyIn in;
+    struct EntityInfoReader reader;
     RsprotInfoList list;
     int op_count;
 
     assert(core->rev->player_info_read);
-    rsprot_info_list_init(&list, ops, CORE_ENTITY_OPS_MAX, core->info_bytes, CORE_ENTITY_BYTES_MAX);
-    op_count = core->rev->player_info_read(data, length, &list);
+    reader.read = core->rev->player_info_read;
+    reader.state_size = core->rev->player_info_state_size;
+    reader.state_save = core->rev->player_info_state_save;
+    reader.state_load = core->rev->player_info_state_load;
+    EntityInfoScratch_Borrow(&core->info_scratch.player, &list);
+    op_count = EntityInfoScratch_Read(&core->info_scratch.player, &list, &reader, data, length);
     core_entity_apply_in(core, &host, &in);
-    RS_EntityApply_PlayerInfo(&in, ops, op_count);
+    RS_EntityApply_PlayerInfo(&in, list.ops, op_count);
+    EntityInfoScratch_Release(&core->info_scratch.player, &list);
 }
 
 static void
@@ -802,21 +797,27 @@ core_npc_info(
     uint8_t const* data,
     int length)
 {
-    struct RsprotInfoOp* ops = core->npc_ops;
     struct RS_EntityApplyHost host;
     struct RS_EntityApplyIn in;
+    /* The npc stream keeps no state across packets. */
+    struct EntityInfoReader reader = { 0 };
     RsprotInfoList list;
     int op_count;
     int view = core->active_world;
 
     assert(core->rev->npc_info_read);
-    rsprot_info_list_init(&list, ops, CORE_ENTITY_OPS_MAX, core->info_bytes, CORE_ENTITY_BYTES_MAX);
-    op_count = core->rev->npc_info_read(data, length, &list);
+    reader.read = core->rev->npc_info_read;
+    EntityInfoScratch_Borrow(&core->info_scratch.npc, &list);
+    op_count = EntityInfoScratch_Read(&core->info_scratch.npc, &list, &reader, data, length);
     /* A deck view that is not live has no npcs to describe. */
     if( view > 0 && !core->views[view].live )
+    {
+        EntityInfoScratch_Release(&core->info_scratch.npc, &list);
         return;
+    }
     core_entity_apply_in(core, &host, &in);
-    RS_EntityApply_NpcInfo(&in, view, ops, op_count);
+    RS_EntityApply_NpcInfo(&in, view, list.ops, op_count);
+    EntityInfoScratch_Release(&core->info_scratch.npc, &list);
 }
 
 /* ------------------------------------------------------------ zone packets */
