@@ -136,6 +136,9 @@ Task_Dat2SoundRender_Free(struct ToriRS_Task* task_base)
 {
     struct Task_Dat2SoundRender* task = (struct Task_Dat2SoundRender*)task_base;
 
+    /* Leaving its queue: no longer a render an owner can finish. */
+    CacheProvider_SoundRenderEnd(&task->bc->base, task_base);
+
     RSCache_SoundRenderFree(task->render);
     RSCache_SoundEffectFree(task->effect);
     ToriMem_Free(ToriMem_Assets(), task);
@@ -165,6 +168,9 @@ create_render(
     task->sound_id = sound_id;
     task->effect = effect;
     PT_INIT(&task->pt);
+    /* Queued by the caller right after this: a render the owner of an
+     * effect's deadline may finish (CacheProvider_SoundRenderFinish). */
+    CacheProvider_SoundRenderBegin(&bc->base, sound_id, &task->task);
     return &task->task;
 }
 

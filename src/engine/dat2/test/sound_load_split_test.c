@@ -31,6 +31,8 @@
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/dat2/dat2_tasks.h"
 #include "engine/torirs_sound_from_rscache.h"
+#include "game/rs_audio.h"
+#include "toridraw_scene.h"
 #include "platform/platform_x_io.h"
 #include "task_runner.h"
 
@@ -335,6 +337,88 @@ test_the_longest_step(char const* root)
     lane_close(&lane);
 }
 
+
+/*
+ * G3: a cold effect under catch-up frames.
+ *
+ * The audio tick counts an effect down once a logic cycle and drops it ten
+ * cycles past its moment if its clip is not resident (RS_AUDIO_LATE_LIMIT_
+ * TICKS, the reference's `delays[i] >= -10`). The clip is read on the asset
+ * queue and rendered on the background queue, one floor slice a frame. A
+ * frame that runs late pays up to 5 cycles before its one floor (a page that
+ * stalled, a tab woken from a throttle, a phone under load): the countdown
+ * then runs 5 cycles per slice of render, and a long render loses the effect
+ * to our own scheduling -- the reference's clip, read and rendered
+ * synchronously, is resident on the tick it is asked for. r2-web's one
+ * dropped effect ('rs_audio: dropping effect 357, 11 ticks late') came after
+ * a 0.5 s gap in the page's frames.
+ *
+ * `cycles_per_frame` cycles, then one 2 ms floor slice of real processor
+ * time, until the effect is played or dropped. Returns 1 played, 0 dropped.
+ */
+static int
+cold_effect_under_frames(
+    char const* root,
+    int cycles_per_frame,
+    int* out_frames)
+{
+    struct Lane lane;
+    struct ToriDraw_Scene* scene;
+    struct RS_Audio audio;
+    struct ToriRS_AudioQueue queue;
+    struct ToriRS_AudioCommand commands[TORIRS_AUDIO_QUEUE_MAX];
+    int frames = 0;
+    int played;
+
+    if( !lane_open(&lane, root, cpu_now) )
+        return -1;
+    scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    assert(scene);
+    RS_Audio_Init(&audio);
+    ToriRS_AudioQueue_Reset(&queue);
+    /* The server's SYNTH_SOUND, and the load the audio tick's want starts
+     * (Assets_Want: the sound loader on the asset queue). */
+    RS_Audio_Synth(&audio, LONG_EFFECT, 1, 0);
+    ToriRS_TaskQueue_Add(lane.parallel.queue, CreateTask_SoundLoad(lane.provider, LONG_EFFECT));
+    while( audio.count > 0 && frames < 500 )
+    {
+        for( int c = 0; c < cycles_per_frame && audio.count > 0; c++ )
+        {
+            RS_Audio_Tick(&audio, lane.provider, NULL, scene, NULL, 0, 0, 0, NULL, &queue);
+            (void)ToriRS_AudioQueue_Drain(&queue, commands, TORIRS_AUDIO_QUEUE_MAX);
+        }
+        frame(&lane, cpu_now(NULL) + 2000);
+        frames++;
+    }
+    played = audio.played;
+    *out_frames = frames;
+    /* Whatever is left of the load (a dropped effect leaves its render). */
+    for( int f = 0; f < 1000 && (lane.parallel.queue->head || lane.background.queue->head); f++ )
+        frame(&lane, cpu_now(NULL) + 2000);
+    ToriDraw_SceneFree(scene);
+    lane_close(&lane);
+    return played > 0;
+}
+
+static void
+test_a_cold_effect_under_catch_up_frames(char const* root)
+{
+    int frames = 0;
+    int played;
+
+    printf("TEST: a cold effect (%d) under catch-up frames: played, not lost to the render (G3)\n",
+        LONG_EFFECT);
+    played = cold_effect_under_frames(root, 1, &frames);
+    if( played < 0 )
+        return;
+    printf("   one cycle a frame: %s after %d frame(s)\n", played ? "played" : "DROPPED", frames);
+    CHECK(played == 1, "the effect was dropped at one cycle a frame");
+    played = cold_effect_under_frames(root, 5, &frames);
+    printf("   five cycles a frame: %s after %d frame(s)\n", played ? "played" : "DROPPED", frames);
+    CHECK(played == 1, "the effect was dropped under catch-up frames (5 cycles to one 2 ms floor): its "
+                       "render, not its read, was late");
+}
+
 int
 main(
     int argc,
@@ -345,6 +429,7 @@ main(
     test_the_render_is_a_sliced_background_job(root);
     test_a_short_effect_lands_the_frame_it_is_read(root);
     test_the_longest_step(root);
+    test_a_cold_effect_under_catch_up_frames(root);
     if( g_failures )
     {
         printf("sound_load_split_test: %d failure(s)\n", g_failures);

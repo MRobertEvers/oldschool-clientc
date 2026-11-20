@@ -19,11 +19,14 @@
 #include <string.h>
 #include "log/torirs_log.h"
 
+/* TORIRS_REPORT, not TORIRS_LOG: the trace is asked for at run time
+ * (TORIRS_AUDIO_TRACE), and an effect's path from the queue to the mixer is
+ * wanted most in the optimized web build, where narration is compiled out. */
 #define AUDIO_TRACE(...)                                                                           \
     do                                                                                             \
     {                                                                                              \
         if( ToriRS_AudioTraceEnabled() )                                                           \
-            TORIRS_LOG(__VA_ARGS__);                                                          \
+            TORIRS_REPORT(__VA_ARGS__);                                                       \
     } while( 0 )
 
 /**
@@ -599,6 +602,20 @@ tick_effect_queue(
         struct ToriDraw_Sound* sound;
 
         entry->delay--;
+
+        /*
+         * Its last tick. If the clip's record is here and only our render of
+         * it is left -- a render the frames had no time for (a late frame
+         * pays up to five cycles to one background floor) -- the owner of
+         * the deadline finishes it now: the reference's clip is read and
+         * rendered synchronously, so it is resident by this tick, and losing
+         * the effect to our own scheduling is not its rule. A clip whose read
+         * has not landed is still dropped, as the reference drops one it
+         * cannot have.
+         */
+        if( entry->delay == -RS_AUDIO_LATE_LIMIT_TICKS && provider &&
+            !ToriDraw_SceneSoundGet(scene, entry->sound_id) )
+            (void)CacheProvider_SoundRenderFinish(provider, entry->sound_id);
 
         if( entry->delay < -RS_AUDIO_LATE_LIMIT_TICKS )
         {

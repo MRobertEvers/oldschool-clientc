@@ -16,11 +16,14 @@ ToriRS_AudioTraceEnabled(void)
     return enabled != 0;
 }
 
+/* TORIRS_REPORT, not TORIRS_LOG: the trace is asked for at run time
+ * (TORIRS_AUDIO_TRACE), and an effect's path from the queue to the mixer is
+ * wanted most in the optimized web build, where narration is compiled out. */
 #define MIXER_TRACE(...)                                                                           \
     do                                                                                             \
     {                                                                                              \
         if( ToriRS_AudioTraceEnabled() )                                                           \
-            TORIRS_LOG(__VA_ARGS__);                                                          \
+            TORIRS_REPORT(__VA_ARGS__);                                                       \
     } while( 0 )
 
 void

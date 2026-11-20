@@ -110,6 +110,9 @@ Task_Dat1SoundRender_Free(struct ToriRS_Task* task_base)
 {
     struct Task_Dat1SoundRender* task = (struct Task_Dat1SoundRender*)task_base;
 
+    /* Leaving its queue: no longer a render an owner can finish. */
+    CacheProvider_SoundRenderEnd(&task->bc->base, task_base);
+
     /* The record is the bank's: only the render is this job's. */
     RSCache_SoundRenderFree(task->render);
     ToriMem_Free(ToriMem_Assets(), task);
@@ -140,6 +143,9 @@ create_render(
     task->effect = effect;
     task->queue_delay = queue_delay;
     PT_INIT(&task->pt);
+    /* Queued by the caller right after this: a render the owner of an
+     * effect's deadline may finish (CacheProvider_SoundRenderFinish). */
+    CacheProvider_SoundRenderBegin(&bc->base, sound_id, &task->task);
     return &task->task;
 }
 
