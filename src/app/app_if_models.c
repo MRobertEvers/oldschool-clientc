@@ -63,11 +63,6 @@ app_if_player_model_get(
     struct App* app,
     int com_id);
 static int
-app_if_player_model_find_kit(
-    struct App* app,
-    int design_part,
-    int body_type);
-static int
 Task_AppIfPlayerModel_Run(
     struct ToriRS_Task* base,
     struct ToriRS_IOBatch* io);
@@ -239,7 +234,7 @@ app_if_player_model_get(
     return model;
 }
 
-static int
+int
 app_if_player_model_find_kit(
     struct App* app,
     int design_part,

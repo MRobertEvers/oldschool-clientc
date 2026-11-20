@@ -864,20 +864,46 @@ app_world_build_npc_body(
     if( o->player )
     {
         /* 0x20 (class399.field5090, class86.method2906): a player
-         * composition (class316.method7618) whose worn layer is the block's
-         * identkit list, in the wire's slot form, its colours the first five
-         * recolours and its body type the block's. A list shorter than the
-         * twelve slots leaves the rest empty (the reference would index past
-         * it). */
+         * composition (class316.method7618), its colours the first five
+         * recolours and its body type the block's. What it DRAWS is its
+         * second array, the block's MODEL list (field5091 -> field4251, the
+         * slots class316.method7569 builds from); the identkit list
+         * (field5096 -> field4250) is only the body underneath, read when
+         * the body type changes (method7634), which nothing does here. With
+         * no model list the body type's default kits are drawn
+         * (method7564's method7589). A list shorter than the twelve slots
+         * leaves the rest empty (the reference would index past it). */
         int slots[12] = { 0 };
         int colors[5] = { 0 };
 
-        /* The wire's slot form (deob class316: >= 512 a worn obj, >= 256 a
-         * kit, both offset) into this client's packing. */
-        for( int i = 0; i < 12 && i < o->identkit_count; i++ )
-            slots[i] = o->identkits[i] >= 512   ? Appearance_PackObj(o->identkits[i] - 512)
-                       : o->identkits[i] >= 256 ? Appearance_PackKit(o->identkits[i] - 256)
-                                                : 0;
+        if( o->models_sent )
+        {
+            /* The composition's slot form (deob: 256..2047 a kit, id + 256,
+             * Statics.method7614 / method7580; 2048 and up a worn obj, id +
+             * 2048, class316.method7579 / Statics.method7622) into this
+             * client's packing. The list is g4s: an obj id past a g2 names no
+             * config (the reference's lookup answers an empty type) and
+             * draws nothing, as a value under 256 does. */
+            for( int i = 0; i < 12 && i < o->model_count; i++ )
+            {
+                int const v = o->models[i];
+
+                if( v >= 2048 && v - 2048 <= 0xffff )
+                    slots[i] = Appearance_PackObj(v - 2048);
+                else if( v >= 256 && v < 2048 )
+                    slots[i] = Appearance_PackKit(v - 256);
+            }
+        }
+        else
+        {
+            for( int part = 0; part < PLAYER_APPEARANCE_PARTS; part++ )
+            {
+                int kit = app_if_player_model_find_kit(app, part, o->body_type);
+
+                if( kit >= 0 )
+                    slots[PlayerModel_DesignPartWearpos(part)] = Appearance_PackKit(kit);
+            }
+        }
         for( int i = 0; i < 5 && i < o->recolour_count; i++ )
             colors[i] = o->recolours[i];
         return app_world_build_npc_player_body(app, slots, colors, o->body_type);

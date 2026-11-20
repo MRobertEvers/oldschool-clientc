@@ -225,6 +225,13 @@ if_model_compose(struct Task_IfModel* self)
 {
     struct App* app = self->app;
 
+    /* An override that sent an EMPTY model list draws a head of no parts
+     * (deob Statics.method9224 takes the override's array whenever it is
+     * non-null): nothing, not the type's head, which a NULL list means to
+     * the bridge. */
+    if( self->kind == UI_IFHEAD_NPC && self->custom_serial && self->custom_models_sent &&
+        self->custom_model_count == 0 )
+        return -1;
     if( self->kind == UI_IFHEAD_NPC && self->custom_serial )
         return self->resolved_npc_id < 0 || !self->custom_found
                    ? -1

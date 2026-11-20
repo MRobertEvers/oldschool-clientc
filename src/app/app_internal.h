@@ -3139,6 +3139,15 @@ App_SetInterfaceNpcHeadCustom(
 void
 App_WorldNpcMirrorsRemount(struct App* app);
 
+/* The first selectable kit of design part `design_part` (0..6) for body type
+ * `body_type`, in config order, of the resident kit table (IdkType.method8644:
+ * body type 1 is the female band); -1 for none. */
+int
+app_if_player_model_find_kit(
+    struct App* app,
+    int design_part,
+    int body_type);
+
 struct ToriDraw_Model*
 app_world_build_npc_override_model(
     struct App* app,
