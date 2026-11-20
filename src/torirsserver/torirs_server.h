@@ -4295,6 +4295,28 @@ struct ToriRSServerPlayer
     int saved_chat_public_mode;
     int saved_chat_private_mode;
     int saved_chat_trade_mode;
+    /** The friends-chat channel this player is talking in: its owner's
+     *  base-37 name, 0 for none (torirs_server_friendchat.h). The channel's
+     *  member list is the service's; this is the player's side of it, so a
+     *  logout knows which channel to leave. */
+    int64_t friendchat_owner37;
+    /** A FRIENDCHAT_JOIN_LEAVE waiting for its answer: the owner asked for,
+     *  and the tick the answer goes out. Jagex answers a join a tick or two
+     *  after "Attempting to join chat-channel..." (RSProx index 753 [7..9],
+     *  762 [7..8]); 0 owner = nothing pending. */
+    int64_t friendchat_join_owner37;
+    int friendchat_join_tick;
+    /** `[friendchat]` as the save recorded it -- the owner's channel settings
+     *  and the channel the player was in at logout -- carried to the one
+     *  `ToriRSServer_FriendchatLogin` call like `saved_chat_*` above.
+     *  `friendchat_saved` 0 = the save had no section. */
+    int friendchat_saved;
+    int friendchat_saved_enabled;
+    int64_t friendchat_saved_prefix37;
+    int friendchat_saved_enter;
+    int friendchat_saved_talk;
+    int friendchat_saved_kick;
+    char friendchat_saved_channel[16];
     /** The login header's clientType / platformType, copied from the session
      *  (see ToriRSServerSession). `ToriRSServer_PlayerIsMobile` reads them:
      *  a mobile client keeps the mobile gameframe (`toplevel_osm`) through
@@ -10205,12 +10227,69 @@ ToriRSServer_PacketGroupEnd(struct ToriRSServerPlayer* player);
  */
 
 /** One friend-list entry: p8 name37, p1 world. Both the login dump (one packet
- *  per friend) and every delta afterwards use this. */
+ *  per friend) and every delta afterwards use this. `rank` is the friend's
+ *  friends-chat rank in the viewer's channel (0 a plain friend, 1 Recruit ..
+ *  6 General: RSProx index 759 [3198], `rank=2` beside Normo), which the
+ *  chat-channel setup panel's list draws (torirs_server_friendchat.h). */
 void
 ToriRSServer_SendUpdateFriendlist(
     struct ToriRSServerPlayer* player,
     int64_t name37,
-    int world);
+    int world,
+    int rank);
+
+/*
+ * Friends chat (the chat-channel tab, interface 7). The service that decides
+ * what goes in these is torirs_server_friendchat.h; every layout is RSProt's
+ * one row for revisions 222..242 (3rd/rsprot/packets/update_friendchat_*.c,
+ * message_friendchannel.c), the client's own readers.
+ */
+
+/** One channel member as UPDATE_FRIENDCHAT_CHANNEL_FULL lists it. */
+struct ToriRSServerFriendchatMemberOut
+{
+    const char* name;
+    int world;
+    int rank;
+};
+
+/** The whole channel: the owner's display name, the channel's base-37 name,
+ *  the kick rank and every member in join order (RSProx index 758 [8]). */
+void
+ToriRSServer_SendFriendchatChannelFull(
+    struct ToriRSServerPlayer* player,
+    const char* owner,
+    int64_t channel37,
+    int kick_rank,
+    const struct ToriRSServerFriendchatMemberOut* members,
+    int count);
+
+/** The empty UPDATE_FRIENDCHAT_CHANNEL_FULL: "you are in no channel", sent at
+ *  login and with every leave, kick and removal (RSProx index 753 [0], [954]). */
+void
+ToriRSServer_SendFriendchatChannelLeft(struct ToriRSServerPlayer* player);
+
+/** One member joined, changed rank (`add` again, RSProx index 754 [186]) or
+ *  left: `rank` -128 is the delete (index 761 [98]). */
+void
+ToriRSServer_SendFriendchatChannelUser(
+    struct ToriRSServerPlayer* player,
+    const char* name,
+    int world,
+    int rank);
+
+/** One line said in the channel: the sender's display name, the channel's
+ *  base-37 name, the sender's world and per-world message counter, the
+ *  sender's crown, then the Huffman text (RSProx index 236 [131217]). */
+void
+ToriRSServer_SendMessageFriendchannel(
+    struct ToriRSServerPlayer* player,
+    const char* sender,
+    int64_t channel37,
+    int world,
+    int32_t counter,
+    int crown,
+    const char* text);
 
 /** Empty UPDATE_FRIENDLIST: required to promote rev-239's social store from
  * FRIENDLIST_LOADED's "loading" state when the account has no entries. */

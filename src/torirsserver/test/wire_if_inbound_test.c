@@ -443,11 +443,15 @@ check_protocol_adapters(void)
      * and a clan type after it when the type is 3. The classic body is
      * colour, effect, text. */
     static const uint8_t public_plain[] = { 0x00, 0x02, 0x01, 0x02, 0xaa, 0xbb };
-    static const uint8_t public_plain_classic[] = { 0x02, 0x01, 0x02, 0xaa, 0xbb };
+    /* The chat type stays: it tells a friends-chat (2) or clan (3) line from
+     * one said aloud. */
+    static const uint8_t public_plain_classic[] = { 0x00, 0x02, 0x01, 0x02, 0xaa, 0xbb };
     static const uint8_t public_clan[] = { 0x03, 0x00, 0x00, 0x02, 0xaa, 0xbb, 0x01 };
-    static const uint8_t public_clan_classic[] = { 0x00, 0x00, 0x02, 0xaa, 0xbb };
+    static const uint8_t public_clan_classic[] = { 0x03, 0x00, 0x00, 0x02, 0xaa, 0xbb };
     /* Colour 13 carries one pattern byte this server could not pass on. */
     static const uint8_t public_pattern[] = { 0x00, 0x0d, 0x00, 0x07, 0x02, 0xaa, 0xbb };
+    /* FRIENDCHAT_JOIN_LEAVE "Z-Kris" (RSProx index 753 [7]) passes through. */
+    static const uint8_t fc_join[] = { 'Z', '-', 'K', 'r', 'i', 's', 0x00 };
     /* OpLocT: ctrl, selectedSub, id, selectedCombinedId, z, x, selectedObj. */
     static const uint8_t oploct[] = {
         0x00, 0x00, 0x85, 0x34, 0x12, 0x44, 0x33, 0x22,
@@ -492,6 +496,9 @@ check_protocol_adapters(void)
     CHECK_ADAPTER(
         "MESSAGE_PUBLIC clan line, its clan type dropped", 0, PKTOUT_NAME_MESSAGE_PUBLIC,
         public_clan, PKTOUT_NAME_MESSAGE_PUBLIC, public_clan_classic);
+    CHECK_ADAPTER(
+        "FRIENDCHAT_JOIN_LEAVE named channel", 0, PKTOUT_NAME_FRIENDCHAT_JOIN_LEAVE, fc_join,
+        PKTOUT_NAME_FRIENDCHAT_JOIN_LEAVE, fc_join);
 #undef CHECK_ADAPTER
     CHECK(
         osrs239_inbound_translate(

@@ -1172,7 +1172,7 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_ops_poh.c \
 	torirsserver/torirs_server_bank.c torirsserver/torirs_server_bank_tables.c torirsserver/torirs_server_container.c torirsserver/torirs_server_equipment.c \
 	torirsserver/torirs_server_shop.c \
-	torirsserver/torirs_server_friends.c \
+	torirsserver/torirs_server_friends.c torirsserver/torirs_server_friendchat.c \
 	torirsserver/torirs_server_ge.c \
 	torirsserver/torirs_server_ids.c \
 	torirsserver/torirs_server_boot.c torirsserver/torirs_server_save.c torirsserver/torirs_server_savefile.c torirsserver/torirs_server_hiscoreslog.c torirsserver/torirs_server_recording.c torirsserver/torirs_server_transport.c torirsserver/torirs_server_session.c \

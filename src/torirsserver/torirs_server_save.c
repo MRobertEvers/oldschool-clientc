@@ -10,6 +10,7 @@
 #include "torirs_server_container.h"
 #include "torirs_server_content.h"
 #include "torirs_server_friends.h"
+#include "torirs_server_friendchat.h"
 
 #include "3rd/ini/ini.h"
 #include "content/content_register.h"
@@ -330,6 +331,28 @@ save_player_write(
                 public_mode, private_mode, trade_mode);
     }
 
+    /*
+     * Friends chat: the channel this player owns (its prefix as base 37, who
+     * may enter, talk and kick) and the channel they were talking in, so the
+     * next login can rejoin it (`~friendchat_login`, clientscript
+     * chatchannel_login). Logout calls this before
+     * ToriRSServer_FriendchatLogout, so the player is still a member here.
+     */
+    {
+        int enabled = 0, enter = 0, talk = 0, kick = 0;
+        int64_t prefix37 = 0;
+        char channel[16];
+
+        if( player->name37 != 0 &&
+            ToriRSServer_FriendchatSaveFields(player, &enabled, &prefix37, &enter, &talk, &kick,
+                                              channel, (int)sizeof(channel)) )
+            save_printf(file,
+                        "\n[friendchat]\n; ranks: -1 anyone, 0 friends, 1..6 recruit..general, "
+                        "7 only the owner\nenabled = %d\nprefix37 = %lld\nenter = %d\n"
+                        "talk = %d\nkick = %d\nchannel = %s\n",
+                        enabled, (long long)prefix37, enter, talk, kick, channel);
+    }
+
     save_printf(file, "\n[sailing]\nshore = %d %d %d\naboard = %d %d %d\n",
             sailing.shore_x, sailing.shore_z, sailing.shore_level,
             sailing.aboard_slot, sailing.deck_x, sailing.deck_z);
@@ -513,6 +536,8 @@ enum SaveSection
     SAVE_SAILING,
     /** `[chat]` -- the three CHAT_SETMODE filter modes. */
     SAVE_CHAT,
+    /** `[friendchat]` -- the owned channel's settings and the joined one. */
+    SAVE_FRIENDCHAT,
     /** `[appearance]` — gender, the seven body kits, the five design colours. */
     SAVE_APPEARANCE,
     SAVE_STATS,
@@ -708,6 +733,13 @@ ToriRSServer_LoadPlayerFrom(
     player->saved_chat_public_mode = 0;
     player->saved_chat_private_mode = TORIRSSERVER_CHAT_PRIVATE_ON;
     player->saved_chat_trade_mode = 0;
+    player->friendchat_saved = 0;
+    player->friendchat_saved_enabled = 0;
+    player->friendchat_saved_prefix37 = 0;
+    player->friendchat_saved_enter = TORIRSSERVER_FRIENDCHAT_RANK_ANYONE;
+    player->friendchat_saved_talk = TORIRSSERVER_FRIENDCHAT_RANK_ANYONE;
+    player->friendchat_saved_kick = TORIRSSERVER_FRIENDCHAT_RANK_OWNER;
+    player->friendchat_saved_channel[0] = '\0';
 
     ini_reader_init(&reader);
     while( ini_reader_next(&reader, (uint8_t*)data, (uint32_t)size, &element) == TORI_INI_ERR_OK )
@@ -724,6 +756,11 @@ ToriRSServer_LoadPlayerFrom(
                 section = SAVE_SAILING;
             else if( strcmp(element._section.name, "chat") == 0 )
                 section = SAVE_CHAT;
+            else if( strcmp(element._section.name, "friendchat") == 0 )
+            {
+                section = SAVE_FRIENDCHAT;
+                player->friendchat_saved = 1;
+            }
             else if( strcmp(element._section.name, "appearance") == 0 )
                 section = SAVE_APPEARANCE;
             else if( strcmp(element._section.name, "stats") == 0 )
@@ -831,6 +868,23 @@ ToriRSServer_LoadPlayerFrom(
                 if( mode >= 0 && mode <= 2 )
                     player->saved_chat_trade_mode = mode;
             }
+            break;
+        case SAVE_FRIENDCHAT:
+            /* Range checks are the service's (ToriRSServer_FriendchatLogin):
+             * an out-of-range rank keeps the default there. */
+            if( strcmp(key, "enabled") == 0 )
+                player->friendchat_saved_enabled = atoi(value) != 0;
+            else if( strcmp(key, "prefix37") == 0 )
+                player->friendchat_saved_prefix37 = (int64_t)strtoll(value, NULL, 10);
+            else if( strcmp(key, "enter") == 0 )
+                player->friendchat_saved_enter = atoi(value);
+            else if( strcmp(key, "talk") == 0 )
+                player->friendchat_saved_talk = atoi(value);
+            else if( strcmp(key, "kick") == 0 )
+                player->friendchat_saved_kick = atoi(value);
+            else if( strcmp(key, "channel") == 0 )
+                snprintf(player->friendchat_saved_channel, sizeof(player->friendchat_saved_channel),
+                         "%s", value);
             break;
         case SAVE_SAILING:
             if( strcmp(key, "shore") == 0 )

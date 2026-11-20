@@ -3696,7 +3696,8 @@ void
 ToriRSServer_SendUpdateFriendlist(
     struct ToriRSServerPlayer* player,
     int64_t name37,
-    int world)
+    int world,
+    int rank)
 {
     /* One entry per packet, both for the login dump and for the deltas after
      * it. `world` is 0 for "offline, or not visible to you" — the conflation is
@@ -3710,7 +3711,7 @@ ToriRSServer_SendUpdateFriendlist(
         {
             char name[16];
             base37tostr((uint64_t)name37, name, (int)sizeof(name));
-            pl->friend_entry(&buf, name, world);
+            pl->friend_entry(&buf, name, world, rank);
         }
         else
         {
@@ -3719,6 +3720,111 @@ ToriRSServer_SendUpdateFriendlist(
         }
     }
     flush(player, &buf, OP_UPDATE_FRIENDLIST, 2);
+}
+
+/*
+ * Friends chat. The layouts are the wire's (torirs_server_wire.c, one shared
+ * writer each); the service that decides who hears what is
+ * torirs_server_friendchat.c. A wire without the hook has no friends chat at
+ * all (the classic rev-230 table maps none of these opcodes), and the packet
+ * is not sent.
+ */
+void
+ToriRSServer_SendFriendchatChannelFull(
+    struct ToriRSServerPlayer* player,
+    const char* owner,
+    int64_t channel37,
+    int kick_rank,
+    const struct ToriRSServerFriendchatMemberOut* members,
+    int count)
+{
+    enum
+    {
+        /* A channel this server holds is capped far below this by content
+         * (`^friendchat_member_max`); the array here only has to hold it. */
+        FULL_MEMBERS_MAX = 512,
+    };
+    const char* names[FULL_MEMBERS_MAX];
+    int worlds[FULL_MEMBERS_MAX];
+    int ranks[FULL_MEMBERS_MAX];
+    struct RsprotBuf buf;
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+    assert(player);
+    assert(owner);
+    assert(count >= 0);
+    assert(count <= FULL_MEMBERS_MAX);
+    assert(count == 0 || members);
+    if( !pl || !pl->friendchat_full )
+        return;
+    for( int i = 0; i < count; i++ )
+    {
+        names[i] = members[i].name;
+        worlds[i] = members[i].world;
+        ranks[i] = members[i].rank;
+    }
+    open_packet(&buf, 64 + (size_t)count * 32);
+    pl->friendchat_full(&buf, owner, channel37, kick_rank, names, worlds, ranks, count);
+    flush(player, &buf, PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_FULL, 2);
+}
+
+void
+ToriRSServer_SendFriendchatChannelLeft(struct ToriRSServerPlayer* player)
+{
+    /* The empty body: RSProt's `joined` loop runs zero times. */
+    struct RsprotBuf buf;
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+    assert(player);
+    if( !pl || !pl->friendchat_full )
+        return;
+    open_packet(&buf, 1);
+    flush(player, &buf, PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_FULL, 2);
+}
+
+void
+ToriRSServer_SendFriendchatChannelUser(
+    struct ToriRSServerPlayer* player,
+    const char* name,
+    int world,
+    int rank)
+{
+    struct RsprotBuf buf;
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+    assert(player);
+    assert(name);
+    if( !pl || !pl->friendchat_user )
+        return;
+    open_packet(&buf, 48);
+    pl->friendchat_user(&buf, name, world, rank);
+    flush(player, &buf, PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER, 1);
+}
+
+void
+ToriRSServer_SendMessageFriendchannel(
+    struct ToriRSServerPlayer* player,
+    const char* sender,
+    int64_t channel37,
+    int world,
+    int32_t counter,
+    int crown,
+    const char* text)
+{
+    struct RsprotBuf buf;
+    uint8_t packed[512];
+    int packed_len;
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+    assert(player);
+    assert(sender);
+    assert(text);
+    if( !pl || !pl->message_friendchannel )
+        return;
+    packed_len = chat_huffman_pack(packed, (int)sizeof(packed), text);
+    open_packet(&buf, 48 + (size_t)packed_len);
+    pl->message_friendchannel(&buf, sender, channel37, world, counter, crown, packed, packed_len);
+    flush(player, &buf, PKT_NAME_MESSAGE_FRIENDCHANNEL, 1);
 }
 
 void

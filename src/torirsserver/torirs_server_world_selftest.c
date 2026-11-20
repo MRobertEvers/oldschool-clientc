@@ -3785,6 +3785,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
 }
 
 #include "test/sailing_server_selftest.u.h"
+#include "test/friendchat_selftest.u.h"
 #include "test/sailing_multiplayer_selftest.u.h"
 #include "test/npc_add_face_selftest.u.h"
 /* Before the lifecycle header, which is its only caller: the stale-callback
@@ -5970,6 +5971,15 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer mcannon selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("mcannon");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_FRIENDCHAT_ONLY") )
+    {
+        selftest_friendchat(srv);
+        fprintf(stderr, "ToriRSServer friends chat selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("friendchat");
         return g_selftest_failures;
     }
 
@@ -52695,6 +52705,8 @@ ToriRSServer_WorldSelftest(void)
 
         ToriRSServer_FriendsReset();
     }
+
+    selftest_friendchat(srv);
 
     fprintf(stderr, "ToriRSServer selftest: charged item vars survive container moves\n");
     {

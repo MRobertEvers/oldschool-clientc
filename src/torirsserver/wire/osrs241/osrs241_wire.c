@@ -641,14 +641,14 @@ w241_friendlist_loaded(struct RsprotBuf* buf, int status)
 
 /* UpdateFriendListDecoder is unchanged at 241: the 239 entry, byte for byte. */
 static void
-w241_friend_entry(struct RsprotBuf* buf, const char* name, int world)
+w241_friend_entry(struct RsprotBuf* buf, const char* name, int world, int rank)
 {
     const char* safe = name ? name : "";
     rsprot_p1(buf, 0);
     rsprot_pjstr(buf, safe);
     rsprot_pjstr(buf, safe);
     rsprot_p2_12(buf, (uint16_t)world);
-    rsprot_p1(buf, 0);
+    rsprot_p1(buf, rank & 0xff); /* rank */
     rsprot_p1(buf, 0);
     if( world > 0 )
     {
@@ -1201,6 +1201,9 @@ static const struct ToriRSServerWirePayload k_payload_osrs241 = {
     .ambientsound_stop = w241_ambientsound_stop,
     .friendlist_loaded = w241_friendlist_loaded,
     .friend_entry = w241_friend_entry,
+    .friendchat_full = ToriRSServer_WireFriendchatFullOsrs,
+    .friendchat_user = ToriRSServer_WireFriendchatUserOsrs,
+    .message_friendchannel = ToriRSServer_WireMessageFriendchannelOsrs,
     .inv_header = w241_inv_header,
     .inv_slot = w241_inv_slot,
     .inv_stop_transmit = w241_inv_stop_transmit,
@@ -1235,6 +1238,10 @@ static const struct ToriRSServerWirePayload k_payload_osrs241 = {
 /* The 239 list, packet for packet: every one of these has a 241 writer above
  * or a 241 branch at its send site in torirs_server_encode.c. */
 static const int k_transcribed_osrs241[] = {
+    /* Friends chat: the shared writers in torirs_server_wire.c (RSProt's one
+     * 222..242 row each). */
+    PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_FULL, PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER,
+    PKT_NAME_MESSAGE_FRIENDCHANNEL,
     /* MessagePrivateEncoder through the `message_private` hook: display name,
      * world, 24-bit counter, crown, then the packed text. */
     PKT_NAME_MESSAGE_PRIVATE,

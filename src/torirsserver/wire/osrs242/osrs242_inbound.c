@@ -3,6 +3,7 @@
 #include "net/rev/pktnames.h"
 #include "torirsserver/wire/core/wire_in.h"
 
+#include "packets/friendchat_setrank.h"
 #include "packets/client_cheat.h"
 #include "packets/opnpc6.h"
 #include "packets/opworldentity1.h"
@@ -483,6 +484,16 @@ osrs242_inbound_translate(
         MsgClickworldmap m = {0};
         DECODE(packet_clickworldmap_osrs242_in, m);
         wire_in_clickworldmap(&w, m.packed);
+        break;
+    }
+    /* FRIENDCHAT_SETRANK: the name and the rank in this revision's order and
+     * transform (RSProt FriendChatSetRank), normalised to p1 rank + name. */
+    case PKTOUT_NAME_FRIENDCHAT_SETRANK:
+    {
+        MsgFriendChatSetRank m = {0};
+        DECODE(packet_friendchat_setrank_osrs242_in, m);
+        if( !wire_in_friendchat_setrank(&w, m.name, m.rank) )
+            return PKTOUT_NAME_NONE;
         break;
     }
     case PKTOUT_NAME_SET_HEADING:

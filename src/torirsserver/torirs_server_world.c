@@ -29,6 +29,7 @@
 #include "torirs_server_db.h"
 #include "torirs_server_equipment.h"
 #include "torirs_server_friends.h"
+#include "torirs_server_friendchat.h"
 #include "torirs_server_ids.h"
 #include "torirs_server_runenergy.h"
 #include "torirs_server_save.h"
@@ -14596,7 +14597,8 @@ social_send_world_update(
     ToriRSServer_SendUpdateFriendlist(
         viewer,
         other37,
-        ToriRSServer_FriendsVisibleTo(viewer37, other37) ? ToriRSServer_FriendsWorld(other37) : 0);
+        ToriRSServer_FriendsVisibleTo(viewer37, other37) ? ToriRSServer_FriendsWorld(other37) : 0,
+        ToriRSServer_FriendchatFriendRank(viewer37, other37));
 }
 
 /*
@@ -14777,7 +14779,8 @@ ToriRSServer_WorldSocialLogin(struct ToriRSServerPlayer* player)
         int world = 0;
 
         if( ToriRSServer_FriendsGet(me, i, &friend37, &world) )
-            ToriRSServer_SendUpdateFriendlist(player, friend37, world);
+            ToriRSServer_SendUpdateFriendlist(player, friend37, world,
+                                              ToriRSServer_FriendchatFriendRank(me, friend37));
     }
     {
         int64_t ignores[TORIRSSERVER_SOCIAL_IGNORES_MAX];
@@ -14817,6 +14820,11 @@ ToriRSServer_WorldSocialLogin(struct ToriRSServerPlayer* player)
      */
     social_notify_followers(srv, me, player->display_name,
                             SS_TRIGGER_FRIENDLOGIN);
+
+    /* Friends chat: the owner's settings, and "no channel yet" -- the empty
+     * UPDATE_FRIENDCHAT_CHANNEL_FULL every recorded login burst carries
+     * (RSProx index 753 [0]). A rejoin is content's (`~friendchat_login`). */
+    ToriRSServer_FriendchatLogin(player);
 }
 
 /** The name37 in an 8-byte social packet, or 0 if the frame is short. */
@@ -14884,6 +14892,8 @@ handle_social_list(
         break;
     case PKTOUT_NAME_FRIENDLIST_DEL:
         result = ToriRSServer_FriendsDel(me, target);
+        if( result == TORIRSSERVER_SOCIAL_OK )
+            ToriRSServer_FriendchatFriendRemoved(me, target);
         social_broadcast_to_followers(srv, me);
         break;
     case PKTOUT_NAME_IGNORELIST_ADD:
@@ -15168,37 +15178,125 @@ handle_message_public(
     int len)
 {
     struct ToriRSServerPlayer* player = srv->active_player;
+    int type;
     int packed_len;
 
     (void)name;
     if( !player )
         return;
-    /* Two header bytes and at least one packed byte. Under that there is no
+    /* Three header bytes (type, colour, effect: wire_in.c's normalised
+     * MessagePublic) and at least one packed byte. Under that there is no
      * message, which is a malformed frame rather than an empty one: the
      * client's own submit path never sends a blank line. */
-    if( len < 3 )
+    if( len < 4 )
         return;
-    packed_len = len - 2;
-    if( packed_len > (int)sizeof(player->chat_data) )
+    type = payload[0];
+    packed_len = len - 3;
+
+    /*
+     * Type 2 is a friends-chat line: the client sends it as MESSAGE_PUBLIC
+     * with the slash it was typed with (RSProx index 236 [131155]
+     * `type=2, message="/sup fellas"`), and it goes to the channel, never
+     * over the speaker's head.
+     *
+     * Type 3 is a clan line ("//", "///"); this server has no clans, so it is
+     * said nowhere -- it was said aloud before, which is the leak a clan
+     * line must never be.
+     */
+    if( type == 2 )
+    {
+        char* text = chat_huffman_unpack(payload + 3, packed_len);
+
+        if( srv->verbose )
+            fprintf(stderr, "torirsserver: <- MESSAGE_PUBLIC friendschat \"%s\"\n", text);
+        ToriRSServer_FriendchatSay(player, text, player_chat_crown(player));
+        ToriMem_Free(ToriMem_Net(), text); /* chat_huffman_unpack's */
+        return;
+    }
+    if( type == 3 )
         return;
 
-    player->chat_colour_effect = (payload[0] << 8) | payload[1];
+    if( packed_len > (int)sizeof(player->chat_data) )
+        return;
+    player->chat_colour_effect = (payload[1] << 8) | payload[2];
     player->chat_type = player_chat_crown(player);
-    memcpy(player->chat_data, payload + 2, (size_t)packed_len);
+    memcpy(player->chat_data, payload + 3, (size_t)packed_len);
     player->chat_len = packed_len;
     player->masks |= TORIRSSERVER_PMASK_CHAT;
 
     if( srv->verbose )
     {
-        char* text = chat_huffman_unpack(payload + 2, packed_len);
+        char* text = chat_huffman_unpack(payload + 3, packed_len);
 
         fprintf(
             stderr,
             "torirsserver: <- MESSAGE_PUBLIC colour=%d effect=%d \"%s\"\n",
-            payload[0],
             payload[1],
+            payload[2],
             text);
         ToriMem_Free(ToriMem_Net(), text); /* chat_huffman_unpack's */
+    }
+}
+
+/*
+ * The friends-chat packets: a NUL-terminated name (none for the leave), and
+ * for SETRANK the rank before it (wire_in.c's normalised body; the revisions
+ * order and transform the two differently, RSProt's FriendChatSetRank v1..v10).
+ * The service in torirs_server_friendchat.c decides everything.
+ */
+static int
+friendchat_read_name(
+    const uint8_t* payload,
+    int len,
+    char* out,
+    int size)
+{
+    int text_len = 0;
+
+    out[0] = '\0';
+    while( text_len < len && payload[text_len] != 0 )
+        text_len++;
+    if( text_len >= len || text_len >= size )
+        return 0;
+    memcpy(out, payload, (size_t)text_len);
+    out[text_len] = '\0';
+    return 1;
+}
+
+static void
+handle_friendchat(
+    struct ToriRSServer* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    struct ToriRSServerPlayer* player = srv->active_player;
+    char who[32];
+
+    if( !player )
+        return;
+    switch( name )
+    {
+    case PKTOUT_NAME_FRIENDCHAT_JOIN_LEAVE:
+        /* An empty body is the leave (RSProt's `has_name` loop not taken). */
+        if( len == 0 )
+        {
+            ToriRSServer_FriendchatJoinLeave(player, NULL);
+            return;
+        }
+        if( friendchat_read_name(payload, len, who, (int)sizeof(who)) )
+            ToriRSServer_FriendchatJoinLeave(player, who);
+        return;
+    case PKTOUT_NAME_FRIENDCHAT_KICK:
+        if( friendchat_read_name(payload, len, who, (int)sizeof(who)) )
+            ToriRSServer_FriendchatKick(player, who);
+        return;
+    case PKTOUT_NAME_FRIENDCHAT_SETRANK:
+        if( len >= 2 && friendchat_read_name(payload + 1, len - 1, who, (int)sizeof(who)) )
+            ToriRSServer_FriendchatSetRank(player, who, payload[0]);
+        return;
+    default:
+        return;
     }
 }
 
@@ -15430,6 +15528,9 @@ static const struct ToriRSServerPacketRoute k_packet_routes[] = {
     { PKTOUT_NAME_CHAT_SETMODE, handle_chat_setmode },
     { PKTOUT_NAME_MESSAGE_PRIVATE, handle_message_private },
     { PKTOUT_NAME_MESSAGE_PUBLIC, handle_message_public },
+    { PKTOUT_NAME_FRIENDCHAT_JOIN_LEAVE, handle_friendchat },
+    { PKTOUT_NAME_FRIENDCHAT_KICK, handle_friendchat },
+    { PKTOUT_NAME_FRIENDCHAT_SETRANK, handle_friendchat },
     { PKTOUT_NAME_WINDOW_STATUS, handle_window_status },
 };
 
@@ -16647,6 +16748,9 @@ ToriRSServer_WorldRemovePlayer(
      * their panel with "Offline" beside it. The reference does the same thing
      * from `World.removePlayer` (World.ts:1590).
      */
+    /* Out of any friends-chat channel while the name still reads online, so
+     * the members' SINGLEUSER delete names this world. */
+    ToriRSServer_FriendchatLogout(player);
     ToriRSServer_FriendsLogout(player->name37);
     player_set_occupancy(player, 0);
     /* The pid's scene window is released inside ToriRSServer_WorldPlayerFree
@@ -16787,6 +16891,7 @@ ToriRSServer_WorldChangeDisplayName(
     if( !ToriRSServer_DisplayNameClaim(name, player->account_name) )
         return 0;
     new37 = (int64_t)strtobase37(name);
+    ToriRSServer_FriendchatRename(player->name37, new37);
     if( !ToriRSServer_FriendsRename(player->name37, new37) )
     {
         if( !display_name_same(name, player->account_name) )
@@ -21921,6 +22026,9 @@ world_tick_body(struct ToriRSServer* srv)
     phase_npcs(srv);
     BD_MARK();
     phase_players(srv);
+    /* Friends chat: the answers to last tick's joins and any settings window
+     * that has run its 100 ticks (torirs_server_friendchat.h). */
+    ToriRSServer_FriendchatTick(srv);
     /* The tick log's tiles: after every npc and every player has moved, so a
      * PLAYER_TILE row is the tile the NEXT tick's npcs will scan
      * (ENCOUNTER_TIMING.md section 1). One branch while the log is off. */

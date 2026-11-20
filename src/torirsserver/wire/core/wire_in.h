@@ -155,6 +155,12 @@ wire_in_if_script_trigger(
  * and the empty packets. Returns the canonical name to route, or
  * PKTOUT_NAME_NONE (also for a `name` this does not cover).
  */
+/** FRIENDCHAT_SETRANK's normalised body: p1 rank, then the friend's name as
+ *  a NUL string (the world's handle_friendchat). 0 for a name or rank no
+ *  client sends. Each revision decodes its own field order first. */
+int
+wire_in_friendchat_setrank(struct RsprotBuf* w, const char* friend_name, int rank);
+
 int
 wire_in_body(
     int name,
