@@ -1,5 +1,5 @@
 /*
- * The shared frame loop through a fake lane (G4).
+ * The shared frame loop through a fake lane (G4, G5).
  *
  * Every lane -- SDL on macOS and Linux, the Android JNI thread, Win32 --
  * drives the same frame_loop_step (main.c); what differs is the lane under it:
@@ -15,10 +15,20 @@
  *       where the rule before spent it only on Soft3D and a retained (GLES)
  *       lane filled it to its cap and lost the rest; and the retained
  *       renderer is re-baked once, before the first draw back.
+ *   G5  a Windows lane's sleeps (platform/sleep_plan.h, the steps
+ *       PlatformWin32Timing_SleepUntilMs carries out) on a fake clock where
+ *       Sleep(n) returns a millisecond late: the 1 ms nap is a spin of
+ *       Sleep(0) rechecks on the Sleep plan and one blocking wait with the
+ *       high-resolution timer; and a lane that stops calling the loop for two
+ *       seconds (a modal resize): the frame clock as main.c composes it
+ *       (the GameShell pacer, then FrameClockStep_Pay at 5 cycles a frame).
  *
  *   make -C src test-loop-lane
  */
 
+#include "pacer.h"
+#include "perf/frame_clock.h"
+#include "platform/sleep_plan.h"
 #include "platform/surface_plan.h"
 #include "toridraw_alloc.h"
 #include "toridraw_scene.h"
@@ -197,10 +207,159 @@ test_no_surface(void)
     CHECK(run.draws_without_surface == 0, "a software lane drew with no surface");
 }
 
+/* ---- G5: Windows sleeps -------------------------------------------------- */
+
+struct FakeWin
+{
+    uint64_t now_us;
+    int sleeps;
+    int yields;
+    int timer_waits;
+};
+
+/* PlatformWin32Timing_SleepUntilMs, carried out on a fake Windows: Sleep(n)
+ * returns 1 ms late (timeBeginPeriod(1)), Sleep(0) comes back in 20 us, the
+ * high-resolution timer 30 us after its due time. */
+static void
+fake_sleep_until(
+    struct FakeWin* win,
+    uint64_t deadline_ms,
+    int precise)
+{
+    for( int guard = 0; guard < 1000000; guard++ )
+    {
+        struct ToriRS_SleepStep const step = ToriRS_SleepPlan_Next(win->now_us, deadline_ms, precise);
+        if( step.kind == TORIRS_SLEEP_STEP_DONE )
+            return;
+        if( step.kind == TORIRS_SLEEP_STEP_TIMER_US )
+        {
+            win->timer_waits++;
+            win->now_us += step.amount + 30;
+        }
+        else if( step.kind == TORIRS_SLEEP_STEP_SLEEP_MS )
+        {
+            win->sleeps++;
+            win->now_us += step.amount * 1000u + 1000u;
+        }
+        else
+        {
+            win->yields++;
+            win->now_us += 20;
+        }
+    }
+    assert(0);
+}
+
+static void
+test_windows_sleeps(void)
+{
+    printf("TEST: a Windows lane's sleeps on a fake clock (G5)\n");
+    for( int precise = 0; precise < 2; precise++ )
+    {
+        struct FakeWin win;
+        uint64_t deadline;
+
+        /* The loop's nap: SleepUntil(now + TORIRS_LOOP_NAP_MS), 300 us into
+         * a millisecond. */
+        memset(&win, 0, sizeof(win));
+        win.now_us = 5000300;
+        deadline = win.now_us / 1000 + TORIRS_LOOP_NAP_MS;
+        fake_sleep_until(&win, deadline, precise);
+        printf("   %s: a %u ms nap took %d Sleep(n), %d Sleep(0), %d timer wait(s), ended %llu us past it\n",
+            precise ? "high-resolution timer" : "Sleep plan", TORIRS_LOOP_NAP_MS, win.sleeps, win.yields,
+            win.timer_waits, (unsigned long long)(win.now_us - deadline * 1000));
+        if( !precise )
+            CHECK(win.yields > 10 && win.sleeps == 0, "the Sleep plan's nap is not the spin (%d yields)",
+                win.yields);
+        else
+            CHECK(win.yields == 0 && win.sleeps == 0 && win.timer_waits == 1,
+                "the timer's nap spun: %d yields, %d sleeps, %d waits", win.yields, win.sleeps,
+                win.timer_waits);
+
+        /* A 50 fps frame deadline, 2 ms of work in. */
+        memset(&win, 0, sizeof(win));
+        win.now_us = 7002000;
+        deadline = 7020;
+        fake_sleep_until(&win, deadline, precise);
+        printf("   %s: an 18 ms frame wait took %d Sleep(n), %d Sleep(0), %d timer wait(s), ended %llu us "
+               "past it\n",
+            precise ? "high-resolution timer" : "Sleep plan", win.sleeps, win.yields, win.timer_waits,
+            (unsigned long long)(win.now_us - deadline * 1000));
+        CHECK(win.now_us >= deadline * 1000, "woke before the deadline");
+        CHECK(win.now_us - deadline * 1000 < 1000, "overshot the frame deadline by a millisecond or more");
+        if( precise )
+            CHECK(win.yields == 0, "the timer's frame wait spun %d times", win.yields);
+    }
+}
+
+/* ---- G5: a lane that stops calling the loop for two seconds -------------- */
+
+static void
+test_a_two_second_stall(void)
+{
+    struct ToriRS_Pacer pacer;
+    struct FrameClockStep step;
+    uint64_t now = 100000;
+    int cycles_before = 0;
+    int cycles_after = 0;
+    int max_after = 0;
+    int frames_owed = 0;
+    int spins = 0;
+
+    printf("TEST: a lane that stops calling the loop for 2 s, as a modal resize does (G5)\n");
+    /* main.c's native default: the GameShell pacer, 20 ms, mindel 1; App_RunOnce
+     * pays FrameClockStep_Pay(logic_now, 20 ms, 5). */
+    ToriRS_Pacer_Init(&pacer, TORIRS_PACER_GAMESHELL, 20, 1);
+    memset(&step, 0, sizeof(step));
+    for( int f = 0; f < 200; f++ )
+    {
+        uint64_t frame_start;
+        uint64_t logic_now;
+        uint64_t wait_until;
+        int ticks;
+
+        if( f == 100 )
+            now += 2000; /* the modal loop: no frame for two seconds */
+        frame_start = now;
+        logic_now = ToriRS_Pacer_BeginFrame(&pacer, now);
+        ticks = FrameClockStep_Pay(&step, logic_now, 20, 5);
+        now += 2; /* the frame's work */
+        wait_until = ToriRS_Pacer_WaitDeadline(&pacer, frame_start, now);
+        if( wait_until <= now )
+            spins++;
+        if( f < 100 )
+            cycles_before += ticks;
+        else
+        {
+            cycles_after += ticks;
+            if( ticks > max_after )
+                max_after = ticks;
+            if( ticks > 1 )
+                frames_owed++;
+        }
+        now = wait_until > now ? wait_until : now;
+    }
+    printf("   100 frames before: %d cycles; 100 frames after the stall: %d cycles, at most %d in a frame, "
+           "%d frame(s) above one; %d frame(s) that did not wait\n",
+        cycles_before, cycles_after, max_after, frames_owed, spins);
+    /* The design (frame_clock.c): the first frame after a stall pays at most
+     * APP_MAX_CATCHUP_TICKS (5) and the rest is dropped -- no lurch. Before
+     * the pacer re-seeded on a stall, its ten-iteration estimator paid the
+     * stall again over the next ten frames: 140 cycles, ten frames above one. */
+    CHECK(max_after <= 5, "a frame ran %d cycles after the stall", max_after);
+    CHECK(frames_owed <= 1, "%d frames after the stall ran more than one cycle: the stall was replayed",
+        frames_owed);
+    CHECK(cycles_after <= 100 + 4, "the stall was replayed: %d cycles in the 100 frames after it",
+        cycles_after);
+    CHECK(spins == 0, "%d frames did not wait at all", spins);
+}
+
 int
 main(void)
 {
     test_no_surface();
+    test_windows_sleeps();
+    test_a_two_second_stall();
     if( g_failures )
     {
         printf("loop_lane_test: %d failure(s)\n", g_failures);

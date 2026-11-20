@@ -3376,7 +3376,8 @@ test-pacer: $(OBJ_DIR)
 
 # The shared frame loop through a fake lane (platform/test/loop_lane_test.c):
 # no surface for N frames on a retained and a software lane against a real
-# scene queue (platform/surface_plan.h).
+# scene queue (platform/surface_plan.h); a Windows lane's sleeps on a fake
+# clock (platform/sleep_plan.h); a lane that stops calling the loop for 2 s.
 test-loop-lane: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/loop_lane_test$(PLATFORM_EXE_SUFFIX) \
 		platform/test/loop_lane_test.c \
