@@ -569,6 +569,8 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
     if( !ContentTest_Enabled() ) return real_now;
     assert(app);
     assert(bus);
+    /* Decided below, every frame; a frame that decides nothing holds nothing. */
+    App_LogicClockHold(0);
     struct ToriRSServerEmbed* embed = NetTransport_TestClock(transport, g_content_test.test_now);
     /* t.cheat needs the embedded struct ToriRSServer* to call a debugproc
      * in-process, with no packet; this is the one place a NetTransport is
@@ -597,7 +599,14 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
          * through the driver because nothing outside this file has any
          * business knowing that variable's name.
          */
-        if( !g_content_test.capture_path[0] && !App_AsyncPending(app) && PluginDrive_ClockWantsStep(app) )
+        int const wants = !g_content_test.capture_path[0] && PluginDrive_ClockWantsStep(app);
+        int const held = wants && App_AsyncPending(app);
+        /* Held: the client's frame-locked cycles stand still with the server
+         * (App_LogicClockHold), or the client runs a cycle a frame through
+         * the hold and its clock -- the driver's deadlines -- outruns the
+         * server's. */
+        App_LogicClockHold(held);
+        if( wants && !held )
             g_content_test.test_now += quest_clock_step_ms();
         NetTransport_TestClock(transport, g_content_test.test_now);
         return g_content_test.test_now;
@@ -811,6 +820,7 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
         g_content_test.click_phase++;
         RedrawRequest_Raise(&app->redraw_request);
     }
+    App_LogicClockHold(g_content_test.remaining > 0 && App_AsyncPending(app));
     if( g_content_test.remaining > 0 && !App_AsyncPending(app) )
     {
         g_content_test.test_now += 20;

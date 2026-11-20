@@ -2023,6 +2023,19 @@ App_FrameLocked(void);
 void
 App_FrameLockEngage(void);
 
+/** HELD CLOCK: the content test did not step its virtual clock this frame
+ *  (content_test.c, ContentTest_Begin), so a frame-locked frame pays no
+ *  logic cycle either (FrameClockStep_PayHeld): the server and the client
+ *  stand still together, as "one virtual clock" means. Without it the client
+ *  ran a cycle a frame through every hold, and a quest driver deadline,
+ *  counted in client cycles, expired with no server tick run. Set every
+ *  frame by its caller; 0 outside a content test. */
+void
+App_LogicClockHold(int held);
+
+int
+App_LogicClockHeld(void);
+
 /** UNLOCKED CLOCK (`--unlocked`, TORIRS_UNLOCKED=1, `[net:boot]
  *  clock=unlocked`): the client runs as fast as the machine allows, and so
  *  does the world it plays in. Implies the FRAME LOCK above -- every frame

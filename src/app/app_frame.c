@@ -1560,8 +1560,9 @@ app_run_once_body(
             /* Plus the cycles a k > 1 frame was charged and did not run (the
              * settle fence stopped it part way). Always 0 at k = 1, where the
              * fence can only stop after the frame's one cycle. */
-            ticks = FrameClockStep_PayLocked(
-                &app->frame_clock.step, cycles_per_frame, APP_LOGIC_TICK_MS);
+            ticks = App_LogicClockHeld() ? FrameClockStep_PayHeld(&app->frame_clock.step)
+                                         : FrameClockStep_PayLocked(
+                                               &app->frame_clock.step, cycles_per_frame, APP_LOGIC_TICK_MS);
         }
         else if( cycles_per_frame != 1 )
         {

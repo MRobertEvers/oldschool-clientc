@@ -68,6 +68,20 @@ static int s_frame_lock_engaged = 0;
 static int s_speed_unlocked = 0;
 /* Logic cycles the frame loop has run, ever (App_LogicCyclesRun). */
 static uint64_t s_logic_cycles_run = 0;
+/* This frame's content-test clock is held (App_LogicClockHold). */
+static int s_logic_clock_held = 0;
+
+void
+App_LogicClockHold(int held)
+{
+    s_logic_clock_held = held != 0;
+}
+
+int
+App_LogicClockHeld(void)
+{
+    return s_logic_clock_held;
+}
 
 int
 App_FrameLocked(void)
