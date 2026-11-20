@@ -503,26 +503,9 @@ app_world_spawn_player_drawn_as(
         ToriDraw_SceneAnimListInvalidate(app->scene);
     }
 
-    {
-        struct WorldEntityFacet_IdleAnimations idle = {
-            .readyanim = APP_PLAYER_SEQ_READY,
-            .walkanim = APP_PLAYER_SEQ_WALK,
-            .turnanim = APP_PLAYER_SEQ_TURN,
-            .turnanim_r = APP_PLAYER_SEQ_TURN,
-            .runanim = APP_PLAYER_SEQ_RUN,
-            .walkanim_b = APP_PLAYER_SEQ_WALK_B,
-            .walkanim_r = APP_PLAYER_SEQ_WALK_R,
-            .walkanim_l = APP_PLAYER_SEQ_WALK_L,
-            .runanim_b = -1,
-            .runanim_r = -1,
-            .runanim_l = -1,
-            .crawlanim = -1,
-            .crawlanim_b = -1,
-            .crawlanim_r = -1,
-            .crawlanim_l = -1,
-        };
-        idx = World_PlayerSpawn(app->world, element_id, level, tile_x, tile_z, idle);
-    }
+    /* The default kit's stance set, as the headless client spawns one too. */
+    idx = World_PlayerSpawn(
+        app->world, element_id, level, tile_x, tile_z, RS_EntityApply_PlayerSpawnIdle());
     {
         struct WorldEntity_Player* player = World_EntityPoolGet(&app->world->entities.player, idx);
         if( player )
@@ -803,20 +786,14 @@ app_world_spawn_npc_now(
     /* Spawn does not carry menu data; the minimenu rows read it off the
      * entity, so copy name/actions/level from the config here. */
     {
-        struct WorldEntity_NPC* npc = World_EntityPoolGet(&app->world->entities.npc, idx);
-        if( npc )
-        {
-            npc->combat_level = npctype->combat_level;
-            npc->alwaysontop = npctype->alwaysontop;
-            npc->minimap_visible = npctype->minimap_visible;
-            npc->interactable = npctype->interactable;
-            npc->facing.turn_speed = facts.turn_speed;
-            npc->facing.no_rotation_flag = npctype->no_rotation_flag;
-            snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
-            for( int i = 0; i < 5; i++ )
-                snprintf(
-                    npc->actions[i].name, sizeof(npc->actions[i].name), "%s", npctype->actions[i]);
-        }
+        /* The shared rule (game/rs_entity_apply.h), the headless client's too. */
+        struct RS_EntityNpcType record;
+        /* `npctype` is resident: looked up above. */
+        int const known = App_WorldNpcTypeRecord(app, npc_id, base_npc_id, &record);
+
+        assert(known);
+        (void)known;
+        RS_EntityApply_NpcSpawned(app->world, idx, &record);
     }
     /* Was unconditional. stderr is unbuffered, so this is a synchronous write
      * per npc arrival on the packet-apply path -- and npcs arrive in bursts of

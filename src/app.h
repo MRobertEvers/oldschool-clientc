@@ -2611,9 +2611,10 @@ App_MinimapBuildDots(
 
 struct PktPlayerAppearance;
 
-/** Apply the decoded appearance (slots, colours, idle anims, name, combat
- * level, headicon) to the World entity. Data only: the body is derived from
- * it per frame once every part is resident (app_world_reconcile_player_body). */
+/** The App's half of an appearance the shared apply wrote to the World entity
+ * (RS_EntityApply_PlayerAppearance, game/rs_entity_apply.h): the local
+ * player's name to the chatbox and the CS2 host. The body is derived from the
+ * entity per frame once every part is resident (app_world_reconcile_player_body). */
 void
 App_WorldApplyPlayerAppearance(
     struct App* app,
@@ -2632,16 +2633,17 @@ App_WorldApplyNpcType(
     int npc_type,
     int base_npc_type);
 
-struct WorldEntityFacet_IdleAnimations;
+struct RS_EntityNpcType;
 
-/** The stance set `npc_type` (drawn under the wire's `base_npc_type`) gives an
- * npc on a spawn or a retype. 0 when the type's config is not resident. */
+/** The facts `npc_type` (drawn under the wire's `base_npc_type`) gives an npc
+ * on a spawn or a retype (game/rs_entity_apply.h). 0 when the type's config
+ * is not resident. The strings are the cache's. */
 int
-App_WorldNpcTypeIdle(
+App_WorldNpcTypeRecord(
     struct App* app,
     int npc_type,
     int base_npc_type,
-    struct WorldEntityFacet_IdleAnimations* out);
+    struct RS_EntityNpcType* out);
 
 /** The npc at `world_idx` (registered, so it has a server slot) draws its
  *  type's body once that is resident: nothing to do when it is, else a

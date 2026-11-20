@@ -312,8 +312,8 @@ test_loc_records(void)
      * key only moves its new one. */
     static const char none[5][32] = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
 
-    ScriptrunZone_LocChange(zone, 10, 20, 0, 0, 1, 1530, 1529, 0, 1, 30, 0x1f, none);
-    ScriptrunZone_LocChange(zone, 10, 20, 0, 0, 2, 1531, 1530, 0, 1, 60, 0x1f, none);
+    World_LocChangePushOps(zone->world, 0, 0, 10, 20, 1529, 1, 0, 1530, 1, 0, 30, -1, 0x1f, none);
+    World_LocChangePushOps(zone->world, 0, 0, 10, 20, 1530, 1, 0, 1531, 2, 0, 60, -1, 0x1f, none);
     CHECK(zone->world->loc_change_count == 1, "one record per key");
     rec = &zone->world->loc_changes[0];
     CHECK(rec->old_type == 1529 && rec->new_type == 1531 && rec->new_angle == 2, "old kept, new moved");

@@ -29,21 +29,20 @@
  * stacks, the effect log the projectiles and map graphics are read from
  * (game/rs_effect_log.h), the loc animations, and the root's loc change
  * records, which a rebuild re-places. That unit also holds the one list of
- * the real client's parallel task kinds and why this client raises none.
+ * the real client's parallel task kinds and which this client runs, on its
+ * own parallel queue (scriptrun_tasks.h): the loc change and the loc merge.
  *
- * WHAT IT MIRRORS. The client applies the entity streams in a packet task
- * bound to the whole App (game/task_exec_entity_info.c): it awaits the npc
- * configs the packet names, and hands bodies and sequences to parallel tasks.
- * That cannot run here, so the target/apply rules are restated in
- * scriptrun_core.c, op for op, against the same World and RS_EntitySync, with
- * the npc configs read from the server's own records
- * (ToriRSServer_NpcInfoRecord) and the App-only side effects (models, scene
- * elements, sounds, chat UI, drive events) left out. Keep the two in step: a
- * change to player_target_op / player_apply_op / npc_target_op / npc_apply_op
- * there is a change here. The interface mounts are restated too (the real
- * client's record of what is mounted is its UI tree), and the placed locs:
- * the loc table below stands for the real client's scenery pool, which this
- * client builds no scene for.
+ * WHAT IT SHARES WITH THE ENTITY STREAMS. PLAYER_INFO and NPC_INFO are
+ * applied by the real client's rules, game/rs_entity_apply.h, the one copy
+ * both clients call, against the same World and RS_EntitySync. This client is
+ * that apply's host (scriptrun_core.c, "the entity streams"): its npc configs
+ * are the server's own records of the pack's client configs
+ * (ToriRSServer_NpcInfoRecord), its entities have no models, and of the
+ * App-only side effects it keeps the chat store, the npc_seq / npc_face
+ * stamps, its own sequence history and the wirelog. The interface mounts are
+ * restated (the real client's record of what is mounted is its UI tree), and
+ * the placed locs: the loc table below stands for the real client's scenery
+ * pool, which this client builds no scene for.
  *
  * WHAT IT DOES NOT KNOW. Anything the server never sent: other players'
  * stats, npc hitpoints (only the health bar's fill), server-only varps. The
@@ -60,6 +59,8 @@
 
 struct World;
 struct GameProtoRevTable;
+struct ScriptrunTasks;
+struct ToriRS_Location;
 struct ScriptrunShadow;
 struct PktLocAddChange;
 struct RevPacket;
@@ -74,7 +75,6 @@ enum
     SCRIPTRUN_PROJECTILES = RS_EFFECT_PROJECTILE_CAP,
     SCRIPTRUN_MAP_ANIMS = RS_EFFECT_MAP_ANIM_CAP,
     SCRIPTRUN_LOC_ANIMS = RS_EFFECT_LOC_ANIM_CAP,
-    SCRIPTRUN_LOCS = 1024,
     SCRIPTRUN_MOUNTS = 64,
     SCRIPTRUN_SCRIPT_ARGS = 32,
     /* Client logic cycles per server tick: the unit World and the drive's
@@ -306,10 +306,12 @@ struct ScriptrunCore
     void* npc_ops;
     void* player_ops;
     void* info_bytes;
-    int npc_old_list[2048];
-    int player_old_list[2048];
     int packets;
     int unhandled;
+
+    /* The parallel queue (scriptrun_tasks.h): the loc tasks both clients
+     * run, pumped after every packet. */
+    struct ScriptrunTasks* tasks;
 
     /* The packet model's shadow (scriptrun_shadow.h): a second model fed the
      * same packets and nothing else, compared with `model` after the bot's
@@ -436,27 +438,16 @@ ScriptrunCore_DropViewLocs(
     int view);
 
 /**
- * A zone LOC_ADD_CHANGE (loc_id >= 0) or LOC_DEL (loc_id -1) at an absolute
- * tile on the zone's walked level: the loc in that shape's layer is replaced,
- * collision undone and restamped (WorldBuilder_ApplyLocChange).
+ * A loc change of `view` placed (the loc tasks' place, scriptrun_tasks.c) at
+ * an absolute tile and CACHE level, with the placement's own menu
+ * (`op_flags`, `ops`); `loc_id` -1 deletes. The loc in that shape's layer is
+ * replaced, its collision undone and the new one's stamped
+ * (WorldBuilder_ApplyLocChange) -- in the root's collision map only.
  */
-void
-ScriptrunCore_LocChange(
-    struct ScriptrunCore* core,
-    int abs_x,
-    int abs_z,
-    int zone_level,
-    int shape,
-    int angle,
-    int loc_id,
-    struct PktLocAddChange const* menu);
-
-/** ScriptrunCore_LocChange at a CACHE level (no bridge climb), with the
- *  placement's own menu (`op_flags`, `ops`): a standing change re-placed after
- *  a rebuild. */
 void
 ScriptrunCore_LocPlace(
     struct ScriptrunCore* core,
+    int view,
     int abs_x,
     int abs_z,
     int level,
@@ -530,12 +521,16 @@ ScriptrunCore_ZoneAt(
  * sub-packets at the cursor, an enclosed zone's entries, UPDATE_ZONE_FULL_FOLLOWS's
  * reset, the *_SPECIFIC forms at their own tiles, a rebuild's shift, and a
  * deck that went. The core's own zone and its shadow's both go through here.
+ * `loc_records`: write the zone LOC_ADD_CHANGE / LOC_DEL records here, for a
+ * zone that runs no loc tasks (the shadow's); the core's are written by its
+ * loc tasks' place (scriptrun_tasks.c).
  */
 void
 ScriptrunCore_ZoneFamilies(
     struct ScriptrunCore const* core,
     struct ScriptrunZone* zone,
-    struct RevPacket const* packet);
+    struct RevPacket const* packet,
+    int loc_records);
 
 /** Release the collision scene (the builder and the loc table). */
 void
@@ -587,6 +582,11 @@ ScriptrunCore_LocOpName(
  */
 int
 ScriptrunCore_LocConfigsInvalidate(void);
+
+/** Loc config `loc_id` decoded from the server's client record, shared by
+ *  every bot; NULL when there is none. */
+struct ToriRS_Location*
+ScriptrunCore_LocConfig(int loc_id);
 
 /* The label a placed loc's menu shows on slot `op` (1..5), or NULL when the
  * slot is empty or hidden: the placement's mask and labels over the

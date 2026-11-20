@@ -205,4 +205,8 @@ WorldSeqSourceToriDraw_Fill(
     out_seq_source->postanim_move = world_seq_source_toridraw_postanim_move;
     out_seq_source->stretches = world_seq_source_toridraw_stretches;
     out_seq_source->spotanim_seq = world_seq_source_toridraw_spotanim_seq;
+    /* The scene registry loads nothing itself: the client that owns the
+     * loads sets its own fetch (app_world_load.c). */
+    out_seq_source->want_userdata = NULL;
+    out_seq_source->want = NULL;
 }

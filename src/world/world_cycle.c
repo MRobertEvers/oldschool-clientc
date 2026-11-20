@@ -1294,6 +1294,7 @@ World_UpdateExactMove(
 
 static void
 World_ApplySecondaryAnim(
+    struct World* world,
     struct WorldEntityFacet_Animation* animation,
     int seqId)
 {
@@ -1317,6 +1318,8 @@ World_ApplySecondaryAnim(
     {
         animation->secondary.anim_id = (uint16_t)seqId;
         animation->secondary.loop = 0;
+        /* The movement step chose a new stance or walk: its frames. */
+        World_SeqWant(world, seqId);
     }
 }
 
@@ -1413,7 +1416,7 @@ World_CycleActor(
             world, exact, info->draw_position, info->orientation, info->animation, size) )
     {
         int seqId = World_UpdateMoverMovementAndAnimation(info);
-        World_ApplySecondaryAnim(info->animation, seqId);
+        World_ApplySecondaryAnim(world, info->animation, seqId);
     }
     /* else: exact move overrides route movement; the secondary anim keeps
      * whatever it was (reference skips routeMove). */
@@ -1432,7 +1435,7 @@ World_CycleActor(
         World_EntityFaceTarget(info);
     face_seq = World_EntityTurn(info);
     if( face_seq != -1 )
-        World_ApplySecondaryAnim(info->animation, face_seq);
+        World_ApplySecondaryAnim(world, info->animation, face_seq);
     World_StepEntityAnimation(
         world, info->animation, spotanims, spot_count, info->pathing, info->draw_position,
         info->idle);

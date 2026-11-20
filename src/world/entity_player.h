@@ -39,6 +39,11 @@ struct WorldEntity_Player
     struct WorldEntityFacet_ExactMove exact_move;
     struct WorldEntityFacet_EntitySpotanim spotanims[WORLD_PLAYER_SPOTANIM_SLOTS];
     char name[32];
+    /** The name decorations (NAME_EXTRAS, rev-239 0x2000: deob Statics
+     *  .method3160 into class60.field553): printed before the name, after it,
+     *  and after the combat level wherever the name is (the minimenu row,
+     *  Statics ~29047). Empty until sent; a RESET block empties them. */
+    char name_extras[3][64];
     int combat_level;
     int gender;
     int headicon;

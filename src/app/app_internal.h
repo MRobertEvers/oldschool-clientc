@@ -116,6 +116,7 @@ app_from_side_app_host(struct SideAppHost* host)
 #include "game/rs_client_trigger.h"
 #include "game/rs_clientcode.h"
 #include "game/rs_cs2_dispatch.h"
+#include "game/rs_entity_apply.h"
 #include "game/rs_ground_items_dirty.h"
 #include "game/rs_game_events.h"
 #include "game/rs_gameproto_exec.h"
@@ -1145,6 +1146,12 @@ app_xpdrop_debug_tick(struct App* app);
 void
 app_request_entity_seq(
     struct App* app,
+    int seq_id);
+
+/* World_SeqSource.want (app_world_load.c binds it): a track was set to it. */
+void
+app_world_seq_want(
+    void* want_userdata,
     int seq_id);
 
 void

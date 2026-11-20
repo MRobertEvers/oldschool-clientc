@@ -40,32 +40,24 @@
  *
  * THE PARALLEL TASKS, AND WHAT THIS CLIENT DOES WITH EACH. The ONE list of
  * every kind the real client raises on its parallel queue (game/rs_pending.h
- * ranges, app/app_tasks_*.c), and why this client raises none of them. Its
- * assets are answered at once, so a task that changes game state would apply
- * on the pump right after its packet, which is the packet itself; a task that
- * only draws has nothing to apply here. So there is no queue to pump and the
- * pending index is empty at every tick end (the shadow's invariant,
- * scriptrun_shadow.h).
+ * ranges, app/app_tasks_*.c). A kind whose apply writes game state is an
+ * App-free core in src/game that this client runs too, on its own parallel
+ * queue (scriptrun_tasks.h), with assets answered at once; a kind that only
+ * draws has nothing to apply here and is not raised.
  *
- *   kind                          changes game state?  here
- *   ---------------------------   -------------------  -------------------------
- *   GROUND_STACK_MODEL            no (a model)         not raised; the row is
- *                                                      written at the packet
- *   GROUND_WIDGET_ICON            no (an icon)         not raised
- *   PROJECTILE_BODY               no (a body)          not raised; logged at the
- *   MAP_ANIM_BODY                 no (a body)          packet (the effect log)
- *   LOC_CHANGE                    YES: scenery and     applied at the packet
- *                                 collision            (ScriptrunCore_LocChange)
- *                                                      and recorded here
- *   LOC_MERGE                     YES: a timed hide    NOT MODELLED (LOC_MERGE is
- *                                                      not applied by this client)
- *   ZONE_HELD                     the held packet's    not needed: the scene is
- *                                                      built at its packet
- *   LOC_SEQ_BIND                  no (a sequence)      not raised
- *   NPC_BODY, SEQ_BIND            no (a body, a seq)   not raised
- *   IF_MODEL, INV_ICON            no                   not raised
- *   the mounts' visual half       no                   not raised
- *   the scripts' visual ops       no                   not raised
+ *   ground: GROUND_STACK_MODEL, GROUND_WIDGET_ICON -- a model, an icon; the
+ *     row is written at the packet on both clients. Not raised.
+ *   effects: PROJECTILE_BODY, MAP_ANIM_BODY -- a body; the row is logged at
+ *     the packet. (A map graphic whose body fails goes; none fails here.)
+ *     Not raised.
+ *   locs: LOC_CHANGE (scenery, collision, records) and LOC_MERGE (a timed
+ *     hide and restore) write game state: RUN (game/rs_loc_tasks.h).
+ *     ZONE_HELD waits for an unbuilt view: not needed, a view's scene is
+ *     built at its packet. LOC_SEQ_BIND -- a sequence. Not raised.
+ *   entities: NPC_BODY, SEQ_BIND -- a body, a sequence; the entity apply is
+ *     shared and synchronous (game/rs_entity_apply.h). Not raised.
+ *   interface assets (IF_MODEL, INV_ICON), the mounts' visual half, the
+ *     scripts' visual ops -- models and icons. Not raised.
  *
  * App-free: nothing here names the client's App, a scene, a model or a cache.
  */
@@ -178,6 +170,17 @@ ScriptrunZone_Rebuild(
     int base_z,
     int scene_size);
 
+/** The world view `view`'s rows and loc change records live in: the root's
+ *  (`view` 0), or the deck's own, made at its staging base (`origin_x`,
+ *  `origin_z`) and `scene_size` when it has none yet. */
+struct World*
+ScriptrunZone_ViewWorld(
+    struct ScriptrunZone* zone,
+    int view,
+    int origin_x,
+    int origin_z,
+    int scene_size);
+
 /** A deck view went (despawned, or its deck rebuilt): its rows go. */
 void
 ScriptrunZone_DropView(
@@ -207,30 +210,6 @@ ScriptrunZone_Apply(
     void const* payload);
 
 /* ---- loc change records (the root's) -------------------------------------- */
-
-/**
- * A LOC_ADD_CHANGE (`loc_id` >= 0) or LOC_DEL (-1) landed on root scene tile
- * (`x`, `z`) at cache level `level`: its record, as loc_place pushes it
- * (World_LocChangePushOps, one record per level, layer and tile, keeping the
- * loc that stood before the key's first change). `old_*` is the map's loc in
- * that layer (-1: none); `op_flags` and `ops` the placement's own menu
- * (LOC_ADD_CHANGE_V2; 0x1f and no labels for any other).
- */
-void
-ScriptrunZone_LocChange(
-    struct ScriptrunZone* zone,
-    int x,
-    int z,
-    int level,
-    int shape,
-    int angle,
-    int loc_id,
-    int old_loc,
-    int old_shape,
-    int old_angle,
-    int now_cycle,
-    int op_flags,
-    const char ops[5][32]);
 
 /**
  * UPDATE_ZONE_FULL_FOLLOWS for the root zone at scene tile (`x0`, `z0`) on

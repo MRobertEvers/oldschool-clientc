@@ -997,6 +997,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	game/rs_cs2_host.c game/rs_cs2_client_ops.c game/rs_cs2_social_ops.c game/rs_cs2_market_ops.c game/rs_clan.c game/rs_group_store.c game/rs_friends_chat.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/content_test.c game/content_test_sailing.c game/rs_minimenu_build.c \
 	game/rs_minimenu_world.c \
 	game/task_gameproto_exec.c game/task_exec_entity_info.c game/task_entity_assets.c game/rs_entity_sync.c game/rs_audio.c \
+	game/rs_entity_apply.c game/rs_loc_tasks.c \
 	game/entity_info_scratch.c \
 	game/rs_prefs.c game/task_prefs_io.c game/preview_state.c \
 	game/rs_save_debounce.c \
@@ -2320,6 +2321,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-parallel-task
 	$(MAKE) test-scriptrun-shadow
 	$(MAKE) test-scriptrun-zone
+	$(MAKE) test-scriptrun-tasks
 	$(MAKE) test-render-mode
 	$(MAKE) test-painter-cull-bake
 	$(MAKE) test-world-views
@@ -6048,6 +6050,20 @@ test-scriptrun-zone: $(OBJ_DIR) $(OBJS)
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/scriptrun_zone_test
 
+# The headless client's parallel queue (scriptrun/scriptrun_tasks.h) running
+# the loc tasks both clients share (game/rs_loc_tasks.h): a change applies in
+# the pump after its packet, a LOC_MERGE hides at start+1 and restores at
+# end+1 on the bot's cycle, a rebuild drops it, a zone reset or a newer change
+# cancels it, an unservable config drops a change, a tick ends with nothing
+# but cycle waits. The bot's loc table is a recording stand-in. Asserts on.
+.PHONY: test-scriptrun-tasks
+test-scriptrun-tasks: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG \
+		-o $(OBJ_DIR)/scriptrun_tasks_test \
+		scriptrun/test/scriptrun_tasks_test.c scriptrun/scriptrun_tasks.c scriptrun/scriptrun_zone.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/scriptrun_tasks_test
+
 # World entities (sailing, SAILING_PLAN C1): the WORLDENTITY_INFO delta
 # reader, the class458 interpolator (incl. the 2047->1 wraparound arc), the
 # footprint corner bake, and the archive-72 WevConfig decode against the real
@@ -6188,6 +6204,15 @@ test-minimenu-world: $(OBJ_DIR) $(OBJS)
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/rs_minimenu_world_test
 
+# The one copy of PLAYER_INFO / NPC_INFO's rules both clients call
+# (game/rs_entity_apply.h) against a recording host. Asserts on.
+.PHONY: test-entity-apply
+test-entity-apply: $(OBJ_DIR) $(OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -o $(OBJ_DIR)/rs_entity_apply_test \
+		game/test/rs_entity_apply_test.c game/rs_entity_apply.c \
+		$(filter-out $(OBJ_DIR)/main.o $(OBJ_DIR)/rs_entity_apply.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/rs_entity_apply_test
+
 # NPC_INFO / PLAYER_INFO count-shrinkage despawn (plane-change orphans).
 test-entity-info-shrink: $(OBJ_DIR) $(OBJS)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test -o $(OBJ_DIR)/task_exec_entity_info_test \
@@ -6319,9 +6344,10 @@ SCRIPTRUN_SRCS = torirsserver/torirs_server_scriptrun.c scriptrun/scriptrun_core
 	net/login/login_osrs.c net/pow_sha256.c net/sha256.c \
 	net/rev/packets/pkt_player_appearance.c \
 	world/world.c world/world_cycle.c world/entity_pool.c world/world_entity.c \
-	world/entity_pathing.c world/entity_registry.c game/rs_entity_sync.c \
+	world/entity_pathing.c world/entity_registry.c game/rs_entity_sync.c game/rs_entity_apply.c \
 	scriptrun/scriptrun_collision.c engine/torirs_types.c engine/torirs_map_from_rscache.c \
 	engine/torirs_location_from_rscache.c \
+	scriptrun/scriptrun_tasks.c game/rs_loc_tasks.c game/rs_pending.c engine/asset_requests.c perf/torirs_perf.c \
 	$(SCRIPTRUN_SHADOW_SRCS)
 # The packet model (game/rs_server_state.c) and the records it writes, the real
 # client's own modules, as a headless client holds them (scriptrun/scriptrun_model.c):

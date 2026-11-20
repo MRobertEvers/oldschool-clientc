@@ -577,6 +577,10 @@ App_WorldLoadFinish(struct App* app)
              * world being handed the source has them. */
             WorldSeqSourceToriDraw_Bind(&app->seq_source, app->scene, app->provider);
             WorldSeqSourceToriDraw_Fill(&app->seq_source, &seq_source);
+            /* The world asks for a sequence where a track changes to it
+             * (World_SeqWant), not the frame binder every frame. */
+            seq_source.want_userdata = app;
+            seq_source.want = app_world_seq_want;
             World_SetSeqSource(app->world, &seq_source);
         }
         {

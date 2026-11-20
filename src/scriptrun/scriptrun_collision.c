@@ -72,6 +72,12 @@ loc_config(int loc_id)
     return g_locs[loc_id];
 }
 
+struct ToriRS_Location*
+ScriptrunCore_LocConfig(int loc_id)
+{
+    return loc_config(loc_id);
+}
+
 int
 ScriptrunCore_LocConfigsInvalidate(void)
 {
@@ -785,28 +791,9 @@ ScriptrunCore_ZoneResetLocs(
 }
 
 void
-ScriptrunCore_LocChange(
-    struct ScriptrunCore* core,
-    int abs_x,
-    int abs_z,
-    int zone_level,
-    int shape,
-    int angle,
-    int loc_id,
-    struct PktLocAddChange const* menu)
-{
-    static const char none[5][32] = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
-
-    assert(core);
-    ScriptrunCore_LocPlace(core, abs_x, abs_z,
-        loc_cache_level(core, abs_x - core->world->_base_tile_x, abs_z - core->world->_base_tile_z,
-            zone_level),
-        shape, angle, loc_id, menu ? menu->op_flags & 0x1f : 0x1f, menu ? menu->ops : none);
-}
-
-void
 ScriptrunCore_LocPlace(
     struct ScriptrunCore* core,
+    int view,
     int abs_x,
     int abs_z,
     int level,
@@ -828,9 +815,9 @@ ScriptrunCore_LocPlace(
     sx = abs_x - core->world->_base_tile_x;
     sz = abs_z - core->world->_base_tile_z;
     /* Only a root-scene tile has a cell in the root collision map: a deck's
-     * change (under a SET_ACTIVE_WORLD cursor) is a staging tile far outside
-     * it, and the deck world's own collision is not modelled here. */
-    stamps = builder && core->active_world == 0 && sx >= 0 && sz >= 0 &&
+     * change is a staging tile far outside it, and the deck world's own
+     * collision is not modelled here. */
+    stamps = builder && view == 0 && sx >= 0 && sz >= 0 &&
              sx < SCRIPTRUN_SCENE_SIZE && sz < SCRIPTRUN_SCENE_SIZE;
 
     /* 1. Whatever stood in this layer goes, collision undone through the same
@@ -861,6 +848,7 @@ ScriptrunCore_LocPlace(
     loc_append(core, abs_x, abs_z, level, shape, angle, loc_id, 0);
     {
         struct ScriptrunLoc* row = &core->locs[core->loc_count - 1];
+        row->view = view;
         row->op_flags = op_flags & 0x1f;
         for( int i = 0; i < 5; i++ )
             snprintf(row->ops[i], sizeof(row->ops[i]), "%s", ops[i]);

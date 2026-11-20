@@ -2725,6 +2725,7 @@ World_NpcFaceAngle(
 
 static void
 World_SetAnimationTrack(
+    struct World* world,
     struct WorldEntityFacet_Animation* animation,
     int animation_id,
     int animation_type)
@@ -2744,6 +2745,7 @@ World_SetAnimationTrack(
         step->anim_id = (uint16_t)animation_id;
         step->frame = 0;
         step->cycle = 0;
+        World_SeqWant(world, animation_id);
     }
 }
 
@@ -2758,7 +2760,7 @@ World_PlayerSetAnimation(
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
-    World_SetAnimationTrack(&player->animation, animation_id, animation_type);
+    World_SetAnimationTrack(world, &player->animation, animation_id, animation_type);
 }
 
 void
@@ -2772,7 +2774,7 @@ World_NpcSetAnimation(
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
-    World_SetAnimationTrack(&npc->animation, animation_id, animation_type);
+    World_SetAnimationTrack(world, &npc->animation, animation_id, animation_type);
 }
 
 int
@@ -2832,15 +2834,52 @@ World_ProjectileModel(struct World const* world)
 }
 
 void
+World_SeqWant(
+    struct World* world,
+    int seq_id)
+{
+    assert(world);
+    if( seq_id < 0 || seq_id == 0xFFFF || !world->seq_source.want )
+        return;
+    world->seq_source.want(world->seq_source.want_userdata, seq_id);
+}
+
+/* Every sequence an entity's tracks hold now: what a newly bound source is
+ * asked for once (the tracks were set before it could hear of them). */
+static void
+world_seq_want_tracks(
+    struct World* world,
+    struct WorldEntityFacet_Animation const* animation)
+{
+    if( animation->primary.anim_id != (uint16_t)-1 && animation->primary.anim_id != 0 )
+        World_SeqWant(world, animation->primary.anim_id);
+    if( animation->pending_set )
+        World_SeqWant(world, animation->pending_anim_id);
+    if( animation->secondary.anim_id != (uint16_t)-1 && animation->secondary.anim_id != 0 )
+        World_SeqWant(world, animation->secondary.anim_id);
+}
+
+void
 World_SetSeqSource(
     struct World* world,
     struct World_SeqSource const* source)
 {
+    struct World_EntityPool* pool;
+
     assert(world);
     if( source )
         world->seq_source = *source;
     else
         memset(&world->seq_source, 0, sizeof(world->seq_source));
+    if( !world->seq_source.want )
+        return;
+    /* Once per bind (a world load), not per frame. */
+    pool = &world->entities.player;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+        world_seq_want_tracks(world, &((struct WorldEntity_Player*)World_EntityPoolAt(pool, i))->animation);
+    pool = &world->entities.npc;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+        world_seq_want_tracks(world, &((struct WorldEntity_NPC*)World_EntityPoolAt(pool, i))->animation);
 }
 
 void
@@ -2959,6 +2998,10 @@ world_apply_primary_animation(
         animation->pending_set = 0;
         return;
     }
+    /* Sent: played now, parked until its priority is known, or refused --
+     * any of the three needs (or needed) its config, and asking is one entry
+     * in the client's assets table however often it is sent. */
+    World_SeqWant(world, seq_id);
 
     if( animation->primary.anim_id == (uint16_t)seq_id )
     {

@@ -2,7 +2,16 @@
  * PARALLEL TASKS: LOC CHANGES, LOC ANIMATIONS, MERGES, ZONE RESETS, ZONE
  * PACKETS FOR UNBUILT VIEWS.
  *
- * Three tasks, each the one shape (game/rs_parallel_task.h,
+ * The loc change and the merge write game state, so they are not this
+ * client's alone: their run functions are game/rs_loc_tasks.c's, the one copy
+ * both clients run on their own parallel queue (the headless client's is
+ * scriptrun/scriptrun_tasks.c). This unit is this client's host for them
+ * (loc_host: its queue, index, cache records, varps, views' scenes, and
+ * loc_place, which also builds the scene element), and keeps the two tasks
+ * that are this client's own: the zone packets held for an unbuilt view and
+ * the loc sequence bind.
+ *
+ * Four tasks, each the one shape (game/rs_parallel_task.h,
  * app/app_parallel_task.h): it embeds struct RS_ParallelTask, carries its own
  * data copied from the packet, is added with App_ParallelTaskAdd to the
  * parallel queue (app->frame_runner) as an ordinary task, and its run
@@ -57,6 +66,7 @@
 
 #include "app/app_internal.h"
 #include "app/app_gameproto_exec.h"
+#include "game/rs_loc_tasks.h"
 #include "game/rs_server_state.h"
 #include "mem/torirs_mem.h"
 #include "net/rev/revpacket.h"
@@ -64,20 +74,13 @@
 
 enum AppLocTaskKind
 {
-    APP_TASK_LOC_CHANGE = RS_PENDING_KINDS_LOCS_FIRST,
-    APP_TASK_LOC_MERGE,
-    APP_TASK_ZONE_HELD,
+    /* After the two the clients share (game/rs_loc_tasks.h: the change and
+     * the merge). */
+    APP_TASK_ZONE_HELD = RS_LOC_TASKS_END,
     APP_TASK_LOC_SEQ_BIND,
     APP_TASK_LOCS_END
 };
 _Static_assert(APP_TASK_LOCS_END - 1 <= RS_PENDING_KINDS_LOCS_LAST, "the locs family's range");
-
-/* How deep a multiloc chain a change follows before it stops (the lane's
- * bound, kept). */
-enum
-{
-    APP_LOC_RESOLVE_DEPTH = 16
-};
 
 /* ---- keys ---------------------------------------------------------------- */
 
@@ -89,19 +92,6 @@ loc_view_gen(
     int view)
 {
     return (uint32_t)WorldviewRegistry_Get(&app->worldviews, view)->wire_id;
-}
-
-static struct RS_PendingKey
-loc_key(
-    struct App* app,
-    int view,
-    int scene_x,
-    int scene_z,
-    int level,
-    int shape)
-{
-    return RS_PendingKey_View(
-        view, scene_x, scene_z, level, World_LocShapeToLayer(shape), loc_view_gen(app, view));
 }
 
 static struct RS_PendingKey
@@ -128,7 +118,6 @@ loc_scene_building(
         return false;
     return wv->world && !wv->world->load_complete && wv->world->load_seq == par->scene_serial;
 }
-
 /* ---- the apply ------------------------------------------------------------ */
 
 /*
@@ -144,7 +133,7 @@ loc_place(
     struct App* app,
     int view,
     struct World* world,
-    struct AppLocChange const* c,
+    struct RS_LocChange const* c,
     int end_time,
     int carried,
     int carried_seq)
@@ -247,254 +236,195 @@ loc_place(
     RedrawRequest_Raise(&app->redraw_request);
 }
 
-/* ---- TASK_LOCCHANGE ------------------------------------------------------- */
+/* ---- the loc tasks' host (game/rs_loc_tasks.h) ------------------------------ */
+
+/* The change and the merge are the clients' shared tasks; this is this
+ * client's half of them: its queue and index, its cache's records and its
+ * varps, its views' scenes, and the place above. */
+
+static uint32_t
+loc_host_cycle(void* ctx)
+{
+    return App_ParallelCycle(ctx);
+}
+
+static unsigned
+loc_host_tick(void* ctx)
+{
+    return RS_ServerTick_Serial(&((struct App*)ctx)->server_tick);
+}
+
+static void
+loc_host_add(
+    void* ctx,
+    struct ToriRS_Task* task,
+    struct RS_ParallelTask* par,
+    int kind,
+    struct RS_PendingKey key,
+    int view)
+{
+    App_ParallelTaskAdd(ctx, task, par, kind, key, view);
+}
+
+static void
+loc_host_release(
+    void* ctx,
+    struct RS_ParallelTask* par)
+{
+    App_ParallelTaskRelease(ctx, par);
+}
+
+static void
+loc_host_changed(void* ctx)
+{
+    ((struct App*)ctx)->loc_task_serial++;
+}
+
+static uint32_t
+loc_host_view_gen(
+    void* ctx,
+    int view)
+{
+    return loc_view_gen(ctx, view);
+}
+
+static struct World*
+loc_host_view_world(
+    void* ctx,
+    int view)
+{
+    struct App* app = ctx;
+
+    assert(WorldviewRegistry_IsLive(&app->worldviews, view));
+    return WorldviewRegistry_Get(&app->worldviews, view)->world;
+}
 
 static int
-Task_LocChange_Run(
-    struct ToriRS_Task* base,
-    struct ToriRS_IOBatch* io);
-static void
-Task_LocChange_Free(struct ToriRS_Task* base);
+loc_host_cache_level(
+    void* ctx,
+    int view,
+    int x,
+    int z,
+    int zone_level)
+{
+    return World_LocCacheLevel(loc_host_view_world(ctx, view), x, z, zone_level);
+}
 
-static struct ToriRS_TaskVTable Task_LocChange_VTable = {
-    .run = Task_LocChange_Run,
-    .free = Task_LocChange_Free,
+static struct ToriRS_Location*
+loc_host_location(
+    void* ctx,
+    int loc_id)
+{
+    return CacheProvider_LocationGet(((struct App*)ctx)->provider, loc_id);
+}
+
+static struct VarPManager const*
+loc_host_varps(void* ctx)
+{
+    return &((struct App*)ctx)->varps;
+}
+
+static struct ToriRS_Trigger*
+loc_host_built_trigger(
+    void* ctx,
+    int view)
+{
+    return App_ViewBuiltTrigger(ctx, view);
+}
+
+static bool
+loc_host_scene_building(
+    void* ctx,
+    struct RS_ParallelTask const* par)
+{
+    return loc_scene_building(ctx, par);
+}
+
+static struct World*
+loc_host_world(
+    void* ctx,
+    struct RS_ParallelTask const* par,
+    char const* owner)
+{
+    return App_ParallelTaskWorld(ctx, par, owner);
+}
+
+static void
+loc_host_place(
+    void* ctx,
+    int view,
+    struct World* world,
+    struct RS_LocChange const* c,
+    int end_time,
+    int carried,
+    int carried_seq)
+{
+    loc_place(ctx, view, world, c, end_time, carried, carried_seq);
+}
+
+static void
+loc_host_applied(
+    void* ctx,
+    struct Task_LocChange const* self,
+    int carried,
+    int carried_seq)
+{
+    struct App* app = ctx;
+    unsigned fences;
+
+    if( !torirs_env_loc_lane_trace() )
+        return;
+    fences = RS_ServerTick_Serial(&app->server_tick) - self->tick;
+    TORIRS_REPORT(
+        "loc_change: apply loc=%d shape=%d at %d,%d,l%d view=%d fences=%u cycles=%u seq=%d%s%s\n",
+        self->change.loc_id,
+        self->change.shape,
+        self->change.x,
+        self->change.z,
+        self->change.level,
+        self->par.view,
+        fences,
+        App_ParallelTaskLate(app, &self->par),
+        carried ? carried_seq : -1,
+        self->carry.take_set ? " (taken)" : "",
+        fences >= 2 ? " LATE" : "");
+}
+
+static struct RS_LocHostOps const k_loc_host_ops = {
+    .cycle = loc_host_cycle,
+    .tick = loc_host_tick,
+    .add = loc_host_add,
+    .release = loc_host_release,
+    .changed = loc_host_changed,
+    .view_gen = loc_host_view_gen,
+    .view_world = loc_host_view_world,
+    .cache_level = loc_host_cache_level,
+    .location = loc_host_location,
+    .varps = loc_host_varps,
+    .built_trigger = loc_host_built_trigger,
+    .scene_building = loc_host_scene_building,
+    .world = loc_host_world,
+    .place = loc_host_place,
+    .applied = loc_host_applied,
 };
 
-/* One link of the chain: the record `self->resolved_id` is here (or failed).
- * Note what the change's own record says, and step to the child the varps
- * pick. Returns false when the chain ends here. Not a protothread. */
-static bool
-loc_change_resolve_step(struct Task_LocChange* self)
+static struct RS_LocHost
+loc_host(struct App* app)
 {
-    struct App* app = self->app;
-    struct ToriRS_Location* cfg = CacheProvider_LocationGet(app->provider, self->resolved_id);
-    int next;
-
-    if( !cfg )
-    {
-        self->resolved_id = -1;
-        return false;
-    }
-    if( self->resolve_depth == 0 )
-    {
-        self->base_seq = cfg->seq_id;
-        /* The record the change NAMES, not its transform child: the deob
-         * reads class393.field4940 off the pending spawn's own id
-         * (method6184(class69.field663)). */
-        self->defers_anim = cfg->defer_anim_change;
-    }
-    if( cfg->transform_count <= 0 || !cfg->transforms )
-        return false;
-    next = VarPManager_ResolveTransform(
-        &app->varps, cfg->transforms, cfg->transform_count, cfg->transform_varbit,
-        cfg->transform_varp);
-    if( next == self->resolved_id )
-        return false;
-    self->resolved_id = next;
-    return true;
-}
-
-/* Every model the resolved child names and its sequence, counted on the
- * header's join TOGETHER: independent reads with one consumer, which awaited
- * one after another were a round trip each (an open-door variant is commonly
- * absent from the map build's preload). Not a protothread. */
-static void
-loc_change_want_models(struct Task_LocChange* self)
-{
-    struct App* app = self->app;
-    struct ToriRS_Location* cfg =
-        self->resolved_id >= 0 ? CacheProvider_LocationGet(app->provider, self->resolved_id) : NULL;
-    int entries = 0;
-
-    assert(self->par.join == 0);
-    if( cfg && cfg->models && cfg->lengths )
-        entries = cfg->shapes ? cfg->shapes_and_model_count : 1;
-    for( int i = 0; i < entries; i++ )
-        for( int j = 0; j < cfg->lengths[i]; j++ )
-            if( cfg->models[i][j] >= 0 )
-                (void)Assets_Await(
-                    app->assets, AssetKey_Make(ASSET_KIND_MODEL, cfg->models[i][j], 0),
-                    &self->par.join);
-    self->seq_id = cfg && cfg->seq_id >= 0 ? cfg->seq_id : self->base_seq;
-    if( self->seq_id >= 0 )
-        (void)Assets_Await(
-            app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, self->seq_id, 0), &self->par.join);
-}
-
-static int
-Task_LocChange_Run(
-    struct ToriRS_Task* base,
-    struct ToriRS_IOBatch* io)
-{
-    struct Task_LocChange* self = (struct Task_LocChange*)base;
-    struct App* app = self->app;
-    struct World* world;
-    int carried_seq = -1;
-    int carried;
-
-    (void)io;
-    PT_BEGIN(&self->pt);
-
-    /* 1. Wait for what it places: the config chain, one record at a time
-     * (each reveals the next), then the child's models and sequence. A
-     * delete places nothing and waits for nothing. */
-    if( self->change.loc_id >= 0 )
-    {
-        self->resolved_id = self->change.loc_id;
-        self->base_seq = -1;
-        for( self->resolve_depth = 0;
-             self->resolved_id >= 0 && self->resolve_depth < APP_LOC_RESOLVE_DEPTH;
-             self->resolve_depth++ )
-        {
-            PT_PARALLEL_AWAIT_ASSET(
-                app->assets, AssetKey_Make(ASSET_KIND_CONFIG, self->resolved_id, ASSET_CONFIG_LOC));
-            if( RS_ParallelTask_Cancelled(&self->par) )
-                PT_EXIT(&self->pt);
-            if( !loc_change_resolve_step(self) )
-                break;
-        }
-        loc_change_want_models(self);
-        PT_PARALLEL_AWAIT_ASSETS(app->assets);
-    }
-
-    /* 2. Replaced by a newer change for this key, or its scope went. */
-    if( RS_ParallelTask_Cancelled(&self->par) )
-        PT_EXIT(&self->pt);
-
-    /* 3. Still wanted? Its scene mid-rebuild is not an answer yet: the
-     * rebuild of its view is waited out, by name, and its finish carries
-     * the change over (or drops it) by cancelling it. */
-    PT_APP_AWAIT_VIEW_REBUILT(app, !loc_scene_building(app, &self->par));
-    if( RS_ParallelTask_Cancelled(&self->par) )
-        PT_EXIT(&self->pt);
-    world = App_ParallelTaskWorld(app, &self->par, "loc change");
-    if( !world )
-        PT_EXIT(&self->pt);
-    /* A loc whose own record the cache could not serve cannot be placed (the
-     * builder resolves it from that record): the reference's gate would hold
-     * it forever; it is dropped, said. */
-    if( self->change.loc_id >= 0 && !CacheProvider_LocationGet(app->provider, self->change.loc_id) )
-    {
-        TORIRS_LOG(
-            "loc change: loc %d at %d,%d,l%d dropped, its config could not be loaded\n",
-            self->change.loc_id, self->change.x, self->change.z, self->change.level);
-        PT_EXIT(&self->pt);
-    }
-
-    /* 4. Apply. */
-    carried = self->change.loc_id >= 0 && app_loc_change_carried(self, &carried_seq);
-    loc_place(app, self->par.view, world, &self->change, -1, carried, carried_seq);
-    if( torirs_env_loc_lane_trace() )
-    {
-        unsigned const fences = RS_ServerTick_Serial(&app->server_tick) - self->tick;
-
-        TORIRS_REPORT(
-            "loc_change: apply loc=%d shape=%d at %d,%d,l%d view=%d fences=%u cycles=%u seq=%d%s%s\n",
-            self->change.loc_id,
-            self->change.shape,
-            self->change.x,
-            self->change.z,
-            self->change.level,
-            self->par.view,
-            fences,
-            App_ParallelTaskLate(app, &self->par),
-            carried ? carried_seq : -1,
-            self->carry.take_set ? " (taken)" : "",
-            fences >= 2 ? " LATE" : "");
-    }
-
-    PT_END(&self->pt);
-}
-
-static void
-Task_LocChange_Free(struct ToriRS_Task* base)
-{
-    struct Task_LocChange* self = (struct Task_LocChange*)base;
-    struct App* app = self->app;
-
-    App_ParallelTaskRelease(app, &self->par);
-    app->loc_task_serial++;
-    ToriMem_Free(ToriMem_Process(), self);
-}
-
-/* Cancel what is pending for the key (a change or a merge): a later packet
- * for a tile and layer overwrites the deob's one pending spawn there. */
-static void
-loc_key_cancel(
-    struct App* app,
-    struct RS_PendingKey key)
-{
-    if( RS_Pending_CancelKey(app->pending, APP_TASK_LOC_CHANGE, key) +
-            RS_Pending_CancelKey(app->pending, APP_TASK_LOC_MERGE, key) >
-        0 )
-        app->loc_task_serial++;
-}
-
-/* Add a change for `view` as `c` says, carrying `carry` (NULL: none) and
- * read on server tick `tick`. Replaces whatever is pending for its key. */
-static struct Task_LocChange*
-loc_change_add(
-    struct App* app,
-    int view,
-    struct AppLocChange const* c,
-    struct AppLocCarry const* carry,
-    unsigned tick,
-    int drive_row)
-{
-    struct Task_LocChange* task;
-    struct World const* world;
-    struct RS_PendingKey key;
+    struct RS_LocHost host;
 
     assert(app);
-    assert(c);
-    assert(WorldviewRegistry_IsLive(&app->worldviews, view));
-    world = WorldviewRegistry_Get(&app->worldviews, view)->world;
-    key = loc_key(app, view, c->x, c->z, c->level, c->shape);
-    loc_key_cancel(app, key);
-    task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
-    assert(task);
-    task->task.vtable = &Task_LocChange_VTable;
-    strncpy(task->task.name, "LocChange", sizeof(task->task.name) - 1);
-    PT_INIT(&task->pt);
-    task->app = app;
-    task->change = *c;
-    task->abs_x = (world ? world->_base_tile_x : 0) + c->x;
-    task->abs_z = (world ? world->_base_tile_z : 0) + c->z;
-    task->tick = tick;
-    task->drive_row = drive_row;
-    task->resolved_id = -1;
-    task->base_seq = -1;
-    task->seq_id = -1;
-    if( carry )
-        task->carry = *carry;
-    App_ParallelTaskAdd(app, &task->task, &task->par, APP_TASK_LOC_CHANGE, key, view);
-    app->loc_task_serial++;
-    return task;
+    host.ops = &k_loc_host_ops;
+    host.ctx = app;
+    host.pending = app->pending;
+    host.assets = app->assets;
+    host.queue = app->frame_runner.queue;
+    host.clock = App_CycleClock(app);
+    return host;
 }
 
-static void
-loc_change_fill(
-    struct AppLocChange* c,
-    int scene_x,
-    int scene_z,
-    int level,
-    int loc_id,
-    int shape,
-    int angle,
-    int op_flags,
-    const char ops[5][32])
-{
-    memset(c, 0, sizeof(*c));
-    c->x = scene_x;
-    c->z = scene_z;
-    c->level = level;
-    c->loc_id = loc_id;
-    c->shape = shape;
-    c->angle = angle;
-    c->op_flags = op_flags;
-    memcpy(c->ops, ops, sizeof(c->ops));
-}
+/* ---- loc changes ------------------------------------------------------------ */
+
 
 /* Zone LOC_ADD_CHANGE / LOC_DEL (reference locChangeCreate +
  * locChangeDoQueue), the loc editor and the map editor: a change in the view
@@ -529,13 +459,13 @@ App_WorldLocChangeOps(
     int op_flags,
     const char ops[5][32])
 {
-    struct AppLocChange c;
+    struct RS_LocHost const host = loc_host(app);
+    struct RS_LocChange c;
 
-    assert(app);
     assert(ops);
-    loc_change_fill(&c, scene_x, scene_z, level, loc_id, shape, angle, op_flags, ops);
-    (void)loc_change_add(
-        app, WorldviewRegistry_Active(&app->worldviews), &c, NULL,
+    RS_LocChange_Fill(&c, scene_x, scene_z, level, loc_id, shape, angle, op_flags, ops);
+    (void)RS_LocChange_Add(
+        &host, WorldviewRegistry_Active(&app->worldviews), &c, NULL,
         RS_ServerTick_Serial(&app->server_tick), 1);
 }
 
@@ -551,21 +481,20 @@ app_world_loc_refresh_ops(
     int op_flags,
     const char ops[5][32])
 {
+    struct RS_LocHost const host = loc_host(app);
     int const view = WorldviewRegistry_Active(&app->worldviews);
-    struct RS_PendingKey key;
-    struct AppLocChange c;
+    int const layer = World_LocShapeToLayer(shape);
+    struct RS_LocChange c;
 
-    assert(app);
     assert(ops);
     /* A change already pending for the tile and layer is newer than what the
      * scene shows, and it resolves its own transform chain when it loads:
      * re-placing the standing loc over it would undo the server's change. */
-    key = loc_key(app, view, scene_x, scene_z, level, shape);
-    if( RS_Pending_Find(app->pending, APP_TASK_LOC_CHANGE, key) ||
-        RS_Pending_Find(app->pending, APP_TASK_LOC_MERGE, key) )
+    if( RS_LocChange_Pending(&host, view, scene_x, scene_z, level, layer) ||
+        RS_LocMerge_Pending(&host, view, scene_x, scene_z, level, layer) )
         return;
-    loc_change_fill(&c, scene_x, scene_z, level, loc_id, shape, angle, op_flags, ops);
-    (void)loc_change_add(app, view, &c, NULL, RS_ServerTick_Serial(&app->server_tick), 0);
+    RS_LocChange_Fill(&c, scene_x, scene_z, level, loc_id, shape, angle, op_flags, ops);
+    (void)RS_LocChange_Add(&host, view, &c, NULL, RS_ServerTick_Serial(&app->server_tick), 0);
 }
 
 struct Task_LocChange*
@@ -577,102 +506,16 @@ app_loc_change_pending(
     int level,
     int layer)
 {
-    struct RS_ParallelTask* par;
-    struct Task_LocChange* task;
+    struct RS_LocHost host;
 
     assert(app);
     assert(app->pending);
     if( !WorldviewRegistry_IsLive(&app->worldviews, view) )
         return NULL;
-    par = RS_Pending_Find(
-        app->pending,
-        APP_TASK_LOC_CHANGE,
-        RS_PendingKey_View(view, scene_x, scene_z, level, layer, loc_view_gen(app, view)));
-    if( !par )
-        return NULL;
-    task = (struct Task_LocChange*)((char*)par - offsetof(struct Task_LocChange, par));
-    assert(task->task.vtable == &Task_LocChange_VTable);
-    return task;
+    host = loc_host(app);
+    return RS_LocChange_Pending(&host, view, scene_x, scene_z, level, layer);
 }
 
-void
-app_loc_change_carry(
-    struct Task_LocChange* pending,
-    int seq_id,
-    int stood)
-{
-    assert(pending);
-    /* Deob, the LOC_ANIM decode: a pending spawn whose loctype defers takes
-     * every sequence (class69.field666 = seq after method1508); one that does
-     * not takes it only when method1508 found nothing to attach it to. */
-    pending->carry.any_seq = seq_id;
-    pending->carry.any_set = 1;
-    if( !stood )
-    {
-        pending->carry.unfound_seq = seq_id;
-        pending->carry.unfound_set = 1;
-    }
-}
-
-void
-app_loc_change_take(
-    struct Task_LocChange* landed,
-    int seq_id)
-{
-    assert(landed);
-    assert(landed->change.loc_id >= 0);
-    landed->carry.take_seq = seq_id;
-    landed->carry.take_set = 1;
-}
-
-int
-app_loc_change_carried(
-    struct Task_LocChange const* task,
-    int* out_seq_id)
-{
-    assert(task);
-    assert(out_seq_id);
-    if( task->carry.take_set )
-    {
-        *out_seq_id = task->carry.take_seq;
-        return 1;
-    }
-    if( task->defers_anim ? !task->carry.any_set : !task->carry.unfound_set )
-        return 0;
-    *out_seq_id = task->defers_anim ? task->carry.any_seq : task->carry.unfound_seq;
-    return 1;
-}
-
-/* Every pending change of `view` (cancelled ones skipped), in arrival order:
- * the parallel queue holds them in the order they were added. Writes up to
- * `cap`; returns how many there are. */
-static int
-loc_changes_of_view(
-    struct App* app,
-    int view,
-    struct Task_LocChange** out,
-    int cap)
-{
-    int n = 0;
-
-    assert(app);
-    if( !app->frame_runner.queue )
-        return 0;
-    for( struct ToriRS_Task* t = app->frame_runner.queue->head; t; t = t->next )
-    {
-        struct Task_LocChange* task;
-
-        if( t->vtable != &Task_LocChange_VTable )
-            continue;
-        task = (struct Task_LocChange*)t;
-        if( task->par.cancelled || task->par.view != view )
-            continue;
-        if( n < cap )
-            out[n] = task;
-        n++;
-    }
-    return n;
-}
 
 int
 App_DriveLocChangesPending(
@@ -691,7 +534,11 @@ App_DriveLocChangesPending(
     (void)cap; /* read only by the assert below */
     world = app->world;
     assert(world);
-    n = loc_changes_of_view(app, WORLDVIEW_ROOT, tasks, WORLD_LOC_CHANGE_MAX);
+    {
+        struct RS_LocHost const host = loc_host(app);
+
+        n = RS_LocChange_OfView(&host, WORLDVIEW_ROOT, tasks, WORLD_LOC_CHANGE_MAX);
+    }
     assert(n <= WORLD_LOC_CHANGE_MAX);
     for( int i = 0; i < n; i++ )
     {
@@ -719,114 +566,7 @@ App_DriveLocChangesPending(
     return kept;
 }
 
-/* ---- TASK_LOCMERGE -------------------------------------------------------- */
-
-struct Task_LocMerge
-{
-    struct ToriRS_Task task;
-    struct pt pt;
-    struct RS_ParallelTask par;
-    struct App* app;
-    /* The tile and layer it hides (scene tile of its view, cache level). */
-    int x;
-    int z;
-    int level;
-    int shape;
-    /* Client cycles (App_ParallelCycle) the hide and the restore are due. */
-    uint32_t hide_at;
-    uint32_t restore_at;
-};
-
-static int
-Task_LocMerge_Run(
-    struct ToriRS_Task* base,
-    struct ToriRS_IOBatch* io);
-static void
-Task_LocMerge_Free(struct ToriRS_Task* base);
-
-static struct ToriRS_TaskVTable Task_LocMerge_VTable = {
-    .run = Task_LocMerge_Run,
-    .free = Task_LocMerge_Free,
-};
-
-/* The record for the merge's key after its hide: what the key's FIRST change
- * replaced, which the deob's countdown puts back. Not a protothread. */
-static bool
-loc_merge_restore_of(
-    struct World const* world,
-    struct Task_LocMerge const* self,
-    struct AppLocChange* out)
-{
-    static const char none[5][32] = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
-    int const layer = World_LocShapeToLayer(self->shape);
-
-    for( int i = 0; i < world->loc_change_count; i++ )
-    {
-        struct World_LocChange const* rec = &world->loc_changes[i];
-
-        if( rec->level != self->level || rec->layer != layer || rec->x != self->x ||
-            rec->z != self->z )
-            continue;
-        loc_change_fill(
-            out, self->x, self->z, self->level, rec->old_type,
-            rec->old_shape >= 0 ? rec->old_shape : self->shape, rec->old_angle, 0x1f, none);
-        return true;
-    }
-    return false;
-}
-
-static int
-Task_LocMerge_Run(
-    struct ToriRS_Task* base,
-    struct ToriRS_IOBatch* io)
-{
-    static const char none[5][32] = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
-    struct Task_LocMerge* self = (struct Task_LocMerge*)base;
-    struct App* app = self->app;
-    struct World* world;
-    struct AppLocChange c;
-
-    (void)io;
-    PT_BEGIN(&self->pt);
-
-    /* 1. Wait for the hide's time (Client-TS locChangeCreate's t1+1). */
-    PT_APP_AWAIT_CYCLE(app, self->hide_at);
-    if( RS_ParallelTask_Cancelled(&self->par) )
-        PT_EXIT(&self->pt);
-    world = App_ParallelTaskWorld(app, &self->par, "loc merge");
-    if( !world )
-        PT_EXIT(&self->pt);
-    /* The hide: a delete, which loads nothing. Its record is a merge's. */
-    loc_change_fill(&c, self->x, self->z, self->level, -1, self->shape, 0, 0x1f, none);
-    loc_place(
-        app, self->par.view, world, &c, (int)(self->restore_at - App_ParallelCycle(app)), 0, -1);
-
-    /* 2. Wait for the restore's time (t2+1). */
-    PT_APP_AWAIT_CYCLE(app, self->restore_at);
-    if( RS_ParallelTask_Cancelled(&self->par) )
-        PT_EXIT(&self->pt);
-    world = App_ParallelTaskWorld(app, &self->par, "loc merge");
-    if( !world )
-        PT_EXIT(&self->pt);
-    /* The restore is a change like any other: it waits for the old loc's
-     * models, and replaces this task as its key's pending entry. */
-    if( loc_merge_restore_of(world, self, &c) )
-        (void)loc_change_add(
-            app, self->par.view, &c, NULL, RS_ServerTick_Serial(&app->server_tick), 0);
-
-    PT_END(&self->pt);
-}
-
-static void
-Task_LocMerge_Free(struct ToriRS_Task* base)
-{
-    struct Task_LocMerge* self = (struct Task_LocMerge*)base;
-    struct App* app = self->app;
-
-    App_ParallelTaskRelease(app, &self->par);
-    app->loc_task_serial++;
-    ToriMem_Free(ToriMem_Process(), self);
-}
+/* ---- loc merges --------------------------------------------------------- */
 
 void
 App_WorldLocMerge(
@@ -842,10 +582,7 @@ App_WorldLocMerge(
     int player_pid)
 {
     struct WorldEntity_Player* player = NULL;
-    struct Task_LocMerge* task;
-    struct RS_PendingKey key;
-    int const view = WorldviewRegistry_Active(&app->worldviews);
-    uint32_t const now = App_ParallelCycle(app);
+    struct RS_LocHost host;
 
     assert(app);
     /* No world yet is a real state (fa5680f77). A zone packet reaches here
@@ -856,23 +593,11 @@ App_WorldLocMerge(
 
     /* Countdown: hide after start_cycle cycles, restore after end_cycle --
      * Client-TS locChangeCreate(..., t1+1, t2+1), on the client's cycle for
-     * whichever view it was sent to. */
-    key = loc_key(app, view, scene_x, scene_z, level, shape);
-    loc_key_cancel(app, key);
-    task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
-    assert(task);
-    task->task.vtable = &Task_LocMerge_VTable;
-    strncpy(task->task.name, "LocMerge", sizeof(task->task.name) - 1);
-    PT_INIT(&task->pt);
-    task->app = app;
-    task->x = scene_x;
-    task->z = scene_z;
-    task->level = level;
-    task->shape = shape;
-    task->hide_at = now + (uint32_t)start_cycle + 1u;
-    task->restore_at = now + (uint32_t)end_cycle + 1u;
-    App_ParallelTaskAdd(app, &task->task, &task->par, APP_TASK_LOC_MERGE, key, view);
-    app->loc_task_serial++;
+     * whichever view it was sent to (game/rs_loc_tasks.h, the merge). */
+    host = loc_host(app);
+    RS_LocMerge_Add(
+        &host, WorldviewRegistry_Active(&app->worldviews), scene_x, scene_z, level, shape,
+        start_cycle, end_cycle);
 
     /* The player the loc model rides with: players are the root world's. */
     if( player_pid == app->esync.local_pid )
@@ -899,47 +624,21 @@ App_LocChangesCancelZone(
     int base_z,
     int zone_level)
 {
-    struct World* world;
-    uint32_t gen;
-    int cancelled = 0;
+    struct RS_LocHost host;
 
     assert(app);
     assert(WorldviewRegistry_IsLive(&app->worldviews, view));
-    world = WorldviewRegistry_Get(&app->worldviews, view)->world;
-    assert(world);
-    gen = loc_view_gen(app, view);
-    for( int dz = 0; dz < 8; dz++ )
-    {
-        for( int dx = 0; dx < 8; dx++ )
-        {
-            int const x = base_x + dx;
-            int const z = base_z + dz;
-            /* The level a loc packet means on this tile (zone_loc_tile_at's
-             * bridge climb), which is what the key was made with. */
-            int const level = World_LocCacheLevel(world, x, z, zone_level);
-
-            for( int layer = 0; layer < 4; layer++ )
-            {
-                struct RS_PendingKey key = RS_PendingKey_View(view, x, z, level, layer, gen);
-
-                cancelled += RS_Pending_CancelKey(app->pending, APP_TASK_LOC_CHANGE, key);
-                cancelled += RS_Pending_CancelKey(app->pending, APP_TASK_LOC_MERGE, key);
-            }
-        }
-    }
-    if( cancelled > 0 )
-        app->loc_task_serial++;
-    return cancelled;
+    assert(WorldviewRegistry_Get(&app->worldviews, view)->world);
+    host = loc_host(app);
+    return RS_LocTasks_CancelZone(&host, view, base_x, base_z, zone_level);
 }
 
 void
 App_LocChangesCancelAll(struct App* app)
 {
-    assert(app);
-    if( RS_Pending_Cancel(app->pending, RS_PendingScope_Kind(APP_TASK_LOC_CHANGE)) +
-            RS_Pending_Cancel(app->pending, RS_PendingScope_Kind(APP_TASK_LOC_MERGE)) >
-        0 )
-        app->loc_task_serial++;
+    struct RS_LocHost const host = loc_host(app);
+
+    RS_LocTasks_CancelAll(&host);
 }
 
 /* ---- the rebuild's carry-over ---------------------------------------------- */
@@ -963,6 +662,7 @@ loc_changes_carry_over(
      * and nothing below re-enters this. */
     static struct World_LocChange standing[WORLD_LOC_CHANGE_MAX];
     static struct Task_LocChange* older[WORLD_LOC_CHANGE_MAX];
+    struct RS_LocHost const host = loc_host(app);
     struct World* world;
     unsigned const tick = RS_ServerTick_Serial(&app->server_tick);
     int count;
@@ -976,28 +676,28 @@ loc_changes_carry_over(
     /* The changes made for the old scene, taken and cancelled before any is
      * added: they were made for the old scene whether or not their tile is
      * in the new one. */
-    n = loc_changes_of_view(app, view, older, WORLD_LOC_CHANGE_MAX);
+    n = RS_LocChange_OfView(&host, view, older, WORLD_LOC_CHANGE_MAX);
     assert(n <= WORLD_LOC_CHANGE_MAX);
     for( int i = 0; i < n; i++ )
     {
         if( older[i]->par.scene_serial == world->load_seq )
             continue;
-        (void)RS_Pending_CancelKey(app->pending, APP_TASK_LOC_CHANGE, older[i]->par.key);
+        (void)RS_Pending_CancelKey(app->pending, RS_LOC_TASK_CHANGE, older[i]->par.key);
         older[kept++] = older[i];
     }
     for( int i = 0; i < count; i++ )
     {
-        struct AppLocChange c;
+        struct RS_LocChange c;
 
-        loc_change_fill(
+        RS_LocChange_Fill(
             &c, standing[i].x, standing[i].z, standing[i].level, standing[i].new_type,
             standing[i].new_shape, standing[i].new_angle, standing[i].op_flags, standing[i].ops);
-        (void)loc_change_add(app, view, &c, NULL, tick, 0);
+        (void)RS_LocChange_Add(&host, view, &c, NULL, tick, 0);
     }
     for( int i = 0; i < kept; i++ )
     {
         struct Task_LocChange const* old = older[i];
-        struct AppLocChange c = old->change;
+        struct RS_LocChange c = old->change;
 
         c.x = old->abs_x - world->_base_tile_x;
         c.z = old->abs_z - world->_base_tile_z;
@@ -1005,13 +705,12 @@ loc_changes_carry_over(
             continue;
         {
             struct Task_LocChange* carried =
-                loc_change_add(app, view, &c, &old->carry, old->tick, old->drive_row);
+                RS_LocChange_Add(&host, view, &c, &old->carry, old->tick, old->drive_row);
             carried->carried = 1;
         }
     }
     app->loc_task_serial++;
 }
-
 /* ---- TASK_LOCSEQBIND ------------------------------------------------------ */
 
 struct Task_LocSeqBind

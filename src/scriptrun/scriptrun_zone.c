@@ -121,29 +121,41 @@ ScriptrunZone_BeginTick(
 
 /* ---- ground rows ---------------------------------------------------------- */
 
+struct World*
+ScriptrunZone_ViewWorld(
+    struct ScriptrunZone* zone,
+    int view,
+    int origin_x,
+    int origin_z,
+    int scene_size)
+{
+    struct World* world;
+
+    assert(zone);
+    if( view == 0 )
+        return zone->world;
+    assert(view > 0);
+    assert(view < SCRIPTRUN_ZONE_VIEWS);
+    world = zone->decks[view];
+    if( !world )
+    {
+        world = World_New();
+        assert(world);
+        world->_scene_size = scene_size;
+        world->_base_tile_x = origin_x;
+        world->_base_tile_z = origin_z;
+        zone->decks[view] = world;
+    }
+    return world;
+}
+
 /* The world a view's rows live in: the root's, or the deck's own. */
 static struct World*
 zone_view_world(
     struct ScriptrunZone* zone,
     struct ScriptrunZoneAt const* at)
 {
-    struct World* world;
-
-    if( at->view == 0 )
-        return zone->world;
-    assert(at->view > 0);
-    assert(at->view < SCRIPTRUN_ZONE_VIEWS);
-    world = zone->decks[at->view];
-    if( !world )
-    {
-        world = World_New();
-        assert(world);
-        world->_scene_size = at->scene_size;
-        world->_base_tile_x = at->origin_x;
-        world->_base_tile_z = at->origin_z;
-        zone->decks[at->view] = world;
-    }
-    return world;
+    return ScriptrunZone_ViewWorld(zone, at->view, at->origin_x, at->origin_z, at->scene_size);
 }
 
 static void
@@ -414,29 +426,6 @@ ScriptrunZone_Apply(
 }
 
 /* ---- loc change records ---------------------------------------------------- */
-
-void
-ScriptrunZone_LocChange(
-    struct ScriptrunZone* zone,
-    int x,
-    int z,
-    int level,
-    int shape,
-    int angle,
-    int loc_id,
-    int old_loc,
-    int old_shape,
-    int old_angle,
-    int now_cycle,
-    int op_flags,
-    const char ops[5][32])
-{
-    assert(zone);
-    assert(ops);
-    zone->loc_changes_seen++;
-    World_LocChangePushOps(zone->world, level, World_LocShapeToLayer(shape), x, z, old_loc,
-        old_angle, old_shape, loc_id, angle, shape, now_cycle, -1, op_flags, ops);
-}
 
 void
 ScriptrunZone_LocZoneReset(

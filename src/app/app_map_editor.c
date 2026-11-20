@@ -4547,6 +4547,8 @@ app_spawn_preview_land_npc(
     npc->animation.secondary.frame = 0;
     npc->animation.secondary.cycle = 0;
     npc->animation.held = true;
+    /* Set here, not through World: the pose's frames are asked for here. */
+    app_request_entity_seq(app, npc->idle_animations.readyanim);
     if( item->want.suppressed )
         WorldEntityTransparency_Set(
             &npc->transparency, app->world->cycle, app->world->cycle, app->world->cycle, 150, 150, 1);
@@ -5089,6 +5091,8 @@ app_map_editor_player_preview_update(
     player->animation.secondary.frame = 0;
     player->animation.secondary.cycle = 0;
     player->animation.held = true;
+    /* Set here, not through World: the pose's frames are asked for here. */
+    app_request_entity_seq(app, APP_PLAYER_SEQ_READY);
     app_mapeditor_state(app)->spawns.player_preview.entity = idx;
     app_mapeditor_state(app)->spawns.player_preview.element_id = player->element_id;
     app_mapeditor_state(app)->spawns.player_preview.load_seq = app->world->load_seq;

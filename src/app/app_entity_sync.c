@@ -80,13 +80,12 @@ app_world_sync_one_entity_spotanim(
 
 /* Want a sequence (ASSET_KIND_SEQUENCE): one load however often it is asked.
  *
- * Asked every frame for every entity's tracks until the sequence registers --
- * `ToriDraw_SceneAnimationHas` only goes true once the load LANDS. The assets
- * table is what stops each ask from queueing a load: it holds one entry per
- * sequence in flight, with no capacity at which the dedupe stops (the 64-entry
- * tracker before it evicted its oldest id, and a tracker before that stopped
- * recording when full and queued a load a tick per seq), and the packet
- * handlers, the npc bodies and this binder now share the one load. */
+ * Asked where something changes to it, never per frame: the world asks when
+ * an entity's track is set (World_SeqWant -> app_world_seq_want), a hull's
+ * config names it, the editor poses a preview. The assets table holds one
+ * entry per sequence in flight with no capacity at which the dedupe stops,
+ * and remembers a sequence the cache cannot serve (ASSET_FAIL_REMEMBER), so a
+ * miss is answered once. */
 void
 app_request_entity_seq(
     struct App* app,
@@ -95,6 +94,15 @@ app_request_entity_seq(
     if( seq_id < 0 || ToriDraw_SceneAnimationHas(app->scene, seq_id) )
         return;
     (void)Assets_Want(app->assets, AssetKey_Make(ASSET_KIND_SEQUENCE, seq_id, 0), NULL);
+}
+
+/* World_SeqSource.want: a track of some entity was just set to `seq_id`. */
+void
+app_world_seq_want(
+    void* want_userdata,
+    int seq_id)
+{
+    app_request_entity_seq((struct App*)want_userdata, seq_id);
 }
 
 /* Bind one entity's World animation state onto its scene element (reference
@@ -127,22 +135,18 @@ app_world_apply_entity_anim_tracks(
      * tracks instead (app_world_anim_frame_sound is the listener), which is
      * where the reference emits them too. */
 
-    if( primary_active )
-        app_request_entity_seq(app, anim->primary.anim_id);
-    /* A parked ANIM (WorldEntityFacet_Animation.pending_anim_id) is judged the
-     * cycle its seq registers; keep asking for it until then. */
-    if( anim->pending_set )
-        app_request_entity_seq(app, anim->pending_anim_id);
-    if( secondary_active )
-        app_request_entity_seq(app, anim->secondary.anim_id);
+    /* Nothing is asked for here: the world asked when each track was set to
+     * its sequence (World_SeqWant), a parked ANIM's too, so a steady frame
+     * asks for nothing. A sequence not registered yet is bound the frame its
+     * load lands. */
 
     if( primary_active && anim->primary.delay == 0 )
     {
         struct ToriDraw_Animation* pa =
             ToriDraw_SceneAnimationGet(app->scene, anim->primary.anim_id);
-        /* Not registered yet: `app_request_entity_seq` above only queues the
-         * load, so the first ticks after a spawn legitimately have no
-         * animation. That is the caller's condition — the predicate asserts. */
+        /* Not registered yet: the want only queued the load, so the first
+         * ticks after a spawn legitimately have no animation. That is the
+         * caller's condition — the predicate asserts. */
         if( pa && ToriDraw_ElementAnimPlayable(pa) )
         {
             /* TORIRS_MERGE_TRACE=<seq>: every frame that seq is bound as the
