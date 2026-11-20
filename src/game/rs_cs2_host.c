@@ -8014,6 +8014,12 @@ exec_set_on_if_event(
     node = rs_cs2_node(host, component_id);
     if( !node )
         return CS2VM_EXECNO_OK;
+    /* Disarming a node that never had a handler: there is nothing to clear,
+     * and no reason to give it a hook block to say so. An empty block and no
+     * block read the same everywhere (UITree_Hooks). The bank disarms two
+     * slots on each of its 1,410 cells every time it builds. */
+    if( script_id <= 0 && !node->runtime_hooks )
+        return CS2VM_EXECNO_OK;
 
     slot = rs_cs2_runtime_hook_slot(node, kind);
     if( !slot )
@@ -8072,6 +8078,12 @@ exec_set_on_cc_event(
      * row, so re-reading the active register here binds the wrong child). */
     node = rs_cs2_node(host, component_id);
     if( !node )
+        return CS2VM_EXECNO_OK;
+    /* Disarming a node that never had a handler: there is nothing to clear,
+     * and no reason to give it a hook block to say so. An empty block and no
+     * block read the same everywhere (UITree_Hooks). The bank disarms two
+     * slots on each of its 1,410 cells every time it builds. */
+    if( script_id <= 0 && !node->runtime_hooks )
         return CS2VM_EXECNO_OK;
 
     slot = rs_cs2_runtime_hook_slot(node, kind);

@@ -16052,6 +16052,47 @@ cs2_profile_row_for(int script_id)
     return &g_cs2_profile[g_cs2_profile_rows++];
 }
 
+/*
+ * The fast loop's dispatch. The thirteen opcodes it runs are 0, 6..10, 31..34
+ * and 4000..4002; switched on directly the compiler built a tree of compares,
+ * three to five branches an instruction and mispredicted with the opcode
+ * mix. This maps an opcode to a small dense number, 0 for "not one of these",
+ * so the switch is one table jump.
+ */
+enum
+{
+    CS2VM2_FAST_NONE = 0,
+    CS2VM2_FAST_PUSH_CONSTANT_INT,
+    CS2VM2_FAST_PUSH_INT_LOCAL,
+    CS2VM2_FAST_POP_INT_LOCAL,
+    CS2VM2_FAST_ADD,
+    CS2VM2_FAST_SUB,
+    CS2VM2_FAST_MULTIPLY,
+    CS2VM2_FAST_BRANCH,
+    CS2VM2_FAST_BRANCH_EQUALS,
+    CS2VM2_FAST_BRANCH_NOT,
+    CS2VM2_FAST_BRANCH_LESS_THAN,
+    CS2VM2_FAST_BRANCH_GREATER_THAN,
+    CS2VM2_FAST_BRANCH_LESS_THAN_OR_EQUALS,
+    CS2VM2_FAST_BRANCH_GREATER_THAN_OR_EQUALS,
+};
+#define CS2VM2_FAST_TABLE_SIZE 4096u
+static const uint8_t g_cs2vm2_fast_op[CS2VM2_FAST_TABLE_SIZE] = {
+    [CS2_OP_PUSH_CONSTANT_INT] = CS2VM2_FAST_PUSH_CONSTANT_INT,
+    [CS2_OP_PUSH_INT_LOCAL] = CS2VM2_FAST_PUSH_INT_LOCAL,
+    [CS2_OP_POP_INT_LOCAL] = CS2VM2_FAST_POP_INT_LOCAL,
+    [CS2_OP_ADD] = CS2VM2_FAST_ADD,
+    [CS2_OP_SUB] = CS2VM2_FAST_SUB,
+    [CS2_OP_MULTIPLY] = CS2VM2_FAST_MULTIPLY,
+    [CS2_OP_BRANCH] = CS2VM2_FAST_BRANCH,
+    [CS2_OP_BRANCH_EQUALS] = CS2VM2_FAST_BRANCH_EQUALS,
+    [CS2_OP_BRANCH_NOT] = CS2VM2_FAST_BRANCH_NOT,
+    [CS2_OP_BRANCH_LESS_THAN] = CS2VM2_FAST_BRANCH_LESS_THAN,
+    [CS2_OP_BRANCH_GREATER_THAN] = CS2VM2_FAST_BRANCH_GREATER_THAN,
+    [CS2_OP_BRANCH_LESS_THAN_OR_EQUALS] = CS2VM2_FAST_BRANCH_LESS_THAN_OR_EQUALS,
+    [CS2_OP_BRANCH_GREATER_THAN_OR_EQUALS] = CS2VM2_FAST_BRANCH_GREATER_THAN_OR_EQUALS,
+};
+
 static int
 cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
 {
@@ -16127,15 +16168,17 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
             uint16_t const* const ops = frame->script->opcodes;
             int const* const args = frame->script->int_operands;
             int const op_count = frame->script->op_count;
+            int* locals = frame->int_locals;
+            int locals_dirty = frame->int_locals_dirty;
             int top = vm->ints_stack_top;
             int pc = frame->pc;
             int more = 1;
 
             for( ;; )
             {
-                switch( opcode )
+                switch( (unsigned)opcode < CS2VM2_FAST_TABLE_SIZE ? g_cs2vm2_fast_op[opcode] : 0 )
                 {
-                case CS2_OP_PUSH_CONSTANT_INT:
+                case CS2VM2_FAST_PUSH_CONSTANT_INT:
                     if( top >= CS2VM_STACK_MAX )
                     {
                         more = 0;
@@ -16144,25 +16187,36 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
                     vm->ints_stack[top++] = operand;
                     pc += 1;
                     break;
-                case CS2_OP_PUSH_INT_LOCAL:
+                case CS2VM2_FAST_PUSH_INT_LOCAL:
                     if( top >= CS2VM_STACK_MAX || operand < 0 || operand >= CS2VM_MAX_LOCALS )
                     {
                         more = 0;
                         break;
                     }
-                    vm->ints_stack[top++] = cs2vm2_frame_int_local(frame, operand);
+                    vm->ints_stack[top++] = operand < locals_dirty ? locals[operand] : 0;
                     pc += 1;
                     break;
-                case CS2_OP_POP_INT_LOCAL:
+                case CS2VM2_FAST_POP_INT_LOCAL:
                     if( top <= 0 || operand < 0 || operand >= CS2VM_MAX_LOCALS )
                     {
                         more = 0;
                         break;
                     }
-                    *cs2vm2_frame_int_local_ref(frame, operand) = vm->ints_stack[--top];
+                    if( operand < locals_dirty )
+                    {
+                        locals[operand] = vm->ints_stack[--top];
+                    }
+                    else
+                    {
+                        /* First write to this slot: the frame grows its buffer
+                         * and raises its mark, and both are read again. */
+                        *cs2vm2_frame_int_local_ref(frame, operand) = vm->ints_stack[--top];
+                        locals = frame->int_locals;
+                        locals_dirty = frame->int_locals_dirty;
+                    }
                     pc += 1;
                     break;
-                case CS2_OP_ADD:
+                case CS2VM2_FAST_ADD:
                     if( top < 2 )
                     {
                         more = 0;
@@ -16172,7 +16226,7 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
                     top -= 1;
                     pc += 1;
                     break;
-                case CS2_OP_SUB:
+                case CS2VM2_FAST_SUB:
                     if( top < 2 )
                     {
                         more = 0;
@@ -16182,7 +16236,7 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
                     top -= 1;
                     pc += 1;
                     break;
-                case CS2_OP_MULTIPLY:
+                case CS2VM2_FAST_MULTIPLY:
                     if( top < 2 )
                     {
                         more = 0;
@@ -16192,10 +16246,10 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
                     top -= 1;
                     pc += 1;
                     break;
-                case CS2_OP_BRANCH:
+                case CS2VM2_FAST_BRANCH:
                     pc += 1 + operand;
                     break;
-                case CS2_OP_BRANCH_EQUALS:
+                case CS2VM2_FAST_BRANCH_EQUALS:
                     if( top < 2 )
                     {
                         more = 0;
@@ -16204,7 +16258,7 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
                     top -= 2;
                     pc += 1 + (vm->ints_stack[top] == vm->ints_stack[top + 1] ? operand : 0);
                     break;
-                case CS2_OP_BRANCH_NOT:
+                case CS2VM2_FAST_BRANCH_NOT:
                     if( top < 2 )
                     {
                         more = 0;
@@ -16213,7 +16267,7 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
                     top -= 2;
                     pc += 1 + (vm->ints_stack[top] != vm->ints_stack[top + 1] ? operand : 0);
                     break;
-                case CS2_OP_BRANCH_LESS_THAN:
+                case CS2VM2_FAST_BRANCH_LESS_THAN:
                     if( top < 2 )
                     {
                         more = 0;
@@ -16222,7 +16276,7 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
                     top -= 2;
                     pc += 1 + (vm->ints_stack[top] < vm->ints_stack[top + 1] ? operand : 0);
                     break;
-                case CS2_OP_BRANCH_GREATER_THAN:
+                case CS2VM2_FAST_BRANCH_GREATER_THAN:
                     if( top < 2 )
                     {
                         more = 0;
@@ -16231,7 +16285,7 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
                     top -= 2;
                     pc += 1 + (vm->ints_stack[top] > vm->ints_stack[top + 1] ? operand : 0);
                     break;
-                case CS2_OP_BRANCH_LESS_THAN_OR_EQUALS:
+                case CS2VM2_FAST_BRANCH_LESS_THAN_OR_EQUALS:
                     if( top < 2 )
                     {
                         more = 0;
@@ -16240,7 +16294,7 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
                     top -= 2;
                     pc += 1 + (vm->ints_stack[top] <= vm->ints_stack[top + 1] ? operand : 0);
                     break;
-                case CS2_OP_BRANCH_GREATER_THAN_OR_EQUALS:
+                case CS2VM2_FAST_BRANCH_GREATER_THAN_OR_EQUALS:
                     if( top < 2 )
                     {
                         more = 0;
