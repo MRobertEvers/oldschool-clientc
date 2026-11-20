@@ -10,9 +10,10 @@
  * and the headless client (the scriptrun bot, scriptrun/scriptrun_core.c, read
  * by torirsserver/torirs_server_scriptrun.c) raise the same kinds from the same
  * packets, and a test's `await{ event = "<name>" }` names them by the strings
- * below. DRIVE_EVENT_* (plugin/torirs_plugin_drive.h) and SCRIPTRUN_EV_*
- * (scriptrun/scriptrun_core.h) are the two owners' spellings of this enum; the
- * per-kind payload table is in torirs_plugin_drive.h.
+ * below. The real client stamps these names (RS_EVENT_*) as they are;
+ * SCRIPTRUN_EV_* (scriptrun/scriptrun_core.h) is the headless client's
+ * spelling of this enum; the per-kind payload table is in
+ * torirs_plugin_drive.h.
  *
  * The names are Lua-visible: tests under test/ and script/ match on them, so a
  * name never changes and a new kind goes on the end.

@@ -28,7 +28,7 @@
 
 /* ---- kinds (RS_PENDING_KINDS_ENTITIES_FIRST .. _LAST) -------------------- */
 
-enum
+enum AppEntityTaskKind
 {
     /* An npc's body: the composite of its drawn type (ASSET_KIND_NPC_BODY,
      * id = the drawn type, variant = the shell). Key: the npc's entity key. */
@@ -36,9 +36,9 @@ enum
     /* A sequence bound to a scene element once it is resident
      * (ASSET_KIND_SEQUENCE). Key: RS_PendingKey_Id(element, element serial). */
     APP_TASK_SEQ_BIND,
+    APP_TASK_ENTITIES_END
 };
-
-_Static_assert(APP_TASK_SEQ_BIND <= RS_PENDING_KINDS_ENTITIES_LAST, "entity task kinds in range");
+_Static_assert(APP_TASK_ENTITIES_END - 1 <= RS_PENDING_KINDS_ENTITIES_LAST, "the entities family's range");
 
 struct RS_PendingKey
 App_EntityNpcKey(struct WorldEntity_NPC const* npc)

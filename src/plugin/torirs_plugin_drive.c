@@ -1244,7 +1244,7 @@ drive_pump_once(void)
     (void)App_DriveEventsRead(g_host.app, g_sched.event_cursor, events, 32, &count, &next_serial);
     g_sched.event_cursor = next_serial;
     for( i = 0; i < count; i++ )
-        if( events[i].kind == DRIVE_EVENT_SERVER_TICK )
+        if( events[i].kind == RS_EVENT_SERVER_TICK )
         {
             g_sched.fence_tick = drive_raw_server_tick();
             if( g_sched.fence_count == DRIVE_FENCE_HISTORY )
@@ -2685,7 +2685,7 @@ lua_drive_forget_varps(struct lua_State* L)
     /* DRIVE_STAMP: varp_changed -- a=-1 (every varp), as a VARP_RESET packet
      * stamps it (game/rs_server_state.c): this is the same reset, made by the
      * driver rather than the server. */
-    App_DriveEvent(g_host.app, DRIVE_EVENT_VARP_CHANGED, -1,
+    App_DriveEvent(g_host.app, RS_EVENT_VARP_CHANGED, -1,
         VarPManager_GetVarp(&g_host.app->varps, -1), 0, 0);
     fprintf(stderr, "quest-driver: on demand: play %s: the last account's client varps forgotten\n",
         g_demand.id);

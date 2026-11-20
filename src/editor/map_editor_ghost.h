@@ -320,9 +320,10 @@ MapEditorGhost_Matches(
 /**
  * Take the ghost down, and say what has to be put back.
  *
- * Returns false when there was no ghost. `out_restore` is filled and
- * `*out_has_restore` set when the ghost had evicted an occupant; the caller
- * places the ghost's own spec as a deletion first and then that.
+ * Returns false when there was no ghost (nothing is written). Otherwise
+ * `*out_has_restore` says whether the ghost had evicted an occupant, and
+ * `out_restore` is that occupant, or an empty spec when there was none; the
+ * caller places the ghost's own spec as a deletion first and then that.
  */
 bool
 MapEditorGhost_Remove(

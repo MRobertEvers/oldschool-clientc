@@ -75,8 +75,8 @@ App_DriveEvent(
     struct RS_EventSink sink;
 
     assert(app);
-    assert(kind > DRIVE_EVENT_NONE);
-    assert(kind < DRIVE_EVENT_KIND_COUNT);
+    assert(kind > RS_EVENT_NONE);
+    assert(kind < RS_EVENT_KIND_COUNT);
     sink = App_DriveEventSink(app);
     RS_EventSink_Stamp(&sink, (int)kind, a, b, c, d);
 }

@@ -17,7 +17,7 @@ struct App;
  * Runtime mounts carry no INI inv= binding; INV widgets in the pack keep
  * their pack inv sources and fill via UPDATE_INV state sync.
  *
- * `app` stamps DRIVE_EVENT_SLOT_MOUNTED at completion -- the dat1 lane's
+ * `app` stamps RS_EVENT_SLOT_MOUNTED at completion -- the dat1 lane's
  * mount fence, ridden by both ui.await_open and ui.await_close since this
  * one event covers a mount and a clear alike. The task's only caller always
  * has an App in scope, so this is asserted, not optional.

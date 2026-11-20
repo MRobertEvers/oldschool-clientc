@@ -418,7 +418,7 @@ RS_UISlots_OpenChat(struct App* app, int iface_id)
      * non-positive iface_id clears the mount rather than opening one. */
     app->slots.chat_com_id = iface_id > 0 ? iface_id : -1;
     if( iface_id > 0 )
-        App_DriveEvent(app, DRIVE_EVENT_CHAT_OPENED, app->slots.chat_com_id, 0, 0, 0);
+        App_DriveEvent(app, RS_EVENT_CHAT_OPENED, app->slots.chat_com_id, 0, 0, 0);
     slot_mount(app, app->slots.chat_index, RS_UISlots_ChatRegionIface(&app->slots));
 }
 

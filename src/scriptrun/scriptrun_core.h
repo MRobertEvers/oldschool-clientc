@@ -82,8 +82,8 @@ enum
     SCRIPTRUN_CYCLES_PER_TICK = 30,
 };
 
-/* The drive events: game/rs_event_ring.h's one vocabulary, the client's own
- * (DRIVE_EVENT_*), raised from the same packets with the same field meanings
+/* The drive events: game/rs_event_ring.h's one vocabulary, which the client
+ * stamps as RS_EVENT_*, raised from the same packets with the same field meanings
  * (plugin/torirs_plugin_drive.h has the payload table). */
 enum
 {

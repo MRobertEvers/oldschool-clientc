@@ -1644,7 +1644,7 @@ npc_apply_op(
             if( npc->server_slot >= 0 )
                 App_DriveEvent(
                     app,
-                    DRIVE_EVENT_NPC_FACE,
+                    RS_EVENT_NPC_FACE,
                     npc->server_slot,
                     op->face_coord.x >> 1,
                     op->face_coord.z >> 1,
@@ -2054,7 +2054,7 @@ Task_ExecNpcInfo_Run(
                     if( npc && npc->server_slot >= 0 )
                         App_DriveEvent(
                             app,
-                            DRIVE_EVENT_NPC_SEQ,
+                            RS_EVENT_NPC_SEQ,
                             npc->server_slot,
                             self->pending_seq,
                             (int32_t)(app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES),

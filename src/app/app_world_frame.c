@@ -46,7 +46,7 @@ App_WorldDrainEntityRemovedFor(
             {
                 /* DRIVE_STAMP: npc_despawn -- a=npc slot b=npc_id. The server
                  * slot, as stated (it stamped the element id, FAULTS E10). */
-                App_DriveEvent(app, DRIVE_EVENT_NPC_DESPAWN, going->server_slot, going->npc_id, 0, 0);
+                App_DriveEvent(app, RS_EVENT_NPC_DESPAWN, going->server_slot, going->npc_id, 0, 0);
                 if( app->plugins )
                 {
                     struct ToriRS_NpcSnapshot snap;

@@ -856,7 +856,7 @@ test_npc_cold_body_exists_and_waits_on_the_parallel_queue(void)
         RS_Pending_Count(fx.app.pending, RS_PENDING_KINDS_ENTITIES_FIRST) == 1,
         "one body task, on the parallel queue");
     TEST_ASSERT(fx.app.packet_runner.queue == NULL, "nothing was put on the packet queue");
-    TEST_ASSERT(drive_count(&fx.app, DRIVE_EVENT_NPC_SPAWN, &a, &b) == 1, "one npc_spawn");
+    TEST_ASSERT(drive_count(&fx.app, RS_EVENT_NPC_SPAWN, &a, &b) == 1, "one npc_spawn");
     TEST_ASSERT(a == 7, "npc_spawn names the server slot, not the pool index (E10)");
     TEST_ASSERT(b == 500, "npc_spawn names the type");
     TEST_ASSERT(
@@ -1007,7 +1007,7 @@ test_only_npc_removals_are_npc_despawns(void)
     player = World_PlayerSpawn(fx.app.world, element, 0, 10, 10, World_TestDefaultIdle());
     World_PlayerDespawn(fx.app.world, player);
     App_WorldDrainEntityRemovedFor(&fx.app, fx.app.world);
-    TEST_ASSERT(drive_count(&fx.app, DRIVE_EVENT_NPC_DESPAWN, NULL, NULL) == 0, "a player's removal is no npc despawn");
+    TEST_ASSERT(drive_count(&fx.app, RS_EVENT_NPC_DESPAWN, NULL, NULL) == 0, "a player's removal is no npc despawn");
 
     fixture_npctype(&fx, 503, -1);
     ops[0] = op_value(RSPROT_OP_ADD_NEW, 12);
@@ -1020,7 +1020,7 @@ test_only_npc_removals_are_npc_despawns(void)
         run_npc_ops(&fx.app, &clear, 1);
     }
     App_WorldDrainEntityRemovedFor(&fx.app, fx.app.world);
-    TEST_ASSERT(drive_count(&fx.app, DRIVE_EVENT_NPC_DESPAWN, &a, NULL) == 1, "an npc's removal is one");
+    TEST_ASSERT(drive_count(&fx.app, RS_EVENT_NPC_DESPAWN, &a, NULL) == 1, "an npc's removal is one");
     TEST_ASSERT(a == 12, "naming its server slot");
 
     fixture_free(&fx);
@@ -1069,7 +1069,7 @@ test_varp_retype_coalesces_and_keeps_overrides(void)
     App_EntityNpcRetypeFlush(&fx.app);
 
     TEST_ASSERT(npc->npc_id == 603, "applied as the rung both writes select");
-    TEST_ASSERT(drive_count(&fx.app, DRIVE_EVENT_NPC_RETYPE, NULL, NULL) == 1, "one retype for two varps");
+    TEST_ASSERT(drive_count(&fx.app, RS_EVENT_NPC_RETYPE, NULL, NULL) == 1, "one retype for two varps");
     TEST_ASSERT(strcmp(npc->name, "Renamed") == 0, "the server's NAME_CHANGE survived the retype");
     TEST_ASSERT(fx.app.packet_runner.queue == NULL, "nothing waited on the packet queue");
     TEST_ASSERT(fx.app.world->npc_retype_wanted == 0, "nothing left wanted");

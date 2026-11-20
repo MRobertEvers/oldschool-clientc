@@ -51,17 +51,17 @@ test_ring_order_and_second_read_empty(void)
 
     memset(&app, 0, sizeof(app));
 
-    App_DriveEvent(&app, DRIVE_EVENT_SUB_OPENED, 100, 5, 0, 0);
-    App_DriveEvent(&app, DRIVE_EVENT_SUB_MOUNTED, 100, 5, 0, 0);
-    App_DriveEvent(&app, DRIVE_EVENT_SUB_CLOSED, 100, 7, 0, 0);
+    App_DriveEvent(&app, RS_EVENT_SUB_OPENED, 100, 5, 0, 0);
+    App_DriveEvent(&app, RS_EVENT_SUB_MOUNTED, 100, 5, 0, 0);
+    App_DriveEvent(&app, RS_EVENT_SUB_CLOSED, 100, 7, 0, 0);
 
     r = App_DriveEventsRead(&app, 0, out, 8, &count, &serial);
     assert(r == DRIVE_OK);
     assert(count == 3);
-    assert(out[0].kind == DRIVE_EVENT_SUB_OPENED);
+    assert(out[0].kind == RS_EVENT_SUB_OPENED);
     assert(out[0].a == 100 && out[0].b == 5);
-    assert(out[1].kind == DRIVE_EVENT_SUB_MOUNTED);
-    assert(out[2].kind == DRIVE_EVENT_SUB_CLOSED);
+    assert(out[1].kind == RS_EVENT_SUB_MOUNTED);
+    assert(out[2].kind == RS_EVENT_SUB_CLOSED);
     assert(out[2].a == 100 && out[2].b == 7);
     assert(out[0].serial < out[1].serial);
     assert(out[1].serial < out[2].serial);
@@ -95,13 +95,13 @@ test_ring_wraparound_refuses_stale_cursor(void)
 
     memset(&app, 0, sizeof(app));
 
-    App_DriveEvent(&app, DRIVE_EVENT_SERVER_TICK, 1, 0, 0, 0);
+    App_DriveEvent(&app, RS_EVENT_SERVER_TICK, 1, 0, 0, 0);
     serial_after_first = app.drive_events.ring.newest_serial;
     assert(serial_after_first != 0);
 
     /* One more than capacity: the first entry is guaranteed gone. */
     for( i = 0; i < APP_DRIVE_RING_CAPACITY + 1; i++ )
-        App_DriveEvent(&app, DRIVE_EVENT_SERVER_TICK, i + 2, 0, 0, 0);
+        App_DriveEvent(&app, RS_EVENT_SERVER_TICK, i + 2, 0, 0, 0);
     assert(app.drive_events.ring.dropped > 0);
 
     r = App_DriveEventsRead(&app, serial_after_first, out, 8, &count, &serial);
@@ -175,8 +175,8 @@ test_dat1_chat_open_close_stamps_the_ring(
     r = App_DriveEventsRead(&app, serial, out, 32, &count, &serial);
     assert(r == DRIVE_OK);
     {
-        int chat_opened_index = drive_ring_find(out, count, DRIVE_EVENT_CHAT_OPENED);
-        int slot_mounted_index = drive_ring_find(out, count, DRIVE_EVENT_SLOT_MOUNTED);
+        int chat_opened_index = drive_ring_find(out, count, RS_EVENT_CHAT_OPENED);
+        int slot_mounted_index = drive_ring_find(out, count, RS_EVENT_SLOT_MOUNTED);
 
         assert(chat_opened_index >= 0);
         assert(out[chat_opened_index].a == TEST_DAT1_MULTI2_INTERFACE_ID);
@@ -195,8 +195,8 @@ test_dat1_chat_open_close_stamps_the_ring(
     r = App_DriveEventsRead(&app, serial, out, 32, &count, &serial);
     assert(r == DRIVE_OK);
     {
-        int chat_opened_index = drive_ring_find(out, count, DRIVE_EVENT_CHAT_OPENED);
-        int slot_mounted_index = drive_ring_find(out, count, DRIVE_EVENT_SLOT_MOUNTED);
+        int chat_opened_index = drive_ring_find(out, count, RS_EVENT_CHAT_OPENED);
+        int slot_mounted_index = drive_ring_find(out, count, RS_EVENT_SLOT_MOUNTED);
 
         /* The close-not-mounted case, mirrored on this lane: clearing the
          * chat slot rides the same slot_mounted event a real mount does
