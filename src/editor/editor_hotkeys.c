@@ -198,6 +198,18 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_TOOL_BUILDING] = { "tool.building", "Tools", "Building",
                                   "Building (drag a rectangle: walls, floor, roof flag and roof in one step; a line: an inside wall; click a wall: a door or a window)",
                                   G, EDGE, { "4" }, NULL },
+    [EDITOR_HK_TOOL_PREVIOUS] = { "tool.previous", "Tools", "Previous tool", "Previous tool", G, EDGE, { "grave" },
+                                  NULL },
+    [EDITOR_HK_TOOL_PICK_PAINT] = { "tool.pick_paint", "Tools", "Pick the tile's paint",
+                                    "Pick the hovered tile's paint into the palette", W, EDGE, { "i" }, NULL },
+    [EDITOR_HK_TOOL_PICK_LOC] = { "tool.pick_loc", "Tools", "Pick the hovered loc",
+                                  "Pick the hovered loc into the catalog", W, EDGE, { "shift+i" }, NULL },
+    [EDITOR_HK_HOLD_PLACE] = { "hold.place", "Tools", "Click places a loc (hold)",
+                               "Place the catalog's loc on click (hold)", W, HELD, { "l" }, NULL },
+    [EDITOR_HK_HOLD_DELETE] = { "hold.delete", "Tools", "Click deletes a loc (hold)",
+                                "Delete the loc under the click (hold)", W, HELD, { "k" }, NULL },
+    [EDITOR_HK_HOLD_CLEAR] = { "hold.clear", "Tools", "Click clears the tile (hold)",
+                               "Clear every loc on the clicked tile (hold)", W, HELD, { "c" }, NULL },
     [EDITOR_HK_BUILDING_SHELL] = { "building.shell", "Building", "Building: shell",
                                    "Building: drag a rectangle for the whole shell", G, EDGE, { NULL }, NULL },
     [EDITOR_HK_BUILDING_WALL] = { "building.wall", "Building", "Building: wall line",
@@ -219,18 +231,6 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
                                  NULL },
     [EDITOR_HK_STAMP_DELETE] = { "stamp.delete", "Stamps", "Delete stamp",
                                  "Delete the stamp picked in the Stamps panel", G, EDGE, { NULL }, NULL },
-    [EDITOR_HK_TOOL_PREVIOUS] = { "tool.previous", "Tools", "Previous tool", "Previous tool", G, EDGE, { "grave" },
-                                  NULL },
-    [EDITOR_HK_TOOL_PICK_PAINT] = { "tool.pick_paint", "Tools", "Pick the tile's paint",
-                                    "Pick the hovered tile's paint into the palette", W, EDGE, { "i" }, NULL },
-    [EDITOR_HK_TOOL_PICK_LOC] = { "tool.pick_loc", "Tools", "Pick the hovered loc",
-                                  "Pick the hovered loc into the catalog", W, EDGE, { "shift+i" }, NULL },
-    [EDITOR_HK_HOLD_PLACE] = { "hold.place", "Tools", "Click places a loc (hold)",
-                               "Place the catalog's loc on click (hold)", W, HELD, { "l" }, NULL },
-    [EDITOR_HK_HOLD_DELETE] = { "hold.delete", "Tools", "Click deletes a loc (hold)",
-                                "Delete the loc under the click (hold)", W, HELD, { "k" }, NULL },
-    [EDITOR_HK_HOLD_CLEAR] = { "hold.clear", "Tools", "Click clears the tile (hold)",
-                               "Clear every loc on the clicked tile (hold)", W, HELD, { "c" }, NULL },
 
     [EDITOR_HK_BRUSH_RADIUS_DOWN] = { "brush.radius_down", "Brush", "Radius -", "Radius - / +", G, REPEAT,
                                       { "lbracket" }, NULL },
@@ -531,6 +531,39 @@ Editor_HotkeyInfo(enum Editor_HotkeyAction action)
     assert((int)action >= 0);
     assert(action < EDITOR_HK_COUNT);
     return &k_actions[action];
+}
+
+void
+Editor_HotkeyGroupsDerive(struct Editor_HotkeyGroups* out)
+{
+    assert(out);
+    out->count = 0;
+    for( int a = 0; a < EDITOR_HK_COUNT; a++ )
+    {
+        const char* group = k_actions[a].group;
+        assert(group);
+        if( out->count == 0 || strcmp(out->name[out->count - 1], group) != 0 )
+        {
+            /* A new run: never a group an earlier run already named. */
+            assert(Editor_HotkeyGroupsFind(out, group) < 0);
+            assert(out->count < EDITOR_HK_GROUP_MAX);
+            out->name[out->count++] = group;
+        }
+        out->of[a] = (unsigned char)(out->count - 1);
+    }
+}
+
+int
+Editor_HotkeyGroupsFind(
+    const struct Editor_HotkeyGroups* groups,
+    const char* name)
+{
+    assert(groups);
+    assert(name);
+    for( int g = 0; g < groups->count; g++ )
+        if( strcmp(groups->name[g], name) == 0 )
+            return g;
+    return -1;
 }
 
 int

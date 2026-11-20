@@ -39,13 +39,6 @@
 #include <stdio.h>
 #include <string.h>
 
-/** The table's groups, in the order the action enum runs through them
- * (editor_hotkeys.h): Register walks the actions and opens the next group
- * at each change, so this is the enum's order, Palette after Camera. */
-static const char* const k_groups[] = { "File", "Edit", "Place", "Tools", "Brush", "Level", "Camera", "Picker",
-    "Palette", "View", "Graph", "Camera path" };
-#define HOTKEYS_GROUPS ((int)(sizeof(k_groups) / sizeof(k_groups[0])))
-
 #define HOTKEYS_CLASH_RGB 0xFF5555u
 #define HOTKEYS_CAPTURE_RGB 0xFFFF00u
 
@@ -873,8 +866,10 @@ struct HotkeysPanel
     int button_reset;
     int list;
     int label_status;
-    /** The group dropdown's rows: "All groups", then the table's groups. */
-    const char* group_options[HOTKEYS_GROUPS + 1];
+    /** The table's groups (Editor_HotkeyGroupsDerive: the actions are the
+     *  one source) and the group dropdown's rows: "All groups", then those. */
+    struct Editor_HotkeyGroups groups;
+    const char* group_options[EDITOR_HK_GROUP_MAX + 1];
     /** The action a click armed for capture, -1 none, and the slot. */
     int capturing;
     int capture_slot;
@@ -953,15 +948,6 @@ hk_sorts_before(
     return self->sort_reverse ? c > 0 : c < 0;
 }
 
-static int
-hk_group_index(const char* group)
-{
-    for( int g = 0; g < HOTKEYS_GROUPS; g++ )
-        if( strcmp(k_groups[g], group) == 0 )
-            return g;
-    return -1;
-}
-
 /** The listed actions: search, filters, then the sort (an insertion sort:
  *  under two hundred actions, and only when something changed). */
 static void
@@ -977,7 +963,7 @@ hotkeys_order(
         int at;
         if( !hk_matches(ui, a, search) )
             continue;
-        if( self->filter_group >= 0 && hk_group_index(info->group) != self->filter_group )
+        if( self->filter_group >= 0 && self->groups.of[a] != self->filter_group )
             continue;
         if( self->filter_context && !(info->contexts & self->filter_context) )
             continue;
@@ -1365,7 +1351,7 @@ Editor_Hotkeys_SetFilter(
     assert(ui);
     self = hotkeys_self(ui);
     assert(self);
-    self->filter_group = group ? hk_group_index(group) : -1;
+    self->filter_group = group ? Editor_HotkeyGroupsFind(&self->groups, group) : -1;
     /* A group the table does not have is a caller's typo. */
     assert(!group || self->filter_group >= 0);
     self->filter_context = context;
@@ -1477,7 +1463,6 @@ Editor_Hotkeys_Register(struct EditorUi* ui)
     struct HotkeysPanel* self;
     struct EditorUiPanel desc;
     struct ToriRSChrome* chrome;
-    int group = -1;
 
     assert(ui);
     chrome = ui->chrome;
@@ -1490,21 +1475,11 @@ Editor_Hotkeys_Register(struct EditorUi* ui)
     self->shown_first = -1;
     self->hover_row = -2;
 
-    /* The table is grouped in the doc's order, the groups in k_groups'. */
-    for( int a = 0; a < EDITOR_HK_COUNT; a++ )
-    {
-        const struct Editor_HotkeyActionInfo* info = Editor_HotkeyInfo(a);
-        if( group < 0 || strcmp(k_groups[group], info->group) != 0 )
-        {
-            group++;
-            assert(group < HOTKEYS_GROUPS);
-            assert(strcmp(k_groups[group], info->group) == 0);
-        }
-    }
-    assert(group == HOTKEYS_GROUPS - 1);
+    /* The groups come from the actions, in the order they first name them. */
+    Editor_HotkeyGroupsDerive(&self->groups);
     self->group_options[0] = "All groups";
-    for( int g = 0; g < HOTKEYS_GROUPS; g++ )
-        self->group_options[g + 1] = k_groups[g];
+    for( int g = 0; g < self->groups.count; g++ )
+        self->group_options[g + 1] = self->groups.name[g];
 
     self->panel = ToriRSChrome_PanelAdd(
         chrome, TORIRS_CHROME_PANEL_WINDOW, edp_px(ui, EDP_COL_X), edp_px(ui, EDP_TOP_Y), edp_px(ui, 520),
@@ -1514,7 +1489,7 @@ Editor_Hotkeys_Register(struct EditorUi* ui)
     self->input_search = ToriRSChrome_TextInput(chrome, self->panel, "Search", "");
     ToriRSChrome_SetTooltip(chrome, self->input_search, "Filter by group, action, context, chord or gesture");
     self->drop_group =
-        ToriRSChrome_Dropdown(chrome, self->panel, "Group", self->group_options, HOTKEYS_GROUPS + 1, 0);
+        ToriRSChrome_Dropdown(chrome, self->panel, "Group", self->group_options, self->groups.count + 1, 0);
     self->drop_context =
         ToriRSChrome_Dropdown(chrome, self->panel, "Context", k_context_options, HOTKEYS_CONTEXT_OPTIONS, 0);
     ToriRSChrome_SetTooltip(chrome, self->drop_context, "Only the actions live in this context");
