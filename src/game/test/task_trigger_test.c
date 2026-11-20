@@ -1393,6 +1393,139 @@ test_a_long_chain_is_not_a_loop(void)
         fprintf(stderr, "  the line of 5000 said: %.200s\n", said);
 }
 
+/* --- 6b. a loop through a join's count ----------------------------------------
+ *
+ * A fan-out's parent parks on its count; each child ends the count by ending.
+ * A child that waits on something the parent ends -- the parent's own end,
+ * here, or a third task's end that waits on the parent -- can never end, and
+ * neither can the parent: a loop, though one of its links is a count. Caught
+ * when it is made, in either order (the parent parked first, or the child),
+ * with the chain naming every task in it. */
+struct CountLooper
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct ToriRS_TaskQueue* queue;
+    /* 0: the child waits on the parent's end. 1: it waits on `middle`'s,
+     * which waits on the parent's. */
+    int via_middle;
+    /* Yield once before the join, so the child parks first. */
+    int child_first;
+    struct EndWaiter* middle;
+    int pending;
+};
+
+static int
+CountLooper_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
+{
+    struct CountLooper* self = (struct CountLooper*)base;
+    (void)io;
+    PT_BEGIN(&self->pt);
+    {
+        struct EndWaiter* child = calloc(1, sizeof(*child));
+
+        assert(child);
+        child->task.vtable = &k_end_waiter_vtable;
+        strcpy(child->task.name, "loopchild");
+        PT_INIT(&child->pt);
+        if( self->via_middle )
+        {
+            self->middle = calloc(1, sizeof(*self->middle));
+            assert(self->middle);
+            self->middle->task.vtable = &k_end_waiter_vtable;
+            strcpy(self->middle->task.name, "loopmiddle");
+            PT_INIT(&self->middle->pt);
+            self->middle->other = &self->task;
+            ToriRS_TaskQueue_Add(self->queue, &self->middle->task);
+            child->other = &self->middle->task;
+        }
+        else
+            child->other = &self->task;
+        ToriRS_TaskQueue_AddParallelPoolSubTask(self->queue, &child->task, &self->pending);
+    }
+    if( self->child_first )
+        PT_YIELD(&self->pt);
+    PT_TASK_JOIN(pending);
+    PT_END(&self->pt);
+}
+
+static struct ToriRS_TaskVTable k_count_looper_vtable = { .run = CountLooper_Run, .free = task_free_libc };
+
+static void
+count_loop(int via_middle, int child_first)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px = { 0 };
+    struct CountLooper* parent = calloc(1, sizeof(*parent));
+
+    assert(parent);
+    runner_init(&runner, &px, TASK_RUNNER_ROLE_PARALLEL);
+    parent->task.vtable = &k_count_looper_vtable;
+    strcpy(parent->task.name, "loopparent");
+    parent->queue = runner.queue;
+    parent->via_middle = via_middle;
+    parent->child_first = child_first;
+    PT_INIT(&parent->pt);
+    ToriRS_TaskQueue_Add(runner.queue, &parent->task);
+    (void)pump(&runner);
+    /* Every task parked and none can wake: that is the hang this must not
+     * be. Say so, so a missed loop is told apart from a crash. */
+    fprintf(stderr, "count_loop: no abort; parent parked=%d on=%d\n", parent->task.parked,
+            parent->task.park.on);
+    _exit(0);
+}
+
+static void
+count_loop_parent_first(void)
+{
+    count_loop(0, 0);
+}
+
+static void
+count_loop_child_first(void)
+{
+    count_loop(0, 1);
+}
+
+static void
+count_loop_via_middle(void)
+{
+    count_loop(1, 0);
+}
+
+static void
+count_loop_via_middle_child_first(void)
+{
+    count_loop(1, 1);
+}
+
+static void
+test_a_loop_through_a_count_asserts(void)
+{
+    char said[1024];
+    void (*cases[])(void) = { count_loop_parent_first, count_loop_child_first, count_loop_via_middle,
+                              count_loop_via_middle_child_first };
+    char const* names[] = { "parent first", "child first", "through a third task",
+                            "through a third task, child first" };
+
+    printf("TEST: a wait that closes a loop through a join's count aborts when it is made, printing the "
+           "chain\n");
+    for( int i = 0; i < 4; i++ )
+    {
+        int died = dies_by_abort_saying(cases[i], said, sizeof(said));
+
+        if( !died || i == 3 )
+            fprintf(stderr, "  %s: %.300s\n", names[i], said);
+        CHECK(died);
+        CHECK(strstr(said, "closes a loop") != NULL);
+        CHECK(strstr(said, "loopparent") != NULL);
+        CHECK(strstr(said, "loopchild") != NULL);
+        if( i >= 2 )
+            CHECK(strstr(said, "loopmiddle") != NULL);
+    }
+    /* A join whose child waits on something else is no loop: test_a_count_join. */
+}
+
 /* --- 13. a task woken behind the walk still gets its turn -------------------- */
 
 struct Clocked
@@ -1521,6 +1654,7 @@ main(void)
     test_a_childs_park_is_the_parents();
     test_the_chain_bottoms_out_in_a_read();
     test_a_long_chain_is_not_a_loop();
+    test_a_loop_through_a_count_asserts();
     test_a_task_woken_behind_the_walk_gets_its_turn();
     if( g_failures )
     {
