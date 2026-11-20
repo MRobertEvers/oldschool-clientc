@@ -928,6 +928,12 @@ app_run_background_floor(struct App* app);
  * (app_frame.c, App_QueueContractTraceLine). */
 void
 app_contract_note_background_floor(void);
+/* Is a task left on the parallel queue waiting on WORK -- its read, a load,
+ * a join, a trigger -- rather than only on game time? A task parked on a
+ * CYCLE waits for the logic tick, not for loading, and is not pending work
+ * for App_AsyncPending (app_frame.c). */
+int
+app_parallel_waits_on_work(struct App const* app);
 /* TORIRS_QUEUE_CONTRACT_TRACE: one App_RunOnce while a world job is
  * pending, and whether it committed a frame (app_world_job.c). */
 void

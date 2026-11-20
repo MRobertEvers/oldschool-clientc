@@ -124,6 +124,37 @@ App_AsyncPending(const struct App* app)
     return BootPumpStats_Pending(&app->pump_stats) || app_woken_since_pump(app);
 }
 
+/*
+ * Is a task left on the parallel queue waiting on WORK? Every task the pump
+ * leaves is done or parked (TaskRunner_PumpToStandstill), and what it is
+ * parked on says whether anything is loading: a read, a load or a join
+ * counted on it, a trigger is; a CYCLE (PT_PARALLEL_AWAIT_CYCLE: a timed loc
+ * merge, an icon's back-off, the widget-icon release a tick after the
+ * script asked) waits on game time, which only the logic tick moves.
+ *
+ * App_AsyncPending reports work, not time: the content test's virtual clock
+ * (content_test.c) advances only while nothing is pending, so a widget icon
+ * parked for its release tick held that clock still across a settle frame
+ * and the quest driver's first command reached the server a tick early.
+ * What the frame contract and the settles wait for is not decided here.
+ */
+int
+app_parallel_waits_on_work(struct App const* app)
+{
+    struct ToriRS_Task const* task;
+
+    assert(app);
+    assert(app->frame_runner.queue);
+    for( task = app->frame_runner.queue->head; task; task = task->next )
+    {
+        if( task->io.pending )
+            return 1;
+        if( !task->parked || task->park.on != TORIRS_PARK_CYCLE )
+            return 1;
+    }
+    return 0;
+}
+
 /* ...and could some of it run at once, without a read landing or another
  * queue moving? The loop sleeps through work that only waits, never through
  * this (ToriRS_Pacer_LoopWait): a parallel task a fire made ready since the
@@ -963,7 +994,7 @@ App_PumpAsync(
          * or a cycle), and a settle that did not finish ended the same way,
          * so what they leave only waits: the loop waits for it in naps, never
          * spinning on it. */
-        if( stat != TASK_RUNNER_IDLE )
+        if( stat != TASK_RUNNER_IDLE && (stat != TASK_RUNNER_WAITING || app_parallel_waits_on_work(app)) )
             BootPumpStats_SetPending(&app->pump_stats);
         if( settling_cs2 && settle != TASK_RUNNER_IDLE )
         {
