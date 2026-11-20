@@ -4365,6 +4365,37 @@ d_widget_presented(lua_State* L)
     return 2;
 }
 
+/* api_drive.widget_model(component) -> ("ok", {kind, id}): what the real
+ * client's DriveRead_WidgetModel answers, from the same store (the core's
+ * UIIfModels): "npc", "obj" or "model" with its id, and "none", -1 for no
+ * model or a player portrait, which carries no identity to check. */
+static int
+d_widget_model(lua_State* L)
+{
+    static char const* const KIND_NAMES[] = { "none", "npc", "obj", "model" };
+    struct ScriptBot* bot = bot_of(L);
+    int component = (int)luaL_checkinteger(L, 1);
+    struct UIIfHead const* head = ScriptrunCore_Head(bot->core, component);
+    int kind = 0;
+    int id = -1;
+
+    if( head && head->kind == UI_IFHEAD_NPC )
+        kind = 1;
+    else if( head && head->kind == UI_IFHEAD_OBJ )
+        kind = 2;
+    else if( head && head->kind == UI_IFHEAD_MODEL )
+        kind = 3;
+    if( kind != 0 )
+        id = head->npc_id;
+    lua_pushstring(L, "ok");
+    lua_createtable(L, 0, 2);
+    lua_pushstring(L, KIND_NAMES[kind]);
+    lua_setfield(L, -2, "kind");
+    lua_pushinteger(L, id);
+    lua_setfield(L, -2, "id");
+    return 2;
+}
+
 static int
 d_group_present(lua_State* L)
 {
@@ -4727,7 +4758,7 @@ static char const* const CLIENT_VERBS[] = {
     "server_npc_pack", "shot", "sote_guard", "start", "stop", "tab", "tab_by_name", "tests",
     "text", "tiles_nearest", "var_content", "varbit_base", "varbit_content", "view_attach",
     "view_detach", "view_interact", "view_status", "view_watcher", "widget_at",
-    "widget_bounds", "widget_model", "widget_own_hidden", "world_gate", "yellow_chains", "yellow_match",
+    "widget_bounds", "widget_own_hidden", "world_gate", "yellow_chains", "yellow_match",
 };
 
 static void
@@ -4818,6 +4849,7 @@ push_drive_table(
     bind(L, bot, "resume", d_resume);
     bind(L, bot, "close_modal", d_close_modal);
     bind(L, bot, "widget_presented", d_widget_presented);
+    bind(L, bot, "widget_model", d_widget_model);
     bind(L, bot, "group_present", d_group_present);
     bind(L, bot, "widget_text", d_widget_text);
     bind(L, bot, "modal_group", d_modal_group);

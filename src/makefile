@@ -6501,7 +6501,7 @@ SCRIPTRUN_SRCS = torirsserver/torirs_server_scriptrun.c scriptrun/scriptrun_core
 SCRIPTRUN_SHADOW_SRCS = scriptrun/scriptrun_model.c scriptrun/scriptrun_shadow.c game/rs_server_state.c \
 	scriptrun/scriptrun_zone.c game/rs_effect_log.c \
 	varp/varp_manager.c game/rs_player_stats.c inv/inv_manager.c ui/uitree_if_store.c \
-	game/rs_chat.c game/rs_social.c game/rs_session_info.c net/session_end.c \
+	ui/uitree_if_models.c ui/uitree_kept_mounts.c game/rs_chat.c game/rs_social.c game/rs_session_info.c net/session_end.c \
 	game/rs_server_tick.c game/rs_player_ops.c game/rs_hint_arrow.c \
 	game/rs_npc_update_origin.c game/rs_interaction_mode.c world/worldview.c
 # Dedicated read-only, multi-client JS5 cache service.
@@ -6574,8 +6574,8 @@ mock-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 # the script on the unknown opcode right after stopping the crab's timer, and
 # the crab stood at her edge until it was killed (owner 2026-10-10, "the
 # nylocas get stuck at the edge of maiden"). Both names now build this file,
-# and the headers count: the sources are compiled in one invocation, so no .d
-# file says which header each one read.
+# and the headers count. This list is the coarse rule; each object's own .d
+# file (included at the end of this makefile) names every header it read.
 TORIRSSERVER_HDRS := $(wildcard torirsserver/*.h scriptrun/*.h serverscript/*.h content/*.h \
 		net/*.h net/login/*.h net/proto/*.h net/rev/*.h torirsserver/wire/*/*.h net/rev/packets/*.h \
 		world/*.h engine/*.h engine/world_builder/*.h features/*.h game/rs_entity_sync.h \
@@ -6670,13 +6670,32 @@ ifneq ($(LTO_MODE_STAMP),)
 $(TORIRSSERVER_OBJS): $(LTO_MODE_STAMP)
 endif
 
+# The server compiles the shared World (world/world.c, world_cycle.c) and a
+# few client units whose scene-side functions it never calls; they name the
+# painter, heightmap, minimap, scene element, world builder and UI tree host,
+# none of which is linked here. -flto drops them at OPT=1; without LTO only
+# the dead-code strip does, as it does for the client and the world tests,
+# so an asserts-live (OPT=0) server links on macOS too.
 $(TORIRSSERVER_BIN): $(TORIRSSERVER_OBJS) $(TORIRSSERVER_LINK_OBJS) | $(OBJ_DIR)
 	@mkdir -p $(TORIRSSERVER_OBJ_DIR) $(if $(TORIRSSERVER_LTO_CACHE),$(TORIRSSERVER_LTO_CACHE_DIR))
 	$(file >$(TORIRSSERVER_OBJ_DIR)/link_objs.rsp,$(TORIRSSERVER_OBJS))
 	$(LTO_CACHE_LINK) $(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/torirsserver $(TORIRSSERVER_OBJS_ARG) \
 		$(TORIRSSERVER_LINK_OBJS) \
-		-lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_LTO_CACHE)
+		-lm $(JS5_SOCKET_LIBS) $(PLATFORM_STRIP_LDFLAGS) $(TORIRSSERVER_LTO_CACHE)
 	@echo "built $(TORIRSSERVER_BIN)"
+
+# The headless client's core fed the server's own osrs242 wire bytes (encoded
+# by the RSProt codecs the 242 writer uses): IF_MOVESUB moves a mount, the
+# models set on MODEL components are kept until the slot changes group, and
+# the per-player entity setters reach its World through the packet model.
+# Links the server's objects but its main. Asserts on in the test itself.
+.PHONY: test-scriptrun-core
+test-scriptrun-core: $(TORIRSSERVER_OBJS) $(TORIRSSERVER_LINK_OBJS) | $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(LUA_DIR) $(RSPROT_INCLUDES) \
+		-o $(OBJ_DIR)/scriptrun_core_test scriptrun/test/scriptrun_core_test.c \
+		$(filter-out %/torirs_server_main.o,$(TORIRSSERVER_OBJS)) $(TORIRSSERVER_LINK_OBJS) \
+		-lm $(JS5_SOCKET_LIBS) $(PLATFORM_STRIP_LDFLAGS)
+	./$(OBJ_DIR)/scriptrun_core_test
 
 # ---- ToriRSMapEd -----------------------------------------------------------
 #
@@ -9170,6 +9189,11 @@ ifeq ($(and $(MAKECMDGOALS),$(if $(filter-out $(PACK_ONLY_GOALS),$(MAKECMDGOALS)
 -include $(wildcard $(OBJ_DIR)/sscompile.d $(OBJ_DIR)/maped_script_check.d)
 else
 -include $(wildcard $(OBJ_DIR)/*.d)
+# The server's objects are compiled one source each into a directory of their
+# own, with the -MMD in CFLAGS, so each has a .d file there: without these an
+# edit to any header outside TORIRSSERVER_HDRS (game/rs_effect_rules.h, read
+# by seven of them) rebuilt nothing.
+-include $(wildcard $(TORIRSSERVER_OBJ_DIR)/*.d)
 endif
 
 # The three revision-239 music packets: encode as RSProt does, parse back.

@@ -55,6 +55,8 @@
 #include "game/rs_event_ring.h"
 #include "scriptrun/scriptrun_model.h"
 #include "scriptrun/scriptrun_zone.h"
+#include "ui/uitree_if_models.h"
+#include "ui/uitree_kept_mounts.h"
 
 #include <stdint.h>
 
@@ -242,10 +244,13 @@ struct ScriptrunCore
     /* The group in each slot, as the bot's mounts stand: what an IF_OPENSUB
      * or IF_CLOSESUB names as the group leaving (RS_ServerState_SlotGroupLeaves
      * then drops its IF_SETEVENTS arming, and its texts, hides and colours
-     * when a different group takes the slot). IF_OPENTOP clears the table;
-     * IF_MOVESUB is not followed. */
+     * when a different group takes the slot). IF_MOVESUB relinks a mount.
+     * IF_OPENTOP moves the table into `kept_mounts`, the real client's own
+     * store of the mounts kept under a top that is not the root, from which
+     * the IF_MOVESUBs after it, and a top that returns, take them back. */
     struct ScriptrunMount mounts[SCRIPTRUN_MOUNTS];
     int mount_count;
+    struct UITreeKeptMounts kept_mounts;
     /* The last RUNCLIENTSCRIPT of `menu_script` (chatbox_multi_init, 58: the
      * chatmenu's title and rows), kept whatever runs after it -- a stat-boost
      * timer (4517, 4518) sent on the menu's tick used to replace it and empty
@@ -289,6 +294,15 @@ struct ScriptrunCore
     /* The packet model's records (scriptrun_model.h), bound to this core's
      * World, entity sync and event ring. */
     struct ScriptrunModel model;
+
+    /* The model each MODEL component was told to show (IF_SETNPCHEAD,
+     * IF_SETNPCHEAD_ACTIVE, IF_SETPLAYERHEAD, IF_SETOBJECT, IF_SETMODEL), in
+     * the real client's own store (ui/uitree_if_models.h): one entry per
+     * component, last write wins, forgotten when its group is unloaded (it
+     * leaves its slot for another group, RS_ServerState_SlotGroupLeaves), as
+     * the reference's close drops the group's IfType list. Nothing is drawn
+     * from it; the drive's widget_model reads it. */
+    struct UIIfModels if_models;
 
     /* The local player's own action seqs as its screen saw them start
      * (the drive's players() `me` row: seq_history, raid seam48). */
@@ -641,6 +655,14 @@ ScriptrunCore_Text(
  *  packet said", not "shown". */
 int
 ScriptrunCore_SetHide(
+    struct ScriptrunCore const* core,
+    int component);
+
+/** The model the server set on `component` (kind UI_IFHEAD_*, and the npc,
+ *  obj or cache model id), or NULL when none stands since its group was last
+ *  unloaded. */
+struct UIIfHead const*
+ScriptrunCore_Head(
     struct ScriptrunCore const* core,
     int component);
 

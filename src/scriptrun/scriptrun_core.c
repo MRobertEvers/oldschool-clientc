@@ -45,6 +45,13 @@ core_pkt_name(int pkt_name);
 
 /* ------------------------------------------------------------------ setup */
 
+static int
+core_npc_head_icon(
+    void* ctx,
+    int npc_id,
+    int* out_group,
+    int* out_index);
+
 struct ScriptrunCore*
 ScriptrunCore_New(struct GameProtoRevTable const* rev)
 {
@@ -77,6 +84,8 @@ ScriptrunCore_New(struct GameProtoRevTable const* rev)
             .full = RS_EVENT_RING_OVERWRITE,
             .cycle = &core->world->cycle,
         });
+    core->model.state.npc_head_icon = core_npc_head_icon;
+    core->model.state.npc_head_icon_ctx = core;
     ScriptrunZone_Init(&core->zone,
         (struct RS_EventSink){
             .ring = &core->events,
@@ -118,6 +127,7 @@ ScriptrunCore_Free(struct ScriptrunCore* core)
     ScriptrunCore_FreeCollision(core);
     ToriMem_Free(ToriMem_ServerPlayers(), core->locs);
     ScriptrunModel_Free(&core->model);
+    UIIfModels_Free(&core->if_models);
     ScriptrunZone_Free(&core->zone);
     RS_EntitySync_Free(core->esync);
     ToriMem_Free(ToriMem_ServerPlayers(), core->esync);
@@ -1839,22 +1849,256 @@ ScriptrunCore_Control(
 }
 
 /* The packets the bot takes from the packet model: every one it applies,
- * except two kinds whose write is not this bot's to make.
- *   - UPDATE_UID192 writes the process's login state (net/login/login_osrs.c),
- *     which is the server's here, shared by every bot.
- *   - The per-player entity setters (ANIM_SPECIFIC, NPC_ANIM_SPECIFIC, the
- *     two SPOTANIM_SPECIFICs, NPC_HEADICON_SPECIFIC) would apply to this
- *     core's World, which the bot's own entity stream fills; the headicon's
- *     first write reads the npc type through a CacheProvider, which the bot
- *     has none of (it reads npc records from the server). The bot has never
- *     applied them; their adoption is the entity families' step. */
+ * except UPDATE_UID192, which writes the process's login state
+ * (net/login/login_osrs.c), the server's here, shared by every bot. The
+ * per-player entity setters (ANIM_SPECIFIC, NPC_ANIM_SPECIFIC, the two
+ * SPOTANIM_SPECIFICs, NPC_HEADICON_SPECIFIC) apply to this core's World, which
+ * the bot's entity stream fills by the shared rules (game/rs_entity_apply.c);
+ * the headicon's first write reads the type through core_npc_head_icon. */
 static int
 core_model_feeds(int pkt_name)
 {
-    return pkt_name != PKT_NAME_UPDATE_UID192 && pkt_name != PKT_NAME_ANIM_SPECIFIC &&
-           pkt_name != PKT_NAME_NPC_ANIM_SPECIFIC && pkt_name != PKT_NAME_NPC_SPOTANIM_SPECIFIC &&
-           pkt_name != PKT_NAME_PLAYER_SPOTANIM_SPECIFIC &&
-           pkt_name != PKT_NAME_NPC_HEADICON_SPECIFIC;
+    return pkt_name != PKT_NAME_UPDATE_UID192;
+}
+
+/* The npc type's own head icon, for NPC_HEADICON_SPECIFIC's first write
+ * (RS_ServerState.npc_head_icon): the server's record of it. */
+static int
+core_npc_head_icon(
+    void* ctx,
+    int npc_id,
+    int* out_group,
+    int* out_index)
+{
+    const struct ToriRSServerNpcInfo* info = ToriRSServer_NpcInfoRecord(npc_id);
+
+    (void)ctx;
+    assert(out_group);
+    assert(out_index);
+    if( !info )
+        return 0;
+    *out_group = info->head_icon_group;
+    *out_index = info->head_icon_index;
+    return 1;
+}
+
+/* `group` leaves the slot it was mounted in for `incoming_group` (0: a close),
+ * by the packet model's rule; when that unloads it (another group takes the
+ * slot), the models its components were told to show go with it, as the real
+ * client's close-serial expiry drops them (app_if_forget_closed). */
+static void
+core_slot_group_leaves(
+    struct ScriptrunCore* core,
+    int group,
+    int incoming_group)
+{
+    int i = 0;
+
+    if( !RS_ServerState_SlotGroupLeaves(&core->model.state, group, incoming_group) )
+        return;
+    while( i < core->if_models.head_count )
+    {
+        if( ((core->if_models.heads[i].com_id >> 16) & 0xffff) == group )
+            UIIfModels_RemoveHeadAt(&core->if_models, i);
+        else
+            i++;
+    }
+}
+
+/* IF_SETNPCHEAD_ACTIVE: the head of the npc in server slot `slot`, as the
+ * real client resolves it (App_SetInterfaceNpcHeadActive): a chathead
+ * customisation that mirrors shows the local player, anything else the npc's
+ * type. An npc this bot does not track sets nothing, as the client's lookup
+ * misses. */
+static void
+core_set_npc_head_active(
+    struct ScriptrunCore* core,
+    int component,
+    int slot)
+{
+    struct WorldEntity_NPC const* npc;
+    int idx;
+
+    if( !RS_EntitySync_FindNpc(core->esync, slot, &idx, NULL) )
+        return;
+    npc = World_EntityPoolGet(&core->world->entities.npc, idx);
+    assert(npc);
+    if( npc->head_custom.active && npc->head_custom.mirror )
+        (void)UIIfModels_SetHead(&core->if_models, component, UI_IFHEAD_PLAYER, -1, 0, 0);
+    else
+        (void)UIIfModels_SetHead(&core->if_models, component, UI_IFHEAD_NPC, npc->npc_id, 0, 0);
+}
+
+/* The bot's mount under `target_uid`, or -1. */
+static int
+core_mount_index(
+    struct ScriptrunCore const* core,
+    int target_uid)
+{
+    for( int i = 0; i < core->mount_count; i++ )
+        if( core->mounts[i].target_uid == target_uid )
+            return i;
+    return -1;
+}
+
+/* IF_OPENSUB's mount: the group leaving the slot loses its armed events, even
+ * when the same group goes straight back in, and its texts, hides, colours
+ * and models when another group takes the slot (the real client's
+ * app_close_slot). */
+static void
+core_open_sub(
+    struct ScriptrunCore* core,
+    int target,
+    int group,
+    int type)
+{
+    int i = core_mount_index(core, target);
+
+    if( i >= 0 && core->mounts[i].interface_id > 0 )
+        core_slot_group_leaves(core, core->mounts[i].interface_id, group);
+    if( i < 0 && core->mount_count < SCRIPTRUN_MOUNTS )
+        i = core->mount_count++;
+    if( i >= 0 )
+    {
+        core->mounts[i].target_uid = target;
+        core->mounts[i].interface_id = group;
+        core->mounts[i].type = type;
+    }
+    /* The client raises sub_opened on the packet and sub_mounted once the
+     * group is loaded; the bot's group is loaded the moment it is named. */
+    ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_OPENED, target, group, type, 0);
+    ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_MOUNTED, target, group, type, 0);
+}
+
+/* IF_CLOSESUB's close of the slot `target` (nothing when it holds nothing). */
+static void
+core_close_sub(
+    struct ScriptrunCore* core,
+    int target)
+{
+    int const i = core_mount_index(core, target);
+
+    if( i < 0 )
+        return;
+    ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_CLOSED, target, core->mounts[i].interface_id, 0, 0);
+    if( core->mounts[i].interface_id > 0 )
+        core_slot_group_leaves(core, core->mounts[i].interface_id, 0);
+    core->mounts[i] = core->mounts[--core->mount_count];
+}
+
+/* What was kept in `group`'s own slots comes back with it, each after the
+ * group it lives in (the real client's app_reopen_detached_under). */
+static void
+core_reopen_kept_under(
+    struct ScriptrunCore* core,
+    int group)
+{
+    int i = 0;
+
+    while( i < UITreeKeptMounts_Count(&core->kept_mounts) )
+    {
+        struct UITreeInterfaceParent const inner = *UITreeKeptMounts_At(&core->kept_mounts, i);
+
+        if( ((inner.container_uid >> 16) & 0xffff) != group )
+        {
+            i++;
+            continue;
+        }
+        (void)UITreeKeptMounts_Take(&core->kept_mounts, inner.container_uid);
+        core_open_sub(core, inner.container_uid, inner.group_id, inner.type);
+        core_reopen_kept_under(core, inner.group_id);
+        i = 0;
+    }
+}
+
+/* IF_OPENTOP: the old top's mounts are kept, not closed (the reference keeps
+ * its InterfaceParent table, App_RootMountsDetach), for the IF_MOVESUBs that
+ * relink them into the new top; what was kept in the new top's own slots
+ * comes back with it. */
+static void
+core_open_top(
+    struct ScriptrunCore* core,
+    int top)
+{
+    struct UITreeInterfaceParent live[UITREE_INTERFACE_PARENT_MAX];
+    struct UITreeInterfaceParent forgotten[UITREE_INTERFACE_PARENT_MAX];
+    int live_count = 0;
+    int forgotten_count;
+
+    /* The kept table holds what the real client's tree can (its interface
+     * parents); a mount past that is forgotten, as a full table forgets. */
+    for( int i = 0; i < core->mount_count; i++ )
+    {
+        if( live_count == UITREE_INTERFACE_PARENT_MAX )
+        {
+            fprintf(stderr, "scriptrun: if-opentop: kept mount table full; iface=%d at 0x%08x is forgotten\n",
+                    core->mounts[i].interface_id, (unsigned)core->mounts[i].target_uid);
+            continue;
+        }
+        live[live_count].container_uid = core->mounts[i].target_uid;
+        live[live_count].group_id = core->mounts[i].interface_id;
+        live[live_count].type = core->mounts[i].type;
+        live_count++;
+    }
+    forgotten_count = UITreeKeptMounts_Detach(&core->kept_mounts, live, live_count, forgotten);
+    for( int i = 0; i < forgotten_count; i++ )
+        fprintf(stderr, "scriptrun: if-opentop: kept mount table full; iface=%d at 0x%08x is forgotten\n",
+                forgotten[i].group_id, (unsigned)forgotten[i].container_uid);
+    core->mount_count = 0;
+    core->toplevel = top;
+    core_reopen_kept_under(core, top);
+}
+
+/*
+ * IF_MOVESUB (class415.method9481), as the real client applies it
+ * (App_MoveSubInterface): close what the destination holds, unloading it
+ * unless it is the moved group, and relink the source's group there with its
+ * arming, its stores and the subs open inside it; the group is not unloaded.
+ * A source this top does not hold is a sub of the top an IF_OPENTOP replaced
+ * (reopened at the destination with what was open inside it) or an empty
+ * slot, whose move still closes what it lands on.
+ */
+static void
+core_move_sub(
+    struct ScriptrunCore* core,
+    int source,
+    int dest)
+{
+    int const s = core_mount_index(core, source);
+    int d;
+    int group;
+    int type;
+
+    if( s < 0 )
+    {
+        struct UITreeInterfaceParent const kept = UITreeKeptMounts_Take(&core->kept_mounts, source);
+
+        d = core_mount_index(core, dest);
+        if( kept.group_id > 0 )
+        {
+            core_open_sub(core, dest, kept.group_id, kept.type);
+            core_reopen_kept_under(core, kept.group_id);
+        }
+        else if( d >= 0 )
+            core_close_sub(core, dest);
+        return;
+    }
+    group = core->mounts[s].interface_id;
+    type = core->mounts[s].type;
+    d = core_mount_index(core, dest);
+    if( d >= 0 && d != s )
+    {
+        if( core->mounts[d].interface_id > 0 )
+            core_slot_group_leaves(core, core->mounts[d].interface_id, group);
+        core->mounts[d] = core->mounts[--core->mount_count];
+    }
+    ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_OPENED, dest, group, type, 0);
+    /* The removal above may have moved the source's record. */
+    d = core_mount_index(core, source);
+    assert(d >= 0);
+    core->mounts[d].target_uid = dest;
+    ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_CLOSED, source, group, 0, 0);
+    ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_MOUNTED, dest, group, type, 0);
 }
 
 static void
@@ -2002,59 +2246,58 @@ core_packet(
         core->active_world_level = 0;
         break;
     case PKT_NAME_IF_OPENTOP:
-        /* The mounts go with the old top. The arming and the stores stay, as
-         * the real client keeps them (rs_gameproto_exec.c IF_OPENTOP: the
-         * reference's open-top never touches the flags table, RSProx index
-         * 4378). */
+        /* The arming and the stores stay, as the real client keeps them
+         * (rs_gameproto_exec.c IF_OPENTOP: the reference's open-top never
+         * touches the flags table, RSProx index 4378). Any interface mount or
+         * close answers a pause. */
         core->resume_pending = -1;
-        core->toplevel = packet._if_opentop.interface_id;
-        core->mount_count = 0;
+        core_open_top(core, packet._if_opentop.interface_id);
         break;
     case PKT_NAME_IF_OPENSUB:
-    {
         core->resume_pending = -1;
-        int target = packet._if_opensub.target_uid;
-        int i;
-        for( i = 0; i < core->mount_count; i++ )
-            if( core->mounts[i].target_uid == target )
-                break;
-        /* The group leaving the slot loses its armed events, even when the
-         * same group goes straight back in, and its texts, hides and colours
-         * when another group takes the slot (the real client's app_close_slot). */
-        if( i < core->mount_count && core->mounts[i].interface_id > 0 )
-            (void)RS_ServerState_SlotGroupLeaves(
-                &core->model.state, core->mounts[i].interface_id, packet._if_opensub.interface_id);
-        if( i == core->mount_count && core->mount_count < SCRIPTRUN_MOUNTS )
-            core->mount_count++;
-        if( i < core->mount_count )
-        {
-            core->mounts[i].target_uid = target;
-            core->mounts[i].interface_id = packet._if_opensub.interface_id;
-            core->mounts[i].type = packet._if_opensub.type;
-        }
-        /* The client raises sub_opened on the packet and sub_mounted once the
-         * group is loaded; the bot's group is loaded the moment it is named. */
-        ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_OPENED, target, packet._if_opensub.interface_id,
-                            packet._if_opensub.type, 0);
-        ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_MOUNTED, target, packet._if_opensub.interface_id,
-                            packet._if_opensub.type, 0);
+        core_open_sub(core, packet._if_opensub.target_uid, packet._if_opensub.interface_id,
+                      packet._if_opensub.type);
         break;
-    }
     case PKT_NAME_IF_CLOSESUB:
         core->resume_pending = -1;
-        for( int i = 0; i < core->mount_count; i++ )
+        /* A kept mount at the slot goes too: the reference's table is one
+         * table (App_CloseSubInterface). */
+        (void)UITreeKeptMounts_Take(&core->kept_mounts, packet._if_closesub.target_uid);
+        core_close_sub(core, packet._if_closesub.target_uid);
+        break;
+    case PKT_NAME_IF_MOVESUB:
+        core->resume_pending = -1;
+        /* Wire data: a component uid is never negative; the real client
+         * refuses one, in one place, with a line (exec_if_movesub). */
+        if( packet._if_movesub.source_uid < 0 || packet._if_movesub.dest_uid < 0 )
         {
-            if( core->mounts[i].target_uid == packet._if_closesub.target_uid )
-            {
-                ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_CLOSED, packet._if_closesub.target_uid,
-                                    core->mounts[i].interface_id, 0, 0);
-                if( core->mounts[i].interface_id > 0 )
-                    (void)RS_ServerState_SlotGroupLeaves(
-                        &core->model.state, core->mounts[i].interface_id, 0);
-                core->mounts[i] = core->mounts[--core->mount_count];
-                break;
-            }
+            fprintf(stderr, "scriptrun: IF_MOVESUB 0x%08x -> 0x%08x names no component, refused\n",
+                    (unsigned)packet._if_movesub.source_uid, (unsigned)packet._if_movesub.dest_uid);
+            break;
         }
+        core_move_sub(core, packet._if_movesub.source_uid, packet._if_movesub.dest_uid);
+        break;
+    /* The models the server tells MODEL components to show: recorded as the
+     * real client records them (UIIfModels_SetHead), for widget_model. */
+    case PKT_NAME_IF_SETNPCHEAD:
+        (void)UIIfModels_SetHead(&core->if_models, packet._if_setnpchead.component_id, UI_IFHEAD_NPC,
+                                 packet._if_setnpchead.npc_id, 0, 0);
+        break;
+    case PKT_NAME_IF_SETNPCHEAD_ACTIVE:
+        core_set_npc_head_active(core, packet._if_setnpchead_active.component_id,
+                                 packet._if_setnpchead_active.index);
+        break;
+    case PKT_NAME_IF_SETPLAYERHEAD:
+        (void)UIIfModels_SetHead(&core->if_models, packet._if_setplayerhead.component_id, UI_IFHEAD_PLAYER,
+                                 -1, 0, 0);
+        break;
+    case PKT_NAME_IF_SETOBJECT:
+        (void)UIIfModels_SetHead(&core->if_models, packet._if_setobject.component_id, UI_IFHEAD_OBJ,
+                                 packet._if_setobject.obj_id, packet._if_setobject.zoom, 0);
+        break;
+    case PKT_NAME_IF_SETMODEL:
+        (void)UIIfModels_SetHead(&core->if_models, packet._if_setmodel.component_id, UI_IFHEAD_MODEL,
+                                 packet._if_setmodel.model_id, 0, 0);
         break;
     case PKT_NAME_RUNCLIENTSCRIPT:
         if( packet._runclientscript )
@@ -2092,6 +2335,8 @@ core_packet(
         break;
     case PKT_NAME_LOGOUT:
         core->logged_out = 1;
+        /* The real client goes to its title screen, which forgets them. */
+        UITreeKeptMounts_Clear(&core->kept_mounts);
         ScriptrunTasks_CancelAll(core->tasks);
         break;
     default:
@@ -2215,4 +2460,16 @@ ScriptrunCore_SetHide(
 {
     assert(core);
     return UIIfIntStore_Get(&core->model.if_hides, component, -1);
+}
+
+struct UIIfHead const*
+ScriptrunCore_Head(
+    struct ScriptrunCore const* core,
+    int component)
+{
+    int i;
+
+    assert(core);
+    i = UIIfModels_HeadIndex(&core->if_models, component);
+    return i >= 0 ? &core->if_models.heads[i] : NULL;
 }

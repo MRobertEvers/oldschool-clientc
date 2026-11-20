@@ -68,8 +68,8 @@ ScriptrunModel_Init(
         .world = world,
         .esync = esync,
         /* No npc configs: NPC_HEADICON_SPECIFIC's first write is the only
-         * reader, and an owner whose World holds npcs does not feed it
-         * (scriptrun_core.c core_model_feeds). */
+         * reader, and an owner whose World holds npcs names its own source
+         * of the type's icon (scriptrun_core.c core_npc_head_icon). */
         .provider = NULL,
         .events = events,
     };
