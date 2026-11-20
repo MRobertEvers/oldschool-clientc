@@ -67,6 +67,25 @@ RenderSkip_RequestDraw(
         skip->draw_frames = frames;
 }
 
+void
+RenderSkip_NoteEmit(
+    struct RenderSkip* skip,
+    uint32_t tree)
+{
+    assert(skip);
+    skip->emit_tree = tree;
+}
+
+void
+RenderSkip_NoteTree(
+    struct RenderSkip* skip,
+    uint32_t tree)
+{
+    assert(skip);
+    if( tree != skip->emit_tree )
+        skip->catch_up_ok = 0;
+}
+
 enum RenderSkipCatchUp
 RenderSkip_CatchUp(struct RenderSkip const* skip)
 {

@@ -111,6 +111,21 @@ app_frame_latch_note(
  * napping through it. */
 static uint32_t g_wakes_at_pump;
 
+/* This frame's content-test clock is held (App_LogicClockHold). */
+static int s_logic_clock_held = 0;
+
+void
+App_LogicClockHold(int held)
+{
+    s_logic_clock_held = held != 0;
+}
+
+int
+App_LogicClockHeld(void)
+{
+    return s_logic_clock_held;
+}
+
 static int
 app_woken_since_pump(const struct App* app)
 {
@@ -153,6 +168,56 @@ app_parallel_waits_on_work(struct App const* app)
             return 1;
     }
     return 0;
+}
+
+/* Is `task` waiting on work the client finishes by itself: a read, a join
+ * or count, a trigger a task or a job will fire? See App_ClientBusy. */
+static int
+app_task_waits_on_work(struct ToriRS_Task const* task)
+{
+    assert(task);
+    if( task->io.pending )
+        return 1;
+    if( !task->parked || task->park.on == TORIRS_PARK_CYCLE )
+        return 0;
+    if( task->park.on == TORIRS_PARK_TRIGGER )
+        return task->park.trigger && task->park.trigger->owner &&
+               task->park.trigger->owner->kind != TORIRS_OWNER_EXTERNAL;
+    return 1;
+}
+
+/* `ready_counts`: a ready task is work too, on a queue every frame pumps
+ * (the parallel and background queues); the main queue runs its ready
+ * tasks in a logic cycle, which a held clock does not give it. */
+static int
+app_queue_busy(
+    struct TaskRunner const* runner,
+    int ready_counts)
+{
+    struct ToriRS_Task const* task;
+
+    assert(runner);
+    if( !runner->queue )
+        return 0;
+    for( task = runner->queue->head; task; task = task->next )
+        if( app_task_waits_on_work(task) || (ready_counts && !task->parked) )
+            return 1;
+    return 0;
+}
+
+int
+App_MainQueueWaitsOnWork(const struct App* app)
+{
+    assert(app);
+    return app_queue_busy(&app->packet_runner, 0);
+}
+
+int
+App_ClientBusy(const struct App* app)
+{
+    assert(app);
+    return App_MainQueueWaitsOnWork(app) || app_queue_busy(&app->frame_runner, 1) ||
+           app_queue_busy(&app->background_runner, 1);
 }
 
 /* ...and could some of it run at once, without a read landing or another
@@ -1477,6 +1542,7 @@ app_run_once_body(
         if( App_BootHoldsLastFrame(app) )
             return app_frame_withheld(app, SETTLE_GATE_WITHHOLD_BOOT);
         RedrawRequest_Clear(&app->redraw_request);
+        RenderSkip_NoteEmit(&app->render_skip, app->tree ? app->tree->dirty_gen : 0u);
         TaskRunner_CheckPublishedAtStandstill(&app->frame_runner, "the boot frame");
         return 1;
     }
@@ -1560,8 +1626,9 @@ app_run_once_body(
             /* Plus the cycles a k > 1 frame was charged and did not run (the
              * settle fence stopped it part way). Always 0 at k = 1, where the
              * fence can only stop after the frame's one cycle. */
-            ticks = FrameClockStep_PayLocked(
-                &app->frame_clock.step, cycles_per_frame, APP_LOGIC_TICK_MS);
+            ticks = App_LogicClockHeld() ? FrameClockStep_PayHeld(&app->frame_clock.step)
+                                         : FrameClockStep_PayLocked(
+                                               &app->frame_clock.step, cycles_per_frame, APP_LOGIC_TICK_MS);
         }
         else if( cycles_per_frame != 1 )
         {
@@ -2997,6 +3064,10 @@ app_run_once_body(
      * for the next frame's pump. */
     if( RS_ClientTriggerRefire_Take(&app->client_trigger_refire) )
         app_client_triggers_refire(app);
+    /* The heads the tree needs and that have no task are asked for here,
+     * ahead of the last pump, not by the bind after it (app_if_head_poll),
+     * whose task would be published ready. */
+    app_if_head_wants(app);
     {
         int steps = 0;
 
@@ -3488,6 +3559,7 @@ app_run_once_body(
         else
             RedrawRequest_Clear(&app->redraw_request);
         app->world_views.frame = App_RunnerView(app);
+        RenderSkip_NoteEmit(&app->render_skip, app->tree ? app->tree->dirty_gen : 0u);
         TaskRunner_CheckPublishedAtStandstill(&app->frame_runner, "the game frame");
         return 1;
     }

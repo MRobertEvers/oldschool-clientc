@@ -64,6 +64,14 @@ struct World;
 void
 App_PendingInit(struct App* app);
 
+/** TORIRS_QUEUE_CONTRACT_TRACE: one line naming what the pending index still
+ *  lists and the races it has seen (RS_PendingStats), `where` (at logout, at
+ *  login, at exit). Nothing when the trace is off. */
+void
+App_PendingTrace(
+    struct App const* app,
+    char const* where);
+
 /** After the queues are freed: every parallel task has unlisted itself, and
  *  every parked task has left the triggers it waited on. */
 void

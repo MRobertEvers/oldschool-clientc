@@ -1195,6 +1195,10 @@ drive_pump_once(void)
 
     if( !g_host.app || !g_sched.thread )
         return;
+    /* The content test's oracle or race mode held the clock this frame: the
+     * driver waits with it (ContentTest_DriverHeld). */
+    if( ContentTest_DriverHeld() )
+        return;
 
     /* NEVER ON A HALF-APPLIED TICK (App_DriveRing.batch_open): the driver
      * reads, settles and resumes only between a fence and the next tick's

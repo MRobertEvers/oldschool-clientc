@@ -429,4 +429,30 @@ RS_Pending_Count(
 int
 RS_Pending_Listed(struct RS_Pending const* index);
 
+/*
+ * What the index has seen over its life: the evidence a run gives that the
+ * races this index exists for happened (a task cancelled because its target
+ * went, a task superseded by a later packet for its key, a task that waited
+ * its turn behind an earlier one). Counted always; printed by the client's
+ * queue-contract trace (TORIRS_QUEUE_CONTRACT_TRACE).
+ */
+struct RS_PendingStats
+{
+    /* Tasks cancelled by RS_Pending_Cancel, by enum RS_PendingScopeKind. */
+    uint32_t cancelled_by_scope[RS_PENDING_SCOPE_KIND + 1];
+    /* Tasks cancelled by RS_Pending_CancelKey: a newer packet for the key. */
+    uint32_t cancelled_by_key;
+    /* Cancelled tasks unlisted: each exited at a check after its cancel. */
+    uint32_t cancelled_exited;
+    /* Turns waited: a task parked behind an earlier task for its key. */
+    uint32_t turn_waits;
+};
+
+struct RS_PendingStats
+RS_Pending_Stats(struct RS_Pending const* index);
+
+/** A task parks for its turn behind an earlier one (RS_ParallelTask_AskTurn). */
+void
+RS_Pending_NoteTurnWait(struct RS_Pending* index);
+
 #endif /* SRC_GAME_RS_PENDING_H */

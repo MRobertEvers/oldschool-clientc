@@ -1454,6 +1454,13 @@ App_DesignPredictIfButton(
 void
 app_if_head_poll(struct App* app);
 
+/* Ask again for the heads the tree needs and that have no task: before the
+ * frame's last parallel pump (app_frame.c), so the task a want adds is
+ * drained into the frame it was asked in, never published ready. Once per
+ * tree generation, as the bind (app_if_head_poll) re-applies. */
+void
+app_if_head_wants(struct App* app);
+
 /** The head entry a head task was made for, if `com_id` still holds it
  *  unlanded (UIIfModels_HeadFor), after forgetting what a close unloaded;
  *  -1 otherwise. */

@@ -563,12 +563,84 @@ static uint64_t quest_clock_step_ms(void)
     return steps[at];
 }
 
+/*
+ * Is the virtual clock held this frame?
+ *
+ * By default while the client has async work pending (App_AsyncPending): the
+ * report of the frame-start pump, which does not see what the frame's packets
+ * queue after it, nor what the main queue waits on. At disk speed that is
+ * nearly nothing; with slow reads (TORIRS_IO_DEFER_FRAMES) the server runs
+ * ahead of the client's loads through it.
+ *
+ * TORIRS_CONTENT_TEST_HOLD=1, the ORACLE: also while the client has any work
+ * it will finish without the server (App_ClientBusy). The clock then steps
+ * only with every queue done or waiting on game time or on the server, so a
+ * slow read can change nothing a test observes: any tick-log row that differs
+ * from the undeferred run under the same hold is something that depends on
+ * when an asset lands.
+ *
+ * TORIRS_CONTENT_TEST_RACE=1, the RACE: held only for what the MAIN queue
+ * holds, the one thing the frame contract (app.h) lets hold the game: the
+ * boot, a packet task waiting on work (a REBUILD's gather included;
+ * App_MainQueueWaitsOnWork -- a READY one runs in the next logic cycle, so
+ * holding the clock for it would hold it forever), and the client scripts'
+ * latches. Not the whole settle gate: an open server tick is closed by the
+ * server's fence, which a held clock never sends (a logout left one open and
+ * held the clock for good). A parallel task waiting on
+ * its read does not hold it, so the server's next packets arrive while it
+ * waits: the target despawns, the scene rebuilds, the interface closes, the
+ * key is written again -- what a real client on a slow cache meets.
+ */
+static int content_test_knob(const char* name)
+{
+    const char* knob = getenv(name);
+    return knob && knob[0] && atoi(knob) != 0;
+}
+
+/* 0 default, 1 TORIRS_CONTENT_TEST_HOLD, 2 TORIRS_CONTENT_TEST_RACE; read once. */
+static int content_test_mode(void)
+{
+    static int mode = -1;
+    if( mode < 0 )
+    {
+        int const race = content_test_knob("TORIRS_CONTENT_TEST_RACE");
+        int const hold = content_test_knob("TORIRS_CONTENT_TEST_HOLD");
+        /* One mode at a time: the race holds less than the default, the
+         * oracle more. */
+        if( race )
+            assert(!hold);
+        mode = race ? 2 : hold ? 1 : 0;
+    }
+    return mode;
+}
+
+static int g_content_test_driver_held;
+
+int ContentTest_DriverHeld(void)
+{
+    return g_content_test_driver_held;
+}
+
+static int content_test_clock_held(struct App* app)
+{
+    int const mode = content_test_mode();
+    if( mode == 2 )
+        return RS_ClientPhase_Booting(&app->phase) || App_MainQueueWaitsOnWork(app) ||
+               TaskRunner_HadWork(&app->frame_runner) || app->frame_runner.frame_settle_pending;
+    if( mode == 1 )
+        return App_AsyncPending(app) || App_ClientBusy(app);
+    return App_AsyncPending(app);
+}
+
 uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
                           struct ToriRS_CmdBus* bus, uint64_t real_now)
 {
     if( !ContentTest_Enabled() ) return real_now;
     assert(app);
     assert(bus);
+    /* Decided below, every frame; a frame that decides nothing holds nothing. */
+    App_LogicClockHold(0);
+    g_content_test_driver_held = 0;
     struct ToriRSServerEmbed* embed = NetTransport_TestClock(transport, g_content_test.test_now);
     /* t.cheat needs the embedded struct ToriRSServer* to call a debugproc
      * in-process, with no packet; this is the one place a NetTransport is
@@ -597,7 +669,17 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
          * through the driver because nothing outside this file has any
          * business knowing that variable's name.
          */
-        if( !g_content_test.capture_path[0] && !App_AsyncPending(app) && PluginDrive_ClockWantsStep(app) )
+        int const wants = !g_content_test.capture_path[0] && PluginDrive_ClockWantsStep(app);
+        int const held = wants && content_test_clock_held(app);
+        /* Held: the client's frame-locked cycles stand still with the server
+         * (App_LogicClockHold). In the oracle and race modes they stand still
+         * on EVERY frame the clock does not step -- a screenshot's, a frame
+         * before the driver wants time -- so the client runs exactly one
+         * cycle per step and its clock cannot drift from the server's however
+         * the frames fall; by default only a hold stops them, as before. */
+        App_LogicClockHold(content_test_mode() > 0 ? !(wants && !held) : held);
+        g_content_test_driver_held = held && content_test_mode() > 0;
+        if( wants && !held )
             g_content_test.test_now += quest_clock_step_ms();
         NetTransport_TestClock(transport, g_content_test.test_now);
         return g_content_test.test_now;
@@ -811,7 +893,8 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
         g_content_test.click_phase++;
         RedrawRequest_Raise(&app->redraw_request);
     }
-    if( g_content_test.remaining > 0 && !App_AsyncPending(app) )
+    App_LogicClockHold(g_content_test.remaining > 0 && content_test_clock_held(app));
+    if( g_content_test.remaining > 0 && !content_test_clock_held(app) )
     {
         g_content_test.test_now += 20;
         g_content_test.remaining--;
@@ -1146,4 +1229,5 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* t,
     return now;
 }
 void ContentTest_End(struct App* app, struct NetTransport* t) { (void)app; (void)t; }
+int ContentTest_DriverHeld(void) { return 0; }
 #endif

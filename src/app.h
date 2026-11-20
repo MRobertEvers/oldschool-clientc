@@ -2023,6 +2023,19 @@ App_FrameLocked(void);
 void
 App_FrameLockEngage(void);
 
+/** HELD CLOCK: the content test did not step its virtual clock this frame
+ *  (content_test.c, ContentTest_Begin), so a frame-locked frame pays no
+ *  logic cycle either (FrameClockStep_PayHeld): the server and the client
+ *  stand still together, as "one virtual clock" means. Without it the client
+ *  ran a cycle a frame through every hold, and a quest driver deadline,
+ *  counted in client cycles, expired with no server tick run. Set every
+ *  frame by its caller; 0 outside a content test. */
+void
+App_LogicClockHold(int held);
+
+int
+App_LogicClockHeld(void);
+
 /** UNLOCKED CLOCK (`--unlocked`, TORIRS_UNLOCKED=1, `[net:boot]
  *  clock=unlocked`): the client runs as fast as the machine allows, and so
  *  does the world it plays in. Implies the FRAME LOCK above -- every frame
@@ -3484,6 +3497,27 @@ App_DrainAudio(
 /** Whether the last App_RunOnce left async work queued. */
 int
 App_AsyncPending(const struct App* app);
+
+/**
+ * Has the client work it will finish without the server or the clock, read
+ * off the queues themselves rather than off a pump's report: a task with a
+ * read out, parked on a join or count, or on a trigger primed by a task or a
+ * job; on the parallel and background queues (pumped every frame) a ready
+ * task too. Not: a task parked on a CYCLE (game time), on a trigger an
+ * outside party owns (a view awaiting the server's first
+ * REBUILD_WORLDENTITY), or a ready task on the main queue (it runs in a
+ * logic cycle). App_AsyncPending describes the frame-start
+ * pump, so it misses what the frame's packets queued after it and what the
+ * main queue waits on; the content test's strict hold asks this
+ * (TORIRS_CONTENT_TEST_HOLD, content_test.c).
+ */
+int
+App_ClientBusy(const struct App* app);
+
+/** The main queue's half of App_ClientBusy: a packet task (or the boot)
+ *  waiting on a read, a join, a count or a task's trigger. */
+int
+App_MainQueueWaitsOnWork(const struct App* app);
 
 /** ...and whether some of it can run at once, without a read landing or
  *  another queue moving (the boot asked for its next frame). Work that is

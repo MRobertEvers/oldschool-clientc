@@ -105,6 +105,14 @@ PlatformX_IO_SetReprimeTickHook(
     void (*hook)(void* user),
     void* user);
 
+/** Where the client's frame count lives (App's FrameClockSerial run_once):
+ *  what TORIRS_IO_DEFER_FRAMES counts in (platform_x_io.c). An executor
+ *  never told has no frames and defers no read by frames. */
+void
+PlatformX_IO_SetFrameSource(
+    struct PlatformX_IO* px,
+    uint64_t const* frames);
+
 int
 PlatformX_IO_LoadItem(
     struct PlatformX_IO* px,

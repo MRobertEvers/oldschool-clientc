@@ -24,6 +24,44 @@ App_PendingInit(struct App* app)
 }
 
 void
+App_PendingTrace(
+    struct App const* app,
+    char const* where)
+{
+    struct RS_PendingStats st;
+    struct ToriRS_Task const* task;
+    int queued = 0;
+
+    assert(app);
+    assert(where);
+    if( !TaskRunner_ContractTrace() || !app->pending )
+        return;
+    st = RS_Pending_Stats(app->pending);
+    if( app->frame_runner.queue )
+        for( task = app->frame_runner.queue->head; task; task = task->next )
+            queued++;
+    /* One line: what is still listed and queued here, and the races the
+     * index has seen so far (rs_pending.h, RS_PendingStats). */
+    fprintf(
+        stderr,
+        "queue_contract: trace pending %s: listed %d (%d not cancelled), parallel queue %d; cancelled: "
+        "all %u scene %u view %u entity %u group %u kind %u key %u, exited %u; turn waits %u\n",
+        where,
+        RS_Pending_Listed(app->pending),
+        RS_Pending_Count(app->pending, 0),
+        queued,
+        st.cancelled_by_scope[RS_PENDING_SCOPE_ALL],
+        st.cancelled_by_scope[RS_PENDING_SCOPE_SCENE],
+        st.cancelled_by_scope[RS_PENDING_SCOPE_VIEW],
+        st.cancelled_by_scope[RS_PENDING_SCOPE_ENTITY],
+        st.cancelled_by_scope[RS_PENDING_SCOPE_GROUP],
+        st.cancelled_by_scope[RS_PENDING_SCOPE_KIND],
+        st.cancelled_by_key,
+        st.cancelled_exited,
+        st.turn_waits);
+}
+
+void
 App_PendingFree(struct App* app)
 {
     assert(app);

@@ -70,6 +70,14 @@ FrameClockStep_PayLocked(
     return ticks;
 }
 
+int
+FrameClockStep_PayHeld(struct FrameClockStep* step)
+{
+    assert(step);
+    step->frame_ms = 0;
+    return 0;
+}
+
 void
 FrameClockStep_Owe(
     struct FrameClockStep* step,

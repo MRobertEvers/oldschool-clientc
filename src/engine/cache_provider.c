@@ -3519,9 +3519,17 @@ CacheProvider_TextureAdd(
     assert(entry && "Texture must be inserted into hmap");
 
     entry->id = texture_id;
-    /* Replacing a cached value: the map owns the old one. */
+    /* A texture already resident STAYS: the scene borrows its texels for the
+     * life of the provider (uitree_scene_bridge.c, bridge_texture_from_torirs),
+     * so replacing it would free pixels a frame still samples and animates.
+     * A second bake of the same texture -- two loads that overlapped, a
+     * model's fan-out beside the assets table's loader -- is the same pixels,
+     * and is the one freed. */
     if( entry->texture && entry->texture != texture )
-        ToriRS_TextureFree(entry->texture);
+    {
+        ToriRS_TextureFree(texture);
+        return;
+    }
     entry->texture = texture;
 }
 

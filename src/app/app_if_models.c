@@ -797,15 +797,41 @@ app_if_obj_pose(
             (obj->zoom2d > 0 ? obj->zoom2d : 2000) * 100 / head->zoom);
 }
 
+void
+app_if_head_wants(struct App* app)
+{
+    assert(app);
+    if( app->if_models.head_count == 0 || !app->tree )
+        return;
+    app_if_forget_closed(app);
+    for( int i = 0; i < app->if_models.head_count; i++ )
+    {
+        struct UIIfHead* head = &app->if_models.heads[i];
+
+        if( head->wanted_gen == app->tree->generation )
+            continue;
+        head->wanted_gen = app->tree->generation;
+        if( App_IfModelPending(app, head->com_id) )
+            continue;
+        /* A head left with no task (a cancel, a logout, a checkpoint), or an
+         * npc head whose varps now choose another npc: another head to load. */
+        if( !head->landed ||
+            (head->kind == UI_IFHEAD_NPC &&
+             App_NpctypeResolveMultiId(app, head->npc_id) != head->landed_npc_id) )
+            App_IfModelWant(app, head->com_id);
+    }
+}
+
 /* Bind the heads whose tasks have landed onto their MODEL nodes. Runs each
  * redraw: an entry applies once its task has composited it AND its component
  * is mounted, then only re-applies when the tree generation changes
  * (remount/rebuild) -- mirroring the reference resolving getModel every draw.
  * Nothing here loads or composites anything new: a head is attempted once, by
- * its task (Task_IfModel, app/app_tasks_if_assets.c). What the bind raises is
- * a want, when the tree has moved and the head needs one: a head left with no
- * task (a logout cancelled it, a checkpoint restored it), or an npc head whose
- * varps now choose another npc. */
+ * its task (Task_IfModel, app/app_tasks_if_assets.c). A head that needs a
+ * want when the tree has moved -- left with no task (a logout cancelled it, a
+ * checkpoint restored it), or an npc head whose varps now choose another npc
+ * -- has it raised by app_if_head_wants, before the frame's last pump; this
+ * bind adds no task. */
 void
 app_if_head_poll(struct App* app)
 {
@@ -828,18 +854,16 @@ app_if_head_poll(struct App* app)
          * the trace once per unrelated UI mutation. */
         first_apply = head->applied_gen == 0;
 
-        if( !head->landed && !App_IfModelPending(app, head->com_id) )
-            App_IfModelWant(app, head->com_id);
-        /* Keep the stored id as the shell, matching IfType.model1Id, but
-         * resolve it every time the binding is made: the selected child owns
-         * the actual heads and recolours. Another child is another head to
-         * load. */
-        else if(
-            head->landed && head->kind == UI_IFHEAD_NPC &&
+        /* A head with no task, or an npc head whose varps now choose
+         * another child, was asked for again by app_if_head_wants, before the
+         * frame's last pump: this runs after it, and a task added here would
+         * be published ready. Keep the stored id as the shell, matching
+         * IfType.model1Id, but resolve it every time the binding is made: the
+         * selected child owns the actual heads and recolours, and another
+         * child is another head, which binds when it lands. */
+        if( head->landed && head->kind == UI_IFHEAD_NPC &&
             App_NpctypeResolveMultiId(app, head->npc_id) != head->landed_npc_id )
         {
-            if( !App_IfModelPending(app, head->com_id) )
-                App_IfModelWant(app, head->com_id);
             head->applied_gen = app->tree->generation;
             continue;
         }
