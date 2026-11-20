@@ -773,7 +773,14 @@ Editor_PathHeightCommands(
             closed++;
             continue;
         }
-        (void)Editor_OpsDerivedHeight(doc, cx[i], cz[i], level, &here);
+        /* The square was just found: derive from it (Editor_OpsDerivedHeight
+         * would look it up again, and a compiler cannot see that its answer is
+         * then always written). */
+        {
+            struct ToriRS_MapFloor floor;
+            Editor_TileDerive(square, x, z, level, &floor);
+            here = floor.height;
+        }
         /* Derived heights grow DOWN: lowering adds. */
         if( mode == EDITOR_PATH_HEIGHT_SET )
             target = -units * OPS_UNIT;
