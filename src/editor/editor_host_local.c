@@ -682,11 +682,20 @@ lock_process_command(
     }
 #elif defined(_WIN32)
     {
-        HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, (DWORD)pid);
+        /* Vista and later: resolved at run time, because the XP lane
+         * (_WIN32_WINNT 0x0501) has neither the declaration nor the call, and
+         * a direct reference kept win32 from building at all. On XP the
+         * holder's command stays unnamed; its pid is still shown. */
+        typedef BOOL(WINAPI * QueryImageFn)(HANDLE, DWORD, LPSTR, PDWORD);
+        HMODULE const kernel = GetModuleHandleA("kernel32.dll");
+        QueryImageFn const query =
+            kernel ? (QueryImageFn)(void (*)(void))GetProcAddress(kernel, "QueryFullProcessImageNameA") : NULL;
+        /* PROCESS_QUERY_LIMITED_INFORMATION, which the XP headers lack too. */
+        HANDLE process = query ? OpenProcess(0x1000, FALSE, (DWORD)pid) : NULL;
         if( process )
         {
             DWORD length = (DWORD)out_size;
-            if( !QueryFullProcessImageNameA(process, 0, out, &length) )
+            if( !query(process, 0, out, &length) )
                 out[0] = '\0';
             CloseHandle(process);
         }
