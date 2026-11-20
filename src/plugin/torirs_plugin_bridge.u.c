@@ -64,6 +64,10 @@ void app_plugin_object_set_position(
     int yaw);
 void app_plugin_object_set_active(void* user, int handle, int active);
 int app_plugin_object_ready(void* user, int handle);
+void app_plugin_object_set_fine_position(
+    void* user, int handle, int fine_x, int fine_z, int level, int height, int yaw);
+int app_plugin_object_element(void* user, int handle);
+int app_plugin_object_hit(void* user, int handle);
 /* Re-place every plugin object after a scene rebuild. Called from the
  * world-loaded seam, which runs long before the definition. */
 void app_plugin_objects_rebuild(struct App* app);
@@ -368,19 +372,38 @@ app_plugin_obj_next(void* user, int iter, struct ToriRS_GroundItemSnapshot* out)
 }
 
 static void
+app_plugin_fill_loc_in(
+    struct World const* world,
+    struct WorldEntity_Scenery const* scenery,
+    struct ToriRS_ScenerySnapshot* out);
+
+static void
 app_plugin_fill_loc(
     struct App* app,
     struct WorldEntity_Scenery const* scenery,
     struct ToriRS_ScenerySnapshot* out)
 {
     assert(app);
+    assert(app->world);
+    app_plugin_fill_loc_in(app->world, scenery, out);
+}
+
+/* A loc of `world` (the root, or a world entity's own world: its base is the
+ * staging base, so the tiles come out ABSOLUTE staging tiles). */
+static void
+app_plugin_fill_loc_in(
+    struct World const* world,
+    struct WorldEntity_Scenery const* scenery,
+    struct ToriRS_ScenerySnapshot* out)
+{
+    assert(world);
     assert(scenery);
     assert(out);
 
     memset(out, 0, sizeof(*out));
     out->loc_id = scenery->loc_id;
-    out->tile_x = app->world->_base_tile_x + scenery->grid_position.x;
-    out->tile_z = app->world->_base_tile_z + scenery->grid_position.z;
+    out->tile_x = world->_base_tile_x + scenery->grid_position.x;
+    out->tile_z = world->_base_tile_z + scenery->grid_position.z;
     out->level = scenery->grid_position.level;
     out->size_x = scenery->size_x > 0 ? scenery->size_x : 1;
     out->size_z = scenery->size_z > 0 ? scenery->size_z : 1;
@@ -4083,6 +4106,44 @@ app_plugin_world_entity_next(void* user, int iter, struct ToriRS_WorldEntitySnap
 }
 
 /*
+ * The locs of entity `id`'s own world: its deck and hull pieces, which live
+ * in the VIEW world's scenery table (the root's loc_next never sees them).
+ * The view world's base is the staging base, so the snapshot's tiles are
+ * absolute staging tiles -- what world_entity_to_main carries to the root
+ * after the base is taken off.
+ */
+static int
+app_plugin_world_entity_loc_next(void* user, int id, int iter, struct ToriRS_ScenerySnapshot* out)
+{
+    struct App* app = (struct App*)user;
+    struct Worldview const* view;
+    struct World_EntityPool* pool;
+    int at;
+
+    assert(app);
+    assert(out);
+    if( id <= 0 || id >= WORLDVIEW_MAX || !Wevs_IsLive(&app->wevs, id) ||
+        !WorldviewRegistry_IsLive(&app->worldviews, id) )
+        return -1;
+    view = WorldviewRegistry_Get(&app->worldviews, id);
+    if( !view->world )
+        return -1;
+    pool = &view->world->entities.scenery;
+    at = iter < 0 ? World_EntityPoolHead(pool) : World_EntityPoolNext(pool, iter);
+    while( at != WORLD_ENTITY_NIL )
+    {
+        struct WorldEntity_Scenery* scenery = World_EntityPoolGet(pool, at);
+        if( scenery )
+        {
+            app_plugin_fill_loc_in(view->world, scenery, out);
+            return at;
+        }
+        at = World_EntityPoolNext(pool, at);
+    }
+    return -1;
+}
+
+/*
  * A point of entity `id`'s own world (fine, relative to its staging base) to
  * ABSOLUTE root fine: through the deck box of each carrier in turn, the same
  * descent that draws the deck (a boat carried by a boat goes through both).
@@ -7282,6 +7343,8 @@ struct AppWidgetItemPending
     /* 0 for an owned item control; the editing plugin for a NATIVE cell's
      * re-lay, whose icon is bound by restating that owner's edit. */
     uint64_t owner;
+    /* The count rule the item draws with (item_num_mode; -1 the cell's own). */
+    int num_mode;
 };
 static struct AppWidgetItemPending g_widget_item_pending[APP_WIDGET_ITEM_PENDING_MAX];
 static int g_widget_item_pending_count;
@@ -7411,10 +7474,13 @@ app_plugin_widget_items_pump(struct App* app)
                     (void)UITree_WidgetSetNativeObject(app->tree, g_widget_item_pending[i].ref,
                                                        g_widget_item_pending[i].owner,
                                                        g_widget_item_pending[i].obj_id,
-                                                       g_widget_item_pending[i].count, scene);
+                                                       g_widget_item_pending[i].count, scene,
+                                                       g_widget_item_pending[i].num_mode);
                 else
                     (void)UITree_SetObjectAt(app->tree, idx, g_widget_item_pending[i].obj_id,
-                                             g_widget_item_pending[i].count, scene, 0, 0);
+                                             g_widget_item_pending[i].count, scene, 0,
+                                             g_widget_item_pending[i].num_mode >= 0
+                                                 ? g_widget_item_pending[i].num_mode : 0);
                 RedrawRequest_Raise(&app->redraw_request);
                 done = true;
             }
@@ -7428,10 +7494,25 @@ app_plugin_widget_items_pump(struct App* app)
     }
 }
 
+/* RuneLite's ItemQuantityMode (0 NEVER, 1 ALWAYS, 2 STACKABLE; -1 the
+ * cell's own) as the tree's item_num_mode (0 stackable-only, 1 always,
+ * 2 never; -1 kept). */
+static int
+app_widget_num_mode(int quantity_mode)
+{
+    assert(quantity_mode >= -1);
+    assert(quantity_mode <= 2);
+    if( quantity_mode < 0 )
+        return -1;
+    return quantity_mode == 0 ? 2 : quantity_mode == 1 ? 1 : 0;
+}
+
 static enum ToriRS_ContractResult
-app_widget_set_item(struct App* app, struct UITreeNodeRef ref, int32_t idx, int obj_id, int count)
+app_widget_set_item(struct App* app, struct UITreeNodeRef ref, int32_t idx, int obj_id, int count, int quantity_mode)
 {
     struct UITree* tree = app->tree;
+    int const num_mode = app_widget_num_mode(quantity_mode);
+    int const drawn_mode = num_mode >= 0 ? num_mode : 0;
     app_widget_item_pending_drop(ref);
     if( obj_id < 0 )
     {
@@ -7441,37 +7522,40 @@ app_widget_set_item(struct App* app, struct UITreeNodeRef ref, int32_t idx, int 
     int const scene = UITreeSceneBridge_EnsureObjIcon(&app->bridge, obj_id, count > 0 ? count : 1);
     if( scene > 0 )
     {
-        (void)UITree_SetObjectAt(tree, idx, obj_id, count, scene, 0, 0);
+        (void)UITree_SetObjectAt(tree, idx, obj_id, count, scene, 0, drawn_mode);
         return TORIRS_CONTRACT_OK;
     }
     /* The obj is the control's now (readers see it); the picture follows. */
-    (void)UITree_SetObjectAt(tree, idx, obj_id, count, -1, 0, 0);
+    (void)UITree_SetObjectAt(tree, idx, obj_id, count, -1, 0, drawn_mode);
     app_widget_item_queue_load(app, obj_id, count);
     if( g_widget_item_pending_count < APP_WIDGET_ITEM_PENDING_MAX )
         g_widget_item_pending[g_widget_item_pending_count++] =
-            (struct AppWidgetItemPending){ref, obj_id, count, 0, 0};
+            (struct AppWidgetItemPending){ref, obj_id, count, 0, 0, drawn_mode};
     return TORIRS_CONTRACT_PENDING;
 }
 
 /* set_item on a NATIVE cell: the owner's retained re-lay (written through,
- * restored by reset). The icon follows the same way an owned control's does. */
+ * restored by reset), its count rule riding with it. The icon follows the
+ * same way an owned control's does. */
 static enum ToriRS_ContractResult
-app_widget_set_native_item(struct App* app, struct UITreeNodeRef ref, uint64_t owner, int obj_id, int count)
+app_widget_set_native_item(struct App* app, struct UITreeNodeRef ref, uint64_t owner, int obj_id, int count,
+                           int quantity_mode)
 {
     struct UITree* tree = app->tree;
+    int const num_mode = app_widget_num_mode(quantity_mode);
     app_widget_item_pending_drop(ref);
     if( obj_id < 0 )
-        return UITree_WidgetSetNativeObject(tree, ref, owner, -1, 0, -1) ? TORIRS_CONTRACT_OK
-                                                                         : TORIRS_CONTRACT_BUDGET_EXCEEDED;
+        return UITree_WidgetSetNativeObject(tree, ref, owner, -1, 0, -1, -1) ? TORIRS_CONTRACT_OK
+                                                                             : TORIRS_CONTRACT_BUDGET_EXCEEDED;
     int const scene = UITreeSceneBridge_EnsureObjIcon(&app->bridge, obj_id, count > 0 ? count : 1);
-    if( !UITree_WidgetSetNativeObject(tree, ref, owner, obj_id, count, scene > 0 ? scene : -1) )
+    if( !UITree_WidgetSetNativeObject(tree, ref, owner, obj_id, count, scene > 0 ? scene : -1, num_mode) )
         return TORIRS_CONTRACT_BUDGET_EXCEEDED;
     if( scene > 0 )
         return TORIRS_CONTRACT_OK;
     app_widget_item_queue_load(app, obj_id, count);
     if( g_widget_item_pending_count < APP_WIDGET_ITEM_PENDING_MAX )
         g_widget_item_pending[g_widget_item_pending_count++] =
-            (struct AppWidgetItemPending){ref, obj_id, count, 0, owner};
+            (struct AppWidgetItemPending){ref, obj_id, count, 0, owner, num_mode};
     return TORIRS_CONTRACT_PENDING;
 }
 
@@ -7828,12 +7912,12 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
     {
         if( !c->plugin_owner && (c->type==UIELEM_RS_GRAPHIC || c->type==UIELEM_CC_OBJ) )
         {
-            enum ToriRS_ContractResult const native=app_widget_set_native_item(app,ref,owner,r->a,r->b);
+            enum ToriRS_ContractResult const native=app_widget_set_native_item(app,ref,owner,r->a,r->b,r->id);
             RedrawRequest_Raise(&app->redraw_request);
             return native;
         }
         if( c->plugin_owner!=owner || c->type!=UIELEM_RS_GRAPHIC ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
-        enum ToriRS_ContractResult const result=app_widget_set_item(app,ref,idx,r->a,r->b);
+        enum ToriRS_ContractResult const result=app_widget_set_item(app,ref,idx,r->a,r->b,r->id);
         RedrawRequest_Raise(&app->redraw_request);
         return result;
     }
@@ -8754,6 +8838,24 @@ app_plugin_menu_permute(void* user, void* cursor, int const* order, int count)
     ToriMem_Free(ToriMem_Plugins(), old);
 }
 
+/* The payload row for the menu's row `index` as it stands now: what the host
+ * hands a later plugin after an earlier one moved the menu. */
+_Static_assert(UITREE_MINIMENU_MAX_OPTIONS <= TORIRS_PLUGIN_MENU_ROWS_MAX,
+               "a plugin's menu payload carries every row a minimenu holds");
+static void
+app_plugin_menu_row_at(void* user, void* cursor, int index, struct ToriRS_MenuRow* out)
+{
+    struct App* app = (struct App*)user;
+    struct UIMinimenu const* menu = (struct UIMinimenu const*)cursor;
+
+    assert(app);
+    assert(menu);
+    assert(out);
+    assert(index >= 0);
+    assert(index < menu->option_count);
+    app_plugin_menu_row(app, &menu->options[index], out);
+}
+
 static int
 app_plugin_menu_shown(void* user, struct ToriRS_Rect* out)
 {
@@ -8987,9 +9089,10 @@ app_plugin_menu_build(struct App* app, struct UIMinimenu* menu, int hover_pass)
         return;
 
     memset(&ev, 0, sizeof(ev));
-    ev.row_count = menu->option_count < TORIRS_PLUGIN_MENU_ROWS_MAX
-                       ? menu->option_count
-                       : TORIRS_PLUGIN_MENU_ROWS_MAX;
+    /* Every row: the payload is the whole menu (TORIRS_PLUGIN_MENU_ROWS_MAX is
+     * the minimenu's own capacity, asserted at app_plugin_menu_row_at). */
+    assert(menu->option_count <= TORIRS_PLUGIN_MENU_ROWS_MAX);
+    ev.row_count = menu->option_count;
 
     for( int i = 0; i < ev.row_count; i++ )
         app_plugin_menu_row(app, &menu->options[i], &ev.rows[i]);
@@ -9069,6 +9172,7 @@ app_plugin_engine(struct App* app)
     engine.container_size = app_plugin_container_size;
     engine.world_entity_next = app_plugin_world_entity_next;
     engine.world_entity_to_main = app_plugin_world_entity_to_main;
+    engine.world_entity_loc_next = app_plugin_world_entity_loc_next;
     engine.project = app_plugin_project;
     engine.draw_tile = app_plugin_draw_tile;
     engine.draw_hull = app_plugin_draw_hull;
@@ -9103,6 +9207,7 @@ app_plugin_engine(struct App* app)
     engine.menu_count = app_plugin_menu_count;
     engine.menu_set_text = app_plugin_menu_set_text;
     engine.menu_permute = app_plugin_menu_permute;
+    engine.menu_row = app_plugin_menu_row_at;
     engine.menu_shown = app_plugin_menu_shown;
     engine.set_varbit = app_plugin_set_varbit;
     engine.seq_def = app_plugin_seq_def;
@@ -9136,6 +9241,9 @@ app_plugin_engine(struct App* app)
     engine.object_set_position = app_plugin_object_set_position;
     engine.object_set_active = app_plugin_object_set_active;
     engine.object_ready = app_plugin_object_ready;
+    engine.object_set_fine_position = app_plugin_object_set_fine_position;
+    engine.object_element = app_plugin_object_element;
+    engine.object_hit = app_plugin_object_hit;
     engine.hsl_from_rgb = app_plugin_hsl_from_rgb;
     engine.hsl_to_rgb = app_plugin_hsl_to_rgb;
     return engine;

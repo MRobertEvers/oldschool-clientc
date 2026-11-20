@@ -74,6 +74,11 @@ main(void)
     ToriRSChrome_Build(&ui);
 
     check(ui.dropdown_open == -1, "list starts closed");
+    {
+        int count = 0;
+        (void)ToriRSChrome_Prims(&ui, &count);
+        check(ToriRSChrome_OverlayPrimStart(&ui) == count, "with nothing open the overlay start is the count");
+    }
     check(ToriRSChrome_DropdownSelected(&ui, dd) == 0, "starts on the first option");
 
     /* Open it. */
@@ -93,6 +98,23 @@ main(void)
                 strcmp(prims[i].text, "charlie") == 0 )
                 found = 1;
         check(found, "an unselected option is drawn while the list is open");
+        /* Every prim of the open list is at or past the overlay start, every
+         * panel prim before it: a presenter that draws its own wells over the
+         * panels inserts them there and the list stays on top. */
+        {
+            int const start = ToriRSChrome_OverlayPrimStart(&ui);
+            int list_before = 0;
+            int list_after = 0;
+            check(start > 0 && start < count, "the overlay start splits the panel from the open list");
+            for( int i = 0; i < count; i++ )
+                if( prims[i].kind == TORIRS_CHROME_PRIM_TEXT && prims[i].text &&
+                    strcmp(prims[i].text, "charlie") == 0 )
+                {
+                    if( i < start ) list_before++;
+                    else list_after++;
+                }
+            check(list_before == 0 && list_after == 1, "the open list's rows are overlay prims");
+        }
     }
 
     /* Choose the third row. */

@@ -1595,8 +1595,9 @@ static enum ToriRS_ContractResult qhlw_native_rgb(void* ctx, struct ToriRS_Widge
 { (void)ctx;(void)ref; qhlw_rgb=rgb; return TORIRS_CONTRACT_OK; }
 static enum ToriRS_ContractResult qhlw_create_item(void* ctx, struct ToriRS_WidgetRef parent, char const* key, struct ToriRS_WidgetRef* out)
 { (void)ctx;(void)parent; CHECK(strcmp(key,"qh-tab-1")==0,"create_item hands its key down"); *out=(struct ToriRS_WidgetRef){{77,300,1}}; return TORIRS_CONTRACT_OK; }
-static enum ToriRS_ContractResult qhlw_set_item(void* ctx, struct ToriRS_WidgetRef ref, int32_t obj, int32_t qty)
-{ (void)ctx;(void)ref; qhlw_obj=obj; qhlw_qty=qty; return TORIRS_CONTRACT_PENDING; }
+static int qhlw_mode=-9;
+static enum ToriRS_ContractResult qhlw_set_item(void* ctx, struct ToriRS_WidgetRef ref, int32_t obj, int32_t qty, int32_t mode)
+{ (void)ctx;(void)ref; qhlw_obj=obj; qhlw_qty=qty; qhlw_mode=mode; return TORIRS_CONTRACT_PENDING; }
 static enum ToriRS_ContractResult qhlw_set_sprite(void* ctx, struct ToriRS_WidgetRef ref, int32_t sprite)
 { (void)ctx;(void)ref; qhlw_sprite=sprite; return TORIRS_CONTRACT_OK; }
 static enum ToriRS_ContractResult qhlw_listener(void* ctx, struct ToriRS_WidgetRef ref, char const* name,
@@ -1629,6 +1630,8 @@ static void test_quest_helper_widgets_events(struct ToriRS_PluginHost* host)
         "  assert(w:set_native_text_color('#00ff00'))"
         "  local item=assert(w:create_item('qh-tab-1'))"
         "  local ok,why=item:set_item(995,25); assert(not ok and why=='pending')"
+        "  ok,why=item:set_item(995,0,1); assert(not ok and why=='pending')"
+        "  assert(not api.sandbox.protect(item.set_item,item,995,1,3),'a mode outside -1..2 raises')"
         "  ok,why=item:set_item(-1); assert(ok==false and why=='pending')"
         "  assert(w:set_sprite(1453))"
         "  local l=assert(w:listener('onInvTransmit')); assert(#l==3 and l[1]==277 and l[2]==-2147483645 and l[3]=='Search')"
@@ -1667,7 +1670,8 @@ static void test_quest_helper_widgets_events(struct ToriRS_PluginHost* host)
     g_defs[index]->callbacks.on_start(&api, NULL);
     CHECK(g_logs == logs + 1, "widget detail, child lists, native edits, items, sprites and listeners");
     CHECK(strcmp(qhlw_text,"<col=00ff00>Yes</col>")==0 && qhlw_rgb==0x00ff00 && qhlw_sprite==1453 &&
-          qhlw_obj==-1 && qhlw_qty==1, "the edits hand their arguments down (quantity defaults to 1)");
+          qhlw_obj==-1 && qhlw_qty==1 && qhlw_mode==-1,
+          "the edits hand their arguments down (quantity defaults to 1, the mode to the cell's own)");
     struct ToriRS_VarChangedEvent var = { 101, 7, 5 };
     struct ToriRS_InterfaceEvent iface = { 231, true };
     struct ToriRS_InventoryChangedEvent inv = { 93 };

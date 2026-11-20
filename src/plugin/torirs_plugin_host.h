@@ -603,6 +603,14 @@ struct ToriRS_PluginEngine
         int deck_fine_z,
         int* out_fine_x,
         int* out_fine_z);
+    /** Walk the locs of entity `id`'s OWN world (its deck and hull), iterator
+     *  protocol of loc_next; tiles ABSOLUTE in its staging rectangle, level
+     *  its own plane. OPTIONAL (absent: none). @see game.world_entity_loc_next. */
+    int (*world_entity_loc_next)(
+        void* user,
+        int id,
+        int iter,
+        struct ToriRS_ScenerySnapshot* out);
 
     int (*project)(
         void* user,
@@ -854,10 +862,9 @@ struct ToriRS_PluginEngine
         void* user,
         void* cursor,
         int index);
-    /** Rows in the menu being built, every native row included (the payload
-     *  carries at most TORIRS_PLUGIN_MENU_ROWS_MAX of them). OPTIONAL with
-     *  the three below: without them menu.set_order / set_text answer
-     *  UNSUPPORTED. */
+    /** Rows in the menu being built, every row included. OPTIONAL with the
+     *  four below: without them menu.set_order / set_text answer UNSUPPORTED
+     *  and a later plugin is handed the payload the build started with. */
     int (*menu_count)(
         void* user,
         void* cursor);
@@ -874,6 +881,14 @@ struct ToriRS_PluginEngine
         void* cursor,
         int const* order,
         int count);
+    /** Row `index` of the menu being built as a payload row (the bridge's
+     *  on_menu_build conversion), so the host can hand the next plugin the
+     *  menu as an earlier one left it. `out->text` points into the menu. */
+    void (*menu_row)(
+        void* user,
+        void* cursor,
+        int index,
+        struct ToriRS_MenuRow* out);
     /** The right-click menu's box when it is up. OPTIONAL. */
     int (*menu_shown)(
         void* user,
@@ -1038,6 +1053,24 @@ struct ToriRS_PluginEngine
         int object,
         int active);
     int (*object_ready)(
+        void* user,
+        int object);
+    /* OPTIONAL (absent = UNSUPPORTED, -1, false): a sub-tile placement in
+     * ABSOLUTE fine units (tile * 128 + 0..127), the scene element the object
+     * is drawn as (-1 while it is not), and whether the pointer is on its
+     * model in the frame's per-triangle pick. */
+    void (*object_set_fine_position)(
+        void* user,
+        int object,
+        int fine_x,
+        int fine_z,
+        int level,
+        int height,
+        int yaw);
+    int (*object_element)(
+        void* user,
+        int object);
+    int (*object_hit)(
         void* user,
         int object);
 
@@ -1402,9 +1435,12 @@ PluginHost_DrawCanvas(
     int width,
     int height);
 
-/** Dispatches on_menu_build. `cursor` is handed to engine->menu_add. True
- *  when a plugin set the build's order (menu.set_order): the caller must then
- *  NOT re-sort the menu, the order stands as the plugin gave it. */
+/** Dispatches on_menu_build, plugin by plugin in event order, each handed
+ *  the menu as the ones before it left it (@see ToriRS_MenuApi::set_order).
+ *  `cursor` is handed to engine->menu_add. `menu->row_count` is every row of
+ *  the menu (at most TORIRS_PLUGIN_MENU_ROWS_MAX). True when a plugin set the
+ *  build's order (menu.set_order): the caller must then NOT re-sort the menu,
+ *  the order stands as the plugins gave it. */
 bool
 PluginHost_MenuBuild(
     struct ToriRS_PluginHost* host,

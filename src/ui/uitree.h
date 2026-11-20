@@ -2516,9 +2516,11 @@ int UITree_WidgetNativeTextAt(struct UITree const*,int32_t idx,char const** out_
  * IF_SETOBJECT) or a dynamic child's delete-and-recreate DROPS the edit,
  * RuneLite's order. A cell is a native RS_GRAPHIC or CC_OBJ node (false for
  * any other, or an owned control); an obj below 0 clears it. A restatement
- * already in force writes nothing. */
+ * already in force writes nothing. `num_mode` is the count rule the cell
+ * draws with while the edit holds (item_num_mode: 0 stackable-only, 1 always,
+ * 2 never; RuneLite's setItemQuantityMode), -1 the game's own. */
 bool UITree_WidgetSetNativeObject(struct UITree*,struct UITreeNodeRef,uint64_t owner,
-                                  int obj_id,int obj_count,int scene_id);
+                                  int obj_id,int obj_count,int scene_id,int num_mode);
 bool UITree_WidgetSetNativeTransparency(struct UITree*,struct UITreeNodeRef,uint64_t owner,int transparency);
 /* The same for a native node's OWN hide (RuneLite's setHidden on a game
  * widget, which can show a node the game hid -- unlike the presentation hide

@@ -14,7 +14,10 @@
 # nothing failed. Here it aborts on the desktop, where the time never showed.
 #
 # The second arm is the phone's own configuration: the mobile client identity
-# (toplevel_osm) and the mobile plugin set.
+# (toplevel_osm) and the mobile plugin set. The last two are the same with the
+# plugins that ship off but run every frame once a player turns them on
+# (Quest Helper: its boot, the quest list, the residency pass and its overlays
+# with no quest open), so a PASS also covers them.
 set -eu
 
 BIN="${1:?usage: tools/scan_meter_gate.sh <client binary>}"
@@ -36,15 +39,18 @@ sed -e "s#^dir=.*#dir=$REPO/cache.osrs239#" \
 
 failed=0
 arm=0
-# name | plugin prefs | extra env
+# name | plugin prefs | extra env | plugins turned on (space-separated ids)
 run_arm()
 {
-    name="$1"; plugin_prefs="$2"; extra="$3"
+    name="$1"; plugin_prefs="$2"; extra="$3"; turn_on="${4:-}"
     arm=$((arm + 1))
     dir="$OUT/$name"
     mkdir -p "$dir/saves"
     printf '[preferences]\nversion=1\n' > "$dir/preferences.ini"
     cp "$REPO/$plugin_prefs" "$dir/plugin_prefs.ini"
+    for id in $turn_on; do
+        printf '\n[plugin:%s]\nenabled=1\n' "$id" >> "$dir/plugin_prefs.ini"
+    done
     set +e
     # shellcheck disable=SC2086
     (cd "$REPO" && env SDL_VIDEODRIVER=dummy TORIRS_TRANSPORT=embed \
@@ -61,6 +67,11 @@ run_arm()
         grep "^uitree: steady frames" "$dir/run.log" | head -3
         [ "$status" -ne 0 ] && tail -5 "$dir/run.log"
         failed=1
+    elif [ -n "$turn_on" ] && grep -q "plugin: Lua script '.*' disabled" "$dir/run.log"; then
+        # a plugin turned on for this arm that faulted measured nothing
+        echo "scan_meter_gate: FAIL $name (a plugin turned on for it was disabled)"
+        grep "plugin: Lua script '.*' disabled" "$dir/run.log" | head -3
+        failed=1
     elif ! grep -q "session=ok" "$dir/run.log"; then
         # A run that never logged in measured the title screen, not a frame.
         echo "scan_meter_gate: FAIL $name (never reached the world; see $dir/run.log)"
@@ -72,6 +83,8 @@ run_arm()
 
 run_arm desk  plugin_prefs.ini ""
 run_arm phone plugin_prefs.mobile.ini "TORIRS_CLIENTTYPE=7 TORIRS_ON_MOBILE=1"
+run_arm desk-optin  plugin_prefs.ini "" "quest-helper"
+run_arm phone-optin plugin_prefs.mobile.ini "TORIRS_CLIENTTYPE=7 TORIRS_ON_MOBILE=1" "quest-helper"
 
 if [ "$failed" -ne 0 ]; then
     echo "scan_meter_gate: FAIL (logs in $OUT)"

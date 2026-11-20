@@ -3305,7 +3305,7 @@ static void qh_bare_tick_cb(struct ToriRS_Api* api,void* state,struct ToriRS_Tic
 
 static int qhw_kind = -1, qhw_requests;
 static char qhw_text[64];
-static int qhw_a, qhw_b;
+static int qhw_a, qhw_b, qhw_id;
 static enum ToriRS_ContractResult
 qhw_request(void* user, uint64_t owner, struct PluginWidgetRequest* r)
 {
@@ -3349,7 +3349,7 @@ qhw_request(void* user, uint64_t owner, struct PluginWidgetRequest* r)
         *r->refs = (struct ToriRS_WidgetRef){{77, 60, 1}};
         return TORIRS_CONTRACT_OK;
     case PLUGIN_WIDGET_SET_ITEM:
-        qhw_a = r->a; qhw_b = r->b;
+        qhw_a = r->a; qhw_b = r->b; qhw_id = r->id;
         return TORIRS_CONTRACT_PENDING;
     default:
         return TORIRS_CONTRACT_OK;
@@ -3398,10 +3398,15 @@ static void qhw_start(struct ToriRS_Api* api, void* state)
     CHECK(ui->create_item(ui->context, w, "", &item) == TORIRS_CONTRACT_INVALID_ARGUMENT, "an owned item needs a key");
     CHECK(ui->create_item(ui->context, w, "bank-1", &item) == TORIRS_CONTRACT_OK && item.opaque[1] == 60 &&
           qhw_kind == PLUGIN_WIDGET_CREATE_ITEM, "owned item creation returns the adapter's child");
-    CHECK(ui->set_item(ui->context, item, -2, 1) == TORIRS_CONTRACT_INVALID_ARGUMENT, "an obj id below -1 is refused");
-    CHECK(ui->set_item(ui->context, item, 995, -1) == TORIRS_CONTRACT_INVALID_ARGUMENT, "a negative quantity is refused");
-    CHECK(ui->set_item(ui->context, item, 995, 1000) == TORIRS_CONTRACT_PENDING && qhw_a == 995 && qhw_b == 1000,
-          "set_item passes the adapter's pending through");
+    CHECK(ui->set_item(ui->context, item, -2, 1, -1) == TORIRS_CONTRACT_INVALID_ARGUMENT, "an obj id below -1 is refused");
+    CHECK(ui->set_item(ui->context, item, 995, -1, -1) == TORIRS_CONTRACT_INVALID_ARGUMENT, "a negative quantity is refused");
+    CHECK(ui->set_item(ui->context, item, 995, 1000, -1) == TORIRS_CONTRACT_PENDING && qhw_a == 995 && qhw_b == 1000 &&
+          qhw_id == -1, "set_item passes the adapter's pending through");
+    CHECK(ui->set_item(ui->context, item, 995, 1, 3) == TORIRS_CONTRACT_INVALID_ARGUMENT &&
+          ui->set_item(ui->context, item, 995, 1, -2) == TORIRS_CONTRACT_INVALID_ARGUMENT,
+          "a quantity mode outside -1..2 is refused");
+    CHECK(ui->set_item(ui->context, item, 995, 1, 1) == TORIRS_CONTRACT_PENDING && qhw_id == 1,
+          "the quantity mode (ItemQuantityMode.ALWAYS) reaches the adapter");
     CHECK(ui->set_sprite(ui->context, w, -1) == TORIRS_CONTRACT_INVALID_ARGUMENT, "a sprite id is never negative");
     CHECK(ui->set_sprite(ui->context, w, 1453) == TORIRS_CONTRACT_OK && qhw_a == 1453 &&
           qhw_kind == PLUGIN_WIDGET_SET_SPRITE, "a sprite reaches the adapter");
@@ -3426,7 +3431,7 @@ static void qhw_draw(struct ToriRS_Api* api, void* state, struct ToriRS_Graphics
           "paint may read the child lists");
     CHECK(ui->set_native_text(ui->context, w, "x") == TORIRS_CONTRACT_WRONG_CONTEXT, "paint cannot edit native text");
     CHECK(ui->set_native_text_color(ui->context, w, 1) == TORIRS_CONTRACT_WRONG_CONTEXT, "paint cannot recolour native text");
-    CHECK(ui->set_item(ui->context, w, 1, 1) == TORIRS_CONTRACT_WRONG_CONTEXT, "paint cannot set an item");
+    CHECK(ui->set_item(ui->context, w, 1, 1, -1) == TORIRS_CONTRACT_WRONG_CONTEXT, "paint cannot set an item");
     CHECK(ui->set_sprite(ui->context, w, 1) == TORIRS_CONTRACT_WRONG_CONTEXT, "paint cannot set a sprite");
 }
 static void qhw_stop(struct ToriRS_Api* api, void* state)
@@ -3942,6 +3947,14 @@ static void qc_menu_permute(void* u, void* cursor, int const* order, int count)
     for( int i = 0; i < count; i++ ) { memcpy(qc_rows[i], old[order[i]], sizeof(qc_rows[0])); qc_actions[i] = old_actions[order[i]]; }
     qc_count = count;
 }
+static void qc_menu_row(void* u, void* cursor, int index, struct ToriRS_MenuRow* out)
+{
+    (void)u; (void)cursor;
+    memset(out, 0, sizeof(*out));
+    out->text = qc_rows[index];
+    out->action = qc_actions[index];
+    out->npc_slot = out->player_pid = out->target_id = out->component_id = out->slot = -1;
+}
 static int qc_menu_shown(void* u, struct ToriRS_Rect* out)
 { (void)u; *out = (struct ToriRS_Rect){ 100, 50, 120, 70 }; return 1; }
 static int qc_varbits[4];
@@ -4049,6 +4062,17 @@ static int qc_wev_to_main(void* u, int id, int x, int z, int* ox, int* oz)
 { (void)u; if( id != 3 ) return 0; *ox = 3200 * 128 + x; *oz = 3200 * 128 + z; return 1; }
 static int qc_w_ids[4], qc_w_configs[4], qc_w_count, qc_w_mx, qc_w_mz;
 static bool qc_w_main_ok, qc_w_main_gone;
+/* world_entity_loc_next: boat 3's own world holds two hull locs. */
+static int qc_wev_loc_next(void* u, int id, int iter, struct ToriRS_ScenerySnapshot* out)
+{
+    (void)u;
+    if( id != 3 || iter >= 1 ) return -1;
+    memset(out, 0, sizeof(*out));
+    out->loc_id = iter < 0 ? 59001 : 59002; out->tile_x = 6448 + (iter < 0 ? 0 : 1); out->tile_z = 6400;
+    out->level = 1; out->element_id = iter < 0 ? 700 : 701; out->size_x = 1; out->size_z = 1;
+    return iter < 0 ? 0 : 1;
+}
+static int qc_wl_ids[4], qc_wl_elements[4], qc_wl_count, qc_wl_gone;
 static void qc_tick(struct ToriRS_Api* api, void* state, struct ToriRS_TickEvent const* ev)
 {
     (void)state; (void)ev;
@@ -4085,6 +4109,16 @@ static void qc_tick(struct ToriRS_Api* api, void* state, struct ToriRS_TickEvent
         }
         qc_w_main_ok = api->game->world_entity_to_main(api, 3, 64, 192, &qc_w_mx, &qc_w_mz);
         {
+            struct ToriRS_ScenerySnapshot loc;
+            int at = -1;
+            qc_wl_count = 0;
+            while( (at = api->game->world_entity_loc_next(api, 3, at, &loc)) >= 0 && qc_wl_count < 4 )
+            {
+                qc_wl_ids[qc_wl_count] = loc.loc_id; qc_wl_elements[qc_wl_count] = loc.element_id; qc_wl_count++;
+            }
+            qc_wl_gone = api->game->world_entity_loc_next(api, 5, -1, &loc);
+        }
+        {
             int x = 0, z = 0;
             qc_w_main_gone = api->game->world_entity_to_main(api, 5, 64, 64, &x, &z);
         }
@@ -4107,6 +4141,198 @@ static void qc_menu_reset(void)
     qc_count = 4;
 }
 
+/* ------------------------------------------------------------------------ *
+ * menu.set_order across plugins (the panel/menu round): the payload is the
+ * WHOLE menu, and two plugins that order it compose by event_priority --
+ * each handed the menu as the higher-priority ones left it, their rows
+ * included -- instead of the last caller winning.
+ *
+ * MUTATION 1: dispatch on_menu_build with plugin_dispatch (plans applied at
+ *   the end, last wins).  Red: "the later plugin is handed the earlier one's
+ *   row" and "the two orders compose".
+ * MUTATION 2: cap the bridge payload at 16 again.  Red: "a 20-row menu is
+ *   handed whole" (host side: ROWS_MAX).
+ * ------------------------------------------------------------------------ */
+static int qm_mode;
+static int qm_low_rows, qm_high_rows;
+static char qm_low_row3[128];
+static enum ToriRS_Result qm_r_high, qm_r_low;
+static enum ToriRS_CallbackResult qm_high(struct ToriRS_Api* api, void* state, struct ToriRS_MenuBuildEvent* ev)
+{
+    (void)state;
+    qm_high_rows = ev->row_count;
+    if( qm_mode == 1 )
+    {
+        /* Its row just below the top (QuestMenuHandler's "Start Quest Helper"). */
+        struct ToriRS_MenuRowRef order[5] = { { 0, 0, false }, { 1, 0, false }, { 2, 0, false }, { -1, 5, false }, { 3, 0, false } };
+        CHECK(api->menu.add(api, ev, "High row", 5), "the high-priority plugin adds its row");
+        qm_r_high = api->menu.set_order(api, ev, order, 5);
+    }
+    return TORIRS_CALLBACK_CONTINUE;
+}
+static enum ToriRS_CallbackResult qm_low(struct ToriRS_Api* api, void* state, struct ToriRS_MenuBuildEvent* ev)
+{
+    (void)state;
+    qm_low_rows = ev->row_count;
+    qm_low_row3[0] = '\0';
+    if( ev->row_count > 3 && ev->rows[3].text )
+        snprintf(qm_low_row3, sizeof(qm_low_row3), "%s", ev->rows[3].text);
+    if( qm_mode == 1 )
+    {
+        /* Walk here (payload row 2) to the top; every other row where it is. */
+        struct ToriRS_MenuRowRef order[5] = { { 0, 0, false }, { 1, 0, false }, { 3, 0, false }, { 4, 0, false }, { 2, 0, false } };
+        qm_r_low = api->menu.set_order(api, ev, order, 5);
+    }
+    else if( qm_mode == 2 )
+    {
+        /* The whole 20-row menu, reversed: rows past the old 16 are named. */
+        struct ToriRS_MenuRowRef order[20];
+        for( int i = 0; i < 20; i++ )
+            order[i] = (struct ToriRS_MenuRowRef){ 19 - i, 0, false };
+        qm_r_low = api->menu.set_order(api, ev, order, 20);
+    }
+    return TORIRS_CALLBACK_CONTINUE;
+}
+
+static void test_menu_order_composes(void)
+{
+    struct ToriRS_PluginEngine engine = fake_engine();
+    struct ToriRS_MenuBuildEvent ev;
+    int cursor = 0;
+    bool ordered;
+    engine.menu_add = qc_menu_add; engine.menu_drop = qc_menu_drop; engine.menu_count = qc_menu_count;
+    engine.menu_set_text = qc_menu_set_text; engine.menu_permute = qc_menu_permute; engine.menu_row = qc_menu_row;
+    struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+    /* Registered low first: the dispatch order is the priority's, not the
+     * registration's. */
+    struct ToriRS_PluginDef low = { .struct_size = sizeof(low), .id = "qm-low", .title = "QM low", .version = "1",
+        .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks), .on_menu_build = qm_low } };
+    struct ToriRS_PluginDef high = { .struct_size = sizeof(high), .id = "qm-high", .title = "QM high", .version = "1",
+        .event_priority = 10,
+        .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks), .on_menu_build = qm_high } };
+    CHECK(PluginHost_Register(host, &low) >= 0 && PluginHost_Register(host, &high) >= 0, "compose fixtures register");
+    PluginHost_Start(host);
+
+    qm_mode = 1;
+    qc_menu_reset();
+    qc_permutes = 0;
+    memset(&ev, 0, sizeof(ev));
+    ev.row_count = 4;
+    ordered = PluginHost_MenuBuild(host, &cursor, &ev, false);
+    CHECK(qm_r_high == TORIRS_RESULT_OK && qm_r_low == TORIRS_RESULT_OK, "both orders are accepted");
+    CHECK(qm_high_rows == 4, "the higher-priority plugin runs first, on the native rows");
+    CHECK(qm_low_rows == 5 && strcmp(qm_low_row3, "High row") == 0,
+          "the later plugin is handed the earlier one's row, where it put it");
+    CHECK(ordered && qc_count == 5 && strcmp(qc_rows[0], "Cancel") == 0 && strcmp(qc_rows[1], "Examine @yel@Veos") == 0 &&
+              strcmp(qc_rows[2], "High row") == 0 && strcmp(qc_rows[3], "Talk-to @yel@Veos") == 0 &&
+              strcmp(qc_rows[4], "Walk here") == 0,
+          "the two orders compose: the high row below the old top, then Walk here moved over both");
+    CHECK(qc_permutes == 2, "each plugin's order applied once");
+
+    /* A menu larger than the old 16-row payload is handed whole. */
+    qm_mode = 2;
+    qc_count = 0;
+    for( int i = 0; i < 20; i++ )
+    {
+        snprintf(qc_rows[i], sizeof(qc_rows[0]), "Row %d", i);
+        qc_actions[i] = 2000 + i;
+    }
+    qc_count = 20;
+    memset(&ev, 0, sizeof(ev));
+    ev.row_count = 20;
+    ordered = PluginHost_MenuBuild(host, &cursor, &ev, false);
+    CHECK(qm_low_rows == 20 && qm_r_low == TORIRS_RESULT_OK, "a 20-row menu is handed whole and ordered whole");
+    CHECK(ordered && qc_count == 20 && strcmp(qc_rows[0], "Row 19") == 0 && strcmp(qc_rows[19], "Row 0") == 0 &&
+              strcmp(qc_rows[3], "Row 16") == 0,
+          "rows past the old 16 move too");
+    PluginHost_Free(host);
+}
+
+/* ------------------------------------------------------------------------ */
+/* Quest Helper port: sub-tile instance placement, the instance's element and */
+/* its hit test (RuneLiteObject.setLocation / getClickbox).                    */
+/* ------------------------------------------------------------------------ */
+
+static int qs_fine_x, qs_fine_z, qs_fine_level, qs_fine_calls, qs_hit_object = -1;
+static void qs_fine(void* u, int object, int fine_x, int fine_z, int level, int height, int yaw)
+{ (void)u;(void)object;(void)height;(void)yaw; qs_fine_x = fine_x; qs_fine_z = fine_z; qs_fine_level = level; qs_fine_calls++; }
+static int qs_element(void* u, int object) { (void)u; return object == qs_hit_object ? 900 + object : -1; }
+static int qs_hit(void* u, int object) { (void)u; return object == qs_hit_object; }
+static enum ToriRS_Result qs_place_ok, qs_place_negative, qs_place_level, qs_place_yaw, qs_place_stale;
+static int qs_element_drawn, qs_element_stale;
+static bool qs_hit_on, qs_hit_stale;
+static void qs_tick(struct ToriRS_Api* api, void* state, struct ToriRS_TickEvent const* ev)
+{
+    struct ToriRS_SceneInstanceRef inst = { 0 }, gone = { 0 };
+    int was_in_use[FAKE_OBJECTS_MAX];
+    (void)state; (void)ev;
+    for( int i = 0; i < FAKE_OBJECTS_MAX; i++ )
+        was_in_use[i] = g_engine.objects[i].in_use;
+    (void)api->scene.instance_create(api, &inst);
+    for( int i = 0; i < FAKE_OBJECTS_MAX; i++ )
+        if( g_engine.objects[i].in_use && !was_in_use[i] ) qs_hit_object = i;
+    (void)api->scene.instance_create(api, &gone);
+    api->scene.instance_destroy(api, gone);
+    qs_place_ok = api->scene.instance_place(api, inst, 3222 * 128 + 17, 3218 * 128 + 100, 0, 0, 512);
+    qs_place_negative = api->scene.instance_place(api, inst, -1, 3218 * 128, 0, 0, 0);
+    qs_place_level = api->scene.instance_place(api, inst, 3222 * 128, 3218 * 128, 4, 0, 0);
+    qs_place_yaw = api->scene.instance_place(api, inst, 3222 * 128, 3218 * 128, 0, 0, 2048);
+    qs_place_stale = api->scene.instance_place(api, gone, 3222 * 128, 3218 * 128, 0, 0, 0);
+    qs_element_drawn = api->scene.instance_element(api, inst);
+    qs_element_stale = api->scene.instance_element(api, gone);
+    qs_hit_on = api->scene.instance_hit(api, inst);
+    qs_hit_stale = api->scene.instance_hit(api, gone);
+    api->scene.instance_destroy(api, inst);
+}
+static enum ToriRS_Result qs_bare_place;
+static int qs_bare_element;
+static bool qs_bare_hit;
+static void qs_bare_tick(struct ToriRS_Api* api, void* state, struct ToriRS_TickEvent const* ev)
+{
+    struct ToriRS_SceneInstanceRef inst = { 0 };
+    (void)state; (void)ev;
+    (void)api->scene.instance_create(api, &inst);
+    qs_bare_place = api->scene.instance_place(api, inst, 3222 * 128, 3218 * 128, 0, 0, 0);
+    qs_bare_element = api->scene.instance_element(api, inst);
+    qs_bare_hit = api->scene.instance_hit(api, inst);
+    api->scene.instance_destroy(api, inst);
+}
+static void test_scene_instance_place(void)
+{
+    {
+        struct ToriRS_PluginEngine engine = fake_engine();
+        engine.object_set_fine_position = qs_fine; engine.object_element = qs_element; engine.object_hit = qs_hit;
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+        struct ToriRS_PluginDef def = { .struct_size = sizeof(def), .id = "qs-place", .title = "QS", .version = "1",
+            .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks), .on_server_tick = qs_tick } };
+        CHECK(PluginHost_Register(host, &def) >= 0, "instance-place fixture registers");
+        PluginHost_Start(host);
+        PluginHost_ServerTick(host, 1);
+        CHECK(qs_place_ok == TORIRS_RESULT_OK && qs_fine_calls == 1 && qs_fine_x == 3222 * 128 + 17 &&
+              qs_fine_z == 3218 * 128 + 100 && qs_fine_level == 0,
+              "instance_place hands an absolute sub-tile point to the engine");
+        CHECK(qs_place_negative == TORIRS_RESULT_INVALID && qs_place_level == TORIRS_RESULT_INVALID &&
+              qs_place_yaw == TORIRS_RESULT_INVALID && qs_place_stale == TORIRS_RESULT_INVALID && qs_fine_calls == 1,
+              "a negative point, a level past 3, a yaw past 2047 and a destroyed instance never reach it");
+        CHECK(qs_element_drawn == 900 + qs_hit_object && qs_element_stale == -1,
+              "instance_element answers the drawn element, -1 for a destroyed instance");
+        CHECK(qs_hit_on && !qs_hit_stale, "instance_hit is the engine's pick; a destroyed instance is never hit");
+        PluginHost_Free(host);
+    }
+    {
+        struct ToriRS_PluginEngine engine = fake_engine();
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+        struct ToriRS_PluginDef def = { .struct_size = sizeof(def), .id = "qs-bare", .title = "QS", .version = "1",
+            .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks), .on_server_tick = qs_bare_tick } };
+        CHECK(PluginHost_Register(host, &def) >= 0, "bare-engine fixture registers");
+        PluginHost_Start(host);
+        PluginHost_ServerTick(host, 1);
+        CHECK(qs_bare_place == TORIRS_RESULT_UNSUPPORTED && qs_bare_element == -1 && !qs_bare_hit,
+              "an engine without the hooks: place UNSUPPORTED, no element, never hit");
+        PluginHost_Free(host);
+    }
+}
+
 static void test_quest_helper_client_apis(void)
 {
     struct ToriRS_PluginEngine engine = fake_engine();
@@ -4115,10 +4341,12 @@ static void test_quest_helper_client_apis(void)
     bool ordered;
     engine.menu_add = qc_menu_add; engine.menu_drop = qc_menu_drop; engine.menu_count = qc_menu_count;
     engine.menu_set_text = qc_menu_set_text; engine.menu_permute = qc_menu_permute; engine.menu_shown = qc_menu_shown;
+    engine.menu_row = qc_menu_row;
     engine.set_varbit = qc_set_varbit; engine.seq_def = qc_seq_def; engine.open_url = qc_open_url;
     engine.worldmap_jump = qc_worldmap_jump;
     engine.container_slot = qc_container_slot; engine.container_size = qc_container_size;
     engine.world_entity_next = qc_wev_next; engine.world_entity_to_main = qc_wev_to_main;
+    engine.world_entity_loc_next = qc_wev_loc_next;
     struct ToriRS_PluginHost* host = PluginHost_New(&engine);
     struct ToriRS_PluginDef def = { .struct_size = sizeof(def), .id = "qc-apis", .title = "QC", .version = "3",
         .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks), .on_menu_build = qc_build,
@@ -4147,12 +4375,15 @@ static void test_quest_helper_client_apis(void)
     CHECK(qc_r_bad_tag == TORIRS_RESULT_INVALID, "a tag is this plugin's own");
     CHECK(qc_r_order == TORIRS_RESULT_OK && qc_r_text == TORIRS_RESULT_OK, "the plan is accepted");
     CHECK(qc_r_long == TORIRS_RESULT_BUDGET, "a row text past the menu's row size is refused");
-    CHECK(ordered && qc_permutes == 1, "an ordered build tells the caller not to re-sort");
+    CHECK(ordered && qc_permutes == 2, "an ordered build tells the caller not to re-sort (the plan, then the sink)");
     CHECK(qc_count == 5, "Cancel is gone; the other plugin's row stays");
-    CHECK(qc_count == 5 && strcmp(qc_rows[0], "Other plugin") == 0 && strcmp(qc_rows[1], "Walk here") == 0 &&
-              strcmp(qc_rows[2], "Examine @yel@Veos") == 0 && strcmp(qc_rows[3], "Start Quest Helper") == 0 &&
-              strcmp(qc_rows[4], "Talk-to @yel@Fake Veos") == 0,
-          "bottom first: another plugin's row, the deprioritized walk, then the plan in order with the new text");
+    /* The other plugin ran after the plan was applied, so its row landed on
+     * the ordered menu's top (createMenuEntry(-1)); the deprioritized walk
+     * sank below every row once the build was done. */
+    CHECK(qc_count == 5 && strcmp(qc_rows[0], "Walk here") == 0 && strcmp(qc_rows[1], "Examine @yel@Veos") == 0 &&
+              strcmp(qc_rows[2], "Start Quest Helper") == 0 && strcmp(qc_rows[3], "Talk-to @yel@Fake Veos") == 0 &&
+              strcmp(qc_rows[4], "Other plugin") == 0,
+          "bottom first: the deprioritized walk, the plan in order with the new text, then the later plugin's row");
 
     qc_shown = false;
     PluginHost_ServerTick(host, 1);
@@ -4178,6 +4409,9 @@ static void test_quest_helper_client_apis(void)
     CHECK(qc_w_main_ok && qc_w_mx == 3200 * 128 + 64 && qc_w_mz == 3200 * 128 + 192,
           "world_entity_to_main carries a deck point through the engine's transform");
     CHECK(!qc_w_main_gone, "world_entity_to_main of an entity that is not live is false");
+    CHECK(qc_wl_count == 2 && qc_wl_ids[0] == 59001 && qc_wl_ids[1] == 59002 && qc_wl_elements[1] == 701,
+          "world_entity_loc_next walks the boat's own locs with their elements");
+    CHECK(qc_wl_gone < 0, "world_entity_loc_next of an entity that is not live ends at once");
 
     PluginHost_DrawCanvas(host, 765, 503);
     CHECK(qc_d_varbit == TORIRS_RESULT_UNSUPPORTED && qc_varbits[2] == 9, "a draw callback cannot write a varbit");
@@ -4483,6 +4717,24 @@ main(void)
                 strcmp(widget->id, "labelled_chart") == 0 &&
                 strcmp(widget->label, "Activity chart") == 0,
             "general custom nodes preserve their explicitly authored label");
+        /* A collapsed well (TORIRS_PANEL_CUSTOM_HEIGHT_COLLAPSED) is a height
+         * the host keeps -- the presenter hides the row -- while any other
+         * height under the minimum is still raised to it. */
+        CHECK(
+            g_v2_api[1]->panel.set_height(g_v2_api[1], "labelled_chart", TORIRS_PANEL_CUSTOM_HEIGHT_COLLAPSED) ==
+                    TORIRS_RESULT_OK &&
+                PluginHost_PanelWidgetAt(hv2, generation, 4)->preferred_height ==
+                    TORIRS_PANEL_CUSTOM_HEIGHT_COLLAPSED,
+            "a custom well collapses in place");
+        CHECK(
+            g_v2_api[1]->panel.set_height(g_v2_api[1], "labelled_chart", -5) == TORIRS_RESULT_OK &&
+                PluginHost_PanelWidgetAt(hv2, generation, 4)->preferred_height ==
+                    TORIRS_PANEL_CUSTOM_HEIGHT_MIN,
+            "any other height under the minimum is raised to it");
+        CHECK(
+            g_v2_api[1]->panel.set_height(g_v2_api[1], "labelled_chart", 72) == TORIRS_RESULT_OK &&
+                PluginHost_PanelWidgetAt(hv2, generation, 4)->preferred_height == 72,
+            "and a collapsed well grows back by a setter");
 
         /* ---- a button the page cannot service does not fire ------------ */
         widget = PluginHost_PanelWidgetAt(hv2, generation, 6);
@@ -4951,6 +5203,8 @@ main(void)
     test_draw_polygon_and_maps();
     test_quest_helper_cache_game_scripts();
     test_quest_helper_client_apis();
+    test_scene_instance_place();
+    test_menu_order_composes();
     test_quest_helper_widgets_events();
     test_quest_helper_fix_seams();
     test_script_hooks();

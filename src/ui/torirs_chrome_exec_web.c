@@ -1075,7 +1075,22 @@ chrome_web_poll(void* user, struct ToriRSChromeIntent* out, int max)
              intent.x < 0 || intent.y < 0 ||
              intent.x >= s->custom_width[intent.widget] ||
              intent.y >= s->custom_height[intent.widget]) )
+        {
+            /* TORIRS_CHROME_DEBUG: a well's click refused by this fence is
+             * otherwise silent -- the page shows the well, the click goes
+             * nowhere, and nothing anywhere says why. */
+            if( getenv("TORIRS_CHROME_DEBUG") )
+                fprintf(
+                    stderr,
+                    "chrome: web well intent %d refused: widget %d serial %u (published %u), "
+                    "generation %u (published %u), at %d,%d in %dx%d\n",
+                    intent.kind, intent.widget, (unsigned)intent.widget_serial,
+                    (unsigned)s->custom_serial[intent.widget],
+                    (unsigned)intent.selection_generation,
+                    (unsigned)s->custom_generation[intent.widget], intent.x, intent.y,
+                    s->custom_width[intent.widget], s->custom_height[intent.widget]);
             continue;
+        }
         ToriRSChromeMirror_PushIntent(&s->mirror, &intent);
     }
 

@@ -1814,6 +1814,18 @@ app_minimenu_run_option(
     int click_x,
     int click_y);
 
+/** Build the UI-row menu a left click at (x, y) would show and run its
+ *  default row -- or, with `plugin_top_row`, only a plugin's row on top
+ *  (RuneLite's left click runs the top entry whatever its type; any other top
+ *  row leaves the click to the caller's surface). 1 when a row ran, 0 when
+ *  none did. */
+int
+app_minimenu_run_default_ui_row(
+    struct App* app,
+    int click_x,
+    int click_y,
+    int plugin_top_row);
+
 int
 app_minimenu_use_option(
     struct App* app,
@@ -2284,6 +2296,26 @@ app_plugin_object_set_active(
 
 int
 app_plugin_object_ready(
+    void* user,
+    int handle);
+
+void
+app_plugin_object_set_fine_position(
+    void* user,
+    int handle,
+    int fine_x,
+    int fine_z,
+    int level,
+    int height,
+    int yaw);
+
+int
+app_plugin_object_element(
+    void* user,
+    int handle);
+
+int
+app_plugin_object_hit(
     void* user,
     int handle);
 

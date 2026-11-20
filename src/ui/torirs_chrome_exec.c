@@ -2,6 +2,8 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* A full restatement emits one global style command, four commands per panel
@@ -1550,7 +1552,13 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
     case TORIRS_CHROME_INTENT_CUSTOM_ACTIVATE:
         if( !ToriRSChrome_CustomActivate(
                 ui, intent->widget, intent->x, intent->y) )
+        {
+            if( getenv("TORIRS_CHROME_DEBUG") )
+                fprintf(
+                    stderr, "chrome: well click on widget %d at %d,%d is outside its model box\n",
+                    intent->widget, intent->x, intent->y);
             return 0;
+        }
         ui->activated_selection_generation = intent->selection_generation;
         ui->activated_widget_serial = intent->widget_serial;
         return 1;

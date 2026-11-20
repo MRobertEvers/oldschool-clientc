@@ -597,9 +597,15 @@ struct ToriRS_WidgetApi
      * GAME writes the cell itself (a script's cc_setobject), which drops the
      * edit -- RuneLite's order. Any other native widget is NATIVE_BLOCKED.
      * set_opacity on a native widget is the same kind of retained edit of
-     * its transparency. */
+     * its transparency. `quantity_mode` is the count rule the item draws
+     * with, RuneLite's ItemQuantityMode (0 NEVER, 1 ALWAYS, 2 STACKABLE --
+     * setItemQuantityMode: the bank tab numbers every re-laid cell), or -1
+     * for the cell's own rule (the game's on a native cell, STACKABLE on an
+     * owned control); on a native cell it rides the re-lay and goes with it.
+     * Outside -1..2 is INVALID_ARGUMENT. */
     enum ToriRS_ContractResult (*create_item)(void*, struct ToriRS_WidgetRef parent, char const* key, struct ToriRS_WidgetRef* out);
-    enum ToriRS_ContractResult (*set_item)(void*, struct ToriRS_WidgetRef, int32_t obj_id, int32_t quantity);
+    enum ToriRS_ContractResult (*set_item)(void*, struct ToriRS_WidgetRef, int32_t obj_id, int32_t quantity,
+                                         int32_t quantity_mode);
     /* A CACHE sprite (setSpriteId). On an owned image control it is the
      * control's art at the control's size; on a native sprite or graphic it
      * is a retained re-skin exactly like set_image with size 0,0 (reset drops

@@ -3030,10 +3030,35 @@ main_chrome_scale_q(
         if( touch && q < TORIRS_CHROME_SCALEQ_TOUCH_MIN )
             q = TORIRS_CHROME_SCALEQ_TOUCH_MIN;
     }
-    else if( cfg_chrome_scale < 0 )
-        q = main_dynamic_chrome_scale(PlatformWindow_ChromeDensityPercent(platform), touch);
     else
-        q = PlatformWindow_PixelDensity(platform) * TORIRS_CHROME_SCALEQ_ONE;
+    {
+        int canvas_percent;
+
+        if( cfg_chrome_scale < 0 )
+            q = main_dynamic_chrome_scale(PlatformWindow_ChromeDensityPercent(platform), touch);
+        else
+            q = PlatformWindow_PixelDensity(platform) * TORIRS_CHROME_SCALEQ_ONE;
+        /*
+         * The display's density is device pixels per chrome pixel. Chrome
+         * drawn INTO the canvas is laid out in canvas pixels, and a game
+         * lane's canvas is already presented at its layout percent (200% on a
+         * 2x display): at the display's q it came out twice the size the
+         * game's own interfaces are -- the plugin window "at 2x on the GL
+         * lanes", which were the ones run in a real 2x window. So divide the
+         * canvas's percent back out while the plugin page is drawn in it.
+         * A page on a surface (the SDL strip, a DOM) keeps the display's q:
+         * its pixels are the device's. A touch device is left as it was: its
+         * canvas is fitted to the frame's rows and its chrome sized for a
+         * finger (the 2x floor above), not for the display's density.
+         */
+        canvas_percent = App_ChromeCanvasPercent(app);
+        if( !touch && canvas_percent > 100 )
+        {
+            q = (q * 100 + canvas_percent / 2) / canvas_percent;
+            if( q < TORIRS_CHROME_SCALEQ_ONE )
+                q = TORIRS_CHROME_SCALEQ_ONE;
+        }
+    }
     if( q > TORIRS_CHROME_SCALEQ_MAX )
         q = TORIRS_CHROME_SCALEQ_MAX;
     /* The editor's View > Chrome scale; Auto hands `q` back (and the View

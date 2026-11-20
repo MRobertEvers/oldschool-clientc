@@ -443,6 +443,20 @@ ToriRS_PickHitsClassifyViews(
                 World_PickSetAdd(
                     out_pickset, hit->element_id, type, tile_x, tile_z, tile_level, 0);
             }
+            else if(
+                ElementId_Kind(ElementId_FromRaw(hit->element_id)) == TORIDRAW_ELEMENT_KIND_NONE &&
+                out_pickset->unclassified_count < WORLD_PICKSET_UNCLASSIFIED_MAX )
+            {
+                /* An untagged model that is no game entity: a plugin's scene
+                 * object. Never a menu row; kept for the plugin's own hit
+                 * test (app_plugin_object_hit). Once per element. */
+                bool seen = false;
+                for( int k = 0; k < out_pickset->unclassified_count; k++ )
+                    if( out_pickset->unclassified[k] == hit->element_id )
+                        seen = true;
+                if( !seen )
+                    out_pickset->unclassified[out_pickset->unclassified_count++] = hit->element_id;
+            }
         }
     }
 

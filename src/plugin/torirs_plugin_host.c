@@ -431,9 +431,13 @@ struct ToriRS_PluginHost
     bool menu_routes_reported;
     int route_count;
     int next_action;
-    /* The build's edit plan (menu.set_order / set_text), taken when the build
-     * ends. `menu_rows` is the menu's row count now; `menu_payload_at` maps a
-     * payload row to its index now (-1 once dropped). */
+    /* The dispatching plugin's edit plan (menu.set_order / set_text), applied
+     * when ITS on_menu_build returns, so the next plugin (lower
+     * event_priority) is handed the menu as this one left it -- RuneLite's
+     * MenuEntryAdded subscribers each editing the one client menu in priority
+     * order. `menu_rows` is the menu's row count now; `menu_payload_at` maps a
+     * row of the payload the plugin was handed to its index now (-1 once
+     * dropped). */
     int menu_rows;
     int menu_payload_count;
     int menu_payload_at[TORIRS_PLUGIN_MENU_ROWS_MAX];
@@ -442,6 +446,15 @@ struct ToriRS_PluginHost
     int menu_order_plugin;
     int menu_order_count;
     struct PluginMenuOrderEntry menu_order[PLUGIN_MENU_ORDER_MAX];
+    /* Per CURRENT menu index: a plan sank this row (MenuEntry.setDeprioritized).
+     * Carried through every later permute; the rows are stable-partitioned to
+     * the bottom once, after every plugin and the entity holders. */
+    bool menu_deprio[PLUGIN_MENU_PERMUTE_MAX];
+    /* The menu moved since the payload was taken (a row added, dropped,
+     * reordered or retexted): the next plugin gets a fresh payload. */
+    bool menu_changed;
+    /* A plugin's order was applied this build: the caller must not re-sort. */
+    bool menu_ordered;
 
     /* The plugin currently being dispatched, so the api knows whose ctx it is
      * serving without every call carrying it separately. */
@@ -2118,6 +2131,20 @@ api_world_entity_to_main(
         ctx->host->engine.user, id, deck_fine_x, deck_fine_z, out_fine_x, out_fine_z);
 }
 
+static int
+api_world_entity_loc_next(
+    struct PluginContext* ctx,
+    int id,
+    int iter,
+    struct ToriRS_ScenerySnapshot* out)
+{
+    assert(ctx);
+    assert(out);
+    if( !ctx->host->engine.world_entity_loc_next )
+        return -1;
+    return ctx->host->engine.world_entity_loc_next(ctx->host->engine.user, id, iter, out);
+}
+
 static uint32_t
 api_setting_color(
     struct PluginContext* ctx,
@@ -2181,6 +2208,8 @@ api_menu_add(
     route->tag = tag;
     route->index = host->menu_rows++;
     route->entity = false;
+    host->menu_deprio[route->index] = false;
+    host->menu_changed = true;
     return 1;
 }
 
@@ -2197,6 +2226,9 @@ plugin_menu_drop_at(
     if( !host->engine.menu_drop(host->engine.user, cursor, index) )
         return;
     host->menu_rows--;
+    host->menu_changed = true;
+    for( int at = index; at < host->menu_rows; at++ )
+        host->menu_deprio[at] = host->menu_deprio[at + 1];
     for( int i = 0; i < host->menu_payload_count; i++ )
     {
         if( host->menu_payload_at[i] == index )
@@ -2216,7 +2248,79 @@ plugin_menu_drop_at(
 static bool
 plugin_menu_edits_supported(struct ToriRS_PluginHost const* host)
 {
-    return host->engine.menu_count && host->engine.menu_set_text && host->engine.menu_permute;
+    return host->engine.menu_count && host->engine.menu_set_text && host->engine.menu_permute &&
+           host->engine.menu_row;
+}
+
+/*
+ * Rebuild the menu as order[0..count) of CURRENT indices and keep every
+ * recorded position true: payload rows, routes and the deprioritized flags
+ * follow their rows; a row not listed is gone.
+ */
+static void
+plugin_menu_permute(
+    struct ToriRS_PluginHost* host,
+    void* cursor,
+    int const* order,
+    int count)
+{
+    int where[PLUGIN_MENU_PERMUTE_MAX];
+    bool deprio[PLUGIN_MENU_PERMUTE_MAX];
+
+    assert(host);
+    assert(cursor);
+    assert(order);
+    assert(count >= 0);
+    assert(count <= host->menu_rows);
+    assert(host->menu_rows <= PLUGIN_MENU_PERMUTE_MAX);
+    for( int at = 0; at < host->menu_rows; at++ )
+        where[at] = -1;
+    for( int k = 0; k < count; k++ )
+    {
+        assert(order[k] >= 0);
+        assert(order[k] < host->menu_rows);
+        where[order[k]] = k;
+        deprio[k] = host->menu_deprio[order[k]];
+    }
+    host->engine.menu_permute(host->engine.user, cursor, order, count);
+    for( int k = 0; k < count; k++ )
+        host->menu_deprio[k] = deprio[k];
+    for( int i = 0; i < host->menu_payload_count; i++ )
+        if( host->menu_payload_at[i] >= 0 )
+            host->menu_payload_at[i] = where[host->menu_payload_at[i]];
+    for( int r = 0; r < host->route_count; r++ )
+        if( host->routes[r].index >= 0 )
+            host->routes[r].index = where[host->routes[r].index];
+    host->menu_rows = count;
+    host->menu_changed = true;
+}
+
+/*
+ * Hand the next plugin the menu as it stands: every row, bottom first, the
+ * other plugins' rows included (RuneLite's getMenuEntries in a later
+ * MenuEntryAdded subscriber). Payload row i is menu row i again.
+ */
+static void
+plugin_menu_retake(
+    struct ToriRS_PluginHost* host,
+    void* cursor,
+    struct ToriRS_MenuBuildEvent* menu)
+{
+    int const total = host->engine.menu_count(host->engine.user, cursor);
+
+    assert(host);
+    assert(menu);
+    assert(total == host->menu_rows);
+    assert(total <= TORIRS_PLUGIN_MENU_ROWS_MAX);
+    for( int i = 0; i < total; i++ )
+    {
+        host->engine.menu_row(host->engine.user, cursor, i, &menu->rows[i]);
+        host->menu_payload_at[i] = i;
+        host->menu_text_set[i] = false;
+    }
+    menu->row_count = total;
+    host->menu_payload_count = total;
+    host->menu_changed = false;
 }
 
 static enum ToriRS_Result
@@ -2260,6 +2364,8 @@ api_menu_set_order(
         }
         if( rows[i].row != -1 )
             return TORIRS_RESULT_INVALID;
+        /* Only a row this plugin added in THIS handler is named by tag: an
+         * earlier plugin's row is a payload row by now. */
         for( int r = 0; r < host->route_count; r++ )
         {
             if( host->routes[r].plugin == ctx->index && !host->routes[r].entity && host->routes[r].tag == rows[i].tag )
@@ -2317,82 +2423,78 @@ api_menu_shown(
 }
 
 /*
- * The build's edit plan, after every plugin and the entity holders: the row
- * texts, then the order. Returns true when an order was applied (the caller
- * must not re-sort).
- *
- * The order's menu, bottom first: the routes the plan does not name and its
- * own plugin did not add (another plugin's, the entity holders') where the
- * default sort would put them, at the bottom; then the plan's rows in its own
- * order, the deprioritized ones below the rest; then the
- * native rows past the payload, on top where they were. A payload row or an
- * own route the plan leaves out is gone, as RuneLite's setMenuEntries drops it.
+ * One plugin's edits, as its on_menu_build returns: the row texts, then the
+ * order. The menu at that point holds the payload this plugin was handed and
+ * the rows it added itself, nothing else (a payload is retaken whenever an
+ * earlier plugin moved the menu), so the plan names every row: one it leaves
+ * out is gone, as RuneLite's setMenuEntries drops it. A deprioritized entry
+ * keeps its place in the list for now and is flagged; the flagged rows sink
+ * below the rest once every plugin and holder ran
+ * (plugin_menu_sink_deprioritized).
  */
-static bool
+static void
 plugin_menu_apply_plan(
     struct ToriRS_PluginHost* host,
     void* cursor)
 {
     int order[PLUGIN_MENU_PERMUTE_MAX];
     int n = 0;
-    bool listed_route[TORIRS_PLUGIN_MENU_ROUTES_MAX];
 
     assert(host);
     assert(cursor);
     if( !plugin_menu_edits_supported(host) )
-        return false;
+        return;
     for( int i = 0; i < host->menu_payload_count; i++ )
     {
         if( host->menu_text_set[i] && host->menu_payload_at[i] >= 0 )
+        {
             host->engine.menu_set_text(host->engine.user, cursor, host->menu_payload_at[i], host->menu_text[i]);
+            host->menu_changed = true;
+        }
+        host->menu_text_set[i] = false;
     }
     if( host->menu_order_plugin < 0 )
-        return false;
+        return;
 
-    memset(listed_route, 0, sizeof(listed_route));
     for( int k = 0; k < host->menu_order_count; k++ )
-        if( host->menu_order[k].route >= 0 )
-            listed_route[host->menu_order[k].route] = true;
-    /* Unnamed routes of other owners, bottom. */
-    for( int r = 0; r < host->route_count; r++ )
     {
-        bool const own = host->routes[r].plugin == host->menu_order_plugin && !host->routes[r].entity;
-        if( listed_route[r] || host->routes[r].index < 0 || own )
+        struct PluginMenuOrderEntry const* e = &host->menu_order[k];
+        int const at = e->route >= 0 ? host->routes[e->route].index : host->menu_payload_at[e->payload];
+        if( at < 0 )
             continue;
-        if( n < PLUGIN_MENU_PERMUTE_MAX )
-            order[n++] = host->routes[r].index;
+        if( e->deprioritized )
+            host->menu_deprio[at] = true;
+        order[n++] = at;
     }
-    /* The plan: deprioritized rows first (lower), then the rest. */
+    plugin_menu_permute(host, cursor, order, n);
+    host->menu_ordered = true;
+    host->menu_order_plugin = -1;
+    host->menu_order_count = 0;
+}
+
+/* Every row a plan deprioritized, below every other row, each half in its
+ * order (MenuEntry.setDeprioritized). */
+static void
+plugin_menu_sink_deprioritized(
+    struct ToriRS_PluginHost* host,
+    void* cursor)
+{
+    int order[PLUGIN_MENU_PERMUTE_MAX];
+    int n = 0;
+    bool any = false;
+
+    assert(host);
+    assert(cursor);
+    for( int at = 0; at < host->menu_rows; at++ )
+        any = any || host->menu_deprio[at];
+    if( !any )
+        return;
     for( int pass = 0; pass < 2; pass++ )
-    {
-        for( int k = 0; k < host->menu_order_count; k++ )
-        {
-            struct PluginMenuOrderEntry const* e = &host->menu_order[k];
-            int at;
-            if( e->deprioritized != (pass == 0) )
-                continue;
-            at = e->route >= 0 ? host->routes[e->route].index : host->menu_payload_at[e->payload];
-            if( at >= 0 && n < PLUGIN_MENU_PERMUTE_MAX )
+        for( int at = 0; at < host->menu_rows; at++ )
+            if( host->menu_deprio[at] == (pass == 0) )
                 order[n++] = at;
-        }
-    }
-    /* Native rows past the payload, top: they are every index below the
-     * menu's native count that no payload slot names. */
-    {
-        int const total = host->engine.menu_count(host->engine.user, cursor);
-        for( int at = 0; at < total; at++ )
-        {
-            bool named = false;
-            for( int i = 0; i < host->menu_payload_count && !named; i++ )
-                named = host->menu_payload_at[i] == at;
-            for( int r = 0; r < host->route_count && !named; r++ )
-                named = host->routes[r].index == at;
-            if( !named && n < PLUGIN_MENU_PERMUTE_MAX )
-                order[n++] = at;
-        }
-    }
-    host->engine.menu_permute(host->engine.user, cursor, order, n);
-    return true;
+    plugin_menu_permute(host, cursor, order, n);
+    host->menu_ordered = true;
 }
 
 /* -- ground items -- */
@@ -4030,6 +4132,47 @@ api_object_ready(
     return ctx->host->engine.object_ready(ctx->host->engine.user, object);
 }
 
+/* 0 when the engine has no sub-tile placement (UNSUPPORTED). */
+static int
+api_object_set_fine_position(
+    struct PluginContext* ctx,
+    int object,
+    int fine_x,
+    int fine_z,
+    int level,
+    int height,
+    int yaw)
+{
+    plugin_object_assert_owned(ctx, object);
+    if( !ctx->host->engine.object_set_fine_position )
+        return 0;
+    ctx->host->engine.object_set_fine_position(
+        ctx->host->engine.user, object, fine_x, fine_z, level, height, yaw);
+    return 1;
+}
+
+static int
+api_object_element(
+    struct PluginContext* ctx,
+    int object)
+{
+    plugin_object_assert_owned(ctx, object);
+    if( !ctx->host->engine.object_element )
+        return -1;
+    return ctx->host->engine.object_element(ctx->host->engine.user, object);
+}
+
+static int
+api_object_hit(
+    struct PluginContext* ctx,
+    int object)
+{
+    plugin_object_assert_owned(ctx, object);
+    if( !ctx->host->engine.object_hit )
+        return 0;
+    return ctx->host->engine.object_hit(ctx->host->engine.user, object);
+}
+
 /* -- colour -- */
 
 static int
@@ -4436,7 +4579,8 @@ api_panel_set_height(
         return false;
     if( preferred_height == 0 )
         preferred_height = TORIRS_PANEL_CUSTOM_HEIGHT_DEFAULT;
-    if( preferred_height < TORIRS_PANEL_CUSTOM_HEIGHT_MIN )
+    if( preferred_height < TORIRS_PANEL_CUSTOM_HEIGHT_MIN &&
+        preferred_height != TORIRS_PANEL_CUSTOM_HEIGHT_COLLAPSED )
         preferred_height = TORIRS_PANEL_CUSTOM_HEIGHT_MIN;
     if( preferred_height > TORIRS_PANEL_CUSTOM_HEIGHT_MAX )
         preferred_height = TORIRS_PANEL_CUSTOM_HEIGHT_MAX;
@@ -5726,6 +5870,7 @@ plugin_entity_apply_ops(
             route->tag = holder->tag;
             route->index = host->menu_rows++;
             route->entity = true;
+            host->menu_deprio[route->index] = false;
         }
     }
 }
@@ -8377,6 +8522,59 @@ PluginHost_DrawCanvas(
     PA_ADD(draw_canvas_ns, PerfAudit_Now() - pa_t0);
 }
 
+/*
+ * on_menu_build, one plugin at a time in event order (higher event_priority
+ * first), each handed the menu as the ones before it left it: a payload is
+ * retaken before a plugin when an earlier one added, dropped, retexted or
+ * reordered a row, and each plugin's own edits land when its handler returns.
+ * So two plugins that both order the menu compose -- the later one orders the
+ * earlier one's result, with its rows in the payload -- as RuneLite's
+ * MenuEntryAdded subscribers edit one client menu in priority order. A
+ * CONSUME stops the build's dispatch, as plugin_dispatch's does.
+ */
+static void
+plugin_dispatch_menu_build(
+    struct ToriRS_PluginHost* host,
+    void* cursor,
+    struct ToriRS_MenuBuildEvent* menu)
+{
+    enum PluginCallbackKind const ev = PLUGIN_CALLBACK_MENU_BUILD;
+    int const prev_dispatching = host->dispatching;
+    int const prev_event = host->dispatch_event;
+    struct DispatchEntry { int plugin; uint64_t lifecycle; } snapshot[TORIRS_PLUGIN_MAX];
+    int count = 0;
+
+    assert(host);
+    assert(cursor);
+    assert(menu);
+    for( int i = 0; i < host->plugin_count; ++i )
+    {
+        struct PluginContext const* ctx = &host->plugins[host->event_order[i]];
+        if( ctx->enabled && ctx->running && plugin_v2_has_event_callback(ctx->def, ev) )
+            snapshot[count++] = (struct DispatchEntry){ host->event_order[i], ctx->lifecycle };
+    }
+    for( int i = 0; i < count; i++ )
+    {
+        int const plugin = snapshot[i].plugin;
+        struct PluginContext* ctx = &host->plugins[plugin];
+        enum ToriRS_CallbackResult verdict;
+
+        if( !ctx->enabled || !ctx->running || ctx->lifecycle != snapshot[i].lifecycle ||
+            !plugin_v2_has_event_callback(ctx->def, ev) )
+            continue;
+        if( host->menu_changed && plugin_menu_edits_supported(host) )
+            plugin_menu_retake(host, cursor, menu);
+        host->dispatching = plugin;
+        host->dispatch_event = ev;
+        verdict = plugin_v2_event(ctx, menu, (void*)(intptr_t)(ev + 1));
+        host->dispatching = prev_dispatching;
+        host->dispatch_event = prev_event;
+        plugin_menu_apply_plan(host, cursor);
+        if( verdict == TORIRS_CALLBACK_CONSUME )
+            break;
+    }
+}
+
 bool
 PluginHost_MenuBuild(
     struct ToriRS_PluginHost* host,
@@ -8384,8 +8582,6 @@ PluginHost_MenuBuild(
     struct ToriRS_MenuBuildEvent* menu,
     bool hover_pass)
 {
-    bool ordered;
-
     if( !host )
         return false;
 
@@ -8402,27 +8598,35 @@ PluginHost_MenuBuild(
      * drop moves it. */
     host->menu_payload_count = menu->row_count;
     host->menu_rows = host->engine.menu_count ? host->engine.menu_count(host->engine.user, cursor) : menu->row_count;
+    assert(host->menu_rows >= menu->row_count);
+    assert(host->menu_rows <= PLUGIN_MENU_PERMUTE_MAX);
     for( int i = 0; i < menu->row_count; i++ )
     {
         host->menu_payload_at[i] = i;
         host->menu_text_set[i] = false;
     }
+    for( int at = 0; at < host->menu_rows; at++ )
+        host->menu_deprio[at] = false;
     host->menu_order_plugin = -1;
     host->menu_order_count = 0;
+    host->menu_changed = false;
+    host->menu_ordered = false;
 
     menu->hover_pass = hover_pass;
     menu->host_cursor = cursor;
     host->menu_cursor = cursor;
     if( host->callback_count[PLUGIN_CALLBACK_MENU_BUILD] > 0 )
-        plugin_dispatch(host, PLUGIN_CALLBACK_MENU_BUILD, menu);
-    /* The entity HITBOX holders, after the plugins' own rows: dropping a row
-     * shifts the ones above it, and a payload handed to a handler must not
-     * shift under it. */
+        plugin_dispatch_menu_build(host, cursor, menu);
+    /* The entity HITBOX holders, after the plugins' own rows and edits, over
+     * the menu as they left it: dropping a row shifts the ones above it, and a
+     * payload handed to a handler must not shift under it. */
+    if( host->menu_changed && plugin_menu_edits_supported(host) )
+        plugin_menu_retake(host, cursor, menu);
     plugin_entity_apply_ops(host, cursor, menu);
-    /* Then the plugins' edits, which name rows by the payload they saw. */
-    ordered = plugin_menu_apply_plan(host, cursor);
+    if( plugin_menu_edits_supported(host) )
+        plugin_menu_sink_deprioritized(host, cursor);
     host->menu_cursor = NULL;
-    return ordered;
+    return host->menu_ordered;
 }
 
 bool

@@ -299,7 +299,7 @@ warn = nil
 
 ---@class torirs.MenuApi
 ---@field add fun(text: string, action_id: integer): boolean Only during on_menu_build; retain the intended operation, not an unchecked native slot.
----@field set_order fun(rows: torirs.MenuRowRef[]): boolean, torirs.ResultName The whole menu of this build, bottom row first (Menu.setMenuEntries): each entry {row = i} (1-based into this build's rows) or {tag = t} (this plugin's menu.add tag of this build), deprioritized = true sinks it below the rest. Unlisted payload rows and own rows are removed; another plugin's rows stay below, native rows past the 16 the payload carries stay on top. Taken when the build ends and NOT re-sorted. Only during on_menu_build; 'invalid' for a bad index/tag or a row listed twice.
+---@field set_order fun(rows: torirs.MenuRowRef[]): boolean, torirs.ResultName The whole menu of this build, bottom row first (Menu.setMenuEntries): each entry {row = i} (1-based into this build's rows) or {tag = t} (this plugin's menu.add tag of this build), deprioritized = true sinks it below the rest. ev.rows is the WHOLE menu as it stands when this handler runs (native rows and every earlier plugin's rows, in the order it left them), so an unlisted row is removed. Applied when this handler returns; plugins run in event_priority order (higher first), each ordering the menu the ones before it left (RuneLite's subscriber priority), and the build is NOT re-sorted. A deprioritized row sinks below the rest once the build is done. Only during on_menu_build; 'invalid' for a bad index/tag or a row listed twice.
 ---@field set_text fun(row: integer, text: string): boolean, torirs.ResultName Replace a payload row's drawn text (option, a space, the target with @tag@ colours); it keeps its action. 'budget' past 127 bytes. Only during on_menu_build.
 ---@field shown fun(): {x: integer, y: integer, width: integer, height: integer}? The right-click menu's box while it is up (Client.isMenuOpen, Menu.getMenuX/Y/Width/Height), nil otherwise.
 
@@ -346,6 +346,9 @@ warn = nil
 ---@field instance_animation fun(instance: torirs.SceneInstanceRef, sequence_id: integer, loop: boolean): boolean, torirs.ResultName
 ---@field instance_light fun(instance: torirs.SceneInstanceRef, ambient: integer, contrast: integer): boolean, torirs.ResultName
 ---@field instance_ready fun(instance: torirs.SceneInstanceRef): boolean
+---@field instance_place fun(instance: torirs.SceneInstanceRef, fine_x: integer, fine_z: integer, level: integer, height?: integer, yaw?: integer): boolean, torirs.ResultName instance_position at a sub-tile point: ABSOLUTE fine units (tile*128 + 0..127; 64 = the tile's centre, where instance_position stands it). RuneLite's RuneLiteObject.setLocation(LocalPoint). 'invalid' for a negative coordinate, a level outside 0..3 or a yaw outside 0..2047.
+---@field instance_element fun(instance: torirs.SceneInstanceRef): integer? The scene element it is drawn as (draw.world_hull / draw.element_height take it); nil while it is not drawn (model loading, off the scene, never placed). An inactive instance keeps its element.
+---@field instance_hit fun(instance: torirs.SceneInstanceRef): boolean The pointer is on its MODEL in the frame's per-triangle pick (the one the minimenu is built from; the instance is never a menu row itself): RuneLite's getClickbox(...).contains(mouse). false while inactive, not drawn, or the pointer is off the viewport.
 
 ---@class torirs.PanelApi
 ---@field request fun(description: torirs.PanelDescription): boolean, torirs.ResultName
@@ -360,7 +363,7 @@ warn = nil
 --- this rather than taking a second spelling for it.
 ---@field set_label fun(id: string, label: string): boolean, torirs.ResultName
 ---@field set_value fun(id: string, value: integer|boolean): boolean, torirs.ResultName
----@field set_height fun(id: string, preferred_height: integer): boolean, torirs.ResultName
+---@field set_height fun(id: string, preferred_height: integer): boolean, torirs.ResultName A custom well's height: 0 the default, under 48 raised to 48, -1 collapses it (hidden, no room; a later height shows it again).
 ---@field set_options fun(id: string, value: string, options: torirs.SelectOption[]): boolean, torirs.ResultName
 ---@field redraw fun(id: string)
 --- Mint one row a new identity, so a click authored against the picture it
@@ -537,6 +540,7 @@ warn = nil
 ---@field container_slot fun(container_id: integer, slot: integer): integer?, integer? One slot of that container: obj id (-1 empty) and count; nil when it is not held or the slot is outside it.
 ---@field world_entity_next fun(cursor?: integer): integer?, torirs.WorldEntity? WorldView.worldEntities(): the live sailing boats, iterator of npc_next. Anything aboard is addressed in the entity's own staging rectangle (base_x/base_z, size_x/size_z).
 ---@field world_entity_to_main fun(id: integer, deck_fine_x: integer, deck_fine_z: integer): integer?, integer? WorldEntity.transformToMainWorld: a point of the entity's own world (fine units from its staging base) to ABSOLUTE root fine units, through the hull's live position and yaw; nil when the entity is gone.
+---@field world_entity_loc_next fun(id: integer, cursor?: integer): integer?, torirs.ScenerySnap? The locs of the entity's OWN world (deck and hull pieces; WorldEntity.getWorldView().getScene()), scenery_next's iterator and shape: tiles ABSOLUTE in its staging rectangle (minus base_x/base_z = the deck tile world_entity_to_main carries), level its own plane, element_id the drawn model. nil at the end or for an entity that is not live.
 
 ---@class torirs.WorldEntity
 ---@field id integer Wire id = its world view id (never 0).
@@ -569,7 +573,7 @@ warn = nil
 ---@field image_clip fun(image: torirs.ImageRef, x: integer, y: integer, clip: torirs.Rect, alpha?: integer)
 ---@field context fun(): torirs.DrawContext?
 ---@field polygon fun(points: number[], fill_rgb: torirs.Colour, fill_alpha: integer, outline_rgb?: torirs.Colour, outline_width?: integer): boolean, torirs.ResultName `points` = {x1, y1, x2, y2, ...} callback pixels, 1..256 points, floats truncated like Java's (int); even-odd fill (java.awt.Polygon's) when fill_alpha > 0; a border only when outline_rgb is given (width default 1, 0 draws none); 'budget' when the frame's allotment is spent.
----@field text_width fun(text: string): integer? Pixel width in the font `text` draws with; nil while that font is not resident. `text` draws CENTRED on x, so a left-aligned layout adds half of this.
+---@field text_width fun(text: string): integer? Pixel width in the font `text` draws with; nil while that font is not resident. `text` draws CENTRED on x, so a left-aligned layout adds half of this -- except in a panel well's draw (on_ui_draw), where it STARTS at x on every presenter.
 ---@field text_height fun(): integer? That font's line height; nil while it is not resident.
 ---@field project fun(fine_x: integer, fine_z: integer, height?: integer): integer?, integer? api.draw.project, in this callback's coordinates.
 ---@field minimap_project fun(fine_x: integer, fine_z: integer): integer?, integer? Scene-local fine point on the minimap as drawn this frame (rotation, 4 px/tile, around the local player); nil when the map is not drawn, or past the dot ring, or outside the map box -- where the client draws no dot either.
@@ -675,7 +679,7 @@ warn = nil
 ---@field set_native_text fun(self:torirs.Widget,text:string):boolean,string Retained edit of a NATIVE text widget's string (setText), owner-scoped like set_hidden; reset/teardown shows the game's text again, and the game writing a new string drops it (restate it, as RuneLite plugins do). <= 4096 bytes. Owned or non-text: native_blocked.
 ---@field set_native_text_color fun(self:torirs.Widget,color:torirs.Colour):boolean,string Retained edit of a NATIVE text widget's base colour (setTextColor); a cache hover/active colour still wins while it applies.
 ---@field create_item fun(self:torirs.Widget,key:string):torirs.Widget? Owned item control (createChild GRAPHIC + setItemId), keyed and idempotent like create_image (shares its keys).
----@field set_item fun(self:torirs.Widget,obj:integer,quantity:integer?):boolean,string An owned item control's obj (-1 clears) and stack (default 1); on a NATIVE item cell (graphic/objbox, e.g. a bank slot) a retained re-lay every reader sees, until reset/teardown restores the game's or the game writes the cell (which drops it). 'pending' while the obj's model loads; the icon then appears by itself. Other native widgets: native_blocked.
+---@field set_item fun(self:torirs.Widget,obj:integer,quantity:integer?,quantity_mode:integer?):boolean,string An owned item control's obj (-1 clears) and stack (default 1); on a NATIVE item cell (graphic/objbox, e.g. a bank slot) a retained re-lay every reader sees, until reset/teardown restores the game's or the game writes the cell (which drops it). quantity_mode = RuneLite's ItemQuantityMode (0 never, 1 always, 2 stackable; -1/absent the cell's own rule), carried with the re-lay; outside -1..2 raises. 'pending' while the obj's model loads; the icon then appears by itself. Other native widgets: native_blocked.
 ---@field create_rect fun(self:torirs.Widget,key:string):torirs.Widget? Owned RECTANGLE control, keyed like create_image (shares its keys).
 ---@field set_rect fun(self:torirs.Widget,rgb:integer,filled:boolean?):boolean,string An owned rectangle's colour and fill (an outline is 1 px); opacity is set_opacity.
 ---@field create_model fun(self:torirs.Widget,key:string):torirs.Widget? Owned MODEL control, keyed like create_image; draws nothing until set_model.
@@ -972,7 +976,7 @@ warn = nil
 ---@field text? string
 ---@field value? integer toggle: the checked state. progress: the bar.
 ---@field options? torirs.SelectOption[] select only. Copied: a stack local is fine.
----@field height? integer custom: the well's logical height.
+---@field height? integer custom: the well's logical height (48..2048; -1 COLLAPSES it: still declared, hidden on every presenter, grown back by a later height).
 ---@field disabled? boolean button: drawn dim, pressing it does nothing.
 ---@field hit_key? integer custom: the y-to-item identity. A VALUE change must not be in it.
 ---@field paint_key? integer custom: what the next paint will draw. A change to it is one redraw.

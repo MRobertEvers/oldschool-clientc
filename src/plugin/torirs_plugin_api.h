@@ -302,7 +302,10 @@ struct ToriRS_Graphics
      * on which `text` draws nothing.
      *
      * `text` draws CENTRED on its x with y as the baseline, so a caller laying
-     * text out from a left edge adds half of this.
+     * text out from a left edge adds half of this. In a panel well's draw
+     * (on_ui_draw) it STARTS at x instead, on every presenter (the in-canvas
+     * and surface pages draw a chrome TEXT prim; the browser pages' raster
+     * moves the centred world text by half this width to match).
      */
     int (*text_width)(
         struct ToriRS_Graphics* draw,
@@ -675,17 +678,21 @@ struct ToriRS_MenuApi
      * The whole menu of this build, bottom row first as the payload lists it
      * (RuneLite's Menu.setMenuEntries / removeMenuEntry / createMenuEntry's
      * index): each entry a payload row or one of this plugin's own rows from
-     * this build (@see ToriRS_MenuRowRef). A payload row or own row that is
-     * NOT listed is removed. Rows this call cannot name keep their place
-     * apart from it: another plugin's and the entity holders' rows go below
-     * the listed ones, a native row past the payload's
-     * TORIRS_PLUGIN_MENU_ROWS_MAX above them. Taken when the build ends,
-     * after every plugin and holder ran; the menu is then NOT re-sorted, so
-     * the order stands as given (deprioritized rows below the rest). The
-     * last plugin to call it in a build wins. INVALID for an index outside
-     * the payload, a tag this plugin did not add in this build, a row listed
-     * twice, or more than TORIRS_PLUGIN_MENU_ROWS_MAX +
-     * TORIRS_PLUGIN_MENU_ROUTES_MAX entries. Only inside on_menu_build.
+     * this handler (@see ToriRS_MenuRowRef). The payload is the WHOLE menu as
+     * it stands when this plugin's handler runs -- the native rows and every
+     * row an earlier plugin added, in the order it left them -- so the list
+     * names every row, and one NOT listed is removed. Applied when this
+     * plugin's on_menu_build returns; plugins run in event order (higher
+     * `event_priority` first), so a later plugin orders the menu an earlier
+     * one ordered, as RuneLite's subscribers compose by priority. Within one
+     * handler the last call wins. The menu is then NOT re-sorted. A
+     * deprioritized row keeps its place in the list and sinks below every
+     * row not deprioritized once the build is done (each half in order); the
+     * mark stays with the row for the rest of the build. The entity holders'
+     * rows come after every plugin. INVALID for an index outside the payload,
+     * a tag this plugin did not add in this handler, a row listed twice, or
+     * more than TORIRS_PLUGIN_MENU_ROWS_MAX + TORIRS_PLUGIN_MENU_ROUTES_MAX
+     * entries. Only inside on_menu_build.
      */
     enum ToriRS_Result (*set_order)(
         struct ToriRS_Api* api,
@@ -696,8 +703,8 @@ struct ToriRS_MenuApi
      * Replace the drawn text of payload row `row` (MenuEntry.setOption /
      * setTarget on a native row): the option, a space and the target, with
      * the client's @tag@ colours. The row keeps its action, so a click still
-     * does what the game row does. Taken when the build ends; the last text
-     * set for a row wins. BUDGET past 127 bytes, INVALID for an index outside
+     * does what the game row does. Applied when this plugin's handler returns
+     * (a later plugin's payload shows it); the last text set for a row wins. BUDGET past 127 bytes, INVALID for an index outside
      * the payload. Only inside on_menu_build.
      */
     enum ToriRS_Result (*set_text)(
@@ -964,7 +971,44 @@ struct ToriRS_SceneApi
     bool (*instance_ready)(
         struct ToriRS_Api* api,
         struct ToriRS_SceneInstanceRef instance);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 7])(void);
+    /**
+     * instance_position at a SUB-TILE point: `fine_x`/`fine_z` are ABSOLUTE
+     * fine units (tile * 128 + 0..127; 64 is a tile's centre, which is where
+     * instance_position stands an instance), level 0..3, yaw 0..2047, height
+     * up from the ground. RuneLite's RuneLiteObject.setLocation(LocalPoint)
+     * at the point's own position (a fake npc walking between tiles).
+     * INVALID for a negative coordinate or a level/yaw out of range;
+     * UNSUPPORTED on an engine without it.
+     */
+    enum ToriRS_Result (*instance_place)(
+        struct ToriRS_Api* api,
+        struct ToriRS_SceneInstanceRef instance,
+        int fine_x,
+        int fine_z,
+        int level,
+        int height,
+        int yaw);
+    /**
+     * The scene element the instance is drawn as (what draw.world_hull and
+     * draw.element_height take), -1 while it is not drawn: its model still
+     * loading, off the scene, or never placed. An inactive instance keeps
+     * its element (it is hidden, not torn down).
+     */
+    int (*instance_element)(
+        struct ToriRS_Api* api,
+        struct ToriRS_SceneInstanceRef instance);
+    /**
+     * Whether the pointer is on the instance's MODEL: the frame's
+     * per-triangle pick (the render pass's hit test the minimenu is built
+     * from; a plugin object is never a menu row itself) -- RuneLite's
+     * Perspective.getClickbox(...).contains(mouse). false when the instance
+     * is inactive or not drawn, or the pointer is off the viewport. A plugin
+     * offers its own rows for it from on_menu_build.
+     */
+    bool (*instance_hit)(
+        struct ToriRS_Api* api,
+        struct ToriRS_SceneInstanceRef instance);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 10])(void);
 };
 
 struct ToriRS_PanelApi
@@ -1003,6 +1047,10 @@ struct ToriRS_PanelApi
         struct ToriRS_Api* api,
         char const* id,
         int value);
+    /** A CUSTOM well's logical height: 0 the default, under
+     *  TORIRS_PANEL_CUSTOM_HEIGHT_MIN raised to it, except
+     *  TORIRS_PANEL_CUSTOM_HEIGHT_COLLAPSED, which hides the well on every
+     *  presenter until a later height shows it again (no page rebuild). */
     enum ToriRS_Result (*set_height)(
         struct ToriRS_Api* api,
         char const* id,
@@ -1548,7 +1596,22 @@ struct ToriRS_GameApi
         int deck_fine_z,
         int* out_fine_x,
         int* out_fine_z);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 9])(void);
+    /**
+     * WorldEntity.getWorldView().getScene(): the locs of entity `id`'s OWN
+     * world -- its deck and hull pieces -- by the iterator protocol of
+     * world.scenery_next (-1 starts; a negative answer ends, also for an id
+     * that is not live). tile_x/tile_z are ABSOLUTE tiles of its staging
+     * rectangle (relative to base_x/base_z they are the deck-local tile a
+     * point carries through world_entity_to_main), level its own plane,
+     * element_id the drawn model (draw.world_hull outlines it where the
+     * descent draws it). Scene-scoped like scenery_next.
+     */
+    int (*world_entity_loc_next)(
+        struct ToriRS_Api* api,
+        int id,
+        int iterator,
+        struct ToriRS_ScenerySnapshot* out);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 10])(void);
 };
 
 /* ------------------------------------------------------------------------ */

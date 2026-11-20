@@ -1595,12 +1595,15 @@ app_obj_cell_at(
 /* Run the default (top) menu row for a click at (x, y) — the reference
  * doAction(menuNumEntries - 1) short-click path. UI rows only (no world
  * pickset): used by the inventory slot machine below, where the click is by
- * construction over a component. */
-static void
-app_run_default_ui_row(
+ * construction over a component; and by the world map, whose bare-surface
+ * click a plugin's top row takes (app_worldmap.c, `plugin_top_row`).
+ * @return 1 when a row ran, 0 when none did. */
+int
+app_minimenu_run_default_ui_row(
     struct App* app,
     int click_x,
-    int click_y)
+    int click_y,
+    int plugin_top_row)
 {
     struct RS_MinimenuBuildCtx mctx = {
         .tree = app->tree,
@@ -1663,14 +1666,39 @@ app_run_default_ui_row(
                 scratch.options[i].text,
                 scratch.options[i].action);
     }
-    if( default_idx >= 0 )
+    /* `plugin_top_row`: ONLY a plugin's row on TOP is the click's, as
+     * RuneLite's client runs the top entry whatever its type -- a plugin row
+     * is never an ordinary default (RS_Minimenu_ActionIsDefaultable keeps
+     * tools off bare world clicks). A surface whose bare click is its own
+     * (the world map) asks for this, and anything else on top -- an ordinary
+     * defaultable row included -- leaves the click to that surface, as it
+     * was before plugins could put a row there. */
+    if( plugin_top_row )
+    {
+        if( scratch.option_count <= 0 || !app->plugins ||
+            !PluginHost_OwnsMenuAction(app->plugins, scratch.options[scratch.option_count - 1].action) )
+            return 0;
+        default_idx = scratch.option_count - 1;
+    }
+    if( default_idx < 0 )
+        return 0;
     {
         struct UIMinimenu saved = *app->world_views.frame->minimenu;
         *app->world_views.frame->minimenu = scratch;
         app_minimenu_use_option(app, default_idx, click_x, click_y);
         *app->world_views.frame->minimenu = saved;
     }
-    else
+    return 1;
+}
+
+static void
+app_run_default_ui_row(
+    struct App* app,
+    int click_x,
+    int click_y)
+{
+    assert(app);
+    if( !app_minimenu_run_default_ui_row(app, click_x, click_y, 0) )
         /* Cancel-only menu on a FILLED cell, which is what clicking the armed
          * item itself produces: add_inv_slot_select_row skips the arming slot,
          * and while a mode is armed the plain ops are not built, so the menu has

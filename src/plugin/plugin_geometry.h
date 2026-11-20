@@ -90,6 +90,11 @@ struct PluginObject
     int contrast;
     int tile_x; /* ABSOLUTE */
     int tile_z;
+    /** Where in the tile, in fine units 0..127 (64 = its centre: what a
+     *  tile-placed object stands on). instance_place states a sub-tile
+     *  point, RuneLite's LocalPoint. */
+    int sub_x;
+    int sub_z;
     int level;
     int height;
     int yaw;

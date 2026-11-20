@@ -256,8 +256,8 @@ assert.match(legacyRuntime, /type:\s*['"]editor\.focus['"]/,
     "editor focus ownership is part of the downlevel runtime");
 assert.match(legacyRuntime, /state\.theme\.scrollUp[\s\S]{0,120}ScrollUp\.png[\s\S]{0,120}state\.theme\.scrollDown[\s\S]{0,120}ScrollDown\.png/,
     "runtime theme application skins the dropdown arrow, up while open and down while shut");
-assert.match(legacyRuntime, /function customHeightPx[\s\S]{0,200}Math\.max\(48, Math\.min\(512,/,
-    "custom region height is bounded by one shared clamp");
+assert.match(legacyRuntime, /CUSTOM_HEIGHT_MIN = 48;[\s\S]{0,60}CUSTOM_HEIGHT_MAX = 2048;[\s\S]{0,60}function customHeightPx[\s\S]{0,200}Math\.max\(CUSTOM_HEIGHT_MIN, Math\.min\(CUSTOM_HEIGHT_MAX,/,
+    "custom region height is bounded by one shared clamp, the model's (TORIRS_PANEL_CUSTOM_HEIGHT_MIN/_MAX)");
 assert.match(legacyRuntime, /style\.height = customHeightPx\(/,
     "...which is what both the add and the resize place the region with");
 assert.match(legacyRuntime, /case CMD\.WIDGET_HEIGHT[\s\S]{0,800}style\.height = customHeightPx\(/,

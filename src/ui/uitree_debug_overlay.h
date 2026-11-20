@@ -1637,6 +1637,18 @@ struct ToriRSChromeWidget
      *  well, clipped to it; 0 draws it at the well's top-left. */
     int view_sprite_w;
     int view_sprite_h;
+    /**
+     * The row's width in its panel's content column, set by layout for every
+     * row the panel shows -- INCLUDING one scrolled out of the window, whose
+     * hit box (`w`) is zeroed. A custom well's coordinates are its own, not
+     * the window's: an external presenter (the browser page, a native
+     * custom view) lays the page out itself and reports a click on a well
+     * this model has scrolled out of its floating window. Bounding that
+     * click by `w` refused every well below the window's fold (Quest
+     * Helper's quest list in the browser, live 2026-11-20). 0 for a row the
+     * panel does not show at all (hidden, another tab, a collapsed panel).
+     */
+    int content_w;
     /** CUSTOM: the visible intersection of its inner drawing region and the
      * panel's current content clip. Cleared when the row is offscreen. */
     int custom_clip_x;
@@ -2224,6 +2236,12 @@ struct ToriRSChrome
     int free_widget;
     struct ToriRSChromePrim prims[TORIRS_CHROME_MAX_PRIMS];
     int prim_count;
+    /** Where the overlay prims begin -- the open dropdown list, the colour
+     *  popup, the tooltip, built after every panel -- so a presenter that
+     *  draws more over the panels (a plugin page's custom wells) puts it
+     *  BEFORE this index and the popups stay on top. @see
+     *  ToriRSChrome_OverlayPrimStart. */
+    int overlay_prim_start;
 
     /**
      * Where a multiline field's wrapped lines live for the life of a build.
@@ -4000,6 +4018,16 @@ ToriRSChrome_Build(struct ToriRSChrome* ui);
 /** The display list. Valid until the next Build. */
 struct ToriRSChromePrim const*
 ToriRSChrome_Prims(struct ToriRSChrome const* ui, int* out_count);
+
+/**
+ * The index in the display list where the overlay prims begin (the open
+ * dropdown list, the colour popup, the tooltip): every prim before it is a
+ * panel's. A presenter that adds its own drawing over the panels -- the
+ * plugin page's custom wells -- inserts it HERE, or an open list is drawn
+ * under the well beside its button. Equal to the count when none is up.
+ */
+int
+ToriRSChrome_OverlayPrimStart(struct ToriRSChrome const* ui);
 
 /** @return 1 and writes the invalid region when there is one. */
 int

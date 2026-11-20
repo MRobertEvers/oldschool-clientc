@@ -949,6 +949,14 @@ app_worldmap_click(
     int abs_z;
 
     assert(app);
+    /* A left click is the menu's top row first (the reference's doAction of
+     * the top entry): a plugin's row on top over the map -- Quest Helper's
+     * "Focus on <point>", RuneLite's WorldMapOverlay entry -- takes the
+     * click, and the map does not ALSO report it as ClickWorldMap (a teleport
+     * for staff, on a development server for everyone). A menu with no such
+     * row, the bare map's own, falls through to the map click. */
+    if( app_minimenu_run_default_ui_row(app, mouse_x, mouse_y, 1) )
+        return;
     if( !app->host.worldmap || !app->net )
         return;
     RS_WorldMap_DisplayPosition(app->host.worldmap, &display_x, &display_y);

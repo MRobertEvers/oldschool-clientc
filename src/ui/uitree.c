@@ -137,8 +137,11 @@ struct UITreeWidgetGeometry
      * back once no edit is left. Serial 0 = never stated. */
     uint64_t obj_serial;
     int obj_id, obj_count, obj_scene_id, obj_atlas_index;
+    /* The count rule the edit draws with (item_num_mode: 0 stackable-only,
+     * 1 always, 2 never); -1 = the game's own (native_obj_num_mode). */
+    int obj_num_mode;
     bool obj_native_saved;
-    int native_obj_id, native_obj_count, native_obj_scene_id, native_obj_atlas_index;
+    int native_obj_id, native_obj_count, native_obj_scene_id, native_obj_atlas_index, native_obj_num_mode;
     uint64_t trans_serial;
     int trans;
     bool trans_native_saved;
@@ -5378,10 +5381,12 @@ uitree_widget_native_content_restore(struct UITree* tree, int32_t idx, struct UI
         }
         if( won && next )
             (void)uitree_set_object(tree, idx, next->obj_id, next->obj_count, next->obj_scene_id,
-                                    next->obj_atlas_index, c->item_num_mode);
+                                    next->obj_atlas_index,
+                                    next->obj_num_mode >= 0 ? next->obj_num_mode : next->native_obj_num_mode);
         else if( won && edit->obj_native_saved )
             (void)uitree_set_object(tree, idx, edit->native_obj_id, edit->native_obj_count,
-                                    edit->native_obj_scene_id, edit->native_obj_atlas_index, c->item_num_mode);
+                                    edit->native_obj_scene_id, edit->native_obj_atlas_index,
+                                    edit->native_obj_num_mode);
     }
     if( edit->hide_serial )
     {
@@ -5427,8 +5432,10 @@ uitree_widget_native_cell(struct UITree* tree, struct UITreeNodeRef ref)
 }
 
 bool UITree_WidgetSetNativeObject(struct UITree* tree, struct UITreeNodeRef ref, uint64_t owner,
-                                  int obj_id, int obj_count, int scene_id)
+                                  int obj_id, int obj_count, int scene_id, int num_mode)
 {
+    assert(num_mode >= -1);
+    assert(num_mode <= 2);
     assert(tree);
     assert(owner);
     int32_t const idx = uitree_widget_native_cell(tree, ref);
@@ -5448,7 +5455,8 @@ bool UITree_WidgetSetNativeObject(struct UITree* tree, struct UITreeNodeRef ref,
     for( struct UITreeWidgetGeometry const* e = c->widget_geometry; e; e = e->next )
         if( e != edit && e->obj_serial > edit->obj_serial ) wins = false;
     /* A restatement already in force writes nothing. */
-    if( wins && edit->obj_id == obj_id && edit->obj_count == obj_count && edit->obj_scene_id == scene_id )
+    if( wins && edit->obj_id == obj_id && edit->obj_count == obj_count && edit->obj_scene_id == scene_id &&
+        edit->obj_num_mode == num_mode )
         return true;
     if( !edit->obj_native_saved )
     {
@@ -5461,14 +5469,17 @@ bool UITree_WidgetSetNativeObject(struct UITree* tree, struct UITreeNodeRef ref,
         edit->native_obj_count = held ? held->native_obj_count : c->item_count;
         edit->native_obj_scene_id = held ? held->native_obj_scene_id : c->item_scene_id;
         edit->native_obj_atlas_index = held ? held->native_obj_atlas_index : c->item_atlas_index;
+        edit->native_obj_num_mode = held ? held->native_obj_num_mode : c->item_num_mode;
         edit->obj_native_saved = true;
     }
     edit->obj_id = obj_id;
     edit->obj_count = obj_count;
     edit->obj_scene_id = scene_id;
     edit->obj_atlas_index = 0;
+    edit->obj_num_mode = num_mode;
     edit->obj_serial = ++widget_geometry_serial;
-    (void)uitree_set_object(tree, idx, obj_id, obj_count, scene_id, 0, c->item_num_mode);
+    (void)uitree_set_object(tree, idx, obj_id, obj_count, scene_id, 0,
+                            num_mode >= 0 ? num_mode : edit->native_obj_num_mode);
     return true;
 }
 

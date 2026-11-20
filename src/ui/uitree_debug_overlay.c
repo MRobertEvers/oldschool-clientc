@@ -2666,6 +2666,7 @@ ToriRSChrome_Reset(struct ToriRSChrome* ui)
      * leaving it would hand out slots above the new high-water mark. */
     ui->free_widget = -1;
     ui->prim_count = 0;
+    ui->overlay_prim_start = 0;
     ui->focus = -1;
     ui->hover = -1;
     ui->press = -1;
@@ -3985,7 +3986,9 @@ ToriRSChrome_CustomRegion(
         ui->widgets[widget].kind != TORIRS_CHROME_W_CUSTOM )
         return 0;
     w = &ui->widgets[widget];
-    if( w->w <= 2 * DBG_RULE || w->view_h <= 0 ||
+    /* A hidden well (a plugin page's collapsed one) has no region: the
+     * layout skipped it, so its box is whatever it was last shown at. */
+    if( w->hidden || w->w <= 2 * DBG_RULE || w->view_h <= 0 ||
         w->custom_clip_w <= 0 || w->custom_clip_h <= 0 )
         return 0;
     if( out_region )
@@ -4020,7 +4023,10 @@ dbg_custom_latch(
         return 0;
     w = &ui->widgets[widget];
     scale = ui->scale_q;
-    width = ToriRSChrome_UnscalePx(scale, w->w - 2 * DBG_RULE);
+    /* content_w, not w: a well scrolled out of this model's window is still
+     * the page's well to a presenter that scrolls the page itself. */
+    width = ToriRSChrome_UnscalePx(
+        scale, (w->content_w > w->w ? w->content_w : w->w) - 2 * DBG_RULE);
     height = ToriRSChrome_UnscalePx(scale, w->view_h);
     if( local_x < 0 || local_y < 0 || local_x >= width || local_y >= height )
         return 0;
@@ -6995,6 +7001,7 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             w->y = 0;
             w->w = 0;
             w->h = 0;
+            w->content_w = 0;
             if( w->kind == TORIRS_CHROME_W_CUSTOM || w->kind == TORIRS_CHROME_W_GRAPH )
             {
                 w->custom_clip_x = 0;
@@ -7389,6 +7396,7 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             w->y = 0;
             w->w = 0;
             w->h = 0;
+            w->content_w = 0;
             continue;
         }
         /* Already placed and drawn above the scroll window, and it must not
@@ -7403,6 +7411,7 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
         w->y = row_y;
         w->w = p->w - 2 * edge - 2 * DBG_PAD_X - bar_w;
         w->h = row_h;
+        w->content_w = w->w;
 
         /*
          * A scrolled panel steps PAST rows outside the window rather than
@@ -8790,6 +8799,7 @@ ToriRSChrome_Build(struct ToriRSChrome* ui)
         return 0;
 
     ui->prim_count = 0;
+    ui->overlay_prim_start = 0;
     ui->overflow = 0;
     /* With the prims, not after them: every string in the pool is pointed at by
      * a prim of the list being thrown away, and a pool that outlived one build
@@ -8916,6 +8926,7 @@ ToriRSChrome_Build(struct ToriRSChrome* ui)
     /* After every panel, so the open list is never buried under one drawn
      * later. This is the whole reason the list is overlay state rather than a
      * child of the panel that owns the dropdown. */
+    ui->overlay_prim_start = ui->prim_count;
     dbg_build_dropdown_list(ui);
     dbg_build_colorpick_popup(ui);
     dbg_build_tooltip(ui);
@@ -9551,6 +9562,15 @@ ToriRSChrome_Prims(struct ToriRSChrome const* ui, int* out_count)
     if( out_count )
         *out_count = ui ? ui->prim_count : 0;
     return ui ? ui->prims : NULL;
+}
+
+int
+ToriRSChrome_OverlayPrimStart(struct ToriRSChrome const* ui)
+{
+    assert(ui);
+    assert(ui->overlay_prim_start >= 0);
+    assert(ui->overlay_prim_start <= ui->prim_count);
+    return ui->overlay_prim_start;
 }
 
 int

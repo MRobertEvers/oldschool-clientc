@@ -154,6 +154,45 @@ test_surface_lists(void)
     ChromeCompositor_Free(comp);
 }
 
+/* The window's overlay prims (an open dropdown list) go after the wells, so
+ * the list is drawn over a well beside its button; both lists stop at their
+ * bounds. */
+static void
+test_popups_after_wells(void)
+{
+    struct ChromeCompositor* comp = ChromeCompositor_Create(SOFT);
+    struct ToriRSChromePrim const* got;
+    int count = 0;
+    int n;
+
+    tag(g_dbg, 2, 100);
+    tag(g_win, 4, 200);
+    /* Window prims 0..2 are panels, 3 is the open list. */
+    n = ChromeCompositor_MergeLists(comp, g_dbg, 2, g_win, 3);
+    ChromeCompositor_MergedSlot(comp, n++)->x = 300;
+    n = ChromeCompositor_MergeAppend(comp, n, g_win + 3, 1);
+    TEST_ASSERT(n == 7, "developer, panels, well, list");
+    ChromeCompositor_MergeCommit(comp, n, 1, 1, 1);
+    got = ChromeCompositor_Merged(comp, &count);
+    TEST_ASSERT(count == 7 && got[5].x == 300 && got[6].x == 203, "the list is drawn after the well");
+    TEST_ASSERT(ChromeCompositor_MergeAppend(comp, n, g_win, 0) == n, "nothing to append");
+    TEST_ASSERT(
+        ChromeCompositor_MergeAppend(comp, CHROME_COMPOSITOR_PRIMS_MAX - 1, g_win, 4) ==
+            CHROME_COMPOSITOR_PRIMS_MAX,
+        "the merged list stops at its bound");
+
+    n = ChromeCompositor_SurfaceLists(comp, g_win, 3);
+    ChromeCompositor_SurfaceSlot(comp, n++)->x = 301;
+    n = ChromeCompositor_SurfaceAppend(comp, n, g_win + 3, 1);
+    got = ChromeCompositor_SurfacePrims(comp);
+    TEST_ASSERT(n == 5 && got[3].x == 301 && got[4].x == 203, "the surface page: the list after the well");
+    TEST_ASSERT(
+        ChromeCompositor_SurfaceAppend(comp, CHROME_COMPOSITOR_SURFACE_PRIMS_MAX, g_win, 4) ==
+            CHROME_COMPOSITOR_SURFACE_PRIMS_MAX,
+        "the surface list stops at its bound");
+    ChromeCompositor_Free(comp);
+}
+
 static void
 test_surface_keys_and_pixels(void)
 {
@@ -195,6 +234,7 @@ main(void)
     test_merge();
     test_merge_bound();
     test_surface_lists();
+    test_popups_after_wells();
     test_surface_keys_and_pixels();
     if( g_failures )
     {

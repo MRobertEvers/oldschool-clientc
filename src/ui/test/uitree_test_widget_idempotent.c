@@ -584,16 +584,16 @@ test_native_cell_edits(struct IdemScene* s)
     UITree_SetTransparencyAt(s->tree, cell, 0);
     UITree_SetHideAt(s->tree, cell, 1);
 
-    TEST_ASSERT(UITree_WidgetSetNativeObject(s->tree, r, OWNER_A, 1931, 2, 42), "owner A re-lays the cell");
+    TEST_ASSERT(UITree_WidgetSetNativeObject(s->tree, r, OWNER_A, 1931, 2, 42, -1), "owner A re-lays the cell");
     TEST_ASSERT(c->item_id == 1931 && c->item_count == 2 && c->item_scene_id == 42,
                 "the edit is written through: the cell holds the plugin's obj");
     settle(s);
     {
         struct Quiet const before = quiet_capture(s);
-        TEST_ASSERT(UITree_WidgetSetNativeObject(s->tree, r, OWNER_A, 1931, 2, 42), "restated re-lay");
+        TEST_ASSERT(UITree_WidgetSetNativeObject(s->tree, r, OWNER_A, 1931, 2, 42, -1), "restated re-lay");
         assert_quiet(s, &before, cell, "restating the winning native obj edit");
     }
-    TEST_ASSERT(UITree_WidgetSetNativeObject(s->tree, r, OWNER_B, 1925, 1, 43), "owner B re-lays after A");
+    TEST_ASSERT(UITree_WidgetSetNativeObject(s->tree, r, OWNER_B, 1925, 1, 43, -1), "owner B re-lays after A");
     TEST_ASSERT(c->item_id == 1925, "the newest owner's obj shows");
     TEST_ASSERT(UITree_WidgetReset(s->tree, r, OWNER_B), "owner B resets");
     TEST_ASSERT(c->item_id == 1931 && c->item_scene_id == 42, "a reset shows the remaining owner's obj");
@@ -605,7 +605,7 @@ test_native_cell_edits(struct IdemScene* s)
                 "teardown puts the game's obj back");
     TEST_ASSERT(c->trans == 0 && c->behavior.hide == 1, "and its transparency and hide");
 
-    TEST_ASSERT(UITree_WidgetSetNativeObject(s->tree, r, OWNER_A, 1931, 2, 42), "owner A re-lays again");
+    TEST_ASSERT(UITree_WidgetSetNativeObject(s->tree, r, OWNER_A, 1931, 2, 42, -1), "owner A re-lays again");
     TEST_ASSERT(UITree_WidgetSetNativeHidden(s->tree, r, OWNER_A, false), "and shows it");
     UITree_SetObjectAt(s->tree, cell, 590, 1, 44, 0, 0);
     UITree_SetHideAt(s->tree, cell, 1);
@@ -613,13 +613,24 @@ test_native_cell_edits(struct IdemScene* s)
     TEST_ASSERT(c->item_id == 590 && c->item_scene_id == 44 && c->behavior.hide == 1,
                 "the game's own writes dropped the edits: a reset does not resurrect the old cell");
 
+    /* The count rule rides the obj edit (setItemQuantityMode(ALWAYS) on a
+     * re-laid bank cell): written through with it, the game's put back. */
+    TEST_ASSERT(c->item_num_mode == 0, "the game's cell numbers stacks only");
+    TEST_ASSERT(UITree_WidgetSetNativeObject(s->tree, r, OWNER_A, 1931, 1, 42, 1), "re-lay with always-number");
+    TEST_ASSERT(c->item_num_mode == 1, "the edit's count rule is written through");
+    TEST_ASSERT(UITree_WidgetSetNativeObject(s->tree, r, OWNER_A, 1931, 1, 42, -1), "the same obj, the game's rule");
+    TEST_ASSERT(c->item_num_mode == 0, "-1 draws with the game's own rule again");
+    TEST_ASSERT(UITree_WidgetSetNativeObject(s->tree, r, OWNER_A, 1931, 1, 42, 1), "always-number once more");
+    UITree_WidgetResetOwner(s->tree, OWNER_A);
+    TEST_ASSERT(c->item_id == 590 && c->item_num_mode == 0, "teardown puts the game's obj and rule back");
+
     {
         int32_t const text = UITree_TestPushXy(s->tree, s->root, UIELEM_RS_TEXT, (792 << 16) | 13, 10, 180, 36, 16);
-        TEST_ASSERT(!UITree_WidgetSetNativeObject(s->tree, UITree_RefAt(s->tree, text), OWNER_A, 995, 1, 41),
+        TEST_ASSERT(!UITree_WidgetSetNativeObject(s->tree, UITree_RefAt(s->tree, text), OWNER_A, 995, 1, 41, -1),
                     "only a graphic or objbox cell takes an obj re-lay");
     }
     c->plugin_owner = OWNER_A;
-    TEST_ASSERT(!UITree_WidgetSetNativeObject(s->tree, r, OWNER_A, 995, 1, 41), "an owned control takes no native re-lay");
+    TEST_ASSERT(!UITree_WidgetSetNativeObject(s->tree, r, OWNER_A, 995, 1, 41, -1), "an owned control takes no native re-lay");
     TEST_ASSERT(!UITree_WidgetSetNativeHidden(s->tree, r, OWNER_A, false), "nor a native hide");
     c->plugin_owner = 0;
 }

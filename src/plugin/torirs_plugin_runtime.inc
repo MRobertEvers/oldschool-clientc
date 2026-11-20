@@ -1469,6 +1469,55 @@ v2_scene_instance_ready(
     return instance_slot >= 0 && api_object_ready(runtime->context, instance_slot) != 0;
 }
 
+/* Absolute FINE units (tile * 128 + 0..127): RuneLite's LocalPoint carried to
+ * the world, so an object can stand between tiles (a walking fake npc). */
+static enum ToriRS_Result
+v2_scene_instance_place(
+    struct ToriRS_Api* api,
+    struct ToriRS_SceneInstanceRef instance,
+    int fine_x,
+    int fine_z,
+    int level,
+    int height,
+    int yaw)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    int const instance_slot = v2_resource_resolve(
+        runtime->instance_tokens, TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX,
+        V2_RESOURCE_INSTANCE, ((uint32_t)runtime->context->index), instance.value);
+    if( instance_slot < 0 || fine_x < 0 || fine_z < 0 || level < 0 || level > 3 || yaw < 0 || yaw > 2047 )
+        return TORIRS_RESULT_INVALID;
+    if( !api_object_set_fine_position(runtime->context, instance_slot, fine_x, fine_z, level, height, yaw) )
+        return TORIRS_RESULT_UNSUPPORTED;
+    return TORIRS_RESULT_OK;
+}
+
+static int
+v2_scene_instance_element(
+    struct ToriRS_Api* api,
+    struct ToriRS_SceneInstanceRef instance)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    int const instance_slot = v2_resource_resolve(
+        runtime->instance_tokens, TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX,
+        V2_RESOURCE_INSTANCE, ((uint32_t)runtime->context->index), instance.value);
+    if( instance_slot < 0 )
+        return -1;
+    return api_object_element(runtime->context, instance_slot);
+}
+
+static bool
+v2_scene_instance_hit(
+    struct ToriRS_Api* api,
+    struct ToriRS_SceneInstanceRef instance)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    int const instance_slot = v2_resource_resolve(
+        runtime->instance_tokens, TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX,
+        V2_RESOURCE_INSTANCE, ((uint32_t)runtime->context->index), instance.value);
+    return instance_slot >= 0 && api_object_hit(runtime->context, instance_slot) != 0;
+}
+
 static enum ToriRS_Result
 v2_panel_request(
     struct ToriRS_Api* api,
@@ -2209,6 +2258,18 @@ v2_game_world_entity_to_main(
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return api_world_entity_to_main(
                runtime->context, id, deck_fine_x, deck_fine_z, out_fine_x, out_fine_z) != 0;
+}
+
+static int
+v2_game_world_entity_loc_next(
+    struct ToriRS_Api* api,
+    int id,
+    int iterator,
+    struct ToriRS_ScenerySnapshot* out)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    assert(out);
+    return api_world_entity_loc_next(runtime->context, id, iterator, out);
 }
 
 static bool
@@ -3878,10 +3939,12 @@ static enum ToriRS_ContractResult widget_create_item(void* u, struct ToriRS_Widg
     struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_CREATE_ITEM, .ref=parent, .name=key, .refs=out};
     return plugin_widget_request(u, &r);
 }
-static enum ToriRS_ContractResult widget_set_item(void* u, struct ToriRS_WidgetRef ref, int32_t obj_id, int32_t quantity)
+static enum ToriRS_ContractResult widget_set_item(void* u, struct ToriRS_WidgetRef ref, int32_t obj_id, int32_t quantity,
+                                                  int32_t quantity_mode)
 {
     if( obj_id < -1 || quantity < 0 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
-    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_SET_ITEM, .ref=ref, .a=obj_id, .b=quantity};
+    if( quantity_mode < -1 || quantity_mode > 2 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_SET_ITEM, .ref=ref, .a=obj_id, .b=quantity, .id=quantity_mode};
     return plugin_widget_request(u, &r);
 }
 static enum ToriRS_ContractResult widget_create_rect(void* u, struct ToriRS_WidgetRef parent, char const* key, struct ToriRS_WidgetRef* out)
@@ -4103,6 +4166,7 @@ v2_runtime_init(
         .container_slot = v2_game_container_slot,
         .world_entity_next = v2_game_world_entity_next,
         .world_entity_to_main = v2_game_world_entity_to_main,
+        .world_entity_loc_next = v2_game_world_entity_loc_next,
     };
 
     runtime->api = (struct ToriRS_Api){
@@ -4225,6 +4289,9 @@ v2_runtime_init(
             .instance_animation = v2_scene_instance_animation,
             .instance_light = v2_scene_instance_light,
             .instance_ready = v2_scene_instance_ready,
+            .instance_place = v2_scene_instance_place,
+            .instance_element = v2_scene_instance_element,
+            .instance_hit = v2_scene_instance_hit,
         },
         .panel = {
             .struct_size = sizeof(runtime->api.panel),

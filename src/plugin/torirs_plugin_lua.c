@@ -1955,10 +1955,11 @@ static int lua_widget_set_item(lua_State* L)
 {
     struct ToriRS_WidgetApi* ui=&lua_current_api(L)->widgets;
     struct ToriRS_WidgetRef ref=lua_widget_arg(L);
-    lua_Integer obj=luaL_checkinteger(L,2), quantity=luaL_optinteger(L,3,1);
+    lua_Integer obj=luaL_checkinteger(L,2), quantity=luaL_optinteger(L,3,1), mode=luaL_optinteger(L,4,-1);
     if( obj<-1 || obj>INT32_MAX ) return luaL_argerror(L,2,"obj id out of range");
     if( quantity<0 || quantity>INT32_MAX ) return luaL_argerror(L,3,"quantity out of range");
-    return lua_widget_result(L,ui->set_item(ui->context,ref,(int32_t)obj,(int32_t)quantity));
+    if( mode<-1 || mode>2 ) return luaL_argerror(L,4,"quantity mode out of range");
+    return lua_widget_result(L,ui->set_item(ui->context,ref,(int32_t)obj,(int32_t)quantity,(int32_t)mode));
 }
 static int lua_widget_set_sprite(lua_State* L)
 {
@@ -2340,6 +2341,9 @@ static int lua_scene_instance_clear_recolors(lua_State* L) { struct ToriRS_Api* 
 static int lua_scene_instance_animation(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_push_result(L,a->scene.instance_animation(a,lua_instance_arg(L,1),(int)luaL_checkinteger(L,2),lua_toboolean(L,3)!=0));return 2; }
 static int lua_scene_instance_light(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_push_result(L,a->scene.instance_light(a,lua_instance_arg(L,1),(int)luaL_checkinteger(L,2),(int)luaL_checkinteger(L,3)));return 2; }
 static int lua_scene_instance_ready(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_pushboolean(L,a->scene.instance_ready(a,lua_instance_arg(L,1)));return 1; }
+static int lua_scene_instance_place(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_push_result(L,a->scene.instance_place(a,lua_instance_arg(L,1),(int)luaL_checkinteger(L,2),(int)luaL_checkinteger(L,3),(int)luaL_checkinteger(L,4),(int)luaL_optinteger(L,5,0),(int)luaL_optinteger(L,6,0)));return 2; }
+static int lua_scene_instance_element(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);int e=a->scene.instance_element(a,lua_instance_arg(L,1));if(e<0)lua_pushnil(L);else lua_pushinteger(L,e);return 1; }
+static int lua_scene_instance_hit(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_pushboolean(L,a->scene.instance_hit(a,lua_instance_arg(L,1)));return 1; }
 
 /* -------------------------------------------------------------- api.panel */
 
@@ -2728,6 +2732,14 @@ static int lua_game_world_entity_next(lua_State* L)
     lua_pushinteger(L,v.base_x);lua_setfield(L,-2,"base_x");lua_pushinteger(L,v.base_z);lua_setfield(L,-2,"base_z");
     lua_pushinteger(L,v.size_x);lua_setfield(L,-2,"size_x");lua_pushinteger(L,v.size_z);lua_setfield(L,-2,"size_z");
     return 2;
+}
+/* world_entity_loc_next(id, cursor?) -> cursor, loc snapshot (scenery_next's shape). */
+static int lua_game_world_entity_loc_next(lua_State* L)
+{
+    struct ToriRS_Api* a=lua_current_api(L);struct ToriRS_ScenerySnapshot v;memset(&v,0,sizeof(v));
+    int n=lua_game(L)->world_entity_loc_next(a,(int)luaL_checkinteger(L,1),(int)luaL_optinteger(L,2,-1),&v);
+    if(n<0){lua_pushnil(L);return 1;}
+    lua_pushinteger(L,n);lua_push_loc(L,&v);return 2;
 }
 static int lua_game_world_entity_to_main(lua_State* L)
 {
@@ -4470,7 +4482,8 @@ static struct LuaFn const LUA_SCENE_FNS[] = {
     {"instance_active",lua_scene_instance_active},{"instance_mesh",lua_scene_instance_mesh},
     {"instance_cache_model",lua_scene_instance_cache_model},{"instance_recolor",lua_scene_instance_recolor},
     {"instance_clear_recolors",lua_scene_instance_clear_recolors},{"instance_animation",lua_scene_instance_animation},
-    {"instance_light",lua_scene_instance_light},{"instance_ready",lua_scene_instance_ready},{NULL,NULL}
+    {"instance_light",lua_scene_instance_light},{"instance_ready",lua_scene_instance_ready},
+    {"instance_place",lua_scene_instance_place},{"instance_element",lua_scene_instance_element},{"instance_hit",lua_scene_instance_hit},{NULL,NULL}
 };
 static struct LuaFn const LUA_PANEL_FNS[] = {
     {"request",lua_panel_request},{"invalidate",lua_panel_invalidate},{"attention",lua_panel_attention},{"show",lua_panel_show},
@@ -4507,7 +4520,8 @@ static struct LuaFn const LUA_GAME_FNS[] = {
     {"hint_arrow_clear",lua_game_hint_arrow_clear},{"hint_arrow",lua_game_hint_arrow},{"sound",lua_game_sound},
     {"weight",lua_game_weight},{"world_types",lua_game_world_types},{"tick",lua_game_tick},
     {"container_size",lua_game_container_size},{"container_slot",lua_game_container_slot},
-    {"world_entity_next",lua_game_world_entity_next},{"world_entity_to_main",lua_game_world_entity_to_main},{NULL,NULL}
+    {"world_entity_next",lua_game_world_entity_next},{"world_entity_to_main",lua_game_world_entity_to_main},
+    {"world_entity_loc_next",lua_game_world_entity_loc_next},{NULL,NULL}
 };
 static struct LuaFn const LUA_GRAPHICS_FNS[] = {
     {"rect",lua_builder_rect},{"line",lua_builder_line},{"text",lua_builder_text},

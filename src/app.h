@@ -1477,6 +1477,17 @@ App_SetCanvasSize(
 int
 App_SetChromeScaleQ(struct App* app, int q);
 
+/**
+ * The percent the chrome's display scale must be divided by because the
+ * chrome is drawn INTO the canvas: the canvas's layout percent (drawable
+ * pixels per canvas pixel; 200 for a game lane on a 2x display) while the
+ * plugin window draws in the canvas (the BUFFER presentation with no surface),
+ * else 100 -- a page on a surface (the SDL strip, a pop-out) or in a DOM is in
+ * device pixels, and the map editor's canvas states its own chrome scale.
+ */
+int
+App_ChromeCanvasPercent(struct App const* app);
+
 /** App_SetChromeScaleQ(app, 4 * scale), for an integer scale 1..3. */
 int
 App_SetChromeScale(struct App* app, int scale);

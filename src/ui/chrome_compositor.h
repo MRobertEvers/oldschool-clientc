@@ -123,6 +123,20 @@ ChromeCompositor_MergeLists(
     struct ToriRSChromePrim const* win,
     int win_count);
 
+/**
+ * Append `count` primitives to the merged list from index `at` (as many as
+ * still fit). The plugin window's overlay prims go here, AFTER the wells, so
+ * an open dropdown list is drawn over the well beside its button.
+ *
+ * @return how many the list now holds.
+ */
+int
+ChromeCompositor_MergeAppend(
+    struct ChromeCompositor* comp,
+    int at,
+    struct ToriRSChromePrim const* prims,
+    int count);
+
 /** Slot `index` of the merged list, `index` below CHROME_COMPOSITOR_PRIMS_MAX. */
 struct ToriRSChromePrim*
 ChromeCompositor_MergedSlot(
@@ -168,6 +182,15 @@ ChromeCompositor_SurfaceLists(
     struct ChromeCompositor* comp,
     struct ToriRSChromePrim const* win,
     int win_count);
+
+/** ChromeCompositor_MergeAppend for the surface list (which must be
+ *  allocated): the window's overlay prims after the wells. */
+int
+ChromeCompositor_SurfaceAppend(
+    struct ChromeCompositor* comp,
+    int at,
+    struct ToriRSChromePrim const* prims,
+    int count);
 
 /** Slot `index` of the surface list, `index` below
  *  CHROME_COMPOSITOR_SURFACE_PRIMS_MAX. The list must be allocated. */

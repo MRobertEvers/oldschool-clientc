@@ -24,7 +24,12 @@
 /** Bytes of a plugin's human title, terminator included. Longer than the name
  *  because a title carries spaces and words the kebab-case id compresses. */
 #define TORIRS_PLUGIN_TITLE_MAX 64
-#define TORIRS_PLUGIN_MENU_ROWS_MAX 16
+/** Rows an on_menu_build payload carries: every row a minimenu can hold
+ *  (UITREE_MINIMENU_MAX_OPTIONS; the bridge and the host assert it), so a
+ *  plugin sees -- and menu.set_order / set_text name -- the WHOLE menu, as
+ *  RuneLite's getMenuEntries does. Was 16, which left the rows above it out of
+ *  reach of every plugin. */
+#define TORIRS_PLUGIN_MENU_ROWS_MAX 400
 /**
  * Controls one plugin may put on its tab. A budget, not a limit on what a
  * window can hold: sixteen plugins sharing one window need the SHARE bounded,
@@ -941,6 +946,13 @@ enum ToriRS_PanelActionKind
 #define TORIRS_PANEL_CUSTOM_HEIGHT_DEFAULT 120
 #define TORIRS_PANEL_CUSTOM_HEIGHT_MIN 48
 #define TORIRS_PANEL_CUSTOM_HEIGHT_MAX 2048
+/** A custom well's height that COLLAPSES it: still declared (a setter grows it
+ *  back, no page rebuild), but it takes no room, draws no frame and is never
+ *  painted -- on every presenter (the chrome widget is hidden). For a page
+ *  that keeps a fixed count of wells while its content shrinks, so the spare
+ *  ones do not show as empty boxes. Any other height under the minimum is
+ *  raised to it. */
+#define TORIRS_PANEL_CUSTOM_HEIGHT_COLLAPSED (-1)
 
 /** Inert rail metadata copied by panel_request during on_start. */
 struct ToriRS_PanelDescriptor
