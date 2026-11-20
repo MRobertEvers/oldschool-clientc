@@ -36,6 +36,11 @@ typedef struct RsprotInfoBlocks
     /* PLAYER_INFO only: the slot table and this packet's movement ops, which
      * the traversal and exact-move blocks amend. */
     RsprotPlayerPacket *player;
+    /* PLAYER_INFO only: this record's persistent MOVE_SPEED has been read.
+     * A RESET decoded after it (240, 241, m241 write it later) must not undo
+     * it: the reference resets before the record's blocks (class81.method2126,
+     * class109.method3804). Cleared per record by rsprot_info_flags. */
+    int move_speed_read;
     /* NPC_INFO only: the type lookup CUSTOM_TYPED needs (NULL ends the tail). */
     RsprotNpcTypeLengths lengths;
     void *ctx;
