@@ -8473,7 +8473,7 @@ test-torirsserver-login-password: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $
 		$(SERVICE_SRCS) torirsserver/torirs_server_history.c \
 		torirsserver/torirs_server_hiscoreslink.c platform/platform_x_http.c platform/sockstream.c \
 		platform/platform_mdns.c \
-		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm $(SERVERS_SQLITE_OBJ)
+		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm $(SERVERS_SQLITE_OBJ) $(JS5_SOCKET_LIBS)
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_LoginPasswordTest
 
 # mDNS response parser: name compression (including a pointer chain and a

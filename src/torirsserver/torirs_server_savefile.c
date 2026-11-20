@@ -6,6 +6,7 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,9 +14,11 @@
 
 #ifdef _WIN32
 #include <direct.h>
+#include <io.h>
 #include <windows.h>
 #define save_mkdir(p) _mkdir(p)
 #else
+#include <unistd.h>
 #define save_mkdir(p) mkdir(p, 0755)
 #endif
 
@@ -342,9 +345,9 @@ ToriRSServer_DisplayNameClaimFile(
         return strcmp(owner, account_key) == 0;
     display_name_path(key, path, sizeof(path));
     ToriRSServer_SaveMkdirParent(path);
-    /* "x": the create fails when the file exists, so the check above and
-     * this write cannot let two accounts through between them. */
-    file = fopen(path, "wbx");
+    /* Exclusive: the create fails when the file exists, so the check above
+     * and this write cannot let two accounts through between them. */
+    file = ToriRSServer_SaveCreateExclusive(path);
     if( !file )
     {
         if( display_name_read(path, owner, sizeof(owner)) )
@@ -421,4 +424,31 @@ ToriRSServer_DisplayNameRelease(
     const char* account)
 {
     g_display_names->release(name, account);
+}
+
+FILE*
+ToriRSServer_SaveCreateExclusive(const char* path)
+{
+    FILE* file;
+    int fd;
+
+    assert(path);
+    /* O_EXCL through open(), not fopen's "x": msvcrt.dll has no "x" mode and
+     * refuses the whole fopen, so on the Windows lanes no display name could
+     * be claimed and no service key made (the server aborted at boot). */
+#ifdef _WIN32
+    fd = _open(path, _O_WRONLY | _O_CREAT | _O_EXCL | _O_BINARY, _S_IREAD | _S_IWRITE);
+#else
+    fd = open(path, O_WRONLY | O_CREAT | O_EXCL, 0644);
+#endif
+    if( fd < 0 )
+        return NULL;
+#ifdef _WIN32
+    file = _fdopen(fd, "wb");
+#else
+    file = fdopen(fd, "wb");
+#endif
+    /* fdopen fails only to allocate its FILE. */
+    assert(file);
+    return file;
 }
