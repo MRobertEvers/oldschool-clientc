@@ -496,7 +496,11 @@ test_queue_without_cache(void)
     CHECK(audio.dropped_absent == 1, "drop counted as absent");
     CHECK(audio.played == 0, "nothing played");
 
-    /* Volume levels: the reference's 128/96/64/32/mute ladder. */
+    /* Volume levels: the reference's 128/96/64/32/mute ladder. The mixer bus
+     * gets the level times the master gain, and a fresh client's master is
+     * silence (test_boot_muted); open the master fully first, with no queue
+     * so no command is pushed, so the bus below carries the level itself. */
+    RS_Audio_SetMasterVolume(&audio, TORIRS_AUDIO_VOLUME_MAX, NULL);
     RS_Audio_SetVolumeLevel(&audio, 0, &queue);
     CHECK(audio.effect_volume == 255 && audio.enabled, "level 0 -> full");
     RS_Audio_SetVolumeLevel(&audio, 3, &queue);
