@@ -21,6 +21,10 @@ struct WevDeckBox;
  * meshing. */
 #define APP_WORLD_MAP_SQUARE_MAX 16
 
+/* The gather's slice in the frame that builds it (app_world_local_load_poll):
+ * the same couple of ms as App_RunOnce's floor. */
+#define APP_WORLD_LOCAL_LOAD_SLICE_US 2000u
+
 /* Private to this unit, declared up front so definition order is free. */
 static void
 app_bake_mapscenes(
@@ -265,6 +269,8 @@ struct AppWorldLocalLoad
     int chunk_count;
     int chunks[WORLD_REBUILD_JOB_MAX_CHUNKS * 2];
     struct RS_ParallelTask rebuild;
+    /* App_RunOnce's serial when it began (TORIRS_REBUILD_TIMING's frames). */
+    uint64_t begun_run_once;
 };
 
 static struct AppWorldLocalLoad*
@@ -343,6 +349,7 @@ app_world_local_load_start(
         NULL,
         NULL);
     ll->pending = 1;
+    ll->begun_run_once = app->frame_clock.serial.run_once;
     App_ViewRebuildBegin(app, &ll->rebuild, WORLDVIEW_ROOT, ToriRS_TaskJobOwner(&ll->job, "the local world load"));
     /* No deadline of its own: nothing waits on a local load but the frame
      * that shows it, and the background queue gets its floor every frame. */
@@ -356,13 +363,29 @@ app_world_local_load_poll(struct App* app)
 
     assert(app);
     ll = app->world_local;
-    if( !ll || !ll->pending || !ToriRS_TaskJob_Done(&ll->job) )
+    if( !ll || !ll->pending )
+        return;
+    /*
+     * The gather's turn HERE, ahead of the check, in the frame that builds:
+     * the floor slice runs after the frame body (App_RunOnce), so a gather
+     * begun in this frame that ends in that floor -- every warm editor load
+     * -- was built only by the NEXT frame's poll, a frame (~20 ms) owed
+     * between the two stages for nothing. Outside every queue site, so the
+     * background queue's own pump; a gather waiting on reads moves on in
+     * the floor and the slack as before.
+     */
+    if( !ToriRS_TaskJob_Done(&ll->job) )
+        App_RunBackground(app, TaskRunner_Now(&app->background_runner) + APP_WORLD_LOCAL_LOAD_SLICE_US);
+    if( !ToriRS_TaskJob_Done(&ll->job) )
         return;
     ll->gather = NULL;
     ll->pending = 0;
     /* The build and the finish, in the order Task_WorldLoad ran them. */
     WorldLoad_Build(app->world_builder, ll->chunks, ll->chunk_count, -1, -1, 104, NULL);
     App_WorldLoadFinish(app);
+    if( WorldBuilder_TimingOn() )
+        TORIRS_REPORT("rebuild_timing: local load built %llu frame(s) after it began\n",
+            (unsigned long long)(app->frame_clock.serial.run_once - ll->begun_run_once));
     app_world_local_load_end(app, 1);
 }
 
