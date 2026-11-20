@@ -20,13 +20,18 @@ app_world_catch_up_object_seq(
  * element owns the model from here (SceneElementRemove frees it), which is
  * why spawns copy registry models instead of sharing handles.
  *
- * The pool is the ROOT view's dynamic half, which is right for as long as
- * every entity lives in app->world. When entities start being owned by a boat
- * view they must be allocated in THAT view's dynamic pool
- * (TORIDRAW_SCENE_POOL_DYNAMIC_VIEW / WorldBuilder.dynamic_pool) instead: the
- * reconcile pass sweeps a view's own pool against its own entity list, so a
- * deck entity holding a root-pool element would be swept by the mainland's
- * next rebuild, which does not know its owner. */
+ * The pool is the ROOT view's dynamic half, and that is right because every
+ * actor's RECORD lives in app->world, a deck's npcs and riders included (the
+ * deck's own World holds only its map). The root's rebuild sweep claims every
+ * record in app->world, so it never frees such an element; the first routing
+ * pass of the next frame (app_wev_route_actors, before anything is drawn)
+ * retags a deck actor's element into DYNAMIC_VIEW(its view), where the root's
+ * sweep no longer looks and the deck's own sweep is told about it
+ * (app_wev_claim_deck_actors); World_ShiftEntities leaves deck-homed records
+ * alone; and a released deck evicts its actors back to the root pool and
+ * despawns its npcs (App_WevDespawn) before its pools are cleared. An actor
+ * whose record moved into a deck's World would need its element made in that
+ * view's pool instead. */
 int
 app_world_scene_element_create(
     struct App* app,
