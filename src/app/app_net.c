@@ -183,6 +183,8 @@ App_Logout(struct App* app)
     CamScript_Logout(&app->cam_script);
     /* No pending parallel task belongs to the screen we are going back to. */
     (void)RS_Pending_Cancel(app->pending, RS_PendingScope_All());
+    /* Except what the scene bridge reserved, which outlives the session. */
+    App_IfAssetsAfterLogout(app);
     /* Nor does a RUNCLIENTSCRIPT held for the tick the session never
      * finished: it would run against the title screen (U8). */
     RS_ClientScriptQueue_Reset(&app->pending_clientscripts);

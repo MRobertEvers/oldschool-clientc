@@ -341,6 +341,28 @@ App_InvIconsPending(struct App const* app);
 void
 App_IfAssetsAfterRestore(struct App* app);
 
+/** Make this family the filler of the scene bridge's sprite reservations
+ *  (UITreeSceneBridge_BindSprite): each is one Task_SpriteFill. After the
+ *  bridge and the pending index exist. */
+void
+App_IfAssetsBindBridge(struct App* app);
+
+/** Is a fill pending for sprite `cache_graphic_id`'s reservation? */
+bool
+App_SpriteFillPending(
+    struct App const* app,
+    int cache_graphic_id);
+
+/** Sprite fills pending (listed, not cancelled). */
+int
+App_SpriteFillsPending(struct App const* app);
+
+/** A logout cancelled every pending task, the bridge's sprite fills with
+ *  them; the bridge outlives the session and still holds the reservations, so
+ *  each unfilled one is wanted again. */
+void
+App_IfAssetsAfterLogout(struct App* app);
+
 /* ---- app_tasks_mounts.c: the visual parts of interface mounts, player
  *      models -------------------------------------------------------------- */
 

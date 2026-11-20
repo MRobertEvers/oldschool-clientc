@@ -454,6 +454,7 @@ App_Init(
     app->soft = ToriPlatform_Renderer_Soft3D_New();
     app->chrome_compositor = ChromeCompositor_Create(ToriPlatform_Renderer_Soft3D_New());
     UITreeSceneBridge_Init(&app->bridge, app->scene, app->provider);
+    App_IfAssetsBindBridge(app);
     /* The seq the design/local-player previews are posed at. Stated here, once,
      * for both the boot bake and the runtime interface mount — they share the
      * bridge and nothing else. -1 when the profile does not name one, which

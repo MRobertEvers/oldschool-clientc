@@ -30,6 +30,14 @@
  *   Task_InvIcon   one per inventory slot whose item has no icon, raised when
  *                  the slot's container changes. Keyed on the container and
  *                  the slot; a slot that changes again cancels it.
+ *   Task_SpriteFill one per scene id the bridge reserved for a sprite that was
+ *                  not resident when a node was bound to it
+ *                  (UITreeSceneBridge_BindSprite). Keyed on the sprite's
+ *                  cache id; it waits for the sprite through the assets
+ *                  table, asks again with the SPRITE back-off while it does
+ *                  not come, and fills the reservation. (The bridge kept its
+ *                  own list of these with its own retry clock, pumped every
+ *                  frame.)
  *
  * IF_SETANIM needs no task: its sequence is only drawn, the widget shows its
  * rest pose until it is here, and the set wants it at once (app_if_models.c).
@@ -52,7 +60,12 @@ enum
     APP_TASK_IF_MODEL = RS_PENDING_KINDS_IF_ASSETS_FIRST,
     /* An inventory slot's icon: RS_PendingKey_Id(app_inv_icon_slot_id, 0). */
     APP_TASK_INV_ICON,
+    /* A sprite reservation's fill: RS_PendingKey_Id(the sprite's cache id,
+     * 0). */
+    APP_TASK_SPRITE_FILL,
 };
+
+_Static_assert(APP_TASK_SPRITE_FILL <= RS_PENDING_KINDS_IF_ASSETS_LAST, "if-assets kinds in range");
 
 /* ---- Task_IfModel ------------------------------------------------------- */
 
@@ -636,4 +649,142 @@ App_IfAssetsAfterRestore(struct App* app)
     assert(app);
     for( int ci = 0; ci < app->invs.container_count; ci++ )
         App_InvIconsWant(app, app->invs.containers[ci].inv_id);
+}
+
+/* ---- Task_SpriteFill ----------------------------------------------------- *
+ *
+ * A node bound to a sprite that is not resident holds a scene id with nothing
+ * behind it (UITreeSceneBridge_BindSprite): one read that came back empty
+ * must not blank a mounted interface for the session. This task fills it. The
+ * load is the assets table's (ASSET_KIND_SPRITE: one in flight however many
+ * nodes bind the sprite); a load that came back without it is asked for again
+ * after the SPRITE back-off (500 ms doubling to 4 s), waited as client
+ * cycles, for as long as the sprites table may list it -- never given up on.
+ * An id the table answers it does not list (CacheProvider_SpriteAbsent) ends
+ * it: the slot stays empty, as an unlisted graphic always drew. */
+struct Task_SpriteFill
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct RS_ParallelTask par;
+    struct App* app;
+    int cache_id;
+    int scene_id;
+    /* The pause before asking again, and the client cycle it is over. */
+    uint32_t wait_ms;
+    uint32_t due_cycle;
+};
+
+static int
+Task_SpriteFill_Run(
+    struct ToriRS_Task* base,
+    struct ToriRS_IOBatch* io)
+{
+    struct Task_SpriteFill* self = (struct Task_SpriteFill*)base;
+    struct App* app = self->app;
+    (void)io;
+
+    PT_BEGIN(&self->pt);
+
+    for( ;; )
+    {
+        /* 1. Wait for it. */
+        PT_PARALLEL_AWAIT_ASSET(app->assets, AssetKey_Make(ASSET_KIND_SPRITE, self->cache_id, 0));
+        /* 2. Cancelled: a logout (App_IfAssetsAfterLogout wants it again). */
+        if( RS_ParallelTask_Cancelled(&self->par) )
+            PT_EXIT(&self->pt);
+        /* 4. Here: apply. */
+        if( UITreeSceneBridge_FillSprite(&app->bridge, self->cache_id, self->scene_id) )
+            break;
+        /* 3. The table says it will never arrive: the slot stays empty. */
+        if( CacheProvider_SpriteAbsent(app->provider, self->cache_id) )
+            PT_EXIT(&self->pt);
+        /* The back-off, waited as a client cycle (a timer, by name). */
+        self->wait_ms = Assets_BackoffNext(Assets_Policy(ASSET_KIND_SPRITE), self->wait_ms);
+        self->due_cycle = App_ParallelCycle(app) + App_ParallelCyclesFor(self->wait_ms);
+        PT_APP_AWAIT_CYCLE(app, self->due_cycle);
+        if( RS_ParallelTask_Cancelled(&self->par) )
+            PT_EXIT(&self->pt);
+    }
+
+    /* The fill advanced the bridge's asset revision, which is what the tree
+     * emit reads; a napping loop is woken to draw it. */
+    RedrawRequest_Raise(&app->redraw_request);
+
+    PT_END(&self->pt);
+}
+
+static void
+Task_SpriteFill_Free(struct ToriRS_Task* base)
+{
+    struct Task_SpriteFill* self = (struct Task_SpriteFill*)base;
+    App_ParallelTaskRelease(self->app, &self->par);
+    ToriMem_Free(ToriMem_Process(), self);
+}
+
+static struct ToriRS_TaskVTable Task_SpriteFill_VTable = {
+    .run = Task_SpriteFill_Run,
+    .free = Task_SpriteFill_Free,
+};
+
+/* The bridge's filler (UITreeSceneBridgeSpriteBoundFn): one task per
+ * reservation, none while one is pending for the sprite. */
+static void
+app_sprite_fill_want(
+    void* user,
+    int cache_graphic_id,
+    int scene_id)
+{
+    struct App* app = user;
+    struct Task_SpriteFill* task;
+
+    assert(app);
+    assert(cache_graphic_id >= 0);
+    assert(scene_id > 0);
+    if( App_SpriteFillPending(app, cache_graphic_id) )
+        return;
+    task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_SpriteFill_VTable;
+    strncpy(task->task.name, "SpriteFill", sizeof(task->task.name) - 1);
+    task->app = app;
+    task->cache_id = cache_graphic_id;
+    task->scene_id = scene_id;
+    PT_INIT(&task->pt);
+    /* The parallel queue, as an ordinary task: the node draws nothing until
+     * it is filled, and nothing else waits on it. */
+    App_ParallelTaskAdd(
+        app, &task->task, &task->par, APP_TASK_SPRITE_FILL, RS_PendingKey_Id(cache_graphic_id, 0), -1);
+}
+
+void
+App_IfAssetsBindBridge(struct App* app)
+{
+    assert(app);
+    assert(app->assets);
+    assert(app->pending);
+    UITreeSceneBridge_SetSpriteFiller(&app->bridge, app_sprite_fill_want, app);
+}
+
+bool
+App_SpriteFillPending(
+    struct App const* app,
+    int cache_graphic_id)
+{
+    assert(app);
+    return RS_Pending_Find(app->pending, APP_TASK_SPRITE_FILL, RS_PendingKey_Id(cache_graphic_id, 0)) != NULL;
+}
+
+int
+App_SpriteFillsPending(struct App const* app)
+{
+    assert(app);
+    return RS_Pending_Count(app->pending, APP_TASK_SPRITE_FILL);
+}
+
+void
+App_IfAssetsAfterLogout(struct App* app)
+{
+    assert(app);
+    UITreeSceneBridge_RewantSprites(&app->bridge);
 }

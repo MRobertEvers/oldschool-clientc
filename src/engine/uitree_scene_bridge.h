@@ -11,15 +11,14 @@ struct CacheProvider;
 struct ToriRS_Location;
 struct HMap;
 
-/** A scene id handed out before its sprite was resident. @see UITreeSceneBridge_BindSprite. */
-struct UITreeSceneBridgePendingSprite
-{
-    int cache_id;
-    int scene_id;
-    /** When to ask the provider for it again, and the pause after that. */
-    uint64_t next_ask_ms;
-    uint32_t wait_ms;
-};
+/** Who fills a scene id BindSprite reserved before its sprite was resident:
+ *  told the cache id and the scene id, it makes the work that waits for the
+ *  sprite and fills the id (the client's: one parallel task per reservation,
+ *  app/app_tasks_if_assets.c). @see UITreeSceneBridge_BindSprite. */
+typedef void (*UITreeSceneBridgeSpriteBoundFn)(
+    void* user,
+    int cache_graphic_id,
+    int scene_id);
 
 /**
  * Uploads CacheProvider ToriRS assets into a ToriDraw_Scene and returns scene
@@ -64,11 +63,11 @@ struct UITreeSceneBridge
 
     /** cache_graphic_id → scene_id */
     struct HMap* sprite_map;
-    /** Bound scene ids whose sprite has not landed yet; filled by
-     *  UITreeSceneBridge_PumpSprites. Empty on every steady frame. */
-    struct UITreeSceneBridgePendingSprite* pending_sprites;
-    int pending_sprite_count;
-    int pending_sprite_cap;
+    /** Told of every scene id BindSprite reserves (UITreeSceneBridge_
+     *  SetSpriteFiller); NULL: nothing would fill one, so nothing is
+     *  reserved. */
+    UITreeSceneBridgeSpriteBoundFn sprite_bound;
+    void* sprite_bound_user;
     /** cache_model_id → scene_id (usually same as cache id) */
     struct HMap* model_map;
     /** (obj_id, count) → scene_id for rasterized inventory icons */
@@ -323,12 +322,14 @@ UITreeSceneBridge_EnsureSprite(
  * (a dropped JS5 socket, a browser storage error) blanked every slot, divider
  * and icon of the skills tab for the rest of the session. Here such a sprite
  * gets its scene id now, with nothing behind it yet -- every renderer draws an
- * empty scene id as nothing -- and UITreeSceneBridge_PumpSprites fills it when
- * the sprite lands, asking the provider again until it does.
+ * empty scene id as nothing -- and the filler (UITreeSceneBridge_
+ * SetSpriteFiller) is told of it: it waits for the sprite through the assets
+ * table, asking again with a growing pause until it lands, and fills the id
+ * (UITreeSceneBridge_FillSprite).
  *
- * -1 for a negative id, for an id the sprites table is known not to list, and
- * for a provider with no numeric sprite loader, where nothing would ever fill
- * the reservation.
+ * -1 for a negative id, for an id the sprites table is known not to list, for
+ * a provider with no numeric sprite loader and for a bridge with no filler,
+ * where nothing would ever fill the reservation.
  */
 int
 UITreeSceneBridge_BindSprite(
@@ -336,21 +337,40 @@ UITreeSceneBridge_BindSprite(
     int cache_graphic_id);
 
 /** True when `cache_graphic_id` has a scene id -- drawn, or reserved by
- *  BindSprite and filled by the pump when it lands. */
+ *  BindSprite and filled when it lands. */
 bool
 UITreeSceneBridge_SpriteBound(
     struct UITreeSceneBridge const* bridge,
     int cache_graphic_id);
 
+/** The filler of BindSprite's reservations (see there). `bound` NULL: none. */
+void
+UITreeSceneBridge_SetSpriteFiller(
+    struct UITreeSceneBridge* bridge,
+    UITreeSceneBridgeSpriteBoundFn bound,
+    void* user);
+
 /**
- * Fill the scene ids BindSprite reserved whose sprites have landed, and re-ask
- * for the rest with a growing pause. Once per frame; a steady frame has
- * nothing pending and costs one compare.
+ * Fill the scene id BindSprite reserved for `cache_graphic_id` from the
+ * provider. 1 when the reservation is settled -- filled, or the sprite is
+ * resident but will not convert (EnsureSprite's -1 too: the id stays bound to
+ * nothing, and asking again would convert it again) -- 0 while the sprite is
+ * not resident.
+ */
+int
+UITreeSceneBridge_FillSprite(
+    struct UITreeSceneBridge* bridge,
+    int cache_graphic_id,
+    int scene_id);
+
+/**
+ * Tell the filler again of every reservation not filled yet: for a client
+ * whose fills were cancelled while the bridge -- which outlives a session --
+ * still holds the reservations (a logout cancels every pending task). Walks
+ * the sprite map: once per logout, never per frame.
  */
 void
-UITreeSceneBridge_PumpSprites(
-    struct UITreeSceneBridge* bridge,
-    uint64_t now_ms);
+UITreeSceneBridge_RewantSprites(struct UITreeSceneBridge* bridge);
 
 /** Reverse lookup: cache graphic id for a sprite scene_id, or -1 (debug dumps). */
 int
