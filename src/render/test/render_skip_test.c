@@ -137,6 +137,32 @@ test_state_lost(void)
     TEST_ASSERT(RenderSkip_CatchUp(&skip) == RENDER_SKIP_CATCH_UP_FRESH, "off is fresh");
 }
 
+/* The emit list a skipped frame left borrows the tree it was built from (a
+ * text command points at the node's own string). A tree that moved after
+ * that commit -- a driver verb's script settle at the next frame's start, a
+ * task landing between frames -- cannot be drawn under the old list: a late
+ * draw read the text a script had just replaced and freed (ASan
+ * heap-use-after-free in font_collect_draw_lines, from a camera verb's
+ * catch-up right after a tab press, on every relog of r2_relog.lua). */
+static void
+test_moved_tree_loses_the_catch_up(void)
+{
+    struct RenderSkip skip;
+
+    RenderSkip_Reset(&skip);
+    RenderSkip_Set(&skip, 1);
+    RenderSkip_NoteEmit(&skip, 5);
+    (void)RenderSkip_Frame(&skip, 1, 0, 0, 0);
+    RenderSkip_NoteTree(&skip, 5);
+    TEST_ASSERT(RenderSkip_CatchUp(&skip) == RENDER_SKIP_CATCH_UP_DRAW, "the tree its list was built from: drawn late");
+    RenderSkip_NoteTree(&skip, 6);
+    TEST_ASSERT(RenderSkip_CatchUp(&skip) == RENDER_SKIP_CATCH_UP_LOST, "a tree that moved since: not drawn under the old list");
+    RenderSkip_NoteEmit(&skip, 6);
+    (void)RenderSkip_Frame(&skip, 1, 0, 0, 0);
+    RenderSkip_NoteTree(&skip, 6);
+    TEST_ASSERT(RenderSkip_CatchUp(&skip) == RENDER_SKIP_CATCH_UP_DRAW, "the next commit's list is its own tree's again");
+}
+
 int
 main(void)
 {
@@ -146,6 +172,7 @@ main(void)
     test_owed_draws_count_drawn_frames();
     test_hold();
     test_state_lost();
+    test_moved_tree_loses_the_catch_up();
     if( g_failures )
     {
         printf("render_skip_test: %d failure(s)\n", g_failures);

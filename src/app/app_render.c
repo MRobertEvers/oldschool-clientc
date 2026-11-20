@@ -295,6 +295,11 @@ App_RenderSkipCatchUp(struct App* app)
      * frame is drawn late below. */
     if( app->world_views.split.attached )
         return app_view_split_catch_up(app);
+    /* The skipped frame's emit list borrows the tree it was built from; one
+     * that moved since (a driver verb's settle, a task landing between
+     * frames) is not drawn under it. */
+    if( app->tree )
+        RenderSkip_NoteTree(&app->render_skip, app->tree->dirty_gen);
     catch_up = RenderSkip_CatchUp(&app->render_skip);
     if( catch_up == RENDER_SKIP_CATCH_UP_FRESH )
         return 1;

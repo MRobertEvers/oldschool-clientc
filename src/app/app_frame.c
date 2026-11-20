@@ -1542,6 +1542,7 @@ app_run_once_body(
         if( App_BootHoldsLastFrame(app) )
             return app_frame_withheld(app, SETTLE_GATE_WITHHOLD_BOOT);
         RedrawRequest_Clear(&app->redraw_request);
+        RenderSkip_NoteEmit(&app->render_skip, app->tree ? app->tree->dirty_gen : 0u);
         TaskRunner_CheckPublishedAtStandstill(&app->frame_runner, "the boot frame");
         return 1;
     }
@@ -3558,6 +3559,7 @@ app_run_once_body(
         else
             RedrawRequest_Clear(&app->redraw_request);
         app->world_views.frame = App_RunnerView(app);
+        RenderSkip_NoteEmit(&app->render_skip, app->tree ? app->tree->dirty_gen : 0u);
         TaskRunner_CheckPublishedAtStandstill(&app->frame_runner, "the game frame");
         return 1;
     }
