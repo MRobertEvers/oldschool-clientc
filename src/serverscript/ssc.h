@@ -230,6 +230,7 @@ enum SSC_Query
     SSC_QUERY_KINDS = 3,   /* SSC_SymbolsValueKinds(name) */
     SSC_QUERY_CARRIER = 4, /* SSC_SymbolsCarrier(varp = arg) */
     SSC_QUERY_SCRIPT = 5,  /* the script id and signature of `name` */
+    SSC_QUERY_VARBIT_WIDTH = 6, /* SSC_SymbolsVarbitWidth(varbit = arg) */
 };
 
 typedef void (*SSC_QueryObserver)(void* context, int query, const char* name, int32_t arg);
@@ -276,6 +277,10 @@ struct SSC_Symbols
     struct SSC_VarpCarrier* carriers;
     int carrier_count;
     int carrier_capacity;
+    /** Bits each varbit holds (`endbit - startbit + 1`), by varbit id; 0 for
+     *  an id no record gave a range. See SSC_SymbolsVarbitWidth. */
+    uint8_t* varbit_widths;
+    int varbit_width_capacity;
     /** Varps content declared `wholewrite=allow` for, whether or not they carry
      *  anything — kept separately so an exemption naming a varp that carries
      *  nothing can be reported rather than silently accepted. */
@@ -403,6 +408,17 @@ int
 SSC_SymbolsLoadVarpDecls(
     struct SSC_Symbols* symbols,
     const char* dir);
+
+/**
+ * How many bits a varbit holds, 1..32, or 0 when no `.varbit` record gave the
+ * id a range. A write of a constant is checked against it at compile time
+ * (ssc_compile.c check_varbit_constant): the server masks a value to the
+ * width, so a 40 written to five bits used to be stored as 8 and said nothing.
+ */
+int
+SSC_SymbolsVarbitWidth(
+    const struct SSC_Symbols* symbols,
+    int32_t varbit);
 
 /** The carrier record for a varp id, or NULL when nothing is based on it. */
 const struct SSC_VarpCarrier*

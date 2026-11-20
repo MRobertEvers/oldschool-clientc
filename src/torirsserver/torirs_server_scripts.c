@@ -16855,6 +16855,36 @@ script_command(
 
         if( var_player_missing(state, target, "%varbit", varbit_id) )
             return 1;
+        /*
+         * A value the varbit's bits cannot hold. ToriRSServer_VarbitSetOn masks
+         * to the range's width, so a 40 written to five bits was stored as 8
+         * and a -1 as every bit set, and the script carried on with a variable
+         * that no longer held what it had just written. sscompile refuses the
+         * constants (check_varbit_constant); this is the same rule for a value
+         * only the run knows. Thirty-two bits hold any int.
+         */
+        {
+            int basevar;
+            int startbit;
+            int endbit;
+
+            if( ToriRSServer_VarbitRange(varbit_id, &basevar, &startbit, &endbit) )
+            {
+                int width = endbit - startbit + 1;
+
+                if( width >= 1 && width < 32 && ((uint32_t)value >> width) != 0 )
+                {
+                    const char* name =
+                        ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_VARBIT, varbit_id);
+
+                    SSVM_Abort(state,
+                               "%%%s (varbit %d) is %d bit%s and holds 0..%u: %d does not fit",
+                               name ? name : "?", varbit_id, width, width == 1 ? "" : "s",
+                               (1u << width) - 1u, (int)value);
+                    return 1;
+                }
+            }
+        }
         /* `busy` is the engine's (ToriRSServer_BusyUpdate); a script's write
          * is a hold on top of the delay and modal test, not the value. */
         if( varbit_id == ToriRSServer_BusyVarbit() )

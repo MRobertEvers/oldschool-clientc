@@ -812,6 +812,108 @@ test_varp(void)
     fixture_close(&fixture);
 }
 
+/*
+ * `%varbit = <constant>` against the varbit's width.
+ *
+ * The server masks a varbit write to its range, so a constant too big for the
+ * bits was stored as something else and nothing said so. One script per
+ * compile, so a refusal is the script under test and not an earlier one.
+ * Returns 1 when `body` compiled.
+ */
+static int
+varbit_fit_compiles(
+    const char* body,
+    struct SSC_Diag* diag)
+{
+    struct SSC_Symbols symbols;
+    struct SSC_Compiler* compiler;
+    char dir[256];
+    char configs[300];
+    char path[400];
+    char command[700];
+    FILE* file;
+    int ok;
+
+    snprintf(dir, sizeof(dir), "/tmp/ssc_varbit_fit_%d", (int)getpid());
+    snprintf(configs, sizeof(configs), "%s/configs", dir);
+    snprintf(command, sizeof(command), "rm -rf %s && mkdir -p %s/src %s", dir, dir, configs);
+    if( system(command) != 0 )
+        assert(!"cannot make the varbit-fit fixture directory");
+
+    /* Five bits (3..7), one bit, and all thirty-two. */
+    snprintf(path, sizeof(path), "%s/all.varbit", configs);
+    file = fopen(path, "wb");
+    assert(file);
+    fputs("[five_bits]\nstartbit=3\nendbit=7\n\n"
+          "[one_bit]\nstartbit=0\nendbit=0\n\n"
+          "[whole_word]\nstartbit=0\nendbit=31\n",
+          file);
+    fclose(file);
+
+    snprintf(path, sizeof(path), "%s/src/t.rs2", dir);
+    file = fopen(path, "wb");
+    assert(file);
+    fprintf(file, "[proc,write_it]\n%s\n", body);
+    fclose(file);
+
+    SSC_SymbolsInit(&symbols);
+    SSC_SymbolsAdd(&symbols, "five_bits", 70, SSC_SYM_VARBIT, NULL);
+    SSC_SymbolsAdd(&symbols, "one_bit", 71, SSC_SYM_VARBIT, NULL);
+    SSC_SymbolsAdd(&symbols, "whole_word", 72, SSC_SYM_VARBIT, NULL);
+    SSC_SymbolsAdd(&symbols, "no_record", 73, SSC_SYM_VARBIT, NULL);
+    SSC_SymbolsAdd(&symbols, "too_big", 0, SSC_SYM_CONSTANT, "32");
+    SSC_SymbolsSeedBuiltins(&symbols);
+    SSC_SymbolsLoadVarbitBases(&symbols, configs);
+
+    snprintf(path, sizeof(path), "%s/src", dir);
+    compiler = SSC_New(&symbols);
+    memset(diag, 0, sizeof(*diag));
+    ok = SSC_CompileDir(compiler, path, diag);
+    SSC_Free(compiler);
+    SSC_SymbolsFree(&symbols);
+
+    snprintf(command, sizeof(command), "rm -rf %s", dir);
+    if( system(command) != 0 )
+        printf("  note: could not clean up %s\n", dir);
+    return ok;
+}
+
+static void
+test_varbit_constant_fits(void)
+{
+    struct SSC_Diag diag;
+
+    printf("a constant written to a varbit must fit its bits\n");
+
+    CHECK(varbit_fit_compiles("%five_bits = 31;", &diag), "31 fits five bits");
+    CHECK(varbit_fit_compiles("%five_bits = 0;", &diag), "0 fits five bits");
+    CHECK(varbit_fit_compiles("%one_bit = 1;", &diag), "1 fits one bit");
+
+    CHECK(!varbit_fit_compiles("%five_bits = 32;", &diag), "32 does not fit five bits");
+    CHECK(strstr(diag.message, "five_bits") != NULL && strstr(diag.message, "0..31") != NULL &&
+              strstr(diag.message, "32 does not fit") != NULL,
+          "and the refusal names the varbit, its range and the value");
+    CHECK(diag.line == 2, "on the line of the write");
+    printf("  reported: %s:%d: %s\n", diag.file, diag.line, diag.message);
+
+    CHECK(!varbit_fit_compiles("%one_bit = 2;", &diag), "2 does not fit one bit");
+    CHECK(!varbit_fit_compiles("%five_bits = -1;", &diag), "a negative number never fits");
+    CHECK(!varbit_fit_compiles("%five_bits = null;", &diag), "nor does null, which is -1");
+    CHECK(!varbit_fit_compiles("%five_bits = ^too_big;", &diag),
+          "a named constant is checked as the number it is");
+
+    /* Thirty-two bits hold any int. */
+    CHECK(varbit_fit_compiles("%whole_word = -1;", &diag), "a 32-bit varbit takes -1");
+    CHECK(varbit_fit_compiles("%whole_word = 2147483647;", &diag), "and the largest int");
+
+    /* A value only the run knows is the server's to refuse (SS_OP_POP_VARBIT);
+     * a varbit no record gave a range has no width to check against. */
+    CHECK(varbit_fit_compiles("%five_bits = calc(31 + 1);", &diag),
+          "a computed value is not judged at compile time");
+    CHECK(varbit_fit_compiles("%no_record = 99;", &diag),
+          "a varbit with no stated range is not judged");
+}
+
 static void
 test_trigger_subject(void)
 {
@@ -2431,6 +2533,7 @@ main(void)
     test_long_string_literal();
     test_symbols_and_constants();
     test_varp();
+    test_varbit_constant_fits();
     test_npc_anim_literal_null_is_a_stop();
     test_trigger_subject();
     test_stacked_headers();

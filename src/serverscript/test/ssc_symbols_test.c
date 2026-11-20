@@ -277,6 +277,10 @@ test_markers(const char* build_dir)
           "markers: `basevar=default` is no carrier, not the varp named default");
     check(symbols.exempt_count == 0 && symbols.read_exempt_count == 0,
           "markers: `wholewrite=default` / `wholeread=default` exempt nothing");
+    check(SSC_SymbolsVarbitWidth(&symbols, 1) == 1, "varbit width: bits 0..0 are one bit");
+    check(SSC_SymbolsVarbitWidth(&symbols, 0) == 0,
+          "varbit width: `startbit=default` states no range, so no width");
+    check(SSC_SymbolsVarbitWidth(&symbols, 9) == 0, "varbit width: an id no record names has none");
 
     SSC_SymbolsFree(&symbols);
 }

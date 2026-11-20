@@ -62,6 +62,7 @@ SSC_SymbolsFree(struct SSC_Symbols* symbols)
     ToriMem_Free(ToriMem_Compiler(), symbols->name_slots);
     ToriMem_Free(ToriMem_Compiler(), symbols->name_next);
     ToriMem_Free(ToriMem_Compiler(), symbols->carriers);
+    ToriMem_Free(ToriMem_Compiler(), symbols->varbit_widths);
     ToriMem_Free(ToriMem_Compiler(), symbols->exempt);
     ToriMem_Free(ToriMem_Compiler(), symbols->read_exempt);
     memset(symbols, 0, sizeof(*symbols));
@@ -1374,6 +1375,54 @@ SSC_SymbolsCarrier(
 }
 
 int
+SSC_SymbolsVarbitWidth(
+    const struct SSC_Symbols* symbols,
+    int32_t varbit)
+{
+    assert(symbols);
+    if( symbols->observe )
+        symbols->observe(symbols->observe_context, SSC_QUERY_VARBIT_WIDTH, "", varbit);
+    if( varbit < 0 || varbit >= symbols->varbit_width_capacity )
+        return 0;
+    return symbols->varbit_widths[varbit];
+}
+
+/* A record's range, kept by the varbit's id. A name no pack carries has no id
+ * to keep it under, and nothing can write that varbit by name either. */
+static void
+varbit_width_record(
+    struct SSC_Symbols* symbols,
+    const char* varbit_name,
+    int start_bit,
+    int end_bit)
+{
+    const struct SSC_Symbol* varbit;
+    int width = end_bit - start_bit + 1;
+
+    if( start_bit < 0 || width < 1 || width > 32 )
+        return;
+    varbit = SSC_SymbolsFind(symbols, varbit_name, SSC_SYM_VARBIT);
+    if( !varbit || varbit->value < 0 )
+        return;
+    if( varbit->value >= symbols->varbit_width_capacity )
+    {
+        int next = symbols->varbit_width_capacity ? symbols->varbit_width_capacity : 32768;
+        uint8_t* grown;
+
+        while( next <= varbit->value )
+            next *= 2;
+        grown = (uint8_t*)ToriMem_Realloc(ToriMem_Compiler(), symbols->varbit_widths,
+                                          (size_t)next);
+        assert(grown);
+        memset(grown + symbols->varbit_width_capacity, 0,
+               (size_t)(next - symbols->varbit_width_capacity));
+        symbols->varbit_widths = grown;
+        symbols->varbit_width_capacity = next;
+    }
+    symbols->varbit_widths[varbit->value] = (uint8_t)width;
+}
+
+int
 SSC_SymbolsLoadVarbitBases(
     struct SSC_Symbols* symbols,
     const char* dir)
@@ -1405,6 +1454,8 @@ SSC_SymbolsLoadVarbitBases(
 #define COMMIT_VARBIT()                                                                            \
     do                                                                                             \
     {                                                                                              \
+        if( *varbit_name )                                                                         \
+            varbit_width_record(symbols, varbit_name, start_bit, end_bit);                         \
         if( base >= 0 && *varbit_name )                                                            \
         {                                                                                          \
             struct SSC_VarpCarrier* slot = carrier_slot(symbols, base);                            \
@@ -1857,6 +1908,9 @@ SSC_SymbolsQueryDigest(
         }
         break;
     }
+    case SSC_QUERY_VARBIT_WIDTH:
+        h = ssc_hash_u64(h, (uint64_t)SSC_SymbolsVarbitWidth(symbols, arg));
+        break;
     default:
         assert(!"SSC_SymbolsQueryDigest: not a symbol-table query");
     }

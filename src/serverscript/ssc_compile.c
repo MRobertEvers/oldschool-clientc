@@ -674,6 +674,49 @@ check_carrier_write(
 }
 
 /*
+ * `%varbit = <constant>` where the constant does not fit the varbit's bits.
+ *
+ * The server stores a varbit by masking the value to the range's width
+ * (torirs_server_varbit.c), so a 40 written to five bits was kept as 8 and a
+ * -1 as every bit set, and nothing said so. A constant is the half of that a
+ * compiler can see: `first_op` is where the value's code starts, and when that
+ * code is one constant push the number is known here. A computed value is the
+ * server's to refuse, where SS_OP_POP_VARBIT writes it.
+ *
+ * Thirty-two bits hold any int. Fewer hold 0 .. 2^width - 1, so a negative
+ * number never fits.
+ */
+static int
+check_varbit_constant(
+    struct SSC_Compiler* compiler,
+    const char* name,
+    int pop,
+    int32_t varbit,
+    int first_op)
+{
+    const struct SSC_Build* build = &compiler->build;
+    int32_t value;
+    int width;
+    uint32_t most;
+
+    if( pop != SS_OP_POP_VARBIT )
+        return 1;
+    if( build->op_count != first_op + 1 || build->opcodes[first_op] != SS_OP_PUSH_CONSTANT_INT )
+        return 1;
+    width = SSC_SymbolsVarbitWidth(compiler->symbols, varbit);
+    if( width <= 0 || width >= 32 )
+        return 1;
+    value = build->int_operands[first_op];
+    most = (1u << width) - 1u;
+    if( value >= 0 && (uint32_t)value <= most )
+        return 1;
+    return fail(compiler,
+                "`%%%s` is %d bit%s and holds 0..%u — %d does not fit, and the server "
+                "would store %u",
+                name, width, width == 1 ? "" : "s", most, value, (uint32_t)value & most);
+}
+
+/*
  * Reading a carrier gives the packed word, not a value.
  *
  * A warning and not an error, because the read is recoverable and there are real
@@ -3064,8 +3107,14 @@ parse_statement(struct SSC_Compiler* compiler)
             return fail(compiler, "expected '=' after %%%s", text);
         SSC_LexNext(lexer);
 
-        if( !parse_expression(compiler, &value_is_string) )
-            return 0;
+        {
+            int first_op = compiler->build.op_count;
+
+            if( !parse_expression(compiler, &value_is_string) )
+                return 0;
+            if( !check_varbit_constant(compiler, text, pop, id, first_op) )
+                return 0;
+        }
         emit(compiler, pop, id | secondary);
         if( SSC_LexIsPunct(lexer, ";") )
             SSC_LexNext(lexer);

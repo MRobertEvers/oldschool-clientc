@@ -1646,6 +1646,8 @@ query_op_label(int op)
         return "namespaces of";
     case SSC_QUERY_CARRIER:
         return "varbits packed into varp";
+    case SSC_QUERY_VARBIT_WIDTH:
+        return "bits of varbit";
     case SSC_QUERY_SCRIPT:
         return "script";
     default:
@@ -1657,7 +1659,7 @@ query_op_label(int op)
 static void
 describe_query(struct Build* build, const struct Query* q, char* out, size_t capacity)
 {
-    if( q->op == SSC_QUERY_CARRIER )
+    if( q->op == SSC_QUERY_CARRIER || q->op == SSC_QUERY_VARBIT_WIDTH )
     {
         snprintf(out, capacity, "%s %d", query_op_label(q->op), q->arg);
         return;
