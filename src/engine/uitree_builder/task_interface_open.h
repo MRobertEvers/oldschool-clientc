@@ -126,7 +126,9 @@ struct InterfaceOpenModelWant
 
 /**
  * What model node `idx` of `tree` waits for: its model or active model when
- * `provider` does not hold it, the avatar when the bridge has not built it.
+ * it is a cache model `provider` does not hold (a scene composite an
+ * IF_SETNPCHEAD or IF_SETOBJECT bound is its own task's), the avatar when the
+ * bridge has not built it.
  * Fills up to INTERFACE_OPEN_NODE_WANTS_MAX of `out` and returns how many; 0
  * for a node that is not a live model widget or has all it needs.
  */

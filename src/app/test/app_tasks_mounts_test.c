@@ -328,6 +328,9 @@ test_group_mount(void)
     a = push_model(&fx, root, (group << 16) | 1, 70);
     b = push_model(&fx, root, (group << 16) | 2, 71);
     add_model(&fx, 71); /* here already: the bake bound it */
+    /* A chathead an IF_SETNPCHEAD bound: a scene composite, not a cache
+     * model, and its own task's. */
+    (void)push_model(&fx, root, (group << 16) | 3, UITREE_SCENE_NPC_HEAD_BASE | 1012);
 
     TEST_ASSERT(App_MountVisualsAdd(&fx.app, group) == 1, "one task, for the one model not here");
     TEST_ASSERT(RS_Pending_Find(fx.app.pending, APP_TASK_MOUNT_MODEL, node_key(&fx, a)) != NULL,
@@ -337,6 +340,7 @@ test_group_mount(void)
     TEST_ASSERT(App_MountVisualsAdd(&fx.app, group) == 0, "a remount adds none twice");
     pump(&fx);
     TEST_ASSERT(loads_of(ASSET_KIND_MODEL, 70, 0) == 1, "it asked for the model");
+    TEST_ASSERT(loads_of_kind(ASSET_KIND_MODEL) == 1, "and for no scene composite as a cache model");
     later_packet_applies(&fx, 0x7f000001);
 
     /* The model comes: it binds and the task ends. */

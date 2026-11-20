@@ -486,6 +486,15 @@ InterfaceOpen_BindGroupModels(
     return bound;
 }
 
+/* A cache model id, not a scene composite a head, an obj or the avatar was
+ * bound as (those are UITREE_SCENE_PLAYER_MODEL_ID and up, out of cache range,
+ * and are their own tasks' to build). */
+static int
+interface_open_cache_model(int id)
+{
+    return id >= 0 && id < UITREE_SCENE_PLAYER_MODEL_ID;
+}
+
 int
 InterfaceOpen_NodeModelWants(
     struct UITree const* tree,
@@ -506,7 +515,7 @@ InterfaceOpen_NodeModelWants(
     c = &tree->components[idx];
     if( c->freed || c->type != UIELEM_RS_MODEL )
         return 0;
-    if( c->u.rs_model.gamecache_model_id >= 0 &&
+    if( interface_open_cache_model(c->u.rs_model.gamecache_model_id) &&
         !CacheProvider_ModelHas(provider, c->u.rs_model.gamecache_model_id) )
     {
         out[n].kind = INTERFACE_OPEN_WANT_MODEL;
@@ -523,7 +532,7 @@ InterfaceOpen_NodeModelWants(
         out[n].model_id = -1;
         n++;
     }
-    if( c->u.rs_model.active_model_id >= 0 &&
+    if( interface_open_cache_model(c->u.rs_model.active_model_id) &&
         !CacheProvider_ModelHas(provider, c->u.rs_model.active_model_id) )
     {
         out[n].kind = INTERFACE_OPEN_WANT_ACTIVE_MODEL;

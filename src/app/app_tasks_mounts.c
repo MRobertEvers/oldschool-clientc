@@ -352,6 +352,13 @@ mount_model_want_node(
         PT_INIT(&task->pt);
         App_ParallelTaskAdd(app, &task->task, &task->par, kind, key, -1);
         added++;
+        if( TaskRunner_ContractTrace() )
+            fprintf(
+                stderr,
+                "queue_contract: trace mounts: 0x%08x waits for model %d at frame %ld\n",
+                (unsigned)app->tree->components[idx].component_id,
+                task->model_id,
+                g_torirs_frame_no);
     }
     return added;
 }
