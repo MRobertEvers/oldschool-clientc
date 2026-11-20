@@ -538,6 +538,8 @@ test_wants_raised_on_change(void)
     source.want = test_want;
     World_SetSeqSource(f.world, &source);
     g_want_count = 0;
+    /* A loaded world has a scene: cycling an actor asserts it. */
+    World_ResetScene(f.world, 50, 50, 104);
     World_SetLoadComplete(f.world, true);
     RS_EntityApply_NpcInfo(&f.in, 0, add, 3);
     World_Cycle(f.world, 1);

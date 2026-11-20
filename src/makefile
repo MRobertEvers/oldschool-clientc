@@ -5595,7 +5595,7 @@ check-no-drain:
 UBSAN_UNIT_OBJ_BASE ?= build_ubsan_units
 UBSAN_UNIT_TESTS = test-js5 test-varp test-raster-kernel test-render-hd \
 	test-painters-occluders test-uitree-builder-dat1 test-cs2-math \
-	test-sailing-navigation test-audio
+	test-sailing-navigation test-audio test-entity-apply
 check-ubsan-units:
 	$(MAKE) OPT=0 PLATFORM_OBJ_BASE=$(UBSAN_UNIT_OBJ_BASE) \
 		PLATFORM_CC='$(PLATFORM_CC) -fsanitize=undefined -fno-sanitize-recover=all' \
