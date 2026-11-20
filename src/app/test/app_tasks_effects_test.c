@@ -98,6 +98,9 @@ fixture_init(struct Fixture* fx)
     fx->app->frame_runner.queue = ToriRS_TaskQueue_New();
     fx->app->packet_runner.queue = ToriRS_TaskQueue_New();
     fx->app->assets = Assets_New();
+    /* Every packet runs under a tree (app_exec_ctx asserts it), even the
+     * effects packets that never write one. */
+    fx->app->tree = UITree_New(2);
     loader.start = fake_start;
     loader.resident = fake_resident;
     loader.data = NULL;
@@ -147,6 +150,7 @@ fixture_free(struct Fixture* fx)
     ToriRS_IOBatch_Free(fx->io);
     World_Free(fx->root);
     World_Free(fx->deck);
+    UITree_Free(fx->app->tree);
     free(fx->app);
 }
 
