@@ -80,11 +80,42 @@ transition that touches a box.
 - **An op's dialogue closes a box first**: `if_closesub chatbox:chatmodal`,
   then the op's own page, in every recorded case (index 4360 [1185], 4439
   [328], 4457 [974], 4529 [763], 4603 [594], 4353 [455]).
-- **A latched op closes a box the queue opened after it.** The box opens and
-  is shut on the tick the op lands, with no input from the client and without
-  the `if_sethide` the box's continue sends: the combat box as a ground item
-  is taken (index 4521 [281]), the Hitpoints box under a swing (index 4517
-  [3992]).
+- **A latched op closes a box the queue opened after it** -- as first read.
+  Both cases cited for it are a hit on the player on the box's tick (index
+  4521 [281]: a spider's 0; index 4517 [3992]: a spider's 0, no swing of the
+  recorder's that tick), which closes the box by itself (below). Ours still
+  closes the chat box when a client's op fires (`interaction_close_chat_behind`);
+  no recording isolates that case.
+
+## In a fight
+
+Sources: the same 218 sessions (`search interface 233`), every chat modal in
+them: 689 level-up boxes and about 27,800 chat modals of every interface, each
+followed to its close, against the recorder's own `[hit]` and attack
+`[sequence]` rows in `player_info` and the client's packets (2026-11-20).
+
+- **A hit on the player closes the chat box, on the hit's tick.** 78 level-up
+  boxes closed with no client input on a tick the recorder took a hit (22
+  sessions; index 4517 [3992], [4628]; 4521 [281]); not one box stayed up across
+  a later tick on which the recorder was hit. Of every chat modal (npc and
+  player pages, menus, message and object boxes) one stayed up across a later
+  hit (a messagebox, index 4464 [3732]). A 0 counts (index 4517 [4628]: the
+  spider's block splat). A box opened on the hit's own tick is shut on it.
+- **A swing does not close it: the fight waits behind the box.** Index 4555:
+  Torag's hammers swing every 4 ticks ([3371], [3375], [3379]); the box opens
+  [3381]; no swing [3383]; the next swing is [3387], the tick a hit closed the
+  box. Across all 689 boxes no box stayed up over a tick on which the recorder
+  swung, and the one swing that shares a closing tick with no hit follows a
+  client click (index 4429 [1789] OPNPCT -> [1790]).
+
+Ours: the `damage`/`p_overhit` of somebody else sets `hit_closes_chat`, and the
+player's turn closes the chat box after its queues and before its interaction
+(torirs_server_world.c `phase_player`); an interaction a script latched
+(`p_opnpc`: a fight's re-arm, the ranged loop, auto-retaliation) waits while a
+chat box is up, in the op rung and the ap rung (`scripted`). Before, a melee
+fight's op closed the box at once and a ranged fight swung on under it while
+hits landed. Test: `test/levelup/levelup_combat.lua` (scriptrun, 12 of 12; 8 of
+12 before).
 
 Ours: the op's packet closes what is up (`ToriRSServer_WorldClearPendingAction`),
 and an op that fires closes the chat modal a queue opened behind it

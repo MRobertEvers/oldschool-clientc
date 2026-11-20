@@ -53,6 +53,7 @@
 #include "game/entity_info_scratch.h"
 #include "game/rs_effect_rules.h"
 #include "game/rs_event_ring.h"
+#include "render/cam_script.h"
 #include "scriptrun/scriptrun_model.h"
 #include "scriptrun/scriptrun_zone.h"
 #include "ui/uitree_if_models.h"
@@ -194,6 +195,12 @@ struct ScriptrunCore
     struct GameProtoRevTable const* rev;
     struct World* world;
     struct RS_EntitySync* esync;
+
+    /* The scripted camera's read side, as the real client keeps it
+     * (app_gameproto_exec.c exec_cam_*): every CAM_* packet recorded in world
+     * tiles, and whether a script holds the eye. There is no eye to draw, so
+     * nothing walks it; api.drive.camera_state/camera_events read this. */
+    struct CamScript cam;
 
     /* The scene: the rebuild's centre zone; absolute = scene + base. */
     int have_scene;

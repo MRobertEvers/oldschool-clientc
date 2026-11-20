@@ -104,6 +104,23 @@ QD.cutscene._rows = {}
 -- is one keyframe of one cutscene row, never two.
 QD.cutscene._claimed = 0
 
+-- The camera's state, or nil when this client cannot say: no verb in this
+-- binary, or a verb that answers anything but ok (a lane without a camera
+-- binds every client verb as an `unsupported` answer, scriptrun's contract).
+-- Reading the second value of such an answer as a table is what ended
+-- dragon's headless run: `cam.serial` on the detail STRING is nil, and the
+-- await compared it with a number (quest-driver:70063).
+function QD.cutscene._state()
+    if api_drive.camera_state == nil then
+        return nil
+    end
+    local result, cam = api_drive.camera_state()
+    if result ~= "ok" or type(cam) ~= "table" then
+        return nil
+    end
+    return cam
+end
+
 QD.cutscene._row_begin_inner = QD.core_row_begin
 function QD.core_row_begin(name)
     if api_drive.camera_state ~= nil then
@@ -122,12 +139,12 @@ end
 -- after waiting up to `ticks` for a running sequence to reset, the text that
 -- names the camera still held.
 function QD.cutscene._camera_driven(ticks)
-    if api_drive.camera_state == nil then
+    if QD.cutscene._state() == nil then
         return nil
     end
     local function driven()
-        local _, cam = api_drive.camera_state()
-        return cam.server_driven and cam or nil
+        local cam = QD.cutscene._state()
+        return cam ~= nil and cam.server_driven and cam or nil
     end
     if driven() == nil then
         return nil
@@ -147,10 +164,10 @@ function QD.cutscene._camera_driven(ticks)
 end
 
 function QD.cutscene.mark()
-    if api_drive.camera_state == nil then
+    local cam = QD.cutscene._state()
+    if cam == nil then
         return 0
     end
-    local _, cam = api_drive.camera_state()
     return cam.serial
 end
 
@@ -250,7 +267,10 @@ function QD.cutscene.await(name, opts)
     end
     local timeout = opts.timeout or QD.cutscene._DEFAULT_TIMEOUT
     local quiet = opts.quiet or QD.cutscene._DEFAULT_QUIET
-    local _, cam0 = api_drive.camera_state()
+    local cam0 = QD.cutscene._state()
+    if cam0 == nil then
+        return "unsupported", "this client cannot read the camera (api.drive.camera_state)"
+    end
     local since, since_why
     if opts.since ~= nil then
         since, since_why = opts.since, "opts.since"
@@ -319,8 +339,8 @@ function QD.cutscene.await(name, opts)
     end
 
     local function arrived()
-        local _, cam = api_drive.camera_state()
-        return cam.serial > cursor
+        local cam = QD.cutscene._state()
+        return cam ~= nil and cam.serial > cursor
     end
 
     -- Shots for every keyframe not yet looked at. A keyframe read back after

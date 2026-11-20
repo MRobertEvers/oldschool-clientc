@@ -64,6 +64,13 @@ struct ToriRSServerSocialEntry
     /** 0 = offline. Non-zero = TORIRSSERVER_WORLD_ID. */
     int world;
 
+    /** The name as its player spells it ("Eden Cosine"), "" until the player
+     *  logs in or is renamed: base 37 is the key, and it keeps neither
+     *  capitals nor spaces. `previous` is the spelling before the last rename,
+     *  "" for none. */
+    char display[TORIRSSERVER_SOCIAL_DISPLAY_MAX];
+    char previous[TORIRSSERVER_SOCIAL_DISPLAY_MAX];
+
     int public_mode;
     int private_mode;
     int trade_mode;
@@ -334,6 +341,70 @@ ToriRSServer_FriendsLogin(
     return 1;
 }
 
+void
+ToriRSServer_FriendsSetDisplayName(
+    int64_t name37,
+    const char* display)
+{
+    struct ToriRSServerSocialEntry* entry;
+
+    assert(display);
+    assert(name37_is_valid(name37));
+    entry = entry_get(name37);
+    if( !entry )
+        return;
+    snprintf(entry->display, sizeof(entry->display), "%s", display);
+}
+
+void
+ToriRSServer_FriendsDisplayName(
+    int64_t name37,
+    char* out,
+    size_t cap)
+{
+    const struct ToriRSServerSocialEntry* entry = entry_find(name37);
+
+    assert(out);
+    assert(cap > 0);
+    if( entry && entry->display[0] )
+        snprintf(out, cap, "%s", entry->display);
+    else
+        base37tostr((uint64_t)name37, out, (int)cap);
+}
+
+void
+ToriRSServer_FriendsPreviousName(
+    int64_t name37,
+    char* out,
+    size_t cap)
+{
+    const struct ToriRSServerSocialEntry* entry = entry_find(name37);
+
+    assert(out);
+    assert(cap > 0);
+    snprintf(out, cap, "%s", entry ? entry->previous : "");
+}
+
+/* Every list that holds `old37` holds `new37` in its place: a friend or an
+ * ignore follows the account, not the spelling. */
+static void
+lists_rekey(
+    int64_t old37,
+    int64_t new37)
+{
+    for( int i = 0; i < g_roster_count; i++ )
+    {
+        struct ToriRSServerSocialEntry* entry = &g_roster[i];
+        int at = list_index_of(entry->friends, entry->friend_count, old37);
+
+        if( at >= 0 && list_index_of(entry->friends, entry->friend_count, new37) < 0 )
+            entry->friends[at] = new37;
+        at = list_index_of(entry->ignores, entry->ignore_count, old37);
+        if( at >= 0 && list_index_of(entry->ignores, entry->ignore_count, new37) < 0 )
+            entry->ignores[at] = new37;
+    }
+}
+
 int
 ToriRSServer_FriendsRename(
     int64_t old37,
@@ -342,6 +413,7 @@ ToriRSServer_FriendsRename(
     struct ToriRSServerSocialEntry* from;
     struct ToriRSServerSocialEntry* to;
     struct ToriRSServerSocialEntry moved;
+    char previous[TORIRSSERVER_SOCIAL_DISPLAY_MAX];
 
     assert(name37_is_valid(old37));
     assert(name37_is_valid(new37));
@@ -358,8 +430,13 @@ ToriRSServer_FriendsRename(
      * own; the moving player's lists replace them. */
     ToriMem_Free(ToriMem_ServerPlayers(), to->friends);
     ToriMem_Free(ToriMem_ServerPlayers(), to->ignores);
+    /* The spelling the followers knew, kept as the new name's previous one:
+     * Jagex's lists show a renamed friend under the new name with the old
+     * beside it (RSProx index 236 [3]). */
+    ToriRSServer_FriendsDisplayName(old37, previous, sizeof(previous));
     moved = *from;
     moved.name37 = new37;
+    snprintf(moved.previous, sizeof(moved.previous), "%s", previous);
     *to = moved;
     from->friends = NULL;
     from->friend_count = 0;
@@ -368,6 +445,8 @@ ToriRSServer_FriendsRename(
     from->ignore_count = 0;
     from->ignore_capacity = 0;
     from->world = 0;
+    from->display[0] = '\0';
+    lists_rekey(old37, new37);
     return 1;
 }
 
