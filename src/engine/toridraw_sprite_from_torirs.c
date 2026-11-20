@@ -54,6 +54,11 @@ ToriDraw_SpriteFromToriRSFrame(struct ToriRS_SpriteFrame* frame)
         spr->trim_x = frame->trim_x;
         spr->trim_width = frame->trim_width;
     }
+    if( frame->trim_height > 0 )
+    {
+        spr->trim_y = frame->trim_y;
+        spr->trim_height = frame->trim_height;
+    }
     /* The decoder's statement about its own pixels travels with them. */
     spr->alpha_channel = frame->alpha_channel;
     return spr;

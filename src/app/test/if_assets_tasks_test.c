@@ -675,6 +675,7 @@ test_npc_headicon_groups_load(void)
         "group 88 first, bound by its id");
     TEST_ASSERT(n >= 2 && icons[1].scene_id == prayer_scene && icons[1].frame == 2,
         "the prayer group from the client's own pack");
+    TEST_ASSERT(n >= 2 && icons[0].slot == 1 && icons[1].slot == 3, "each keeps its slot, which places it");
     TEST_ASSERT(App_SpriteFillPending(&fx.app, 88), "group 88 loads through its fill task");
     TEST_ASSERT(!App_SpriteFillPending(&fx.app, 77), "a slot with no frame binds nothing");
     pump(&fx);
@@ -697,6 +698,47 @@ test_npc_headicon_groups_load(void)
     n = app_overlay_npc_headicons(&fx.app, &type, &npc, prayer_scene, APP_HEADICONS_PRAYER_GROUP, icons);
     TEST_ASSERT(n == 1 && icons[0].scene_id == prayer_scene && icons[0].frame == 4, "the type's icon");
     fixture_free(&fx);
+}
+
+/*
+ * A2: where an npc's overhead icon goes (deob Statics.method6709, the npc
+ * branch, bytecode at offsets 2884-2915 as javap prints it):
+ *
+ *     draw(sx + vx - (w >> 1), sy + ((vy - h - 2) * (slot + 1) - h) - 4)
+ *
+ * (sx, sy) the anchor in the viewport, (vx, vy) the viewport's origin, w and
+ * h the frame's art. Numbers from that, for a 25 x 25 icon and a 30 x 21 one,
+ * the anchor at (300, 200) in the viewport:
+ *   resizable (origin 0, 0): slot 0 at y 200 - 56 = 144, slot 1 at 117,
+ *     slot 3 at 63 (a step of h + 2 = 27); x 300 - 12 = 288;
+ *   fixed (origin 4, 4), on the canvas (304, 204): slot 0 at 204 - 4 + (4 -
+ *     27) - 25 - 4 = 148, slot 1 at 125, slot 2 at 102 (a step of h + 2 - vy
+ *     = 23); x 304 - 12 = 292;
+ *   30 x 21, resizable: slot 0 at 200 - 2*21 - 6 = 152, x 300 - 15 = 285.
+ * The player branch draws at x - 12 whatever the icon, and the old npc rule
+ * was that one (y - 30, then 27 per drawn icon).
+ */
+static void
+test_npc_headicon_placement(void)
+{
+    int x;
+    int y;
+
+    printf("TEST: an npc headicon is placed by its art and its slot, as the reference's npc branch\n");
+    app_overlay_npc_headicon_place(300, 200, 0, 0, 25, 25, &x, &y);
+    TEST_ASSERT(x == 288 && y == 144, "one icon, resizable: (288, 144)");
+    app_overlay_npc_headicon_place(300, 200, 0, 1, 25, 25, &x, &y);
+    TEST_ASSERT(x == 288 && y == 117, "slot 1, resizable: 27 above slot 0");
+    app_overlay_npc_headicon_place(300, 200, 0, 3, 25, 25, &x, &y);
+    TEST_ASSERT(y == 63, "slot 3 is placed by its slot, not its rank");
+    app_overlay_npc_headicon_place(304, 204, 4, 0, 25, 25, &x, &y);
+    TEST_ASSERT(x == 292 && y == 148, "one icon, fixed: (292, 148) on the canvas");
+    app_overlay_npc_headicon_place(304, 204, 4, 1, 25, 25, &x, &y);
+    TEST_ASSERT(y == 125, "slot 1, fixed: 23 above slot 0");
+    app_overlay_npc_headicon_place(304, 204, 4, 2, 25, 25, &x, &y);
+    TEST_ASSERT(y == 102, "slot 2, fixed: 23 above slot 1");
+    app_overlay_npc_headicon_place(300, 200, 0, 0, 30, 21, &x, &y);
+    TEST_ASSERT(x == 285 && y == 152, "a 30 x 21 icon is centred and lifted by its own size");
 }
 
 /* E12 HEAD_CUSTOM: an IF_SETNPCHEAD_ACTIVE head of an npc carrying a
@@ -1302,6 +1344,7 @@ main(void)
     test_sprite_reservation_outlives_a_logout();
     test_bind_without_a_loader_is_unbound();
     test_npc_headicon_groups_load();
+    test_npc_headicon_placement();
     test_npc_head_custom_loads_its_models();
     test_a_close_seen_after_the_last_pump_publishes();
     test_npc_head_custom_empty_list_shows_nothing();

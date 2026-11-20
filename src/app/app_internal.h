@@ -1918,12 +1918,38 @@ app_overlay_build_player_headicons(
 void
 app_overlay_build_hint_arrow(struct App* app);
 
-/* One overhead icon an npc draws: the sprite group's scene id and the frame. */
+/* One overhead icon an npc draws: the sprite group's scene id, the frame and
+ * the slot (0..7) it is in, which places it. */
 struct AppNpcHeadicon
 {
     int scene_id;
     int frame;
+    int slot;
 };
+
+/**
+ * Where the npc overhead icon in `slot` is drawn, on the canvas (deob
+ * Statics.method6709, the npc branch):
+ *
+ *     draw(sx + vx - (w >> 1), sy + ((vy - h - 2) * (slot + 1) - h) - 4)
+ *
+ * with (sx, sy) the anchor projected in the viewport (method6186 at the
+ * actor's height + 15), (vx, vy) the viewport's origin and w, h the frame's
+ * ART width and height (field6921 / field6911, not its canvas). `screen_x`
+ * and `screen_y` are the anchor on the canvas (sx + vx, sy + vy). The slot
+ * is the icon's own, not its rank among the drawn ones, and the step between
+ * slots is h + 2 - vy: the reference multiplies the viewport's y into it.
+ */
+void
+app_overlay_npc_headicon_place(
+    int screen_x,
+    int screen_y,
+    int viewport_y,
+    int slot,
+    int art_width,
+    int art_height,
+    int* out_x,
+    int* out_y);
 
 /* The overhead icons an npc draws, in slot order (deob Statics ~24626: every
  * slot whose group and frame are set, the override's when the server set one,

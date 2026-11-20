@@ -576,6 +576,7 @@ app_overlay_npc_headicons(
             continue;
         out[n].scene_id = scene_id;
         out[n].frame = index[i];
+        out[n].slot = i;
         n++;
     }
     return n;
@@ -615,19 +616,60 @@ app_overlay_build_npc_headicon(
 
     for( int i = 0; i < count; i++ )
     {
-        /* Each later slot one icon (25, the overhead icons' height) and the
-         * reference's 2-pixel gap above the one before. */
-        struct UITreeEntityOverlay spr = {
-            .kind = UITREE_ENTITY_OVERLAY_SPRITE,
-            .x = screen_x - 12,
-            .y = screen_y - 30 - i * (25 + 2),
-            .w = 0,
-            .h = 0,
-            .scene_id = icons[i].scene_id,
-            .atlas_index = icons[i].frame,
-        };
-        app_overlay_push(app, &spr);
+        int frame_count = 0;
+        struct ToriDraw_Sprite** frames = ToriDraw_SceneSpriteGet(app->scene, icons[i].scene_id, &frame_count);
+        struct ToriDraw_Sprite const* art;
+        int x;
+        int y;
+
+        /* Placed by the frame's art: a group whose pixels have not come
+         * draws nothing yet, wherever it would go. */
+        if( !frames || icons[i].frame >= frame_count || !frames[icons[i].frame] )
+            continue;
+        art = frames[icons[i].frame];
+        assert(art->trim_width > 0);
+        assert(art->trim_height > 0);
+        app_overlay_npc_headicon_place(
+            screen_x, screen_y, app->world_views.emit_desc.y, icons[i].slot, art->trim_width,
+            art->trim_height, &x, &y);
+        {
+            struct UITreeEntityOverlay spr = {
+                .kind = UITREE_ENTITY_OVERLAY_SPRITE,
+                /* The sprite is drawn on its canvas, at the offset of its art:
+                 * the reference's draw(x, y) adds the art's offset itself. */
+                .x = x,
+                .y = y,
+                .w = 0,
+                .h = 0,
+                .scene_id = icons[i].scene_id,
+                .atlas_index = icons[i].frame,
+            };
+            app_overlay_push(app, &spr);
+        }
     }
+}
+
+void
+app_overlay_npc_headicon_place(
+    int screen_x,
+    int screen_y,
+    int viewport_y,
+    int slot,
+    int art_width,
+    int art_height,
+    int* out_x,
+    int* out_y)
+{
+    int const sy = screen_y - viewport_y;
+
+    assert(slot >= 0);
+    assert(slot < WORLD_NPC_HEADICON_SLOTS);
+    assert(art_width >= 0);
+    assert(art_height >= 0);
+    assert(out_x);
+    assert(out_y);
+    *out_x = screen_x - (art_width >> 1);
+    *out_y = sy + ((viewport_y - art_height - 2) * (slot + 1) - art_height) - 4;
 }
 
 /**

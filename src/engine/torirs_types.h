@@ -899,6 +899,8 @@ struct ToriRS_SpriteFrame
      * stated none. @see ToriDraw_Sprite::trim_x. */
     int trim_x;
     int trim_width;
+    int trim_y;
+    int trim_height;
     /* Whether the alpha byte is a real channel; carried to the ToriDraw
      * sprite this frame becomes. @see ToriDraw_Sprite::alpha_channel. */
     unsigned char alpha_channel;
