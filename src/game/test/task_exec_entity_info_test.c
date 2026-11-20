@@ -735,6 +735,9 @@ fixture_init(struct EntityFixture* fx)
     CacheProvider_InitEngineCaches(&fx->provider);
     VarPManager_Init(&fx->app.varps);
     TEST_ASSERT(VarPManager_SetVarpTypes(&fx->app.varps, &fx->varp_type, 1), "fixture varps");
+    /* The App's script host reads the same varps (RS_CS2Host_Init in
+     * app.c): a varp change syncs the audio options through it. */
+    fx->app.host.varps = &fx->app.varps;
     fx->app.provider = &fx->provider;
     fx->app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&fx->app.esync);

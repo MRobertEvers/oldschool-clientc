@@ -66,6 +66,25 @@ test_host_request(
     return 0;
 }
 
+/* The asset queue drained, then the compute queue run, until neither moves:
+ * the jagfile decode is a background job its loader joins
+ * (Task_Dat1ComponentPackLoad, CacheProvider::compute_queue), as App_RunOnce
+ * drains the one and gives the other its slice. */
+static void
+drain_both(
+    struct TaskRunner* runner,
+    struct TaskRunner* background)
+{
+    for( int round = 0; round < 1000; round++ )
+    {
+        TaskRunner_Drain(runner);
+        if( !background->queue->head )
+            return;
+        (void)TaskRunner_RunUntil(background, 0);
+    }
+    assert(!"drain_both: the queues never settled");
+}
+
 static struct ToriRS_Sprite*
 sprite_by_name(
     struct CacheProvider* provider,
@@ -103,10 +122,17 @@ main(
     runner.px = PlatformX_IO_New();
     assert(runner.io && runner.queue && runner.px);
     PlatformX_IO_InitDat1Disk(runner.px, disk);
+    struct TaskRunner background = { .parallel = 1, .role = TASK_RUNNER_ROLE_BACKGROUND };
+    background.io = ToriRS_IOBatch_New();
+    background.queue = ToriRS_TaskQueue_New();
+    background.px = runner.px;
+    assert(background.io);
+    assert(background.queue);
 
     struct Dat1BuildCache* bc = dat1_buildcache_new();
     struct CacheProvider* provider = dat1_buildcache_as_provider(bc);
     CacheProvider_SetAssetQueue(provider, runner.queue);
+    CacheProvider_SetComputeQueue(provider, background.queue);
 
     struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     assert(scene);
@@ -123,7 +149,7 @@ main(
     builder.bridge = &bridge;
 
     ToriRS_TaskQueue_Add(runner.queue, CreateTask_UITreeBuild(&builder));
-    TaskRunner_Drain(&runner);
+    drain_both(&runner, &background);
 
     /* Jagfiles loaded through the CONFIGS-table IO path. */
     CHECK(dat1_buildcache_get_media_2d_graphics_jagfile(bc) != NULL, "media jagfile loaded");
@@ -306,12 +332,12 @@ main(
 
             ToriRS_TaskQueue_Add(
                 runner.queue, CreateTask_ComponentLoad(provider, uibuilder_pack_component_id(iface)));
-            TaskRunner_Drain(&runner);
+            drain_both(&runner, &background);
             {
                 struct ToriRS_Task* required = CreateTask_PackAssetsLoadRequired(provider, iface);
                 if( required )
                     ToriRS_TaskQueue_Add(runner.queue, required);
-                TaskRunner_Drain(&runner);
+                drain_both(&runner, &background);
             }
             pack = CacheProvider_ComponentPackGet(provider, iface);
             CHECK(pack != NULL, "its pack loaded");
@@ -344,7 +370,7 @@ main(
 
             /* The model arrives: the node binds it, and waits for nothing. */
             ToriRS_TaskQueue_Add(runner.queue, CreateTask_ModelLoad(provider, model_id));
-            TaskRunner_Drain(&runner);
+            drain_both(&runner, &background);
             CHECK(CacheProvider_ModelHas(provider, model_id), "the model loaded");
             if( wanting >= 0 )
             {
