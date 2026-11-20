@@ -6808,7 +6808,15 @@ rs_cs2_copy_hook_str_args(
     *out_count = str_arg_count;
     if( *out_count > CS2VM_SETON_STR_ARG_MAX )
         *out_count = CS2VM_SETON_STR_ARG_MAX;
-    memcpy(out_args, str_args, sizeof(char[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN]));
+    if( *out_count < 0 )
+        *out_count = 0;
+    /* The rows below the count are the request's; the rows past it were never
+     * written by the VM (CS2VM_SETON_ZERO_HEAD) and are zeroed here, so a
+     * stored hook is the same bytes whatever was on the VM's stack -- the
+     * checkpoint compares these entries bytewise. */
+    memcpy(out_args, str_args, (size_t)*out_count * CS2VM_SETON_STR_ARG_LEN);
+    memset(out_args[*out_count], 0,
+        (size_t)(CS2VM_SETON_STR_ARG_MAX - *out_count) * CS2VM_SETON_STR_ARG_LEN);
 }
 
 /*
@@ -9987,7 +9995,12 @@ exec_widget_set_scroll_pos(
     int const requested_y = scroll_y;
     if( node && node->type == UIELEM_RS_LAYER )
     {
-        UITree_EnsureLayout(tree);
+        /* The clamp reads this layer's own box and nothing else, and a box
+         * depends only on its ancestors: resolve that chain, not the tree. A
+         * script that has just created a thousand children (bankmain_build
+         * ends on if_setscrollsize) otherwise pays for laying every one of
+         * them out here, and the settle pass lays them out again. */
+        UITree_EnsureLayoutFor(tree, rs_cs2_find_node(host, component_id));
         int const max_x = UITree_ScrollMaxX(node);
         int const max_y = UITree_ScrollMaxY(node);
         if( scroll_x < 0 )
@@ -10034,7 +10047,8 @@ exec_widget_set_scroll_size(
             int32_t const idx = rs_cs2_find_node(host, component_id);
             int scroll_x;
             int scroll_y;
-            UITree_EnsureLayout(tree);
+            /* The layer's own box only; see exec_widget_set_scroll_pos. */
+            UITree_EnsureLayoutFor(tree, idx);
             UITree_ScrollGetClamped(node, &scroll_x, &scroll_y);
             (void)UITree_SetScrollPosAt(tree, idx, scroll_x, scroll_y);
         }

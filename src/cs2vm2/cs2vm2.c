@@ -4878,6 +4878,19 @@ CS2VM2_Op_IF_SetHide(
     return CS2VM_EXECNO_OK;
 }
 
+/*
+ * Zero a handler registration's fields up to, not including, its string rows.
+ *
+ * The rows are 16 x 256 bytes, and a registration that carries no string (most
+ * of them: the bank arms two per slot, 8,400 an open) used to zero all 4 KB of
+ * them to hand the host a count of 0. A row below str_arg_count is written
+ * whole by the strncpy that fills it; a row at or past the count is not
+ * written and must not be read. The host reads rows below the count only
+ * (rs_cs2_copy_hook_str_args, exec_set_on_cc_event, exec_set_on_if_event).
+ */
+#define CS2VM_SETON_ZERO_HEAD(member) \
+    memset(&(member), 0, (size_t)((char*)(member).str_args - (char*)&(member)))
+
 /**
  * Set event handler by widget UID (IF_SETON* opcodes)
  *
@@ -5001,7 +5014,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
     request.kind = kind;
 #define CS2VM_IF_SETON_CASE(name)                                      \
     case CS2VM_HOST_REQUEST_##name:                                    \
-        memset(&request.u.name, 0, sizeof(request.u.name));             \
+        CS2VM_SETON_ZERO_HEAD(request.u.name);                          \
         request.u.name.component_id = widget_uid;                      \
         request.u.name.script_id = script_id;                          \
         request.u.name.signature = signature;                          \
@@ -5192,7 +5205,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
     request.kind = kind;
 #define CS2VM_CC_SETON_CASE(name)                                      \
     case CS2VM_HOST_REQUEST_##name:                                    \
-        memset(&request.u.name, 0, sizeof(request.u.name));             \
+        CS2VM_SETON_ZERO_HEAD(request.u.name);                          \
         request.u.name.component_id = component_id;                    \
         request.u.name.script_id = script_id;                          \
         request.u.name.signature = signature;                          \
@@ -5809,7 +5822,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
 
     struct CS2VM_HostRequest request;
     request.kind = CS2VM_HOST_REQUEST_IF_SETONINVTRANSMIT;
-    memset(&request.u.IF_SETONINVTRANSMIT, 0, sizeof(request.u.IF_SETONINVTRANSMIT));
+    CS2VM_SETON_ZERO_HEAD(request.u.IF_SETONINVTRANSMIT);
     request.u.IF_SETONINVTRANSMIT.component_id = widget_uid;
     request.u.IF_SETONINVTRANSMIT.script_id = script_id;
     request.u.IF_SETONINVTRANSMIT.signature = signature;
