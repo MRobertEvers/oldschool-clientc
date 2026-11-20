@@ -30,9 +30,12 @@
 #include "test_harness.h"
 
 #include <assert.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 int g_failures;
 
@@ -349,6 +352,122 @@ test_a_backlog_is_not_silence(void)
     free(net);
 }
 
+/*
+ * The packet pump's settle of the parallel queue is bounded.
+ *
+ * While the main queue's head is parked on the parallel queue's work, the
+ * packet pump (app_pump_net_packets) steps the parallel queue and tries the
+ * head again for as long as a pass ran anything. A parallel task that never
+ * converges -- it yields without ever parking -- kept that loop going for
+ * ever, inside one call, where the parallel pump's own runaway backstop
+ * (app_pump_backstop, APP_ASYNC_STEP_LIMIT passes) never sees it: the client
+ * hung instead of aborting. "Tasks never hang - that is just a game crash."
+ */
+struct Spinner
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+};
+
+static int
+Spinner_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
+{
+    struct Spinner* self = (struct Spinner*)base;
+    (void)io;
+    PT_BEGIN(&self->pt);
+    for( ;; )
+        PT_YIELD(&self->pt);
+    PT_END(&self->pt);
+}
+
+static void
+spinner_free(struct ToriRS_Task* task)
+{
+    free(task);
+}
+
+static struct ToriRS_TaskVTable k_spinner_vtable = { .run = Spinner_Run, .free = spinner_free };
+
+struct HeldHead
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct ToriRS_Trigger* trigger;
+};
+
+static int
+HeldHead_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
+{
+    struct HeldHead* self = (struct HeldHead*)base;
+    (void)io;
+    PT_BEGIN(&self->pt);
+    TASK_AWAIT_TRIGGER(&self->task, &self->pt, TORIRS_TASK_WAIT_TRIGGER, self->trigger);
+    PT_END(&self->pt);
+}
+
+static struct ToriRS_TaskVTable k_held_head_vtable = { .run = HeldHead_Run, .free = spinner_free };
+
+static void
+pump_over_a_spinner(void)
+{
+    static struct ToriRS_Trigger gate;
+    static struct ToriRS_TriggerOwner outside;
+    struct App* app = make_app(NULL);
+    struct PlatformX_IO* px = PlatformX_IO_New();
+    struct HeldHead* head = calloc(1, sizeof(*head));
+    struct Spinner* spinner = calloc(1, sizeof(*spinner));
+
+    assert(head);
+    assert(spinner);
+    app->phase.app_state = APP_STATE_READY;
+    app->packet_runner.queue = ToriRS_TaskQueue_New();
+    app->packet_runner.io = ToriRS_IOBatch_New();
+    app->packet_runner.px = px;
+    app->packet_runner.role = TASK_RUNNER_ROLE_MAIN;
+    app->frame_runner.queue = ToriRS_TaskQueue_New();
+    app->frame_runner.io = ToriRS_IOBatch_New();
+    app->frame_runner.px = px;
+    app->frame_runner.parallel = 1;
+    app->frame_runner.role = TASK_RUNNER_ROLE_PARALLEL;
+    ToriRS_Trigger_Init(&gate, "what the head waits on");
+    ToriRS_TriggerOwner_Init(&outside, TORIRS_OWNER_EXTERNAL, "the outside");
+    ToriRS_Trigger_Prime(&gate, &outside);
+    head->task.vtable = &k_held_head_vtable;
+    strcpy(head->task.name, "HeldHead");
+    head->trigger = &gate;
+    PT_INIT(&head->pt);
+    TaskRunner_AddRenderBlockingSerialTask(&app->packet_runner, &head->task);
+    spinner->task.vtable = &k_spinner_vtable;
+    strcpy(spinner->task.name, "Spinner");
+    PT_INIT(&spinner->pt);
+    ToriRS_TaskQueue_Add(app->frame_runner.queue, &spinner->task);
+    /* Killed by the alarm if it hangs: that is the failure. */
+    alarm(20);
+    (void)app_pump_net_packets(app);
+    _exit(0);
+}
+
+static void
+test_a_parallel_task_that_never_converges_aborts_the_packet_pump(void)
+{
+    pid_t pid;
+    int status = 0;
+
+    printf("TEST: a parallel task that never converges under a parked packet aborts, not hangs\n");
+    fflush(stdout);
+    fflush(stderr);
+    pid = fork();
+    assert(pid >= 0);
+    if( pid == 0 )
+        pump_over_a_spinner();
+    (void)waitpid(pid, &status, 0);
+    if( WIFSIGNALED(status) && WTERMSIG(status) == SIGALRM )
+        printf("  the packet pump was still spinning 20 s later\n");
+    TEST_ASSERT(
+        WIFSIGNALED(status) && WTERMSIG(status) == SIGABRT,
+        "the packet pump's settle of the parallel queue hit a runaway backstop");
+}
+
 int
 main(void)
 {
@@ -362,6 +481,7 @@ main(void)
     test_a_lost_connection_keeps_the_resumable_session();
     test_no_session_means_no_wait();
     test_a_backlog_is_not_silence();
+    test_a_parallel_task_that_never_converges_aborts_the_packet_pump();
 
     if( g_failures )
     {
