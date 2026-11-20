@@ -2294,11 +2294,16 @@ main(void)
 
         /* ── ignoring somebody hides you from them ── */
         peers[0].saw_friend_count = 0;
+        peers[1].saw_ignorelist_count = 0;
         peer_social_name37(&peers[1], PKTOUT_NAME_IGNORELIST_ADD, "alice");
         for( int round = 0; round < 6; round++ )
             pump(peers, 2, embed, 1, 64);
 
         check(ToriRSServer_FriendsIsIgnored(bob37, alice37), "IGNORELIST_ADD reached the service");
+        /* J5: the client only asks (rev-239 class58.method1218), so the
+         * server answers with the added entry, as it answers a friend add. */
+        check(peers[1].saw_ignorelist_count == 1 && peers[1].saw_ignorelist_len == 1,
+              "and bob is answered with the one added entry");
         check(peers[0].saw_friend_count > 0 && peers[0].saw_friend_name37 == bob37 &&
                   peers[0].saw_friend_world == 0,
               "and bob ignoring alice makes him read offline in her panel");

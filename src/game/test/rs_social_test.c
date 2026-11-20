@@ -97,8 +97,14 @@ test_store(void)
      * that is non-negative *before* it paints an empty list as though the
      * server had answered.
      */
+    /* J4: the deob's 3600 answers -2 while the friend server status is 0,
+     * -1 while it is 1, the count at 2 (Statics.method7997); script 125
+     * tells -2 (`<= -2`) and -1 apart, though both draw "Loading". */
     social.server_status = RS_SOCIAL_SERVER_LOADING;
-    CHECK(RS_Social_FriendCount(&social) < 0, "a friend list that has not loaded reads as negative");
+    CHECK(RS_Social_FriendCount(&social) == -2, "a friend list at status 0 reads -2, got %d",
+        RS_Social_FriendCount(&social));
+    social.server_status = RS_SOCIAL_SERVER_CONNECTING;
+    CHECK(RS_Social_FriendCount(&social) == -1, "at status 1 -1, got %d", RS_Social_FriendCount(&social));
     social.server_status = RS_SOCIAL_SERVER_CONNECTED;
     CHECK(RS_Social_FriendCount(&social) == 0, "and as its real count once it has");
 
@@ -140,13 +146,21 @@ test_store(void)
 
     CHECK(RS_Social_DelFriend(&social, "nobody") == 0, "deleting a stranger changes nothing");
 
-    /* The ignore list is a separate list and must never answer negative —
-     * script 129 reads `< 0` as "loading" and 681 refuses on it. */
-    CHECK(RS_Social_IgnoreCount(&social) == 0, "the ignore list starts empty and non-negative");
+    /* J4: the ignore count is -1 until the friend server has loaded (deob
+     * 3621: method1217, status 2, or -1). This test used to pin "never
+     * negative", which is what let script 681 add an ignore and script 129
+     * draw an empty list before the server had answered. */
+    social.server_status = RS_SOCIAL_SERVER_LOADING;
+    CHECK(RS_Social_IgnoreCount(&social) == -1, "the ignore count is -1 while loading, got %d",
+        RS_Social_IgnoreCount(&social));
+    social.server_status = RS_SOCIAL_SERVER_CONNECTING;
+    CHECK(RS_Social_IgnoreCount(&social) == -1, "and at status 1");
+    social.server_status = RS_SOCIAL_SERVER_CONNECTED;
+    CHECK(RS_Social_IgnoreCount(&social) == 0, "the ignore list starts empty once loaded");
     CHECK(RS_Social_AddIgnore(&social, "eve") == 1, "eve can be ignored");
     CHECK(RS_Social_IsIgnored(&social, "Eve"), "and is found under any spelling");
     CHECK(!RS_Social_IsFriend(&social, "eve"), "without joining the friend list");
-    CHECK(RS_Social_IgnoreCount(&social) >= 0, "the ignore count is never negative");
+    CHECK(RS_Social_IgnoreCount(&social) == 1, "and counts one");
 }
 
 /* ==========================================================================
@@ -649,8 +663,14 @@ test_host_ops(void)
     social.server_status = RS_SOCIAL_SERVER_LOADING;
     call_social(t, CS2_OP_FRIEND_COUNT, 0, NULL);
     CS2VM2_PopInt(t, &iv);
-    CHECK(iv < 0, "and answers negative while the friend server is still loading, got %d", iv);
+    CHECK(iv == -2, "and answers -2 while the friend server is still loading, got %d", iv);
+    call_social(t, CS2_OP_IGNORE_COUNT, 0, NULL);
+    CS2VM2_PopInt(t, &iv);
+    CHECK(iv == -1, "ignore_count answers -1 then (deob 3621), got %d", iv);
     social.server_status = RS_SOCIAL_SERVER_CONNECTED;
+    call_social(t, CS2_OP_IGNORE_COUNT, 0, NULL);
+    CS2VM2_PopInt(t, &iv);
+    CHECK(iv == 0, "and the count once loaded, got %d", iv);
 
     /*
      * friend_getname pushes TWO strings — the display name and the player's
@@ -691,30 +711,91 @@ test_host_ops(void)
     CHECK(iv == 7, "friend_getworld answers the stored world, got %d", iv);
 
     /*
-     * The mutators do BOTH halves — the local store and the outbound packet.
-     * Not redundant: the server answers a delete or an ignore-add with
-     * nothing, so a client that only sent would show a deleted friend forever.
-     * Drop either half and one of the two checks below goes red.
+     * J5: an add only ASKS. The rev-239 client's 3605 and 3607 (class58
+     * .method1188 / method1218) send FRIENDLIST_ADD / IGNORELIST_ADD and
+     * change nothing locally: the row appears when the server's
+     * UPDATE_FRIENDLIST / UPDATE_IGNORELIST does (index 236 [24673]: the add,
+     * the answer at [24675]). A script that reads the list straight after
+     * asking sees it unchanged. Deletes are local and sent (method1233,
+     * method1171). This block used to pin a local add.
      */
     {
         struct RS_CS2SocialSend send;
         char name[] = "carol";
+        int lines = RS_Chat_TypeCount(&chat, 30);
 
         host.friend_transmit_dirty = 0;
         call_social(t, CS2_OP_FRIEND_ADD, 0, name);
-        CHECK(RS_Social_IsFriend(&social, "carol"), "friend_add writes the local store");
-        CHECK(
-            host.friend_transmit_dirty != 0,
-            "and flags the repaint, without which the panel never redraws");
-        CHECK(RS_CS2Host_TakeSocialSend(&host, &send), "and queues a packet for the server");
+        CHECK(!RS_Social_IsFriend(&social, "carol"), "friend_add does not write the local store");
+        call_social(t, CS2_OP_FRIEND_COUNT, 0, NULL);
+        CS2VM2_PopInt(t, &iv);
+        CHECK(iv == 1, "so friend_count straight after still reads 1, got %d", iv);
+        CHECK(host.friend_transmit_dirty == 0, "nor flags a repaint");
+        CHECK(RS_CS2Host_TakeSocialSend(&host, &send), "it queues a packet for the server");
         CHECK(
             send.kind == RS_CS2_SOCIAL_SEND_FRIEND_ADD && strcmp(send.name, "carol") == 0,
-            "naming the player it added, got kind=%d \"%s\"",
+            "naming the player asked for, got kind=%d \"%s\"",
             send.kind,
             send.name);
 
+        call_social(t, CS2_OP_IGNORE_ADD, 0, name);
+        CHECK(!RS_Social_IsIgnored(&social, "carol"), "ignore_add does not write the local store either");
+        CHECK(RS_CS2Host_TakeSocialSend(&host, &send) && send.kind == RS_CS2_SOCIAL_SEND_IGNORE_ADD,
+            "and queues IGNORELIST_ADD");
+        CHECK(RS_Chat_TypeCount(&chat, 30) == lines, "a request that is sent prints nothing");
+
+        /* The client's own refusals, each a type-30 line and no packet. */
+        {
+            char bob[] = "Bob";
+            char me[] = "my name";
+            struct RS_ChatNode const* line;
+
+            call_social(t, CS2_OP_FRIEND_ADD, 0, bob);
+            line = RS_Chat_NodeByTypeAndLine(&chat, 30, 0);
+            CHECK(!RS_CS2Host_TakeSocialSend(&host, &send), "a friend already listed is not sent");
+            CHECK(line && strcmp(line->text, "Bob is already on your friend list") == 0,
+                "and says so, got \"%s\"", line ? line->text : "(none)");
+            call_social(t, CS2_OP_IGNORE_ADD, 0, bob);
+            line = RS_Chat_NodeByTypeAndLine(&chat, 30, 0);
+            CHECK(!RS_CS2Host_TakeSocialSend(&host, &send), "an ignore of a friend is not sent");
+            CHECK(line && strcmp(line->text, "Please remove Bob from your friend list first") == 0,
+                "and says so, got \"%s\"", line ? line->text : "(none)");
+
+            snprintf(host.local_player_name, sizeof(host.local_player_name), "%s", "My\xa0" "Name");
+            call_social(t, CS2_OP_FRIEND_ADD, 0, me);
+            line = RS_Chat_NodeByTypeAndLine(&chat, 30, 0);
+            CHECK(!RS_CS2Host_TakeSocialSend(&host, &send), "the local player is not sent");
+            CHECK(line && strcmp(line->text, "You can't add yourself to your own friend list") == 0,
+                "got \"%s\"", line ? line->text : "(none)");
+            call_social(t, CS2_OP_IGNORE_ADD, 0, me);
+            line = RS_Chat_NodeByTypeAndLine(&chat, 30, 0);
+            CHECK(!RS_CS2Host_TakeSocialSend(&host, &send), "nor as an ignore");
+            CHECK(line && strcmp(line->text, "You can't add yourself to your own ignore list") == 0,
+                "got \"%s\"", line ? line->text : "(none)");
+            host.local_player_name[0] = '\0';
+
+            RS_Social_AddIgnore(&social, "eve");
+            {
+                char eve[] = "Eve";
+
+                call_social(t, CS2_OP_FRIEND_ADD, 0, eve);
+                line = RS_Chat_NodeByTypeAndLine(&chat, 30, 0);
+                CHECK(!RS_CS2Host_TakeSocialSend(&host, &send), "an ignored player is not befriended");
+                CHECK(line && strcmp(line->text, "Please remove Eve from your ignore list first") == 0,
+                    "got \"%s\"", line ? line->text : "(none)");
+                call_social(t, CS2_OP_IGNORE_ADD, 0, eve);
+                line = RS_Chat_NodeByTypeAndLine(&chat, 30, 0);
+                CHECK(!RS_CS2Host_TakeSocialSend(&host, &send), "nor ignored twice");
+                CHECK(line && strcmp(line->text, "Eve is already on your ignore list") == 0,
+                    "got \"%s\"", line ? line->text : "(none)");
+            }
+            RS_Social_DelIgnore(&social, "eve");
+        }
+
+        /* Deletes stay local and are sent. */
+        RS_Social_AddFriend(&social, "carol", 0);
         call_social(t, CS2_OP_FRIEND_DEL, 0, name);
-        CHECK(!RS_Social_IsFriend(&social, "carol"), "friend_del drops her locally too");
+        CHECK(!RS_Social_IsFriend(&social, "carol"), "friend_del drops her locally");
         CHECK(RS_CS2Host_TakeSocialSend(&host, &send), "and queues the delete");
         CHECK(send.kind == RS_CS2_SOCIAL_SEND_FRIEND_DEL, "as a delete, got kind=%d", send.kind);
         CHECK(!RS_CS2Host_TakeSocialSend(&host, &send), "the queue drains empty");

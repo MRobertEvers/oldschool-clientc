@@ -304,17 +304,24 @@ bool
 RS_ServerState_PublicChatShown(
     struct RS_ServerState const* state,
     char const* sender,
-    bool ignorable)
+    bool ignorable,
+    bool hidden)
 {
     assert(state);
     assert(state->social);
     /* class95.method3131: a speaker with no name yet (field531) says
      * nothing; an ignorable crown's wearer on the ignore list is silent;
-     * and nobody is heard while the local player is on Tutorial Island
-     * (client.field765). */
+     * a hidden speaker (class60.field551) is silent; and nobody is heard
+     * while the local player is on Tutorial Island (client.field765). */
     if( !sender )
         return false;
     if( ignorable && RS_Social_IsIgnored(state->social, sender) )
+        return false;
+    /* class60.method1293 clears the flag as it reads it when the applet's
+     * param 15 is 0 (field903; live jav_configs send 0, and this client has
+     * no other value) and the login said staffModLevel >= 2 (field892): a
+     * moderator hears a hidden player. */
+    if( hidden && state->staff_mod_level < 2 )
         return false;
     return !state_local_player_in_tutorial_area(state);
 }
@@ -995,7 +1002,8 @@ state_friendlist_loaded(
     struct PktFriendListLoaded const* p)
 {
     /* This is what ends the panel's "Loading friends list" state:
-     * RS_Social_FriendCount answers -1 until the status reads 2. */
+     * RS_Social_FriendCount and RS_Social_IgnoreCount answer negative until
+     * the status reads 2. */
     state->social->server_status = p->status;
     return RS_SERVER_STATE_APPLIED;
 }

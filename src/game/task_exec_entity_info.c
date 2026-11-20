@@ -221,19 +221,21 @@ host_npc_origin(
     *out_level = App_WevDeckLevel(h->app, view);
 }
 
-/* The reference's rule for a public line (the ignore list, Tutorial Island),
- * against this App's own store and local player. */
+/* The reference's rule for a public line (the ignore list, Tutorial Island,
+ * the speaker's hidden flag), against this App's own store, login and local
+ * player. */
 static bool
 host_public_chat_shown(
     void* ctx,
     char const* sender,
-    bool ignorable)
+    bool ignorable,
+    bool hidden)
 {
     struct EntityInfoHost const* h = ctx;
     struct RS_ServerState state;
 
     App_ServerStateBind(h->app, &state);
-    return RS_ServerState_PublicChatShown(&state, sender, ignorable);
+    return RS_ServerState_PublicChatShown(&state, sender, ignorable, hidden);
 }
 
 static int

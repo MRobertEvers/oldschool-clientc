@@ -104,6 +104,9 @@ struct RS_ServerState
     /** The revision's number: SET_INTERACTION_MODE's root id moved from -1
      *  to 0 at 237. -1 when no revision is bound. */
     int rev_number;
+    /** The login response's staffModLevel (deob client.field892), read at
+     *  the bind: a moderator (2+) hears a hidden player's public chat. */
+    int staff_mod_level;
 
     /* ---- the world: its views, its entities, the npc configs ---- */
     struct WorldviewRegistry* worldviews;
@@ -185,14 +188,17 @@ RS_ServerState_Rs15ToRgb(int colour);
 
 /** Is a public line (PLAYER_INFO's chat block) from player `sender` (NULL:
  *  the player has no name yet) shown, overhead and chatbox both? Not when
- *  the crown is `ignorable` and the sender is on the ignore list, nor while
- *  the local player is on Tutorial Island (deob class95.method3131). The
- *  real client's answer to RS_EntityApplyHost.public_chat_shown. */
+ *  the crown is `ignorable` and the sender is on the ignore list, nor when
+ *  the sender's appearance is `hidden` and the login's staffModLevel is
+ *  under 2, nor while the local player is on Tutorial Island (deob
+ *  class95.method3131, class60.field551). The real client's answer to
+ *  RS_EntityApplyHost.public_chat_shown. */
 bool
 RS_ServerState_PublicChatShown(
     struct RS_ServerState const* state,
     char const* sender,
-    bool ignorable);
+    bool ignorable,
+    bool hidden);
 
 /** File every friend login/logout notice due at client clock `clock` into
  *  `chat` as a type-5 line (deob class58.method1165). The headless client

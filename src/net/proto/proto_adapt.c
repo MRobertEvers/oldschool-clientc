@@ -315,7 +315,7 @@ adapt_update_ignorelist(MsgUpdateIgnoreList const* m, struct RevPacket* out)
     for( int i = 0; i < m->count; i++ )
     {
         MsgUpdateIgnoreListEntry const* e = &m->entries[i];
-        int const removed = (e->flags & MSG_UPDATE_IGNORELIST_REMOVED) != 0;
+        int const removed = e->flags == MSG_UPDATE_IGNORELIST_REMOVED;
 
         if( !e->name || !e->name[0] || strlen(e->name) >= sizeof(p->entries[0].name) )
             return 0;
@@ -334,7 +334,7 @@ adapt_update_ignorelist(MsgUpdateIgnoreList const* m, struct RevPacket* out)
         memset(to, 0, sizeof(*to));
         snprintf(to->name, sizeof(to->name), "%s", e->name);
         /* The codec's test, so what is read and what it means agree. */
-        to->removed = (e->flags & MSG_UPDATE_IGNORELIST_REMOVED) != 0;
+        to->removed = e->flags == MSG_UPDATE_IGNORELIST_REMOVED;
         if( !to->removed )
         {
             to->match_previous = (e->flags & 0x1) != 0;

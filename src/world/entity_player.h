@@ -45,6 +45,11 @@ struct WorldEntity_Player
     int combat_level;
     int gender;
     int headicon;
+    /** The appearance block's "hidden" byte, 1 as sent (rev-239 class60
+     *  .field551, staff only): as the server said it, whoever looks. What a
+     *  client hides for it is the client's rule (the public-chat answer,
+     *  RS_ServerState_PublicChatShown). 0 until an appearance says so. */
+    int hidden;
     /** Team-cape id folded out of the worn equipment when the appearance was
      *  applied (reference ClientPlayer.team, ObjType.team opcode 115). 0 = no
      *  team. Read only by the "Attack" minimenu row. */

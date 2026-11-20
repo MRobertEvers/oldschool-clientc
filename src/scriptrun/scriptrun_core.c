@@ -518,17 +518,20 @@ core_host_home_view(
  * own stream: SET_NPC_UPDATE_ORIGIN as sent -- deck-local tiles -- on the
  * deck's plane (the rider's own when they ride it; decks are authored at 1). */
 /* The headless client records every public line the server sent: a test
- * reads what was said, so nothing here is hidden by the ignore list or the
- * tutorial gate the real client applies (RS_ServerState_PublicChatShown). */
+ * reads what was said, so nothing here is hidden by the ignore list, the
+ * tutorial gate or a speaker's hidden flag, all of which the real client
+ * applies (RS_ServerState_PublicChatShown). */
 static bool
 core_host_public_chat_shown(
     void* ctx,
     char const* sender,
-    bool ignorable)
+    bool ignorable,
+    bool hidden)
 {
     (void)ctx;
     (void)sender;
     (void)ignorable;
+    (void)hidden;
     return true;
 }
 

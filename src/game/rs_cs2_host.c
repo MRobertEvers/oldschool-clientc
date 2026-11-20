@@ -9133,6 +9133,79 @@ exec_hiscores(
     }
 }
 
+/* A line the client prints itself (deob Statics.method6152: type 30, no
+ * name). */
+static void
+social_refuse(
+    struct RS_CS2Host* host,
+    char const* text)
+{
+    RS_CS2Host_ChatAdd(host, 30, "", NULL, text);
+}
+
+/* FRIEND_ADD as the rev-239 client's 3605 (class58.method1188): refused with
+ * a line when the list is full, the name is the local player's, already a
+ * friend, or ignored; otherwise FRIENDLIST_ADD is sent and nothing changes
+ * here until the server's UPDATE_FRIENDLIST names the friend. The reference
+ * also refuses a free account past 200 (method1180, the login's member
+ * byte); this client does not keep that byte, so only the 400 of a full
+ * list refuses. */
+static void
+social_friend_add(
+    struct RS_CS2Host* host,
+    char const* name)
+{
+    struct RS_Social const* social = host->social;
+    char text[RS_SOCIAL_NAME_LEN + 64];
+
+    assert(social);
+    if( social->friend_count >= RS_SOCIAL_FRIEND_MAX )
+        social_refuse(host, "Your friend list is full. Max of 200 for free users, and 400 for members");
+    else if( host->local_player_name[0] && RS_Social_SameName(host->local_player_name, name) )
+        social_refuse(host, "You can't add yourself to your own friend list");
+    else if( RS_Social_IsFriend(social, name) )
+    {
+        snprintf(text, sizeof(text), "%s is already on your friend list", name);
+        social_refuse(host, text);
+    }
+    else if( RS_Social_IsIgnored(social, name) )
+    {
+        snprintf(text, sizeof(text), "Please remove %s from your ignore list first", name);
+        social_refuse(host, text);
+    }
+    else
+        social_queue(host, RS_CS2_SOCIAL_SEND_FRIEND_ADD, name);
+}
+
+/* IGNORE_ADD as 3607 (class58.method1218): the same shape over the ignore
+ * list (a free account's 100 is method1182's, not modelled, as above). */
+static void
+social_ignore_add(
+    struct RS_CS2Host* host,
+    char const* name)
+{
+    struct RS_Social const* social = host->social;
+    char text[RS_SOCIAL_NAME_LEN + 64];
+
+    assert(social);
+    if( social->ignore_count >= RS_SOCIAL_IGNORE_MAX )
+        social_refuse(host, "Your ignore list is full. Max of 100 for free users, and 400 for members");
+    else if( host->local_player_name[0] && RS_Social_SameName(host->local_player_name, name) )
+        social_refuse(host, "You can't add yourself to your own ignore list");
+    else if( RS_Social_IsIgnored(social, name) )
+    {
+        snprintf(text, sizeof(text), "%s is already on your ignore list", name);
+        social_refuse(host, text);
+    }
+    else if( RS_Social_IsFriend(social, name) )
+    {
+        snprintf(text, sizeof(text), "Please remove %s from your friend list first", name);
+        social_refuse(host, text);
+    }
+    else
+        social_queue(host, RS_CS2_SOCIAL_SEND_IGNORE_ADD, name);
+}
+
 static int
 exec_social(
     struct RS_CS2Host* host,
@@ -9184,14 +9257,11 @@ exec_social(
     case CS2_OP_IGNORE_TEST:
         return CS2VM2_PushInt(vm, RS_Social_IsIgnored(social, RS_Chat_Uncrowned(request_name)) ? 1 : 0);
 
+    /* An add only asks: the row appears when the server's update does. */
     case CS2_OP_FRIEND_ADD:
         if( !request_name || !request_name[0] )
             return CS2VM_EXECNO_OK;
-        /* World 0 until the server answers with the real one, exactly as the
-         * reference does — the row appears immediately, reading "Offline". */
-        if( social && RS_Social_AddFriend(social, request_name, 0) )
-            RS_CS2Host_NotifyFriendChanged(host);
-        social_queue(host, RS_CS2_SOCIAL_SEND_FRIEND_ADD, request_name);
+        social_friend_add(host, request_name);
         return CS2VM_EXECNO_OK;
     case CS2_OP_FRIEND_DEL:
         if( !request_name || !request_name[0] )
@@ -9203,9 +9273,7 @@ exec_social(
     case CS2_OP_IGNORE_ADD:
         if( !request_name || !request_name[0] )
             return CS2VM_EXECNO_OK;
-        if( social && RS_Social_AddIgnore(social, request_name) )
-            RS_CS2Host_NotifyFriendChanged(host);
-        social_queue(host, RS_CS2_SOCIAL_SEND_IGNORE_ADD, request_name);
+        social_ignore_add(host, request_name);
         return CS2VM_EXECNO_OK;
     case CS2_OP_IGNORE_DEL:
         if( !request_name || !request_name[0] )

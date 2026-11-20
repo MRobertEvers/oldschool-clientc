@@ -142,10 +142,11 @@ struct RS_EntityApplyHost
     void (*npc_origin)(void* ctx, int view, int* out_x, int* out_z, int* out_level);
     /** Is a public line (the chat block) from player `sender` (NULL: no name
      *  yet) shown, chatbox and overhead? `ignorable`: the speaker's crown
-     *  lets the ignore list silence them. The real client answers as the
-     *  reference (RS_ServerState_PublicChatShown); the headless client
-     *  records what the server sent and answers true. */
-    bool (*public_chat_shown)(void* ctx, char const* sender, bool ignorable);
+     *  lets the ignore list silence them; `hidden`: the speaker's appearance
+     *  carries the hidden flag (WorldEntity_Player.hidden). The real client
+     *  answers as the reference (RS_ServerState_PublicChatShown); the
+     *  headless client records what the server sent and answers true. */
+    bool (*public_chat_shown)(void* ctx, char const* sender, bool ignorable, bool hidden);
 
     /* ---- makers ---- */
 
